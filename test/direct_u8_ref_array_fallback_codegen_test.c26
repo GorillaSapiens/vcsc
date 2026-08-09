@@ -1,7 +1,7 @@
 // vcsc-cc1 -I .
-// expectasmordered: lda fill$values + 0,y
+// expectasmordered: lda  fill$values
 // expectasmordered: sta ptr0
-// expectasmordered: lda fill$values + 0,y
+// expectasmordered: lda  fill$values + 1
 // expectasmordered: sta ptr0+1
 // expectasmordered: sta (ptr0),y
 // forbidasm: sta fill$values,y

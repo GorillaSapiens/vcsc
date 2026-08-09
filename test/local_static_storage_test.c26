@@ -4,7 +4,7 @@
 // expectasm: .segment "ZEROPAGE.zeropage.__vcsc_activation$demo"
 // expectasm: demo$q:
 // expectasm: .res 3
-// expectasm: sta demo$q,y
+// expectasm: sta  demo$q
 // expectasm: demo$u:
 // expectasm: .res 6
 

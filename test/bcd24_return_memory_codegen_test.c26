@@ -6,7 +6,7 @@
 // expectasmordered: lda #$56
 // expectasmordered: lda #$34
 // expectasmordered: lda #$12
-// expectasmordered: sta score$__return,y
+// expectasmordered: sta  score$__return
 // expectasmordered: @fini:
 // expectasmordered: rts
 // forbidasm: ldx score$__return+1

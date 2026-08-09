@@ -6,10 +6,10 @@
 // expectasm: .export __init_
 // expectasm: .proc __init_
 // expectasm: jsr twice
-// expectasm: sta g_runtime,y
+// expectasm: sta  g_runtime
 // expectasm: demo$s:
 // expectasm: .res 2
-// expectasm: sta demo$s,y
+// expectasm: sta  demo$s
 
 type void { $size:0 };
 type uint8_t { $size:1 $integer:unsigned };

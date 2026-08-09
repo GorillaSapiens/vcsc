@@ -1,8 +1,7 @@
 // vcsc-cc1 -I .
-// expectasmordered: lda main$ppp + 0,y
+// expectasmordered: lda  main$ppp
 // expectasmordered: sta ptr0
-// expectasmordered: iny
-// expectasmordered: lda main$ppp + 0,y
+// expectasmordered: lda  main$ppp + 1
 // expectasmordered: sta ptr0+1
 // expectasmordered: ldy #0
 // expectasmordered: lda (ptr0),y

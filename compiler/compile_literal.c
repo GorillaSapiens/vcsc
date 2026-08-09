@@ -253,12 +253,10 @@ void emit_store_label_address_to_scratch(int dst_offset, int dst_size, const cha
       return;
    }
    emit(&es_code, "    lda #<%s\n", label);
-   emit(&es_code, "    ldy #%d\n", dst_offset);
-   emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+   emit_store_a_to_expr_address(compiler_scratch_active_symbol(), dst_offset);
    if (dst_size > 1) {
       emit(&es_code, "    lda #>%s\n", label);
-      emit(&es_code, "    ldy #%d\n", dst_offset + 1);
-      emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+      emit_store_a_to_expr_address(compiler_scratch_active_symbol(), dst_offset + 1);
    }
    if (dst_size > 2) {
       emit_fill_scratch_bytes(dst_offset, 2, dst_size - 2, 0);
@@ -285,8 +283,7 @@ bool emit_string_initializer_to_scratch(const ASTNode *type, const ASTNode *decl
       for (int i = 0; i < copy_len; i++) {
          unsigned char b = (unsigned char) (i < (int) strlen(text) ? text[i] : 0);
          emit(&es_code, "    lda #$%02x\n", (unsigned int) b);
-         emit(&es_code, "    ldy #%d\n", base_offset + i);
-         emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+         emit_store_a_to_expr_address(compiler_scratch_active_symbol(), base_offset + i);
       }
       return true;
    }

@@ -2,7 +2,7 @@
 // expectasmordered: lda #<{bytes + 0}
 // expectasmordered: sta ptr0
 // expectasmordered: lda ptr0
-// expectasmordered: sta __vcsc_scratch_
+// expectasmordered: sta  __vcsc_scratch_
 
 include "machine_6502.c26"
 

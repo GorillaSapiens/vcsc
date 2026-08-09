@@ -1,17 +1,18 @@
 // vcsc-cc1 -I . -X peephole
-// expectasmordered: lda #<{f$a + 0}
-// expectasmordered: sta ptr0
-// expectasmordered: lda (ptr0),y
-// expectasmordered: sta f$x,y
-// expectasmordered: lda f$x,y
-// expectasmordered: sta f$__return,y
+// expectasmordered: lda  f$a
+// expectasmordered: sta  f$x
+// expectasmordered: lda  f$a + 1
+// expectasmordered: sta  f$x + 1
+// expectasmordered: lda  f$x
+// expectasmordered: sta  __vcsc_scratch_0
+// expectasmordered: sta  f$__return
 // expectasmordered: @fini:
-// forbidasm: lda f$__return
-// forbidasm: ldx f$__return+1
+// forbidasm: lda #<{f$a + 0}
+// forbidasm: lda (ptr0),y
 // expectasmordered: rts
 // expecterr: 001 peephole
-// expecterr: total_saved=13
-// expecterr: dup_load=5
+// expecterr: total_saved=3
+// expecterr: dup_load=0
 // expecterr: jump_next=1
 
 include "machine_6502.c26"

@@ -2,7 +2,7 @@
 // expectasm: .export id8$value
 // expectasm: id8$value:
 // expectasm: 	.res 1
-// expectasm: sta id8$value,y
+// expectasm: sta  id8$value
 // expectasm: modeQ3Dsymbol_abs
 include "machine_6502.c26"
 

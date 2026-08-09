@@ -1,14 +1,14 @@
 // vcsc-cc1
-// expectasm: .zpimport _vcsc_ptr1
+// forbidasm: .zpimport _vcsc_ptr1
 // forbidasm: .import _zeroN
 // forbidasm: .import _zero_bytes
 // expectasm: .export __init_
 // expectasm: .proc __init_
 // expectasmordered: .proc __init_
 // expectasmordered: lda #$00
-// expectasmordered: sta (ptr1),y
+// expectasmordered: sta  __vcsc_scratch_
 // expectasmordered: jsr twice
-// expectasmordered: sta g,y
+// expectasmordered: sta  g
 
 type void { $size:0 };
 type uint8_t { $size:1 $integer:unsigned };

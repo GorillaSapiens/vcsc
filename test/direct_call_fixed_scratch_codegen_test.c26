@@ -1,9 +1,9 @@
 // vcsc-cc1 -I .
 // expectasm: __vcsc_scratch_0:
 // expectasmordered: .proc main
-// expectasmordered: sta __vcsc_scratch_0,y
-// expectasmordered: sta sink$a,y
-// expectasmordered: sta sink$b,y
+// expectasmordered: sta  __vcsc_scratch_0
+// expectasmordered: sta  sink$a
+// expectasmordered: sta  sink$b
 // expectasmordered: jsr sink
 // forbidasm: fp
 // forbidasm: jsr _pushN

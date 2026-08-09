@@ -355,8 +355,7 @@ static DirectByteOperand classify_direct_byte_operand_impl(Context *ctx, ASTNode
    }
 
    if (!out.lv.indirect && !out.lv.needs_runtime_address && !out.lv.is_static &&
-       !out.lv.is_zeropage && !out.lv.is_global && out.lv.offset >= 0 &&
-       out.lv.offset <= 255) {
+       !out.lv.is_zeropage && !out.lv.is_global && out.lv.offset >= 0) {
       out.local_scratch = true;
       return out;
    }
@@ -407,8 +406,7 @@ static bool emit_load_direct_byte_operand_impl(Context *ctx,
       return true;
    }
    if (op->local_scratch) {
-      emit(&es_code, "    ldy #%d\n", op->offset);
-      emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
+      emit_load_a_from_expr_address(compiler_scratch_active_symbol(), op->offset);
       return true;
    }
    if (!emit_prepare_lvalue_ptr(ctx, &op->lv, LVALUE_ACCESS_READ)) {
@@ -453,8 +451,7 @@ static bool emit_store_a_to_direct_byte_operand(const DirectByteOperand *op) {
       return true;
    }
    if (op->local_scratch) {
-      emit(&es_code, "    ldy #%d\n", op->offset);
-      emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+      emit_store_a_to_expr_address(compiler_scratch_active_symbol(), op->offset);
       return true;
    }
    return false;
@@ -796,6 +793,13 @@ bool compile_direct_u8_expr_to_a(Context *ctx, ASTNode *expr) {
       }
       formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
       emit_lvalue_semantic_use(ctx, &lv, "read");
+      if (declarator_array_count(lv.base_declarator) > 0 && !lv.is_ref) {
+         long long index_value;
+         if (expr_is_integer_constant_expr(idx, &index_value) && index_value >= 0) {
+            emit_load_a_from_expr_address(formatted, lv.base_offset + (int)index_value);
+            return true;
+         }
+      }
       if (declarator_pointer_depth(lv.base_declarator) > 0) {
          long long index_value;
          if (expr_is_integer_constant_expr(idx, &index_value)) {
@@ -964,6 +968,16 @@ static bool compile_direct_u8_array_assignment(Context *ctx, ASTNode *target,
    }
    formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
 
+   {
+      long long index_value;
+      if (expr_is_integer_constant_expr(index, &index_value) && index_value >= 0) {
+         if (!compile_direct_u8_expr_to_a(ctx, rhs)) return false;
+         emit_lvalue_semantic_use(ctx, &dst, "write");
+         emit_store_a_to_expr_address(formatted, dst.base_offset + (int)index_value);
+         return true;
+      }
+   }
+
    if (direct_register_x_index(ctx, index, &x_delta) && x_delta <= 1) {
       if (!compile_direct_u8_expr_to_a(ctx, rhs)) {
          return false;
@@ -1021,11 +1035,27 @@ static bool compile_direct_u8_array_constant_update(Context *ctx, ASTNode *targe
       return false;
    }
 
+   formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+   {
+      long long index_value;
+      if (expr_is_integer_constant_expr(index, &index_value) && index_value >= 0) {
+         int offset = dst.base_offset + (int)index_value;
+         emit_lvalue_semantic_use(ctx, &dst, "read");
+         emit_lvalue_semantic_use(ctx, &dst, "write");
+         emit_load_a_from_expr_address(formatted, offset);
+         if (value != 0) {
+            emit(&es_code, !strcmp(op, "+=") ? "    clc\n    adc #$%02x\n" :
+                                               "    sec\n    sbc #$%02x\n",
+                 (unsigned int) value);
+         }
+         emit_store_a_to_expr_address(formatted, offset);
+         return true;
+      }
+   }
    if (!compile_direct_u8_expr_to_a(ctx, index)) {
       return false;
    }
    emit(&es_code, "    tay\n");
-   formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
    emit_lvalue_semantic_use(ctx, &dst, "read");
    emit_lvalue_semantic_use(ctx, &dst, "write");
    if (dst.base_offset == 0)
@@ -1263,8 +1293,7 @@ static bool emit_cmp_direct_byte_operand(Context *ctx, const DirectByteOperand *
       return true;
    }
    if (op->local_scratch) {
-      emit(&es_code, "    ldy #%d\n", op->offset);
-      emit(&es_code, "    cmp %s,y\n", compiler_scratch_active_symbol());
+      emit_fixed_address_op("cmp", compiler_scratch_active_symbol(), op->offset);
       return true;
    }
    /* ptr0 must already have been prepared before loading A. */
@@ -1438,8 +1467,7 @@ static bool compile_truthy_expr_branch_false(ASTNode *expr, Context *ctx,
 
    emit(&es_code, "    lda #0\n");
    for (int i = 0; i < size; i++) {
-      emit(&es_code, "    ldy #%d\n", i);
-      emit(&es_code, "    ora %s,y\n", scratch_sym);
+      emit_fixed_address_op("ora", scratch_sym, i);
    }
    emit(&es_code, "    beq %s\n", false_label);
    compiler_scratch_release(&scratch);
@@ -1660,11 +1688,9 @@ static bool compile_direct_byte_constant_assignment(Context *ctx,
    }
 
    if (!dst->indirect && !dst->needs_runtime_address && !dst->is_static &&
-       !dst->is_zeropage && !dst->is_global && dst->offset >= 0 &&
-       dst->offset <= 255) {
+       !dst->is_zeropage && !dst->is_global && dst->offset >= 0) {
       emit(&es_code, "    lda #$%02x\n", byte_value);
-      emit(&es_code, "    ldy #%d\n", dst->offset);
-      emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+      emit_store_a_to_expr_address(compiler_scratch_active_symbol(), dst->offset);
       return true;
    }
 
@@ -2042,7 +2068,7 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
    }
 
    if (!lv.indirect && !lv.needs_runtime_address && !lv.is_static &&
-       !lv.is_zeropage && !lv.is_global && lv.offset >= 0 && lv.offset <= 255) {
+       !lv.is_zeropage && !lv.is_global && lv.offset >= 0) {
       if (!bcd) {
          char expr_buf[256];
          const char *formatted = assembler_address_expr(compiler_scratch_active_symbol(),
@@ -2054,12 +2080,11 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
                  formatted, lv.offset);
          return true;
       }
-      emit(&es_code, "    ldy #%d\n", lv.offset);
-      emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
+      emit_load_a_from_expr_address(compiler_scratch_active_symbol(), lv.offset);
       if (bcd) emit(&es_code, "    sed\n");
       emit(&es_code, increment ? "    clc\n    adc #1\n" : "    sec\n    sbc #1\n");
       if (bcd) emit(&es_code, "    cld\n");
-      emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+      emit_store_a_to_expr_address(compiler_scratch_active_symbol(), lv.offset);
       return true;
    }
 
@@ -2349,7 +2374,7 @@ static bool emit_discard_store_lvalue(Context *ctx, const LValueRef *lv) {
 
    if (!lv->indirect && !lv->needs_runtime_address &&
        !lv->is_static && !lv->is_zeropage && !lv->is_global &&
-       lv->offset >= 0 && lv->offset <= 255) {
+       lv->offset >= 0) {
       char expr_buf[256];
       const char *formatted = assembler_address_expr(compiler_scratch_active_symbol(),
                                                       expr_buf, sizeof(expr_buf));
@@ -2381,7 +2406,7 @@ static bool discard_store_lvalue_preserves_a(const LValueRef *lv) {
    if (lv->is_static || lv->is_zeropage || lv->is_global) {
       return true;
    }
-   return lv->offset >= 0 && lv->offset <= 255;
+   return lv->offset >= 0;
 }
 
 //! @brief Store the current accumulator into a one-byte lvalue without producing a source value.

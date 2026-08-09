@@ -1014,15 +1014,19 @@ bool entry_symbol_name(Context *ctx, const ContextEntry *entry, char *buf, size_
 
 //! @brief Emit copy scratch to symbol offset for compiler code-generation support diagnostics or output files.
 void emit_copy_scratch_to_symbol_offset(const char *symbol, int symbol_offset, int src_offset, int size) {
-   bool src_direct = src_offset >= 0 && src_offset + size <= 256;
+   bool src_direct = src_offset >= 0;
    if (!src_direct) {
       emit_prepare_scratch_ptr(1, src_offset);
    }
    for (int i = 0; i < size; i++) {
-      emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + i) : i);
-      emit(&es_code, "    lda %s,y\n", src_direct ? compiler_scratch_active_symbol() : "(ptr1)");
-      emit(&es_code, "    ldy #%d\n", symbol_offset + i);
-      emit(&es_code, "    sta %s,y\n", symbol);
+      if (src_direct) {
+         emit_load_a_from_expr_address(compiler_scratch_active_symbol(), src_offset + i);
+      }
+      else {
+         emit(&es_code, "    ldy #%d\n", i);
+         emit(&es_code, "    lda (ptr1),y\n");
+      }
+      emit_store_a_to_expr_address(symbol, symbol_offset + i);
    }
 }
 
@@ -1033,7 +1037,7 @@ void emit_copy_scratch_to_symbol(const char *symbol, int src_offset, int size) {
 
 //! @brief Copy staged scratch bytes to an arbitrary writable address expression.
 void emit_copy_scratch_to_address_expr(const char *write_expr, int src_offset, int size) {
-   bool src_direct = src_offset >= 0 && src_offset + size <= 256;
+   bool src_direct = src_offset >= 0;
 
    if (!write_expr || !*write_expr || size <= 0) {
       return;
@@ -1042,10 +1046,31 @@ void emit_copy_scratch_to_address_expr(const char *write_expr, int src_offset, i
       emit_prepare_scratch_ptr(1, src_offset);
    }
    for (int i = 0; i < size; i++) {
-      emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + i) : i);
-      emit(&es_code, "    lda %s,y\n",
-           src_direct ? compiler_scratch_active_symbol() : "(ptr1)");
+      if (src_direct) {
+         emit_load_a_from_expr_address(compiler_scratch_active_symbol(), src_offset + i);
+      }
+      else {
+         emit(&es_code, "    ldy #%d\n", i);
+         emit(&es_code, "    lda (ptr1),y\n");
+      }
       emit_store_a_to_expr_address(write_expr, i);
+   }
+}
+
+//! @brief Emit one fixed-address memory operation without materializing a constant index in Y.
+void emit_fixed_address_op(const char *mnemonic, const char *expr, int addend) {
+   char expr_buf[256];
+   const char *asm_expr;
+
+   if (!mnemonic || !*mnemonic || !expr || !*expr) {
+      error_unreachable("invalid fixed-address memory operation");
+   }
+   asm_expr = assembler_address_expr(expr, expr_buf, sizeof(expr_buf));
+   if (addend == 0) {
+      emit(&es_code, "    %s %s\n", mnemonic, asm_expr);
+   }
+   else {
+      emit(&es_code, "    %s %s + %d\n", mnemonic, asm_expr, addend);
    }
 }
 
@@ -1053,26 +1078,16 @@ void emit_copy_scratch_to_address_expr(const char *write_expr, int src_offset, i
 void emit_load_a_from_expr_address(const char *expr, int addend) {
    char expr_buf[256];
    const char *asm_expr = assembler_address_expr(expr, expr_buf, sizeof(expr_buf));
-
-   if (addend == 0) {
-      emit(&es_code, "    lda  %s\n", asm_expr);
-   }
-   else {
-      emit(&es_code, "    lda  %s + %d\n", asm_expr, addend);
-   }
+   if (addend == 0) emit(&es_code, "    lda  %s\n", asm_expr);
+   else emit(&es_code, "    lda  %s + %d\n", asm_expr, addend);
 }
 
 //! @brief Emit store a to expression address for compiler code-generation support diagnostics or output files.
 void emit_store_a_to_expr_address(const char *expr, int addend) {
    char expr_buf[256];
    const char *asm_expr = assembler_address_expr(expr, expr_buf, sizeof(expr_buf));
-
-   if (addend == 0) {
-      emit(&es_code, "    sta  %s\n", asm_expr);
-   }
-   else {
-      emit(&es_code, "    sta  %s + %d\n", asm_expr, addend);
-   }
+   if (addend == 0) emit(&es_code, "    sta  %s\n", asm_expr);
+   else emit(&es_code, "    sta  %s + %d\n", asm_expr, addend);
 }
 
 //! @brief Handle absolute external binding supports direct access logic for compiler code-generation support.
@@ -1080,6 +1095,24 @@ static bool absolute_ref_supports_direct_access(const LValueRef *lv) {
    return lv && lv->is_absolute_ref && !lv->is_bitfield && !lv->indirect && !lv->needs_runtime_address;
 }
 
+
+//! @brief Return the linker symbol for one fixed-address ordinary lvalue.
+bool lvalue_fixed_symbol_name(Context *ctx, const LValueRef *lv, char *buf, size_t bufsize) {
+   ContextEntry entry;
+
+   if (!lv || !lv->name || !buf || bufsize == 0 || lv->is_ref ||
+       lv->is_absolute_ref || lv->is_bitfield || lv->indirect ||
+       lv->needs_runtime_address ||
+       !(lv->is_static || lv->is_zeropage || lv->is_global)) {
+      return false;
+   }
+   entry = (ContextEntry){ .name = lv->name, .type = lv->base_type ? lv->base_type : lv->type,
+      .declarator = lv->base_declarator ? lv->base_declarator : lv->declarator,
+      .is_static = lv->is_static, .is_zeropage = lv->is_zeropage,
+      .is_global = lv->is_global, .is_ref = false, .is_absolute_ref = false,
+      .offset = lv->base_offset, .size = lv->size };
+   return entry_symbol_name(ctx, &entry, buf, bufsize);
+}
 
 //! @brief Emit copy lvalue to symbol for compiler code-generation support diagnostics or output files.
 bool emit_copy_lvalue_to_symbol(Context *ctx, const char *symbol, int symbol_offset, const LValueRef *src, int size) {
@@ -1097,10 +1130,20 @@ bool emit_copy_lvalue_to_symbol(Context *ctx, const char *symbol, int symbol_off
       }
       for (int i = 0; i < copy_size; i++) {
          emit_load_a_from_expr_address(read_expr, src->offset + i);
-         emit(&es_code, "    ldy #%d\n", symbol_offset + i);
-         emit(&es_code, "    sta %s,y\n", symbol);
+         emit_store_a_to_expr_address(symbol, symbol_offset + i);
       }
       return true;
+   }
+   {
+      char src_symbol[256];
+      if (lvalue_fixed_symbol_name(ctx, src, src_symbol, sizeof(src_symbol))) {
+         emit_lvalue_semantic_use(ctx, src, "read");
+         for (int i = 0; i < copy_size; i++) {
+            emit_load_a_from_expr_address(src_symbol, src->offset + i);
+            emit_store_a_to_expr_address(symbol, symbol_offset + i);
+         }
+         return true;
+      }
    }
    if (copy_size <= 0) {
       return true;
@@ -1111,8 +1154,7 @@ bool emit_copy_lvalue_to_symbol(Context *ctx, const char *symbol, int symbol_off
    for (int i = 0; i < copy_size; i++) {
       emit(&es_code, "    ldy #%d\n", i);
       emit(&es_code, "    lda (ptr0),y\n");
-      emit(&es_code, "    ldy #%d\n", symbol_offset + i);
-      emit(&es_code, "    sta %s,y\n", symbol);
+      emit_store_a_to_expr_address(symbol, symbol_offset + i);
    }
    return true;
 }
@@ -1176,11 +1218,18 @@ void emit_copy_ptr0_to_ptr1(int count) {
 
 //! @brief Emit fill scratch bytes for compiler code-generation support diagnostics or output files.
 void emit_fill_scratch_bytes(int dst_offset, int start, int count, unsigned char value) {
-   if (count <= 0) {
+   int offset = dst_offset + start;
+   if (count <= 0) return;
+
+   if (offset >= 0 && count <= 4) {
+      emit(&es_code, "    lda #$%02x\n", value);
+      for (int i = 0; i < count; i++) {
+         emit_store_a_to_expr_address(compiler_scratch_active_symbol(), offset + i);
+      }
       return;
    }
 
-   emit_prepare_scratch_ptr(1, dst_offset + start);
+   emit_prepare_scratch_ptr(1, offset);
    emit_runtime_fill_ptr1(count, value);
 }
 
@@ -1205,59 +1254,58 @@ void emit_copy_scratch_to_scratch_convert(int dst_offset, int dst_size, const AS
    int sign_src_mem;
 
    (void) dst_type;
-   if (dst_size <= 0 || src_size <= 0) {
-      return;
-   }
-
-   dst_direct = dst_offset >= 0 && dst_offset + dst_size <= 256;
-   src_direct = src_offset >= 0 && src_offset + src_size <= 256;
+   if (dst_size <= 0 || src_size <= 0) return;
+   dst_direct = dst_offset >= 0;
+   src_direct = src_offset >= 0;
    sign_src_mem = src_size - 1;
-   if (!src_direct) {
-      emit_prepare_scratch_ptr(0, src_offset);
-   }
-   if (!dst_direct) {
-      emit_prepare_scratch_ptr(1, dst_offset);
-   }
+   if (!src_direct) emit_prepare_scratch_ptr(0, src_offset);
+   if (!dst_direct) emit_prepare_scratch_ptr(1, dst_offset);
 
    if (dst_offset == src_offset) {
-      /* Little-endian in-place truncation needs no copy.  In-place widening
-         preserves the existing low bytes and writes only the new high bytes,
-         so no hardware-stack shuffle is required. */
-      if (dst_size <= src_size) {
-         return;
-      }
+      if (dst_size <= src_size) return;
       if (is_signed) {
-         emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + sign_src_mem) : sign_src_mem);
-         emit(&es_code, "    lda %s,y\n", src_direct ? compiler_scratch_active_symbol() : "(ptr0)");
+         if (src_direct) emit_load_a_from_expr_address(compiler_scratch_active_symbol(), src_offset + sign_src_mem);
+         else {
+            emit(&es_code, "    ldy #%d\n", sign_src_mem);
+            emit(&es_code, "    lda (ptr0),y\n");
+         }
          emit(&es_code, "    and #$80\n");
          emit_sign_fill_from_masked_a();
       }
-      else {
-         emit(&es_code, "    lda #$00\n");
-      }
+      else emit(&es_code, "    lda #$00\n");
       for (int j = src_size; j < dst_size; j++) {
-         emit(&es_code, "    ldy #%d\n", dst_direct ? (dst_offset + j) : j);
-         emit(&es_code, "    sta %s,y\n", dst_direct ? compiler_scratch_active_symbol() : "(ptr1)");
+         if (dst_direct) emit_store_a_to_expr_address(compiler_scratch_active_symbol(), dst_offset + j);
+         else {
+            emit(&es_code, "    ldy #%d\n", j);
+            emit(&es_code, "    sta (ptr1),y\n");
+         }
       }
       return;
    }
 
    for (int j = 0; j < dst_size; j++) {
       if (j < src_size) {
-         emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + j) : j);
-         emit(&es_code, "    lda %s,y\n", src_direct ? compiler_scratch_active_symbol() : "(ptr0)");
+         if (src_direct) emit_load_a_from_expr_address(compiler_scratch_active_symbol(), src_offset + j);
+         else {
+            emit(&es_code, "    ldy #%d\n", j);
+            emit(&es_code, "    lda (ptr0),y\n");
+         }
       }
       else if (is_signed) {
-         emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + sign_src_mem) : sign_src_mem);
-         emit(&es_code, "    lda %s,y\n", src_direct ? compiler_scratch_active_symbol() : "(ptr0)");
+         if (src_direct) emit_load_a_from_expr_address(compiler_scratch_active_symbol(), src_offset + sign_src_mem);
+         else {
+            emit(&es_code, "    ldy #%d\n", sign_src_mem);
+            emit(&es_code, "    lda (ptr0),y\n");
+         }
          emit(&es_code, "    and #$80\n");
          emit_sign_fill_from_masked_a();
       }
+      else emit(&es_code, "    lda #$00\n");
+      if (dst_direct) emit_store_a_to_expr_address(compiler_scratch_active_symbol(), dst_offset + j);
       else {
-         emit(&es_code, "    lda #$00\n");
+         emit(&es_code, "    ldy #%d\n", j);
+         emit(&es_code, "    sta (ptr1),y\n");
       }
-      emit(&es_code, "    ldy #%d\n", dst_direct ? (dst_offset + j) : j);
-      emit(&es_code, "    sta %s,y\n", dst_direct ? compiler_scratch_active_symbol() : "(ptr1)");
    }
 }
 
@@ -1268,32 +1316,26 @@ void emit_copy_symbol_to_scratch_convert_offset(int dst_offset, int dst_size, co
    int sign_src_mem;
 
    (void) dst_type;
-   if (dst_size <= 0 || src_size <= 0) {
-      return;
-   }
-
-   dst_direct = dst_offset >= 0 && dst_offset + dst_size <= 256;
+   if (dst_size <= 0 || src_size <= 0) return;
+   dst_direct = dst_offset >= 0;
    sign_src_mem = src_size - 1;
-   if (!dst_direct) {
-      emit_prepare_scratch_ptr(1, dst_offset);
-   }
+   if (!dst_direct) emit_prepare_scratch_ptr(1, dst_offset);
 
    for (int j = 0; j < dst_size; j++) {
       if (j < src_size) {
-         emit(&es_code, "    ldy #%d\n", src_offset + j);
-         emit(&es_code, "    lda %s,y\n", symbol);
+         emit_load_a_from_expr_address(symbol, src_offset + j);
       }
       else if (is_signed) {
-         emit(&es_code, "    ldy #%d\n", src_offset + sign_src_mem);
-         emit(&es_code, "    lda %s,y\n", symbol);
+         emit_load_a_from_expr_address(symbol, src_offset + sign_src_mem);
          emit(&es_code, "    and #$80\n");
          emit_sign_fill_from_masked_a();
       }
+      else emit(&es_code, "    lda #$00\n");
+      if (dst_direct) emit_store_a_to_expr_address(compiler_scratch_active_symbol(), dst_offset + j);
       else {
-         emit(&es_code, "    lda #$00\n");
+         emit(&es_code, "    ldy #%d\n", j);
+         emit(&es_code, "    sta (ptr1),y\n");
       }
-      emit(&es_code, "    ldy #%d\n", dst_direct ? (dst_offset + j) : j);
-      emit(&es_code, "    sta %s,y\n", dst_direct ? compiler_scratch_active_symbol() : "(ptr1)");
    }
 }
 
@@ -1309,27 +1351,17 @@ void emit_copy_symbol_to_symbol_convert_offset(const char *dst_symbol, int dst_o
    int sign_src_mem;
 
    (void) dst_type;
-   if (!dst_symbol || !src_symbol || dst_size <= 0 || src_size <= 0) {
-      return;
-   }
-
+   if (!dst_symbol || !src_symbol || dst_size <= 0 || src_size <= 0) return;
    sign_src_mem = src_size - 1;
    for (int j = 0; j < dst_size; j++) {
-      if (j < src_size) {
-         emit(&es_code, "    ldy #%d\n", src_offset + j);
-         emit(&es_code, "    lda %s,y\n", src_symbol);
-      }
+      if (j < src_size) emit_load_a_from_expr_address(src_symbol, src_offset + j);
       else if (is_signed) {
-         emit(&es_code, "    ldy #%d\n", src_offset + sign_src_mem);
-         emit(&es_code, "    lda %s,y\n", src_symbol);
+         emit_load_a_from_expr_address(src_symbol, src_offset + sign_src_mem);
          emit(&es_code, "    and #$80\n");
          emit_sign_fill_from_masked_a();
       }
-      else {
-         emit(&es_code, "    lda #$00\n");
-      }
-      emit(&es_code, "    ldy #%d\n", dst_offset + j);
-      emit(&es_code, "    sta %s,y\n", dst_symbol);
+      else emit(&es_code, "    lda #$00\n");
+      emit_store_a_to_expr_address(dst_symbol, dst_offset + j);
    }
 }
 
@@ -1576,11 +1608,9 @@ void emit_load_expr_address_to_ptr(int ptrno, const char *expr, int addend) {
 
 //! @brief Extract emit load ptr from symbol for compiler code-generation support.
 void emit_load_ptr_from_symbol(int ptrno, const char *symbol, int addend) {
-   emit(&es_code, "    ldy #0\n");
-   emit(&es_code, "    lda %s + %d,y\n", symbol, addend);
+   emit_load_a_from_expr_address(symbol, addend);
    emit(&es_code, "    sta ptr%d\n", ptrno);
-   emit(&es_code, "    iny\n");
-   emit(&es_code, "    lda %s + %d,y\n", symbol, addend);
+   emit_load_a_from_expr_address(symbol, addend + 1);
    emit(&es_code, "    sta ptr%d+1\n", ptrno);
 }
 
@@ -1600,7 +1630,7 @@ void emit_deref_ptr(int ptrno) {
 
 //! @brief Emit add scratch to ptr for compiler code-generation support diagnostics or output files.
 void emit_add_scratch_to_ptr(int ptrno, int src_offset, int src_size) {
-   bool direct = src_offset >= 0 && src_offset + src_size <= 256;
+   bool direct = src_offset >= 0;
    int src_ptr = ptrno == 0 ? 1 : 0;
    int ptr_size = get_size("*");
 
@@ -1612,8 +1642,11 @@ void emit_add_scratch_to_ptr(int ptrno, int src_offset, int src_size) {
    for (int i = 0; i < ptr_size; i++) {
       emit(&es_code, "    lda ptr%d%s\n", ptrno, i == 0 ? "" : "+1");
       if (i < src_size) {
-         emit(&es_code, "    ldy #%d\n", direct ? (src_offset + i) : i);
-         emit(&es_code, "    adc %s,y\n", direct ? compiler_scratch_active_symbol() : (src_ptr == 0 ? "(ptr0)" : "(ptr1)"));
+         if (direct) emit_fixed_address_op("adc", compiler_scratch_active_symbol(), src_offset + i);
+         else {
+            emit(&es_code, "    ldy #%d\n", i);
+            emit(&es_code, "    adc %s,y\n", src_ptr == 0 ? "(ptr0)" : "(ptr1)");
+         }
       }
       else {
          emit(&es_code, "    adc #0\n");
@@ -1624,11 +1657,10 @@ void emit_add_scratch_to_ptr(int ptrno, int src_offset, int src_size) {
 
 //! @brief Emit store immediate to scratch for compiler code-generation support diagnostics or output files.
 void emit_store_immediate_to_scratch(int offset, const unsigned char *bytes, int size) {
-   if (offset >= 0 && offset + size <= 256) {
+   if (offset >= 0) {
       for (int i = 0; i < size; i++) {
-         emit(&es_code, "    ldy #%d\n", offset + i);
          emit(&es_code, "    lda #$%02x\n", bytes[i]);
-         emit(&es_code, "    sta %s,y\n", compiler_scratch_active_symbol());
+         emit_store_a_to_expr_address(compiler_scratch_active_symbol(), offset + i);
       }
       return;
    }

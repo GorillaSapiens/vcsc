@@ -3,8 +3,8 @@
 // expectasmordered: @if_false_0:
 // expectasmordered: @fini:
 // expecterr: 001 peephole
-// expecterr: total_saved=6
-// expecterr: dup_load=2
+// expecterr: total_saved=2
+// expecterr: dup_load=0
 // expecterr: branch_next=1
 include "machine_6502.c26"
 

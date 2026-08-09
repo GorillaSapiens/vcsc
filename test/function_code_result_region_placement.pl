@@ -111,10 +111,16 @@ $assembly =~ /\.segment "CODE\.orchard"\s+\.proc split/s
 require_ok('function region link', $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK', '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $cfg,
            '-Map', $map, '-o', $hex, $src);
 my $map_text = slurp($map);
-$map_text =~ /CODE\.orchard\.__vcsc_function\$ordinary\s+load=\$D100\s+size=\$0010/
+$map_text =~ /CODE\.orchard\.__vcsc_function\$ordinary\s+load=\$([0-9A-Fa-f]{4})\s+size=\$([0-9A-Fa-f]{4})/
    or die "map did not report ordinary code in ORCHARD\n$map_text";
-$map_text =~ /CODE\.orchard\.__vcsc_function\$split\s+load=\$D110\s+size=\$001F/
+my ($ordinary_start, $ordinary_size) = (hex($1), hex($2));
+$map_text =~ /CODE\.orchard\.__vcsc_function\$split\s+load=\$([0-9A-Fa-f]{4})\s+size=\$([0-9A-Fa-f]{4})/
    or die "map did not report split code in ORCHARD\n$map_text";
+my ($split_start, $split_size) = (hex($1), hex($2));
+$ordinary_start == 0xD100 && $ordinary_size > 0 &&
+   $split_start >= $ordinary_start + $ordinary_size && $split_size > 0 &&
+   $split_start + $split_size <= 0xDF00
+   or die "function code placements overlap or escape ORCHARD\n$map_text";
 $map_text =~ /ZEROPAGE\.basket\.__vcsc_activation\$ordinary\s+run=\$0080\s+size=\$0001/
    or die "map did not report ordinary result storage in BASKET\n$map_text";
 $map_text =~ /BSS\.mirror\.__vcsc_activation\$split\s+run=\$3003\s+write=\$5007\s+size=\$0002/

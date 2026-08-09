@@ -28,8 +28,10 @@ The largest differences from C are:
   are no implicit `char`, `short`, `int`, `long`, or `bool` types.
 - Every ordinary function has one statically described activation: parameters,
   named locals, compiler scratch, and any return object use linker symbols rather
-  than a per-call frame. The linker overlays activations whose call-graph
-  lifetimes cannot overlap.
+  than a per-call frame. A compile-time-constant byte offset into any such fixed
+  linker symbol is emitted as a direct `symbol + offset` memory operand; Y is
+  reserved for genuine runtime indexing or pointer indirection. The linker
+  overlays activations whose call-graph lifetimes cannot overlap.
 - Consequently, ordinary functions are non-reentrant and recursion is
   forbidden. The compiler and linker reject direct and mutual call cycles.
 - Every ordinary call target is a directly named function with one visible

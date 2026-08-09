@@ -5,9 +5,9 @@
 // expectasm: 	.res 2
 // expectasm: mixed$c:
 // expectasm: 	.res 2
-// expectasmordered: sta mixed$a,y
-// expectasmordered: sta mixed$b,y
-// expectasmordered: sta mixed$c,y
+// expectasmordered: sta  mixed$a
+// expectasmordered: sta  mixed$b
+// expectasmordered: sta  mixed$c
 include "machine_6502.c26"
 
 

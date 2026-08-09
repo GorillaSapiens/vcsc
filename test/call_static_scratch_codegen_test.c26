@@ -1,7 +1,7 @@
 // vcsc-cc1
-// expectasmordered: sta __vcsc_scratch_
+// expectasmordered: sta  __vcsc_scratch_
 // expectasmordered: jsr id
-// expectasmordered: lda id$__return,y
+// expectasmordered: lda  id$__return
 // forbidasm: fp
 // forbidasm: pha
 // forbidasm: pla

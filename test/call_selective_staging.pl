@@ -88,7 +88,7 @@ my ($plain_scratch,$plain_size)=sole_scratch_size($plain,$plain_main,'plain call
 $plain_size == 4
    or die "plain call reserved $plain_size bytes, expected one four-byte reusable slot\n";
 ordered($plain_main,'plain call',
-        'sta sink$a,y','sta sink$b,y','sta sink$c,y','sta sink$d,y','jsr sink');
+        'sta  sink$a','sta  sink$b','sta  sink$c','sta  sink$d','jsr sink');
 
 my $nested=compile_source($cc1,$inc,$tmp,'call_staging_nested',<<'SRC');
 include "machine_6502.c26"
@@ -101,11 +101,11 @@ my ($nested_scratch,$nested_size)=sole_scratch_size($nested,$nested_main,'nested
 $nested_size == 5
    or die "nested call reserved $nested_size bytes, expected one staged byte plus a four-byte reusable slot\n";
 ordered($nested_main,'nested call',
-        'jsr later','sta sink$b,y','sta sink$c,y','sta sink$d,y','sta sink$a,y','jsr sink');
+        'jsr later','sta  sink$b','sta  sink$c','sta  sink$d','sta  sink$a','jsr sink');
 my $before_later=substr($nested_main,0,index($nested_main,'jsr later'));
-$before_later =~ /sta\s+\Q$nested_scratch\E,y/
+$before_later =~ /sta\s+\Q$nested_scratch\E(?:\s|$)/
    or die "nested call did not preserve the first argument before evaluating later()\n";
-$before_later !~ /sta\s+sink\$a,y/
+$before_later !~ /sta\s+sink\$a(?:\s|$)/
    or die "nested call wrote sink\$a before later() could clobber an overlaid activation\n";
 
 my $first_call=compile_source($cc1,$inc,$tmp,'call_staging_first_call',<<'SRC');
@@ -118,6 +118,6 @@ my $first_main=procedure_body($first_call,'main');
 my ($first_scratch,$first_size)=sole_scratch_size($first_call,$first_main,'first-argument call');
 $first_size == 4
    or die "first-argument call reserved $first_size bytes, expected no preserved prefix and one four-byte slot\n";
-ordered($first_main,'first-argument call','jsr first','sta sink$a,y','sta sink$b,y','jsr sink');
+ordered($first_main,'first-argument call','jsr first','sta  sink$a','sta  sink$b','jsr sink');
 
 print "selective call argument staging ok\n";

@@ -1,8 +1,8 @@
 // vcsc-cc1 -I .
 // expectasmordered: lda #$03
-// expectasmordered: sta third,y
-// expectasmordered: sta second,y
-// expectasmordered: sta first,y
+// expectasmordered: sta  third
+// expectasmordered: sta  second
+// expectasmordered: sta  first
 // forbidasm: __vcsc_scratch_1
 // forbidasm: ptr0
 // forbidasm: ptr1

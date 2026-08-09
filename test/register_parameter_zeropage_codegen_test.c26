@@ -7,13 +7,13 @@
 // expectasmordered: 	.res 2
 // expectasmordered: .proc main
 // expectasmordered: lda #$34
-// expectasmordered: sta __vcsc_scratch_
+// expectasmordered: sta  __vcsc_scratch_
 // expectasmordered: lda #$12
-// expectasmordered: sta __vcsc_scratch_
-// expectasmordered: lda __vcsc_scratch_
-// expectasmordered: sta capture$x,y
-// expectasmordered: lda __vcsc_scratch_
-// expectasmordered: sta capture$x,y
+// expectasmordered: sta  __vcsc_scratch_
+// expectasmordered: lda  __vcsc_scratch_
+// expectasmordered: sta  capture$x
+// expectasmordered: lda  __vcsc_scratch_
+// expectasmordered: sta  capture$x
 // forbidasm: fp
 // forbidasm: .export capture$x
 include "machine_6502.c26"

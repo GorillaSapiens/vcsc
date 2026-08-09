@@ -108,11 +108,11 @@ require_re($unofficial,qr/same lifecycle API.*same RAM.*same 181 scanlines/s,
    'unofficial-opcode comparison is not constrained to an apples-to-apples profile');
 require_re($unofficial,qr/share the same corrected circular physical\s+schedule/si,
    'unofficial-opcode comparison lost the matched schedule');
-require_re($doc,qr/official linked ROM bytes:\s+1799.*unofficial linked ROM bytes:\s+1799.*signed byte difference:\s+0/s,
+require_re($doc,qr/official linked ROM bytes:\s+1794.*unofficial linked ROM bytes:\s+1794.*signed byte difference:\s+0/s,
    'component conversion document lost the measured matched-profile result');
 require_re($doc,qr/one reviewed stable\/common NMOS form.*zero-page unofficial NOP.*no retained AXS/si,
    'component conversion document lost the current unofficial opcode set');
-require_re($unofficial,qr/official linked ROM bytes:\s+1799.*unofficial linked ROM bytes:\s+1799.*signed byte difference:\s+0/s,
+require_re($unofficial,qr/official linked ROM bytes:\s+1794.*unofficial linked ROM bytes:\s+1794.*signed byte difference:\s+0/s,
    'unofficial-opcode history lost the measured result');
 
 print "vcs_renderer_component_baseline ok\n";

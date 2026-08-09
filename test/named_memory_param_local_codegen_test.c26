@@ -3,7 +3,7 @@
 // expectasm: bump$x:
 // expectasm: bump$q:
 // expectasm: .res 3
-// expectasm: sta bump$q,y
+// expectasm: sta  bump$q
 // forbidasm: .segment "DATA.banana"
 
 include "machine_6502.c26"

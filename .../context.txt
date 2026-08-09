@@ -353,8 +353,16 @@ assembly cleanup.
 Compiler-owned expression scratch is lifetime-colored across the complete runtime
 activation owner, ordinary directly addressable unsigned-byte state uses compact
 lowering, and the high-level animated-frame installer plus its page/pointer optimizer
-work remain complete. Compiler-generated ordinary memory references stay addressing-
-mode agnostic; explicit source `asm` suffixes remain the timing/encoding escape hatch.
+work remain complete. A completed fixed-address lowering audit now treats every
+compile-time-constant offset into compiler scratch, activation storage, globals,
+parameters, return objects, and other fixed linker symbols as directly addressable;
+the compiler does not spend Y merely to add a known byte offset, and the old 256-byte
+cutoff on that proof is removed. `ref` parameter pointer slots are direct storage but
+are never mistaken for the referred value; value access still dereferences the slot and
+honors directional read/write aliases. Remaining generated `symbol,Y` and `(ptrN),Y`
+forms represent genuine runtime indexes or pointer indirection. Compiler-generated ordinary
+memory references stay addressing-mode agnostic; explicit source `asm` suffixes remain
+the timing/encoding escape hatch.
 
 Source-language `align(N)` is now the independent object-start alignment contract for
 file-scope data definitions. `N` must be a compile-time positive power of two from 1
@@ -456,7 +464,7 @@ The authoritative schema-15 accounting preserves the RAM-campaign closeout from
 3993 ROM / 128 RAM / 0 free to 3292 ROM / 56 RAM / 72 free, then records the
 post-closeout NTSC scheduler correction at 3296 ROM / 56 RAM / 72 free: 19 activation bytes, 3 persistent
 bytes, 4 hardware-stack bytes, and 46 renderer bytes were recovered. Item 14 leaves
-that accounting unchanged. The compiler-only suite is **471/471** after adding
+that accounting unchanged. The compiler-only suite is **472/472** after adding
 the nonzero downward X-backed counted-loop and discard-store transparency regressions. The end-to-end suite
 contains **264** tests; its source-only blank-frame regression now pins four
 X-backed scanline countdowns, <=449 ROM / 22 RAM, and exact 262-line timing. The
@@ -469,7 +477,7 @@ after `make clean`. Checked-in library/profile `.cfg` files remain license-audit
 The generated-sidecar hygiene regression remains explicit: a faithful-multisprite
 example `.cfg` may be present without being mistaken for editable source, while
 checked-in profile `.cfg` files remain license-audited. Current compile-only coverage
-is 471/471 and complete e2e coverage is 264/264. The faithful-multisprite diagnostic
+is 472/472 and complete e2e coverage is 264/264. The faithful-multisprite diagnostic
 fixture `examples/10_faithful_legacy_multisprite/01_diagnostic/faithful_legacy_multisprite_diagnostic_data.s26`
 is present in the source tree; packaging must retain it because the recursive example
 build and faithful-multisprite oracle both require it.
@@ -518,6 +526,18 @@ zero RAM slack. Declared instantiation parameters are also available as integer
 literals in `#if`/`#elif`, allowing renderer timing profiles to remain compile-time
 code selection rather than runtime branches. The separately maintained
 `all_five_181_unofficial` experiment remains distinct.
+
+The fixed-address lowering audit is complete. Compile-time-constant offsets into fixed
+linker symbols use direct operands even beyond offset 255; Y remains reserved for real
+runtime indexing and pointer dereference. Fixed pointer variables load their own bytes
+directly before pointee traversal. `ref` pointer slots may be addressed directly, but
+the referred value stays indirect and directional read/write projection remains intact.
+Representative savings from this audit include player-color-181 smoke 1432 -> 1422 ROM,
+all-five-181 smoke 1799 -> 1794, wide-score fixture 926 -> 890, public wide score
+1065 -> 969, wide-score-181 compositions 2668 -> 2554, and banked standard-renderer
+bank0 1848 -> 1827 with ordinary bank1 76 -> 55 and F8SC bank1 115 -> 86. A compile-only
+regression pins direct automatic-local addressing at byte offset 299 so the removed
+one-page cutoff cannot silently return.
 
 The next item-28 step is therefore one modern parameterized multisprite component,
 with visible gameplay lines supplied at instantiation time; prove 192- and 181-line

@@ -7,8 +7,8 @@
 // expectasmordered: sec
 // expectasmordered: sbc __vcsc_scratch_
 // expectasmordered: cld
-// expectasm: ldy #2
-// expectasm: ldy #3
+// forbidasm: ldy #2
+// forbidasm: ldy #3
 include "machine_6502.c26"
 
 bcd8_t a8;

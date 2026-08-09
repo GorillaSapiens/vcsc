@@ -89,9 +89,9 @@ $asm_text =~ /modeQ3DrefQ28accessQ3DconstQ29/
    or die "const ref capability missing from compiler ABI metadata\n";
 $asm_text =~ /modeQ3DrefQ28accessQ3DwriteonlyQ29/
    or die "writeonly ref capability missing from compiler ABI metadata\n";
-$asm_text =~ /lda #<\{\$0280 \+ 0\}.*?sta remote\$source,y/s
+$asm_text =~ /lda #<\{\$0280 \+ 0\}.*?sta\s+remote\$source\b.*?sta\s+remote\$source \+ 1/s
    or die "caller did not pass the readable binding address to remote source\n$asm_text";
-$asm_text =~ /lda #<\{\$0380 \+ 0\}.*?sta remote\$sink,y/s
+$asm_text =~ /lda #<\{\$0380 \+ 0\}.*?sta\s+remote\$sink\b.*?sta\s+remote\$sink \+ 1/s
    or die "caller did not pass the writable binding address to remote sink\n$asm_text";
 
 require_ok('link cross-bank directional ref cartridge',

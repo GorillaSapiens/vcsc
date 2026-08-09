@@ -52,9 +52,11 @@ void init_split_mem_entry_addresses_for_symbol(ContextEntry *entry, const char *
                                                const ASTNode *modifiers);
 void init_split_mem_entry_addresses_for_region(ContextEntry *entry, const char *symbol,
                                                const char *region_name);
+bool lvalue_fixed_symbol_name(Context *ctx, const LValueRef *lv, char *buf, size_t bufsize);
 bool emit_copy_lvalue_to_symbol(Context *ctx, const char *symbol, int symbol_offset, const LValueRef *src, int size);
 void emit_copy_scratch_to_symbol_offset(const char *symbol, int symbol_offset, int src_offset, int size);
 void emit_copy_scratch_to_address_expr(const char *write_expr, int src_offset, int size);
+void emit_fixed_address_op(const char *mnemonic, const char *expr, int addend);
 void remember_symbol_import_mode(const char *name, bool is_zeropage);
 void emit_mem_region_metadata_for_modifiers(const ASTNode *origin, const ASTNode *modifiers);
 void emit_mem_region_metadata_for_name(const ASTNode *origin, const char *name);

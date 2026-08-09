@@ -1,8 +1,8 @@
 // vcsc-cc1 -I . -X peephole -DMACHINE_6502_NO_DEFAULT_RAM -DMACHINE_6502_NO_DEFAULT_ROM
 // linkcfg: external_binding_holes.cfg
 // expecterr: 001 peephole
-// expecterr: total_saved=15
-// expecterr: dup_load=6
+// expecterr: total_saved=17
+// expecterr: dup_load=4
 // expecterr: jump_next=1
 // expectexit: 0
 include "machine_6502.c26"

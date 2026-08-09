@@ -210,8 +210,7 @@ bool emit_copy_preserved_symbol_to_lvalue(Context *ctx, const LValueRef *dst,
          return false;
       }
       for (int i = 0; i < size; i++) {
-         emit(&es_code, "    ldy #%d\n", i);
-         emit(&es_code, "    lda %s,y\n", symbol);
+         emit_load_a_from_expr_address(symbol, i);
          emit_store_a_to_expr_address(dst->write_expr, dst->offset + i);
       }
       return true;
@@ -335,13 +334,16 @@ bool find_aggregate_member(const ASTNode *type, const char *member, const ASTNod
 
 //! @brief Extract emit load ptr from active scratch for compiler lvalue lowering.
 void emit_load_ptr_from_scratch(int ptrno, int src_offset) {
-   bool direct = src_offset >= 0 && src_offset + 2 <= 256;
+   bool direct = src_offset >= 0;
    if (!direct) {
       emit_prepare_scratch_ptr(ptrno == 0 ? 1 : 0, src_offset);
    }
    for (int i = 0; i < 2; i++) {
-      emit(&es_code, "    ldy #%d\n", direct ? (src_offset + i) : i);
-      emit(&es_code, "    lda %s,y\n", direct ? compiler_scratch_active_symbol() : (ptrno == 0 ? "(ptr1)" : "(ptr0)"));
+      if (direct) emit_load_a_from_expr_address(compiler_scratch_active_symbol(), src_offset + i);
+      else {
+         emit(&es_code, "    ldy #%d\n", i);
+         emit(&es_code, "    lda %s,y\n", ptrno == 0 ? "(ptr1)" : "(ptr0)");
+      }
       emit(&es_code, "    sta ptr%d%s\n", ptrno, i == 0 ? "" : "+1");
    }
 }
@@ -362,7 +364,7 @@ static void emit_add_immediate_to_ptr(int ptrno, int adjust) {
 
 //! @brief Emit store ptr to scratch for compiler lvalue lowering diagnostics or output files.
 void emit_store_ptr_to_scratch(int dst_offset, int ptrno, int size) {
-   bool direct = dst_offset >= 0 && dst_offset + size <= 256;
+   bool direct = dst_offset >= 0;
 
    if (size <= 0) {
       return;
@@ -379,8 +381,11 @@ void emit_store_ptr_to_scratch(int dst_offset, int ptrno, int size) {
       else {
          emit(&es_code, "    lda #0\n");
       }
-      emit(&es_code, "    ldy #%d\n", direct ? (dst_offset + i) : i);
-      emit(&es_code, "    sta %s,y\n", direct ? compiler_scratch_active_symbol() : (ptrno == 0 ? "(ptr1)" : "(ptr0)"));
+      if (direct) emit_store_a_to_expr_address(compiler_scratch_active_symbol(), dst_offset + i);
+      else {
+         emit(&es_code, "    ldy #%d\n", i);
+         emit(&es_code, "    sta %s,y\n", ptrno == 0 ? "(ptr1)" : "(ptr0)");
+      }
    }
 }
 
@@ -547,15 +552,14 @@ static void emit_load_count_lowbyte_scratch_to_arg1(int src_offset, const ASTNod
    if (src_size <= 0) {
       src_size = 1;
    }
-   direct = src_offset >= 0 && src_offset + src_size <= 256;
+   direct = src_offset >= 0;
    if (!direct) {
       emit_prepare_scratch_ptr(0, src_offset);
       emit(&es_code, "    ldy #%d\n", mem_index);
       emit(&es_code, "    lda (ptr0),y\n");
    }
    else {
-      emit(&es_code, "    ldy #%d\n", src_offset + mem_index);
-      emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
+      emit_load_a_from_expr_address(compiler_scratch_active_symbol(), src_offset + mem_index);
    }
    emit(&es_code, "    sta arg1\n");
 }
@@ -578,12 +582,9 @@ void emit_fixed_bitwise_scratch(const char *mnemonic, int dst_offset, int lhs_of
       error_unreachable("invalid fixed-width bitwise operation");
    }
    for (int i = 0; i < size; i++) {
-      emit(&es_code, "    ldy #%d\n", lhs_offset + i);
-      emit(&es_code, "    lda %s,y\n", symbol);
-      emit(&es_code, "    ldy #%d\n", rhs_offset + i);
-      emit(&es_code, "    %s %s,y\n", mnemonic, symbol);
-      emit(&es_code, "    ldy #%d\n", dst_offset + i);
-      emit(&es_code, "    sta %s,y\n", symbol);
+      emit_load_a_from_expr_address(symbol, lhs_offset + i);
+      emit_fixed_address_op(mnemonic, symbol, rhs_offset + i);
+      emit_store_a_to_expr_address(symbol, dst_offset + i);
    }
 }
 
@@ -596,11 +597,10 @@ void emit_fixed_twos_complement_scratch(int offset, int size) {
    }
    emit(&es_code, "    sec\n");
    for (int i = 0; i < size; i++) {
-      emit(&es_code, "    ldy #%d\n", offset + i);
-      emit(&es_code, "    lda %s,y\n", symbol);
+      emit_load_a_from_expr_address(symbol, offset + i);
       emit(&es_code, "    eor #$ff\n");
       emit(&es_code, "    adc #$00\n");
-      emit(&es_code, "    sta %s,y\n", symbol);
+      emit_store_a_to_expr_address(symbol, offset + i);
    }
 }
 
@@ -633,10 +633,8 @@ void emit_fixed_compare_scratch(const ASTNode *type, const char *op, int lhs_off
 
    if (is_equal) {
       for (int i = 0; i < size; i++) {
-         emit(&es_code, "    ldy #%d\n", lhs_offset + i);
-         emit(&es_code, "    lda %s,y\n", symbol);
-         emit(&es_code, "    ldy #%d\n", rhs_offset + i);
-         emit(&es_code, "    cmp %s,y\n", symbol);
+         emit_load_a_from_expr_address(symbol, lhs_offset + i);
+         emit_fixed_address_op("cmp", symbol, rhs_offset + i);
          emit(&es_code, "    bne %s\n", false_label);
       }
       emit(&es_code, "    jmp %s\n", true_label);
@@ -650,22 +648,17 @@ void emit_fixed_compare_scratch(const ASTNode *type, const char *op, int lhs_off
             free((void *) done_label);
             error_unreachable("comparison label generation failed");
          }
-         emit(&es_code, "    ldy #%d\n", lhs_offset + size - 1);
-         emit(&es_code, "    lda %s,y\n", symbol);
-         emit(&es_code, "    ldy #%d\n", rhs_offset + size - 1);
-         emit(&es_code, "    eor %s,y\n", symbol);
+         emit_load_a_from_expr_address(symbol, lhs_offset + size - 1);
+         emit_fixed_address_op("eor", symbol, rhs_offset + size - 1);
          emit(&es_code, "    bpl %s\n", same_sign_label);
-         emit(&es_code, "    ldy #%d\n", lhs_offset + size - 1);
-         emit(&es_code, "    lda %s,y\n", symbol);
+         emit_load_a_from_expr_address(symbol, lhs_offset + size - 1);
          emit(&es_code, "    bmi %s\n", true_label);
          emit(&es_code, "    jmp %s\n", false_label);
          emit(&es_code, "%s:\n", same_sign_label);
       }
       for (int i = size - 1; i >= 0; i--) {
-         emit(&es_code, "    ldy #%d\n", lhs_offset + i);
-         emit(&es_code, "    lda %s,y\n", symbol);
-         emit(&es_code, "    ldy #%d\n", rhs_offset + i);
-         emit(&es_code, "    cmp %s,y\n", symbol);
+         emit_load_a_from_expr_address(symbol, lhs_offset + i);
+         emit_fixed_address_op("cmp", symbol, rhs_offset + i);
          emit(&es_code, "    bcc %s\n", true_label);
          emit(&es_code, "    bne %s\n", false_label);
       }
@@ -793,11 +786,10 @@ static bool emit_load_simple_u8_index_to_a(Context *ctx, ASTNode *idx) {
       return true;
    }
 
-   if (lv.offset < 0 || lv.offset > 255) {
+   if (lv.offset < 0) {
       return false;
    }
-   emit(&es_code, "    ldy #%d\n", lv.offset);
-   emit(&es_code, "    lda %s,y\n", compiler_scratch_active_symbol());
+   emit_load_a_from_expr_address(compiler_scratch_active_symbol(), lv.offset);
    return true;
 }
 
@@ -844,11 +836,15 @@ static bool emit_add_simple_u8_index_to_ptr0(Context *ctx, ASTNode *idx, int ele
 }
 
 //! @brief Emit prepare lvalue ptr suffixes for compiler lvalue lowering diagnostics or output files.
-static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffixes, const ASTNode **type_io, const ASTNode **decl_io) {
+static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffixes,
+                                               const ASTNode **type_io, const ASTNode **decl_io,
+                                               bool *pointer_value_already_loaded) {
    if (!suffixes || is_empty(suffixes)) {
       return true;
    }
-   if (suffixes->count > 0 && !emit_prepare_lvalue_ptr_suffixes(ctx, suffixes->children[0], type_io, decl_io)) {
+   if (suffixes->count > 0 && !emit_prepare_lvalue_ptr_suffixes(ctx, suffixes->children[0],
+                                                                  type_io, decl_io,
+                                                                  pointer_value_already_loaded)) {
       return false;
    }
    if (!strcmp(suffixes->name, "[")) {
@@ -860,7 +856,12 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
          return false;
       }
       if (declarator_pointer_depth(*decl_io) > 0) {
-         emit_deref_ptr(0);
+         if (pointer_value_already_loaded && *pointer_value_already_loaded) {
+            *pointer_value_already_loaded = false;
+         }
+         else {
+            emit_deref_ptr(0);
+         }
       }
       else if (declarator_array_count(*decl_io) <= 0) {
          return false;
@@ -922,7 +923,12 @@ static bool emit_prepare_lvalue_ptr_suffixes(Context *ctx, const ASTNode *suffix
          if (declarator_pointer_depth(*decl_io) <= 0) {
             return false;
          }
-         emit_deref_ptr(0);
+         if (pointer_value_already_loaded && *pointer_value_already_loaded) {
+            *pointer_value_already_loaded = false;
+         }
+         else {
+            emit_deref_ptr(0);
+         }
       }
       if (!find_aggregate_member_info(*type_io, suffixes->children[1]->strval, &info)) {
          return false;
@@ -974,6 +980,7 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
    char sym[256];
    const ASTNode *type;
    const ASTNode *decl;
+   bool pointer_value_already_loaded = false;
    const char *abs_expr = NULL;
 
    if (!lv) {
@@ -1054,7 +1061,11 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
       }
       type = lv->base_type;
       decl = lv->base_declarator;
-      return emit_prepare_lvalue_ptr_suffixes(ctx, lv->suffixes, &type, &decl);
+      {
+         bool pointer_value_already_loaded = false;
+         return emit_prepare_lvalue_ptr_suffixes(ctx, lv->suffixes, &type, &decl,
+                                                &pointer_value_already_loaded);
+      }
    }
 
    if (!lv->base_type) {
@@ -1104,6 +1115,13 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
             emit_deref_ptr(0);
          }
       }
+      else if (lv->indirect && declarator_pointer_depth(lv->base_declarator) > 0) {
+         /* A fixed pointer object already contains the address needed by its
+            first []/-> suffix.  Load that value directly instead of taking
+            the pointer object's address and immediately dereferencing it. */
+         emit_load_ptr_from_symbol(0, sym, 0);
+         pointer_value_already_loaded = true;
+      }
       else {
          emit_load_address_to_ptr(0, sym, 0);
       }
@@ -1124,7 +1142,8 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
       }
    }
 
-   return emit_prepare_lvalue_ptr_suffixes(ctx, lv->suffixes, &type, &decl);
+   return emit_prepare_lvalue_ptr_suffixes(ctx, lv->suffixes, &type, &decl,
+                                           &pointer_value_already_loaded);
 }
 
 //! @brief Emit copy bitfield lvalue to scratch for compiler lvalue lowering diagnostics or output files.
@@ -1422,13 +1441,23 @@ bool emit_copy_symbol_to_lvalue(Context *ctx, const LValueRef *dst, const char *
    if (dst->is_bitfield) {
       return emit_copy_symbol_to_bitfield_lvalue(ctx, dst, symbol, symbol_offset);
    }
+   {
+      char dst_symbol[256];
+      if (lvalue_fixed_symbol_name(ctx, dst, dst_symbol, sizeof(dst_symbol))) {
+         emit_lvalue_semantic_use(ctx, dst, "write");
+         for (int i = 0; i < copy_size; i++) {
+            emit_load_a_from_expr_address(symbol, symbol_offset + i);
+            emit_store_a_to_expr_address(dst_symbol, dst->offset + i);
+         }
+         return true;
+      }
+   }
    if (!emit_prepare_lvalue_ptr(ctx, dst, LVALUE_ACCESS_WRITE)) {
       return false;
    }
 
    for (int i = 0; i < copy_size; i++) {
-      emit(&es_code, "    ldy #%d\n", symbol_offset + i);
-      emit(&es_code, "    lda %s,y\n", symbol);
+      emit_load_a_from_expr_address(symbol, symbol_offset + i);
       emit(&es_code, "    ldy #%d\n", i);
       emit(&es_code, "    sta (ptr0),y\n");
    }
@@ -1451,7 +1480,7 @@ static bool emit_copy_scratch_to_bitfield_lvalue(Context *ctx, const LValueRef *
 bool emit_copy_lvalue_to_scratch(Context *ctx, int dst_offset, const LValueRef *src, int size) {
    require_lvalue_readable(src);
    int copy_size = size < src->size ? size : src->size;
-   bool dst_direct = dst_offset >= 0 && dst_offset + copy_size <= 256;
+   bool dst_direct = dst_offset >= 0;
    int saved_locals = ctx ? ctx->locals : 0;
    int protected_locals = saved_locals;
 
@@ -1470,13 +1499,32 @@ bool emit_copy_lvalue_to_scratch(Context *ctx, int dst_offset, const LValueRef *
       }
       for (int i = 0; i < copy_size; i++) {
          emit_load_a_from_expr_address(read_expr, src->offset + i);
-         emit(&es_code, "    ldy #%d\n", dst_direct ? (dst_offset + i) : i);
-         emit(&es_code, "    sta %s,y\n", dst_direct ? compiler_scratch_active_symbol() : "(ptr1)");
+         if (dst_direct) emit_store_a_to_expr_address(compiler_scratch_active_symbol(), dst_offset + i);
+         else {
+            emit(&es_code, "    ldy #%d\n", i);
+            emit(&es_code, "    sta (ptr1),y\n");
+         }
       }
       return true;
    }
    if (copy_size <= 0) {
       return true;
+   }
+   {
+      char src_symbol[256];
+      if (lvalue_fixed_symbol_name(ctx, src, src_symbol, sizeof(src_symbol))) {
+         emit_lvalue_semantic_use(ctx, src, "read");
+         if (!dst_direct) emit_prepare_scratch_ptr(1, dst_offset);
+         for (int i = 0; i < copy_size; i++) {
+            emit_load_a_from_expr_address(src_symbol, src->offset + i);
+            if (dst_direct) emit_store_a_to_expr_address(compiler_scratch_active_symbol(), dst_offset + i);
+            else {
+               emit(&es_code, "    ldy #%d\n", i);
+               emit(&es_code, "    sta (ptr1),y\n");
+            }
+         }
+         return true;
+      }
    }
    if (dst_offset + copy_size > protected_locals) {
       protected_locals = dst_offset + copy_size;
@@ -1496,8 +1544,11 @@ bool emit_copy_lvalue_to_scratch(Context *ctx, int dst_offset, const LValueRef *
    for (int i = 0; i < copy_size; i++) {
       emit(&es_code, "    ldy #%d\n", i);
       emit(&es_code, "    lda (ptr0),y\n");
-      emit(&es_code, "    ldy #%d\n", dst_direct ? (dst_offset + i) : i);
-      emit(&es_code, "    sta %s,y\n", dst_direct ? compiler_scratch_active_symbol() : "(ptr1)");
+      if (dst_direct) emit_store_a_to_expr_address(compiler_scratch_active_symbol(), dst_offset + i);
+      else {
+         emit(&es_code, "    ldy #%d\n", i);
+         emit(&es_code, "    sta (ptr1),y\n");
+      }
    }
    if (ctx) {
       ctx_set_locals(ctx, saved_locals);
@@ -1512,7 +1563,7 @@ bool emit_copy_scratch_to_lvalue(Context *ctx, const LValueRef *dst, int src_off
       require_lvalue_readable(dst);
    }
    int copy_size = size < dst->size ? size : dst->size;
-   bool src_direct = src_offset >= 0 && src_offset + copy_size <= 256;
+   bool src_direct = src_offset >= 0;
    int saved_locals = ctx ? ctx->locals : 0;
    int protected_locals = saved_locals;
 
@@ -1530,14 +1581,33 @@ bool emit_copy_scratch_to_lvalue(Context *ctx, const LValueRef *dst, int src_off
          emit_prepare_scratch_ptr(1, src_offset);
       }
       for (int i = 0; i < copy_size; i++) {
-         emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + i) : i);
-         emit(&es_code, "    lda %s,y\n", src_direct ? compiler_scratch_active_symbol() : "(ptr1)");
+         if (src_direct) emit_load_a_from_expr_address(compiler_scratch_active_symbol(), src_offset + i);
+         else {
+            emit(&es_code, "    ldy #%d\n", i);
+            emit(&es_code, "    lda (ptr1),y\n");
+         }
          emit_store_a_to_expr_address(write_expr, dst->offset + i);
       }
       return true;
    }
    if (copy_size <= 0) {
       return true;
+   }
+   {
+      char dst_symbol[256];
+      if (lvalue_fixed_symbol_name(ctx, dst, dst_symbol, sizeof(dst_symbol))) {
+         emit_lvalue_semantic_use(ctx, dst, "write");
+         if (!src_direct) emit_prepare_scratch_ptr(1, src_offset);
+         for (int i = 0; i < copy_size; i++) {
+            if (src_direct) emit_load_a_from_expr_address(compiler_scratch_active_symbol(), src_offset + i);
+            else {
+               emit(&es_code, "    ldy #%d\n", i);
+               emit(&es_code, "    lda (ptr1),y\n");
+            }
+            emit_store_a_to_expr_address(dst_symbol, dst->offset + i);
+         }
+         return true;
+      }
    }
    if (src_offset + copy_size > protected_locals) {
       protected_locals = src_offset + copy_size;
@@ -1555,8 +1625,11 @@ bool emit_copy_scratch_to_lvalue(Context *ctx, const LValueRef *dst, int src_off
       emit_prepare_scratch_ptr(1, src_offset);
    }
    for (int i = 0; i < copy_size; i++) {
-      emit(&es_code, "    ldy #%d\n", src_direct ? (src_offset + i) : i);
-      emit(&es_code, "    lda %s,y\n", src_direct ? compiler_scratch_active_symbol() : "(ptr1)");
+      if (src_direct) emit_load_a_from_expr_address(compiler_scratch_active_symbol(), src_offset + i);
+      else {
+         emit(&es_code, "    ldy #%d\n", i);
+         emit(&es_code, "    lda (ptr1),y\n");
+      }
       emit(&es_code, "    ldy #%d\n", i);
       emit(&es_code, "    sta (ptr0),y\n");
    }

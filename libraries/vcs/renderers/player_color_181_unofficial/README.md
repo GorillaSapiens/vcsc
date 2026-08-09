@@ -25,7 +25,7 @@ official renderer.
 
 Tests compare five official/unofficial cartridge pairs, including both score
 orders and asynchronous full-range motion. The maintained smoke cartridges now
-measure 1432 linked ROM bytes for both implementations, including the shared
+measure 1422 linked ROM bytes for both implementations, including the shared
 160-entry packed position table, for a measured size delta of zero bytes. The
 motion oracle also pins the corrected delayed-Ball transfer across a row
 boundary.

@@ -244,8 +244,8 @@ forms are eligible. Silicon-sensitive or unstable forms remain forbidden.
 The current matched 181-line smoke fixtures measure:
 
 ```text
-official linked ROM bytes:   1799
-unofficial linked ROM bytes: 1799
+official linked ROM bytes:   1794
+unofficial linked ROM bytes: 1794
 signed byte difference:          0
 ```
 
@@ -374,7 +374,7 @@ The 181-line all-five and player-color profiles also preserve the final row
 through a WSYNC boundary before clearing visible TIA state. The player-color
 path needs a compact 30-cycle phase pad on the blank cleanup line to retain its
 exact 181-line return boundary; both official and unofficial smoke links now
-measure 1432 bytes and still differ by zero bytes after direct-countdown and
+measure 1422 bytes and still differ by zero bytes after direct-countdown and
 delayed-Ball correction.
 
 The maintained source-level oracle checks every gameplay row, sixteen lines per
@@ -446,7 +446,7 @@ score orders, and static/motion fixtures. It must be assembled with
 
 The direct-countdown conversion removed the row-mask helper that contained the
 reviewed unofficial substitutions. The current generated unofficial profile
-contains no unofficial mnemonic and measures 1432 linked ROM bytes, exactly the
+contains no unofficial mnemonic and measures 1422 linked ROM bytes, exactly the
 same as the official twin. Five pairwise raster/timing comparisons plus the
 320-frame composition oracle enforce equivalence, including the corrected Ball
 transfer across an internal row boundary.

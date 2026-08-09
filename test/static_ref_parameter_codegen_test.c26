@@ -1,7 +1,7 @@
 // vcsc-cc1
 // expectasm: bump$x:
 // expectasm: 	.res 2
-// expectasm: sta bump$x,y
+// expectasm: sta  bump$x
 
 type void { $size:0 };
 type uint8_t { $size:1 $integer:unsigned };

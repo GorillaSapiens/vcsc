@@ -71,8 +71,10 @@ system(@cmd) == 0 or die "could not compile frame-pointer-removal probe\n";
 my $generated = slurp($asm);
 $generated =~ /\bfp:/ or die "ordinary source identifier 'fp' is still unavailable\n";
 $generated =~ /jsr\s+plus_one\b/ or die "probe did not contain its direct call\n";
-$generated =~ /__vcsc_scratch_\d+,y/
+$generated =~ /\b(?:lda|sta)\s+__vcsc_scratch_\d+\b/
    or die "generated code does not directly address static scratch\n";
+$generated !~ /__vcsc_scratch_\d+(?:\s*\+\s*\d+)?,y/
+   or die "generated code still indexes fixed static scratch through Y\n";
 $generated =~ /_vcsc_fp|\(fp\),y|\bfp\+1\b/
    and die "generated code still uses a runtime frame pointer\n";
 $generated =~ /^\s*(?:pha|pla)\s*$/mi

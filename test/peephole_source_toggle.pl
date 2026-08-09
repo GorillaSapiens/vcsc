@@ -51,8 +51,7 @@ slurp($re_enabled) eq $on_text or die "last -fpeephole option did not re-enable 
 slurp($re_disabled) eq $off_text or die "last -fno-peephole option did not disable optimization\n";
 
 my @patterns = (
-   [ 'dup_lda', qr/ldy #1\n    lda #\$00\n    sta __vcsc_scratch_0,y/ ],
-   [ 'dup_ldy', qr/lda __vcsc_scratch_0,y\n    ldy #0\n    sta get_pair\$__return,y/ ],
+   [ 'dup_lda', qr/lda #\$00\n    sta  __vcsc_scratch_0\n    lda #\$00\n    sta  __vcsc_scratch_0 \+ 1/ ],
    [ 'jump_next', qr/jmp \@fini\n\@fini:/ ],
    [ 'branch_next', qr/beq (\@if_false_\d+)\n\1:/ ],
    [ 'branch_jmp_invert', qr/bcc (\@u8_lt_true_\d+)\n    jmp (\@if_false_\d+)\n\1:/ ],
@@ -68,7 +67,7 @@ my $cmd = join(' ', map { quotemeta($_) } ($cc1, '-quiet', '-I', $test, '-X', 'd
 my $status = system("$cmd 2> " . quotemeta($debug));
 $status == 0 or die "debug compile failed\n";
 my $debug_text = slurp($debug);
-for my $kind (qw(dup_lda dup_ldy jump_next branch_next branch_jmp_invert)) {
+for my $kind (qw(dup_lda jump_next branch_next branch_jmp_invert)) {
    $debug_text =~ /peephole:\Q$kind\E\b/ or die "optimized source fixture did not exercise $kind\n--- debug ---\n$debug_text";
 }
 

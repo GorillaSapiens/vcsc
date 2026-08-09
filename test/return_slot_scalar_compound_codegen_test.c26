@@ -1,11 +1,10 @@
 // vcsc-cc1 -I .
 // expectasmordered: .proc bump
-// expectasmordered: lda #<{bump$x + 0}
-// expectasmordered: lda (ptr0),y
-// expectasmordered: sta bump$__return,y
+// expectasmordered: lda  bump$x
+// expectasmordered: sta  bump$__return
 // expectasmordered: clc
 // expectasmordered: adc __vcsc_scratch_
-// expectasmordered: sta bump$__return,y
+// expectasmordered: sta  bump$__return
 // expectasmordered: @fini:
 // expectasmordered: rts
 

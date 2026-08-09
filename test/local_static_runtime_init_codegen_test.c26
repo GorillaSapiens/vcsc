@@ -4,7 +4,7 @@
 // expectasm: demo$s:
 // expectasm: .res 2
 // expectasm: jsr twice
-// expectasm: sta demo$s,y
+// expectasm: sta  demo$s
 
 type void { $size:0 };
 type uint8_t { $size:1 $integer:unsigned };

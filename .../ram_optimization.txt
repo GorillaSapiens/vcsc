@@ -488,10 +488,12 @@ Ordered roadmap
 
     Collateral measured effect:
 
-    * The banked standard-renderer diagnostic keeps identical raster/timing and bank0
-      size, but two ordinary game-logic branch/JMP scaffolds are now inverted. F8/F6/F4
-      bank1 usage falls from 82 to 76 bytes; F8SC bank1 falls from 121 to 115 bytes.
-      Bank bridges, RAM accounting, and renderer placement contracts are unchanged.
+    * The banked standard-renderer diagnostic keeps identical raster/timing while
+      code generation has continued to shrink. The branch/page work first reduced
+      F8/F6/F4 bank1 from 82 to 76 bytes and F8SC bank1 from 121 to 115 bytes. The
+      later fixed-address lowering audit reduces bank0 from 1848 to 1827 bytes,
+      F8/F6/F4 bank1 to 55 bytes, and F8SC bank1 to 86 bytes. Bank bridges, RAM
+      accounting, and renderer placement contracts remain unchanged.
 
     Acceptance criteria:
 
@@ -959,10 +961,10 @@ Ordered roadmap
       gallery, still leaving **72 bytes free**; the standalone player-color-192
       smoke is **1374 ROM / 36 RAM** after the later four-byte NTSC frame-closeout correction. Schema **13** records the Stella-corrected
       follow-up. The 181 player-color official/unofficial smoke pair remains
-      size-identical at **1432 ROM / 39 RAM**.
-    * Representative current links: player-color-181 smoke **1432 ROM / 39 RAM**
+      size-identical at **1422 ROM / 39 RAM**.
+    * Representative current links: player-color-181 smoke **1422 ROM / 39 RAM**
       including its fixture and four-byte stack; all-five-192 smoke **1621 ROM / 89
-      RAM** including its fixture and eight-byte stack; all-five-181 smoke **1799 ROM
+      RAM** including its fixture and eight-byte stack; all-five-181 smoke **1794 ROM
       / 86 RAM** including its fixture and eight-byte stack. The centered interactive
       player-color-181 example uses 65/128 RAM, all-five-192 uses 91/128, and centered
       all-five-181 uses 108/128.
@@ -1142,6 +1144,31 @@ Ordered roadmap
     The RAM-optimization roadmap is complete. Future assembly removal should be
     driven by a concrete language/compiler improvement, not by weakening timing
     code whose purpose is to expose the hardware directly.
+
+Post-closeout fixed-address lowering audit
+-------------------------------------------
+Completed. The compiler no longer routes a compile-time-constant offset into a fixed
+linker symbol through Y merely because the object is activation storage or compiler
+scratch. Fixed globals, parameters, return objects, locals, scratch, pointer values,
+small fills/copies, comparisons, bitwise/BCD transforms, fixed subscripts, and call
+staging now use direct `symbol + offset` operands. The former 256-byte cutoff on this
+proof is removed: a fixed linker symbol plus offset remains directly addressable beyond
+one page. Direct pointer variables are loaded from their own bytes before traversing
+the pointee, instead of first taking the pointer variable's address and dereferencing
+that temporary address. `ref` parameter slots are explicitly excluded from fixed-value
+lowering: their pointer slots are direct, but reading or writing the referred object
+still dereferences the slot and preserves directional read/write projection. Remaining
+`symbol,Y` and `(ptrN),Y` lowering is reserved for genuine runtime array indexing and
+pointer indirection. Existing codegen regressions
+were updated to forbid the obsolete constant-Y forms rather than preserving them for
+peephole tests. A dedicated regression reaches automatic-local byte offset 299 and
+requires direct `symbol + 299` loads/stores, locking removal of the old one-page cutoff.
+Representative linked savings from the audit are player-color-181 smoke 1432 -> 1422
+ROM, all-five-181 smoke 1799 -> 1794, the six-glyph-wide fixture 926 -> 890, the public
+wide-score example 1065 -> 969, wide-score 181 compositions 2668 -> 2554, and the banked
+standard-renderer diagnostic from 1848 -> 1827 bytes in bank0 while ordinary bank1
+falls 76 -> 55 bytes and F8SC bank1 115 -> 86 bytes. RAM and behavioral/raster contracts
+for those fixtures are unchanged.
 
 Expected direction
 ------------------

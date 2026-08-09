@@ -2,12 +2,9 @@
 // expectasm: .import foreign
 // expectasm: .zpimport foreign$__return
 // expectasmordered: jsr foreign
-// expectasmordered: ldy #0
-// expectasmordered: lda foreign$__return,y
-// expectasmordered: ldy #1
-// expectasmordered: lda foreign$__return,y
-// expectasmordered: ldy #2
-// expectasmordered: lda foreign$__return,y
+// expectasmordered: lda  foreign$__return
+// expectasmordered: lda  foreign$__return + 1
+// expectasmordered: lda  foreign$__return + 2
 // forbidasm: tay
 // forbidasm: tya
 // forbidasm: txa

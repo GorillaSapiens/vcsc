@@ -190,9 +190,9 @@ for my $item (
 my $assembly_text=read_file($assembly);
 $assembly_text !~ /\@fini:\n\s+(?:lda|ldx|ldy)\s+[^\n]*\$__return/
    or die "a value-return epilogue still reloads a return object into registers\n";
-$assembly_text =~ /jsr return24\n(?:\s+ldy #\d+\n\s+lda return24\$__return,y\n\s+sta __vcsc_scratch_\d+,y\n){3}/
+$assembly_text =~ /jsr return24\n\s+lda\s+return24\$__return\n\s+sta\s+__vcsc_scratch_\d+\n\s+lda\s+return24\$__return \+ 1\n\s+sta\s+__vcsc_scratch_\d+ \+ 1\n\s+lda\s+return24\$__return \+ 2\n\s+sta\s+__vcsc_scratch_\d+ \+ 2\n/
    or die "caller does not consume the three-byte callee-owned return object directly\n";
-$assembly_text =~ /jsr return32\n(?:\s+ldy #\d+\n\s+lda return32\$__return,y\n\s+sta __vcsc_scratch_\d+,y\n){4}/
+$assembly_text =~ /jsr return32\n\s+lda\s+return32\$__return\n\s+sta\s+__vcsc_scratch_\d+\n\s+lda\s+return32\$__return \+ 1\n\s+sta\s+__vcsc_scratch_\d+ \+ 1\n\s+lda\s+return32\$__return \+ 2\n\s+sta\s+__vcsc_scratch_\d+ \+ 2\n\s+lda\s+return32\$__return \+ 3\n\s+sta\s+__vcsc_scratch_\d+ \+ 3\n/
    or die "caller does not consume the four-byte BCD callee-owned return object directly\n";
 
 print "vcs return memory encoding ok\n";

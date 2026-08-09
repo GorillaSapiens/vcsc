@@ -82,3 +82,6 @@ fallback semantics. Final verification: 470/470 compile-only and 264/264 e2e.
 
 2026-08-08 19:41:47 PDT, bare discard stores are register/flag transparent across fixed placements
 Made `foo := _;` a general fixed-address one-STA invariant rather than a hardware-register special case. Automatic scratch-backed fixed byte targets now use direct symbol+offset `STA` instead of loading Y, the X-backed counted-loop safety proof no longer distinguishes zeropage/global/absolute placement for a valid bare direct byte target, and compiler/test documentation pins preservation of A/X/Y/S/P. Added compile-only coverage across global, zeropage, absolute, and automatic-local destinations. Final validation: 471/471 compile-only and 264/264 e2e.
+2026-08-08 19:58 - Audited fixed-address lowering: constant offsets into linker symbols now use direct operands instead of consuming Y; genuine runtime indexing/indirection remains indexed.
+2026-08-08 20:08 - Fixed audit boundary for ref parameters: pointer slots may use direct operands, but referred values remain indirect and directional split aliases remain preserved.
+2026-08-08 20:26 - Completed fixed-address lowering audit: removed constant-Y addressing and the 256-byte direct-offset cutoff across fixed symbols while preserving genuine runtime indexing, pointer dereference, and directional ref semantics.

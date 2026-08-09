@@ -1,5 +1,5 @@
 // vcsc-cc1 -I .
-// expectasmordered: sta a?,y
+// expectasmordered: sta  a?
 // expectasmordered: ora __vcsc_scratch_
 // expectasmordered: beq @if_false_
 // forbidasm: lda #<{a? + 0}

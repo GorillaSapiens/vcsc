@@ -7,9 +7,8 @@
 // expectasmordered: @fini:
 // expectasmordered: rts
 // expectasmordered: jsr id8
-// expectasmordered: ldy #0
-// expectasmordered: lda id8$__return,y
-// expectasmordered: sta main$__return,y
+// expectasmordered: lda  id8$__return
+// expectasmordered: sta  main$__return
 // forbidasm: tay
 // forbidasm: tya
 // forbidasm: fp

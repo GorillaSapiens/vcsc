@@ -7,7 +7,7 @@
 // expectasmordered: lda #$56
 // expectasmordered: lda #$34
 // expectasmordered: lda #$12
-// expectasmordered: sta score32$__return,y
+// expectasmordered: sta  score32$__return
 // expectasmordered: @fini:
 // expectasmordered: rts
 include "machine_6502.c26"
