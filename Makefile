@@ -5,6 +5,7 @@ LIBDIR ?= $(PREFIX)/lib
 INCLUDEDIR ?= $(PREFIX)/include
 DATADIR ?= $(PREFIX)/share
 CFGDIR ?= $(DATADIR)/cfg
+EXAMPLESDIR ?= $(PREFIX)/examples
 PACKAGE_PREFIX ?= /opt/vcsc
 PACKAGE_STAGING ?= $(CURDIR)/pkgroot
 INSTALLCHECK_STAGING ?= $(CURDIR)/.installcheck-root
@@ -87,7 +88,7 @@ docs:
 	mkdir -p doxygen
 	$(DOXYGEN) Doxyfile
 
-install: tools install-core
+install: tools install-core install-examples
 
 install-core:
 	@$(MAKE) --no-print-directory -C ./assembler install DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)" CFGDIR="$(CFGDIR)"
@@ -99,6 +100,15 @@ install-core:
 	install -d $(DESTDIR)$(BINDIR)
 	@$(MAKE) --no-print-directory -C ./libraries/runtime install DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" INCLUDEDIR="$(INCLUDEDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory install-data DESTDIR="$(DESTDIR)" DATADIR="$(DATADIR)"
+
+install-examples:
+	install -d $(DESTDIR)$(EXAMPLESDIR)
+	cp -a examples/. $(DESTDIR)$(EXAMPLESDIR)/
+	find $(DESTDIR)$(EXAMPLESDIR) -type f \
+	  \( -name '*.bin' -o -name '*.hex' -o -name '*.o26' \
+	     -o -name '*.map' -o -name '*.sym' -o -name '*.lst' \) -delete
+	find $(DESTDIR)$(EXAMPLESDIR) -type f -name Makefile -exec \
+	  sed -i 's|$$(ROOT)/driver/vcsc|$$(ROOT)/bin/vcsc|g; s|$$(ROOT)/libraries/vcs|$$(ROOT)/share/vcs|g' {} +
 
 install-data:
 	install -d $(DESTDIR)$(DATADIR)/vcs
@@ -203,6 +213,7 @@ install-data:
 	install -m 0644 libraries/vcs/legacy-basic-renderers/README.md $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers/README.md
 
 uninstall:
+	@$(MAKE) --no-print-directory uninstall-examples DESTDIR="$(DESTDIR)" EXAMPLESDIR="$(EXAMPLESDIR)"
 	@$(MAKE) --no-print-directory uninstall-data DESTDIR="$(DESTDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory -C ./libraries/runtime uninstall DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" INCLUDEDIR="$(INCLUDEDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory -C ./driver uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
@@ -211,6 +222,9 @@ uninstall:
 	@$(MAKE) --no-print-directory -C ./archiver uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./linker uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./assembler uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)" CFGDIR="$(CFGDIR)"
+
+uninstall-examples:
+	rm -rf $(DESTDIR)$(EXAMPLESDIR)
 
 uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/LICENSE.txt
@@ -305,6 +319,7 @@ uninstall-data:
 package: tools
 	rm -rf $(PACKAGE_STAGING)
 	$(MAKE) --no-print-directory install-core DESTDIR="$(PACKAGE_STAGING)" PREFIX="$(PACKAGE_PREFIX)" BINDIR="$(PACKAGE_PREFIX)/bin" LIBDIR="$(PACKAGE_PREFIX)/lib" INCLUDEDIR="$(PACKAGE_PREFIX)/include" DATADIR="$(PACKAGE_PREFIX)/share" CFGDIR="$(PACKAGE_PREFIX)/share/cfg"
+	$(MAKE) --no-print-directory install-examples DESTDIR="$(PACKAGE_STAGING)" PREFIX="$(PACKAGE_PREFIX)" EXAMPLESDIR="$(PACKAGE_PREFIX)/examples"
 	tar -C $(PACKAGE_STAGING) -czf ./vcsc.install.`date -u "+%Y%m%d_%H%M%S"`.tar.gz .
 
 windows:
@@ -434,10 +449,19 @@ linux:
 installcheck: tools
 	rm -rf $(INSTALLCHECK_STAGING)
 	$(MAKE) --no-print-directory install-core DESTDIR="$(INSTALLCHECK_STAGING)" PREFIX="/opt/vcsc" BINDIR="/opt/vcsc/bin" LIBDIR="/opt/vcsc/lib" INCLUDEDIR="/opt/vcsc/include" DATADIR="/opt/vcsc/share" CFGDIR="/opt/vcsc/share/cfg"
+	$(MAKE) --no-print-directory install-examples DESTDIR="$(INSTALLCHECK_STAGING)" PREFIX="/opt/vcsc" EXAMPLESDIR="/opt/vcsc/examples"
 	set -e; \
 	stage_bin="$(INSTALLCHECK_STAGING)/opt/vcsc/bin"; \
 	stage_vcs="$(INSTALLCHECK_STAGING)/opt/vcsc/share/vcs"; \
+	stage_examples="$(INSTALLCHECK_STAGING)/opt/vcsc/examples"; \
 	test -f "$$stage_vcs/LICENSE.txt"; \
+	test -f "$$stage_examples/README.md"; \
+	test -f "$$stage_examples/01_basic/01_blank_screen/blank_screen.c26"; \
+	grep -q 'VCSC ?= $$(ROOT)/bin/vcsc' "$$stage_examples/01_basic/01_blank_screen/Makefile"; \
+	grep -q 'VCS_DIR ?= $$(ROOT)/share/vcs' "$$stage_examples/01_basic/01_blank_screen/Makefile"; \
+	$(MAKE) --no-print-directory -C "$$stage_examples/01_basic/01_blank_screen" clean all; \
+	test `wc -c < "$$stage_examples/01_basic/01_blank_screen/blank_screen.bin"` -eq 4096; \
+	$(MAKE) --no-print-directory -C "$$stage_examples/01_basic/01_blank_screen" clean; \
 	"$$stage_bin/vcsc" -print-prog-name=cc1 >/dev/null; \
 	"$$stage_bin/vcsc" -print-prog-name=as >/dev/null; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" -o "$(INSTALLCHECK_STAGING)/blank_screen.bin"; \
@@ -789,4 +813,4 @@ stella-multisprite-test: tools
 	  "$(CURDIR)" "$(STELLA_MULTISPRITE_TEST_TMP)"
 	rm -rf $(STELLA_MULTISPRITE_TEST_TMP)
 
-.PHONY: all tools install install-core install-data uninstall uninstall-data package windows installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-player-color-192-test stella-faithful-multisprite-test stella-multisprite-test docs
+.PHONY: all tools install install-core install-examples install-data uninstall uninstall-examples uninstall-data package windows installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-player-color-192-test stella-faithful-multisprite-test stella-multisprite-test docs

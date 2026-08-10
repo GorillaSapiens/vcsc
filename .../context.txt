@@ -699,3 +699,8 @@ editable examples, rewrites packaged example Makefiles to use `bin/vcsc` and
 interpreter or `NEEDED` shared-library entry, smoke-runs the staged driver and
 packaged blank-screen example, and writes the relocatable artifact
 `vcsc.linux.YYYYMMDD_HHMMSS.tar.gz`. See `LINUX.md`.
+
+The ordinary installed distribution now includes the editable `examples/` tree at
+`$(PREFIX)/examples` (default `/opt/vcsc/examples`). `make install` stages the examples
+with Makefiles rewritten to use installed `bin/vcsc` and `share/vcs`; `make package`
+contains the same `/opt/vcsc/examples` tree, and `make uninstall` removes it.

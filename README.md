@@ -174,9 +174,12 @@ make windows
 ```
 
 The installed tree contains the command-line tools, runtime library, assembler
-configuration, and Atari 2600 support files. The driver locates sibling tools
-and shared data relative to the common installation prefix, while still
-supporting in-tree development builds.
+configuration, Atari 2600 support files, and editable examples under
+`$(PREFIX)/examples` (normally `/opt/vcsc/examples`). The installed example
+Makefiles are rewritten to use the installed `bin/vcsc` and `share/vcs` tree.
+The driver locates sibling tools and shared data relative to the common
+installation prefix, while still supporting in-tree development builds.
+`make package` includes the same installed examples in its `/opt/vcsc` image.
 
 `make linux` builds all six host tools with static linkage, stages the normal
 support tree plus the editable examples, and writes
