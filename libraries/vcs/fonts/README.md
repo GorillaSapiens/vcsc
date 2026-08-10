@@ -10,11 +10,11 @@
 # VCS score fonts
 
 This directory contains eight conventional 8x8 score-font families, one
-separate 8x16 printable-ASCII font, and one special six-slice VCSC logo table.
+8x16 Big font family, and one special six-slice VCSC logo table.
 Every pixel row is written on its own line using visual binary notation: `.` is
 a clear pixel and `X` is a set pixel.
 
-Each family has three modules:
+Each conventional 8x8 family has three modules:
 
 - `*_decimal.c26` defines ten glyphs, `0` through `9`, in an 80-byte array.
 - `*_hex.c26` defines sixteen glyphs, `0` through `9` and `A` through `F`, in a
@@ -23,7 +23,7 @@ Each family has three modules:
   through tilde (`0x7E`) in a 760-byte array. Every glyph in one ASCII module
   has a distinct bitmap.
 
-Include exactly one conventional family module in a translation unit. Every
+Include exactly one font-family module in a translation unit. Every
 family module defines the common table symbol `score_font`, which is the
 interface expected by display components. The special
 `logo_font.c26` table uses its own `logo_font` symbol and may coexist with one
@@ -46,20 +46,28 @@ page. This matters for cycle-sensitive `(pointer),Y` glyph reads.
 | Tiny | `tiny_decimal.c26` | `tiny_hex.c26` | Compact 3x5 forms inside an 8x8 cell |
 
 
-## Big 8x16 ASCII font
+## Big 8x16 font family
 
-`big_ascii.c26` is a separate 8x16 font containing all 95 printable ASCII
-characters. It defines `score_font[1520]` (95 glyphs × 16 rows), with every
-glyph stored bottom-to-top by the 16-row `VCS_FONT_GLYPH` alias. It is not one
-of the conventional 8x8 score-font families and is **not** compatible with the
-existing eight-row six-glyph score components without a 16-row display
-component.
+The Big family uses sixteen rows per 8-pixel-wide glyph:
 
-Because the table is 1520 bytes, hard `page` containment is impossible. It uses
-`align(256)` instead, keeping the font contiguous while starting it at `$xx00`.
-Each glyph is exactly sixteen bytes, so every glyph remains wholly within one
-hardware page. Like the conventional families it uses the common `score_font`
-symbol, so include it alone in a translation unit.
+- `big_decimal.c26` contains `0` through `9` in a 160-byte table.
+- `big_hex.c26` contains `0` through `9` and `A` through `F` in a 256-byte table.
+- `big_ascii.c26` contains all 95 printable ASCII characters in a 1520-byte table.
+
+The decimal and hexadecimal glyphs are exact subsets of `big_ascii.c26`; they
+are not separately redrawn versions. Every module stores source rows
+top-to-bottom and uses the 16-row `VCS_FONT_GLYPH` alias to emit them
+bottom-to-top for the display raster.
+
+All three tables use `align(256)`. The decimal table fits within one hardware
+page and the hexadecimal table occupies exactly one page. The ASCII table spans
+multiple pages, but each glyph is exactly sixteen bytes and 256 is divisible by
+16, so no individual glyph crosses a page. All three modules define the common
+`score_font` symbol and therefore must be included one at a time.
+
+The Big fonts require a 16-row display component.
+`six_glyph_big_wide_component.c26` provides the six-glyph wide score profile;
+the ordinary six-glyph components remain eight-row renderers.
 
 ## VCSC logo slices
 

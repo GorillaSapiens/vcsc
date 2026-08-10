@@ -207,7 +207,9 @@ index($top_make,'libraries/vcs/renderers/multisprite/multisprite.c26')>=0 &&
 index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/multisprite/multisprite.c26')>=0 &&
 index($top_make,'examples/14_multisprite/01_192/01_interactive/multisprite_192_interactive.c26')>=0 &&
 index($top_make,'install -m 0644 libraries/vcs/six_glyph_wide_component.c26')>=0 &&
-index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_wide_component.c26')>=0
+index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_wide_component.c26')>=0 &&
+index($top_make,'install -m 0644 libraries/vcs/six_glyph_big_wide_component.c26')>=0 &&
+index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_big_wide_component.c26')>=0
    or die "top-level installed simulator/Stella and wide-score coverage is incomplete\n";
 my $sim_readme=slurp(File::Spec->catfile($repo,'simulator','README.md'));
 index($sim_readme,'--start-bank=N')>=0 &&
@@ -415,6 +417,23 @@ index(slurp(File::Spec->catfile($test,'vcs_examples_build.pl')),
    q{$file eq 'score.c26' || $file eq 'wide_score.c26'})>=0 &&
 -f File::Spec->catfile($repo,'test','fixtures','vcs_examples','05_wide_score','reference_stella_7.0.png')
    or die "widely spaced score example, tests, or oracle are incomplete
+";
+my $big_wide_source=slurp(File::Spec->catfile($repo,'examples','01_basic','07_big_wide_score','big_wide_score.c26'));
+my $big_wide_make=slurp(File::Spec->catfile($repo,'examples','01_basic','07_big_wide_score','Makefile'));
+index($big_wide_source,'include "fonts/big_decimal.c26"')>=0 &&
+index($big_wide_source,'instantiate "six_glyph_big_wide_component.c26" as score')>=0 &&
+index($big_wide_source,'vcs_ntsc_wait_component_scanlines(87)')>=0 &&
+index($big_wide_source,'vcs_ntsc_wait_visible_tail_scanlines(86)')>=0 &&
+index($big_wide_make,'-eq 2048')>=0 &&
+-f File::Spec->catfile($repo,'libraries','vcs','fonts','big_decimal.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','fonts','big_hex.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','six_glyph_big_wide_component.c26') &&
+-f File::Spec->catfile($test,'vcs_big_font_family.pl') &&
+-f File::Spec->catfile($test,'vcs_six_glyph_big_wide.pl') &&
+-f File::Spec->catfile($test,'vcs_six_glyph_big_wide_raster.cpp') &&
+index(slurp(File::Spec->catfile($test,'vcs_examples_build.pl')),
+   q{$file eq 'big_wide_score.c26'})>=0
+   or die "big 8x16 wide score family, example, or tests are incomplete
 ";
 my $bank_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','Makefile'));
 index($bank_example_make,'-DVCS_NO_DEFAULT_ROM')<0 &&

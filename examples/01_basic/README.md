@@ -20,8 +20,9 @@ and the lifecycle-component model in small, independently understandable steps.
 | 04 | [`score`](04_score/) | `frame_ntsc.c26` composed with the 11-line `six_glyph_component.c26` |
 | 05 | [`fingerprint`](05_fingerprint/) | Centered Whimsey fingerprint with fixed `012345` VCSC logos at upper right and lower left |
 | 06 | [`wide_score`](06_wide_score/) | `frame_ntsc.c26` composed with the 88-pixel-wide `six_glyph_wide_component.c26` |
+| 07 | [`big_wide_score`](07_big_wide_score/) | 19-line wide score using the 8x16 Big decimal font and `six_glyph_big_wide_component.c26` |
 
-The score, wide-score, and fingerprint examples demonstrate component composition rather than
+The score, wide-score, big-wide-score, and fingerprint examples demonstrate component composition rather than
 a full gameplay renderer. They own the surrounding blank visible lines and call
 each six-glyph component at its calibrated entry phase. The fingerprint example
 combines centered, left-justified, and right-justified eleven-line variants and

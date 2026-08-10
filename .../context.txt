@@ -675,6 +675,18 @@ and delayed bytes and produced a garbage leading glyph. Ordinary score instances
 the compact defaults. The bank diagnostic map regression now locks the 12-byte pointer
 array/full-mode storage shape, and its Stella grader locks exact PASS/FAIL word geometry
 and white-pixel count rather than accepting a loose area threshold.
+The Big font family now has exact 16-row decimal and hexadecimal subsets of
+`fonts/big_ascii.c26`: `big_decimal.c26` is 160 bytes (0-9) and
+`big_hex.c26` is exactly 256 bytes (0-9,A-F), both `align(256)` and both
+preserving the Big source glyphs byte-for-byte. `six_glyph_big_wide_component.c26`
+extends the proven wide six-glyph geometry to 16-row glyphs at X=36,52,68,84,100,116
+with a **19-visible-scanline** component contract. Public example
+`examples/01_basic/07_big_wide_score` uses `big_decimal.c26`, budgets 87+19+86=192
+visible lines, and builds as a 2K cartridge at **1116 ROM / 35 RAM**. The dedicated
+font-family regression proves decimal/hex are exact Big-ASCII subsets and page-contained;
+`vcs_six_glyph_big_wide` locks all six writes for the complete **88x16** score raster
+and exact 262-line frames. Existing 8-row score components are unchanged.
+
 Main-roadmap items 29 and 30 and the completed bankswitching sub-roadmap remain closed.
 No new main-roadmap item has been selected after item 28.
 

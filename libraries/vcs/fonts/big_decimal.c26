@@ -1,0 +1,208 @@
+// Big
+// Characters: 0-9
+// This font is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a
+
+align(256) const uint8_t score_font[160] := {
+   // 0
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+
+   // 1
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b...XXX..,
+      0b..XXXX..,
+      0b.XXXXX..,
+      0b...XXX..,
+      0b...XXX..,
+      0b...XXX..,
+      0b...XXX..,
+      0b...XXX..,
+      0b...XXX..,
+      0b...XXX..,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+
+   // 2
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXX..XXX,
+      0b.....XXX,
+      0b....XXX.,
+      0b...XXX..,
+      0b..XXX...,
+      0b.XXX....,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+
+   // 3
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXX..XXX,
+      0b.....XXX,
+      0b..XXXXX.,
+      0b..XXXXX.,
+      0b.....XXX,
+      0bXXX..XXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+
+   // 4
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b....XXX.,
+      0b...XXXX.,
+      0b..XXXXX.,
+      0b.XXXXXX.,
+      0bXXX.XXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b....XXX.,
+      0b....XXX.,
+      0b....XXX.,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+
+   // 5
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXX.....,
+      0bXXXXXXX.,
+      0bXXXXXXXX,
+      0b.....XXX,
+      0b.....XXX,
+      0bXXX..XXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+
+   // 6
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXX..XXX,
+      0bXXX.....,
+      0bXXXXXXX.,
+      0bXXXXXXXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+
+   // 7
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.....XXX,
+      0b.....XXX,
+      0b....XXX.,
+      0b...XXX..,
+      0b...XXX..,
+      0b..XXX...,
+      0b..XXX...,
+      0b..XXX...,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+
+   // 8
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+
+   // 9
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXXXXXXX,
+      0b.XXXXXXX,
+      0b.....XXX,
+      0bXXX..XXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   )
+
+};

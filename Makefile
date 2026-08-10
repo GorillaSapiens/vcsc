@@ -122,6 +122,7 @@ install-data:
 	install -m 0644 libraries/vcs/riot.c26 $(DESTDIR)$(DATADIR)/vcs/riot.c26
 	install -m 0644 libraries/vcs/six_glyph_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_component.c26
 	install -m 0644 libraries/vcs/six_glyph_wide_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_wide_component.c26
+	install -m 0644 libraries/vcs/six_glyph_big_wide_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_big_wide_component.c26
 	install -m 0644 libraries/vcs/six_glyph_left_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_left_component.c26
 	install -m 0644 libraries/vcs/six_glyph_right_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_right_component.c26
 	install -m 0644 libraries/vcs/six_glyph_color_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_color_component.c26
@@ -237,6 +238,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/riot.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_wide_component.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_big_wide_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_left_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_right_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_color_component.c26
@@ -552,6 +554,11 @@ installcheck: tools
 	  "$(CURDIR)/examples/01_basic/06_wide_score/wide_score.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/wide_score.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/wide_score.bin"` -eq 2048; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/07_big_wide_score" \
+	  -T "$$stage_vcs/vcs.cfg" \
+	  "$(CURDIR)/examples/01_basic/07_big_wide_score/big_wide_score.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/big_wide_score.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/big_wide_score.bin"` -eq 2048; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  "$(CURDIR)/examples/01_basic/05_fingerprint/fingerprint.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/fingerprint.bin"; \
@@ -560,6 +567,7 @@ installcheck: tools
 	test -f "$$stage_vcs/frame_ntsc.c26"; \
 	test -f "$$stage_vcs/six_glyph_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_wide_component.c26"; \
+	test -f "$$stage_vcs/six_glyph_big_wide_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_left_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_right_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_color_component.c26"; \

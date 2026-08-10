@@ -30,6 +30,7 @@ Files:
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
 - `six_glyph_component.c26` ... repeatable instantiable lifecycle centered 48-pixel/six-glyph display with fixed bright-white color and hostile-state-safe reflection reset
 - `six_glyph_wide_component.c26` ... separate mutable-color six-glyph profile with origins at X=36,52,68,84,100,116; its compact default uses one biased byte offset plus five full pointers and no row byte, while `compact_font:=0` restores six redirectable full pointers for callers such as the bankswitching PASS/FAIL diagnostic
+- `six_glyph_big_wide_component.c26` ... matching wide geometry for the 16-row Big decimal/hex fonts; it draws six 8x16 glyphs in a 19-scanline visible component
 - `six_glyph_left_component.c26` ... eleven-line mutable-color variant justified at X=0..47; compact default stores digit 6 as a byte offset plus five full pointers (set `compact_font:=0` only for full-pointer font redirection)
 - `six_glyph_right_component.c26` ... eleven-line mutable-color variant justified at X=112..159; compact default uses two byte offsets plus four full pointers (set `compact_font:=0` only for full-pointer font redirection)
 - `six_glyph_color_component.c26` ... timing-compatible centered mutable-color twin used by interactive score diagnostics; its page-contained font contract stores digits 1/2 as byte offsets and digits 3..6 as full pointers, eliminating the row counter while preserving the exact historical GRP-write raster
@@ -45,7 +46,7 @@ Files:
 - `renderers/poison_debug_score/` ... one-byte adversarial eleven-line score-profile component that trashes deterministic P0/P1 state while preserving playfield, missile, and Ball geometry
 - `renderers/standard_4k_ntsc/` ... legacy monolithic all-five-object solid-color component whose generated assembly object carries its own placement, page, and hidden-stack contracts; certified with generic 4K/F8/F6/F4/F8SC C26 profiles through a VBLANK-only banked overscan hook
 - `renderers/standard_4k_ntsc_playercolors/` ... legacy monolithic P0+P1+BL player-color profile retained for compatibility and regression
-- `fonts/` ... eight shared 8x8 score-font families plus the six-slice `logo_font.c26` VCSC mark
+- `fonts/` ... eight shared 8x8 score-font families, the Big 8x16 decimal/hex/ASCII family, plus the six-slice `logo_font.c26` VCSC mark
 - `../../examples/README.md` ... renderer-grouped public example index
 - `../../examples/01_basic/` ... standalone cartridges and reusable-component examples
 - `../../examples/02_faithful_legacy_playercolors/` ... faithful legacy interactive compatibility diagnostic

@@ -1,0 +1,52 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Widely spaced six-digit score using the 16-scanline Big glyphs.
+// The six 8-pixel glyph origins are X=36,52,68,84,100,116.
+
+include "vcs_2k.c26"
+include "frame_ntsc.c26"
+include "fonts/big_decimal.c26"
+
+alias BACKGROUND_COLOR 0x84
+alias SCORE_PERIOD     20
+
+instantiate "six_glyph_big_wide_component.c26" as score
+uint8_t frame_counter := 0;
+
+void main(void) {
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   GRP0 := 0;
+   GRP1 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+   COLUBK := BACKGROUND_COLOR;
+   VBLANK := 2;
+
+   score_score := 123456;
+   score_color := 0x0e;
+   score_init();
+
+   while (1) {
+      vcs_ntsc_vsync();
+
+      vcs_ntsc_begin_vblank();
+      score_vblank();
+      vcs_ntsc_end_vblank();
+
+      vcs_ntsc_wait_component_scanlines(87);
+      score_draw();
+      vcs_ntsc_wait_visible_tail_scanlines(86);
+
+      vcs_ntsc_begin_overscan();
+      frame_counter++;
+      if (frame_counter == SCORE_PERIOD) {
+         frame_counter := 0;
+         score_score++;
+      }
+      score_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}
