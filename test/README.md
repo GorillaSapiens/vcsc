@@ -603,11 +603,11 @@ out of the image and reports, resolves the selected member at its logical
 BANK1 call bridge with the archive-member origin intact.
 
 `vcs_bankswitching_diagnostic.pl` builds one F8, one F6, and one F4 image
-from `libraries/vcs/bankswitching_diagnostic_suite.c26`. The diagnostic explicitly
-instantiates the wide score with `compact_font:=0`; the test locks the resulting
-12-byte six-pointer storage so PASS/FAIL's arbitrary ASCII glyph pointers cannot
-overwrite compact-score state. Each image executes its complete ordered source-bank
-to destination-bank direct-JMP matrix internally.
+from `libraries/vcs/bankswitching_diagnostic_suite.c26`. The diagnostic composes
+a 19-line Big-wide result word with an 11-line centered cart-type line. The test
+locks both 12-byte six-pointer workspaces and the page-contained 128-byte Big and
+64-byte default ASCII subset tables. Each image executes its complete ordered
+source-bank to destination-bank direct-JMP matrix internally.
 The normal `make test` path builds each image from C26 topology and runs it in compatibility-cfg-driven `vcsc-sim` from every
 physical/file startup bank and checks RIOT-RAM signatures, exact matrix counts,
 the nested cross-bank call, and hardware-stack balance. Superchip runs prefill
@@ -621,8 +621,10 @@ make stella-bank-test STELLA=/path/to/stella
 ```
 
 It runs the same three ordinary and three Superchip matrix images in Stella,
-grades the stable green **PASS** frame versus the dark-red **FAIL** failure frame,
-including exact word geometry, white-pixel count, and default-font glyph shapes rather
+grades the stable green lowercase **pass** frame versus the dark-red uppercase
+**FAIL** failure frame, and independently requires the exact `F8`/`F6`/`F4` or
+`F8SC`/`F6SC`/`F4SC` line beneath it. The poisoned image must show `??????`.
+The grader checks exact Big/default glyph geometry and white-pixel masks rather
 than merely color/area,
 forces every physical startup bank, and also runs one randomized developer-mode
 startup trial per physical bank. For each SC run the key helper waits for the

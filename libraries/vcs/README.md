@@ -29,7 +29,7 @@ Files:
 - `playfield.c26` ... compile-time `VCS_PLAYFIELD_ROW()` conversion from left-to-right 32-bit visual rows to the four asymmetric TIA playfield bytes
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
 - `six_glyph_component.c26` ... repeatable instantiable lifecycle centered 48-pixel/six-glyph display with fixed bright-white color and hostile-state-safe reflection reset
-- `six_glyph_wide_component.c26` ... separate mutable-color six-glyph profile with origins at X=36,52,68,84,100,116; its compact default uses one biased byte offset plus five full pointers and no row byte, while `compact_font:=0` restores six redirectable full pointers for callers such as the bankswitching PASS/FAIL diagnostic
+- `six_glyph_wide_component.c26` ... separate mutable-color six-glyph profile with origins at X=36,52,68,84,100,116; its compact default uses one biased byte offset plus five full pointers and no row byte, while `compact_font:=0` restores six redirectable full pointers for callers that need arbitrary glyph-page redirection
 - `six_glyph_big_wide_component.c26` ... matching wide geometry for the 16-row Big decimal/hex fonts; it draws six 8x16 glyphs in a 19-scanline visible component
 - `six_glyph_left_component.c26` ... eleven-line mutable-color variant justified at X=0..47; compact default stores digit 6 as a byte offset plus five full pointers (set `compact_font:=0` only for full-pointer font redirection)
 - `six_glyph_right_component.c26` ... eleven-line mutable-color variant justified at X=112..159; compact default uses two byte offsets plus four full pointers (set `compact_font:=0` only for full-pointer font redirection)
@@ -70,12 +70,15 @@ for the Superchip twins, `SUPERCHIP_TEST`. One cartridge internally executes the
 complete ordered source-bank to destination-bank direct-JMP matrix for its
 mapper. Every source bank also verifies a same-bank JSR/RTS path; BANK0 adds a
 nested BANK0-to-BANK1 call and return. RIOT-RAM signatures, matrix counts, and
-hardware-stack balance are checked before the cartridge settles on a green
-background with a white **P** or a dark-red background with a white **F**. Both
-glyphs are copied from `fonts/default_ascii.c26`. Their ordinary
-`lda glyph,x` references remain absolute-X because the symbols are relocatable
-ROM; each `GRP0` update is aligned to `WSYNC`, and the complete frame is exactly
-262 scanlines.
+hardware-stack balance are checked before the cartridge settles on a two-line
+result display. Green success shows lowercase **pass** with the 16-row Big font;
+dark-red failure shows uppercase **FAIL**. A centered second line identifies
+`F8`, `F6`, `F4`, `F8SC`, `F6SC`, or `F4SC`; the deliberately poisoned image
+shows `??????`. The result line uses `six_glyph_big_wide_component.c26` with
+exact glyphs from `fonts/big_ascii.c26`, and the cart-type line uses
+`six_glyph_component.c26` with exact glyphs from `fonts/default_ascii.c26`.
+The 19-line and 11-line components form one centered 30-line block, and the
+complete frame remains exactly 262 scanlines.
 
 The editable wrapper and Makefile live under
 `examples/09_bankswitching/01_diagnostic/`. Each diagnostic includes the selected C26 cartridge profile. `vcs.c26` now

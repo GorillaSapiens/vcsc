@@ -21,3 +21,5 @@ Derived big_decimal.c26 and big_hex.c26 exactly from big_ascii.c26, added the 19
 
 2026-08-10 15:43:10 PDT, fingerprint center switched to Big wide hexadecimal display
 The silicon fingerprint example now renders its central six hexadecimal digits with the 19-line six_glyph_big_wide component and big_hex font while preserving the two VCSC logo positions and exact 262-line timing; the reviewed Stella reference and fingerprint timing/entry contracts were updated.
+
+2026-08-10 16:07:39 PDT — Bankswitching diagnostics now display two text lines: big-wide lowercase pass or uppercase FAIL using exact Big ASCII glyph subsets, followed by a centered six-glyph cartridge label from exact default ASCII glyph subsets; poisoned diagnostics display ??????. Exact Stella grading checks both lines.

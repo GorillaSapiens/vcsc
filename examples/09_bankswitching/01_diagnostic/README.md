@@ -33,18 +33,20 @@ they poison the entire contract boundary; simulator and Stella certification
 reset the CPU without externally clearing RAM and require a second PASS, proving
 that startup reinitializes allocated objects on every reset.
 
-A green background with the complete white word **PASS** is success. A dark-red
-background with the complete white word **FAIL** is failure. The letters are
-copied exactly from `libraries/vcs/fonts/default_ascii.c26` and installed into
-the reusable six-glyph-wide score component as `blank/P/A/S/S/blank` or
-`blank/F/A/I/L/blank`. Because these are arbitrary ASCII glyph pointers rather
-than decimal-font digits, this diagnostic instantiates the component with
-`compact_font:=0`; ordinary wide scores retain the compact RAM-saving default.
-The blank outer cells center the four-letter word at
-X=79.5 on the 160-pixel visible raster. Ninety blank visible scanlines precede
-the component's exact 11-line draw and 91 follow it, centering the odd-height
-component to the unavoidable half-scanline in the 192-line visible field. Every
-result frame remains exactly 262 scanlines.
+The stable result display has two centered white lines. On green success the
+first line is lowercase **pass** in the 8x16 Big font; on dark-red failure it is
+uppercase **FAIL**. Those glyphs are copied exactly from
+`libraries/vcs/fonts/big_ascii.c26` and rendered by
+`six_glyph_big_wide_component.c26` as `blank/p/a/s/s/blank` or
+`blank/F/A/I/L/blank`.
+
+Directly below it, `six_glyph_component.c26` uses exact glyphs from
+`libraries/vcs/fonts/default_ascii.c26` to identify the cartridge. Ordinary
+images show centered `F8`, `F6`, or `F4`; Superchip images show `F8SC`, `F6SC`,
+or `F4SC`. The deliberately poisoned image shows `??????` instead of claiming a
+mapper identity. The combined visible block is 19 + 11 = 30 scanlines, with 81
+blank visible lines above and below, so every result frame remains exactly 262
+NTSC scanlines.
 
 `make` emits exactly seven cartridges:
 

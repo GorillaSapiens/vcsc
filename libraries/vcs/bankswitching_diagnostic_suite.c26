@@ -7,7 +7,7 @@
 // BANK0 also makes a nested cross-bank call, before every source directly
 // jumps to every destination bank.  RIOT-RAM signatures, transition counts, and
 // hardware-stack balance are checked before the cartridge settles on a stable
-// green PASS or dark-red FAIL frame for emulator certification.
+// green lowercase pass or dark-red uppercase FAIL frame, with a second cart-type line, for emulator certification.
 
 #ifndef MAPPER_BANKS
 MAPPER_BANKS_must_be_2_4_or_8
@@ -37,8 +37,12 @@ MAPPER_BANKS_must_be_2_4_or_8
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"
+// Both display components require a score_font symbol for their normal
+// lifecycle pointer preparation. The diagnostic replaces those pointers with
+// its two exact ASCII subset tables during VBLANK before either becomes visible.
 include "fonts/default_decimal.c26"
-instantiate "six_glyph_wide_component.c26" as status_word (compact_font:=0)
+instantiate "six_glyph_big_wide_component.c26" as status_result
+instantiate "six_glyph_component.c26" as cart_type
 #endif
 
 #ifdef SUPERCHIP_TEST
@@ -69,15 +73,28 @@ uint8_t diagnostic_superchip_index;
 #endif
 
 #ifndef SIMULATOR_TEST
-// Exact space/A/F/I/L/P/S designs copied from fonts/default_ascii.c26.
-// The local alias stores them bottom-to-top because six_glyph_wide_component
-// counts its row index down from seven to zero.  PASS and FAIL occupy the
-// middle four of the component's six wide glyph cells, so their 56-pixel word
-// boxes are centered at X=79.5 on the 160-pixel visible raster.
-alias BANK_DIAGNOSTIC_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+// Exact glyph subsets copied mechanically from the canonical ASCII fonts.
+// Keep each table page-contained so every cycle-counted indirect indexed load
+// remains page-cross free.
+//
+// Big result table order:
+//   blank, p, a, s, F, A, I, L
+// Small cart-type table order:
+//   blank, F, 4, 6, 8, S, C, ?
+alias BANK_DIAGNOSTIC_BIG_GLYPH(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a
+alias BANK_DIAGNOSTIC_SMALL_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 
-bank0 const uint8_t status_blank_glyph[8] := {
-   BANK_DIAGNOSTIC_GLYPH(
+bank0 page const uint8_t status_big_glyphs[128] := {
+   // space -- exact big_ascii.c26 0x20
+   BANK_DIAGNOSTIC_BIG_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
       0b........,
       0b........,
       0b........,
@@ -86,76 +103,200 @@ bank0 const uint8_t status_blank_glyph[8] := {
       0b........,
       0b........,
       0b........
+   ),
+   // p -- exact big_ascii.c26 0x70
+   BANK_DIAGNOSTIC_BIG_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0bXXXXXXX.,
+      0bXXXXXXXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXXXXXXX,
+      0bXXXXXXX.,
+      0bXXX.....,
+      0bXXX.....,
+      0bXXX.....,
+      0b........
+   ),
+   // a -- exact big_ascii.c26 0x61
+   BANK_DIAGNOSTIC_BIG_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b..XXXXX.,
+      0b.XXXXXXX,
+      0b.....XXX,
+      0b.XXXXXXX,
+      0bXXX..XXX,
+      0bXXXXXXXX,
+      0b.XXXXXXX,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+   // s -- exact big_ascii.c26 0x73
+   BANK_DIAGNOSTIC_BIG_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXXX....,
+      0b.XXXXXX.,
+      0b....XXXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+   // F -- exact big_ascii.c26 0x46
+   BANK_DIAGNOSTIC_BIG_GLYPH(
+      0b........,
+      0b........,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXX.....,
+      0bXXX.....,
+      0bXXXXXX..,
+      0bXXXXXX..,
+      0bXXX.....,
+      0bXXX.....,
+      0bXXX.....,
+      0bXXX.....,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+   // A -- exact big_ascii.c26 0x41
+   BANK_DIAGNOSTIC_BIG_GLYPH(
+      0b........,
+      0b........,
+      0b...XX...,
+      0b..XXXX..,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b.XX..XX.,
+      0bXXX..XXX,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+   // I -- exact big_ascii.c26 0x49
+   BANK_DIAGNOSTIC_BIG_GLYPH(
+      0b........,
+      0b........,
+      0b.XXXXX..,
+      0b.XXXXX..,
+      0b..XXX...,
+      0b..XXX...,
+      0b..XXX...,
+      0b..XXX...,
+      0b..XXX...,
+      0b..XXX...,
+      0b.XXXXX..,
+      0b.XXXXX..,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+   // L -- exact big_ascii.c26 0x4c
+   BANK_DIAGNOSTIC_BIG_GLYPH(
+      0b........,
+      0b........,
+      0bXXX.....,
+      0bXXX.....,
+      0bXXX.....,
+      0bXXX.....,
+      0bXXX.....,
+      0bXXX.....,
+      0bXXX.....,
+      0bXXX.....,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b........,
+      0b........,
+      0b........,
+      0b........
    )
 };
 
-bank0 const uint8_t status_a_glyph[8] := {
-   BANK_DIAGNOSTIC_GLYPH(
+bank0 page const uint8_t status_small_glyphs[64] := {
+   // space -- exact default_ascii.c26 0x20
+   BANK_DIAGNOSTIC_SMALL_GLYPH(
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........,
+      0b........
+   ),
+   // F -- exact default_ascii.c26 0x46
+   BANK_DIAGNOSTIC_SMALL_GLYPH(
+      0b.XXXXXX.,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XXXXX..,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....
+   ),
+   // 4 -- exact default_ascii.c26 0x34
+   BANK_DIAGNOSTIC_SMALL_GLYPH(
+      0b....XX..,
+      0b...XXX..,
+      0b..X.XX..,
+      0b.X..XX..,
+      0b.X..XX..,
+      0b.XXXXXX.,
+      0b....XX..,
+      0b....XX..
+   ),
+   // 6 -- exact default_ascii.c26 0x36
+   BANK_DIAGNOSTIC_SMALL_GLYPH(
+      0b..XXXX..,
+      0b.XX...X.,
+      0b.XX.....,
+      0b.XXXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b..XXXX..
+   ),
+   // 8 -- exact default_ascii.c26 0x38
+   BANK_DIAGNOSTIC_SMALL_GLYPH(
+      0b..XXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
       0b..XXXX..,
       0b.XX..XX.,
       0b.XX..XX.,
       0b.XX..XX.,
-      0b.XXXXXX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.
-   )
-};
-
-bank0 const uint8_t status_f_glyph[8] := {
-   BANK_DIAGNOSTIC_GLYPH(
-      0b.XXXXXX.,
-      0b.XX.....,
-      0b.XX.....,
-      0b.XXXXX..,
-      0b.XX.....,
-      0b.XX.....,
-      0b.XX.....,
-      0b.XX.....
-   )
-};
-
-bank0 const uint8_t status_i_glyph[8] := {
-   BANK_DIAGNOSTIC_GLYPH(
-      0b.XXXXXX.,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b...XX...,
-      0b.XXXXXX.
-   )
-};
-
-bank0 const uint8_t status_l_glyph[8] := {
-   BANK_DIAGNOSTIC_GLYPH(
-      0b.XX.....,
-      0b.XX.....,
-      0b.XX.....,
-      0b.XX.....,
-      0b.XX.....,
-      0b.XX.....,
-      0b.XX.....,
-      0b.XXXXXX.
-   )
-};
-
-bank0 const uint8_t status_p_glyph[8] := {
-   BANK_DIAGNOSTIC_GLYPH(
-      0b.XXXXX..,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XXXXX..,
-      0b.XX.....,
-      0b.XX.....,
-      0b.XX.....,
-      0b.XX.....
-   )
-};
-
-bank0 const uint8_t status_s_glyph[8] := {
-   BANK_DIAGNOSTIC_GLYPH(
+      0b..XXXX..
+   ),
+   // S -- exact default_ascii.c26 0x53
+   BANK_DIAGNOSTIC_SMALL_GLYPH(
       0b..XXXX..,
       0b.XX..XX.,
       0b.XX.....,
@@ -164,82 +305,215 @@ bank0 const uint8_t status_s_glyph[8] := {
       0b.....XX.,
       0b.XX..XX.,
       0b..XXXX..
+   ),
+   // C -- exact default_ascii.c26 0x43
+   BANK_DIAGNOSTIC_SMALL_GLYPH(
+      0b..XXXX..,
+      0b.XX..XX.,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX.....,
+      0b.XX..XX.,
+      0b..XXXX..
+   ),
+   // ? -- exact default_ascii.c26 0x3f
+   BANK_DIAGNOSTIC_SMALL_GLYPH(
+      0b..XXXX..,
+      0b.XX..XX.,
+      0b.....XX.,
+      0b....XX..,
+      0b...XX...,
+      0b........,
+      0b...XX...,
+      0b...XX...
    )
 };
 
 inline void load_status_pass(void) {
-   asm lda #<status_blank_glyph;
-   asm sta status_word_pointers;
-   asm lda #>status_blank_glyph;
-   asm sta status_word_pointers+1;
-   asm lda #<status_p_glyph;
-   asm sta status_word_pointers+2;
-   asm lda #>status_p_glyph;
-   asm sta status_word_pointers+3;
-   asm lda #<status_a_glyph;
-   asm sta status_word_pointers+4;
-   asm lda #>status_a_glyph;
-   asm sta status_word_pointers+5;
-   asm lda #<status_s_glyph;
-   asm sta status_word_pointers+6;
-   asm lda #>status_s_glyph;
-   asm sta status_word_pointers+7;
-   asm lda #<status_s_glyph;
-   asm sta status_word_pointers+8;
-   asm lda #>status_s_glyph;
-   asm sta status_word_pointers+9;
-   asm lda #<status_blank_glyph;
-   asm sta status_word_pointers+10;
-   asm lda #>status_blank_glyph;
-   asm sta status_word_pointers+11;
-   status_word_color := 0x0e;
+   asm lda #<{status_big_glyphs + 0};
+   asm sta status_result_pointers+0;
+   asm lda #>{status_big_glyphs + 0};
+   asm sta status_result_pointers+1;
+   asm lda #<{status_big_glyphs + 16};
+   asm sta status_result_pointers+2;
+   asm lda #>{status_big_glyphs + 16};
+   asm sta status_result_pointers+3;
+   asm lda #<{status_big_glyphs + 32};
+   asm sta status_result_pointers+4;
+   asm lda #>{status_big_glyphs + 32};
+   asm sta status_result_pointers+5;
+   asm lda #<{status_big_glyphs + 48};
+   asm sta status_result_pointers+6;
+   asm lda #>{status_big_glyphs + 48};
+   asm sta status_result_pointers+7;
+   asm lda #<{status_big_glyphs + 48};
+   asm sta status_result_pointers+8;
+   asm lda #>{status_big_glyphs + 48};
+   asm sta status_result_pointers+9;
+   asm lda #<{status_big_glyphs + 0};
+   asm sta status_result_pointers+10;
+   asm lda #>{status_big_glyphs + 0};
+   asm sta status_result_pointers+11;
+   status_result_color := 0x0e;
 }
 
 inline void load_status_fail(void) {
-   asm lda #<status_blank_glyph;
-   asm sta status_word_pointers;
-   asm lda #>status_blank_glyph;
-   asm sta status_word_pointers+1;
-   asm lda #<status_f_glyph;
-   asm sta status_word_pointers+2;
-   asm lda #>status_f_glyph;
-   asm sta status_word_pointers+3;
-   asm lda #<status_a_glyph;
-   asm sta status_word_pointers+4;
-   asm lda #>status_a_glyph;
-   asm sta status_word_pointers+5;
-   asm lda #<status_i_glyph;
-   asm sta status_word_pointers+6;
-   asm lda #>status_i_glyph;
-   asm sta status_word_pointers+7;
-   asm lda #<status_l_glyph;
-   asm sta status_word_pointers+8;
-   asm lda #>status_l_glyph;
-   asm sta status_word_pointers+9;
-   asm lda #<status_blank_glyph;
-   asm sta status_word_pointers+10;
-   asm lda #>status_blank_glyph;
-   asm sta status_word_pointers+11;
-   status_word_color := 0x0e;
+   asm lda #<{status_big_glyphs + 0};
+   asm sta status_result_pointers+0;
+   asm lda #>{status_big_glyphs + 0};
+   asm sta status_result_pointers+1;
+   asm lda #<{status_big_glyphs + 64};
+   asm sta status_result_pointers+2;
+   asm lda #>{status_big_glyphs + 64};
+   asm sta status_result_pointers+3;
+   asm lda #<{status_big_glyphs + 80};
+   asm sta status_result_pointers+4;
+   asm lda #>{status_big_glyphs + 80};
+   asm sta status_result_pointers+5;
+   asm lda #<{status_big_glyphs + 96};
+   asm sta status_result_pointers+6;
+   asm lda #>{status_big_glyphs + 96};
+   asm sta status_result_pointers+7;
+   asm lda #<{status_big_glyphs + 112};
+   asm sta status_result_pointers+8;
+   asm lda #>{status_big_glyphs + 112};
+   asm sta status_result_pointers+9;
+   asm lda #<{status_big_glyphs + 0};
+   asm sta status_result_pointers+10;
+   asm lda #>{status_big_glyphs + 0};
+   asm sta status_result_pointers+11;
+   status_result_color := 0x0e;
+}
+
+inline void load_cart_type(void) {
+#ifdef POISONED_RESULT
+   // The poison diagnostic deliberately withholds its mapper identity.
+   asm lda #<{status_small_glyphs + 56};
+   asm sta cart_type_pointers+0;
+   asm lda #>{status_small_glyphs + 56};
+   asm sta cart_type_pointers+1;
+   asm lda #<{status_small_glyphs + 56};
+   asm sta cart_type_pointers+2;
+   asm lda #>{status_small_glyphs + 56};
+   asm sta cart_type_pointers+3;
+   asm lda #<{status_small_glyphs + 56};
+   asm sta cart_type_pointers+4;
+   asm lda #>{status_small_glyphs + 56};
+   asm sta cart_type_pointers+5;
+   asm lda #<{status_small_glyphs + 56};
+   asm sta cart_type_pointers+6;
+   asm lda #>{status_small_glyphs + 56};
+   asm sta cart_type_pointers+7;
+   asm lda #<{status_small_glyphs + 56};
+   asm sta cart_type_pointers+8;
+   asm lda #>{status_small_glyphs + 56};
+   asm sta cart_type_pointers+9;
+   asm lda #<{status_small_glyphs + 56};
+   asm sta cart_type_pointers+10;
+   asm lda #>{status_small_glyphs + 56};
+   asm sta cart_type_pointers+11;
+#else
+#ifdef SUPERCHIP_TEST
+   // blank / F / mapper-digit / S / C / blank
+   asm lda #<{status_small_glyphs + 0};
+   asm sta cart_type_pointers+0;
+   asm lda #>{status_small_glyphs + 0};
+   asm sta cart_type_pointers+1;
+   asm lda #<{status_small_glyphs + 8};
+   asm sta cart_type_pointers+2;
+   asm lda #>{status_small_glyphs + 8};
+   asm sta cart_type_pointers+3;
+#if MAPPER_BANKS == 2
+   asm lda #<{status_small_glyphs + 32};
+   asm sta cart_type_pointers+4;
+   asm lda #>{status_small_glyphs + 32};
+   asm sta cart_type_pointers+5;
+#elif MAPPER_BANKS == 4
+   asm lda #<{status_small_glyphs + 24};
+   asm sta cart_type_pointers+4;
+   asm lda #>{status_small_glyphs + 24};
+   asm sta cart_type_pointers+5;
+#elif MAPPER_BANKS == 8
+   asm lda #<{status_small_glyphs + 16};
+   asm sta cart_type_pointers+4;
+   asm lda #>{status_small_glyphs + 16};
+   asm sta cart_type_pointers+5;
+#endif
+   asm lda #<{status_small_glyphs + 40};
+   asm sta cart_type_pointers+6;
+   asm lda #>{status_small_glyphs + 40};
+   asm sta cart_type_pointers+7;
+   asm lda #<{status_small_glyphs + 48};
+   asm sta cart_type_pointers+8;
+   asm lda #>{status_small_glyphs + 48};
+   asm sta cart_type_pointers+9;
+   asm lda #<{status_small_glyphs + 0};
+   asm sta cart_type_pointers+10;
+   asm lda #>{status_small_glyphs + 0};
+   asm sta cart_type_pointers+11;
+#else
+   // blank / blank / F / mapper-digit / blank / blank
+   asm lda #<{status_small_glyphs + 0};
+   asm sta cart_type_pointers+0;
+   asm lda #>{status_small_glyphs + 0};
+   asm sta cart_type_pointers+1;
+   asm lda #<{status_small_glyphs + 0};
+   asm sta cart_type_pointers+2;
+   asm lda #>{status_small_glyphs + 0};
+   asm sta cart_type_pointers+3;
+   asm lda #<{status_small_glyphs + 8};
+   asm sta cart_type_pointers+4;
+   asm lda #>{status_small_glyphs + 8};
+   asm sta cart_type_pointers+5;
+#if MAPPER_BANKS == 2
+   asm lda #<{status_small_glyphs + 32};
+   asm sta cart_type_pointers+6;
+   asm lda #>{status_small_glyphs + 32};
+   asm sta cart_type_pointers+7;
+#elif MAPPER_BANKS == 4
+   asm lda #<{status_small_glyphs + 24};
+   asm sta cart_type_pointers+6;
+   asm lda #>{status_small_glyphs + 24};
+   asm sta cart_type_pointers+7;
+#elif MAPPER_BANKS == 8
+   asm lda #<{status_small_glyphs + 16};
+   asm sta cart_type_pointers+6;
+   asm lda #>{status_small_glyphs + 16};
+   asm sta cart_type_pointers+7;
+#endif
+   asm lda #<{status_small_glyphs + 0};
+   asm sta cart_type_pointers+8;
+   asm lda #>{status_small_glyphs + 0};
+   asm sta cart_type_pointers+9;
+   asm lda #<{status_small_glyphs + 0};
+   asm sta cart_type_pointers+10;
+   asm lda #>{status_small_glyphs + 0};
+   asm sta cart_type_pointers+11;
+#endif
+#endif
 }
 
 bank0 void draw_status_frame(void) {
-   // Exercise the component lifecycle normally.  Its stock decimal pointer
-   // preparation is immediately replaced with the exact ASCII PASS/FAIL
-   // pointers during VBLANK, before the component becomes visible.
-   status_word_score := 0;
-   status_word_init();
+   // Exercise both component lifecycles normally. Their decimal preparation is
+   // immediately replaced with the exact ASCII subset pointers during VBLANK.
+   status_result_score := 0;
+   cart_type_score := 0;
+   status_result_init();
+   cart_type_init();
 
    while (1) {
       vcs_ntsc_vsync();
       vcs_ntsc_begin_vblank();
-      status_word_vblank();
+      status_result_vblank();
+      cart_type_vblank();
       if (failure) {
          load_status_fail();
       }
       else {
          load_status_pass();
       }
+      load_cart_type();
 
       COLUP0 := 0x0e;
       COLUP1 := 0x0e;
@@ -261,20 +535,20 @@ bank0 void draw_status_frame(void) {
 
       vcs_ntsc_end_vblank();
 
-      // 90 blank lines + the component's exact 11 lines + 91 blank lines =
-      // 192 visible scanlines.  The one-line asymmetry is the unavoidable
-      // half-scanline centering of an odd-height component in an even-height
-      // visible field.
-      vcs_ntsc_wait_component_scanlines(90);
-      status_word_draw();
-      vcs_ntsc_wait_visible_tail_scanlines(91);
+      // Center the combined 30-line result block in the 192-line visible field:
+      // 81 blank + 19 big result + 11 cart type + 81 blank = 192.
+      vcs_ntsc_wait_component_scanlines(81);
+      status_result_draw();
+      vcs_ntsc_component_handoff();
+      cart_type_draw();
+      vcs_ntsc_wait_visible_tail_scanlines(81);
 
       vcs_ntsc_begin_overscan();
-      status_word_overscan();
+      status_result_overscan();
+      cart_type_overscan();
       vcs_ntsc_end_overscan();
    }
 }
-
 #endif
 
 #ifdef SIMULATOR_TEST

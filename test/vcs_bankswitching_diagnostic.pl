@@ -269,7 +269,7 @@ sub run_stella_certification {
                               " snapshots on attempt $attempt\n";
             next;
          }
-         my($rc,$sig,$out,$err)=run_capture($perl,$grade,$png[0],$arg{result} // 'pass');
+         my($rc,$sig,$out,$err)=run_capture($perl,$grade,$png[0],$arg{result} // 'pass',$arg{cart} // $arg{mapper});
          if ($rc==0 && !$sig && $err eq '') {
             $graded=1;
             last;
@@ -287,11 +287,11 @@ sub run_stella_certification {
       my @runs;
       for my $physical_start (0..$banks-1) {
          push @runs,{label=>lc($mapper)."_forced_start_$physical_start",
-                     mapper=>$mapper,start=>$physical_start,reset=>$sc};
+                     mapper=>$mapper,cart=>$mapper,start=>$physical_start,reset=>$sc};
       }
       for my $trial (0..$banks-1) {
          push @runs,{label=>lc($mapper)."_random_start_$trial",
-                     mapper=>$mapper,random=>1,reset=>$sc};
+                     mapper=>$mapper,cart=>$mapper,random=>1,reset=>$sc};
       }
       @runs=grep { $selected->($_->{label}) } @runs;
       next unless @runs; # A focused filter must not build unrelated cartridges.
@@ -305,7 +305,7 @@ sub run_stella_certification {
       my $profile=[F8SC=>2=>'vcs_8k_f8sc.cfg'=>'vcs_8k_f8sc.c26'=>1];
       my($rom)=build_matrix_rom($driver,$vcs,$source,$stella_tmp,$profile,0,1);
       $run_one->(label=>'poisoned_failure',mapper=>'F8SC',start=>0,reset=>1,
-                 rom=>$rom,result=>'fail');
+                 rom=>$rom,result=>'fail',cart=>'??????');
    }
    print "Stella bank switching certification passed\n";
 }
@@ -328,36 +328,30 @@ $source_text !~ /diagnostic_superchip_ram/
 $source_text =~ /void\s+validate_superchip_startup\s*\(void\)/ &&
 $source_text =~ /void\s+poison_superchip_before_result\s*\(void\)/
    or die "diagnostic Superchip startup validation/reset poisoning helpers are missing\n";
-$source_text =~ /instantiate\s+"six_glyph_wide_component\.c26"\s+as\s+status_word\s*\(\s*compact_font\s*:=\s*0\s*\)/
-   or die "diagnostic does not request the wide component full-pointer compatibility mode\n";
-for my $glyph (
-   [A => qr/BANK_DIAGNOSTIC_GLYPH\(\s*0b\.\.XXXX\.\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XXXXXX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.\s*\)/s],
-   [F => qr/BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXXX\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.\s*\)/s],
-   [I => qr/BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXXX\.,\s*0b\.\.\.XX\.\.\.,\s*0b\.\.\.XX\.\.\.,\s*0b\.\.\.XX\.\.\.,\s*0b\.\.\.XX\.\.\.,\s*0b\.\.\.XX\.\.\.,\s*0b\.\.\.XX\.\.\.,\s*0b\.XXXXXX\.\s*\)/s],
-   [L => qr/BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XXXXXX\.\s*\)/s],
-   [P => qr/BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.\s*\)/s],
-   [S => qr/BANK_DIAGNOSTIC_GLYPH\(\s*0b\.\.XXXX\.\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.\.XXXX\.\.,\s*0b\.\.\.\.\.XX\.,\s*0b\.\.\.\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.\.XXXX\.\.\s*\)/s],
-) {
-   $source_text =~ $glyph->[1]
-      or die "diagnostic $glyph->[0] glyph is not copied exactly from default_ascii.c26\n";
-}
-$source_text =~ /load_status_pass.*status_blank_glyph.*status_p_glyph.*status_a_glyph.*status_s_glyph.*status_s_glyph.*status_blank_glyph/s
-   or die "diagnostic PASS pointer order is not blank/P/A/S/S/blank\n";
-$source_text =~ /load_status_fail.*status_blank_glyph.*status_f_glyph.*status_a_glyph.*status_i_glyph.*status_l_glyph.*status_blank_glyph/s
-   or die "diagnostic FAIL pointer order is not blank/F/A/I/L/blank\n";
-$source_text =~ /status_word_color\s*:=\s*0x0e/ &&
+$source_text =~ /instantiate\s+"six_glyph_big_wide_component\.c26"\s+as\s+status_result/
+   or die "diagnostic does not use the Big wide result component\n";
+$source_text =~ /instantiate\s+"six_glyph_component\.c26"\s+as\s+cart_type/
+   or die "diagnostic does not use the centered six-glyph cart-type component\n";
+$source_text =~ /bank0\s+page\s+const\s+uint8_t\s+status_big_glyphs\s*\[128\]/ &&
+$source_text =~ /bank0\s+page\s+const\s+uint8_t\s+status_small_glyphs\s*\[64\]/
+   or die "diagnostic ASCII subset tables are not page-contained\n";
+$source_text =~ /load_status_pass.*status_big_glyphs\s*\+\s*16.*status_big_glyphs\s*\+\s*32.*status_big_glyphs\s*\+\s*48.*status_big_glyphs\s*\+\s*48/s
+   or die "diagnostic pass pointer order is not blank\/p\/a\/s\/s\/blank\n";
+$source_text =~ /load_status_fail.*status_big_glyphs\s*\+\s*64.*status_big_glyphs\s*\+\s*80.*status_big_glyphs\s*\+\s*96.*status_big_glyphs\s*\+\s*112/s
+   or die "diagnostic FAIL pointer order is not blank\/F\/A\/I\/L\/blank\n";
+$source_text =~ /#ifdef\s+POISONED_RESULT.*status_small_glyphs\s*\+\s*56/s
+   or die "diagnostic poison cart type is not six question marks\n";
+$source_text =~ /vcs_ntsc_wait_component_scanlines\s*\(\s*81\s*\).*status_result_draw\s*\(\s*\).*vcs_ntsc_component_handoff\s*\(\s*\).*cart_type_draw\s*\(\s*\).*vcs_ntsc_wait_visible_tail_scanlines\s*\(\s*81\s*\)/s
+   or die "diagnostic two-line display is not centered in the 192-line visible field\n";
+$source_text =~ /status_result_color\s*:=\s*0x0e/ &&
 $source_text =~ /COLUP0\s*:=\s*0x0e/ &&
 $source_text =~ /COLUP1\s*:=\s*0x0e/
-   or die "diagnostic status word is not white\n";
-$source_text =~ /vcs_ntsc_wait_component_scanlines\s*\(\s*90\s*\).*status_word_draw\s*\(\s*\).*vcs_ntsc_wait_visible_tail_scanlines\s*\(\s*91\s*\)/s
-   or die "diagnostic full-word display is not vertically centered in the 192-line visible field\n";
+   or die "diagnostic text is not white\n";
 $source_text =~ /#ifdef\s+POISONED_RESULT\s+failure\s*:=\s*1/s
    or die "diagnostic poisoned-result build hook is missing\n";
 
-# Build one visible F8 image even in simulator-only mode.  The diagnostic
-# intentionally writes six arbitrary glyph pointers, so its instantiated wide
-# component must expose the full 12-byte pointer array rather than the compact
-# 10-byte pointer-plus-offset layout.
+# Build one visible F8 image even in simulator-only mode and lock both full
+# pointer workspaces plus the two page-contained ASCII subset tables.
 {
    my $driver=File::Spec->catfile($repo,'driver','vcsc');
    my $vcs=File::Spec->catdir($repo,'libraries','vcs');
@@ -367,12 +361,14 @@ $source_text =~ /#ifdef\s+POISONED_RESULT\s+failure\s*:=\s*1/s
       $driver,'-I',$vcs,'-DMAPPER_BANKS=2','-T',File::Spec->catfile($vcs,'vcs.cfg'),
       '-Map',$map_path,$source,'-o',$bin);
    my $map=read_file($map_path);
-   $map =~ /BSS\.__vcsc_object\x24status_word_pointers\s+run=\$[0-9A-Fa-f]{4}\s+size=\$000C\b/
-      or die "diagnostic status word does not own six full glyph pointers\n";
-   $map =~ /BSS\.__vcsc_object\x24status_word_row\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/
-      or die "diagnostic status word full-pointer row state is missing\n";
-   $map !~ /status_word_offset2\b/
-      or die "diagnostic status word accidentally linked compact offset state\n";
+   $map =~ /BSS\.__vcsc_object\x24status_result_pointers\s+run=\$[0-9A-Fa-f]{4}\s+size=\$000C\b/
+      or die "diagnostic Big result does not own six full glyph pointers\n";
+   $map =~ /BSS\.__vcsc_object\x24cart_type_pointers\s+run=\$[0-9A-Fa-f]{4}\s+size=\$000C\b/
+      or die "diagnostic cart type does not own six full glyph pointers\n";
+   $map =~ /RODATA\.bank0\.__vcsc_object\x24status_big_glyphs\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0080\b/
+      or die "diagnostic Big ASCII subset table is missing\n";
+   $map =~ /RODATA\.bank0\.__vcsc_object\x24status_small_glyphs\s+load=\$[0-9A-Fa-f]{4}\s+size=\$0040\b/
+      or die "diagnostic default ASCII subset table is missing\n";
 }
 
 if ($stella_mode) { run_stella_certification($repo,$tmp,$source); }
