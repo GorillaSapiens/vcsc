@@ -1,5 +1,7 @@
-CC = g++
+CXX = g++
 CFLAGS = -Wall -Wextra -Werror -pedantic -MMD -MP
+LDFLAGS ?=
+EXEEXT ?=
 
 # for debugging
 CFLAGS += -g
@@ -10,7 +12,7 @@ CFLAGS += -DILLEGAL_OPCODES
 # for optimization
 #CFLAGS += -O2
 
-TARGET = vcsc-sim
+TARGET = vcsc-sim$(EXEEXT)
 
 BINDIR ?= /opt/vcsc/bin
 DESTDIR ?=
@@ -30,7 +32,7 @@ all:
 	@make --no-print-directory $(TARGET)
 
 $(TARGET): version.h $(OBJ)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ)
+	$(CXX) $(CFLAGS) $(LDFLAGS) -o $(TARGET) $(OBJ)
 
 .PHONY: version FORCE
 version: version.h
@@ -72,7 +74,7 @@ endif
 main.o: version.h
 
 %.o: %.cpp
-	$(CC) -c $(CFLAGS) $< -o $@
+	$(CXX) -c $(CFLAGS) $< -o $@
 
 docs:
 	$(MAKE) --no-print-directory -C .. docs
@@ -85,7 +87,7 @@ uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(TARGET)
 
 clean:
-	rm -f $(TARGET) $(OBJ) $(DEP) version.h
+	rm -f vcsc-sim vcsc-sim.exe $(OBJ) $(DEP) version.h
 
 -include $(DEP)
 

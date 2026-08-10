@@ -1,0 +1,193 @@
+; This file is covered under CC0-1.0. See examples/LICENSE.txt.
+;
+; Fixed visual fixture for the faithful legacy multisprite renderer.  This is
+; intentionally assembly-only initialization: the retained profile leaves no
+; RIOT bytes for compiler activation scratch.  The next item-28 milestone is
+; the explicit stack-safe VCSC game-logic boundary.
+
+.importzp vcs_multisprite_state
+.export vcs_multisprite_diagnostic_init
+.export diagnostic_glyphs
+.export diagnostic_pf1
+.export diagnostic_pf2
+
+; Offsets in the exact retained $80-$F9 state object.
+MISSILE0_X       = 0
+MISSILE1_X       = 1
+BALL_X           = 2
+PLAYER0_X        = 4
+NEW_SPRITE_X     = 5
+MISSILE0_Y       = 10
+MISSILE1_Y       = 11
+BALL_Y           = 12
+PLAYER0_Y        = 13
+NEW_SPRITE_Y     = 14
+NEW_NUSIZ        = 19
+NEW_COLUP1       = 24
+PLAYER0_POINTER  = 34
+P1_POINTER_LO    = 38
+P1_POINTER_HI    = 43
+PLAYER0_HEIGHT   = 48
+SPRITE_HEIGHT    = 49
+PF1_POINTER      = 59
+PF2_POINTER      = 61
+SCORE            = 82
+SCORE_COLOR      = 85
+
+CTRLPF = $000A
+COLUBK = $0009
+COLUPF = $0008
+TIM64T = $0296
+
+.segment "CODE"
+vcs_multisprite_diagnostic_init:
+   lda #1
+   sta TIM64T
+   sta CTRLPF
+   lda #$84                    ; VCS_NTSC_MEDIUM_BLUE
+   sta COLUBK
+   lda #$2e                    ; VCS_NTSC_GOLDENROD
+   sta COLUPF
+
+   lda #<diagnostic_pf1
+   sta vcs_multisprite_state + PF1_POINTER
+   lda #>diagnostic_pf1
+   sta vcs_multisprite_state + PF1_POINTER + 1
+   lda #<diagnostic_pf2
+   sta vcs_multisprite_state + PF2_POINTER
+   lda #>diagnostic_pf2
+   sta vcs_multisprite_state + PF2_POINTER + 1
+
+   ; The faithful renderer walks P0 graphics from high address to low address.
+   ; P0 also needs one trailing zero draw to clear GRP0; without it, the last
+   ; row remains latched and later P1 HMOVEs walk that stale stripe sideways.
+   lda #<diagnostic_glyphs
+   sta vcs_multisprite_state + PLAYER0_POINTER
+   lda #>diagnostic_glyphs
+   sta vcs_multisprite_state + PLAYER0_POINTER + 1
+   lda #18
+   sta vcs_multisprite_state + PLAYER0_X
+   lda #76
+   sta vcs_multisprite_state + PLAYER0_Y
+   lda #9
+   sta vcs_multisprite_state + PLAYER0_HEIGHT
+
+   lda #<diagnostic_glyph1
+   sta vcs_multisprite_state + P1_POINTER_LO + 0
+   lda #>diagnostic_glyph1
+   sta vcs_multisprite_state + P1_POINTER_HI + 0
+   lda #<diagnostic_glyph2
+   sta vcs_multisprite_state + P1_POINTER_LO + 1
+   lda #>diagnostic_glyph2
+   sta vcs_multisprite_state + P1_POINTER_HI + 1
+   lda #<diagnostic_glyph3
+   sta vcs_multisprite_state + P1_POINTER_LO + 2
+   lda #>diagnostic_glyph3
+   sta vcs_multisprite_state + P1_POINTER_HI + 2
+   lda #<diagnostic_glyph4
+   sta vcs_multisprite_state + P1_POINTER_LO + 3
+   lda #>diagnostic_glyph4
+   sta vcs_multisprite_state + P1_POINTER_HI + 3
+   lda #<diagnostic_glyph5
+   sta vcs_multisprite_state + P1_POINTER_LO + 4
+   lda #>diagnostic_glyph5
+   sta vcs_multisprite_state + P1_POINTER_HI + 4
+
+   lda #36
+   sta vcs_multisprite_state + NEW_SPRITE_X + 0
+   lda #62
+   sta vcs_multisprite_state + NEW_SPRITE_X + 1
+   lda #88
+   sta vcs_multisprite_state + NEW_SPRITE_X + 2
+   lda #114
+   sta vcs_multisprite_state + NEW_SPRITE_X + 3
+   lda #140
+   sta vcs_multisprite_state + NEW_SPRITE_X + 4
+
+   lda #16
+   sta vcs_multisprite_state + NEW_SPRITE_Y + 0
+   lda #32
+   sta vcs_multisprite_state + NEW_SPRITE_Y + 1
+   lda #48
+   sta vcs_multisprite_state + NEW_SPRITE_Y + 2
+   lda #64
+   sta vcs_multisprite_state + NEW_SPRITE_Y + 3
+   lda #80
+   sta vcs_multisprite_state + NEW_SPRITE_Y + 4
+
+   lda #9
+   ldx #4
+@height_loop:
+   sta vcs_multisprite_state + SPRITE_HEIGHT,x
+   dex
+   bpl @height_loop
+
+   lda #0
+   ldx #4
+@nusiz_loop:
+   sta vcs_multisprite_state + NEW_NUSIZ,x
+   dex
+   bpl @nusiz_loop
+
+   lda #$4e                    ; light coral
+   sta vcs_multisprite_state + NEW_COLUP1 + 0
+   lda #$ce                    ; pale green
+   sta vcs_multisprite_state + NEW_COLUP1 + 1
+   lda #$ae                    ; sky blue
+   sta vcs_multisprite_state + NEW_COLUP1 + 2
+   lda #$5e                    ; orchid
+   sta vcs_multisprite_state + NEW_COLUP1 + 3
+   lda #$be                    ; aquamarine
+   sta vcs_multisprite_state + NEW_COLUP1 + 4
+
+   lda #8
+   sta vcs_multisprite_state + MISSILE0_X
+   lda #152
+   sta vcs_multisprite_state + MISSILE1_X
+   lda #80
+   sta vcs_multisprite_state + BALL_X
+   lda #200
+   sta vcs_multisprite_state + MISSILE0_Y
+   lda #201
+   sta vcs_multisprite_state + MISSILE1_Y
+   lda #202
+   sta vcs_multisprite_state + BALL_Y
+
+   ; Retained multisprite score storage is display-order packed BCD.
+   lda #$12
+   sta vcs_multisprite_state + SCORE + 0
+   lda #$34
+   sta vcs_multisprite_state + SCORE + 1
+   lda #$56
+   sta vcs_multisprite_state + SCORE + 2
+   lda #$0e                    ; VCS_NTSC_GRAY_92
+   sta vcs_multisprite_state + SCORE_COLOR
+   rts
+
+.segment "RODATA"
+.align 256
+; P0 is a nine-byte legacy record: a low-address zero sentinel followed by
+; eight rows stored bottom-to-top.  The high-to-low renderer therefore emits
+; the eight visible rows top-to-bottom, then emits zero to clear GRP0.
+diagnostic_glyphs:
+   .byte 0
+   .byte %00111100,%01100110,%11000011,%11011011,%11011011,%11000011,%01100110,%00111100
+
+; P1 glyphs are likewise stored bottom-to-top because the retained
+; multisprite renderer consumes their rows from high address to low address.
+diagnostic_glyph1:
+   .byte %01111110,%00011000,%00011000,%00011000,%00011000,%01111000,%00111000,%00011000
+diagnostic_glyph2:
+   .byte %01111110,%01100000,%00110000,%00011000,%00001100,%00000110,%01100110,%00111100
+diagnostic_glyph3:
+   .byte %00111100,%01100110,%00000110,%00000110,%00111100,%00000110,%00000110,%01111100
+diagnostic_glyph4:
+   .byte %00001100,%00001100,%11111110,%11001100,%01101100,%00111100,%00011100,%00001100
+diagnostic_glyph5:
+   .byte %00111100,%01100110,%00000110,%00000110,%01111100,%01100000,%01100000,%01111110
+
+diagnostic_pf1:
+   .byte %10000001,%01000010,%00100100,%00011000,%10100101,%11000011
+
+diagnostic_pf2:
+   .byte %10000001,%00111100,%01011010,%10100101,%01100110,%11100111

@@ -9,14 +9,34 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#ifdef _WIN32
+#include <direct.h>
+#include <io.h>
+#include <process.h>
+#include <windows.h>
+#define access _access
+#define close _close
+#define getcwd _getcwd
+#define open _open
+#define rmdir _rmdir
+#define unlink _unlink
+#ifndef R_OK
+#define R_OK 4
+#endif
+#ifndef X_OK
+#define X_OK 0
+#endif
+#else
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
 
 #include "version.h"
 
@@ -260,7 +280,12 @@ static void join_path3(char *out, size_t out_sz, const char *a, const char *b, c
 //! @brief Return whether path is accessible in driver pipeline.
 static bool path_is_accessible(const char *path, int mode)
 {
+#ifdef _WIN32
+   int win_mode = mode == R_OK ? 4 : 0;
+   return _access(path, win_mode) == 0;
+#else
    return access(path, mode) == 0;
+#endif
 }
 
 //! @brief Create suffixed path for driver pipeline.
@@ -397,6 +422,16 @@ static void append_split_commas(strvec_t *v, const char *spec)
 //! @brief Handle get self path logic for driver pipeline.
 static void get_self_path(char *out, size_t out_sz, const char *argv0)
 {
+#ifdef _WIN32
+   DWORD n;
+
+   (void)argv0;
+   if (out_sz > (size_t)UINT32_MAX)
+      die("executable path buffer too large");
+   n = GetModuleFileNameA(NULL, out, (DWORD)out_sz);
+   if (n == 0 || (size_t)n >= out_sz)
+      die("GetModuleFileName failed");
+#else
    ssize_t n;
    char resolved[PATH_MAX];
 
@@ -423,6 +458,19 @@ static void get_self_path(char *out, size_t out_sz, const char *argv0)
       return;
    }
    copy_cstr(out, out_sz, argv0);
+#endif
+}
+
+//! @brief Add the host executable suffix used by installed companion tools.
+static void make_tool_filename(char *out, size_t out_sz, const char *tool)
+{
+#ifdef _WIN32
+   int n = snprintf(out, out_sz, "%s.exe", tool);
+   if (n < 0 || (size_t)n >= out_sz)
+      die("tool filename too long");
+#else
+   copy_cstr(out, out_sz, tool);
+#endif
 }
 
 //! @brief Handle build repo tree path logic for driver pipeline.
@@ -430,17 +478,21 @@ static void build_repo_tree_path(char *out, size_t out_sz, const char *self_path
 {
    char self_dir[PATH_MAX];
    char repo_dir[PATH_MAX];
+   char filename[PATH_MAX];
    path_dirname(self_path, self_dir, sizeof(self_dir));
    path_dirname(self_dir, repo_dir, sizeof(repo_dir));
-   join_path3(out, out_sz, repo_dir, subdir, tool);
+   make_tool_filename(filename, sizeof(filename), tool);
+   join_path3(out, out_sz, repo_dir, subdir, filename);
 }
 
 //! @brief Handle build installed tool path logic for driver pipeline.
 static void build_installed_tool_path(char *out, size_t out_sz, const char *self_path, const char *tool)
 {
    char self_dir[PATH_MAX];
+   char filename[PATH_MAX];
    path_dirname(self_path, self_dir, sizeof(self_dir));
-   join_path2(out, out_sz, self_dir, tool);
+   make_tool_filename(filename, sizeof(filename), tool);
+   join_path2(out, out_sz, self_dir, filename);
 }
 
 //! @brief Handle build installed prefix path logic for driver pipeline.
@@ -554,12 +606,41 @@ static void temp_store_init(temp_store_t *ts)
 //! @brief Handle temp store make dir logic for driver pipeline.
 static void temp_store_make_dir(temp_store_t *ts)
 {
-   const char *root;
-   size_t root_len;
-   int n;
-
    if (ts->made_tempdir)
       return;
+
+#ifdef _WIN32
+   {
+      char root[PATH_MAX];
+      DWORD root_len;
+      DWORD pid = GetCurrentProcessId();
+      unsigned long attempt;
+
+      root_len = GetTempPathA((DWORD)sizeof(root), root);
+      if (root_len == 0 || root_len >= sizeof(root))
+         die("could not determine Windows temporary directory");
+
+      for (attempt = 0; attempt < 10000; ++attempt) {
+         int n = snprintf(ts->tempdir, sizeof(ts->tempdir), "%svcsc.%lu.%lu",
+            root,
+            (unsigned long)pid,
+            attempt);
+         if (n < 0 || (size_t)n >= sizeof(ts->tempdir))
+            die("temporary directory path too long");
+         if (CreateDirectoryA(ts->tempdir, NULL)) {
+            ts->made_tempdir = true;
+            return;
+         }
+         if (GetLastError() != ERROR_ALREADY_EXISTS)
+            die("could not create temporary directory %s", ts->tempdir);
+      }
+      die("could not allocate a unique Windows temporary directory");
+   }
+#else
+   {
+      const char *root;
+      size_t root_len;
+      int n;
 
    root = getenv("TMPDIR");
    if (!root || !*root)
@@ -572,6 +653,8 @@ static void temp_store_make_dir(temp_store_t *ts)
    if (!mkdtemp(ts->tempdir))
       die("mkdtemp failed for %s: %s", ts->tempdir, strerror(errno));
    ts->made_tempdir = true;
+   }
+#endif
 }
 
 //! @brief Handle temp store add logic for driver pipeline.
@@ -668,8 +751,12 @@ static void print_cmd(FILE *fp, char *const *argv)
 //! @brief Run the argument vector stage of the driver tool pipeline.
 static int run_argv(char *const *argv, bool verbose, bool dry_run)
 {
+#ifdef _WIN32
+   intptr_t status;
+#else
    pid_t pid;
    int status;
+#endif
 
    if (dry_run)
       print_cmd(stdout, argv);
@@ -678,6 +765,12 @@ static int run_argv(char *const *argv, bool verbose, bool dry_run)
    if (dry_run)
       return 0;
 
+#ifdef _WIN32
+   status = _spawnv(_P_WAIT, argv[0], (const char * const *)argv);
+   if (status < 0)
+      die("spawn failed for %s: %s", argv[0], strerror(errno));
+   return (int)status;
+#else
    pid = fork();
    if (pid < 0)
       die("fork failed: %s", strerror(errno));
@@ -694,6 +787,7 @@ static int run_argv(char *const *argv, bool verbose, bool dry_run)
    if (WIFSIGNALED(status))
       return 128 + WTERMSIG(status);
    return 1;
+#endif
 }
 
 //! @brief Report one companion tool version by invoking the tool with -V.

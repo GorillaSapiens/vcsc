@@ -380,7 +380,11 @@ static char *find_cfg_next_to_program_in_path(const char *argv0, const char *cfg
 
    p = path_env;
    while (*p) {
+#ifdef _WIN32
+      const char *end = strchr(p, ';');
+#else
       const char *end = strchr(p, ':');
+#endif
       size_t len = end ? (size_t)(end - p) : strlen(p);
       char *dir;
       char *prog_path;

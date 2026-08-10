@@ -3,7 +3,12 @@
 //! @ingroup compiler
 
 #include <string.h>
+#ifdef _WIN32
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#else
 #include <strings.h>
+#endif
 #include <stdbool.h>
 
 #include "messages.h"

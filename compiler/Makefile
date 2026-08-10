@@ -2,6 +2,8 @@ LEX = flex
 YACC = bison -Werror=conflicts-sr,conflicts-rr
 CC = gcc
 CFLAGS = -Wall -Wextra -Werror -pedantic -MMD -MP
+LDFLAGS ?=
+EXEEXT ?=
 
 # for debugging
 CFLAGS += -g
@@ -12,7 +14,7 @@ CFLAGS += -g
 # for optimization
 #CFLAGS += -O2
 
-TARGET = vcsc-cc1
+TARGET = vcsc-cc1$(EXEEXT)
 
 BINDIR ?= /opt/vcsc/bin
 DESTDIR ?=
@@ -116,7 +118,7 @@ test:
 	(cd ../test; ./test.pl --compile-only)
 
 $(TARGET): version.h $(GENHDR) $(GENSRC) $(OBJ)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $(TARGET) $(OBJ)
 
 vcsc_cc1.o: version.h
 
@@ -147,7 +149,7 @@ uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(TARGET)
 
 clean:
-	rm -f $(TARGET) $(OBJ) $(DEP)
+	rm -f vcsc-cc1 vcsc-cc1.exe $(OBJ) $(DEP)
 	rm -f $(GENSRC) $(GENHDR) parser.output version.h
 
 -include $(DEP)

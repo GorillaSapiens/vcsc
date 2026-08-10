@@ -26,6 +26,19 @@ static void yyunput(int c, char *buf_ptr);
 static int alias_read_char(void);
 static void alias_append_char(char **buf, size_t *len, size_t *cap, int c);
 
+static char *canonicalize_filename(const char *filename)
+{
+#ifdef _WIN32
+   char full[4096];
+   if (_fullpath(full, filename, sizeof(full)))
+      return strdup(full);
+   return strdup(filename);
+#else
+   char *full = realpath(filename, NULL);
+   return full ? full : strdup(filename);
+#endif
+}
+
 #define MAX_INCLUDE_DEPTH 32
 #define MAX_ALIAS_DEPTH 128
 
@@ -290,9 +303,7 @@ static int push_file_internal(const char *filename,
    }
 
    filename = search_includes(filename);
-   char *canonical_filename = realpath(filename, NULL);
-   if (!canonical_filename)
-      canonical_filename = strdup(filename);
+   char *canonical_filename = canonicalize_filename(filename);
 
    if (is_template) {
       for (int i = 0; i <= file_stack_top; i++) {

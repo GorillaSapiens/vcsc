@@ -1,6 +1,9 @@
 CC ?= cc
 CFLAGS ?= -O2
 WARNINGS = -Wall -Wextra -Werror -pedantic
+LDFLAGS ?=
+EXEEXT ?=
+TARGET = vcsc-ar$(EXEEXT)
 
 BINDIR ?= /opt/vcsc/bin
 DESTDIR ?=
@@ -8,7 +11,7 @@ INSTALL ?= install
 INSTALL_PROGRAM ?= $(INSTALL) -m 0755
 DOXYGEN ?= doxygen
 
-all: version.h vcsc-ar
+all: version.h $(TARGET)
 
 .PHONY: version FORCE
 version: version.h
@@ -47,20 +50,20 @@ version.h: FORCE
 	fi
 endif
 
-vcsc-ar: vcsc_ar.c version.h
-	$(CC) $(CFLAGS) $(WARNINGS) -o $@ vcsc_ar.c
+$(TARGET): vcsc_ar.c version.h
+	$(CC) $(CFLAGS) $(WARNINGS) $(LDFLAGS) -o $@ vcsc_ar.c
 
 docs:
 	$(MAKE) --no-print-directory -C .. docs
 
-install: vcsc-ar
+install: $(TARGET)
 	$(INSTALL) -d $(DESTDIR)$(BINDIR)
-	$(INSTALL_PROGRAM) vcsc-ar $(DESTDIR)$(BINDIR)/vcsc-ar
+	$(INSTALL_PROGRAM) $(TARGET) $(DESTDIR)$(BINDIR)/$(TARGET)
 
 uninstall:
-	rm -f $(DESTDIR)$(BINDIR)/vcsc-ar
+	rm -f $(DESTDIR)$(BINDIR)/$(TARGET)
 
 clean:
-	rm -f vcsc-ar version.h
+	rm -f vcsc-ar vcsc-ar.exe version.h
 
 .PHONY: docs

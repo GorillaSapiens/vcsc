@@ -16,13 +16,24 @@ STELLA_WIDE_SCORE_TEST_TMP ?= $(CURDIR)/.stella-wide-score-test
 STELLA_PLAYER_COLOR_192_TEST_TMP ?= $(CURDIR)/.stella-player-color-192-test
 STELLA_FAITHFUL_MULTISPRITE_TEST_TMP ?= $(CURDIR)/.stella-faithful-multisprite-test
 STELLA_MULTISPRITE_TEST_TMP ?= $(CURDIR)/.stella-multisprite-test
+WINDOWS_TRIPLET ?= x86_64-w64-mingw32
+WINDOWS_HOST_CC ?= cc
+WINDOWS_CC ?= $(WINDOWS_TRIPLET)-gcc
+WINDOWS_CXX ?= $(WINDOWS_TRIPLET)-g++
+WINDOWS_STRIP ?= $(WINDOWS_TRIPLET)-strip
+WINDOWS_OBJDUMP ?= $(WINDOWS_TRIPLET)-objdump
+WINDOWS_ZIP ?= zip
+WINDOWS_LDFLAGS ?= -static
+WINDOWS_STAGING ?= $(CURDIR)/.windows-package
+WINDOWS_HOST_TOOLS ?= $(CURDIR)/.windows-host-tools
+WINDOWS_PACKAGE_DIR ?= vcsc
 
 all: test
 
 .NOTPARALLEL:
 
 compiler/vcsc-cc1:
-	@$(MAKE) --no-print-directory -C ./compiler vcsc-cc1
+	@$(MAKE) --no-print-directory -C ./compiler vcsc-cc1$(EXEEXT)
 
 assembler/vcsc-as:
 	@$(MAKE) --no-print-directory -C ./assembler vcsc-as
@@ -35,7 +46,7 @@ tools: clean
 	@$(MAKE) --no-print-directory -C ./linker all
 	@$(MAKE) --no-print-directory -C ./archiver all
 	@$(MAKE) --no-print-directory -C ./libraries/runtime all
-	@$(MAKE) --no-print-directory -C ./compiler vcsc-cc1
+	@$(MAKE) --no-print-directory -C ./compiler vcsc-cc1$(EXEEXT)
 	@$(MAKE) --no-print-directory -C ./simulator all
 	@$(MAKE) --no-print-directory -C ./driver all
 
@@ -287,6 +298,66 @@ package: tools
 	rm -rf $(PACKAGE_STAGING)
 	$(MAKE) --no-print-directory install-core DESTDIR="$(PACKAGE_STAGING)" PREFIX="$(PACKAGE_PREFIX)" BINDIR="$(PACKAGE_PREFIX)/bin" LIBDIR="$(PACKAGE_PREFIX)/lib" INCLUDEDIR="$(PACKAGE_PREFIX)/include" DATADIR="$(PACKAGE_PREFIX)/share" CFGDIR="$(PACKAGE_PREFIX)/share/cfg"
 	tar -C $(PACKAGE_STAGING) -czf ./vcsc.install.`date -u "+%Y%m%d_%H%M%S"`.tar.gz .
+
+windows:
+	@command -v "$(WINDOWS_HOST_CC)" >/dev/null || { echo "missing native C compiler: $(WINDOWS_HOST_CC)" >&2; exit 1; }
+	@command -v "$(WINDOWS_CC)" >/dev/null || { echo "missing Windows cross compiler: $(WINDOWS_CC)" >&2; exit 1; }
+	@command -v "$(WINDOWS_CXX)" >/dev/null || { echo "missing Windows C++ cross compiler: $(WINDOWS_CXX)" >&2; exit 1; }
+	@command -v "$(WINDOWS_STRIP)" >/dev/null || { echo "missing Windows strip tool: $(WINDOWS_STRIP)" >&2; exit 1; }
+	@command -v "$(WINDOWS_OBJDUMP)" >/dev/null || { echo "missing Windows objdump tool: $(WINDOWS_OBJDUMP)" >&2; exit 1; }
+	@command -v "$(WINDOWS_ZIP)" >/dev/null || { echo "missing zip tool: $(WINDOWS_ZIP)" >&2; exit 1; }
+	@command -v bison >/dev/null || { echo "missing build tool: bison" >&2; exit 1; }
+	@command -v flex >/dev/null || { echo "missing build tool: flex" >&2; exit 1; }
+	rm -rf $(WINDOWS_STAGING) $(WINDOWS_HOST_TOOLS)
+	$(MAKE) --no-print-directory -C ./assembler clean all CC="$(WINDOWS_HOST_CC)" EXEEXT= LDFLAGS=
+	$(MAKE) --no-print-directory -C ./archiver clean all CC="$(WINDOWS_HOST_CC)" EXEEXT= LDFLAGS=
+	mkdir -p $(WINDOWS_HOST_TOOLS)
+	cp assembler/vcsc-as $(WINDOWS_HOST_TOOLS)/vcsc-as
+	cp archiver/vcsc-ar $(WINDOWS_HOST_TOOLS)/vcsc-ar
+	$(MAKE) --no-print-directory tools \
+	  CC="$(WINDOWS_CC)" CXX="$(WINDOWS_CXX)" EXEEXT=.exe LDFLAGS="$(WINDOWS_LDFLAGS)" \
+	  ASM="$(WINDOWS_HOST_TOOLS)/vcsc-as" VCSC_AR="$(WINDOWS_HOST_TOOLS)/vcsc-ar"
+	$(MAKE) --no-print-directory install-core \
+	  CC="$(WINDOWS_CC)" CXX="$(WINDOWS_CXX)" EXEEXT=.exe LDFLAGS="$(WINDOWS_LDFLAGS)" \
+	  ASM="$(WINDOWS_HOST_TOOLS)/vcsc-as" VCSC_AR="$(WINDOWS_HOST_TOOLS)/vcsc-ar" \
+	  DESTDIR="$(WINDOWS_STAGING)" \
+	  BINDIR="/$(WINDOWS_PACKAGE_DIR)/bin" LIBDIR="/$(WINDOWS_PACKAGE_DIR)/lib" \
+	  INCLUDEDIR="/$(WINDOWS_PACKAGE_DIR)/include" DATADIR="/$(WINDOWS_PACKAGE_DIR)/share" \
+	  CFGDIR="/$(WINDOWS_PACKAGE_DIR)/share/cfg"
+	$(WINDOWS_STRIP) \
+	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc.exe \
+	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-cc1.exe \
+	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-as.exe \
+	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-ld.exe \
+	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-ar.exe \
+	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-sim.exe
+	cp README.md WINDOWS.md LICENSE COPYING $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/
+	cp -a examples $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/examples
+	find $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/examples -type f \
+	  \( -name '*.bin' -o -name '*.hex' -o -name '*.o26' \
+	     -o -name '*.map' -o -name '*.sym' -o -name '*.lst' \) -delete
+	find $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/examples -type f -name Makefile -exec \
+	  sed -i 's|$$(ROOT)/driver/vcsc|$$(ROOT)/bin/vcsc.exe|g; s|$$(ROOT)/libraries/vcs|$$(ROOT)/share/vcs|g' {} +
+	printf '%s\r\n' '@echo off' '"%~dp0bin\vcsc.exe" %*' > $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/vcsc.cmd
+	@set -e; \
+	for exe in vcsc.exe vcsc-cc1.exe vcsc-as.exe vcsc-ld.exe vcsc-ar.exe vcsc-sim.exe; do \
+	  path="$(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/$$exe"; \
+	  test -f "$$path"; \
+	  if "$(WINDOWS_OBJDUMP)" -p "$$path" | grep -Eiq 'DLL Name: (libgcc|libstdc\+\+|libwinpthread)[^ ]*\.dll'; then \
+	    echo "$$exe still depends on a MinGW runtime DLL" >&2; \
+	    "$(WINDOWS_OBJDUMP)" -p "$$path" | grep -i 'DLL Name:' >&2; \
+	    exit 1; \
+	  fi; \
+	done
+	@set -e; \
+	stamp=$$(date -u "+%Y%m%d_%H%M%S"); \
+	out="$(CURDIR)/vcsc.windows.$$stamp.zip"; \
+	cd "$(WINDOWS_STAGING)"; \
+	"$(WINDOWS_ZIP)" -qr "$$out" "$(WINDOWS_PACKAGE_DIR)"; \
+	echo "created $$out"
+	rm -rf $(WINDOWS_HOST_TOOLS) $(WINDOWS_STAGING)
+	$(MAKE) --no-print-directory clean
+	cd compiler && ./coverage.pl > coverage_map.h
 
 installcheck: tools
 	rm -rf $(INSTALLCHECK_STAGING)
@@ -646,4 +717,4 @@ stella-multisprite-test: tools
 	  "$(CURDIR)" "$(STELLA_MULTISPRITE_TEST_TMP)"
 	rm -rf $(STELLA_MULTISPRITE_TEST_TMP)
 
-.PHONY: all tools install install-core install-data uninstall uninstall-data package installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-player-color-192-test stella-faithful-multisprite-test stella-multisprite-test docs
+.PHONY: all tools install install-core install-data uninstall uninstall-data package windows installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-player-color-192-test stella-faithful-multisprite-test stella-multisprite-test docs

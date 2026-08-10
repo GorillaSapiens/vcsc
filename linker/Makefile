@@ -1,5 +1,8 @@
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -O2
+LDFLAGS ?=
+EXEEXT ?=
+TARGET = vcsc-ld$(EXEEXT)
 
 BINDIR ?= /opt/vcsc/bin
 DESTDIR ?=
@@ -10,7 +13,7 @@ OBJS = vcsc_ld.o vcsc_ld_input.o vcsc_ld_abi.o
 DEPS = $(OBJS:.o=.d)
 DOXYGEN ?= doxygen
 
-all: version.h vcsc-ld
+all: version.h $(TARGET)
 
 .PHONY: version FORCE
 version: version.h
@@ -49,8 +52,8 @@ version.h: FORCE
 	fi
 endif
 
-vcsc-ld: version.h $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o vcsc-ld
+$(TARGET): version.h $(OBJS)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(OBJS) -o $(TARGET)
 
 vcsc_ld.o: version.h
 
@@ -60,15 +63,15 @@ vcsc_ld.o: version.h
 docs:
 	$(MAKE) --no-print-directory -C .. docs
 
-install: vcsc-ld
+install: $(TARGET)
 	$(INSTALL) -d $(DESTDIR)$(BINDIR)
-	$(INSTALL_PROGRAM) vcsc-ld $(DESTDIR)$(BINDIR)/vcsc-ld
+	$(INSTALL_PROGRAM) $(TARGET) $(DESTDIR)$(BINDIR)/$(TARGET)
 
 uninstall:
-	rm -f $(DESTDIR)$(BINDIR)/vcsc-ld
+	rm -f $(DESTDIR)$(BINDIR)/$(TARGET)
 
 clean:
-	rm -f vcsc-ld $(OBJS) $(DEPS) version.h
+	rm -f vcsc-ld vcsc-ld.exe $(OBJS) $(DEPS) version.h
 
 -include $(DEPS)
 

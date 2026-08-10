@@ -12,7 +12,9 @@ CFLAGS += -g
 # for optimization
 #CFLAGS += -O2
 
-TARGET = vcsc-as
+EXEEXT ?=
+LDFLAGS ?=
+TARGET = vcsc-as$(EXEEXT)
 
 BINDIR ?= /opt/vcsc/bin
 DESTDIR ?=
@@ -86,7 +88,7 @@ version.h: FORCE
 endif
 
 $(TARGET): version.h $(GENHDR) $(GENSRC) $(OBJ)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $(TARGET) $(OBJ)
 
 vcsc_as.o: version.h
 
@@ -100,7 +102,7 @@ lex.yy.c: lexer.l
 	$(LEX) lexer.l
 
 tidy:
-	rm -f $(TARGET) $(OBJ) $(DEP) *.o *.d
+	rm -f vcsc-as vcsc-as.exe $(OBJ) $(DEP) *.o *.d
 	
 docs:
 	$(MAKE) --no-print-directory -C .. docs

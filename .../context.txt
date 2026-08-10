@@ -641,3 +641,17 @@ sizes are 2871 ROM / 107 RAM for 192 and 3446 ROM / 126 RAM for each 181 score
 composition. Main-roadmap items 29 and 30 and
 the completed bankswitching sub-roadmap remain closed. No new main-roadmap item has
 been selected after item 28.
+
+Windows host-tool packaging is now supported from the top-level Makefile. `make windows`
+bootstraps native `vcsc-as`/`vcsc-ar` for construction of the target-neutral runtime,
+then recursively invokes the ordinary `tools` target with an x86-64 MinGW-w64 C/C++
+toolchain, `.exe` suffixes, and static linker flags. It stages the normal installed
+runtime/include/share tree together with editable examples and a `vcsc.cmd` launcher,
+checks the PE imports for MinGW runtime DLL dependencies, and writes a relocatable
+`vcsc.windows.YYYYMMDD_HHMMSS.zip`. Component Makefiles support `EXEEXT`/`LDFLAGS`,
+and the driver/compiler/assembler/linker sources have the required Win32 path, process,
+temporary-file, and case-insensitive-string portability branches. See `WINDOWS.md`.
+This sandbox lacks bison, flex, and a MinGW-w64 cross toolchain, so the actual Windows
+cross-build and complete regression suite could not be executed here; native builds of
+the driver/linker/archiver/simulator, `.exe` suffix/install probes, and a compile-time
+syntax check of the Win32 driver branch passed.
