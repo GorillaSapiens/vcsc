@@ -1,0 +1,80 @@
+name: Build binary packages
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  packages:
+    name: Windows and Linux packages
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            binutils \
+            bison \
+            flex \
+            mingw-w64 \
+            zip
+
+      - name: Build Windows and Linux packages
+        shell: bash
+        run: |
+          set -euxo pipefail
+          make clean
+          make windows
+          make clean
+          make linux
+
+      - name: Show packages
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ls -lh vcsc.windows.*.zip vcsc.linux.*.tar.gz
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: vcsc-windows-${{ github.sha }}
+          path: vcsc.windows.*.zip
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Upload Linux package
+        uses: actions/upload-artifact@v4
+        with:
+          name: vcsc-linux-${{ github.sha }}
+          path: vcsc.linux.*.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Publish tagged packages to GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --verify-tag --generate-notes --title "$tag"
+          fi
+          gh release upload "$tag" \
+            vcsc.windows.*.zip \
+            vcsc.linux.*.tar.gz \
+            --clobber

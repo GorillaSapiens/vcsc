@@ -704,3 +704,9 @@ The ordinary installed distribution now includes the editable `examples/` tree a
 `$(PREFIX)/examples` (default `/opt/vcsc/examples`). `make install` stages the examples
 with Makefiles rewritten to use installed `bin/vcsc` and `share/vcs`; `make package`
 contains the same `/opt/vcsc/examples` tree, and `make uninstall` removes it.
+
+GitHub Actions binary-package automation lives at `.github/workflows/build-packages.yml`.
+Pushes to `main`/`master`, tag pushes, and manual runs execute `make clean`,
+`make windows`, `make clean`, then `make linux`. Every successful run uploads the
+Windows zip and Linux tarball as Actions artifacts; tag builds also create or reuse
+the matching GitHub Release and attach both packages as release assets.
