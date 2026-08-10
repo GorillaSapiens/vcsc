@@ -710,3 +710,14 @@ Pushes to `main`/`master`, tag pushes, and manual runs execute `make clean`,
 `make windows`, `make clean`, then `make linux`. Every successful run uploads the
 Windows zip and Linux tarball as Actions artifacts; tag builds also create or reuse
 the matching GitHub Release and attach both packages as release assets.
+
+Version-header generation is centralized in top-level `gen_version_h.pl`. All seven
+host-tool/helper Makefiles that include `version.h` invoke that script rather than
+carrying duplicated shell/Git recipes. In a Git worktree the script uses the commit
+UTC timestamp and 12-digit hash, prefers an exact tag pointing at HEAD over the branch
+name, falls back to `detached` for an untagged detached HEAD, and preserves tracked-tree
+`clean`/`modified` state; source archives without Git metadata retain the `nogit
+user@host clean` form. The binary-package GitHub Actions checkout uses `fetch-depth: 0`
+so tag refs are available during tagged package builds. `test/version_header_generation.pl`
+locks branch, annotated-tag, dirty, detached, no-Git, Makefile-delegation, and workflow
+behavior.

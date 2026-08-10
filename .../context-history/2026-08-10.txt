@@ -11,3 +11,6 @@ Top-level `make linux` now builds the six native host tools with static linkage,
 `make install` now copies editable examples to `$(PREFIX)/examples` with installed tool/support paths, `make package` includes the same tree, uninstall removes it, and installcheck verifies the staged blank-screen example layout/build.
 2026-08-10 13:10:23 PDT, added GitHub Actions binary-package publishing
 The workflow builds Windows then Linux packages in the requested clean-separated order, uploads both on every run, and publishes them as GitHub Release assets for tagged builds.
+
+2026-08-10 13:42:13 PDT, centralized version-header generation and tagged-build identity
+Top-level `gen_version_h.pl` now owns VERSION generation for driver, compiler, assembler, linker, archiver, simulator, and stego; exact HEAD tags take precedence over branch/detached labels, and the GitHub package checkout fetches full history/tags. A focused regression covers branch, annotated tag, dirty, detached, no-Git, Makefile delegation, and workflow depth.
