@@ -328,8 +328,8 @@ $source_text !~ /diagnostic_superchip_ram/
 $source_text =~ /void\s+validate_superchip_startup\s*\(void\)/ &&
 $source_text =~ /void\s+poison_superchip_before_result\s*\(void\)/
    or die "diagnostic Superchip startup validation/reset poisoning helpers are missing\n";
-$source_text =~ /instantiate\s+"six_glyph_wide_component\.c26"\s+as\s+status_word/
-   or die "diagnostic does not use the six-glyph wide score component\n";
+$source_text =~ /instantiate\s+"six_glyph_wide_component\.c26"\s+as\s+status_word\s*\(\s*compact_font\s*:=\s*0\s*\)/
+   or die "diagnostic does not request the wide component full-pointer compatibility mode\n";
 for my $glyph (
    [A => qr/BANK_DIAGNOSTIC_GLYPH\(\s*0b\.\.XXXX\.\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XXXXXX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.,\s*0b\.XX\.\.XX\.\s*\)/s],
    [F => qr/BANK_DIAGNOSTIC_GLYPH\(\s*0b\.XXXXXX\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XXXXX\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.,\s*0b\.XX\.\.\.\.\.\s*\)/s],
@@ -353,6 +353,28 @@ $source_text =~ /vcs_ntsc_wait_component_scanlines\s*\(\s*90\s*\).*status_word_d
    or die "diagnostic full-word display is not vertically centered in the 192-line visible field\n";
 $source_text =~ /#ifdef\s+POISONED_RESULT\s+failure\s*:=\s*1/s
    or die "diagnostic poisoned-result build hook is missing\n";
+
+# Build one visible F8 image even in simulator-only mode.  The diagnostic
+# intentionally writes six arbitrary glyph pointers, so its instantiated wide
+# component must expose the full 12-byte pointer array rather than the compact
+# 10-byte pointer-plus-offset layout.
+{
+   my $driver=File::Spec->catfile($repo,'driver','vcsc');
+   my $vcs=File::Spec->catdir($repo,'libraries','vcs');
+   my $bin=File::Spec->catfile($tmp,'visual_contract.bin');
+   my $map_path=File::Spec->catfile($tmp,'visual_contract.map');
+   require_ok('build visible diagnostic storage contract',
+      $driver,'-I',$vcs,'-DMAPPER_BANKS=2','-T',File::Spec->catfile($vcs,'vcs.cfg'),
+      '-Map',$map_path,$source,'-o',$bin);
+   my $map=read_file($map_path);
+   $map =~ /BSS\.__vcsc_object\x24status_word_pointers\s+run=\$[0-9A-Fa-f]{4}\s+size=\$000C\b/
+      or die "diagnostic status word does not own six full glyph pointers\n";
+   $map =~ /BSS\.__vcsc_object\x24status_word_row\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0001\b/
+      or die "diagnostic status word full-pointer row state is missing\n";
+   $map !~ /status_word_offset2\b/
+      or die "diagnostic status word accidentally linked compact offset state\n";
+}
+
 if ($stella_mode) { run_stella_certification($repo,$tmp,$source); }
 else { run_simulator_matrix($repo,$tmp,$source); }
 print "bank switching diagnostic matrix passed\n";

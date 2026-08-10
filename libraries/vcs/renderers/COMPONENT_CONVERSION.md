@@ -146,10 +146,16 @@ guaranteed untouched.
 origins at X=36,52,68,84,100,116. It uses three medium-spaced copies of each
 player and the production delayed-player pipeline. Glyph one is staged before
 each row boundary; glyphs two through six write at row cycles 0,8,36,39,42,
-and cycle 45 commits the delayed latch. It owns 18 RIOT-RAM bytes per instance:
-three score bytes, twelve pointer bytes, one row counter, one delayed glyph
-byte, and one caller-visible mutable color byte. Its TIA ownership and exit guarantees match the production six-glyph
-family, including flushed graphics latches and disabled VDEL on return.
+and cycle 45 commits the delayed latch. The compact default owns 16 RIOT-RAM
+bytes per instance: three score bytes, ten full-pointer bytes, one biased
+page-contained-font offset, one delayed glyph byte, and one caller-visible
+mutable color byte; its unrolled row schedule needs no RAM row counter.
+`compact_font:=0` restores the historical six full pointers plus row counter
+(18 bytes total) for applications that deliberately redirect every glyph
+pointer, including the bankswitching PASS/FAIL diagnostic. Both modes preserve
+the same visible write schedule. Its TIA ownership and exit guarantees match
+the production six-glyph family, including flushed graphics latches and
+disabled VDEL on return.
 
 **Left/right two-plus-two score.** This establishes and clobbers
 `NUSIZ0/1`, `COLUP0/1`, `REFP0/1`, `HMP0/1`, `RESP0/1`, `VDELP0/1`, and the

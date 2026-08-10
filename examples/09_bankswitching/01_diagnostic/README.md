@@ -37,7 +37,10 @@ A green background with the complete white word **PASS** is success. A dark-red
 background with the complete white word **FAIL** is failure. The letters are
 copied exactly from `libraries/vcs/fonts/default_ascii.c26` and installed into
 the reusable six-glyph-wide score component as `blank/P/A/S/S/blank` or
-`blank/F/A/I/L/blank`. The blank outer cells center the four-letter word at
+`blank/F/A/I/L/blank`. Because these are arbitrary ASCII glyph pointers rather
+than decimal-font digits, this diagnostic instantiates the component with
+`compact_font:=0`; ordinary wide scores retain the compact RAM-saving default.
+The blank outer cells center the four-letter word at
 X=79.5 on the 160-pixel visible raster. Ninety blank visible scanlines precede
 the component's exact 11-line draw and 91 follow it, centering the odd-height
 component to the unavoidable half-scanline in the 192-line visible field. Every

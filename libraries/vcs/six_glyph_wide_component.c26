@@ -8,7 +8,8 @@
 //
 // Include one fonts/*_decimal.c26 or fonts/*_hex.c26 module first; it
 // must define the shared page-contained score_font table.  Each instance owns
-// its score, six 16-bit glyph pointers, row counter, delayed glyph byte, and color.
+// its score, five 16-bit glyph pointers, one page-contained-font glyph offset, delayed glyph byte, and color in compact mode.
+// Set compact_font:=0 only when all six glyph pointers are deliberately redirected to another glyph table.
 // The 8-pixel glyph origins are X=36,52,68,84,100,116: 16-pixel pitch
 // with one glyph-width of blank space between adjacent glyphs, spanning X=36..123.
 //
@@ -47,13 +48,96 @@ enum TEMPLATE_contract {
    TEMPLATE_GLYPH_ORIGIN_PITCH := 16
 };
 
+// Normal wide-score use keeps compact page-contained-font storage. Set this to
+// zero only for applications that deliberately replace all six glyph pointers
+// with another glyph table (the bankswitching PASS/FAIL diagnostic does this).
+parameter compact_font := 1;
+
+#if TEMPLATE_compact_font
+recommend bcd24_t TEMPLATE_score := 0;
+// Digit 2 uses a biased page-contained font offset. The $80 bias makes
+// score_font-$80+row,X cross a page deliberately, preserving the historical
+// five-cycle indirect-load timing. Digits 1 and 3..6 retain full pointers.
+uint16_t TEMPLATE_pointers[5];
+uint8_t TEMPLATE_offset2;
+uint8_t TEMPLATE_delayed;
+recommend uint8_t TEMPLATE_color := 0x0e;
+#else
 recommend bcd24_t TEMPLATE_score := 0;
 uint16_t TEMPLATE_pointers[6];
 uint8_t TEMPLATE_row;
 uint8_t TEMPLATE_delayed;
 recommend uint8_t TEMPLATE_color := 0x0e;
+#endif
 
 static inline void TEMPLATE_prepare_pointers(void) {
+#if TEMPLATE_compact_font
+   asm lda TEMPLATE_score+2;
+   asm tax;
+   // Digit 1 retains a full pointer.
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+1;
+   // Digit 2 is a biased offset (digit*8 + $80).
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm ora #$80;
+   asm sta TEMPLATE_offset2;
+
+   // Digits 3/4 retain complete pointers.
+   asm lda TEMPLATE_score+1;
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers+2;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+3;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers+4;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+5;
+
+   // Digits 5/6 retain complete pointers.
+   asm lda TEMPLATE_score;
+   asm tax;
+   asm and #$f0;
+   asm lsr;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers+6;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+7;
+   asm txa;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc #<score_font;
+   asm sta TEMPLATE_pointers+8;
+   asm lda #>score_font;
+   asm adc #0;
+   asm sta TEMPLATE_pointers+9;
+#else
    // Build six complete 16-bit pointers in human digit order. Packed BCD is
    // little-endian, so score+2 supplies digits 1/2 and score supplies 5/6.
    asm lda TEMPLATE_score+2;
@@ -121,6 +205,7 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm lda #>score_font;
    asm adc #0;
    asm sta TEMPLATE_pointers+11;
+#endif
 }
 
 require inline void TEMPLATE_init(void) {
@@ -174,6 +259,213 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
    VDELP0 := 1;
    VDELP1 := 1;
+#if TEMPLATE_compact_font
+   // Replace the old six-cycle row initialization plus three-cycle
+   // zero-page row load with a cycle-identical preload of digit 2's offset,
+   // padding, and immediate row value.
+   asm ldx TEMPLATE_offset2;
+   asm bit.a TEMPLATE_delayed;
+   asm ldy #7;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm sta WSYNC;
+   // Deliberate page cross keeps digit 2 at the old five-cycle load timing.
+   asm lda score_font-$80+7,x;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+   // Replace DEC/BPL-taken plus the old zero-page row load exactly:
+   // 3-cycle offset preload + 6-cycle padding + 2-cycle immediate row.
+   asm ldx TEMPLATE_offset2;
+   asm bit.a TEMPLATE_delayed;
+   asm nop;
+   asm ldy #6;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm sta WSYNC;
+   // Deliberate page cross keeps digit 2 at the old five-cycle load timing.
+   asm lda score_font-$80+6,x;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+   // Replace DEC/BPL-taken plus the old zero-page row load exactly:
+   // 3-cycle offset preload + 6-cycle padding + 2-cycle immediate row.
+   asm ldx TEMPLATE_offset2;
+   asm bit.a TEMPLATE_delayed;
+   asm nop;
+   asm ldy #5;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm sta WSYNC;
+   // Deliberate page cross keeps digit 2 at the old five-cycle load timing.
+   asm lda score_font-$80+5,x;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+   // Replace DEC/BPL-taken plus the old zero-page row load exactly:
+   // 3-cycle offset preload + 6-cycle padding + 2-cycle immediate row.
+   asm ldx TEMPLATE_offset2;
+   asm bit.a TEMPLATE_delayed;
+   asm nop;
+   asm ldy #4;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm sta WSYNC;
+   // Deliberate page cross keeps digit 2 at the old five-cycle load timing.
+   asm lda score_font-$80+4,x;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+   // Replace DEC/BPL-taken plus the old zero-page row load exactly:
+   // 3-cycle offset preload + 6-cycle padding + 2-cycle immediate row.
+   asm ldx TEMPLATE_offset2;
+   asm bit.a TEMPLATE_delayed;
+   asm nop;
+   asm ldy #3;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm sta WSYNC;
+   // Deliberate page cross keeps digit 2 at the old five-cycle load timing.
+   asm lda score_font-$80+3,x;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+   // Replace DEC/BPL-taken plus the old zero-page row load exactly:
+   // 3-cycle offset preload + 6-cycle padding + 2-cycle immediate row.
+   asm ldx TEMPLATE_offset2;
+   asm bit.a TEMPLATE_delayed;
+   asm nop;
+   asm ldy #2;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm sta WSYNC;
+   // Deliberate page cross keeps digit 2 at the old five-cycle load timing.
+   asm lda score_font-$80+2,x;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+   // Replace DEC/BPL-taken plus the old zero-page row load exactly:
+   // 3-cycle offset preload + 6-cycle padding + 2-cycle immediate row.
+   asm ldx TEMPLATE_offset2;
+   asm bit.a TEMPLATE_delayed;
+   asm nop;
+   asm ldy #1;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm sta WSYNC;
+   // Deliberate page cross keeps digit 2 at the old five-cycle load timing.
+   asm lda score_font-$80+1,x;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+   // Replace DEC/BPL-taken plus the old zero-page row load exactly:
+   // 3-cycle offset preload + 6-cycle padding + 2-cycle immediate row.
+   asm ldx TEMPLATE_offset2;
+   asm bit.a TEMPLATE_delayed;
+   asm nop;
+   asm ldy #0;
+   asm lda (TEMPLATE_pointers),y;
+   asm sta GRP0;
+   asm sta WSYNC;
+   // Deliberate page cross keeps digit 2 at the old five-cycle load timing.
+   asm lda score_font-$80+0,x;
+   asm sta GRP1;
+   asm lda (TEMPLATE_pointers+$2),y;
+   asm sta GRP0;
+   asm lda (TEMPLATE_pointers+$4),y;
+   asm sta TEMPLATE_delayed;
+   asm lda (TEMPLATE_pointers+$6),y;
+   asm tax;
+   asm lda (TEMPLATE_pointers+$8),y;
+   asm tay;
+   asm lda TEMPLATE_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+   // The final DEC/BPL fall-through was seven cycles.
+   asm bit.z TEMPLATE_delayed;
+   asm bit.a TEMPLATE_delayed;
+
+
+#else
    // This store sits inside the cycle-counted visible setup. Keep its
    // historical four-cycle absolute timing explicit in handwritten assembly;
    // compiler-lowered ordinary RAM references intentionally remain relaxable.
@@ -202,6 +494,9 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP0;
    asm dec TEMPLATE_row;
    asm bpl.same @TEMPLATE_draw_loop;
+
+
+#endif
 
    GRP0 := 0;
    GRP1 := 0;

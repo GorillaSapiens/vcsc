@@ -38,7 +38,7 @@ MAPPER_BANKS_must_be_2_4_or_8
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"
 include "fonts/default_decimal.c26"
-instantiate "six_glyph_wide_component.c26" as status_word
+instantiate "six_glyph_wide_component.c26" as status_word (compact_font:=0)
 #endif
 
 #ifdef SUPERCHIP_TEST

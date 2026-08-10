@@ -410,6 +410,13 @@ right-joystick control oracle, including hue changes, and drives right fire in a
 two-plus-two cartridge to prove visible field selection, independent motion and
 packed-BCD changes for both fields, and the right field's full X=144 endpoint.
 
+The left/right score components also lock compact page-contained-font storage:
+left keeps five full pointers plus one byte offset (one byte saved), while right
+keeps four full pointers plus two byte offsets (two bytes saved). Both expose
+`compact_font:=0` for the fingerprint's deliberate full-pointer redirection to
+`logo_font`; ordinary score instances use the compact default.
+
+
 `vcs_font_contracts.pl` audits all eight printable-ASCII font families. It
 requires 95 distinct glyph bitmaps per family, exact digit and A-F agreement
 with the corresponding decimal and hexadecimal source modules, preservation of
@@ -423,6 +430,15 @@ reviewed reference image, specifically catching an overscan VBLANK assertion
 that moves into the last visible scanline. The six-glyph phase harnesses retain
 the historical cycle-3 component-entry contract; optimizer-induced phase shifts
 must be fixed in the timing helper rather than blessed by changing the oracle.
+
+The wide component defaults to a row-counter-free compact layout: digit 2 is one
+biased page-contained-font byte offset plus five full pointers. Its deliberately
+page-crossing absolute-indexed digit-2 fetch remains five cycles, so the exact
+88x8 write schedule is unchanged while two RIOT-RAM bytes are recovered. Instantiating
+with `compact_font:=0` restores the historical six full pointers plus row byte for
+callers that redirect every glyph to arbitrary ROM addresses; the raster oracle checks
+both layouts.
+
 
 `vcs_fingerprint.pl` builds the private fingerprint cartridge, verifies the
 CRC and unstable-ARR probe contract, checks the Whimsey and logo font tables in
@@ -587,8 +603,11 @@ out of the image and reports, resolves the selected member at its logical
 BANK1 call bridge with the archive-member origin intact.
 
 `vcs_bankswitching_diagnostic.pl` builds one F8, one F6, and one F4 image
-from `libraries/vcs/bankswitching_diagnostic_suite.c26`. Each image executes its
-complete ordered source-bank to destination-bank direct-JMP matrix internally.
+from `libraries/vcs/bankswitching_diagnostic_suite.c26`. The diagnostic explicitly
+instantiates the wide score with `compact_font:=0`; the test locks the resulting
+12-byte six-pointer storage so PASS/FAIL's arbitrary ASCII glyph pointers cannot
+overwrite compact-score state. Each image executes its complete ordered source-bank
+to destination-bank direct-JMP matrix internally.
 The normal `make test` path builds each image from C26 topology and runs it in compatibility-cfg-driven `vcsc-sim` from every
 physical/file startup bank and checks RIOT-RAM signatures, exact matrix counts,
 the nested cross-bank call, and hardware-stack balance. Superchip runs prefill
@@ -602,8 +621,9 @@ make stella-bank-test STELLA=/path/to/stella
 ```
 
 It runs the same three ordinary and three Superchip matrix images in Stella,
-grades the stable green **P** frame versus the dark-red **F** failure frame,
-including the exact default-font P silhouette rather than just its color/area,
+grades the stable green **PASS** frame versus the dark-red **FAIL** failure frame,
+including exact word geometry, white-pixel count, and default-font glyph shapes rather
+than merely color/area,
 forces every physical startup bank, and also runs one randomized developer-mode
 startup trial per physical bank. For each SC run the key helper waits for the
 first result, sends Stella's F2 console-reset key, waits for the second result,

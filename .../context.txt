@@ -659,6 +659,22 @@ for either 181 score composition, leaving **44** and **29** RIOT-RAM bytes free
 respectively. Relative to the prior 110-byte 181 build, this recovers 11 more bytes:
 4 startup + 4 `main` + 3 score. More aggressive score-offset schemes were rejected
 because exact GRP timing changed even when coarse pixels/frame length looked correct.
+The same score-specific storage reduction is now propagated to the other six-glyph
+profiles with their own raster deadlines preserved: left defaults to five full
+pointers plus one digit-6 offset (one byte saved), right defaults to four full
+pointers plus two offsets (two bytes saved), and wide uses five full pointers plus
+one deliberately page-crossing digit-2 offset and no row counter (two bytes saved).
+Left/right accept optional `compact_font:=0` for applications such as fingerprint
+that deliberately redirect all six full pointers to another page-contained font.
+Wide now offers the same compatibility mode: its compact default remains five full
+pointers plus one offset/no row, while `compact_font:=0` restores six full pointers
+plus the historical row byte. The bankswitching diagnostic explicitly selects that
+wide full-pointer mode because PASS/FAIL redirect all six glyph pointers to arbitrary
+ASCII glyphs; writing six pointers into the compact layout had overwritten the offset
+and delayed bytes and produced a garbage leading glyph. Ordinary score instances keep
+the compact defaults. The bank diagnostic map regression now locks the 12-byte pointer
+array/full-mode storage shape, and its Stella grader locks exact PASS/FAIL word geometry
+and white-pixel count rather than accepting a loose area threshold.
 Main-roadmap items 29 and 30 and the completed bankswitching sub-roadmap remain closed.
 No new main-roadmap item has been selected after item 28.
 

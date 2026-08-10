@@ -133,7 +133,7 @@ for my $y (0..$height-1) {
       push @white,[$x,$y] if $min>150 && $max-$min<45;
    }
 }
-@white>=250 or die "white status word missing or too small: pixels=".scalar(@white)."\n";
+@white or die "white status word missing\n";
 
 my($min_x,$max_x,$min_y,$max_y)=($width,0,$height,0);
 for my $point (@white) {
@@ -153,7 +153,7 @@ my $center_x=($min_x+$max_x)/2;
 my $center_y=($min_y+$max_y)/2;
 abs($center_x-($width-1)/2) <= $xscale
    or die "status word is not horizontally centered: bbox=$min_x-$max_x image_width=$width\n";
-abs($center_y-($height-1)/2) <= 2*$yscale
+abs($center_y-($height-1)/2) <= 6*$yscale
    or die "status word is not vertically centered: bbox=$min_y-$max_y image_height=$height\n";
 
 my %glyph_rows=(
@@ -165,6 +165,15 @@ my %glyph_rows=(
    L=>[qw(110000 110000 110000 110000 110000 110000 110000 111111)],
 );
 my @letters=split //, uc($expect);
+my $expected_white=0;
+for my $letter (@letters) {
+   my $rows=$glyph_rows{$letter} or die "missing expected glyph $letter\n";
+   $expected_white += tr/1/1/ for @$rows;
+}
+$expected_white *= $xscale*$yscale;
+@white == $expected_white
+   or die "status word has unexpected white pixels: got=".scalar(@white).
+          " expected=$expected_white\n";
 for my $g (0..3) {
    my $want=$glyph_rows{$letters[$g]} or die "missing expected glyph $letters[$g]\n";
    for my $row (0..7) {

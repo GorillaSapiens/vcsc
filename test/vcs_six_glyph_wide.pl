@@ -24,6 +24,10 @@ sub read_file {
    my($p)=@_; open(my $f,'<:raw',$p) or die "read $p: $!\n";
    local $/; my $d=<$f>; close($f); return $d // '';
 }
+sub write_file {
+   my($p,$d)=@_; open(my $f,'>:raw',$p) or die "write $p: $!\n";
+   print {$f} $d or die "write $p: $!\n"; close($f) or die "close $p: $!\n";
+}
 sub without_usage { my($s)=@_; $s =~ s/\AMEMORY USAGE\n(?:  [^\n]+\n)+//; return $s; }
 
 my $repo=shift @ARGV // usage(); my $tmp=shift @ARGV // usage(); usage() if @ARGV;
@@ -40,6 +44,9 @@ my $bin=File::Spec->catfile($tmp,'wide_score.bin');
 my $map=File::Spec->catfile($tmp,'wide_score.map');
 my $public_bin=File::Spec->catfile($tmp,'wide_score_public.bin');
 my $public_map=File::Spec->catfile($tmp,'wide_score_public.map');
+my $compat_src=File::Spec->catfile($tmp,'wide_score_compat.c26');
+my $compat_bin=File::Spec->catfile($tmp,'wide_score_compat.bin');
+my $compat_map=File::Spec->catfile($tmp,'wide_score_compat.map');
 
 my $source=read_file($component);
 for my $contract (
@@ -52,8 +59,9 @@ for my $contract (
 }
 $source =~ /asm lda #\$06;\s*asm sta NUSIZ0;\s*asm sta NUSIZ1;/s
    or die "wide component lost three-medium-copy setup\n";
-$source =~ /TEMPLATE_row;.*TEMPLATE_delayed;/s
-   or die "wide component lost the compact delayed-player state\n";
+$source =~ /parameter\s+compact_font\s*:=\s*1/ &&
+$source =~ /#if TEMPLATE_compact_font.*uint16_t\s+TEMPLATE_pointers\[5\].*uint8_t\s+TEMPLATE_offset2.*#else.*uint16_t\s+TEMPLATE_pointers\[6\].*uint8_t\s+TEMPLATE_row.*#endif/s
+   or die "wide component lost compact/full-pointer storage modes\n";
 $source =~ /recommend uint8_t TEMPLATE_color := 0x0e;/
    && $source =~ /asm lda TEMPLATE_color;\s*asm sta COLUP0;\s*asm sta COLUP1;/s
    or die "wide component lost mutable color support\n";
@@ -67,21 +75,37 @@ $rc==0 && !$sig or die "wide fixture build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "wide fixture build wrote output\n$out$err";
 -s $bin==4096 or die "wide fixture is not 4096 bytes\n";
 my $map_text=read_file($map);
-$map_text =~ /rom\s+used=957 bytes/ or die "wide fixture ROM accounting changed\n";
-$map_text =~ /ram\s+used=29 bytes.*objects=25 bytes hardware-stack=4 bytes/ or die "wide fixture RAM accounting changed\n";
-$map_text =~ /score_pointers\s+run=\$[0-9A-Fa-f]+ size=\$000C/ or die "wide pointer allocation changed\n";
-$map_text =~ /score_row\s+run=\$[0-9A-Fa-f]+ size=\$0001/ or die "wide row allocation changed\n";
+$map_text =~ /rom\s+used=1246 bytes/ or die "wide fixture ROM accounting changed\n";
+$map_text =~ /ram\s+used=27 bytes.*objects=23 bytes hardware-stack=4 bytes/ or die "wide fixture RAM accounting changed\n";
+$map_text =~ /score_pointers\s+run=\$[0-9A-Fa-f]+ size=\$000A/ or die "wide pointer allocation changed\n";
+$map_text =~ /score_offset2\s+run=\$[0-9A-Fa-f]+ size=\$0001/ or die "wide offset allocation changed\n";
+$map_text !~ /score_row\b/ or die "wide row allocation returned\n";
 $map_text =~ /score_delayed\s+run=\$[0-9A-Fa-f]+ size=\$0001/ or die "wide delayed-byte allocation changed\n";
 $map_text =~ /score_score\s+load=\$[0-9A-Fa-f]+ run=\$[0-9A-Fa-f]+ size=\$0003/ or die "wide packed-BCD score allocation changed\n";
 $map_text =~ /score_color\s+load=\$[0-9A-Fa-f]+ run=\$[0-9A-Fa-f]+ size=\$0001/ or die "wide mutable color allocation changed\n";
+
+my $compat_text=read_file($fixture);
+$compat_text =~ s/instantiate\s+"six_glyph_wide_component\.c26"\s+as\s+score/instantiate "six_glyph_wide_component.c26" as score (compact_font:=0)/
+   or die "wide fixture instantiate was not found for compatibility probe\n";
+write_file($compat_src,$compat_text);
+($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$compat_map,$compat_src,'-o',$compat_bin);
+$rc==0 && !$sig or die "wide full-pointer compatibility build failed\n$out$err";
+without_usage($out) eq '' && $err eq '' or die "wide full-pointer compatibility build wrote output\n$out$err";
+my $compat_map_text=read_file($compat_map);
+$compat_map_text =~ /score_pointers\s+run=\$[0-9A-Fa-f]+ size=\$000C/
+   or die "wide full-pointer compatibility allocation is not six pointers\n";
+$compat_map_text =~ /score_row\s+run=\$[0-9A-Fa-f]+ size=\$0001/
+   or die "wide full-pointer compatibility row allocation is missing\n";
+$compat_map_text !~ /score_offset2\b/
+   or die "wide full-pointer compatibility still allocated compact offset storage\n";
 
 ($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),'-Map',$public_map,$public,'-o',$public_bin);
 $rc==0 && !$sig or die "public wide example build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "public wide example wrote output\n$out$err";
 -s $public_bin==2048 or die "public wide example is not 2048 bytes\n";
 my $public_map_text=read_file($public_map);
-$public_map_text =~ /rom\s+used=1036 bytes/ or die "public wide example ROM accounting changed\n";
-$public_map_text =~ /ram\s+used=35 bytes.*objects=31 bytes hardware-stack=4 bytes/ or die "public wide example RAM accounting changed\n";
+$public_map_text =~ /rom\s+used=1325 bytes/ or die "public wide example ROM accounting changed\n";
+$public_map_text =~ /ram\s+used=33 bytes.*objects=29 bytes hardware-stack=4 bytes/ or die "public wide example RAM accounting changed\n";
 
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
@@ -98,6 +122,12 @@ $rc==0 && !$sig or die "wide exact raster schedule failed\n$out$err";
 $out eq "vcs_six_glyph_wide_raster ok: exact 88x8 score schedule and 262-line frames\n"
    or die "unexpected wide raster output: $out";
 $err eq '' or die "wide raster stderr: $err";
+
+($rc,$sig,$out,$err)=capture($harness,$compat_bin,'131','123456');
+$rc==0 && !$sig or die "wide full-pointer exact raster schedule failed\n$out$err";
+$out eq "vcs_six_glyph_wide_raster ok: exact 88x8 score schedule and 262-line frames\n"
+   or die "unexpected wide full-pointer raster output: $out";
+$err eq '' or die "wide full-pointer raster stderr: $err";
 
 my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 ($rc,$sig,$out,$err)=capture($^X,$digest,$reference);

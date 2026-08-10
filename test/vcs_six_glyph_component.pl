@@ -114,6 +114,14 @@ $left_source =~ /Position P0 at x=0 and P1 at x=8/
    or die "left component no longer documents its exact X range\n";
 $right_source =~ /Position P0 at x=112 and P1 at x=120/
    or die "right component no longer documents its exact X range\n";
+$left_source =~ /parameter\s+compact_font\s*:=\s*1/ &&
+$left_source =~ /uint16_t\s+TEMPLATE_pointers\[5\]/ &&
+$left_source =~ /uint8_t\s+TEMPLATE_offset6/
+   or die "left component lost its compact default pointer layout\n";
+$right_source =~ /parameter\s+compact_font\s*:=\s*1/ &&
+$right_source =~ /uint8_t\s+TEMPLATE_offsets\[2\]/ &&
+$right_source =~ /uint16_t\s+TEMPLATE_pointers\[4\]/
+   or die "right component lost its compact default pointer layout\n";
 
 my $generated=read_file($asm);
 for my $label (qw(upper lower)) {
