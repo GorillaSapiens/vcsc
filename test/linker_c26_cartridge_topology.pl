@@ -109,8 +109,8 @@ substr($direct_image, 0, 4) eq "\x11\x22\x33\x44"
    or die "explicit file index did not emit bank1 first\n";
 substr($direct_image, 0x0ff0, 16) eq ("\xaa" x 16)
    or die "direct bank fill did not cover unused physical bytes\n";
-substr($direct_image, 0x1000, 4) eq "\x78\xd8\xa2\xff"
-   or die "startup/runtime bank was not emitted second\n";
+index(substr($direct_image, 0x1000, 0x1000), "\x78\xd8\xa2\xff") >= 0
+   or die "startup/runtime bytes were not emitted in the second bank\n";
 my $direct_text = slurp($direct_map);
 ($direct_text =~ /C26 CARTRIDGE TOPOLOGY/s
  && $direct_text =~ /^\s*bank1\s+file-index=0.*?mode=direct/m

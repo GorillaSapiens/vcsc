@@ -20,13 +20,14 @@
 .import __stack_start
 .import __init_table
 
-.importzp _vcsc_arg0, _vcsc_arg1
-.importzp _vcsc_ptr0, _vcsc_ptr1, _vcsc_ptr2
+; Stock startup deliberately selects only two generic zero-page pointers.  ptr0
+; remains the current linker-table pointer while ptr1 is reconstructed as the
+; active source/destination pointer.  Copying therefore trades reset-time ROM
+; and cycles for four fewer permanently reserved RIOT bytes.
+.importzp _vcsc_ptr0, _vcsc_ptr1
 
 .include "../vcsc-runtime.inc"
 
-; arg1 is the high byte of the startup copy/zero count.  The forced absolute
-; encodings preserve the pre-split startup member size and downstream ROM layout.
 .segment "CODE"
 
 __reset:
@@ -44,52 +45,109 @@ __reset:
    sta ptr0+1
 
 _copy_record:
+   ; A zero 16-bit count terminates the copy table.
+   ldy #4
+   lda (ptr0),y
+   iny
+   ora (ptr0),y
+   beq _zero_setup
+
+   ; X is the source/destination 256-byte page index.  Full pages use Y as
+   ; the byte offset.  Reconstructing ptr1 for each byte keeps ptr0 available
+   ; as the immutable record pointer and avoids ptr2/arg0/arg1 RAM entirely.
+   ldx #0
+_copy_page:
+   ldy #5
+   txa
+   cmp (ptr0),y
+   bcc _copy_full_page
+
+   ; Final partial page.  X becomes the remaining low-byte count; this page's
+   ; high-byte offset is the record's count-high value itself.
+   ldy #4
+   lda (ptr0),y
+   beq _copy_record_done
+   tax
+   ldy #0
+_copy_tail_loop:
+   ; Preserve the data offset while using Y to address the startup record.
+   tya
+   pha
    ldy #0
    lda (ptr0),y
    sta ptr1
    iny
    lda (ptr0),y
+   ldy #5
+   clc
+   adc (ptr0),y
    sta ptr1+1
-   iny
-   lda (ptr0),y
-   sta ptr2
-   iny
-   lda (ptr0),y
-   sta ptr2+1
-   iny
-   lda (ptr0),y
-   sta arg0
-   iny
-   lda (ptr0),y
-   sta.a arg1
-   lda arg0
-   ora.a arg1
-   beq _zero_setup
+   pla
+   tay
 
-_copy_loop:
-   ldy #0
    lda (ptr1),y
-   sta (ptr2),y
+   pha
+   tya
+   pha
+   ldy #2
+   lda (ptr0),y
+   sta ptr1
+   iny
+   lda (ptr0),y
+   ldy #5
+   clc
+   adc (ptr0),y
+   sta ptr1+1
+   pla
+   tay
+   pla
+   sta (ptr1),y
+   iny
+   dex
+   bne _copy_tail_loop
+   jmp _copy_record_done
 
-   inc ptr1
-   bne _copy_dst
-   inc ptr1+1
+_copy_full_page:
+   ldy #0
+_copy_full_loop:
+   ; Two temporary hardware-stack bytes hold the byte offset/data while ptr1
+   ; changes roles.  Stock startup already requires two hardware-stack bytes
+   ; for its eventual JSR main, so this does not increase RAM reservation.
+   tya
+   pha
+   ldy #0
+   lda (ptr0),y
+   sta ptr1
+   iny
+   txa
+   clc
+   adc (ptr0),y
+   sta ptr1+1
+   pla
+   tay
 
-_copy_dst:
-   inc ptr2
-   bne _copy_count
-   inc ptr2+1
+   lda (ptr1),y
+   pha
+   tya
+   pha
+   ldy #2
+   lda (ptr0),y
+   sta ptr1
+   iny
+   txa
+   clc
+   adc (ptr0),y
+   sta ptr1+1
+   pla
+   tay
+   pla
+   sta (ptr1),y
+   iny
+   bne _copy_full_loop
+   inx
+   jmp _copy_page
 
-_copy_count:
-   lda arg0
-   bne _copy_dec_lo
-   dec.a arg1
-_copy_dec_lo:
-   dec arg0
-   lda arg0
-   ora.a arg1
-   bne _copy_loop
-
+_copy_record_done:
    clc
    lda ptr0
    adc #6
@@ -106,41 +164,64 @@ _zero_setup:
    sta ptr0+1
 
 _zero_record:
+   ; A zero 16-bit count terminates the zero table.
+   ldy #2
+   lda (ptr0),y
+   iny
+   ora (ptr0),y
+   beq _start_init
+
+   ldx #0
+_zero_page:
+   ldy #3
+   txa
+   cmp (ptr0),y
+   bcc _zero_full_page
+
+   ; Final partial page; X becomes the low-byte remaining count.
+   ldy #2
+   lda (ptr0),y
+   beq _zero_record_done
+   tax
    ldy #0
    lda (ptr0),y
    sta ptr1
    iny
    lda (ptr0),y
+   iny
+   iny
+   clc
+   adc (ptr0),y
    sta ptr1+1
-   iny
-   lda (ptr0),y
-   sta arg0
-   iny
-   lda (ptr0),y
-   sta.a arg1
-   lda arg0
-   ora.a arg1
-   beq _start_init
-
-_zero_loop:
-   ldy #0
    lda #0
+   ldy #0
+_zero_tail_loop:
    sta (ptr1),y
+   iny
+   dex
+   bne _zero_tail_loop
+   jmp _zero_record_done
 
-   inc ptr1
-   bne _zero_count
-   inc ptr1+1
+_zero_full_page:
+   ; Build this page's write pointer once, then clear all 256 bytes via Y.
+   ldy #0
+   lda (ptr0),y
+   sta ptr1
+   iny
+   txa
+   clc
+   adc (ptr0),y
+   sta ptr1+1
+   lda #0
+   ldy #0
+_zero_full_loop:
+   sta (ptr1),y
+   iny
+   bne _zero_full_loop
+   inx
+   jmp _zero_page
 
-_zero_count:
-   lda arg0
-   bne _zero_dec_lo
-   dec.a arg1
-_zero_dec_lo:
-   dec arg0
-   lda arg0
-   ora.a arg1
-   bne _zero_loop
-
+_zero_record_done:
    clc
    lda ptr0
    adc #4

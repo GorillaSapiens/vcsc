@@ -28,7 +28,7 @@ my $legacy_cfg=File::Spec->catfile($vcs,qw(renderers faithful_legacy_playercolor
 my $color_component=read_file(File::Spec->catfile($vcs,'six_glyph_color_component.c26'));
 $color_component =~ /recommend uint8_t TEMPLATE_color := 0x0e;/
    && $color_component =~ /asm sta RESP0;\s*asm sta RESP1;\s*asm lda TEMPLATE_color;\s*asm sta COLUP0;\s*asm sta COLUP1;/s
-   && $color_component =~ /asm sta NUSIZ1;.*?(?:asm nop;\s*){4}asm sta HMCLR;/s
+   && $color_component =~ /asm sta NUSIZ1;.*?asm ldy TEMPLATE_offsets\+1;\s*asm bit\.z TEMPLATE_offsets;\s*asm nop;\s*asm sta HMCLR;/s
    or die "mutable-color score component lost its color or positioning contract\n";
 my @cases=(
  {

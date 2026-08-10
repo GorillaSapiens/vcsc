@@ -2040,6 +2040,137 @@ static void compile_goto_stmt(ASTNode *node, Context *ctx) {
    }
 }
 
+//! @brief Lower the common direct-byte/constant-case switch without statement scratch.
+static bool compile_direct_u8_switch_stmt(ASTNode *node, Context *ctx,
+                                          const char *named_loop) {
+   ASTNode *expr;
+   ASTNode *sections;
+   const ASTNode *type;
+   LValueRef source;
+   const char *cleanup_label = NULL;
+   const char *end_label = NULL;
+   const char *default_label = NULL;
+   const char **case_labels = NULL;
+   unsigned char *case_values = NULL;
+   int section_count;
+   bool ok = false;
+
+   if (!node || node->count < 2) {
+      return false;
+   }
+   expr = (ASTNode *)unwrap_expr_node(node->children[0]);
+   sections = node->children[1];
+   if (!expr || !sections || is_empty(sections) || sections->count <= 0 ||
+       expr_value_size(expr, ctx) != 1) {
+      return false;
+   }
+   type = expr_value_type(expr, ctx);
+   if (!resolve_lvalue(ctx, expr, &source) || source.size != 1 ||
+       source.is_bitfield || source.indirect || source.needs_runtime_address ||
+       !(source.is_absolute_ref || source.is_static || source.is_zeropage || source.is_global) ||
+       (source.is_absolute_ref && (!source.read_expr || !*source.read_expr))) {
+      return false;
+   }
+
+   section_count = sections->count;
+   case_values = calloc((size_t)section_count, sizeof(*case_values));
+   case_labels = calloc((size_t)section_count, sizeof(*case_labels));
+   if (!case_values || !case_labels) {
+      error_unreachable("out of memory");
+   }
+
+   /* Validate the complete dispatch before emitting anything. Ranges and
+      nonconstant case expressions stay on the established generic path. */
+   for (int i = 0; i < section_count; i++) {
+      ASTNode *section = sections->children[i];
+      ASTNode *case_expr = section && section->count > 0 ? section->children[0] : NULL;
+      ASTNode *low;
+      ASTNode *high;
+      InitConstValue value = {0};
+
+      if (!case_expr || is_empty(case_expr)) {
+         continue;
+      }
+      if (strcmp(case_expr->name, "case_choice") || case_expr->count <= 0) {
+         goto out;
+      }
+      low = case_expr->children[0];
+      high = case_expr->count > 1 ? case_expr->children[1] : NULL;
+      if (!low || (high && !is_empty(high)) ||
+          !eval_constant_initializer_expr(low, &value) ||
+          value.kind != INIT_CONST_INT || !integer_value_fits_type(value.i, type) ||
+          !encode_integer_initializer_value(value.i, &case_values[i], 1, type)) {
+         goto out;
+      }
+   }
+
+   cleanup_label = next_label("switch_cleanup");
+   end_label = next_label("switch_end");
+   if (!cleanup_label || !end_label) {
+      warning("[%s:%d.%d] switch label generation failed", node->file, node->line, node->column);
+      goto out;
+   }
+   for (int i = 0; i < section_count; i++) {
+      ASTNode *section = sections->children[i];
+      ASTNode *case_expr = section && section->count > 0 ? section->children[0] : NULL;
+      case_labels[i] = next_label("case");
+      if (!case_labels[i]) {
+         warning("[%s:%d.%d] switch case label generation failed", node->file, node->line, node->column);
+         goto out;
+      }
+      if (!case_expr || is_empty(case_expr)) {
+         default_label = case_labels[i];
+      }
+   }
+
+   emit_lvalue_semantic_use(ctx, &source, "read");
+   if (!emit_load_direct_byte_lvalue_to_a(ctx, &source)) {
+      goto out;
+   }
+   for (int i = 0; i < section_count; i++) {
+      ASTNode *section = sections->children[i];
+      ASTNode *case_expr = section && section->count > 0 ? section->children[0] : NULL;
+      if (!case_expr || is_empty(case_expr)) {
+         continue;
+      }
+      emit(&es_code, "    cmp #$%02x\n", (unsigned)case_values[i]);
+      emit(&es_code, "    beq %s\n", case_labels[i]);
+   }
+   emit(&es_code, "    jmp %s\n", default_label ? default_label : cleanup_label);
+
+   push_loop_labels(cleanup_label, current_continue_label());
+   if (named_loop) {
+      push_named_loop_labels(named_loop, cleanup_label, current_continue_label());
+   }
+   for (int i = 0; i < section_count; i++) {
+      ASTNode *section = sections->children[i];
+      ASTNode *body = section && section->count > 1 ? section->children[1] : NULL;
+      emit(&es_code, "%s:\n", case_labels[i]);
+      if (body && !is_empty(body)) {
+         compile_statement_list(body, ctx);
+      }
+   }
+   pop_loop_labels();
+   if (named_loop) {
+      pop_named_loop_labels();
+   }
+   emit(&es_code, "%s:\n", cleanup_label);
+   emit(&es_code, "%s:\n", end_label);
+   ok = true;
+
+out:
+   if (case_labels) {
+      for (int i = 0; i < section_count; i++) {
+         free((void *)case_labels[i]);
+      }
+   }
+   free(case_values);
+   free(case_labels);
+   free((void *)cleanup_label);
+   free((void *)end_label);
+   return ok;
+}
+
 //! @brief Lower switch stmt from AST/semantic state into generated assembly or linker-visible metadata.
 static void compile_switch_stmt(ASTNode *node, Context *ctx) {
    const char *named_loop = pending_loop_label_name;
@@ -2066,6 +2197,10 @@ static void compile_switch_stmt(ASTNode *node, Context *ctx) {
    expr = node->children[0];
    sections = node->children[1];
    if (!sections || is_empty(sections) || sections->count <= 0) {
+      return;
+   }
+
+   if (compile_direct_u8_switch_stmt(node, ctx, named_loop)) {
       return;
    }
 

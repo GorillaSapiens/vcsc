@@ -28,22 +28,14 @@
          "rom_bytes" : 3662,
          "rom_saved_bytes" : 331
       },
-      "members" : [
-         {
-            "class" : "activation_scratch",
-            "name" : "__inline$2$vcs_ntsc_wait_scanlines$scanlines",
-            "size" : 1,
-            "start" : 179,
-            "subclass" : "inline_parameter"
-         }
-      ],
+      "members" : [],
       "owner" : "main",
       "repeated_inline" : {
          "bytes_each" : 0,
          "current_reason" : "direct-byte-lowering-needs-no-expression-scratch",
          "expansions" : [
-            "__inline$10$next_pair",
-            "__inline$12$next_pair"
+            "__inline$9$next_pair",
+            "__inline$11$next_pair"
          ],
          "function" : "next_pair",
          "generated_execution" : "sequential",
@@ -53,8 +45,8 @@
          "saved_bytes_this_item" : 6,
          "total_saved_from_unshared_baseline" : 12
       },
-      "size" : 1,
-      "start" : 179
+      "size" : 0,
+      "start" : null
    },
    "alignment_padding_cleanup" : {
       "alignment" : 256,
@@ -77,13 +69,13 @@
       },
       "decision" : "retain-general-renderers-no-two-sprite-split",
       "final" : {
-         "activation_bytes" : 1,
-         "free_ram_bytes" : 72,
-         "ram_bytes" : 56,
-         "rom_bytes" : 3296,
+         "activation_bytes" : 0,
+         "free_ram_bytes" : 77,
+         "ram_bytes" : 51,
+         "rom_bytes" : 3377,
          "stack_bytes" : 4
       },
-      "free_ram_percent" : 56.25,
+      "free_ram_percent" : 60.15625,
       "item14_remains" : true,
       "meaningful_free_ram" : true,
       "optional_two_sprite_profiles" : {
@@ -91,7 +83,7 @@
          "item12_181" : "closed-unnecessary"
       },
       "ram_savings" : {
-         "activation_total" : 19,
+         "activation_total" : 20,
          "compact_lowering" : 5,
          "hardware_stack" : 4,
          "item2_incremental" : 0,
@@ -100,7 +92,8 @@
          "phase_overlay" : 1,
          "renderer" : 46,
          "repeated_inline_within_item1" : 12,
-         "total" : 72
+         "runtime_startup" : 4,
+         "total" : 77
       },
       "retained_architecture" : [
          "player_color_192:p0-p1-ball",
@@ -120,7 +113,7 @@
          "persistent_state" : 15,
          "phase_overlay" : 0,
          "renderer_final" : 253,
-         "total" : 697
+         "total" : 616
       }
    },
    "direct_countdown_renderer" : {
@@ -149,15 +142,21 @@
          "stack_bytes" : 4
       },
       "gallery_current" : {
-         "free_ram_bytes" : 72,
-         "object_bytes" : 52,
-         "ram_bytes" : 56,
-         "rom_bytes" : 3296,
+         "free_ram_bytes" : 77,
+         "object_bytes" : 47,
+         "ram_bytes" : 51,
+         "rom_bytes" : 3377,
          "stack_bytes" : 4
       },
       "object_schedule_bytes_after" : 0,
       "object_schedule_bytes_before" : 48,
       "official_opcodes" : true,
+      "postcloseout_runtime_main_delta" : {
+         "free_ram_bytes" : 5,
+         "object_bytes" : -5,
+         "ram_bytes" : -5,
+         "rom_bytes" : 81
+      },
       "renderer_module_bytes_after" : 23,
       "renderer_module_bytes_before" : 69,
       "renderer_private_bytes_after" : 10,
@@ -287,171 +286,143 @@
          "subclass" : "pointer"
       },
       {
-         "class" : "runtime_scratch",
-         "name" : "_vcsc_ptr2",
-         "size" : 2,
-         "start" : 132,
-         "subclass" : "pointer"
-      },
-      {
-         "class" : "runtime_scratch",
-         "name" : "_vcsc_arg0",
-         "size" : 1,
-         "start" : 134,
-         "subclass" : "argument"
-      },
-      {
-         "class" : "runtime_scratch",
-         "name" : "_vcsc_arg1",
-         "size" : 1,
-         "start" : 135,
-         "subclass" : "argument"
-      },
-      {
          "class" : "renderer_state",
          "name" : "game_player0_colors",
          "size" : 8,
-         "start" : 136,
+         "start" : 132,
          "subclass" : "mutable_row_colors"
       },
       {
          "class" : "renderer_state",
          "name" : "game_player1_colors",
          "size" : 8,
-         "start" : 144,
+         "start" : 140,
          "subclass" : "mutable_row_colors"
       },
       {
          "class" : "renderer_state",
          "name" : "game_player_x",
          "size" : 2,
-         "start" : 152,
+         "start" : 148,
          "subclass" : "public_state"
       },
       {
          "class" : "renderer_state",
          "name" : "game_nusiz",
          "size" : 2,
-         "start" : 154,
+         "start" : 150,
          "subclass" : "private_workspace"
       },
       {
          "class" : "renderer_state",
          "name" : "game_ball_x",
          "size" : 1,
-         "start" : 156,
+         "start" : 152,
          "subclass" : "public_state"
       },
       {
          "class" : "renderer_state",
          "name" : "game_player0_y",
          "size" : 1,
-         "start" : 157,
+         "start" : 153,
          "subclass" : "public_state"
       },
       {
          "class" : "renderer_state",
          "name" : "game_player1_y",
          "size" : 1,
-         "start" : 158,
+         "start" : 154,
          "subclass" : "public_state"
       },
       {
          "class" : "renderer_state",
          "name" : "game_ball_y",
          "size" : 1,
-         "start" : 159,
+         "start" : 155,
          "subclass" : "public_state"
       },
       {
          "class" : "renderer_state",
          "name" : "game_player0_graphics",
          "size" : 2,
-         "start" : 160,
+         "start" : 156,
          "subclass" : "public_state"
       },
       {
          "class" : "renderer_state",
          "name" : "game_player1_graphics",
          "size" : 2,
-         "start" : 162,
+         "start" : 158,
          "subclass" : "public_state"
       },
       {
          "class" : "renderer_state",
          "name" : "game_player0_height",
          "size" : 1,
-         "start" : 164,
+         "start" : 160,
          "subclass" : "public_state"
       },
       {
          "class" : "renderer_state",
          "name" : "game_player1_height",
          "size" : 1,
-         "start" : 165,
+         "start" : 161,
          "subclass" : "public_state"
       },
       {
          "class" : "renderer_state",
          "name" : "game_ball_height",
          "size" : 1,
-         "start" : 166,
+         "start" : 162,
          "subclass" : "public_state"
       },
       {
          "class" : "renderer_state",
          "name" : "game_workspace",
          "size" : 7,
-         "start" : 167,
+         "start" : 163,
          "subclass" : "private_workspace"
       },
       {
          "class" : "renderer_state",
          "name" : "game_playfield_position",
          "size" : 1,
-         "start" : 174,
+         "start" : 170,
          "subclass" : "private_workspace"
       },
       {
          "class" : "persistent_state",
          "name" : "sprite0",
          "size" : 1,
-         "start" : 175,
+         "start" : 171,
          "subclass" : "gallery_control"
       },
       {
          "class" : "persistent_state",
          "name" : "sprite1",
          "size" : 1,
-         "start" : 176,
+         "start" : 172,
          "subclass" : "gallery_control"
       },
       {
          "class" : "persistent_state",
          "name" : "animation_state",
          "size" : 1,
-         "start" : 177,
+         "start" : 173,
          "subclass" : "gallery_control"
       },
       {
          "class" : "persistent_state",
          "name" : "control_flags",
          "size" : 1,
-         "start" : 178,
+         "start" : 174,
          "subclass" : "gallery_control"
-      },
-      {
-         "class" : "activation_scratch",
-         "name" : "__inline$2$vcs_ntsc_wait_scanlines$scanlines",
-         "size" : 1,
-         "start" : 179,
-         "subclass" : "inline_parameter"
       },
       {
          "class" : "free_ram",
          "name" : "free_ram",
-         "size" : 72,
-         "start" : 180,
+         "size" : 77,
+         "start" : 175,
          "subclass" : "unallocated"
       },
       {
@@ -500,9 +471,13 @@
       }
    },
    "phase_overlay" : {
-      "baseline_free_ram_bytes" : 71,
-      "baseline_ram_bytes" : 57,
-      "free_ram_bytes" : 72,
+      "current_free_ram_bytes" : 77,
+      "current_main_activation_bytes" : 0,
+      "current_ram_bytes" : 51,
+      "current_scratch_slots" : 0,
+      "historical_baseline_ram_bytes" : 57,
+      "historical_ram_bytes" : 56,
+      "historical_ram_saved_bytes" : 1,
       "host" : {
          "phase_mask" : 14,
          "phases" : [
@@ -511,34 +486,10 @@
             "overscan"
          ],
          "size" : 7,
-         "start" : 167,
+         "start" : 163,
          "symbol" : "game_workspace"
       },
-      "proof" : "disjoint conservative phase intervals plus explicit workspace eligibility; compiler scratch is written before use and needs no startup zeroing",
-      "ram_bytes" : 56,
-      "ram_saved_bytes" : 1,
-      "scratch" : {
-         "diagnostics" : [
-            {
-               "acquisitions" : 1,
-               "allocation" : "lifetime-overlay",
-               "group" : "main:0",
-               "owner" : "main",
-               "reason" : "nonoverlapping-compiler-temporary-lifetimes",
-               "scope" : "__inline$1$vcs_ntsc_vsync",
-               "size" : 1,
-               "slot" : 0,
-               "symbol" : "__vcsc_scratch_0"
-            }
-         ],
-         "phase_mask" : 1,
-         "phases" : [
-            "VSYNC"
-         ],
-         "size" : 1,
-         "start" : 167,
-         "symbol" : "__vcsc_scratch_0"
-      }
+      "proof" : "the earlier VSYNC-only scratch overlay remains a historical optimization; fixed three-line VSYNC now materializes no scratch at all"
    },
    "post_optimization_remeasurement" : {
       "ball_capability_retained" : true,
@@ -730,25 +681,37 @@
             "rom_bytes" : 3296,
             "stack_bytes" : 4,
             "step" : "frame-ntsc-262"
+         },
+         {
+            "activation_bytes" : 0,
+            "delta_activation_bytes" : -1,
+            "delta_ram_bytes" : -5,
+            "delta_rom_bytes" : 81,
+            "delta_stack_bytes" : 0,
+            "free_ram_bytes" : 77,
+            "ram_bytes" : 51,
+            "rom_bytes" : 3377,
+            "stack_bytes" : 4,
+            "step" : "startup-main-cleanup"
          }
       ],
       "current" : {
-         "activation_bytes" : 1,
-         "free_ram_bytes" : 72,
-         "ram_bytes" : 56,
-         "rom_bytes" : 3296,
+         "activation_bytes" : 0,
+         "free_ram_bytes" : 77,
+         "ram_bytes" : 51,
+         "rom_bytes" : 3377,
          "stack_bytes" : 4
       },
       "decision" : "retain-general-p0-p1-ball-renderer",
-      "free_ram_percent" : 56.25,
+      "free_ram_percent" : 60.15625,
       "gallery_ball_height" : 0,
       "rationale" : "the official-opcode direct-countdown renderer removes the 48-byte object schedule while retaining P0/P1/Ball capability and expands the gallery margin to 72 bytes",
       "renderer_profile" : "player_color_192 P0/P1/Ball",
       "total_delta" : {
-         "activation_bytes" : -19,
-         "free_ram_bytes" : 72,
-         "ram_bytes" : -72,
-         "rom_bytes" : -697,
+         "activation_bytes" : -20,
+         "free_ram_bytes" : 77,
+         "ram_bytes" : -77,
+         "rom_bytes" : -616,
          "stack_bytes" : -4
       },
       "useful_game_state_margin" : true
@@ -760,32 +723,29 @@
       "test/vcs_playfield_phase.cpp",
       "test/vcs_player_color_192_stella.pl"
    ],
-   "schema" : 15,
+   "schema" : 16,
    "totals" : {
       "category_bytes" : {
-         "activation_scratch" : 1,
-         "free_ram" : 72,
+         "free_ram" : 77,
          "hardware_stack" : 4,
          "persistent_state" : 4,
          "renderer_state" : 39,
-         "runtime_scratch" : 8
+         "runtime_scratch" : 4
       },
-      "free_ram_bytes" : 72,
+      "free_ram_bytes" : 77,
       "hardware_stack_bytes" : 4,
-      "object_bytes" : 52,
-      "ram_bytes" : 56,
-      "rom_bytes" : 3296,
-      "rom_free_bytes" : 794,
+      "object_bytes" : 47,
+      "ram_bytes" : 51,
+      "rom_bytes" : 3377,
+      "rom_free_bytes" : 713,
       "subcategory_bytes" : {
-         "argument" : 2,
          "gallery_control" : 4,
-         "inline_parameter" : 1,
          "mutable_row_colors" : 16,
-         "pointer" : 6,
+         "pointer" : 4,
          "private_workspace" : 10,
          "public_state" : 13,
          "return_addresses" : 4,
-         "unallocated" : 72
+         "unallocated" : 77
       }
    }
 }

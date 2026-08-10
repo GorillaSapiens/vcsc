@@ -31,8 +31,13 @@ workspace expected by generated code.
   - each file exports one independently selectable zero-page cell
   - `_vcsc_arg0` and `_vcsc_arg1` are one byte each
   - `_vcsc_ptr0` through `_vcsc_ptr2` are two bytes each
-  - startup selects the complete eight-byte set
-  - multiplication, division, and remainder require no additional runtime RAM
+  - stock startup selects only `_vcsc_ptr0` and `_vcsc_ptr1`, for four bytes
+    of permanent zero-page workspace; it reconstructs copy/zero source and
+    destination pointers from linker records and trades reset-time cycles/ROM
+    for four recovered RAM bytes
+  - archive members remain demand-selected: helpers pull `_vcsc_ptr2`,
+    `_vcsc_arg0`, or `_vcsc_arg1` only when their generated code actually
+    imports those cells
 
 The complete startup sequence runs after every entry through `__reset`, not only
 at cartridge power-on. For a split-address region such as Superchip RAM, table

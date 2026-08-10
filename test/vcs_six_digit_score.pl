@@ -94,12 +94,12 @@ for my $rompath ($bin,$oldbin) {
    my $rom=read_file($rompath);
    length($rom)==4096 or die "$rompath is not 4096 bytes\n";
    my ($nmi,$reset,$irq)=unpack('v3',substr($rom,0x0ffa,6));
-   $reset==0xf000 or die sprintf("%s RESET vector is %04x, expected f000\n",$rompath,$reset);
+   $reset==0xf056 or die sprintf("%s RESET vector is %04x, expected f056\n",$rompath,$reset);
    for my $v ($nmi,$irq) { $v>=0xf000 && $v<=0xffff or die "$rompath vector outside ROM\n"; }
 }
 
 my $map_text=read_file($map);
-require_re($map_text,qr/\$0088\s+score_pointers|score_pointers\s+.*\$0088/,
+require_re($map_text,qr/\$0084\s+score_pointers|score_pointers\s+.*\$0084/,
            'component pointer table is not anchored at the first allocatable RAM byte');
 for my $symbol (qw(score_score score_pointers score_row score_delayed)) {
    require_re($map_text,qr/\b\Q$symbol\E\b/,"score map is missing $symbol");

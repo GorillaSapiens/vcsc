@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # expectexit: 0
-# expectstdout: runtime workspace reduced: mul/div/rem stay at the 8-byte startup baseline
+# expectstdout: runtime workspace reduced: stock startup uses 4 bytes; mul/div/rem pull ptr2 only when needed
 
 use strict;
 use warnings;
@@ -34,6 +34,8 @@ my $generic_cfg = File::Spec->catfile($test_inc, 'generic_6502.cfg');
 my $runtime = File::Spec->catdir($repo, 'libraries', 'runtime');
 my $archive = File::Spec->catfile($runtime, 'libvcsc.l26');
 my @workspace = qw(arg0 arg1 ptr0 ptr1 ptr2);
+my @startup_workspace = qw(ptr0 ptr1);
+my @wide_math_workspace = qw(ptr0 ptr1 ptr2);
 my @removed = qw(ptr3 tmp0 tmp1 tmp2 tmp3 tmp4 tmp5);
 
 open(my $afh, '-|', $ar, 't', $archive) or die "cannot list $archive: $!\n";
@@ -67,44 +69,49 @@ sub build_case {
    return read_file($map);
 }
 
-sub require_baseline {
-   my ($name, $map) = @_;
+sub require_workspace {
+   my ($name, $map, @want_cells) = @_;
    my %seen;
    while ($map =~ /libvcsc\.l26\(vcsc-zp-([A-Za-z0-9_]+)\.o26\)/g) {
       $seen{$1} = 1;
    }
    my $got = join(',', sort keys %seen);
-   my $want = join(',', @workspace);
+   my $want = join(',', sort @want_cells);
    $got eq $want or die "$name linked workspace {$got}, expected {$want}\n";
 }
 
-require_baseline('plain', build_case('workspace_plain', <<'SRC'));
+
+my $plain_map = build_case('workspace_plain', <<'SRC');
 uint32_t a := 0x12345678;
 uint32_t b := 0x01020304;
 uint32_t result;
 void main(void) { result := a + b; }
 SRC
+require_workspace('plain', $plain_map, @startup_workspace);
 
-require_baseline('multiplication', build_case('workspace_mul', <<'SRC'));
+my $mul_map = build_case('workspace_mul', <<'SRC');
 uint32_t a := 0x1234;
 uint32_t b := 0x100;
 uint32_t result;
 void main(void) { result := a * b; }
 SRC
+require_workspace('multiplication', $mul_map, @wide_math_workspace);
 
-require_baseline('division', build_case('workspace_div', <<'SRC'));
+my $div_map = build_case('workspace_div', <<'SRC');
 uint32_t a := 0x12345678;
 uint32_t b := 0x1234;
 uint32_t result;
 void main(void) { result := a / b; }
 SRC
+require_workspace('division', $div_map, @wide_math_workspace);
 
-require_baseline('remainder', build_case('workspace_rem', <<'SRC'));
+my $rem_map = build_case('workspace_rem', <<'SRC');
 uint32_t a := 0x12345678;
 uint32_t b := 0x1234;
 uint32_t result;
 void main(void) { result := a % b; }
 SRC
+require_workspace('remainder', $rem_map, @wide_math_workspace);
 
 my $empty_src = File::Spec->catfile($tmp, 'workspace_empty.c26');
 my $empty_asm = File::Spec->catfile($tmp, 'workspace_empty.s26');
@@ -115,4 +122,4 @@ my $generated = read_file($empty_asm);
 $generated !~ /^\s*\.zpimport\s+_vcsc_(?:arg|ptr|tmp)/m
    or die "empty translation unit imports runtime workspace\n";
 
-print "runtime workspace reduced: mul/div/rem stay at the 8-byte startup baseline\n";
+print "runtime workspace reduced: stock startup uses 4 bytes; mul/div/rem pull ptr2 only when needed\n";

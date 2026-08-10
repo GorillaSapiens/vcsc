@@ -1,0 +1,28 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda #$56
+// expectasmordered: sta score
+// expectasmordered: lda #$34
+// expectasmordered: sta score + 1
+// expectasmordered: lda #$12
+// expectasmordered: sta score + 2
+// expectasmordered: lda selector
+// expectasmordered: cmp #$01
+// expectasmordered: beq @case_
+// expectasmordered: cmp #$02
+// expectasmordered: beq @case_
+// forbidasm: __vcsc_scratch_
+
+include "machine_6502.c26"
+
+bcd24_t score;
+uint8_t selector;
+uint8_t out;
+
+void main(void) {
+   score := 123456;
+   switch (selector) {
+      case 1: out := 11; break;
+      case 2: out := 22; break;
+      default: out := 99;
+   }
+}

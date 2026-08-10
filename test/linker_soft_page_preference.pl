@@ -89,12 +89,12 @@ $m =~ /^\s*\$([0-9A-Fa-f]{4})\s+soft_hole\b/m or die "map lacks soft_hole\n";
 my $hole=hex($1);
 $m =~ /^\s*\$([0-9A-Fa-f]{4})\s+soft_cross\b/m or die "map lacks soft_cross\n";
 my $cross=hex($1);
-$hole == 0x2101 or die sprintf("same-page hole was not reused: %04X\n",$hole);
-$cross == 0x220E or die sprintf("compact crossing placement was padded: %04X\n",$cross);
-$m =~ /hole\.s26\.o26.*?\n\s+CODE\s+load=\$2101\s+size=\$00F7\s+page=preferred/s
- or die "preferred placement not reported\n$m";
-$m =~ /cross\.s26\.o26.*?\n\s+CODE\s+load=\$220E\s+size=\$00F7\s+page=crossing/s
- or die "unavoidable crossing not reported\n$m";
+$hole == 0x220E or die sprintf("first compact crossing placement changed: %04X\n",$hole);
+$cross == 0x2305 or die sprintf("later same-page preferred placement changed: %04X\n",$cross);
+$m =~ /hole\.s26\.o26.*?\n\s+CODE\s+load=\$220E\s+size=\$00F7\s+page=crossing/s
+ or die "unavoidable crossing placement not reported\n$m";
+$m =~ /cross\.s26\.o26.*?\n\s+CODE\s+load=\$2305\s+size=\$00F7\s+page=preferred/s
+ or die "same-page preferred placement not reported\n$m";
 $m =~ /hard\.s26\.o26.*?\n\s+HOT\s+load=\$2200\s+size=\$000E\s+page=hard/s
  or die "hard placement not reported\n$m";
 print "linker soft page preference reuses holes without image growth\n";

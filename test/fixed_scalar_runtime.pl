@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # expectexit: 0
-# expectstdout: fixed scalar runtime ok: inline scalar ops, fixed shifts/mul/div, 8-byte workspace
+# expectstdout: fixed scalar runtime ok: inline scalar ops, fixed shifts/mul/div, 5-byte linked workspace
 
 use strict;
 use warnings;
@@ -132,7 +132,7 @@ while ($map =~ /libvcsc\.l26\(vcsc-zp-([A-Za-z0-9_]+)\.o26\)/g) {
    $cells{$1} = 1;
 }
 my $got_cells = join(',', sort keys %cells);
-my $want_cells = 'arg0,arg1,ptr0,ptr1,ptr2';
+my $want_cells = 'arg1,ptr0,ptr1';
 $got_cells eq $want_cells
    or die "fixed scalar program linked workspace {$got_cells}, expected {$want_cells}\n";
 
@@ -150,4 +150,4 @@ my $aggregate = read_file($aggregate_asm);
 $aggregate =~ /^\.import _zero_bytes$/m && $aggregate =~ /jsr _zero_bytes/
    or die "object wider than four bytes no longer selects aggregate zero helper\n";
 
-print "fixed scalar runtime ok: inline scalar ops, fixed shifts/mul/div, 8-byte workspace\n";
+print "fixed scalar runtime ok: inline scalar ops, fixed shifts/mul/div, 5-byte linked workspace\n";

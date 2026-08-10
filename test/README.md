@@ -853,20 +853,21 @@ pin raw 264 while user-facing frame claims remain the Stella-authoritative 262.
 `vcs_animated_gallery_ram_accounting.pl` is the authoritative animated-gallery
 RAM/ROM report. It regenerates
 `test/fixtures/vcs_animated_gallery_ram_accounting/golden.json`, accounts for
-every physical RIOT address `$80-$FF`, pins the one-byte `main` activation,
-records compiler scratch diagnostics, proves both sequential `next_pair()`
-expansions allocate zero expression scratch, and checks the linker's source-call
-edges, deepest path, and explicit `.callstackextra` contribution. Schema 15 records
-the completed optimization sequence through the official-opcode direct-countdown
-`player_color_192` renderer. The former 48-byte `game_object_masks` schedule is
-absent; renderer private RAM falls from 56 to 10 bytes and total renderer RAM from
-69 to 23. The gallery is now **3296/4090 ROM bytes** and **56/128 RAM bytes**, with
-**72 RAM bytes free**: 52 object bytes plus a four-byte hardware-stack reserve.
-Schema 15 also records the RAM-roadmap completion decision: retain the general
-P0/P1/Ball renderer, close the optional two-sprite-only 192/181 profiles as
-unnecessary by measurement, and reconcile the RAM-roadmap 3993-to-3292 ROM / 128-to-56 RAM optimization
-closeout separately from the later four-ROM-byte NTSC frame-closeout correction.
-The current cartridge is 3296 ROM bytes; RAM remains 56 bytes with 72 free.
+every physical RIOT address `$80-$FF`, proves that current `main` activation is
+**zero bytes**, records the four-byte stock startup workspace (`_vcsc_ptr0` and
+`_vcsc_ptr1` only), proves both sequential `next_pair()` expansions allocate zero
+expression scratch, and checks the linker's source-call edges, deepest path, and
+explicit `.callstackextra` contribution. Schema 16 preserves the completed historical
+optimization sequence through the official-opcode direct-countdown `player_color_192`
+renderer and adds the post-closeout startup/main cleanup. The former 48-byte
+`game_object_masks` schedule is absent; renderer private RAM remains 10 bytes and total
+renderer RAM remains 23. The gallery is now **3377/4090 ROM bytes** and **51/128 RAM
+bytes**, with **77 RAM bytes free**: 47 object bytes plus a four-byte hardware-stack
+reserve. The earlier schema-15 3296-ROM / 56-RAM / 72-free result remains represented
+as a historical checkpoint rather than being rewritten. The larger reset walker trades
+81 ROM bytes for four fewer permanent startup bytes, while fixed VSYNC removes the last
+one-byte `main` activation. The general P0/P1/Ball renderer remains retained; the
+optional two-sprite-only 192/181 profiles remain closed as unnecessary by measurement.
 Relative to the item-8 mask-renderer checkpoint, the direct-countdown renderer
 plus the delayed-Ball and playfield-transition corrections saves 253 ROM bytes and 46 RAM bytes without removing Ball or increasing stack depth. Its
 measured VBLANK marker span falls from 920 to 468 CPU cycles. Every visible two-

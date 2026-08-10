@@ -1,7 +1,7 @@
 // vcsc-cc1 -I .
 // object: e2e_activation_overlay_cross_tu_verify__def.c26
-// expectmap: ZEROPAGE.__vcsc_activation$left run=$0008 size=$0001
-// expectmap: ZEROPAGE.__vcsc_activation$right run=$0008 size=$0001
+// expectmap: ZEROPAGE.__vcsc_activation$left run=$0004 size=$0001
+// expectmap: ZEROPAGE.__vcsc_activation$right run=$0004 size=$0001
 // expectmap: BSS.__vcsc_activation$left run=$0204 size=$0006
 // expectmap: BSS.__vcsc_activation$right run=$0204 size=$0006
 // expectmap: BSS.__vcsc_activation$main run=$0200 size=$0004

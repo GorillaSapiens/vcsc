@@ -78,7 +78,7 @@ for my $entry ([NMI=>$nmi],[RESET=>$reset],[IRQ=>$irq]) {
    $address>=0xf000 && $address<=0xffff
       or die sprintf("%s vector %04x is outside cartridge ROM\n",$name,$address);
 }
-$reset==0xf000 or die sprintf("RESET vector is %04x, expected f000\n",$reset);
+
 
 # Fourteen quarter notes, one half note, and one eighth-note rest. Every step
 # is followed by a two-frame silent step so repeated notes remain articulated.
@@ -95,18 +95,20 @@ length($score)==128 or die "internal expected score is not 128 bytes\n";
 index($rom,$score)>=0 or die "ROM does not contain the expected 128-byte score table\n";
 
 my $map_text=read_file($map);
+$map_text =~ /^\s+\$([0-9A-Fa-f]{4})\s+__reset\s+/m or die "map is missing __reset\n";
+hex($1)==$reset or die sprintf("RESET vector %04x disagrees with map __reset %04x\n",$reset,hex($1));
 $map_text =~ /ram\s+start=\$0080\s+size=\$007A\s+type=rw/
    or die "map does not expose the call-graph-sized RIOT RAM arena\n";
 $map_text =~ /region=ram\s+depth=3\s+bytes=\$0006\s+physical=\$00FA-\$00FF/
    or die "map does not report the expected three-level hardware-stack reserve\n";
 $map_text =~ /__stack_top\s+\$00F9/
    or die "map does not stop ordinary allocation below the computed stack reserve\n";
-$map_text =~ /BSS\s+run=\$0088\s+size=\$0000/
-   or die "direct indexed player unexpectedly allocates BSS scratch\n";
-$map_text =~ /DATA\.__vcsc_object\$music_index\s+load=\$[0-9A-F]+\s+run=\$0088\s+size=\$0001/
-   or die "music_index is not the first one-byte player-state object\n";
-$map_text =~ /DATA\.__vcsc_object\$music_counter\s+load=\$[0-9A-F]+\s+run=\$0089\s+size=\$0001/
-   or die "music_counter is not the second one-byte player-state object\n";
+$map_text =~ /BSS\s+run=\$0084\s+size=\$0000/
+   or die "direct indexed player unexpectedly allocates BSS scratch after the four-byte startup workspace\n";
+$map_text =~ /DATA\.__vcsc_object\$music_index\s+load=\$[0-9A-F]+\s+run=\$0084\s+size=\$0001/
+   or die "music_index is not the first one-byte player-state object after startup workspace\n";
+$map_text =~ /DATA\.__vcsc_object\$music_counter\s+load=\$[0-9A-F]+\s+run=\$0085\s+size=\$0001/
+   or die "music_counter is not the second one-byte player-state object after startup workspace\n";
 $map_text =~ /\bmusic\b/ or die "map is missing ROM score symbol music\n";
 $map_text =~ /\bmusic_index\b/ or die "map is missing music_index\n";
 $map_text !~ /\bmusic_current\b/ or die "map still contains obsolete music_current\n";

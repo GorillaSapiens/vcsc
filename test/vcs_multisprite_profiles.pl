@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 90
-# expectstdout: vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y frame timing, persistent overlap flicker in all profiles, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked
+# expectstdout: vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y frame timing, persistent overlap flicker in all profiles, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, compact score glyph state, RAM/ROM contracts, and interactive examples locked
 # expectexit: 0
 
 use strict;
@@ -96,10 +96,16 @@ $text !~ /TEMPLATE_PrecomputeTopP1ControlReady/ && $text !~ /asm\s+adc\s+#9;/
 $text =~ /three CPU cycles earlier than every later post-WSYNC reposition.*?asm\s+nop;\s*asm\s+bit\.z\s+TEMPLATE_state\s*\+\s*66;/s
    or die "181 first-rank three-cycle entry-phase alignment is missing\n";
 
+my $score_component=read_file(File::Spec->catfile($vcs,'six_glyph_color_component.c26'));
+$score_component =~ /uint8_t\s+TEMPLATE_offsets\[2\]/ &&
+$score_component =~ /uint16_t\s+TEMPLATE_pointers\[4\]/ &&
+$score_component !~ /TEMPLATE_row/
+   or die "six-glyph color score compact pointer/offset contract changed\n";
+
 my @examples=(
-   ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2838,91,85,6],
-   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3393,110,104,6],
-   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3393,110,104,6],
+   ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2613,84,78,6],
+   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3409,99,93,6],
+   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3409,99,93,6],
 );
 my %bins;
 my %state_bases;
@@ -125,6 +131,20 @@ for my $e (@examples) {
    $state_bases{$mode}="0x$1";
    $maptext =~ /BSS\.__vcsc_object\$game_sprite_sort\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0003\b/
       or die "$mode persistent flicker-sort storage is not exactly three bytes\n";
+   $maptext =~ /\$[0-9A-Fa-f]{4}\s+_vcsc_ptr0\b/ && $maptext =~ /\$[0-9A-Fa-f]{4}\s+_vcsc_ptr1\b/
+      or die "$mode stock startup did not retain exactly its required pointer pair\n";
+   $maptext !~ /\$[0-9A-Fa-f]{4}\s+_vcsc_(?:ptr2|arg0|arg1)\b/
+      or die "$mode stock startup pulled unnecessary generic runtime workspace\n";
+   $maptext !~ /BSS\.__vcsc_activation\$main\b/
+      or die "$mode main unexpectedly regained permanent activation storage\n";
+   if ($mode ne '192') {
+      $maptext =~ /BSS\.__vcsc_object\$score_offsets\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0002\b/
+         or die "$mode score offset workspace is not exactly two bytes\n";
+      $maptext =~ /BSS\.__vcsc_object\$score_pointers\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0008\b/
+         or die "$mode score pointer workspace is not exactly eight bytes\n";
+      $maptext !~ /BSS\.__vcsc_object\$score_row\b/
+         or die "$mode score row counter unexpectedly returned\n";
+   }
    $maptext =~ /RODATA\.__vcsc_object\$game_graphics\s+load=\$[0-9A-Fa-f]{2}00\s+size=\$0091\b[^\n]*component-align=\$0100\b/
       or die "$mode graphics block is not 145 bytes at a 256-byte boundary\n$maptext";
    $bins{$mode}=$bin;
@@ -197,4 +217,4 @@ for my $case (['181-score-above',40],['181-score-below',221]) {
    $err eq '' or die "$mode score raster stderr: $err";
 }
 
-print "vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y frame timing, persistent overlap flicker in all profiles, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, 16-bit glyph pointers, RAM/ROM contracts, and interactive examples locked\n";
+print "vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y frame timing, persistent overlap flicker in all profiles, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, compact score glyph state, RAM/ROM contracts, and interactive examples locked\n";

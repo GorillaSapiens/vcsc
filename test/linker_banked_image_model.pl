@@ -139,8 +139,8 @@ substr($image, 0, 2) eq "\xEA\x60"
    or die "lowest logical bank was not emitted first with BANK1 function bytes\n";
 substr($image, 0x0FF2, 8) eq ("\xA5" x 8)
    or die "BANK1 reserved tail was not retained as fill before per-bank vectors\n";
-substr($image, 0x1000, 4) eq "\x78\xD8\xA2\xFF"
-   or die "BANK0/runtime bytes were not emitted as the final physical bank\n";
+index(substr($image, 0x1000, 0x1000), "\x78\xD8\xA2\xFF") >= 0
+   or die "BANK0/runtime bytes were not emitted in the final physical bank\n";
 substr($image, 0x0F00, 0xE0) eq ("\xA5" x 0xE0) &&
 substr($image, 0x1F00, 0xE0) eq ("\xA5" x 0xE0)
    or die "unused common trampoline corridor was not reserved and filled identically\n";
@@ -253,7 +253,7 @@ require_ok('unbanked compatibility link', $vcsc, '-I', $include,
            '-o', $unbanked_bin, $unbanked_src);
 my $unbanked = slurp($unbanked_bin);
 length($unbanked) == 4096 or die "stock 4K output size changed\n";
-sha256_hex($unbanked) eq '1545f4ba63204f67f96dbe741bd63f03ecc0e42f2e2a7c3e45775ab4f16f6ce7'
+sha256_hex($unbanked) eq '1d3cb32e7335a5d9cad6fa83c8993fe3fe3409b670284ae694f77e900231d75a'
    or die "stock vcs_4k.cfg output changed byte-for-byte\n";
 
 print "banked image model enforced\n";

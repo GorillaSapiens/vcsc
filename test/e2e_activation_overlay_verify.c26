@@ -1,7 +1,7 @@
 // vcsc-cc1 -I .
-// expectmap: ZEROPAGE.__vcsc_activation$left run=$0009 size=$0001
-// expectmap: ZEROPAGE.__vcsc_activation$right run=$0009 size=$0001
-// expectmap: ZEROPAGE.__vcsc_activation$parent run=$0008 size=$0001
+// expectmap: ZEROPAGE.__vcsc_activation$left run=$0005 size=$0001
+// expectmap: ZEROPAGE.__vcsc_activation$right run=$0005 size=$0001
+// expectmap: ZEROPAGE.__vcsc_activation$parent run=$0004 size=$0001
 // expectmap: BSS.__vcsc_activation$left run=$020A size=$0006
 // expectmap: BSS.__vcsc_activation$right run=$020A size=$0006
 // expectmap: BSS.__vcsc_activation$parent run=$0203 size=$0007

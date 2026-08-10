@@ -107,7 +107,7 @@ my $map=File::Spec->catfile($tmp,'fit.map');
 require_ok('link fit',$ld,'-T',$cfg,'-Map',$map,'-o',File::Spec->catfile($tmp,'fit.bin'),$obj,$rt);
 my $m=slurp($map); $m =~ /^\s*\$([0-9A-Fa-f]{4})\s+hot\b/m or die "map lacks hot\n";
 my $hot=hex($1); (($hot&255)+16)<=256 or die sprintf("HOT crosses page at %04X\n",$hot);
-($hot&255)==0 or die sprintf("earliest deterministic fit was not selected: %04X\n",$hot);
+$hot==0x2004 or die sprintf("earliest deterministic contained fit was not selected: %04X\n",$hot);
 
 my $badsrc=File::Spec->catfile($tmp,'bad.s26');
 write_file($badsrc,<<'ASM');

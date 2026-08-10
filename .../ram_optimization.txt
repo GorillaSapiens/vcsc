@@ -1210,3 +1210,44 @@ MOS6502/TIA timing/flicker tests and the independent Stella pixel oracle remain 
 gates. The remaining large costs (generic score pointer workspace, runtime/startup
 workspace, and compiler activation storage) are architectural and are not hidden by
 renderer-specific aliasing.
+
+Post-closeout application/runtime RAM cleanup (2026-08-10)
+------------------------------------------------------------
+Completed. The three largest non-renderer costs exposed by the multisprite 181 score
+composition were reduced without renderer-specific aliasing.
+
+* **Stock runtime workspace: 8 -> 4 bytes.** `vcsc-rt0.s26` imports only `ptr0` and
+  `ptr1`; the copy/zero/init walkers reconstruct active addresses from immutable linker
+  records instead of retaining `ptr2/arg0/arg1`. This deliberately spends reset-time ROM
+  and cycles to save persistent zero page. A 300-byte DATA/BSS regression crosses the
+  255-byte boundary, and helper archive members still demand-load extra workspace only
+  when imported.
+* **Multisprite interactive `main`: 4 -> 0 activation bytes.** Direct 1..4-byte
+  compile-time scalar stores no longer stage through expression scratch, direct byte
+  switches compare the selector in place, and the fixed three-line NTSC VSYNC sequence
+  no longer allocates an inline wait-count byte. The direct VSYNC path retains the
+  historical post-third-WSYNC phase explicitly; an earlier shorter version was rejected
+  after producing a 263-line raw frame.
+* **Centered mutable-color six-glyph score: 18 -> 15 bytes.** The page-contained font
+  lets digits 1/2 retain byte offsets while digits 3..6 keep complete pointers. Pointer
+  storage is therefore 12 -> 10 bytes, and the fixed eight-row raster eliminates the RAM
+  row counter. The schedule is cycle-balanced so every historical GRP write remains at
+  its exact old cycle. More aggressive all-offset/hybrid variants that reached 95/97-byte
+  cartridges were rejected because the exact score raster moved.
+
+The maintained public multisprite totals are now **2613 ROM / 84 RAM / 44 free** for
+192 and **3409 ROM / 99 RAM / 29 free** for each 181+score order. The 181 build thus
+recovers another **11 RAM bytes** from the prior 110-byte checkpoint and **27 bytes**
+from the original 126-byte repaired build. These are compiler/runtime/component savings,
+not hidden reductions to the 72-byte multisprite renderer contract.
+
+The same architectural changes reduce the animated `player_color_192` gallery from the
+historical schema-15 **3296 ROM / 56 RAM / 72 free** checkpoint to schema-16
+**3377 ROM / 51 RAM / 77 free**: the reset walker spends 81 additional ROM bytes while
+stock startup and fixed VSYNC recover five permanent RAM bytes. The authoritative gallery
+ledger now classifies runtime workspace 4, renderer state 39, persistent state 4, main
+activation 0, hardware stack 4, and free RAM 77. Banked standard-renderer diagnostics
+likewise retain their raster/bridge contracts while reflecting the larger reset walker
+and smaller RAM workspace; exact current bank sizes are regression-pinned rather than
+being treated as renderer-size regressions.
+

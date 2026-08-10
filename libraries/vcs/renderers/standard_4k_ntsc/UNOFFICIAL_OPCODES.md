@@ -86,7 +86,7 @@ conversion removed the old row-mask helper where its reviewed `AXS`/zero-page
 NOP substitutions lived. The current generated renderer therefore contains no
 unofficial mnemonic at all.
 
-The maintained smoke cartridges measure **1422 linked ROM bytes** for both the
+The maintained smoke cartridges measure **1501 linked ROM bytes** for both the
 official and unofficial components: **0 bytes saved**. Pairwise smoke, static,
 and motion raster/timing tests cover both score orders; the 320-frame motion
 oracle also pins the corrected Ball transfer across an internal row boundary.

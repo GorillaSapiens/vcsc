@@ -1,0 +1,1 @@
+2026-08-10 09:41:35 PDT, Reduced multisprite application RAM outside the renderer: stock startup workspace 8->4 bytes, multisprite main activation 4->0, and exact-raster mutable six-glyph score 18->15; 181 score examples now use 99/128 RAM.

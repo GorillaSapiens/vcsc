@@ -95,10 +95,24 @@ inline void vcs_ntsc_component_handoff(void) {
 // the following phase helper will own alignment of the first VBLANK line.
 inline void vcs_ntsc_vsync(void) {
    VSYNC := 2;
-   vcs_ntsc_wait_scanlines(VCS_NTSC_VSYNC_SCANLINES`uint8_t);
-   // The generic wait intentionally has no return-cycle contract. Normalize
-   // the VSYNC-clear phase explicitly so compiler addressing-mode relaxation
-   // cannot move the following VBLANK schedule.
+   // This pulse is fixed at three lines. Spell the three WSYNC boundaries
+   // directly so the scheduler does not allocate a runtime loop parameter in
+   // every caller merely to count the constant NTSC VSYNC length.
+   WSYNC := 0;
+   WSYNC := 0;
+   WSYNC := 0;
+   // The former constant-count loop spent fourteen bookkeeping cycles after
+   // its third WSYNC before this historical final NOP. Preserve that measured
+   // return phase without paying a RAM byte for the loop parameter.
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   // Normalize the VSYNC-clear phase explicitly so compiler addressing-mode
+   // relaxation cannot move the following VBLANK schedule.
    asm nop;
    VSYNC := 0;
 }

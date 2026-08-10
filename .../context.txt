@@ -408,7 +408,7 @@ unscoped use forbids overlay, and the linker conservatively fills the interval b
 the first and last observed phase. Only actual multi-object sharing groups alter normal
 RAM placement, so phase tagging by itself does not move stable component state.
 
-The animated gallery's authoritative schema-15 report records a one-byte `main`
+The animated gallery's historical schema-15 closeout records a one-byte `main`
 activation and zero `install_frames()` activation bytes. The one-byte VSYNC compiler
 scratch now aliases the seven-byte VBLANK+visible+overscan `game_workspace`; the old
 48-byte `game_object_masks` schedule no longer exists. Persistent gallery bookkeeping
@@ -482,21 +482,21 @@ low-level cycle demonstrations remain assembly by design.
 RAM-roadmap items 0-14 are complete. The final architecture retains the general
 P0/P1/Ball `player_color (lines:=192/181/170)` profiles plus the all-five
 families and their explicitly separate unofficial variants. The optional 192- and
-181-line P0/P1-only profiles are closed as unnecessary: the animated gallery uses
-56/128 RAM with 72 free, the official 181 component is only 24 bytes, and even the
-maintained wide-score 181 compositions fit. Do not create a two-sprite-only profile
+181-line P0/P1-only profiles are closed as unnecessary: after the post-closeout
+startup/main cleanup the animated gallery uses **51/128 RAM with 77 free**; the official
+181 component remains compact, and even the maintained wide-score 181 compositions fit. Do not create a two-sprite-only profile
 without a concrete future program that justifies another maintained timing/API
 surface.
 
-The authoritative schema-15 accounting preserves the RAM-campaign closeout from
-3993 ROM / 128 RAM / 0 free to 3292 ROM / 56 RAM / 72 free, then records the
-post-closeout NTSC scheduler correction at 3296 ROM / 56 RAM / 72 free: 19 activation bytes, 3 persistent
-bytes, 4 hardware-stack bytes, and 46 renderer bytes were recovered. Item 14 leaves
-that accounting unchanged. The compiler-only suite is **472/472** after adding
-the nonzero downward X-backed counted-loop and discard-store transparency regressions. The end-to-end suite
-contains **267** tests; its source-only blank-frame regression now pins four
-X-backed scanline countdowns, <=449 ROM / 22 RAM, and exact 262-line timing. The
-clean source baseline is **267/267**. Recursive public examples,
+Schema 16 preserves the historical RAM-campaign closeout from 3993 ROM / 128 RAM /
+0 free through the 3296 ROM / 56 RAM / 72 free scheduler-corrected checkpoint, then
+records the later architectural cleanup at **3377 ROM / 51 RAM / 77 free** for the
+animated gallery. The current state has zero `main` activation bytes, four stock-startup
+workspace bytes, four persistent gallery bytes, 39 renderer-state bytes, and a four-byte
+hardware stack; every `$80-$FF` address remains classified by the golden ledger. The
+compiler-only suite now contains **473** tests and the end-to-end suite **268**, including
+the >255-byte startup COPY/ZERO regression. The source-only blank-frame regression pins
+four X-backed scanline countdowns, <=487 ROM / 18 RAM, and exact 262-line timing. Recursive public examples,
 staged `installcheck`, focused simulator/raster/accounting oracles, source hygiene,
 and the reviewed Stella 7.0 player-color-192 certification remain green. Source-tree hygiene
 treats same-stem `.cfg` files emitted beside public example ROMs as linker/Stella
@@ -642,14 +642,25 @@ left/interior/right-edge positions, natural X=159 wrap/clipping, top-edge reach,
 181 top-rank X=143..151 discontinuity (X=148 explicitly locked in both score orders),
 181 P0 sort-invariant X, and the P0 Y=0 no-stripe case. The MOS6502/TIA regressions also force logical P1/P2 onto the same vertical band for six
 consecutive frames in every profile and require the visible winner to alternate every
-frame; the old identity-reset builds fail this check. The score oracle still locks `123456` above and below gameplay. Current public sizes after the renderer-local RAM cleanup are **2838 ROM / 91 RAM**
-for 192 and **3393 ROM / 110 RAM** for each 181 score composition. The 181 reduction
-from 126 to 110 total RAM comes from ten fixed graphics-pointer bytes moved to ROM, one
-dead state byte removed, one P0-bottom guard bit folded into the existing mask, two
-hardware-stack bytes recovered by inlining one-shot VBLANK wrappers, and two bytes
-recovered by nibble-packing the exact persistent sort permutation. Main-roadmap items 29 and 30 and
-the completed bankswitching sub-roadmap remain closed. No new main-roadmap item has
-been selected after item 28.
+frame; the old identity-reset builds fail this check. The score oracle still locks `123456` above and below gameplay.
+
+A follow-up architectural RAM pass reduces costs outside the renderer without changing
+its 72-byte private/public contract. Stock startup now selects only `_vcsc_ptr0` and
+`_vcsc_ptr1`, reducing generic startup workspace from 8 to **4 bytes**; copy/zero records
+larger than 255 bytes are regression-tested. Direct 1..4-byte constant stores, a
+scratch-free direct-byte `switch`, and fixed three-line VSYNC lowering reduce the
+multisprite interactive `main` activation from 4 to **0 bytes** while preserving the
+scheduler's calibrated post-VSYNC phase. The centered mutable-color six-glyph score now
+uses two one-byte page-contained-font offsets plus four full 16-bit pointers and no row
+counter: its pointer workspace falls 12 -> **10 bytes**, and the whole score component
+falls 18 -> **15 bytes** while the exact historical 48x8 GRP-write raster remains
+unchanged. Current public sizes are **2613 ROM / 84 RAM** for 192 and **3409 ROM / 99 RAM**
+for either 181 score composition, leaving **44** and **29** RIOT-RAM bytes free
+respectively. Relative to the prior 110-byte 181 build, this recovers 11 more bytes:
+4 startup + 4 `main` + 3 score. More aggressive score-offset schemes were rejected
+because exact GRP timing changed even when coarse pixels/frame length looked correct.
+Main-roadmap items 29 and 30 and the completed bankswitching sub-roadmap remain closed.
+No new main-roadmap item has been selected after item 28.
 
 Windows host-tool packaging is now supported from the top-level Makefile. `make windows`
 bootstraps native `vcsc-as`/`vcsc-ar` for construction of the target-neutral runtime,

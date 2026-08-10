@@ -92,8 +92,8 @@ for my $case (
    -s $bin==4096 or die "$tag is not a 4K cartridge\n";
 
    my $map=read_file($mapfile);
-   $map =~ /rom\s+used=2554 bytes/ or die "$tag ROM accounting changed\n";
-   $map =~ /ram\s+used=65 bytes.*objects=61 bytes hardware-stack=4 bytes/
+   $map =~ /rom\s+used=2493 bytes/ or die "$tag ROM accounting changed\n";
+   $map =~ /ram\s+used=56 bytes.*objects=52 bytes hardware-stack=4 bytes/
       or die "$tag RAM accounting changed\n";
 
    ($rc,$sig,$out,$err)=capture($wide_exe,$bin,$entry,'123456');

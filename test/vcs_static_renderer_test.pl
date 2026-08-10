@@ -81,12 +81,15 @@ $err eq '' or die "static-renderer build wrote stderr:\n$err";
 my $rom=read_file($bin);
 length($rom)==4096 or die "static-renderer cartridge is not 4096 bytes\n";
 my ($nmi,$reset,$irq)=unpack('v3',substr($rom,0x0ffa,6));
-$reset==0xf000 or die sprintf("RESET vector is %04X, expected F000\n",$reset);
+$reset>=0xf000 && $reset<=0xffff
+   or die sprintf("RESET vector %04X lies outside cartridge ROM\n",$reset);
 for my $v ($nmi,$irq) {
    $v>=0xf000 && $v<=0xffff or die sprintf("vector %04X lies outside cartridge ROM\n",$v);
 }
 
 my $map=read_file($mapfile);
+map_symbol($map,'__reset')==$reset
+   or die sprintf("RESET vector %04X disagrees with map __reset %04X\n",$reset,map_symbol($map,'__reset'));
 $map =~ /^\s*RENDERER_CODE\s+load=\$([0-9A-Fa-f]{4})\s+size=\$0300\b/m
    or die "renderer code lost its three-page component window\n";
 my $renderer_load=hex($1);
@@ -172,8 +175,8 @@ require_re($src,
 # Lock the imported zero-page addends used by the six-digit score pipeline.
 my $renderer_bytes=substr($rom,$renderer_load-0xf000,0x300);
 for my $pattern (
-   "\xB1\x9F", "\xB1\xA1", "\xB1\xA3",
-   "\xB1\xA5", "\xB1\xA7", "\xB1\xA9") {
+   "\xB1\x9B", "\xB1\x9D", "\xB1\x9F",
+   "\xB1\xA1", "\xB1\xA3", "\xB1\xA5") {
    index($renderer_bytes,$pattern)>=0
       or die sprintf("renderer is missing score-pointer opcode bytes %s\n",unpack('H*',$pattern));
 }

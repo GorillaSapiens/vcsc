@@ -80,24 +80,23 @@ my $rom = read_file($binary);
 length($rom) == 4096
    or die "raw cartridge size is " . length($rom) . ", expected 4096\n";
 
-my @reset_prefix = unpack('C5', substr($rom, 0, 5));
-my @expected_prefix = (0x78, 0xd8, 0xa2, 0xff, 0x9a);
-for my $i (0 .. $#expected_prefix) {
-   $reset_prefix[$i] == $expected_prefix[$i]
-      or die sprintf("reset prefix byte %d is %02x, expected %02x\n",
-                     $i, $reset_prefix[$i], $expected_prefix[$i]);
-}
-
 my ($nmi, $reset, $irq) = unpack('v3', substr($rom, 0x0ffa, 6));
 for my $entry ([NMI => $nmi], [RESET => $reset], [IRQ => $irq]) {
    my ($name, $address) = @$entry;
    $address >= 0xf000 && $address <= 0xffff
       or die sprintf("%s vector %04x is outside cartridge ROM\n", $name, $address);
 }
-$reset == 0xf000
-   or die sprintf("RESET vector is %04x, expected f000\n", $reset);
+my @reset_prefix = unpack('C5', substr($rom, $reset - 0xf000, 5));
+my @expected_prefix = (0x78, 0xd8, 0xa2, 0xff, 0x9a);
+for my $i (0 .. $#expected_prefix) {
+   $reset_prefix[$i] == $expected_prefix[$i]
+      or die sprintf("RESET-target prefix byte %d is %02x, expected %02x\n",
+                     $i, $reset_prefix[$i], $expected_prefix[$i]);
+}
 
 my $map_text = read_file($map);
+$map_text =~ /^\s*\$([0-9A-Fa-f]{4})\s+__reset\b/m && hex($1)==$reset
+   or die sprintf("map __reset does not match RESET vector %04x\n", $reset);
 $map_text =~ /ram\s+start=\$0080\s+size=\$007C\s+type=rw/
    or die "map does not expose the call-graph-sized RIOT RAM arena\n";
 $map_text =~ /region=ram\s+depth=2\s+bytes=\$0004\s+physical=\$00FC-\$00FF/

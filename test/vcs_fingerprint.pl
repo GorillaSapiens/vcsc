@@ -102,10 +102,16 @@ die "fingerprint compile exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
 my $rom=read_file($bin);
 length($rom)==4096 or die "fingerprint cartridge size is ".length($rom).", expected 4096\n";
 my ($nmi,$reset,$irq)=unpack('v3',substr($rom,0x0ffa,6));
-$reset==0xf000 or die sprintf("fingerprint RESET vector is %04x, expected f000\n",$reset);
+for my $entry ([NMI=>$nmi],[RESET=>$reset],[IRQ=>$irq]) {
+   my ($name,$address)=@$entry;
+   $address>=0xf000 && $address<=0xffff
+      or die sprintf("fingerprint %s vector %04x is outside cartridge ROM\n",$name,$address);
+}
 for my $v ($nmi,$irq) { $v>=0xf000 && $v<=0xffff or die "fingerprint vector outside ROM\n"; }
 
 my $map_text=read_file($map);
+$map_text =~ /^\s+\$([0-9A-Fa-f]{4})\s+__reset\s+/m or die "fingerprint map is missing __reset\n";
+hex($1)==$reset or die sprintf("fingerprint RESET vector %04x disagrees with map __reset %04x\n",$reset,hex($1));
 require_re($map_text,qr/\bfingerprint\b/, 'map is missing fingerprint state');
 for my $symbol (qw(display_score display_pointers display_row display_delayed upper_logo_score upper_logo_pointers upper_logo_delayed lower_logo_score lower_logo_pointers lower_logo_delayed)) {
    require_re($map_text,qr/\b\Q$symbol\E\b/,"map is missing $symbol");

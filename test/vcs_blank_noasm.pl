@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 20
-# expectstdout: vcs_blank_noasm ok: X-backed source countdowns use <=449 ROM bytes and preserve exact 262-line frames
+# expectstdout: vcs_blank_noasm ok: X-backed source countdowns use <=487 ROM bytes and preserve exact 262-line frames
 # expectexit: 0
 
 use strict;
@@ -65,9 +65,9 @@ my ($exit,$sig,$out,$err)=run_capture($driver,'-I',$vcs,$source,'-o',$bin);
 die "blank_noasm build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 $out =~ /\brom\s+used=(\d+)\s+bytes/ or die "blank_noasm build did not report ROM usage\n$out";
 my $rom_used=$1;
-$rom_used <= 449 or die "blank_noasm uses $rom_used ROM bytes; assembly baseline is 449\n";
+$rom_used <= 487 or die "blank_noasm uses $rom_used ROM bytes; post-startup-rewrite budget is 487\n";
 $out =~ /\bram\s+used=(\d+)\s+bytes/ or die "blank_noasm build did not report RAM usage\n$out";
-$1 == 22 or die "blank_noasm uses $1 RAM bytes; assembly baseline is 22\n";
+$1 == 18 or die "blank_noasm uses $1 RAM bytes; expected 18 after the four-byte startup-workspace reduction\n";
 die "blank_noasm build wrote unexpected output\nstdout:\n$out\nstderr:\n$err"
    if without_cartridge_usage($out) ne '' || $err ne '';
 
@@ -93,4 +93,4 @@ $out eq "vcs_frame_timing ok: 42 frames at 262 lines, 0 AUDV0 writes\n"
    or die "blank_noasm lost exact frame timing: $out";
 $err eq '' or die "timing harness stderr: $err";
 
-print "vcs_blank_noasm ok: X-backed source countdowns use <=449 ROM bytes and preserve exact 262-line frames\n";
+print "vcs_blank_noasm ok: X-backed source countdowns use <=487 ROM bytes and preserve exact 262-line frames\n";

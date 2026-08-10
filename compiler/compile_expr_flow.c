@@ -1637,32 +1637,32 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
    }
 }
 
-//! @brief Assign a constant byte directly without a fixed BSS bridge object.
-static bool compile_direct_byte_constant_assignment(Context *ctx,
-                                                    const LValueRef *dst,
-                                                    ASTNode *rhs) {
+//! @brief Assign a one- through four-byte integer constant directly without a fixed BSS bridge object.
+static bool compile_direct_scalar_constant_assignment(Context *ctx,
+                                                       const LValueRef *dst,
+                                                       ASTNode *rhs) {
    InitConstValue value = {0};
    ContextEntry entry;
    char symbol[256];
-   unsigned char encoded = 0;
-   unsigned int byte_value;
+   unsigned char encoded[4] = {0, 0, 0, 0};
 
-   if (!dst || dst->size != 1 || dst->is_bitfield ||
+   if (!dst || dst->size < 1 || dst->size > 4 || dst->is_bitfield ||
        !eval_constant_initializer_expr(rhs, &value) ||
        value.kind != INIT_CONST_INT || !integer_value_fits_type(value.i, dst->type)) {
       return false;
    }
-   if (!encode_integer_initializer_value(value.i, &encoded, 1, dst->type)) {
+   if (!encode_integer_initializer_value(value.i, encoded, dst->size, dst->type)) {
       return false;
    }
-   byte_value = encoded;
 
    if (dst->is_absolute_ref && !dst->indirect && !dst->needs_runtime_address) {
       if (!dst->write_expr || !*dst->write_expr) {
          return false;
       }
-      emit(&es_code, "    lda #$%02x\n", byte_value);
-      emit_store_a_to_expr_address(dst->write_expr, dst->offset);
+      for (int i = 0; i < dst->size; i++) {
+         emit(&es_code, "    lda #$%02x\n", (unsigned)encoded[i]);
+         emit_store_a_to_expr_address(dst->write_expr, dst->offset + i);
+      }
       return true;
    }
 
@@ -1678,18 +1678,25 @@ static bool compile_direct_byte_constant_assignment(Context *ctx,
       {
          char expr_buf[256];
          const char *formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
-         emit(&es_code, "    lda #$%02x\n", byte_value);
-         if (dst->offset == 0)
-            emit(&es_code, "    sta %s\n", formatted);
-         else
-            emit(&es_code, "    sta %s + %d\n", formatted, dst->offset);
+         for (int i = 0; i < dst->size; i++) {
+            emit(&es_code, "    lda #$%02x\n", (unsigned)encoded[i]);
+            if (dst->offset + i == 0)
+               emit(&es_code, "    sta %s\n", formatted);
+            else
+               emit(&es_code, "    sta %s + %d\n", formatted, dst->offset + i);
+         }
       }
       return true;
    }
 
+   /* The remaining direct-scratch and indirect forms are byte-only. Wider
+      constants fall back to the established generic lvalue path. */
+   if (dst->size != 1) {
+      return false;
+   }
    if (!dst->indirect && !dst->needs_runtime_address && !dst->is_static &&
        !dst->is_zeropage && !dst->is_global && dst->offset >= 0) {
-      emit(&es_code, "    lda #$%02x\n", byte_value);
+      emit(&es_code, "    lda #$%02x\n", (unsigned)encoded[0]);
       emit_store_a_to_expr_address(compiler_scratch_active_symbol(), dst->offset);
       return true;
    }
@@ -1697,7 +1704,7 @@ static bool compile_direct_byte_constant_assignment(Context *ctx,
    if (!emit_prepare_lvalue_ptr(ctx, dst, LVALUE_ACCESS_WRITE)) {
       return false;
    }
-   emit(&es_code, "    lda #$%02x\n", byte_value);
+   emit(&es_code, "    lda #$%02x\n", (unsigned)encoded[0]);
    emit(&es_code, "    ldy #0\n");
    emit(&es_code, "    sta (ptr0),y\n");
    return true;
@@ -2677,7 +2684,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
             return;
          }
       }
-      if (compile_direct_byte_constant_assignment(ctx, &lv, rhs)) {
+      if (compile_direct_scalar_constant_assignment(ctx, &lv, rhs)) {
          return;
       }
       if (compile_direct_u8_copy_constant_assignment(ctx, node->children[1], rhs)) {

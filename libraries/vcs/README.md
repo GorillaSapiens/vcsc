@@ -32,7 +32,7 @@ Files:
 - `six_glyph_wide_component.c26` ... separate mutable-color six-glyph profile with origins at X=36,52,68,84,100,116, an 88-pixel span, and the compact delayed-player pipeline
 - `six_glyph_left_component.c26` ... eleven-line fixed-color variant justified at X=0..47
 - `six_glyph_right_component.c26` ... eleven-line fixed-color variant justified at X=112..159
-- `six_glyph_color_component.c26` ... timing-compatible centered mutable-color twin used by interactive score diagnostics, with the same hostile-state-safe reflection reset
+- `six_glyph_color_component.c26` ... timing-compatible centered mutable-color twin used by interactive score diagnostics; its page-contained font contract stores digits 1/2 as byte offsets and digits 3..6 as full pointers, eliminating the row counter while preserving the exact historical GRP-write raster
 - `two_plus_two_score_support.c26` ... shared page-contained compact decimal glyph and calibrated horizontal-position tables for two-plus-two scores
 - `two_plus_two_score_component.c26` ... repeatable eleven-line P0/P1 score with independent packed-BCD left/right values, colors, and X positions; each three-bit digit is doubled to six visible pixels with a two-pixel inter-digit gap
 - `renderers/COMPONENT_CONVERSION.md` ... measured predecessor baseline, machine-readable visible-component handoff/TIA ownership table, and the explicit 181-line score-composable, 192-line scoreless, and matched unofficial profile contracts
