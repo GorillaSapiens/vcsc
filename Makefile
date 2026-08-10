@@ -27,6 +27,14 @@ WINDOWS_LDFLAGS ?= -static
 WINDOWS_STAGING ?= $(CURDIR)/.windows-package
 WINDOWS_HOST_TOOLS ?= $(CURDIR)/.windows-host-tools
 WINDOWS_PACKAGE_DIR ?= vcsc
+LINUX_CC ?= cc
+LINUX_CXX ?= c++
+LINUX_STRIP ?= strip
+LINUX_READELF ?= readelf
+LINUX_TAR ?= tar
+LINUX_LDFLAGS ?= -static
+LINUX_STAGING ?= $(CURDIR)/.linux-package
+LINUX_PACKAGE_DIR ?= vcsc
 
 all: test
 
@@ -357,6 +365,69 @@ windows:
 	"$(WINDOWS_ZIP)" -qr "$$out" "$(WINDOWS_PACKAGE_DIR)"; \
 	echo "created $$out"
 	@rm -rf $(WINDOWS_HOST_TOOLS) $(WINDOWS_STAGING)
+	@$(MAKE) --no-print-directory clean
+	@cd compiler && ./coverage.pl > coverage_map.h
+
+linux:
+	@command -v "$(LINUX_CC)" >/dev/null || { echo "missing Linux C compiler: $(LINUX_CC)" >&2; exit 1; }
+	@command -v "$(LINUX_CXX)" >/dev/null || { echo "missing Linux C++ compiler: $(LINUX_CXX)" >&2; exit 1; }
+	@command -v "$(LINUX_STRIP)" >/dev/null || { echo "missing Linux strip tool: $(LINUX_STRIP)" >&2; exit 1; }
+	@command -v "$(LINUX_READELF)" >/dev/null || { echo "missing Linux readelf tool: $(LINUX_READELF)" >&2; exit 1; }
+	@command -v "$(LINUX_TAR)" >/dev/null || { echo "missing tar tool: $(LINUX_TAR)" >&2; exit 1; }
+	@command -v bison >/dev/null || { echo "missing build tool: bison" >&2; exit 1; }
+	@command -v flex >/dev/null || { echo "missing build tool: flex" >&2; exit 1; }
+	rm -rf $(LINUX_STAGING)
+	$(MAKE) --no-print-directory tools \
+	  CC="$(LINUX_CC)" CXX="$(LINUX_CXX)" EXEEXT= LDFLAGS="$(LINUX_LDFLAGS)"
+	$(MAKE) --no-print-directory install-core \
+	  CC="$(LINUX_CC)" CXX="$(LINUX_CXX)" EXEEXT= LDFLAGS="$(LINUX_LDFLAGS)" \
+	  DESTDIR="$(LINUX_STAGING)" \
+	  BINDIR="/$(LINUX_PACKAGE_DIR)/bin" LIBDIR="/$(LINUX_PACKAGE_DIR)/lib" \
+	  INCLUDEDIR="/$(LINUX_PACKAGE_DIR)/include" DATADIR="/$(LINUX_PACKAGE_DIR)/share" \
+	  CFGDIR="/$(LINUX_PACKAGE_DIR)/share/cfg"
+	$(LINUX_STRIP) \
+	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc \
+	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-cc1 \
+	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-as \
+	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-ld \
+	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-ar \
+	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-sim
+	cp README.md LINUX.md LICENSE COPYING $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/
+	cp -a examples $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/examples
+	find $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/examples -type f \
+	  \( -name '*.bin' -o -name '*.hex' -o -name '*.o26' \
+	     -o -name '*.map' -o -name '*.sym' -o -name '*.lst' \) -delete
+	find $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/examples -type f -name Makefile -exec \
+	  sed -i 's|$$(ROOT)/driver/vcsc|$$(ROOT)/bin/vcsc|g; s|$$(ROOT)/libraries/vcs|$$(ROOT)/share/vcs|g' {} +
+	@set -e; \
+	for exe in vcsc vcsc-cc1 vcsc-as vcsc-ld vcsc-ar vcsc-sim; do \
+	  path="$(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/$$exe"; \
+	  test -x "$$path"; \
+	  if "$(LINUX_READELF)" -l "$$path" 2>/dev/null | grep -q 'Requesting program interpreter'; then \
+	    echo "$$exe is dynamically linked (ELF interpreter present)" >&2; \
+	    exit 1; \
+	  fi; \
+	  if "$(LINUX_READELF)" -d "$$path" 2>/dev/null | grep -q '(NEEDED)'; then \
+	    echo "$$exe is dynamically linked (shared-library dependency present)" >&2; \
+	    "$(LINUX_READELF)" -d "$$path" | grep '(NEEDED)' >&2; \
+	    exit 1; \
+	  fi; \
+	done
+	@set -e; \
+	package="$(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)"; \
+	"$$package/bin/vcsc" -V >/dev/null; \
+	cd "$$package"; \
+	./bin/vcsc -I share/vcs examples/01_basic/01_blank_screen/blank_screen.c26 -o linux-package-smoke.bin; \
+	test `wc -c < linux-package-smoke.bin` -eq 4096; \
+	rm -f linux-package-smoke.bin linux-package-smoke.hex linux-package-smoke.map \
+	  linux-package-smoke.sym linux-package-smoke.lst linux-package-smoke.cfg
+	@set -e; \
+	stamp=$$(date -u "+%Y%m%d_%H%M%S"); \
+	out="$(CURDIR)/vcsc.linux.$$stamp.tar.gz"; \
+	cd "$(LINUX_STAGING)"; \
+	"$(LINUX_TAR)" -czf "$$out" "$(LINUX_PACKAGE_DIR)"; \
+	echo "created $$out"
+	@rm -rf $(LINUX_STAGING)
 	@$(MAKE) --no-print-directory clean
 	@cd compiler && ./coverage.pl > coverage_map.h
 

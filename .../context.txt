@@ -687,7 +687,15 @@ checks the PE imports for MinGW runtime DLL dependencies, and writes a relocatab
 `vcsc.windows.YYYYMMDD_HHMMSS.zip`. Component Makefiles support `EXEEXT`/`LDFLAGS`,
 and the driver/compiler/assembler/linker sources have the required Win32 path, process,
 temporary-file, and case-insensitive-string portability branches. See `WINDOWS.md`.
-This sandbox lacks bison, flex, and a MinGW-w64 cross toolchain, so the actual Windows
-cross-build and complete regression suite could not be executed here; native builds of
-the driver/linker/archiver/simulator, `.exe` suffix/install probes, and a compile-time
-syntax check of the Win32 driver branch passed.
+The Windows package path has since been exercised by the user on Void Linux: the
+MinGW-w64 build completes and the packaged `vcsc.exe -V` runs under Wine and locates
+all five sibling `.exe` tools successfully.
+
+Native Linux host-tool packaging is also supported from the top-level Makefile.
+`make linux` recursively invokes the ordinary `tools` target with native C/C++
+compilers and `-static`, stages the normal installed runtime/include/share tree plus
+editable examples, rewrites packaged example Makefiles to use `bin/vcsc` and
+`share/vcs`, strips all six host tools, rejects ELF executables that retain an
+interpreter or `NEEDED` shared-library entry, smoke-runs the staged driver and
+packaged blank-screen example, and writes the relocatable artifact
+`vcsc.linux.YYYYMMDD_HHMMSS.tar.gz`. See `LINUX.md`.

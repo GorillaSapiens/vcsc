@@ -78,6 +78,7 @@ make unit          # compile-only tests
 make e2e           # linked/simulated and generic tests
 make sieve         # quick driver smoke build
 make installcheck  # staged installed-toolchain validation
+make linux         # build a self-contained native Linux tar.gz with examples
 make windows       # cross-build a self-contained 64-bit Windows zip with examples
 make stella-bank-test STELLA=stella  # authoritative F8/F6/F4 mapper matrix
 make stella-player-color-192-test STELLA=stella  # player-color-192 visible playfield raster
@@ -168,6 +169,7 @@ make install
 make install DESTDIR=/tmp/vcsc-pkg
 make uninstall
 make package
+make linux
 make windows
 ```
 
@@ -175,6 +177,12 @@ The installed tree contains the command-line tools, runtime library, assembler
 configuration, and Atari 2600 support files. The driver locates sibling tools
 and shared data relative to the common installation prefix, while still
 supporting in-tree development builds.
+
+`make linux` builds all six host tools with static linkage, stages the normal
+support tree plus the editable examples, and writes
+`vcsc.linux.YYYYMMDD_HHMMSS.tar.gz`. The archive contains a relocatable `vcsc`
+directory that can be unpacked and run without installation. See
+[`LINUX.md`](LINUX.md) for prerequisites, package layout, and usage.
 
 `make windows` uses a MinGW-w64 cross toolchain to build `.exe` versions of all
 host tools with static compiler runtimes, stages the normal support tree plus
