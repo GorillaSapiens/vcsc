@@ -313,6 +313,7 @@ windows:
 	$(MAKE) --no-print-directory -C ./archiver clean all CC="$(WINDOWS_HOST_CC)" EXEEXT= LDFLAGS=
 	mkdir -p $(WINDOWS_HOST_TOOLS)
 	cp assembler/vcsc-as $(WINDOWS_HOST_TOOLS)/vcsc-as
+	cp assembler/default.cfg assembler/illegals.cfg $(WINDOWS_HOST_TOOLS)/
 	cp archiver/vcsc-ar $(WINDOWS_HOST_TOOLS)/vcsc-ar
 	$(MAKE) --no-print-directory tools \
 	  CC="$(WINDOWS_CC)" CXX="$(WINDOWS_CXX)" EXEEXT=.exe LDFLAGS="$(WINDOWS_LDFLAGS)" \
