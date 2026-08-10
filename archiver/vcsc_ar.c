@@ -42,6 +42,7 @@ static void usage(FILE *fp)
       "  s  accepted for compatibility; no index is written\n"
       "  v  verbose output\n"
       "  V  print version information\n"
+      "  -h, --help  print this help text\n"
       "\n"
       "Legacy compatibility is also accepted:\n"
       "  vcsc-ar -c archive.l26 file1.o26 ...\n"
@@ -873,9 +874,20 @@ int main(int argc, char **argv)
    ar_options_t opts;
    int legacy_status;
 
+   if (argc >= 2 && (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help"))) {
+      usage(stdout);
+      return 0;
+   }
+
    if (argc == 2 && (!strcmp(argv[1], "-V") || !strcmp(argv[1], "V"))) {
       puts(VERSION);
       return 0;
+   }
+
+   if (argc == 2 && argv[1][0] == '-' && argv[1][1] != '\0') {
+      fprintf(stderr, "%s: unsupported option '%s'\n", argv[0], argv[1]);
+      fprintf(stderr, "Try '%s --help' for a list of supported options.\n", argv[0]);
+      return 1;
    }
 
    if (argc < 3) {
@@ -888,7 +900,11 @@ int main(int argc, char **argv)
       return legacy_status;
 
    if (!parse_mode_string(argv[1], &opts)) {
-      usage(stderr);
+      if (argv[1][0] == '-')
+         fprintf(stderr, "%s: unsupported option '%s'\n", argv[0], argv[1]);
+      else
+         fprintf(stderr, "%s: unsupported operation '%s'\n", argv[0], argv[1]);
+      fprintf(stderr, "Try '%s --help' for a list of supported options.\n", argv[0]);
       return 1;
    }
 

@@ -721,3 +721,9 @@ user@host clean` form. The binary-package GitHub Actions checkout uses `fetch-de
 so tag refs are available during tagged package builds. `test/version_header_generation.pl`
 locks branch, annotated-tag, dirty, detached, no-Git, Makefile-delegation, and workflow
 behavior.
+
+The six public command-line tools use a common unsupported-option contract: reject the
+option with nonzero status, name it on stderr, and print `Try '<invoked-tool> --help'
+for a list of supported options.` rather than dumping the entire help text. `vcsc-ar`
+now supports explicit `-h`/`--help`; `test/tool_unsupported_option_help.pl` locks this
+behavior across driver, compiler, assembler, linker, archiver, and simulator.

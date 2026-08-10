@@ -182,6 +182,13 @@ static void opt_version(char *unused) {
    exit(0);
 }
 
+//! @brief Reject one unsupported compiler option and point at the complete help text.
+static void unsupported_option(const char *arg) {
+   fprintf(stderr, "%s: unsupported option '%s'\n", arg0, arg);
+   fprintf(stderr, "Try '%s --help' for a list of supported options.\n", arg0);
+   exit(1);
+}
+
 static struct option_def *find_option(const char *arg, const char **inline_arg, bool *used_double_dash) {
    *inline_arg = NULL;
    *used_double_dash = false;
@@ -297,7 +304,7 @@ int main(int argc, char** argv) {
       }
 
       if (argv[0][0] == '-' && argv[0][1] != '\0') {
-         opt_help(NULL);
+         unsupported_option(argv[0]);
       }
 
       if (input) {

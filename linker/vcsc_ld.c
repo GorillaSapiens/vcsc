@@ -9408,6 +9408,7 @@ int main(int argc, char **argv)
          }
 
          fprintf(stderr, "vcsc-ld: unsupported option '%s'\n", arg);
+         fprintf(stderr, "Try '%s --help' for a list of supported options.\n", argv[0]);
          return 1;
       }
 

@@ -122,6 +122,14 @@ static void die(const char *fmt, ...)
    exit(1);
 }
 
+//! @brief Reject one unsupported driver option and point at the complete help text.
+static void unsupported_option(const char *arg)
+{
+   fprintf(stderr, "%s: unsupported option '%s'\n", arg0, arg);
+   fprintf(stderr, "Try '%s --help' for a list of supported options.\n", arg0);
+   exit(1);
+}
+
 //! @brief Allocate memory for tool data structures, terminating with a diagnostic on failure.
 static void *xmalloc(size_t n)
 {
@@ -1073,7 +1081,7 @@ static void parse_args(int argc, char **argv, driver_options_t *opt,
          exit(0);
       }
       if (arg[0] == '-' && arg[1] != '\0')
-         die("unsupported option '%s'", arg);
+         unsupported_option(arg);
 
       inputvec_push(&opt->inputs, arg, classify_input(arg));
    }

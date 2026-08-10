@@ -617,8 +617,8 @@ static void parse_args(simulator_options_t *opts, int argc, char **argv) {
          opts->dump_on_stop = 1;
       }
       else if (arg[0] == '-') {
-         fprintf(stderr, "vcsc-sim: unknown option '%s'\n", arg);
-         usage(stderr);
+         fprintf(stderr, "vcsc-sim: unsupported option '%s'\n", arg);
+         fprintf(stderr, "Try '%s --help' for a list of supported options.\n", argv[0]);
          exit(1);
       }
       else if (ends_with(arg, ".cfg") && opts->cfg_path == nullptr) {

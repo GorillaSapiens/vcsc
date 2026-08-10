@@ -49,7 +49,7 @@ Extract all members, or only named members:
 - `s` ... accepted for GNU `ar` compatibility; no symbol index is written
 - `v` ... verbose member-by-member output
 
-The operation-string form above is the preferred interface. The tool also accepts `-c`, `-l`, and `-x` forms.
+The operation-string form above is the preferred interface. The tool also accepts `-c`, `-l`, and `-x` forms. Use `-h` or `--help` to print the complete command-line help.
 
 ## Archive format
 

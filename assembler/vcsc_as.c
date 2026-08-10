@@ -534,8 +534,9 @@ static bool parse_args(int argc, char **argv, options_t *opt)
    };
 
    memset(opt, 0, sizeof(*opt));
+   opterr = 0;
 
-   while ((ch = getopt_long(argc, argv, "VX:hI:D:i:o:", long_options, &option_index)) != -1) {
+   while ((ch = getopt_long(argc, argv, ":VX:hI:D:i:o:", long_options, &option_index)) != -1) {
       switch (ch) {
       case 'X':
          opt_xray(optarg);
@@ -602,8 +603,16 @@ static bool parse_args(int argc, char **argv, options_t *opt)
          opt->want_illegals = true;
          break;
 
+      case ':':
+         fprintf(stderr, "%s: missing argument for option '%s'\n",
+            argv[0], argv[optind - 1]);
+         fprintf(stderr, "Try '%s --help' for a list of supported options.\n", argv[0]);
+         return false;
+
       default:
-         usage(argv[0]);
+         fprintf(stderr, "%s: unsupported option '%s'\n",
+            argv[0], argv[optind - 1]);
+         fprintf(stderr, "Try '%s --help' for a list of supported options.\n", argv[0]);
          return false;
       }
    }

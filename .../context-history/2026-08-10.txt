@@ -14,3 +14,5 @@ The workflow builds Windows then Linux packages in the requested clean-separated
 
 2026-08-10 13:42:13 PDT, centralized version-header generation and tagged-build identity
 Top-level `gen_version_h.pl` now owns VERSION generation for driver, compiler, assembler, linker, archiver, simulator, and stego; exact HEAD tags take precedence over branch/detached labels, and the GitHub package checkout fetches full history/tags. A focused regression covers branch, annotated tag, dirty, detached, no-Git, Makefile delegation, and workflow depth.
+2026-08-10 13:51:49 PDT, made unsupported-option diagnostics point to full tool help
+All six public command-line tools now reject unsupported options with a nonzero diagnostic that names the option and tells the user to run that exact tool with `--help` for the complete supported-option list. `vcsc-cc1` no longer turns arbitrary unknown options into successful help output, `vcsc-sim` no longer dumps full usage for an unknown option, assembler getopt diagnostics are normalized, and `vcsc-ar` now has explicit `-h`/`--help`. A focused e2e regression locks the behavior for all six tools.
