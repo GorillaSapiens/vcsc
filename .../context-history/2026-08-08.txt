@@ -1,17 +1,17 @@
-2026-08-08 09:39:18 PDT, faithful legacy multisprite baseline anchors roadmap item 28
+2026-08-08 09:39:18 PDT, faithful legacy multisprite baseline anchors
 - Closed main-roadmap item 27 by defining the minimal multisprite source-integration contract: NTSC, unbanked 4K, non-Superchip, default 88-line gameplay, integrated score, exact 122-byte legacy state at $80-$F9, and six physical hardware-stack bytes at $FA-$FF.
 - Added `libraries/vcs/renderers/faithful_legacy_multisprite/` with deterministic normalization of the retained source, custom tail-entry startup, explicit raw display-order three-byte BCD score representation, retained LAX/TXS/PHP behavior, and a dedicated 4K profile for its total-RIOT-RAM ownership contract.
 - Added `examples/10_faithful_legacy_multisprite/01_diagnostic/`, a fixed reference cartridge showing P0 plus five distinct logical P1 sprites, asymmetric playfield, and integrated score 123456. The locked diagnostic is 1471/4090 ROM, 122 state + 6 stack = 128/128 RIOT RAM, zero compiler activation RAM, and stable 264-line frames.
 - Added the default complete visible TIA-write/player raster oracle and independent Stella 7.0 reference snapshot. Recursive public examples and staged installation understand the custom startup/profile. Final regression gates are 458/458 compile-only and 261/261 e2e.
 - Roadmap item 28 remains active. Next: prove one stack-safe ordinary VCSC game-logic boundary inside the retained 26-byte A..Z window before adding any multisprite variants, bankswitching, or Superchip support.
 
-2026-08-08 10:16:57 PDT, correct faithful multisprite diagnostic sprite orientation and P0 clearing
+2026-08-08 10:16:57 PDT, correct faithful multisprite diagnostic sprite
 - Corrected the roadmap-item-28 fixed diagnostic after manual Stella review. The retained renderer consumes sprite rows from high address to low address, so the five P1 digit glyphs are now stored bottom-to-top and display upright; logical sprite 5 is aquamarine (`$BE`) instead of the same goldenrod used by the playfield.
 - Fixed the diagnostic's white staircase stripes by honoring the legacy P0 record convention: an eight-row glyph uses height 9 with a low-address zero sentinel. Without that ninth clear draw, the final P0 row `%00111100` remained latched in `GRP0`; later P1 reposition `HMOVE` strobes repeatedly shifted the stale four-pixel bar sideways.
 - Strengthened `vcs_faithful_legacy_compare` to require the exact P0 zero clear at visible-trace line 84/cycle 45 and upright P1 row bytes. The complete visible event stream is now 391 writes. Updated the reviewed Stella 7.0 reference raster and corrected the fixed diagnostic cost from 1471 to 1472 ROM bytes; RAM remains exact 122 state + 6 stack = 128/128.
 - Verification: focused faithful multisprite oracle and Stella certification pass, source-tree hygiene passes, compiler-only remains 458/458, and all 261 e2e cases are accounted for as passing. Item 28 remains active at the same next boundary: prove one stack-safe ordinary VCSC game-logic boundary inside the retained 26-byte A..Z window.
 
-2026-08-08 11:02:00 PDT, make source hygiene tolerate generated example Stella cfg sidecars
+2026-08-08 11:02:00 PDT, make source hygiene tolerate generated example
 - Fixed `source_tree_hygiene.pl` after a normal public-example build exposed that same-stem linker/Stella `.cfg` sidecars were being mistaken for editable example sources and rejected for lacking an `examples/LICENSE.txt` CC0 notice.
 - Example `.cfg` sidecars are now classified with `.map/.sym/.lst` as generated build products. Checked-in linker/profile `.cfg` files under `libraries/` remain subject to the normal explicit CC0 audit.
 - Regression procedure deliberately leaves `examples/10_faithful_legacy_multisprite/01_diagnostic/faithful_legacy_multisprite_diagnostic.cfg` present while running source-tree hygiene, matching the user workflow that exposed the bug.
@@ -25,14 +25,14 @@
 * Add focused positive/codegen and negative diagnostics, parser coverage, and a preprocessor-boundary regression. Final compile-only coverage is 467/467; all 261 e2e cases are accounted for as passing, including recursive public example builds, and staged installcheck passes.
 * Update item 28 to use one modern multisprite component parameterized by visible scanline count, with 192- and 181-line interactive compositions as the first proof points rather than separate scanline-count renderer files.
 
-2026-08-08 13:47:17 PDT, require VCSC assignment syntax for instantiation arguments
+2026-08-08 13:47:17 PDT, require VCSC assignment syntax
 
 * Correct parameterized `instantiate` call syntax from the accidental C-style `(name=literal, ...)` spelling to VCSC `(name:=literal, ...)`; parameter declarations already used `:=` and are unchanged.
 * The raw instantiation argument parser now accepts only `name:=integer_literal`. A dedicated negative regression proves `name=integer_literal` is rejected with a syntax diagnostic, preventing `=` from re-entering the language through instantiation syntax.
 * Update the user-facing template/instantiation design documentation, compiler README, parser coverage fixtures, focused parameter tests, roadmap wording, and current handoff to use `:=`.
 * Verification: 468/468 compile-only tests pass; all 261 e2e cases are accounted for as passing in harness-order shards; staged installcheck passes.
 
-2026-08-08 14:25:59 PDT, unify official all-five renderer with compile-time visible-line parameter
+2026-08-08 14:25:59 PDT, unify official all-five renderer
 
 * Replace the separate official `all_five_192` and `all_five_181` renderer sources with one `libraries/vcs/renderers/all_five/all_five.c26` declaring required `parameter lines;`. Maintain cycle-proven compile-time profiles for `lines:=192`, `lines:=181`, and `lines:=170`; keep the unofficial 181-line experiment separate.
 * Migrate the existing 192- and 181-line public examples, fixtures, installation rules, documentation, timing/raster contracts, and structural tests to the unified source. Add preprocessing support and a compiler regression so declared instantiation parameters are usable as integer literals in `#if`/`#elif` inside directly instantiated source.
@@ -40,7 +40,7 @@
 * Add a dedicated 170-line all-five emulator oracle covering its ten 16-line asymmetric playfield rows, all five object rasters, official-opcode policy, and exact 262-line NTSC frame. Strengthen interactive orientation/inventory, visible-component, score-composition, install, branding, and renderer-documentation checks for the unified layout.
 * Verification: 469/469 compile-only tests pass; all 262 e2e cases are accounted for as passing in harness-native bounded runs; recursive public-example builds and staged installcheck pass. Item 28 remains active: apply the now-proven parameterized renderer pattern to the modern multisprite extraction.
 
-2026-08-08 15:34:56 PDT, correct shared NTSC scheduler from 260 to 262 Stella scanlines
+2026-08-08 15:34:56 PDT, correct shared NTSC scheduler from 260 to 262
 
 * Manual Stella review of the unified all-five examples exposed that scheduler-based cartridges were actually 260-line / 60.5 Hz frames even though the simplified MOS6502 harness had been labeling its 262 raw WSYNC intervals as a 262-line frame. The same problem affected player-color and score-component users of `frame_ntsc.c26`, so this was a shared scheduler bug rather than an all-five timing-profile bug.
 * Add two blanked frame-closeout WSYNC boundaries at the end of `vcs_ntsc_end_overscan()`, after all visible work and the timer-owned overscan budget. This leaves VSYNC, VBLANK entry, visible-component entry, and beam-critical raster phases unchanged. Stella 7.0 now independently reports 262 / 60.0 Hz for all-five `lines:=192`, all-five 181 score-above and score-below, all-five 170 with scores above and below, and player-color 192.
@@ -48,7 +48,7 @@
 * The correction costs four ROM bytes and no RAM or visible cycles in scheduler users. The animated gallery advances to schema 15 at 3296/4090 ROM and 56/128 RAM with 72 free; the RAM-roadmap optimization closeout remains the historical 3292-ROM checkpoint before this frame fix. Current representative all-five public links are 2210 ROM / 92 RAM at 192 lines, 3229 ROM / 112 RAM for the 181 score-above example, and 3605 ROM / 128 RAM for the 170 dual-score example.
 * Verification: 469/469 compile-only passed with the final scheduler source; all 262 e2e cases are accounted for as passing in harness-native bounded runs after updating frame calibration and four-byte ROM-size contracts; source-tree hygiene and staged `installcheck` pass.
 
-2026-08-08 17:36:15 PDT, stop compile regression from creating test/-
+2026-08-08 17:36:15 PDT, stop compile regression from creating test
 
 * Traced the stray `test/-` left by top-level `make` to `instantiation_preprocessor_boundary_compile_test.c26`, the only source-test runner header carrying `-o -`. The compile harness already captures compiler stdout, while `vcsc-cc1` treats `-` as an ordinary output filename, so the option created exactly that file in `test/`.
 * Removed only the accidental `-o -`; the focused preprocessor-boundary regression still passes and no compiler or harness semantics changed. Repeated checks after the broader suite leave `test/-` absent.
@@ -61,16 +61,16 @@
 * A dedicated CLI regression proves direct `vcsc-cc1 -o -` and `vcsc -S -o -` stdout behavior, proves `vcsc -v -S -o -` keeps command tracing on stderr, and proves object/link driver modes reject `-o -` cleanly rather than producing dash-named files. User-facing tool documentation was updated; `-###` remains the stdout dry-run listing mode.
 * Verification: 469/469 compile-only tests pass. Every exercised e2e test passes except the same two tests blocked by the input archive's missing `faithful_legacy_multisprite_diagnostic_data.s26`; the optional independent Stella certification requires that fixture plus Xvfb/Stella and is not part of the headless regression result.
 
-2026-08-08 18:15:47 PDT, restore faithful multisprite fixture and require complete green handoff
+2026-08-08 18:15:47 PDT, restore faithful multisprite fixture
 
 * Restored `examples/10_faithful_legacy_multisprite/01_diagnostic/faithful_legacy_multisprite_diagnostic_data.s26` byte-for-byte from the corrected 10:17 faithful-multisprite handoff. This is the version with the ninth P0 clear row, bottom-to-top P1 glyph storage, and aquamarine fifth sprite expected by the locked 391-write oracle.
 * The missing file was a packaging omission, not a source redesign. The focused faithful-multisprite oracle again reports 1472 ROM bytes, exact 122-byte retained state plus six hardware-stack bytes, and stable 264-line frames; recursive public-example builds also pass.
 * Handoff policy is explicit: do not return a VCSC tarball with known regression failures. The final source tree must have every compile-only and e2e test exercised successfully before packaging; when the container cannot finish one monolithic run within its execution cap, use the same harness in bounded explicit batches and verify exact test-name coverage.
 
-2026-08-08 18:48:07 PDT, compact postfix byte conditions and renumbered basic examples
+2026-08-08 18:48:07 PDT, compact postfix byte conditions and renumbered
 Renumbered `examples/01_basic` so `blank_noasm` is 02 and the later basic examples advance by one, updating public path references and documentation. The source-only blank example now uses `while (i--)` for its 192 visible WSYNC lines. Diagnosed the prior 455-line failure as generic postfix-condition scratch/pointer lowering crossing the 76-cycle scanline boundary after each WSYNC; direct ordinary-byte prefix/postfix truth tests now mutate storage in place while preserving postfix old-value semantics. Added a source/timing regression and zero-value postfix semantic checks. Restored the faithful-multisprite diagnostic data fixture and `test/compiler_dash_stdout.pl`, both of which were absent from the input archive despite being required by the current handoff invariants.
 
-2026-08-08 19:23:00 PDT, X-backed downward counted loops and source-only blank-frame compaction
+2026-08-08 19:23:00 PDT, X-backed downward counted loops and source-only
 Extended the narrow register-backed uint8_t for-loop lowering to proven-nonempty
 countdowns to zero (`i`, `i > 0`, or `i != 0` with `i--`/`--i`). Direct one-byte
 hardware discard stores are now recognized as X-safe, so `WSYNC := _;` participates
@@ -80,15 +80,18 @@ source-level X-backed scanline countdowns; it now links at 445 ROM / 22 RAM vers
 scanlines. Added compiler and execution regressions, including zero-initialized
 fallback semantics. Final verification: 470/470 compile-only and 264/264 e2e.
 
-2026-08-08 19:41:47 PDT, bare discard stores are register/flag transparent across fixed placements
+2026-08-08 19:41:47 PDT, bare discard stores are register/flag
 Made `foo := _;` a general fixed-address one-STA invariant rather than a hardware-register special case. Automatic scratch-backed fixed byte targets now use direct symbol+offset `STA` instead of loading Y, the X-backed counted-loop safety proof no longer distinguishes zeropage/global/absolute placement for a valid bare direct byte target, and compiler/test documentation pins preservation of A/X/Y/S/P. Added compile-only coverage across global, zeropage, absolute, and automatic-local destinations. Final validation: 471/471 compile-only and 264/264 e2e.
-2026-08-08 19:58 - Audited fixed-address lowering: constant offsets into linker symbols now use direct operands instead of consuming Y; genuine runtime indexing/indirection remains indexed.
-2026-08-08 20:08 - Fixed audit boundary for ref parameters: pointer slots may use direct operands, but referred values remain indirect and directional split aliases remain preserved.
-2026-08-08 20:26 - Completed fixed-address lowering audit: removed constant-Y addressing and the 256-byte direct-offset cutoff across fixed symbols while preserving genuine runtime indexing, pointer dereference, and directional ref semantics.
+2026-08-08 19:58:00 PDT, Audited fixed-address lowering: constant
+2026-08-08 20:08:00 PDT, Fixed audit boundary for ref parameters
+2026-08-08 20:26:00 PDT, complete fixed-address lowering audit
 
-2026-08-08 21:17:28 PDT, Parameterized unofficial all-five renderer profiles
+2026-08-08 21:17:28 PDT, Parameterized unofficial all-five renderer
 The separately maintained all-five unofficial renderer is now one `all_five_unofficial.c26` source with required `lines` parameter and compile-time 192-, 181-, and 170-line profiles. Existing unofficial 181 examples now pass `lines:=181`; a new `examples/12_all_five_170_unofficial/` dual-score interactive proof passes `lines:=170` and `-Wa,--illegals`. Each selected unofficial profile retains exactly one reviewed stable/common-NMOS `$04` padding NOP and matches its official twin in ROM use, visible TIA trace, RAM contract, and 262-line frame timing. Install/uninstall/installcheck and public/test documentation were updated for the unified path.
 
-2026-08-08 21:31:00 PDT, Completed unofficial all-five profile integration
+2026-08-08 21:31:00 PDT, Completed unofficial all-five profile
 Unified unofficial all-five 192/181/170 coverage now includes the public assembly allowlist, interactive orientation inventory, score-composition raster matrix, staged install checks, and a dedicated official/unofficial profile parity regression. Current suite inventory is 472 compile-only and 265 end-to-end tests.
-2026-08-08 23:56:40 PDT, completed parameterized modern multisprite renderer with 192/181 interactive score compositions and page-safe graphics timing contract
+
+2026-08-08 22:26:58 PDT, Consolidated official player-color 192/181
+
+2026-08-08 23:56:40 PDT, completed parameterized modern multisprite

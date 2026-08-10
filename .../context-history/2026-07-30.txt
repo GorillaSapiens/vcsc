@@ -1,11 +1,4 @@
-VCSC CONTEXT HISTORY — 2026-07-30
-=================================
-
-Historical development entries for 2026-07-30, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
-2026-07-30 09:27:00 PDT, refocus the top-level README on the whole toolchain
+2026-07-30 09:27:00 PDT, refocus the top-level README on the whole
 ----------------------------------------------------------------------------
 * Rewrite the repository front page as a broad introduction to VCSC's purpose,
   build flow, major tools, language model, target support, examples, installation,
@@ -20,7 +13,7 @@ an older decision, regression, or implementation detail.
   every subsystem reference.
 * No files were removed; `.top_secret/remove.txt` is unchanged.
 
-2026-07-30 10:43:36 PDT, slow interactive score-control sampling to twenty frames
+2026-07-30 10:43:36 PDT, slow interactive score-control sampling
 ---------------------------------------------------------------------------------
 * Change the right-joystick score controls in the faithful legacy and both scored
   181-line interactive diagnostics to sample SWCHA once every twenty frames while
@@ -53,7 +46,7 @@ an older decision, regression, or implementation detail.
   command ceiling and the remaining 21 passed explicitly. Staged
   `make installcheck` also passes.
 
-2026-07-30 14:08:34 PDT, rebuild the all-five components from proven player-color rasters
+2026-07-30 14:08:34 PDT, rebuild the all-five components from proven
 ------------------------------------------------------------------------------------------
 * Replace the official 181-line and 192-line all-five visible pipelines with
   derivatives of the known-good `player_color_181` and `player_color_192`
@@ -92,7 +85,7 @@ an older decision, regression, or implementation detail.
   command ceiling interrupted the monolithic `make installcheck` near its end,
   the remaining checks completed successfully against the same staging tree.
 
-2026-07-30 17:56:34 PDT, eliminate modern-renderer right-edge object tearing
+2026-07-30 17:56:34 PDT, eliminate modern-renderer right-edge object
 -----------------------------------------------------------------------------
 * Leave the faithful legacy renderer unchanged; its retained display schedule
   does not exhibit the reported right-edge one-scanline tear.
@@ -152,7 +145,7 @@ an older decision, regression, or implementation detail.
   before the outer command ceiling and the remaining 22 passed explicitly.
   Staged `make installcheck` also passes.
 
-2026-07-30 20:41:43 PDT, preserve chained-assignment values without rereading lvalues
+2026-07-30 20:41:43 PDT, preserve chained-assignment values without
 --------------------------------------------------------------------------
 * Correct simple assignment-expression lowering so the compiler evaluates the
   right-hand side once into storage typed for the left-hand side, writes that
@@ -180,7 +173,7 @@ an older decision, regression, or implementation detail.
   before the outer command ceiling and the remaining 22 passed explicitly.
   Staged `make installcheck` also passes.
 
-2026-07-30 20:59:05 PDT, diagnose misspelled targets inside chained assignments
+2026-07-30 20:59:05 PDT, diagnose misspelled targets inside chained
 -------------------------------------------------------------------------------
 * Preserve the specific unresolved-identifier diagnostic when an assignment is
   itself being compiled as the value of an enclosing expression. A misspelled
@@ -195,7 +188,7 @@ an older decision, regression, or implementation detail.
   before its outer command ceiling and the remaining 22 passed explicitly.
   Staged `make installcheck` also passes.
 
-2026-07-30 22:03:14 PDT, repair 181-line non-player motion without aborting HMOVE
+2026-07-30 22:03:14 PDT, repair 181-line non-player motion without
 ---------------------------------------------------------------------------------
 * Revert the incorrect immediate-HMCLR repair. On real TIA hardware, strobing
   HMCLR immediately after HMOVE interrupts the motion transaction that is still
@@ -224,7 +217,7 @@ an older decision, regression, or implementation detail.
   tests pass (174 completed before the monolithic command ceiling, then the
   remaining 23 passed explicitly). Staged `make installcheck` also passes.
 
-2026-07-30 22:27:35 PDT, add public examples for both unofficial 181-line renderers
+2026-07-30 22:27:35 PDT, add public examples for both unofficial
 ----------------------------------------------------------------------------------
 * Confirm that the separately named `player_color_181_unofficial` and
   `all_five_181_unofficial` renderers are the reviewed stable/common-NMOS
@@ -256,7 +249,7 @@ an older decision, regression, or implementation detail.
   Both expanded interactive example matrices and the recursive example build
   pass directly. Staged `make installcheck` also passes.
 
-2026-07-30 23:05:13 PDT, eliminate nested scratch from chained assignments
+2026-07-30 23:05:13 PDT, eliminate nested scratch from chained
 --------------------------------------------------------------------------
 * Replace recursive simple-assignment-chain lowering with a flattened path.
   The rightmost expression is evaluated once, then one converted value is

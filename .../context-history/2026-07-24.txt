@@ -1,11 +1,4 @@
-VCSC CONTEXT HISTORY — 2026-07-24
-=================================
-
-Historical development entries for 2026-07-24, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
-2026-07-24 09:08:44 PDT, audit and control compiler peephole optimization
+2026-07-24 09:08:44 PDT, audit and control compiler peephole
 ----------------------------------------------------------------------------
 * Confirm the peephole pass is part of `vcsc-cc1` and runs only over the emitted
   CODE sink after source compilation. Add `-fno-peephole` and `-fpeephole` to
@@ -31,7 +24,7 @@ an older decision, regression, or implementation detail.
   generic tests, and staged installation. No roadmap item is advanced; task 22
   remains next.
 
-2026-07-24 17:53:28 PDT, add fill-byte alignment and retire page-tail padding sludge
+2026-07-24 17:53:28 PDT, add fill-byte alignment and retire page-tail
 -----------------------------------------------------------------------------------
 * Extend `vcsc-as` `.align` from one/two operands to
   `.align boundary, offset, fill`. The optional fill expression defaults to
@@ -57,7 +50,7 @@ an older decision, regression, or implementation detail.
   end-to-end/generic tests, and staged installation. No roadmap item is
   advanced; task 22 remains next.
 
-2026-07-24 18:31:48 PDT, specify template instantiation and use contracts
+2026-07-24 18:31:48 PDT, specify template instantiation and use
 ----------------------------------------------------------------------------
 * Add top-level `TEMPLATE.md` as a design specification only; no lexer, parser,
   compiler, assembler, object-format, linker, runtime, renderer, example, or test
@@ -79,7 +72,7 @@ an older decision, regression, or implementation detail.
   the former tasks 22 through 30 to 23 through 31 without changing their scope.
   The new task 22 is now the first unfinished item.
 
-2026-07-24 18:57:30 PDT, correct template blanking-phase scheduling contract
+2026-07-24 18:57:30 PDT, correct template blanking-phase scheduling
 ----------------------------------------------------------------------------
 * Update `TEMPLATE.md` so the application scheduler asserts VBLANK and starts
   the shared 37-scanline deadline before invoking any component `vblank()`
@@ -95,7 +88,7 @@ an older decision, regression, or implementation detail.
 * Documentation and roadmap only; no implementation, build, test, renderer, or
   example behavior changes. Task 22 remains next.
 
-2026-07-24 19:08:16 PDT, expand template scheduler and renderer-conversion roadmap
+2026-07-24 19:08:16 PDT, expand template scheduler and conversion
 -------------------------------------------------------------------------------
 * Flesh out task 22i into a staged conversion of both maintained gameplay
   renderers from monolithic score-owning profiles into composable lifecycle
@@ -115,7 +108,7 @@ an older decision, regression, or implementation detail.
 * Roadmap/documentation update only; no compiler, linker, assembler, runtime,
   renderer, example, build, or test implementation changes.
 
-2026-07-24 19:19:28 PDT, begin use-contract syntax and add PAL/SECAM roadmap
+2026-07-24 19:19:28 PDT, begin use-contract syntax and add PAL/SECAM
 ----------------------------------------------------------------------------
 * Append native PAL and SECAM support as roadmap tasks 32 and 33. Keep each as a
   separate video-standard family with its own frame scheduler, target bindings,
@@ -290,7 +283,7 @@ an older decision, regression, or implementation detail.
   declarations coexist. Leave task 22f next; do not begin lifecycle
   standardization in this timebox.
 
-2026-07-24 23:18:00 PDT, standardize reusable component lifecycle contract
+2026-07-24 23:18:00 PDT, standardize reusable component lifecycle
 -------------------------------------------------------------------------------
 * Complete roadmap task 22f. Add a canonical lifecycle component fixture with
   required inline `init`, `vblank`, `draw`, and `overscan` entry points plus

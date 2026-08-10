@@ -1,11 +1,4 @@
-VCSC CONTEXT HISTORY — 2026-07-22
-=================================
-
-Historical development entries for 2026-07-22, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
-2026-07-22 04:46:17 PDT, preserve function layouts for page-aware placement
+2026-07-22 04:46:17 PDT, preserve function layouts for page-aware
 ------------------------------------------------------------------------
 * Complete task 20j. In relocatable o26 mode, each `.proc` beginning in the
   ordinary `CODE` segment receives a private `CODE.__vcsc_function$NAME`
@@ -329,7 +322,7 @@ an older decision, regression, or implementation detail.
   `.top_secret/remove.txt` remains at 898 cumulative paths. Task 20r remains
   next; do not resume it until this raster repair is reviewed.
 
-2026-07-22 15:49:00 PDT, replace false motion oracle and repair affine relocation
+2026-07-22 15:49:00 PDT, replace false motion oracle and repair affine
 ------------------------------------------------------------------------
 * Reject the first `07_object_motion_test` as a visual oracle. Its empty
   playfield made phase errors hard to judge, its deliberately skipped update
@@ -390,7 +383,7 @@ an older decision, regression, or implementation detail.
   compiler, assembler, linker, ABI, or roadmap implementation is changed; task
   20r remains next.
 
-2026-07-22 16:38:48 PDT, add exhaustive pairwise horizontal-position regression
+2026-07-22 16:38:48 PDT, add exhaustive pairwise horizontal-position
 ------------------------------------------------------------------------
 * Leave `examples/07_object_motion_test/object_motion_test.c26` unchanged. Add
   `vcs_standard_pairwise.test` as a dedicated machine-level regression for
@@ -427,7 +420,7 @@ an older decision, regression, or implementation detail.
   minimal unbanked non-Superchip integration, general 8K+ bankswitching, and
   Superchip cartridge RAM support followed by corresponding renderer profiles.
 
-2026-07-22 17:43:08 PDT, complete task 20r legal one-off opcode replacement
+2026-07-22 17:43:08 PDT, complete task 20r legal one-off opcode
 ------------------------------------------------------------------------
 * Replace the score-conversion `ASR #$F0` with legal `AND #$F0` / `LSR`. The
   legal sequence costs two additional cycles per conversion, all inside the
@@ -455,7 +448,7 @@ an older decision, regression, or implementation detail.
   pairwise regressions, plus staged installation. No files are removed;
   `.top_secret/remove.txt` remains at 898 cumulative paths. Task 20s is next.
 
-2026-07-22 18:26:05 PDT, complete task 20s official-opcode profile enforcement
+2026-07-22 18:26:05 PDT, complete task 20s official-opcode profile
 ------------------------------------------------------------------------
 * Remove `-Wa,--illegals` and direct `vcsc-as --illegals` use from every
   standard-profile example, regression, and staged-install recipe. Keep the
@@ -480,7 +473,7 @@ an older decision, regression, or implementation detail.
   files are removed; `.top_secret/remove.txt` remains at 898 cumulative paths.
   Task 20t is next.
 
-2026-07-22 20:35:26 PDT, complete task 20t assembler-source suffix migration
+2026-07-22 20:35:26 PDT, complete task 20t assembler-source suffix
 ------------------------------------------------------------------------
 * Rename all 37 maintained assembler source files from `*.s` to `*.s26`,
   including runtime startup/workspace members, the normalized standard renderer,
@@ -592,7 +585,7 @@ an older decision, regression, or implementation detail.
   regression, and staged installation. No roadmap item is advanced; task 21 remains
   next.
 
-2026-07-22 23:56:46 PDT, complete task 21 per-row player-color renderer profile
+2026-07-22 23:56:46 PDT, complete task 21 per-row player-color renderer
 -----------------------------------------------------------------------------
 * Preserve the user-restored `.top_secret/instruction.txt` as intentional
   durable workflow guidance. It is not deletion residue and is not listed in

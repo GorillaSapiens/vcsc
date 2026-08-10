@@ -1,10 +1,3 @@
-VCSC CONTEXT HISTORY — 2026-08-04
-=================================
-
-Historical development entries for 2026-08-04, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
 2026-08-04 02:07:16 PDT, add Superchip-backed automatic locals
 ----------------------------------------------------------------
 * Complete detailed bankswitching roadmap item 13. Automatic local scalars,
@@ -90,7 +83,7 @@ an older decision, regression, or implementation detail.
   F8SC/F6SC/F4SC allocation/local/static-local regressions. Staged
   `make installcheck` passes.
 
-2026-08-04 03:48:33 PDT, add generic startup-main placement and split value parameters
+2026-08-04 03:48:33 PDT, add generic startup-main placement and split
 ---------------------------------------------------------------------------------------
 * Remove the compiler's spelling-based `bank0` rule for `main`. In a banked
   configuration, unqualified `main` is now pinned by `vcsc-ld` to the unique
@@ -166,7 +159,7 @@ an older decision, regression, or implementation detail.
   overlay, Superchip-parameter, and generic split-parameter tests pass. Staged
   `make installcheck` passes.
 
-2026-08-04 11:38:02 PDT, add generic split-address function return storage
+2026-08-04 11:38:02 PDT, add generic split-address function return
 ----------------------------------------------------------
 * Complete bankswitching roadmap item 15. A non-void function may select any
   writable split-address `mem` region for its existing exact-sized hidden
@@ -206,7 +199,7 @@ an older decision, regression, or implementation detail.
   did not finish within the available execution window and produced no failure
   before timeout. Staged `make installcheck` passes.
 
-2026-08-04 19:13:18 PDT, make address annotations imply absolute external bindings
+2026-08-04 19:13:18 PDT, make address annotations imply absolute
 --------------------------------------------------------------------------
 * Complete bankswitching roadmap item 16. A file-scope or block-scope
   `@[read/write]` annotation now defines a non-owning absolute external binding
@@ -244,7 +237,7 @@ an older decision, regression, or implementation detail.
   Staged `make installcheck` passes. Bankswitching roadmap item 17,
   the `writeonly` access qualifier, is next.
 
-2026-08-04 19:35:00 PDT, remove the public Superchip raw alias and rename developer records
+2026-08-04 19:35:00 PDT, remove the public Superchip raw alias
 -------------------------------------------------------------------------------------------
 * Remove the non-owning `superchip_ram[128]@[0xF080/0xF000]` whole-window alias
   from the installed `superchip.c26` header. The allocatable generic
@@ -265,7 +258,7 @@ an older decision, regression, or implementation detail.
   branding, source-suffix migration, bankswitching-diagnostic, and example-build
   end-to-end tests pass. Staged `make installcheck` passes.
 
-2026-08-04 20:29:36 PDT, reject absolute bindings inside allocator-managed memory
+2026-08-04 20:29:36 PDT, reject absolute bindings inside
 ----------------------------------------------------------------------------------
 * Strengthen bankswitching roadmap item 16 so an absolute external binding is
   truly outside allocator-managed storage. File-scope and block-scope
@@ -292,7 +285,7 @@ an older decision, regression, or implementation detail.
   execution windows, including every VCS renderer/profile regression and the new
   overlap checks. Staged `make installcheck` passes.
 
-2026-08-04 21:59:33 PDT, add the writeonly one-address pointer capability
+2026-08-04 21:59:33 PDT, add the writeonly one-address pointer
 -------------------------------------------------------------------------------
 * Complete bankswitching roadmap item 17 with `writeonly T *`, the write-side
   counterpart to `const T *`. The qualifier changes permitted access and ABI
@@ -318,7 +311,7 @@ an older decision, regression, or implementation detail.
 * Bankswitching roadmap item 18, the generic `&<` and `&>` directional address
   projections, is next.
 
-2026-08-04 22:33:26 PDT, unify interactive player glyphs as edge-touching space invaders
+2026-08-04 22:33:26 PDT, unify interactive player glyphs
 -----------------------------------------------------------------------------------------
 * Replace the interactive-example player glyphs everywhere they are defined so
   every interactive cartridge uses the same `P0` bitmap and the same distinct
@@ -336,7 +329,7 @@ an older decision, regression, or implementation detail.
   builds cleanly after a per-example `make clean`, covering the full public
   example tree and all interactive cartridges.
 
-2026-08-04 22:55:04 PDT, update sprite raster oracles without weakening retained fixtures
+2026-08-04 22:55:04 PDT, update sprite raster oracles without weakening
 ------------------------------------------------------------------------------------------
 * Fix the two end-to-end failures exposed after changing every public interactive
   cartridge to the shared space-invader glyphs. The faithful-legacy comparator

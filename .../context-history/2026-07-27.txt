@@ -1,11 +1,4 @@
-VCSC CONTEXT HISTORY — 2026-07-27
-=================================
-
-Historical development entries for 2026-07-27, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
-2026-07-27 05:20:04 PDT, restore example 05 from the proven full-height smoke fixture
+2026-07-27 05:20:04 PDT, restore example 05 from the proven full-height
 --------------------------------------------------------------------------------
 * Stop redesigning public example 05. Replace the newly invented static scene
   with the previously verified `player_color_192` smoke cartridge scene. Keep
@@ -18,7 +11,7 @@ an older decision, regression, or implementation detail.
 * Touch only example 05 and its dedicated fixture/test/documentation. Examples
   06 through 13 remain pending and untrusted.
 
-2026-07-27 08:06:04 PDT, generalize the multicolor-example glyph predicate
+2026-07-27 08:06:04 PDT, generalize the multicolor-example glyph
 --------------------------------------------------------------------------------
 * Fix `vcs_multicolor_examples.pl` so its readability check accepts any visual
   eight-pixel binary glyph row written as `0b` followed by eight `.`/`X`
@@ -26,7 +19,7 @@ an older decision, regression, or implementation detail.
   `0b..XXXX..`, causing a source-only failure before example 05 was built or run.
 * Do not change example 05, the renderers, or examples 06 through 13 in this step.
 
-2026-07-27 08:47:12 PDT, restore example 05 from verified oracle-backed tree
+2026-07-27 08:47:12 PDT, restore example 05 from verified oracle-backed
 -------------------------------------------------------------------------------
 * Independently build `vcsc.bec461cf082f9e6ed58641587e7fddca37da7b10` and
   verify its public faithful legacy example in both links of the oracle chain:
@@ -57,7 +50,7 @@ an older decision, regression, or implementation detail.
   and the remaining 06-13 nonvisual matrix smoke test. No renderer source changes
   are made in this repair.
 
-2026-07-27 09:38:56 PDT, put full static and score-below static in the correct slots
+2026-07-27 09:38:56 PDT, put full static and score-below static
 -----------------------------------------------------------------------------------
 * Move the verified oracle-backed faithful legacy cartridge from public example
   05 to `07_multicolor_score_below_static`, replacing the unverified
@@ -87,7 +80,7 @@ an older decision, regression, or implementation detail.
   remaining 22 explicitly and pass 22/22, accounting for all 190 tests with no
   failures. Staged `installcheck` passes.
 
-2026-07-27 11:09:00 PDT, replace the broken 192-line terminal pipeline with one uniform raster
+2026-07-27 11:09:00 PDT, replace the broken 192-line terminal pipeline
 ----------------------------------------------------------------------------------------------
 * Treat the checked-in player-color PNGs as untrusted historical captures, not
   as correctness oracles. Remove the `player_color_192` terminal PNG hash lock
@@ -170,7 +163,7 @@ an older decision, regression, or implementation detail.
   and the remaining 21 pass explicitly. All fourteen examples build, the
   07-14 matrix passes, and staged `installcheck` passes.
 
-2026-07-27 15:06:00 PDT, repair renderer-rename checksum and binary fixture fallout
+2026-07-27 15:06:00 PDT, repair renderer-rename checksum and binary
 -----------------------------------------------------------------------------------
 * Diagnose the three post-rename test failures as contract/generated-artifact
   fallout rather than code-generation failures. The intended whole-word
@@ -205,7 +198,7 @@ an older decision, regression, or implementation detail.
   `static_renderer_test`, source-tree/branding checks pass, and staged
   `installcheck` passes.
 
-2026-07-27 16:53:19 PDT, repair and certify the 192-line renderer playfield timing
+2026-07-27 16:53:19 PDT, repair and certify the 192-line renderer
 ---------------------------------------------------------------------------------
 * Reproduce example 06's mismatch in Stella 7.0 from the public `.c26` source
   rather than trusting any checked-in PNG. The first visible bit of playfield
@@ -232,7 +225,7 @@ an older decision, regression, or implementation detail.
   remaining 26 pass explicitly, accounting for all 190 tests with no failures.
   Staged `installcheck` passes.
 
-2026-07-27 18:24:08 PDT, correct the incomplete 192-line renderer handoff
+2026-07-27 18:24:08 PDT, correct the incomplete 192-line renderer
 ----------------------------------------------------------------------------
 * Supersede the 16:53 handoff. Its Stella review was wrong: although the output
   looked substantially improved, the row-transition schedule still changed the
@@ -259,7 +252,7 @@ an older decision, regression, or implementation detail.
   all-five regressions pass; the dynamic-example matrix passes; and staged
   `installcheck` passes. Historical PNG references remain non-authoritative.
 
-2026-07-27 18:56:28 PDT, eliminate the partial scanline after the 192-line display
+2026-07-27 18:56:28 PDT, eliminate the partial scanline after
 -------------------------------------------------------------------------------
 * Supersede the claim that the 18:24 handoff was complete. Its source-to-Stella
   audit checked the intended 12 rows x 16 scanlines, but did not inspect the
@@ -298,7 +291,7 @@ an older decision, regression, or implementation detail.
 * Verification: the renamed example builds as a 4096-byte cartridge;
   `vcs_examples_build.pl` and `vcs_multicolor_examples.pl` pass.
 
-2026-07-27 22:08:00 PDT, bounded repair pass after broken 181-line handoff
+2026-07-27 22:08:00 PDT, bounded repair pass after broken 181-line
 ----------------------------------------------------------------------------
 * Add a hard compiler diagnostic when an array initializer expands to more
   elements than the declared bound. The exact 12-row `VCS_PLAYFIELD_ROW` case

@@ -1,5 +1,4 @@
-
-2026-08-07 00:56:36 PDT, High-level animated-frame installation and example assembly policy
+2026-08-07 00:56:36 PDT, High-level animated-frame installation
 
 - Replaced the animated gallery frame installer and adjacent animation transition lookup with ordinary VCSC while preserving all frame hashes, controls, pointer installation, and exact 262-line behavior.
 - Added reusable compact compiler lowering for direct table/pointer operations and proven small counted loops, with explicit fallbacks for unsafe indirect stores and ref-array formals.
@@ -8,7 +7,7 @@
 - Rejected a shorter ordinary comparison branch after exact renderer tests exposed a one-scanline VBLANK shift; page-aligned standard-renderer placement remains timing-correct even when its absolute linked page moves.
 - Verified 442 compile-only tests and 255 end-to-end tests.
 
-2026-08-07 07:36:43 PDT, Measured animated frame-installer code-size pipeline and queued optimizer cleanup
+2026-08-07 07:36:43 PDT, Measured animated frame-installer code-size
 
 - Verified the hand-written frame installer linked at 236 bytes and the high-level replacement links at 540 bytes.
 - Measured `-fpeephole` versus `-fno-peephole`: the installer assembly and 540-byte symbol span are identical, while the existing peephole pass saves eight bytes elsewhere in the gallery.
@@ -17,7 +16,7 @@
 - Added the measured optimizer follow-up to the RAM optimization roadmap ahead of phase-lifetime overlay and updated the compact handoff with the concrete measurements.
 - Repaired four timestamp-only August 6 history headers, documented the standalone-description rule in the compact handoff, and made source-tree hygiene reject future timestamp-only headers.
 
-2026-08-07 08:24:59 PDT, Delegated compiler addressing modes to assembler relaxation
+2026-08-07 08:24:59 PDT, Delegated compiler addressing modes
 
 Audited compiler-lowered ordinary 6502 memory operations and removed all forced
 addressing-mode suffixes from compiler mnemonic emitters. The compiler now emits
@@ -41,7 +40,7 @@ scheduler, score, renderer, split-memory, and banked raster/runtime regressions 
 Final verification for this change is 444 compile-only tests and all 255 end-to-end
 cases in bounded batches. Clean source-tree hygiene passes.
 
-2026-08-07 09:24:15 PDT, Optimized high-level frame installation below the handwritten ROM size
+2026-08-07 09:24:15 PDT, Optimized high-level frame installation below
 
 - Added timing-scoped generated branch/JMP inversion, compact hard-page selector and bounded pointer-low lowering, conditional pointer-update suffix merging, proven cross-loop doubled-offset reuse, and post-tested nonempty register-counted loops.
 - Reduced linked `install_frames()` from the 462-byte relaxed high-level baseline to 232 bytes, four bytes smaller than the old 236-byte handwritten implementation, with zero activation RAM.
@@ -50,7 +49,7 @@ cases in bounded batches. Clean source-tree hygiene passes.
 - Preserved exact animation, scheduler, score, fingerprint, renderer, and banked raster contracts. Banked game-logic branch inversion legitimately reduces F8/F6/F4 bank1 from 82 to 76 bytes and F8SC bank1 from 121 to 115 bytes.
 - Verified 447 compile-only tests and all 256 end-to-end cases in bounded batches.
 
-2026-08-07 12:23:26 PDT, phase-aware RAM overlay, big ASCII font, and centered bank diagnostics completed
+2026-08-07 12:23:26 PDT, phase-aware RAM overlay, big ASCII font
 
 * Added conservative frame-phase lifetime metadata for VSYNC, VBLANK, visible draw, and overscan. File-scope storage now requires explicit `__phaseworkspace$V1$symbol` eligibility in addition to inferred phase-use metadata; fully phase-scoped compiler scratch receives eligibility automatically. The linker closes observed uses to a contiguous frame interval, overlays only compatible multi-object groups, and preserves ordinary allocation order for solitary phase-tagged objects.
 * The animated gallery now aliases the one-byte VSYNC compiler scratch with the 48-byte VBLANK+visible `game_object_masks` workspace. RIOT RAM falls from 110/128 to 109/128 bytes, leaving 19 bytes free; ROM remains 3624/4090 bytes with 466 free and `install_frames()` remains 232 linked bytes.
@@ -58,7 +57,7 @@ cases in bounded batches. Clean source-tree hygiene passes.
 * Reworked the bankswitching diagnostic display to render complete centered white PASS or FAIL words with exact letters copied from `default_ascii.c26` through the six-glyph-wide component while retaining the complete mapper-transition simulator matrix and exact frame scheduler.
 * Final verification on the completed tree: 447/447 compile-only tests and 258/258 end-to-end tests pass in bounded batches, including exact scheduler/score/renderer/banked-renderer/animation regressions and source-tree hygiene.
 
-2026-08-07 13:34:04 PDT, Added explicit object alignment and removed animated-gallery ROM padding
+2026-08-07 13:34:04 PDT, Added explicit object alignment and removed
 
 - Added user-facing `align(N)` for file-scope data-object definitions, restricted to compile-time positive powers of two from 1 through 32768, while retaining `page` as the independent whole-object 256-byte containment contract.
 - Reused the existing assembler/linker `.segmentalign` metadata path and fixed writable DATA/BSS/zero-page runtime placement to honor object alignment as well as ROM/load placement.
@@ -68,7 +67,7 @@ cases in bounded batches. Clean source-tree hygiene passes.
 - Audited example/library padding references after the cleanup: no other example application-data padding remains; remaining renderer padding references are cycle/layout contracts rather than filler data.
 - Verified 455/455 compile-only tests and all 260/260 end-to-end cases in bounded batches, including exact renderer, score, animation, bankswitching, and alignment-placement regressions.
 
-2026-08-07 14:29:01 PDT, Packed animated-gallery persistent state without changing behavior
+2026-08-07 14:29:01 PDT, Packed animated-gallery persistent state
 
 - Packed Select-ready, Fire-ready, and paused state into one control byte, and packed the normal modulo-4 phase, independent source-set-03 modulo-3 phase, and eight-frame hold clock into one animation-state byte.
 - Persistent gallery bookkeeping falls from seven bytes to four. Total RIOT RAM falls from 109/128 to 106/128 bytes, free RAM rises from 19 to 22 bytes, and object bytes fall from 101 to 98; the eight-byte hardware-stack reservation and one-byte main activation are unchanged.
@@ -76,13 +75,13 @@ cases in bounded batches. Clean source-tree hygiene passes.
 - Packed-state lowering also reduces ordinary gallery ROM from 3560 to 3545 bytes, leaving 545 bytes free, while preserving all 1,875 automatic frames, source pixels/colors, pair wrapping, controls, independent modulo-3 playback, and exact 262-line timing.
 - Final verification is 455/455 compile-only tests and 260/260 end-to-end tests in bounded batches with no timing or raster oracle changes.
 
-2026-08-07 15:07:12 PDT, Reduced player-color 192 hardware-stack reservation by flattening single-use VBLANK helpers
+2026-08-07 15:07:12 PDT, Reduced player-color 192 hardware-stack
 - Measured the animated gallery's 8-byte hardware-stack reserve as four source-call bytes plus four supplementary assembly-helper bytes.
 - Flattened the single-use prepare-object-masks and prepare-one wrappers in player_color_192 while retaining set_range as the only assembly subroutine; explicit .callstackextra 0 records the audited zero supplementary requirement.
 - Gallery hardware-stack reservation falls from 8 to 4 bytes, total RIOT RAM from 106/128 to 102/128, and free RAM rises from 22 to 26 bytes with ROM unchanged at 3545/4090 and install_frames unchanged at 232 bytes.
 - The authoritative RAM fixture is schema 8. Verification passed 455/455 compile-only tests and 260/260 end-to-end cases.
 
-2026-08-07 17:02:22 PDT, animated-gallery post-optimization remeasurement confirms useful RAM margin
+2026-08-07 17:02:22 PDT, animated-gallery post-optimization
 
 Marked the RAM roadmap remeasurement complete after rebuilding the existing general
 P0/P1/Ball player_color_192 gallery at 3545/4090 ROM bytes and 102/128 RIOT-RAM
@@ -95,7 +94,7 @@ expectations and test documentation. Verification: 455/455 compile-only and 260/
 end-to-end cases pass in bounded batches.
 
 
-2026-08-07 17:51:46 PDT, Replaced player-color 192 object masks with official direct countdown
+2026-08-07 17:51:46 PDT, Replaced player-color 192 object masks
 
 - Replaced the 48-byte `game_object_masks` schedule and VBLANK range builder in `player_color_192` with official-opcode direct P0/P1/Ball countdown state; no unofficial `DCP` and no hidden assembly JSR remain.
 - Reduced renderer private RAM from 56 to 10 bytes and total module RAM from 69 to 23. The animated gallery falls from 3545 to 3290 ROM bytes and from 102/128 to 56/128 RIOT-RAM bytes, leaving 72 bytes free; stack remains four bytes and `main` activation remains one.
@@ -105,7 +104,7 @@ end-to-end cases pass in bounded batches.
 - Advanced the accounting fixture to schema 10, completed RAM-roadmap item 9, and closed item 10's compact-mask fallback as unnecessary because the official direct design succeeded. The next RAM-roadmap decision is whether a separate two-sprite-only profile is generally useful.
 - Verification: 455/455 compile-only tests and all 260/260 end-to-end cases pass in bounded batches.
 
-2026-08-07 19:49:21 PDT, Fixed delayed-Ball row boundaries across componentized renderers
+2026-08-07 19:49:21 PDT, Fixed delayed-Ball row boundaries across
 
 - Fixed the VDELBL/GRP1 row-transition ordering defect across every maintained componentized P0/P1/Ball renderer. Each row-boundary GRP1 now sees the freshly staged ENABL value, eliminating the duplicated Ball pair and dropped following pair at 16-line boundaries.
 - Converted both 181-line player-color renderers from the inherited 43-byte object-mask schedule to direct P0/P1/Ball countdowns. Their component RAM contract falls from 64 to 24 bytes; the official and unofficial smoke links are both 1438 ROM bytes, and the unofficial twin no longer needs an unofficial opcode in its current visible/VBLANK path.
@@ -114,13 +113,13 @@ end-to-end cases pass in bounded batches.
 - Correct delayed-Ball staging adds seven ROM bytes to the full-height player-color path. The animated gallery now measures 3297/4090 ROM bytes and 56/128 RIOT-RAM bytes, leaving 72 bytes free; schema 11 records the correction.
 - Final verification: 455/455 compile-only tests and all 260/260 end-to-end cases pass in bounded batches, including the full public score/gameplay matrix, wide-score compositions, animation oracle, accounting fixture, and source-tree hygiene.
 
-2026-08-07 20:34:37 PDT, repaired player-color playfield row-transition regression
+2026-08-07 20:34:37 PDT, repaired player-color playfield row-transition
 Manual Stella testing showed the player-color 192, player-color 181 score-above/score-below, and unofficial player-color 181 playfields corrupt while the all-five families remained correct. The delayed-Ball staging follow-up had moved reflected PF writes into the still-visible left-half window: 192 row endings wrote at 30/33 and the 181 twins at 38/41. The player-color renderers now stage ENABL before the transition transfer while keeping reflected PF writes in safe windows: 192 row endings 7/14/43/46 with terminal 7/14/40/47; 181 row endings 18/25/45/48 with terminal 18/25/48/55. No RAM or visible-pair cycles were added. The animated gallery is 3289 ROM / 56 RAM with 72 RAM bytes free; the official/unofficial 181 smoke pair is 1428 ROM each. Schema-12 accounting, the 40-pair score/gameplay raster matrix, 32 production cartridges, animation, all-five controls, 455/455 compile-only cases, and all 260/260 end-to-end cases pass; e2e completion was verified in bounded batches after the monolithic invocation hit the container time limit.
 
-2026-08-07 21:10:56 PDT, corrected remaining player-color-192 playfield boundary regression and strengthened playfield certification
+2026-08-07 21:10:56 PDT, corrected remaining player-color-192 playfield
 A second manual pass found that both public `examples/03_player_color_192` examples still corrupted one scanline at each 16-line playfield-row boundary even though the 181 and all-five families were clean. The prior 192 repair had accepted a self-consistent but visually wrong transition schedule. The renderer now preserves the old Stella-proven row-boundary playfield timing and carries the direct-count Ball decision through the boundary instead of moving PF writes: display-harness row endings are 10/17/40/47, first-following P1 is 9/16/40/47, and terminal is 10/17/43/50; the independent physical-phase harness observes 18/25/48/55, 17/24/48/55, and 18/25/51/58. The public interactive screenshot is pixel-identical to the pre-regression known-good raster. Default testing now checks all 12x16 PF rows in both public 192-line examples: the actual asymmetric interactive pattern and the animated gallery's full/checker/blank/checker/full pattern; A/B checks confirm both reject the broken renderer at the first row-ending line. Added `make stella-player-color-192-test` with a reviewed Stella 7.0 reference PNG for independent visible-raster certification. Gallery accounting is schema 13 at 3292 ROM / 56 RAM with 72 RAM bytes free; the standalone player-color-192 smoke is 1370 ROM / 36 RAM. Final verification is 455/455 compile-only and all 260/260 end-to-end cases passing in bounded runs, plus the independent Stella 7.0 player-color-192 raster certification.
 
-2026-08-07 22:05:35 PDT, Closed optional two-sprite renderers and completed RAM-optimization accounting
+2026-08-07 22:05:35 PDT, Closed optional two-sprite renderers
 
 - Closed RAM-roadmap items 11 and 12 as unnecessary by measurement rather than deferred: the retained general P0/P1/Ball player-color 192 gallery uses 56/128 RIOT-RAM bytes with 72 free, the official 181 player-color component uses 24 bytes, and maintained wide-score 181 compositions still fit with ten bytes free.
 - Completed item 13 and retained the existing general P0/P1/Ball, all-five, and deliberately separate unofficial renderer families. No new two-sprite-only timing/API surface is justified without a concrete future program that needs it.
@@ -128,7 +127,7 @@ A second manual pass found that both public `examples/03_player_color_192` examp
 - Reconciled public/internal documentation, including the animated-gallery README and renderer conversion notes, and added the RAM closeout cross-reference to the main roadmap. Item 14 remains the separately scoped removal of ordinary application assembly.
 - Completion gates remain 455/455 compile-only and 260/260 end-to-end from the Stella-corrected tree, with recursive public examples, staged installcheck, source hygiene, focused raster/accounting checks, and reviewed Stella 7.0 player-color-192 certification.
 
-2026-08-07 22:59:16 PDT, Completed ordinary application assembly cleanup and closed RAM optimization
+2026-08-07 22:59:16 PDT, Completed ordinary application assembly cleanup
 
 Removed every example-assembly allowlist entry classified as compiler-limitation. Shared fixed six-digit and two-plus-two controls now use high-level packed-BCD arithmetic against indexed decimal-weight tables; all-five movement is high-level VCSC while preserving the named Y-state symbols; and the fingerprint uses typed display access plus uint16_t glyph-address arrays instead of raw pointer-byte installation. Added narrow compiler lowerings and compile-only regressions for indexed packed-BCD compound arithmetic, direct indexed uint8_t compare/update, and constant-index relocatable uint16_t address stores. Kept only beam-critical and hardware-idiom assembly, reducing the allowlist from 21 sources to 9. The animated-gallery schema-14 accounting remains 3292/4090 ROM and 56/128 RAM with 72 bytes free. Compile-only verification is 458/458; the end-to-end matrix is 260/260 after final source hygiene cleanup.
 

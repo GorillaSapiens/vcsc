@@ -1,10 +1,3 @@
-VCSC CONTEXT HISTORY — 2026-07-31
-=================================
-
-Historical development entries for 2026-07-31, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
 2026-07-31 07:55:12 PDT, repair alternating all-five playfield phase
 ------------------------------------------------------------------------
 * Diagnose the shredded playfield in every all-five renderer as a two-cycle
@@ -34,7 +27,7 @@ an older decision, regression, or implementation detail.
   exact 4096-byte ROMs and render clean diagonal playfields in Stella. Staged
   `make installcheck` also passes.
 
-2026-07-31 12:00:36 PDT, repair only the all-five 192-line playfield schedule
+2026-07-31 12:00:36 PDT, repair only the all-five 192-line playfield
 --------------------------------------------------------------------------------
 * Limit renderer implementation changes to
   `libraries/vcs/renderers/all_five_192/all_five_192.c26`; leave every 181-line
@@ -62,7 +55,7 @@ an older decision, regression, or implementation detail.
   ceiling; focused `vcs_all_five_192.pl`, all-five interactive examples,
   multicolor examples, and player-color 192 tests all pass.
 
-2026-07-31 13:02:09 PDT, repair official all-five 181-line playfield schedule
+2026-07-31 13:02:09 PDT, repair official all-five 181-line playfield
 --------------------------------------------------------------------------------
 * Use the verified `vcsc.20260731_120110` all-five 192-line renderer as the
   timing model and change only the official 181-line renderer implementation.
@@ -93,7 +86,7 @@ an older decision, regression, or implementation detail.
   remaining 23 run explicitly; the one standard phase expectation exposed by
   the corrected physical-cycle tracer was updated and rerun successfully.
 
-2026-07-31 13:23:09 PDT, repair unofficial all-five 181-line playfield schedule
+2026-07-31 13:23:09 PDT, repair unofficial all-five 181-line playfield
 --------------------------------------------------------------------------------
 * Use the corrected official `all_five_181` renderer as the exact schedule base
   for `all_five_181_unofficial`. The unofficial source now differs only in its
@@ -226,7 +219,7 @@ an older decision, regression, or implementation detail.
   claim that the full per-scanline object oracle remained unfinished. No
   compiler or renderer source changes are made in this slice.
 
-2026-07-31 16:41:34 PDT, publish measured visible-component handoff contract
+2026-07-31 16:41:34 PDT, publish measured visible-component handoff
 -------------------------------------------------------------------------------
 * Complete roadmap task 22i4b2. The next unfinished roadmap item is 22i4b4,
   the repeatable-template composition proof.
@@ -365,7 +358,7 @@ an older decision, regression, or implementation detail.
   and the remaining 29 passed explicitly, for 200/200 total. Staged
   `make installcheck` passes, including all 40 installed-toolchain matrix builds.
 
-2026-07-31 22:23:08 PDT, repair public score controls and final-link playfield timing
+2026-07-31 22:23:08 PDT, repair public score controls and final-link
 -------------------------------------------------------------------------------
 * Restore the older public six-digit interaction contract for all 16 left- and
   right-justified score cartridges. The edge-score components now own mutable
@@ -402,7 +395,7 @@ an older decision, regression, or implementation detail.
   `make installcheck` also passes, including all 40 installed-toolchain public
   score/gameplay matrix builds.
 
-2026-07-31 23:21:40 PDT, repair all-five final-link timing and right score edge
+2026-07-31 23:21:40 PDT, repair all-five final-link timing and right
 -------------------------------------------------------------------------------
 * Fix the damaged playfield in the official all-five 181-line left-justified-
   score-below and right-justified-score-below public cartridges, plus the

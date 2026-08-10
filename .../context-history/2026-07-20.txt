@@ -1,11 +1,4 @@
-VCSC CONTEXT HISTORY — 2026-07-20
-=================================
-
-Historical development entries for 2026-07-20, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
-2026-07-20 11:18:13 PDT, repair six-digit score rendering and add a clean font
+2026-07-20 11:18:13 PDT, repair six-digit score rendering and add
 ------------------------------------------------------------------------
 * Correct the legacy score renderer's non-linear glyph-pointer layout. The first
   version stored pointers in human display order, but the delayed-player row
@@ -50,7 +43,7 @@ an older decision, regression, or implementation detail.
   Add three obsolete font-wrapper paths to `remove.txt`, now 874 unique paths.
   The retained legacy BASIC subtree remains byte-for-byte unchanged.
 
-2026-07-20 13:53:56 PDT, add visual binary literals and readable score fonts
+2026-07-20 13:53:56 PDT, add visual binary literals and readable score
 ------------------------------------------------------------------------
 * Extend the compiler lexer so binary literals accept `.` as zero and `X`/`x`
   as one after `0b`/`0B`. Strip underscores and normalize visual digits to
@@ -75,7 +68,7 @@ an older decision, regression, or implementation detail.
   renders the centered white score correctly on blue. `remove.txt` now contains
   875 unique paths; the vendored legacy BASIC subtree remains unchanged.
 
-2026-07-20 14:23:16 PDT, remove score-renderer stack tricks and unnecessary upstream naming
+2026-07-20 14:23:16 PDT, remove score-renderer stack tricks
 ------------------------------------------------------------------------
 * Replace both undocumented `LAX` instructions and the temporary use of the
   hardware stack-pointer register in example 03 with a cycle-for-cycle official
@@ -125,7 +118,7 @@ an older decision, regression, or implementation detail.
   4096-byte cartridge checks, and 42 consecutive 262-line NTSC frames.
   `remove.txt` remains at 875 paths; the user's branding-test repair is retained.
 
-2026-07-20 16:59:01 PDT, add shared decimal and hexadecimal score-font catalog
+2026-07-20 16:59:01 PDT, add shared decimal and hexadecimal score-font
 ------------------------------------------------------------------------
 * Move all score-font data out of `examples/03_six_digit_score` into the shared
   installed `libraries/vcs/fonts/` catalog. Remove the example-private
@@ -180,7 +173,7 @@ an older decision, regression, or implementation detail.
   installation builds all four examples as exact 4096-byte cartridges.
   `remove.txt` remains at 876 paths; retained legacy sources are unchanged.
 
-2026-07-20 18:00:31 PDT, share six-glyph timing and restore example-03 default font
+2026-07-20 18:00:31 PDT, share six-glyph timing and restore example-03
 ------------------------------------------------------------------------
 * Diagnose why example 04 reproduced a pixel-bleed bug already repaired in
   example 03: it copied the row loop but reimplemented RESP0/RESP1 positioning
@@ -222,7 +215,7 @@ an older decision, regression, or implementation detail.
   installation, exact 4096-byte cartridge checks, and a Stella 7.0 render of
   `8A55CE`. `remove.txt` remains at 876 paths.
 
-2026-07-20 19:41:27 PDT, queue inline functions and clarify renderer integration
+2026-07-20 19:41:27 PDT, queue inline functions and clarify renderer
 ------------------------------------------------------------------------
 * Add true source-level inline functions as task 20a, ahead of any full legacy
   renderer port. Require direct-call type checking, call-site expansion without
@@ -284,7 +277,7 @@ an older decision, regression, or implementation detail.
   dereferenced pointers in addition to simple variables.
 * The current compiler passes the expanded matrix without code changes.
 
-2026-07-20 22:18:43 PDT, define the first standard-renderer source contract
+2026-07-20 22:18:43 PDT, define the first standard-renderer source
 ------------------------------------------------------------------------
 * Complete task 20b with one deliberately narrow profile under
   `libraries/vcs/renderers/standard_4k_ntsc/`: NTSC, unbanked 4K,
@@ -343,7 +336,7 @@ an older decision, regression, or implementation detail.
   128/128 end-to-end/generic tests, and staged installation with both storage
   choices. The retained legacy source tree and `remove.txt` remain unchanged.
 
-2026-07-20 23:51:55 PDT, hard-split VCSC artifact names and formats from N
+2026-07-20 23:51:55 PDT, hard-split VCSC artifact names and formats
 ------------------------------------------------------------------------
 * Rename all 417 maintained VCSC language sources from the long project suffix
   to `.c26`, including examples, installed headers/modules, fixtures, compile and

@@ -1,10 +1,3 @@
-VCSC CONTEXT HISTORY — 2026-08-06
-=================================
-
-Historical development entries for 2026-08-06, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
 2026-08-06 07:53:22 PDT, split and compact the durable project context
 --------------------------------------------------
 * Move all 276 prior chronological entries out of `.../context.txt` into 21
@@ -29,7 +22,7 @@ an older decision, regression, or implementation detail.
   this container because `bison` is unavailable; it failed before compilation,
   and the clean target's incidental generated-file changes were restored.
 
-2026-08-06 08:09:03 PDT, repair branding test for split developer records
+2026-08-06 08:09:03 PDT, repair branding test for split developer
 --------------------------------------------------
 * Update `test/vcsc_branding.pl` to accept and require the new
   `.../roadmap.txt` file and `.../context-history/` directory introduced by the
@@ -64,7 +57,7 @@ Verification: compile-only 438/438, end-to-end 248/248, focused placement and
 source-hygiene regressions pass, and staged installed-toolchain/installcheck
 passes including final banked cartridge and renderer builds.
 
-2026-08-06 09:58:36 PDT, completed main-roadmap item 24 wide six-glyph score display
+2026-08-06 09:58:36 PDT, completed main-roadmap item 24 wide six-glyph
 --------------------------------------------------
 * Add `libraries/vcs/six_glyph_wide_component.c26` as a separate lifecycle
   component while preserving `six_glyph_component.c26` byte-for-byte. The six
@@ -93,7 +86,7 @@ passes including final banked cartridge and renderer builds.
 - Added `vcs_six_glyph_wide_181.pl`, which verifies the exact score schedule at visible entry lines 40 and 221, the complete P0/P1/Ball/playfield/per-row-color gameplay raster in both draw orders, exact 262-line frames, accounting, public inventory, and dynamic updates.
 - Verified 438/438 compile-only tests, all 250/250 end-to-end tests, recursive public-example builds, source hygiene, and staged installed-toolchain checks.
 
-2026-08-06 10:53:47 PDT, Reduce wide-score RAM with the delayed-player pipeline
+2026-08-06 10:53:47 PDT, Reduce wide-score RAM with the delayed-player
 -----------------------
 - Correct the wide-score RAM design after review showed the original two
   eight-row caches made the 181-line compositions practically useless. Reuse
@@ -108,7 +101,7 @@ passes including final banked cartridge and renderer builds.
   Each links at 3,013 ROM bytes and 114/128 RAM bytes, leaving fourteen bytes
   free. A control-free composition measures 110 RAM bytes.
 
-2026-08-06 11:35:51 PDT, repair interactive inventory and retire deletion ledger
+2026-08-06 11:35:51 PDT, repair interactive inventory and retire
 --------------------------------------------------
 * Update `vcs_interactive_sprite_orientation.pl` for the two added wide-score
   181-line interactive cartridges: recursive discovery now expects and checks
@@ -120,7 +113,7 @@ passes including final banked cartridge and renderer builds.
   suite was run in named slices because renderer-heavy groups exceed the outer
   command timeout; every test is accounted for with no failures.
 
-2026-08-06 12:15:24 PDT, align wide-score 181 examples with the standard interactive contract
+2026-08-06 12:15:24 PDT, align wide-score 181 examples with the standard
 
 * Replace the one-off direct two-joystick controls and alternate playfield/player
   artwork in examples 04/11 and 04/12 with the same Game Select P0/P1/Ball
@@ -157,7 +150,7 @@ passed, with only the unrelated long-running vcs_score_composition_raster.pl
 not completing within the harness window; all affected font/score/logo,
 branding, hygiene, and install-data checks passed.
 
-2026-08-06 14:01:18 PDT, reconcile completed banking work with the main roadmap
+2026-08-06 14:01:18 PDT, reconcile completed banking work with the main
 
 * Audit every unchecked main-roadmap entry against maintained source, public
   examples, installed profiles, and executable regressions rather than relying
@@ -189,7 +182,7 @@ branding, hygiene, and install-data checks passed.
 * Update the compact context and test documentation to record the canonical-path
   invariant.
 
-2026-08-06 15:02:05 PDT, dedicate cartridge libraries and examples to CC0-1.0
+2026-08-06 15:02:05 PDT, dedicate cartridge libraries and examples
 ------------------------------------------------------------
 * Establish one recursive CC0-1.0 policy for `libraries/` and `examples/`, with
   complete legal texts at each tree root and an explicit tree-local CC0 notice
@@ -212,7 +205,7 @@ branding, hygiene, and install-data checks passed.
   runtime, fonts, renderer normalization/inventory, branding, hygiene, and
   staged license installation pass.
 
-2026-08-06 16:35:49 PDT, restore original animated-sprite artwork with local license exception
+2026-08-06 16:35:49 PDT, restore original animated-sprite artwork
 
 Restored the original 120 one-bit silhouettes derived from Quick's PICO-8 Free
 8x8 Sprites cartridge in examples/03_player_color_192/02_animated_sprites.
@@ -227,7 +220,7 @@ full e2e run reached 102 passes before timeout; the 2,400-frame animation oracle
 exact restored 960-byte hash, recursive example build, branding, and hygiene
 checks passed.
 
-2026-08-06 17:14:40 PDT, Repair the missing fourth playback frame in animated set 03
+2026-08-06 17:14:40 PDT, Repair the missing fourth playback frame
 
 The attributed PICO-8 source cartridge contains 29 four-frame animations and one
 three-frame animation at sprites 13, 14, and 15; source sprite 16 is blank. The
@@ -240,7 +233,7 @@ oracle to pin the new 960-byte hash, require all 120 playback slots to be
 nonblank, and require slot 16 to equal source sprite 14. The full 2,400-frame
 animation emulator proof and the public example build pass.
 
-2026-08-06 17:36:38 PDT, restore true three-frame playback for animated set 03
+2026-08-06 17:36:38 PDT, restore true three-frame playback for animated
 
 Restored source sprite 16 to its original blank eight-byte glyph and removed the
 13,14,15,14 duplicated-frame workaround. The animated gallery now keeps two
@@ -257,7 +250,7 @@ recursive example-build, source-hygiene, and branding tests pass. The build also
 completed all 438 compile-only tests before the monolithic e2e command reached
 102 passing tests and hit the execution window.
 
-2026-08-06 18:20:02 PDT, restore source-derived animated sprite row colors
+2026-08-06 18:20:02 PDT, restore source-derived animated sprite row
 
 Decoded the original PICO-8 palette information instead of assigning generic
 fixed palettes to the one-bit silhouettes. For every row of every source frame,
@@ -294,7 +287,7 @@ remeasured after compiler optimization before either is justified. Added the
 focused-roadmap pointers to `.../README.md` and compact context without changing
 the active main-roadmap item.
 
-2026-08-06 19:12:08 PDT, expand RAM roadmap with direct countdown and high-level example goals
+2026-08-06 19:12:08 PDT, expand RAM roadmap with direct countdown
 --------------------------------------------------------------------------------
 * Record that the faithful legacy player-color renderer supports arbitrary P0,
   P1, and Ball vertical positioning without `game_object_masks`, proving the
@@ -353,7 +346,7 @@ phase tests remain stable. Verification completed all 438 compile-only tests and
 all 253 end-to-end tests, including the full score-composition raster matrix.
 RAM-roadmap item 3 is next.
 
-2026-08-06 21:38:32 PDT, Add compact lowering for simple byte state updates
+2026-08-06 21:38:32 PDT, Add compact lowering for simple byte state
 -----------------------
 Completed RAM-optimization roadmap item 3: compact lowering for simple byte
 state updates.
@@ -388,7 +381,7 @@ Documentation:
 * Marked RAM roadmap item 3 complete and made item 4 the active next step.
 * Updated compiler/README.md, test/README.md, and .../context.txt.
 
-2026-08-06 21:39:36 PDT, Advance source-tree hygiene after compact byte-state lowering
+2026-08-06 21:39:36 PDT, Advance source-tree hygiene after compact
 -----------------------
 Advanced test/source_tree_hygiene.pl to require RAM items 0-3 complete and item
 4 active. The clean-tree hygiene gate passes after the documentation update.

@@ -1,23 +1,22 @@
-2026-08-09 05:26:58 UTC, Consolidated official player-color 192/181 renderers into parameterized lines:=192/181/170 source and added 170-line dual-score proof.
-2026-08-09 01:10:36 PDT, Repaired modern multisprite coordinate-dependent raster timing: restored faithful cycle geometry, full legal X/Y movement, page-safe glyph layout, stable 192/181 frames, and exact 123456 score handoffs.
+2026-08-09 01:10:36 PDT, repair multisprite coordinate-dependent timing
 
 2026-08-09 06:09:12 PDT, audited multisprite branch page timing
 
 Reviewed every conditional branch in the modern multisprite renderer against the faithful cycle schedule. All draw-path conditional branches require the three-cycle same-page taken case, so the two remaining bare beam-critical branches (page-wrap BMI and RendererLoopb BPL) are now `.same`; no timing-critical `.cross` edge is required. Noncritical setup/sort/overscan branches remain at the default flexible policy. The multisprite profile regression now locks the complete draw-path branch contract.
-2026-08-09 07:18:24 PDT, repair modern multisprite interactive coordinate semantics and edge stability: joystick Up/Down now follow upward-positive Y, P1 public X=0..159 is phase-corrected across all Y/sort transitions, P0 Y=0 is safely clipped instead of underflowing, and the exhaustive oracle now verifies physical P1 X plus bottom clipping.
-2026-08-09 11:03:51 PDT — Repaired the modern multisprite renderer: bounded packed P1 positioning removes right-edge overrun/jitter, 181 P0 is sort-stable, P1 top reach is restored, Stella pixel placement is independently tested, and the full 472 compile-only plus 267 e2e cases pass.
+2026-08-09 07:18:24 PDT, repair modern multisprite interactive
+2026-08-09 11:03:51 PDT, Repaired the modern multisprite renderer
 
-2026-08-09 11:50:34 PDT, restore persistent 192 multisprite overlap flicker
+2026-08-09 11:50:34 PDT, restore persistent 192 multisprite overlap
 The modern 192 multisprite port had reused the faithful five-byte persistent sort order as packed P1 horizontal-control storage and reset that workspace to identity every VBLANK, so overlapping logical P1 sprites permanently hid the same lower-priority sprite instead of flickering. Added separate five-byte retained sort storage for lines:=192, copy it into/out of SetupP1 before packed-control precomputation, and added a six-frame MOS6502/TIA regression that requires overlapping P1/P2 to alternate visible priority. The pre-repair ROM fails the new oracle; the repaired 192 profile passes while retaining Stella pixel placement and 262-line timing. The 181 overlap/flicker path was intentionally left unchanged for later re-certification.
 
-2026-08-09 11:56:39 PDT, certify 192 overlap repair and restore required legacy fixture
+2026-08-09 11:56:39 PDT, certify 192 overlap repair and restore required
 The repaired 192 multisprite persistent flicker-sort path passes the complete 472 compile-only and 267 e2e suites, including the six-frame overlap alternation regression, and the independent Stella pixel regression still passes. The 18:40:14 input archive had accidentally omitted the faithful-legacy multisprite diagnostic data fixture that current context requires; restored the byte-identical canonical fixture so recursive example builds and the faithful-legacy oracle pass again. The 181 overlap/flicker policy remains intentionally untouched pending separate testing.
-2026-08-09 13:10:51 PDT, restore persistent 181 multisprite overlap flicker
+2026-08-09 13:10:51 PDT, restore persistent 181 multisprite overlap
 The 181 score-above and score-below profiles had the same identity-reset sort regression previously repaired in 192: overlapping logical P1 sprites permanently favored the same winner instead of rotating priority frame-to-frame. Both profiles now retain the five-byte sort order across frames before state[70..74] is reused for packed horizontal controls. A six-frame MOS6502/TIA regression proves the old 181 ROMs stick on logical P2 and the repaired ROMs alternate; both 181 compositions remain raster/timing-correct in the exhaustive profile oracle and Stella pixel test. The 181 public examples are now 3446 ROM / 126 RAM with two RIOT-RAM bytes free. The complete 472 compile-only and 267 e2e suites pass. The user-supplied 19:59:51 archive again omitted the required faithful-legacy multisprite data fixture, so the byte-identical fixture from the immediately preceding handoff was restored.
 
 2026-08-09 16:23:51 PDT, add relocatable Windows cross-build package
 Added top-level `make windows`: it bootstraps native assembler/archiver helpers, recursively cross-builds the normal `tools` target with MinGW-w64 and static link flags, stages the installed support/runtime tree plus editable examples and `vcsc.cmd`, rejects MinGW runtime-DLL imports, and creates a timestamped relocatable zip. Component Makefiles now support `.exe` suffixes and explicit linker flags; the host tools gained the Win32 path/process/temp/string portability needed by the package. Added `WINDOWS.md` and README guidance. Native driver/linker/archiver/simulator builds and `.exe` install probes passed, as did a Win32-driver syntax probe; this sandbox has no bison/flex/MinGW toolchain, so the full suite and real PE cross-build could not be run.
 
-2026-08-09 19:30 PDT — Fixed the 181 multisprite first-rank right-edge discontinuity by replacing wrapped X+9 control lookup with a one-time three-cycle raster-entry phase alignment; Stella now locks top-ranked X=148 in both score-above and score-below compositions.
-2026-08-09 20:45:08 PDT, reduce modern multisprite RIOT-RAM ownership from 86 to 72 module bytes
+2026-08-09 19:30:00 PDT, Fixed the 181 multisprite first-rank right-edge
+2026-08-09 20:45:08 PDT, reduce modern multisprite RIOT-RAM ownership
 Moved five immutable P1 graphics pointers from RIOT RAM to cycle-balanced ROM/immediate loads, removed one dead state byte, folded the P0 bottom-restore flag into the existing scanline mask, inlined one-shot VBLANK wrappers to reduce hidden stack depth, and nibble-packed the exact persistent flicker order. Public 181 score examples now use 110/128 RAM and 192 uses 91/128; focused MOS6502/TIA and Stella pixel regressions pass.

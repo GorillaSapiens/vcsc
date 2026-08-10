@@ -1,11 +1,4 @@
-VCSC CONTEXT HISTORY — 2026-07-23
-=================================
-
-Historical development entries for 2026-07-23, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
-2026-07-23 00:40:05 PDT, decouple editable examples from golden regressions
+2026-07-23 00:40:05 PDT, decouple editable examples from golden
 -----------------------------------------------------------------------------
 * Treat every source under `examples/` as user-facing and editable. Exact ROM,
   map, code-size, stack, timing, raster, palette, graphics, score, music, and
@@ -33,7 +26,7 @@ an older decision, regression, or implementation detail.
   `examples/` tree and `.top_secret/instruction.txt` remain byte-for-byte
   unchanged. No roadmap item is advanced; task 22 remains next.
 
-2026-07-23 01:02:36 PDT, repair displaced and stale Markdown documentation
+2026-07-23 01:02:36 PDT, repair displaced and stale Markdown
 ----------------------------------------------------------------------------
 * Audit all 31 Markdown files in the current tree against their path, primary
   heading, local links, current source/build contracts, and the older archive.

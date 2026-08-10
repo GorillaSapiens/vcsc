@@ -1,10 +1,3 @@
-VCSC CONTEXT HISTORY — 2026-07-21
-=================================
-
-Historical development entries for 2026-07-21, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
 2026-07-21 00:21:00 PDT, clean driver intermediates on failing pipelines
 ------------------------------------------------------------------------
 * Fix the driver so compiler, assembler, or linker failures reached through
@@ -63,7 +56,7 @@ an older decision, regression, or implementation detail.
   renderer source and update the normalization regression and documentation.
 * Keep task 20d as the next queued action.
 
-2026-07-21 08:49:03 PDT, quarantine developer-only records and expand alias notes
+2026-07-21 08:49:03 PDT, quarantine developer-only records and expand
 ------------------------------------------------------------------------
 * Move the still-active project handoff and cumulative removal ledger from the
   repository root to `.top_secret/context.txt` and `.top_secret/remove.txt`.
@@ -85,7 +78,7 @@ an older decision, regression, or implementation detail.
   installation. `.top_secret/remove.txt` now contains 880 cumulative paths.
   Keep task 20d as the next queued action.
 
-2026-07-21 09:31:00 PDT, document and test opcode-config replacement order
+2026-07-21 09:31:00 PDT, document and test opcode-config replacement
 ------------------------------------------------------------------------
 * Document explicitly that mnemonic plus addressing mode is the opcode-table
   key and that repeating that key is silently last-definition-wins, both within
@@ -101,7 +94,7 @@ an older decision, regression, or implementation detail.
   Pass 283/283 compile tests, 132/132 end-to-end/generic tests, and staged
   installation. Keep task 20d as the next queued action.
 
-2026-07-21 11:18:00 PDT, queue inherited runtime-workspace reduction side quest
+2026-07-21 11:18:00 PDT, queue inherited runtime-workspace reduction
 ------------------------------------------------------------------------
 * Add a four-part side quest immediately before task 20: split the monolithic
   runtime workspace into independently linked pieces; replace generic N copy,
@@ -282,7 +275,7 @@ an older decision, regression, or implementation detail.
   installation. `.top_secret/remove.txt` remains at 893 cumulative paths. Task
   20e remains next and was not started.
 
-2026-07-21 21:20:00 PDT, plan page-aware linker and legal-renderer cleanup
+2026-07-21 21:20:00 PDT, plan page-aware linker and legal-renderer
 ------------------------------------------------------------------------
 * Insert tasks 20e through 20s before the gameplay hook and split the work into
   short, independently testable slices. Defer the stack-safe VCSC hook to 20t

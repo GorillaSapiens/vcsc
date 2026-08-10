@@ -1,11 +1,4 @@
-VCSC CONTEXT HISTORY — 2026-08-01
-=================================
-
-Historical development entries for 2026-08-01, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
-2026-08-01 08:48:34 PDT, fix chained discard assignments and close forced-long design question
+2026-08-01 08:48:34 PDT, fix chained discard assignments and close
 -------------------------------------------------------------------------------
 * Fix right-associated assignment chains whose terminal source is discard `_`,
   including `WSYNC := RESP1 := RESP0 := _;`. The compiler now preserves the
@@ -25,7 +18,7 @@ an older decision, regression, or implementation detail.
 * Verification: 337/337 compile-only tests pass, all 201 end-to-end/generic
   tests pass across deterministic splits, and staged `make installcheck` passes.
 
-2026-08-01 09:46:29 PDT, add public 192-line animated-sprite gallery out of roadmap order
+2026-08-01 09:46:29 PDT, add public 192-line animated-sprite gallery out
 -------------------------------------------------------------------------------
 * Correct the stale open-implementation summary: task 22 and all of its
   correctness/composition/public-matrix gates are complete. Task 23 remains the
@@ -57,7 +50,7 @@ an older decision, regression, or implementation detail.
   by a separately staged installed toolchain was run and visually inspected under
   Stella 7.0 in a virtual X display.
 
-2026-08-01 10:08:27 PDT, make animated-sprite gallery traverse the screen
+2026-08-01 10:08:27 PDT, make animated-sprite gallery traverse
 -------------------------------------------------------------------------------
 * Replace the stationary P0/P1 gallery presentation with two vertically separated
   lanes whose players both start at visible X=0 and move right one pixel per NTSC
@@ -78,7 +71,7 @@ an older decision, regression, or implementation detail.
   pass across deterministic splits. Staged make installcheck passes. A cartridge
   built from the final source was run and visually inspected under Stella 7.0.
 
-2026-08-01 11:51:09 PDT, complete animated gallery from the supplied PICO-8 cartridge
+2026-08-01 11:51:09 PDT, complete animated gallery from the supplied
 -------------------------------------------------------------------------------
 * Decode the supplied `42374.p8.png` cartridge using PICO-8's low-bit
   `AA RR GG BB` byte ordering and replace the eight hand-drawn approximations
@@ -113,7 +106,7 @@ an older decision, regression, or implementation detail.
   is byte-identical to the direct build and was run and visually inspected under
   Stella 7.0.
 
-2026-08-01 12:35:09 PDT, make animated row colors follow vertical sprite motion
+2026-08-01 12:35:09 PDT, make animated row colors follow vertical sprite
 -------------------------------------------------------------------------------
 * Apply the supplied patch. Add the top-level `make patch` helper and replace the
   animated example's former solid lane borders with the supplied solid/checker
@@ -145,7 +138,7 @@ an older decision, regression, or implementation detail.
   staged `make installcheck` pass. The final cartridge builds with the staged
   toolchain and was run under Stella 7.0 for visual inspection.
 
-2026-08-01 13:27:32 PDT, record the bankswitching and Superchip implementation plan
+2026-08-01 13:27:32 PDT, record the bankswitching and Superchip
 -------------------------------------------------------------------------------
 * Add `.top_secret/bankswitching.txt` as the detailed internal roadmap for
   main tasks 29 and 30. Lock the full-window starting model around the 6507's
@@ -173,7 +166,7 @@ an older decision, regression, or implementation detail.
   broad end-to-end run passed tests 1 through 122 before the outer command
   window expired. The focused branding and source-tree hygiene tests pass.
 
-2026-08-01 13:45:00 PDT, refine common trampolines and bank placement policy
+2026-08-01 13:45:00 PDT, refine common trampolines and bank placement
 -------------------------------------------------------------------------------
 * Replace the earlier per-target paired-JSR bridge plan in
   `.top_secret/bankswitching.txt` with one byte-identical trampoline table at the
@@ -202,7 +195,7 @@ an older decision, regression, or implementation detail.
 * Verification: all 337 compile-only tests pass. The focused source-tree hygiene
   and hard-rename/branding tests also pass.
 
-2026-08-01 14:10:44 PDT, use named mem regions for explicit function-bank placement
+2026-08-01 14:10:44 PDT, use named mem regions for explicit
 ---------------------------------------------------------------------------------
 * Update `.top_secret/bankswitching.txt` to make the existing named `mem` region
   modifier the sole explicit function-bank spelling. A definition such as
@@ -235,7 +228,7 @@ an older decision, regression, or implementation detail.
   the broad run reached test 160. The focused function-region placement,
   source-tree hygiene, and branding tests pass.
 
-2026-08-01 14:51:45 PDT, add full-bank images and deterministic reset bridges
+2026-08-01 14:51:45 PDT, add full-bank images and deterministic reset
 -------------------------------------------------------------------------------
 * Complete detailed bankswitching roadmap item 2. Extend the strict cfg parser
   with dynamically sized `CARTRIDGE`, `BANKS`, `MEMORY`, and `SEGMENTS` state;
@@ -274,7 +267,7 @@ an older decision, regression, or implementation detail.
   generic tests. The focused 17-test linker/placement/hygiene set and staged
   `make installcheck` also pass.
 
-2026-08-01 15:02:47 PDT, attempt hotspot reversal (incorrect; superseded at 15:44)
+2026-08-01 15:02:47 PDT, attempt incorrect hotspot reversal
 ----------------------------------------------------------------------------------------
 * This entry records an incorrect change which confused VCSC logical BANKn names
   with physical/file bank indices.  The 15:44:41 entry below supersedes it.
@@ -297,7 +290,7 @@ an older decision, regression, or implementation detail.
   logical-name/physical-index assumption and therefore did not establish that
   the mapping was correct.
 
-2026-08-01 15:44:41 PDT, restore physical file hotspot order and disambiguate bank identities
+2026-08-01 15:44:41 PDT, restore physical file hotspot order
 ----------------------------------------------------------------------------------------------
 * Supersede the 15:02 hotspot reversal.  That change confused VCSC's logical
   `BANKn` names with zero-based physical/file bank indices.  For F8/F6/F4, the
@@ -329,7 +322,7 @@ an older decision, regression, or implementation detail.
   groups after outer command-window limits; focused bank-image/reset/hygiene
   tests pass; and staged `make installcheck` passes.
 
-2026-08-01 19:05:40 PDT, bank-aware relocation classification and validation
+2026-08-01 19:05:40 PDT, bank-aware relocation classification
 --------------------------------------------------------------------------------
 * Complete bankswitching roadmap item 4.  Preserve direct-control intent in the
   two previously unused low bits of version-2 o26 relocation types: direct JSR,
@@ -405,7 +398,7 @@ an older decision, regression, or implementation detail.
   reset bridge, relocation/trampoline, and source-hygiene tests pass, and staged
   `make installcheck` passes.
 
-2026-08-01 20:02:55 PDT, add cross-bank JSR trampolines and weighted hardware-stack sizing
+2026-08-01 20:02:55 PDT, add cross-bank JSR trampolines and weighted
 --------------------------------------------------------------------------------
 * Complete detailed bankswitching roadmap item 6. Proven direct cross-bank JSR
   relocations now target a source-aware fifteen-byte entry in the same byte-

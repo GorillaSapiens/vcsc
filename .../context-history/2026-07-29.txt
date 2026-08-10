@@ -1,11 +1,4 @@
-VCSC CONTEXT HISTORY — 2026-07-29
-=================================
-
-Historical development entries for 2026-07-29, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
-2026-07-29 12:17:07 PDT, collapse public renderer examples into four interactive diagnostics
+2026-07-29 12:17:07 PDT, collapse public renderer examples into four
 -------------------------------------------------------------------------------------------
 * Replace the ten separate faithful-legacy, 192-line static/X/X+Y, and 181-line
   score-above/score-below static/X/X+Y example leaves with exactly four public
@@ -58,7 +51,7 @@ an older decision, regression, or implementation detail.
   first 157 passed before the outer runner ceiling and the renderer-heavy tail
   passed in explicit chunks. Staged `make installcheck` passes.
 
-2026-07-29 17:29:09 PDT, filter interactive score controls and cycle digit-selection color
+2026-07-29 17:29:09 PDT, filter interactive score controls and cycle
 --------------------------------------------------------------------------------------
 * Change the right-joystick controls in all three scored interactive diagnostics to
   sample SWCHA only once every ten frames. Pack the ten-frame countdown into the
@@ -115,7 +108,7 @@ an older decision, regression, or implementation detail.
   example-build, six-digit-score, six-glyph-component, and source-tree-hygiene tests
   pass. Staged `make installcheck` passes.
 
-2026-07-29 18:50:22 PDT, add edge-justified score components and recompose fingerprint
+2026-07-29 18:50:22 PDT, add edge-justified score components
 -------------------------------------------------------------------------------------
 * Add fixed-white, eleven-scanline `six_glyph_left_component.c26` and
   `six_glyph_right_component.c26` lifecycle components. Preserve the centered
@@ -145,7 +138,7 @@ an older decision, regression, or implementation detail.
   software-stack-inventory tests pass. Staged `make installcheck` passes using
   the supplied locally unpacked Bison/Flex packages.
 
-2026-07-29 19:14:00 PDT, normalize faithful interactive score digit order
+2026-07-29 19:14:00 PDT, normalize faithful interactive score digit
 ----------------------------------------------------------------------------
 * Preserve the retained faithful legacy renderer's historical score-byte order by
   default so the pristine oracle and exact legacy behavior remain unchanged.
@@ -165,7 +158,7 @@ an older decision, regression, or implementation detail.
   pass. Focused faithful renderer, faithful example, and interactive matrix tests
   pass. Staged `make installcheck` passes.
 
-2026-07-29 19:30:08 PDT, reject empty address bindings on non-ref declarations
+2026-07-29 19:30:08 PDT, reject empty address bindings on non-ref
 -----------------------------------------------------------------------------
 * Treat shorthand `@none` as the same empty read/write address specification as
   `@[none/none]` instead of parsing `none` as an ordinary address identifier.

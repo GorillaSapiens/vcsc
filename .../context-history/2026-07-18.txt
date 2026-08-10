@@ -1,10 +1,3 @@
-VCSC CONTEXT HISTORY — 2026-07-18
-=================================
-
-Historical development entries for 2026-07-18, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
 2026-07-18 15:31:03 PDT, remove residual software stack
 * Gave `_divNle` a private two-byte BSS dividend workspace. The archive member
   and workspace are linked only when division or remainder is used.
@@ -22,7 +15,7 @@ an older decision, regression, or implementation detail.
 * Added three test files and removed `libraries/nlib/asm/sp2ptr.asm`; remove.txt
   now contains 464 unique cumulative paths.
 
-2026-07-18 16:01:27 PDT, shorten scalar return epilogues for VCS zero page
+2026-07-18 16:01:27 PDT, shorten scalar return epilogues for VCS zero
 * Moved hidden one- and two-byte `$$` return objects to `ZEROPAGE` and changed
   the common epilogue to direct loads: `LDA zp; RTS` for 8-bit values and
   `LDA zp; LDX zp+1; RTS` for 16-bit integers and pointers.
@@ -39,7 +32,7 @@ an older decision, regression, or implementation detail.
 * Added two test files and removed none; remove.txt remains at 464 unique
   cumulative paths.
 
-2026-07-18 16:51:21 PDT, record inherited N correctness bugs as required TODOs
+2026-07-18 16:51:21 PDT, record inherited N correctness bugs as required
 * Added task 16c ahead of further functional deletion for two retained compiler
   defects exposed during VCSC reduction.
 * Recorded pointer-pointer subtraction's required `int16_t` result type and
@@ -65,7 +58,7 @@ an older decision, regression, or implementation detail.
   exact 4096-byte cartridge regressions.
 * No files were removed; remove.txt remains at 464 unique cumulative paths.
 
-2026-07-18 19:13:34 PDT, preserve array decay through assignment temporaries
+2026-07-18 19:13:34 PDT, preserve array decay through assignment
 * Changed pointer-targeted array detection to use the source expression's
   original array declarator before lvalue adjustment.
 * Prevented the direct same-type lvalue-copy fast path from copying array bytes

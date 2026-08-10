@@ -1,11 +1,4 @@
-VCSC CONTEXT HISTORY — 2026-07-28
-=================================
-
-Historical development entries for 2026-07-28, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
-2026-07-28 06:40:00 PDT, bounded 181-line renderer integration investigation
+2026-07-28 06:40:00 PDT, bounded 181-line renderer integration
 -------------------------------------------------------------------------------
 Roadmap item 0 — finish the 181-line Stella repair before other unfinished work:
 * Start from `.top_secret/player_color_181_stella_candidate.patch`.  It applies
@@ -33,7 +26,7 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   The candidate is kept only as a standalone patch, so this checkpoint has no
   half-integrated renderer and retains the existing passing behavior.
 
-2026-07-28 00:52:00 PDT, derive and finish the 181-line renderer from the proven 192-line schedule
+2026-07-28 00:52:00 PDT, derive and finish the 181-line renderer
 ---------------------------------------------------------------------------------------------------
 * Replace both 181-line raster bodies with the proven four-write beam schedule
   from the corrected 192-line renderer, changing only the eleven-row limit,
@@ -83,7 +76,7 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   The next line contains the six row-zero source bits at x=32,80,128,176,224,272,
   and every subsequent captured pixel is unchanged.
 
-2026-07-28 09:07:00 PDT, synchronize the unofficial 181-line first-scanline fix and size contract
+2026-07-28 09:07:00 PDT, synchronize the unofficial 181-line
 -------------------------------------------------------------------------------
 * Apply the same setup-scanline repair to the unofficial-enabled 181-line
   renderer: do not prime PF1/PF2 before the first complete timed playfield row.
@@ -99,7 +92,7 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   focused tests also pass. vcs_multicolor_examples passes when run directly;
   batched runs can exceed the test runner's three-second per-test timeout.
 
-2026-07-28 09:35:00 PDT, reorganize public examples by renderer and layout
+2026-07-28 09:35:00 PDT, reorganize public examples by renderer
 -------------------------------------------------------------------------------
 * Replace the flat globally numbered `examples/01_*` through `examples/14_*`
   tree with locally numbered renderer and layout groups:
@@ -154,7 +147,7 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   before the outer command window expired; all path-sensitive VCS tests were
   then run directly and passed.
 
-2026-07-28 21:22:49 PDT, lower BCD decimal-power multiplication division and remainder inline
+2026-07-28 21:22:49 PDT, lower BCD decimal-power multiplication division
 * Added packed-BCD `*`, `/`, `%`, `*=`, `/=`, and `%=` support for positive
   integer constant expressions exactly equal to powers of ten across `bcd8_t`,
   `bcd16_t`, `bcd24_t`, and `bcd32_t`. Multiplication also accepts the constant
@@ -181,7 +174,7 @@ Roadmap item 0 — finish the 181-line Stella repair before other unfinished wor
   execution ceiling, and the remaining 21 were rerun explicitly and passed.
   No files were removed; `.top_secret/remove.txt` is unchanged.
 
-2026-07-28 22:22:07 PDT, add cheap integer and packed-BCD constant arithmetic optimizations
+2026-07-28 22:22:07 PDT, add cheap integer and packed-BCD constant
 --------------------------------------------------------------------------------------------
 * Add general fixed-width integer lowering for multiplication by zero or one,
   division by one, remainder by one, and division/remainder by a positive

@@ -27,7 +27,7 @@ The detailed main-project roadmap and acceptance criteria formerly embedded in `
 
 ### `context-history/`
 
-One chronological development-log file per local work date, named `YYYY-MM-DD.txt`. These files are historical archives and should be opened only when investigating an older decision, regression, or implementation detail—not read wholesale during every handoff.
+One chronological development-log file per local work date, named `YYYY-MM-DD.txt`. These files are historical archives and should be opened only when investigating an older decision, regression, or implementation detail—not read wholesale during every handoff. Entries may have multiline details, but every entry begins with an ASCII-only `YYYY-MM-DD HH:MM:SS PDT, short description` header; the description is at most 50 characters and the complete header is at most 72 characters.
 
 ### `bankswitching.txt`
 

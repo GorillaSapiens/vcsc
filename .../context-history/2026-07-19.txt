@@ -1,10 +1,3 @@
-VCSC CONTEXT HISTORY — 2026-07-19
-=================================
-
-Historical development entries for 2026-07-19, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
 2026-07-19 00:00:00 PDT, make VCS 4K layout the driver default
 * Removed `n65ld`'s compiled-in generic memory map. Direct linker invocation
   now requires `-T FILE`, `--script=FILE`, or a positional `.cfg` and emits a
@@ -58,7 +51,7 @@ an older decision, regression, or implementation detail.
   files were removed; remove.txt remains at 487 cumulative paths, and the
   retained legacy BASIC trees were untouched.
 
-2026-07-19 07:40:01 PDT, preserve valued increment/decrement side effects in all shortcut paths
+2026-07-19 07:40:01 PDT, preserve valued increment/decrement side
 * Confirmed the ordinary assignment bug fixed during BCD work was not the only
   inherited variant. Compact one-byte comparisons could compare `value++`
   correctly while silently skipping the increment; direct byte copies into an
@@ -103,7 +96,7 @@ an older decision, regression, or implementation detail.
 * Passed 251/251 compile tests and 108/108 end-to-end/generic tests, both exact
   4096-byte cartridge regressions, and the staged installation check.
 
-2026-07-19 11:55:11 PDT, replace register returns with callee-owned memory
+2026-07-19 11:55:11 PDT, replace register returns with callee-owned
 * Replaced the A:X scalar/pointer return ABI with exact-sized hidden
   `function$__return` zero-page objects owned by each value-returning function.
   One- and two-byte binary values, pointers, and one-, two-, or three-byte BCD
@@ -269,7 +262,7 @@ Before returning another modified archive:
   install check builds both exact 4096-byte cartridges. `remove.txt` remains at
   871 unique paths, and the retained legacy BASIC trees are unchanged.
 
-2026-07-19 17:43:50 PDT, inventory legacy renderers and improve example colors
+2026-07-19 17:43:50 PDT, inventory legacy renderers and improve example
 ------------------------------------------------------------------------
 * Inventory the retained standard and multisprite legacy BASIC source in
   `libraries/vcs/LEGACY_RENDERER_CONVERSION.md`: 29 source files and 5,471 lines

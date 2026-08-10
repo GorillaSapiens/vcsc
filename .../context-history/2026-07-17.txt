@@ -1,10 +1,3 @@
-VCSC CONTEXT HISTORY — 2026-07-17
-=================================
-
-Historical development entries for 2026-07-17, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
 2026-07-17 00:21:13 PDT, floating-point purge
 * Removed floating-point literal AST/constant handling, type-style handling,
   code generation, initializer packing, comparison/arithmetic lowering, and
@@ -68,7 +61,7 @@ an older decision, regression, or implementation detail.
   reduction; recorded the tagline "a brutally pared-down Atari VCS C-like
   compiler" as the final task-list item.
 
-2026-07-17 10:43:22 PDT, typedef aliases, ROM strings, and first 4K cartridge
+2026-07-17 10:43:22 PDT, typedef aliases, ROM strings, and first 4K
 * Added simple transparent `typedef ExistingType Alias;` declarations. `int`,
   `char`, and `bool` are ordinary identifiers and may be aliases rather than
   built-ins.
@@ -172,7 +165,7 @@ an older decision, regression, or implementation detail.
   to task 17.
 * Documentation only; no source, tests, build files, or remove.txt paths changed.
 
-2026-07-17 13:53:58 PDT, call-graph stack sizing and source-level music player
+2026-07-17 13:53:58 PDT, call-graph stack sizing and source-level music
 * Replaced the fixed 32-byte VCS hardware-stack partition with linker-side
   whole-program call-graph sizing. A `callstack = callgraph` MEMORY region is
   shortened from the top by four bytes per maximum function level: two return
@@ -233,7 +226,7 @@ an older decision, regression, or implementation detail.
   exact 4096-byte cartridges.
 * No files were removed; remove.txt remains at 462 unique cumulative paths.
 
-2026-07-17 15:31:37 PDT, lifetime-pooled scratch and common indexed address reuse
+2026-07-17 15:31:37 PDT, lifetime-pooled scratch and common indexed
 * Replaced the per-site temporary-symbol families with depth-indexed
   `__n65_scratch_N` pools scoped to each function/translation-unit context.
   Sequential expressions reuse a slot, nested expressions receive deeper slots,

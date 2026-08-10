@@ -1,11 +1,4 @@
-VCSC CONTEXT HISTORY — 2026-07-26
-=================================
-
-Historical development entries for 2026-07-26, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
-2026-07-26 00:40:00 PDT, add faithful retained player-color template baseline
+2026-07-26 00:40:00 PDT, add faithful retained player-color template
 -------------------------------------------------------------------------------
 * Select the simplest useful retained legacy profile: NTSC unbanked 4K P0/P1/
   Ball with per-row player colors and the integrated six-digit score. Preserve
@@ -173,7 +166,7 @@ an older decision, regression, or implementation detail.
   covered with no product failures. No files are removed; leave roadmap task
   22i4b1a next.
 
-2026-07-26 13:27:40 PDT, add extensible compile-time RGB builtin framework
+2026-07-26 13:27:40 PDT, add extensible compile-time RGB builtin
 -------------------------------------------------------------------------------
 * Add the compiler-owned `__builtin_ntsc_rgb(r,g,b)` constant expression. Each
   argument must be a compile-time integer in `0..255`; the result is a
@@ -203,7 +196,7 @@ an older decision, regression, or implementation detail.
   comment, covering all 184 end-to-end tests with no product failures. No files
   are removed; leave roadmap task 22i4b1a next.
 
-2026-07-26 14:17:15 PDT, add poison debug score probes and linker RAM accounting
+2026-07-26 14:17:15 PDT, add poison debug score probes and linker RAM
 -------------------------------------------------------------------------------
 * Add installed `renderers/poison_debug_score/poison_debug_score.c26`, a zero-RAM
   deterministic adversarial eleven-line score-profile component. It paints a
@@ -237,7 +230,7 @@ an older decision, regression, or implementation detail.
   is 187, and pass that additional test separately. Thus all 187 end-to-end
   tests are covered with no product failures.
 
-2026-07-26 15:49:42 PDT, repair player-color/score handoff and terminal paths
+2026-07-26 15:49:42 PDT, repair player-color/score handoff and terminal
 -------------------------------------------------------------------------------
 * Standardize the maintained NTSC visible-component boundary: the scheduler's
   VBLANK exit supplies cycle 3 to the first component, every visible component
@@ -280,7 +273,7 @@ an older decision, regression, or implementation detail.
   test gates, pass them directly, and pass the remaining thirteen tests 13/13.
   Thus all 187 end-to-end tests are covered with no product failures.
 
-2026-07-26 16:38:24 PDT, repair examples 03/04 standalone component entry
+2026-07-26 16:38:24 PDT, repair examples 03/04 standalone component
 -------------------------------------------------------------------------------
 * Reproduce the visible regressions in examples 03 and 04 under Stella 7.0:
   the first five glyphs appear at the left edge while the sixth wraps to the
@@ -312,7 +305,7 @@ an older decision, regression, or implementation detail.
   `installcheck`, and final source-tree hygiene. No source files are removed;
   keep the broader 22i4b all-object pixel matrix open.
 
-2026-07-26 17:13:18 PDT, rebuild public examples as a thirteen-cartridge matrix
+2026-07-26 17:13:18 PDT, rebuild public examples as a thirteen-cartridge
 --------------------------------------------------------------------------------
 * Replace the historical public-example grab bag with an ordered progression:
   `01_blank_screen`, `02_ode_to_joy`, `03_score`, `04_fingerprint`, followed by

@@ -1,11 +1,4 @@
-VCSC CONTEXT HISTORY — 2026-08-02
-=================================
-
-Historical development entries for 2026-08-02, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
-2026-08-02 10:59:18 PDT, repair stale frame-pointer-removal stack assertion
+2026-08-02 10:59:18 PDT, repair stale frame-pointer-removal stack
 ----------------------------------------------------------------------------
 * Fix `test/fp_removed.pl`, which still required the pre-bankswitching source
   spelling `bytes = (uint32_t)depth * 2u`.  Bankswitching roadmap item 6
@@ -70,7 +63,7 @@ an older decision, regression, or implementation detail.
   and source-hygiene tests pass.  Staged `make installcheck` passes using the
   supplied bison/flex packages.
 
-2026-08-02 12:33:41 PDT, certify the installed F8 profile and record explicit bank duplication
+2026-08-02 12:33:41 PDT, certify the installed F8 profile and record
 ------------------------------------------------------------------------------------------------
 * Complete detailed bankswitching roadmap item 8 by adding the public installed
   `libraries/vcs/vcs_8k_f8.cfg` profile.  It uses VCSC BANK1 at `$D000` as
@@ -121,7 +114,7 @@ an older decision, regression, or implementation detail.
   profile, test, Makefile, fixture, and documentation changes rather than a
   gratuitous rebuild of every host tool.
 
-2026-08-02 13:46:34 PDT, certify public F6/F4 profiles and lock Superchip allocation spelling
+2026-08-02 13:46:34 PDT, certify public F6/F4 profiles and lock
 ------------------------------------------------------------------------------------------------
 * Complete detailed bankswitching roadmap item 9 by adding the public installed
   `libraries/vcs/vcs_16k_f6.cfg` and `libraries/vcs/vcs_32k_f4.cfg` profiles
@@ -160,7 +153,7 @@ an older decision, regression, or implementation detail.
 * Detailed bankswitching roadmap item 10, fully bank-aware archive/listing/map
   and simulator execution, is next.
 
-2026-08-02 14:20:00 PDT, require Stella diagnostic carts for banking and Superchip
+2026-08-02 14:20:00 PDT, require Stella diagnostic carts for banking
 ----------------------------------------------------------------------------------
 * Expand detailed bankswitching roadmap item 10 so Stella is the authoritative
   independent end-to-end execution test for F8/F6/F4 and later F8SC/F6SC/F4SC
@@ -181,7 +174,7 @@ an older decision, regression, or implementation detail.
   cannot silently regress.  Detailed roadmap item 10 remains the next unfinished
   bankswitching action.
 
-2026-08-02 17:12:04 PDT, complete bank-aware simulator and Stella mapper certification
+2026-08-02 17:12:04 PDT, complete bank-aware simulator and Stella mapper
 ---------------------------------------------------------------------------------------
 * Continue from `vcsc.20260802_142216.tar.gz` and complete detailed
   bankswitching roadmap item 10.  Archive selection remains lazy and now has a
@@ -227,7 +220,7 @@ an older decision, regression, or implementation detail.
   snapshots grade as PASS.  The next detailed bankswitching action is roadmap
   item 11, explicit-ref F8SC/F6SC/F4SC profiles.
 
-2026-08-02 17:30:54 PDT, replace unnecessary Python Stella helpers with Perl
+2026-08-02 17:30:54 PDT, replace unnecessary Python Stella helpers
 --------------------------------------------------------------------------------
 * Remove the two Python files introduced for the headless Stella bank-switching
   certification.  Neither job requires Python: PNG grading now uses a compact
@@ -251,7 +244,7 @@ an older decision, regression, or implementation detail.
   new Perl helpers, and the ordinary 84-image simulator matrix plus source-tree
   hygiene pass.
 
-2026-08-02 17:48:48 PDT, fix diagnostic-example nested command substitutions
+2026-08-02 17:48:48 PDT, fix diagnostic-example nested command
 -----------------------------------------------------------------------------
 * Fix `examples/09_bankswitching/01_diagnostic/Makefile`: its output-stem recipes
   nested legacy backtick substitutions.  `/bin/sh` therefore parsed source-bank
@@ -266,7 +259,7 @@ an older decision, regression, or implementation detail.
   rejects shell `not found` diagnostics, and rejects empty-stem hidden sidecars.
   Update test documentation and source-tree hygiene to retain the regression.
 
-2026-08-02 22:24:49 PDT, complete explicit-ref Superchip cartridge profiles
+2026-08-02 22:24:49 PDT, complete explicit-ref Superchip cartridge
 ----------------------------------------------------------------------------
 * Continue from `vcsc.20260802_175058.tar.gz` and complete detailed
   bankswitching roadmap item 11. Add and install `vcs_8k_f8sc.cfg`,

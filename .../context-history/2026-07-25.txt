@@ -1,11 +1,4 @@
-VCSC CONTEXT HISTORY — 2026-07-25
-=================================
-
-Historical development entries for 2026-07-25, in chronological order. These files
-are archives, not the default project handoff. Read them only when investigating
-an older decision, regression, or implementation detail.
-
-2026-07-25 00:24:00 PDT, compact deadline handling and complete NTSC scheduler tests
+2026-07-25 00:24:00 PDT, compact deadline handling and complete NTSC
 -------------------------------------------------------------------------------
 * Revise roadmap task 22g2 so `vcs_ntsc_end_vblank()` and
   `vcs_ntsc_end_overscan()` return `void`. A missed deadline cannot recover lost
@@ -51,7 +44,7 @@ an older decision, regression, or implementation detail.
   unchanged until 22h2 proves one-instance raster/timing equivalence and both
   draw orders. Do not begin that migration in this timebox.
 
-2026-07-25 01:42:00 PDT, prove reversible six-glyph composition contracts
+2026-07-25 01:42:00 PDT, prove reversible six-glyph composition
 -------------------------------------------------------------------------------
 * Complete roadmap slice 22h2a. Add a reversed two-instance fixture which draws
   the lower score before the upper score while retaining independent component
@@ -103,7 +96,7 @@ an older decision, regression, or implementation detail.
   runtime, library, renderer, component, example, cartridge, or roadmap behavior
   changes. Task 22h2b2 remains next.
 
-2026-07-25 08:29:00 PDT, migrate fingerprint and retire legacy six-glyph module
+2026-07-25 08:29:00 PDT, migrate fingerprint and retire legacy six-glyph
 -------------------------------------------------------------------------------
 * Complete roadmap task 22h2b2 and therefore tasks 22h2b and 22h. Migrate the
   editable fingerprint example and its private golden fixture to
@@ -144,7 +137,7 @@ an older decision, regression, or implementation detail.
   and documentation. Split the remaining 22i work into extraction/composition/
   retirement slices while leaving both working monoliths unchanged for oracles.
 
-2026-07-25 09:29:31 PDT, lock gameplay profile matrix and blank-phase WSYNC contract
+2026-07-25 09:29:31 PDT, lock gameplay profile matrix and blank-phase
 -------------------------------------------------------------------------------
 * Complete roadmap task 22i2a. Replace the open-ended shorter-gameplay choice
   with an exact family contract for both maintained gameplay renderers: an
@@ -195,7 +188,7 @@ an older decision, regression, or implementation detail.
   builds the same 4K fixture. Leave 22i2c next for score-above/score-below static
   and motion composition plus explicit gameplay-only score-cost evidence.
 
-2026-07-25 10:46:00 PDT, prove all-five score composition and fix M0 restoration
+2026-07-25 10:46:00 PDT, prove all-five score composition and fix M0
 -------------------------------------------------------------------------------
 * Complete roadmap task 22i2c. Add static and asynchronous-motion fixtures for
   both explicit visible orders: eleven-line score above 181-line gameplay and
@@ -220,7 +213,7 @@ an older decision, regression, or implementation detail.
   the complete run and final two-test continuation, plus staged installation and
   source-tree hygiene.
 
-2026-07-25 12:08:00 PDT, add official all-five 192-line scoreless component
+2026-07-25 12:08:00 PDT, add official all-five 192-line scoreless
 
 * Complete roadmap task 22i2d. Add and install the distinct repeatable
   `renderers/all_five_192/all_five_192.c26` official-opcode lifecycle component.
@@ -236,7 +229,7 @@ an older decision, regression, or implementation detail.
   omission, source-tree, and staged-installation evidence. Leave 22i2e next for
   the matched 181-line unofficial-opcode experiment and linked-byte comparison.
 
-2026-07-25 12:16:54 PDT, complete matched all-five unofficial-opcode experiment
+2026-07-25 12:16:54 PDT, complete matched all-five unofficial-opcode
 -------------------------------------------------------------------------------
 * Complete roadmap task 22i2e and therefore 22i2. Add and install the separately
   named `renderers/all_five_181_unofficial/all_five_181_unofficial.c26` twin.
@@ -256,7 +249,7 @@ an older decision, regression, or implementation detail.
   opcode set, and extend source/staged installation coverage.
 * Leave 22i3 next for the P0+P1+BL per-row-player-color profile family.
 
-2026-07-25 12:47:27 PDT, extract official 181-line player-color component
+2026-07-25 12:47:27 PDT, extract official 181-line player-color
 -------------------------------------------------------------------------------
 * Complete roadmap task 22i3a. Add and install the repeatable official-opcode
   `renderers/player_color_181/player_color_181.c26` lifecycle component for P0,
@@ -295,7 +288,7 @@ an older decision, regression, or implementation detail.
   installation to build all four composition fixtures. Leave 22i3c next for the
   distinct official-opcode 192-line scoreless player-color component.
 
-2026-07-25 13:56:00 PDT, add official player-color 192-line scoreless component
+2026-07-25 13:56:00 PDT, add official player-color 192-line scoreless
 -------------------------------------------------------------------------------
 * Complete roadmap task 22i3c. Add and install the distinct repeatable official-
   opcode `renderers/player_color_192/player_color_192.c26` lifecycle component.
@@ -312,7 +305,7 @@ an older decision, regression, or implementation detail.
 * Leave 22i3d next for the matched 181-line unofficial-opcode experiment and
   exact linked-byte comparison.
 
-2026-07-25 14:40:00 PDT, complete matched player-color unofficial experiment
+2026-07-25 14:40:00 PDT, complete matched player-color unofficial
 -------------------------------------------------------------------------------
 * Complete roadmap task 22i3d and therefore 22i3. Add and install the separately
   named `renderers/player_color_181_unofficial/player_color_181_unofficial.c26`
@@ -335,7 +328,7 @@ an older decision, regression, or implementation detail.
   across the complete run and final three-test continuation, plus staged
   installation, branding, and source-tree hygiene.
 
-2026-07-25 15:28:00 PDT, migrate gameplay examples to lifecycle components
+2026-07-25 15:28:00 PDT, migrate gameplay examples to lifecycle
 -------------------------------------------------------------------------------
 * Complete roadmap task 22i4a. Replace editable examples 05 through 08 with the
   already-proven official lifecycle-component fixtures. Examples 05 and 07 draw
@@ -372,7 +365,7 @@ an older decision, regression, or implementation detail.
   regression. Focused Ode, fingerprint, six-glyph, all-five timing, and source
   hygiene tests pass.
 
-2026-07-25 16:40:00 PDT, freeze new renderers for visible-component correctness gate
+2026-07-25 16:40:00 PDT, freeze new renderers for visible-component
 -------------------------------------------------------------------------------
 * Capture the corrected composition model. Big gameplay renderers remain complete,
   indivisible draw components; arbitrary vertical placement means arranging short
@@ -459,7 +452,7 @@ an older decision, regression, or implementation detail.
   capture: top, internal, and bottom playfield edges are straight. Keep the
   player-color row-entry and both special twelfth-row paths open.
 
-2026-07-25 22:27:00 PDT, add visual playfield rows and repair examples 05/06 setup artifact
+2026-07-25 22:27:00 PDT, add visual playfield rows and repair examples
 ------------------------------------------------------------------------------------------
 * Add installed `libraries/vcs/playfield.c26` with compile-time
   `VCS_PLAYFIELD_ROW()` and `VCS_REVERSE8()` aliases. A 32-bit visual-binary

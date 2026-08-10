@@ -61,17 +61,22 @@ Every meaningful completed change or decision gets an entry in that day's file:
     .../context-history/YYYY-MM-DD.txt
 
 Create the file when the first entry is written that day. Entries are oldest
-first and begin with a complete America/Vancouver local timestamp exactly as:
+first. Each entry may contain any number of continuation/detail lines, but its first
+line is a strictly formatted ASCII header:
 
-    YYYY-MM-DD HH:MM:SS TZ, entry title
+    YYYY-MM-DD HH:MM:SS PDT, short description
 
-The text after the comma is mandatory. Keep it short, standalone, and descriptive;
-do not leave a timestamp-only header and do not use roadmap-item/task numbers as the
-entry title shorthand.
+The description is mandatory and at most 50 characters. The complete header line is
+at most 72 characters and contains ASCII only. Continuation/detail lines are not
+subject to those length or ASCII restrictions. Do not leave a timestamp-only header
+and do not use roadmap-item/task numbers as the entry-title shorthand.
 
-Generate it with:
+Generate the timestamp with:
 
     TZ=America/Vancouver date "+%Y-%m-%d %H:%M:%S %Z"
+
+During the project's current summer work this must produce `PDT`; the history-format
+regression deliberately requires `PDT` in entry headers.
 
 Never put a growing changelog back into this file. Update the current-state
 sections here and append the historical narrative only to the daily history.
