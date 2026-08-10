@@ -590,10 +590,12 @@ one-page cutoff cannot silently return.
 Main-roadmap item 28 is complete, including the post-integration Stella-visible
 multisprite timing repair. `libraries/vcs/renderers/multisprite/multisprite.c26` is the
 single modern source, with required `parameter lines;` and calibrated `lines:=192` /
-`lines:=181` profiles. The common renderer owns 79 retained-state bytes plus two public
-P0 bytes = 81 RIOT-RAM bytes and declares four bytes of hidden hardware-stack depth.
-Both profiles additionally own a five-byte persistent flicker-sort order, for 86
-module bytes total. The renderer retains
+`lines:=181` profiles. The common renderer now owns 67 retained-state bytes plus two public P0 bytes and
+three bytes of nibble-packed persistent flicker-sort state = **72 module RIOT-RAM
+bytes**, and declares two bytes of hidden hardware-stack depth. Five immutable P1
+graphics pointers that formerly consumed ten RIOT-RAM bytes are now represented by
+fixed ROM low offsets plus the common aligned graphics-page high byte at identical
+beam timing. The renderer retains
 stable/common NMOS `LAX` plus the faithful TXS/PHP enable pipeline, so users assemble
 it with `-Wa,--illegals`. The 192 profile uses logical height 95; the 181 profile uses
 logical height 89 and a faithful two-line divide-by-15 P0 reposition handoff. The port
@@ -640,9 +642,12 @@ left/interior/right-edge positions, natural X=159 wrap/clipping, top-edge reach,
 181 top-rank X=143..151 discontinuity (X=148 explicitly locked in both score orders),
 181 P0 sort-invariant X, and the P0 Y=0 no-stripe case. The MOS6502/TIA regressions also force logical P1/P2 onto the same vertical band for six
 consecutive frames in every profile and require the visible winner to alternate every
-frame; the old identity-reset builds fail this check. The score oracle still locks `123456` above and below gameplay. Current public
-sizes are 2871 ROM / 107 RAM for 192 and 3426 ROM / 126 RAM for each 181 score
-composition. Main-roadmap items 29 and 30 and
+frame; the old identity-reset builds fail this check. The score oracle still locks `123456` above and below gameplay. Current public sizes after the renderer-local RAM cleanup are **2838 ROM / 91 RAM**
+for 192 and **3393 ROM / 110 RAM** for each 181 score composition. The 181 reduction
+from 126 to 110 total RAM comes from ten fixed graphics-pointer bytes moved to ROM, one
+dead state byte removed, one P0-bottom guard bit folded into the existing mask, two
+hardware-stack bytes recovered by inlining one-shot VBLANK wrappers, and two bytes
+recovered by nibble-packing the exact persistent sort permutation. Main-roadmap items 29 and 30 and
 the completed bankswitching sub-roadmap remain closed. No new main-roadmap item has
 been selected after item 28.
 

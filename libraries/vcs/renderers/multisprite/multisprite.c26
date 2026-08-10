@@ -19,8 +19,8 @@ alias TEMPLATE_PLAYER1_MAX_Y 92
 alias TEMPLATE_PLAYFIELD_ROWS 6
 alias TEMPLATE_DRAW_HMOVE_COUNT_VALUE 5
 alias TEMPLATE_DRAW_SUCCESSOR_VALUE 0
-alias TEMPLATE_PERSISTENT_SORT_BYTES 5
-alias TEMPLATE_MODULE_RAM_BYTES_VALUE 86
+alias TEMPLATE_PERSISTENT_SORT_BYTES 3
+alias TEMPLATE_MODULE_RAM_BYTES_VALUE 72
 #elif TEMPLATE_lines == 181
 alias TEMPLATE_LOGICAL_HEIGHT 89
 alias TEMPLATE_PF_ROW_MAX 5
@@ -31,8 +31,8 @@ alias TEMPLATE_PLAYER1_MAX_Y 86
 alias TEMPLATE_PLAYFIELD_ROWS 6
 alias TEMPLATE_DRAW_HMOVE_COUNT_VALUE 6
 alias TEMPLATE_DRAW_SUCCESSOR_VALUE 1
-alias TEMPLATE_PERSISTENT_SORT_BYTES 5
-alias TEMPLATE_MODULE_RAM_BYTES_VALUE 86
+alias TEMPLATE_PERSISTENT_SORT_BYTES 3
+alias TEMPLATE_MODULE_RAM_BYTES_VALUE 72
 #else
 extern const uint8_t TEMPLATE_pf1[TEMPLATE_lines_must_be_181_or_192];
 #endif
@@ -57,7 +57,7 @@ enum TEMPLATE_contract {
    TEMPLATE_PLAYFIELD_BYTES := 12,
    TEMPLATE_GRAPHICS_BYTES := 145,
    TEMPLATE_GRAPHICS_DATA_OFFSET := 96,
-   TEMPLATE_STATE_BYTES := 79,
+   TEMPLATE_STATE_BYTES := 67,
    TEMPLATE_PUBLIC_EXTRA_BYTES := 2,
    TEMPLATE_PERSISTENT_SORT_STORAGE := TEMPLATE_PERSISTENT_SORT_BYTES,
    TEMPLATE_MODULE_RAM_BYTES := TEMPLATE_MODULE_RAM_BYTES_VALUE
@@ -66,13 +66,13 @@ enum TEMPLATE_contract {
 alias TEMPLATE_SPRITE_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 alias TEMPLATE_PLAYER0_GLYPH(a,b,c,d,e,f,g,h) 0,h,g,f,e,d,c,b,a
 
-uint8_t TEMPLATE_state[79];
+uint8_t TEMPLATE_state[67];
 uint8_t TEMPLATE_player0_color;
 uint8_t TEMPLATE_player0_nusiz;
-// The faithful flicker-sort order is frame-persistent. state[70..74] must be
-// reused for packed horizontal controls before draw(), so both timing profiles
-// keep the evolving sort order in a separate five-byte retained array.
-uint8_t TEMPLATE_sprite_sort[5];
+// The faithful flicker-sort order is frame-persistent. state[60..64] is
+// reused for packed horizontal controls before draw(), so retain the exact
+// five-value permutation nibble-packed in three bytes between frames.
+uint8_t TEMPLATE_sprite_sort[3];
 
 alias TEMPLATE_PLAYER0_X TEMPLATE_state[4]
 alias TEMPLATE_PLAYER1_X TEMPLATE_state[5]
@@ -92,12 +92,12 @@ alias TEMPLATE_BALL_X TEMPLATE_state[2]
 alias TEMPLATE_MISSILE0_Y TEMPLATE_state[10]
 alias TEMPLATE_MISSILE1_Y TEMPLATE_state[11]
 alias TEMPLATE_BALL_Y TEMPLATE_state[12]
-alias TEMPLATE_PLAYER0_HEIGHT TEMPLATE_state[48]
-alias TEMPLATE_PLAYER1_HEIGHT TEMPLATE_state[49]
-alias TEMPLATE_PLAYER2_HEIGHT TEMPLATE_state[50]
-alias TEMPLATE_PLAYER3_HEIGHT TEMPLATE_state[51]
-alias TEMPLATE_PLAYER4_HEIGHT TEMPLATE_state[52]
-alias TEMPLATE_PLAYER5_HEIGHT TEMPLATE_state[53]
+alias TEMPLATE_PLAYER0_HEIGHT TEMPLATE_state[38]
+alias TEMPLATE_PLAYER1_HEIGHT TEMPLATE_state[39]
+alias TEMPLATE_PLAYER2_HEIGHT TEMPLATE_state[40]
+alias TEMPLATE_PLAYER3_HEIGHT TEMPLATE_state[41]
+alias TEMPLATE_PLAYER4_HEIGHT TEMPLATE_state[42]
+alias TEMPLATE_PLAYER5_HEIGHT TEMPLATE_state[43]
 alias TEMPLATE_PLAYER1_NUSIZ TEMPLATE_state[19]
 alias TEMPLATE_PLAYER2_NUSIZ TEMPLATE_state[20]
 alias TEMPLATE_PLAYER3_NUSIZ TEMPLATE_state[21]
@@ -146,6 +146,15 @@ page const uint8_t TEMPLATE_player_position_table[160] := {
    0xfa,0xea,0xda,0xca,0xba,0xaa,0x9a,0x8a,0x40,0x30,0x20,0x10,0x00,0xf0,0xe0,0xd0
 };
 
+// The five multiplexed glyphs all live in the same caller-supplied
+// align(256) graphics block. Their low bytes are therefore fixed offsets and
+// need no RIOT storage. The raster loads the low byte from this ROM table and
+// uses an immediate common high byte; a balancing NOP keeps the high-byte path
+// at the same four cycles as the former zero-page,X RAM load.
+page const uint8_t TEMPLATE_player_graphics_lo[5] := {
+   105,113,121,129,137
+};
+
 
 require inline void TEMPLATE_init(void) {
    asm lda #<{TEMPLATE_graphics + 96};
@@ -153,64 +162,45 @@ require inline void TEMPLATE_init(void) {
    asm lda #>{TEMPLATE_graphics + 96};
    asm sta TEMPLATE_state + 35;
    asm lda #<TEMPLATE_pf1;
-   asm sta TEMPLATE_state + 59;
+   asm sta TEMPLATE_state + 49;
    asm lda #>TEMPLATE_pf1;
-   asm sta TEMPLATE_state + 60;
+   asm sta TEMPLATE_state + 50;
    asm lda #<TEMPLATE_pf2;
-   asm sta TEMPLATE_state + 61;
+   asm sta TEMPLATE_state + 51;
    asm lda #>TEMPLATE_pf2;
-   asm sta TEMPLATE_state + 62;
-   asm ldx #4;
-   asm @TEMPLATE_SeedP1SortOrderLoop:;
-   asm txa;
-   asm sta.zx TEMPLATE_sprite_sort,X;
-   asm dex;
-   asm bpl @TEMPLATE_SeedP1SortOrderLoop;
+   asm sta TEMPLATE_state + 52;
+   // Packed identity permutation {0,1,2,3,4}: low nibble first.
+   asm lda #$10;
+   asm sta TEMPLATE_sprite_sort;
+   asm lda #$32;
+   asm sta TEMPLATE_sprite_sort + 1;
+   asm lda #$04;
+   asm sta TEMPLATE_sprite_sort + 2;
    // Retain the faithful 3-cycle zero-page AND timing in the visible raster.
-   TEMPLATE_state[76] := 15;
+   TEMPLATE_state[66] := 15;
    TEMPLATE_state[29] := 0;
    TEMPLATE_state[30] := 1;
    TEMPLATE_state[31] := 2;
    TEMPLATE_state[32] := 3;
    TEMPLATE_state[33] := 4;
-   asm lda #<{TEMPLATE_graphics + 105};
-   asm sta TEMPLATE_state + 38;
-   asm lda #>{TEMPLATE_graphics + 105};
-   asm sta TEMPLATE_state + 43;
-   asm lda #<{TEMPLATE_graphics + 113};
-   asm sta TEMPLATE_state + 39;
-   asm lda #>{TEMPLATE_graphics + 113};
-   asm sta TEMPLATE_state + 44;
-   asm lda #<{TEMPLATE_graphics + 121};
-   asm sta TEMPLATE_state + 40;
-   asm lda #>{TEMPLATE_graphics + 121};
-   asm sta TEMPLATE_state + 45;
-   asm lda #<{TEMPLATE_graphics + 129};
-   asm sta TEMPLATE_state + 41;
-   asm lda #>{TEMPLATE_graphics + 129};
-   asm sta TEMPLATE_state + 46;
-   asm lda #<{TEMPLATE_graphics + 137};
-   asm sta TEMPLATE_state + 42;
-   asm lda #>{TEMPLATE_graphics + 137};
-   asm sta TEMPLATE_state + 47;
 }
 
 require inline void TEMPLATE_vblank(void) {
-   asm .callstackextra 4;
-   // P0 Y=0 is the fully clipped bottom position.  The retained legacy setup
-   // begins with DEC player0y, so bias only that value to 1 for the internal
-   // frame and remember to restore the public zero in overscan.  Without this
-   // guard the DEC underflows to 255 and turns the P0 sentinel into a full-
-   // height stripe.
+   asm .callstackextra 2;
+   // P0 Y=0 is the fully clipped bottom position. The retained setup begins
+   // with DEC player0y, so bias only that value to 1 for the internal frame.
+   // The otherwise-constant low-nibble mask in state[66] carries the restore
+   // flag in bit 7: visible-raster Y is always below 128, so $0F and $8F are
+   // identical for every timing-critical AND while avoiding a separate byte.
    asm lda TEMPLATE_state + 13;
    asm bne @TEMPLATE_P0YReady;
    asm inc TEMPLATE_state + 13;
-   asm lda #1;
-   asm sta TEMPLATE_state + 78;
+   asm lda #$8f;
+   asm sta TEMPLATE_state + 66;
    asm jmp @TEMPLATE_P0YGuardDone;
    asm @TEMPLATE_P0YReady:;
-   asm lda #0;
-   asm sta TEMPLATE_state + 78;
+   asm lda #$0f;
+   asm sta TEMPLATE_state + 66;
    asm @TEMPLATE_P0YGuardDone:;
 
 #if TEMPLATE_lines == 181
@@ -224,32 +214,127 @@ require inline void TEMPLATE_vblank(void) {
    asm bcc @TEMPLATE_P0XCalibrated;
    asm sbc #160;
    asm @TEMPLATE_P0XCalibrated:;
-   asm sta TEMPLATE_state + 69;
+   asm sta TEMPLATE_state + 59;
 #endif
 
-   // state[70..74] doubles as per-frame packed P1 control storage after
+   // state[60..64] doubles as per-frame packed P1 control storage after
    // sorting. The faithful renderer does *not* restart its sort order each
    // frame: overlap rotates the hidden sprite to the back of a persistent
-   // five-byte order, producing the intended flicker arbitration. Copy that
+   // five-value order, producing the intended flicker arbitration. Copy that
    // retained order into the sort workspace before SetupP1 in both profiles.
-   asm ldx #4;
-   asm @TEMPLATE_LoadP1SortOrderLoop:;
-   asm lda.zx TEMPLATE_sprite_sort,X;
-   asm sta.zx TEMPLATE_state + 70,X;
-   asm dex;
-   asm bpl @TEMPLATE_LoadP1SortOrderLoop;
+   asm lda TEMPLATE_sprite_sort;
+   asm and #$0f;
+   asm sta TEMPLATE_state + 60;
+   asm lda TEMPLATE_sprite_sort;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm sta TEMPLATE_state + 61;
+   asm lda TEMPLATE_sprite_sort + 1;
+   asm and #$0f;
+   asm sta TEMPLATE_state + 62;
+   asm lda TEMPLATE_sprite_sort + 1;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm sta TEMPLATE_state + 63;
+   asm lda TEMPLATE_sprite_sort + 2;
+   asm and #$0f;
+   asm sta TEMPLATE_state + 64;
    asm lda #5;
-   asm sta TEMPLATE_state + 58;
-   asm jsr @TEMPLATE_SetupP1Subroutine;
-   // SetupP1 mutates state[70..74] while resolving overlaps. Preserve that
+   asm sta TEMPLATE_state + 48;
+   asm @TEMPLATE_fsstart:;
+   asm ldx #255;
+   asm @TEMPLATE_copytable:;
+   asm inx;
+   asm lda TEMPLATE_state + 60,x;
+   asm sta TEMPLATE_state + 29,x;
+   asm cpx #4;
+   asm bne @TEMPLATE_copytable;
+   asm stx TEMPLATE_state + 55;
+   asm dex;
+   asm stx TEMPLATE_state + 54;
+   asm @TEMPLATE_sortloop:;
+   asm ldx TEMPLATE_state + 54;
+   asm lda TEMPLATE_state + 60,x;
+   asm tax;
+   asm lda TEMPLATE_state + 14,x;
+   asm sta TEMPLATE_state + 53;
+   asm ldx TEMPLATE_state + 54;
+   asm lda TEMPLATE_state + 60+1,x;
+   asm tax;
+   asm lda TEMPLATE_state + 14,x;
+   asm sec;
+   asm clc;
+   asm sbc TEMPLATE_state + 53;
+   asm bcc @TEMPLATE_largerXislower;
+   asm cmp TEMPLATE_state + 39,x;
+   asm bcs @TEMPLATE_countdown;
+   asm @TEMPLATE_overlapping:;
+   asm dec TEMPLATE_state + 55;
+   asm ldx TEMPLATE_state + 54;
+   asm jsr @TEMPLATE_shiftnumbers;
+   asm jmp @TEMPLATE_skipswapGfxtable;
+   asm @TEMPLATE_largerXislower:;
+   asm tay;
+   asm ldx TEMPLATE_state + 54;
+   asm lda TEMPLATE_state + 60,x;
+   asm tax;
+   asm tya;
+   asm eor #$FF;
+   asm sbc #1;
+   asm bcc @TEMPLATE_overlapping;
+   asm cmp TEMPLATE_state + 39,x;
+   asm bcs @TEMPLATE_notoverlapping;
+   asm dec TEMPLATE_state + 55;
+   asm ldx TEMPLATE_state + 54;
+   asm jsr @TEMPLATE_shiftnumbers;
+   asm jmp @TEMPLATE_skipswapGfxtable;
+   asm @TEMPLATE_notoverlapping:;
+   asm @TEMPLATE_skipswapGfxtable:;
+   asm ldx TEMPLATE_state + 54;
+   asm ldy TEMPLATE_state + 60+1,x;
+   asm lda TEMPLATE_state + 60,x;
+   asm sty TEMPLATE_state + 60,x;
+   asm sta TEMPLATE_state + 60+1,x;
+   asm @TEMPLATE_countdown:;
+   asm dec TEMPLATE_state + 54;
+   asm bpl @TEMPLATE_sortloop;
+   asm @TEMPLATE_checktoohigh:;
+   asm ldx TEMPLATE_state + 55;
+   asm lda TEMPLATE_state + 29,x;
+   asm tax;
+   asm lda TEMPLATE_state + 14,x;
+#if TEMPLATE_lines == 192
+   asm cmp #95;
+#else
+   asm cmp #89;
+#endif
+   asm bcc @TEMPLATE_nonetoohigh;
+   asm dec TEMPLATE_state + 55;
+   asm bne @TEMPLATE_checktoohigh;
+   asm @TEMPLATE_nonetoohigh:;
+   // SetupP1 mutates state[60..64] while resolving overlaps. Preserve that
    // evolved order for the next frame before the workspace is overwritten by
    // packed horizontal controls.
-   asm ldx #4;
-   asm @TEMPLATE_SaveP1SortOrderLoop:;
-   asm lda.zx TEMPLATE_state + 70,X;
-   asm sta.zx TEMPLATE_sprite_sort,X;
-   asm dex;
-   asm bpl @TEMPLATE_SaveP1SortOrderLoop;
+   asm lda TEMPLATE_state + 61;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm ora TEMPLATE_state + 60;
+   asm sta TEMPLATE_sprite_sort;
+   asm lda TEMPLATE_state + 63;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm ora TEMPLATE_state + 62;
+   asm sta TEMPLATE_sprite_sort + 1;
+   asm lda TEMPLATE_state + 64;
+   asm sta TEMPLATE_sprite_sort + 2;
    // Precompute packed P1 controls while the beam is blanked. The table is
    // calibrated for the ordinary in-raster phase, so public X is a direct
    // lookup and public state is never mutated.
@@ -257,11 +342,23 @@ require inline void TEMPLATE_vblank(void) {
    asm @TEMPLATE_PrecomputeP1ControlsLoop:;
    asm ldy.zx TEMPLATE_state + 5,X;
    asm lda.ay TEMPLATE_player_position_table,Y;
-   asm sta.zx TEMPLATE_state + 70,X;
+   asm sta.zx TEMPLATE_state + 60,X;
    asm dex;
    asm bpl @TEMPLATE_PrecomputeP1ControlsLoop;
 
-   asm jsr @TEMPLATE_PrePositionAllObjects;
+   asm ldx #4;
+   asm lda TEMPLATE_state + 2;
+   asm jsr @TEMPLATE_PositionASpriteSubroutine;
+   asm dex;
+   asm lda TEMPLATE_state + 1;
+   asm jsr @TEMPLATE_PositionASpriteSubroutine;
+   asm dex;
+   asm lda TEMPLATE_state + 0;
+   asm jsr @TEMPLATE_PositionASpriteSubroutine;
+   asm dex;
+   asm dex;
+   asm lda TEMPLATE_state + 4;
+   asm jsr @TEMPLATE_PositionASpriteSubroutine;
    asm dec TEMPLATE_state + 13;
    // Adjust the complete P0 graphics pointer; do not rely on the glyph
    // landing late enough in its ROM page to avoid an 8-bit borrow.
@@ -274,15 +371,15 @@ require inline void TEMPLATE_vblank(void) {
    asm sta TEMPLATE_state + 35;
    asm lda TEMPLATE_state + 34;
    asm clc;
-   asm adc TEMPLATE_state + 48;
+   asm adc TEMPLATE_state + 38;
    asm sta TEMPLATE_state + 34;
    asm lda TEMPLATE_state + 35;
    asm adc #0;
    asm sta TEMPLATE_state + 35;
    asm lda TEMPLATE_state + 13;
-   asm sta TEMPLATE_state + 67;
+   asm sta TEMPLATE_state + 57;
    asm sec;
-   asm sbc TEMPLATE_state + 48;
+   asm sbc TEMPLATE_state + 38;
    asm clc;
    asm adc #$80;
    asm sta TEMPLATE_state + 36;
@@ -313,21 +410,6 @@ require inline void TEMPLATE_vblank(void) {
    asm sta WSYNC;
    asm sta HMOVE;
    asm rts;
-   asm @TEMPLATE_PrePositionAllObjects:;
-   asm ldx #4;
-   asm lda TEMPLATE_state + 2;
-   asm jsr @TEMPLATE_PositionASpriteSubroutine;
-   asm dex;
-   asm lda TEMPLATE_state + 1;
-   asm jsr @TEMPLATE_PositionASpriteSubroutine;
-   asm dex;
-   asm lda TEMPLATE_state + 0;
-   asm jsr @TEMPLATE_PositionASpriteSubroutine;
-   asm dex;
-   asm dex;
-   asm lda TEMPLATE_state + 4;
-   asm jsr @TEMPLATE_PositionASpriteSubroutine;
-   asm rts;
    asm @TEMPLATE_RendererSetupSubroutine:;
    asm ldx #4;
    asm @TEMPLATE_AdjustYValuesUpLoop:;
@@ -337,15 +419,15 @@ require inline void TEMPLATE_vblank(void) {
    asm sta TEMPLATE_state + 14,X;
    asm dex;
    asm bpl @TEMPLATE_AdjustYValuesUpLoop;
-   asm ldx TEMPLATE_state + 65;
+   asm ldx TEMPLATE_state + 55;
    asm lda TEMPLATE_state + 29,x;
    asm tay;
    asm lda TEMPLATE_state + 14,y;
-   asm sta TEMPLATE_state + 66;
+   asm sta TEMPLATE_state + 56;
    asm lda TEMPLATE_state + 29-1,x;
    asm tay;
    asm lda TEMPLATE_state + 14,y;
-   asm sta TEMPLATE_state + 68;
+   asm sta TEMPLATE_state + 58;
    asm stx TEMPLATE_state + 3;
    asm lda #255;
    asm sta TEMPLATE_state + 37;
@@ -357,81 +439,8 @@ require inline void TEMPLATE_vblank(void) {
 #endif
    asm bcc @TEMPLATE_nottoohigh;
    asm lda TEMPLATE_state + 36;
-   asm sta TEMPLATE_state + 67;
+   asm sta TEMPLATE_state + 57;
    asm @TEMPLATE_nottoohigh:;
-   asm rts;
-   asm @TEMPLATE_SetupP1Subroutine:;
-   asm @TEMPLATE_fsstart:;
-   asm ldx #255;
-   asm @TEMPLATE_copytable:;
-   asm inx;
-   asm lda TEMPLATE_state + 70,x;
-   asm sta TEMPLATE_state + 29,x;
-   asm cpx #4;
-   asm bne @TEMPLATE_copytable;
-   asm stx TEMPLATE_state + 65;
-   asm dex;
-   asm stx TEMPLATE_state + 64;
-   asm @TEMPLATE_sortloop:;
-   asm ldx TEMPLATE_state + 64;
-   asm lda TEMPLATE_state + 70,x;
-   asm tax;
-   asm lda TEMPLATE_state + 14,x;
-   asm sta TEMPLATE_state + 63;
-   asm ldx TEMPLATE_state + 64;
-   asm lda TEMPLATE_state + 70+1,x;
-   asm tax;
-   asm lda TEMPLATE_state + 14,x;
-   asm sec;
-   asm clc;
-   asm sbc TEMPLATE_state + 63;
-   asm bcc @TEMPLATE_largerXislower;
-   asm cmp TEMPLATE_state + 49,x;
-   asm bcs @TEMPLATE_countdown;
-   asm @TEMPLATE_overlapping:;
-   asm dec TEMPLATE_state + 65;
-   asm ldx TEMPLATE_state + 64;
-   asm jsr @TEMPLATE_shiftnumbers;
-   asm jmp @TEMPLATE_skipswapGfxtable;
-   asm @TEMPLATE_largerXislower:;
-   asm tay;
-   asm ldx TEMPLATE_state + 64;
-   asm lda TEMPLATE_state + 70,x;
-   asm tax;
-   asm tya;
-   asm eor #$FF;
-   asm sbc #1;
-   asm bcc @TEMPLATE_overlapping;
-   asm cmp TEMPLATE_state + 49,x;
-   asm bcs @TEMPLATE_notoverlapping;
-   asm dec TEMPLATE_state + 65;
-   asm ldx TEMPLATE_state + 64;
-   asm jsr @TEMPLATE_shiftnumbers;
-   asm jmp @TEMPLATE_skipswapGfxtable;
-   asm @TEMPLATE_notoverlapping:;
-   asm @TEMPLATE_skipswapGfxtable:;
-   asm ldx TEMPLATE_state + 64;
-   asm ldy TEMPLATE_state + 70+1,x;
-   asm lda TEMPLATE_state + 70,x;
-   asm sty TEMPLATE_state + 70,x;
-   asm sta TEMPLATE_state + 70+1,x;
-   asm @TEMPLATE_countdown:;
-   asm dec TEMPLATE_state + 64;
-   asm bpl @TEMPLATE_sortloop;
-   asm @TEMPLATE_checktoohigh:;
-   asm ldx TEMPLATE_state + 65;
-   asm lda TEMPLATE_state + 29,x;
-   asm tax;
-   asm lda TEMPLATE_state + 14,x;
-#if TEMPLATE_lines == 192
-   asm cmp #95;
-#else
-   asm cmp #89;
-#endif
-   asm bcc @TEMPLATE_nonetoohigh;
-   asm dec TEMPLATE_state + 65;
-   asm bne @TEMPLATE_checktoohigh;
-   asm @TEMPLATE_nonetoohigh:;
    asm rts;
    asm @TEMPLATE_shiftnumbers:;
    asm @TEMPLATE_swaploop:;
@@ -454,7 +463,7 @@ require inline void TEMPLATE_draw(void) {
    asm jmp @TEMPLATE_RendererRoutine;
    asm @TEMPLATE_SwitchDrawP0K1:;
    asm lda.z TEMPLATE_state + 36;
-   asm sta.z TEMPLATE_state + 67;
+   asm sta.z TEMPLATE_state + 57;
    asm jmp @TEMPLATE_BackFromSwitchDrawP0K1;
    asm @TEMPLATE_WaitDrawP0K1:;
    asm nop;
@@ -471,7 +480,7 @@ require inline void TEMPLATE_draw(void) {
    // The helper returns six cycles after HMOVE; the profile-specific entry
    // padding below removes those same six cycles before the hot raster begins.
    asm ldx #0;
-   asm lda.z TEMPLATE_state + 69;
+   asm lda.z TEMPLATE_state + 59;
    asm jsr @TEMPLATE_DrawPositionASpriteSubroutine;
 #endif
    // Re-establish TIA state that an adjacent score component may clobber.
@@ -491,7 +500,7 @@ require inline void TEMPLATE_draw(void) {
    // SLEEP 12 is reduced by the explicit TIA restoration above; timing is
    // calibrated by the renderer regression.
    asm tsx;
-   asm stx.z TEMPLATE_state + 75;
+   asm stx.z TEMPLATE_state + 65;
    asm ldx #$1f;
    asm txs;
    asm nop;
@@ -511,7 +520,7 @@ require inline void TEMPLATE_draw(void) {
    // horizontal-control phase as every other rank. This also avoids the old
    // wrapped X+9 table alias at the ordinary right-edge bucket.
    asm nop;
-   asm bit.z TEMPLATE_state + 76;
+   asm bit.z TEMPLATE_state + 66;
 #endif
    asm @TEMPLATE_RendererLoopa:;
 #if TEMPLATE_lines == 192
@@ -530,7 +539,7 @@ require inline void TEMPLATE_draw(void) {
 #endif
    asm @TEMPLATE_RendererLoopb:;
    asm nop;
-   asm cpy.z TEMPLATE_state + 67;
+   asm cpy.z TEMPLATE_state + 57;
    asm beq.same @TEMPLATE_SwitchDrawP0K1;
    asm bpl.same @TEMPLATE_WaitDrawP0K1;
    asm lda (TEMPLATE_state + 34),Y;
@@ -538,25 +547,25 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_BackFromSwitchDrawP0K1:;
    asm cpy.z TEMPLATE_state + 37;
    asm bcc.same @TEMPLATE_SkipDrawP1K1;
-   asm lda (TEMPLATE_state + 64),Y;
+   asm lda (TEMPLATE_state + 54),Y;
    asm sta.a GRP1;
    asm @TEMPLATE_BackFromSkipDrawP1:;
-   asm sty.z TEMPLATE_state + 63;
-   asm ldy.z TEMPLATE_state + 58;
-   asm lax (TEMPLATE_state + 59),y;
+   asm sty.z TEMPLATE_state + 53;
+   asm ldy.z TEMPLATE_state + 48;
+   asm lax (TEMPLATE_state + 49),y;
    asm stx PF1;
-   asm lda (TEMPLATE_state + 61),y;
+   asm lda (TEMPLATE_state + 51),y;
    asm sta PF2;
-   asm stx.z TEMPLATE_state + 55;
-   asm sta.z TEMPLATE_state + 57;
+   asm stx.z TEMPLATE_state + 45;
+   asm sta.z TEMPLATE_state + 47;
    asm dey;
    asm bmi.same @TEMPLATE_pagewraphandler;
-   asm lda (TEMPLATE_state + 59),y;
+   asm lda (TEMPLATE_state + 49),y;
    asm @TEMPLATE_cyclebalance:;
-   asm sta.z TEMPLATE_state + 54;
-   asm lda (TEMPLATE_state + 61),y;
-   asm sta.z TEMPLATE_state + 56;
-   asm ldy.z TEMPLATE_state + 63;
+   asm sta.z TEMPLATE_state + 44;
+   asm lda (TEMPLATE_state + 51),y;
+   asm sta.z TEMPLATE_state + 46;
+   asm ldy.z TEMPLATE_state + 53;
    asm ldx #$1f;
    asm txs;
    asm cpy.z TEMPLATE_state + 12;
@@ -566,7 +575,7 @@ require inline void TEMPLATE_draw(void) {
    asm cpy.z TEMPLATE_state + 10;
    asm php;
    asm dey;
-   asm cpy.z TEMPLATE_state + 66;
+   asm cpy.z TEMPLATE_state + 56;
    asm beq.same @TEMPLATE_RepoRenderer;
    asm nop;
    asm nop;
@@ -576,14 +585,14 @@ require inline void TEMPLATE_draw(void) {
    asm lda.zx TEMPLATE_state + 29-1,x;
    asm tax;
    asm lda.zx TEMPLATE_state + 14,x;
-   asm sta.z TEMPLATE_state + 68;
+   asm sta.z TEMPLATE_state + 58;
    asm nop;
    asm nop;
    asm @TEMPLATE_BackFromRepoRenderer:;
    asm tya;
-   asm and.z TEMPLATE_state + 76;
+   asm and.z TEMPLATE_state + 66;
    asm bne.same @TEMPLATE_RendererLoopa;
-   asm dec.z TEMPLATE_state + 58;
+   asm dec.z TEMPLATE_state + 48;
    asm bpl.same @TEMPLATE_RendererLoopb;
    asm @TEMPLATE_donewrenderer:;
    asm jmp @TEMPLATE_DoneWithRenderer;
@@ -591,7 +600,7 @@ require inline void TEMPLATE_draw(void) {
    asm jmp @TEMPLATE_cyclebalance;
    asm @TEMPLATE_SwitchDrawP0KR:;
    asm lda.z TEMPLATE_state + 36;
-   asm sta.z TEMPLATE_state + 67;
+   asm sta.z TEMPLATE_state + 57;
    asm jmp @TEMPLATE_BackFromSwitchDrawP0KR;
    asm @TEMPLATE_WaitDrawP0KR:;
    asm nop;
@@ -609,13 +618,13 @@ require inline void TEMPLATE_draw(void) {
    asm and #15;
    asm beq.same @TEMPLATE_updateXKR;
    asm ldx #1;
-   asm cpy.a TEMPLATE_state + 67;
+   asm cpy.a TEMPLATE_state + 57;
    asm nop;
    asm jmp @TEMPLATE_retXKR;
    asm @TEMPLATE_updateXKR:;
    asm tax;
-   asm dec.z TEMPLATE_state + 58;
-   asm cpy.z TEMPLATE_state + 67;
+   asm dec.z TEMPLATE_state + 48;
+   asm cpy.z TEMPLATE_state + 57;
    asm @TEMPLATE_retXKR:;
    asm beq.same @TEMPLATE_SwitchDrawP0KR;
    asm bpl.same @TEMPLATE_WaitDrawP0KR;
@@ -623,8 +632,8 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP0;
    asm @TEMPLATE_BackFromSwitchDrawP0KR:;
    asm sec;
-   asm lda.zx TEMPLATE_state + 56,X;
-   asm ldy.zx TEMPLATE_state + 54,X;
+   asm lda.zx TEMPLATE_state + 46,X;
+   asm ldy.zx TEMPLATE_state + 44,X;
    asm ldx.z TEMPLATE_state + 3;
    asm sta PF2;
    asm lda.zx TEMPLATE_state + 29,x;
@@ -632,7 +641,7 @@ require inline void TEMPLATE_draw(void) {
    asm tax;
    asm lda #0;
    asm sta GRP1;
-   asm lda.zx TEMPLATE_state + 70,X;
+   asm lda.zx TEMPLATE_state + 60,X;
    asm sta HMP1;
    asm and #$0f;
    asm tax;
@@ -645,7 +654,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta WSYNC;
    asm ldx #$1f;
    asm txs;
-   asm ldy.z TEMPLATE_state + 66;
+   asm ldy.z TEMPLATE_state + 56;
    asm cpy.z TEMPLATE_state + 12;
    asm php;
    asm cpy.z TEMPLATE_state + 11;
@@ -653,7 +662,7 @@ require inline void TEMPLATE_draw(void) {
    asm cpy.z TEMPLATE_state + 10;
    asm php;
    asm tya;
-   asm and.z TEMPLATE_state + 76;
+   asm and.z TEMPLATE_state + 66;
    asm and #$FE;
    asm bne.same @TEMPLATE_skipthis;
    asm tax;
@@ -661,15 +670,15 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
    asm @TEMPLATE_goback:;
    asm dey;
-   asm cpy.z TEMPLATE_state + 67;
+   asm cpy.z TEMPLATE_state + 57;
    asm beq.same @TEMPLATE_SwitchDrawP0KV;
    asm bpl.same @TEMPLATE_WaitDrawP0KV;
    asm lda (TEMPLATE_state + 34),Y;
    asm sta GRP0;
    asm @TEMPLATE_BackFromSwitchDrawP0KV:;
-   asm lda.zx TEMPLATE_state + 56,X;
+   asm lda.zx TEMPLATE_state + 46,X;
    asm sta PF2;
-   asm lda.zx TEMPLATE_state + 54,X;
+   asm lda.zx TEMPLATE_state + 44,X;
    asm sta PF1;
    asm sta HMOVE;
    asm lda #0;
@@ -686,16 +695,17 @@ require inline void TEMPLATE_draw(void) {
    asm sta COLUP1;
    asm lda.zx TEMPLATE_state + 14,X;
    asm sec;
-   asm sbc.zx TEMPLATE_state + 49,X;
+   asm sbc.zx TEMPLATE_state + 39,X;
    asm sta.z TEMPLATE_state + 37;
    asm nop;
    asm nop;
-   asm lda.zx TEMPLATE_state + 38,X;
+   asm lda.ax TEMPLATE_player_graphics_lo,X;
    asm sbc.z TEMPLATE_state + 37;
-   asm sta.z TEMPLATE_state + 64;
-   asm lda.zx TEMPLATE_state + 43,X;
+   asm sta.z TEMPLATE_state + 54;
+   asm lda #>TEMPLATE_graphics;
+   asm nop;
    asm sbc #0;
-   asm sta.z TEMPLATE_state + 64+1;
+   asm sta.z TEMPLATE_state + 54+1;
    asm cpy.z TEMPLATE_state + 12;
    asm php;
    asm cpy.z TEMPLATE_state + 11;
@@ -707,13 +717,13 @@ require inline void TEMPLATE_draw(void) {
    asm lda #255;
    asm jmp @TEMPLATE_SetLastLine;
    asm @TEMPLATE_SetNextLine:;
-   asm lda.a TEMPLATE_state + 68;
+   asm lda.a TEMPLATE_state + 58;
    asm @TEMPLATE_SetLastLine:;
-   asm sta.z TEMPLATE_state + 66;
+   asm sta.z TEMPLATE_state + 56;
    asm tya;
-   asm and.z TEMPLATE_state + 76;
+   asm and.z TEMPLATE_state + 66;
    asm bne.same @TEMPLATE_nodec;
-   asm dec.z TEMPLATE_state + 58;
+   asm dec.z TEMPLATE_state + 48;
    asm dey;
    asm jmp @TEMPLATE_BackFromRepoRenderer;
    asm @TEMPLATE_nodec:;
@@ -723,7 +733,7 @@ require inline void TEMPLATE_draw(void) {
    asm jmp @TEMPLATE_BackFromRepoRenderer;
    asm @TEMPLATE_SwitchDrawP0KV:;
    asm lda.z TEMPLATE_state + 36;
-   asm sta.z TEMPLATE_state + 67;
+   asm sta.z TEMPLATE_state + 57;
    asm jmp @TEMPLATE_BackFromSwitchDrawP0KV;
    asm @TEMPLATE_WaitDrawP0KV:;
    asm nop;
@@ -734,7 +744,7 @@ require inline void TEMPLATE_draw(void) {
 #if TEMPLATE_lines == 192
    asm sta WSYNC;
 #endif
-   asm ldx.z TEMPLATE_state + 75;
+   asm ldx.z TEMPLATE_state + 65;
    asm txs;
    // Keep the draw-only two-line positioner physically after the hot raster.
    // That avoids perturbing its branch-page geometry while still sharing the
@@ -770,14 +780,14 @@ require inline void TEMPLATE_overscan(void) {
    asm sta TEMPLATE_state + 35;
    asm lda TEMPLATE_state + 34;
    asm sec;
-   asm sbc TEMPLATE_state + 48;
+   asm sbc TEMPLATE_state + 38;
    asm sta TEMPLATE_state + 34;
    asm lda TEMPLATE_state + 35;
    asm sbc #0;
    asm sta TEMPLATE_state + 35;
    asm inc TEMPLATE_state + 13;
-   asm lda TEMPLATE_state + 78;
-   asm beq @TEMPLATE_P0YRestoreDone;
+   asm lda TEMPLATE_state + 66;
+   asm bpl @TEMPLATE_P0YRestoreDone;
    asm dec TEMPLATE_state + 13;
    asm @TEMPLATE_P0YRestoreDone:;
 

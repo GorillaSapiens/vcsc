@@ -422,9 +422,12 @@ multiplexed through P1 and six asymmetric playfield rows. They retain the
 faithful TXS/PHP enable pipeline and the stable/common NMOS `LAX`, so users must
 assemble with `-Wa,--illegals`.
 
-The module owns 79 bytes of private state plus two public P0 color/NUSIZ bytes,
-81 RIOT-RAM bytes total, and declares four bytes of hidden hardware-stack depth.
-It does not own VSYNC, VBLANK, RIOT timers, a score, or application controls.
+The module owns 67 bytes of retained state plus two public P0 color/NUSIZ bytes
+and three bytes of nibble-packed persistent flicker-sort state: **72 RIOT-RAM bytes
+total**. It declares two bytes of hidden hardware-stack depth. The five immutable P1
+graphics addresses are represented by a five-byte ROM low-offset table plus the common
+aligned graphics-page high byte instead of ten RIOT-RAM pointer bytes. It does not own
+VSYNC, VBLANK, RIOT timers, a score, or application controls.
 After the coordinate-stability audit, the 192 profile uses logical height 95.
 The 181 profile uses logical height 89 and spends two owned visible lines in the
 faithful divide-by-15 P0 positioner when composing across a score handoff. Five

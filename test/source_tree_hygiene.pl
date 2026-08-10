@@ -327,11 +327,16 @@ index($standard_renderer_source,'.callstackextra 4')>=0
 for my $component (
    'all_five/all_five.c26',
    'all_five_unofficial/all_five_unofficial.c26',
-   'multisprite/multisprite.c26',
 ) {
    my $source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers',split('/',$component)));
    index($source,'asm .callstackextra 4;')>=0
       or die "$component lost its object-owned inline-assembly stack allowance\n";
+}
+{
+   my $component='multisprite/multisprite.c26';
+   my $source=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers',split('/',$component)));
+   index($source,'asm .callstackextra 2;')>=0
+      or die "$component lost its reduced object-owned inline-assembly stack allowance\n";
 }
 for my $component (
    'player_color/player_color.c26',

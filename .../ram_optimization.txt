@@ -1192,3 +1192,21 @@ A two-sprite-only renderer can still be valuable as an intentional low-RAM
 profile, but it should be justified as a reusable capability choice after the
 compiler stops wasting scratch and after direct countdown is measured—not used
 as camouflage for either problem.
+
+
+Post-closeout multisprite RAM cleanup (2026-08-09)
+----------------------------------------------------
+The modern parameterized multisprite renderer received a renderer-local cleanup after
+its timing/flicker repairs. Five immutable P1 graphics pointers no longer occupy ten
+RIOT-RAM bytes: fixed low offsets are loaded from ROM and the common aligned graphics
+page high byte is loaded directly with cycle-balanced beam timing. A dead state byte
+was removed, the P0 Y=0 restore flag is carried in bit 7 of the existing low-nibble
+scanline mask, the two one-shot VBLANK wrapper subroutines were inlined so hidden
+assembly stack depth falls from four bytes to two, and the exact five-value persistent
+flicker permutation is nibble-packed into three bytes. The module contract falls from
+86 to **72 bytes**. The 181 interactive score compositions fall from **126/128 to
+110/128 RAM**, leaving 18 bytes free; 192 falls from 107 to 91 total RAM. Exhaustive
+MOS6502/TIA timing/flicker tests and the independent Stella pixel oracle remain the
+gates. The remaining large costs (generic score pointer workspace, runtime/startup
+workspace, and compiler activation storage) are architectural and are not hidden by
+renderer-specific aliasing.

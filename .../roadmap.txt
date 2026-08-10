@@ -1413,21 +1413,27 @@ one.
           181 P0 sort invariance, and P0 Y=0 with no broad stripe. The interactive
           examples expose left/right/up/down movement with Y increasing upward and
           Reset; P0/P1 max Y are 95/92 for 192 and 89/86 for 181. M0/M1/Ball stay
-          outside the maintained active raster. Current public sizes are 2871 ROM /
-          107 RAM for 192 and 3426 ROM / 126 RAM for each 181 score composition.
+          outside the maintained active raster. Current public sizes after the later RAM cleanup are 2838 ROM /
+          91 RAM for 192 and 3393 ROM / 110 RAM for each 181 score composition.
         * Post-completion overlap/flicker repair 2026-08-09: the modern port had
-          reused the faithful persistent five-byte sort table as packed horizontal
-          control storage, then restored identity order every VBLANK. Overlapping
-          logical P1 sprites therefore acquired permanent sprite-number priority
-          instead of flickering. Keep a separate five-byte persistent sort order in
-          both `lines:=192` and `lines:=181`, copy it into/out of the sort workspace
-          around SetupP1, and only then overwrite the workspace with packed horizontal
-          controls. Six-frame MOS6502/TIA overlap regressions now require logical
-          P1/P2 to alternate as the visible winner in 192 and both 181 score orders;
-          the pre-repair ROMs fail that check. A later 181 phase repair aligns the first
-          reposition with the ordinary post-WSYNC phase and Stella-locks X=148 in both
-          score orders. The repaired public examples are 2871 ROM / 107 RAM for 192 and
-          3426 ROM / 126 RAM for each 181 composition.
+          reused the faithful persistent sort table as packed horizontal control
+          storage, then restored identity order every VBLANK. Overlapping logical P1
+          sprites therefore acquired permanent sprite-number priority instead of
+          flickering. Preserve the exact five-value persistent order across frames;
+          it is now nibble-packed into three retained bytes before state[60..64] is
+          reused for packed horizontal controls. Six-frame MOS6502/TIA overlap
+          regressions require logical P1/P2 to alternate as the visible winner in 192
+          and both 181 score orders; the pre-repair ROMs fail that check. A later 181
+          phase repair aligns the first reposition with the ordinary post-WSYNC phase
+          and Stella-locks X=148 in both score orders.
+        * Post-completion RAM cleanup 2026-08-09: remove ten fixed P1 graphics-pointer
+          RAM bytes by loading fixed low offsets from ROM and the aligned page high byte
+          directly at the same raster cost; fold the P0-bottom restore flag into bit 7
+          of the existing low-nibble mask; inline the two one-shot VBLANK wrappers to
+          reduce hidden assembly stack depth from four bytes to two; and pack the five
+          persistent sort values into three bytes. Module RAM is now 72 bytes. Public
+          examples measure 2838 ROM / 91 RAM for 192 and 3393 ROM / 110 RAM for each
+          181 score composition.
 
 [x] 29. Add general 8K-and-larger Atari cartridge bankswitching as a separate
         linker/runtime milestone. Follow the detailed ordered roadmap in

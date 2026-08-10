@@ -28,8 +28,8 @@ path, so cartridges using it must be assembled with `-Wa,--illegals`.
 
 | `lines` | Logical core height | Typical composition | Module RAM |
 | ---: | ---: | --- | ---: |
-| 192 | 95 | full-height, scoreless | 86 bytes |
-| 181 | 89 | one independent 11-line score above or below | 81 bytes |
+| 192 | 95 | full-height, scoreless | 72 bytes |
+| 181 | 89 | one independent 11-line score above or below | 72 bytes |
 
 The legacy logical Y counter is not a physical scanline count. After restoring
 the faithful two-scanline cadence, the measured 192 profile enters the retained
@@ -99,10 +99,19 @@ vertical bands, the sorter omits the conflicting sprite for the current frame
 and rotates it behind the other sprite(s) for the next frame. The conflicting
 sprites therefore flicker/round-robin instead of lower-numbered sprites losing
 permanently. The packed horizontal-control workspace cannot itself retain that
-order because it is overwritten before `draw()`, so both profiles own a separate
-five-byte sort-order array; that is the reason module RAM is 86 rather than
-81 bytes. Six-frame regressions require the overlap winner to alternate in 192
-and in both 181 score compositions.
+order because it is overwritten before `draw()`, so both profiles retain the exact
+five-value permutation nibble-packed in three bytes between frames. Six-frame
+regressions require the overlap winner to alternate in 192 and in both 181 score
+compositions.
+
+The current RAM contract is **72 bytes per renderer instance**: 67 bytes of retained
+state, two public P0 color/NUSIZ bytes, and three bytes of packed persistent sort
+state. The five fixed P1 graphics addresses are no longer copied into ten RIOT-RAM
+pointer bytes; their fixed low offsets live in ROM and the common page high byte is
+loaded directly at the same beam-cycle cost. One former P0-bottom guard byte is folded
+into the unused high bit of the existing scanline mask. VBLANK's two one-shot wrapper
+subroutines are inlined, reducing declared hidden hardware-stack depth from four bytes
+to two.
 
 The maintained legal Y ranges are exposed as `PLAYER0_MAX_Y` and
 `PLAYER1_MAX_Y`: 95/92 for `lines:=192`, and 89/86 for `lines:=181`. Y increases

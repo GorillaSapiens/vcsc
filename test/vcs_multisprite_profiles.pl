@@ -38,18 +38,18 @@ my $text=read_file($renderer);
 $text =~ /parameter\s+lines\s*;/ or die "multisprite lines parameter is missing\n";
 $text =~ /#if\s+TEMPLATE_lines\s*==\s*192/ or die "multisprite 192 profile is missing\n";
 $text =~ /#elif\s+TEMPLATE_lines\s*==\s*181/ or die "multisprite 181 profile is missing\n";
-my $persistent_sort_contracts=()=$text =~ /alias\s+TEMPLATE_PERSISTENT_SORT_BYTES\s+5\b/g;
-my $module_ram_contracts=()=$text =~ /alias\s+TEMPLATE_MODULE_RAM_BYTES_VALUE\s+86\b/g;
+my $persistent_sort_contracts=()=$text =~ /alias\s+TEMPLATE_PERSISTENT_SORT_BYTES\s+3\b/g;
+my $module_ram_contracts=()=$text =~ /alias\s+TEMPLATE_MODULE_RAM_BYTES_VALUE\s+72\b/g;
 $persistent_sort_contracts==2 && $module_ram_contracts==2 &&
 $text =~ /TEMPLATE_MODULE_RAM_BYTES\s*:=\s*TEMPLATE_MODULE_RAM_BYTES_VALUE/
    or die "multisprite profile RAM contract changed\n";
-$text =~ /uint8_t\s+TEMPLATE_sprite_sort\[5\]/ &&
-$text =~ /TEMPLATE_LoadP1SortOrderLoop/ &&
-$text =~ /TEMPLATE_SaveP1SortOrderLoop/
-   or die "persistent flicker-sort storage/copy contract is missing\n";
+$text =~ /uint8_t\s+TEMPLATE_sprite_sort\[3\]/ &&
+$text =~ /TEMPLATE_sprite_sort \+ 2/ &&
+$text =~ /ora\s+TEMPLATE_state \+ 60/
+   or die "persistent flicker-sort packed storage contract is missing\n";
 $text =~ /TEMPLATE_DRAW_HMOVE_COUNT\s*:=\s*TEMPLATE_DRAW_HMOVE_COUNT_VALUE/ or die "multisprite HMOVE contract is missing\n";
-$text =~ /asm\s+lax\s+\(TEMPLATE_state\s*\+\s*59\),y;/ or die "retained stable/common LAX path is missing\n";
-$text =~ /asm\s+\.callstackextra\s+4;/ or die "multisprite hidden call-stack declaration changed\n";
+$text =~ /asm\s+lax\s+\(TEMPLATE_state\s*\+\s*49\),y;/ or die "retained stable/common LAX path is missing\n";
+$text =~ /asm\s+\.callstackextra\s+2;/ or die "multisprite hidden call-stack declaration changed\n";
 my $borrow_propagations=()=$text =~ /asm\s+sbc\s+#0;/g;
 $borrow_propagations >= 3 or die "multisprite no longer propagates full 16-bit graphics-pointer borrow\n";
 $text =~ /extern\s+const\s+uint8_t\s+TEMPLATE_graphics\[145\]/ or die "page-safe graphics block contract is missing\n";
@@ -93,13 +93,13 @@ $text =~ /asm\s+lda\s+#\$80;\s*asm\s+sta\s+HMP0;\s*asm\s+nop;/s
    or die "181 late-HMOVE neutral P0 motion contract changed\n";
 $text !~ /TEMPLATE_PrecomputeTopP1ControlReady/ && $text !~ /asm\s+adc\s+#9;/
    or die "obsolete 181 top-rank X+9 coordinate compensation returned\n";
-$text =~ /three CPU cycles earlier than every later post-WSYNC reposition.*?asm\s+nop;\s*asm\s+bit\.z\s+TEMPLATE_state\s*\+\s*76;/s
+$text =~ /three CPU cycles earlier than every later post-WSYNC reposition.*?asm\s+nop;\s*asm\s+bit\.z\s+TEMPLATE_state\s*\+\s*66;/s
    or die "181 first-rank three-cycle entry-phase alignment is missing\n";
 
 my @examples=(
-   ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2871,107,99,8],
-   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3426,126,118,8],
-   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3426,126,118,8],
+   ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2838,91,85,6],
+   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3393,110,104,6],
+   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3393,110,104,6],
 );
 my %bins;
 my %state_bases;
@@ -120,11 +120,11 @@ for my $e (@examples) {
    without_usage($out) eq '' or die "$mode public example wrote unexpected stdout\n$out";
    -s $bin==4096 or die "$mode public example is not a 4K cartridge\n";
    my $maptext=read_file($map);
-   $maptext =~ /BSS\.__vcsc_object\$game_state\s+run=\$([0-9A-Fa-f]{4})\s+size=\$004F\b/
-      or die "$mode game_state is not exactly 79 bytes\n";
+   $maptext =~ /BSS\.__vcsc_object\$game_state\s+run=\$([0-9A-Fa-f]{4})\s+size=\$0043\b/
+      or die "$mode game_state is not exactly 67 bytes\n";
    $state_bases{$mode}="0x$1";
-   $maptext =~ /BSS\.__vcsc_object\$game_sprite_sort\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0005\b/
-      or die "$mode persistent flicker-sort storage is not exactly five bytes\n";
+   $maptext =~ /BSS\.__vcsc_object\$game_sprite_sort\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0003\b/
+      or die "$mode persistent flicker-sort storage is not exactly three bytes\n";
    $maptext =~ /RODATA\.__vcsc_object\$game_graphics\s+load=\$[0-9A-Fa-f]{2}00\s+size=\$0091\b[^\n]*component-align=\$0100\b/
       or die "$mode graphics block is not 145 bytes at a 256-byte boundary\n$maptext";
    $bins{$mode}=$bin;
