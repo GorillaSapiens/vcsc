@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include "windows_compat.h" // treat this like a <> include
 
 #include "ast.h"
 #include "lextern.h"

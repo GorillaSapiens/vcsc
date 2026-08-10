@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "windows_compat.h" // treat this like a <> include
 
 #include "ast.h"
 #include "builtin.h"

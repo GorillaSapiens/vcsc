@@ -232,6 +232,28 @@ static struct option_def *find_option(const char *arg, const char **inline_arg, 
    return NULL;
 }
 
+#ifdef _WIN32
+
+char *strndup(const char *s, size_t n)
+{
+    size_t len = 0;
+    char *copy;
+
+    while (len < n && s[len] != '\0')
+        ++len;
+
+    copy = malloc(len + 1);
+    if (copy == NULL)
+        return NULL;
+
+    memcpy(copy, s, len);
+    copy[len] = '\0';
+
+    return copy;
+}
+
+#endif
+
 #define return "DON'T USE return, MUST USE exit !!!" // please don't break xray !!!
 //! @brief Entry point for the compiler command; parses arguments, runs the requested pipeline, and returns process status.
 int main(int argc, char** argv) {

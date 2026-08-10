@@ -356,9 +356,9 @@ windows:
 	cd "$(WINDOWS_STAGING)"; \
 	"$(WINDOWS_ZIP)" -qr "$$out" "$(WINDOWS_PACKAGE_DIR)"; \
 	echo "created $$out"
-	rm -rf $(WINDOWS_HOST_TOOLS) $(WINDOWS_STAGING)
-	$(MAKE) --no-print-directory clean
-	cd compiler && ./coverage.pl > coverage_map.h
+	@rm -rf $(WINDOWS_HOST_TOOLS) $(WINDOWS_STAGING)
+	@$(MAKE) --no-print-directory clean
+	@cd compiler && ./coverage.pl > coverage_map.h
 
 installcheck: tools
 	rm -rf $(INSTALLCHECK_STAGING)
