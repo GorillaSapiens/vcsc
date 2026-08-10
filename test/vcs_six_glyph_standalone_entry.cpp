@@ -228,6 +228,37 @@ void require_right_component_entry(const std::vector<Event> &events, uint64_t li
    require_address_event(events, line + 2, 64, 0x001B, "right delayed flush");
 }
 
+
+void require_big_wide_component_entry(const std::vector<Event> &events, uint64_t line) {
+   bool shifted = false;
+   for (const Event &event : events) {
+      if (event.line == line - 1 && event.cycle == 57 &&
+          event.address == kNusiz0 && event.value == 0x06) {
+         shifted = true;
+         break;
+      }
+   }
+   const auto phase = [&](uint64_t old_cycle) {
+      return shifted && old_cycle < 19
+         ? std::pair<uint64_t,uint64_t>{line - 1, old_cycle + 57}
+         : std::pair<uint64_t,uint64_t>{line, shifted ? old_cycle - 19 : old_cycle};
+   };
+   const auto setup = [&](uint64_t old_cycle, uint16_t address, uint8_t value, const char *name) {
+      const auto where = phase(old_cycle);
+      require_event(events, where.first, where.second, address, value, name);
+   };
+   setup(0, kNusiz0, 0x06, "big-wide NUSIZ0");
+   setup(3, kNusiz1, 0x06, "big-wide NUSIZ1");
+   setup(26, kResp0, 0x06, "big-wide RESP0");
+   setup(29, kResp1, 0x06, "big-wide RESP1");
+   setup(35, kColup0, 0x0E, "big-wide COLUP0");
+   setup(38, kColup1, 0x0E, "big-wide COLUP1");
+   setup(41, kHmclr, 0x0E, "big-wide HMCLR");
+   setup(46, kHmp0, 0x30, "big-wide HMP0");
+   setup(51, kHmp1, 0xC0, "big-wide HMP1");
+   require_event(events, line, 71, kHmove, 0xC0, "big-wide HMOVE");
+}
+
 void require_left_component_entry(const std::vector<Event> &events, uint64_t line) {
    require_event(events, line, 0, kNusiz0, 0x03, "left NUSIZ0");
    require_event(events, line, 3, kNusiz1, 0x03, "left NUSIZ1");
@@ -255,9 +286,9 @@ int main(int argc, char **argv) {
    const std::vector<Event> &events = machine.events();
    if (argc == 3 && std::strcmp(argv[2], "fingerprint") == 0) {
       require_right_component_entry(events, 40);
-      require_component_entry(events, 131);
+      require_big_wide_component_entry(events, 127);
       require_left_component_entry(events, 221);
-      std::printf("vcs_six_glyph_standalone_entry ok: right 40, centered 131, left 221 entries and 262-line frames\n");
+      std::printf("vcs_six_glyph_standalone_entry ok: right 40, big-wide 127, left 221 entries and 262-line frames\n");
       return 0;
    }
 

@@ -13,7 +13,7 @@
 `ARR`-immediate probes, feeds each probe's accumulator result and masked `NVZC`
 flags through CRC-24/OPENPGP, and displays the resulting 24-bit value as six
 hexadecimal digits in the middle of the screen. The hexadecimal display uses
-`fonts/whimsey_hex.c26`.
+`six_glyph_big_wide_component.c26` with the 8x16 `fonts/big_hex.c26` font.
 
 Two more eleven-line six-glyph components display the fixed `012345` VCSC logo:
 
@@ -39,14 +39,14 @@ The 192-line visible field is composed exactly as follows:
 
 ```text
 raw  40.. 50   right-justified upper logo       11 lines
-raw  51..130   calibrated blank gap             80 lines
-raw 131..141   centered Whimsey fingerprint     11 lines
-raw 142..220   calibrated blank gap             79 lines
+raw  51..126   calibrated blank gap             76 lines
+raw 127..145   big-wide hexadecimal fingerprint  19 lines
+raw 146..220   calibrated blank gap             75 lines
 raw 221..231   left-justified lower logo         11 lines
 ```
 
 The upper logo's 48-pixel group occupies X=112..159. The lower logo occupies
-X=0..47. The centered fingerprint retains the existing X=56..103 placement.
+X=0..47. The big-wide fingerprint occupies X=36..123 with 16-pixel glyph pitch.
 All three components preserve the exact 262-line NTSC frame.
 
 The reviewed Stella 7.0 capture is kept as

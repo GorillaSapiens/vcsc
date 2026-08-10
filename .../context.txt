@@ -685,7 +685,12 @@ with a **19-visible-scanline** component contract. Public example
 visible lines, and builds as a 2K cartridge at **1116 ROM / 35 RAM**. The dedicated
 font-family regression proves decimal/hex are exact Big-ASCII subsets and page-contained;
 `vcs_six_glyph_big_wide` locks all six writes for the complete **88x16** score raster
-and exact 262-line frames. Existing 8-row score components are unchanged.
+and exact 262-line frames. Existing 8-row score components are unchanged. The silicon
+fingerprint example now uses `six_glyph_big_wide_component.c26` with `big_hex.c26` for
+its central six-digit hexadecimal fingerprint. Its upper-right/lower-left VCSC logos
+remain the 11-line right/left components; visible placement is 11 + 76 + 19 + 75 + 11
+scanlines, putting the Big fingerprint on raw lines 127..145 while preserving exact
+262-line NTSC timing.
 
 Main-roadmap items 29 and 30 and the completed bankswitching sub-roadmap remain closed.
 No new main-roadmap item has been selected after item 28.

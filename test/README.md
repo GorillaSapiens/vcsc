@@ -441,7 +441,7 @@ both layouts.
 
 
 `vcs_fingerprint.pl` builds the private fingerprint cartridge, verifies the
-CRC and unstable-ARR probe contract, checks the Whimsey and logo font tables in
+CRC and unstable-ARR probe contract, checks the Big-hex and logo font tables in
 ROM, and locks three six-glyph entries: right-justified at raw scanline 40,
 centered at 131, and left-justified at 221. Both edge components use fixed
 packed BCD `012345` with their pointers redirected to the six VCSC-logo slices.

@@ -18,3 +18,6 @@ Top-level `gen_version_h.pl` now owns VERSION generation for driver, compiler, a
 All six public command-line tools now reject unsupported options with a nonzero diagnostic that names the option and tells the user to run that exact tool with `--help` for the complete supported-option list. `vcsc-cc1` no longer turns arbitrary unknown options into successful help output, `vcsc-sim` no longer dumps full usage for an unknown option, assembler getopt diagnostics are normalized, and `vcsc-ar` now has explicit `-h`/`--help`. A focused e2e regression locks the behavior for all six tools.
 2026-08-10 15:24:12 PDT Big 8x16 decimal/hex fonts and wide six-glyph score component
 Derived big_decimal.c26 and big_hex.c26 exactly from big_ascii.c26, added the 19-line six_glyph_big_wide_component.c26 and 2K examples/01_basic/07_big_wide_score demo, integrated install/docs/tests, and locked exact 88x16 score writes plus 262-line frame timing.
+
+2026-08-10 15:43:10 PDT, fingerprint center switched to Big wide hexadecimal display
+The silicon fingerprint example now renders its central six hexadecimal digits with the 19-line six_glyph_big_wide component and big_hex font while preserving the two VCSC logo positions and exact 262-line timing; the reviewed Stella reference and fingerprint timing/entry contracts were updated.
