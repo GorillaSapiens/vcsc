@@ -612,8 +612,11 @@ in both profiles: SetupP1 starts from a retained five-byte order and saves its o
 driven rotation before state[70..74] is reused for packed horizontal controls. This
 fixes the regression where overlapping sprites permanently hid lower-numbered logical
 players; six-frame regressions require alternation in 192 and both 181 score orders.
-The 181 first/topmost reposition is three CPU cycles earlier, so only that rank uses a
-wrapped +9 packed-table lookup to equalize its phase. The 181 P0 handoff
+The 181 score/P0 handoff used to enter the first/topmost P1 reposition three CPU
+cycles earlier than every later post-WSYNC reposition. The renderer now spends those
+three cycles once at raster entry, so the first rank uses the same direct packed X
+control as every other rank. This removes the wrapped +9 lookup whose alias into the
+ordinary right-edge bucket made top-ranked X=143..151 jump or wrap. The 181 P0 handoff
 uses a VBLANK-precomputed wrapped public-X+3 value, and the multiplex loop reloads
 HMP0=$80 before its late HMOVEs; Stella establishes $80 as neutral at that raster
 phase, eliminating P0 horizontal dependence on P1 vertical sort order. The P0 Y=0
@@ -633,11 +636,12 @@ The MOS6502/TIA regression exhaustively sweeps 1,521 independent legal X/Y cases
 infer physical X from RESP1/HMP1; that previous formula was proven capable of declaring
 a visibly wrong Stella raster correct. Physical placement is independently locked by
 `test/vcs_multisprite_stella.pl`: actual Stella pixels cover all five P1 rank phases at
-left/interior/right-edge positions, natural X=159 wrap/clipping, top-edge reach, 181
-P0 sort-invariant X, and the P0 Y=0 no-stripe case. The MOS6502/TIA regressions also force logical P1/P2 onto the same vertical band for six
+left/interior/right-edge positions, natural X=159 wrap/clipping, top-edge reach, the
+181 top-rank X=143..151 discontinuity (X=148 explicitly locked in both score orders),
+181 P0 sort-invariant X, and the P0 Y=0 no-stripe case. The MOS6502/TIA regressions also force logical P1/P2 onto the same vertical band for six
 consecutive frames in every profile and require the visible winner to alternate every
 frame; the old identity-reset builds fail this check. The score oracle still locks `123456` above and below gameplay. Current public
-sizes are 2871 ROM / 107 RAM for 192 and 3446 ROM / 126 RAM for each 181 score
+sizes are 2871 ROM / 107 RAM for 192 and 3426 ROM / 126 RAM for each 181 score
 composition. Main-roadmap items 29 and 30 and
 the completed bankswitching sub-roadmap remain closed. No new main-roadmap item has
 been selected after item 28.

@@ -1397,8 +1397,10 @@ one.
           each P1's packed HMP1/coarse-count control during VBLANK and use a bounded
           count-minus-one raster loop; the old variable subtract-by-15 hot positioner
           could run beyond the scanline near the right edge. Public P1 X is never
-          mutated. The 181 first/topmost rank alone uses a wrapped +9 table lookup to
-          compensate for its three-cycle-earlier raster phase. For 181 P0, precompute
+          mutated. The 181 score/P0 handoff now delays raster entry by three CPU cycles
+          so its first/topmost rank uses the same packed-X phase as every later rank;
+          do not resurrect the old wrapped +9 lookup, which aliased X=143..151 into the
+          ordinary right-edge bucket and caused a visible jump/wrap. For 181 P0, precompute
           a wrapped +3 handoff X and reload HMP0=$80 before late multiplexed HMOVEs;
           Stella proves this keeps P0 fixed when vertical sorting changes.
         * Exhaustive MOS6502/TIA runtime sweeps independently move all six sprites
@@ -1412,7 +1414,7 @@ one.
           examples expose left/right/up/down movement with Y increasing upward and
           Reset; P0/P1 max Y are 95/92 for 192 and 89/86 for 181. M0/M1/Ball stay
           outside the maintained active raster. Current public sizes are 2871 ROM /
-          107 RAM for 192 and 3446 ROM / 126 RAM for each 181 score composition.
+          107 RAM for 192 and 3426 ROM / 126 RAM for each 181 score composition.
         * Post-completion overlap/flicker repair 2026-08-09: the modern port had
           reused the faithful persistent five-byte sort table as packed horizontal
           control storage, then restored identity order every VBLANK. Overlapping
@@ -1422,8 +1424,10 @@ one.
           around SetupP1, and only then overwrite the workspace with packed horizontal
           controls. Six-frame MOS6502/TIA overlap regressions now require logical
           P1/P2 to alternate as the visible winner in 192 and both 181 score orders;
-          the pre-repair ROMs fail that check. The repaired public examples are
-          2871 ROM / 107 RAM for 192 and 3446 ROM / 126 RAM for each 181 composition.
+          the pre-repair ROMs fail that check. A later 181 phase repair aligns the first
+          reposition with the ordinary post-WSYNC phase and Stella-locks X=148 in both
+          score orders. The repaired public examples are 2871 ROM / 107 RAM for 192 and
+          3426 ROM / 126 RAM for each 181 composition.
 
 [x] 29. Add general 8K-and-larger Atari cartridge bankswitching as a separate
         linker/runtime milestone. Follow the detailed ordered roadmap in

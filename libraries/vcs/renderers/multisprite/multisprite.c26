@@ -260,25 +260,6 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.zx TEMPLATE_state + 70,X;
    asm dex;
    asm bpl @TEMPLATE_PrecomputeP1ControlsLoop;
-#if TEMPLATE_lines == 181
-   // In the 181 composition only, the first/topmost multiplexed reposition is
-   // three CPU cycles earlier than the ordinary phase. Override just that
-   // logical sprite with a wrapped +9 table index so it rejoins the same
-   // rendered horizontal phase as every later multiplex rank.
-   asm ldx TEMPLATE_state + 65;
-   asm lda TEMPLATE_state + 29,X;
-   asm tax;
-   asm lda.zx TEMPLATE_state + 5,X;
-   asm clc;
-   asm adc #9;
-   asm cmp #160;
-   asm bcc @TEMPLATE_PrecomputeTopP1ControlReady;
-   asm sbc #160;
-   asm @TEMPLATE_PrecomputeTopP1ControlReady:;
-   asm tay;
-   asm lda.ay TEMPLATE_player_position_table,Y;
-   asm sta.zx TEMPLATE_state + 70,X;
-#endif
 
    asm jsr @TEMPLATE_PrePositionAllObjects;
    asm dec TEMPLATE_state + 13;
@@ -524,9 +505,13 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
    asm nop;
 #else
-   // Match the 192 entry cadence. RendererLoopa loads the late-HMOVE neutral
-   // HMP0 value explicitly, so this is padding only.
+   // The score/P0 handoff reaches the first 181 multiplexed P1 reposition
+   // three CPU cycles earlier than every later post-WSYNC reposition. Spend
+   // those three cycles once here so the first/topmost P1 uses the same packed
+   // horizontal-control phase as every other rank. This also avoids the old
+   // wrapped X+9 table alias at the ordinary right-edge bucket.
    asm nop;
+   asm bit.z TEMPLATE_state + 76;
 #endif
    asm @TEMPLATE_RendererLoopa:;
 #if TEMPLATE_lines == 192

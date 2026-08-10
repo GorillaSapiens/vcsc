@@ -85,21 +85,24 @@ starts at the left edge and X=159 reaches the rightmost position. `vblank()`
 precomputes one packed HMP1/coarse-count byte for each logical P1 sprite. The
 beam-critical reposition path decodes that byte with a bounded countdown instead
 of the old variable subtract-by-15 loop, so the right edge cannot run past the
-scanline. The 181 first/topmost reposition occurs three CPU cycles earlier than
-the other ranks; only its packed lookup uses a wrapped +9 index to compensate.
-Public P1 coordinates are never biased or restored, so vertical sort/flicker
-transitions cannot leak an internal coordinate mutation into application state.
+scanline. The score/P0 handoff used to enter the first/topmost 181 reposition three CPU
+cycles earlier than the ordinary post-WSYNC phase. The renderer now spends those
+three cycles once at raster entry, so every 181 P1 rank consumes the same packed
+horizontal controls. This avoids the old wrapped X+9 lookup, whose alias into the
+ordinary right-edge bucket made top-ranked X=143..151 jump or wrap. Public P1
+coordinates are never biased or restored, so vertical sort/flicker transitions
+cannot leak an internal coordinate mutation into application state.
 
-The 192 profile also preserves the faithful renderer's **frame-persistent
+Both profiles preserve the faithful renderer's **frame-persistent
 flicker-sort order**. When two or more logical P1 sprites occupy overlapping
 vertical bands, the sorter omits the conflicting sprite for the current frame
 and rotates it behind the other sprite(s) for the next frame. The conflicting
 sprites therefore flicker/round-robin instead of lower-numbered sprites losing
 permanently. The packed horizontal-control workspace cannot itself retain that
-order because it is overwritten before `draw()`, so `lines:=192` owns a separate
-five-byte sort-order array; that is the reason its module RAM is 86 rather than
-81 bytes. The 181 overlap/flicker policy has not yet been re-certified after
-this repair and intentionally remains unchanged for now.
+order because it is overwritten before `draw()`, so both profiles own a separate
+five-byte sort-order array; that is the reason module RAM is 86 rather than
+81 bytes. Six-frame regressions require the overlap winner to alternate in 192
+and in both 181 score compositions.
 
 The maintained legal Y ranges are exposed as `PLAYER0_MAX_Y` and
 `PLAYER1_MAX_Y`: 95/92 for `lines:=192`, and 89/86 for `lines:=181`. Y increases
@@ -148,9 +151,10 @@ regression exhaustively checks 1,521 independent X/Y positions for the 192 profi
 and 1,485 for each 181 score composition, with every case frame-stable. Physical
 placement is certified separately by the optional Stella pixel regression
 (`make stella-multisprite-test`): it locks all five P1 rank phases at left/middle/
-right-edge coordinates, natural X=159 clipping/wrap, the P1 top edge, 181 P0
-sort-invariant X placement, and the P0 Y=0 no-stripe case. The exact `123456`
-score raster remains locked above and below gameplay. The 192 simulator regression
-also forces P1/P2 into the same vertical band for six consecutive frames and
-requires the visible winner to alternate every frame, locking the persistent
-flicker-sort behavior that the original port accidentally lost.
+right-edge coordinates, natural X=159 clipping/wrap, the P1 top edge, the 181
+first-rank X=143..151 right-edge discontinuity (with X=148 locked explicitly),
+181 P0 sort-invariant X placement, and the P0 Y=0 no-stripe case. The exact `123456`
+score raster remains locked above and below gameplay. The simulator regression forces P1/P2 into the same vertical band for six
+consecutive frames in every profile and requires the visible winner to alternate
+every frame, locking the persistent flicker-sort behavior that the original port
+accidentally lost.

@@ -92,9 +92,21 @@ for my$mode(qw(192 above below)) {
    my($x0,$y0)=color_extent($png,$rgb{p0},30,190); expect_x("$mode P0 X=100",$x0,$mode eq '192'?(97..104):(100..107));
 }
 for my$mode(qw(above below)) {
+   # The first/topmost 181 P1 reposition used to run three CPU cycles early and
+   # compensate by looking up X+9 in the ordinary packed-position table. That
+   # aliased X=143..151 into the ordinary right-edge bucket, causing a visible
+   # nine-pixel jump/wrap in the upper part of the screen. X=148 is the strongest
+   # representative: the broken build wraps across both screen edges.
+   my$x=148;
+   my$png=snapshot_case($mode,"top_right_${mode}_$x",
+      'game_PLAYER1_Y := 10','game_PLAYER2_Y := 25','game_PLAYER3_Y := 40','game_PLAYER4_Y := 55','game_PLAYER5_Y := 80',"game_PLAYER5_X := $x");
+   my($px,$py)=color_extent($png,$rgb{p5});
+   expect_x("$mode top-rank P5 X=$x",$px,$x..($x+5));
+}
+for my$mode(qw(above below)) {
    my$png=snapshot_case($mode,"sort_$mode",'game_PLAYER0_X := 100','game_PLAYER1_Y := 80','game_PLAYER2_Y := 20','game_PLAYER3_Y := 30','game_PLAYER4_Y := 40','game_PLAYER5_Y := 50');
    my($x,$y)=color_extent($png,$rgb{p0},40,190); expect_x("$mode P0 sort-invariant X=100",$x,100..107);
 }
 my$bottom=snapshot_case('above','p0_bottom','game_PLAYER0_Y := 0'); my($bx,$by)=color_extent($bottom,$rgb{p0},30,220); @$bx==0 or die "181 P0 Y=0 rendered gameplay pixels (broad-stripe regression)\n";
 terminate($xpid);
-print "Stella modern multisprite pixels passed: full-rank edge placement, 181 P0 sort invariance, top reach, and clipped P0 bottom\n";
+print "Stella modern multisprite pixels passed: full-rank edge placement, 181 top-rank right-edge continuity, P0 sort invariance, top reach, and clipped P0 bottom\n";

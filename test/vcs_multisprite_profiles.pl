@@ -91,13 +91,15 @@ $text =~ /TEMPLATE_player_position_table\[160\]/ && $text =~ /asm\s+inx;\s*asm\s
    or die "packed full-range P1 positioner contract changed\n";
 $text =~ /asm\s+lda\s+#\$80;\s*asm\s+sta\s+HMP0;\s*asm\s+nop;/s
    or die "181 late-HMOVE neutral P0 motion contract changed\n";
-$text =~ /TEMPLATE_PrecomputeTopP1ControlReady/ && $text =~ /asm\s+adc\s+#9;/
-   or die "181 top-rank P1 phase compensation is missing\n";
+$text !~ /TEMPLATE_PrecomputeTopP1ControlReady/ && $text !~ /asm\s+adc\s+#9;/
+   or die "obsolete 181 top-rank X+9 coordinate compensation returned\n";
+$text =~ /three CPU cycles earlier than every later post-WSYNC reposition.*?asm\s+nop;\s*asm\s+bit\.z\s+TEMPLATE_state\s*\+\s*76;/s
+   or die "181 first-rank three-cycle entry-phase alignment is missing\n";
 
 my @examples=(
    ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2871,107,99,8],
-   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3446,126,118,8],
-   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3446,126,118,8],
+   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3426,126,118,8],
+   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3426,126,118,8],
 );
 my %bins;
 my %state_bases;
