@@ -768,3 +768,11 @@ Game Select cycles P0/P1/M0/M1/Ball and the left joystick moves the selected
 object while P0/P1 retain independent eight-row color tables. The example links
 at 97/128 RAM bytes and 3481/4090 ROM bytes; the renderer itself remains the
 83-byte component certified by the item-23 regressions.
+A score-composable official `all_five_player_color_181` sibling now retains the
+same five objects and per-row player colors in 181 gameplay lines, composing with
+one independent 11-line score above or below. Its component RAM contract is 81
+bytes. Public fixed-score examples live under
+`examples/16_all_five_player_color_181/`; score-above uses 4048/4090 ROM and
+score-below 3967/4090, both at 107/128 total RAM. They are intentionally static
+because the score-above 4K image has only 42 ROM bytes free. Stella full-raster
+comparisons match `all_five (lines:=181)` pixel-for-pixel in both score orders.

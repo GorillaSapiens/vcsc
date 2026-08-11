@@ -166,6 +166,7 @@ $bankswitching =~ /proving read-window\/write-window\s+direction/
 -f File::Spec->catfile($test,'stella_png_rgb_digest.pl') &&
 -f File::Spec->catfile($test,'vcs_player_color_192_stella.pl') &&
 -f File::Spec->catfile($test,'vcs_all_five_player_color_192_stella.pl') &&
+-f File::Spec->catfile($test,'vcs_all_five_player_color_181_stella.pl') &&
 -f File::Spec->catfile($test,'fixtures','player_color_192','reference_interactive_stella_7.0.png') &&
 -f File::Spec->catfile($test,'vcs_faithful_legacy_multisprite.pl') &&
 -f File::Spec->catfile($test,'vcs_faithful_legacy_multisprite_stella.pl') &&

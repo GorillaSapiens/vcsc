@@ -1278,6 +1278,13 @@ one.
           Ball, the left joystick moves the selected object, and the independent
           eight-row player color tables remain visible. It links at 97/128 RAM
           bytes and 3481/4090 ROM bytes.
+        * Follow-up: add the separate score-composable
+          `all_five_player_color_181` sibling and fixed centered-score examples
+          above and below gameplay. The 181-line component uses 81 RAM bytes and
+          preserves exact 262-line frames; Stella matches the established
+          `all_five (lines:=181)` full raster pixel-for-pixel with solid player
+          colors in both score orders. The public score-above/below examples use
+          4048/3967 ROM bytes and 107 RAM bytes respectively.
 
 [x] 24. Add a widely spaced six-glyph score-display variant. Reuse the shared
         font catalog and packed-BCD conventions, but spread the six glyphs across

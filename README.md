@@ -83,6 +83,7 @@ make windows       # cross-build a self-contained 64-bit Windows zip with exampl
 make stella-bank-test STELLA=stella  # authoritative F8/F6/F4 mapper matrix
 make stella-player-color-192-test STELLA=stella  # player-color-192 visible playfield raster
 make stella-all-five-player-color-192-test STELLA=stella  # all-five + per-row player colors
+make stella-all-five-player-color-181-test STELLA=stella  # 181 gameplay + score above/below
 make docs          # Doxygen output under doxygen/
 make clean
 ```

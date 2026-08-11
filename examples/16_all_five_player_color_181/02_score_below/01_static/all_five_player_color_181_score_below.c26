@@ -1,0 +1,61 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Fixed six-digit score below the 181-line all-five player-color renderer.
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+include "playfield.c26"
+include "fonts/default_decimal.c26"
+page const uint8_t game_playfield[44] := {
+ VCS_PLAYFIELD_ROW(0bX......._........_........_........),VCS_PLAYFIELD_ROW(0b.X......_........_........_........),VCS_PLAYFIELD_ROW(0b..X....._........_........_........),VCS_PLAYFIELD_ROW(0b...X...._........_........_........),VCS_PLAYFIELD_ROW(0b....X..._........_........_........),VCS_PLAYFIELD_ROW(0b.....X.._........_........_........),VCS_PLAYFIELD_ROW(0b......X._........_........_........),VCS_PLAYFIELD_ROW(0b.......X_........_........_........),VCS_PLAYFIELD_ROW(0b........_X......._........_........),VCS_PLAYFIELD_ROW(0b........_.X......_........_........),VCS_PLAYFIELD_ROW(0b........_..X....._........_........)
+};
+page const uint8_t game_player0_colors[8] := { VCS_NTSC_SKY_BLUE,VCS_NTSC_SKY_BLUE_2,VCS_NTSC_ROYAL_BLUE,VCS_NTSC_MEDIUM_PURPLE,VCS_NTSC_VIOLET,VCS_NTSC_ORCHID,VCS_NTSC_LIGHT_CORAL,VCS_NTSC_SANDY_BROWN };
+page const uint8_t game_player1_colors[8] := { VCS_NTSC_PALE_GREEN,VCS_NTSC_AQUAMARINE,VCS_NTSC_SKY_BLUE,VCS_NTSC_SKY_BLUE_2,VCS_NTSC_ROYAL_BLUE,VCS_NTSC_MEDIUM_PURPLE,VCS_NTSC_VIOLET,VCS_NTSC_ORCHID };
+instantiate "renderers/all_five_player_color_181/all_five_player_color_181.c26" as game
+instantiate "six_glyph_component.c26" as score
+page const uint8_t p0[8] := { game_SPRITE_GLYPH(0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x3c,0x66) };
+page const uint8_t p1[8] := { game_SPRITE_GLYPH(0xa5,0x5a,0x24,0xff,0xdb,0xff,0x66,0x3c) };
+void main(void) {
+   SWACNT := 0;
+   SWBCNT := 0;
+   VBLANK := 2;
+   COLUBK := VCS_NTSC_DARK_BLUE;
+   COLUPF := VCS_NTSC_GOLDENROD;
+   CTRLPF := 0x21;
+   game_PLAYER0_X := 20;
+   game_PLAYER1_X := 130;
+   game_MISSILE0_X := 50;
+   game_MISSILE1_X := 110;
+   game_BALL_X := 80;
+   game_PLAYER0_NUSIZ := 0x20;
+   game_PLAYER1_NUSIZ := 0x20;
+   game_player0_y := 18;
+   game_player1_y := 78;
+   game_missile0_y := 34;
+   game_missile1_y := 62;
+   game_ball_y := 48;
+   game_player0_graphics := p0;
+   game_player1_graphics := p1;
+   game_player0_height := 7;
+   game_player1_height := 7;
+   game_missile0_height := 5;
+   game_missile1_height := 7;
+   game_ball_height := 3;
+   score_score := 123456;
+   game_init();
+   score_init();
+ while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      game_vblank();
+      score_vblank();
+      vcs_ntsc_end_vblank();
+      game_draw();
+      vcs_ntsc_component_handoff();
+      score_draw();
+      vcs_ntsc_begin_overscan();
+      game_overscan();
+      score_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}

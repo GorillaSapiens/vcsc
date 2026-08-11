@@ -15,3 +15,6 @@ staged installcheck coverage, and the maintained top-level Stella target.
 2026-08-11 08:25:00 PDT, Added combined renderer interactive example
 
 Added examples/15_all_five_player_color_192/01_interactive with five-object selection/motion and visible eight-row P0/P1 color tables. The example links at 97 RAM bytes and 3481 ROM bytes.
+
+2026-08-11 09:05:00 PDT, Added 181 combined score examples
+Added score-composable all-five/player-color 181 renderer and score-above/below examples.

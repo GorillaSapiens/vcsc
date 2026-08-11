@@ -118,6 +118,7 @@ not inferred from a count of source statements. The common contract is:
 | official/unofficial `all_five_181` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | official `player_color (lines:=192)` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
 | `all_five_192` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
+| `all_five_player_color_181` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | `all_five_player_color_192` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
 | `multisprite (lines:=181)` | 181 | 3 / 0 | 0 / 0 | yes | 6 | yes |
 | `multisprite (lines:=192)` | 192 | 3 / 0 | 0 / 0 | yes | 5 | no |
@@ -295,6 +296,22 @@ The 192-line profile is the full-height scoreless form. It uses a page-contained
 48-byte/twelve-row playfield and the proven `player_color_192`-derived visible
 pipeline. All five objects are positioned during VBLANK. The exact RAM contract
 is 23 public bytes plus 48 private schedule/scratch bytes, or 71 bytes total.
+
+### 181-line all-five gameplay with player color tables
+
+`renderers/all_five_player_color_181/all_five_player_color_181.c26` is the
+score-composable official-opcode combined profile. It retains P0/P1/M0/M1/BL
+with immutable eight-entry P0/P1 color tables and consumes 181 visible lines,
+so one independent 11-line score may appear above or below gameplay. Its exact
+RAM contract is 21 public bytes plus 60 private bytes (44 bytes of packed
+BL/M1/M0 masks plus a 16-byte alternating row/visible-entry cache), or 81 bytes
+total.
+
+A score above gameplay owns P0/P1 TIA state, so this profile repositions and
+restores the players at visible entry. Non-player objects remain positioned in
+VBLANK. The terminal path explicitly writes `GRP1` after clearing `ENABL` so
+`VDELBL` transfers the staged zero and cannot leak Ball onto the final blank
+line. Adjacent visible components use `vcs_ntsc_component_handoff()`.
 
 ### 192-line all-five gameplay with player color tables
 

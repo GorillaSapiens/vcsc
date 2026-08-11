@@ -39,6 +39,7 @@ Files:
 - `renderers/faithful_legacy_multisprite/` ... faithful unbanked/non-Superchip multisprite source-integration baseline: P0 plus five logical P1 sprites, integrated score/playfield, exact 122-byte legacy state, six-byte hardware stack, 264-line timing, and retained unofficial-opcode behavior
 - `renderers/multisprite/` ... modern parameterized P0-plus-five-multiplexed-P1 lifecycle component; `lines:=192` is full-height and `lines:=181` composes with an independent eleven-line score, with full X=0..159, bounded independent Y motion, faithful frame-persistent overlap flicker arbitration, a page-aligned graphics block, and branch-page contracts that keep the retained raster cycle-stable
 - `renderers/all_five/` ... parameterized official-opcode P0/P1/M0/M1/BL lifecycle component; `lines:=192` is full-height, `lines:=181` composes with one eleven-line score, and `lines:=170` composes between scores above and below
+- `renderers/all_five_player_color_181/` ... separate official-opcode score-composable P0/P1/M0/M1/BL component with immutable eight-entry P0/P1 color tables; 181 gameplay lines plus one independent 11-line score, 81-byte component RAM contract
 - `renderers/all_five_player_color_192/` ... separate official-opcode full-height P0/P1/M0/M1/BL component with immutable eight-entry P0/P1 color tables; 83-byte component RAM contract
 - `renderers/all_five_unofficial/` ... parameterized stable/common-NMOS experimental twin of `all_five`, supporting `lines:=192`, `181`, and `170` with the same API, RAM contracts, and corrected raster schedules
 - `renderers/player_color/` ... parameterized official-opcode P0/P1/BL per-row-color component; `lines:=192` is full-height, `lines:=181` composes with one eleven-line score, and `lines:=170` composes between scores above and below
@@ -59,6 +60,8 @@ Files:
 - `../../examples/09_bankswitching/` ... parameterized F8/F6/F4 transition diagnostic with visible PASS/FAIL frames
 - `../../examples/10_faithful_legacy_multisprite/` ... fixed faithful P0-plus-five-P1 multisprite reference cartridge used to anchor roadmap item 28
 - `../../examples/14_multisprite/` ... modern parameterized multisprite examples: full-height 192-line interaction plus 181-line interactive score-above and score-below compositions, all with horizontal/vertical P0/P1..P5 movement
+- `../../examples/15_all_five_player_color_192/` ... full-height interactive combined all-five/per-row-player-color diagnostic
+- `../../examples/16_all_five_player_color_181/` ... fixed centered score-above and score-below compositions for the 181-line combined all-five/per-row-player-color profile
 - `../../examples/11_all_five_170/` ... `all_five (lines:=170)` interactive composition with an eleven-line score above and another below
 - `../../examples/12_all_five_170_unofficial/` ... matching `all_five_unofficial (lines:=170)` dual-score composition, built explicitly with `-Wa,--illegals`
 - `../../examples/13_player_color_170/` ... `player_color (lines:=170)` interactive composition with an eleven-line score above and another below
