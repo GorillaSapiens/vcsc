@@ -771,10 +771,13 @@ at 97/128 RAM bytes and 3481/4090 ROM bytes; the renderer itself remains the
 A score-composable official `all_five_player_color_181` sibling now retains the
 same five objects and per-row player colors in 181 gameplay lines, composing with
 one independent 11-line score above or below. Its component RAM contract is 81
-bytes. Public fixed-score examples live under
+bytes. Public score examples live under
 `examples/16_all_five_player_color_181/`; after the post-item-23 compact-loop
-optimization, both score orders use 3739/4090 ROM and 107/128 total RAM, leaving
-351 ROM bytes and 21 RAM bytes free. Pairs 2-3 share one exact 152-cycle body;
+optimization, the static score orders use 3739/4090 ROM and 107/128 total RAM,
+while score-above and score-below interactive siblings use 4043/4090 ROM and
+116/128 RAM. Game Select cycles P0/P1/M0/M1/Ball and the left joystick moves the
+selected object in both axes; the score remains fixed at 123456. Pairs 2-3 share
+one exact 152-cycle body;
 pairs 4-7 remain specialized so their late-row dead cycles can prefetch the
 opposite seven-byte cache bank. During the visible loop `S` temporarily carries
 the row base while X is the pair counter; the caller stack pointer is saved and

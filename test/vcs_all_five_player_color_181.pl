@@ -59,6 +59,40 @@ $source{above} =~ /score_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw
 $source{below} =~ /game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*score_draw\(\);/s
    or die "score-below example lost component order\n";
 
+my$interactive_common=File::Spec->catfile($repo,qw(examples common all_five_player_color_181_interactive_common.c26));
+my$interactive_common_text=read_file($interactive_common);
+$interactive_common_text =~ /Game Select cycles P0, P1, M0, M1, Ball/ &&
+$interactive_common_text =~ /game_object_x\[selected_object\]/ &&
+$interactive_common_text =~ /object_y\[selected_object\]/ &&
+$interactive_common_text =~ /score_score\s*:=\s*123456;/
+   or die "181 combined interactive controls changed\n";
+my@interactive_jobs=(
+ ['above',File::Spec->catfile($example_root,qw(01_score_above 02_interactive all_five_player_color_181_score_above_interactive.c26))],
+ ['below',File::Spec->catfile($example_root,qw(02_score_below 02_interactive all_five_player_color_181_score_below_interactive.c26))],
+);
+my(%interactive_bin,%interactive_source);
+for my$j(@interactive_jobs){
+   my($n,$isrc)=@$j;
+   $interactive_source{$n}=read_file($isrc);
+   $interactive_bin{$n}=File::Spec->catfile($tmp,"all_five_player_color_181_${n}_interactive.bin");
+   my$imap=File::Spec->catfile($tmp,"all_five_player_color_181_${n}_interactive.map");
+   my($r,$s,$o,$e)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$imap,$isrc,'-o',$interactive_bin{$n});
+   $r==0&&!$s or die "$n interactive example build failed\n$o$e";
+   without_usage($o) eq ''&&$e eq '' or die "$n interactive example build wrote output\n$o$e";
+   -s$interactive_bin{$n}==4096 or die "$n interactive example is not 4K\n";
+   my$im=read_file($imap);
+   $im =~ /^  [Rr][Oo][Mm]\s+used=4043 bytes .* free=47 bytes/m
+      or die "$n interactive example ROM footprint changed\n";
+   $im =~ /^  ram\s+used=116 bytes .* free=12 bytes/m
+      or die "$n interactive example RAM footprint changed\n";
+   $interactive_source{$n} =~ /include "\.\.\/\.\.\/\.\.\/common\/all_five_player_color_181_interactive_common\.c26"/
+      or die "$n interactive example lost shared controls\n";
+}
+$interactive_source{above} =~ /score_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw\(\);/s
+   or die "interactive score-above example lost component order\n";
+$interactive_source{below} =~ /game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*score_draw\(\);/s
+   or die "interactive score-below example lost component order\n";
+
 my$src=read_file($component); my$m=read_file($map{above});
 $src =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*181/ or die "visible-line contract changed\n";
 $src =~ /TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE\s*:=\s*1/ or die "successor handoff contract changed\n";
@@ -106,6 +140,11 @@ for my$n(qw(above below)){
    $o eq "vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes\n"
       or die "bad $n frame timing output: $o";
    $e eq '' or die "$n frame timing stderr: $e";
+   ($r,$s,$o,$e)=capture($timing,$interactive_bin{$n},'50','--no-audio','--raw-lines','264');
+   $r==0&&!$s or die "$n interactive frame timing failed\n$o$e";
+   $o eq "vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes\n"
+      or die "bad $n interactive frame timing output: $o";
+   $e eq '' or die "$n interactive frame timing stderr: $e";
 }
 
 # Sweep all five Y coordinates through the complete byte range.  This locks the

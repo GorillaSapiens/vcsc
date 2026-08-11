@@ -1285,11 +1285,14 @@ one.
           `all_five (lines:=181)` full raster pixel-for-pixel with solid player
           colors in both score orders. A post-completion compact-loop pass keeps
           the same 81-byte component contract while reducing both public score
-          examples to 3739 ROM bytes / 107 RAM bytes. Pairs 2-3 share one
-          152-cycle body; late-row dead object-shift slots prefetch the opposite
-          cache bank, and the hardware stack pointer is saved/restored while `S`
-          carries the row base. Exact 262-line timing and Stella equivalence are
-          retained.
+          static examples to 3739 ROM bytes / 107 RAM bytes. Interactive
+          score-above and score-below siblings then use the recovered space for
+          Game-Select P0/P1/M0/M1/Ball selection plus full two-axis left-joystick
+          movement; both link at 4043 ROM bytes / 116 RAM bytes with a fixed
+          `123456` score. Pairs 2-3 share one 152-cycle body; late-row dead
+          object-shift slots prefetch the opposite cache bank, and the hardware
+          stack pointer is saved/restored while `S` carries the row base. Exact
+          262-line timing and Stella equivalence are retained.
 
 [x] 24. Add a widely spaced six-glyph score-display variant. Reuse the shared
         font catalog and packed-BCD conventions, but spread the six glyphs across

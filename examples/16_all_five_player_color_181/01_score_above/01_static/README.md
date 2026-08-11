@@ -14,8 +14,7 @@ playfield. P0 and P1 use visibly different eight-row color tables. A fixed
 centered score of `123456` appears above the 181-line gameplay field.
 
 The cartridge currently links at **3739/4090 ROM bytes** (351 free) and
-**107/128 RAM bytes** (21 free). It is intentionally kept as a static raster
-diagnostic; the compact renderer now leaves enough ROM to consider a small
-interactive layer separately.
+**107/128 RAM bytes** (21 free). It remains the minimal static raster diagnostic. The companion `02_interactive`
+example uses the recovered ROM space for full two-axis motion of all five objects.
 
 Build with `make`. The result is `all_five_player_color_181_score_above.bin`.

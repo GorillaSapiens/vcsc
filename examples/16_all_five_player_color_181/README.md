@@ -16,9 +16,10 @@ standard 192-line visible field.
 
 | No. | Example | Purpose |
 |---:|---|---|
-| 01 | [`score_above`](01_score_above/) | Fixed six-digit score above 181-line combined gameplay |
-| 02 | [`score_below`](02_score_below/) | Fixed six-digit score below 181-line combined gameplay |
+| 01 | [`score_above`](01_score_above/) | Static and interactive six-digit score above 181-line combined gameplay |
+| 02 | [`score_below`](02_score_below/) | Static and interactive six-digit score below 181-line combined gameplay |
 
-The examples are static because this profile plus the independent score nearly
-fills a 4K ROM. The renderer itself retains mutable object coordinates and can
-be used by a larger or bank-switched application.
+Each score order includes a static raster diagnostic and an unbanked 4K
+interactive cartridge. Game Select cycles P0/P1/M0/M1/Ball and the left
+joystick moves the selected object in both axes while the score remains fixed.
+Both interactive orders link at 4043/4090 ROM and 116/128 RAM.

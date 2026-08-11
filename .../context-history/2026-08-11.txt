@@ -18,3 +18,9 @@ Added examples/15_all_five_player_color_192/01_interactive with five-object sele
 
 2026-08-11 09:05:00 PDT, Added 181 combined score examples
 Added score-composable all-five/player-color 181 renderer and score-above/below examples.
+
+2026-08-11 15:58:00 PDT, add interactive 181 score demos
+Added score-above and score-below interactive examples for the combined
+181-line all-five/player-color renderer. Game Select cycles all five objects
+and the left joystick moves the selected object in both axes. Each cartridge
+links at 4043/4090 ROM and 116/128 RAM with a fixed 123456 score.

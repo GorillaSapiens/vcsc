@@ -695,6 +695,14 @@ installcheck: tools
 	  "$(CURDIR)/examples/16_all_five_player_color_181/02_score_below/01_static/all_five_player_color_181_score_below.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/all_five_player_color_181_score_below.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_player_color_181_score_below.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  "$(CURDIR)/examples/16_all_five_player_color_181/01_score_above/02_interactive/all_five_player_color_181_score_above_interactive.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/all_five_player_color_181_score_above_interactive.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_player_color_181_score_above_interactive.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  "$(CURDIR)/examples/16_all_five_player_color_181/02_score_below/02_interactive/all_five_player_color_181_score_below_interactive.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/all_five_player_color_181_score_below_interactive.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_player_color_181_score_below_interactive.bin"` -eq 4096; \
 	test -f "$$stage_vcs/renderers/all_five_player_color_192/README.md"; \
 	test -f "$$stage_vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \

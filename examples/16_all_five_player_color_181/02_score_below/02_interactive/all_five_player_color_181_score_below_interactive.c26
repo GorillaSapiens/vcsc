@@ -1,0 +1,19 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Interactive score-below diagnostic.
+include "vcs.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+include "playfield.c26"
+include "fonts/default_decimal.c26"
+
+instantiate "renderers/all_five_player_color_181/all_five_player_color_181.c26" as game
+instantiate "six_glyph_component.c26" as score
+
+inline void draw_visible_components(void) {
+   game_draw();
+   vcs_ntsc_component_handoff();
+   score_draw();
+}
+
+include "../../../common/all_five_player_color_181_interactive_common.c26"
