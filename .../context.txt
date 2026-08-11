@@ -776,3 +776,12 @@ bytes. Public fixed-score examples live under
 score-below 3967/4090, both at 107/128 total RAM. They are intentionally static
 because the score-above 4K image has only 42 ROM bytes free. Stella full-raster
 comparisons match `all_five (lines:=181)` pixel-for-pixel in both score orders.
+
+POST-ITEM-23 WIP HANDOFF: the 181-line combined renderer is currently in an
+experimental ROM-collapse state and is NOT the last-known-good raster.  The
+fourteen duplicated A/B pair bodies have been collapsed and the score-above
+image measured about 2624/4090 ROM with unchanged 107/128 total RAM, but the
+16-line row-boundary handoff is unfinished and frame timing is still two
+scanlines long.  Continue from and read
+`.../all_five_player_color_181_rom_optimization_wip.txt` before modifying this
+renderer.  The last known-good baseline is `vcsc.20260811_093852.tar.gz`.
