@@ -28,8 +28,8 @@ my$cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_nt
 my$component=File::Spec->catfile($vcs,qw(renderers all_five_player_color_181 all_five_player_color_181.c26));
 my$example_root=File::Spec->catdir($repo,qw(examples 16_all_five_player_color_181));
 my@jobs=(
- ['above',File::Spec->catfile($example_root,qw(01_score_above 01_static all_five_player_color_181_score_above.c26)),4048,42],
- ['below',File::Spec->catfile($example_root,qw(02_score_below 01_static all_five_player_color_181_score_below.c26)),3967,123],
+ ['above',File::Spec->catfile($example_root,qw(01_score_above 01_static all_five_player_color_181_score_above.c26)),3739,351],
+ ['below',File::Spec->catfile($example_root,qw(02_score_below 01_static all_five_player_color_181_score_below.c26)),3739,351],
 );
 my(%bin,%map,%source);
 for my$j(@jobs){
@@ -77,6 +77,10 @@ $src =~ /page const uint8_t TEMPLATE_player_position_motion\[15\]/
    or die "compact visible-entry player motion table changed\n";
 $src !~ /TEMPLATE_player_position_table\[160\]/
    or die "expanded 160-byte player-position table returned\n";
+$src =~ /pairs 2\.\.3: one exact 152-cycle body/ &&
+$src =~ /asm tsx;.*?asm stx\.z TEMPLATE_row_cache \+ 15;/s &&
+$src =~ /asm ldx\.z TEMPLATE_row_cache \+ 15;\s*asm txs;/s
+   or die "compact row-loop/stack-rowbase optimization changed\n";
 $src =~ /sta ENABL;.*?sta GRP1;.*?sta VDELBL;/s
    or die "terminal path no longer flushes delayed Ball zero through GRP1\n";
 my$code=$src; $code =~ s{//[^\n]*}{}g; $code =~ s{/\*.*?\*/}{}gs;
@@ -103,6 +107,24 @@ for my$n(qw(above below)){
       or die "bad $n frame timing output: $o";
    $e eq '' or die "$n frame timing stderr: $e";
 }
+
+# Sweep all five Y coordinates through the complete byte range.  This locks the
+# active/inactive selector balance and the temporary S-as-row-base scheme across
+# every row-boundary phase rather than certifying only one static scene.
+my$vertical=$source{above};
+$vertical =~ s/(vcs_ntsc_begin_vblank\(\);\s*)/$1      asm inc.z game_player0_y;\n      asm dec.z game_player1_y;\n      asm inc.z game_missile0_y;\n      asm dec.z game_missile1_y;\n      asm inc.z game_ball_y;\n/s
+   or die "could not create 181 vertical sweep fixture\n";
+my$vertical_src=File::Spec->catfile($tmp,'afpc181_vertical.c26');
+my$vertical_bin=File::Spec->catfile($tmp,'afpc181_vertical.bin');
+write_file($vertical_src,$vertical);
+($r,$s,$o,$e)=capture($driver,'-I',$vcs,'-T',$cfg,$vertical_src,'-o',$vertical_bin);
+$r==0&&!$s or die "vertical sweep build failed\n$o$e";
+without_usage($o) eq ''&&$e eq '' or die "vertical sweep build wrote output\n$o$e";
+($r,$s,$o,$e)=capture($timing,$vertical_bin,'300','--no-audio','--raw-lines','264');
+$r==0&&!$s or die "vertical sweep timing failed\n$o$e";
+$o eq "vcs_frame_timing ok: 297 frames at 262 lines, 0 AUDV0 writes\n"
+   or die "bad vertical sweep timing output: $o";
+$e eq '' or die "vertical sweep timing stderr: $e";
 
 # Reuse the established all-five 181 score-above certification scene with
 # constant row colors. This makes the independent all-five object oracle check

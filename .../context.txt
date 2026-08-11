@@ -772,16 +772,12 @@ A score-composable official `all_five_player_color_181` sibling now retains the
 same five objects and per-row player colors in 181 gameplay lines, composing with
 one independent 11-line score above or below. Its component RAM contract is 81
 bytes. Public fixed-score examples live under
-`examples/16_all_five_player_color_181/`; score-above uses 4048/4090 ROM and
-score-below 3967/4090, both at 107/128 total RAM. They are intentionally static
-because the score-above 4K image has only 42 ROM bytes free. Stella full-raster
-comparisons match `all_five (lines:=181)` pixel-for-pixel in both score orders.
-
-POST-ITEM-23 WIP HANDOFF: the 181-line combined renderer is currently in an
-experimental ROM-collapse state and is NOT the last-known-good raster.  The
-fourteen duplicated A/B pair bodies have been collapsed and the score-above
-image measured about 2624/4090 ROM with unchanged 107/128 total RAM, but the
-16-line row-boundary handoff is unfinished and frame timing is still two
-scanlines long.  Continue from and read
-`.../all_five_player_color_181_rom_optimization_wip.txt` before modifying this
-renderer.  The last known-good baseline is `vcsc.20260811_093852.tar.gz`.
+`examples/16_all_five_player_color_181/`; after the post-item-23 compact-loop
+optimization, both score orders use 3739/4090 ROM and 107/128 total RAM, leaving
+351 ROM bytes and 21 RAM bytes free. Pairs 2-3 share one exact 152-cycle body;
+pairs 4-7 remain specialized so their late-row dead cycles can prefetch the
+opposite seven-byte cache bank. During the visible loop `S` temporarily carries
+the row base while X is the pair counter; the caller stack pointer is saved and
+restored and no stack access occurs while it is borrowed. Exact 262-line timing
+survives a full-byte Y sweep, and Stella full-raster comparisons still match
+`all_five (lines:=181)` pixel-for-pixel in both score orders.
