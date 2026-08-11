@@ -28,12 +28,11 @@ Files:
 - `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, VSYNC, and scheduler-owned VBLANK/overscan deadlines
 - `playfield.c26` ... compile-time `VCS_PLAYFIELD_ROW()` conversion from left-to-right 32-bit visual rows to the four asymmetric TIA playfield bytes
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
-- `six_glyph_component.c26` ... repeatable instantiable lifecycle centered 48-pixel/six-glyph display with fixed bright-white color and hostile-state-safe reflection reset
 - `six_glyph_wide_component.c26` ... separate mutable-color six-glyph profile with origins at X=36,52,68,84,100,116; its compact default uses one biased byte offset plus five full pointers and no row byte, while `compact_font:=0` restores six redirectable full pointers for callers that need arbitrary glyph-page redirection
 - `six_glyph_big_wide_component.c26` ... matching wide geometry for the 16-row Big decimal/hex fonts; it draws six 8x16 glyphs in a 19-scanline visible component
 - `six_glyph_left_component.c26` ... eleven-line mutable-color variant justified at X=0..47; compact default stores digit 6 as a byte offset plus five full pointers (set `compact_font:=0` only for full-pointer font redirection)
 - `six_glyph_right_component.c26` ... eleven-line mutable-color variant justified at X=112..159; compact default uses two byte offsets plus four full pointers (set `compact_font:=0` only for full-pointer font redirection)
-- `six_glyph_color_component.c26` ... timing-compatible centered mutable-color twin used by interactive score diagnostics; its page-contained font contract stores digits 1/2 as byte offsets and digits 3..6 as full pointers, eliminating the row counter while preserving the exact historical GRP-write raster
+- `six_glyph_component.c26` ... canonical centered 48-pixel/six-glyph lifecycle display; compact default stores digits 1/2 as byte offsets plus four full pointers with fixed bright-white color, `mutable_color:=1` adds an application-visible color byte, and `compact_font:=0` restores six redirectable full pointers for arbitrary glyph pages
 - `two_plus_two_score_support.c26` ... shared page-contained compact decimal glyph and calibrated horizontal-position tables for two-plus-two scores
 - `two_plus_two_score_component.c26` ... repeatable eleven-line P0/P1 score with independent packed-BCD left/right values, colors, and X positions; each three-bit digit is doubled to six visible pixels with a two-pixel inter-digit gap
 - `renderers/COMPONENT_CONVERSION.md` ... measured predecessor baseline, machine-readable visible-component handoff/TIA ownership table, and the explicit 181-line score-composable, 192-line scoreless, and matched unofficial profile contracts

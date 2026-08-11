@@ -29,3 +29,6 @@ Added a dedicated regression for context-history entry headers. Entry bodies may
 remain multiline and unrestricted; only each entry's first line must use the
 ASCII PDT timestamp/comma/short-description format. Repaired all existing daily
 history files to satisfy the rule without flattening their detail text.
+2026-08-10 16:39:16 PDT, Merge centered six-glyph components
+  `six_glyph_component.c26` now owns fixed/mutable color and compact/full
+  pointer modes. Removed `six_glyph_color_component.c26` and migrated callers.

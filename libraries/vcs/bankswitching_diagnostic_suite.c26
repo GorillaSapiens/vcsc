@@ -42,7 +42,7 @@ include "frame_ntsc.c26"
 // its two exact ASCII subset tables during VBLANK before either becomes visible.
 include "fonts/default_decimal.c26"
 instantiate "six_glyph_big_wide_component.c26" as status_result
-instantiate "six_glyph_component.c26" as cart_type
+instantiate "six_glyph_component.c26" as cart_type (compact_font:=0)
 #endif
 
 #ifdef SUPERCHIP_TEST

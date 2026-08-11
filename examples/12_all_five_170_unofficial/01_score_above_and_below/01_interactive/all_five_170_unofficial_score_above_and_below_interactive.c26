@@ -8,8 +8,8 @@ include "playfield.c26"
 include "fonts/default_decimal.c26"
 
 instantiate "renderers/all_five_unofficial/all_five_unofficial.c26" as game (lines:=170)
-instantiate "six_glyph_color_component.c26" as top_score
-instantiate "six_glyph_color_component.c26" as bottom_score
+instantiate "six_glyph_component.c26" as top_score (mutable_color:=1)
+instantiate "six_glyph_component.c26" as bottom_score (mutable_color:=1)
 
 page const uint8_t game_playfield[40] := {
    VCS_PLAYFIELD_ROW(0bX.....X._....X..._..X....._X.....X.),

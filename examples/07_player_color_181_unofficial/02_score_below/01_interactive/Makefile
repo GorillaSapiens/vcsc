@@ -12,7 +12,7 @@ all: $(TARGET)
 $(TARGET): $(SOURCE) $(VCS_DIR)/color_ntsc.c26 \
            $(VCS_DIR)/frame_ntsc.c26 \
            $(VCS_DIR)/playfield.c26 \
-           $(VCS_DIR)/six_glyph_color_component.c26 \
+           $(VCS_DIR)/six_glyph_component.c26 \
            $(VCS_DIR)/renderers/player_color_181_unofficial/player_color_181_unofficial.c26 \
            $(ROOT)/examples/common/fixed_six_digit_controls.c26 \
            $(ROOT)/examples/common/player_color_181_interactive_common.c26 \

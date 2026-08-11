@@ -368,10 +368,12 @@ centered component so the wide profile cannot silently alter its predecessor.
 
 `vcs_six_glyph_component.pl` builds independent centered-score instances with
 distinct values in both draw orders, a widely spaced score-only pair at raw
-scanlines 70 and 180, and a centered score immediately after the hostile poison
-component. The exact raster harness decodes all six GRP pipeline bytes on every
-row into 48 logical pixels, locks positioning and boundary cycles, requires the
-cycle-equivalent REFP0/REFP1 reset, and retains exact 262-line frames.
+scanlines 70 and 180, and centered fixed/mutable-color scores immediately after
+the hostile poison component. It locks the merged component's compact default,
+optional mutable color byte, and `compact_font:=0` six-pointer compatibility mode.
+The exact raster harness decodes all six GRP pipeline bytes on every row into 48
+logical pixels, locks positioning and boundary cycles, requires the cycle-equivalent
+REFP0/REFP1 reset, and retains exact 262-line frames.
 
 `vcs_score_composition_raster.pl` locks the complete public composition
 matrix: four 181-line gameplay families, four production score layouts plus the

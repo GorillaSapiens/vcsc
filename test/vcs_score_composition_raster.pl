@@ -106,7 +106,7 @@ my @families=(
    {fixture=>'all_five_181_unofficial',     example=>'08_all_five_181_unofficial',     class=>'all_five', illegals=>1},
 );
 my @scores=(
-   {kind=>'center',       above=>'01_score_above',                 below=>'02_score_below',                 component=>'six_glyph_color_component.c26'},
+   {kind=>'center',       above=>'01_score_above',                 below=>'02_score_below',                 component=>'six_glyph_component.c26'},
    {kind=>'left',         above=>'03_left_justified_score_above',  below=>'04_left_justified_score_below',  component=>'six_glyph_left_component.c26'},
    {kind=>'right',        above=>'05_right_justified_score_above', below=>'06_right_justified_score_below', component=>'six_glyph_right_component.c26'},
    {kind=>'two-plus-two', above=>'07_two_plus_two_score_above',    below=>'08_two_plus_two_score_below',    component=>'two_plus_two_score_component.c26'},

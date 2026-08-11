@@ -96,11 +96,15 @@ $text !~ /TEMPLATE_PrecomputeTopP1ControlReady/ && $text !~ /asm\s+adc\s+#9;/
 $text =~ /three CPU cycles earlier than every later post-WSYNC reposition.*?asm\s+nop;\s*asm\s+bit\.z\s+TEMPLATE_state\s*\+\s*66;/s
    or die "181 first-rank three-cycle entry-phase alignment is missing\n";
 
-my $score_component=read_file(File::Spec->catfile($vcs,'six_glyph_color_component.c26'));
-$score_component =~ /uint8_t\s+TEMPLATE_offsets\[2\]/ &&
-$score_component =~ /uint16_t\s+TEMPLATE_pointers\[4\]/ &&
-$score_component !~ /TEMPLATE_row/
-   or die "six-glyph color score compact pointer/offset contract changed\n";
+my $score_component=read_file(File::Spec->catfile($vcs,'six_glyph_component.c26'));
+$score_component =~ /#if TEMPLATE_compact_font(.*?)#else/s
+   or die "six-glyph component has no compact branch\n";
+my $score_compact=$1;
+$score_compact =~ /uint8_t\s+TEMPLATE_offsets\[2\]/ &&
+$score_compact =~ /uint16_t\s+TEMPLATE_pointers\[4\]/ &&
+$score_compact !~ /TEMPLATE_row/ &&
+$score_component =~ /parameter\s+mutable_color\s*:=\s*0/
+   or die "six-glyph mutable-color compact pointer/offset contract changed\n";
 
 my @examples=(
    ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2613,84,78,6],

@@ -125,7 +125,6 @@ install-data:
 	install -m 0644 libraries/vcs/six_glyph_big_wide_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_big_wide_component.c26
 	install -m 0644 libraries/vcs/six_glyph_left_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_left_component.c26
 	install -m 0644 libraries/vcs/six_glyph_right_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_right_component.c26
-	install -m 0644 libraries/vcs/six_glyph_color_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_color_component.c26
 	install -m 0644 libraries/vcs/two_plus_two_score_component.c26 $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_component.c26
 	install -m 0644 libraries/vcs/two_plus_two_score_support.c26 $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_support.c26
 	install -m 0644 libraries/vcs/sound_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
@@ -237,11 +236,11 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/playfield.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/riot.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_component.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_color_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_wide_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_big_wide_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_left_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_right_component.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_color_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_support.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
@@ -566,11 +565,11 @@ installcheck: tools
 	test -f "$$stage_vcs/color_ntsc.c26"; \
 	test -f "$$stage_vcs/frame_ntsc.c26"; \
 	test -f "$$stage_vcs/six_glyph_component.c26"; \
+	test ! -e "$$stage_vcs/six_glyph_color_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_wide_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_big_wide_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_left_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_right_component.c26"; \
-	test -f "$$stage_vcs/six_glyph_color_component.c26"; \
 	test -f "$$stage_vcs/two_plus_two_score_component.c26"; \
 	test -f "$$stage_vcs/two_plus_two_score_support.c26"; \
 	test ! -e "$$stage_vcs/six_glyph_display.c26"; \

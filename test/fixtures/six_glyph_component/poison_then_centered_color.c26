@@ -3,7 +3,7 @@ include "frame_ntsc.c26"
 include "fonts/default_decimal.c26"
 
 instantiate "renderers/poison_debug_score/poison_debug_score.c26" as poison
-instantiate "six_glyph_color_component.c26" as score
+instantiate "six_glyph_component.c26" as score (mutable_color:=1)
 
 void main(void) {
    PF0 := 0;

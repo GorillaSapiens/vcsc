@@ -655,11 +655,13 @@ its 72-byte private/public contract. Stock startup now selects only `_vcsc_ptr0`
 larger than 255 bytes are regression-tested. Direct 1..4-byte constant stores, a
 scratch-free direct-byte `switch`, and fixed three-line VSYNC lowering reduce the
 multisprite interactive `main` activation from 4 to **0 bytes** while preserving the
-scheduler's calibrated post-VSYNC phase. The centered mutable-color six-glyph score now
-uses two one-byte page-contained-font offsets plus four full 16-bit pointers and no row
-counter: its pointer workspace falls 12 -> **10 bytes**, and the whole score component
-falls 18 -> **15 bytes** while the exact historical 48x8 GRP-write raster remains
-unchanged. Current public sizes are **2613 ROM / 84 RAM** for 192 and **3409 ROM / 99 RAM**
+scheduler's calibrated post-VSYNC phase. The centered six-glyph display is now one
+canonical `six_glyph_component.c26`: compact fixed-white mode owns **14 bytes**;
+`mutable_color:=1` adds one byte for **15 bytes** total; `compact_font:=0` restores
+six redirectable full pointers plus the historical row byte for arbitrary glyph-page
+callers. Compact mode uses two one-byte page-contained-font offsets plus four full
+16-bit pointers and no row counter while preserving the exact historical 48x8
+GRP-write raster. The former `six_glyph_color_component.c26` duplicate is removed. Current public sizes are **2613 ROM / 84 RAM** for 192 and **3409 ROM / 99 RAM**
 for either 181 score composition, leaving **44** and **29** RIOT-RAM bytes free
 respectively. Relative to the prior 110-byte 181 build, this recovers 11 more bytes:
 4 startup + 4 `main` + 3 score. More aggressive score-offset schemes were rejected

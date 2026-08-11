@@ -99,9 +99,9 @@ for my $rompath ($bin,$oldbin) {
 }
 
 my $map_text=read_file($map);
-require_re($map_text,qr/\$0084\s+score_pointers|score_pointers\s+.*\$0084/,
-           'component pointer table is not anchored at the first allocatable RAM byte');
-for my $symbol (qw(score_score score_pointers score_row score_delayed)) {
+require_re($map_text,qr/\$0084\s+score_offsets|score_offsets\s+.*\$0084/,
+           'component compact offsets are not anchored at the first allocatable RAM byte');
+for my $symbol (qw(score_score score_offsets score_pointers score_delayed)) {
    require_re($map_text,qr/\b\Q$symbol\E\b/,"score map is missing $symbol");
 }
 my $font_addr;
@@ -143,8 +143,10 @@ for my $phase (qw(init vblank draw overscan)) {
 }
 require_re($component_text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*11/,
            'component visible contract is no longer eleven scanlines');
-require_re($component_text,qr/uint16_t\s+TEMPLATE_pointers\s*\[\s*6\s*\]/,
-           'component no longer owns six complete glyph pointers');
+require_re($component_text,qr/parameter\s+compact_font\s*:=\s*1/,
+           'component compact mode is no longer the default');
+require_re($component_text,qr/#if TEMPLATE_compact_font.*?uint8_t\s+TEMPLATE_offsets\[2\].*?uint16_t\s+TEMPLATE_pointers\[4\].*?#else/s,
+           'component compact pointer/offset layout changed');
 require_re($component_text,qr/(?:COLUP0\s*:=\s*0x0e.*?COLUP1\s*:=\s*0x0e|asm\s+lda\s+#\$0e;.*?asm\s+sta\s+COLUP0;.*?asm\s+sta\s+COLUP1;)/s,
            'component is no longer bright white');
 require_re($frame_text,qr/VCS_NTSC_FRAME_SCANLINES\s*:=\s*262/,
@@ -155,29 +157,14 @@ $generated !~ /\bjsr\s+score_(?:init|vblank|draw|overscan)\b/
    or die "score lifecycle unexpectedly emitted callable boundaries\n";
 require_re($generated,qr/ldy #11\s+\@inline_\d+_asm_delay:\s+dey\s+bne\.same \@inline_\d+_asm_delay\s+nop\s+nop\s+nop\s+bit\.z \$30.*?begin inline expansion (?:score|display)_draw.*?lda #\$03\s+sta \$04\s+sta \$05/s,
            'calibrated blank-gap tail is missing before the six-glyph draw entry');
-require_re($generated,qr/lda #\$03\s+sta \$04\s+sta \$05\s+lda #\$0e\s+sta \$06\s+sta \$07\s+sta \$2B\s+lda #\$80\s+sta \$20\s+lda #\$90\s+sta \$21\s+nop\s+sta \$10\s+sta \$11\s+sta \$02\s+sta \$2A/s,
-           'component per-draw horizontal positioning sequence changed');
+require_re($generated,qr/lda #\$03\s+sta \$04\s+sta \$05\s+lda #\$0e\s+sta \$06\s+sta \$07\s+sta \$2B\s+lda #\$80\s+sta \$20\s+lda #\$90\s+sta \$21\s+nop\s+sta \$10\s+sta \$11\s+ldy score_offsets\+1\s+sta \$02\s+sta \$2A/s,
+           'component fixed-color positioning/offset preload sequence changed');
 require_re($generated,qr/cmp #\$14/,'generated code lost the 20-frame cadence');
 require_re($generated,qr/sed\s+clc.*?cld/s,'generated code lost packed-BCD increment');
-my ($loop)=$generated =~ /(\@inline_\d+_asm_score_draw_loop:.*?bpl\.same \@inline_\d+_asm_score_draw_loop)/s;
-defined($loop) or die "generated assembly is missing the instantiated score row loop\n";
-$loop !~ /\bjsr\b/ or die "timed score row loop contains a call\n";
-$loop !~ /\b(?:lax|tsx|txs)\b/ or die "score row loop uses an unofficial or stack-pointer opcode\n";
-my @actual=map { s/^\s+|\s+$//gr } grep { length } split(/\n/,$loop);
-$actual[0] =~ s/^\@inline_\d+_asm_score_draw_loop:/\@loop:/;
-$actual[-1] =~ s/bpl\.same \@inline_\d+_asm_score_draw_loop/bpl.same \@loop/;
-my @expected=(
-   '@loop:', 'ldy score_row', 'lda (score_pointers),y', 'sta $1B',
-   'sta $02', 'lda (score_pointers+$2),y', 'sta $1C',
-   'lda (score_pointers+$4),y', 'sta $1B',
-   'lda (score_pointers+$6),y', 'sta score_delayed',
-   'lda (score_pointers+$8),y', 'tax',
-   'lda (score_pointers+$a),y', 'tay', 'lda score_delayed',
-   'sta $1C', 'stx $1B', 'sty $1C', 'sta $1B',
-   'dec score_row', 'bpl.same @loop',
-);
-join("\n",@actual) eq join("\n",@expected)
-   or die "instantiated score row loop changed:\n".join("\n",@actual)."\n";
+$generated !~ /\bscore_row\b/
+   or die "compact centered score unexpectedly allocates or uses a row byte\n";
+require_re($generated,qr/lda score_font\+7,y.*?lda score_font\+0,y/s,
+           'compact centered score no longer contains the unrolled eight-row font schedule');
 
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));

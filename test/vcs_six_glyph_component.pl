@@ -75,12 +75,20 @@ for my $extra ([$spaced_src,$spaced_bin,'spaced'],[$poison_src,$poison_bin,'pois
 }
 
 my $map=read_file($mapfile);
-for my $suffix (qw(score pointers row delayed)) {
+for my $suffix (qw(score offsets pointers delayed)) {
    my $upper=symbol_addr($map,"upper_$suffix");
    my $lower=symbol_addr($map,"lower_$suffix");
    $upper != $lower or die "upper_$suffix and lower_$suffix share storage\n";
 }
 my $source=read_file($component);
+$source =~ /parameter\s+compact_font\s*:=\s*1/
+   && $source =~ /parameter\s+mutable_color\s*:=\s*0/
+   && $source =~ /uint8_t\s+TEMPLATE_offsets\[2\]/
+   && $source =~ /uint16_t\s+TEMPLATE_pointers\[4\]/
+   && $source =~ /uint16_t\s+TEMPLATE_pointers\[6\]/
+   && $source =~ /uint8_t\s+TEMPLATE_row/
+   && $source =~ /#if TEMPLATE_mutable_color\s*recommend uint8_t TEMPLATE_color := 0x0e;/s
+   or die "centered component lost compact/full-pointer or mutable-color modes\n";
 for my $variant ([$component,'centered'],[$left_component,'left'],[$right_component,'right']) {
    my ($path,$name)=@$variant;
    my $text=read_file($path);
@@ -125,8 +133,6 @@ $right_source =~ /uint16_t\s+TEMPLATE_pointers\[4\]/
 
 my $generated=read_file($asm);
 for my $label (qw(upper lower)) {
-   $generated =~ /\@inline_\d+_asm_\Q${label}_draw_loop\E:/
-      or die "$label draw loop was not instantiated with a private label\n";
    $generated !~ /\bjsr\s+\Q${label}_\E(?:init|vblank|draw|overscan)\b/
       or die "$label lifecycle failed to inline\n";
 }
@@ -186,7 +192,7 @@ for my $case (@raster_cases) {
    $err eq '' or die "$name score-raster stderr: $err";
 }
 
-# Every lifecycle function is a component contract, not merely a convention.
+# Full-pointer compatibility is part of the merged centered component API.\nmy $full_src=File::Spec->catfile($tmp,'six_glyph_full_pointer.c26');\nopen(my $full_fh,'>:raw',$full_src) or die "write $full_src: $!\\n";\nprint {$full_fh} qq{include "vcs.c26"\\n};\nprint {$full_fh} qq{include "fonts/default_decimal.c26"\\n};\nprint {$full_fh} qq{instantiate "six_glyph_component.c26" as full (compact_font:=0)\\n};\nprint {$full_fh} qq{void main(void) { full_init(); full_vblank(); full_draw(); full_overscan(); }\\n};\nclose($full_fh) or die "close $full_src: $!\\n";\nmy $full_bin=File::Spec->catfile($tmp,'six_glyph_full_pointer.bin');\nmy $full_map=File::Spec->catfile($tmp,'six_glyph_full_pointer.map');\n($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$full_map,$full_src,'-o',$full_bin);\n$rc==0 && !$sig or die "full-pointer component build failed\\n$out$err";\nmy $full_map_text=read_file($full_map);\nsymbol_addr($full_map_text,'full_pointers');\nsymbol_addr($full_map_text,'full_row');\n$full_map_text !~ /\\bfull_offsets\\b/ or die "full-pointer mode unexpectedly allocates compact offsets\\n";\n\n# Every lifecycle function is a component contract, not merely a convention.
 # Omit each one in turn and require the component-specific link diagnostic.
 for my $omit (qw(init vblank draw overscan)) {
    my $missing=File::Spec->catfile($tmp,"six_glyph_missing_$omit.c26");

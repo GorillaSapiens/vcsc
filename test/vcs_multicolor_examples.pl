@@ -25,11 +25,12 @@ $repo=abs_path($repo) // die "resolve repo\n"; make_path($tmp); $tmp=abs_path($t
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $legacy_cfg=File::Spec->catfile($vcs,qw(renderers faithful_legacy_playercolors faithful_legacy_playercolors.cfg));
-my $color_component=read_file(File::Spec->catfile($vcs,'six_glyph_color_component.c26'));
-$color_component =~ /recommend uint8_t TEMPLATE_color := 0x0e;/
-   && $color_component =~ /asm sta RESP0;\s*asm sta RESP1;\s*asm lda TEMPLATE_color;\s*asm sta COLUP0;\s*asm sta COLUP1;/s
-   && $color_component =~ /asm sta NUSIZ1;.*?asm ldy TEMPLATE_offsets\+1;\s*asm bit\.z TEMPLATE_offsets;\s*asm nop;\s*asm sta HMCLR;/s
-   or die "mutable-color score component lost its color or positioning contract\n";
+my $color_component=read_file(File::Spec->catfile($vcs,'six_glyph_component.c26'));
+$color_component =~ /parameter\s+mutable_color\s*:=\s*0/
+   && $color_component =~ /#if TEMPLATE_mutable_color\s*recommend uint8_t TEMPLATE_color := 0x0e;/s
+   && $color_component =~ /asm sta RESP0;\s*asm sta RESP1;\s*#if TEMPLATE_mutable_color\s*asm lda TEMPLATE_color;\s*asm sta COLUP0;\s*asm sta COLUP1;/s
+   && $color_component =~ /asm sta NUSIZ1;\s*#if TEMPLATE_mutable_color\s*.*?asm ldy TEMPLATE_offsets\+1;\s*asm bit\.z TEMPLATE_offsets;\s*asm nop;\s*#else/s
+   or die "mutable-color score mode lost its color or positioning contract\n";
 my @cases=(
  {
    dir=>'02_faithful_legacy_playercolors/01_interactive',
@@ -117,7 +118,7 @@ for my $case (@cases) {
       my $renderer=$case->{unofficial}
          ? 'renderers/player_color_181_unofficial/player_color_181_unofficial.c26'
          : 'renderers/player_color/player_color.c26';
-      my $score_component=$case->{component} || 'six_glyph_color_component';
+      my $score_component=$case->{component} || 'six_glyph_component';
       $text =~ /\Q$renderer\E/ && $text =~ /\Q$score_component\E/
          or die "$dir lacks the selected 181-line renderer plus score composition\n";
       if ($case->{unofficial}) {

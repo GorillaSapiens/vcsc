@@ -40,7 +40,6 @@ $tmp=abs_path($tmp) // die "resolve tmp\n";
 my @components=(
    ['six_glyph_component.c26',                                      11,1,1,'centered six-glyph'],
    ['six_glyph_wide_component.c26',                                 11,1,1,'wide six-glyph'],
-   ['six_glyph_color_component.c26',                                11,1,1,'mutable-color six-glyph'],
    ['six_glyph_left_component.c26',                                 11,1,1,'left six-glyph'],
    ['six_glyph_right_component.c26',                                11,1,1,'right six-glyph'],
    ['two_plus_two_score_component.c26',                              11,1,1,'two-plus-two score'],
@@ -98,21 +97,30 @@ for my $spec (@components) {
    require_value($text,'DRAW_HMOVE_COUNT',$hmove,$label);
    require_value($text,'DRAW_SUCCESSOR_ON_RETURN_LINE',$successor,$label);
 
-   my $body=draw_body($text,$label);
-   my $actual_hmove=()=$body =~ /(?:\bHMOVE\s*:=|\bsta(?:\.[A-Za-z]+)?\s+HMOVE\b)/g;
-   $actual_hmove==$hmove
-      or die "$label draw has $actual_hmove HMOVE strobes, contract says $hmove\n";
-   $body =~ /(?:\bsta(?:\.[A-Za-z]+)?\s+WSYNC\b|\bWSYNC\s*:=\s*0)\s*;(?:\s*asm\s+\@[A-Za-z0-9_]+:;)*\s*\z/s
-      or die "$label draw does not end through its own terminal WSYNC\n";
-   $body !~ /\b(?:VSYNC|VBLANK|TIM1T|TIM8T|TIM64T|T1024T|INTIM|TIMINT|AUDC0|AUDC1|AUDF0|AUDF1|AUDV0|AUDV1)\s*:=/
-      or die "$label draw writes scheduler or audio state\n";
-   $body !~ /\bsta(?:\.[A-Za-z]+)?\s+(?:VSYNC|VBLANK|TIM1T|TIM8T|TIM64T|T1024T|AUDC0|AUDC1|AUDF0|AUDF1|AUDV0|AUDV1)\b/
-      or die "$label draw writes scheduler or audio state in assembly\n";
-   if ($label =~ /six-glyph/) {
-      $body =~ /sta\s+REFP0;\s*asm\s+sta\s+REFP1;\s*asm\s+nop;/s
-         or die "$label does not clear hostile reflection in the measured eight-cycle slot\n";
+   my @bodies;
+   if ($rel eq 'six_glyph_component.c26') {
+      @bodies = $text =~ /require\s+inline\s+void\s+TEMPLATE_draw\s*\(void\)\s*\{(.*?)\n\}/sg;
+      @bodies == 2 or die "$label does not expose compact and full-pointer draw branches\n";
+   } else {
+      @bodies=(draw_body($text,$label));
+   }
+   for my $body (@bodies) {
+      my $actual_hmove=()=$body =~ /(?:\bHMOVE\s*:=|\bsta(?:\.[A-Za-z]+)?\s+HMOVE\b)/g;
+      $actual_hmove==$hmove
+         or die "$label draw has $actual_hmove HMOVE strobes, contract says $hmove\n";
+      $body =~ /(?:\bsta(?:\.[A-Za-z]+)?\s+WSYNC\b|\bWSYNC\s*:=\s*0)\s*;(?:\s*asm\s+\@[A-Za-z0-9_]+:;)*\s*\z/s
+         or die "$label draw does not end through its own terminal WSYNC\n";
+      $body !~ /\b(?:VSYNC|VBLANK|TIM1T|TIM8T|TIM64T|T1024T|INTIM|TIMINT|AUDC0|AUDC1|AUDF0|AUDF1|AUDV0|AUDV1)\s*:=/
+         or die "$label draw writes scheduler or audio state\n";
+      $body !~ /\bsta(?:\.[A-Za-z]+)?\s+(?:VSYNC|VBLANK|TIM1T|TIM8T|TIM64T|T1024T|AUDC0|AUDC1|AUDF0|AUDF1|AUDV0|AUDV1)\b/
+         or die "$label draw writes scheduler or audio state in assembly\n";
+      if ($label =~ /six-glyph/) {
+         $body =~ /sta\s+REFP0;\s*asm\s+sta\s+REFP1;\s*asm\s+nop;/s
+            or die "$label does not clear hostile reflection in the measured eight-cycle slot\n";
+      }
    }
    if ($label eq 'two-plus-two score') {
+      my $body=join("\n",@bodies);
       $body =~ /sta\s+REFP0;\s*asm\s+sta\s+REFP1;\s*asm\s+sta\s+HMM0;\s*asm\s+sta\s+HMM1;\s*asm\s+sta\s+HMBL;/s
          or die "$label does not establish hostile-safe reflection and preserved-object motion\n";
       $body =~ /sta\s+GRP0;\s*asm\s+sta\s+GRP1;\s*asm\s+sta\s+GRP0;\s*asm\s+sta\s+VDELP0;\s*asm\s+sta\s+VDELP1;/s

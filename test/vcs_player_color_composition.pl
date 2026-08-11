@@ -70,8 +70,8 @@ for my $mode (qw(static motion)) {
       );
       $game_ram==24 or die "$key game RAM is $game_ram, expected 24\n";
       my $score_ram=0;
-      $score_ram += object_size($map,$_) for qw(score_score score_pointers score_row score_delayed);
-      $score_ram==17 or die "$key score RAM is $score_ram, expected 17\n";
+      $score_ram += object_size($map,$_) for qw(score_score score_offsets score_pointers score_delayed);
+      $score_ram==14 or die "$key score RAM is $score_ram, expected 14\n";
       $map =~ /score_font/ or die "$key did not link the independent font\n";
       $map !~ /\bgame_(?:score|score_color|missile0|missile1)\b/
          or die "$key linked forbidden gameplay score/missile state\n";
@@ -86,7 +86,7 @@ my $plain_mapfile=File::Spec->catfile($tmp,'player_color_gameplay_only.map');
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$plain_mapfile,$plain_src,'-o',$plain_bin);
 $rc==0 && !$sig or die "gameplay-only build failed\n$out$err";
 my $plain_map=read_file($plain_mapfile);
-$plain_map !~ /(?:score_score|score_pointers|score_row|score_delayed|score_font)/
+$plain_map !~ /(?:score_score|score_offsets|score_pointers|score_row|score_delayed|score_font)/
    or die "gameplay-only link retained independent score state or ROM\n";
 
 my $cxx=$ENV{CXX} || 'c++';

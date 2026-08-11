@@ -15,7 +15,7 @@ $(TARGET): $(SOURCE) \
            $(VCS_DIR)/color_ntsc.c26 \
            $(VCS_DIR)/playfield.c26 \
            $(VCS_DIR)/renderers/player_color/player_color.c26 \
-           $(VCS_DIR)/six_glyph_color_component.c26 \
+           $(VCS_DIR)/six_glyph_component.c26 \
            $(VCS_DIR)/fonts/default_decimal.c26
 	$(VCSC) -I $(VCS_DIR) $(SOURCE) -o $@
 
