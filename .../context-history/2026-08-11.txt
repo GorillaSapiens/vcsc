@@ -1,0 +1,17 @@
+2026-08-11 00:04:31 PDT, Five-object color renderer completed
+Completed main-roadmap item 23 with the separate official-opcode
+all_five_player_color_192 component. It retains P0, P1, M0, M1, and Ball
+while adding immutable eight-row P0/P1 color tables. Existing all_five and
+player_color profiles remain unchanged.
+
+Measured component RAM is 83 bytes. The smoke cartridge uses 95/128 RAM
+and 3140/4090 ROM and stays at exact 262-line NTSC frames. Stella 7.0 is
+pixel-identical to player_color_192 for patterned players and asymmetric PF,
+and to all_five_192 for constant-color objects. P1/Ball boundary stress,
+full X=0..159 motion, and full 8-bit Y sweeps pass.
+
+Added default and Stella regressions, documentation, install/uninstall wiring,
+staged installcheck coverage, and the maintained top-level Stella target.
+2026-08-11 08:25:00 PDT, Added combined renderer interactive example
+
+Added examples/15_all_five_player_color_192/01_interactive with five-object selection/motion and visible eight-row P0/P1 color tables. The example links at 97 RAM bytes and 3481 ROM bytes.

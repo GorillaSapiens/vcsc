@@ -1,0 +1,1553 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// Official-opcode full-height P0/P1/M0/M1/BL gameplay component with
+// independent eight-entry P0/P1 color tables.  This is a separate 192-line
+// cycle-scheduled profile; it does not alter the maintained all_five or
+// player_color families.
+//
+// Instantiate with:
+//
+//     instantiate "renderers/all_five_player_color_192/all_five_player_color_192.c26" as game
+//
+// Include vcs.c26 first.  Each instance requires page-contained immutable
+// INSTANCE_playfield[48], INSTANCE_player0_colors[8], and
+// INSTANCE_player1_colors[8] objects.  The component draws twelve uniform
+// 16-line playfield rows for exactly 192 visible scanlines.
+//
+// It owns no score/font, VSYNC, VBLANK, or RIOT timer state. draw() returns on
+// the boundary after the 192nd visible line; overscan() clears gameplay state
+// and restores application player heights.
+
+// The machine-readable visible handoff fields below are defined in
+// renderers/COMPONENT_CONVERSION.md under "Measured visible-component handoff".
+enum TEMPLATE_contract {
+   TEMPLATE_VISIBLE_SCANLINES := 192,
+   TEMPLATE_DRAW_ENTRY_CYCLE := 3,
+   TEMPLATE_DRAW_RETURN_CYCLE := 0,
+   TEMPLATE_DRAW_COMPLETE_SCANLINES := 192,
+   TEMPLATE_DRAW_PARTIAL_ENTRY_CYCLES := 0,
+   TEMPLATE_DRAW_PARTIAL_EXIT_CYCLES := 0,
+   TEMPLATE_DRAW_TERMINAL_WSYNC := 1,
+   TEMPLATE_DRAW_HMOVE_COUNT := 0,
+   TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE := 0,
+   TEMPLATE_VBLANK_MAX_CYCLES := 1800,
+   TEMPLATE_OVERSCAN_MAX_CYCLES := 66,
+   TEMPLATE_OBJECT_COUNT := 5,
+   TEMPLATE_PLAYFIELD_BYTES := 48,
+   TEMPLATE_PLAYFIELD_ROWS := 12,
+   TEMPLATE_PLAYFIELD_ROW_BYTES := 4,
+   TEMPLATE_WORKSPACE_BYTES := 14,
+   TEMPLATE_PRIVATE_RAM_BYTES := 62,
+   TEMPLATE_PUBLIC_RAM_BYTES := 21,
+   TEMPLATE_MODULE_RAM_BYTES := 83
+};
+
+alias TEMPLATE_OBJECT_PLAYER0 0
+alias TEMPLATE_OBJECT_PLAYER1 1
+alias TEMPLATE_OBJECT_MISSILE0 2
+alias TEMPLATE_OBJECT_MISSILE1 3
+alias TEMPLATE_OBJECT_BALL 4
+alias TEMPLATE_SPRITE_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+alias TEMPLATE_PLAYER0_X TEMPLATE_object_x[TEMPLATE_OBJECT_PLAYER0]
+alias TEMPLATE_PLAYER1_X TEMPLATE_object_x[TEMPLATE_OBJECT_PLAYER1]
+alias TEMPLATE_MISSILE0_X TEMPLATE_object_x[TEMPLATE_OBJECT_MISSILE0]
+alias TEMPLATE_MISSILE1_X TEMPLATE_object_x[TEMPLATE_OBJECT_MISSILE1]
+alias TEMPLATE_BALL_X TEMPLATE_object_x[TEMPLATE_OBJECT_BALL]
+alias TEMPLATE_PLAYER0_NUSIZ TEMPLATE_player0_nusiz
+alias TEMPLATE_PLAYER1_NUSIZ TEMPLATE_player1_nusiz
+
+extern const uint8_t TEMPLATE_playfield[48];
+extern const uint8_t TEMPLATE_player0_colors[8];
+extern const uint8_t TEMPLATE_player1_colors[8];
+
+// Shared fine-motion conversion table. Indexes 1..15 correspond to the
+// negative remainder left by the 15-pixel coarse-position loop.
+page const uint8_t TEMPLATE_reposition_table[16] := {
+   0x80,0x70,0x60,0x50,0x40,0x30,0x20,0x10,
+   0x00,0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90
+};
+
+// Public state retains independent NUSIZ values. P0/P1 colors come from
+// immutable eight-entry row-color tables supplied by the instance.
+uint8_t TEMPLATE_object_x[5];
+uint8_t TEMPLATE_player0_y;
+uint8_t TEMPLATE_player1_y;
+uint8_t TEMPLATE_missile1_height;
+uint8_t TEMPLATE_missile1_y;
+uint8_t TEMPLATE_ball_y;
+uint8_t *TEMPLATE_player0_graphics;
+uint8_t *TEMPLATE_player1_graphics;
+uint8_t TEMPLATE_player0_height;
+uint8_t TEMPLATE_player1_height;
+uint8_t TEMPLATE_missile0_height;
+uint8_t TEMPLATE_missile0_y;
+uint8_t TEMPLATE_ball_height;
+uint8_t TEMPLATE_player0_nusiz;
+uint8_t TEMPLATE_player1_nusiz;
+
+// Three compact vertical masks are built for each 16-line playfield row. Bits
+// 0..6 are shifted into TIA D1; the eighth BL/M1/M0 bits are packed into the
+// fourth byte as D1/D2/D3. Two seven-byte row caches hold the current and next
+// row's four playfield bytes plus three D1-ready object masks.
+uint8_t TEMPLATE_object_masks[48];
+uint8_t TEMPLATE_row_cache[14];
+
+require inline void TEMPLATE_init(void) {
+}
+
+require inline void TEMPLATE_vblank(void) {
+   // Internal assembly helpers add one hidden JSR level.
+   asm .callstackextra 4;
+   // Build the three non-player schedules directly from public coordinates.
+   // P0/P1 are biased only after preparation; BL/M0/M1 never need to mutate
+   // their public Y values at all.
+   asm jsr @TEMPLATE_prepare_object_masks;
+   asm jmp @TEMPLATE_prepare_object_masks_done;
+   asm @TEMPLATE_prepare_object_masks:;
+   asm ldy #0;
+   asm ldx #0;
+   asm @clear:;
+   asm sty.zx TEMPLATE_object_masks,x;
+   asm sty.zx TEMPLATE_object_masks + 1,x;
+   asm sty.zx TEMPLATE_object_masks + 2,x;
+   asm txa;
+   asm clc;
+   asm adc #4;
+   asm tax;
+   asm cpx #48;
+   asm bcc @clear;
+   // The Ball is biased one pair ahead for VDELBL staging, so the inclusive
+   // preparation limit is 96 even though visible pair indices end at 95.
+   asm lda #96;
+   asm sta.z TEMPLATE_object_masks + 31;
+   asm lda.z TEMPLATE_ball_y;
+   asm clc;
+   asm adc #2;
+   asm ldy.z TEMPLATE_ball_height;
+   asm ldx #0;
+   asm jsr @prepare_one;
+   // Missiles use the original one-pair bias and 0..95 preparation limit.
+   asm lda #95;
+   asm sta.z TEMPLATE_object_masks + 31;
+   asm lda.z TEMPLATE_missile1_y;
+   asm clc;
+   asm adc #1;
+   asm ldy.z TEMPLATE_missile1_height;
+   asm ldx #1;
+   asm jsr @prepare_one;
+   asm lda.z TEMPLATE_missile0_y;
+   asm clc;
+   asm adc #1;
+   asm ldy.z TEMPLATE_missile0_height;
+   asm ldx #2;
+   asm jsr @prepare_one;
+   asm lda.z TEMPLATE_player0_height;
+   asm clc;
+   asm adc #1;
+   asm sta.z TEMPLATE_object_masks + 11;
+   asm lda.z TEMPLATE_player1_height;
+   asm clc;
+   asm adc #1;
+   asm sta.z TEMPLATE_object_masks + 15;
+   asm lda #0;
+   asm sta.z TEMPLATE_object_masks + 19;
+   asm lda #1;
+   asm sta.z TEMPLATE_object_masks + 23;
+
+   // No special terminal row is required: Ball, P0, and P1 all remain in
+   // the ordinary raster pipeline through row twelve.
+   asm rts;
+
+   asm @prepare_one:;
+   asm sta.z TEMPLATE_object_masks + 11;
+   asm stx.z TEMPLATE_object_masks + 3;
+   asm sty.z TEMPLATE_object_masks + 35;
+   asm sec;
+   asm sbc.z TEMPLATE_object_masks + 35;
+   asm sta.z TEMPLATE_object_masks + 7;
+   asm sta.z TEMPLATE_object_masks + 39;
+   asm cmp.z TEMPLATE_object_masks + 11;
+   asm bcc @no_wrap;
+   asm beq @no_wrap;
+   asm lda.z TEMPLATE_object_masks + 11;
+   asm beq @wrapped_high;
+   asm cmp.z TEMPLATE_object_masks + 31;
+   asm bcc @wrapped_low_ready;
+   asm beq @wrapped_low_ready;
+   asm lda.z TEMPLATE_object_masks + 31;
+   asm sta.z TEMPLATE_object_masks + 11;
+   asm @wrapped_low_ready:;
+   asm lda #1;
+   asm sta.z TEMPLATE_object_masks + 7;
+   asm jsr @set_range;
+   asm @wrapped_high:;
+   asm lda.z TEMPLATE_object_masks + 39;
+   asm cmp.z TEMPLATE_object_masks + 31;
+   asm bcc @wrapped_high_ready;
+   asm beq @wrapped_high_ready;
+   asm rts;
+   asm @wrapped_high_ready:;
+   asm sta.z TEMPLATE_object_masks + 7;
+   asm lda.z TEMPLATE_object_masks + 31;
+   asm sta.z TEMPLATE_object_masks + 11;
+   asm jsr @set_range;
+   asm rts;
+   asm @no_wrap:;
+   asm lda.z TEMPLATE_object_masks + 7;
+   asm bne @no_wrap_first_ready;
+   asm lda #1;
+   asm sta.z TEMPLATE_object_masks + 7;
+   asm @no_wrap_first_ready:;
+   asm lda.z TEMPLATE_object_masks + 11;
+   asm cmp.z TEMPLATE_object_masks + 31;
+   asm bcc @no_wrap_last_ready;
+   asm beq @no_wrap_last_ready;
+   asm lda.z TEMPLATE_object_masks + 31;
+   asm sta.z TEMPLATE_object_masks + 11;
+   asm @no_wrap_last_ready:;
+   asm lda.z TEMPLATE_object_masks + 7;
+   asm cmp.z TEMPLATE_object_masks + 11;
+   asm bcc @set_range;
+   asm beq @set_range;
+   asm rts;
+   asm @set_range:;
+   asm lda.z TEMPLATE_object_masks + 7;
+   asm sec;
+   asm sbc #1;
+   asm tay;
+   asm and #7;
+   asm tax;
+   asm lda @start_bits,x;
+   asm sta.z TEMPLATE_object_masks + 23;
+   asm tya;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm sta.z TEMPLATE_object_masks + 15;
+   asm lda.z TEMPLATE_object_masks + 11;
+   asm sec;
+   asm sbc #1;
+   asm tay;
+   asm and #7;
+   asm tax;
+   asm lda @end_bits,x;
+   asm sta.z TEMPLATE_object_masks + 27;
+   asm tya;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm sta.z TEMPLATE_object_masks + 19;
+   asm lda.z TEMPLATE_object_masks + 15;
+   asm asl;
+   asm asl;
+   asm clc;
+   asm adc.z TEMPLATE_object_masks + 3;
+   asm tax;
+   asm lda.z TEMPLATE_object_masks + 15;
+   asm cmp.z TEMPLATE_object_masks + 19;
+   asm bne @range_many;
+   asm lda.z TEMPLATE_object_masks + 23;
+   asm and.z TEMPLATE_object_masks + 27;
+   asm ora.zx TEMPLATE_object_masks,x;
+   asm sta.zx TEMPLATE_object_masks,x;
+   asm rts;
+   asm @range_many:;
+   asm lda.zx TEMPLATE_object_masks,x;
+   asm ora.z TEMPLATE_object_masks + 23;
+   asm sta.zx TEMPLATE_object_masks,x;
+   asm inc.z TEMPLATE_object_masks + 15;
+   asm @range_middle:;
+   asm lda.z TEMPLATE_object_masks + 15;
+   asm cmp.z TEMPLATE_object_masks + 19;
+   asm bcs @range_last;
+   asm txa;
+   asm clc;
+   asm adc #4;
+   asm tax;
+   asm lda #$ff;
+   asm sta.zx TEMPLATE_object_masks,x;
+   asm inc.z TEMPLATE_object_masks + 15;
+   asm jmp @range_middle;
+   asm @range_last:;
+   asm txa;
+   asm clc;
+   asm adc #4;
+   asm tax;
+   asm lda.zx TEMPLATE_object_masks,x;
+   asm ora.z TEMPLATE_object_masks + 27;
+   asm sta.zx TEMPLATE_object_masks,x;
+   asm rts;
+   asm @start_bits:;
+   asm .byte $ff,$fe,$fc,$f8,$f0,$e0,$c0,$80;
+   asm @end_bits:;
+   asm .byte $01,$03,$07,$0f,$1f,$3f,$7f,$ff;
+   asm @TEMPLATE_prepare_object_masks_done:;
+
+   // Convert each three-byte row mask from D0..D7 into a D1-ready seven-bit
+   // stream. The old D7 bits are packed in the fourth lane as BL/M1/M0 in
+   // D1/D2/D3. That lane is consumed only by the final pair of each row.
+   asm ldx #0;
+   asm @TEMPLATE_encode_masks:;
+   asm asl.zx TEMPLATE_object_masks + 2,x;
+   asm lda #0;
+   asm rol;
+   asm asl.zx TEMPLATE_object_masks + 1,x;
+   asm rol;
+   asm asl.zx TEMPLATE_object_masks,x;
+   asm rol;
+   asm asl;
+   asm sta.zx TEMPLATE_object_masks + 3,x;
+   asm txa;
+   asm clc;
+   asm adc #4;
+   asm tax;
+   asm cpx #48;
+   asm bcc @TEMPLATE_encode_masks;
+
+   // Prime cache A with row zero before reclaiming its compact source bytes as
+   // visible-phase working Y coordinates and the current source-row offset.
+   asm lda.a TEMPLATE_playfield;
+   asm sta.z TEMPLATE_row_cache;
+   asm lda.a TEMPLATE_playfield + 1;
+   asm sta.z TEMPLATE_row_cache + 1;
+   asm lda.a TEMPLATE_playfield + 2;
+   asm sta.z TEMPLATE_row_cache + 2;
+   asm lda.a TEMPLATE_playfield + 3;
+   asm sta.z TEMPLATE_row_cache + 3;
+   asm lda.z TEMPLATE_object_masks;
+   asm sta.z TEMPLATE_row_cache + 4;
+   asm lda.z TEMPLATE_object_masks + 1;
+   asm sta.z TEMPLATE_row_cache + 5;
+   asm lda.z TEMPLATE_object_masks + 2;
+   asm sta.z TEMPLATE_row_cache + 6;
+
+   asm lda.z TEMPLATE_player0_y;
+   asm sta.z TEMPLATE_object_masks + 0;
+   asm lda.z TEMPLATE_player1_y;
+   asm clc;
+   asm adc #2;
+   asm sta.z TEMPLATE_object_masks + 1;
+   asm lda #0;
+   asm sta.z TEMPLATE_object_masks + 2;
+
+   // Height+1 is the direct-count threshold used by the player paths. Restore
+   // the public values in overscan after the visible phase is complete.
+   asm inc.z TEMPLATE_player0_height;
+   asm inc.z TEMPLATE_player1_height;
+
+   // Position all five objects during VBLANK with the same calibrated
+   // divide-by-fifteen RESP/HMxx sequence proven by player_color_192.
+   asm sta WSYNC;
+   asm ldx #4;
+   asm bit.z CXM0P;
+   asm lda.zx TEMPLATE_object_x,x;
+   asm sec;
+   asm @TEMPLATE_ball_divide_loop:;
+   asm sbc #15;
+   asm bcs.same @TEMPLATE_ball_divide_loop;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #3;
+   asm bit.z CXM0P;
+   asm lda.zx TEMPLATE_object_x,x;
+   asm sec;
+   asm @TEMPLATE_missile1_divide_loop:;
+   asm sbc #15;
+   asm bcs.same @TEMPLATE_missile1_divide_loop;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #2;
+   asm bit.z CXM0P;
+   asm lda.zx TEMPLATE_object_x,x;
+   asm sec;
+   asm @TEMPLATE_missile0_divide_loop:;
+   asm sbc #15;
+   asm bcs.same @TEMPLATE_missile0_divide_loop;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #1;
+   asm bit.z CXM0P;
+   asm lda.zx TEMPLATE_object_x,x;
+   asm sec;
+   asm @TEMPLATE_player1_divide_loop:;
+   asm sbc #15;
+   asm bcs.same @TEMPLATE_player1_divide_loop;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #0;
+   asm bit.z CXM0P;
+   asm lda.zx TEMPLATE_object_x,x;
+   asm sec;
+   asm @TEMPLATE_player0_divide_loop:;
+   asm sbc #15;
+   asm bcs.same @TEMPLATE_player0_divide_loop;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda TEMPLATE_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm sta HMOVE;
+   asm lda.z TEMPLATE_player0_nusiz;
+   asm sta NUSIZ0;
+   asm lda.z TEMPLATE_player1_nusiz;
+   asm sta NUSIZ1;
+   asm lda #1;
+   asm sta VDELBL;
+   asm sta VDELP0;
+   asm ldx #0;
+   asm stx GRP0;
+   asm stx GRP1;
+   asm stx CXCLR;
+
+   // Stage row-zero BL/M1 from cache A. Their D1-ready bytes can be written
+   // directly to the TIA before being shifted for the next pair.
+   asm lda.z TEMPLATE_row_cache + 4;
+   asm sta ENABL;
+   asm lsr.z TEMPLATE_row_cache + 4;
+
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm bcs @TEMPLATE_first_player1_zero;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm jmp @TEMPLATE_first_player1_ready;
+   asm @TEMPLATE_first_player1_zero:;
+   asm lda #0;
+   asm tay;
+   asm @TEMPLATE_first_player1_ready:;
+   asm sta GRP1;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.z TEMPLATE_row_cache + 5;
+   asm sta ENAM1;
+   asm lsr.z TEMPLATE_row_cache + 5;
+   asm lda.z TEMPLATE_row_cache + 6;
+   asm sta ENAM0;
+
+   // Prime the left half of row zero from cache A while output is blanked.
+   asm lda.z TEMPLATE_row_cache;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+}
+
+require inline void TEMPLATE_draw(void) {
+   // Row zero enters at the scheduler's cycle-3 handoff.  The first visible
+   // P0 half is timed to place the first cached pair at cycle 75; every normal
+   // pair thereafter is exactly 152 cycles.
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm nop;
+   asm lda.a TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.a TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm bit.z CXM0P;
+   asm nop;
+   asm lda.a TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm bcs @TEMPLATE_first_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_first_p0_ready;
+   asm @TEMPLATE_first_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_first_p0_ready:;
+   asm sta GRP0;
+   asm nop;
+   asm nop;
+   asm jmp @TEMPLATE_A_u1;
+
+   asm .align 256;
+   // A pair 1: fixed 152-cycle cached pair.
+   asm @TEMPLATE_A_u1:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_row_cache + 6;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm lda.ax TEMPLATE_playfield + 4,x;
+   asm sta.z TEMPLATE_row_cache + 7;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 4;
+   asm sta ENABL;
+   asm bcc.same @TEMPLATE_A_u1_p1_active;
+   asm lda #0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm bcs.same @TEMPLATE_A_u1_p1_ready;
+   asm @TEMPLATE_A_u1_p1_active:;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @TEMPLATE_A_u1_p1_ready:;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_row_cache + 5;
+   asm sta ENAM1;
+   asm lsr.z TEMPLATE_row_cache + 5;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm lsr.z TEMPLATE_row_cache + 6;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm bcs @TEMPLATE_A_u1_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_A_u1_p0_ready;
+   asm @TEMPLATE_A_u1_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_A_u1_p0_ready:;
+   asm sta GRP0;
+   asm lsr.z TEMPLATE_row_cache + 4;
+   asm nop;
+   // A pair 2: fixed 152-cycle cached pair.
+   asm @TEMPLATE_A_u2:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_row_cache + 6;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm lda.ax TEMPLATE_playfield + 5,x;
+   asm sta.z TEMPLATE_row_cache + 8;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 4;
+   asm sta ENABL;
+   asm bcc.same @TEMPLATE_A_u2_p1_active;
+   asm lda #0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm bcs.same @TEMPLATE_A_u2_p1_ready;
+   asm @TEMPLATE_A_u2_p1_active:;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @TEMPLATE_A_u2_p1_ready:;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_row_cache + 5;
+   asm sta ENAM1;
+   asm lsr.z TEMPLATE_row_cache + 5;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm lsr.z TEMPLATE_row_cache + 6;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm bcs @TEMPLATE_A_u2_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_A_u2_p0_ready;
+   asm @TEMPLATE_A_u2_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_A_u2_p0_ready:;
+   asm sta GRP0;
+   asm lsr.z TEMPLATE_row_cache + 4;
+   asm nop;
+   // A pair 3: fixed 152-cycle cached pair.
+   asm @TEMPLATE_A_u3:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_row_cache + 6;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm lda.ax TEMPLATE_playfield + 6,x;
+   asm sta.z TEMPLATE_row_cache + 9;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 4;
+   asm sta ENABL;
+   asm bcc.same @TEMPLATE_A_u3_p1_active;
+   asm lda #0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm bcs.same @TEMPLATE_A_u3_p1_ready;
+   asm @TEMPLATE_A_u3_p1_active:;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @TEMPLATE_A_u3_p1_ready:;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_row_cache + 5;
+   asm sta ENAM1;
+   asm lsr.z TEMPLATE_row_cache + 5;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm lsr.z TEMPLATE_row_cache + 6;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm bcs @TEMPLATE_A_u3_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_A_u3_p0_ready;
+   asm @TEMPLATE_A_u3_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_A_u3_p0_ready:;
+   asm sta GRP0;
+   asm lsr.z TEMPLATE_row_cache + 4;
+   asm nop;
+   // A pair 4: fixed 152-cycle cached pair.
+   asm @TEMPLATE_A_u4:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_row_cache + 6;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm lda.ax TEMPLATE_playfield + 7,x;
+   asm sta.z TEMPLATE_row_cache + 10;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 4;
+   asm sta ENABL;
+   asm bcc.same @TEMPLATE_A_u4_p1_active;
+   asm lda #0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm bcs.same @TEMPLATE_A_u4_p1_ready;
+   asm @TEMPLATE_A_u4_p1_active:;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @TEMPLATE_A_u4_p1_ready:;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_row_cache + 5;
+   asm sta ENAM1;
+   asm lsr.z TEMPLATE_row_cache + 5;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm lsr.z TEMPLATE_row_cache + 6;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm bcs @TEMPLATE_A_u4_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_A_u4_p0_ready;
+   asm @TEMPLATE_A_u4_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_A_u4_p0_ready:;
+   asm sta GRP0;
+   asm lsr.z TEMPLATE_row_cache + 4;
+   asm nop;
+   // A pair 5: fixed 152-cycle cached pair.
+   asm @TEMPLATE_A_u5:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_row_cache + 6;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm lda.zx TEMPLATE_object_masks + 4,x;
+   asm sta.z TEMPLATE_row_cache + 11;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 4;
+   asm sta ENABL;
+   asm bcc.same @TEMPLATE_A_u5_p1_active;
+   asm lda #0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm bcs.same @TEMPLATE_A_u5_p1_ready;
+   asm @TEMPLATE_A_u5_p1_active:;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @TEMPLATE_A_u5_p1_ready:;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_row_cache + 5;
+   asm sta ENAM1;
+   asm lsr.z TEMPLATE_row_cache + 5;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm lsr.z TEMPLATE_row_cache + 6;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm bcs @TEMPLATE_A_u5_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_A_u5_p0_ready;
+   asm @TEMPLATE_A_u5_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_A_u5_p0_ready:;
+   asm sta GRP0;
+   asm lsr.z TEMPLATE_row_cache + 4;
+   asm nop;
+   // A pair 6: fixed 152-cycle cached pair.
+   asm @TEMPLATE_A_u6:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_row_cache + 6;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm lda.zx TEMPLATE_object_masks + 5,x;
+   asm sta.z TEMPLATE_row_cache + 12;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 4;
+   asm sta ENABL;
+   asm bcc.same @TEMPLATE_A_u6_p1_active;
+   asm lda #0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm bcs.same @TEMPLATE_A_u6_p1_ready;
+   asm @TEMPLATE_A_u6_p1_active:;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @TEMPLATE_A_u6_p1_ready:;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_row_cache + 5;
+   asm sta ENAM1;
+   asm lsr.z TEMPLATE_row_cache + 5;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm lsr.z TEMPLATE_row_cache + 6;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm bcs @TEMPLATE_A_u6_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_A_u6_p0_ready;
+   asm @TEMPLATE_A_u6_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_A_u6_p0_ready:;
+   asm sta GRP0;
+   asm lsr.z TEMPLATE_row_cache + 4;
+   asm nop;
+   // A pair 7 consumes the packed eighth BL/M1/M0 bits.  The packed
+   // byte is copied to the now-dead cached M1 lane before X becomes P1 color.
+   asm @TEMPLATE_A_u7:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_row_cache + 6;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm lda.zx TEMPLATE_object_masks + 3,x;
+   asm sta ENABL;
+   asm lsr;
+   asm lsr;
+   asm sta.z TEMPLATE_row_cache + 6;
+   asm ldy.zx TEMPLATE_object_masks + 6,x;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.z TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm sty.z TEMPLATE_row_cache + 13;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm bcs @TEMPLATE_A_u7_p1_zero;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm jmp @TEMPLATE_A_u7_p1_ready;
+   asm @TEMPLATE_A_u7_p1_zero:;
+   asm ldy #0;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda #0;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_A_u7_p1_ready:;
+   asm sta GRP1;
+   asm lda.zx TEMPLATE_object_masks + 3,x;
+   asm lsr;
+   asm sta ENAM1;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm cpy.z TEMPLATE_player0_height;
+   asm lda.a TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm sty.z TEMPLATE_object_masks + 0;
+   // The ordinary next-pair COLUP0 update does not exist after pair 7.  Fold
+   // that update into the active P0 selection instead.  Both paths are exactly
+   // 15 cycles from the branch through the selected A value: five cycles longer
+   // than the ordinary pair-7 selector.  GRP0 therefore lands exactly at the
+   // scanline boundary and replaces the old WSYNC without moving boundary entry.
+   asm bcc.same @TEMPLATE_A_u7_p0_active;
+   asm lda #0;
+   asm tay;
+   asm bit.a CXM0P;
+   asm nop;
+   asm bcs.same @TEMPLATE_A_u7_p0_ready;
+   asm @TEMPLATE_A_u7_p0_active:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @TEMPLATE_A_u7_p0_ready:;
+   asm sta GRP0;
+   // Final line of an A row.  Cache B is complete.  Stage B's Ball bit
+   // before a single fixed-phase GRP1 transfer on the next line.
+   asm @TEMPLATE_A_boundary:;
+   // M0 is immediate rather than delayed: pair 7 precomputed its packed bit7
+   // into the dead current-cache M0 lane so this final-row-line update is only
+   // six cycles and cannot perturb the fixed GRP1 phase.
+   asm lda.z TEMPLATE_row_cache + 6;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 11;
+   asm sta ENABL;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm lsr.z TEMPLATE_row_cache + 11;
+   asm nop;
+   asm bit.z CXM0P;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm bcs @TEMPLATE_A_boundary_p1_zero;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm jmp @TEMPLATE_A_boundary_p1_ready;
+   asm @TEMPLATE_A_boundary_p1_zero:;
+   asm ldy #0;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda #0;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_A_boundary_p1_ready:;
+   // GRP1 lands at cycle 2 of the first B-row line, transferring the delayed
+   // Ball bit0 staged above.  M0 intentionally remains on old-row bit7 until
+   // B pair 1 updates it on the following line, matching the proven pipeline.
+   asm sta GRP1;
+   asm lda.z TEMPLATE_row_cache + 12;
+   asm sta ENAM1;
+   asm lsr.z TEMPLATE_row_cache + 12;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm inx;
+   asm inx;
+   asm inx;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm bcs @TEMPLATE_A_firstB_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_A_firstB_p0_ready;
+   asm @TEMPLATE_A_firstB_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_A_firstB_p0_ready:;
+   asm sta GRP0;
+   asm inx;
+   asm nop;
+   asm bit.z CXM0P;
+   // B pair 1: fixed 152-cycle cached pair.
+   asm @TEMPLATE_B_u1:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_row_cache + 13;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm lda.ax TEMPLATE_playfield + 4,x;
+   asm sta.z TEMPLATE_row_cache + 0;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 11;
+   asm sta ENABL;
+   asm bcc.same @TEMPLATE_B_u1_p1_active;
+   asm lda #0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm bcs.same @TEMPLATE_B_u1_p1_ready;
+   asm @TEMPLATE_B_u1_p1_active:;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @TEMPLATE_B_u1_p1_ready:;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_row_cache + 12;
+   asm sta ENAM1;
+   asm lsr.z TEMPLATE_row_cache + 12;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm lsr.z TEMPLATE_row_cache + 13;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm bcs @TEMPLATE_B_u1_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_B_u1_p0_ready;
+   asm @TEMPLATE_B_u1_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_B_u1_p0_ready:;
+   asm sta GRP0;
+   asm lsr.z TEMPLATE_row_cache + 11;
+   asm nop;
+   // B pair 2: fixed 152-cycle cached pair.
+   asm @TEMPLATE_B_u2:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_row_cache + 13;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm lda.ax TEMPLATE_playfield + 5,x;
+   asm sta.z TEMPLATE_row_cache + 1;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 11;
+   asm sta ENABL;
+   asm bcc.same @TEMPLATE_B_u2_p1_active;
+   asm lda #0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm bcs.same @TEMPLATE_B_u2_p1_ready;
+   asm @TEMPLATE_B_u2_p1_active:;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @TEMPLATE_B_u2_p1_ready:;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_row_cache + 12;
+   asm sta ENAM1;
+   asm lsr.z TEMPLATE_row_cache + 12;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm lsr.z TEMPLATE_row_cache + 13;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm bcs @TEMPLATE_B_u2_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_B_u2_p0_ready;
+   asm @TEMPLATE_B_u2_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_B_u2_p0_ready:;
+   asm sta GRP0;
+   asm lsr.z TEMPLATE_row_cache + 11;
+   asm nop;
+   // B pair 3: fixed 152-cycle cached pair.
+   asm @TEMPLATE_B_u3:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_row_cache + 13;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm lda.ax TEMPLATE_playfield + 6,x;
+   asm sta.z TEMPLATE_row_cache + 2;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 11;
+   asm sta ENABL;
+   asm bcc.same @TEMPLATE_B_u3_p1_active;
+   asm lda #0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm bcs.same @TEMPLATE_B_u3_p1_ready;
+   asm @TEMPLATE_B_u3_p1_active:;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @TEMPLATE_B_u3_p1_ready:;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_row_cache + 12;
+   asm sta ENAM1;
+   asm lsr.z TEMPLATE_row_cache + 12;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm lsr.z TEMPLATE_row_cache + 13;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm bcs @TEMPLATE_B_u3_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_B_u3_p0_ready;
+   asm @TEMPLATE_B_u3_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_B_u3_p0_ready:;
+   asm sta GRP0;
+   asm lsr.z TEMPLATE_row_cache + 11;
+   asm nop;
+   // B pair 4: fixed 152-cycle cached pair.
+   asm @TEMPLATE_B_u4:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_row_cache + 13;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm lda.ax TEMPLATE_playfield + 7,x;
+   asm sta.z TEMPLATE_row_cache + 3;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 11;
+   asm sta ENABL;
+   asm bcc.same @TEMPLATE_B_u4_p1_active;
+   asm lda #0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm bcs.same @TEMPLATE_B_u4_p1_ready;
+   asm @TEMPLATE_B_u4_p1_active:;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @TEMPLATE_B_u4_p1_ready:;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_row_cache + 12;
+   asm sta ENAM1;
+   asm lsr.z TEMPLATE_row_cache + 12;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm lsr.z TEMPLATE_row_cache + 13;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm bcs @TEMPLATE_B_u4_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_B_u4_p0_ready;
+   asm @TEMPLATE_B_u4_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_B_u4_p0_ready:;
+   asm sta GRP0;
+   asm lsr.z TEMPLATE_row_cache + 11;
+   asm nop;
+   // B pair 5: fixed 152-cycle cached pair.
+   asm @TEMPLATE_B_u5:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_row_cache + 13;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm lda.zx TEMPLATE_object_masks + 4,x;
+   asm sta.z TEMPLATE_row_cache + 4;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 11;
+   asm sta ENABL;
+   asm bcc.same @TEMPLATE_B_u5_p1_active;
+   asm lda #0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm bcs.same @TEMPLATE_B_u5_p1_ready;
+   asm @TEMPLATE_B_u5_p1_active:;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @TEMPLATE_B_u5_p1_ready:;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_row_cache + 12;
+   asm sta ENAM1;
+   asm lsr.z TEMPLATE_row_cache + 12;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm lsr.z TEMPLATE_row_cache + 13;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm bcs @TEMPLATE_B_u5_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_B_u5_p0_ready;
+   asm @TEMPLATE_B_u5_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_B_u5_p0_ready:;
+   asm sta GRP0;
+   asm lsr.z TEMPLATE_row_cache + 11;
+   asm nop;
+   // B pair 6: fixed 152-cycle cached pair.
+   asm @TEMPLATE_B_u6:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_row_cache + 13;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm lda.zx TEMPLATE_object_masks + 5,x;
+   asm sta.z TEMPLATE_row_cache + 5;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 11;
+   asm sta ENABL;
+   asm bcc.same @TEMPLATE_B_u6_p1_active;
+   asm lda #0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm bcs.same @TEMPLATE_B_u6_p1_ready;
+   asm @TEMPLATE_B_u6_p1_active:;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm @TEMPLATE_B_u6_p1_ready:;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_row_cache + 12;
+   asm sta ENAM1;
+   asm lsr.z TEMPLATE_row_cache + 12;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm lsr.z TEMPLATE_row_cache + 13;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm bcs @TEMPLATE_B_u6_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_B_u6_p0_ready;
+   asm @TEMPLATE_B_u6_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_B_u6_p0_ready:;
+   asm sta GRP0;
+   asm lsr.z TEMPLATE_row_cache + 11;
+   asm nop;
+   // B pair 7 consumes the packed eighth BL/M1/M0 bits.  The packed
+   // byte is copied to the now-dead cached M1 lane before X becomes P1 color.
+   asm @TEMPLATE_B_u7:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.z TEMPLATE_row_cache + 13;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm lda.zx TEMPLATE_object_masks + 3,x;
+   asm sta ENABL;
+   asm lsr;
+   asm lsr;
+   asm sta.z TEMPLATE_row_cache + 13;
+   asm ldy.zx TEMPLATE_object_masks + 6,x;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.z TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm sty.z TEMPLATE_row_cache + 6;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm bcs @TEMPLATE_B_u7_p1_zero;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm jmp @TEMPLATE_B_u7_p1_ready;
+   asm @TEMPLATE_B_u7_p1_zero:;
+   asm ldy #0;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda #0;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_B_u7_p1_ready:;
+   asm sta GRP1;
+   asm lda.zx TEMPLATE_object_masks + 3,x;
+   asm lsr;
+   asm sta ENAM1;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm cpy.z TEMPLATE_player0_height;
+   asm lda.a TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm sty.z TEMPLATE_object_masks + 0;
+   // As on the A boundary, absorb the otherwise-skipped next P0 color write
+   // into a cycle-balanced 15-cycle selector.  The extra five cycles place the
+   // GRP0 commit exactly on the scanline boundary, so no explicit WSYNC is needed.
+   asm bcc.same @TEMPLATE_B_u7_p0_active;
+   asm lda #0;
+   asm tay;
+   asm bit.a CXM0P;
+   asm nop;
+   asm bcs.same @TEMPLATE_B_u7_p0_ready;
+   asm @TEMPLATE_B_u7_p0_active:;
+   asm lda.ay TEMPLATE_player0_colors,y;
+   asm sta COLUP0;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm @TEMPLATE_B_u7_p0_ready:;
+   asm sta GRP0;
+   // Final line of a B row.  Row 11 is terminal; earlier B rows switch
+   // back to cache A.  CMP leaves C clear on every nonterminal row, so ADC #4
+   // doubles as the row-offset increment without a separate CLC.
+   asm @TEMPLATE_B_boundary:;
+   asm lda.z TEMPLATE_row_cache + 13;
+   asm sta ENAM0;
+   asm lda.z TEMPLATE_row_cache + 4;
+   asm sta ENABL;
+   asm lda.z TEMPLATE_row_cache + 7;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 8;
+   asm sta PF2;
+   asm cpx #44;
+   asm beq @TEMPLATE_terminal_boundary;
+   // B boundaries spend the four-cycle terminal check in place of A's Ball
+   // second three-cycle pad.
+   asm lsr.a TEMPLATE_row_cache + 4;
+   asm ldy.z TEMPLATE_object_masks + 1;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 1;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm cpy.z TEMPLATE_player1_height;
+   asm bcs @TEMPLATE_B_boundary_p1_zero;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda.iy (TEMPLATE_player1_graphics),y;
+   asm jmp @TEMPLATE_B_boundary_p1_ready;
+   asm @TEMPLATE_B_boundary_p1_zero:;
+   asm ldy #0;
+   asm lda.ay TEMPLATE_player1_colors,y;
+   asm sta COLUP1;
+   asm lda #0;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_B_boundary_p1_ready:;
+   asm sta GRP1;
+   asm lda.z TEMPLATE_row_cache + 5;
+   asm sta ENAM1;
+   asm lsr.z TEMPLATE_row_cache + 5;
+   asm lda.z TEMPLATE_row_cache + 0;
+   asm sta PF1;
+   asm lda.z TEMPLATE_row_cache + 1;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_object_masks + 0;
+   asm dey;
+   asm sty.z TEMPLATE_object_masks + 0;
+   asm cpy.z TEMPLATE_player0_height;
+   asm inx;
+   asm inx;
+   asm inx;
+   asm lda.z TEMPLATE_row_cache + 2;
+   asm sta PF2;
+   asm lda.a TEMPLATE_row_cache + 3;
+   asm sta PF1;
+   asm bcs @TEMPLATE_B_firstA_p0_zero;
+   asm lda.iy (TEMPLATE_player0_graphics),y;
+   asm jmp @TEMPLATE_B_firstA_p0_ready;
+   asm @TEMPLATE_B_firstA_p0_zero:;
+   asm lda #0;
+   asm tay;
+   asm bit.z CXM0P;
+   asm @TEMPLATE_B_firstA_p0_ready:;
+   asm sta GRP0;
+   asm inx;
+   asm nop;
+   asm jmp @TEMPLATE_A_u1;
+
+   // Row 11 is terminal.  Its packed M0 bit7 is already active; keep the old
+   // row's reflected PF through the final line and close it with WSYNC.
+   asm @TEMPLATE_terminal_boundary:;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm lda.z TEMPLATE_row_cache + 9;
+   asm sta PF2;
+   asm lda.z TEMPLATE_row_cache + 10;
+   asm sta PF1;
+   asm sta WSYNC;
+}
+
+require inline void TEMPLATE_overscan(void) {
+   // Restore the two public heights temporarily biased for direct CPY tests.
+   asm dec.z TEMPLATE_player0_height;
+   asm dec.z TEMPLATE_player1_height;
+
+   asm lda #0;
+   asm sta PF0;
+   asm sta PF1;
+   asm sta PF2;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm sta ENAM0;
+   asm sta ENAM1;
+   asm sta ENABL;
+   asm sta VDELBL;
+   asm sta VDELP0;
+   asm sta VDELP1;
+   asm sta HMCLR;
+}

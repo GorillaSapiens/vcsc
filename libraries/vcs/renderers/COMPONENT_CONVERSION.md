@@ -118,6 +118,7 @@ not inferred from a count of source statements. The common contract is:
 | official/unofficial `all_five_181` | 181 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | official `player_color (lines:=192)` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
 | `all_five_192` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
+| `all_five_player_color_192` | 192 | 3 / 0 | 0 / 0 | yes | 0 | no |
 | `multisprite (lines:=181)` | 181 | 3 / 0 | 0 / 0 | yes | 6 | yes |
 | `multisprite (lines:=192)` | 192 | 3 / 0 | 0 / 0 | yes | 5 | no |
 
@@ -294,6 +295,22 @@ The 192-line profile is the full-height scoreless form. It uses a page-contained
 48-byte/twelve-row playfield and the proven `player_color_192`-derived visible
 pipeline. All five objects are positioned during VBLANK. The exact RAM contract
 is 23 public bytes plus 48 private schedule/scratch bytes, or 71 bytes total.
+
+### 192-line all-five gameplay with player color tables
+
+`renderers/all_five_player_color_192/all_five_player_color_192.c26` is a
+separate full-height official-opcode profile combining P0/P1/M0/M1/BL with
+immutable eight-entry P0/P1 color tables. It keeps the existing `all_five` and
+`player_color` profiles unchanged. The exact component RAM contract is 21 public
+bytes plus 62 private bytes (48 bytes of compact object schedule and a 14-byte
+double row cache), or 83 bytes total. Its draw handoff is the same complete
+192-line 3/0 contract as the other full-height profiles.
+
+The row cache supplies four playfield bytes plus D1-ready Ball/M1/M0 enables.
+The eighth object bits are packed into each schedule row's fourth byte so the
+fixed-phase `GRP1` transfer cannot expose a stale delayed-Ball latch. Pair 7
+updates the next P0 color in a cycle-balanced selector and commits `GRP0` at the
+scanline boundary instead of adding a boundary `WSYNC`.
 
 ### 181-line all-five gameplay
 

@@ -82,6 +82,7 @@ make linux         # build a self-contained native Linux tar.gz with examples
 make windows       # cross-build a self-contained 64-bit Windows zip with examples
 make stella-bank-test STELLA=stella  # authoritative F8/F6/F4 mapper matrix
 make stella-player-color-192-test STELLA=stella  # player-color-192 visible playfield raster
+make stella-all-five-player-color-192-test STELLA=stella  # all-five + per-row player colors
 make docs          # Doxygen output under doxygen/
 make clean
 ```

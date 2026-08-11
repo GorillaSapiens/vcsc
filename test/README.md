@@ -912,6 +912,13 @@ history, and the unchanged 232-byte high-level `install_frames()` span. The stac
 report remains explicit at source=4, hidden=0, total=4 and `.callstackextra 0`.
 The separate animation emulator remains the behavioral/frame oracle.
 
+The optional `make stella-all-five-player-color-192-test STELLA=/path/to/stella`
+target cross-checks the combined all-five plus per-row-player-color profile
+against both maintained 192-line golden renderers. It verifies patterned player
+colors and asymmetric playfield pixels against `player_color_192`, constant-color
+object pixels against `all_five_192`, and delayed-Ball/P1 overlap at cache-row
+boundaries.
+
 `phase_overlay.pl` is the generic positive/negative lifetime proof. Explicit
 `__phaseworkspace$V1$...` contracts mark a smaller overscan-only object and a
 larger VBLANK+draw workspace; the smaller object is deliberately declared first

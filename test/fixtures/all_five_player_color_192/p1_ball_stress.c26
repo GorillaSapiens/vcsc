@@ -1,0 +1,19 @@
+// Tall Ball plus P1 fixture for delayed-Ball/GRP1 boundary stress.
+include "vcs.c26"
+include "frame_ntsc.c26"
+page const uint8_t game_playfield[48] := {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+page const uint8_t game_player0_colors[8] := {0x3e,0x3e,0x3e,0x3e,0x3e,0x3e,0x3e,0x3e};
+page const uint8_t game_player1_colors[8] := {0xce,0xce,0xce,0xce,0xce,0xce,0xce,0xce};
+instantiate "renderers/all_five_player_color_192/all_five_player_color_192.c26" as game
+page const uint8_t p0_graphics[8] := {0,0,0,0,0,0,0,0};
+page const uint8_t p1_graphics[8] := {0x00,0x7e,0x42,0x5a,0x5a,0x42,0x7e,0x00};
+void main(void) {
+ VBLANK:=2; COLUBK:=0; COLUPF:=0x8e; COLUP0:=0x3e; COLUP1:=0xce; CTRLPF:=0x20;
+ game_PLAYER0_NUSIZ:=0x20; game_PLAYER1_NUSIZ:=0x20;
+ game_PLAYER0_X:=20; game_PLAYER1_X:=100; game_MISSILE0_X:=40; game_MISSILE1_X:=140; game_BALL_X:=70;
+ game_player0_y:=250; game_player1_y:=31; game_missile0_y:=250; game_missile1_y:=250; game_ball_y:=12;
+ game_player0_graphics:=p0_graphics; game_player1_graphics:=p1_graphics;
+ game_player0_height:=0; game_player1_height:=7; game_missile0_height:=0; game_missile1_height:=0; game_ball_height:=150;
+ 
+ game_init(); while(1){vcs_ntsc_vsync();vcs_ntsc_begin_vblank();game_vblank();vcs_ntsc_end_vblank();game_draw();vcs_ntsc_begin_overscan();game_overscan();vcs_ntsc_end_overscan();}
+}

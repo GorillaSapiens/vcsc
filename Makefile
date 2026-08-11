@@ -15,6 +15,7 @@ STELLA_BANK_TEST_TMP ?= $(CURDIR)/.stella-bank-test
 STELLA_RENDERER_BANK_TEST_TMP ?= $(CURDIR)/.stella-renderer-bank-test
 STELLA_WIDE_SCORE_TEST_TMP ?= $(CURDIR)/.stella-wide-score-test
 STELLA_PLAYER_COLOR_192_TEST_TMP ?= $(CURDIR)/.stella-player-color-192-test
+STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP ?= $(CURDIR)/.stella-all-five-player-color-192-test
 STELLA_FAITHFUL_MULTISPRITE_TEST_TMP ?= $(CURDIR)/.stella-faithful-multisprite-test
 STELLA_MULTISPRITE_TEST_TMP ?= $(CURDIR)/.stella-multisprite-test
 WINDOWS_TRIPLET ?= x86_64-w64-mingw32
@@ -75,7 +76,7 @@ exam:
 #	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
 
 clean:
-	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP) $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP) $(STELLA_MULTISPRITE_TEST_TMP)
+	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP) $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP) $(STELLA_MULTISPRITE_TEST_TMP)
 	@$(MAKE) --no-print-directory -C ./assembler clean
 	@$(MAKE) --no-print-directory -C ./linker clean
 	@$(MAKE) --no-print-directory -C ./archiver clean
@@ -174,6 +175,10 @@ install-data:
 	install -m 0644 libraries/vcs/renderers/all_five/README.md \
 	  libraries/vcs/renderers/all_five/all_five.c26 \
 	  $(DESTDIR)$(DATADIR)/vcs/renderers/all_five/
+	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_192
+	install -m 0644 libraries/vcs/renderers/all_five_player_color_192/README.md \
+	  libraries/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26 \
+	  $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_192/
 	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_unofficial
 	install -m 0644 libraries/vcs/renderers/all_five_unofficial/README.md \
 	  libraries/vcs/renderers/all_five_unofficial/all_five_unofficial.c26 \
@@ -284,6 +289,9 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five/all_five.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five 2>/dev/null || true
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_192/README.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26
+	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_192 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_unofficial/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_unofficial/all_five_unofficial.c26
 	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_unofficial 2>/dev/null || true
@@ -669,6 +677,16 @@ installcheck: tools
 	  "$(CURDIR)/test/fixtures/all_five_170/smoke.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/all_five_170.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_170.bin"` -eq 4096; \
+	test -f "$$stage_vcs/renderers/all_five_player_color_192/README.md"; \
+	test -f "$$stage_vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  "$(CURDIR)/test/fixtures/all_five_player_color_192/smoke.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/all_five_player_color_192.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_player_color_192.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" \
+	  "$(CURDIR)/examples/15_all_five_player_color_192/01_interactive/all_five_player_color_192_interactive.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/all_five_player_color_192_interactive.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_player_color_192_interactive.bin"` -eq 4096; \
 	test -f "$$stage_vcs/renderers/player_color/README.md"; \
 	test -f "$$stage_vcs/renderers/player_color/player_color.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
@@ -808,6 +826,12 @@ stella-player-color-192-test: tools
 	  "$(CURDIR)" "$(STELLA_PLAYER_COLOR_192_TEST_TMP)"
 	rm -rf $(STELLA_PLAYER_COLOR_192_TEST_TMP)
 
+stella-all-five-player-color-192-test: tools
+	rm -rf $(STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP)
+	VCSC_STELLA="$(STELLA)" perl test/vcs_all_five_player_color_192_stella.pl \
+	  "$(CURDIR)" "$(STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP)"
+	rm -rf $(STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP)
+
 stella-faithful-multisprite-test: tools
 	rm -rf $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP)
 	VCSC_STELLA="$(STELLA)" perl test/vcs_faithful_legacy_multisprite_stella.pl \
@@ -820,4 +844,4 @@ stella-multisprite-test: tools
 	  "$(CURDIR)" "$(STELLA_MULTISPRITE_TEST_TMP)"
 	rm -rf $(STELLA_MULTISPRITE_TEST_TMP)
 
-.PHONY: all tools install install-core install-examples install-data uninstall uninstall-examples uninstall-data package windows installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-player-color-192-test stella-faithful-multisprite-test stella-multisprite-test docs
+.PHONY: all tools install install-core install-examples install-data uninstall uninstall-examples uninstall-data package windows installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-faithful-multisprite-test stella-multisprite-test docs

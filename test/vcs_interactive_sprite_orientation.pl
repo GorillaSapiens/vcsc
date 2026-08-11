@@ -85,7 +85,7 @@ find(sub {
    return unless -f $_ && /\.c26\z/ && $File::Find::name =~ m{/01_interactive/};
    push @leaves,$File::Find::name;
 },File::Spec->catdir($repo,'examples'));
-@leaves==51 or die "found ".scalar(@leaves)." interactive sources, expected 51\n";
+@leaves==52 or die "found ".scalar(@leaves)." interactive sources, expected 52\n";
 for my $path (@leaves) {
    next if $path eq $faithful_path;
    my $text=read_file($path);

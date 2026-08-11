@@ -23,8 +23,8 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: none selected — item 28 is complete. Item 23 and other roadmap
-items remain unfinished, but no new workstream should be assumed until the user selects
+Current next action: none selected — item 23 is complete. Item 25 is the first
+unfinished roadmap item, but no new workstream should be assumed until the user selects
 one.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
@@ -1227,7 +1227,7 @@ one.
                                          new applications and are not a completion gate.
 
 # UNBLOCKED 2026-07-31: the 22i4b correctness gate and 22i4c public example
-# matrix are complete. Task 23 is the next unfinished roadmap item.
+# matrix became complete; task 23 was then the next unfinished roadmap item.
 
 # STATUS AUDIT 2026-08-06: compare unchecked entries against maintained
 # source, public examples, installed profiles, and executable regressions. Main
@@ -1239,9 +1239,9 @@ one.
 # while retaining the general P0/P1/Ball renderer, so the optional 192- and
 # 181-line P0/P1-only capability splits were closed as unnecessary. The final
 # ordinary-application-assembly cleanup also closed with zero compiler-limitation
-# entries in the example allowlist. Main task 23 is again the next unfinished item.
+# entries in the example allowlist. Main task 23 again became the next unfinished item.
 
-[ ] 23. If possible, add another standard-renderer variant that retains all five
+[x] 23. If possible, add another standard-renderer variant that retains all five
         objects (P0, P1, M0, M1, and BL) while also supporting per-row P0/P1
         color tables. Treat this as a fresh cycle-scheduled profile rather than
         merely restoring legacy conditionals. Preserve the current profiles
@@ -1249,6 +1249,35 @@ one.
         abandoning this variant if the visible-renderer schedule or RIOT RAM cost
         proves unreasonable; record the evidence instead of shipping a fragile
         compromise.
+
+        Completed 2026-08-11:
+
+        * Add the separate official-opcode `all_five_player_color_192` lifecycle
+          component. The existing `all_five` and `player_color` profiles remain
+          unchanged.
+        * Retain P0, P1, M0, M1, and Ball while adding immutable eight-row P0/P1
+          color tables. A 48-byte packed object schedule plus a 14-byte double
+          row cache keeps the component contract to 83 RAM bytes.
+        * The maintained smoke cartridge links at 95/128 RAM bytes (33 free)
+          and 3140/4090 ROM bytes (950 free), with exact 262-line NTSC frames.
+        * Keep `GRP1` at a fixed phase across active/inactive P1 paths so its
+          delayed-Ball latch transfer cannot fragment Ball. The pair-7 P0 color
+          handoff is cycle-balanced across row boundaries.
+        * Stella 7.0 compares patterned players and asymmetric/reflected PF
+          pixel-for-pixel with `player_color_192`, and constant-color all-five
+          scenes/isolated M0, M1, and Ball pixel-for-pixel with `all_five_192`.
+          P1/Ball overlap stress also crosses cache-row boundaries without a
+          differing pixel.
+        * Default regressions sweep all five X coordinates through 0..159 and
+          all five Y coordinates through the full 8-bit range while pinning
+          262-line timing. Install/uninstall, staged `installcheck`, source-tree
+          hygiene, the new maintained Stella target, and neighboring renderer
+          regressions are covered.
+        * Public example `examples/15_all_five_player_color_192/01_interactive`
+          exposes the combined profile directly: Game Select cycles P0/P1/M0/M1/
+          Ball, the left joystick moves the selected object, and the independent
+          eight-row player color tables remain visible. It links at 97/128 RAM
+          bytes and 3481/4090 ROM bytes.
 
 [x] 24. Add a widely spaced six-glyph score-display variant. Reuse the shared
         font catalog and packed-BCD conventions, but spread the six glyphs across

@@ -524,9 +524,16 @@ Manual Stella 7.0 verification covers all-five `lines:=192`, `181`, and `170` an
 player-color 192, each at 262 / 60.0 Hz. The two closeout stores cost four ROM bytes
 in current scheduler users and no RAM or visible cycles.
 
-The RAM optimization workstream is complete. Main-roadmap item 23 remains an earlier
-unfinished item, but the user explicitly moved current work to item 28. Main-roadmap
-items 27 and 28 are complete; no new roadmap item has been selected yet. Item 28's
+The RAM optimization workstream is complete. Main-roadmap item 23 is now complete:
+`all_five_player_color_192` is a separate official-opcode 192-line lifecycle
+component retaining P0, P1, M0, M1, and Ball with immutable eight-row P0/P1 color
+tables. Its component contract is 83 RAM bytes; the maintained smoke cartridge uses
+95/128 RAM and 3140/4090 ROM and produces exact 262-line NTSC frames. Stella 7.0
+matches the maintained `player_color_192` and `all_five_192` rasters pixel-for-pixel,
+including asymmetric reflected playfield, patterned player colors, isolated non-player
+objects, and P1/delayed-Ball cache-boundary stress. Full-range X and Y regressions are
+maintained. Main-roadmap items 27 and 28 also remain complete. No new roadmap item has
+been selected; item 25 is the first unfinished item. Item 28's
 first milestone remains locked as the `faithful_legacy_multisprite` baseline: retained NTSC/unbanked/non-Superchip source,
 P0 plus five multiplexed P1 sprites, integrated score/playfield, 1472/4090 ROM, exact
 122-byte `$80-$F9` state plus six-byte `$FA-$FF` hardware stack, zero compiler
@@ -754,3 +761,10 @@ option with nonzero status, name it on stderr, and print `Try '<invoked-tool> --
 for a list of supported options.` rather than dumping the entire help text. `vcsc-ar`
 now supports explicit `-h`/`--help`; `test/tool_unsupported_option_help.pl` locks this
 behavior across driver, compiler, assembler, linker, archiver, and simulator.
+
+The completed item-23 `all_five_player_color_192` profile now has a public
+interactive cartridge at `examples/15_all_five_player_color_192/01_interactive`.
+Game Select cycles P0/P1/M0/M1/Ball and the left joystick moves the selected
+object while P0/P1 retain independent eight-row color tables. The example links
+at 97/128 RAM bytes and 3481/4090 ROM bytes; the renderer itself remains the
+83-byte component certified by the item-23 regressions.
