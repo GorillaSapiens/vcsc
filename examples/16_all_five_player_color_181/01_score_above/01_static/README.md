@@ -13,8 +13,8 @@ This cartridge draws P0, P1, M0, M1, and Ball over an asymmetric reflected
 playfield. P0 and P1 use visibly different eight-row color tables. A fixed
 centered score of `123456` appears above the 181-line gameplay field.
 
-The cartridge currently links at **3753/4090 ROM bytes** (337 free) and
-**112/128 RAM bytes** (16 free). It remains the minimal static raster diagnostic. The companion `02_interactive`
+The cartridge currently links at **3754/4090 ROM bytes** (336 free) and
+**114/128 RAM bytes** (14 free). It remains the minimal static raster diagnostic. The companion `02_interactive`
 example uses the recovered ROM space for full two-axis motion of all five objects.
 
 Build with `make`. The result is `all_five_player_color_181_score_above.bin`.

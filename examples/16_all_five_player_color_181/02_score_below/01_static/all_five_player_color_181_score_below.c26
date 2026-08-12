@@ -7,7 +7,17 @@ include "color_ntsc.c26"
 include "playfield.c26"
 include "fonts/default_decimal.c26"
 page const uint8_t game_playfield[44] := {
- VCS_PLAYFIELD_ROW(0bX......._........_........_........),VCS_PLAYFIELD_ROW(0b.X......_........_........_........),VCS_PLAYFIELD_ROW(0b..X....._........_........_........),VCS_PLAYFIELD_ROW(0b...X...._........_........_........),VCS_PLAYFIELD_ROW(0b....X..._........_........_........),VCS_PLAYFIELD_ROW(0b.....X.._........_........_........),VCS_PLAYFIELD_ROW(0b......X._........_........_........),VCS_PLAYFIELD_ROW(0b.......X_........_........_........),VCS_PLAYFIELD_ROW(0b........_X......._........_........),VCS_PLAYFIELD_ROW(0b........_.X......_........_........),VCS_PLAYFIELD_ROW(0b........_..X....._........_........)
+   VCS_PLAYFIELD_ROW(0bX.....X._....X..._..X....._X.....X.),
+   VCS_PLAYFIELD_ROW(0b.X.....X_.....X.._...X...._.X.....X),
+   VCS_PLAYFIELD_ROW(0b..X....._X.....X._....X..._..X.....),
+   VCS_PLAYFIELD_ROW(0b...X...._.X.....X_.....X.._...X....),
+   VCS_PLAYFIELD_ROW(0b....X..._..X....._X.....X._....X...),
+   VCS_PLAYFIELD_ROW(0b.....X.._...X...._.X.....X_.....X..),
+   VCS_PLAYFIELD_ROW(0b......X._....X..._..X....._X.....X.),
+   VCS_PLAYFIELD_ROW(0b.......X_.....X.._...X...._.X.....X),
+   VCS_PLAYFIELD_ROW(0bX......._X.....X._....X..._..X.....),
+   VCS_PLAYFIELD_ROW(0b.X......_.X.....X_.....X.._...X....),
+   VCS_PLAYFIELD_ROW(0b..X....._..X....._X.....X._....X...)
 };
 page const uint8_t game_player0_colors[8] := { VCS_NTSC_SKY_BLUE,VCS_NTSC_SKY_BLUE_2,VCS_NTSC_ROYAL_BLUE,VCS_NTSC_MEDIUM_PURPLE,VCS_NTSC_VIOLET,VCS_NTSC_ORCHID,VCS_NTSC_LIGHT_CORAL,VCS_NTSC_SANDY_BROWN };
 page const uint8_t game_player1_colors[8] := { VCS_NTSC_PALE_GREEN,VCS_NTSC_AQUAMARINE,VCS_NTSC_SKY_BLUE,VCS_NTSC_SKY_BLUE_2,VCS_NTSC_ROYAL_BLUE,VCS_NTSC_MEDIUM_PURPLE,VCS_NTSC_VIOLET,VCS_NTSC_ORCHID };

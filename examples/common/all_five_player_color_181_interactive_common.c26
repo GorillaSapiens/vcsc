@@ -5,17 +5,17 @@
 // draw_visible_components() for score-above or score-below ordering.
 
 page const uint8_t game_playfield[44] := {
-   VCS_PLAYFIELD_ROW(0bX......._........_........_........),
-   VCS_PLAYFIELD_ROW(0b.X......_........_........_........),
-   VCS_PLAYFIELD_ROW(0b..X....._........_........_........),
-   VCS_PLAYFIELD_ROW(0b...X...._........_........_........),
-   VCS_PLAYFIELD_ROW(0b....X..._........_........_........),
-   VCS_PLAYFIELD_ROW(0b.....X.._........_........_........),
-   VCS_PLAYFIELD_ROW(0b......X._........_........_........),
-   VCS_PLAYFIELD_ROW(0b.......X_........_........_........),
-   VCS_PLAYFIELD_ROW(0b........_X......._........_........),
-   VCS_PLAYFIELD_ROW(0b........_.X......_........_........),
-   VCS_PLAYFIELD_ROW(0b........_..X....._........_........)
+   VCS_PLAYFIELD_ROW(0bX.....X._....X..._..X....._X.....X.),
+   VCS_PLAYFIELD_ROW(0b.X.....X_.....X.._...X...._.X.....X),
+   VCS_PLAYFIELD_ROW(0b..X....._X.....X._....X..._..X.....),
+   VCS_PLAYFIELD_ROW(0b...X...._.X.....X_.....X.._...X....),
+   VCS_PLAYFIELD_ROW(0b....X..._..X....._X.....X._....X...),
+   VCS_PLAYFIELD_ROW(0b.....X.._...X...._.X.....X_.....X..),
+   VCS_PLAYFIELD_ROW(0b......X._....X..._..X....._X.....X.),
+   VCS_PLAYFIELD_ROW(0b.......X_.....X.._...X...._.X.....X),
+   VCS_PLAYFIELD_ROW(0bX......._X.....X._....X..._..X.....),
+   VCS_PLAYFIELD_ROW(0b.X......_.X.....X_.....X.._...X....),
+   VCS_PLAYFIELD_ROW(0b..X....._..X....._X.....X._....X...)
 };
 
 page const uint8_t game_player0_colors[8] := {

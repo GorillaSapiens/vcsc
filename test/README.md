@@ -1001,6 +1001,13 @@ component, checks zero instance RAM, all intended hostile TIA writes, exactly
 11 WSYNC stores, the red-background sentinel, prohibited frame/timer ownership,
 and stable 262-line standalone scheduling.
 
+`vcs_renderer_authoring_howto.pl` keeps the maintained renderer-authoring
+procedure executable as documentation policy. It requires the HOWTO to retain
+profile isolation, lifecycle and visible-handoff contracts, public/private state,
+scheduler ownership, TIA/clobber and delayed-latch rules, hidden-stack accounting,
+RAM/ROM and linker/page constraints, reproducible normalization, cycle/flag timing
+rules, layered Stella regressions, public examples, and staged installation.
+
 `vcs_visible_component_handoff.pl` locks the machine-readable draw-entry,
 return, whole/partial-line, terminal-WSYNC, HMOVE-count, and successor-on-return-
 line fields for all twelve maintained visible components. It cross-checks each

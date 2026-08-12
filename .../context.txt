@@ -532,8 +532,10 @@ tables. Its component contract is 83 RAM bytes; the maintained smoke cartridge u
 matches the maintained `player_color_192` and `all_five_192` rasters pixel-for-pixel,
 including asymmetric reflected playfield, patterned player colors, isolated non-player
 objects, and P1/delayed-Ball cache-boundary stress. Full-range X and Y regressions are
-maintained. Main-roadmap items 27 and 28 also remain complete. No new roadmap item has
-been selected; item 25 is the first unfinished item. Item 28's
+maintained. Main-roadmap item 26 is now complete out of numeric order: the maintained
+renderer-authoring procedure is `libraries/vcs/renderers/AUTHORING.md`, with an
+executable documentation regression locking its contracts. Main-roadmap items 27 and 28 also remain complete.
+Item 25 is the first unfinished item. Item 28's
 first milestone remains locked as the `faithful_legacy_multisprite` baseline: retained NTSC/unbanked/non-Superchip source,
 P0 plus five multiplexed P1 sprites, integrated score/playfield, 1472/4090 ROM, exact
 122-byte `$80-$F9` state plus six-byte `$FA-$FF` hardware stack, zero compiler
@@ -709,8 +711,8 @@ remain the 11-line right/left components; visible placement is 11 + 76 + 19 + 75
 scanlines, putting the Big fingerprint on raw lines 127..145 while preserving exact
 262-line NTSC timing.
 
-Main-roadmap items 29 and 30 and the completed bankswitching sub-roadmap remain closed.
-No new main-roadmap item has been selected after item 28.
+Main-roadmap items 26, 29, and 30 and the completed bankswitching sub-roadmap remain
+closed. Item 25 is the first unfinished main-roadmap item.
 
 Windows host-tool packaging is now supported from the top-level Makefile. `make windows`
 bootstraps native `vcsc-as`/`vcsc-ar` for construction of the target-neutral runtime,
@@ -770,17 +772,22 @@ at 97/128 RAM bytes and 3481/4090 ROM bytes; the renderer itself remains the
 83-byte component certified by the item-23 regressions.
 A score-composable official `all_five_player_color_181` sibling now retains the
 same five objects and per-row player colors in 181 gameplay lines, composing with
-one independent 11-line score above or below. Its component RAM contract is 86
+one independent 11-line score above or below. Its component RAM contract is 88
 bytes. Public score examples live under
-`examples/16_all_five_player_color_181/`; the static score orders use 3753/4090
-ROM and 112/128 total RAM, while score-above and score-below interactive
-siblings use 4057/4090 ROM and 121/128 RAM. Game Select cycles P0/P1/M0/M1/Ball
+`examples/16_all_five_player_color_181/`; the static score orders use 3754/4090
+ROM and 114/128 total RAM, while score-above and score-below interactive
+siblings use 4058/4090 ROM and 123/128 RAM. Game Select cycles P0/P1/M0/M1/Ball
 and the left joystick moves the selected object in both axes; the score remains
 fixed at 123456. The visible P0/P1 handoff now precomputes coarse/fine motion in
 VBLANK and advances RESP by one CPU cycle for residues 13, 14, and 0, removing
 the inherited four-coordinate horizontal plateau every 15 pixels. The terminal
 blank-tail entry clears ENABL and immediately writes GRP1, preventing a delayed
-Ball from reappearing on the final renderer line when positioned on the left.
+Ball from reappearing on the final renderer line when positioned on the left. The
+181 color examples now reuse the canonical full-width `all_five_181` playfield
+rows. That richer oracle exposed and fixed a one-cycle optimized boundary PF2
+handoff; pair 1 now pipelines next-row M1 so pair 6 can prefetch PF2, restoring
+the cached reflected-half phase. The terminal reflected pair is traced at the
+canonical PF2@40 / PF1@47 phases.
 Pairs 2-3 share one exact 152-cycle body;
 pairs 4-7 remain specialized so their late-row dead cycles can prefetch the
 opposite seven-byte cache bank. During the visible loop `S` temporarily carries

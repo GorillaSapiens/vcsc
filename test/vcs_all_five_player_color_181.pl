@@ -28,8 +28,8 @@ my$cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_nt
 my$component=File::Spec->catfile($vcs,qw(renderers all_five_player_color_181 all_five_player_color_181.c26));
 my$example_root=File::Spec->catdir($repo,qw(examples 16_all_five_player_color_181));
 my@jobs=(
- ['above',File::Spec->catfile($example_root,qw(01_score_above 01_static all_five_player_color_181_score_above.c26)),3753,337],
- ['below',File::Spec->catfile($example_root,qw(02_score_below 01_static all_five_player_color_181_score_below.c26)),3753,337],
+ ['above',File::Spec->catfile($example_root,qw(01_score_above 01_static all_five_player_color_181_score_above.c26)),3754,336],
+ ['below',File::Spec->catfile($example_root,qw(02_score_below 01_static all_five_player_color_181_score_below.c26)),3754,336],
 );
 my(%bin,%map,%source);
 for my$j(@jobs){
@@ -44,7 +44,7 @@ for my$j(@jobs){
    my$m=read_file($map{$n});
    $m =~ /^  [Rr][Oo][Mm]\s+used=\Q$rom_used\E bytes .* free=\Q$rom_free\E bytes/m
       or die "$n public example ROM footprint changed\n";
-   $m =~ /^  ram\s+used=112 bytes .* free=16 bytes/m
+   $m =~ /^  ram\s+used=114 bytes .* free=14 bytes/m
       or die "$n public example RAM footprint changed\n";
    $source{$n} =~ /instantiate "renderers\/all_five_player_color_181\/all_five_player_color_181\.c26" as game/
       or die "$n public example does not instantiate the combined 181 renderer\n";
@@ -61,6 +61,20 @@ $source{below} =~ /game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*score_draw
 
 my$interactive_common=File::Spec->catfile($repo,qw(examples common all_five_player_color_181_interactive_common.c26));
 my$interactive_common_text=read_file($interactive_common);
+my$canonical_181_common=read_file(File::Spec->catfile($repo,qw(examples common all_five_181_interactive_common.c26)));
+sub playfield_rows {
+   my($text)=@_;
+   my@rows=($text =~ /(VCS_PLAYFIELD_ROW\([^\n]+\))/g);
+   return join("\n",@rows);
+}
+my$canonical_playfield=playfield_rows($canonical_181_common);
+$canonical_playfield ne '' or die "canonical 181 common playfield rows missing\n";
+playfield_rows($interactive_common_text) eq $canonical_playfield
+   or die "181 combined interactive playfield diverged from canonical all-five 181 pattern\n";
+for my$n(qw(above below)) {
+   playfield_rows($source{$n}) eq $canonical_playfield
+      or die "$n static 181 combined playfield diverged from canonical all-five 181 pattern\n";
+}
 $interactive_common_text =~ /Game Select cycles P0, P1, M0, M1, Ball/ &&
 $interactive_common_text =~ /game_object_x\[selected_object\]/ &&
 $interactive_common_text =~ /object_y\[selected_object\]/ &&
@@ -81,9 +95,9 @@ for my$j(@interactive_jobs){
    without_usage($o) eq ''&&$e eq '' or die "$n interactive example build wrote output\n$o$e";
    -s$interactive_bin{$n}==4096 or die "$n interactive example is not 4K\n";
    my$im=read_file($imap);
-   $im =~ /^  [Rr][Oo][Mm]\s+used=4057 bytes .* free=33 bytes/m
+   $im =~ /^  [Rr][Oo][Mm]\s+used=4058 bytes .* free=32 bytes/m
       or die "$n interactive example ROM footprint changed\n";
-   $im =~ /^  ram\s+used=121 bytes .* free=7 bytes/m
+   $im =~ /^  ram\s+used=123 bytes .* free=5 bytes/m
       or die "$n interactive example RAM footprint changed\n";
    $interactive_source{$n} =~ /include "\.\.\/\.\.\/\.\.\/common\/all_five_player_color_181_interactive_common\.c26"/
       or die "$n interactive example lost shared controls\n";
@@ -100,12 +114,12 @@ $src =~ /TEMPLATE_PLAYFIELD_BYTES\s*:=\s*44/ && $src =~ /TEMPLATE_PLAYFIELD_ROWS
    or die "181 playfield contract changed\n";
 $src =~ /TEMPLATE_WORKSPACE_BYTES\s*:=\s*21/ or die "workspace contract changed\n";
 $src =~ /TEMPLATE_PUBLIC_RAM_BYTES\s*:=\s*21/ or die "public RAM contract changed\n";
-$src =~ /TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*65/ or die "private RAM contract changed\n";
-$src =~ /TEMPLATE_MODULE_RAM_BYTES\s*:=\s*86/ or die "module RAM contract changed\n";
+$src =~ /TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*67/ or die "private RAM contract changed\n";
+$src =~ /TEMPLATE_MODULE_RAM_BYTES\s*:=\s*88/ or die "module RAM contract changed\n";
 $src =~ /extern const uint8_t TEMPLATE_player0_colors\[8\]/ &&
 $src =~ /extern const uint8_t TEMPLATE_player1_colors\[8\]/
    or die "player color tables missing\n";
-$src =~ /uint8_t TEMPLATE_object_masks\[44\]/ && $src =~ /uint8_t TEMPLATE_row_cache\[21\]/
+$src =~ /uint8_t TEMPLATE_object_masks\[46\]/ && $src =~ /uint8_t TEMPLATE_row_cache\[21\]/
    or die "private mask/cache storage changed\n";
 $src =~ /page const uint8_t TEMPLATE_reposition_table\[16\]/ &&
 $src =~ /\@TEMPLATE_prepare_player_position/ &&
@@ -133,8 +147,8 @@ my@public=qw(game_object_x game_player0_y game_player1_y game_missile1_height ga
 my@private=qw(game_object_masks game_row_cache);
 my$pub=0;$pub+=bss_size($m,$_) for@public; my$priv=0;$priv+=bss_size($m,$_) for@private;
 $pub==21 or die "linked public renderer RAM=$pub expected 21\n";
-$priv==65 or die "linked private renderer RAM=$priv expected 65\n";
-$pub+$priv==86 or die "linked renderer RAM is not 86 bytes\n";
+$priv==67 or die "linked private renderer RAM=$priv expected 67\n";
+$pub+$priv==88 or die "linked renderer RAM is not 88 bytes\n";
 
 my$cxx=$ENV{CXX}||'c++'; my$mos=File::Spec->catdir($repo,qw(simulator mos6502)); my$mo=File::Spec->catfile($mos,'mos6502.o'); my@mi=-f$mo?($mo):(File::Spec->catfile($mos,'mos6502.cpp'));
 my$timing=File::Spec->catfile($tmp,'afpc181_timing');

@@ -11,7 +11,8 @@
 
 This file freezes the starting point, selected replacement profiles, and
 retirement gates for converting the maintained monolithic gameplay renderers
-into reusable lifecycle components. The working monolithic profiles remain
+into reusable lifecycle components. For the step-by-step rules used to author a
+new maintained profile, see `AUTHORING.md`. The working monolithic profiles remain
 installed until every required replacement has emulator and map evidence strong
 enough to retire them.
 
@@ -303,9 +304,9 @@ is 23 public bytes plus 48 private schedule/scratch bytes, or 71 bytes total.
 score-composable official-opcode combined profile. It retains P0/P1/M0/M1/BL
 with immutable eight-entry P0/P1 color tables and consumes 181 visible lines,
 so one independent 11-line score may appear above or below gameplay. Its exact
-RAM contract is 21 public bytes plus 65 private bytes (44 bytes of packed
-BL/M1/M0 masks plus a 21-byte alternating row/player-handoff cache), or 86 bytes
-total.
+RAM contract is 21 public bytes plus 67 private bytes (44 bytes of packed
+BL/M1/M0 masks, two bytes of terminal lookahead padding, and a 21-byte
+alternating row/player-handoff cache), or 88 bytes total.
 
 A score above gameplay owns P0/P1 TIA state, so this profile repositions and
 restores the players at visible entry. VBLANK precomputes P0/P1 coarse counts,

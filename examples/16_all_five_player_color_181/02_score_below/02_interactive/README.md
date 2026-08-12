@@ -15,7 +15,7 @@ M1, and Ball remain independently movable.
 Use **Game Select** to cycle P0 -> P1 -> M0 -> M1 -> Ball. The **left
 joystick** moves the selected object in both axes. The score remains fixed at
 `123456` so the cartridge can fit the combined renderer, score, and useful
-five-object interaction in an unbanked 4K ROM. It links at **4057/4090 ROM bytes**
-(33 free) and **121/128 RAM bytes** (7 free).
+five-object interaction in an unbanked 4K ROM. It links at **4058/4090 ROM bytes**
+(32 free) and **123/128 RAM bytes** (5 free).
 
 Build with `make`.

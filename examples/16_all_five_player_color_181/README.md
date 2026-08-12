@@ -22,6 +22,9 @@ standard 192-line visible field.
 Each score order includes a static raster diagnostic and an unbanked 4K
 interactive cartridge. Game Select cycles P0/P1/M0/M1/Ball and the left
 joystick moves the selected object in both axes while the score remains fixed.
-Both interactive orders link at 4057/4090 ROM and 121/128 RAM. The player
+Both interactive orders link at 4058/4090 ROM and 123/128 RAM. All four cartridges use the same full-width eleven-row playfield pattern as
+`examples/common/all_five_181_interactive_common.c26`; the regression suite
+compares those source rows directly so sparse test data cannot mask reflected
+playfield timing bugs. The player
 positioning handoff is physically continuous across the old 15-pixel boundary
 plateau, and the terminal Ball latch is explicitly flushed before the blank tail.

@@ -1,0 +1,18 @@
+2026-08-12 05:00:43 PDT, Add renderer-authoring HOWTO
+Added libraries/vcs/renderers/AUTHORING.md as the maintained procedure for new
+renderer and score/display profiles. It covers lifecycle and visible-handoff
+contracts, public/private state, scheduler/TIA ownership, stack borrowing,
+RAM/ROM and linker/page constraints, normalization, cycle schedules, physical
+Stella oracles, regressions, examples, installation, and profile isolation.
+Added an executable documentation regression and marked main-roadmap item 26
+complete. Item 25 remains the first unfinished main-roadmap item.
+2026-08-12 05:59:25 PDT, Fix 181 combined playfield coverage
+Restored the canonical full-width all-five 181 playfield pattern in the
+combined-color static and interactive examples. The richer pattern exposed a
+one-cycle reflected PF2 boundary timing defect hidden by the previous sparse
+left-third diagnostic. Pair 1 now prefetches next-row M1 so pair 6 can prefetch
+PF2 into the alternating cache; ordinary boundaries again use cached PF2/PF3.
+The terminal reflected pair is locked to the canonical PF2@40 / PF1@47 trace.
+Two terminal-lookahead padding bytes raise the component contract to 88 bytes;
+static examples are 3754 ROM / 114 RAM and interactive examples are 4058 ROM /
+123 RAM.

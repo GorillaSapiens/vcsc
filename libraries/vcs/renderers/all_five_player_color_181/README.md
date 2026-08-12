@@ -56,16 +56,18 @@ the previous Ball enable for one extra line even after `ENABL` is cleared.
 
 Public examples are under `examples/16_all_five_player_color_181/`. Each score
 order has a static raster diagnostic and an interactive cartridge. The static
-score-above and score-below examples link at **3753/4090 ROM bytes** and
-**112/128 RAM bytes**. The interactive examples link at **4057/4090 ROM bytes**
-and **121/128 RAM bytes**; Game Select cycles P0/P1/M0/M1/Ball and the left
+score-above and score-below examples link at **3754/4090 ROM bytes** and
+**114/128 RAM bytes**. The interactive examples link at **4058/4090 ROM bytes**
+and **123/128 RAM bytes**; Game Select cycles P0/P1/M0/M1/Ball and the left
 joystick moves the selected object in both axes.
 
 Regression coverage pins both score orders to exact 262-line frames, checks the
-86-byte component RAM contract, sweeps P0/P1 through the supported X range
+88-byte component RAM contract, sweeps P0/P1 through the supported X range
 0..159, and runs the all-five object raster oracle using the renderer's
 post-RESP player-motion transaction. The maintained Stella target keeps Ball at
 X=20 to exercise the terminal delayed-latch flush and probes P0/P1 at X=13..16;
-those four positions must remain physically distinct. Complete score-above and
+those four positions must remain physically distinct. The examples use the same full-width eleven-row playfield pattern as the
+canonical `all_five_181` interactive example; source regression coverage keeps
+all 32 visual playfield bits exercised. Complete score-above and
 score-below rasters still match the established `all_five (lines:=181)` profile
 pixel-for-pixel with solid player colors.

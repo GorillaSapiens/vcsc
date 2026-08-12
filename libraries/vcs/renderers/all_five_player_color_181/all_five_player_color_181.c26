@@ -38,9 +38,9 @@ enum TEMPLATE_contract {
    TEMPLATE_PLAYFIELD_ROWS := 11,
    TEMPLATE_PLAYFIELD_ROW_BYTES := 4,
    TEMPLATE_WORKSPACE_BYTES := 21,
-   TEMPLATE_PRIVATE_RAM_BYTES := 65,
+   TEMPLATE_PRIVATE_RAM_BYTES := 67,
    TEMPLATE_PUBLIC_RAM_BYTES := 21,
-   TEMPLATE_MODULE_RAM_BYTES := 86
+   TEMPLATE_MODULE_RAM_BYTES := 88
 };
 
 alias TEMPLATE_OBJECT_PLAYER0 0
@@ -88,10 +88,13 @@ uint8_t TEMPLATE_player1_nusiz;
 
 // Three compact vertical masks are built for each 16-line playfield row. Bits
 // 0..6 are shifted into TIA D1; the eighth BL/M1/M0 bits are packed into the
-// fourth byte as D1/D2/D3. The first fourteen row-cache bytes are two seven-byte
-// raster banks. The final seven bytes hold score-safe P0/P1 handoff controls
-// plus the caller's hardware stack pointer while S is borrowed as a row base.
-uint8_t TEMPLATE_object_masks[44];
+// fourth byte as D1/D2/D3. Bytes 44..45 are harmless lookahead padding: terminal
+// row pair 1 prefetches the nonexistent next-row M1 with the same fixed timing,
+// but that value is never consumed. The first fourteen row-cache bytes are two
+// seven-byte raster banks. The final seven bytes hold score-safe P0/P1 handoff
+// controls plus the caller's hardware stack pointer while S is borrowed as a
+// row base.
+uint8_t TEMPLATE_object_masks[46];
 uint8_t TEMPLATE_row_cache[21];
 
 require inline void TEMPLATE_init(void) {
@@ -591,7 +594,9 @@ require inline void TEMPLATE_draw(void) {
    // 2..4.  Late-row dead object-shift slots prefetch the opposite cache bank.
    // S carries the four-byte row base while X is temporarily a loop counter.
 
-   // A pair 1: refresh current PF2, then enter the shared pairs 2..3 loop.
+   // A pair 1: current PF2 was prefetched by the preceding B pair 6. Use
+   // the old seven-cycle refresh slot to prefetch next-row B M1 instead, then
+   // enter the shared pairs 2..3 loop.
    asm @TEMPLATE_A_c_u1:;
    asm lda.ay TEMPLATE_player0_colors,y;
    asm sta COLUP0;
@@ -605,8 +610,8 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_object_masks + 1;
    asm cpy.z TEMPLATE_player1_height;
-   asm lda.ax TEMPLATE_playfield + 2,x;
-   asm sta.z TEMPLATE_row_cache + 2;
+   asm lda.zx TEMPLATE_object_masks + 5,x;
+   asm sta.z TEMPLATE_row_cache + 12;
    asm lda.z TEMPLATE_row_cache + 2;
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 3;
@@ -852,7 +857,8 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
 
    // A pair 6: its post-output object shifts are dead because pair 7 uses
-   // packed final bits. Reuse those slots to prefetch PF1, PF3, and M1.
+   // packed final bits. Reuse those slots to prefetch PF1, PF2, and PF3. M1 for
+   // the next row was already prefetched during pair 1.
    asm @TEMPLATE_A_c_u6:;
    asm lda.ay TEMPLATE_player0_colors,y;
    asm sta COLUP0;
@@ -889,15 +895,15 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP1;
    asm lda.z TEMPLATE_row_cache + 5;
    asm sta ENAM1;
-   // Four-cycle M1 prefetch replaces the dead five-cycle M1 shift.  Force the
+   // Four-cycle PF2 prefetch replaces the dead five-cycle M1 shift. Force the
    // following PF0 load absolute (+1) so the PF1 write remains phase-identical.
-   asm ldy.zx TEMPLATE_object_masks + 5,x;
+   asm ldy.ax TEMPLATE_playfield + 6,x;
    asm lda.a TEMPLATE_row_cache + 0;
    asm sta PF1;
    asm lda.z TEMPLATE_row_cache + 1;
    asm sta PF2;
-   // Complete the M1 prefetch in the dead M0-shift slot.
-   asm sty.z TEMPLATE_row_cache + 12;
+   // Complete the PF2 prefetch in the dead M0-shift slot.
+   asm sty.z TEMPLATE_row_cache + 9;
    asm nop;
    asm ldy.z TEMPLATE_object_masks + 0;
    asm dey;
@@ -1033,9 +1039,9 @@ require inline void TEMPLATE_draw(void) {
    asm inx;
    asm inx;
    asm inx;
-   asm lda.ax TEMPLATE_playfield + 3,x;
+   asm lda.z TEMPLATE_row_cache + 9;
    asm sta PF2;
-   asm lda.z TEMPLATE_row_cache + 10;
+   asm lda.a TEMPLATE_row_cache + 10;
    asm sta PF1;
    asm bcs @TEMPLATE_A_c_boundary_p0_zero;
    asm lda.iy (TEMPLATE_player0_graphics),y;
@@ -1051,7 +1057,9 @@ require inline void TEMPLATE_draw(void) {
    asm bit.z CXM0P;
    // Fall through into B pair 1.
 
-   // B pair 1: refresh current PF2, then enter the shared pairs 2..3 loop.
+   // B pair 1: current PF2 was prefetched by the preceding A pair 6. Use
+   // the old seven-cycle refresh slot to prefetch next-row A M1 instead, then
+   // enter the shared pairs 2..3 loop.
    asm @TEMPLATE_B_c_u1:;
    asm lda.ay TEMPLATE_player0_colors,y;
    asm sta COLUP0;
@@ -1065,8 +1073,8 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_object_masks + 1;
    asm cpy.z TEMPLATE_player1_height;
-   asm lda.ax TEMPLATE_playfield + 2,x;
-   asm sta.z TEMPLATE_row_cache + 9;
+   asm lda.zx TEMPLATE_object_masks + 5,x;
+   asm sta.z TEMPLATE_row_cache + 5;
    asm lda.z TEMPLATE_row_cache + 9;
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 10;
@@ -1312,7 +1320,8 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
 
    // B pair 6: its post-output object shifts are dead because pair 7 uses
-   // packed final bits. Reuse those slots to prefetch PF1, PF3, and M1.
+   // packed final bits. Reuse those slots to prefetch PF1, PF2, and PF3. M1 for
+   // the next row was already prefetched during pair 1.
    asm @TEMPLATE_B_c_u6:;
    asm lda.ay TEMPLATE_player0_colors,y;
    asm sta COLUP0;
@@ -1349,15 +1358,15 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP1;
    asm lda.z TEMPLATE_row_cache + 12;
    asm sta ENAM1;
-   // Four-cycle M1 prefetch replaces the dead five-cycle M1 shift.  Force the
+   // Four-cycle PF2 prefetch replaces the dead five-cycle M1 shift. Force the
    // following PF0 load absolute (+1) so the PF1 write remains phase-identical.
-   asm ldy.zx TEMPLATE_object_masks + 5,x;
+   asm ldy.ax TEMPLATE_playfield + 6,x;
    asm lda.a TEMPLATE_row_cache + 7;
    asm sta PF1;
    asm lda.z TEMPLATE_row_cache + 8;
    asm sta PF2;
-   // Complete the M1 prefetch in the dead M0-shift slot.
-   asm sty.z TEMPLATE_row_cache + 5;
+   // Complete the PF2 prefetch in the dead M0-shift slot.
+   asm sty.z TEMPLATE_row_cache + 2;
    asm nop;
    asm ldy.z TEMPLATE_object_masks + 0;
    asm dey;
@@ -1493,9 +1502,9 @@ require inline void TEMPLATE_draw(void) {
    asm inx;
    asm inx;
    asm inx;
-   asm lda.ax TEMPLATE_playfield + 3,x;
+   asm lda.z TEMPLATE_row_cache + 2;
    asm sta PF2;
-   asm lda.z TEMPLATE_row_cache + 3;
+   asm lda.a TEMPLATE_row_cache + 3;
    asm sta PF1;
    asm bcs @TEMPLATE_B_c_boundary_p0_zero;
    asm lda.iy (TEMPLATE_player0_graphics),y;
@@ -1513,13 +1522,17 @@ require inline void TEMPLATE_draw(void) {
    // Row 10 is terminal. Its packed M0 bit7 is already active; keep the old
    // row's reflected PF through the final line and close it with WSYNC.
    asm @TEMPLATE_terminal_boundary:;
-   asm bit.z CXM0P;
+   // Match the canonical terminal reflected handoff at PF2@40 / PF1@47 in
+   // the CPU trace. Two two-cycle NOPs plus three three-cycle BITs provide the
+   // exact terminal entry phase without growing the old padding footprint.
+   asm nop;
+   asm nop;
    asm bit.z CXM0P;
    asm bit.z CXM0P;
    asm bit.z CXM0P;
    asm lda.z TEMPLATE_row_cache + 9;
    asm sta PF2;
-   asm lda.z TEMPLATE_row_cache + 10;
+   asm lda.a TEMPLATE_row_cache + 10;
    asm sta PF1;
    asm sta WSYNC;
 

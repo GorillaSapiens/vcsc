@@ -1285,12 +1285,12 @@ one.
           `all_five (lines:=181)` full raster pixel-for-pixel with solid player
           colors in both score orders. A post-completion compact-loop pass
           collapses the middle raster while retaining exact timing. A later
-          horizontal-position repair expands the component contract to 86
+          horizontal-position repair and full-width PF repair leave the component contract at 88
           bytes: its 21-byte row cache also holds precomputed P0/P1 coarse
           counts, fine-motion bytes, one-cycle RESP phase flags, and the saved
-          hardware stack pointer. Static score examples link at 3753 ROM / 112
-          RAM; interactive score-above and score-below siblings link at 4057
-          ROM / 121 RAM with fixed `123456` scores and Game-Select plus full
+          hardware stack pointer. Static score examples link at 3754 ROM / 114
+          RAM; interactive score-above and score-below siblings link at 4058
+          ROM / 123 RAM with fixed `123456` scores and Game-Select plus full
           two-axis P0/P1/M0/M1/Ball movement. Residues 13, 14, and 0 strobe RESP
           one CPU cycle early, eliminating the inherited four-coordinate
           player-X plateau every 15 pixels. The terminal blank-tail entry also
@@ -1299,7 +1299,12 @@ one.
           152-cycle body; late-row dead object-shift slots prefetch the opposite
           cache bank, and `S` carries the row base only after the caller stack
           pointer is saved. CPU 0..159 X sweeps and maintained Stella physical-X
-          and Ball-left regressions lock the corrected behavior.
+          and Ball-left regressions lock the corrected behavior. The 181 color
+          examples also reuse the canonical full-width all-five playfield rows;
+          this exposed and fixed an optimized one-cycle reflected PF2 boundary
+          slip that the earlier sparse left-third pattern had masked. Pair 1
+          pipelines next-row M1 so pair 6 can prefetch PF2, and the terminal
+          reflected pair is locked to PF2@40 / PF1@47.
 
 [x] 24. Add a widely spaced six-glyph score-display variant. Reuse the shared
         font catalog and packed-BCD conventions, but spread the six glyphs across
@@ -1345,7 +1350,7 @@ one.
         raster timing, an example cartridge, and installed-toolchain coverage.
         Preserve the centered and widely spaced variants as separate profiles.
 
-[ ] 26. Write a maintained renderer-authoring HOWTO describing how to create and
+[x] 26. Write a maintained renderer-authoring HOWTO describing how to create and
         integrate new VCSC renderers and score-display variants. Cover source
         contracts, application-visible state versus private workspace,
         frame-phase ownership, hooks, clobbers, hidden hardware-stack use,
@@ -1353,6 +1358,26 @@ one.
         normalization, cycle and TIA-write schedules, emulator/raster oracles,
         regression design, examples, installation, and how a new profile remains
         separate from existing profiles.
+
+        Completed 2026-08-12:
+
+        * Add `libraries/vcs/renderers/AUTHORING.md` as the maintained procedure
+          for new gameplay renderers and score/display components. It defines the
+          lifecycle contract, machine-readable visible handoff fields, public
+          versus private state, scheduler ownership, hooks/clobbers, delayed TIA
+          latch exit state, hidden stack borrowing, and linked RAM/ROM accounting.
+        * Document linker/object constraints (`page` versus `align(256)`, forced
+          addressing modes, and `.same`/`.cross` branch timing), reproducible
+          legacy-source normalization, measured cycle/TIA-write ledgers, and the
+          requirement to preserve internal write phases rather than merely total
+          scanline cycles.
+        * Require layered source/event/Stella evidence, full motion and hostile-
+          state regressions, public examples, staged installed-toolchain builds,
+          neighboring-profile preservation, and separately named profiles when a
+          public timing/ownership contract changes.
+        * Link the HOWTO from the public VCS catalog and the component-conversion
+          baseline, and add `vcs_renderer_authoring_howto.pl` so the documented
+          authoring invariants remain executable maintenance requirements.
 
 [x] 27. Inventory and define the source-integration contract for one minimal
         multisprite renderer profile. Keep it separate from every standard-renderer
