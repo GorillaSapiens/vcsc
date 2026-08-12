@@ -770,14 +770,18 @@ at 97/128 RAM bytes and 3481/4090 ROM bytes; the renderer itself remains the
 83-byte component certified by the item-23 regressions.
 A score-composable official `all_five_player_color_181` sibling now retains the
 same five objects and per-row player colors in 181 gameplay lines, composing with
-one independent 11-line score above or below. Its component RAM contract is 81
+one independent 11-line score above or below. Its component RAM contract is 86
 bytes. Public score examples live under
-`examples/16_all_five_player_color_181/`; after the post-item-23 compact-loop
-optimization, the static score orders use 3739/4090 ROM and 107/128 total RAM,
-while score-above and score-below interactive siblings use 4043/4090 ROM and
-116/128 RAM. Game Select cycles P0/P1/M0/M1/Ball and the left joystick moves the
-selected object in both axes; the score remains fixed at 123456. Pairs 2-3 share
-one exact 152-cycle body;
+`examples/16_all_five_player_color_181/`; the static score orders use 3753/4090
+ROM and 112/128 total RAM, while score-above and score-below interactive
+siblings use 4057/4090 ROM and 121/128 RAM. Game Select cycles P0/P1/M0/M1/Ball
+and the left joystick moves the selected object in both axes; the score remains
+fixed at 123456. The visible P0/P1 handoff now precomputes coarse/fine motion in
+VBLANK and advances RESP by one CPU cycle for residues 13, 14, and 0, removing
+the inherited four-coordinate horizontal plateau every 15 pixels. The terminal
+blank-tail entry clears ENABL and immediately writes GRP1, preventing a delayed
+Ball from reappearing on the final renderer line when positioned on the left.
+Pairs 2-3 share one exact 152-cycle body;
 pairs 4-7 remain specialized so their late-row dead cycles can prefetch the
 opposite seven-byte cache bank. During the visible loop `S` temporarily carries
 the row base while X is the pair counter; the caller stack pointer is saved and

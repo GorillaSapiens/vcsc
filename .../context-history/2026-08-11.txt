@@ -24,3 +24,11 @@ Added score-above and score-below interactive examples for the combined
 181-line all-five/player-color renderer. Game Select cycles all five objects
 and the left joystick moves the selected object in both axes. Each cartridge
 links at 4043/4090 ROM and 116/128 RAM with a fixed 123456 score.
+2026-08-11 17:35:11 PDT, fix 181 X motion and Ball tail
+The score-composable all_five_player_color_181 handoff now precomputes player
+coarse/fine motion and uses a one-cycle-early RESP for residues 13, 14, and 0.
+This removes the inherited four-coordinate physical X plateau every 15 pixels.
+The terminal blank-tail entry clears ENABL and immediately writes GRP1 so a
+left-side delayed Ball cannot reappear on the final renderer line. The component
+contract is now 86 bytes; static score examples use 3753 ROM / 112 RAM and both
+interactive score orders use 4057 ROM / 121 RAM.

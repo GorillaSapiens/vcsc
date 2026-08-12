@@ -28,8 +28,8 @@ my$cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_nt
 my$component=File::Spec->catfile($vcs,qw(renderers all_five_player_color_181 all_five_player_color_181.c26));
 my$example_root=File::Spec->catdir($repo,qw(examples 16_all_five_player_color_181));
 my@jobs=(
- ['above',File::Spec->catfile($example_root,qw(01_score_above 01_static all_five_player_color_181_score_above.c26)),3739,351],
- ['below',File::Spec->catfile($example_root,qw(02_score_below 01_static all_five_player_color_181_score_below.c26)),3739,351],
+ ['above',File::Spec->catfile($example_root,qw(01_score_above 01_static all_five_player_color_181_score_above.c26)),3753,337],
+ ['below',File::Spec->catfile($example_root,qw(02_score_below 01_static all_five_player_color_181_score_below.c26)),3753,337],
 );
 my(%bin,%map,%source);
 for my$j(@jobs){
@@ -44,7 +44,7 @@ for my$j(@jobs){
    my$m=read_file($map{$n});
    $m =~ /^  [Rr][Oo][Mm]\s+used=\Q$rom_used\E bytes .* free=\Q$rom_free\E bytes/m
       or die "$n public example ROM footprint changed\n";
-   $m =~ /^  ram\s+used=107 bytes .* free=21 bytes/m
+   $m =~ /^  ram\s+used=112 bytes .* free=16 bytes/m
       or die "$n public example RAM footprint changed\n";
    $source{$n} =~ /instantiate "renderers\/all_five_player_color_181\/all_five_player_color_181\.c26" as game/
       or die "$n public example does not instantiate the combined 181 renderer\n";
@@ -81,9 +81,9 @@ for my$j(@interactive_jobs){
    without_usage($o) eq ''&&$e eq '' or die "$n interactive example build wrote output\n$o$e";
    -s$interactive_bin{$n}==4096 or die "$n interactive example is not 4K\n";
    my$im=read_file($imap);
-   $im =~ /^  [Rr][Oo][Mm]\s+used=4043 bytes .* free=47 bytes/m
+   $im =~ /^  [Rr][Oo][Mm]\s+used=4057 bytes .* free=33 bytes/m
       or die "$n interactive example ROM footprint changed\n";
-   $im =~ /^  ram\s+used=116 bytes .* free=12 bytes/m
+   $im =~ /^  ram\s+used=121 bytes .* free=7 bytes/m
       or die "$n interactive example RAM footprint changed\n";
    $interactive_source{$n} =~ /include "\.\.\/\.\.\/\.\.\/common\/all_five_player_color_181_interactive_common\.c26"/
       or die "$n interactive example lost shared controls\n";
@@ -98,23 +98,29 @@ $src =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*181/ or die "visible-line contract ch
 $src =~ /TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE\s*:=\s*1/ or die "successor handoff contract changed\n";
 $src =~ /TEMPLATE_PLAYFIELD_BYTES\s*:=\s*44/ && $src =~ /TEMPLATE_PLAYFIELD_ROWS\s*:=\s*11/
    or die "181 playfield contract changed\n";
-$src =~ /TEMPLATE_WORKSPACE_BYTES\s*:=\s*16/ or die "workspace contract changed\n";
+$src =~ /TEMPLATE_WORKSPACE_BYTES\s*:=\s*21/ or die "workspace contract changed\n";
 $src =~ /TEMPLATE_PUBLIC_RAM_BYTES\s*:=\s*21/ or die "public RAM contract changed\n";
-$src =~ /TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*60/ or die "private RAM contract changed\n";
-$src =~ /TEMPLATE_MODULE_RAM_BYTES\s*:=\s*81/ or die "module RAM contract changed\n";
+$src =~ /TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*65/ or die "private RAM contract changed\n";
+$src =~ /TEMPLATE_MODULE_RAM_BYTES\s*:=\s*86/ or die "module RAM contract changed\n";
 $src =~ /extern const uint8_t TEMPLATE_player0_colors\[8\]/ &&
 $src =~ /extern const uint8_t TEMPLATE_player1_colors\[8\]/
    or die "player color tables missing\n";
-$src =~ /uint8_t TEMPLATE_object_masks\[44\]/ && $src =~ /uint8_t TEMPLATE_row_cache\[16\]/
+$src =~ /uint8_t TEMPLATE_object_masks\[44\]/ && $src =~ /uint8_t TEMPLATE_row_cache\[21\]/
    or die "private mask/cache storage changed\n";
-$src =~ /page const uint8_t TEMPLATE_player_position_motion\[15\]/
-   or die "compact visible-entry player motion table changed\n";
-$src !~ /TEMPLATE_player_position_table\[160\]/
-   or die "expanded 160-byte player-position table returned\n";
-$src =~ /pairs 2\.\.3: one exact 152-cycle body/ &&
-$src =~ /asm tsx;.*?asm stx\.z TEMPLATE_row_cache \+ 15;/s &&
-$src =~ /asm ldx\.z TEMPLATE_row_cache \+ 15;\s*asm txs;/s
-   or die "compact row-loop/stack-rowbase optimization changed\n";
+$src =~ /page const uint8_t TEMPLATE_reposition_table\[16\]/ &&
+$src =~ /\@TEMPLATE_prepare_player_position/ &&
+$src =~ /asm cpy #\$fe;.*?asm inx;.*?asm sbc #\$70;/s &&
+$src =~ /asm cpy #\$f1;.*?asm sbc #\$60;/s
+   or die "score-safe visible-entry player positioning changed\n";
+$src !~ /TEMPLATE_player_position_table\[160\]/ &&
+$src !~ /TEMPLATE_player_handoff_hmp\[16\]/
+   or die "redundant/expanded player-position table returned\n";
+$src =~ /asm tsx;.*?asm stx\.z TEMPLATE_row_cache \+ 20;/s &&
+$src =~ /asm ldx\.z TEMPLATE_row_cache \+ 20;\s*asm txs;/s
+   or die "stack-rowbase save/restore changed\n";
+$src =~ /asm bit\.z TEMPLATE_row_cache \+ 19;\s*asm bpl\.same \@TEMPLATE_player1_position_entry;/s &&
+$src =~ /asm bit\.z TEMPLATE_row_cache \+ 18;\s*asm bpl\.same \@TEMPLATE_player0_position_entry;/s
+   or die "one-cycle player RESP gap correction changed\n";
 $src =~ /sta ENABL;.*?sta GRP1;.*?sta VDELBL;/s
    or die "terminal path no longer flushes delayed Ball zero through GRP1\n";
 my$code=$src; $code =~ s{//[^\n]*}{}g; $code =~ s{/\*.*?\*/}{}gs;
@@ -127,8 +133,8 @@ my@public=qw(game_object_x game_player0_y game_player1_y game_missile1_height ga
 my@private=qw(game_object_masks game_row_cache);
 my$pub=0;$pub+=bss_size($m,$_) for@public; my$priv=0;$priv+=bss_size($m,$_) for@private;
 $pub==21 or die "linked public renderer RAM=$pub expected 21\n";
-$priv==60 or die "linked private renderer RAM=$priv expected 60\n";
-$pub+$priv==81 or die "linked renderer RAM is not 81 bytes\n";
+$priv==65 or die "linked private renderer RAM=$priv expected 65\n";
+$pub+$priv==86 or die "linked renderer RAM is not 86 bytes\n";
 
 my$cxx=$ENV{CXX}||'c++'; my$mos=File::Spec->catdir($repo,qw(simulator mos6502)); my$mo=File::Spec->catfile($mos,'mos6502.o'); my@mi=-f$mo?($mo):(File::Spec->catfile($mos,'mos6502.cpp'));
 my$timing=File::Spec->catfile($tmp,'afpc181_timing');
@@ -165,6 +171,27 @@ $o eq "vcs_frame_timing ok: 297 frames at 262 lines, 0 AUDV0 writes\n"
    or die "bad vertical sweep timing output: $o";
 $e eq '' or die "vertical sweep timing stderr: $e";
 
+# Sweep both players through every supported horizontal coordinate. The public
+# controls clamp at 0..159; keep incrementing until 159 and then hold there so
+# the maximum coarse-position path is exercised repeatedly without wrapping to
+# unsupported byte values. Physical one-pixel continuity is checked in Stella.
+my$horizontal=$source{above};
+$horizontal =~ s/game_PLAYER0_X\s*:=\s*20;/game_PLAYER0_X := 0;/ or die "could not reset P0 X for horizontal sweep\n";
+$horizontal =~ s/game_PLAYER1_X\s*:=\s*130;/game_PLAYER1_X := 0;/ or die "could not reset P1 X for horizontal sweep\n";
+$horizontal =~ s/(vcs_ntsc_begin_vblank\(\);\s*)/$1      if (game_object_x[0] < 159) { game_object_x[0]++; }\n      if (game_object_x[1] < 159) { game_object_x[1]++; }\n/s
+   or die "could not create 181 horizontal sweep fixture\n";
+my$horizontal_src=File::Spec->catfile($tmp,'afpc181_horizontal.c26');
+my$horizontal_bin=File::Spec->catfile($tmp,'afpc181_horizontal.bin');
+write_file($horizontal_src,$horizontal);
+($r,$s,$o,$e)=capture($driver,'-I',$vcs,'-T',$cfg,$horizontal_src,'-o',$horizontal_bin);
+$r==0&&!$s or die "horizontal sweep build failed\n$o$e";
+without_usage($o) eq ''&&$e eq '' or die "horizontal sweep build wrote output\n$o$e";
+($r,$s,$o,$e)=capture($timing,$horizontal_bin,'180','--no-audio','--raw-lines','264');
+$r==0&&!$s or die "horizontal sweep timing failed\n$o$e";
+$o eq "vcs_frame_timing ok: 177 frames at 262 lines, 0 AUDV0 writes\n"
+   or die "bad horizontal sweep timing output: $o";
+$e eq '' or die "horizontal sweep timing stderr: $e";
+
 # Reuse the established all-five 181 score-above certification scene with
 # constant row colors. This makes the independent all-five object oracle check
 # the new component without depending on the public example's decorative glyphs.
@@ -182,7 +209,7 @@ without_usage($o) eq ''&&$e eq '' or die "certification fixture build wrote outp
 my$comp=File::Spec->catfile($tmp,'afpc181_composition');
 ($r,$s,$o,$e)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,File::Spec->catfile($repo,qw(test vcs_all_five_composition.cpp)),@mi,'-o',$comp);
 $r==0&&!$s or die "composition harness build failed\n$o$e";
-($r,$s,$o,$e)=capture($comp,$cert_bin,'above','static');
+($r,$s,$o,$e)=capture($comp,$cert_bin,'above','static','post-resp-player');
 $r==0&&!$s or die "score-above object raster failed\n$o$e";
 $o eq "vcs_all_five_composition static above ok\n" or die "bad object-raster output: $o";
 $e eq '' or die "object-raster stderr: $e";

@@ -30,38 +30,42 @@ Each instance supplies page-contained immutable `game_playfield[44]`,
 independent graphics pointers, X/Y/height state, and NUSIZ values. M0, M1, and
 Ball retain independent X/Y/height state.
 
-The 181-line schedule uses a 44-byte packed BL/M1/M0 mask plus a 16-byte row
+The 181-line schedule uses a 44-byte packed BL/M1/M0 mask plus a 21-byte row
 cache. Fourteen cache bytes are the alternating seven-byte raster banks. The
-last two bytes hold the packed P0/P1 visible-entry positioning controls; once
-that handoff is complete, one is reused to save the caller's hardware stack
-pointer while `S` temporarily carries the four-byte row base through the compact
-visible loop. The raster performs no stack accesses while `S` is borrowed and
-restores it before returning. The exact component contract remains **81
-RIOT-RAM bytes**: 21 public bytes plus 60 private bytes.
+remaining seven hold P0/P1 fine-motion bytes, coarse counts, one-cycle RESP
+phase flags, and the caller's hardware stack pointer while `S` temporarily
+carries the four-byte row base through the compact visible loop. The raster
+performs no stack accesses while `S` is borrowed and restores it before
+returning. The exact component contract is **86 RIOT-RAM bytes**: 21 public
+bytes plus 65 private bytes.
 
 P0/P1 are deliberately repositioned at visible entry rather than relying on
 VBLANK positioning, because a score above gameplay owns and changes the player
-registers. Non-player objects are positioned during VBLANK and their HMOVE
-controls are cleared before the player-only visible handoff. A compact 15-byte
-fine-motion table plus a VBLANK divide-by-15 helper replaces the 160-byte
-expanded player-position table; the blanking-time cost is preferable to the ROM
-cost in a 4K score-composed cartridge.
+registers. VBLANK precomputes each player's coarse count, fine-motion byte, and
+an early-RESP flag. Normal residues retain the historical RESP phase; residues
+13, 14, and 0 strobe RESP one CPU cycle earlier, filling the three physical X
+positions the older handoff skipped every 15 pixels. HMP is written after RESP
+and the player-only HMOVE remains at its measured setup phase. The existing
+16-byte non-player reposition table is reused, so no second player-motion table
+is needed. Non-player objects remain positioned during VBLANK and their HMOVE
+controls are cleared before the player-only visible handoff.
 
 The terminal path explicitly transfers a zero through the delayed Ball latch
 before the final blank line. Without that `GRP1` transfer, `VDELBL` can retain
 the previous Ball enable for one extra line even after `ENABL` is cleared.
 
-Public examples are under
-`examples/16_all_five_player_color_181/`: one fixed six-digit score above and
-one below. After collapsing the duplicated middle-pair raster bodies, both
-cartridges link at **3739/4090 ROM bytes** and **107/128 RAM bytes**, leaving 351
-ROM bytes and 21 RAM bytes free. They remain static raster diagnostics; the ROM
-optimization makes a small interactive layer plausible, but a full control UI
-still needs to be measured rather than assumed to fit.
+Public examples are under `examples/16_all_five_player_color_181/`. Each score
+order has a static raster diagnostic and an interactive cartridge. The static
+score-above and score-below examples link at **3753/4090 ROM bytes** and
+**112/128 RAM bytes**. The interactive examples link at **4057/4090 ROM bytes**
+and **121/128 RAM bytes**; Game Select cycles P0/P1/M0/M1/Ball and the left
+joystick moves the selected object in both axes.
 
-Regression coverage pins both public examples to exact 262-line frames, checks
-the 81-byte component RAM contract, and runs the existing all-five object raster
-oracle on a score-above certification fixture. The maintained Stella target
-compares complete score-above and score-below rasters against the established
-`all_five (lines:=181)` profile with solid player colors; both match
-pixel-for-pixel.
+Regression coverage pins both score orders to exact 262-line frames, checks the
+86-byte component RAM contract, sweeps P0/P1 through the supported X range
+0..159, and runs the all-five object raster oracle using the renderer's
+post-RESP player-motion transaction. The maintained Stella target keeps Ball at
+X=20 to exercise the terminal delayed-latch flush and probes P0/P1 at X=13..16;
+those four positions must remain physically distinct. Complete score-above and
+score-below rasters still match the established `all_five (lines:=181)` profile
+pixel-for-pixel with solid player colors.

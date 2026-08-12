@@ -97,6 +97,7 @@ bool ball_edge_mode = false;
 int ball_first_override = -1;
 int ball_lines_override = -1;
 bool poison_score = false;
+bool post_resp_player_motion = false;
 uint8_t object_x_zp = 0;
 std::array<uint8_t,5> y_zp{};
 uint8_t motion_frame_zp = 0;
@@ -292,6 +293,25 @@ int expected_handoff_resp_cycle(uint8_t x) {
    const int steps=x/15+1+(remainder>=13 ? 1 : 0);
    return 9+5*steps;
 }
+uint8_t expected_post_resp_handoff_hmp(uint8_t x) {
+   static constexpr std::array<uint8_t,16> table{{
+      0x80,0x70,0x60,0x50,0x40,0x30,0x20,0x10,
+      0x00,0xF0,0xE0,0xD0,0xC0,0xB0,0xA0,0x90
+   }};
+   int remainder=x;
+   do remainder-=15; while (remainder>=0);
+   uint8_t hmp=table[static_cast<size_t>(16+remainder)];
+   if (remainder>=-2) return static_cast<uint8_t>(hmp-0x70);
+   if (remainder==-15) return static_cast<uint8_t>(hmp-0x60);
+   return static_cast<uint8_t>(hmp-0x30);
+}
+int expected_post_resp_handoff_resp_cycle(uint8_t x) {
+   const int residue=x%15;
+   int steps=x/15+1;
+   const bool early=residue==0 || residue>=13;
+   if (residue>=13) ++steps;
+   return 9+5*steps-(early ? 1 : 0);
+}
 std::array<uint8_t,ObjectCount> desired_x_for_frame(int checked) {
    if (!motion_mode) return {{20,130,50,110,80}};
    const auto found=frame_x.find(checked);
@@ -327,19 +347,30 @@ void verify_object_positioning_and_endpoints() {
             if (rw) {
                for (const TimedWrite &write:found->second) {
                   if (write.address!=hmp) continue;
-                  if (write.line<rw->line ||
-                      (write.line==rw->line && write.cycle<rw->cycle)) hw=&write;
+                  const bool before=write.line<rw->line ||
+                                    (write.line==rw->line && write.cycle<rw->cycle);
+                  const bool after=write.line>rw->line ||
+                                   (write.line==rw->line && write.cycle>rw->cycle);
+                  if ((!post_resp_player_motion && before) ||
+                      (post_resp_player_motion && after && write.line<=rw->line+1)) {
+                     hw=&write;
+                     if (post_resp_player_motion) break;
+                  }
                }
             }
-            if (!rw || !hw ||
-                static_cast<int>(rw->cycle)!=expected_handoff_resp_cycle(x[object]) ||
-                (hw->value&0xf0)!=expected_handoff_hmp(x[object])) {
+            const int want_cycle=post_resp_player_motion
+               ? expected_post_resp_handoff_resp_cycle(x[object])
+               : expected_handoff_resp_cycle(x[object]);
+            const uint8_t want_hmp=post_resp_player_motion
+               ? expected_post_resp_handoff_hmp(x[object])
+               : expected_handoff_hmp(x[object]);
+            if (!rw || !hw || static_cast<int>(rw->cycle)!=want_cycle ||
+                (hw->value&0xf0)!=want_hmp) {
                std::fprintf(stderr,
                   "vcs_all_five_composition: frame %d P%zu X=%u RESP=%lld/%d HMP=%02X/%02X\n",
                   checked,static_cast<size_t>(object),x[object],
-                  rw ? static_cast<long long>(rw->cycle) : -1LL,
-                  expected_handoff_resp_cycle(x[object]),hw ? hw->value : 0xff,
-                  expected_handoff_hmp(x[object]));
+                  rw ? static_cast<long long>(rw->cycle) : -1LL,want_cycle,
+                  hw ? hw->value : 0xff,want_hmp);
                std::exit(1);
             }
          }
@@ -628,8 +659,12 @@ int main(int argc,char **argv) {
       if (ball_first_override < 0 || ball_lines_override < 0) fail("bad Ball edge expectation");
    }
    else {
-      if (argc != 4 && argc != 5) fail("static mode takes only an optional score kind");
-      if (argc==5) poison_score=std::strcmp(argv[4],"poison")==0;
+      if (argc != 4 && argc != 5) fail("static mode takes only an optional score/player-motion kind");
+      if (argc==5) {
+         if (std::strcmp(argv[4],"poison")==0) poison_score=true;
+         else if (std::strcmp(argv[4],"post-resp-player")==0) post_resp_player_motion=true;
+         else fail("bad static option");
+      }
    }
 
    std::memset(memory_image,0,sizeof(memory_image));

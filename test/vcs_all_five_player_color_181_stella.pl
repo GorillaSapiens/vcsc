@@ -45,6 +45,10 @@ sub same_raster { my($label,$a,$b)=@_; my$da=snapshot_digest("${label}_candidate
 sub make_pair {
    my($order,$source)=@_;
    my$c=read_file($source);
+   # Keep Ball in the left quarter so the terminal delayed-latch flush is part
+   # of every maintained equivalence snapshot. This reproduces the old ghost
+   # where Ball reappeared on the renderer's final scanline.
+   $c =~ s/game_BALL_X := 80;/game_BALL_X := 20;/ or die "$order Ball X marker missing\n";
    $c =~ s/page const uint8_t game_player0_colors\[8\] := \{.*?\};/page const uint8_t game_player0_colors[8] := { 0x0e,0x0e,0x0e,0x0e,0x0e,0x0e,0x0e,0x0e };/s
       or die "$order P0 colors marker missing\n";
    $c =~ s/page const uint8_t game_player1_colors\[8\] := \{.*?\};/page const uint8_t game_player1_colors[8] := { 0xc8,0xc8,0xc8,0xc8,0xc8,0xc8,0xc8,0xc8 };/s
@@ -64,5 +68,30 @@ my@orders=(
  ['below',File::Spec->catfile($repo,qw(examples 16_all_five_player_color_181 02_score_below 01_static all_five_player_color_181_score_below.c26))],
 );
 for my$j(@orders){my($name,$src)=@$j; my($cand,$gold)=make_pair($name,$src); same_raster("score_$name",$cand,$gold);}
+
+# Physical player-X regression. The historical 181 visible-entry handoff mapped
+# source X=13,14,15,16 onto one physical position every 15 pixels. Build those
+# four coordinates with the other player parked far away; all four Stella RGB
+# digests must differ. This is intentionally an emulator-level check because
+# the bad register sequences looked internally self-consistent to CPU oracles.
+sub check_player_gap {
+   my($which,$source)=@_; my%seen;
+   for my$x(13..16){
+      my$c=read_file($source);
+      if($which==0){
+         $c =~ s/game_PLAYER0_X := 20;/game_PLAYER0_X := $x;/ or die "P0 X marker missing\n";
+         $c =~ s/game_PLAYER1_X := 130;/game_PLAYER1_X := 100;/ or die "P1 park marker missing\n";
+      } else {
+         $c =~ s/game_PLAYER0_X := 20;/game_PLAYER0_X := 100;/ or die "P0 park marker missing\n";
+         $c =~ s/game_PLAYER1_X := 130;/game_PLAYER1_X := $x;/ or die "P1 X marker missing\n";
+      }
+      my$name="player${which}_x$x";
+      my$src=File::Spec->catfile($tmp,"$name.c26"); write_file($src,$c);
+      my$dg=snapshot_digest($name,build_rom($name,$src));
+      die "P$which physical X plateau returned at source X=$x\n" if$seen{$dg}++;
+   }
+}
+check_player_gap(0,$orders[0][1]);
+check_player_gap(1,$orders[0][1]);
 terminate($xpid);
 print "Stella all-five player-color 181 score equivalence passed\n";

@@ -303,15 +303,18 @@ is 23 public bytes plus 48 private schedule/scratch bytes, or 71 bytes total.
 score-composable official-opcode combined profile. It retains P0/P1/M0/M1/BL
 with immutable eight-entry P0/P1 color tables and consumes 181 visible lines,
 so one independent 11-line score may appear above or below gameplay. Its exact
-RAM contract is 21 public bytes plus 60 private bytes (44 bytes of packed
-BL/M1/M0 masks plus a 16-byte alternating row/visible-entry cache), or 81 bytes
+RAM contract is 21 public bytes plus 65 private bytes (44 bytes of packed
+BL/M1/M0 masks plus a 21-byte alternating row/player-handoff cache), or 86 bytes
 total.
 
 A score above gameplay owns P0/P1 TIA state, so this profile repositions and
-restores the players at visible entry. Non-player objects remain positioned in
-VBLANK. The terminal path explicitly writes `GRP1` after clearing `ENABL` so
-`VDELBL` transfers the staged zero and cannot leak Ball onto the final blank
-line. Adjacent visible components use `vcs_ntsc_component_handoff()`.
+restores the players at visible entry. VBLANK precomputes P0/P1 coarse counts,
+fine-motion bytes, and one-cycle RESP phase flags; residues 13, 14, and 0 use an
+early RESP so all supported X coordinates 0..159 remain physically distinct.
+Non-player objects remain positioned in VBLANK. The terminal path clears
+`ENABL` and immediately writes `GRP1` at entry to the final blank line so
+`VDELBL` transfers the staged zero before a left-side Ball can reach the beam.
+Adjacent visible components use `vcs_ntsc_component_handoff()`.
 
 ### 192-line all-five gameplay with player color tables
 

@@ -1280,19 +1280,26 @@ one.
           bytes and 3481/4090 ROM bytes.
         * Follow-up: add the separate score-composable
           `all_five_player_color_181` sibling and fixed centered-score examples
-          above and below gameplay. The 181-line component uses 81 RAM bytes and
-          preserves exact 262-line frames; Stella matches the established
+          above and below gameplay. The 181-line component preserves exact
+          262-line frames and Stella matches the established
           `all_five (lines:=181)` full raster pixel-for-pixel with solid player
-          colors in both score orders. A post-completion compact-loop pass keeps
-          the same 81-byte component contract while reducing both public score
-          static examples to 3739 ROM bytes / 107 RAM bytes. Interactive
-          score-above and score-below siblings then use the recovered space for
-          Game-Select P0/P1/M0/M1/Ball selection plus full two-axis left-joystick
-          movement; both link at 4043 ROM bytes / 116 RAM bytes with a fixed
-          `123456` score. Pairs 2-3 share one 152-cycle body; late-row dead
-          object-shift slots prefetch the opposite cache bank, and the hardware
-          stack pointer is saved/restored while `S` carries the row base. Exact
-          262-line timing and Stella equivalence are retained.
+          colors in both score orders. A post-completion compact-loop pass
+          collapses the middle raster while retaining exact timing. A later
+          horizontal-position repair expands the component contract to 86
+          bytes: its 21-byte row cache also holds precomputed P0/P1 coarse
+          counts, fine-motion bytes, one-cycle RESP phase flags, and the saved
+          hardware stack pointer. Static score examples link at 3753 ROM / 112
+          RAM; interactive score-above and score-below siblings link at 4057
+          ROM / 121 RAM with fixed `123456` scores and Game-Select plus full
+          two-axis P0/P1/M0/M1/Ball movement. Residues 13, 14, and 0 strobe RESP
+          one CPU cycle early, eliminating the inherited four-coordinate
+          player-X plateau every 15 pixels. The terminal blank-tail entry also
+          clears ENABL and immediately writes GRP1 so a left-side delayed Ball
+          cannot ghost onto the last renderer line. Pairs 2-3 share one
+          152-cycle body; late-row dead object-shift slots prefetch the opposite
+          cache bank, and `S` carries the row base only after the caller stack
+          pointer is saved. CPU 0..159 X sweeps and maintained Stella physical-X
+          and Ball-left regressions lock the corrected behavior.
 
 [x] 24. Add a widely spaced six-glyph score-display variant. Reuse the shared
         font catalog and packed-BCD conventions, but spread the six glyphs across

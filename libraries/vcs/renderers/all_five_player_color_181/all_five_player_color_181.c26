@@ -37,10 +37,10 @@ enum TEMPLATE_contract {
    TEMPLATE_PLAYFIELD_BYTES := 44,
    TEMPLATE_PLAYFIELD_ROWS := 11,
    TEMPLATE_PLAYFIELD_ROW_BYTES := 4,
-   TEMPLATE_WORKSPACE_BYTES := 16,
-   TEMPLATE_PRIVATE_RAM_BYTES := 60,
+   TEMPLATE_WORKSPACE_BYTES := 21,
+   TEMPLATE_PRIVATE_RAM_BYTES := 65,
    TEMPLATE_PUBLIC_RAM_BYTES := 21,
-   TEMPLATE_MODULE_RAM_BYTES := 81
+   TEMPLATE_MODULE_RAM_BYTES := 86
 };
 
 alias TEMPLATE_OBJECT_PLAYER0 0
@@ -68,15 +68,6 @@ page const uint8_t TEMPLATE_reposition_table[16] := {
    0x00,0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90
 };
 
-// The score-handoff player strobe is one CPU cycle earlier than the ordinary
-// VBLANK strobe. The required fine-motion nibble depends only on x mod 15;
-// VBLANK computes the coarse-loop count instead of spending 160 ROM bytes on
-// the fully expanded lookup table.
-page const uint8_t TEMPLATE_player_position_motion[15] := {
-   0x40,0x30,0x20,0x10,0x00,0xf0,0xe0,0xd0,
-   0xc0,0xb0,0xa0,0x90,0x80,0x60,0x50
-};
-
 // Public state retains independent NUSIZ values. P0/P1 colors come from
 // immutable eight-entry row-color tables supplied by the instance.
 uint8_t TEMPLATE_object_x[5];
@@ -97,10 +88,11 @@ uint8_t TEMPLATE_player1_nusiz;
 
 // Three compact vertical masks are built for each 16-line playfield row. Bits
 // 0..6 are shifted into TIA D1; the eighth BL/M1/M0 bits are packed into the
-// fourth byte as D1/D2/D3. Two seven-byte row caches hold the current and next
-// row's four playfield bytes plus three D1-ready object masks.
+// fourth byte as D1/D2/D3. The first fourteen row-cache bytes are two seven-byte
+// raster banks. The final seven bytes hold score-safe P0/P1 handoff controls
+// plus the caller's hardware stack pointer while S is borrowed as a row base.
 uint8_t TEMPLATE_object_masks[44];
-uint8_t TEMPLATE_row_cache[16];
+uint8_t TEMPLATE_row_cache[21];
 
 require inline void TEMPLATE_init(void) {
 }
@@ -404,35 +396,67 @@ require inline void TEMPLATE_vblank(void) {
    asm sta ENAM0;
    asm sta ENAM1;
 
-   // Precompute packed P0/P1 handoff controls while output is blanked. The
-   // low nibble is the visible five-cycle coarse-loop count; the high nibble
-   // is HMP0/HMP1. Remainders 13/14 require one extra coarse step.
+   // Precompute score-safe player handoff controls in VBLANK. Normal residues
+   // retain the historical RESP phase. Remainders 13, 14, and 0 use the next
+   // coarse position and an RESP one CPU cycle earlier, filling the three X
+   // coordinates the old packed handoff skipped every 15 pixels.
    asm lda.z TEMPLATE_object_x;
-   asm jsr @TEMPLATE_pack_player_position;
+   asm jsr @TEMPLATE_prepare_player_position;
    asm sta.z TEMPLATE_row_cache + 14;
+   asm stx.z TEMPLATE_row_cache + 16;
+   asm lda #0;
+   asm ror;
+   asm sta.z TEMPLATE_row_cache + 18;
    asm lda.z TEMPLATE_object_x + 1;
-   asm jsr @TEMPLATE_pack_player_position;
+   asm jsr @TEMPLATE_prepare_player_position;
    asm sta.z TEMPLATE_row_cache + 15;
-   asm jmp @TEMPLATE_pack_player_position_done;
-   asm @TEMPLATE_pack_player_position:;
-   asm ldy #0;
+   asm stx.z TEMPLATE_row_cache + 17;
+   asm lda #0;
+   asm ror;
+   asm sta.z TEMPLATE_row_cache + 19;
+   asm jmp @TEMPLATE_prepare_player_position_done;
+
+   // Return A=HMP byte, X=coarse count, C=1 when RESP must be one cycle early.
+   asm @TEMPLATE_prepare_player_position:;
+   asm ldx #0;
    asm sec;
-   asm @TEMPLATE_pack_player_position_loop:;
-   asm iny;
+   asm @TEMPLATE_player_position_divide_loop:;
+   asm inx;
    asm sbc #15;
-   asm bcs.same @TEMPLATE_pack_player_position_loop;
-   asm clc;
-   asm adc #15;
-   asm tax;
-   asm tya;
-   asm cpx #13;
-   asm bcc @TEMPLATE_pack_player_position_low_ready;
-   asm clc;
-   asm adc #1;
-   asm @TEMPLATE_pack_player_position_low_ready:;
-   asm ora.ax TEMPLATE_player_position_motion,x;
+   asm bcs.same @TEMPLATE_player_position_divide_loop;
+   asm tay;
+   // Reuse the ordinary fine-motion table. The score-safe handoff uses the
+   // same 15 residues with a fixed phase-dependent offset, so a second table
+   // would only waste ROM. Remainders -2/-1 are source residues 13/14:
+   // advance to the next coarse position. Remainder -15 is source residue 0
+   // and already has that count.
+   asm lda TEMPLATE_reposition_table + 16 - 256,y;
+   asm cpy #$fe;
+   asm bcc @TEMPLATE_player_position_not_high_gap;
+   asm inx;
+   asm sec;
+   asm sbc #$70;
+   asm sec;
    asm rts;
-   asm @TEMPLATE_pack_player_position_done:;
+   asm @TEMPLATE_player_position_not_high_gap:;
+   asm cpy #$f1;
+   asm beq @TEMPLATE_player_position_zero_gap;
+   asm sec;
+   asm sbc #$30;
+   asm clc;
+   asm rts;
+   asm @TEMPLATE_player_position_zero_gap:;
+   asm sec;
+   asm sbc #$60;
+   asm sec;
+   asm rts;
+   asm @TEMPLATE_prepare_player_position_done:;
+
+   // The visible kernel borrows S as its row-base register. Every component
+   // lifecycle call is stack-balanced, so the caller's S here is also the S
+   // that must be restored when draw() returns after an optional score-above.
+   asm tsx;
+   asm stx.z TEMPLATE_row_cache + 20;
 
    // Do not let the later player-only HMOVE move M0/M1/Ball a second time.
    asm lda #0;
@@ -443,42 +467,44 @@ require inline void TEMPLATE_vblank(void) {
 }
 
 require inline void TEMPLATE_draw(void) {
-   // Visible handoff line 1 restores P1 after an optional score component.
-   asm ldy.z TEMPLATE_row_cache + 15;
-   asm sty HMP1;
-   asm tya;
-   asm and #$0f;
-   asm tax;
+   // P1: normal positions exactly match the historical handoff phase. A phase
+   // byte of $80 makes BPL fall through instead of taking the branch-to-next,
+   // advancing only the three gap residues by exactly one CPU cycle.
+   asm lda.z TEMPLATE_row_cache + 15;
+   asm bit.z TEMPLATE_row_cache + 19;
+   asm bpl.same @TEMPLATE_player1_position_entry;
+   asm @TEMPLATE_player1_position_entry:;
+   asm ldx.z TEMPLATE_row_cache + 17;
    asm @TEMPLATE_player1_position_loop:;
    asm dex;
    asm bne.same @TEMPLATE_player1_position_loop;
    asm sta RESP1;
    asm sta WSYNC;
 
-   // Visible handoff line 2 restores P0 at the matching phase.
+   // P0 uses the old three-cycle P0-only padding to write P1's fine motion.
+   // The remaining phase/count sequence is therefore cycle-identical to P1.
+   asm sta HMP1;
    asm ldy.z TEMPLATE_row_cache + 14;
-   asm sty HMP0;
-   asm tya;
-   asm and #$0f;
-   asm tax;
-   asm bit.z CXM0P;
+   asm bit.z TEMPLATE_row_cache + 18;
+   asm bpl.same @TEMPLATE_player0_position_entry;
+   asm @TEMPLATE_player0_position_entry:;
+   asm ldx.z TEMPLATE_row_cache + 16;
    asm @TEMPLATE_player0_position_loop:;
    asm dex;
    asm bne.same @TEMPLATE_player0_position_loop;
-   asm sta RESP0;
-   asm sta WSYNC;
+   asm sty RESP0;
+   asm sty WSYNC;
 
-   // The visible scheduler temporarily uses S as a row-base register so X can
-   // serve as the compact pair-loop counter.  The 6507 has no interrupts here
-   // and the inline raster executes no stack accesses; restore S before draw
-   // returns so callers and a score-below component see the normal stack.
-   asm tsx;
-   asm stx.z TEMPLATE_row_cache + 15;
+   // Write P0 fine motion, spend the old two-cycle setup slot, then strobe
+   // HMOVE at the historical cycle-8 phase. The gameplay raster after HMOVE
+   // is therefore unchanged.
+   asm sty HMP0;
+   asm nop;
+   asm sty HMOVE;
 
    // Restore player state and stage row zero. A predecessor score may have
    // clobbered every player TIA register, so re-establish orientation, NUSIZ,
    // VDEL, graphics, and colors here. M0/M1/Ball positioning remains intact.
-   asm sta HMOVE;
    asm lda.z TEMPLATE_player0_nusiz;
    asm sta NUSIZ0;
    asm lda.z TEMPLATE_player1_nusiz;
@@ -1498,10 +1524,16 @@ require inline void TEMPLATE_draw(void) {
    asm sta WSYNC;
 
    // One blank tail line completes the 181-line score-composable profile.
-   // Restore the caller's hardware stack pointer before the inline draw returns.
-   asm ldx.z TEMPLATE_row_cache + 15;
-   asm txs;
+   // Clear and transfer the delayed Ball latch immediately at line entry: if
+   // this is postponed until after the PF/player cleanup, a Ball positioned in
+   // the left quarter of the screen is drawn before ENABL=0 reaches the
+   // display latch. No stack access occurs until S is restored below.
    asm lda #0;
+   asm sta ENABL;
+   asm sta GRP1;
+   // Restore the caller's hardware stack pointer before the inline draw returns.
+   asm ldx.z TEMPLATE_row_cache + 20;
+   asm txs;
    asm sta PF0;
    asm sta PF1;
    asm sta PF2;
@@ -1509,8 +1541,6 @@ require inline void TEMPLATE_draw(void) {
    asm sta GRP1;
    asm sta ENAM0;
    asm sta ENAM1;
-   asm sta ENABL;
-   asm sta GRP1;
    asm sta VDELBL;
    asm sta VDELP0;
    asm sta VDELP1;
