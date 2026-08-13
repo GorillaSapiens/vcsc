@@ -30,6 +30,7 @@ static struct {
    { XRAY_PEEPHOLE,    "peephole",    "dump peephole optimizer stats" },
    { XRAY_SCRATCH,     "scratch",     "dump static compiler scratch allocation diagnostics" },
    { XRAY_INLINEPLAN,  "inlineplan",  "dump optimizer single-direct-callsite analysis" },
+   { XRAY_INLINEIR,    "inlineir",    "force mechanically safe optimizer inline expansion (tests)" },
 };
 
 //! @brief Handle xray exit logic for xray.

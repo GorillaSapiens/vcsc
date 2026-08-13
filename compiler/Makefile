@@ -44,6 +44,8 @@ SRCSRC = \
    compile_init.c \
    compile_inline_analysis.c \
    compile_inline_prepass.c \
+   compile_inline_inliner.c \
+   compile_inline_legality.c \
    compile_inline_specialize.c \
    compile_lvalue.c \
    compile_literal.c \

@@ -16,6 +16,7 @@
 #include "compile_function.h"
 #include "compile_internal.h"
 #include "compile_inline_specialize.h"
+#include "compile_inline_inliner.h"
 #include "compile_lvalue.h"
 #include "compile_function_registry.h"
 #include "compile_support.h"
@@ -29,6 +30,10 @@
 static const ASTNode *inline_expansion_stack[INLINE_EXPANSION_MAX_DEPTH];
 static int inline_expansion_depth = 0;
 static int inline_expansion_counter = 0;
+
+static bool validate_specialized_ref_argument(ASTNode *expr, Context *ctx,
+                                              const ASTNode *parameter,
+                                              int parameter_index);
 
 static void inline_expansion_push(const ASTNode *fn, const ASTNode *call_expr) {
    const char *name = declarator_name(function_declarator_node(fn));
@@ -55,12 +60,19 @@ static void inline_expansion_pop(const ASTNode *fn) {
    inline_expansion_depth--;
 }
 
-//! @brief Lower one direct source-level inline expansion at the current call site.
-static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
-                                       ASTNode *callee, ASTNode *args,
-                                       const ASTNode *fn, const ASTNode *declarator,
-                                       const ASTNode *ret_type, int ret_size,
-                                       ASTNode *call_expr) {
+//! @brief Lower one source or optimizer-selected function body at the current call site.
+//!
+//! This is compiler control-flow lowering over the callee AST with a fresh lexical
+//! context. Source `inline` storage inherits the caller activation; optimizer-selected
+//! ordinary inlining keeps the callee activation owner so the linker can preserve the
+//! original nonrecursive lifetime/overlay relationships. This is not source-text
+//! substitution; the two forms merely choose the same control-flow lowering mechanism
+//! through separate policy paths.
+static bool compile_expanded_symbol_call(Context *caller_ctx, ContextEntry *dst,
+                                         ASTNode *callee, ASTNode *args,
+                                         const ASTNode *fn, const ASTNode *declarator,
+                                         const ASTNode *ret_type, int ret_size,
+                                         ASTNode *call_expr, bool optimizer_selected) {
    const ASTNode *params = declarator_parameter_list(declarator);
    ASTNode *body;
    Context inline_ctx;
@@ -76,6 +88,8 @@ static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
    char label_prefix[64];
    char return_label[96];
    char return_sym[1024];
+   const ASTNode *saved_activation_graph_function = NULL;
+   bool activation_scope_active = false;
 
    if (!function_has_body(fn)) {
       const char *inline_name = declarator_name(function_declarator_node(fn));
@@ -88,19 +102,29 @@ static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
       return false;
    }
 
-   snprintf(label_prefix, sizeof(label_prefix), "inline_%d", expansion_id);
+   snprintf(label_prefix, sizeof(label_prefix), optimizer_selected ? "optinline_%d" : "inline_%d", expansion_id);
    snprintf(return_label, sizeof(return_label), "@%s_return", label_prefix);
    /* The expansion id is translation-unit unique, so storage does not need to
       inherit the caller's context name. Keeping this name flat prevents deeply
       nested inline helpers from growing assembler symbols at every level. */
-   snprintf(context_name, sizeof(context_name), "__inline$%d$%s",
-            expansion_id, callee_sym);
+   if (optimizer_selected) {
+      /* An optimizer candidate has exactly one ordinary direct callsite, so its
+         storage symbols can retain their ordinary function names even though the
+         body moves into the caller. This keeps downstream specialization plans
+         that name the caller's formal/local storage valid across nested inlines. */
+      snprintf(context_name, sizeof(context_name), "%s", callee_sym);
+   }
+   else {
+      snprintf(context_name, sizeof(context_name), "__inline$%d$%s",
+               expansion_id, callee_sym);
+   }
 
    memset(&inline_ctx, 0, sizeof(inline_ctx));
    inline_ctx.name = strdup(context_name);
-   inline_ctx.activation_owner =
-      (caller_ctx && caller_ctx->activation_owner && *caller_ctx->activation_owner)
-         ? caller_ctx->activation_owner : (caller_ctx ? caller_ctx->name : NULL);
+   inline_ctx.activation_owner = optimizer_selected
+      ? inline_ctx.name
+      : ((caller_ctx && caller_ctx->activation_owner && *caller_ctx->activation_owner)
+         ? caller_ctx->activation_owner : (caller_ctx ? caller_ctx->name : NULL));
    if (!inline_ctx.name) {
       error_unreachable("out of memory naming inline expansion");
    }
@@ -115,6 +139,10 @@ static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
    }
 
    build_function_context(fn, &inline_ctx);
+   if (optimizer_selected) {
+      apply_optimizer_ref_specializations(fn, &inline_ctx);
+      apply_optimizer_value_specializations(fn, &inline_ctx);
+   }
    return_entry = (ContextEntry *)set_get(inline_ctx.vars, "$$");
    if (!is_empty(body) && !strcmp(body->name, "statement_list")) {
       predeclare_statement_list(body, &inline_ctx);
@@ -136,10 +164,18 @@ static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
       emit(&es_zp, "\t.res %d\n", return_entry->size);
    }
 
-   have_arg_scratch = arg_count > 0;
-   if (have_arg_scratch) {
-      compiler_scratch_acquire(caller_ctx, 1, &arg_scratch);
+   if (optimizer_selected) {
+      saved_activation_graph_function = current_activation_graph_function;
+      record_activation_lifetime_edge(saved_activation_graph_function, fn);
+      current_activation_graph_function = fn;
+      activation_scope_active = true;
    }
+
+   /* Acquire caller-owned argument scratch lazily.  A fully specialized
+      optimizer inline may consume every actual directly and therefore needs no
+      staging byte at all; reserving one merely because arg_count > 0 would make
+      inlining spuriously increase the caller activation. */
+   have_arg_scratch = false;
 
    if (params && !is_empty(params)) {
       for (int i = 0; i < params->count && actual_index < arg_count; i++) {
@@ -154,6 +190,34 @@ static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
          bool ok;
 
          if (!ptype || parameter_is_void(parameter)) {
+            continue;
+         }
+         if (optimizer_selected && parameter_is_ref(parameter) &&
+             optimizer_ref_parameter_specialization(fn, i, NULL)) {
+            if (!validate_specialized_ref_argument(args->children[actual_index], caller_ctx,
+                                                   parameter, i)) {
+               if (have_arg_scratch) compiler_scratch_release(&arg_scratch);
+               goto inline_fail;
+            }
+            actual_index++;
+            continue;
+         }
+         if (optimizer_selected && !parameter_is_ref(parameter) &&
+             optimizer_value_parameter_specialization(fn, i, NULL)) {
+            InlineValueSpecialization value_spec;
+            if (!optimizer_value_parameter_specialization(fn, i, &value_spec)) {
+               if (have_arg_scratch) compiler_scratch_release(&arg_scratch);
+               goto inline_fail;
+            }
+            if (value_spec.kind == INLINE_VALUE_ADDRESS) {
+               LValueRef lv;
+               if (!resolve_ref_argument_lvalue(caller_ctx, args->children[actual_index], &lv)) {
+                  if (have_arg_scratch) compiler_scratch_release(&arg_scratch);
+                  goto inline_fail;
+               }
+               emit_lvalue_semantic_use(caller_ctx, &lv, "read");
+            }
+            actual_index++;
             continue;
          }
          pname = parameter_name(parameter, i);
@@ -188,6 +252,10 @@ static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
          tmp.target_typed = true;
          tmp.size = psz;
 
+         if (!have_arg_scratch) {
+            compiler_scratch_acquire(caller_ctx, psz > 0 ? psz : 1, &arg_scratch);
+            have_arg_scratch = true;
+         }
          if (psz > arg_scratch.reserved) {
             arg_scratch.reserved = psz;
          }
@@ -212,7 +280,7 @@ static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
          compiler_scratch_deactivate(caller_ctx, &arg_scratch);
          if (!ok) {
             if (have_arg_scratch) compiler_scratch_release(&arg_scratch);
-            return false;
+            goto inline_fail;
          }
          actual_index++;
       }
@@ -223,7 +291,9 @@ static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
 
    inline_expansion_push(fn, call_expr);
    statement_compile_state_push(&stmt_state);
-   emit(&es_code, "; begin inline expansion %s #%d\n", callee_sym, expansion_id);
+   emit(&es_code, optimizer_selected
+      ? "; begin optimizer inline expansion %s #%d\n"
+      : "; begin inline expansion %s #%d\n", callee_sym, expansion_id);
    if (!is_empty(body)) {
       if (strcmp(body->name, "statement_list")) {
          error_unreachable("[%s:%d.%d] unexpected inline function body node '%s'",
@@ -232,19 +302,30 @@ static bool compile_inline_symbol_call(Context *caller_ctx, ContextEntry *dst,
       compile_statement_list(body, &inline_ctx);
    }
    emit(&es_code, "%s:\n", inline_ctx.return_label);
-   emit(&es_code, "; end inline expansion %s #%d\n", callee_sym, expansion_id);
+   emit(&es_code, optimizer_selected
+      ? "; end optimizer inline expansion %s #%d\n"
+      : "; end inline expansion %s #%d\n", callee_sym, expansion_id);
    statement_compile_state_pop(&stmt_state);
    inline_expansion_pop(fn);
 
    if (dst && ret_size > 0) {
       if (!return_entry || !entry_symbol_name(&inline_ctx, return_entry,
                                               return_sym, sizeof(return_sym))) {
-         return false;
+         goto inline_fail;
       }
       emit_copy_symbol_to_scratch_convert(dst->offset, dst->size, dst->type,
                                           return_sym, ret_size, ret_type);
    }
+   if (activation_scope_active) {
+      current_activation_graph_function = saved_activation_graph_function;
+   }
    return true;
+
+inline_fail:
+   if (activation_scope_active) {
+      current_activation_graph_function = saved_activation_graph_function;
+   }
+   return false;
 }
 
 //! @brief One staged fixed argument awaiting its final callee-parameter copy.
@@ -529,6 +610,10 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
    }
 
    record_call_graph_edge(current_call_graph_function, fn);
+   if (current_activation_graph_function &&
+       current_activation_graph_function != current_call_graph_function) {
+      record_activation_lifetime_edge(current_activation_graph_function, fn);
+   }
    remember_symbol_import(callee_sym);
    emit(&es_code, "    jsr %s\n", callee_sym);
 
@@ -641,8 +726,12 @@ bool compile_call_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                                  ctx ? ctx->activation_owner : NULL, expr);
    }
    if (function_is_inline(fn)) {
-      return compile_inline_symbol_call(ctx, dst, callee, args, fn, declarator,
-                                        ret_type, ret_size, expr);
+      return compile_expanded_symbol_call(ctx, dst, callee, args, fn, declarator,
+                                          ret_type, ret_size, expr, false);
+   }
+   if (optimizer_inline_function_selected(fn)) {
+      return compile_expanded_symbol_call(ctx, dst, callee, args, fn, declarator,
+                                          ret_type, ret_size, expr, true);
    }
    return compile_direct_symbol_call(ctx, dst, callee, args, fn, declarator,
                                      ret_type, ret_size);

@@ -33,3 +33,43 @@ constant-formal if conditions prune dead arms; general post-binding expression
 folding/DCE remains partial. Added compile and E2E RAM/semantic regressions. The
 compile suite is 477/477; a full E2E attempt reached 106/279 without failure, and
 focused late-suite banked/examples/branding/specialization checks pass 7/7.
+
+2026-08-13 11:54:04 PDT, Add forced IR inliner mechanism
+Implemented subsection-3 ordinary-function control-flow expansion behind the
+-X inlineir test gate. Added activation-only lifetime graph metadata so inlined
+callees retain RAM overlay relationships without contributing fake hardware call
+stack depth. Tests cover copied parameters, early returns, nested chains, sibling
+overlay, ordinary calls inside inlined bodies, simulation, and stack reduction.
+General post-inline census/DCE remains partial; production selection remains
+blocked on placement legality and measured profitability. Compile-side tests pass
+478/478; focused integration/hygiene passes 9/9; broader E2E reached 140/280
+without failure before the execution limit. `make installcheck` passes.
+
+2026-08-13 13:45:48 PDT, Restore inline contract metadata
+Subsection-3 accidentally returned from source-inline function lowering before
+emitting require/recommend contract metadata. This removed template lifecycle
+requirements and allowed missing hooks to link. Restored contract emission
+before the source/optimizer-inline early return. Compile suite passes 478/478;
+the full E2E suite passes 280/280 when run in chunks.
+
+2026-08-13 14:26:58 PDT, Add inline placement legality gate
+Completed inline-roadmap subsection 4. Added caller-aware placement legality:
+hard function page containment, named code/result regions, and generated-code
+.same/.cross policy on either the candidate or unique caller retain the ordinary
+call. Hard branch scanning follows source-inline expansion transitively. Added
+compile and E2E coverage, including a page fixture that would exceed 256 bytes
+if inlined and linked same/cross branches that remain physically satisfied.
+Compile-side suite passes 480/480, the complete E2E suite passes 281/281 in
+bounded chunks, and make installcheck passes. Production inlining remains gated
+on measured profitability.
+
+2026-08-13 16:01:57 PDT, Add measured inline profitability
+Completed inline-roadmap subsection 5 behind the internal -finline-profit path.
+The driver now trial-links legal candidates against the real final image, accepts
+measured ROM wins or equal-ROM stack wins without activation-RAM regression, and
+retries candidates after each accepted transform. Added exact final-link win/loss,
+stack, RAM-overlay, and nested-chain tests. Also fixed lazy inline-argument scratch
+allocation and propagated readonly constants through specialized parameter chains.
+Production selection remains off until subsection 6 ABI/reachability vetoes land.
+Validation: compile-side 481/481; complete E2E 282/282 in bounded chunks; make
+installcheck passes. Subsection 6 is next; production inlining remains disabled.

@@ -495,6 +495,7 @@ typedef struct ValuePlan {
 
 static ValuePlan *value_plans;
 static size_t value_plan_count;
+static size_t value_plan_revision;
 static const ASTNode *value_plan_program;
 
 static void reset_value_plans(void) {
@@ -504,20 +505,50 @@ static void reset_value_plans(void) {
    free(value_plans);
    value_plans = NULL;
    value_plan_count = 0;
+   value_plan_revision = 0;
 }
 
 static void add_value_plan(const ASTNode *fn, int parameter_index,
                            InlineValueSpecializationKind kind,
                            const char *read_expr, int offset,
                            bool is_zeropage, long long constant_value) {
-   ValuePlan *grown = (ValuePlan *)realloc(value_plans,
-      sizeof(*value_plans) * (value_plan_count + 1));
-   ValuePlan *plan;
-   if (!grown) {
-      error_unreachable("out of memory recording value specialization");
+   ValuePlan *plan = NULL;
+
+   for (size_t i = 0; i < value_plan_count; i++) {
+      if (value_plans[i].fn == fn &&
+          value_plans[i].parameter_index == parameter_index) {
+         plan = &value_plans[i];
+         break;
+      }
    }
-   value_plans = grown;
-   plan = &value_plans[value_plan_count++];
+
+   /* A later fixed-point iteration may learn that an address-backed caller
+      formal is itself a constant.  Constant is strictly stronger than address:
+      upgrade the existing plan so no dead caller ABI symbol leaks downstream. */
+   if (plan) {
+      if (plan->kind == INLINE_VALUE_INTEGER_CONSTANT ||
+          kind != INLINE_VALUE_INTEGER_CONSTANT) {
+         return;
+      }
+      free(plan->read_expr);
+      plan->read_expr = NULL;
+      plan->kind = kind;
+      plan->offset = 0;
+      plan->is_zeropage = false;
+      plan->constant_value = constant_value;
+      value_plan_revision++;
+      return;
+   }
+
+   {
+      ValuePlan *grown = (ValuePlan *)realloc(value_plans,
+         sizeof(*value_plans) * (value_plan_count + 1));
+      if (!grown) {
+         error_unreachable("out of memory recording value specialization");
+      }
+      value_plans = grown;
+      plan = &value_plans[value_plan_count++];
+   }
    memset(plan, 0, sizeof(*plan));
    plan->fn = fn;
    plan->parameter_index = parameter_index;
@@ -529,6 +560,7 @@ static void add_value_plan(const ASTNode *fn, int parameter_index,
    if (read_expr && !plan->read_expr) {
       error_unreachable("out of memory recording value specialization address");
    }
+   value_plan_revision++;
 }
 
 bool optimizer_value_parameter_specialization(const ASTNode *fn, int parameter_index,
@@ -778,6 +810,30 @@ static bool plan_one_value_parameter(const ASTNode *program, const ASTNode *fn,
       once the stability proof is subobject-aware. */
    actual_name = expr_bare_identifier_name(actual);
    if (!actual_name || !*actual_name) return false;
+
+   /* The caller formal may itself have disappeared because an earlier
+      fixed-point iteration specialized it to a constant.  Propagate that
+      binding instead of recording the caller formal's now-nonexistent ABI
+      symbol as this callee's backing storage.  This is what makes readonly
+      chains such as main -> middle(4) -> leaf(x) independent of definition
+      order. */
+   {
+      Context caller_ctx;
+      ContextEntry *caller_entry = NULL;
+      if (build_analysis_caller_context(caller, &caller_ctx)) {
+         caller_entry = (ContextEntry *)set_get(caller_ctx.vars, actual_name);
+      }
+      if (caller_entry && caller_entry->has_const_value &&
+          value_parameter_signature_matches_actual(parameter, caller_entry) &&
+          normalize_value_constant_for_parameter(parameter,
+                                                 caller_entry->const_value,
+                                                 &constant_value)) {
+         add_value_plan(fn, parameter_index, INLINE_VALUE_INTEGER_CONSTANT,
+                        NULL, 0, false, constant_value);
+         return true;
+      }
+   }
+
    memset(&actual_entry, 0, sizeof(actual_entry));
    if (!fixed_caller_actual(actual, caller, &actual_entry,
                             read_expr, sizeof(read_expr),
@@ -823,7 +879,7 @@ static bool plan_one_value_parameter(const ASTNode *program, const ASTNode *fn,
 }
 
 void analyze_optimizer_value_specializations(ASTNode *program) {
-   size_t previous_count;
+   size_t previous_revision;
    reset_value_plans();
    value_plan_program = program;
    if (!program) return;
@@ -832,7 +888,7 @@ void analyze_optimizer_value_specializations(ASTNode *program) {
       single-callsite chain.  Iterate so definition order does not decide the
       result, matching the ref-specialization planner. */
    do {
-      previous_count = value_plan_count;
+      previous_revision = value_plan_revision;
       for (int p = 0; p < program->count; p++) {
          ASTNode *fn = program->children[p];
          const ASTNode *callsite;
@@ -858,15 +914,19 @@ void analyze_optimizer_value_specializations(ASTNode *program) {
          for (int i = 0; i < params->count && actual_index < args->count; i++) {
             const ASTNode *parameter = params->children[i];
             if (!parameter || parameter_is_void(parameter) || !parameter_type(parameter)) continue;
-            if (!parameter_is_ref(parameter) &&
-                !optimizer_value_parameter_specialization(fn, i, NULL)) {
-               (void)plan_one_value_parameter(program, fn, caller, parameter, i,
-                                              args->children[actual_index]);
+            if (!parameter_is_ref(parameter)) {
+               InlineValueSpecialization existing;
+               bool have_existing = optimizer_value_parameter_specialization(fn, i,
+                                                                               &existing);
+               if (!have_existing || existing.kind == INLINE_VALUE_ADDRESS) {
+                  (void)plan_one_value_parameter(program, fn, caller, parameter, i,
+                                                 args->children[actual_index]);
+               }
             }
             actual_index++;
          }
       }
-   } while (value_plan_count != previous_count);
+   } while (value_plan_revision != previous_revision);
    (void)value_plan_program;
 }
 

@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: align() applies only to file-scope data-object definitions
+include "machine_6502.c26"
+align(256) static void cannot_align_function(void) { }
+void main(void) { }

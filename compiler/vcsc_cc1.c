@@ -15,6 +15,7 @@
 
 #include "ast.h"
 #include "compile.h"
+#include "compile_inline_inliner.h"
 #include "coverage.h"
 #include "expropt.h"
 #include "lextern.h"
@@ -32,6 +33,8 @@ static void opt_version(char *);
 static void opt_define(char *);
 static void opt_peephole(char *);
 static void opt_no_peephole(char *);
+static void opt_inline_select(char *);
+static void opt_inline_candidates(char *);
 
 //! @brief Handle opt xray logic for main.
 static void opt_xray(char *n) {
@@ -68,6 +71,16 @@ static void opt_peephole(char *unused) {
 static void opt_no_peephole(char *unused) {
    (void) unused;
    set_peephole_enabled(false);
+}
+
+//! @brief Select one optimizer-inline candidate already approved by the final-link driver.
+static void opt_inline_select(char *name) {
+   optimizer_inline_request_selection(name);
+}
+
+//! @brief Write mechanically/placement-legal optimizer candidates for driver trials.
+static void opt_inline_candidates(char *path) {
+   optimizer_inline_set_candidate_manifest(path);
 }
 
 //! @brief Handle opt ignore logic for main.
@@ -125,6 +138,8 @@ static struct option_def options[] = {
    { 'o', "output", "file.s26", "write assembly output to file ('-' means stdout)", opt_output },
    { 0, "fpeephole", NULL, "enable compiler assembly peephole optimization (default)", opt_peephole },
    { 0, "fno-peephole", NULL, "disable all compiler assembly peephole rewrites", opt_no_peephole },
+   { 0, "finline-select", "name", "internal: select one measured optimizer-inline candidate", opt_inline_select },
+   { 0, "finline-candidates", "file", "internal: write legal optimizer-inline candidates", opt_inline_candidates },
    { 0, "quiet", NULL, "accept GCC cc1's -quiet flag and ignore it", opt_ignore },
    { 0, "dumpbase", "name", "accept GCC cc1's -dumpbase flag and ignore it", opt_ignore },
    { 0, "dumpbase-ext", "ext", "accept GCC cc1's -dumpbase-ext flag and ignore it", opt_ignore },

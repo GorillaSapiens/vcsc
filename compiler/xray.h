@@ -18,6 +18,7 @@
 #define XRAY_PEEPHOLE    8 // dump peephole optimizer statistics
 #define XRAY_SCRATCH     9 // dump static compiler scratch allocation diagnostics
 #define XRAY_INLINEPLAN  10 // dump optimizer single-callsite analysis
+#define XRAY_INLINEIR    11 // force optimizer ordinary-function inlining for tests
 
 // return the xray number for a human readable string
 int lookup_xray(const char *);

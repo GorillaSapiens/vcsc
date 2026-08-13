@@ -728,11 +728,26 @@ implementation plan is `.../inline_roadmap.txt`: subsections 0 (pre-lowering
 single-direct-callsite analysis) and 1 (single-callsite ref-parameter address
 specialization) are complete; subsection 2 (readonly by-value specialization) is
 mostly complete, with general post-binding expression folding/DCE still partial.
-Readonly exact-type caller storage and constant actuals can now eliminate value
-formal slots after conservative stability/address-escape proof; direct constant
-formal `if` conditions prune unreachable arms. Ref specialization removes fixed
-ref-address slots, propagates fixed bindings through single-callsite chains, preserves split read/write
-aliases, and falls back to the ordinary ABI for unresolved actual addresses.
+Subsection 3 now has a tested ordinary-function IR/control-flow expansion mechanism
+behind debug-only `-X inlineir`. Subsection 4's caller-aware placement/timing gate
+is complete: hard function `page`, named code/result regions, or generated-code
+`.same`/`.cross` policy on either side of the unique callsite retain the separate
+function; the hard-branch scan follows source-inline expansion transitively.
+Subsection 5's final-link profitability engine is complete behind the internal
+`-finline-profit` development path: the driver trial-links legal candidates,
+accepts measured ROM wins (or equal-ROM stack wins) without activation-RAM
+regression, retries to fixed point over the original candidate set, and rejects
+measured ROM growth. Production default selection remains off pending subsection
+6's remaining ABI/reachability/assembly-identity vetoes.
+Inlined bodies preserve
+their own activation owners and emit activation-only lifetime edges used solely by
+the linker RAM overlay planner, so sibling overlay survives while real hardware
+call-stack depth can fall. Readonly exact-type caller storage and constant actuals
+can eliminate value formal slots after conservative stability/address-escape proof;
+direct constant formal `if` conditions prune unreachable arms. Ref specialization
+removes fixed ref-address slots, propagates fixed bindings through single-callsite
+chains, preserves split read/write aliases, and falls back to the ordinary ABI for
+unresolved actual addresses.
 
 Windows host-tool packaging is now supported from the top-level Makefile. `make windows`
 bootstraps native `vcsc-as`/`vcsc-ar` for construction of the target-neutral runtime,

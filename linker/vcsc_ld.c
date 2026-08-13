@@ -66,6 +66,7 @@ static void usage(FILE *fp)
       "                       Use optimized (default) or simple bank placement\n"
       "  --explain-bank-placement\n"
       "                       Explain every bank-placement decision on stderr\n"
+      "  --trial              Internal driver mode: suppress diagnostics/usage\n"
       "  -h, --help           Show this help text\n"
       "  -v, --version        Show linker version\n"
       "  -V                   Show generated version string\n"
@@ -323,6 +324,35 @@ static int symbol_backed_metadata_parse_edge(const char *name, char **caller_out
       return 0;
    p = name + sizeof(SYMBOL_BACKED_META_PREFIX) - 1;
    if (strncmp(p, "E$", 2) != 0)
+      return 0;
+   p += 2;
+   sep = strchr(p, '$');
+   if (!sep || sep == p || !sep[1])
+      return 0;
+   if (strchr(sep + 1, '$'))
+      return 0;
+   caller_len = (size_t)(sep - p);
+   if (caller_out) {
+      *caller_out = (char *)xmalloc(caller_len + 1);
+      memcpy(*caller_out, p, caller_len);
+      (*caller_out)[caller_len] = '\0';
+   }
+   if (callee_out)
+      *callee_out = xstrdup(sep + 1);
+   return 1;
+}
+
+//! @brief Parse one activation-only lifetime edge emitted for optimizer inlining.
+static int symbol_backed_metadata_parse_activation_edge(const char *name, char **caller_out, char **callee_out)
+{
+   const char *p;
+   const char *sep;
+   size_t caller_len;
+
+   if (!symbol_backed_metadata_has_prefix(name))
+      return 0;
+   p = name + sizeof(SYMBOL_BACKED_META_PREFIX) - 1;
+   if (strncmp(p, "I$", 2) != 0)
       return 0;
    p += 2;
    sep = strchr(p, '$');
@@ -2520,7 +2550,8 @@ static void call_graph_add_edge(call_graph_edge_t **edges, size_t *count, int fr
 //! @brief Extract call graph collect from object for linker layout and image writer.
 static void call_graph_collect_from_object(const object_file_t *obj,
                                            call_graph_node_t **nodes, size_t *node_count,
-                                           call_graph_edge_t **edges, size_t *edge_count)
+                                           call_graph_edge_t **edges, size_t *edge_count,
+                                           int include_activation_edges)
 {
    size_t i;
 
@@ -2538,7 +2569,9 @@ static void call_graph_collect_from_object(const object_file_t *obj,
          continue;
       }
 
-      if (symbol_backed_metadata_parse_edge(name, &caller, &callee)) {
+      if (symbol_backed_metadata_parse_edge(name, &caller, &callee) ||
+          (include_activation_edges &&
+           symbol_backed_metadata_parse_activation_edge(name, &caller, &callee))) {
          char *qualified_caller = call_graph_object_function_name(obj, caller);
          char *qualified_callee = call_graph_object_function_name(obj, callee);
          int from = call_graph_find_or_add_node(nodes, node_count, qualified_caller);
@@ -2808,7 +2841,7 @@ static uint16_t enforce_symbol_backed_call_graph(const input_set_t *in,
    size_t i;
 
    for (i = 0; i < in->object_count; ++i)
-      call_graph_collect_from_object(&in->objects[i], &nodes, &node_count, &edges, &edge_count);
+      call_graph_collect_from_object(&in->objects[i], &nodes, &node_count, &edges, &edge_count, 0);
 
    if (weighted_depth_out)
       *weighted_depth_out = 0;
@@ -3171,7 +3204,7 @@ static unsigned char *contract_call_graph_reachability(const input_set_t *in,
 
    for (i = 0; i < in->object_count; ++i)
       call_graph_collect_from_object(&in->objects[i], &nodes, &node_count,
-                                     &edges, &edge_count);
+                                     &edges, &edge_count, 0);
    reachable = (unsigned char *)xcalloc(node_count ? node_count : 1,
                                        sizeof(*reachable));
    for (i = 0; i < node_count; ++i) {
@@ -6579,7 +6612,7 @@ static void layout_activation_segments(const linker_config_t *cfg, input_set_t *
    size_t i, j;
 
    for (i = 0; i < in->object_count; ++i)
-      call_graph_collect_from_object(&in->objects[i], &nodes, &node_count, &edges, &edge_count);
+      call_graph_collect_from_object(&in->objects[i], &nodes, &node_count, &edges, &edge_count, 1);
 
    /* First discover every activation owner and target memory region. */
    for (i = 0; i < in->object_count; ++i) {
@@ -8399,7 +8432,7 @@ static void write_call_stack_diagnostics(FILE *fp, const linker_config_t *cfg,
 
    for (i = 0; i < in->object_count; ++i)
       call_graph_collect_from_object(&in->objects[i], &nodes, &node_count,
-                                     &edges, &edge_count);
+                                     &edges, &edge_count, 0);
 
    fprintf(fp, "\nCALL GRAPH\n");
    for (i = 0; i < edge_count; ++i) {
@@ -9212,6 +9245,7 @@ int main(int argc, char **argv)
    sidecar_option_t cfg_output = { NULL, 1, 0, NULL };
    uint8_t bank_placement_mode = BANK_PLACEMENT_MODE_OPTIMIZED;
    int explain_bank_placement = 0;
+   int trial_mode = 0;
    linker_config_t cfg;
    input_set_t inputs;
    layout_t layout;
@@ -9236,6 +9270,18 @@ int main(int argc, char **argv)
       }
 
       if (!end_of_options && arg[0] == '-' && arg[1] != '\0') {
+         if (strcmp(arg, "--trial") == 0) {
+            const char *null_path;
+            trial_mode = 1;
+#ifdef _WIN32
+            null_path = "NUL";
+#else
+            null_path = "/dev/null";
+#endif
+            (void)freopen(null_path, "w", stdout);
+            (void)freopen(null_path, "w", stderr);
+            continue;
+         }
          if (strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0) {
             usage(stdout);
             return 0;
@@ -9535,9 +9581,11 @@ int main(int argc, char **argv)
                           &layout, image, used);
    write_stella_config_file(cfg_output.enabled ? cfg_output.path : NULL,
                             &cfg, &inputs, used);
-   puts("MEMORY USAGE");
-   write_cartridge_rom_usage(stdout, &cfg, used, "  ");
-   write_ram_usage(stdout, &cfg, &inputs, &layout, "  ");
+   if (!trial_mode) {
+      puts("MEMORY USAGE");
+      write_cartridge_rom_usage(stdout, &cfg, used, "  ");
+      write_ram_usage(stdout, &cfg, &inputs, &layout, "  ");
+   }
 
    free(image);
    free(used);

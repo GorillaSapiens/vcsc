@@ -7,6 +7,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -39,6 +40,7 @@
 #endif
 
 #include "version.h"
+#include "inline_profit.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -84,6 +86,7 @@ typedef struct {
    bool no_sym;
    bool no_list;
    bool no_cfg;
+   bool inline_profit;
    strvec_t include_dirs;
    strvec_t lib_dirs;
    strvec_t libs;
@@ -106,6 +109,20 @@ typedef struct {
    char tempdir[PATH_MAX];
    bool made_tempdir;
 } temp_store_t;
+
+typedef struct {
+   char *source;
+   size_t link_index;
+   char *manifest;
+   strvec_t candidates;
+   strvec_t selected;
+} inline_tu_t;
+
+typedef struct {
+   inline_tu_t *items;
+   size_t count;
+   size_t cap;
+} inline_tuvec_t;
 
 static const char *arg0;
 static temp_store_t *active_temp_store;
@@ -171,6 +188,64 @@ static void strvec_push_owned(strvec_t *v, char *s)
 static void strvec_push(strvec_t *v, const char *s)
 {
    strvec_push_owned(v, xstrdup(s));
+}
+
+static bool strvec_contains(const strvec_t *v, const char *s)
+{
+   size_t i;
+   if (!v || !s) return false;
+   for (i = 0; i < v->count; ++i)
+      if (strcmp(v->items[i], s) == 0) return true;
+   return false;
+}
+
+static void strvec_release(strvec_t *v)
+{
+   size_t i;
+   if (!v) return;
+   for (i = 0; i < v->count; ++i) free(v->items[i]);
+   free(v->items);
+   memset(v, 0, sizeof(*v));
+}
+
+static void strvec_clone_replace(strvec_t *dst, const strvec_t *src,
+   size_t replace_index, const char *replacement)
+{
+   size_t i;
+   memset(dst, 0, sizeof(*dst));
+   for (i = 0; i < src->count; ++i)
+      strvec_push(dst, (i == replace_index) ? replacement : src->items[i]);
+}
+
+static void inline_tuvec_push(inline_tuvec_t *v, const char *source,
+   size_t link_index, const char *manifest)
+{
+   inline_tu_t *tu;
+   if (v->count == v->cap) {
+      v->cap = v->cap ? v->cap * 2 : 4;
+      v->items = xrealloc(v->items, v->cap * sizeof(v->items[0]));
+   }
+   tu = &v->items[v->count++];
+   memset(tu, 0, sizeof(*tu));
+   tu->source = xstrdup(source);
+   tu->link_index = link_index;
+   tu->manifest = xstrdup(manifest);
+}
+
+static void read_inline_candidate_manifest(inline_tu_t *tu)
+{
+   FILE *fp;
+   char line[512];
+   if (!tu || !tu->manifest) return;
+   fp = fopen(tu->manifest, "r");
+   if (!fp) die("could not read inline candidate manifest '%s': %s",
+                tu->manifest, strerror(errno));
+   while (fgets(line, sizeof(line), fp)) {
+      size_t n = strlen(line);
+      while (n && (line[n - 1] == '\n' || line[n - 1] == '\r')) line[--n] = '\0';
+      if (n && !strvec_contains(&tu->candidates, line)) strvec_push(&tu->candidates, line);
+   }
+   if (fclose(fp) != 0) die("could not close inline candidate manifest '%s'", tu->manifest);
 }
 
 //! @brief Handle inputvec push logic for driver pipeline.
@@ -1034,6 +1109,10 @@ static void parse_args(int argc, char **argv, driver_options_t *opt,
          strvec_push(&opt->cc_extra, arg);
          continue;
       }
+      if (strcmp(arg, "-finline-profit") == 0) {
+         opt->inline_profit = true;
+         continue;
+      }
       if (strncmp(arg, "-Wc,", 4) == 0) {
          append_split_commas(&opt->cc_extra, arg + 4);
          continue;
@@ -1157,8 +1236,10 @@ static const char *derive_output_path(const input_t *in, const char *suffix, con
    return buf;
 }
 
-//! @brief Run the cc stage of the driver tool pipeline.
-static void run_cc(const char *cc_path, const driver_options_t *opt, const char *runtime_inc, const char *input, const char *output)
+//! @brief Run one compiler stage with optional optimizer-inline trial controls.
+static void run_cc_variant(const char *cc_path, const driver_options_t *opt,
+   const char *runtime_inc, const char *input, const char *output,
+   const strvec_t *inline_selected, const char *candidate_manifest)
 {
    strvec_t cmd = {0};
    const char *dot = path_extension(input);
@@ -1182,10 +1263,26 @@ static void run_cc(const char *cc_path, const driver_options_t *opt, const char 
    strvec_push(&cmd, *dot ? dot : ".c26");
    strvec_push(&cmd, "-dumpdir");
    strvec_push(&cmd, "./");
+   if (candidate_manifest) {
+      strvec_push(&cmd, "-finline-candidates");
+      strvec_push(&cmd, candidate_manifest);
+   }
+   if (inline_selected) {
+      for (size_t i = 0; i < inline_selected->count; ++i) {
+         strvec_push(&cmd, "-finline-select");
+         strvec_push(&cmd, inline_selected->items[i]);
+      }
+   }
    for (size_t i = 0; i < opt->cc_extra.count; ++i)
       strvec_push(&cmd, opt->cc_extra.items[i]);
 
    run_vec_or_die(&cmd, opt->verbose, opt->dry_run);
+}
+
+//! @brief Run the ordinary cc stage of the driver tool pipeline.
+static void run_cc(const char *cc_path, const driver_options_t *opt, const char *runtime_inc, const char *input, const char *output)
+{
+   run_cc_variant(cc_path, opt, runtime_inc, input, output, NULL, NULL);
 }
 
 //! @brief Run the as stage of the driver tool pipeline.
@@ -1281,6 +1378,129 @@ static void run_ld(const char *ld_path, const driver_options_t *opt,
    run_vec_or_die(&cmd, opt->verbose, opt->dry_run);
 }
 
+//! @brief Run one silent speculative link and return its status instead of exiting.
+static int run_trial_ld(const char *ld_path, const driver_options_t *opt,
+   const strvec_t *link_inputs, const char *default_runtime,
+   const char *default_link_script, const char *output, const char *map)
+{
+   strvec_t cmd = {0};
+   const char *link_script = opt->link_script;
+   char **argv;
+   int rc;
+   size_t i;
+
+   if (!link_script) link_script = default_link_script;
+   strvec_push(&cmd, ld_path);
+   strvec_push(&cmd, "--trial");
+   strvec_push(&cmd, "-o");
+   strvec_push(&cmd, output);
+   strvec_push(&cmd, "-T");
+   strvec_push(&cmd, link_script);
+   strvec_push(&cmd, "-Map");
+   strvec_push(&cmd, map);
+   strvec_push(&cmd, "--no-sym");
+   strvec_push(&cmd, "--no-list");
+   strvec_push(&cmd, "--no-cfg");
+   for (i = 0; i < opt->ld_extra.count; ++i) strvec_push(&cmd, opt->ld_extra.items[i]);
+   for (i = 0; i < link_inputs->count; ++i) strvec_push(&cmd, link_inputs->items[i]);
+   for (i = 0; i < opt->libs.count; ++i) {
+      char libbuf[PATH_MAX];
+      strvec_push(&cmd, find_library(opt, opt->libs.items[i], libbuf, sizeof(libbuf)));
+   }
+   if (!opt->nostdlib) strvec_push(&cmd, default_runtime);
+   argv_from_vec(&cmd, &argv);
+   rc = run_argv(argv, false, false);
+   free(argv);
+   strvec_release(&cmd);
+   return rc;
+}
+
+//! @brief Greedily accept only candidates which improve a real final link.
+static void optimize_inline_profitability(const char *cc_path, const char *as_path,
+   const char *ld_path, const driver_options_t *opt, const char *runtime_inc,
+   const char *runtime_path, const char *default_link_script,
+   strvec_t *link_inputs, inline_tuvec_t *tus, temp_store_t *temps)
+{
+   inline_link_metrics_t current;
+   char error[256];
+   const char *base_hex;
+   const char *base_map;
+   bool changed;
+
+   if (!opt->inline_profit || opt->dry_run || !tus || tus->count == 0) return;
+   for (size_t ti = 0; ti < tus->count; ++ti) read_inline_candidate_manifest(&tus->items[ti]);
+
+   base_hex = temp_store_make_file(temps, "inline_baseline", ".hex");
+   base_map = temp_store_make_file(temps, "inline_baseline", ".map");
+   if (run_trial_ld(ld_path, opt, link_inputs, runtime_path, default_link_script,
+                    base_hex, base_map) != 0) {
+      /* Let the ordinary final link produce the real user diagnostic. */
+      return;
+   }
+   if (!inline_link_metrics_read_map(base_map, &current, error, sizeof(error)))
+      die("could not read baseline inline-profit metrics: %s", error);
+
+   do {
+      changed = false;
+      for (size_t ti = 0; ti < tus->count; ++ti) {
+         inline_tu_t *tu = &tus->items[ti];
+         for (size_t ci = 0; ci < tu->candidates.count; ++ci) {
+            const char *candidate = tu->candidates.items[ci];
+            strvec_t selected = {0};
+            strvec_t trial_inputs = {0};
+            inline_link_metrics_t trial;
+            inline_profit_decision_t decision;
+            char stem[PATH_MAX];
+            const char *trial_s;
+            const char *trial_o;
+            const char *trial_hex;
+            const char *trial_map;
+
+            if (strvec_contains(&tu->selected, candidate)) continue;
+            for (size_t i = 0; i < tu->selected.count; ++i) strvec_push(&selected, tu->selected.items[i]);
+            strvec_push(&selected, candidate);
+            path_stem(tu->source, stem, sizeof(stem));
+            trial_s = temp_store_make_file(temps, stem, ".inline.s26");
+            trial_o = temp_store_make_file(temps, stem, ".inline.o26");
+            run_cc_variant(cc_path, opt, runtime_inc, tu->source, trial_s, &selected, NULL);
+            run_as(as_path, opt, runtime_inc, trial_s, trial_o);
+            strvec_clone_replace(&trial_inputs, link_inputs, tu->link_index, trial_o);
+            trial_hex = temp_store_make_file(temps, "inline_trial", ".hex");
+            trial_map = temp_store_make_file(temps, "inline_trial", ".map");
+            if (run_trial_ld(ld_path, opt, &trial_inputs, runtime_path,
+                             default_link_script, trial_hex, trial_map) != 0 ||
+                !inline_link_metrics_read_map(trial_map, &trial, error, sizeof(error))) {
+               strvec_release(&selected);
+               strvec_release(&trial_inputs);
+               continue;
+            }
+            decision = inline_profit_decide(&current, &trial);
+            if (opt->verbose) {
+               fprintf(stderr,
+                  "%s: inline %s: %s rom=%" PRIu64 "->%" PRIu64
+                  " ram-objects=%" PRIu64 "->%" PRIu64 " stack=%" PRIu64 "->%" PRIu64 "\n",
+                  arg0, candidate,
+                  decision == INLINE_PROFIT_ACCEPT_ROM ? "accept-rom" :
+                  decision == INLINE_PROFIT_ACCEPT_STACK ? "accept-stack" :
+                  decision == INLINE_PROFIT_REJECT_RAM_REGRESSION ? "reject-ram-regression" : "reject",
+                  current.rom_bytes, trial.rom_bytes,
+                  current.ram_object_bytes, trial.ram_object_bytes,
+                  current.hardware_stack_bytes, trial.hardware_stack_bytes);
+            }
+            if (decision == INLINE_PROFIT_ACCEPT_ROM || decision == INLINE_PROFIT_ACCEPT_STACK) {
+               free(link_inputs->items[tu->link_index]);
+               link_inputs->items[tu->link_index] = xstrdup(trial_o);
+               strvec_push(&tu->selected, candidate);
+               current = trial;
+               changed = true;
+            }
+            strvec_release(&selected);
+            strvec_release(&trial_inputs);
+         }
+      }
+   } while (changed);
+}
+
 //! @brief Entry point for the driver command; parses arguments, runs the requested pipeline, and returns process status.
 int main(int argc, char **argv)
 {
@@ -1297,6 +1517,7 @@ int main(int argc, char **argv)
    char vcs_cfg_path[PATH_MAX];
    char vcs_profile_path[PATH_MAX];
    strvec_t link_inputs = {0};
+   inline_tuvec_t inline_tus = {0};
    size_t i;
 
    arg0 = argv[0];
@@ -1367,6 +1588,14 @@ int main(int argc, char **argv)
             path_stem(in->path, stem, sizeof(stem));
             asm_path = temp_store_make_file(&temps, stem, ".s26");
             obj_path = temp_store_make_file(&temps, stem, ".o26");
+            if (opt.inline_profit) {
+               const char *manifest = temp_store_make_file(&temps, stem, ".inline-candidates");
+               run_cc_variant(cc_path, &opt, runtime_inc, in->path, asm_path, NULL, manifest);
+               run_as(as_path, &opt, runtime_inc, asm_path, obj_path);
+               inline_tuvec_push(&inline_tus, in->path, link_inputs.count, manifest);
+               strvec_push(&link_inputs, obj_path);
+               break;
+            }
             run_cc(cc_path, &opt, runtime_inc, in->path, asm_path);
             run_as(as_path, &opt, runtime_inc, asm_path, obj_path);
             strvec_push(&link_inputs, obj_path);
@@ -1397,6 +1626,8 @@ int main(int argc, char **argv)
          run_as(as_path, &opt, runtime_inc, asm_path, obj_path);
          strvec_push(&link_inputs, obj_path);
       }
+      optimize_inline_profitability(cc_path, as_path, ld_path, &opt, runtime_inc,
+         runtime_path, vcs_cfg_path, &link_inputs, &inline_tus, &temps);
       run_ld(ld_path, &opt, &link_inputs, runtime_path, vcs_cfg_path);
    }
 

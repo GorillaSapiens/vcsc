@@ -50,6 +50,33 @@ write/address/alias/type-conversion fallbacks.
 cases and proves a safe one-byte formal disappears from activation RAM while the
 matched address-escaped fallback keeps its by-value copy.
 
+`optimizer_inline_ir.pl` covers subsection 3's ordinary-function control-flow
+expansion mechanism under the debug-only `-X inlineir` forcing switch. It checks
+that standalone procedures/JSRs disappear, nested one-call chains expand, locals
+and multi-return labels remain distinct, and inline-assembly candidates stay
+separate. `optimizer_inline_ir_e2e.pl` links and simulates normal and forced forms,
+including copied mutable parameters, early returns, an ordinary call nested in an
+inlined body, sibling activation overlay, peak activation RAM, and reduced hardware
+call-stack depth. `optimizer_inline_legality.pl` covers subsection 4's
+caller-aware placement gate: hard function `page` containment, named code/result
+regions, direct and source-inline-transitive `.same`/`.cross` policy, a `.flex`
+non-veto, and page-contained data that remains independently placed.
+`optimizer_inline_legality_e2e.pl` links and simulates the forced form, verifies
+final same/cross branch policy, and carries a hard-page fixture that would exceed
+256 bytes if its retained target were expanded. `align_function_error_test.c26`
+locks the language-level function-alignment rejection.
+
+`inline_profit_metrics_unit.pl` covers subsection 5's final-link metric parser and
+decision rule independently of the driver: summed cartridge ROM, activation/object
+RAM, hardware-stack reserve, ROM win/loss, equal-ROM stack win, and rejection of
+an unexpected activation-overlay regression. `optimizer_inline_profit_e2e.pl` runs
+the real driver/linker trial loop. It proves a natural `main -> middle(4) -> leaf(x)`
+chain propagates its readonly constant binding, accepts both profitable inlines for
+an exact eight-byte final-ROM win with unchanged object RAM and lower hardware
+stack, while a legal multi-return candidate is measured larger and retained. The
+profitability loop remains opt-in/internal until subsection 6's ABI/reachability
+veto work is complete.
+
 ## Peephole optimizer coverage
 
 `peephole_unit.pl` feeds generated-assembly fragments directly to the optimizer,

@@ -65,36 +65,48 @@ Status legend: [ ] not started, [~] partial, [x] complete.
 
 3. Optimizer-selected IR/control-flow inlining
 ----------------------------------------------
-[ ] Inline eligible ordinary functions through compiler IR/control-flow state,
-    not source-text substitution and not by abusing source `inline` expansion.
-[ ] Correctly rewrite parameters, locals, return objects, labels, and every return
-    edge, including multiple returns and early returns.
-[ ] Simplify newly exposed expressions/control flow and recompute the call graph
+[x] Implement the ordinary-function IR/control-flow expansion mechanism without
+    source-text substitution or abusing source `inline`. It is currently reachable
+    only through debug `-X inlineir`; production selection remains deliberately
+    gated on subsections 4 and 5.
+[x] Correctly rewrite/carry parameters, locals, return objects, labels, and every
+    return edge, including ordinary copied parameters, multiple returns, and early
+    returns.
+[~] Simplify newly exposed expressions/control flow and recompute the call graph
     to fixed point so one inline can expose another single-callsite candidate.
-[ ] Preserve activation/scratch lifetime semantics: nonrecursive mutually
-    exclusive lifetimes remain overlayable after inlining.
-[ ] Unit tests: void/value returns, multi-return control flow, nested one-call
-    chains, locals/temporaries, and sibling lifetime overlay.
+    Pre-existing nested one-call chains already expand recursively, but there is
+    no general post-inline census/DCE pass yet.
+[x] Preserve activation/scratch lifetime semantics: optimizer-inlined bodies keep
+    distinct activation owners and activation-only lifetime edges, so nonrecursive
+    mutually exclusive lifetimes remain overlayable without inflating JSR depth.
+[x] Unit/E2E tests: void/value returns, mutable copied parameters, multi-return
+    control flow, nested one-call chains, locals/temporaries, sibling lifetime
+    overlay, an ordinary call nested inside an inlined body, and hardware-stack
+    depth reduction.
 
 4. Placement/timing legality gate
 ---------------------------------
-[ ] Before accepting an optimizer inline, prove final linker placement can still
+[x] Before accepting an optimizer inline, prove final linker placement can still
     satisfy every `.same`/`.cross` branch annotation and applicable alignment /
-    page-containment constraint. If not, retain the separate function.
-[ ] Keep independently placeable code-region contracts as a conservative veto
-    until a proof exists for moving them into the caller.
-[ ] Unit/E2E tests: `.same` success/failure, `.cross` success/failure, alignment
-    failure, page containment, and code-region placement vetoes.
+    page-containment constraint. The current proof is conservative: hard branch
+    policy or hard function-page geometry on either side of the unique callsite
+    retains the separate function rather than gambling on final placement.
+[x] Keep independently placeable code/result-region contracts on either side of
+    the callsite as a conservative veto until trial placement/rollback exists.
+[x] Unit/E2E tests: `.same`/`.cross` retention and successful final placement,
+    source-inline-transitive hard branch detection, hard page containment with a
+    fixture that would exceed 256 bytes if expanded, function `align()` rejection,
+    named code/result-region vetoes, and unconstrained/page-data success cases.
 
 5. Profitability and fixed-point decision
 -----------------------------------------
-[ ] Measure final linked ROM size and hardware-stack depth before/after a legal
+[x] Measure final linked ROM size and hardware-stack depth before/after a legal
     candidate. Accept when linked code improves without violating constraints;
     reject measured ROM growth. Stack-depth reduction is a secondary benefit.
-[ ] Recompute RIOT activation/scratch overlay after each accepted transform.
+[x] Recompute RIOT activation/scratch overlay after each accepted transform.
     Inlining itself must not be treated as an inherent RAM tradeoff; unexpected
     loss of an equivalent overlay is an allocator/lifetime-analysis bug.
-[ ] Unit/E2E tests: exact ROM win, exact ROM loss/rejection, stack-depth reduction,
+[x] Unit/E2E tests: exact ROM win, exact ROM loss/rejection, stack-depth reduction,
     unchanged peak-RAM overlay, and fixed-point nested wins.
 
 6. Reachability / ABI / assembly-boundary vetoes
@@ -229,3 +241,140 @@ RAM from 99 to 97 bytes; `banked_game_logic` itself drops from 70 to 49 bytes
 and no longer needs its two-byte activation scratch. The banked runtime/raster
 simulation is unchanged. The exact-size regression now locks those optimized
 values.
+
+2026-08-13: Subsection 3's inlining mechanism is implemented and tested behind
+the debug-only `-X inlineir` forcing switch. `compile_inline_inliner.c/.h` plans
+mechanically safe baseline candidates for the transformation; normal production
+compilation does not yet select optimizer inlines because placement/timing legality
+and measured profitability belong to subsections 4 and 5. Source `inline` remains
+a separate language feature even though both paths share the low-level AST/IR
+control-flow expansion machinery.
+
+Optimizer-selected bodies retain their ordinary function storage names, which is
+important when subsection-2 readonly specialization has already baked a caller
+formal symbol into a nested callee. Parameters that specialization cannot remove
+are copied into the inlined callee activation normally. Locals, scratch, return
+objects, and unique inline return labels lower through a fresh function context;
+multiple/early returns jump to that expansion's return label. Nested pre-existing
+single-callsite chains recursively disappear as standalone procedures even when
+defined in reverse order. General post-transform callsite rediscovery and general
+expression/DCE fixed-point simplification remain partial under the third checkbox.
+
+Inlining originally assigned all expanded storage to the hardware caller, which
+was semantically correct but destroyed legal sibling RAM overlay. This was fixed
+with `__sbpmeta$I$caller$callee` activation-only lifetime metadata. The compiler
+tracks the hardware call-graph function separately from the current activation
+owner. The linker consumes ordinary E-edges plus I-edges only for activation RAM
+layout; hardware-stack depth, bank placement, reachability, and CALL GRAPH output
+continue to consume only real E/JSR edges. Thus an inlined body can keep a local
+live across a non-inlined call without either RAM alias corruption or fake stack
+depth. Calls used while evaluating later inline arguments are conservatively
+nested under the inline activation as well.
+
+Tests: `optimizer_inline_ir.pl` locks assembly/control-flow shape and the temporary
+inline-asm veto. `optimizer_inline_ir_e2e.pl` links and simulates normal versus
+forced forms, covering ref/value specialization interaction, a mutable copied
+by-value parameter, unique early/multiple returns, nested inline chains, sibling
+overlay, and an ordinary multiply-called helper invoked from an inlined body. It
+proves forced sibling activation bases still overlay, nested children still overlay,
+peak BSS activation RAM does not increase, activation-only edges do not leak into
+the hardware CALL GRAPH, and hardware stack depth decreases. The compile suite is
+478/478 and the focused inliner/specialization/banked/examples/branding/hygiene
+set passes 9/9. A broader E2E attempt reached 140/280 with no failures
+before the execution limit; it was stopped explicitly and is not claimed as a full
+E2E pass.
+`make installcheck` also passes with the subsection-3 sources and tests.
+
+2026-08-13: Subsection-3 regression follow-up restored source-inline contract
+metadata. The first forced-inliner implementation moved the early return for
+source `inline` definitions above `emit_function_contract_metadata()`. That was
+wrong: true source-inline definitions do not emit standalone procedures, but
+`require`/`recommend` declarations on those definitions still must emit linker-
+visible contract records. The missing records let template lifecycle omissions
+link successfully and also broke `declaration_contract_metadata.pl`.
+
+`compile_function_decl()` now emits function contract metadata before returning
+for either source-inline or optimizer-selected inline bodies. Existing contract
+and lifecycle regressions directly cover this ordering. Validation after the fix:
+the complete compile suite passes 478/478, and the complete 280-test E2E suite
+passes 280/280 when run in chunks to stay within the container execution limit.
+
+2026-08-13: Subsection 4 complete with a conservative placement/timing proof.
+Added `compile_inline_legality.c/.h`; forced `-X inlineir` now bypasses
+profitability but never placement legality. The gate examines both the candidate
+and its unique caller because moving a harmless callee can still perturb hard
+geometry already owned by the caller. `page` on either function vetoes the
+transform, as do named function code/result regions on either side. Function
+`align()` remains illegal at the language level; page/alignment contracts on
+independently placed data objects do not veto code that merely references them.
+
+Hard `.same`/`.cross` branch policy is detected in generated-code scope, not only
+lexically: the scan follows source-level inline function expansion transitively
+with a recursion guard, so a hard branch hidden in `caller -> inline wrapper`
+still protects the caller. In the absence of a linker trial-placement/rollback
+protocol, presence of any such hard policy on the moved body or surrounding
+caller is treated as lack of proof and retains the ordinary call. `.flex` itself
+is not a hard page contract.
+
+`optimizer_inline_legality.pl` covers unconstrained success, page-contained data
+success, callee/caller hard-page vetoes, code/result-region vetoes, direct caller
+`.same`/`.cross`, a hard branch introduced through source-inline expansion, and
+a `.flex` caller. `align_function_error_test.c26` locks that functions cannot use
+`align()`. `optimizer_inline_legality_e2e.pl` links and simulates normal/forced
+forms and proves final `.same` and `.cross` policies remain physically satisfied.
+Its hard-page fixture is intentionally 197 bytes for the caller plus 73 bytes for
+the retained target; replacing the 3-byte call with the body would exceed 256
+bytes, so the test demonstrates a real link failure avoided by the legality gate.
+The complete compile-side suite passes 480/480 after adding the subsection-4 unit
+coverage. The complete E2E suite passes 281/281 when run in bounded chunks; the
+repository test runner was restored byte-for-byte after local chunking. `make
+installcheck` also passes. Production optimizer selection remains off pending
+measured profitability in subsection 5.
+
+2026-08-13: Subsection 5 complete behind the internal/opt-in profitability path.
+The compiler can emit a per-translation-unit manifest of candidates which have
+already passed the subsection-3 mechanical checks and subsection-4 placement
+legality gate, and can recompile an explicitly selected candidate set. The
+driver's `-finline-profit` development path performs silent speculative final
+links through the real linker and accepts a candidate only after measuring the
+resulting whole-image MEMORY USAGE. This is intentionally not the normal default
+yet; subsection 6 still owns the remaining ABI/reachability/assembly-identity
+vetoes required before production selection can be enabled.
+
+The measured rule is monotonic: reject any trial that grows final cartridge ROM,
+accept smaller ROM when activation/object RAM does not regress, and use reduced
+hardware-stack reserve as a secondary win when ROM is exactly equal. Unexpected
+activation/object RAM growth is treated as a lifetime/overlay bug rather than a
+RAM-for-ROM trade. After each acceptance the driver keeps the accepted object,
+relinks the whole program, and retries the original legal candidate set until no
+further trial is accepted. General discovery of *new* single-callsite candidates
+created by a transformation remains the separate partial subsection-3 census/DCE
+work; subsection 5 reaches fixed point over the authoritative candidate set it was
+given.
+
+The first measured implementation exposed and fixed a real scratch-lifetime bug:
+`compile_expanded_symbol_call()` reserved caller argument scratch whenever a call
+had arguments even if every formal had already been specialized. Scratch is now
+acquired lazily only for an argument which actually needs staging, restoring the
+expected pre/post-inline activation overlay. It also exposed a subsection-2 fixed-
+point corner: `main -> middle(4) -> leaf(x)` could first bind `leaf.x` to the soon-
+to-disappear symbol `middle$x`. Value plans now have a revisioned fixed point and
+upgrade an address-backed plan to the stronger propagated constant binding; the
+natural nested constant chain links without any artificial mutable-formal escape.
+
+`inline_profit_metrics_unit.pl` locks final-map parsing and the ROM/RAM/stack
+decision matrix. `optimizer_inline_profit_e2e.pl` links and simulates normal and
+measured forms. `leaf` plus `middle` are both accepted for an exact 8-byte final
+ROM win, unchanged activation/object RAM, and reduced hardware stack. A legal
+six-return `loss` candidate measures larger when expanded (the inline return jumps
+outweigh JSR/RTS removal), so the same run rejects it and retains its standalone
+function despite the potential stack reduction. This supplies a real final-link
+ROM-loss oracle rather than only a synthetic cost estimate.
+
+Final subsection-5 validation after the fixes above: the complete compile-side
+suite passes 481/481. The authoritative 282-test E2E set was enumerated with the
+repository runner and executed in bounded chunks; all 282/282 pass, including
+contract/lifecycle omissions, banked and standard renderer oracles, examples,
+branding, and the new profitability regression. `make installcheck` also passes.
+The handoff therefore leaves subsection 5 complete and subsection 6 as the next
+unfinished focused-roadmap item.

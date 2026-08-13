@@ -17,6 +17,7 @@
 #include "compile_declarator.h"
 #include "compile_function.h"
 #include "compile_inline_specialize.h"
+#include "compile_inline_inliner.h"
 #include "compile_init.h"
 #include "compile_expr_info.h"
 #include "compile_internal.h"
@@ -336,6 +337,7 @@ void compile_function_decl(ASTNode *node) {
    ASTNode *body       = node->children[2];
    const char *name    = declarator_name(declarator);
    const ASTNode *saved_call_graph_function = current_call_graph_function;
+   const ASTNode *saved_activation_graph_function = current_activation_graph_function;
    int saved_call_graph_node = current_call_graph_node;
    char sym[256];
    bool has_return_object;
@@ -363,9 +365,12 @@ void compile_function_decl(ASTNode *node) {
    if (!function_symbol_name(node, name, sym, sizeof(sym))) {
       error_unreachable("[%s:%d.%d] could not mangle function '%s'", node->file, node->line, node->column, name);
    }
-   emit_function_contract_metadata(node, sym);
    dump_inline_analysis_for_function(node);
-   if (function_is_inline(node)) {
+   /* Source-inline definitions still own linker-visible declaration-use
+      contract metadata even though they do not emit a standalone procedure.
+      Emit contracts before either source or optimizer inline lowering returns. */
+   emit_function_contract_metadata(node, sym);
+   if (function_is_inline(node) || optimizer_inline_function_selected(node)) {
       return;
    }
    has_return_object = function_has_return_object(node);
@@ -406,6 +411,7 @@ void compile_function_decl(ASTNode *node) {
    plan_function_return_coalescing(node, body, &ctx);
    return_entry = (ContextEntry *) set_get(ctx.vars, "$$");
    current_call_graph_function = node;
+   current_activation_graph_function = node;
    current_call_graph_node = call_graph_node_index_for_function(node);
 
    if (!is_empty(body) && !strcmp(body->name, "statement_list")) {
@@ -493,6 +499,7 @@ void compile_function_decl(ASTNode *node) {
       emit(&es_code, ".segment \"CODE\"\n");
    }
    current_call_graph_function = saved_call_graph_function;
+   current_activation_graph_function = saved_activation_graph_function;
    current_call_graph_node = saved_call_graph_node;
 }
 

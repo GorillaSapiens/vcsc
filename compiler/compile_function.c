@@ -57,8 +57,11 @@ static CallGraphNode *call_graph_nodes = NULL;
 static int call_graph_node_count = 0;
 static CallGraphEdge *call_graph_edges = NULL;
 static int call_graph_edge_count = 0;
+static CallGraphEdge *activation_graph_edges = NULL;
+static int activation_graph_edge_count = 0;
 int current_call_graph_node = -1;
 const ASTNode *current_call_graph_function = NULL;
+const ASTNode *current_activation_graph_function = NULL;
 
 //! @brief Return whether a function return type is plain void.
 bool return_type_is_void(const ASTNode *type, const ASTNode *declarator) {
@@ -874,6 +877,18 @@ static bool symbol_backed_metadata_edge_name(char *buf, size_t bufsize, const ch
    return true;
 }
 
+//! @brief Build one activation-only lifetime metadata edge name.
+static bool symbol_backed_metadata_activation_edge_name(char *buf, size_t bufsize,
+                                                        const char *caller_sym, const char *callee_sym) {
+   if (!buf || bufsize == 0 || !caller_sym || !*caller_sym || !callee_sym || !*callee_sym) {
+      return false;
+   }
+   if ((size_t) snprintf(buf, bufsize, SYMBOL_BACKED_META_PREFIX "I$%s$%s", caller_sym, callee_sym) >= bufsize) {
+      return false;
+   }
+   return true;
+}
+
 //! @brief Add one deduplicated caller/callee edge to the emitted call graph.
 void record_call_graph_edge(const ASTNode *caller, const ASTNode *callee) {
    int from = call_graph_node_index_for_function(caller);
@@ -896,6 +911,29 @@ void record_call_graph_edge(const ASTNode *caller, const ASTNode *callee) {
    call_graph_edges[call_graph_edge_count].from = from;
    call_graph_edges[call_graph_edge_count].to = to;
    call_graph_edge_count++;
+}
+
+//! @brief Add one activation-only lifetime edge without affecting hardware-stack depth.
+void record_activation_lifetime_edge(const ASTNode *caller, const ASTNode *callee) {
+   int from = call_graph_node_index_for_function(caller);
+   int to = call_graph_node_index_for_function(callee);
+
+   if (from < 0 || to < 0) {
+      return;
+   }
+   for (int i = 0; i < activation_graph_edge_count; i++) {
+      if (activation_graph_edges[i].from == from && activation_graph_edges[i].to == to) {
+         return;
+      }
+   }
+   activation_graph_edges = (CallGraphEdge *) realloc(activation_graph_edges,
+      sizeof(CallGraphEdge) * (activation_graph_edge_count + 1));
+   if (!activation_graph_edges) {
+      error_unreachable("out of memory");
+   }
+   activation_graph_edges[activation_graph_edge_count].from = from;
+   activation_graph_edges[activation_graph_edge_count].to = to;
+   activation_graph_edge_count++;
 }
 
 //! @brief Return the ordinary direct-call occurrence count used by item-31 optimization.
@@ -1068,6 +1106,25 @@ void emit_symbol_backed_call_graph_metadata(void) {
       }
       if (!symbol_backed_metadata_edge_name(meta, sizeof(meta), call_graph_nodes[from].sym, call_graph_nodes[to].sym)) {
          error_user("symbol-backed metadata edge name too long for '%s' -> '%s'", call_graph_nodes[from].sym, call_graph_nodes[to].sym);
+      }
+      emit(&es_export, ".export %s\n", meta);
+      emit(&es_export, "%s = 0\n", meta);
+   }
+
+   for (int i = 0; i < activation_graph_edge_count; i++) {
+      int from = activation_graph_edges[i].from;
+      int to = activation_graph_edges[i].to;
+
+      if (from < 0 || from >= call_graph_node_count || to < 0 || to >= call_graph_node_count) {
+         continue;
+      }
+      if (!function_has_body(call_graph_nodes[from].fn)) {
+         continue;
+      }
+      if (!symbol_backed_metadata_activation_edge_name(meta, sizeof(meta),
+                                                       call_graph_nodes[from].sym, call_graph_nodes[to].sym)) {
+         error_user("symbol-backed activation edge name too long for '%s' -> '%s'",
+                    call_graph_nodes[from].sym, call_graph_nodes[to].sym);
       }
       emit(&es_export, ".export %s\n", meta);
       emit(&es_export, "%s = 0\n", meta);

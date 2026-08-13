@@ -15,6 +15,7 @@
 #include "compile_init.h"
 #include "compile_internal.h"
 #include "compile_inline_prepass.h"
+#include "compile_inline_inliner.h"
 #include "compile_inline_specialize.h"
 #include "compile_toplevel.h"
 #include "compile_support.h"
@@ -255,6 +256,7 @@ static void compile(ASTNode *program) {
    analyze_optimizer_direct_calls(program);
    analyze_optimizer_ref_specializations(program);
    analyze_optimizer_value_specializations(program);
+   analyze_optimizer_inline_candidates(program);
 
    for (int i = 0; i < program->count; i++) {
       ASTNode *node = program->children[i];

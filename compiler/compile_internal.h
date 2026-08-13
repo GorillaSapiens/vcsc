@@ -164,6 +164,7 @@ extern Set *string_literals;
 extern int label_counter;
 extern int current_call_graph_node;
 extern const ASTNode *current_call_graph_function;
+extern const ASTNode *current_activation_graph_function;
 
 const ASTNode *global_decl_lookup(const char *name);
 ContextEntry *ctx_lookup(Context *ctx, const char *name);

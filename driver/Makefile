@@ -18,8 +18,8 @@ version: version.h
 version.h: FORCE
 	perl ../gen_version_h.pl $@
 
-$(TARGET): vcsc.c version.h
-	$(CC) $(CFLAGS) $(LDFLAGS) vcsc.c -o $(TARGET)
+$(TARGET): vcsc.c inline_profit.c inline_profit.h version.h
+	$(CC) $(CFLAGS) $(LDFLAGS) vcsc.c inline_profit.c -o $(TARGET)
 
 docs:
 	$(MAKE) --no-print-directory -C .. docs
