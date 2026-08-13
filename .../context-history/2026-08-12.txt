@@ -20,3 +20,39 @@ static examples are 3754 ROM / 114 RAM and interactive examples are 4058 ROM /
   Replaced proposal/roadmap text with current instantiate, parameter,
   hygiene, use-contract, lifecycle, and real-example guidance.
   Focused template tests: 26 compile + 15 e2e passed.
+
+2026-08-12 18:04:37 PDT, add dual three-digit score
+Completed main-roadmap item 25 with a new fixed left/right three-plus-three
+score component. The left glyph origins are X=20,36,52 and the right origins
+are X=100,116,132; each side has an independent bcd16_t value and color. The
+component owns 20 RIOT-RAM bytes, consumes eleven visible scanlines, and leaves
+existing score components unchanged.
+
+Added simultaneous BCD boundary/carry coverage, exact 6502/TIA raster timing,
+a reviewed Stella 7.0 reference, a 2K public dual-score example, documentation,
+and staged installed-toolchain coverage. The public example links at 1,446 ROM
+bytes and 37 total RAM bytes.
+
+2026-08-12 18:32:00 PDT, Fix generic 2K example detection
+  vcs_examples_build.pl now detects direct vcs_2k.c26 includes instead of
+  maintaining a filename whitelist. This fixes the dual_score profile clash
+  and prevents the same omission for future direct 2K examples.
+
+2026-08-12 18:59:30 PDT, Fix dual score P1 latch timing
+Stella showed the original item-25 P1 schedule rendered 456 as 556 even
+though the CPU-write oracle passed. The fixed kernel caches all eight rows of
+the left hundreds glyph during vblank, preloads the next left row at cycle 50,
+and writes right tens/ones at cycles 53/59 inside the actual P1 copy windows.
+The corrected reviewed Stella image renders 123/456, exact 262-line timing is
+retained, and the component contract is now 28 RAM bytes. Existing score
+components remain unchanged.
+2026-08-12 19:22:00 PDT, Fix third right score glyph
+Stella pixel analysis showed the cycle-59 right-ones write changed GRP1 after
+the third close copy had already emitted two pixels, mixing the tens glyph
+into the third glyph. The ones write now lands at cycle 58 while the tens write
+remains at 53; all six `123`/`456` glyphs match the font bytes exactly.
+
+The default regression now decodes and pixel-grades the reviewed Stella PNG,
+and `stella-three-plus-three-score-test` rebuilds and snapshots the fixture in
+headless Stella for live raster comparison. Public dual_score ROM is now 1545
+bytes; RAM remains 45 bytes.

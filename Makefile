@@ -14,6 +14,7 @@ STELLA ?= stella
 STELLA_BANK_TEST_TMP ?= $(CURDIR)/.stella-bank-test
 STELLA_RENDERER_BANK_TEST_TMP ?= $(CURDIR)/.stella-renderer-bank-test
 STELLA_WIDE_SCORE_TEST_TMP ?= $(CURDIR)/.stella-wide-score-test
+STELLA_THREE_PLUS_THREE_SCORE_TEST_TMP ?= $(CURDIR)/.stella-three-plus-three-score-test
 STELLA_PLAYER_COLOR_192_TEST_TMP ?= $(CURDIR)/.stella-player-color-192-test
 STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP ?= $(CURDIR)/.stella-all-five-player-color-192-test
 STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP ?= $(CURDIR)/.stella-all-five-player-color-181-test
@@ -127,6 +128,7 @@ install-data:
 	install -m 0644 libraries/vcs/six_glyph_big_wide_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_big_wide_component.c26
 	install -m 0644 libraries/vcs/six_glyph_left_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_left_component.c26
 	install -m 0644 libraries/vcs/six_glyph_right_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_right_component.c26
+	install -m 0644 libraries/vcs/three_plus_three_score_component.c26 $(DESTDIR)$(DATADIR)/vcs/three_plus_three_score_component.c26
 	install -m 0644 libraries/vcs/two_plus_two_score_component.c26 $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_component.c26
 	install -m 0644 libraries/vcs/two_plus_two_score_support.c26 $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_support.c26
 	install -m 0644 libraries/vcs/sound_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
@@ -251,6 +253,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_big_wide_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_left_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_right_component.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/three_plus_three_score_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_support.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
@@ -574,6 +577,11 @@ installcheck: tools
 	  "$(CURDIR)/examples/01_basic/07_big_wide_score/big_wide_score.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/big_wide_score.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/big_wide_score.bin"` -eq 2048; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/08_dual_score" \
+	  -T "$$stage_vcs/vcs.cfg" \
+	  "$(CURDIR)/examples/01_basic/08_dual_score/dual_score.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/dual_score.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/dual_score.bin"` -eq 2048; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  "$(CURDIR)/examples/01_basic/05_fingerprint/fingerprint.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/fingerprint.bin"; \
@@ -586,6 +594,7 @@ installcheck: tools
 	test -f "$$stage_vcs/six_glyph_big_wide_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_left_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_right_component.c26"; \
+	test -f "$$stage_vcs/three_plus_three_score_component.c26"; \
 	test -f "$$stage_vcs/two_plus_two_score_component.c26"; \
 	test -f "$$stage_vcs/two_plus_two_score_support.c26"; \
 	test ! -e "$$stage_vcs/six_glyph_display.c26"; \
@@ -846,6 +855,12 @@ stella-wide-score-test: tools
 	  "$(CURDIR)" "$(STELLA_WIDE_SCORE_TEST_TMP)"
 	rm -rf $(STELLA_WIDE_SCORE_TEST_TMP)
 
+stella-three-plus-three-score-test: tools
+	rm -rf $(STELLA_THREE_PLUS_THREE_SCORE_TEST_TMP)
+	VCSC_STELLA="$(STELLA)" perl test/vcs_three_plus_three_score_stella.pl \
+	  "$(CURDIR)" "$(STELLA_THREE_PLUS_THREE_SCORE_TEST_TMP)"
+	rm -rf $(STELLA_THREE_PLUS_THREE_SCORE_TEST_TMP)
+
 stella-player-color-192-test: tools
 	rm -rf $(STELLA_PLAYER_COLOR_192_TEST_TMP)
 	VCSC_STELLA="$(STELLA)" perl test/vcs_player_color_192_stella.pl \
@@ -876,4 +891,4 @@ stella-multisprite-test: tools
 	  "$(CURDIR)" "$(STELLA_MULTISPRITE_TEST_TMP)"
 	rm -rf $(STELLA_MULTISPRITE_TEST_TMP)
 
-.PHONY: all tools install install-core install-examples install-data uninstall uninstall-examples uninstall-data package windows installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-faithful-multisprite-test stella-multisprite-test docs
+.PHONY: all tools install install-core install-examples install-data uninstall uninstall-examples uninstall-data package windows installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-three-plus-three-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-faithful-multisprite-test stella-multisprite-test docs

@@ -164,6 +164,7 @@ $bankswitching =~ /proving read-window\/write-window\s+direction/
 -f File::Spec->catfile($test,'stella_snapshot_keys.pl') &&
 -f File::Spec->catfile($test,'stella_grade_bank_snapshot.pl') &&
 -f File::Spec->catfile($test,'stella_png_rgb_digest.pl') &&
+-f File::Spec->catfile($test,'vcs_three_plus_three_score_stella.pl') &&
 -f File::Spec->catfile($test,'vcs_player_color_192_stella.pl') &&
 -f File::Spec->catfile($test,'vcs_all_five_player_color_192_stella.pl') &&
 -f File::Spec->catfile($test,'vcs_all_five_player_color_181_stella.pl') &&
@@ -403,10 +404,14 @@ index($vcs_4k_profile,'mem rom { $start:0xf000 $size:0x0ffa $ro $priority:1 };')
    or die "vcs_4k.c26 lost its allocatable-bytes-only ROM declaration\n";
 my $score_source=slurp(File::Spec->catfile($repo,'examples','01_basic','04_score','score.c26'));
 my $score_make=slurp(File::Spec->catfile($repo,'examples','01_basic','04_score','Makefile'));
+my $examples_build=slurp(File::Spec->catfile($test,'vcs_examples_build.pl'));
 index($score_source,'include "vcs_2k.c26"')>=0 &&
 index($score_make,'-T $(VCS_DIR)/vcs.cfg')>=0 &&
-index($score_make,'-eq 2048')>=0
-   or die "score example is not locked to the 2K C26 profile
+index($score_make,'-eq 2048')>=0 &&
+index($examples_build,'sub uses_2k_profile')>=0 &&
+index($examples_build,q{include\s+"vcs_2k\.c26"})>=0 &&
+index($examples_build,q{my $is_2k=uses_2k_profile($source);})>=0
+   or die "2K example/profile detection is incomplete
 ";
 my $wide_source=slurp(File::Spec->catfile($repo,'examples','01_basic','06_wide_score','wide_score.c26'));
 my $wide_make=slurp(File::Spec->catfile($repo,'examples','01_basic','06_wide_score','Makefile'));
@@ -420,8 +425,6 @@ index($wide_make,'-eq 2048')>=0 &&
 -f File::Spec->catfile($test,'vcs_six_glyph_wide_stella.pl') &&
 -f File::Spec->catfile($repo,'examples','04_player_color_181','11_wide_score_above','01_interactive','player_color_181_wide_score_above_interactive.c26') &&
 -f File::Spec->catfile($repo,'examples','04_player_color_181','12_wide_score_below','01_interactive','player_color_181_wide_score_below_interactive.c26') &&
-index(slurp(File::Spec->catfile($test,'vcs_examples_build.pl')),
-   q{$file eq 'score.c26' || $file eq 'wide_score.c26'})>=0 &&
 -f File::Spec->catfile($repo,'test','fixtures','vcs_examples','05_wide_score','reference_stella_7.0.png')
    or die "widely spaced score example, tests, or oracle are incomplete
 ";
@@ -437,9 +440,7 @@ index($big_wide_make,'-eq 2048')>=0 &&
 -f File::Spec->catfile($repo,'libraries','vcs','six_glyph_big_wide_component.c26') &&
 -f File::Spec->catfile($test,'vcs_big_font_family.pl') &&
 -f File::Spec->catfile($test,'vcs_six_glyph_big_wide.pl') &&
--f File::Spec->catfile($test,'vcs_six_glyph_big_wide_raster.cpp') &&
-index(slurp(File::Spec->catfile($test,'vcs_examples_build.pl')),
-   q{$file eq 'big_wide_score.c26'})>=0
+-f File::Spec->catfile($test,'vcs_six_glyph_big_wide_raster.cpp')
    or die "big 8x16 wide score family, example, or tests are incomplete
 ";
 my $bank_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','Makefile'));
@@ -803,6 +804,10 @@ my $pc192_reference=File::Spec->catfile($test,'fixtures','player_color_192','ref
 sha256_hex(slurp($pc192_reference)) eq '6ac771765db3b5c0b91836c69fd3e21ff755fe48a668b06938960f1c2373a980'
    or die "reviewed player-color-192 Stella reference PNG changed without updating its contract
 ";
+
+index($top_make,'stella-three-plus-three-score-test: tools')>=0 &&
+index($top_make,'test/vcs_three_plus_three_score_stella.pl')>=0
+   or die "three-plus-three score lost its live Stella regression target\n";
 
 my $snapshot_keys=slurp(File::Spec->catfile($test,'stella_snapshot_keys.pl'));
 index($snapshot_keys,"'--reset'")>=0 &&

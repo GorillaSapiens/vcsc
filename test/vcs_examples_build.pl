@@ -42,6 +42,11 @@ my $faithful_multisprite=File::Spec->catdir($vcs,qw(renderers faithful_legacy_mu
 my $faithful_multisprite_cfg=File::Spec->catfile($faithful_multisprite,'faithful_legacy_multisprite.cfg');
 my $examples_root=File::Spec->catdir($repo,'examples');
 my @examples;
+sub uses_2k_profile {
+   my($source)=@_;
+   my $text=read_file($source);
+   return $text =~ /^\s*include\s+"vcs_2k\.c26"\s*$/m;
+}
 find({
    no_chdir=>1,
    wanted=>sub {
@@ -62,8 +67,9 @@ for my $entry (@examples) {
    my $tag=$dir; $tag =~ s{[^A-Za-z0-9_.-]+}{__}g;
    my $bin=File::Spec->catfile($tmp,"$tag.bin");
    my $map=File::Spec->catfile($tmp,"$tag.map");
+   my $is_2k=uses_2k_profile($source);
    my @extra;
-   if ($file eq 'score.c26' || $file eq 'wide_score.c26' || $file eq 'big_wide_score.c26') {
+   if ($is_2k) {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
    } elsif ($file eq 'fingerprint.c26') {
       push @extra,'-Wa,--illegals';
@@ -105,7 +111,7 @@ for my $entry (@examples) {
    my $rom=read_file($bin);
    my $expected_size = ($file eq 'bankswitching_diagnostic.c26' ||
                         $file eq 'banked_standard_renderer.c26') ? 8192
-      : ($file eq 'score.c26' || $file eq 'wide_score.c26' || $file eq 'big_wide_score.c26') ? 2048 : 4096;
+      : $is_2k ? 2048 : 4096;
    length($rom)==$expected_size
       or die "$dir produced ".length($rom)." bytes, expected $expected_size\n";
    my $vector_offset = $expected_size - 6;

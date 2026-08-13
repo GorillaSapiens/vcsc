@@ -112,6 +112,7 @@ not inferred from a count of source statements. The common contract is:
 | --- | ---: | --- | --- | --- | ---: | --- |
 | centered (fixed or mutable color), left, and right six-glyph displays | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | widely spaced six-glyph display | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
+| left/right three-plus-three score | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | left/right two-plus-two score | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | `poison_debug_score` | 11 | 3 / 0 | 0 / 0 | yes | 1 | yes |
 | official `player_color (lines:=170)` | 170 | 3 / 0 | 0 / 0 | yes | 1 | yes |
@@ -163,6 +164,23 @@ pointer, including the bankswitching PASS/FAIL diagnostic. Both modes preserve
 the same visible write schedule. Its TIA ownership and exit guarantees match
 the production six-glyph family, including flushed graphics latches and
 disabled VDEL on return.
+
+**Left/right three-plus-three score.** This fixed dual field owns
+**20 RIOT-RAM bytes** per instance: two `bcd16_t` score values, two independent
+color bytes, six 16-bit glyph pointers, and two private raster bytes. P0 draws
+the left field at X=20,36,52 and P1 draws the right field at X=100,116,132
+using three close copies (`NUSIZ0=NUSIZ1=3`). The eight glyph rows are unrolled
+so the copy-latch pipeline has a fixed schedule: right hundreds at cycle 18,
+left tens at 24, left ones at 29, right tens at 49, right ones at 55, and the
+next left-hundreds preload at 63; the terminal row performs the final writes at
+18/24/29/51/57 before clearing both graphics latches. The component establishes
+and clobbers `NUSIZ0/1`, `COLUP0/1`, `REFP0/1`, `HMP0/1`, `RESP0/1`,
+`VDELP0/1`, and the P0/P1 graphics latches. Before its single HMOVE it sets
+`HMM0=HMM1=HMBL=0`, preventing hostile incoming missile/Ball motion from moving
+preserved geometry. On return `GRP0=GRP1=0` and
+`REFP0=REFP1=VDELP0=VDELP1=0`; player position, size, color, and motion remain
+clobbered. `PF0/1/2`, `CTRLPF`, `COLUPF`, `COLUBK`, missile/Ball enables and
+widths, collision latches, audio, and scheduler state are untouched.
 
 **Left/right two-plus-two score.** This establishes and clobbers
 `NUSIZ0/1`, `COLUP0/1`, `REFP0/1`, `HMP0/1`, `RESP0/1`, `VDELP0/1`, and the

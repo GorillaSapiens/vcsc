@@ -33,6 +33,7 @@ Files:
 - `six_glyph_left_component.c26` ... eleven-line mutable-color variant justified at X=0..47; compact default stores digit 6 as a byte offset plus five full pointers (set `compact_font:=0` only for full-pointer font redirection)
 - `six_glyph_right_component.c26` ... eleven-line mutable-color variant justified at X=112..159; compact default uses two byte offsets plus four full pointers (set `compact_font:=0` only for full-pointer font redirection)
 - `six_glyph_component.c26` ... canonical centered 48-pixel/six-glyph lifecycle display; compact default stores digits 1/2 as byte offsets plus four full pointers with fixed bright-white color, `mutable_color:=1` adds an application-visible color byte, and `compact_font:=0` restores six redirectable full pointers for arbitrary glyph pages
+- `three_plus_three_score_component.c26` ... fixed eleven-line dual score with independent three-digit packed-BCD values and colors, centered as X=20,36,52 in the left half and X=100,116,132 in the right half
 - `two_plus_two_score_support.c26` ... shared page-contained compact decimal glyph and calibrated horizontal-position tables for two-plus-two scores
 - `two_plus_two_score_component.c26` ... repeatable eleven-line P0/P1 score with independent packed-BCD left/right values, colors, and X positions; each three-bit digit is doubled to six visible pixels with a two-pixel inter-digit gap
 - `renderers/AUTHORING.md` ... maintained HOWTO for renderer/score component contracts, phase/TIA ownership, stack and memory budgets, cycle scheduling, Stella oracles, regressions, examples, and installation
@@ -178,6 +179,53 @@ sticky `vcs_ntsc_overrun_flags` byte. Bits `VCS_NTSC_VBLANK_OVERRUN` and
 `VCS_NTSC_OVERSCAN_OVERRUN` identify missed deadlines. Production builds omit
 that RAM byte and all flag-setting code.
 
+
+## Left/right three-plus-three score component
+
+`three_plus_three_score_component.c26` draws one fixed three-glyph score in each
+half of the screen. The left glyph origins are X=20,36,52 and the right glyph
+origins are X=100,116,132, so each 40-pixel field is centered in its 80-pixel
+half. Each side has an independent packed-BCD value and TIA color:
+
+```vcsc
+include "fonts/default_decimal.c26"
+instantiate "three_plus_three_score_component.c26" as score
+
+void main(void)
+{
+    score_left_score := 123;
+    score_right_score := 456;
+    score_left_color := 0x2e;
+    score_right_color := 0x9e;
+
+    /* frame scheduler calls score_vblank(), score_draw(), score_overscan() */
+}
+```
+
+The public score values are `bcd16_t`. The component displays their low three
+decimal digits; the thousands nibble is intentionally not drawn, so `1000`
+displays as `000`. Applications that want an ordinary 000..999 counter should
+wrap the value explicitly at 999.
+
+Each instance owns **28 RIOT-RAM bytes**: two two-byte packed-BCD values, two
+color bytes, six 16-bit glyph pointers, two private raster scratch bytes, and
+an eight-byte cache of the left hundreds glyph. The cache is refreshed during
+`init()`/`vblank()` so the visible kernel can hit the two late P1 copy windows
+without overrunning a scanline.
+The component consumes exactly **11 visible scanlines**, enters `draw()` at
+cycle 3, returns at cycle 0 after its terminal `WSYNC`, and performs one
+`HMOVE`. It establishes all P0/P1 size, position, reflection, delay, graphics,
+color, and horizontal-motion state it needs; before `HMOVE` it clears
+M0/M1/Ball motion so preserved non-player geometry is not displaced. It does
+not own playfield, missile/Ball enable/width, audio, collision, or scheduler
+state.
+
+The complete public example is
+[`examples/01_basic/08_dual_score`](../../examples/01_basic/08_dual_score/).
+The boundary regression simultaneously exercises `098 -> 099 -> 100` on the
+left and `998 -> 999 -> 000` on the right while locking the exact P0/P1 raster
+write schedule, independent colors, stable 262-line Stella frames, and the
+installed copy of the component.
 
 ## Left/right two-plus-two score component
 

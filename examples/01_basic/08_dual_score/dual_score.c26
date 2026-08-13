@@ -1,0 +1,54 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Independent three-digit left/right score fields centered in each screen half.
+
+include "vcs_2k.c26"
+include "frame_ntsc.c26"
+include "fonts/default_decimal.c26"
+
+alias BACKGROUND_COLOR 0x84
+alias SCORE_PERIOD     20
+
+instantiate "three_plus_three_score_component.c26" as score
+uint8_t frame_counter := 0;
+
+void main(void) {
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+   COLUBK := BACKGROUND_COLOR;
+   VBLANK := 2;
+
+   score_left_score := 123;
+   score_right_score := 789;
+   score_left_color := 0x2e;
+   score_right_color := 0x9e;
+   score_init();
+
+   while (1) {
+      vcs_ntsc_vsync();
+
+      vcs_ntsc_begin_vblank();
+      score_vblank();
+      vcs_ntsc_end_vblank();
+
+      vcs_ntsc_wait_component_scanlines(91);
+      score_draw();
+      vcs_ntsc_wait_visible_tail_scanlines(90);
+
+      vcs_ntsc_begin_overscan();
+      frame_counter++;
+      if (frame_counter == SCORE_PERIOD) {
+         frame_counter := 0;
+         if (score_left_score == 999) { score_left_score := 0; }
+         else { score_left_score++; }
+         if (score_right_score == 999) { score_right_score := 0; }
+         else { score_right_score++; }
+      }
+      score_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}

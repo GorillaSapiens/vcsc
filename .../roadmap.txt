@@ -23,9 +23,8 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: none selected — item 23 is complete. Item 25 is the first
-unfinished roadmap item, but no new workstream should be assumed until the user selects
-one.
+Current next action: none selected. Item 31 is the first unfinished roadmap item,
+but no new workstream should be assumed until the user selects one.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1343,13 +1342,24 @@ one.
           frame. Each measures 3,306 ROM bytes and 118 total RAM bytes, leaving
           ten bytes free.
 
-[ ] 25. Add a left/right dual-score component. We want independant three glyph
+[x] 25. Add a left/right dual-score component. We want independant three glyph
         left and right scores, centered in the left half and right half
         of the screen, respectively.  We should be able to set the color
         of the scores independently.  Verify both fields simultaneously
         through boundary values, carry transitions, raster timing, an
         example cartridge, and installed-toolchain coverage.  This is
         a new component, do not adjust any of the existing components.
+
+        Post-completion raster corrections, 2026-08-12: Stella exposed that
+        the CPU-write oracle alone could bless P1 updates outside the actual
+        copy-fetch windows. The visible kernel caches the eight left-hundreds
+        rows during vblank and writes right tens/ones at cycles 53/58. Cycle 59
+        left the first two pixels of the third right glyph coming from the tens
+        glyph. Stella now renders exact `123` / `456`, frames remain exactly
+        262 lines, the stored reference is pixel-graded against all six font
+        glyphs, and an optional headless-Stella regression compares a live
+        render to that reference. Existing score components are untouched.
+
 
 [x] 26. Write a maintained renderer-authoring HOWTO describing how to create and
         integrate new VCSC renderers and score-display variants. Cover source

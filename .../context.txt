@@ -534,8 +534,19 @@ including asymmetric reflected playfield, patterned player colors, isolated non-
 objects, and P1/delayed-Ball cache-boundary stress. Full-range X and Y regressions are
 maintained. Main-roadmap item 26 is now complete out of numeric order: the maintained
 renderer-authoring procedure is `libraries/vcs/renderers/AUTHORING.md`, with an
-executable documentation regression locking its contracts. Main-roadmap items 27 and 28 also remain complete.
-Item 25 is the first unfinished item. Item 28's
+executable documentation regression locking its contracts. Main-roadmap items 27 and 28 also remain complete. Main-roadmap item 25 is now
+complete and adds the new
+`three_plus_three_score_component.c26`: fixed three-glyph fields centered at
+X=20,36,52 and X=100,116,132, independent `bcd16_t` values and colors, a
+28-byte component-RAM contract, exact eleven-line timing, simultaneous BCD
+carry regression, reviewed Stella 7.0 raster, a public 2K example, and staged
+installation coverage. Post-completion Stella regressions fixed the right P1
+copy schedule: tens/ones now land at cycles 53/58, with an eight-byte cached
+left-hundreds row table buying the required scanline time. Cycle 59 visibly
+contaminated the first two pixels of the third right glyph with the tens glyph.
+The default regression now pixel-grades the reviewed Stella reference, and an
+optional headless-Stella target compares a live render to that reference. Item
+31 is the first unfinished item. Item 28's
 first milestone remains locked as the `faithful_legacy_multisprite` baseline: retained NTSC/unbanked/non-Superchip source,
 P0 plus five multiplexed P1 sprites, integrated score/playfield, 1472/4090 ROM, exact
 122-byte `$80-$F9` state plus six-byte `$FA-$FF` hardware stack, zero compiler
@@ -711,8 +722,8 @@ remain the 11-line right/left components; visible placement is 11 + 76 + 19 + 75
 scanlines, putting the Big fingerprint on raw lines 127..145 while preserving exact
 262-line NTSC timing.
 
-Main-roadmap items 26, 29, and 30 and the completed bankswitching sub-roadmap remain
-closed. Item 25 is the first unfinished main-roadmap item.
+Main-roadmap items 25, 26, 29, and 30 and the completed bankswitching sub-roadmap
+remain closed. Item 31 is the first unfinished main-roadmap item.
 
 Windows host-tool packaging is now supported from the top-level Makefile. `make windows`
 bootstraps native `vcsc-as`/`vcsc-ar` for construction of the target-neutral runtime,

@@ -396,6 +396,22 @@ frames. A separate score-only cartridge places centered, left, right, and
 two-plus-two instances at raw lines 50, 80, 110, and 140 to prove mixed arbitrary
 vertical placement.
 
+`vcs_three_plus_three_score.pl` builds the fixed left/right three-plus-three
+score component with hostile incoming P0/P1 state and independently colored
+packed-BCD fields. Its 6502 oracle locks the simultaneous `098 -> 099 -> 100`
+and `998 -> 999 -> 000` carry transitions, exact row-by-row TIA write cycles,
+one HMOVE, and the scheduler calibration of 264 raw harness intervals to a
+262-line Stella frame. A reviewed Stella 7.0 RGB reference locks the visible
+`123`/`456` raster at glyph origins X=20,36,52 and X=100,116,132. The default
+regression decodes that reference and verifies all six glyphs pixel-for-pixel
+against the decimal font, so a mixed-copy P1 latch artifact cannot be blessed
+by a screenshot hash alone. `make stella-three-plus-three-score-test
+STELLA=/path/to/stella` independently rebuilds the fixture, snapshots it in
+headless Stella, and requires the live raster to match the reviewed reference.
+The test also builds the public 2K `08_dual_score` example and locks its
+1545-byte ROM / 45-byte total-RAM accounting; top-level `installcheck`
+independently compiles that example through the staged installed toolchain.
+
 `vcs_two_plus_two_score.pl` builds two independent left/right two-plus-two
 score instances with distinct packed-BCD values, colors, and X positions. The
 top pair remains fixed at raw line 40; the bottom pair enters at raw line 221
