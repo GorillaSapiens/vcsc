@@ -1584,22 +1584,48 @@ but no new workstream should be assumed until the user selects one.
           game state in Superchip RAM. Multisprite remains separately gated by
           items 27 and 28 rather than being implied by Superchip completion.
 
-[ ] 31. Add fixed-point whole-program inlining for reachable internal functions
-        with exactly one direct call site when whole-program measurement shows a
-        net resource win. Inline through the compiler IR/control-flow
-        representation, not textual substitution; fold arguments/returns and
-        simplify newly exposed code, then recompute the call graph, lifetime
-        analysis, activation/scratch overlay, peak RIOT RAM usage, linked ROM size,
-        and hardware-stack depth. Exclude exported or address-taken functions,
-        assembly ABI entry points, weak/required hooks, and timing-sensitive
-        boundaries. Treat RAM as at least as precious as ROM: accept an inline
-        when ROM or peak RAM improves and neither gets worse; reject ROM savings
-        that increase peak RAM, and retain the separate function when the measured
-        whole-program result is not a clear resource win. Cover multi-return
-        control flow, nested one-call chains, exact ROM-size wins/losses,
-        stack-depth reduction, and cases where changed lifetimes alter overlay
-        allocation. Include acceptance tests where inlining saves both ROM and RAM,
-        saves ROM but costs RAM, saves RAM without growing ROM, and grows both.
+[ ] 31. Add fixed-point whole-program specialization and inlining for
+        reachable internal functions with exactly one direct call site. Inline
+        through the compiler IR/control-flow representation, not textual
+        substitution; fold arguments/returns and simplify newly exposed code, then
+        recompute the call graph, lifetime analysis, activation/scratch overlay,
+        peak RIOT RAM usage, linked ROM size, and hardware-stack depth. Because VCSC
+        has no recursion, inlining must not by itself destroy RAM-overlay
+        opportunities: activation areas that are mutually exclusive in the call
+        graph remain mutually exclusive after inlining. Treat an unexpected peak-RAM
+        increase from equivalent lifetimes as an allocator/lifetime-analysis defect,
+        not as an inherent inlining tradeoff.
+
+        Make ROM placement and timing constraints part of the inlining proof. An
+        inline candidate is legal only when final placement can still satisfy every
+        `.same`/`.cross` branch annotation and applicable `align()` constraint;
+        retain the separate function when inlining makes those constraints
+        unsatisfiable. Exclude exported or address-taken functions, assembly ABI
+        entry points, weak/required hooks, and other boundaries whose ABI or timing
+        contract requires a distinct function. After legal placement, use measured
+        linked ROM size and hardware-stack depth to decide whether inlining is a net
+        win, and retain the separate function when measured linked code grows.
+
+        Before or independently of inlining, specialize parameters at single call
+        sites so RAM used only to communicate already-known values or addresses can
+        disappear. For a by-value parameter that is explicitly `const`, or is
+        implicitly const because the callee never writes it and never passes it to
+        code that may write it, avoid a separate callee RAM slot when the caller's
+        actual storage is proven stable for the formal's live range; use the
+        caller's storage directly. For every single-callsite `ref` parameter --
+        regular, `const`, or `writeonly` -- bake the known actual address into the
+        specialized callee and eliminate RAM used to pass/store that address. Run
+        constant propagation, dead-code elimination, addressing-mode relaxation,
+        and lifetime/overlay analysis again after specialization so the gains can
+        cascade even when the function itself cannot be inlined.
+
+        Cover multi-return control flow, nested one-call chains, exact ROM-size
+        wins/losses, stack-depth reduction, `.same`/`.cross` placement failures,
+        alignment failures, preservation of pre-inline RAM-overlay opportunities,
+        explicit and implicit const-value specialization, stability failures that
+        require retaining a by-value copy, and address specialization for regular,
+        `const`, and `writeonly` refs. Verify exact linked ROM, peak RIOT RAM, and
+        hardware-stack depth for representative acceptance and rejection cases.
 
 [ ] 32. Add native PAL support as a separate video-standard family rather than
         parameterizing NTSC code with scattered conditionals. Define PAL machine
