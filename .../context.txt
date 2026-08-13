@@ -723,7 +723,16 @@ scanlines, putting the Big fingerprint on raw lines 127..145 while preserving ex
 262-line NTSC timing.
 
 Main-roadmap items 25, 26, 29, and 30 and the completed bankswitching sub-roadmap
-remain closed. Item 31 is the first unfinished main-roadmap item.
+remain closed. Item 31 is the first unfinished main-roadmap item. Its focused
+implementation plan is `.../inline_roadmap.txt`: subsections 0 (pre-lowering
+single-direct-callsite analysis) and 1 (single-callsite ref-parameter address
+specialization) are complete; subsection 2 (readonly by-value specialization) is
+mostly complete, with general post-binding expression folding/DCE still partial.
+Readonly exact-type caller storage and constant actuals can now eliminate value
+formal slots after conservative stability/address-escape proof; direct constant
+formal `if` conditions prune unreachable arms. Ref specialization removes fixed
+ref-address slots, propagates fixed bindings through single-callsite chains, preserves split read/write
+aliases, and falls back to the ordinary ABI for unresolved actual addresses.
 
 Windows host-tool packaging is now supported from the top-level Makefile. `make windows`
 bootstraps native `vcsc-as`/`vcsc-ar` for construction of the target-neutral runtime,

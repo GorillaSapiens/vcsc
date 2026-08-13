@@ -29,6 +29,7 @@ static struct {
    { XRAY_EXPROPTONLY, "exproptonly", "exit after expropt" },
    { XRAY_PEEPHOLE,    "peephole",    "dump peephole optimizer stats" },
    { XRAY_SCRATCH,     "scratch",     "dump static compiler scratch allocation diagnostics" },
+   { XRAY_INLINEPLAN,  "inlineplan",  "dump optimizer single-direct-callsite analysis" },
 };
 
 //! @brief Handle xray exit logic for xray.

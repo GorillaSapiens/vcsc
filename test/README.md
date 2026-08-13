@@ -23,6 +23,33 @@ ROM, map, timing, raster, palette, music, score, and motion assertions use
 private cartridges under `test/fixtures/vcs_examples/`. Do not point a golden
 harness back at an example; `source_tree_hygiene.pl` rejects that coupling.
 
+## Item-31 single-callsite analysis coverage
+
+`inline_analysis_unit.pl` compiles the standalone optimizer-analysis module with
+a tiny C harness and locks call-occurrence counting independently of the rest of
+the compiler. In particular, two calls from one caller count as two call sites,
+while separate callees called once each remain independent candidates. It also
+checks defined/internal/source-inline baseline flags, late registration, reset,
+and retention of the exact unique caller and source call-expression identity.
+`inline_analysis_codegen_test.c26` exercises the same bookkeeping through the
+real compiler with the debug-only `-X inlineplan` trace, covering zero, one, and
+multiple ordinary direct calls plus the exported-function veto.
+
+`inline_ref_specialization.pl` covers subsection 1's compile-side single-callsite
+`ref` specialization: regular/const/writeonly refs, ordinary and zero-page
+actuals, split read/write aliases, fixed members and constant array indexes,
+runtime-index fallback, and the conservative inline-assembly escape veto.
+`inline_ref_specialization_e2e.pl` links and simulates representative accepted
+and fallback cases, proves specialized ref activation slots disappear from the
+map, and verifies zero-page and split-address direct opcodes in the final image.
+`inline_value_specialization.pl` covers subsection 2's readonly by-value
+specialization: explicit and inferred readonly formals, literal binding, direct
+caller-storage binding, constant-bound `if` pruning, and the conservative
+write/address/alias/type-conversion fallbacks.
+`inline_value_specialization_e2e.pl` links and simulates accepted and rejected
+cases and proves a safe one-byte formal disappears from activation RAM while the
+matched address-escaped fallback keeps its by-value copy.
+
 ## Peephole optimizer coverage
 
 `peephole_unit.pl` feeds generated-assembly fragments directly to the optimizer,

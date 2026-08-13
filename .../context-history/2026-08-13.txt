@@ -1,0 +1,35 @@
+2026-08-13 08:31:14 PDT, Add inline callsite prepass
+Started main-roadmap item 31 with a focused `inline_roadmap.txt`.  Subsection 0
+is complete: a pre-lowering AST census records ordinary direct-call occurrences,
+unique callers, and exact call-expression nodes before any ordinary function
+body is emitted.  Source-inline expansion multiplicity is modeled explicitly,
+while the existing emitted call graph remains a separate deduplicated relation.
+Focused unit/codegen tests pass and the full compile-side suite is 475/475.
+Parameter specialization and optimizer-selected inlining are not implemented yet.
+
+2026-08-13 10:10:42 PDT, Complete fixed ref specialization
+Completed inline-roadmap subsection 1. Single-callsite static ref parameters now
+bind directly to fixed caller lvalues for regular, const, and writeonly refs,
+including zeropage and split read/write aliases. Binding propagates to a fixed
+point through ref-call chains; unresolved runtime-index actuals retain the old
+address slot. Inline-asm candidates remain conservatively vetoed pending the
+later assembly-boundary proof. Added compile and E2E/map/opcode/simulator tests.
+The compile suite is 476/476; the full E2E attempt reached 109/278 with no
+failures before the execution limit. Also taught vcsc_branding.pl to recognize
+the required inline_roadmap.txt developer record.
+
+2026-08-13 10:35:00 PDT, Update F8SC banked size oracle
+The full E2E suite exposed stale F8SC size expectations after subsection-1
+split-address direct RMW lowering. The maintained banked renderer now measures
+1892 bank0 bytes, 53 bank1 bytes, and 97 RIOT RAM bytes; runtime/raster behavior
+is unchanged. Updated the exact-size oracle to lock the optimized result.
+
+2026-08-13 11:12:10 PDT, Add readonly value specialization
+Inline-roadmap subsection 2 is mostly complete. Single-callsite explicit-const
+and inferred-readonly value formals can bind directly to stable exact-type caller
+storage or integer constants, eliminating the formal RAM slot. Conservative
+write/ref/address/escape/alias/conversion cases retain by-value copies. Direct
+constant-formal if conditions prune dead arms; general post-binding expression
+folding/DCE remains partial. Added compile and E2E RAM/semantic regressions. The
+compile suite is 477/477; a full E2E attempt reached 106/279 without failure, and
+focused late-suite banked/examples/branding/specialization checks pass 7/7.

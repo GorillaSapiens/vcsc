@@ -456,19 +456,19 @@ bool resolve_ref_argument_lvalue(Context *ctx, ASTNode *expr, LValueRef *out) {
       out->size = entry->is_ref
          ? declarator_storage_size(entry->type, entry->declarator)
          : entry->size;
-      if (entry->is_ref) {
+      if (entry->is_ref && !entry->is_absolute_ref) {
          out->indirect = true;
       }
    }
    return true;
 }
 
-//! @brief Lower one directional ref argument to its one-address ABI slot.
-bool compile_ref_argument_to_slot(ASTNode *expr, Context *ctx, int dst_offset, int dst_size,
-                                  PointerAccessQualifier formal_access,
-                                  const char *parameter_name) {
+//! @brief Validate one ref binding without forcing the ordinary one-address ABI.
+bool validate_ref_argument_binding(ASTNode *expr, Context *ctx,
+                                   PointerAccessQualifier formal_access,
+                                   const char *parameter_name, bool allow_split,
+                                   LValueRef *out) {
    LValueRef lv;
-   LValueAccessMode mode;
    const char *actual_name;
    const char *formal_name = (parameter_name && *parameter_name)
       ? parameter_name : "<unnamed>";
@@ -493,7 +493,6 @@ bool compile_ref_argument_to_slot(ASTNode *expr, Context *ctx, int dst_offset, i
                        expr->file, expr->line, expr->column, actual_name, formal_name);
          }
          require_lvalue_readable(&lv);
-         mode = LVALUE_ACCESS_READ_ADDRESS;
          break;
 
       case POINTER_ACCESS_WRITEONLY:
@@ -506,7 +505,6 @@ bool compile_ref_argument_to_slot(ASTNode *expr, Context *ctx, int dst_offset, i
                        expr->file, expr->line, expr->column, actual_name, formal_name);
          }
          require_lvalue_writable(&lv);
-         mode = LVALUE_ACCESS_WRITE_ADDRESS;
          break;
 
       case POINTER_ACCESS_READWRITE:
@@ -524,7 +522,7 @@ bool compile_ref_argument_to_slot(ASTNode *expr, Context *ctx, int dst_offset, i
                error_user("[%s:%d.%d] ref argument '%s' has no write address required by read/write ref parameter '%s'",
                           expr->file, expr->line, expr->column, actual_name, formal_name);
             }
-            if (strcmp(lv.read_expr, lv.write_expr)) {
+            if (!allow_split && strcmp(lv.read_expr, lv.write_expr)) {
                error_user("[%s:%d.%d] ref argument '%s' cannot bind to read/write ref parameter '%s' because its read address %s and write address %s are different",
                           expr->file, expr->line, expr->column, actual_name, formal_name,
                           lv.read_expr, lv.write_expr);
@@ -532,10 +530,38 @@ bool compile_ref_argument_to_slot(ASTNode *expr, Context *ctx, int dst_offset, i
          }
          require_lvalue_readable(&lv);
          require_lvalue_writable(&lv);
-         mode = LVALUE_ACCESS_REF;
          break;
    }
 
+   if (out) {
+      *out = lv;
+   }
+   return true;
+}
+
+//! @brief Lower one directional ref argument to its one-address ABI slot.
+bool compile_ref_argument_to_slot(ASTNode *expr, Context *ctx, int dst_offset, int dst_size,
+                                  PointerAccessQualifier formal_access,
+                                  const char *parameter_name) {
+   LValueRef lv;
+   LValueAccessMode mode;
+
+   if (!validate_ref_argument_binding(expr, ctx, formal_access, parameter_name,
+                                      false, &lv)) {
+      return false;
+   }
+   switch (formal_access) {
+      case POINTER_ACCESS_READONLY:
+         mode = LVALUE_ACCESS_READ_ADDRESS;
+         break;
+      case POINTER_ACCESS_WRITEONLY:
+         mode = LVALUE_ACCESS_WRITE_ADDRESS;
+         break;
+      case POINTER_ACCESS_READWRITE:
+      default:
+         mode = LVALUE_ACCESS_REF;
+         break;
+   }
    if (!emit_prepare_lvalue_ptr(ctx, &lv, mode)) {
       return false;
    }
@@ -1788,7 +1814,7 @@ static void init_lvalue_from_entry(LValueRef *out, const ContextEntry *entry, co
       ? declarator_storage_size(entry->type, entry->declarator)
       : entry->size;
    out->deref_depth = 0;
-   out->indirect = entry->is_ref;
+   out->indirect = entry->is_ref && !entry->is_absolute_ref;
 }
 
 //! @brief Diagnose invalid use of the synthetic return-slot variable.

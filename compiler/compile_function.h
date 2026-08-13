@@ -33,6 +33,10 @@ void validate_function_return_type(const ASTNode *fn);
 void record_call_graph_edge(const ASTNode *caller, const ASTNode *callee);
 void analyze_static_parameter_call_graph(void);
 void emit_symbol_backed_call_graph_metadata(void);
+unsigned function_direct_call_site_count(const ASTNode *fn);
+const ASTNode *function_single_direct_caller(const ASTNode *fn);
+const ASTNode *function_single_direct_callsite(const ASTNode *fn);
+bool function_is_single_direct_callsite_candidate(const ASTNode *fn);
 
 void plan_function_return_coalescing(const ASTNode *fn, const ASTNode *body, Context *ctx);
 bool context_local_decl_is_coalesced_return(const Context *ctx, const ASTNode *decl);

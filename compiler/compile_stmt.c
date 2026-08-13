@@ -870,8 +870,38 @@ static void clear_pointer_low_range_fact(Context *ctx) {
    ctx->pointer_low_range_known = false;
 }
 
+//! @brief Resolve a condition made constant by single-callsite value binding.
+static bool optimizer_bound_condition_truth(ASTNode *expr, Context *ctx, bool *truth_out) {
+   InitConstValue value = {0};
+   const char *name;
+   ContextEntry *entry;
+
+   if (!expr || !truth_out) return false;
+   if (eval_constant_initializer_expr(expr, &value) && value.kind == INIT_CONST_INT) {
+      *truth_out = value.i != 0;
+      return true;
+   }
+   name = expr_bare_identifier_name((ASTNode *)unwrap_expr_node(expr));
+   entry = name ? ctx_lookup(ctx, name) : NULL;
+   if (!entry || !entry->has_const_value) return false;
+   *truth_out = entry->const_value != 0;
+   return true;
+}
+
 //! @brief Lower if stmt from AST/semantic state into generated assembly or linker-visible metadata.
 static void compile_if_stmt(ASTNode *node, Context *ctx) {
+   ASTNode *bound_cond = node && node->count > 0 ? node->children[0] : NULL;
+   bool bound_truth = false;
+
+   if (optimizer_bound_condition_truth(bound_cond, ctx, &bound_truth)) {
+      ASTNode *selected = bound_truth
+         ? (node->count > 1 ? node->children[1] : NULL)
+         : (node->count > 2 ? node->children[2] : NULL);
+      if (selected && !is_empty(selected)) {
+         compile_statement_list(selected, ctx);
+      }
+      return;
+   }
    if (compile_compact_pointer_u8_conditional_update(node, ctx)) return;
 
    const char *false_label = next_label("if_false");

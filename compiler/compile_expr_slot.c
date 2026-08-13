@@ -646,6 +646,19 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       const char *ident = expr_bare_identifier_name(expr);
       if (ident) {
          ContextEntry *entry = ctx_lookup(ctx, ident);
+         if (entry && entry->has_const_value) {
+            unsigned char *bytes = (unsigned char *)calloc(dst->size ? dst->size : 1, sizeof(unsigned char));
+            bool ok;
+            if (!bytes) {
+               error_unreachable("out of memory");
+            }
+            ok = encode_integer_initializer_value(entry->const_value, bytes, dst->size, dst->type);
+            if (ok) {
+               emit_store_immediate_to_scratch(dst->offset, bytes, dst->size);
+            }
+            free(bytes);
+            return ok;
+         }
          if (entry && entry_is_absolute_ref(entry)) {
             LValueRef lv = { .name = entry->name, .type = entry->type, .declarator = entry->declarator, .base_type = entry->type, .base_declarator = entry->declarator, .is_static = entry->is_static, .is_zeropage = entry->is_zeropage, .is_global = entry->is_global, .is_ref = entry->is_ref, .is_absolute_ref = entry->is_absolute_ref, .read_expr = entry->read_expr, .write_expr = entry->write_expr, .has_split_alias_delta = entry->has_split_alias_delta, .split_alias_delta = entry->split_alias_delta, .offset = entry->offset, .size = entry->size, .use_site = expr };
             if (!entry_has_read_address(entry)) {

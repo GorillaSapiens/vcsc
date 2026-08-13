@@ -50,6 +50,10 @@ typedef struct ContextEntry {
    int split_alias_delta;
    bool target_typed;
    bool object_is_const;
+   /* Optimizer-only readonly by-value binding.  A specialized integer value
+      can be materialized directly without a callee-owned parameter object. */
+   bool has_const_value;
+   long long const_value;
    /* Compiler-owned register-only local used by a proven small counted loop.
       It has source-local type/scope semantics but no memory allocation. */
    bool is_register_x;

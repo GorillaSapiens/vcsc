@@ -1,0 +1,49 @@
+// vcsc-cc1 -I . -X inlineplan
+// expectstderr: INLINE_ANALYSIS function=never calls=0 baseline=no caller=-
+// expectstderr: INLINE_ANALYSIS function=once calls=1 baseline=yes caller=main
+// expectstderr: INLINE_ANALYSIS function=twice calls=2 baseline=no caller=-
+// expectstderr: INLINE_ANALYSIS function=sibling calls=1 baseline=yes caller=main
+// expectstderr: INLINE_ANALYSIS function=exported calls=1 baseline=no caller=main
+// expectstderr: INLINE_ANALYSIS function=nested calls=2 baseline=no caller=-
+// expectstderr: INLINE_ANALYSIS function=wrapper calls=0 baseline=no caller=-
+include "machine_6502.c26"
+
+static uint8_t never(uint8_t x) {
+   return x;
+}
+
+static uint8_t once(uint8_t x) {
+   return x + 1;
+}
+
+static uint8_t twice(uint8_t x) {
+   return x + 2;
+}
+
+static uint8_t sibling(uint8_t x) {
+   return x + 3;
+}
+
+uint8_t exported(uint8_t x) {
+   return x + 4;
+}
+
+static uint8_t nested(uint8_t x) {
+   return x + 5;
+}
+
+inline uint8_t wrapper(uint8_t x) {
+   return nested(x);
+}
+
+uint8_t main(void) {
+   uint8_t ret;
+   ret := once(1);
+   ret += twice(2);
+   ret += twice(3);
+   ret += sibling(4);
+   ret += exported(5);
+   ret += wrapper(6);
+   ret += wrapper(7);
+   return ret;
+}

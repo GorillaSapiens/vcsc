@@ -42,6 +42,9 @@ SRCSRC = \
    compile_expr_info.c \
    compile_function.c \
    compile_init.c \
+   compile_inline_analysis.c \
+   compile_inline_prepass.c \
+   compile_inline_specialize.c \
    compile_lvalue.c \
    compile_literal.c \
    compile_function_registry.c \

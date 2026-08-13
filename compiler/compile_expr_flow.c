@@ -2028,9 +2028,12 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
    bcd = type_is_bcd_integer(lv.type);
 
    if (lv.is_absolute_ref) {
-      if (!lv.read_expr || !lv.write_expr || strcmp(lv.read_expr, lv.write_expr)) {
+      if (!lv.read_expr || !lv.write_expr) {
          return false;
       }
+      /* A fixed split-address lvalue is still safe for this one-byte fast path:
+         read through its read alias and write the result through its write alias.
+         There is no need to materialize a pointer merely because the aliases differ. */
       emit_load_a_from_expr_address(lv.read_expr, lv.offset);
       if (bcd) emit(&es_code, "    sed\n");
       emit(&es_code, increment ? "    clc\n    adc #1\n" : "    sec\n    sbc #1\n");

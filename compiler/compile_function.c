@@ -16,6 +16,8 @@
 #include "compile_expr_info.h"
 #include "compile_function.h"
 #include "compile_init.h"
+#include "compile_inline_analysis.h"
+#include "compile_inline_specialize.h"
 #include "compile_internal.h"
 #include "compile_lvalue.h"
 #include "compile_support.h"
@@ -872,7 +874,7 @@ static bool symbol_backed_metadata_edge_name(char *buf, size_t bufsize, const ch
    return true;
 }
 
-//! @brief Add call graph edge to compiler function lowering state, growing storage or preserving uniqueness as needed.
+//! @brief Add one deduplicated caller/callee edge to the emitted call graph.
 void record_call_graph_edge(const ASTNode *caller, const ASTNode *callee) {
    int from = call_graph_node_index_for_function(caller);
    int to = call_graph_node_index_for_function(callee);
@@ -894,6 +896,26 @@ void record_call_graph_edge(const ASTNode *caller, const ASTNode *callee) {
    call_graph_edges[call_graph_edge_count].from = from;
    call_graph_edges[call_graph_edge_count].to = to;
    call_graph_edge_count++;
+}
+
+//! @brief Return the ordinary direct-call occurrence count used by item-31 optimization.
+unsigned function_direct_call_site_count(const ASTNode *fn) {
+   return inline_analysis_direct_call_site_count(fn);
+}
+
+//! @brief Return the unique direct caller when exactly one ordinary callsite exists.
+const ASTNode *function_single_direct_caller(const ASTNode *fn) {
+   return (const ASTNode *)inline_analysis_single_direct_caller(fn);
+}
+
+//! @brief Return the exact call expression when exactly one ordinary callsite exists.
+const ASTNode *function_single_direct_callsite(const ASTNode *fn) {
+   return (const ASTNode *)inline_analysis_single_direct_callsite(fn);
+}
+
+//! @brief Return baseline single-callsite eligibility before later legality/profitability vetoes.
+bool function_is_single_direct_callsite_candidate(const ASTNode *fn) {
+   return inline_analysis_is_baseline_candidate(fn);
 }
 
 //! @brief Handle call graph tarjan visit logic for compiler function lowering.
@@ -1070,7 +1092,11 @@ void emit_function_parameter_storage(const ASTNode *node, Context *ctx) {
       const ContextEntry *entry;
       char sym[256];
 
-      if (!type || !function_parameter_uses_symbol_storage(node, parameter)) {
+      if (!type || !function_parameter_uses_symbol_storage(node, parameter) ||
+          (parameter_is_ref(parameter) &&
+           optimizer_ref_parameter_specialization(node, i, NULL)) ||
+          (!parameter_is_ref(parameter) &&
+           optimizer_value_parameter_specialization(node, i, NULL))) {
          continue;
       }
 

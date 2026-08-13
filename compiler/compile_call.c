@@ -15,6 +15,7 @@
 #include "compile_expr_info.h"
 #include "compile_function.h"
 #include "compile_internal.h"
+#include "compile_inline_specialize.h"
 #include "compile_lvalue.h"
 #include "compile_function_registry.h"
 #include "compile_support.h"
@@ -253,6 +254,8 @@ typedef struct DirectCallArgStage {
    const ASTNode *declarator;
    int size;
    int offset;
+   int actual_index;
+   int parameter_index;
    bool must_stage;
    bool is_ref;
    bool is_zeropage;
@@ -308,6 +311,22 @@ static void emit_direct_argument_copy(const DirectCallArgStage *item,
    }
 }
 
+//! @brief Validate a specialized ref actual without materializing its address slot.
+static bool validate_specialized_ref_argument(ASTNode *expr, Context *ctx,
+                                              const ASTNode *parameter,
+                                              int parameter_index) {
+   LValueRef lv;
+   PointerAccessQualifier access = parameter_access_qualifier(parameter);
+   if (!validate_ref_argument_binding(expr, ctx, access,
+                                      parameter_name(parameter, parameter_index),
+                                      true, &lv)) {
+      return false;
+   }
+   emit_lvalue_semantic_use(ctx, &lv,
+      access == POINTER_ACCESS_READWRITE ? "ref" : "address");
+   return true;
+}
+
 //! @brief Lower an ordinary direct call using selective caller-owned staging.
 static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
                                        ASTNode *callee, ASTNode *args,
@@ -350,12 +369,43 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
          if (!parameter_type(parameter) || parameter_is_void(parameter)) {
             continue;
          }
+         if (parameter_is_ref(parameter) &&
+             optimizer_ref_parameter_specialization(fn, i, NULL)) {
+            if (!validate_specialized_ref_argument(args->children[actual_index], ctx,
+                                                   parameter, i)) {
+               free(staged);
+               return false;
+            }
+            actual_index++;
+            continue;
+         }
+         if (!parameter_is_ref(parameter) &&
+             optimizer_value_parameter_specialization(fn, i, NULL)) {
+            InlineValueSpecialization value_spec;
+            if (!optimizer_value_parameter_specialization(fn, i, &value_spec)) {
+               free(staged);
+               return false;
+            }
+            if (value_spec.kind == INLINE_VALUE_ADDRESS) {
+               LValueRef lv;
+               if (!resolve_ref_argument_lvalue(ctx, args->children[actual_index], &lv)) {
+                  free(staged);
+                  return false;
+               }
+               emit_lvalue_semantic_use(ctx, &lv, "read");
+            }
+            actual_index++;
+            continue;
+         }
+
          item = &staged[staged_count++];
          item->parameter = parameter;
          item->type = parameter_type(parameter);
          item->declarator = parameter_declarator(parameter);
          item->is_ref = parameter_is_ref(parameter);
          item->size = parameter_storage_size(parameter);
+         item->actual_index = actual_index;
+         item->parameter_index = i;
 
          if (!function_parameter_storage_addresses(fn, parameter, i,
                                                    item->symbol, sizeof(item->symbol),
@@ -394,7 +444,7 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
          else if (item->size > direct_temp_size) {
             direct_temp_size = item->size;
          }
-         if (expr_may_execute_runtime_call(args->children[i])) {
+         if (expr_may_execute_runtime_call(args->children[item->actual_index])) {
             later_argument_may_call = true;
          }
       }
@@ -427,13 +477,13 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
          tmp.size = item->size;
 
          if (item->is_ref) {
-            ok = compile_ref_argument_to_slot(args->children[i], ctx,
+            ok = compile_ref_argument_to_slot(args->children[item->actual_index], ctx,
                                               eval_offset, item->size,
                                               parameter_access_qualifier(item->parameter),
-                                              parameter_name(item->parameter, i));
+                                              parameter_name(item->parameter, item->parameter_index));
          }
          else {
-            ok = compile_expr_to_slot(args->children[i], ctx, &tmp);
+            ok = compile_expr_to_slot(args->children[item->actual_index], ctx, &tmp);
          }
          if (!ok) {
             break;

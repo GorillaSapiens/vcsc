@@ -104,9 +104,9 @@ for my $name (qw(F8 F6 F4 F8SC)) {
       "$name hardware-stack accounting is not 12 bytes with four hidden bytes");
 }
 
-# Lock the measured ROM and bridge costs for this diagnostic.
+# Lock the measured post-optimization ROM and bridge costs for this diagnostic.
 for my $check (
-   ['F8',1892,43,30], ['F6',1892,43,60], ['F4',1892,43,120], ['F8SC',1896,74,30]
+   ['F8',1892,43,30], ['F6',1892,43,60], ['F4',1892,43,120], ['F8SC',1892,53,30]
 ) {
    my($name,$b0,$b1,$rep)=@$check; my $map=$built{$name}{map};
    require_re($map,qr/^\s*bank0\s+used=$b0 bytes/m,"$name bank0 usage changed");
@@ -116,7 +116,7 @@ for my $check (
 }
 require_re($built{'F8'}{map},qr/^\s*ram\s+used=100 bytes .*objects=88 bytes hardware-stack=12 bytes/m,
    'F8 RIOT RAM accounting changed');
-require_re($built{'F8SC'}{map},qr/^\s*ram\s+used=99 bytes .*objects=87 bytes hardware-stack=12 bytes/m,
+require_re($built{'F8SC'}{map},qr/^\s*ram\s+used=97 bytes .*objects=85 bytes hardware-stack=12 bytes/m,
    'F8SC RIOT RAM accounting changed');
 require_re($built{'F8SC'}{map},qr/^\s*superchip\s+used=3 bytes .*objects=3 bytes hardware-stack=0 bytes/m,
    'F8SC non-critical game state is not three Superchip bytes');

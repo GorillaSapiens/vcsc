@@ -16,6 +16,7 @@
 #include "compile.h"
 #include "compile_declarator.h"
 #include "compile_function.h"
+#include "compile_inline_specialize.h"
 #include "compile_init.h"
 #include "compile_expr_info.h"
 #include "compile_internal.h"
@@ -301,6 +302,33 @@ static bool address_specs_equal(const ASTNode *a, const ASTNode *b) {
           address_exprs_equal(address_spec_write_expr(a), address_spec_write_expr(b));
 }
 
+//! @brief Emit debug-only pre-lowering item-31 facts for one function definition.
+static void dump_inline_analysis_for_function(const ASTNode *fn) {
+   const ASTNode *caller;
+   char fn_sym[256];
+   char caller_sym[256];
+   const char *caller_name = "-";
+
+   if (!get_xray(XRAY_INLINEPLAN) || !fn) {
+      return;
+   }
+   if (!function_symbol_name(fn, declarator_name(function_declarator_node(fn)),
+                             fn_sym, sizeof(fn_sym))) {
+      return;
+   }
+   caller = function_single_direct_caller(fn);
+   if (caller && function_symbol_name(caller,
+                                     declarator_name(function_declarator_node(caller)),
+                                     caller_sym, sizeof(caller_sym))) {
+      caller_name = caller_sym;
+   }
+   fprintf(stderr,
+           "INLINE_ANALYSIS function=%s calls=%u baseline=%s caller=%s\n",
+           fn_sym, function_direct_call_site_count(fn),
+           function_is_single_direct_callsite_candidate(fn) ? "yes" : "no",
+           caller_name);
+}
+
 //! @brief Lower function decl from AST/semantic state into generated assembly or linker-visible metadata.
 void compile_function_decl(ASTNode *node) {
    ASTNode *modifiers  = node->children[0]->children[0];
@@ -336,6 +364,7 @@ void compile_function_decl(ASTNode *node) {
       error_unreachable("[%s:%d.%d] could not mangle function '%s'", node->file, node->line, node->column, name);
    }
    emit_function_contract_metadata(node, sym);
+   dump_inline_analysis_for_function(node);
    if (function_is_inline(node)) {
       return;
    }
@@ -372,6 +401,8 @@ void compile_function_decl(ASTNode *node) {
    ctx.inline_label_prefix = NULL;
    ctx.phase_mask = function_phase_mask_for_function(node, sym);
    build_function_context(node, &ctx);
+   apply_optimizer_ref_specializations(node, &ctx);
+   apply_optimizer_value_specializations(node, &ctx);
    plan_function_return_coalescing(node, body, &ctx);
    return_entry = (ContextEntry *) set_get(ctx.vars, "$$");
    current_call_graph_function = node;
