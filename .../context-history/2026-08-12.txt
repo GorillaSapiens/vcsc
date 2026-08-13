@@ -59,3 +59,15 @@ bytes; RAM remains 45 bytes.
 2026-08-12 20:28:00 PDT, add 181 three-plus-three score examples
 Added static score-above and score-below compositions for the
 all_five_player_color_181 renderer; both use 128/128 RIOT RAM.
+2026-08-12 21:45:50 PDT, make 3+3 181 demos interactive
+Moved the public three-plus-three score-above/below demos to the official
+all_five(lines:=181) renderer and removed the static-only copies from the
+high-RAM all_five_player_color_181 group. The new pair retains P0/P1/M0/M1/Ball
+movement and adds filtered right-joystick editing across all six visible digits.
+Measured score-above at 3427/4090 ROM and 112/128 RAM; score-below at
+3571/4090 ROM and 112/128 RAM.
+2026-08-12 22:23:00 PDT, remove interactive source count
+The interactive sprite-orientation regression now discovers every maintained
+interactive source without a hard-coded total. It still requires the faithful
+legacy baseline and validates every discovered non-legacy source, so newly added
+interactive examples automatically enter the coverage set.

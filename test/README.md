@@ -191,8 +191,10 @@ and no selector or trampoline output.
 example visually aligned with the faithful legacy player-color example. It
 checks the shared and direct source definitions for the required bottom-to-top
 geometry convention, verifies that per-row player colors follow the same visual
-rows, and ensures all 42 non-legacy interactive cartridges use one of those
-normalized definitions. The animated sprite gallery retains its own independent
+rows, and ensures every discovered non-legacy interactive cartridge uses one of those
+normalized definitions. The discovery check is intentionally count-free, so adding a
+new interactive example automatically brings it under this regression instead of
+requiring a magic source-count update. The animated sprite gallery retains its own independent
 frame-table convention.
 
 `linker_banked_reset_bridges.pl` builds structural F8, F6, and F4 cartridges,

@@ -1,0 +1,95 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Shared controls for the fixed-position independent three-plus-three score.
+// The including source must instantiate the display as `score`.
+// selected_score_digit is display order: 0 is left hundreds, 5 is right ones.
+
+uint8_t selected_score_digit := 0;
+uint8_t right_joystick_countdown := 19;
+uint8_t right_joystick_previous := 0x0f;
+
+// Decimal weight for each visible digit from left to right.  The component
+// deliberately displays only the low three digits of each bcd16_t field, so
+// arithmetic naturally behaves modulo 1000 on screen.
+page const bcd16_t three_plus_three_digit_weight[6] := {
+   100, 10, 1, 100, 10, 1
+};
+
+inline void initialize_score_state(void) {
+   score_left_score := 123;
+   score_right_score := 456;
+   score_left_color := VCS_NTSC_PALE_GREEN;
+   score_right_color := VCS_NTSC_ORCHID;
+   selected_score_digit := 0;
+   right_joystick_countdown := 19;
+   right_joystick_previous := 0x0f;
+}
+
+inline void update_selected_score_color(void) {
+   if (selected_score_digit < 3) {
+      score_left_color += 0x10;
+   }
+   else {
+      score_right_color += 0x10;
+   }
+}
+
+inline void update_score_controls(void) {
+   // Match the existing score demos: sample every twenty frames and require
+   // two identical samples before accepting an action. A held direction then
+   // repeats at the same twenty-frame cadence.
+   if (right_joystick_countdown) {
+      right_joystick_countdown--;
+   }
+   else {
+      right_joystick_countdown := SWCHA & 0x0f;
+
+      if (right_joystick_countdown == right_joystick_previous) {
+         // Right-joystick left/right walks the six visible digits. Each
+         // accepted selection change advances the color of the containing
+         // three-digit field so input acceptance is visible.
+         if (!(right_joystick_countdown & 0x04)) {
+            if (selected_score_digit == 0) {
+               selected_score_digit := 5;
+            }
+            else {
+               selected_score_digit--;
+            }
+            update_selected_score_color();
+         }
+         else {
+            if (!(right_joystick_countdown & 0x08)) {
+               selected_score_digit++;
+               if (selected_score_digit >= 6) {
+                  selected_score_digit := 0;
+               }
+               update_selected_score_color();
+            }
+         }
+
+         // Up/down changes the selected visible decimal digit. Carries and
+         // borrows remain packed-BCD operations within the selected field.
+         if (!(right_joystick_countdown & 0x01)) {
+            if (selected_score_digit < 3) {
+               score_left_score += three_plus_three_digit_weight[selected_score_digit];
+            }
+            else {
+               score_right_score += three_plus_three_digit_weight[selected_score_digit];
+            }
+         }
+         else {
+            if (!(right_joystick_countdown & 0x02)) {
+               if (selected_score_digit < 3) {
+                  score_left_score -= three_plus_three_digit_weight[selected_score_digit];
+               }
+               else {
+                  score_right_score -= three_plus_three_digit_weight[selected_score_digit];
+               }
+            }
+         }
+      }
+
+      right_joystick_previous := right_joystick_countdown;
+      right_joystick_countdown := 19;
+   }
+}

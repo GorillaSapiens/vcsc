@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 45
-# expectstdout: vcs_all_five_interactive_examples ok: seven all-five interactive renderer examples pass build, frame, five-object controls, filtered score controls, endpoints, reset, and opcode-policy checks
+# expectstdout: vcs_all_five_interactive_examples ok: nine all-five interactive renderer examples pass build, frame, five-object controls, filtered score controls, endpoints, reset, and opcode-policy checks
 # expectexit: 0
 
 use strict;
@@ -28,6 +28,8 @@ my @cases=(
  { dir=>'05_all_five_192/01_interactive', stem=>'all_five_192_interactive', profile=>'all5_192', score=>0, extra=>[] },
  { dir=>'06_all_five_181/01_score_above/01_interactive', stem=>'all_five_181_score_above_interactive', profile=>'all5_above', score=>1, extra=>[] },
  { dir=>'06_all_five_181/02_score_below/01_interactive', stem=>'all_five_181_score_below_interactive', profile=>'all5_below', score=>1, extra=>[] },
+ { dir=>'06_all_five_181/11_three_plus_three_score_above/01_interactive', stem=>'all_five_181_three_plus_three_score_above_interactive', profile=>'all5_3x3_above', score=>1, dual3=>1, extra=>[] },
+ { dir=>'06_all_five_181/12_three_plus_three_score_below/01_interactive', stem=>'all_five_181_three_plus_three_score_below_interactive', profile=>'all5_3x3_below', score=>1, dual3=>1, extra=>[] },
  { dir=>'11_all_five_170/01_score_above_and_below/01_interactive', stem=>'all_five_170_score_above_and_below_interactive', profile=>'all5_dual', score=>1, extra=>[] },
  { dir=>'12_all_five_170_unofficial/01_score_above_and_below/01_interactive', stem=>'all_five_170_unofficial_score_above_and_below_interactive', profile=>'all5_dual', score=>1, extra=>['-Wa,--illegals'], unofficial=>1 },
  { dir=>'08_all_five_181_unofficial/01_score_above/01_interactive', stem=>'all_five_181_unofficial_score_above_interactive', profile=>'all5_above', score=>1, extra=>['-Wa,--illegals'], unofficial=>1 },
@@ -64,6 +66,16 @@ for my $case (@cases) {
       $text =~ /game_missile0_y/ && $text =~ /game_missile1_y/
          or die "$dir does not initialize and move both missiles\n";
       $text =~ /asm jmp \(\$fffc\);/ or die "$dir RESET does not jump through the reset vector\n";
+   } elsif ($case->{dual3}) {
+      $text =~ /include "\.\.\/\.\.\/\.\.\/common\/three_plus_three_controls\.c26"/
+         or die "$dir does not use the shared three-plus-three score controls
+";
+      $text =~ /include "\.\.\/\.\.\/\.\.\/common\/all_five_181_interactive_common\.c26"/
+         or die "$dir does not use the shared high-level all-five controls
+";
+      $text =~ /three_plus_three_score_component\.c26/
+         or die "$dir does not instantiate the three-plus-three component
+";
    } elsif ($case->{profile} eq 'all5_dual') {
       $text =~ /lines:=170/ or die "$dir does not instantiate the 170-line profile\n";
       $text =~ /top_score_draw\(\).*game_draw\(\).*bottom_score_draw\(\)/s
@@ -76,8 +88,9 @@ for my $case (@cases) {
    }
    if ($case->{score} && $case->{profile} ne 'all5_dual') {
       my $score=index($text,'score_draw();'); my $game=index($text,'game_draw();');
-      ($case->{profile} eq 'all5_above' ? $score<$game : $game<$score)
-         or die "$dir draw order is wrong\n";
+      (($case->{profile} eq 'all5_above' || $case->{profile} eq 'all5_3x3_above') ? $score<$game : $game<$score)
+         or die "$dir draw order is wrong
+";
    }
 
    my $bin=File::Spec->catfile($tmp,"$stem.bin");
@@ -94,9 +107,14 @@ for my $case (@cases) {
    );
    push @args,map_zp($map,'selected_object'),map_zp($map,'select_switch_ready');
    if ($case->{score}) {
-      my $score_prefix=$case->{profile} eq 'all5_dual' ? 'top_score' : 'score';
-      push @args,map_zp($map,'selected_score_digit'),map_zp($map,'right_joystick_countdown'),
-                 map_zp($map,'right_joystick_previous'),map_zp($map,$score_prefix.'_score'),map_zp($map,$score_prefix.'_color');
+      if ($case->{dual3}) {
+         push @args,map_zp($map,'selected_score_digit'),map_zp($map,'right_joystick_countdown'),
+                    map_zp($map,'right_joystick_previous'),map_zp($map,'score_left_score'),map_zp($map,'score_right_score');
+      } else {
+         my $score_prefix=$case->{profile} eq 'all5_dual' ? 'top_score' : 'score';
+         push @args,map_zp($map,'selected_score_digit'),map_zp($map,'right_joystick_countdown'),
+                    map_zp($map,'right_joystick_previous'),map_zp($map,$score_prefix.'_score'),map_zp($map,$score_prefix.'_color');
+      }
    } else {
       push @args,qw(none none none none none);
    }
@@ -107,4 +125,4 @@ for my $case (@cases) {
    $err eq '' or die "$dir runtime stderr: $err";
 }
 
-print "vcs_all_five_interactive_examples ok: seven all-five interactive renderer examples pass build, frame, five-object controls, filtered score controls, endpoints, reset, and opcode-policy checks\n";
+print "vcs_all_five_interactive_examples ok: nine all-five interactive renderer examples pass build, frame, five-object controls, filtered score controls, endpoints, reset, and opcode-policy checks\n";

@@ -86,7 +86,10 @@ find(sub {
    return unless -f $_ && /\.c26\z/ && $File::Find::name =~ m{/\d+_interactive/};
    push @leaves,$File::Find::name;
 },File::Spec->catdir($repo,'examples'));
-@leaves==54 or die "found ".scalar(@leaves)." interactive sources, expected 54\n";
+@leaves or die "found no interactive sources\n";
+my $faithful_seen=grep { $_ eq $faithful_path } @leaves;
+$faithful_seen==1
+   or die "interactive source discovery did not find the faithful legacy baseline\n";
 for my $path (@leaves) {
    next if $path eq $faithful_path;
    my $text=read_file($path);

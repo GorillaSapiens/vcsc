@@ -806,3 +806,10 @@ the row base while X is the pair counter; the caller stack pointer is saved and
 restored and no stack access occurs while it is borrowed. Exact 262-line timing
 survives a full-byte Y sweep, and Stella full-raster comparisons still match
 `all_five (lines:=181)` pixel-for-pixel in both score orders.
+The three-plus-three score has interactive 181-line public compositions under
+`examples/06_all_five_181/11_three_plus_three_score_above` and
+`12_three_plus_three_score_below`. They use the official `all_five(lines:=181)`
+profile, retain five-object movement, and edit all six visible digits with the
+filtered right joystick. Both use 112/128 RAM; score-above is 3427/4090 ROM and
+score-below is 3571/4090 ROM. The temporary static-only 3+3 examples under the
+88-byte `all_five_player_color_181` profile were removed.

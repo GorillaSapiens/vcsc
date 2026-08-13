@@ -59,39 +59,6 @@ $source{above} =~ /score_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw
 $source{below} =~ /game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*score_draw\(\);/s
    or die "score-below example lost component order\n";
 
-my@dual_jobs=(
- ['above',File::Spec->catfile($example_root,qw(03_three_plus_three_score_above 01_static all_five_player_color_181_three_plus_three_score_above.c26))],
- ['below',File::Spec->catfile($example_root,qw(04_three_plus_three_score_below 01_static all_five_player_color_181_three_plus_three_score_below.c26))],
-);
-my(%dual_bin,%dual_source);
-for my$j(@dual_jobs){
-   my($n,$src)=@$j;
-   $dual_source{$n}=read_file($src);
-   $dual_bin{$n}=File::Spec->catfile($tmp,"all_five_player_color_181_three_plus_three_$n.bin");
-   my$dmap=File::Spec->catfile($tmp,"all_five_player_color_181_three_plus_three_$n.map");
-   my($r,$s,$o,$e)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$dmap,$src,'-o',$dual_bin{$n});
-   $r==0&&!$s or die "$n three-plus-three example build failed\n$o$e";
-   without_usage($o) eq ''&&$e eq '' or die "$n three-plus-three example build wrote output\n$o$e";
-   -s$dual_bin{$n}==4096 or die "$n three-plus-three example is not 4K\n";
-   my$m=read_file($dmap);
-   $m =~ /^  [Rr][Oo][Mm]\s+used=3892 bytes .* free=198 bytes/m
-      or die "$n three-plus-three example ROM footprint changed\n";
-   $m =~ /^  ram\s+used=128 bytes .* free=0 bytes/m
-      or die "$n three-plus-three example RAM footprint changed\n";
-   $dual_source{$n} =~ /instantiate "renderers\/all_five_player_color_181\/all_five_player_color_181\.c26" as game/
-      or die "$n three-plus-three example lost combined renderer\n";
-   $dual_source{$n} =~ /instantiate "three_plus_three_score_component\.c26" as score/ &&
-   $dual_source{$n} =~ /score_left_score\s*:=\s*123;/ &&
-   $dual_source{$n} =~ /score_right_score\s*:=\s*456;/ &&
-   $dual_source{$n} =~ /score_left_color\s*:=/ &&
-   $dual_source{$n} =~ /score_right_color\s*:=/
-      or die "$n three-plus-three example lost dual-score setup\n";
-}
-$dual_source{above} =~ /score_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw\(\);/s
-   or die "three-plus-three score-above example lost component order\n";
-$dual_source{below} =~ /game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*score_draw\(\);/s
-   or die "three-plus-three score-below example lost component order\n";
-
 my$interactive_common=File::Spec->catfile($repo,qw(examples common all_five_player_color_181_interactive_common.c26));
 my$interactive_common_text=read_file($interactive_common);
 my$canonical_181_common=read_file(File::Spec->catfile($repo,qw(examples common all_five_181_interactive_common.c26)));
@@ -107,8 +74,6 @@ playfield_rows($interactive_common_text) eq $canonical_playfield
 for my$n(qw(above below)) {
    playfield_rows($source{$n}) eq $canonical_playfield
       or die "$n static 181 combined playfield diverged from canonical all-five 181 pattern\n";
-   playfield_rows($dual_source{$n}) eq $canonical_playfield
-      or die "$n three-plus-three 181 combined playfield diverged from canonical all-five 181 pattern\n";
 }
 $interactive_common_text =~ /Game Select cycles P0, P1, M0, M1, Ball/ &&
 $interactive_common_text =~ /game_object_x\[selected_object\]/ &&
@@ -195,11 +160,6 @@ for my$n(qw(above below)){
    $o eq "vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes\n"
       or die "bad $n frame timing output: $o";
    $e eq '' or die "$n frame timing stderr: $e";
-   ($r,$s,$o,$e)=capture($timing,$dual_bin{$n},'50','--no-audio','--raw-lines','264');
-   $r==0&&!$s or die "$n three-plus-three frame timing failed\n$o$e";
-   $o eq "vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes\n"
-      or die "bad $n three-plus-three frame timing output: $o";
-   $e eq '' or die "$n three-plus-three frame timing stderr: $e";
    ($r,$s,$o,$e)=capture($timing,$interactive_bin{$n},'50','--no-audio','--raw-lines','264');
    $r==0&&!$s or die "$n interactive frame timing failed\n$o$e";
    $o eq "vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes\n"

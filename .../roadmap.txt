@@ -1360,6 +1360,15 @@ but no new workstream should be assumed until the user selects one.
         glyphs, and an optional headless-Stella regression compares a live
         render to that reference. Existing score components are untouched.
 
+        Interactive 181-line integration, 2026-08-12: the public score-above
+        and score-below demos use the official `all_five (lines:=181)` renderer
+        rather than the substantially heavier per-row-player-color sibling. Both
+        retain full P0/P1/M0/M1/Ball motion and add filtered right-joystick
+        editing across all six visible score digits. They link at 112/128 RAM;
+        score-above uses 3427/4090 ROM and score-below uses 3571/4090 ROM. The
+        earlier static-only 3+3 examples under `all_five_player_color_181` were
+        removed rather than presenting zero-free-RAM compositions as demos.
+
 
 [x] 26. Write a maintained renderer-authoring HOWTO describing how to create and
         integrate new VCSC renderers and score-display variants. Cover source

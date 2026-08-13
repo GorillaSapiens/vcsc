@@ -13,10 +13,10 @@ This group demonstrates the official-opcode `renderers/all_five/all_five.c26` in
 181 gameplay scanlines and P0, P1, M0, M1, and Ball; an adjacent eleven-line score-profile
 component completes the 192-line visible field.
 
-The ten public cartridges form the complete score-composition slice for this
-gameplay family: four production score layouts plus the poison diagnostic, each
-above and below gameplay. Each layout has one interactive cartridge rather than
-separate static and motion variants.
+The twelve public cartridges form the score-composition slice for this gameplay
+family: five production score layouts plus the poison diagnostic, each above and
+below gameplay. Each layout has one interactive cartridge rather than separate
+static and motion variants.
 
 | Layout | Score profile | Draw order | Diagnostic |
 |---|---|---|---|
@@ -30,6 +30,8 @@ separate static and motion variants.
 | [`08_two_plus_two_score_below`](08_two_plus_two_score_below/) | independent left/right two-plus-two | gameplay, handoff, score | object motion plus independently movable score fields |
 | [`09_poison_score_above`](09_poison_score_above/) | hostile poison diagnostic | score, handoff, gameplay | predecessor-state recovery stress |
 | [`10_poison_score_below`](10_poison_score_below/) | hostile poison diagnostic | gameplay, handoff, score | next-frame recovery stress |
+| [`11_three_plus_three_score_above`](11_three_plus_three_score_above/) | independent fixed left/right three-digit fields | score, handoff, gameplay | object motion and per-digit dual-score editing |
+| [`12_three_plus_three_score_below`](12_three_plus_three_score_below/) | independent fixed left/right three-digit fields | gameplay, handoff, score | object motion and per-digit dual-score editing |
 
-The automated matrix builds static and moving-game fixtures for every row and
-checks score pixels, gameplay pixels, handoff state, and exact 262-line frames.
+The automated composition and interactive-example regressions build these layouts,
+check score and gameplay handoff/timing, and exercise controls, endpoints, and reset.

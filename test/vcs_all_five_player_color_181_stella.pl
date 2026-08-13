@@ -66,8 +66,6 @@ sub make_pair {
 my@orders=(
  ['above',File::Spec->catfile($repo,qw(examples 16_all_five_player_color_181 01_score_above 01_static all_five_player_color_181_score_above.c26))],
  ['below',File::Spec->catfile($repo,qw(examples 16_all_five_player_color_181 02_score_below 01_static all_five_player_color_181_score_below.c26))],
- ['three_plus_three_above',File::Spec->catfile($repo,qw(examples 16_all_five_player_color_181 03_three_plus_three_score_above 01_static all_five_player_color_181_three_plus_three_score_above.c26))],
- ['three_plus_three_below',File::Spec->catfile($repo,qw(examples 16_all_five_player_color_181 04_three_plus_three_score_below 01_static all_five_player_color_181_three_plus_three_score_below.c26))],
 );
 for my$j(@orders){my($name,$src)=@$j; my($cand,$gold)=make_pair($name,$src); same_raster("score_$name",$cand,$gold);}
 
