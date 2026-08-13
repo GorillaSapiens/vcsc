@@ -1585,15 +1585,21 @@ but no new workstream should be assumed until the user selects one.
           items 27 and 28 rather than being implied by Superchip completion.
 
 [ ] 31. Add fixed-point whole-program inlining for reachable internal functions
-        with exactly one direct call site when the resulting linked code is
-        smaller. Inline through the compiler IR/control-flow representation, not
-        textual substitution; fold arguments/returns and simplify newly exposed
-        code, then recompute the call graph, activation overlay, and hardware-
-        stack depth. Exclude exported or address-taken functions, assembly ABI
-        entry points, weak/required hooks, and timing-sensitive boundaries.
-        Cover multi-return control flow, nested one-call chains, exact ROM-size
-        wins/losses, and stack-depth reduction; retain the separate function when
-        measurement shows that inlining grows the image.
+        with exactly one direct call site when whole-program measurement shows a
+        net resource win. Inline through the compiler IR/control-flow
+        representation, not textual substitution; fold arguments/returns and
+        simplify newly exposed code, then recompute the call graph, lifetime
+        analysis, activation/scratch overlay, peak RIOT RAM usage, linked ROM size,
+        and hardware-stack depth. Exclude exported or address-taken functions,
+        assembly ABI entry points, weak/required hooks, and timing-sensitive
+        boundaries. Treat RAM as at least as precious as ROM: accept an inline
+        when ROM or peak RAM improves and neither gets worse; reject ROM savings
+        that increase peak RAM, and retain the separate function when the measured
+        whole-program result is not a clear resource win. Cover multi-return
+        control flow, nested one-call chains, exact ROM-size wins/losses,
+        stack-depth reduction, and cases where changed lifetimes alter overlay
+        allocation. Include acceptance tests where inlining saves both ROM and RAM,
+        saves ROM but costs RAM, saves RAM without growing ROM, and grows both.
 
 [ ] 32. Add native PAL support as a separate video-standard family rather than
         parameterizing NTSC code with scattered conditionals. Define PAL machine
