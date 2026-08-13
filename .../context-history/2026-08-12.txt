@@ -56,3 +56,6 @@ The default regression now decodes and pixel-grades the reviewed Stella PNG,
 and `stella-three-plus-three-score-test` rebuilds and snapshots the fixture in
 headless Stella for live raster comparison. Public dual_score ROM is now 1545
 bytes; RAM remains 45 bytes.
+2026-08-12 20:28:00 PDT, add 181 three-plus-three score examples
+Added static score-above and score-below compositions for the
+all_five_player_color_181 renderer; both use 128/128 RIOT RAM.
