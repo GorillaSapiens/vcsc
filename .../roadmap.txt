@@ -1343,12 +1343,13 @@ one.
           frame. Each measures 3,306 ROM bytes and 118 total RAM bytes, leaving
           ten bytes free.
 
-[ ] 25. Add a left/right dual-score variant of the six-glyph display. Divide the
-        six visible glyph slots into independent three-glyph left and right score
-        fields, define their numeric order and ownership explicitly, and verify
-        both fields simultaneously through boundary values, carry transitions,
-        raster timing, an example cartridge, and installed-toolchain coverage.
-        Preserve the centered and widely spaced variants as separate profiles.
+[ ] 25. Add a left/right dual-score component. We want independant three glyph
+        left and right scores, centered in the left half and right half
+        of the screen, respectively.  We should be able to set the color
+        of the scores independently.  Verify both fields simultaneously
+        through boundary values, carry transitions, raster timing, an
+        example cartridge, and installed-toolchain coverage.  This is
+        a new component, do not adjust any of the existing components.
 
 [x] 26. Write a maintained renderer-authoring HOWTO describing how to create and
         integrate new VCSC renderers and score-display variants. Cover source

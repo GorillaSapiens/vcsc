@@ -5,222 +5,136 @@
    \_/  \___||___/ \___|
 ```
 
-# Source instantiation and use contracts
+# Source instantiation and component templates
 
-## Status
+VCSC has a small source-instantiation mechanism for reusable `.c26` components.
+It is not C++ templates and it is not a general module system. A component is
+ordinary VCSC source written with instance-qualified `TEMPLATE` names; a caller
+processes that source with `instantiate`, giving the instance a concrete prefix.
 
-This document specifies a VCSC feature under staged implementation.
-`require`/`recommend` declarations, declaration and semantic-use metadata,
-link-time reachable external-use enforcement, repeatable
-`instantiate ... as ...` source instantiation, controlled identifier rewriting,
-inline-assembly integration, instantiation hygiene, and the standard component
-lifecycle are implemented. The foundational NTSC frame support file now
-provides phase constants, scanline waiting, and VSYNC; scheduler-owned RIOT
-deadlines and emulator-backed phase enforcement remain roadmap work.
+The language keyword is **`instantiate`**. The former `template` keyword has
+been removed and is intentionally rejected.
 
-The feature is deliberately smaller than C++ templates or a general module
-system. Its purpose is to let one source component be instantiated repeatedly
-under different symbol prefixes, and to let a component declare which of its
-public functions and objects the containing program must or should use.
+This guide covers both sides of the mechanism:
 
-The first intended application is reusable, composable VCS display components:
-for example, two independent six-glyph score displays drawn in either order.
+- how an application instantiates and uses a component;
+- how a component author writes repeatable instance-local source;
+- how integer configuration parameters work;
+- how `require` and `recommend` describe the public use contract;
+- how maintained VCS display components apply the mechanism.
 
-## Goals
+For beam-level renderer timing, RAM, stack, and TIA ownership rules, also read
+`libraries/vcs/renderers/AUTHORING.md`.
 
-The feature must provide all of the following:
+## 1. Using a component
 
-1. Instantiate the same `.c26` component more than once without symbol
-   collisions or shared instance state.
-2. Preserve source-level type checking and normal VCSC compilation after name
-   substitution.
-3. Let a component require or recommend use of selected functions and objects.
-4. Diagnose missing uses after archive selection and whole-program reachability
-   are known.
-5. Work for true inline functions even when no callable linker symbol or `JSR`
-   remains.
-6. Keep ordinary `include` behavior unchanged.
-7. Permit display components to expose a consistent frame-lifecycle interface
-   and a machine-readable visible-scanline count.
-8. Keep cycle-counted inline assembly under the component author's control.
-
-## Non-goals
-
-This proposal does not add:
-
-- C++-style type parameters or general compile-time metaprogramming;
-- function or class templates;
-- overload resolution;
-- namespaces or a general qualified-name operator;
-- automatic inference that two cycle-counted raster components are compatible;
-- automatic proof of TIA register, CPU register, stack, page, or cycle contracts;
-- textual macro substitution in comments or string literals.
-
-A future module system could provide automatic namespacing and qualified access
-such as `score1.draw()`. This proposal instead uses controlled identifier-prefix
-rewriting because it fits the present compiler and object format much more
-closely.
-
-## `require` and `recommend`
-
-### Syntax
-
-`require` and `recommend` are declaration specifiers accepted on file-scope
-object and function declarations or definitions:
+The basic form is:
 
 ```c
-require uint8_t required_state;
-recommend bcd24_t displayed_score;
+instantiate "component.c26" as first
+instantiate "component.c26" as second
+```
 
-require void initialize(void);
-require inline void draw(void) {
-    /* ... */
+There is no semicolon after an `instantiate` directive.
+
+The file is found with the ordinary `include` search path. The instance name is an
+ordinary VCSC identifier; UTF-8 identifiers use the same validation and assembler-safe
+mangling as elsewhere in the language. Unlike `include`, an `instantiate` is processed
+every time it appears, so the same source can be instantiated repeatedly in one
+translation unit.
+
+If `component.c26` contains:
+
+```c
+uint8_t TEMPLATE_value;
+
+inline void TEMPLATE_set(uint8_t value) {
+   TEMPLATE_value := value;
 }
 ```
 
-They are not valid on:
-
-- automatic locals;
-- parameters;
-- structure or union members;
-- typedef declarations;
-- enum constants;
-- labels.
-
-A declaration may be both repeated and later defined, subject to the ordinary
-VCSC rule that all declarations of one name have one compatible type. If
-contract levels are merged, `require` dominates `recommend`.
-
-### Meaning
-
-After the linker has selected archive members and computed reachable code:
-
-- an unused `require` contract is a fatal link error;
-- an unused `recommend` contract is a link warning;
-- an ordinary undefined symbol remains an ordinary undefined-symbol error.
-
-Examples:
+then the two instances above provide independent names such as:
 
 ```text
-six_glyph_component.c26:18.1:
-required variable 'bcd24_t score1_score' is not used
-  instantiated as 'score1' at main.c26:3.1
+first_value
+first_set
+second_value
+second_set
 ```
 
-```text
-six_glyph_component.c26:21.1:
-recommended function 'void score2_overscan(void)' is not used
-  instantiated as 'score2' at main.c26:4.1
-```
+and therefore independent state.
 
-Diagnostics should use the final instantiated source name and type, identify the
-contract's original source location, and identify the instantiation when
-one exists.
+### Real VCSC examples
 
-### What counts as use
-
-A contract is satisfied only by a reachable semantic use from outside the
-contract owner.
-
-The contract owner is:
-
-- the declaring instantiation instance for a declaration produced by `instantiate`;
-- otherwise, the declaring translation unit.
-
-For a function, a use is a reachable direct call from outside the owner. A mere
-prototype, address-sized metadata record, or call from unreachable code does
-not count.
-
-For an object, a use is a reachable read, write, address-taking operation, or
-`ref` use from outside the owner. A declaration, definition, initializer, or
-`sizeof`-only reference does not count.
-
-This external-use rule is essential. A component commonly reads its own public
-state while drawing it:
+The maintained renderers use the same mechanism:
 
 ```c
-recommend bcd24_t TEMPLATE_score;
-
-inline void TEMPLATE_vblank(void) {
-    /* Internal preparation reads TEMPLATE_score. */
-}
+instantiate "renderers/all_five/all_five.c26" as game (lines:=181)
+instantiate "six_glyph_component.c26" as score (mutable_color:=1)
 ```
 
-That internal read must not satisfy the recommendation. The application must
-actually read, write, or otherwise use `score1_score`.
+The first instance selects the 181-visible-line renderer profile. The second
+uses the centered six-glyph score component with its optional mutable-color
+feature enabled.
 
-Likewise, one required component function calling another required function
-inside the same instance must not make the second function appear to have been
-used by the application.
-
-### Reachability
-
-A syntactic reference in dead code is insufficient. The linker should evaluate
-contracts after:
-
-1. object and archive selection;
-2. ordinary symbol resolution;
-3. hidden assembly call-edge import;
-4. whole-program call-graph reachability.
-
-Contracts in archive members that were never selected do not produce errors or
-warnings.
-
-### Inline functions
-
-A true inline function may have no out-of-line symbol, relocation, `JSR`, or
-`RTS`. The compiler must therefore emit semantic contract and use metadata for
-inline calls rather than asking the linker to infer them from machine code.
-
-The metadata must survive even when normal code generation completely removes
-the call boundary.
-
-## Object-file contract metadata
-
-Each contracted declaration needs linker-visible metadata containing at least:
-
-- contract level: `require` or `recommend`;
-- symbol kind: object or function;
-- final source-level symbol name;
-- canonical type or function signature;
-- contract-owner identity;
-- original source file, line, and column;
-- instantiation name and invocation location, when applicable.
-
-Each semantic use record needs at least:
-
-- referenced contract symbol;
-- owner identity of the referencing code;
-- containing function, when any;
-- source location;
-- use kind: call, read, write, address, or `ref`.
-
-The linker should consume this metadata only after ordinary object and archive
-selection. Existing VCSC hidden metadata mechanisms may be extended if they can
-represent these records without losing source locations or inline calls.
-
-## `instantiate`
-
-### Syntax
+The 170-line examples instantiate the same score component twice:
 
 ```c
-instantiate "six_glyph_component.c26" as score1
-instantiate "renderer.c26" as game (lines:=192, color:=0x2e)
+instantiate "renderers/player_color/player_color.c26" as game (lines:=170)
+instantiate "six_glyph_component.c26" as top_score (mutable_color:=1)
+instantiate "six_glyph_component.c26" as bottom_score (mutable_color:=1)
 ```
 
-There is no semicolon after an `instantiate` directive. The former `template`
-keyword has been removed. The instance name after `as` is one ordinary VCSC
-identifier. UTF-8 identifiers follow the same validation and assembler-safe
-mangling rules as other source identifiers.
+`top_score_*` and `bottom_score_*` are separate objects and functions even
+though both came from the same source file.
 
-File lookup follows the ordinary `include` search path and relative-path rules.
-Instantiation deliberately bypasses `include`'s include-once suppression, so the
-same source may be instantiated repeatedly under different names.
+## 2. Instantiation parameters
 
-### Instantiation parameters
+A directly instantiated source file may declare integer-literal configuration
+parameters at file scope.
 
-Directly instantiated source may declare integer-literal configuration parameters
-at file scope:
+A declaration without an assignment is required:
+
+```c
+parameter lines;
+```
+
+A declaration with `:=` supplies a default and is optional:
+
+```c
+parameter color := 0x20;
+parameter enabled := 1;
+```
+
+Parameter declarations end with semicolons. They must appear before uses of the
+corresponding `TEMPLATE_name`.
+
+The caller supplies or overrides values after the instance name:
+
+```c
+instantiate "renderer.c26" as full (lines:=192)
+instantiate "renderer.c26" as short (lines:=181, color:=0x2e)
+```
+
+Arguments use `:=`, not `=`.
+
+Parameter values are integer literals. VCSC decimal, hexadecimal, octal,
+binary, and visual-binary literal forms are accepted. Arbitrary expressions or
+identifiers are not instantiation arguments.
+
+The compiler diagnoses:
+
+- a missing required argument;
+- an unknown argument name;
+- the same argument supplied twice;
+- the same parameter declared twice;
+- a non-integer argument value;
+- a `parameter` declaration outside a directly instantiated source file.
+
+### Parameter substitution
+
+Inside the component, a declared parameter is referenced through its
+`TEMPLATE_` name:
 
 ```c
 parameter lines;
@@ -230,482 +144,487 @@ uint8_t TEMPLATE_rows[TEMPLATE_lines];
 uint8_t TEMPLATE_background := TEMPLATE_color;
 ```
 
-`parameter lines;` declares a required argument. `parameter color := 0x20;`
-declares an optional argument whose default is `0x20`. Parameter declarations
-require semicolons and must precede uses of their corresponding `TEMPLATE_name`
-identifiers. They are valid only directly in the instantiated source, not in an
-ordinary source file or an included helper.
-
-The caller supplies arguments after the instance name using `:=`:
+For:
 
 ```c
-instantiate "renderer.c26" as game (lines:=192)
-instantiate "renderer.c26" as short_game (lines:=181, color:=0x2e)
+instantiate "component.c26" as game (lines:=181, color:=0x2e)
 ```
 
-Argument and default values are VCSC integer literals: decimal, hexadecimal,
-octal, or binary/visual-binary. A declared `TEMPLATE_name` is replaced by the
-supplied literal or its default. Other `TEMPLATE_` identifiers retain the normal
-instance-prefix rewriting described below. Missing required arguments, unknown
-arguments, duplicate arguments, duplicate parameter declarations, and non-integer
-argument values are compile-time errors.
+`TEMPLATE_lines` and `TEMPLATE_color` are compile-time literals. They do not
+create runtime parameter storage.
 
-Declared parameter names are also integer constants in `#if` and `#elif` while
-that instantiated source is being processed. The conditional sees the supplied
-argument or the parameter default, so profile selection remains compile-time; no
-run-time branch or parameter storage is emitted.
+A declared parameter name is treated specially: `TEMPLATE_lines` substitutes
+the selected literal instead of becoming an instance symbol such as
+`game_lines`. Other `TEMPLATE_` identifiers continue to receive the normal
+instance prefix.
 
-### Difference from `include`
+### Compile-time profile selection
 
-Ordinary `include` retains its current MD5-based include-once behavior.
-
-`instantiate` intentionally does not consult or update that MD5-seen set. Every
-invocation processes the requested source again, even when the same bytes or
-same path were instantiated earlier:
+Declared parameters are also integer constants in `#if` and `#elif` while the
+component is being instantiated:
 
 ```c
-instantiate "six_glyph_component.c26" as score1
-instantiate "six_glyph_component.c26" as score2
+parameter lines;
+
+#if TEMPLATE_lines == 192
+   /* 192-line implementation */
+#elif TEMPLATE_lines == 181
+   /* 181-line implementation */
+#elif TEMPLATE_lines == 170
+   /* 170-line implementation */
+#else
+   extern const uint8_t TEMPLATE_bad_lines[TEMPLATE_lines_must_be_170_181_or_192];
+#endif
 ```
 
-Ordinary `include` directives encountered inside instantiated source retain ordinary
-include-once behavior. Nested `instantiate` directives create nested instance
-contexts and remain subject to a finite nesting limit and cycle diagnostic.
+This is how `all_five.c26` and `player_color.c26` select their maintained
+192-, 181-, and 170-line implementations. The choice is compile-time only; no
+runtime branch or line-count variable is emitted.
 
-### Identifier rewriting
+When a parameter controls a timing-sensitive profile, support only values that
+have a real measured implementation. Do not silently map an unsupported value
+to a nearby profile.
 
-Substitution is identifier-aware, not raw text replacement.
+## 3. Writing repeatable component source
 
-For an instance named `score1`:
+Every file-scope definition owned by an instance must be named with either the
+exact identifier `TEMPLATE` or the leading prefix `TEMPLATE_`.
+
+Typical component source looks like:
+
+```c
+parameter enabled := 1;
+
+enum TEMPLATE_contract {
+   TEMPLATE_ENABLED := TEMPLATE_enabled
+};
+
+uint8_t TEMPLATE_state;
+
+static inline void TEMPLATE_prepare(void) {
+   TEMPLATE_state := 0;
+}
+
+inline void TEMPLATE_update(void) {
+#if TEMPLATE_enabled
+   TEMPLATE_prepare();
+#endif
+}
+```
+
+For an instance named `foo`, identifier rewriting is:
 
 ```text
-TEMPLATE          -> score1
-TEMPLATE_score    -> score1_score
-TEMPLATE_update   -> score1_update
+TEMPLATE          -> foo
+TEMPLATE_state    -> foo_state
+TEMPLATE_prepare  -> foo_prepare
+TEMPLATE_update   -> foo_update
 ```
 
-The recognized forms are exactly:
-
-- the complete identifier `TEMPLATE`;
-- an identifier beginning with `TEMPLATE_`.
-
-The compiler must not replace an arbitrary occurrence in the middle of another
-identifier:
+Rewriting is identifier-aware, not arbitrary text replacement. These do not
+change:
 
 ```text
-MY_TEMPLATE_HELPER    -> unchanged
-NOTTEMPLATE_score     -> unchanged
+MY_TEMPLATE_HELPER
+NOTTEMPLATE_state
 ```
 
-Comments and string literals remain unchanged:
+Comments and quoted strings also remain unchanged.
+
+### What must carry the prefix
+
+Directly instantiated source must qualify instance-owned file-scope names,
+including:
+
+- functions;
+- objects and tables;
+- typedef names;
+- structure, union, and enum tags;
+- enum constants;
+- source-visible nonlocal assembler symbols.
+
+The compiler rejects an unqualified instance-owned file-scope definition because
+multiple instances would otherwise collide or accidentally share state.
+
+The prefix rule does **not** apply to:
+
+- function locals;
+- function parameters;
+- aggregate members;
+- instantiation-parameter declaration names such as `lines`;
+- assembler-local `@labels`.
+
+### Shared support belongs in `include`
+
+A component may ordinarily include shared support:
 
 ```c
-/* TEMPLATE_score remains documentation. */
-uint8_t *text := "TEMPLATE_score";
+include "vcs.c26"
 ```
 
-Rewriting occurs before ordinary identifier classification, type lookup, and
-UTF-8-to-assembler mangling. This permits instance-prefixed functions, objects,
-types, enum tags, enum constants, aliases, and tables.
+Ordinary included files keep normal include-once behavior even while an
+instantiation is active. Definitions originating from an ordinary included
+support file are not treated as instance-owned definitions and therefore do not
+need a `TEMPLATE_` prefix.
 
-### Inline assembly
+Use this distinction deliberately:
 
-Instance-local identifiers used by inline assembly must be rewritten on
-assembler-identifier boundaries:
+- `instantiate` for state or code that must exist independently per instance;
+- `include` for genuinely shared declarations, types, constants, and helpers.
+
+Do not duplicate common support inside every instance merely to satisfy the
+prefix rule.
+
+## 4. `include` versus `instantiate`
+
+`include` and `instantiate` intentionally have different repetition semantics.
+
+### `include`
 
 ```c
-asm lda TEMPLATE_score;
+include "support.c26"
+```
+
+An included file is processed once per translation unit. Identity is based on
+the file contents, so identical included content is suppressed even if reached
+through different paths.
+
+### `instantiate`
+
+```c
+instantiate "component.c26" as a
+instantiate "component.c26" as b
+```
+
+The component source is processed once for each invocation. Instantiation does
+not consult or update the ordinary include-once set.
+
+Includes encountered *inside* that component still use normal include-once
+semantics.
+
+Nested instantiations are supported. Recursive instantiation cycles are
+rejected.
+
+## 5. Aliases and inline assembly
+
+Alias names, alias parameters, and identifier tokens in alias replacement text
+participate in instance rewriting. Per-instance aliases should therefore use
+`TEMPLATE_` names just like the state they expose. Identifier tokens in inline assembly
+participate in the same rewriting.
+
+For example:
+
+```c
+alias TEMPLATE_PLAYER_X TEMPLATE_object_x[0]
+
+asm lda TEMPLATE_state;
 asm jsr TEMPLATE_helper;
 ```
 
-becomes the equivalent of:
+inside an instance named `game` refers to `game_object_x`, `game_state`, and
+`game_helper`.
 
-```c
-asm lda score1_score;
-asm jsr score1_helper;
-```
+Declared instantiation parameters are substituted as literals where their
+`TEMPLATE_name` appears in supported alias or inline-assembly identifier
+contexts.
 
-This rewriting is implemented before ordinary inline-assembly source-name
-resolution and UTF-8 assembler-safe mangling. Inline assembly remains otherwise
-opaque to compiler peephole optimization: the pass cannot alter instructions in
-the block or carry machine-state facts across it. Quoted assembler data and
-unrelated identifier substrings remain unchanged.
+The rewriting is still token-aware. Quoted assembler data and unrelated
+identifier substrings are not changed. Inline assembly remains opaque to the
+compiler's normal peephole reasoning except for this source-name rewriting and
+normal assembler integration.
 
-Assembler-local `@labels` remain governed by the existing inline-assembly and
-assembler hygiene rules.
+Assembler-local `@labels` do not need an instance prefix. Source-visible
+nonlocal assembler labels do.
 
-### Instantiation hygiene
+## 6. Public use contracts: `require` and `recommend`
 
-Every instance-owned file-scope definition in directly instantiated source must use either
-`TEMPLATE` or the `TEMPLATE_` prefix. This includes:
-
-- functions and objects;
-- private helpers and private state;
-- typedefs, tags, and enum constants;
-- tables;
-- source-visible assembler symbols.
-
-The compiler rejects an unqualified file-scope definition created directly
-inside an instantiation instance, because two instances would otherwise collide or
-silently share state. Shared declarations should come from an ordinary included
-support file rather than being redefined by each instantiation instance.
-
-The directly-instantiated/source provenance is retained separately from the active
-instantiation instance. Consequently an ordinary included support file is exempt
-even when it is read while an instantiation instance is active. Function locals,
-parameters, aggregate members, and assembler-local `@labels` are not
-file-scope instance names and remain unrestricted. Nonlocal assembler labels
-defined by inline assembly are source-visible and therefore require the same
-prefix discipline.
-
-## Standard display-component contract
-
-Reusable display components should expose four lifecycle functions:
+A reusable component can mark file-scope functions or objects that its caller is
+expected to use.
 
 ```c
 require inline void TEMPLATE_init(void) {
 }
 
-require inline void TEMPLATE_vblank(void) {
-}
-
 require inline void TEMPLATE_draw(void) {
 }
 
-require inline void TEMPLATE_overscan(void) {
+recommend uint8_t TEMPLATE_color := 0x0e;
+```
+
+`require` means that a linked application must make a reachable semantic use of
+the declaration from outside the component instance. If it does not, linking
+fails.
+
+`recommend` uses the same external-use test but produces a linker warning rather
+than an error when unused.
+
+For functions, a real reachable direct call counts as use. Inline calls count
+even when no `JSR` remains in the generated machine code.
+
+For objects, reads, writes, address-taking, and `ref` use count. A component's
+own internal references to its public state do not satisfy the contract; the
+application has to use the API itself.
+
+This matters for components such as `six_glyph_component.c26`:
+
+```c
+recommend bcd24_t TEMPLATE_score := 0;
+```
+
+The component reads the score internally when preparing glyph pointers, but that
+does not pretend the application has supplied or intentionally used the score.
+
+Use `require` for operations that are necessary for correct integration. Use
+`recommend` for public state or helpers that are normally meaningful to an
+application but may legitimately be left at their default.
+
+`require` and `recommend` are ordinary VCSC declaration contracts; they are not
+limited to instantiated source. In a template, however, the contract owner is
+the individual instance, so `score1_draw` and `score2_draw` are checked
+independently.
+
+## 7. Maintained VCS display-component convention
+
+VCSC's maintained visible renderers and score components use instantiation to
+provide a common lifecycle. A display component normally exports:
+
+```c
+require inline void TEMPLATE_init(void);
+require inline void TEMPLATE_vblank(void);
+require inline void TEMPLATE_draw(void);
+require inline void TEMPLATE_overscan(void);
+```
+
+The four names are a project component convention, not special parser syntax.
+The `require` declarations make omission of a lifecycle phase a link-time error.
+
+Typical application structure is:
+
+```c
+game_init();
+score_init();
+
+while (1) {
+   vcs_ntsc_vsync();
+
+   vcs_ntsc_begin_vblank();
+   game_vblank();
+   score_vblank();
+   vcs_ntsc_end_vblank();
+
+   score_draw();
+   vcs_ntsc_component_handoff();
+   game_draw();
+
+   vcs_ntsc_begin_overscan();
+   game_overscan();
+   score_overscan();
+   vcs_ntsc_end_overscan();
 }
 ```
 
-An empty phase remains an empty inline function. Requiring all four calls gives
-components one uniform interface without paying `JSR`/`RTS` overhead for empty
-or inlined phases.
+The frame scheduler owns VSYNC, VBLANK transitions, and the frame timer. A
+component owns only the work documented for its lifecycle phases.
 
-### `TEMPLATE_init()`
+### Machine-readable component contract
 
-Called exactly once before entering the frame loop.
-
-Expected contract:
-
-- VBLANK is asserted;
-- no scanline deadline is active;
-- initializes instance-owned persistent state;
-- returns with the hardware stack balanced;
-- returns with decimal mode clear.
-
-### `TEMPLATE_vblank()`
-
-Called once per frame after the application scheduler asserts VBLANK and starts
-the shared vertical-blank deadline, but before visible drawing.
-
-Expected contract:
-
-- prepares data used by the current visible frame;
-- VBLANK is asserted;
-- the caller owns and has already started the blanking timer;
-- all component `vblank()` calls share the remaining 37-scanline budget;
-- the function returns before the shared deadline expires;
-- the function does not write VBLANK, a RIOT timer-start register, INTIM, or
-  TIMINT, does not wait on the scheduler's timer, and does not perform the final
-  phase transition;
-- it may use WSYNC for bounded internal scheduling, but every stalled cycle
-  consumes the already-running shared VBLANK deadline and must be included in
-  `TEMPLATE_VBLANK_MAX_CYCLES`;
-- returns with the hardware stack balanced;
-- returns with decimal mode clear.
-
-The scheduler must start the deadline before invoking the first component. It
-must not spend all 37 blank scanlines first and then call `vblank()`: that would
-run component preparation outside the nominal vertical-blank interval and could
-clear VBLANK in the middle of a scanline.
-
-### `TEMPLATE_draw()`
-
-Called once per frame in the application's selected visible-component order.
-
-Expected contract:
-
-- enters at the target's documented visible-component phase; for the shared
-  NTSC scheduler this is CPU cycle 3, supplied by `vcs_ntsc_end_vblank()` for
-  the first component or `vcs_ntsc_component_handoff()` between components;
-- VBLANK is clear;
-- produces exactly `TEMPLATE_VISIBLE_SCANLINES` scanlines;
-- exits at CPU cycle zero of the following scanline;
-- returns with the hardware stack balanced;
-- returns with decimal mode clear;
-- leaves any enabled TIA graphics in its documented exit state.
-
-`draw` is preferred over naming the function `scanlines`: the function performs
-the drawing, while the exact scanline count is separate machine-readable
-metadata.
-
-### `TEMPLATE_overscan()`
-
-Called once per frame after visible drawing and after VBLANK is asserted.
-
-Expected contract:
-
-- the caller owns and has started the overscan timer;
-- performs work whose results normally affect the next frame;
-- does not write VBLANK, a RIOT timer-start register, INTIM, or TIMINT, wait on
-  the scheduler's timer, or perform the final phase transition;
-- may use WSYNC for bounded internal scheduling, with every stalled cycle
-  included in `TEMPLATE_OVERSCAN_MAX_CYCLES` and charged to the shared deadline;
-- returns with the hardware stack balanced;
-- returns with decimal mode clear.
-
-### Do not standardize `update()`
-
-A generic `update()` call cannot express when data becomes visible or prove that
-it was called after every state change. Preparation should normally occur in
-`vblank()` or `overscan()`.
-
-A component that needs an immediate operation may expose a component-specific
-setter or helper, for example:
-
-```c
-inline void TEMPLATE_set_score(bcd24_t value);
-```
-
-Such helpers are not part of the universal four-phase lifecycle.
-
-The maintained conformance fixture is
-`test/fixtures/templates/lifecycle_component.c26`. Its positive regression
-instantiates two independent components, calls all four phases, and consumes all
-three timing constants. Four negative link regressions omit one lifecycle call
-at a time and require the corresponding source-level `require` diagnostic. The
-fixture also leaves a component-specific setter unused, proving that helpers
-outside the universal lifecycle do not accidentally become mandatory.
-
-## Machine-readable scanline count
-
-The exact visible line count must not live only in prose. A display component
-should export a compile-time constant such as:
+Maintained visible components publish an instance-qualified contract enum. The
+common fields include:
 
 ```c
 enum TEMPLATE_contract {
-    TEMPLATE_VISIBLE_SCANLINES := 12,
-    TEMPLATE_VBLANK_MAX_CYCLES := 300,
-    TEMPLATE_OVERSCAN_MAX_CYCLES := 300
+   TEMPLATE_VISIBLE_SCANLINES := 11,
+   TEMPLATE_DRAW_ENTRY_CYCLE := 3,
+   TEMPLATE_DRAW_RETURN_CYCLE := 0,
+   TEMPLATE_DRAW_COMPLETE_SCANLINES := 11,
+   TEMPLATE_DRAW_PARTIAL_ENTRY_CYCLES := 0,
+   TEMPLATE_DRAW_PARTIAL_EXIT_CYCLES := 0,
+   TEMPLATE_DRAW_TERMINAL_WSYNC := 1,
+   TEMPLATE_DRAW_HMOVE_COUNT := 1,
+   TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE := 1,
+   TEMPLATE_VBLANK_MAX_CYCLES := 260,
+   TEMPLATE_OVERSCAN_MAX_CYCLES := 0
 };
 ```
 
-`TEMPLATE_VBLANK_MAX_CYCLES` and `TEMPLATE_OVERSCAN_MAX_CYCLES` are
-conservative worst-case work bounds, not private timers. The application
-scheduler owns both phase deadlines and may eventually use the declared maxima
-to reject or warn about a composition whose combined work cannot fit.
-
-Two instances then provide independent names:
+An instance named `score` exports names such as
+`score_VISIBLE_SCANLINES`. Parameterized renderers commonly set these fields
+from the selected compile-time profile, for example:
 
 ```c
-score1_VISIBLE_SCANLINES
-score2_VISIBLE_SCANLINES
+TEMPLATE_VISIBLE_SCANLINES := TEMPLATE_lines
 ```
 
-The application can calculate remaining visible lines without duplicating a
-magic number:
+The enum is part of the component's documented and regression-tested public
+contract. Renderer authors should follow `libraries/vcs/renderers/AUTHORING.md`
+for the complete timing, TIA ownership, RAM/ROM, stack, page, and branch-timing
+requirements.
+
+## 8. A small complete template
+
+This example shows required and defaulted parameters, per-instance state, a
+public use contract, and compile-time selection without any runtime parameter
+storage:
 
 ```c
-wait_scanlines(
-    192
-    - score1_VISIBLE_SCANLINES
-    - score2_VISIBLE_SCANLINES
-);
-```
+// demo_component.c26
+parameter rows;
+parameter enabled := 1;
 
-The source comments and component README must still state the expected entry and
-exit cycles and explain what those lines contain.
+#if TEMPLATE_rows == 8
+alias TEMPLATE_ROW_BYTES 8
+#elif TEMPLATE_rows == 16
+alias TEMPLATE_ROW_BYTES 16
+#else
+extern const uint8_t TEMPLATE_rows_must_be_8_or_16[TEMPLATE_bad_rows];
+#endif
 
-## Resource and timing contract
+enum TEMPLATE_contract {
+   TEMPLATE_ROWS := TEMPLATE_rows,
+   TEMPLATE_ENABLED := TEMPLATE_enabled
+};
 
-Lifecycle names and scanline counts alone do not prove that display components
-can be freely reordered. Every component must document and test:
+recommend uint8_t TEMPLATE_value := 0;
+uint8_t TEMPLATE_work;
 
-- exact visible scanline count;
-- entry and exit cycle;
-- TIA registers read and written;
-- TIA state left behind;
-- A, X, Y, and status-flag clobbers;
-- hardware-stack behavior;
-- instance RAM and shared RAM requirements;
-- ROM cost;
-- page containment, alignment, adjacency, and indexed-range requirements;
-- `.same`, `.cross`, or `.flex` annotations on timing-sensitive relative
-  branches whose taken-page behavior is part of the cycle contract;
-- conservative maximum VBLANK and overscan cycle counts;
-- ownership of VBLANK, phase-transition WSYNC, and the RIOT timer/status
-  registers, plus any bounded internal WSYNC use during blanking callbacks;
-- collision-latch assumptions;
-- whether another component must clear or preserve particular graphics.
+require inline void TEMPLATE_init(void) {
+   TEMPLATE_work := 0;
+}
 
-The first implementation may keep most of this contract in documentation and
-regression tests. A later linker-visible component manifest may make selected
-resource conflicts machine-checkable.
-
-## Example composition
-
-A two-instance score application should be expressible approximately as:
-
-```c
-instantiate "six_glyph_component.c26" as score1
-instantiate "six_glyph_component.c26" as score2
-
-void main(void) {
-    score1_init();
-    score2_init();
-
-    score1_score := 5;
-    score2_score := 15;
-
-    while (1) {
-        vcs_ntsc_vsync();
-
-        vcs_ntsc_begin_vblank();
-
-        score1_vblank();
-        score2_vblank();
-
-        vcs_ntsc_end_vblank();
-
-        vcs_ntsc_wait_scanlines(81);
-        score1_draw();
-        score2_draw();
-        vcs_ntsc_wait_scanlines(
-            VCS_NTSC_VISIBLE_SCANLINES
-            - 81
-            - score1_VISIBLE_SCANLINES
-            - score2_VISIBLE_SCANLINES
-        );
-
-        vcs_ntsc_begin_overscan();
-
-        score1_overscan();
-        score2_overscan();
-
-        vcs_ntsc_end_overscan();
-    }
+inline void TEMPLATE_prepare(void) {
+#if TEMPLATE_enabled
+   TEMPLATE_work := TEMPLATE_value;
+#endif
 }
 ```
 
-The four deadline operations above are supplied by `frame_ntsc.c26`, not by a
-component template. Their low-level timer-wait helper remains private so callers
-cannot accidentally omit the required final WSYNC or VBLANK transition. The end
-operations distinguish an unexpired timer from RIOT underflow/wrap, wait only for
-unused time, perform the phase-ending alignment, and return `void`. A bare
-`while (INTIM)` loop is not sufficient after arbitrary component work because an
-already-underflowed timer can wrap and appear nonzero again.
+A caller can create two differently configured copies:
 
-A missed deadline cannot be repaired generically. The production scheduler stops
-waiting, aligns at the next WSYNC, and continues with one long frame. It does not
-spend ROM and RAM constructing a status most cartridges cannot use. Diagnostic
-builds may define `alias VCS_NTSC_DIAGNOSTICS 1` before including
-`frame_ntsc.c26`; that adds a sticky `vcs_ntsc_overrun_flags` byte with separate
-VBLANK and overscan bits. Production builds omit the byte and all flag-setting
-code.
+```c
+include "vcs.c26"
 
-The scheduler uses the standard NTSC 37-line VBLANK and 30-line overscan
-preloads. Component contracts still determine whether their combined worst-case
-work fits those budgets.
+instantiate "demo_component.c26" as small (rows:=8)
+instantiate "demo_component.c26" as large (rows:=16, enabled:=0)
 
-## Required regression strategy
+void main(void) {
+   small_value := 1;
+   large_value := 2;
 
-### Declaration contracts
+   small_init();
+   large_init();
 
-Tests must cover:
+   small_prepare();
+   large_prepare();
+}
+```
 
-- required function called and not called;
-- recommended function called and not called;
-- required object read, written, addressed, and unused;
-- internal instance references not satisfying an external-use contract;
-- unreachable external references not satisfying a contract;
-- `require` dominating `recommend` on merged declarations;
-- incompatible redeclarations retaining ordinary type errors;
-- contracts in unselected archive members remaining silent;
-- exact file, line, type, symbol, and instance diagnostics;
-- true inline calls satisfying function contracts without a `JSR` relocation.
+The generated source-level interface is independent:
 
-### Source instantiation
+```text
+small_value      large_value
+small_work       large_work
+small_init       large_init
+small_prepare    large_prepare
+small_ROWS       large_ROWS
+```
 
-Tests must cover:
+## 9. Common mistakes
 
-- two instances of the same source in one translation unit;
-- distinct instance storage and functions;
-- exact `TEMPLATE` and `TEMPLATE_` rewriting;
-- no middle-of-identifier replacement;
-- comments and strings remaining unchanged;
-- UTF-8 instance identifiers and assembler-safe mangling;
-- ordinary includes inside instantiated source remaining include-once;
-- repeated instantiations bypassing the MD5-seen set;
-- nested instantiation contexts and recursion/nesting diagnostics;
-- unqualified file-scope definitions rejected by instantiation hygiene;
-- inline-assembly instance identifiers rewritten while the assembly itself
-  remains opaque to peephole optimization;
-- required parameters, defaults, explicit overrides, and parameter substitution;
-- missing required, unknown, duplicate, and non-integer arguments rejected;
-- duplicate parameter declarations and declarations outside directly instantiated
-  source rejected;
-- an instantiation immediately before a preprocessor directive preserves the
-  newline and directive boundary;
-- the retired `template` keyword is rejected.
+### Using the retired keyword
 
-### Display composition
+Wrong:
 
-The first real component conversion should prove:
+```c
+template "component.c26" as game
+```
 
-- one six-glyph component behaves exactly as its non-instantiated predecessor;
-- two instances maintain independent scores and private state;
-- both instances coexist within measured RAM, ROM, and stack budgets;
-- the application may draw instance 1 above instance 2 or reverse the order;
-- both draw orders build and hold exact scheduler-driven 262-line frames from
-  the source tree and staged installed toolchain;
-- exact scanline counts, entry/exit cycles, glyph order, colors, and TIA writes;
-- the VBLANK deadline starts before the first `vblank()` call, all component
-  callbacks fit within the shared budget, and VBLANK clears at cycle zero only
-  after the scheduler's final WSYNC;
-- deliberate overruns stop waiting on wrapped timer state, continue at the next
-  scanline boundary, and set sticky phase bits only in diagnostic builds;
-- component callbacks do not take ownership of VBLANK, the final phase-
-  transition WSYNC, or the RIOT timer; bounded internal WSYNC use is charged to
-  the shared blanking deadline;
-- lifecycle calls are all externally visible to `require` checking;
-- omitting any one of `score1_init()`, `score1_vblank()`, `score1_draw()`,
-  or `score1_overscan()` produces the corresponding component-specific link
-  error;
-- omitting a recommended score-state use produces only a warning;
-- source and installed-toolchain builds behave identically.
+Right:
 
-## Implementation sequence
+```c
+instantiate "component.c26" as game
+```
 
-Implement this as vertical slices rather than one parser-to-renderer leap:
+### Adding a semicolon after `instantiate`
 
-1. Add `require` and `recommend` to declaration parsing and type-compatible
-   declaration merging, but initially emit metadata only.
-2. Extend o26 metadata with declaration contracts and source locations; prove
-   assembly, archive, and linker round trips before enforcing anything.
-3. Emit semantic function/object use records, including true inline calls and
-   reads/writes that produce no ordinary relocation.
-4. Add linker enforcement after archive selection and reachability analysis,
-   with exact error/warning diagnostics.
-5. Add `instantiate "file" as instance` using the ordinary include path but
-   bypassing the MD5-seen set. **Complete.**
-5a. Add `parameter name;` required arguments and `parameter name := literal;`
-   optional/default arguments, with strict missing/unknown/duplicate validation
-   and `(name:=literal, ...)` invocation syntax. Remove the former `template`
-   keyword rather than maintaining two spellings. **Complete.**
-6. Add controlled `TEMPLATE`/`TEMPLATE_` identifier rewriting and reject
-   unqualified instance-owned file-scope definitions while exempting ordinary
-   included support declarations. **Complete.**
-7. Extend rewriting to identifier operands in inline assembly without exposing
-   the block to compiler peephole optimization, and enforce hygiene on
-   source-visible nonlocal assembler labels. **Complete.**
-8. Standardize `init`, `vblank`, `draw`, `overscan`,
-   `VISIBLE_SCANLINES`, and conservative VBLANK/overscan maximum-cycle metadata.
-   **Complete.** Lifecycle names, required-call contracts, timing constants,
-   scheduler-owned deadlines, underflow-safe remaining-time waits, optional
-   overrun diagnostics, and exact NTSC phase regressions are maintained together.
-9. Convert the existing six-glyph display into the first reusable component and
-   prove two independent instances in both draw orders.
-10. Update the renderer-authoring documentation after the implementation has
-    established real constraints and examples.
+Wrong:
 
-Each slice must leave the complete existing test suite green and must add focused
-negative tests before relying on the new contract for maintained renderers.
+```c
+instantiate "component.c26" as game;
+```
+
+Right:
+
+```c
+instantiate "component.c26" as game
+```
+
+### Using `=` for an instantiation argument
+
+Wrong:
+
+```c
+instantiate "component.c26" as game (lines=181)
+```
+
+Right:
+
+```c
+instantiate "component.c26" as game (lines:=181)
+```
+
+### Treating parameters as runtime variables
+
+`parameter lines;` creates a compile-time substitution, not a byte of storage.
+Use `TEMPLATE_lines` in constant expressions and `#if` selection. Declare a
+normal `TEMPLATE_` object if the application must change a value at runtime.
+
+### Forgetting the prefix on instance-owned file-scope names
+
+Wrong inside directly instantiated source:
+
+```c
+uint8_t state;
+inline void helper(void) { }
+```
+
+Right:
+
+```c
+uint8_t TEMPLATE_state;
+inline void TEMPLATE_helper(void) { }
+```
+
+### Using `instantiate` for shared support
+
+If a declaration should exist only once and be shared by every instance, put it
+in an ordinarily included support file. Instantiating it repeatedly is the wrong
+ownership model.
+
+### Assuming one instance can satisfy another instance's contract
+
+It cannot. `require` and `recommend` are checked per contract owner. Calling
+`score1_draw()` does not satisfy `score2_draw()`.
+
+## 10. Current examples worth copying
+
+For real source rather than toy syntax, start with:
+
+- `libraries/vcs/renderers/all_five/all_five.c26` for a required `lines`
+  parameter and three compile-time renderer profiles;
+- `libraries/vcs/renderers/player_color/player_color.c26` for another
+  parameterized renderer with the same public API across profiles;
+- `libraries/vcs/renderers/multisprite/multisprite.c26` for a parameterized
+  timing-sensitive renderer;
+- `libraries/vcs/six_glyph_component.c26` for defaulted feature parameters,
+  `require` lifecycle hooks, and `recommend` public state;
+- `examples/11_all_five_170/01_score_above_and_below/01_interactive/` for one
+  renderer plus two independent instances of the same score component;
+- `examples/04_player_color_181/01_score_above/01_interactive/` for a typical
+  renderer-plus-score composition;
+- `test/fixtures/templates/lifecycle_component.c26` for the minimal maintained
+  four-phase lifecycle fixture;
+- `test/fixtures/instantiation_parameters/` for focused parameter examples and
+  diagnostics.
+
+Those files describe the mechanism VCSC actually uses today. `TEMPLATE.md` is a
+guide to that implemented behavior, not a proposal or implementation roadmap.

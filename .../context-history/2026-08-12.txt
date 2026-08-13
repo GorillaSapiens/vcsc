@@ -16,3 +16,7 @@ The terminal reflected pair is locked to the canonical PF2@40 / PF1@47 trace.
 Two terminal-lookahead padding bytes raise the component contract to 88 bytes;
 static examples are 3754 ROM / 114 RAM and interactive examples are 4058 ROM /
 123 RAM.
+2026-08-12 17:12:07 PDT, Rewrite TEMPLATE.md as implemented HOWTO
+  Replaced proposal/roadmap text with current instantiate, parameter,
+  hygiene, use-contract, lifecycle, and real-example guidance.
+  Focused template tests: 26 compile + 15 e2e passed.
