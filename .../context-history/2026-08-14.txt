@@ -106,3 +106,22 @@ frames. vcs_pong.cpp now permanently probes the formerly failing 200/200 and
 200/160 combinations; the old ROM fails that regression and the fixed ROM
 passes. The cartridge is 3669 ROM / 92 RAM. All 492 compile tests pass; the
 full E2E run reached 110/288 with no failures before the execution timeout.
+
+2026-08-14 16:34:16 PDT, Timer-own blank example blanking
+Changed examples/01_basic/02_blank_noasm so VBLANK and overscan demonstrate
+RIOT TIM64T budgets instead of 37- and 30-line WSYNC countdowns. The example
+now starts TIM64T, leaves the blanked interval available for game logic, waits
+on TIMINT.7 only after useful work is done, and uses one WSYNC to align the
+phase boundary. Calibrated preloads remain 42 for VBLANK and 34 for overscan.
+Updated the README, blank-example regression, and generic timing harness TIMINT
+model. The source-only cartridge is 501 ROM / 18 RAM and remains exactly 262
+scanlines in the timing oracle.
+
+2026-08-14 16:38:00 PDT, Fix blank timer Stella frame tail
+The timer-based blank_noasm example omitted the two blanked WSYNC boundaries
+that frame_ntsc.c26 already documents as necessary for Stella TIA frame
+accounting. The CPU-only harness therefore saw 262 raw lines while Stella
+reported 260 displayed lines. Kept TIM64T=42/34 as the game-logic budgets and
+changed the overscan tail to one alignment WSYNC plus two compensation WSYNCs.
+The harness now pins 264 raw lines, calibrated to Stella's stable 262-line NTSC
+display. The source-only example is 505 ROM / 18 RAM.

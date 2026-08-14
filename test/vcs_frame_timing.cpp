@@ -32,6 +32,7 @@ constexpr uint16_t kAudc0 = 0x0015;
 constexpr uint16_t kAudf0 = 0x0017;
 constexpr uint16_t kAudv0 = 0x0019;
 constexpr uint16_t kIntim = 0x0284;
+constexpr uint16_t kTimint = 0x0285;
 constexpr uint16_t kTim1t = 0x0294;
 constexpr uint16_t kTim8t = 0x0295;
 constexpr uint16_t kTim64t = 0x0296;
@@ -81,6 +82,13 @@ uint8_t timer_value(uint64_t cycle) {
 }
 
 uint8_t read_bus(uint16_t address) {
+   if (address == kTimint) {
+      if (!timer_active) {
+         return memory_image[kTimint];
+      }
+      const uint64_t ticks = (virtual_cycles - timer_start) / timer_divisor;
+      return ticks > timer_loaded ? 0x80 : 0x00;
+   }
    if (address == kIntim) {
       if (timer_active) {
          const uint64_t ticks = (virtual_cycles - timer_start) / timer_divisor;

@@ -215,14 +215,21 @@ Renderer and example state
   discovery must recurse; never assume one directory below `examples/`.
 * `examples/01_basic` is ordered as `01_blank_screen`, `02_blank_noasm`,
   `03_ode_to_joy`, `04_score`, `05_fingerprint`, and `06_wide_score`. The
-  source-only blank example uses constant nonzero `uint8_t` `for` countdowns
-  such as `for (uint8_t i := 192; i; i--)`; the compiler keeps those lexical
-  counters entirely in X when the straight-line body is proven X-safe. Bare
-  one-byte discard stores `foo := _;` are generally eligible because fixed-address
-  lowering is a register/flag-transparent `STA`; `WSYNC := _;` is only the hardware
-  instance of that rule. The maintained
-  build is 445 ROM / 22 RAM versus 449 ROM / 22 RAM for `01_blank_screen`, and
-  the source-only frame remains timing-regressed at exactly 262 scanlines.
+  source-only blank example keeps VSYNC and its 192-line visible region as
+  constant nonzero `uint8_t` `for` countdowns such as
+  `for (uint8_t i := 192; i; i--)`; the compiler keeps those lexical counters
+  entirely in X when the straight-line body is proven X-safe. VBLANK and
+  overscan instead demonstrate RIOT timer-owned game-logic budgets: `TIM64T=42`
+  and `TIM64T=34`, followed by `TIMINT.7` polling. VBLANK uses one boundary
+  `WSYNC`; overscan uses one alignment `WSYNC` plus the two additional blanked
+  boundaries required by Stella's TIA frame accounting, matching
+  `frame_ntsc.c26`. Useful logic can therefore consume blanking time without a
+  WSYNC loop. Bare one-byte
+  discard stores `foo := _;` are generally eligible because fixed-address
+  lowering is a register/flag-transparent `STA`; `WSYNC := _;` is only the
+  hardware instance of that rule. The maintained source-only build is
+  505 ROM / 18 RAM. Its CPU harness interval is 264 raw lines, calibrated to
+  Stella's authoritative stable 262-line NTSC display.
 * Every public leaf example has one editable cartridge source, one Makefile, and
   one README. Source/cartridge names are descriptive and independent of local
   directory numbering.
@@ -501,7 +508,8 @@ workspace bytes, four persistent gallery bytes, 39 renderer-state bytes, and a f
 hardware stack; every `$80-$FF` address remains classified by the golden ledger. The
 compiler-only suite now contains **473** tests and the end-to-end suite **268**, including
 the >255-byte startup COPY/ZERO regression. The source-only blank-frame regression pins
-four X-backed scanline countdowns, <=487 ROM / 18 RAM, and exact 262-line timing. Recursive public examples,
+two X-backed VSYNC/visible countdowns plus timer-owned VBLANK/overscan deadlines,
+<=520 ROM / 18 RAM, and exact 262-line timing. Recursive public examples,
 staged `installcheck`, focused simulator/raster/accounting oracles, source hygiene,
 and the reviewed Stella 7.0 player-color-192 certification remain green. Source-tree hygiene
 treats same-stem `.cfg` files emitted beside public example ROMs as linker/Stella

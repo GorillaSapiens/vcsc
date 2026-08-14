@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 20
-# expectstdout: vcs_blank_noasm ok: X-backed source countdowns use <=487 ROM bytes and preserve exact 262-line frames
+# expectstdout: vcs_blank_noasm ok: timer-owned blanking and X-backed visible countdown preserve exact 262-line frames
 # expectexit: 0
 
 use strict;
@@ -54,10 +54,18 @@ my $mos_source=File::Spec->catfile($mos_dir,'mos6502.cpp');
 my $mos_obj=File::Spec->catfile($mos_dir,'mos6502.o');
 
 my $text=read_file($source);
-for my $count (3,37,192,30) {
+for my $count (3,192) {
    $text =~ /for\s*\(\s*uint8_t\s+i\s*:=\s*$count\s*;\s*i\s*;\s*i--\s*\)\s*\{\s*WSYNC\s*:=\s*_\s*;/s
       or die "blank_noasm no longer uses the X-backed $count-line source countdown\n";
 }
+$text !~ /for\s*\(\s*uint8_t\s+i\s*:=\s*(?:37|30)\s*;/
+   or die "blank_noasm regressed to WSYNC-counted blanking\n";
+$text =~ /TIM64T\s*:=\s*42\s*;/ && $text =~ /TIM64T\s*:=\s*34\s*;/
+   or die "blank_noasm lost calibrated VBLANK/overscan TIM64T deadlines\n";
+$text =~ /TIM64T\s*:=\s*34\s*;.*?while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\).*?WSYNC\s*:=\s*_\s*;.*?WSYNC\s*:=\s*_\s*;.*?WSYNC\s*:=\s*_\s*;/s
+   or die "blank_noasm lost Stella-calibrated three-WSYNC overscan tail\n";
+my @timer_waits=($text =~ /while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\)/g);
+@timer_waits == 2 or die "blank_noasm must wait on TIMINT in both blanking phases\n";
 $text !~ /\basm\b/
    or die "blank_noasm contains inline assembly\n";
 
@@ -65,7 +73,7 @@ my ($exit,$sig,$out,$err)=run_capture($driver,'-I',$vcs,$source,'-o',$bin);
 die "blank_noasm build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 $out =~ /\brom\s+used=(\d+)\s+bytes/ or die "blank_noasm build did not report ROM usage\n$out";
 my $rom_used=$1;
-$rom_used <= 487 or die "blank_noasm uses $rom_used ROM bytes; post-startup-rewrite budget is 487\n";
+$rom_used <= 520 or die "blank_noasm uses $rom_used ROM bytes; timer-demo budget is 520\n";
 $out =~ /\bram\s+used=(\d+)\s+bytes/ or die "blank_noasm build did not report RAM usage\n$out";
 $1 == 18 or die "blank_noasm uses $1 RAM bytes; expected 18 after the four-byte startup-workspace reduction\n";
 die "blank_noasm build wrote unexpected output\nstdout:\n$out\nstderr:\n$err"
@@ -76,8 +84,12 @@ die "blank_noasm compile exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
 die "blank_noasm compile wrote output\nstdout:\n$out\nstderr:\n$err" if $out ne '' || $err ne '';
 my $asm_text=read_file($asm);
 my @counts=($asm_text =~ /\bldx #\$([0-9a-fA-F]{2})\s+\@for_start_\d+:\s+sta\s+\$02\s+\@for_step_\d+:\s+dex\s+bne \@for_start_\d+/sg);
-@counts == 4 && join(',',map { lc($_) } @counts) eq '03,25,c0,1e'
-   or die "blank_noasm countdowns did not lower to the expected LDX/STA WSYNC/DEX/BNE loops\n";
+@counts == 2 && join(',',map { lc($_) } @counts) eq '03,c0'
+   or die "blank_noasm countdowns did not lower to the expected VSYNC/visible X loops\n";
+$asm_text =~ /lda #\$2a\s+sta\s+\$0296.*?lda\s+\$0285\s+and #\$80\s+beq/s
+   or die "blank_noasm VBLANK timer did not lower to TIM64T/TIMINT polling\n";
+$asm_text =~ /lda #\$22\s+sta\s+\$0296.*?lda\s+\$0285\s+and #\$80\s+beq/s
+   or die "blank_noasm overscan timer did not lower to TIM64T/TIMINT polling\n";
 $asm_text !~ /\bmain\$i\b/
    or die "blank_noasm materialized the X-backed loop index in RAM\n";
 
@@ -87,10 +99,10 @@ $asm_text !~ /\bmain\$i\b/
 die "timing harness compile exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 die "timing harness compile wrote output\nstdout:\n$out\nstderr:\n$err" if $out ne '' || $err ne '';
 
-($exit,$sig,$out,$err)=run_capture($timing_exe,$bin,'45','--no-audio','--raw-lines','262');
+($exit,$sig,$out,$err)=run_capture($timing_exe,$bin,'45','--no-audio','--raw-lines','264');
 die "timing harness exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 $out eq "vcs_frame_timing ok: 42 frames at 262 lines, 0 AUDV0 writes\n"
    or die "blank_noasm lost exact frame timing: $out";
 $err eq '' or die "timing harness stderr: $err";
 
-print "vcs_blank_noasm ok: X-backed source countdowns use <=487 ROM bytes and preserve exact 262-line frames\n";
+print "vcs_blank_noasm ok: timer-owned blanking and X-backed visible countdown preserve exact 262-line frames\n";

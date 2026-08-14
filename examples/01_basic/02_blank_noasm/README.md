@@ -15,8 +15,10 @@ produced by this reduced compiler.
 It calls `choose_background()` using VCSC's fixed-symbol function model: the
 parameter and named local storage are statically allocated, while the local
 initializer runs when control reaches its declaration. The television frame is
-expressed entirely in VCSC source. Each fixed nonzero scanline count uses a
-source-level countdown such as:
+expressed entirely in VCSC source, with no inline assembly.
+
+VSYNC and the 192-line visible region still demonstrate explicit scanline
+countdowns where the beam itself sets the deadline:
 
 ```c
 for (uint8_t i := 192; i; i--) {
@@ -30,6 +32,38 @@ entirely in X, and lowers the loop to `LDX` / `STA WSYNC` / `DEX` / `BNE`.
 is already live without manufacturing a source value. No RAM byte is allocated
 for the lexical loop index.
 
+VBLANK and overscan are different: those are the normal places to run game
+logic. The example therefore starts the RIOT interval timer instead of wasting
+every blanked scanline on `WSYNC`:
+
+```c
+VBLANK := 2;
+TIM64T := 42;
+
+// Read controls, move objects, test collisions, prepare display state, ...
+
+while (!(TIMINT & 0x80)) {
+}
+WSYNC := _;
+VBLANK := 0;
+```
+
+The timer runs while the program does useful work. Only after that work is done
+does the program wait for the unused part of the budget. `TIMINT.7` becomes set
+when the interval expires, so the wait also terminates if the game logic has
+already consumed the deadline instead of accidentally waiting for an `INTIM`
+wraparound. The final `WSYNC` is still useful: it aligns the transition to the
+next scanline.
+
+For this source-level NTSC frame layout, `TIM64T=42` is calibrated for the
+37-line VBLANK budget and `TIM64T=34` for the 30-line overscan budget. After the
+overscan timer expires, one `WSYNC` aligns the boundary and two additional blanked
+`WSYNC` boundaries provide the same Stella TIA frame-accounting compensation used
+by `frame_ntsc.c26`; omitting those two makes Stella report a 260-line / ~60.5 Hz
+frame. They are not part of the game-logic budget. Code added
+inside either budget must finish before the next beam-critical phase; a timer
+makes the available time usable, not infinite.
+
 Build from this directory after building the toolchain:
 
 ```sh
@@ -37,8 +71,7 @@ make
 ```
 
 The result is `blank_noasm.bin`, a raw 4096-byte cartridge image mapped at
-`$F000-$FFFF`, plus `blank_noasm.map`. In the maintained baseline the source-only
-example uses 445 ROM bytes and 22 RAM bytes, versus 449 ROM / 22 RAM for the
-inline-assembly blank-screen example. The display uses a medium blue background
-(`COLUBK=$84`). The frame consists of 262 scanlines: 3 VSYNC, 37 vertical blank,
-192 visible, and 30 overscan.
+`$F000-$FFFF`, plus `blank_noasm.map`. The maintained source-only example uses
+505 ROM bytes and 18 RAM bytes. The display uses a medium blue background
+(`COLUBK=$84`). The frame remains exactly 262 scanlines: 3 VSYNC, 37 vertical
+blank, 192 visible, and 30 overscan.

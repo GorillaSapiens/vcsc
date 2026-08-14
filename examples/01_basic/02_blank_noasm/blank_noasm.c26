@@ -40,22 +40,42 @@ void main(void) {
       }
       VSYNC := 0;
 
-      // 37 scanlines vertical blank
+      // 37 scanlines vertical blank. The RIOT timer owns the deadline, so
+      // useful game logic can run here without spending the phase in WSYNC.
       VBLANK := 2;
-      for (uint8_t i := 37; i; i--) {
-         WSYNC := _;
+      TIM64T := 42;
+
+      // Read controls, update movement/collisions, prepare display state, etc.
+      // The timer keeps running while that work executes.
+
+      // Once the useful work is finished, wait out only the unused budget.
+      // TIMINT.7 is set when the interval timer expires, even if work ran late.
+      while (!(TIMINT & 0x80)) {
       }
+      WSYNC := _;
       VBLANK := 0;
 
-      // 192 visible scanlines
+      // 192 visible scanlines. Visible drawing still has scanline deadlines.
       for (uint8_t i := 192; i; i--) {
          WSYNC := _;
       }
 
-      // 30 scanlines overscan
+      // 30 scanlines overscan: another timer-owned game-logic budget.
       VBLANK := 2;
-      for (uint8_t i := 30; i; i--) {
-         WSYNC := _;
+      TIM64T := 34;
+
+      // Do any remaining per-frame game logic here.
+
+      // Align the next frame only after the overscan deadline expires.
+      while (!(TIMINT & 0x80)) {
       }
+      WSYNC := _;
+
+      // Stella's TIA frame accounting needs two additional blanked scanline
+      // boundaries here. Without them this timer-owned layout is reported as
+      // a 260-line / ~60.5 Hz frame even though the CPU-only interval is 262
+      // lines. These are frame-boundary compensation, not game-logic waits.
+      WSYNC := _;
+      WSYNC := _;
    }
 }
