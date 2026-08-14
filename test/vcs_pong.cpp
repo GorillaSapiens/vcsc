@@ -45,8 +45,10 @@ struct Snapshot {
 
 class Machine {
 public:
-   Machine(const char *rom_path,const std::map<std::string,uint16_t>& a)
-      : cpu_(read_thunk,write_thunk,clock_thunk), a_(a) {
+   Machine(const char *rom_path,const std::map<std::string,uint16_t>& a,
+           int fixed_t0=-1,int fixed_t1=-1)
+      : cpu_(read_thunk,write_thunk,clock_thunk), a_(a),
+        fixed_t0_(fixed_t0), fixed_t1_(fixed_t1) {
       active_=this; std::memset(memory_,0,sizeof(memory_));
       std::ifstream rom(rom_path,std::ios::binary);
       if(!rom) fail("could not open ROM");
@@ -91,6 +93,18 @@ public:
             fail("left paddle escaped legal odd Y range at frame %zu: %u",i,s.left_y);
          if(s.right_y<9 || s.right_y>159 || !(s.right_y&1))
             fail("right paddle escaped legal odd Y range at frame %zu: %u",i,s.right_y);
+         // Once a completed endpoint measurement is visible in the public raw
+         // position, the game must already be displaying that endpoint. This
+         // rejects the former 2-scanline/frame slew that left seconds of queued
+         // motion after the physical paddle stopped.
+         if(s.valid && s.p0<=12 && s.left_y!=9)
+            fail("left paddle lags completed top measurement at frame %zu: raw %u Y %u",i,s.p0,s.left_y);
+         if(s.valid && s.p1<=12 && s.right_y!=9)
+            fail("right paddle lags completed top measurement at frame %zu: raw %u Y %u",i,s.p1,s.right_y);
+         if(s.valid && s.p0>=162 && s.left_y!=159)
+            fail("left paddle lags completed bottom measurement at frame %zu: raw %u Y %u",i,s.p0,s.left_y);
+         if(s.valid && s.p1>=162 && s.right_y!=159)
+            fail("right paddle lags completed bottom measurement at frame %zu: raw %u Y %u",i,s.p1,s.right_y);
          if(i>10 && !s.waiting) saw_serve=true;
          if(!s.waiting && (s.ball_x<4 || s.ball_x>163))
             fail("Ball X wrapped outside stable visible range at frame %zu: %u",i,s.ball_x);
@@ -128,6 +142,27 @@ public:
       if(!saw_reset) fail("console Reset did not clear scores and return to serve");
    }
 
+   void run_timing_only() {
+      constexpr int kFrames=90;
+      constexpr uint64_t kInstructionLimit=100000000;
+      for(uint64_t instructions=0; instructions<kInstructionLimit && frame_<kFrames; ++instructions) {
+         pending_.clear(); const uint64_t before=cpu_cycles_;
+         cpu_.Run(1,cpu_cycles_,mos6502::INST_COUNT);
+         virtual_cycles_ += cpu_cycles_-before;
+         apply_pending();
+      }
+      if(frame_<kFrames) fail("instruction limit before timing probe completed");
+      for(size_t i=4;i<starts_.size();++i) {
+         const uint64_t delta=starts_[i]-starts_[i-1];
+         const uint64_t lines=delta/kCyclesPerLine;
+         if(lines!=kRawFrameLines || delta%kCyclesPerLine)
+            fail("timing probe %d/%d frame %zu is %llu raw lines + %llu cycles, expected %llu lines",
+               fixed_t0_,fixed_t1_,i,static_cast<unsigned long long>(lines),
+               static_cast<unsigned long long>(delta%kCyclesPerLine),
+               static_cast<unsigned long long>(kRawFrameLines));
+      }
+   }
+
 private:
    struct Pending { uint16_t address; uint8_t value; };
    static Machine *active_;
@@ -138,6 +173,7 @@ private:
    bool vsync_=false,vblank_=true,pot_dump_=true,timer_active_=false;
    uint64_t pot_release_=0,timer_start_=0; uint16_t timer_divisor_=1; uint8_t timer_loaded_=0;
    int frame_=-1;
+   int fixed_t0_=-1,fixed_t1_=-1;
 
    static uint8_t read_thunk(uint16_t a){ return active_->read(a); }
    static void write_thunk(uint16_t a,uint8_t v){ active_->write(a,v); }
@@ -158,8 +194,10 @@ private:
       return virtual_cycles_-pot_release_ >= threshold_lines*kCyclesPerLine ? 0x80 : 0;
    }
    uint8_t read(uint16_t a) {
-      if(a==kInpt0) return pot(frame_<105 ? 360 : 12);
-      if(a==kInpt1) return pot(frame_<105 ? 12 : 360);
+      if(a==kInpt0) return pot(fixed_t0_>=0 ? static_cast<uint64_t>(fixed_t0_) :
+                                   static_cast<uint64_t>(frame_<105 ? 360 : 12));
+      if(a==kInpt1) return pot(fixed_t1_>=0 ? static_cast<uint64_t>(fixed_t1_) :
+                                   static_cast<uint64_t>(frame_<105 ? 12 : 360));
       if(a==kSwcha) {
          uint8_t v=0xff;
          if(frame_>=8 && frame_<=10) v&=0x7f; // left paddle fire serves
@@ -230,6 +268,14 @@ int main(int argc,char **argv) {
    const char* names[]={"p0","p1","valid","b0","b1","left_y","right_y","ball_x","ball_y","waiting","left_score","right_score"};
    std::map<std::string,uint16_t> addresses;
    for(int i=0;i<12;++i) addresses[names[i]]=parse_addr(argv[i+2]);
+   // These two midrange combinations reproduce the two historical
+   // paddle-dependent frame-length bugs: simultaneous threshold completion on
+   // one scanline, and a channel-1 completion sharing a line with paddle
+   // transition/bookkeeping. Both must remain at the scheduler's calibrated
+   // 264 raw intervals (Stella: 262 displayed scanlines).
+   Machine simultaneous(argv[1],addresses,200,200); simultaneous.run_timing_only();
+   Machine asymmetric(argv[1],addresses,200,160); asymmetric.run_timing_only();
+
    Machine m(argv[1],addresses); m.run();
    std::puts("vcs_pong ok: stable frames, two-paddle RC span/buttons, serve, score, reset");
    return 0;

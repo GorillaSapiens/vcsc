@@ -41,15 +41,17 @@ $p =~ /PONG_LEFT_SCORE_X := 4/ && $p =~ /PONG_RIGHT_SCORE_X := 163/
 $p =~ /asm bit\.z CXM0P;\s*asm lda #16;\s*asm sec;.*?asm nop;\s*asm nop;\s*asm sta RESP0,x;/s &&
 $p =~ /asm bit\.z CXM0P;\s*asm lda #156;\s*asm sec;.*?asm nop;\s*asm nop;\s*asm sta RESP0,x;/s
    or die "Pong lost calibrated paddle RESP timing\n";
-$p =~ /pong_left_y \+= 2/ && $p =~ /pong_left_y -= 2/ &&
-$p =~ /pong_right_y \+= 2/ && $p =~ /pong_right_y -= 2/
-   or die "Pong lost paddle motion smoothing\n";
+$p =~ /pong_left_y := paddle_target_y\(paddles_position0\)/ &&
+$p =~ /pong_right_y := paddle_target_y\(paddles_position1\)/ &&
+$p !~ /pong_(?:left|right)_y \+= 2/ && $p !~ /pong_(?:left|right)_y -= 2/
+   or die "Pong reintroduced queued paddle motion\n";
 $p =~ /PONG_PADDLE_TOP_Y := 9/ && $p =~ /PONG_PADDLE_BOTTOM_Y := 159/ &&
 $p =~ /PONG_PADDLE_RAW_MIN := 12/ && $p =~ /PONG_BALL_TOP_Y := 8/
    or die "Pong paddle endpoint calibration changed\n";
-$p =~ /paddles_sample0\(\);\s*paddles_sample1\(\);\s*WSYNC := 0;/s &&
+$p =~ /paddles_sample0\(\);\s*WSYNC := 0;/s &&
+$p =~ /paddles_sample1\(\);.*?asm inx;\s*asm sta WSYNC;\s*paddles_advance_pair\(\);/s &&
 $p =~ /Both paddles transition on line B/s
-   or die "Pong paddles lost common vertical raster phase\n";
+   or die "Pong lost split RC sampling or common paddle raster phase\n";
 
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',File::Spec->catdir($repo,qw(examples 01_basic 09_pong)),'-T',File::Spec->catfile($vcs,'vcs.cfg'),'-Map',$mapfile,$source,'-o',$bin);
 $rc==0&&!$sig or die "Pong build failed\n$out$err";

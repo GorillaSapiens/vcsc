@@ -858,11 +858,18 @@ both M0/M1 enable transitions occur in the same raster phase, a small low-end ra
 input dead zone absorbs normal controller endpoint tolerance, and both channels map
 to odd rendered top Y=9..159. The corresponding start/end pairs stay inside the
 visible loop, so a bottom-edge paddle always disables after exactly 16 scanlines
-instead of leaking through the bottom wall. The displayed paddle slews toward the
-latest target by two scanlines per frame, masking sparse multi-frame high-RC
-updates. Ball top travel now starts at drawable Y=8. The emulator oracle swaps the
-long/short RC endpoints between channels so both paddles must reach both extremes,
-checks common M0/M1 raster phase and exact 16-line bottom spans, plus fire-to-serve,
-a deterministic miss/score, Reset, stable Ball ranges, and stable NTSC frame length.
-The current cartridge build uses 3739 ROM bytes and 94 RAM bytes. Item 36 is now
-the first unfinished main-roadmap item.
+instead of leaking through the bottom wall. The game applies each completed raw
+paddle measurement directly; it deliberately does not add a display slew on top of
+the controller's unavoidable RC measurement latency. Ball top travel starts at
+drawable Y=8. The emulator oracle swaps the long/short RC endpoints between channels
+so both paddles must reach both extremes, checks common M0/M1 raster phase and exact
+16-line bottom spans, rejects queued display motion once a completed endpoint is
+visible, plus fire-to-serve, a deterministic miss/score, Reset, stable Ball ranges,
+and stable NTSC frame length. A later timing audit found that RC-completion paths
+are substantially longer than unfinished samples: sampling both channels on one busy
+scanline could add a displayed scanline at some paddle positions. Pong now samples
+channel 0 on line A and channel 1 on line B, then advances the pair clock only after
+the line-B WSYNC. Midrange timing probes 200/200 and 200/160 lock the previously
+failing cases at the scheduler's calibrated 264 raw intervals / Stella 262 displayed
+scanlines. The current cartridge build uses 3669 ROM bytes and 92 RAM bytes. Item 36
+is now the first unfinished main-roadmap item.

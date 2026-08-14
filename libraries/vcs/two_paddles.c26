@@ -18,6 +18,12 @@
 //
 //   ... visible code calls paddles_sample0()/sample1() once per two lines ...
 //
+// A sample that detects the RC threshold takes more CPU cycles than one that
+// is still waiting. In a cycle-counted renderer, budget the completed path as
+// the worst case. In particular, do not put both channel samples on one busy
+// scanline merely because their unfinished paths fit; distribute them across
+// the two lines of a sampling pair when necessary.
+//
 //   vcs_ntsc_begin_overscan();
 //   paddles_account_gap(pairs);    // account any unsampled visible tail
 //   paddles_overscan();            // two more two-line samples + buttons

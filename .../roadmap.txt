@@ -1749,21 +1749,29 @@ but no new workstream should be assumed until the user selects one.
           M0/M1 draw the paddles so the eleven-line `three_plus_three_score_component`
           may own P0/P1 without disturbing gameplay geometry. Follow-up raster polish
           uses the calibrated maintained-renderer RESP/HMxx sequence, mirrors the two
-          paddle X positions, keeps equal one-scanline divider-to-wall gaps, clamps
-          Ball edge travel before horizontal reposition wrap, and slews paddle display
-          motion by two scanlines per frame to hide sparse high-RC measurement updates.
-          A later endpoint audit puts both M0/M1 vertical transitions in the same raster
+          paddle X positions, keeps equal one-scanline divider-to-wall gaps, and clamps
+          Ball edge travel before horizontal reposition wrap. A later control-latency
+          audit removed the artificial two-scanline-per-frame paddle slew: each completed
+          raw RC measurement now updates the displayed paddle directly rather than
+          queuing motion after the physical control stops. The endpoint audit puts both
+          M0/M1 vertical transitions in the same raster
           phase, uses a small raw-input low-end dead zone for controller tolerance, maps
           both paddles onto rendered top Y=9..159, and guarantees the bottom endpoint
-          disables after 16 scanlines before the bottom wall.
+          disables after 16 scanlines before the bottom wall. A final timing audit
+          splits the two analog RC samples across line A/line B of each pair and moves
+          pair-clock advancement after line-B WSYNC, so a threshold completion cannot
+          lengthen the visible frame at particular paddle positions.
         * Add emulator-backed coverage that exercises an RC threshold longer than
           one NTSC frame, an independent short threshold, paddle fire serving, a
           deterministic miss/score, console Reset, and stable frame length; also
           compile the same public component API for the other controller-port mapping.
           Endpoint coverage now drives both channels to both extremes, verifies common
-          M0/M1 raster phase, and requires a 16-scanline enable span at each bottom edge.
-          The polished public cartridge uses 3739/4090 allocatable ROM bytes and
-          94/128 RIOT-RAM bytes, leaving 351 ROM and 34 RAM bytes.
+          M0/M1 raster phase, requires a 16-scanline enable span at each bottom edge, and
+          rejects any displayed-Y lag after a completed endpoint measurement is public.
+          Dedicated midrange timing probes at 200/200 and 200/160 reproduce and lock
+          the former paddle-position-dependent extra-scanline cases. The polished
+          public cartridge uses 3669/4090 allocatable ROM bytes and 92/128 RIOT-RAM
+          bytes, leaving 421 ROM and 36 RAM bytes.
         * Document the input lifecycle/calibration contract, install the new library
           component, build the Pong cartridge in staged installcheck, and verify the
           rendered game under Stella 7.0 including exact four-line top/bottom walls.

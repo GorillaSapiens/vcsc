@@ -81,3 +81,28 @@ limits, checks equal-Y M0/M1 raster lines, and proves each bottom paddle disable
 after exactly 16 scanlines. The cartridge is 3739 ROM / 94 RAM; 492/492 compile
 tests and the focused Pong/example/assembly/hygiene regressions pass.
 
+
+2026-08-14 15:10:30 PDT, Remove Pong paddle coast
+Removed the artificial two-scanline-per-frame display slew from the Pong
+example. The two-paddle component already has unavoidable RC acquisition
+latency at high resistance; adding a second chase made the paddle keep moving
+after the physical control stopped. Pong now applies each completed raw
+measurement directly. The emulator regression rejects queued display motion
+once a completed top or bottom endpoint becomes public. The cartridge drops
+to 3671 ROM / 92 RAM. Verified 492/492 compile tests plus vcs_pong,
+vcs_examples_build, and the example assembly allowlist.
+
+2026-08-14 16:03:38 PDT, Fix Pong paddle frame jitter
+Tracked the Stella 263-to-262 scanline change to beam timing, not the frame
+scheduler. RC completion is much more expensive than an unfinished paddle
+sample. Sampling both channels on line A could overflow that line when both
+thresholds completed together. Splitting the channels initially exposed a
+second case: channel-1 completion plus line-B paddle transitions and pair-clock
+bookkeeping could make the WSYNC store land exactly at cycle 76, which forces
+one extra scanline. Pong now samples channel 0 on line A and channel 1 on line
+B, ends line B with WSYNC, then advances the RC pair clock and branches to the
+next pair. An external 590-combination threshold sweep found zero unstable
+frames. vcs_pong.cpp now permanently probes the formerly failing 200/200 and
+200/160 combinations; the old ROM fails that regression and the fixed ROM
+passes. The cartridge is 3669 ROM / 92 RAM. All 492 compile tests pass; the
+full E2E run reached 110/288 with no failures before the execution timeout.

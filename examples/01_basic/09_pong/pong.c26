@@ -27,7 +27,6 @@ enum pong_renderer_constants {
    PONG_RIGHT_SCORE_X := 163,
    PONG_PADDLE_HEIGHT := 16,
    PONG_BALL_HEIGHT := 4,
-   PONG_PADDLE_STEP := 2,
    PONG_PADDLE_TOP_Y := 9,
    PONG_PADDLE_BOTTOM_Y := 159,
    PONG_PADDLE_RAW_MIN := 12,
@@ -218,9 +217,12 @@ inline void pong_draw(void) {
    asm ldx #4;
    asm @pair:;
 
-   // Ball is the only object that changes on line A. Sample both analog
-   // channels on the same line so the two paddle measurements have identical
-   // pair timing.
+   // Ball is the only object that changes on line A. Sample channel 0 here
+   // and channel 1 on line B. A completed RC sample takes substantially more
+   // cycles than an unfinished sample; splitting the channels prevents two
+   // simultaneous threshold crossings from overflowing one scanline. Paddle
+   // graphics still transition together on line B, so their raster phase is
+   // identical even though their analog samples are distributed across the pair.
    asm cpx.z pong_ball_start_pair;
    asm bne.same @ball_not_start;
    asm lda #2;
@@ -235,7 +237,6 @@ inline void pong_draw(void) {
    asm lda pong_pf2_pairs,x;
    asm sta PF2;
    paddles_sample0();
-   paddles_sample1();
    WSYNC := 0;
 
    // Both paddles transition on line B. Keeping M0 and M1 in the same raster
@@ -263,19 +264,23 @@ inline void pong_draw(void) {
    asm sta ENAM1;
    asm @m1_not_end:;
 
-   paddles_advance_pair();
+   paddles_sample1();
 
+   // End line B before advancing the RC pair clock. Keeping the elapsed-count
+   // update off this already busy line leaves enough headroom for the worst
+   // case where a paddle enable/disable transition and an RC threshold crossing
+   // happen in the same scanline.
    asm inx;
+   asm sta WSYNC;
+   paddles_advance_pair();
    asm cpx #88;
    asm beq @tail;
-   asm sta WSYNC;
    asm jmp @pair;
 
    // Finish pair 87 at line 175 and enter line 176. Pair 87 already left PF
    // black; hold one more blank scanline so the four-line bottom wall remains
    // lines 177..180 and pong_draw() consumes the promised 181 visible lines.
    asm @tail:;
-   asm sta WSYNC;
    // Clear the retained center bit during line-176 horizontal blank so the
    // final dash ends on line 175 and line 176 is the same one-line wall gap
    // used above the first dash.
@@ -339,12 +344,12 @@ inline uint8_t overlaps_paddle(uint8_t paddle_y) {
 
 inline void update_game(void) {
    if (paddles_valid) {
-      uint8_t left_target := paddle_target_y(paddles_position0);
-      uint8_t right_target := paddle_target_y(paddles_position1);
-      if (pong_left_y < left_target) { pong_left_y += 2; }
-      if (pong_left_y > left_target) { pong_left_y -= 2; }
-      if (pong_right_y < right_target) { pong_right_y += 2; }
-      if (pong_right_y > right_target) { pong_right_y -= 2; }
+      // Do not slew toward a stale target. CX30 RC measurements can already
+      // span more than one frame at the high-resistance end; adding another
+      // 2-scanline-per-frame chase makes the control feel like it keeps moving
+      // after the knob stops. Apply each completed measurement immediately.
+      pong_left_y := paddle_target_y(paddles_position0);
+      pong_right_y := paddle_target_y(paddles_position1);
    }
 
    if ((SWCHB & 1) == 0) {
