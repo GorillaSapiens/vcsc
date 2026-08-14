@@ -294,8 +294,14 @@ static long long arithmetic_right_shift_ll(long long value, unsigned int count) 
    return (long long) (~((~bits) >> count));
 }
 
+//! @brief Evaluate a child expression with the same identifier resolver.
+#define EVAL_CONST(expr_, out_) \
+   eval_constant_initializer_expr_resolved((expr_), (out_), resolver, resolver_opaque)
+
 //! @brief Handle eval constant cast expr logic for compiler initializer lowering.
-static bool eval_constant_cast_expr(ASTNode *expr, InitConstValue *out) {
+static bool eval_constant_cast_expr_resolved(ASTNode *expr, InitConstValue *out,
+                                               InitConstIdentifierResolver resolver,
+                                               void *resolver_opaque) {
    InitConstValue inner = {0};
    const ASTNode *target_type = cast_expr_target_type(expr);
    const ASTNode *target_decl = cast_expr_target_declarator(expr);
@@ -309,7 +315,7 @@ static bool eval_constant_cast_expr(ASTNode *expr, InitConstValue *out) {
    if (!expr || !out || !target_type || expr->count < 2) {
       return false;
    }
-   if (!eval_constant_initializer_expr(expr->children[1], &inner)) {
+   if (!EVAL_CONST(expr->children[1], &inner)) {
       return false;
    }
 
@@ -358,7 +364,9 @@ static bool eval_constant_cast_expr(ASTNode *expr, InitConstValue *out) {
 }
 
 //! @brief Handle eval constant initializer expr logic for compiler initializer lowering.
-bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
+bool eval_constant_initializer_expr_resolved(ASTNode *expr, InitConstValue *out,
+                                             InitConstIdentifierResolver resolver,
+                                             void *resolver_opaque) {
    InitConstValue lhs = {0};
    InitConstValue rhs = {0};
 
@@ -371,12 +379,21 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
       return false;
    }
 
+   if (resolver) {
+      const char *resolved_name = expr_bare_identifier_name(expr);
+      InitConstValue resolved = {0};
+      if (resolved_name && resolver(resolved_name, &resolved, resolver_opaque)) {
+         *out = resolved;
+         return true;
+      }
+   }
+
    if (!strcmp(expr->name, "comma_expr") && expr->count > 0) {
-      return eval_constant_initializer_expr(expr->children[expr->count - 1], out);
+      return EVAL_CONST(expr->children[expr->count - 1], out);
    }
 
    if (!strcmp(expr->name, "cast")) {
-      return eval_constant_cast_expr(expr, out);
+      return eval_constant_cast_expr_resolved(expr, out, resolver, resolver_opaque);
    }
 
    if (expr->kind == AST_INTEGER) {
@@ -425,22 +442,22 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
       if (!test || !iftrue || !iffalse) {
          return false;
       }
-      if (!eval_constant_initializer_expr(test, &cond)) {
+      if (!EVAL_CONST(test, &cond)) {
          return false;
       }
       if (init_const_truthy(&cond)) {
-         return eval_constant_initializer_expr(iftrue, out);
+         return EVAL_CONST(iftrue, out);
       }
-      return eval_constant_initializer_expr(iffalse, out);
+      return EVAL_CONST(iffalse, out);
    }
 
    if (expr->count == 1) {
       ASTNode *child = expr->children[0];
       if (!strcmp(expr->name, "+")) {
-         return eval_constant_initializer_expr(child, out);
+         return EVAL_CONST(child, out);
       }
       if (!strcmp(expr->name, "-")) {
-         if (!eval_constant_initializer_expr(child, &lhs)) {
+         if (!EVAL_CONST(child, &lhs)) {
             return false;
          }
          if (lhs.kind == INIT_CONST_INT) {
@@ -451,7 +468,7 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
          return false;
       }
       if (!strcmp(expr->name, "~")) {
-         if (!eval_constant_initializer_expr(child, &lhs) || lhs.kind != INIT_CONST_INT) {
+         if (!EVAL_CONST(child, &lhs) || lhs.kind != INIT_CONST_INT) {
             return false;
          }
          out->kind = INIT_CONST_INT;
@@ -459,7 +476,7 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
          return true;
       }
       if (!strcmp(expr->name, "!")) {
-         if (!eval_constant_initializer_expr(child, &lhs)) {
+         if (!EVAL_CONST(child, &lhs)) {
             return false;
          }
          out->kind = INIT_CONST_INT;
@@ -536,7 +553,7 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
             }
          }
          if (!read_projection && !write_projection &&
-             eval_constant_initializer_expr(inner, &lhs) && lhs.kind == INIT_CONST_INT) {
+             EVAL_CONST(inner, &lhs) && lhs.kind == INIT_CONST_INT) {
             out->kind = INIT_CONST_INT;
             out->i = lhs.i;
             return true;
@@ -549,7 +566,7 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
       if (!strcmp(expr->name, "&&") || !strcmp(expr->name, "||")) {
          bool lhs_truthy;
 
-         if (!eval_constant_initializer_expr(expr->children[0], &lhs)) {
+         if (!EVAL_CONST(expr->children[0], &lhs)) {
             return false;
          }
          lhs_truthy = init_const_truthy(&lhs);
@@ -562,15 +579,15 @@ bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
             out->i = 1;
             return true;
          }
-         if (!eval_constant_initializer_expr(expr->children[1], &rhs)) {
+         if (!EVAL_CONST(expr->children[1], &rhs)) {
             return false;
          }
          out->i = init_const_truthy(&rhs) ? 1 : 0;
          return true;
       }
 
-      if (!eval_constant_initializer_expr(expr->children[0], &lhs) ||
-          !eval_constant_initializer_expr(expr->children[1], &rhs)) {
+      if (!EVAL_CONST(expr->children[0], &lhs) ||
+          !EVAL_CONST(expr->children[1], &rhs)) {
          return false;
       }
 
@@ -722,6 +739,14 @@ bool encode_integer_initializer_value(long long value, unsigned char *buf, int s
       negate_le_int(buf, size);
    }
    return true;
+}
+
+
+#undef EVAL_CONST
+
+//! @brief Evaluate a source constant expression without optimizer-bound identifiers.
+bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out) {
+   return eval_constant_initializer_expr_resolved(expr, out, NULL, NULL);
 }
 
 //! @brief Encode an integer literal according to the destination representation.

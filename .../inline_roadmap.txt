@@ -51,10 +51,12 @@ Status legend: [ ] not started, [~] partial, [x] complete.
     before aliasing the formal directly to caller storage. Otherwise retain the
     ordinary by-value copy. Current proof is intentionally conservative for
     globals, absolute objects, address escape, aliases, and type conversions.
-[~] Run constant propagation/dead-code elimination after binding. Constant actuals
-    already eliminate formal storage and identifier loads become immediates;
-    direct constant-bound `if (formal)` conditions prune the unreachable arm.
-    General post-binding expression folding/statement DCE is not implemented yet.
+[x] Run constant propagation/dead-code elimination after binding. The shared
+    constant evaluator resolves specialized readonly formals inside supported pure
+    arithmetic, comparison, logical, cast, and ternary expressions. Constant-bound
+    `if`, `while`, `for`, `do`, and ternary control flow lowers only reachable
+    paths, and reachability uses the same evaluator so dead call edges disappear.
+    This item does not claim unrelated general unreachable-statement cleanup.
 [x] Unit tests: explicit const, implicit readonly, callee write veto, write-through-
     call veto, address-observation veto, caller-storage escape/stability veto,
     same-object value/ref aliasing, type-conversion fallback, literal constants,
@@ -72,10 +74,13 @@ Status legend: [ ] not started, [~] partial, [x] complete.
 [x] Correctly rewrite/carry parameters, locals, return objects, labels, and every
     return edge, including ordinary copied parameters, multiple returns, and early
     returns.
-[~] Simplify newly exposed expressions/control flow and recompute the call graph
-    to fixed point so one inline can expose another single-callsite candidate.
-    Pre-existing nested one-call chains already expand recursively, but there is
-    no general post-inline census/DCE pass yet.
+[x] Simplify specialization-exposed expressions/control flow and recompute the
+    effective callsite graph to fixed point. The authoritative census switches from
+    lexical occurrences to reachable/enabled direct-call occurrences after DCE, so
+    pruning one of two calls can expose a new single-callsite specialization. A
+    unique-callsite inline only moves its nested call occurrences and cannot change
+    their multiplicity; nested one-call chains already expand recursively, so a
+    redundant post-inline lexical census is neither needed nor performed.
 [x] Preserve activation/scratch lifetime semantics: optimizer-inlined bodies keep
     distinct activation owners and activation-only lifetime edges, so nonrecursive
     mutually exclusive lifetimes remain overlayable without inflating JSR depth.
@@ -122,12 +127,18 @@ Status legend: [ ] not started, [~] partial, [x] complete.
 
 7. Integration, diagnostics, and documentation
 ----------------------------------------------
-[ ] Add concise optimizer diagnostics/debug metadata only if needed for regression
-    tests; do not expose unstable implementation details as normal user output.
-[ ] Update compiler ABI/README documentation for observable behavior only.
-[ ] Run compile-unit suite, focused E2E/map tests, full E2E suite, examples build,
-    source-tree hygiene, context-history format, branding, and installcheck.
-[ ] Record final ROM/RAM/stack deltas on representative maintained examples and
+[x] Keep normal output stable. Existing debug-only analysis controls remain internal;
+    `-finline-profit -v` is the supported concise measured accept/reject trace.
+[x] Update driver/compiler README documentation for observable behavior only.
+    Automatic parameter specialization is documented separately from the opt-in
+    measured `-finline-profit` trial-link pass.
+[x] Run compile-unit suite, focused E2E/map tests, full E2E behavior, examples build,
+    source-tree hygiene, context-history format, branding, and install validation.
+    The monolithic score-composition raster test exceeds this container's command
+    window, so its four renderer families were run as four disjoint shards covering
+    the same 40 public pairs, 32 production cartridges, 80 generated static/motion
+    compositions, and mixed-instance checks.
+[x] Record final ROM/RAM/stack deltas on representative maintained examples and
     close main roadmap item 31 only after all subsections above are complete.
 
 Work notes
@@ -419,3 +430,53 @@ hit the container command limit at 109/283; every remaining runner-discovered E2
 case was explicitly accounted for. Subsection 7 remains next. The broader subsection
 2 general expression DCE and subsection 3 general post-inline census/DCE items remain
 explicitly partial and are not claimed complete here.
+
+
+2026-08-13: Subsection 7 integration complete. Readonly constant binding now uses
+the shared initializer constant evaluator through a resolver, so supported pure
+arithmetic/comparison/logical/cast/ternary expressions can fold after binding.
+`if`, `while`, `for`, `do`, and ternary lowering prune known paths, and the
+reachability walker applies the same decisions. The callsite analysis now reports
+lexical occurrences before reachability and effective reachable/enabled occurrences
+afterward; specialization plus reachability iterate until a stable signature. A unit
+regression proves a two-lexical-call helper becomes a one-effective-call helper when
+one caller/edge is dead and then specializes on the next pass. Inlining itself does
+not require a second census: replacing one unique callsite with its body preserves
+the multiplicity of every nested direct call.
+
+Production policy was tested both ways. Making speculative measured inlining the
+default caused `vcs_examples_build.pl` to exceed its established 30-second test
+budget because every candidate requires real recompile/assemble/link trials. The
+final interface therefore keeps automatic ref/readonly parameter specialization in
+normal compilation and keeps whole-program measured inlining/dead pruning opt-in via
+`-finline-profit`; `-finline-profit -v` reports measured decisions. While exercising
+many trials, a latent driver bug was found and fixed: temporary-path pointers aliased
+a reallocatable temp-store array. Temp paths are now separately allocated and remain
+stable until cleanup.
+
+Representative exact pre-item-31 versus final normal-build measurements show that
+most maintained examples were already flat/timing-constrained and remain unchanged:
+`01_basic/04_score` 1300 ROM / 31 total RIOT RAM / 4 stack bytes; dual score 1545 /
+45 / 4; all-five 192 2043 / 85 / 8; interactive all-five 181 three-plus-three 3427 /
+112 / 8; player-color 192 1770 / 33 / 4; all-five-player-color 192 3481 / 97 / 8;
+ODE-to-Joy 831 / 14 / 6; fingerprint 3377 / 101 / 6; ordinary banked F8 totals 1935
+ROM-bank bytes / 100 RIOT RAM / 12 stack bytes. The maintained F8SC renderer is the
+real default-build win: bank0 1896->1892 and bank1 74->53, for 25 fewer linked ROM
+bytes; peak RIOT RAM 99->97 (two bytes saved); hardware stack remains 12 bytes. The
+`banked_game_logic` body itself shrank 70->49 and its two-byte ref-address activation
+slot disappeared. Focused specialization fixtures additionally prove -2 RAM bytes
+per eliminated ref-address formal and -1 byte for a safe readonly byte formal; a
+mixed fixture went 7->3 activation bytes. With explicit `-finline-profit`, the
+maintained sample above has no additional profitable ordinary-function candidates,
+while the nested optimizer fixture is an exact 8-ROM-byte win with unchanged object
+RAM and lower stack; a measured +11-byte multi-return expansion is correctly rejected.
+
+Final validation after integration: compile side 482/482. All 283 E2E behaviors are
+accounted for; 282 run directly in bounded groups and the oversized score-composition
+oracle runs as four disjoint family shards covering its complete matrix.
+`vcs_examples_build.pl` passes again within its 30-second contract with measured
+inlining opt-in. Branding, source-tree hygiene, and context-history formatting pass. The monolithic
+`make installcheck` command exceeds this container's command window, so its exact
+staged install/build/simulation recipe was run in five bounded, non-overlapping
+shards after fresh `install-core` and `install-examples` staging; all five shards
+pass. Main roadmap item 31 is complete.

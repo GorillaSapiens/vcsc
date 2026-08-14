@@ -18,6 +18,7 @@
 #include "compile_expr_flow.h"
 #include "compile_expr_info.h"
 #include "compile_function.h"
+#include "compile_inline_specialize.h"
 #include "compile_init.h"
 #include "compile_internal.h"
 #include "compile_lvalue.h"
@@ -927,10 +928,18 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
       ASTNode *test_expr = expr_ternary_test(expr);
       ASTNode *true_expr = expr_ternary_true(expr);
       ASTNode *false_expr = expr_ternary_false(expr);
-      const char *false_label = next_label("ternary_false");
-      const char *end_label = next_label("ternary_end");
+      InitConstValue bound = {0};
+      const char *false_label;
+      const char *end_label;
       bool ok;
-      if (!test_expr || !true_expr || !false_expr || !false_label || !end_label) {
+      if (!test_expr || !true_expr || !false_expr) return false;
+      if (optimizer_eval_context_constant_expr(test_expr, ctx, &bound) &&
+          bound.kind == INIT_CONST_INT) {
+         return compile_expr_to_slot(bound.i ? true_expr : false_expr, ctx, dst);
+      }
+      false_label = next_label("ternary_false");
+      end_label = next_label("ternary_end");
+      if (!false_label || !end_label) {
          free((void *) false_label);
          free((void *) end_label);
          return false;

@@ -6,6 +6,7 @@
 #define _INCLUDE_COMPILE_INLINE_ANALYSIS_H_
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /* These flags describe only baseline source/linkage facts. Later item-31
    legality/profitability passes add ABI, assembly-reference, placement, and
@@ -29,6 +30,7 @@ void inline_analysis_set_direct_call_reachability(const void *caller_identity,
 void inline_analysis_compute_reachability(void);
 bool inline_analysis_is_reachable(const void *function_identity);
 bool inline_analysis_is_in_cycle(const void *function_identity);
+uint64_t inline_analysis_reachability_signature(void);
 unsigned inline_analysis_direct_call_site_count(const void *function_identity);
 const void *inline_analysis_single_direct_caller(const void *function_identity);
 const void *inline_analysis_single_direct_callsite(const void *function_identity);

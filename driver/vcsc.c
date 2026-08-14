@@ -98,7 +98,7 @@ typedef struct {
 } driver_options_t;
 
 typedef struct {
-   char path[PATH_MAX];
+   char *path;
    bool keep;
 } temp_path_t;
 
@@ -450,6 +450,7 @@ static void usage(FILE *fp)
       "  -DNAME[=VALUE]       Define NAME as VALUE, or 1 if VALUE is omitted\n"
       "  -fpeephole           Enable compiler peephole optimization (default)\n"
       "  -fno-peephole        Disable compiler peephole optimization\n"
+      "  -finline-profit      Enable measured whole-program inlining/dead pruning\n"
       "  -L DIR               Add DIR to archive search path for -l\n"
       "  -lNAME               Link archive NAME (tries libNAME.l26 then NAME.l26)\n"
       "  -nostdlib            Do not link default runtime libraries automatically\n"
@@ -747,12 +748,12 @@ static void temp_store_add(temp_store_t *ts, const char *path, bool keep)
       ts->cap = ts->cap ? ts->cap * 2 : 8;
       ts->items = xrealloc(ts->items, ts->cap * sizeof(ts->items[0]));
    }
-   copy_cstr(ts->items[ts->count].path, sizeof(ts->items[ts->count].path), path);
+   ts->items[ts->count].path = xstrdup(path);
    ts->items[ts->count].keep = keep;
    ts->count++;
 }
 
-//! @brief Return temp store make file data used by driver pipeline; returned pointers alias existing storage unless explicitly allocated by the function name.
+//! @brief Create a temporary file and return a path stable until temp-store cleanup.
 static const char *temp_store_make_file(temp_store_t *ts, const char *stem, const char *suffix)
 {
    static unsigned long counter;
@@ -802,6 +803,7 @@ static void temp_store_cleanup(temp_store_t *ts)
    for (i = ts->count; i > 0; --i) {
       if (!ts->items[i - 1].keep)
          unlink(ts->items[i - 1].path);
+      free(ts->items[i - 1].path);
    }
    if (ts->made_tempdir)
       rmdir(ts->tempdir);

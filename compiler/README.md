@@ -1025,6 +1025,36 @@ ordinary function. Direct and mutual inline-expansion cycles are rejected.
 Expansion storage is intentionally not shared between call sites. This costs
 RAM as well as ROM, so inline helpers should remain small.
 
+### Optimizer-selected specialization and inlining
+
+Ordinary `static` functions are different from source `inline`. Single-callsite
+ref/readonly-parameter specialization is part of normal compiler lowering. With
+the driver's explicit `-finline-profit` option, a reachable translation-unit-
+internal ordinary function with exactly one effective direct call site may also
+be expanded into that caller when safety and measured-profitability gates pass.
+The source language and ABI do not promise that an optimizer-selected internal
+function will remain separately callable when that option is used.
+
+For a single fixed call site, a `ref`, `const ref`, or `writeonly ref` formal may
+use the caller's known read/write address directly rather than allocating a RAM
+slot containing that address. A by-value formal that is explicitly `const` or
+proven readonly may likewise avoid a private copy when the caller value is a
+constant or stable storage whose by-value semantics remain unchanged. Cases with
+observable storage identity, aliasing/mutation hazards, unsupported assembly
+escapes, exported ABI identity, lifecycle/contracts, or timing/placement geometry
+retain the ordinary ABI.
+
+Ordinary-function inlining is selected from real speculative final links rather
+than an instruction-count estimate. The driver accepts a legal expansion when
+final ROM shrinks, or when ROM is unchanged and the required hardware-stack
+reserve shrinks, provided activation/object RAM does not regress. `.same`/`.cross`
+branches, hard page containment, independently placed function regions, contract
+identity, and supported assembly-visible symbol families conservatively block
+movement when preservation is not proven. The measured inliner is opt-in because speculative final links can materially
+increase build time; use `vcsc -finline-profit -v` to run it and report measured
+decisions. Compile-only `-c` and assembly-only `-S` do not run final-link
+profitability trials.
+
 ## Expressions and operators
 
 VCSC provides the usual arithmetic, comparison, logical, bitwise, shift,

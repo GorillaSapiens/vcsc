@@ -10,6 +10,7 @@
 #include "ast.h"
 #include "compile_function.h"
 #include "compile_function_registry.h"
+#include "compile_expr_info.h"
 #include "compile_inline_analysis.h"
 #include "compile_inline_identity.h"
 #include "compile_inline_specialize.h"
@@ -157,32 +158,11 @@ static void mark_identity_roots(ASTNode *program) {
 static bool specialized_condition_truth(const ASTNode *fn, ASTNode *expr,
                                         bool *truth_out) {
    InitConstValue value = {0};
-   const char *name;
-   const ASTNode *params;
-
    if (!fn || !expr || !truth_out) return false;
-   if (eval_constant_initializer_expr(expr, &value) && value.kind == INIT_CONST_INT) {
-      *truth_out = value.i != 0;
-      return true;
-   }
-   name = expr_bare_identifier_name((ASTNode *)unwrap_expr_node(expr));
-   if (!name) return false;
-   params = declarator_parameter_list(function_declarator_node((ASTNode *)fn));
-   if (!params || is_empty(params)) return false;
-   for (int i = 0; i < params->count; i++) {
-      const ASTNode *parameter = params->children[i];
-      const char *pname;
-      InlineValueSpecialization spec;
-      if (!parameter || parameter_is_void(parameter) || !parameter_type(parameter)) continue;
-      pname = parameter_name(parameter, i);
-      if (!parameter_is_ref(parameter) && pname && !strcmp(name, pname) &&
-          optimizer_value_parameter_specialization(fn, i, &spec) &&
-          spec.kind == INLINE_VALUE_INTEGER_CONSTANT) {
-         *truth_out = spec.constant_value != 0;
-         return true;
-      }
-   }
-   return false;
+   if (!optimizer_eval_function_constant_expr(fn, expr, &value) ||
+       value.kind != INIT_CONST_INT) return false;
+   *truth_out = value.i != 0;
+   return true;
 }
 
 static void set_generated_calls_reachable(ASTNode *node, const ASTNode *owner,
@@ -232,6 +212,62 @@ static void apply_specialized_branch_reachability(ASTNode *node, const ASTNode *
                                    : (node->count > 2 ? node->children[2] : NULL);
          ASTNode *discarded = truth ? (node->count > 2 ? node->children[2] : NULL)
                                     : node->children[1];
+         if (discarded)
+            set_generated_calls_reachable(discarded, owner, false, inline_stack, inline_depth);
+         if (selected)
+            apply_specialized_branch_reachability(selected, owner, inline_stack, inline_depth);
+         return;
+      }
+   }
+   if (!strcmp(node->name, "while_stmt") && node->count >= 2) {
+      bool truth = false;
+      if (specialized_condition_truth(owner, node->children[0], &truth)) {
+         if (!truth) {
+            set_generated_calls_reachable(node->children[1], owner, false,
+                                          inline_stack, inline_depth);
+            return;
+         }
+         apply_specialized_branch_reachability(node->children[1], owner,
+                                               inline_stack, inline_depth);
+         return;
+      }
+   }
+   if (!strcmp(node->name, "for_stmt") && node->count >= 4) {
+      bool truth = false;
+      ASTNode *init = node->children[0];
+      ASTNode *cond = node->children[1];
+      ASTNode *step = node->children[2];
+      ASTNode *body = node->children[3];
+      if (init && !is_empty(init))
+         apply_specialized_branch_reachability(init, owner, inline_stack, inline_depth);
+      if (cond && !is_empty(cond) && specialized_condition_truth(owner, cond, &truth)) {
+         if (!truth) {
+            if (body) set_generated_calls_reachable(body, owner, false, inline_stack, inline_depth);
+            if (step && !is_empty(step))
+               set_generated_calls_reachable(step, owner, false, inline_stack, inline_depth);
+            return;
+         }
+         if (body) apply_specialized_branch_reachability(body, owner, inline_stack, inline_depth);
+         if (step && !is_empty(step))
+            apply_specialized_branch_reachability(step, owner, inline_stack, inline_depth);
+         return;
+      }
+      /* The init was already visited above; visit the remaining children once. */
+      if (cond && !is_empty(cond))
+         apply_specialized_branch_reachability(cond, owner, inline_stack, inline_depth);
+      if (step && !is_empty(step))
+         apply_specialized_branch_reachability(step, owner, inline_stack, inline_depth);
+      if (body) apply_specialized_branch_reachability(body, owner, inline_stack, inline_depth);
+      return;
+   }
+   if (expr_is_ternary_node(node)) {
+      bool truth = false;
+      ASTNode *test = expr_ternary_test(node);
+      ASTNode *selected = NULL;
+      ASTNode *discarded = NULL;
+      if (test && specialized_condition_truth(owner, test, &truth)) {
+         selected = truth ? expr_ternary_true(node) : expr_ternary_false(node);
+         discarded = truth ? expr_ternary_false(node) : expr_ternary_true(node);
          if (discarded)
             set_generated_calls_reachable(discarded, owner, false, inline_stack, inline_depth);
          if (selected)

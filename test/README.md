@@ -44,7 +44,8 @@ and fallback cases, proves specialized ref activation slots disappear from the
 map, and verifies zero-page and split-address direct opcodes in the final image.
 `inline_value_specialization.pl` covers subsection 2's readonly by-value
 specialization: explicit and inferred readonly formals, literal binding, direct
-caller-storage binding, constant-bound `if` pruning, and the conservative
+caller-storage binding, compound constant-bound `if`/ternary/loop pruning,
+post-pruning effective-callsite fixed points, and the conservative
 write/address/alias/type-conversion fallbacks.
 `inline_value_specialization_e2e.pl` links and simulates accepted and rejected
 cases and proves a safe one-byte formal disappears from activation RAM while the
@@ -74,8 +75,9 @@ the real driver/linker trial loop. It proves a natural `main -> middle(4) -> lea
 chain propagates its readonly constant binding, accepts both profitable inlines for
 an exact eight-byte final-ROM win with unchanged object RAM and lower hardware
 stack, while a legal multi-return candidate is measured larger and retained. The
-profitability loop remains opt-in/internal until subsection 7's final
-integration/documentation pass. `optimizer_inline_identity.pl` covers subsection 6's
+profitability loop is explicitly enabled with `-finline-profit`; ordinary builds
+keep the automatic parameter-specialization gains without paying for speculative
+final links. `optimizer_inline_identity.pl` covers subsection 6's
 identity vetoes: exported/source-inline definitions, merged declaration contracts,
 inline-assembly bodies, exact callable-symbol escapes, and ABI-family assembly escapes
 such as `function$parameter`. `optimizer_inline_reachability_e2e.pl` covers safe dead

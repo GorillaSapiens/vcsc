@@ -944,3 +944,56 @@ void apply_optimizer_value_specializations(const ASTNode *fn, Context *ctx) {
       }
    }
 }
+
+
+//! @brief Resolve one context identifier known constant after value specialization.
+static bool optimizer_context_constant_resolver(const char *name, InitConstValue *out,
+                                                void *opaque) {
+   Context *ctx = (Context *)opaque;
+   ContextEntry *entry;
+   if (!name || !out || !ctx) return false;
+   entry = ctx_lookup(ctx, name);
+   if (!entry || !entry->has_const_value) return false;
+   memset(out, 0, sizeof(*out));
+   out->kind = INIT_CONST_INT;
+   out->i = entry->const_value;
+   return true;
+}
+
+//! @brief Resolve one function formal planned as a compile-time integer constant.
+static bool optimizer_function_constant_resolver(const char *name, InitConstValue *out,
+                                                 void *opaque) {
+   const ASTNode *fn = (const ASTNode *)opaque;
+   const ASTNode *params;
+   if (!name || !out || !fn) return false;
+   params = declarator_parameter_list(function_declarator_node((ASTNode *)fn));
+   if (!params || is_empty(params)) return false;
+   for (int i = 0; i < params->count; i++) {
+      const ASTNode *parameter = params->children[i];
+      const char *pname;
+      InlineValueSpecialization spec;
+      if (!parameter || parameter_is_void(parameter) || parameter_is_ref(parameter) ||
+          !parameter_type(parameter)) continue;
+      pname = parameter_name(parameter, i);
+      if (!pname || strcmp(pname, name)) continue;
+      if (!optimizer_value_parameter_specialization(fn, i, &spec) ||
+          spec.kind != INLINE_VALUE_INTEGER_CONSTANT) return false;
+      memset(out, 0, sizeof(*out));
+      out->kind = INIT_CONST_INT;
+      out->i = spec.constant_value;
+      return true;
+   }
+   return false;
+}
+
+bool optimizer_eval_context_constant_expr(ASTNode *expr, Context *ctx,
+                                          InitConstValue *out) {
+   return eval_constant_initializer_expr_resolved(expr, out,
+      optimizer_context_constant_resolver, ctx);
+}
+
+bool optimizer_eval_function_constant_expr(const ASTNode *fn, ASTNode *expr,
+                                           InitConstValue *out) {
+   return eval_constant_initializer_expr_resolved(expr, out,
+      optimizer_function_constant_resolver, (void *)fn);
+}

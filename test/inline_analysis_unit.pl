@@ -99,7 +99,7 @@ int main(void) {
    inline_analysis_reset();
    {
       int root, child, grandchild, unreachable, runtime_only, cycle_a, cycle_b;
-      int edge_root_child, edge_child_grandchild, edge_runtime, edge_cycle_ab, edge_cycle_ba;
+      int edge_root_child, edge_unreachable_child, edge_child_grandchild, edge_runtime, edge_cycle_ab, edge_cycle_ba;
 
       inline_analysis_register_function(&root, base);
       inline_analysis_register_function(&child, base);
@@ -109,6 +109,9 @@ int main(void) {
       inline_analysis_register_function(&cycle_a, base);
       inline_analysis_register_function(&cycle_b, base);
       inline_analysis_record_direct_call(&root, &edge_root_child, &child);
+      inline_analysis_record_direct_call(&unreachable, &edge_unreachable_child, &child);
+      require_true(inline_analysis_direct_call_site_count(&child) == 2,
+                   "before reachability the census must retain both lexical callsites");
       inline_analysis_record_direct_call(&child, &edge_child_grandchild, &grandchild);
       inline_analysis_record_direct_call(NULL, &edge_runtime, &runtime_only);
       inline_analysis_record_direct_call(&cycle_a, &edge_cycle_ab, &cycle_b);
@@ -121,6 +124,10 @@ int main(void) {
                    "reachability must propagate through enabled direct calls");
       require_true(!inline_analysis_is_reachable(&unreachable),
                    "unrooted function must remain unreachable");
+      require_true(inline_analysis_direct_call_site_count(&child) == 1 &&
+                   inline_analysis_single_direct_caller(&child) == &root &&
+                   inline_analysis_is_baseline_candidate(&child),
+                   "post-DCE census must ignore callsites from unreachable callers");
       require_true(inline_analysis_is_reachable(&runtime_only) &&
                    !inline_analysis_is_baseline_candidate(&runtime_only),
                    "runtime-initializer call must root its callee without making it inlineable");
@@ -136,6 +143,9 @@ int main(void) {
                    !inline_analysis_is_reachable(&child) &&
                    !inline_analysis_is_reachable(&grandchild),
                    "disabled direct call must not propagate reachability");
+      require_true(inline_analysis_direct_call_site_count(&child) == 0 &&
+                   !inline_analysis_is_baseline_candidate(&child),
+                   "post-DCE census must ignore disabled and unreachable callsites");
    }
 
    inline_analysis_reset();

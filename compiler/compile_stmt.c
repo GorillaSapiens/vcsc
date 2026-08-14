@@ -18,6 +18,7 @@
 #include "compile_expr_info.h"
 #include "compile_function.h"
 #include "compile_function_registry.h"
+#include "compile_inline_specialize.h"
 #include "compile_internal.h"
 #include "compile_support.h"
 #include "compile_lvalue.h"
@@ -873,18 +874,11 @@ static void clear_pointer_low_range_fact(Context *ctx) {
 //! @brief Resolve a condition made constant by single-callsite value binding.
 static bool optimizer_bound_condition_truth(ASTNode *expr, Context *ctx, bool *truth_out) {
    InitConstValue value = {0};
-   const char *name;
-   ContextEntry *entry;
 
    if (!expr || !truth_out) return false;
-   if (eval_constant_initializer_expr(expr, &value) && value.kind == INIT_CONST_INT) {
-      *truth_out = value.i != 0;
-      return true;
-   }
-   name = expr_bare_identifier_name((ASTNode *)unwrap_expr_node(expr));
-   entry = name ? ctx_lookup(ctx, name) : NULL;
-   if (!entry || !entry->has_const_value) return false;
-   *truth_out = entry->const_value != 0;
+   if (!optimizer_eval_context_constant_expr(expr, ctx, &value) ||
+       value.kind != INIT_CONST_INT) return false;
+   *truth_out = value.i != 0;
    return true;
 }
 
@@ -972,14 +966,22 @@ static void compile_if_stmt(ASTNode *node, Context *ctx) {
 
 //! @brief Lower while stmt from AST/semantic state into generated assembly or linker-visible metadata.
 static void compile_while_stmt(ASTNode *node, Context *ctx) {
-   const char *start_label = next_label("while_start");
-   const char *end_label = next_label("while_end");
    const char *named_loop = pending_loop_label_name;
    ASTNode *cond = node->children[0];
    ASTNode *body = node->children[1];
+   bool bound_truth = false;
+   bool bound_condition = optimizer_bound_condition_truth(cond, ctx, &bound_truth);
+   const char *start_label;
+   const char *end_label;
 
    pending_loop_label_name = NULL;
 
+   /* A readonly single-callsite binding can make an entire loop unreachable.
+      Conversely, a proven-true condition needs no generated condition test. */
+   if (bound_condition && !bound_truth) return;
+
+   start_label = next_label("while_start");
+   end_label = next_label("while_end");
    if (!start_label || !end_label) {
       free((void *) start_label);
       free((void *) end_label);
@@ -992,7 +994,7 @@ static void compile_while_stmt(ASTNode *node, Context *ctx) {
       push_named_loop_labels(named_loop, end_label, start_label);
    }
    emit(&es_code, "%s:\n", start_label);
-   if (!compile_condition_branch_false(cond, ctx, end_label)) {
+   if (!bound_condition && !compile_condition_branch_false(cond, ctx, end_label)) {
       error_user("[%s:%d.%d] invalid while condition", node->file, node->line, node->column);
       pop_loop_labels();
       if (named_loop) {
@@ -1273,19 +1275,44 @@ static bool classify_register_counted_for(ASTNode *node, Context *ctx,
    return true;
 }
 
+//! @brief Lower the initializer portion of one for statement exactly once.
+static void compile_for_init(ASTNode *init, Context *ctx) {
+   if (!init || is_empty(init)) return;
+   if (!strcmp(init->name, "defdecl_stmt")) {
+      ASTNode *list = init->children[0];
+      for (int i = 0; i < list->count; i++) compile_local_decl_item(list->children[i], ctx);
+   }
+   else {
+      compile_expr(init, ctx);
+   }
+}
+
 //! @brief Lower for stmt from AST/semantic state into generated assembly or linker-visible metadata.
 static void compile_for_stmt(ASTNode *node, Context *ctx) {
-   const char *start_label = next_label("for_start");
-   const char *step_label = next_label("for_step");
-   const char *end_label = next_label("for_end");
    const char *named_loop = pending_loop_label_name;
    ASTNode *init = node->children[0];
    ASTNode *cond = node->children[1];
    ASTNode *step = node->children[2];
    ASTNode *body = node->children[3];
+   bool bound_truth = false;
+   bool bound_condition = cond && !is_empty(cond) &&
+      optimizer_bound_condition_truth(cond, ctx, &bound_truth);
+   const char *start_label;
+   const char *step_label;
+   const char *end_label;
 
    pending_loop_label_name = NULL;
 
+   /* The initializer always executes.  If a readonly-bound condition is known
+      false, no loop labels/body/step are needed after it. */
+   if (bound_condition && !bound_truth) {
+      compile_for_init(init, ctx);
+      return;
+   }
+
+   start_label = next_label("for_start");
+   step_label = next_label("for_step");
+   end_label = next_label("for_end");
    if (!start_label || !step_label || !end_label) {
       free((void *) start_label);
       free((void *) step_label);
@@ -1338,20 +1365,10 @@ static void compile_for_stmt(ASTNode *node, Context *ctx) {
    if (named_loop) {
       push_named_loop_labels(named_loop, end_label, step_label);
    }
-   if (init && !is_empty(init)) {
-      if (!strcmp(init->name, "defdecl_stmt")) {
-         ASTNode *list = init->children[0];
-         for (int i = 0; i < list->count; i++) {
-            compile_local_decl_item(list->children[i], ctx);
-         }
-      }
-      else {
-         compile_expr(init, ctx);
-      }
-   }
+   compile_for_init(init, ctx);
 
    emit(&es_code, "%s:\n", start_label);
-   if (cond && !is_empty(cond)) {
+   if (cond && !is_empty(cond) && !bound_condition) {
       if (!compile_condition_branch_false(cond, ctx, end_label)) {
          error_user("[%s:%d.%d] invalid for condition", node->file, node->line, node->column);
          pop_loop_labels();
@@ -1975,10 +1992,16 @@ static void compile_do_stmt(ASTNode *node, Context *ctx) {
    }
    compile_statement_list(node->children[0], ctx);
    emit(&es_code, "%s:\n", cond_label);
-   if (!compile_condition_branch_false(node->children[1], ctx, end_label)) {
-      error_user("[%s:%d.%d] invalid do/while condition", node->file, node->line, node->column);
+   {
+      bool bound_truth = false;
+      bool bound_condition = optimizer_bound_condition_truth(node->children[1], ctx,
+                                                             &bound_truth);
+      if (!bound_condition &&
+          !compile_condition_branch_false(node->children[1], ctx, end_label)) {
+         error_user("[%s:%d.%d] invalid do/while condition", node->file, node->line, node->column);
+      }
+      if (!bound_condition || bound_truth) emit(&es_code, "    jmp %s\n", start_label);
    }
-   emit(&es_code, "    jmp %s\n", start_label);
    emit(&es_code, "%s:\n", end_label);
    pop_loop_labels();
    if (named_loop) {

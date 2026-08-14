@@ -13,6 +13,10 @@
 bool type_is_aggregate(const ASTNode *type);
 bool initializer_is_list(const ASTNode *init);
 void diagnose_constant_shift_count(ASTNode *count_expr, int lhs_bits);
+typedef bool (*InitConstIdentifierResolver)(const char *name, InitConstValue *out, void *opaque);
+bool eval_constant_initializer_expr_resolved(ASTNode *expr, InitConstValue *out,
+                                             InitConstIdentifierResolver resolver,
+                                             void *opaque);
 bool eval_constant_initializer_expr(ASTNode *expr, InitConstValue *out);
 bool encode_integer_initializer_value(long long value, unsigned char *buf, int size, const ASTNode *type);
 bool encode_integer_literal_text(const char *text, unsigned char *buf, int size, const ASTNode *type);

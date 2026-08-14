@@ -722,35 +722,25 @@ remain the 11-line right/left components; visible placement is 11 + 76 + 19 + 75
 scanlines, putting the Big fingerprint on raw lines 127..145 while preserving exact
 262-line NTSC timing.
 
-Main-roadmap items 25, 26, 29, and 30 and the completed bankswitching sub-roadmap
-remain closed. Item 31 is the first unfinished main-roadmap item. Its focused
-implementation plan is `.../inline_roadmap.txt`: subsections 0 (pre-lowering
-single-direct-callsite analysis) and 1 (single-callsite ref-parameter address
-specialization) are complete; subsection 2 (readonly by-value specialization) is
-mostly complete, with general post-binding expression folding/DCE still partial.
-Subsection 3 now has a tested ordinary-function IR/control-flow expansion mechanism
-behind debug-only `-X inlineir`. Subsection 4's caller-aware placement/timing gate
-is complete: hard function `page`, named code/result regions, or generated-code
-`.same`/`.cross` policy on either side of the unique callsite retain the separate
-function; the hard-branch scan follows source-inline expansion transitively.
-Subsection 5's final-link profitability engine is complete behind the internal
-`-finline-profit` development path: the driver trial-links legal candidates,
-accepts measured ROM wins (or equal-ROM stack wins) without activation-RAM
-regression, retries to fixed point over the original candidate set, and rejects
-measured ROM growth. Subsection 6's ABI/reachability/assembly-identity gate is now
-complete: exported/source-inline/contract/assembly-identity functions retain ABI,
-runtime global-initializer calls are execution roots, and safe unreachable static
-bodies can be pruned after specialization reachability is recomputed. Production
-default selection remains off pending subsection 7 integration/documentation.
-Inlined bodies preserve
-their own activation owners and emit activation-only lifetime edges used solely by
-the linker RAM overlay planner, so sibling overlay survives while real hardware
-call-stack depth can fall. Readonly exact-type caller storage and constant actuals
-can eliminate value formal slots after conservative stability/address-escape proof;
-direct constant formal `if` conditions prune unreachable arms. Ref specialization
-removes fixed ref-address slots, propagates fixed bindings through single-callsite
-chains, preserves split read/write aliases, and falls back to the ordinary ABI for
-unresolved actual addresses.
+Main-roadmap items 25, 26, 29, 30, and 31 and the completed bankswitching
+sub-roadmap are closed; item 32 (PAL support) is the first unfinished main-roadmap
+item. Item 31's focused implementation record is `.../inline_roadmap.txt`, whose
+subsections 0 through 7 are complete. Normal compilation automatically performs
+safe single-callsite ref-address and readonly by-value specialization, including
+fixed-point constant-bound control-flow pruning and effective-callsite recomputation.
+Whole-program ordinary-function inlining/dead pruning is intentionally opt-in via
+`-finline-profit` because real speculative final links impose substantial build-time
+cost; `-finline-profit -v` reports measured accept/reject decisions. Legal inlining
+preserves activation-overlay lifetimes, obeys page/region and `.same`/`.cross`
+placement constraints, retains exported/contract/source-inline/assembly identities,
+and accepts only measured ROM wins (or equal-ROM hardware-stack wins) without an
+activation-RAM regression. Representative maintained examples are unchanged except
+the F8SC standard-renderer composition, which saves 25 linked ROM-bank bytes and 2
+peak RIOT RAM bytes with unchanged stack/raster behavior; focused fixtures prove
+-2 RAM bytes for an eliminated ref-address formal, -1 byte for a safe readonly byte
+formal, an exact 8-ROM-byte profitable nested inline, and rejection of an 11-byte
+ROM loss. Final item-31 validation passes 482/482 compile tests, all 283 E2E
+behaviors, and the complete staged installcheck recipe in bounded shards.
 
 Windows host-tool packaging is now supported from the top-level Makefile. `make windows`
 bootstraps native `vcsc-as`/`vcsc-ar` for construction of the target-neutral runtime,

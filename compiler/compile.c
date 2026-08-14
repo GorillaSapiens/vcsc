@@ -15,6 +15,7 @@
 #include "compile_init.h"
 #include "compile_internal.h"
 #include "compile_inline_prepass.h"
+#include "compile_inline_analysis.h"
 #include "compile_inline_inliner.h"
 #include "compile_inline_identity.h"
 #include "compile_inline_specialize.h"
@@ -256,9 +257,24 @@ static void compile(ASTNode *program) {
    predeclare_top_level_functions(program);
    analyze_optimizer_direct_calls(program);
    analyze_optimizer_inline_identity(program);
-   analyze_optimizer_ref_specializations(program);
-   analyze_optimizer_value_specializations(program);
-   recompute_optimizer_inline_reachability(program);
+   {
+      /* Specialization can prune a branch, which can turn a formerly
+         multi-call callee into a one-effective-call candidate.  Iterate the
+         specialization/reachability pair until the effective call graph stops
+         changing.  Ordinary inlining itself does not require another census:
+         substituting a function that has exactly one callsite moves each nested
+         direct call occurrence without changing its multiplicity. */
+      uint64_t previous_signature = UINT64_MAX;
+      for (int iteration = 0; iteration <= program->count; iteration++) {
+         uint64_t signature;
+         analyze_optimizer_ref_specializations(program);
+         analyze_optimizer_value_specializations(program);
+         recompute_optimizer_inline_reachability(program);
+         signature = inline_analysis_reachability_signature();
+         if (signature == previous_signature) break;
+         previous_signature = signature;
+      }
+   }
    analyze_optimizer_inline_candidates(program);
 
    for (int i = 0; i < program->count; i++) {

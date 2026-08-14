@@ -29,6 +29,15 @@ static uint8_t literal_ro(uint8_t x) { return x + 3; }
 static uint8_t const_if_zero(uint8_t x) { if (x) { return 9; } else { return 4; } }
 static uint8_t nested_const_leaf(uint8_t x) { return x + 6; }
 static uint8_t nested_const_middle(uint8_t x) { return nested_const_leaf(x) + 7; }
+static uint8_t compound_if(uint8_t x) { if (x + 1 == 5) { return 0x21; } else { return 0x22; } }
+static uint8_t compound_ternary(uint8_t x) { return (x * 2 == 8) ? 0x31 : 0x32; }
+static uint8_t compound_while(uint8_t x) { while (x + 1 != 5) { return 0x41; } return 0x42; }
+static uint8_t compound_for(uint8_t x) { for (; x + 1 != 5; ) { return 0x51; } return 0x52; }
+static uint8_t newly_single(uint8_t x) { return x + 1; }
+static uint8_t prune_to_single(uint8_t x) {
+   if (x + 1 == 5) { return newly_single(10); }
+   else { return newly_single(20); }
+}
 static uint8_t written(uint8_t x) { x++; return x; }
 static uint8_t write_through_call(uint8_t x) { mutate(x); return x; }
 static uint8_t address_observed(const uint8_t x) { return observe_ref(x); }
@@ -53,6 +62,11 @@ void main(void) {
    sink := literal_ro(7);
    sink := const_if_zero(0);
    sink := nested_const_middle(4);
+   sink := compound_if(4);
+   sink := compound_ternary(4);
+   sink := compound_while(4);
+   sink := compound_for(4);
+   sink := prune_to_single(4);
    sink := written(written_actual);
    sink := write_through_call(through_actual);
    sink := address_observed(observed_actual);
@@ -74,8 +88,14 @@ close $afh;
 
 sub require_re { my ($n,$r)=@_; $text =~ $r or die "$n missing\n--- assembly ---\n$text"; }
 sub forbid_re { my ($n,$r)=@_; $text !~ $r or die "$n unexpectedly present\n--- assembly ---\n$text"; }
+sub proc_body {
+   my ($name) = @_;
+   $text =~ /\.proc \Q$name\E\b(.*?)\.endproc/s
+      or die "$name procedure missing\n--- assembly ---\n$text";
+   return $1;
+}
 
-for my $fn (qw(explicit_ro implicit_ro literal_ro const_if_zero nested_const_leaf nested_const_middle)) {
+for my $fn (qw(explicit_ro implicit_ro literal_ro const_if_zero nested_const_leaf nested_const_middle compound_if compound_ternary compound_while compound_for prune_to_single newly_single)) {
    forbid_re("specialized value slot $fn", qr/^\Q$fn\E\$x:\s*$/m);
 }
 require_re('explicit const aliases caller storage', qr/\.proc explicit_ro\b.*?main\$explicit_actual\b/s);
@@ -90,6 +110,23 @@ $nested_leaf_body =~ /lda\s+#\$04\b/
    or die "nested constant did not propagate into leaf\n$nested_leaf_body";
 $nested_leaf_body !~ /middle\$x/
    or die "nested leaf retained dead parent parameter symbol\n$nested_leaf_body";
+my $compound_if_body = proc_body('compound_if');
+$compound_if_body =~ /lda\s+#\$21\b/ or die "compound if selected arm missing\n$compound_if_body";
+$compound_if_body !~ /lda\s+#\$22\b/ or die "compound if dead arm unexpectedly present\n$compound_if_body";
+my $compound_ternary_body = proc_body('compound_ternary');
+$compound_ternary_body =~ /lda\s+#\$31\b/ or die "compound ternary selected arm missing\n$compound_ternary_body";
+$compound_ternary_body !~ /lda\s+#\$32\b/ or die "compound ternary dead arm unexpectedly present\n$compound_ternary_body";
+my $compound_while_body = proc_body('compound_while');
+$compound_while_body =~ /lda\s+#\$42\b/ or die "compound while fallthrough missing\n$compound_while_body";
+$compound_while_body !~ /lda\s+#\$41\b/ or die "compound while dead body unexpectedly present\n$compound_while_body";
+my $compound_for_body = proc_body('compound_for');
+$compound_for_body =~ /lda\s+#\$52\b/ or die "compound for fallthrough missing\n$compound_for_body";
+$compound_for_body !~ /lda\s+#\$51\b/ or die "compound for dead body unexpectedly present\n$compound_for_body";
+$text =~ /\.proc newly_single\b(.*?)\.endproc/s
+   or die "newly_single procedure missing\n--- assembly ---\n$text";
+my $newly_single_body = $1;
+$newly_single_body =~ /lda\s+#\$0a\b/
+   or die "dead-edge fixed point did not specialize newly_single\n$newly_single_body";
 
 for my $fn (qw(written write_through_call address_observed global_fallback escaped_actual same_object_alias conversion_fallback)) {
    require_re("fallback value slot $fn", qr/^\Q$fn\E\$x:\s*$/m);

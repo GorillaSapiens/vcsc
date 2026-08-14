@@ -42,4 +42,10 @@ bool optimizer_value_parameter_specialization(const ASTNode *fn, int parameter_i
                                               InlineValueSpecialization *out);
 void apply_optimizer_value_specializations(const ASTNode *fn, Context *ctx);
 
+/* Evaluate expressions after readonly single-callsite bindings have been
+   planned/applied.  The context form is used while lowering a function; the
+   function form is used by pre-lowering reachability/DCE. */
+bool optimizer_eval_context_constant_expr(ASTNode *expr, Context *ctx, InitConstValue *out);
+bool optimizer_eval_function_constant_expr(const ASTNode *fn, ASTNode *expr, InitConstValue *out);
+
 #endif

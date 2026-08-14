@@ -1584,7 +1584,7 @@ but no new workstream should be assumed until the user selects one.
           game state in Superchip RAM. Multisprite remains separately gated by
           items 27 and 28 rather than being implied by Superchip completion.
 
-[ ] 31. Add fixed-point whole-program specialization and inlining for
+[x] 31. Add fixed-point whole-program specialization and inlining for
         reachable internal functions with exactly one direct call site. Inline
         through the compiler IR/control-flow representation, not textual
         substitution; fold arguments/returns and simplify newly exposed code, then
@@ -1626,6 +1626,20 @@ but no new workstream should be assumed until the user selects one.
         require retaining a by-value copy, and address specialization for regular,
         `const`, and `writeonly` refs. Verify exact linked ROM, peak RIOT RAM, and
         hardware-stack depth for representative acceptance and rejection cases.
+
+        Completed 2026-08-13. The focused implementation record is
+        `.../inline_roadmap.txt`. Automatic single-callsite `ref` and readonly
+        by-value specialization removes redundant parameter/address RAM where
+        proven safe. Measured whole-program function inlining is available via
+        opt-in `-finline-profit`; it trial-links legal candidates to a fixed point
+        and accepts only measured final-image wins without activation-RAM
+        regression. Placement/timing, ABI/assembly identity, reachability, and
+        runtime-initializer roots are guarded explicitly. The maintained F8SC
+        standard-renderer case saves 25 linked ROM-bank bytes and 2 peak RIOT RAM
+        bytes; representative maintained non-F8SC examples are unchanged, while
+        focused inliner tests prove exact wins and measured-loss rejection. Final
+        validation passes 482/482 compile tests, all 283 E2E behaviors, and the
+        complete staged installcheck recipe when run in bounded shards.
 
 [ ] 32. Add native PAL support as a separate video-standard family rather than
         parameterizing NTSC code with scattered conditionals. Define PAL machine

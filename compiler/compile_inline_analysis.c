@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -32,6 +33,7 @@ static InlineFunctionInfo *functions;
 static size_t function_count;
 static InlineCallEdge *edges;
 static size_t edge_count;
+static bool reachability_computed;
 
 static InlineFunctionInfo *find_function(const void *identity) {
    if (!identity) {
@@ -73,6 +75,7 @@ void inline_analysis_reset(void) {
    free(edges);
    edges = NULL;
    edge_count = 0;
+   reachability_computed = false;
 }
 
 //! @brief Register or refine baseline facts for one source-level function.
@@ -116,6 +119,7 @@ void inline_analysis_record_direct_call(const void *caller_identity,
 }
 
 void inline_analysis_reset_reachability(void) {
+   reachability_computed = false;
    for (size_t i = 0; i < function_count; i++) {
       functions[i].reachable_root = functions[i].external_root_call;
       functions[i].reachable = false;
@@ -197,6 +201,7 @@ void inline_analysis_compute_reachability(void) {
    }
    free(color);
    free(stack);
+   reachability_computed = true;
 }
 
 bool inline_analysis_is_reachable(const void *function_identity) {
@@ -209,28 +214,73 @@ bool inline_analysis_is_in_cycle(const void *function_identity) {
    return info && info->in_cycle;
 }
 
-//! @brief Return the number of ordinary direct call occurrences for one function.
+//! @brief Return whether one recorded direct call participates in the effective reachable graph.
+static bool effective_edge(const InlineCallEdge *edge) {
+   InlineFunctionInfo *caller;
+   if (!edge) return false;
+   if (!reachability_computed) return true;
+   caller = find_function(edge->caller);
+   return edge->reachable_enabled && caller && caller->reachable;
+}
+
+//! @brief Return effective ordinary direct call occurrences for one function.
 unsigned inline_analysis_direct_call_site_count(const void *function_identity) {
    InlineFunctionInfo *info = find_function(function_identity);
-   return info ? info->direct_call_sites : 0;
+   unsigned count = 0;
+   if (!info) return 0;
+   if (!reachability_computed) return info->direct_call_sites;
+   for (size_t i = 0; i < edge_count; i++) {
+      if (edges[i].callee == function_identity && effective_edge(&edges[i])) count++;
+   }
+   return count;
 }
 
-//! @brief Return the caller only when exactly one ordinary direct callsite exists.
+//! @brief Return the caller only when exactly one effective ordinary direct callsite exists.
 const void *inline_analysis_single_direct_caller(const void *function_identity) {
+   const void *caller = NULL;
+   unsigned count = 0;
    InlineFunctionInfo *info = find_function(function_identity);
-   if (!info || info->direct_call_sites != 1) {
-      return NULL;
+   if (!info) return NULL;
+   if (!reachability_computed) {
+      return info->direct_call_sites == 1 ? info->first_caller : NULL;
    }
-   return info->first_caller;
+   for (size_t i = 0; i < edge_count; i++) {
+      if (edges[i].callee != function_identity || !effective_edge(&edges[i])) continue;
+      caller = edges[i].caller;
+      if (++count > 1) return NULL;
+   }
+   return count == 1 ? caller : NULL;
 }
 
-//! @brief Return the exact source call expression when one direct callsite exists.
+//! @brief Return the exact source call expression when one effective direct callsite exists.
 const void *inline_analysis_single_direct_callsite(const void *function_identity) {
+   const void *callsite = NULL;
+   unsigned count = 0;
    InlineFunctionInfo *info = find_function(function_identity);
-   if (!info || info->direct_call_sites != 1) {
-      return NULL;
+   if (!info) return NULL;
+   if (!reachability_computed) {
+      return info->direct_call_sites == 1 ? info->first_callsite : NULL;
    }
-   return info->first_callsite;
+   for (size_t i = 0; i < edge_count; i++) {
+      if (edges[i].callee != function_identity || !effective_edge(&edges[i])) continue;
+      callsite = edges[i].callsite;
+      if (++count > 1) return NULL;
+   }
+   return count == 1 ? callsite : NULL;
+}
+
+//! @brief Fingerprint effective reachability for fixed-point specialization/DCE.
+uint64_t inline_analysis_reachability_signature(void) {
+   uint64_t h = UINT64_C(1469598103934665603);
+   for (size_t i = 0; i < function_count; i++) {
+      h ^= functions[i].reachable ? UINT64_C(1) : UINT64_C(0);
+      h *= UINT64_C(1099511628211);
+   }
+   for (size_t i = 0; i < edge_count; i++) {
+      h ^= effective_edge(&edges[i]) ? UINT64_C(3) : UINT64_C(7);
+      h *= UINT64_C(1099511628211);
+   }
+   return h;
 }
 
 //! @brief Return whether baseline source/linkage facts admit item-31 optimization.
@@ -249,5 +299,6 @@ bool inline_analysis_is_baseline_candidate(const void *function_identity) {
    if (info->external_root_call) {
       return false;
    }
-   return info->direct_call_sites == 1;
+   if (reachability_computed && !info->reachable) return false;
+   return inline_analysis_direct_call_site_count(function_identity) == 1;
 }

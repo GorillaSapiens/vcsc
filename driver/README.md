@@ -22,6 +22,7 @@ It sits above `vcsc-cc1`, `vcsc-as`, and `vcsc-ld` and invokes them in the usual
 - `--no-map`, `--no-sym`, `--no-list`, and `--no-cfg` sidecar suppression
 - `-Wc,...`, `-Wa,...`, `-Wl,...` and `-Xcompiler`, `-Xassembler`, `-Xlinker` for stage-specific arguments
 - `-fno-peephole` to disable compiler assembly peephole rewrites, and `-fpeephole` to re-enable them
+- automatic single-callsite ref/readonly-parameter specialization during compilation; `-finline-profit` additionally enables measured whole-program inlining/dead pruning at final link
 - `-v` and `-###` to print the subordinate commands
 
 When linking without `-T`, it compiles the bundled `libraries/vcs/vcs_4k.c26`
@@ -33,6 +34,18 @@ Successful links also create same-stem `.map`, `.sym`, `.lst`, and DiStella
 directly to `vcsc-ld`. Bank-placement diagnostics are linker-only options; use
 `-Wl,--bank-placement=simple,--explain-bank-placement` for stable simple packing
 and its decision trace. Optimized placement remains the linker default.
+
+Single-callsite ref/readonly-parameter specialization happens during normal
+compilation.  The more expensive measured whole-program inliner/dead-pruner is
+explicitly enabled with `-finline-profit`: translation-unit-internal ordinary
+functions with one reachable direct call site may then be inlined, but only after
+ABI/assembly/timing-placement safety checks. Candidate inlining is accepted from
+speculative final links only when final ROM shrinks (or ROM is unchanged and the
+required hardware-stack reserve shrinks), and is rejected if activation/object
+RAM regresses. The trial loop is opt-in because each candidate requires real
+recompile/assemble/link measurements and can materially increase build time on
+large source/example sets. It is silent unless `-v` is used. `-c` and `-S` do not
+run final-link profitability trials.
 
 ## What it requires
 

@@ -85,3 +85,17 @@ The driver validates the full unpruned translation unit before using a pruned
 Tests cover post-specialization dead calls, exported/contract/assembly/runtime-init
 roots, opaque asm retention, cycles, and ABI parameter-slot preservation.
 Validation: compile 482/482; complete E2E 283/283 in exact bounded groups.
+
+2026-08-13 18:28:44 PDT, Complete inline optimization roadmap
+Completed inline-roadmap subsection 7 and closed main-roadmap item 31. Generalized
+constant-bound folding now drives if/loop/ternary lowering and reachability, while
+effective direct-callsite counts recompute after dead-edge pruning to a fixed point.
+Automatic ref/readonly parameter specialization remains the normal policy; measured
+whole-program ordinary-function inlining stays opt-in via -finline-profit because
+making speculative links the default exceeded the examples-build time contract.
+Fixed a latent driver temporary-path lifetime bug exposed by repeated trial links.
+Representative maintained programs are unchanged except F8SC, which saves 25 linked
+ROM-bank bytes and 2 peak RIOT RAM bytes; focused inliner coverage proves an 8-byte
+ROM win and rejects an 11-byte loss. Validation passes 482/482 compile tests and all
+283 E2E behaviors. The monolithic installcheck exceeds the command window, so its
+exact staged recipe was run as five bounded non-overlapping shards; all pass.
