@@ -15,11 +15,11 @@ permissions:
 jobs:
   packages:
     name: Windows and Linux packages
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -33,6 +33,13 @@ jobs:
             flex \
             mingw-w64 \
             zip
+
+      - name: Show checked-out revision
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git rev-parse --verify HEAD
+          sed -n '9273,9290p' linker/vcsc_ld.c
 
       - name: Build Windows and Linux packages
         shell: bash
@@ -50,7 +57,7 @@ jobs:
           ls -lh vcsc.windows.*.zip vcsc.linux.*.tar.gz
 
       - name: Upload Windows package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vcsc-windows-${{ github.sha }}
           path: vcsc.windows.*.zip
@@ -58,7 +65,7 @@ jobs:
           compression-level: 0
 
       - name: Upload Linux package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vcsc-linux-${{ github.sha }}
           path: vcsc.linux.*.tar.gz

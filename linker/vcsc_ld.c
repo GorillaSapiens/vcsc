@@ -9278,8 +9278,12 @@ int main(int argc, char **argv)
 #else
             null_path = "/dev/null";
 #endif
-            (void)freopen(null_path, "w", stdout);
-            (void)freopen(null_path, "w", stderr);
+            if (freopen(null_path, "w", stdout) == NULL) {
+               return 1;
+            }
+            if (freopen(null_path, "w", stderr) == NULL) {
+               return 1;
+            }
             continue;
          }
          if (strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0) {
