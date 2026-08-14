@@ -17,6 +17,7 @@
 #include "compile_declarator.h"
 #include "compile_function.h"
 #include "compile_inline_specialize.h"
+#include "compile_inline_identity.h"
 #include "compile_inline_inliner.h"
 #include "compile_init.h"
 #include "compile_expr_info.h"
@@ -370,7 +371,8 @@ void compile_function_decl(ASTNode *node) {
       contract metadata even though they do not emit a standalone procedure.
       Emit contracts before either source or optimizer inline lowering returns. */
    emit_function_contract_metadata(node, sym);
-   if (function_is_inline(node) || optimizer_inline_function_selected(node)) {
+   if (function_is_inline(node) || optimizer_inline_function_selected(node) ||
+       optimizer_inline_function_dead(node)) {
       return;
    }
    has_return_object = function_has_return_object(node);

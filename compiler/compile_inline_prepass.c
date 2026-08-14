@@ -122,4 +122,14 @@ void analyze_optimizer_direct_calls(ASTNode *program) {
       }
       scan_direct_calls(fn->children[2], fn, inline_stack, 0);
    }
+
+   /* Non-function top-level initializers may be lowered into runtime startup
+      functions.  They are execution roots even though there is no ordinary
+      source-function AST caller.  Record those calls with a NULL owner; the
+      analysis keeps them reachable and excludes them from ordinary inlining. */
+   for (int i = 0; i < program->count; i++) {
+      ASTNode *node = program->children[i];
+      if (program_child_function_definition(node)) continue;
+      scan_direct_calls(node, NULL, inline_stack, 0);
+   }
 }

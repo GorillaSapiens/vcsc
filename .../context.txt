@@ -737,8 +737,11 @@ Subsection 5's final-link profitability engine is complete behind the internal
 `-finline-profit` development path: the driver trial-links legal candidates,
 accepts measured ROM wins (or equal-ROM stack wins) without activation-RAM
 regression, retries to fixed point over the original candidate set, and rejects
-measured ROM growth. Production default selection remains off pending subsection
-6's remaining ABI/reachability/assembly-identity vetoes.
+measured ROM growth. Subsection 6's ABI/reachability/assembly-identity gate is now
+complete: exported/source-inline/contract/assembly-identity functions retain ABI,
+runtime global-initializer calls are execution roots, and safe unreachable static
+bodies can be pruned after specialization reachability is recomputed. Production
+default selection remains off pending subsection 7 integration/documentation.
 Inlined bodies preserve
 their own activation owners and emit activation-only lifetime edges used solely by
 the linker RAM overlay planner, so sibling overlay survives while real hardware

@@ -73,3 +73,15 @@ allocation and propagated readonly constants through specialized parameter chain
 Production selection remains off until subsection 6 ABI/reachability vetoes land.
 Validation: compile-side 481/481; complete E2E 282/282 in bounded chunks; make
 installcheck passes. Subsection 6 is next; production inlining remains disabled.
+
+2026-08-13 17:29:00 PDT, Add inline identity and dead-code gate
+Completed inline-roadmap subsection 6. Added a shared ABI/assembly identity gate
+for inlining and parameter specialization, including merged contracts, opaque
+inline-asm bodies, exact callable-symbol escapes, and name$... ABI-family
+assembly escapes. Added reachability-driven safe dead internal-function pruning
+after specialization, with runtime global-initializer calls as explicit roots.
+The driver validates the full unpruned translation unit before using a pruned
+-finline-profit baseline, so dead code cannot hide compiler/assembler failures.
+Tests cover post-specialization dead calls, exported/contract/assembly/runtime-init
+roots, opaque asm retention, cycles, and ABI parameter-slot preservation.
+Validation: compile 482/482; complete E2E 283/283 in exact bounded groups.

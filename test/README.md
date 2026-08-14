@@ -74,8 +74,14 @@ the real driver/linker trial loop. It proves a natural `main -> middle(4) -> lea
 chain propagates its readonly constant binding, accepts both profitable inlines for
 an exact eight-byte final-ROM win with unchanged object RAM and lower hardware
 stack, while a legal multi-return candidate is measured larger and retained. The
-profitability loop remains opt-in/internal until subsection 6's ABI/reachability
-veto work is complete.
+profitability loop remains opt-in/internal until subsection 7's final
+integration/documentation pass. `optimizer_inline_identity.pl` covers subsection 6's
+identity vetoes: exported/source-inline definitions, merged declaration contracts,
+inline-assembly bodies, exact callable-symbol escapes, and ABI-family assembly escapes
+such as `function$parameter`. `optimizer_inline_reachability_e2e.pl` covers safe dead
+internal-function removal, post-specialization constant-branch reachability, exported
+and contract roots, assembly roots, runtime-global-initializer roots, and verifies that
+the driver's validation pass does not let dead pruning hide assembler diagnostics.
 
 ## Peephole optimizer coverage
 

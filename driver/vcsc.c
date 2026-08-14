@@ -1239,7 +1239,8 @@ static const char *derive_output_path(const input_t *in, const char *suffix, con
 //! @brief Run one compiler stage with optional optimizer-inline trial controls.
 static void run_cc_variant(const char *cc_path, const driver_options_t *opt,
    const char *runtime_inc, const char *input, const char *output,
-   const strvec_t *inline_selected, const char *candidate_manifest)
+   const strvec_t *inline_selected, const char *candidate_manifest,
+   bool prune_dead)
 {
    strvec_t cmd = {0};
    const char *dot = path_extension(input);
@@ -1263,6 +1264,9 @@ static void run_cc_variant(const char *cc_path, const driver_options_t *opt,
    strvec_push(&cmd, *dot ? dot : ".c26");
    strvec_push(&cmd, "-dumpdir");
    strvec_push(&cmd, "./");
+   if (prune_dead) {
+      strvec_push(&cmd, "-finline-prune-dead");
+   }
    if (candidate_manifest) {
       strvec_push(&cmd, "-finline-candidates");
       strvec_push(&cmd, candidate_manifest);
@@ -1282,7 +1286,7 @@ static void run_cc_variant(const char *cc_path, const driver_options_t *opt,
 //! @brief Run the ordinary cc stage of the driver tool pipeline.
 static void run_cc(const char *cc_path, const driver_options_t *opt, const char *runtime_inc, const char *input, const char *output)
 {
-   run_cc_variant(cc_path, opt, runtime_inc, input, output, NULL, NULL);
+   run_cc_variant(cc_path, opt, runtime_inc, input, output, NULL, NULL, false);
 }
 
 //! @brief Run the as stage of the driver tool pipeline.
@@ -1462,7 +1466,7 @@ static void optimize_inline_profitability(const char *cc_path, const char *as_pa
             path_stem(tu->source, stem, sizeof(stem));
             trial_s = temp_store_make_file(temps, stem, ".inline.s26");
             trial_o = temp_store_make_file(temps, stem, ".inline.o26");
-            run_cc_variant(cc_path, opt, runtime_inc, tu->source, trial_s, &selected, NULL);
+            run_cc_variant(cc_path, opt, runtime_inc, tu->source, trial_s, &selected, NULL, true);
             run_as(as_path, opt, runtime_inc, trial_s, trial_o);
             strvec_clone_replace(&trial_inputs, link_inputs, tu->link_index, trial_o);
             trial_hex = temp_store_make_file(temps, "inline_trial", ".hex");
@@ -1590,10 +1594,20 @@ int main(int argc, char **argv)
             obj_path = temp_store_make_file(&temps, stem, ".o26");
             if (opt.inline_profit) {
                const char *manifest = temp_store_make_file(&temps, stem, ".inline-candidates");
-               run_cc_variant(cc_path, &opt, runtime_inc, in->path, asm_path, NULL, manifest);
+               const char *pruned_s;
+               const char *pruned_o;
+               /* First compile and assemble the complete translation unit so
+                  unreachable-function pruning cannot hide source or assembler
+                  diagnostics. Then build the dead-stripped baseline used by
+                  profitability trials and the final optimized link. */
+               run_cc_variant(cc_path, &opt, runtime_inc, in->path, asm_path, NULL, manifest, false);
                run_as(as_path, &opt, runtime_inc, asm_path, obj_path);
+               pruned_s = temp_store_make_file(&temps, stem, ".dead.s26");
+               pruned_o = temp_store_make_file(&temps, stem, ".dead.o26");
+               run_cc_variant(cc_path, &opt, runtime_inc, in->path, pruned_s, NULL, NULL, true);
+               run_as(as_path, &opt, runtime_inc, pruned_s, pruned_o);
                inline_tuvec_push(&inline_tus, in->path, link_inputs.count, manifest);
-               strvec_push(&link_inputs, obj_path);
+               strvec_push(&link_inputs, pruned_o);
                break;
             }
             run_cc(cc_path, &opt, runtime_inc, in->path, asm_path);

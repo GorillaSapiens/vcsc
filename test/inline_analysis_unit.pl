@@ -97,6 +97,48 @@ int main(void) {
                 "late registration must preserve already-recorded call facts");
 
    inline_analysis_reset();
+   {
+      int root, child, grandchild, unreachable, runtime_only, cycle_a, cycle_b;
+      int edge_root_child, edge_child_grandchild, edge_runtime, edge_cycle_ab, edge_cycle_ba;
+
+      inline_analysis_register_function(&root, base);
+      inline_analysis_register_function(&child, base);
+      inline_analysis_register_function(&grandchild, base);
+      inline_analysis_register_function(&unreachable, base);
+      inline_analysis_register_function(&runtime_only, base);
+      inline_analysis_register_function(&cycle_a, base);
+      inline_analysis_register_function(&cycle_b, base);
+      inline_analysis_record_direct_call(&root, &edge_root_child, &child);
+      inline_analysis_record_direct_call(&child, &edge_child_grandchild, &grandchild);
+      inline_analysis_record_direct_call(NULL, &edge_runtime, &runtime_only);
+      inline_analysis_record_direct_call(&cycle_a, &edge_cycle_ab, &cycle_b);
+      inline_analysis_record_direct_call(&cycle_b, &edge_cycle_ba, &cycle_a);
+      inline_analysis_mark_reachable_root(&root);
+      inline_analysis_compute_reachability();
+      require_true(inline_analysis_is_reachable(&root) &&
+                   inline_analysis_is_reachable(&child) &&
+                   inline_analysis_is_reachable(&grandchild),
+                   "reachability must propagate through enabled direct calls");
+      require_true(!inline_analysis_is_reachable(&unreachable),
+                   "unrooted function must remain unreachable");
+      require_true(inline_analysis_is_reachable(&runtime_only) &&
+                   !inline_analysis_is_baseline_candidate(&runtime_only),
+                   "runtime-initializer call must root its callee without making it inlineable");
+      require_true(inline_analysis_is_in_cycle(&cycle_a) &&
+                   inline_analysis_is_in_cycle(&cycle_b),
+                   "call-cycle members must be recorded even when unreachable");
+
+      inline_analysis_reset_reachability();
+      inline_analysis_mark_reachable_root(&root);
+      inline_analysis_set_direct_call_reachability(&root, &edge_root_child, false);
+      inline_analysis_compute_reachability();
+      require_true(inline_analysis_is_reachable(&root) &&
+                   !inline_analysis_is_reachable(&child) &&
+                   !inline_analysis_is_reachable(&grandchild),
+                   "disabled direct call must not propagate reachability");
+   }
+
+   inline_analysis_reset();
    require_true(inline_analysis_direct_call_site_count(&once) == 0 &&
                 !inline_analysis_is_baseline_candidate(&once),
                 "reset must clear all translation-unit facts");

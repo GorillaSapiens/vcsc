@@ -21,6 +21,14 @@ void inline_analysis_register_function(const void *function_identity, unsigned f
 void inline_analysis_record_direct_call(const void *caller_identity,
                                         const void *callsite_identity,
                                         const void *callee_identity);
+void inline_analysis_reset_reachability(void);
+void inline_analysis_mark_reachable_root(const void *function_identity);
+void inline_analysis_set_direct_call_reachability(const void *caller_identity,
+                                                  const void *callsite_identity,
+                                                  bool enabled);
+void inline_analysis_compute_reachability(void);
+bool inline_analysis_is_reachable(const void *function_identity);
+bool inline_analysis_is_in_cycle(const void *function_identity);
 unsigned inline_analysis_direct_call_site_count(const void *function_identity);
 const void *inline_analysis_single_direct_caller(const void *function_identity);
 const void *inline_analysis_single_direct_callsite(const void *function_identity);

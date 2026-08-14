@@ -111,12 +111,14 @@ Status legend: [ ] not started, [~] partial, [x] complete.
 
 6. Reachability / ABI / assembly-boundary vetoes
 ------------------------------------------------
-[ ] Exclude exported functions, extern/ABI entries, source `inline` functions,
+[x] Exclude exported functions, extern/ABI entries, source `inline` functions,
     contract/lifecycle hooks requiring identity, and any function whose address or
     independently callable symbol escapes through supported assembly mechanisms.
-[ ] Remove dead unreachable internal functions when safe after specialization and
-    fixed-point call-graph recomputation.
-[ ] Unit tests for every veto plus unreachable dead-function removal.
+[x] Remove dead unreachable internal functions when safe after specialization and
+    fixed-point call-graph recomputation. Runtime-global-initializer calls are
+    explicit execution roots even though they have no ordinary function caller.
+[x] Unit/E2E tests for every identity veto, runtime-initializer and assembly roots,
+    post-specialization dead-call removal, and unreachable dead-function removal.
 
 7. Integration, diagnostics, and documentation
 ----------------------------------------------
@@ -378,3 +380,42 @@ contract/lifecycle omissions, banked and standard renderer oracles, examples,
 branding, and the new profitability regression. `make installcheck` also passes.
 The handoff therefore leaves subsection 5 complete and subsection 6 as the next
 unfinished focused-roadmap item.
+
+2026-08-13: Subsection 6 complete. Added `compile_inline_identity.c/.h` as the
+shared ABI/assembly/reachability policy layer used by both parameter specialization
+and ordinary-function inlining. Exported/non-static definitions, source `inline`,
+merged `require`/`recommend` function contracts, functions containing inline asm,
+and functions whose callable or ABI-family symbol is mentioned by source assembly
+retain identity. ABI-family scanning deliberately treats `name$...` (including
+parameter/return symbols) as an escape, so specialization cannot silently remove
+storage which assembly may name. VCSC currently rejects language-level function
+pointers, so inline assembly is the supported callable/address escape mechanism.
+
+Reachability now uses the authoritative direct-call occurrence graph. Non-static
+definitions, `main`, merged contract functions, and assembly-escaped functions are
+roots. Calls emitted by runtime file-scope initializers are recorded as rootless
+execution-root calls: their callees remain reachable and are not ordinary inline
+candidates because there is no source-function AST caller to expand into. After
+ref/value specialization reaches its fixed point, reachability is recomputed and
+the already-implemented direct constant-bound `if` pruning disables call edges in
+discarded arms. Unreachable static compiler-owned bodies can then be omitted. Dead
+call cycles are conservatively retained so the existing recursion diagnostic is not
+hidden; functions containing inline asm are also retained because opaque asm may
+define externally consumed labels/exports.
+
+The public driver still performs an unpruned compile+assemble validation pass before
+using the dead-pruned image for `-finline-profit`, so dead stripping cannot hide
+source or assembler diagnostics. `optimizer_inline_identity.pl` covers the identity
+veto matrix, including a merged contract and `function$parameter` assembly escape.
+`optimizer_inline_reachability_e2e.pl` simulates post-specialization dead-call
+removal, ordinary dead chains, exported/contract/assembly roots, an opaque-asm body,
+and a runtime-global-initializer-only helper, and proves a dead invalid-assembly body
+still fails validation. `inline_analysis_unit.pl` directly covers reachability-edge
+enable/disable, runtime-root calls, and cycle retention.
+
+Validation at this boundary: compile-side suite 482/482; complete E2E suite 283/283.
+The E2E suite was completed in exact bounded groups after the first long invocation
+hit the container command limit at 109/283; every remaining runner-discovered E2E
+case was explicitly accounted for. Subsection 7 remains next. The broader subsection
+2 general expression DCE and subsection 3 general post-inline census/DCE items remain
+explicitly partial and are not claimed complete here.

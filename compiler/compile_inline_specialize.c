@@ -13,6 +13,7 @@
 #include "compile_function_registry.h"
 #include "compile_init.h"
 #include "compile_inline_specialize.h"
+#include "compile_inline_identity.h"
 #include "compile_lvalue.h"
 #include "compile_internal.h"
 #include "compile_support.h"
@@ -87,22 +88,6 @@ static bool asm_text_mentions(const char *text, const char *name) {
                       (after >= 'A' && after <= 'Z') ||
                       (after >= 'a' && after <= 'z');
       if (!before_id && !after_id) {
-         return true;
-      }
-   }
-   return false;
-}
-
-//! @brief Return whether a subtree contains any inline assembly statement.
-static bool subtree_contains_asm(const ASTNode *node) {
-   if (!node) {
-      return false;
-   }
-   if (!strcmp(node->name, "asm_stmt")) {
-      return true;
-   }
-   for (int i = 0; i < node->count; i++) {
-      if (subtree_contains_asm(node->children[i])) {
          return true;
       }
    }
@@ -342,8 +327,6 @@ void analyze_optimizer_ref_specializations(ASTNode *program) {
          const ASTNode *params;
          ASTNode *args;
          int actual_index = 0;
-         char fn_sym[256];
-         const char *fn_name;
 
          if (!fn || strcmp(fn->name, "defdecl_stmt") || !function_has_body(fn) ||
              !function_is_single_direct_callsite_candidate(fn)) {
@@ -357,16 +340,7 @@ void analyze_optimizer_ref_specializations(ASTNode *program) {
          args = callsite->children[1];
          declarator = function_declarator_node(fn);
          params = declarator_parameter_list(declarator);
-         fn_name = declarator_name(declarator);
-         if (!fn_name || !function_symbol_name(fn, fn_name, fn_sym, sizeof(fn_sym))) {
-            continue;
-         }
-
-         /* Subsection 6 will grow a complete assembly-escape proof. Until then,
-            keep ABI-changing parameter storage elimination away from any callee
-            containing inline assembly, and from any function whose callable symbol
-            is named by inline assembly elsewhere in the translation unit. */
-         if (subtree_contains_asm(fn) || subtree_asm_mentions(program, fn_name, fn_sym)) {
+         if (!optimizer_inline_identity_legal(fn)) {
             continue;
          }
 
@@ -896,8 +870,6 @@ void analyze_optimizer_value_specializations(ASTNode *program) {
          const ASTNode *params;
          ASTNode *args;
          int actual_index = 0;
-         char fn_sym[256];
-         const char *fn_name;
 
          if (!fn || strcmp(fn->name, "defdecl_stmt") || !function_has_body(fn) ||
              !function_is_single_direct_callsite_candidate(fn)) continue;
@@ -906,9 +878,7 @@ void analyze_optimizer_value_specializations(ASTNode *program) {
          if (!callsite || !caller || strcmp(callsite->name, "()") || callsite->count < 2) continue;
          args = callsite->children[1];
          params = declarator_parameter_list(function_declarator_node(fn));
-         fn_name = declarator_name(function_declarator_node(fn));
-         if (!fn_name || !function_symbol_name(fn, fn_name, fn_sym, sizeof(fn_sym))) continue;
-         if (subtree_contains_asm(fn) || subtree_asm_mentions(program, fn_name, fn_sym)) continue;
+         if (!optimizer_inline_identity_legal(fn)) continue;
          if (!params || is_empty(params) || !args || is_empty(args)) continue;
 
          for (int i = 0; i < params->count && actual_index < args->count; i++) {

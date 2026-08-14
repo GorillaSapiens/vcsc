@@ -12,6 +12,7 @@
 #include "compile_function.h"
 #include "compile_function_registry.h"
 #include "compile_inline_inliner.h"
+#include "compile_inline_identity.h"
 #include "compile_inline_legality.h"
 #include "compile_type.h"
 #include "messages.h"
@@ -64,19 +65,10 @@ static bool optimizer_inline_name_requested(const ASTNode *fn) {
    return false;
 }
 
-static bool subtree_contains_asm(const ASTNode *node) {
-   if (!node) return false;
-   if (node->kind == AST_ASM || !strcmp(node->name, "asm_stmt")) return true;
-   for (int i = 0; i < node->count; i++) {
-      if (subtree_contains_asm(node->children[i])) return true;
-   }
-   return false;
-}
 
-/* Subsection 3 supplies the control-flow transformation, not the final legality
-   or profitability policy.  Until roadmap sections 4-6 are implemented, forced
-   test-mode selection is intentionally limited to bodies with no independently
-   placeable contract and no inline assembly. */
+/* Subsection 3 supplies the control-flow transformation.  Forced test-mode
+   selection bypasses measured profitability only; subsection-4 placement and
+   subsection-6 identity/assembly safety gates still apply. */
 static bool mechanically_safe_for_forced_inline(const ASTNode *fn) {
    const ASTNode *mods;
    FunctionRegionSpec regions;
@@ -87,8 +79,7 @@ static bool mechanically_safe_for_forced_inline(const ASTNode *fn) {
       return false;
    }
    mods = function_modifiers_node(fn);
-   if (!mods || has_modifier((ASTNode *)mods, "extern") ||
-       declaration_has_use_contract(mods) || subtree_contains_asm(fn)) {
+   if (!mods || !optimizer_inline_identity_legal(fn)) {
       return false;
    }
 
@@ -98,9 +89,9 @@ static bool mechanically_safe_for_forced_inline(const ASTNode *fn) {
       return false;
    }
 
-   /* Keep this local assertion while subsection 6 still owns ABI/assembly
-      identity vetoes: the legality module should already have rejected any
-      independently placeable function region contract. */
+   /* The identity gate owns ABI/assembly contracts; keep this local assertion
+      as a defense that independently placeable function regions never reach
+      the expansion mechanism. */
    function_region_spec_collect(fn, &regions);
    ok = regions.code_region_count == 0 && regions.result_region == NULL;
    function_region_spec_release(&regions);
