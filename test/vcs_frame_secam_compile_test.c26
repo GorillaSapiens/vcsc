@@ -1,0 +1,16 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectasm: lda #$34
+// expectasm: lda #$29
+// expectasm: sta  $0296
+// forbidasm: vcs_secam_overrun_flags
+include "vcs.c26"
+include "frame_secam.c26"
+uint16_t timing_sum;
+void main(void) {
+   timing_sum := VCS_SECAM_CYCLES_PER_SCANLINE
+      + VCS_SECAM_VSYNC_SCANLINES + VCS_SECAM_VBLANK_SCANLINES
+      + VCS_SECAM_VISIBLE_SCANLINES + VCS_SECAM_OVERSCAN_SCANLINES
+      + VCS_SECAM_FRAME_SCANLINES;
+   vcs_secam_begin_vblank(); vcs_secam_end_vblank();
+   vcs_secam_begin_overscan(); vcs_secam_end_overscan();
+}

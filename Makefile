@@ -20,6 +20,7 @@ STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP ?= $(CURDIR)/.stella-all-five-player-c
 STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP ?= $(CURDIR)/.stella-all-five-player-color-181-test
 STELLA_FAITHFUL_MULTISPRITE_TEST_TMP ?= $(CURDIR)/.stella-faithful-multisprite-test
 STELLA_MULTISPRITE_TEST_TMP ?= $(CURDIR)/.stella-multisprite-test
+STELLA_50HZ_TEST_TMP ?= $(CURDIR)/.stella-50hz-test
 WINDOWS_TRIPLET ?= x86_64-w64-mingw32
 WINDOWS_HOST_CC ?= cc
 WINDOWS_CC ?= $(WINDOWS_TRIPLET)-gcc
@@ -78,7 +79,7 @@ exam:
 #	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
 
 clean:
-	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP) $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP) $(STELLA_MULTISPRITE_TEST_TMP)
+	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP) $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP) $(STELLA_MULTISPRITE_TEST_TMP) $(STELLA_50HZ_TEST_TMP)
 	@$(MAKE) --no-print-directory -C ./assembler clean
 	@$(MAKE) --no-print-directory -C ./linker clean
 	@$(MAKE) --no-print-directory -C ./archiver clean
@@ -118,9 +119,15 @@ install-data:
 	install -m 0644 libraries/LICENSE.txt $(DESTDIR)$(DATADIR)/vcs/LICENSE.txt
 	install -m 0644 libraries/vcs/README.md $(DESTDIR)$(DATADIR)/vcs/README.md
 	install -m 0644 libraries/vcs/LEGACY_RENDERER_CONVERSION.md $(DESTDIR)$(DATADIR)/vcs/LEGACY_RENDERER_CONVERSION.md
+	install -m 0644 libraries/vcs/VIDEO_STANDARDS.md $(DESTDIR)$(DATADIR)/vcs/VIDEO_STANDARDS.md
 	install -m 0644 libraries/vcs/color_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/color_ntsc.c26
+	install -m 0644 libraries/vcs/color_pal.c26 $(DESTDIR)$(DATADIR)/vcs/color_pal.c26
+	install -m 0644 libraries/vcs/color_secam.c26 $(DESTDIR)$(DATADIR)/vcs/color_secam.c26
 	install -m 0644 libraries/vcs/bankswitching_diagnostic_suite.c26 $(DESTDIR)$(DATADIR)/vcs/bankswitching_diagnostic_suite.c26
 	install -m 0644 libraries/vcs/frame_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/frame_ntsc.c26
+	install -m 0644 libraries/vcs/frame_50hz_component.c26 $(DESTDIR)$(DATADIR)/vcs/frame_50hz_component.c26
+	install -m 0644 libraries/vcs/frame_pal.c26 $(DESTDIR)$(DATADIR)/vcs/frame_pal.c26
+	install -m 0644 libraries/vcs/frame_secam.c26 $(DESTDIR)$(DATADIR)/vcs/frame_secam.c26
 	install -m 0644 libraries/vcs/playfield.c26 $(DESTDIR)$(DATADIR)/vcs/playfield.c26
 	install -m 0644 libraries/vcs/riot.c26 $(DESTDIR)$(DATADIR)/vcs/riot.c26
 	install -m 0644 libraries/vcs/six_glyph_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_component.c26
@@ -132,6 +139,9 @@ install-data:
 	install -m 0644 libraries/vcs/two_plus_two_score_component.c26 $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_component.c26
 	install -m 0644 libraries/vcs/two_plus_two_score_support.c26 $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_support.c26
 	install -m 0644 libraries/vcs/sound_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
+	install -m 0644 libraries/vcs/sound_50hz.c26 $(DESTDIR)$(DATADIR)/vcs/sound_50hz.c26
+	install -m 0644 libraries/vcs/sound_pal.c26 $(DESTDIR)$(DATADIR)/vcs/sound_pal.c26
+	install -m 0644 libraries/vcs/sound_secam.c26 $(DESTDIR)$(DATADIR)/vcs/sound_secam.c26
 	install -m 0644 libraries/vcs/superchip.c26 $(DESTDIR)$(DATADIR)/vcs/superchip.c26
 	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	install -m 0644 libraries/vcs/vcs.c26 $(DESTDIR)$(DATADIR)/vcs/vcs.c26
@@ -242,9 +252,15 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/LICENSE.txt
 	rm -f $(DESTDIR)$(DATADIR)/vcs/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/LEGACY_RENDERER_CONVERSION.md
+	rm -f $(DESTDIR)$(DATADIR)/vcs/VIDEO_STANDARDS.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/color_ntsc.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/color_pal.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/color_secam.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/bankswitching_diagnostic_suite.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/frame_ntsc.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/frame_50hz_component.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/frame_pal.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/frame_secam.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/playfield.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/riot.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_component.c26
@@ -257,6 +273,9 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_support.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_50hz.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_pal.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_secam.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/superchip.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.c26
@@ -587,7 +606,32 @@ installcheck: tools
 	  -o "$(INSTALLCHECK_STAGING)/fingerprint.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/fingerprint.bin"` -eq 4096; \
 	test -f "$$stage_vcs/color_ntsc.c26"; \
+	test -f "$$stage_vcs/color_pal.c26"; \
+	test -f "$$stage_vcs/color_secam.c26"; \
 	test -f "$$stage_vcs/frame_ntsc.c26"; \
+	test -f "$$stage_vcs/frame_50hz_component.c26"; \
+	test -f "$$stage_vcs/frame_pal.c26"; \
+	test -f "$$stage_vcs/frame_secam.c26"; \
+	test -f "$$stage_vcs/VIDEO_STANDARDS.md"; \
+	test -f "$$stage_vcs/sound_50hz.c26"; \
+	test -f "$$stage_vcs/sound_pal.c26"; \
+	test -f "$$stage_vcs/sound_secam.c26"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_color_pal_compile_test.c26" -o "$(INSTALLCHECK_STAGING)/pal_color.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/pal_color.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_color_secam_compile_test.c26" -o "$(INSTALLCHECK_STAGING)/secam_color.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/secam_color.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_frame_pal_compile_test.c26" -o "$(INSTALLCHECK_STAGING)/pal_frame.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/pal_frame.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_frame_secam_compile_test.c26" -o "$(INSTALLCHECK_STAGING)/secam_frame.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/secam_frame.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_sound_50hz_compile_test.c26" -o "$(INSTALLCHECK_STAGING)/pal_sound.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/pal_sound.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_sound_secam_compile_test.c26" -o "$(INSTALLCHECK_STAGING)/secam_sound.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/secam_sound.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/17_video_standards/01_pal50_all_five/pal_all_five_192_interactive.c26" -o "$(INSTALLCHECK_STAGING)/pal_all_five.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/pal_all_five.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/17_video_standards/02_secam50_all_five/secam_all_five_192_interactive.c26" -o "$(INSTALLCHECK_STAGING)/secam_all_five.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/secam_all_five.bin"` -eq 4096; \
 	test -f "$$stage_vcs/six_glyph_component.c26"; \
 	test ! -e "$$stage_vcs/six_glyph_color_component.c26"; \
 	test -f "$$stage_vcs/six_glyph_wide_component.c26"; \
@@ -837,6 +881,14 @@ e2e: tools
 test: tools
 	@$(MAKE) --no-print-directory -C ./test test
 
+stella-50hz-test: tools
+	rm -rf $(STELLA_50HZ_TEST_TMP)
+	VCSC_STELLA="$(STELLA)" perl test/vcs_frame_50hz_stella.pl \
+	  "$(CURDIR)" "$(STELLA_50HZ_TEST_TMP)/frames"
+	VCSC_STELLA="$(STELLA)" perl test/vcs_video_standard_examples_stella.pl \
+	  "$(CURDIR)" "$(STELLA_50HZ_TEST_TMP)/examples"
+	rm -rf $(STELLA_50HZ_TEST_TMP)
+
 stella-bank-test: tools
 	rm -rf $(STELLA_BANK_TEST_TMP)
 	VCSC_STELLA="$(STELLA)" perl test/vcs_bankswitching_diagnostic.pl \
@@ -891,4 +943,4 @@ stella-multisprite-test: tools
 	  "$(CURDIR)" "$(STELLA_MULTISPRITE_TEST_TMP)"
 	rm -rf $(STELLA_MULTISPRITE_TEST_TMP)
 
-.PHONY: all tools install install-core install-examples install-data uninstall uninstall-examples uninstall-data package windows installcheck tarball unit sieve e2e test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-three-plus-three-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-faithful-multisprite-test stella-multisprite-test docs
+.PHONY: all tools install install-core install-examples install-data uninstall uninstall-examples uninstall-data package windows installcheck tarball unit sieve e2e test stella-50hz-test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-three-plus-three-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-faithful-multisprite-test stella-multisprite-test docs

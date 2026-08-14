@@ -33,18 +33,32 @@ static bool eval_ntsc_rgb(const long long *args, int argc,
    return builtin_ntsc_rgb_eval(args[0], args[1], args[2], value_out);
 }
 
+static bool eval_pal_rgb(const long long *args, int argc,
+                         long long *value_out) {
+   (void)argc;
+   return builtin_pal_rgb_eval(args[0], args[1], args[2], value_out);
+}
+
+static bool eval_secam_rgb(const long long *args, int argc,
+                           long long *value_out) {
+   (void)argc;
+   return builtin_secam_rgb_eval(args[0], args[1], args[2], value_out);
+}
+
 /* Adding another compile-time builtin requires one evaluator and one registry
  * row. Palette matchers such as PAL and SECAM can reuse builtin_rgb_nearest(). */
 static const BuiltinSpec builtin_specs[] = {
    {
       "__builtin_ntsc_rgb",
-      "uint8_t",
-      3,
-      true,
-      0,
-      255,
-      "RGB",
-      eval_ntsc_rgb
+      "uint8_t", 3, true, 0, 255, "RGB", eval_ntsc_rgb
+   },
+   {
+      "__builtin_pal_rgb",
+      "uint8_t", 3, true, 0, 255, "RGB", eval_pal_rgb
+   },
+   {
+      "__builtin_secam_rgb",
+      "uint8_t", 3, true, 0, 255, "RGB", eval_secam_rgb
    }
 };
 

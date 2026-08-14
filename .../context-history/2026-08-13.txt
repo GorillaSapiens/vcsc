@@ -99,3 +99,14 @@ ROM-bank bytes and 2 peak RIOT RAM bytes; focused inliner coverage proves an 8-b
 ROM win and rejects an 11-byte loss. Validation passes 482/482 compile tests and all
 283 E2E behaviors. The monolithic installcheck exceeds the command window, so its
 exact staged recipe was run as five bounded non-overlapping shards; all pass.
+
+2026-08-13 21:02:03 PDT, Complete PAL and SECAM support
+Completed the combined 50 Hz video-standard workstream. Added one shared
+312-line scheduler core with distinct PAL and SECAM frame front ends, PAL RGB
+matching and aliases, canonical eight-color SECAM matching and aliases, and
+shared 50 Hz sound/cadence helpers with PAL/SECAM public front ends. Classified
+maintained scheduler-neutral renderers as timing-portable and legacy full-frame
+renderers as NTSC-only. Added blank and interactive all-five public examples for
+both standards plus CPU and Stella 7.0 frame/raster acceptance. Final validation
+passes 492/492 compile tests, all 287 E2E tests in exact bounded groups, make
+installcheck, and make stella-50hz-test.

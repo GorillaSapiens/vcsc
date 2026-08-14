@@ -1,0 +1,133 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// Shared directly-instantiated 50 Hz frame scheduler core.
+//
+// Do not include this file directly from an application. Public PAL and SECAM
+// front ends instantiate it with their own prefixes and measured constants.
+// The common scheduler owns only VSYNC/VBLANK and the RIOT interval timer;
+// visible components retain their ordinary cycle-3 entry / cycle-0 return
+// contracts and must not take ownership of those frame-level resources.
+
+parameter vblank_tim64t;
+parameter overscan_tim64t;
+parameter diagnostics := 0;
+
+inline void TEMPLATE_wait_scanlines(uint8_t scanlines) {
+   while (scanlines) {
+      WSYNC := 0;
+      scanlines--;
+   }
+}
+
+inline void TEMPLATE_wait_visible_tail_scanlines(uint8_t scanlines) {
+   while (scanlines) {
+      WSYNC := 0;
+      scanlines--;
+   }
+
+   asm ldy #3;
+   asm @return_delay:;
+   asm dey;
+   asm bne.same @return_delay;
+   asm nop;
+   asm bit.z CXM0P;
+}
+
+inline void TEMPLATE_wait_component_scanlines(uint8_t scanlines) {
+   scanlines--;
+   while (scanlines) {
+      WSYNC := 0;
+      scanlines--;
+   }
+
+   asm ldy #11;
+   asm @delay:;
+   asm dey;
+   asm bne.same @delay;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm bit.z CXM0P;
+}
+
+inline void TEMPLATE_component_handoff(void) {
+   asm bit.z CXM0P;
+}
+
+inline void TEMPLATE_vsync(void) {
+   VSYNC := 2;
+   WSYNC := 0;
+   WSYNC := 0;
+   WSYNC := 0;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   VSYNC := 0;
+}
+
+#if TEMPLATE_diagnostics
+static uint8_t TEMPLATE_overrun_flags := 0;
+static uint8_t TEMPLATE_overrun_phase := 0;
+
+static void TEMPLATE_finish_deadline(void) {
+   asm @wait:
+   asm lda TIMINT
+   asm bmi @overrun
+   asm lda INTIM
+   asm bmi @overrun
+   asm beq @done
+   asm bne @wait
+   asm @overrun:
+   asm lda TEMPLATE_overrun_flags
+   asm ora TEMPLATE_overrun_phase
+   asm sta TEMPLATE_overrun_flags
+   asm @done:
+}
+#else
+static void TEMPLATE_finish_deadline(void) {
+   asm @wait:
+   asm lda TIMINT
+   asm bmi @done
+   asm lda INTIM
+   asm bmi @done
+   asm bne @wait
+   asm @done:
+}
+#endif
+
+inline void TEMPLATE_begin_vblank(void) {
+   VBLANK := 2;
+   TIM64T := TEMPLATE_vblank_tim64t`uint8_t;
+}
+
+inline void TEMPLATE_end_vblank(void) {
+#if TEMPLATE_diagnostics
+   TEMPLATE_overrun_phase := 1;
+#endif
+   TEMPLATE_finish_deadline();
+   WSYNC := 0;
+   VBLANK := 0;
+}
+
+inline void TEMPLATE_begin_overscan(void) {
+   VBLANK := 2;
+   TIM64T := TEMPLATE_overscan_tim64t`uint8_t;
+}
+
+inline void TEMPLATE_end_overscan(void) {
+#if TEMPLATE_diagnostics
+   TEMPLATE_overrun_phase := 2;
+#endif
+   TEMPLATE_finish_deadline();
+   // The maintained NTSC scheduler requires the same two blanked TIA-frame
+   // accounting boundaries in addition to the deadline-owned overscan line.
+   // PAL/SECAM calibration tests verify this common 50 Hz core independently.
+   WSYNC := 0;
+   WSYNC := 0;
+   WSYNC := 0;
+}

@@ -1,0 +1,32 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// Shared SECAM50 frame-scheduling primitives for the Atari 2600 / VCS.
+// Include vcs.c26 before this file. SECAM50 shares PAL50's measured 312-line
+// frame geometry while retaining a separate public display/palette profile.
+
+enum vcs_secam_frame_timing {
+   VCS_SECAM_CYCLES_PER_SCANLINE := 76,
+   VCS_SECAM_VSYNC_SCANLINES := 3,
+   VCS_SECAM_VBLANK_SCANLINES := 45,
+   VCS_SECAM_VISIBLE_SCANLINES := 228,
+   VCS_SECAM_OVERSCAN_SCANLINES := 36,
+   VCS_SECAM_FRAME_SCANLINES := 312
+};
+
+enum vcs_secam_deadline_timing {
+   VCS_SECAM_VBLANK_TIM64T := 52,
+   VCS_SECAM_OVERSCAN_TIM64T := 41
+};
+
+enum vcs_secam_overrun_flag_t {
+   VCS_SECAM_VBLANK_OVERRUN := 1,
+   VCS_SECAM_OVERSCAN_OVERRUN := 2
+};
+
+#ifdef VCS_SECAM_DIAGNOSTICS
+instantiate "frame_50hz_component.c26" as vcs_secam (
+   vblank_tim64t:=52, overscan_tim64t:=41, diagnostics:=1)
+#else
+instantiate "frame_50hz_component.c26" as vcs_secam (
+   vblank_tim64t:=52, overscan_tim64t:=41, diagnostics:=0)
+#endif

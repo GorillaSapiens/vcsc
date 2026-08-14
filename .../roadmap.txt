@@ -1641,23 +1641,39 @@ but no new workstream should be assumed until the user selects one.
         validation passes 482/482 compile tests, all 283 E2E behaviors, and the
         complete staged installcheck recipe when run in bounded shards.
 
-[ ] 32. Add native PAL support as a separate video-standard family rather than
-        parameterizing NTSC code with scattered conditionals. Define PAL machine
-        bindings and color constants, a `frame_pal.c26` scheduler with measured
-        VSYNC/VBLANK/visible/overscan phase accounting, PAL-specific sound/timing
-        helpers where the hardware clock changes behavior, linker/profile naming,
-        examples, installed files, and emulator-backed frame/raster/audio tests.
-        Port reusable components only after their timing and palette contracts can
-        be stated independently of NTSC; keep NTSC output byte-for-byte stable.
+[x] 32. Add native PAL support as part of the combined PAL + SECAM 50 Hz
+        video-standard workstream in `.../video_standard_roadmap.txt`. Share frame
+        scheduling/timing infrastructure with SECAM where the hardware contract is
+        genuinely identical, while keeping PAL machine bindings, palette/color-loss
+        semantics, sound/timing helpers, examples, and emulator acceptance explicit.
+        Do not parameterize NTSC code with scattered conditionals; keep NTSC output
+        byte-for-byte stable. Items 32 and 33 are developed together and close only
+        when both standards meet the focused roadmap's acceptance criteria.
 
-[ ] 33. Add native SECAM support after PAL scheduling is stable. Treat SECAM as
-        its own display profile with explicit legal color mapping and component
-        palette restrictions rather than pretending PAL color values are portable.
-        Provide `frame_secam.c26`, target bindings/constants, diagnostics for colors
-        or effects the profile cannot represent faithfully, representative examples,
-        installation coverage, and emulator-backed frame/raster tests. Document
-        which renderers/components are portable unchanged, require a SECAM palette,
-        or are intentionally unavailable.
+[x] 33. Add native SECAM support in the same focused PAL + SECAM workstream.
+        Reuse the common measured 50 Hz scheduling core, but retain a distinct SECAM
+        display profile with explicit eight-color mapping and component palette
+        restrictions rather than pretending PAL color values are portable. Provide
+        SECAM bindings/constants, diagnostics for effects the profile cannot
+        represent faithfully, representative examples, installation coverage, and
+        emulator-backed frame/raster tests. Items 32 and 33 close together.
+
+        Completed 2026-08-13 as one combined 50 Hz workstream:
+
+        * Add one shared measured 312-line scheduler core (3 VSYNC + 45 VBLANK +
+          228 visible + 36 overscan) with distinct `frame_pal.c26` and
+          `frame_secam.c26` front ends and independent CPU/Stella timing tests.
+        * Add Stella-compatible PAL RGB matching and aliases plus canonical
+          eight-color SECAM matching/aliases; raw numeric TIA color writes remain
+          the intentional low-level escape hatch. Add PAL/SECAM 50 Hz sound/cadence
+          front ends while leaving NTSC sound/frame APIs unchanged.
+        * Classify maintained scheduler-neutral renderers/components as timing
+          portable and legacy full-frame renderers as NTSC-only. Add PAL and SECAM
+          blank cartridges plus interactive 192-line all-five examples using a
+          measured 228-visible-line wrapper.
+        * Install/document the new frame/color/sound/profile files and examples.
+          Final validation passes 492/492 compile tests, all 287 E2E tests,
+          `make installcheck`, and Stella 7.0 PAL/SECAM scheduler/example acceptance.
 
 [x] 34. Add a public animated-sprites example that changes player bitmap frames at
         runtime rather than merely moving a static glyph. Exercise at least one

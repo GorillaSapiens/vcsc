@@ -1,0 +1,15 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// Atari 2600 SECAM has eight distinct Stella reference colors. The TIA high
+// nibble does not create additional colors in SECAM, so these aliases use the
+// lowest canonical even byte for each distinct color. __builtin_secam_rgb()
+// maps arbitrary compile-time RGB source colors to this eight-color set.
+
+alias VCS_SECAM_BLACK    0x00
+alias VCS_SECAM_BLUE     0x02
+alias VCS_SECAM_RED      0x04
+alias VCS_SECAM_MAGENTA  0x06
+alias VCS_SECAM_GREEN    0x08
+alias VCS_SECAM_CYAN     0x0a
+alias VCS_SECAM_YELLOW   0x0c
+alias VCS_SECAM_WHITE    0x0e

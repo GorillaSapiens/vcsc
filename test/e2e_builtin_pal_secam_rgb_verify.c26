@@ -1,0 +1,36 @@
+// vcsc-cc1 -I .
+// expectexit: 0
+include "machine_6502.c26"
+
+void fail(uint8_t code) {
+   asm lda #$ff;
+   asm ldy #0;
+   asm lda fail$code,y;
+   asm tax;
+   asm lda #$ff;
+   asm jsr $ffff;
+}
+
+void main(void) {
+   // Exact current Stella PAL references.
+   if (__builtin_pal_rgb(0x0b,0x0b,0x0b) != 0x00`uint8_t) { fail(1); }
+   if (__builtin_pal_rgb(0xf7,0xe2,0x7f) != 0x2c`uint8_t) { fail(2); }
+   if (__builtin_pal_rgb(0xb1,0xad,0xff) != 0xda`uint8_t) { fail(3); }
+   // $00/$10/$e0/$f0 are identical black in the PAL reference; lower wins.
+   if (__builtin_pal_rgb(0x0b,0x0b,0x0b) != 0x00`uint8_t) { fail(4); }
+
+   // All eight distinct Stella SECAM colors map to canonical low bytes.
+   if (__builtin_secam_rgb(0x00,0x00,0x00) != 0x00`uint8_t) { fail(5); }
+   if (__builtin_secam_rgb(0x21,0x21,0xff) != 0x02`uint8_t) { fail(6); }
+   if (__builtin_secam_rgb(0xf0,0x3c,0x79) != 0x04`uint8_t) { fail(7); }
+   if (__builtin_secam_rgb(0xff,0x50,0xff) != 0x06`uint8_t) { fail(8); }
+   if (__builtin_secam_rgb(0x7f,0xff,0x00) != 0x08`uint8_t) { fail(9); }
+   if (__builtin_secam_rgb(0x7f,0xff,0xff) != 0x0a`uint8_t) { fail(10); }
+   if (__builtin_secam_rgb(0xff,0xff,0x3f) != 0x0c`uint8_t) { fail(11); }
+   if (__builtin_secam_rgb(0xff,0xff,0xff) != 0x0e`uint8_t) { fail(12); }
+
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
+}

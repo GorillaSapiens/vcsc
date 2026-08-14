@@ -1,0 +1,19 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+include "vcs.c26"
+include "frame_secam.c26"
+include "color_secam.c26"
+
+void main(void) {
+   while (1) {
+      vcs_secam_vsync();
+      vcs_secam_begin_vblank();
+      COLUBK := VCS_SECAM_BLACK;
+      PF0 := 0; PF1 := 0; PF2 := 0;
+      GRP0 := 0; GRP1 := 0; ENAM0 := 0; ENAM1 := 0; ENABL := 0;
+      vcs_secam_end_vblank();
+      vcs_secam_wait_scanlines(VCS_SECAM_VISIBLE_SCANLINES`uint8_t);
+      asm nop;
+      vcs_secam_begin_overscan();
+      vcs_secam_end_overscan();
+   }
+}

@@ -1,0 +1,10 @@
+// vcsc-cc1 -I ../libraries/vcs
+include "vcs.c26"
+include "sound_secam.c26"
+
+uint8_t result;
+
+void main(void) {
+   result := MUSIC_CONTROL_LEAD + MUSIC_FREQ_C4 + MUSIC_VOLUME_MEDIUM;
+   result += MUSIC_TIME_GAP + MUSIC_TIME_EIGHTH + MUSIC_TIME_QUARTER + MUSIC_TIME_HALF;
+}

@@ -179,28 +179,31 @@ table. Registered builtins are available anywhere the compiler accepts an
 integer constant expression, including global initializers, ordinary
 expressions, and `#if`/`#elif` conditionals.
 
-The current builtin is:
+The VCS RGB matchers are:
 
 ```vcsc
-uint8_t color := __builtin_ntsc_rgb(0xfd, 0x86, 0x85);
+uint8_t ntsc  := __builtin_ntsc_rgb(0xfd, 0x86, 0x85);
+uint8_t pal   := __builtin_pal_rgb(0xf7, 0xe2, 0x7f);
+uint8_t secam := __builtin_secam_rgb(0x21, 0x21, 0xff);
 ```
 
-`__builtin_ntsc_rgb(r, g, b)` requires three compile-time integer arguments in
-`0..255`. It compares the requested RGB triplet with the 128 meaningful even
-Atari NTSC TIA color values using squared Euclidean RGB distance and returns the
-nearest TIA byte as `uint8_t`. Odd TIA bytes select the same color as the
-preceding even byte and are therefore not candidates. Exact distance ties choose
-the lower TIA byte. Display palettes are approximations, so this is a convenient
-source-color matcher, not a promise that every television or emulator will show
-identical RGB values.
+Each requires three compile-time integer arguments in `0..255`, uses squared
+Euclidean RGB distance, and returns the nearest reference TIA byte as `uint8_t`.
+Exact distance ties choose the lower TIA byte. NTSC and PAL consider the 128
+meaningful even TIA bytes. PAL odd bytes are display color-loss states, not a
+second source palette, so they are not matcher candidates. SECAM has only eight
+distinct Stella reference colors; its matcher returns the canonical low even
+bytes `$00,$02,...,$0e`.
 
-The implementation is intentionally extensible. `builtin.c` contains the
-name/type/arity/argument-contract registry and shared dispatch used by both the
-parser and conditional preprocessor. Domain-specific evaluators live in
-separate modules; `builtin_rgb.c` provides the reusable nearest-palette matcher
-and the NTSC table. A future PAL or SECAM matcher can add another palette,
-evaluator, and registry row without changing call lowering or preprocessor
-parsing.
+The reference tables track Stella's standard NTSC/PAL/SECAM palettes. Display
+palettes are approximations: real hardware, televisions, capture equipment, and
+emulator settings can render different RGB values. These builtins are source
+color conveniences, not promises about a particular display.
+
+`builtin.c` contains the name/type/arity/argument-contract registry and shared
+dispatch used by both the parser and conditional preprocessor. Domain-specific
+evaluators live in `builtin_rgb.c`, which owns the reference tables and reusable
+nearest-palette matcher.
 
 ## Types
 

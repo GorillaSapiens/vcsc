@@ -954,6 +954,24 @@ Stella report 260 / 60.5 Hz even though older simplified harnesses called their
 262 raw intervals "262 lines." The default scheduler and renderer tests therefore
 pin raw 264 while user-facing frame claims remain the Stella-authoritative 262.
 
+
+`vcs_frame_50hz_scheduler.pl` independently locks the shared PAL/SECAM scheduler
+at 3 VSYNC + 45 VBLANK + 228 visible + 36 overscan scanlines. The calibrated
+RIOT loads are TIM64T 52/41; the CPU harness observes 314 raw frame intervals
+for Stella's 312-line 50 Hz frame, preserving the same two closeout boundaries
+as the maintained NTSC scheduler. It exercises production, exact-boundary, and
+both overrun paths for both public front ends. `vcs_frame_50hz_stella.pl` is the
+optional independent Stella 7.0 smoke test; run `make stella-50hz-test
+STELLA=/path/to/stella`. It forces PAL and SECAM formats and requires a stable
+320x274 50 Hz snapshot viewport.
+
+`builtin_pal_rgb_palette_codegen_test.c26` locks every entry in the Stella PAL
+reference palette. Duplicate PAL gray entries deliberately resolve to the lower
+TIA byte under the shared deterministic tie rule.
+`builtin_secam_rgb_palette_codegen_test.c26` locks all eight distinct SECAM
+colors and their canonical `$00..$0e` even bytes;
+`e2e_builtin_pal_secam_rgb_verify.c26` verifies both matchers in the simulator.
+
 `vcs_animated_gallery_ram_accounting.pl` is the authoritative animated-gallery
 RAM/ROM report. It regenerates
 `test/fixtures/vcs_animated_gallery_ram_accounting/golden.json`, accounts for
@@ -1180,3 +1198,18 @@ the P1 top edge, 181 P0 sort invariance, and the P0 Y=0 broad-stripe regression.
 `fixed_large_offset_codegen_test.c26` locks the fixed-address audit past the old
 8-bit-offset boundary: an automatic byte at offset 299 must use direct
 `symbol + 299` addressing rather than materializing a pointer or consuming Y.
+
+PAL/SECAM 50 Hz coverage
+------------------------
+`vcs_frame_50hz_scheduler.pl` locks the shared PAL/SECAM scheduler deadlines,
+phase boundaries, 314-raw/312-Stella frame accounting, and diagnostics.
+`vcs_frame_50hz_interactive.pl` builds both public all-five examples with
+inactive RIOT controls and proves the 228-line visible composition; this avoids
+the false-reset behavior produced by zero-initialized console-switch inputs.
+`vcs_video_standard_portability.pl` locks the scheduler-neutral component
+classification in `libraries/vcs/VIDEO_STANDARDS.md`. PAL/SECAM RGB compile
+and E2E tests lock the reference palettes, while the sound compile tests lock
+the 50 Hz cadence/control aliases. `vcs_frame_50hz_stella.pl` remains optional
+and independently certifies the forced PAL/SECAM Stella viewport.
+`vcs_video_standard_examples_stella.pl` is the optional Stella companion for the
+public PAL/SECAM interactive examples and verifies their forced-format viewport.

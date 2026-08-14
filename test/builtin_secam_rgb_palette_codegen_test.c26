@@ -1,0 +1,18 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectasm: .byte $00, $02, $04, $06, $08, $0a, $0c, $0e
+// forbidasm: jsr __builtin
+
+include "vcs.c26"
+
+const uint8_t secam_palette_values[8] := {
+   __builtin_secam_rgb(0x00, 0x00, 0x00),
+   __builtin_secam_rgb(0x21, 0x21, 0xff),
+   __builtin_secam_rgb(0xf0, 0x3c, 0x79),
+   __builtin_secam_rgb(0xff, 0x50, 0xff),
+   __builtin_secam_rgb(0x7f, 0xff, 0x00),
+   __builtin_secam_rgb(0x7f, 0xff, 0xff),
+   __builtin_secam_rgb(0xff, 0xff, 0x3f),
+   __builtin_secam_rgb(0xff, 0xff, 0xff)
+};
+
+void main(void) {}

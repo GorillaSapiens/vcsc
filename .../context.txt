@@ -722,9 +722,16 @@ remain the 11-line right/left components; visible placement is 11 + 76 + 19 + 75
 scanlines, putting the Big fingerprint on raw lines 127..145 while preserving exact
 262-line NTSC timing.
 
-Main-roadmap items 25, 26, 29, 30, and 31 and the completed bankswitching
-sub-roadmap are closed; item 32 (PAL support) is the first unfinished main-roadmap
-item. Item 31's focused implementation record is `.../inline_roadmap.txt`, whose
+Main-roadmap items 25, 26, 29, 30, 31, 32, and 33 and the completed
+bankswitching sub-roadmap are closed. PAL and SECAM were implemented together via
+`.../video_standard_roadmap.txt`: one measured 312-line 50 Hz scheduler core (3
+VSYNC + 45 VBLANK + 228 visible + 36 overscan), distinct PAL/SECAM frame/color/sound
+front ends, Stella-compatible PAL RGB matching, canonical eight-color SECAM matching,
+portable-renderer classification, and public blank plus interactive all-five examples.
+Legacy full-frame renderers remain explicitly NTSC-only. Final video-standard
+validation passes 492/492 compile tests, all 287 E2E tests, `make installcheck`, and
+the Stella 7.0 50 Hz scheduler/example tests. Item 35 is the first unfinished
+main-roadmap item. Item 31's focused implementation record is `.../inline_roadmap.txt`, whose
 subsections 0 through 7 are complete. Normal compilation automatically performs
 safe single-callsite ref-address and readonly by-value specialization, including
 fixed-point constant-bound control-flow pruning and effective-callsite recomputation.

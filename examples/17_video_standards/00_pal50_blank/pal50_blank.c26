@@ -1,0 +1,19 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+include "vcs.c26"
+include "frame_pal.c26"
+include "color_pal.c26"
+
+void main(void) {
+   while (1) {
+      vcs_pal_vsync();
+      vcs_pal_begin_vblank();
+      COLUBK := VCS_PAL_BLACK;
+      PF0 := 0; PF1 := 0; PF2 := 0;
+      GRP0 := 0; GRP1 := 0; ENAM0 := 0; ENAM1 := 0; ENABL := 0;
+      vcs_pal_end_vblank();
+      vcs_pal_wait_scanlines(VCS_PAL_VISIBLE_SCANLINES`uint8_t);
+      asm nop;
+      vcs_pal_begin_overscan();
+      vcs_pal_end_overscan();
+   }
+}

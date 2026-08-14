@@ -142,6 +142,16 @@ Do not hide visible padding in `overscan()`: the scheduler can absorb it into th
 blanking deadline and the renderer will still be short. Visible lines belong in
 `draw()` and must be counted by a raster oracle.
 
+### Video-standard portability
+
+Do not put PAL/SECAM conditionals into a scheduler-neutral raster merely because
+the surrounding frame is 50 Hz. A visible component is timing-portable when its
+cycle schedule, visible-line count, and entry/return phase are independent of
+VSYNC/VBLANK/timer ownership. Compose it under `frame_pal.c26` or
+`frame_secam.c26` and supply standard-appropriate colors from the caller. If a
+renderer owns complete frame geometry, keep it explicitly standard-specific.
+See `../VIDEO_STANDARDS.md` for the maintained-component classification.
+
 ## 5. Publish hooks, clobbers, incoming assumptions, and exit state
 
 For each lifecycle function document:

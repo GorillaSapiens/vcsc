@@ -102,7 +102,7 @@ my $developer_records = File::Spec->catdir($repo, '...');
 opendir(my $developer_records_dh, $developer_records) or die "could not open $developer_records: $!\n";
 my @developer_records_extra = sort grep {
    $_ ne '.' && $_ ne '..' && $_ ne 'README.md' && $_ ne 'context.txt' && $_ ne 'roadmap.txt' &&
-   $_ ne 'context-history' && $_ ne 'bankswitching.txt' && $_ ne 'ram_optimization.txt' && $_ ne 'inline_roadmap.txt' && $_ ne 'instruction.txt'
+   $_ ne 'context-history' && $_ ne 'bankswitching.txt' && $_ ne 'ram_optimization.txt' && $_ ne 'inline_roadmap.txt' && $_ ne 'video_standard_roadmap.txt' && $_ ne 'instruction.txt'
 } readdir($developer_records_dh);
 closedir($developer_records_dh);
 @developer_records_extra and die "unexpected developer-only files remain: @developer_records_extra\n";
@@ -114,6 +114,7 @@ for my $parts (
    [qw(... bankswitching.txt)],
    [qw(... ram_optimization.txt)],
    [qw(... inline_roadmap.txt)],
+   [qw(... video_standard_roadmap.txt)],
    [qw(... instruction.txt)],
 ) {
    my $path = File::Spec->catfile($repo, @$parts);

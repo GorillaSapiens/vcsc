@@ -1,0 +1,5 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// SECAM50 TIA music constants.  The public MUSIC_* names intentionally match
+// sound_ntsc.c26 so an application selects its timing by changing the include.
+include "sound_50hz.c26"

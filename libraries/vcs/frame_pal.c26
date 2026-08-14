@@ -1,0 +1,32 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// Shared PAL50 frame-scheduling primitives for the Atari 2600 / VCS.
+// Include vcs.c26 before this file. PAL50 uses a measured 312-line frame:
+// 3 VSYNC + 45 VBLANK + 228 visible + 36 overscan scanlines.
+
+enum vcs_pal_frame_timing {
+   VCS_PAL_CYCLES_PER_SCANLINE := 76,
+   VCS_PAL_VSYNC_SCANLINES := 3,
+   VCS_PAL_VBLANK_SCANLINES := 45,
+   VCS_PAL_VISIBLE_SCANLINES := 228,
+   VCS_PAL_OVERSCAN_SCANLINES := 36,
+   VCS_PAL_FRAME_SCANLINES := 312
+};
+
+enum vcs_pal_deadline_timing {
+   VCS_PAL_VBLANK_TIM64T := 52,
+   VCS_PAL_OVERSCAN_TIM64T := 41
+};
+
+enum vcs_pal_overrun_flag_t {
+   VCS_PAL_VBLANK_OVERRUN := 1,
+   VCS_PAL_OVERSCAN_OVERRUN := 2
+};
+
+#ifdef VCS_PAL_DIAGNOSTICS
+instantiate "frame_50hz_component.c26" as vcs_pal (
+   vblank_tim64t:=52, overscan_tim64t:=41, diagnostics:=1)
+#else
+instantiate "frame_50hz_component.c26" as vcs_pal (
+   vblank_tim64t:=52, overscan_tim64t:=41, diagnostics:=0)
+#endif

@@ -33,6 +33,12 @@ One chronological development-log file per local work date, named `YYYY-MM-DD.tx
 
 The detailed internal design and ordered sub-roadmap for full-window F8/F6/F4 bankswitching, per-bank vectors and reset bridges, cross-bank trampolines, cartridge output order, and Superchip RAM. The compact `context.txt` handoff selects the active workstream; `roadmap.txt` owns the detailed main-project checklist.
 
+### `video_standard_roadmap.txt`
+
+The focused roadmap for the combined PAL + SECAM 50 Hz video-standard workstream.
+It shares frame/timing infrastructure where appropriate while keeping the PAL and
+SECAM palette/display contracts separate.
+
 ### `ram_optimization.txt`
 
 The focused RIOT-RAM optimization roadmap. It records the animated-gallery RAM baseline, explains renderer object-mask and hardware-stack ownership, and orders compiler lifetime overlay, repeated-inline scratch sharing, compact lowering, high-level example cleanup, phase overlay, direct-countdown renderer work, stack reduction, and optional two-sprite-only renderer profiles.

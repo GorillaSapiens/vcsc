@@ -24,10 +24,13 @@ Files:
 - `vcs_direct_8k.c26` ... generic two-chunk directly mapped packaging profile used to certify selector-free output
 - `vcs_*.cfg` ... retained legacy profile descriptions for simulator input and compatibility/differential certification; public builds use the C26 profiles
 - `bankswitching_diagnostic_suite.c26` ... parameterized F8/F6/F4 all-transition diagnostic used by `vcsc-sim` and authoritative Stella certification
-- `color_ntsc.c26` ... readable aliases defined through the compile-time `__builtin_ntsc_rgb(r, g, b)` NTSC palette matcher
+- `color_ntsc.c26`, `color_pal.c26`, `color_secam.c26` ... readable standard-specific aliases backed by the compile-time RGB palette matchers
 - `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, VSYNC, and scheduler-owned VBLANK/overscan deadlines
+- `frame_pal.c26`, `frame_secam.c26` ... distinct PAL50/SECAM50 public front ends over the shared measured 312-line `frame_50hz_component.c26` scheduler core
 - `playfield.c26` ... compile-time `VCS_PLAYFIELD_ROW()` conversion from left-to-right 32-bit visual rows to the four asymmetric TIA playfield bytes
 - `sound_ntsc.c26` ... NTSC TIA audio-control, note-frequency, volume, and frame-timing aliases
+- `sound_pal.c26`, `sound_secam.c26` ... 50 Hz TIA control/note aliases plus PAL/SECAM frame-duration constants through `sound_50hz.c26`
+- `VIDEO_STANDARDS.md` ... PAL/SECAM/NTSC component-portability classification and measured 228-line composition guidance
 - `six_glyph_wide_component.c26` ... separate mutable-color six-glyph profile with origins at X=36,52,68,84,100,116; its compact default uses one biased byte offset plus five full pointers and no row byte, while `compact_font:=0` restores six redirectable full pointers for callers that need arbitrary glyph-page redirection
 - `six_glyph_big_wide_component.c26` ... matching wide geometry for the 16-row Big decimal/hex fonts; it draws six 8x16 glyphs in a 19-scanline visible component
 - `six_glyph_left_component.c26` ... eleven-line mutable-color variant justified at X=0..47; compact default stores digit 6 as a byte offset plus five full pointers (set `compact_font:=0` only for full-pointer font redirection)
@@ -67,6 +70,7 @@ Files:
 - `../../examples/11_all_five_170/` ... `all_five (lines:=170)` interactive composition with an eleven-line score above and another below
 - `../../examples/12_all_five_170_unofficial/` ... matching `all_five_unofficial (lines:=170)` dual-score composition, built explicitly with `-Wa,--illegals`
 - `../../examples/13_player_color_170/` ... `player_color (lines:=170)` interactive composition with an eleven-line score above and another below
+- `../../examples/17_video_standards/` ... minimal PAL50/SECAM50 frames and measured interactive 192-line all-five compositions using standard-specific palettes
 
 ## Bank-switching diagnostic suite
 
@@ -100,30 +104,30 @@ bank; SC runs begin with hostile RAM, poison it, reset, and pass a second time.
 Stella runs the same forced and randomized startup-bank matrix and presses
 console Reset before grading each SC frame, including the poisoned FAIL image.
 
-## NTSC color matching
+## Video-standard color matching
 
-`__builtin_ntsc_rgb(r, g, b)` accepts three compile-time integer RGB components
-in `0..255` and folds them to the nearest of the 128 meaningful even NTSC TIA
-color bytes. Matching uses squared RGB distance; exact ties choose the lower TIA
-byte. There is no cartridge-resident palette and no generated runtime search.
-For example:
+VCSC keeps NTSC, PAL, and SECAM color semantics explicit.
 
-```vcsc
-COLUP0 := __builtin_ntsc_rgb(0xfd, 0x86, 0x85); // folds to TIA $4e
-```
+`__builtin_ntsc_rgb(r,g,b)` and `__builtin_pal_rgb(r,g,b)` fold compile-time RGB
+triplets to the nearest of the 128 meaningful even TIA bytes in the project's
+Stella-compatible reference palettes. Matching uses squared RGB distance and
+exact ties choose the lower TIA byte. `color_ntsc.c26` and `color_pal.c26` provide
+selected readable aliases built from those matchers. PAL color-loss is a
+display-line effect represented by Stella's odd palette entries; it is not a
+second set of source colors and is deliberately not baked into the matcher.
 
-`color_ntsc.c26` uses that builtin to define selected human-readable
-`VCS_NTSC_*` aliases. Each definition retains the reference RGB triplet and the
-resulting TIA value in its comment, so the names remain readable labels rather
-than a second independently maintained numeric palette. The RGB table is the
-Stella-compatible NTSC reference palette used by the project; real hardware,
-television decoding, capture equipment, and emulator palette settings can all
-produce different displayed RGB values.
+SECAM is not treated as PAL-with-different-names. Stella exposes eight distinct
+SECAM colors, repeated across the TIA high nibble. `color_secam.c26` defines the
+canonical low even bytes `$00,$02,...,$0e`, and `__builtin_secam_rgb(r,g,b)` maps
+an arbitrary compile-time RGB source color to those same eight choices. A source
+asset that depends on more than those eight colors therefore requires explicit
+SECAM recoloring rather than assuming PAL/NTSC TIA bytes are portable.
 
-The compiler-side matcher is structured so later PAL and SECAM builtins can
-reuse the same nearest-palette machinery while supplying their own reference
-tables.
+All three RGB builtins emit no cartridge-resident palette or runtime search.
+Reference RGB values are emulator/display approximations rather than guarantees
+for real televisions or capture hardware.
 
+## NTSC frame scheduler
 Typical use:
 
 ```vcsc
@@ -179,6 +183,44 @@ sticky `vcs_ntsc_overrun_flags` byte. Bits `VCS_NTSC_VBLANK_OVERRUN` and
 `VCS_NTSC_OVERSCAN_OVERRUN` identify missed deadlines. Production builds omit
 that RAM byte and all flag-setting code.
 
+
+## PAL and SECAM 50 Hz frame schedulers
+
+`frame_pal.c26` and `frame_secam.c26` are distinct public front ends over a shared
+internal `frame_50hz_component.c26`. Both expose the measured 312-line scheduler
+contract used by this project: 3 VSYNC + 45 VBLANK + 228 visible + 36 overscan
+scanlines, with 76 CPU cycles per scanline. Their public names remain separate
+(`vcs_pal_*` / `VCS_PAL_*` and `vcs_secam_*` / `VCS_SECAM_*`) so later palette,
+audio, and renderer contracts cannot accidentally collapse the two standards.
+
+The calibrated RIOT deadlines are `TIM64T=52` for VBLANK and `TIM64T=41` for
+overscan. As with the NTSC scheduler, the CPU timing harness counts two TIA
+frame-closeout boundaries beyond Stella's displayed frame total: a stable 312-line
+PAL/SECAM frame is therefore 314 raw harness intervals. The visible-component
+entry/handoff and diagnostic-overrun contracts mirror the NTSC API with the
+standard-specific prefix. Define `VCS_PAL_DIAGNOSTICS` or
+`VCS_SECAM_DIAGNOSTICS` before including the corresponding front end to retain
+sticky deadline-overrun state.
+
+Stella certification is intentionally an optional independent test because Stella
+is not required for a normal VCSC build. `make stella-50hz-test STELLA=/path/to/stella`
+forces PAL and SECAM display formats and verifies their stable 50 Hz viewport.
+
+`VIDEO_STANDARDS.md` classifies the maintained renderers/components. Scheduler-neutral
+C26 visible components are timing-portable when their published line and entry/return
+contracts fit the 228-line visible budget; the retained monolithic legacy/standard
+NTSC renderers remain NTSC-only. The public 192-line all-five examples demonstrate
+the measured wrapper: 17 pre-component helper lines and an 18-line visible tail.
+
+## PAL and SECAM sound/cadence constants
+
+`sound_pal.c26` and `sound_secam.c26` select the shared `sound_50hz.c26` constants.
+TIA control, volume, and the small AUDC=12 lead-note divider set retain the same
+register values used by `sound_ntsc.c26`; the physical pitch follows each console's
+clock. Frame-duration aliases are adjusted for 50 Hz: gap=2 frames, eighth=12 frames
+(rounded to 0.24 s), quarter=25 frames (0.5 s), and half=50 frames (1.0 s). Applications
+that need exact musical timing beyond whole-frame resolution should schedule it at a
+finer cadence instead of assuming NTSC frame counts.
 
 ## Left/right three-plus-three score component
 

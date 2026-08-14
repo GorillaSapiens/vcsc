@@ -26,4 +26,12 @@ bool builtin_rgb_nearest(const BuiltinRgbColor *palette, size_t count,
 bool builtin_ntsc_rgb_eval(long long r, long long g, long long b,
                            long long *value_out);
 
+//! Evaluate __builtin_pal_rgb after generic constant-argument validation.
+bool builtin_pal_rgb_eval(long long r, long long g, long long b,
+                          long long *value_out);
+
+//! Evaluate __builtin_secam_rgb after generic constant-argument validation.
+bool builtin_secam_rgb_eval(long long r, long long g, long long b,
+                            long long *value_out);
+
 #endif // _INCLUDE_BUILTIN_RGB_H_

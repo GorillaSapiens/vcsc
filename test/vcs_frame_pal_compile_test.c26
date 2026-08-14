@@ -1,0 +1,16 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectasm: lda #$34
+// expectasm: lda #$29
+// expectasm: sta  $0296
+// forbidasm: vcs_pal_overrun_flags
+include "vcs.c26"
+include "frame_pal.c26"
+uint16_t timing_sum;
+void main(void) {
+   timing_sum := VCS_PAL_CYCLES_PER_SCANLINE
+      + VCS_PAL_VSYNC_SCANLINES + VCS_PAL_VBLANK_SCANLINES
+      + VCS_PAL_VISIBLE_SCANLINES + VCS_PAL_OVERSCAN_SCANLINES
+      + VCS_PAL_FRAME_SCANLINES;
+   vcs_pal_begin_vblank(); vcs_pal_end_vblank();
+   vcs_pal_begin_overscan(); vcs_pal_end_overscan();
+}

@@ -1,0 +1,21 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// Selected Atari 2600 PAL TIA colors from Stella's PAL reference palette.
+// __builtin_pal_rgb() performs compile-time nearest-color matching against all
+// 128 meaningful even TIA bytes. Odd bytes are PAL color-loss display states,
+// not independent source colors, and are therefore not matcher candidates.
+
+alias VCS_PAL_BLACK          __builtin_pal_rgb(0x0b, 0x0b, 0x0b) // TIA 0x00
+alias VCS_PAL_WHITE          __builtin_pal_rgb(0xe6, 0xe6, 0xe6) // TIA 0x0e
+alias VCS_PAL_GOLD           __builtin_pal_rgb(0xf7, 0xe2, 0x7f) // TIA 0x2c
+alias VCS_PAL_LIGHT_GREEN    __builtin_pal_rgb(0xbf, 0xfc, 0x84) // TIA 0x3c
+alias VCS_PAL_ORANGE         __builtin_pal_rgb(0xee, 0xb3, 0x81) // TIA 0x4a
+alias VCS_PAL_GREEN          __builtin_pal_rgb(0x8b, 0xe3, 0x8b) // TIA 0x5a
+alias VCS_PAL_PINK           __builtin_pal_rgb(0xf4, 0xa3, 0xae) // TIA 0x6a
+alias VCS_PAL_AQUAMARINE     __builtin_pal_rgb(0x83, 0xdf, 0xbe) // TIA 0x7a
+alias VCS_PAL_MAGENTA        __builtin_pal_rgb(0xf3, 0x9a, 0xdf) // TIA 0x8a
+alias VCS_PAL_SKY_BLUE       __builtin_pal_rgb(0x88, 0xd2, 0xeb) // TIA 0x9a
+alias VCS_PAL_VIOLET         __builtin_pal_rgb(0xe4, 0x99, 0xff) // TIA 0xaa
+alias VCS_PAL_BLUE           __builtin_pal_rgb(0x99, 0xbf, 0xff) // TIA 0xba
+alias VCS_PAL_PURPLE         __builtin_pal_rgb(0xc5, 0xa0, 0xff) // TIA 0xca
+alias VCS_PAL_LIGHT_BLUE     __builtin_pal_rgb(0xb1, 0xad, 0xff) // TIA 0xda

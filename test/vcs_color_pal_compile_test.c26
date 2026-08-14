@@ -1,0 +1,8 @@
+// vcsc-cc1 -I ../libraries/vcs
+include "vcs.c26"
+include "color_pal.c26"
+#if (VCS_PAL_BLACK == 0x00) && (VCS_PAL_WHITE == 0x0e) && (VCS_PAL_GOLD == 0x2c) && (VCS_PAL_GREEN == 0x5a) && (VCS_PAL_BLUE == 0xba)
+void main(void) {}
+#else
+this is broken
+#endif

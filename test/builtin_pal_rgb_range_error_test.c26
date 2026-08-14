@@ -1,0 +1,5 @@
+// vcsc-cc1 -I ../libraries/vcs
+// expectfail
+// expecterr: RGB argument 3 to compiler builtin '__builtin_pal_rgb' is outside 0..255: -1
+include "vcs.c26"
+void main(void) { COLUBK := __builtin_pal_rgb(0, 0, -1); }
