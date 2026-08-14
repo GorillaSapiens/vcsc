@@ -37,6 +37,7 @@ Files:
 - `six_glyph_right_component.c26` ... eleven-line mutable-color variant justified at X=112..159; compact default uses two byte offsets plus four full pointers (set `compact_font:=0` only for full-pointer font redirection)
 - `six_glyph_component.c26` ... canonical centered 48-pixel/six-glyph lifecycle display; compact default stores digits 1/2 as byte offsets plus four full pointers with fixed bright-white color, `mutable_color:=1` adds an application-visible color byte, and `compact_font:=0` restores six redirectable full pointers for arbitrary glyph pages
 - `three_plus_three_score_component.c26` ... fixed eleven-line dual score with independent three-digit packed-BCD values and colors, centered as X=20,36,52 in the left half and X=100,116,132 in the right half
+- `two_paddles.c26` ... two analog CX30-style paddles plus both fire buttons on either controller port, with explicit VBLANK dump/charge ownership and multi-frame raw timing
 - `two_plus_two_score_support.c26` ... shared page-contained compact decimal glyph and calibrated horizontal-position tables for two-plus-two scores
 - `two_plus_two_score_component.c26` ... repeatable eleven-line P0/P1 score with independent packed-BCD left/right values, colors, and X positions; each three-bit digit is doubled to six visible pixels with a two-pixel inter-digit gap
 - `renderers/AUTHORING.md` ... maintained HOWTO for renderer/score component contracts, phase/TIA ownership, stack and memory budgets, cycle scheduling, Stella oracles, regressions, examples, and installation
@@ -221,6 +222,44 @@ clock. Frame-duration aliases are adjusted for 50 Hz: gap=2 frames, eighth=12 fr
 (rounded to 0.24 s), quarter=25 frames (0.5 s), and half=50 frames (1.0 s). Applications
 that need exact musical timing beyond whole-frame resolution should schedule it at a
 finer cadence instead of assuming NTSC frame counts.
+
+## Two paddles on one controller port
+
+`two_paddles.c26` is a parameterized input component for the two analog paddles
+and two fire buttons connected through one VCS controller port. Port 0 is the
+default; use `instantiate "two_paddles.c26" as paddles (port:=1)` for the right
+port. The public state is `position0`, `position1`, `button0`, `button1`, and
+`valid`. Button values are normalized to 1 while pressed. Position values are
+raw charge-time measurements; applications should clamp or calibrate them for
+the useful travel of their own controllers.
+
+The TIA paddle inputs are RC timers rather than ordinary digital inputs. The
+component therefore owns a measurement lifecycle instead of pretending an
+`INPTx` read is an instantaneous position. `init()` begins with the paddle
+capacitors dumped. A scheduler write that clears VBLANK.7 releases them;
+`vblank()` takes eight two-scanline samples, visible code may call `sample0()`
+and `sample1()` once per two-line slot followed by `advance_pair()`, and
+`overscan()` takes two more blanked two-line samples and reads both buttons.
+`account_gap(pairs)` advances over raster spans owned by another component.
+Measurements may carry across frames and saturate at raw 255 instead of being
+silently clipped at one frame.
+
+`dump()` is deliberately separate from the scheduler callbacks. With
+`frame_ntsc.c26`, call it immediately after `vcs_ntsc_end_overscan()`, while
+VBLANK.1 is already asserted. It writes VBLANK.7 only for a completed
+measurement and keeps its two paths cycle-balanced so the following VSYNC phase
+does not move. The next `vcs_ntsc_begin_vblank()` writes 0x02, releasing a
+completed dump and starting a fresh charge interval. The component's `vblank()`
+and `overscan()` callbacks do not write VBLANK or touch the RIOT timer, so they
+remain inside the scheduler ownership contract.
+
+The public Pong example in `examples/01_basic/09_pong/` demonstrates a complete
+composition. Its 11-line `three_plus_three_score_component.c26` owns P0/P1;
+M0/M1 are the blue/red paddles and Ball is white. The 181 gameplay lines include
+four-scanline white top and bottom walls and a reflected dashed center line on a
+black background. The emulator regression drives independent short and
+multi-frame RC thresholds, paddle fire, serving, scoring, console Reset, and
+stable NTSC frame length.
 
 ## Left/right three-plus-three score component
 

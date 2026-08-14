@@ -1,0 +1,83 @@
+2026-08-14 11:38:00 PDT, Fix Pong example regression tests
+Moved the Pong helper renderer from the cartridge directory to
+examples/common/pong_renderer.c26 so recursive example discovery does not try
+to compile the helper as a standalone cartridge. Added its 137 reviewed
+beam-critical asm statements to the example assembly allowlist. The two
+reported E2E failures now pass directly. Updated vcs_pong.pl to follow the
+renderer to examples/common and verified that emulator regression separately.
+A top-level make test rerun reached 106/288 with no failures before the
+five-minute execution cap terminated it.
+
+2026-08-14 11:45:00 PDT, Fold Pong renderer into example
+Moved the Pong-only beam kernel into examples/01_basic/09_pong/pong.c26
+and removed examples/common/pong_renderer.c26. Updated its Makefile,
+assembly allowlist entry, emulator regression, and compact context so
+examples/common remains reserved for genuinely shared example code.
+
+
+2026-08-14 12:25:00 PDT, Polish Pong raster spacing
+Kept the Pong-specific renderer inside examples/01_basic/09_pong/pong.c26
+rather than pushing more one-off code into examples/common. Thinned the
+paddles and ball, moved the right paddle outward to better mirror the left,
+added a score-to-top-wall gap plus a wall-to-center-line gap, and cleared
+PF state cleanly before gameplay so the score handoff no longer leaves
+garbage under the top wall. Updated the example assembly allowlist for the
+revised beam-critical asm block. A naive motion-smoothing attempt was
+dropped because it burned too much timing/ROM budget for this cartridge.
+
+2026-08-14 12:46:23 PDT, Fix Pong missing visible scanline
+The raster-spacing polish accidentally made pong_draw() emit 180 rather than
+its promised 181 visible lines, shortening frames from the oracle's 264 raw
+lines to 263. Added the missing blank WSYNC immediately before the four-line
+bottom wall. The exact vcs_pong.pl regression now passes with stable frame
+length; the cartridge uses 3775 ROM bytes and 97 RAM bytes.
+
+2026-08-14 13:36:52 PDT, Fix Pong horizontal calibration
+Replaced the Pong-only uncalibrated RESP/HMxx positioning sequence with the
+same BIT plus two-NOP divide-by-fifteen timing used by maintained all-five
+renderers. Stella pixel measurements now put the blue paddle at rendered
+X=18..21 and red at X=298..301 in the 320-pixel snapshot, exactly mirrored
+about screen center. The right target moved to 156; Ball collision/score
+limits now stop at calibrated safe horizontal positions 4..163 so the left
+edge does not wrap through the RESP calculation. Extended the center-dash
+pattern to the bottom, cleared PF2 during line-176 horizontal blank, and moved
+the top wall one line so both divider-to-wall gaps are exactly one scanline.
+Paddle targets now use a cheap even 9/16-ish mapping and move at most two
+scanlines per frame, smoothing high-RC measurements without overrunning the
+4K ROM or overscan. Added source/oracle checks for the calibrated geometry.
+
+2026-08-14 14:05:00 PDT, Extend Pong paddle bottom reach
+The previous Pong paddle target mapping used a conservative raw/2 + raw/16
+approximation that topped out too early, leaving the paddles unable to reach
+the lower playable rows above the bottom wall. Replaced that mapping with a
+clamped full-range conversion covering the intended 8..160 top-edge span,
+kept the even-valued output expected by the 2-scanline slew update, and
+revalidated the exact vcs_pong.pl regression plus example-build, assembly,
+context-format, and source-tree hygiene checks.
+
+2026-08-14 14:22:42 PDT, Calibrate Pong paddle endpoints
+Measured the endpoint failure rather than guessing from the screenshot. The
+Pong emulator's long RC endpoint resolves at raw 165; the previous 13/16
+conversion only reached paddle Y=152. Changed the game mapping to 15/16 with
+an 8..160 clamp, so raw zero reaches Y=8 and the long endpoint reaches Y=160.
+Extended vcs_pong.pl/vcs_pong.cpp to expose both rendered paddle Y positions
+and require those exact top and bottom limits, permanently checking symmetric
+one-scanline wall clearance. The full 492-test compile suite passes.
+
+2026-08-14 14:48:12 PDT, Fix Pong paddle vertical boundaries
+The screenshots exposed two separate bugs that endpoint-value tests had missed.
+M0 changed enable state on the first line of each pair while M1 changed on the
+second, so equal paddle Y values were not vertically level. At the bottom,
+Y=160 produced end-pair 88 even though the visible loop stops at pair 87, so
+ENAM0/ENAM1 could remain asserted into the bottom wall and following frame.
+Moved both paddle transitions to the same line-B phase, moved both analog samples
+to line A, and changed the legal rendered paddle-top range to odd Y=9..159; that
+maps to start pairs 4..79 and end pairs 12..87, all inside the loop. Added a
+small raw-input low-end dead zone so normal channel endpoint tolerance does not
+leave one paddle visibly short of the top. The tail also clears both missiles
+defensively. Ball top Y moved from 6 to drawable Y=8. The Pong oracle now swaps
+long/short RC endpoints between channels, requires both paddles to reach both
+limits, checks equal-Y M0/M1 raster lines, and proves each bottom paddle disables
+after exactly 16 scanlines. The cartridge is 3739 ROM / 94 RAM; 492/492 compile
+tests and the focused Pong/example/assembly/hygiene regressions pass.
+

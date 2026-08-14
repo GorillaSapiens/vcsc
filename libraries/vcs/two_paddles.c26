@@ -1,0 +1,226 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// Two Atari CX30-style paddle controllers on one VCS controller port.
+//
+// The component measures RC charge time in two-scanline units. Measurements
+// may span frames; a raw value of 255 is the timeout/saturation result. The
+// public positions are deliberately raw because real controllers vary enough
+// that games should clamp/calibrate them for their own useful travel.
+//
+// Typical NTSC frame composition with frame_ntsc.c26:
+//
+//   vcs_ntsc_vsync();
+//   vcs_ntsc_begin_vblank();       // scheduler clears VBLANK.7: charge starts
+//   paddles_vblank();              // eight two-line samples
+//   paddles_account_gap(16);       // account an unsampled fixed span
+//   ... bounded VBLANK work ...
+//   vcs_ntsc_end_vblank();
+//
+//   ... visible code calls paddles_sample0()/sample1() once per two lines ...
+//
+//   vcs_ntsc_begin_overscan();
+//   paddles_account_gap(pairs);    // account any unsampled visible tail
+//   paddles_overscan();            // two more two-line samples + buttons
+//   ... other bounded overscan work ...
+//   vcs_ntsc_end_overscan();
+//   paddles_dump();                // outside scheduler-owned callbacks
+//
+// paddles_dump() writes VBLANK.7 only when a measurement has completed. Call
+// it after vcs_ntsc_end_overscan(), while VBLANK.1 is already set. The pots
+// then remain grounded across VSYNC. The next vcs_ntsc_begin_vblank() writes
+// 0x02, releases the dump, and paddles_vblank() starts the next measurement.
+
+parameter port := 0;
+
+enum TEMPLATE_constants {
+   TEMPLATE_RAW_TIMEOUT := 255,
+   TEMPLATE_VBLANK_PAIRS := 8,
+   TEMPLATE_OVERSCAN_PAIRS := 2
+};
+
+// Last completed measurements. One raw count is approximately two NTSC
+// scanlines in sampled spans. account_gap() preserves the same units across
+// spans where another component owns the raster.
+uint8_t TEMPLATE_position0 := 0;
+uint8_t TEMPLATE_position1 := 0;
+uint8_t TEMPLATE_button0 := 0;
+uint8_t TEMPLATE_button1 := 0;
+uint8_t TEMPLATE_valid := 0;
+
+// active bit 0/1 means that channel has not charged yet. dumped means the
+// capacitors are currently held discharged and a new measurement should begin
+// after the scheduler releases VBLANK.7.
+uint8_t TEMPLATE_elapsed := 0;
+uint8_t TEMPLATE_active := 0;
+uint8_t TEMPLATE_dumped := 1;
+
+require inline void TEMPLATE_init(void) {
+   SWACNT := 0;
+   TEMPLATE_position0 := 0;
+   TEMPLATE_position1 := 0;
+   TEMPLATE_button0 := 0;
+   TEMPLATE_button1 := 0;
+   TEMPLATE_valid := 0;
+   TEMPLATE_elapsed := 0;
+   TEMPLATE_active := 0;
+   TEMPLATE_dumped := 1;
+   VBLANK := 0x82;
+}
+
+// Sample one channel at the current two-line time slot. INPTx.7 remains high
+// after the capacitor reaches the input threshold, until the next dump.
+require inline void TEMPLATE_sample0(void) {
+#if TEMPLATE_port == 0
+   asm bit.z INPT0;
+#elif TEMPLATE_port == 1
+   asm bit.z INPT2;
+#endif
+   asm bpl @not_ready;
+   asm lda.z TEMPLATE_active;
+   asm and #$01;
+   asm beq @not_ready;
+   asm lda.z TEMPLATE_elapsed;
+   asm sta.z TEMPLATE_position0;
+   asm lda.z TEMPLATE_active;
+   asm and #$fe;
+   asm sta.z TEMPLATE_active;
+   asm @not_ready:;
+}
+
+require inline void TEMPLATE_sample1(void) {
+#if TEMPLATE_port == 0
+   asm bit.z INPT1;
+#elif TEMPLATE_port == 1
+   asm bit.z INPT3;
+#endif
+   asm bpl @not_ready;
+   asm lda.z TEMPLATE_active;
+   asm and #$02;
+   asm beq @not_ready;
+   asm lda.z TEMPLATE_elapsed;
+   asm sta.z TEMPLATE_position1;
+   asm lda.z TEMPLATE_active;
+   asm and #$fd;
+   asm sta.z TEMPLATE_active;
+   asm @not_ready:;
+}
+
+require inline void TEMPLATE_advance_pair(void) {
+   asm lda.z TEMPLATE_active;
+   asm beq @done;
+   asm inc.z TEMPLATE_elapsed;
+   asm bne @done;
+   asm dec.z TEMPLATE_elapsed;
+   asm @done:;
+}
+
+static inline void TEMPLATE_sample_blank_pair(void) {
+   TEMPLATE_sample0();
+   TEMPLATE_sample1();
+   TEMPLATE_advance_pair();
+   WSYNC := 0;
+   WSYNC := 0;
+}
+
+// Call after vcs_ntsc_begin_vblank(). When the prior frame completed and
+// paddles_dump() grounded the pots, the scheduler write of 0x02 has just
+// released them and starts a fresh measurement.
+require inline void TEMPLATE_vblank(void) {
+   if (TEMPLATE_dumped) {
+      TEMPLATE_elapsed := 0;
+      TEMPLATE_active := 3;
+      TEMPLATE_dumped := 0;
+   }
+
+   for (uint8_t i := TEMPLATE_VBLANK_PAIRS; i; i--) {
+      TEMPLATE_sample_blank_pair();
+   }
+}
+
+// Advance over a span where another component owns the beam. If an input was
+// already high at the start of the span, record the midpoint; otherwise the
+// next explicit sample records the end of the gap. 'pairs' uses the same
+// two-scanline units as the public position values.
+require inline void TEMPLATE_account_gap(uint8_t pairs) {
+   uint8_t half := pairs >> 1;
+   uint8_t value := 0;
+
+   if (TEMPLATE_active & 1) {
+#if TEMPLATE_port == 0
+      if (INPT0 & 0x80) {
+#elif TEMPLATE_port == 1
+      if (INPT2 & 0x80) {
+#endif
+         value := TEMPLATE_elapsed + half;
+         if (value < TEMPLATE_elapsed) { value := TEMPLATE_RAW_TIMEOUT; }
+         TEMPLATE_position0 := value;
+         TEMPLATE_active &= 0xfe;
+      }
+   }
+   if (TEMPLATE_active & 2) {
+#if TEMPLATE_port == 0
+      if (INPT1 & 0x80) {
+#elif TEMPLATE_port == 1
+      if (INPT3 & 0x80) {
+#endif
+         value := TEMPLATE_elapsed + half;
+         if (value < TEMPLATE_elapsed) { value := TEMPLATE_RAW_TIMEOUT; }
+         TEMPLATE_position1 := value;
+         TEMPLATE_active &= 0xfd;
+      }
+   }
+
+   if (TEMPLATE_active) {
+      value := TEMPLATE_elapsed + pairs;
+      if (value < TEMPLATE_elapsed) { value := TEMPLATE_RAW_TIMEOUT; }
+      TEMPLATE_elapsed := value;
+   }
+}
+
+// Finish this frame's sampling without owning the complete overscan budget.
+// Button values are normalized to 1=pressed, 0=released.
+require inline void TEMPLATE_overscan(void) {
+   if (TEMPLATE_active) {
+      for (uint8_t i := TEMPLATE_OVERSCAN_PAIRS; i; i--) {
+         TEMPLATE_sample_blank_pair();
+      }
+   }
+
+   if (TEMPLATE_elapsed == TEMPLATE_RAW_TIMEOUT) {
+      if (TEMPLATE_active & 1) { TEMPLATE_position0 := TEMPLATE_RAW_TIMEOUT; }
+      if (TEMPLATE_active & 2) { TEMPLATE_position1 := TEMPLATE_RAW_TIMEOUT; }
+      TEMPLATE_active := 0;
+   }
+
+#if TEMPLATE_port == 0
+   TEMPLATE_button0 := (SWCHA & 0x80) == 0;
+   TEMPLATE_button1 := (SWCHA & 0x40) == 0;
+#elif TEMPLATE_port == 1
+   TEMPLATE_button0 := (SWCHA & 0x08) == 0;
+   TEMPLATE_button1 := (SWCHA & 0x04) == 0;
+#endif
+   if (!TEMPLATE_active) { TEMPLATE_valid := 1; }
+}
+
+// Dump completed measurements only after scheduler-owned overscan has ended.
+// Leaving an unfinished measurement alone is what permits high-resistance
+// positions to carry into the next frame instead of clipping at one frame.
+require inline void TEMPLATE_dump(void) {
+   // Keep the post-scheduler path cycle-balanced. frame_ntsc.c26 has already
+   // performed its final WSYNC alignment, so a variable-length branch here
+   // would move the next VSYNC phase. Both paths below consume 18 cycles.
+   asm lda.z TEMPLATE_active;
+   asm bne @still_active;
+   asm lda #$82;
+   asm sta VBLANK;
+   asm lda #1;
+   asm sta.z TEMPLATE_dumped;
+   asm jmp @done;
+   asm @still_active:;
+   asm lda #$02;
+   asm sta VBLANK;
+   asm bit.z CXM0P;
+   asm nop;
+   asm nop;
+   asm @done:;
+}

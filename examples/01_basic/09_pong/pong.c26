@@ -1,0 +1,472 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+include "vcs_4k.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+include "fonts/default_decimal.c26"
+
+alias PONG_BLACK 0x00
+alias PONG_WHITE __builtin_ntsc_rgb(0xff, 0xff, 0xff)
+alias PONG_BLUE  __builtin_ntsc_rgb(0x20, 0x40, 0xff)
+alias PONG_RED   __builtin_ntsc_rgb(0xff, 0x20, 0x20)
+
+instantiate "three_plus_three_score_component.c26" as score
+instantiate "two_paddles.c26" as paddles (port:=0)
+
+// Local 181-line Pong playfield renderer. P0/P1 are reserved for the score;
+// gameplay uses M0/M1 as paddles and Ball as the ball.
+
+enum pong_renderer_constants {
+   PONG_VISIBLE_LINES := 181,
+   PONG_PAIR_COUNT := 88,
+   PONG_LEFT_X := 16,
+   PONG_RIGHT_X := 156,
+   PONG_LEFT_COLLISION_X := 14,
+   PONG_RIGHT_COLLISION_X := 152,
+   PONG_LEFT_SCORE_X := 4,
+   PONG_RIGHT_SCORE_X := 163,
+   PONG_PADDLE_HEIGHT := 16,
+   PONG_BALL_HEIGHT := 4,
+   PONG_PADDLE_STEP := 2,
+   PONG_PADDLE_TOP_Y := 9,
+   PONG_PADDLE_BOTTOM_Y := 159,
+   PONG_PADDLE_RAW_MIN := 12,
+   PONG_BALL_TOP_Y := 8,
+   PONG_BALL_BOTTOM_Y := 172
+};
+
+uint8_t pong_left_y := 81;
+uint8_t pong_right_y := 81;
+uint8_t pong_ball_x := 78;
+uint8_t pong_ball_y := 88;
+uint8_t pong_left_start_pair := 40;
+uint8_t pong_left_end_pair := 48;
+uint8_t pong_right_start_pair := 40;
+uint8_t pong_right_end_pair := 48;
+uint8_t pong_ball_start_pair := 44;
+uint8_t pong_ball_end_pair := 46;
+
+// PF2.7 is the center-most playfield bit when CTRLPF reflect is enabled.
+// The explicit setup consumes lines 0..7: three black lines below the score,
+// four top-wall lines, then one black line before the center stripe. Pairs
+// 4..87 therefore cover lines 8..175 with a continuous 8-on/8-off dash pattern.
+// Line 176 is black; the bottom wall occupies lines 177..180. That leaves the
+// same one-scanline gap between the dashed center line and each horizontal wall.
+align(256) const uint8_t pong_pf2_pairs[88] := {
+   0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80
+};
+
+// The standard divide-by-15 RESP/HMxx fine-motion table used by the other VCS
+// renderers. Indexing is by the negative divide remainder (-15..-1).
+align(256) const uint8_t pong_reposition_table[16] := {
+   0x70,0x60,0x50,0x40,0x30,0x20,0x10,0x00,
+   0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90,0x80
+};
+
+inline void pong_prepare_vertical(void) {
+   pong_left_start_pair := pong_left_y >> 1;
+   pong_left_end_pair := pong_left_start_pair + 8;
+   pong_right_start_pair := pong_right_y >> 1;
+   pong_right_end_pair := pong_right_start_pair + 8;
+   pong_ball_start_pair := pong_ball_y >> 1;
+   pong_ball_end_pair := pong_ball_start_pair + 2;
+}
+
+// Initial fixed X positions for M0/M1 plus the initial Ball position. Call only
+// while VBLANK is asserted.
+inline void pong_position_all(void) {
+   asm lda #0;
+   asm sta HMM0;
+   asm sta HMM1;
+   asm sta HMBL;
+
+   asm sta WSYNC;
+   asm ldx #2;
+   asm bit.z CXM0P;
+   asm lda #16;
+   asm sec;
+   asm @m0_divide:;
+   asm sbc #15;
+   asm bcs.same @m0_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda pong_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #3;
+   asm bit.z CXM0P;
+   asm lda #156;
+   asm sec;
+   asm @m1_divide:;
+   asm sbc #15;
+   asm bcs.same @m1_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda pong_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #4;
+   asm bit.z CXM0P;
+   asm lda.z pong_ball_x;
+   asm sec;
+   asm @ball_divide:;
+   asm sbc #15;
+   asm bcs.same @ball_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda pong_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm sta HMOVE;
+}
+
+// Reposition only Ball; fixed paddle X positions survive the score component.
+inline void pong_position_ball(void) {
+   asm lda #0;
+   asm sta HMM0;
+   asm sta HMM1;
+   asm sta HMBL;
+   asm sta WSYNC;
+   asm ldx #4;
+   asm bit.z CXM0P;
+   asm lda.z pong_ball_x;
+   asm sec;
+   asm @ball_divide:;
+   asm sbc #15;
+   asm bcs.same @ball_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda pong_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+   asm sta WSYNC;
+   asm sta HMOVE;
+}
+
+// Enter at the standard component cycle-3 phase after the score handoff.
+// Consumes exactly 181 lines and returns at cycle zero of the following line.
+inline void pong_draw(void) {
+   // Clear PF first so the score hands off to black rather than leaving any
+   // transient score/playfield residue below the digits.
+   asm lda #0;
+   asm sta PF0;
+   asm sta PF1;
+   asm sta PF2;
+
+   asm lda #$10;              // 2-pixel missiles for thinner paddles
+   asm sta NUSIZ0;
+   asm sta NUSIZ1;
+   asm lda #$84;
+   asm sta COLUP0;
+   asm lda #$46;
+   asm sta COLUP1;
+   asm lda #$0e;
+   asm sta COLUPF;
+   asm lda #$00;
+   asm sta COLUBK;
+   asm lda #$11;              // reflected PF, 2-pixel Ball
+   asm sta CTRLPF;
+   asm lda #0;
+   asm sta ENAM0;
+   asm sta ENAM1;
+   asm sta ENABL;
+
+   // Lines 0..2: blank gap between the score and the top wall.
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
+
+   // Lines 3..6: full-width top wall.
+   asm lda #$ff;
+   asm sta PF0;
+   asm sta PF1;
+   asm sta PF2;
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
+
+   // Line 7: blank gap between the top wall and the dashed center line.
+   asm lda #0;
+   asm sta PF0;
+   asm sta PF1;
+   asm sta PF2;
+   asm sta WSYNC;
+
+   // Interior pairs 4..87 cover gameplay lines 8..175.
+   asm ldx #4;
+   asm @pair:;
+
+   // Ball is the only object that changes on line A. Sample both analog
+   // channels on the same line so the two paddle measurements have identical
+   // pair timing.
+   asm cpx.z pong_ball_start_pair;
+   asm bne.same @ball_not_start;
+   asm lda #2;
+   asm sta ENABL;
+   asm @ball_not_start:;
+   asm cpx.z pong_ball_end_pair;
+   asm bne.same @ball_not_end;
+   asm lda #0;
+   asm sta ENABL;
+   asm @ball_not_end:;
+
+   asm lda pong_pf2_pairs,x;
+   asm sta PF2;
+   paddles_sample0();
+   paddles_sample1();
+   WSYNC := 0;
+
+   // Both paddles transition on line B. Keeping M0 and M1 in the same raster
+   // phase removes the one-scanline vertical bias that existed when M0 changed
+   // on line A and M1 on line B.
+   asm cpx.z pong_left_start_pair;
+   asm bne.same @m0_not_start;
+   asm lda #2;
+   asm sta ENAM0;
+   asm @m0_not_start:;
+   asm cpx.z pong_left_end_pair;
+   asm bne.same @m0_not_end;
+   asm lda #0;
+   asm sta ENAM0;
+   asm @m0_not_end:;
+
+   asm cpx.z pong_right_start_pair;
+   asm bne.same @m1_not_start;
+   asm lda #2;
+   asm sta ENAM1;
+   asm @m1_not_start:;
+   asm cpx.z pong_right_end_pair;
+   asm bne.same @m1_not_end;
+   asm lda #0;
+   asm sta ENAM1;
+   asm @m1_not_end:;
+
+   paddles_advance_pair();
+
+   asm inx;
+   asm cpx #88;
+   asm beq @tail;
+   asm sta WSYNC;
+   asm jmp @pair;
+
+   // Finish pair 87 at line 175 and enter line 176. Pair 87 already left PF
+   // black; hold one more blank scanline so the four-line bottom wall remains
+   // lines 177..180 and pong_draw() consumes the promised 181 visible lines.
+   asm @tail:;
+   asm sta WSYNC;
+   // Clear the retained center bit during line-176 horizontal blank so the
+   // final dash ends on line 175 and line 176 is the same one-line wall gap
+   // used above the first dash.
+   asm lda #0;
+   asm sta PF2;
+   asm sta ENAM0;
+   asm sta ENAM1;
+   asm sta ENABL;
+   asm sta WSYNC;
+
+   // Lines 177..180: full-width bottom wall.
+   asm lda #$ff;
+   asm sta PF0;
+   asm sta PF1;
+   asm sta PF2;
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
+}
+
+
+uint8_t ball_right := 1;
+uint8_t ball_down := 1;
+uint8_t waiting_for_serve := 1;
+
+inline uint8_t paddle_target_y(uint8_t raw) {
+   // Real CX30 paddles do not all reach the same raw endpoint. Reserve a small
+   // dead zone at the low end, then map the useful range nearly 1:1 onto odd
+   // rendered top coordinates 9..159. The odd coordinates match the
+   // line-B enable phase used identically by M0 and M1.
+   uint8_t y := 0;
+   if (raw > PONG_PADDLE_RAW_MIN) {
+      y := raw - PONG_PADDLE_RAW_MIN;
+      if (y > 150) { return PONG_PADDLE_BOTTOM_Y; }
+   }
+   return (PONG_PADDLE_TOP_Y + y) | 1;
+}
+
+inline void reset_ball(void) {
+   pong_ball_x := 78;
+   pong_ball_y := 88;
+   ball_down := 1;
+   waiting_for_serve := 1;
+}
+
+inline void reset_game(void) {
+   score_left_score := 0;
+   score_right_score := 0;
+   ball_right := 1;
+   reset_ball();
+}
+
+inline uint8_t overlaps_paddle(uint8_t paddle_y) {
+   uint8_t ball_bottom := pong_ball_y + PONG_BALL_HEIGHT;
+   uint8_t paddle_bottom := paddle_y + PONG_PADDLE_HEIGHT;
+   if (ball_bottom <= paddle_y) { return 0; }
+   if (pong_ball_y >= paddle_bottom) { return 0; }
+   return 1;
+}
+
+inline void update_game(void) {
+   if (paddles_valid) {
+      uint8_t left_target := paddle_target_y(paddles_position0);
+      uint8_t right_target := paddle_target_y(paddles_position1);
+      if (pong_left_y < left_target) { pong_left_y += 2; }
+      if (pong_left_y > left_target) { pong_left_y -= 2; }
+      if (pong_right_y < right_target) { pong_right_y += 2; }
+      if (pong_right_y > right_target) { pong_right_y -= 2; }
+   }
+
+   if ((SWCHB & 1) == 0) {
+      reset_game();
+      return;
+   }
+
+   if (waiting_for_serve) {
+      if (paddles_button0) {
+         ball_right := 1;
+         waiting_for_serve := 0;
+      }
+      else {
+         if (paddles_button1) {
+            ball_right := 0;
+            waiting_for_serve := 0;
+         }
+      }
+      return;
+   }
+
+   if (ball_down) {
+      if (pong_ball_y >= PONG_BALL_BOTTOM_Y - 1) {
+         pong_ball_y := PONG_BALL_BOTTOM_Y;
+         ball_down := 0;
+      }
+      else { pong_ball_y += 2; }
+   }
+   else {
+      if (pong_ball_y <= PONG_BALL_TOP_Y + 1) {
+         pong_ball_y := PONG_BALL_TOP_Y;
+         ball_down := 1;
+      }
+      else { pong_ball_y -= 2; }
+   }
+
+   if (ball_right) {
+      pong_ball_x++;
+      if (pong_ball_x >= PONG_RIGHT_COLLISION_X) {
+         if (overlaps_paddle(pong_right_y)) {
+            pong_ball_x := PONG_RIGHT_COLLISION_X - 1;
+            ball_right := 0;
+         }
+         else {
+            if (pong_ball_x >= PONG_RIGHT_SCORE_X) {
+               score_left_score++;
+               ball_right := 1;
+               reset_ball();
+            }
+         }
+      }
+   }
+   else {
+      pong_ball_x--;
+      if (pong_ball_x <= PONG_LEFT_COLLISION_X) {
+         if (overlaps_paddle(pong_left_y)) {
+            pong_ball_x := PONG_LEFT_COLLISION_X + 1;
+            ball_right := 1;
+         }
+         else {
+            if (pong_ball_x <= PONG_LEFT_SCORE_X) {
+               score_right_score++;
+               ball_right := 0;
+               reset_ball();
+            }
+         }
+      }
+   }
+}
+
+void main(void) {
+   VBLANK := 2;
+   COLUBK := PONG_BLACK;
+   COLUPF := PONG_WHITE;
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+
+   score_left_color := PONG_BLUE;
+   score_right_color := PONG_RED;
+   score_init();
+   paddles_init();
+   reset_game();
+   pong_prepare_vertical();
+   pong_position_all();
+
+   while (1) {
+      vcs_ntsc_vsync();
+
+      vcs_ntsc_begin_vblank();
+      paddles_vblank();
+      // 20 two-line units cover the fixed remainder of 37-line VBLANK, the
+      // 11 score lines, the 3-line score gap, the 4-line top wall, and the
+      // 1-line gap below that wall before the visible pair sampler begins.
+      paddles_account_gap(20);
+      score_vblank();
+      // The score preserves playfield state; clear the prior frame's bottom
+      // wall so the score is drawn over black rather than a white PF stripe.
+      PF0 := 0;
+      PF1 := 0;
+      PF2 := 0;
+      vcs_ntsc_end_vblank();
+
+      score_draw();
+      vcs_ntsc_component_handoff();
+      pong_draw();
+
+      vcs_ntsc_begin_overscan();
+      // Visible line 176 plus the 4-line bottom wall do not sample the pots:
+      // account the final fixed tail as three two-line units.
+      paddles_account_gap(3);
+      paddles_overscan();
+      update_game();
+      pong_prepare_vertical();
+      pong_position_ball();
+      score_overscan();
+      vcs_ntsc_end_overscan();
+
+      // Keep the completed RC measurement grounded across the following VSYNC.
+      paddles_dump();
+   }
+}

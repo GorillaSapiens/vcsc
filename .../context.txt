@@ -546,7 +546,7 @@ left-hundreds row table buying the required scanline time. Cycle 59 visibly
 contaminated the first two pixels of the third right glyph with the tens glyph.
 The default regression now pixel-grades the reviewed Stella reference, and an
 optional headless-Stella target compares a live render to that reference. Item
-31 is the first unfinished item. Item 28's
+31 was the first unfinished item at that point. Item 28's
 first milestone remains locked as the `faithful_legacy_multisprite` baseline: retained NTSC/unbanked/non-Superchip source,
 P0 plus five multiplexed P1 sprites, integrated score/playfield, 1472/4090 ROM, exact
 122-byte `$80-$F9` state plus six-byte `$FA-$FF` hardware stack, zero compiler
@@ -730,7 +730,7 @@ front ends, Stella-compatible PAL RGB matching, canonical eight-color SECAM matc
 portable-renderer classification, and public blank plus interactive all-five examples.
 Legacy full-frame renderers remain explicitly NTSC-only. Final video-standard
 validation passes 492/492 compile tests, all 287 E2E tests, `make installcheck`, and
-the Stella 7.0 50 Hz scheduler/example tests. Item 35 is the first unfinished
+the Stella 7.0 50 Hz scheduler/example tests. Item 36 is the first unfinished
 main-roadmap item. Item 31's focused implementation record is `.../inline_roadmap.txt`, whose
 subsections 0 through 7 are complete. Normal compilation automatically performs
 safe single-callsite ref-address and readonly by-value specialization, including
@@ -837,3 +837,32 @@ profile, retain five-object movement, and edit all six visible digits with the
 filtered right joystick. Both use 112/128 RAM; score-above is 3427/4090 ROM and
 score-below is 3571/4090 ROM. The temporary static-only 3+3 examples under the
 88-byte `all_five_player_color_181` profile were removed.
+
+Main-roadmap item 35 is complete as a combined two-paddle/Pong workstream.
+`libraries/vcs/two_paddles.c26` now exposes two raw analog positions and both
+fire buttons for either controller port, explicitly owns the RC dump/charge
+lifecycle without violating `frame_ntsc.c26` callback ownership, permits
+measurements to span frames, and keeps its post-overscan dump path cycle-balanced.
+`examples/01_basic/09_pong/pong.c26` is a self-contained cartridge source that
+composes that input API with the 11-line `three_plus_three_score_component.c26`;
+its Pong-specific beam-critical renderer is kept in the same source rather than
+polluting `examples/common/`. The raster uses thin M0/M1 paddles and a thin Ball,
+blue on the physical left and red at the exactly mirrored physical right X,
+with the maintained-renderer calibrated divide-by-fifteen RESP/HMxx sequence.
+The score has a black gap above the four-line top wall; the 8-on/8-off center
+divider has the same one-scanline black gap to the top and bottom walls; PF state
+is cleared across the score handoff. Ball software X limits stop at the stable
+visible positioning range instead of allowing a left/right RESP wrap. Paddle Y
+handling is now symmetric at the renderer rather than compensated per channel:
+both M0/M1 enable transitions occur in the same raster phase, a small low-end raw
+input dead zone absorbs normal controller endpoint tolerance, and both channels map
+to odd rendered top Y=9..159. The corresponding start/end pairs stay inside the
+visible loop, so a bottom-edge paddle always disables after exactly 16 scanlines
+instead of leaking through the bottom wall. The displayed paddle slews toward the
+latest target by two scanlines per frame, masking sparse multi-frame high-RC
+updates. Ball top travel now starts at drawable Y=8. The emulator oracle swaps the
+long/short RC endpoints between channels so both paddles must reach both extremes,
+checks common M0/M1 raster phase and exact 16-line bottom spans, plus fire-to-serve,
+a deterministic miss/score, Reset, stable Ball ranges, and stable NTSC frame length.
+The current cartridge build uses 3739 ROM bytes and 94 RAM bytes. Item 36 is now
+the first unfinished main-roadmap item.

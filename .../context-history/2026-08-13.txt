@@ -118,9 +118,3 @@ calls used by internal --trial output suppression. Check both calls explicitly
 and return linker status 1 if either redirection fails. Verified the exact static
 linker build flags, measured-inline/linker regressions, hygiene checks, and the
 complete make linux packaging path.
-
-2026-08-13 21:56:05 PDT, Refresh GitHub package actions
-Updated package CI to current Node-24-based checkout/upload actions, pinned the
-runner to Ubuntu 24.04, and added an explicit revision/source diagnostic before
-the build so a stale pushed commit is obvious in the Actions log. The linker
-trial freopen checks remain in source.

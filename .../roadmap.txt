@@ -23,7 +23,7 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: none selected. Item 31 is the first unfinished roadmap item,
+Current next action: none selected. Item 36 is the first unfinished roadmap item,
 but no new workstream should be assumed until the user selects one.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
@@ -1724,11 +1724,49 @@ but no new workstream should be assumed until the user selects one.
           selection of it, verify the final 192-byte object has no padding, build with the staged
           installed toolchain, and inspect the animated output under Stella 7.0.
 
-[ ] 35. Add first-class support for two paddle controllers on one controller port.
-        Define a stable VCSC API for the two analog paddle positions and both paddle
-        fire buttons, own the required dump/charge timing explicitly, document
-        scheduler interaction and calibration/range behavior, and add emulator-backed
-        tests plus a small input example.
+[x] 35. Add first-class support for two paddle controllers on one controller port
+        and use it in a small Pong-like two-player example. Define a stable VCSC API
+        for the two analog paddle positions and both paddle fire buttons, own the
+        required dump/charge timing explicitly, document scheduler interaction and
+        calibration/range behavior, and cover the controller API plus deterministic
+        Pong gameplay transitions with emulator-backed tests. The public game must
+        include independent paddle input, ball motion, paddle/boundary collision,
+        serving/reset behavior, a three-plus-three score, and a complete playable
+        frame loop using original code and graphics.
+
+        Completed 2026-08-14 as one controller/game workstream:
+
+        * Add `libraries/vcs/two_paddles.c26`, parameterized for either controller
+          port. It exposes independent raw positions, normalized fire buttons, a
+          validity flag, explicit two-line sampling/gap accounting, multi-frame
+          measurement with raw-255 saturation, and a post-overscan dump operation.
+          The dump path is cycle-balanced so it does not disturb the next VSYNC
+          phase, while VBLANK/overscan callbacks retain scheduler ownership rules.
+        * Add `examples/01_basic/09_pong/`: blue left paddle/score, red right
+          paddle/score, black background, white Ball/playfield, exact four-scanline
+          top and bottom walls, an 8-on/8-off dashed center line, independent paddle
+          movement/fire-to-serve, software collisions/scoring, and console Reset.
+          M0/M1 draw the paddles so the eleven-line `three_plus_three_score_component`
+          may own P0/P1 without disturbing gameplay geometry. Follow-up raster polish
+          uses the calibrated maintained-renderer RESP/HMxx sequence, mirrors the two
+          paddle X positions, keeps equal one-scanline divider-to-wall gaps, clamps
+          Ball edge travel before horizontal reposition wrap, and slews paddle display
+          motion by two scanlines per frame to hide sparse high-RC measurement updates.
+          A later endpoint audit puts both M0/M1 vertical transitions in the same raster
+          phase, uses a small raw-input low-end dead zone for controller tolerance, maps
+          both paddles onto rendered top Y=9..159, and guarantees the bottom endpoint
+          disables after 16 scanlines before the bottom wall.
+        * Add emulator-backed coverage that exercises an RC threshold longer than
+          one NTSC frame, an independent short threshold, paddle fire serving, a
+          deterministic miss/score, console Reset, and stable frame length; also
+          compile the same public component API for the other controller-port mapping.
+          Endpoint coverage now drives both channels to both extremes, verifies common
+          M0/M1 raster phase, and requires a 16-scanline enable span at each bottom edge.
+          The polished public cartridge uses 3739/4090 allocatable ROM bytes and
+          94/128 RIOT-RAM bytes, leaving 351 ROM and 34 RAM bytes.
+        * Document the input lifecycle/calibration contract, install the new library
+          component, build the Pong cartridge in staged installcheck, and verify the
+          rendered game under Stella 7.0 including exact four-line top/bottom walls.
 
 [ ] 36. Extend paddle support to four simultaneous paddle controllers across both
         controller ports. Keep the two-paddle API usable as a strict subset, expose
@@ -1753,25 +1791,19 @@ but no new workstream should be assumed until the user selects one.
         self-test screens where practical, document required controller hookups, and
         verify every screen or mode with staged-toolchain and emulator-backed tests.
 
-[ ] 40. Add a small Pong-like two-player example game using paddle controllers.
-        Include independent paddle input, ball motion, paddle and boundary collision,
-        serving/reset behavior, score display, and a complete playable frame loop.
-        Use original code and graphics, document the renderer/controller composition,
-        and cover deterministic gameplay transitions with emulator-backed tests.
-
-[ ] 41. Add a small two-player joystick tank-duel example in the spirit of Combat.
+[ ] 40. Add a small two-player joystick tank-duel example in the spirit of Combat.
         Include independent movement and facing, projectile firing, arena/playfield
         collision, hit/reset or scoring behavior, and a complete playable frame loop.
         Use original code and graphics, document object allocation and input mapping,
         and add deterministic emulator-backed gameplay tests.
 
-[ ] 42. Add playfield-color support as an explicit renderer capability. Define
+[ ] 41. Add playfield-color support as an explicit renderer capability. Define
         whether colors are global, per logical row, or both; schedule every COLUPF
         write against the beam; preserve existing renderer output when unused; expose
         a clear application data/API contract; and add static, motion, transition,
         installation, and pixel/color-oracle coverage for each supported profile.
 
-[ ] 43. Add a public side-scroller/platform example. Demonstrate animated player
+[ ] 42. Add a public side-scroller/platform example. Demonstrate animated player
         sprites, horizontal world scrolling, platform/playfield collision, jumping
         and gravity, camera/world-state separation, and at least one collectible,
         hazard, or goal. Use original assets, stay within a documented RAM/ROM/frame
