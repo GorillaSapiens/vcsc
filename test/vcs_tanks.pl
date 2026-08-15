@@ -61,8 +61,17 @@ $s =~ /tanks_draw\(\);.*?PF0 := 0;\s*PF1 := 0;\s*PF2 := 0;.*?WSYNC := 0;\s*WSYNC
 $s =~ /CXM0P & 0x80/ && $s =~ /CXM1P & 0x80/ &&
 $s =~ /CXM0FB & 0x80/ && $s =~ /CXM1FB & 0x80/ &&
 $s =~ /CXP0FB & 0x80/ && $s =~ /CXP1FB & 0x80/ && $s =~ /CXPPMM & 0x80/ && $s =~ /CXCLR := 0/ &&
-$s =~ /tanks_update_overscan\(void\).*?tanks_update_player_collisions\(\);.*?tanks_update_controls\(\);/s
-   or die "Tanks must consume player\/playfield and player\/player collisions before controls overwrite the undo position\n";
+$s =~ /tanks_process_knockback\(void\).*?tanks_update_player_collisions\(\);/s &&
+$s =~ /vcs_ntsc_begin_overscan\(\);\s*tanks_process_knockback\(\);\s*tanks_update_overscan\(\);/s
+   or die "Tanks must consume player collisions before controls overwrite the undo position\n";
+$s =~ /TANKS_KNOCKBACK_X_CARDINAL := 32/ && $s =~ /TANKS_KNOCKBACK_X_DIAGONAL := 23/ &&
+$s =~ /TANKS_KNOCKBACK_Y_CARDINAL := 16/ && $s =~ /TANKS_KNOCKBACK_Y_DIAGONAL := 11/ &&
+$s =~ /tanks_knockback_offsets\[8\].*?0,1,7,0,1,7,2,6/s &&
+$s =~ /tanks_player_pf2_overlap\[36\]/ &&
+$s =~ /tanks_try_knockback.*?lda\.ax tanks_barrier_pf2,x.*?and tanks_knock_mask.*?bne\.same \@knock_pf_blocked/s &&
+$s =~ /tank1_knockback_pending := missile0_direction \+ 1/ &&
+$s =~ /tank0_knockback_pending := missile1_direction \+ 1/
+   or die "Tanks lost safe away-side hit knockback or playfield preflight checks\n";
 $s =~ /controls & 0x40/ && $s =~ /controls & 0x80/ && $s =~ /controls & 0x04/ && $s =~ /controls & 0x08/ &&
 $s =~ /controls & 0x10/ && $s =~ /controls & 0x20/ && $s =~ /controls & 0x01/ && $s =~ /controls & 0x02/ &&
 $s =~ /INPT4 & 0x80/ && $s =~ /INPT5 & 0x80/
@@ -101,6 +110,6 @@ $rc==0&&!$sig or die"Tanks oracle build failed\n$out$err";
 my@symbols=qw(tank0_x tank1_x tank0_y tank1_y tank0_direction tank1_direction tank0_graphics tank1_graphics tank0_prev_x tank1_prev_x tank0_prev_y tank1_prev_y tank0_spin_frames tank1_spin_frames missile0_x missile1_x missile0_y missile1_y missile0_direction missile1_direction missile0_active missile1_active score_left_score score_right_score tanks_move_phase tanks_rng tanks_sound_frames tanks_sound_kind tanks_barrier_pf2 tanks_graphics);
 my@addr=map{sprintf('0x%04x',symbol_addr($map,$_))}@symbols;
 ($rc,$sig,$out,$err)=capture($oracle,$bin,@addr);$rc==0&&!$sig or die"Tanks oracle run failed\n$out$err";
-$out eq "vcs_tanks ok: stable early raster writes, visible missiles, canted tanks, 3+3 score, engine/fire/hit audio, barriers, spin, TIA collisions\n" or die"unexpected Tanks oracle output: $out";
+$out eq "vcs_tanks ok: stable early raster writes, visible missiles, canted tanks, 3+3 score, engine/fire/hit audio, safe knockback, barriers, spin, TIA collisions\n" or die"unexpected Tanks oracle output: $out";
 $err eq '' or die"Tanks oracle stderr: $err";
 print "vcs_tanks ok\n";

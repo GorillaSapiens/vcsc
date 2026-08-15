@@ -36,7 +36,13 @@ enum tanks_constants {
    TANKS_SOUND_FIRE := 1,
    TANKS_SOUND_HIT := 2,
    TANKS_ENGINE_FREQ := 10,
-   TANKS_ENGINE_VOLUME := 2
+   TANKS_ENGINE_VOLUME := 2,
+   TANKS_KNOCKBACK_X_CARDINAL := 32,
+   TANKS_KNOCKBACK_X_DIAGONAL := 23,
+   // Arena Y is measured in doubled scanline rows. 16 rows = 32 visible pixels;
+   // 11 doubled rows with 23 horizontal pixels gives a ~31.8-pixel diagonal.
+   TANKS_KNOCKBACK_Y_CARDINAL := 16,
+   TANKS_KNOCKBACK_Y_DIAGONAL := 11
 };
 
 // Eight 8x8 tank silhouettes, ordered clockwise from north. N and NE are the
@@ -150,11 +156,28 @@ bank0 page const uint8_t tanks_player_position_table[160] := {
    0xba,0xaa,0x9a,0x8a,0x6b,0x5b,0x4b,0x3b,0x2b,0x1b,0x0b,0xfb,0xeb,0xdb,0xcb,0xbb
 };
 
+// Only x=41..76 needs a stored overlap mask. Positions left of 41 or right
+// of 111 cannot touch PF2 barriers at all; positions 77..111 mirror to
+// 152-x because CTRLPF reflects the playfield and the tank is eight pixels wide.
+bank0 page const uint8_t tanks_player_pf2_overlap[36] := {
+   0x01,0x01,0x01,0x01,0x03,0x03,0x03,0x03,0x07,0x07,0x07,0x06,
+   0x0e,0x0e,0x0e,0x0c,0x1c,0x1c,0x1c,0x18,0x38,0x38,0x38,0x30,
+   0x70,0x70,0x70,0x60,0xe0,0xe0,0xe0,0xc0,0xc0,0xc0,0xc0,0x80,
+};
+
+
 // Each random barrier is one PF2 bit, so it is four color clocks wide and
 // extends vertically for many scanlines. CTRLPF reflection mirrors it into the
 // opposite half of the arena.
 bank1 page const uint8_t tanks_barrier_masks[8] := {
    0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80
+};
+
+// Random hit knockback samples only the half-plane away from the shooter.
+// Straight and +/-45-degree headings are deliberately more common than the two
+// perpendicular escape headings used when geometry blocks the preferred path.
+bank1 page const uint8_t tanks_knockback_offsets[8] := {
+   0,1,7,0,1,7,2,6
 };
 
 uint8_t tank0_x := TANKS_LEFT_START_X;
@@ -186,6 +209,22 @@ uint8_t tanks_sound_kind := TANKS_SOUND_OFF;
 // the full-width top wall; the remaining entries are zero except for generated
 // vertical barriers. The bottom wall is drawn separately after this schedule.
 superchip uint8_t tanks_barrier_pf2[86];
+
+// Persistent Superchip scratch for hit knockback.  The game is deliberately
+// non-reentrant, so these bytes can replace nested RIOT-RAM activation locals.
+superchip uint8_t tanks_knock_direction;
+superchip uint8_t tanks_knock_amount;
+superchip uint8_t tanks_knock_x;
+superchip uint8_t tanks_knock_y;
+superchip uint8_t tanks_knock_mask;
+superchip uint8_t tanks_knock_row;
+superchip uint8_t tank0_knockback_pending;
+superchip uint8_t tank1_knockback_pending;
+superchip uint8_t tank0_knockback_index;
+superchip uint8_t tank1_knockback_index;
+superchip uint8_t tank0_knockback_attempts;
+superchip uint8_t tank1_knockback_attempts;
+
 uint8_t tanks_player_position_control[2];
 
 uint8_t missile0_x := 27;
@@ -253,6 +292,89 @@ inline void tanks_generate_barriers(void) {
    i := start;
    while (i < end) { tanks_barrier_pf2[i] := mask; i++; }
 }
+
+bank0 superchip uint8_t tanks_try_knockback(uint8_t *x, uint8_t *y, uint8_t direction) {
+   // X is one visible pixel per unit, while arena Y is one doubled scanline row
+   // per unit. Cardinal moves are therefore 32 X units or 16 Y rows; diagonal
+   // moves use 23 X units and 11 Y rows, about 31.8 visible pixels overall.
+   tanks_knock_x := *x;
+   tanks_knock_y := *y;
+   tanks_knock_amount := TANKS_KNOCKBACK_X_CARDINAL;
+   if (direction & 1) { tanks_knock_amount := TANKS_KNOCKBACK_X_DIAGONAL; }
+
+   if (direction >= TANKS_DIR_NE) {
+      if (direction <= TANKS_DIR_SE) {
+         if (tanks_knock_x > TANKS_PLAYER_MAX_X - tanks_knock_amount) { return 0; }
+         tanks_knock_x += tanks_knock_amount;
+      }
+      else {
+         if (direction >= TANKS_DIR_SW) {
+            if (tanks_knock_x < TANKS_PLAYER_MIN_X + tanks_knock_amount) { return 0; }
+            tanks_knock_x -= tanks_knock_amount;
+         }
+      }
+   }
+
+   tanks_knock_amount := TANKS_KNOCKBACK_Y_CARDINAL;
+   if (direction & 1) { tanks_knock_amount := TANKS_KNOCKBACK_Y_DIAGONAL; }
+
+   if (direction <= TANKS_DIR_NE) {
+      if (tanks_knock_y < TANKS_PLAYER_MIN_Y + tanks_knock_amount) { return 0; }
+      tanks_knock_y -= tanks_knock_amount;
+   }
+   else {
+      if (direction == TANKS_DIR_NW) {
+         if (tanks_knock_y < TANKS_PLAYER_MIN_Y + tanks_knock_amount) { return 0; }
+         tanks_knock_y -= tanks_knock_amount;
+      }
+      else {
+         if (direction >= TANKS_DIR_SE) {
+            if (direction <= TANKS_DIR_SW) {
+               if (tanks_knock_y > TANKS_PLAYER_MAX_Y - tanks_knock_amount) { return 0; }
+               tanks_knock_y += tanks_knock_amount;
+            }
+         }
+      }
+   }
+
+   // Bounds above keep the complete tank out of the outer walls.  Internal
+   // barriers live only in PF2 x=48..111.  The 36-byte overlap table folds the
+   // reflected half around x=76, then the eight doubled player rows are checked
+   // against the existing Superchip PF2 schedule before the position is committed.
+   if (tanks_knock_x >= 41) {
+      if (tanks_knock_x <= 111) {
+         tanks_knock_row := tanks_knock_x;
+         if (tanks_knock_row > 76) { tanks_knock_row := 152 - tanks_knock_row; }
+         tanks_knock_mask := tanks_player_pf2_overlap[tanks_knock_row - 41];
+
+         // Scan all eight doubled player rows in a small fixed 6502 loop.
+         // Keeping this out of compiler-generated C loop plumbing makes a
+         // barrier-aware candidate cheap enough to stay inside overscan.
+         asm ldx tanks_knock_y;
+         asm ldy #8;
+         asm @knock_pf_scan:;
+         asm lda.ax tanks_barrier_pf2,x;
+         asm and tanks_knock_mask;
+         asm bne.same @knock_pf_blocked;
+         asm inx;
+         asm dey;
+         asm bne.same @knock_pf_scan;
+         asm lda #1;
+         asm sta tanks_knock_row;
+         asm jmp @knock_pf_done;
+         asm @knock_pf_blocked:;
+         asm lda #0;
+         asm sta tanks_knock_row;
+         asm @knock_pf_done:;
+         if (!tanks_knock_row) { return 0; }
+      }
+   }
+
+   *x := tanks_knock_x;
+   *y := tanks_knock_y;
+   return 1;
+}
+
 
 bank1 void tanks_sound_stop(void) {
    tanks_sound_frames := 0;
@@ -340,6 +462,12 @@ inline void tanks_reset_positions(void) {
    tank1_fire_ready := 1;
    tank0_spin_frames := 0;
    tank1_spin_frames := 0;
+   tank0_knockback_pending := 0;
+   tank1_knockback_pending := 0;
+   tank0_knockback_index := 0;
+   tank1_knockback_index := 0;
+   tank0_knockback_attempts := 0;
+   tank1_knockback_attempts := 0;
    tanks_move_phase := 0;
    missile0_active := 0;
    missile1_active := 0;
@@ -554,6 +682,9 @@ inline void tanks_update_collisions(void) {
       if (CXM0P & 0x80) {
          missile0_active := 0;
          score_left_score++;
+         tank1_knockback_pending := missile0_direction + 1;
+         tank1_knockback_index := tanks_random() & 7;
+         tank1_knockback_attempts := 0;
          tank1_spin_frames := TANKS_HIT_SPIN_FRAMES;
          tanks_sound_hit();
       }
@@ -565,6 +696,9 @@ inline void tanks_update_collisions(void) {
       if (CXM1P & 0x80) {
          missile1_active := 0;
          score_right_score++;
+         tank0_knockback_pending := missile1_direction + 1;
+         tank0_knockback_index := tanks_random() & 7;
+         tank0_knockback_attempts := 0;
          tank0_spin_frames := TANKS_HIT_SPIN_FRAMES;
          tanks_sound_hit();
       }
@@ -583,16 +717,57 @@ bank1 void tanks_update_vblank(void) {
    if (SWCHB & 1) { tanks_update_collisions(); }
 }
 
+bank1 void tanks_process_knockback(void) {
+   // Run as a separate top-level overscan call so its activation storage does
+   // not stack on top of tanks_update_overscan's frame. First consume the
+   // just-finished arena's player collisions while tank*_prev_* is still valid.
+   tanks_update_player_collisions();
+
+   // Hit displacement is an incremental search: at most one candidate direction
+   // is tested per frame.  This hard-bounds overscan even for simultaneous hits
+   // and pathological barrier layouts.  The 24-frame spin easily hides the
+   // few-frame search; the first legal ~32-pixel away-side destination wins.
+   if (tank0_knockback_pending) {
+      tanks_knock_direction := tank0_knockback_pending - 1;
+      tanks_knock_direction += tanks_knockback_offsets[tank0_knockback_index];
+      tanks_knock_direction &= 7;
+      if (tanks_try_knockback(&tank0_x, &tank0_y, tanks_knock_direction)) {
+         tank0_prev_x := tank0_x;
+         tank0_prev_y := tank0_y;
+         tank0_knockback_pending := 0;
+      }
+      else {
+         tank0_knockback_index++;
+         tank0_knockback_index &= 7;
+         tank0_knockback_attempts++;
+         if (tank0_knockback_attempts >= 8) { tank0_knockback_pending := 0; }
+      }
+      return;
+   }
+
+   if (tank1_knockback_pending) {
+      tanks_knock_direction := tank1_knockback_pending - 1;
+      tanks_knock_direction += tanks_knockback_offsets[tank1_knockback_index];
+      tanks_knock_direction &= 7;
+      if (tanks_try_knockback(&tank1_x, &tank1_y, tanks_knock_direction)) {
+         tank1_prev_x := tank1_x;
+         tank1_prev_y := tank1_y;
+         tank1_knockback_pending := 0;
+      }
+      else {
+         tank1_knockback_index++;
+         tank1_knockback_index &= 7;
+         tank1_knockback_attempts++;
+         if (tank1_knockback_attempts >= 8) { tank1_knockback_pending := 0; }
+      }
+   }
+}
+
 bank1 void tanks_update_overscan(void) {
    if (!(SWCHB & 1)) {
       tanks_reset_game();
       return;
    }
-
-   // The arena has just finished and CXP0FB/CXP1FB still describe it. Undo any
-   // illegal movement now, while tank*_prev_* still holds the last legal
-   // coordinates. Only then may controls save a new undo point and move again.
-   tanks_update_player_collisions();
 
    // Advance only missiles that were already active when overscan began. Do
    // this before controls so a newly fired two-pixel missile gets one centered
@@ -954,6 +1129,7 @@ void main(void) {
       WSYNC := 0;
 
       vcs_ntsc_begin_overscan();
+      tanks_process_knockback();
       tanks_update_overscan();
       score_overscan();
       vcs_ntsc_end_overscan();

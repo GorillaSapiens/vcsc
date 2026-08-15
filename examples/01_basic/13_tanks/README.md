@@ -50,9 +50,21 @@ continuous across the quarter-rate movement cadence instead of pulsing only on
 the frames where position changes. TIA audio channel 0 remains independent for
 effects: firing produces a short four-frame noise burst, while a player hit
 produces a different, longer 24-frame noise burst, increments the shooter's
-score, stops the projectile, and spins the struck tank rapidly for 24 frames. At the end of
-the spin the tank is left facing a pseudo-random direction; movement, turning,
-and firing are ignored for that tank while it is spinning.
+score, stops the projectile, and spins the struck tank rapidly for 24 frames. A
+hit also knocks the victim roughly 32 visible Atari pixels away from the shooter.
+The projectile heading supplies the away direction, while the LFSR selects among
+straight-away, adjacent diagonal, and (only as an escape fallback) perpendicular
+headings; no candidate ever points back toward the shooter. Horizontal cardinal
+knockback is 32 pixels; vertical cardinal knockback is 16 doubled arena rows, i.e.
+32 visible scanlines. Diagonals use 23 horizontal pixels plus 11 doubled rows,
+about 31.8 visible pixels overall. Before the translation is committed, all eight doubled tank rows are checked against the
+actual PF2 barrier schedule and the candidate is rejected if any part of the tank
+would overlap an outer wall or interior playfield barrier. If the preferred
+heading is blocked, nearby away-side headings are tried; if all eight candidate
+slots are unusable the tank stays where it was rather than being placed inside
+playfield geometry. At the end of the spin the tank is left facing a
+pseudo-random direction; movement, turning, and firing are ignored for that tank
+while it is spinning.
 
 All arena contact decisions use the TIA collision latches from the raster that
 was actually drawn. `CXM0FB`/`CXM1FB` stop M0/M1 on the outer walls or a
@@ -83,8 +95,8 @@ and vertical barriers with constant-time loads. This keeps the complete NTSC
 frame at the scheduler's stable 264-raw / Stella-262 cadence even at extreme
 object positions and during simultaneous hit/audio/spin activity.
 
-The cartridge is 8K F8SC. The current build uses 2345/3584 bytes in bank 1,
-2402/3584 bytes in bank 0, 112/128 bytes of RIOT RAM (including the reserved
-hardware stack), and 86/128 bytes of Superchip RAM. Console Reset clears both
+The cartridge is 8K F8SC. The current build uses 2897/3584 bytes in bank 1,
+3380/3584 bytes in bank 0, 112/128 bytes of RIOT RAM (including the reserved
+hardware stack), and 99/128 bytes of Superchip RAM. Console Reset clears both
 scores, missiles, spin/audio state, and tank positions while selecting a new
 barrier layout.

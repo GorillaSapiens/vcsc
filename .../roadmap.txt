@@ -1908,6 +1908,13 @@ but no new workstream should be assumed until the user selects one.
         source line apiece, replaces the four diagonal glyphs with whole-hull canted
         silhouettes, and reserves audio channel 1 for a quiet continuous engine growl
         while either non-spinning tank is commanded forward or backward.
+        Final hit-response refinement adds pseudo-random ~32-visible-pixel knockback
+        biased into the half-plane away from the shooter (32 horizontal pixels,
+        16 doubled rows vertically, or 23x11 doubled-row diagonals). Candidate destinations are checked
+        against outer bounds and every occupied PF2 row before commit; blocked
+        headings fall back through neighboring away-side directions, and the emulator
+        oracle includes a deterministic case whose preferred destination is inside a
+        barrier and must be rejected.
 
 [ ] 41. Add playfield-color support as an explicit renderer capability. Define
         whether colors are global, per logical row, or both; schedule every COLUPF

@@ -77,3 +77,15 @@ Adopted the supplied N and NE 8x8 tank silhouettes as canonical templates.
 E/S/W are exact 90-degree rotations of N; SE/SW/NW are exact rotations of NE.
 Kept one visual-binary byte per source line and strengthened vcs_tanks to pin
 the complete 64-byte table rather than only spot-checking diagonal endpoints.
+
+2026-08-15 14:41:55 PDT, add safe tank hit knockback
+Tanks hits now queue a pseudo-random ~32-unit displacement selected from
+the half-plane away from the projectile heading. Candidate destinations
+are bounds-checked and preflighted against all eight occupied PF2 rows;
+blocked headings fall back to adjacent away-side directions. The PF2
+preflight uses a fixed 6502 loop so barrier checks remain within overscan.
+The emulator oracle now includes a known blocked preferred destination.
+
+2026-08-15 14:51:00 PDT, make knockback 32 visible pixels
+Knockback now accounts for doubled arena rows: vertical cardinal moves use
+16 rows and diagonals use 23 X pixels by 11 rows, about 31.8 visible pixels.

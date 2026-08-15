@@ -1016,8 +1016,20 @@ its stored X coordinate, so launch stores tank_x+8 to produce that physical
 center without perturbing the positioner's beam timing. Missile-wall/barrier stops use
 CXM0FB/CXM1FB; player hits use CXM0P/CXM1P, increment the shooter's score, stop the
 missile, start a distinct 24-frame hit noise, and spin the struck tank rapidly for
-24 frames before leaving it on a pseudo-random heading. CXP0FB/CXP1FB make the
-playfield solid to tanks by rolling back movement that overlapped it; CXPPMM
+24 frames before leaving it on a pseudo-random heading. A hit also queues an
+approximately 32-visible-pixel displacement selected pseudo-randomly from the
+half-plane away from the projectile/shooter: horizontal cardinals use 32 X pixels,
+vertical cardinals use 16 doubled rows (=32 scanlines), and diagonals use 23 X
+pixels plus 11 doubled rows (~31.8 visible pixels). Straight and +/-45-degree
+headings are favored,
+with +/-90-degree escape headings available when geometry blocks the preferred
+path. Every candidate is bounds-checked and its complete eight-row tank footprint
+is preflighted against the actual `tanks_barrier_pf2` schedule before coordinates
+are committed; a compact fixed 6502 scan replaces the original compiler-generated
+row loop so barrier-safe knockback still fits the overscan deadline. If no candidate
+is legal, the tank remains in place rather than being translated into playfield
+geometry. CXP0FB/CXP1FB make the playfield solid to tanks by rolling back movement
+that overlapped it; CXPPMM
 rolls both tanks back on P0/P1 contact so they cannot drive through each other.
 
 The tank glyph table is written as exactly one visual `0b...X....` byte per
@@ -1059,11 +1071,13 @@ moving tank after the raster rewrite; tank rows remained coherent and the bottom
 wall rendered continuously.
 
 `tanks` is an 8K F8SC cartridge. The current linker reports bank1 at
-2345/3584 bytes, bank0 at 2402/3584 bytes, RIOT RAM at 112/128 bytes including
-the reserved hardware stack, and Superchip RAM at 86/128 bytes. `vcs_tanks.pl/.cpp`
+2897/3584 bytes, bank0 at 3380/3584 bytes, RIOT RAM at 112/128 bytes including
+the reserved hardware stack, and Superchip RAM at 99/128 bytes. `vcs_tanks.pl/.cpp`
 covers both joysticks, 24-frame held-turn repeat, quarter-rate translation, fire
 hold semantics and fire audio, three-plus-three scoring, hit audio/spin/random
-heading, missile/playfield and missile/player latches, player/playfield rollback,
+heading, away-side knockback distance/direction, outer-wall bounds, explicit
+barrier-rejection fallback, missile/playfield and missile/player latches,
+player/playfield rollback,
 player/player rollback, barrier regeneration on Reset, corrected graphics pointers
 and SE/SW orientation, visible ENAM0/ENAM1 assertion after launch, immediate
 post-arena collision rollback with reverse-away recovery checks, invariant frame
