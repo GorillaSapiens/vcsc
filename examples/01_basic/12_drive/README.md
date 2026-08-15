@@ -34,6 +34,7 @@ periods, so the visible raster remains a stable 262-line NTSC frame. The 16
 hexadecimal glyphs come directly from `fonts/big_hex.c26`.
 
 The fire button is pin 6: INPT4 on the left and INPT5 on the right. Current
-Stella does not auto-detect Indy 500 driving controllers from a ROM, so select
-**Driving** for the left and right controller types when running this example in
-Stella.
+Stella does not auto-detect Indy 500 driving controllers from a ROM. Before
+running this example in Stella, go to **Options -> Game Properties ->
+Controllers** and select **Driving** for both the **Left port** and **Right
+port**.
