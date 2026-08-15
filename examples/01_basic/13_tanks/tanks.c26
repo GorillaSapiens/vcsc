@@ -34,37 +34,96 @@ enum tanks_constants {
    TANKS_HIT_SOUND_FRAMES := 24,
    TANKS_SOUND_OFF := 0,
    TANKS_SOUND_FIRE := 1,
-   TANKS_SOUND_HIT := 2
+   TANKS_SOUND_HIT := 2,
+   TANKS_ENGINE_FREQ := 10,
+   TANKS_ENGINE_VOLUME := 2
 };
 
-// Eight original 8x8 tank silhouettes, ordered clockwise from north. The
-// renderer doubles every source row vertically, so each displayed tank is
-// 8 pixels wide by 16 scanlines high.
+// Eight 8x8 tank silhouettes, ordered clockwise from north. N and NE are the
+// canonical source drawings; each remaining direction is an exact 90-degree
+// rotation of the matching cardinal or diagonal template. The renderer doubles
+// every source row vertically, so each displayed tank is 8 pixels wide by
+// 16 scanlines high.
 bank0 page const uint8_t tanks_graphics[64] := {
-   // N
-   0b...XX...,0b...XX...,0b.XXXXXX.,0b.X.XX.X.,
-   0b.XXXXXX.,0b.X.XX.X.,0b.XXXXXX.,0b.X....X.,
-   // NE
-   0b......XX,0b.....XX.,0b.XX.XX..,0b.XXXX...,
-   0b.XXXXXX.,0b.X.XX.X.,0b.XXXXXX.,0b.X....X.,
-   // E
-   0b.XXXXX..,0b.X.X.X..,0b.XXXXXXX,0b.XXXXXXX,
-   0b.XXXXX..,0b.X.X.X..,0b.XXXXX..,0b........,
-   // SE
-   0b.X....X.,0b.XXXXXX.,0b.X.XX.X.,0b.XXXXXX.,
-   0b.XXXX...,0b.XX.XX..,0b.....XX.,0b......XX,
-   // S
-   0b.X....X.,0b.XXXXXX.,0b.X.XX.X.,0b.XXXXXX.,
-   0b.X.XX.X.,0b.XXXXXX.,0b...XX...,0b...XX...,
-   // SW
-   0b.X....X.,0b.XXXXXX.,0b.X.XX.X.,0b.XXXXXX.,
-   0b...XXXX.,0b..XX.XX.,0b.XX.....,0bXX......,
-   // W
-   0b..XXXXX.,0b..X.X.X.,0bXXXXXXX.,0bXXXXXXX.,
-   0b..XXXXX.,0b..X.X.X.,0b..XXXXX.,0b........,
-   // NW
-   0bXX......,0b.XX.....,0b..XX.XX.,0b...XXXX.,
-   0b.XXXXXX.,0b.X.XX.X.,0b.XXXXXX.,0b.X....X.
+   // N -- canonical cardinal silhouette.
+   0b...XX...,
+   0b...XX...,
+   0b..XXXX..,
+   0b.XXXXXX.,
+   0b.XXXXXX.,
+   0b.X.XX.X.,
+   0b..XXXX..,
+   0b........,
+
+   // NE -- canonical diagonal; the entire hull is canted upper-right.
+   0b........,
+   0b......XX,
+   0b..XXXXXX,
+   0b.XXXXXX.,
+   0b...XXXX.,
+   0b.XXX.XX.,
+   0b..XX.X..,
+   0b........,
+
+   // E -- N rotated 90 degrees clockwise.
+   0b........,
+   0b..XXX...,
+   0b.X.XXX..,
+   0b.XXXXXXX,
+   0b.XXXXXXX,
+   0b.X.XXX..,
+   0b..XXX...,
+   0b........,
+
+   // SE -- NE rotated 90 degrees clockwise.
+   0b........,
+   0b..X.X...,
+   0b.XX.XX..,
+   0b.XXXXX..,
+   0b...XXX..,
+   0b.XXXXX..,
+   0b..XXXXX.,
+   0b.....XX.,
+
+   // S -- N rotated 180 degrees.
+   0b........,
+   0b..XXXX..,
+   0b.X.XX.X.,
+   0b.XXXXXX.,
+   0b.XXXXXX.,
+   0b..XXXX..,
+   0b...XX...,
+   0b...XX...,
+
+   // SW -- NE rotated 180 degrees.
+   0b........,
+   0b..X.XX..,
+   0b.XX.XXX.,
+   0b.XXXX...,
+   0b.XXXXXX.,
+   0bXXXXXX..,
+   0bXX......,
+   0b........,
+
+   // W -- N rotated 270 degrees clockwise.
+   0b........,
+   0b...XXX..,
+   0b..XXX.X.,
+   0bXXXXXXX.,
+   0bXXXXXXX.,
+   0b..XXX.X.,
+   0b...XXX..,
+   0b........,
+
+   // NW -- NE rotated 270 degrees clockwise.
+   0b.XX.....,
+   0b.XXXXX..,
+   0b..XXXXX.,
+   0b..XXX...,
+   0b..XXXXX.,
+   0b..XX.XX.,
+   0b...X.X..,
+   0b........,
 };
 
 // VBLANK horizontal fine-motion table for M0/M1. Indexes 1..15 correspond to
@@ -229,6 +288,41 @@ bank1 void tanks_sound_hit(void) {
    tanks_sound_kind := TANKS_SOUND_HIT;
 }
 
+inline void tanks_update_engine(uint8_t controls) {
+   // Channel 1 is reserved for the quiet engine bed. Keep it running while
+   // either player is commanding forward/reverse motion; the quarter-rate
+   // position update must not make the audio sputter three frames out of four.
+   if (!tank0_spin_frames) {
+      if (!(controls & 0x10)) {
+         AUDC1 := MUSIC_CONTROL_LOW_BASS;
+         AUDF1 := TANKS_ENGINE_FREQ;
+         AUDV1 := TANKS_ENGINE_VOLUME;
+         return;
+      }
+      if (!(controls & 0x20)) {
+         AUDC1 := MUSIC_CONTROL_LOW_BASS;
+         AUDF1 := TANKS_ENGINE_FREQ;
+         AUDV1 := TANKS_ENGINE_VOLUME;
+         return;
+      }
+   }
+   if (!tank1_spin_frames) {
+      if (!(controls & 0x01)) {
+         AUDC1 := MUSIC_CONTROL_LOW_BASS;
+         AUDF1 := TANKS_ENGINE_FREQ;
+         AUDV1 := TANKS_ENGINE_VOLUME;
+         return;
+      }
+      if (!(controls & 0x02)) {
+         AUDC1 := MUSIC_CONTROL_LOW_BASS;
+         AUDF1 := TANKS_ENGINE_FREQ;
+         AUDV1 := TANKS_ENGINE_VOLUME;
+         return;
+      }
+   }
+   AUDV1 := MUSIC_VOLUME_OFF;
+}
+
 inline void tanks_reset_positions(void) {
    tank0_x := TANKS_LEFT_START_X;
    tank1_x := TANKS_RIGHT_START_X;
@@ -255,6 +349,7 @@ bank1 void tanks_reset_game(void) {
    score_left_score := 0;
    score_right_score := 0;
    tanks_sound_stop();
+   AUDV1 := MUSIC_VOLUME_OFF;
    tanks_generate_barriers();
    tanks_reset_positions();
 }
@@ -384,6 +479,8 @@ inline void tanks_update_spin1(void) {
 
 inline void tanks_update_controls(void) {
    uint8_t controls := SWCHA;
+
+   tanks_update_engine(controls);
 
    tank0_prev_x := tank0_x;
    tank0_prev_y := tank0_y;

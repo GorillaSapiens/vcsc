@@ -1904,6 +1904,10 @@ but no new workstream should be assumed until the user selects one.
         3/6 CPU cycles of line-A, moves the bottom wall to a dedicated HBLANK-safe
         four-line phase, pins beam-write deadlines in the oracle, and consumes CXPPMM
         to roll both tanks back on player/player contact.
+        A later graphics/audio refinement keeps all 64 sprite bytes one visual-binary
+        source line apiece, replaces the four diagonal glyphs with whole-hull canted
+        silhouettes, and reserves audio channel 1 for a quiet continuous engine growl
+        while either non-spinning tank is commanded forward or backward.
 
 [ ] 41. Add playfield-color support as an explicit renderer capability. Define
         whether colors are global, per logical row, or both; schedule every COLUPF

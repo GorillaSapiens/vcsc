@@ -19,7 +19,7 @@ constexpr uint64_t kCyclesPerLine=76;
 constexpr uint64_t kRawFrameLines=264;
 constexpr uint16_t kVsync=0x0000, kWsync=0x0002, kCxclr=0x002c;
 constexpr uint16_t kPf0=0x000d;
-constexpr uint16_t kAudc0=0x0015, kAudf0=0x0017, kAudv0=0x0019;
+constexpr uint16_t kAudc0=0x0015, kAudc1=0x0016, kAudf0=0x0017, kAudf1=0x0018, kAudv0=0x0019, kAudv1=0x001a;
 constexpr uint16_t kGrp0=0x001b, kGrp1=0x001c, kEnam0=0x001d, kEnam1=0x001e;
 constexpr uint16_t kCxm0p=0x0030, kCxm1p=0x0031, kCxp0fb=0x0032, kCxp1fb=0x0033;
 constexpr uint16_t kCxm0fb=0x0034, kCxm1fb=0x0035, kCxppmm=0x0037;
@@ -56,7 +56,7 @@ struct Snapshot {
    uint8_t m0x=0,m1x=0,m0y=0,m1y=0,m0d=0,m1d=0,m0a=0,m1a=0;
    uint16_t score0=0,score1=0;
    uint8_t move_phase=0,rng=0,sound_frames=0,sound_kind=0;
-   uint8_t audc0=0,audf0=0,audv0=0;
+   uint8_t audc0=0,audf0=0,audv0=0,audc1=0,audf1=0,audv1=0;
    std::array<uint8_t,86> barrier_pf2{};
 };
 
@@ -268,6 +268,7 @@ private:
       s.score0=word("score_left_score"); s.score1=word("score_right_score");
       s.move_phase=byte("tanks_move_phase"); s.rng=byte("tanks_rng"); s.sound_frames=byte("tanks_sound_frames"); s.sound_kind=byte("tanks_sound_kind");
       s.audc0=memory_[kAudc0]; s.audf0=memory_[kAudf0]; s.audv0=memory_[kAudv0];
+      s.audc1=memory_[kAudc1]; s.audf1=memory_[kAudf1]; s.audv1=memory_[kAudv1];
       const uint16_t base=addr("tanks_barrier_pf2");
       for(size_t i=0;i<s.barrier_pf2.size();++i) s.barrier_pf2[i]=inspect(static_cast<uint16_t>(base+i));
       snapshots_.push_back(s);
@@ -365,13 +366,23 @@ void require_barriers(const Snapshot& s) {
 void require_graphics_base(const Machine& m,const Snapshot& s,uint16_t base) {
    if(s.g0!=static_cast<uint16_t>(base+s.d0*8u) || s.g1!=static_cast<uint16_t>(base+s.d1*8u))
       fail("tank graphics pointer does not include the actual table base");
-   // With REFP0/REFP1 clear, bit 7 is the leftmost player pixel. The SE barrel
-   // must therefore end in the low bits, while SW must end in the high bits.
-   if(m.image_byte(static_cast<uint16_t>(base+3u*8u+6u))!=0x06 ||
-      m.image_byte(static_cast<uint16_t>(base+3u*8u+7u))!=0x03 ||
-      m.image_byte(static_cast<uint16_t>(base+5u*8u+6u))!=0x60 ||
-      m.image_byte(static_cast<uint16_t>(base+5u*8u+7u))!=0xc0)
-      fail("SE/SW tank graphics are swapped");
+   // N and NE are the canonical source drawings. The remaining six payloads
+   // must stay exact 90-degree rotations of the matching canonical silhouette.
+   constexpr std::array<uint8_t,8> n {{0x18,0x18,0x3c,0x7e,0x7e,0x5a,0x3c,0x00}};
+   constexpr std::array<uint8_t,8> ne{{0x00,0x03,0x3f,0x7e,0x1e,0x76,0x34,0x00}};
+   constexpr std::array<uint8_t,8> e {{0x00,0x38,0x5c,0x7f,0x7f,0x5c,0x38,0x00}};
+   constexpr std::array<uint8_t,8> se{{0x00,0x28,0x6c,0x7c,0x1c,0x7c,0x3e,0x06}};
+   constexpr std::array<uint8_t,8> so{{0x00,0x3c,0x5a,0x7e,0x7e,0x3c,0x18,0x18}};
+   constexpr std::array<uint8_t,8> sw{{0x00,0x2c,0x6e,0x78,0x7e,0xfc,0xc0,0x00}};
+   constexpr std::array<uint8_t,8> w {{0x00,0x1c,0x3a,0xfe,0xfe,0x3a,0x1c,0x00}};
+   constexpr std::array<uint8_t,8> nw{{0x60,0x7c,0x3e,0x38,0x3e,0x36,0x14,0x00}};
+   const std::array<const std::array<uint8_t,8>*,8> directions{{
+      &n,&ne,&e,&se,&so,&sw,&w,&nw
+   }};
+   for(unsigned d=0;d<directions.size();++d)
+      for(unsigned row=0;row<8;++row)
+         if(m.image_byte(static_cast<uint16_t>(base+d*8u+row))!=(*directions[d])[row])
+            fail("tank graphics no longer match canonical N/NE rotations");
 }
 
 void require_turn(const std::vector<Snapshot>& s) {
@@ -391,6 +402,10 @@ void require_move(const std::vector<Snapshot>& s) {
    if(s[5].x0!=24 || s[5].x1!=128) fail("reverse/forward return movement is wrong");
    if(s[6].x0!=24 || s[7].x0!=24 || s[8].x0!=24 || s[6].x1!=128 || s[7].x1!=128 || s[8].x1!=128)
       fail("return movement repeated before the four-frame cadence elapsed");
+   for(size_t i=1;i<=8;++i)
+      if(s[i].audc1!=14 || s[i].audf1!=10 || s[i].audv1!=2)
+         fail("movement did not sustain the low-volume engine growl on audio channel 1");
+   if(s[9].audv1!=0) fail("engine growl did not stop when both tanks stopped moving");
 }
 
 void require_fire_wall(const Machine& m,const std::vector<Snapshot>& s) {
@@ -501,6 +516,6 @@ int main(int argc,char **argv) {
       else if(scenario==Scenario::PlayerPlayer) require_player_player(m.snapshots());
       else if(scenario==Scenario::Reset) require_reset(m.snapshots());
    }
-   std::puts("vcs_tanks ok: stable early raster writes, visible missiles, oriented tanks, 3+3 score, barriers, audio/spin, TIA collisions");
+   std::puts("vcs_tanks ok: stable early raster writes, visible missiles, canted tanks, 3+3 score, engine/fire/hit audio, barriers, spin, TIA collisions");
    return 0;
 }

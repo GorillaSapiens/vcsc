@@ -18,7 +18,10 @@ the top of the screen.
 
 P0 and P1 draw the two tanks; M0 and M1 are their projectiles. Each 8x8 source
 tank sprite is doubled vertically to 8x16 displayed pixels and has eight
-orientations. The top and bottom arena walls are exactly four scanlines high.
+orientations. The sprite table is intentionally written as one visual-binary
+`0b...X....` byte per source line so every orientation can be inspected directly
+in the C26 source. The four diagonal sprites cant the entire hull, not merely the
+turret/barrel, so NE/SE/SW/NW read as genuinely diagonal vehicles. The top and bottom arena walls are exactly four scanlines high.
 The left and right walls are one reflected TIA playfield bit wide, exactly four
 color clocks.
 
@@ -41,9 +44,13 @@ longer active. A newly launched two-pixel missile is first rendered centered
 horizontally across the tank (pixels 3-4 of its eight-pixel width); projectile
 motion begins on the following frame.
 
-Firing produces a short four-frame TIA noise burst. A player hit produces a
-different, longer 24-frame noise burst, increments the shooter's score, stops
-the projectile, and spins the struck tank rapidly for 24 frames. At the end of
+TIA audio channel 1 supplies a quiet low-bass engine growl whenever either
+player is holding Up or Down and that tank is not in a hit spin. The growl stays
+continuous across the quarter-rate movement cadence instead of pulsing only on
+the frames where position changes. TIA audio channel 0 remains independent for
+effects: firing produces a short four-frame noise burst, while a player hit
+produces a different, longer 24-frame noise burst, increments the shooter's
+score, stops the projectile, and spins the struck tank rapidly for 24 frames. At the end of
 the spin the tank is left facing a pseudo-random direction; movement, turning,
 and firing are ignored for that tank while it is spinning.
 
@@ -76,8 +83,8 @@ and vertical barriers with constant-time loads. This keeps the complete NTSC
 frame at the scheduler's stable 264-raw / Stella-262 cadence even at extreme
 object positions and during simultaneous hit/audio/spin activity.
 
-The cartridge is 8K F8SC. The current build uses 2237/3584 bytes in bank 1,
-2402/3584 bytes in bank 0, 111/128 bytes of RIOT RAM (including the reserved
+The cartridge is 8K F8SC. The current build uses 2345/3584 bytes in bank 1,
+2402/3584 bytes in bank 0, 112/128 bytes of RIOT RAM (including the reserved
 hardware stack), and 86/128 bytes of Superchip RAM. Console Reset clears both
 scores, missiles, spin/audio state, and tank positions while selecting a new
 barrier layout.

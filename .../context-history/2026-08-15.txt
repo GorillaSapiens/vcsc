@@ -64,3 +64,16 @@ two-pixel missile physically spans tank_x+3..+4 while leaving RESP/HMOVE timing
 unchanged. Rewrote all eight tank glyphs in visual 0b dot/X notation. A measured
 REFP0/REFP1 compression prototype grew bank0 by 22 bytes and used two extra RIOT
 RAM bytes, so reflection was rejected as a net loss.
+
+2026-08-15 13:41:56 PDT, refine Tanks diagonals and engine audio
+Reformatted tanks_graphics to one visual-binary byte per line and redrew all
+four diagonal orientations with the entire hull canted. Added a quiet channel-1
+low-bass engine growl while either non-spinning tank is commanded forward or
+reverse; channel 0 remains dedicated to fire and hit effects. Extended the Tanks
+oracle to pin the diagonal bytes and engine start/stop behavior.
+
+2026-08-15 14:03:20 PDT, derive Tanks glyph rotations
+Adopted the supplied N and NE 8x8 tank silhouettes as canonical templates.
+E/S/W are exact 90-degree rotations of N; SE/SW/NW are exact rotations of NE.
+Kept one visual-binary byte per source line and strengthened vcs_tanks to pin
+the complete 64-byte table rather than only spot-checking diagonal endpoints.

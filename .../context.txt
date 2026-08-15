@@ -1020,17 +1020,18 @@ missile, start a distinct 24-frame hit noise, and spin the struck tank rapidly f
 playfield solid to tanks by rolling back movement that overlapped it; CXPPMM
 rolls both tanks back on P0/P1 contact so they cannot drive through each other.
 
-The tank glyph table is written in visual `0b...X....` notation so each 8x8
-orientation can be read directly from source. A measured REFP0/REFP1 compression
-prototype reduced raw glyph data from 64 to 40 bytes but increased bank0 by 22
-bytes overall and consumed two additional RIOT RAM bytes, so the full eight-glyph
-table remains intentionally unreflected. The corrected tank graphics pointer
-includes the actual low/high address of the `tanks_graphics` table instead of
-assuming the table is page-aligned at `$xx00`;
-the old accidental alignment was the cause of scrambled tank glyphs after the
-score/audio additions moved the table. A later visual regression fix also swapped
-the SE/SW bitmap payloads into their correct clockwise slots: with REFP clear, the
-SE barrel terminates in the low/right bits and the SW barrel in the high/left bits.
+The tank glyph table is written as exactly one visual `0b...X....` byte per
+source line so each 8x8 orientation can be scanned directly in the file. N and NE
+are the canonical source drawings; E/S/W are exact 90-degree rotations of N, and
+SE/SW/NW are exact 90-degree rotations of NE. The diagonal hulls therefore cant
+as a whole rather than retaining a cardinal chassis with only an angled barrel.
+A measured REFP0/REFP1 compression prototype reduced raw glyph data from 64 to
+40 bytes but increased bank0 by 22 bytes overall and consumed two additional
+RIOT RAM bytes, so the full eight-glyph table remains intentionally unreflected.
+The corrected tank graphics pointer includes the actual low/high address of the
+`tanks_graphics` table instead of assuming page alignment at `$xx00`; the old
+accidental alignment caused scrambled glyphs after score/audio additions moved
+the table. The complete 64-byte payload is pinned by the Tanks regression.
 The 11-line score temporarily owns P0/P1.
 A VBLANK-prepared 160-entry packed player-position table then restores P0/P1 with
 a fixed three-visible-line handoff, replacing coordinate-dependent visible-time
@@ -1049,13 +1050,16 @@ previous arena's latches in VBLANK. Player collision rollback is consumed earlie
 at the start of overscan immediately after the arena and before controls overwrite
 `tank*_prev_*`; CXP0FB/CXP1FB restore a tank after playfield contact, while CXPPMM
 restores both tanks after P0/P1 contact. Controls, spin advance, missile motion,
-Reset, and RNG then continue in overscan. The complete frame remains stable at the
+Reset, and RNG then continue in overscan. TIA audio channel 1 is reserved for a
+quiet low-bass engine growl while either non-spinning tank has Up or Down held;
+the growl remains continuous across quarter-rate translation frames. Fire and
+hit effects remain independently on audio channel 0. The complete frame remains stable at the
 scheduler's 264-raw / Stella-262 contract. Stella 7.0 was also exercised with a
 moving tank after the raster rewrite; tank rows remained coherent and the bottom
 wall rendered continuously.
 
 `tanks` is an 8K F8SC cartridge. The current linker reports bank1 at
-2237/3584 bytes, bank0 at 2402/3584 bytes, RIOT RAM at 111/128 bytes including
+2345/3584 bytes, bank0 at 2402/3584 bytes, RIOT RAM at 112/128 bytes including
 the reserved hardware stack, and Superchip RAM at 86/128 bytes. `vcs_tanks.pl/.cpp`
 covers both joysticks, 24-frame held-turn repeat, quarter-rate translation, fire
 hold semantics and fire audio, three-plus-three scoring, hit audio/spin/random

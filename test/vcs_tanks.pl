@@ -40,8 +40,10 @@ $s =~ /TANKS_TURN_REPEAT := 23/ && $s =~ /tanks_move_phase &= 3/ &&
 $s =~ /tank0_spin_frames := TANKS_HIT_SPIN_FRAMES/ && $s =~ /tank1_spin_frames := TANKS_HIT_SPIN_FRAMES/
    or die "Tanks lost quarter-rate controls or hit-spin behavior\n";
 $s =~ /AUDC0 := MUSIC_CONTROL_NOISE/ && $s =~ /AUDF0 := 4/ && $s =~ /AUDF0 := 20/ &&
-$s =~ /TANKS_FIRE_SOUND_FRAMES := 4/ && $s =~ /TANKS_HIT_SOUND_FRAMES := 24/
-   or die "Tanks lost distinct fire\/hit noise effects\n";
+$s =~ /TANKS_FIRE_SOUND_FRAMES := 4/ && $s =~ /TANKS_HIT_SOUND_FRAMES := 24/ &&
+$s =~ /AUDC1 := MUSIC_CONTROL_LOW_BASS/ && $s =~ /AUDF1 := TANKS_ENGINE_FREQ/ &&
+$s =~ /AUDV1 := TANKS_ENGINE_VOLUME/ && $s =~ /TANKS_ENGINE_VOLUME := 2/
+   or die "Tanks lost fire\/hit effects or low-volume engine growl\n";
 $s =~ /include "vcs_8k_f8sc\.c26"/ && $s =~ /superchip uint8_t tanks_barrier_pf2\[86\]/ &&
 $s =~ /tanks_barrier_masks\[8\].*?0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80/s &&
 $s =~ /asm lda\.ax tanks_barrier_pf2,x/ && $s =~ /asm sta PF2/ &&
@@ -68,8 +70,24 @@ $s =~ /INPT4 & 0x80/ && $s =~ /INPT5 & 0x80/
 $s =~ /missile0_x := tank0_x \+ 8/ && $s =~ /missile1_x := tank1_x \+ 8/ &&
 $s =~ /renders M0\/M1.*?five Atari pixels left/s
    or die "Tanks lost physical-center missile positioning calibration\n";
-$s =~ /0b\.\.\.XX\.\.\./ && $s =~ /0b\.XXXXX\.\./ && $s =~ /0bXX\.\.\.\.\.\./
-   or die "Tanks graphics are no longer kept in visual 0b dot\/X notation\n";
+my($graphics_block)=$s =~ /tanks_graphics\[64\] := \{(.*?)\n\};/s;
+defined $graphics_block or die "Tanks graphics table missing\n";
+my @graphics_rows=grep {/0b/} split /\n/,$graphics_block;
+@graphics_rows==64 && !grep { $_ !~ /^\s*0b[.X]{8},\s*$/ } @graphics_rows
+   or die "Tanks graphics must keep exactly one visual 0b dot\/X byte per source line\n";
+my @graphics_bits=map { /0b([.X]{8})/ ? $1 : () } @graphics_rows;
+my @expected_graphics=qw(
+...XX... ...XX... ..XXXX.. .XXXXXX. .XXXXXX. .X.XX.X. ..XXXX.. ........
+........ ......XX ..XXXXXX .XXXXXX. ...XXXX. .XXX.XX. ..XX.X.. ........
+........ ..XXX... .X.XXX.. .XXXXXXX .XXXXXXX .X.XXX.. ..XXX... ........
+........ ..X.X... .XX.XX.. .XXXXX.. ...XXX.. .XXXXX.. ..XXXXX. .....XX.
+........ ..XXXX.. .X.XX.X. .XXXXXX. .XXXXXX. ..XXXX.. ...XX... ...XX...
+........ ..X.XX.. .XX.XXX. .XXXX... .XXXXXX. XXXXXX.. XX...... ........
+........ ...XXX.. ..XXX.X. XXXXXXX. XXXXXXX. ..XXX.X. ...XXX.. ........
+.XX..... .XXXXX.. ..XXXXX. ..XXX... ..XXXXX. ..XX.XX. ...X.X.. ........
+);
+join(' ',@graphics_bits) eq join(' ',@expected_graphics)
+   or die "Tanks graphics no longer match the canonical N/NE silhouettes and their rotations\n";
 
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',$dir,'-T',File::Spec->catfile($vcs,'vcs.cfg'),'-Map',$mapfile,$source,'-o',$bin);
 $rc==0&&!$sig or die "Tanks build failed\n$out$err";
@@ -83,6 +101,6 @@ $rc==0&&!$sig or die"Tanks oracle build failed\n$out$err";
 my@symbols=qw(tank0_x tank1_x tank0_y tank1_y tank0_direction tank1_direction tank0_graphics tank1_graphics tank0_prev_x tank1_prev_x tank0_prev_y tank1_prev_y tank0_spin_frames tank1_spin_frames missile0_x missile1_x missile0_y missile1_y missile0_direction missile1_direction missile0_active missile1_active score_left_score score_right_score tanks_move_phase tanks_rng tanks_sound_frames tanks_sound_kind tanks_barrier_pf2 tanks_graphics);
 my@addr=map{sprintf('0x%04x',symbol_addr($map,$_))}@symbols;
 ($rc,$sig,$out,$err)=capture($oracle,$bin,@addr);$rc==0&&!$sig or die"Tanks oracle run failed\n$out$err";
-$out eq "vcs_tanks ok: stable early raster writes, visible missiles, oriented tanks, 3+3 score, barriers, audio/spin, TIA collisions\n" or die"unexpected Tanks oracle output: $out";
+$out eq "vcs_tanks ok: stable early raster writes, visible missiles, canted tanks, 3+3 score, engine/fire/hit audio, barriers, spin, TIA collisions\n" or die"unexpected Tanks oracle output: $out";
 $err eq '' or die"Tanks oracle stderr: $err";
 print "vcs_tanks ok\n";
