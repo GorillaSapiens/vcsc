@@ -23,6 +23,10 @@ A successful build creates a timestamped archive named like:
 vcsc.windows.YYYYMMDD_HHMMSS.zip
 ```
 
+When the GitHub Actions package workflow is triggered by a tag, the release
+asset uses the tag instead of the timestamp, for example `vcsc.windows.v0.1.0.zip`.
+Direct `make windows` builds remain timestamped.
+
 The zip contains one `vcsc` directory with:
 
 ```text

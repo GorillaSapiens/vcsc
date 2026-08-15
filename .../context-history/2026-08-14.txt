@@ -187,3 +187,11 @@ Reverted blank_noasm to its actual Stella-stable timer schedule. Ode keeps the
 same VBLANK schedule but uses TIM64T=35 plus one post-music phase WSYNC before
 the TIMINT wait and two final boundaries. Actual Stella sampling held both at
 262 lines; the CPU harness calibration is 264 raw lines for both examples.
+
+2026-08-14 19:00:00 PDT, Name tagged release packages by tag
+GitHub Actions tag builds now rename the timestamped Windows and Linux package
+files to vcsc.windows.<TAG>.zip and vcsc.linux.<TAG>.tar.gz before artifact and
+release upload. Tagged Actions artifact display names also use the tag; branch
+and manual builds retain their existing timestamped package filenames. The
+version-header workflow regression now locks the tagged naming behavior.
+

@@ -18,6 +18,10 @@ A successful build creates a timestamped archive named like:
 vcsc.linux.YYYYMMDD_HHMMSS.tar.gz
 ```
 
+When the GitHub Actions package workflow is triggered by a tag, the release
+asset uses the tag instead of the timestamp, for example `vcsc.linux.v0.1.0.tar.gz`.
+Direct `make linux` builds remain timestamped.
+
 The archive contains one `vcsc` directory with:
 
 ```text

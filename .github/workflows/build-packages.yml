@@ -43,6 +43,20 @@ jobs:
           make clean
           make linux
 
+      - name: Name tagged packages after the release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          set -euxo pipefail
+          windows=(vcsc.windows.*.zip)
+          linux=(vcsc.linux.*.tar.gz)
+          test "${#windows[@]}" -eq 1
+          test "${#linux[@]}" -eq 1
+          test -f "${windows[0]}"
+          test -f "${linux[0]}"
+          mv -- "${windows[0]}" "vcsc.windows.${GITHUB_REF_NAME}.zip"
+          mv -- "${linux[0]}" "vcsc.linux.${GITHUB_REF_NAME}.tar.gz"
+
       - name: Show packages
         shell: bash
         run: |
@@ -52,7 +66,7 @@ jobs:
       - name: Upload Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: vcsc-windows-${{ github.sha }}
+          name: vcsc-windows-${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
           path: vcsc.windows.*.zip
           if-no-files-found: error
           compression-level: 0
@@ -60,7 +74,7 @@ jobs:
       - name: Upload Linux package
         uses: actions/upload-artifact@v4
         with:
-          name: vcsc-linux-${{ github.sha }}
+          name: vcsc-linux-${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
           path: vcsc.linux.*.tar.gz
           if-no-files-found: error
           compression-level: 0
@@ -77,6 +91,6 @@ jobs:
             gh release create "$tag" --verify-tag --generate-notes --title "$tag"
           fi
           gh release upload "$tag" \
-            vcsc.windows.*.zip \
-            vcsc.linux.*.tar.gz \
+            "vcsc.windows.${tag}.zip" \
+            "vcsc.linux.${tag}.tar.gz" \
             --clobber

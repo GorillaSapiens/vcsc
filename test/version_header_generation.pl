@@ -117,5 +117,16 @@ for my $component (qw(driver compiler assembler linker archiver simulator stego)
 my $workflow = slurp(File::Spec->catfile($repo, '.github', 'workflows', 'build-packages.yml'));
 $workflow =~ /fetch-depth:\s*0/
    or die "GitHub package workflow does not fetch tags/history\n";
+$workflow =~ /mv -- "\$\{windows\[0\]\}" "vcsc\.windows\.\$\{GITHUB_REF_NAME\}\.zip"/
+   or die "GitHub package workflow does not tag-name the Windows package\n";
+$workflow =~ /mv -- "\$\{linux\[0\]\}" "vcsc\.linux\.\$\{GITHUB_REF_NAME\}\.tar\.gz"/
+   or die "GitHub package workflow does not tag-name the Linux package\n";
+$workflow =~ /name:\s*vcsc-windows-\$\{\{ github\.ref_type == 'tag' && github\.ref_name \|\| github\.sha \}\}/
+   or die "GitHub Windows Actions artifact does not prefer the tag name\n";
+$workflow =~ /name:\s*vcsc-linux-\$\{\{ github\.ref_type == 'tag' && github\.ref_name \|\| github\.sha \}\}/
+   or die "GitHub Linux Actions artifact does not prefer the tag name\n";
+$workflow =~ /"vcsc\.windows\.\$\{tag\}\.zip"/ &&
+$workflow =~ /"vcsc\.linux\.\$\{tag\}\.tar\.gz"/
+   or die "GitHub release upload does not use exact tag-named package assets\n";
 
 print "version header generation ok\n";

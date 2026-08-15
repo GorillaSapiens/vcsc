@@ -797,8 +797,11 @@ contains the same `/opt/vcsc/examples` tree, and `make uninstall` removes it.
 GitHub Actions binary-package automation lives at `.github/workflows/build-packages.yml`.
 Pushes to `main`/`master`, tag pushes, and manual runs execute `make clean`,
 `make windows`, `make clean`, then `make linux`. Every successful run uploads the
-Windows zip and Linux tarball as Actions artifacts; tag builds also create or reuse
-the matching GitHub Release and attach both packages as release assets.
+Windows zip and Linux tarball as Actions artifacts. Ordinary branch/manual builds
+retain the timestamped package filenames produced by the Makefile. Tag builds rename
+the files to `vcsc.windows.<TAG>.zip` and `vcsc.linux.<TAG>.tar.gz`, use the tag in
+the Actions artifact display names, then create or reuse the matching GitHub Release
+and attach those exact tag-named packages as release assets.
 
 Version-header generation is centralized in top-level `gen_version_h.pl`. All seven
 host-tool/helper Makefiles that include `version.h` invoke that script rather than
