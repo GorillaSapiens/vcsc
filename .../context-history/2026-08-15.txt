@@ -1,2 +1,10 @@
 2026-08-15 07:09:44 PDT, refresh keypad asm allowlist
 Updated the keypad example assembly fixture from 63 to 62 statements, refreshed its SHA-256 digest and ten-line glyph-loop rationale, and verified 492 compile-only plus all 301 E2E cases.
+
+2026-08-15 07:53:21 PDT, add Indy 500 driving controller support
+Completed roadmap item 38 with the reusable driving-controller component,
+12_drive two-controller hex demo, install coverage, and emulator-backed tests.
+The decoder preserves known direction across one skipped Gray state and the
+public NTSC example remains frame-stable while sampling both ports six times.
+2026-08-15 08:39:06 PDT, fix driving SWCHA pin mapping
+Corrected driving-controller phase reads from left D7\/D6 and right D3\/D2 to the physical pin-1\/pin-2 mapping: left D4\/D5 and right D0\/D1. Corrected the numeric Gray transition table and rebuilt the emulator oracle so only the real pins carry rotation.

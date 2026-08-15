@@ -1,0 +1,187 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// Atari Indy 500 driving controller on one VCS controller port.
+//
+// Pins 1 and 2 carry a two-bit Gray code. Written as pin1:pin2, clockwise
+// motion follows 11 -> 10 -> 00 -> 01 -> 11, i.e. numeric phase
+// 3 -> 1 -> 0 -> 2 -> 3. Counterclockwise
+// motion follows the reverse sequence. The fire button is pin
+// 6 and therefore reads through INPT4 on the left port or INPT5 on the right.
+//
+// Call init() once, then begin_frame() once per application frame and sample()
+// as often as the scheduler permits. `step` reports only the newest sample
+// transition (-2..+2); `delta` accumulates all decoded motion since the most
+// recent begin_frame(), positive for clockwise and negative for counterclockwise.
+// `button` is normalized to 1 while pressed. `phase` exposes the current raw
+// two-bit Gray state and `direction` remembers the most recent unambiguous
+// motion direction.
+//
+// Adjacent Gray transitions are always +/-1, including the 3<->1 and 3<->2
+// wrap transitions. If sampling skips exactly one intermediate state, the
+// observed old/new states are opposite. That is intrinsically ambiguous by
+// itself, so the component counts it as +/-2 only when a prior direction is
+// known; before any direction has been established it updates phase but reports
+// no invented movement. Sampling more often reduces the chance of larger,
+// fundamentally ambiguous skips.
+//
+// The selected controller nibble of SWACNT is configured as input while the
+// opposite port's direction bits are preserved. Current Stella does not
+// auto-detect Driving controllers from ROM access patterns, so emulator users
+// must select Driving for the relevant controller port(s).
+
+parameter port := 0;
+
+enum TEMPLATE_direction_codes {
+   TEMPLATE_DIRECTION_NONE := 0,
+   TEMPLATE_DIRECTION_CLOCKWISE := 1,
+   TEMPLATE_DIRECTION_COUNTERCLOCKWISE := 2
+};
+
+enum TEMPLATE_transition_codes {
+   TEMPLATE_TRANSITION_NONE := 0,
+   TEMPLATE_TRANSITION_CLOCKWISE := 1,
+   TEMPLATE_TRANSITION_COUNTERCLOCKWISE := 2,
+   TEMPLATE_TRANSITION_SKIP := 3
+};
+
+// Index is (old_phase << 2) | new_phase. Numeric phase bit 0 is pin 1
+// and bit 1 is pin 2, matching Stella/RIOT SWCHA wiring. Clockwise is
+// 3 -> 1 -> 0 -> 2 -> 3; counterclockwise is the reverse.
+const uint8_t TEMPLATE_transition_table[16] := {
+   0, 2, 1, 3,
+   1, 0, 3, 2,
+   2, 3, 0, 1,
+   3, 1, 2, 0
+};
+
+int8_t TEMPLATE_step := 0;
+int8_t TEMPLATE_delta := 0;
+uint8_t TEMPLATE_button := 0;
+uint8_t TEMPLATE_phase := 0;
+uint8_t TEMPLATE_direction := TEMPLATE_DIRECTION_NONE;
+
+static uint8_t TEMPLATE_next_phase := 0;
+
+static inline void TEMPLATE_read_phase(void) {
+#if TEMPLATE_port == 0
+   TEMPLATE_next_phase := (SWCHA >> 4) & 0x03;
+#elif TEMPLATE_port == 1
+   TEMPLATE_next_phase := SWCHA & 0x03;
+#endif
+}
+
+static inline void TEMPLATE_read_button(void) {
+#if TEMPLATE_port == 0
+   TEMPLATE_button := (INPT4 & 0x80) == 0;
+#elif TEMPLATE_port == 1
+   TEMPLATE_button := (INPT5 & 0x80) == 0;
+#endif
+}
+
+require inline void TEMPLATE_init(void) {
+#if TEMPLATE_port == 0
+   SWACNT := SWACNT & 0x0f;
+#elif TEMPLATE_port == 1
+   SWACNT := SWACNT & 0xf0;
+#endif
+   TEMPLATE_read_phase();
+   TEMPLATE_phase := TEMPLATE_next_phase;
+   TEMPLATE_direction := TEMPLATE_DIRECTION_NONE;
+   TEMPLATE_step := 0;
+   TEMPLATE_delta := 0;
+   TEMPLATE_read_button();
+}
+
+require inline void TEMPLATE_begin_frame(void) {
+   TEMPLATE_step := 0;
+   TEMPLATE_delta := 0;
+}
+
+require void TEMPLATE_sample(void) {
+#if TEMPLATE_port == 0
+   asm lda SWCHA;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+#elif TEMPLATE_port == 1
+   asm lda SWCHA;
+#endif
+   asm and #$03;
+   asm sta.z TEMPLATE_next_phase;
+
+#if TEMPLATE_port == 0
+   asm lda INPT4;
+#elif TEMPLATE_port == 1
+   asm lda INPT5;
+#endif
+   asm bmi @TEMPLATE_button_released;
+   asm lda #1;
+   asm bne @TEMPLATE_button_store;
+   asm @TEMPLATE_button_released:;
+   asm lda #0;
+   asm @TEMPLATE_button_store:;
+   asm sta.z TEMPLATE_button;
+
+   asm lda.z TEMPLATE_phase;
+   asm asl;
+   asm asl;
+   asm ora.z TEMPLATE_next_phase;
+   asm tax;
+   asm lda TEMPLATE_transition_table,x;
+   asm beq @TEMPLATE_no_step;
+   asm cmp #1;
+   asm beq @TEMPLATE_clockwise;
+   asm cmp #2;
+   asm beq @TEMPLATE_counterclockwise;
+
+   // Opposite states mean exactly one Gray state was missed. Preserve the
+   // last known direction if there is one; otherwise refuse to guess.
+   asm lda.z TEMPLATE_direction;
+   asm cmp #1;
+   asm beq @TEMPLATE_skip_clockwise;
+   asm cmp #2;
+   asm beq @TEMPLATE_skip_counterclockwise;
+   asm jmp @TEMPLATE_no_step;
+
+   asm @TEMPLATE_clockwise:;
+   asm lda #1;
+   asm sta.z TEMPLATE_step;
+   asm inc.z TEMPLATE_delta;
+   asm sta.z TEMPLATE_direction;
+   asm jmp @TEMPLATE_update_phase;
+
+   asm @TEMPLATE_counterclockwise:;
+   asm lda #$ff;
+   asm sta.z TEMPLATE_step;
+   asm dec.z TEMPLATE_delta;
+   asm lda #2;
+   asm sta.z TEMPLATE_direction;
+   asm jmp @TEMPLATE_update_phase;
+
+   asm @TEMPLATE_skip_clockwise:;
+   asm lda #2;
+   asm sta.z TEMPLATE_step;
+   asm clc;
+   asm lda.z TEMPLATE_delta;
+   asm adc #2;
+   asm sta.z TEMPLATE_delta;
+   asm jmp @TEMPLATE_update_phase;
+
+   asm @TEMPLATE_skip_counterclockwise:;
+   asm lda #$fe;
+   asm sta.z TEMPLATE_step;
+   asm sec;
+   asm lda.z TEMPLATE_delta;
+   asm sbc #2;
+   asm sta.z TEMPLATE_delta;
+   asm jmp @TEMPLATE_update_phase;
+
+   asm @TEMPLATE_no_step:;
+   asm lda #0;
+   asm sta.z TEMPLATE_step;
+
+   asm @TEMPLATE_update_phase:;
+   asm lda.z TEMPLATE_next_phase;
+   asm sta.z TEMPLATE_phase;
+}

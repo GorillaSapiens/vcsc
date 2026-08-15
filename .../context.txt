@@ -969,7 +969,34 @@ public cartridge is currently 1633/4090 ROM bytes and 43/128 RAM bytes.
 press/hold/release semantics, opposite-port isolation, minimum row-settle timing,
 and invariant scheduler frame length. The example assembly allowlist pins the
 trimmed keypad source at 62 reviewed beam-critical `asm` statements. Item 38
-(Indy 500 driving controllers) is now the first unfinished main-roadmap item.
+(Indy 500 driving controllers) is complete. `libraries/vcs/driving_controller.c26`
+supports one controller on either port with a two-bit SWCHA Gray-code decoder.
+The physical pin mapping is left pins 1/2 -> SWCHA D4/D5 and right pins 1/2 ->
+SWCHA D0/D1; numeric phase bit 0 is pin 1 and bit 1 is pin 2. The decoder exposes
+active-low INPT4/INPT5 fire state, a signed most-recent `step`, a signed per-frame
+`delta`, current `phase`, and remembered unambiguous `direction`. Adjacent Gray
+states are decoded as +/-1 across wrap; an opposite state after a known direction
+is preserved as a +/-2 skipped transition, while an opposite state before any
+direction history is ignored rather than guessed. `begin_frame()` resets `step`
+and `delta`, and callers can sample repeatedly during timer-owned blanking.
+
+The public `examples/01_basic/12_drive/` cartridge instantiates left and right
+controllers, samples both three times in VBLANK and three times in overscan, and
+displays independent centered Big-hex P0/P1 glyphs. Clockwise increments and
+counterclockwise decrements modulo 16; each glyph is white while its fire button
+is released and red only while held. The timing-critical controller decoder is
+compact assembly so all six sample pairs fit the scheduler deadlines; the public
+cartridge uses 1743/4090 ROM bytes and 49/128 RAM bytes while retaining stable
+264-raw / Stella-262 frame timing. Current Stella requires the Driving controller
+type to be selected manually because its ROM detector does not auto-detect this
+controller family. `vcs_driving.pl/.cpp` plus left/right private 2K fixtures model the actual
+RIOT pin wiring (unused pins 3/4 held high while pins 1/2 carry Gray code) and cover
+both ports independently, clockwise/counterclockwise wrap, ambiguous and
+direction-preserving skipped states, per-frame accumulation/reset, button
+press/release, opposite-port SWCHA/SWACNT isolation, public hex arithmetic/color,
+and invariant frame length. Installed-tree checks ship the component and build
+the public example. Item 39 (public supported-controller diagnostic) is now the
+first unfinished main-roadmap item.
 
 The generic per-case test timeout is now 20 seconds, and former explicit
 10-second overrides were raised to 20 seconds as well; longer 120-second
@@ -997,5 +1024,5 @@ hygiene traversals explicitly prune `.git`, because branch/ref/object history is
 metadata rather than editable source and may legitimately retain retired historical
 names. In an eight-worker validation,
 example shards measured about 2.9-4.0 seconds each and score-composition family
-shards about 8.3-8.6 seconds each. The current E2E inventory contains 301
+shards about 8.3-8.6 seconds each. The current E2E inventory contains 302
 cases while preserving the same aggregate sharded coverage model.

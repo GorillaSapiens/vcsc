@@ -1874,7 +1874,7 @@ but no new workstream should be assumed until the user selects one.
           the public cartridge to 1633/4090 ROM bytes and 43/128 RAM bytes. Staged installcheck installs the
           component and builds the public 4K cartridge.
 
-[ ] 38. Add support for Atari Indy 500 driving controllers. Decode quadrature motion
+[x] 38. Add support for Atari Indy 500 driving controllers. Decode quadrature motion
         and fire buttons for either port, preserve direction across wraparound and
         rapid transitions, define per-frame accumulation/reset semantics, and add
         emulator-backed tests plus an example that exercises one and two controllers.

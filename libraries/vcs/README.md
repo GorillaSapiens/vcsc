@@ -39,6 +39,7 @@ Files:
 - `three_plus_three_score_component.c26` ... fixed eleven-line dual score with independent three-digit packed-BCD values and colors, centered as X=20,36,52 in the left half and X=100,116,132 in the right half
 - `two_paddles.c26` ... two analog CX30-style paddles plus both fire buttons on either controller port, with explicit VBLANK dump/charge ownership and multi-frame raw timing
 - `keypad_controller.c26` ... one 12-key Atari-style keypad on either controller port, with explicit row selection, caller-owned settle timing, stable 12-bit state, and press/release edge masks
+- `driving_controller.c26` ... one Atari Indy 500 driving controller on either port, with Gray-code direction decoding, signed per-sample step/per-frame delta, skipped-state direction preservation, and live fire-button state
 - `two_plus_two_score_support.c26` ... shared page-contained compact decimal glyph and calibrated horizontal-position tables for two-plus-two scores
 - `two_plus_two_score_component.c26` ... repeatable eleven-line P0/P1 score with independent packed-BCD left/right values, colors, and X positions; each three-bit digit is doubled to six visible pixels with a two-pixel inter-digit gap
 - `renderers/AUTHORING.md` ... maintained HOWTO for renderer/score component contracts, phase/TIA ownership, stack and memory budgets, cycle scheduling, Stella oracles, regressions, examples, and installation
@@ -323,6 +324,41 @@ The public example at `examples/01_basic/11_keypad/` instantiates one keypad on
 each port. A custom 13-glyph subset of the Big 8x16 font is drawn with P0 in the
 left half and P1 in the right half: the twelve key labels plus an empty rectangle
 when no key is held, white on the project's blue background.
+
+## Indy 500 driving controller
+
+`driving_controller.c26` supports one Atari Indy 500 driving controller on
+either controller port with `port:=0` (left, the default) or `port:=1` (right).
+Pins 1 and 2 are read from SWCHA as a two-bit Gray code: left D4/D5 and
+right D0/D1. Pin 6 is the active-low fire button through INPT4 or INPT5. The selected SWACNT nibble is
+made input-only while the opposite controller port's direction bits are left
+unchanged. With the phase written as pin1:pin2, clockwise motion is
+`11 -> 10 -> 00 -> 01 -> 11`; counterclockwise motion is the reverse.
+
+Call `init()` once, `begin_frame()` once at the start of each application frame,
+and `sample()` as often as blanking time permits. `step` is the most recent
+signed movement (`-2`..`+2`) and `delta` accumulates all movement since the most
+recent `begin_frame()`, with positive values clockwise. `button` is 1 exactly
+while fire is held, `phase` exposes the current raw Gray state, and `direction`
+remembers the last unambiguous direction. Adjacent states are +/-1 even across
+the Gray-code wrap. An opposite-state read means one intermediate phase was
+missed; once direction is known the component preserves it and reports +/-2.
+Before direction has been established, an opposite jump is deliberately ignored
+rather than inventing a direction. Larger unsampled motion is intrinsically
+ambiguous, so callers that expect fast rotation should sample repeatedly during
+VBLANK and overscan.
+
+The public example at `examples/01_basic/12_drive/` instantiates one controller
+on each port and samples both three times in VBLANK plus three times in overscan.
+Each side displays an independent Big-font hexadecimal digit centered in its
+half of the screen. Clockwise increments, counterclockwise decrements, and the
+value wraps between `0` and `F`. A released button draws white; a held button
+draws red. Emulator-backed tests also exercise each port independently, skipped
+Gray states, button press/release, opposite-port isolation, counter wrap, and
+stable NTSC frame timing.
+
+Current Stella does not auto-detect the Driving controller type from ROM access
+patterns, so select **Driving** manually for each port used by the cartridge.
 
 ## Left/right three-plus-three score component
 

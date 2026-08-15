@@ -1,0 +1,178 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Two Indy 500 driving controllers. Clockwise motion increments each side's
+// hexadecimal P0/P1 glyph, counterclockwise decrements it, and the fire button
+// changes that side from white to red only while held.
+
+include "vcs_4k.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+include "fonts/big_hex.c26"
+
+alias DRIVE_BLUE  __builtin_ntsc_rgb(0x20, 0x40, 0xff)
+alias DRIVE_WHITE __builtin_ntsc_rgb(0xff, 0xff, 0xff)
+alias DRIVE_RED   __builtin_ntsc_rgb(0xff, 0x20, 0x20)
+
+instantiate "driving_controller.c26" as left_drive (port:=0)
+instantiate "driving_controller.c26" as right_drive (port:=1)
+
+uint8_t left_value := 0;
+uint8_t right_value := 0;
+uint16_t left_glyph_pointer := 0;
+uint16_t right_glyph_pointer := 0;
+
+inline void drive_apply_steps(void) {
+   // Signed step is two's-complement. Addition followed by a low-nibble mask
+   // therefore implements both directions and 0/F wrap without branches.
+   left_value := (left_value + (uint8_t) left_drive_step) & 0x0f;
+   right_value := (right_value + (uint8_t) right_drive_step) & 0x0f;
+}
+
+void drive_sample_pair(void) {
+   left_drive_sample();
+   right_drive_sample();
+   drive_apply_steps();
+}
+
+inline void drive_prepare_glyphs(void) {
+   // big_hex.c26 is one aligned 256-byte page of sixteen 16-byte glyphs, so
+   // value << 4 is the complete low pointer byte and the high byte is fixed.
+   asm lda.z left_value;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta.z left_glyph_pointer;
+
+   asm lda.z right_value;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta.z right_glyph_pointer;
+}
+
+// P0 is centered on the left 80-pixel half at x=36; P1 is centered on the
+// right half at x=116. Position once at startup: neither player's X changes.
+inline void drive_position_players(void) {
+   HMCLR := 0;
+
+   asm sta WSYNC;
+   asm ldx #0;
+   asm bit.z CXM0P;
+   asm lda #36;
+   asm sec;
+   asm @p0_divide:;
+   asm sbc #15;
+   asm bcs.same @p0_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm eor #$07;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #1;
+   asm bit.z CXM0P;
+   asm lda #116;
+   asm sec;
+   asm @p1_divide:;
+   asm sbc #15;
+   asm bcs.same @p1_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm eor #$07;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm sta HMOVE;
+   asm sta WSYNC;
+   asm sta HMCLR;
+}
+
+inline void drive_draw_glyphs(void) {
+   asm ldy #15;
+   asm @rows:;
+   asm lda.iy (left_glyph_pointer),y;
+   asm sta GRP0;
+   asm lda.iy (right_glyph_pointer),y;
+   asm sta GRP1;
+   asm sta WSYNC;
+   asm dey;
+   asm bpl.same @rows;
+   GRP0 := 0;
+   GRP1 := 0;
+}
+
+inline void drive_prepare_visible(void) {
+   drive_prepare_glyphs();
+   if (left_drive_button) { COLUP0 := DRIVE_RED; }
+   else { COLUP0 := DRIVE_WHITE; }
+   if (right_drive_button) { COLUP1 := DRIVE_RED; }
+   else { COLUP1 := DRIVE_WHITE; }
+}
+
+void main(void) {
+   VBLANK := 2;
+   COLUBK := DRIVE_BLUE;
+   COLUP0 := DRIVE_WHITE;
+   COLUP1 := DRIVE_WHITE;
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   GRP0 := 0;
+   GRP1 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+   NUSIZ0 := 0;
+   NUSIZ1 := 0;
+   REFP0 := 0;
+   REFP1 := 0;
+   VDELP0 := 0;
+   VDELP1 := 0;
+
+   left_drive_init();
+   right_drive_init();
+   asm lda #>score_font;
+   asm sta.z left_glyph_pointer+1;
+   asm sta.z right_glyph_pointer+1;
+   drive_prepare_glyphs();
+   drive_position_players();
+
+   while (1) {
+      vcs_ntsc_vsync();
+      left_drive_begin_frame();
+      right_drive_begin_frame();
+
+      vcs_ntsc_begin_vblank();
+      drive_sample_pair();
+      vcs_ntsc_wait_scanlines(6);
+      drive_sample_pair();
+      vcs_ntsc_wait_scanlines(6);
+      drive_sample_pair();
+      drive_prepare_visible();
+      vcs_ntsc_end_vblank();
+
+      vcs_ntsc_wait_component_scanlines(88);
+      drive_draw_glyphs();
+      vcs_ntsc_wait_visible_tail_scanlines(88);
+
+      vcs_ntsc_begin_overscan();
+      drive_sample_pair();
+      vcs_ntsc_wait_scanlines(6);
+      drive_sample_pair();
+      vcs_ntsc_wait_scanlines(6);
+      drive_sample_pair();
+      vcs_ntsc_end_overscan();
+   }
+}
