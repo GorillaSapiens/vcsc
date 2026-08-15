@@ -161,3 +161,29 @@ An eight-worker run measured the example shards at 2.9-4.0 seconds and the
 score family shards at 8.3-8.6 seconds. The E2E inventory is now 299 cases;
 all 299 passed across the main run plus its separately rerun timeout tail.
 
+
+2026-08-14 17:55:22 PDT, Remove assembly from Ode to Joy
+Rewrote examples/01_basic/03_ode_to_joy/ode_to_joy.c26 in the source-only
+frame style demonstrated by 02_blank_noasm. VSYNC and the 192-line visible
+region use VCSC countdown loops; VBLANK and overscan are TIM64T/TIMINT-owned
+CPU budgets, with music_tick() running inside overscan. Removed Ode from the
+example assembly allowlist, made vcs_ode_to_joy_cartridge.pl compile the real
+public example, removed its stale golden source copy, and calibrated the timing
+oracle to the same 264-raw/262-displayed frame model as blank_noasm.
+
+2026-08-14 18:08:51 PDT, Stabilize timer-owned source frames
+Actual Stella 7.0 testing showed the source-only Ode example mostly at 263
+scanlines with occasional 262-line frames even though the coarse CPU timing
+harness passed. The timer poll began at different CPU phases after the short
+and long music_tick paths. blank_noasm had the same latent teaching bug for
+future variable-length game logic. Both examples now perform one WSYNC after
+useful work and before TIMINT polling, normalizing CPU phase while preserving
+timer-owned blanking budgets. Overscan then needs two post-poll boundaries.
+Stella sweeps showed blank_noasm stable at 262 and Ode stable at 262 throughout
+a full melody cycle. The CPU harness calibration for these sources is raw 263.
+
+2026-08-14 18:41:53 PDT, Recalibrate source-only NTSC timers
+Reverted blank_noasm to its actual Stella-stable timer schedule. Ode keeps the
+same VBLANK schedule but uses TIM64T=35 plus one post-music phase WSYNC before
+the TIMINT wait and two final boundaries. Actual Stella sampling held both at
+262 lines; the CPU harness calibration is 264 raw lines for both examples.

@@ -22,9 +22,9 @@ constexpr uint64_t kCyclesPerScanline = 76;
 constexpr uint64_t kExpectedDisplayedScanlines = 262;
 // This deliberately minimal harness does not model Stella's full TIA frame
 // boundary bookkeeping. Its raw assertion-to-assertion interval is calibrated
-// per cartridge against Stella's verified 262-line NTSC display; most examples
-// use 263 raw harness lines, while example 03 uses 265 after correct zero-page
-// instruction sizing. Do not mistake either raw count for displayed scanlines.
+// per cartridge against Stella's verified 262-line NTSC display; the source-only
+// blank and Ode examples use 263 raw harness lines after phase normalization.
+// Do not mistake the harness raw count for displayed scanlines.
 constexpr uint64_t kDefaultVsyncIntervalScanlines = 263;
 constexpr uint16_t kVsync = 0x0000;
 constexpr uint16_t kWsync = 0x0002;

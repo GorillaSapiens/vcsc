@@ -48,21 +48,19 @@ WSYNC := _;
 VBLANK := 0;
 ```
 
-The timer runs while the program does useful work. Only after that work is done
-does the program wait for the unused part of the budget. `TIMINT.7` becomes set
+The timer runs while the program does useful work. Once that work is done, the
+program waits only for the unused part of the budget. `TIMINT.7` becomes set
 when the interval expires, so the wait also terminates if the game logic has
 already consumed the deadline instead of accidentally waiting for an `INTIM`
-wraparound. The final `WSYNC` is still useful: it aligns the transition to the
-next scanline.
+wraparound. A single `WSYNC` then aligns the phase transition.
 
 For this source-level NTSC frame layout, `TIM64T=42` is calibrated for the
 37-line VBLANK budget and `TIM64T=34` for the 30-line overscan budget. After the
-overscan timer expires, one `WSYNC` aligns the boundary and two additional blanked
-`WSYNC` boundaries provide the same Stella TIA frame-accounting compensation used
-by `frame_ntsc.c26`; omitting those two makes Stella report a 260-line / ~60.5 Hz
-frame. They are not part of the game-logic budget. Code added
-inside either budget must finish before the next beam-critical phase; a timer
-makes the available time usable, not infinite.
+overscan timer expires, three blanked `WSYNC` boundaries complete the calibrated
+Stella frame boundary. These are fixed phase/frame-boundary alignment, not a
+per-scanline blanking loop. Code added inside either timer budget must still
+finish before the next beam-critical phase; a timer makes the available time
+usable, not infinite.
 
 Build from this directory after building the toolchain:
 

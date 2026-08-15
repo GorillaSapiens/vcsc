@@ -47,8 +47,7 @@ $tmp=abs_path($tmp) // die "could not resolve temporary directory\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs_dir=File::Spec->catfile($repo,'libraries','vcs');
 my $sound=File::Spec->catfile($vcs_dir,'sound_ntsc.c26');
-my $fixture_dir=File::Spec->catdir($repo,'test','fixtures','vcs_examples','02_ode_to_joy');
-my $source=File::Spec->catfile($fixture_dir,'golden.c26');
+my $source=File::Spec->catfile($repo,'examples','01_basic','03_ode_to_joy','ode_to_joy.c26');
 my $binary=File::Spec->catfile($tmp,'ode_to_joy.bin');
 my $map=File::Spec->catfile($tmp,'ode_to_joy.map');
 my $timing_source=File::Spec->catfile($repo,'test','vcs_frame_timing.cpp');
@@ -124,10 +123,16 @@ $source_text =~ /alias\s+MUSIC_STEP_COUNT\s+32/
    or die "source does not declare 32 score steps\n";
 my $gap_uses=()=$source_text =~ /MUSIC_TIME_GAP/g;
 $gap_uses==16 or die "source has $gap_uses gap steps, expected 16\n";
-$source_text =~ /asm lda \#35;\s*asm sta TIM64T;\s*music_tick\(\);\s*asm \@overscan_wait:;\s*asm lda INTIM;\s*asm bne \@overscan_wait;\s*asm sta WSYNC;\s*asm sta WSYNC;\s*asm jmp \@frame;/s
-   or die "music_tick is not enclosed by the corrected TIM64T/two-WSYNC overscan tail\n";
-$source_text !~ /music_tick\(\);\s*asm lda \#2;\s*asm sta VSYNC;/s
-   or die "music_tick still runs outside the fixed frame budget\n";
+$source_text !~ /\basm\b/
+   or die "Ode to Joy contains inline assembly\n";
+$source_text =~ /TIM64T\s*:=\s*42\s*;/ && $source_text =~ /TIM64T\s*:=\s*35\s*;/
+   or die "Ode to Joy lost the calibrated timer-owned blanking deadlines\n";
+my @timer_waits=($source_text =~ /while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\)/g);
+@timer_waits == 2 or die "Ode to Joy must wait on TIMINT in both blanking phases\n";
+$source_text =~ /TIM64T\s*:=\s*42\s*;.*?while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\).*?WSYNC\s*:=\s*_\s*;\s*VBLANK\s*:=\s*0\s*;/s
+   or die "Ode to Joy lost timer-owned VBLANK deadline/alignment\n";
+$source_text =~ /TIM64T\s*:=\s*35\s*;\s*music_tick\(\);.*?WSYNC\s*:=\s*_\s*;\s*while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\).*?WSYNC\s*:=\s*_\s*;.*?WSYNC\s*:=\s*_\s*;/s
+   or die "music_tick is not enclosed by the calibrated phase-normalized overscan tail\n";
 $source_text =~ /uint8_t\s+music_index\s*:=\s*0\s*;/
    or die "source does not retain the current score index\n";
 $source_text =~ /uint8_t\s+music_counter\s*:=\s*0xff\s*;/
@@ -140,7 +145,7 @@ $source_text =~ /void\s+music_tick\s*\(void\)\s*\{.*music_counter\s*==\s*0xff.*m
    or die "music_tick does not synchronize the first note before direct indexed playback\n";
 $source_text =~ /void\s+music_apply_current\s*\(void\)\s*\{.*AUDV0\s*:=\s*0\s*;.*AUDC0\s*:=\s*music\[music_index\]\.control.*AUDF0\s*:=\s*music\[music_index\]\.frequency.*AUDV0\s*:=\s*music\[music_index\]\.volume/s
    or die "source does not mute before retuning and enable channel-0 volume last\n";
--f File::Spec->catfile($repo,'examples','01_basic','02_ode_to_joy','music_player.s26')
+-f File::Spec->catfile($repo,'examples','01_basic','03_ode_to_joy','music_player.s26')
    and die "obsolete companion assembly player still exists\n";
 
 my $cxx=$ENV{CXX} || 'c++';
@@ -151,7 +156,7 @@ die "timing harness build exited $exit signal $signal\nstdout:\n$stdout\nstderr:
    if $exit != 0 || $signal != 0;
 die "timing harness build wrote unexpected stdout:\n$stdout" if without_cartridge_usage($stdout) ne '';
 
-($exit,$signal,$stdout,$stderr)=run_capture($timing_exe,$binary,'1500','--audio-start-synced','--audio-retune-muted');
+($exit,$signal,$stdout,$stderr)=run_capture($timing_exe,$binary,'1500','--audio-start-synced','--audio-retune-muted','--raw-lines','264');
 die "timing verification exited $exit signal $signal\nstdout:\n$stdout\nstderr:\n$stderr"
    if $exit != 0 || $signal != 0;
 $stdout =~ /^vcs_frame_timing ok: 1497 frames at 262 lines, \d+ AUDV0 writes\n$/

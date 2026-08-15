@@ -62,8 +62,10 @@ $text !~ /for\s*\(\s*uint8_t\s+i\s*:=\s*(?:37|30)\s*;/
    or die "blank_noasm regressed to WSYNC-counted blanking\n";
 $text =~ /TIM64T\s*:=\s*42\s*;/ && $text =~ /TIM64T\s*:=\s*34\s*;/
    or die "blank_noasm lost calibrated VBLANK/overscan TIM64T deadlines\n";
+$text =~ /TIM64T\s*:=\s*42\s*;.*?while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\).*?WSYNC\s*:=\s*_\s*;\s*VBLANK\s*:=\s*0\s*;/s
+   or die "blank_noasm lost timer-owned VBLANK deadline/alignment\n";
 $text =~ /TIM64T\s*:=\s*34\s*;.*?while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\).*?WSYNC\s*:=\s*_\s*;.*?WSYNC\s*:=\s*_\s*;.*?WSYNC\s*:=\s*_\s*;/s
-   or die "blank_noasm lost Stella-calibrated three-WSYNC overscan tail\n";
+   or die "blank_noasm lost Stella-calibrated timer-owned overscan tail\n";
 my @timer_waits=($text =~ /while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\)/g);
 @timer_waits == 2 or die "blank_noasm must wait on TIMINT in both blanking phases\n";
 $text !~ /\basm\b/

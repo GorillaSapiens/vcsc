@@ -27,12 +27,19 @@ the natural indexed form `music[music_index].field`. For an ordinary `uint8_t`
 index and this four-byte struct, the compiler now scales the index inline in
 compiler-owned zero-page scratch; it does not allocate per-expression BSS or
 call the generic multiplication helper.
-The renderer starts `TIM64T`, calls the source-level player while the timer counts
-down, waits for `INTIM` to reach zero, and uses two final `WSYNC`s before the
-next VSYNC. Stella reports a stable 262-line NTSC frame. A dynamic regression
-also verifies that audio is silent before the first frame boundary and that the
-first audible note uses the same overscan phase and register order as every
-later transition.
+The complete frame scheduler is written in VCSC source with no inline assembly.
+As in `02_blank_noasm`, VBLANK and overscan are RIOT-timer-owned CPU budgets
+rather than per-scanline `WSYNC` loops. `music_tick()` runs once per frame while
+the overscan timer counts down. Because the short and note-transition paths
+through `music_tick()` take different numbers of cycles, Ode uses a separately
+calibrated overscan preload of `TIM64T=35`. One `WSYNC` after `music_tick()`
+normalizes the polling phase, the program waits out the remaining timer budget,
+and two final `WSYNC` boundaries align the following VSYNC. The VBLANK path
+uses the simpler `blank_noasm` deadline form because this example has no
+variable VBLANK work. This exact source-only schedule reports a stable 262-line
+NTSC frame in Stella. A dynamic regression also verifies
+that audio is silent before the first frame boundary and that the first audible
+note uses the same overscan phase and register order as every later transition.
 
 The note aliases in `libraries/vcs/sound_ntsc.c26` use the NTSC lead voice
 (`AUDC=12`). The TIA's scale is not equal-tempered, so the values are useful

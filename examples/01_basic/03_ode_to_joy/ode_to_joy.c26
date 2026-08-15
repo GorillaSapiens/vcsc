@@ -87,7 +87,8 @@ void music_tick(void) {
 }
 
 void main(void) {
-   // Clear video objects and silence the unused audio channel.
+   // Clear video objects and silence both audio channels before the first
+   // synchronized frame begins.
    PF0 := 0;
    PF1 := 0;
    PF2 := 0;
@@ -101,51 +102,54 @@ void main(void) {
    AUDV1 := 0;
 
    // 262 scanlines: 3 VSYNC, 37 vertical blank, 192 visible, 30 overscan.
-   asm @frame:;
-   asm lda #2;
-   asm sta VSYNC;
-   asm ldx #3;
-   asm @vsync:;
+   // Like blank_noasm, the blanking intervals are timer-owned CPU budgets:
+   // useful program work runs while the RIOT timer counts down instead of
+   // spending those intervals in per-scanline WSYNC loops.
+   while (1) {
+      // 3 scanlines VSYNC.
+      VSYNC := 2;
+      for (uint8_t i := 3; i; i--) {
+         WSYNC := _;
+      }
+      VSYNC := 0;
 
+      // 37 scanlines vertical blank. A real game can read controls, update
+      // objects, calculate collisions, or prepare renderer state here.
+      VBLANK := 2;
+      TIM64T := 42;
 
-   asm sta WSYNC;
-   asm dex;
-   asm bne @vsync;
+      // No VBLANK work is required by this tiny example, so wait out whatever
+      // remains of the timer-owned budget and align the visible phase once.
+      while (!(TIMINT & 0x80)) {
+      }
+      WSYNC := _;
+      VBLANK := 0;
 
-   asm lda #0;
-   asm sta VSYNC;
-   asm lda #2;
-   asm sta VBLANK;
-   asm lda #0;
-   asm ldx #37;
-   asm @vblank:;
-   asm sta WSYNC;
-   asm dex;
-   asm bne @vblank;
+      // 192 visible scanlines. There is nothing to draw except COLUBK, but the
+      // visible region still has scanline deadlines.
+      for (uint8_t i := 192; i; i--) {
+         WSYNC := _;
+      }
 
-   asm lda #0;
-   asm sta VBLANK;
-   asm ldx #192;
-   asm @visible:;
-   asm sta WSYNC;
-   asm dex;
-   asm bne @visible;
+      // 30 scanlines overscan. This is another timer-owned game-logic budget.
+      // Advance the music once per frame while the timer is running. The
+      // preload is calibrated for the one WSYNC used below to normalize the
+      // variable-length music path before polling the remaining budget.
+      VBLANK := 2;
+      TIM64T := 35;
+      music_tick();
 
-   asm lda #2;
-   asm sta VBLANK;
+      // music_tick() has short and long paths. Align once after useful work so
+      // the timer poll always begins on a scanline boundary; this avoids
+      // making frame length depend on which score path ran this frame.
+      WSYNC := _;
+      while (!(TIMINT & 0x80)) {
+      }
 
-   // Thirty displayed overscan scanlines. TIM64T=35 reaches zero late in
-   // the timed portion; music_tick() runs while it counts down. Two final
-   // WSYNCs complete the overscan budget and begin the next VSYNC after a
-   // Stella-reported 262-line frame.
-   asm lda #35;
-   asm sta TIM64T;
-   music_tick();
-   asm @overscan_wait:;
-   asm lda INTIM;
-   asm bne @overscan_wait;
-   asm sta WSYNC;
-   asm sta WSYNC;
+      // Two final blanked boundaries align the next VSYNC. This exact
+      // timer/WSYNC combination is calibrated against Stella at 262 lines.
+      WSYNC := _;
+      WSYNC := _;
 
-   asm jmp @frame;
+   }
 }

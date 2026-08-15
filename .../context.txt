@@ -220,16 +220,26 @@ Renderer and example state
   `for (uint8_t i := 192; i; i--)`; the compiler keeps those lexical counters
   entirely in X when the straight-line body is proven X-safe. VBLANK and
   overscan instead demonstrate RIOT timer-owned game-logic budgets: `TIM64T=42`
-  and `TIM64T=34`, followed by `TIMINT.7` polling. VBLANK uses one boundary
-  `WSYNC`; overscan uses one alignment `WSYNC` plus the two additional blanked
-  boundaries required by Stella's TIA frame accounting, matching
-  `frame_ntsc.c26`. Useful logic can therefore consume blanking time without a
-  WSYNC loop. Bare one-byte
+  and `TIM64T=34`. After useful work, each phase performs one `WSYNC` to
+  normalize CPU phase before polling `TIMINT.7`; this prevents variable-length
+  timer expires, then uses one deadline-alignment `WSYNC`; overscan uses three
+  fixed blanked boundaries after expiry for the calibrated Stella frame
+  boundary. Useful logic can therefore consume blanking time without a
+  per-scanline WSYNC loop. Bare one-byte
   discard stores `foo := _;` are generally eligible because fixed-address
   lowering is a register/flag-transparent `STA`; `WSYNC := _;` is only the
   hardware instance of that rule. The maintained source-only build is
   505 ROM / 18 RAM. Its CPU harness interval is 264 raw lines, calibrated to
   Stella's authoritative stable 262-line NTSC display.
+* `examples/01_basic/03_ode_to_joy/ode_to_joy.c26` is also source-only: it
+  contains no inline assembly and uses timer-owned VBLANK/overscan budgets.
+  VBLANK uses the stable `TIM64T=42` deadline form from `02_blank_noasm`.
+  `music_tick()` runs inside a separately calibrated `TIM64T=35` overscan
+  budget, followed by one phase-normalizing `WSYNC`, the `TIMINT.7` wait, and
+  two final alignment `WSYNC` boundaries. This keeps short and long
+  `music_tick()` paths on the same Stella 262-line frame boundary. Its
+  behavioral regression compiles the actual public example rather than a stale
+  golden copy.
 * Every public leaf example has one editable cartridge source, one Makefile, and
   one README. Source/cartridge names are descriptive and independent of local
   directory numbering.
