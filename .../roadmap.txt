@@ -1824,8 +1824,14 @@ but no new workstream should be assumed until the user selects one.
           frame length. Staged installcheck installs `four_paddles.c26` and builds
           the public cartridge. The focused size pass makes `account_gap()` one
           compact shared callable helper instead of duplicating its four-channel
-          bookkeeping at both call sites; the current cartridge uses 3894/4090 ROM
-          bytes and 102/128 RAM bytes including an 8-byte hardware stack allowance.
+          bookkeeping at both call sites. A follow-up renderer pass removes the
+          aligned PF2-pattern and fine-motion lookup tables, computes the divider
+          from pair-index bit 2 on the preceding scanline, and commits PF2 at cycle
+          3 so paddle/RC paths cannot shake the playfield. It also moves the first
+          top-wall PF2 write from cycle 69 to cycle 24 and sweeps the previously
+          unstable paddle-threshold region for visible-line overruns. The current
+          cartridge uses 3714/4090 ROM bytes and 101/128 RAM bytes including an
+          8-byte hardware stack allowance.
 
 [ ] 37. Add keypad-controller support for a keypad connected to either the left or
         right controller port. Implement explicit matrix scanning without disturbing

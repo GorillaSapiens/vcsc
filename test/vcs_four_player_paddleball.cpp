@@ -20,6 +20,9 @@ constexpr size_t kRomSize=4096;
 constexpr uint64_t kCyclesPerLine=76;
 constexpr uint64_t kRawFrameLines=264;
 constexpr uint16_t kVsync=0x0000, kVblank=0x0001, kWsync=0x0002;
+constexpr uint16_t kPf0=0x000d, kPf1=0x000e, kPf2=0x000f;
+constexpr uint16_t kHmp0=0x0020, kHmp1=0x0021, kHmm0=0x0022, kHmm1=0x0023, kHmbl=0x0024;
+constexpr uint16_t kHmove=0x002a, kHmclr=0x002b;
 constexpr uint16_t kInpt0=0x0038, kInpt1=0x0039, kInpt2=0x003a, kInpt3=0x003b;
 constexpr uint16_t kSwcha=0x0280, kSwchb=0x0282;
 constexpr uint16_t kIntim=0x0284, kTimint=0x0285;
@@ -70,6 +73,11 @@ public:
    }
 
    const std::vector<Snapshot>& snapshots() const { return snapshots_; }
+   uint64_t max_divider_pf_cycle() const { return max_divider_pf_cycle_; }
+   uint64_t max_wall_pf_cycle() const { return max_wall_pf_cycle_; }
+   uint64_t gameplay_scanline_overruns() const { return gameplay_scanline_overruns_; }
+   uint64_t fixed_paddle_hmove_violations() const { return fixed_paddle_hmove_violations_; }
+   bool saw_divider() const { return saw_divider_; }
 
 private:
    struct Pending { uint16_t address; uint8_t value; };
@@ -80,7 +88,10 @@ private:
    std::map<std::string,uint16_t> a_;
    std::array<int,4> thresholds_;
    int pressed_=-1;
-   uint64_t cpu_cycles_=0,virtual_cycles_=0;
+   uint64_t cpu_cycles_=0,virtual_cycles_=0,last_wsync_boundary_=0;
+   uint64_t max_divider_pf_cycle_=0,max_wall_pf_cycle_=0,gameplay_scanline_overruns_=0;
+   uint64_t fixed_paddle_hmove_violations_=0;
+   bool divider_active_=false,saw_divider_=false;
    std::vector<Pending> pending_;
    std::vector<uint64_t> starts_;
    std::vector<Snapshot> snapshots_;
@@ -143,7 +154,10 @@ private:
       s.valid=byte("valid");
       snapshots_.push_back(s);
    }
-   void begin_frame() { ++frame_; starts_.push_back(virtual_cycles_); snapshot(); }
+   void begin_frame() {
+      ++frame_; starts_.push_back(virtual_cycles_); snapshot();
+      divider_active_=false;
+   }
    void check_frames() const {
       for(size_t i=4;i<starts_.size();++i) {
          const uint64_t delta=starts_[i]-starts_[i-1];
@@ -159,6 +173,35 @@ private:
          if(w.address==kWsync) {
             const uint64_t within=virtual_cycles_%kCyclesPerLine;
             virtual_cycles_ += within ? kCyclesPerLine-within : kCyclesPerLine;
+            if(frame_>=4 && divider_active_ && last_wsync_boundary_ &&
+               virtual_cycles_-last_wsync_boundary_>kCyclesPerLine) {
+               ++gameplay_scanline_overruns_;
+            }
+            last_wsync_boundary_=virtual_cycles_;
+         }
+         else if((w.address==kPf0 || w.address==kPf1 || w.address==kPf2) &&
+                 (memory_[kVblank]&2)==0) {
+            const uint64_t within=virtual_cycles_%kCyclesPerLine;
+            if(w.value==0xff && within>max_wall_pf_cycle_) max_wall_pf_cycle_=within;
+            if(w.address==kPf2) {
+               if(w.value==0x80) { divider_active_=true; saw_divider_=true; }
+               if(divider_active_ && (w.value==0x00 || w.value==0x80) &&
+                  within>max_divider_pf_cycle_) max_divider_pf_cycle_=within;
+               if(divider_active_ && w.value==0xff) divider_active_=false;
+            }
+         }
+         else if(w.address==kHmclr) {
+            memory_[kHmp0]=0; memory_[kHmp1]=0;
+            memory_[kHmm0]=0; memory_[kHmm1]=0; memory_[kHmbl]=0;
+         }
+         else if(w.address==kHmove) {
+            // After startup, every HMOVE while VBLANK is asserted is the moving
+            // Ball reposition. The four fixed-X paddles must all have zero
+            // motion values, otherwise this HMOVE would make them creep.
+            if(frame_>=4 && (memory_[kVblank]&2)!=0 &&
+               (memory_[kHmp0] || memory_[kHmp1] || memory_[kHmm0] || memory_[kHmm1])) {
+               ++fixed_paddle_hmove_violations_;
+            }
          }
          else if(w.address==kVsync) {
             const bool next=(w.value&2)!=0;
@@ -176,6 +219,22 @@ private:
    }
 };
 Machine *Machine::active_=nullptr;
+
+void require_raster_timing(const Machine& m,const char *label) {
+   if(!m.saw_divider()) fail("%s never drew the center divider",label);
+   if(m.max_divider_pf_cycle()>4)
+      fail("%s center-divider PF2 write reached cycle %llu, expected <= 4",
+           label,static_cast<unsigned long long>(m.max_divider_pf_cycle()));
+   if(m.max_wall_pf_cycle()>24)
+      fail("%s wall playfield write reached cycle %llu, expected <= 24",
+           label,static_cast<unsigned long long>(m.max_wall_pf_cycle()));
+   if(m.gameplay_scanline_overruns())
+      fail("%s had %llu gameplay scanline overrun(s)",label,
+           static_cast<unsigned long long>(m.gameplay_scanline_overruns()));
+   if(m.fixed_paddle_hmove_violations())
+      fail("%s had %llu HMOVE(s) with nonzero fixed-paddle motion registers",label,
+           static_cast<unsigned long long>(m.fixed_paddle_hmove_violations()));
+}
 
 void require_distinct_channels(const std::vector<Snapshot>& snaps) {
    bool ok=false;
@@ -237,17 +296,46 @@ int main(int argc,char **argv) {
    Machine distinct(argv[1],addresses,{{40,80,120,160}}); distinct.run(110);
    require_distinct_channels(distinct.snapshots());
    require_channel_object_mapping(distinct.snapshots());
+   require_raster_timing(distinct,"distinct-threshold run");
 
    // Simultaneous and staggered threshold completion are the critical raster
    // cases. Every one must remain at the calibrated 264 raw intervals.
    Machine simultaneous(argv[1],addresses,{{200,200,200,200}}); simultaneous.run(90);
+   require_raster_timing(simultaneous,"simultaneous-threshold run");
    Machine staggered(argv[1],addresses,{{200,160,120,80}}); staggered.run(90);
+   require_raster_timing(staggered,"staggered-threshold run");
+
+   // Sweep the region where RC completion lines coincide with paddle start/end
+   // events. Older versions could hit or cross cycle 76 here, making the
+   // playfield visibly shake even when a few spot-check frame counts passed.
+   const int raster_thresholds[]={16,40,80,84,88,92,96,100,104,108,112,116,
+                                  120,124,128,132,160,200,220};
+   for(const int t:raster_thresholds) {
+      Machine sweep(argv[1],addresses,{{t,t,t,t}}); sweep.run(30);
+      char label[64]; std::snprintf(label,sizeof(label),"equal threshold %d",t);
+      require_raster_timing(sweep,label);
+   }
+
+   // Equal-position sweeps are not sufficient: one channel's RC completion can
+   // coincide with another paddle's start/end transition. Cross-sweep the two
+   // player channels and the two missile channels independently. A previous
+   // renderer hit cycle 76 for inner thresholds 88/84 and gained a scanline.
+   const int cross_thresholds[]={40,80,84,88,96,104,112,120,128,132,160,200};
+   for(const int a:cross_thresholds) for(const int b:cross_thresholds) {
+      Machine outer(argv[1],addresses,{{a,80,b,120}}); outer.run(20);
+      char label[80]; std::snprintf(label,sizeof(label),"outer cross %d/%d",a,b);
+      require_raster_timing(outer,label);
+      Machine inner(argv[1],addresses,{{80,a,120,b}}); inner.run(20);
+      std::snprintf(label,sizeof(label),"inner cross %d/%d",a,b);
+      require_raster_timing(inner,label);
+   }
 
    for(int i=0;i<4;++i) {
       Machine button(argv[1],addresses,{{40,60,80,100}},i); button.run(40);
       require_button(button.snapshots(),i);
+      require_raster_timing(button,"button run");
    }
 
-   std::puts("vcs_four_player_paddleball ok: stable 4K frames, four independent RC channels and buttons");
+   std::puts("vcs_four_player_paddleball ok: stable 4K raster, four independent RC channels and buttons");
    return 0;
 }

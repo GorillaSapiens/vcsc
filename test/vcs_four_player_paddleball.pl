@@ -41,10 +41,24 @@ $p =~ /include "vcs_4k\.c26"/ && $p =~ /instantiate "four_paddles\.c26" as paddl
 $p =~ /paddle 0\s+.*P0.*paddle 1\s+.*M0/s && $p =~ /paddle 2\s+.*P1.*paddle 3\s+.*M1/s
    or die "four-player team\/object allocation changed\n";
 $p =~ /paddles_sample0\(\);\s*WSYNC := 0;/s &&
-$p =~ /paddles_sample1\(\);\s*asm inx;\s*asm sta WSYNC;\s*paddles_advance_pair\(\);/s &&
+$p =~ /paddles_sample1\(\);.*?asm inx;.*?asm sta WSYNC;\s*asm sta PF2;.*?paddles_advance_pair\(\);/s &&
 $p =~ /paddles_sample2\(\);\s*WSYNC := 0;/s &&
-$p =~ /paddles_sample3\(\);\s*asm inx;\s*asm sta WSYNC;\s*paddles_advance_pair\(\);/s
+$p =~ /paddles_sample3\(\);.*?asm inx;.*?asm sta WSYNC;\s*asm sta PF2;.*?paddles_advance_pair\(\);/s
    or die "four-player renderer lost one-sample-per-scanline schedule\n";
+$p !~ /paddleball_pf2_pairs|paddleball_reposition_table/ &&
+$p =~ /asm txa;\s*asm and #4;\s*asm cmp #4;\s*asm lda #0;\s*asm ror;/s &&
+$p =~ /paddleball_ball_fine/ && $p =~ /asm eor #\$07;\s*asm asl;\s*asm asl;\s*asm asl;\s*asm asl;/s
+   or die "four-player renderer regained regular lookup tables or lost arithmetic lowering\n";
+$p =~ /paddleball_position_ball.*?asm sta HMCLR;.*?asm sta HMP0,x;.*?asm sta WSYNC;\s*asm sta HMOVE;/s
+   or die "four-player Ball positioning lost pre-HMOVE HMCLR\n";
+$p =~ /Lines 0\.\.2: black score-to-wall gap and fixed P0\/P1 restoration\.(.*?)\/\/ Start the wall/s
+   or die "four-player fixed player restore block not found\n";
+my $player_restore = $1;
+$player_restore =~ /asm sta HMCLR;/ && $player_restore =~ /asm sta RESP0,x;/ &&
+$player_restore !~ /asm .*\bHMP[01]\b/ && $player_restore !~ /asm .*\bHMOVE\b/
+   or die "four-player fixed player restore must be coarse-only with cleared HM state\n";
+$p =~ /asm \@pair01:;(.*?)\/\/ Line 176:/s or die "four-player gameplay loop not found\n";
+$1 !~ /HMOVE/ or die "four-player gameplay loop must not strobe HMOVE\n";
 $p =~ /blue_outer_hit := CXP0FB & 0x40/ && $p =~ /blue_inner_hit := CXM0FB & 0x40/ &&
 $p =~ /red_outer_hit := CXP1FB & 0x40/ && $p =~ /red_inner_hit := CXM1FB & 0x40/
    or die "four-player example lost P0\/M0\/P1\/M1 Ball collision latches\n";
@@ -77,6 +91,6 @@ my@symbols=qw(paddles_position0 paddles_position1 paddles_position2 paddles_posi
 my@addr=map{sprintf('0x%04x',symbol_addr($map,$_))}@symbols;
 ($rc,$sig,$out,$err)=capture($oracle,$bin,@addr);
 $rc==0&&!$sig or die "four-player oracle run failed\n$out$err";
-$out eq "vcs_four_player_paddleball ok: stable 4K frames, four independent RC channels and buttons\n" or die "unexpected four-player oracle output: $out";
+$out eq "vcs_four_player_paddleball ok: stable 4K raster, four independent RC channels and buttons\n" or die "unexpected four-player oracle output: $out";
 $err eq '' or die "four-player oracle stderr: $err";
 print "vcs_four_player_paddleball ok\n";

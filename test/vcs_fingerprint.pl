@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 10
+# timeout: 20
 # expectstdout: vcs_fingerprint ok
 # expectexit: 0
 

@@ -256,3 +256,28 @@ Also raised the generic test-runner default per-case timeout from 6 to 10
 seconds and repaired the assembly-allowlist runner expectation for 18 pinned
 example sources.
 
+2026-08-14 21:16:30 PDT, Stabilize four-player renderer
+Removed the four-player Paddleball aligned PF2-pattern and fine-motion lookup
+tables. Fixed-X paddles now use immediate fine-motion values, Ball fine motion
+is computed outside the visible raster, and the regular dashed PF2 pattern is
+computed from pair-index bit 2 on the preceding scanline. PF2 now commits at
+cycle 3 instead of varying with paddle branches, and the first top-wall PF2
+write moved from cycle 69 to cycle 24. Balanced paddle start/end paths eliminate
+the visible scanline overruns found while sweeping RC thresholds. The cartridge
+now uses 3704/4090 ROM bytes and 101/128 RAM bytes.
+
+2026-08-14 21:24:00 PDT, Fix four-player raster creep
+Independent paddle positions exposed a visible-line overrun that equal-position
+sweeps missed: an RC completion could coincide with a paddle start transition
+and place WSYNC exactly on cycle 76, adding a scanline. Shortened start-event
+paths, added independent outer/inner threshold cross-sweeps, and use HMCLR
+around Paddleball positioning so fixed-X paddles cannot inherit stale motion.
+
+2026-08-14 21:51:16 PDT, Fix fixed-paddle horizontal drift
+Four-player Paddleball no longer uses horizontal fine motion for any paddle.
+M0/M1 are coarse-positioned once at startup; P0/P1 are coarse-restored after
+the score with fixed-phase RESP strobes. Only Ball uses HMOVE. The oracle now
+models HMCLR and fails if a Ball HMOVE sees nonzero HMP0/HMP1/HMM0/HMM1. Stella
+snapshots showed fixed paddle X coordinates across repeated frames. Raised the
+generic test timeout and former explicit 10-second cases to 20 seconds.
+

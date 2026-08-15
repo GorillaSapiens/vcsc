@@ -46,4 +46,11 @@ span frames rather than clipping them.
 The complete game fits in an ordinary unbanked 4K cartridge. The four-paddle
 component keeps `account_gap()` as one shared callable helper rather than
 inlining four-channel gap bookkeeping at each call site, avoiding duplicate ROM
-without changing the public two-paddle-compatible API.
+without changing the public two-paddle-compatible API. The renderer also avoids
+two regular lookup tables: Ball fine motion is computed outside the visible
+raster, fixed-X paddles use immediate fine-motion values, and the dashed PF2
+center pattern is derived from pair-index bit 2 on the preceding scanline. PF2
+is then committed immediately after WSYNC, so paddle start/end and RC-completion
+paths cannot shift the divider horizontally. The same scheduling keeps the
+first top-wall playfield write early enough to draw the complete line. The
+current build uses 3714/4090 ROM bytes and 101/128 RAM bytes. Paddleball clears all TIA horizontal-motion registers with `HMCLR` around its positioning HMOVEs; the gameplay loop itself never writes `HMOVE`.

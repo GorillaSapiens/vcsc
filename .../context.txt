@@ -915,17 +915,31 @@ with explicit gap accounting preserving the common two-scanline elapsed units.
 `examples/01_basic/10_four_player_paddleball/four_player_paddleball.c26` is an
 unbanked 4K four-player team cartridge: left-port blue controls P0/M0,
 right-port red controls P1/M1, and Ball remains the shared ball. P0/P1 are reused
-by the score then repositioned below it using separate coarse-position scanlines
-plus a shared fine-motion line. All four defenders use TIA Ball collision
-latches, either teammate can serve, and team scoring plus the existing
-Paddleball beeps are retained. A focused size pass made four-paddle
-`account_gap()` one compact shared callable helper instead of duplicating its
-four-channel bookkeeping at both call sites; the current build uses 3894/4090
-ROM bytes and 102/128 RAM bytes, so F8 bankswitching is no longer required. The
-dedicated oracle covers distinct/simultaneous/staggered four-channel RC
-thresholds, all four buttons, channel-to-P0/M0/P1/M1 mapping, and stable 264-raw
-/ Stella-262 frame period. Item 37 (keypad-controller support) is now the first
-unfinished main-roadmap item.
+by the score then restored below it with fixed-phase coarse RESP strobes only;
+M0/M1 are likewise coarse-positioned once at startup. No paddle uses HMPx or
+HMOVE at all; only the moving Ball uses horizontal fine motion. All four
+defenders use TIA Ball collision latches, either teammate can serve, and team
+scoring plus the existing Paddleball beeps are retained. A focused size pass
+made four-paddle `account_gap()` one compact shared callable helper instead of
+duplicating its four-channel bookkeeping at both call sites. A later renderer
+timing/size pass removed the aligned PF2-pattern and fine-motion lookup tables:
+Ball fine motion is precomputed outside the visible raster, and PF2 is computed
+from the pair index on the preceding line and committed at cycle 3. This also
+removed paddle-position-dependent visible scanline overruns and moved the
+top-wall PF2 write from cycle 69 to cycle 24. The current build uses 3694/4090
+ROM bytes and 101/128 RAM bytes. HMCLR is applied before Ball HMOVE, and the
+four-player oracle now verifies that every post-startup blanking HMOVE has zero
+HMP0/HMP1/HMM0/HMM1 so the Ball cannot drag any fixed paddle horizontally. The
+oracle also includes an independent-position cross-sweep that catches
+RC-completion plus paddle-transition scanline overruns, covering distinct,
+simultaneous, and staggered four-channel RC thresholds, all four buttons,
+channel-to-P0/M0/P1/M1 mapping, raster timing across the known bad threshold
+region, and stable 264-raw / Stella-262 frame period. Item 37
+(keypad-controller support) is now the first unfinished main-roadmap item.
+
+The generic per-case test timeout is now 20 seconds, and former explicit
+10-second overrides were raised to 20 seconds as well; longer 120-second
+exceptions remain unchanged.
 
 The unified test runner now supports case-level parallelism with `--jobs N`;
 the test and top-level Makefiles expose it as `TEST_JOBS=N`. Parallel workers

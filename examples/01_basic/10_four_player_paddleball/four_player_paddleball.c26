@@ -24,10 +24,8 @@ instantiate "four_paddles.c26" as paddles
 enum paddleball_renderer_constants {
    PADDLEBALL_VISIBLE_LINES := 181,
    PADDLEBALL_PAIR_COUNT := 88,
-   PADDLEBALL_P0_X := 8,
    PADDLEBALL_M0_X := 24,
    PADDLEBALL_M1_X := 136,
-   PADDLEBALL_P1_X := 145,
    PADDLEBALL_LEFT_SCORE_X := 4,
    PADDLEBALL_RIGHT_SCORE_X := 163,
    PADDLEBALL_PADDLE_HEIGHT := 16,
@@ -42,7 +40,9 @@ enum paddleball_renderer_constants {
    PADDLEBALL_BALL_TOP_Y := 8,
    PADDLEBALL_BALL_BOTTOM_Y := 172,
    PADDLEBALL_PADDLE_SOUND_FRAMES := 3,
-   PADDLEBALL_PLAYER_BITS := 0x18
+   // Bit 1 enables missiles/Ball; bits 2+1 are two adjacent player pixels.
+   // One value can therefore enable every gameplay object without an LDA.
+   PADDLEBALL_OBJECT_ON := 0x06
 };
 
 uint8_t paddleball_p0_y := 80;
@@ -62,34 +62,17 @@ uint8_t paddleball_m1_end_pair := 48;
 uint8_t paddleball_ball_start_pair := 44;
 uint8_t paddleball_ball_end_pair := 46;
 uint8_t paddleball_sound_frames := 0;
-uint8_t paddleball_p0_remainder := 0;
-uint8_t paddleball_p1_remainder := 0;
+uint8_t paddleball_ball_fine := 0x30;
 
 // PF2.7 is the center-most playfield bit when CTRLPF reflect is enabled.
 // Lines 0..2 are the score-to-wall gap and are also used to reposition P0/P1.
 // Lines 3..6 are the four-line top wall; line 7 is black. Pairs 4..87 cover
 // lines 8..175. Line 176 is black and the bottom wall is lines 177..180.
-align(256) const uint8_t paddleball_pf2_pairs[88] := {
-   0x00,0x00,0x00,0x00,
-   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
-   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
-   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
-   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
-   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
-   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
-   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
-   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
-   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
-   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
-   0x80,0x80,0x80,0x80
-};
+// The center divider is an 8-on/8-off pattern. Pair index bit 2 is therefore
+// exactly the desired PF2.7 value; compute it instead of carrying an 88-byte
+// lookup table.
 
-align(256) const uint8_t paddleball_reposition_table[16] := {
-   0x70,0x60,0x50,0x40,0x30,0x20,0x10,0x00,
-   0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90,0x80
-};
-
-inline void paddleball_prepare_vertical(void) {
+void paddleball_prepare_vertical(void) {
    paddleball_p0_start_pair := paddleball_p0_y >> 1;
    paddleball_p0_end_pair := paddleball_p0_start_pair + 8;
    paddleball_m0_start_pair := paddleball_m0_y >> 1;
@@ -100,15 +83,29 @@ inline void paddleball_prepare_vertical(void) {
    paddleball_m1_end_pair := paddleball_m1_start_pair + 8;
    paddleball_ball_start_pair := paddleball_ball_y >> 1;
    paddleball_ball_end_pair := paddleball_ball_start_pair + 2;
+
+   // The standard RESP remainder maps to HMxx as ((remainder ^ 7) << 4).
+   // Do this once in overscan/startup rather than indexing an aligned ROM table
+   // from a beam-critical horizontal-positioning line.
+   asm lda.z paddleball_ball_x;
+   asm sec;
+   asm @ball_fine_divide:;
+   asm sbc #15;
+   asm bcs.same @ball_fine_divide;
+   asm eor #$07;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta.z paddleball_ball_fine;
 }
 
-// Position the two missile paddles and Ball while VBLANK is asserted. P0/P1
-// cannot be positioned here because the score component reuses them later.
+// Position the two fixed missile paddles and Ball while VBLANK is asserted.
+// M0/M1 use coarse RESP positioning only; fixed-X paddles never need HMOVE.
+// P0/P1 cannot be positioned here because the score component reuses them.
 inline void paddleball_position_fixed(void) {
    asm lda #0;
-   asm sta HMM0;
-   asm sta HMM1;
-   asm sta HMBL;
+   asm sta HMCLR;              // all fixed paddles keep zero HM values
 
    asm sta WSYNC;
    asm ldx #2;
@@ -121,9 +118,6 @@ inline void paddleball_position_fixed(void) {
    asm nop;
    asm nop;
    asm sta RESP0,x;
-   asm tay;
-   asm lda paddleball_reposition_table + 16 - 256,y;
-   asm sta HMP0,x;
 
    asm sta WSYNC;
    asm ldx #3;
@@ -136,9 +130,6 @@ inline void paddleball_position_fixed(void) {
    asm nop;
    asm nop;
    asm sta RESP0,x;
-   asm tay;
-   asm lda paddleball_reposition_table + 16 - 256,y;
-   asm sta HMP0,x;
 
    asm sta WSYNC;
    asm ldx #4;
@@ -151,23 +142,22 @@ inline void paddleball_position_fixed(void) {
    asm nop;
    asm nop;
    asm sta RESP0,x;
-   asm tay;
-   asm lda paddleball_reposition_table + 16 - 256,y;
+   asm lda.z paddleball_ball_fine;
    asm sta HMP0,x;
 
    asm sta WSYNC;
    asm sta HMOVE;
+   // Do not HMCLR while the TIA is still consuming the motion clocks. The
+   // next positioning operation clears all HM registers before its HMOVE.
 }
 
-// Reposition only Ball during overscan. Zero every other object's fine-motion
-// register before HMOVE so the gameplay paddle positions do not creep.
+// Reposition only Ball during overscan. Clear all pending fine motion before
+// HMOVE so the four fixed-X paddles have zero horizontal-motion values. Leave
+// the motion registers untouched while the TIA consumes this HMOVE; the next
+// positioning operation starts with HMCLR.
 inline void paddleball_position_ball(void) {
    asm lda #0;
-   asm sta HMP0;
-   asm sta HMP1;
-   asm sta HMM0;
-   asm sta HMM1;
-   asm sta HMBL;
+   asm sta HMCLR;
    asm sta WSYNC;
    asm ldx #4;
    asm bit.z CXM0P;
@@ -179,11 +169,12 @@ inline void paddleball_position_ball(void) {
    asm nop;
    asm nop;
    asm sta RESP0,x;
-   asm tay;
-   asm lda paddleball_reposition_table + 16 - 256,y;
+   asm lda.z paddleball_ball_fine;
    asm sta HMP0,x;
    asm sta WSYNC;
    asm sta HMOVE;
+   // Leave the motion value alone until the next HMCLR, rather than clearing
+   // it while this HMOVE is still being applied during horizontal blank.
 }
 
 // Enter at the standard score-component handoff phase. Exactly 181 visible
@@ -203,27 +194,12 @@ inline void paddleball_draw(void) {
    asm sta ENAM1;
    asm sta ENABL;
 
-   // Lines 0..2: black score-to-wall gap and P0/P1 repositioning. Split the
-   // standard divide-by-15 sequence into one coarse-position scanline per
-   // player, then apply both fine-motion values on line 2. In particular, the
-   // far-right P1 coarse loop is deliberately not followed by a table lookup
-   // on the same scanline; that combination can cross a WSYNC boundary.
-   asm sta WSYNC;
-   asm ldx #0;
-   asm bit.z CXM0P;
-   asm lda #8;
-   asm sec;
-   asm @p0_divide:;
-   asm sbc #15;
-   asm bcs.same @p0_divide;
-   asm sta.z paddleball_p0_remainder;
-   asm sta RESP0,x;
-
-   // These objects must not inherit motion from the score's later HMOVE.
+   // Lines 0..2: black score-to-wall gap and fixed P0/P1 restoration.
+   // The score reuses P0/P1, so clear every piece of score-owned horizontal
+   // state while still on line 0. P0/P1 then get one clean RESP line each; no
+   // HMP0/HMP1 values and no gameplay-paddle HMOVE are ever needed.
    asm lda #0;
-   asm sta HMM0;
-   asm sta HMM1;
-   asm sta HMBL;
+   asm sta HMCLR;
    asm sta REFP0;
    asm sta REFP1;
    asm sta VDELP0;
@@ -231,29 +207,43 @@ inline void paddleball_draw(void) {
    asm sta RESMP0;
    asm sta RESMP1;
    asm sta CXCLR;
+   asm sta WSYNC;
+
+   // Restore the left outer player with an early, fixed-phase coarse strobe.
+   // Match the standard renderer's calibrated RESP phase.
+   asm ldx #0;
+   asm bit.z CXM0P;
+   asm lda #16;
+   asm sec;
+   asm @p0_divide:;
+   asm sbc #15;
+   asm bcs.same @p0_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
 
    asm sta WSYNC;
+   // Restore the right outer player at coarse X=144. No HMP1 or HMOVE.
    asm ldx #1;
    asm bit.z CXM0P;
-   asm lda #145;
+   asm lda #144;
    asm sec;
    asm @p1_divide:;
    asm sbc #15;
    asm bcs.same @p1_divide;
-   asm sta.z paddleball_p1_remainder;
+   asm nop;
+   asm nop;
    asm sta RESP0,x;
 
+   // Third gap line: no horizontal motion operation at all.
    asm sta WSYNC;
-   asm ldy.z paddleball_p0_remainder;
-   asm lda paddleball_reposition_table + 16 - 256,y;
-   asm sta HMP0;
-   asm ldy.z paddleball_p1_remainder;
-   asm lda paddleball_reposition_table + 16 - 256,y;
-   asm sta HMP1;
-   asm sta HMOVE;
-
-   // Configure gameplay objects while line 2 is still blank. This work is
-   // comfortably inside the scanline budget after the two fine-motion loads.
+   // Start the wall before the visible part of line 3. The previous code did
+   // all gameplay configuration first and did not write PF2 until about cycle
+   // 69, which produced a visibly truncated first wall scanline.
+   asm lda #$ff;
+   asm sta PF0;
+   asm sta PF1;
+   asm sta PF2;
    asm lda #$10;              // single players, 2-pixel missiles
    asm sta NUSIZ0;
    asm sta NUSIZ1;
@@ -269,10 +259,6 @@ inline void paddleball_draw(void) {
    asm sta CTRLPF;
 
    // Lines 3..6: full-width top wall.
-   asm lda #$ff;
-   asm sta PF0;
-   asm sta PF1;
-   asm sta PF2;
    asm sta WSYNC;
    asm sta WSYNC;
    asm sta WSYNC;
@@ -283,155 +269,161 @@ inline void paddleball_draw(void) {
    asm sta PF0;
    asm sta PF1;
    asm sta PF2;
+   asm ldx #4;
+   asm ldy #$06;              // PADDLEBALL_OBJECT_ON
+   asm lda #$80;              // pair 4 starts an on divider run
    asm sta WSYNC;
+   asm sta PF2;               // commit immediately in line-8 horizontal blank
+   asm asl;                   // 0x00/0x80 -> zero for player-end clears
 
    // Process two two-line pairs per loop. The first pair samples left-port
    // channels 0/1, the second pair samples right-port channels 2/3. Thus each
    // analog input is sampled every four scanlines while the shared RC elapsed
    // clock advances every pair. One completed sample is the worst-case path on
    // each scanline; no line stacks multiple RC completions.
-   asm ldx #4;
    asm @pair01:;
 
    // Pair line A: P0/P1 outer paddles, PF2, channel 0.
    asm cpx.z paddleball_p0_start_pair;
-   asm bne.same @p0_not_start_a;
-   asm lda #$18;
-   asm sta GRP0;
-   asm @p0_not_start_a:;
+   asm bne.same @p0_check_end_a;
+   asm sty GRP0;
+   asm beq.same @p0_done_a;     // CPX left Z=1; STY preserves flags
+   asm @p0_check_end_a:;
    asm cpx.z paddleball_p0_end_pair;
-   asm bne.same @p0_not_end_a;
-   asm lda #0;
+   asm bne.same @p0_done_a;
    asm sta GRP0;
-   asm @p0_not_end_a:;
+   asm @p0_done_a:;
 
    asm cpx.z paddleball_p1_start_pair;
-   asm bne.same @p1_not_start_a;
-   asm lda #$18;
-   asm sta GRP1;
-   asm @p1_not_start_a:;
+   asm bne.same @p1_check_end_a;
+   asm sty GRP1;
+   asm beq.same @p1_done_a;
+   asm @p1_check_end_a:;
    asm cpx.z paddleball_p1_end_pair;
-   asm bne.same @p1_not_end_a;
-   asm lda #0;
+   asm bne.same @p1_done_a;
    asm sta GRP1;
-   asm @p1_not_end_a:;
+   asm @p1_done_a:;
 
-   asm lda paddleball_pf2_pairs,x;
-   asm sta PF2;
    paddles_sample0();
    WSYNC := 0;
 
    // Pair line B: M0/M1 inner paddles, Ball, channel 1.
    asm cpx.z paddleball_m0_start_pair;
-   asm bne.same @m0_not_start_a;
-   asm lda #2;
-   asm sta ENAM0;
-   asm @m0_not_start_a:;
+   asm bne.same @m0_check_end_a;
+   asm sty ENAM0;
+   asm beq.same @m0_done_a;
+   asm @m0_check_end_a:;
    asm cpx.z paddleball_m0_end_pair;
-   asm bne.same @m0_not_end_a;
-   asm lda #0;
+   asm bne.same @m0_done_a;
    asm sta ENAM0;
-   asm @m0_not_end_a:;
+   asm @m0_done_a:;
 
    asm cpx.z paddleball_m1_start_pair;
-   asm bne.same @m1_not_start_a;
-   asm lda #2;
-   asm sta ENAM1;
-   asm @m1_not_start_a:;
+   asm bne.same @m1_check_end_a;
+   asm sty ENAM1;
+   asm beq.same @m1_done_a;
+   asm @m1_check_end_a:;
    asm cpx.z paddleball_m1_end_pair;
-   asm bne.same @m1_not_end_a;
-   asm lda #0;
+   asm bne.same @m1_done_a;
    asm sta ENAM1;
-   asm @m1_not_end_a:;
+   asm @m1_done_a:;
 
    asm cpx.z paddleball_ball_start_pair;
-   asm bne.same @ball_not_start_a;
-   asm lda #2;
-   asm sta ENABL;
-   asm @ball_not_start_a:;
+   asm bne.same @ball_check_end_a;
+   asm sty ENABL;
+   asm beq.same @ball_done_a;
+   asm @ball_check_end_a:;
    asm cpx.z paddleball_ball_end_pair;
-   asm bne.same @ball_not_end_a;
-   asm lda #0;
+   asm bne.same @ball_done_a;
    asm sta ENABL;
-   asm @ball_not_end_a:;
+   asm @ball_done_a:;
 
    paddles_sample1();
    asm inx;
+   // PF2.7 is pair-index bit 2. Convert that carry bit to 0x80/0x00 now,
+   // while line B still has time, then commit it immediately after WSYNC.
+   asm txa;
+   asm and #4;
+   asm cmp #4;
+   asm lda #0;
+   asm ror;
    asm sta WSYNC;
+   asm sta PF2;
+   asm asl;                   // keep A=0 through the player transition checks
    paddles_advance_pair();
 
    // Pair line A: same object schedule, channel 2.
    asm cpx.z paddleball_p0_start_pair;
-   asm bne.same @p0_not_start_b;
-   asm lda #$18;
-   asm sta GRP0;
-   asm @p0_not_start_b:;
+   asm bne.same @p0_check_end_b;
+   asm sty GRP0;
+   asm beq.same @p0_done_b;     // CPX left Z=1; STY preserves flags
+   asm @p0_check_end_b:;
    asm cpx.z paddleball_p0_end_pair;
-   asm bne.same @p0_not_end_b;
-   asm lda #0;
+   asm bne.same @p0_done_b;
    asm sta GRP0;
-   asm @p0_not_end_b:;
+   asm @p0_done_b:;
 
    asm cpx.z paddleball_p1_start_pair;
-   asm bne.same @p1_not_start_b;
-   asm lda #$18;
-   asm sta GRP1;
-   asm @p1_not_start_b:;
+   asm bne.same @p1_check_end_b;
+   asm sty GRP1;
+   asm beq.same @p1_done_b;
+   asm @p1_check_end_b:;
    asm cpx.z paddleball_p1_end_pair;
-   asm bne.same @p1_not_end_b;
-   asm lda #0;
+   asm bne.same @p1_done_b;
    asm sta GRP1;
-   asm @p1_not_end_b:;
+   asm @p1_done_b:;
 
-   asm lda paddleball_pf2_pairs,x;
-   asm sta PF2;
    paddles_sample2();
    WSYNC := 0;
 
    // Pair line B: same object schedule, channel 3.
    asm cpx.z paddleball_m0_start_pair;
-   asm bne.same @m0_not_start_b;
-   asm lda #2;
-   asm sta ENAM0;
-   asm @m0_not_start_b:;
+   asm bne.same @m0_check_end_b;
+   asm sty ENAM0;
+   asm beq.same @m0_done_b;
+   asm @m0_check_end_b:;
    asm cpx.z paddleball_m0_end_pair;
-   asm bne.same @m0_not_end_b;
-   asm lda #0;
+   asm bne.same @m0_done_b;
    asm sta ENAM0;
-   asm @m0_not_end_b:;
+   asm @m0_done_b:;
 
    asm cpx.z paddleball_m1_start_pair;
-   asm bne.same @m1_not_start_b;
-   asm lda #2;
-   asm sta ENAM1;
-   asm @m1_not_start_b:;
+   asm bne.same @m1_check_end_b;
+   asm sty ENAM1;
+   asm beq.same @m1_done_b;
+   asm @m1_check_end_b:;
    asm cpx.z paddleball_m1_end_pair;
-   asm bne.same @m1_not_end_b;
-   asm lda #0;
+   asm bne.same @m1_done_b;
    asm sta ENAM1;
-   asm @m1_not_end_b:;
+   asm @m1_done_b:;
 
    asm cpx.z paddleball_ball_start_pair;
-   asm bne.same @ball_not_start_b;
-   asm lda #2;
-   asm sta ENABL;
-   asm @ball_not_start_b:;
+   asm bne.same @ball_check_end_b;
+   asm sty ENABL;
+   asm beq.same @ball_done_b;
+   asm @ball_check_end_b:;
    asm cpx.z paddleball_ball_end_pair;
-   asm bne.same @ball_not_end_b;
-   asm lda #0;
+   asm bne.same @ball_done_b;
    asm sta ENABL;
-   asm @ball_not_end_b:;
+   asm @ball_done_b:;
 
    paddles_sample3();
    asm inx;
+   asm txa;
+   asm and #4;
+   asm cmp #4;
+   asm lda #0;
+   asm ror;
    asm sta WSYNC;
+   asm sta PF2;
+   asm asl;                   // keep A=0 through the player transition checks
    paddles_advance_pair();
    asm cpx #88;
    asm bne @pair01;
 
-   // Line 176: clear every gameplay object and retained center bit.
+   // Line 176: the x=88 precompute above already cleared PF2. Clear every
+   // gameplay object before the bottom wall.
    asm lda #0;
-   asm sta PF2;
    asm sta GRP0;
    asm sta GRP1;
    asm sta ENAM0;

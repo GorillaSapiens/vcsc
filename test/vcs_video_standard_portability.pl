@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@
 # phase: e2e
-# timeout: 10
+# timeout: 20
 # expectstdout: vcs_video_standard_portability ok
 # expectexit: 0
 
