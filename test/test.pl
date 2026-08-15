@@ -5,10 +5,12 @@ use warnings;
 use File::Spec;
 use File::Basename qw(basename dirname);
 use File::Temp qw(tempdir tempfile);
+use File::Path qw(remove_tree);
 use Cwd qw(abs_path getcwd);
 use Getopt::Long qw(GetOptions);
 use Text::ParseWords qw(shellwords);
-use Time::HiRes qw(sleep);
+use Time::HiRes qw(sleep time);
+use Storable qw(nstore retrieve);
 
 $| = 1; # turns on autoflush
 binmode STDOUT, ':encoding(UTF-8)';
@@ -31,14 +33,22 @@ my @LINE = ( " ",
 
 my $compile_only = 0;
 my $e2e_only = 0;
+my $jobs = 1;
+my $timings_file;
+my $timings_append = 0;
 my $help = 0;
 GetOptions(
    'compile-only' => \$compile_only,
    'e2e-only' => \$e2e_only,
+   'jobs=i' => \$jobs,
+   'timings=s' => \$timings_file,
+   'timings-append' => \$timings_append,
    'help' => \$help,
 ) or die usage();
 die usage() if $help;
 die usage() if $compile_only && $e2e_only;
+die "[$FAIL] --jobs must be at least 1\n" if $jobs < 1;
+die "[$FAIL] --timings-append requires --timings FILE\n" if $timings_append && !defined($timings_file);
 
 my $test_root = abs_path('.');
 my $repo_root = abs_path(File::Spec->catdir($test_root, '..'));
@@ -63,7 +73,7 @@ my %tool_alias = (
 );
 
 sub usage {
-   return "usage: $0 [--compile-only] [--e2e-only] [test-file ...]\n";
+   return "usage: $0 [--compile-only] [--e2e-only] [--jobs N] [--timings FILE] [--timings-append] [test-file ...]\n";
 }
 
 sub slurp_file {
@@ -844,6 +854,7 @@ for my $path (@requested_paths) {
 die "[$FAIL] no tests selected\n" if !@cases;
 
 my @failures;
+my @timings;
 my $total = scalar(@cases);
 my $index = 0;
 my $passed = 0;
@@ -857,20 +868,30 @@ else {
    $post = "\n";
 }
 
-for my $case (@cases) {
-   $index++;
-   my $result;
+sub run_case {
+   my ($case) = @_;
    if ($case->{kind} eq 'vcsc-compile') {
-      $result = run_compile_case($case);
+      return run_compile_case($case);
    }
-   elsif ($case->{kind} eq 'vcsc-e2e') {
-      $result = ruvcsc_e2e_case($case);
+   if ($case->{kind} eq 'vcsc-e2e') {
+      return ruvcsc_e2e_case($case);
    }
-   else {
-      $result = ruvcsc_generic_case($case);
-   }
+   return ruvcsc_generic_case($case);
+}
 
+sub report_case_result {
+   my ($case, $result) = @_;
+   $index++;
    my $progress = progress($index, $total);
+   my $phase = ($case->{kind} eq 'vcsc-compile' ||
+                (defined($case->{meta}->{phase}) && $case->{meta}->{phase} eq 'compile'))
+      ? 'compile' : 'e2e';
+   push @timings, {
+      name => $case->{name},
+      phase => $phase,
+      ok => $result->{ok} ? 1 : 0,
+      seconds => $result->{elapsed_seconds},
+   };
 
    if ($result->{ok}) {
       $passed++;
@@ -886,6 +907,117 @@ for my $case (@cases) {
       sleep 0.05;
    }
 }
+
+sub run_cases_parallel {
+   my ($cases, $worker_count) = @_;
+   $worker_count = scalar(@$cases) if $worker_count > scalar(@$cases);
+   my $result_dir = tempdir('vcsc_runner_results_XXXX', TMPDIR => 1, CLEANUP => 0);
+   my %running;
+   my %finished;
+   my $next_start = 0;
+   my $next_report = 0;
+
+   while ($next_report < scalar(@$cases)) {
+      while ($next_start < scalar(@$cases) && scalar(keys %running) < $worker_count) {
+         my $case_index = $next_start++;
+         my $result_path = File::Spec->catfile($result_dir, sprintf('result_%06d.stor', $case_index));
+         my $pid = fork();
+         if (!defined $pid) {
+            remove_tree($result_dir);
+            die "[$FAIL] could not fork test worker: $!\n";
+         }
+         if ($pid == 0) {
+            my $result;
+            my $started = time();
+            my $ok = eval {
+               $result = run_case($cases->[$case_index]);
+               1;
+            };
+            if (!$ok) {
+               my $message = $@;
+               $message = 'unknown test worker failure' if !defined($message) || $message eq '';
+               $result = fail_result("test worker exception: $message");
+            }
+            $result->{elapsed_seconds} = time() - $started;
+            my $stored = eval {
+               nstore($result, $result_path);
+               1;
+            };
+            if (!$stored) {
+               warn "could not store test result $case_index: $@";
+               exit 2;
+            }
+            exit 0;
+         }
+         $running{$pid} = [$case_index, $result_path];
+      }
+
+      my $pid = wait();
+      if ($pid < 0) {
+         remove_tree($result_dir);
+         die "[$FAIL] wait failed while test workers were active: $!\n";
+      }
+      my $status = $?;
+      my $worker = delete $running{$pid};
+      next if !defined $worker;
+      my ($case_index, $result_path) = @$worker;
+      my $result;
+      if (-f $result_path) {
+         my $loaded = eval {
+            $result = retrieve($result_path);
+            1;
+         };
+         if (!$loaded) {
+            $result = fail_result("could not read parallel test result: $@");
+         }
+      }
+      else {
+         my $exit_code = $status >> 8;
+         my $signal = $status & 127;
+         $result = fail_result("test worker exited without a result (exit $exit_code signal $signal)");
+      }
+      $finished{$case_index} = $result;
+
+      # Workers may finish out of order. Buffer results and report them only
+      # when the next source-order case is ready so serial and parallel output
+      # have the same deterministic ordering.
+      while (exists $finished{$next_report}) {
+         report_case_result($cases->[$next_report], delete $finished{$next_report});
+         $next_report++;
+      }
+   }
+
+   remove_tree($result_dir);
+}
+
+if ($jobs == 1) {
+   for my $case (@cases) {
+      my $started = time();
+      my $result = run_case($case);
+      $result->{elapsed_seconds} = time() - $started;
+      report_case_result($case, $result);
+   }
+}
+else {
+   run_cases_parallel(\@cases, $jobs);
+}
+
+sub write_timings_report {
+   return if !defined($timings_file);
+   my $has_header = $timings_append && -s $timings_file;
+   my $mode = $timings_append ? '>>' : '>';
+   open(my $fh, $mode, $timings_file)
+      or die "[$FAIL] could not write timing report $timings_file: $!\n";
+   print $fh "seconds\tstatus\tphase\ttest\n" if !$has_header;
+   for my $timing (@timings) {
+      my $seconds = defined($timing->{seconds}) ? sprintf('%.6f', $timing->{seconds}) : '';
+      my $status = $timing->{ok} ? 'pass' : 'FAIL';
+      print $fh join("\t", $seconds, $status, $timing->{phase}, $timing->{name}), "\n";
+   }
+   close($fh) or die "[$FAIL] could not close timing report $timings_file: $!\n";
+}
+
+write_timings_report();
 
 print "\nSummary: $passed passed, " . scalar(@failures) . " failed, $total total\n";
 if (@failures) {

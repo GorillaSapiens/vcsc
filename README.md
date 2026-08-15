@@ -205,7 +205,10 @@ search paths and runtime details.
 `make test` runs the unified [`test/test.pl`](test/test.pl) harness. The suite
 covers compiler diagnostics and code generation, assembler and linker behavior,
 linked-program execution, target-library integration, renderer timing, and
-source-tree hygiene.
+source-tree hygiene. Test cases run eight-at-a-time by default, and `make test`
+writes per-case elapsed wall-clock times to `test-times.tsv`; override the
+filename with `TEST_TIMINGS=/path/to/file.tsv` or force serial execution with
+`TEST_JOBS=1`.
 
 Run selected tests directly from `test/`, for example:
 

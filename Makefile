@@ -11,6 +11,8 @@ PACKAGE_STAGING ?= $(CURDIR)/pkgroot
 INSTALLCHECK_STAGING ?= $(CURDIR)/.installcheck-root
 DOXYGEN ?= doxygen
 STELLA ?= stella
+TEST_JOBS ?= 8
+TEST_TIMINGS ?= $(CURDIR)/test-times.tsv
 STELLA_BANK_TEST_TMP ?= $(CURDIR)/.stella-bank-test
 STELLA_RENDERER_BANK_TEST_TMP ?= $(CURDIR)/.stella-renderer-bank-test
 STELLA_WIDE_SCORE_TEST_TMP ?= $(CURDIR)/.stella-wide-score-test
@@ -80,6 +82,7 @@ exam:
 
 clean:
 	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP) $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP) $(STELLA_MULTISPRITE_TEST_TMP) $(STELLA_50HZ_TEST_TMP)
+	rm -f test-times.tsv
 	@$(MAKE) --no-print-directory -C ./assembler clean
 	@$(MAKE) --no-print-directory -C ./linker clean
 	@$(MAKE) --no-print-directory -C ./archiver clean
@@ -877,17 +880,17 @@ patch:
 	git diff > /tmp/`basename $$(git rev-parse --show-toplevel)`.`date -u "+%Y%m%d_%H%M%S"`.patch
 
 unit: tools
-	@$(MAKE) --no-print-directory -C ./test unit
+	@$(MAKE) --no-print-directory -C ./test unit TEST_JOBS=$(TEST_JOBS) TEST_TIMINGS="$(TEST_TIMINGS)"
 
 sieve: tools
 	./driver/vcsc -I test -T test/generic_6502.cfg test/sieve.c26 -o sieve.hex
 	simulator/vcsc-sim sieve.hex | head
 
 e2e: tools
-	@$(MAKE) --no-print-directory -C ./test e2e
+	@$(MAKE) --no-print-directory -C ./test e2e TEST_JOBS=$(TEST_JOBS) TEST_TIMINGS="$(TEST_TIMINGS)"
 
 test: tools
-	@$(MAKE) --no-print-directory -C ./test test
+	@$(MAKE) --no-print-directory -C ./test test TEST_JOBS=$(TEST_JOBS) TEST_TIMINGS="$(TEST_TIMINGS)"
 
 stella-50hz-test: tools
 	rm -rf $(STELLA_50HZ_TEST_TMP)

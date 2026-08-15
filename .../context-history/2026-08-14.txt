@@ -125,3 +125,28 @@ reported 260 displayed lines. Kept TIM64T=42/34 as the game-logic budgets and
 changed the overscan tail to one alignment WSYNC plus two compensation WSYNCs.
 The harness now pins 264 raw lines, calibrated to Stella's stable 262-line NTSC
 display. The source-only example is 505 ROM / 18 RAM.
+
+2026-08-14 16:55:47 PDT, Parallelize test runner
+Added case-level parallel execution to test/test.pl with --jobs N and wired the
+Makefiles through TEST_JOBS=N. Workers keep per-test temp isolation, serialize
+results through private runner temp files, and buffer completion so displayed
+progress/failures remain in deterministic source order. The existing runner
+failure-summary smoke now runs with two workers and deliberately makes the
+first selected child slower, proving out-of-order completion is reported in
+selection order. TEST_JOBS defaults to 1. Parallel compile coverage passes
+492/492 at jobs=8; representative concurrent E2E batches and runner smoke tests
+also pass.
+
+
+2026-08-14 16:59:14 PDT, Default test runner to eight jobs
+Changed the top-level and test Makefile TEST_JOBS defaults from 1 to 8, so
+plain make test now invokes test.pl with --jobs 8. TEST_JOBS remains
+overridable; TEST_JOBS=1 provides an explicit serial debugging run.
+
+2026-08-14 17:16:16 PDT, Add per-test timing report
+Added --timings FILE to test/test.pl so each case records worker-local elapsed
+wall-clock seconds, status, phase, and test name in a TSV report. Added
+--timings-append so the Makefile can combine compile and E2E runs without
+repeating the header. Plain make test now writes test-times.tsv at repository
+root; TEST_TIMINGS overrides the path. Added a parallel runner smoke that
+checks numeric timings and append behavior.

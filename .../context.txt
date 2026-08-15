@@ -881,3 +881,16 @@ the line-B WSYNC. Midrange timing probes 200/200 and 200/160 lock the previously
 failing cases at the scheduler's calibrated 264 raw intervals / Stella 262 displayed
 scanlines. The current cartridge build uses 3669 ROM bytes and 92 RAM bytes. Item 36
 is now the first unfinished main-roadmap item.
+
+The unified test runner now supports case-level parallelism with `--jobs N`;
+the test and top-level Makefiles expose it as `TEST_JOBS=N`. Parallel workers
+keep each case's existing temporary isolation and buffer completed results so
+reporting remains in deterministic source order. The Makefile default is eight
+workers, so plain `make test` runs in parallel; `make test TEST_JOBS=1` forces a
+serial run when useful for debugging. The
+runner's own smoke test forces out-of-order child completion to pin ordered
+reporting, and all 492 compile tests pass under an eight-worker run. The runner
+also accepts `--timings FILE` and records each case's worker-local wall-clock
+seconds, status, phase, and name in TSV form. The top-level Makefile writes the
+combined compile/E2E report to `test-times.tsv` by default via `TEST_TIMINGS`,
+and the report path remains overrideable.

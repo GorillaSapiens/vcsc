@@ -109,6 +109,40 @@ Run the whole suite from `test/`:
 ./test.pl
 ```
 
+Run independent test cases in parallel with `--jobs N`:
+
+```sh
+./test.pl --jobs 8
+```
+
+The top-level Makefile exposes the same setting as `TEST_JOBS`:
+
+```sh
+make test
+```
+
+Parallelism is at the whole-test-case level. Each E2E/generic case keeps its
+own temporary directory, and results are buffered so progress and failure
+reporting remain in the same deterministic source order as a serial run.
+`TEST_JOBS` defaults to 8, so normal `make test` runs eight cases in parallel.
+Use `make test TEST_JOBS=1` when a serial run is useful for debugging.
+
+The Makefiles also write a separate tab-separated timing report. From the
+repository root, plain `make test` writes `test-times.tsv`; each row records the
+elapsed wall-clock seconds measured inside the worker, pass/fail status, phase,
+and test name:
+
+```text
+seconds status  phase   test
+0.018427        pass    compile example_test.c26
+7.392115        pass    e2e     vcs_pong.pl
+```
+
+(The actual file uses tabs, not spaces.) Set `TEST_TIMINGS=/path/to/file.tsv` to
+choose another filename. Direct runner invocations can use `--timings FILE`;
+`--timings-append` appends rows without repeating the header and is used by the
+Makefile to combine its compile and E2E phases into one report.
+
 Run only compile-side checks:
 
 ```sh
