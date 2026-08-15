@@ -1,9 +1,4 @@
 #!/usr/bin/perl
-# runner: perl @FILE@ @REPO@ @TMP@
-# phase: e2e
-# timeout: 30
-# expectstdout: vcs_examples_build ok: all recursively discovered editable examples compile and link
-
 use strict;
 use warnings;
 use Cwd qw(abs_path);
@@ -13,7 +8,7 @@ use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
 
-sub usage { die "usage: $0 REPO TMP\n"; }
+sub usage { die "usage: $0 REPO TMP [--shard INDEX/COUNT]\n"; }
 sub slurp_fh { my($fh)=@_; local $/; my $d=<$fh>; return defined($d)?$d:''; }
 sub capture {
    my(@cmd)=@_; my $err=gensym; my $pid=open3(my $in,my $out,$err,@cmd); close($in);
@@ -30,6 +25,14 @@ sub without_cartridge_usage {
 
 my $repo=shift @ARGV // usage();
 my $tmp=shift @ARGV // usage();
+my($shard_index,$shard_count);
+if (@ARGV) {
+   shift @ARGV eq '--shard' or usage();
+   my $spec=shift @ARGV // usage();
+   $spec =~ /\A([1-9][0-9]*)\/([1-9][0-9]*)\z/ or usage();
+   ($shard_index,$shard_count)=($1,$2);
+   $shard_index <= $shard_count or usage();
+}
 usage() if @ARGV;
 $repo=abs_path($repo) // die "resolve repository\n";
 make_path($tmp);
@@ -60,6 +63,15 @@ find({
 },$examples_root);
 @examples=sort { $a->[0] cmp $b->[0] || $a->[1] cmp $b->[1] } @examples;
 @examples or die "no editable examples found under $examples_root\n";
+my $all_example_count=scalar(@examples);
+if (defined($shard_index)) {
+   my @selected;
+   for my $i (0..$#examples) {
+      push @selected,$examples[$i] if ($i % $shard_count) == ($shard_index - 1);
+   }
+   @examples=@selected;
+   @examples or die "example shard $shard_index/$shard_count is empty\n";
+}
 
 for my $entry (@examples) {
    my($dir,$file)=@$entry;
@@ -121,4 +133,10 @@ for my $entry (@examples) {
    }
 }
 
-print "vcs_examples_build ok: all recursively discovered editable examples compile and link\n";
+if (defined($shard_index)) {
+   print "vcs_examples_build shard $shard_index/$shard_count ok: ".scalar(@examples).
+      " of $all_example_count recursively discovered editable examples compile and link\n";
+}
+else {
+   print "vcs_examples_build ok: all recursively discovered editable examples compile and link\n";
+}

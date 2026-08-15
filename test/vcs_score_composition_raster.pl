@@ -1,10 +1,4 @@
 #!/usr/bin/perl
-# runner: perl @FILE@ @REPO@ @TMP@
-# phase: e2e
-# timeout: 240
-# expectstdout: vcs_score_composition_raster ok: 40 public score/gameplay pairs have exact static and motion pixels; 32 public production cartridges preserve the diagonal playfield; mixed score placement also passes
-# expectexit: 0
-
 use strict;
 use warnings;
 use Cwd qw(abs_path);
@@ -15,7 +9,7 @@ use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
 
-sub usage { die "usage: $0 REPO TMP\n"; }
+sub usage { die "usage: $0 REPO TMP [--family FIXTURE [--mixed]]\n"; }
 sub slurp_fh { my($fh)=@_; local $/; my $d=<$fh>; return defined($d)?$d:''; }
 sub capture {
    my(@cmd)=@_; my $err=gensym; my $pid=open3(my $in,my $out,$err,@cmd); close($in);
@@ -69,6 +63,17 @@ sub transform_score {
 
 my $repo=shift @ARGV // usage();
 my $tmp=shift @ARGV // usage();
+my $family_filter;
+my $run_mixed=1;
+if (@ARGV) {
+   shift @ARGV eq '--family' or usage();
+   $family_filter=shift @ARGV // usage();
+   $run_mixed=0;
+   if (@ARGV && $ARGV[0] eq '--mixed') {
+      shift @ARGV;
+      $run_mixed=1;
+   }
+}
 usage() if @ARGV;
 $repo=abs_path($repo) // die "resolve repo\n";
 make_path($tmp);
@@ -81,23 +86,6 @@ my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
 my $mos_obj=File::Spec->catfile($mos,'mos6502.o');
 my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'));
-
-my %executables=(
-   raster=>[qw(test vcs_score_matrix_raster.cpp)],
-   player=>[qw(test vcs_player_color_181.cpp)],
-   all_five=>[qw(test vcs_all_five_composition.cpp)],
-   phase=>[qw(test vcs_playfield_phase.cpp)],
-);
-for my $name (sort keys %executables) {
-   my $src=File::Spec->catfile($repo,@{$executables{$name}});
-   my $exe=File::Spec->catfile($tmp,"score_matrix_$name");
-   my @warnings=$name eq 'raster' ? ('-Wall','-Wextra','-Werror','-pedantic') : ();
-   my($rc,$sig,$out,$err)=capture($cxx,'-std=c++17',@warnings,'-O2',
-      '-DILLEGAL_OPCODES','-I',$mos,$src,@mos_input,'-o',$exe);
-   $rc==0 && !$sig or die "$name harness build failed\n$out$err";
-   $out eq '' && $err eq '' or die "$name harness build wrote output\n$out$err";
-   $executables{$name}=$exe;
-}
 
 my @families=(
    {fixture=>'player_color_181',            example=>'04_player_color_181',            class=>'player',   illegals=>0},
@@ -113,9 +101,38 @@ my @scores=(
    {kind=>'poison',       above=>'09_poison_score_above',          below=>'10_poison_score_below',          component=>'renderers/poison_debug_score/poison_debug_score.c26'},
 );
 
+my @active_families=defined($family_filter)
+   ? grep { $_->{fixture} eq $family_filter } @families
+   : @families;
+@active_families or die "unknown score-composition family $family_filter\n";
+
+my %harness_sources=(
+   raster=>[qw(test vcs_score_matrix_raster.cpp)],
+   player=>[qw(test vcs_player_color_181.cpp)],
+   all_five=>[qw(test vcs_all_five_composition.cpp)],
+   phase=>[qw(test vcs_playfield_phase.cpp)],
+);
+my %needed=(raster=>1);
+if (@active_families) {
+   $needed{phase}=1;
+   $needed{player}=1 if grep { $_->{class} eq 'player' } @active_families;
+   $needed{all_five}=1 if grep { $_->{class} eq 'all_five' } @active_families;
+}
+my %executables;
+for my $name (sort keys %needed) {
+   my $src=File::Spec->catfile($repo,@{$harness_sources{$name}});
+   my $exe=File::Spec->catfile($tmp,"score_matrix_$name");
+   my @warnings=$name eq 'raster' ? ('-Wall','-Wextra','-Werror','-pedantic') : ();
+   my($rc,$sig,$out,$err)=capture($cxx,'-std=c++17',@warnings,'-O2',
+      '-DILLEGAL_OPCODES','-I',$mos,$src,@mos_input,'-o',$exe);
+   $rc==0 && !$sig or die "$name harness build failed\n$out$err";
+   $out eq '' && $err eq '' or die "$name harness build wrote output\n$out$err";
+   $executables{$name}=$exe;
+}
+
 # Lock the complete public 4 x 5 x 2 inventory and its legal draw order.
 my $public=0;
-for my $family (@families) {
+for my $family (@active_families) {
    for my $score (@scores) {
       for my $order (qw(above below)) {
          my $leaf=File::Spec->catdir($repo,'examples',$family->{example},$score->{$order},'01_interactive');
@@ -148,13 +165,14 @@ for my $family (@families) {
       }
    }
 }
-$public==40 or die "public matrix has $public entries, expected 40\n";
+my $expected_public=10 * scalar(@active_families);
+$public==$expected_public or die "public matrix has $public entries, expected $expected_public\n";
 
 # Build and raster-check every real public production cartridge.  The smaller
 # generated composition fixtures cannot expose page-sensitive branch timing
 # changes caused by the final public link layout.
 my $public_production_checked=0;
-for my $family (@families) {
+for my $family (@active_families) {
    for my $score (grep { $_->{kind} ne 'poison' } @scores) {
       for my $order (qw(above below)) {
          my $leaf=File::Spec->catdir($repo,'examples',$family->{example},$score->{$order},'01_interactive');
@@ -190,10 +208,11 @@ for my $family (@families) {
       }
    }
 }
-$public_production_checked==32 or die "checked $public_production_checked public production cartridges, expected 32\n";
+my $expected_production=8 * scalar(@active_families);
+$public_production_checked==$expected_production or die "checked $public_production_checked public production cartridges, expected $expected_production\n";
 
 my $checked=0;
-for my $family (@families) {
+for my $family (@active_families) {
    for my $score (@scores) {
       for my $order (qw(above below)) {
          my $entry=$order eq 'above' ? 40 : 221;
@@ -248,22 +267,33 @@ for my $family (@families) {
       }
    }
 }
-$checked==80 or die "checked $checked static/motion compositions, expected 80\n";
+my $expected_compositions=20 * scalar(@active_families);
+$checked==$expected_compositions or die "checked $checked static/motion compositions, expected $expected_compositions\n";
 
 # A score-only cartridge proves arbitrary placement and four mixed instances;
 # the existing centered and two-plus-two component tests separately cover
 # multiple same-type instances and independent per-instance motion.
-my $mixed_src=File::Spec->catfile($repo,qw(test fixtures score_composition_matrix mixed_instances.c26));
-my $mixed_bin=File::Spec->catfile($tmp,'score_matrix_mixed_instances.bin');
-my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,$mixed_src,'-o',$mixed_bin);
-$rc==0 && !$sig or die "mixed score-instance build failed\n$out$err";
-without_usage($out) eq '' && $err eq '' or die "mixed score-instance build wrote output\n$out$err";
-for my $case (['center',50],['left',80],['right',110],['two-plus-two',140]) {
-   ($rc,$sig,$out,$err)=capture($executables{raster},$mixed_bin,@$case);
-   $rc==0 && !$sig or die "mixed @$case raster failed\n$out$err";
-   $out eq "vcs_score_matrix_raster $case->[0] ok: exact score pixels, ownership schedule, and 262-line frames\n"
-      or die "unexpected mixed $case->[0] output: $out";
-   $err eq '' or die "mixed $case->[0] stderr: $err";
+if ($run_mixed) {
+   my $mixed_src=File::Spec->catfile($repo,qw(test fixtures score_composition_matrix mixed_instances.c26));
+   my $mixed_bin=File::Spec->catfile($tmp,'score_matrix_mixed_instances.bin');
+   my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,$mixed_src,'-o',$mixed_bin);
+   $rc==0 && !$sig or die "mixed score-instance build failed\n$out$err";
+   without_usage($out) eq '' && $err eq '' or die "mixed score-instance build wrote output\n$out$err";
+   for my $case (['center',50],['left',80],['right',110],['two-plus-two',140]) {
+      ($rc,$sig,$out,$err)=capture($executables{raster},$mixed_bin,@$case);
+      $rc==0 && !$sig or die "mixed @$case raster failed\n$out$err";
+      $out eq "vcs_score_matrix_raster $case->[0] ok: exact score pixels, ownership schedule, and 262-line frames\n"
+         or die "unexpected mixed $case->[0] output: $out";
+      $err eq '' or die "mixed $case->[0] stderr: $err";
+   }
+
 }
 
-print "vcs_score_composition_raster ok: 40 public score/gameplay pairs have exact static and motion pixels; 32 public production cartridges preserve the diagonal playfield; mixed score placement also passes\n";
+if (defined($family_filter)) {
+   print "vcs_score_composition_raster family $family_filter ok: $expected_public public score/gameplay pairs, $expected_production production cartridges, and $expected_compositions static/motion compositions";
+   print "; mixed score placement also passes" if $run_mixed;
+   print "\n";
+}
+else {
+   print "vcs_score_composition_raster ok: 40 public score/gameplay pairs have exact static and motion pixels; 32 public production cartridges preserve the diagonal playfield; mixed score placement also passes\n";
+}

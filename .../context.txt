@@ -893,4 +893,13 @@ reporting, and all 492 compile tests pass under an eight-worker run. The runner
 also accepts `--timings FILE` and records each case's worker-local wall-clock
 seconds, status, phase, and name in TSV form. The top-level Makefile writes the
 combined compile/E2E report to `test-times.tsv` by default via `TEST_TIMINGS`,
-and the report path remains overrideable.
+and the report path remains overrideable. The two longest batch E2Es are now
+sharded for that outer worker pool: example smoke builds run as eight round-robin
+`vcs_examples_build_*of8.test` cases, and score-composition coverage runs as four
+family-level cases backed by the same implementation script. The implementations
+remain manually runnable in full, but no longer register as monolithic tests;
+source-tree hygiene pins all shard descriptors and the single mixed-instance
+assignment so coverage cannot silently disappear. In an eight-worker validation,
+example shards measured about 2.9-4.0 seconds each and score-composition family
+shards about 8.3-8.6 seconds each; replacing the two monoliths raises E2E case
+count from 288 to 299 while preserving the same aggregate coverage.

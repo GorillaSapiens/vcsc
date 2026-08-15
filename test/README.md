@@ -18,10 +18,13 @@ It runs three kinds of files:
 ## Editable examples versus golden fixtures
 
 Everything under `examples/` is user-facing and deliberately editable. The
-suite smoke-builds all examples through `vcs_examples_build.pl`, but exact
-ROM, map, timing, raster, palette, music, score, and motion assertions use
-private cartridges under `test/fixtures/vcs_examples/`. Do not point a golden
-harness back at an example; `source_tree_hygiene.pl` rejects that coupling.
+suite smoke-builds all examples through eight `vcs_examples_build_*of8.test`
+shards backed by `vcs_examples_build.pl`; the round-robin split lets the outer
+`test.pl --jobs N` pool compile different examples concurrently without a nested
+worker pool. Exact ROM, map, timing, raster, palette, music, score, and motion
+assertions use private cartridges under `test/fixtures/vcs_examples/`. Do not
+point a golden harness back at an example; `source_tree_hygiene.pl` rejects that
+coupling.
 
 ## Item-31 single-callsite analysis coverage
 
@@ -123,9 +126,12 @@ make test
 
 Parallelism is at the whole-test-case level. Each E2E/generic case keeps its
 own temporary directory, and results are buffered so progress and failure
-reporting remain in the same deterministic source order as a serial run.
-`TEST_JOBS` defaults to 8, so normal `make test` runs eight cases in parallel.
-Use `make test TEST_JOBS=1` when a serial run is useful for debugging.
+reporting remain in the same deterministic source order as a serial run. Large
+batch-style E2Es should be split into independently schedulable `.test` shards
+rather than starting their own nested worker pools; the example smoke build and
+score-composition raster matrix follow that pattern. `TEST_JOBS` defaults to 8,
+so normal `make test` runs eight cases in parallel. Use
+`make test TEST_JOBS=1` when a serial run is useful for debugging.
 
 The Makefiles also write a separate tab-separated timing report. From the
 repository root, plain `make test` writes `test-times.tsv`; each row records the
@@ -473,13 +479,14 @@ The exact raster harness decodes all six GRP pipeline bytes on every row into 48
 logical pixels, locks positioning and boundary cycles, requires the cycle-equivalent
 REFP0/REFP1 reset, and retains exact 262-line frames.
 
-`vcs_score_composition_raster.pl` locks the complete public composition
-matrix: four 181-line gameplay families, four production score layouts plus the
-poison diagnostic, and both legal orders. It generates static and moving-game
-fixtures for all 40 pairings, builds 80 cartridges, and runs the score and
-gameplay physical-pixel models on each one. It also builds all 32 real public
-production cartridges and locks the player-color and all-five diagonal
-playfield bytes and write cycles, so
+`vcs_score_composition_raster.pl` is the shared implementation behind four
+family-level `vcs_score_composition_raster_*.test` shards. Together they lock the
+complete public composition matrix: four 181-line gameplay families, four
+production score layouts plus the poison diagnostic, and both legal orders.
+Across the shards they generate static and moving-game fixtures for all 40
+pairings, build 80 cartridges, and run the score and gameplay physical-pixel
+models on each one. They also build all 32 real public production cartridges and
+lock the player-color and all-five diagonal playfield bytes and write cycles, so
 final-link page placement cannot reintroduce scanline tearing. The shared
 phase harness initializes SWCHA and SWCHB to released inputs; holding Reset in an
 oracle would make frame-relative line numbering depend on startup/BSS clearing
@@ -492,7 +499,8 @@ left-, right-, two-plus-two, and poison positioning/ownership schedules at raw
 line 40 or 221; the gameplay oracles lock every object pixel and exact 262-line
 frames. A separate score-only cartridge places centered, left, right, and
 two-plus-two instances at raw lines 50, 80, 110, and 140 to prove mixed arbitrary
-vertical placement.
+vertical placement. The mixed-instance score-only check runs in the first
+family shard so it is still covered exactly once.
 
 `vcs_three_plus_three_score.pl` builds the fixed left/right three-plus-three
 score component with hostile incoming P0/P1 state and independently colored

@@ -150,3 +150,14 @@ wall-clock seconds, status, phase, and test name in a TSV report. Added
 repeating the header. Plain make test now writes test-times.tsv at repository
 root; TEST_TIMINGS overrides the path. Added a parallel runner smoke that
 checks numeric timings and append behavior.
+
+2026-08-14 17:32:24 PDT, Shard heavyweight E2E tests
+Split the recursive example smoke build into eight round-robin test cases and
+the score-composition raster matrix into four family-level cases. Both reuse
+their existing Perl implementation, so there is no nested worker pool; the
+outer test.pl --jobs pool schedules the shards. Source-tree hygiene pins all
+shard descriptors and assigns mixed score-instance coverage exactly once.
+An eight-worker run measured the example shards at 2.9-4.0 seconds and the
+score family shards at 8.3-8.6 seconds. The E2E inventory is now 299 cases;
+all 299 passed across the main run plus its separately rerun timeout tail.
+

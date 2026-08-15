@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/vcs_score_composition_raster.pl @REPO@ @TMP@ --family player_color_181 --mixed
+# phase: e2e
+# timeout: 120
+# expectstdout: vcs_score_composition_raster family player_color_181 ok:
+# expectexit: 0

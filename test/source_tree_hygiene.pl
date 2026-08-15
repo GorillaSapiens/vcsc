@@ -413,6 +413,34 @@ index($examples_build,q{include\s+"vcs_2k\.c26"})>=0 &&
 index($examples_build,q{my $is_2k=uses_2k_profile($source);})>=0
    or die "2K example/profile detection is incomplete
 ";
+
+# The two historically monolithic E2E drivers are implementation helpers now;
+# their public test cases are fixed-size shards so the outer --jobs pool can
+# schedule the work without nested worker pools.
+for my $i (1..8) {
+   my $path=File::Spec->catfile($test,"vcs_examples_build_${i}of8.test");
+   -f $path or die "missing examples-build shard descriptor $path\n";
+   my $body=slurp($path);
+   index($body,"--shard $i/8")>=0
+      or die "examples-build shard $i/8 has the wrong runner\n";
+}
+my @score_shards=(
+   ['player_color_181',1],
+   ['all_five_181',0],
+   ['player_color_181_unofficial',0],
+   ['all_five_181_unofficial',0],
+);
+for my $entry (@score_shards) {
+   my($family,$mixed)=@$entry;
+   my $path=File::Spec->catfile($test,"vcs_score_composition_raster_${family}.test");
+   -f $path or die "missing score-composition shard descriptor $path\n";
+   my $body=slurp($path);
+   index($body,"--family $family")>=0
+      or die "score-composition shard $family has the wrong runner\n";
+   my $has_mixed=index($body,'--mixed')>=0 ? 1 : 0;
+   $has_mixed==$mixed
+      or die "score-composition mixed-instance coverage is assigned incorrectly for $family\n";
+}
 my $wide_source=slurp(File::Spec->catfile($repo,'examples','01_basic','06_wide_score','wide_score.c26'));
 my $wide_make=slurp(File::Spec->catfile($repo,'examples','01_basic','06_wide_score','Makefile'));
 index($wide_source,'include "vcs_2k.c26"')>=0 &&
