@@ -18,6 +18,31 @@ my $fixtures=File::Spec->catdir($repo,'assembler','tests');
 my @python_test_helpers=glob(File::Spec->catfile($test,'*.py'));
 @python_test_helpers and die "Python test helpers are not permitted: @python_test_helpers\n";
 
+my $retired_game_name='po'.'ng';
+my @retired_game_name_hits;
+find({no_chdir=>1,wanted=>sub {
+   my $path=$File::Find::name;
+   my $rel=File::Spec->abs2rel($path,$repo); $rel =~ s{\\}{/}g;
+   # Git metadata may legitimately preserve historical names and content.  It
+   # is not part of the editable source tree, so repository-wide hygiene
+   # traversals must prune it completely.
+   if ($rel eq '.git' || $rel =~ m{\A\.git/}) {
+      $File::Find::prune=1 if -d $path;
+      return;
+   }
+   if (index(lc($rel),$retired_game_name)>=0) {
+      push @retired_game_name_hits,"path:$rel";
+      return;
+   }
+   return unless -f $path;
+   open(my $fh,'<:raw',$path) or die "read $path: $!\n";
+   local $/; my $body=<$fh> // ''; close($fh);
+   return if index($body,"\0")>=0;
+   push @retired_game_name_hits,"text:$rel"
+      if index(lc($body),$retired_game_name)>=0;
+}},$repo);
+@retired_game_name_hits and die "retired paddle-game name remains: @retired_game_name_hits\n";
+
 
 # Everything under libraries/ and examples/ is cartridge-facing material.
 # Libraries and ordinary examples use one root CC0 text and explicit per-file
@@ -667,10 +692,16 @@ for my $history_path (@context_history) {
 }
 
 my @markdown;
-find(sub {
-   return unless -f $_ && /\.md\z/;
-   push @markdown,$File::Find::name;
-},$repo);
+find({no_chdir=>1,wanted=>sub {
+   my $path=$File::Find::name;
+   my $rel=File::Spec->abs2rel($path,$repo); $rel =~ s{\\}{/}g;
+   if ($rel eq '.git' || $rel =~ m{\A\.git/}) {
+      $File::Find::prune=1 if -d $path;
+      return;
+   }
+   return unless -f $path && $path =~ /\.md\z/;
+   push @markdown,$path;
+}},$repo);
 my @broken_links;
 for my $path (sort @markdown) {
    my $body=slurp($path);

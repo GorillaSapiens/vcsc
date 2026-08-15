@@ -1,5 +1,5 @@
-//! @file vcs_pong.cpp
-//! @brief CPU/TIA-input oracle for the public two-paddle Pong example.
+//! @file vcs_paddleball.cpp
+//! @brief CPU/TIA-input oracle for the public two-paddle Paddleball example.
 
 #include <cstdarg>
 #include <cstdint>
@@ -19,14 +19,16 @@ constexpr size_t kRomSize=4096;
 constexpr uint64_t kCyclesPerLine=76;
 constexpr uint64_t kRawFrameLines=264;
 constexpr uint16_t kVsync=0x0000, kVblank=0x0001, kWsync=0x0002;
-constexpr uint16_t kEnam0=0x001d, kEnam1=0x001e;
+constexpr uint16_t kAudc0=0x0015, kAudf0=0x0017, kAudv0=0x0019;
+constexpr uint16_t kEnam0=0x001d, kEnam1=0x001e, kEnabl=0x001f, kCxclr=0x002c;
+constexpr uint16_t kCxm0fb=0x0034, kCxm1fb=0x0035;
 constexpr uint16_t kInpt0=0x0038, kInpt1=0x0039;
 constexpr uint16_t kSwcha=0x0280, kSwchb=0x0282;
 constexpr uint16_t kIntim=0x0284, kTimint=0x0285;
 constexpr uint16_t kTim1t=0x0294, kTim8t=0x0295, kTim64t=0x0296, kT1024t=0x0297;
 
 [[noreturn]] void fail(const char *fmt,...) {
-   std::fprintf(stderr,"vcs_pong: ");
+   std::fprintf(stderr,"vcs_paddleball: ");
    va_list ap; va_start(ap,fmt); std::vfprintf(stderr,fmt,ap); va_end(ap);
    std::fputc('\n',stderr); std::exit(1);
 }
@@ -163,6 +165,46 @@ public:
       }
    }
 
+   void run_sfx_probe() {
+      constexpr int kFrames=150;
+      constexpr uint64_t kInstructionLimit=120000000;
+      for(uint64_t instructions=0; instructions<kInstructionLimit && frame_<kFrames; ++instructions) {
+         pending_.clear(); const uint64_t before=cpu_cycles_;
+         cpu_.Run(1,cpu_cycles_,mos6502::INST_COUNT);
+         virtual_cycles_ += cpu_cycles_-before;
+         apply_pending();
+      }
+      if(frame_<kFrames) fail("instruction limit before sound probe completed");
+      for(size_t i=4;i<starts_.size();++i) {
+         const uint64_t delta=starts_[i]-starts_[i-1];
+         if(delta!=kRawFrameLines*kCyclesPerLine)
+            fail("sound probe frame %zu is %llu cycles, expected %llu",
+               i,static_cast<unsigned long long>(delta),
+               static_cast<unsigned long long>(kRawFrameLines*kCyclesPerLine));
+      }
+      if(!saw_wall_sound_) fail("top/bottom wall sound was never emitted");
+      if(!saw_paddle_sound_) fail("paddle rebound sound was never emitted");
+      if(wall_sound_frames_.empty()) fail("wall sound frame was not recorded");
+      const int wf=wall_sound_frames_.front();
+      if(wf<0 || static_cast<size_t>(wf+1)>=snapshots_.size())
+         fail("wall sound frame is outside snapshot range");
+      const auto& wpre=snapshots_[static_cast<size_t>(wf)];
+      const auto& wpost=snapshots_[static_cast<size_t>(wf+1)];
+      if(!((wpre.ball_y==170 && wpost.ball_y==172) ||
+           (wpre.ball_y==10 && wpost.ball_y==8)))
+         fail("wall sound lagged visible contact: frame %d Y %u -> %u",wf,wpre.ball_y,wpost.ball_y);
+      if(paddle_sound_frames_.empty()) fail("paddle sound frame was not recorded");
+      const int pf=paddle_sound_frames_.front();
+      if(pf<0 || static_cast<size_t>(pf+1)>=snapshots_.size())
+         fail("paddle sound frame is outside snapshot range");
+      const auto& ppre=snapshots_[static_cast<size_t>(pf)];
+      const auto& ppost=snapshots_[static_cast<size_t>(pf+1)];
+      if(ppre.ball_x==ppost.ball_x ||
+         (ppre.ball_x>78 && ppost.ball_x>=ppre.ball_x) ||
+         (ppre.ball_x<78 && ppost.ball_x<=ppre.ball_x))
+         fail("paddle sound left a held contact frame: frame %d X %u -> %u",pf,ppre.ball_x,ppost.ball_x);
+   }
+
 private:
    struct Pending { uint16_t address; uint8_t value; };
    static Machine *active_;
@@ -171,9 +213,12 @@ private:
    std::vector<Pending> pending_; std::vector<uint64_t> starts_; std::vector<Snapshot> snapshots_;
    std::vector<int> m0_on_,m0_off_,m1_on_,m1_off_;
    bool vsync_=false,vblank_=true,pot_dump_=true,timer_active_=false;
+   bool enam0_=false,enam1_=false,enabl_=false,m0_ball_latch_=false,m1_ball_latch_=false;
    uint64_t pot_release_=0,timer_start_=0; uint16_t timer_divisor_=1; uint8_t timer_loaded_=0;
    int frame_=-1;
    int fixed_t0_=-1,fixed_t1_=-1;
+   bool saw_wall_sound_=false,saw_paddle_sound_=false;
+   std::vector<int> wall_sound_frames_,paddle_sound_frames_;
 
    static uint8_t read_thunk(uint16_t a){ return active_->read(a); }
    static void write_thunk(uint16_t a,uint8_t v){ active_->write(a,v); }
@@ -194,6 +239,8 @@ private:
       return virtual_cycles_-pot_release_ >= threshold_lines*kCyclesPerLine ? 0x80 : 0;
    }
    uint8_t read(uint16_t a) {
+      if(a==kCxm0fb) return m0_ball_latch_?0x40:0;
+      if(a==kCxm1fb) return m1_ball_latch_?0x40:0;
       if(a==kInpt0) return pot(fixed_t0_>=0 ? static_cast<uint64_t>(fixed_t0_) :
                                    static_cast<uint64_t>(frame_<105 ? 360 : 12));
       if(a==kInpt1) return pot(fixed_t1_>=0 ? static_cast<uint64_t>(fixed_t1_) :
@@ -229,6 +276,21 @@ private:
       m0_on_.push_back(-1); m0_off_.push_back(-1);
       m1_on_.push_back(-1); m1_off_.push_back(-1);
    }
+   bool vertical_overlap(uint8_t paddle_y) const {
+      const uint8_t ball_y=byte("ball_y");
+      return static_cast<unsigned>(ball_y)+4u>paddle_y &&
+             ball_y<static_cast<unsigned>(paddle_y)+16u;
+   }
+   void latch_rendered_collisions() {
+      if(vblank_ || !enabl_) return;
+      const uint8_t x=byte("ball_x");
+      // The CPU oracle does not render horizontal TIA pixels, so model the
+      // hardware latch only at the calibrated contact X. Vertical overlap is
+      // derived from the actual enable spans/state. The cartridge itself no
+      // longer contains these software thresholds; it reads CXM0FB/CXM1FB.
+      if(enam0_ && x==14 && vertical_overlap(byte("left_y"))) m0_ball_latch_=true;
+      if(enam1_ && x==152 && vertical_overlap(byte("right_y"))) m1_ball_latch_=true;
+   }
    void apply_pending() {
       for(const auto&w:pending_) {
          if((w.address==kEnam0 || w.address==kEnam1) && frame_>=0 && !starts_.empty()) {
@@ -240,7 +302,12 @@ private:
             }
             else if(on>=0 && off<0) off=line;
          }
+         if(w.address==kEnam0) enam0_=(w.value&2)!=0;
+         else if(w.address==kEnam1) enam1_=(w.value&2)!=0;
+         else if(w.address==kEnabl) enabl_=(w.value&2)!=0;
+         else if(w.address==kCxclr) { m0_ball_latch_=false; m1_ball_latch_=false; }
          if(w.address==kWsync) {
+            latch_rendered_collisions();
             const uint64_t within=virtual_cycles_%kCyclesPerLine;
             virtual_cycles_ += within ? kCyclesPerLine-within : kCyclesPerLine;
          }
@@ -254,6 +321,16 @@ private:
             const bool next_dump=(w.value&0x80)!=0;
             if(pot_dump_ && !next_dump) pot_release_=virtual_cycles_;
             pot_dump_=next_dump;
+         }
+         else if(w.address==kAudv0 && w.value && memory_[kAudc0]==4) {
+            if(memory_[kAudf0]==13) {
+               saw_wall_sound_=true;
+               wall_sound_frames_.push_back(frame_);
+            }
+            if(memory_[kAudf0]==6) {
+               saw_paddle_sound_=true;
+               paddle_sound_frames_.push_back(frame_);
+            }
          }
          else if(w.address>=kTim1t && w.address<=kT1024t) load_timer(w.address,w.value);
       }
@@ -275,8 +352,12 @@ int main(int argc,char **argv) {
    // 264 raw intervals (Stella: 262 displayed scanlines).
    Machine simultaneous(argv[1],addresses,200,200); simultaneous.run_timing_only();
    Machine asymmetric(argv[1],addresses,200,160); asymmetric.run_timing_only();
+   // Hold the right paddle around the ball's first right-edge arrival so this
+   // probe sees both a wall rebound and a paddle rebound while also checking
+   // that audio writes in overscan do not perturb frame length.
+   Machine sfx(argv[1],addresses,360,200); sfx.run_sfx_probe();
 
    Machine m(argv[1],addresses); m.run();
-   std::puts("vcs_pong ok: stable frames, two-paddle RC span/buttons, serve, score, reset");
+   std::puts("vcs_paddleball ok: stable frames, hardware paddle collisions, octave wall/paddle audio, two-paddle RC span/buttons, serve, score, reset");
    return 0;
 }

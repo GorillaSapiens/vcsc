@@ -253,13 +253,14 @@ completed dump and starting a fresh charge interval. The component's `vblank()`
 and `overscan()` callbacks do not write VBLANK or touch the RIOT timer, so they
 remain inside the scheduler ownership contract.
 
-The public Pong example in `examples/01_basic/09_pong/` demonstrates a complete
+The public Paddleball example in `examples/01_basic/09_paddleball/` demonstrates a complete
 composition. Its 11-line `three_plus_three_score_component.c26` owns P0/P1;
 M0/M1 are the blue/red paddles and Ball is white. The 181 gameplay lines include
 four-scanline white top and bottom walls and a reflected dashed center line on a
-black background. The emulator regression drives independent short and
-multi-frame RC thresholds, paddle fire, serving, scoring, console Reset, and
-stable NTSC frame length.
+black background. Paddle rebounds use the TIA M0-Ball/M1-Ball collision latches
+rather than software overlap geometry. The emulator regression drives independent
+short and multi-frame RC thresholds, hardware paddle collisions, paddle fire,
+serving, scoring, console Reset, and stable NTSC frame length.
 
 ## Left/right three-plus-three score component
 

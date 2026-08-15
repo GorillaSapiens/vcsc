@@ -1,22 +1,22 @@
-2026-08-14 11:38:00 PDT, Fix Pong example regression tests
-Moved the Pong helper renderer from the cartridge directory to
-examples/common/pong_renderer.c26 so recursive example discovery does not try
+2026-08-14 11:38:00 PDT, Fix Paddleball example regression tests
+Moved the Paddleball helper renderer from the cartridge directory to
+examples/common/paddleball_renderer.c26 so recursive example discovery does not try
 to compile the helper as a standalone cartridge. Added its 137 reviewed
 beam-critical asm statements to the example assembly allowlist. The two
-reported E2E failures now pass directly. Updated vcs_pong.pl to follow the
+reported E2E failures now pass directly. Updated vcs_paddleball.pl to follow the
 renderer to examples/common and verified that emulator regression separately.
 A top-level make test rerun reached 106/288 with no failures before the
 five-minute execution cap terminated it.
 
-2026-08-14 11:45:00 PDT, Fold Pong renderer into example
-Moved the Pong-only beam kernel into examples/01_basic/09_pong/pong.c26
-and removed examples/common/pong_renderer.c26. Updated its Makefile,
+2026-08-14 11:45:00 PDT, Fold Paddleball renderer into example
+Moved the Paddleball-only beam kernel into examples/01_basic/09_paddleball/paddleball.c26
+and removed examples/common/paddleball_renderer.c26. Updated its Makefile,
 assembly allowlist entry, emulator regression, and compact context so
 examples/common remains reserved for genuinely shared example code.
 
 
-2026-08-14 12:25:00 PDT, Polish Pong raster spacing
-Kept the Pong-specific renderer inside examples/01_basic/09_pong/pong.c26
+2026-08-14 12:25:00 PDT, Polish Paddleball raster spacing
+Kept the Paddleball-specific renderer inside examples/01_basic/09_paddleball/paddleball.c26
 rather than pushing more one-off code into examples/common. Thinned the
 paddles and ball, moved the right paddle outward to better mirror the left,
 added a score-to-top-wall gap plus a wall-to-center-line gap, and cleared
@@ -25,15 +25,15 @@ garbage under the top wall. Updated the example assembly allowlist for the
 revised beam-critical asm block. A naive motion-smoothing attempt was
 dropped because it burned too much timing/ROM budget for this cartridge.
 
-2026-08-14 12:46:23 PDT, Fix Pong missing visible scanline
-The raster-spacing polish accidentally made pong_draw() emit 180 rather than
+2026-08-14 12:46:23 PDT, Fix Paddleball missing visible scanline
+The raster-spacing polish accidentally made paddleball_draw() emit 180 rather than
 its promised 181 visible lines, shortening frames from the oracle's 264 raw
 lines to 263. Added the missing blank WSYNC immediately before the four-line
-bottom wall. The exact vcs_pong.pl regression now passes with stable frame
+bottom wall. The exact vcs_paddleball.pl regression now passes with stable frame
 length; the cartridge uses 3775 ROM bytes and 97 RAM bytes.
 
-2026-08-14 13:36:52 PDT, Fix Pong horizontal calibration
-Replaced the Pong-only uncalibrated RESP/HMxx positioning sequence with the
+2026-08-14 13:36:52 PDT, Fix Paddleball horizontal calibration
+Replaced the Paddleball-only uncalibrated RESP/HMxx positioning sequence with the
 same BIT plus two-NOP divide-by-fifteen timing used by maintained all-five
 renderers. Stella pixel measurements now put the blue paddle at rendered
 X=18..21 and red at X=298..301 in the 320-pixel snapshot, exactly mirrored
@@ -46,25 +46,25 @@ Paddle targets now use a cheap even 9/16-ish mapping and move at most two
 scanlines per frame, smoothing high-RC measurements without overrunning the
 4K ROM or overscan. Added source/oracle checks for the calibrated geometry.
 
-2026-08-14 14:05:00 PDT, Extend Pong paddle bottom reach
-The previous Pong paddle target mapping used a conservative raw/2 + raw/16
+2026-08-14 14:05:00 PDT, Extend Paddleball paddle bottom reach
+The previous Paddleball paddle target mapping used a conservative raw/2 + raw/16
 approximation that topped out too early, leaving the paddles unable to reach
 the lower playable rows above the bottom wall. Replaced that mapping with a
 clamped full-range conversion covering the intended 8..160 top-edge span,
 kept the even-valued output expected by the 2-scanline slew update, and
-revalidated the exact vcs_pong.pl regression plus example-build, assembly,
+revalidated the exact vcs_paddleball.pl regression plus example-build, assembly,
 context-format, and source-tree hygiene checks.
 
-2026-08-14 14:22:42 PDT, Calibrate Pong paddle endpoints
+2026-08-14 14:22:42 PDT, Calibrate Paddleball paddle endpoints
 Measured the endpoint failure rather than guessing from the screenshot. The
-Pong emulator's long RC endpoint resolves at raw 165; the previous 13/16
+Paddleball emulator's long RC endpoint resolves at raw 165; the previous 13/16
 conversion only reached paddle Y=152. Changed the game mapping to 15/16 with
 an 8..160 clamp, so raw zero reaches Y=8 and the long endpoint reaches Y=160.
-Extended vcs_pong.pl/vcs_pong.cpp to expose both rendered paddle Y positions
+Extended vcs_paddleball.pl/vcs_paddleball.cpp to expose both rendered paddle Y positions
 and require those exact top and bottom limits, permanently checking symmetric
 one-scanline wall clearance. The full 492-test compile suite passes.
 
-2026-08-14 14:48:12 PDT, Fix Pong paddle vertical boundaries
+2026-08-14 14:48:12 PDT, Fix Paddleball paddle vertical boundaries
 The screenshots exposed two separate bugs that endpoint-value tests had missed.
 M0 changed enable state on the first line of each pair while M1 changed on the
 second, so equal paddle Y values were not vertically level. At the bottom,
@@ -75,34 +75,34 @@ to line A, and changed the legal rendered paddle-top range to odd Y=9..159; that
 maps to start pairs 4..79 and end pairs 12..87, all inside the loop. Added a
 small raw-input low-end dead zone so normal channel endpoint tolerance does not
 leave one paddle visibly short of the top. The tail also clears both missiles
-defensively. Ball top Y moved from 6 to drawable Y=8. The Pong oracle now swaps
+defensively. Ball top Y moved from 6 to drawable Y=8. The Paddleball oracle now swaps
 long/short RC endpoints between channels, requires both paddles to reach both
 limits, checks equal-Y M0/M1 raster lines, and proves each bottom paddle disables
 after exactly 16 scanlines. The cartridge is 3739 ROM / 94 RAM; 492/492 compile
-tests and the focused Pong/example/assembly/hygiene regressions pass.
+tests and the focused Paddleball/example/assembly/hygiene regressions pass.
 
 
-2026-08-14 15:10:30 PDT, Remove Pong paddle coast
-Removed the artificial two-scanline-per-frame display slew from the Pong
+2026-08-14 15:10:30 PDT, Remove Paddleball paddle coast
+Removed the artificial two-scanline-per-frame display slew from the Paddleball
 example. The two-paddle component already has unavoidable RC acquisition
 latency at high resistance; adding a second chase made the paddle keep moving
-after the physical control stopped. Pong now applies each completed raw
+after the physical control stopped. Paddleball now applies each completed raw
 measurement directly. The emulator regression rejects queued display motion
 once a completed top or bottom endpoint becomes public. The cartridge drops
-to 3671 ROM / 92 RAM. Verified 492/492 compile tests plus vcs_pong,
+to 3671 ROM / 92 RAM. Verified 492/492 compile tests plus vcs_paddleball,
 vcs_examples_build, and the example assembly allowlist.
 
-2026-08-14 16:03:38 PDT, Fix Pong paddle frame jitter
+2026-08-14 16:03:38 PDT, Fix Paddleball paddle frame jitter
 Tracked the Stella 263-to-262 scanline change to beam timing, not the frame
 scheduler. RC completion is much more expensive than an unfinished paddle
 sample. Sampling both channels on line A could overflow that line when both
 thresholds completed together. Splitting the channels initially exposed a
 second case: channel-1 completion plus line-B paddle transitions and pair-clock
 bookkeeping could make the WSYNC store land exactly at cycle 76, which forces
-one extra scanline. Pong now samples channel 0 on line A and channel 1 on line
+one extra scanline. Paddleball now samples channel 0 on line A and channel 1 on line
 B, ends line B with WSYNC, then advances the RC pair clock and branches to the
 next pair. An external 590-combination threshold sweep found zero unstable
-frames. vcs_pong.cpp now permanently probes the formerly failing 200/200 and
+frames. vcs_paddleball.cpp now permanently probes the formerly failing 200/200 and
 200/160 combinations; the old ROM fails that regression and the fixed ROM
 passes. The cartridge is 3669 ROM / 92 RAM. All 492 compile tests pass; the
 full E2E run reached 110/288 with no failures before the execution timeout.
@@ -194,4 +194,41 @@ files to vcsc.windows.<TAG>.zip and vcsc.linux.<TAG>.tar.gz before artifact and
 release upload. Tagged Actions artifact display names also use the tag; branch
 and manual builds retain their existing timestamped package filenames. The
 version-header workflow regression now locks the tagged naming behavior.
+
+2026-08-14 19:15:10 PDT, Add Paddleball collision sounds
+Paddleball now uses TIA audio channel 0 for two short collision effects: paddle
+rebounds make a bright square-wave ping and top/bottom wall rebounds make a
+shorter noise burst. Sound state is updated only from overscan game logic, not
+the beam-critical renderer. The Paddleball oracle now forces both a wall bounce and
+a paddle bounce and verifies both sounds while retaining stable frame timing.
+The cartridge builds at 3778 ROM bytes and 93 RAM bytes.
+
+2026-08-14 19:26:11 PDT, Remove Paddleball collision-sound lag
+Paddleball wall collision timing now triggers the rebound sound as the ball moves
+into the top/bottom contact coordinate instead of one update after the ball
+first appears there. Paddle rebounds no longer leave the ball at the same
+contact X for an extra displayed frame. The Paddleball oracle records the audio
+start frame and rejects both a late wall sound and a held paddle-contact frame.
+
+
+2026-08-14 19:30:02 PDT, Rename paddle game to Paddleball
+Renamed the public two-paddle game, its directory/source, all internal symbols,
+focused oracle, Makefile/installcheck outputs, documentation, roadmap/context,
+and historical references to Paddleball. Added a source-tree hygiene guard that
+reconstructs the retired name at runtime and rejects it in paths or text while
+keeping the retired spelling itself absent from the repository.
+
+2026-08-14 19:37:18 PDT, Use TIA collisions in Paddleball
+Paddleball paddle rebounds now read CXM0FB.6/CXM1FB.6 after the gameplay
+raster and clear CXCLR before the next one, replacing guessed software X/Y
+overlap with actual M0-Ball/M1-Ball rendered-pixel collisions. The wall effect
+now uses the same square-wave beep as paddle hits at AUDF 13 versus AUDF 6,
+which doubles the divider and lowers the pitch by exactly one octave.
+
+2026-08-14 19:40:00 PDT, Exclude .git from source hygiene
+Repository-wide source-tree hygiene traversals now prune `.git` completely.
+Git refs, objects, and other metadata may legitimately preserve historical names
+that are forbidden in the current editable source tree; those records no longer
+cause hygiene failures. The current-source guard remains unchanged outside
+`.git`.
 

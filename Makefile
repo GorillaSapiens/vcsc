@@ -606,11 +606,11 @@ installcheck: tools
 	  "$(CURDIR)/examples/01_basic/08_dual_score/dual_score.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/dual_score.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/dual_score.bin"` -eq 2048; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/09_pong" \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/09_paddleball" \
 	  -T "$$stage_vcs/vcs.cfg" \
-	  "$(CURDIR)/examples/01_basic/09_pong/pong.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/pong.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/pong.bin"` -eq 4096; \
+	  "$(CURDIR)/examples/01_basic/09_paddleball/paddleball.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/paddleball.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/paddleball.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  "$(CURDIR)/examples/01_basic/05_fingerprint/fingerprint.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/fingerprint.bin"; \

@@ -145,7 +145,7 @@
 * Add a public animated-sprites example; two-paddle and four-paddle controller
   support; keypad support on either port; Indy 500 driving-controller support;
   and a public diagnostic cartridge.
-* Add playable Pong-like paddle and joystick tank-duel examples, explicit
+* Add playable Paddleball-like paddle and joystick tank-duel examples, explicit
   playfield-color support, and a side-scroller/platform example with animation,
   scrolling, collision, and deterministic emulator-backed coverage.
 * Number the new work as tasks 34 through 43 after the existing NTSC/PAL/SECAM,

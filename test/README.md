@@ -141,7 +141,7 @@ and test name:
 ```text
 seconds status  phase   test
 0.018427        pass    compile example_test.c26
-7.392115        pass    e2e     vcs_pong.pl
+7.392115        pass    e2e     vcs_paddleball.pl
 ```
 
 (The actual file uses tabs, not spaces.) Set `TEST_TIMINGS=/path/to/file.tsv` to

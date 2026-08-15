@@ -859,14 +859,14 @@ filtered right joystick. Both use 112/128 RAM; score-above is 3427/4090 ROM and
 score-below is 3571/4090 ROM. The temporary static-only 3+3 examples under the
 88-byte `all_five_player_color_181` profile were removed.
 
-Main-roadmap item 35 is complete as a combined two-paddle/Pong workstream.
+Main-roadmap item 35 is complete as a combined two-paddle/Paddleball workstream.
 `libraries/vcs/two_paddles.c26` now exposes two raw analog positions and both
 fire buttons for either controller port, explicitly owns the RC dump/charge
 lifecycle without violating `frame_ntsc.c26` callback ownership, permits
 measurements to span frames, and keeps its post-overscan dump path cycle-balanced.
-`examples/01_basic/09_pong/pong.c26` is a self-contained cartridge source that
+`examples/01_basic/09_paddleball/paddleball.c26` is a self-contained cartridge source that
 composes that input API with the 11-line `three_plus_three_score_component.c26`;
-its Pong-specific beam-critical renderer is kept in the same source rather than
+its Paddleball-specific beam-critical renderer is kept in the same source rather than
 polluting `examples/common/`. The raster uses thin M0/M1 paddles and a thin Ball,
 blue on the physical left and red at the exactly mirrored physical right X,
 with the maintained-renderer calibrated divide-by-fifteen RESP/HMxx sequence.
@@ -888,12 +888,22 @@ so both paddles must reach both extremes, checks common M0/M1 raster phase and e
 visible, plus fire-to-serve, a deterministic miss/score, Reset, stable Ball ranges,
 and stable NTSC frame length. A later timing audit found that RC-completion paths
 are substantially longer than unfinished samples: sampling both channels on one busy
-scanline could add a displayed scanline at some paddle positions. Pong now samples
+scanline could add a displayed scanline at some paddle positions. Paddleball now samples
 channel 0 on line A and channel 1 on line B, then advances the pair clock only after
 the line-B WSYNC. Midrange timing probes 200/200 and 200/160 lock the previously
 failing cases at the scheduler's calibrated 264 raw intervals / Stella 262 displayed
-scanlines. The current cartridge build uses 3669 ROM bytes and 92 RAM bytes. Item 36
-is now the first unfinished main-roadmap item.
+scanlines. Paddleball now also uses TIA audio channel 0 for short collision effects:
+paddle rebounds use a brief square-wave ping and top/bottom wall rebounds use the
+same square waveform with a 2x frequency divider, exactly one octave lower. Sound
+state advances in overscan game logic, never in the beam-critical renderer. Wall
+rebounds trigger as the ball moves into the visible contact Y instead of one update
+later. Paddle rebounds now use the TIA CXM0FB/CXM1FB M0-Ball/M1-Ball collision
+latches, cleared before each gameplay raster, instead of guessed software X/Y
+overlap; only actual rendered-pixel overlap can reverse the ball. The Paddleball
+oracle models those hardware latches, distinguishes the two square-wave beeps by
+AUDF, and verifies that audio/collision work does not perturb frame length. The
+current cartridge build uses 3577 ROM bytes and 87 RAM bytes. Item 36 is now the
+first unfinished main-roadmap item.
 
 The unified test runner now supports case-level parallelism with `--jobs N`;
 the test and top-level Makefiles expose it as `TEST_JOBS=N`. Parallel workers
@@ -912,7 +922,10 @@ sharded for that outer worker pool: example smoke builds run as eight round-robi
 family-level cases backed by the same implementation script. The implementations
 remain manually runnable in full, but no longer register as monolithic tests;
 source-tree hygiene pins all shard descriptors and the single mixed-instance
-assignment so coverage cannot silently disappear. In an eight-worker validation,
+assignment so coverage cannot silently disappear. Repository-wide source-tree
+hygiene traversals explicitly prune `.git`, because branch/ref/object history is Git
+metadata rather than editable source and may legitimately retain retired historical
+names. In an eight-worker validation,
 example shards measured about 2.9-4.0 seconds each and score-composition family
 shards about 8.3-8.6 seconds each; replacing the two monoliths raises E2E case
 count from 288 to 299 while preserving the same aggregate coverage.

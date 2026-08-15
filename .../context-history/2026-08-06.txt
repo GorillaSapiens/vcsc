@@ -226,7 +226,7 @@ The attributed PICO-8 source cartridge contains 29 four-frame animations and one
 three-frame animation at sprites 13, 14, and 15; source sprite 16 is blank. The
 VCSC gallery had treated that blank cell as a normal fourth playback frame, so
 one character disappeared every fourth animation step. Expand only that set to
-the nonblank ping-pong sequence 13,14,15,14. Preserve every nonblank source
+the nonblank back-and-forth sequence 13,14,15,14. Preserve every nonblank source
 silhouette exactly, retain the 120-slot/four-hard-page layout, document the
 adaptation under the example's CC BY-NC-SA license, and update the animation
 oracle to pin the new 960-byte hash, require all 120 playback slots to be

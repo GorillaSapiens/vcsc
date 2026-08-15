@@ -22,7 +22,7 @@ and the lifecycle-component model in small, independently understandable steps.
 | 06 | [`wide_score`](06_wide_score/) | `frame_ntsc.c26` composed with the 88-pixel-wide `six_glyph_wide_component.c26` |
 | 07 | [`big_wide_score`](07_big_wide_score/) | 19-line wide score using the 8x16 Big decimal font and `six_glyph_big_wide_component.c26` |
 | 08 | [`dual_score`](08_dual_score/) | Fixed independent three-digit left/right score fields using `three_plus_three_score_component.c26` |
-| 09 | [`pong`](09_pong/) | Two-paddle Pong-like game combining `two_paddles.c26`, a 3+3 score, missiles, Ball, walls, and a dashed center line |
+| 09 | [`paddleball`](09_paddleball/) | Two-paddle Paddleball game combining `two_paddles.c26`, a 3+3 score, missiles, Ball, walls, and a dashed center line |
 
 The score, wide-score, big-wide-score, dual-score, and fingerprint examples demonstrate component composition rather than
 a full gameplay renderer. They own the surrounding blank visible lines and call
