@@ -1,0 +1,304 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// Atari CX50-style 12-key keypad on one VCS controller port.
+//
+// The keypad is a 4x3 switch matrix. Pins 1..4 are row outputs and the three
+// columns return through INPT0/1/4 on the left port or INPT2/3/5 on the
+// right. Treat this as a digital switch-matrix scan: drive one row LOW, allow
+// the console input network to settle, then test the three column bits. A
+// pressed key on the selected row reads LOW on all three columns. The hardware
+// requires at least 400 microseconds between selecting a row and sampling its
+// columns. This component deliberately does not own that delay:
+// callers select a row, spend the required time in their frame scheduler, then
+// call read_row(). That lets two instantiated keypads select/read the same row
+// in parallel instead of paying the delay twice.
+//
+// A timing-friendly NTSC schedule performs one row scan in overscan on both
+// keypads per frame:
+//
+//   vcs_ntsc_begin_overscan();
+//   if (scan_row == 0) { left_begin_scan(); right_begin_scan(); }
+//   left_select_row(scan_row);
+//   right_select_row(scan_row);
+//   vcs_ntsc_wait_scanlines(7);  // about 446 us, safely >= 400 us
+//   left_read_row(scan_row);
+//   right_read_row(scan_row);
+//   if (scan_row == 3) { left_end_scan(); right_end_scan(); scan_row := 0; }
+//   else { scan_row++; }
+//   vcs_ntsc_end_overscan();
+//
+// This commits one complete stable snapshot every four frames while keeping
+// input-dependent work completely out of the VBLANK-to-visible deadline.
+//
+// `keys` is a stable 12-bit snapshot, one bit per physical key in row-major
+// order: 1,2,3,4,5,6,7,8,9,*,0,#. `pressed` and `released` are edge masks
+// computed only when end_scan() commits a complete four-row scan. `key` is the
+// first currently held key in that same order, or KEY_NONE. Multiple held keys
+// remain fully represented in `keys` even though `key` names only one.
+//
+// The selected port's SWCHA nibble is configured as output. Every SWCHA and
+// SWACNT update preserves the other controller port's nibble, so a keypad on
+// one side does not change the electrical direction or row state on the other.
+// During read_row(), VBLANK.7 must be clear so INPT0..3 are usable as inputs,
+// and VBLANK.6 must be clear so INPT4/5 report the live column level.
+
+parameter port := 0;
+
+enum TEMPLATE_key_codes {
+   TEMPLATE_KEY_NONE := 0,
+   TEMPLATE_KEY_1 := 1,
+   TEMPLATE_KEY_2 := 2,
+   TEMPLATE_KEY_3 := 3,
+   TEMPLATE_KEY_4 := 4,
+   TEMPLATE_KEY_5 := 5,
+   TEMPLATE_KEY_6 := 6,
+   TEMPLATE_KEY_7 := 7,
+   TEMPLATE_KEY_8 := 8,
+   TEMPLATE_KEY_9 := 9,
+   TEMPLATE_KEY_STAR := 10,
+   TEMPLATE_KEY_0 := 11,
+   TEMPLATE_KEY_HASH := 12
+};
+
+enum TEMPLATE_key_masks {
+   TEMPLATE_MASK_1 := 0x0001,
+   TEMPLATE_MASK_2 := 0x0002,
+   TEMPLATE_MASK_3 := 0x0004,
+   TEMPLATE_MASK_4 := 0x0008,
+   TEMPLATE_MASK_5 := 0x0010,
+   TEMPLATE_MASK_6 := 0x0020,
+   TEMPLATE_MASK_7 := 0x0040,
+   TEMPLATE_MASK_8 := 0x0080,
+   TEMPLATE_MASK_9 := 0x0100,
+   TEMPLATE_MASK_STAR := 0x0200,
+   TEMPLATE_MASK_0 := 0x0400,
+   TEMPLATE_MASK_HASH := 0x0800
+};
+
+uint16_t TEMPLATE_keys := 0;
+uint16_t TEMPLATE_pressed := 0;
+uint16_t TEMPLATE_released := 0;
+uint8_t TEMPLATE_key := TEMPLATE_KEY_NONE;
+
+static uint16_t TEMPLATE_next_keys := 0;
+static uint8_t TEMPLATE_next_key := TEMPLATE_KEY_NONE;
+static uint8_t TEMPLATE_row_bits := 0;
+
+#if TEMPLATE_port == 0
+const uint8_t TEMPLATE_row_values[4] := { 0xe0, 0xd0, 0xb0, 0x70 };
+#elif TEMPLATE_port == 1
+const uint8_t TEMPLATE_row_values[4] := { 0x0e, 0x0d, 0x0b, 0x07 };
+#endif
+const uint8_t TEMPLATE_row_first_keys[4] := { 1, 4, 7, 10 };
+
+require inline void TEMPLATE_init(void) {
+#if TEMPLATE_port == 0
+   SWACNT := SWACNT | 0xf0;
+   // Preserve the opposite port without emitting an ordinary LDA SWCHA.
+   // Stella uses that exact byte idiom as evidence of joystick-direction use;
+   // combined with keypad INPT signatures it would classify this ROM as
+   // Joy2BPlus rather than Keyboard. Absolute-X with X=0 reads the identical
+   // RIOT register on hardware without creating that false detector signature.
+   asm ldx #0;
+   asm lda.ax SWCHA,x;
+   asm sta.z TEMPLATE_row_bits;
+   SWCHA := TEMPLATE_row_bits | 0xf0;
+#elif TEMPLATE_port == 1
+   SWACNT := SWACNT | 0x0f;
+   asm ldx #0;
+   asm lda.ax SWCHA,x;
+   asm sta.z TEMPLATE_row_bits;
+   SWCHA := TEMPLATE_row_bits | 0x0f;
+#endif
+   TEMPLATE_keys := 0;
+   TEMPLATE_pressed := 0;
+   TEMPLATE_released := 0;
+   TEMPLATE_key := TEMPLATE_KEY_NONE;
+   TEMPLATE_next_keys := 0;
+   TEMPLATE_next_key := TEMPLATE_KEY_NONE;
+}
+
+require void TEMPLATE_begin_scan(void) {
+   TEMPLATE_next_keys := 0;
+   TEMPLATE_next_key := TEMPLATE_KEY_NONE;
+   // Edge masks are one-frame pulses beginning when the previous full scan
+   // commits and ending when the next scan starts.
+   TEMPLATE_pressed := 0;
+   TEMPLATE_released := 0;
+}
+
+// Select exactly one matrix row LOW and leave the other three HIGH. The other
+// controller port's SWCHA nibble is preserved.
+require void TEMPLATE_select_row(uint8_t row) {
+   // Read SWCHA through absolute-X (X=0) for the Stella-detection reason
+   // documented in init(), then preserve the other port's nibble. Keep this
+   // path compact because both keypads execute it inside one blanking budget.
+   asm ldy.z TEMPLATE_select_row$row;
+   asm lda TEMPLATE_row_values,y;
+   asm sta.z TEMPLATE_row_bits;
+   asm ldx #0;
+   asm lda.ax SWCHA,x;
+#if TEMPLATE_port == 0
+   asm and #$0f;
+#elif TEMPLATE_port == 1
+   asm and #$f0;
+#endif
+   asm ora.z TEMPLATE_row_bits;
+   asm sta SWCHA;
+}
+
+// Sample one settled row. All three keypad columns are active-low at the
+// software interface: a pressed key on the selected LOW row clears bit 7 of
+// the corresponding INPT register. Spell the six INPT tests as BIT/branch
+// sequences. Besides being compact, these are the same access idioms Stella's
+// controller auto-detector recognizes as an Atari Keyboard Controller, so a
+// freshly built homebrew ROM does not silently fall back to joystick input.
+require void TEMPLATE_read_row(uint8_t row) {
+   // Build a three-bit row snapshot in A. The BIT/BMI byte patterns are also
+   // intentionally recognizable by Stella's Keyboard-controller detector.
+   asm lda #0;
+#if TEMPLATE_port == 0
+   asm bit.z INPT0;
+   asm bmi @col0_open;
+   asm ora #1;
+   asm @col0_open:;
+   asm bit.z INPT1;
+   asm bmi @col1_open;
+   asm ora #2;
+   asm @col1_open:;
+   asm bit.z INPT4;
+   asm bmi @col2_open;
+   asm ora #4;
+   asm @col2_open:;
+#elif TEMPLATE_port == 1
+   asm bit.z INPT2;
+   asm bmi @col0_open;
+   asm ora #1;
+   asm @col0_open:;
+   asm bit.z INPT3;
+   asm bmi @col1_open;
+   asm ora #2;
+   asm @col1_open:;
+   asm bit.z INPT5;
+   asm bmi @col2_open;
+   asm ora #4;
+   asm @col2_open:;
+#endif
+   asm sta.z TEMPLATE_row_bits;
+   // STA does not update Z; refresh flags from the completed three-bit value.
+   asm tax;
+   asm beq @done;
+
+   // Capture the first held key in row-major order, but only if an earlier
+   // scanned row has not already supplied one.
+   asm lda.z TEMPLATE_next_key;
+   asm bne @have_first;
+   asm lda.z TEMPLATE_row_bits;
+   asm lsr;
+   asm bcs @first_col0;
+   asm lsr;
+   asm bcs @first_col1;
+   asm lda #2;
+   asm bne @first_add;
+   asm @first_col1:;
+   asm lda #1;
+   asm bne @first_add;
+   asm @first_col0:;
+   asm lda #0;
+   asm @first_add:;
+   asm ldy.z TEMPLATE_read_row$row;
+   asm clc;
+   asm adc TEMPLATE_row_first_keys,y;
+   asm sta.z TEMPLATE_next_key;
+   asm @have_first:;
+
+   // OR this row's three bits into the 12-bit row-major snapshot. Hand-code
+   // the four tiny shifts so input sampling stays far away from frame deadlines
+   // instead of invoking the compiler's generic 16-bit shift lowering.
+   asm ldy.z TEMPLATE_read_row$row;
+   asm lda.z TEMPLATE_row_bits;
+   asm cpy #0;
+   asm beq @row0;
+   asm cpy #1;
+   asm beq @row1;
+   asm cpy #2;
+   asm beq @row2;
+
+   // row 3 -> bits 9..11, all in the high byte at positions 1..3.
+   asm asl;
+   asm ora.z TEMPLATE_next_keys+1;
+   asm sta.z TEMPLATE_next_keys+1;
+   asm jmp @done;
+
+   asm @row2:;
+   // row 2 -> bits 6..8. Preserve the low byte in X and carry bit 8 into
+   // bit zero of the high byte.
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm tax;
+   asm lda #0;
+   asm rol;
+   asm ora.z TEMPLATE_next_keys+1;
+   asm sta.z TEMPLATE_next_keys+1;
+   asm txa;
+   asm ora.z TEMPLATE_next_keys;
+   asm sta.z TEMPLATE_next_keys;
+   asm jmp @done;
+
+   asm @row1:;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm ora.z TEMPLATE_next_keys;
+   asm sta.z TEMPLATE_next_keys;
+   asm jmp @done;
+
+   asm @row0:;
+   asm ora.z TEMPLATE_next_keys;
+   asm sta.z TEMPLATE_next_keys;
+   asm @done:;
+}
+
+require void TEMPLATE_end_scan(void) {
+   // Compute edge masks and atomically publish the completed 12-bit snapshot.
+   asm lda.z TEMPLATE_keys;
+   asm eor #$ff;
+   asm and.z TEMPLATE_next_keys;
+   asm sta.z TEMPLATE_pressed;
+   asm lda.z TEMPLATE_keys+1;
+   asm eor #$ff;
+   asm and.z TEMPLATE_next_keys+1;
+   asm sta.z TEMPLATE_pressed+1;
+
+   asm lda.z TEMPLATE_next_keys;
+   asm eor #$ff;
+   asm and.z TEMPLATE_keys;
+   asm sta.z TEMPLATE_released;
+   asm lda.z TEMPLATE_next_keys+1;
+   asm eor #$ff;
+   asm and.z TEMPLATE_keys+1;
+   asm sta.z TEMPLATE_released+1;
+
+   asm lda.z TEMPLATE_next_keys;
+   asm sta.z TEMPLATE_keys;
+   asm lda.z TEMPLATE_next_keys+1;
+   asm sta.z TEMPLATE_keys+1;
+   asm lda.z TEMPLATE_next_key;
+   asm sta.z TEMPLATE_key;
+
+   // Leave all four rows inactive HIGH. As above, the absolute-X read is
+   // electrically identical to LDA SWCHA but does not make Stella mistake a
+   // keypad-only ROM for one that also consumes joystick directions.
+   asm ldx #0;
+   asm lda.ax SWCHA,x;
+#if TEMPLATE_port == 0
+   asm ora #$f0;
+#elif TEMPLATE_port == 1
+   asm ora #$0f;
+#endif
+   asm sta SWCHA;
+}

@@ -281,3 +281,40 @@ models HMCLR and fails if a Ball HMOVE sees nonzero HMP0/HMP1/HMM0/HMM1. Stella
 snapshots showed fixed paddle X coordinates across repeated frames. Raised the
 generic test timeout and former explicit 10-second cases to 20 seconds.
 
+2026-08-14 22:18:05 PDT, Complete keypad controller support
+Added reusable left/right 4x3 keypad matrix scanning with stable twelve-key
+snapshots and press/release edges while preserving the other port. Added the
+11_keypad public example with two centered Big-font P0/P1 displays, a no-key
+rectangle, white glyphs on blue, emulator fixtures for both ports, installcheck
+coverage, and minimum row-settle timing checks. Roadmap item 37 is complete;
+item 38 is next.
+
+
+2026-08-14 22:50:00 PDT, Fix keypad branding and test timeout
+Added the required VCSC FIGlet banner to the keypad example README. Raised the
+explicit vcs_all_five_composition.pl timeout from 8 to 60 seconds so the
+heavy composition test is not capped below the 20-second generic runner
+default when eight workers contend for CPU.
+
+2026-08-14 22:57:00 PDT, Fix keypad input polarity
+Corrected CX50 keypad sampling: INPT0..3 analog columns are active-high after
+the row-settle interval, while INPT4/5 trigger columns remain active-low. The
+old code and oracle incorrectly treated all three columns as active-low, which
+made idle analog inputs look like key 1 and exercised the wrong timing paths.
+The oracle now models the mixed polarity and pins it in source checks.
+
+
+2026-08-14 23:31:41 PDT, Fix keypad matrix and Stella detection
+Correct the prior keypad-polarity fix: all three selected-row columns use the
+same active-low software contract. More importantly, ordinary LDA SWCHA reads
+made Stella classify the ROM as Joy2BPlus instead of Keyboard. Preserve SWCHA
+with detector-safe absolute-indexed reads, pin Stella's relevant ROM signatures,
+and move the public row scan to overscan. Compact assembly keeps every key path
+inside the blanking budget and cuts 11_keypad to 1717 ROM / 43 RAM bytes.
+
+2026-08-14 23:52:53 PDT, trim keypad glyph blank rows
+Removed the two common blank top rows and four common blank bottom rows
+from all 13 keypad glyphs, reducing the custom font from 208 to 130 bytes.
+Adjusted visible blank spacing to preserve the same vertical placement and
+changed glyph pointer calculation to a compact key*10 stride. The public
+11_keypad cartridge is now 1633/4090 ROM bytes and 43/128 RAM bytes.

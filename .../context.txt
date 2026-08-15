@@ -902,8 +902,8 @@ latches, cleared before each gameplay raster, instead of guessed software X/Y
 overlap; only actual rendered-pixel overlap can reverse the ball. The Paddleball
 oracle models those hardware latches, distinguishes the two square-wave beeps by
 AUDF, and verifies that audio/collision work does not perturb frame length. The
-current cartridge build uses 3577 ROM bytes and 87 RAM bytes. Item 36 is now the
-first unfinished main-roadmap item.
+current cartridge build uses 3577 ROM bytes and 87 RAM bytes. That completed
+work remains the two-player baseline for later controller examples.
 
 Main-roadmap item 36 is complete. `libraries/vcs/four_paddles.c26` extends the
 existing two-paddle RC lifecycle to INPT0..INPT3 and all four fire buttons while
@@ -934,8 +934,41 @@ oracle also includes an independent-position cross-sweep that catches
 RC-completion plus paddle-transition scanline overruns, covering distinct,
 simultaneous, and staggered four-channel RC thresholds, all four buttons,
 channel-to-P0/M0/P1/M1 mapping, raster timing across the known bad threshold
-region, and stable 264-raw / Stella-262 frame period. Item 37
-(keypad-controller support) is now the first unfinished main-roadmap item.
+region, and stable 264-raw / Stella-262 frame period.
+
+Main-roadmap item 37 is complete. `libraries/vcs/keypad_controller.c26` supports
+one 4x3 twelve-key keypad on either controller port while preserving the opposite
+SWCHA/SWACNT nibble. It exposes a stable 12-bit `keys` snapshot, snapshot-edge
+`pressed`/`released` masks, and a first-held `key` code. The controller is treated
+as a simple active-low switch matrix: pins 1..4 select one LOW row and the three
+columns are sampled through INPT0/1/4 on the left or INPT2/3/5 on the right after
+the documented roughly 400-us settle interval. There is no paddle-position
+measurement loop. The public NTSC example `examples/01_basic/11_keypad/keypad.c26`
+scans the same row on both ports during overscan, waits seven scanlines before
+sampling, and commits the full four-row state every four frames. Keeping the scan
+in overscan removes input-dependent keypad work from the VBLANK-to-visible
+deadline. It renders a custom 13-glyph 8x10 Big-font subset with P0 centered in the
+left half and P1 centered in the right half, using an empty rectangle for no key,
+white glyphs, and the project blue background.
+
+A post-item hardware/emulator correction replaced the original compiler-heavy
+matrix logic with compact fixed-cycle assembly and corrected all three columns to
+the active-low software contract. More importantly, current Stella's ROM
+controller detector classifies keypad INPT signatures plus recognized SWCHA
+joystick-direction reads as Joy2BPlus rather than Keyboard. The component now
+keeps the required BIT/BMI INPT signatures but preserves SWCHA with an
+absolute-indexed X=0 read, which is electrically the same RIOT access yet does
+not trigger Stella's joystick-direction signature. `vcs_keypad.pl` pins both
+halves of that detector contract: all required left/right Keyboard signatures
+must exist and all recognized SWCHA direction-read signatures must be absent.
+The common two blank top rows and four blank bottom rows were removed from
+all thirteen keypad glyphs; the surrounding visible blank scanlines preserve
+vertical placement while the 10-byte glyph stride is computed as key*10. The
+public cartridge is currently 1633/4090 ROM bytes and 43/128 RAM bytes.
+`vcs_keypad.pl/.cpp` plus left/right private fixtures cover all twelve keys,
+press/hold/release semantics, opposite-port isolation, minimum row-settle timing,
+and invariant scheduler frame length. Item 38 (Indy 500 driving controllers) is
+now the first unfinished main-roadmap item.
 
 The generic per-case test timeout is now 20 seconds, and former explicit
 10-second overrides were raised to 20 seconds as well; longer 120-second

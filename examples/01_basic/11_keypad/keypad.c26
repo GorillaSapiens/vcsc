@@ -1,0 +1,361 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Two CX50-style keypad controllers. The left keypad drives P0 and the right
+// keypad drives P1. Each side displays the first currently held key using a
+// custom 8x10 subset trimmed from the Big font; no key is an empty rectangle.
+
+include "vcs_4k.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+
+alias KEYPAD_BLUE  __builtin_ntsc_rgb(0x20, 0x40, 0xff)
+alias KEYPAD_WHITE __builtin_ntsc_rgb(0xff, 0xff, 0xff)
+
+instantiate "keypad_controller.c26" as left_keypad (port:=0)
+instantiate "keypad_controller.c26" as right_keypad (port:=1)
+
+// Big-font subset: empty rectangle, 1..9, *, 0, #.
+// The keypad key codes are deliberately the glyph indices.
+alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h,i,j) j,i,h,g,f,e,d,c,b,a
+
+align(256) const uint8_t keypad_font[130] := {
+   // no key: empty rectangle
+   VCS_FONT_GLYPH(
+      0b.XXXXXX.,
+      0b.X....X.,
+      0b.X....X.,
+      0b.X....X.,
+      0b.X....X.,
+      0b.X....X.,
+      0b.X....X.,
+      0b.X....X.,
+      0b.X....X.,
+      0b.XXXXXX.
+   ),
+
+   // 1
+   VCS_FONT_GLYPH(
+      0b...XXX..,
+      0b..XXXX..,
+      0b.XXXXX..,
+      0b...XXX..,
+      0b...XXX..,
+      0b...XXX..,
+      0b...XXX..,
+      0b...XXX..,
+      0b...XXX..,
+      0b...XXX..
+   ),
+
+   // 2
+   VCS_FONT_GLYPH(
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXX..XXX,
+      0b.....XXX,
+      0b....XXX.,
+      0b...XXX..,
+      0b..XXX...,
+      0b.XXX....,
+      0bXXXXXXXX,
+      0bXXXXXXXX
+   ),
+
+   // 3
+   VCS_FONT_GLYPH(
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXX..XXX,
+      0b.....XXX,
+      0b..XXXXX.,
+      0b..XXXXX.,
+      0b.....XXX,
+      0bXXX..XXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.
+   ),
+
+   // 4
+   VCS_FONT_GLYPH(
+      0b....XXX.,
+      0b...XXXX.,
+      0b..XXXXX.,
+      0b.XXXXXX.,
+      0bXXX.XXX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b....XXX.,
+      0b....XXX.,
+      0b....XXX.
+   ),
+
+   // 5
+   VCS_FONT_GLYPH(
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0bXXX.....,
+      0bXXXXXXX.,
+      0bXXXXXXXX,
+      0b.....XXX,
+      0b.....XXX,
+      0bXXX..XXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.
+   ),
+
+   // 6
+   VCS_FONT_GLYPH(
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXX..XXX,
+      0bXXX.....,
+      0bXXXXXXX.,
+      0bXXXXXXXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.
+   ),
+
+   // 7
+   VCS_FONT_GLYPH(
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.....XXX,
+      0b.....XXX,
+      0b....XXX.,
+      0b...XXX..,
+      0b...XXX..,
+      0b..XXX...,
+      0b..XXX...,
+      0b..XXX...
+   ),
+
+   // 8
+   VCS_FONT_GLYPH(
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.
+   ),
+
+   // 9
+   VCS_FONT_GLYPH(
+      0b.XXXXXX.,
+      0bXXXXXXXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXXXXXXX,
+      0b.XXXXXXX,
+      0b.....XXX,
+      0bXXX..XXX,
+      0bXXXXXXXX,
+      0b.XXXXXX.
+   ),
+
+   // *
+   VCS_FONT_GLYPH(
+      0b........,
+      0b...XX...,
+      0b...XX...,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0b.XX..XX.,
+      0b........,
+      0b........
+   ),
+
+   // 0
+   VCS_FONT_GLYPH(
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0bXXX..XXX,
+      0b.XXXXXX.,
+      0b..XXXX..
+   ),
+
+   // #
+   VCS_FONT_GLYPH(
+      0b........,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XX..XX.,
+      0bXXXXXXXX,
+      0bXXXXXXXX,
+      0b.XX..XX.,
+      0b.XX..XX.
+   ),
+};
+
+uint16_t left_glyph_pointer := 0;
+uint16_t right_glyph_pointer := 0;
+uint8_t keypad_scan_row := 0;
+
+inline void keypad_prepare_glyphs(void) {
+   // Each trimmed glyph is 10 bytes. keypad keys are 0..12, so after
+   // two ASLs the carry is known clear: ((key * 4) + key) * 2 = key * 10.
+   // keypad_font is page-aligned and all 130 bytes fit on that page, so only
+   // the low pointer byte changes here; main initializes the high bytes once.
+   asm lda.z left_keypad_key;
+   asm asl;
+   asm asl;
+   asm adc.z left_keypad_key;
+   asm asl;
+   asm sta.z left_glyph_pointer;
+
+   asm lda.z right_keypad_key;
+   asm asl;
+   asm asl;
+   asm adc.z right_keypad_key;
+   asm asl;
+   asm sta.z right_glyph_pointer;
+}
+
+// P0 is centered on the left 80-pixel half at x=36; P1 is centered on the
+// right half at x=116. Position once at startup: neither player's X changes.
+inline void keypad_position_players(void) {
+   HMCLR := 0;
+
+   asm sta WSYNC;
+   asm ldx #0;
+   asm bit.z CXM0P;
+   asm lda #36;
+   asm sec;
+   asm @p0_divide:;
+   asm sbc #15;
+   asm bcs.same @p0_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm eor #$07;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #1;
+   asm bit.z CXM0P;
+   asm lda #116;
+   asm sec;
+   asm @p1_divide:;
+   asm sbc #15;
+   asm bcs.same @p1_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm eor #$07;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm sta HMOVE;
+   asm sta WSYNC;
+   asm sta HMCLR;
+}
+
+// Draw exactly ten centered visible scanlines. The original Big-font glyphs
+// had two blank rows above and four below; those common rows are omitted from
+// ROM and replaced by the surrounding visible blank scanlines.
+inline void keypad_draw_glyphs(void) {
+   asm ldy #9;
+   asm @rows:;
+   asm lda.iy (left_glyph_pointer),y;
+   asm sta GRP0;
+   asm lda.iy (right_glyph_pointer),y;
+   asm sta GRP1;
+   asm sta WSYNC;
+   asm dey;
+   asm bpl.same @rows;
+   GRP0 := 0;
+   GRP1 := 0;
+}
+
+void main(void) {
+   VBLANK := 2;
+   COLUBK := KEYPAD_BLUE;
+   COLUP0 := KEYPAD_WHITE;
+   COLUP1 := KEYPAD_WHITE;
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   GRP0 := 0;
+   GRP1 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+   NUSIZ0 := 0;
+   NUSIZ1 := 0;
+   REFP0 := 0;
+   REFP1 := 0;
+   VDELP0 := 0;
+   VDELP1 := 0;
+
+   left_keypad_init();
+   right_keypad_init();
+   asm lda #>keypad_font;
+   asm sta.z left_glyph_pointer+1;
+   asm sta.z right_glyph_pointer+1;
+   keypad_prepare_glyphs();
+   keypad_position_players();
+
+   while (1) {
+      vcs_ntsc_vsync();
+
+      // Keep keypad work out of the VBLANK deadline. Input-dependent matrix
+      // branches must never move the first visible scanline.
+      vcs_ntsc_begin_vblank();
+      vcs_ntsc_end_vblank();
+
+      vcs_ntsc_wait_component_scanlines(90);
+      keypad_draw_glyphs();
+      vcs_ntsc_wait_visible_tail_scanlines(92);
+
+      vcs_ntsc_begin_overscan();
+
+      // Scan one matrix row per frame, with both controller ports in parallel.
+      // Overscan gives this input-dependent work a generous blanking budget:
+      // select one active-low row, leave it stable for seven NTSC scanlines
+      // (~445 us), then sample the three columns on each port. A complete
+      // keypad snapshot commits every four frames.
+      if (keypad_scan_row == 0) {
+         left_keypad_begin_scan();
+         right_keypad_begin_scan();
+      }
+      left_keypad_select_row(keypad_scan_row);
+      right_keypad_select_row(keypad_scan_row);
+      vcs_ntsc_wait_scanlines(7);
+      left_keypad_read_row(keypad_scan_row);
+      right_keypad_read_row(keypad_scan_row);
+      if (keypad_scan_row == 3) {
+         left_keypad_end_scan();
+         right_keypad_end_scan();
+         keypad_scan_row := 0;
+      }
+      else { keypad_scan_row++; }
+
+      // Prepare the glyph pointers after a possible four-row commit so the
+      // newly completed keypad state appears on the following visible frame.
+      keypad_prepare_glyphs();
+      vcs_ntsc_end_overscan();
+   }
+}

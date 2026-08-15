@@ -141,6 +141,7 @@ install-data:
 	install -m 0644 libraries/vcs/three_plus_three_score_component.c26 $(DESTDIR)$(DATADIR)/vcs/three_plus_three_score_component.c26
 	install -m 0644 libraries/vcs/two_paddles.c26 $(DESTDIR)$(DATADIR)/vcs/two_paddles.c26
 	install -m 0644 libraries/vcs/four_paddles.c26 $(DESTDIR)$(DATADIR)/vcs/four_paddles.c26
+	install -m 0644 libraries/vcs/keypad_controller.c26 $(DESTDIR)$(DATADIR)/vcs/keypad_controller.c26
 	install -m 0644 libraries/vcs/two_plus_two_score_component.c26 $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_component.c26
 	install -m 0644 libraries/vcs/two_plus_two_score_support.c26 $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_support.c26
 	install -m 0644 libraries/vcs/sound_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
@@ -277,6 +278,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/three_plus_three_score_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/two_paddles.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/four_paddles.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/keypad_controller.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_support.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
@@ -618,6 +620,11 @@ installcheck: tools
 	  "$(CURDIR)/examples/01_basic/10_four_player_paddleball/four_player_paddleball.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/four_player_paddleball.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/four_player_paddleball.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/11_keypad" \
+	  -T "$$stage_vcs/vcs.cfg" \
+	  "$(CURDIR)/examples/01_basic/11_keypad/keypad.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/keypad.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/keypad.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  "$(CURDIR)/examples/01_basic/05_fingerprint/fingerprint.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/fingerprint.bin"; \
@@ -658,6 +665,7 @@ installcheck: tools
 	test -f "$$stage_vcs/three_plus_three_score_component.c26"; \
 	test -f "$$stage_vcs/two_paddles.c26"; \
 	test -f "$$stage_vcs/four_paddles.c26"; \
+	test -f "$$stage_vcs/keypad_controller.c26"; \
 	test -f "$$stage_vcs/two_plus_two_score_component.c26"; \
 	test -f "$$stage_vcs/two_plus_two_score_support.c26"; \
 	test ! -e "$$stage_vcs/six_glyph_display.c26"; \

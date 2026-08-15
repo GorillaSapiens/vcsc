@@ -1,0 +1,31 @@
+// This fixture is covered under CC0-1.0. See test/LICENSE.txt.
+
+include "vcs_2k.c26"
+include "frame_ntsc.c26"
+instantiate "keypad_controller.c26" as keypad (port:=0)
+
+uint8_t scan_row := 0;
+
+void main(void) {
+   VBLANK := 2;
+   SWACNT := 0x0f; SWCHA := 0x05;
+   keypad_init();
+
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      if (scan_row == 0) { keypad_begin_scan(); }
+      keypad_select_row(scan_row);
+      vcs_ntsc_wait_scanlines(7);
+      keypad_read_row(scan_row);
+      if (scan_row == 3) {
+         keypad_end_scan();
+         scan_row := 0;
+      }
+      else { scan_row++; }
+      vcs_ntsc_end_vblank();
+      vcs_ntsc_wait_visible_tail_scanlines(192);
+      vcs_ntsc_begin_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}

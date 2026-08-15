@@ -38,6 +38,7 @@ Files:
 - `six_glyph_component.c26` ... canonical centered 48-pixel/six-glyph lifecycle display; compact default stores digits 1/2 as byte offsets plus four full pointers with fixed bright-white color, `mutable_color:=1` adds an application-visible color byte, and `compact_font:=0` restores six redirectable full pointers for arbitrary glyph pages
 - `three_plus_three_score_component.c26` ... fixed eleven-line dual score with independent three-digit packed-BCD values and colors, centered as X=20,36,52 in the left half and X=100,116,132 in the right half
 - `two_paddles.c26` ... two analog CX30-style paddles plus both fire buttons on either controller port, with explicit VBLANK dump/charge ownership and multi-frame raw timing
+- `keypad_controller.c26` ... one 12-key Atari-style keypad on either controller port, with explicit row selection, caller-owned settle timing, stable 12-bit state, and press/release edge masks
 - `two_plus_two_score_support.c26` ... shared page-contained compact decimal glyph and calibrated horizontal-position tables for two-plus-two scores
 - `two_plus_two_score_component.c26` ... repeatable eleven-line P0/P1 score with independent packed-BCD left/right values, colors, and X positions; each three-bit digit is doubled to six visible pixels with a two-pixel inter-digit gap
 - `renderers/AUTHORING.md` ... maintained HOWTO for renderer/score component contracts, phase/TIA ownership, stack and memory budgets, cycle scheduling, Stella oracles, regressions, examples, and installation
@@ -290,6 +291,38 @@ black background. Paddle rebounds use the TIA M0-Ball/M1-Ball collision latches
 rather than software overlap geometry. The emulator regression drives independent
 short and multi-frame RC thresholds, hardware paddle collisions, paddle fire,
 serving, scoring, console Reset, and stable NTSC frame length.
+
+## Twelve-key keypad controller
+
+`keypad_controller.c26` is parameterized with `port:=0` or `port:=1` and scans
+one Atari-style 4x3 switch matrix without modifying the other controller port's
+SWCHA/SWACNT nibble. Pins 1 through 4 are driven as active-low row outputs; the
+three columns return through INPT0/INPT1/INPT4 on the left or
+INPT2/INPT3/INPT5 on the right. After the selected row settles, a pressed key
+reads LOW on its column. The component exposes `keys` as a stable 12-bit
+row-major snapshot for `1,2,3,4,5,6,7,8,9,*,0,#`, one-snapshot `pressed` and
+`released` edge masks, and `key` as the first held key or `KEY_NONE`. Multiple
+simultaneously held keys remain represented in `keys`.
+
+The component deliberately does not own the row-settle delay. Call
+`select_row(row)`, leave the selected row stable for at least 400 microseconds,
+then call `read_row(row)`. This is a boolean matrix scan, not a paddle-position
+measurement. Timing remains with the frame scheduler, allowing left/right
+instances to select, settle, and sample the same row in parallel.
+`begin_scan()` starts a fresh four-row snapshot and clears the previous edge
+pulses; `end_scan()` commits the complete snapshot atomically. The public NTSC
+example performs one row scan in overscan per frame, waits seven scanlines
+before sampling, and commits a new complete state every four frames.
+
+The implementation also deliberately matches Stella's Keyboard-controller ROM
+auto-detection. INPT reads use recognized BIT/branch idioms, while SWCHA is
+preserved with a detector-safe indexed read so the keypad ROM is not
+misclassified as Joy2BPlus merely because it preserves the opposite port.
+
+The public example at `examples/01_basic/11_keypad/` instantiates one keypad on
+each port. A custom 13-glyph subset of the Big 8x16 font is drawn with P0 in the
+left half and P1 in the right half: the twelve key labels plus an empty rectangle
+when no key is held, white on the project's blue background.
 
 ## Left/right three-plus-three score component
 

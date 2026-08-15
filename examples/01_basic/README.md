@@ -24,6 +24,7 @@ and the lifecycle-component model in small, independently understandable steps.
 | 08 | [`dual_score`](08_dual_score/) | Fixed independent three-digit left/right score fields using `three_plus_three_score_component.c26` |
 | 09 | [`paddleball`](09_paddleball/) | Two-paddle Paddleball game combining `two_paddles.c26`, a 3+3 score, missiles, Ball, walls, and a dashed center line |
 | 10 | [`four_player_paddleball`](10_four_player_paddleball/) | Four-player team Paddleball using all four paddles across both ports, P0/M0 versus P1/M1, hardware Ball collisions, and team scoring |
+| 11 | [`keypad`](11_keypad/) | Two 12-key keypad controllers scanned in parallel; P0/P1 show a centered Big-font key glyph for the left/right ports |
 
 The score, wide-score, big-wide-score, dual-score, and fingerprint examples demonstrate component composition rather than
 a full gameplay renderer. They own the surrounding blank visible lines and call
