@@ -42,21 +42,29 @@ enum tanks_constants {
 // 8 pixels wide by 16 scanlines high.
 bank0 page const uint8_t tanks_graphics[64] := {
    // N
-   0x18,0x18,0x7e,0x5a,0x7e,0x5a,0x7e,0x42,
+   0b...XX...,0b...XX...,0b.XXXXXX.,0b.X.XX.X.,
+   0b.XXXXXX.,0b.X.XX.X.,0b.XXXXXX.,0b.X....X.,
    // NE
-   0x03,0x06,0x6c,0x78,0x7e,0x5a,0x7e,0x42,
+   0b......XX,0b.....XX.,0b.XX.XX..,0b.XXXX...,
+   0b.XXXXXX.,0b.X.XX.X.,0b.XXXXXX.,0b.X....X.,
    // E
-   0x7c,0x54,0x7f,0x7f,0x7c,0x54,0x7c,0x00,
+   0b.XXXXX..,0b.X.X.X..,0b.XXXXXXX,0b.XXXXXXX,
+   0b.XXXXX..,0b.X.X.X..,0b.XXXXX..,0b........,
    // SE
-   0x42,0x7e,0x5a,0x7e,0x78,0x6c,0x06,0x03,
+   0b.X....X.,0b.XXXXXX.,0b.X.XX.X.,0b.XXXXXX.,
+   0b.XXXX...,0b.XX.XX..,0b.....XX.,0b......XX,
    // S
-   0x42,0x7e,0x5a,0x7e,0x5a,0x7e,0x18,0x18,
+   0b.X....X.,0b.XXXXXX.,0b.X.XX.X.,0b.XXXXXX.,
+   0b.X.XX.X.,0b.XXXXXX.,0b...XX...,0b...XX...,
    // SW
-   0x42,0x7e,0x5a,0x7e,0x1e,0x36,0x60,0xc0,
+   0b.X....X.,0b.XXXXXX.,0b.X.XX.X.,0b.XXXXXX.,
+   0b...XXXX.,0b..XX.XX.,0b.XX.....,0bXX......,
    // W
-   0x3e,0x2a,0xfe,0xfe,0x3e,0x2a,0x3e,0x00,
+   0b..XXXXX.,0b..X.X.X.,0bXXXXXXX.,0bXXXXXXX.,
+   0b..XXXXX.,0b..X.X.X.,0b..XXXXX.,0b........,
    // NW
-   0xc0,0x60,0x36,0x1e,0x7e,0x5a,0x7e,0x42
+   0bXX......,0b.XX.....,0b..XX.XX.,0b...XXXX.,
+   0b.XXXXXX.,0b.X.XX.X.,0b.XXXXXX.,0b.X....X.
 };
 
 // VBLANK horizontal fine-motion table for M0/M1. Indexes 1..15 correspond to
@@ -307,7 +315,7 @@ bank1 void tanks_move_missile(uint8_t *x, uint8_t *y, uint8_t direction) {
 }
 
 inline void tanks_launch0(void) {
-   missile0_x := tank0_x + 3;
+   missile0_x := tank0_x + 8;
    missile0_y := tank0_y + 3;
    missile0_direction := tank0_direction;
    missile0_active := 1;
@@ -315,7 +323,7 @@ inline void tanks_launch0(void) {
 }
 
 inline void tanks_launch1(void) {
-   missile1_x := tank1_x + 3;
+   missile1_x := tank1_x + 8;
    missile1_y := tank1_y + 3;
    missile1_direction := tank1_direction;
    missile1_active := 1;
@@ -489,14 +497,20 @@ bank1 void tanks_update_overscan(void) {
    // coordinates. Only then may controls save a new undo point and move again.
    tanks_update_player_collisions();
 
+   // Advance only missiles that were already active when overscan began. Do
+   // this before controls so a newly fired two-pixel missile gets one centered
+   // visible frame before moving. The cycle-calibrated missile positioner lands
+   // five pixels left of its stored X, so launch stores tank_x+8 to render at
+   // physical tank_x+3..+4.
+   if (missile0_active) { tanks_move_missile(&missile0_x, &missile0_y, missile0_direction); }
+   if (missile1_active) { tanks_move_missile(&missile1_x, &missile1_y, missile1_direction); }
+
    // Controls see the spin latch before the spin is advanced. On the final
    // spin frame this keeps player input from immediately changing the random
    // heading selected at the end of the hit animation.
    tanks_update_controls();
    tanks_update_spin0();
    tanks_update_spin1();
-   if (missile0_active) { tanks_move_missile(&missile0_x, &missile0_y, missile0_direction); }
-   if (missile1_active) { tanks_move_missile(&missile1_x, &missile1_y, missile1_direction); }
 
    // Continuously decorrelate future Reset layouts and post-hit headings from
    // startup. This is deterministic for tests but player timing supplies entropy
@@ -516,6 +530,9 @@ inline void tanks_position_missiles(void) {
    asm sta WSYNC;
    asm ldx #2;
    asm bit.z CXM0P;
+   // This compact RESP/HMOVE sequence is cycle-calibrated and renders M0/M1
+   // five Atari pixels left of its stored X value. Launch code compensates by
+   // storing tank_x+8, which renders the two-pixel missile at tank_x+3..+4.
    asm lda.z missile0_x;
    asm sec;
    asm @m0_divide:;

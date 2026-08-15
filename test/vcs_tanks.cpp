@@ -397,12 +397,17 @@ void require_fire_wall(const Machine& m,const std::vector<Snapshot>& s) {
    if(s.size()<7) fail("too few fire snapshots");
    if(!s[1].m0a || !s[1].m1a || s[1].m0d!=kDirE || s[1].m1d!=kDirW)
       fail("fire did not launch both missiles with tank headings");
+   // The cycle-calibrated RESM positioner renders five pixels left of its
+   // stored coordinate. Stored tank_x+8 therefore renders at tank_x+3..+4.
+   if(s[1].m0x!=static_cast<uint8_t>(s[1].x0+8) ||
+      s[1].m1x!=static_cast<uint8_t>(s[1].x1+8))
+      fail("new missile did not use the calibrated center launch coordinate");
    if(s[1].sound_kind!=kSoundFire || s[1].sound_frames!=4 || s[1].audc0!=8 || s[1].audf0!=4 || s[1].audv0!=8)
       fail("firing did not start the short noise effect");
    if(!m.missile_enabled(0,2) || !m.missile_enabled(1,2))
       fail("launched missile state never reached ENAM0/ENAM1 in the visible arena");
    if(s[2].m0x!=static_cast<uint8_t>(s[1].m0x+1) || s[2].m1x!=static_cast<uint8_t>(s[1].m1x-1))
-      fail("held fire relaunched a missile instead of letting it travel");
+      fail("missile did not begin travelling after its centered launch frame");
    if(s[4].m0a || s[4].m1a) fail("missile-playfield collision did not stop both missiles");
 }
 

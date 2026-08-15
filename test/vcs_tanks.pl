@@ -65,6 +65,11 @@ $s =~ /controls & 0x40/ && $s =~ /controls & 0x80/ && $s =~ /controls & 0x04/ &&
 $s =~ /controls & 0x10/ && $s =~ /controls & 0x20/ && $s =~ /controls & 0x01/ && $s =~ /controls & 0x02/ &&
 $s =~ /INPT4 & 0x80/ && $s =~ /INPT5 & 0x80/
    or die "Tanks lost two-joystick direction\/fire mapping\n";
+$s =~ /missile0_x := tank0_x \+ 8/ && $s =~ /missile1_x := tank1_x \+ 8/ &&
+$s =~ /renders M0\/M1.*?five Atari pixels left/s
+   or die "Tanks lost physical-center missile positioning calibration\n";
+$s =~ /0b\.\.\.XX\.\.\./ && $s =~ /0b\.XXXXX\.\./ && $s =~ /0bXX\.\.\.\.\.\./
+   or die "Tanks graphics are no longer kept in visual 0b dot\/X notation\n";
 
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',$dir,'-T',File::Spec->catfile($vcs,'vcs.cfg'),'-Map',$mapfile,$source,'-o',$bin);
 $rc==0&&!$sig or die "Tanks build failed\n$out$err";

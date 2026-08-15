@@ -37,7 +37,9 @@ Up moves forward in the direction the tank is pointing; Down moves backward.
 Translation advances one pixel every fourth frame while held. A turn happens
 immediately on a new Left/Right press, then a held turn repeats after 24 frames.
 The fire button launches that tank's missile if its previous missile is no
-longer active.
+longer active. A newly launched two-pixel missile is first rendered centered
+horizontally across the tank (pixels 3-4 of its eight-pixel width); projectile
+motion begins on the following frame.
 
 Firing produces a short four-frame TIA noise burst. A player hit produces a
 different, longer 24-frame noise burst, increments the shooter's score, stops

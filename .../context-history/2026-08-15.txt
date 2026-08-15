@@ -53,3 +53,14 @@ appear after CXCLR/arena drawing and verified both rollback and backing away.
 2026-08-15 12:25:23 PDT, fix tanks raster tears and P0/P1 collision
 Moved player graphics writes to cycles 3/6, made the bottom wall a dedicated HBLANK-safe four-line phase, and added beam-write deadline coverage.
 CXPPMM now rolls both tanks back to their last legal positions on player/player contact.
+
+2026-08-15 12:41:15 PDT, Center Tanks missile launch
+Moved existing projectile advance before controls so a new two-pixel shot gets its first visible frame centered at tank_x+3; added an emulator assertion for the launch coordinate and documented the behavior.
+
+2026-08-15 13:18:48 PDT, Calibrate Tanks missile X
+Stella pixel probes showed the cycle-calibrated M0/M1 positioner renders five
+Atari pixels left of its stored X coordinate. Launch now stores tank_x+8 so the
+two-pixel missile physically spans tank_x+3..+4 while leaving RESP/HMOVE timing
+unchanged. Rewrote all eight tank glyphs in visual 0b dot/X notation. A measured
+REFP0/REFP1 compression prototype grew bank0 by 22 bytes and used two extra RIOT
+RAM bytes, so reflection was rejected as a net loss.

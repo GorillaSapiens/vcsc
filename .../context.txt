@@ -1008,15 +1008,25 @@ scanlines tall; CTRLPF reflection mirrors them into three additional vertical
 barriers. Left/Right rotate, Up drives forward, and Down drives backward. Translation
 moves one pixel every fourth frame. A new turn acts immediately, while a held turn
 repeats after 24 frames. Fire launches a missile only after the previous shot has
-stopped and starts a four-frame TIA noise burst. Missile-wall/barrier stops use
+stopped and starts a four-frame TIA noise burst. Existing missiles advance before
+controls are processed, so a newly launched two-pixel missile gets one visible
+frame centered at physical tank_x+3..+4 before projectile motion begins. The
+cycle-calibrated M0/M1 RESP/HMOVE positioner renders five Atari pixels left of
+its stored X coordinate, so launch stores tank_x+8 to produce that physical
+center without perturbing the positioner's beam timing. Missile-wall/barrier stops use
 CXM0FB/CXM1FB; player hits use CXM0P/CXM1P, increment the shooter's score, stop the
 missile, start a distinct 24-frame hit noise, and spin the struck tank rapidly for
 24 frames before leaving it on a pseudo-random heading. CXP0FB/CXP1FB make the
 playfield solid to tanks by rolling back movement that overlapped it; CXPPMM
 rolls both tanks back on P0/P1 contact so they cannot drive through each other.
 
-The corrected tank graphics pointer includes the actual low/high address of the
-`tanks_graphics` table instead of assuming the table is page-aligned at `$xx00`;
+The tank glyph table is written in visual `0b...X....` notation so each 8x8
+orientation can be read directly from source. A measured REFP0/REFP1 compression
+prototype reduced raw glyph data from 64 to 40 bytes but increased bank0 by 22
+bytes overall and consumed two additional RIOT RAM bytes, so the full eight-glyph
+table remains intentionally unreflected. The corrected tank graphics pointer
+includes the actual low/high address of the `tanks_graphics` table instead of
+assuming the table is page-aligned at `$xx00`;
 the old accidental alignment was the cause of scrambled tank glyphs after the
 score/audio additions moved the table. A later visual regression fix also swapped
 the SE/SW bitmap payloads into their correct clockwise slots: with REFP clear, the
