@@ -358,12 +358,12 @@ When removing or changing a feature:
 
 The current completely verified baseline is:
 
-    compile-only:             470 passed
-    end-to-end/generic:       264 passed
+    compile-only:             492 passed
+    end-to-end/generic:       301 passed
     staged installed tools:   passed, including all final cartridge builds
 
-The current tree has been verified against all 470 compile-only tests and all
-264 end-to-end tests. The end-to-end inventory is executed in ordered capped
+The current tree has been verified against all 492 compile-only tests and all
+301 end-to-end tests. The end-to-end inventory is executed in ordered capped
 batches because the container imposes a hard wall-clock limit on one monolithic
 command; every listed case must run and pass. Exact raster, event-trace, frame-
 length, bankswitching, installed-profile, assembly-policy, and source-hygiene
@@ -967,8 +967,9 @@ vertical placement while the 10-byte glyph stride is computed as key*10. The
 public cartridge is currently 1633/4090 ROM bytes and 43/128 RAM bytes.
 `vcs_keypad.pl/.cpp` plus left/right private fixtures cover all twelve keys,
 press/hold/release semantics, opposite-port isolation, minimum row-settle timing,
-and invariant scheduler frame length. Item 38 (Indy 500 driving controllers) is
-now the first unfinished main-roadmap item.
+and invariant scheduler frame length. The example assembly allowlist pins the
+trimmed keypad source at 62 reviewed beam-critical `asm` statements. Item 38
+(Indy 500 driving controllers) is now the first unfinished main-roadmap item.
 
 The generic per-case test timeout is now 20 seconds, and former explicit
 10-second overrides were raised to 20 seconds as well; longer 120-second
@@ -996,5 +997,5 @@ hygiene traversals explicitly prune `.git`, because branch/ref/object history is
 metadata rather than editable source and may legitimately retain retired historical
 names. In an eight-worker validation,
 example shards measured about 2.9-4.0 seconds each and score-composition family
-shards about 8.3-8.6 seconds each; replacing the two monoliths raises E2E case
-count from 288 to 299 while preserving the same aggregate coverage.
+shards about 8.3-8.6 seconds each. The current E2E inventory contains 301
+cases while preserving the same aggregate sharded coverage model.

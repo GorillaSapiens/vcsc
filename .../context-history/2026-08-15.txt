@@ -1,0 +1,2 @@
+2026-08-15 07:09:44 PDT, refresh keypad asm allowlist
+Updated the keypad example assembly fixture from 63 to 62 statements, refreshed its SHA-256 digest and ten-line glyph-loop rationale, and verified 492 compile-only plus all 301 E2E cases.
