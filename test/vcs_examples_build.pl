@@ -45,10 +45,12 @@ my $faithful_multisprite=File::Spec->catdir($vcs,qw(renderers faithful_legacy_mu
 my $faithful_multisprite_cfg=File::Spec->catfile($faithful_multisprite,'faithful_legacy_multisprite.cfg');
 my $examples_root=File::Spec->catdir($repo,'examples');
 my @examples;
-sub uses_2k_profile {
+sub profile_from_source {
    my($source)=@_;
    my $text=read_file($source);
-   return $text =~ /^\s*include\s+"vcs_2k\.c26"\s*$/m;
+   return '2k' if $text =~ /^\s*include\s+"vcs_2k\.c26"\s*$/m;
+   return 'f8' if $text =~ /^\s*include\s+"vcs_8k_f8\.c26"\s*$/m;
+   return '4k';
 }
 find({
    no_chdir=>1,
@@ -79,10 +81,16 @@ for my $entry (@examples) {
    my $tag=$dir; $tag =~ s{[^A-Za-z0-9_.-]+}{__}g;
    my $bin=File::Spec->catfile($tmp,"$tag.bin");
    my $map=File::Spec->catfile($tmp,"$tag.map");
-   my $is_2k=uses_2k_profile($source);
+   my $profile=profile_from_source($source);
    my @extra;
-   if ($is_2k) {
+   if ($file eq 'bankswitching_diagnostic.c26' ||
+       $file eq 'banked_standard_renderer.c26') {
+      push @extra,'-DMAPPER_BANKS=2',
+                  '-T',File::Spec->catfile($vcs,'vcs.cfg');
+   } elsif ($profile eq '2k') {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
+   } elsif ($profile eq 'f8') {
+      push @extra,'-T',File::Spec->catfile($vcs,'vcs_8k_f8.cfg');
    } elsif ($file eq 'fingerprint.c26') {
       push @extra,'-Wa,--illegals';
    } elsif ($file =~ /\Afaithful_legacy_playercolors.*\.c26\z/) {
@@ -93,10 +101,6 @@ for my $entry (@examples) {
       push @extra,'-Wa,--illegals';
    } elsif ($file =~ /_unofficial_.*\.c26\z/) {
       push @extra,'-Wa,--illegals';
-   } elsif ($file eq 'bankswitching_diagnostic.c26' ||
-            $file eq 'banked_standard_renderer.c26') {
-      push @extra,'-DMAPPER_BANKS=2',
-                  '-T',File::Spec->catfile($vcs,'vcs.cfg');
    }
    -f $source or die "missing editable example $source\n";
    my $source_dir=File::Spec->catdir($examples_root,$dir);
@@ -123,7 +127,7 @@ for my $entry (@examples) {
    my $rom=read_file($bin);
    my $expected_size = ($file eq 'bankswitching_diagnostic.c26' ||
                         $file eq 'banked_standard_renderer.c26') ? 8192
-      : $is_2k ? 2048 : 4096;
+      : $profile eq '2k' ? 2048 : $profile eq 'f8' ? 8192 : 4096;
    length($rom)==$expected_size
       or die "$dir produced ".length($rom)." bytes, expected $expected_size\n";
    my $vector_offset = $expected_size - 6;

@@ -905,6 +905,28 @@ AUDF, and verifies that audio/collision work does not perturb frame length. The
 current cartridge build uses 3577 ROM bytes and 87 RAM bytes. Item 36 is now the
 first unfinished main-roadmap item.
 
+Main-roadmap item 36 is complete. `libraries/vcs/four_paddles.c26` extends the
+existing two-paddle RC lifecycle to INPT0..INPT3 and all four fire buttons while
+keeping the original position0/1, button0/1, validity, sampling, gap-accounting,
+and dump vocabulary as a strict API subset. The timing-safe schedule observes one
+RC channel per scanline, alternating 0/1 and 2/3 across adjacent two-line pairs;
+seven four-line VBLANK cycles consume 28 scanlines and leave scheduler headroom,
+with explicit gap accounting preserving the common two-scanline elapsed units.
+`examples/01_basic/10_four_player_paddleball/four_player_paddleball.c26` is an
+unbanked 4K four-player team cartridge: left-port blue controls P0/M0,
+right-port red controls P1/M1, and Ball remains the shared ball. P0/P1 are reused
+by the score then repositioned below it using separate coarse-position scanlines
+plus a shared fine-motion line. All four defenders use TIA Ball collision
+latches, either teammate can serve, and team scoring plus the existing
+Paddleball beeps are retained. A focused size pass made four-paddle
+`account_gap()` one compact shared callable helper instead of duplicating its
+four-channel bookkeeping at both call sites; the current build uses 3894/4090
+ROM bytes and 102/128 RAM bytes, so F8 bankswitching is no longer required. The
+dedicated oracle covers distinct/simultaneous/staggered four-channel RC
+thresholds, all four buttons, channel-to-P0/M0/P1/M1 mapping, and stable 264-raw
+/ Stella-262 frame period. Item 37 (keypad-controller support) is now the first
+unfinished main-roadmap item.
+
 The unified test runner now supports case-level parallelism with `--jobs N`;
 the test and top-level Makefiles expose it as `TEST_JOBS=N`. Parallel workers
 keep each case's existing temporary isolation and buffer completed results so

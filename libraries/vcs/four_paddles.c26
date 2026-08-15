@@ -1,0 +1,261 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// Four Atari CX30-style paddle controllers across both VCS controller ports.
+//
+// This is the four-channel companion to two_paddles.c26. The public naming is
+// deliberately a strict extension of the two-paddle API: position0/1,
+// button0/1, valid, init(), sample0/1(), advance_pair(), account_gap(),
+// vblank(), overscan(), and dump() keep the same roles, while position2/3,
+// button2/3, and sample2/3() add the right-port pair.
+//
+// All four paddle capacitors are released together when VBLANK.7 is cleared,
+// so one elapsed counter is the correct wall-clock for every channel. The
+// public positions use the same two-scanline raw units as two_paddles.c26.
+// A renderer does not need to sample all four on every pair: the intended
+// timing-safe pattern is one channel per scanline, for example channels 0/1
+// on one two-line pair and 2/3 on the next. Each channel is then observed at
+// four-scanline cadence while elapsed still advances every two scanlines.
+//
+// Typical NTSC lifecycle:
+//
+//   vcs_ntsc_begin_vblank();
+//   paddles_vblank();          // 7 four-line cycles = 28 scanlines
+//   paddles_account_gap(12);   // account unsampled score/setup span
+//   ...
+//   // visible renderer: sample0/sample1, then sample2/sample3 on next pair
+//   ...
+//   vcs_ntsc_begin_overscan();
+//   paddles_account_gap(pairs);
+//   paddles_overscan();        // one four-line cycle + four buttons
+//   ...
+//   vcs_ntsc_end_overscan();
+//   paddles_dump();
+//
+// A completed sample is the longest path. Keep each sample on a scanline with
+// enough headroom for that path; do not stack multiple completed samples onto
+// a beam-critical line merely because the unfinished paths appear to fit.
+
+enum TEMPLATE_constants {
+   TEMPLATE_RAW_TIMEOUT := 255,
+   TEMPLATE_VBLANK_CYCLES := 7,
+   TEMPLATE_OVERSCAN_CYCLES := 1
+};
+
+uint8_t TEMPLATE_position0 := 0;
+uint8_t TEMPLATE_position1 := 0;
+uint8_t TEMPLATE_position2 := 0;
+uint8_t TEMPLATE_position3 := 0;
+uint8_t TEMPLATE_button0 := 0;
+uint8_t TEMPLATE_button1 := 0;
+uint8_t TEMPLATE_button2 := 0;
+uint8_t TEMPLATE_button3 := 0;
+uint8_t TEMPLATE_valid := 0;
+
+// Per-channel active flags keep the beam-critical completed-sample path short:
+// one flag load, one INPT read, one raw-position store, and one flag clear.
+// complete is refreshed in overscan and is used by the cycle-balanced dump path.
+uint8_t TEMPLATE_elapsed := 0;
+uint8_t TEMPLATE_active0 := 0;
+uint8_t TEMPLATE_active1 := 0;
+uint8_t TEMPLATE_active2 := 0;
+uint8_t TEMPLATE_active3 := 0;
+uint8_t TEMPLATE_complete := 0;
+uint8_t TEMPLATE_dumped := 1;
+
+require inline void TEMPLATE_init(void) {
+   SWACNT := 0;
+   TEMPLATE_position0 := 0;
+   TEMPLATE_position1 := 0;
+   TEMPLATE_position2 := 0;
+   TEMPLATE_position3 := 0;
+   TEMPLATE_button0 := 0;
+   TEMPLATE_button1 := 0;
+   TEMPLATE_button2 := 0;
+   TEMPLATE_button3 := 0;
+   TEMPLATE_valid := 0;
+   TEMPLATE_elapsed := 0;
+   TEMPLATE_active0 := 0;
+   TEMPLATE_active1 := 0;
+   TEMPLATE_active2 := 0;
+   TEMPLATE_active3 := 0;
+   TEMPLATE_complete := 0;
+   TEMPLATE_dumped := 1;
+   VBLANK := 0x82;
+}
+
+require inline void TEMPLATE_sample0(void) {
+   asm lda.z TEMPLATE_active0;
+   asm beq.same @not_ready;
+   asm bit.z INPT0;
+   asm bpl.same @not_ready;
+   asm lda.z TEMPLATE_elapsed;
+   asm sta.z TEMPLATE_position0;
+   asm lda #0;
+   asm sta.z TEMPLATE_active0;
+   asm @not_ready:;
+}
+
+require inline void TEMPLATE_sample1(void) {
+   asm lda.z TEMPLATE_active1;
+   asm beq.same @not_ready;
+   asm bit.z INPT1;
+   asm bpl.same @not_ready;
+   asm lda.z TEMPLATE_elapsed;
+   asm sta.z TEMPLATE_position1;
+   asm lda #0;
+   asm sta.z TEMPLATE_active1;
+   asm @not_ready:;
+}
+
+require inline void TEMPLATE_sample2(void) {
+   asm lda.z TEMPLATE_active2;
+   asm beq.same @not_ready;
+   asm bit.z INPT2;
+   asm bpl.same @not_ready;
+   asm lda.z TEMPLATE_elapsed;
+   asm sta.z TEMPLATE_position2;
+   asm lda #0;
+   asm sta.z TEMPLATE_active2;
+   asm @not_ready:;
+}
+
+require inline void TEMPLATE_sample3(void) {
+   asm lda.z TEMPLATE_active3;
+   asm beq.same @not_ready;
+   asm bit.z INPT3;
+   asm bpl.same @not_ready;
+   asm lda.z TEMPLATE_elapsed;
+   asm sta.z TEMPLATE_position3;
+   asm lda #0;
+   asm sta.z TEMPLATE_active3;
+   asm @not_ready:;
+}
+
+// The renderer calls this after each two-line pair. Saturating unconditionally
+// is both correct and faster than testing four active flags on a beam-critical
+// line; once every channel has completed, the elapsed value is irrelevant.
+require inline void TEMPLATE_advance_pair(void) {
+   asm inc.z TEMPLATE_elapsed;
+   asm bne.same @done;
+   asm dec.z TEMPLATE_elapsed;
+   asm @done:;
+}
+
+// Four scanlines, one channel per line. Elapsed advances after each two-line
+// pair, preserving the same raw units as two_paddles.c26.
+static inline void TEMPLATE_sample_blank_cycle(void) {
+   TEMPLATE_sample0();
+   WSYNC := 0;
+   TEMPLATE_sample1();
+   WSYNC := 0;
+   TEMPLATE_advance_pair();
+   TEMPLATE_sample2();
+   WSYNC := 0;
+   TEMPLATE_sample3();
+   WSYNC := 0;
+   TEMPLATE_advance_pair();
+}
+
+require inline void TEMPLATE_vblank(void) {
+   if (TEMPLATE_dumped) {
+      TEMPLATE_elapsed := 0;
+      TEMPLATE_active0 := 1;
+      TEMPLATE_active1 := 1;
+      TEMPLATE_active2 := 1;
+      TEMPLATE_active3 := 1;
+      TEMPLATE_complete := 0;
+      TEMPLATE_dumped := 0;
+   }
+
+   for (uint8_t i := TEMPLATE_VBLANK_CYCLES; i; i--) {
+      TEMPLATE_sample_blank_cycle();
+   }
+}
+
+// Advance over an unsampled span. If a channel is already high at the start
+// of the span, record the midpoint; otherwise the next explicit sample records
+// the end of the gap. 'pairs' is in two-scanline units.
+require void TEMPLATE_account_gap(uint8_t pairs) {
+   // Positions and active flags are deliberately declared as contiguous four-byte
+   // groups above; INPT0..INPT3 are contiguous TIA registers. The dedicated
+   // four-player oracle pins that layout because this compact indexed loop relies
+   // on it. Walk the four channels with X so this reusable helper exists once rather
+   // than expanding the same gap-accounting logic at every call site.
+   asm lda.z TEMPLATE_account_gap$pairs;
+   asm lsr;
+   asm clc;
+   asm adc.z TEMPLATE_elapsed;
+   asm bcc @midpoint_ok;
+   asm lda #$ff;
+   asm @midpoint_ok:;
+   asm tay;
+
+   asm ldx #0;
+   asm @channel:;
+   asm lda TEMPLATE_active0,x;
+   asm beq @next;
+   asm lda INPT0,x;
+   asm bpl @next;
+   asm tya;
+   asm sta TEMPLATE_position0,x;
+   asm lda #0;
+   asm sta TEMPLATE_active0,x;
+   asm @next:;
+   asm inx;
+   asm cpx #4;
+   asm bne @channel;
+
+   asm clc;
+   asm lda.z TEMPLATE_elapsed;
+   asm adc.z TEMPLATE_account_gap$pairs;
+   asm bcc @elapsed_ok;
+   asm lda #$ff;
+   asm @elapsed_ok:;
+   asm sta.z TEMPLATE_elapsed;
+}
+
+require inline void TEMPLATE_overscan(void) {
+   if (TEMPLATE_active0 || TEMPLATE_active1 || TEMPLATE_active2 || TEMPLATE_active3) {
+      for (uint8_t i := TEMPLATE_OVERSCAN_CYCLES; i; i--) {
+         TEMPLATE_sample_blank_cycle();
+      }
+   }
+
+   if (TEMPLATE_elapsed == TEMPLATE_RAW_TIMEOUT) {
+      if (TEMPLATE_active0) { TEMPLATE_position0 := TEMPLATE_RAW_TIMEOUT; }
+      if (TEMPLATE_active1) { TEMPLATE_position1 := TEMPLATE_RAW_TIMEOUT; }
+      if (TEMPLATE_active2) { TEMPLATE_position2 := TEMPLATE_RAW_TIMEOUT; }
+      if (TEMPLATE_active3) { TEMPLATE_position3 := TEMPLATE_RAW_TIMEOUT; }
+      TEMPLATE_active0 := 0;
+      TEMPLATE_active1 := 0;
+      TEMPLATE_active2 := 0;
+      TEMPLATE_active3 := 0;
+   }
+
+   TEMPLATE_button0 := (SWCHA & 0x80) == 0;
+   TEMPLATE_button1 := (SWCHA & 0x40) == 0;
+   TEMPLATE_button2 := (SWCHA & 0x08) == 0;
+   TEMPLATE_button3 := (SWCHA & 0x04) == 0;
+
+   TEMPLATE_complete := !(TEMPLATE_active0 || TEMPLATE_active1 || TEMPLATE_active2 || TEMPLATE_active3);
+   if (TEMPLATE_complete) { TEMPLATE_valid := 1; }
+}
+
+require inline void TEMPLATE_dump(void) {
+   // After scheduler-owned overscan, both paths consume the same cycles so a
+   // completed versus spanning four-channel measurement cannot shift VSYNC.
+   asm lda.z TEMPLATE_complete;
+   asm beq @still_active;
+   asm lda #$82;
+   asm sta VBLANK;
+   asm lda #1;
+   asm sta.z TEMPLATE_dumped;
+   asm jmp @done;
+   asm @still_active:;
+   asm lda #$02;
+   asm sta VBLANK;
+   asm bit.z CXM0P;
+   asm nop;
+   asm nop;
+   asm @done:;
+}

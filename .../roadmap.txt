@@ -1783,11 +1783,49 @@ but no new workstream should be assumed until the user selects one.
           component, build the Paddleball cartridge in staged installcheck, and verify the
           rendered game under Stella 7.0 including exact four-line top/bottom walls.
 
-[ ] 36. Extend paddle support to four simultaneous paddle controllers across both
+[x] 36. Extend paddle support to four simultaneous paddle controllers across both
         controller ports. Keep the two-paddle API usable as a strict subset, expose
         four independent positions and buttons, prove that sampling all four stays
         within the declared frame-phase budget, and add tests and an example that
         distinguish every channel.
+
+        Completed 2026-08-14 with a four-player team Paddleball cartridge:
+
+        * Add `libraries/vcs/four_paddles.c26` as the four-channel companion to
+          `two_paddles.c26`. It retains the position0/1, button0/1, validity,
+          sampling, gap-accounting, VBLANK/overscan, and dump vocabulary and adds
+          position2/3, button2/3, and sample2/3 for the right controller port. All
+          four channels share the physical RC elapsed clock, preserve the existing
+          two-scanline raw units, permit measurements to span frames, and expose
+          normalized independent fire buttons.
+        * Keep threshold-completion work beam-safe by observing exactly one analog
+          channel per scanline: channels 0/1 occupy one two-line pair and channels
+          2/3 the next. Seven four-line VBLANK sample cycles consume 28 lines rather
+          than exhausting the 37-line deadline; gap accounting covers the remaining
+          VBLANK, score, and setup span. Emulator probes cover distinct, simultaneous,
+          and staggered four-channel thresholds while requiring invariant 264-raw /
+          Stella-262 frame timing.
+        * Add `examples/01_basic/10_four_player_paddleball/` as a four-player team
+          cartridge. The left-port blue team uses P0 as the outer paddle and M0 as
+          the inner; the right-port red team uses P1 and M1. Ball remains the TIA
+          Ball object. P0/P1 are time-multiplexed with the 3+3 score, then
+          repositioned in the three blank lines below it using separate coarse
+          P0/P1 scanlines followed by one shared fine-motion/HMOVE line. This
+          avoids hidden positioning-line overruns while preserving the score/wall
+          geometry. A focused size pass later brought the complete example down to
+          the ordinary unbanked 4K profile.
+        * Use the TIA P0-Ball/M0-Ball/P1-Ball/M1-Ball collision latches for all four
+          defenders. Either teammate's fire button may serve toward the other side;
+          misses score for the opposing team. The existing square-wave paddle and
+          octave-lower wall beeps are retained.
+        * Add `vcs_four_player_paddleball.pl/.cpp` coverage proving four independent
+          RC results, all four buttons, channel-to-P0/M0/P1/M1 display mapping,
+          simultaneous threshold completion, a hard 4K ROM-budget check, and stable
+          frame length. Staged installcheck installs `four_paddles.c26` and builds
+          the public cartridge. The focused size pass makes `account_gap()` one
+          compact shared callable helper instead of duplicating its four-channel
+          bookkeeping at both call sites; the current cartridge uses 3894/4090 ROM
+          bytes and 102/128 RAM bytes including an 8-byte hardware stack allowance.
 
 [ ] 37. Add keypad-controller support for a keypad connected to either the left or
         right controller port. Implement explicit matrix scanning without disturbing

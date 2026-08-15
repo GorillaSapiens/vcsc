@@ -1,0 +1,666 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+include "vcs_4k.c26"
+include "frame_ntsc.c26"
+include "color_ntsc.c26"
+include "sound_ntsc.c26"
+include "fonts/default_decimal.c26"
+
+alias PADDLEBALL_BLACK 0x00
+alias PADDLEBALL_WHITE __builtin_ntsc_rgb(0xff, 0xff, 0xff)
+alias PADDLEBALL_BLUE  __builtin_ntsc_rgb(0x20, 0x40, 0xff)
+alias PADDLEBALL_RED   __builtin_ntsc_rgb(0xff, 0x20, 0x20)
+
+instantiate "three_plus_three_score_component.c26" as score
+instantiate "four_paddles.c26" as paddles
+
+// Four-player team Paddleball. Controller port 0 is the blue team: paddle 0
+// drives P0 (outer) and paddle 1 drives M0 (inner). Controller port 1 is the
+// red team: paddle 2 drives P1 (outer) and paddle 3 drives M1 (inner).
+// P0/P1 are time-multiplexed: the score component owns them for its 11 lines,
+// then this renderer repositions them as gameplay paddles in the three blank
+// lines immediately below the score.
+
+enum paddleball_renderer_constants {
+   PADDLEBALL_VISIBLE_LINES := 181,
+   PADDLEBALL_PAIR_COUNT := 88,
+   PADDLEBALL_P0_X := 8,
+   PADDLEBALL_M0_X := 24,
+   PADDLEBALL_M1_X := 136,
+   PADDLEBALL_P1_X := 145,
+   PADDLEBALL_LEFT_SCORE_X := 4,
+   PADDLEBALL_RIGHT_SCORE_X := 163,
+   PADDLEBALL_PADDLE_HEIGHT := 16,
+   PADDLEBALL_BALL_HEIGHT := 4,
+   // Player paddles change on line A of each two-line pair, so use even Y.
+   PADDLEBALL_PLAYER_TOP_Y := 10,
+   PADDLEBALL_PLAYER_BOTTOM_Y := 158,
+   // Missile paddles change on line B of each pair, so use odd Y.
+   PADDLEBALL_MISSILE_TOP_Y := 9,
+   PADDLEBALL_MISSILE_BOTTOM_Y := 159,
+   PADDLEBALL_PADDLE_RAW_MIN := 12,
+   PADDLEBALL_BALL_TOP_Y := 8,
+   PADDLEBALL_BALL_BOTTOM_Y := 172,
+   PADDLEBALL_PADDLE_SOUND_FRAMES := 3,
+   PADDLEBALL_PLAYER_BITS := 0x18
+};
+
+uint8_t paddleball_p0_y := 80;
+uint8_t paddleball_m0_y := 81;
+uint8_t paddleball_p1_y := 80;
+uint8_t paddleball_m1_y := 81;
+uint8_t paddleball_ball_x := 78;
+uint8_t paddleball_ball_y := 88;
+uint8_t paddleball_p0_start_pair := 40;
+uint8_t paddleball_p0_end_pair := 48;
+uint8_t paddleball_m0_start_pair := 40;
+uint8_t paddleball_m0_end_pair := 48;
+uint8_t paddleball_p1_start_pair := 40;
+uint8_t paddleball_p1_end_pair := 48;
+uint8_t paddleball_m1_start_pair := 40;
+uint8_t paddleball_m1_end_pair := 48;
+uint8_t paddleball_ball_start_pair := 44;
+uint8_t paddleball_ball_end_pair := 46;
+uint8_t paddleball_sound_frames := 0;
+uint8_t paddleball_p0_remainder := 0;
+uint8_t paddleball_p1_remainder := 0;
+
+// PF2.7 is the center-most playfield bit when CTRLPF reflect is enabled.
+// Lines 0..2 are the score-to-wall gap and are also used to reposition P0/P1.
+// Lines 3..6 are the four-line top wall; line 7 is black. Pairs 4..87 cover
+// lines 8..175. Line 176 is black and the bottom wall is lines 177..180.
+align(256) const uint8_t paddleball_pf2_pairs[88] := {
+   0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00,
+   0x80,0x80,0x80,0x80
+};
+
+align(256) const uint8_t paddleball_reposition_table[16] := {
+   0x70,0x60,0x50,0x40,0x30,0x20,0x10,0x00,
+   0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90,0x80
+};
+
+inline void paddleball_prepare_vertical(void) {
+   paddleball_p0_start_pair := paddleball_p0_y >> 1;
+   paddleball_p0_end_pair := paddleball_p0_start_pair + 8;
+   paddleball_m0_start_pair := paddleball_m0_y >> 1;
+   paddleball_m0_end_pair := paddleball_m0_start_pair + 8;
+   paddleball_p1_start_pair := paddleball_p1_y >> 1;
+   paddleball_p1_end_pair := paddleball_p1_start_pair + 8;
+   paddleball_m1_start_pair := paddleball_m1_y >> 1;
+   paddleball_m1_end_pair := paddleball_m1_start_pair + 8;
+   paddleball_ball_start_pair := paddleball_ball_y >> 1;
+   paddleball_ball_end_pair := paddleball_ball_start_pair + 2;
+}
+
+// Position the two missile paddles and Ball while VBLANK is asserted. P0/P1
+// cannot be positioned here because the score component reuses them later.
+inline void paddleball_position_fixed(void) {
+   asm lda #0;
+   asm sta HMM0;
+   asm sta HMM1;
+   asm sta HMBL;
+
+   asm sta WSYNC;
+   asm ldx #2;
+   asm bit.z CXM0P;
+   asm lda #24;
+   asm sec;
+   asm @m0_divide:;
+   asm sbc #15;
+   asm bcs.same @m0_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda paddleball_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #3;
+   asm bit.z CXM0P;
+   asm lda #136;
+   asm sec;
+   asm @m1_divide:;
+   asm sbc #15;
+   asm bcs.same @m1_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda paddleball_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm ldx #4;
+   asm bit.z CXM0P;
+   asm lda.z paddleball_ball_x;
+   asm sec;
+   asm @ball_divide:;
+   asm sbc #15;
+   asm bcs.same @ball_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda paddleball_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+
+   asm sta WSYNC;
+   asm sta HMOVE;
+}
+
+// Reposition only Ball during overscan. Zero every other object's fine-motion
+// register before HMOVE so the gameplay paddle positions do not creep.
+inline void paddleball_position_ball(void) {
+   asm lda #0;
+   asm sta HMP0;
+   asm sta HMP1;
+   asm sta HMM0;
+   asm sta HMM1;
+   asm sta HMBL;
+   asm sta WSYNC;
+   asm ldx #4;
+   asm bit.z CXM0P;
+   asm lda.z paddleball_ball_x;
+   asm sec;
+   asm @ball_divide:;
+   asm sbc #15;
+   asm bcs.same @ball_divide;
+   asm nop;
+   asm nop;
+   asm sta RESP0,x;
+   asm tay;
+   asm lda paddleball_reposition_table + 16 - 256,y;
+   asm sta HMP0,x;
+   asm sta WSYNC;
+   asm sta HMOVE;
+}
+
+// Enter at the standard score-component handoff phase. Exactly 181 visible
+// lines are emitted. P0/P1 are blank while they are repositioned on lines 1/2,
+// then become the outer gameplay paddles below the top wall.
+inline void paddleball_draw(void) {
+   // The score hands off at its documented component phase. Keep the work
+   // before the first WSYNC intentionally short: line 0 must really be the
+   // first blank score-to-wall scanline rather than an accidental overflow.
+   asm lda #0;
+   asm sta PF0;
+   asm sta PF1;
+   asm sta PF2;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm sta ENAM0;
+   asm sta ENAM1;
+   asm sta ENABL;
+
+   // Lines 0..2: black score-to-wall gap and P0/P1 repositioning. Split the
+   // standard divide-by-15 sequence into one coarse-position scanline per
+   // player, then apply both fine-motion values on line 2. In particular, the
+   // far-right P1 coarse loop is deliberately not followed by a table lookup
+   // on the same scanline; that combination can cross a WSYNC boundary.
+   asm sta WSYNC;
+   asm ldx #0;
+   asm bit.z CXM0P;
+   asm lda #8;
+   asm sec;
+   asm @p0_divide:;
+   asm sbc #15;
+   asm bcs.same @p0_divide;
+   asm sta.z paddleball_p0_remainder;
+   asm sta RESP0,x;
+
+   // These objects must not inherit motion from the score's later HMOVE.
+   asm lda #0;
+   asm sta HMM0;
+   asm sta HMM1;
+   asm sta HMBL;
+   asm sta REFP0;
+   asm sta REFP1;
+   asm sta VDELP0;
+   asm sta VDELP1;
+   asm sta RESMP0;
+   asm sta RESMP1;
+   asm sta CXCLR;
+
+   asm sta WSYNC;
+   asm ldx #1;
+   asm bit.z CXM0P;
+   asm lda #145;
+   asm sec;
+   asm @p1_divide:;
+   asm sbc #15;
+   asm bcs.same @p1_divide;
+   asm sta.z paddleball_p1_remainder;
+   asm sta RESP0,x;
+
+   asm sta WSYNC;
+   asm ldy.z paddleball_p0_remainder;
+   asm lda paddleball_reposition_table + 16 - 256,y;
+   asm sta HMP0;
+   asm ldy.z paddleball_p1_remainder;
+   asm lda paddleball_reposition_table + 16 - 256,y;
+   asm sta HMP1;
+   asm sta HMOVE;
+
+   // Configure gameplay objects while line 2 is still blank. This work is
+   // comfortably inside the scanline budget after the two fine-motion loads.
+   asm lda #$10;              // single players, 2-pixel missiles
+   asm sta NUSIZ0;
+   asm sta NUSIZ1;
+   asm lda #$84;
+   asm sta COLUP0;
+   asm lda #$46;
+   asm sta COLUP1;
+   asm lda #$0e;
+   asm sta COLUPF;
+   asm lda #$00;
+   asm sta COLUBK;
+   asm lda #$11;              // reflected PF, 2-pixel Ball
+   asm sta CTRLPF;
+
+   // Lines 3..6: full-width top wall.
+   asm lda #$ff;
+   asm sta PF0;
+   asm sta PF1;
+   asm sta PF2;
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
+
+   // Line 7: black gap before the dashed center divider.
+   asm lda #0;
+   asm sta PF0;
+   asm sta PF1;
+   asm sta PF2;
+   asm sta WSYNC;
+
+   // Process two two-line pairs per loop. The first pair samples left-port
+   // channels 0/1, the second pair samples right-port channels 2/3. Thus each
+   // analog input is sampled every four scanlines while the shared RC elapsed
+   // clock advances every pair. One completed sample is the worst-case path on
+   // each scanline; no line stacks multiple RC completions.
+   asm ldx #4;
+   asm @pair01:;
+
+   // Pair line A: P0/P1 outer paddles, PF2, channel 0.
+   asm cpx.z paddleball_p0_start_pair;
+   asm bne.same @p0_not_start_a;
+   asm lda #$18;
+   asm sta GRP0;
+   asm @p0_not_start_a:;
+   asm cpx.z paddleball_p0_end_pair;
+   asm bne.same @p0_not_end_a;
+   asm lda #0;
+   asm sta GRP0;
+   asm @p0_not_end_a:;
+
+   asm cpx.z paddleball_p1_start_pair;
+   asm bne.same @p1_not_start_a;
+   asm lda #$18;
+   asm sta GRP1;
+   asm @p1_not_start_a:;
+   asm cpx.z paddleball_p1_end_pair;
+   asm bne.same @p1_not_end_a;
+   asm lda #0;
+   asm sta GRP1;
+   asm @p1_not_end_a:;
+
+   asm lda paddleball_pf2_pairs,x;
+   asm sta PF2;
+   paddles_sample0();
+   WSYNC := 0;
+
+   // Pair line B: M0/M1 inner paddles, Ball, channel 1.
+   asm cpx.z paddleball_m0_start_pair;
+   asm bne.same @m0_not_start_a;
+   asm lda #2;
+   asm sta ENAM0;
+   asm @m0_not_start_a:;
+   asm cpx.z paddleball_m0_end_pair;
+   asm bne.same @m0_not_end_a;
+   asm lda #0;
+   asm sta ENAM0;
+   asm @m0_not_end_a:;
+
+   asm cpx.z paddleball_m1_start_pair;
+   asm bne.same @m1_not_start_a;
+   asm lda #2;
+   asm sta ENAM1;
+   asm @m1_not_start_a:;
+   asm cpx.z paddleball_m1_end_pair;
+   asm bne.same @m1_not_end_a;
+   asm lda #0;
+   asm sta ENAM1;
+   asm @m1_not_end_a:;
+
+   asm cpx.z paddleball_ball_start_pair;
+   asm bne.same @ball_not_start_a;
+   asm lda #2;
+   asm sta ENABL;
+   asm @ball_not_start_a:;
+   asm cpx.z paddleball_ball_end_pair;
+   asm bne.same @ball_not_end_a;
+   asm lda #0;
+   asm sta ENABL;
+   asm @ball_not_end_a:;
+
+   paddles_sample1();
+   asm inx;
+   asm sta WSYNC;
+   paddles_advance_pair();
+
+   // Pair line A: same object schedule, channel 2.
+   asm cpx.z paddleball_p0_start_pair;
+   asm bne.same @p0_not_start_b;
+   asm lda #$18;
+   asm sta GRP0;
+   asm @p0_not_start_b:;
+   asm cpx.z paddleball_p0_end_pair;
+   asm bne.same @p0_not_end_b;
+   asm lda #0;
+   asm sta GRP0;
+   asm @p0_not_end_b:;
+
+   asm cpx.z paddleball_p1_start_pair;
+   asm bne.same @p1_not_start_b;
+   asm lda #$18;
+   asm sta GRP1;
+   asm @p1_not_start_b:;
+   asm cpx.z paddleball_p1_end_pair;
+   asm bne.same @p1_not_end_b;
+   asm lda #0;
+   asm sta GRP1;
+   asm @p1_not_end_b:;
+
+   asm lda paddleball_pf2_pairs,x;
+   asm sta PF2;
+   paddles_sample2();
+   WSYNC := 0;
+
+   // Pair line B: same object schedule, channel 3.
+   asm cpx.z paddleball_m0_start_pair;
+   asm bne.same @m0_not_start_b;
+   asm lda #2;
+   asm sta ENAM0;
+   asm @m0_not_start_b:;
+   asm cpx.z paddleball_m0_end_pair;
+   asm bne.same @m0_not_end_b;
+   asm lda #0;
+   asm sta ENAM0;
+   asm @m0_not_end_b:;
+
+   asm cpx.z paddleball_m1_start_pair;
+   asm bne.same @m1_not_start_b;
+   asm lda #2;
+   asm sta ENAM1;
+   asm @m1_not_start_b:;
+   asm cpx.z paddleball_m1_end_pair;
+   asm bne.same @m1_not_end_b;
+   asm lda #0;
+   asm sta ENAM1;
+   asm @m1_not_end_b:;
+
+   asm cpx.z paddleball_ball_start_pair;
+   asm bne.same @ball_not_start_b;
+   asm lda #2;
+   asm sta ENABL;
+   asm @ball_not_start_b:;
+   asm cpx.z paddleball_ball_end_pair;
+   asm bne.same @ball_not_end_b;
+   asm lda #0;
+   asm sta ENABL;
+   asm @ball_not_end_b:;
+
+   paddles_sample3();
+   asm inx;
+   asm sta WSYNC;
+   paddles_advance_pair();
+   asm cpx #88;
+   asm bne @pair01;
+
+   // Line 176: clear every gameplay object and retained center bit.
+   asm lda #0;
+   asm sta PF2;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm sta ENAM0;
+   asm sta ENAM1;
+   asm sta ENABL;
+   asm sta WSYNC;
+
+   // Lines 177..180: four-line bottom wall.
+   asm lda #$ff;
+   asm sta PF0;
+   asm sta PF1;
+   asm sta PF2;
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
+}
+
+uint8_t ball_right := 1;
+uint8_t ball_down := 1;
+uint8_t waiting_for_serve := 1;
+
+uint8_t paddle_target_player(uint8_t raw) {
+   uint8_t y := 0;
+   if (raw > PADDLEBALL_PADDLE_RAW_MIN) {
+      y := raw - PADDLEBALL_PADDLE_RAW_MIN;
+      if (y > 148) { return PADDLEBALL_PLAYER_BOTTOM_Y; }
+   }
+   return (PADDLEBALL_PLAYER_TOP_Y + y) & 0xfe;
+}
+
+uint8_t paddle_target_missile(uint8_t raw) {
+   uint8_t y := 0;
+   if (raw > PADDLEBALL_PADDLE_RAW_MIN) {
+      y := raw - PADDLEBALL_PADDLE_RAW_MIN;
+      if (y > 150) { return PADDLEBALL_MISSILE_BOTTOM_Y; }
+   }
+   return (PADDLEBALL_MISSILE_TOP_Y + y) | 1;
+}
+
+void paddleball_sound_tick(void) {
+   if (paddleball_sound_frames) {
+      paddleball_sound_frames--;
+      if (!paddleball_sound_frames) { AUDV0 := MUSIC_VOLUME_OFF; }
+   }
+}
+
+void paddleball_sound_paddle(void) {
+   AUDV0 := MUSIC_VOLUME_OFF;
+   AUDC0 := MUSIC_CONTROL_SQUARE;
+   AUDF0 := 6;
+   AUDV0 := MUSIC_VOLUME_LOUD;
+   paddleball_sound_frames := PADDLEBALL_PADDLE_SOUND_FRAMES;
+}
+
+void paddleball_sound_wall(void) {
+   AUDV0 := MUSIC_VOLUME_OFF;
+   AUDC0 := MUSIC_CONTROL_SQUARE;
+   AUDF0 := 13;
+   AUDV0 := MUSIC_VOLUME_LOUD;
+   paddleball_sound_frames := PADDLEBALL_PADDLE_SOUND_FRAMES;
+}
+
+void paddleball_sound_stop(void) {
+   paddleball_sound_frames := 0;
+   AUDV0 := MUSIC_VOLUME_OFF;
+}
+
+void reset_ball(void) {
+   paddleball_ball_x := 78;
+   paddleball_ball_y := 88;
+   ball_down := 1;
+   waiting_for_serve := 1;
+}
+
+void reset_game(void) {
+   score_left_score := 0;
+   score_right_score := 0;
+   ball_right := 1;
+   paddleball_sound_stop();
+   reset_ball();
+}
+
+void update_game(void) {
+   paddleball_sound_tick();
+
+   // Read all four TIA Ball collision latches from the just-drawn gameplay
+   // raster. Score collisions cannot leak in because paddleball_draw() clears
+   // CXCLR after the score and before enabling any gameplay object.
+   uint8_t blue_outer_hit := CXP0FB & 0x40;
+   uint8_t blue_inner_hit := CXM0FB & 0x40;
+   uint8_t red_outer_hit := CXP1FB & 0x40;
+   uint8_t red_inner_hit := CXM1FB & 0x40;
+
+   if (paddles_valid) {
+      paddleball_p0_y := paddle_target_player(paddles_position0);
+      paddleball_m0_y := paddle_target_missile(paddles_position1);
+      paddleball_p1_y := paddle_target_player(paddles_position2);
+      paddleball_m1_y := paddle_target_missile(paddles_position3);
+   }
+
+   if ((SWCHB & 1) == 0) {
+      reset_game();
+      return;
+   }
+
+   if (waiting_for_serve) {
+      if (paddles_button0 || paddles_button1) {
+         ball_right := 1;
+         waiting_for_serve := 0;
+      }
+      else {
+         if (paddles_button2 || paddles_button3) {
+            ball_right := 0;
+            waiting_for_serve := 0;
+         }
+      }
+      return;
+   }
+
+   if (ball_down) {
+      if (paddleball_ball_y >= PADDLEBALL_BALL_BOTTOM_Y - 2) {
+         paddleball_ball_y := PADDLEBALL_BALL_BOTTOM_Y;
+         ball_down := 0;
+         paddleball_sound_wall();
+      }
+      else { paddleball_ball_y += 2; }
+   }
+   else {
+      if (paddleball_ball_y <= PADDLEBALL_BALL_TOP_Y + 2) {
+         paddleball_ball_y := PADDLEBALL_BALL_TOP_Y;
+         ball_down := 1;
+         paddleball_sound_wall();
+      }
+      else { paddleball_ball_y -= 2; }
+   }
+
+   if (ball_right) {
+      if (red_outer_hit || red_inner_hit) {
+         paddleball_ball_x--;
+         ball_right := 0;
+         paddleball_sound_paddle();
+      }
+      else {
+         paddleball_ball_x++;
+         if (paddleball_ball_x >= PADDLEBALL_RIGHT_SCORE_X) {
+            score_left_score++;
+            ball_right := 1;
+            reset_ball();
+         }
+      }
+   }
+   else {
+      if (blue_outer_hit || blue_inner_hit) {
+         paddleball_ball_x++;
+         ball_right := 1;
+         paddleball_sound_paddle();
+      }
+      else {
+         paddleball_ball_x--;
+         if (paddleball_ball_x <= PADDLEBALL_LEFT_SCORE_X) {
+            score_right_score++;
+            ball_right := 0;
+            reset_ball();
+         }
+      }
+   }
+}
+
+void paddleball_vblank_paddles(void) {
+   paddles_vblank();
+   paddles_account_gap(14);
+}
+
+void paddleball_overscan_paddles(void) {
+   paddles_account_gap(3);
+   paddles_overscan();
+}
+
+void main(void) {
+   VBLANK := 2;
+   COLUBK := PADDLEBALL_BLACK;
+   COLUPF := PADDLEBALL_WHITE;
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   GRP0 := 0;
+   GRP1 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+   AUDV0 := MUSIC_VOLUME_OFF;
+   AUDV1 := MUSIC_VOLUME_OFF;
+
+   score_left_color := PADDLEBALL_BLUE;
+   score_right_color := PADDLEBALL_RED;
+   score_init();
+   paddles_init();
+   reset_game();
+   paddleball_prepare_vertical();
+   paddleball_position_fixed();
+
+   while (1) {
+      vcs_ntsc_vsync();
+
+      vcs_ntsc_begin_vblank();
+      // Four-paddle VBLANK sampling consumes 28 of the 37 blank lines, leaving
+      // enough deadline headroom for bookkeeping before the VBLANK deadline.
+      // The helper accounts the remaining nine VBLANK lines + 11 score lines
+      // + 8 setup lines as 14 unsampled two-line units.
+      paddleball_vblank_paddles();
+      score_vblank();
+      PF0 := 0;
+      PF1 := 0;
+      PF2 := 0;
+      vcs_ntsc_end_vblank();
+
+      score_draw();
+      vcs_ntsc_component_handoff();
+      paddleball_draw();
+
+      vcs_ntsc_begin_overscan();
+      // Line 176 plus the four-line bottom wall are not sampled explicitly.
+      paddleball_overscan_paddles();
+      update_game();
+      paddleball_prepare_vertical();
+      paddleball_position_ball();
+      score_overscan();
+      vcs_ntsc_end_overscan();
+      paddles_dump();
+   }
+}

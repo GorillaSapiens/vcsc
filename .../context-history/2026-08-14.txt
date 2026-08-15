@@ -232,3 +232,27 @@ that are forbidden in the current editable source tree; those records no longer
 cause hygiene failures. The current-source guard remains unchanged outside
 `.git`.
 
+2026-08-14 20:16:10 PDT, Complete four-paddle team game
+Add four_paddles.c26 for all four RC channels and buttons across both VCS
+controller ports while retaining the two-paddle API vocabulary as a subset.
+Add an F8 four-player Paddleball example with blue P0/M0 on the left, red
+P1/M1 on the right, Ball collisions through the TIA latches, team serving and
+scoring, and the existing collision beeps. Stagger one RC threshold check per
+scanline and reduce VBLANK sampling to 28 lines so the scheduler deadline keeps
+headroom. Split P0/P1 post-score horizontal positioning across two coarse lines
+and one shared fine-motion line to remove two hidden visible-line overruns.
+Add an F8-aware oracle for four positions, four buttons, object mapping,
+simultaneous/staggered threshold timing, and stable frame length; teach the
+recursive example builder to recognize direct vcs_8k_f8.c26 examples, install
+the new component, and build the cartridge in staged installcheck.
+
+2026-08-14 20:23:00 PDT, Fit four-player Paddleball in 4K
+Roadmap 36 initially used F8 because the four-paddle gap-accounting logic was
+inlined at multiple call sites. Replaced that duplication with one compact
+callable four-channel helper and converted the public example, Makefile, and
+oracle to the normal 4K profile. The resulting cartridge uses 3894/4090 ROM
+bytes and 102/128 RAM bytes while preserving the four-channel timing contract.
+Also raised the generic test-runner default per-case timeout from 6 to 10
+seconds and repaired the assembly-allowlist runner expectation for 18 pinned
+example sources.
+

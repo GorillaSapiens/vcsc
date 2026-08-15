@@ -253,6 +253,35 @@ completed dump and starting a fresh charge interval. The component's `vblank()`
 and `overscan()` callbacks do not write VBLANK or touch the RIOT timer, so they
 remain inside the scheduler ownership contract.
 
+## Four paddles across both controller ports
+
+`four_paddles.c26` extends the same RC-measurement model to all four Atari
+CX30-style paddles at once. Its public surface deliberately contains the entire
+two-paddle state/lifecycle vocabulary (`position0/1`, `button0/1`, `valid`,
+`init()`, `sample0/1()`, `advance_pair()`, `account_gap()`, `vblank()`,
+`overscan()`, and `dump()`) and adds `position2/3`, `button2/3`, and
+`sample2/3()`. Positions remain raw two-scanline elapsed values and may span
+frames; applications should apply their own endpoint calibration.
+
+All four RC capacitors are released together, but a beam-critical renderer
+should not test all four threshold-completion paths on one scanline. The public
+four-player example samples one channel per scanline: 0/1 on one two-line pair
+and 2/3 on the next. The shared elapsed counter advances after every pair, so
+all four positions retain the same units as `two_paddles.c26`. Seven four-line
+VBLANK sample cycles consume 28 lines and leave enough of the scheduler's
+37-line deadline for component bookkeeping; `account_gap()` preserves elapsed
+time across the unsampled remainder, score, and display setup. The emulator
+oracle exercises distinct, simultaneous, and staggered four-channel thresholds
+plus every fire button while requiring invariant frame length.
+
+The public four-player cartridge at
+`examples/01_basic/10_four_player_paddleball/` assigns the left-port blue team
+to P0/M0 and the right-port red team to P1/M1, with the TIA Ball shared between
+them. P0/P1 are time-multiplexed: the score owns them at the top of the frame,
+then the three blank lines below the score reposition them as outer gameplay
+paddles. Paddle rebounds use the P0-Ball/M0-Ball/P1-Ball/M1-Ball TIA collision
+latches, any teammate may serve, and scoring remains blue-versus-red.
+
 The public Paddleball example in `examples/01_basic/09_paddleball/` demonstrates a complete
 composition. Its 11-line `three_plus_three_score_component.c26` owns P0/P1;
 M0/M1 are the blue/red paddles and Ball is white. The 181 gameplay lines include

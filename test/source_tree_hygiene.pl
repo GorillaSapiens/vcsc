@@ -433,10 +433,12 @@ my $examples_build=slurp(File::Spec->catfile($test,'vcs_examples_build.pl'));
 index($score_source,'include "vcs_2k.c26"')>=0 &&
 index($score_make,'-T $(VCS_DIR)/vcs.cfg')>=0 &&
 index($score_make,'-eq 2048')>=0 &&
-index($examples_build,'sub uses_2k_profile')>=0 &&
+index($examples_build,'sub profile_from_source')>=0 &&
 index($examples_build,q{include\s+"vcs_2k\.c26"})>=0 &&
-index($examples_build,q{my $is_2k=uses_2k_profile($source);})>=0
-   or die "2K example/profile detection is incomplete
+index($examples_build,q{include\s+"vcs_8k_f8\.c26"})>=0 &&
+index($examples_build,q{$profile eq '2k'})>=0 &&
+index($examples_build,q{$profile eq 'f8'})>=0
+   or die "editable example cartridge-profile detection is incomplete
 ";
 
 # The two historically monolithic E2E drivers are implementation helpers now;
