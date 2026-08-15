@@ -8,3 +8,48 @@ The decoder preserves known direction across one skipped Gray state and the
 public NTSC example remains frame-stable while sampling both ports six times.
 2026-08-15 08:39:06 PDT, fix driving SWCHA pin mapping
 Corrected driving-controller phase reads from left D7\/D6 and right D3\/D2 to the physical pin-1\/pin-2 mapping: left D4\/D5 and right D0\/D1. Corrected the numeric Gray transition table and rebuilt the emulator oracle so only the real pins carry rotation.
+2026-08-15 09:35:00 PDT, Complete Tanks joystick duel
+Added the public two-player Tanks example with eight-way facing,
+forward/reverse joystick movement, projectile firing, hardware TIA
+wall/player collision latches, hit reset behavior, and a stable
+192-line arena. Added deterministic emulator and install coverage.
+2026-08-15 10:04:11 PDT, expand Tanks gameplay
+
+Enhanced examples/01_basic/13_tanks with a compact blue/red score,
+half-rate translation and held turning, distinct fire and hit noise,
+24-frame hit spin with a pseudo-random final heading, and three
+pseudo-random four-scanline PF2 barriers. Player/playfield collision
+latches roll tanks back from barriers; missile collision latches stop
+shots on walls/barriers or score hits on the opposing tank. The 4K ROM
+remains unbanked at 4048/4090 bytes with 104/128 RAM bytes used.
+Expanded emulator coverage for score, timing, audio, spin, barriers,
+and collision-latch behavior.
+
+2026-08-15 10:51:00 PDT, Fix Tanks sprites and raster stability
+Corrected tank graphics pointers after table relocation, restored the Paddleball
+three-plus-three score, reduced translation to quarter rate and held turns to a
+24-frame repeat, and replaced short barriers with tall vertical PF2 segments.
+Moved Tanks to 8K F8SC for the fixed-time player handoff and 88-byte Superchip
+playfield schedule. Rebalanced the paired arena kernel and strengthened the
+emulator timing stress path to cover extreme X/Y positions and simultaneous hits.
+Stella interactive testing held 262 lines / 60.0 Hz during movement and firing.
+
+2026-08-15 11:19:59 PDT, fix Tanks missiles and diagonals
+Corrected a raster staging bug where launched missile state and sound advanced
+but ENAM0/ENAM1 were never published before the staging bytes were cleared.
+Line B now stages the next enable, carries M0 in A across WSYNC, and line A
+publishes both missiles early enough for left-edge shots while preserving the
+76-cycle kernel budget. Swapped the SE/SW bitmap payloads into the proper
+clockwise direction slots. Strengthened vcs_tanks to require visible ENAM writes
+and correct diagonal ROM bytes; Stella 7.0 visibly shows the fired missile.
+
+2026-08-15 11:33:19 PDT, fix Tanks wall rollback
+Moved CXP0FB/CXP1FB rollback to the start of overscan, immediately after the
+arena and before controls overwrite tank*_prev_*. The saved coordinates now
+remain the true pre-collision legal position, preventing tanks from becoming
+embedded in walls or barriers. Strengthened the oracle so wall collisions only
+appear after CXCLR/arena drawing and verified both rollback and backing away.
+
+2026-08-15 12:25:23 PDT, fix tanks raster tears and P0/P1 collision
+Moved player graphics writes to cycles 3/6, made the bottom wall a dedicated HBLANK-safe four-line phase, and added beam-write deadline coverage.
+CXPPMM now rolls both tanks back to their last legal positions on player/player contact.

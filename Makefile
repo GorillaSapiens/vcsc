@@ -632,6 +632,11 @@ installcheck: tools
 	  "$(CURDIR)/examples/01_basic/12_drive/drive.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/drive.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/drive.bin"` -eq 4096; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/13_tanks" \
+	  -T "$$stage_vcs/vcs.cfg" \
+	  "$(CURDIR)/examples/01_basic/13_tanks/tanks.c26" \
+	  -o "$(INSTALLCHECK_STAGING)/tanks.bin"; \
+	test `wc -c < "$(INSTALLCHECK_STAGING)/tanks.bin"` -eq 8192; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
 	  "$(CURDIR)/examples/01_basic/05_fingerprint/fingerprint.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/fingerprint.bin"; \

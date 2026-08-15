@@ -998,6 +998,67 @@ and invariant frame length. Installed-tree checks ship the component and build
 the public example. Item 39 (public supported-controller diagnostic) is now the
 first unfinished main-roadmap item.
 
+Roadmap item 40 (two-player joystick tank duel) is complete as the public
+`examples/01_basic/13_tanks/` example. It uses the Paddleball blue/red/black/white
+palette and the same three-plus-three score component, P0/P1 as eight-direction
+8x16 tanks, M0/M1 as projectiles, four-scanline top/bottom walls, and one reflected
+four-color-clock playfield bit for each side wall. Three pseudo-random interior
+barrier segments are each one PF2 bit (four color clocks) wide and 28 visible
+scanlines tall; CTRLPF reflection mirrors them into three additional vertical
+barriers. Left/Right rotate, Up drives forward, and Down drives backward. Translation
+moves one pixel every fourth frame. A new turn acts immediately, while a held turn
+repeats after 24 frames. Fire launches a missile only after the previous shot has
+stopped and starts a four-frame TIA noise burst. Missile-wall/barrier stops use
+CXM0FB/CXM1FB; player hits use CXM0P/CXM1P, increment the shooter's score, stop the
+missile, start a distinct 24-frame hit noise, and spin the struck tank rapidly for
+24 frames before leaving it on a pseudo-random heading. CXP0FB/CXP1FB make the
+playfield solid to tanks by rolling back movement that overlapped it; CXPPMM
+rolls both tanks back on P0/P1 contact so they cannot drive through each other.
+
+The corrected tank graphics pointer includes the actual low/high address of the
+`tanks_graphics` table instead of assuming the table is page-aligned at `$xx00`;
+the old accidental alignment was the cause of scrambled tank glyphs after the
+score/audio additions moved the table. A later visual regression fix also swapped
+the SE/SW bitmap payloads into their correct clockwise slots: with REFP clear, the
+SE barrel terminates in the low/right bits and the SW barrel in the high/left bits.
+The 11-line score temporarily owns P0/P1.
+A VBLANK-prepared 160-entry packed player-position table then restores P0/P1 with
+a fixed three-visible-line handoff, replacing coordinate-dependent visible-time
+divide loops. The paired arena kernel is 172 lines, followed by a dedicated
+four-scanline bottom wall and two blank tail lines for 192 visible lines total.
+P0/P1 graphics are now published at CPU cycles 3 and 6 of every line-A, before
+visible pixels begin; the previous cycle-38/44 writes caused the horizontal tank
+tears seen at left-side X positions. The side-wall PF0 transition is completed in
+HBLANK, and the bottom wall is established at the start of its own four-line phase
+instead of changing PF0/PF1 partway across the first bottom scanline. Missile enable
+bytes are staged on line B and published early on the following line A; the enable
+remains latched through line B so a shot is visible for two scanlines. An 86-byte
+Superchip PF2 schedule supplies the top-wall continuation and vertical barriers in
+constant time. Missile collision, score, and hit-audio processing consume the
+previous arena's latches in VBLANK. Player collision rollback is consumed earlier,
+at the start of overscan immediately after the arena and before controls overwrite
+`tank*_prev_*`; CXP0FB/CXP1FB restore a tank after playfield contact, while CXPPMM
+restores both tanks after P0/P1 contact. Controls, spin advance, missile motion,
+Reset, and RNG then continue in overscan. The complete frame remains stable at the
+scheduler's 264-raw / Stella-262 contract. Stella 7.0 was also exercised with a
+moving tank after the raster rewrite; tank rows remained coherent and the bottom
+wall rendered continuously.
+
+`tanks` is an 8K F8SC cartridge. The current linker reports bank1 at
+2237/3584 bytes, bank0 at 2402/3584 bytes, RIOT RAM at 111/128 bytes including
+the reserved hardware stack, and Superchip RAM at 86/128 bytes. `vcs_tanks.pl/.cpp`
+covers both joysticks, 24-frame held-turn repeat, quarter-rate translation, fire
+hold semantics and fire audio, three-plus-three scoring, hit audio/spin/random
+heading, missile/playfield and missile/player latches, player/playfield rollback,
+player/player rollback, barrier regeneration on Reset, corrected graphics pointers
+and SE/SW orientation, visible ENAM0/ENAM1 assertion after launch, immediate
+post-arena collision rollback with reverse-away recovery checks, invariant frame
+length, and beam-write deadlines for nonzero GRP0/GRP1 plus side/full PF0
+transitions. Its timing stress path drives tanks and missiles to X endpoints 4/148
+and Y endpoints 4/78 while injecting simultaneous hits/spin/audio activity; every
+post-startup frame must retain the 264-raw cadence. Installed-tree and example-build
+coverage include `tanks`. Item 39 remains the first unfinished main-roadmap item.
+
 The generic per-case test timeout is now 20 seconds, and former explicit
 10-second overrides were raised to 20 seconds as well; longer 120-second
 exceptions remain unchanged.
@@ -1024,5 +1085,5 @@ hygiene traversals explicitly prune `.git`, because branch/ref/object history is
 metadata rather than editable source and may legitimately retain retired historical
 names. In an eight-worker validation,
 example shards measured about 2.9-4.0 seconds each and score-composition family
-shards about 8.3-8.6 seconds each. The current E2E inventory contains 302
+shards about 8.3-8.6 seconds each. The current E2E inventory contains 303
 cases while preserving the same aggregate sharded coverage model.

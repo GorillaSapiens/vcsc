@@ -50,6 +50,7 @@ sub profile_from_source {
    my $text=read_file($source);
    return '2k' if $text =~ /^\s*include\s+"vcs_2k\.c26"\s*$/m;
    return 'f8' if $text =~ /^\s*include\s+"vcs_8k_f8\.c26"\s*$/m;
+   return 'f8sc' if $text =~ /^\s*include\s+"vcs_8k_f8sc\.c26"\s*$/m;
    return '4k';
 }
 find({
@@ -91,6 +92,10 @@ for my $entry (@examples) {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
    } elsif ($profile eq 'f8') {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs_8k_f8.cfg');
+   } elsif ($profile eq 'f8sc') {
+      # C26 owns the F8SC bank/Superchip topology; the generic cfg only
+      # reserves the RIOT hardware stack, matching the public Makefile.
+      push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
    } elsif ($file eq 'fingerprint.c26') {
       push @extra,'-Wa,--illegals';
    } elsif ($file =~ /\Afaithful_legacy_playercolors.*\.c26\z/) {
@@ -127,7 +132,7 @@ for my $entry (@examples) {
    my $rom=read_file($bin);
    my $expected_size = ($file eq 'bankswitching_diagnostic.c26' ||
                         $file eq 'banked_standard_renderer.c26') ? 8192
-      : $profile eq '2k' ? 2048 : $profile eq 'f8' ? 8192 : 4096;
+      : $profile eq '2k' ? 2048 : ($profile eq 'f8' || $profile eq 'f8sc') ? 8192 : 4096;
    length($rom)==$expected_size
       or die "$dir produced ".length($rom)." bytes, expected $expected_size\n";
    my $vector_offset = $expected_size - 6;
