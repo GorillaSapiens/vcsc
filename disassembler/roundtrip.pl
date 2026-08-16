@@ -1,0 +1,168 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Cwd qw(abs_path);
+use Digest::MD5 qw(md5_hex);
+use File::Basename qw(basename dirname);
+use File::Path qw(make_path);
+use File::Spec;
+
+sub usage {
+    my ($fh) = @_;
+    print {$fh} "usage: $0 INPUT_DIR OUTPUT_DIR\n";
+}
+
+@ARGV == 2 or do { usage(*STDERR); exit 2; };
+my ($input_arg, $output_arg) = @ARGV;
+-d $input_arg or die "$input_arg: input directory does not exist\n";
+
+if (!-e $output_arg) {
+    make_path($output_arg) or die "could not create $output_arg\n";
+}
+-d $output_arg or die "$output_arg: output path is not a directory\n";
+
+my $input_dir = abs_path($input_arg);
+my $output_dir = abs_path($output_arg);
+defined $input_dir && defined $output_dir or die "could not resolve directories\n";
+$input_dir ne $output_dir or die "input and output directories must be different\n";
+
+my $script_dir = abs_path(dirname(__FILE__));
+my $repo = abs_path(File::Spec->catdir($script_dir, File::Spec->updir()));
+my $disas = File::Spec->catfile($script_dir, 'vcsc-disas');
+my $assembler = File::Spec->catfile($repo, 'assembler', 'vcsc-as');
+-x $disas or die "$disas: build vcsc-disas first\n";
+-x $assembler or die "$assembler: build vcsc-as first\n";
+
+opendir(my $dh, $input_dir) or die "$input_dir: $!\n";
+my @files = sort grep {
+    /\.bin\z/i && -f File::Spec->catfile($input_dir, $_)
+} readdir($dh);
+closedir($dh);
+@files or die "$input_dir: no .bin files found\n";
+
+sub slurp_raw {
+    my ($path) = @_;
+    open(my $fh, '<:raw', $path) or die "$path: $!\n";
+    local $/;
+    my $data = <$fh>;
+    defined $data or $data = '';
+    close($fh) or die "$path: close failed: $!\n";
+    return $data;
+}
+
+sub ihex_to_bin {
+    my ($hex_path, $bin_path, $expected_size) = @_;
+    open(my $fh, '<', $hex_path) or die "$hex_path: $!\n";
+    my %mem;
+    my $base = 0;
+    my $eof = 0;
+    my $lineno = 0;
+    while (my $line = <$fh>) {
+        ++$lineno;
+        $line =~ s/[\r\n]+\z//;
+        $line =~ /^:([0-9A-Fa-f]+)\z/
+            or die "$hex_path:$lineno: malformed Intel HEX record\n";
+        my $raw = pack('H*', $1);
+        length($raw) >= 5 or die "$hex_path:$lineno: short Intel HEX record\n";
+        my @b = unpack('C*', $raw);
+        my $count = $b[0];
+        length($raw) == $count + 5
+            or die "$hex_path:$lineno: Intel HEX length mismatch\n";
+        my $sum = 0;
+        $sum = ($sum + $_) & 0xff for @b;
+        $sum == 0 or die "$hex_path:$lineno: Intel HEX checksum mismatch\n";
+        my $addr = ($b[1] << 8) | $b[2];
+        my $type = $b[3];
+        my @data = @b[4 .. 3 + $count];
+        if ($type == 0x00) {
+            for my $i (0 .. $#data) {
+                my $absolute = $base + $addr + $i;
+                exists $mem{$absolute}
+                    and die "$hex_path:$lineno: overlapping output address $absolute\n";
+                $mem{$absolute} = $data[$i];
+            }
+        }
+        elsif ($type == 0x01) {
+            $count == 0 or die "$hex_path:$lineno: malformed EOF record\n";
+            $eof = 1;
+            last;
+        }
+        elsif ($type == 0x02) {
+            $count == 2 or die "$hex_path:$lineno: malformed segment-base record\n";
+            $base = (($data[0] << 8) | $data[1]) << 4;
+        }
+        elsif ($type == 0x04) {
+            $count == 2 or die "$hex_path:$lineno: malformed linear-base record\n";
+            $base = (($data[0] << 8) | $data[1]) << 16;
+        }
+        elsif ($type == 0x03 || $type == 0x05) {
+            # Start-address metadata has no bearing on cartridge bytes.
+        }
+        else {
+            die "$hex_path:$lineno: unsupported Intel HEX record type $type\n";
+        }
+    }
+    close($fh) or die "$hex_path: close failed: $!\n";
+    $eof or die "$hex_path: missing Intel HEX EOF record\n";
+
+    my $out = '';
+    for my $address (0 .. $expected_size - 1) {
+        exists $mem{$address}
+            or die "$hex_path: output address $address is missing\n";
+        $out .= chr($mem{$address});
+    }
+    for my $address (keys %mem) {
+        $address < $expected_size
+            or die "$hex_path: unexpected output byte at address $address\n";
+    }
+    open(my $outfh, '>:raw', $bin_path) or die "$bin_path: $!\n";
+    print {$outfh} $out or die "$bin_path: write failed: $!\n";
+    close($outfh) or die "$bin_path: close failed: $!\n";
+}
+
+my ($passed, $failed) = (0, 0);
+for my $name (@files) {
+    my $input = File::Spec->catfile($input_dir, $name);
+    (my $stem = $name) =~ s/\.bin\z//i;
+    my $s26 = File::Spec->catfile($output_dir, "$stem.s26");
+    my $rebuilt = File::Spec->catfile($output_dir, $name);
+    my $hex = File::Spec->catfile($output_dir, ".$stem.roundtrip.$$.hex");
+    unlink($s26, $rebuilt, $hex);
+
+    my $ok = eval {
+        my $original = slurp_raw($input);
+        length($original) > 0 or die "$input: empty cartridge image\n";
+        system {$disas} $disas, '-o', $s26, $input;
+        $? == 0 or die "vcsc-disas failed (status " . ($? >> 8) . ")\n";
+        -f $s26 or die "vcsc-disas did not create $s26\n";
+
+        system {$assembler} $assembler, "--hex=$hex", $s26;
+        $? == 0 or die "vcsc-as failed (status " . ($? >> 8) . ")\n";
+        -f $hex or die "vcsc-as did not create $hex\n";
+        ihex_to_bin($hex, $rebuilt, length($original));
+        unlink($hex);
+
+        my $new = slurp_raw($rebuilt);
+        my $md5_original = md5_hex($original);
+        my $md5_new = md5_hex($new);
+        print "$name: original md5=$md5_original reconstructed md5=$md5_new\n";
+        $md5_original eq $md5_new or die "MD5 mismatch\n";
+        length($original) == length($new) or die "size mismatch\n";
+        $original eq $new or die "byte mismatch\n";
+        1;
+    };
+    if ($ok) {
+        ++$passed;
+        print "PASS $name\n";
+    }
+    else {
+        ++$failed;
+        my $error = $@ || "unknown failure\n";
+        $error =~ s/[\r\n]+\z//;
+        print STDERR "FAIL $name: $error\n";
+        unlink($hex);
+    }
+}
+
+print "Summary: $passed passed, $failed failed, " . ($passed + $failed) . " total\n";
+exit($failed ? 1 : 0);

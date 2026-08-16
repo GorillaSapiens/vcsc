@@ -8,7 +8,7 @@
 # Linux package
 
 The top-level `make linux` target builds a relocatable Linux distribution using
-the native C and C++ toolchain. All six VCSC host executables are linked
+the native C and C++ toolchain. All seven VCSC host executables are linked
 statically, then the normal installed runtime/support tree and editable examples
 are staged beside them.
 
@@ -43,6 +43,7 @@ tar -xzf vcsc.linux.YYYYMMDD_HHMMSS.tar.gz
 cd vcsc
 ./bin/vcsc -V
 ./bin/vcsc -I share/vcs examples/01_basic/01_blank_screen/blank_screen.c26 -o blank_screen.bin
+./bin/vcsc-disas blank_screen.bin
 ```
 
 The driver locates `vcsc-cc1`, `vcsc-as`, `vcsc-ld`, the runtime archive, and

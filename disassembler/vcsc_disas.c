@@ -1,0 +1,3201 @@
+#include <errno.h>
+#include <getopt.h>
+#include <inttypes.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "version.h"
+
+/*
+ * vcsc-disas -- conservative Atari 2600 cartridge disassembler.
+ *
+ * The output contract is deliberately stronger than the analysis contract:
+ * generated .s26 must reproduce the input bytes exactly.  Analysis may become
+ * more ambitious over time; when it is uncertain, emission falls back to
+ * .byte rather than inventing semantics.
+ */
+
+typedef enum {
+   AM_IMPLIED,
+   AM_ACCUMULATOR,
+   AM_IMMEDIATE,
+   AM_ZERO_PAGE,
+   AM_ZERO_PAGE_X,
+   AM_ZERO_PAGE_Y,
+   AM_RELATIVE,
+   AM_ABSOLUTE,
+   AM_ABSOLUTE_X,
+   AM_ABSOLUTE_Y,
+   AM_INDIRECT,
+   AM_INDEXED_INDIRECT,
+   AM_INDIRECT_INDEXED
+} address_mode_t;
+
+#include "opcode_table.inc"
+
+typedef enum {
+   MAP_RAW,
+   MAP_2K,
+   MAP_4K,
+   MAP_F8,
+   MAP_F6,
+   MAP_F4
+} mapper_t;
+
+typedef enum {
+   FLOW_NEXT,
+   FLOW_BRANCH,
+   FLOW_JSR,
+   FLOW_JMP_ABSOLUTE,
+   FLOW_JMP_INDIRECT,
+   FLOW_RTS,
+   FLOW_STOP
+} flow_kind_t;
+
+#define ROLE_CODE_START 0x01u
+#define ROLE_CODE_BYTE  0x02u
+#define ROLE_OPERAND    0x04u
+#define ROLE_DATA_READ  0x08u
+#define ROLE_POSSIBLE   0x10u
+#define ROLE_LABEL      0x20u
+#define ROLE_OVERLAP    0x40u
+#define ROLE_VECTOR     0x80u
+
+#define ACCESS_READ  0x01u
+#define ACCESS_WRITE 0x02u
+
+#define ZERO_PAGE_SIZE 256u
+#define ZERO_PAGE_KNOWN_BYTES (ZERO_PAGE_SIZE / 8u)
+
+static unsigned opcode_memory_access(uint8_t opcode);
+
+typedef struct {
+   uint8_t a_known;
+   uint8_t a;
+   uint8_t x_known;
+   uint8_t x;
+   uint8_t y_known;
+   uint8_t y;
+   uint8_t carry_known;
+   uint8_t carry;
+   uint8_t decimal_known;
+   uint8_t decimal;
+   uint8_t zp_known[ZERO_PAGE_KNOWN_BYTES];
+   uint8_t zp_value[ZERO_PAGE_SIZE];
+} abstract_state_t;
+
+typedef struct {
+   size_t file_offset;
+   size_t size;
+   uint16_t origin;
+   int origin_score;
+   int reset_vector_evidence;
+   int origin_overridden;
+   uint8_t *roles;
+   uint8_t *inst_len;
+   uint8_t *inst_opcode;
+   uint8_t *queued;
+   uint8_t *visited;
+   uint8_t *state_seen;
+   uint8_t *graphics;
+   abstract_state_t *states;
+} bank_t;
+
+typedef struct {
+   size_t bank;
+   size_t offset;
+} work_item_t;
+
+static int cart_target_offset(const bank_t *b, uint16_t address, size_t *off);
+
+typedef struct {
+   uint8_t *rom;
+   size_t rom_size;
+   mapper_t mapper;
+   size_t bank_size;
+   size_t bank_count;
+   bank_t *banks;
+   size_t reset_bank;
+   int mapper_overridden;
+   int superchip_override;
+   int reset_bank_overridden;
+   const char *video_override;
+   const char *controller_override[2];
+   int verbose;
+   int hotspot_refs;
+   int superchip_refs;
+   int superchip_write_refs;
+   int dynamic_control_exits;
+   int unresolved_indirect_jumps;
+   work_item_t *work;
+   size_t work_count;
+   size_t work_cap;
+} analysis_t;
+
+#define MAX_HINT_SPECS 128u
+
+typedef struct {
+   const char *input;
+   const char *output;
+   int output_explicit;
+   int mapper_override_set;
+   mapper_t mapper_override;
+   int superchip_override;
+   int reset_bank_override;
+   const char *video_override;
+   const char *controller_override[2];
+   const char *origin_specs[MAX_HINT_SPECS];
+   size_t origin_count;
+   const char *entry_specs[MAX_HINT_SPECS];
+   size_t entry_count;
+   const char *code_specs[MAX_HINT_SPECS];
+   size_t code_count;
+   const char *data_specs[MAX_HINT_SPECS];
+   size_t data_count;
+   int verbose;
+} options_t;
+
+/* ----------------------------- SHA-256 ---------------------------------- */
+
+typedef struct {
+   uint32_t h[8];
+   uint64_t bits;
+   uint8_t block[64];
+   size_t used;
+} sha256_ctx_t;
+
+static uint32_t rotr32(uint32_t x, unsigned n)
+{
+   return (x >> n) | (x << (32u - n));
+}
+
+static void sha256_transform(sha256_ctx_t *c, const uint8_t b[64])
+{
+   static const uint32_t k[64] = {
+      0x428a2f98u,0x71374491u,0xb5c0fbcfu,0xe9b5dba5u,
+      0x3956c25bu,0x59f111f1u,0x923f82a4u,0xab1c5ed5u,
+      0xd807aa98u,0x12835b01u,0x243185beu,0x550c7dc3u,
+      0x72be5d74u,0x80deb1feu,0x9bdc06a7u,0xc19bf174u,
+      0xe49b69c1u,0xefbe4786u,0x0fc19dc6u,0x240ca1ccu,
+      0x2de92c6fu,0x4a7484aau,0x5cb0a9dcu,0x76f988dau,
+      0x983e5152u,0xa831c66du,0xb00327c8u,0xbf597fc7u,
+      0xc6e00bf3u,0xd5a79147u,0x06ca6351u,0x14292967u,
+      0x27b70a85u,0x2e1b2138u,0x4d2c6dfcu,0x53380d13u,
+      0x650a7354u,0x766a0abbu,0x81c2c92eu,0x92722c85u,
+      0xa2bfe8a1u,0xa81a664bu,0xc24b8b70u,0xc76c51a3u,
+      0xd192e819u,0xd6990624u,0xf40e3585u,0x106aa070u,
+      0x19a4c116u,0x1e376c08u,0x2748774cu,0x34b0bcb5u,
+      0x391c0cb3u,0x4ed8aa4au,0x5b9cca4fu,0x682e6ff3u,
+      0x748f82eeu,0x78a5636fu,0x84c87814u,0x8cc70208u,
+      0x90befffau,0xa4506cebu,0xbef9a3f7u,0xc67178f2u
+   };
+   uint32_t w[64];
+   uint32_t a, d, e, f, g, h, t1, t2, b0, c0;
+   unsigned i;
+
+   for (i = 0; i < 16; ++i) {
+      size_t j = (size_t)i * 4u;
+      w[i] = ((uint32_t)b[j] << 24) | ((uint32_t)b[j+1] << 16) |
+             ((uint32_t)b[j+2] << 8) | (uint32_t)b[j+3];
+   }
+   for (i = 16; i < 64; ++i) {
+      uint32_t s0 = rotr32(w[i-15],7) ^ rotr32(w[i-15],18) ^ (w[i-15] >> 3);
+      uint32_t s1 = rotr32(w[i-2],17) ^ rotr32(w[i-2],19) ^ (w[i-2] >> 10);
+      w[i] = w[i-16] + s0 + w[i-7] + s1;
+   }
+
+   a = c->h[0]; b0 = c->h[1]; c0 = c->h[2]; d = c->h[3];
+   e = c->h[4]; f = c->h[5]; g = c->h[6]; h = c->h[7];
+   for (i = 0; i < 64; ++i) {
+      uint32_t s1 = rotr32(e,6) ^ rotr32(e,11) ^ rotr32(e,25);
+      uint32_t ch = (e & f) ^ ((~e) & g);
+      uint32_t s0 = rotr32(a,2) ^ rotr32(a,13) ^ rotr32(a,22);
+      uint32_t maj = (a & b0) ^ (a & c0) ^ (b0 & c0);
+      t1 = h + s1 + ch + k[i] + w[i];
+      t2 = s0 + maj;
+      h = g; g = f; f = e; e = d + t1;
+      d = c0; c0 = b0; b0 = a; a = t1 + t2;
+   }
+   c->h[0] += a; c->h[1] += b0; c->h[2] += c0; c->h[3] += d;
+   c->h[4] += e; c->h[5] += f; c->h[6] += g; c->h[7] += h;
+}
+
+static void sha256_init(sha256_ctx_t *c)
+{
+   static const uint32_t initial[8] = {
+      0x6a09e667u,0xbb67ae85u,0x3c6ef372u,0xa54ff53au,
+      0x510e527fu,0x9b05688cu,0x1f83d9abu,0x5be0cd19u
+   };
+   memcpy(c->h, initial, sizeof(initial));
+   c->bits = 0;
+   c->used = 0;
+}
+
+static void sha256_update(sha256_ctx_t *c, const uint8_t *p, size_t n)
+{
+   while (n != 0) {
+      size_t take = 64u - c->used;
+      if (take > n) take = n;
+      memcpy(c->block + c->used, p, take);
+      c->used += take;
+      p += take;
+      n -= take;
+      c->bits += (uint64_t)take * 8u;
+      if (c->used == 64u) {
+         sha256_transform(c, c->block);
+         c->used = 0;
+      }
+   }
+}
+
+static void sha256_final(sha256_ctx_t *c, uint8_t out[32])
+{
+   uint64_t bits = c->bits;
+   unsigned i;
+   c->block[c->used++] = 0x80u;
+   if (c->used > 56u) {
+      while (c->used < 64u) c->block[c->used++] = 0;
+      sha256_transform(c, c->block);
+      c->used = 0;
+   }
+   while (c->used < 56u) c->block[c->used++] = 0;
+   for (i = 0; i < 8; ++i)
+      c->block[63u-i] = (uint8_t)(bits >> (i * 8u));
+   sha256_transform(c, c->block);
+   for (i = 0; i < 8; ++i) {
+      out[i*4u] = (uint8_t)(c->h[i] >> 24);
+      out[i*4u+1] = (uint8_t)(c->h[i] >> 16);
+      out[i*4u+2] = (uint8_t)(c->h[i] >> 8);
+      out[i*4u+3] = (uint8_t)c->h[i];
+   }
+}
+
+static void sha256_hex(const uint8_t *p, size_t n, char out[65])
+{
+   static const char hex[] = "0123456789abcdef";
+   sha256_ctx_t c;
+   uint8_t digest[32];
+   unsigned i;
+   sha256_init(&c);
+   sha256_update(&c, p, n);
+   sha256_final(&c, digest);
+   for (i = 0; i < 32; ++i) {
+      out[i*2u] = hex[digest[i] >> 4];
+      out[i*2u+1] = hex[digest[i] & 15u];
+   }
+   out[64] = '\0';
+}
+
+/* --------------------------- basic helpers ------------------------------ */
+
+static int parse_mapper_name(const char *s, mapper_t *mapper, int *superchip)
+{
+   *superchip = -1;
+   if (strcmp(s, "raw") == 0) *mapper = MAP_RAW;
+   else if (strcmp(s, "2k") == 0) *mapper = MAP_2K;
+   else if (strcmp(s, "4k") == 0) *mapper = MAP_4K;
+   else if (strcmp(s, "f8") == 0) { *mapper = MAP_F8; *superchip = 0; }
+   else if (strcmp(s, "f6") == 0) { *mapper = MAP_F6; *superchip = 0; }
+   else if (strcmp(s, "f4") == 0) { *mapper = MAP_F4; *superchip = 0; }
+   else if (strcmp(s, "f8sc") == 0) { *mapper = MAP_F8; *superchip = 1; }
+   else if (strcmp(s, "f6sc") == 0) { *mapper = MAP_F6; *superchip = 1; }
+   else if (strcmp(s, "f4sc") == 0) { *mapper = MAP_F4; *superchip = 1; }
+   else return 0;
+   return 1;
+}
+
+static int valid_video_override(const char *s)
+{
+   return strcmp(s, "ntsc") == 0 || strcmp(s, "pal") == 0 ||
+          strcmp(s, "secam") == 0 || strcmp(s, "pal-family") == 0 ||
+          strcmp(s, "unknown") == 0;
+}
+
+static int valid_controller_override(const char *s)
+{
+   return strcmp(s, "joystick") == 0 || strcmp(s, "paddles") == 0 ||
+          strcmp(s, "keypad") == 0 || strcmp(s, "driving") == 0 ||
+          strcmp(s, "unused") == 0 || strcmp(s, "unknown") == 0;
+}
+
+static int add_hint_spec(const char **array, size_t *count, const char *value,
+                         const char *kind, const char *argv0)
+{
+   if (*count >= MAX_HINT_SPECS) {
+      fprintf(stderr, "%s: too many --%s hints (maximum %u)\n",
+              argv0, kind, (unsigned)MAX_HINT_SPECS);
+      return 0;
+   }
+   array[(*count)++] = value;
+   return 1;
+}
+
+static void usage(const char *argv0)
+{
+   fprintf(stderr,
+      "usage: %s [options] cartridge.bin\n"
+      "\n"
+      "options:\n"
+      "   -i, --input <file>       compatibility alias for positional input\n"
+      "   -o, --output <file>      write generated VCSC assembly (.s26)\n"
+      "       --mapper <name>      force raw|2k|4k|f8|f8sc|f6|f6sc|f4|f4sc\n"
+      "       --reset-bank <n>     force power-on/reset physical bank\n"
+      "       --origin <b:addr>    force logical origin for a bank (repeatable)\n"
+      "       --entry <b:addr>     add executable entry point (repeatable)\n"
+      "       --code <b:a-b>       force a linear code range (repeatable)\n"
+      "       --data <b:a-b>       mark a definite data range (repeatable)\n"
+      "       --video <name>       force ntsc|pal|secam|pal-family|unknown metadata\n"
+      "       --controller0 <name> force joystick|paddles|keypad|driving|unused|unknown\n"
+      "       --controller1 <name> force joystick|paddles|keypad|driving|unused|unknown\n"
+      "       --verbose            include detailed inference evidence comments\n"
+      "   -h, --help               show this help\n"
+      "   -V, --version            show version information\n"
+      "\n"
+      "hint syntax:\n"
+      "   addresses accept decimal, 0xFFFF, or $FFFF; bank may be omitted for\n"
+      "   one-bank cartridges (for example --entry $F000 or --data $F200-$F2FF)\n"
+      "\n"
+      "notes:\n"
+      "   without -o, output is derived from the input name with suffix .s26\n"
+      "   -o - writes generated assembly to standard output\n"
+      "   forced code and data roles may overlap; exact bytes remain authoritative\n"
+      "   exact byte reconstruction takes priority over speculative decoding\n"
+      "\n"
+      "example:\n"
+      "   %s --origin 0:$D000 --entry 0:$D120 -o game.s26 game.bin\n",
+      argv0, argv0);
+}
+
+static int parse_args(int argc, char **argv, options_t *opt)
+{
+   enum {
+      OPT_MAPPER = 256, OPT_RESET_BANK, OPT_ORIGIN, OPT_ENTRY,
+      OPT_CODE, OPT_DATA, OPT_VIDEO, OPT_CONTROLLER0, OPT_CONTROLLER1,
+      OPT_VERBOSE
+   };
+   int ch;
+   int option_index = 0;
+   const char *positional = NULL;
+   static struct option long_options[] = {
+      { "input", required_argument, NULL, 'i' },
+      { "output", required_argument, NULL, 'o' },
+      { "mapper", required_argument, NULL, OPT_MAPPER },
+      { "reset-bank", required_argument, NULL, OPT_RESET_BANK },
+      { "origin", required_argument, NULL, OPT_ORIGIN },
+      { "entry", required_argument, NULL, OPT_ENTRY },
+      { "code", required_argument, NULL, OPT_CODE },
+      { "data", required_argument, NULL, OPT_DATA },
+      { "video", required_argument, NULL, OPT_VIDEO },
+      { "controller0", required_argument, NULL, OPT_CONTROLLER0 },
+      { "controller1", required_argument, NULL, OPT_CONTROLLER1 },
+      { "verbose", no_argument, NULL, OPT_VERBOSE },
+      { "help", no_argument, NULL, 'h' },
+      { "version", no_argument, NULL, 'V' },
+      { NULL, 0, NULL, 0 }
+   };
+
+   memset(opt, 0, sizeof(*opt));
+   opt->reset_bank_override = -1;
+   opt->superchip_override = -1;
+   opterr = 0;
+   while ((ch = getopt_long(argc, argv, ":Vhi:o:", long_options,
+                            &option_index)) != -1) {
+      switch (ch) {
+      case 'h': usage(argv[0]); exit(0);
+      case 'V': puts(VERSION); exit(0);
+      case 'i':
+         if (opt->input) {
+            fprintf(stderr, "%s: input file specified more than once\n", argv[0]);
+            return 0;
+         }
+         opt->input = optarg;
+         break;
+      case 'o':
+         if (opt->output_explicit) {
+            fprintf(stderr, "%s: output file specified more than once\n", argv[0]);
+            return 0;
+         }
+         opt->output = optarg;
+         opt->output_explicit = 1;
+         break;
+      case OPT_MAPPER:
+         if (opt->mapper_override_set) {
+            fprintf(stderr, "%s: --mapper specified more than once\n", argv[0]);
+            return 0;
+         }
+         if (!parse_mapper_name(optarg, &opt->mapper_override,
+                                &opt->superchip_override)) {
+            fprintf(stderr, "%s: unsupported mapper override '%s'\n", argv[0], optarg);
+            return 0;
+         }
+         opt->mapper_override_set = 1;
+         break;
+      case OPT_RESET_BANK: {
+         char *endp;
+         long n;
+         if (opt->reset_bank_override >= 0) {
+            fprintf(stderr, "%s: --reset-bank specified more than once\n", argv[0]);
+            return 0;
+         }
+         errno = 0;
+         n = strtol(optarg, &endp, 10);
+         if (errno || *optarg == '\0' || *endp != '\0' || n < 0 || n > 65535) {
+            fprintf(stderr, "%s: invalid --reset-bank value '%s'\n", argv[0], optarg);
+            return 0;
+         }
+         opt->reset_bank_override = (int)n;
+         break;
+      }
+      case OPT_ORIGIN:
+         if (!add_hint_spec(opt->origin_specs, &opt->origin_count, optarg,
+                            "origin", argv[0])) return 0;
+         break;
+      case OPT_ENTRY:
+         if (!add_hint_spec(opt->entry_specs, &opt->entry_count, optarg,
+                            "entry", argv[0])) return 0;
+         break;
+      case OPT_CODE:
+         if (!add_hint_spec(opt->code_specs, &opt->code_count, optarg,
+                            "code", argv[0])) return 0;
+         break;
+      case OPT_DATA:
+         if (!add_hint_spec(opt->data_specs, &opt->data_count, optarg,
+                            "data", argv[0])) return 0;
+         break;
+      case OPT_VIDEO:
+         if (opt->video_override) {
+            fprintf(stderr, "%s: --video specified more than once\n", argv[0]);
+            return 0;
+         }
+         if (!valid_video_override(optarg)) {
+            fprintf(stderr, "%s: invalid --video value '%s'\n", argv[0], optarg);
+            return 0;
+         }
+         opt->video_override = optarg;
+         break;
+      case OPT_CONTROLLER0:
+      case OPT_CONTROLLER1: {
+         unsigned port = ch == OPT_CONTROLLER0 ? 0u : 1u;
+         if (opt->controller_override[port]) {
+            fprintf(stderr, "%s: --controller%u specified more than once\n",
+                    argv[0], port);
+            return 0;
+         }
+         if (!valid_controller_override(optarg)) {
+            fprintf(stderr, "%s: invalid --controller%u value '%s'\n",
+                    argv[0], port, optarg);
+            return 0;
+         }
+         opt->controller_override[port] = optarg;
+         break;
+      }
+      case OPT_VERBOSE:
+         opt->verbose = 1;
+         break;
+      case ':':
+         fprintf(stderr, "%s: missing argument for option '%s'\n",
+                 argv[0], argv[optind - 1]);
+         fprintf(stderr, "Try '%s --help' for a list of supported options.\n",
+                 argv[0]);
+         return 0;
+      default:
+         fprintf(stderr, "%s: unsupported option '%s'\n",
+                 argv[0], argv[optind - 1]);
+         fprintf(stderr, "Try '%s --help' for a list of supported options.\n",
+                 argv[0]);
+         return 0;
+      }
+   }
+
+   while (optind < argc) {
+      if (positional) {
+         fprintf(stderr, "%s: unexpected positional argument '%s'\n",
+                 argv[0], argv[optind]);
+         return 0;
+      }
+      positional = argv[optind++];
+   }
+   if (positional) {
+      if (opt->input) {
+         fprintf(stderr, "%s: input file specified both positionally and with -i/--input\n",
+                 argv[0]);
+         return 0;
+      }
+      opt->input = positional;
+   }
+   if (!opt->input) {
+      fprintf(stderr, "%s: input file is required\n", argv[0]);
+      fprintf(stderr, "Try '%s --help' for a list of supported options.\n",
+              argv[0]);
+      return 0;
+   }
+   return 1;
+}
+
+static char *derived_output_name(const char *input)
+{
+   const char *slash = strrchr(input, '/');
+#ifdef _WIN32
+   const char *back = strrchr(input, '\\');
+   if (!slash || (back && back > slash)) slash = back;
+#endif
+   const char *base = slash ? slash + 1 : input;
+   const char *dot = strrchr(base, '.');
+   size_t stem = dot ? (size_t)(dot - input) : strlen(input);
+   char *out = (char *)malloc(stem + 5u);
+   if (!out) return NULL;
+   memcpy(out, input, stem);
+   memcpy(out + stem, ".s26", 5u);
+   return out;
+}
+
+static int read_file(const char *path, uint8_t **data, size_t *size)
+{
+   FILE *fp;
+   long end;
+   uint8_t *p;
+
+   fp = fopen(path, "rb");
+   if (!fp) {
+      fprintf(stderr, "%s: %s\n", path, strerror(errno));
+      return 0;
+   }
+   if (fseek(fp, 0, SEEK_END) != 0 || (end = ftell(fp)) < 0 ||
+       fseek(fp, 0, SEEK_SET) != 0) {
+      fprintf(stderr, "%s: cannot determine file size\n", path);
+      fclose(fp);
+      return 0;
+   }
+   if (end == 0) {
+      fprintf(stderr, "%s: empty cartridge image\n", path);
+      fclose(fp);
+      return 0;
+   }
+   p = (uint8_t *)malloc((size_t)end);
+   if (!p) {
+      fprintf(stderr, "out of memory\n");
+      fclose(fp);
+      return 0;
+   }
+   if (fread(p, 1, (size_t)end, fp) != (size_t)end) {
+      fprintf(stderr, "%s: short read\n", path);
+      free(p);
+      fclose(fp);
+      return 0;
+   }
+   if (fclose(fp) != 0) {
+      fprintf(stderr, "%s: close failed: %s\n", path, strerror(errno));
+      free(p);
+      return 0;
+   }
+   *data = p;
+   *size = (size_t)end;
+   return 1;
+}
+
+static unsigned instruction_length(address_mode_t mode)
+{
+   switch (mode) {
+   case AM_IMPLIED:
+   case AM_ACCUMULATOR: return 1;
+   case AM_IMMEDIATE:
+   case AM_ZERO_PAGE:
+   case AM_ZERO_PAGE_X:
+   case AM_ZERO_PAGE_Y:
+   case AM_RELATIVE:
+   case AM_INDEXED_INDIRECT:
+   case AM_INDIRECT_INDEXED: return 2;
+   case AM_ABSOLUTE:
+   case AM_ABSOLUTE_X:
+   case AM_ABSOLUTE_Y:
+   case AM_INDIRECT: return 3;
+   }
+   return 1;
+}
+
+static flow_kind_t instruction_flow(uint8_t opcode)
+{
+   switch (opcode) {
+   case 0x10: case 0x30: case 0x50: case 0x70:
+   case 0x90: case 0xb0: case 0xd0: case 0xf0: return FLOW_BRANCH;
+   case 0x20: return FLOW_JSR;
+   case 0x4c: return FLOW_JMP_ABSOLUTE;
+   case 0x6c: return FLOW_JMP_INDIRECT;
+   case 0x60: return FLOW_RTS;
+   case 0x00: case 0x40:
+   case 0x02: case 0x12: case 0x22: case 0x32:
+   case 0x42: case 0x52: case 0x62: case 0x72:
+   case 0x92: case 0xb2: case 0xd2: case 0xf2: return FLOW_STOP;
+   default: return FLOW_NEXT;
+   }
+}
+
+static int opcode_is_write_only(uint8_t opcode)
+{
+   switch (opcode) {
+   case 0x81: case 0x85: case 0x8d: case 0x91: case 0x95: case 0x99: case 0x9d:
+   case 0x84: case 0x8c: case 0x94:
+   case 0x86: case 0x8e: case 0x96:
+   case 0x83: case 0x87: case 0x8f: case 0x97:
+   case 0x93: case 0x9b: case 0x9c: case 0x9e: case 0x9f:
+      return 1;
+   default:
+      return 0;
+   }
+}
+
+static int is_cart_address(uint16_t address)
+{
+   return (address & 0x1000u) != 0;
+}
+
+static int mapper_dimensions(mapper_t mapper, size_t rom_size,
+                             size_t *bank_size, size_t *bank_count)
+{
+   switch (mapper) {
+   case MAP_RAW: *bank_size = rom_size; *bank_count = 1u; return 1;
+   case MAP_2K: *bank_size = 2048u; *bank_count = 1u; return rom_size == 2048u;
+   case MAP_4K: *bank_size = 4096u; *bank_count = 1u; return rom_size == 4096u;
+   case MAP_F8: *bank_size = 4096u; *bank_count = 2u; return rom_size == 8192u;
+   case MAP_F6: *bank_size = 4096u; *bank_count = 4u; return rom_size == 16384u;
+   case MAP_F4: *bank_size = 4096u; *bank_count = 8u; return rom_size == 32768u;
+   }
+   return 0;
+}
+
+static mapper_t infer_mapper(size_t size, size_t *bank_size, size_t *bank_count)
+{
+   mapper_t mapper;
+   switch (size) {
+   case 2048u: mapper = MAP_2K; break;
+   case 4096u: mapper = MAP_4K; break;
+   case 8192u: mapper = MAP_F8; break;
+   case 16384u: mapper = MAP_F6; break;
+   case 32768u: mapper = MAP_F4; break;
+   default: mapper = MAP_RAW; break;
+   }
+   (void)mapper_dimensions(mapper, size, bank_size, bank_count);
+   return mapper;
+}
+
+static const char *mapper_name(mapper_t mapper)
+{
+   switch (mapper) {
+   case MAP_2K: return "unbanked 2K";
+   case MAP_4K: return "unbanked 4K";
+   case MAP_F8: return "F8";
+   case MAP_F6: return "F6";
+   case MAP_F4: return "F4";
+   case MAP_RAW: return "unknown/raw";
+   }
+   return "unknown/raw";
+}
+
+static int origin_candidate_valid(uint16_t origin, size_t bank_size)
+{
+   if (!is_cart_address(origin)) return 0;
+   if (bank_size == 4096u) return (origin & 0x0fffu) == 0;
+   if (bank_size == 2048u) return (origin & 0x07ffu) == 0;
+   return 0;
+}
+
+static uint16_t origin_from_target(uint16_t target, size_t bank_size)
+{
+   uint16_t mask = (uint16_t)(bank_size - 1u);
+   return (uint16_t)(target & (uint16_t)~mask);
+}
+
+static uint16_t read_word(const uint8_t *p)
+{
+   return (uint16_t)(p[0] | ((uint16_t)p[1] << 8));
+}
+
+static int origin_index(uint16_t origin, size_t bank_size)
+{
+   if (bank_size == 4096u) return (int)(origin >> 12);
+   if (bank_size == 2048u) return (int)(origin >> 11);
+   return -1;
+}
+
+static uint16_t infer_bank_origin(const uint8_t *data, size_t size,
+                                  size_t bank_size, int *score_out,
+                                  int *reset_evidence)
+{
+   int scores[32];
+   size_t i;
+   int best_score = -1;
+   uint16_t best = bank_size == 2048u ? 0xf800u : 0xf000u;
+   memset(scores, 0, sizeof(scores));
+   *reset_evidence = 0;
+
+   if (size >= 6u) {
+      static const int weights[3] = { 12, 48, 12 };
+      unsigned v;
+      for (v = 0; v < 3; ++v) {
+         uint16_t target = read_word(data + size - 6u + (size_t)v * 2u);
+         if (is_cart_address(target)) {
+            uint16_t origin = origin_from_target(target, bank_size);
+            int idx = origin_index(origin, bank_size);
+            if (idx >= 0 && idx < (int)(sizeof(scores)/sizeof(scores[0])) &&
+                origin_candidate_valid(origin, bank_size)) {
+               size_t off = (size_t)(target & (uint16_t)(bank_size - 1u));
+               scores[idx] += weights[v];
+               if (off < size && data[off] != 0x00u && data[off] != 0xffu)
+                  scores[idx] += 4;
+               if (v == 1) *reset_evidence = 1;
+            }
+         }
+      }
+   }
+
+   for (i = 0; i + 2u < size; ++i) {
+      if (data[i] == 0x4cu || data[i] == 0x20u) {
+         uint16_t target = read_word(data + i + 1u);
+         if (is_cart_address(target)) {
+            uint16_t origin = origin_from_target(target, bank_size);
+            int idx = origin_index(origin, bank_size);
+            if (idx >= 0 && idx < (int)(sizeof(scores)/sizeof(scores[0])) &&
+                origin_candidate_valid(origin, bank_size)) {
+               size_t off = (size_t)(target & (uint16_t)(bank_size - 1u));
+               scores[idx] += data[i] == 0x4cu ? 3 : 2;
+               if (off < size && data[off] != 0x00u && data[off] != 0xffu)
+                  scores[idx] += 1;
+            }
+         }
+      }
+   }
+
+   for (i = 0; i < sizeof(scores)/sizeof(scores[0]); ++i) {
+      uint16_t origin = bank_size == 4096u
+         ? (uint16_t)(i << 12)
+         : (uint16_t)(i << 11);
+      if (!origin_candidate_valid(origin, bank_size)) continue;
+      if (scores[i] > best_score ||
+          (scores[i] == best_score && origin > best)) {
+         best_score = scores[i];
+         best = origin;
+      }
+   }
+   if (best_score < 0) best_score = 0;
+   *score_out = best_score;
+   return best;
+}
+
+static int allocate_bank(bank_t *b, size_t size)
+{
+   b->roles = (uint8_t *)calloc(size, 1);
+   b->inst_len = (uint8_t *)calloc(size, 1);
+   b->inst_opcode = (uint8_t *)calloc(size, 1);
+   b->queued = (uint8_t *)calloc(size, 1);
+   b->visited = (uint8_t *)calloc(size, 1);
+   b->state_seen = (uint8_t *)calloc(size, 1);
+   b->graphics = (uint8_t *)calloc(size, 1);
+   b->states = (abstract_state_t *)calloc(size, sizeof(*b->states));
+   return b->roles && b->inst_len && b->inst_opcode && b->queued && b->visited &&
+          b->state_seen && b->graphics && b->states;
+}
+
+static void free_analysis(analysis_t *a)
+{
+   size_t i;
+   if (a->banks) {
+      for (i = 0; i < a->bank_count; ++i) {
+         free(a->banks[i].roles);
+         free(a->banks[i].inst_len);
+         free(a->banks[i].inst_opcode);
+         free(a->banks[i].queued);
+         free(a->banks[i].visited);
+         free(a->banks[i].state_seen);
+         free(a->banks[i].graphics);
+         free(a->banks[i].states);
+      }
+   }
+   free(a->banks);
+   free(a->work);
+   memset(a, 0, sizeof(*a));
+}
+
+static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
+                         const options_t *opt)
+{
+   size_t i;
+   memset(a, 0, sizeof(*a));
+   a->rom = rom;
+   a->rom_size = rom_size;
+   if (opt->mapper_override_set) {
+      a->mapper = opt->mapper_override;
+      if (!mapper_dimensions(a->mapper, rom_size, &a->bank_size, &a->bank_count)) {
+         fprintf(stderr, "--mapper %s is incompatible with %zu-byte input\n",
+                 mapper_name(a->mapper), rom_size);
+         return 0;
+      }
+      a->mapper_overridden = 1;
+      a->superchip_override = opt->superchip_override;
+   }
+   else {
+      a->mapper = infer_mapper(rom_size, &a->bank_size, &a->bank_count);
+   }
+   a->video_override = opt->video_override;
+   a->controller_override[0] = opt->controller_override[0];
+   a->controller_override[1] = opt->controller_override[1];
+   a->verbose = opt->verbose;
+   a->banks = (bank_t *)calloc(a->bank_count, sizeof(*a->banks));
+   if (!a->banks) return 0;
+
+   if (a->mapper == MAP_RAW) {
+      a->banks[0].file_offset = 0;
+      a->banks[0].size = rom_size;
+      return allocate_bank(&a->banks[0], rom_size);
+   }
+
+   for (i = 0; i < a->bank_count; ++i) {
+      bank_t *b = &a->banks[i];
+      b->file_offset = i * a->bank_size;
+      b->size = a->bank_size;
+      b->origin = infer_bank_origin(rom + b->file_offset, b->size,
+                                    b->size, &b->origin_score,
+                                    &b->reset_vector_evidence);
+      if (!allocate_bank(b, b->size)) return 0;
+   }
+
+   /* F8/F6/F4 conventionally power up/reset through the final physical bank.
+    * Prefer a bank with a plausible reset vector; ties deliberately favor the
+    * final bank.  This is analysis metadata, not an emitted-byte assumption. */
+   a->reset_bank = a->bank_count - 1u;
+   {
+      int best = -1;
+      for (i = 0; i < a->bank_count; ++i) {
+         bank_t *b = &a->banks[i];
+         int score = 0;
+         if (b->size >= 4u) {
+            uint16_t reset = read_word(rom + b->file_offset + b->size - 4u);
+            if (is_cart_address(reset)) {
+               size_t off = (size_t)(reset & (uint16_t)(b->size - 1u));
+               score += 10;
+               if (off < b->size && rom[b->file_offset + off] != 0x00u &&
+                   rom[b->file_offset + off] != 0xffu)
+                  score += 4;
+            }
+         }
+         score += b->origin_score > 20 ? 2 : 0;
+         if (score > best || (score == best && i > a->reset_bank)) {
+            best = score;
+            a->reset_bank = i;
+         }
+      }
+   }
+   return 1;
+}
+
+static int parse_uint_text(const char *text, unsigned long max,
+                           unsigned long *value)
+{
+   char *endp;
+   int base = 0;
+   const char *p = text;
+   unsigned long v;
+   if (*p == '$') { ++p; base = 16; }
+   if (*p == '\0') return 0;
+   errno = 0;
+   v = strtoul(p, &endp, base);
+   if (errno || *endp != '\0' || v > max) return 0;
+   *value = v;
+   return 1;
+}
+
+static int parse_bank_prefix(const analysis_t *a, const char *text,
+                             size_t prefix_len, size_t *bank)
+{
+   char tmp[32];
+   unsigned long value;
+   if (prefix_len == 0u) {
+      if (a->bank_count != 1u) return 0;
+      *bank = 0u;
+      return 1;
+   }
+   if (prefix_len >= sizeof(tmp)) return 0;
+   memcpy(tmp, text, prefix_len);
+   tmp[prefix_len] = '\0';
+   if (!parse_uint_text(tmp, (unsigned long)(a->bank_count - 1u), &value))
+      return 0;
+   *bank = (size_t)value;
+   return 1;
+}
+
+static int parse_bank_address(const analysis_t *a, const char *spec,
+                              size_t *bank, uint16_t *address)
+{
+   const char *colon = strchr(spec, ':');
+   const char *addr = spec;
+   unsigned long value;
+   if (colon) {
+      if (!parse_bank_prefix(a, spec, (size_t)(colon - spec), bank)) return 0;
+      addr = colon + 1;
+   }
+   else {
+      if (a->bank_count != 1u) return 0;
+      *bank = 0u;
+   }
+   if (!parse_uint_text(addr, 0xffffu, &value)) return 0;
+   *address = (uint16_t)value;
+   return 1;
+}
+
+static int parse_bank_range(const analysis_t *a, const char *spec,
+                            size_t *bank, uint16_t *first, uint16_t *last)
+{
+   const char *colon = strchr(spec, ':');
+   const char *body = spec;
+   const char *dash;
+   char left[32];
+   unsigned long a0, a1;
+   if (colon) {
+      if (!parse_bank_prefix(a, spec, (size_t)(colon - spec), bank)) return 0;
+      body = colon + 1;
+   }
+   else {
+      if (a->bank_count != 1u) return 0;
+      *bank = 0u;
+   }
+   dash = strchr(body, '-');
+   if (!dash || strchr(dash + 1, '-')) return 0;
+   if ((size_t)(dash - body) == 0u || (size_t)(dash - body) >= sizeof(left))
+      return 0;
+   memcpy(left, body, (size_t)(dash - body));
+   left[dash - body] = '\0';
+   if (!parse_uint_text(left, 0xffffu, &a0) ||
+       !parse_uint_text(dash + 1, 0xffffu, &a1) || a1 < a0)
+      return 0;
+   *first = (uint16_t)a0;
+   *last = (uint16_t)a1;
+   return 1;
+}
+
+static int apply_layout_overrides(analysis_t *a, const options_t *opt)
+{
+   size_t i;
+   if (a->mapper == MAP_RAW &&
+       (opt->origin_count || opt->entry_count || opt->code_count || opt->data_count ||
+        opt->reset_bank_override >= 0)) {
+      fprintf(stderr, "analysis address hints require a supported/forced mapper, not raw mode\n");
+      return 0;
+   }
+   for (i = 0; i < opt->origin_count; ++i) {
+      size_t bank;
+      uint16_t origin;
+      if (!parse_bank_address(a, opt->origin_specs[i], &bank, &origin)) {
+         fprintf(stderr, "invalid --origin hint '%s'\n", opt->origin_specs[i]);
+         return 0;
+      }
+      if (!origin_candidate_valid(origin, a->banks[bank].size)) {
+         fprintf(stderr, "--origin '%s' is not a valid page-aligned cartridge origin\n",
+                 opt->origin_specs[i]);
+         return 0;
+      }
+      if (a->banks[bank].origin_overridden && a->banks[bank].origin != origin) {
+         fprintf(stderr, "conflicting --origin hints for bank %zu\n", bank);
+         return 0;
+      }
+      a->banks[bank].origin = origin;
+      a->banks[bank].origin_overridden = 1;
+   }
+   if (opt->reset_bank_override >= 0) {
+      if ((size_t)opt->reset_bank_override >= a->bank_count) {
+         fprintf(stderr, "--reset-bank %d is outside the %zu-bank cartridge\n",
+                 opt->reset_bank_override, a->bank_count);
+         return 0;
+      }
+      a->reset_bank = (size_t)opt->reset_bank_override;
+      a->reset_bank_overridden = 1;
+   }
+   return 1;
+}
+
+static int hint_address_offset(const analysis_t *a, const char *kind,
+                               const char *spec, size_t *bank, size_t *off)
+{
+   uint16_t address;
+   if (!parse_bank_address(a, spec, bank, &address) ||
+       !cart_target_offset(&a->banks[*bank], address, off) ||
+       (uint16_t)(a->banks[*bank].origin + (uint16_t)*off) != address) {
+      fprintf(stderr, "invalid --%s hint '%s' for inferred/forced bank origins\n",
+              kind, spec);
+      return 0;
+   }
+   return 1;
+}
+
+static int hint_range_offsets(const analysis_t *a, const char *kind,
+                              const char *spec, size_t *bank,
+                              size_t *first, size_t *last)
+{
+   uint16_t a0, a1;
+   if (!parse_bank_range(a, spec, bank, &a0, &a1) ||
+       !cart_target_offset(&a->banks[*bank], a0, first) ||
+       !cart_target_offset(&a->banks[*bank], a1, last) ||
+       (uint16_t)(a->banks[*bank].origin + (uint16_t)*first) != a0 ||
+       (uint16_t)(a->banks[*bank].origin + (uint16_t)*last) != a1) {
+      fprintf(stderr, "invalid --%s range '%s' for inferred/forced bank origins\n",
+              kind, spec);
+      return 0;
+   }
+   return 1;
+}
+
+static int state_zp_is_known(const abstract_state_t *state, uint8_t address)
+{
+   return (state->zp_known[address >> 3] &
+           (uint8_t)(1u << (address & 7u))) != 0;
+}
+
+static void state_zp_set_known(abstract_state_t *state, uint8_t address,
+                               uint8_t value)
+{
+   state->zp_known[address >> 3] |= (uint8_t)(1u << (address & 7u));
+   state->zp_value[address] = value;
+}
+
+static void state_zp_set_unknown(abstract_state_t *state, uint8_t address)
+{
+   state->zp_known[address >> 3] &=
+      (uint8_t)~(uint8_t)(1u << (address & 7u));
+}
+
+static void state_zp_set_all_unknown(abstract_state_t *state)
+{
+   memset(state->zp_known, 0, sizeof(state->zp_known));
+}
+
+static int state_zp_get(const abstract_state_t *state, uint8_t address,
+                        uint8_t *value)
+{
+   if (!state_zp_is_known(state, address)) return 0;
+   *value = state->zp_value[address];
+   return 1;
+}
+
+/* Meet two forward abstract states.  Knowledge only decreases at joins, so a
+ * changed state is safe to re-run until the work list reaches a fixed point. */
+static int state_merge(abstract_state_t *dst, const abstract_state_t *src)
+{
+   unsigned address;
+   int changed = 0;
+
+#define MERGE_SCALAR(name)                                                     \
+   do {                                                                        \
+      if (dst->name##_known &&                                                 \
+          (!src->name##_known || dst->name != src->name)) {                   \
+         dst->name##_known = 0;                                                \
+         changed = 1;                                                          \
+      }                                                                        \
+   } while (0)
+   MERGE_SCALAR(a);
+   MERGE_SCALAR(x);
+   MERGE_SCALAR(y);
+   MERGE_SCALAR(carry);
+   MERGE_SCALAR(decimal);
+#undef MERGE_SCALAR
+
+   for (address = 0; address < ZERO_PAGE_SIZE; ++address) {
+      uint8_t zp = (uint8_t)address;
+      if (state_zp_is_known(dst, zp) &&
+          (!state_zp_is_known(src, zp) || dst->zp_value[zp] != src->zp_value[zp])) {
+         state_zp_set_unknown(dst, zp);
+         changed = 1;
+      }
+   }
+   return changed;
+}
+
+static int push_work_state(analysis_t *a, size_t bank, size_t offset,
+                           const abstract_state_t *state)
+{
+   bank_t *b;
+   work_item_t *nw;
+   int changed;
+   if (bank >= a->bank_count) return 1;
+   b = &a->banks[bank];
+   if (offset >= b->size) return 1;
+   if (!b->state_seen[offset]) {
+      b->states[offset] = *state;
+      b->state_seen[offset] = 1;
+      changed = 1;
+   }
+   else {
+      changed = state_merge(&b->states[offset], state);
+   }
+   if (!changed || b->queued[offset]) return 1;
+   if (a->work_count == a->work_cap) {
+      size_t new_cap = a->work_cap ? a->work_cap * 2u : 256u;
+      nw = (work_item_t *)realloc(a->work, new_cap * sizeof(*nw));
+      if (!nw) return 0;
+      a->work = nw;
+      a->work_cap = new_cap;
+   }
+   b->queued[offset] = 1;
+   a->work[a->work_count].bank = bank;
+   a->work[a->work_count].offset = offset;
+   ++a->work_count;
+   return 1;
+}
+
+static int push_work(analysis_t *a, size_t bank, size_t offset)
+{
+   abstract_state_t state;
+   memset(&state, 0, sizeof(state));
+   return push_work_state(a, bank, offset, &state);
+}
+
+static int cart_target_offset(const bank_t *b, uint16_t address, size_t *off)
+{
+   if (!is_cart_address(address)) return 0;
+   *off = (size_t)(address & (uint16_t)(b->size - 1u));
+   return *off < b->size;
+}
+
+static int selector_bank(mapper_t mapper, uint16_t address, size_t *bank)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   switch (mapper) {
+   case MAP_F8:
+      if (bus >= 0x1ff8u && bus <= 0x1ff9u) { *bank = bus - 0x1ff8u; return 1; }
+      break;
+   case MAP_F6:
+      if (bus >= 0x1ff6u && bus <= 0x1ff9u) { *bank = bus - 0x1ff6u; return 1; }
+      break;
+   case MAP_F4:
+      if (bus >= 0x1ff4u && bus <= 0x1ffbu) { *bank = bus - 0x1ff4u; return 1; }
+      break;
+   default:
+      break;
+   }
+   return 0;
+}
+
+static int resolve_zp_word(const abstract_state_t *state, uint8_t pointer,
+                           uint16_t *value)
+{
+   uint8_t lo, hi;
+   if (!state_zp_get(state, pointer, &lo) ||
+       !state_zp_get(state, (uint8_t)(pointer + 1u), &hi))
+      return 0;
+   *value = (uint16_t)(lo | ((uint16_t)hi << 8));
+   return 1;
+}
+
+static int resolve_effective_address(const abstract_state_t *state,
+                                     address_mode_t mode, uint16_t operand,
+                                     uint16_t *address)
+{
+   uint16_t pointer;
+   switch (mode) {
+   case AM_ZERO_PAGE:
+      *address = (uint8_t)operand;
+      return 1;
+   case AM_ZERO_PAGE_X:
+      if (!state->x_known) return 0;
+      *address = (uint8_t)((uint8_t)operand + state->x);
+      return 1;
+   case AM_ZERO_PAGE_Y:
+      if (!state->y_known) return 0;
+      *address = (uint8_t)((uint8_t)operand + state->y);
+      return 1;
+   case AM_ABSOLUTE:
+      *address = operand;
+      return 1;
+   case AM_ABSOLUTE_X:
+      if (!state->x_known) return 0;
+      *address = (uint16_t)(operand + state->x);
+      return 1;
+   case AM_ABSOLUTE_Y:
+      if (!state->y_known) return 0;
+      *address = (uint16_t)(operand + state->y);
+      return 1;
+   case AM_INDEXED_INDIRECT:
+      if (!state->x_known ||
+          !resolve_zp_word(state,
+                           (uint8_t)((uint8_t)operand + state->x), &pointer))
+         return 0;
+      *address = pointer;
+      return 1;
+   case AM_INDIRECT_INDEXED:
+      if (!resolve_zp_word(state, (uint8_t)operand, &pointer) ||
+          !state->y_known)
+         return 0;
+      *address = (uint16_t)(pointer + state->y);
+      return 1;
+   default:
+      return 0;
+   }
+}
+
+static int superchip_active(const analysis_t *a)
+{
+   if (a->mapper_overridden && a->superchip_override >= 0)
+      return a->superchip_override != 0;
+   /* Reads from $x080-$x0FF are ambiguous with ordinary ROM accesses.
+    * A decoded write into the Superchip write window is the discriminator:
+    * useful SC RAM cannot be consumed without first being written. */
+   return a->superchip_write_refs != 0;
+}
+
+static int state_read_byte(const analysis_t *a, size_t bank,
+                           const abstract_state_t *state, uint16_t address,
+                           uint8_t *value)
+{
+   size_t off;
+   if (address <= 0x00ffu)
+      return state_zp_get(state, (uint8_t)address, value);
+   if (bank >= a->bank_count || !cart_target_offset(&a->banks[bank], address, &off))
+      return 0;
+   /* Once Superchip evidence exists, its read window is RAM rather than ROM. */
+   if (superchip_active(a) && ((address & 0x1fffu) >= 0x1080u) &&
+       ((address & 0x1fffu) <= 0x10ffu))
+      return 0;
+   *value = a->rom[a->banks[bank].file_offset + off];
+   return 1;
+}
+
+static int state_read_operand(const analysis_t *a, size_t bank,
+                              const abstract_state_t *state,
+                              address_mode_t mode, uint16_t operand,
+                              uint8_t *value)
+{
+   uint16_t address;
+   if (mode == AM_IMMEDIATE) {
+      *value = (uint8_t)operand;
+      return 1;
+   }
+   if (!resolve_effective_address(state, mode, operand, &address)) return 0;
+   return state_read_byte(a, bank, state, address, value);
+}
+
+static int known_store_value(uint8_t opcode, const abstract_state_t *state,
+                             uint8_t *value)
+{
+   const char *mnemonic = opcode_mnemonics[opcode];
+   if (strcmp(mnemonic, "STA") == 0) {
+      if (!state->a_known) return 0;
+      *value = state->a;
+      return 1;
+   }
+   if (strcmp(mnemonic, "STX") == 0) {
+      if (!state->x_known) return 0;
+      *value = state->x;
+      return 1;
+   }
+   if (strcmp(mnemonic, "STY") == 0) {
+      if (!state->y_known) return 0;
+      *value = state->y;
+      return 1;
+   }
+   return 0;
+}
+
+static void state_apply_memory_write(const abstract_state_t *input,
+                                     abstract_state_t *output,
+                                     uint8_t opcode, address_mode_t mode,
+                                     uint16_t operand)
+{
+   uint16_t address;
+   uint8_t value;
+   unsigned access = opcode_memory_access(opcode);
+   if (!(access & ACCESS_WRITE)) return;
+   if (!resolve_effective_address(input, mode, operand, &address)) {
+      if (mode == AM_ZERO_PAGE_X || mode == AM_ZERO_PAGE_Y ||
+          mode == AM_INDEXED_INDIRECT || mode == AM_INDIRECT_INDEXED)
+         state_zp_set_all_unknown(output);
+      return;
+   }
+   if (address > 0x00ffu) return;
+   if ((access & ACCESS_READ) || !known_store_value(opcode, input, &value))
+      state_zp_set_unknown(output, (uint8_t)address);
+   else
+      state_zp_set_known(output, (uint8_t)address, value);
+}
+
+static int mnemonic_affects_carry(const char *m)
+{
+   return strcmp(m,"ADC") == 0 || strcmp(m,"SBC") == 0 ||
+          strcmp(m,"CMP") == 0 || strcmp(m,"CPX") == 0 ||
+          strcmp(m,"CPY") == 0 || strcmp(m,"ASL") == 0 ||
+          strcmp(m,"LSR") == 0 || strcmp(m,"ROL") == 0 ||
+          strcmp(m,"ROR") == 0 || strcmp(m,"CLC") == 0 ||
+          strcmp(m,"SEC") == 0 || strcmp(m,"PLP") == 0 ||
+          strcmp(m,"RTI") == 0;
+}
+
+static void transfer_state(const analysis_t *a, size_t bank,
+                           const abstract_state_t *input,
+                           abstract_state_t *output, uint8_t opcode,
+                           address_mode_t mode, uint16_t operand)
+{
+   const char *m = opcode_mnemonics[opcode];
+   uint8_t value;
+   *output = *input;
+   state_apply_memory_write(input, output, opcode, mode, operand);
+
+   /* Unofficial encodings are deliberately treated as opaque for abstract
+    * register state.  Exact disassembly still uses the generated opcode table. */
+   if (strncmp(m, "op", 2) == 0) {
+      output->a_known = output->x_known = output->y_known = 0;
+      output->carry_known = 0;
+      return;
+   }
+
+   if (mnemonic_affects_carry(m)) output->carry_known = 0;
+
+   if (strcmp(m,"LDA") == 0) {
+      if (state_read_operand(a, bank, input, mode, operand, &value)) {
+         output->a_known = 1; output->a = value;
+      } else output->a_known = 0;
+   }
+   else if (strcmp(m,"LDX") == 0) {
+      if (state_read_operand(a, bank, input, mode, operand, &value)) {
+         output->x_known = 1; output->x = value;
+      } else output->x_known = 0;
+   }
+   else if (strcmp(m,"LDY") == 0) {
+      if (state_read_operand(a, bank, input, mode, operand, &value)) {
+         output->y_known = 1; output->y = value;
+      } else output->y_known = 0;
+   }
+   else if (strcmp(m,"TAX") == 0) {
+      output->x_known = input->a_known; output->x = input->a;
+   }
+   else if (strcmp(m,"TAY") == 0) {
+      output->y_known = input->a_known; output->y = input->a;
+   }
+   else if (strcmp(m,"TXA") == 0) {
+      output->a_known = input->x_known; output->a = input->x;
+   }
+   else if (strcmp(m,"TYA") == 0) {
+      output->a_known = input->y_known; output->a = input->y;
+   }
+   else if (strcmp(m,"TSX") == 0) output->x_known = 0;
+   else if (strcmp(m,"PLA") == 0) output->a_known = 0;
+   else if (strcmp(m,"INX") == 0) {
+      if (input->x_known) { output->x_known = 1; output->x = (uint8_t)(input->x + 1u); }
+      else output->x_known = 0;
+   }
+   else if (strcmp(m,"DEX") == 0) {
+      if (input->x_known) { output->x_known = 1; output->x = (uint8_t)(input->x - 1u); }
+      else output->x_known = 0;
+   }
+   else if (strcmp(m,"INY") == 0) {
+      if (input->y_known) { output->y_known = 1; output->y = (uint8_t)(input->y + 1u); }
+      else output->y_known = 0;
+   }
+   else if (strcmp(m,"DEY") == 0) {
+      if (input->y_known) { output->y_known = 1; output->y = (uint8_t)(input->y - 1u); }
+      else output->y_known = 0;
+   }
+   else if (strcmp(m,"CLC") == 0) { output->carry_known = 1; output->carry = 0; }
+   else if (strcmp(m,"SEC") == 0) { output->carry_known = 1; output->carry = 1; }
+   else if (strcmp(m,"CLD") == 0) { output->decimal_known = 1; output->decimal = 0; }
+   else if (strcmp(m,"SED") == 0) { output->decimal_known = 1; output->decimal = 1; }
+   else if (strcmp(m,"AND") == 0 || strcmp(m,"ORA") == 0 ||
+            strcmp(m,"EOR") == 0) {
+      if (input->a_known && state_read_operand(a, bank, input, mode, operand, &value)) {
+         output->a_known = 1;
+         if (strcmp(m,"AND") == 0) output->a = (uint8_t)(input->a & value);
+         else if (strcmp(m,"ORA") == 0) output->a = (uint8_t)(input->a | value);
+         else output->a = (uint8_t)(input->a ^ value);
+      }
+      else output->a_known = 0;
+   }
+   else if (strcmp(m,"ADC") == 0 || strcmp(m,"SBC") == 0) {
+      if (input->a_known && input->carry_known && input->decimal_known &&
+          !input->decimal && state_read_operand(a, bank, input, mode, operand, &value)) {
+         unsigned sum;
+         if (strcmp(m,"ADC") == 0)
+            sum = (unsigned)input->a + (unsigned)value + (unsigned)input->carry;
+         else
+            sum = (unsigned)input->a + (unsigned)(uint8_t)~value + (unsigned)input->carry;
+         output->a_known = 1; output->a = (uint8_t)sum;
+         output->carry_known = 1; output->carry = sum > 0xffu;
+      }
+      else { output->a_known = 0; output->carry_known = 0; }
+   }
+   else if ((strcmp(m,"ASL") == 0 || strcmp(m,"LSR") == 0 ||
+             strcmp(m,"ROL") == 0 || strcmp(m,"ROR") == 0) &&
+            mode == AM_ACCUMULATOR) {
+      if (input->a_known &&
+          ((strcmp(m,"ROL") != 0 && strcmp(m,"ROR") != 0) || input->carry_known)) {
+         uint8_t old = input->a;
+         output->a_known = 1;
+         output->carry_known = 1;
+         if (strcmp(m,"ASL") == 0) { output->carry = old >> 7; output->a = (uint8_t)(old << 1); }
+         else if (strcmp(m,"LSR") == 0) { output->carry = old & 1u; output->a = (uint8_t)(old >> 1); }
+         else if (strcmp(m,"ROL") == 0) { output->carry = old >> 7; output->a = (uint8_t)((old << 1) | input->carry); }
+         else { output->carry = old & 1u; output->a = (uint8_t)((old >> 1) | (input->carry << 7)); }
+      }
+      else { output->a_known = 0; output->carry_known = 0; }
+   }
+   else if (strcmp(m,"CMP") == 0 || strcmp(m,"CPX") == 0 || strcmp(m,"CPY") == 0) {
+      uint8_t reg = 0;
+      int known = strcmp(m,"CMP") == 0 ? input->a_known :
+                  strcmp(m,"CPX") == 0 ? input->x_known : input->y_known;
+      if (strcmp(m,"CMP") == 0) reg = input->a;
+      else if (strcmp(m,"CPX") == 0) reg = input->x;
+      else reg = input->y;
+      if (known && state_read_operand(a, bank, input, mode, operand, &value)) {
+         output->carry_known = 1; output->carry = reg >= value;
+      }
+   }
+}
+
+static void mark_instruction(bank_t *b, size_t off, uint8_t opcode,
+                             unsigned len)
+{
+   unsigned i;
+   b->roles[off] |= ROLE_CODE_START | ROLE_CODE_BYTE;
+   b->inst_len[off] = (uint8_t)len;
+   b->inst_opcode[off] = opcode;
+   for (i = 1; i < len && off + i < b->size; ++i)
+      b->roles[off+i] |= ROLE_CODE_BYTE | ROLE_OPERAND;
+}
+
+static void mark_label(bank_t *b, size_t off)
+{
+   if (off < b->size) b->roles[off] |= ROLE_LABEL;
+}
+
+static void detect_overlaps(analysis_t *a)
+{
+   size_t bi;
+   for (bi = 0; bi < a->bank_count; ++bi) {
+      bank_t *b = &a->banks[bi];
+      size_t i;
+      for (i = 0; i < b->size; ++i) {
+         unsigned len;
+         size_t j;
+         if (!(b->roles[i] & ROLE_CODE_START)) continue;
+         len = b->inst_len[i];
+         for (j = i + 1u; j < b->size && j < i + len; ++j) {
+            if (b->roles[j] & ROLE_CODE_START) {
+               size_t k;
+               for (k = i; k < b->size && k < i + len; ++k)
+                  b->roles[k] |= ROLE_OVERLAP;
+               for (k = j; k < b->size && k < j + b->inst_len[j]; ++k)
+                  b->roles[k] |= ROLE_OVERLAP;
+            }
+         }
+      }
+   }
+}
+
+static int trace_analysis(analysis_t *a, const options_t *opt)
+{
+   size_t bi;
+   if (a->mapper == MAP_RAW) return 1;
+
+   /* Seed each physical bank from all three vectors.  The reset-bank choice is
+    * still recorded separately; per-bank vector seeds recover conventional
+    * bank-local trampolines without pretending every vector is power-on state. */
+   for (bi = 0; bi < a->bank_count; ++bi) {
+      bank_t *b = &a->banks[bi];
+      unsigned v;
+      for (v = 0; v < 3; ++v) {
+         size_t voff = b->size - 6u + (size_t)v * 2u;
+         uint16_t target = read_word(a->rom + b->file_offset + voff);
+         size_t toff;
+         b->roles[voff] |= ROLE_VECTOR;
+         b->roles[voff+1] |= ROLE_VECTOR;
+         if (cart_target_offset(b, target, &toff)) {
+            mark_label(b, toff);
+            if (!push_work(a, bi, toff)) return 0;
+         }
+      }
+   }
+
+   /* Manual data roles are deliberately non-exclusive with code. */
+   for (bi = 0; bi < opt->data_count; ++bi) {
+      size_t bank, first, last, off;
+      if (!hint_range_offsets(a, "data", opt->data_specs[bi],
+                              &bank, &first, &last)) return 0;
+      mark_label(&a->banks[bank], first);
+      for (off = first; off <= last; ++off)
+         a->banks[bank].roles[off] |= ROLE_DATA_READ;
+   }
+
+   /* Extra entry points participate in the same recursive analysis as vectors. */
+   for (bi = 0; bi < opt->entry_count; ++bi) {
+      size_t bank, off;
+      if (!hint_address_offset(a, "entry", opt->entry_specs[bi], &bank, &off))
+         return 0;
+      mark_label(&a->banks[bank], off);
+      if (!push_work(a, bank, off)) return 0;
+   }
+
+   /* A forced code range is a linear decode assertion.  Seed every sequential
+    * instruction start so a deliberate RTS/JMP inside the range does not stop
+    * the human's explicit code declaration.  Normal recursive edges are still
+    * followed from each seed, and data roles may overlap this range. */
+   for (bi = 0; bi < opt->code_count; ++bi) {
+      size_t bank, first, last, off;
+      bank_t *b;
+      if (!hint_range_offsets(a, "code", opt->code_specs[bi],
+                              &bank, &first, &last)) return 0;
+      b = &a->banks[bank];
+      mark_label(b, first);
+      off = first;
+      while (off <= last) {
+         unsigned len = instruction_length((address_mode_t)
+                           opcode_modes[a->rom[b->file_offset + off]]);
+         if (len == 0u || off + len - 1u > last) {
+            fprintf(stderr, "--code range '%s' ends inside an instruction at $%04X\n",
+                    opt->code_specs[bi],
+                    (unsigned)(b->origin + (uint16_t)off));
+            return 0;
+         }
+         if (!push_work(a, bank, off)) return 0;
+         off += len;
+      }
+   }
+
+   while (a->work_count != 0) {
+      work_item_t item = a->work[--a->work_count];
+      bank_t *b = &a->banks[item.bank];
+      size_t off = item.offset;
+      uint8_t opcode;
+      address_mode_t mode;
+      unsigned len;
+      flow_kind_t flow;
+      uint16_t operand = 0;
+      uint16_t canonical_pc;
+      size_t successor_bank = item.bank;
+      int switched = 0;
+      abstract_state_t input_state;
+      abstract_state_t output_state;
+
+      b->queued[off] = 0;
+      if (!b->state_seen[off]) continue;
+      if (superchip_active(a) && off < 0x100u) continue;
+      input_state = b->states[off];
+      b->visited[off] = 1;
+      opcode = a->rom[b->file_offset + off];
+      mode = (address_mode_t)opcode_modes[opcode];
+      len = instruction_length(mode);
+      if (off + len > b->size) continue;
+      mark_instruction(b, off, opcode, len);
+      canonical_pc = (uint16_t)(b->origin + (uint16_t)off);
+      flow = instruction_flow(opcode);
+
+      if (len >= 2u) operand = a->rom[b->file_offset + off + 1u];
+      if (len >= 3u) operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
+      transfer_state(a, item.bank, &input_state, &output_state,
+                     opcode, mode, operand);
+
+      /* Superchip RAM uses write $x000-$x07F and read $x080-$x0FF
+       * aliases in the cartridge window.  A direct access with the matching
+       * direction is strong evidence for the SC variant of F8/F6/F4. */
+      {
+         unsigned access = opcode_memory_access(opcode);
+         uint16_t bus = (uint16_t)(operand & 0x1fffu);
+         if (mode == AM_ABSOLUTE &&
+             (a->mapper == MAP_F8 || a->mapper == MAP_F6 || a->mapper == MAP_F4)) {
+            if ((access & ACCESS_WRITE) && bus >= 0x1000u && bus <= 0x107fu) {
+               ++a->superchip_refs;
+               ++a->superchip_write_refs;
+            }
+            if ((access & ACCESS_READ) && bus >= 0x1080u && bus <= 0x10ffu)
+               ++a->superchip_refs;
+         }
+      }
+
+      /* Definite ROM reads are independent from executable-byte roles.  Use
+       * abstract register/pointer state where available; otherwise keep the
+       * conservative possible-range semantics below. */
+      if (flow != FLOW_JSR && flow != FLOW_JMP_ABSOLUTE &&
+          flow != FLOW_JMP_INDIRECT &&
+          (opcode_memory_access(opcode) & ACCESS_READ)) {
+         uint16_t effective;
+         int exact = resolve_effective_address(&input_state, mode, operand,
+                                               &effective);
+         if (mode == AM_ABSOLUTE) exact = 1, effective = operand;
+         if (exact) {
+            size_t doff;
+            uint16_t bus = (uint16_t)(effective & 0x1fffu);
+            int sc_read = superchip_active(a) &&
+                          bus >= 0x1080u && bus <= 0x10ffu;
+            if (!sc_read && cart_target_offset(b, effective, &doff)) {
+               b->roles[doff] |= ROLE_DATA_READ;
+               mark_label(b, doff);
+            }
+         }
+         else if (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y) {
+            unsigned ix;
+            for (ix = 0; ix < 256u; ++ix) {
+               uint16_t addr = (uint16_t)(operand + (uint16_t)ix);
+               size_t doff;
+               if (cart_target_offset(b, addr, &doff))
+                  b->roles[doff] |= ROLE_POSSIBLE;
+            }
+            {
+               size_t baseoff;
+               if (cart_target_offset(b, operand, &baseoff)) mark_label(b, baseoff);
+            }
+         }
+         else if (mode == AM_INDIRECT_INDEXED) {
+            uint16_t pointer;
+            if (resolve_zp_word(&input_state, (uint8_t)operand, &pointer)) {
+               unsigned iy;
+               for (iy = 0; iy < 256u; ++iy) {
+                  uint16_t addr = (uint16_t)(pointer + (uint16_t)iy);
+                  size_t doff;
+                  if (cart_target_offset(b, addr, &doff))
+                     b->roles[doff] |= ROLE_POSSIBLE;
+               }
+               {
+                  size_t baseoff;
+                  if (cart_target_offset(b, pointer, &baseoff)) mark_label(b, baseoff);
+               }
+            }
+            else {
+               size_t poff;
+               for (poff = 0; poff < b->size; ++poff)
+                  b->roles[poff] |= ROLE_POSSIBLE;
+            }
+         }
+         else if (mode == AM_INDEXED_INDIRECT) {
+            size_t poff;
+            for (poff = 0; poff < b->size; ++poff)
+               b->roles[poff] |= ROLE_POSSIBLE;
+         }
+      }
+
+      /* Direct absolute accesses to full-window mapper hotspots change which
+       * physical bank supplies the following instruction fetch. */
+      if (flow == FLOW_NEXT && mode == AM_ABSOLUTE &&
+          selector_bank(a->mapper, operand, &successor_bank) &&
+          successor_bank < a->bank_count) {
+         switched = 1;
+         ++a->hotspot_refs;
+      }
+
+      switch (flow) {
+      case FLOW_NEXT:
+         if (off + len < b->size) {
+            if (!push_work_state(a, switched ? successor_bank : item.bank,
+                                 off + len, &output_state))
+               return 0;
+         }
+         break;
+      case FLOW_BRANCH: {
+         int8_t disp = (int8_t)(uint8_t)operand;
+         uint16_t target = (uint16_t)(canonical_pc + 2u + disp);
+         size_t toff;
+         if (off + 2u < b->size &&
+             !push_work_state(a, item.bank, off + 2u, &output_state)) return 0;
+         if (target >= b->origin &&
+             (uint32_t)target < (uint32_t)b->origin + (uint32_t)b->size) {
+            toff = (size_t)(target - b->origin);
+            if (superchip_active(a) && toff < 0x100u) ++a->dynamic_control_exits;
+            else {
+               mark_label(b, toff);
+               if (!push_work_state(a, item.bank, toff, &output_state)) return 0;
+            }
+         }
+         break;
+      }
+      case FLOW_JSR: {
+         size_t toff;
+         abstract_state_t after_call;
+         memset(&after_call, 0, sizeof(after_call));
+         if (off + 3u < b->size &&
+             !push_work_state(a, item.bank, off + 3u, &after_call)) return 0;
+         if (cart_target_offset(b, operand, &toff) &&
+             !(superchip_active(a) && toff < 0x100u)) {
+            mark_label(b, toff);
+            if (!push_work_state(a, item.bank, toff, &output_state)) return 0;
+         }
+         else ++a->dynamic_control_exits;
+         break;
+      }
+      case FLOW_JMP_ABSOLUTE: {
+         size_t toff;
+         if (cart_target_offset(b, operand, &toff) &&
+             !(superchip_active(a) && toff < 0x100u)) {
+            mark_label(b, toff);
+            if (!push_work_state(a, item.bank, toff, &output_state)) return 0;
+         }
+         else ++a->dynamic_control_exits;
+         break;
+      }
+      case FLOW_JMP_INDIRECT: {
+         uint16_t ptr = operand;
+         uint16_t high_addr = (uint16_t)((ptr & 0xff00u) |
+                              ((uint16_t)(ptr + 1u) & 0x00ffu));
+         size_t loff, hoff;
+         if (cart_target_offset(b, ptr, &loff) &&
+             cart_target_offset(b, high_addr, &hoff)) {
+            uint16_t target = (uint16_t)(a->rom[b->file_offset + loff] |
+                              ((uint16_t)a->rom[b->file_offset + hoff] << 8));
+            size_t toff;
+            b->roles[loff] |= ROLE_DATA_READ;
+            b->roles[hoff] |= ROLE_DATA_READ;
+            if (cart_target_offset(b, target, &toff) &&
+                !(superchip_active(a) && toff < 0x100u)) {
+               mark_label(b, toff);
+               if (!push_work_state(a, item.bank, toff, &output_state)) return 0;
+            }
+            else ++a->dynamic_control_exits;
+         }
+         else ++a->unresolved_indirect_jumps;
+         break;
+      }
+      case FLOW_RTS:
+      case FLOW_STOP:
+         break;
+      }
+   }
+
+   detect_overlaps(a);
+   return 1;
+}
+
+static void apply_superchip_window_semantics(analysis_t *a)
+{
+   size_t bi;
+   if (!superchip_active(a)) return;
+   for (bi = 0; bi < a->bank_count; ++bi) {
+      bank_t *b = &a->banks[bi];
+      size_t off;
+      size_t end = b->size < 0x100u ? b->size : 0x100u;
+      for (off = 0; off < end; ++off) {
+         b->roles[off] = 0;
+         b->inst_len[off] = 0;
+         b->inst_opcode[off] = 0;
+         b->graphics[off] = 0;
+      }
+   }
+}
+
+static int instruction_can_emit(const bank_t *b, size_t off)
+{
+   unsigned len;
+   size_t i;
+   if (!(b->roles[off] & ROLE_CODE_START)) return 0;
+   len = b->inst_len[off];
+   if (len == 0 || off + len > b->size) return 0;
+
+   /*
+    * A reachable entry inside this instruction means the outer spelling cannot
+    * own those operand bytes in source.  Emit the bytes before the inner entry
+    * raw and let the inner instruction become the primary source spelling.
+    * This naturally represents BIT-skip and other overlapping streams without
+    * special-casing opcode $2c.
+    */
+   for (i = off + 1u; i < off + len; ++i)
+      if (b->roles[i] & ROLE_CODE_START) return 0;
+   return 1;
+}
+
+
+static int emitted_container_start(const bank_t *b, size_t off, size_t *start)
+{
+   size_t i;
+   size_t begin = off >= 2u ? off - 2u : 0u;
+   for (i = begin; i < off; ++i) {
+      unsigned len;
+      if (!instruction_can_emit(b, i)) continue;
+      len = b->inst_len[i];
+      if (i + len > off) {
+         *start = i;
+         return 1;
+      }
+   }
+   return 0;
+}
+
+static void promote_interior_reference_labels(analysis_t *a)
+{
+   size_t bi;
+   for (bi = 0; bi < a->bank_count; ++bi) {
+      bank_t *b = &a->banks[bi];
+      size_t off;
+      for (off = 0; off < b->size; ++off) {
+         size_t start;
+         if ((b->roles[off] & ROLE_LABEL) &&
+             emitted_container_start(b, off, &start))
+            b->roles[start] |= ROLE_LABEL;
+      }
+   }
+}
+
+static void print_label_name(FILE *fp, const analysis_t *a, size_t bi, size_t off)
+{
+   const bank_t *b = &a->banks[bi];
+   uint16_t addr = (uint16_t)(b->origin + (uint16_t)off);
+   if (a->bank_count == 1u)
+      fprintf(fp, "L_%04X", addr);
+   else
+      fprintf(fp, "B%zu_%04X", bi, addr);
+}
+
+
+static void print_exact_cart_reference(FILE *fp, const analysis_t *a,
+                                       size_t bi, size_t toff)
+{
+   const bank_t *b = &a->banks[bi];
+   size_t start;
+   if (emitted_container_start(b, toff, &start)) {
+      print_label_name(fp, a, bi, start);
+      fprintf(fp, " + %zu", toff - start);
+   }
+   else {
+      print_label_name(fp, a, bi, toff);
+   }
+}
+
+static const char *mode_suffix(address_mode_t mode)
+{
+   switch (mode) {
+   case AM_ZERO_PAGE: return ".z";
+   case AM_ZERO_PAGE_X: return ".zx";
+   case AM_ZERO_PAGE_Y: return ".zy";
+   case AM_ABSOLUTE: return ".a";
+   case AM_ABSOLUTE_X: return ".ax";
+   case AM_ABSOLUTE_Y: return ".ay";
+   case AM_INDIRECT: return ".i";
+   case AM_INDEXED_INDIRECT: return ".ix";
+   case AM_INDIRECT_INDEXED: return ".iy";
+   default: return "";
+   }
+}
+
+
+
+typedef struct {
+   const char *name;
+   uint16_t canonical;
+   int mirrored;
+} hw_symbol_t;
+
+static unsigned opcode_memory_access(uint8_t opcode)
+{
+   if (opcode_is_write_only(opcode)) return ACCESS_WRITE;
+   switch (opcode) {
+   /* Official read-modify-write families. */
+   case 0x06: case 0x0e: case 0x16: case 0x1e:
+   case 0x26: case 0x2e: case 0x36: case 0x3e:
+   case 0x46: case 0x4e: case 0x56: case 0x5e:
+   case 0x66: case 0x6e: case 0x76: case 0x7e:
+   case 0xc6: case 0xce: case 0xd6: case 0xde:
+   case 0xe6: case 0xee: case 0xf6: case 0xfe:
+   /* Common unofficial RMW composite families. */
+   case 0x03: case 0x07: case 0x0f: case 0x13: case 0x17: case 0x1b: case 0x1f:
+   case 0x23: case 0x27: case 0x2f: case 0x33: case 0x37: case 0x3b: case 0x3f:
+   case 0x43: case 0x47: case 0x4f: case 0x53: case 0x57: case 0x5b: case 0x5f:
+   case 0x63: case 0x67: case 0x6f: case 0x73: case 0x77: case 0x7b: case 0x7f:
+   case 0xc3: case 0xc7: case 0xcf: case 0xd3: case 0xd7: case 0xdb: case 0xdf:
+   case 0xe3: case 0xe7: case 0xef: case 0xf3: case 0xf7: case 0xfb: case 0xff:
+      return ACCESS_READ | ACCESS_WRITE;
+   default:
+      return ACCESS_READ;
+   }
+}
+
+static int tia_write_symbol(unsigned reg, const char **name)
+{
+   static const char *const names[0x2d] = {
+      "VSYNC","VBLANK","WSYNC","RSYNC","NUSIZ0","NUSIZ1","COLUP0","COLUP1",
+      "COLUPF","COLUBK","CTRLPF","REFP0","REFP1","PF0","PF1","PF2",
+      "RESP0","RESP1","RESM0","RESM1","RESBL","AUDC0","AUDC1","AUDF0",
+      "AUDF1","AUDV0","AUDV1","GRP0","GRP1","ENAM0","ENAM1","ENABL",
+      "HMP0","HMP1","HMM0","HMM1","HMBL","VDELP0","VDELP1","VDELBL",
+      "RESMP0","RESMP1","HMOVE","HMCLR","CXCLR"
+   };
+   if (reg > 0x2cu) return 0;
+   *name = names[reg];
+   return 1;
+}
+
+static int tia_read_symbol(unsigned reg, const char **name)
+{
+   static const char *const names[14] = {
+      "CXM0P","CXM1P","CXP0FB","CXP1FB","CXM0FB","CXM1FB","CXBLPF",
+      "CXPPMM","INPT0","INPT1","INPT2","INPT3","INPT4","INPT5"
+   };
+   if (reg < 0x30u || reg > 0x3du) return 0;
+   *name = names[reg - 0x30u];
+   return 1;
+}
+
+static int riot_symbol(uint16_t bus, unsigned access, const char **name,
+                       uint16_t *canonical)
+{
+   unsigned reg;
+   if ((bus & 0x0280u) != 0x0280u) return 0;
+   reg = bus & 0x001fu;
+   switch (reg) {
+   case 0x00: *name="SWCHA";  *canonical=0x0280u; return 1;
+   case 0x01: *name="SWACNT"; *canonical=0x0281u; return 1;
+   case 0x02: *name="SWCHB";  *canonical=0x0282u; return 1;
+   case 0x03: *name="SWBCNT"; *canonical=0x0283u; return 1;
+   case 0x04:
+      if (access == ACCESS_READ) { *name="INTIM"; *canonical=0x0284u; return 1; }
+      break;
+   case 0x05:
+      if (access == ACCESS_READ) { *name="TIMINT"; *canonical=0x0285u; return 1; }
+      break;
+   case 0x14:
+      if (access == ACCESS_WRITE) { *name="TIM1T"; *canonical=0x0294u; return 1; }
+      break;
+   case 0x15:
+      if (access == ACCESS_WRITE) { *name="TIM8T"; *canonical=0x0295u; return 1; }
+      break;
+   case 0x16:
+      if (access == ACCESS_WRITE) { *name="TIM64T"; *canonical=0x0296u; return 1; }
+      break;
+   case 0x17:
+      if (access == ACCESS_WRITE) { *name="T1024T"; *canonical=0x0297u; return 1; }
+      break;
+   default:
+      break;
+   }
+   return 0;
+}
+
+static int hardware_symbol(uint8_t opcode, address_mode_t mode,
+                           uint16_t operand, hw_symbol_t *out)
+{
+   unsigned access;
+   uint16_t bus;
+   const char *name = NULL;
+   uint16_t canonical = 0;
+
+   if (mode != AM_ZERO_PAGE && mode != AM_ABSOLUTE) return 0;
+   if (instruction_flow(opcode) == FLOW_JSR ||
+       instruction_flow(opcode) == FLOW_JMP_ABSOLUTE ||
+       instruction_flow(opcode) == FLOW_JMP_INDIRECT)
+      return 0;
+   access = opcode_memory_access(opcode);
+   if (access == (ACCESS_READ | ACCESS_WRITE))
+      return 0;
+   bus = (uint16_t)(operand & 0x1fffu);
+   if (bus & 0x1000u) return 0;
+
+   if ((bus & 0x0080u) == 0) {
+      unsigned reg = bus & 0x003fu;
+      if (access == ACCESS_WRITE) {
+         if (!tia_write_symbol(reg, &name)) return 0;
+         canonical = (uint16_t)reg;
+      }
+      else if (access == ACCESS_READ) {
+         if (!tia_read_symbol(reg, &name)) return 0;
+         canonical = (uint16_t)reg;
+      }
+      else {
+         /* TIA read-modify-write semantics are not represented by one honest
+          * canonical symbol because read and write register meanings differ. */
+         return 0;
+      }
+   }
+   else {
+      if (!riot_symbol(bus, access, &name, &canonical)) return 0;
+   }
+
+   out->name = name;
+   out->canonical = canonical;
+   out->mirrored = operand != canonical;
+   return 1;
+}
+
+static void emit_hardware_rmw_comment(FILE *fp, uint8_t opcode,
+                                      address_mode_t mode, uint16_t operand)
+{
+   unsigned access = opcode_memory_access(opcode);
+   uint16_t bus;
+   if (access != (ACCESS_READ | ACCESS_WRITE) ||
+       (mode != AM_ZERO_PAGE && mode != AM_ABSOLUTE))
+      return;
+   bus = (uint16_t)(operand & 0x1fffu);
+   if (bus & 0x1000u) return;
+
+   if ((bus & 0x0080u) == 0) {
+      unsigned reg = bus & 0x003fu;
+      const char *read_name = NULL;
+      const char *write_name = NULL;
+      int have_read = tia_read_symbol(reg, &read_name);
+      int have_write = tia_write_symbol(reg, &write_name);
+      if (!have_read && !have_write) return;
+      fputs("    ; TIA read-modify-write: ", fp);
+      if (have_read) fprintf(fp, "reads %s ($%04X)", read_name, reg);
+      else fprintf(fp, "read side $%04X has no canonical readable register", reg);
+      fputs(", ", fp);
+      if (have_write) fprintf(fp, "writes %s ($%04X)", write_name, reg);
+      else fprintf(fp, "write side $%04X has no canonical writable register", reg);
+      if (operand != reg) fprintf(fp, "; mirrored operand $%04X", operand);
+      return;
+   }
+   else {
+      const char *read_name = NULL;
+      const char *write_name = NULL;
+      uint16_t read_canon = 0, write_canon = 0;
+      int have_read = riot_symbol(bus, ACCESS_READ, &read_name, &read_canon);
+      int have_write = riot_symbol(bus, ACCESS_WRITE, &write_name, &write_canon);
+      if (!have_read && !have_write) return;
+      fputs("    ; RIOT read-modify-write: ", fp);
+      if (have_read) fprintf(fp, "reads %s ($%04X)", read_name, read_canon);
+      else fputs("read side has no canonical register", fp);
+      fputs(", ", fp);
+      if (have_write) fprintf(fp, "writes %s ($%04X)", write_name, write_canon);
+      else fputs("write side has no canonical register", fp);
+      if ((have_read && operand != read_canon) ||
+          (have_write && operand != write_canon))
+         fprintf(fp, "; mirrored operand $%04X", operand);
+   }
+}
+
+static void emit_hw_operand(FILE *fp, const hw_symbol_t *sym, uint16_t operand)
+{
+   if (!sym->mirrored) {
+      fputs(sym->name, fp);
+   }
+   else {
+      uint16_t delta = (uint16_t)(operand - sym->canonical);
+      fprintf(fp, "%s + $%04X", sym->name, delta);
+   }
+}
+
+static int analysis_uses_hardware_symbols(const analysis_t *a)
+{
+   size_t bi;
+   for (bi = 0; bi < a->bank_count; ++bi) {
+      const bank_t *b = &a->banks[bi];
+      size_t off;
+      for (off = 0; off < b->size; ++off) {
+         uint8_t opcode;
+         address_mode_t mode;
+         uint16_t operand;
+         hw_symbol_t sym;
+         if (!instruction_can_emit(b, off)) continue;
+         opcode = b->inst_opcode[off];
+         mode = (address_mode_t)opcode_modes[opcode];
+         if (b->inst_len[off] < 2u) continue;
+         operand = a->rom[b->file_offset + off + 1u];
+         if (b->inst_len[off] >= 3u)
+            operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
+         if (hardware_symbol(opcode, mode, operand, &sym)) return 1;
+      }
+   }
+   return 0;
+}
+
+static int mnemonic_writes_a(const char *mnemonic, address_mode_t mode)
+{
+   if (strcmp(mnemonic, "LDA") == 0 || strcmp(mnemonic, "ADC") == 0 ||
+       strcmp(mnemonic, "SBC") == 0 || strcmp(mnemonic, "AND") == 0 ||
+       strcmp(mnemonic, "ORA") == 0 || strcmp(mnemonic, "EOR") == 0 ||
+       strcmp(mnemonic, "PLA") == 0 || strcmp(mnemonic, "TXA") == 0 ||
+       strcmp(mnemonic, "TYA") == 0)
+      return 1;
+   if ((strcmp(mnemonic, "ASL") == 0 || strcmp(mnemonic, "LSR") == 0 ||
+        strcmp(mnemonic, "ROL") == 0 || strcmp(mnemonic, "ROR") == 0) &&
+       mode == AM_ACCUMULATOR)
+      return 1;
+   if (strncmp(mnemonic, "op", 2) == 0) return 1;
+   return 0;
+}
+
+static int graphics_store_instruction(const analysis_t *a, size_t bi,
+                                      size_t off)
+{
+   const bank_t *b = &a->banks[bi];
+   uint8_t opcode;
+   address_mode_t mode;
+   uint16_t operand;
+   hw_symbol_t hw;
+   if (off >= b->size || !(b->roles[off] & ROLE_CODE_START)) return 0;
+   opcode = b->inst_opcode[off];
+   mode = (address_mode_t)opcode_modes[opcode];
+   if (strcmp(opcode_mnemonics[opcode], "STA") != 0) return 0;
+   operand = b->inst_len[off] >= 2u ? a->rom[b->file_offset + off + 1u] : 0u;
+   if (b->inst_len[off] >= 3u)
+      operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
+   if (!hardware_symbol(opcode, mode, operand, &hw)) return 0;
+   return strcmp(hw.name, "GRP0") == 0 || strcmp(hw.name, "GRP1") == 0 ||
+          strcmp(hw.name, "PF0") == 0 || strcmp(hw.name, "PF1") == 0 ||
+          strcmp(hw.name, "PF2") == 0;
+}
+
+static int load_feeds_graphics_store(const analysis_t *a, size_t bi,
+                                     size_t off)
+{
+   const bank_t *b = &a->banks[bi];
+   size_t p = off;
+   unsigned steps;
+   for (steps = 0; steps < 5u; ++steps) {
+      unsigned len;
+      uint8_t opcode;
+      address_mode_t mode;
+      flow_kind_t flow;
+      if (p >= b->size || !(b->roles[p] & ROLE_CODE_START)) return 0;
+      len = b->inst_len[p];
+      if (len == 0u || p + len >= b->size) return 0;
+      p += len;
+      if (!(b->roles[p] & ROLE_CODE_START)) return 0;
+      if (graphics_store_instruction(a, bi, p)) return 1;
+      opcode = b->inst_opcode[p];
+      mode = (address_mode_t)opcode_modes[opcode];
+      flow = instruction_flow(opcode);
+      if (flow != FLOW_NEXT || mnemonic_writes_a(opcode_mnemonics[opcode], mode))
+         return 0;
+   }
+   return 0;
+}
+
+static void mark_graphics_range(bank_t *b, size_t start, size_t limit)
+{
+   size_t off;
+   size_t end = start;
+   if (start >= b->size) return;
+   while (end < b->size && end - start < limit) {
+      if (end != start && (b->roles[end] & (ROLE_CODE_START | ROLE_VECTOR | ROLE_LABEL)))
+         break;
+      if (b->roles[end] & (ROLE_CODE_START | ROLE_VECTOR)) break;
+      ++end;
+   }
+   for (off = start; off < end; ++off) b->graphics[off] = 1;
+}
+
+static void mark_graphics_count(bank_t *b, size_t start, unsigned count)
+{
+   unsigned i;
+   for (i = 0; i < count && start + i < b->size; ++i) {
+      if (b->roles[start + i] & (ROLE_CODE_START | ROLE_VECTOR)) break;
+      b->graphics[start + i] = 1;
+   }
+}
+
+static unsigned infer_countdown_graphics_span(const analysis_t *a, size_t bi,
+                                              size_t load_off,
+                                              address_mode_t mode)
+{
+   const bank_t *b = &a->banks[bi];
+   uint8_t want_load;
+   uint8_t want_dec;
+   size_t prev;
+   size_t p;
+   unsigned steps;
+   uint8_t initial;
+
+   if (mode == AM_ABSOLUTE_Y || mode == AM_INDIRECT_INDEXED) {
+      want_load = 0xa0u; /* LDY #imm */
+      want_dec = 0x88u;  /* DEY */
+   }
+   else if (mode == AM_ABSOLUTE_X) {
+      want_load = 0xa2u; /* LDX #imm */
+      want_dec = 0xcau;  /* DEX */
+   }
+   else return 0;
+
+   if (load_off < 2u) return 0;
+   prev = load_off - 2u;
+   if (!(b->roles[prev] & ROLE_CODE_START) || b->inst_len[prev] != 2u ||
+       b->inst_opcode[prev] != want_load)
+      return 0;
+   initial = a->rom[b->file_offset + prev + 1u];
+
+   p = load_off;
+   for (steps = 0; steps < 10u; ++steps) {
+      unsigned len;
+      uint8_t op;
+      if (!(b->roles[p] & ROLE_CODE_START)) return 0;
+      len = b->inst_len[p];
+      if (len == 0u || p + len >= b->size) return 0;
+      p += len;
+      if (!(b->roles[p] & ROLE_CODE_START)) return 0;
+      op = b->inst_opcode[p];
+      if (op == want_dec) {
+         size_t branch = p + 1u;
+         uint8_t bop;
+         uint16_t pc, target;
+         if (branch >= b->size || !(b->roles[branch] & ROLE_CODE_START) ||
+             b->inst_len[branch] != 2u)
+            return 0;
+         bop = b->inst_opcode[branch];
+         if (bop != 0x10u && bop != 0xd0u) return 0; /* BPL or BNE */
+         pc = (uint16_t)(b->origin + (uint16_t)branch);
+         target = (uint16_t)(pc + 2u +
+                    (int8_t)a->rom[b->file_offset + branch + 1u]);
+         if (target == (uint16_t)(b->origin + (uint16_t)load_off))
+            return (unsigned)initial + 1u;
+         return 0;
+      }
+      if (instruction_flow(op) != FLOW_NEXT) return 0;
+   }
+   return 0;
+}
+
+/* Mark raw bytes with strong graphics provenance.  This is intentionally not a
+ * blind bitmap-shape guess: an indexed/indirect ROM load must feed GRP0/GRP1 or
+ * PF0/PF1/PF2 before A is overwritten.  Exact index state marks one byte;
+ * unresolved indices mark a bounded table candidate ending at the next known
+ * code/vector/label boundary. */
+static void detect_graphics_data(analysis_t *a)
+{
+   size_t bi;
+   for (bi = 0; bi < a->bank_count; ++bi) {
+      bank_t *b = &a->banks[bi];
+      size_t off;
+      for (off = 0; off < b->size; ++off) {
+         uint8_t opcode;
+         address_mode_t mode;
+         uint16_t operand;
+         uint16_t effective;
+         size_t source_off;
+         int exact;
+         unsigned span;
+         if (!(b->roles[off] & ROLE_CODE_START) || !b->state_seen[off]) continue;
+         opcode = b->inst_opcode[off];
+         if (strcmp(opcode_mnemonics[opcode], "LDA") != 0) continue;
+         mode = (address_mode_t)opcode_modes[opcode];
+         if (mode != AM_ABSOLUTE && mode != AM_ABSOLUTE_X &&
+             mode != AM_ABSOLUTE_Y && mode != AM_INDIRECT_INDEXED &&
+             mode != AM_INDEXED_INDIRECT)
+            continue;
+         if (!load_feeds_graphics_store(a, bi, off)) continue;
+         operand = a->rom[b->file_offset + off + 1u];
+         if (b->inst_len[off] >= 3u)
+            operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
+         exact = resolve_effective_address(&b->states[off], mode, operand, &effective);
+         if (mode == AM_ABSOLUTE) { exact = 1; effective = operand; }
+         if (exact && cart_target_offset(b, effective, &source_off)) {
+            b->graphics[source_off] = 1;
+            continue;
+         }
+         span = infer_countdown_graphics_span(a, bi, off, mode);
+         if (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y) {
+            if (cart_target_offset(b, operand, &source_off)) {
+               if (span) mark_graphics_count(b, source_off, span);
+               else mark_graphics_range(b, source_off, 32u);
+            }
+         }
+         else if (mode == AM_INDIRECT_INDEXED) {
+            uint16_t pointer;
+            if (resolve_zp_word(&b->states[off], (uint8_t)operand, &pointer) &&
+                cart_target_offset(b, pointer, &source_off)) {
+               if (span) mark_graphics_count(b, source_off, span);
+               else mark_graphics_range(b, source_off, 32u);
+            }
+         }
+      }
+   }
+}
+
+static void emit_dynamic_control_comment(FILE *fp, const analysis_t *a,
+                                         size_t bi, uint8_t opcode,
+                                         uint16_t operand)
+{
+   const bank_t *b = &a->banks[bi];
+   flow_kind_t flow = instruction_flow(opcode);
+   if (flow == FLOW_JSR || flow == FLOW_JMP_ABSOLUTE) {
+      size_t toff;
+      if (!cart_target_offset(b, operand, &toff) ||
+          (superchip_active(a) && toff < 0x100u))
+         fputs("    ; control transfer leaves statically decoded cartridge ROM", fp);
+   }
+   else if (flow == FLOW_JMP_INDIRECT) {
+      uint16_t ptr = operand;
+      uint16_t high_addr = (uint16_t)((ptr & 0xff00u) |
+                           ((uint16_t)(ptr + 1u) & 0x00ffu));
+      size_t loff, hoff;
+      if (cart_target_offset(b, ptr, &loff) &&
+          cart_target_offset(b, high_addr, &hoff)) {
+         uint16_t target = (uint16_t)(a->rom[b->file_offset + loff] |
+                           ((uint16_t)a->rom[b->file_offset + hoff] << 8));
+         size_t toff;
+         if (!cart_target_offset(b, target, &toff) ||
+             (superchip_active(a) && toff < 0x100u))
+            fputs("    ; indirect control transfer leaves statically decoded cartridge ROM", fp);
+      }
+      else {
+         fputs("    ; indirect control-transfer destination unresolved", fp);
+      }
+   }
+}
+
+static void emit_instruction(FILE *fp, const analysis_t *a, size_t bi, size_t off)
+{
+   const bank_t *b = &a->banks[bi];
+   uint8_t opcode = b->inst_opcode[off];
+   address_mode_t mode = (address_mode_t)opcode_modes[opcode];
+   const char *mn = opcode_mnemonics[opcode];
+   const uint8_t *p = a->rom + b->file_offset + off;
+   uint16_t operand = b->inst_len[off] >= 2u ? p[1] : 0;
+   hw_symbol_t hw;
+   int have_hw = 0;
+   if (b->inst_len[off] >= 3u) operand |= (uint16_t)p[2] << 8;
+   have_hw = hardware_symbol(opcode, mode, operand, &hw);
+
+   fprintf(fp, "    %s", mn);
+   if (mode == AM_RELATIVE) {
+      uint16_t pc = (uint16_t)(b->origin + (uint16_t)off);
+      uint16_t after = (uint16_t)(pc + 2u);
+      uint16_t target = (uint16_t)(after + (int8_t)p[1]);
+      int same = (after & 0xff00u) == (target & 0xff00u);
+      fprintf(fp, ".%s $%04X", same ? "same" : "cross", target);
+      /* Keep the target numeric even when we have a label.  vcsc-as starts
+         forward conditional branches in long form and relaxes them later; a
+         target at original displacement +125..+127 moves three bytes farther
+         away while that provisional long form is present, so a label can make
+         an originally valid short branch self-prevent relaxation.  The numeric
+         runtime target is fixed and therefore preserves the original two-byte
+         branch and its hard page contract exactly. */
+      if (target >= b->origin &&
+          (uint32_t)target < (uint32_t)b->origin + (uint32_t)b->size &&
+          (b->roles[target - b->origin] & ROLE_LABEL)) {
+         fputs("    ; target ", fp);
+         print_label_name(fp, a, bi, (size_t)(target - b->origin));
+      }
+   }
+   else {
+      fprintf(fp, "%s", mode_suffix(mode));
+      switch (mode) {
+      case AM_IMPLIED:
+         break;
+      case AM_ACCUMULATOR:
+         fprintf(fp, " A");
+         break;
+      case AM_IMMEDIATE:
+         fprintf(fp, " #$%02X", (unsigned)operand);
+         break;
+      case AM_ZERO_PAGE:
+         fputc(' ', fp);
+         if (have_hw) emit_hw_operand(fp, &hw, operand);
+         else fprintf(fp, "$%02X", (unsigned)operand);
+         break;
+      case AM_ZERO_PAGE_X:
+         fprintf(fp, " $%02X,X", (unsigned)operand);
+         break;
+      case AM_ZERO_PAGE_Y:
+         fprintf(fp, " $%02X,Y", (unsigned)operand);
+         break;
+      case AM_ABSOLUTE:
+         fputc(' ', fp);
+         if (have_hw) {
+            emit_hw_operand(fp, &hw, operand);
+         }
+         else if ((opcode == 0x4cu || opcode == 0x20u) &&
+                  is_cart_address(operand)) {
+            size_t toff = (size_t)(operand & (uint16_t)(b->size - 1u));
+            uint16_t canonical = (uint16_t)(b->origin + (uint16_t)toff);
+            if (toff < b->size && canonical == operand &&
+                (b->roles[toff] & ROLE_LABEL))
+               print_label_name(fp, a, bi, toff);
+            else
+               fprintf(fp, "$%04X", operand);
+         }
+         else {
+            size_t toff;
+            uint16_t canonical;
+            if (cart_target_offset(b, operand, &toff) &&
+                (b->roles[toff] & ROLE_LABEL) &&
+                (canonical = (uint16_t)(b->origin + (uint16_t)toff)) == operand)
+               print_exact_cart_reference(fp, a, bi, toff);
+            else
+               fprintf(fp, "$%04X", operand);
+         }
+         break;
+      case AM_ABSOLUTE_X:
+      case AM_ABSOLUTE_Y: {
+         size_t toff;
+         uint16_t canonical;
+         fputc(' ', fp);
+         if (cart_target_offset(b, operand, &toff) &&
+             (b->roles[toff] & ROLE_LABEL) &&
+             (canonical = (uint16_t)(b->origin + (uint16_t)toff)) == operand)
+            print_exact_cart_reference(fp, a, bi, toff);
+         else
+            fprintf(fp, "$%04X", operand);
+         fprintf(fp, ",%c", mode == AM_ABSOLUTE_X ? 'X' : 'Y');
+         break;
+      }
+      case AM_INDIRECT:
+         fprintf(fp, " ($%04X)", operand);
+         break;
+      case AM_INDEXED_INDIRECT:
+         fprintf(fp, " ($%02X,X)", (unsigned)operand);
+         break;
+      case AM_INDIRECT_INDEXED:
+         fprintf(fp, " ($%02X),Y", (unsigned)operand);
+         break;
+      case AM_RELATIVE:
+         break;
+      }
+   }
+   if (have_hw && hw.mirrored)
+      fprintf(fp, "    ; mirror of %s ($%04X)", hw.name, hw.canonical);
+   else if (!have_hw)
+      emit_hardware_rmw_comment(fp, opcode, mode, operand);
+   emit_dynamic_control_comment(fp, a, bi, opcode, operand);
+   if (b->roles[off] & ROLE_OVERLAP)
+      fprintf(fp, "    ; overlaps another reachable instruction stream");
+   {
+      unsigned k;
+      int code_as_data = 0;
+      for (k = 0; k < b->inst_len[off]; ++k)
+         if (b->roles[off + k] & ROLE_DATA_READ) code_as_data = 1;
+      if (code_as_data)
+         fprintf(fp, "    ; instruction byte/operand also read as data");
+   }
+   fputc('\n', fp);
+}
+
+static int raw_run_end(const bank_t *b, size_t start)
+{
+   size_t end = start;
+   while (end < b->size && end - start < 16u) {
+      if (end != start && ((b->roles[end] & ROLE_LABEL) ||
+                           instruction_can_emit(b, end)))
+         break;
+      if (instruction_can_emit(b, end)) break;
+      ++end;
+   }
+   return (int)end;
+}
+
+static void emit_raw_run(FILE *fp, const analysis_t *a, size_t bi,
+                         size_t start, size_t end)
+{
+   const bank_t *b = &a->banks[bi];
+   size_t i;
+   int unreferenced = 1;
+   int overlap = 0;
+   int sc_hidden = superchip_active(a) && start < 0x100u && end <= 0x100u;
+   for (i = start; i < end; ++i) {
+      uint8_t r = b->roles[i];
+      if (r & (ROLE_CODE_BYTE | ROLE_DATA_READ | ROLE_POSSIBLE | ROLE_VECTOR))
+         unreferenced = 0;
+      if (r & ROLE_OVERLAP) overlap = 1;
+   }
+   if (overlap) fprintf(fp, "    ; overlapping executable bytes; exact raw spelling\n");
+   else if (sc_hidden) fprintf(fp, "    ; physical ROM bytes hidden by Superchip RAM window\n");
+   else if (unreferenced) fprintf(fp, "    ; unreferenced ROM bytes\n");
+   fprintf(fp, "    .byte ");
+   for (i = start; i < end; ++i) {
+      if (i != start) fputs(", ", fp);
+      fprintf(fp, "$%02X", a->rom[b->file_offset + i]);
+   }
+   fputc('\n', fp);
+}
+
+static void emit_graphics_byte(FILE *fp, uint8_t value)
+{
+   char binary[9];
+   char picture[9];
+   unsigned bit;
+   for (bit = 0; bit < 8u; ++bit) {
+      unsigned mask = 0x80u >> bit;
+      binary[bit] = (value & mask) ? '1' : '0';
+      picture[bit] = (value & mask) ? 'X' : '.';
+   }
+   binary[8] = '\0';
+   picture[8] = '\0';
+   /* vcsc-as currently accepts %01 binary literals.  Keep the human bitmap
+    * spelling beside it rather than inventing unparseable X/dot syntax. */
+   fprintf(fp, "    .byte %%%s    ; %s\n", binary, picture);
+}
+
+
+typedef struct {
+   unsigned inpt[6];
+   unsigned swcha_read;
+   unsigned swcha_unqualified_read;
+   unsigned swcha_write;
+   unsigned swcha_port_read[2];
+   unsigned joystick_direction[2];
+   unsigned vblank_write;
+   unsigned driving_left;
+   unsigned driving_right;
+   unsigned tim64_42;
+   unsigned tim64_34;
+   unsigned tim64_52;
+   unsigned tim64_41;
+   unsigned wsync_3;
+   unsigned wsync_30;
+   unsigned wsync_36;
+   unsigned wsync_37;
+   unsigned wsync_45;
+   unsigned wsync_192;
+   unsigned wsync_228;
+} inference_evidence_t;
+
+static int decoded_instruction_at(const analysis_t *a, size_t bi, size_t off,
+                                  uint8_t *opcode, address_mode_t *mode,
+                                  uint16_t *operand)
+{
+   const bank_t *b = &a->banks[bi];
+   unsigned len;
+   if (off >= b->size || !(b->roles[off] & ROLE_CODE_START)) return 0;
+   len = b->inst_len[off];
+   if (len == 0u || off + len > b->size) return 0;
+   *opcode = b->inst_opcode[off];
+   *mode = (address_mode_t)opcode_modes[*opcode];
+   *operand = len >= 2u ? a->rom[b->file_offset + off + 1u] : 0u;
+   if (len >= 3u)
+      *operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
+   return 1;
+}
+
+static int next_code_start(const bank_t *b, size_t off, size_t *next)
+{
+   unsigned len;
+   if (off >= b->size || !(b->roles[off] & ROLE_CODE_START)) return 0;
+   len = b->inst_len[off];
+   if (len == 0u || off + len >= b->size) return 0;
+   *next = off + len;
+   return (b->roles[*next] & ROLE_CODE_START) != 0;
+}
+
+static int immediate_before_store(const analysis_t *a, size_t bi, size_t off,
+                                  uint8_t *value)
+{
+   const bank_t *b = &a->banks[bi];
+   size_t prev;
+   if (off < 2u) return 0;
+   prev = off - 2u;
+   if (!(b->roles[prev] & ROLE_CODE_START) || b->inst_len[prev] != 2u)
+      return 0;
+   if (b->inst_opcode[prev] != 0xa9u || prev + 2u != off) return 0;
+   *value = a->rom[b->file_offset + prev + 1u];
+   return 1;
+}
+
+static int counted_wsync_loop(const analysis_t *a, size_t bi, size_t off,
+                              uint8_t *count)
+{
+   const bank_t *b = &a->banks[bi];
+   uint8_t opcode;
+   address_mode_t mode;
+   uint16_t operand;
+   uint8_t dec_opcode;
+   size_t p;
+   unsigned steps;
+   int saw_wsync = 0;
+   int saw_dec = 0;
+
+   if (!decoded_instruction_at(a, bi, off, &opcode, &mode, &operand) ||
+       mode != AM_IMMEDIATE || (opcode != 0xa2u && opcode != 0xa0u))
+      return 0;
+   *count = (uint8_t)operand;
+   if (*count == 0u) return 0;
+   dec_opcode = opcode == 0xa2u ? 0xcau : 0x88u; /* DEX / DEY */
+   if (!next_code_start(b, off, &p)) return 0;
+
+   for (steps = 0; steps < 8u; ++steps) {
+      hw_symbol_t hw;
+      unsigned access;
+      uint16_t pc;
+      int8_t disp;
+      uint16_t target;
+
+      if (!decoded_instruction_at(a, bi, p, &opcode, &mode, &operand)) return 0;
+      access = opcode_memory_access(opcode);
+      if (hardware_symbol(opcode, mode, operand, &hw) &&
+          strcmp(hw.name, "WSYNC") == 0 && (access & ACCESS_WRITE))
+         saw_wsync = 1;
+      if (opcode == dec_opcode) saw_dec = 1;
+      if (opcode == 0xd0u && mode == AM_RELATIVE && saw_wsync && saw_dec) {
+         pc = (uint16_t)(b->origin + (uint16_t)p);
+         disp = (int8_t)(uint8_t)operand;
+         target = (uint16_t)(pc + 2u + disp);
+         if (target >= (uint16_t)(b->origin + (uint16_t)(off + 2u)) &&
+             target <= pc)
+            return 1;
+      }
+      if (!next_code_start(b, p, &p)) return 0;
+   }
+   return 0;
+}
+
+static int swcha_port_mask_pattern(const analysis_t *a, size_t bi, size_t off,
+                                   int *port)
+{
+   const bank_t *b = &a->banks[bi];
+   size_t p = off;
+   uint8_t opcode;
+   address_mode_t mode;
+   uint16_t operand;
+   hw_symbol_t hw;
+
+   if (!decoded_instruction_at(a, bi, p, &opcode, &mode, &operand) ||
+       !hardware_symbol(opcode, mode, operand, &hw) ||
+       strcmp(hw.name, "SWCHA") != 0 ||
+       !(opcode_memory_access(opcode) & ACCESS_READ))
+      return 0;
+   if (!next_code_start(b, p, &p)) return 0;
+   if (b->inst_opcode[p] != 0x29u || b->inst_len[p] != 2u) return 0;
+   if (a->rom[b->file_offset + p + 1u] == 0xf0u) { *port = 0; return 1; }
+   if (a->rom[b->file_offset + p + 1u] == 0x0fu) { *port = 1; return 1; }
+   return 0;
+}
+
+static int swcha_joystick_direction_pattern(const analysis_t *a, size_t bi,
+                                             size_t off, int *port)
+{
+   const bank_t *b = &a->banks[bi];
+   size_t p = off;
+   uint8_t opcode;
+   address_mode_t mode;
+   uint16_t operand;
+   hw_symbol_t hw;
+   uint8_t mask;
+
+   if (!decoded_instruction_at(a, bi, p, &opcode, &mode, &operand) ||
+       !hardware_symbol(opcode, mode, operand, &hw) ||
+       strcmp(hw.name, "SWCHA") != 0 ||
+       !(opcode_memory_access(opcode) & ACCESS_READ))
+      return 0;
+   if (!next_code_start(b, p, &p)) return 0;
+   if (b->inst_opcode[p] != 0x29u || b->inst_len[p] != 2u) return 0;
+   mask = a->rom[b->file_offset + p + 1u];
+   if (mask == 0x10u || mask == 0x20u || mask == 0x40u || mask == 0x80u) {
+      *port = 0;
+      return 1;
+   }
+   if (mask == 0x01u || mask == 0x02u || mask == 0x04u || mask == 0x08u) {
+      *port = 1;
+      return 1;
+   }
+   return 0;
+}
+
+static int swcha_driving_pattern(const analysis_t *a, size_t bi, size_t off,
+                                 int *port)
+{
+   const bank_t *b = &a->banks[bi];
+   size_t p = off;
+   uint8_t opcode;
+   address_mode_t mode;
+   uint16_t operand;
+   hw_symbol_t hw;
+   unsigned shifts = 0;
+
+   if (!decoded_instruction_at(a, bi, p, &opcode, &mode, &operand) ||
+       !hardware_symbol(opcode, mode, operand, &hw) ||
+       strcmp(hw.name, "SWCHA") != 0 ||
+       !(opcode_memory_access(opcode) & ACCESS_READ))
+      return 0;
+   if (!next_code_start(b, p, &p)) return 0;
+   while (shifts < 4u && b->inst_opcode[p] == 0x4au && b->inst_len[p] == 1u) {
+      ++shifts;
+      if (!next_code_start(b, p, &p)) return 0;
+   }
+   if (b->inst_opcode[p] != 0x29u || b->inst_len[p] != 2u ||
+       a->rom[b->file_offset + p + 1u] != 0x03u)
+      return 0;
+   if (shifts == 4u) { *port = 0; return 1; }
+   if (shifts == 0u) { *port = 1; return 1; }
+   return 0;
+}
+
+static void collect_inference_evidence(const analysis_t *a,
+                                       inference_evidence_t *e)
+{
+   size_t bi;
+   memset(e, 0, sizeof(*e));
+   for (bi = 0; bi < a->bank_count; ++bi) {
+      const bank_t *b = &a->banks[bi];
+      size_t off;
+      for (off = 0; off < b->size; ++off) {
+         uint8_t opcode;
+         address_mode_t mode;
+         uint16_t operand;
+         hw_symbol_t hw;
+         unsigned access;
+         int drive_port;
+         if (!decoded_instruction_at(a, bi, off, &opcode, &mode, &operand))
+            continue;
+         {
+            uint8_t count;
+            if (counted_wsync_loop(a, bi, off, &count)) {
+               if (count == 3u) ++e->wsync_3;
+               if (count == 30u) ++e->wsync_30;
+               if (count == 36u) ++e->wsync_36;
+               if (count == 37u) ++e->wsync_37;
+               if (count == 45u) ++e->wsync_45;
+               if (count == 192u) ++e->wsync_192;
+               if (count == 228u) ++e->wsync_228;
+            }
+         }
+         access = opcode_memory_access(opcode);
+         if (!hardware_symbol(opcode, mode, operand, &hw)) continue;
+         if (strcmp(hw.name, "SWCHA") == 0) {
+            if (access & ACCESS_READ) {
+               int mask_port;
+               int qualified = 0;
+               ++e->swcha_read;
+               if (swcha_port_mask_pattern(a, bi, off, &mask_port)) {
+                  ++e->swcha_port_read[mask_port];
+                  qualified = 1;
+               }
+               if (swcha_joystick_direction_pattern(a, bi, off, &mask_port)) {
+                  ++e->swcha_port_read[mask_port];
+                  ++e->joystick_direction[mask_port];
+                  qualified = 1;
+               }
+               if (swcha_driving_pattern(a, bi, off, &drive_port)) {
+                  if (drive_port == 0) ++e->driving_left;
+                  else ++e->driving_right;
+                  if (!qualified || mask_port != drive_port)
+                     ++e->swcha_port_read[drive_port];
+                  qualified = 1;
+               }
+               if (!qualified) ++e->swcha_unqualified_read;
+            }
+            if (access & ACCESS_WRITE) ++e->swcha_write;
+         }
+         else if (strcmp(hw.name, "VBLANK") == 0 && (access & ACCESS_WRITE)) {
+            ++e->vblank_write;
+         }
+         else if (strncmp(hw.name, "INPT", 4) == 0 &&
+                  hw.name[4] >= '0' && hw.name[4] <= '5' &&
+                  (access & ACCESS_READ)) {
+            ++e->inpt[(unsigned)(hw.name[4] - '0')];
+         }
+         else if (strcmp(hw.name, "TIM64T") == 0 && (access & ACCESS_WRITE)) {
+            uint8_t value;
+            if (immediate_before_store(a, bi, off, &value)) {
+               if (value == 42u) ++e->tim64_42;
+               if (value == 34u) ++e->tim64_34;
+               if (value == 52u) ++e->tim64_52;
+               if (value == 41u) ++e->tim64_41;
+            }
+         }
+      }
+   }
+}
+
+static void infer_video(const inference_evidence_t *e,
+                        const char **kind, const char **confidence)
+{
+   unsigned ntsc_timer = (e->tim64_42 ? 1u : 0u) + (e->tim64_34 ? 1u : 0u);
+   unsigned pal_timer = (e->tim64_52 ? 1u : 0u) + (e->tim64_41 ? 1u : 0u);
+   unsigned ntsc_scan = (e->wsync_192 ? 2u : 0u) +
+                        (e->wsync_37 ? 1u : 0u) + (e->wsync_30 ? 1u : 0u);
+   unsigned pal_scan = (e->wsync_228 ? 2u : 0u) +
+                       (e->wsync_45 ? 1u : 0u) + (e->wsync_36 ? 1u : 0u);
+   if (ntsc_timer == 2u && pal_timer == 0u) {
+      *kind = "NTSC (RIOT 42/34 frame-timer signature)";
+      *confidence = "high";
+   }
+   else if (pal_timer == 2u && ntsc_timer == 0u) {
+      *kind = "PAL-family (PAL/SECAM ambiguous; RIOT 52/41 frame-timer signature)";
+      *confidence = "high";
+   }
+   else if (ntsc_scan >= 3u && pal_scan == 0u) {
+      *kind = "NTSC (counted WSYNC frame signature)";
+      *confidence = "high";
+   }
+   else if (pal_scan >= 3u && ntsc_scan == 0u) {
+      *kind = "PAL-family (PAL/SECAM ambiguous; counted WSYNC frame signature)";
+      *confidence = "high";
+   }
+   else if ((ntsc_timer != 0u || ntsc_scan != 0u) &&
+            pal_timer == 0u && pal_scan == 0u) {
+      *kind = "NTSC";
+      *confidence = "medium";
+   }
+   else if ((pal_timer != 0u || pal_scan != 0u) &&
+            ntsc_timer == 0u && ntsc_scan == 0u) {
+      *kind = "PAL-family (PAL/SECAM ambiguous)";
+      *confidence = "medium";
+   }
+   else {
+      *kind = "unknown";
+      *confidence = "unknown";
+   }
+}
+
+static void infer_controller_port(const inference_evidence_t *e, int port,
+                                  const char **kind, const char **confidence)
+{
+   unsigned a = port == 0 ? e->inpt[0] : e->inpt[2];
+   unsigned b = port == 0 ? e->inpt[1] : e->inpt[3];
+   unsigned fire = port == 0 ? e->inpt[4] : e->inpt[5];
+   unsigned drive = port == 0 ? e->driving_left : e->driving_right;
+
+   if (e->swcha_write && a && b && fire) {
+      *kind = "keypad";
+      *confidence = "high";
+   }
+   else if (a && b && e->vblank_write) {
+      *kind = "paddles";
+      *confidence = "high";
+   }
+   else if (drive && fire) {
+      *kind = "driving controller";
+      *confidence = "high";
+   }
+   else if (drive) {
+      *kind = "driving controller";
+      *confidence = "medium";
+   }
+   else if (e->swcha_port_read[port] && fire) {
+      *kind = "joystick";
+      *confidence = "medium";
+   }
+   else if (e->joystick_direction[port]) {
+      *kind = "joystick";
+      *confidence = "medium";
+   }
+   else if (e->swcha_unqualified_read && fire &&
+            e->swcha_port_read[0] == 0u && e->swcha_port_read[1] == 0u) {
+      *kind = "joystick";
+      *confidence = "medium";
+   }
+   else if (e->swcha_unqualified_read && fire) {
+      *kind = "joystick/driving/keypad ambiguous";
+      *confidence = "low";
+   }
+   else if (a || b) {
+      *kind = "paddles/keypad ambiguous";
+      *confidence = "low";
+   }
+   else if (fire) {
+      *kind = "joystick/driving/keypad ambiguous";
+      *confidence = "low";
+   }
+   else if (e->swcha_port_read[port]) {
+      *kind = "joystick/driving ambiguous";
+      *confidence = "low";
+   }
+   else if (e->swcha_unqualified_read) {
+      *kind = "joystick/driving ambiguous";
+      *confidence = "low";
+   }
+   else {
+      *kind = "unused or unknown";
+      *confidence = "low";
+   }
+}
+
+
+static void emit_usage_summary(FILE *fp, const analysis_t *a)
+{
+   size_t bi;
+   size_t executed = 0, data = 0, exec_data = 0, overlap = 0;
+   size_t possible = 0, unreferenced = 0, vectors = 0, sc_hidden = 0;
+   for (bi = 0; bi < a->bank_count; ++bi) {
+      const bank_t *b = &a->banks[bi];
+      size_t off;
+      for (off = 0; off < b->size; ++off) {
+         uint8_t r = b->roles[off];
+         int ex = (r & ROLE_CODE_BYTE) != 0;
+         int dr = (r & ROLE_DATA_READ) != 0;
+         if (ex) ++executed;
+         if (dr) ++data;
+         if (ex && dr) ++exec_data;
+         if (r & ROLE_OVERLAP) ++overlap;
+         if (r & ROLE_POSSIBLE) ++possible;
+         if (r & ROLE_VECTOR) ++vectors;
+         if (superchip_active(a) && off < 0x100u) ++sc_hidden;
+         else if (!(r & (ROLE_CODE_BYTE | ROLE_DATA_READ | ROLE_POSSIBLE | ROLE_VECTOR)))
+            ++unreferenced;
+      }
+   }
+   fprintf(fp,
+      "; usage bytes: executed=%zu data-read=%zu exec+data=%zu overlap=%zu possible=%zu vectors=%zu sc-hidden=%zu unreferenced=%zu\n",
+      executed, data, exec_data, overlap, possible, vectors, sc_hidden, unreferenced);
+}
+
+static const char *video_override_display(const char *s)
+{
+   if (strcmp(s, "ntsc") == 0) return "NTSC";
+   if (strcmp(s, "pal") == 0) return "PAL";
+   if (strcmp(s, "secam") == 0) return "SECAM";
+   if (strcmp(s, "pal-family") == 0) return "PAL-family (PAL/SECAM ambiguous)";
+   return "unknown";
+}
+
+static const char *controller_override_display(const char *s)
+{
+   if (strcmp(s, "driving") == 0) return "driving controller";
+   if (strcmp(s, "unused") == 0) return "unused";
+   return s;
+}
+
+static void emit_header(FILE *fp, const analysis_t *a, const char *input,
+                        const char sha[65])
+{
+   size_t i;
+   fprintf(fp, "; generated by vcsc-disas %s\n", VERSION);
+   fprintf(fp, "; input: %s\n", input);
+   fprintf(fp, "; input bytes: %zu\n", a->rom_size);
+   fprintf(fp, "; input sha256: %s\n", sha);
+   {
+      const char *mname = mapper_name(a->mapper);
+      char scname[32];
+      if (superchip_active(a) &&
+          (a->mapper == MAP_F8 || a->mapper == MAP_F6 || a->mapper == MAP_F4)) {
+         snprintf(scname, sizeof(scname), "%sSC", mname);
+         mname = scname;
+      }
+      if (a->mapper_overridden)
+         fprintf(fp, "; mapper: %s (override; %d decoded hotspot access%s, "
+                     "%d SC-window candidate%s, %d write%s)\n",
+                 mname, a->hotspot_refs, a->hotspot_refs == 1 ? "" : "es",
+                 a->superchip_refs, a->superchip_refs == 1 ? "" : "s",
+                 a->superchip_write_refs, a->superchip_write_refs == 1 ? "" : "s");
+      else
+         fprintf(fp, "; mapper: %s (%s confidence; %d decoded hotspot access%s, "
+                     "%d SC-window candidate%s, %d write%s)\n",
+                 mname,
+                 a->mapper == MAP_RAW ? "unknown" :
+                    ((a->hotspot_refs || superchip_active(a)) ? "high" : "medium"),
+                 a->hotspot_refs, a->hotspot_refs == 1 ? "" : "es",
+                 a->superchip_refs, a->superchip_refs == 1 ? "" : "s",
+                 a->superchip_write_refs, a->superchip_write_refs == 1 ? "" : "s");
+   }
+   if (a->mapper != MAP_RAW) {
+      fprintf(fp, "; physical banks: %zu x %zu bytes\n",
+              a->bank_count, a->bank_size);
+      fprintf(fp, "; reset/power-on bank: %zu (%s)\n", a->reset_bank,
+              a->reset_bank_overridden ? "override" : "heuristic");
+      for (i = 0; i < a->bank_count; ++i) {
+         const bank_t *b = &a->banks[i];
+         if (b->origin_overridden)
+            fprintf(fp, "; bank %zu: file $%04zX..$%04zX, origin $%04X, override\n",
+                    i, b->file_offset, b->file_offset + b->size - 1u, b->origin);
+         else
+            fprintf(fp, "; bank %zu: file $%04zX..$%04zX, origin $%04X, score %d%s\n",
+                    i, b->file_offset, b->file_offset + b->size - 1u,
+                    b->origin, b->origin_score,
+                    b->reset_vector_evidence ? ", RESET-vector evidence" : "");
+      }
+   }
+   else {
+      fprintf(fp, "; physical layout: unsupported size; exact raw fallback\n");
+   }
+   {
+      inference_evidence_t e;
+      const char *video, *vconf, *ctl0, *c0conf, *ctl1, *c1conf;
+      collect_inference_evidence(a, &e);
+      infer_video(&e, &video, &vconf);
+      infer_controller_port(&e, 0, &ctl0, &c0conf);
+      infer_controller_port(&e, 1, &ctl1, &c1conf);
+      if (a->video_override)
+         fprintf(fp, "; video: %s (override)\n",
+                 video_override_display(a->video_override));
+      else
+         fprintf(fp, "; video: %s (%s confidence)\n", video, vconf);
+      if (a->controller_override[0])
+         fprintf(fp, "; controller port 0: %s (override)\n",
+                 controller_override_display(a->controller_override[0]));
+      else
+         fprintf(fp, "; controller port 0: %s (%s confidence)\n", ctl0, c0conf);
+      if (a->controller_override[1])
+         fprintf(fp, "; controller port 1: %s (override)\n",
+                 controller_override_display(a->controller_override[1]));
+      else
+         fprintf(fp, "; controller port 1: %s (%s confidence)\n", ctl1, c1conf);
+      if (a->verbose) {
+         fprintf(fp, "; evidence: SWCHA read=%u unqualified=%u write=%u port0=%u port1=%u\n",
+                 e.swcha_read, e.swcha_unqualified_read, e.swcha_write,
+                 e.swcha_port_read[0], e.swcha_port_read[1]);
+         fprintf(fp, "; evidence: INPT0..5=%u,%u,%u,%u,%u,%u VBLANK-write=%u driving=%u,%u\n",
+                 e.inpt[0], e.inpt[1], e.inpt[2], e.inpt[3], e.inpt[4], e.inpt[5],
+                 e.vblank_write, e.driving_left, e.driving_right);
+         fprintf(fp, "; evidence: TIM64T immediates 42=%u 34=%u 52=%u 41=%u\n",
+                 e.tim64_42, e.tim64_34, e.tim64_52, e.tim64_41);
+         fprintf(fp, "; evidence: dynamic control exits=%d unresolved indirect JMP=%d\n",
+                 a->dynamic_control_exits, a->unresolved_indirect_jumps);
+      }
+   }
+   emit_usage_summary(fp, a);
+   fprintf(fp, "; exact-byte fallback is authoritative where analysis is uncertain\n\n");
+}
+
+static void emit_hardware_equates(FILE *fp)
+{
+   static const char *const lines[] = {
+      "VSYNC=$00","VBLANK=$01","WSYNC=$02","RSYNC=$03","NUSIZ0=$04","NUSIZ1=$05",
+      "COLUP0=$06","COLUP1=$07","COLUPF=$08","COLUBK=$09","CTRLPF=$0A","REFP0=$0B",
+      "REFP1=$0C","PF0=$0D","PF1=$0E","PF2=$0F","RESP0=$10","RESP1=$11","RESM0=$12",
+      "RESM1=$13","RESBL=$14","AUDC0=$15","AUDC1=$16","AUDF0=$17","AUDF1=$18",
+      "AUDV0=$19","AUDV1=$1A","GRP0=$1B","GRP1=$1C","ENAM0=$1D","ENAM1=$1E",
+      "ENABL=$1F","HMP0=$20","HMP1=$21","HMM0=$22","HMM1=$23","HMBL=$24",
+      "VDELP0=$25","VDELP1=$26","VDELBL=$27","RESMP0=$28","RESMP1=$29","HMOVE=$2A",
+      "HMCLR=$2B","CXCLR=$2C","CXM0P=$30","CXM1P=$31","CXP0FB=$32","CXP1FB=$33",
+      "CXM0FB=$34","CXM1FB=$35","CXBLPF=$36","CXPPMM=$37","INPT0=$38","INPT1=$39",
+      "INPT2=$3A","INPT3=$3B","INPT4=$3C","INPT5=$3D","SWCHA=$0280","SWACNT=$0281",
+      "SWCHB=$0282","SWBCNT=$0283","INTIM=$0284","TIMINT=$0285","TIM1T=$0294",
+      "TIM8T=$0295","TIM64T=$0296","T1024T=$0297", NULL
+   };
+   const char *const *line;
+   fputs("; canonical TIA/RIOT symbols used by this disassembly\n", fp);
+   for (line = lines; *line; ++line) fprintf(fp, "%s\n", *line);
+   fputc('\n', fp);
+}
+
+
+static int vector_slot(const bank_t *b, size_t off, unsigned *slot)
+{
+   size_t base;
+   if (b->size < 6u) return 0;
+   base = b->size - 6u;
+   if (off < base || off >= b->size || ((off - base) & 1u)) return 0;
+   *slot = (unsigned)((off - base) / 2u);
+   return *slot < 3u;
+}
+
+static void emit_vector(FILE *fp, const analysis_t *a, size_t bi, size_t off)
+{
+   static const char *const names[3] = { "NMI", "RESET", "IRQ/BRK" };
+   const bank_t *b = &a->banks[bi];
+   uint16_t value = read_word(a->rom + b->file_offset + off);
+   size_t toff;
+   unsigned slot = 0;
+   (void)vector_slot(b, off, &slot);
+   fprintf(fp, "    .word ");
+   if (cart_target_offset(b, value, &toff) &&
+       (uint16_t)(b->origin + (uint16_t)toff) == value &&
+       (b->roles[toff] & ROLE_LABEL))
+      print_label_name(fp, a, bi, toff);
+   else
+      fprintf(fp, "$%04X", value);
+   fprintf(fp, "    ; %s vector\n", names[slot]);
+}
+
+static int emit_source(FILE *fp, const analysis_t *a, const char *input,
+                       const char sha[65])
+{
+   size_t bi;
+   emit_header(fp, a, input, sha);
+   if (analysis_uses_hardware_symbols(a))
+      emit_hardware_equates(fp);
+   if (a->mapper == MAP_RAW) {
+      size_t off = 0;
+      fprintf(fp, ".org $0000\n");
+      while (off < a->rom_size) {
+         size_t end = off + 8u;
+         size_t i;
+         if (end > a->rom_size) end = a->rom_size;
+         fprintf(fp, "    .byte ");
+         for (i = off; i < end; ++i) {
+            if (i != off) fputs(", ", fp);
+            fprintf(fp, "$%02X", a->rom[i]);
+         }
+         fputc('\n', fp);
+         off = end;
+      }
+      return ferror(fp) == 0;
+   }
+
+   for (bi = 0; bi < a->bank_count; ++bi) {
+      const bank_t *b = &a->banks[bi];
+      size_t off = 0;
+      fprintf(fp, "; ---- physical bank %zu ----\n", bi);
+      fprintf(fp, ".org $%04zX\n", b->file_offset);
+      fprintf(fp, ".rorg $%04X\n", b->origin);
+      while (off < b->size) {
+         if (b->roles[off] & ROLE_LABEL) {
+            print_label_name(fp, a, bi, off);
+            fputs(":\n", fp);
+         }
+         {
+            unsigned vslot;
+            if (vector_slot(b, off, &vslot)) {
+               emit_vector(fp, a, bi, off);
+               off += 2u;
+               continue;
+            }
+         }
+         if (instruction_can_emit(b, off)) {
+            unsigned len = b->inst_len[off];
+            emit_instruction(fp, a, bi, off);
+            off += len;
+         }
+         else if (b->graphics[off]) {
+            emit_graphics_byte(fp, a->rom[b->file_offset + off]);
+            ++off;
+         }
+         else {
+            int end = raw_run_end(b, off);
+            if (superchip_active(a) && off < 0x100u && end > 0x100) end = 0x100;
+            if ((size_t)end <= off) end = (int)(off + 1u);
+            emit_raw_run(fp, a, bi, off, (size_t)end);
+            off = (size_t)end;
+         }
+      }
+      fprintf(fp, ".rend\n\n");
+   }
+   return ferror(fp) == 0;
+}
+
+int main(int argc, char **argv)
+{
+   options_t opt;
+   char *derived = NULL;
+   uint8_t *rom = NULL;
+   size_t rom_size = 0;
+   analysis_t analysis;
+   char sha[65];
+   FILE *out = NULL;
+   int ok = 0;
+
+   if (!parse_args(argc, argv, &opt)) return 2;
+   if (!read_file(opt.input, &rom, &rom_size)) return 1;
+   if (!init_analysis(&analysis, rom, rom_size, &opt)) {
+      free(rom);
+      return 1;
+   }
+   if (!apply_layout_overrides(&analysis, &opt)) {
+      free_analysis(&analysis);
+      free(rom);
+      return 1;
+   }
+   if (!trace_analysis(&analysis, &opt)) {
+      fprintf(stderr, "analysis failed\n");
+      free_analysis(&analysis);
+      free(rom);
+      return 1;
+   }
+   apply_superchip_window_semantics(&analysis);
+   promote_interior_reference_labels(&analysis);
+   detect_graphics_data(&analysis);
+   sha256_hex(rom, rom_size, sha);
+
+   if (!opt.output) {
+      derived = derived_output_name(opt.input);
+      if (!derived) {
+         fprintf(stderr, "out of memory\n");
+         goto done;
+      }
+      opt.output = derived;
+   }
+   if (strcmp(opt.output, "-") == 0)
+      out = stdout;
+   else {
+      out = fopen(opt.output, "wb");
+      if (!out) {
+         fprintf(stderr, "%s: %s\n", opt.output, strerror(errno));
+         goto done;
+      }
+   }
+
+   if (!emit_source(out, &analysis, opt.input, sha)) {
+      fprintf(stderr, "%s: write failed\n", opt.output);
+      goto done;
+   }
+   if (out != stdout && fclose(out) != 0) {
+      out = NULL;
+      fprintf(stderr, "%s: close failed: %s\n", opt.output, strerror(errno));
+      goto done;
+   }
+   out = NULL;
+   ok = 1;
+
+done:
+   if (out && out != stdout) fclose(out);
+   free(derived);
+   free_analysis(&analysis);
+   free(rom);
+   return ok ? 0 : 1;
+}

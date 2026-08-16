@@ -56,6 +56,9 @@ assembler/vcsc-as:
 archiver/vcsc-ar:
 	@$(MAKE) --no-print-directory -C ./archiver vcsc-ar
 
+disassembler/vcsc-disas:
+	@$(MAKE) --no-print-directory -C ./disassembler vcsc-disas$(EXEEXT)
+
 tools: clean
 	@$(MAKE) --no-print-directory -C ./assembler all
 	@$(MAKE) --no-print-directory -C ./linker all
@@ -64,6 +67,7 @@ tools: clean
 	@$(MAKE) --no-print-directory -C ./compiler vcsc-cc1$(EXEEXT)
 	@$(MAKE) --no-print-directory -C ./simulator all
 	@$(MAKE) --no-print-directory -C ./driver all
+	@$(MAKE) --no-print-directory -C ./disassembler all
 
 .PHONY: exam
 
@@ -88,6 +92,7 @@ clean:
 	@$(MAKE) --no-print-directory -C ./compiler clean
 	@$(MAKE) --no-print-directory -C ./simulator clean
 	@$(MAKE) --no-print-directory -C ./driver clean
+	@$(MAKE) --no-print-directory -C ./disassembler clean
 
 docs:
 	mkdir -p doxygen
@@ -102,6 +107,7 @@ install-core:
 	@$(MAKE) --no-print-directory -C ./compiler install DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./simulator install DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./driver install DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
+	@$(MAKE) --no-print-directory -C ./disassembler install DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)" EXEEXT="$(EXEEXT)"
 	install -d $(DESTDIR)$(BINDIR)
 	@$(MAKE) --no-print-directory -C ./libraries/runtime install DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" INCLUDEDIR="$(INCLUDEDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory install-data DESTDIR="$(DESTDIR)" DATADIR="$(DATADIR)"
@@ -244,6 +250,7 @@ uninstall:
 	@$(MAKE) --no-print-directory uninstall-data DESTDIR="$(DESTDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory -C ./libraries/runtime uninstall DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" INCLUDEDIR="$(INCLUDEDIR)" DATADIR="$(DATADIR)"
 	@$(MAKE) --no-print-directory -C ./driver uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
+	@$(MAKE) --no-print-directory -C ./disassembler uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./simulator uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./compiler uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./archiver uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
@@ -402,7 +409,8 @@ windows:
 	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-as.exe \
 	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-ld.exe \
 	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-ar.exe \
-	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-sim.exe
+	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-sim.exe \
+	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-disas.exe
 	cp README.md WINDOWS.md LICENSE COPYING $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/
 	cp -a examples $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/examples
 	find $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/examples -type f \
@@ -412,7 +420,7 @@ windows:
 	  sed -i 's|$$(ROOT)/driver/vcsc|$$(ROOT)/bin/vcsc.exe|g; s|$$(ROOT)/libraries/vcs|$$(ROOT)/share/vcs|g' {} +
 	printf '%s\r\n' '@echo off' '"%~dp0bin\vcsc.exe" %*' > $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/vcsc.cmd
 	@set -e; \
-	for exe in vcsc.exe vcsc-cc1.exe vcsc-as.exe vcsc-ld.exe vcsc-ar.exe vcsc-sim.exe; do \
+	for exe in vcsc.exe vcsc-cc1.exe vcsc-as.exe vcsc-ld.exe vcsc-ar.exe vcsc-sim.exe vcsc-disas.exe; do \
 	  path="$(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/$$exe"; \
 	  test -f "$$path"; \
 	  if "$(WINDOWS_OBJDUMP)" -p "$$path" | grep -Eiq 'DLL Name: (libgcc|libstdc\+\+|libwinpthread)[^ ]*\.dll'; then \
@@ -454,7 +462,8 @@ linux:
 	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-as \
 	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-ld \
 	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-ar \
-	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-sim
+	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-sim \
+	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-disas
 	cp README.md LINUX.md LICENSE COPYING $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/
 	cp -a examples $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/examples
 	find $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/examples -type f \
@@ -463,7 +472,7 @@ linux:
 	find $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/examples -type f -name Makefile -exec \
 	  sed -i 's|$$(ROOT)/driver/vcsc|$$(ROOT)/bin/vcsc|g; s|$$(ROOT)/libraries/vcs|$$(ROOT)/share/vcs|g' {} +
 	@set -e; \
-	for exe in vcsc vcsc-cc1 vcsc-as vcsc-ld vcsc-ar vcsc-sim; do \
+	for exe in vcsc vcsc-cc1 vcsc-as vcsc-ld vcsc-ar vcsc-sim vcsc-disas; do \
 	  path="$(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/$$exe"; \
 	  test -x "$$path"; \
 	  if "$(LINUX_READELF)" -l "$$path" 2>/dev/null | grep -q 'Requesting program interpreter'; then \
@@ -479,6 +488,7 @@ linux:
 	@set -e; \
 	package="$(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)"; \
 	"$$package/bin/vcsc" -V >/dev/null; \
+	"$$package/bin/vcsc-disas" -V >/dev/null; \
 	cd "$$package"; \
 	./bin/vcsc -I share/vcs examples/01_basic/01_blank_screen/blank_screen.c26 -o linux-package-smoke.bin; \
 	test `wc -c < linux-package-smoke.bin` -eq 4096; \
@@ -514,6 +524,10 @@ installcheck: tools
 	"$$stage_bin/vcsc" -print-prog-name=as >/dev/null; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" -o "$(INSTALLCHECK_STAGING)/blank_screen.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/blank_screen.bin"` -eq 4096; \
+	test -x "$$stage_bin/vcsc-disas"; \
+	"$$stage_bin/vcsc-disas" -o "$(INSTALLCHECK_STAGING)/blank_screen.s26" "$(INSTALLCHECK_STAGING)/blank_screen.bin"; \
+	test -s "$(INSTALLCHECK_STAGING)/blank_screen.s26"; \
+	grep -q '^; mapper:' "$(INSTALLCHECK_STAGING)/blank_screen.s26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_headers_smoke_test.c26" -o "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" "$$stage_vcs/vcs_2k.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" -o "$(INSTALLCHECK_STAGING)/blank_screen_2k.bin"; \

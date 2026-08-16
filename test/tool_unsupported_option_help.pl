@@ -31,6 +31,7 @@ my @tools = (
    File::Spec->catfile($repo, 'linker',    'vcsc-ld'),
    File::Spec->catfile($repo, 'archiver',  'vcsc-ar'),
    File::Spec->catfile($repo, 'simulator', 'vcsc-sim'),
+   File::Spec->catfile($repo, 'disassembler', 'vcsc-disas'),
 );
 
 my $bad = '--definitely-not-a-vcsc-option';

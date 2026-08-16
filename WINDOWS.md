@@ -53,12 +53,14 @@ For example, in `cmd.exe`:
 
 ```bat
 vcsc.cmd -I share\vcs examples\01_basic\01_blank_screen\blank_screen.c26 -o blank_screen.bin
+bin\vcsc-disas.exe blank_screen.bin
 ```
 
 In PowerShell:
 
 ```powershell
 .\vcsc.cmd -I .\share\vcs .\examples\01_basic\01_blank_screen\blank_screen.c26 -o blank_screen.bin
+.\bin\vcsc-disas.exe blank_screen.bin
 ```
 
 The driver locates `vcsc-cc1.exe`, `vcsc-as.exe`, `vcsc-ld.exe`, the runtime

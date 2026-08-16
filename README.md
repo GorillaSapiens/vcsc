@@ -44,6 +44,8 @@ The repository contains:
 - a high-level build driver;
 - a matching simulator used by the regression suite, including cfg-driven
   F8/F6/F4 cartridge execution;
+- `vcsc-disas`, a byte-exact Atari cartridge disassembler that emits `.s26`
+  source and performs conservative mapper/video/controller analysis;
 - a small runtime library;
 - Atari 2600 bindings, reusable display and audio support, and maintained
   renderer implementations;
@@ -107,6 +109,17 @@ Most users should begin with the high-level driver and the examples. The
 individual stage tools are useful when debugging generated assembly, creating
 reusable object libraries, or integrating separately assembled code.
 
+To reverse-engineer an existing cartridge while preserving it byte for byte:
+
+```sh
+./disassembler/vcsc-disas game.bin
+./assembler/vcsc-as --hex=game.hex game.s26
+```
+
+See [`disassembler/README.md`](disassembler/README.md) for mapper inference,
+overlapping-code handling, hardware-register symbolization, and the standalone
+corpus round-trip verifier.
+
 ## Toolchain components
 
 - [`driver/`](driver/) — the `vcsc` front end that coordinates compilation,
@@ -119,6 +132,9 @@ reusable object libraries, or integrating separately assembled code.
   cartridge output, and debugger metadata.
 - [`archiver/`](archiver/) — creation and maintenance of `.l26` object libraries.
 - [`simulator/`](simulator/) — the execution engine used by automated tests.
+- [`disassembler/`](disassembler/) — `vcsc-disas`, which turns cartridge `.bin`
+  images back into byte-exact VCSC `.s26` source with conservative Atari-specific
+  analysis.
 - [`libraries/runtime/`](libraries/runtime/) — startup and runtime support linked
   into cartridge programs as needed.
 - [`libraries/vcs/`](libraries/vcs/) — Atari 2600 hardware definitions and
@@ -183,7 +199,7 @@ The driver locates sibling tools and shared data relative to the common
 installation prefix, while still supporting in-tree development builds.
 `make package` includes the same installed examples in its `/opt/vcsc` image.
 
-`make linux` builds all six host tools with static linkage, stages the normal
+`make linux` builds all seven host tools with static linkage, stages the normal
 support tree plus the editable examples, and writes
 `vcsc.linux.YYYYMMDD_HHMMSS.tar.gz`. The archive contains a relocatable `vcsc`
 directory that can be unpacked and run without installation. See

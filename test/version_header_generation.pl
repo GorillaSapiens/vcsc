@@ -106,7 +106,7 @@ my $plain = generate($nogit);
 $plain =~ /^#define VERSION "\d{4}-\d\d-\d\d \d\d:\d\d:\d\dZ nogit \S+ clean"\n$/
    or die "unexpected no-git version: $plain";
 
-for my $component (qw(driver compiler assembler linker archiver simulator stego)) {
+for my $component (qw(driver compiler assembler linker archiver simulator stego disassembler)) {
    my $makefile = slurp(File::Spec->catfile($repo, $component, 'Makefile'));
    $makefile =~ /version\.h: FORCE\n\tperl \.\.\/gen_version_h\.pl \$\@\n/
       or die "$component/Makefile does not use top-level gen_version_h.pl\n";
