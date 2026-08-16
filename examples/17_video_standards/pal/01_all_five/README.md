@@ -13,8 +13,11 @@ This is the maintained 192-line `all_five` gameplay component running inside
 the native PAL50 312-line scheduler. The gameplay kernel itself is unchanged:
 17 measured pre-component helper lines precede it and an 18-line visible tail follows it.
 The renderer owns its terminal WSYNC boundary, so this emulator-calibrated wrapper reaches
-the 228-line visible boundary; it is intentionally not a naive 18 + 192 + 18 split. The source specifies its colors directly with `__builtin_pal_rgb(r,g,b)`; the
-compiler maps those RGB values to the Stella-compatible PAL TIA palette.
+the 228-line visible boundary; it is intentionally not a naive 18 + 192 + 18 split. The source feeds the same background, playfield, P0, and P1 RGB intents used by
+the NTSC all-five example directly to `__builtin_pal_rgb(r,g,b)`; the compiler
+maps those RGB values to the closest Stella-compatible PAL TIA colors.
+
+`make play` launches Stella with `-format PAL`.
 
 Controls are the same as the NTSC example: Game Select cycles P0/P1/M0/M1/Ball,
 the left joystick moves the selected object, and console Reset restarts.

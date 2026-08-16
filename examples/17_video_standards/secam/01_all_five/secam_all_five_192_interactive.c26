@@ -128,8 +128,8 @@ void main(void) {
    SWACNT := 0;
    SWBCNT := 0;
    VBLANK := 2;
-   COLUBK := __builtin_secam_rgb(0x21, 0x21, 0xff);
-   COLUPF := __builtin_secam_rgb(0xff, 0xff, 0x3f);
+   COLUBK := __builtin_secam_rgb(0x24, 0x28, 0xb0);
+   COLUPF := __builtin_secam_rgb(0xea, 0xc2, 0x54);
    CTRLPF := 0x21;
 
    game_PLAYER0_X := 20;
@@ -153,8 +153,8 @@ void main(void) {
    game_missile0_height := 5;
    game_missile1_height := 7;
    game_ball_height := 3;
-   game_player0_color := __builtin_secam_rgb(0x7f, 0xff, 0xff);
-   game_player1_color := __builtin_secam_rgb(0xff, 0x50, 0xff);
+   game_player0_color := __builtin_secam_rgb(0x79, 0xdd, 0xfb);
+   game_player1_color := __builtin_secam_rgb(0xea, 0x82, 0xdc);
    game_playfield_position := 8;
 
    game_init();

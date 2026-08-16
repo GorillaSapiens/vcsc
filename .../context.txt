@@ -777,8 +777,16 @@ portable-renderer classification, and public blank plus interactive all-five exa
 `examples/17_video_standards/` now has exactly two standard subtrees, `pal/` and
 `secam/`; each is locally numbered `00_blank`, `01_all_five`. Those examples use
 `__builtin_pal_rgb()` / `__builtin_secam_rgb()` directly so their RGB intent is
-visible in source rather than hidden behind palette aliases. Legacy full-frame
-renderers remain explicitly NTSC-only. Current validation is 499/499 compile tests
+visible in source rather than hidden behind palette aliases. Both `00_blank`
+examples target the usual NTSC dark-blue background RGB intent `#12139d`; PAL
+maps it to TIA `$c0`, while SECAM maps it to canonical blue `$02`. The PAL/SECAM
+`01_all_five` sources now feed the exact NTSC all-five RGB intents through their
+standard-specific matchers; PAL selects `$d2/$2a/$9a/$8a` for background/PF/P0/P1,
+while SECAM necessarily collapses those intents to blue/yellow/cyan/magenta.
+Stella cannot reliably auto-detect SECAM50 from 50 Hz timing, so all four example
+`make play` targets explicitly pass `-format PAL` or `-format SECAM`; Stella `-tv`
+is only the emulated Color/B&W console switch. Legacy full-frame renderers remain
+explicitly NTSC-only. Current validation is 499/499 compile tests
 and 305/305 E2E tests; the Stella 7.0 50 Hz all-five phase/snapshot regression and
 staged installed-tree builds for all four video-standard examples also pass. Item 36 is the first unfinished
 main-roadmap item. Item 31's focused implementation record is `.../inline_roadmap.txt`, whose

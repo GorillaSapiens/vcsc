@@ -6,3 +6,6 @@ Held or rolled input is ignored until the right stick returns neutral.
 The one-byte latch reuses the SWCHA nibble and saves one RAM byte.
 Updated fixed-six, 3+3, 2+2, and 170-line copied controls plus tests/docs.
 Validation: 499/499 compile; affected E2E 17/17; all example shards pass.
+2026-08-16 09:40:43 PDT, Fix SECAM Stella mode and PAL colors
+PAL/SECAM all-five now share the NTSC RGB intents before palette matching.
+Video-standard make play targets force Stella -format PAL/SECAM; -tv is Color/BW.

@@ -13,7 +13,7 @@ $(TARGET): $(SOURCE) $(VCS_DIR)/frame_pal.c26 $(VCS_DIR)/frame_50hz_component.c2
 clean:
 	rm -f $(TARGET) $(TARGET:.bin=.hex) $(TARGET:.bin=.map) $(TARGET:.bin=.s26) *.o26 $(TARGET:.bin=.sym) $(TARGET:.bin=.lst) $(TARGET:.bin=.cfg)
 
-play:
-	stella *.bin
+play: $(TARGET)
+	stella -format PAL $(TARGET)
 
 .PHONY: all clean play

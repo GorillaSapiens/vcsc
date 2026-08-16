@@ -6,7 +6,9 @@ void main(void) {
    while (1) {
       vcs_pal_vsync();
       vcs_pal_begin_vblank();
-      COLUBK := __builtin_pal_rgb(0x0b, 0x0b, 0x0b);
+      // Match the usual NTSC dark-blue background RGB intent as closely
+      // as this video standard allows.
+      COLUBK := __builtin_pal_rgb(0x12, 0x13, 0x9d);
       PF0 := 0; PF1 := 0; PF2 := 0;
       GRP0 := 0; GRP1 := 0; ENAM0 := 0; ENAM1 := 0; ENABL := 0;
       vcs_pal_end_vblank();

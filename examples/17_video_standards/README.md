@@ -20,3 +20,9 @@ Both standards share the measured 312-line 50 Hz frame machinery, but their
 color contracts remain deliberately separate. PAL RGB matching selects from the
 PAL TIA palette; SECAM RGB matching selects from its eight distinct display
 colors.
+
+Stella cannot reliably distinguish SECAM50 from PAL50 from frame timing alone.
+Use each example's `make play` target, which explicitly selects `-format PAL`
+or `-format SECAM`. For a direct SECAM launch use `stella -format SECAM ROM.bin`.
+Stella's `-tv` option is the emulated console Color/B&W switch; it does not
+select PAL or SECAM.

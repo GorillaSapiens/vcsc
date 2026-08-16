@@ -18,7 +18,7 @@ $(TARGET): $(SOURCE) $(VCS_DIR)/frame_secam.c26 \
 clean:
 	rm -f $(TARGET) $(TARGET:.bin=.hex) $(TARGET:.bin=.map) $(TARGET:.bin=.s26) *.o26 $(TARGET:.bin=.sym) $(TARGET:.bin=.lst) $(TARGET:.bin=.cfg)
 
-play:
-	stella *.bin
+play: $(TARGET)
+	stella -format SECAM $(TARGET)
 
 .PHONY: all clean play

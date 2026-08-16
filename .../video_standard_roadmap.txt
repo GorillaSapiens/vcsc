@@ -94,7 +94,11 @@ renderers/components are classified as timing-portable; legacy full-frame render
 remain explicitly NTSC-only. Public examples are organized under separate `examples/17_video_standards/pal/`
 and `secam/` subtrees, each with local `00_blank` and `01_all_five` numbering.
 They use `__builtin_pal_rgb()` / `__builtin_secam_rgb()` directly and build from
-the installed toolchain; the interactive all-five examples are verified under
+the installed toolchain. The PAL/SECAM all-five examples use the same RGB intents
+as the NTSC all-five example before standard-specific palette matching. Because
+SECAM50 is not reliably distinguishable from PAL50 by timing alone, each public
+example's `make play` target forces the corresponding Stella `-format`; `-tv` is
+not a display-format option. The interactive all-five examples are verified under
 Stella 7.0.
 
 Current validation: 499/499 compile tests and 305/305 E2E tests (run in bounded

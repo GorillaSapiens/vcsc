@@ -48,6 +48,26 @@ for my$case(@cases) {
       or die "$source does not use $builtin directly\n";
    $text !~ /^\s*include\s+"color_(?:pal|secam)\.c26"/m
       or die "$source hides RGB matching behind a color alias include\n";
+
+   if ($numbered eq '00_blank') {
+      $text =~ /\Q$builtin\E\s*\(0x12,\s*0x13,\s*0x9d\)/
+         or die "$source must retain the NTSC dark-blue RGB intent\n";
+   }
+   else {
+      for my$rgb ('0x24, 0x28, 0xb0', '0xea, 0xc2, 0x54',
+                  '0x79, 0xdd, 0xfb', '0xea, 0x82, 0xdc') {
+         $text =~ /\Q$builtin\E\s*\(\Q$rgb\E\)/
+            or die "$source must use NTSC all-five RGB intent $rgb\n";
+      }
+   }
+
+   my$makefile=File::Spec->catfile($dir,'Makefile');
+   my$make=read_file($makefile);
+   my$format=uc($standard);
+   $make =~ /^play:\s*\$\(TARGET\)\s*$/m
+      or die "$makefile play target must depend on TARGET\n";
+   $make =~ /^\s*stella\s+-format\s+\Q$format\E\s+\$\(TARGET\)\s*$/m
+      or die "$makefile play target must force Stella -format $format\n";
 }
 
 for my$standard(qw(pal secam)) {
