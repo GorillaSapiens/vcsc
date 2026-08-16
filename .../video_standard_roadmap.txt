@@ -91,10 +91,13 @@ public frame, color, and sound front ends. The common frame is 312 lines: 3 VSYN
 Shared 50 Hz sound helpers provide frame-duration constants and the public PAL/SECAM
 front ends preserve distinct machine identities. Maintained scheduler-neutral C26
 renderers/components are classified as timing-portable; legacy full-frame renderers
-remain explicitly NTSC-only. Public blank and interactive all-five examples for both
-standards build from the installed toolchain and are verified under Stella 7.0.
+remain explicitly NTSC-only. Public examples are organized under separate `examples/17_video_standards/pal/`
+and `secam/` subtrees, each with local `00_blank` and `01_all_five` numbering.
+They use `__builtin_pal_rgb()` / `__builtin_secam_rgb()` directly and build from
+the installed toolchain; the interactive all-five examples are verified under
+Stella 7.0.
 
-Final validation: 492/492 compile tests; all 287 E2E tests (run in bounded exact
-groups after the monolithic command hit the execution ceiling); `make installcheck`;
-and `make stella-50hz-test` all pass. NTSC scheduler and renderer regressions remain
+Current validation: 499/499 compile tests and 305/305 E2E tests (run in bounded
+exact groups where needed); the Stella 7.0 50 Hz phase/snapshot regression passes,
+and staged installed-tree builds cover all four reorganized video-standard examples. NTSC scheduler and renderer regressions remain
 green. Main-roadmap items 32 and 33 close together.

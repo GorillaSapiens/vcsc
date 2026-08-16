@@ -37,12 +37,13 @@ the shared timing, resource, opcode, and composition contracts.
 | [`14_multisprite`](14_multisprite/) | Parameterized modern P0 + five multiplexed-P1 renderer derived from the faithful legacy raster | 192-line and 181-line score-composed demos with full horizontal and bounded independent vertical movement |
 | [`15_all_five_player_color_192`](15_all_five_player_color_192/) | Official-opcode 192-line P0/P1/M0/M1/Ball renderer with independent eight-row P0/P1 color tables | Interactive five-object motion with visibly striped players |
 | [`16_all_five_player_color_181`](16_all_five_player_color_181/) | Official-opcode 181-line P0/P1/M0/M1/Ball renderer with independent eight-row P0/P1 color tables | Centered six-digit and independent three-plus-three score compositions above and below combined gameplay |
+| [`17_video_standards`](17_video_standards/) | PAL50 and SECAM50 wrappers around portable components, split into per-standard subtrees | Minimal frames plus interactive stock all-five compositions using compile-time RGB matching |
 
 The original four 181-line groups contribute a **40-cartridge composition
 matrix**: four gameplay families x four production score layouts x two orders,
 plus eight poison stress compositions. The combined all-five/player-color 181
 profile adds static and interactive score-above/score-below compositions. Across all
-renderer and architecture groups, the public tree contains **67 editable cartridges**.
+renderer and architecture groups, the public tree contains **79 editable cartridges**.
 
 The unofficial groups are separate source-level examples rather than a build
 switch hidden inside the official examples. Their component filenames and

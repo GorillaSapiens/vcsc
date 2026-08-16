@@ -774,9 +774,13 @@ bankswitching sub-roadmap are closed. PAL and SECAM were implemented together vi
 VSYNC + 45 VBLANK + 228 visible + 36 overscan), distinct PAL/SECAM frame/color/sound
 front ends, Stella-compatible PAL RGB matching, canonical eight-color SECAM matching,
 portable-renderer classification, and public blank plus interactive all-five examples.
-Legacy full-frame renderers remain explicitly NTSC-only. Final video-standard
-validation passes 492/492 compile tests, all 287 E2E tests, `make installcheck`, and
-the Stella 7.0 50 Hz scheduler/example tests. Item 36 is the first unfinished
+`examples/17_video_standards/` now has exactly two standard subtrees, `pal/` and
+`secam/`; each is locally numbered `00_blank`, `01_all_five`. Those examples use
+`__builtin_pal_rgb()` / `__builtin_secam_rgb()` directly so their RGB intent is
+visible in source rather than hidden behind palette aliases. Legacy full-frame
+renderers remain explicitly NTSC-only. Current validation is 499/499 compile tests
+and 305/305 E2E tests; the Stella 7.0 50 Hz all-five phase/snapshot regression and
+staged installed-tree builds for all four video-standard examples also pass. Item 36 is the first unfinished
 main-roadmap item. Item 31's focused implementation record is `.../inline_roadmap.txt`, whose
 subsections 0 through 7 are complete. Normal compilation automatically performs
 safe single-callsite ref-address and readonly by-value specialization, including
@@ -1145,7 +1149,7 @@ hygiene traversals explicitly prune `.git`, because branch/ref/object history is
 metadata rather than editable source and may legitimately retain retired historical
 names. In an eight-worker validation,
 example shards measured about 2.9-4.0 seconds each and score-composition family
-shards about 8.3-8.6 seconds each. The current E2E inventory contains 304
+shards about 8.3-8.6 seconds each. The current E2E inventory contains 305
 cases while preserving the same aggregate sharded coverage model.
 
 
@@ -1162,4 +1166,4 @@ boundaries are presently restricted to powers of two; direct/HEX assembly keeps
 the older arbitrary-positive-boundary behavior.  The PAL50 and SECAM50 all-five
 examples use the stock 192-line all-five renderer and now remain phase-stable;
 the Stella regression checks PF write phases in addition to frame length.
-Validation baseline is 499/499 compile tests and 304/304 E2E tests.
+Validation baseline is 499/499 compile tests and 305/305 E2E tests.

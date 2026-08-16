@@ -9,18 +9,14 @@
 
 # PAL and SECAM examples
 
-This group keeps PAL and SECAM explicit while sharing the common 50 Hz frame
-machinery.
+The 50 Hz examples are split by video standard. Each standard has its own local
+numbering and uses the matching compile-time RGB builtin directly so the source
+can be written in RGB while the compiler selects the appropriate TIA color.
 
-- `00_pal50_blank`: minimal 312-line PAL50 frame.
-- `00_secam50_blank`: minimal 312-line SECAM50 frame.
-- `01_pal50_all_five`: interactive five-object 192-line gameplay kernel centered
-  in the PAL 228-line visible window with PAL colors.
-- `02_secam50_all_five`: the same geometry using only the eight legal SECAM
-  display colors.
+- [`pal/`](pal/): PAL50 examples using `__builtin_pal_rgb(r,g,b)`.
+- [`secam/`](secam/): SECAM50 examples using `__builtin_secam_rgb(r,g,b)`.
 
-The interactive examples use 17 measured pre-component helper lines and an
-18-line visible tail.  This is an emulator-verified phase composition, not a
-simple `228 - 192` arithmetic split; the renderer owns its terminal WSYNC
-boundary.
-
+Both standards share the measured 312-line 50 Hz frame machinery, but their
+color contracts remain deliberately separate. PAL RGB matching selects from the
+PAL TIA palette; SECAM RGB matching selects from its eight distinct display
+colors.

@@ -22,8 +22,8 @@ my($r,$s,$o,$e)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$s
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 for my$pair(
-   ['pal',qw(17_video_standards 01_pal50_all_five pal_all_five_192_interactive.c26)],
-   ['secam',qw(17_video_standards 02_secam50_all_five secam_all_five_192_interactive.c26)]
+   ['pal',qw(17_video_standards pal 01_all_five pal_all_five_192_interactive.c26)],
+   ['secam',qw(17_video_standards secam 01_all_five secam_all_five_192_interactive.c26)]
 ) {
    my($standard,@parts)=@$pair;
    my$source=File::Spec->catfile($repo,'examples',@parts);

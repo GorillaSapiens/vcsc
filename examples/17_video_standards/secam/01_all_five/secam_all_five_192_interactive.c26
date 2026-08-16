@@ -1,8 +1,7 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
 include "vcs.c26"
-include "frame_pal.c26"
-include "color_pal.c26"
+include "frame_secam.c26"
 include "playfield.c26"
 
 page const uint8_t game_playfield[48] := {
@@ -129,8 +128,8 @@ void main(void) {
    SWACNT := 0;
    SWBCNT := 0;
    VBLANK := 2;
-   COLUBK := VCS_PAL_BLUE;
-   COLUPF := VCS_PAL_GOLD;
+   COLUBK := __builtin_secam_rgb(0x21, 0x21, 0xff);
+   COLUPF := __builtin_secam_rgb(0xff, 0xff, 0x3f);
    CTRLPF := 0x21;
 
    game_PLAYER0_X := 20;
@@ -154,23 +153,23 @@ void main(void) {
    game_missile0_height := 5;
    game_missile1_height := 7;
    game_ball_height := 3;
-   game_player0_color := VCS_PAL_SKY_BLUE;
-   game_player1_color := VCS_PAL_MAGENTA;
+   game_player0_color := __builtin_secam_rgb(0x7f, 0xff, 0xff);
+   game_player1_color := __builtin_secam_rgb(0xff, 0x50, 0xff);
    game_playfield_position := 8;
 
    game_init();
 
    while (1) {
-      vcs_pal_vsync();
-      vcs_pal_begin_vblank();
+      vcs_secam_vsync();
+      vcs_secam_begin_vblank();
       game_vblank();
-      vcs_pal_end_vblank();
-      vcs_pal_wait_component_scanlines(17);
+      vcs_secam_end_vblank();
+      vcs_secam_wait_component_scanlines(17);
       game_draw();
-      vcs_pal_wait_visible_tail_scanlines(19);
-      vcs_pal_begin_overscan();
+      vcs_secam_wait_visible_tail_scanlines(19);
+      vcs_secam_begin_overscan();
       game_overscan();
       update_controls();
-      vcs_pal_end_overscan();
+      vcs_secam_end_overscan();
    }
 }

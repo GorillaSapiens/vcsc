@@ -73,7 +73,7 @@ Files:
 - `../../examples/11_all_five_170/` ... `all_five (lines:=170)` interactive composition with an eleven-line score above and another below
 - `../../examples/12_all_five_170_unofficial/` ... matching `all_five_unofficial (lines:=170)` dual-score composition, built explicitly with `-Wa,--illegals`
 - `../../examples/13_player_color_170/` ... `player_color (lines:=170)` interactive composition with an eleven-line score above and another below
-- `../../examples/17_video_standards/` ... minimal PAL50/SECAM50 frames and measured interactive 192-line all-five compositions using standard-specific palettes
+- `../../examples/17_video_standards/` ... separate `pal/` and `secam/` 50 Hz example trees with minimal frames and measured interactive 192-line all-five compositions using `__builtin_pal_rgb()` / `__builtin_secam_rgb()` directly
 
 ## Bank-switching diagnostic suite
 
