@@ -1,0 +1,756 @@
+VCSC DISASSEMBLER CONTEXT AND ROADMAP
+=====================================
+
+Purpose
+-------
+Create a standalone Atari 2600 cartridge disassembler named `vcsc-disas`.
+The implementation will live in a new top-level `disassembler/` directory.
+Start that directory by copying `stego/` and then rename/adapt the program and
+Makefile rather than inventing another command-line/program skeleton from
+scratch.
+
+The primary output is VCSC assembly source (`.s26`). Given a cartridge binary,
+`vcsc-disas` must emit source that the existing `vcsc-as` assembler can consume
+to reproduce the original cartridge image byte-for-byte exactly.
+
+Human readability, reverse-engineering usefulness, and good inference are major
+goals, but exact reconstruction is the governing invariant. When those goals
+conflict, exact bytes win.
+
+This file is the focused design/context document and ordered roadmap for the
+side project. It is intentionally separate from `.../roadmap.txt`; work here
+does not advance or reorder the main VCSC roadmap.
+
+Status legend: [ ] not started, [~] partial, [x] complete.
+
+Core invariant: exact binary round trip
+---------------------------------------
+For every accepted ROM there must be a mechanically testable path:
+
+    original.bin
+        -> vcsc-disas
+    original.s26
+        -> vcsc-as direct assembly
+    reconstructed.bin
+        -> byte-for-byte comparison with original.bin
+
+The comparison includes file length and every byte. A SHA-256 comparison may be
+reported as a convenience but does not replace a `cmp`-equivalent comparison.
+
+Inference must never break this invariant. If a mapper, origin, instruction,
+data type, label, pointer interpretation, controller type, video standard, or
+other semantic interpretation is uncertain, preserve the original bytes and
+state the uncertainty in comments. A completely unfamiliar cartridge must be
+able to degrade to an exact `.byte` representation rather than becoming
+undisassemblable.
+
+The disassembler must be deterministic: identical input plus identical command
+line must produce byte-for-byte identical `.s26` output.
+
+Do not normalize ROM images. Duplicated banks, padding, unused fill, inaccessible
+physical bytes, unusual vector contents, and other oddities are part of the
+input image and must survive the round trip exactly.
+
+Generated-file header
+---------------------
+Every generated `.s26` file should begin with deterministic comments summarizing
+at least:
+
+    input filename
+    input byte size
+    input SHA-256
+    inferred mapper/bankswitching scheme and confidence
+    physical bank layout
+    inferred logical origin for each bank and confidence/evidence
+    inferred power-on/reset bank
+    inferred video standard and confidence
+    inferred controller type for each port and confidence
+    important ambiguities or unsupported hardware assumptions
+    vcsc-disas version
+
+For 50 Hz software, report PAL-versus-SECAM ambiguity honestly when the ROM does
+not contain enough evidence to distinguish them. Stable 50 Hz timing by itself
+is PAL-family evidence, not proof of PAL rather than SECAM.
+
+Output-address model
+--------------------
+Keep physical cartridge-file position separate from the 6507 logical/runtime
+address. This is the same distinction required by `.../bankswitching.txt`.
+
+Use assembler `.org` to describe physical output position in the reconstructed
+cartridge image and `.rorg`/`.rend` to describe the inferred logical CPU address
+for a physical bank. Multiple physical banks can therefore be emitted in file
+order while each is analyzed in its runtime address space.
+
+Conceptually:
+
+    .org $0000
+    .rorg $F000
+        ; physical bank 0
+    .rend
+
+    .org $1000
+    .rorg $F000
+        ; physical bank 1
+    .rend
+
+The origins above are examples only. Do not impose VCSC's own bank origins on a
+foreign ROM. Historical cartridges often map all physical banks to the same
+runtime window, but other layouts exist.
+
+The 6507 exposes only A0-A12 to the cartridge. A13-A15 can therefore differ in
+encoded 16-bit operands without changing the physical cartridge-bus address.
+Preserve the original 16-bit operand value. Do not replace a mirrored address by
+a prettier canonical address if doing so changes either operand byte.
+
+Origin inference
+----------------
+Infer the most plausible logical origin independently for every physical bank.
+Use all available constraints together rather than treating the reset vector as
+the only source of truth.
+
+Strong evidence includes:
+
+* RESET/NMI/IRQ vector values and whether they land at plausible offsets in a
+  physical bank.
+* Absolute `JMP $hhhh` targets.
+* Absolute `JSR $hhhh` targets.
+* Resolved indirect-JMP destinations.
+* Absolute ROM data references whose physical target can be identified.
+* Bank-switch transitions followed by control transfer into the selected bank.
+* Internal consistency of branches, labels, tables, and decoded control flow.
+* Common cartridge-window mirrors, used as priors rather than proof.
+
+Absolute JMP opcodes deserve aggressive use as origin evidence. If a `$4c`
+occurs at file offset O and its encoded destination can plausibly refer to offset
+T in a bank, the destination immediately constrains that bank's runtime origin.
+Do not require the JMP itself to have already been proven RESET-reachable before
+using it as an origin hypothesis. A coincidental `$4c` in data is evidence only,
+not proof, so score hypotheses by the number of independent constraints they
+satisfy.
+
+Apply the same logic to direct JSR destinations. For `JMP (addr)`, the operand is
+the pointer address, not the destination. Only a statically resolved indirect
+JMP destination constrains the destination bank's origin.
+
+When resolving NMOS 6502/6507 `JMP ($xxFF)`, model the original silicon page-wrap
+behavior: the high destination byte is fetched from `$xx00`, not `$xx+1:00`.
+
+A bankswitch access followed by a JMP/JSR into the newly selected bank is
+particularly valuable because it can constrain the destination bank directly.
+Solve mapper state, reset bank, and per-bank origins together rather than
+assuming they are independent.
+
+All supported cartridge bank placements preserve 256-byte page alignment. That
+is a durable invariant for branch annotation: uncertainty in a bank's absolute
+high-byte origin cannot change whether a relative branch is same-page or
+cross-page, because the origin shift cannot alter the low eight address bits.
+
+If several complete origin assignments remain equally plausible, report the
+ambiguity and choose a deterministic representation that still reassembles
+exactly. Origin ambiguity is never a reason to omit `.same`/`.cross` on a branch.
+
+Mapper inference
+----------------
+Infer bankswitching from behavior and layout rather than file size alone. File
+size is useful evidence, not proof.
+
+Initial mapper support should cover the ordinary full-window family already
+understood by VCSC:
+
+    unbanked 2K / 4K
+    F8 / F8SC       8K
+    F6 / F6SC      16K
+    F4 / F4SC      32K
+
+Use a scored/evidence-based classifier. Evidence includes:
+
+* File size and candidate 2K/4K bank boundaries.
+* Exact duplicated/padded-bank patterns, without stripping them.
+* Executed or referenced F8/F6/F4 selector hotspots.
+* Which physical bank contains a plausible reset path.
+* Per-bank vectors and reset/vector bridge patterns.
+* Superchip read/write-window accesses.
+* Whether the resulting bank-aware control-flow graph is coherent.
+* Whether JMP/JSR/data-reference constraints agree with the mapper's bank
+  windows and inferred origins.
+
+Track the power-on/reset bank separately from mapper type. Knowing that a ROM is
+F8 does not by itself identify which physical bank supplies RESET.
+
+Mapper state is part of control-flow state. An access to a selector hotspot can
+change which physical bank supplies subsequent instruction fetches at the same
+runtime address. Reads, writes, and read-modify-write operations must be modeled
+according to the mapper's actual hotspot semantics.
+
+Do not pretend that unrelated schemes are variants of F8/F6/F4. 3F, 3E, E0,
+E7, FE, UA, 0840, DPC, DPC+, CDF, and coprocessor cartridges need separate mapper
+models. Unsupported schemes still require a raw exact-round-trip fallback.
+
+Analysis model: byte roles are non-exclusive
+--------------------------------------------
+Do not classify each ROM byte with a single `code` versus `data` enum. Real 6502
+software can deliberately use the same physical bytes in multiple ways.
+
+A byte may simultaneously be:
+
+    start of one decoded instruction
+    operand of one or more decoded instructions
+    part of another overlapping instruction stream
+    read as ROM data
+    sprite/font data
+    pointer/vector/table data
+    mapper metadata/hotspot-adjacent data
+    possibly read through an unresolved dynamic access
+    otherwise unreferenced
+
+Store semantic roles independently and retain provenance/evidence for each role.
+At minimum distinguish definite versus heuristic executable reachability, direct
+versus possible data reads, overlapping instruction participation, and truly
+unreferenced bytes.
+
+Physical ROM layout has exactly one emitted representation. Analysis may attach
+multiple semantic interpretations to those bytes, but the `.s26` source must not
+emit the same physical bytes twice merely to show two views of them. Use labels,
+aliases, and comments to expose alternate interpretations.
+
+Control-flow discovery
+----------------------
+Seed definite executable control flow from plausible vectors and user-supplied
+entry hints, then recursively follow:
+
+    fallthrough
+    all eight conditional branches
+    JMP
+    JSR and RTS
+    resolvable indirect JMP
+    provable RTS/stack dispatch idioms
+    mapper-changing accesses and their successor bank states
+
+Reuse/adapt useful abstract-analysis machinery from `stego`, including constant
+register tracking, zero-page pointers, stack-built destinations, RTS-based
+dispatch, and table-driven indirect control flow. Do not change `stego`'s public
+behavior as part of this work; copied code can be factored later only if doing so
+simplifies both tools and preserves independent regression coverage.
+
+If control flow enters RIOT RAM, Superchip RAM, or another writable region, do
+not invent ROM instructions. Follow dynamically generated/copied code only when
+both the written bytes and execution destination are provable. Otherwise end
+that static path with an explanatory annotation.
+
+A second-pass instruction-island detector may identify plausible unreachable
+utility code, but heuristic islands must remain lower-confidence than vector- or
+control-flow-reachable code. Random data happens to decode as legal 6502 very
+often; legal decoding alone is not meaningful evidence of execution.
+
+Overlapping instruction streams
+-------------------------------
+The analyzer must support branch/JMP/JSR targets that enter the middle of an
+instruction decoded along another path. That does not invalidate either path.
+Both instruction instances can be real and reachable.
+
+A canonical example is the common three-byte BIT-skip trick:
+
+    CheckStatus:
+        LDA STATUS_REG
+        BNE.same LoadAlternative
+        LDX #$01
+        .byte $2c
+    LoadAlternative:
+        LDX #$02
+        STX player_speed
+
+On the linear path the bytes `$2c $a2 $02` execute as `BIT $02A2`, consuming the
+`LDX #$02` bytes. On the taken branch, execution begins at `$a2`, so those same
+bytes execute as `LDX #$02`.
+
+Internally this must be represented as two overlapping instruction instances,
+not as a decoder error. A control-flow target landing inside an already decoded
+instruction is strong evidence for an additional instruction start.
+
+For generated source, prefer a representation such as `.byte $2c` immediately
+before the alternate-entry label when spelling the outer `BIT` mnemonic would
+prevent placing a label on the inner opcode byte. Annotate the fallthrough
+interpretation in comments. General support must not be hard-coded only for
+`$2c`; hand-written 6502 can overlap streams in other ways.
+
+Instruction bytes and operands read as data
+-------------------------------------------
+Cartridges may intentionally read their own instruction bytes or operand bytes
+as data. The analyzer must preserve both meanings simultaneously.
+
+For example, an immediate operand may be used as a table constant elsewhere:
+
+    Foo:
+        LDA #$42
+        RTS
+
+    ...
+        LDA Foo+1
+
+`Foo+1` remains an operand of executable code and is also a definite ROM-data
+read target. Data evidence must never cause the executable interpretation to be
+removed, and executable decoding must never hide a proven data reference.
+
+When possible, generated labels/aliases should make such self-references clear
+without duplicating physical bytes. If no elegant source spelling exists, keep
+the exact primary byte representation and explain the additional data use in a
+comment.
+
+ROM-read and unused-byte analysis
+---------------------------------
+Track reads from cartridge ROM separately from instruction fetches. Direct
+absolute/indexed accesses with known bounds can mark definite data ranges.
+Abstract-state analysis should narrow indexed and indirect accesses as far as it
+can.
+
+Use at least these usage states for reporting:
+
+    definitely executed/fetched
+    definitely read as data
+    executed and read as data
+    possibly referenced/read
+    unreferenced by all discovered/provable accesses
+
+A region should be called unreferenced only after known control flow and data
+accesses have been analyzed. If an unresolved indexed or indirect access could
+reach the region, classify it as possibly referenced rather than claiming it is
+never read.
+
+When the analyzer can prove that bytes are neither fetched as instructions nor
+read as data, identify them explicitly as unreferenced/unused ROM. Do not
+force-decode them merely because their bit patterns form legal opcodes. Emit
+exact `.byte` data, preferably grouped into readable runs with comments such as:
+
+    ; unreferenced ROM bytes
+
+This information should also appear in an optional analysis summary, with byte
+counts for executed, data-read, overlap, possibly referenced, and unreferenced
+regions. Counts must define how overlaps are handled rather than pretending the
+categories are mutually exclusive.
+
+Instruction emission
+--------------------
+For bytes represented primarily as code, emit normal 6502 mnemonics whenever the
+current `vcsc-as` opcode table and addressing-mode syntax reproduce the exact
+original opcode and operands.
+
+Support all 256 opcode bytes. For unofficial/ambiguous encodings where a normal
+mnemonic would not uniquely preserve the byte, use the assembler's exact `opXX`
+spelling and the correct addressing-mode suffix/operand form. Never silently
+replace one opcode encoding by a semantically equivalent different opcode.
+
+Preserve the original addressing mode explicitly when symbolization could cause
+a zero-page/absolute choice to change. VCSC assembly already provides `.z`,
+`.zx`, `.zy`, `.a`, `.ax`, `.ay`, `.i`, `.ix`, and `.iy` addressing-mode
+suffixes; use them when needed for exact reconstruction.
+
+Branch page annotations
+-----------------------
+Every emitted conditional branch instruction must carry an explicit hard timing
+annotation:
+
+    .same   when the taken branch stays on the page containing PC+2
+    .cross  when the taken branch crosses that page boundary
+
+Never emit a bare branch or `.flex` from `vcsc-disas`.
+
+This classification is always determinable for a decoded branch. Relative
+branch displacement gives the target low-byte relationship directly, and every
+supported cartridge mapping/origin shift preserves 256-byte page alignment.
+Absolute origin uncertainty therefore cannot change `.same` versus `.cross`.
+
+The comparison is between the page of PC after the two-byte branch instruction
+and the page of the branch target, matching NMOS 6502/6507 taken-branch timing.
+Test all eight branch opcodes in both same-page and cross-page cases, including
+branches near `$xxFE/$xxFF` boundaries and bank origins that differ by page-
+aligned amounts.
+
+TIA and RIOT symbolic register accesses
+---------------------------------------
+Generated assembly should use the project's canonical Atari hardware register
+names rather than unexplained numeric addresses whenever doing so can preserve
+the original instruction bytes exactly.
+
+The canonical vocabulary is currently defined by:
+
+    libraries/vcs/tia.c26
+    libraries/vcs/riot.c26
+
+TIA examples include:
+
+    VSYNC VBLANK WSYNC RSYNC
+    NUSIZ0 NUSIZ1 COLUP0 COLUP1 COLUPF COLUBK CTRLPF
+    PF0 PF1 PF2 RESP0 RESP1 RESM0 RESM1 RESBL
+    AUDC0 AUDC1 AUDF0 AUDF1 AUDV0 AUDV1
+    GRP0 GRP1 ENAM0 ENAM1 ENABL
+    HMP0 HMP1 HMM0 HMM1 HMBL HMOVE HMCLR CXCLR
+    CXM0P CXM1P CXP0FB CXP1FB CXM0FB CXM1FB CXBLPF CXPPMM
+    INPT0 INPT1 INPT2 INPT3 INPT4 INPT5
+
+RIOT examples include:
+
+    SWCHA SWACNT SWCHB SWBCNT INTIM TIMINT
+    TIM1T TIM8T TIM64T T1024T
+
+At implementation time, reuse an existing assembly-visible hardware-register
+include if the tree has one. If there still is no single public `.s26`/`.inc`
+header containing these canonical symbols, add/reuse a small shared assembly
+include derived from the same canonical definitions rather than teaching the
+assembler new syntax. Generated files may include that header so hardware names
+assemble normally.
+
+Symbolization must preserve exact encoded addressing mode and operand value. For
+example, if `COLUBK` is `$09`:
+
+    original two-byte zero-page access -> use `COLUBK` with `.z` as needed
+    original three-byte absolute $0009 -> use `COLUBK` with `.a`
+
+Do not let the assembler shorten an original absolute access into zero page.
+
+TIA and RIOT are mirrored in the VCS address space. If the ROM intentionally
+uses a noncanonical mirror, do not rewrite the encoded address to the canonical
+one. Prefer an exact symbolic expression such as a canonical register plus the
+appropriate mirror offset when the assembler can encode that exact numeric
+operand; otherwise retain the numeric operand and comment the decoded hardware
+register identity. The original operand bytes remain authoritative.
+
+Choose symbols according to access semantics, not address alone. TIA read and
+write register sets differ. Loads should name the appropriate readable TIA
+register; stores should name the appropriate writable register. Read-modify-
+write instructions or unusual mirrored/open-bus accesses may not have one clean
+symbolic name; preserve the exact operand and annotate both effects rather than
+inventing a misleading symbol.
+
+Hardware-register recognition feeds higher-level analysis. SWCHA/INPT accesses
+are controller evidence; VSYNC/VBLANK/WSYNC/timer accesses are video/frame
+evidence; GRP0/GRP1/PF0/PF1/PF2 data flow is graphics/sprite evidence; mapper
+hotspots remain mapper semantics rather than ordinary hardware-register data.
+
+Data emission
+-------------
+Bytes not primarily represented as instructions must still be readable and
+exact. Use labels for proven ROM-data targets and deterministic names for
+anonymous targets.
+
+Emit `.word` only when a two-byte region is proven to be a little-endian pointer
+or vector and symbolic assembly reproduces the exact original 16-bit value.
+Otherwise use bytes. Never rewrite a mirrored pointer value to a prettier
+bus-equivalent address.
+
+Do not reinterpret arbitrary tables just because a higher-level type would be
+possible. Conservative `.byte` output is always acceptable and safer than a
+wrong semantic guess.
+
+Sprite/font visualization
+-------------------------
+Recognize conservative sprite/font-like byte tables, especially when data flow
+toward GRP0/GRP1 or known score/font renderers supports the interpretation.
+
+For sprite-like bytes emit exactly one assembler-native visual binary byte per
+source line, using `%` binary syntax and `X`/`.` visual bits, for example:
+
+    .byte %...XX...
+    .byte %..XXXX..
+    .byte %.XX..XX.
+
+`X` means a set bit and `.` means a clear bit. Use the syntax already accepted
+by `vcsc-as`; no assembler language change is required.
+
+One byte per line is intentional so humans can visually scan the glyph. Preserve
+byte order exactly; do not vertically reverse, bit-reverse, rotate, trim blank
+rows, or otherwise improve the art.
+
+Use sprite formatting only when evidence is reasonably strong. Numeric lookup
+tables, random constants, compressed graphics, masks, and ordinary data should
+not be turned into fake pictures merely because some rows look attractive.
+
+Video-standard inference
+------------------------
+Infer NTSC versus PAL-family behavior and include the result in the generated
+header with confidence/evidence.
+
+Evidence can include:
+
+* VSYNC/VBLANK/WSYNC structure.
+* RIOT timer values and frame scheduling.
+* Stable frame-line count inferred statically or by optional emulation.
+* Audio timing constants when recognizable.
+* Color-value usage as weak supporting evidence only.
+
+Prefer static analysis, but use VCSC/Stella/simulator machinery for an optional
+dynamic measurement pass when static evidence is insufficient and execution is
+safe/deterministic enough.
+
+Do not claim that 312-line/50 Hz timing distinguishes PAL from SECAM. If the ROM
+cannot prove the distinction, report `PAL-family (PAL/SECAM ambiguous)` or
+similar. Explicit user override remains available.
+
+Controller inference
+--------------------
+Infer the expected controller independently for each port and report confidence.
+Initial models should include:
+
+    joystick
+    paddles
+    keypad
+    driving controller
+    unused
+    unknown/ambiguous
+
+Evidence includes:
+
+* SWCHA bit usage and direction masks.
+* INPT0-INPT5 reads.
+* VBLANK paddle discharge/charge behavior.
+* keypad row-drive/column-read patterns.
+* driving-controller quadrature patterns.
+* fire-button reads.
+* timing loops associated with analog paddle reads.
+
+Mixed-port cartridges are valid. Do not collapse both ports to one type merely
+because one port is obvious. Multiple plausible controller interpretations may
+be reported when static evidence is insufficient.
+
+Labels and comments
+-------------------
+Generate deterministic labels for definite control-flow targets, ROM-data
+targets, vectors, tables, and bank-local entry points. Bank-qualified names are
+required where the same runtime address exists in multiple physical banks.
+
+Prefer semantic hardware symbols over generic labels for TIA/RIOT accesses, as
+described above.
+
+Comments should expose useful alternate interpretations without becoming a
+trace dump. Particularly valuable comments include:
+
+* inferred mapper transitions.
+* overlapping instruction interpretations.
+* instruction bytes/operands also read as data.
+* unreferenced/unused ROM runs.
+* sprite/font confidence.
+* ambiguous origins/controllers/video standard.
+* dynamic-code transfers static analysis cannot follow.
+
+Provide a separate verbose analysis/report mode for detailed evidence scores so
+normal `.s26` output remains readable.
+
+Manual overrides and analysis hints
+-----------------------------------
+Static analysis cannot perfectly recover every deliberately tricky ROM. Give the
+human precise overrides rather than forcing them to edit generated source after
+the fact.
+
+Plan for options/hints covering at least:
+
+    mapper
+    reset/power-on bank
+    per-bank logical origin
+    video standard
+    controller type per port
+    bank-qualified entry points
+    forced code ranges
+    forced data ranges
+    optional known pointer/table ranges
+
+Contradictory hints must produce diagnostics rather than silently corrupting the
+analysis. Forced code/data roles still do not have to be exclusive: an advanced
+hint should be able to say that a range is executable and also read as data.
+
+Unknown/unsupported mapper fallback
+-----------------------------------
+Unsupported hardware must not make byte reconstruction impossible. If the
+mapper is unknown, emit a conservative raw layout that reassembles to the same
+file and comment that runtime address/control-flow inference is incomplete.
+
+Do not fake bank origins or branch targets that depend on unsupported mapping.
+However, any branch that is actually decoded as an instruction still receives
+its mandatory `.same`/`.cross` annotation; that property depends on the relative
+instruction bytes, not on guessing a non-page-aligned origin.
+
+Roadmap
+-------
+
+0. [ ] Establish `disassembler/` and exact raw round trip
+   * Copy `stego/` to a new top-level `disassembler/` starting point.
+   * Rename/adapt the program to build `vcsc-disas`.
+   * Add normal `-h`/`--help`, `-V`/`--version`, input, and output handling
+     consistent with other VCSC tools.
+   * Read arbitrary binary cartridge images without modifying them.
+   * Emit deterministic `.s26` using `.org` plus conservative `.byte` data.
+   * Reassemble with `vcsc-as` and require exact size/byte equality.
+   * Add malformed/truncated/empty-input diagnostics.
+   * This milestone must work before any clever inference is trusted.
+
+1. [ ] Add 6502/6507 decode and exact instruction emission
+   * Decode all 256 opcode bytes using VCSC's opcode metadata where practical.
+   * Emit normal mnemonics when they reproduce the exact opcode.
+   * Use `opXX` for unofficial/ambiguous encodings when needed for byte identity.
+   * Preserve original zero-page/absolute/indexed/indirect addressing modes,
+     using assembler mode suffixes where needed.
+   * Add exact round-trip fixtures for every opcode/addressing-mode family.
+   * Emit every conditional branch with mandatory `.same` or `.cross`.
+   * Test all eight branches in both timing classes around page boundaries.
+
+2. [ ] Infer unbanked origins and build recursive control flow
+   * Use RESET/NMI/IRQ vectors, absolute JMP/JSR targets, resolved indirect JMP,
+     and ROM data references as origin constraints.
+   * Scan candidate `$4c` absolute JMPs as origin evidence even before final
+     reachability classification; score coincidences rather than trusting them.
+   * Implement recursive tracing from vectors/entry points.
+   * Model the NMOS indirect-JMP `$xxFF` page-wrap behavior.
+   * Produce deterministic control-flow labels.
+   * Validate with synthetic ROMs whose origins are not VCSC defaults.
+
+3. [ ] Infer and model F8/F6/F4 bankswitching
+   * Detect unbanked/F8/F6/F4 from size plus hotspot/control-flow evidence.
+   * Track mapper state in the control-flow graph.
+   * Infer the reset bank separately from mapper type.
+   * Infer every physical bank's logical origin, including origins constrained by
+     JMP/JSR after bank-switch transitions.
+   * Keep file-bank identity, logical address, and selector identity separate.
+   * Preserve duplicated/padded banks exactly.
+   * Test VCSC ROMs plus synthetic foreign layouts where banks share or differ in
+     page-aligned logical origins.
+
+4. [ ] Infer and model F8SC/F6SC/F4SC Superchip variants
+   * Recognize SC RAM windows and their read/write behavior.
+   * Prevent writable SC windows from being misclassified as ordinary ROM code.
+   * Track dynamic execution into SC/RIOT RAM conservatively.
+   * Preserve physical input bytes even where hardware mapping makes them
+     inaccessible during ordinary execution.
+   * Add ambiguous F8-vs-F8SC/F6/F4 fixtures and confidence tests.
+
+5. [ ] Make semantic byte roles non-exclusive
+   * Replace any one-byte `code/data` enum with independent role/evidence flags.
+   * Track instruction starts, operands, data-read targets, table roles,
+     possible dynamic references, and unreferenced status independently.
+   * Support instruction bytes and operands that are deliberately read as data.
+   * Ensure data evidence never erases executable reachability and vice versa.
+   * Add fixtures where executable immediates/operands are indexed as tables.
+
+6. [ ] Support overlapping executable instruction streams
+   * Permit branch/JMP/JSR targets into the middle of another decoded instruction.
+   * Represent multiple reachable instruction instances over the same bytes.
+   * Add the `$2c` BIT-skip idiom as a regression fixture.
+   * Emit `.byte $2c` plus an inner label when that is the cleanest exact source
+     representation of the BIT-skip trick.
+   * Add at least one non-BIT overlapping-stream fixture so support is general,
+     not an opcode-specific hack.
+
+7. [ ] Strengthen ROM-read and unreferenced-byte analysis
+   * Track direct absolute ROM reads and bounded indexed ranges as definite data
+     references.
+   * Extend `stego` abstract-state ideas for zero-page/indirect pointers and
+     table-driven accesses.
+   * Mark unresolved dynamic ranges as possibly referenced rather than unused.
+   * Identify bytes proven neither fetched nor read as unreferenced ROM.
+   * Emit unreferenced regions as data, never speculative instructions.
+   * Add optional usage summary counts with clearly defined overlap accounting.
+   * Add fixtures containing padding, abandoned code, instruction-as-data, and
+     deliberately unreachable legal-opcode byte sequences.
+
+8. [ ] Use canonical TIA/RIOT hardware symbols
+   * Reuse the canonical names from `libraries/vcs/tia.c26` and `riot.c26`.
+   * Reuse an assembly-visible TIA/RIOT include if one exists at implementation
+     time; otherwise add a shared assembly include derived from the same register
+     definitions. Do not change assembler language syntax for this.
+   * Emit symbols such as `COLUBK`, `GRP0`, `SWCHA`, `INTIM`, and `TIM64T`
+     instead of unexplained numeric addresses when exact bytes can be preserved.
+   * Preserve zero-page versus absolute encoding with `.z`/`.a` and related
+     addressing-mode suffixes.
+   * Preserve noncanonical hardware mirror addresses exactly using symbolic
+     expressions when possible; otherwise keep the numeric operand with a
+     hardware-register comment.
+   * Select TIA read versus write names according to the actual memory operation.
+   * Add load/store/RMW and canonical/mirrored-address round-trip fixtures.
+
+9. [ ] Detect and render sprite/font-like data
+   * Use GRP0/GRP1/PF data flow and table access patterns as strong evidence.
+   * Emit one assembler-native visual `.byte %...X....` row per source line.
+   * Keep original byte order and all blank rows exactly.
+   * Keep numeric output for low-confidence or non-graphics tables.
+   * Test sprites, fonts, masks, random tables, compressed-looking data, and
+     false-positive cases.
+
+10. [ ] Infer NTSC versus PAL-family timing
+    * Analyze VSYNC/VBLANK/WSYNC/timer/frame structure statically.
+    * Add optional dynamic stable-frame measurement if useful.
+    * Report confidence and evidence in the generated header.
+    * Report PAL/SECAM ambiguity rather than pretending 50 Hz timing distinguishes
+      the two.
+    * Test known VCSC NTSC/PAL/SECAM examples and deliberately ambiguous ROMs.
+
+11. [ ] Infer expected controller types
+    * Add per-port joystick, paddle, keypad, driving, unused, and unknown models.
+    * Score SWCHA, INPT0-INPT5, VBLANK paddle-dump, keypad row-drive, fire-button,
+      and driving-quadrature evidence.
+    * Permit mixed ports and multiple plausible interpretations.
+    * Test existing VCSC controller examples plus synthetic missing combinations.
+
+12. [ ] Improve labels, tables, vectors, and analysis comments
+    * Deterministically name definite control-flow and ROM-data targets.
+    * Use bank-qualified labels where runtime addresses collide across banks.
+    * Detect vector/pointer/color/graphics tables conservatively.
+    * Emit `.word` labels only when exact original 16-bit values are preserved.
+    * Annotate code-as-data, overlap, unreferenced runs, dynamic-code exits, and
+      important inference ambiguity without overwhelming normal source.
+    * Add a verbose evidence/report mode separate from normal `.s26` output.
+
+13. [ ] Add inference overrides and manual analysis hints
+    * Add mapper, video, per-port controller, reset-bank, and per-bank-origin
+      overrides.
+    * Add bank-qualified `--entry`-style hints and forced code/data ranges.
+    * Permit non-exclusive manual roles where bytes are both code and data.
+    * Diagnose contradictory hints.
+    * Keep unsupported mapper fallback exact.
+    * Add new mapper families only after the F8/F6/F4 foundation is stable.
+
+14. [ ] Write public and developer documentation for `vcsc-disas`
+    * Add `disassembler/README.md` covering normal use, options, output naming,
+      exact-round-trip guarantees, inference confidence, and overrides.
+    * Document supported/unsupported mappers and origin inference.
+    * Document overlapping code, instruction-as-data, unreferenced bytes, and the
+      conservative fallback philosophy.
+    * Document TIA/RIOT symbolic register output and exact mirror/addressing-mode
+      preservation.
+    * Explain generated `.s26` conventions: `.org`/`.rorg`, deterministic labels,
+      branch `.same`/`.cross`, `opXX`, and `%...X....` graphics rows.
+    * Document NTSC/PAL-family and controller inference limits.
+    * Add developer notes describing analysis-state/evidence structures and how
+      to add mapper/controller recognizers safely.
+    * Add the tool to appropriate top-level, Linux, Windows, and generated tool
+      documentation.
+    * Include end-to-end examples: disassemble, reassemble, `cmp` original.
+    * Keep `--help` synchronized with documentation.
+
+15. [ ] Integrate, harden, and fuzz `vcsc-disas`
+    * Add top-level build, staged install, Linux, Windows, and release packaging
+      consistent with other VCSC executables.
+    * Round-trip every suitable ROM produced by the VCSC example suite.
+    * Add deterministic-output regressions.
+    * Add malformed/truncated/arbitrary-input fuzz coverage.
+    * Add duplicated/padded-dump preservation tests.
+    * Add overlapping-stream/code-as-data/unreferenced-byte corpus fixtures.
+    * Add TIA/RIOT symbolic-output oracles that still compare reconstructed bytes.
+    * Require exact binary round trip for every accepted fixture.
+    * Keep `stego` regressions green and verify disassembler development does not
+      silently change the existing tool.
+
+Definition of first useful milestone
+------------------------------------
+The first useful milestone is reached after roadmap items 0 through 3:
+`vcsc-disas` can take arbitrary unbanked/F8/F6/F4 cartridges, infer plausible
+bank origins and executable control flow, emit exact branches and instruction
+bytes, and reassemble the original image exactly.
+
+Items 4 through 8 turn the analysis model into one capable of handling the
+things real hand-written Atari code does: Superchip state, overlapping streams,
+code read as data, truly unused bytes, and symbolic hardware accesses. Those are
+not cosmetic extras; they are required before calling the disassembly robust.
+
+Sprite rendering, video/controller inference, richer labels, and documentation
+then make the output pleasant and useful to humans.
+
+Do not invert the priority. A disassembler that produces beautiful comments but
+cannot reproduce the input ROM exactly is not a disassembler we can trust.
