@@ -42,7 +42,8 @@ typedef enum {
    MAP_4K,
    MAP_F8,
    MAP_F6,
-   MAP_F4
+   MAP_F4,
+   MAP_DPC
 } mapper_t;
 
 typedef enum {
@@ -81,6 +82,12 @@ typedef struct {
    uint8_t y;
    uint8_t carry_known;
    uint8_t carry;
+   uint8_t zero_known;
+   uint8_t zero;
+   uint8_t negative_known;
+   uint8_t negative;
+   uint8_t overflow_known;
+   uint8_t overflow;
    uint8_t decimal_known;
    uint8_t decimal;
    uint8_t zp_known[ZERO_PAGE_KNOWN_BYTES];
@@ -101,6 +108,13 @@ typedef struct {
    uint8_t *visited;
    uint8_t *state_seen;
    uint8_t *graphics;
+   uint8_t *force_raw;
+   uint8_t *spec_rejected;
+   uint8_t *spec_strong;
+   uint16_t *spec_reject_end;
+   uint8_t *spec_barrier;
+   uint16_t *spec_barrier_end;
+   uint8_t *spec_seed;
    abstract_state_t *states;
 } bank_t;
 
@@ -123,6 +137,7 @@ typedef struct {
    int superchip_override;
    int reset_bank_overridden;
    const char *video_override;
+   const char *input_name;
    const char *controller_override[2];
    int verbose;
    int hotspot_refs;
@@ -130,6 +145,9 @@ typedef struct {
    int superchip_write_refs;
    int dynamic_control_exits;
    int unresolved_indirect_jumps;
+   size_t speculative_rejected_starts;
+   size_t speculative_barriers;
+   size_t speculative_islands;
    work_item_t *work;
    size_t work_count;
    size_t work_cap;
@@ -294,8 +312,7 @@ static void sha256_hex(const uint8_t *p, size_t n, char out[65])
 static int parse_mapper_name(const char *s, mapper_t *mapper, int *superchip)
 {
    *superchip = -1;
-   if (strcmp(s, "raw") == 0) *mapper = MAP_RAW;
-   else if (strcmp(s, "2k") == 0) *mapper = MAP_2K;
+   if (strcmp(s, "2k") == 0) *mapper = MAP_2K;
    else if (strcmp(s, "4k") == 0) *mapper = MAP_4K;
    else if (strcmp(s, "f8") == 0) { *mapper = MAP_F8; *superchip = 0; }
    else if (strcmp(s, "f6") == 0) { *mapper = MAP_F6; *superchip = 0; }
@@ -303,6 +320,7 @@ static int parse_mapper_name(const char *s, mapper_t *mapper, int *superchip)
    else if (strcmp(s, "f8sc") == 0) { *mapper = MAP_F8; *superchip = 1; }
    else if (strcmp(s, "f6sc") == 0) { *mapper = MAP_F6; *superchip = 1; }
    else if (strcmp(s, "f4sc") == 0) { *mapper = MAP_F4; *superchip = 1; }
+   else if (strcmp(s, "dpc") == 0) *mapper = MAP_DPC;
    else return 0;
    return 1;
 }
@@ -341,7 +359,7 @@ static void usage(const char *argv0)
       "options:\n"
       "   -i, --input <file>       compatibility alias for positional input\n"
       "   -o, --output <file>      write generated VCSC assembly (.s26)\n"
-      "       --mapper <name>      force raw|2k|4k|f8|f8sc|f6|f6sc|f4|f4sc\n"
+      "       --mapper <name>      force 2k|4k|f8|f8sc|f6|f6sc|f4|f4sc|dpc\n"
       "       --reset-bank <n>     force power-on/reset physical bank\n"
       "       --origin <b:addr>    force logical origin for a bank (repeatable)\n"
       "       --entry <b:addr>     add executable entry point (repeatable)\n"
@@ -633,6 +651,18 @@ static flow_kind_t instruction_flow(uint8_t opcode)
    }
 }
 
+static int opcode_is_cpu_halt(uint8_t opcode)
+{
+   switch (opcode) {
+   case 0x02: case 0x12: case 0x22: case 0x32:
+   case 0x42: case 0x52: case 0x62: case 0x72:
+   case 0x92: case 0xb2: case 0xd2: case 0xf2:
+      return 1;
+   default:
+      return 0;
+   }
+}
+
 static int opcode_is_write_only(uint8_t opcode)
 {
    switch (opcode) {
@@ -662,6 +692,8 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
    case MAP_F8: *bank_size = 4096u; *bank_count = 2u; return rom_size == 8192u;
    case MAP_F6: *bank_size = 4096u; *bank_count = 4u; return rom_size == 16384u;
    case MAP_F4: *bank_size = 4096u; *bank_count = 8u; return rom_size == 32768u;
+   case MAP_DPC: *bank_size = 4096u; *bank_count = 2u;
+      return rom_size == 10240u || rom_size == 10495u;
    }
    return 0;
 }
@@ -675,6 +707,7 @@ static mapper_t infer_mapper(size_t size, size_t *bank_size, size_t *bank_count)
    case 8192u: mapper = MAP_F8; break;
    case 16384u: mapper = MAP_F6; break;
    case 32768u: mapper = MAP_F4; break;
+   case 10240u: case 10495u: mapper = MAP_DPC; break;
    default: mapper = MAP_RAW; break;
    }
    (void)mapper_dimensions(mapper, size, bank_size, bank_count);
@@ -689,6 +722,7 @@ static const char *mapper_name(mapper_t mapper)
    case MAP_F8: return "F8";
    case MAP_F6: return "F6";
    case MAP_F4: return "F4";
+   case MAP_DPC: return "DPC";
    case MAP_RAW: return "unknown/raw";
    }
    return "unknown/raw";
@@ -793,9 +827,17 @@ static int allocate_bank(bank_t *b, size_t size)
    b->visited = (uint8_t *)calloc(size, 1);
    b->state_seen = (uint8_t *)calloc(size, 1);
    b->graphics = (uint8_t *)calloc(size, 1);
+   b->force_raw = (uint8_t *)calloc(size, 1);
+   b->spec_rejected = (uint8_t *)calloc(size, 1);
+   b->spec_strong = (uint8_t *)calloc(size, 1);
+   b->spec_reject_end = (uint16_t *)malloc(size * sizeof(*b->spec_reject_end));
+   b->spec_barrier = (uint8_t *)calloc(size, 1);
+   b->spec_barrier_end = (uint16_t *)malloc(size * sizeof(*b->spec_barrier_end));
+   b->spec_seed = (uint8_t *)calloc(size, 1);
    b->states = (abstract_state_t *)calloc(size, sizeof(*b->states));
    return b->roles && b->inst_len && b->inst_opcode && b->queued && b->visited &&
-          b->state_seen && b->graphics && b->states;
+          b->state_seen && b->graphics && b->force_raw && b->spec_rejected && b->spec_strong &&
+          b->spec_reject_end && b->spec_barrier && b->spec_barrier_end && b->spec_seed && b->states;
 }
 
 static void free_analysis(analysis_t *a)
@@ -810,6 +852,13 @@ static void free_analysis(analysis_t *a)
          free(a->banks[i].visited);
          free(a->banks[i].state_seen);
          free(a->banks[i].graphics);
+         free(a->banks[i].force_raw);
+         free(a->banks[i].spec_rejected);
+         free(a->banks[i].spec_strong);
+         free(a->banks[i].spec_reject_end);
+         free(a->banks[i].spec_barrier);
+         free(a->banks[i].spec_barrier_end);
+         free(a->banks[i].spec_seed);
          free(a->banks[i].states);
       }
    }
@@ -839,6 +888,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
       a->mapper = infer_mapper(rom_size, &a->bank_size, &a->bank_count);
    }
    a->video_override = opt->video_override;
+   a->input_name = opt->input;
    a->controller_override[0] = opt->controller_override[0];
    a->controller_override[1] = opt->controller_override[1];
    a->verbose = opt->verbose;
@@ -1096,6 +1146,9 @@ static int state_merge(abstract_state_t *dst, const abstract_state_t *src)
    MERGE_SCALAR(x);
    MERGE_SCALAR(y);
    MERGE_SCALAR(carry);
+   MERGE_SCALAR(zero);
+   MERGE_SCALAR(negative);
+   MERGE_SCALAR(overflow);
    MERGE_SCALAR(decimal);
 #undef MERGE_SCALAR
 
@@ -1161,6 +1214,7 @@ static int selector_bank(mapper_t mapper, uint16_t address, size_t *bank)
    uint16_t bus = (uint16_t)(address & 0x1fffu);
    switch (mapper) {
    case MAP_F8:
+   case MAP_DPC:
       if (bus >= 0x1ff8u && bus <= 0x1ff9u) { *bank = bus - 0x1ff8u; return 1; }
       break;
    case MAP_F6:
@@ -1242,6 +1296,12 @@ static int superchip_active(const analysis_t *a)
    return a->superchip_write_refs != 0;
 }
 
+static int dpc_register_address(const analysis_t *a, uint16_t address)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   return a->mapper == MAP_DPC && bus >= 0x1000u && bus <= 0x107fu;
+}
+
 static int state_read_byte(const analysis_t *a, size_t bank,
                            const abstract_state_t *state, uint16_t address,
                            uint8_t *value)
@@ -1251,6 +1311,7 @@ static int state_read_byte(const analysis_t *a, size_t bank,
       return state_zp_get(state, (uint8_t)address, value);
    if (bank >= a->bank_count || !cart_target_offset(&a->banks[bank], address, &off))
       return 0;
+   if (dpc_register_address(a, address)) return 0;
    /* Once Superchip evidence exists, its read window is RAM rather than ROM. */
    if (superchip_active(a) && ((address & 0x1fffu) >= 0x1080u) &&
        ((address & 0x1fffu) <= 0x10ffu))
@@ -1317,6 +1378,16 @@ static void state_apply_memory_write(const abstract_state_t *input,
       state_zp_set_known(output, (uint8_t)address, value);
 }
 
+static void state_set_nz(abstract_state_t *state, int known, uint8_t value)
+{
+   state->zero_known = (uint8_t)(known != 0);
+   state->negative_known = (uint8_t)(known != 0);
+   if (known) {
+      state->zero = (uint8_t)(value == 0u);
+      state->negative = (uint8_t)((value & 0x80u) != 0u);
+   }
+}
+
 static int mnemonic_affects_carry(const char *m)
 {
    return strcmp(m,"ADC") == 0 || strcmp(m,"SBC") == 0 ||
@@ -1343,6 +1414,7 @@ static void transfer_state(const analysis_t *a, size_t bank,
    if (strncmp(m, "op", 2) == 0) {
       output->a_known = output->x_known = output->y_known = 0;
       output->carry_known = 0;
+      output->zero_known = output->negative_known = output->overflow_known = 0;
       return;
    }
 
@@ -1351,52 +1423,64 @@ static void transfer_state(const analysis_t *a, size_t bank,
    if (strcmp(m,"LDA") == 0) {
       if (state_read_operand(a, bank, input, mode, operand, &value)) {
          output->a_known = 1; output->a = value;
-      } else output->a_known = 0;
+         state_set_nz(output, 1, value);
+      } else { output->a_known = 0; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"LDX") == 0) {
       if (state_read_operand(a, bank, input, mode, operand, &value)) {
          output->x_known = 1; output->x = value;
-      } else output->x_known = 0;
+         state_set_nz(output, 1, value);
+      } else { output->x_known = 0; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"LDY") == 0) {
       if (state_read_operand(a, bank, input, mode, operand, &value)) {
          output->y_known = 1; output->y = value;
-      } else output->y_known = 0;
+         state_set_nz(output, 1, value);
+      } else { output->y_known = 0; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"TAX") == 0) {
       output->x_known = input->a_known; output->x = input->a;
+      state_set_nz(output, input->a_known, input->a);
    }
    else if (strcmp(m,"TAY") == 0) {
       output->y_known = input->a_known; output->y = input->a;
+      state_set_nz(output, input->a_known, input->a);
    }
    else if (strcmp(m,"TXA") == 0) {
       output->a_known = input->x_known; output->a = input->x;
+      state_set_nz(output, input->x_known, input->x);
    }
    else if (strcmp(m,"TYA") == 0) {
       output->a_known = input->y_known; output->a = input->y;
+      state_set_nz(output, input->y_known, input->y);
    }
    else if (strcmp(m,"TSX") == 0) output->x_known = 0;
-   else if (strcmp(m,"PLA") == 0) output->a_known = 0;
+   else if (strcmp(m,"PLA") == 0) { output->a_known = 0; state_set_nz(output, 0, 0); }
    else if (strcmp(m,"INX") == 0) {
-      if (input->x_known) { output->x_known = 1; output->x = (uint8_t)(input->x + 1u); }
-      else output->x_known = 0;
+      if (input->x_known) { output->x_known = 1; output->x = (uint8_t)(input->x + 1u); state_set_nz(output, 1, output->x); }
+      else { output->x_known = 0; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"DEX") == 0) {
-      if (input->x_known) { output->x_known = 1; output->x = (uint8_t)(input->x - 1u); }
-      else output->x_known = 0;
+      if (input->x_known) { output->x_known = 1; output->x = (uint8_t)(input->x - 1u); state_set_nz(output, 1, output->x); }
+      else { output->x_known = 0; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"INY") == 0) {
-      if (input->y_known) { output->y_known = 1; output->y = (uint8_t)(input->y + 1u); }
-      else output->y_known = 0;
+      if (input->y_known) { output->y_known = 1; output->y = (uint8_t)(input->y + 1u); state_set_nz(output, 1, output->y); }
+      else { output->y_known = 0; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"DEY") == 0) {
-      if (input->y_known) { output->y_known = 1; output->y = (uint8_t)(input->y - 1u); }
-      else output->y_known = 0;
+      if (input->y_known) { output->y_known = 1; output->y = (uint8_t)(input->y - 1u); state_set_nz(output, 1, output->y); }
+      else { output->y_known = 0; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"CLC") == 0) { output->carry_known = 1; output->carry = 0; }
    else if (strcmp(m,"SEC") == 0) { output->carry_known = 1; output->carry = 1; }
    else if (strcmp(m,"CLD") == 0) { output->decimal_known = 1; output->decimal = 0; }
    else if (strcmp(m,"SED") == 0) { output->decimal_known = 1; output->decimal = 1; }
+   else if (strcmp(m,"CLV") == 0) { output->overflow_known = 1; output->overflow = 0; }
+   else if (strcmp(m,"PLP") == 0 || strcmp(m,"RTI") == 0) {
+      output->carry_known = output->zero_known = output->negative_known = 0;
+      output->overflow_known = output->decimal_known = 0;
+   }
    else if (strcmp(m,"AND") == 0 || strcmp(m,"ORA") == 0 ||
             strcmp(m,"EOR") == 0) {
       if (input->a_known && state_read_operand(a, bank, input, mode, operand, &value)) {
@@ -1404,8 +1488,9 @@ static void transfer_state(const analysis_t *a, size_t bank,
          if (strcmp(m,"AND") == 0) output->a = (uint8_t)(input->a & value);
          else if (strcmp(m,"ORA") == 0) output->a = (uint8_t)(input->a | value);
          else output->a = (uint8_t)(input->a ^ value);
+         state_set_nz(output, 1, output->a);
       }
-      else output->a_known = 0;
+      else { output->a_known = 0; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"ADC") == 0 || strcmp(m,"SBC") == 0) {
       if (input->a_known && input->carry_known && input->decimal_known &&
@@ -1417,8 +1502,14 @@ static void transfer_state(const analysis_t *a, size_t bank,
             sum = (unsigned)input->a + (unsigned)(uint8_t)~value + (unsigned)input->carry;
          output->a_known = 1; output->a = (uint8_t)sum;
          output->carry_known = 1; output->carry = sum > 0xffu;
+         state_set_nz(output, 1, output->a);
+         output->overflow_known = 1;
+         if (strcmp(m,"ADC") == 0)
+            output->overflow = (uint8_t)(((~(input->a ^ value) & (input->a ^ output->a)) & 0x80u) != 0u);
+         else
+            output->overflow = (uint8_t)((((input->a ^ value) & (input->a ^ output->a)) & 0x80u) != 0u);
       }
-      else { output->a_known = 0; output->carry_known = 0; }
+      else { output->a_known = 0; output->carry_known = 0; output->overflow_known = 0; state_set_nz(output, 0, 0); }
    }
    else if ((strcmp(m,"ASL") == 0 || strcmp(m,"LSR") == 0 ||
              strcmp(m,"ROL") == 0 || strcmp(m,"ROR") == 0) &&
@@ -1432,8 +1523,9 @@ static void transfer_state(const analysis_t *a, size_t bank,
          else if (strcmp(m,"LSR") == 0) { output->carry = old & 1u; output->a = (uint8_t)(old >> 1); }
          else if (strcmp(m,"ROL") == 0) { output->carry = old >> 7; output->a = (uint8_t)((old << 1) | input->carry); }
          else { output->carry = old & 1u; output->a = (uint8_t)((old >> 1) | (input->carry << 7)); }
+         state_set_nz(output, 1, output->a);
       }
-      else { output->a_known = 0; output->carry_known = 0; }
+      else { output->a_known = 0; output->carry_known = 0; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"CMP") == 0 || strcmp(m,"CPX") == 0 || strcmp(m,"CPY") == 0) {
       uint8_t reg = 0;
@@ -1443,8 +1535,28 @@ static void transfer_state(const analysis_t *a, size_t bank,
       else if (strcmp(m,"CPX") == 0) reg = input->x;
       else reg = input->y;
       if (known && state_read_operand(a, bank, input, mode, operand, &value)) {
+         uint8_t diff = (uint8_t)(reg - value);
          output->carry_known = 1; output->carry = reg >= value;
+         output->zero_known = 1; output->zero = reg == value;
+         output->negative_known = 1; output->negative = (uint8_t)((diff & 0x80u) != 0u);
       }
+      else state_set_nz(output, 0, 0);
+   }
+   else if (strcmp(m,"BIT") == 0) {
+      if (state_read_operand(a, bank, input, mode, operand, &value)) {
+         output->negative_known = 1; output->negative = (uint8_t)((value & 0x80u) != 0u);
+         output->overflow_known = 1; output->overflow = (uint8_t)((value & 0x40u) != 0u);
+         if (input->a_known) { output->zero_known = 1; output->zero = (uint8_t)((input->a & value) == 0u); }
+         else output->zero_known = 0;
+      }
+      else output->zero_known = output->negative_known = output->overflow_known = 0;
+   }
+   else if (strcmp(m,"INC") == 0 || strcmp(m,"DEC") == 0) {
+      if (state_read_operand(a, bank, input, mode, operand, &value)) {
+         uint8_t changed = strcmp(m,"INC") == 0 ? (uint8_t)(value + 1u) : (uint8_t)(value - 1u);
+         state_set_nz(output, 1, changed);
+      }
+      else state_set_nz(output, 0, 0);
    }
 }
 
@@ -1488,9 +1600,447 @@ static void detect_overlaps(analysis_t *a)
    }
 }
 
+typedef enum {
+   SPEC_SAFE_WEAK,
+   SPEC_SAFE_STRONG,
+   SPEC_REJECT
+} spec_result_t;
+
+typedef struct {
+   uint8_t *visiting;
+   uint8_t *counted;
+   size_t steps;
+   size_t step_limit;
+   size_t instructions;
+   size_t official_instructions;
+   size_t unofficial_instructions;
+   size_t control_transfers;
+   size_t terminals;
+   size_t unresolved_terminals;
+   size_t joins;
+   int strict_conflicts;
+} spec_context_t;
+
+static spec_result_t spec_safe_merge(spec_result_t a, spec_result_t b)
+{
+   if (a == SPEC_REJECT || b == SPEC_REJECT) return SPEC_REJECT;
+   if (a == SPEC_SAFE_STRONG || b == SPEC_SAFE_STRONG) return SPEC_SAFE_STRONG;
+   return SPEC_SAFE_WEAK;
+}
+
+static int speculative_branch_outcome(uint8_t opcode,
+                                      const abstract_state_t *state,
+                                      int *taken)
+{
+   switch (opcode) {
+   case 0x10: if (!state->negative_known) return 0; *taken = state->negative == 0u; return 1; /* BPL */
+   case 0x30: if (!state->negative_known) return 0; *taken = state->negative != 0u; return 1; /* BMI */
+   case 0x50: if (!state->overflow_known) return 0; *taken = state->overflow == 0u; return 1; /* BVC */
+   case 0x70: if (!state->overflow_known) return 0; *taken = state->overflow != 0u; return 1; /* BVS */
+   case 0x90: if (!state->carry_known) return 0; *taken = state->carry == 0u; return 1; /* BCC */
+   case 0xb0: if (!state->carry_known) return 0; *taken = state->carry != 0u; return 1; /* BCS */
+   case 0xd0: if (!state->zero_known) return 0; *taken = state->zero == 0u; return 1; /* BNE */
+   case 0xf0: if (!state->zero_known) return 0; *taken = state->zero != 0u; return 1; /* BEQ */
+   default: return 0;
+   }
+}
+
+static spec_result_t speculative_flow(const analysis_t *a, size_t bi,
+                                      size_t off,
+                                      const abstract_state_t *input_state,
+                                      spec_context_t *ctx)
+{
+   const bank_t *b = &a->banks[bi];
+   uint8_t opcode;
+   address_mode_t mode;
+   unsigned len;
+   uint16_t operand = 0;
+   uint16_t canonical_pc;
+   abstract_state_t output_state;
+   flow_kind_t flow;
+   spec_result_t result = SPEC_SAFE_WEAK;
+
+   if (off >= b->size) return SPEC_SAFE_WEAK;
+   if (superchip_active(a) && off < 0x100u) return SPEC_SAFE_WEAK;
+
+   /* Established control flow is authoritative, even if it deliberately
+    * reaches a CPU-locking opcode.  The JAM/KIL rule applies only to newly
+    * speculative decoding. */
+   if (b->roles[off] & ROLE_CODE_START) {
+      if (ctx->counted) ++ctx->joins;
+      return SPEC_SAFE_WEAK;
+   }
+
+   if (ctx->strict_conflicts &&
+       (b->roles[off] & (ROLE_CODE_BYTE | ROLE_DATA_READ | ROLE_POSSIBLE | ROLE_VECTOR)))
+      return SPEC_REJECT;
+
+   if (++ctx->steps > ctx->step_limit) return SPEC_SAFE_WEAK;
+   if (ctx->visiting[off]) return SPEC_SAFE_WEAK; /* legitimate loop */
+
+   opcode = a->rom[b->file_offset + off];
+   if (opcode_is_cpu_halt(opcode)) return SPEC_REJECT;
+
+   mode = (address_mode_t)opcode_modes[opcode];
+   len = instruction_length(mode);
+   if (len == 0u || off + len > b->size) return SPEC_SAFE_WEAK;
+   if (ctx->strict_conflicts) {
+      unsigned i;
+      for (i = 1u; i < len; ++i) {
+         uint8_t rr = b->roles[off + i];
+         if (rr & (ROLE_CODE_START | ROLE_DATA_READ | ROLE_POSSIBLE | ROLE_VECTOR))
+            return SPEC_REJECT;
+      }
+   }
+   if (ctx->counted && !ctx->counted[off]) {
+      ctx->counted[off] = 1u;
+      ++ctx->instructions;
+      if (strncmp(opcode_mnemonics[opcode], "op", 2) == 0)
+         ++ctx->unofficial_instructions;
+      else
+         ++ctx->official_instructions;
+   }
+   if (len >= 2u) operand = a->rom[b->file_offset + off + 1u];
+   if (len >= 3u) operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
+   canonical_pc = (uint16_t)(b->origin + (uint16_t)off);
+   transfer_state(a, bi, input_state, &output_state, opcode, mode, operand);
+   flow = instruction_flow(opcode);
+
+   ctx->visiting[off] = 1u;
+   switch (flow) {
+   case FLOW_NEXT:
+      if (off + len < b->size)
+         result = speculative_flow(a, bi, off + len, &output_state, ctx);
+      else
+         result = SPEC_SAFE_WEAK;
+      break;
+
+   case FLOW_BRANCH: {
+      if (ctx->counted) ++ctx->control_transfers;
+      int8_t disp = (int8_t)(uint8_t)operand;
+      uint16_t target = (uint16_t)(canonical_pc + 2u + disp);
+      size_t toff = 0;
+      int target_local = target >= b->origin &&
+         (uint32_t)target < (uint32_t)b->origin + (uint32_t)b->size;
+      int known = 0, taken = 0;
+      spec_result_t fall = SPEC_SAFE_WEAK, branch = SPEC_SAFE_WEAK;
+
+      known = speculative_branch_outcome(opcode, &output_state, &taken);
+      if (!known || !taken) {
+         if (off + 2u < b->size)
+            fall = speculative_flow(a, bi, off + 2u, &output_state, ctx);
+         if (fall == SPEC_REJECT) { result = SPEC_REJECT; break; }
+      }
+      if (!known || taken) {
+         if (target_local) {
+            toff = (size_t)(target - b->origin);
+            if (!(superchip_active(a) && toff < 0x100u))
+               branch = speculative_flow(a, bi, toff, &output_state, ctx);
+         }
+         if (branch == SPEC_REJECT) { result = SPEC_REJECT; break; }
+      }
+      result = known ? (taken ? branch : fall) : spec_safe_merge(fall, branch);
+      break;
+   }
+
+   case FLOW_JSR: {
+      if (ctx->counted) ++ctx->control_transfers;
+      spec_result_t called = SPEC_SAFE_WEAK;
+      spec_result_t cont = SPEC_SAFE_WEAK;
+      size_t toff;
+      abstract_state_t after_call;
+      memset(&after_call, 0, sizeof(after_call));
+
+      if (cart_target_offset(b, operand, &toff) &&
+          !(superchip_active(a) && toff < 0x100u))
+         called = speculative_flow(a, bi, toff, &output_state, ctx);
+      if (called == SPEC_REJECT) { result = SPEC_REJECT; break; }
+      if (off + 3u < b->size)
+         cont = speculative_flow(a, bi, off + 3u, &after_call, ctx);
+      result = spec_safe_merge(called, cont);
+      break;
+   }
+
+   case FLOW_JMP_ABSOLUTE:
+      if (ctx->counted) { ++ctx->control_transfers; ++ctx->terminals; }
+      /* A local speculative island has reached an ordinary hard terminator.
+       * JMP targets are analyzed independently; per the island rule the local
+       * linear candidate succeeds here. */
+      result = SPEC_SAFE_STRONG;
+      break;
+
+   case FLOW_JMP_INDIRECT:
+      if (ctx->counted) {
+         ++ctx->control_transfers;
+         ++ctx->terminals;
+         ++ctx->unresolved_terminals;
+      }
+      result = SPEC_SAFE_STRONG;
+      break;
+
+   case FLOW_RTS:
+      if (ctx->counted) ++ctx->terminals;
+      result = SPEC_SAFE_STRONG;
+      break;
+
+   case FLOW_STOP:
+      if (ctx->counted) ++ctx->terminals;
+      /* HLT/JAM/KIL was handled before entering the switch.  BRK and RTI are
+       * legitimate terminating instructions for speculative validation. */
+      result = SPEC_SAFE_STRONG;
+      break;
+   }
+   ctx->visiting[off] = 0u;
+   return result;
+}
+
+static int speculative_linear_jam_end(const analysis_t *a, size_t bi,
+                                      size_t start, uint16_t *end_out)
+{
+   const bank_t *b = &a->banks[bi];
+   abstract_state_t state;
+   size_t off = start;
+   size_t steps = 0;
+   memset(&state, 0, sizeof(state));
+
+   while (off < b->size && steps++ < 512u) {
+      uint8_t opcode;
+      address_mode_t mode;
+      unsigned len;
+      uint16_t operand = 0;
+      abstract_state_t next;
+      flow_kind_t flow;
+
+      if (superchip_active(a) && off < 0x100u) return 0;
+      if (b->roles[off] & ROLE_CODE_START) return 0;
+      opcode = a->rom[b->file_offset + off];
+      if (opcode_is_cpu_halt(opcode)) {
+         *end_out = (uint16_t)off;
+         return 1;
+      }
+      mode = (address_mode_t)opcode_modes[opcode];
+      len = instruction_length(mode);
+      if (len == 0u || off + len > b->size) return 0;
+      if (len >= 2u) operand = a->rom[b->file_offset + off + 1u];
+      if (len >= 3u) operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
+      transfer_state(a, bi, &state, &next, opcode, mode, operand);
+      flow = instruction_flow(opcode);
+
+      if (flow == FLOW_NEXT) {
+         state = next;
+         off += len;
+         continue;
+      }
+      if (flow == FLOW_BRANCH) {
+         int known = 0, taken = 0;
+         known = speculative_branch_outcome(opcode, &next, &taken);
+         /* Only a proved not-taken branch remains a straight-line decode.
+          * A taken/unknown branch makes the interval between start and a later
+          * JAM non-contiguous, so it cannot justify the user's "everything up
+          * to the JAM is non-code" barrier span. */
+         if (known && !taken) {
+            state = next;
+            off += 2u;
+            continue;
+         }
+      }
+      return 0;
+   }
+   return 0;
+}
+
+static size_t speculative_inbound_references(const analysis_t *a,
+                                             size_t bi, size_t target_off)
+{
+   const bank_t *b = &a->banks[bi];
+   uint16_t target_addr = (uint16_t)(b->origin + (uint16_t)target_off);
+   size_t off, count = 0;
+   for (off = 0; off < b->size; ++off) {
+      uint8_t opcode = a->rom[b->file_offset + off];
+      address_mode_t mode = (address_mode_t)opcode_modes[opcode];
+      unsigned len = instruction_length(mode);
+      flow_kind_t flow;
+      uint16_t operand = 0;
+      uint16_t dest;
+      if (off + len > b->size) continue;
+      flow = instruction_flow(opcode);
+      if (flow == FLOW_BRANCH) {
+         dest = (uint16_t)(b->origin + (uint16_t)off + 2u +
+                          (int8_t)a->rom[b->file_offset + off + 1u]);
+      }
+      else if (flow == FLOW_JSR || flow == FLOW_JMP_ABSOLUTE) {
+         if (len < 3u) continue;
+         operand = (uint16_t)(a->rom[b->file_offset + off + 1u] |
+                   ((uint16_t)a->rom[b->file_offset + off + 2u] << 8));
+         dest = operand;
+      }
+      else continue;
+      if (dest == target_addr) ++count;
+   }
+   return count;
+}
+
+static int speculative_candidate_credible(const analysis_t *a,
+                                          size_t bi, size_t off)
+{
+   const bank_t *b = &a->banks[bi];
+   uint8_t *scratch = NULL;
+   uint8_t *counted = NULL;
+   abstract_state_t initial;
+   spec_context_t ctx;
+   spec_result_t result;
+   size_t inbound;
+   size_t allowed_unofficial;
+   int credible = 0;
+
+   scratch = (uint8_t *)calloc(b->size, 1);
+   counted = (uint8_t *)calloc(b->size, 1);
+   if (!scratch || !counted) goto done;
+   memset(&initial, 0, sizeof(initial));
+   memset(&ctx, 0, sizeof(ctx));
+   ctx.visiting = scratch;
+   ctx.counted = counted;
+   ctx.step_limit = b->size < 256u ? b->size * 2u : 512u;
+   ctx.strict_conflicts = 1;
+   result = speculative_flow(a, bi, off, &initial, &ctx);
+   if (result != SPEC_SAFE_STRONG || ctx.instructions < 4u) goto done;
+   if (ctx.terminals == 0u && ctx.joins == 0u) goto done;
+   if (ctx.unresolved_terminals != 0u &&
+       ctx.terminals == ctx.unresolved_terminals && ctx.joins == 0u)
+      goto done;
+
+   allowed_unofficial = ctx.instructions / 10u;
+   if (allowed_unofficial < 1u) allowed_unofficial = 1u;
+   if (ctx.unofficial_instructions > allowed_unofficial) goto done;
+   if (ctx.official_instructions * 100u < ctx.instructions * 80u) goto done;
+
+   inbound = speculative_inbound_references(a, bi, off);
+   if (inbound == 0u && ctx.control_transfers == 0u && ctx.instructions < 8u)
+      goto done;
+   credible = 1;
+
+done:
+   free(scratch);
+   free(counted);
+   return credible;
+}
+
+static int speculative_candidate_promotable(const analysis_t *a,
+                                             size_t bi, size_t off)
+{
+   const bank_t *b = &a->banks[bi];
+   flow_kind_t flow;
+   uint8_t r;
+   if (off >= b->size || !b->spec_strong[off] || b->spec_rejected[off]) return 0;
+   if (superchip_active(a) && off < 0x100u) return 0;
+   r = b->roles[off];
+   if (r & (ROLE_CODE_BYTE | ROLE_DATA_READ | ROLE_POSSIBLE | ROLE_VECTOR)) return 0;
+   flow = instruction_flow(a->rom[b->file_offset + off]);
+   /* Do not manufacture one-byte "islands" from random terminator bytes. */
+   if (flow == FLOW_RTS || flow == FLOW_JMP_ABSOLUTE ||
+       flow == FLOW_JMP_INDIRECT || flow == FLOW_STOP)
+      return 0;
+   return speculative_candidate_credible(a, bi, off);
+}
+
+static int discover_speculative_islands(analysis_t *a)
+{
+   size_t bi;
+   a->speculative_rejected_starts = 0;
+   a->speculative_barriers = 0;
+   a->speculative_islands = 0;
+
+   for (bi = 0; bi < a->bank_count; ++bi) {
+      bank_t *b = &a->banks[bi];
+      uint8_t *scratch;
+      size_t off;
+      abstract_state_t initial;
+
+      memset(b->spec_rejected, 0, b->size);
+      memset(b->spec_strong, 0, b->size);
+      memset(b->spec_reject_end, 0xff, b->size * sizeof(*b->spec_reject_end));
+      memset(b->spec_barrier, 0, b->size);
+      memset(b->spec_barrier_end, 0xff, b->size * sizeof(*b->spec_barrier_end));
+      memset(b->spec_seed, 0, b->size);
+      scratch = (uint8_t *)calloc(b->size, 1);
+      if (!scratch) return 0;
+      memset(&initial, 0, sizeof(initial));
+
+      /* Negative evidence is computed for every not-yet-established start,
+       * including operand/data bytes.  It remains non-exclusive metadata and
+       * never erases a definite role discovered by ordinary control flow. */
+      for (off = 0; off < b->size; ++off) {
+         spec_context_t ctx;
+         spec_result_t r;
+         if (b->roles[off] & ROLE_CODE_START) continue;
+         if (superchip_active(a) && off < 0x100u) continue;
+         memset(scratch, 0, b->size);
+         memset(&ctx, 0, sizeof(ctx));
+         ctx.visiting = scratch;
+         ctx.steps = 0u;
+         ctx.step_limit = b->size < 256u ? b->size * 2u : 512u;
+         r = speculative_flow(a, bi, off, &initial, &ctx);
+         if (r == SPEC_REJECT) {
+            uint16_t reject_end;
+            b->spec_rejected[off] = 1u;
+            ++a->speculative_rejected_starts;
+            if (speculative_linear_jam_end(a, bi, off, &reject_end))
+               b->spec_reject_end[off] = reject_end;
+         }
+         else if (r == SPEC_SAFE_STRONG) {
+            b->spec_strong[off] = 1u;
+         }
+      }
+      free(scratch);
+
+      /* Three consecutive rejected instruction starts are a sequential-flow
+       * barrier because no 6502/6507 instruction is longer than three bytes.
+       * This never forbids an explicit control-transfer entry on either side. */
+      for (off = 0; off + 2u < b->size; ++off) {
+         if (b->spec_rejected[off] && b->spec_rejected[off + 1u] &&
+             b->spec_rejected[off + 2u] &&
+             !(b->roles[off] & ROLE_CODE_START) &&
+             !(b->roles[off + 1u] & ROLE_CODE_START) &&
+             !(b->roles[off + 2u] & ROLE_CODE_START)) {
+            b->spec_barrier[off] = 1u;
+            ++a->speculative_barriers;
+            /* The barrier itself follows solely from three impossible starts.
+             * A contiguous non-code span through a particular JAM endpoint is
+             * stronger evidence and is recorded only when all three rejections
+             * were proved by straight-line fallthrough. */
+            if (b->spec_reject_end[off] != UINT16_MAX &&
+                b->spec_reject_end[off + 1u] != UINT16_MAX &&
+                b->spec_reject_end[off + 2u] != UINT16_MAX) {
+               uint16_t end = b->spec_reject_end[off];
+               if (b->spec_reject_end[off + 1u] > end) end = b->spec_reject_end[off + 1u];
+               if (b->spec_reject_end[off + 2u] > end) end = b->spec_reject_end[off + 2u];
+               b->spec_barrier_end[off] = end;
+            }
+         }
+      }
+
+      /* Promote only the first safe, nontrivial candidate immediately after a
+       * rejected-start barrier.  This is deliberately much more conservative
+       * than treating every legal decode as unreachable utility code. */
+      for (off = 0; off + 2u < b->size; ++off) {
+         size_t candidate;
+         if (!b->spec_barrier[off] || b->spec_barrier_end[off] == UINT16_MAX) continue;
+         candidate = (size_t)b->spec_barrier_end[off] + 1u;
+         if (candidate >= b->size) continue;
+         if (!speculative_candidate_promotable(a, bi, candidate)) continue;
+         b->spec_seed[candidate] = 1u;
+         mark_label(b, candidate);
+         if (!push_work(a, bi, candidate)) return 0;
+         ++a->speculative_islands;
+      }
+   }
+   return 1;
+}
+
 static int trace_analysis(analysis_t *a, const options_t *opt)
 {
    size_t bi;
+   int speculative_done = 0;
    if (a->mapper == MAP_RAW) return 1;
 
    /* Seed each physical bank from all three vectors.  The reset-bank choice is
@@ -1557,6 +2107,7 @@ static int trace_analysis(analysis_t *a, const options_t *opt)
       }
    }
 
+drain_work:
    while (a->work_count != 0) {
       work_item_t item = a->work[--a->work_count];
       bank_t *b = &a->banks[item.bank];
@@ -1587,6 +2138,12 @@ static int trace_analysis(analysis_t *a, const options_t *opt)
 
       if (len >= 2u) operand = a->rom[b->file_offset + off + 1u];
       if (len >= 3u) operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
+      /* vcsc-as deliberately rejects JMP ($xxFF) because the NMOS CPU fetches
+       * the vector high byte from $xx00.  Preserve a real cartridge using that
+       * silicon behavior as raw bytes rather than emitting source the assembler
+       * refuses to accept. */
+      if (opcode == 0x6cu && (operand & 0x00ffu) == 0x00ffu)
+         b->force_raw[off] = 1u;
       transfer_state(a, item.bank, &input_state, &output_state,
                      opcode, mode, operand);
 
@@ -1622,7 +2179,8 @@ static int trace_analysis(analysis_t *a, const options_t *opt)
             uint16_t bus = (uint16_t)(effective & 0x1fffu);
             int sc_read = superchip_active(a) &&
                           bus >= 0x1080u && bus <= 0x10ffu;
-            if (!sc_read && cart_target_offset(b, effective, &doff)) {
+            int dpc_reg = dpc_register_address(a, effective);
+            if (!sc_read && !dpc_reg && cart_target_offset(b, effective, &doff)) {
                b->roles[doff] |= ROLE_DATA_READ;
                mark_label(b, doff);
             }
@@ -1754,6 +2312,12 @@ static int trace_analysis(analysis_t *a, const options_t *opt)
       }
    }
 
+   if (!speculative_done) {
+      speculative_done = 1;
+      if (!discover_speculative_islands(a)) return 0;
+      if (a->work_count != 0) goto drain_work;
+   }
+
    detect_overlaps(a);
    return 1;
 }
@@ -1771,6 +2335,7 @@ static void apply_superchip_window_semantics(analysis_t *a)
          b->inst_len[off] = 0;
          b->inst_opcode[off] = 0;
          b->graphics[off] = 0;
+         b->force_raw[off] = 0;
       }
    }
 }
@@ -1780,6 +2345,7 @@ static int instruction_can_emit(const bank_t *b, size_t off)
    unsigned len;
    size_t i;
    if (!(b->roles[off] & ROLE_CODE_START)) return 0;
+   if (b->force_raw[off]) return 0;
    len = b->inst_len[off];
    if (len == 0 || off + len > b->size) return 0;
 
@@ -1810,16 +2376,27 @@ static int emitted_container_start(const bank_t *b, size_t off, size_t *start)
       }
    }
 
-   /* The three cartridge vectors are emitted as two-byte .word containers.
-    * A vector can legally point at the high byte of another vector (or even
-    * its own high byte), so that interior address cannot own a standalone
-    * source label.  Treat it exactly like an instruction operand: promote
-    * the label to the emitted container and reference it as label + 1. */
+   /* The three cartridge vectors are normally emitted as two-byte .word
+    * containers.  A vector can legally point at the high byte of another
+    * vector (or even its own high byte), so that interior address cannot own
+    * a standalone source label while the .word spelling is in use.  Treat it
+    * exactly like an instruction operand: promote the label to the emitted
+    * container and reference it as label + 1.
+    *
+    * Do NOT do that when either vector byte is established executable code.
+    * Real cartridges can deliberately execute bytes in the vector table
+    * (Stellar Track uses the NMI bytes as LSR A / RTS and JSRs the high byte).
+    * In that case emit the executable spelling instead of an indivisible
+    * .word, so every real instruction entry can own its source label. */
    if (b->size >= 6u) {
       size_t base = b->size - 6u;
       if (off >= base && off < b->size && ((off - base) & 1u)) {
-         *start = off - 1u;
-         return 1;
+         size_t low = off - 1u;
+         if (!(b->roles[low] & ROLE_CODE_START) &&
+             !(b->roles[off] & ROLE_CODE_START)) {
+            *start = low;
+            return 1;
+         }
       }
    }
    return 0;
@@ -2415,7 +2992,7 @@ static void emit_instruction(FILE *fp, const analysis_t *a, size_t bi, size_t of
             uint16_t canonical = (uint16_t)(b->origin + (uint16_t)toff);
             if (toff < b->size && canonical == operand &&
                 (b->roles[toff] & ROLE_LABEL))
-               print_label_name(fp, a, bi, toff);
+               print_exact_cart_reference(fp, a, bi, toff);
             else
                fprintf(fp, "$%04X", operand);
          }
@@ -2545,6 +3122,8 @@ typedef struct {
    unsigned tim64_34;
    unsigned tim64_52;
    unsigned tim64_41;
+   unsigned tim64_known[256];
+   unsigned tim64_known_total;
    unsigned wsync_3;
    unsigned wsync_30;
    unsigned wsync_36;
@@ -2552,6 +3131,10 @@ typedef struct {
    unsigned wsync_45;
    unsigned wsync_192;
    unsigned wsync_228;
+   unsigned wsync_ntsc_visible;
+   unsigned wsync_pal_visible;
+   unsigned wsync_ntsc_blank;
+   unsigned wsync_pal_blank;
 } inference_evidence_t;
 
 static int decoded_instruction_at(const analysis_t *a, size_t bi, size_t off,
@@ -2596,7 +3179,7 @@ static int immediate_before_store(const analysis_t *a, size_t bi, size_t off,
 }
 
 static int counted_wsync_loop(const analysis_t *a, size_t bi, size_t off,
-                              uint8_t *count)
+                              uint16_t *scanlines)
 {
    const bank_t *b = &a->banks[bi];
    uint8_t opcode;
@@ -2605,18 +3188,23 @@ static int counted_wsync_loop(const analysis_t *a, size_t bi, size_t off,
    uint8_t dec_opcode;
    size_t p;
    unsigned steps;
-   int saw_wsync = 0;
+   unsigned wsyncs = 0;
    int saw_dec = 0;
+   uint8_t count;
 
    if (!decoded_instruction_at(a, bi, off, &opcode, &mode, &operand) ||
        mode != AM_IMMEDIATE || (opcode != 0xa2u && opcode != 0xa0u))
       return 0;
-   *count = (uint8_t)operand;
-   if (*count == 0u) return 0;
+   count = (uint8_t)operand;
+   if (count == 0u) return 0;
    dec_opcode = opcode == 0xa2u ? 0xcau : 0x88u; /* DEX / DEY */
    if (!next_code_start(b, off, &p)) return 0;
 
-   for (steps = 0; steps < 8u; ++steps) {
+   /* Commercial kernels can do a great deal of work between the counter load
+    * and the loop-closing branch.  Sixty-four decoded instructions is still a
+    * deliberately bounded recognizer, but is much less VCSC-shaped than the
+    * old eight-instruction window. */
+   for (steps = 0; steps < 64u; ++steps) {
       hw_symbol_t hw;
       unsigned access;
       uint16_t pc;
@@ -2627,15 +3215,19 @@ static int counted_wsync_loop(const analysis_t *a, size_t bi, size_t off,
       access = opcode_memory_access(opcode);
       if (hardware_symbol(opcode, mode, operand, &hw) &&
           strcmp(hw.name, "WSYNC") == 0 && (access & ACCESS_WRITE))
-         saw_wsync = 1;
+         ++wsyncs;
       if (opcode == dec_opcode) saw_dec = 1;
-      if (opcode == 0xd0u && mode == AM_RELATIVE && saw_wsync && saw_dec) {
+      if (opcode == 0xd0u && mode == AM_RELATIVE && wsyncs && saw_dec) {
          pc = (uint16_t)(b->origin + (uint16_t)p);
          disp = (int8_t)(uint8_t)operand;
          target = (uint16_t)(pc + 2u + disp);
          if (target >= (uint16_t)(b->origin + (uint16_t)(off + 2u)) &&
-             target <= pc)
+             target <= pc) {
+            unsigned total = (unsigned)count * wsyncs;
+            if (total > 0xffffu) total = 0xffffu;
+            *scanlines = (uint16_t)total;
             return 1;
+         }
       }
       if (!next_code_start(b, p, &p)) return 0;
    }
@@ -2723,6 +3315,71 @@ static int swcha_driving_pattern(const analysis_t *a, size_t bi, size_t off,
    return 0;
 }
 
+static int callee_tim64_register(const analysis_t *a, size_t bi,
+                                  size_t off, char *reg)
+{
+   const bank_t *b = &a->banks[bi];
+   size_t p = off;
+   unsigned steps;
+   int a_ok = 1, x_ok = 1, y_ok = 1;
+
+   /* Recognize small timer helper routines that preserve one incoming register
+    * until storing it to TIM64T.  This recovers call-site constants that the
+    * normal meet-at-join abstract state intentionally discards. */
+   for (steps = 0; steps < 24u; ++steps) {
+      uint8_t opcode;
+      address_mode_t mode;
+      uint16_t operand;
+      hw_symbol_t hw;
+      const char *m;
+      unsigned access;
+
+      if (!decoded_instruction_at(a, bi, p, &opcode, &mode, &operand)) return 0;
+      m = opcode_mnemonics[opcode];
+      access = opcode_memory_access(opcode);
+      if (hardware_symbol(opcode, mode, operand, &hw) &&
+          strcmp(hw.name, "TIM64T") == 0 && (access & ACCESS_WRITE)) {
+         if (strcmp(m, "STA") == 0 && a_ok) { *reg = 'A'; return 1; }
+         if (strcmp(m, "STX") == 0 && x_ok) { *reg = 'X'; return 1; }
+         if (strcmp(m, "STY") == 0 && y_ok) { *reg = 'Y'; return 1; }
+         return 0;
+      }
+
+      /* Only track whether the incoming value survives.  Loads/transfers and
+       * arithmetic into the corresponding register invalidate that argument;
+       * compares, stores, branches, and unrelated register operations do not. */
+      if (strcmp(m, "LDA") == 0 || strcmp(m, "TXA") == 0 ||
+          strcmp(m, "TYA") == 0 || strcmp(m, "PLA") == 0 ||
+          strcmp(m, "ADC") == 0 || strcmp(m, "SBC") == 0 ||
+          strcmp(m, "AND") == 0 || strcmp(m, "ORA") == 0 ||
+          strcmp(m, "EOR") == 0 ||
+          ((strcmp(m, "ASL") == 0 || strcmp(m, "LSR") == 0 ||
+            strcmp(m, "ROL") == 0 || strcmp(m, "ROR") == 0) &&
+           mode == AM_ACCUMULATOR))
+         a_ok = 0;
+      if (strcmp(m, "LDX") == 0 || strcmp(m, "TAX") == 0 ||
+          strcmp(m, "TSX") == 0 || strcmp(m, "INX") == 0 ||
+          strcmp(m, "DEX") == 0)
+         x_ok = 0;
+      if (strcmp(m, "LDY") == 0 || strcmp(m, "TAY") == 0 ||
+          strcmp(m, "INY") == 0 || strcmp(m, "DEY") == 0)
+         y_ok = 0;
+
+      if (!next_code_start(b, p, &p)) return 0;
+   }
+   return 0;
+}
+
+static void add_tim64_value(inference_evidence_t *e, uint8_t value)
+{
+   ++e->tim64_known[value];
+   ++e->tim64_known_total;
+   if (value == 42u) ++e->tim64_42;
+   if (value == 34u) ++e->tim64_34;
+   if (value == 52u) ++e->tim64_52;
+   if (value == 41u) ++e->tim64_41;
+}
+
 static void collect_inference_evidence(const analysis_t *a,
                                        inference_evidence_t *e)
 {
@@ -2741,18 +3398,43 @@ static void collect_inference_evidence(const analysis_t *a,
          if (!decoded_instruction_at(a, bi, off, &opcode, &mode, &operand))
             continue;
          {
-            uint8_t count;
-            if (counted_wsync_loop(a, bi, off, &count)) {
-               if (count == 3u) ++e->wsync_3;
-               if (count == 30u) ++e->wsync_30;
-               if (count == 36u) ++e->wsync_36;
-               if (count == 37u) ++e->wsync_37;
-               if (count == 45u) ++e->wsync_45;
-               if (count == 192u) ++e->wsync_192;
-               if (count == 228u) ++e->wsync_228;
+            uint16_t lines;
+            if (counted_wsync_loop(a, bi, off, &lines)) {
+               if (lines == 3u) ++e->wsync_3;
+               if (lines == 30u) ++e->wsync_30;
+               if (lines == 36u) ++e->wsync_36;
+               if (lines == 37u) ++e->wsync_37;
+               if (lines == 45u) ++e->wsync_45;
+               if (lines == 192u) ++e->wsync_192;
+               if (lines == 228u) ++e->wsync_228;
+               if (lines >= 176u && lines <= 208u) ++e->wsync_ntsc_visible;
+               if (lines >= 216u && lines <= 244u) ++e->wsync_pal_visible;
+               if (lines >= 24u && lines <= 39u) ++e->wsync_ntsc_blank;
+               if (lines >= 40u && lines <= 56u) ++e->wsync_pal_blank;
             }
          }
          access = opcode_memory_access(opcode);
+
+         /* A common commercial idiom passes a timer value in A/X/Y to a tiny
+          * wait helper.  Preserve call-site alternatives as inference evidence
+          * even when the helper entry's joined abstract state is unknown. */
+         if (opcode == 0x20u && mode == AM_ABSOLUTE && b->state_seen[off]) {
+            size_t toff;
+            char reg;
+            uint8_t value;
+            int known = 0;
+            if (cart_target_offset(b, operand, &toff) &&
+                callee_tim64_register(a, bi, toff, &reg)) {
+               if (reg == 'A' && b->states[off].a_known)
+                  value = b->states[off].a, known = 1;
+               else if (reg == 'X' && b->states[off].x_known)
+                  value = b->states[off].x, known = 1;
+               else if (reg == 'Y' && b->states[off].y_known)
+                  value = b->states[off].y, known = 1;
+               if (known) add_tim64_value(e, value);
+            }
+         }
+
          if (!hardware_symbol(opcode, mode, operand, &hw)) continue;
          if (strcmp(hw.name, "SWCHA") == 0) {
             if (access & ACCESS_READ) {
@@ -2789,18 +3471,53 @@ static void collect_inference_evidence(const analysis_t *a,
          }
          else if (strcmp(hw.name, "TIM64T") == 0 && (access & ACCESS_WRITE)) {
             uint8_t value;
-            if (immediate_before_store(a, bi, off, &value)) {
-               if (value == 42u) ++e->tim64_42;
-               if (value == 34u) ++e->tim64_34;
-               if (value == 52u) ++e->tim64_52;
-               if (value == 41u) ++e->tim64_41;
-            }
+            int known = 0;
+            if (b->state_seen[off])
+               known = known_store_value(opcode, &b->states[off], &value);
+            if (!known) known = immediate_before_store(a, bi, off, &value);
+            if (known) add_tim64_value(e, value);
          }
       }
    }
 }
 
-static void infer_video(const inference_evidence_t *e,
+static int filename_video_hint(const char *path, const char **kind)
+{
+   const char *base = strrchr(path, '/');
+   const char *p;
+   char lower[512];
+   size_t i, n;
+   if (!path) return 0;
+   base = base ? base + 1 : path;
+   n = strlen(base);
+   if (n >= sizeof(lower)) n = sizeof(lower) - 1u;
+   for (i = 0; i < n; ++i) lower[i] = (char)tolower((unsigned char)base[i]);
+   lower[n] = '\0';
+
+   /* Match format names as tokens, not arbitrary substrings ("pal" in a game
+    * title is not evidence).  This mirrors Stella's useful filename-hint idea
+    * while keeping it below actual timing evidence. */
+   for (p = lower; *p; ++p) {
+      if ((p == lower || !isalnum((unsigned char)p[-1])) &&
+          strncmp(p, "secam", 5) == 0 && !isalnum((unsigned char)p[5])) {
+         *kind = "SECAM (filename hint)";
+         return 1;
+      }
+      if ((p == lower || !isalnum((unsigned char)p[-1])) &&
+          strncmp(p, "ntsc", 4) == 0 && !isalnum((unsigned char)p[4])) {
+         *kind = "NTSC (filename hint)";
+         return 1;
+      }
+      if ((p == lower || !isalnum((unsigned char)p[-1])) &&
+          strncmp(p, "pal", 3) == 0 && !isalnum((unsigned char)p[3])) {
+         *kind = "PAL (filename hint)";
+         return 1;
+      }
+   }
+   return 0;
+}
+
+static void infer_video(const inference_evidence_t *e, const char *input,
                         const char **kind, const char **confidence)
 {
    unsigned ntsc_timer = (e->tim64_42 ? 1u : 0u) + (e->tim64_34 ? 1u : 0u);
@@ -2809,6 +3526,31 @@ static void infer_video(const inference_evidence_t *e,
                         (e->wsync_37 ? 1u : 0u) + (e->wsync_30 ? 1u : 0u);
    unsigned pal_scan = (e->wsync_228 ? 2u : 0u) +
                        (e->wsync_45 ? 1u : 0u) + (e->wsync_36 ? 1u : 0u);
+   unsigned ntsc_score = ntsc_timer * 2u + ntsc_scan;
+   unsigned pal_score = pal_timer * 2u + pal_scan;
+   unsigned v;
+   unsigned ntsc_blank_values = 0;
+   unsigned pal_blank_values = 0;
+
+   /* Treat all statically-known timer values as timing evidence, not only the
+    * handful used by VCSC's maintained schedulers.  TIM64T ticks are 64 CPU
+    * clocks; a 228-tick wait is exactly 192 nominal 76-cycle scanlines and is
+    * particularly strong NTSC evidence.  Short blanking timers are deliberately
+    * weak because real kernels vary and their ranges overlap. */
+   for (v = 1u; v < 256u; ++v) {
+      if (!e->tim64_known[v]) continue;
+      if (v >= 220u && v <= 240u) ntsc_score += 5u;
+      if (v >= 30u && v <= 45u) ++ntsc_blank_values;
+      if (v >= 48u && v <= 66u) ++pal_blank_values;
+   }
+   if (ntsc_blank_values >= 2u) ntsc_score += 2u;
+   else if (ntsc_blank_values) ++ntsc_score;
+   if (pal_blank_values >= 2u) pal_score += 2u;
+   else if (pal_blank_values) ++pal_score;
+
+   ntsc_score += e->wsync_ntsc_visible * 4u + e->wsync_ntsc_blank;
+   pal_score += e->wsync_pal_visible * 4u + e->wsync_pal_blank;
+
    if (ntsc_timer == 2u && pal_timer == 0u) {
       *kind = "NTSC (RIOT 42/34 frame-timer signature)";
       *confidence = "high";
@@ -2825,6 +3567,22 @@ static void infer_video(const inference_evidence_t *e,
       *kind = "PAL-family (PAL/SECAM ambiguous; counted WSYNC frame signature)";
       *confidence = "high";
    }
+   else if (ntsc_score >= pal_score + 4u && ntsc_score >= 5u) {
+      *kind = "NTSC (general frame-timing evidence)";
+      *confidence = "high";
+   }
+   else if (pal_score >= ntsc_score + 4u && pal_score >= 5u) {
+      *kind = "PAL-family (PAL/SECAM ambiguous; general frame-timing evidence)";
+      *confidence = "high";
+   }
+   else if (ntsc_score >= pal_score + 2u && ntsc_score >= 2u) {
+      *kind = "NTSC";
+      *confidence = "medium";
+   }
+   else if (pal_score >= ntsc_score + 2u && pal_score >= 2u) {
+      *kind = "PAL-family (PAL/SECAM ambiguous)";
+      *confidence = "medium";
+   }
    else if ((ntsc_timer != 0u || ntsc_scan != 0u) &&
             pal_timer == 0u && pal_scan == 0u) {
       *kind = "NTSC";
@@ -2836,8 +3594,15 @@ static void infer_video(const inference_evidence_t *e,
       *confidence = "medium";
    }
    else {
-      *kind = "unknown";
-      *confidence = "unknown";
+      const char *hint;
+      if (filename_video_hint(input, &hint)) {
+         *kind = hint;
+         *confidence = "medium";
+      }
+      else {
+         *kind = "unknown";
+         *confidence = "unknown";
+      }
    }
 }
 
@@ -2931,6 +3696,10 @@ static void emit_usage_summary(FILE *fp, const analysis_t *a)
    fprintf(fp,
       "; usage bytes: executed=%zu data-read=%zu exec+data=%zu overlap=%zu possible=%zu vectors=%zu sc-hidden=%zu unreferenced=%zu\n",
       executed, data, exec_data, overlap, possible, vectors, sc_hidden, unreferenced);
+   fprintf(fp,
+      "; speculative analysis: rejected-starts=%zu barriers=%zu islands=%zu\n",
+      a->speculative_rejected_starts, a->speculative_barriers,
+      a->speculative_islands);
 }
 
 static const char *video_override_display(const char *s)
@@ -2976,7 +3745,8 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                      "%d SC-window candidate%s, %d write%s)\n",
                  mname,
                  a->mapper == MAP_RAW ? "unknown" :
-                    ((a->hotspot_refs || superchip_active(a)) ? "high" : "medium"),
+                    (a->mapper == MAP_DPC ? "high" :
+                     ((a->hotspot_refs || superchip_active(a)) ? "high" : "medium")),
                  a->hotspot_refs, a->hotspot_refs == 1 ? "" : "es",
                  a->superchip_refs, a->superchip_refs == 1 ? "" : "s",
                  a->superchip_write_refs, a->superchip_write_refs == 1 ? "" : "s");
@@ -2997,6 +3767,12 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                     b->origin, b->origin_score,
                     b->reset_vector_evidence ? ", RESET-vector evidence" : "");
       }
+      if (a->mapper == MAP_DPC) {
+         fprintf(fp, "; DPC auxiliary data ROM: file $2000..$27FF (2048 bytes)\n");
+         if (a->rom_size > 10240u)
+            fprintf(fp, "; DPC RNG table: file $2800..$%04zX (%zu bytes)\n",
+                    a->rom_size - 1u, a->rom_size - 10240u);
+      }
    }
    else {
       fprintf(fp, "; physical layout: unsupported size; exact raw fallback\n");
@@ -3005,7 +3781,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
       inference_evidence_t e;
       const char *video, *vconf, *ctl0, *c0conf, *ctl1, *c1conf;
       collect_inference_evidence(a, &e);
-      infer_video(&e, &video, &vconf);
+      infer_video(&e, a->input_name, &video, &vconf);
       infer_controller_port(&e, 0, &ctl0, &c0conf);
       infer_controller_port(&e, 1, &ctl1, &c1conf);
       if (a->video_override)
@@ -3030,8 +3806,18 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
          fprintf(fp, "; evidence: INPT0..5=%u,%u,%u,%u,%u,%u VBLANK-write=%u driving=%u,%u\n",
                  e.inpt[0], e.inpt[1], e.inpt[2], e.inpt[3], e.inpt[4], e.inpt[5],
                  e.vblank_write, e.driving_left, e.driving_right);
-         fprintf(fp, "; evidence: TIM64T immediates 42=%u 34=%u 52=%u 41=%u\n",
-                 e.tim64_42, e.tim64_34, e.tim64_52, e.tim64_41);
+         {
+            unsigned v;
+            fprintf(fp, "; evidence: TIM64T known values");
+            if (e.tim64_known_total == 0u) fputs(" none", fp);
+            for (v = 0; v < 256u; ++v)
+               if (e.tim64_known[v]) fprintf(fp, " %u(x%u)", v, e.tim64_known[v]);
+            fputc('\n', fp);
+         }
+         fprintf(fp, "; evidence: WSYNC loops exact 3=%u 30=%u 36=%u 37=%u 45=%u 192=%u 228=%u broad Nvis=%u Pvis=%u Nblank=%u Pblank=%u\n",
+                 e.wsync_3, e.wsync_30, e.wsync_36, e.wsync_37, e.wsync_45,
+                 e.wsync_192, e.wsync_228, e.wsync_ntsc_visible,
+                 e.wsync_pal_visible, e.wsync_ntsc_blank, e.wsync_pal_blank);
          fprintf(fp, "; evidence: dynamic control exits=%d unresolved indirect JMP=%d\n",
                  a->dynamic_control_exits, a->unresolved_indirect_jumps);
       }
@@ -3073,6 +3859,28 @@ static int vector_slot(const bank_t *b, size_t off, unsigned *slot)
    return *slot < 3u;
 }
 
+static int vector_word_can_emit(const bank_t *b, size_t off, unsigned *slot)
+{
+   if (!vector_slot(b, off, slot)) return 0;
+   /* Executable vector bytes must remain independently addressable source.
+      Merely having a label on the high byte is not enough to split the word:
+      print_exact_cart_reference() can spell that case as low_label + 1. */
+   if (b->roles[off] & ROLE_CODE_START) return 0;
+   if (b->roles[off + 1u] & ROLE_CODE_START) return 0;
+   return 1;
+}
+
+static void emit_split_vector_comment(FILE *fp, const analysis_t *a,
+                                      size_t bi, size_t off, unsigned slot)
+{
+   static const char *const names[3] = { "NMI", "RESET", "IRQ/BRK" };
+   const bank_t *b = &a->banks[bi];
+   uint16_t value = read_word(a->rom + b->file_offset + off);
+   fprintf(fp,
+           "    ; %s vector = $%04X; vector bytes also participate in executable code\n",
+           names[slot], value);
+}
+
 static void emit_vector(FILE *fp, const analysis_t *a, size_t bi, size_t off)
 {
    static const char *const names[3] = { "NMI", "RESET", "IRQ/BRK" };
@@ -3091,6 +3899,24 @@ static void emit_vector(FILE *fp, const analysis_t *a, size_t bi, size_t off)
    fprintf(fp, "    ; %s vector\n", names[slot]);
 }
 
+static void emit_physical_raw_range(FILE *fp, const analysis_t *a,
+                                    size_t first, size_t last)
+{
+   size_t off = first;
+   while (off < last) {
+      size_t end = off + 8u;
+      size_t i;
+      if (end > last) end = last;
+      fputs("    .byte ", fp);
+      for (i = off; i < end; ++i) {
+         if (i != off) fputs(", ", fp);
+         fprintf(fp, "$%02X", a->rom[i]);
+      }
+      fputc('\n', fp);
+      off = end;
+   }
+}
+
 static int emit_source(FILE *fp, const analysis_t *a, const char *input,
                        const char sha[65])
 {
@@ -3099,20 +3925,8 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
    if (analysis_uses_hardware_symbols(a))
       emit_hardware_equates(fp);
    if (a->mapper == MAP_RAW) {
-      size_t off = 0;
       fprintf(fp, ".org $0000\n");
-      while (off < a->rom_size) {
-         size_t end = off + 8u;
-         size_t i;
-         if (end > a->rom_size) end = a->rom_size;
-         fprintf(fp, "    .byte ");
-         for (i = off; i < end; ++i) {
-            if (i != off) fputs(", ", fp);
-            fprintf(fp, "$%02X", a->rom[i]);
-         }
-         fputc('\n', fp);
-         off = end;
-      }
+      emit_physical_raw_range(fp, a, 0u, a->rom_size);
       return ferror(fp) == 0;
    }
 
@@ -3123,17 +3937,21 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
       fprintf(fp, ".org $%04zX\n", b->file_offset);
       fprintf(fp, ".rorg $%04X\n", b->origin);
       while (off < b->size) {
+         if (b->spec_seed[off])
+            fputs("    ; speculative instruction island validated by HLT/JAM/KIL rejection\n", fp);
          if (b->roles[off] & ROLE_LABEL) {
             print_label_name(fp, a, bi, off);
             fputs(":\n", fp);
          }
          {
             unsigned vslot;
-            if (vector_slot(b, off, &vslot)) {
+            if (vector_word_can_emit(b, off, &vslot)) {
                emit_vector(fp, a, bi, off);
                off += 2u;
                continue;
             }
+            if (vector_slot(b, off, &vslot))
+               emit_split_vector_comment(fp, a, bi, off, vslot);
          }
          if (instruction_can_emit(b, off)) {
             unsigned len = b->inst_len[off];
@@ -3154,7 +3972,26 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
       }
       fprintf(fp, ".rend\n\n");
    }
+   if (a->mapper == MAP_DPC) {
+      fputs("; ---- DPC auxiliary 2K display/data ROM ----\n", fp);
+      fputs(".org $2000\n", fp);
+      emit_physical_raw_range(fp, a, 8192u, a->rom_size < 10240u ? a->rom_size : 10240u);
+      if (a->rom_size > 10240u) {
+         fputs("\n; ---- DPC random-number table ----\n", fp);
+         fprintf(fp, ".org $2800\n");
+         emit_physical_raw_range(fp, a, 10240u, a->rom_size);
+      }
+   }
    return ferror(fp) == 0;
+}
+
+static size_t decoded_instruction_count(const analysis_t *a)
+{
+   size_t bi, off, count = 0u;
+   for (bi = 0; bi < a->bank_count; ++bi)
+      for (off = 0; off < a->banks[bi].size; ++off)
+         if (a->banks[bi].roles[off] & ROLE_CODE_START) ++count;
+   return count;
 }
 
 int main(int argc, char **argv)
@@ -3188,6 +4025,13 @@ int main(int argc, char **argv)
    apply_superchip_window_semantics(&analysis);
    promote_interior_reference_labels(&analysis);
    detect_graphics_data(&analysis);
+   if (decoded_instruction_count(&analysis) == 0u) {
+      fprintf(stderr, "%s: no instructions found; refusing 100%%-data disassembly\n",
+              opt.input);
+      free_analysis(&analysis);
+      free(rom);
+      return 1;
+   }
    sha256_hex(rom, rom_size, sha);
 
    if (!opt.output) {

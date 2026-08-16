@@ -47,3 +47,23 @@ IRQ=$FFFF becoming unresolved L_FFFF; it now round-trips exactly. Added a
 synthetic self-interior-vector regression instead of retaining the cartridge.
 Validation: 37 semantic fixtures, all 256 opcode bytes, 12 fuzz ROMs, and
 Bridge.bin exact MD5 round-trip.
+
+2026-08-16 15:11:36 PDT, Split executable vector bytes
+Stellar Track executes its NMI vector bytes as LSR A / RTS and JSRs the high
+byte at $FFFB. vcsc-disas now lets executable vector bytes override the normal
+.word container so interior code entries receive real labels; non-executable
+vector interiors still use container-relative label + offset spelling.
+Validation: Stellar Track exact MD5 round-trip; 38 semantic fixtures, all 256
+opcode bytes, and 12 fuzz ROMs pass.
+
+2026-08-16 15:30:12 PDT, Improve disassembler video inference
+Use arbitrary known TIM64T values, timer-helper call-site arguments, broader
+counted-WSYNC loops, and tokenized filename hints. Bridge now infers NTSC at
+medium confidence and Stellar Track at high confidence while both remain exact
+round trips. Expanded semantic coverage to 43 fixtures.
+
+2026-08-16 15:53:05 PDT, speculative island detection
+Implemented bounded per-address speculative flow validation with HLT/JAM/KIL rejection, C/Z/N/V-aware branch pruning, three-rejected-start sequential barriers, conservative island promotion, and exact raw fallback for NMOS JMP ($xxFF). Added semantic regressions for safe/rejected/dead-halt islands, established JAM, barrier crossings, and overlapping established entries.
+Promotion also reuses stego-style credibility checks; deterministic 8K/16K/32K random fuzz now records negative barriers but promotes zero speculative islands.
+2026-08-16 16:13:26 PDT, DPC disassembly and zero-code failure
+vcsc-disas now recognizes 10240/10495-byte DPC layouts, analyzes the first 8K as two F8-style program banks, preserves the trailing DPC auxiliary data, and fails without output when analysis finds zero instructions. Pitfall2.bin round-trips byte-identically.

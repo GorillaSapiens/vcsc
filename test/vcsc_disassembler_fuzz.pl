@@ -15,16 +15,17 @@ my $in = File::Spec->catdir($tmp, 'in');
 my $out = File::Spec->catdir($tmp, 'out');
 make_path($in);
 
-# Deterministic arbitrary bytes exercise both supported-size analysis and raw
-# fallback without relying on Perl's implementation-specific rand() sequence.
+# Deterministic arbitrary bytes exercise supported mapper sizes without relying
+# on Perl's implementation-specific rand() sequence. Unsupported/raw sizes are
+# tested separately below and must now fail rather than masquerade as a 100%-data
+# successful disassembly.
 my $state = 0x260816;
 sub next_byte {
    $state = (1103515245 * $state + 12345) & 0x7fffffff;
    return ($state >> 11) & 0xff;
 }
 
-my @sizes = (1, 17, 257, 655, 2048, 4096, 4097, 5000,
-             8192, 8191, 16384, 32768);
+my @sizes = (2048, 4096, 8192, 16384, 32768);
 for my $i (0 .. $#sizes) {
    my $size = $sizes[$i];
    my $name = sprintf('fuzz_%02d_%d.bin', $i, $size);
@@ -49,6 +50,20 @@ for my $i (0 .. $#sizes) {
       if !-f File::Spec->catfile($out, "$stem.s26");
    die "missing rebuilt ROM for $stem\n"
       if !-f File::Spec->catfile($out, "$stem.bin");
+}
+
+my @unsupported = (1, 17, 257, 655, 4097, 5000, 8191);
+my $disas = File::Spec->catfile($root, 'disassembler', 'vcsc-disas');
+for my $size (@unsupported) {
+   my $path = File::Spec->catfile($tmp, "unsupported_$size.bin");
+   open(my $fh, '>:raw', $path) or die "open $path: $!\n";
+   print {$fh} chr(0x02) x $size or die "write $path: $!\n";
+   close($fh) or die "close $path: $!\n";
+   my $s26 = File::Spec->catfile($tmp, "unsupported_$size.s26");
+   unlink($s26);
+   system {$disas} $disas, '-o', $s26, $path;
+   die "unsupported $size-byte image unexpectedly succeeded\n" if $? == 0;
+   die "unsupported $size-byte image left output source\n" if -e $s26;
 }
 
 print "vcsc-disassembler deterministic fuzz ok\n";

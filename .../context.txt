@@ -1181,24 +1181,45 @@ Disassembler side project (2026-08-16):
 `.../disassembler.txt` is the focused context/roadmap.  The new
 `disassembler/vcsc-disas` now has an exact-round-trip first implementation with
 all-opcode decode/emission, mandatory branch `.same`/`.cross`, unbanked and
-F8/F6/F4(+Superchip) bank-aware analysis, per-bank origin inference, overlapping
+F8/F6/F4(+Superchip) and DPC bank-aware analysis, per-bank origin inference, overlapping
 instruction streams, code-as-data and unreferenced-byte roles, TIA/RIOT symbols
 with exact mirror comments, conservative graphics rows, static video/controller
-inference, explicit analysis overrides, and raw fallback. Generated assembly
+inference and explicit analysis overrides. A run with zero decoded instructions is
+a hard error; raw `.byte` fallback is used only for uncertain regions inside an
+otherwise successful disassembly. Video inference now
+accumulates arbitrary statically-known TIM64T values, parameterized timer-helper
+arguments recovered at JSR call sites, broad counted-WSYNC loop lengths, and
+bounded filename region-token hints rather than relying mainly on four scheduler
+constants. Generated assembly
 omits redundant `.z`/`.zx`/`.zy` suffixes for ordinary named instructions while
 retaining `.a`/`.ax`/`.ay` whenever a low absolute operand would otherwise relax;
 ambiguous raw `opXX` forms keep their required explicit suffixes. References into
 interior bytes of emitted instructions or vector `.word` containers use the
 container label plus an exact offset, so targets such as an IRQ vector value of
-`$FFFF` never create an unplaceable `L_FFFF` label. The standalone
+`$FFFF` never create an unplaceable `L_FFFF` label. If vector-table bytes are
+themselves established executable code, the vector `.word` yields to instruction
+emission so entries inside the vector table remain labelable; Stellar Track's
+NMI bytes at `$FFFA/$FFFB` exercise this case. The standalone
 `disassembler/roundtrip.pl INPUT_DIR OUTPUT_DIR` drives vcsc-disas and vcsc-as,
 retains .s26/rebuilt .bin files, prints MD5 values, and requires exact byte
 identity.  The focused roadmap records remaining analysis-breadth/hardening work;
 this side project does not change main-roadmap ordering, where Item 39 remains
 first unfinished.  Current validation is 499/499 compile tests; the three
-vcsc-disas E2E regressions pass, 37 semantic fixtures, all 256 opcode bytes and
+vcsc-disas E2E regressions pass, 50 semantic fixtures, all 256 opcode bytes and
 deterministic fuzz round-trip exactly, and a 16-ROM real VCSC corpus (2K/4K, controllers, score,
 PAL/SECAM, F8/F6/F4, and F8SC/F6SC/F4SC) round-trips byte-for-byte.  Native
 staged vcsc-disas install/uninstall also passes.  The E2E inventory is now 308
 cases; one unrelated legacy renderer case can exceed its explicit 12-second
-harness limit in this container but passes when run directly.
+harness limit in this container but passes when run directly.  Commercial
+Bridge, Stellar Track, and the standard 10495-byte Pitfall II DPC ROM also
+round-trip exactly; DPC is inferred from its distinctive size/layout and its first
+8K is analyzed as two F8-style program banks while the trailing DPC data/RNG bytes
+remain explicit auxiliary data. Stella 7.0 identifies Bridge and Stellar Track
+as NTSC, and the broadened static detector now reports Bridge as NTSC/medium and
+Stellar Track as NTSC/high. The speculative island pass tests every unknown start
+with a bounded recursive flow walk, rejects any possible newly speculative
+HLT/JAM/KIL path, uses known C/Z/N/V flags to prune impossible branch arms, and
+promotes only nontrivial safe candidates immediately after three-rejected-start
+barriers. Established code and overlaps remain authoritative. Real `JMP ($xxFF)`
+instructions are emitted raw because vcsc-as intentionally rejects that hazardous
+NMOS indirect-JMP spelling.

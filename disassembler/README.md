@@ -48,8 +48,8 @@ generated source:
     game.bin
 ```
 
-Supported mapper overrides are `raw`, `2k`, `4k`, `f8`, `f8sc`, `f6`,
-`f6sc`, `f4`, and `f4sc`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
+Supported mapper overrides are `2k`, `4k`, `f8`, `f8sc`, `f6`, `f6sc`,
+`f4`, `f4sc`, and `dpc`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
 `--code BANK:START-END`, and `--data BANK:START-END` are repeatable. The bank
 may be omitted for a one-bank cartridge. Numbers accept decimal, `0x` hex, or
 `$` hex; quote `$` forms in a shell so the shell does not treat them as variable
@@ -77,9 +77,17 @@ position from runtime 6507 addresses:
 .rend
 ```
 
-The disassembler currently recognizes unbanked 2K/4K and the F8/F6/F4 family,
-with Superchip evidence reported as F8SC/F6SC/F4SC. Unsupported or odd-sized
-images fall back to an exact raw `.byte` representation.
+The disassembler currently recognizes unbanked 2K/4K, the F8/F6/F4 family
+(with Superchip evidence reported as F8SC/F6SC/F4SC), and DPC. Standard DPC
+images are recognized by their distinctive 10240- or 10495-byte layout: two
+4K F8-style program banks followed by 2K of DPC data ROM, with the 10495-byte
+form carrying an additional 255-byte RNG table.
+
+A run that discovers zero instructions is an error. `vcsc-disas` does not call a
+100%-`.byte` dump a successful disassembly; unsupported/raw layouts therefore
+fail unless future mapper support or explicit analysis can establish executable
+code. Raw `.byte` emission remains the exactness fallback for uncertain regions
+inside an otherwise successful disassembly.
 
 The generated header records the input size and SHA-256, mapper evidence,
 physical banks, inferred bank origins and reset bank, video/controller evidence,
@@ -146,8 +154,23 @@ alternate:
 
 This is a general overlapping-stream rule, not a special `$2C` decoder hack.
 
-Unreferenced regions remain exact data and are annotated rather than being
-force-decoded simply because random bytes happen to form legal 6502 opcodes.
+Unreferenced regions normally remain exact data rather than being force-decoded
+simply because random bytes happen to form legal 6502 opcodes. A conservative
+second pass tests unknown instruction starts as speculative islands: if any
+statically possible path reaches a newly speculative HLT/JAM/KIL, that start is
+rejected. Three consecutive rejected starts form a sequential-flow barrier.
+When all three failures reach JAM/KIL through straight-line fallthrough, the
+furthest halt also gives a conservative end for that non-code span. A candidate
+after that span is promoted only if it also passes `stego`-style credibility
+checks (coherent multi-instruction flow, mostly official opcodes, no conflicts
+with established code/data, and a credible terminal/join). Established
+vectors/JMPs/JSRs and intentional reachable JAM/KIL always override this negative
+evidence.
+
+Known C/Z/N/V flag state is used to prune impossible branch arms before deciding
+that a halt is reachable. Speculative walks are bounded; a candidate that exceeds
+the analysis budget stays inconclusive/raw rather than being guessed. The generated
+header reports rejected-start, barrier, and promoted-island counts.
 
 ## Sprite/font rows
 
@@ -209,8 +232,8 @@ The opcode table is generated from `assembler/default.cfg` by
 `gen_opcode_table.pl`; do not create a second hand-maintained 6502 opcode table.
 The analyzer stores byte roles independently, so executable bytes, operands,
 data reads, possible dynamic reads, overlaps, vectors, and graphics provenance
-may coexist. Abstract state tracks useful A/X/Y, carry/decimal, and zero-page
-pointer facts and loses knowledge conservatively at joins.
+may coexist. Abstract state tracks useful A/X/Y, C/Z/N/V/D condition facts, and
+zero-page pointer values and loses knowledge conservatively at joins.
 
 Mapper state is part of control flow. Origin inference uses vectors plus candidate
 `JMP`/`JSR` evidence before final reachability. New mapper recognizers should be
@@ -226,10 +249,11 @@ original bytes.
 
 ## Current limits
 
-Mapper support beyond unbanked/F8/F6/F4/Superchip is deliberately conservative.
-3F, 3E, E0, E7, FE, UA, 0840, DPC, DPC+, CDF and coprocessor cartridges need
-separate mapper models rather than being mislabeled as F8-family cartridges.
-The exact raw fallback remains available for unsupported sizes/layouts.
+Mapper support beyond unbanked/F8/F6/F4/Superchip/DPC is deliberately conservative.
+3F, 3E, E0, E7, FE, UA, 0840, DPC+, CDF and coprocessor cartridges need
+separate mapper models rather than being mislabeled as supported families.
+Unsupported layouts that yield no executable instructions fail explicitly rather
+than producing a misleading 100%-data source file.
 
 Static code/data analysis is necessarily incomplete for self-modifying code,
 dynamically constructed RAM code, unresolved indirect tables, and similarly
@@ -238,3 +262,5 @@ they must never weaken the byte-round-trip invariant.
 
 The detailed implementation roadmap and analysis contracts live in
 `../.../disassembler.txt`.
+
+Video inference uses known RIOT timer values, parameterized timer-helper call sites, broad counted-WSYNC kernels, and explicit NTSC/PAL/SECAM filename tokens. Timing-only 50 Hz results remain PAL-family because PAL and SECAM share the frame layout.

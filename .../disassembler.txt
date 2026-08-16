@@ -29,11 +29,13 @@ The first implementation is now usable and exact-round-trip driven. It builds
 `disassembler/vcsc-disas` and the standalone `disassembler/roundtrip.pl`. The
 implemented foundation includes all 256 opcode bytes, exact addressing-mode
 emission, mandatory branch `.same`/`.cross`, recursive bank-aware control flow,
-unbanked/F8/F6/F4 plus Superchip variants, per-bank origin inference, overlapping
+unbanked/F8/F6/F4 plus Superchip variants and DPC, per-bank origin inference, overlapping
 instruction streams, code-as-data, definite/possible/unreferenced ROM-use roles,
 canonical and mirrored TIA/RIOT symbolization, conservative sprite rows, static
 video/controller inference, manual mapper/origin/entry/code/data/video/controller
-hints, deterministic output, and raw exact fallback.
+hints, deterministic output, and exact raw-byte fallback for uncertain regions.
+A disassembly that finds zero instructions is a hard error; a 100%-data dump is
+not considered successful analysis.
 
 For Superchip cartridges, the physical low `$100` bytes of each 4K bank remain in
 the emitted image exactly but are marked as hidden by the RAM window and excluded
@@ -50,11 +52,15 @@ F8/F6/F4, and F8SC/F6SC/F4SC cartridges also round-trips exactly through the
 standalone verifier.
 
 Items still marked partial are intentionally broader than the current first
-implementation: speculative instruction-island discovery still needs the
-HLT/JAM/KIL rejection and three-rejected-start barrier pass described below;
-graphics recognition can grow beyond strong GRP/PF provenance; video inference
-now covers maintained timer signatures and conventional counted-WSYNC loops, but
-can still grow into more generic static or dynamic frame analysis; richer
+implementation. Speculative instruction-island discovery now rejects newly
+speculative paths that can reach HLT/JAM/KIL, records three-rejected-start
+sequential-flow barriers, and uses straight-line JAM endpoints plus the mature
+`stego` credibility filters before promoting a lower-confidence island; graphics
+recognition can still grow beyond strong GRP/PF provenance; video inference
+now covers maintained and arbitrary known TIM64T values, parameterized timer-helper
+call sites, broad counted-WSYNC kernels, and filename region hints, but can still
+grow into a lightweight dynamic frame probe for kernels whose scanline count is
+not statically recoverable; richer
 pointer/color/table recognition remains useful; manual known-pointer/table hints
 are not yet present; and final hardening still needs broad arbitrary-ROM
 fuzz/corpus coverage and an exercised Windows cross-build. These are improvements
@@ -73,6 +79,11 @@ For every accepted ROM there must be a mechanically testable path:
 
 The comparison includes file length and every byte. A SHA-256 comparison may be
 reported as a convenience but does not replace a `cmp`-equivalent comparison.
+
+If a real ROM contains `JMP ($xxFF)`, preserve those three bytes as raw data in
+the emitted source. `vcsc-as` intentionally rejects that mnemonic form because
+of the NMOS 6502/6507 page-wrap hazard; raw spelling is therefore required for
+exact reconstruction of cartridges that deliberately rely on the silicon bug.
 
 Inference must never break this invariant. If a mapper, origin, instruction,
 data type, label, pointer interpretation, controller type, video standard, or
@@ -108,6 +119,16 @@ at least:
 For 50 Hz software, report PAL-versus-SECAM ambiguity honestly when the ROM does
 not contain enough evidence to distinguish them. Stable 50 Hz timing by itself
 is PAL-family evidence, not proof of PAL rather than SECAM.
+
+Video inference should accumulate evidence rather than depend on a short list of
+VCSC scheduler constants. In particular, use arbitrary statically-known RIOT
+timer values, timer arguments passed through small helper subroutines, broad
+counted-WSYNC loop lengths, and explicit NTSC/PAL/SECAM filename tokens as
+secondary evidence. Timer/scanline ranges are heuristics and must retain honest
+confidence levels. Filename hints must use token boundaries and must never outrank
+contradictory strong timing evidence. A future dynamic frame probe may execute a
+small bounded model of the cartridge when static timing remains inconclusive; it
+must not become necessary for exact-byte disassembly.
 
 Output-address model
 --------------------
@@ -223,8 +244,18 @@ runtime address. Reads, writes, and read-modify-write operations must be modeled
 according to the mapper's actual hotspot semantics.
 
 Do not pretend that unrelated schemes are variants of F8/F6/F4. 3F, 3E, E0,
-E7, FE, UA, 0840, DPC, DPC+, CDF, and coprocessor cartridges need separate mapper
-models. Unsupported schemes still require a raw exact-round-trip fallback.
+E7, FE, UA, 0840, DPC+, CDF, and coprocessor cartridges need separate mapper
+models. DPC has its own explicit model: its distinctive 10240/10495-byte layout
+contains two 4K F8-style executable banks followed by 2K of DPC data ROM and, in
+the standard 10495-byte dump, a 255-byte RNG table. File size is decisive evidence
+for this historical format.
+
+A successful disassembly must identify at least one executable instruction. If
+analysis finds zero instructions, emit an error and do not create an `.s26` file.
+Do not claim that an unsupported mapper was successfully disassembled merely
+because its bytes can be reproduced as `.byte` directives. Raw-byte emission is
+still the exactness fallback for uncertain regions of a supported, nonempty code
+analysis.
 
 Analysis model: byte roles are non-exclusive
 --------------------------------------------
@@ -305,8 +336,10 @@ that byte. At minimum:
     newly speculative HLT/JAM/KIL
                                -> reject the candidate flow
 
-Abstract-state facts matter. If one arm of a conditional branch is provably
-unreachable, a HLT/JAM/KIL on that impossible arm does not reject the candidate.
+Abstract-state facts matter. The shared analyzer tracks A/X/Y plus C/Z/N/V/D
+where they are statically known, so every conditional branch can prune an arm
+when its controlling flag is proved. If one arm is provably unreachable, a
+HLT/JAM/KIL on that impossible arm does not reject the candidate.
 If both outcomes remain possible, every possible executable arm must be safe; a
 possible path into HLT/JAM/KIL rejects that speculative candidate.
 
@@ -323,11 +356,24 @@ no ordinary fallthrough instruction stream can cross that barrier. Explicit
 control transfers may still jump over the barrier or enter code on either side,
 so a barrier does not by itself prove that all later bytes are data.
 
-Use these barriers to strengthen second-pass island and unused-ROM analysis. In
-a speculative region with no independent entry into its interior, if candidate
-decodes downstream of a three-start barrier run into HLT/JAM/KIL, the barrier
-can help reject the intervening linear interpretation as code. Never let this
-heuristic override a definite control-flow or definite code-as-data observation.
+Use these barriers to strengthen second-pass island and unused-ROM analysis.
+The implementation bounds one speculative candidate walk to 512 instruction
+visits so adversarial/random legal-opcode padding cannot make corpus analysis
+quadratic; hitting that budget is inconclusive and never causes promotion or
+rejection. Every three consecutive rejected starts are a sequential-flow barrier.
+For the stronger claim that an entire interval through a JAM/KIL endpoint is
+non-code, require all three rejected starts to reach their halt through pure
+straight-line fallthrough (a proved not-taken branch may remain on that line).
+Only that stronger barrier span supplies an automatic island boundary.
+
+A candidate after such a span is still not code merely because it avoids JAM.
+Adapt `stego`'s second-pass credibility checks: reject conflicts with established
+code/data roles, require a coherent multi-instruction trace with a credible
+terminal or join, require at least 80% official NMOS 6502 instructions with very
+few unofficial opcodes, and treat an unresolved indirect JMP as weak rather than
+a sufficient terminal. Prefer inbound branch/JMP/JSR references or meaningful
+internal control flow; random legal-opcode runs must remain raw. Never let this
+heuristic override definite control flow, overlaps, or definite code-as-data.
 
 Overlapping instruction streams
 -------------------------------
@@ -550,6 +596,15 @@ For example, an IRQ vector containing `$FFFF` in a 4K `$F000` cartridge may be
 emitted as `L_FFFE: .word L_FFFE + 1`; never emit an unresolved `L_FFFF` merely
 because analysis marked `$FFFF` as a target.
 
+Vector-table bytes are not inherently data-only. Commercial cartridges can
+deliberately execute bytes at `$xFFA-$xFFF`, including entering at the high byte
+of a vector word. If either byte of a candidate vector `.word` is established as
+an executable instruction start, the `.word` container must yield to the normal
+overlapping-code emitter so every executable entry can own a real source label.
+Preserve the vector meaning in a comment, but emit the executable bytes/instructions
+as the primary physical representation. Only use the container-relative
+`label + offset` form when the vector remains an indivisible emitted `.word`.
+
 Do not reinterpret arbitrary tables just because a higher-level type would be
 possible. Conservative `.byte` output is always acceptable and safer than a
 wrong semantic guess.
@@ -671,16 +726,19 @@ Contradictory hints must produce diagnostics rather than silently corrupting the
 analysis. Forced code/data roles still do not have to be exclusive: an advanced
 hint should be able to say that a range is executable and also read as data.
 
-Unknown/unsupported mapper fallback
+Unknown/unsupported mapper handling
 -----------------------------------
-Unsupported hardware must not make byte reconstruction impossible. If the
-mapper is unknown, emit a conservative raw layout that reassembles to the same
-file and comment that runtime address/control-flow inference is incomplete.
+Do not report a 100%-raw file as a successful disassembly. If the mapper is
+unknown and no executable instructions can be established, fail with a clear
+`no instructions found` diagnostic and do not create `.s26` output. This keeps
+`roundtrip.pl` honest: byte reproduction alone is not proof that disassembly
+succeeded.
 
-Do not fake bank origins or branch targets that depend on unsupported mapping.
-However, any branch that is actually decoded as an instruction still receives
-its mandatory `.same`/`.cross` annotation; that property depends on the relative
-instruction bytes, not on guessing a non-page-aligned origin.
+Within a supported mapper, or once executable code has otherwise been established,
+uncertain physical regions may still be emitted conservatively as raw `.byte`
+data to preserve exact reconstruction. Do not fake bank origins or branch targets
+that depend on unsupported mapping. Any branch actually decoded as an instruction
+still receives its mandatory `.same`/`.cross` annotation.
 
 Command-line conventions
 ------------------------
@@ -799,8 +857,10 @@ Roadmap
    * Produce deterministic control-flow labels.
    * Validate with synthetic ROMs whose origins are not VCSC defaults.
 
-3. [x] Infer and model F8/F6/F4 bankswitching
+3. [x] Infer and model F8/F6/F4/DPC bankswitching
    * Detect unbanked/F8/F6/F4 from size plus hotspot/control-flow evidence.
+   * Detect DPC from its distinctive 10240/10495-byte layout; analyze the first
+     8K as two F8-style program banks and preserve the trailing DPC data/RNG bytes.
    * Track mapper state in the control-flow graph.
    * Infer the reset bank separately from mapper type.
    * Infer every physical bank's logical origin, including origins constrained by
@@ -835,14 +895,15 @@ Roadmap
    * Add at least one non-BIT overlapping-stream fixture so support is general,
      not an opcode-specific hack.
 
-7. [~] Strengthen ROM-read, speculative-island, and unreferenced-byte analysis
+7. [x] Strengthen ROM-read, speculative-island, and unreferenced-byte analysis
    * Track direct absolute ROM reads and bounded indexed ranges as definite data
      references.
    * Extend `stego` abstract-state ideas for zero-page/indirect pointers and
      table-driven accesses.
    * Mark unresolved dynamic ranges as possibly referenced rather than unused.
    * Identify bytes proven neither fetched nor read as unreferenced ROM.
-   * Emit unreferenced regions as data, never speculative instructions.
+   * Emit unreferenced regions as data unless the lower-confidence island pass
+     positively promotes a candidate under the HLT/JAM/KIL/barrier rules.
    * For each otherwise unknown address in every mapped 4K bank/window, test it
      as a speculative instruction-island entry and recursively validate all
      statically reachable successors.
@@ -915,6 +976,11 @@ Roadmap
     * Emit `.word` labels only when exact original 16-bit values are preserved.
     * Represent references into instruction operands or vector-word interiors as
       `container_label + offset`; never emit an unplaceable interior label.
+    * If vector-table bytes are executable, split the vector `.word` representation
+      and emit the executable spelling/labels instead; retain a comment recording
+      the vector value. Regression coverage must include an entry at a vector high
+      byte (for example an RTS at `$FFFB`) as well as the non-executable `$FFFF`
+      container-relative case.
     * Annotate code-as-data, overlap, unreferenced runs, dynamic-code exits, and
       important inference ambiguity without overwhelming normal source.
     * Add a verbose evidence/report mode separate from normal `.s26` output.

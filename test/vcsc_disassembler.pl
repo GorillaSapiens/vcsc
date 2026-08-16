@@ -82,6 +82,18 @@ write_bin(File::Spec->catfile($in, 'plain4k.bin'), make_rom(4096, 0xF000, 0x0100
 my $vector_interior = make_rom(4096, 0xF000, 0x0100, "\xA9\x42\x60");
 put16(\$vector_interior, 0xFFE, 0xFFFF);
 write_bin(File::Spec->catfile($in, 'vector_interior.bin'), $vector_interior);
+
+# Vector-table bytes can themselves be executable code.  This is not merely a
+# theoretical overlap: commercial cartridges use vector bytes as tiny helpers.
+# The NMI value below is $604A, but the physical bytes are also LSR A / RTS and
+# both addresses are called explicitly.  The source emitter must split the
+# vector container so L_FFFA and L_FFFB can be real instruction labels.
+my $vector_exec = make_rom(4096, 0xF000, 0x0100,
+   "\x20\xFA\xFF\x20\xFB\xFF\x60");
+substr($vector_exec, 0xFFA, 2, "\x4A\x60");
+put16(\$vector_exec, 0xFFC, 0xF000);
+put16(\$vector_exec, 0xFFE, 0xF000);
+write_bin(File::Spec->catfile($in, 'vector_exec.bin'), $vector_exec);
 write_bin(File::Spec->catfile($in, 'origin_d000.bin'), make_rom(4096, 0xD000, 0x0234, "\xA9\x17\x60"));
 write_bin(File::Spec->catfile($in, 'f8.bin'), make_rom(8192, 0xF000, 0x0100, "\xAD\xF8\x1F\x60"));
 # A plain F8 ROM may legitimately read ordinary ROM in $F080-$F0FF.
@@ -91,20 +103,32 @@ write_bin(File::Spec->catfile($in, 'f8_sc_read_only.bin'),
 write_bin(File::Spec->catfile($in, 'f6.bin'), make_rom(16384, 0xF000, 0x0100, "\xAD\xF6\x1F\x60"));
 write_bin(File::Spec->catfile($in, 'f4.bin'), make_rom(32768, 0xF000, 0x0100, "\xAD\xF4\x1F\x60"));
 
-# Bank origins can be inferred from absolute JMP evidence even when vectors are
-# deliberately unusable.  Each physical F8 bank carries a different origin.
+# A bank origin can be inferred from absolute JMP evidence even when that bank
+# has unusable vectors.  Bank 1 keeps one real RESET path so the cartridge still
+# contains established executable code under the zero-instruction success rule.
 my $jmp_origins = chr(0xEA) x 8192;
 substr($jmp_origins, 0x0100, 3, pack('C v', 0x4C, 0xD234));
 substr($jmp_origins, 0x1000 + 0x0100, 3, pack('C v', 0x4C, 0xF456));
-for my $base (0, 0x1000) {
-   put16(\$jmp_origins, $base + 0xFFA, 0x0000);
-   put16(\$jmp_origins, $base + 0xFFC, 0x0000);
-   put16(\$jmp_origins, $base + 0xFFE, 0x0000);
+for my $v (0, 2, 4) {
+   put16(\$jmp_origins, 0x0FFA + $v, 0x0000);
+   put16(\$jmp_origins, 0x1FFA + $v, 0xF100);
 }
 write_bin(File::Spec->catfile($in, 'jmp_origin_f8.bin'), $jmp_origins);
 
-# Unsupported size must still round-trip as raw bytes.
-write_bin(File::Spec->catfile($in, 'odd size.bin'), join('', map { chr(($_ * 37 + 11) & 255) } 0 .. 2999));
+# DPC is uniquely recognizable by its 10K/10495-byte physical layout.  The
+# first 8K are two F8-style 4K program banks; the following 2K are DPC data
+# ROM and the standard dump carries a final 255-byte RNG table.
+my $dpc = chr(0xEA) x 10495;
+substr($dpc, 0x0880, 7, "\xAD\x00\x10\xAD\xF9\x1F\x60");
+substr($dpc, 0x1000 + 0x0880, 7, "\xAD\x01\x10\xAD\xF8\x1F\x60");
+for my $v (0, 2, 4) {
+   put16(\$dpc, 0x0FFA + $v, 0xD880);
+   put16(\$dpc, 0x1FFA + $v, 0xF880);
+}
+for my $i (0x2000 .. 0x28FE) {
+   substr($dpc, $i, 1, chr(($i * 29 + 7) & 255));
+}
+write_bin(File::Spec->catfile($in, 'dpc.bin'), $dpc);
 
 # All eight conditional branches, each in both same-page and cross-page cases.
 my @branch_ops = (0x10, 0x30, 0x50, 0x70, 0x90, 0xB0, 0xD0, 0xF0);
@@ -216,6 +240,62 @@ my $mode_relax = make_rom(4096, 0xF000, 0x0100,
    "\x60");
 write_bin(File::Spec->catfile($in, 'mode_relaxation.bin'), $mode_relax);
 
+# Speculative island discovery: three consecutive candidate starts that decode
+# directly as CPU-locking opcodes form a sequential-flow barrier.  The first
+# nontrivial safe routine immediately after that barrier should be promoted as
+# lower-confidence unreachable code even though normal vectors never reference it.
+my $island = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($island, 0x0200, 12,
+   "\x02\x12\x22" .
+   "\xA9\x42\xAA\xA8\xE8\xCA\xC8\x88\x60");
+write_bin(File::Spec->catfile($in, 'speculative_island.bin'), $island);
+
+# A speculative candidate must be rejected when a statically possible path
+# reaches JAM/KIL.  CLC makes the BCC-to-KIL path definitely taken.
+my $island_jam = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($island_jam, 0x0200, 16,
+   "\x02\x12\x22" .             # barrier
+   "\x18\x90\x03\xA9\x01\x60\x02" . # CLC/BCC -> KIL
+   ("\x02" x 6));
+write_bin(File::Spec->catfile($in, 'speculative_jam_reject.bin'), $island_jam);
+
+# Conversely, abstract flag state may prove the JAM arm impossible.  SEC makes
+# BCC not taken, so this otherwise identical candidate is a valid island.
+my $island_dead_jam = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($island_dead_jam, 0x0200, 10,
+   "\x02\x12\x22" .             # barrier
+   "\x38\x90\x03\xA9\x01\x60\x02"); # SEC/BCC(dead KIL)
+write_bin(File::Spec->catfile($in, 'speculative_dead_jam.bin'), $island_dead_jam);
+
+# N/Z abstract state also prunes impossible halt arms.  LDA #0 makes BNE false.
+my $island_dead_zero_jam = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($island_dead_zero_jam, 0x0200, 11,
+   "\x02\x12\x22" .
+   "\xA9\x00\xD0\x03\xA2\x07\x60\x02");
+write_bin(File::Spec->catfile($in, 'speculative_dead_zero_jam.bin'), $island_dead_zero_jam);
+
+# A real control-flow target on the far side of a rejected-start barrier remains
+# authoritative; the barrier only blocks ordinary speculative fallthrough.
+my $barrier_jump = make_rom(4096, 0xF000, 0x0100,
+   "\x20\x05\xF2\x60");
+substr($barrier_jump, 0x0200, 8, "\x02\x12\x22\x02\x02\xA9\x33\x60");
+write_bin(File::Spec->catfile($in, 'barrier_explicit_entry.bin'), $barrier_jump);
+
+# An established entry may begin inside a speculative interpretation that is
+# rejected.  At F203 the bytes decode as LDA #$4C / KIL; a real JSR enters F204
+# instead, where the same bytes decode as JMP $F002.  Negative evidence for the
+# outer start must never erase the independently established overlapping entry.
+my $barrier_overlap = make_rom(4096, 0xF000, 0x0100,
+   "\x20\x04\xF2\x60");
+substr($barrier_overlap, 0x0002, 1, "\x60");
+substr($barrier_overlap, 0x0200, 7, "\x02\x12\x22\xA9\x4C\x02\xF0");
+write_bin(File::Spec->catfile($in, 'barrier_overlap_entry.bin'), $barrier_overlap);
+
+# A JAM/KIL reached through established vector/control flow is intentional code,
+# not speculative negative evidence, and must remain decoded as an instruction.
+my $reachable_jam = make_rom(4096, 0xF000, 0x0100, "\x02");
+write_bin(File::Spec->catfile($in, 'reachable_jam.bin'), $reachable_jam);
+
 # F8SC evidence: F8 selector plus SC write/read windows.
 my $sc = make_rom(8192, 0xF000, 0x0100,
    "\x8D\x00\xF0" .       # write SC RAM
@@ -254,6 +334,40 @@ my $scan_pal = make_rom(4096, 0xF000, 0x0100,
    counted_wsync_phase(3) . counted_wsync_phase(45) .
    counted_wsync_phase(228) . counted_wsync_phase(36) . "\x60");
 write_bin(File::Spec->catfile($in, 'video_scanline_pal.bin'), $scan_pal);
+
+# Broader commercial-style timing evidence.  Bridge-like code uses timer values
+# close to, but not identical to, VCSC's maintained 42/34 pair.
+my $ntsc_general = make_rom(4096, 0xF000, 0x0100,
+   "\xA9\x2A\x8D\x96\x02" .  # TIM64T := 42
+   "\xA9\x23\x8D\x96\x02\x60"); # TIM64T := 35
+write_bin(File::Spec->catfile($in, 'video_ntsc_general.bin'), $ntsc_general);
+
+# Stellar-Track-style helper: callers pass distinct timer values in Y.  The
+# helper entry itself has a joined/unknown Y state, so inference must retain
+# call-site alternatives rather than requiring a single value at the store.
+my $param_timer = make_rom(4096, 0xF000, 0x0100,
+   "\xA0\xE4\x20\x00\xF2" .  # 228 TIM64T ticks == 192 scanlines
+   "\xA0\x23\x20\x00\xF2" .  # 35
+   "\xA0\x30\x20\x00\xF2\x60"); # 48
+substr($param_timer, 0x0200, 11,
+   "\xAD\x84\x02\xD0\xFB\x84\x02\x8C\x96\x02\x60");
+write_bin(File::Spec->catfile($in, 'video_param_timer_ntsc.bin'), $param_timer);
+
+# Counted kernels need not use exactly 192/228 lines.  Broad visible-plus-blank
+# evidence should still distinguish conventional 60 Hz and 50 Hz layouts.
+my $scan_ntsc_general = make_rom(4096, 0xF000, 0x0100,
+   counted_wsync_phase(190) . counted_wsync_phase(35) . "\x60");
+write_bin(File::Spec->catfile($in, 'video_scanline_ntsc_general.bin'),
+   $scan_ntsc_general);
+my $scan_pal_general = make_rom(4096, 0xF000, 0x0100,
+   counted_wsync_phase(230) . counted_wsync_phase(48) . "\x60");
+write_bin(File::Spec->catfile($in, 'video_scanline_pal_general.bin'),
+   $scan_pal_general);
+
+# Filename region tags are useful secondary evidence when timing analysis is
+# inconclusive.  Token boundaries prevent titles containing "pal" from matching.
+write_bin(File::Spec->catfile($in, 'mystery (PAL).bin'),
+   make_rom(4096, 0xF000, 0x0100, "\x60"));
 
 # Controller-pattern fixtures use the same hardware idioms as the VCSC
 # libraries, but do not depend on high-level compiler output.
@@ -318,12 +432,60 @@ write_bin(File::Spec->catfile($in, 'controller_mixed.bin'), $mixed);
 
 run_ok($^X, $roundtrip, $in, $out);
 
+# A zero-instruction result is not a successful disassembly.  Keep this out of
+# the bulk round-trip directory because failure is the expected outcome.
+my $all_kil = File::Spec->catfile($tmp, 'all_kil.bin');
+write_bin($all_kil, "\x02" x 4096);
+my $all_kil_out = File::Spec->catfile($tmp, 'all_kil.s26');
+unlink($all_kil_out);
+my $kil_log = File::Spec->catfile($tmp, 'all_kil.log');
+my $kil_cmd = qq{"$disas" -o "$all_kil_out" "$all_kil" >"$kil_log" 2>&1};
+my $kil_rc = system($kil_cmd);
+die "all-KIL cartridge unexpectedly disassembled successfully\n" if $kil_rc == 0;
+die "zero-instruction failure left an output file\n" if -e $all_kil_out;
+my $kil_text = slurp($kil_log);
+require_re($kil_text, qr/no instructions found/i, 'zero-instruction hard error');
+
+# Unsupported/raw layouts likewise cannot claim a successful disassembly when
+# no instruction map exists.
+my $odd_raw = File::Spec->catfile($tmp, 'odd-size.bin');
+write_bin($odd_raw, join('', map { chr(($_ * 37 + 11) & 255) } 0 .. 2999));
+my $odd_out = File::Spec->catfile($tmp, 'odd-size.s26');
+unlink($odd_out);
+my $odd_log = File::Spec->catfile($tmp, 'odd-size.log');
+my $odd_cmd = qq{"$disas" -o "$odd_out" "$odd_raw" >"$odd_log" 2>&1};
+my $odd_rc = system($odd_cmd);
+die "unsupported raw cartridge unexpectedly succeeded\n" if $odd_rc == 0;
+die "unsupported raw failure left an output file\n" if -e $odd_out;
+require_re(slurp($odd_log), qr/no instructions found/i, 'raw-layout zero-instruction error');
+
+my $dpc_out = slurp(File::Spec->catfile($out, 'dpc.s26'));
+require_re($dpc_out, qr/^; mapper: DPC \(high confidence;/m, 'DPC size mapper inference');
+require_re($dpc_out, qr/^; DPC auxiliary data ROM: file \$2000\.\.\$27FF \(2048 bytes\)$/m,
+   'DPC auxiliary data layout comment');
+require_re($dpc_out, qr/^; DPC RNG table: file \$2800\.\.\$28FE \(255 bytes\)$/m,
+   'DPC RNG table layout comment');
+require_re($dpc_out, qr/^; ---- DPC auxiliary 2K display\/data ROM ----$/m,
+   'DPC auxiliary source section');
+
 my $vector_interior_out = slurp(File::Spec->catfile($out, 'vector_interior.s26'));
 require_re($vector_interior_out,
    qr/^L_FFFE:\n\s*\.word\s+L_FFFE\s*\+\s*1\s*; IRQ\/BRK vector$/m,
    'vector target into emitted vector word uses container-relative label');
 die "vector interior emitted an unresolved standalone L_FFFF reference\n"
    if $vector_interior_out =~ /\.word\s+L_FFFF\b/;
+
+my $vector_exec_out = slurp(File::Spec->catfile($out, 'vector_exec.s26'));
+require_re($vector_exec_out,
+   qr/^\s*; NMI vector = \$604A; vector bytes also participate in executable code$/m,
+   'executable vector bytes force split vector spelling');
+require_re($vector_exec_out,
+   qr/^L_FFFA:\n\s*; NMI vector = \$604A; vector bytes also participate in executable code\n\s*LSR\s+A$/m,
+   'vector low byte remains executable LSR');
+require_re($vector_exec_out, qr/^L_FFFB:\n\s*RTS$/m,
+   'vector high byte remains executable RTS entry');
+require_re($vector_exec_out, qr/JSR\s+L_FFFB\b/,
+   'call to executable vector high byte resolves to emitted label');
 
 my $branches = slurp(File::Spec->catfile($out, 'branches.s26'));
 my @same = ($branches =~ /\b(?:BPL|BMI|BVC|BVS|BCC|BCS|BNE|BEQ)\.same\b/g);
@@ -351,7 +513,7 @@ my $jmp_origin_out = slurp(File::Spec->catfile($out, 'jmp_origin_f8.s26'));
 require_re($jmp_origin_out, qr/^; bank 0: .* origin \$D000\b/m,
    'bank 0 JMP-only origin inference');
 require_re($jmp_origin_out, qr/^; bank 1: .* origin \$F000\b/m,
-   'bank 1 JMP-only origin inference');
+   'bank 1 origin inference with RESET path');
 
 my $code_data = slurp(File::Spec->catfile($out, 'code_as_data.s26'));
 require_re($code_data, qr/instruction byte\/operand also read as data/i, 'code-as-data annotation');
@@ -404,6 +566,47 @@ die "zero-page instruction retained redundant .z suffix\n"
 require_re($mode_relax_out, qr/LDA\.a\s+\$0080\b/,
    'low absolute operand keeps .a to prevent relaxation');
 
+my $spec_island = slurp(File::Spec->catfile($out, 'speculative_island.s26'));
+require_re($spec_island,
+   qr/speculative instruction island validated by HLT\/JAM\/KIL rejection/i,
+   'speculative island annotation');
+require_re($spec_island, qr/^L_F203:\n\s*LDA\s+#\$42\n\s*TAX\n\s*TAY\n\s*INX\n\s*DEX\n\s*INY\n\s*DEY\n\s*RTS$/m,
+   'credible safe routine after three-start barrier promoted');
+require_re($spec_island,
+   qr/^; speculative analysis: rejected-starts=[1-9]\d* barriers=[1-9]\d* islands=[1-9]\d*$/m,
+   'speculative analysis usage summary');
+
+my $spec_jam = slurp(File::Spec->catfile($out, 'speculative_jam_reject.s26'));
+die "JAM-reaching speculative candidate was promoted\n"
+   if $spec_jam =~ /^L_F203:/m ||
+      $spec_jam =~ /speculative instruction island.*\nL_F203:/i;
+
+my $spec_dead_jam = slurp(File::Spec->catfile($out, 'speculative_dead_jam.s26'));
+require_re($spec_dead_jam, qr/^L_F203:\n\s*SEC\n\s*BCC\.same\s+/m,
+   'abstract carry fact keeps impossible JAM arm from rejecting island');
+
+my $spec_dead_zero = slurp(File::Spec->catfile($out, 'speculative_dead_zero_jam.s26'));
+require_re($spec_dead_zero, qr/^L_F203:\n\s*LDA\s+#\$00\n\s*BNE\.same\s+/m,
+   'known zero flag keeps impossible BNE-to-JAM arm from rejecting island');
+
+my $barrier_jump_out = slurp(File::Spec->catfile($out, 'barrier_explicit_entry.s26'));
+require_re($barrier_jump_out, qr/JSR\s+L_F205\b/,
+   'explicit control transfer crosses speculative barrier');
+require_re($barrier_jump_out, qr/^L_F205:\n\s*LDA\s+#\$33\n\s*RTS$/m,
+   'established entry beyond barrier remains code');
+
+my $barrier_overlap_out = slurp(File::Spec->catfile($out, 'barrier_overlap_entry.s26'));
+require_re($barrier_overlap_out, qr/JSR\s+L_F204\b/,
+   'explicit inner entry into rejected speculative interpretation');
+require_re($barrier_overlap_out, qr/^L_F204:\n\s*JMP\s+L_F002\b/m,
+   'established overlapping inner JMP survives negative evidence');
+die "rejected outer speculative entry F203 was incorrectly promoted\n"
+   if $barrier_overlap_out =~ /^L_F203:/m;
+
+my $reachable_jam_out = slurp(File::Spec->catfile($out, 'reachable_jam.s26'));
+require_re($reachable_jam_out, qr/^L_F100:\n\s*op02\b/im,
+   'established reachable JAM remains executable code');
+
 my $f8_read_only = slurp(File::Spec->catfile($out, 'f8_sc_read_only.s26'));
 require_re($f8_read_only, qr/^; mapper: F8 \(/m,
    'plain F8 read in Superchip read window stays F8');
@@ -422,8 +625,6 @@ require_re($f6sc_out, qr/^; mapper: F6SC\b/m, 'F6SC mapper inference');
 my $f4sc_out = slurp(File::Spec->catfile($out, 'f4sc.s26'));
 require_re($f4sc_out, qr/^; mapper: F4SC\b/m, 'F4SC mapper inference');
 
-my $odd = slurp(File::Spec->catfile($out, 'odd size.s26'));
-require_re($odd, qr/^; mapper: (?:unknown\/raw|raw)\b/m, 'raw mapper fallback');
 
 my $video_ntsc = slurp(File::Spec->catfile($out, 'video_ntsc.s26'));
 require_re($video_ntsc, qr/^; video: NTSC .*\(high confidence\)$/m, 'NTSC inference');
@@ -436,6 +637,25 @@ require_re($video_scan_ntsc, qr/^; video: NTSC \(counted WSYNC frame signature\)
 my $video_scan_pal = slurp(File::Spec->catfile($out, 'video_scanline_pal.s26'));
 require_re($video_scan_pal, qr/^; video: PAL-family \(PAL\/SECAM ambiguous; counted WSYNC frame signature\) \(high confidence\)$/m,
    'counted-WSYNC PAL-family inference');
+my $video_ntsc_general = slurp(File::Spec->catfile($out, 'video_ntsc_general.s26'));
+require_re($video_ntsc_general, qr/^; video: NTSC .*\(medium confidence\)$/m,
+   'general TIM64T NTSC inference');
+my $video_param_ntsc = slurp(File::Spec->catfile($out, 'video_param_timer_ntsc.s26'));
+require_re($video_param_ntsc,
+   qr/^; video: NTSC \(general frame-timing evidence\) \(high confidence\)$/m,
+   'parameterized timer-helper NTSC inference');
+my $video_scan_ntsc_general = slurp(File::Spec->catfile($out, 'video_scanline_ntsc_general.s26'));
+require_re($video_scan_ntsc_general,
+   qr/^; video: NTSC \(general frame-timing evidence\) \(high confidence\)$/m,
+   'broad counted-WSYNC NTSC inference');
+my $video_scan_pal_general = slurp(File::Spec->catfile($out, 'video_scanline_pal_general.s26'));
+require_re($video_scan_pal_general,
+   qr/^; video: PAL-family \(PAL\/SECAM ambiguous; general frame-timing evidence\) \(high confidence\)$/m,
+   'broad counted-WSYNC PAL-family inference');
+my $video_filename_pal = slurp(File::Spec->catfile($out, 'mystery (PAL).s26'));
+require_re($video_filename_pal,
+   qr/^; video: PAL \(filename hint\) \(medium confidence\)$/m,
+   'PAL filename hint');
 
 my $keypad_out = slurp(File::Spec->catfile($out, 'controller_keypad_left.s26'));
 require_re($keypad_out, qr/^; controller port 0: keypad \(high confidence\)$/m,
