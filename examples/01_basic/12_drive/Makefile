@@ -11,4 +11,7 @@ drive.bin: drive.c26 $(VCS_DIR)/driving_controller.c26 $(VCS_DIR)/frame_ntsc.c26
 clean:
 	rm -f drive.bin drive.map drive.lst drive.sym drive.cfg
 
-.PHONY: all clean
+play:
+	stella -lc driving -rc driving *.bin
+
+.PHONY: all clean play

@@ -13,4 +13,7 @@ score.bin: score.c26 $(VCS_DIR)/fonts/default_decimal.c26 $(VCS_DIR)/six_glyph_c
 clean:
 	rm -f score.bin score.hex score.map score.s26 score.sym score.lst score.cfg
 
-.PHONY: all clean
+play:
+	stella *.bin
+
+.PHONY: all clean play

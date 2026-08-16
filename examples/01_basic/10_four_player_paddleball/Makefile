@@ -13,4 +13,7 @@ four_player_paddleball.bin: four_player_paddleball.c26 $(VCS_DIR)/four_paddles.c
 clean:
 	rm -f four_player_paddleball.bin four_player_paddleball.hex four_player_paddleball.map four_player_paddleball.s26 four_player_paddleball.sym four_player_paddleball.lst four_player_paddleball.cfg
 
-.PHONY: all clean
+play:
+	stella *.bin
+
+.PHONY: all clean play

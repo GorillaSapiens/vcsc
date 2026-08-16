@@ -11,4 +11,7 @@ tanks.bin: tanks.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/color_ntsc.c26 $(VCS_D
 clean:
 	rm -f tanks.bin tanks.map tanks.lst tanks.sym tanks.cfg
 
-.PHONY: all clean
+play:
+	stella *.bin
+
+.PHONY: all clean play

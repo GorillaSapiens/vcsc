@@ -20,4 +20,7 @@ $(TARGET): $(SOURCE) $(COMMON) \
 clean:
 	rm -f $(TARGET) $(TARGET:.bin=.cfg) $(TARGET:.bin=.lst) $(TARGET:.bin=.map) $(TARGET:.bin=.sym)
 
-.PHONY: all clean
+play:
+	stella *.bin
+
+.PHONY: all clean play

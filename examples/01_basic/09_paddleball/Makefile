@@ -13,4 +13,7 @@ paddleball.bin: paddleball.c26 $(VCS_DIR)/two_paddles.c26 $(VCS_DIR)/fonts/defau
 clean:
 	rm -f paddleball.bin paddleball.hex paddleball.map paddleball.s26 paddleball.sym paddleball.lst paddleball.cfg
 
-.PHONY: all clean
+play:
+	stella *.bin
+
+.PHONY: all clean play

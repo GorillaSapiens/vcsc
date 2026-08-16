@@ -13,4 +13,7 @@ fingerprint.bin: fingerprint.c26 $(VCS_DIR)/fonts/big_hex.c26 $(VCS_DIR)/fonts/l
 clean:
 	rm -f fingerprint.bin fingerprint.hex fingerprint.map fingerprint.s26 fingerprint.sym fingerprint.lst fingerprint.cfg
 
-.PHONY: all clean
+play:
+	stella *.bin
+
+.PHONY: all clean play

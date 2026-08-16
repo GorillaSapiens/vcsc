@@ -13,4 +13,7 @@ blank_noasm.bin: blank_noasm.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR
 clean:
 	rm -f blank_noasm.bin blank_noasm.hex blank_noasm.map blank_noasm.sym blank_noasm.lst blank_noasm.cfg
 
-.PHONY: all clean
+play:
+	stella *.bin
+
+.PHONY: all clean play

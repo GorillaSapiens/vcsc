@@ -45,4 +45,9 @@ clean:
 	rm -f f8.* f6.* f4.* f8sc.* f6sc.* f4sc.* poisoned.* \
 		.bin .hex .map .sym .lst .cfg
 
-.PHONY: all ordinary superchip poisoned clean
+play:
+	for bin in $$(find . -type f -name '*.bin' | sort); do \
+		stella "$$bin"; \
+	done;
+
+.PHONY: all ordinary superchip poisoned clean play

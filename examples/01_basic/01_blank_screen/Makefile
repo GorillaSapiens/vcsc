@@ -13,4 +13,7 @@ blank_screen.bin: blank_screen.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_D
 clean:
 	rm -f blank_screen.bin blank_screen.hex blank_screen.map blank_screen.sym blank_screen.lst blank_screen.cfg
 
-.PHONY: all clean
+play:
+	stella *.bin
+
+.PHONY: all clean play

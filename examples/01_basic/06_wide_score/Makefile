@@ -13,4 +13,7 @@ wide_score.bin: wide_score.c26 $(VCS_DIR)/fonts/default_decimal.c26 $(VCS_DIR)/s
 clean:
 	rm -f wide_score.bin wide_score.hex wide_score.map wide_score.s26 wide_score.sym wide_score.lst wide_score.cfg
 
-.PHONY: all clean
+play:
+	stella *.bin
+
+.PHONY: all clean play

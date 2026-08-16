@@ -73,10 +73,8 @@ exam:
 		| sort); do \
 		echo ==== $$each; \
 		$(MAKE) -C "$$each" clean && \
-		$(MAKE) -C "$$each" || exit $$?; \
-		for bin in $$(find "$$each" -type f -name '*.bin' | sort); do \
-			stella "$$bin"; \
-		done; \
+		$(MAKE) -C "$$each" && \
+		$(MAKE) -C "$$each" play ; \
 	done
 #	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
 

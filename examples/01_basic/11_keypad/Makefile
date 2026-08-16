@@ -11,4 +11,7 @@ keypad.bin: keypad.c26 $(VCS_DIR)/keypad_controller.c26 $(VCS_DIR)/frame_ntsc.c2
 clean:
 	rm -f keypad.bin keypad.map keypad.lst keypad.sym keypad.cfg
 
-.PHONY: all clean
+play:
+	stella *.bin
+
+.PHONY: all clean play

@@ -24,4 +24,7 @@ clean:
 	  $(TARGET:.bin=.sym) $(TARGET:.bin=.lst) $(TARGET:.bin=.cfg) \
 	  $(TARGET:.bin=.s26) *.o26
 
-.PHONY: all clean
+play:
+	stella *.bin
+
+.PHONY: all clean play

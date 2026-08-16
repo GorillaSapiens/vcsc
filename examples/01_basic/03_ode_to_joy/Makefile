@@ -13,4 +13,7 @@ ode_to_joy.bin: ode_to_joy.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/
 clean:
 	rm -f ode_to_joy.bin ode_to_joy.hex ode_to_joy.map ode_to_joy.sym ode_to_joy.lst ode_to_joy.cfg
 
-.PHONY: all clean
+play:
+	stella *.bin
+
+.PHONY: all clean play
