@@ -12,5 +12,6 @@
 The interactive cartridge draws an 11-line score, hands off to a 170-line
 `player_color` gameplay component, then hands off to a second 11-line score.
 Select cycles P0, P1, and Ball; the left joystick moves the selected gameplay
-object. The right joystick edits the upper score using the standard six-digit
-controls, and Reset restarts the cartridge.
+object. The right joystick edits the upper score using the standard immediate
+one-action-per-press six-digit controls; it must return fully to neutral before
+another direction press can act. Reset restarts the cartridge.

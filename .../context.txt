@@ -294,10 +294,10 @@ Renderer and example state
   including a mutable score color. Its public 2K example, reviewed Stella raster
   oracle, and interactive official `player_color_181` score-above/score-below
   compositions are maintained. The wide compositions use the same Game Select
-  object cycle, left-joystick selected-object motion, filtered right-joystick
+  object cycle, left-joystick selected-object motion, edge-triggered right-joystick
   score editing/color changes, reset behavior, sprites, playfield, and per-row
-  colors as the centered pair. Each measures 3,306 ROM bytes and 118 total RAM
-  bytes, leaving ten bytes free.
+  colors as the centered pair. Each measures 2,788 ROM bytes and 53 total RAM
+  bytes, leaving 75 bytes free.
 * Beam-critical tables and renderer code may carry object-owned placement,
   alignment, page-containment, privacy, and hidden-stack metadata. Do not move
   them based on generic packing convenience when their component contract pins
@@ -887,8 +887,9 @@ The three-plus-three score has interactive 181-line public compositions under
 `examples/06_all_five_181/11_three_plus_three_score_above` and
 `12_three_plus_three_score_below`. They use the official `all_five(lines:=181)`
 profile, retain five-object movement, and edit all six visible digits with the
-filtered right joystick. Both use 112/128 RAM; score-above is 3427/4090 ROM and
-score-below is 3571/4090 ROM. The temporary static-only 3+3 examples under the
+edge-triggered right joystick: each press acts immediately once, held input is
+ignored, and neutral re-arms the next press. Both use 111/128 RAM; score-above is 3367/4090 ROM and
+score-below is 3347/4090 ROM. The temporary static-only 3+3 examples under the
 88-byte `all_five_player_color_181` profile were removed.
 
 Main-roadmap item 35 is complete as a combined two-paddle/Paddleball workstream.

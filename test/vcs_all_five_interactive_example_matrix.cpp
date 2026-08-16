@@ -74,11 +74,11 @@ public:
    Machine(const char *rom_path, const Profile &profile,
            uint16_t object_x, std::array<uint16_t,5> y,
            uint16_t selected_object, uint16_t select_ready,
-           uint16_t score_digit, uint16_t score_countdown, uint16_t score_previous,
+           uint16_t score_digit, uint16_t score_ready,
            uint16_t score, uint16_t score_color)
       : profile_(profile), object_x_(object_x), y_(y),
         selected_object_(selected_object), select_ready_(select_ready),
-        score_digit_(score_digit), score_countdown_(score_countdown), score_previous_(score_previous),
+        score_digit_(score_digit), score_ready_(score_ready),
         score_(score), score_color_(score_color),
         cpu_(read_bus_thunk, write_bus_thunk, clock_thunk) {
       active_ = this;
@@ -150,8 +150,7 @@ public:
             memory_[score_color_] = 0xae;
          }
          set_score_digit(4);
-         set_score_countdown(7);
-         set_score_previous(2);
+         set_score_ready(0);
       }
       advance(kIdle, kReset);
       advance(kIdle, kIdle);
@@ -168,8 +167,7 @@ private:
    uint16_t selected_object_;
    uint16_t select_ready_;
    uint16_t score_digit_;
-   uint16_t score_countdown_;
-   uint16_t score_previous_;
+   uint16_t score_ready_;
    uint16_t score_;
    uint16_t score_color_;
    uint8_t swcha_ = kIdle;
@@ -200,11 +198,9 @@ private:
    void set_selected_object(uint8_t value) { memory_[selected_object_] = value; }
    bool select_ready() const { return memory_[select_ready_] != 0; }
    uint8_t score_digit() const { return memory_[score_digit_]; }
-   uint8_t score_countdown() const { return memory_[score_countdown_]; }
-   uint8_t score_previous() const { return memory_[score_previous_]; }
+   bool score_ready() const { return memory_[score_ready_] != 0; }
    void set_score_digit(uint8_t value) { memory_[score_digit_] = value; }
-   void set_score_countdown(uint8_t value) { memory_[score_countdown_] = value; }
-   void set_score_previous(uint8_t value) { memory_[score_previous_] = value; }
+   void set_score_ready(uint8_t value) { memory_[score_ready_] = value; }
 
    uint8_t timer_value() const {
       if (!timer_active_) return memory_[kIntim];
@@ -317,34 +313,33 @@ private:
       require(score_digit() == 0, "3+3 score did not start on left hundreds");
       require(three_score_value(score_) == 123, "left 3+3 initial value changed");
       require(three_score_value(score_color_) == 456, "right 3+3 initial value changed");
+      require(score_ready(), "3+3 right joystick did not start armed");
 
-      set_score_countdown(19);
-      set_score_previous(15);
-      advance_frames(kRightUp, kIdle, 39);
-      require(three_score_value(score_) == 123, "3+3 up acted before two samples");
       advance(kRightUp, kIdle);
-      require(three_score_value(score_) == 223, "3+3 left hundreds did not add 100");
+      require(three_score_value(score_) == 223, "3+3 left hundreds did not add 100 immediately");
       require(three_score_value(score_color_) == 456, "3+3 left edit changed right field");
+      require(!score_ready(), "3+3 right-up press did not disarm joystick");
+      advance_frames(kRightUp, kIdle, 40);
+      require(three_score_value(score_) == 223, "3+3 held up repeated without release");
+      advance(kRightLeft, kIdle);
+      require(score_digit() == 0, "3+3 direction roll bypassed release requirement");
 
-      set_score_countdown(19);
-      set_score_previous(15);
-      advance_frames(kRightLeft, kIdle, 39);
-      require(score_digit() == 0, "3+3 horizontal selection acted too early");
+      advance(kIdle, kIdle);
+      require(score_ready(), "3+3 neutral joystick did not re-arm");
       advance(kRightLeft, kIdle);
       require(score_digit() == 5, "3+3 left from first digit did not wrap to right ones");
-      set_score_countdown(19);
-      set_score_previous(15);
-      advance_frames(kRightUp, kIdle, 40);
+      advance_frames(kRightLeft, kIdle, 20);
+      require(score_digit() == 5, "3+3 held left repeated without release");
+      advance(kIdle, kIdle);
+      advance(kRightUp, kIdle);
       require(three_score_value(score_color_) == 457, "3+3 right ones did not add one");
       require(three_score_value(score_) == 223, "3+3 right edit changed left field");
 
-      set_score_countdown(19);
-      set_score_previous(15);
-      advance_frames(kRightRight, kIdle, 40);
+      advance(kIdle, kIdle);
+      advance(kRightRight, kIdle);
       require(score_digit() == 0, "3+3 right did not wrap back to left hundreds");
-      set_score_countdown(19);
-      set_score_previous(15);
-      advance_frames(kRightDown, kIdle, 40);
+      advance(kIdle, kIdle);
+      advance(kRightDown, kIdle);
       require(three_score_value(score_) == 123, "3+3 left hundreds did not subtract 100");
    }
 
@@ -356,44 +351,44 @@ private:
       require(score_digit() == 0, "score did not start on ones digit");
       require(score_value() == 123456, "score initial value changed");
       require(memory_[score_color_] == 0x0e, "score did not start at color $0e");
+      require(score_ready(), "right joystick did not start armed");
 
-      set_score_countdown(19);
-      set_score_previous(15);
-      advance_frames(kRightUp, kIdle, 39);
-      require(score_value() == 123456, "right joystick acted before two samples");
       advance(kRightUp, kIdle);
-      require(score_value() == 123457, "stable up did not add one");
-      advance_frames(kRightUp, kIdle, 20);
-      require(score_value() == 123458, "held up did not repeat after twenty frames");
-      advance_frames(kRightDown, kIdle, 20);
-      require(score_value() == 123458, "changed direction acted on first sample");
-      advance_frames(kRightDown, kIdle, 20);
-      require(score_value() == 123457, "stable down did not subtract one");
+      require(score_value() == 123457, "right-up press did not add one immediately");
+      require(!score_ready(), "right-up press did not disarm joystick");
+      advance_frames(kRightUp, kIdle, 40);
+      require(score_value() == 123457, "held up repeated without release");
+      advance(kRightDown, kIdle);
+      require(score_value() == 123457, "direction roll bypassed release requirement");
+      advance(kIdle, kIdle);
+      require(score_ready(), "neutral right joystick did not re-arm");
+      advance(kRightDown, kIdle);
+      require(score_value() == 123456, "right-down press did not subtract one immediately");
 
       set_score(123456);
       set_score_digit(0);
-      set_score_countdown(19);
-      set_score_previous(15);
       memory_[score_color_] = 0x0e;
-      advance_frames(kRightLeft, kIdle, 39);
-      require(score_digit() == 0, "horizontal selection acted too early");
+      advance(kIdle, kIdle);
       advance(kRightLeft, kIdle);
-      require(score_digit() == 1, "stable left did not select tens");
+      require(score_digit() == 1, "right-left press did not select tens immediately");
       require(memory_[score_color_] == 0x1e, "digit change did not advance color");
-      advance_frames(kRightLeft, kIdle, 20);
-      require(score_digit() == 2, "held left did not repeat");
-      require(memory_[score_color_] == 0x2e, "repeated selection did not advance color");
-      advance_frames(kRightRight, kIdle, 20);
-      require(score_digit() == 2, "changed horizontal direction acted too early");
-      advance_frames(kRightRight, kIdle, 20);
-      require(score_digit() == 1, "stable right did not return to tens");
-      require(memory_[score_color_] == 0x3e, "right selection did not advance color");
+      advance_frames(kRightLeft, kIdle, 40);
+      require(score_digit() == 1, "held left repeated without release");
+      require(memory_[score_color_] == 0x1e, "held left advanced color without release");
+      advance(kRightRight, kIdle);
+      require(score_digit() == 1, "horizontal direction roll bypassed release requirement");
+      advance(kIdle, kIdle);
+      advance(kRightRight, kIdle);
+      require(score_digit() == 0, "right press did not return to ones immediately");
+      require(memory_[score_color_] == 0x2e, "right selection did not advance color");
 
+      advance(kIdle, kIdle);
+      advance(kRightLeft, kIdle);
+      require(score_digit() == 1, "left press did not restore tens selection");
       set_score(123456);
-      set_score_countdown(19);
-      set_score_previous(15);
-      advance_frames(kRightUp, kIdle, 40);
-      require(score_value() == 123466, "selected tens digit did not add ten");
+      advance(kIdle, kIdle);
+      advance(kRightUp, kIdle);
+      require(score_value() == 123466, "selected tens digit did not add ten immediately");
    }
 
    void require_initial(const char *which) const {
@@ -416,8 +411,7 @@ private:
             require(score_digit() == 0, (prefix + "selected score digit is not ones").c_str());
             require(memory_[score_color_] == 0x0e, (prefix + "score color is not $0e").c_str());
          }
-         require(score_countdown() <= 19, (prefix + "score countdown is out of range").c_str());
-         require(score_previous() == 15, (prefix + "right joystick history is not neutral").c_str());
+         require(score_ready(), (prefix + "right joystick is not armed").c_str());
       }
    }
 
@@ -434,9 +428,9 @@ Machine *Machine::active_ = nullptr;
 } // namespace
 
 int main(int argc, char **argv) {
-   if (argc != 16) {
+   if (argc != 15) {
       std::fprintf(stderr,
-         "usage: %s ROM all5_192|all5_above|all5_below|all5_dual|all5_3x3_above|all5_3x3_below object_x p0_y p1_y m0_y m1_y ball_y selected_object select_ready score_digit|none score_countdown|none score_previous|none score|none score_color|none\n",
+         "usage: %s ROM all5_192|all5_above|all5_below|all5_dual|all5_3x3_above|all5_3x3_below object_x p0_y p1_y m0_y m1_y ball_y selected_object select_ready score_digit|none score_ready|none score|none score_color|none\n",
          argv[0]);
       return 2;
    }
@@ -451,7 +445,7 @@ int main(int argc, char **argv) {
                      parse_address(argv[7]), parse_address(argv[8])}},
                    parse_address(argv[9]), parse_address(argv[10]),
                    optional_address(11), optional_address(12), optional_address(13),
-                   optional_address(14), optional_address(15));
+                   optional_address(14));
    machine.run();
    std::printf("vcs_all_five_interactive_example_matrix %s ok: five-object controls and reset across %zu frames\n",
                profile.name, machine.frame_count());

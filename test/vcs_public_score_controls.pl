@@ -89,7 +89,7 @@ for my $case (
 ) {
    my($bin,$map)=build_public('04_player_color_181',$case->[0],$case->[1]);
    my @args=($six_harness,$bin,'above',map { map_zp($map,$_) }
-      qw(game_object_x game_player0_y game_player1_y game_ball_y selected_object select_switch_ready score_score selected_score_digit right_joystick_countdown right_joystick_previous score_color));
+      qw(game_object_x game_player0_y game_player1_y game_ball_y selected_object select_switch_ready score_score selected_score_digit right_joystick_ready score_color));
    ($rc,$sig,$out,$err)=capture(@args);
    $rc==0 && !$sig or die "$case->[1] runtime failed\n$out$err";
    $out =~ /^vcs_multicolor_example_matrix above ok: interactive controls and reset across \d+ frames\n$/
@@ -99,7 +99,7 @@ for my $case (
 
 my($split_bin,$split_map)=build_public('04_player_color_181','07_two_plus_two_score_above','two_plus_two');
 my @split_args=($split_harness,$split_bin,map { map_zp($split_map,$_) }
-   qw(score_left_score score_right_score score_left_color score_right_color score_left_x score_right_x selected_score_field right_score_fire_ready right_joystick_countdown right_joystick_previous));
+   qw(score_left_score score_right_score score_left_color score_right_color score_left_x score_right_x selected_score_field right_score_fire_ready right_joystick_ready));
 ($rc,$sig,$out,$err)=capture(@split_args);
 $rc==0 && !$sig or die "two-plus-two runtime failed\n$out$err";
 $out =~ /^vcs_two_plus_two_controls ok: both fields selected, highlighted, moved, and changed independently across \d+ frames\n$/

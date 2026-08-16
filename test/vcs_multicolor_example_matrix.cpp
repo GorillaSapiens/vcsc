@@ -74,11 +74,11 @@ public:
    Machine(const char *rom_path, const Profile &profile,
            uint16_t object_x, std::array<uint16_t,3> y,
            uint16_t selected, uint16_t select_ready,
-           uint16_t score, uint16_t score_digit, uint16_t score_countdown,
-           uint16_t score_previous, uint16_t score_color)
+           uint16_t score, uint16_t score_digit, uint16_t score_ready,
+           uint16_t score_color)
       : profile_(profile), object_x_(object_x), y_(y), selected_(selected),
         select_ready_(select_ready), score_(score), score_digit_(score_digit),
-        score_countdown_(score_countdown), score_previous_(score_previous),
+        score_ready_(score_ready),
         score_color_(score_color),
         cpu_(read_bus_thunk, write_bus_thunk, clock_thunk) {
       active_ = this;
@@ -148,8 +148,7 @@ public:
          memory_[score_ + 1] = 0x99;
          memory_[score_ + 2] = 0x99;
          memory_[score_digit_] = 4;
-         memory_[score_countdown_] = 7;
-         memory_[score_previous_] = 0x02;
+         memory_[score_ready_] = 0;
          memory_[score_color_] = 0xae;
       }
       advance(kIdle, kReset);
@@ -168,8 +167,7 @@ private:
    uint16_t select_ready_;
    uint16_t score_;
    uint16_t score_digit_;
-   uint16_t score_countdown_;
-   uint16_t score_previous_;
+   uint16_t score_ready_;
    uint16_t score_color_;
    uint8_t swcha_ = kIdle;
    uint8_t swchb_ = kIdle;
@@ -295,75 +293,58 @@ private:
       require(memory_[score_digit_] == 0, "score did not start on ones digit");
       require(score_value() == profile_.initial_score, "score initial value changed");
       require(memory_[score_color_] == 0x0e, "score did not start at color $0e");
+      require(memory_[score_ready_] != 0, "right joystick did not start armed");
 
-      // A direction is sampled only every twentieth frame. The first sample records
-      // it; only the second consecutive matching sample performs the action.
-      memory_[score_countdown_] = 19;
-      memory_[score_previous_] = 0x0f;
-      advance_frames(kRightUp, kIdle, 39);
-      require(score_value() == profile_.initial_score,
-              "right joystick acted before two twentieth-frame samples");
+      // A new press acts on the first frame, then the entire joystick remains
+      // disarmed until it returns to neutral.
       advance(kRightUp, kIdle);
       require(score_value() == (profile_.initial_score + 1) % 1000000,
-              "second stable up sample did not add ones weight");
+              "right-up press did not add ones weight immediately");
+      require(memory_[score_ready_] == 0, "right-up press did not disarm joystick");
       require(memory_[score_color_] == 0x0e,
               "vertical score change altered the score color");
 
-      advance_frames(kRightUp, kIdle, 20);
-      require(score_value() == (profile_.initial_score + 2) % 1000000,
-              "held stable up did not repeat on the next twentieth-frame sample");
-
-      advance_frames(kRightDown, kIdle, 20);
-      require(score_value() == (profile_.initial_score + 2) % 1000000,
-              "changed direction acted on its first sample");
-      advance_frames(kRightDown, kIdle, 20);
+      advance_frames(kRightUp, kIdle, 40);
       require(score_value() == (profile_.initial_score + 1) % 1000000,
-              "second stable down sample did not subtract ones weight");
+              "held right-up repeated without release");
+      advance(kRightDown, kIdle);
+      require(score_value() == (profile_.initial_score + 1) % 1000000,
+              "rolling directly from up to down bypassed release requirement");
+      advance(kIdle, kIdle);
+      require(memory_[score_ready_] != 0, "neutral right joystick did not re-arm");
+      advance(kRightDown, kIdle);
+      require(score_value() == profile_.initial_score,
+              "right-down press did not subtract ones weight immediately after release");
 
-      // Horizontal samples use the same filter and advance the hue by $10 each
-      // time the selected digit actually changes. A held direction repeats at
-      // the twenty-frame sample cadence.
+      // Horizontal presses use the same edge latch and advance the hue by $10
+      // each time a new press actually changes the selected digit.
       set_score(profile_.initial_score);
       memory_[score_digit_] = 0;
       memory_[score_color_] = 0x0e;
-      memory_[score_countdown_] = 19;
-      memory_[score_previous_] = 0x0f;
-      advance_frames(kRightLeft, kIdle, 39);
-      require(memory_[score_digit_] == 0,
-              "horizontal selection acted before its second sample");
-      require(memory_[score_color_] == 0x0e,
-              "score color changed before digit selection");
+      advance(kIdle, kIdle);
       advance(kRightLeft, kIdle);
       require(memory_[score_digit_] == 1,
-              "second stable left sample did not select tens digit");
+              "right-left press did not select tens digit immediately");
       require(memory_[score_color_] == 0x1e,
               "first digit change did not add $10 to score color");
 
-      advance_frames(kRightLeft, kIdle, 20);
-      require(memory_[score_digit_] == 2,
-              "held left did not repeat at the twentieth-frame sample");
-      require(memory_[score_color_] == 0x2e,
-              "repeated digit change did not advance score color");
-
-      advance_frames(kRightRight, kIdle, 20);
-      require(memory_[score_digit_] == 2,
-              "changed horizontal direction acted on its first sample");
-      require(memory_[score_color_] == 0x2e,
-              "score color changed on an unstable horizontal sample");
-      advance_frames(kRightRight, kIdle, 20);
+      advance_frames(kRightLeft, kIdle, 40);
+      require(memory_[score_digit_] == 1, "held right-left repeated without release");
+      require(memory_[score_color_] == 0x1e, "held right-left changed score color");
+      advance(kRightRight, kIdle);
       require(memory_[score_digit_] == 1,
-              "second stable right sample did not select tens digit");
-      require(memory_[score_color_] == 0x3e,
-              "rightward digit change did not advance score color");
+              "rolling directly from left to right bypassed release requirement");
+      require(memory_[score_color_] == 0x1e,
+              "direction roll changed score color without release");
 
       // The selected tens digit still controls a decimal weight of ten.
       set_score(profile_.initial_score);
-      memory_[score_countdown_] = 19;
-      memory_[score_previous_] = 0x0f;
-      advance_frames(kRightUp, kIdle, 40);
+      advance(kIdle, kIdle);
+      require(memory_[score_ready_] != 0, "release before tens edit did not re-arm");
+      advance(kRightUp, kIdle);
       require(score_value() == (profile_.initial_score + 10) % 1000000,
-              "selected tens digit did not add 10 after filtering");
-      require(memory_[score_color_] == 0x3e,
+              "selected tens digit did not add 10 immediately");
+      require(memory_[score_color_] == 0x1e,
               "vertical tens change altered score color");
    }
 
@@ -380,10 +361,8 @@ private:
       if (profile_.has_score) {
          require(score_value() == profile_.initial_score, (prefix + "score changed").c_str());
          require(memory_[score_digit_] == 0, (prefix + "selected score digit is not ones").c_str());
-         require(memory_[score_countdown_] <= 19,
-                 (prefix + "right joystick countdown is out of range").c_str());
-         require(memory_[score_previous_] == 0x0f,
-                 (prefix + "right joystick history is not neutral").c_str());
+         require(memory_[score_ready_] != 0,
+                 (prefix + "right joystick is not armed").c_str());
          require(memory_[score_color_] == 0x0e, (prefix + "score color is not $0e").c_str());
       }
    }
@@ -410,29 +389,27 @@ Machine *Machine::active_ = nullptr;
 } // namespace
 
 int main(int argc, char **argv) {
-   if (argc != 14) {
+   if (argc != 13) {
       std::fprintf(stderr,
          "usage: %s ROM legacy|192|above|below object_x p0_y p1_y ball_y "
-         "selected select_ready score|none score_digit|none score_countdown|none "
-         "score_previous|none score_color|none\n", argv[0]);
+         "selected select_ready score|none score_digit|none score_ready|none "
+         "score_color|none\n", argv[0]);
       return 2;
    }
    const Profile profile = parse_profile(argv[2]);
    const uint16_t score = profile.has_score ? parse_address(argv[9]) : 0;
    const uint16_t score_digit = profile.has_score ? parse_address(argv[10]) : 0;
-   const uint16_t score_countdown = profile.has_score ? parse_address(argv[11]) : 0;
-   const uint16_t score_previous = profile.has_score ? parse_address(argv[12]) : 0;
-   const uint16_t score_color = profile.has_score ? parse_address(argv[13]) : 0;
+   const uint16_t score_ready = profile.has_score ? parse_address(argv[11]) : 0;
+   const uint16_t score_color = profile.has_score ? parse_address(argv[12]) : 0;
    if (!profile.has_score &&
        (std::strcmp(argv[9], "none") || std::strcmp(argv[10], "none") ||
-        std::strcmp(argv[11], "none") || std::strcmp(argv[12], "none") ||
-        std::strcmp(argv[13], "none")))
+        std::strcmp(argv[11], "none") || std::strcmp(argv[12], "none")))
       fail("scoreless profile requires none score arguments");
 
    Machine machine(argv[1], profile, parse_address(argv[3]),
                    {{parse_address(argv[4]), parse_address(argv[5]), parse_address(argv[6])}},
                    parse_address(argv[7]), parse_address(argv[8]),
-                   score, score_digit, score_countdown, score_previous, score_color);
+                   score, score_digit, score_ready, score_color);
    machine.run();
    std::printf("vcs_multicolor_example_matrix %s ok: interactive controls and reset across %zu frames\n",
                profile.name, machine.frame_count());

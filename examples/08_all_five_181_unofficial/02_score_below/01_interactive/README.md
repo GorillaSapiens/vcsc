@@ -11,4 +11,4 @@
 
 This cartridge instantiates the unofficial-opcode renderer twin; its Makefile passes `-Wa,--illegals`.
 
-SELECT cycles through P0, P1, M0, M1, and Ball. The left joystick moves the selected object one pixel or logical scanline per frame. The right joystick edits the six-digit score using the same filtered controls as the player-color diagnostics: samples are twenty frames apart and an action requires two consecutive identical samples. Horizontal digit changes advance the score color by `$10`. RESET restores the initial scene.
+SELECT cycles through P0, P1, M0, M1, and Ball. The left joystick moves the selected object one pixel or logical scanline per frame. The right joystick edits the six-digit score immediately once per direction press; holding it does not repeat, and it must return fully to neutral before another direction press can act. Horizontal digit changes advance the score color by `$10`. RESET restores the initial scene.

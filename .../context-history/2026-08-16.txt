@@ -1,2 +1,8 @@
 2026-08-16 07:16:45 PDT, Reorganize PAL and SECAM examples
 Split examples/17 into pal/ and secam/ local 00/01 trees and use the matching compile-time RGB builtin directly in every example. Added layout regression; 499 compile and 305 E2E tests pass, plus Stella and staged installed-tree checks.
+2026-08-16 08:06:52 PDT, Edge-trigger score joystick input
+Interactive score controls now act immediately once per direction press.
+Held or rolled input is ignored until the right stick returns neutral.
+The one-byte latch reuses the SWCHA nibble and saves one RAM byte.
+Updated fixed-six, 3+3, 2+2, and 170-line copied controls plus tests/docs.
+Validation: 499/499 compile; affected E2E 17/17; all example shards pass.

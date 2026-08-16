@@ -34,9 +34,9 @@ objects. The renderer's Y range is 0 through 87.
 
 ### Score controls
 
-- **Right joystick:** sampled once every twentieth frame. A direction must be
-  present in two consecutive samples before it acts; a held stable direction
-  repeats at the twenty-frame sample cadence.
+- **Right joystick:** acts immediately once when a direction is first pressed.
+  Holding the joystick does not repeat; return it fully to neutral before the
+  next direction press can act.
 - **Right joystick left/right:** select the next more-/less-significant score
   digit. Each accepted digit change also adds `$10` to the score color, cycling
   the TIA hue while preserving luminance.
@@ -45,8 +45,8 @@ objects. The renderer's Y range is 0 through 87.
 
 The wide component owns 18 bytes: the same compact score/pointer/row/delayed
 state as the centered mutable-color component, including its one-byte color.
-The complete cartridge uses 3,306 ROM bytes and 118 of 128 RAM bytes, leaving
-ten bytes free.
+The complete cartridge uses 2,788 ROM bytes and 53 of 128 RAM bytes, leaving
+75 bytes free.
 
 Build with `make`. The result is
 `player_color_181_wide_score_above_interactive.bin`.

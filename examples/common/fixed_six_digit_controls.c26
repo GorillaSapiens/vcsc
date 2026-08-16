@@ -4,8 +4,7 @@
 // The including source must instantiate the display as `score`.
 
 uint8_t selected_score_digit := 0;
-uint8_t right_joystick_countdown := 19;
-uint8_t right_joystick_previous := 0x0f;
+uint8_t right_joystick_ready := 0x0f;
 
 // Decimal digit weights, indexed from ones through hundred-thousands.
 page const bcd24_t score_digit_weight[6] := { 1, 10, 100, 1000, 10000, 100000 };
@@ -14,21 +13,17 @@ inline void initialize_score_state(void) {
    score_score := 123456;
    score_color := VCS_NTSC_GRAY_92;
    selected_score_digit := 0;
-   right_joystick_countdown := 19;
-   right_joystick_previous := 0x0f;
+   right_joystick_ready := 0x0f;
 }
 
 inline void update_score_controls(void) {
-   // Sample once every twenty frames and require two matching samples.
-   if (right_joystick_countdown) {
-      right_joystick_countdown--;
-   }
-   else {
-      right_joystick_countdown := SWCHA & 0x0f;
-
-      if (right_joystick_countdown == right_joystick_previous) {
-         // A stable horizontal sample chooses the decimal digit and advances the hue.
-         if (!(right_joystick_countdown & 0x04)) {
+   // 0x0f means armed; 0 means a press is latched. Reuse this byte for the
+   // current low SWCHA nibble so edge detection needs no extra scratch RAM.
+   if (right_joystick_ready) {
+      right_joystick_ready := SWCHA & 0x0f;
+      if (right_joystick_ready != 0x0f) {
+         // A horizontal press chooses the decimal digit and advances the hue.
+         if (!(right_joystick_ready & 0x04)) {
             selected_score_digit++;
             if (selected_score_digit >= 6) {
                selected_score_digit := 0;
@@ -36,7 +31,7 @@ inline void update_score_controls(void) {
             score_color += 0x10;
          }
          else {
-            if (!(right_joystick_countdown & 0x08)) {
+            if (!(right_joystick_ready & 0x08)) {
                if (selected_score_digit == 0) {
                   selected_score_digit := 5;
                }
@@ -47,19 +42,24 @@ inline void update_score_controls(void) {
             }
          }
 
-         // A stable vertical sample changes the selected decimal weight. Up has
+         // A vertical press changes the selected decimal weight. Up has
          // priority if both active-low direction bits are asserted.
-         if (!(right_joystick_countdown & 0x01)) {
+         if (!(right_joystick_ready & 0x01)) {
             score_score += score_digit_weight[selected_score_digit];
          }
          else {
-            if (!(right_joystick_countdown & 0x02)) {
+            if (!(right_joystick_ready & 0x02)) {
                score_score -= score_digit_weight[selected_score_digit];
             }
          }
+         right_joystick_ready := 0;
       }
-
-      right_joystick_previous := right_joystick_countdown;
-      right_joystick_countdown := 19;
+   }
+   else {
+      // Stay latched through a hold or direction roll; only full neutral re-arms.
+      right_joystick_ready := SWCHA & 0x0f;
+      if (right_joystick_ready != 0x0f) {
+         right_joystick_ready := 0;
+      }
    }
 }

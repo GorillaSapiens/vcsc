@@ -54,7 +54,7 @@ public:
         left_color_(addresses[2]), right_color_(addresses[3]),
         left_x_(addresses[4]), right_x_(addresses[5]),
         selected_(addresses[6]), fire_ready_(addresses[7]),
-        countdown_(addresses[8]), previous_(addresses[9]),
+        joystick_ready_(addresses[8]),
         cpu_(read_bus_thunk, write_bus_thunk, clock_thunk) {
       active_ = this;
       std::memset(memory_, 0, sizeof(memory_));
@@ -92,34 +92,35 @@ public:
       // sixteen-color-clock doubled glyph spans X=144..159, so 144 is the
       // largest origin that remains fully visible.
       memory_[right_x_] = 143;
-      memory_[countdown_] = 19;
-      memory_[previous_] = 0x0f;
+      memory_[joystick_ready_] = 1;
+      advance(kRightRight, kFireReleased);
+      require(memory_[right_x_] == 144,
+              "selected right field did not reach the right edge immediately");
       advance_frames(kRightRight, kFireReleased, 40);
       require(memory_[right_x_] == 144,
-              "selected right field did not reach the right edge");
-      memory_[countdown_] = 19;
-      memory_[previous_] = 0x0f;
-      advance_frames(kRightRight, kFireReleased, 40);
-      require(memory_[right_x_] == 144,
-              "selected right field moved beyond the right edge");
+              "held right moved the selected field again");
+      advance(kIdle, kFireReleased);
+      require(memory_[joystick_ready_] != 0, "right-joystick release did not re-arm");
+      advance(kRightRight, kFireReleased);
+      require(memory_[right_x_] == 144, "selected right field moved beyond the right edge");
       memory_[right_x_] = 104;
 
-      // The same two-sample/twentieth-frame filter used by the six-digit examples
-      // must move only the selected right field.
-      memory_[countdown_] = 19;
-      memory_[previous_] = 0x0f;
-      advance_frames(kRightLeft, kFireReleased, 39);
-      require(memory_[right_x_] == 104, "right field moved before its second stable sample");
+      // A new joystick press acts immediately and only once until release.
+      advance(kIdle, kFireReleased);
       advance(kRightLeft, kFireReleased);
       require(memory_[left_x_] == 16 && memory_[right_x_] == 103,
-              "selected right field did not move left independently");
+              "selected right field did not move left immediately and independently");
+      advance_frames(kRightLeft, kFireReleased, 40);
+      require(memory_[right_x_] == 103, "held left moved the selected field repeatedly");
+      advance(kRightUp, kFireReleased);
+      require(memory_[right_score_] == 0x34,
+              "rolling from left to up bypassed joystick release requirement");
 
       // Vertical input changes the selected right packed-BCD value, not the left one.
-      memory_[countdown_] = 19;
-      memory_[previous_] = 0x0f;
-      advance_frames(kRightUp, kFireReleased, 40);
+      advance(kIdle, kFireReleased);
+      advance(kRightUp, kFireReleased);
       require(memory_[left_score_] == 0x12 && memory_[right_score_] == 0x35,
-              "selected right score did not increment independently");
+              "selected right score did not increment immediately and independently");
 
       // Toggle back to the left field and prove its movement is independent too.
       advance(kIdle, kFirePressed);
@@ -128,11 +129,9 @@ public:
       require(memory_[left_color_] == 0x0e && memory_[right_color_] == 0x26,
               "left-field selection is not visibly highlighted");
       advance(kIdle, kFireReleased);
-      memory_[countdown_] = 19;
-      memory_[previous_] = 0x0f;
-      advance_frames(kRightRight, kFireReleased, 40);
+      advance(kRightRight, kFireReleased);
       require(memory_[left_x_] == 17 && memory_[right_x_] == 103,
-              "selected left field did not move independently");
+              "selected left field did not move immediately and independently");
    }
 
    size_t frame_count() const { return vsync_cycles_.size(); }
@@ -140,7 +139,7 @@ public:
 private:
    static Machine *active_;
    uint16_t left_score_, right_score_, left_color_, right_color_;
-   uint16_t left_x_, right_x_, selected_, fire_ready_, countdown_, previous_;
+   uint16_t left_x_, right_x_, selected_, fire_ready_, joystick_ready_;
    uint8_t swcha_ = kIdle;
    uint8_t swchb_ = kIdle;
    uint8_t inpt5_ = kFireReleased;
@@ -240,14 +239,14 @@ Machine *Machine::active_ = nullptr;
 } // namespace
 
 int main(int argc, char **argv) {
-   if (argc != 12) {
+   if (argc != 11) {
       std::fprintf(stderr,
          "usage: %s ROM left_score right_score left_color right_color left_x right_x "
-         "selected fire_ready countdown previous\n", argv[0]);
+         "selected fire_ready joystick_ready\n", argv[0]);
       return 2;
    }
-   uint16_t addresses[10];
-   for (int i = 0; i < 10; ++i) addresses[i] = parse_address(argv[i + 2]);
+   uint16_t addresses[9];
+   for (int i = 0; i < 9; ++i) addresses[i] = parse_address(argv[i + 2]);
    Machine machine(argv[1], addresses);
    machine.run();
    std::printf("vcs_two_plus_two_controls ok: both fields selected, highlighted, moved, and changed independently across %zu frames\n",

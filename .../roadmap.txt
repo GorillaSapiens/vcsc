@@ -1337,10 +1337,10 @@ but no new workstream should be assumed until the user selects one.
           the wide score both above and below gameplay. Each 4K cartridge retains
           the exact 88-pixel score schedule, the complete P0/P1/Ball gameplay
           raster, the standard Game Select object cycle, selected-object left-
-          joystick motion, filtered right-joystick digit editing and score-color
+          joystick motion, edge-triggered right-joystick digit editing and score-color
           changes, the standard player glyphs/playfield/colors, and a 262-line
-          frame. Each measures 3,306 ROM bytes and 118 total RAM bytes, leaving
-          ten bytes free.
+          frame. Each measures 2,788 ROM bytes and 53 total RAM bytes, leaving
+          75 bytes free.
 
 [x] 25. Add a left/right dual-score component. We want independant three glyph
         left and right scores, centered in the left half and right half
@@ -1363,9 +1363,10 @@ but no new workstream should be assumed until the user selects one.
         Interactive 181-line integration, 2026-08-12: the public score-above
         and score-below demos use the official `all_five (lines:=181)` renderer
         rather than the substantially heavier per-row-player-color sibling. Both
-        retain full P0/P1/M0/M1/Ball motion and add filtered right-joystick
-        editing across all six visible score digits. They link at 112/128 RAM;
-        score-above uses 3427/4090 ROM and score-below uses 3571/4090 ROM. The
+        retain full P0/P1/M0/M1/Ball motion and add edge-triggered right-joystick
+        editing across all six visible score digits: each press acts immediately once,
+        held input is ignored, and neutral re-arms the next press. They link at 111/128 RAM;
+        score-above uses 3367/4090 ROM and score-below uses 3347/4090 ROM. The
         earlier static-only 3+3 examples under `all_five_player_color_181` were
         removed rather than presenting zero-free-RAM compositions as demos.
 

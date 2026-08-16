@@ -5,8 +5,7 @@
 // selected_score_digit is display order: 0 is left hundreds, 5 is right ones.
 
 uint8_t selected_score_digit := 0;
-uint8_t right_joystick_countdown := 19;
-uint8_t right_joystick_previous := 0x0f;
+uint8_t right_joystick_ready := 0x0f;
 
 // Decimal weight for each visible digit from left to right.  The component
 // deliberately displays only the low three digits of each bcd16_t field, so
@@ -21,8 +20,7 @@ inline void initialize_score_state(void) {
    score_left_color := VCS_NTSC_PALE_GREEN;
    score_right_color := VCS_NTSC_ORCHID;
    selected_score_digit := 0;
-   right_joystick_countdown := 19;
-   right_joystick_previous := 0x0f;
+   right_joystick_ready := 0x0f;
 }
 
 inline void update_selected_score_color(void) {
@@ -35,20 +33,15 @@ inline void update_selected_score_color(void) {
 }
 
 inline void update_score_controls(void) {
-   // Match the existing score demos: sample every twenty frames and require
-   // two identical samples before accepting an action. A held direction then
-   // repeats at the same twenty-frame cadence.
-   if (right_joystick_countdown) {
-      right_joystick_countdown--;
-   }
-   else {
-      right_joystick_countdown := SWCHA & 0x0f;
-
-      if (right_joystick_countdown == right_joystick_previous) {
+   // 0x0f means armed; 0 means a press is latched. Reuse this byte for the
+   // current low SWCHA nibble so edge detection needs no extra scratch RAM.
+   if (right_joystick_ready) {
+      right_joystick_ready := SWCHA & 0x0f;
+      if (right_joystick_ready != 0x0f) {
          // Right-joystick left/right walks the six visible digits. Each
-         // accepted selection change advances the color of the containing
-         // three-digit field so input acceptance is visible.
-         if (!(right_joystick_countdown & 0x04)) {
+         // selection change advances the color of the containing three-digit
+         // field so input acceptance is visible.
+         if (!(right_joystick_ready & 0x04)) {
             if (selected_score_digit == 0) {
                selected_score_digit := 5;
             }
@@ -58,7 +51,7 @@ inline void update_score_controls(void) {
             update_selected_score_color();
          }
          else {
-            if (!(right_joystick_countdown & 0x08)) {
+            if (!(right_joystick_ready & 0x08)) {
                selected_score_digit++;
                if (selected_score_digit >= 6) {
                   selected_score_digit := 0;
@@ -69,7 +62,7 @@ inline void update_score_controls(void) {
 
          // Up/down changes the selected visible decimal digit. Carries and
          // borrows remain packed-BCD operations within the selected field.
-         if (!(right_joystick_countdown & 0x01)) {
+         if (!(right_joystick_ready & 0x01)) {
             if (selected_score_digit < 3) {
                score_left_score += three_plus_three_digit_weight[selected_score_digit];
             }
@@ -78,7 +71,7 @@ inline void update_score_controls(void) {
             }
          }
          else {
-            if (!(right_joystick_countdown & 0x02)) {
+            if (!(right_joystick_ready & 0x02)) {
                if (selected_score_digit < 3) {
                   score_left_score -= three_plus_three_digit_weight[selected_score_digit];
                }
@@ -87,9 +80,14 @@ inline void update_score_controls(void) {
                }
             }
          }
+         right_joystick_ready := 0;
       }
-
-      right_joystick_previous := right_joystick_countdown;
-      right_joystick_countdown := 19;
+   }
+   else {
+      // Stay latched through a hold or direction roll; only full neutral re-arms.
+      right_joystick_ready := SWCHA & 0x0f;
+      if (right_joystick_ready != 0x0f) {
+         right_joystick_ready := 0;
+      }
    }
 }

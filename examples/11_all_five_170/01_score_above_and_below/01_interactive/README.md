@@ -15,8 +15,9 @@ second eleven-line score below it. The resulting visible field is exactly 192
 scanlines.
 
 Game Select cycles P0, P1, M0, M1, and Ball. The left joystick moves the selected
-object. The right joystick uses the same twenty-frame filtered digit-selection and
-packed-BCD editing convention as the other all-five score examples; the top
+object. The right joystick uses the same immediate one-action-per-press digit
+selection and packed-BCD editing convention as the other all-five score
+examples; it must return fully to neutral before another press can act. The top
 score is editable while the lower score remains a contrasting static reference. Reset restores the initial scene.
 
 Build with `make`.

@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 60
-# expectstdout: vcs_multicolor_examples ok: eight interactive renderer examples pass build, frame, controls, filtered score-control, score-color, endpoint, reset, and opcode-policy checks
+# expectstdout: vcs_multicolor_examples ok: eight interactive renderer examples pass build, frame, controls, edge-triggered score-control, score-color, endpoint, reset, and opcode-policy checks
 # expectexit: 0
 
 use strict;
@@ -151,9 +151,9 @@ for my $case (@cases) {
       map_zp($map,'select_switch_ready'),
    );
    if (defined $case->{score}) {
-      push @args,map_zp($map,$case->{score}),map_zp($map,'selected_score_digit'),map_zp($map,'right_joystick_countdown'),map_zp($map,'right_joystick_previous'),map_zp($map,$case->{color});
+      push @args,map_zp($map,$case->{score}),map_zp($map,'selected_score_digit'),map_zp($map,'right_joystick_ready'),map_zp($map,$case->{color});
    } else {
-      push @args,qw(none none none none none);
+      push @args,qw(none none none none);
    }
    ($rc,$sig,$out,$err)=capture($harness,@args);
    $rc==0 && !$sig or die "$dir runtime failed\n$out$err";
@@ -161,4 +161,4 @@ for my $case (@cases) {
       or die "$dir unexpected runtime output: $out";
    $err eq '' or die "$dir runtime stderr: $err";
 }
-print "vcs_multicolor_examples ok: eight interactive renderer examples pass build, frame, controls, filtered score-control, score-color, endpoint, reset, and opcode-policy checks\n";
+print "vcs_multicolor_examples ok: eight interactive renderer examples pass build, frame, controls, edge-triggered score-control, score-color, endpoint, reset, and opcode-policy checks\n";

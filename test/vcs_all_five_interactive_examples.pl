@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 45
-# expectstdout: vcs_all_five_interactive_examples ok: nine all-five interactive renderer examples pass build, frame, five-object controls, filtered score controls, endpoints, reset, and opcode-policy checks
+# expectstdout: vcs_all_five_interactive_examples ok: nine all-five interactive renderer examples pass build, frame, five-object controls, edge-triggered score controls, endpoints, reset, and opcode-policy checks
 # expectexit: 0
 
 use strict;
@@ -108,15 +108,15 @@ for my $case (@cases) {
    push @args,map_zp($map,'selected_object'),map_zp($map,'select_switch_ready');
    if ($case->{score}) {
       if ($case->{dual3}) {
-         push @args,map_zp($map,'selected_score_digit'),map_zp($map,'right_joystick_countdown'),
-                    map_zp($map,'right_joystick_previous'),map_zp($map,'score_left_score'),map_zp($map,'score_right_score');
+         push @args,map_zp($map,'selected_score_digit'),map_zp($map,'right_joystick_ready'),
+                    map_zp($map,'score_left_score'),map_zp($map,'score_right_score');
       } else {
          my $score_prefix=$case->{profile} eq 'all5_dual' ? 'top_score' : 'score';
-         push @args,map_zp($map,'selected_score_digit'),map_zp($map,'right_joystick_countdown'),
-                    map_zp($map,'right_joystick_previous'),map_zp($map,$score_prefix.'_score'),map_zp($map,$score_prefix.'_color');
+         push @args,map_zp($map,'selected_score_digit'),map_zp($map,'right_joystick_ready'),
+                    map_zp($map,$score_prefix.'_score'),map_zp($map,$score_prefix.'_color');
       }
    } else {
-      push @args,qw(none none none none none);
+      push @args,qw(none none none none);
    }
    ($rc,$sig,$out,$err)=capture($harness,@args);
    $rc==0 && !$sig or die "$dir runtime failed\n$out$err";
@@ -125,4 +125,4 @@ for my $case (@cases) {
    $err eq '' or die "$dir runtime stderr: $err";
 }
 
-print "vcs_all_five_interactive_examples ok: nine all-five interactive renderer examples pass build, frame, five-object controls, filtered score controls, endpoints, reset, and opcode-policy checks\n";
+print "vcs_all_five_interactive_examples ok: nine all-five interactive renderer examples pass build, frame, five-object controls, edge-triggered score controls, endpoints, reset, and opcode-policy checks\n";

@@ -30,9 +30,9 @@ objects.
 
 ### Score controls
 
-- **Right joystick:** sampled only once every twentieth frame. A direction must be
-  present in two consecutive samples before it acts; a held stable direction
-  then repeats at the twenty-frame sample cadence.
+- **Right joystick:** acts immediately once when a direction is first pressed.
+  Holding the joystick does not repeat; return it fully to neutral before the
+  next direction press can act.
 - **Right joystick left/right:** select the next digit visually to the left or
   right. The score uses the same conventional left-to-right significance order
   as the eleven-line score components: the hundred-thousands digit is at the

@@ -5,8 +5,7 @@
 
 uint8_t selected_score_field := 0;
 uint8_t right_score_fire_ready := 1;
-uint8_t right_joystick_countdown := 19;
-uint8_t right_joystick_previous := 0x0f;
+uint8_t right_joystick_ready := 0x0f;
 
 inline void initialize_score_state(void) {
    score_left_score := 12;
@@ -18,8 +17,7 @@ inline void initialize_score_state(void) {
    score_right_x := 104;
    selected_score_field := 0;
    right_score_fire_ready := 1;
-   right_joystick_countdown := 19;
-   right_joystick_previous := 0x0f;
+   right_joystick_ready := 0x0f;
 }
 
 inline void update_score_field_selection(void) {
@@ -45,18 +43,13 @@ inline void update_score_field_selection(void) {
 inline void update_score_controls(void) {
    update_score_field_selection();
 
-   // Sample once every twenty frames and require two matching samples. While
-   // sampling, reuse the countdown byte for the four active-low joystick bits;
-   // it is reset to 19 before returning.
-   if (right_joystick_countdown) {
-      right_joystick_countdown--;
-   }
-   else {
-      right_joystick_countdown := SWCHA & 0x0f;
-
-      if (right_joystick_countdown == right_joystick_previous) {
+   // 0x0f means armed; 0 means a press is latched. Reuse this byte for the
+   // current low SWCHA nibble so edge detection needs no extra scratch RAM.
+   if (right_joystick_ready) {
+      right_joystick_ready := SWCHA & 0x0f;
+      if (right_joystick_ready != 0x0f) {
          // Horizontal input moves only the selected field's private X origin.
-         if (!(right_joystick_countdown & 0x04)) {
+         if (!(right_joystick_ready & 0x04)) {
             if (selected_score_field) {
                if (score_right_x > 32) { score_right_x--; }
             }
@@ -65,7 +58,7 @@ inline void update_score_controls(void) {
             }
          }
          else {
-            if (!(right_joystick_countdown & 0x08)) {
+            if (!(right_joystick_ready & 0x08)) {
                if (selected_score_field) {
                   if (score_right_x < 144) { score_right_x++; }
                }
@@ -76,19 +69,24 @@ inline void update_score_controls(void) {
          }
 
          // Vertical input changes only the selected packed-BCD two-digit value.
-         if (!(right_joystick_countdown & 0x01)) {
+         if (!(right_joystick_ready & 0x01)) {
             if (selected_score_field) { score_right_score += 1; }
             else { score_left_score += 1; }
          }
          else {
-            if (!(right_joystick_countdown & 0x02)) {
+            if (!(right_joystick_ready & 0x02)) {
                if (selected_score_field) { score_right_score -= 1; }
                else { score_left_score -= 1; }
             }
          }
+         right_joystick_ready := 0;
       }
-
-      right_joystick_previous := right_joystick_countdown;
-      right_joystick_countdown := 19;
+   }
+   else {
+      // Stay latched through a hold or direction roll; only full neutral re-arms.
+      right_joystick_ready := SWCHA & 0x0f;
+      if (right_joystick_ready != 0x0f) {
+         right_joystick_ready := 0;
+      }
    }
 }

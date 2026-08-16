@@ -530,8 +530,9 @@ missile/Ball motion input, all four motion endpoints, and exact 262-line frames.
 
 `vcs_public_score_controls.pl` inventories all 16 public left/right six-digit
 examples and all eight public two-plus-two examples. It runs representative
-left- and right-justified cartridges through the established filtered
-right-joystick control oracle, including hue changes, and drives right fire in a
+left- and right-justified cartridges through the edge-triggered
+right-joystick control oracle, including immediate action, held-input suppression,
+neutral re-arming, direction-roll suppression, and hue changes, and drives right fire in a
 two-plus-two cartridge to prove visible field selection, independent motion and
 packed-BCD changes for both fields, and the right field's full X=144 endpoint.
 
@@ -577,8 +578,8 @@ the complete cartridge retains its 262-line frame period.
 cartridges: faithful legacy, scoreless 192-line, 181-line score-above, and
 181-line score-below. Its 6502 harness presents idle/pressed console inputs and
 checks one-unit P0/P1/Ball motion, held-SELECT suppression, complete X/Y endpoint
-clamps, twentieth-frame right-joystick sampling, two-consecutive-sample filtering,
-held-input repetition at the sample cadence, selected-digit score-color cycling,
+clamps, immediate one-shot right-joystick presses, held-input suppression,
+neutral re-arming, direction-roll suppression, selected-digit score-color cycling,
 decimal `10^n` score changes, exact normal frame periods, and reset-vector state
 restoration. It also requires the faithful demo to opt into the same human
 left-to-right packed-BCD digit order used by the eleven-line score components.
