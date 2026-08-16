@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <errno.h>
 #include <getopt.h>
 #include <inttypes.h>
@@ -1808,6 +1809,19 @@ static int emitted_container_start(const bank_t *b, size_t off, size_t *start)
          return 1;
       }
    }
+
+   /* The three cartridge vectors are emitted as two-byte .word containers.
+    * A vector can legally point at the high byte of another vector (or even
+    * its own high byte), so that interior address cannot own a standalone
+    * source label.  Treat it exactly like an instruction operand: promote
+    * the label to the emitted container and reference it as label + 1. */
+   if (b->size >= 6u) {
+      size_t base = b->size - 6u;
+      if (off >= base && off < b->size && ((off - base) & 1u)) {
+         *start = off - 1u;
+         return 1;
+      }
+   }
    return 0;
 }
 
@@ -1851,15 +1865,29 @@ static void print_exact_cart_reference(FILE *fp, const analysis_t *a,
    }
 }
 
-static const char *mode_suffix(address_mode_t mode)
+static int raw_opcode_mnemonic(const char *mnemonic)
 {
+   return mnemonic[0] == 'o' && mnemonic[1] == 'p' &&
+          isxdigit((unsigned char)mnemonic[2]) &&
+          isxdigit((unsigned char)mnemonic[3]) && mnemonic[4] == '\0';
+}
+
+static const char *mode_suffix(uint8_t opcode, address_mode_t mode,
+                               uint16_t operand)
+{
+   int raw = raw_opcode_mnemonic(opcode_mnemonics[opcode]);
    switch (mode) {
-   case AM_ZERO_PAGE: return ".z";
-   case AM_ZERO_PAGE_X: return ".zx";
-   case AM_ZERO_PAGE_Y: return ".zy";
-   case AM_ABSOLUTE: return ".a";
-   case AM_ABSOLUTE_X: return ".ax";
-   case AM_ABSOLUTE_Y: return ".ay";
+   /* Ordinary mnemonics relax naturally to zero page when the resolved operand
+      fits.  Raw opXX spellings are intentionally different: vcsc-as requires
+      an explicit suffix for ambiguous raw-opcode operand shapes. */
+   case AM_ZERO_PAGE: return raw ? ".z" : "";
+   case AM_ZERO_PAGE_X: return raw ? ".zx" : "";
+   case AM_ZERO_PAGE_Y: return raw ? ".zy" : "";
+   /* Preserve an originally wide encoding when its value could otherwise relax
+      to zero page.  Values above $ff already select the wide form unambiguously. */
+   case AM_ABSOLUTE: return raw || operand <= 0xffu ? ".a" : "";
+   case AM_ABSOLUTE_X: return raw || operand <= 0xffu ? ".ax" : "";
+   case AM_ABSOLUTE_Y: return raw || operand <= 0xffu ? ".ay" : "";
    case AM_INDIRECT: return ".i";
    case AM_INDEXED_INDIRECT: return ".ix";
    case AM_INDIRECT_INDEXED: return ".iy";
@@ -2355,7 +2383,7 @@ static void emit_instruction(FILE *fp, const analysis_t *a, size_t bi, size_t of
       }
    }
    else {
-      fprintf(fp, "%s", mode_suffix(mode));
+      fprintf(fp, "%s", mode_suffix(opcode, mode, operand));
       switch (mode) {
       case AM_IMPLIED:
          break;
@@ -3057,7 +3085,7 @@ static void emit_vector(FILE *fp, const analysis_t *a, size_t bi, size_t off)
    if (cart_target_offset(b, value, &toff) &&
        (uint16_t)(b->origin + (uint16_t)toff) == value &&
        (b->roles[toff] & ROLE_LABEL))
-      print_label_name(fp, a, bi, toff);
+      print_exact_cart_reference(fp, a, bi, toff);
    else
       fprintf(fp, "$%04X", value);
    fprintf(fp, "    ; %s vector\n", names[slot]);

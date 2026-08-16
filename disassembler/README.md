@@ -102,8 +102,13 @@ Conditional branches are always emitted with the VCSC timing contract
 generated target label exists it is repeated in a comment. Keeping the branch
 operand numeric avoids a forward-label relaxation edge in `vcsc-as` at the top
 of the legal short-branch range while preserving the original two-byte opcode
-and page contract exactly. Addressing-mode suffixes such as `.z` and `.a` are
-used when needed so symbolization cannot silently change the opcode encoding.
+and page contract exactly. Addressing-mode suffixes are emitted only when they are needed to preserve the
+original opcode encoding. Ordinary named instructions omit redundant `.z`, `.zx`,
+and `.zy` suffixes because `vcsc-as` naturally selects zero page for resolved
+8-bit operands. Conversely, `.a`, `.ax`, or `.ay` is retained when an originally
+wide operand is below `$0100` and would otherwise relax to zero page. Raw `opXX`
+spellings keep explicit mode suffixes because the assembler requires them for
+ambiguous operand shapes.
 
 ## Hardware symbols and mirrors
 
@@ -115,7 +120,7 @@ A noncanonical mirrored access keeps the exact encoded operand and names the
 register the hardware really selects, for example:
 
 ```asm
-    STA.a COLUBK + $0100    ; mirror of COLUBK ($0009)
+    STA COLUBK + $0100      ; mirror of COLUBK ($0009)
 ```
 
 The mirror is never normalized to a different address merely to look nicer.

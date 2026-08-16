@@ -1184,14 +1184,20 @@ all-opcode decode/emission, mandatory branch `.same`/`.cross`, unbanked and
 F8/F6/F4(+Superchip) bank-aware analysis, per-bank origin inference, overlapping
 instruction streams, code-as-data and unreferenced-byte roles, TIA/RIOT symbols
 with exact mirror comments, conservative graphics rows, static video/controller
-inference, explicit analysis overrides, and raw fallback.  The standalone
+inference, explicit analysis overrides, and raw fallback. Generated assembly
+omits redundant `.z`/`.zx`/`.zy` suffixes for ordinary named instructions while
+retaining `.a`/`.ax`/`.ay` whenever a low absolute operand would otherwise relax;
+ambiguous raw `opXX` forms keep their required explicit suffixes. References into
+interior bytes of emitted instructions or vector `.word` containers use the
+container label plus an exact offset, so targets such as an IRQ vector value of
+`$FFFF` never create an unplaceable `L_FFFF` label. The standalone
 `disassembler/roundtrip.pl INPUT_DIR OUTPUT_DIR` drives vcsc-disas and vcsc-as,
 retains .s26/rebuilt .bin files, prints MD5 values, and requires exact byte
 identity.  The focused roadmap records remaining analysis-breadth/hardening work;
 this side project does not change main-roadmap ordering, where Item 39 remains
 first unfinished.  Current validation is 499/499 compile tests; the three
-vcsc-disas E2E regressions pass, all 256 opcode bytes and deterministic fuzz
-round-trip exactly, and a 16-ROM real VCSC corpus (2K/4K, controllers, score,
+vcsc-disas E2E regressions pass, 37 semantic fixtures, all 256 opcode bytes and
+deterministic fuzz round-trip exactly, and a 16-ROM real VCSC corpus (2K/4K, controllers, score,
 PAL/SECAM, F8/F6/F4, and F8SC/F6SC/F4SC) round-trips byte-for-byte.  Native
 staged vcsc-disas install/uninstall also passes.  The E2E inventory is now 308
 cases; one unrelated legacy renderer case can exceed its explicit 12-second

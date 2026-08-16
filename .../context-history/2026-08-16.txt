@@ -34,3 +34,16 @@ real F8/F6/F4 and F8SC/F6SC/F4SC diagnostics now infer and round-trip exactly.
 Added counted-WSYNC video evidence and direction-only joystick evidence, public
 seven-tool documentation, staged-install coverage, and shared CLI-help coverage.
 Validation: 499/499 compile; 35 semantic, 256-opcode, 12 fuzz, 16 real ROM pass.
+2026-08-16 14:45:38 PDT, trim redundant disassembler suffixes
+vcsc-disas now omits redundant .z/.zx/.zy suffixes for ordinary named
+instructions and omits unnecessary wide suffixes when the operand is already
+above zero page. It retains .a/.ax/.ay for low-valued wide encodings and keeps
+explicit suffixes on ambiguous raw opXX forms. Added exact round-trip fixtures
+covering both naturally relaxed and deliberately wide low operands.
+2026-08-16 14:53:48 PDT, Fix vector-interior disassembler labels
+A vector target landing on the high byte of an emitted .word now promotes the
+source label to the vector boundary and emits `label + 1`. Bridge.bin exposed
+IRQ=$FFFF becoming unresolved L_FFFF; it now round-trips exactly. Added a
+synthetic self-interior-vector regression instead of retaining the cartridge.
+Validation: 37 semantic fixtures, all 256 opcode bytes, 12 fuzz ROMs, and
+Bridge.bin exact MD5 round-trip.

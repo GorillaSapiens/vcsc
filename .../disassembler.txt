@@ -50,11 +50,15 @@ F8/F6/F4, and F8SC/F6SC/F4SC cartridges also round-trips exactly through the
 standalone verifier.
 
 Items still marked partial are intentionally broader than the current first
-implementation: graphics recognition can grow beyond strong GRP/PF provenance;
-video inference now covers maintained timer signatures and conventional counted-WSYNC loops, but can still grow into more generic static or dynamic frame analysis; richer pointer/color/table recognition remains useful;
-manual known-pointer/table hints are not yet present; and final hardening still
-needs broad arbitrary-ROM fuzz/corpus coverage and an exercised Windows cross-build.
-These are improvements to analysis breadth, not exceptions to byte-exact output.
+implementation: speculative instruction-island discovery still needs the
+HLT/JAM/KIL rejection and three-rejected-start barrier pass described below;
+graphics recognition can grow beyond strong GRP/PF provenance; video inference
+now covers maintained timer signatures and conventional counted-WSYNC loops, but
+can still grow into more generic static or dynamic frame analysis; richer
+pointer/color/table recognition remains useful; manual known-pointer/table hints
+are not yet present; and final hardening still needs broad arbitrary-ROM
+fuzz/corpus coverage and an exercised Windows cross-build. These are improvements
+to analysis breadth, not exceptions to byte-exact output.
 
 Core invariant: exact binary round trip
 ---------------------------------------
@@ -278,6 +282,53 @@ utility code, but heuristic islands must remain lower-confidence than vector- or
 control-flow-reachable code. Random data happens to decode as legal 6502 very
 often; legal decoding alone is not meaningful evidence of execution.
 
+Speculative island validation and negative evidence
+---------------------------------------------------
+Use HLT/JAM/KIL opcodes as strong negative evidence when discovering otherwise
+unreferenced instruction islands. This is a speculative-code rule, not a claim
+that a real cartridge can never intentionally execute a CPU-locking opcode. If
+normal vector/control-flow analysis has already proved a HLT/JAM/KIL reachable,
+preserve it as executable code. Do not invalidate established code merely
+because it deliberately halts the processor.
+
+For each otherwise unknown candidate instruction-start address in each mapped
+4K cartridge bank/window, perform a speculative control-flow decode beginning at
+that byte. At minimum:
+
+    ordinary fallthrough       -> continue at the next instruction
+    conditional branch         -> explore every statically reachable successor
+    JSR                        -> explore the call target and return continuation
+    RTS / RTI                  -> successful path termination
+    unconditional JMP          -> successful transfer/termination for the local
+                                  linear island; follow the target as appropriate
+    previously proven code     -> successful path termination
+    newly speculative HLT/JAM/KIL
+                               -> reject the candidate flow
+
+Abstract-state facts matter. If one arm of a conditional branch is provably
+unreachable, a HLT/JAM/KIL on that impossible arm does not reject the candidate.
+If both outcomes remain possible, every possible executable arm must be safe; a
+possible path into HLT/JAM/KIL rejects that speculative candidate.
+
+Do not turn rejection into an exclusive byte classification. A candidate start
+can be rejected while a later byte in the same range is independently proven to
+be an instruction start by a branch, JMP, JSR, vector, mapper transition, or
+other established entry. This remains compatible with overlapping instruction
+streams and code-as-data.
+
+Retain rejected candidate starts as first-class negative evidence. The longest
+6502/6507 instruction is three bytes, so three consecutive addresses that have
+all been proven not to be instruction starts form a sequential-flow barrier:
+no ordinary fallthrough instruction stream can cross that barrier. Explicit
+control transfers may still jump over the barrier or enter code on either side,
+so a barrier does not by itself prove that all later bytes are data.
+
+Use these barriers to strengthen second-pass island and unused-ROM analysis. In
+a speculative region with no independent entry into its interior, if candidate
+decodes downstream of a three-start barrier run into HLT/JAM/KIL, the barrier
+can help reject the intervening linear interpretation as code. Never let this
+heuristic override a definite control-flow or definite code-as-data observation.
+
 Overlapping instruction streams
 -------------------------------
 The analyzer must support branch/JMP/JSR targets that enter the middle of an
@@ -375,10 +426,15 @@ mnemonic would not uniquely preserve the byte, use the assembler's exact `opXX`
 spelling and the correct addressing-mode suffix/operand form. Never silently
 replace one opcode encoding by a semantically equivalent different opcode.
 
-Preserve the original addressing mode explicitly when symbolization could cause
-a zero-page/absolute choice to change. VCSC assembly already provides `.z`,
-`.zx`, `.zy`, `.a`, `.ax`, `.ay`, `.i`, `.ix`, and `.iy` addressing-mode
-suffixes; use them when needed for exact reconstruction.
+Preserve the original addressing mode explicitly when symbolization or normal
+relaxation could cause a zero-page/absolute choice to change. Avoid redundant
+suffix noise: ordinary named zero-page instructions normally omit `.z`, `.zx`,
+and `.zy` because resolved 8-bit operands naturally select those modes. An
+original absolute/absolute-indexed instruction whose resolved operand is below
+`$0100` must retain `.a`, `.ax`, or `.ay` so it cannot relax to the shorter
+encoding. Raw `opXX` spellings retain whatever explicit mode suffix the assembler
+requires for an otherwise ambiguous operand shape. Other suffixes such as `.i`,
+`.ix`, and `.iy` remain available where needed for exact reconstruction.
 
 Branch page annotations
 -----------------------
@@ -485,6 +541,14 @@ Emit `.word` only when a two-byte region is proven to be a little-endian pointer
 or vector and symbolic assembly reproduces the exact original 16-bit value.
 Otherwise use bytes. Never rewrite a mirrored pointer value to a prettier
 bus-equivalent address.
+
+A symbolic reference may point into the interior of an emitted source container.
+This includes instruction operands and the high byte of a two-byte vector `.word`.
+Such an interior byte cannot own a standalone source label. Promote the label to
+the emitted container boundary and reference the exact byte as `label + offset`.
+For example, an IRQ vector containing `$FFFF` in a 4K `$F000` cartridge may be
+emitted as `L_FFFE: .word L_FFFE + 1`; never emit an unresolved `L_FFFF` merely
+because analysis marked `$FFFF` as a target.
 
 Do not reinterpret arbitrary tables just because a higher-level type would be
 possible. Conservative `.byte` output is always acceptable and safer than a
@@ -771,7 +835,7 @@ Roadmap
    * Add at least one non-BIT overlapping-stream fixture so support is general,
      not an opcode-specific hack.
 
-7. [x] Strengthen ROM-read and unreferenced-byte analysis
+7. [~] Strengthen ROM-read, speculative-island, and unreferenced-byte analysis
    * Track direct absolute ROM reads and bounded indexed ranges as definite data
      references.
    * Extend `stego` abstract-state ideas for zero-page/indirect pointers and
@@ -779,9 +843,26 @@ Roadmap
    * Mark unresolved dynamic ranges as possibly referenced rather than unused.
    * Identify bytes proven neither fetched nor read as unreferenced ROM.
    * Emit unreferenced regions as data, never speculative instructions.
+   * For each otherwise unknown address in every mapped 4K bank/window, test it
+     as a speculative instruction-island entry and recursively validate all
+     statically reachable successors.
+   * Reject a speculative candidate if any possible newly speculative path
+     reaches HLT/JAM/KIL. Honor abstract-state proof that such a path is
+     unreachable, and never reject a HLT/JAM/KIL already established by normal
+     non-speculative control flow.
+   * Retain rejected instruction-start addresses as negative evidence. Three
+     consecutive rejected starts form a sequential-flow barrier because no
+     6502/6507 instruction is longer than three bytes. Explicit branches/JMPs/
+     JSRs/vectors may still cross or enter around a barrier.
+   * Use barriers plus HLT/JAM/KIL rejection to strengthen island/data decisions
+     without overriding definite code, overlaps, or code-as-data evidence.
    * Add optional usage summary counts with clearly defined overlap accounting.
    * Add fixtures containing padding, abandoned code, instruction-as-data, and
      deliberately unreachable legal-opcode byte sequences.
+   * Add regressions for unconditional JAM rejection, conditional possible-JAM
+     rejection, abstractly unreachable JAM, established intentional JAM, three-
+     start barriers, explicit jumps across barriers, and overlapping inner entry
+     points inside otherwise rejected speculative regions.
 
 8. [x] Use canonical TIA/RIOT hardware symbols
    * Reuse the canonical names from `libraries/vcs/tia.c26` and `riot.c26`.
@@ -790,8 +871,12 @@ Roadmap
      for this.
    * Emit symbols such as `COLUBK`, `GRP0`, `SWCHA`, `INTIM`, and `TIM64T`
      instead of unexplained numeric addresses when exact bytes can be preserved.
-   * Preserve zero-page versus absolute encoding with `.z`/`.a` and related
-     addressing-mode suffixes.
+   * Preserve zero-page versus absolute encoding while avoiding redundant mode
+     noise: ordinary named zero-page instructions should normally omit `.z`,
+     `.zx`, and `.zy` because the assembler relaxes resolved 8-bit operands
+     naturally. Retain `.a`, `.ax`, or `.ay` when an originally wide encoding
+     has an operand below `$0100` and would otherwise relax. Raw `opXX` spellings
+     keep explicit mode suffixes whenever the assembler requires them.
    * Preserve noncanonical hardware mirror addresses exactly using symbolic
      expressions when possible; otherwise keep the numeric operand. Every
      preserved mirrored access must include a comment naming the canonical TIA
@@ -828,6 +913,8 @@ Roadmap
     * Use bank-qualified labels where runtime addresses collide across banks.
     * Detect vector/pointer/color/graphics tables conservatively.
     * Emit `.word` labels only when exact original 16-bit values are preserved.
+    * Represent references into instruction operands or vector-word interiors as
+      `container_label + offset`; never emit an unplaceable interior label.
     * Annotate code-as-data, overlap, unreferenced runs, dynamic-code exits, and
       important inference ambiguity without overwhelming normal source.
     * Add a verbose evidence/report mode separate from normal `.s26` output.

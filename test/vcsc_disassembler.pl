@@ -76,6 +76,12 @@ make_path($in, $out);
 # Plain 2K/4K and ordinary F8/F6/F4 sizes.
 write_bin(File::Spec->catfile($in, 'plain2k.bin'), make_rom(2048, 0xF800, 0x0100, "\xA9\x42\x60"));
 write_bin(File::Spec->catfile($in, 'plain4k.bin'), make_rom(4096, 0xF000, 0x0100, "\xA9\x42\x60"));
+# Vector targets may legally point into the high byte of another vector.
+# $FFFF is especially useful as a sentinel and must not produce an unresolved
+# L_FFFF label merely because the high byte lives inside the IRQ .word.
+my $vector_interior = make_rom(4096, 0xF000, 0x0100, "\xA9\x42\x60");
+put16(\$vector_interior, 0xFFE, 0xFFFF);
+write_bin(File::Spec->catfile($in, 'vector_interior.bin'), $vector_interior);
 write_bin(File::Spec->catfile($in, 'origin_d000.bin'), make_rom(4096, 0xD000, 0x0234, "\xA9\x17\x60"));
 write_bin(File::Spec->catfile($in, 'f8.bin'), make_rom(8192, 0xF000, 0x0100, "\xAD\xF8\x1F\x60"));
 # A plain F8 ROM may legitimately read ordinary ROM in $F080-$F0FF.
@@ -189,7 +195,7 @@ write_bin(File::Spec->catfile($in, 'dynamic_exit.bin'), $dynamic_exit);
 
 # Canonical and mirrored hardware accesses, including RIOT.
 my $hw = make_rom(4096, 0xF000, 0x0100,
-   "\x85\x09" .             # STA.z COLUBK
+   "\x85\x09" .             # STA COLUBK
    "\x8D\x09\x01" .       # STA.a COLUBK mirror
    "\xAD\x3C\x03" .       # LDA.a INPT4 mirror
    "\xAD\x80\x03" .       # LDA.a SWCHA mirror
@@ -198,6 +204,17 @@ my $hw = make_rom(4096, 0xF000, 0x0100,
    "\xEE\x80\x03" .       # INC.a RIOT read/write mirror
    "\x60");
 write_bin(File::Spec->catfile($in, 'hardware.bin'), $hw);
+
+# Ordinary zero-page suffixes are redundant, but an explicitly wide opcode with
+# a low operand must retain its absolute-mode suffix so relaxation cannot change
+# the original bytes.
+my $mode_relax = make_rom(4096, 0xF000, 0x0100,
+   "\x95\x80" .             # STA $80,X (zero page,X)
+   "\x9D\x80\x00" .       # STA.ax $0080,X (absolute,X)
+   "\xA5\x80" .             # LDA $80 (zero page)
+   "\xAD\x80\x00" .       # LDA.a $0080 (absolute)
+   "\x60");
+write_bin(File::Spec->catfile($in, 'mode_relaxation.bin'), $mode_relax);
 
 # F8SC evidence: F8 selector plus SC write/read windows.
 my $sc = make_rom(8192, 0xF000, 0x0100,
@@ -301,6 +318,13 @@ write_bin(File::Spec->catfile($in, 'controller_mixed.bin'), $mixed);
 
 run_ok($^X, $roundtrip, $in, $out);
 
+my $vector_interior_out = slurp(File::Spec->catfile($out, 'vector_interior.s26'));
+require_re($vector_interior_out,
+   qr/^L_FFFE:\n\s*\.word\s+L_FFFE\s*\+\s*1\s*; IRQ\/BRK vector$/m,
+   'vector target into emitted vector word uses container-relative label');
+die "vector interior emitted an unresolved standalone L_FFFF reference\n"
+   if $vector_interior_out =~ /\.word\s+L_FFFF\b/;
+
 my $branches = slurp(File::Spec->catfile($out, 'branches.s26'));
 my @same = ($branches =~ /\b(?:BPL|BMI|BVC|BVS|BCC|BCS|BNE|BEQ)\.same\b/g);
 my @cross = ($branches =~ /\b(?:BPL|BMI|BVC|BVS|BCC|BCS|BNE|BEQ)\.cross\b/g);
@@ -331,7 +355,7 @@ require_re($jmp_origin_out, qr/^; bank 1: .* origin \$F000\b/m,
 
 my $code_data = slurp(File::Spec->catfile($out, 'code_as_data.s26'));
 require_re($code_data, qr/instruction byte\/operand also read as data/i, 'code-as-data annotation');
-require_re($code_data, qr/LDA\.a\s+L_F100\s*\+\s*1\b/, 'code-as-data interior alias');
+require_re($code_data, qr/LDA\s+L_F100\s*\+\s*1\b/, 'code-as-data interior alias');
 
 my $known_indirect = slurp(File::Spec->catfile($out, 'known_indirect_data.s26'));
 require_re($known_indirect,
@@ -354,7 +378,9 @@ require_re($dynamic_exit_out, qr/JMP\.a\s+\$0080.*control transfer leaves static
    'dynamic control exit annotation');
 
 my $hardware = slurp(File::Spec->catfile($out, 'hardware.s26'));
-require_re($hardware, qr/STA\.z\s+COLUBK\b/, 'canonical TIA symbol');
+require_re($hardware, qr/STA\s+COLUBK\b/, 'canonical TIA symbol without redundant zero-page suffix');
+die "canonical zero-page TIA access retained redundant .z suffix\n"
+   if $hardware =~ /STA\.z\s+COLUBK\b/;
 require_re($hardware, qr/COLUBK\s*\+\s*\$0100.*mirror of COLUBK/i, 'TIA mirror comment');
 require_re($hardware, qr/INPT4\s*\+\s*\$0300.*mirror of INPT4/i, 'TIA read mirror comment');
 require_re($hardware, qr/SWCHA\s*\+\s*\$0100.*mirror of SWCHA/i, 'RIOT read mirror comment');
@@ -363,6 +389,20 @@ require_re($hardware, qr/TIA read-modify-write: reads CXM0P .*mirrored operand \
    'TIA RMW mirror annotation');
 require_re($hardware, qr/RIOT read-modify-write: reads SWCHA .*writes SWCHA .*mirrored operand \$0380/i,
    'RIOT RMW mirror annotation');
+
+my $mode_relax_out = slurp(File::Spec->catfile($out, 'mode_relaxation.s26'));
+require_re($mode_relax_out, qr/STA\s+\$80,X\b/,
+   'redundant zero-page-X suffix omitted');
+die "zero-page-X instruction retained redundant .zx suffix\n"
+   if $mode_relax_out =~ /STA\.zx\s+\$80,X\b/;
+require_re($mode_relax_out, qr/STA\.ax\s+\$0080,X\b/,
+   'low absolute-X operand keeps .ax to prevent relaxation');
+require_re($mode_relax_out, qr/LDA\s+\$80\b/,
+   'redundant zero-page suffix omitted');
+die "zero-page instruction retained redundant .z suffix\n"
+   if $mode_relax_out =~ /LDA\.z\s+\$80\b/;
+require_re($mode_relax_out, qr/LDA\.a\s+\$0080\b/,
+   'low absolute operand keeps .a to prevent relaxation');
 
 my $f8_read_only = slurp(File::Spec->catfile($out, 'f8_sc_read_only.s26'));
 require_re($f8_read_only, qr/^; mapper: F8 \(/m,
