@@ -788,6 +788,25 @@ int main(int argc, char **argv)
 
    asm_relax(&ctx);
 
+   if (opt.want_o26 && ctx.error_count == 0) {
+      int phase_iter;
+      for (phase_iter = 0; phase_iter < 4; ++phase_iter) {
+         int changed = asm_select_reloc_phases(&ctx);
+         if (changed < 0 || ctx.error_count)
+            break;
+         if (!changed)
+            break;
+         asm_reset_emit_modes(&ctx);
+         asm_relax(&ctx);
+         if (ctx.error_count)
+            break;
+      }
+      /* One final selection verifies the relaxed layout and restores symbols
+         at the chosen final-link phases. */
+      if (ctx.error_count == 0)
+         (void)asm_select_reloc_phases(&ctx);
+   }
+
    if (!opt.want_o26)
       asm_pass2(&ctx);
 

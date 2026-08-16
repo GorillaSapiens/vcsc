@@ -115,7 +115,7 @@ __sbpmeta$E$vcs_standard_color_renderer_drawscreen$vcs_standard_color_overscan_h
 
 @overscanloop:
      lda INTIM ;wait for sync
-     bmi @overscanloop
+     bmi.same @overscanloop
 @doneoverscan:
 
      ;do VSYNC
@@ -146,12 +146,12 @@ __sbpmeta$E$vcs_standard_color_renderer_drawscreen$vcs_standard_color_overscan_h
      sec ;+2 11
 @DivideLoop:
      sbc #15
-     bcs @DivideLoop;+4 15
+     bcs.same @DivideLoop;+4 15
      sta vcs_standard_color_pointer_workspace + 6,X ;+4 19
      sta RESP0,X ;+4 23
      sta WSYNC
      dex
-     bpl @HorPosLoop;+5 5
+     bpl.same @HorPosLoop;+5 5
      ; 4
 
      ldx #4
@@ -210,7 +210,7 @@ __sbpmeta$E$vcs_standard_color_renderer_drawscreen$vcs_standard_color_overscan_h
      ; run possible vblank bB code
 @vblk2:
      LDA INTIM
-     bmi @vblk2
+     bmi.same @vblk2
      jmp @renderer
 
 
@@ -318,7 +318,7 @@ __sbpmeta$E$vcs_standard_color_renderer_drawscreen$vcs_standard_color_overscan_h
      dey ;2
      sty vcs_standard_color_player1_y ;3
      cpy vcs_standard_color_object_masks + 15 ;3, exclusive height
-     bcs @skipP1 ;3 when skipped, 2 when drawing
+     bcs.same @skipP1 ;3 when skipped, 2 when drawing
      lda (vcs_standard_color_player1_graphics),y ;5; graphics range must stay on one page
      jmp @continueP1 ;3
 @skipP1:
@@ -351,7 +351,7 @@ __sbpmeta$E$vcs_standard_color_renderer_drawscreen$vcs_standard_color_overscan_h
      dey
      sty vcs_standard_color_player0_y
      cpy vcs_standard_color_object_masks + 11 ; exclusive height
-     bcs @skipP0
+     bcs.same @skipP0
      lda (vcs_standard_color_player0_graphics),y
      jmp @continueP0
 @skipP0:
@@ -369,7 +369,7 @@ __sbpmeta$E$vcs_standard_color_renderer_drawscreen$vcs_standard_color_overscan_h
              clc ;2, preserve the legal row-advance carry contract
              SLEEP 3
          dec vcs_standard_color_pointer_workspace + 6
-         bne @continuerenderer
+         bne.same @continuerenderer
 
 @altrenderer:
 
@@ -390,7 +390,7 @@ __sbpmeta$E$vcs_standard_color_renderer_drawscreen$vcs_standard_color_overscan_h
      tax
      cpx #44
 
-     bcs @lastrendererline
+     bcs.same @lastrendererline
 
                      ; read paddle 0
                      ; lo-res paddle read
@@ -456,7 +456,7 @@ __sbpmeta$E$vcs_standard_color_renderer_drawscreen$vcs_standard_color_overscan_h
 
      dex
      ;dec temp4 ; might try putting this above PF writes
-     beq @endrenderer
+     beq.same @endrenderer
 
 
          ldy.a vcs_standard_color_playfield-48+4*12+44
@@ -628,7 +628,7 @@ __sbpmeta$E$vcs_standard_color_renderer_drawscreen$vcs_standard_color_overscan_h
          sta GRP1 ;+3 50 150 D5 D5 D6 D4!
          sty GRP0 ;+3 53 159 D4* D5! D6 D6
          dey
-         bpl @loop2 ;+2 60 180
+         bpl.same @loop2 ;+2 60 180
 
          ldx vcs_standard_color_object_masks + 3
          txs
@@ -802,7 +802,7 @@ vcs_standard_color_score_table:
      adc #4
      tax
      cpx #44
-     bcc @clear
+     bcc.same @clear
 
      lda #87
      sta vcs_standard_color_object_masks + 31
@@ -845,7 +845,7 @@ vcs_standard_color_score_table:
      sbc #89
      tay
      cpy vcs_standard_color_object_masks + 15
-     bcs @final_player1_zero
+     bcs.same @final_player1_zero
      lda (vcs_standard_color_player1_graphics),y
      sta vcs_standard_color_object_masks + 31
      lda.ay vcs_standard_color_player1_colors,y
@@ -863,7 +863,7 @@ vcs_standard_color_score_table:
      sbc #89
      tay
      cpy vcs_standard_color_object_masks + 11
-     bcs @final_player0_zero
+     bcs.same @final_player0_zero
      lda (vcs_standard_color_player0_graphics),y
      sta vcs_standard_color_object_masks + 39
      lda.ay vcs_standard_color_player0_colors,y
@@ -886,14 +886,14 @@ vcs_standard_color_score_table:
      sta vcs_standard_color_object_masks + 7
      sta vcs_standard_color_object_masks + 39
      cmp vcs_standard_color_object_masks + 11
-     bcc @no_wrap
-     beq @no_wrap
+     bcc.same @no_wrap
+     beq.same @no_wrap
 
      lda vcs_standard_color_object_masks + 11
-     beq @wrapped_high
+     beq.same @wrapped_high
      cmp vcs_standard_color_object_masks + 31
-     bcc @wrapped_low_ready
-     beq @wrapped_low_ready
+     bcc.same @wrapped_low_ready
+     beq.same @wrapped_low_ready
      lda vcs_standard_color_object_masks + 31
      sta vcs_standard_color_object_masks + 11
 @wrapped_low_ready:
@@ -904,8 +904,8 @@ vcs_standard_color_score_table:
 @wrapped_high:
      lda vcs_standard_color_object_masks + 39
      cmp vcs_standard_color_object_masks + 31
-     bcc @wrapped_high_ready
-     beq @wrapped_high_ready
+     bcc.same @wrapped_high_ready
+     beq.same @wrapped_high_ready
      rts
 @wrapped_high_ready:
      sta vcs_standard_color_object_masks + 7
@@ -916,21 +916,21 @@ vcs_standard_color_score_table:
 
 @no_wrap:
      lda vcs_standard_color_object_masks + 7
-     bne @no_wrap_first_ready
+     bne.same @no_wrap_first_ready
      lda #1
      sta vcs_standard_color_object_masks + 7
 @no_wrap_first_ready:
      lda vcs_standard_color_object_masks + 11
      cmp vcs_standard_color_object_masks + 31
-     bcc @no_wrap_last_ready
-     beq @no_wrap_last_ready
+     bcc.same @no_wrap_last_ready
+     beq.same @no_wrap_last_ready
      lda vcs_standard_color_object_masks + 31
      sta vcs_standard_color_object_masks + 11
 @no_wrap_last_ready:
      lda vcs_standard_color_object_masks + 7
      cmp vcs_standard_color_object_masks + 11
-     bcc @set_range
-     beq @set_range
+     bcc.same @set_range
+     beq.same @set_range
      rts
 
 @set_range:
@@ -970,7 +970,7 @@ vcs_standard_color_score_table:
      tax
      lda vcs_standard_color_object_masks + 15
      cmp vcs_standard_color_object_masks + 19
-     bne @range_many
+     bne.same @range_many
      lda vcs_standard_color_object_masks + 23
      and vcs_standard_color_object_masks + 27
      ora vcs_standard_color_object_masks,x
@@ -985,7 +985,7 @@ vcs_standard_color_score_table:
 @range_middle:
      lda vcs_standard_color_object_masks + 15
      cmp vcs_standard_color_object_masks + 19
-     bcs @range_last
+     bcs.same @range_last
      txa
      clc
      adc #4

@@ -129,10 +129,10 @@ require_re($active,qr/\.align 256\s+\@kerloop:/s,
 $active !~ /\@skipDrawP[01]:/
    or die "obsolete steady player skip stubs remain in normalized source\n";
 require_re($active,
-   qr/\@startrenderer:\s+ldy vcs_standard_player1_y\s+dey\s+sty vcs_standard_player1_y\s+cpy vcs_standard_object_masks \+ 15\s+bcc \@drawP1\s+lda vcs_standard_object_masks \+ 19\s+jmp \@continueP1\s+\@drawP1:\s+lda \(vcs_standard_player1_graphics\),y\s+\@continueP1:\s+sta GRP1/s,
+   qr/\@startrenderer:\s+ldy vcs_standard_player1_y\s+dey\s+sty vcs_standard_player1_y\s+cpy vcs_standard_object_masks \+ 15\s+bcc\.same \@drawP1\s+lda vcs_standard_object_masks \+ 19\s+jmp \@continueP1\s+\@drawP1:\s+lda \(vcs_standard_player1_graphics\),y\s+\@continueP1:\s+sta GRP1/s,
    'legal steady player-1 path or its cycle-balanced zero path changed');
 require_re($active,
-   qr/ldy vcs_standard_player0_y\s+dey\s+sty vcs_standard_player0_y\s+cpy vcs_standard_object_masks \+ 11\s+bcc \@drawP0\s+lda vcs_standard_object_masks \+ 19\s+jmp \@continueP0\s+\@drawP0:\s+lda \(vcs_standard_player0_graphics\),y\s+\@continueP0:\s+sta\.a GRP0/s,
+   qr/ldy vcs_standard_player0_y\s+dey\s+sty vcs_standard_player0_y\s+cpy vcs_standard_object_masks \+ 11\s+bcc\.same \@drawP0\s+lda vcs_standard_object_masks \+ 19\s+jmp \@continueP0\s+\@drawP0:\s+lda \(vcs_standard_player0_graphics\),y\s+\@continueP0:\s+sta\.a GRP0/s,
    'legal steady player-0 path or its cycle-balanced zero path changed');
 require_re($active,qr/\@continuerenderer:\s+\@continuerenderer2:/s,
    'steady loop did not consume the former two-cycle pad');
@@ -153,9 +153,9 @@ for my $operand ('vcs_standard_playfield,x','vcs_standard_playfield+1,x',
    my $count=()=$active =~ /\Q$operand\E/g;
    $count == 2 or die "$operand appears $count times, expected two direct row reads\n";
 }
-require_re($active,qr/txa\s+adc\s+#4\s+tax\s+cpx\s+#44\s+bcs\s+\@lastrendererline/s,
+require_re($active,qr/txa\s+adc\s+#4\s+tax\s+cpx\s+#44\s+bcs\.same\s+\@lastrendererline/s,
    'zero-based playfield loop does not use the legal carry-clear ADC/TAX advance');
-require_re($active,qr/bcs\s+\@lastrendererline.*?SLEEP 3.*?\@lastrendererline:\s+SLEEP 6/s,
+require_re($active,qr/bcs\.same\s+\@lastrendererline.*?SLEEP 3.*?\@lastrendererline:\s+SLEEP 6/s,
    'legal row-advance transition padding changed');
 require_re($active,qr/^\s*\.if\s+\{<\*\}\s*>\s*\$e9\s*&&\s*\{<\*\}\s*<\s*\$fa\s*\n\s*\.align\s+256\s*,\s*\$fa\s*,\s*\$ea\s*\n\s*\.endif/m,
    'page-tail NOP fill is not expressed by the guarded fill-byte alignment');

@@ -611,7 +611,9 @@ position_setup:
 sta WSYNC        ; if the setup is six bytes, the following loop begins at xx00
 ```
 
-In o26 object output, `.align` pads within the current packed segment. Final absolute alignment depends on where the linker places that segment; use linker segment alignment too when the segment base itself has an absolute alignment contract.
+For direct/HEX output, any positive boundary is valid because the assembler already knows the final address. For relocatable o26 output, `.align` boundaries must be powers of two from 1 through 32768. The assembler both emits the local padding **and records an implicit final segment-base alignment of the same boundary**, so after linking the requested `address % boundary == offset` relation is an absolute CPU-address contract rather than merely a section-relative coincidence. Multiple `.align` directives on one segment combine by keeping the strongest power-of-two base alignment.
+
+While `.rorg` is active, `.align` still computes padding from the logical/runtime address, as described below. The o26 segment also carries the boundary alignment metadata for its physical placement; the `.rorg` value remains the authority for the logical CPU address.
 
 ### Relocatable origin directives
 
@@ -787,10 +789,7 @@ C26 `mem` region. The special identifier `startup` means the selected cartridge
 topology's default/startup read-only region, so one component can compose with
 4K, F8, F6, or F4 without naming `rom` or `bank0`. The named layout must exist.
 
-`.segmentalign "SEGMENT", ALIGNMENT` requires the final layout base to have the
-specified power-of-two alignment from 1 through 32768. This differs from
-`.align`: `.align` pads inside the assembler segment, whereas `.segmentalign`
-constrains the segment's final linker base. Components commonly use both.
+`.segmentalign "SEGMENT", ALIGNMENT` explicitly requires the final layout base to have the specified power-of-two alignment from 1 through 32768, without inserting any padding at the declaration site. Relocatable `.align` now also contributes an implicit final base-alignment constraint in addition to its local padding; `.segmentalign` remains useful when the component needs a base constraint without moving the current location, or when the constraint is declared separately from the aligned code/data. Explicit `.segmentalign` and implicit `.align` requirements combine by using the strongest compatible power-of-two alignment.
 
 For compiler-generated C26 objects, source `align(N)` is the user-facing spelling
 for this layout-start constraint. The compiler accepts only compile-time positive

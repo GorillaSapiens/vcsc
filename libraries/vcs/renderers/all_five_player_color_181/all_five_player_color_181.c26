@@ -120,7 +120,7 @@ require inline void TEMPLATE_vblank(void) {
    asm adc #4;
    asm tax;
    asm cpx #44;
-   asm bcc @clear;
+   asm bcc.same @clear;
    // VDELBL stages Ball one pair ahead in the score-composable profile.
    // Gameplay pair coordinates run through 87, with the biased terminal
    // endpoint admitted through 88.
@@ -169,13 +169,13 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_object_masks + 7;
    asm sta.z TEMPLATE_object_masks + 39;
    asm cmp.z TEMPLATE_object_masks + 11;
-   asm bcc @no_wrap;
-   asm beq @no_wrap;
+   asm bcc.same @no_wrap;
+   asm beq.same @no_wrap;
    asm lda.z TEMPLATE_object_masks + 11;
-   asm beq @wrapped_high;
+   asm beq.same @wrapped_high;
    asm cmp.z TEMPLATE_object_masks + 31;
-   asm bcc @wrapped_low_ready;
-   asm beq @wrapped_low_ready;
+   asm bcc.same @wrapped_low_ready;
+   asm beq.same @wrapped_low_ready;
    asm lda.z TEMPLATE_object_masks + 31;
    asm sta.z TEMPLATE_object_masks + 11;
    asm @wrapped_low_ready:;
@@ -185,8 +185,8 @@ require inline void TEMPLATE_vblank(void) {
    asm @wrapped_high:;
    asm lda.z TEMPLATE_object_masks + 39;
    asm cmp.z TEMPLATE_object_masks + 31;
-   asm bcc @wrapped_high_ready;
-   asm beq @wrapped_high_ready;
+   asm bcc.same @wrapped_high_ready;
+   asm beq.same @wrapped_high_ready;
    asm rts;
    asm @wrapped_high_ready:;
    asm sta.z TEMPLATE_object_masks + 7;
@@ -196,21 +196,21 @@ require inline void TEMPLATE_vblank(void) {
    asm rts;
    asm @no_wrap:;
    asm lda.z TEMPLATE_object_masks + 7;
-   asm bne @no_wrap_first_ready;
+   asm bne.same @no_wrap_first_ready;
    asm lda #1;
    asm sta.z TEMPLATE_object_masks + 7;
    asm @no_wrap_first_ready:;
    asm lda.z TEMPLATE_object_masks + 11;
    asm cmp.z TEMPLATE_object_masks + 31;
-   asm bcc @no_wrap_last_ready;
-   asm beq @no_wrap_last_ready;
+   asm bcc.same @no_wrap_last_ready;
+   asm beq.same @no_wrap_last_ready;
    asm lda.z TEMPLATE_object_masks + 31;
    asm sta.z TEMPLATE_object_masks + 11;
    asm @no_wrap_last_ready:;
    asm lda.z TEMPLATE_object_masks + 7;
    asm cmp.z TEMPLATE_object_masks + 11;
-   asm bcc @set_range;
-   asm beq @set_range;
+   asm bcc.same @set_range;
+   asm beq.same @set_range;
    asm rts;
    asm @set_range:;
    asm lda.z TEMPLATE_object_masks + 7;
@@ -247,7 +247,7 @@ require inline void TEMPLATE_vblank(void) {
    asm tax;
    asm lda.z TEMPLATE_object_masks + 15;
    asm cmp.z TEMPLATE_object_masks + 19;
-   asm bne @range_many;
+   asm bne.same @range_many;
    asm lda.z TEMPLATE_object_masks + 23;
    asm and.z TEMPLATE_object_masks + 27;
    asm ora.zx TEMPLATE_object_masks,x;
@@ -261,7 +261,7 @@ require inline void TEMPLATE_vblank(void) {
    asm @range_middle:;
    asm lda.z TEMPLATE_object_masks + 15;
    asm cmp.z TEMPLATE_object_masks + 19;
-   asm bcs @range_last;
+   asm bcs.same @range_last;
    asm txa;
    asm clc;
    asm adc #4;
@@ -304,7 +304,7 @@ require inline void TEMPLATE_vblank(void) {
    asm adc #4;
    asm tax;
    asm cpx #44;
-   asm bcc @TEMPLATE_encode_masks;
+   asm bcc.same @TEMPLATE_encode_masks;
 
    // Prime cache B with row zero. Starting on B makes the odd eleven-row
    // profile terminate on the same fixed B-boundary path used by the proven
@@ -357,7 +357,6 @@ require inline void TEMPLATE_vblank(void) {
    asm tay;
    asm lda TEMPLATE_reposition_table + 16 - 256,y;
    asm sta HMP0,x;
-
    asm sta WSYNC;
    asm ldx #3;
    asm bit.z CXM0P;
@@ -372,7 +371,6 @@ require inline void TEMPLATE_vblank(void) {
    asm tay;
    asm lda TEMPLATE_reposition_table + 16 - 256,y;
    asm sta HMP0,x;
-
    asm sta WSYNC;
    asm ldx #2;
    asm bit.z CXM0P;
@@ -435,7 +433,7 @@ require inline void TEMPLATE_vblank(void) {
    // and already has that count.
    asm lda TEMPLATE_reposition_table + 16 - 256,y;
    asm cpy #$fe;
-   asm bcc @TEMPLATE_player_position_not_high_gap;
+   asm bcc.same @TEMPLATE_player_position_not_high_gap;
    asm inx;
    asm sec;
    asm sbc #$70;
@@ -443,7 +441,7 @@ require inline void TEMPLATE_vblank(void) {
    asm rts;
    asm @TEMPLATE_player_position_not_high_gap:;
    asm cpy #$f1;
-   asm beq @TEMPLATE_player_position_zero_gap;
+   asm beq.same @TEMPLATE_player_position_zero_gap;
    asm sec;
    asm sbc #$30;
    asm clc;
@@ -532,7 +530,7 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_object_masks + 1;
    asm cpy.z TEMPLATE_player1_height;
-   asm bcs @TEMPLATE_first_player1_zero;
+   asm bcs.same @TEMPLATE_first_player1_zero;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm jmp @TEMPLATE_first_player1_ready;
    asm @TEMPLATE_first_player1_zero:;
@@ -572,7 +570,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 10;
    asm sta PF1;
-   asm bcs @TEMPLATE_first_p0_zero;
+   asm bcs.same @TEMPLATE_first_p0_zero;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @TEMPLATE_first_p0_ready;
    asm @TEMPLATE_first_p0_zero:;
@@ -647,7 +645,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 3;
    asm sta PF1;
-   asm bcs @TEMPLATE_A_c_u1_p0_zero;
+   asm bcs.same @TEMPLATE_A_c_u1_p0_zero;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @TEMPLATE_A_c_u1_p0_ready;
    asm @TEMPLATE_A_c_u1_p0_zero:;
@@ -712,7 +710,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 3;
    asm sta PF1;
-   asm bcs @TEMPLATE_A_c_loop_p0_zero;
+   asm bcs.same @TEMPLATE_A_c_loop_p0_zero;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @TEMPLATE_A_c_loop_p0_ready;
    asm @TEMPLATE_A_c_loop_p0_zero:;
@@ -781,7 +779,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 3;
    asm sta PF1;
-   asm bcs @TEMPLATE_A_c_u4_p0_zero;
+   asm bcs.same @TEMPLATE_A_c_u4_p0_zero;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @TEMPLATE_A_c_u4_p0_ready;
    asm @TEMPLATE_A_c_u4_p0_zero:;
@@ -844,7 +842,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 3;
    asm sta PF1;
-   asm bcs @TEMPLATE_A_c_u5_p0_zero;
+   asm bcs.same @TEMPLATE_A_c_u5_p0_zero;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @TEMPLATE_A_c_u5_p0_ready;
    asm @TEMPLATE_A_c_u5_p0_zero:;
@@ -913,7 +911,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 3;
    asm sta PF1;
-   asm bcs @TEMPLATE_A_c_u6_p0_zero;
+   asm bcs.same @TEMPLATE_A_c_u6_p0_zero;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @TEMPLATE_A_c_u6_p0_ready;
    asm @TEMPLATE_A_c_u6_p0_zero:;
@@ -951,7 +949,7 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_object_masks + 1;
    asm cpy.z TEMPLATE_player1_height;
-   asm bcs @TEMPLATE_A_c_u7_p1_zero;
+   asm bcs.same @TEMPLATE_A_c_u7_p1_zero;
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
@@ -1012,7 +1010,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.a TEMPLATE_row_cache + 3;
    asm sta PF1;
    asm cpy.z TEMPLATE_player1_height;
-   asm bcs @TEMPLATE_A_c_boundary_p1_zero;
+   asm bcs.same @TEMPLATE_A_c_boundary_p1_zero;
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
@@ -1043,7 +1041,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 10;
    asm sta PF1;
-   asm bcs @TEMPLATE_A_c_boundary_p0_zero;
+   asm bcs.same @TEMPLATE_A_c_boundary_p0_zero;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @TEMPLATE_A_c_boundary_p0_ready;
    asm @TEMPLATE_A_c_boundary_p0_zero:;
@@ -1110,7 +1108,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 10;
    asm sta PF1;
-   asm bcs @TEMPLATE_B_c_u1_p0_zero;
+   asm bcs.same @TEMPLATE_B_c_u1_p0_zero;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @TEMPLATE_B_c_u1_p0_ready;
    asm @TEMPLATE_B_c_u1_p0_zero:;
@@ -1175,7 +1173,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 10;
    asm sta PF1;
-   asm bcs @TEMPLATE_B_c_loop_p0_zero;
+   asm bcs.same @TEMPLATE_B_c_loop_p0_zero;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @TEMPLATE_B_c_loop_p0_ready;
    asm @TEMPLATE_B_c_loop_p0_zero:;
@@ -1244,7 +1242,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 10;
    asm sta PF1;
-   asm bcs @TEMPLATE_B_c_u4_p0_zero;
+   asm bcs.same @TEMPLATE_B_c_u4_p0_zero;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @TEMPLATE_B_c_u4_p0_ready;
    asm @TEMPLATE_B_c_u4_p0_zero:;
@@ -1307,7 +1305,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 10;
    asm sta PF1;
-   asm bcs @TEMPLATE_B_c_u5_p0_zero;
+   asm bcs.same @TEMPLATE_B_c_u5_p0_zero;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @TEMPLATE_B_c_u5_p0_ready;
    asm @TEMPLATE_B_c_u5_p0_zero:;
@@ -1376,7 +1374,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 10;
    asm sta PF1;
-   asm bcs @TEMPLATE_B_c_u6_p0_zero;
+   asm bcs.same @TEMPLATE_B_c_u6_p0_zero;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @TEMPLATE_B_c_u6_p0_ready;
    asm @TEMPLATE_B_c_u6_p0_zero:;
@@ -1414,7 +1412,7 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_object_masks + 1;
    asm cpy.z TEMPLATE_player1_height;
-   asm bcs @TEMPLATE_B_c_u7_p1_zero;
+   asm bcs.same @TEMPLATE_B_c_u7_p1_zero;
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
@@ -1465,7 +1463,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.z TEMPLATE_row_cache + 8;
    asm sta PF2;
    asm cpx #40;
-   asm beq @TEMPLATE_terminal_boundary;
+   asm beq.cross @TEMPLATE_terminal_boundary;
    asm lsr.a TEMPLATE_row_cache + 4;
    asm ldy.z TEMPLATE_object_masks + 1;
    asm dey;
@@ -1475,7 +1473,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.a TEMPLATE_row_cache + 10;
    asm sta PF1;
    asm cpy.z TEMPLATE_player1_height;
-   asm bcs @TEMPLATE_B_c_boundary_p1_zero;
+   asm bcs.same @TEMPLATE_B_c_boundary_p1_zero;
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
@@ -1506,7 +1504,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 3;
    asm sta PF1;
-   asm bcs @TEMPLATE_B_c_boundary_p0_zero;
+   asm bcs.same @TEMPLATE_B_c_boundary_p0_zero;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @TEMPLATE_B_c_boundary_p0_ready;
    asm @TEMPLATE_B_c_boundary_p0_zero:;

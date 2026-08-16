@@ -396,7 +396,9 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
    asm cpx #40;
-   asm beq @terminalrenderer;
+   asm bne.same @terminalrenderer_not_equal;
+   asm jmp @terminalrenderer;
+   asm @terminalrenderer_not_equal:;
    // Compare Ball before loading the reflected bytes.  Loads and stores do
    // not disturb carry, so the seven-cycle ENABL materialization can happen
    // immediately after the PF writes.  PF1/PF2 therefore land at the proven
@@ -533,7 +535,9 @@ require inline void TEMPLATE_draw(void) {
    asm bit.z TEMPLATE_workspace + 5;
    asm @transition_follow_continueP0:;
    asm dec.z TEMPLATE_workspace;
-   asm bne @continuerenderer;
+   asm beq.same @continuerenderer_not_equal;
+   asm jmp @continuerenderer;
+   asm @continuerenderer_not_equal:;
    asm jmp @altrenderer;
 
    // The final row needs no object setup for a following line.  Finish its

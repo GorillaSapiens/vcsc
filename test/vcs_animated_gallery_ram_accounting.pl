@@ -75,8 +75,8 @@ index($asm,'__phaseworkspace$V1$__vcsc_scratch_0')<0
    or die "fixed VSYNC unexpectedly materialized phase-scoped compiler scratch\n";
 index($asm,'__phaseworkspace$V1$game_workspace')>=0
    or die "direct-countdown renderer workspace lacks explicit phase-workspace ownership metadata\n";
-$map =~ /rom\s+used=3377 bytes .*free=713 bytes/
-   or die "3377-byte post-startup-rewrite animated-gallery ROM result changed\n";
+$map =~ /rom\s+used=3244 bytes .*free=846 bytes/
+   or die "3244-byte absolute-alignment animated-gallery ROM result changed\n";
 $map =~ /ram\s+used=51 bytes .*free=77 bytes .*objects=47 bytes hardware-stack=4 bytes/
    or die "51-byte post-startup-rewrite RAM result changed\n";
 $map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$00E8/m
@@ -239,7 +239,7 @@ my $report={
    schema=>16,
    program=>'examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26',
    totals=>{
-      rom_bytes=>3377, rom_free_bytes=>713,
+      rom_bytes=>3244, rom_free_bytes=>846,
       ram_bytes=>51, free_ram_bytes=>77, object_bytes=>47, hardware_stack_bytes=>4,
       category_bytes=>\%category_totals, subcategory_bytes=>\%subcategory_totals,
    },
@@ -315,13 +315,13 @@ my $report={
       ball_capability_retained=>JSON::PP::true,
       gallery_ball_height=>0,
       baseline=>{rom_bytes=>3993, ram_bytes=>128, activation_bytes=>20, stack_bytes=>8, free_ram_bytes=>0},
-      current=>{rom_bytes=>3377, ram_bytes=>51, activation_bytes=>0, stack_bytes=>4, free_ram_bytes=>77},
-      total_delta=>{rom_bytes=>-616, ram_bytes=>-77, activation_bytes=>-20, stack_bytes=>-4, free_ram_bytes=>77},
+      current=>{rom_bytes=>3244, ram_bytes=>51, activation_bytes=>0, stack_bytes=>4, free_ram_bytes=>77},
+      total_delta=>{rom_bytes=>-749, ram_bytes=>-77, activation_bytes=>-20, stack_bytes=>-4, free_ram_bytes=>77},
       free_ram_percent=>60.15625,
       useful_game_state_margin=>JSON::PP::true,
       decision=>'retain-general-p0-p1-ball-renderer',
       rationale=>'the official-opcode direct-countdown renderer removes the 48-byte object schedule while retaining P0/P1/Ball capability and expands the gallery margin to 72 bytes',
-      checkpoint_source=>'historical rows through item10a-stella are measurements recorded by the completed RAM roadmap; frame-ntsc-262 is the post-closeout four-byte cost of the Stella-proven two-WSYNC frame-length correction',
+      checkpoint_source=>'historical rows through startup-main-cleanup are recorded measurements; absolute-align-link-placement is the current linker result after relocatable .align became an absolute final-address contract',
       checkpoints=>[
          {step=>'baseline', rom_bytes=>3993, ram_bytes=>128, activation_bytes=>20, stack_bytes=>8, free_ram_bytes=>0, delta_rom_bytes=>0, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
          {step=>'item1', rom_bytes=>3993, ram_bytes=>115, activation_bytes=>7, stack_bytes=>8, free_ram_bytes=>13, delta_rom_bytes=>0, delta_ram_bytes=>-13, delta_activation_bytes=>-13, delta_stack_bytes=>0},
@@ -339,6 +339,7 @@ my $report={
          {step=>'item10a-stella', rom_bytes=>3292, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72, delta_rom_bytes=>3, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
          {step=>'frame-ntsc-262', rom_bytes=>3296, ram_bytes=>56, activation_bytes=>1, stack_bytes=>4, free_ram_bytes=>72, delta_rom_bytes=>4, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
          {step=>'startup-main-cleanup', rom_bytes=>3377, ram_bytes=>51, activation_bytes=>0, stack_bytes=>4, free_ram_bytes=>77, delta_rom_bytes=>81, delta_ram_bytes=>-5, delta_activation_bytes=>-1, delta_stack_bytes=>0},
+         {step=>'absolute-align-link-placement', rom_bytes=>3244, ram_bytes=>51, activation_bytes=>0, stack_bytes=>4, free_ram_bytes=>77, delta_rom_bytes=>-133, delta_ram_bytes=>0, delta_activation_bytes=>0, delta_stack_bytes=>0},
       ],
    },
    completion_gates=>{
@@ -352,15 +353,15 @@ my $report={
       ],
       optional_two_sprite_profiles=>{item11_192=>'closed-unnecessary',item12_181=>'closed-unnecessary'},
       baseline=>{rom_bytes=>3993,ram_bytes=>128,free_ram_bytes=>0,activation_bytes=>20,stack_bytes=>8},
-      final=>{rom_bytes=>3377,ram_bytes=>51,free_ram_bytes=>77,activation_bytes=>0,stack_bytes=>4},
+      final=>{rom_bytes=>3244,ram_bytes=>51,free_ram_bytes=>77,activation_bytes=>0,stack_bytes=>4},
       ram_savings=>{
          total=>77, activation_total=>20, runtime_startup=>4, persistent_state=>3, hardware_stack=>4, renderer=>46,
          repeated_inline_within_item1=>12, other_item1_lifetime_overlay=>1,
          compact_lowering=>5, phase_overlay=>1, item2_incremental=>0,
       },
       rom_savings=>{
-         total=>616, compact_lowering=>331, high_level_install_frames_net=>38,
-         alignment_padding=>64, persistent_state=>15, renderer_final=>253, frame_scheduler_262_cost=>4,
+         total=>749, compact_lowering=>331, high_level_install_frames_net=>38,
+         alignment_padding=>64, absolute_alignment_link_placement=>133, persistent_state=>15, renderer_final=>253, frame_scheduler_262_cost=>4,
          lifetime_and_inline_overlay=>0, phase_overlay=>0, hardware_stack=>0,
       },
       meaningful_free_ram=>JSON::PP::true, free_ram_percent=>60.15625,
@@ -376,8 +377,9 @@ my $report={
       renderer_module_bytes_before=>69, renderer_module_bytes_after=>23,
       gallery_before=>{rom_bytes=>3545, ram_bytes=>102, free_ram_bytes=>26, object_bytes=>98, stack_bytes=>4},
       gallery_after_renderer_fix=>{rom_bytes=>3292, ram_bytes=>56, free_ram_bytes=>72, object_bytes=>52, stack_bytes=>4},
-      gallery_current=>{rom_bytes=>3377, ram_bytes=>51, free_ram_bytes=>77, object_bytes=>47, stack_bytes=>4},
+      gallery_current=>{rom_bytes=>3244, ram_bytes=>51, free_ram_bytes=>77, object_bytes=>47, stack_bytes=>4},
       postcloseout_runtime_main_delta=>{rom_bytes=>81, ram_bytes=>-5, free_ram_bytes=>5, object_bytes=>-5},
+      absolute_alignment_link_delta=>{rom_bytes=>-133, ram_bytes=>0},
       frame_scheduler_262_rom_cost=>4,
       delta=>{rom_bytes=>-253, ram_bytes=>-46, free_ram_bytes=>46, object_bytes=>-46, stack_bytes=>0},
       smoke_before=>{rom_bytes=>1623, ram_bytes=>82, free_ram_bytes=>46},

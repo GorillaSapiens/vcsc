@@ -72,7 +72,7 @@
          "activation_bytes" : 0,
          "free_ram_bytes" : 77,
          "ram_bytes" : 51,
-         "rom_bytes" : 3377,
+         "rom_bytes" : 3244,
          "stack_bytes" : 4
       },
       "free_ram_percent" : 60.15625,
@@ -104,6 +104,7 @@
          "all_five_181_unofficial:p0-p1-m0-m1-ball"
       ],
       "rom_savings" : {
+         "absolute_alignment_link_placement" : 133,
          "alignment_padding" : 64,
          "compact_lowering" : 331,
          "frame_scheduler_262_cost" : 4,
@@ -113,10 +114,14 @@
          "persistent_state" : 15,
          "phase_overlay" : 0,
          "renderer_final" : 253,
-         "total" : 616
+         "total" : 749
       }
    },
    "direct_countdown_renderer" : {
+      "absolute_alignment_link_delta" : {
+         "ram_bytes" : 0,
+         "rom_bytes" : -133
+      },
       "ball_capability_retained" : true,
       "delta" : {
          "free_ram_bytes" : 46,
@@ -145,7 +150,7 @@
          "free_ram_bytes" : 77,
          "object_bytes" : 47,
          "ram_bytes" : 51,
-         "rom_bytes" : 3377,
+         "rom_bytes" : 3244,
          "stack_bytes" : 4
       },
       "object_schedule_bytes_after" : 0,
@@ -500,7 +505,7 @@
          "rom_bytes" : 3993,
          "stack_bytes" : 8
       },
-      "checkpoint_source" : "historical rows through item10a-stella are measurements recorded by the completed RAM roadmap; frame-ntsc-262 is the post-closeout four-byte cost of the Stella-proven two-WSYNC frame-length correction",
+      "checkpoint_source" : "historical rows through startup-main-cleanup are recorded measurements; absolute-align-link-placement is the current linker result after relocatable .align became an absolute final-address contract",
       "checkpoints" : [
          {
             "activation_bytes" : 20,
@@ -693,13 +698,25 @@
             "rom_bytes" : 3377,
             "stack_bytes" : 4,
             "step" : "startup-main-cleanup"
+         },
+         {
+            "activation_bytes" : 0,
+            "delta_activation_bytes" : 0,
+            "delta_ram_bytes" : 0,
+            "delta_rom_bytes" : -133,
+            "delta_stack_bytes" : 0,
+            "free_ram_bytes" : 77,
+            "ram_bytes" : 51,
+            "rom_bytes" : 3244,
+            "stack_bytes" : 4,
+            "step" : "absolute-align-link-placement"
          }
       ],
       "current" : {
          "activation_bytes" : 0,
          "free_ram_bytes" : 77,
          "ram_bytes" : 51,
-         "rom_bytes" : 3377,
+         "rom_bytes" : 3244,
          "stack_bytes" : 4
       },
       "decision" : "retain-general-p0-p1-ball-renderer",
@@ -711,7 +728,7 @@
          "activation_bytes" : -20,
          "free_ram_bytes" : 77,
          "ram_bytes" : -77,
-         "rom_bytes" : -616,
+         "rom_bytes" : -749,
          "stack_bytes" : -4
       },
       "useful_game_state_margin" : true
@@ -736,8 +753,8 @@
       "hardware_stack_bytes" : 4,
       "object_bytes" : 47,
       "ram_bytes" : 51,
-      "rom_bytes" : 3377,
-      "rom_free_bytes" : 713,
+      "rom_bytes" : 3244,
+      "rom_free_bytes" : 846,
       "subcategory_bytes" : {
          "gallery_control" : 4,
          "mutable_row_colors" : 16,

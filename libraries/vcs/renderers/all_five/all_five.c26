@@ -129,7 +129,7 @@ require inline void TEMPLATE_vblank(void) {
    asm adc #4;
    asm tax;
    asm cpx #48;
-   asm bcc @clear;
+   asm bcc.same @clear;
    // The Ball is biased one pair ahead for VDELBL staging, so the inclusive
    // preparation limit is 96 even though visible pair indices end at 95.
    asm lda #96;
@@ -181,13 +181,13 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_object_masks + 7;
    asm sta.z TEMPLATE_object_masks + 39;
    asm cmp.z TEMPLATE_object_masks + 11;
-   asm bcc @no_wrap;
-   asm beq @no_wrap;
+   asm bcc.same @no_wrap;
+   asm beq.same @no_wrap;
    asm lda.z TEMPLATE_object_masks + 11;
-   asm beq @wrapped_high;
+   asm beq.same @wrapped_high;
    asm cmp.z TEMPLATE_object_masks + 31;
-   asm bcc @wrapped_low_ready;
-   asm beq @wrapped_low_ready;
+   asm bcc.same @wrapped_low_ready;
+   asm beq.same @wrapped_low_ready;
    asm lda.z TEMPLATE_object_masks + 31;
    asm sta.z TEMPLATE_object_masks + 11;
    asm @wrapped_low_ready:;
@@ -197,8 +197,8 @@ require inline void TEMPLATE_vblank(void) {
    asm @wrapped_high:;
    asm lda.z TEMPLATE_object_masks + 39;
    asm cmp.z TEMPLATE_object_masks + 31;
-   asm bcc @wrapped_high_ready;
-   asm beq @wrapped_high_ready;
+   asm bcc.same @wrapped_high_ready;
+   asm beq.same @wrapped_high_ready;
    asm rts;
    asm @wrapped_high_ready:;
    asm sta.z TEMPLATE_object_masks + 7;
@@ -208,21 +208,21 @@ require inline void TEMPLATE_vblank(void) {
    asm rts;
    asm @no_wrap:;
    asm lda.z TEMPLATE_object_masks + 7;
-   asm bne @no_wrap_first_ready;
+   asm bne.same @no_wrap_first_ready;
    asm lda #1;
    asm sta.z TEMPLATE_object_masks + 7;
    asm @no_wrap_first_ready:;
    asm lda.z TEMPLATE_object_masks + 11;
    asm cmp.z TEMPLATE_object_masks + 31;
-   asm bcc @no_wrap_last_ready;
-   asm beq @no_wrap_last_ready;
+   asm bcc.same @no_wrap_last_ready;
+   asm beq.same @no_wrap_last_ready;
    asm lda.z TEMPLATE_object_masks + 31;
    asm sta.z TEMPLATE_object_masks + 11;
    asm @no_wrap_last_ready:;
    asm lda.z TEMPLATE_object_masks + 7;
    asm cmp.z TEMPLATE_object_masks + 11;
-   asm bcc @set_range;
-   asm beq @set_range;
+   asm bcc.same @set_range;
+   asm beq.same @set_range;
    asm rts;
    asm @set_range:;
    asm lda.z TEMPLATE_object_masks + 7;
@@ -259,7 +259,7 @@ require inline void TEMPLATE_vblank(void) {
    asm tax;
    asm lda.z TEMPLATE_object_masks + 15;
    asm cmp.z TEMPLATE_object_masks + 19;
-   asm bne @range_many;
+   asm bne.same @range_many;
    asm lda.z TEMPLATE_object_masks + 23;
    asm and.z TEMPLATE_object_masks + 27;
    asm ora.zx TEMPLATE_object_masks,x;
@@ -273,7 +273,7 @@ require inline void TEMPLATE_vblank(void) {
    asm @range_middle:;
    asm lda.z TEMPLATE_object_masks + 15;
    asm cmp.z TEMPLATE_object_masks + 19;
-   asm bcs @range_last;
+   asm bcs.same @range_last;
    asm txa;
    asm clc;
    asm adc #4;
@@ -326,7 +326,6 @@ require inline void TEMPLATE_vblank(void) {
    asm tay;
    asm lda TEMPLATE_reposition_table + 16 - 256,y;
    asm sta HMP0,x;
-
    asm sta WSYNC;
    asm ldx #3;
    asm bit.z CXM0P;
@@ -341,7 +340,6 @@ require inline void TEMPLATE_vblank(void) {
    asm tay;
    asm lda TEMPLATE_reposition_table + 16 - 256,y;
    asm sta HMP0,x;
-
    asm sta WSYNC;
    asm ldx #2;
    asm bit.z CXM0P;
@@ -356,7 +354,6 @@ require inline void TEMPLATE_vblank(void) {
    asm tay;
    asm lda TEMPLATE_reposition_table + 16 - 256,y;
    asm sta HMP0,x;
-
    asm sta WSYNC;
    asm ldx #1;
    asm bit.z CXM0P;
@@ -371,7 +368,6 @@ require inline void TEMPLATE_vblank(void) {
    asm tay;
    asm lda TEMPLATE_reposition_table + 16 - 256,y;
    asm sta HMP0,x;
-
    asm sta WSYNC;
    asm ldx #0;
    asm bit.z CXM0P;
@@ -425,7 +421,7 @@ require inline void TEMPLATE_vblank(void) {
    asm dey;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcs @TEMPLATE_first_player1_zero;
+   asm bcs.same @TEMPLATE_first_player1_zero;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm jmp @TEMPLATE_first_player1_ready;
    asm @TEMPLATE_first_player1_zero:;
@@ -467,7 +463,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
-   asm bcc @first_drawP0;
+   asm bcc.same @first_drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
    asm jmp @first_continueP0;
    asm @first_drawP0:;
@@ -514,7 +510,7 @@ require inline void TEMPLATE_draw(void) {
    asm @startrenderer:;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcs @skipP1;
+   asm bcs.same @skipP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm jmp @continueP1;
    asm @skipP1:;
@@ -548,7 +544,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm sty.z TEMPLATE_player0_y;
    asm nop;
-   asm bcc @drawP0;
+   asm bcc.same @drawP0;
    asm lda.z TEMPLATE_object_masks + 19;
    asm jmp @continueP0;
    asm @drawP0:;
@@ -559,7 +555,7 @@ require inline void TEMPLATE_draw(void) {
    // The next P1 half materializes ENAM0 during horizontal blanking.
    asm lsr.zx TEMPLATE_object_masks + 2,x;
    asm dec.z TEMPLATE_object_masks + 43;
-   asm bne @continuerenderer;
+   asm bne.same @continuerenderer;
    asm sta GRP0;
    asm lda #1;
    asm adc #0;
@@ -575,7 +571,9 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
    asm cpx #44;
-   asm beq @terminalrenderer;
+   asm bne.same @terminalrenderer_not_equal;
+   asm jmp @terminalrenderer;
+   asm @terminalrenderer_not_equal:;
    // Keep both old-row right bytes in registers while X advances.  PF2 is
    // written first because it is the first register consumed on the reflected
    // right half.
@@ -600,7 +598,7 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcc @transition_activeP1;
+   asm bcc.same @transition_activeP1;
    // Commit P1 first. The M1 shift follows GRP1 so the Ball latch can be
    // transferred on time without delaying the next row's left playfield writes.
    asm ldy #0;
@@ -636,7 +634,7 @@ require inline void TEMPLATE_draw(void) {
    // keeping the following scanlines on the same phase.
    asm sty.z TEMPLATE_player0_y;
    asm cpy.z TEMPLATE_object_masks + 11;
-   asm bcc @transition_activeP0;
+   asm bcc.same @transition_activeP0;
    asm lda.z TEMPLATE_object_masks + 19;
    asm jmp @transition_continueP0;
    asm @transition_activeP0:;
@@ -671,10 +669,10 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_object_masks + 15;
-   asm bcc @transition_first_activeP1;
+   asm bcc.same @transition_first_activeP1;
    asm ldy #0;
    asm sty.a GRP1;
-   asm bcs @transition_first_doneP1;
+   asm bcs.same @transition_first_doneP1;
    asm @transition_first_activeP1:;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm sta GRP1;
@@ -698,7 +696,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
    asm sty.z TEMPLATE_player0_y;
-   asm bcc @transition_follow_activeP0;
+   asm bcc.same @transition_follow_activeP0;
    asm lda.z TEMPLATE_object_masks + 19;
    asm jmp @transition_follow_continueP0;
    asm @transition_follow_activeP0:;
@@ -706,7 +704,9 @@ require inline void TEMPLATE_draw(void) {
    asm @transition_follow_continueP0:;
    asm lsr.zx TEMPLATE_object_masks + 2,x;
    asm dec.z TEMPLATE_object_masks + 43;
-   asm bne @continuerenderer;
+   asm beq.same @continuerenderer_not_equal;
+   asm jmp @continuerenderer;
+   asm @continuerenderer_not_equal:;
    asm sta GRP0;
    asm lda #1;
    asm adc #0;
@@ -885,7 +885,7 @@ require inline void TEMPLATE_vblank(void) {
    asm adc #4;
    asm tax;
    asm cpx #44;
-   asm bcc @clear;
+   asm bcc.same @clear;
    // VDELBL staging consumes the next-row Ball bit at the boundary, so prepare
    // Ball one pair ahead and allow the biased terminal endpoint through 88.
    asm lda #88;
@@ -929,13 +929,13 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_object_masks + 7;
    asm sta.z TEMPLATE_object_masks + 39;
    asm cmp.z TEMPLATE_object_masks + 11;
-   asm bcc @no_wrap;
-   asm beq @no_wrap;
+   asm bcc.same @no_wrap;
+   asm beq.same @no_wrap;
    asm lda.z TEMPLATE_object_masks + 11;
-   asm beq @wrapped_high;
+   asm beq.same @wrapped_high;
    asm cmp.z TEMPLATE_object_masks + 31;
-   asm bcc @wrapped_low_ready;
-   asm beq @wrapped_low_ready;
+   asm bcc.same @wrapped_low_ready;
+   asm beq.same @wrapped_low_ready;
    asm lda.z TEMPLATE_object_masks + 31;
    asm sta.z TEMPLATE_object_masks + 11;
    asm @wrapped_low_ready:;
@@ -945,8 +945,8 @@ require inline void TEMPLATE_vblank(void) {
    asm @wrapped_high:;
    asm lda.z TEMPLATE_object_masks + 39;
    asm cmp.z TEMPLATE_object_masks + 31;
-   asm bcc @wrapped_high_ready;
-   asm beq @wrapped_high_ready;
+   asm bcc.same @wrapped_high_ready;
+   asm beq.same @wrapped_high_ready;
    asm rts;
    asm @wrapped_high_ready:;
    asm sta.z TEMPLATE_object_masks + 7;
@@ -956,21 +956,21 @@ require inline void TEMPLATE_vblank(void) {
    asm rts;
    asm @no_wrap:;
    asm lda.z TEMPLATE_object_masks + 7;
-   asm bne @no_wrap_first_ready;
+   asm bne.same @no_wrap_first_ready;
    asm lda #1;
    asm sta.z TEMPLATE_object_masks + 7;
    asm @no_wrap_first_ready:;
    asm lda.z TEMPLATE_object_masks + 11;
    asm cmp.z TEMPLATE_object_masks + 31;
-   asm bcc @no_wrap_last_ready;
-   asm beq @no_wrap_last_ready;
+   asm bcc.same @no_wrap_last_ready;
+   asm beq.same @no_wrap_last_ready;
    asm lda.z TEMPLATE_object_masks + 31;
    asm sta.z TEMPLATE_object_masks + 11;
    asm @no_wrap_last_ready:;
    asm lda.z TEMPLATE_object_masks + 7;
    asm cmp.z TEMPLATE_object_masks + 11;
-   asm bcc @set_range;
-   asm beq @set_range;
+   asm bcc.same @set_range;
+   asm beq.same @set_range;
    asm rts;
    asm @set_range:;
    asm lda.z TEMPLATE_object_masks + 7;
@@ -1007,7 +1007,7 @@ require inline void TEMPLATE_vblank(void) {
    asm tax;
    asm lda.z TEMPLATE_object_masks + 15;
    asm cmp.z TEMPLATE_object_masks + 19;
-   asm bne @range_many;
+   asm bne.same @range_many;
    asm lda.z TEMPLATE_object_masks + 23;
    asm and.z TEMPLATE_object_masks + 27;
    asm ora.zx TEMPLATE_object_masks,x;
@@ -1021,7 +1021,7 @@ require inline void TEMPLATE_vblank(void) {
    asm @range_middle:;
    asm lda.z TEMPLATE_object_masks + 15;
    asm cmp.z TEMPLATE_object_masks + 19;
-   asm bcs @range_last;
+   asm bcs.same @range_last;
    asm txa;
    asm clc;
    asm adc #4;
@@ -1068,7 +1068,6 @@ require inline void TEMPLATE_vblank(void) {
    asm tay;
    asm lda TEMPLATE_reposition_table + 16 - 256,y;
    asm sta HMP0,x;
-
    asm sta WSYNC;
    asm ldx #3;
    asm bit.z CXM0P;
@@ -1083,7 +1082,6 @@ require inline void TEMPLATE_vblank(void) {
    asm tay;
    asm lda TEMPLATE_reposition_table + 16 - 256,y;
    asm sta HMP0,x;
-
    asm sta WSYNC;
    asm ldx #2;
    asm bit.z CXM0P;
@@ -1342,7 +1340,9 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
    asm cpx #40;
-   asm beq @terminalrenderer;
+   asm bne.same @terminalrenderer_not_equal;
+   asm jmp @terminalrenderer;
+   asm @terminalrenderer_not_equal:;
    // Keep both old-row right bytes in registers while X advances.  PF2 is
    // written first because it is the first register consumed on the reflected
    // right half.
@@ -1472,7 +1472,9 @@ require inline void TEMPLATE_draw(void) {
    asm @transition_follow_continueP0:;
    asm lsr.zx TEMPLATE_object_masks + 2,x;
    asm dec.z TEMPLATE_object_masks + 35;
-   asm bne @continuerenderer;
+   asm beq.same @continuerenderer_not_equal;
+   asm jmp @continuerenderer;
+   asm @continuerenderer_not_equal:;
    asm sta GRP0;
    asm lda #1;
    asm adc #0;
@@ -1642,7 +1644,7 @@ require inline void TEMPLATE_vblank(void) {
    asm adc #4;
    asm tax;
    asm cpx #44;
-   asm bcc @clear;
+   asm bcc.same @clear;
    // VDELBL staging consumes the next-row Ball bit at the boundary, so prepare
    // Ball one pair ahead and allow the biased terminal endpoint through 88.
    asm lda #80;
@@ -1686,13 +1688,13 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_object_masks + 7;
    asm sta.z TEMPLATE_object_masks + 39;
    asm cmp.z TEMPLATE_object_masks + 11;
-   asm bcc @no_wrap;
-   asm beq @no_wrap;
+   asm bcc.same @no_wrap;
+   asm beq.same @no_wrap;
    asm lda.z TEMPLATE_object_masks + 11;
-   asm beq @wrapped_high;
+   asm beq.same @wrapped_high;
    asm cmp.z TEMPLATE_object_masks + 31;
-   asm bcc @wrapped_low_ready;
-   asm beq @wrapped_low_ready;
+   asm bcc.same @wrapped_low_ready;
+   asm beq.same @wrapped_low_ready;
    asm lda.z TEMPLATE_object_masks + 31;
    asm sta.z TEMPLATE_object_masks + 11;
    asm @wrapped_low_ready:;
@@ -1702,8 +1704,8 @@ require inline void TEMPLATE_vblank(void) {
    asm @wrapped_high:;
    asm lda.z TEMPLATE_object_masks + 39;
    asm cmp.z TEMPLATE_object_masks + 31;
-   asm bcc @wrapped_high_ready;
-   asm beq @wrapped_high_ready;
+   asm bcc.same @wrapped_high_ready;
+   asm beq.same @wrapped_high_ready;
    asm rts;
    asm @wrapped_high_ready:;
    asm sta.z TEMPLATE_object_masks + 7;
@@ -1713,21 +1715,21 @@ require inline void TEMPLATE_vblank(void) {
    asm rts;
    asm @no_wrap:;
    asm lda.z TEMPLATE_object_masks + 7;
-   asm bne @no_wrap_first_ready;
+   asm bne.same @no_wrap_first_ready;
    asm lda #1;
    asm sta.z TEMPLATE_object_masks + 7;
    asm @no_wrap_first_ready:;
    asm lda.z TEMPLATE_object_masks + 11;
    asm cmp.z TEMPLATE_object_masks + 31;
-   asm bcc @no_wrap_last_ready;
-   asm beq @no_wrap_last_ready;
+   asm bcc.same @no_wrap_last_ready;
+   asm beq.same @no_wrap_last_ready;
    asm lda.z TEMPLATE_object_masks + 31;
    asm sta.z TEMPLATE_object_masks + 11;
    asm @no_wrap_last_ready:;
    asm lda.z TEMPLATE_object_masks + 7;
    asm cmp.z TEMPLATE_object_masks + 11;
-   asm bcc @set_range;
-   asm beq @set_range;
+   asm bcc.same @set_range;
+   asm beq.same @set_range;
    asm rts;
    asm @set_range:;
    asm lda.z TEMPLATE_object_masks + 7;
@@ -1764,7 +1766,7 @@ require inline void TEMPLATE_vblank(void) {
    asm tax;
    asm lda.z TEMPLATE_object_masks + 15;
    asm cmp.z TEMPLATE_object_masks + 19;
-   asm bne @range_many;
+   asm bne.same @range_many;
    asm lda.z TEMPLATE_object_masks + 23;
    asm and.z TEMPLATE_object_masks + 27;
    asm ora.zx TEMPLATE_object_masks,x;
@@ -1778,7 +1780,7 @@ require inline void TEMPLATE_vblank(void) {
    asm @range_middle:;
    asm lda.z TEMPLATE_object_masks + 15;
    asm cmp.z TEMPLATE_object_masks + 19;
-   asm bcs @range_last;
+   asm bcs.same @range_last;
    asm txa;
    asm clc;
    asm adc #4;
@@ -1825,7 +1827,6 @@ require inline void TEMPLATE_vblank(void) {
    asm tay;
    asm lda TEMPLATE_reposition_table + 16 - 256,y;
    asm sta HMP0,x;
-
    asm sta WSYNC;
    asm ldx #3;
    asm bit.z CXM0P;
@@ -1840,7 +1841,6 @@ require inline void TEMPLATE_vblank(void) {
    asm tay;
    asm lda TEMPLATE_reposition_table + 16 - 256,y;
    asm sta HMP0,x;
-
    asm sta WSYNC;
    asm ldx #2;
    asm bit.z CXM0P;
@@ -2099,7 +2099,9 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
    asm cpx #36;
-   asm beq @terminalrenderer;
+   asm bne.same @terminalrenderer_not_equal;
+   asm jmp @terminalrenderer;
+   asm @terminalrenderer_not_equal:;
    // Keep both old-row right bytes in registers while X advances.  PF2 is
    // written first because it is the first register consumed on the reflected
    // right half.
@@ -2229,7 +2231,9 @@ require inline void TEMPLATE_draw(void) {
    asm @transition_follow_continueP0:;
    asm lsr.zx TEMPLATE_object_masks + 2,x;
    asm dec.z TEMPLATE_object_masks + 35;
-   asm bne @continuerenderer;
+   asm beq.same @continuerenderer_not_equal;
+   asm jmp @continuerenderer;
+   asm @continuerenderer_not_equal:;
    asm sta GRP0;
    asm lda #1;
    asm adc #0;

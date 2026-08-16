@@ -1561,11 +1561,13 @@ static void apply_component_constraints(linker_config_t *cfg, input_set_t *in)
             const char *sep2;
             const char *align_start;
             const char *sep3;
+            const char *sep4;
             char segment[MAX_NAME];
             char region[MAX_NAME];
             char *end = NULL;
             unsigned long alignment;
             unsigned long private_route;
+            unsigned long phase = 0;
             object_layout_t *lay;
             const char *resolved;
             const memory_region_t *memory;
@@ -1586,9 +1588,16 @@ static void apply_component_constraints(linker_config_t *cfg, input_set_t *in)
             if (!end || end != sep3 || alignment > 32768u ||
                 (alignment && (alignment & (alignment - 1u))))
                goto malformed_layout;
+            sep4 = strchr(sep3 + 1, '$');
             private_route = strtoul(sep3 + 1, &end, 10);
-            if (!end || *end || private_route > 1u)
+            if (!end || (sep4 ? end != sep4 : *end) || private_route > 1u)
                goto malformed_layout;
+            if (sep4) {
+               phase = strtoul(sep4 + 1, &end, 10);
+               if (!end || *end || (alignment && phase >= alignment) ||
+                   (!alignment && phase != 0))
+                  goto malformed_layout;
+            }
             lay = component_find_layout(obj, segment);
             if (!lay) {
                fprintf(stderr,
@@ -1602,7 +1611,9 @@ static void apply_component_constraints(linker_config_t *cfg, input_set_t *in)
                   segment, obj->origin);
                exit(1);
             }
-            if (lay->component_alignment && lay->component_alignment != alignment) {
+            if (lay->component_alignment &&
+                (lay->component_alignment != alignment ||
+                 lay->component_phase != phase)) {
                fprintf(stderr,
                   "vcsc-ld: conflicting component alignment requirements for segment '%s' in %s\n",
                   segment, obj->origin);
@@ -1610,6 +1621,7 @@ static void apply_component_constraints(linker_config_t *cfg, input_set_t *in)
             }
             snprintf(lay->component_memory, sizeof(lay->component_memory), "%s", region);
             lay->component_alignment = (uint16_t)alignment;
+            lay->component_phase = (uint16_t)phase;
             lay->component_private = (uint8_t)private_route;
             resolved = component_resolve_memory_name(cfg, lay, NULL);
             if (lay->component_memory[0] && (!resolved || !*resolved)) {
@@ -3782,8 +3794,9 @@ static int layout_branch_contracts_hold_at(const object_file_t *obj,
       target = (uint32_t)candidate + branch->target - lay->packed_base;
       crosses = ((((source + 2u) ^ target) & 0xff00u) != 0);
       if ((branch->page_policy == BRANCH_PAGE_SAME && crosses) ||
-          (branch->page_policy == BRANCH_PAGE_CROSS && !crosses))
+          (branch->page_policy == BRANCH_PAGE_CROSS && !crosses)) {
          return 0;
+      }
    }
    return 1;
 }
@@ -3870,11 +3883,29 @@ static void cursor_add_hole(memory_cursor_t *cursor, uint32_t start, uint32_t en
 }
 
 //! @brief Consume one same-page range from the earliest previously created hole.
-static uint32_t align_up_u32(uint32_t value, uint16_t alignment)
+//! @brief Round upward to one power-of-two alignment residue.
+static uint32_t align_up_phase_u32(uint32_t value, uint16_t alignment,
+                                   uint16_t phase)
 {
+   uint32_t mask;
+   uint32_t residue;
+   uint32_t delta;
+
    if (alignment <= 1)
       return value;
-   return (value + alignment - 1u) & ~((uint32_t)alignment - 1u);
+   mask = (uint32_t)alignment - 1u;
+   residue = value & mask;
+   delta = ((uint32_t)phase - residue) & mask;
+   return value + delta;
+}
+
+//! @brief Return the required placement phase for this exact component alignment.
+static uint16_t component_alignment_phase(const object_layout_t *constraints,
+                                          uint16_t alignment)
+{
+   if (constraints && constraints->component_alignment == alignment && alignment > 1)
+      return constraints->component_phase;
+   return 0;
 }
 
 //! @brief Return whether all hard page constraints for one object hold at an address.
@@ -3902,7 +3933,7 @@ static int object_page_constraints_hold(const object_layout_t *lay, uint32_t add
 
 //! @brief Consume the earliest hole satisfying alignment and page constraints.
 static int cursor_take_hole(memory_cursor_t *cursor, uint16_t size, uint16_t alignment,
-                            int prefer_whole_page, const object_layout_t *constraints,
+                            uint16_t phase, int prefer_whole_page, const object_layout_t *constraints,
                             uint16_t *addr_out)
 {
    size_t i;
@@ -3914,13 +3945,13 @@ static int cursor_take_hole(memory_cursor_t *cursor, uint16_t size, uint16_t ali
       return 0;
    for (i = 0; i < cursor->hole_count; ++i) {
       memory_hole_t hole = cursor->holes[i];
-      uint32_t addr = align_up_u32(hole.start, alignment);
+      uint32_t addr = align_up_phase_u32(hole.start, alignment, phase);
 
       while (addr + size <= hole.end && addr <= 0xffffu) {
          if (object_page_constraints_hold(constraints, addr) &&
              (!prefer_whole_page || range_fits_one_page(addr, size)))
             break;
-         addr = align_up_u32(addr + 1u, alignment);
+         addr = align_up_phase_u32(addr + 1u, alignment, phase);
       }
       if (addr + size > hole.end || addr > 0xffffu)
          continue;
@@ -3997,6 +4028,7 @@ static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t
       (constraints->flags & O26_LAYOUT_PAGE_CONTAINED);
    int has_hard_constraint = constraints &&
       (constraints->flags & (O26_LAYOUT_PAGE_CONTAINED | O26_LAYOUT_INDEX_RANGE));
+   uint16_t phase = component_alignment_phase(constraints, alignment);
 
    if (size == 0)
       return cursor->cur;
@@ -4006,12 +4038,12 @@ static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t
       exit(1);
    }
    if ((wants_page || has_hard_constraint) &&
-       cursor_take_hole(cursor, size, alignment, wants_page, constraints, &hole_addr))
+       cursor_take_hole(cursor, size, alignment, phase, wants_page, constraints, &hole_addr))
       return hole_addr;
 
-   addr = align_up_u32(cursor->cur, alignment);
+   addr = align_up_phase_u32(cursor->cur, alignment, phase);
    while (!object_page_constraints_hold(constraints, addr)) {
-      addr = align_up_u32(addr + 1u, alignment);
+      addr = align_up_phase_u32(addr + 1u, alignment, phase);
       if (constraints && constraints->segid == O26_SEG_ZP && addr >= 0x0100u) {
          fprintf(stderr,
                  "vcsc-ld: zero-page object %s from %s cannot cross $00FF/$0000; use separate one-byte objects only for intentional wrap semantics\n",
@@ -4047,6 +4079,7 @@ static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t 
    uint32_t addr;
    uint32_t tail_last;
    uint32_t step = alignment > 1 ? alignment : 1;
+   uint16_t phase = component_alignment_phase(lay, alignment);
    size_t i;
    int found = 0;
    int saw_place_candidate = 0;
@@ -4103,7 +4136,7 @@ static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t 
       aligned starts; VCS cartridge regions are tiny, so this remains bounded. */
    for (i = 0; i < cursor->hole_count; ++i) {
       const memory_hole_t hole = cursor->holes[i];
-      addr = align_up_u32(hole.start, alignment);
+      addr = align_up_phase_u32(hole.start, alignment, phase);
       while (addr + lay->size <= hole.end && addr + lay->size <= limit) {
          if (object_page_constraints_hold(lay, addr))
             CONSIDER_BRANCH_CANDIDATE(addr, 0, 1, i);
@@ -4116,7 +4149,7 @@ static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t 
    /* At the high-water mark, one 256-byte sweep covers every useful low-byte
       placement. A farther candidate repeats an already tested branch phase
       while growing the image by at least one unnecessary page. */
-   addr = align_up_u32(cursor->cur, alignment);
+   addr = align_up_phase_u32(cursor->cur, alignment, phase);
    tail_last = (uint32_t)cursor->cur + 0xffu;
    if (tail_last > 0xffffu)
       tail_last = 0xffffu;
@@ -7051,7 +7084,8 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                            continue;
                         if (!object_page_constraints_hold(member->lay, group->run_addr) ||
                             (member->lay->component_alignment > 1 &&
-                             (group->run_addr % member->lay->component_alignment) != 0)) {
+                             (group->run_addr % member->lay->component_alignment) !=
+                                member->lay->component_phase)) {
                            fprintf(stderr,
                                    "vcsc-ld: cannot satisfy phase-overlay placement constraints for %s and %s\n",
                                    lay->name, member->lay->name);
@@ -7113,7 +7147,8 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                            continue;
                         if (!object_page_constraints_hold(member->lay, group->run_addr) ||
                             (member->lay->component_alignment > 1 &&
-                             (group->run_addr % member->lay->component_alignment) != 0)) {
+                             (group->run_addr % member->lay->component_alignment) !=
+                                member->lay->component_phase)) {
                            fprintf(stderr,
                                    "vcsc-ld: cannot satisfy phase-overlay placement constraints for %s and %s\n",
                                    lay->name, member->lay->name);
@@ -8811,8 +8846,11 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
                        lay->placement_component);
             if (lay->component_memory[0])
                fprintf(fp, " component-region=%s", lay->component_memory);
-            if (lay->component_alignment)
+            if (lay->component_alignment) {
                fprintf(fp, " component-align=$%04X", lay->component_alignment);
+               if (lay->component_phase)
+                  fprintf(fp, " component-phase=$%04X", lay->component_phase);
+            }
             if (lay->component_private)
                fprintf(fp, " component-private=yes");
             if (lay->phase_use_seen) {
@@ -8838,8 +8876,11 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
                        (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0));
             if (lay->component_memory[0])
                fprintf(fp, " component-region=%s", lay->component_memory);
-            if (lay->component_alignment)
+            if (lay->component_alignment) {
                fprintf(fp, " component-align=$%04X", lay->component_alignment);
+               if (lay->component_phase)
+                  fprintf(fp, " component-phase=$%04X", lay->component_phase);
+            }
             if (lay->component_private)
                fprintf(fp, " component-private=yes");
             if (lay->phase_use_seen) {
@@ -8863,8 +8904,11 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
                        (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0));
             if (lay->component_memory[0])
                fprintf(fp, " component-region=%s", lay->component_memory);
-            if (lay->component_alignment)
+            if (lay->component_alignment) {
                fprintf(fp, " component-align=$%04X", lay->component_alignment);
+               if (lay->component_phase)
+                  fprintf(fp, " component-phase=$%04X", lay->component_phase);
+            }
             if (lay->component_private)
                fprintf(fp, " component-private=yes");
             if (lay->phase_use_seen) {

@@ -110,3 +110,10 @@ Added direct byte-memory ALU lowering, constant multiply strength reduction,
 carry-aware shift/XOR lowering, and direct global uint8 return copies.
 Keypad now uses key*10 directly; four de-asm benchmarks are 151 ROM bytes
 smaller in aggregate than their former hand-written-assembly versions.
+2026-08-15 20:18:00 PDT, harden renderer branch timing
+Audited every live conditional branch in the public renderer library and
+annotated it `.same` or `.cross`; added a gate rejecting bare/.flex branches.
+Made relocatable `.align` constrain final absolute addresses by carrying an
+alignment residue through o26 into linker placement.  Strengthened PAL/SECAM
+Stella coverage to detect intra-scanline playfield drift.  Final validation:
+499/499 compile and 304/304 E2E tests pass.

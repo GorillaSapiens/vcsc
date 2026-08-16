@@ -165,7 +165,10 @@ vcs_multisprite_diagnostic_init:
    rts
 
 .segment "RODATA"
-.align 256
+; The retained reverse-index renderer is cycle-calibrated with this fixture
+; at low-byte $AB.  Relocatable .align is absolute, so preserve that phase
+; explicitly instead of relying on the old section-relative accident.
+.align 256, $AB
 ; P0 is a nine-byte legacy record: a low-address zero sentinel followed by
 ; eight rows stored bottom-to-top.  The high-to-low renderer therefore emits
 ; the eight visible rows top-to-bottom, then emits zero to clear GRP0.

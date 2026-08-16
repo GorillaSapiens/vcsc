@@ -24,14 +24,14 @@ __reset:
 @clear_ram:
    sta $80,x
    dex
-   bpl @clear_ram
+   bpl.same @clear_ram
 
    ; Clear the TIA write-register window to a known startup state.
    ldx #$2c
 @clear_tia:
    sta $00,x
    dex
-   bpl @clear_tia
+   bpl.same @clear_tia
 
    ldx #$ff
    txs

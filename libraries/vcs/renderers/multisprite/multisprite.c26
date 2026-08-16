@@ -193,7 +193,7 @@ require inline void TEMPLATE_vblank(void) {
    // flag in bit 7: visible-raster Y is always below 128, so $0F and $8F are
    // identical for every timing-critical AND while avoiding a separate byte.
    asm lda TEMPLATE_state + 13;
-   asm bne @TEMPLATE_P0YReady;
+   asm bne.same @TEMPLATE_P0YReady;
    asm inc TEMPLATE_state + 13;
    asm lda #$8f;
    asm sta TEMPLATE_state + 66;
@@ -211,7 +211,7 @@ require inline void TEMPLATE_vblank(void) {
    asm clc;
    asm adc #3;
    asm cmp #160;
-   asm bcc @TEMPLATE_P0XCalibrated;
+   asm bcc.same @TEMPLATE_P0XCalibrated;
    asm sbc #160;
    asm @TEMPLATE_P0XCalibrated:;
    asm sta TEMPLATE_state + 59;
@@ -252,7 +252,7 @@ require inline void TEMPLATE_vblank(void) {
    asm lda TEMPLATE_state + 60,x;
    asm sta TEMPLATE_state + 29,x;
    asm cpx #4;
-   asm bne @TEMPLATE_copytable;
+   asm bne.same @TEMPLATE_copytable;
    asm stx TEMPLATE_state + 55;
    asm dex;
    asm stx TEMPLATE_state + 54;
@@ -269,9 +269,13 @@ require inline void TEMPLATE_vblank(void) {
    asm sec;
    asm clc;
    asm sbc TEMPLATE_state + 53;
-   asm bcc @TEMPLATE_largerXislower;
+   asm bcc.same @TEMPLATE_largerXislower;
    asm cmp TEMPLATE_state + 39,x;
-   asm bcs @TEMPLATE_countdown;
+   // VBLANK sort layout varies with composition; branch to a local same-page
+   // trampoline so final-link placement cannot change this branch cycle.
+   asm bcc.same @TEMPLATE_countdown_fallthrough;
+   asm jmp @TEMPLATE_countdown;
+   asm @TEMPLATE_countdown_fallthrough:;
    asm @TEMPLATE_overlapping:;
    asm dec TEMPLATE_state + 55;
    asm ldx TEMPLATE_state + 54;
@@ -285,9 +289,11 @@ require inline void TEMPLATE_vblank(void) {
    asm tya;
    asm eor #$FF;
    asm sbc #1;
-   asm bcc @TEMPLATE_overlapping;
+   asm bcc.same @TEMPLATE_overlapping;
    asm cmp TEMPLATE_state + 39,x;
-   asm bcs @TEMPLATE_notoverlapping;
+   asm bcc.same @TEMPLATE_notoverlapping_fallthrough;
+   asm jmp @TEMPLATE_notoverlapping;
+   asm @TEMPLATE_notoverlapping_fallthrough:;
    asm dec TEMPLATE_state + 55;
    asm ldx TEMPLATE_state + 54;
    asm jsr @TEMPLATE_shiftnumbers;
@@ -301,7 +307,9 @@ require inline void TEMPLATE_vblank(void) {
    asm sta TEMPLATE_state + 60+1,x;
    asm @TEMPLATE_countdown:;
    asm dec TEMPLATE_state + 54;
-   asm bpl @TEMPLATE_sortloop;
+   asm bmi.same @TEMPLATE_sort_done;
+   asm jmp @TEMPLATE_sortloop;
+   asm @TEMPLATE_sort_done:;
    asm @TEMPLATE_checktoohigh:;
    asm ldx TEMPLATE_state + 55;
    asm lda TEMPLATE_state + 29,x;
@@ -312,9 +320,9 @@ require inline void TEMPLATE_vblank(void) {
 #else
    asm cmp #89;
 #endif
-   asm bcc @TEMPLATE_nonetoohigh;
+   asm bcc.same @TEMPLATE_nonetoohigh;
    asm dec TEMPLATE_state + 55;
-   asm bne @TEMPLATE_checktoohigh;
+   asm bne.same @TEMPLATE_checktoohigh;
    asm @TEMPLATE_nonetoohigh:;
    // SetupP1 mutates state[60..64] while resolving overlaps. Preserve that
    // evolved order for the next frame before the workspace is overwritten by
@@ -344,7 +352,7 @@ require inline void TEMPLATE_vblank(void) {
    asm lda.ay TEMPLATE_player_position_table,Y;
    asm sta.zx TEMPLATE_state + 60,X;
    asm dex;
-   asm bpl @TEMPLATE_PrecomputeP1ControlsLoop;
+   asm bpl.same @TEMPLATE_PrecomputeP1ControlsLoop;
 
    asm ldx #4;
    asm lda TEMPLATE_state + 2;
@@ -388,7 +396,7 @@ require inline void TEMPLATE_vblank(void) {
    asm @TEMPLATE_cycle74_HMCLR:;
    asm sta HMP0,X;
    asm dex;
-   asm bpl @TEMPLATE_cycle74_HMCLR;
+   asm bpl.same @TEMPLATE_cycle74_HMCLR;
    asm lda #0;
    asm sta PF1;
    asm sta PF2;
@@ -418,7 +426,7 @@ require inline void TEMPLATE_vblank(void) {
    asm adc #2;
    asm sta TEMPLATE_state + 14,X;
    asm dex;
-   asm bpl @TEMPLATE_AdjustYValuesUpLoop;
+   asm bpl.same @TEMPLATE_AdjustYValuesUpLoop;
    asm ldx TEMPLATE_state + 55;
    asm lda TEMPLATE_state + 29,x;
    asm tay;
@@ -437,7 +445,7 @@ require inline void TEMPLATE_vblank(void) {
 #else
    asm cmp #90;
 #endif
-   asm bcc @TEMPLATE_nottoohigh;
+   asm bcc.same @TEMPLATE_nottoohigh;
    asm lda TEMPLATE_state + 36;
    asm sta TEMPLATE_state + 57;
    asm @TEMPLATE_nottoohigh:;
@@ -445,7 +453,7 @@ require inline void TEMPLATE_vblank(void) {
    asm @TEMPLATE_shiftnumbers:;
    asm @TEMPLATE_swaploop:;
    asm cpx #4;
-   asm beq @TEMPLATE_shiftdone;
+   asm beq.same @TEMPLATE_shiftdone;
    asm lda TEMPLATE_state + 29+1,x;
    asm sta TEMPLATE_state + 29,x;
    asm inx;
@@ -787,7 +795,7 @@ require inline void TEMPLATE_overscan(void) {
    asm sta TEMPLATE_state + 35;
    asm inc TEMPLATE_state + 13;
    asm lda TEMPLATE_state + 66;
-   asm bpl @TEMPLATE_P0YRestoreDone;
+   asm bpl.same @TEMPLATE_P0YRestoreDone;
    asm dec TEMPLATE_state + 13;
    asm @TEMPLATE_P0YRestoreDone:;
 
@@ -800,5 +808,5 @@ require inline void TEMPLATE_overscan(void) {
    asm sbc #2;
    asm sta TEMPLATE_state + 14,X;
    asm dex;
-   asm bpl @TEMPLATE_AdjustYValuesDownLoop;
+   asm bpl.same @TEMPLATE_AdjustYValuesDownLoop;
 }

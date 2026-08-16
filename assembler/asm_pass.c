@@ -674,6 +674,38 @@ static long align_padding_for_address(long address, long boundary, long offset)
    return mod ? (boundary - mod) : 0;
 }
 
+//! @brief Extend a relocatable segment's final-link alignment modulus.
+//!
+//! An interior relocatable .align constrains the absolute address reached at
+//! that point, not the component base itself.  The first relaxation pass uses
+//! phase zero only to discover the largest required power-of-two modulus;
+//! asm_select_reloc_phases() then chooses a component-base residue, recomputes
+//! the exact padding for that residue, and locks it into the o26 metadata for
+//! the linker to enforce.
+static void segment_extend_reloc_alignment(asm_segment_t *seg, long boundary,
+                                           long pc_relative, long offset)
+{
+   (void)pc_relative;
+   (void)offset;
+
+   if (!seg || boundary <= seg->reloc_alignment)
+      return;
+
+   seg->reloc_alignment = boundary;
+}
+
+//! @brief Compute .align padding, honoring final-link absolute phase in o26.
+static long segment_align_padding(asm_context_t *ctx, asm_segment_t *seg,
+                                  long pc_logical, long boundary, long offset)
+{
+   if (ctx && ctx->object_mode_o26 && seg && !seg->rorg_active) {
+      segment_extend_reloc_alignment(seg, boundary, seg->pc, offset);
+      return align_padding_for_address(seg->reloc_phase + seg->pc,
+                                       boundary, offset);
+   }
+   return align_padding_for_address(pc_logical, boundary, offset);
+}
+
 //! @brief Return the logical/runtime PC for a segment.
 static long segment_logical_pc(const asm_segment_t *seg)
 {
@@ -1136,9 +1168,6 @@ static void trace_pass_stable(int pass_index, const asm_pass_stats_t *stats)
 //! @brief Handle asm context init logic for assembler pass and relaxation engine.
 void asm_context_init(asm_context_t *ctx, program_ir_t *prog, listing_writer_t *listing, int object_mode_o26)
 {
-   stmt_t *stmt;
-   const char *why;
-
    ctx->prog = prog;
    ctx->origin = 0;
    symtab_init(&ctx->symbols);
@@ -1159,7 +1188,18 @@ void asm_context_init(asm_context_t *ctx, program_ir_t *prog, listing_writer_t *
       an extra byte and often an extra cycle per access. */
    gather_imports(ctx);
 
-   for (stmt = prog->head; stmt; stmt = stmt->next) {
+   asm_reset_emit_modes(ctx);
+}
+
+//! @brief Reset every instruction to its conservative pre-relaxation mode.
+void asm_reset_emit_modes(asm_context_t *ctx)
+{
+   stmt_t *stmt;
+   const char *why;
+
+   if (!ctx || !ctx->prog)
+      return;
+   for (stmt = ctx->prog->head; stmt; stmt = stmt->next) {
       if (stmt->kind != STMT_INSN)
          continue;
 
@@ -1321,9 +1361,9 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
       for (wstmt = ctx->prog->head; wstmt; wstmt = wstmt->next) {
          if (wstmt->kind != STMT_DIR || !wstmt->u.dir)
             continue;
-         if (!strcmp(wstmt->u.dir->name, ".segmentdef")) {
+         if (pass_index == 1 && !strcmp(wstmt->u.dir->name, ".segmentdef")) {
             asm_warning(wstmt, ".segmentdef is ignored when writing o26 object files");
-         } else if (!strcmp(wstmt->u.dir->name, ".org")) {
+         } else if (pass_index == 1 && !strcmp(wstmt->u.dir->name, ".org")) {
             asm_warning(wstmt, ".org in o26 object mode changes the relative offset within the segment; no absolute placement is recorded");
          }
       }
@@ -1556,12 +1596,17 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
                   asm_error(ctx, stmt, ".align requires a positive boundary");
                   break;
                }
+               if (ctx->object_mode_o26 && !seg->rorg_active &&
+                   (boundary > 32768 || (boundary & (boundary - 1)) != 0)) {
+                  asm_error(ctx, stmt, ".align boundary in o26 output must be a power of two so final absolute alignment can be preserved");
+                  break;
+               }
                if (offset < 0 || offset >= boundary) {
                   asm_error(ctx, stmt, ".align offset must be from zero through boundary minus one");
                   break;
                }
 
-               count = align_padding_for_address(pc_logical, boundary, offset);
+               count = segment_align_padding(ctx, seg, pc_logical, boundary, offset);
                segment_advance(ctx, seg, stmt, count);
                break;
             }
@@ -1695,6 +1740,246 @@ static int can_relax_to_zp_family(const insn_info_t *insn, emit_mode_t current_m
    }
 
    return 0;
+}
+
+typedef struct phase_layout_entry {
+   const stmt_t *stmt;
+   long old_emit;
+   long old_logical;
+   long base_span;
+   long new_emit;
+} phase_layout_entry_t;
+
+//! @brief Build the current per-statement physical spans for one segment.
+static phase_layout_entry_t *phase_layout_entries(const asm_context_t *ctx,
+                                                   const asm_segment_t *seg,
+                                                   size_t *count_out)
+{
+   const stmt_t *stmt;
+   phase_layout_entry_t *entries = NULL;
+   size_t count = 0;
+   size_t cap = 0;
+   size_t i;
+
+   for (stmt = ctx->prog->head; stmt; stmt = stmt->next) {
+      if (!stmt->active ||
+          strcmp(stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME, seg->name))
+         continue;
+      if (count == cap) {
+         cap = cap ? cap * 2 : 64;
+         entries = (phase_layout_entry_t *)realloc(entries, cap * sizeof(*entries));
+         if (!entries) {
+            fprintf(stderr, "out of memory\n");
+            exit(1);
+         }
+      }
+      entries[count].stmt = stmt;
+      entries[count].old_emit = stmt->emit_address;
+      entries[count].old_logical = stmt->address;
+      entries[count].base_span = 0;
+      entries[count].new_emit = 0;
+      count++;
+   }
+
+   for (i = 0; i < count; ++i) {
+      long next = (i + 1 < count) ? entries[i + 1].old_emit : seg->pc;
+      entries[i].base_span = next - entries[i].old_emit;
+      if (entries[i].base_span < 0)
+         entries[i].base_span = 0;
+   }
+   *count_out = count;
+   return entries;
+}
+
+//! @brief Score one candidate final-link base phase without rerunning symbol passes.
+static int segment_phase_candidate_score(asm_context_t *ctx,
+                                         const asm_segment_t *seg,
+                                         long phase, long *size_out)
+{
+   phase_layout_entry_t *entries;
+   size_t count;
+   size_t i;
+   long pc = 0;
+   int ok = 1;
+
+   entries = phase_layout_entries(ctx, seg, &count);
+   if (count == 0) {
+      free(entries);
+      *size_out = 0;
+      return 1;
+   }
+
+   pc = entries[0].old_emit;
+   for (i = 0; i < count; ++i) {
+      const stmt_t *stmt = entries[i].stmt;
+      long span = entries[i].base_span;
+      entries[i].new_emit = pc;
+
+      if (!stmt->rorg_active && stmt->kind == STMT_DIR && stmt->u.dir &&
+          !strcmp(stmt->u.dir->name, ".align")) {
+         const expr_list_node_t *args = stmt->u.dir->exprs;
+         long boundary;
+         long offset = 0;
+         if (!args || expr_eval(args->expr, &ctx->symbols, stmt->scope,
+                                stmt->file, stmt->address, &boundary) != EXPR_EVAL_OK ||
+             boundary <= 0) {
+            ok = 0;
+            break;
+         }
+         if (args->next &&
+             expr_eval(args->next->expr, &ctx->symbols, stmt->scope,
+                       stmt->file, stmt->address, &offset) != EXPR_EVAL_OK) {
+            ok = 0;
+            break;
+         }
+         span = align_padding_for_address(phase + pc, boundary, offset);
+      }
+      pc += span;
+   }
+
+   if (ok) {
+      for (i = 0; i < count; ++i) {
+         const stmt_t *stmt = entries[i].stmt;
+         branch_page_spec_t spec;
+         long target;
+         size_t j;
+         long target_new = -1;
+         long source_abs;
+         long target_abs;
+         long disp;
+         int crosses;
+
+         if (stmt->kind != STMT_INSN)
+            continue;
+         spec = stmt->u.insn.branch_page;
+         if (spec != BRANCH_PAGE_SAME && spec != BRANCH_PAGE_CROSS)
+            continue;
+         if (!stmt->u.insn.expr ||
+             expr_eval(stmt->u.insn.expr, &ctx->symbols, stmt->scope, stmt->file,
+                       stmt->address + 1, &target) != EXPR_EVAL_OK) {
+            ok = 0;
+            break;
+         }
+         if (stmt->u.insn.expr->kind == EXPR_IDENT) {
+            const char *want = stmt->u.insn.expr->u.ident;
+            for (j = 0; j < count; ++j) {
+               if (entries[j].stmt->label && !strcmp(entries[j].stmt->label, want)) {
+                  target_new = entries[j].new_emit;
+                  break;
+               }
+            }
+         }
+         if (target_new < 0) {
+            /* Fallback for arithmetic branch expressions: choose the last
+               statement at the resolved old address so a zero-padding .align
+               immediately before a label cannot masquerade as the target. */
+            for (j = 0; j < count; ++j)
+               if (entries[j].old_logical == target)
+                  target_new = entries[j].new_emit;
+         }
+         if (target_new < 0) {
+            ok = 0;
+            break;
+         }
+         disp = target_new - (entries[i].new_emit + 2);
+         if (disp < -128 || disp > 127) {
+            ok = 0;
+            break;
+         }
+         source_abs = phase + entries[i].new_emit;
+         target_abs = phase + target_new;
+         crosses = ((((source_abs + 2) ^ target_abs) & 0xff00L) != 0);
+         if ((spec == BRANCH_PAGE_SAME && crosses) ||
+             (spec == BRANCH_PAGE_CROSS && !crosses)) {
+            ok = 0;
+            break;
+         }
+      }
+   }
+
+   if (ok)
+      *size_out = pc;
+   free(entries);
+   return ok;
+}
+
+//! @brief Choose a final-link base residue satisfying absolute .align and branch contracts.
+int asm_select_reloc_phases(asm_context_t *ctx)
+{
+   asm_segment_t *seg;
+   int any_changed = 0;
+
+   if (!ctx || !ctx->object_mode_o26)
+      return 0;
+
+   for (seg = ctx->segments; seg; seg = seg->next) {
+      long required;
+      long explicit_alignment = seg->explicit_reloc_alignment > 1
+         ? seg->explicit_reloc_alignment : 1;
+      long old_phase = seg->selected_reloc_phase;
+      int old_locked = seg->reloc_phase_locked;
+      long best_phase = -1;
+      long best_size = 0;
+      long phase;
+
+      /* The first relaxed pass has already seen only active, non-.rorg
+         .align directives, so reloc_alignment is the exact alignment
+         actually required by this instantiation.  Do not pre-scan source
+         text: inactive template arms and .rorg alignments must not constrain
+         the relocatable component. */
+      if (!seg->reloc_phase_locked)
+         seg->required_reloc_alignment = seg->reloc_alignment > 1
+            ? seg->reloc_alignment : explicit_alignment;
+      required = seg->required_reloc_alignment > 1
+         ? seg->required_reloc_alignment : 1;
+
+      if (required <= 1)
+         continue;
+      if (required > 32768 || (required & (required - 1)) != 0 ||
+          explicit_alignment > required ||
+          (explicit_alignment & (explicit_alignment - 1)) != 0) {
+         asm_error(ctx, ctx->prog->head,
+                   "internal error: invalid relocatable alignment state for segment '%s'",
+                   seg->name);
+         return -1;
+      }
+
+      /* Try every legal component-base residue.  .segmentalign, when
+         present, still constrains the component base itself to residue zero
+         modulo its explicit alignment.  Interior .align directives instead
+         constrain addresses reached *inside* the component; candidate scoring
+         recomputes their padding for each residue and rejects any placement
+         that violates a hard .same/.cross branch contract. */
+      for (phase = 0; phase < required; ++phase) {
+         long size = 0;
+
+         if (explicit_alignment > 1 && (phase & (explicit_alignment - 1)) != 0)
+            continue;
+         if (!segment_phase_candidate_score(ctx, seg, phase, &size))
+            continue;
+         if (best_phase < 0 || size < best_size ||
+             (size == best_size && phase < best_phase)) {
+            best_phase = phase;
+            best_size = size;
+         }
+      }
+
+      if (best_phase < 0) {
+         asm_error(ctx, ctx->prog->head,
+                   "no final-link base phase satisfies .align and .same/.cross contracts for segment '%s'",
+                   seg->name);
+         return -1;
+      }
+      seg->selected_reloc_phase = best_phase;
+      seg->reloc_phase_locked = 1;
+      if (!old_locked || old_phase != best_phase)
+         any_changed = 1;
+   }
+
+   /* Restore symbols and statement addresses for the selected set of phases. */
+   if (asm_pass1(ctx, 0))
+      return -1;
+   return any_changed;
 }
 
 //! @brief Validate source-level relative-branch page annotations after relaxation.
@@ -2018,7 +2303,14 @@ static int directive_emit_pass2(asm_context_t *ctx,
          return -1;
       }
 
-      count = align_padding_for_address(logical_pc, boundary, offset);
+      if (ctx->object_mode_o26 && !stmt->rorg_active) {
+         asm_segment_t *seg = segment_find(ctx, stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME);
+         long relative_pc = stmt->emit_address - (seg ? seg->base : 0);
+         count = align_padding_for_address((seg ? seg->reloc_phase : 0) + relative_pc,
+                                           boundary, offset);
+      } else {
+         count = align_padding_for_address(logical_pc, boundary, offset);
+      }
       for (i = 0; i < count; i++) {
          if (!emit_byte(ctx, pc, (unsigned char)fill, stmt))
             return -1;

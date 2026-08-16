@@ -197,6 +197,7 @@ typedef struct {
    uint16_t index_range_max;
    char component_memory[MAX_NAME];
    uint16_t component_alignment;
+   uint16_t component_phase;
    uint8_t component_private;
    uint16_t load_addr;
    uint16_t run_addr;

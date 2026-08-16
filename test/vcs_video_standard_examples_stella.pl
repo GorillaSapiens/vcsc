@@ -21,12 +21,22 @@ my$repo=abs_path($ARGV[0])or die"repo\n";my$tmp=$ARGV[1];make_path($tmp);$tmp=ab
 my$stella=$ENV{VCSC_STELLA}||$ENV{STELLA}||findexe('stella')or die"set STELLA or VCSC_STELLA\n";
 my$xvfb=findexe('Xvfb')or die"Xvfb required\n";my$perl=findexe('perl')or die"perl required\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));my$vcs=File::Spec->catdir($repo,qw(libraries vcs));my$keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
+my$cxx=$ENV{CXX}||'c++';my$mos=File::Spec->catdir($repo,qw(simulator mos6502));
+my$mos_obj=File::Spec->catfile($mos,'mos6502.o');
+my@mos_input=-f$mos_obj?($mos_obj):(File::Spec->catfile($mos,'mos6502.cpp'));
+my$phase_src=File::Spec->catfile($repo,qw(test vcs_playfield_phase.cpp));
+my$phase=File::Spec->catfile($tmp,'vcs_video_standard_playfield_phase');
+ok('build 50 Hz playfield phase harness',$cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$phase_src,@mos_input,'-o',$phase);
 
 for my$case(
    ['pal','PAL',qw(17_video_standards 01_pal50_all_five pal_all_five_192_interactive.c26)],
    ['secam','SECAM',qw(17_video_standards 02_secam50_all_five secam_all_five_192_interactive.c26)]) {
    my($standard,$format,@parts)=@$case;my$src=File::Spec->catfile($repo,'examples',@parts);my$rom=File::Spec->catfile($tmp,"$standard-all-five.bin");
    ok("build $standard example",$driver,'-I',$vcs,$src,'-o',$rom);
+   my($phase_out,$phase_err)=ok("$standard playfield phase",$phase,$rom,'12','12','65','all-five-phase-192');
+   $phase_out eq "vcs_playfield_all_five_phase_192 ok: 12 rows x 16 lines with proven PF phases\n"
+      or die "$standard playfield phase output: $phase_out";
+   $phase_err eq '' or die "$standard playfield phase stderr: $phase_err";
    my$display=360+($$%40);$display++ while-e"/tmp/.X11-unix/X$display";my$d=":$display";
    my$xpid=fork();defined$xpid or die"fork Xvfb\n";if(!$xpid){open(STDOUT,'>:raw',"$tmp/$standard.xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$d,'-ac','-screen','0','1024x768x24');die$!}
    select undef,undef,undef,.2;local$ENV{DISPLAY}=$d;local$ENV{XAUTHORITY}='/dev/null';local$ENV{HOME}="$tmp/home-$standard";local$ENV{SDL_AUDIODRIVER}='dummy';make_path($ENV{HOME});

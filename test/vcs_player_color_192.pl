@@ -87,7 +87,7 @@ require_re($text,qr/TEMPLATE_PRIVATE_RAM_BYTES\s*:=\s*10/, 'private-RAM contract
 require_re($text,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*23/, 'module-RAM contract changed');
 require_re($fixture,qr/game_draw\(\);\s*vcs_ntsc_begin_overscan\(\);/s,
    'fixture no longer enters overscan immediately after the 192-line draw');
-require_re($text,qr/cpx #44.*?beq \@terminalrenderer/s,
+require_re($text,qr/cpx #44.*?(?:beq(?:\.same|\.cross) \@terminalrenderer|bne(?:\.same|\.cross) \@terminalrenderer_not_equal;\s*asm jmp \@terminalrenderer)/s,
    'full-height path no longer reaches the twelfth-row terminal line');
 require_re($text,qr/\@terminalrenderer:.*?sty PF2;.*?sta\.a PF1;.*?sta WSYNC;/s,
    'terminal path no longer completes line 231 before the overscan handoff');

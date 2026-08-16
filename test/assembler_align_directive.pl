@@ -154,27 +154,64 @@ my $obj_out = File::Spec->catfile($tmp, 'align_fill_o26.out');
 my $obj_err = File::Spec->catfile($tmp, 'align_fill_o26.err');
 my $link_out = File::Spec->catfile($tmp, 'align_fill_link.out');
 my $link_err = File::Spec->catfile($tmp, 'align_fill_link.err');
+my $link_map = File::Spec->catfile($tmp, 'align_fill_o26.map');
+my $offset_cfg = File::Spec->catfile($tmp, 'align_offset.cfg');
+write_file($offset_cfg, slurp($cfg) =~ s/start = \$2000, size = \$E000/start = \$2003, size = \$DFFD/r);
 write_file($obj_src, <<'ASM');
 .segment "CODE"
 .export __reset
 .export __nmi
 .export __irq
 .export __irqbrk
+.export aligned_label
+.export aligned_label2
 __nmi:
 __irq:
 __irqbrk:
 __reset:
 .byte $11
 .align 16, 5, $EA
+aligned_label:
 .byte $22
+.byte $33
+.align 16, 9, $EB
+aligned_label2:
+.byte $44
 ASM
 my ($obj_exit, $obj_sig, undef, $obj_stderr) = run_tool($obj_out, $obj_err, $asm, '-o', $obj, $obj_src);
 $obj_exit == 0 && !$obj_sig or die "fill-byte o26 assembly failed\n$obj_stderr";
-my ($link_exit, $link_sig, undef, $link_stderr) = run_tool($link_out, $link_err, $ld, '-T', $cfg, '-o', $bin, $obj);
+my ($link_exit, $link_sig, undef, $link_stderr) = run_tool($link_out, $link_err, $ld, '-T', $offset_cfg, '-Map', $link_map, '-o', $bin, $obj);
 $link_exit == 0 && !$link_sig or die "fill-byte o26 link failed\n$link_stderr";
 my $linked = slurp($bin);
-substr($linked, 0, 6) eq pack('C*', 0x11, 0xEA, 0xEA, 0xEA, 0xEA, 0x22)
-   or die "o26 fill-byte alignment did not survive linking\n";
+# The linker may choose a nonzero component-base phase; what .align promises is
+# that the aligned *locations* are absolute after linking.  Here phase $4 makes
+# the first alignment require no padding, while the second still emits two $EB
+# bytes.  This proves both absolute placement and preservation of emitted fill.
+substr($linked, 0, 6) eq pack('C*', 0x11, 0x22, 0x33, 0xEB, 0xEB, 0x44)
+   or die "o26 absolute alignment/fill did not survive linking\n";
+my $linked_map = slurp($link_map);
+$linked_map =~ /^\s+CODE\s+load=\$2004\s+size=\$0006\s+page=preferred\s+component-align=\$0010\s+component-phase=\$0004$/m
+   or die "o26 .align 16 did not carry its final-link base phase\n$linked_map";
+$linked_map =~ /^\s+\$2005\s+aligned_label\b/m
+   or die "o26 .align 16,5 did not land at absolute residue 5\n$linked_map";
+$linked_map =~ /^\s+\$2009\s+aligned_label2\b/m
+   or die "second o26 .align 16,9 did not land at absolute residue 9\n$linked_map";
+
+
+# Direct images can align to any positive boundary because their final address is
+# already known.  Relocatable o26 output must be able to carry the absolute
+# contract through the linker, whose component-alignment metadata is power-of-two.
+my $nonpow_src = File::Spec->catfile($tmp, 'align_nonpower_o26.s26');
+my $nonpow_obj = File::Spec->catfile($tmp, 'align_nonpower_o26.o26');
+my $nonpow_out = File::Spec->catfile($tmp, 'align_nonpower_o26.out');
+my $nonpow_err = File::Spec->catfile($tmp, 'align_nonpower_o26.err');
+write_file($nonpow_src, qq{.segment "CODE"\n.align 3\n.byte \$11\n});
+my ($nonpow_exit, $nonpow_sig, undef, $nonpow_stderr) =
+   run_tool($nonpow_out, $nonpow_err, $asm, '-o', $nonpow_obj, $nonpow_src);
+$nonpow_exit != 0 && !$nonpow_sig
+   or die "non-power-of-two o26 .align unexpectedly assembled\n";
+index($nonpow_stderr, '.align boundary in o26 output must be a power of two') >= 0
+   or die "non-power-of-two o26 .align diagnostic missing\n$nonpow_stderr";
 
 my @bad = (
    [ align_zero => ".align 0\n", '.align requires a positive boundary' ],

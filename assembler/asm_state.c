@@ -426,6 +426,12 @@ static asm_segment_t *segment_get_or_create(asm_context_t *ctx, const char *name
    seg->rorg_pc = 0;
    seg->defined = 0;
    seg->overflow_warned = 0;
+   seg->explicit_reloc_alignment = 1;
+   seg->required_reloc_alignment = 1;
+   seg->selected_reloc_phase = 0;
+   seg->reloc_phase_locked = 0;
+   seg->reloc_alignment = 1;
+   seg->reloc_phase = 0;
    seg->next = ctx->segments;
    ctx->segments = seg;
    return seg;
@@ -454,6 +460,15 @@ void reset_segment_pcs(asm_context_t *ctx)
       seg->rorg_active = 0;
       seg->rorg_pc = 0;
       seg->overflow_warned = 0;
+      if (seg->reloc_phase_locked) {
+         seg->reloc_alignment = seg->required_reloc_alignment > 1
+            ? seg->required_reloc_alignment : 1;
+         seg->reloc_phase = seg->selected_reloc_phase;
+      } else {
+         seg->reloc_alignment = seg->explicit_reloc_alignment > 1
+            ? seg->explicit_reloc_alignment : 1;
+         seg->reloc_phase = 0;
+      }
    }
 }
 
@@ -1012,6 +1027,58 @@ void validate_imports(asm_context_t *ctx)
    }
 }
 
+//! @brief Gather declarative o26 segment-base alignment before layout passes.
+static void gather_component_segment_alignments(asm_context_t *ctx)
+{
+   stmt_t *stmt;
+
+   if (!ctx || !ctx->object_mode_o26)
+      return;
+
+   for (stmt = ctx->prog->head; stmt; stmt = stmt->next) {
+      const directive_info_t *dir;
+      long alignment;
+
+      if (stmt->kind != STMT_DIR || !stmt->u.dir)
+         continue;
+      dir = stmt->u.dir;
+
+      if (!strcmp(dir->name, ".segmentalign")) {
+         char *name;
+         asm_segment_t *seg;
+         if (!dir->string || !dir->exprs || dir->exprs->next)
+            continue;
+         if (expr_eval(dir->exprs->expr, &ctx->symbols, stmt->scope, stmt->file,
+                       0, &alignment) != EXPR_EVAL_OK)
+            continue;
+         if (alignment <= 0 || alignment > 32768 ||
+             (alignment & (alignment - 1)) != 0)
+            continue;
+         name = unquote_string(dir->string);
+         seg = segment_find(ctx, name);
+         if (seg) {
+            if (seg->explicit_reloc_alignment > 1 &&
+                seg->explicit_reloc_alignment != alignment) {
+               asm_error(ctx, stmt, "conflicting .segmentalign for '%s'", name);
+            } else {
+               seg->explicit_reloc_alignment = alignment;
+               if (seg->required_reloc_alignment < alignment)
+                  seg->required_reloc_alignment = alignment;
+            }
+         }
+         free(name);
+         continue;
+      }
+
+   }
+
+   for (asm_segment_t *seg = ctx->segments; seg; seg = seg->next) {
+      seg->reloc_alignment = seg->explicit_reloc_alignment > 1
+         ? seg->explicit_reloc_alignment : 1;
+      seg->reloc_phase = 0;
+   }
+}
+
 //! @brief Handle asm prepare context state logic for assembler symbol, scope, and segment state.
 void asm_prepare_context_state(asm_context_t *ctx)
 {
@@ -1019,6 +1086,7 @@ void asm_prepare_context_state(asm_context_t *ctx)
    assign_scopes(ctx->prog);
    gather_segment_uses(ctx);
    ensure_default_segment(ctx);
+   gather_component_segment_alignments(ctx);
 }
 
 //! @brief Handle asm free context state logic for assembler symbol, scope, and segment state.

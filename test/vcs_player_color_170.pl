@@ -87,7 +87,7 @@ require_re($branch,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_lines/,'170 vis
 require_re($branch,qr/TEMPLATE_PLAYFIELD_BYTES\s*:=\s*40/,'170 playfield-byte contract changed');
 require_re($branch,qr/TEMPLATE_PLAYFIELD_ROWS\s*:=\s*10/,'170 playfield-row contract changed');
 require_re($branch,qr/TEMPLATE_MODULE_RAM_BYTES\s*:=\s*24/,'170 module-RAM contract changed');
-require_re($branch,qr/asm cpx #36;\s*asm beq \@terminalrenderer;/s,'170 terminal row is not the tenth playfield row');
+require_re($branch,qr/asm cpx #36;\s*(?:asm beq(?:\.same|\.cross) \@terminalrenderer;|asm bne(?:\.same|\.cross) \@terminalrenderer_not_equal;\s*asm jmp \@terminalrenderer;)/s,'170 terminal row is not the tenth playfield row');
 my $code=$branch; $code =~ s{//[^\n]*}{}g; $code =~ s{/\*.*?\*/}{}gs;
 $code !~ /\b(?:lax|dcp|sax|isc|isb|rla|rra|slo|sre|anc|alr|arr|axs|xaa|ahx|shx|shy|tas|las)\b/i
    or die "official 170 player-color branch contains an unofficial mnemonic\n";

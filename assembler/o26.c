@@ -16,6 +16,7 @@
 #include "util.h"
 
 symbol_t *find_declared_symbol(symtab_t *tab, const program_ir_t *prog, const stmt_t *stmt, const char *name);
+asm_segment_t *segment_find(asm_context_t *ctx, const char *name);
 
 #define O26_SEG_UNDEF 0
 #define O26_SEG_ABS   1
@@ -1050,11 +1051,15 @@ typedef struct component_constraint_record {
    char *segment;
    char *region;
    unsigned short alignment;
+   unsigned short phase;
    int has_region;
    int has_alignment;
+   int has_explicit_alignment;
+   unsigned short explicit_alignment;
    int private_route;
    const stmt_t *region_stmt;
    const stmt_t *alignment_stmt;
+   const stmt_t *explicit_alignment_stmt;
    const stmt_t *private_stmt;
    struct component_constraint_record *next;
 } component_constraint_record_t;
@@ -1234,16 +1239,24 @@ static void add_component_constraint_exports(o26_writer_t *wr)
             continue;
          }
          record = component_find_or_add_constraint(&constraints, segment);
-         if (record->has_alignment && record->alignment != alignment) {
+         if (record->has_explicit_alignment && record->explicit_alignment != alignment) {
             writer_error(wr->ctx, stmt,
                "conflicting .segmentalign for '%s'; previous declaration at %s:%d",
-               segment, record->alignment_stmt && record->alignment_stmt->file
-                  ? record->alignment_stmt->file : "<input>",
-               record->alignment_stmt ? record->alignment_stmt->line : 0);
-         } else if (!record->has_alignment) {
-            record->alignment = alignment;
-            record->has_alignment = 1;
-            record->alignment_stmt = stmt;
+               segment, record->explicit_alignment_stmt && record->explicit_alignment_stmt->file
+                  ? record->explicit_alignment_stmt->file : "<input>",
+               record->explicit_alignment_stmt ? record->explicit_alignment_stmt->line : 0);
+         } else {
+            if (!record->has_explicit_alignment) {
+               record->explicit_alignment = alignment;
+               record->has_explicit_alignment = 1;
+               record->explicit_alignment_stmt = stmt;
+            }
+            if (!record->has_alignment || alignment > record->alignment) {
+               record->alignment = alignment;
+               record->phase = 0;
+               record->has_alignment = 1;
+               record->alignment_stmt = stmt;
+            }
          }
          free(segment);
          continue;
@@ -1287,6 +1300,22 @@ static void add_component_constraint_exports(o26_writer_t *wr)
       }
    }
 
+   {
+      const asm_segment_t *seg;
+      for (seg = wr->ctx->segments; seg; seg = seg->next) {
+         if (seg->reloc_alignment <= 1)
+            continue;
+         record = component_find_or_add_constraint(&constraints, seg->name);
+         if (record->has_alignment && record->alignment > seg->reloc_alignment)
+            continue;
+         record->alignment = (unsigned short)seg->reloc_alignment;
+         record->phase = (unsigned short)(seg->reloc_phase & (seg->reloc_alignment - 1));
+         record->has_alignment = 1;
+         if (!record->alignment_stmt)
+            record->alignment_stmt = wr->ctx->prog->head;
+      }
+   }
+
    for (record = constraints; record; record = record->next) {
       o26_segment_layout_t *layout = find_layout(wr, record->segment);
       char *segment_hex;
@@ -1310,10 +1339,11 @@ static void add_component_constraint_exports(o26_writer_t *wr)
          fprintf(stderr, "out of memory\n");
          exit(1);
       }
-      snprintf(name, need, "%sL$%s$%s$%u$%u",
+      snprintf(name, need, "%sL$%s$%s$%u$%u$%u",
                COMPONENT_CONSTRAINT_META_PREFIX, segment_hex, region_hex,
                record->has_alignment ? (unsigned)record->alignment : 0u,
-               record->private_route ? 1u : 0u);
+               record->private_route ? 1u : 0u,
+               record->has_alignment ? (unsigned)record->phase : 0u);
       component_add_metadata_export(wr, name);
       free(segment_hex);
       free(region_hex);
@@ -1572,7 +1602,15 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
                writer_error(wr->ctx, stmt, ".align fill byte must be from zero through 255");
                return 0;
             }
-            count = align_padding_for_address(stmt->address, boundary, offset);
+            if (wr->ctx->object_mode_o26 && !stmt->rorg_active) {
+               const asm_segment_t *seg = segment_find(wr->ctx,
+                  stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME);
+               count = align_padding_for_address((seg ? seg->reloc_phase : 0) +
+                                                  stmt->emit_address,
+                                                  boundary, offset);
+            } else {
+               count = align_padding_for_address(stmt->address, boundary, offset);
+            }
             layout = find_layout_const(wr, stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME);
             if (segid == O26_SEG_ZP && (!layout || layout->image_segid != O26_SEG_DATA))
                return 1;

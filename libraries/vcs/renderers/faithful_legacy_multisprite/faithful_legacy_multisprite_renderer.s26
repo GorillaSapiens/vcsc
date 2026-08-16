@@ -97,7 +97,7 @@ SetCopyHeight:
 	sta vcs_multisprite_state + 29,X
 	sta vcs_multisprite_state + 113,X
 	dex
-	bpl SetCopyHeight
+	bpl.same SetCopyHeight
 
 
 
@@ -114,7 +114,7 @@ vcs_multisprite_drawscreen:
 
 WaitForOverscanEnd:
 	lda INTIM
-	bmi WaitForOverscanEnd
+	bmi.same WaitForOverscanEnd
 
 	lda #2
 	sta WSYNC
@@ -170,7 +170,7 @@ WaitForOverscanEnd:
 cycle74_HMCLR:
  sta HMP0,X
  dex
- bpl cycle74_HMCLR
+ bpl.same cycle74_HMCLR
 ;	sta HMCLR
 
 
@@ -185,7 +185,7 @@ cycle74_HMCLR:
 
 WaitForVblankEnd:
 	lda INTIM
-	bmi WaitForVblankEnd
+	bmi.same WaitForVblankEnd
         lda #0
 	sta WSYNC
 	sta VBLANK	;turn off VBLANK - it was turned on by overscan
@@ -208,7 +208,7 @@ PositionASpriteSubroutine:;call this function with A == horizontal position (0-1
 	sta.a HMCLR			;+4	 4
 DivideBy15Loop:
 	sbc #15
-	bcs DivideBy15Loop			;+4/5	8/13.../58
+	bcs.same DivideBy15Loop			;+4/5	8/13.../58
 
 	tay				;+2	10/15/...60
 	lda FineAdjustTableEnd,Y	;+5	15/20/...65
@@ -257,7 +257,7 @@ AdjustYValuesUpLoop:
 	adc #2
 	sta vcs_multisprite_state + 14,X
 	dex
-	bpl AdjustYValuesUpLoop
+	bpl.same AdjustYValuesUpLoop
 
 
 	ldx vcs_multisprite_state + 77 ; first sprite displayed
@@ -281,7 +281,7 @@ AdjustYValuesUpLoop:
 
 	lda vcs_multisprite_state + 13
 	cmp #$59
-	bcc nottoohigh
+	bcc.same nottoohigh
 	lda vcs_multisprite_state + 36
 	sta vcs_multisprite_state + 79		
 
@@ -437,7 +437,7 @@ RendererRoutine:
 
  ldx #0
  lda vcs_multisprite_state + 68
- bpl asdhj
+ bpl.same asdhj
  .byte $24
 asdhj:
  tax
@@ -460,15 +460,15 @@ RendererLoopa:;	50
 RendererLoopb:;	54
 	SLEEP 2		;+12	66
 	cpy vcs_multisprite_state + 79		;+3	69
-	beq SwitchDrawP0K1	;+2	71
-	bpl WaitDrawP0K1	;+2	73
+	beq.same SwitchDrawP0K1	;+2	71
+	bpl.same WaitDrawP0K1	;+2	73
 	lda (vcs_multisprite_state + 34),Y	;+5	 2
 	sta GRP0		;+3	 5	VDEL because of reporenderer
 BackFromSwitchDrawP0K1:
 
 	cpy vcs_multisprite_state + 37		;+3	 8	unless we mean to draw immediately, this should be set
 				;		to a value greater than maximum Y value initially
-	bcc SkipDrawP1K1	;+2	10
+	bcc.same SkipDrawP1K1	;+2	10
 	lda (vcs_multisprite_state + 76),Y	;+5	15
 	sta.a GRP1		;+4	19
 BackFromSkipDrawP1:
@@ -483,7 +483,7 @@ BackFromSkipDrawP1:
 	stx vcs_multisprite_state + 55
 	sta vcs_multisprite_state + 57
 	dey
- bmi pagewraphandler
+ bmi.same pagewraphandler
 	lda (vcs_multisprite_state + 59),y
 cyclebalance:
 	sta vcs_multisprite_state + 54
@@ -507,7 +507,7 @@ cyclebalance:
 	dey			;+2	15
 
 	cpy vcs_multisprite_state + 78		;+3	18
-	beq RepoRenderer		;+2	20
+	beq.same RepoRenderer		;+2	20
 ;	SLEEP 20		;+23	43
  SLEEP 6
 
@@ -522,9 +522,9 @@ newrepo:; since we have time here, store next repoline
 BackFromRepoRenderer:
 	tya			;+2	45
 	and vcs_multisprite_state + 68			;+2	47
-	bne RendererLoopa		;+2	49
+	bne.same RendererLoopa		;+2	49
 	dec vcs_multisprite_state + 58
-	bpl RendererLoopb		;+3	54
+	bpl.same RendererLoopb		;+3	54
 ;	bmi donewrenderer		;+3	54
 ;	bne RendererLoopb+1		;+3	54
 
@@ -592,7 +592,7 @@ skipthis:
 RepoRenderer:;	22	crosses page boundary
 	tya
 	and vcs_multisprite_state + 68			;+2	26
-	bne noUpdateXKR		;+2	28
+	bne.same noUpdateXKR		;+2	28
         tax
 ;	dex			;+2	30
 	dec vcs_multisprite_state + 58
@@ -601,8 +601,8 @@ RepoRenderer:;	22	crosses page boundary
 
 	cpy vcs_multisprite_state + 79		;+3	42
 retXKR:
-	beq SwitchDrawP0KR	;+2	44
-	bpl WaitDrawP0KR	;+2	46
+	beq.same SwitchDrawP0KR	;+2	44
+	bpl.same WaitDrawP0KR	;+2	46
 	lda (vcs_multisprite_state + 34),Y	;+5	51
 	sta GRP0		;+3	54	VDEL
 BackFromSwitchDrawP0KR:
@@ -626,7 +626,7 @@ BackFromSwitchDrawP0KR:
  
 DivideBy15LoopK:;	 6	(carry set above)
 	sbc #15
-	bcs DivideBy15LoopK		;+4/5	10/15.../60
+	bcs.same DivideBy15LoopK		;+4/5	10/15.../60
 
 	tax				;+2	12/17/...62
 	lda FineAdjustTableEnd,X	;+5	17/22/...67
@@ -657,7 +657,7 @@ DivideBy15LoopK:;	 6	(carry set above)
 	and vcs_multisprite_state + 68
  ;eor #1
 	and #$FE
-	bne skipthis
+	bne.cross skipthis
  tax
  SLEEP 4
 ;	sleep 2
@@ -665,8 +665,8 @@ goback:
 
 	dey
 	cpy vcs_multisprite_state + 79			;+3	52
-	beq SwitchDrawP0KV	;+2	54
-	bpl WaitDrawP0KV		;+2	56
+	beq.same SwitchDrawP0KV	;+2	54
+	bpl.same WaitDrawP0KV		;+2	56
 	lda (vcs_multisprite_state + 34),Y		;+5	61
 	sta GRP0			;+3	64	VDEL
 BackFromSwitchDrawP0KV:
@@ -736,7 +736,7 @@ BackFromSwitchDrawP0KV:
 ; sta RepoLine
 
 ; 10 cycles below...
-	bpl SetNextLine
+	bpl.same SetNextLine
 	lda #255
 	jmp SetLastLine
 SetNextLine:
@@ -747,7 +747,7 @@ SetLastLine:
 
  tya
  and vcs_multisprite_state + 68
- bne nodec
+ bne.same nodec
  dec vcs_multisprite_state + 58
 	dey			;+2	30
 
@@ -841,7 +841,7 @@ beginscore:
  sta  GRP1            ;+3  50  150      D5     D5      D6     D4!
  sty  GRP0            ;+3  53  159      D4*    D5!     D6     D6
  dey
- bpl  loop2           ;+2  60  180
+ bpl.same  loop2           ;+2  60  180
  	ldx vcs_multisprite_state + 118
 	txs
 
@@ -911,7 +911,7 @@ AdjustYValuesDownLoop:
 	sbc #2
 	sta vcs_multisprite_state + 14,X
 	dex
-	bpl AdjustYValuesDownLoop
+	bpl.same AdjustYValuesDownLoop
 
 
  RETURN
@@ -931,7 +931,7 @@ copytable:
  lda vcs_multisprite_state + 113,x
  sta vcs_multisprite_state + 29,x
  cpx #4
- bne copytable
+ bne.same copytable
 
  stx vcs_multisprite_state + 77 ; highest displayed sprite
  dex
@@ -950,11 +950,11 @@ sortloop:
  sec
  clc
  sbc vcs_multisprite_state + 75
- bcc largerXislower
+ bcc.same largerXislower
 
 ; larger x is higher (A>=temp1)
  cmp vcs_multisprite_state + 49,x
- bcs countdown
+ bcs.same countdown
 ; overlap with x+1>x
 ; 
 ; stick x at end of gfxtable, dec counter
@@ -973,9 +973,9 @@ largerXislower:; (temp1>A)
  tya
  eor #$FF
  sbc #1
- bcc overlapping
+ bcc.same overlapping
  cmp vcs_multisprite_state + 49,x
- bcs notoverlapping
+ bcs.same notoverlapping
 
  dec vcs_multisprite_state + 77
  ldx vcs_multisprite_state + 76
@@ -998,7 +998,7 @@ skipswapGfxtable:
 
 countdown:
  dec vcs_multisprite_state + 76
- bpl sortloop
+ bpl.same sortloop
 
 checktoohigh:
  ldx vcs_multisprite_state + 77
@@ -1006,9 +1006,9 @@ checktoohigh:
  tax
  lda vcs_multisprite_state + 14,x
  cmp #$55
- bcc nonetoohigh
+ bcc.same nonetoohigh
  dec vcs_multisprite_state + 77
- bne checktoohigh
+ bne.same checktoohigh
 
 nonetoohigh:
  rts
@@ -1024,7 +1024,7 @@ shiftnumbers:
 ; ldy SpriteGfxIndex,x
 swaploop:
  cpx #4
- beq shiftdone 
+ beq.same shiftdone 
  lda vcs_multisprite_state + 29+1,x
  sta vcs_multisprite_state + 29,x
  inx

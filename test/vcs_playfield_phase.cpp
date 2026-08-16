@@ -159,6 +159,8 @@ int main(int argc, char **argv) {
       static_cast<uint64_t>(std::strtoull(argv[4], nullptr, 0)) : 43;
    const bool all_five_profile = argc == 6 && std::strcmp(argv[5], "all-five") == 0;
    const bool all_five_192_profile = argc == 6 && std::strcmp(argv[5], "all-five-192") == 0;
+   const bool all_five_phase_192_profile = argc == 6 &&
+      std::strcmp(argv[5], "all-five-phase-192") == 0;
    const bool all_five_181_official_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-181-official") == 0;
    const bool player_diagonal_profile = argc == 6 &&
@@ -172,8 +174,10 @@ int main(int argc, char **argv) {
    const bool diagonal_values_profile = player_diagonal_profile ||
                                         player_diagonal_192_profile ||
                                         player_gallery_192_profile ||
-                                        all_five_diagonal_profile;
+                                        all_five_diagonal_profile ||
+                                        all_five_phase_192_profile;
    const bool all_five_fixed_profile = all_five_192_profile ||
+                                       all_five_phase_192_profile ||
                                        all_five_181_official_profile ||
                                        all_five_diagonal_profile;
    if (argc == 6 && !all_five_profile && !all_five_fixed_profile &&
@@ -574,7 +578,10 @@ int main(int argc, char **argv) {
             }
          }
       }
-      if (player_diagonal_192_profile)
+      if (all_five_phase_192_profile)
+         std::printf("vcs_playfield_all_five_phase_192 ok: %d rows x 16 lines with proven PF phases\n",
+                     raster_rows);
+      else if (player_diagonal_192_profile)
          std::printf("vcs_playfield_diagonal_192 ok: %d asymmetric rows x 16 lines with proven PF phases\n",
                      raster_rows);
       else if (player_gallery_192_profile)

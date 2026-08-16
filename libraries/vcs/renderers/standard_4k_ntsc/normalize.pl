@@ -1473,6 +1473,12 @@ ASM
 
    $result =~ s/[ \t]+$//mg;
    $result =~ s/\n{4,}/\n\n\n/g;
+
+   # Every conditional branch in this maintained renderer was audited against
+   # its raster/scheduler timing contract. None intentionally pays the 6502
+   # page-cross penalty. Keep that contract in regenerated source instead of
+   # relying on whichever absolute page the linker happens to choose.
+   $result =~ s/^(\s*b(?:cc|cs|eq|mi|ne|pl|vc|vs))\b/$1.same/mg;
    return $result . "\n";
 }
 

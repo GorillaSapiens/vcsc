@@ -51,6 +51,16 @@ typedef struct asm_segment {
    int index_range_set;
    long index_range_start;
    long index_range_max;
+   /* In relocatable o26 mode, internal .align directives constrain absolute
+      addresses reached inside the final component.  reloc_alignment is the
+      largest power-of-two modulus; reloc_phase is the selected component-base
+      residue that makes those interior alignments absolute after linking. */
+   long explicit_reloc_alignment;
+   long required_reloc_alignment;
+   long selected_reloc_phase;
+   int reloc_phase_locked;
+   long reloc_alignment;
+   long reloc_phase;
    struct asm_segment *next;
 } asm_segment_t;
 
@@ -73,6 +83,8 @@ void asm_context_init(asm_context_t *ctx, program_ir_t *prog, listing_writer_t *
 void asm_context_free(asm_context_t *ctx);
 
 int asm_relax(asm_context_t *ctx);
+int asm_select_reloc_phases(asm_context_t *ctx);
+void asm_reset_emit_modes(asm_context_t *ctx);
 int asm_pass1(asm_context_t *ctx, int pass_index);
 int asm_pass2(asm_context_t *ctx);
 

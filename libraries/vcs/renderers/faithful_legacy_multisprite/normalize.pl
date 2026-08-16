@@ -136,6 +136,15 @@ sub replace_ram_operands {
 
 my @selected=selected_lines($renderer);
 my @body=map { translate_line($_) } @selected;
+# Every live conditional branch in the normalized renderer has been audited.
+# The retained cycle schedule expects the ordinary same-page taken cost at each
+# site; preserve that contract in regenerated source.
+for my $line (@body) {
+   $line =~ s/^(\s*b(?:cc|cs|eq|mi|ne|pl|vc|vs))\b/$1.same/;
+}
+for my $line (@body) {
+   $line =~ s/^(\s*bne)\.same(\s+skipthis\b)/$1.cross$2/;
+}
 
 my @out;
 push @out, '; This file is covered under CC0-1.0. See libraries/LICENSE.txt.';

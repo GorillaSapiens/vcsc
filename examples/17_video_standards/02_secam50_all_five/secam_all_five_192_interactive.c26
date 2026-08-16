@@ -167,7 +167,7 @@ void main(void) {
       vcs_secam_end_vblank();
       vcs_secam_wait_component_scanlines(17);
       game_draw();
-      vcs_secam_wait_visible_tail_scanlines(18);
+      vcs_secam_wait_visible_tail_scanlines(19);
       vcs_secam_begin_overscan();
       game_overscan();
       update_controls();

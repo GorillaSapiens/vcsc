@@ -142,7 +142,7 @@ NEW
 
 replace_once(\$renderer, <<'OLD', <<'NEW', 'P1 balanced graphics branch');
      cpy vcs_standard_color_object_masks + 15 ;3, exclusive height
-     bcc @drawP1 ;3 when drawing, 2 when skipped
+     bcc.same @drawP1 ;3 when drawing, 2 when skipped
      lda vcs_standard_color_object_masks + 19 ;3, permanent zero
      jmp @continueP1 ;3
 @drawP1:
@@ -150,7 +150,7 @@ replace_once(\$renderer, <<'OLD', <<'NEW', 'P1 balanced graphics branch');
 @continueP1:
 OLD
      cpy vcs_standard_color_object_masks + 15 ;3, exclusive height
-     bcs @skipP1 ;3 when skipped, 2 when drawing
+     bcs.same @skipP1 ;3 when skipped, 2 when drawing
      lda (vcs_standard_color_player1_graphics),y ;5; graphics range must stay on one page
      jmp @continueP1 ;3
 @skipP1:
@@ -179,7 +179,7 @@ NEW
 
 replace_once(\$renderer, <<'OLD', <<'NEW', 'P0 balanced graphics branch');
      cpy vcs_standard_color_object_masks + 11 ; exclusive height
-     bcc @drawP0
+     bcc.same @drawP0
      lda vcs_standard_color_object_masks + 19 ; permanent zero
      jmp @continueP0
 @drawP0:
@@ -187,7 +187,7 @@ replace_once(\$renderer, <<'OLD', <<'NEW', 'P0 balanced graphics branch');
 @continueP0:
 OLD
      cpy vcs_standard_color_object_masks + 11 ; exclusive height
-     bcs @skipP0
+     bcs.same @skipP0
      lda (vcs_standard_color_player0_graphics),y
      jmp @continueP0
 @skipP0:
@@ -509,6 +509,12 @@ substr($renderer, $proc_start, $proc_end - $proc_start, $new_proc);
 
 $macros =~ s!standard_4k_ntsc/normalize\.pl!standard_4k_ntsc_playercolors/normalize.pl!g;
 $macros =~ s/standard_4k_ntsc/standard_4k_ntsc_playercolors/g;
+
+# Every retained conditional branch in this normalized renderer has been
+# audited for the ordinary same-page taken-branch timing.  Stamp branches
+# introduced by the player-color transforms too, so regeneration cannot
+# silently reintroduce layout-dependent cycle counts.
+$renderer =~ s/^(\s*b(?:cc|cs|eq|mi|ne|pl|vc|vs))(\s+)/$1.same$2/mg;
 
 sub emit_or_check {
    my ($name, $content) = @_;

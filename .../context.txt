@@ -1145,5 +1145,21 @@ hygiene traversals explicitly prune `.git`, because branch/ref/object history is
 metadata rather than editable source and may legitimately retain retired historical
 names. In an eight-worker validation,
 example shards measured about 2.9-4.0 seconds each and score-composition family
-shards about 8.3-8.6 seconds each. The current E2E inventory contains 303
+shards about 8.3-8.6 seconds each. The current E2E inventory contains 304
 cases while preserving the same aggregate sharded coverage model.
+
+
+Renderer branch timing and absolute alignment hardening (2026-08-15):
+Every live conditional branch in `libraries/vcs/renderers/` now carries an
+explicit `.same` or `.cross` page contract; `vcs_renderer_branch_contracts.pl`
+rejects bare or `.flex` renderer branches.  The all-five kernels were adjusted
+where a cycle-balanced path required an unconditional jump rather than relying
+on an accidentally same-page conditional branch.  Relocatable o26 `.align N`
+now means final absolute alignment: the assembler records a component alignment
+and selected base phase, and the linker places the component at that residue so
+the aligned interior address remains absolute after relocation.  o26 alignment
+boundaries are presently restricted to powers of two; direct/HEX assembly keeps
+the older arbitrary-positive-boundary behavior.  The PAL50 and SECAM50 all-five
+examples use the stock 192-line all-five renderer and now remain phase-stable;
+the Stella regression checks PF write phases in addition to frame length.
+Validation baseline is 499/499 compile tests and 304/304 E2E tests.

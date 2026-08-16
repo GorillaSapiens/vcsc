@@ -225,7 +225,7 @@ require inline void TEMPLATE_vblank(void) {
    asm dey;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_workspace + 6;
-   asm bcs @TEMPLATE_first_player1_zero;
+   asm bcs.same @TEMPLATE_first_player1_zero;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm jmp @TEMPLATE_first_player1_ready;
    asm @TEMPLATE_first_player1_zero:;
@@ -272,7 +272,7 @@ require inline void TEMPLATE_draw(void) {
    // Fund the ten-cycle HBLANK graphics/color commit without moving either
    // right-playfield write.
    asm nop;
-   asm bcs @first_skipP0;
+   asm bcs.same @first_skipP0;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @first_continueP0;
    asm @first_skipP0:;
@@ -329,7 +329,7 @@ require inline void TEMPLATE_draw(void) {
    // Keep the original 26-cycle tail, but install the delayed P0 color just
    // before GRP1 transfers the pending P0 graphics. Reloading P1 graphics after
    // its color lookup frees workspace+4 for that delayed P0 color.
-   asm bcs @skipP1;
+   asm bcs.same @skipP1;
    asm lda.z TEMPLATE_workspace + 4;
    asm sta COLUP0;
    asm lda.ay TEMPLATE_player1_colors,y;
@@ -348,7 +348,7 @@ require inline void TEMPLATE_draw(void) {
    asm bit.z TEMPLATE_workspace + 5;
    asm @continueP1:;
 #else
-   asm bcs @skipP1;
+   asm bcs.same @skipP1;
    asm lda.iy (TEMPLATE_player1_graphics),y;
    asm jmp @continueP1;
    asm @skipP1:;
@@ -385,7 +385,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
    asm nop;
-   asm bcs @skipP0;
+   asm bcs.same @skipP0;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @continueP0;
    asm @skipP0:;
@@ -420,7 +420,9 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
    asm cpx #44;
-   asm beq @terminalrenderer;
+   asm bne.same @terminalrenderer_not_equal;
+   asm jmp @terminalrenderer;
+   asm @terminalrenderer_not_equal:;
    // Keep both old-row right bytes in registers while X advances.  This is the
    // proven row-boundary playfield schedule: PF1/PF2 left at 18/25 and PF2/PF1
    // right at 48/55 in Stella's physical scanline phase.
@@ -442,7 +444,7 @@ require inline void TEMPLATE_draw(void) {
    // LDA/CMP, so the playfield schedule does not need to move.  The active P1
    // path commits GRP1 first to preserve its graphics byte in A; the compare
    // follows immediately and still precedes the next line's ENABL materialization.
-   asm bcc @transition_activeP1;
+   asm bcc.same @transition_activeP1;
    asm ldy #0;
    asm lda.z TEMPLATE_ball_height;
    asm cmp.z TEMPLATE_ball_y;
@@ -483,7 +485,7 @@ require inline void TEMPLATE_draw(void) {
    // absolute store also preserves the established row-transition phase.
    asm sty.a TEMPLATE_player0_y;
    asm cpy.z TEMPLATE_workspace + 5;
-   asm bcs @transition_skipP0;
+   asm bcs.same @transition_skipP0;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @transition_continueP0;
    asm @transition_skipP0:;
@@ -519,7 +521,7 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_player1_y;
    asm cpy.z TEMPLATE_workspace + 6;
-   asm bcc @transition_first_activeP1;
+   asm bcc.same @transition_first_activeP1;
    asm lda #0;
    asm sta GRP1;
    asm bit.z TEMPLATE_workspace + 5;
@@ -548,7 +550,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield+3,x;
    asm sta PF1;
-   asm bcs @transition_follow_skipP0;
+   asm bcs.same @transition_follow_skipP0;
    asm lda.iy (TEMPLATE_player0_graphics),y;
    asm jmp @transition_follow_continueP0;
    asm @transition_follow_skipP0:;
@@ -557,7 +559,9 @@ require inline void TEMPLATE_draw(void) {
    asm bit.z TEMPLATE_workspace + 5;
    asm @transition_follow_continueP0:;
    asm dec.z TEMPLATE_workspace;
-   asm bne @continuerenderer;
+   asm beq.same @continuerenderer_not_equal;
+   asm jmp @continuerenderer;
+   asm @continuerenderer_not_equal:;
    asm jmp @altrenderer;
 
    // The final row needs no object setup for a following line.  Finish its
@@ -993,7 +997,9 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
    asm cpx #40;
-   asm beq @terminalrenderer;
+   asm bne.same @terminalrenderer_not_equal;
+   asm jmp @terminalrenderer;
+   asm @terminalrenderer_not_equal:;
    // Compare Ball before loading the reflected bytes.  Loads and stores do
    // not disturb carry, so the seven-cycle ENABL materialization can happen
    // immediately after the PF writes.  PF1/PF2 therefore land at the proven
@@ -1130,7 +1136,9 @@ require inline void TEMPLATE_draw(void) {
    asm bit.z TEMPLATE_workspace + 5;
    asm @transition_follow_continueP0:;
    asm dec.z TEMPLATE_workspace;
-   asm bne @continuerenderer;
+   asm beq.same @continuerenderer_not_equal;
+   asm jmp @continuerenderer;
+   asm @continuerenderer_not_equal:;
    asm jmp @altrenderer;
 
    // The final row needs no object setup for a following line.  Finish its
@@ -1557,7 +1565,9 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
    asm cpx #36;
-   asm beq @terminalrenderer;
+   asm bne.same @terminalrenderer_not_equal;
+   asm jmp @terminalrenderer;
+   asm @terminalrenderer_not_equal:;
    // Compare Ball before loading the reflected bytes.  Loads and stores do
    // not disturb carry, so the seven-cycle ENABL materialization can happen
    // immediately after the PF writes.  PF1/PF2 therefore land at the proven
@@ -1694,7 +1704,9 @@ require inline void TEMPLATE_draw(void) {
    asm bit.z TEMPLATE_workspace + 5;
    asm @transition_follow_continueP0:;
    asm dec.z TEMPLATE_workspace;
-   asm bne @continuerenderer;
+   asm beq.same @continuerenderer_not_equal;
+   asm jmp @continuerenderer;
+   asm @continuerenderer_not_equal:;
    asm jmp @altrenderer;
 
    // The final row needs no object setup for a following line.  Finish its
