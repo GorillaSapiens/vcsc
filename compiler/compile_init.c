@@ -800,6 +800,36 @@ void emit_initializer_bytes_line(EmitSink *es, const unsigned char *bytes, int s
    emit(es, "\n");
 }
 
+//! @brief Emit a file-scope pointer initializer from ordinary array-to-pointer decay.
+static bool emit_global_array_decay_pointer_initializer(EmitSink *es,
+                                                        const ASTNode *type,
+                                                        const ASTNode *declarator,
+                                                        ASTNode *expr, int size) {
+   LValueRef lv;
+   ContextEntry entry;
+   char symbol[256];
+
+   expr = (ASTNode *) unwrap_expr_node(expr);
+   if (!es || !type || !declarator || !expr || size != 2 ||
+       declarator_pointer_depth(declarator) != 1 || strcmp(expr->name, "lvalue") ||
+       !resolve_lvalue(NULL, expr, &lv) || lv.is_bitfield || lv.is_absolute_ref ||
+       lv.indirect || lv.needs_runtime_address || lv.is_ref ||
+       declarator_pointer_depth(lv.declarator) != 0 ||
+       declarator_array_count(lv.declarator) <= 0 || !lv.name) {
+      return false;
+   }
+
+   entry = (ContextEntry){ .name = lv.name, .type = lv.type,
+      .declarator = lv.declarator, .is_static = lv.is_static,
+      .is_zeropage = lv.is_zeropage, .is_global = lv.is_global,
+      .offset = lv.offset, .size = lv.size };
+   if (!entry_symbol_name(NULL, &entry, symbol, sizeof(symbol))) {
+      return false;
+   }
+   return emit_symbol_address_initializer(es, size, type, symbol,
+                                          lv.offset + lv.ptr_adjust);
+}
+
 //! @brief Emit global initializer for compiler initializer lowering diagnostics or output files.
 bool emit_global_initializer(EmitSink *es, const ASTNode *type, const ASTNode *declarator, ASTNode *expression, int size) {
    ASTNode *uexpr = (ASTNode *) unwrap_expr_node(expression);
@@ -814,6 +844,9 @@ bool emit_global_initializer(EmitSink *es, const ASTNode *type, const ASTNode *d
       const char *label = emit_pointer_initializer_backing_object(type, declarator, uexpr);
       if (label) {
          return emit_symbol_address_initializer(es, size, type, label, 0);
+      }
+      if (emit_global_array_decay_pointer_initializer(es, type, declarator, uexpr, size)) {
+         return true;
       }
    }
 

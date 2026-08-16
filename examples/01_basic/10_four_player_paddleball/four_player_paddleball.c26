@@ -85,19 +85,11 @@ void paddleball_prepare_vertical(void) {
    paddleball_ball_end_pair := paddleball_ball_start_pair + 2;
 
    // The standard RESP remainder maps to HMxx as ((remainder ^ 7) << 4).
-   // Do this once in overscan/startup rather than indexing an aligned ROM table
-   // from a beam-critical horizontal-positioning line.
-   asm lda.z paddleball_ball_x;
-   asm sec;
-   asm @ball_fine_divide:;
-   asm sbc #15;
-   asm bcs.same @ball_fine_divide;
-   asm eor #$07;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm sta.z paddleball_ball_fine;
+   // Compute it in ordinary VCSC during startup/overscan; the horizontal RESP
+   // strobes themselves remain cycle-calibrated assembly.
+   uint8_t ball_remainder := paddleball_ball_x;
+   while (ball_remainder >= 15) { ball_remainder -= 15; }
+   paddleball_ball_fine := (ball_remainder ^ 7) << 4;
 }
 
 // Position the two fixed missile paddles and Ball while VBLANK is asserted.

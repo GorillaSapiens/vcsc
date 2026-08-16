@@ -245,16 +245,11 @@ uint8_t tanks_m0_next := 0;
 uint8_t tanks_m1_next := 0;
 
 bank1 uint8_t tanks_random(void) {
-   // Compact eight-bit Galois LFSR. Return value is the updated state.
-   asm lda.z tanks_rng;
-   asm lsr;
-   asm bcc.same @no_eor;
-   asm eor #$b4;
-   asm @no_eor:;
-   asm bne.same @nonzero;
-   asm lda #$5d;
-   asm @nonzero:;
-   asm sta.z tanks_rng;
+   // Ordinary game-state LFSR; no beam-facing timing depends on its exact
+   // instruction sequence.
+   if (tanks_rng & 1) { tanks_rng := (tanks_rng >> 1) ^ 0xb4; }
+   else { tanks_rng >>= 1; }
+   if (!tanks_rng) { tanks_rng := 0x5d; }
    return tanks_rng;
 }
 
@@ -837,38 +832,19 @@ inline void tanks_position_missiles(void) {
 }
 
 inline void tanks_prepare_graphics(void) {
-   // The table is page-contained but intentionally not assumed to start at
-   // $xx00. Add direction*8 to the actual low byte and propagate carry.
-   asm lda.z tank0_direction;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm clc;
-   asm adc #<tanks_graphics;
-   asm sta.z tank0_graphics;
-   asm lda #>tanks_graphics;
-   asm adc #0;
-   asm sta.z tank0_graphics + 1;
-
-   asm lda.z tank1_direction;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm clc;
-   asm adc #<tanks_graphics;
-   asm sta.z tank1_graphics;
-   asm lda #>tanks_graphics;
-   asm adc #0;
-   asm sta.z tank1_graphics + 1;
+   // Direction-to-glyph selection is ordinary VBLANK pointer arithmetic; the
+   // indirect graphics fetch in tanks_draw() is the beam-critical part.
+   tank0_graphics := tanks_graphics;
+   tank0_graphics += tank0_direction << 3;
+   tank1_graphics := tanks_graphics;
+   tank1_graphics += tank1_direction << 3;
 }
 
 inline void tanks_prepare_player_positions(void) {
-   asm ldx.z tank0_x;
-   asm lda.ax tanks_player_position_table,x;
-   asm sta.z tanks_player_position_control;
-   asm ldx.z tank1_x;
-   asm lda.ax tanks_player_position_table,x;
-   asm sta.z tanks_player_position_control + 1;
+   // Prepare the packed fixed-time position controls in ordinary VCSC before
+   // the visible three-line score handoff consumes them.
+   tanks_player_position_control[0] := tanks_player_position_table[tank0_x];
+   tanks_player_position_control[1] := tanks_player_position_table[tank1_x];
 }
 
 // The score owns P0/P1 positioning, so restore the two gameplay players in

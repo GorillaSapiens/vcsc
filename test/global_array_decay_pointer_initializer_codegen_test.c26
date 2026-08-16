@@ -1,0 +1,18 @@
+// vcsc-cc1 -I .
+// expectasmordered: bytep:
+// expectasmordered: .byte <{bytes+0}, >{bytes+0}
+// expectasmordered: wordp:
+// expectasmordered: .byte <{words+0}, >{words+0}
+// forbidasm: __init_
+// forbidasm: __vcsc_scratch_
+// forbidasm: sta bytep
+// forbidasm: sta wordp
+
+include "machine_6502.c26"
+
+uint8_t bytes[4];
+uint16_t words[4];
+uint8_t *bytep := bytes;
+uint16_t *wordp := words;
+
+void main(void) {}

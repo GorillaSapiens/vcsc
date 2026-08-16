@@ -94,7 +94,8 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx);
 static void compile_local_decl_item(ASTNode *node, Context *ctx);
 static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *ctx,
       const ASTNode *type, const ASTNode *declarator,
-      PointerAccessQualifier pointer_access, const char *symbol, int size);
+      PointerAccessQualifier pointer_access, const char *symbol, int size,
+      bool allow_direct_u8);
 static bool compile_expr_to_return_object(ASTNode *expr, Context *ctx, ContextEntry *ret);
 static void compile_if_stmt(ASTNode *node, Context *ctx);
 static void compile_while_stmt(ASTNode *node, Context *ctx);
@@ -285,6 +286,125 @@ static bool stmt_lvalue_has_direct_subscript(ASTNode *expr) {
    suffix = expr->children[1];
    return suffix && !strcmp(suffix->name, "[") && suffix->count >= 2 &&
       is_empty(suffix->children[0]);
+}
+
+static bool global_array_guarantees_page_base(const ASTNode *g);
+static void clear_pointer_low_range_fact(Context *ctx);
+
+//! @brief Return whether expr contains a runtime pointer subscript.
+//!
+//! Direct byte subscript lowering can use `(symbol),Y` only when the pointer slot
+//! itself is known to live in machine zero page.  Runtime-initializer storage is
+//! target-agnostic, so keep pointer-backed subscripts on the general path here.
+static bool stmt_expr_contains_pointer_subscript(ASTNode *expr, Context *ctx) {
+   LValueRef lv;
+
+   expr = (ASTNode *)unwrap_expr_node(expr);
+   if (!expr) return false;
+   if (!strcmp(expr->name, "lvalue") && stmt_lvalue_has_direct_subscript(expr) &&
+       resolve_ref_argument_lvalue(ctx, expr, &lv) && lv.base_declarator &&
+       declarator_pointer_depth(lv.base_declarator) > 0) {
+      return true;
+   }
+   for (int i = 0; i < expr->count; i++) {
+      if (stmt_expr_contains_pointer_subscript(expr->children[i], ctx)) return true;
+   }
+   return false;
+}
+
+//! @brief Fuse `pointer := array; pointer += byte_offset` for a non-page array base.
+//!
+//! The generic two-statement lowering first materializes the complete base pointer and
+//! then adds the byte offset through memory.  For a relocatable non-page base, compute
+//! the final low byte in A and propagate its carry directly into the high byte instead.
+static bool compile_compact_array_pointer_base_update(ASTNode *base_stmt,
+                                                       ASTNode *update_stmt,
+                                                       Context *ctx) {
+   const char *base_op;
+   const char *update_op;
+   ASTNode *base_rhs;
+   LValueRef dst;
+   LValueRef src;
+   LValueRef update_dst;
+   const ASTNode *g;
+   const ASTNode *mods;
+   ContextEntry dst_entry;
+   ContextEntry src_entry;
+   char dst_symbol[256];
+   char src_symbol[256];
+   char dst_buf[256];
+   char src_buf[256];
+   const char *dst_fmt;
+   const char *src_fmt;
+   int rhs_min = 0;
+   int rhs_max = 255;
+
+   if (!base_stmt || !update_stmt || !ctx ||
+       strcmp(base_stmt->name, "assign_expr") || base_stmt->count != 3 ||
+       strcmp(update_stmt->name, "assign_expr") || update_stmt->count != 3 ||
+       !(base_op = base_stmt->children[0] ? base_stmt->children[0]->strval : NULL) ||
+       strcmp(base_op, ":=") ||
+       !(update_op = update_stmt->children[0] ? update_stmt->children[0]->strval : NULL) ||
+       strcmp(update_op, "+=") ||
+       !resolve_lvalue(ctx, base_stmt->children[1], &dst) || !dst.name ||
+       dst.is_bitfield || dst.indirect || dst.needs_runtime_address || dst.is_absolute_ref ||
+       dst.size != 2 || declarator_pointer_depth(dst.declarator) != 1 ||
+       declarator_first_element_size(dst.type, dst.declarator) != 1 ||
+       !resolve_lvalue(ctx, update_stmt->children[1], &update_dst) || !update_dst.name ||
+       strcmp(update_dst.name, dst.name) || update_dst.offset != dst.offset ||
+       update_dst.is_bitfield || update_dst.indirect || update_dst.needs_runtime_address ||
+       update_dst.is_absolute_ref || update_dst.size != 2 ||
+       declarator_pointer_depth(update_dst.declarator) != 1 ||
+       !direct_u8_expr_range(ctx, update_stmt->children[2], &rhs_min, &rhs_max) ||
+       rhs_min < 0 || rhs_max > 255) {
+      return false;
+   }
+
+   base_rhs = (ASTNode *)unwrap_expr_node(base_stmt->children[2]);
+   if (!base_rhs || strcmp(base_rhs->name, "lvalue") ||
+       stmt_lvalue_has_direct_subscript(base_rhs) ||
+       !resolve_ref_argument_lvalue(ctx, base_rhs, &src) || !src.name || src.is_ref ||
+       src.is_absolute_ref || src.indirect || src.needs_runtime_address ||
+       declarator_pointer_depth(src.declarator) != 0 ||
+       declarator_array_count(src.declarator) <= 0) {
+      return false;
+   }
+
+   /* Page-aligned bases already have a better dedicated path that can omit the
+      low-base addition entirely. */
+   if (src.is_global && src.base_offset == 0 &&
+       (g = global_decl_lookup(src.name)) != NULL && g->count >= 3 &&
+       (mods = g->children[0]) != NULL && global_array_guarantees_page_base(g)) {
+      return false;
+   }
+
+   dst_entry = (ContextEntry){ .name = dst.name, .type = dst.type,
+      .declarator = dst.declarator, .is_static = dst.is_static,
+      .is_zeropage = dst.is_zeropage, .is_global = dst.is_global,
+      .offset = dst.offset, .size = dst.size };
+   src_entry = (ContextEntry){ .name = src.name, .type = src.base_type,
+      .declarator = src.base_declarator, .is_static = src.is_static,
+      .is_zeropage = src.is_zeropage, .is_global = src.is_global,
+      .offset = src.base_offset,
+      .size = declarator_storage_size(src.base_type, src.base_declarator) };
+   if (!entry_symbol_name(ctx, &dst_entry, dst_symbol, sizeof(dst_symbol)) ||
+       !entry_symbol_name(ctx, &src_entry, src_symbol, sizeof(src_symbol))) {
+      return false;
+   }
+   dst_fmt = assembler_address_expr(dst_symbol, dst_buf, sizeof(dst_buf));
+   src_fmt = assembler_address_expr(src_symbol, src_buf, sizeof(src_buf));
+
+   if (!compile_direct_u8_expr_to_a(ctx, update_stmt->children[2])) return false;
+   emit_lvalue_semantic_use(ctx, &src, "read");
+   emit_lvalue_semantic_use(ctx, &dst, "write");
+   emit(&es_code, "    clc\n");
+   emit(&es_code, "    adc #<{%s + %d}\n", src_fmt, src.base_offset);
+   emit(&es_code, "    sta %s + %d\n", dst_fmt, dst.offset);
+   emit(&es_code, "    lda #>{%s + %d}\n", src_fmt, src.base_offset);
+   emit(&es_code, "    adc #0\n");
+   emit(&es_code, "    sta %s + %d\n", dst_fmt, dst.offset + 1);
+   clear_pointer_low_range_fact(ctx);
+   return true;
 }
 
 //! @brief Return whether one global array declaration guarantees a low-byte-zero base.
@@ -575,6 +695,142 @@ static ASTNode *single_branch_statement(ASTNode *block) {
       block = block->children[0];
    }
    return block;
+}
+
+//! @brief Return whether two direct byte lvalues denote the same storage byte.
+static bool stmt_same_direct_u8_lvalue(Context *ctx, ASTNode *a, ASTNode *b,
+                                       LValueRef *resolved_out) {
+   LValueRef la;
+   LValueRef lb;
+
+   if (!ctx || !resolve_lvalue(ctx, a, &la) || !resolve_lvalue(ctx, b, &lb) ||
+       !la.name || !lb.name || strcmp(la.name, lb.name) ||
+       la.offset != lb.offset || la.base_offset != lb.base_offset ||
+       la.size != 1 || lb.size != 1 || la.is_bitfield || lb.is_bitfield ||
+       la.indirect || lb.indirect || la.needs_runtime_address || lb.needs_runtime_address ||
+       la.is_absolute_ref || lb.is_absolute_ref ||
+       declarator_pointer_depth(la.declarator) != 0 ||
+       declarator_pointer_depth(lb.declarator) != 0 ||
+       type_is_signed_integer(la.type) || type_is_signed_integer(lb.type) ||
+       type_is_bcd_integer(la.type) || type_is_bcd_integer(lb.type)) {
+      return false;
+   }
+   if (resolved_out) *resolved_out = la;
+   return true;
+}
+
+//! @brief Lower `if (x & 1) x := (x >> 1) ^ k; else x >>= 1` via LSR carry.
+//!
+//! This is a general flag-preserving byte idiom: the carry produced by LSR is
+//! exactly the original bit-zero condition, so re-reading and re-testing the
+//! source byte is unnecessary.  It is useful for CRC/LFSR-style state machines
+//! without teaching the compiler anything about a particular polynomial.
+static bool compile_u8_shift_xor_carry_if(ASTNode *node, Context *ctx) {
+   ASTNode *cond;
+   ASTNode *cond_value = NULL;
+   ASTNode *then_stmt;
+   ASTNode *else_stmt;
+   ASTNode *then_rhs;
+   ASTNode *shift_expr = NULL;
+   ASTNode *xor_const_expr = NULL;
+   ASTNode *else_rhs;
+   LValueRef state;
+   ContextEntry entry;
+   char symbol[256];
+   char expr_buf[256];
+   const char *formatted;
+   const char *skip_xor;
+   const char *then_op;
+   const char *else_op;
+   long long bit = -1;
+   long long shift = -1;
+   long long xor_value = -1;
+
+   if (!node || !ctx || strcmp(node->name, "if_stmt") || node->count < 3 ||
+       !node->children[2] || is_empty(node->children[2])) {
+      return false;
+   }
+   cond = (ASTNode *)unwrap_expr_node(node->children[0]);
+   if (!cond || cond->count != 2 || strcmp(cond->name, "&")) return false;
+   if (expr_is_integer_constant_expr(cond->children[1], &bit) && bit == 1) {
+      cond_value = cond->children[0];
+   }
+   else if (expr_is_integer_constant_expr(cond->children[0], &bit) && bit == 1) {
+      cond_value = cond->children[1];
+   }
+   else {
+      return false;
+   }
+
+   then_stmt = single_branch_statement(node->children[1]);
+   else_stmt = single_branch_statement(node->children[2]);
+   if (!then_stmt || !else_stmt || strcmp(then_stmt->name, "assign_expr") ||
+       then_stmt->count != 3 || strcmp(else_stmt->name, "assign_expr") ||
+       else_stmt->count != 3 ||
+       !(then_op = then_stmt->children[0] ? then_stmt->children[0]->strval : NULL) ||
+       strcmp(then_op, ":=") ||
+       !(else_op = else_stmt->children[0] ? else_stmt->children[0]->strval : NULL)) {
+      return false;
+   }
+   if (!stmt_same_direct_u8_lvalue(ctx, cond_value, then_stmt->children[1], &state) ||
+       !stmt_same_direct_u8_lvalue(ctx, cond_value, else_stmt->children[1], NULL)) {
+      return false;
+   }
+
+   then_rhs = (ASTNode *)unwrap_expr_node(then_stmt->children[2]);
+   if (!then_rhs || then_rhs->count != 2 || strcmp(then_rhs->name, "^")) return false;
+   if (expr_is_integer_constant_expr(then_rhs->children[1], &xor_value)) {
+      shift_expr = (ASTNode *)unwrap_expr_node(then_rhs->children[0]);
+      xor_const_expr = then_rhs->children[1];
+   }
+   else if (expr_is_integer_constant_expr(then_rhs->children[0], &xor_value)) {
+      shift_expr = (ASTNode *)unwrap_expr_node(then_rhs->children[1]);
+      xor_const_expr = then_rhs->children[0];
+   }
+   if (!shift_expr || !xor_const_expr || xor_value < 0 || xor_value > 255 ||
+       shift_expr->count != 2 || strcmp(shift_expr->name, ">>") ||
+       !stmt_same_direct_u8_lvalue(ctx, cond_value, shift_expr->children[0], NULL) ||
+       !expr_is_integer_constant_expr(shift_expr->children[1], &shift) || shift != 1) {
+      return false;
+   }
+
+   if (!strcmp(else_op, ">>=")) {
+      if (!expr_is_integer_constant_expr(else_stmt->children[2], &shift) || shift != 1) {
+         return false;
+      }
+   }
+   else if (!strcmp(else_op, ":=")) {
+      else_rhs = (ASTNode *)unwrap_expr_node(else_stmt->children[2]);
+      if (!else_rhs || else_rhs->count != 2 || strcmp(else_rhs->name, ">>") ||
+          !stmt_same_direct_u8_lvalue(ctx, cond_value, else_rhs->children[0], NULL) ||
+          !expr_is_integer_constant_expr(else_rhs->children[1], &shift) || shift != 1) {
+         return false;
+      }
+   }
+   else {
+      return false;
+   }
+
+   if (!state.is_global && !state.is_static && !state.is_zeropage) return false;
+   entry = (ContextEntry){ .name = state.name, .type = state.type,
+      .declarator = state.declarator, .is_static = state.is_static,
+      .is_zeropage = state.is_zeropage, .is_global = state.is_global,
+      .offset = state.offset, .size = state.size };
+   if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) return false;
+   formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+   skip_xor = next_label("u8_shift_xor_skip");
+   if (!skip_xor) return false;
+
+   emit_lvalue_semantic_use(ctx, &state, "read");
+   emit_lvalue_semantic_use(ctx, &state, "write");
+   emit_load_a_from_expr_address(formatted, state.offset);
+   emit(&es_code, "    lsr\n");
+   emit(&es_code, "    bcc %s\n", skip_xor);
+   emit(&es_code, "    eor #$%02x\n", (unsigned int)xor_value);
+   emit(&es_code, "%s:\n", skip_xor);
+   emit_store_a_to_expr_address(formatted, state.offset);
+   free((void *)skip_xor);
+   return true;
 }
 
 //! @brief Prove both arms of an if are byte updates of the same tracked pointer.
@@ -1397,10 +1653,11 @@ static void compile_for_stmt(ASTNode *node, Context *ctx) {
    free((void *) end_label);
 }
 
-//! @brief Evaluate a runtime initializer in temporary frame scratch and copy it to a fixed symbol.
+//! @brief Evaluate a runtime initializer directly when safe, otherwise via frame scratch.
 static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *ctx,
       const ASTNode *type, const ASTNode *declarator,
-      PointerAccessQualifier pointer_access, const char *symbol, int size) {
+      PointerAccessQualifier pointer_access, const char *symbol, int size,
+      bool allow_direct_u8) {
    StmtFixedScratch scratch;
    bool ok;
 
@@ -1410,6 +1667,21 @@ static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *
 
    stmt_fixed_scratch_prepare(ctx, size, &scratch);
    stmt_fixed_scratch_activate(ctx, &scratch);
+
+   /* Keep ordinary unsigned-byte scalar initializers and return values in A
+      when the expression has an exact direct lowering.  The scratch lease is
+      active while resolving automatic locals, but no workspace bytes are
+      emitted or imported on this fast path. */
+   if (allow_direct_u8 && size == 1 && declarator_pointer_depth(declarator) == 0 &&
+       declarator_array_count(declarator) == 0 && !type_is_aggregate(type) &&
+       type_is_unsigned_integer(type) && !type_is_bcd_integer(type) &&
+       !stmt_expr_contains_pointer_subscript(expression, ctx) &&
+       compile_direct_u8_expr_to_a(ctx, expression)) {
+      emit(&es_code, "    sta %s\n", symbol);
+      stmt_fixed_scratch_deactivate(ctx, &scratch);
+      stmt_fixed_scratch_finish(&scratch);
+      return true;
+   }
 
    if (initializer_is_list(unwrap_expr_node(expression)) ||
        declarator_array_count(declarator) > 0 || type_is_aggregate(type)) {
@@ -1482,8 +1754,35 @@ static bool compile_expr_to_return_object(ASTNode *expr, Context *ctx, ContextEn
    if (!entry_symbol_name(ctx, ret, sym, sizeof(sym))) {
       return false;
    }
+
+   /* A directly allocated unsigned-byte object can be copied straight into a
+      one-byte memory return slot.  Keep this deliberately narrower than the
+      general direct-expression initializer path so optimizer-specialized
+      parameters/locals still flow through their existing value propagation. */
+   if (ret->size == 1 && declarator_pointer_depth(ret->declarator) == 0 &&
+       type_is_unsigned_integer(ret->type) && !type_is_bcd_integer(ret->type)) {
+      LValueRef src;
+      if (resolve_ref_argument_lvalue(ctx, expr, &src) && src.size == 1 &&
+          !src.is_bitfield && !src.indirect && !src.needs_runtime_address &&
+          !src.is_absolute_ref && !src.is_ref &&
+          (src.is_global || src.is_static || src.is_zeropage) &&
+          declarator_pointer_depth(src.declarator) == 0 &&
+          !type_is_signed_integer(src.type) && !type_is_bcd_integer(src.type)) {
+         ContextEntry src_entry = { .name = src.name, .type = src.type,
+            .declarator = src.declarator, .is_static = src.is_static,
+            .is_zeropage = src.is_zeropage, .is_global = src.is_global,
+            .offset = src.offset, .size = src.size };
+         char src_sym[256];
+         if (entry_symbol_name(ctx, &src_entry, src_sym, sizeof(src_sym))) {
+            emit_lvalue_semantic_use(ctx, &src, "read");
+            emit_load_a_from_expr_address(src_sym, src.offset);
+            emit_store_a_to_expr_address(sym, 0);
+            return true;
+         }
+      }
+   }
    return compile_runtime_initializer_to_symbol(expr, ctx, ret->type, ret->declarator,
-                                                ret->pointer_access, sym, ret->size);
+                                                ret->pointer_access, sym, ret->size, false);
 }
 
 //! @brief Lower break stmt from AST/semantic state into generated assembly or linker-visible metadata.
@@ -1891,7 +2190,8 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
 
          if (!is_empty(expression) &&
              !compile_runtime_initializer_to_symbol(expression, ctx, type, declarator,
-                                                   entry->pointer_access, sym, size)) {
+                                                   entry->pointer_access, sym, size,
+                                                   !context_local_decl_is_coalesced_return(ctx, node))) {
             error_user("[%s:%d.%d] invalid initializer for '%s'", node->file, node->line, node->column, name);
          }
          return;
@@ -2860,6 +3160,12 @@ void compile_statement_list(ASTNode *node, Context *ctx) {
       bool page_selector_sequence = false;
       int reused_pointer_skip = 0;
 
+      if (ctx && i + 1 < node->count &&
+          compile_compact_array_pointer_base_update(stmt, node->children[i + 1], ctx)) {
+         i++;
+         continue;
+      }
+
       if (compile_doubled_page_pointer_reuse(node, i, ctx, &reused_pointer_skip)) {
          i += reused_pointer_skip;
          continue;
@@ -2885,6 +3191,9 @@ void compile_statement_list(ASTNode *node, Context *ctx) {
       if (page_selector_sequence &&
           compile_compact_page_pointer_selector(stmt, ctx, page_selector_target)) {
          /* The compact selector installs only the proven page high byte. */
+      }
+      else if (compile_u8_shift_xor_carry_if(stmt, ctx)) {
+         /* The carry from LSR is the original bit-zero condition. */
       }
       else if (!strcmp(stmt->name, "return_stmt")) {
          compile_return_stmt(stmt, ctx);

@@ -3,9 +3,9 @@
 // expectasm: main$i:
 // expectasm: main$j:
 // expectasmordered: lda #$01
-// expectasmordered: sta  main$i
+// expectasmordered: sta main$i
 // expectasmordered: lda #$02
-// expectasmordered: sta  main$j
+// expectasmordered: sta main$j
 // expectasmordered: @for_start_
 
 include "machine_6502.c26"

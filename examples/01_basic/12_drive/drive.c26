@@ -18,8 +18,8 @@ instantiate "driving_controller.c26" as right_drive (port:=1)
 
 uint8_t left_value := 0;
 uint8_t right_value := 0;
-uint16_t left_glyph_pointer := 0;
-uint16_t right_glyph_pointer := 0;
+uint8_t *left_glyph_pointer := score_font;
+uint8_t *right_glyph_pointer := score_font;
 
 inline void drive_apply_steps(void) {
    // Signed step is two's-complement. Addition followed by a low-nibble mask
@@ -35,21 +35,12 @@ void drive_sample_pair(void) {
 }
 
 inline void drive_prepare_glyphs(void) {
-   // big_hex.c26 is one aligned 256-byte page of sixteen 16-byte glyphs, so
-   // value << 4 is the complete low pointer byte and the high byte is fixed.
-   asm lda.z left_value;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm sta.z left_glyph_pointer;
-
-   asm lda.z right_value;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm sta.z right_glyph_pointer;
+   // Glyph selection is ordinary VCSC work in blanking time. The visible
+   // sixteen-line indirect glyph loop remains cycle-exact assembly.
+   left_glyph_pointer := score_font;
+   left_glyph_pointer += left_value << 4;
+   right_glyph_pointer := score_font;
+   right_glyph_pointer += right_value << 4;
 }
 
 // P0 is centered on the left 80-pixel half at x=36; P1 is centered on the
@@ -143,9 +134,6 @@ void main(void) {
 
    left_drive_init();
    right_drive_init();
-   asm lda #>score_font;
-   asm sta.z left_glyph_pointer+1;
-   asm sta.z right_glyph_pointer+1;
    drive_prepare_glyphs();
    drive_position_players();
 

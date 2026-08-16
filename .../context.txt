@@ -358,12 +358,12 @@ When removing or changing a feature:
 
 The current completely verified baseline is:
 
-    compile-only:             492 passed
-    end-to-end/generic:       301 passed
+    compile-only:             495 passed
+    end-to-end/generic:       303 passed
     staged installed tools:   passed, including all final cartridge builds
 
-The current tree has been verified against all 492 compile-only tests and all
-301 end-to-end tests. The end-to-end inventory is executed in ordered capped
+The current tree has been verified against all 495 compile-only tests and all
+303 end-to-end tests. The end-to-end inventory is executed in ordered capped
 batches because the container imposes a hard wall-clock limit on one monolithic
 command; every listed case must run and pass. Exact raster, event-trace, frame-
 length, bankswitching, installed-profile, assembly-policy, and source-hygiene
@@ -491,15 +491,43 @@ white **PASS** or **FAIL** words with the six-glyph-wide component; its mapper
 transition simulator matrix and recursive example builds pass.
 
 Public-example assembly remains audited by `test/example_assembly_allowlist.pl`. Item
-14 removed every ordinary-application `compiler-limitation` entry: the allowlist is
-now twelve sources, all classified only as beam-critical or direct hardware idioms.
-Packed-BCD score editing is high-level VCSC using indexed decimal-weight `+=`/`-=`,
-all-five object movement is high-level VCSC, and the fingerprint installs semantic
+14 removed every ordinary-application `compiler-limitation` entry. A later 2026-08-15
+re-audit of every public example removed another 76 off-beam ordinary-application
+`asm` statements, reducing current example-source assembly from 890 to 814 statements.
+The current allowlist has 21 source files, all classified only as beam-critical or
+direct hardware idioms. Four-player Paddleball Ball fine-motion preparation, keypad
+and Driving glyph-pointer preparation, and Tanks RNG/graphics/packed-position
+preparation are now ordinary VCSC. The Tanks fixed 6502 knockback barrier scan remains
+assembly because the compiler-generated row loop missed the overscan deadline;
+Reset-vector jumps, deliberate ARR silicon probes, the 50 Hz phase NOPs, RESP/HMOVE
+positioning, and visible raster kernels likewise remain assembly by design. Packed-BCD
+score editing is high-level VCSC using indexed decimal-weight `+=`/`-=`, all-five
+object movement is high-level VCSC, and the fingerprint installs semantic
 `uint16_t[6]` glyph addresses directly. The compiler has narrow regression-pinned
 lowerings for indexed packed-BCD compound arithmetic, direct indexed uint8_t
-compare/update, and constant-index relocatable uint16_t address stores. Exact beam
-timing remains authoritative; Reset-vector jumps, deliberate ARR silicon probes, and
-low-level cycle demonstrations remain assembly by design.
+compare/update, and constant-index relocatable uint16_t address stores.
+
+Follow-up compiler passes use those high-level examples as code-size benchmarks rather
+than restoring their assembly. File-scope array-decay pointer initializers are relocatable
+data, adjacent array-base plus byte-offset pointer setup is fused, safe promoted
+unsigned-byte work remains byte-sized, constant shifts use direct ASL/LSR, and eligible
+one-byte automatic initializers avoid expression scratch. The second pass additionally
+lowers direct byte `+`/`-`/bitwise operations against memory straight through A, treats
+explicit int8-to-uint8 casts as raw-byte operands where semantics permit, strength-reduces
+constant byte multiplication to shifts/adds, preserves LSR carry across the common
+shift/XOR conditional idiom, and copies direct global/static uint8_t returns without
+scratch. Keypad now spells its ten-byte glyph stride as `key * 10` and no longer needs
+the 13-byte offset table. Relative to the immediate post-assembly-audit tree the four
+benchmarks recover **422 ROM bytes**; collectively they are now **151 ROM bytes smaller**
+than their former hand-written-assembly versions. Current builds are 3617/4090 ROM +
+101/128 RAM, keypad 1647/4090 + 43/128, Driving 1669/4090 + 41/128, and Tanks bank1
+2885/3584 + bank0 3378/3584 with 112/128 RIOT and 99/128 Superchip RAM. Keypad alone
+remains 14 ROM bytes above its old asm version; the other three are smaller. A tempting
+direct `LDY index` micro-optimization remains intentionally rejected: its two-byte shrink
+shifted a page-constrained all-five 4K layout so the linker could no longer place it; the
+stable `LDA index; TAY` form keeps that cartridge at 4013/4090. Four new compile
+regressions pin the second-pass lowering paths; the full baseline is 499/499 compile-only
+and 303/303 end-to-end.
 
 RAM-roadmap items 0-14 are complete. The final architecture retains the general
 P0/P1/Ball `player_color (lines:=192/181/170)` profiles plus the all-five
@@ -926,7 +954,7 @@ timing/size pass removed the aligned PF2-pattern and fine-motion lookup tables:
 Ball fine motion is precomputed outside the visible raster, and PF2 is computed
 from the pair index on the preceding line and committed at cycle 3. This also
 removed paddle-position-dependent visible scanline overruns and moved the
-top-wall PF2 write from cycle 69 to cycle 24. The current build uses 3694/4090
+top-wall PF2 write from cycle 69 to cycle 24. The current build uses 3617/4090
 ROM bytes and 101/128 RAM bytes. HMCLR is applied before Ball HMOVE, and the
 four-player oracle now verifies that every post-startup blanking HMOVE has zero
 HMP0/HMP1/HMM0/HMM1 so the Ball cannot drag any fixed paddle horizontally. The
@@ -964,11 +992,11 @@ must exist and all recognized SWCHA direction-read signatures must be absent.
 The common two blank top rows and four blank bottom rows were removed from
 all thirteen keypad glyphs; the surrounding visible blank scanlines preserve
 vertical placement while the 10-byte glyph stride is computed as key*10. The
-public cartridge is currently 1633/4090 ROM bytes and 43/128 RAM bytes.
+public cartridge is currently 1647/4090 ROM bytes and 43/128 RAM bytes.
 `vcs_keypad.pl/.cpp` plus left/right private fixtures cover all twelve keys,
 press/hold/release semantics, opposite-port isolation, minimum row-settle timing,
 and invariant scheduler frame length. The example assembly allowlist pins the
-trimmed keypad source at 62 reviewed beam-critical `asm` statements. Item 38
+trimmed keypad source at 47 reviewed beam-critical `asm` statements. Item 38
 (Indy 500 driving controllers) is complete. `libraries/vcs/driving_controller.c26`
 supports one controller on either port with a two-bit SWCHA Gray-code decoder.
 The physical pin mapping is left pins 1/2 -> SWCHA D4/D5 and right pins 1/2 ->
@@ -986,8 +1014,10 @@ displays independent centered Big-hex P0/P1 glyphs. Clockwise increments and
 counterclockwise decrements modulo 16; each glyph is white while its fire button
 is released and red only while held. The timing-critical controller decoder is
 compact assembly so all six sample pairs fit the scheduler deadlines; the public
-cartridge uses 1743/4090 ROM bytes and 49/128 RAM bytes while retaining stable
-264-raw / Stella-262 frame timing. Current Stella requires the Driving controller
+cartridge uses 1669/4090 ROM bytes and 41/128 RAM bytes while retaining stable
+264-raw / Stella-262 frame timing. Hex-glyph pointer preparation is ordinary VCSC;
+the remaining 47 source `asm` statements are the reviewed beam-critical player
+positioning/glyph raster. Current Stella requires the Driving controller
 type to be selected manually because its ROM detector does not auto-detect this
 controller family. `vcs_driving.pl/.cpp` plus left/right private 2K fixtures model the actual
 RIOT pin wiring (unused pins 3/4 held high while pins 1/2 carry Gray code) and cover
@@ -1071,9 +1101,11 @@ moving tank after the raster rewrite; tank rows remained coherent and the bottom
 wall rendered continuously.
 
 `tanks` is an 8K F8SC cartridge. The current linker reports bank1 at
-2897/3584 bytes, bank0 at 3380/3584 bytes, RIOT RAM at 112/128 bytes including
-the reserved hardware stack, and Superchip RAM at 99/128 bytes. `vcs_tanks.pl/.cpp`
-covers both joysticks, 24-frame held-turn repeat, quarter-rate translation, fire
+2885/3584 bytes, bank0 at 3378/3584 bytes, RIOT RAM at 112/128 bytes including
+the reserved hardware stack, and Superchip RAM at 99/128 bytes. Off-beam RNG,
+tank-graphics pointer selection, and packed player-position lookup are ordinary VCSC;
+the remaining 163 source `asm` statements are reviewed timing-critical raster,
+positioning, or bounded blanking-deadline code. `vcs_tanks.pl/.cpp` covers both joysticks, 24-frame held-turn repeat, quarter-rate translation, fire
 hold semantics and fire audio, three-plus-three scoring, hit audio/spin/random
 heading, away-side knockback distance/direction, outer-wall bounds, explicit
 barrier-rejection fallback, missile/playfield and missile/player latches,

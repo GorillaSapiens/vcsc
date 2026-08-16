@@ -77,7 +77,7 @@ $out =~ /\brom\s+used=(\d+)\s+bytes/ or die "blank_noasm build did not report RO
 my $rom_used=$1;
 $rom_used <= 520 or die "blank_noasm uses $rom_used ROM bytes; timer-demo budget is 520\n";
 $out =~ /\bram\s+used=(\d+)\s+bytes/ or die "blank_noasm build did not report RAM usage\n$out";
-$1 == 18 or die "blank_noasm uses $1 RAM bytes; expected 18 after the four-byte startup-workspace reduction\n";
+$1 == 15 or die "blank_noasm uses $1 RAM bytes; expected 15 after direct byte automatic-initializer lowering\n";
 die "blank_noasm build wrote unexpected output\nstdout:\n$out\nstderr:\n$err"
    if without_cartridge_usage($out) ne '' || $err ne '';
 

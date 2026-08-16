@@ -2,8 +2,8 @@
 // expectmap: ZEROPAGE.__vcsc_activation$left run=$0005 size=$0001
 // expectmap: ZEROPAGE.__vcsc_activation$right run=$0005 size=$0001
 // expectmap: ZEROPAGE.__vcsc_activation$parent run=$0004 size=$0001
-// expectmap: BSS.__vcsc_activation$left run=$020A size=$0006
-// expectmap: BSS.__vcsc_activation$right run=$020A size=$0006
+// expectmap: BSS.__vcsc_activation$left run=$020A size=$0003
+// expectmap: BSS.__vcsc_activation$right run=$020A size=$0003
 // expectmap: BSS.__vcsc_activation$parent run=$0203 size=$0007
 // expectmap: BSS.__vcsc_activation$main run=$0200 size=$0003
 // expectexit: 0

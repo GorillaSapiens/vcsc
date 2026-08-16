@@ -303,7 +303,8 @@ static bool eval_direct_byte_constant(ASTNode *expr, const ASTNode *type,
 //! @brief Classify an unsigned one-byte lvalue without emitting code.
 static DirectByteOperand classify_direct_byte_operand_impl(Context *ctx, ASTNode *expr,
                                                             bool allow_runtime_pointer,
-                                                            bool allow_incdec) {
+                                                            bool allow_incdec,
+                                                            bool allow_signed) {
    DirectByteOperand out;
    ContextEntry entry;
 
@@ -317,7 +318,8 @@ static DirectByteOperand classify_direct_byte_operand_impl(Context *ctx, ASTNode
    }
    if (!(allow_incdec ? resolve_lvalue(ctx, expr, &out.lv)
                        : resolve_ref_argument_lvalue(ctx, expr, &out.lv)) ||
-       out.lv.size != 1 || type_is_signed_integer(out.lv.type) || out.lv.is_bitfield) {
+       out.lv.size != 1 || (!allow_signed && type_is_signed_integer(out.lv.type)) ||
+       out.lv.is_bitfield) {
       return out;
    }
    out.valid = true;
@@ -369,12 +371,21 @@ static DirectByteOperand classify_direct_byte_operand_impl(Context *ctx, ASTNode
 //! @brief Classify an ordinary direct byte operand while rejecting valued ++/--.
 static DirectByteOperand classify_direct_byte_operand(Context *ctx, ASTNode *expr,
                                                        bool allow_runtime_pointer) {
-   return classify_direct_byte_operand_impl(ctx, expr, allow_runtime_pointer, false);
+   return classify_direct_byte_operand_impl(ctx, expr, allow_runtime_pointer, false, false);
 }
 
 //! @brief Classify the lvalue storage underlying one valued ++/-- expression.
 static DirectByteOperand classify_direct_incdec_operand(Context *ctx, ASTNode *expr) {
-   return classify_direct_byte_operand_impl(ctx, expr, false, true);
+   return classify_direct_byte_operand_impl(ctx, expr, false, true, false);
+}
+
+//! @brief Classify one raw one-byte integer lvalue, allowing signed storage.
+//!
+//! This is used only when an explicit cast to uint8_t makes the low-byte bit pattern
+//! the complete value.  Packed BCD remains excluded by the caller because it is a
+//! representation conversion rather than a raw reinterpretation.
+static DirectByteOperand classify_direct_raw_byte_operand(Context *ctx, ASTNode *expr) {
+   return classify_direct_byte_operand_impl(ctx, expr, false, false, true);
 }
 
 //! @brief Load a classified direct byte operand into A.
@@ -420,6 +431,85 @@ static bool emit_load_direct_byte_operand_impl(Context *ctx,
 //! @brief Load a classified direct byte operand and record its source read.
 static bool emit_load_direct_byte_operand(Context *ctx, const DirectByteOperand *op) {
    return emit_load_direct_byte_operand_impl(ctx, op, true);
+}
+
+//! @brief Classify an explicit uint8_t cast whose source is one ordinary integer byte.
+static bool classify_direct_u8_cast_operand(Context *ctx, ASTNode *expr,
+                                            DirectByteOperand *out) {
+   const ASTNode *target_type;
+   const ASTNode *target_decl;
+   const ASTNode *source_type;
+   const ASTNode *source_decl;
+   ASTNode *source;
+   DirectByteOperand op;
+
+   expr = (ASTNode *)unwrap_expr_node(expr);
+   if (!expr || strcmp(expr->name, "cast") || expr->count < 2 || !out) {
+      return false;
+   }
+   target_type = cast_expr_target_type(expr);
+   target_decl = cast_expr_target_declarator(expr);
+   if (!target_type || type_size_from_node(target_type) != 1 ||
+       type_is_signed_integer(target_type) || type_is_bcd_integer(target_type) ||
+       (target_decl && declarator_pointer_depth(target_decl) != 0)) {
+      return false;
+   }
+   source = (ASTNode *)unwrap_expr_node(expr->children[1]);
+   source_type = expr_value_type(source, ctx);
+   source_decl = expr_value_declarator(source, ctx);
+   if (!source_type || type_size_from_node(source_type) != 1 ||
+       type_is_bcd_integer(source_type) ||
+       (source_decl && declarator_pointer_depth(source_decl) != 0)) {
+      return false;
+   }
+   op = classify_direct_raw_byte_operand(ctx, source);
+   if (!op.valid) {
+      return false;
+   }
+   *out = op;
+   return true;
+}
+
+//! @brief Classify one expression that can serve as a direct byte ALU operand.
+static bool classify_direct_u8_value_operand(Context *ctx, ASTNode *expr,
+                                             DirectByteOperand *out) {
+   DirectByteOperand op;
+
+   op = classify_direct_byte_operand(ctx, expr, false);
+   if (direct_byte_operand_is_plain_uint8(&op)) {
+      if (out) *out = op;
+      return true;
+   }
+   return classify_direct_u8_cast_operand(ctx, expr, out);
+}
+
+//! @brief Return whether one classified byte can be used as a 6502 memory ALU operand.
+static bool direct_byte_operand_is_alu_memory(const DirectByteOperand *op) {
+   return op && op->valid && !op->register_x &&
+          (op->direct_memory || op->local_scratch);
+}
+
+//! @brief Apply one 6502 memory ALU operation to A from a direct byte operand.
+static bool emit_alu_direct_byte_operand(Context *ctx, const char *mnemonic,
+                                         const DirectByteOperand *op) {
+   char expr_buf[256];
+   const char *formatted;
+
+   if (!mnemonic || !direct_byte_operand_is_alu_memory(op)) {
+      return false;
+   }
+   emit_lvalue_semantic_use(ctx, &op->lv, "read");
+   if (op->direct_memory) {
+      formatted = assembler_address_expr(op->expr, expr_buf, sizeof(expr_buf));
+      if (op->offset == 0) emit(&es_code, "    %s %s\n", mnemonic, formatted);
+      else emit(&es_code, "    %s %s + %d\n", mnemonic, formatted, op->offset);
+      return true;
+   }
+   formatted = assembler_address_expr(compiler_scratch_active_symbol(), expr_buf,
+                                      sizeof(expr_buf));
+   if (op->offset == 0) emit(&es_code, "    %s %s\n", mnemonic, formatted);
+   else emit(&es_code, "    %s %s + %d\n", mnemonic, formatted, op->offset);
+   return true;
 }
 
 //! @brief Store A into a classified directly addressable byte operand.
@@ -581,15 +671,73 @@ static bool direct_u8_expr_supported(Context *ctx, ASTNode *expr) {
    long long value;
    const ASTNode *type;
    const ASTNode *decl;
+   bool narrowable_byte_expr = false;
 
    expr = (ASTNode *) unwrap_expr_node(expr);
    if (!expr) {
       return false;
    }
+
+   if (classify_direct_u8_cast_operand(ctx, expr, &op)) {
+      return true;
+   }
+
+   /* Integer promotions may widen an expression whose low-byte result can still
+      be computed exactly in A.  Permit only forms whose recursive byte operand
+      and constant make truncation to uint8_t semantics mechanical. */
+   if (expr->count == 2 && (!strcmp(expr->name, "&") || !strcmp(expr->name, "|") ||
+                            !strcmp(expr->name, "^") || !strcmp(expr->name, "+") ||
+                            !strcmp(expr->name, "-"))) {
+      long long c;
+      if ((expr_is_integer_constant_expr(expr->children[0], &c) ||
+           expr_is_integer_constant_expr(expr->children[1], &c)) &&
+          c >= 0 && c <= 255) {
+         narrowable_byte_expr = true;
+      }
+      else if (direct_u8_expr_supported(ctx, expr->children[0]) &&
+               direct_u8_expr_supported(ctx, expr->children[1])) {
+         DirectByteOperand left_op;
+         DirectByteOperand right_op;
+         bool left_mem = classify_direct_u8_value_operand(ctx, expr->children[0], &left_op) &&
+                         direct_byte_operand_is_alu_memory(&left_op);
+         bool right_mem = classify_direct_u8_value_operand(ctx, expr->children[1], &right_op) &&
+                          direct_byte_operand_is_alu_memory(&right_op);
+         narrowable_byte_expr = right_mem || (strcmp(expr->name, "-") && left_mem);
+      }
+   }
+   else if (expr->count == 2 && !strcmp(expr->name, "*")) {
+      ASTNode *value_expr = expr->children[0];
+      ASTNode *constant_expr = expr->children[1];
+      long long c;
+      DirectByteOperand value_op;
+      if (!expr_is_integer_constant_expr(constant_expr, &c)) {
+         constant_expr = expr->children[0];
+         value_expr = expr->children[1];
+      }
+      if (expr_is_integer_constant_expr(constant_expr, &c) && c >= 0 && c <= 255 &&
+          direct_u8_expr_supported(ctx, value_expr) &&
+          classify_direct_u8_value_operand(ctx, value_expr, &value_op) &&
+          (c <= 1 || direct_byte_operand_is_alu_memory(&value_op))) {
+         narrowable_byte_expr = true;
+      }
+   }
+   else if (expr->count == 2 && (!strcmp(expr->name, "<<") || !strcmp(expr->name, ">>")) &&
+            expr_is_integer_constant_expr(expr->children[1], &value) &&
+            value >= 0 && value < 8) {
+      const ASTNode *child_type = expr_value_type(expr->children[0], ctx);
+      const ASTNode *child_decl = expr_value_declarator(expr->children[0], ctx);
+      if (child_type && type_size_from_node(child_type) == 1 &&
+          !type_is_signed_integer(child_type) && !type_is_bcd_integer(child_type) &&
+          (!child_decl || declarator_pointer_depth(child_decl) == 0)) {
+         narrowable_byte_expr = true;
+      }
+   }
+
    type = expr_value_type(expr, ctx);
    decl = expr_value_declarator(expr, ctx);
-   if (type && (type_size_from_node(type) != 1 || type_is_signed_integer(type) ||
-                type_is_bcd_integer(type)) &&
+   if (!narrowable_byte_expr && type &&
+       (type_size_from_node(type) != 1 || type_is_signed_integer(type) ||
+        type_is_bcd_integer(type)) &&
        !(expr_is_integer_constant_expr(expr, &value) && value >= 0 && value <= 255)) {
       return false;
    }
@@ -645,7 +793,36 @@ static bool direct_u8_expr_supported(Context *ctx, ASTNode *expr) {
       if (left_const && strcmp(expr->name, "-")) {
          return direct_u8_expr_supported(ctx, expr->children[1]);
       }
-      return false;
+      {
+         DirectByteOperand left_op;
+         DirectByteOperand right_op;
+         bool left_ok = direct_u8_expr_supported(ctx, expr->children[0]);
+         bool right_ok = direct_u8_expr_supported(ctx, expr->children[1]);
+         bool left_mem = classify_direct_u8_value_operand(ctx, expr->children[0], &left_op) &&
+                         direct_byte_operand_is_alu_memory(&left_op);
+         bool right_mem = classify_direct_u8_value_operand(ctx, expr->children[1], &right_op) &&
+                          direct_byte_operand_is_alu_memory(&right_op);
+         return left_ok && right_ok &&
+                (right_mem || (strcmp(expr->name, "-") && left_mem));
+      }
+   }
+
+   if (expr->count == 2 && !strcmp(expr->name, "*")) {
+      ASTNode *value_expr = expr->children[0];
+      ASTNode *constant_expr = expr->children[1];
+      long long constant;
+      DirectByteOperand value_op;
+      if (!expr_is_integer_constant_expr(constant_expr, &constant)) {
+         constant_expr = expr->children[0];
+         value_expr = expr->children[1];
+      }
+      if (!expr_is_integer_constant_expr(constant_expr, &constant) ||
+          constant < 0 || constant > 255 ||
+          !direct_u8_expr_supported(ctx, value_expr) ||
+          !classify_direct_u8_value_operand(ctx, value_expr, &value_op)) {
+         return false;
+      }
+      return constant <= 1 || direct_byte_operand_is_alu_memory(&value_op);
    }
 
    if (expr->count == 2 && (!strcmp(expr->name, "<<") || !strcmp(expr->name, ">>")) &&
@@ -778,6 +955,10 @@ bool compile_direct_u8_expr_to_a(Context *ctx, ASTNode *expr) {
       return true;
    }
 
+   if (classify_direct_u8_cast_operand(ctx, expr, &op)) {
+      return emit_load_direct_byte_operand(ctx, &op);
+   }
+
    op = classify_direct_byte_operand(ctx, expr, false);
    if (direct_byte_operand_is_plain_uint8(&op)) {
       return emit_load_direct_byte_operand(ctx, &op);
@@ -839,7 +1020,36 @@ bool compile_direct_u8_expr_to_a(Context *ctx, ASTNode *expr) {
          value_expr = expr->children[1];
          constant_first = true;
          if (!expr_is_integer_constant_expr(constant_expr, &constant)) {
-            return false;
+            DirectByteOperand left_op;
+            DirectByteOperand right_op;
+            bool left_mem = classify_direct_u8_value_operand(ctx, expr->children[0], &left_op) &&
+                            direct_byte_operand_is_alu_memory(&left_op);
+            bool right_mem = classify_direct_u8_value_operand(ctx, expr->children[1], &right_op) &&
+                             direct_byte_operand_is_alu_memory(&right_op);
+            ASTNode *accum_expr = expr->children[0];
+            DirectByteOperand *mem_op = &right_op;
+
+            if (!right_mem && strcmp(expr->name, "-") && left_mem) {
+               accum_expr = expr->children[1];
+               mem_op = &left_op;
+            }
+            else if (!right_mem) {
+               return false;
+            }
+            if (!compile_direct_u8_expr_to_a(ctx, accum_expr)) {
+               return false;
+            }
+            if (!strcmp(expr->name, "+")) {
+               emit(&es_code, "    clc\n");
+               return emit_alu_direct_byte_operand(ctx, "adc", mem_op);
+            }
+            if (!strcmp(expr->name, "-")) {
+               emit(&es_code, "    sec\n");
+               return emit_alu_direct_byte_operand(ctx, "sbc", mem_op);
+            }
+            if (!strcmp(expr->name, "&")) return emit_alu_direct_byte_operand(ctx, "and", mem_op);
+            if (!strcmp(expr->name, "|")) return emit_alu_direct_byte_operand(ctx, "ora", mem_op);
+            return emit_alu_direct_byte_operand(ctx, "eor", mem_op);
          }
       }
       if (constant_first && !strcmp(expr->name, "-")) {
@@ -853,6 +1063,47 @@ bool compile_direct_u8_expr_to_a(Context *ctx, ASTNode *expr) {
       else if (!strcmp(expr->name, "^")) emit(&es_code, "    eor #$%02x\n", (unsigned int) constant);
       else if (!strcmp(expr->name, "+")) emit(&es_code, "    clc\n    adc #$%02x\n", (unsigned int) constant);
       else emit(&es_code, "    sec\n    sbc #$%02x\n", (unsigned int) constant);
+      return true;
+   }
+
+   if (expr->count == 2 && !strcmp(expr->name, "*")) {
+      ASTNode *value_expr = expr->children[0];
+      ASTNode *constant_expr = expr->children[1];
+      DirectByteOperand value_op;
+      long long constant;
+      int top_bit;
+
+      if (!expr_is_integer_constant_expr(constant_expr, &constant)) {
+         constant_expr = expr->children[0];
+         value_expr = expr->children[1];
+      }
+      if (!expr_is_integer_constant_expr(constant_expr, &constant) ||
+          constant < 0 || constant > 255 ||
+          !classify_direct_u8_value_operand(ctx, value_expr, &value_op)) {
+         return false;
+      }
+      if (constant == 0) {
+         emit(&es_code, "    lda #$00\n");
+         return true;
+      }
+      if (!emit_load_direct_byte_operand(ctx, &value_op)) {
+         return false;
+      }
+      if (constant == 1) {
+         return true;
+      }
+      if (!direct_byte_operand_is_alu_memory(&value_op)) {
+         return false;
+      }
+      top_bit = 7;
+      while (top_bit > 0 && ((constant >> top_bit) & 1) == 0) top_bit--;
+      for (int bit = top_bit - 1; bit >= 0; bit--) {
+         emit(&es_code, "    asl\n");
+         if ((constant >> bit) & 1) {
+            emit(&es_code, "    clc\n");
+            if (!emit_alu_direct_byte_operand(ctx, "adc", &value_op)) return false;
+         }
+      }
       return true;
    }
 
@@ -1802,7 +2053,8 @@ static bool compile_direct_u8_constant_update(Context *ctx, ASTNode *target,
    unsigned char value;
 
    if (!op || (strcmp(op, "+=") && strcmp(op, "-=") && strcmp(op, "&=") &&
-               strcmp(op, "|=") && strcmp(op, "^="))) {
+               strcmp(op, "|=") && strcmp(op, "^=") && strcmp(op, "<<=") &&
+               strcmp(op, ">>="))) {
       return false;
    }
    dst = classify_direct_byte_operand(ctx, target, false);
@@ -1843,6 +2095,14 @@ static bool compile_direct_u8_constant_update(Context *ctx, ASTNode *target,
             return false;
          }
          emit(&es_code, "    and #$%02x\n", (unsigned int) value);
+      }
+   }
+   else if (!strcmp(op, "<<=") || !strcmp(op, ">>=")) {
+      if (value >= 8) return false;
+      if (value == 0 && !dst.lv.is_absolute_ref) return true;
+      if (!emit_load_direct_byte_operand_impl(ctx, &dst, false)) return false;
+      for (unsigned int i = 0; i < value; i++) {
+         emit(&es_code, !strcmp(op, "<<=") ? "    asl\n" : "    lsr\n");
       }
    }
    else if (!strcmp(op, "|=")) {

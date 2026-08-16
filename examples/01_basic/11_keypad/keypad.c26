@@ -202,28 +202,17 @@ align(256) const uint8_t keypad_font[130] := {
    ),
 };
 
-uint16_t left_glyph_pointer := 0;
-uint16_t right_glyph_pointer := 0;
+uint8_t *left_glyph_pointer := keypad_font;
+uint8_t *right_glyph_pointer := keypad_font;
 uint8_t keypad_scan_row := 0;
 
 inline void keypad_prepare_glyphs(void) {
-   // Each trimmed glyph is 10 bytes. keypad keys are 0..12, so after
-   // two ASLs the carry is known clear: ((key * 4) + key) * 2 = key * 10.
-   // keypad_font is page-aligned and all 130 bytes fit on that page, so only
-   // the low pointer byte changes here; main initializes the high bytes once.
-   asm lda.z left_keypad_key;
-   asm asl;
-   asm asl;
-   asm adc.z left_keypad_key;
-   asm asl;
-   asm sta.z left_glyph_pointer;
-
-   asm lda.z right_keypad_key;
-   asm asl;
-   asm asl;
-   asm adc.z right_keypad_key;
-   asm asl;
-   asm sta.z right_glyph_pointer;
+   // Glyph selection is ordinary VCSC work in blanking time. Constant-multiply
+   // lowering computes the ten-byte glyph stride directly without a ROM table.
+   left_glyph_pointer := keypad_font;
+   left_glyph_pointer += left_keypad_key * 10;
+   right_glyph_pointer := keypad_font;
+   right_glyph_pointer += right_keypad_key * 10;
 }
 
 // P0 is centered on the left 80-pixel half at x=36; P1 is centered on the
@@ -312,9 +301,6 @@ void main(void) {
 
    left_keypad_init();
    right_keypad_init();
-   asm lda #>keypad_font;
-   asm sta.z left_glyph_pointer+1;
-   asm sta.z right_glyph_pointer+1;
    keypad_prepare_glyphs();
    keypad_position_players();
 

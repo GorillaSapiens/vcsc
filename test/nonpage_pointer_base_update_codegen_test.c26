@@ -1,0 +1,25 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda index
+// expectasmordered: asl
+// expectasmordered: asl
+// expectasmordered: asl
+// expectasmordered: clc
+// expectasmordered: adc #<{table + 0}
+// expectasmordered: sta p + 0
+// expectasmordered: lda #>{table + 0}
+// expectasmordered: adc #0
+// expectasmordered: sta p + 1
+// forbidasm: adc p + 0
+// forbidasm: inc p + 1
+// forbidasm: __vcsc_scratch_
+
+include "machine_6502.c26"
+
+const uint8_t table[64] := {0};
+uint8_t *p;
+uint8_t index;
+
+void main(void) {
+   p := table;
+   p += index << 3;
+}

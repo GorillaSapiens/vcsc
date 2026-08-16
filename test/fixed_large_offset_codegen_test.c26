@@ -1,7 +1,7 @@
 // vcsc-cc1 -I .
 // expectasmordered: lda #$5a
 // expectasmordered: sta main$a + 299
-// expectasmordered: lda  main$a + 299
+// expectasmordered: lda main$a + 299
 // forbidasm: ldy #43
 // forbidasm: (ptr0),y
 // forbidasm: (ptr1),y

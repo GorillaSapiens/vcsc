@@ -1,0 +1,20 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda state
+// expectasmordered: lsr
+// expectasmordered: eor #$b4
+// expectasmordered: sta state
+// expectasmordered: lda state
+// expectasmordered: lsr
+// expectasmordered: sta state
+// forbidasm: _shr8
+// forbidasm: __vcsc_scratch_
+// forbidasm: sta ptr0
+
+include "machine_6502.c26"
+
+uint8_t state;
+
+void main(void) {
+   state := (state >> 1) ^ 0xb4;
+   state >>= 1;
+}

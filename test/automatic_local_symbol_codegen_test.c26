@@ -1,8 +1,8 @@
 // vcsc-cc1 -I .
 // expectasm: demo$x:
 // expectasm: .res 1
-// expectasmordered: lda  demo$a
-// expectasmordered: sta  demo$x
+// expectasmordered: lda demo$a
+// expectasmordered: sta demo$x
 // expectasmordered: lda  demo$x
 // expectasmordered: sta  demo$__return
 include "machine_6502.c26"

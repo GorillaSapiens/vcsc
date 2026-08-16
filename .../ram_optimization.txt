@@ -1145,6 +1145,77 @@ Ordered roadmap
     driven by a concrete language/compiler improvement, not by weakening timing
     code whose purpose is to expose the hardware directly.
 
+Post-closeout public-example assembly re-audit (2026-08-15)
+------------------------------------------------------------
+Later roadmap work added controller and game examples after item 14's original
+closeout, so the public-example assembly inventory was audited again from scratch.
+Every `asm` statement under `examples/` was classified by execution context. Four
+ordinary off-beam preparation paths were returned to high-level VCSC: four-player
+Paddleball Ball fine-motion preparation, keypad glyph-pointer preparation, Driving
+glyph-pointer preparation, and Tanks RNG/graphics/packed-position preparation. This
+removed **76 source `asm` statements**, reducing the current public-example total from
+**890 to 814**. The allowlist still contains **21 source files** because none of those
+four examples became assembly-free; their visible positioning/raster code remains
+cycle-critical.
+
+The remaining assembly is intentionally restricted to beam-critical code or direct
+hardware idioms. This includes RESP/HMOVE and visible kernels, the Tanks fixed 6502
+knockback barrier scan whose compiler-generated equivalent exceeded the overscan
+deadline, Reset-vector indirect jumps through `$FFFC`, fingerprint ARR silicon probes
+and simulator trap, and the PAL/SECAM 50 Hz phase NOPs. No `compiler-limitation` debt
+was reintroduced. The post-audit gates passed **492/492 compile-only**, **303/303
+end-to-end**, all recursive public-example build shards, and staged `installcheck`.
+
+Post-audit high-level codegen recovery (2026-08-15)
+---------------------------------------------------
+The four examples returned to ordinary VCSC are compiler code-size benchmarks instead
+of excuses to put their assembly back. The first recovery pass: 
+
+* emits file-scope array-decay pointer initializers directly as relocatable low/high data
+  instead of BSS plus run-time initialization;
+* fuses adjacent `p := array; p += byte_offset` setup when the pointee/offset proof is
+  exact, while retaining the established page-aligned specialization;
+* keeps mechanically safe promoted unsigned-byte masks and constant shifts in 8-bit
+  code, including direct constant `<<=`/`>>=` ASL/LSR sequences; and
+* stores eligible non-coalesced one-byte automatic initializers directly from A instead
+  of allocating expression scratch. Pointer-backed and packed-BCD initializers stay on
+  the typed general path.
+
+A second measured pass extends that general lowering rather than special-casing the
+examples:
+
+* direct one-byte `+`, `-`, `&`, `|`, and `^` expressions with a memory operand now
+  stay in A and use the corresponding 6502 ALU instruction instead of generic scratch;
+* an explicit int8-to-uint8 cast may feed that path as the same raw byte when no BCD or
+  pointer representation conversion is involved;
+* unsigned-byte multiplication by a constant is strength-reduced to a Horner-style
+  ASL/ADC sequence, so Keypad can write the natural `key * 10` and delete its 13-byte
+  ROM offset table;
+* `if (x & 1) x := (x >> 1) ^ K; else x >>= 1` reuses the carry produced by LSR, giving
+  CRC/LFSR-style code the natural 6502 lowering without a polynomial-specific hack; and
+* direct global/static unsigned-byte returns copy straight into the memory return slot.
+  Locals and parameters deliberately remain on the existing specialization path, and
+  packed BCD is excluded.
+
+Measured against the immediate post-audit high-level tree, the four public benchmarks
+now recover **422 ROM bytes**: four-player Paddleball 3717 -> **3617** (101 RAM),
+Keypad 1711/47 -> **1647/43**, Driving 1812/53 -> **1669/41**, and Tanks bank1 2951 ->
+**2885**, bank0 3427 -> **3378**, RIOT 115 -> **112**, Superchip unchanged at 99.
+Against the older hand-written-assembly versions the same programs are collectively
+**151 ROM bytes smaller**: Paddleball is 77 smaller, Driving 74 smaller, Tanks 14
+smaller across its two banks, while Keypad is the only holdout at 14 bytes larger. The
+source-only blank and leaf-activation RAM savings from the first pass remain intact.
+
+Four new compile-only regressions pin the second-pass byte-memory ALU, constant multiply,
+carry-aware shift/XOR, and direct-global-return paths. The existing E2E controller/game
+oracles exercise the optimized arithmetic semantically. A BCD E2E regression retains
+the required packed-BCD exclusion. One superficially obvious micro-optimization remains
+rejected after measurement: replacing `LDA index; TAY` with direct `LDY index` saves two
+bytes locally but shifts a page-constrained all-five 4K layout enough that the linker can
+no longer place `__zero_table`. The stable form remains intentionally larger; that
+public cartridge stays **4013/4090**. Final gates are **499/499 compile-only**,
+**303/303 end-to-end**, all eight example-build shards, and staged `installcheck`.
+
 Post-closeout fixed-address lowering audit
 -------------------------------------------
 Completed. The compiler no longer routes a compile-time-constant offset into a fixed

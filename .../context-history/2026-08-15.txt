@@ -89,3 +89,24 @@ The emulator oracle now includes a known blocked preferred destination.
 2026-08-15 14:51:00 PDT, make knockback 32 visible pixels
 Knockback now accounts for doubled arena rows: vertical cardinal moves use
 16 rows and diagonals use 23 X pixels by 11 rows, about 31.8 visible pixels.
+
+2026-08-15 15:25:27 PDT, remove off-beam example assembly
+Audited every public example and replaced ordinary off-beam asm in
+four-player Paddleball, keypad, Driving, and Tanks with VCSC. Removed
+76 asm statements (890 -> 814); retained only reviewed beam-critical
+or direct-hardware idioms. Gates: 492/492 compile, 303/303 E2E, and
+staged installcheck.
+
+2026-08-15 16:47:15 PDT, optimized high-level example codegen
+Recovered 313 ROM bytes across the four examples converted from off-beam asm.
+Added relocatable pointer initialization, fused pointer-base updates, compact
+promoted byte shifts/masks, and direct byte automatic initialization. The four
+benchmarks are 42 ROM bytes smaller in aggregate than their former asm forms.
+Rejected a two-byte direct-LDY micro-optimization because it broke a page-tight
+4K all-five layout. Final validation: 495 compile and 303 E2E tests pass.
+
+2026-08-15 17:09:20 PDT, optimize direct byte arithmetic and shifts
+Added direct byte-memory ALU lowering, constant multiply strength reduction,
+carry-aware shift/XOR lowering, and direct global uint8 return copies.
+Keypad now uses key*10 directly; four de-asm benchmarks are 151 ROM bytes
+smaller in aggregate than their former hand-written-assembly versions.

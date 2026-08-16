@@ -1237,11 +1237,17 @@ does not assume A or flags survive across source statements; a comparison after
 an update may reload the byte, but still avoids generic scratch.
 
 The same direct-byte path also recognizes compact ROM-table and pointer idioms used
-by ordinary application code. Assigning an array to a compatible pointer writes the
-array address straight to the destination pointer; adding a simple unsigned-byte
-offset updates that pointer directly; one-byte array and pointer subscripts can stay
-in A/Y; constant masks and shifts are emitted in place; and direct byte-array stores
-avoid constructing a general run-time lvalue. A low-byte-zero array base is used only
+by ordinary application code. A file-scope pointer initialized from an array is emitted
+as relocatable low/high data instead of BSS plus a run-time initializer. For statement
+code, an adjacent `p := array; p += byte_offset` pair can be fused into one relocatable
+pointer calculation when the byte offset and pointee contract prove the transformation.
+One-byte array and pointer subscripts can stay in A/Y; safe promoted unsigned-byte
+constant masks and shifts remain byte-sized; constant byte `<<=`/`>>=` use direct
+ASL/LSR sequences; and direct byte-array stores avoid constructing a general run-time
+lvalue. A non-coalesced automatic unsigned-byte scalar initializer also stores directly
+from A when the initializer has one of these exact direct lowerings, avoiding expression
+scratch entirely. Packed-BCD, return-coalesced, pointer-backed, and otherwise unproven
+initializers retain the general typed/scratch path. A low-byte-zero array base is used only
 when the declaration actually proves it: `align(256)` (or a stronger alignment), or
 the special case of an exactly 256-byte `page` object whose containment necessarily
 forces a page boundary. `page` by itself does **not** imply a zero low byte for smaller

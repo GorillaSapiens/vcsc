@@ -54,10 +54,13 @@ $s =~ /asm cpx #86;\s*asm beq\.same \@done;/ &&
 $s =~ /tanks_draw\(\);.*?PF0 := 0xff;\s*PF1 := 0xff;\s*PF2 := 0xff;\s*WSYNC := 0;\s*WSYNC := 0;\s*WSYNC := 0;\s*WSYNC := 0;/s &&
 $s =~ /CTRLPF := 0x01/
    or die "Tanks lost early side-wall or dedicated 4-scanline bottom-wall geometry\n";
-$s =~ /adc #<tanks_graphics/ && $s =~ /tanks_player_position_table\[160\]/ &&
-$s =~ /tanks_prepare_player_positions/ && $s =~ /tanks_player_position_control\[2\]/ &&
+$s =~ /tank0_graphics := tanks_graphics;\s*tank0_graphics \+= tank0_direction << 3;/ &&
+$s =~ /tank1_graphics := tanks_graphics;\s*tank1_graphics \+= tank1_direction << 3;/ &&
+$s =~ /tanks_player_position_table\[160\]/ &&
+$s =~ /tanks_player_position_control\[0\] := tanks_player_position_table\[tank0_x\]/ &&
+$s =~ /tanks_player_position_control\[1\] := tanks_player_position_table\[tank1_x\]/ &&
 $s =~ /tanks_draw\(\);.*?PF0 := 0;\s*PF1 := 0;\s*PF2 := 0;.*?WSYNC := 0;\s*WSYNC := 0;/s
-   or die "Tanks lost corrected sprite-base or fixed-time player positioning\n";
+   or die "Tanks lost high-level sprite-base preparation or fixed-time player positioning\n";
 $s =~ /CXM0P & 0x80/ && $s =~ /CXM1P & 0x80/ &&
 $s =~ /CXM0FB & 0x80/ && $s =~ /CXM1FB & 0x80/ &&
 $s =~ /CXP0FB & 0x80/ && $s =~ /CXP1FB & 0x80/ && $s =~ /CXPPMM & 0x80/ && $s =~ /CXCLR := 0/ &&

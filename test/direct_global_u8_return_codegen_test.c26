@@ -1,0 +1,12 @@
+// vcsc-cc1 -I .
+// expectasmordered: .proc sample
+// expectasmordered: lda  state
+// expectasmordered: sta  sample$__return
+// forbidasm: __vcsc_scratch_
+include "machine_6502.c26"
+
+uint8_t state;
+
+uint8_t sample(void) {
+   return state;
+}

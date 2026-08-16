@@ -47,8 +47,10 @@ $p =~ /paddles_sample3\(\);.*?asm inx;.*?asm sta WSYNC;\s*asm sta PF2;.*?paddles
    or die "four-player renderer lost one-sample-per-scanline schedule\n";
 $p !~ /paddleball_pf2_pairs|paddleball_reposition_table/ &&
 $p =~ /asm txa;\s*asm and #4;\s*asm cmp #4;\s*asm lda #0;\s*asm ror;/s &&
-$p =~ /paddleball_ball_fine/ && $p =~ /asm eor #\$07;\s*asm asl;\s*asm asl;\s*asm asl;\s*asm asl;/s
-   or die "four-player renderer regained regular lookup tables or lost arithmetic lowering\n";
+$p =~ /uint8_t ball_remainder := paddleball_ball_x;/ &&
+$p =~ /while \(ball_remainder >= 15\) \{ ball_remainder -= 15; \}/ &&
+$p =~ /paddleball_ball_fine := \(ball_remainder \^ 7\) << 4;/
+   or die "four-player renderer regained regular lookup tables or lost high-level fine-motion preparation\n";
 $p =~ /paddleball_position_ball.*?asm sta HMCLR;.*?asm sta HMP0,x;.*?asm sta WSYNC;\s*asm sta HMOVE;/s
    or die "four-player Ball positioning lost pre-HMOVE HMCLR\n";
 $p =~ /Lines 0\.\.2: black score-to-wall gap and fixed P0\/P1 restoration\.(.*?)\/\/ Start the wall/s
