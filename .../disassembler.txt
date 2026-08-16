@@ -412,8 +412,11 @@ TIA and RIOT are mirrored in the VCS address space. If the ROM intentionally
 uses a noncanonical mirror, do not rewrite the encoded address to the canonical
 one. Prefer an exact symbolic expression such as a canonical register plus the
 appropriate mirror offset when the assembler can encode that exact numeric
-operand; otherwise retain the numeric operand and comment the decoded hardware
-register identity. The original operand bytes remain authoritative.
+operand; otherwise retain the numeric operand. In either case, every preserved
+noncanonical mirror access must carry an end-of-line or immediately adjacent
+comment naming the canonical hardware register actually selected by the decoded
+bus address and access direction, for example `; mirror of COLUBK ($09)` or
+`; mirror of SWCHA ($0280)`. The original operand bytes remain authoritative.
 
 Choose symbols according to access semantics, not address alone. TIA read and
 write register sets differ. Loads should name the appropriate readable TIA
@@ -568,14 +571,97 @@ However, any branch that is actually decoded as an instruction still receives
 its mandatory `.same`/`.cross` annotation; that property depends on the relative
 instruction bytes, not on guessing a non-page-aligned origin.
 
+Command-line conventions
+------------------------
+`vcsc-disas` must follow the command-line usage/help conventions established by
+the other public VCSC tools rather than preserving `stego`'s current minimal
+one-line interface. In particular:
+
+* `-h` and `--help` print the complete usage/options text and exit successfully.
+* `-V` and `--version` print version information and exit successfully, using
+  the same generated project version mechanism as the other tools.
+* An unsupported option reports the offending option and then prints the same
+  guidance used elsewhere in VCSC:
+
+      Try 'vcsc-disas --help' for a list of supported options.
+
+  Use the actual invocation name (`argv[0]`) in the implementation rather than
+  hard-coding `vcsc-disas` into that diagnostic.
+* Missing option arguments and other command-line errors use the same concise
+  diagnostic style and nonzero exit behavior as the other VCSC tools.
+* The help text documents every supported option, normal input/output naming,
+  important inference overrides, and at least one ordinary invocation example.
+* Command-line regressions must pin help, version, unsupported-option guidance,
+  missing-argument diagnostics, and exit status so this interface cannot drift.
+
+Standalone corpus round-trip verifier
+-----------------------------------------
+Provide a standalone executable Perl development utility at
+`disassembler/roundtrip.pl` with a normal Perl shebang. It is deliberately
+separate from the normal `test/` directory and test-runner inventory so it can
+be pointed at arbitrary external cartridge corpora without copying those ROMs
+into the VCSC source tree.
+
+Its command line is exactly two positional arguments:
+
+    perl disassembler/roundtrip.pl INPUT_DIR OUTPUT_DIR
+
+An incorrect argument count prints a concise usage line and exits nonzero.
+
+Required behavior:
+
+* `INPUT_DIR` and `OUTPUT_DIR` must resolve to different directories; reject a
+  configuration that could overwrite the source cartridges.
+* Create `OUTPUT_DIR` if it does not exist.
+* Enumerate regular files whose names end in `.bin` directly in `INPUT_DIR`, in
+  deterministic lexical order. Do not recurse into subdirectories unless a
+  future option explicitly requests recursion.
+* For each `NAME.bin`, run `vcsc-disas` on the input cartridge and write
+  `OUTPUT_DIR/NAME.s26`.
+* Assemble that generated source with the project `vcsc-as` and create a raw
+  `OUTPUT_DIR/NAME.bin` containing the reconstructed cartridge image.
+* The current assembler writes final direct assembly as Intel HEX rather than a
+  raw `.bin`. The standalone script should therefore invoke `vcsc-as` with an
+  explicit temporary/output `.hex`, decode that Intel HEX itself in Perl, and
+  write the raw `.bin`. This is a verifier implementation detail, not a reason
+  to change `vcsc-as` or the generated `.s26` language.
+* Remove or replace stale per-ROM output before processing so a failed command
+  can never accidentally compare an old reconstructed file. Temporary files
+  should not masquerade as successful output.
+* Compute and print the MD5 digest of both the original and reconstructed
+  cartridge for every case. Use Perl's MD5 support rather than depending on an
+  external `md5sum` executable so the script remains self-contained.
+* Any MD5 mismatch is a failure. Also perform an exact size/byte comparison so
+  the project's stronger byte-for-byte round-trip invariant remains the final
+  authority even if two MD5 values happen to match.
+* A `vcsc-disas` failure, assembler failure, malformed Intel HEX, missing output,
+  size mismatch, byte mismatch, or digest mismatch must mark that ROM failed.
+* Continue through the whole input directory after an individual failure, print
+  a concise PASS/FAIL line for each ROM, print final totals, and exit nonzero if
+  any ROM failed. Exit zero only when every discovered `.bin` round-trips
+  exactly. Treat an input directory containing no `.bin` files as an error.
+* Handle spaces and shell metacharacters in filenames safely; use Perl list-form
+  process invocation rather than constructing shell command strings.
+* By default locate the development-tree `disassembler/vcsc-disas` and
+  `assembler/vcsc-as` relative to the script/repository rather than relying on
+  the caller's current directory. If overrides are later added, document them
+  and keep the no-option two-directory invocation working.
+
+The output corpus is intentionally useful after a run: each successful input
+keeps both the human-readable `.s26` and the reconstructed same-named `.bin` for
+manual inspection or emulator testing.
+
 Roadmap
 -------
 
 0. [ ] Establish `disassembler/` and exact raw round trip
    * Copy `stego/` to a new top-level `disassembler/` starting point.
    * Rename/adapt the program to build `vcsc-disas`.
-   * Add normal `-h`/`--help`, `-V`/`--version`, input, and output handling
-     consistent with other VCSC tools.
+   * Add `-h`/`--help`, `-V`/`--version`, input, and output handling using the
+     established VCSC command-line conventions above, including the standard
+     unsupported-option pointer to `--help`.
+   * Add command-line regression coverage for help/version/error text and exit
+     status; do not inherit `stego`'s minimal one-line usage behavior.
    * Read arbitrary binary cartridge images without modifying them.
    * Emit deterministic `.s26` using `.org` plus conservative `.byte` data.
    * Reassemble with `vcsc-as` and require exact size/byte equality.
@@ -660,8 +746,9 @@ Roadmap
    * Preserve zero-page versus absolute encoding with `.z`/`.a` and related
      addressing-mode suffixes.
    * Preserve noncanonical hardware mirror addresses exactly using symbolic
-     expressions when possible; otherwise keep the numeric operand with a
-     hardware-register comment.
+     expressions when possible; otherwise keep the numeric operand. Every
+     preserved mirrored access must include a comment naming the canonical TIA
+     or RIOT register actually selected, regardless of operand spelling.
    * Select TIA read versus write names according to the actual memory operation.
    * Add load/store/RMW and canonical/mirrored-address round-trip fixtures.
 
@@ -712,8 +799,9 @@ Roadmap
     * Document supported/unsupported mappers and origin inference.
     * Document overlapping code, instruction-as-data, unreferenced bytes, and the
       conservative fallback philosophy.
-    * Document TIA/RIOT symbolic register output and exact mirror/addressing-mode
-      preservation.
+    * Document TIA/RIOT symbolic register output, exact mirror/addressing-mode
+      preservation, and the mandatory canonical-register comment on mirrored
+      accesses.
     * Explain generated `.s26` conventions: `.org`/`.rorg`, deterministic labels,
       branch `.same`/`.cross`, `opXX`, and `%...X....` graphics rows.
     * Document NTSC/PAL-family and controller inference limits.
@@ -722,9 +810,29 @@ Roadmap
     * Add the tool to appropriate top-level, Linux, Windows, and generated tool
       documentation.
     * Include end-to-end examples: disassemble, reassemble, `cmp` original.
+    * Document the standalone `disassembler/roundtrip.pl INPUT_DIR OUTPUT_DIR`
+      corpus verifier, its retained `.s26`/`.bin` outputs, MD5 report, and exit
+      semantics.
     * Keep `--help` synchronized with documentation.
 
-15. [ ] Integrate, harden, and fuzz `vcsc-disas`
+15. [ ] Add standalone corpus round-trip verifier
+    * Add executable `disassembler/roundtrip.pl` with a Perl shebang, outside the
+      normal `test/` directory.
+    * Accept exactly `INPUT_DIR OUTPUT_DIR`; wrong argument count prints usage
+      and fails. Process every direct `.bin` input in deterministic lexical order.
+    * Produce `NAME.s26` with `vcsc-disas`, assemble it with `vcsc-as`, decode
+      assembler Intel HEX to raw `OUTPUT_DIR/NAME.bin`, and retain both outputs.
+    * Print original/reconstructed MD5 values, then require exact size and byte
+      equality as the final pass condition.
+    * Reject source/output directory aliasing, stale-output false positives, empty
+      corpora, malformed HEX, and command failures.
+    * Continue across failures, summarize pass/fail totals, and return nonzero if
+      any cartridge fails.
+    * Handle arbitrary legal filenames without shell quoting bugs.
+    * Exercise the script against a mixed directory of unbanked, banked, PAL,
+      SECAM, controller, overlapping-code, and code-as-data fixtures.
+
+16. [ ] Integrate, harden, and fuzz `vcsc-disas`
     * Add top-level build, staged install, Linux, Windows, and release packaging
       consistent with other VCSC executables.
     * Round-trip every suitable ROM produced by the VCSC example suite.
@@ -750,7 +858,10 @@ code read as data, truly unused bytes, and symbolic hardware accesses. Those are
 not cosmetic extras; they are required before calling the disassembly robust.
 
 Sprite rendering, video/controller inference, richer labels, and documentation
-then make the output pleasant and useful to humans.
+then make the output pleasant and useful to humans. The standalone corpus
+round-trip verifier provides the final practical way to throw large external ROM
+collections at the exact-reconstruction invariant without enrolling those ROMs in
+the repository test suite.
 
 Do not invert the priority. A disassembler that produces beautiful comments but
 cannot reproduce the input ROM exactly is not a disassembler we can trust.

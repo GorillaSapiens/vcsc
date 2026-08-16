@@ -9,3 +9,11 @@ Validation: 499/499 compile; affected E2E 17/17; all example shards pass.
 2026-08-16 09:40:43 PDT, Fix SECAM Stella mode and PAL colors
 PAL/SECAM all-five now share the NTSC RGB intents before palette matching.
 Video-standard make play targets force Stella -format PAL/SECAM; -tv is Color/BW.
+2026-08-16 12:07:36 PDT, Add disassembler help convention
+Documented the standard VCSC help/version/error CLI pattern for vcsc-disas.
+Branding now recognizes .../disassembler.txt as a required developer record.
+2026-08-16 12:17:09 PDT, Plan standalone ROM round-trip verifier
+Disassembler roadmap now requires disassembler/roundtrip.pl outside test/.
+It takes INPUT_DIR OUTPUT_DIR, emits .s26 and rebuilt .bin for each .bin ROM,
+prints MD5s, requires exact byte equality, and summarizes all corpus failures.
+vcsc-as Intel HEX is flattened to raw binary inside the Perl utility.
