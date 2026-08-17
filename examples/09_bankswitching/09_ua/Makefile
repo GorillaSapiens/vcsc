@@ -16,10 +16,7 @@ clean:
 	rm -f ua_diagnostic.bin ua_diagnostic.map ua_diagnostic.hex ua_diagnostic.sym ua_diagnostic.lst ua_diagnostic.cfg
 	rm -f uasw_diagnostic.bin uasw_diagnostic.map uasw_diagnostic.hex uasw_diagnostic.sym uasw_diagnostic.lst uasw_diagnostic.cfg
 
-play:
-	for bin in $$(find . -type f -name '*.bin' | sort); do \
-		stella "$$bin"; \
-	done;
+play: play-ua play-uasw
 
 play-ua: ua_diagnostic.bin
 	stella -bs UA ua_diagnostic.bin
