@@ -26,7 +26,7 @@ The public VCSC cartridge profiles also stamp the final physical bank with a
 four-byte mapper signature at logical addresses `$xFF8-$xFFB` (eight bytes before that bank ends). Short mapper names are
 ASCII-NUL padded: `F8\0\0`, `F6\0\0`, `F4\0\0`, `FA\0\0`, and
 `CV\0\0`; the complete four-byte names are `4KSC`, `F8SC`, `F6SC`, `F4SC`,
-`OMNI`, `JANE`, and `0840`. Only the final bank in file order contains the signature. Selector-hotspot addresses are valid storage
+`OMNI`, `JANE`, `0840`, `UA\0\0`, and `UASW`. Only the final bank in file order contains the signature. Selector-hotspot addresses are valid storage
 for these bytes because hardware switching is caused by accessing the address,
 not by the byte stored there. The final two bytes overlap the unused 6507 NMI
 vector while leaving RESET and IRQ/BRK intact.
@@ -65,6 +65,15 @@ selection does not write mirrored console devices. The diagnostic exercises
 nested calls/returns and displays `0840` below `pass`/`FAIL`; its repeated
 `NOP $0800; JMP` reset bridges also provide the standard emulator detector
 pattern.
+
+`09_ua/` contains paired 8K UA and UASW diagnostics. UA decodes selector aliases
+with `(A & $1260)==$0220` for physical bank 0 and `==$0240` for bank 1; aliases
+such as `$02A0/$02C0` therefore select the same banks. UASW uses the identical
+decoder with the bank association reversed. Both power up in physical bank 0,
+use read-only NMOS absolute-NOP selector accesses in generated bridges, and
+preserve the underlying TIA/RIOT-side transaction when a low-address selector
+is read or written. The paired cartridges display `UA` or `UASW` below the
+common `pass`/`FAIL` result.
 
 ## Banked standard renderer
 

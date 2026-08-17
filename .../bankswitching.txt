@@ -2233,11 +2233,34 @@ explicit by design.
        * Added focused profile, simulator read/write selector, install, assembly-
          review, documentation, and source-hygiene coverage.
 
-[ ] 36. Add UA / UASW.
+[x] 36. Add UA / UASW.
 
        * Reuse the below-cartridge selector machinery from 0840 for the UA selector
          aliases around $0220/$0240; support the UASW reversed bank association as
          a distinct exact hardware profile and diagnostic variant.
+
+       Completed 2026-08-17:
+
+       * Added `vcs_8k_ua.c26` and `vcs_8k_uasw.c26` plus simulator cfgs. Both
+         emit physical banks in file order 0/1 and power up in bank 0. UA maps
+         the canonical $0220 family to bank 0 and $0240 family to bank 1; UASW
+         reverses that association while preserving the same alias decoder.
+       * Extended `vcsc-sim` with the hardware alias test `(A & $1260)`, so
+         shifted selector aliases including $02A0/$02C0 work on reads and writes.
+         Low-address selector writes continue to the console-side memory model,
+         and reads observe that model before the mapper side effect.
+       * Reused the below-window state-preserving absolute-NOP selector bridge.
+         Generated reset bridges and cross-bank trampolines use canonical
+         $0220/$0240 reads rather than stores into mirrored console devices.
+       * Added paired public `09_bankswitching/09_ua` diagnostics with common
+         big-wide `pass`/`FAIL` output and `UA`/`UASW` labels. Focused tests boot
+         from either physical bank, certify nested calls/returns, explicitly test
+         alias read/write switching, and verify byte-exact disassembly round trip.
+       * Added `vcsc-disas` UA/UASW inference and exact selector-flow semantics.
+         VCSC `UA\0\0` and `UASW` signatures disambiguate the swapped variant;
+         established legacy UA access patterns infer ordinary UA.
+       * Added profile-matrix, installation, editable-example, assembly-review,
+         documentation, and source-hygiene coverage.
 
 [ ] 37. Add 0FA0.
 
@@ -2245,8 +2268,10 @@ explicit by design.
          selector behavior. Keep address-mask semantics explicit rather than
          expanding every alias into an ad-hoc hotspot list.
 
-[ ] 38. Reconsider the next tier: F0, FA2, and FC.
+[ ] 38. Reconsider the next tier: F0, FA2, and FC. **DEFERRED.**
 
+       * Deferred by user request on 2026-08-17; do not schedule this item after
+         Item 37 unless the user explicitly reopens it.
        * Evaluate F0 sequential next-bank switching, FA2's larger FA-like bank/RAM
          layout plus flash-save hardware, and FC's staged selector protocol after
          the simpler descriptor-level families above are complete. Open separate

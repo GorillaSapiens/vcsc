@@ -49,7 +49,9 @@ typedef enum {
    MAP_WD,
    MAP_CV,
    MAP_JANE,
-   MAP_0840
+   MAP_0840,
+   MAP_UA,
+   MAP_UASW
 } mapper_t;
 
 typedef enum {
@@ -353,6 +355,8 @@ static int parse_mapper_name(const char *s, mapper_t *mapper, int *superchip)
    else if (strcmp(s, "cv") == 0) *mapper = MAP_CV;
    else if (strcmp(s, "jane") == 0) *mapper = MAP_JANE;
    else if (strcmp(s, "0840") == 0) *mapper = MAP_0840;
+   else if (strcmp(s, "ua") == 0) *mapper = MAP_UA;
+   else if (strcmp(s, "uasw") == 0) *mapper = MAP_UASW;
    else return 0;
    return 1;
 }
@@ -391,7 +395,7 @@ static void usage(const char *argv0)
       "options:\n"
       "   -i, --input <file>       compatibility alias for positional input\n"
       "   -o, --output <file>      write generated VCSC assembly (.s26)\n"
-      "       --mapper <name>      force 2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|cv|jane|0840\n"
+      "       --mapper <name>      force 2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|cv|jane|0840|ua|uasw\n"
       "       --reset-bank <n>     force power-on/reset physical bank\n"
       "       --origin <b:addr>    force logical origin for a bank (repeatable)\n"
       "       --entry <b:addr>     add executable entry point (repeatable)\n"
@@ -746,6 +750,8 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
    case MAP_CV: *bank_size = 2048u; *bank_count = 1u; return rom_size == 2048u;
    case MAP_JANE: *bank_size = 4096u; *bank_count = 4u; return rom_size == 16384u;
    case MAP_0840: *bank_size = 4096u; *bank_count = 2u; return rom_size == 8192u;
+   case MAP_UA: *bank_size = 4096u; *bank_count = 2u; return rom_size == 8192u;
+   case MAP_UASW: *bank_size = 4096u; *bank_count = 2u; return rom_size == 8192u;
    }
    return 0;
 }
@@ -813,6 +819,33 @@ static int is_probably_0840(const uint8_t *rom, size_t size)
           count_signature(rom, size, nop0fffjmp, sizeof(nop0fffjmp)) >= 2;
 }
 
+
+static mapper_t infer_ua_variant(const uint8_t *rom, size_t size)
+{
+   static const uint8_t sta0240[] = { 0x8Du, 0x40u, 0x02u };
+   static const uint8_t lda0240[] = { 0xADu, 0x40u, 0x02u };
+   static const uint8_t lda021fx[] = { 0xBDu, 0x1Fu, 0x02u };
+   static const uint8_t bit02c0[] = { 0x2Cu, 0xC0u, 0x02u };
+   static const uint8_t sta02c0[] = { 0x8Du, 0xC0u, 0x02u };
+   static const uint8_t lda02c0[] = { 0xADu, 0xC0u, 0x02u };
+   static const uint8_t bit0fb0[] = { 0x2Cu, 0xB0u, 0x0Fu };
+   if (size != 8192u) return MAP_RAW;
+   if (memcmp(rom + size - 8u, "UASW", 4u) == 0) return MAP_UASW;
+   if (memcmp(rom + size - 8u, "UA\0\0", 4u) == 0) return MAP_UA;
+   /* Match current Stella UA inference for historical images. UASW cannot be
+      distinguished reliably from UA by access opcodes alone, so only VCSC's
+      explicit UASW signature selects the swapped variant automatically. */
+   if (count_signature(rom, size, sta0240, sizeof(sta0240)) ||
+       count_signature(rom, size, lda0240, sizeof(lda0240)) ||
+       count_signature(rom, size, lda021fx, sizeof(lda021fx)) ||
+       count_signature(rom, size, bit02c0, sizeof(bit02c0)) ||
+       count_signature(rom, size, sta02c0, sizeof(sta02c0)) ||
+       count_signature(rom, size, lda02c0, sizeof(lda02c0)) ||
+       count_signature(rom, size, bit0fb0, sizeof(bit0fb0)))
+      return MAP_UA;
+   return MAP_RAW;
+}
+
 static mapper_t infer_mapper(const uint8_t *rom, size_t size,
                              size_t *bank_size, size_t *bank_count)
 {
@@ -820,7 +853,10 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
    switch (size) {
    case 2048u: mapper = is_probably_cv(rom, size) ? MAP_CV : MAP_2K; break;
    case 4096u: mapper = MAP_4K; break;
-   case 8192u: mapper = is_probably_0840(rom, size) ? MAP_0840 : MAP_F8; break;
+   case 8192u:
+      mapper = infer_ua_variant(rom, size);
+      if (mapper == MAP_RAW) mapper = is_probably_0840(rom, size) ? MAP_0840 : MAP_F8;
+      break;
    case 12288u: mapper = MAP_FA; break;
    case 16384u: mapper = is_probably_jane(rom, size) ? MAP_JANE : MAP_F6; break;
    case 32768u: mapper = MAP_F4; break;
@@ -846,6 +882,8 @@ static const char *mapper_name(mapper_t mapper)
    case MAP_CV: return "CV";
    case MAP_JANE: return "JANE";
    case MAP_0840: return "0840";
+   case MAP_UA: return "UA";
+   case MAP_UASW: return "UASW";
    case MAP_RAW: return "unknown/raw";
    }
    return "unknown/raw";
@@ -1176,6 +1214,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
    if (a->mapper == MAP_FA) a->reset_bank = 2u;
    if (a->mapper == MAP_JANE) a->reset_bank = 1u;
    if (a->mapper == MAP_0840) a->reset_bank = 0u;
+   if (a->mapper == MAP_UA || a->mapper == MAP_UASW) a->reset_bank = 0u;
    return 1;
 }
 
@@ -1507,6 +1546,14 @@ static int selector_bank(mapper_t mapper, uint16_t address, size_t *bank)
       switch (bus & 0x1840u) {
       case 0x0800u: *bank = 0u; return 1;
       case 0x0840u: *bank = 1u; return 1;
+      default: break;
+      }
+      break;
+   case MAP_UA:
+   case MAP_UASW:
+      switch (bus & 0x1260u) {
+      case 0x0220u: *bank = mapper == MAP_UASW ? 1u : 0u; return 1;
+      case 0x0240u: *bank = mapper == MAP_UASW ? 0u : 1u; return 1;
       default: break;
       }
       break;
@@ -5039,7 +5086,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                      "%d SC-window candidate%s, %d write%s)\n",
                  mname,
                  a->mapper == MAP_RAW ? "unknown" :
-                    (a->mapper == MAP_DPC || a->mapper == MAP_FA || a->mapper == MAP_WD || a->mapper == MAP_CV || a->mapper == MAP_JANE || a->mapper == MAP_0840 ? "high" :
+                    (a->mapper == MAP_DPC || a->mapper == MAP_FA || a->mapper == MAP_WD || a->mapper == MAP_CV || a->mapper == MAP_JANE || a->mapper == MAP_0840 || a->mapper == MAP_UA || a->mapper == MAP_UASW ? "high" :
                      ((a->hotspot_refs || superchip_active(a)) ? "high" : "medium")),
                  a->hotspot_refs, a->hotspot_refs == 1 ? "" : "es",
                  a->superchip_refs, a->superchip_refs == 1 ? "" : "s",
@@ -5053,7 +5100,8 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
               (a->mapper == MAP_FA ? "FA hardware default" :
                (a->mapper == MAP_JANE ? "JANE hardware default" :
                (a->mapper == MAP_0840 ? "0840 hardware default" :
-                (a->mapper == MAP_WD ? "WD configuration-0 vector bank" : "heuristic")))));
+               ((a->mapper == MAP_UA || a->mapper == MAP_UASW) ? "UA hardware default" :
+                (a->mapper == MAP_WD ? "WD configuration-0 vector bank" : "heuristic"))))));
       for (i = 0; i < a->bank_count; ++i) {
          const bank_t *b = &a->banks[i];
          if (b->origin_overridden)
@@ -5073,6 +5121,10 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
          fprintf(fp, "; JANE selectors: $1FF0->$0, $1FF1->$1, $1FF8->$2, $1FF9->$3; bank 1 powers up\n");
       if (a->mapper == MAP_0840)
          fprintf(fp, "; 0840 selectors: below-window accesses with A11=1 use A6 ($0800->$0, $0840->$1); bank 0 powers up\n");
+      if (a->mapper == MAP_UA)
+         fprintf(fp, "; UA selectors: (A & $1260)==$0220->$0, ==$0240->$1; aliases include $02A0/$02C0; bank 0 powers up\n");
+      if (a->mapper == MAP_UASW)
+         fprintf(fp, "; UASW selectors: UA alias decoder with swapped association ($0220->$1, $0240->$0); bank 0 powers up\n");
       if (a->mapper == MAP_WD) {
          fprintf(fp, "; WD cartridge RAM: read $1000-$103F, write $1040-$107F (64 bytes)\n");
          fprintf(fp, "; WD selector reads: TIA $30-$3F choose one of eight four-segment 1K arrangements\n");

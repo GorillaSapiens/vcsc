@@ -381,7 +381,8 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
       if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") ||
             str_ieq(cfg->mapper, "F4") || str_ieq(cfg->mapper, "FA") ||
             str_ieq(cfg->mapper, "OMNI") || str_ieq(cfg->mapper, "JANE") ||
-            str_ieq(cfg->mapper, "0840") || cfg->superchip_mapper)) {
+            str_ieq(cfg->mapper, "0840") || str_ieq(cfg->mapper, "UA") ||
+            str_ieq(cfg->mapper, "UASW") || cfg->superchip_mapper)) {
          fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
          exit(1);
       }
@@ -882,6 +883,25 @@ static int bank_index_for_hotspot(uint16_t addr, size_t *bank_index) {
       return 0;
    }
 
+   /* UA Limited hardware qualifies only A12, A9, A6 and A5.  A11/A10/A8/A7
+      plus A4-A0 are aliases, yielding the classic $0220/$0240 families and
+      Brazilian $02A0/$02C0 aliases. UASW uses the same decoder but reverses
+      the selector-to-file-bank association in the cfg. */
+   if (str_ieq(g_cfg.mapper, "UA") || str_ieq(g_cfg.mapper, "UASW")) {
+      uint16_t decoded = (uint16_t)(canonical & 0x1260u);
+      uint16_t wanted = decoded == 0x0220u ? 0x0220u :
+                        decoded == 0x0240u ? 0x0240u : 0xffffu;
+      if (wanted != 0xffffu) {
+         for (size_t i = 0; i < g_cfg.bank_count; ++i) {
+            if ((g_cfg.banks[i].hotspot & 0x1fffu) == wanted) {
+               *bank_index = i;
+               return 1;
+            }
+         }
+      }
+      return 0;
+   }
+
    for (size_t i = 0; i < g_cfg.bank_count; ++i) {
       if ((g_cfg.banks[i].hotspot & 0x1FFFu) == canonical) {
          *bank_index = i;
@@ -962,7 +982,7 @@ void write_cb(uint16_t addr, uint8_t val) {
    if (bank_index_for_hotspot(addr, &selected)) {
       g_selected_bank = selected;
       /* ROM-window hotspot writes target the cartridge and stop here.  A
-         below-window 0840-style selector overlays a console device, so the
+         below-window selector such as 0840 or UA overlays a console device, so the
          underlying write must still reach the ordinary memory/TIA model. */
       if ((addr & 0x1fffu) >= 0x1000u)
          return;

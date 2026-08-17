@@ -456,9 +456,13 @@ index($examples_build,'sub profile_from_source')>=0 &&
 index($examples_build,q{include\s+"vcs_2k\.c26"})>=0 &&
 index($examples_build,q{include\s+"vcs_8k_f8\.c26"})>=0 &&
 index($examples_build,q{include\s+"vcs_8k_0840\.c26"})>=0 &&
+index($examples_build,q{include\s+"vcs_8k_ua\.c26"})>=0 &&
+index($examples_build,q{include\s+"vcs_8k_uasw\.c26"})>=0 &&
 index($examples_build,q{$profile eq '2k'})>=0 &&
 index($examples_build,q{$profile eq 'f8'})>=0 &&
 index($examples_build,q{$profile eq '0840'})>=0 &&
+index($examples_build,q{$profile eq 'ua'})>=0 &&
+index($examples_build,q{$profile eq 'uasw'})>=0 &&
 index($examples_build,q{'disassembler','roundtrip.pl'})>=0 &&
 index($examples_build,'disassembler-roundtrip')>=0 &&
 index($examples_build,'example disassembler round trip failed')>=0
@@ -542,7 +546,7 @@ index($bank_example_make,'-DVCS_NO_DEFAULT_ROM')<0 &&
 index($bank_example_make,'$(VCS_DIR)/vcs.cfg')>=0 &&
 index($bank_example_make,'$(VCS_DIR)/vcs_8k_f8.cfg')<0
    or die "public bank diagnostics must build from C26 topology through reduced vcs.cfg\n";
-for my $profile (qw(vcs_2k.c26 vcs_2k_cv.c26 vcs_4k.c26 vcs_4k_sc.c26 vcs_8k_f8.c26 vcs_8k_0840.c26 vcs_12k_fa.c26 vcs_16k_f6.c26 vcs_16k_jane.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26 vcs_omni_32k.c26)) {
+for my $profile (qw(vcs_2k.c26 vcs_2k_cv.c26 vcs_4k.c26 vcs_4k_sc.c26 vcs_8k_f8.c26 vcs_8k_0840.c26 vcs_8k_ua.c26 vcs_8k_uasw.c26 vcs_12k_fa.c26 vcs_16k_f6.c26 vcs_16k_jane.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26 vcs_omni_32k.c26)) {
    -f File::Spec->catfile($repo,'libraries','vcs',$profile)
       or die "missing migrated C26 cartridge profile $profile\n";
    index($top_make,"libraries/vcs/$profile")>=0
@@ -566,6 +570,21 @@ index($top_make,'libraries/vcs/vcs_8k_0840.cfg')>=0 &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','08_0840','econobanking_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','08_0840','README.md')
    or die "0840 profile/diagnostic support is missing installation or test coverage\n";
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_8k_ua.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_8k_uasw.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_8k_ua.cfg') &&
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_8k_uasw.cfg') &&
+index($top_make,'libraries/vcs/vcs_8k_ua.c26')>=0 &&
+index($top_make,'libraries/vcs/vcs_8k_uasw.c26')>=0 &&
+index($top_make,'libraries/vcs/vcs_8k_ua.cfg')>=0 &&
+index($top_make,'libraries/vcs/vcs_8k_uasw.cfg')>=0 &&
+-f File::Spec->catfile($test,'vcs_ua.pl') &&
+-f File::Spec->catfile($repo,'examples','09_bankswitching','09_ua','ua_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','09_bankswitching','09_ua','uasw_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','common','ua_diagnostic_common.c26') &&
+-f File::Spec->catfile($repo,'examples','09_bankswitching','09_ua','README.md')
+   or die "UA/UASW profile/diagnostic support is missing installation or test coverage
+";
 -f File::Spec->catfile($repo,'libraries','vcs','vcs_16k_jane.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','vcs_16k_jane.cfg') &&
 index($top_make,'libraries/vcs/vcs_16k_jane.c26')>=0 &&
@@ -635,6 +654,11 @@ index($bankswitching,'[x] 34. Add JANE.')>=0 &&
 $bankswitching =~ /\$1FF0, \$1FF1, \$1FF8, and\s+\$1FF9/ &&
 index($bankswitching,'hardware startup bank 1')>=0
    or die "bankswitching plan lost completed JANE mapper support\n";
+index($bankswitching,'[x] 36. Add UA / UASW.')>=0 &&
+index($bankswitching,'(A & $1260)')>=0 &&
+index($bankswitching,'UASW')>=0 &&
+index($bankswitching,'[ ] 38. Reconsider the next tier: F0, FA2, and FC. **DEFERRED.**')>=0
+   or die "bankswitching plan lost completed UA/UASW support or Item 38 deferral\n";
 index($bankswitching,'30. Mapper-family policy gate — not an unfinished implementation item.')>=0 &&
 $bankswitching =~ /There is no\s+current action while no concrete program requires unsupported hardware/
    or die "bankswitching plan no longer distinguishes the mapper-family policy gate from implementation work\n";
@@ -924,6 +948,10 @@ for my $required (qw(
    libraries/vcs/vcs_4k_sc.cfg
    libraries/vcs/vcs_8k_f8sc.c26
    libraries/vcs/vcs_16k_f6sc.c26
+   libraries/vcs/vcs_8k_ua.c26
+   libraries/vcs/vcs_8k_uasw.c26
+   libraries/vcs/vcs_8k_ua.cfg
+   libraries/vcs/vcs_8k_uasw.cfg
    libraries/vcs/vcs_16k_jane.c26
    libraries/vcs/vcs_16k_jane.cfg
    libraries/vcs/vcs_32k_f4sc.c26
@@ -980,7 +1008,8 @@ index($bankswitching,'[x] 31. Add 4KSC as the first low-hanging-fruit mapper.')>
 index($bankswitching,'[x] 32. Add OMNI for OmniCart PHM direct addressing.')>=0 &&
 index($bankswitching,'[x] 33. Add CV / CommaVid.')>=0 &&
 index($bankswitching,'[x] 34. Add JANE.')>=0 &&
-index($bankswitching,'[x] 35. Add 0840 / EconoBanking.')>=0
+index($bankswitching,'[x] 35. Add 0840 / EconoBanking.')>=0 &&
+index($bankswitching,'[x] 36. Add UA / UASW.')>=0
    or die "explicit-binding Superchip roadmap item is not complete\n";
 index($top_make,'libraries/vcs/vcs_4k_sc.c26')>=0 &&
 index($top_make,'libraries/vcs/vcs_4k_sc.cfg')>=0 &&

@@ -98,3 +98,6 @@ selector metadata below $1000, generated read-only selector accesses, simulator
 NMOS absolute-NOP bus reads, 0840 read/write switching, disassembler support,
 Stella-visible PASS certification, install/docs/tests, and advanced the focused
 bankswitching roadmap to UA/UASW Item 36.
+2026-08-17 14:56:59 PDT, Completed UA/UASW mapper support
+Added UA/UASW profiles, simulator alias decoding, disassembler support, paired diagnostics, tests, docs, and install coverage; Item 38 remains deferred.
+

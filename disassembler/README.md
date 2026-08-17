@@ -51,7 +51,7 @@ generated source:
 ```
 
 Supported mapper overrides are `2k`, `4k`, `f8`, `f8sc`, `f6`, `f6sc`,
-`f4`, `f4sc`, `fa`, `dpc`, `wd`, and `cv`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
+`f4`, `f4sc`, `fa`, `dpc`, `wd`, `cv`, `jane`, `0840`, `ua`, and `uasw`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
 `--code BANK:START-END`, `--data BANK:START-END`, `--table BANK:START-END`, and
 `--pointer BANK:START-END` are repeatable. The bank may be omitted for a one-bank
 cartridge. Numbers accept decimal, `0x` hex, or `$` hex; quote `$` forms in a
@@ -87,7 +87,7 @@ position from runtime 6507 addresses:
 ```
 
 The disassembler currently recognizes unbanked 2K/4K, the F8/F6/F4 family
-(with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, CommaVid CV, JANE, 0840/EconoBanking, DPC,
+(with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, CommaVid CV, JANE, 0840/EconoBanking, UA/UASW, DPC,
 and Wickstead Design / WD. Standard DPC
 images are recognized by their distinctive 10240- or 10495-byte layout: two
 4K F8-style program banks followed by 2K of DPC data ROM, with the 10495-byte
@@ -160,6 +160,13 @@ cartridge window. `vcsc-disas` recognizes the VCSC `0840` tail signature or the
 legacy hotspot-access patterns used by current emulator detectors. It reports
 physical bank 0 as power-on, decodes the `$0800/$0840` selector families, and
 round-trips VCSC-generated 0840 images byte-exactly.
+
+UA and UASW are 8K two-bank layouts with alias-decoded selectors below the
+cartridge window. UA uses `(A & $1260)==$0220` for bank 0 and `==$0240` for bank
+1; UASW swaps those associations. `vcsc-disas` recognizes VCSC's `UA\0\0`
+and `UASW` tail signatures, and also recognizes the established UA access
+patterns as UA when no explicit swapped signature is present. Both report
+physical bank 0 as power-on and round-trip byte-exactly.
 
 
 Conditional branches are always emitted with the VCSC timing contract
@@ -370,7 +377,7 @@ original bytes.
 
 ## Current limits
 
-Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/CV/JANE/0840/DPC/WD is deliberately conservative.
+Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/CV/JANE/0840/UA/UASW/DPC/WD is deliberately conservative.
 3F, 3E, E0, E7, FE, UA, DPC+, CDF and coprocessor cartridges need
 separate mapper models rather than being mislabeled as supported families.
 Unsupported layouts that yield no executable instructions fail explicitly rather

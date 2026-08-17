@@ -1,0 +1,4 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+include "vcs_8k_ua.c26"
+const uint8_t uasw_diagnostic := 0;
+include "../../common/ua_diagnostic_common.c26"

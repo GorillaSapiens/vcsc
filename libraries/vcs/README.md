@@ -22,6 +22,7 @@ Files:
 - `vcs_4k.c26` ... conventional unbanked 4K topology and allocatable ROM
 - `vcs_8k_f8.c26`, `vcs_16k_f6.c26`, `vcs_32k_f4.c26` ... inspectable selector-controlled C26 profiles with exact output order and generated corridors
 - `vcs_8k_0840.c26` ... 0840/EconoBanking two-bank 8K profile with below-cartridge selectors `$0800/$0840`; `vcs_8k_0840.cfg` supplies simulator-only masked selector semantics
+- `vcs_8k_ua.c26`, `vcs_8k_uasw.c26` ... UA Limited 8K alias-decoded profiles; UA maps `$0220`-family accesses to bank 0 and `$0240`-family accesses to bank 1, while UASW swaps that association; their cfg files supply simulator-only masked selector semantics
 - `vcs_16k_jane.c26` ... JANE four-bank 16K profile preserving physical selectors `$1FF0/$1FF1/$1FF8/$1FF9` and hardware startup in physical bank 1; `vcs_16k_jane.cfg` supplies simulator-only physical-file mapping
 - `vcs_12k_fa.c26`, `fa_ram_plus.c26` ... CBS FA/RAM Plus three-bank profile with physical startup bank 2 and shared 256-byte split-address cartridge RAM
 - `vcs_4k_sc.c26`, `vcs_8k_f8sc.c26`, `vcs_16k_f6sc.c26`, `vcs_32k_f4sc.c26` ... direct/banked Superchip profiles with a reserved physical prefix and shared split-address RAM
@@ -531,7 +532,7 @@ RAM such as `cartram` must still be named explicitly when the programmer wants
 it.
 
 The conventional F8/F6/F4 profiles use descending VCSC logical banks with BANK0
-at `$F000-$FFFF` as the home/startup bank and final 4K file chunk. JANE and 0840
+at `$F000-$FFFF` as the home/startup bank and final 4K file chunk. JANE, 0840, UA, and UASW
 preserve their hardware-specific physical startup/file ordering instead. Selected
 file-order and selector layouts are:
 
@@ -540,6 +541,8 @@ profile  first file chunk          final file chunk          selector range  sig
 -------  ------------------------  ------------------------  --------------  ---------
 F8       BANK1 $D000 via $1FF8     BANK0 $F000 via $1FF9    $1FF8-$1FF9     F8\0\0
 0840     BANK0 $F000 via $0800     BANK1 $D000 via $0840    below $1000     0840
+UA       BANK0 $F000 via $0220     BANK1 $D000 via $0240    alias-decoded    UA\0\0
+UASW     BANK0 $F000 via $0240     BANK1 $D000 via $0220    alias-decoded    UASW
 F6       BANK3 $9000 via $1FF6     BANK0 $F000 via $1FF9    $1FF6-$1FF9     F6\0\0
 F4       BANK7 $1000 via $1FF4     BANK0 $F000 via $1FFB    $1FF4-$1FFB     F4\0\0
 ```
@@ -598,8 +601,8 @@ Notes:
 - `tia.c26` and `riot.c26` can also be included separately if you already have your own base machine definition.
 - `vcs_2k.c26` describes a 2048-byte cartridge linked at `$F800-$FFFF`, with vectors in its final six bytes; select it explicitly through reduced `vcs.cfg`.
 - `vcs_4k.c26` describes the standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`; the driver compiles it automatically when no `-T` is supplied.
-- The 4KSC, F8/F6/F4, 0840, JANE, FA/RAM Plus, banked SC, and OMNI `.c26` profiles are installed beside `vcs.cfg` and emit exact 4K, 8K, 12K, 16K, and 32K images. Profile-specific cfg files remain installed where needed for compatibility and simulator selection; `vcs_omni_32k.cfg` is simulator-only direct logical placement metadata, not a switched-mapper linker profile.
-- Those public mapper profiles stamp only the final physical file chunk at logical `$xFF8-$xFFB` with `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, `CV\0\0`, `OMNI`, `JANE`, or `0840`. The NUL padding prevents a short mapper name from resembling a plausible NMI-vector address, and the trailing `SC` in `4KSC` also satisfies Stella's 4KSC autodetection convention.
+- The 4KSC, F8/F6/F4, 0840, UA/UASW, JANE, FA/RAM Plus, banked SC, and OMNI `.c26` profiles are installed beside `vcs.cfg` and emit exact 4K, 8K, 12K, 16K, and 32K images. Profile-specific cfg files remain installed where needed for compatibility and simulator selection; `vcs_omni_32k.cfg` is simulator-only direct logical placement metadata, not a switched-mapper linker profile.
+- Those public mapper profiles stamp only the final physical file chunk at logical `$xFF8-$xFFB` with `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, `CV\0\0`, `OMNI`, `JANE`, `0840`, `UA\0\0`, or `UASW`. The NUL padding prevents a short mapper name from resembling a plausible NMI-vector address, and the trailing `SC` in `4KSC` also satisfies Stella's 4KSC autodetection convention.
 - `vcsc` discovers `vcs.cfg` and `vcs_4k.c26` in the source tree or installed `share/vcs` directory and uses both by default. Pass `-T vcs.cfg` plus another C26 profile to select a different cartridge layout.
 - The 128 physical RIOT RAM bytes are not double-counted. `vcs.c26` declares the full `$80-$FF` block and reduced `vcs.cfg` asks `vcsc-ld` to reserve the top bytes dynamically from the whole-program source call graph before placing ordinary storage. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.
 - Current stack sizing accounts automatically for source-level JSR return addresses; ordinary generated calls push no compiler state. Assembly components use `.callstackextra` object metadata for calls, pushes, or stack-pointer use hidden from the source call graph. C26 renderer templates emit the same assembler directive through inline assembly, including an explicit zero when an audited hidden JSR fits entirely inside the source-call reserve. `player_color_192` now flattens its two single-use mask-preparation wrappers and declares `.callstackextra 0`; the standard and multi-object renderers still declare their measured four supplementary bytes for deeper/repeated helper chains. The standard renderer also exports its assembly-initiated overscan-hook edge. Component code and score-table layouts carry startup-region, page-alignment, private-route, `.pagecontain`, and `.indexrange` facts in the object instead of renderer-specific cfg products. Arbitrary inline-assembly stack use must still be declared explicitly.
@@ -654,6 +657,23 @@ flags and avoids a write to the mirrored console device. `vcs_8k_0840.cfg` is
 simulator-only metadata; `vcsc-sim` models the decoded selector families on both
 reads and writes while allowing the underlying low-memory operation to occur.
 The final physical bank carries the `0840` signature at `$FFF8-$FFFB`.
+
+### UA / UASW profiles
+
+The public `vcs_8k_ua.c26` and `vcs_8k_uasw.c26` profiles emit two 4K physical
+banks in file order 0/1, with physical bank 0 selected at power-on. UA decodes
+`(A & $1260)==$0220` as bank 0 and `==$0240` as bank 1; UASW uses the same
+alias families with the association reversed. Thus shifted aliases such as
+`$02A0/$02C0` are selector accesses too.
+
+Because these selectors live below the cartridge window, generated vector
+bridges and cross-bank stubs use undocumented NMOS absolute NOP `$0C` reads,
+preserving registers and flags without writing the mirrored console device. The
+selector side effect does not swallow the underlying low-address transaction:
+reads sample the console byte and writes still reach the console-side model.
+`vcs_8k_ua.cfg` and `vcs_8k_uasw.cfg` provide the matching masked decoder and
+selector-to-file-bank association to `vcsc-sim`. The final bank carries
+`UA\0\0` or `UASW` at `$FFF8-$FFFB`.
 
 ### JANE profile
 

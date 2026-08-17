@@ -78,7 +78,7 @@ profiles.
 For an unbanked image, `type=ro` MEMORY ranges reject guest writes.  For a
 banked image, the simulator additionally:
 
-- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, `JANE`, or `0840` (plus the SC variants);
+- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, `JANE`, `0840`, `UA`, or `UASW` (plus the SC variants);
 - loads each complete 4K `.bin` chunk into the logical range named by its BANKS
   entry;
 - maps every CPU cartridge-window fetch through the currently selected physical
@@ -255,3 +255,10 @@ Reads select after sampling the underlying console byte; writes both select the
 bank and continue to the ordinary low-memory model. The bundled MOS6502 core
 models the operand bus read performed by undocumented absolute NOP `$0C`, which
 lets linker-generated state-preserving 0840 bridges execute faithfully.
+
+`mapper=UA` and `mapper=UASW` use the UA Limited alias decoder. The simulator
+canonicalizes each low-address access with `address & $1260`: `$0220` selects
+UA bank 0 and `$0240` selects UA bank 1, while UASW reverses those associations.
+Thus shifted aliases such as `$02A0/$02C0` work identically. As with 0840,
+reads sample the underlying console byte before the mapper side effect and writes
+continue to the ordinary low-memory model while also changing the selected bank.

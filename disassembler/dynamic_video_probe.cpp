@@ -22,6 +22,9 @@ constexpr int kMapF4 = 5;
 constexpr int kMapFA = 6;
 constexpr int kMapDPC = 7;
 constexpr int kMapJANE = 10;
+constexpr int kMap0840 = 11;
+constexpr int kMapUA = 12;
+constexpr int kMapUASW = 13;
 
 struct PendingWrite {
    uint16_t address;
@@ -124,6 +127,20 @@ private:
          else if (bus == 0x1ff8u) { next = 2u; hit = true; }
          else if (bus == 0x1ff9u) { next = 3u; hit = true; }
       }
+      else if (mapper_ == kMap0840) {
+         switch (bus & 0x1840u) {
+         case 0x0800u: next = 0u; hit = true; break;
+         case 0x0840u: next = 1u; hit = true; break;
+         default: break;
+         }
+      }
+      else if (mapper_ == kMapUA || mapper_ == kMapUASW) {
+         switch (bus & 0x1260u) {
+         case 0x0220u: next = mapper_ == kMapUASW ? 1u : 0u; hit = true; break;
+         case 0x0240u: next = mapper_ == kMapUASW ? 0u : 1u; hit = true; break;
+         default: break;
+         }
+      }
       if (hit && next < bank_count_) bank_ = next;
       return hit;
    }
@@ -193,6 +210,7 @@ private:
    {
       const uint16_t bus = bus_address(address);
       if (bus & 0x1000u) return cart_read(bus);
+      (void)select_bank(bus);
       if (tia_selected(bus)) {
          const uint8_t reg = static_cast<uint8_t>(bus & 0x3fu);
          if (reg >= 0x08u && reg <= 0x0du) return 0x80u;
@@ -222,6 +240,7 @@ private:
          cart_write(bus, value);
          return;
       }
+      (void)select_bank(bus);
       if (tia_selected(bus)) {
          const uint16_t reg = static_cast<uint16_t>(bus & 0x3fu);
          if (reg == 0x00u || reg == 0x02u) queue_write(reg, value);

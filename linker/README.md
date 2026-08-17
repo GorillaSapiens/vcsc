@@ -362,7 +362,7 @@ Selector hotspots inside the cartridge `$1000-$1FFF` window are reserved at the 
 bank. An ordinary `ro` or `data` segment region covering such a selector is
 rejected before placement, so code or ordinary ROM data cannot land on an
 address whose access changes the selected bank. Selectors below `$1000`, such as
-0840/EconoBanking `$0800/$0840`, are physical bus triggers rather than cartridge
+0840/EconoBanking `$0800/$0840` and UA/UASW `$0220/$0240`, are physical bus triggers rather than cartridge
 ROM addresses and therefore reserve no corresponding `$Fxxx` bytes. The configured `trampoline`
 corridor and `vectorbridge` corridor are reserved the same way. The trampoline
 corridor must fit wholly below the final six vector bytes, and neither generated
@@ -426,7 +426,7 @@ bank contains identical entry bytes, which is required because instruction
 fetch continues in the newly selected bank immediately after the hotspot
 access.
 
-Below-window selector trampolines (currently 0840/EconoBanking) substitute NMOS
+Below-window selector trampolines (currently 0840/EconoBanking and UA/UASW) substitute NMOS
 absolute NOP-read opcode `$0C` for those selector stores. The undocumented NOP
 performs the required bus read while preserving A/X/Y and processor flags, so a
 mapper transition does not also write a mirrored TIA/RIOT register.
