@@ -3612,6 +3612,18 @@ static void detect_color_tables(analysis_t *a)
          span = infer_countdown_graphics_span(a, bi, off, mode);
          if (span < 3u || span > 32u || source_off + span > b->size) continue;
          if (b->roles[source_off] & (ROLE_CODE_START | ROLE_VECTOR)) continue;
+         {
+            unsigned i;
+            int interior_boundary = 0;
+            for (i = 1u; i < span; ++i) {
+               if ((b->roles[source_off + i] & (ROLE_VECTOR | ROLE_CODE_START)) ||
+                   b->graphics[source_off + i] || b->font_start[source_off + i]) {
+                  interior_boundary = 1;
+                  break;
+               }
+            }
+            if (interior_boundary) continue;
+         }
          b->color_start[source_off] = 1u;
          b->color_len[source_off] = (uint8_t)span;
          mark_label(b, source_off);
@@ -3619,11 +3631,87 @@ static void detect_color_tables(analysis_t *a)
    }
 }
 
+/* Require real pointer-construction data flow before presenting bytes as an
+ * interleaved little-endian pointer table.  The conservative pattern is the
+ * common 6502 sequence
+ *
+ *     LDA table,X/Y ; STA zp
+ *     LDA table+1,X/Y ; STA zp+1
+ *
+ * (or the high/low stores in the reverse order).  Merely finding words whose
+ * numeric values happen to name meaningful ROM addresses is not sufficient;
+ * ordinary byte tables routinely contain such coincidences. */
+static int pointer_table_has_builder(const analysis_t *a, size_t bi, size_t table_off)
+{
+   const bank_t *b = &a->banks[bi];
+   uint16_t base = (uint16_t)(b->origin + (uint16_t)table_off);
+   size_t pc;
+   for (pc = 0; pc + 10u <= b->size; ++pc) {
+      uint8_t load1, load2, store1, store2;
+      uint16_t op1, op2;
+      uint8_t zp1, zp2;
+      size_t p1, p2, p3;
+      if (!(b->roles[pc] & ROLE_CODE_START)) continue;
+      load1 = b->inst_opcode[pc];
+      if (load1 != 0xbdu && load1 != 0xb9u) continue; /* LDA abs,X/Y */
+      if (b->inst_len[pc] != 3u) continue;
+      op1 = read_word(a->rom + b->file_offset + pc + 1u);
+      p1 = pc + 3u;
+      if (p1 >= b->size || !(b->roles[p1] & ROLE_CODE_START)) continue;
+      store1 = b->inst_opcode[p1];
+      if (store1 != 0x85u || b->inst_len[p1] != 2u) continue; /* STA zp */
+      zp1 = a->rom[b->file_offset + p1 + 1u];
+      p2 = p1 + 2u;
+      if (p2 >= b->size || !(b->roles[p2] & ROLE_CODE_START)) continue;
+
+      /* Explicit table/table+1 accesses.  This proves pointer construction,
+       * although presentation may still decline the .word form when the +1
+       * operand creates an interior source label. */
+      load2 = b->inst_opcode[p2];
+      if (load2 == load1 && b->inst_len[p2] == 3u) {
+         op2 = read_word(a->rom + b->file_offset + p2 + 1u);
+         p3 = p2 + 3u;
+         if (p3 < b->size && (b->roles[p3] & ROLE_CODE_START)) {
+            store2 = b->inst_opcode[p3];
+            if (store2 == 0x85u && b->inst_len[p3] == 2u) {
+               zp2 = a->rom[b->file_offset + p3 + 1u];
+               if (op1 == base && op2 == (uint16_t)(base + 1u) &&
+                   zp2 == (uint8_t)(zp1 + 1u))
+                  return 1;
+               if (op1 == (uint16_t)(base + 1u) && op2 == base &&
+                   zp1 == (uint8_t)(zp2 + 1u))
+                  return 1;
+            }
+         }
+      }
+
+      /* Interleaved .word tables are commonly consumed by incrementing the
+       * same index between low and high byte loads.  This form names only the
+       * table boundary, so it is especially safe to present as .word data. */
+      if ((load1 == 0xbdu && b->inst_opcode[p2] == 0xe8u) || /* INX */
+          (load1 == 0xb9u && b->inst_opcode[p2] == 0xc8u)) { /* INY */
+         size_t p_load2 = p2 + 1u;
+         size_t p_store2;
+         if (p_load2 >= b->size || !(b->roles[p_load2] & ROLE_CODE_START) ||
+             b->inst_opcode[p_load2] != load1 || b->inst_len[p_load2] != 3u)
+            continue;
+         op2 = read_word(a->rom + b->file_offset + p_load2 + 1u);
+         if (op1 != base || op2 != base) continue;
+         p_store2 = p_load2 + 3u;
+         if (p_store2 >= b->size || !(b->roles[p_store2] & ROLE_CODE_START) ||
+             b->inst_opcode[p_store2] != 0x85u || b->inst_len[p_store2] != 2u)
+            continue;
+         zp2 = a->rom[b->file_offset + p_store2 + 1u];
+         if (zp2 == (uint8_t)(zp1 + 1u)) return 1;
+      }
+   }
+   return 0;
+}
+
 /* Conservative little-endian pointer-table recognition.  Require at least
- * three consecutive words, require the table itself to have been referenced
- * as ROM data/possible data, and require every word to resolve exactly into
- * this bank's runtime mapping.  This is intentionally stricter than merely
- * noticing values that happen to fall in the cartridge address range. */
+ * three consecutive words, an independently established table boundary, real
+ * low/high pointer-construction data flow, and every word to resolve exactly
+ * into this bank's runtime mapping. */
 static void detect_pointer_tables(analysis_t *a)
 {
    size_t bi;
@@ -3634,14 +3722,26 @@ static void detect_pointer_tables(analysis_t *a)
          size_t words = 0;
          int referenced = 0;
          size_t p;
-         if (b->pointer_start[off] || b->graphics[off] || b->color_start[off] ||
-             instruction_can_emit(b, off) || (b->roles[off] & ROLE_VECTOR))
+         /* A pointer table must begin at an independently established source
+          * boundary.  ROLE_POSSIBLE alone is not enough: an indexed access to
+          * the preceding table can make every following byte look possible and
+          * otherwise lets a one-byte-shifted interpretation swallow a real
+          * label inside a .word container. */
+         if (!(b->roles[off] & ROLE_LABEL) ||
+             b->pointer_start[off] || b->graphics[off] || b->color_start[off] ||
+             instruction_can_emit(b, off) || (b->roles[off] & ROLE_VECTOR) ||
+             !pointer_table_has_builder(a, bi, off))
             continue;
          for (p = off; p + 1u < b->size && words < 32u; p += 2u) {
             uint16_t value;
             size_t toff;
             uint16_t canonical;
-            if (b->graphics[p] || b->graphics[p + 1u] ||
+            /* emit_pointer_table() emits each word as one indivisible source
+             * container.  Never recognize a table across a label that must be
+             * emitted at an interior byte or at a later word boundary. */
+            if ((p != off && (b->roles[p] & ROLE_LABEL)) ||
+                (b->roles[p + 1u] & ROLE_LABEL) ||
+                b->graphics[p] || b->graphics[p + 1u] ||
                 instruction_can_emit(b, p) || instruction_can_emit(b, p + 1u) ||
                 (b->roles[p] & ROLE_VECTOR) || (b->roles[p + 1u] & ROLE_VECTOR))
                break;
@@ -3890,19 +3990,33 @@ static void emit_raw_run(FILE *fp, const analysis_t *a, size_t bi,
 }
 
 
+static void emit_label_role_comment(FILE *fp, const bank_t *b, size_t off);
+
 static void emit_color_table(FILE *fp, const analysis_t *a, size_t bi,
                              size_t off)
 {
    const bank_t *b = &a->banks[bi];
    unsigned count = b->color_len[off];
+   unsigned seg = 0u;
    unsigned i;
    fputs("    ; probable TIA color table (proven COLU* data flow)\n", fp);
-   fputs("    .byte ", fp);
-   for (i = 0; i < count; ++i) {
-      if (i) fputs(", ", fp);
-      fprintf(fp, "$%02X", a->rom[b->file_offset + off + i]);
+   for (i = 1u; i <= count; ++i) {
+      int boundary = i == count || (b->roles[off + i] & ROLE_LABEL);
+      unsigned j;
+      if (!boundary) continue;
+      fputs("    .byte ", fp);
+      for (j = seg; j < i; ++j) {
+         if (j != seg) fputs(", ", fp);
+         fprintf(fp, "$%02X", a->rom[b->file_offset + off + j]);
+      }
+      fputc('\n', fp);
+      if (i < count) {
+         emit_label_role_comment(fp, b, off + i);
+         print_label_name(fp, a, bi, off + i);
+         fputs(":\n", fp);
+      }
+      seg = i;
    }
-   fputc('\n', fp);
 }
 
 static void emit_pointer_table(FILE *fp, const analysis_t *a, size_t bi,

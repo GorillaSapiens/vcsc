@@ -1061,8 +1061,13 @@ Roadmap
 12. [x] Improve labels, tables, vectors, and analysis comments
     * Deterministically name definite control-flow and ROM-data targets.
     * Use bank-qualified labels where runtime addresses collide across banks.
-    * Detect vector/pointer/color/graphics tables conservatively.
+    * Detect vector/pointer/color/graphics tables conservatively. Pointer-table
+      presentation requires actual low/high pointer-construction data flow in
+      executable code; address-looking byte pairs alone are never sufficient.
     * Emit `.word` labels only when exact original 16-bit values are preserved.
+      A pointer-table `.word` span may not swallow any independently required
+      interior label. Color-table presentation may split at interior labels and
+      must emit those labels before continuing the table.
     * Represent references into instruction operands or vector-word interiors as
       `container_label + offset`; never emit an unplaceable interior label.
     * If vector-table bytes are executable, split the vector `.word` representation
@@ -1076,8 +1081,9 @@ Roadmap
 
     * Completed 2026-08-16: deterministic data/control labels, bank-qualified
       collision handling, exact vector/container-relative references, conservative
-      referenced pointer-table `.word` emission, proven COLU* color-table
-      recognition, overlap/code-as-data/unreferenced/dynamic-exit comments, and
+      pointer-table `.word` emission backed by real pointer-building data flow,
+      proven COLU* color-table recognition with interior-label-safe splitting,
+      overlap/code-as-data/unreferenced/dynamic-exit comments, and
       separate `--verbose` evidence reporting are regression-covered.
 
 13. [~] Add inference overrides and manual analysis hints

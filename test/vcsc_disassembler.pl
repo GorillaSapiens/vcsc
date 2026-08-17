@@ -625,14 +625,39 @@ my $pointer_table = make_rom(4096, 0xF000, 0x0100,
    "\x20\x40\xF3" .           # establish F340 as code
    "\x20\x50\xF3" .           # establish F350 as code
    "\x20\x60\xF3" .           # establish F360 as code
-   "\xA2\x00" .                 # LDX #0
-   "\xBD\x00\xF3" .           # LDA F300,X (table reference)
+   "\xA6\x80" .                 # LDX $80 (runtime word index)
+   "\xBD\x00\xF3" .           # LDA F300,X (pointer low)
+   "\x85\x80" .                 # STA $80
+   "\xE8" .                         # INX to high byte
+   "\xBD\x00\xF3" .           # LDA F300,X (pointer high)
+   "\x85\x81" .                 # STA $81
+   "\xA0\x00" .                 # LDY #0
+   "\xB1\x80" .                 # LDA ($80),Y
    "\x60");
 substr($pointer_table, 0x0300, 6, pack('v*', 0xF340, 0xF350, 0xF360));
 substr($pointer_table, 0x0340, 1, "\x60");
 substr($pointer_table, 0x0350, 1, "\x60");
 substr($pointer_table, 0x0360, 1, "\x60");
 write_bin(File::Spec->catfile($in, 'pointer_table.bin'), $pointer_table);
+
+# A shifted pointer-table interpretation must never swallow a real label.
+# The first indexed load makes F2F0..F3EF merely possible data, while the
+# second establishes F300 as the real table boundary.  Bytes starting at F2FF
+# happen to decode as three valid pointers to established code; Item 12 must not
+# turn them into .word containers because that would consume L_F300.
+my $shifted_pointer = make_rom(4096, 0xF000, 0x0100,
+   "\x20\x00\xF4" .           # establish F400 as code
+   "\x20\x10\xF4" .           # establish F410 as code
+   "\x20\x20\xF4" .           # establish F420 as code
+   "\xA4\x80" .                   # LDY $80 (unknown)
+   "\xB9\xF0\xF2" .           # broad possible range from F2F0
+   "\xB9\x00\xF3" .           # real indexed-table boundary F300
+   "\x60");
+substr($shifted_pointer, 0x02FF, 6, pack('v*', 0xF400, 0xF410, 0xF420));
+substr($shifted_pointer, 0x0400, 1, "\x60");
+substr($shifted_pointer, 0x0410, 1, "\x60");
+substr($shifted_pointer, 0x0420, 1, "\x60");
+write_bin(File::Spec->catfile($in, 'shifted_pointer_boundary.bin'), $shifted_pointer);
 
 # A counted indexed load that flows directly into COLUBK is strong color-table
 # evidence.  Palette-looking bytes without this data-flow proof remain raw.
@@ -784,14 +809,22 @@ require_re($pointer_table_out, qr/probable little-endian ROM pointer table/i,
 require_re($pointer_table_out,
    qr/\.word\s+L_F340\s*\n\s*\.word\s+L_F350\s*\n\s*\.word\s+L_F360/m,
    'symbolic pointer-table words');
-require_re($pointer_table_out, qr/definite ROM-data target/i,
+require_re($pointer_table_out, qr/(?:definite|possible) ROM-data target/i,
    'ROM-data target annotation');
+
+my $shifted_pointer_out = slurp(File::Spec->catfile($out, 'shifted_pointer_boundary.s26'));
+require_re($shifted_pointer_out, qr/^L_F300:\s*$/m,
+   'interior indexed-data label survives table presentation');
+die "shifted possible-data bytes falsely rendered as pointer table\n"
+   if $shifted_pointer_out =~ /probable little-endian ROM pointer table/i;
 
 my $color_table_out = slurp(File::Spec->catfile($out, 'color_table.s26'));
 require_re($color_table_out, qr/probable TIA color table .*COLU\*/i,
    'color-table annotation');
-require_re($color_table_out, qr/\.byte\s+\$84,\s*\$46,\s*\$C8/i,
-   'color-table byte preservation');
+require_re($color_table_out, qr/\.byte\s+\$84,\s*\$46.*?\.byte\s+\$C8/is,
+   'color-table byte preservation across interior label');
+require_re($color_table_out, qr/^L_F382:\s*$/m,
+   'color-table interior label preserved');
 
 my $sprite_out = slurp(File::Spec->catfile($out, 'sprite_rows.s26'));
 my @sprite_rows = ($sprite_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);

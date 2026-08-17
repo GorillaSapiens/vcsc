@@ -126,3 +126,5 @@ independently-supported little-endian ROM pointer tables and proven COLU* color
 tables, emits symbolic .word pointers, adds ROM-data role comments, and pins
 bank-qualified colliding labels. Random fuzz rejects pointer/color false positives.
 Semantic disassembler corpus: 66/66 exact; all-opcode and fuzz gates pass.
+2026-08-16 19:22:59 PDT, fix disassembler table-label regression
+Require real pointer-building data flow and preserve interior labels in pointer/color table presentation; ARMAMBSH round-trips again.
