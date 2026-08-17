@@ -144,3 +144,12 @@ and staged vcsc-disas -> vcsc-as path pass; Windows packaging remains source-
 wired and hygiene-pinned on this host without MinGW.
 Validation: 499/499 compile tests and focused 15/15 pass. A full 309-case E2E
 run reached 143/309, all passing, before the outer execution ceiling stopped it.
+2026-08-16 22:02:55 PDT, add FA/RAM Plus output support
+Completed main-roadmap Item 39. Added the 12K CBS FA/RAM Plus C26 profile,
+three-bank selector topology, physical startup bank 2, the shared 256-byte
+split read/write fa_ram region, legacy cfg/simulator support, installation and
+package wiring, and public documentation. The new visible PASS/FAIL diagnostic
+allocates all 256 FA RAM bytes and exercises every selector plus generated
+cross-bank returns. Its simulator oracle passes from every forced physical
+startup bank and a Stella 7 run visibly displayed green pass. All 80 editable
+examples build and disassembler-round-trip; compile-only tests pass 499/499.

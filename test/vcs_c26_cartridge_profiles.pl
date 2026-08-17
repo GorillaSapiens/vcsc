@@ -47,6 +47,7 @@ my @profiles=(
    ['F8',   'vcs_8k_f8.c26',    'vcs_8k_f8.cfg',    2, 1, 0,  8192],
    ['F6',   'vcs_16k_f6.c26',   'vcs_16k_f6.cfg',   4, 1, 0, 16384],
    ['F4',   'vcs_32k_f4.c26',   'vcs_32k_f4.cfg',   8, 1, 0, 32768],
+   ['FA',   'vcs_12k_fa.c26',    'vcs_12k_fa.cfg',    3, 1, 0, 12288],
    ['F8SC', 'vcs_8k_f8sc.c26',  'vcs_8k_f8sc.cfg',  2, 1, 1,  8192],
    ['F6SC', 'vcs_16k_f6sc.c26', 'vcs_16k_f6sc.cfg', 4, 1, 1, 16384],
    ['F4SC', 'vcs_32k_f4sc.c26', 'vcs_32k_f4sc.cfg', 8, 1, 1, 32768],
@@ -132,6 +133,20 @@ for my $p (@profiles) {
       for my $file_bank (0..$banks-1) {
          substr($rom,$file_bank*4096,256) eq ("\xFF" x 256)
             or die "$name file bank $file_bank does not retain the reserved Superchip prefix\n";
+      }
+   }
+   if ($name eq 'FA') {
+      $text =~ /include\s+"fa_ram_plus\.c26"/ &&
+      $text =~ /\$image_offset:0x0200/ &&
+      $text =~ /\$cpu_start:0xf200/ &&
+      $text =~ /\$size:0x0d00/
+         or die "FA profile does not encode the 512-byte RAM-port prefix\n";
+      $map =~ /^\s+fa_ram\s+read_start=\$F100 write_start=\$F000 size=\$0100 type=rw shared=yes\b/m
+         or die "FA map does not retain split-address cartridge RAM\n";
+      my $rom=read_file($generic_bin);
+      for my $file_bank (0..2) {
+         substr($rom,$file_bank*4096,512) eq ("\xFF" x 512)
+            or die "FA file bank $file_bank does not retain the reserved RAM-port prefix\n";
       }
    }
 }

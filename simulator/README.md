@@ -78,7 +78,7 @@ profiles.
 For an unbanked image, `type=ro` MEMORY ranges reject guest writes.  For a
 banked image, the simulator additionally:
 
-- accepts `mapper=F8`, `F6`, or `F4`;
+- accepts `mapper=F8`, `F6`, `F4`, or CBS `FA` (plus the SC variants);
 - loads each complete 4K `.bin` chunk into the logical range named by its BANKS
   entry;
 - maps every CPU cartridge-window fetch through the currently selected physical
@@ -221,4 +221,5 @@ the shared 128-byte cartridge RAM without a compiler-specific name hook. The
 mapper still provides the real cartridge mirroring: writes to the physical
 `$1000-$107F` port update the storage and reads from `$1080-$10FF` return it
 regardless of the selected ROM bank. The canonical BANK0 dump aliases remain
-`$F000-$F07F` and `$F080-$F0FF`.
+`$F000-$F07F` and `$F080-$F0FF`. The FA cfg uses the same generic split-memory
+model for its 256-byte `fa_ram`: writes `$F000-$F0FF`, reads `$F100-$F1FF`.

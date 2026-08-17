@@ -733,7 +733,8 @@ pointer.
 The linker classifies a region as output-owned only when its complete
 synthetic allocation range lies inside exactly one C26 `bank` mapping. Split
 aliases such as Superchip `$F080/$F000` lie outside F8SC's `$x100` ROM mappings,
-so they remain shared and never trigger a selector transition.
+and FA/RAM Plus `$F100/$F000` lies outside FA's `$x200` ROM mappings. Those
+regions therefore remain shared and never trigger a selector transition.
 
 ### Pointers and arrays
 

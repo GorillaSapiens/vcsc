@@ -22,6 +22,10 @@ and reinitialization after console reset without adding more cartridges. Each
 mapper diagnostic executes its complete ordered direct bank-transition matrix
 internally.
 
+`03_fa_ram_plus/` is the dedicated CBS FA/RAM Plus diagnostic. It displays
+`pass`/`FAIL`, exercises all three selectors through nested cross-bank calls,
+uses all 256 bytes of cartridge RAM, and verifies startup from physical bank 2.
+
 ## Banked standard renderer
 
 `02_standard_renderer/` is the consolidated F8 integration of the maintained

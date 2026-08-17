@@ -43,7 +43,7 @@ The repository contains:
 - an object-library archiver;
 - a high-level build driver;
 - a matching simulator used by the regression suite, including cfg-driven
-  F8/F6/F4 cartridge execution;
+  F8/F6/F4, Superchip, and CBS FA/RAM Plus cartridge execution;
 - `vcsc-disas`, a byte-exact Atari cartridge disassembler that emits `.s26`
   source and performs conservative mapper/video/controller analysis;
 - a small runtime library;
@@ -241,7 +241,10 @@ and runner behavior.
 Banked mapper certification has two layers: `make test` executes every F8/F6/F4
 transition through `vcsc-sim`, while `make stella-bank-test` runs the visible
 PASS/FAIL diagnostic in Stella from every forced physical startup bank and under
-randomized developer startup-bank selection.
+randomized developer startup-bank selection. CBS FA/RAM Plus has its own public
+`examples/09_bankswitching/03_fa_ram_plus` PASS/FAIL cartridge and emulator-backed
+self-test covering all three selectors, startup physical bank 2, and all 256 bytes
+of cartridge RAM.
 
 ## Documentation
 

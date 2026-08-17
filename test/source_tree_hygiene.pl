@@ -521,12 +521,17 @@ index($bank_example_make,'-DVCS_NO_DEFAULT_ROM')<0 &&
 index($bank_example_make,'$(VCS_DIR)/vcs.cfg')>=0 &&
 index($bank_example_make,'$(VCS_DIR)/vcs_8k_f8.cfg')<0
    or die "public bank diagnostics must build from C26 topology through reduced vcs.cfg\n";
-for my $profile (qw(vcs_2k.c26 vcs_4k.c26 vcs_8k_f8.c26 vcs_16k_f6.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26)) {
+for my $profile (qw(vcs_2k.c26 vcs_4k.c26 vcs_8k_f8.c26 vcs_12k_fa.c26 vcs_16k_f6.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26)) {
    -f File::Spec->catfile($repo,'libraries','vcs',$profile)
       or die "missing migrated C26 cartridge profile $profile\n";
    index($top_make,"libraries/vcs/$profile")>=0
       or die "$profile is not installed/uninstalled by the top-level Makefile\n";
 }
+-f File::Spec->catfile($repo,'libraries','vcs','fa_ram_plus.c26') &&
+index($top_make,'libraries/vcs/fa_ram_plus.c26')>=0 &&
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_12k_fa.cfg') &&
+index($top_make,'libraries/vcs/vcs_12k_fa.cfg')>=0
+   or die "FA/RAM Plus profile support is missing installation coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','vcs.cfg') &&
 index($top_make,'libraries/vcs/vcs.cfg')>=0
    or die "reduced vcs.cfg is missing from installation coverage\n";
@@ -661,8 +666,8 @@ $ram_roadmap =~ /^\[x\] 14\. Remove remaining ordinary application assembly reco
    or die "RAM-optimization roadmap, measured optimizer follow-up, or authoritative accounting fixture is stale\n";
 $roadmap !~ /^\s*\[ \]\s+22i4d\./m
    or die "obsolete active roadmap item 22i4d was restored\n";
-$roadmap =~ /^Current next action: Item 39, add CBS FA\/RAM Plus cartridge output support\./m &&
-$roadmap =~ /^\[ \] 39\. Add CBS FA \/ RAM Plus cartridge output support/m &&
+$roadmap =~ /^Current next action: Item 41, survey other low-hanging-fruit Atari 2600 mapper/m &&
+$roadmap =~ /^\[x\] 39\. Add CBS FA \/ RAM Plus cartridge output support/m &&
 $roadmap =~ /^\[ \] 41\. Identify other low-hanging-fruit Atari 2600 mapper families/m &&
 $roadmap =~ /^\[ \] 42\. Add a public diagnostic cartridge/m &&
 $roadmap =~ /^\[x\] 27\. Inventory and define the source-integration contract/m &&
@@ -673,7 +678,7 @@ index($roadmap,'122 state +')>=0 &&
 index($roadmap,'6 hardware-stack = 128/128 RIOT-RAM bytes')>=0 &&
 index($roadmap,'one renderer source parameterized by visible scanline')>=0 &&
 $roadmap =~ /^\s*\[x\] 22d1\. Hard-cut the source keyword from `template` to/m
-   or die "main roadmap lost the FA next action, mapper survey, diagnostic ordering, or completed item-27/item-28 state\n";
+   or die "main roadmap lost completed FA status, mapper-survey next action, diagnostic ordering, or completed item-27/item-28 state\n";
 $roadmap =~ /^\s*\[x\] 22i4b5\./m
    or die "two-plus-two score roadmap leaf is not complete\n";
 $roadmap =~ /^\s*\[x\] 22i4b6\./m

@@ -289,8 +289,8 @@ mem bank0 { $start:0xf000 $size:0x0f00 $ro $priority:2 };
 mem bank1 { $start:0xd000 $size:0x0f00 $ro };
 ```
 
-The installed `vcs_4k.c26`, `vcs_8k_f8.c26`, `vcs_16k_f6.c26`,
-`vcs_32k_f4.c26`, and matching Superchip files are the certified public
+The installed `vcs_4k.c26`, `vcs_8k_f8.c26`, `vcs_12k_fa.c26`, `vcs_16k_f6.c26`,
+`vcs_32k_f4.c26`, and matching RAM/Superchip files are the certified public
 profiles. `vcs.c26` describes the common machine only; the driver implicitly
 adds `vcs_4k.c26` when no explicit `-T` profile selection is made. Public
 banked builds pass the reduced `vcs.cfg` for operational policy and add one C26
@@ -302,7 +302,9 @@ Each profile names every ordinary allocatable region `bankN`, reserves the
 final generated corridor through the cartridge declaration, and derives bank
 behavior entirely from declared values rather than filenames. Superchip
 profiles keep 4K physical chunks while mapping ROM from physical offset `$0100`
-and declare the shared split-address RAM separately. The selector-free
+and declare the shared split-address RAM separately. FA also keeps complete 4K
+chunks but begins ROM at physical offset `$0200` because its 256-byte write and
+256-byte read RAM ports occupy the first 512 bytes. The selector-free
 `vcs_direct_8k.c26` profile proves that the same topology model also packages
 directly mapped output chunks without hotspots or trampolines.
 
@@ -320,6 +322,10 @@ mapper  file index  VCSC bank  linker range  selector
 ------  ----------  ---------  ------------  --------
 F8      0           BANK1      $D000-$DFFF   $1FF8
         1           BANK0      $F000-$FFFF   $1FF9
+
+FA      0           BANK2      $B000-$BFFF   $1FF8
+        1           BANK1      $D000-$DFFF   $1FF9
+        2           BANK0      $F000-$FFFF   $1FFA
 
 F6      0           BANK3      $9000-$9FFF   $1FF6
         1           BANK2      $B000-$BFFF   $1FF7

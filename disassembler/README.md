@@ -317,7 +317,7 @@ prints both MD5 values, and performs an exact size/byte comparison equivalent to
 `cmp`.
 
 The repository hardening gates go further than the standalone verifier. All
-79 editable VCSC example ROMs are round-tripped inside the eight normal
+80 editable VCSC example ROMs are round-tripped inside the eight normal
 `vcs_examples_build_*of8.test` shards. `vcsc_disassembler_hardening.pl` also
 pins deterministic source output, duplicated and padded supported images,
 filenames containing shell metacharacters, stale-output rejection, malformed

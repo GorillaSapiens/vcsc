@@ -23,9 +23,9 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: Item 39, add CBS FA/RAM Plus cartridge output support.
-Item 41 then surveys other low-hanging-fruit mapper families before the roadmap
-returns to the public diagnostic and renderer/example work.
+Current next action: Item 41, survey other low-hanging-fruit Atari 2600 mapper
+families and turn the worthwhile descriptor-level additions into concrete roadmap
+items before coding them.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1881,7 +1881,7 @@ returns to the public diagnostic and renderer/example work.
         rapid transitions, define per-frame accumulation/reset semantics, and add
         emulator-backed tests plus an example that exercises one and two controllers.
 
-[ ] 39. Add CBS FA / RAM Plus cartridge output support as the next bankswitching
+[x] 39. Add CBS FA / RAM Plus cartridge output support as the next bankswitching
         target. Reuse the existing full-window bank model rather than adding a special
         compiler ABI: emit three physical 4K banks, power up/reset in bank 2, select
         banks 0/1/2 through `$1FF8/$1FF9/$1FFA`, and model the 256-byte cartridge RAM
@@ -1907,6 +1907,30 @@ returns to the public diagnostic and renderer/example work.
           stable frame timing.
         * Document FA/RAM Plus alongside F8/F6/F4 and Superchip targets in the public
           bankswitching/toolchain documentation.
+
+        Completed 2026-08-16:
+
+        * Added `vcs_12k_fa.c26` with three complete physical 4K chunks. VCSC
+          `bank0` remains the logical startup/home bank but occupies physical/file
+          bank 2 and selects `$1FFA`; logical banks 1/2 occupy physical banks 1/0
+          and select `$1FF9/$1FF8`.
+        * Generalized selector-controlled C26 profiles to permit a `$200` hidden
+          prefix and reject read-only storage outside mapped ROM. Ordinary FA ROM
+          therefore occupies `$x200-$xEFF`; the complete raw image remains exactly
+          12288 bytes with deterministic fill in the hidden prefix.
+        * Added the shared 256-byte `fa_ram` split-address region: writes use
+          `$F000-$F0FF`, reads use `$F100-$F1FF`, and allocation/map accounting is
+          shared across all banks.
+        * Added the public `09_bankswitching/03_fa_ram_plus` visible PASS/FAIL
+          diagnostic. It allocates all 256 RAM bytes, executes all three selector
+          transitions plus generated returns, verifies startup physical bank 2,
+          persistent RAM, replicated vectors/reset bridges, exact 12K layout, and
+          stable frame timing. The cartridge displays lowercase `pass` on green or
+          uppercase `FAIL` on red; a Stella 7 run visibly passed.
+        * Added `vcs_fa_ram_plus.pl` plus profile/install/package coverage. The
+          simulator runs the diagnostic successfully when forced to start in each
+          physical bank, proving the replicated reset bridge restores FA startup
+          bank 2. Modern C26 and compatibility cfg builds are byte-identical.
 
 [x] 40. Add a small two-player joystick tank-duel example in the spirit of Combat.
         Include independent movement and facing, projectile firing, arena/playfield

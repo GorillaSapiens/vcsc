@@ -1149,7 +1149,7 @@ Roadmap
       path even on hosts without MinGW; the native Linux package is also built
       and checked as a fully static seven-tool bundle.
     * Round-trip every suitable ROM produced by the VCSC example suite. The eight
-      existing example-build shards now feed all 79 generated ROMs through
+      existing example-build shards now feed all 80 generated ROMs through
       `vcsc-disas -> vcsc-as` and require exact reconstruction.
     * Add deterministic-output regressions. Repeated disassembly of the same ROM
       must produce byte-identical `.s26` text.

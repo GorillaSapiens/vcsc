@@ -1,0 +1,42 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+include "vcs.c26"
+include "fa_ram_plus.c26"
+
+// CBS FA / RAM Plus: three physical 4K banks selected by $1FF8-$1FFA.
+// Hardware powers up in physical bank 2. VCSC keeps bank0 as the logical
+// startup/home bank, so bank0 is file chunk 2 / selector $1FFA while bank1 and
+// bank2 are physical/file chunks 1 and 0 respectively.
+//
+// The $x000-$x0FF write port and $x100-$x1FF read port hide the first $200
+// physical bytes of every selected bank. Ordinary ROM therefore begins at
+// runtime $F200 and each physical bank has 3584 bytes of mapped ROM.
+
+cartridge {
+   $fill:0xff
+   $trampoline_offset:0x0f00 $trampoline_size:0x00e0
+   $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012
+   $vectors_offset:0x0ffa $vectors_size:0x0006
+};
+
+bank bank0 {
+   $image_size:0x1000 $file_index:2 $image_offset:0x0200
+   $link_start:0xf200 $cpu_start:0xf200 $map_size:0x0e00
+   $select_access:0x1ffa $startup
+};
+
+bank bank1 {
+   $image_size:0x1000 $file_index:1 $image_offset:0x0200
+   $link_start:0xd200 $cpu_start:0xf200 $map_size:0x0e00
+   $select_access:0x1ff9
+};
+
+bank bank2 {
+   $image_size:0x1000 $file_index:0 $image_offset:0x0200
+   $link_start:0xb200 $cpu_start:0xf200 $map_size:0x0e00
+   $select_access:0x1ff8
+};
+
+mem bank0 { $start:0xf200 $size:0x0d00 $ro $priority:2 };
+mem bank1 { $start:0xd200 $size:0x0d00 $ro };
+mem bank2 { $start:0xb200 $size:0x0d00 $ro };

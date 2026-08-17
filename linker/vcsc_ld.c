@@ -1271,7 +1271,7 @@ static void validate_c26_topology(linker_config_t *cfg)
       for (i = 0; i < cfg->topology_bank_count; ++i) {
          const topology_bank_t *bank = &cfg->topology_banks[i];
          if (bank->image_size != 0x1000u ||
-             bank->image_offset > 0x0100u ||
+             bank->image_offset > 0x0200u ||
              bank->map_size != (uint16_t)(0x1000u - bank->image_offset) ||
              bank->cpu_start != (uint16_t)(0xf000u + bank->image_offset) ||
              bank->link_start < bank->image_offset ||
@@ -1287,6 +1287,18 @@ static void validate_c26_topology(linker_config_t *cfg)
          if (a->image_size != b->image_size || a->image_offset != b->image_offset ||
              a->cpu_start != b->cpu_start || a->map_size != b->map_size) {
             fprintf(stderr, "vcsc-ld: selector-controlled banks must share one full-window image/mapping shape\n");
+            exit(1);
+         }
+      }
+      for (i = 0; i < cfg->mem_count; ++i) {
+         const memory_region_t *mem = &cfg->mem[i];
+         if (!mem->compiler_declared || !str_ieq(mem->type, "ro"))
+            continue;
+         if (!mem->output_bank_name[0]) {
+            fprintf(stderr,
+                    "vcsc-ld: selector-controlled read-only region '%s' at $%04X-$%04X lies outside every mapped ROM window\n",
+                    mem->name, mem->start,
+                    (uint16_t)((uint32_t)mem->start + mem->size - 1u));
             exit(1);
          }
       }
@@ -2123,22 +2135,26 @@ static void validate_linker_config(linker_config_t *cfg)
    if (cfg->topology_bank_count == 0) {
       size_t expected_count = 0;
       uint16_t first_file_hotspot = 0;
-      int superchip_mapper = 0;
+      uint16_t reserved_prefix = 0;
       if (str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F8SC")) {
          expected_count = 2;
          first_file_hotspot = 0x1FF8u;
-         superchip_mapper = str_ieq(cfg->mapper, "F8SC");
+         reserved_prefix = str_ieq(cfg->mapper, "F8SC") ? 0x0100u : 0;
+      } else if (str_ieq(cfg->mapper, "FA")) {
+         expected_count = 3;
+         first_file_hotspot = 0x1FF8u;
+         reserved_prefix = 0x0200u;
       } else if (str_ieq(cfg->mapper, "F6") || str_ieq(cfg->mapper, "F6SC")) {
          expected_count = 4;
          first_file_hotspot = 0x1FF6u;
-         superchip_mapper = str_ieq(cfg->mapper, "F6SC");
+         reserved_prefix = str_ieq(cfg->mapper, "F6SC") ? 0x0100u : 0;
       } else if (str_ieq(cfg->mapper, "F4") || str_ieq(cfg->mapper, "F4SC")) {
          expected_count = 8;
          first_file_hotspot = 0x1FF4u;
-         superchip_mapper = str_ieq(cfg->mapper, "F4SC");
+         reserved_prefix = str_ieq(cfg->mapper, "F4SC") ? 0x0100u : 0;
       } else {
          fprintf(stderr,
-                 "vcsc-ld: unsupported full-window mapper '%s'; expected F8/F6/F4 or an SC variant\n",
+                 "vcsc-ld: unsupported full-window mapper '%s'; expected F8/F6/F4/FA or an SC variant\n",
                  cfg->mapper);
          exit(1);
       }
@@ -2179,7 +2195,7 @@ static void validate_linker_config(linker_config_t *cfg)
          }
       }
 
-      if (superchip_mapper) {
+      if (reserved_prefix) {
          for (i = 0; i < cfg->mem_count; ++i) {
             const memory_region_t *region = &cfg->mem[i];
             const cartridge_bank_t *bank;
@@ -2190,12 +2206,12 @@ static void validate_linker_config(linker_config_t *cfg)
             if (!bank)
                continue;
             end = (uint32_t)region->start + region->size;
-            if (region->start < (uint16_t)(bank->start + 0x0100u) &&
+            if (region->start < (uint16_t)(bank->start + reserved_prefix) &&
                 end > bank->start) {
                fprintf(stderr,
-                       "vcsc-ld: %s read-only region '%s' overlaps the Superchip RAM-port prefix $%04X-$%04X\n",
+                       "vcsc-ld: %s read-only region '%s' overlaps the cartridge RAM-port prefix $%04X-$%04X\n",
                        cfg->mapper, region->name, bank->start,
-                       (uint16_t)(bank->start + 0x00FFu));
+                       (uint16_t)(bank->start + reserved_prefix - 1u));
                exit(1);
             }
          }

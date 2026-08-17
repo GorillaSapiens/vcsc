@@ -367,7 +367,8 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
                               str_ieq(cfg->mapper, "F6SC") ||
                               str_ieq(cfg->mapper, "F4SC");
       if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") ||
-            str_ieq(cfg->mapper, "F4") || cfg->superchip_mapper)) {
+            str_ieq(cfg->mapper, "F4") || str_ieq(cfg->mapper, "FA") ||
+            cfg->superchip_mapper)) {
          fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
          exit(1);
       }

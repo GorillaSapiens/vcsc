@@ -43,7 +43,7 @@ The original four 181-line groups contribute a **40-cartridge composition
 matrix**: four gameplay families x four production score layouts x two orders,
 plus eight poison stress compositions. The combined all-five/player-color 181
 profile adds static and interactive score-above/score-below compositions. Across all
-renderer and architecture groups, the public tree contains **79 editable cartridges**.
+renderer and architecture groups, the public tree contains **80 editable cartridges**.
 
 The unofficial groups are separate source-level examples rather than a build
 switch hidden inside the official examples. Their component filenames and
