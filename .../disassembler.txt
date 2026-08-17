@@ -29,7 +29,7 @@ The first implementation is now usable and exact-round-trip driven. It builds
 `disassembler/vcsc-disas` and the standalone `disassembler/roundtrip.pl`. The
 implemented foundation includes all 256 opcode bytes, exact addressing-mode
 emission, mandatory branch `.same`/`.cross`, recursive bank-aware control flow,
-unbanked/F8/F6/F4 plus Superchip variants, FA and DPC, per-bank origin inference, overlapping
+unbanked/F8/F6/F4 plus Superchip variants, FA, DPC and WD, per-bank origin inference, overlapping
 instruction streams, code-as-data, definite/possible/unreferenced ROM-use roles,
 canonical and mirrored TIA/RIOT symbolization, conservative sprite rows, static
 video/controller inference, manual mapper/origin/entry/code/data/video/controller
@@ -48,7 +48,7 @@ BIT-skip and generic overlaps, instruction-as-data, known indirect reads,
 unreferenced ROM, TIA/RIOT mirrors and RMW accesses, mapper/Superchip inference,
 video/controller fixtures, manual overrides, deterministic output, and exact
 reassembly. A 16-ROM real VCSC corpus including PAL, SECAM, controller, score,
-F8/F6/F4, and F8SC/F6SC/F4SC cartridges also round-trips exactly through the
+F8/F6/F4, F8SC/F6SC/F4SC, FA, DPC and WD cartridges also round-trip exactly through the
 standalone verifier.
 
 Items still marked partial are intentionally broader than the current first
@@ -221,6 +221,7 @@ understood by VCSC:
     F6 / F6SC      16K
     F4 / F4SC      32K
     FA             12K + 256-byte RAM
+    WD              8K + 64-byte RAM (8195-byte preservation dump also known)
 
 Use a scored/evidence-based classifier. Evidence includes:
 
@@ -252,6 +253,21 @@ physical bytes of each bank are preserved exactly but excluded from ROM
 code/data discovery. The 6507's 13-bit external address bus means valid mirrored
 bank origins need not be `$F000`; commercial FA code may intentionally use
 origins such as `$3000`, `$5000`, and `$7000`.
+
+WD is an explicit Wickstead Design model for Pursuit of the Pink Panther rather
+than an F8 variant. Runtime ROM is eight 1K banks arranged four at a time across
+the cartridge window. Reads from TIA `$30-$3F` request one of eight fixed bank
+arrangements; writes to those TIA addresses remain ordinary TIA writes. WD also
+has 64 bytes of cartridge RAM, read at `$1000-$103F` and written at
+`$1040-$107F`. Power-on arrangement 0 maps logical banks `0,0,1,3` into
+`$1000,$1400,$1800,$1C00`. The historically common 8195-byte preservation dump
+is a malformed 8K+3 image: logical 1K banks 2 and 3 are reversed in the file and
+the last three bytes are outside the emulated 8K ROM. Analysis must use the
+corrected logical ordering while source emission preserves the original file
+ordering and all three trailing bytes exactly. A corrected 8192-byte image may
+be handled when WD is explicitly selected. Because the selector change is
+hardware-delayed, static control flow should conservatively retain both the old
+and requested successor arrangements when exact cycle placement is not proven.
 
 Do not pretend that unrelated schemes are variants of F8/F6/F4. 3F, 3E, E0,
 E7, FE, UA, 0840, DPC+, CDF, and coprocessor cartridges need separate mapper
@@ -884,12 +900,17 @@ Roadmap
    * Produce deterministic control-flow labels.
    * Validate with synthetic ROMs whose origins are not VCSC defaults.
 
-3. [x] Infer and model F8/F6/F4/FA/DPC bankswitching
+3. [x] Infer and model F8/F6/F4/FA/DPC/WD bankswitching
    * Detect unbanked/F8/F6/F4 from size plus hotspot/control-flow evidence.
    * Detect 12K CBS RAM Plus / FA; model `$1FF8-$1FFA` selectors, fixed startup
      bank 2, and the `$1000-$11FF` split RAM overlay without decoding hidden ROM.
    * Detect DPC from its distinctive 10240/10495-byte layout; analyze the first
      8K as two F8-style program banks and preserve the trailing DPC data/RNG bytes.
+   * Detect the distinctive 8195-byte Wickstead Design preservation dump; model
+     eight 1K banks, the `$30-$3F` TIA-read arrangement selectors, 64-byte split
+     RAM window, power-on arrangement 0, the historical bank-2/bank-3 dump swap,
+     and exact preservation of the three non-emulated trailing bytes. Accept a
+     corrected 8192-byte WD image under explicit `--mapper wd`.
    * Track mapper state in the control-flow graph.
    * Infer the reset bank separately from mapper type.
    * Infer every physical bank's logical origin, including origins constrained by
@@ -1007,13 +1028,28 @@ Roadmap
      8x8 fonts, random tables, call-mediated compressed-looking data, and
      bitmap-shaped false positives.
 
-10. [~] Infer NTSC versus PAL-family timing
+10. [x] Infer NTSC versus PAL-family timing
     * Analyze VSYNC/VBLANK/WSYNC/timer/frame structure statically.
-    * Add optional dynamic stable-frame measurement if useful.
-    * Report confidence and evidence in the generated header.
+    * Use arbitrary known TIM64T values, parameterized timer-helper call-site
+      values, and broad counted-WSYNC loops rather than only VCSC's exact
+      maintained scheduler constants.
+    * When established code writes VSYNC, run a bounded dynamic frame probe using
+      VCSC's shared `simulator/mos6502` CPU core. Model the 6507 bus mirror, RIOT
+      RAM/timers, TIA VSYNC/WSYNC behavior, neutral controller inputs, supported
+      F8/F6/F4/FA bank hotspots, and Superchip/FA RAM well enough to execute
+      ordinary frame loops. Require several stable consecutive frame periods.
+    * Report dynamic measurements as raw 76-cycle line intervals, not Stella
+      display scanlines. VCSC's maintained schedulers intentionally calibrate
+      264/314 raw harness intervals to Stella's 262/312 displayed scanlines.
+    * Skip dynamic execution for DPC until the probe has a faithful DPC
+      coprocessor/register model; retain static evidence there.
+    * Report confidence and evidence in the generated header and verbose report.
     * Report PAL/SECAM ambiguity rather than pretending 50 Hz timing distinguishes
-      the two.
-    * Test known VCSC NTSC/PAL/SECAM examples and deliberately ambiguous ROMs.
+      the two. Explicit PAL/SECAM filename tokens may identify the likely family
+      member at medium confidence; timing only confirms the 50 Hz family.
+    * Test static signatures, dynamically measured 262/312-style synthetic
+      frames, a SECAM-named 50 Hz case, and maintained VCSC NTSC/PAL/SECAM
+      examples.
 
 11. [x] Infer expected controller types
     * Add per-port joystick, paddle, keypad, driving, unused, and unknown models.
@@ -1022,7 +1058,7 @@ Roadmap
     * Permit mixed ports and multiple plausible interpretations.
     * Test existing VCSC controller examples plus synthetic missing combinations.
 
-12. [~] Improve labels, tables, vectors, and analysis comments
+12. [x] Improve labels, tables, vectors, and analysis comments
     * Deterministically name definite control-flow and ROM-data targets.
     * Use bank-qualified labels where runtime addresses collide across banks.
     * Detect vector/pointer/color/graphics tables conservatively.
@@ -1037,6 +1073,12 @@ Roadmap
     * Annotate code-as-data, overlap, unreferenced runs, dynamic-code exits, and
       important inference ambiguity without overwhelming normal source.
     * Add a verbose evidence/report mode separate from normal `.s26` output.
+
+    * Completed 2026-08-16: deterministic data/control labels, bank-qualified
+      collision handling, exact vector/container-relative references, conservative
+      referenced pointer-table `.word` emission, proven COLU* color-table
+      recognition, overlap/code-as-data/unreferenced/dynamic-exit comments, and
+      separate `--verbose` evidence reporting are regression-covered.
 
 13. [~] Add inference overrides and manual analysis hints
     * Add mapper, video, per-port controller, reset-bank, and per-bank-origin

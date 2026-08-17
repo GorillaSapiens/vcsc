@@ -263,10 +263,14 @@ Doxygen input is also available through `make docs`.
 
 ## Licensing
 
-The compiler, linker, assembler, archiver, simulator, driver, tests, and
-repository-level build glue are licensed under GPL-3.0-or-later. Everything
-under `libraries/` and, by default, `examples/` is covered under CC0-1.0 so
-cartridge authors may freely reuse that material. The animated-sprite example at
+The compiler, linker, assembler, archiver, VCSC-written simulator code, driver,
+tests, and repository-level build glue are licensed under GPL-3.0-or-later. The
+bundled `simulator/mos6502` CPU core is third-party code by Gianluca Ghettini
+and is licensed separately under the MIT License; see
+`simulator/mos6502/LICENSE.txt`. Everything under `libraries/` and, by default,
+`examples/` is covered under CC0-1.0 so cartridge authors may freely reuse that
+material. The animated-sprite example at
 `examples/03_player_color_192/02_animated_sprites/` is the sole exception and is
 covered by its local CC BY-NC-SA 4.0 `LICENSE.txt`. See `COPYING`,
-`libraries/LICENSE.txt`, and `examples/LICENSE.txt` for the governing texts.
+`simulator/mos6502/LICENSE.txt`, `libraries/LICENSE.txt`, and
+`examples/LICENSE.txt` for the governing texts.

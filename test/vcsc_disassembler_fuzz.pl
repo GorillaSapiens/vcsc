@@ -57,6 +57,10 @@ for my $i (0 .. $#sizes) {
    close($sfh) or die "close $source: $!\n";
    die "$stem random data was overclassified as graphics\n"
       if $text =~ /^\s*\.byte\s+%[01]{8}\s+;/m;
+   die "$stem random data was overclassified as a pointer table\n"
+      if $text =~ /probable little-endian ROM pointer table/i;
+   die "$stem random data was overclassified as a color table\n"
+      if $text =~ /probable TIA color table/i;
 }
 
 my @unsupported = (1, 17, 257, 655, 4097, 5000, 8191);

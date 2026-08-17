@@ -49,7 +49,7 @@ generated source:
 ```
 
 Supported mapper overrides are `2k`, `4k`, `f8`, `f8sc`, `f6`, `f6sc`,
-`f4`, `f4sc`, `fa`, and `dpc`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
+`f4`, `f4sc`, `fa`, `dpc`, and `wd`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
 `--code BANK:START-END`, and `--data BANK:START-END` are repeatable. The bank
 may be omitted for a one-bank cartridge. Numbers accept decimal, `0x` hex, or
 `$` hex; quote `$` forms in a shell so the shell does not treat them as variable
@@ -78,10 +78,20 @@ position from runtime 6507 addresses:
 ```
 
 The disassembler currently recognizes unbanked 2K/4K, the F8/F6/F4 family
-(with Superchip evidence reported as F8SC/F6SC/F4SC), CBS RAM Plus / FA, and DPC. Standard DPC
+(with Superchip evidence reported as F8SC/F6SC/F4SC), CBS RAM Plus / FA, DPC,
+and Wickstead Design / WD. Standard DPC
 images are recognized by their distinctive 10240- or 10495-byte layout: two
 4K F8-style program banks followed by 2K of DPC data ROM, with the 10495-byte
 form carrying an additional 255-byte RNG table.
+
+WD is the custom Pursuit of the Pink Panther mapper. It uses eight 1K ROM banks
+and eight fixed four-segment arrangements selected by reads from TIA `$30-$3F`.
+The cartridge also contains 64 bytes of RAM, read at `$1000-$103F` and written
+at `$1040-$107F`. The known 8195-byte preservation dump is recognized directly:
+for runtime analysis its 1K banks 2 and 3 are interpreted in the corrected order
+used by Stella, while source emission keeps the original physical file order and
+retains the three non-emulated trailing bytes so round trip remains exact. A
+corrected 8192-byte image can be forced with `--mapper wd`.
 
 A run that discovers zero instructions is an error. `vcsc-disas` does not call a
 100%-`.byte` dump a successful disassembly; unsupported/raw layouts therefore
@@ -210,6 +220,37 @@ code/vector/label boundary. Calls, branches, unknown raw opcodes, and unrelated
 loads stop provenance, so random tables and call-mediated/compressed-looking data
 stay in ordinary numeric form unless stronger evidence exists.
 
+## Labels, tables, vectors, and analysis comments
+
+Definite control-flow and ROM-data targets receive deterministic labels. In
+banked cartridges labels are bank-qualified so equal runtime addresses in
+different physical banks remain unambiguous. References into an emitted
+instruction operand or vector word use the containing label plus an exact byte
+offset rather than inventing a label that cannot be placed in the source.
+
+The normal output keeps table recognition conservative:
+
+- a probable little-endian pointer table requires at least three consecutive
+  exact in-bank pointers, evidence that the table bytes are referenced as ROM
+  data, and independent semantic evidence for every target; the table is not
+  allowed to create its own credibility, and accepted words are emitted as
+  symbolic `.word` values;
+- a probable TIA color table requires an indexed ROM load whose value can be
+  followed through a short straight-line dependency chain into `COLUP0`,
+  `COLUP1`, `COLUPF`, or `COLUBK`; palette-looking bytes alone are not enough;
+- graphics/font tables retain the stricter provenance/structural rules described
+  above.
+
+Normal source comments call out definite/possible ROM-data targets, code bytes
+that are also read as data, overlapping executable streams, unreferenced runs,
+and dynamic control-flow exits. `--verbose` adds the heavier inference evidence
+and usage accounting; ordinary output remains intentionally quieter.
+
+Vector words are emitted symbolically only when doing so preserves the original
+16-bit value exactly. If either vector byte is executable, instruction emission
+wins and a comment records the vector value instead of hiding executable bytes
+inside a `.word`.
+
 ## Video and controller inference
 
 Inference comments are evidence, not metadata injected into the cartridge.
@@ -217,8 +258,26 @@ Static video recognition understands both the maintained VCSC RIOT timer
 signatures and conventional counted-`WSYNC` frame loops. The `42/34` timer pair
 is strong NTSC evidence and `52/41` is strong 50-Hz PAL-family evidence; counted
 3/37/192/30 and 3/45/228/36 scanline phases provide corresponding evidence for
-software that does not use RIOT frame timers. A 50-Hz result is reported as
-PAL/SECAM ambiguous; frame timing alone cannot distinguish those two standards.
+software that does not use RIOT frame timers.
+
+When established code writes VSYNC, `vcsc-disas` also runs a bounded dynamic
+frame probe using the same MOS 6502 core as `vcsc-sim`. The probe models the
+6507 address mirror, RIOT RAM/timers, TIA VSYNC/WSYNC stalls, neutral controller
+inputs, the supported F8/F6/F4/FA bank hotspots, and Superchip/FA RAM windows.
+Several consecutive VSYNC rises must settle to a stable frame period before the
+dynamic result is accepted. The reported measurement is in **raw 76-cycle line
+intervals**, not Stella display scanlines: for example, VCSC's calibrated frame
+schedulers intentionally produce 264/314 raw harness intervals while Stella
+reports 262/312 displayed scanlines. Dynamic execution is skipped for DPC and WD
+until their cartridge-specific coprocessor/segmented-mapper behavior has a faithful
+probe model; static evidence remains available there.
+
+A stable 60-Hz-family measurement is reported as NTSC. A stable 50-Hz result is
+reported as PAL/SECAM ambiguous because timing cannot distinguish those two
+standards. Explicit PAL/SECAM filename tokens (including `pal50`/`secam50`) may
+name the likely member of the already-confirmed 50-Hz family, but that
+distinction remains medium-confidence metadata evidence rather than something
+the frame timing proved. `--video` is authoritative when the user knows better.
 
 Current controller recognition looks for conservative register-access patterns
 used by the VCSC joystick, paddle, keypad, and driving-controller support. When
@@ -271,7 +330,7 @@ original bytes.
 
 ## Current limits
 
-Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/DPC is deliberately conservative.
+Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/DPC/WD is deliberately conservative.
 3F, 3E, E0, E7, FE, UA, 0840, DPC+, CDF and coprocessor cartridges need
 separate mapper models rather than being mislabeled as supported families.
 Unsupported layouts that yield no executable instructions fail explicitly rather
@@ -285,4 +344,4 @@ they must never weaken the byte-round-trip invariant.
 The detailed implementation roadmap and analysis contracts live in
 `../.../disassembler.txt`.
 
-Video inference uses known RIOT timer values, parameterized timer-helper call sites, broad counted-WSYNC kernels, and explicit NTSC/PAL/SECAM filename tokens. Timing-only 50 Hz results remain PAL-family because PAL and SECAM share the frame layout.
+Video inference combines known RIOT timer values, parameterized timer-helper call sites, broad counted-WSYNC kernels, explicit NTSC/PAL/SECAM filename tokens, and a bounded stable-frame execution probe built on the shared `simulator/mos6502` core. Timing-only 50 Hz results remain PAL-family because PAL and SECAM share the frame layout.

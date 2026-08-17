@@ -210,6 +210,12 @@ for my $rel ('docs/mainpage.dox', 'docs/tool_usage.dox') {
    index($data, $dox) == 0 or die "Doxygen page lacks VCSC FIGlet banner: $path\n";
 }
 
+my $root_readme = slurp(File::Spec->catfile($repo, 'README.md'));
+$root_readme =~ /simulator\/mos6502\/LICENSE\.txt/
+   or die "top-level README does not point to the mos6502 license\n";
+$root_readme =~ /mos6502.*?MIT License/is
+   or die "top-level README does not identify mos6502 as MIT-licensed\n";
+
 my $archive = File::Spec->catfile($repo, qw(libraries runtime libvcsc.l26));
 open(my $afh, '<:raw', $archive) or die "could not open $archive: $!\n";
 read($afh, my $magic, 7) == 7 or die "could not read archive magic\n";

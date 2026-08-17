@@ -1,5 +1,7 @@
 CC ?= gcc
+CXX ?= g++
 CFLAGS ?= -std=c11 -Wall -Wextra -Werror -pedantic -O2
+CXXFLAGS ?= -std=c++11 -Wall -Wextra -Werror -pedantic -O2 -DILLEGAL_OPCODES
 LDFLAGS ?=
 EXEEXT ?=
 
@@ -23,8 +25,17 @@ opcode_table.inc: gen_opcode_table.pl ../assembler/default.cfg
 	perl ./gen_opcode_table.pl ../assembler/default.cfg > $@.tmp
 	mv $@.tmp $@
 
-$(TARGET): vcsc_disas.c version.h opcode_table.inc
-	$(CC) $(CFLAGS) $(LDFLAGS) vcsc_disas.c -o $(TARGET)
+vcsc_disas.o: vcsc_disas.c version.h opcode_table.inc dynamic_video_probe.h
+	$(CC) $(CFLAGS) -c vcsc_disas.c -o $@
+
+dynamic_video_probe.o: dynamic_video_probe.cpp dynamic_video_probe.h ../simulator/mos6502/mos6502.h
+	$(CXX) $(CXXFLAGS) -c dynamic_video_probe.cpp -o $@
+
+mos6502_probe.o: ../simulator/mos6502/mos6502.cpp ../simulator/mos6502/mos6502.h
+	$(CXX) $(CXXFLAGS) -c ../simulator/mos6502/mos6502.cpp -o $@
+
+$(TARGET): vcsc_disas.o dynamic_video_probe.o mos6502_probe.o
+	$(CXX) $(LDFLAGS) vcsc_disas.o dynamic_video_probe.o mos6502_probe.o -o $(TARGET)
 
 docs:
 	$(MAKE) --no-print-directory -C .. docs
@@ -37,6 +48,6 @@ uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/vcsc-disas $(DESTDIR)$(BINDIR)/vcsc-disas.exe
 
 clean:
-	rm -f vcsc-disas vcsc-disas.exe version.h opcode_table.inc opcode_table.inc.tmp
+	rm -f vcsc-disas vcsc-disas.exe vcsc_disas.o dynamic_video_probe.o mos6502_probe.o version.h opcode_table.inc opcode_table.inc.tmp
 
 .PHONY: docs clean install uninstall

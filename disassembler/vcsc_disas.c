@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "version.h"
+#include "dynamic_video_probe.h"
 
 /*
  * vcsc-disas -- conservative Atari 2600 cartridge disassembler.
@@ -44,7 +45,8 @@ typedef enum {
    MAP_F6,
    MAP_F4,
    MAP_FA,
-   MAP_DPC
+   MAP_DPC,
+   MAP_WD
 } mapper_t;
 
 typedef enum {
@@ -110,6 +112,10 @@ typedef struct {
    uint8_t *state_seen;
    uint8_t *graphics;
    uint8_t *font_start;
+   uint8_t *color_start;
+   uint8_t *color_len;
+   uint8_t *pointer_start;
+   uint8_t *pointer_words;
    uint8_t *force_raw;
    uint8_t *spec_rejected;
    uint8_t *spec_strong;
@@ -117,12 +123,16 @@ typedef struct {
    uint8_t *spec_barrier;
    uint16_t *spec_barrier_end;
    uint8_t *spec_seed;
+   uint32_t *wd_context_seen;
+   uint8_t vector_tail_enabled;
    abstract_state_t *states;
 } bank_t;
 
 typedef struct {
    size_t bank;
    size_t offset;
+   uint16_t pc;
+   uint8_t wd_config;
 } work_item_t;
 
 static int cart_target_offset(const bank_t *b, uint16_t address, size_t *off);
@@ -142,6 +152,7 @@ typedef struct {
    const char *input_name;
    const char *controller_override[2];
    int verbose;
+   int wd_bad_dump;
    int hotspot_refs;
    int superchip_refs;
    int superchip_write_refs;
@@ -324,6 +335,7 @@ static int parse_mapper_name(const char *s, mapper_t *mapper, int *superchip)
    else if (strcmp(s, "f4sc") == 0) { *mapper = MAP_F4; *superchip = 1; }
    else if (strcmp(s, "fa") == 0) *mapper = MAP_FA;
    else if (strcmp(s, "dpc") == 0) *mapper = MAP_DPC;
+   else if (strcmp(s, "wd") == 0) *mapper = MAP_WD;
    else return 0;
    return 1;
 }
@@ -362,7 +374,7 @@ static void usage(const char *argv0)
       "options:\n"
       "   -i, --input <file>       compatibility alias for positional input\n"
       "   -o, --output <file>      write generated VCSC assembly (.s26)\n"
-      "       --mapper <name>      force 2k|4k|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc\n"
+      "       --mapper <name>      force 2k|4k|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd\n"
       "       --reset-bank <n>     force power-on/reset physical bank\n"
       "       --origin <b:addr>    force logical origin for a bank (repeatable)\n"
       "       --entry <b:addr>     add executable entry point (repeatable)\n"
@@ -698,6 +710,8 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
    case MAP_FA: *bank_size = 4096u; *bank_count = 3u; return rom_size == 12288u;
    case MAP_DPC: *bank_size = 4096u; *bank_count = 2u;
       return rom_size == 10240u || rom_size == 10495u;
+   case MAP_WD: *bank_size = 1024u; *bank_count = 8u;
+      return rom_size == 8192u || rom_size == 8195u;
    }
    return 0;
 }
@@ -713,6 +727,7 @@ static mapper_t infer_mapper(size_t size, size_t *bank_size, size_t *bank_count)
    case 16384u: mapper = MAP_F6; break;
    case 32768u: mapper = MAP_F4; break;
    case 10240u: case 10495u: mapper = MAP_DPC; break;
+   case 8195u: mapper = MAP_WD; break;
    default: mapper = MAP_RAW; break;
    }
    (void)mapper_dimensions(mapper, size, bank_size, bank_count);
@@ -729,9 +744,73 @@ static const char *mapper_name(mapper_t mapper)
    case MAP_F4: return "F4";
    case MAP_FA: return "FA";
    case MAP_DPC: return "DPC";
+   case MAP_WD: return "WD";
    case MAP_RAW: return "unknown/raw";
    }
    return "unknown/raw";
+}
+
+/* Wickstead Design / Pursuit of the Pink Panther mapper.  Each configuration
+ * maps four independently selected 1K ROM banks into $1000-$1FFF.  The known
+ * 8195-byte dump is a malformed preservation image where physical 1K chunks 2
+ * and 3 are reversed; keep file offsets unchanged for exact reconstruction but
+ * translate logical WD bank numbers while analyzing runtime mappings. */
+static const uint8_t wd_bank_org[8][4] = {
+   { 0, 0, 1, 3 }, { 0, 1, 2, 3 }, { 4, 5, 6, 7 }, { 7, 4, 2, 3 },
+   { 0, 0, 6, 7 }, { 0, 1, 7, 6 }, { 2, 3, 4, 5 }, { 6, 0, 5, 1 }
+};
+
+static size_t wd_logical_to_physical(const analysis_t *a, size_t logical)
+{
+   if (a->wd_bad_dump) {
+      if (logical == 2u) return 3u;
+      if (logical == 3u) return 2u;
+   }
+   return logical;
+}
+
+static size_t wd_physical_to_logical(const analysis_t *a, size_t physical)
+{
+   /* The historical bad dump swap is its own inverse. */
+   return wd_logical_to_physical(a, physical);
+}
+
+static uint16_t wd_preferred_origin(const analysis_t *a, size_t physical)
+{
+   size_t logical = wd_physical_to_logical(a, physical);
+   unsigned config, segment;
+   for (config = 0; config < 8u; ++config) {
+      for (segment = 0; segment < 4u; ++segment) {
+         if (wd_bank_org[config][segment] == logical)
+            return (uint16_t)(0xf000u + segment * 0x0400u);
+      }
+   }
+   return 0xf000u;
+}
+
+static int wd_map_address(const analysis_t *a, uint8_t config,
+                          uint16_t address, size_t *bank, size_t *off)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   unsigned segment;
+   size_t logical;
+   if (a->mapper != MAP_WD || bus < 0x1000u) return 0;
+   if (bus < 0x1080u) return 0; /* 64-byte RAM read/write ports occupy $1000-$107F. */
+   segment = (unsigned)((bus - 0x1000u) >> 10);
+   if (segment >= 4u) return 0;
+   logical = wd_bank_org[config & 7u][segment];
+   *bank = wd_logical_to_physical(a, logical);
+   *off = (size_t)(bus & 0x03ffu);
+   return *bank < a->bank_count;
+}
+
+static int wd_hotspot_config(uint16_t address, uint8_t *config)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   if (bus >= 0x1000u) return 0;
+   if ((bus & 0x00ffu) < 0x30u || (bus & 0x00ffu) > 0x3fu) return 0;
+   *config = (uint8_t)(bus & 7u);
+   return 1;
 }
 
 static int origin_candidate_valid(uint16_t origin, size_t bank_size)
@@ -739,6 +818,7 @@ static int origin_candidate_valid(uint16_t origin, size_t bank_size)
    if (!is_cart_address(origin)) return 0;
    if (bank_size == 4096u) return (origin & 0x0fffu) == 0;
    if (bank_size == 2048u) return (origin & 0x07ffu) == 0;
+   if (bank_size == 1024u) return (origin & 0x03ffu) == 0;
    return 0;
 }
 
@@ -757,6 +837,7 @@ static int origin_index(uint16_t origin, size_t bank_size)
 {
    if (bank_size == 4096u) return (int)(origin >> 12);
    if (bank_size == 2048u) return (int)(origin >> 11);
+   if (bank_size == 1024u) return (int)(origin >> 10);
    return -1;
 }
 
@@ -764,10 +845,11 @@ static uint16_t infer_bank_origin(const uint8_t *data, size_t size,
                                   size_t bank_size, int *score_out,
                                   int *reset_evidence)
 {
-   int scores[32];
+   int scores[64];
    size_t i;
    int best_score = -1;
-   uint16_t best = bank_size == 2048u ? 0xf800u : 0xf000u;
+   uint16_t best = bank_size == 2048u ? 0xf800u :
+                   (bank_size == 1024u ? 0xfc00u : 0xf000u);
    memset(scores, 0, sizeof(scores));
    *reset_evidence = 0;
 
@@ -811,7 +893,8 @@ static uint16_t infer_bank_origin(const uint8_t *data, size_t size,
    for (i = 0; i < sizeof(scores)/sizeof(scores[0]); ++i) {
       uint16_t origin = bank_size == 4096u
          ? (uint16_t)(i << 12)
-         : (uint16_t)(i << 11);
+         : (bank_size == 2048u ? (uint16_t)(i << 11)
+                               : (uint16_t)(i << 10));
       if (!origin_candidate_valid(origin, bank_size)) continue;
       if (scores[i] > best_score ||
           (scores[i] == best_score && origin > best)) {
@@ -834,6 +917,10 @@ static int allocate_bank(bank_t *b, size_t size)
    b->state_seen = (uint8_t *)calloc(size, 1);
    b->graphics = (uint8_t *)calloc(size, 1);
    b->font_start = (uint8_t *)calloc(size, 1);
+   b->color_start = (uint8_t *)calloc(size, 1);
+   b->color_len = (uint8_t *)calloc(size, 1);
+   b->pointer_start = (uint8_t *)calloc(size, 1);
+   b->pointer_words = (uint8_t *)calloc(size, 1);
    b->force_raw = (uint8_t *)calloc(size, 1);
    b->spec_rejected = (uint8_t *)calloc(size, 1);
    b->spec_strong = (uint8_t *)calloc(size, 1);
@@ -841,10 +928,13 @@ static int allocate_bank(bank_t *b, size_t size)
    b->spec_barrier = (uint8_t *)calloc(size, 1);
    b->spec_barrier_end = (uint16_t *)malloc(size * sizeof(*b->spec_barrier_end));
    b->spec_seed = (uint8_t *)calloc(size, 1);
+   b->wd_context_seen = (uint32_t *)calloc(size, sizeof(*b->wd_context_seen));
    b->states = (abstract_state_t *)calloc(size, sizeof(*b->states));
    return b->roles && b->inst_len && b->inst_opcode && b->queued && b->visited &&
-          b->state_seen && b->graphics && b->font_start && b->force_raw && b->spec_rejected && b->spec_strong &&
-          b->spec_reject_end && b->spec_barrier && b->spec_barrier_end && b->spec_seed && b->states;
+          b->state_seen && b->graphics && b->font_start && b->color_start && b->color_len &&
+          b->pointer_start && b->pointer_words && b->force_raw && b->spec_rejected && b->spec_strong &&
+          b->spec_reject_end && b->spec_barrier && b->spec_barrier_end && b->spec_seed &&
+          b->wd_context_seen && b->states;
 }
 
 static void free_analysis(analysis_t *a)
@@ -860,6 +950,10 @@ static void free_analysis(analysis_t *a)
          free(a->banks[i].state_seen);
          free(a->banks[i].graphics);
          free(a->banks[i].font_start);
+         free(a->banks[i].color_start);
+         free(a->banks[i].color_len);
+         free(a->banks[i].pointer_start);
+         free(a->banks[i].pointer_words);
          free(a->banks[i].force_raw);
          free(a->banks[i].spec_rejected);
          free(a->banks[i].spec_strong);
@@ -867,6 +961,7 @@ static void free_analysis(analysis_t *a)
          free(a->banks[i].spec_barrier);
          free(a->banks[i].spec_barrier_end);
          free(a->banks[i].spec_seed);
+         free(a->banks[i].wd_context_seen);
          free(a->banks[i].states);
       }
    }
@@ -895,6 +990,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
    else {
       a->mapper = infer_mapper(rom_size, &a->bank_size, &a->bank_count);
    }
+   a->wd_bad_dump = a->mapper == MAP_WD && rom_size == 8195u;
    a->video_override = opt->video_override;
    a->input_name = opt->input;
    a->controller_override[0] = opt->controller_override[0];
@@ -916,7 +1012,23 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
       b->origin = infer_bank_origin(rom + b->file_offset, b->size,
                                     b->size, &b->origin_score,
                                     &b->reset_vector_evidence);
+      if (a->mapper == MAP_WD) {
+         b->origin = wd_preferred_origin(a, i);
+         b->origin_score = 100;
+         b->reset_vector_evidence = 0;
+      }
+      b->vector_tail_enabled = a->mapper != MAP_WD;
       if (!allocate_bank(b, b->size)) return 0;
+   }
+
+   if (a->mapper == MAP_WD) {
+      /* Configuration 0 is the fixed power-on mapping.  Its top 1K segment
+       * supplies the hardware vectors; the RESET target itself may resolve to
+       * any of the four segments in that configuration. */
+      a->reset_bank = wd_logical_to_physical(a, wd_bank_org[0][3]);
+      a->banks[a->reset_bank].vector_tail_enabled = 1u;
+      a->banks[a->reset_bank].reset_vector_evidence = 1;
+      return 1;
    }
 
    /* F8/F6/F4 conventionally power up/reset through the final physical bank.
@@ -1173,15 +1285,24 @@ static int state_merge(abstract_state_t *dst, const abstract_state_t *src)
    return changed;
 }
 
-static int push_work_state(analysis_t *a, size_t bank, size_t offset,
-                           const abstract_state_t *state)
+static int push_work_state_ctx(analysis_t *a, size_t bank, size_t offset,
+                               const abstract_state_t *state,
+                               uint16_t pc, uint8_t wd_config)
 {
    bank_t *b;
    work_item_t *nw;
    int changed;
+   uint32_t wd_bit = 0;
    if (bank >= a->bank_count) return 1;
    b = &a->banks[bank];
    if (offset >= b->size) return 1;
+   if (a->mapper == MAP_WD) {
+      unsigned segment = (unsigned)(((pc & 0x1fffu) - 0x1000u) >> 10);
+      unsigned context = ((unsigned)wd_config & 7u) * 4u + (segment & 3u);
+      wd_bit = (uint32_t)1u << context;
+      if ((b->wd_context_seen[offset] & wd_bit) != 0) return 1;
+      b->wd_context_seen[offset] |= wd_bit;
+   }
    if (!b->state_seen[offset]) {
       b->states[offset] = *state;
       b->state_seen[offset] = 1;
@@ -1190,7 +1311,7 @@ static int push_work_state(analysis_t *a, size_t bank, size_t offset,
    else {
       changed = state_merge(&b->states[offset], state);
    }
-   if (!changed || b->queued[offset]) return 1;
+   if (a->mapper != MAP_WD && (!changed || b->queued[offset])) return 1;
    if (a->work_count == a->work_cap) {
       size_t new_cap = a->work_cap ? a->work_cap * 2u : 256u;
       nw = (work_item_t *)realloc(a->work, new_cap * sizeof(*nw));
@@ -1201,8 +1322,26 @@ static int push_work_state(analysis_t *a, size_t bank, size_t offset,
    b->queued[offset] = 1;
    a->work[a->work_count].bank = bank;
    a->work[a->work_count].offset = offset;
+   a->work[a->work_count].pc = pc;
+   a->work[a->work_count].wd_config = wd_config;
    ++a->work_count;
    return 1;
+}
+
+static int push_work_state(analysis_t *a, size_t bank, size_t offset,
+                           const abstract_state_t *state)
+{
+   uint16_t pc = (uint16_t)(a->banks[bank].origin + (uint16_t)offset);
+   return push_work_state_ctx(a, bank, offset, state, pc, 0u);
+}
+
+static int push_wd_address_state(analysis_t *a, uint8_t config,
+                                 uint16_t address,
+                                 const abstract_state_t *state)
+{
+   size_t bank, off;
+   if (!wd_map_address(a, config, address, &bank, &off)) return 1;
+   return push_work_state_ctx(a, bank, off, state, address, config);
 }
 
 static int push_work(analysis_t *a, size_t bank, size_t offset)
@@ -1340,6 +1479,7 @@ static int state_read_byte(const analysis_t *a, size_t bank,
    size_t off;
    if (address <= 0x00ffu)
       return state_zp_get(state, (uint8_t)address, value);
+   if (a->mapper == MAP_WD) return 0;
    if (bank >= a->bank_count || !cart_target_offset(&a->banks[bank], address, &off))
       return 0;
    if (dpc_register_address(a, address) || fa_ram_address(a, address)) return 0;
@@ -2211,21 +2351,46 @@ static int trace_analysis(analysis_t *a, const options_t *opt)
    int speculative_done = 0;
    if (a->mapper == MAP_RAW) return 1;
 
-   /* Seed each physical bank from all three vectors.  The reset-bank choice is
-    * still recorded separately; per-bank vector seeds recover conventional
-    * bank-local trampolines without pretending every vector is power-on state. */
-   for (bi = 0; bi < a->bank_count; ++bi) {
-      bank_t *b = &a->banks[bi];
+   if (a->mapper == MAP_WD) {
+      /* WD powers up in arrangement 0.  Only its top 1K segment supplies the
+       * hardware vectors.  Resolve the vector targets through that complete
+       * four-segment arrangement rather than pretending a 1K physical bank
+       * owns the entire cartridge window. */
+      bank_t *vb = &a->banks[a->reset_bank];
       unsigned v;
       for (v = 0; v < 3; ++v) {
-         size_t voff = b->size - 6u + (size_t)v * 2u;
-         uint16_t target = read_word(a->rom + b->file_offset + voff);
-         size_t toff;
-         b->roles[voff] |= ROLE_VECTOR;
-         b->roles[voff+1] |= ROLE_VECTOR;
-         if (cart_target_offset(b, target, &toff) && !rom_offset_hidden(a, toff)) {
-            mark_label(b, toff);
-            if (!push_work(a, bi, toff)) return 0;
+         size_t voff = vb->size - 6u + (size_t)v * 2u;
+         uint16_t target = read_word(a->rom + vb->file_offset + voff);
+         size_t tbank, toff;
+         vb->roles[voff] |= ROLE_VECTOR;
+         vb->roles[voff + 1u] |= ROLE_VECTOR;
+         if (wd_map_address(a, 0u, target, &tbank, &toff)) {
+            mark_label(&a->banks[tbank], toff);
+            {
+               abstract_state_t state;
+               memset(&state, 0, sizeof(state));
+               if (!push_work_state_ctx(a, tbank, toff, &state, target, 0u)) return 0;
+            }
+         }
+      }
+   }
+   else {
+      /* Seed each physical bank from all three vectors.  The reset-bank choice is
+       * still recorded separately; per-bank vector seeds recover conventional
+       * bank-local trampolines without pretending every vector is power-on state. */
+      for (bi = 0; bi < a->bank_count; ++bi) {
+         bank_t *b = &a->banks[bi];
+         unsigned v;
+         for (v = 0; v < 3; ++v) {
+            size_t voff = b->size - 6u + (size_t)v * 2u;
+            uint16_t target = read_word(a->rom + b->file_offset + voff);
+            size_t toff;
+            b->roles[voff] |= ROLE_VECTOR;
+            b->roles[voff+1] |= ROLE_VECTOR;
+            if (cart_target_offset(b, target, &toff) && !rom_offset_hidden(a, toff)) {
+               mark_label(b, toff);
+               if (!push_work(a, bi, toff)) return 0;
+            }
          }
       }
    }
@@ -2288,6 +2453,8 @@ drain_work:
       uint16_t canonical_pc;
       size_t successor_bank = item.bank;
       int switched = 0;
+      int wd_switched = 0;
+      uint8_t wd_successor_config = item.wd_config;
       abstract_state_t input_state;
       abstract_state_t output_state;
 
@@ -2301,7 +2468,8 @@ drain_work:
       len = instruction_length(mode);
       if (off + len > b->size) continue;
       mark_instruction(b, off, opcode, len);
-      canonical_pc = (uint16_t)(b->origin + (uint16_t)off);
+      canonical_pc = a->mapper == MAP_WD ? item.pc
+                                         : (uint16_t)(b->origin + (uint16_t)off);
       flow = instruction_flow(opcode);
 
       if (len >= 2u) operand = a->rom[b->file_offset + off + 1u];
@@ -2349,12 +2517,22 @@ drain_work:
                           bus >= 0x1080u && bus <= 0x10ffu;
             int dpc_reg = dpc_register_address(a, effective);
             int fa_ram = fa_ram_address(a, effective);
-            if (!sc_read && !dpc_reg && !fa_ram && cart_target_offset(b, effective, &doff)) {
-               b->roles[doff] |= ROLE_DATA_READ;
-               mark_label(b, doff);
+            if (!sc_read && !dpc_reg && !fa_ram) {
+               if (a->mapper == MAP_WD) {
+                  size_t dbank;
+                  if (wd_map_address(a, item.wd_config, effective, &dbank, &doff)) {
+                     a->banks[dbank].roles[doff] |= ROLE_DATA_READ;
+                     mark_label(&a->banks[dbank], doff);
+                  }
+               }
+               else if (cart_target_offset(b, effective, &doff)) {
+                  b->roles[doff] |= ROLE_DATA_READ;
+                  mark_label(b, doff);
+               }
             }
          }
-         else if (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y) {
+         else if (a->mapper != MAP_WD &&
+                  (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y)) {
             unsigned ix;
             for (ix = 0; ix < 256u; ++ix) {
                uint16_t addr = (uint16_t)(operand + (uint16_t)ix);
@@ -2367,7 +2545,7 @@ drain_work:
                if (cart_target_offset(b, operand, &baseoff)) mark_label(b, baseoff);
             }
          }
-         else if (mode == AM_INDIRECT_INDEXED) {
+         else if (a->mapper != MAP_WD && mode == AM_INDIRECT_INDEXED) {
             uint16_t pointer;
             if (resolve_zp_word(&input_state, (uint8_t)operand, &pointer)) {
                unsigned iy;
@@ -2388,7 +2566,7 @@ drain_work:
                   b->roles[poff] |= ROLE_POSSIBLE;
             }
          }
-         else if (mode == AM_INDEXED_INDIRECT) {
+         else if (a->mapper != MAP_WD && mode == AM_INDEXED_INDIRECT) {
             size_t poff;
             for (poff = 0; poff < b->size; ++poff)
                b->roles[poff] |= ROLE_POSSIBLE;
@@ -2403,10 +2581,33 @@ drain_work:
          switched = 1;
          ++a->hotspot_refs;
       }
+      if (a->mapper == MAP_WD && flow == FLOW_NEXT &&
+          (opcode_memory_access(opcode) & ACCESS_READ)) {
+         uint16_t effective;
+         if ((mode == AM_ZERO_PAGE || mode == AM_ABSOLUTE) &&
+             resolve_effective_address(&input_state, mode, operand, &effective) &&
+             wd_hotspot_config(effective, &wd_successor_config)) {
+            wd_switched = 1;
+            ++a->hotspot_refs;
+         }
+      }
 
       switch (flow) {
       case FLOW_NEXT:
-         if (off + len < b->size) {
+         if (a->mapper == MAP_WD) {
+            uint16_t next_pc = (uint16_t)(canonical_pc + len);
+            if (!push_wd_address_state(a, item.wd_config, next_pc, &output_state))
+               return 0;
+            /* WD latches a TIA $30-$3F read and applies the new arrangement
+             * after a short hardware delay.  Static analysis deliberately
+             * keeps both old and new arrangement successors so a routine is
+             * never lost merely because instruction-level cycle placement is
+             * ambiguous. */
+            if (wd_switched && wd_successor_config != item.wd_config &&
+                !push_wd_address_state(a, wd_successor_config, next_pc, &output_state))
+               return 0;
+         }
+         else if (off + len < b->size) {
             if (!push_work_state(a, switched ? successor_bank : item.bank,
                                  off + len, &output_state))
                return 0;
@@ -2416,6 +2617,13 @@ drain_work:
          int8_t disp = (int8_t)(uint8_t)operand;
          uint16_t target = (uint16_t)(canonical_pc + 2u + disp);
          size_t toff;
+         if (a->mapper == MAP_WD) {
+            if (!push_wd_address_state(a, item.wd_config,
+                                       (uint16_t)(canonical_pc + 2u), &output_state) ||
+                !push_wd_address_state(a, item.wd_config, target, &output_state))
+               return 0;
+         }
+         else {
          if (off + 2u < b->size &&
              !push_work_state(a, item.bank, off + 2u, &output_state)) return 0;
          if (target >= b->origin &&
@@ -2427,12 +2635,20 @@ drain_work:
                if (!push_work_state(a, item.bank, toff, &output_state)) return 0;
             }
          }
+         }
          break;
       }
       case FLOW_JSR: {
          size_t toff;
          abstract_state_t after_call;
          memset(&after_call, 0, sizeof(after_call));
+         if (a->mapper == MAP_WD) {
+            if (!push_wd_address_state(a, item.wd_config,
+                                       (uint16_t)(canonical_pc + 3u), &after_call) ||
+                !push_wd_address_state(a, item.wd_config, operand, &output_state))
+               return 0;
+         }
+         else {
          if (off + 3u < b->size &&
              !push_work_state(a, item.bank, off + 3u, &after_call)) return 0;
          if (cart_target_offset(b, operand, &toff) &&
@@ -2441,11 +2657,16 @@ drain_work:
             if (!push_work_state(a, item.bank, toff, &output_state)) return 0;
          }
          else ++a->dynamic_control_exits;
+         }
          break;
       }
       case FLOW_JMP_ABSOLUTE: {
          size_t toff;
-         if (cart_target_offset(b, operand, &toff) &&
+         if (a->mapper == MAP_WD) {
+            if (!push_wd_address_state(a, item.wd_config, operand, &output_state))
+               return 0;
+         }
+         else if (cart_target_offset(b, operand, &toff) &&
              !(rom_offset_hidden(a, toff))) {
             mark_label(b, toff);
             if (!push_work_state(a, item.bank, toff, &output_state)) return 0;
@@ -2454,6 +2675,10 @@ drain_work:
          break;
       }
       case FLOW_JMP_INDIRECT: {
+         if (a->mapper == MAP_WD) {
+            ++a->unresolved_indirect_jumps;
+            break;
+         }
          uint16_t ptr = operand;
          uint16_t high_addr = (uint16_t)((ptr & 0xff00u) |
                               ((uint16_t)(ptr + 1u) & 0x00ffu));
@@ -3299,6 +3524,163 @@ static void detect_graphics_data(analysis_t *a)
    }
 }
 
+
+static unsigned color_store_source(const analysis_t *a, size_t bi,
+                                   size_t off)
+{
+   const bank_t *b = &a->banks[bi];
+   uint8_t opcode;
+   address_mode_t mode;
+   uint16_t operand;
+   hw_symbol_t hw;
+   const char *mnemonic;
+   unsigned source;
+   if (off >= b->size || !(b->roles[off] & ROLE_CODE_START)) return 0;
+   opcode = b->inst_opcode[off];
+   mnemonic = opcode_mnemonics[opcode];
+   if (strcmp(mnemonic, "STA") == 0) source = GRAPHICS_TAINT_A;
+   else if (strcmp(mnemonic, "STX") == 0) source = GRAPHICS_TAINT_X;
+   else if (strcmp(mnemonic, "STY") == 0) source = GRAPHICS_TAINT_Y;
+   else return 0;
+   mode = (address_mode_t)opcode_modes[opcode];
+   operand = b->inst_len[off] >= 2u ? a->rom[b->file_offset + off + 1u] : 0u;
+   if (b->inst_len[off] >= 3u)
+      operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
+   if (!hardware_symbol(opcode, mode, operand, &hw)) return 0;
+   if (strcmp(hw.name, "COLUP0") != 0 && strcmp(hw.name, "COLUP1") != 0 &&
+       strcmp(hw.name, "COLUPF") != 0 && strcmp(hw.name, "COLUBK") != 0)
+      return 0;
+   return source;
+}
+
+static int load_feeds_color_store(const analysis_t *a, size_t bi,
+                                  size_t off, unsigned initial_taint)
+{
+   const bank_t *b = &a->banks[bi];
+   size_t p = off;
+   unsigned steps;
+   unsigned taint = initial_taint;
+   for (steps = 0; steps < 8u; ++steps) {
+      unsigned len;
+      uint8_t opcode;
+      address_mode_t mode;
+      flow_kind_t flow;
+      unsigned store_source;
+      if (p >= b->size || !(b->roles[p] & ROLE_CODE_START)) return 0;
+      len = b->inst_len[p];
+      if (len == 0u || p + len >= b->size) return 0;
+      p += len;
+      if (!(b->roles[p] & ROLE_CODE_START)) return 0;
+      store_source = color_store_source(a, bi, p);
+      if (store_source && (store_source & taint)) return 1;
+      opcode = b->inst_opcode[p];
+      mode = (address_mode_t)opcode_modes[opcode];
+      flow = instruction_flow(opcode);
+      if (flow != FLOW_NEXT || !advance_graphics_taint(opcode, mode, &taint) ||
+          taint == 0u)
+         return 0;
+   }
+   return 0;
+}
+
+/* Mark color tables only when an indexed ROM load can be followed along a
+ * short straight-line dependency chain into a TIA COLU* register.  Unlike
+ * graphics rows, arbitrary palette-looking bytes are never enough by
+ * themselves. */
+static void detect_color_tables(analysis_t *a)
+{
+   size_t bi;
+   for (bi = 0; bi < a->bank_count; ++bi) {
+      bank_t *b = &a->banks[bi];
+      size_t off;
+      for (off = 0; off < b->size; ++off) {
+         uint8_t opcode;
+         address_mode_t mode;
+         uint16_t operand;
+         size_t source_off;
+         unsigned span;
+         unsigned taint;
+         if (!(b->roles[off] & ROLE_CODE_START) || !b->state_seen[off]) continue;
+         opcode = b->inst_opcode[off];
+         mode = (address_mode_t)opcode_modes[opcode];
+         if (mode != AM_ABSOLUTE_X && mode != AM_ABSOLUTE_Y) continue;
+         taint = graphics_load_destination(opcode, mode);
+         if (!taint || !load_feeds_color_store(a, bi, off, taint)) continue;
+         operand = (uint16_t)(a->rom[b->file_offset + off + 1u] |
+                  ((uint16_t)a->rom[b->file_offset + off + 2u] << 8));
+         if (!cart_target_offset(b, operand, &source_off)) continue;
+         span = infer_countdown_graphics_span(a, bi, off, mode);
+         if (span < 3u || span > 32u || source_off + span > b->size) continue;
+         if (b->roles[source_off] & (ROLE_CODE_START | ROLE_VECTOR)) continue;
+         b->color_start[source_off] = 1u;
+         b->color_len[source_off] = (uint8_t)span;
+         mark_label(b, source_off);
+      }
+   }
+}
+
+/* Conservative little-endian pointer-table recognition.  Require at least
+ * three consecutive words, require the table itself to have been referenced
+ * as ROM data/possible data, and require every word to resolve exactly into
+ * this bank's runtime mapping.  This is intentionally stricter than merely
+ * noticing values that happen to fall in the cartridge address range. */
+static void detect_pointer_tables(analysis_t *a)
+{
+   size_t bi;
+   for (bi = 0; bi < a->bank_count; ++bi) {
+      bank_t *b = &a->banks[bi];
+      size_t off;
+      for (off = 0; off + 6u <= b->size; ++off) {
+         size_t words = 0;
+         int referenced = 0;
+         size_t p;
+         if (b->pointer_start[off] || b->graphics[off] || b->color_start[off] ||
+             instruction_can_emit(b, off) || (b->roles[off] & ROLE_VECTOR))
+            continue;
+         for (p = off; p + 1u < b->size && words < 32u; p += 2u) {
+            uint16_t value;
+            size_t toff;
+            uint16_t canonical;
+            if (b->graphics[p] || b->graphics[p + 1u] ||
+                instruction_can_emit(b, p) || instruction_can_emit(b, p + 1u) ||
+                (b->roles[p] & ROLE_VECTOR) || (b->roles[p + 1u] & ROLE_VECTOR))
+               break;
+            value = read_word(a->rom + b->file_offset + p);
+            if (!cart_target_offset(b, value, &toff)) break;
+            canonical = (uint16_t)(b->origin + (uint16_t)toff);
+            if (canonical != value) break;
+            /* A table may not create the evidence for its own targets.  Every
+             * destination must already be independently meaningful; otherwise
+             * random words in a cartridge window generate convincing nonsense. */
+            if (!(b->roles[toff] & (ROLE_CODE_START | ROLE_DATA_READ | ROLE_LABEL)) &&
+                !b->graphics[toff] && !b->font_start[toff])
+               break;
+            if ((b->roles[p] | b->roles[p + 1u]) & (ROLE_DATA_READ | ROLE_POSSIBLE))
+               referenced = 1;
+            ++words;
+         }
+         if (words >= 3u && referenced) {
+            size_t i;
+            b->pointer_start[off] = 1u;
+            b->pointer_words[off] = (uint8_t)words;
+            mark_label(b, off);
+            for (i = 0; i < words; ++i) {
+               uint16_t value = read_word(a->rom + b->file_offset + off + i * 2u);
+               size_t toff;
+               if (cart_target_offset(b, value, &toff)) mark_label(b, toff);
+            }
+            off += words * 2u - 1u;
+         }
+      }
+   }
+}
+
+static void detect_analysis_tables(analysis_t *a)
+{
+   detect_color_tables(a);
+   detect_pointer_tables(a);
+}
+
 static void emit_dynamic_control_comment(FILE *fp, const analysis_t *a,
                                          size_t bi, uint8_t opcode,
                                          uint16_t operand)
@@ -3444,6 +3826,14 @@ static void emit_instruction(FILE *fp, const analysis_t *a, size_t bi, size_t of
       fprintf(fp, "    ; mirror of %s ($%04X)", hw.name, hw.canonical);
    else if (!have_hw)
       emit_hardware_rmw_comment(fp, opcode, mode, operand);
+   if (a->mapper == MAP_WD &&
+       (mode == AM_ZERO_PAGE || mode == AM_ABSOLUTE) &&
+       (opcode_memory_access(opcode) & ACCESS_READ)) {
+      uint8_t config;
+      if (wd_hotspot_config(operand, &config))
+         fprintf(fp, "    ; WD selector -> arrangement %u (hardware-delayed)",
+                 (unsigned)config);
+   }
    emit_dynamic_control_comment(fp, a, bi, opcode, operand);
    if (b->roles[off] & ROLE_OVERLAP)
       fprintf(fp, "    ; overlaps another reachable instruction stream");
@@ -3464,9 +3854,11 @@ static int raw_run_end(const bank_t *b, size_t start)
    while (end < b->size && end - start < 16u) {
       if (end != start && ((b->roles[end] & ROLE_LABEL) ||
                            b->graphics[end] || b->font_start[end] ||
+                           b->color_start[end] || b->pointer_start[end] ||
                            instruction_can_emit(b, end)))
          break;
-      if (b->graphics[end] || b->font_start[end] || instruction_can_emit(b, end)) break;
+      if (b->graphics[end] || b->font_start[end] || b->color_start[end] ||
+          b->pointer_start[end] || instruction_can_emit(b, end)) break;
       ++end;
    }
    return (int)end;
@@ -3497,6 +3889,54 @@ static void emit_raw_run(FILE *fp, const analysis_t *a, size_t bi,
    fputc('\n', fp);
 }
 
+
+static void emit_color_table(FILE *fp, const analysis_t *a, size_t bi,
+                             size_t off)
+{
+   const bank_t *b = &a->banks[bi];
+   unsigned count = b->color_len[off];
+   unsigned i;
+   fputs("    ; probable TIA color table (proven COLU* data flow)\n", fp);
+   fputs("    .byte ", fp);
+   for (i = 0; i < count; ++i) {
+      if (i) fputs(", ", fp);
+      fprintf(fp, "$%02X", a->rom[b->file_offset + off + i]);
+   }
+   fputc('\n', fp);
+}
+
+static void emit_pointer_table(FILE *fp, const analysis_t *a, size_t bi,
+                               size_t off)
+{
+   const bank_t *b = &a->banks[bi];
+   unsigned words = b->pointer_words[off];
+   unsigned i;
+   fputs("    ; probable little-endian ROM pointer table\n", fp);
+   for (i = 0; i < words; ++i) {
+      uint16_t value = read_word(a->rom + b->file_offset + off + i * 2u);
+      size_t toff;
+      fputs("    .word ", fp);
+      if (cart_target_offset(b, value, &toff) &&
+          (uint16_t)(b->origin + (uint16_t)toff) == value &&
+          (b->roles[toff] & ROLE_LABEL))
+         print_exact_cart_reference(fp, a, bi, toff);
+      else
+         fprintf(fp, "$%04X", value);
+      fputc('\n', fp);
+   }
+}
+
+static void emit_label_role_comment(FILE *fp, const bank_t *b, size_t off)
+{
+   uint8_t role = b->roles[off];
+   if ((role & ROLE_CODE_START) && (role & ROLE_DATA_READ))
+      fputs("    ; executable entry also referenced as ROM data\n", fp);
+   else if (!(role & ROLE_CODE_START) && (role & ROLE_DATA_READ))
+      fputs("    ; definite ROM-data target\n", fp);
+   else if (!(role & ROLE_CODE_START) && (role & ROLE_POSSIBLE))
+      fputs("    ; possible ROM-data target\n", fp);
+}
+
 static void emit_graphics_byte(FILE *fp, uint8_t value)
 {
    char binary[9];
@@ -3523,6 +3963,7 @@ typedef struct {
    unsigned swcha_port_read[2];
    unsigned joystick_direction[2];
    unsigned vblank_write;
+   unsigned vsync_write;
    unsigned driving_left;
    unsigned driving_right;
    unsigned tim64_42;
@@ -3542,6 +3983,9 @@ typedef struct {
    unsigned wsync_pal_visible;
    unsigned wsync_ntsc_blank;
    unsigned wsync_pal_blank;
+   int dynamic_probe_attempted;
+   int dynamic_probe_available;
+   vcsc_video_probe_result_t dynamic_probe;
 } inference_evidence_t;
 
 static int decoded_instruction_at(const analysis_t *a, size_t bi, size_t off,
@@ -3871,6 +4315,9 @@ static void collect_inference_evidence(const analysis_t *a,
          else if (strcmp(hw.name, "VBLANK") == 0 && (access & ACCESS_WRITE)) {
             ++e->vblank_write;
          }
+         else if (strcmp(hw.name, "VSYNC") == 0 && (access & ACCESS_WRITE)) {
+            ++e->vsync_write;
+         }
          else if (strncmp(hw.name, "INPT", 4) == 0 &&
                   hw.name[4] >= '0' && hw.name[4] <= '5' &&
                   (access & ACCESS_READ)) {
@@ -3885,6 +4332,12 @@ static void collect_inference_evidence(const analysis_t *a,
             if (known) add_tim64_value(e, value);
          }
       }
+   }
+   if (e->vsync_write && a->mapper != MAP_DPC && a->mapper != MAP_WD) {
+      e->dynamic_probe_attempted = 1;
+      e->dynamic_probe_available = vcsc_dynamic_video_probe(
+         a->rom, a->rom_size, (int)a->mapper, a->bank_count, a->reset_bank,
+         superchip_active(a), &e->dynamic_probe);
    }
 }
 
@@ -3905,6 +4358,21 @@ static int filename_video_hint(const char *path, const char **kind)
     * title is not evidence).  This mirrors Stella's useful filename-hint idea
     * while keeping it below actual timing evidence. */
    for (p = lower; *p; ++p) {
+      if ((p == lower || !isalnum((unsigned char)p[-1])) &&
+          strncmp(p, "secam50", 7) == 0 && !isalnum((unsigned char)p[7])) {
+         *kind = "SECAM (filename hint)";
+         return 1;
+      }
+      if ((p == lower || !isalnum((unsigned char)p[-1])) &&
+          strncmp(p, "pal50", 5) == 0 && !isalnum((unsigned char)p[5])) {
+         *kind = "PAL (filename hint)";
+         return 1;
+      }
+      if ((p == lower || !isalnum((unsigned char)p[-1])) &&
+          strncmp(p, "ntsc60", 6) == 0 && !isalnum((unsigned char)p[6])) {
+         *kind = "NTSC (filename hint)";
+         return 1;
+      }
       if ((p == lower || !isalnum((unsigned char)p[-1])) &&
           strncmp(p, "secam", 5) == 0 && !isalnum((unsigned char)p[5])) {
          *kind = "SECAM (filename hint)";
@@ -3927,6 +4395,45 @@ static int filename_video_hint(const char *path, const char **kind)
 static void infer_video(const inference_evidence_t *e, const char *input,
                         const char **kind, const char **confidence)
 {
+   static char dynamic_kind[160];
+   int dynamic_class = 0;
+   const vcsc_video_probe_result_t *probe = &e->dynamic_probe;
+
+   if (e->dynamic_probe_available && probe->stable) {
+      if (probe->stable_lines >= 240u && probe->stable_lines <= 285u)
+         dynamic_class = 1;
+      else if (probe->stable_lines >= 290u && probe->stable_lines <= 340u)
+         dynamic_class = 2;
+   }
+
+   if (dynamic_class == 1) {
+      snprintf(dynamic_kind, sizeof(dynamic_kind),
+               "NTSC (dynamic stable frame measurement: %u raw line intervals)",
+               probe->stable_lines);
+      *kind = dynamic_kind;
+      *confidence = "high";
+      return;
+   }
+   if (dynamic_class == 2) {
+      const char *hint = NULL;
+      if (filename_video_hint(input, &hint) &&
+          (strncmp(hint, "PAL ", 4) == 0 || strncmp(hint, "SECAM ", 6) == 0)) {
+         snprintf(dynamic_kind, sizeof(dynamic_kind),
+                  "%.*s (filename hint; dynamic %u-interval 50 Hz confirmation)",
+                  strncmp(hint, "PAL ", 4) == 0 ? 3 : 5, hint,
+                  probe->stable_lines);
+         *kind = dynamic_kind;
+         *confidence = "medium";
+      }
+      else {
+         snprintf(dynamic_kind, sizeof(dynamic_kind),
+                  "PAL-family (PAL/SECAM ambiguous; dynamic stable frame measurement: %u raw line intervals)",
+                  probe->stable_lines);
+         *kind = dynamic_kind;
+         *confidence = "high";
+      }
+      return;
+   }
    unsigned ntsc_timer = (e->tim64_42 ? 1u : 0u) + (e->tim64_34 ? 1u : 0u);
    unsigned pal_timer = (e->tim64_52 ? 1u : 0u) + (e->tim64_41 ? 1u : 0u);
    unsigned ntsc_scan = (e->wsync_192 ? 2u : 0u) +
@@ -4153,7 +4660,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                      "%d SC-window candidate%s, %d write%s)\n",
                  mname,
                  a->mapper == MAP_RAW ? "unknown" :
-                    (a->mapper == MAP_DPC || a->mapper == MAP_FA ? "high" :
+                    (a->mapper == MAP_DPC || a->mapper == MAP_FA || a->mapper == MAP_WD ? "high" :
                      ((a->hotspot_refs || superchip_active(a)) ? "high" : "medium")),
                  a->hotspot_refs, a->hotspot_refs == 1 ? "" : "es",
                  a->superchip_refs, a->superchip_refs == 1 ? "" : "s",
@@ -4164,7 +4671,8 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
               a->bank_count, a->bank_size);
       fprintf(fp, "; reset/power-on bank: %zu (%s)\n", a->reset_bank,
               a->reset_bank_overridden ? "override" :
-              (a->mapper == MAP_FA ? "FA hardware default" : "heuristic"));
+              (a->mapper == MAP_FA ? "FA hardware default" :
+               (a->mapper == MAP_WD ? "WD configuration-0 vector bank" : "heuristic")));
       for (i = 0; i < a->bank_count; ++i) {
          const bank_t *b = &a->banks[i];
          if (b->origin_overridden)
@@ -4178,6 +4686,13 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
       }
       if (a->mapper == MAP_FA)
          fprintf(fp, "; FA cartridge RAM: write $1000-$10FF, read $1100-$11FF; bank 2 powers up\n");
+      if (a->mapper == MAP_WD) {
+         fprintf(fp, "; WD cartridge RAM: read $1000-$103F, write $1040-$107F (64 bytes)\n");
+         fprintf(fp, "; WD selector reads: TIA $30-$3F choose one of eight four-segment 1K arrangements\n");
+         fprintf(fp, "; WD power-on arrangement 0: logical 1K banks 0,0,1,3 at $1000,$1400,$1800,$1C00\n");
+         if (a->wd_bad_dump)
+            fprintf(fp, "; WD 8195-byte preservation form: logical 1K banks 2 and 3 are reversed in the file; final 3 bytes are non-emulated trailing dump data\n");
+      }
       if (a->mapper == MAP_DPC) {
          fprintf(fp, "; DPC auxiliary data ROM: file $2000..$27FF (2048 bytes)\n");
          if (a->rom_size > 10240u)
@@ -4229,6 +4744,13 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                  e.wsync_3, e.wsync_30, e.wsync_36, e.wsync_37, e.wsync_45,
                  e.wsync_192, e.wsync_228, e.wsync_ntsc_visible,
                  e.wsync_pal_visible, e.wsync_ntsc_blank, e.wsync_pal_blank);
+         if (e.dynamic_probe_attempted) {
+            fprintf(fp, "; evidence: dynamic frame probe frames=%u stable=%s lines=%u range=%u..%u halted=%s limit=%s\n",
+                    e.dynamic_probe.frames, e.dynamic_probe.stable ? "yes" : "no",
+                    e.dynamic_probe.stable_lines, e.dynamic_probe.min_lines,
+                    e.dynamic_probe.max_lines, e.dynamic_probe.halted ? "yes" : "no",
+                    e.dynamic_probe.instruction_limit ? "yes" : "no");
+         }
          fprintf(fp, "; evidence: dynamic control exits=%d unresolved indirect JMP=%d\n",
                  a->dynamic_control_exits, a->unresolved_indirect_jumps);
       }
@@ -4263,6 +4785,7 @@ static void emit_hardware_equates(FILE *fp)
 static int vector_slot(const bank_t *b, size_t off, unsigned *slot)
 {
    size_t base;
+   if (!b->vector_tail_enabled) return 0;
    if (b->size < 6u) return 0;
    base = b->size - 6u;
    if (off < base || off >= b->size || ((off - base) & 1u)) return 0;
@@ -4353,6 +4876,7 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
          if (b->spec_seed[off])
             fputs("    ; speculative instruction island validated by HLT/JAM/KIL rejection\n", fp);
          if (b->roles[off] & ROLE_LABEL) {
+            emit_label_role_comment(fp, b, off);
             print_label_name(fp, a, bi, off);
             fputs(":\n", fp);
          }
@@ -4366,7 +4890,17 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
             if (vector_slot(b, off, &vslot))
                emit_split_vector_comment(fp, a, bi, off, vslot);
          }
-         if (instruction_can_emit(b, off)) {
+         if (b->pointer_start[off]) {
+            unsigned words = b->pointer_words[off];
+            emit_pointer_table(fp, a, bi, off);
+            off += (size_t)words * 2u;
+         }
+         else if (b->color_start[off]) {
+            unsigned count = b->color_len[off];
+            emit_color_table(fp, a, bi, off);
+            off += count;
+         }
+         else if (instruction_can_emit(b, off)) {
             unsigned len = b->inst_len[off];
             emit_instruction(fp, a, bi, off);
             off += len;
@@ -4397,6 +4931,12 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
          fprintf(fp, ".org $2800\n");
          emit_physical_raw_range(fp, a, 10240u, a->rom_size);
       }
+   }
+   if (a->mapper == MAP_WD && a->rom_size > 8192u) {
+      fputs("; ---- trailing bytes from 8195-byte WD preservation dump ----\n", fp);
+      fputs("; Stella truncates these three bytes for emulation; retain them for exact reconstruction.\n", fp);
+      fputs(".org $2000\n", fp);
+      emit_physical_raw_range(fp, a, 8192u, a->rom_size);
    }
    return ferror(fp) == 0;
 }
@@ -4441,6 +4981,8 @@ int main(int argc, char **argv)
    apply_superchip_window_semantics(&analysis);
    promote_interior_reference_labels(&analysis);
    detect_graphics_data(&analysis);
+   detect_analysis_tables(&analysis);
+   promote_interior_reference_labels(&analysis);
    if (decoded_instruction_count(&analysis) == 0u) {
       fprintf(stderr, "%s: no instructions found; refusing 100%%-data disassembly\n",
               opt.input);

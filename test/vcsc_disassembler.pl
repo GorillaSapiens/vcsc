@@ -149,6 +149,21 @@ for my $i (0x2000 .. 0x28FE) {
 }
 write_bin(File::Spec->catfile($in, 'dpc.bin'), $dpc);
 
+# Wickstead Design / Pursuit of the Pink Panther.  The preservation dump is
+# uniquely 8K+3 bytes; Stella corrects it by swapping logical 1K banks 2/3 for
+# emulation while ignoring the final three dump bytes.  Power-on arrangement 0
+# maps logical 0,0,1,3 across the four 1K cartridge segments, so the vector in
+# physical file chunk 2 (logical bank 3 after correction) enters physical bank
+# 0 at bus address $1400.  Reading TIA $31 requests arrangement 1.
+my $wd = chr(0x02) x 8195;
+substr($wd, 0x0000, 4, "\xA5\x31\xEA\x60");
+substr($wd, 0x0400 + 3, 1, "\x60");
+for my $v (0, 2, 4) {
+   put16(\$wd, 0x0800 + 0x03FA + $v, 0xD400);
+}
+substr($wd, 8192, 3, "\x12\x34\x56");
+write_bin(File::Spec->catfile($in, 'wd_bad_dump.bin'), $wd);
+
 # All eight conditional branches, each in both same-page and cross-page cases.
 my @branch_ops = (0x10, 0x30, 0x50, 0x70, 0x90, 0xB0, 0xD0, 0xF0);
 my $branch = chr(0xEA) x 4096;
@@ -512,6 +527,30 @@ my $scan_pal_general = make_rom(4096, 0xF000, 0x0100,
 write_bin(File::Spec->catfile($in, 'video_scanline_pal_general.bin'),
    $scan_pal_general);
 
+# Dynamic frame probe regressions.  These deliberately use a 2-WSYNC loop whose
+# total (258 or 308 lines) is outside the static visible/blanking signatures.
+# The only reliable classification comes from actually executing the frame and
+# measuring consecutive VSYNC rises.
+sub dynamic_frame_rom {
+   my ($count) = @_;
+   return make_rom(4096, 0xF000, 0x0100, pack('C*',
+      0xA9,0x02,             # LDA #2
+      0x85,0x00,             # STA VSYNC
+      0x85,0x02,0x85,0x02,0x85,0x02, # 3 VSYNC scanlines
+      0xA9,0x00,0x85,0x00,  # VSYNC := 0
+      0xA2,$count,           # X := 129 (NTSC) or 154 (PAL)
+      0x85,0x02,0x85,0x02,  # two WSYNCs per loop
+      0xCA,0xD0,0xF9,       # DEX / BNE loop
+      0x85,0x02,             # one final line
+      0x4C,0x00,0xF1));     # JMP frame
+}
+write_bin(File::Spec->catfile($in, 'video_dynamic_60hz.bin'),
+   dynamic_frame_rom(129));  # 3 + 129*2 + 1 = 262
+write_bin(File::Spec->catfile($in, 'video_dynamic_50hz.bin'),
+   dynamic_frame_rom(154));  # 3 + 154*2 + 1 = 312
+write_bin(File::Spec->catfile($in, 'video_dynamic (SECAM).bin'),
+   dynamic_frame_rom(154));
+
 # Filename region tags are useful secondary evidence when timing analysis is
 # inconclusive.  Token boundaries prevent titles containing "pal" from matching.
 write_bin(File::Spec->catfile($in, 'mystery (PAL).bin'),
@@ -578,6 +617,35 @@ my $mixed = make_rom(4096, 0xF000, 0x0100,
    "\xA5\x3D\x60");                    # right fire
 write_bin(File::Spec->catfile($in, 'controller_mixed.bin'), $mixed);
 
+
+# Item 12 analysis-presentation fixtures.  A referenced run of three exact
+# little-endian cartridge addresses should be rendered as a pointer table, not
+# an anonymous byte blob.
+my $pointer_table = make_rom(4096, 0xF000, 0x0100,
+   "\x20\x40\xF3" .           # establish F340 as code
+   "\x20\x50\xF3" .           # establish F350 as code
+   "\x20\x60\xF3" .           # establish F360 as code
+   "\xA2\x00" .                 # LDX #0
+   "\xBD\x00\xF3" .           # LDA F300,X (table reference)
+   "\x60");
+substr($pointer_table, 0x0300, 6, pack('v*', 0xF340, 0xF350, 0xF360));
+substr($pointer_table, 0x0340, 1, "\x60");
+substr($pointer_table, 0x0350, 1, "\x60");
+substr($pointer_table, 0x0360, 1, "\x60");
+write_bin(File::Spec->catfile($in, 'pointer_table.bin'), $pointer_table);
+
+# A counted indexed load that flows directly into COLUBK is strong color-table
+# evidence.  Palette-looking bytes without this data-flow proof remain raw.
+my $color_table = make_rom(4096, 0xF000, 0x0100,
+   "\xA0\x02" .                 # LDY #2
+   "\xB9\x80\xF3" .           # loop: LDA F380,Y
+   "\x85\x09" .                 # STA COLUBK
+   "\x88" .                       # DEY
+   "\x10\xF8" .                 # BPL loop
+   "\x60");
+substr($color_table, 0x0380, 3, pack('C*', 0x84, 0x46, 0xC8));
+write_bin(File::Spec->catfile($in, 'color_table.bin'), $color_table);
+
 run_ok($^X, $roundtrip, $in, $out);
 
 # A zero-instruction result is not a successful disassembly.  Keep this out of
@@ -607,6 +675,12 @@ die "unsupported raw cartridge unexpectedly succeeded\n" if $odd_rc == 0;
 die "unsupported raw failure left an output file\n" if -e $odd_out;
 require_re(slurp($odd_log), qr/no instructions found/i, 'raw-layout zero-instruction error');
 
+my $f8_out = slurp(File::Spec->catfile($out, 'f8.s26'));
+require_re($f8_out, qr/^B0_F100:\s*$/m,
+   'bank-qualified colliding label in bank 0');
+require_re($f8_out, qr/^B1_F100:\s*$/m,
+   'bank-qualified colliding label in bank 1');
+
 my $fa_out = slurp(File::Spec->catfile($out, 'fa.s26'));
 require_re($fa_out, qr/^; mapper: FA \(high confidence;/m, 'FA 12K mapper inference');
 require_re($fa_out, qr/^; reset\/power-on bank: 2 \(FA hardware default\)$/m,
@@ -627,6 +701,23 @@ require_re($dpc_out, qr/^; DPC RNG table: file \$2800\.\.\$28FE \(255 bytes\)$/m
    'DPC RNG table layout comment');
 require_re($dpc_out, qr/^; ---- DPC auxiliary 2K display\/data ROM ----$/m,
    'DPC auxiliary source section');
+
+my $wd_out = slurp(File::Spec->catfile($out, 'wd_bad_dump.s26'));
+require_re($wd_out, qr/^; mapper: WD \(high confidence;/m,
+   'WD 8195-byte mapper inference');
+require_re($wd_out,
+   qr/^; WD cartridge RAM: read \$1000-\$103F, write \$1040-\$107F \(64 bytes\)$/m,
+   'WD RAM mapping annotation');
+require_re($wd_out,
+   qr/^; WD 8195-byte preservation form: logical 1K banks 2 and 3 are reversed in the file;/m,
+   'WD malformed-dump correction annotation');
+require_re($wd_out, qr/WD selector -> arrangement 1 \(hardware-delayed\)/,
+   'WD TIA selector annotation');
+require_re($wd_out,
+   qr/^; ---- trailing bytes from 8195-byte WD preservation dump ----$/m,
+   'WD trailing-byte preservation section');
+require_re($wd_out, qr/^\s*\.byte \$12, \$34, \$56$/m,
+   'WD trailing bytes preserved exactly');
 
 my $vector_interior_out = slurp(File::Spec->catfile($out, 'vector_interior.s26'));
 require_re($vector_interior_out,
@@ -685,6 +776,22 @@ require_re($known_indirect,
    'resolved indirect-read usage accounting');
 require_re($known_indirect, qr/unreferenced ROM bytes/i,
    'provably unreferenced ROM annotation');
+
+
+my $pointer_table_out = slurp(File::Spec->catfile($out, 'pointer_table.s26'));
+require_re($pointer_table_out, qr/probable little-endian ROM pointer table/i,
+   'pointer-table annotation');
+require_re($pointer_table_out,
+   qr/\.word\s+L_F340\s*\n\s*\.word\s+L_F350\s*\n\s*\.word\s+L_F360/m,
+   'symbolic pointer-table words');
+require_re($pointer_table_out, qr/definite ROM-data target/i,
+   'ROM-data target annotation');
+
+my $color_table_out = slurp(File::Spec->catfile($out, 'color_table.s26'));
+require_re($color_table_out, qr/probable TIA color table .*COLU\*/i,
+   'color-table annotation');
+require_re($color_table_out, qr/\.byte\s+\$84,\s*\$46,\s*\$C8/i,
+   'color-table byte preservation');
 
 my $sprite_out = slurp(File::Spec->catfile($out, 'sprite_rows.s26'));
 my @sprite_rows = ($sprite_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
@@ -869,6 +976,18 @@ my $video_scan_pal_general = slurp(File::Spec->catfile($out, 'video_scanline_pal
 require_re($video_scan_pal_general,
    qr/^; video: PAL-family \(PAL\/SECAM ambiguous; general frame-timing evidence\) \(high confidence\)$/m,
    'broad counted-WSYNC PAL-family inference');
+my $video_dynamic_ntsc = slurp(File::Spec->catfile($out, 'video_dynamic_60hz.s26'));
+require_re($video_dynamic_ntsc,
+   qr/^; video: NTSC \(dynamic stable frame measurement: 262 raw line intervals\) \(high confidence\)$/m,
+   'dynamic NTSC frame measurement');
+my $video_dynamic_pal = slurp(File::Spec->catfile($out, 'video_dynamic_50hz.s26'));
+require_re($video_dynamic_pal,
+   qr/^; video: PAL-family \(PAL\/SECAM ambiguous; dynamic stable frame measurement: 312 raw line intervals\) \(high confidence\)$/m,
+   'dynamic PAL-family frame measurement');
+my $video_dynamic_secam = slurp(File::Spec->catfile($out, 'video_dynamic (SECAM).s26'));
+require_re($video_dynamic_secam,
+   qr/^; video: SECAM \(filename hint; dynamic 312-interval 50 Hz confirmation\) \(medium confidence\)$/m,
+   'dynamic 50 Hz measurement preserves SECAM filename distinction');
 my $video_filename_pal = slurp(File::Spec->catfile($out, 'mystery (PAL).s26'));
 require_re($video_filename_pal,
    qr/^; video: PAL \(filename hint\) \(medium confidence\)$/m,

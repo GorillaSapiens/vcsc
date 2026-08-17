@@ -103,3 +103,26 @@ decimal font at FF00 while leaving one-off bitmap-shaped data numeric.  Raw
 .byte grouping now stops at graphics boundaries so the first rows are not
 swallowed.  Semantic regressions are 60/60 exact; opcode/fuzz and the supplied
 Pitfall image round-trip byte-for-byte.
+2026-08-16 18:18:34 PDT, dynamic video probe completed
+Disassembler roadmap item 10 is complete. vcsc-disas now supplements static
+TIM64T/WSYNC evidence with a bounded stable-frame execution probe built on the
+shared simulator/mos6502 core. The probe models 6507 mirroring, RIOT timers/RAM,
+TIA VSYNC/WSYNC, supported bank hotspots, Superchip/FA RAM, and neutral inputs.
+Dynamic evidence requires stable consecutive frame periods and is reported as
+raw 76-cycle line intervals; PAL versus SECAM remains ambiguous without separate
+metadata. DPC remains static-only. Semantic fixtures are 63/63 exact.
+
+2026-08-16 18:41:21 PDT, Add Wickstead Design disassembly
+Recognize the distinctive 8195-byte Pursuit of the Pink Panther dump as WD.
+Model eight 1K ROM banks, the eight four-segment arrangements selected by TIA
+$30-$3F reads, 64-byte split RAM, power-on arrangement 0, the historical bank
+2/3 dump swap, and exact retention of the three non-emulated trailing bytes.
+The supplied ROM now disassembles and round-trips byte-identically; a synthetic
+WD regression raises the semantic corpus to 64/64 exact.
+2026-08-16 19:02:39 PDT, finish disassembler item 12
+Top README now calls out the bundled simulator/mos6502 core as MIT-licensed
+third-party code and links its local license. vcsc-disas now recognizes only
+independently-supported little-endian ROM pointer tables and proven COLU* color
+tables, emits symbolic .word pointers, adds ROM-data role comments, and pins
+bank-qualified colliding labels. Random fuzz rejects pointer/color false positives.
+Semantic disassembler corpus: 66/66 exact; all-opcode and fuzz gates pass.

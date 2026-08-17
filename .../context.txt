@@ -1183,16 +1183,23 @@ Disassembler side project (2026-08-16):
 `.../disassembler.txt` is the focused context/roadmap.  The new
 `disassembler/vcsc-disas` now has an exact-round-trip first implementation with
 all-opcode decode/emission, mandatory branch `.same`/`.cross`, unbanked and
-F8/F6/F4(+Superchip), FA and DPC bank-aware analysis, per-bank origin inference, overlapping
+F8/F6/F4(+Superchip), FA, DPC and WD bank-aware analysis, per-bank origin inference, overlapping
 instruction streams, code-as-data and unreferenced-byte roles, TIA/RIOT symbols
-with exact mirror comments, conservative graphics rows, static video/controller
-inference and explicit analysis overrides. A run with zero decoded instructions is
+with exact mirror comments, conservative graphics rows, static plus bounded dynamic
+video inference, controller inference, and explicit analysis overrides. A run with zero decoded instructions is
 a hard error; raw `.byte` fallback is used only for uncertain regions inside an
 otherwise successful disassembly. Video inference now
 accumulates arbitrary statically-known TIM64T values, parameterized timer-helper
 arguments recovered at JSR call sites, broad counted-WSYNC loop lengths, and
 bounded filename region-token hints rather than relying mainly on four scheduler
-constants. Generated assembly
+constants. When established code writes VSYNC, vcsc-disas also runs a bounded
+dynamic frame probe using the shared simulator/mos6502 CPU core with 6507 address
+mirroring, RIOT RAM/timers, TIA VSYNC/WSYNC stalls, supported bank hotspots, and
+neutral controller inputs. Several consecutive frames must stabilize before the
+measurement is accepted. Measurements are reported as raw 76-cycle line intervals;
+the maintained schedulers deliberately measure 264/314 raw intervals while Stella
+reports 262/312 displayed scanlines. DPC remains static-only until the probe has a
+faithful DPC coprocessor/register model. Generated assembly
 omits redundant `.z`/`.zx`/`.zy` suffixes for ordinary named instructions while
 retaining `.a`/`.ax`/`.ay` whenever a low absolute operand would otherwise relax;
 ambiguous raw `opXX` forms keep their required explicit suffixes. References into
@@ -1242,6 +1249,4 @@ structural pass recognizes long aligned runs of coherent 8x8 glyphs; Pitfall's
 decimal font at $FF00 is the regression case. Raw `.byte` grouping now stops when
 a graphics region begins so the first detected rows are not swallowed. A single
 bitmap-shaped object and call-mediated/compressed-looking data still remain numeric
-without stronger evidence. The semantic disassembler corpus is now 60/60 exact.
-Roadmap item 9 remains complete; the next focused disassembler item is item 10,
-further NTSC/PAL-family timing inference.
+without stronger evidence. The semantic disassembler corpus is now 66/66 exact. WD support recognizes the distinctive 8195-byte Pursuit of the Pink Panther preservation dump, models eight 1K banks selected as four-segment arrangements by TIA $30-$3F reads plus 64 bytes of cartridge RAM, analyzes the historical bank-2/bank-3 correction while preserving the original file order and trailing three bytes exactly. Roadmap items 9, 10, and 12 are complete; the next focused disassembler item is item 13, inference overrides and manual analysis hints.
