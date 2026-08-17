@@ -1087,14 +1087,13 @@ approximately 32-visible-pixel displacement selected pseudo-randomly from the
 half-plane away from the projectile/shooter: horizontal cardinals use 32 X pixels,
 vertical cardinals use 16 doubled rows (=32 scanlines), and diagonals use 23 X
 pixels plus 11 doubled rows (~31.8 visible pixels). Straight and +/-45-degree
-headings are favored,
-with +/-90-degree escape headings available when geometry blocks the preferred
-path. Every candidate is bounds-checked and its complete eight-row tank footprint
-is preflighted against the actual `tanks_barrier_pf2` schedule before coordinates
-are committed; a compact fixed 6502 scan replaces the original compiler-generated
-row loop so barrier-safe knockback still fits the overscan deadline. If no candidate
-is legal, the tank remains in place rather than being translated into playfield
-geometry. CXP0FB/CXP1FB make the playfield solid to tanks by rolling back movement
+headings are favored, with occasional +/-90-degree away-side headings for variety.
+Hit knockback deliberately ignores playfield geometry: interior PF barriers do not
+block the displacement, and crossing an outer wall wraps the complete tank footprint
+through the legal top-left coordinate ranges ($04-$94 X and $04-$4E Y) to the
+opposite side of the arena. This prevents a wall-pinned victim from being farmed
+indefinitely. Ordinary driving remains collision constrained. CXP0FB/CXP1FB make
+the playfield solid to tanks by rolling back movement
 that overlapped it; CXPPMM
 rolls both tanks back on P0/P1 contact so they cannot drive through each other.
 
@@ -1135,17 +1134,17 @@ moving tank after the raster rewrite; tank rows remained coherent and the bottom
 wall rendered continuously.
 
 `tanks` is an 8K F8SC cartridge. The current linker reports bank1 at
-3534/3584 bytes, bank0 at 3428/3584 bytes, RIOT RAM at 127/128 bytes (113 bytes
-of objects plus the 14-byte reserved hardware stack), and `cartram` at 102/128
+2912/3584 bytes, bank0 at 3507/3584 bytes, RIOT RAM at 125/128 bytes (113 bytes
+of objects plus the 12-byte reserved hardware stack), and `cartram` at 97/128
 bytes. The two turn-repeat counters and one movement scratch byte are explicitly
 in `cartram`; beam-facing position/graphics state remains zero-page. Off-beam RNG,
 tank-graphics pointer selection, and packed player-position lookup are ordinary VCSC;
-the remaining 163 source `asm` statements are reviewed timing-critical raster,
+the remaining 147 source `asm` statements are reviewed timing-critical raster,
 positioning, or bounded blanking-deadline code. `vcs_tanks.pl/.cpp` covers both joysticks, 16-step turning, 24-frame held-turn
 repeat, quarter-rate translation, distinct NNE/ENE minor-axis trajectories, fire
 hold semantics and fire audio, three-plus-three scoring, hit audio/spin/random
-heading, away-side knockback distance/direction, outer-wall bounds, explicit
-barrier-rejection fallback, missile/playfield and missile/player latches,
+heading, away-side knockback distance/direction, explicit barrier pass-through and
+outer-wall wraparound, missile/playfield and missile/player latches,
 player/playfield rollback,
 player/player rollback, barrier regeneration on Reset, corrected graphics pointers
 and SE/SW orientation, visible ENAM0/ENAM1 assertion after launch, immediate

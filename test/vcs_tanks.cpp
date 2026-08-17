@@ -34,7 +34,7 @@ constexpr uint8_t kStartX0=24, kStartX1=128, kStartY=45;
 constexpr uint8_t kDirNne=1, kDirNe=2, kDirEne=3, kDirE=4, kDirSw=10, kDirW=12;
 constexpr uint8_t kSoundFire=1, kSoundHit=2;
 
-enum class Scenario { Neutral, Turn, Move, Move16, Missile45, FireWall, HitP1, HitP0, HitBarrier, PlayerWall, PlayerPlayer, Reset, ExtremeTiming };
+enum class Scenario { Neutral, Turn, Move, Move16, Missile45, FireWall, HitP1, HitP0, HitBarrier, HitWallWrap, PlayerWall, PlayerPlayer, Reset, ExtremeTiming };
 
 [[noreturn]] void fail(const char *fmt,...) {
    std::fprintf(stderr,"vcs_tanks: ");
@@ -180,7 +180,7 @@ private:
    bool fire_pressed(int side) const {
       if(scenario_==Scenario::Missile45) return frame_==1;
       if(scenario_==Scenario::FireWall) return frame_==1 || frame_==2;
-      if(scenario_==Scenario::HitP1 || scenario_==Scenario::HitBarrier) return side==0 && frame_==1;
+      if(scenario_==Scenario::HitP1 || scenario_==Scenario::HitBarrier || scenario_==Scenario::HitWallWrap) return side==0 && frame_==1;
       if(scenario_==Scenario::HitP0) return side==1 && frame_==1;
       if(scenario_==Scenario::Reset) return frame_==1;
       return false;
@@ -188,7 +188,7 @@ private:
 
    uint8_t collision(uint16_t a) const {
       if(scenario_==Scenario::FireWall && frame_==4 && (a==kCxm0fb || a==kCxm1fb)) return 0x80;
-      if((scenario_==Scenario::HitP1 || scenario_==Scenario::HitBarrier) && frame_==3 && a==kCxm0p) return 0x80;
+      if((scenario_==Scenario::HitP1 || scenario_==Scenario::HitBarrier || scenario_==Scenario::HitWallWrap) && frame_==3 && a==kCxm0p) return 0x80;
       if(scenario_==Scenario::HitP0 && frame_==3 && a==kCxm1p) return 0x80;
       if(scenario_==Scenario::PlayerWall && frame_==2 && arena_started_ && (a==kCxp0fb || a==kCxp1fb)) return 0x80;
       if(scenario_==Scenario::PlayerPlayer && frame_==2 && arena_started_ && a==kCxppmm) return 0x80;
@@ -285,6 +285,21 @@ private:
       if(frame_==3) set_byte("tanks_rng",0x10);
    }
 
+   void inject_hit_wall_wrap_state() {
+      if(scenario_!=Scenario::HitWallWrap) return;
+      if(frame_==1) {
+         // Put P1 hard against the right wall and shoot eastward from its left.
+         // A straight 32-pixel hit displacement must pass through the wall and
+         // wrap into the opposite side of the legal tank coordinate range.
+         set_byte("tank0_x",100); set_byte("tank1_x",148);
+         set_byte("tank0_y",kStartY); set_byte("tank1_y",kStartY);
+         set_byte("tank0_prev_x",100); set_byte("tank1_prev_x",148);
+         set_byte("tank0_prev_y",kStartY); set_byte("tank1_prev_y",kStartY);
+         set_byte("tank0_direction",kDirE); set_byte("tank1_direction",kDirW);
+      }
+      if(frame_==3) set_byte("tanks_rng",0x10);
+   }
+
    void inject_extreme_state() {
       if(scenario_!=Scenario::ExtremeTiming || frame_<1) return;
       const bool odd=(frame_&1)!=0;
@@ -323,6 +338,7 @@ private:
       inject_missile45_state();
       inject_player_player_state();
       inject_hit_barrier_state();
+      inject_hit_wall_wrap_state();
       inject_extreme_state();
       if((scenario_==Scenario::PlayerWall || scenario_==Scenario::PlayerPlayer) && frame_==3) set_byte("tanks_move_phase",0);
       starts_.push_back(virtual_cycles_);
@@ -407,22 +423,6 @@ void require_barriers(const Snapshot& s) {
          fail("unexpected horizontal playfield debris outside vertical barriers");
 }
 
-bool tank_overlaps_playfield(const Snapshot& s,uint8_t x,uint8_t y) {
-   if(x<4 || x>148 || y<4 || y>78) return true;
-   const int left=x, right=x+7;
-   for(int row=y;row<static_cast<int>(y)+8;++row) {
-      const uint8_t mask=s.barrier_pf2[static_cast<size_t>(row)];
-      for(int bit=0;bit<8;++bit) {
-         if(!(mask & static_cast<uint8_t>(1u<<bit))) continue;
-         const int left_pf2=48+4*bit;
-         const int right_pf2=108-4*bit;
-         if((left<=left_pf2+3 && right>=left_pf2) ||
-            (left<=right_pf2+3 && right>=right_pf2)) return true;
-      }
-   }
-   return false;
-}
-
 size_t first_moved(const std::vector<Snapshot>& s,size_t first,uint8_t x,uint8_t y,bool player1) {
    for(size_t i=first;i<s.size();++i) {
       const uint8_t sx=player1?s[i].x1:s[i].x0;
@@ -437,7 +437,13 @@ void require_knockback_distance_and_geometry(const Snapshot& before,const Snapsh
    const int by=player1?before.y1:before.y0;
    const int ax=player1?after.x1:after.x0;
    const int ay=player1?after.y1:after.y0;
-   const int dx=ax-bx, dy=ay-by;
+   int dx=ax-bx, dy=ay-by;
+   // Hit displacement wraps through the legal top-left arena ranges. Normalize
+   // a wrapped coordinate delta back to the equivalent physical displacement.
+   if(dx>72) dx-=145;
+   else if(dx<-72) dx+=145;
+   if(dy>37) dy-=75;
+   else if(dy<-37) dy+=75;
    const int adx=dx<0?-dx:dx, ady=dy<0?-dy:dy;
    // Arena Y is doubled on screen, so 16 logical Y rows are 32 visible pixels.
    // Diagonal 23 X + 11 doubled Y rows is sqrt(23^2 + 22^2) ~= 31.8 pixels.
@@ -447,8 +453,6 @@ void require_knockback_distance_and_geometry(const Snapshot& before,const Snapsh
       fail("knockback displacement is not the requested ~32 visible pixels (dx=%d dy=%d)",dx,dy);
    if((away_east && dx<0) || (!away_east && dx>0))
       fail("knockback translated toward the shooter instead of into the away half-plane");
-   if(tank_overlaps_playfield(after,static_cast<uint8_t>(ax),static_cast<uint8_t>(ay)))
-      fail("knockback destination overlaps outer-wall or barrier playfield geometry");
 }
 
 void require_graphics_base(const Machine& m,const Snapshot& s,uint16_t base) {
@@ -584,12 +588,27 @@ void require_hit_barrier(const std::vector<Snapshot>& s) {
    if(s.size()<8) fail("too few barrier-knockback snapshots");
    if(s[0].x0!=4 || s[0].x1!=20 || s[0].y1!=kStartY) fail("barrier-knockback setup failed");
    if(s[3].score0!=1 || s[3].spin1!=23) fail("barrier-knockback hit did not enter hit state");
-   // Straight east would land at x=52,y=45, directly in the deterministic
-   // PF2 bit-1 barrier. It must be rejected without moving the tank.
-   if(s[3].x1!=20 || s[3].y1!=kStartY) fail("knockback accepted a destination inside a playfield barrier");
+   // Straight east lands at x=52,y=45, directly in the deterministic PF2
+   // bit-1 barrier. Hit knockback deliberately ignores that geometry now.
    const size_t moved=first_moved(s,4,20,kStartY,true);
    require_knockback_distance_and_geometry(s[2],s[moved],true,true);
-   if(s[moved].x1==52 && s[moved].y1==kStartY) fail("knockback used the known blocked straight-away candidate");
+   if(s[moved].x1!=52 || s[moved].y1!=kStartY)
+      fail("knockback did not pass straight through the known PF2 barrier");
+}
+
+void require_hit_wall_wrap(const std::vector<Snapshot>& s) {
+   if(s.size()<8) fail("too few wall-wrap knockback snapshots");
+   if(s[0].x0!=100 || s[0].x1!=148 || s[0].y1!=kStartY)
+      fail("wall-wrap knockback setup failed");
+   if(s[3].score0!=1 || s[3].spin1!=23)
+      fail("wall-wrap hit did not enter hit state");
+   const size_t moved=first_moved(s,4,148,kStartY,true);
+   // Legal tank X positions are 4..148 inclusive (145 positions). Moving
+   // east by 32 from 148 therefore wraps to 35.
+   if(s[moved].x1!=35 || s[moved].y1!=kStartY)
+      fail("east knockback at the right wall did not wrap to the opposite side");
+   if(s[moved].px1!=35 || s[moved].py1!=kStartY)
+      fail("wrapped knockback did not become the new rollback position");
 }
 
 void require_player_wall(const std::vector<Snapshot>& s) {
@@ -644,7 +663,7 @@ int main(int argc,char **argv) {
    const uint16_t graphics_base=a["tanks_graphics"];
 
    for(const auto scenario : {Scenario::Neutral,Scenario::Turn,Scenario::Move,Scenario::Move16,Scenario::Missile45,Scenario::FireWall,
-                              Scenario::HitP1,Scenario::HitP0,Scenario::HitBarrier,Scenario::PlayerWall,Scenario::PlayerPlayer,Scenario::Reset,
+                              Scenario::HitP1,Scenario::HitP0,Scenario::HitBarrier,Scenario::HitWallWrap,Scenario::PlayerWall,Scenario::PlayerPlayer,Scenario::Reset,
                               Scenario::ExtremeTiming}) {
       Machine m(argv[1],a,scenario);
       const int frames=(scenario==Scenario::HitP1 || scenario==Scenario::HitP0 || scenario==Scenario::Turn)?30:
@@ -661,10 +680,11 @@ int main(int argc,char **argv) {
       else if(scenario==Scenario::HitP1) require_hit_p1(m.snapshots());
       else if(scenario==Scenario::HitP0) require_hit_p0(m.snapshots());
       else if(scenario==Scenario::HitBarrier) require_hit_barrier(m.snapshots());
+      else if(scenario==Scenario::HitWallWrap) require_hit_wall_wrap(m.snapshots());
       else if(scenario==Scenario::PlayerWall) require_player_wall(m.snapshots());
       else if(scenario==Scenario::PlayerPlayer) require_player_player(m.snapshots());
       else if(scenario==Scenario::Reset) require_reset(m.snapshots());
    }
-   std::puts("vcs_tanks ok: stable early raster writes, visible missiles, 16-way tanks, 3+3 score, engine/fire/hit audio, safe knockback, barriers, spin, TIA collisions");
+   std::puts("vcs_tanks ok: stable early raster writes, visible missiles, 16-way tanks, 3+3 score, engine/fire/hit audio, wall-wrapping knockback, barriers, spin, TIA collisions");
    return 0;
 }

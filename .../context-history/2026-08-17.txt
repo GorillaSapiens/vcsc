@@ -44,3 +44,10 @@ sprite table. True diagonals now step X and Y together; intermediate headings
 use one shared 7/16 minor-axis cadence. The prior doubled-row compensation made
 NE/SE/SW/NW projectiles visibly diverge from their tank glyphs. Added a dynamic
 NE/SW missile regression that requires equal X/Y displacement after launch.
+2026-08-17 10:49:05 PDT, Tanks hit knockback wraps walls
+Tanks hit displacement now ignores both outer walls and interior PF barriers.
+Crossing an outer wall wraps the complete tank footprint into the opposite side
+of the legal arena coordinate range; ordinary joystick movement remains solid-
+wall and still uses TIA collision rollback. Removed the obsolete barrier-preflight
+scan/table and its scratch bytes. The Tanks oracle now proves both straight
+barrier pass-through and right-wall-to-left-side wraparound.

@@ -63,17 +63,15 @@ produces a different, longer 24-frame noise burst, increments the shooter's
 score, stops the projectile, and spins the struck tank rapidly for 24 frames. A
 hit also knocks the victim roughly 32 visible Atari pixels away from the shooter.
 The projectile heading is rounded to the nearest octant for hit-knockback geometry,
-while the LFSR selects among straight-away, adjacent diagonal, and (only as an
-escape fallback) perpendicular headings; no candidate ever points back toward
-the shooter. Horizontal cardinal
+while the LFSR selects among straight-away, adjacent diagonal, and occasional
+perpendicular headings; no choice ever points back toward the shooter. Horizontal cardinal
 knockback is 32 pixels; vertical cardinal knockback is 16 doubled arena rows, i.e.
 32 visible scanlines. Diagonals use 23 horizontal pixels plus 11 doubled rows,
-about 31.8 visible pixels overall. Before the translation is committed, all eight doubled tank rows are checked against the
-actual PF2 barrier schedule and the candidate is rejected if any part of the tank
-would overlap an outer wall or interior playfield barrier. If the preferred
-heading is blocked, nearby away-side headings are tried; if all eight candidate
-slots are unusable the tank stays where it was rather than being placed inside
-playfield geometry. At the end of the spin the tank is left facing a
+about 31.8 visible pixels overall. Hit knockback deliberately ignores arena
+geometry: it can pass straight through an interior playfield barrier, and crossing
+an outer wall wraps the complete tank footprint into the opposite side of the
+legal arena coordinate range. Ordinary joystick movement still treats all walls
+and barriers as solid. At the end of the spin the tank is left facing a
 pseudo-random direction; movement, turning, and firing are ignored for that tank
 while it is spinning.
 
