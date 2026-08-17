@@ -982,6 +982,19 @@ Roadmap
    * Infer exact countdown spans when possible; otherwise bound unresolved
      runtime-indexed tables at the next known code/vector/label boundary, with a
      conservative maximum range.
+   * Recognize indirect animation pointers built from a ROM low-byte table plus a
+     constant high byte. Enumerate the low-byte targets; when the low table has a
+     constant stride, use that stride as strong frame-height evidence and label
+     each inferred frame base. Pitfall's `$00,$16,...,$9A` plus high byte `$FB`
+     is the regression model for eight 22-row player frames.
+   * As a supplemental high-confidence structural heuristic, recognize long
+     aligned runs of at least eight coherent 8x8 glyph blocks even when dynamic
+     pointer arithmetic defeats direct TIA provenance. A single bitmap-shaped
+     object is never sufficient structural evidence. Pitfall's decimal font at
+     `$FF00` is the regression model.
+   * Raw numeric `.byte` runs must stop at the first detected graphics byte so
+     the beginning of a sprite/font table is never swallowed into a preceding
+     multi-byte raw emission.
    * Emit one assembler-native `%00110100` byte per source line with the matching
      X/dot picture in a comment for visual scanning.
    * Keep original byte order and all blank rows exactly.
@@ -990,7 +1003,8 @@ Roadmap
      decompressor or helper routine.
    * Regressions cover direct sprites, runtime-indexed font rows, PF masks through
      ALU transforms, A-to-X register transfers, X-register/STX and Y-register/STY
-     graphics paths, random tables, call-mediated compressed-looking data, and
+     graphics paths, dynamic low-byte animation-pointer tables, long structural
+     8x8 fonts, random tables, call-mediated compressed-looking data, and
      bitmap-shaped false positives.
 
 10. [~] Infer NTSC versus PAL-family timing

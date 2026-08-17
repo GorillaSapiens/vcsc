@@ -93,3 +93,13 @@ rows, random tables, and compressed-looking call-mediated data.  The semantic co
 fuzz, Bridge, Stellar Track, Pitfall II DPC, and Mountain King FA round-trip.
 The source-tree hygiene oracle now pins the new Item 39/41/42 ordering so the
 selected FA next action and mapper survey cannot silently revert.
+
+2026-08-16 17:46:00 PDT, Improve Pitfall graphics detection
+Pitfall exposed two missing graphics paths.  Recognize ROM low-byte pointer
+tables paired with a constant high byte and infer a constant table stride as
+frame height; Pitfall now renders eight 22-row player frames at FB00..FB9A.
+Add a strict long-run 8x8 structural-font fallback, which recognizes the
+decimal font at FF00 while leaving one-off bitmap-shaped data numeric.  Raw
+.byte grouping now stops at graphics boundaries so the first rows are not
+swallowed.  Semantic regressions are 60/60 exact; opcode/fuzz and the supplied
+Pitfall image round-trip byte-for-byte.

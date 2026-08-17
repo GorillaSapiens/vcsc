@@ -109,6 +109,7 @@ typedef struct {
    uint8_t *visited;
    uint8_t *state_seen;
    uint8_t *graphics;
+   uint8_t *font_start;
    uint8_t *force_raw;
    uint8_t *spec_rejected;
    uint8_t *spec_strong;
@@ -832,6 +833,7 @@ static int allocate_bank(bank_t *b, size_t size)
    b->visited = (uint8_t *)calloc(size, 1);
    b->state_seen = (uint8_t *)calloc(size, 1);
    b->graphics = (uint8_t *)calloc(size, 1);
+   b->font_start = (uint8_t *)calloc(size, 1);
    b->force_raw = (uint8_t *)calloc(size, 1);
    b->spec_rejected = (uint8_t *)calloc(size, 1);
    b->spec_strong = (uint8_t *)calloc(size, 1);
@@ -841,7 +843,7 @@ static int allocate_bank(bank_t *b, size_t size)
    b->spec_seed = (uint8_t *)calloc(size, 1);
    b->states = (abstract_state_t *)calloc(size, sizeof(*b->states));
    return b->roles && b->inst_len && b->inst_opcode && b->queued && b->visited &&
-          b->state_seen && b->graphics && b->force_raw && b->spec_rejected && b->spec_strong &&
+          b->state_seen && b->graphics && b->font_start && b->force_raw && b->spec_rejected && b->spec_strong &&
           b->spec_reject_end && b->spec_barrier && b->spec_barrier_end && b->spec_seed && b->states;
 }
 
@@ -857,6 +859,7 @@ static void free_analysis(analysis_t *a)
          free(a->banks[i].visited);
          free(a->banks[i].state_seen);
          free(a->banks[i].graphics);
+         free(a->banks[i].font_start);
          free(a->banks[i].force_raw);
          free(a->banks[i].spec_rejected);
          free(a->banks[i].spec_strong);
@@ -3006,6 +3009,178 @@ static void mark_graphics_count(bank_t *b, size_t start, unsigned count)
    }
 }
 
+
+static int graphics_pointer_is_used(const analysis_t *a, size_t bi,
+                                    uint8_t pointer)
+{
+   const bank_t *b = &a->banks[bi];
+   size_t off;
+   for (off = 0; off < b->size; ++off) {
+      uint8_t opcode;
+      address_mode_t mode;
+      unsigned taint;
+      if (!(b->roles[off] & ROLE_CODE_START) || b->inst_len[off] < 2u) continue;
+      opcode = b->inst_opcode[off];
+      mode = (address_mode_t)opcode_modes[opcode];
+      if (mode != AM_INDIRECT_INDEXED) continue;
+      if (a->rom[b->file_offset + off + 1u] != pointer) continue;
+      taint = graphics_load_destination(opcode, mode);
+      if (taint && load_feeds_graphics_store(a, bi, off, taint)) return 1;
+   }
+   return 0;
+}
+
+/* Recognize a common 2600 graphics-pointer construction:
+ *
+ *     LDA low_table,X/Y
+ *     STA ptr
+ *     LDA #high
+ *     STA ptr+1
+ *
+ * when ptr is subsequently used by an indirect-indexed load that feeds a TIA
+ * graphics register. Enumerating the low-byte table recovers animation-frame
+ * bases even when the runtime index is not statically known. A constant stride
+ * between low bytes is strong evidence for the frame height. */
+static void detect_graphics_low_pointer_tables(analysis_t *a, size_t bi)
+{
+   bank_t *b = &a->banks[bi];
+   size_t off;
+   for (off = 0; off < b->size; ++off) {
+      uint8_t opcode;
+      address_mode_t mode;
+      uint16_t table_addr;
+      size_t table_off;
+      size_t p1, p2, p3;
+      uint8_t pointer, high;
+      size_t count, i;
+      unsigned stride = 0;
+      uint8_t first_low;
+
+      if (!(b->roles[off] & ROLE_CODE_START) || b->inst_len[off] != 3u) continue;
+      opcode = b->inst_opcode[off];
+      if (strcmp(opcode_mnemonics[opcode], "LDA") != 0) continue;
+      mode = (address_mode_t)opcode_modes[opcode];
+      if (mode != AM_ABSOLUTE_X && mode != AM_ABSOLUTE_Y) continue;
+      table_addr = (uint16_t)(a->rom[b->file_offset + off + 1u] |
+                    ((uint16_t)a->rom[b->file_offset + off + 2u] << 8));
+      if (!cart_target_offset(b, table_addr, &table_off)) continue;
+
+      p1 = off + 3u;
+      if (p1 >= b->size || !(b->roles[p1] & ROLE_CODE_START) ||
+          b->inst_len[p1] != 2u || b->inst_opcode[p1] != 0x85u)
+         continue; /* STA zp */
+      pointer = a->rom[b->file_offset + p1 + 1u];
+      if (!graphics_pointer_is_used(a, bi, pointer)) continue;
+
+      p2 = p1 + 2u;
+      p3 = p2 + 2u;
+      if (p3 >= b->size || !(b->roles[p2] & ROLE_CODE_START) ||
+          b->inst_len[p2] != 2u || b->inst_opcode[p2] != 0xa9u ||
+          !(b->roles[p3] & ROLE_CODE_START) || b->inst_len[p3] != 2u ||
+          b->inst_opcode[p3] != 0x85u ||
+          a->rom[b->file_offset + p3 + 1u] != (uint8_t)(pointer + 1u))
+         continue;
+      high = a->rom[b->file_offset + p2 + 1u];
+
+      count = 0;
+      while (table_off + count < b->size && count < 32u) {
+         size_t q = table_off + count;
+         if (count != 0u &&
+             (b->roles[q] & (ROLE_CODE_START | ROLE_VECTOR | ROLE_LABEL)))
+            break;
+         ++count;
+      }
+      if (count < 2u) continue;
+      first_low = a->rom[b->file_offset + table_off];
+      stride = (unsigned)(uint8_t)(a->rom[b->file_offset + table_off + 1u] - first_low);
+      if (stride == 0u || stride > 64u) stride = 0u;
+      if (stride) {
+         for (i = 2u; i < count; ++i) {
+            uint8_t prev = a->rom[b->file_offset + table_off + i - 1u];
+            uint8_t cur = a->rom[b->file_offset + table_off + i];
+            if ((unsigned)(uint8_t)(cur - prev) != stride) {
+               stride = 0u;
+               break;
+            }
+         }
+      }
+
+      for (i = 0u; i < count; ++i) {
+         uint8_t low = a->rom[b->file_offset + table_off + i];
+         uint16_t target = (uint16_t)(low | ((uint16_t)high << 8));
+         size_t target_off;
+         if (!cart_target_offset(b, target, &target_off)) continue;
+         mark_label(b, target_off);
+         mark_graphics_count(b, target_off, stride ? stride : 8u);
+      }
+   }
+}
+
+static unsigned popcount8(uint8_t value)
+{
+   unsigned n = 0;
+   while (value) {
+      n += value & 1u;
+      value >>= 1;
+   }
+   return n;
+}
+
+static int looks_like_8x8_glyph(const analysis_t *a, const bank_t *b,
+                                size_t start)
+{
+   unsigned i;
+   unsigned nontrivial = 0;
+   unsigned repeated = 0;
+   unsigned transitions = 0;
+   unsigned pixels = 0;
+   if (start + 8u > b->size) return 0;
+   for (i = 0; i < 8u; ++i) {
+      uint8_t v = a->rom[b->file_offset + start + i];
+      if ((b->roles[start + i] & ROLE_VECTOR) || instruction_can_emit(b, start + i)) return 0;
+      if (v != 0x00u && v != 0xffu) ++nontrivial;
+      pixels += popcount8(v);
+      if (i) {
+         uint8_t prev = a->rom[b->file_offset + start + i - 1u];
+         transitions += popcount8((uint8_t)(prev ^ v));
+         if (prev == v) ++repeated;
+      }
+   }
+   return nontrivial >= 6u && repeated >= 1u && repeated <= 5u &&
+          pixels >= 10u && pixels <= 48u &&
+          transitions >= 4u && transitions <= 20u;
+}
+
+/* Provenance is preferable, but long fixed-height font tables can be
+ * unmistakable even when their runtime pointer arithmetic is too dynamic to
+ * recover statically. Require at least eight consecutive address-aligned 8x8
+ * glyph-like blocks. This is deliberately much stricter than recognizing one
+ * bitmap-shaped object and has negligible random-data false positives. */
+static void detect_structural_8x8_fonts(analysis_t *a, size_t bi)
+{
+   bank_t *b = &a->banks[bi];
+   size_t off;
+   for (off = 0; off + 64u <= b->size; ) {
+      size_t run = 0;
+      uint16_t address = (uint16_t)(b->origin + (uint16_t)off);
+      if ((address & 7u) != 0u || b->graphics[off] ||
+          !looks_like_8x8_glyph(a, b, off)) {
+         ++off;
+         continue;
+      }
+      while (off + (run + 1u) * 8u <= b->size &&
+             looks_like_8x8_glyph(a, b, off + run * 8u))
+         ++run;
+      if (run >= 8u) {
+         size_t i;
+         b->font_start[off] = 1;
+         for (i = 0; i < run * 8u; ++i) b->graphics[off + i] = 1;
+         off += run * 8u;
+      }
+      else ++off;
+   }
+}
+
 static unsigned infer_countdown_graphics_span(const analysis_t *a, size_t bi,
                                               size_t load_off,
                                               address_mode_t mode)
@@ -3119,6 +3294,8 @@ static void detect_graphics_data(analysis_t *a)
             }
          }
       }
+      detect_graphics_low_pointer_tables(a, bi);
+      detect_structural_8x8_fonts(a, bi);
    }
 }
 
@@ -3286,9 +3463,10 @@ static int raw_run_end(const bank_t *b, size_t start)
    size_t end = start;
    while (end < b->size && end - start < 16u) {
       if (end != start && ((b->roles[end] & ROLE_LABEL) ||
+                           b->graphics[end] || b->font_start[end] ||
                            instruction_can_emit(b, end)))
          break;
-      if (instruction_can_emit(b, end)) break;
+      if (b->graphics[end] || b->font_start[end] || instruction_can_emit(b, end)) break;
       ++end;
    }
    return (int)end;
@@ -4170,6 +4348,8 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
       fprintf(fp, ".org $%04zX\n", b->file_offset);
       fprintf(fp, ".rorg $%04X\n", b->origin);
       while (off < b->size) {
+         if (b->font_start[off])
+            fputs("    ; probable 8x8 font/graphics table\n", fp);
          if (b->spec_seed[off])
             fputs("    ; speculative instruction island validated by HLT/JAM/KIL rejection\n", fp);
          if (b->roles[off] & ROLE_LABEL) {

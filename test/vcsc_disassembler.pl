@@ -292,6 +292,48 @@ substr($font_rows, 0x0200, 16,
 substr($font_rows, 0x0210, 1, "\x60");
 write_bin(File::Spec->catfile($in, 'font_rows.bin'), $font_rows);
 
+# Dynamic animation pointers often use a ROM low-byte table plus a constant high
+# byte.  X is deliberately unknown here; all three eight-row frames must still
+# be recognized because the low-byte table has an exact $08 stride and the
+# resulting pointer feeds GRP0 through ($80),Y.
+my $pointer_frames = make_rom(4096, 0xF000, 0x0100,
+   "\xAD\x80\x02" .           # LDA SWCHA
+   "\x29\x03\xAA" .           # AND #3 / TAX (runtime index)
+   "\xBD\x40\xF2" .           # LDA $F240,X
+   "\x85\x80" .                 # STA pointer low
+   "\xA9\xF2\x85\x81" .       # pointer high := $F2
+   "\xA0\x07" .                 # LDY #7
+   "\xB1\x80" .                 # LDA ($80),Y
+   "\x85\x1B" .                 # STA GRP0
+   "\x20\x43\xF2\x60");      # make F243 a known boundary
+substr($pointer_frames, 0x0240, 3, pack('C*', 0x80, 0x88, 0x90));
+substr($pointer_frames, 0x0243, 1, "\x60");
+substr($pointer_frames, 0x0280, 24,
+   pack('C*',
+      0x00,0x18,0x3C,0x7E,0xDB,0x18,0x18,0x00,
+      0x00,0x3C,0x66,0xC3,0xC3,0x66,0x3C,0x00,
+      0x00,0x7E,0x42,0x5A,0x5A,0x42,0x7E,0x00));
+write_bin(File::Spec->catfile($in, 'pointer_frames.bin'), $pointer_frames);
+
+# A long, coherent fixed-height font is strong structural graphics evidence even
+# when pointer arithmetic is too dynamic to prove a short direct TIA data-flow
+# path.  A single bitmap-shaped object is still not sufficient (not_sprite.bin).
+# Start the table immediately after ordinary raw bytes so the emitter regression
+# also proves a raw .byte run cannot swallow the first glyph.
+my $structural_font = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($structural_font, 0x02F8, 8, pack('C*', 1,2,4,8,16,32,64,128));
+substr($structural_font, 0x0300, 64,
+   pack('C*',
+      0x3C,0x66,0x66,0x66,0x66,0x66,0x66,0x3C,
+      0x3C,0x18,0x18,0x18,0x18,0x18,0x38,0x18,
+      0x7E,0x60,0x60,0x3C,0x06,0x06,0x46,0x3C,
+      0x3C,0x46,0x06,0x0C,0x0C,0x06,0x46,0x3C,
+      0x0C,0x0C,0x0C,0x7E,0x4C,0x2C,0x1C,0x0C,
+      0x7C,0x46,0x06,0x06,0x7C,0x60,0x60,0x7E,
+      0x3C,0x66,0x66,0x66,0x7C,0x60,0x62,0x3C,
+      0x18,0x18,0x18,0x18,0x0C,0x06,0x42,0x7E));
+write_bin(File::Spec->catfile($in, 'structural_font.bin'), $structural_font);
+
 # Random-looking data with no TIA graphics provenance stays numeric even when
 # indexed like a table.
 my $random_table = make_rom(4096, 0xF000, 0x0100,
@@ -687,6 +729,23 @@ die "expected 16 visual font rows, got " . scalar(@font_visual) . "\n"
    if @font_visual != 16;
 require_re($font_out, qr/\.byte\s+%00111100\s+;\s+\.\.XXXX\.\./,
    'runtime-indexed font-table rendering');
+
+my $pointer_frames_out = slurp(File::Spec->catfile($out, 'pointer_frames.s26'));
+my @pointer_frame_rows = ($pointer_frames_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+die "expected 24 visual rows from dynamic low-byte pointer table, got " . scalar(@pointer_frame_rows) . "\n"
+   if @pointer_frame_rows != 24;
+require_re($pointer_frames_out, qr/^L_F280:\s*$/m, 'first inferred animation-frame label');
+require_re($pointer_frames_out, qr/^L_F288:\s*$/m, 'second inferred animation-frame label');
+require_re($pointer_frames_out, qr/^L_F290:\s*$/m, 'third inferred animation-frame label');
+
+my $structural_font_out = slurp(File::Spec->catfile($out, 'structural_font.s26'));
+my @structural_font_rows = ($structural_font_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+die "expected 64 structural-font visual rows, got " . scalar(@structural_font_rows) . "\n"
+   if @structural_font_rows != 64;
+require_re($structural_font_out, qr/probable 8x8 font\/graphics table/i,
+   'structural font annotation');
+require_re($structural_font_out, qr/\.byte\s+%00111100\s+;\s+\.\.XXXX\.\./,
+   'structural font first glyph row not swallowed by raw run');
 
 for my $non_graphics_name ('random_table.s26', 'compressed_table.s26') {
    my $text = slurp(File::Spec->catfile($out, $non_graphics_name));

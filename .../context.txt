@@ -1232,10 +1232,16 @@ rejection semantics while avoiding repeated full-bank speculative walks; the
 It promotes only nontrivial safe candidates immediately after three-rejected-start
 barriers. Established code and overlaps remain authoritative. Real `JMP ($xxFF)`
 instructions are emitted raw because vcsc-as intentionally rejects that hazardous
-NMOS indirect-JMP spelling. Sprite/font/playfield detection now tracks short
-straight-line A/X/Y provenance from ROM loads through register transfers and simple
-ALU/shift transforms into STA/STX/STY writes to GRP0/GRP1/PF0/PF1/PF2. Countdown
-loops prove exact spans when possible; unresolved runtime-indexed tables stop at a
-known code/vector/label boundary, while calls/branches/unknown opcodes stop
-provenance. Roadmap item 9 is complete; the next focused disassembler item is item
-10, further NTSC/PAL-family timing inference.
+NMOS indirect-JMP spelling. Sprite/font/playfield detection tracks short straight-line A/X/Y provenance from
+ROM loads through register transfers and simple ALU/shift transforms into
+STA/STX/STY writes to GRP0/GRP1/PF0/PF1/PF2. It also recognizes dynamic graphics
+pointers assembled from a ROM low-byte table plus a constant high byte; a constant
+low-byte stride becomes frame-height evidence. Pitfall exercises this with eight
+22-row player frames at $FB00,$FB16,...,$FB9A. A supplemental high-confidence
+structural pass recognizes long aligned runs of coherent 8x8 glyphs; Pitfall's
+decimal font at $FF00 is the regression case. Raw `.byte` grouping now stops when
+a graphics region begins so the first detected rows are not swallowed. A single
+bitmap-shaped object and call-mediated/compressed-looking data still remain numeric
+without stronger evidence. The semantic disassembler corpus is now 60/60 exact.
+Roadmap item 9 remains complete; the next focused disassembler item is item 10,
+further NTSC/PAL-family timing inference.

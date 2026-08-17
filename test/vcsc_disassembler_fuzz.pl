@@ -50,6 +50,13 @@ for my $i (0 .. $#sizes) {
       if !-f File::Spec->catfile($out, "$stem.s26");
    die "missing rebuilt ROM for $stem\n"
       if !-f File::Spec->catfile($out, "$stem.bin");
+   my $source = File::Spec->catfile($out, "$stem.s26");
+   open(my $sfh, '<', $source) or die "open $source: $!\n";
+   local $/;
+   my $text = <$sfh>;
+   close($sfh) or die "close $source: $!\n";
+   die "$stem random data was overclassified as graphics\n"
+      if $text =~ /^\s*\.byte\s+%[01]{8}\s+;/m;
 }
 
 my @unsupported = (1, 17, 257, 655, 4097, 5000, 8191);

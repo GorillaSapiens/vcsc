@@ -93,6 +93,15 @@ The generated header records the input size and SHA-256, mapper evidence,
 physical banks, inferred bank origins and reset bank, video/controller evidence,
 and the `vcsc-disas` version.
 
+Graphics-oriented data is rendered one byte per line as `%00110100` with a
+matching X/dot picture when the analysis has strong evidence. Besides direct
+GRP/PF provenance, the detector recognizes common indirect animation pointers
+built from a ROM low-byte table plus a constant high byte and can infer frame
+height from a constant low-byte stride. It also recognizes long, coherent,
+aligned 8x8 font runs structurally; a lone bitmap-looking object is not enough
+to trigger that fallback. Pitfall's eight 22-row Harry frames and its decimal
+font are regression cases for these two paths.
+
 For Superchip variants, the physical bytes occupying the first `$100` bytes of
 each 4K bank are preserved exactly but annotated as hidden by the Superchip RAM
 window rather than decoded as ROM. The hardware maps `$1000-$107F` as the RAM
