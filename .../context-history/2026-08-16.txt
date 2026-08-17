@@ -128,3 +128,19 @@ bank-qualified colliding labels. Random fuzz rejects pointer/color false positiv
 Semantic disassembler corpus: 66/66 exact; all-opcode and fuzz gates pass.
 2026-08-16 19:22:59 PDT, fix disassembler table-label regression
 Require real pointer-building data flow and preserve interior labels in pointer/color table presentation; ARMAMBSH round-trips again.
+2026-08-16 19:45:38 PDT, complete disassembler manual hints
+Finished disassembler roadmap Item 13. Added repeatable --table and --pointer
+hints, kept manual data roles non-exclusive with code, diagnosed conflicting
+presentation ranges and odd pointer ranges, updated public docs/help, and added
+exact-round-trip regressions. Semantic corpus is 68/68 exact.
+2026-08-16 21:06:38 PDT, Harden disassembler integration and fuzzing
+Completed the focused disassembler hardening roadmap. All 79 editable example
+ROMs now round-trip through vcsc-disas and vcsc-as inside the existing eight
+example-build shards. Added deterministic source checks, malformed/truncated
+size failures, duplicated/padded image preservation, stale-output and aliasing
+checks, shell-hostile filename coverage, all-supported-layout arbitrary fuzzing,
+and an independently compiled stego smoke baseline. The static Linux package
+and staged vcsc-disas -> vcsc-as path pass; Windows packaging remains source-
+wired and hygiene-pinned on this host without MinGW.
+Validation: 499/499 compile tests and focused 15/15 pass. A full 309-case E2E
+run reached 143/309, all passing, before the outer execution ceiling stopped it.

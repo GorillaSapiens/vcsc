@@ -21,7 +21,10 @@ Everything under `examples/` is user-facing and deliberately editable. The
 suite smoke-builds all examples through eight `vcs_examples_build_*of8.test`
 shards backed by `vcs_examples_build.pl`; the round-robin split lets the outer
 `test.pl --jobs N` pool compile different examples concurrently without a nested
-worker pool. Exact ROM, map, timing, raster, palette, music, score, and motion
+worker pool. Every ROM produced by those shards is also passed through
+`vcsc-disas -> vcsc-as` and must reconstruct byte-for-byte, so the editable
+example suite doubles as a continuously maintained disassembler corpus. Exact
+ROM, map, timing, raster, palette, music, score, and motion
 assertions use private cartridges under `test/fixtures/vcs_examples/`. Do not
 point a golden harness back at an example; `source_tree_hygiene.pl` rejects that
 coupling.

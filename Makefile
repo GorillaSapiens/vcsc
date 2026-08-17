@@ -528,6 +528,8 @@ installcheck: tools
 	"$$stage_bin/vcsc-disas" -o "$(INSTALLCHECK_STAGING)/blank_screen.s26" "$(INSTALLCHECK_STAGING)/blank_screen.bin"; \
 	test -s "$(INSTALLCHECK_STAGING)/blank_screen.s26"; \
 	grep -q '^; mapper:' "$(INSTALLCHECK_STAGING)/blank_screen.s26"; \
+	"$$stage_bin/vcsc-as" --hex="$(INSTALLCHECK_STAGING)/blank_screen.roundtrip.hex" "$(INSTALLCHECK_STAGING)/blank_screen.s26"; \
+	test -s "$(INSTALLCHECK_STAGING)/blank_screen.roundtrip.hex"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_headers_smoke_test.c26" -o "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" "$$stage_vcs/vcs_2k.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" -o "$(INSTALLCHECK_STAGING)/blank_screen_2k.bin"; \

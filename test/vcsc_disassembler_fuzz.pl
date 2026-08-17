@@ -25,31 +25,81 @@ sub next_byte {
    return ($state >> 11) & 0xff;
 }
 
-my @sizes = (2048, 4096, 8192, 16384, 32768);
-for my $i (0 .. $#sizes) {
-   my $size = $sizes[$i];
-   my $name = sprintf('fuzz_%02d_%d.bin', $i, $size);
-   my $path = File::Spec->catfile($in, $name);
-   open(my $fh, '>:raw', $path) or die "open $path: $!\n";
-   my $buf = '';
-   for (1 .. $size) {
-      $buf .= chr(next_byte());
+my @layouts = (
+   ['2k',    2048],
+   ['4k',    4096],
+   ['f8',    8192],
+   ['wd',    8195],
+   ['dpc',  10495],
+   ['fa',   12288],
+   ['f6',   16384],
+   ['f4',   32768],
+);
+my @cases;
+
+sub plant_entry {
+   my ($bufref, $layout, $size) = @_;
+   my $code = "\xA9\x42\x85\x09\x60"; # LDA #$42; STA COLUBK; RTS
+   if ($layout eq '2k') {
+      substr($$bufref, 0x100, length($code), $code);
+      substr($$bufref, $size - 6, 6, pack('v3', 0xf900, 0xf900, 0xf900));
    }
-   print {$fh} $buf or die "write $path: $!\n";
-   close($fh) or die "close $path: $!\n";
+   elsif ($layout eq 'wd') {
+      # Every physical 1K chunk can occupy WD's top segment.  Give each a
+      # self-contained top-segment vector/entry so the rest remains arbitrary.
+      for my $bank (0 .. 7) {
+         my $base = $bank * 1024;
+         substr($$bufref, $base, length($code), $code);
+         substr($$bufref, $base + 1018, 6, pack('v3', 0xfc00, 0xfc00, 0xfc00));
+      }
+   }
+   elsif ($layout eq 'fa') {
+      # FA's first $200 bytes are hidden by cartridge RAM at runtime.
+      for my $bank (0 .. 2) {
+         my $base = $bank * 4096;
+         substr($$bufref, $base + 0x200, length($code), $code);
+         substr($$bufref, $base + 4090, 6, pack('v3', 0xf200, 0xf200, 0xf200));
+      }
+   }
+   else {
+      my $program_bytes = $layout eq 'dpc' ? 8192 : $size;
+      my $banks = int($program_bytes / 4096);
+      for my $bank (0 .. $banks - 1) {
+         my $base = $bank * 4096;
+         substr($$bufref, $base + 0x100, length($code), $code);
+         substr($$bufref, $base + 4090, 6, pack('v3', 0xf100, 0xf100, 0xf100));
+      }
+   }
+}
+
+for my $round (0 .. 1) {
+   for my $entry (@layouts) {
+      my ($layout, $size) = @$entry;
+      my $name = sprintf('fuzz_%s_%d_r%d.bin', $layout, $size, $round);
+      my $path = File::Spec->catfile($in, $name);
+      my $buf = '';
+      for (1 .. $size) {
+         $buf .= chr(next_byte());
+      }
+      plant_entry(\$buf, $layout, $size);
+      open(my $fh, '>:raw', $path) or die "open $path: $!\n";
+      print {$fh} $buf or die "write $path: $!\n";
+      close($fh) or die "close $path: $!\n";
+      push @cases, [$name, $layout, $size];
+   }
 }
 
 my $roundtrip = File::Spec->catfile($root, 'disassembler', 'roundtrip.pl');
 my $rc = system($^X, $roundtrip, $in, $out);
 die "roundtrip verifier failed\n" if $rc != 0;
 
-for my $i (0 .. $#sizes) {
-   my $size = $sizes[$i];
-   my $stem = sprintf('fuzz_%02d_%d', $i, $size);
+for my $entry (@cases) {
+   my ($name, $layout, $size) = @$entry;
+   (my $stem = $name) =~ s/\.bin\z//i;
    die "missing retained source for $stem\n"
       if !-f File::Spec->catfile($out, "$stem.s26");
    die "missing rebuilt ROM for $stem\n"
-      if !-f File::Spec->catfile($out, "$stem.bin");
+      if !-f File::Spec->catfile($out, $name);
    my $source = File::Spec->catfile($out, "$stem.s26");
    open(my $sfh, '<', $source) or die "open $source: $!\n";
    local $/;

@@ -763,7 +763,7 @@ Plan for options/hints covering at least:
     bank-qualified entry points
     forced code ranges
     forced data ranges
-    optional known pointer/table ranges
+    known generic-table and little-endian pointer-table ranges
 
 Contradictory hints must produce diagnostics rather than silently corrupting the
 analysis. Forced code/data roles still do not have to be exclusive: an advanced
@@ -1086,7 +1086,7 @@ Roadmap
       overlap/code-as-data/unreferenced/dynamic-exit comments, and
       separate `--verbose` evidence reporting are regression-covered.
 
-13. [~] Add inference overrides and manual analysis hints
+13. [x] Add inference overrides and manual analysis hints
     * Add mapper, video, per-port controller, reset-bank, and per-bank-origin
       overrides.
     * Add bank-qualified `--entry`-style hints and forced code/data ranges.
@@ -1094,6 +1094,15 @@ Roadmap
     * Diagnose contradictory hints.
     * Keep unsupported mapper fallback exact.
     * Add new mapper families only after the F8/F6/F4 foundation is stable.
+
+    * Completed 2026-08-16: mapper, reset-bank, origin, entry, forced code/data,
+      video, and per-port controller overrides are regression-covered. Repeatable
+      `--table` hints establish generic definite-data table boundaries, while
+      even-length `--pointer` hints request little-endian `.word` presentation.
+      Manual table/pointer roles remain non-exclusive with executable code; code
+      stays the primary physical spelling when representations overlap. Invalid
+      banks/ranges, odd pointer ranges, incompatible mapper/origin choices, and
+      overlapping manual presentation ranges produce diagnostics.
 
 14. [x] Write public and developer documentation for `vcsc-disas`
     * Add `disassembler/README.md` covering normal use, options, output naming,
@@ -1134,18 +1143,36 @@ Roadmap
     * Exercise the script against a mixed directory of unbanked, banked, PAL,
       SECAM, controller, overlapping-code, and code-as-data fixtures.
 
-16. [~] Integrate, harden, and fuzz `vcsc-disas`
+16. [x] Integrate, harden, and fuzz `vcsc-disas`
     * Add top-level build, staged install, Linux, Windows, and release packaging
-      consistent with other VCSC executables.
-    * Round-trip every suitable ROM produced by the VCSC example suite.
-    * Add deterministic-output regressions.
-    * Add malformed/truncated/arbitrary-input fuzz coverage.
-    * Add duplicated/padded-dump preservation tests.
+      consistent with other VCSC executables. Source hygiene pins every package
+      path even on hosts without MinGW; the native Linux package is also built
+      and checked as a fully static seven-tool bundle.
+    * Round-trip every suitable ROM produced by the VCSC example suite. The eight
+      existing example-build shards now feed all 79 generated ROMs through
+      `vcsc-disas -> vcsc-as` and require exact reconstruction.
+    * Add deterministic-output regressions. Repeated disassembly of the same ROM
+      must produce byte-identical `.s26` text.
+    * Add malformed/truncated/arbitrary-input fuzz coverage. Boundary sizes around
+      supported layouts must fail cleanly with no signal/output artifact, while
+      two deterministic arbitrary images for every supported size/mapper family
+      (2K/4K/F8/F6/F4/FA/WD/DPC) round-trip exactly.
+    * Add duplicated/padded-dump preservation tests. Supported duplicated and
+      leading-padded 8K/16K/32K images remain byte exact; WD's historical 8195-byte
+      bad dump remains separately covered.
     * Add overlapping-stream/code-as-data/unreferenced-byte corpus fixtures.
     * Add TIA/RIOT symbolic-output oracles that still compare reconstructed bytes.
     * Require exact binary round trip for every accepted fixture.
     * Keep `stego` regressions green and verify disassembler development does not
-      silently change the existing tool.
+      silently change the existing tool. The hardening E2E independently compiles
+      `stego.c` in its temporary directory and checks a fixed 2K tracing baseline.
+    * Harden the standalone corpus verifier against shell-hostile filenames,
+      aliased input/output directories, stale output artifacts, empty/failed
+      corpora, and zero-instruction supported images.
+
+All focused disassembler roadmap items are complete. Future work should be driven
+by real-ROM failures, new mapper support, or newly identified analysis-quality
+opportunities rather than advancing an artificial checklist.
 
 Definition of first useful milestone
 ------------------------------------

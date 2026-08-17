@@ -44,22 +44,31 @@ generated source:
     --reset-bank 1 \
     --entry 0:0xD234 \
     --data 0:0xD800-0xD8FF \
+    --pointer 0:0xD900-0xD91F \
+    --table 0:0xDA00-0xDA3F \
     --video ntsc --controller0 joystick --controller1 paddles \
     game.bin
 ```
 
 Supported mapper overrides are `2k`, `4k`, `f8`, `f8sc`, `f6`, `f6sc`,
 `f4`, `f4sc`, `fa`, `dpc`, and `wd`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
-`--code BANK:START-END`, and `--data BANK:START-END` are repeatable. The bank
-may be omitted for a one-bank cartridge. Numbers accept decimal, `0x` hex, or
-`$` hex; quote `$` forms in a shell so the shell does not treat them as variable
-references.
+`--code BANK:START-END`, `--data BANK:START-END`, `--table BANK:START-END`, and
+`--pointer BANK:START-END` are repeatable. The bank may be omitted for a one-bank
+cartridge. Numbers accept decimal, `0x` hex, or `$` hex; quote `$` forms in a
+shell so the shell does not treat them as variable references.
 
 `--code` asserts a linear instruction range even across `RTS`/`JMP`; `--entry`
-adds an ordinary recursive-control-flow seed. `--data` is non-exclusive: the
-same bytes may still be executable code. Contradictory mapper sizes, invalid
-banks, misaligned origins, truncated forced instructions, and out-of-window
-ranges are errors rather than guesses.
+adds an ordinary recursive-control-flow seed. `--data` is a definite data-role
+hint without prescribing presentation. `--table` additionally establishes a
+named generic byte-table boundary and suppresses conflicting automatic pretty
+printing in that range. `--pointer` declares an even-length little-endian pointer
+table and emits `.word` entries when doing so cannot hide established code,
+vectors, or an odd-byte label. All data/table/pointer roles are non-exclusive:
+the same bytes may still be executable code, in which case executable source is
+kept as the primary physical representation. Contradictory mapper sizes, invalid
+banks, misaligned origins, truncated forced instructions, odd pointer ranges,
+overlapping manual table/pointer presentations, and out-of-window ranges are
+errors rather than guesses.
 
 `--video` and `--controller0`/`--controller1` override only advisory generated
 metadata. `--verbose` adds detailed evidence counts without changing the emitted
@@ -306,6 +315,16 @@ A successful corpus run is the easiest end-to-end proof: the script runs
 `vcsc-disas`, runs `vcsc-as`, flattens assembler Intel HEX back to raw bytes,
 prints both MD5 values, and performs an exact size/byte comparison equivalent to
 `cmp`.
+
+The repository hardening gates go further than the standalone verifier. All
+79 editable VCSC example ROMs are round-tripped inside the eight normal
+`vcs_examples_build_*of8.test` shards. `vcsc_disassembler_hardening.pl` also
+pins deterministic source output, duplicated and padded supported images,
+filenames containing shell metacharacters, stale-output rejection, malformed
+sizes adjacent to every supported layout, zero-instruction failures for every
+size-selected mapper family, and an independently compiled `stego` smoke case.
+Deterministic fuzz additionally rejects accidental graphics, pointer-table, and
+TIA-color-table promotion in arbitrary data.
 
 ## Developer notes
 

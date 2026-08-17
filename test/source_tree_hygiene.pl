@@ -437,8 +437,26 @@ index($examples_build,'sub profile_from_source')>=0 &&
 index($examples_build,q{include\s+"vcs_2k\.c26"})>=0 &&
 index($examples_build,q{include\s+"vcs_8k_f8\.c26"})>=0 &&
 index($examples_build,q{$profile eq '2k'})>=0 &&
-index($examples_build,q{$profile eq 'f8'})>=0
-   or die "editable example cartridge-profile detection is incomplete
+index($examples_build,q{$profile eq 'f8'})>=0 &&
+index($examples_build,q{'disassembler','roundtrip.pl'})>=0 &&
+index($examples_build,'disassembler-roundtrip')>=0 &&
+index($examples_build,'example disassembler round trip failed')>=0
+   or die "editable example cartridge-profile/disassembler coverage is incomplete
+";
+-f File::Spec->catfile($test,'vcsc_disassembler_hardening.pl')
+   or die "missing vcsc_disassembler_hardening.pl
+";
+
+# vcsc-disas is a first-class shipped tool on every package/install path.  Keep
+# these source-level assertions even on hosts that cannot execute a MinGW build.
+index($top_make,'./disassembler install')>=0 &&
+index($top_make,'bin/vcsc-disas.exe')>=0 &&
+index($top_make,'bin/vcsc-disas')>=0 &&
+index($top_make,'vcsc-disas.exe; do')>=0 &&
+index($top_make,'vcsc-sim vcsc-disas; do')>=0 &&
+index($top_make,'"$$stage_bin/vcsc-disas"')>=0 &&
+index($top_make,'blank_screen.roundtrip.hex')>=0
+   or die "vcsc-disas install/Linux/Windows package integration is incomplete
 ";
 
 # The two historically monolithic E2E drivers are implementation helpers now;

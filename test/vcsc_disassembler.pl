@@ -76,6 +76,12 @@ make_path($in, $out);
 # Plain 2K/4K and ordinary F8/F6/F4 sizes.
 write_bin(File::Spec->catfile($in, 'plain2k.bin'), make_rom(2048, 0xF800, 0x0100, "\xA9\x42\x60"));
 write_bin(File::Spec->catfile($in, 'plain4k.bin'), make_rom(4096, 0xF000, 0x0100, "\xA9\x42\x60"));
+# Manual analysis hints: a byte sequence that is intentionally a pointer
+# table but has no automatic low/high builder, plus a generic data table.
+my $manual_hints = make_rom(4096, 0xF000, 0x0100, "\xA9\x42\x60");
+substr($manual_hints, 0x0200, 6, pack('v3', 0xF100, 0xF100, 0xF100));
+substr($manual_hints, 0x0300, 16, pack('C*', 0 .. 15));
+write_bin(File::Spec->catfile($in, 'manual_hints.bin'), $manual_hints);
 # Vector targets may legally point into the high byte of another vector.
 # $FFFF is especially useful as a sentinel and must not produce an unresolved
 # L_FFFF label merely because the high byte lives inside the IRQ .word.
@@ -1082,6 +1088,8 @@ require_re($help, qr/--origin/, 'help origin override');
 require_re($help, qr/--entry/, 'help entry hint');
 require_re($help, qr/--code/, 'help code hint');
 require_re($help, qr/--data/, 'help data hint');
+require_re($help, qr/--table/, 'help generic table hint');
+require_re($help, qr/--pointer/, 'help pointer table hint');
 require_re($help, qr/--controller0/, 'help controller override');
 require_re($help, qr/--verbose/, 'help verbose evidence mode');
 my $version = `$disas --version 2>&1`;
@@ -1125,6 +1133,38 @@ require_re($hint_text, qr/^L_D100:$/m, 'forced entry/code label');
 require_re($hint_text, qr/LDA\s+#\$42.*instruction byte\/operand also read as data/i,
    'non-exclusive forced code/data roles');
 run_ok($as, "--hex=$hint_hex", $hint_s26);
+
+# Manual table/pointer presentation fills the last Item-13 hint gap.  The
+# pointer table has no automatic builder, so only --pointer may promote it to
+# .word form.  A second pointer hint deliberately overlaps executable bytes;
+# code remains primary while the non-exclusive data role is retained.
+my $manual_s26 = File::Spec->catfile($tmp, 'manual_hints.s26');
+my $manual_hex = File::Spec->catfile($tmp, 'manual_hints.hex');
+run_ok($disas,
+   '--pointer', '0:0xF200-0xF205',
+   '--table', '0:0xF300-0xF30F',
+   '--pointer', '0:0xF100-0xF101',
+   '-o', $manual_s26, File::Spec->catfile($in, 'manual_hints.bin'));
+my $manual_text = slurp($manual_s26);
+require_re($manual_text, qr/manual little-endian pointer table hint/i,
+   'forced pointer-table presentation');
+require_re($manual_text, qr/^L_F200:\n\s*; manual little-endian pointer table hint\n\s*\.word L_F100\n\s*\.word L_F100\n\s*\.word L_F100/m,
+   'forced pointer-table words');
+require_re($manual_text, qr/manual generic data-table hint/i,
+   'forced generic-table presentation');
+require_re($manual_text, qr/^L_F300:\n\s*\.byte \$00, \$01, \$02, \$03/m,
+   'forced generic table bytes');
+require_re($manual_text,
+   qr/manual pointer-table data role; primary code\/vector\/raw representation preserved.*\n.*L_F100:.*\n\s*LDA\s+#\$42/is,
+   'pointer role overlapping executable code');
+run_ok($as, "--hex=$manual_hex", $manual_s26);
+
+my $odd_pointer = `$disas --pointer 0:0xF200-0xF204 "@{[File::Spec->catfile($in, 'manual_hints.bin')]}" 2>&1`;
+die "odd-length pointer hint unexpectedly succeeded\n" if $? == 0;
+require_re($odd_pointer, qr/even number of bytes/, 'odd pointer-range diagnostic');
+my $overlap_hints = `$disas --table 0:0xF200-0xF203 --pointer 0:0xF202-0xF205 "@{[File::Spec->catfile($in, 'manual_hints.bin')]}" 2>&1`;
+die "overlapping table/pointer hints unexpectedly succeeded\n" if $? == 0;
+require_re($overlap_hints, qr/overlapping manual table\/pointer hint/, 'overlapping hint diagnostic');
 
 # Explicit mapper overrides must control Superchip semantics, not merely the
 # mapper name printed in the header.  Forcing F8SC on an ordinary 8K image

@@ -39,7 +39,9 @@ make_path($tmp);
 $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
+my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
+-f $roundtrip or die "missing disassembler round-trip verifier $roundtrip\n";
 my $faithful_cfg=File::Spec->catfile($vcs,qw(renderers faithful_legacy_playercolors faithful_legacy_playercolors.cfg));
 my $faithful_multisprite=File::Spec->catdir($vcs,qw(renderers faithful_legacy_multisprite));
 my $faithful_multisprite_cfg=File::Spec->catfile($faithful_multisprite,'faithful_legacy_multisprite.cfg');
@@ -142,10 +144,23 @@ for my $entry (@examples) {
    }
 }
 
+# Every editable example ROM is also part of the disassembler integration
+# corpus.  Reuse the same shard-local binaries we just compiled so this adds
+# byte-exact disassemble/reassemble coverage without rebuilding the examples a
+# second time.  Keep the verifier's verbose per-ROM MD5 output buffered unless
+# it fails; the public shard output remains compact and deterministic.
+my $roundtrip_out=File::Spec->catdir($tmp,'disassembler-roundtrip');
+my($rt_rc,$rt_sig,$rt_out,$rt_err)=capture($^X,$roundtrip,$tmp,$roundtrip_out);
+$rt_rc==0 && !$rt_sig or die "example disassembler round trip failed\nstdout:\n$rt_out\nstderr:\n$rt_err";
+$rt_err eq '' or die "example disassembler round trip wrote stderr:\n$rt_err";
+my $expected_roundtrips=scalar(@examples);
+$rt_out =~ /Summary:\s+\Q$expected_roundtrips\E passed, 0 failed, \Q$expected_roundtrips\E total\n\z/
+   or die "unexpected example disassembler round-trip summary:\n$rt_out";
+
 if (defined($shard_index)) {
    print "vcs_examples_build shard $shard_index/$shard_count ok: ".scalar(@examples).
-      " of $all_example_count recursively discovered editable examples compile and link\n";
+      " of $all_example_count recursively discovered editable examples compile, link, and round-trip\n";
 }
 else {
-   print "vcs_examples_build ok: all recursively discovered editable examples compile and link\n";
+   print "vcs_examples_build ok: all recursively discovered editable examples compile, link, and round-trip\n";
 }

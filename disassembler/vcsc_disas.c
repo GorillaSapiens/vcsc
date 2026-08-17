@@ -115,7 +115,12 @@ typedef struct {
    uint8_t *color_start;
    uint8_t *color_len;
    uint8_t *pointer_start;
-   uint8_t *pointer_words;
+   uint16_t *pointer_words;
+   uint8_t *pointer_manual;
+   uint8_t *manual_table_byte;
+   uint8_t *manual_table_start;
+   uint8_t *manual_pointer_byte;
+   uint8_t *manual_pointer_start;
    uint8_t *force_raw;
    uint8_t *spec_rejected;
    uint8_t *spec_strong;
@@ -186,6 +191,10 @@ typedef struct {
    size_t code_count;
    const char *data_specs[MAX_HINT_SPECS];
    size_t data_count;
+   const char *table_specs[MAX_HINT_SPECS];
+   size_t table_count;
+   const char *pointer_specs[MAX_HINT_SPECS];
+   size_t pointer_count;
    int verbose;
 } options_t;
 
@@ -380,6 +389,8 @@ static void usage(const char *argv0)
       "       --entry <b:addr>     add executable entry point (repeatable)\n"
       "       --code <b:a-b>       force a linear code range (repeatable)\n"
       "       --data <b:a-b>       mark a definite data range (repeatable)\n"
+      "       --table <b:a-b>      mark/present a known generic data table\n"
+      "       --pointer <b:a-b>    mark/present a little-endian pointer table\n"
       "       --video <name>       force ntsc|pal|secam|pal-family|unknown metadata\n"
       "       --controller0 <name> force joystick|paddles|keypad|driving|unused|unknown\n"
       "       --controller1 <name> force joystick|paddles|keypad|driving|unused|unknown\n"
@@ -394,7 +405,9 @@ static void usage(const char *argv0)
       "notes:\n"
       "   without -o, output is derived from the input name with suffix .s26\n"
       "   -o - writes generated assembly to standard output\n"
-      "   forced code and data roles may overlap; exact bytes remain authoritative\n"
+      "   forced code/data/table/pointer roles may overlap executable bytes\n"
+      "   --pointer ranges must contain an even number of bytes\n"
+      "   exact bytes remain authoritative over presentation hints\n"
       "   exact byte reconstruction takes priority over speculative decoding\n"
       "\n"
       "example:\n"
@@ -406,7 +419,7 @@ static int parse_args(int argc, char **argv, options_t *opt)
 {
    enum {
       OPT_MAPPER = 256, OPT_RESET_BANK, OPT_ORIGIN, OPT_ENTRY,
-      OPT_CODE, OPT_DATA, OPT_VIDEO, OPT_CONTROLLER0, OPT_CONTROLLER1,
+      OPT_CODE, OPT_DATA, OPT_TABLE, OPT_POINTER, OPT_VIDEO, OPT_CONTROLLER0, OPT_CONTROLLER1,
       OPT_VERBOSE
    };
    int ch;
@@ -421,6 +434,8 @@ static int parse_args(int argc, char **argv, options_t *opt)
       { "entry", required_argument, NULL, OPT_ENTRY },
       { "code", required_argument, NULL, OPT_CODE },
       { "data", required_argument, NULL, OPT_DATA },
+      { "table", required_argument, NULL, OPT_TABLE },
+      { "pointer", required_argument, NULL, OPT_POINTER },
       { "video", required_argument, NULL, OPT_VIDEO },
       { "controller0", required_argument, NULL, OPT_CONTROLLER0 },
       { "controller1", required_argument, NULL, OPT_CONTROLLER1 },
@@ -497,6 +512,14 @@ static int parse_args(int argc, char **argv, options_t *opt)
       case OPT_DATA:
          if (!add_hint_spec(opt->data_specs, &opt->data_count, optarg,
                             "data", argv[0])) return 0;
+         break;
+      case OPT_TABLE:
+         if (!add_hint_spec(opt->table_specs, &opt->table_count, optarg,
+                            "table", argv[0])) return 0;
+         break;
+      case OPT_POINTER:
+         if (!add_hint_spec(opt->pointer_specs, &opt->pointer_count, optarg,
+                            "pointer", argv[0])) return 0;
          break;
       case OPT_VIDEO:
          if (opt->video_override) {
@@ -920,7 +943,12 @@ static int allocate_bank(bank_t *b, size_t size)
    b->color_start = (uint8_t *)calloc(size, 1);
    b->color_len = (uint8_t *)calloc(size, 1);
    b->pointer_start = (uint8_t *)calloc(size, 1);
-   b->pointer_words = (uint8_t *)calloc(size, 1);
+   b->pointer_words = (uint16_t *)calloc(size, sizeof(*b->pointer_words));
+   b->pointer_manual = (uint8_t *)calloc(size, 1);
+   b->manual_table_byte = (uint8_t *)calloc(size, 1);
+   b->manual_table_start = (uint8_t *)calloc(size, 1);
+   b->manual_pointer_byte = (uint8_t *)calloc(size, 1);
+   b->manual_pointer_start = (uint8_t *)calloc(size, 1);
    b->force_raw = (uint8_t *)calloc(size, 1);
    b->spec_rejected = (uint8_t *)calloc(size, 1);
    b->spec_strong = (uint8_t *)calloc(size, 1);
@@ -932,7 +960,10 @@ static int allocate_bank(bank_t *b, size_t size)
    b->states = (abstract_state_t *)calloc(size, sizeof(*b->states));
    return b->roles && b->inst_len && b->inst_opcode && b->queued && b->visited &&
           b->state_seen && b->graphics && b->font_start && b->color_start && b->color_len &&
-          b->pointer_start && b->pointer_words && b->force_raw && b->spec_rejected && b->spec_strong &&
+          b->pointer_start && b->pointer_words && b->pointer_manual &&
+          b->manual_table_byte && b->manual_table_start &&
+          b->manual_pointer_byte && b->manual_pointer_start &&
+          b->force_raw && b->spec_rejected && b->spec_strong &&
           b->spec_reject_end && b->spec_barrier && b->spec_barrier_end && b->spec_seed &&
           b->wd_context_seen && b->states;
 }
@@ -954,6 +985,11 @@ static void free_analysis(analysis_t *a)
          free(a->banks[i].color_len);
          free(a->banks[i].pointer_start);
          free(a->banks[i].pointer_words);
+         free(a->banks[i].pointer_manual);
+         free(a->banks[i].manual_table_byte);
+         free(a->banks[i].manual_table_start);
+         free(a->banks[i].manual_pointer_byte);
+         free(a->banks[i].manual_pointer_start);
          free(a->banks[i].force_raw);
          free(a->banks[i].spec_rejected);
          free(a->banks[i].spec_strong);
@@ -1151,7 +1187,7 @@ static int apply_layout_overrides(analysis_t *a, const options_t *opt)
    size_t i;
    if (a->mapper == MAP_RAW &&
        (opt->origin_count || opt->entry_count || opt->code_count || opt->data_count ||
-        opt->reset_bank_override >= 0)) {
+        opt->table_count || opt->pointer_count || opt->reset_bank_override >= 0)) {
       fprintf(stderr, "analysis address hints require a supported/forced mapper, not raw mode\n");
       return 0;
    }
@@ -3762,7 +3798,7 @@ static void detect_pointer_tables(analysis_t *a)
          if (words >= 3u && referenced) {
             size_t i;
             b->pointer_start[off] = 1u;
-            b->pointer_words[off] = (uint8_t)words;
+            b->pointer_words[off] = (uint16_t)words;
             mark_label(b, off);
             for (i = 0; i < words; ++i) {
                uint16_t value = read_word(a->rom + b->file_offset + off + i * 2u);
@@ -3779,6 +3815,119 @@ static void detect_analysis_tables(analysis_t *a)
 {
    detect_color_tables(a);
    detect_pointer_tables(a);
+}
+
+static int ranges_overlap(size_t a0, size_t a1, size_t b0, size_t b1)
+{
+   return a0 <= b1 && b0 <= a1;
+}
+
+/* Manual presentation hints are authoritative over automatic pretty-printing,
+ * but never over established executable bytes.  Cancel any inferred table that
+ * would otherwise swallow a manual range; the underlying roles/bytes remain. */
+static void cancel_auto_presentations(bank_t *b, size_t first, size_t last)
+{
+   size_t p;
+   for (p = 0; p < b->size; ++p) {
+      if (b->pointer_start[p] && !b->pointer_manual[p]) {
+         size_t end = p + (size_t)b->pointer_words[p] * 2u;
+         if (end != 0u && ranges_overlap(first, last, p, end - 1u)) {
+            b->pointer_start[p] = 0u;
+            b->pointer_words[p] = 0u;
+         }
+      }
+      if (b->color_start[p]) {
+         size_t end = p + (size_t)b->color_len[p];
+         if (end != 0u && ranges_overlap(first, last, p, end - 1u)) {
+            b->color_start[p] = 0u;
+            b->color_len[p] = 0u;
+         }
+      }
+   }
+   for (p = first; p <= last; ++p) {
+      b->graphics[p] = 0u;
+      b->font_start[p] = 0u;
+   }
+}
+
+static int manual_pointer_can_emit(const bank_t *b, size_t first, size_t last)
+{
+   size_t p;
+   for (p = first; p <= last; ++p) {
+      if (b->roles[p] & (ROLE_CODE_BYTE | ROLE_VECTOR)) return 0;
+      /* Labels on word boundaries can be emitted between .word directives.
+       * A label on the high byte of a word cannot be represented without
+       * splitting the user's pointer-table presentation, so keep raw bytes. */
+      if (p != first && (b->roles[p] & ROLE_LABEL) && ((p - first) & 1u))
+         return 0;
+   }
+   return 1;
+}
+
+/* Apply semantic/presentation hints after automatic recognizers.  --table is a
+ * generic definite-data table hint; --pointer additionally requests
+ * little-endian .word presentation when that does not hide executable/vector
+ * bytes or an odd-byte label.  Code and data remain non-exclusive. */
+static int apply_semantic_hints(analysis_t *a, const options_t *opt)
+{
+   size_t i;
+   for (i = 0; i < opt->table_count; ++i) {
+      size_t bank, first, last, p;
+      bank_t *b;
+      if (!hint_range_offsets(a, "table", opt->table_specs[i],
+                              &bank, &first, &last)) return 0;
+      b = &a->banks[bank];
+      for (p = first; p <= last; ++p) {
+         if (b->manual_table_byte[p] || b->manual_pointer_byte[p]) {
+            fprintf(stderr, "overlapping manual table/pointer hint '%s' in bank %zu\n",
+                    opt->table_specs[i], bank);
+            return 0;
+         }
+      }
+      cancel_auto_presentations(b, first, last);
+      mark_label(b, first);
+      b->manual_table_start[first] = 1u;
+      for (p = first; p <= last; ++p) {
+         b->manual_table_byte[p] = 1u;
+         b->roles[p] |= ROLE_DATA_READ;
+      }
+   }
+
+   for (i = 0; i < opt->pointer_count; ++i) {
+      size_t bank, first, last, p;
+      size_t bytes;
+      bank_t *b;
+      if (!hint_range_offsets(a, "pointer", opt->pointer_specs[i],
+                              &bank, &first, &last)) return 0;
+      bytes = last - first + 1u;
+      if (bytes < 2u || (bytes & 1u)) {
+         fprintf(stderr,
+                 "--pointer range '%s' must contain an even number of bytes\n",
+                 opt->pointer_specs[i]);
+         return 0;
+      }
+      b = &a->banks[bank];
+      for (p = first; p <= last; ++p) {
+         if (b->manual_table_byte[p] || b->manual_pointer_byte[p]) {
+            fprintf(stderr, "overlapping manual table/pointer hint '%s' in bank %zu\n",
+                    opt->pointer_specs[i], bank);
+            return 0;
+         }
+      }
+      cancel_auto_presentations(b, first, last);
+      mark_label(b, first);
+      b->manual_pointer_start[first] = 1u;
+      for (p = first; p <= last; ++p) {
+         b->manual_pointer_byte[p] = 1u;
+         b->roles[p] |= ROLE_DATA_READ;
+      }
+      if (manual_pointer_can_emit(b, first, last)) {
+         b->pointer_start[first] = 1u;
+         b->pointer_words[first] = (uint16_t)(bytes / 2u);
+         b->pointer_manual[first] = 1u;
+      }
+   }
+   return 1;
 }
 
 static void emit_dynamic_control_comment(FILE *fp, const analysis_t *a,
@@ -3955,6 +4104,9 @@ static int raw_run_end(const bank_t *b, size_t start)
       if (end != start && ((b->roles[end] & ROLE_LABEL) ||
                            b->graphics[end] || b->font_start[end] ||
                            b->color_start[end] || b->pointer_start[end] ||
+                           b->manual_table_start[end] || b->manual_pointer_start[end] ||
+                           b->manual_table_byte[end] != b->manual_table_byte[start] ||
+                           b->manual_pointer_byte[end] != b->manual_pointer_byte[start] ||
                            instruction_can_emit(b, end)))
          break;
       if (b->graphics[end] || b->font_start[end] || b->color_start[end] ||
@@ -4025,10 +4177,19 @@ static void emit_pointer_table(FILE *fp, const analysis_t *a, size_t bi,
    const bank_t *b = &a->banks[bi];
    unsigned words = b->pointer_words[off];
    unsigned i;
-   fputs("    ; probable little-endian ROM pointer table\n", fp);
+   if (b->pointer_manual[off])
+      fputs("    ; manual little-endian pointer table hint\n", fp);
+   else
+      fputs("    ; probable little-endian ROM pointer table\n", fp);
    for (i = 0; i < words; ++i) {
-      uint16_t value = read_word(a->rom + b->file_offset + off + i * 2u);
+      size_t word_off = off + (size_t)i * 2u;
+      uint16_t value = read_word(a->rom + b->file_offset + word_off);
       size_t toff;
+      if (i != 0u && (b->roles[word_off] & ROLE_LABEL)) {
+         emit_label_role_comment(fp, b, word_off);
+         print_label_name(fp, a, bi, word_off);
+         fputs(":\n", fp);
+      }
       fputs("    .word ", fp);
       if (cart_target_offset(b, value, &toff) &&
           (uint16_t)(b->origin + (uint16_t)toff) == value &&
@@ -4985,6 +5146,10 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
       fprintf(fp, ".org $%04zX\n", b->file_offset);
       fprintf(fp, ".rorg $%04X\n", b->origin);
       while (off < b->size) {
+         if (b->manual_table_start[off])
+            fputs("    ; manual generic data-table hint\n", fp);
+         if (b->manual_pointer_start[off] && !b->pointer_start[off])
+            fputs("    ; manual pointer-table data role; primary code/vector/raw representation preserved\n", fp);
          if (b->font_start[off])
             fputs("    ; probable 8x8 font/graphics table\n", fp);
          if (b->spec_seed[off])
@@ -5096,6 +5261,11 @@ int main(int argc, char **argv)
    promote_interior_reference_labels(&analysis);
    detect_graphics_data(&analysis);
    detect_analysis_tables(&analysis);
+   if (!apply_semantic_hints(&analysis, &opt)) {
+      free_analysis(&analysis);
+      free(rom);
+      return 1;
+   }
    promote_interior_reference_labels(&analysis);
    if (decoded_instruction_count(&analysis) == 0u) {
       fprintf(stderr, "%s: no instructions found; refusing 100%%-data disassembly\n",
