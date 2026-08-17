@@ -75,6 +75,8 @@ require_ok('build 4KSC simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST
 my $rom=read_file($bin);
 substr($rom,0,256) eq ("\xFF" x 256)
    or die "4KSC physical image does not preserve the hidden 256-byte Superchip prefix\n";
+substr($rom,0x0ff8,4) eq "4KSC"
+   or die "4KSC cartridge signature is missing from \$1FF8-\$1FFB\n";
 my $m=read_file($map);
 $m =~ /^\s+bank0\s+file-index=0\b.*image-offset=\$0100.*mode=direct/m &&
 $m !~ /^TRAMPOLINES$/m

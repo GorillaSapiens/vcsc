@@ -112,6 +112,24 @@ where the first mapper hotspot is $1FF8 for F8, $1FF6 for F6, and $1FF4 for
 F4.  Thus the startup/home hotspot is always the last hotspot in the mapper's
 range: $1FF9 for F8 and F6, and $1FFB for F4.
 
+Cartridge signature convention
+------------------------------
+Every public VCSC bankswitching profile carries a four-byte mapper signature at
+physical offsets `$xFF8-$xFFB` of the final 4K bank written to disk. The source
+profile spells the meaningful ASCII bytes with `$signature:TEXT`; signatures
+shorter than four bytes are padded with ASCII NUL, never spaces or underscores.
+Current signatures are `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`,
+`F4\0\0`, `F4SC`, and `FA\0\0`.
+
+Only the final physical/file bank receives the signature. Earlier banks retain
+their normal ROM/fill bytes at the same offsets. Hotspot overlap is intentional
+and harmless: file-based mapper detection can inspect these bytes before any
+cartridge object exists, and real mapper hardware reacts to an access at a
+hotspot address rather than to the data value stored there. On the 6507, the
+last two signature bytes occupy the otherwise-unused NMI-vector location; reset
+and IRQ/BRK vectors remain ordinary vectors. Profile allocator regions reserve
+`$xFF8-$xFF9` so the signature never overwrites ordinary linked program data.
+
 The linker emits those banks contiguously without the unused logical gaps
 between $1FFF and $3000, $3FFF and $5000, and so on. File position, VCSC logical
 address, and selector hotspot are three separate facts. The currently implemented cfg records all three relationships explicitly and
@@ -2060,6 +2078,11 @@ when main roadmap item 29 becomes active.
        * Added `09_bankswitching/04_4ksc`, a stable NTSC PASS/FAIL cartridge which
          uses all 128 Superchip bytes, tests hostile initial RAM plus reset
          initialization, and displays `4KSC` below `pass`/`FAIL`.
+       * Standardized final-bank mapper signatures at physical $xFF8-$xFFB for
+         every public bankswitching profile. Short names are ASCII-NUL padded;
+         only the last file bank is stamped. The 4KSC `4KSC` stamp also supplies
+         Stella's required `SC` bytes at $xFFA-$xFFB, so Stella 7.0 now
+         autodetects the diagnostic as 4KSC without a forced mapper option.
 
 [ ] 32. Add CV / CommaVid.
 

@@ -14,6 +14,10 @@ layout: ordinary ROM is visible at `$F100-$FFFF`, while the first `$100` bytes
 of the 4K cartridge window are the standard 128-byte Superchip write/read ports
 (`$F000-$F07F` write, `$F080-$F0FF` read).
 
+The final four image bytes at `$0FF8-$0FFB` before the reset/IRQ vectors carry
+the VCSC mapper signature `4KSC`. Its trailing `SC` also satisfies Stella's
+4KSC autodetection convention, so ordinary `make play` needs no forced mapper.
+
 The diagnostic allocates all 128 Superchip bytes, verifies DATA initialization
 and BSS clearing, then writes and reads sentinels at both ends and the middle of
 the device. On success it displays lowercase `pass` on a green background with

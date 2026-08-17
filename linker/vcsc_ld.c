@@ -173,6 +173,8 @@ static int topology_metadata_has_prefix(const char *name)
    return name &&
       (strncmp(name, CARTRIDGE_TOPOLOGY_META_PREFIX,
                sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX) - 1) == 0 ||
+       strncmp(name, CARTRIDGE_TOPOLOGY_META_PREFIX_V1,
+               sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX_V1) - 1) == 0 ||
        strncmp(name, BANK_TOPOLOGY_META_PREFIX,
                sizeof(BANK_TOPOLOGY_META_PREFIX) - 1) == 0);
 }
@@ -642,15 +644,33 @@ static int parse_cartridge_topology_metadata(const char *name,
                                              topology_cartridge_t *out)
 {
    const char *p;
-   unsigned int mask, fill, to, ts, bo, bs, vo, vs;
+   unsigned int mask, fill, to, ts, bo, bs, vo, vs, g0, g1, g2, g3;
    int consumed = 0;
-   if (!name || !out || strncmp(name, CARTRIDGE_TOPOLOGY_META_PREFIX,
-                                sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX) - 1))
+   int version;
+   if (!name || !out)
       return 0;
-   p = name + sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX) - 1;
-   if (sscanf(p, "P%2X$F%2X$T%4X$Z%4X$B%4X$Y%4X$V%4X$W%4X%n",
-              &mask, &fill, &to, &ts, &bo, &bs, &vo, &vs, &consumed) != 8)
+   if (strncmp(name, CARTRIDGE_TOPOLOGY_META_PREFIX,
+               sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX) - 1) == 0) {
+      version = 2;
+      p = name + sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX) - 1;
+   } else if (strncmp(name, CARTRIDGE_TOPOLOGY_META_PREFIX_V1,
+                      sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX_V1) - 1) == 0) {
+      version = 1;
+      p = name + sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX_V1) - 1;
+   } else {
+      return 0;
+   }
+   g0 = g1 = g2 = g3 = 0;
+   if (version == 2) {
+      if (sscanf(p, "P%2X$F%2X$T%4X$Z%4X$B%4X$Y%4X$V%4X$W%4X$G%2X%2X%2X%2X%n",
+                 &mask, &fill, &to, &ts, &bo, &bs, &vo, &vs,
+                 &g0, &g1, &g2, &g3, &consumed) != 12)
+         return -1;
+   } else if (sscanf(p, "P%2X$F%2X$T%4X$Z%4X$B%4X$Y%4X$V%4X$W%4X%n",
+                     &mask, &fill, &to, &ts, &bo, &bs, &vo, &vs,
+                     &consumed) != 8) {
       return -1;
+   }
    memset(out, 0, sizeof(*out));
    if (!parse_topology_source_suffix(p + consumed, out->declaration,
                                      sizeof(out->declaration)))
@@ -664,6 +684,10 @@ static int parse_cartridge_topology_metadata(const char *name,
    out->vector_bridge_size = (uint16_t)bs;
    out->vectors_offset = (uint16_t)vo;
    out->vectors_size = (uint16_t)vs;
+   out->signature[0] = (uint8_t)g0;
+   out->signature[1] = (uint8_t)g1;
+   out->signature[2] = (uint8_t)g2;
+   out->signature[3] = (uint8_t)g3;
    return 1;
 }
 
@@ -717,7 +741,8 @@ static int topology_cartridge_equal(const topology_cartridge_t *a,
           a->vector_bridge_offset == b->vector_bridge_offset &&
           a->vector_bridge_size == b->vector_bridge_size &&
           a->vectors_offset == b->vectors_offset &&
-          a->vectors_size == b->vectors_size;
+          a->vectors_size == b->vectors_size &&
+          memcmp(a->signature, b->signature, sizeof(a->signature)) == 0;
 }
 
 static int topology_bank_equal(const topology_bank_t *a, const topology_bank_t *b)
@@ -1294,6 +1319,18 @@ static void validate_c26_topology(linker_config_t *cfg)
    else if (startup_count != 0u) {
       fprintf(stderr, "vcsc-ld: directly mapped topology must not mark a startup bank\n");
       exit(1);
+   }
+
+   if (cfg->topology_cartridge.present_mask & 0x80u) {
+      const topology_bank_t *last = NULL;
+      for (i = 0; i < cfg->topology_bank_count; ++i)
+         if (cfg->topology_banks[i].file_index == cfg->topology_bank_count - 1u)
+            last = &cfg->topology_banks[i];
+      if (!last || last->image_size != 0x1000u) {
+         fprintf(stderr,
+                 "vcsc-ld: cartridge signature requires a final 4K physical bank\n");
+         exit(1);
+      }
    }
 
    /* A nonzero image_offset means physical bytes at the beginning of a bank
@@ -8057,6 +8094,18 @@ static void write_binary_byte(FILE *fp, const char *path, uint8_t byte)
    }
 }
 
+//! @brief Return the signature byte for one final-bank physical offset.
+static int topology_signature_byte(const linker_config_t *cfg, size_t file_index,
+                                   uint32_t offset, uint8_t *byte)
+{
+   if (!cfg || !byte || !(cfg->topology_cartridge.present_mask & 0x80u) ||
+       file_index + 1u != cfg->topology_bank_count ||
+       offset < 0x0ff8u || offset > 0x0ffbu)
+      return 0;
+   *byte = cfg->topology_cartridge.signature[offset - 0x0ff8u];
+   return 1;
+}
+
 //! @brief Write a flat binary in unbanked address-span or banked physical order.
 static void write_flat_binary(const char *path, const linker_config_t *cfg,
                               const uint8_t *image, const uint8_t *used)
@@ -8092,6 +8141,7 @@ static void write_flat_binary(const char *path, const linker_config_t *cfg,
                if (used[logical])
                   byte = image[logical];
             }
+            (void)topology_signature_byte(cfg, i, offset, &byte);
             write_binary_byte(fp, path, byte);
          }
       }
@@ -8651,6 +8701,16 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
       if (cart->present_mask & 0x60u)
          fprintf(fp, " vectors=$%04X size=$%04X",
                  cart->vectors_offset, cart->vectors_size);
+      if (cart->present_mask & 0x80u) {
+         fprintf(fp, " signature=\"");
+         for (i = 0; i < 4u; ++i) {
+            if (cart->signature[i])
+               fputc(cart->signature[i], fp);
+            else
+               fputs("\\0", fp);
+         }
+         fputc('\"', fp);
+      }
       fprintf(fp, " declaration=%s source=%s\n",
               cart->declaration[0] ? cart->declaration : "<unknown>",
               cart->source[0] ? cart->source : "<unknown>");

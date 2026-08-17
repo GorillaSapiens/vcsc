@@ -55,7 +55,8 @@
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
 #define MEM_REGION_SPLIT_META_PREFIX "__memmeta$V2$"
 #define MEM_DECL_META_PREFIX "__memdecl$V1$"
-#define CARTRIDGE_TOPOLOGY_META_PREFIX "__cartmeta$V1$"
+#define CARTRIDGE_TOPOLOGY_META_PREFIX_V1 "__cartmeta$V1$"
+#define CARTRIDGE_TOPOLOGY_META_PREFIX "__cartmeta$V2$"
 #define BANK_TOPOLOGY_META_PREFIX "__bankmeta$V1$"
 #define COMPONENT_CONSTRAINT_META_PREFIX "__componentmeta$V1$"
 
@@ -139,6 +140,7 @@ typedef struct {
    uint16_t vector_bridge_size;
    uint16_t vectors_offset;
    uint16_t vectors_size;
+   uint8_t signature[4];
    char source[MAX_PATH];
    char declaration[MAX_PATH + 32];
 } topology_cartridge_t;

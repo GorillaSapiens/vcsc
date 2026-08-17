@@ -79,7 +79,7 @@ for my $p (@profiles) {
       $text =~ /\$cpu_start:0xf100/
          or die "$profile_name does not encode the Superchip prefix and shared RAM profile\n";
       if ($name eq '4KSC') {
-         $text =~ /\$size:0x0efa/
+         $text =~ /\$size:0x0ef8/
             or die "4KSC does not reserve vectors inside its direct ROM window\n";
       } else {
          $text =~ /\$size:0x0e00/
@@ -98,6 +98,21 @@ for my $p (@profiles) {
       '-Map',$generic_map,$profile,$blank,'-o',$generic_bin);
    -s $generic_bin==$output_size
       or die "$name C26 profile emitted ".(-s $generic_bin)." bytes, expected $output_size\n";
+
+   if ($name =~ /^(?:4KSC|F8|F6|F4|FA|F8SC|F6SC|F4SC)$/) {
+      my $rom=read_file($generic_bin);
+      my $want=$name . ("\0" x (4-length($name)));
+      substr($rom,-8,4) eq $want
+         or die "$name final-bank signature is not NUL-padded at \$xFF8-\$xFFB\n";
+      if ($banks > 1) {
+         for my $file_bank (0..$banks-2) {
+            substr($rom,$file_bank*4096+0x0ff8,4) ne $want
+               or die "$name signature was duplicated into file bank $file_bank\n";
+         }
+      }
+      $text =~ /\$signature:\Q$name\E\b/
+         or die "$name profile does not declare its cartridge signature\n";
+   }
 
    if ($name eq '2K') {
       my $rom=read_file($generic_bin);

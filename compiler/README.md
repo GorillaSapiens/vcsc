@@ -481,7 +481,7 @@ selector-controlled cartridge, the linker-generated corridors:
 
 ```vcsc
 cartridge {
-   $fill:0xff
+   $fill:0xff $signature:F8
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012
    $vectors_offset:0x0ffa $vectors_size:0x0006
@@ -497,6 +497,13 @@ bank bank0 {
    $select_access:0x1ff9 $startup
 };
 ```
+
+`$signature:TEXT` is an optional 1-4 byte ASCII alphanumeric cartridge signature.
+When present, the linker NUL-pads it to exactly four bytes and writes it at
+physical offsets `$0FF8-$0FFB` of only the final `$file_index` bank. Public VCS
+bankswitching profiles use this as their mapper identifier. Profile-owned `mem`
+regions must leave `$xFF8-$xFF9` unavailable to ordinary allocation; the final
+two signature bytes intentionally overlap the otherwise-unused 6507 NMI vector.
 
 `$image_size`, `$file_index`, `$image_offset`, `$link_start`, `$cpu_start`, and
 `$map_size` are required. `$select_access` and bare `$startup` are optional. A

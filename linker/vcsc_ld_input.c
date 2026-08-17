@@ -814,6 +814,8 @@ static int object_has_configuration_metadata(const object_file_t *obj)
       if (strncmp(name, MEM_DECL_META_PREFIX, sizeof(MEM_DECL_META_PREFIX) - 1) == 0 ||
           strncmp(name, CARTRIDGE_TOPOLOGY_META_PREFIX,
                   sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX) - 1) == 0 ||
+          strncmp(name, CARTRIDGE_TOPOLOGY_META_PREFIX_V1,
+                  sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX_V1) - 1) == 0 ||
           strncmp(name, BANK_TOPOLOGY_META_PREFIX,
                   sizeof(BANK_TOPOLOGY_META_PREFIX) - 1) == 0)
          return 1;

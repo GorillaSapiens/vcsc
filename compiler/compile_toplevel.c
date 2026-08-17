@@ -505,7 +505,7 @@ void compile_function_decl(ASTNode *node) {
    current_call_graph_node = saved_call_graph_node;
 }
 
-#define CARTRIDGE_TOPOLOGY_META_PREFIX "__cartmeta$V1$"
+#define CARTRIDGE_TOPOLOGY_META_PREFIX "__cartmeta$V2$"
 #define BANK_TOPOLOGY_META_PREFIX "__bankmeta$V1$"
 
 static Set *emitted_topology_metadata;
@@ -536,6 +536,40 @@ static bool topology_parse_numeric_flag(const ASTNode *origin, const char *text,
    }
    *seen = true;
    *value = (unsigned int)parsed;
+   return true;
+}
+
+//! @brief Parse one short ASCII cartridge signature flag.
+static bool topology_parse_signature_flag(const ASTNode *origin, const char *text,
+                                          const char *key, bool *seen,
+                                          uint8_t value[4]) {
+   size_t key_len, len, i;
+   const char *src;
+
+   if (!text || !key || !seen || !value)
+      return false;
+   key_len = strlen(key);
+   if (strncmp(text, key, key_len) || text[key_len] != ':')
+      return false;
+   if (*seen) {
+      error_user("[%s:%d.%d] cartridge declaration repeats '%s'",
+                 origin->file, origin->line, origin->column, key);
+   }
+   src = text + key_len + 1;
+   len = strlen(src);
+   if (len < 1u || len > 4u)
+      error_user("[%s:%d.%d] cartridge signature must be 1-4 ASCII alphanumeric bytes",
+                 origin->file, origin->line, origin->column);
+   memset(value, 0, 4u);
+   for (i = 0; i < len; ++i) {
+      unsigned char c = (unsigned char)src[i];
+      if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9')))
+         error_user("[%s:%d.%d] cartridge signature must be 1-4 ASCII alphanumeric bytes",
+                    origin->file, origin->line, origin->column);
+      value[i] = c;
+   }
+   *seen = true;
    return true;
 }
 
@@ -577,14 +611,15 @@ static char *topology_source_suffix(const ASTNode *node) {
 //! @brief Lower one output-wide cartridge declaration to linker-visible metadata.
 void compile_cartridge_decl_stmt(ASTNode *node) {
    const ASTNode *flags = node && node->count ? node->children[0] : NULL;
-   enum { FILL, TRAMP_O, TRAMP_Z, BRIDGE_O, BRIDGE_Z, VECTORS_O, VECTORS_Z, FIELD_COUNT };
+   enum { FILL, TRAMP_O, TRAMP_Z, BRIDGE_O, BRIDGE_Z, VECTORS_O, VECTORS_Z, SIGNATURE, FIELD_COUNT };
    static const char *keys[FIELD_COUNT] = {
       "$fill", "$trampoline_offset", "$trampoline_size",
       "$vector_bridge_offset", "$vector_bridge_size",
-      "$vectors_offset", "$vectors_size"
+      "$vectors_offset", "$vectors_size", "$signature"
    };
    bool seen[FIELD_COUNT] = { false };
    unsigned int value[FIELD_COUNT] = { 0 };
+   uint8_t signature[4] = { 0, 0, 0, 0 };
    unsigned int mask = 0;
    char symbol[4096];
    char *source_suffix;
@@ -592,7 +627,7 @@ void compile_cartridge_decl_stmt(ASTNode *node) {
    for (int i = 0; flags && !is_empty(flags) && i < flags->count; i++) {
       const char *text = flags->children[i]->strval;
       bool matched = false;
-      for (int f = 0; f < FIELD_COUNT; f++) {
+      for (int f = 0; f < SIGNATURE; f++) {
          unsigned long max = f == FILL ? 0xffu : 0xffffu;
          if (topology_parse_numeric_flag(node, text, keys[f], max,
                                          &seen[f], &value[f])) {
@@ -600,6 +635,9 @@ void compile_cartridge_decl_stmt(ASTNode *node) {
             break;
          }
       }
+      if (!matched && topology_parse_signature_flag(node, text, keys[SIGNATURE],
+                                                    &seen[SIGNATURE], signature))
+         matched = true;
       if (!matched)
          error_user("[%s:%d.%d] cartridge declaration has unknown flag '%s'",
                     node->file, node->line, node->column, text ? text : "?");
@@ -616,10 +654,10 @@ void compile_cartridge_decl_stmt(ASTNode *node) {
       if (seen[f]) mask |= 1u << f;
    source_suffix = topology_source_suffix(node);
    snprintf(symbol, sizeof(symbol),
-            CARTRIDGE_TOPOLOGY_META_PREFIX "P%02X$F%02X$T%04X$Z%04X$B%04X$Y%04X$V%04X$W%04X%s",
+            CARTRIDGE_TOPOLOGY_META_PREFIX "P%02X$F%02X$T%04X$Z%04X$B%04X$Y%04X$V%04X$W%04X$G%02X%02X%02X%02X%s",
             mask, value[FILL], value[TRAMP_O], value[TRAMP_Z],
             value[BRIDGE_O], value[BRIDGE_Z], value[VECTORS_O], value[VECTORS_Z],
-            source_suffix);
+            signature[0], signature[1], signature[2], signature[3], source_suffix);
    free(source_suffix);
    emit_topology_metadata_symbol(symbol);
 }

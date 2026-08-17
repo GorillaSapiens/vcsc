@@ -6,7 +6,7 @@ include "vcs.c26"
 // Names are labels only; addresses and selector properties define behavior.
 
 cartridge {
-   $fill:0xff
+   $fill:0xff $signature:F8
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012
    $vectors_offset:0x0ffa $vectors_size:0x0006

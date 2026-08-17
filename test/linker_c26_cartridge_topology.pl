@@ -84,7 +84,7 @@ SEGMENTS {
 CFG
 
 my $direct_topology = <<'TOPO';
-cartridge { $fill:0xaa };
+cartridge { $fill:0xaa $signature:TST };
 bank bank1 {
    $image_size:0x1000 $file_index:0 $image_offset:0
    $link_start:0x3000 $cpu_start:0x3000 $map_size:0x1000
@@ -98,7 +98,7 @@ TOPO
 my $direct_src = File::Spec->catfile($tmp, 'direct.c26');
 my $direct_bin = File::Spec->catfile($tmp, 'direct.bin');
 my $direct_map = File::Spec->catfile($tmp, 'direct.map');
-write_file($direct_src, qq{include "machine_6502.c26"\nmem rom { \$start:0xf000 \$size:0x0ffa \$ro \$priority:1 };\nmem bank1 { \$start:0x3000 \$size:0x1000 \$ro };\n$direct_topology\nbank1 const uint8_t marker[4] := {0x11,0x22,0x33,0x44};\nbank1 uint8_t helper(void) { return marker[2]; }\nvoid main(void) { uint8_t x := helper(); while (x) { x := 0; } }\n});
+write_file($direct_src, qq{include "machine_6502.c26"\nmem rom { \$start:0xf000 \$size:0x0ff8 \$ro \$priority:1 };\nmem bank1 { \$start:0x3000 \$size:0x1000 \$ro };\n$direct_topology\nbank1 const uint8_t marker[4] := {0x11,0x22,0x33,0x44};\nbank1 uint8_t helper(void) { return marker[2]; }\nvoid main(void) { uint8_t x := helper(); while (x) { x := 0; } }\n});
 require_ok('direct topology link', $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $direct_cfg,
            '-Map', $direct_map, '--no-sym', '--no-list', '--no-cfg',
            '-o', $direct_bin, $direct_src);
@@ -109,6 +109,10 @@ substr($direct_image, 0, 4) eq "\x11\x22\x33\x44"
    or die "explicit file index did not emit bank1 first\n";
 substr($direct_image, 0x0ff0, 16) eq ("\xaa" x 16)
    or die "direct bank fill did not cover unused physical bytes\n";
+substr($direct_image, 0x1ff8, 4) eq "TST\0"
+   or die "signature was not NUL-padded into the final physical bank\n";
+substr($direct_image, 0x0ff8, 4) eq ("\xaa" x 4)
+   or die "signature was emitted in a non-final physical bank\n";
 index(substr($direct_image, 0x1000, 0x1000), "\x78\xd8\xa2\xff") >= 0
    or die "startup/runtime bytes were not emitted in the second bank\n";
 my $direct_text = slurp($direct_map);

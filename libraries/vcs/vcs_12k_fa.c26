@@ -13,7 +13,7 @@ include "fa_ram_plus.c26"
 // runtime $F200 and each physical bank has 3584 bytes of mapped ROM.
 
 cartridge {
-   $fill:0xff
+   $fill:0xff $signature:FA
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012
    $vectors_offset:0x0ffa $vectors_size:0x0006

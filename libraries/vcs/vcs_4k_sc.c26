@@ -8,8 +8,11 @@ include "superchip.c26"
 // $F080-$F0FF read port hide the first $100 physical bytes of the cartridge;
 // ordinary ROM begins at $F100. There is no bankswitch selector.
 
-mem rom { $start:0xf100 $size:0x0efa $ro $priority:1 };
-cartridge { $fill:0xff $vectors_offset:0x0ffa $vectors_size:0x0006 };
+mem rom { $start:0xf100 $size:0x0ef8 $ro $priority:1 };
+cartridge {
+   $fill:0xff $signature:4KSC
+   $vectors_offset:0x0ffa $vectors_size:0x0006
+};
 bank bank0 {
    $image_size:0x1000 $file_index:0 $image_offset:0x0100
    $link_start:0xf100 $cpu_start:0xf100 $map_size:0x0f00

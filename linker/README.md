@@ -209,8 +209,13 @@ A bank without `$select_access` is directly mapped. All direct CPU mappings must
 be nonoverlapping, no startup bank is permitted, and cross-chunk calls, jumps,
 and data references remain ordinary absolute operations. Flat output is emitted
 in `$file_index` order with each physical chunk padded to `$image_size` using the
-cartridge fill byte. No selector, vector bridge, or trampoline is generated merely
-because multiple direct banks exist.
+cartridge fill byte. An optional C26 `$signature:TEXT` is 1-4 ASCII alphanumeric
+bytes; it is NUL-padded to four bytes and emitted at `$0FF8-$0FFB` only in the
+final physical 4K bank. This is raw image metadata, so hotspot addresses are safe
+locations: autodetection reads the file before mapper hardware exists, while on
+hardware the access address, not the stored byte value, causes selection. No
+selector, vector bridge, or trampoline is generated merely because multiple
+direct banks exist.
 
 A bank with `$select_access` is selector-controlled. All banks in the current
 selector model must have the same full-window shape, selectors must be unique

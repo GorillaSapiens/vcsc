@@ -87,13 +87,17 @@ $m =~ /hotspot=\$1FF9 destination=bank2 hotspot=\$1FF8/m &&
 $m =~ /hotspot=\$1FFA destination=bank1 hotspot=\$1FF9/m
    or die "FA diagnostic did not generate the expected three-selector call chain\n$m";
 
-# Every physical bank must carry the same reset bridge and vectors.
+# Every physical bank carries the same reset bridge and the real RESET/IRQ
+# vectors.  The final bank deliberately replaces the unused NMI-vector bytes
+# with the NUL-padded mapper signature at $xFF8-$xFFB.
 for my $chunk (1..2) {
    substr($rom,$chunk*4096+0xFE0,0x12) eq substr($rom,0xFE0,0x12)
       or die "FA vector bridge differs in physical bank $chunk\n";
-   substr($rom,$chunk*4096+0xFFA,6) eq substr($rom,0xFFA,6)
-      or die "FA vectors differ in physical bank $chunk\n";
+   substr($rom,$chunk*4096+0xFFC,4) eq substr($rom,0xFFC,4)
+      or die "FA RESET/IRQ vectors differ in physical bank $chunk\n";
 }
+substr($rom,2*4096+0xFF8,4) eq "FA\0\0"
+   or die "FA final-bank signature is missing\n";
 
 my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure trace ram_count fa_bss fa_data);
 for my $start (0..2) {

@@ -395,12 +395,14 @@ File-scope `cartridge` and `bank` declarations emit reserved absolute `.o26`
 exports. They describe output packaging and physical mapping; they do not create
 source-visible objects, storage, or executable instructions.
 
-The output-wide record begins with `__cartmeta$V1$` and canonically records the
-presence mask, fill byte, and optional offset/size pairs for the trampoline,
-vector bridge, and vectors. Each bank record begins with `__bankmeta$V1$` and
-records the bank name, physical image size, physical file index, mapped image
-offset, synthetic link start, CPU-visible start, mapped size, optional selector
-access address, and startup bit. Numeric values are normalized to fixed-width
+The current output-wide record begins with `__cartmeta$V2$` and canonically
+records the presence mask, fill byte, optional offset/size pairs for the
+trampoline, vector bridge, and vectors, plus the four raw cartridge-signature
+bytes. The linker continues to accept legacy `__cartmeta$V1$` records, which
+carry no signature. Each bank record begins with `__bankmeta$V1$` and records
+the bank name, physical image size, physical file index, mapped image offset,
+synthetic link start, CPU-visible start, mapped size, optional selector access
+address, and startup bit. Numeric values are normalized to fixed-width
 hexadecimal fields, so byte-identical declarations from separate translation
 units produce identical exports.
 

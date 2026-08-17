@@ -1038,7 +1038,7 @@ both ports independently, clockwise/counterclockwise wrap, ambiguous and
 direction-preserving skipped states, per-frame accumulation/reset, button
 press/release, opposite-port SWCHA/SWACNT isolation, public hex arithmetic/color,
 and invariant frame length. Installed-tree checks ship the component and build
-the public example. Main-roadmap Items 39 (FA/RAM Plus) and 41 (low-hanging-fruit mapper survey) are complete. Bankswitching Item 31 adds direct 4KSC with full Superchip RAM and a PASS/FAIL diagnostic; focused mapper work next is Item 32 CV/CommaVid, while the main-roadmap default is Item 42.
+the public example. Main-roadmap Items 39 (FA/RAM Plus) and 41 (low-hanging-fruit mapper survey) are complete. Bankswitching Item 31 adds direct 4KSC with full Superchip RAM and a PASS/FAIL diagnostic; focused mapper work next is Item 32 CV/CommaVid, while the main-roadmap default is Item 42. Every public bankswitching profile now stamps a four-byte mapper signature at physical $xFF8-$xFFB in only the final file bank: `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, or `FA\0\0`. The optional C26 `$signature:` cartridge flag is carried in `__cartmeta$V2$`; the linker still accepts legacy V1 cartridge records without a signature. Stella 7.0 autodetects the 4KSC diagnostic from the resulting `SC` bytes at $xFFA-$xFFB. The compile suite passes 499/499 and the 25 focused bank/profile/example/disassembler E2E gates pass.
 
 Roadmap item 40 (two-player joystick tank duel) is complete as the public
 `examples/01_basic/13_tanks/` example. It uses the Paddleball blue/red/black/white

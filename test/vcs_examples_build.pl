@@ -139,10 +139,21 @@ for my $entry (@examples) {
       : $profile eq '2k' ? 2048 : ($profile eq 'f8' || $profile eq 'f8sc') ? 8192 : $profile eq 'fa' ? 12288 : 4096;
    length($rom)==$expected_size
       or die "$dir produced ".length($rom)." bytes, expected $expected_size\n";
+   my %known_signature=map { $_=>1 } (
+      "4KSC", "F8\0\0", "F8SC", "F6\0\0", "F6SC",
+      "F4\0\0", "F4SC", "FA\0\0",
+   );
+   my $tail_signature=substr($rom,$expected_size-8,4);
    my $vector_offset = $expected_size - 6;
    my($nmi,$reset,$irq)=unpack('v3',substr($rom,$vector_offset,6));
-   for my $v ($nmi,$reset,$irq) {
-      $v>=0xf000 && $v<=0xffff or die sprintf("%s vector %04X is outside ROM\n",$dir,$v);
+   if ($known_signature{$tail_signature}) {
+      for my $v ($reset,$irq) {
+         $v>=0xf000 && $v<=0xffff or die sprintf("%s vector %04X is outside ROM\n",$dir,$v);
+      }
+   } else {
+      for my $v ($nmi,$reset,$irq) {
+         $v>=0xf000 && $v<=0xffff or die sprintf("%s vector %04X is outside ROM\n",$dir,$v);
+      }
    }
 }
 

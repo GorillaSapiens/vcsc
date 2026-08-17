@@ -175,3 +175,13 @@ coverage. The diagnostic allocates all 128 Superchip bytes and displays
 Validation: 499/499 compile tests; all 81 editable examples build and
 round-trip across eight shards; 4KSC, FA, topology/profile, allowlist,
 branding, hygiene, staged-install, and static Linux package gates pass.
+
+2026-08-16 23:57:03 PDT, standardize bankswitch mapper signatures
+Added optional four-byte cartridge signatures and standardized all public
+bankswitching profiles on final-file-bank $xFF8-$xFFB signatures, with ASCII
+NUL padding for names shorter than four bytes. 4KSC now emits `4KSC`, which
+makes Stella 7.0 autodetect the cartridge instead of treating it as plain 4K.
+Cartridge metadata advances to V2 while the linker retains V1 compatibility.
+Updated vector-sensitive regressions for the final-bank NMI/signature overlap;
+499 compile tests and 25 focused E2E bank/profile/example/disassembler gates
+pass.
