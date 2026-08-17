@@ -78,7 +78,7 @@ profiles.
 For an unbanked image, `type=ro` MEMORY ranges reject guest writes.  For a
 banked image, the simulator additionally:
 
-- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, or `JANE` (plus the SC variants);
+- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, `JANE`, or `0840` (plus the SC variants);
 - loads each complete 4K `.bin` chunk into the logical range named by its BANKS
   entry;
 - maps every CPU cartridge-window fetch through the currently selected physical
@@ -245,3 +245,13 @@ mapper still provides the real cartridge mirroring: writes to the physical
 regardless of the selected ROM bank. The canonical BANK0 dump aliases remain
 `$F000-$F07F` and `$F080-$F0FF`. The FA cfg uses the same generic split-memory
 model for its 256-byte `cartram`: writes `$F000-$F0FF`, reads `$F100-$F1FF`.
+
+### 0840 / EconoBanking
+
+`mapper=0840` models the two 4K physical banks selected by below-cartridge bus
+accesses. The selector decoder uses the hardware-relevant `$1840` mask, so the
+`$0800` family selects file bank 0 and the `$0840` family selects file bank 1.
+Reads select after sampling the underlying console byte; writes both select the
+bank and continue to the ordinary low-memory model. The bundled MOS6502 core
+models the operand bus read performed by undocumented absolute NOP `$0C`, which
+lets linker-generated state-preserving 0840 bridges execute faithfully.

@@ -92,3 +92,9 @@ diagnostic command, and `vcs_jane.pl` guards the launch/documentation contract.
 Declaration-use object warnings now display the source-declared type spelling
 instead of internal ABI fingerprint prose; canonical fingerprints are unchanged.
 JANE now explicitly uses status_result_color, removing its recommendation warning.
+2026-08-17 14:25:17 PDT, complete 0840/EconoBanking mapper
+Added the 8K 0840 profile/cfg and public diagnostic; generalized physical-bus
+selector metadata below $1000, generated read-only selector accesses, simulator
+NMOS absolute-NOP bus reads, 0840 read/write switching, disassembler support,
+Stella-visible PASS certification, install/docs/tests, and advanced the focused
+bankswitching roadmap to UA/UASW Item 36.

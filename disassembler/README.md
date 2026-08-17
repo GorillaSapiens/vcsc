@@ -87,7 +87,7 @@ position from runtime 6507 addresses:
 ```
 
 The disassembler currently recognizes unbanked 2K/4K, the F8/F6/F4 family
-(with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, CommaVid CV, JANE, DPC,
+(with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, CommaVid CV, JANE, 0840/EconoBanking, DPC,
 and Wickstead Design / WD. Standard DPC
 images are recognized by their distinctive 10240- or 10495-byte layout: two
 4K F8-style program banks followed by 2K of DPC data ROM, with the 10495-byte
@@ -155,6 +155,12 @@ write window. A read from `$x080-$x0FF` alone is not sufficient evidence, becaus
 a plain F8/F6/F4 cartridge may legitimately read ordinary ROM at the same bus
 addresses. `--mapper f8sc|f6sc|f4sc` remains available when static control-flow
 analysis cannot observe the initializing RAM write.
+0840/EconoBanking is an 8K two-bank layout whose selectors live below the
+cartridge window. `vcsc-disas` recognizes the VCSC `0840` tail signature or the
+legacy hotspot-access patterns used by current emulator detectors. It reports
+physical bank 0 as power-on, decodes the `$0800/$0840` selector families, and
+round-trips VCSC-generated 0840 images byte-exactly.
+
 
 Conditional branches are always emitted with the VCSC timing contract
 `.same` or `.cross`. Their operand is the exact numeric runtime target; when a
@@ -332,7 +338,7 @@ prints both MD5 values, and performs an exact size/byte comparison equivalent to
 `cmp`.
 
 The repository hardening gates go further than the standalone verifier. All
-80 editable VCSC example ROMs are round-tripped inside the eight normal
+85 editable VCSC example ROMs are round-tripped inside the eight normal
 `vcs_examples_build_*of8.test` shards. `vcsc_disassembler_hardening.pl` also
 pins deterministic source output, duplicated and padded supported images,
 filenames containing shell metacharacters, stale-output rejection, malformed
@@ -364,8 +370,8 @@ original bytes.
 
 ## Current limits
 
-Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/DPC/WD is deliberately conservative.
-3F, 3E, E0, E7, FE, UA, 0840, DPC+, CDF and coprocessor cartridges need
+Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/CV/JANE/0840/DPC/WD is deliberately conservative.
+3F, 3E, E0, E7, FE, UA, DPC+, CDF and coprocessor cartridges need
 separate mapper models rather than being mislabeled as supported families.
 Unsupported layouts that yield no executable instructions fail explicitly rather
 than producing a misleading 100%-data source file.

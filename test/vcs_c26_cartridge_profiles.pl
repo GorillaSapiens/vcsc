@@ -47,6 +47,7 @@ my @profiles=(
    ['4K',   'vcs_4k.c26',       'vcs_4k.cfg',       1, 0, 0,  4096],
    ['4KSC', 'vcs_4k_sc.c26',    undef,              1, 0, 1,  4096],
    ['F8',   'vcs_8k_f8.c26',    'vcs_8k_f8.cfg',    2, 1, 0,  8192],
+   ['0840', 'vcs_8k_0840.c26',  undef,               2, 1, 0,  8192],
    ['F6',   'vcs_16k_f6.c26',   'vcs_16k_f6.cfg',   4, 1, 0, 16384],
    ['JANE', 'vcs_16k_jane.c26', undef,               4, 1, 0, 16384],
    ['F4',   'vcs_32k_f4.c26',   'vcs_32k_f4.cfg',   8, 1, 0, 32768],
@@ -102,7 +103,7 @@ for my $p (@profiles) {
    -s $generic_bin==$output_size
       or die "$name C26 profile emitted ".(-s $generic_bin)." bytes, expected $output_size\n";
 
-   if ($name =~ /^(?:CV|4KSC|F8|F6|JANE|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
+   if ($name =~ /^(?:CV|4KSC|F8|0840|F6|JANE|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
       my $rom=read_file($generic_bin);
       my $want=$name . ("\0" x (4-length($name)));
       substr($rom,-8,4) eq $want
@@ -140,7 +141,7 @@ for my $p (@profiles) {
       or die "$name map does not report C26 topology\n";
    $map =~ /output-size=\$[0-9A-F]{8}/
       or die "$name map does not report topology output size\n";
-   my @file_order = $name eq 'JANE' ? (1,0,2,3) : reverse(0..$banks-1);
+   my @file_order = $name eq 'JANE' ? (1,0,2,3) : $name eq '0840' ? (0,1) : reverse(0..$banks-1);
    for my $logical (0..$banks-1) {
       my $file_index=$file_order[$logical];
       $map =~ /^\s+bank\Q$logical\E\s+file-index=\Q$file_index\E\b/m
@@ -169,6 +170,15 @@ for my $p (@profiles) {
          or die "CV profile does not encode the fixed 2K ROM shape\n";
       $map =~ /^\s+cartram\s+read_start=\$F000 write_start=\$F400 size=\$0400 type=rw shared=yes\b/m
          or die "CV map does not retain split-address cartridge RAM\n";
+   }
+   if ($name eq '0840') {
+      $text =~ /\$vector_bridge_offset:0x0fe0\s+\$vector_bridge_size:0x0012/ &&
+      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x0800\s+\$startup/s &&
+      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x0840/s
+         or die "0840 profile does not preserve below-window selectors/startup bank\n";
+      $map =~ /^\s+bank0\s+file-index=0\b.*select-access=\$0800.*startup=yes/m &&
+      $map =~ /^\s+bank1\s+file-index=1\b.*select-access=\$0840/m
+         or die "0840 map does not preserve selector/file order\n";
    }
    if ($name eq 'JANE') {
       $text =~ /\$vector_bridge_offset:0x0ee0\s+\$vector_bridge_size:0x0012/ &&

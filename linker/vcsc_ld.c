@@ -1246,9 +1246,8 @@ static void validate_c26_topology(linker_config_t *cfg)
       }
       selector_count += bank->has_selector ? 1u : 0u;
       startup_count += bank->startup ? 1u : 0u;
-      if (bank->has_selector &&
-          (bank->select_access < 0x1000u || bank->select_access > 0x1fffu)) {
-         fprintf(stderr, "vcsc-ld: bank '%s' selector $%04X is outside $1000-$1FFF\n",
+      if (bank->has_selector && bank->select_access > 0x1fffu) {
+         fprintf(stderr, "vcsc-ld: bank '%s' selector $%04X is outside the 6507 $0000-$1FFF bus\n",
                  bank->name, bank->select_access);
          exit(1);
       }
@@ -2166,9 +2165,9 @@ static void validate_linker_config(linker_config_t *cfg)
                  bank->name[0] ? bank->name : "<unnamed>");
          exit(1);
       }
-      if (bank->hotspot < 0x1000u || bank->hotspot > 0x1fffu) {
+      if (bank->hotspot > 0x1fffu) {
          fprintf(stderr,
-                 "vcsc-ld: BANKS entry '%s' hotspot $%04X is outside $1000-$1FFF\n",
+                 "vcsc-ld: BANKS entry '%s' hotspot $%04X is outside the 6507 $0000-$1FFF bus\n",
                  bank->name, bank->hotspot);
          exit(1);
       }
@@ -2285,7 +2284,10 @@ static void validate_linker_config(linker_config_t *cfg)
    }
 
    for (i = 0; i < cfg->bank_count; ++i) {
-      uint16_t selector_offset = (uint16_t)(cfg->banks[i].hotspot & 0x0FFFu);
+      uint16_t selector_offset;
+      if ((cfg->banks[i].hotspot & 0x1000u) == 0)
+         continue;
+      selector_offset = (uint16_t)(cfg->banks[i].hotspot & 0x0FFFu);
       if (selector_offset >= cfg->vector_bridge_offset &&
           selector_offset < (uint16_t)(cfg->vector_bridge_offset + VECTOR_BRIDGE_SIZE)) {
          fprintf(stderr,
@@ -2398,7 +2400,10 @@ static void validate_linker_config(linker_config_t *cfg)
             exit(1);
          }
          for (j = 0; j < cfg->bank_count; ++j) {
-            uint16_t logical_hotspot =
+            uint16_t logical_hotspot;
+            if ((cfg->banks[j].hotspot & 0x1000u) == 0)
+               continue;
+            logical_hotspot =
                (uint16_t)(bank->start + (cfg->banks[j].hotspot & 0x0fffu));
             if (logical_hotspot >= mem->start && logical_hotspot < mem_end) {
                fprintf(stderr,
@@ -8029,12 +8034,24 @@ static void image_write_generated(uint8_t *image, uint8_t *used, uint16_t addr,
    image_write(image, used, addr, src, len, who);
 }
 
-//! @brief Encode one common BIT-hotspot/JMP-handler vector bridge entry.
+//! @brief Opcode for a state-preserving selector access.
+static uint8_t selector_access_opcode(uint16_t hotspot, int vector_bridge)
+{
+   /* ROM-window selectors can consume a store harmlessly.  Below-window
+      selectors overlap console devices, so use the NMOS absolute NOP ($0C):
+      it performs the required read bus cycle without changing registers/flags
+      or writing through to the mirrored TIA/RIOT device. */
+   if ((hotspot & 0x1000u) == 0)
+      return 0x0Cu;
+   return vector_bridge ? 0x2Cu : 0x8Du;
+}
+
+//! @brief Encode one selector-access/JMP-handler vector bridge entry.
 static void encode_vector_bridge_entry(uint8_t *table, size_t offset,
                                        uint16_t bank0_hotspot,
                                        uint16_t handler)
 {
-   table[offset + 0u] = 0x2Cu; /* BIT absolute */
+   table[offset + 0u] = selector_access_opcode(bank0_hotspot, 1);
    table[offset + 1u] = (uint8_t)(bank0_hotspot & 0xFFu);
    table[offset + 2u] = (uint8_t)((bank0_hotspot >> 8) & 0xFFu);
    table[offset + 3u] = 0x4Cu; /* JMP absolute */
@@ -8047,7 +8064,7 @@ static void encode_bank_jump_entry(uint8_t *table, size_t offset,
                                    const bank_trampoline_entry_t *entry,
                                    uint16_t canonical_pointer)
 {
-   table[offset + 0u] = 0x8Du; /* STA destination hotspot; preserves A and flags. */
+   table[offset + 0u] = selector_access_opcode(entry->destination_hotspot, 0); /* STA in ROM window, NOP-read below it. */
    table[offset + 1u] = (uint8_t)(entry->destination_hotspot & 0xFFu);
    table[offset + 2u] = (uint8_t)((entry->destination_hotspot >> 8) & 0xFFu);
    table[offset + 3u] = 0x6Cu; /* JMP through the inline target word. */
@@ -8072,11 +8089,11 @@ static void encode_bank_jsr_entry(uint8_t *table, size_t offset,
    table[offset + 0u] = 0x20u; /* JSR absolute to the entry body. */
    table[offset + 1u] = (uint8_t)(body & 0xFFu);
    table[offset + 2u] = (uint8_t)((body >> 8) & 0xFFu);
-   table[offset + 3u] = 0x8Du; /* STA source hotspot; preserves A and flags. */
+   table[offset + 3u] = selector_access_opcode(entry->source_hotspot, 0); /* Restore source bank. */
    table[offset + 4u] = (uint8_t)(entry->source_hotspot & 0xFFu);
    table[offset + 5u] = (uint8_t)((entry->source_hotspot >> 8) & 0xFFu);
    table[offset + 6u] = 0x60u; /* RTS through the original caller return. */
-   table[offset + 7u] = 0x8Du; /* STA destination hotspot. */
+   table[offset + 7u] = selector_access_opcode(entry->destination_hotspot, 0); /* Select destination bank. */
    table[offset + 8u] = (uint8_t)(entry->destination_hotspot & 0xFFu);
    table[offset + 9u] = (uint8_t)((entry->destination_hotspot >> 8) & 0xFFu);
    table[offset + 10u] = 0x6Cu; /* JMP through the inline target word. */

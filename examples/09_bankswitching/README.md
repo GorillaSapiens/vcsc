@@ -26,7 +26,7 @@ The public VCSC cartridge profiles also stamp the final physical bank with a
 four-byte mapper signature at logical addresses `$xFF8-$xFFB` (eight bytes before that bank ends). Short mapper names are
 ASCII-NUL padded: `F8\0\0`, `F6\0\0`, `F4\0\0`, `FA\0\0`, and
 `CV\0\0`; the complete four-byte names are `4KSC`, `F8SC`, `F6SC`, `F4SC`,
-`OMNI`, and `JANE`. Only the final bank in file order contains the signature. Selector-hotspot addresses are valid storage
+`OMNI`, `JANE`, and `0840`. Only the final bank in file order contains the signature. Selector-hotspot addresses are valid storage
 for these bytes because hardware switching is caused by accessing the address,
 not by the byte stored there. The final two bytes overlap the unused 6507 NMI
 vector while leaving RESET and IRQ/BRK intact.
@@ -57,6 +57,14 @@ physical bank 1. The self-test begins correctly from every possible selected
 bank, crosses all four selectors through nested calls/returns, and displays
 `JANE` below `pass`/`FAIL`. The image also carries Stella's `LDA $FFF1; RTS`
 autodetection byte pattern as inert data.
+
+`08_0840/` is the 8K 0840/EconoBanking diagnostic. Physical bank 0 powers up;
+reads or writes in the decoded `$0800` family select bank 0 and the `$0840`
+family selects bank 1. Generated bank bridges use an NMOS absolute NOP read so
+selection does not write mirrored console devices. The diagnostic exercises
+nested calls/returns and displays `0840` below `pass`/`FAIL`; its repeated
+`NOP $0800; JMP` reset bridges also provide the standard emulator detector
+pattern.
 
 ## Banked standard renderer
 

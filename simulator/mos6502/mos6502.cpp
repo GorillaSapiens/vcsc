@@ -1341,7 +1341,7 @@ mos6502::mos6502(BusRead r, BusWrite w, ClockCycle c)
 
 // 0C   absolute        3       4
 
-   MAKE_INSTR(0x0C, NOP, ABS, 4, false);
+   MAKE_INSTR(0x0C, NOP_READ, ABS, 4, false);
 
 // 1C   absolute,X      3       4*
 // 3C   absolute,X      3       4*
@@ -2209,6 +2209,14 @@ void mos6502::Op_NOP(uint16_t src)
 {
    (void) src; // unused parameter
    return;
+}
+
+void mos6502::Op_NOP_READ(uint16_t src)
+{
+   /* Undocumented memory-addressed NOPs still perform their operand bus read
+      on NMOS 6502/6507 hardware.  Mapper personalities such as Atari 0840
+      depend on that otherwise-discarded read to fire below-window hotspots. */
+   (void) Read(src);
 }
 
 void mos6502::Op_ORA(uint16_t src)

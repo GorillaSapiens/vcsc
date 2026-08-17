@@ -508,8 +508,10 @@ two signature bytes intentionally overlap the otherwise-unused 6507 NMI vector.
 `$image_size`, `$file_index`, `$image_offset`, `$link_start`, `$cpu_start`, and
 `$map_size` are required. `$select_access` and bare `$startup` are optional. A
 bank without `$select_access` is directly mapped; a bank with it is
-selector-controlled. Direct banks do not acquire generated switching code. One
-direct bank may carry `$startup` as the linker's startup/home placement marker;
+selector-controlled. `$select_access` is a physical 6507 bus address in
+`$0000-$1FFF`; it need not lie inside the cartridge ROM window. Direct banks do
+not acquire generated switching code. One direct bank may carry `$startup` as
+the linker's startup/home placement marker;
 selector-controlled topologies require exactly one startup bank. Mixing direct
 and selector-controlled banks is rejected until a separate window model is
 defined.

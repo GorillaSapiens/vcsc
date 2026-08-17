@@ -353,7 +353,7 @@ RAM, while mapper-owned cartridge RAM must be explicitly named `cartram` by the
 programmer across Superchip, FA/RAM Plus, CV/CommaVid, and OMNI profiles. Split
 RIOT/mapper-RAM startup initialization uses per-object copy/zero records with the
 correct mapper read/write aliases. Bankswitching Items 32 OMNI, 33 CV/CommaVid, and 34 JANE
-are complete; 0840/EconoBanking Item 35 is next in that focused roadmap.
+are complete through 0840/EconoBanking Item 35; UA/UASW Item 36 is next in that focused roadmap.
 
 The consolidated standard-renderer bankswitching diagnostic is under:
 
@@ -1066,8 +1066,8 @@ both ports independently, clockwise/counterclockwise wrap, ambiguous and
 direction-preserving skipped states, per-frame accumulation/reset, button
 press/release, opposite-port SWCHA/SWACNT isolation, public hex arithmetic/color,
 and invariant frame length. Installed-tree checks ship the component and build
-the public example. Main-roadmap Items 39 (FA/RAM Plus), 41 (low-hanging-fruit mapper survey), and 42 (general automatic multi-region CODE/RODATA placement) are complete. Bankswitching Item 31 adds direct 4KSC with full Superchip RAM and a PASS/FAIL diagnostic. Focused mapper Items 32 OMNI, 33 CV/CommaVid, and 34 JANE are complete, with 0840/EconoBanking now the
-first unfinished bankswitching item at Item 35. `vcs_omni_32k.c26` defines seven direct `$ro` islands plus one explicitly selected `$rw` island at $1000 using existing DATA/BSS initialization semantics; no `$rwx` capability or automatic RAM spill is planned. `vcs_omni_32k.cfg` gives the simulator the matching selector-free eight-island logical layout, and public `09_bankswitching/05_omni` certifies all seven RO islands plus all 4096 bytes of `cartram`. Every public bankswitching profile now stamps a four-byte mapper signature at logical $xFF8-$xFFB in only the final file bank: `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, `CV\0\0`, `OMNI`, or `JANE`. The optional C26 `$signature:` cartridge flag is carried in `__cartmeta$V2$`; the linker still accepts legacy V1 cartridge records without a signature. Stella 7.0 autodetects the 4KSC diagnostic from the resulting `SC` bytes at $xFFA-$xFFB. The convention is documented for users in the top-level README, `libraries/vcs/README.md`, `examples/09_bankswitching/README.md`, and the compiler/linker references. The compile suite passes 500/500; focused OMNI/CV/JANE profile, example, simulator, disassembler, installation, and hygiene gates pass. JANE uses physical/file bank order 0/1/2/3 with selectors $1FF0/$1FF1/$1FF8/$1FF9 and hardware startup bank 1; VCSC logical `bank0` is therefore file index 1. Its replicated vector bridge lives at $FEE0-$FEF1 to avoid the $FFF0/$FFF1 selector pair, while the standard $FF00-$FFDF trampoline corridor remains available.
+the public example. Main-roadmap Items 39 (FA/RAM Plus), 41 (low-hanging-fruit mapper survey), and 42 (general automatic multi-region CODE/RODATA placement) are complete. Bankswitching Item 31 adds direct 4KSC with full Superchip RAM and a PASS/FAIL diagnostic. Focused mapper Items 32 OMNI, 33 CV/CommaVid, 34 JANE, and 35 0840/EconoBanking are complete, with UA/UASW now the
+first unfinished bankswitching item at Item 36. `vcs_omni_32k.c26` defines seven direct `$ro` islands plus one explicitly selected `$rw` island at $1000 using existing DATA/BSS initialization semantics; no `$rwx` capability or automatic RAM spill is planned. `vcs_omni_32k.cfg` gives the simulator the matching selector-free eight-island logical layout, and public `09_bankswitching/05_omni` certifies all seven RO islands plus all 4096 bytes of `cartram`. Every public bankswitching profile now stamps a four-byte mapper signature at logical $xFF8-$xFFB in only the final file bank: `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, `CV\0\0`, `OMNI`, `JANE`, or `0840`. The optional C26 `$signature:` cartridge flag is carried in `__cartmeta$V2$`; the linker still accepts legacy V1 cartridge records without a signature. Stella 7.0 autodetects the 4KSC diagnostic from the resulting `SC` bytes at $xFFA-$xFFB. The convention is documented for users in the top-level README, `libraries/vcs/README.md`, `examples/09_bankswitching/README.md`, and the compiler/linker references. The compile suite passes 500/500; focused OMNI/CV/JANE profile, example, simulator, disassembler, installation, and hygiene gates pass. JANE uses physical/file bank order 0/1/2/3 with selectors $1FF0/$1FF1/$1FF8/$1FF9 and hardware startup bank 1; VCSC logical `bank0` is therefore file index 1. Its replicated vector bridge lives at $FEE0-$FEF1 to avoid the $FFF0/$FFF1 selector pair, while the standard $FF00-$FFDF trampoline corridor remains available.
 
 Roadmap item 40 (two-player joystick tank duel) is complete as the public
 `examples/01_basic/13_tanks/` example. It uses the Paddleball blue/red/black/white
@@ -1173,7 +1173,7 @@ transitions. Its timing stress path drives tanks and missiles to X endpoints 4/1
 and Y endpoints 4/78 while injecting simultaneous hits/spin/audio activity; every
 post-startup frame must retain the 264-raw cadence. Installed-tree and example-build
 coverage include `tanks`. Main-roadmap Items 39 and 41 are complete; the mapper
-survey is concretized in bankswitching Items 31-38, with 4KSC, OMNI, CV/CommaVid, and JANE complete; 0840 Item 35 is now the next focused mapper item.
+survey is concretized in bankswitching Items 31-38, with 4KSC, OMNI, CV/CommaVid, JANE, and 0840 complete; UA/UASW Item 36 is now the next focused mapper item.
 
 
 CBS FA/RAM Plus output support is now implemented as `vcs_12k_fa.c26` plus the
@@ -1269,11 +1269,11 @@ NMI bytes at `$FFFA/$FFFB` exercise this case. The standalone
 retains .s26/rebuilt .bin files, prints MD5 values, and requires exact byte
 identity. The focused disassembler roadmap is now complete; future focused
 work is driven by real-ROM failures or newly identified mapper/analysis needs.
-Main roadmap Items 41 and 42 are complete. Bankswitching roadmap Items 31-38 queue 4KSC, OMNI, CV, JANE, 0840, UA/UASW, 0FA0, then F0/FA2/FC reconsideration; 4KSC Item 31, OMNI Item 32, CV/CommaVid Item 33, and JANE Item 34 are complete. Main-roadmap
-Item 43 is the next main-project item; 0840/EconoBanking is the next bankswitching item at Item 35. The current compile suite passes 500/500. Four vcsc-disas-focused E2E
+Main roadmap Items 41 and 42 are complete. Bankswitching roadmap Items 31-38 queue 4KSC, OMNI, CV, JANE, 0840, UA/UASW, 0FA0, then F0/FA2/FC reconsideration; 4KSC Item 31, OMNI Item 32, CV/CommaVid Item 33, JANE Item 34, and 0840 Item 35 are complete. Main-roadmap
+Item 43 is the next main-project item; UA/UASW is the next bankswitching item at Item 36. The current compile suite passes 500/500. Four vcsc-disas-focused E2E
 regressions pass, with 68 semantic fixtures and all 256 opcode bytes exact. The
 hardening fuzz corpus now uses two deterministic arbitrary images for every
-supported size/mapper family (16 accepted images total), and all 84 editable
+supported size/mapper family (16 accepted images total), and all 85 editable
 VCSC example ROMs are byte-exact disassemble/reassemble gates inside the normal
 eight example-build shards. Native staged vcsc-disas -> staged vcsc-as passes,
 and the static Linux package builds as a seven-tool bundle containing vcsc-disas;
@@ -1309,4 +1309,15 @@ structural pass recognizes long aligned runs of coherent 8x8 glyphs; Pitfall's
 decimal font at $FF00 is the regression case. Raw `.byte` grouping now stops when
 a graphics region begins so the first detected rows are not swallowed. A single
 bitmap-shaped object and call-mediated/compressed-looking data still remain numeric
-without stronger evidence. The semantic disassembler corpus is now 68/68 exact. WD support recognizes the distinctive 8195-byte Pursuit of the Pink Panther preservation dump, models eight 1K banks selected as four-segment arrangements by TIA $30-$3F reads plus 64 bytes of cartridge RAM, analyzes the historical bank-2/bank-3 correction while preserving the original file order and trailing three bytes exactly. Roadmap items 9, 10, 12, 13, and 16 are complete; Item 12 pointer-table presentation requires real low/high pointer-building data flow and never swallows interior labels, after ARMAMBSH exposed a shifted-byte false positive. Color-table presentation splits around interior labels instead of consuming them. Item 13 adds repeatable `--table` and even-length `--pointer` manual presentation hints on top of the existing mapper/origin/entry/code/data/video/controller overrides; manual data roles may overlap code without replacing executable source. Item 16 pins deterministic output, malformed/truncated failures, duplicated/padded preservation, all-supported-layout fuzzing, all 84 editable examples, install/package integration, and an independent stego smoke baseline. No focused disassembler roadmap item remains unfinished.
+without stronger evidence. The semantic disassembler corpus is now 68/68 exact. WD support recognizes the distinctive 8195-byte Pursuit of the Pink Panther preservation dump, models eight 1K banks selected as four-segment arrangements by TIA $30-$3F reads plus 64 bytes of cartridge RAM, analyzes the historical bank-2/bank-3 correction while preserving the original file order and trailing three bytes exactly. Roadmap items 9, 10, 12, 13, and 16 are complete; Item 12 pointer-table presentation requires real low/high pointer-building data flow and never swallows interior labels, after ARMAMBSH exposed a shifted-byte false positive. Color-table presentation splits around interior labels instead of consuming them. Item 13 adds repeatable `--table` and even-length `--pointer` manual presentation hints on top of the existing mapper/origin/entry/code/data/video/controller overrides; manual data roles may overlap code without replacing executable source. Item 16 pins deterministic output, malformed/truncated failures, duplicated/padded preservation, all-supported-layout fuzzing, all 85 editable examples, install/package integration, and an independent stego smoke baseline. No focused disassembler roadmap item remains unfinished.
+
+0840/EconoBanking uses physical file bank 0 as startup, with below-cartridge
+selector families canonically represented by $0800/$0840. C26 selector metadata
+now accepts the full 6507 physical $0000-$1FFF bus; below-window selectors do not
+reserve cartridge ROM bytes. Generated selector bridges/trampolines use NMOS
+absolute NOP-read opcode $0C for those addresses so registers/flags are preserved
+without writing mirrored console devices. The simulator models that undocumented
+NOP operand read and preserves underlying low-memory read/write behavior; public
+`09_bankswitching/08_0840` and `vcs_0840.pl` certify read/write switching, reset
+recovery, disassembly, and byte-exact round trip. Bankswitching Item 36 UA/UASW is
+next and should reuse this below-window selector machinery.

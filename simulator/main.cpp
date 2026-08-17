@@ -380,7 +380,8 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
                               str_ieq(cfg->mapper, "F4SC");
       if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") ||
             str_ieq(cfg->mapper, "F4") || str_ieq(cfg->mapper, "FA") ||
-            str_ieq(cfg->mapper, "OMNI") || str_ieq(cfg->mapper, "JANE") || cfg->superchip_mapper)) {
+            str_ieq(cfg->mapper, "OMNI") || str_ieq(cfg->mapper, "JANE") ||
+            str_ieq(cfg->mapper, "0840") || cfg->superchip_mapper)) {
          fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
          exit(1);
       }
@@ -862,6 +863,25 @@ static int bank_index_for_hotspot(uint16_t addr, size_t *bank_index) {
    uint16_t canonical = (uint16_t)(addr & 0x1FFFu);
    if (!g_cfg_loaded || !g_cfg.cartridge_banked)
       return 0;
+
+   /* 0840/EconoBanking decodes A11 and A6 below the cartridge window; the
+      remaining low address bits are aliases.  Keep the cfg's exact $0800/$0840
+      selector declarations as the canonical bank identities. */
+   if (str_ieq(g_cfg.mapper, "0840")) {
+      uint16_t decoded = (uint16_t)(canonical & 0x1840u);
+      uint16_t wanted = decoded == 0x0800u ? 0x0800u :
+                        decoded == 0x0840u ? 0x0840u : 0xffffu;
+      if (wanted != 0xffffu) {
+         for (size_t i = 0; i < g_cfg.bank_count; ++i) {
+            if ((g_cfg.banks[i].hotspot & 0x1fffu) == wanted) {
+               *bank_index = i;
+               return 1;
+            }
+         }
+      }
+      return 0;
+   }
+
    for (size_t i = 0; i < g_cfg.bank_count; ++i) {
       if ((g_cfg.banks[i].hotspot & 0x1FFFu) == canonical) {
          *bank_index = i;
@@ -941,7 +961,11 @@ void write_cb(uint16_t addr, uint8_t val) {
 
    if (bank_index_for_hotspot(addr, &selected)) {
       g_selected_bank = selected;
-      return;
+      /* ROM-window hotspot writes target the cartridge and stop here.  A
+         below-window 0840-style selector overlays a console device, so the
+         underlying write must still reach the ordinary memory/TIA model. */
+      if ((addr & 0x1fffu) >= 0x1000u)
+         return;
    }
    if (split_memory_offset(addr, 1, &region_index, &offset)) {
       mirror_split_byte(region_index, offset, val);

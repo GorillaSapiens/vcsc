@@ -2200,11 +2200,38 @@ explicit by design.
          Profile, install, example, assembly-review, documentation, and hygiene
          integration are covered by focused regressions.
 
-[ ] 35. Add 0840 / EconoBanking.
+[x] 35. Add 0840 / EconoBanking.
 
        * Model two 4K banks selected by accesses to $0800 and $0840. Generalize
          selector triggers so reads or writes outside the cartridge $1000-$1FFF
          window can select a bank without pretending those addresses are ROM.
+
+       Completed 2026-08-17:
+
+       * Added `vcs_8k_0840.c26` and simulator-only `vcs_8k_0840.cfg`. Physical
+         file bank 0 powers up and is selected by the decoded $0800 family; file
+         bank 1 is selected by the decoded $0840 family. The public profile uses
+         exact canonical selectors $0800/$0840 and stamps `0840` only in the
+         final physical bank.
+       * Generalized C26 selector validation to permit the complete 6507 physical
+         $0000-$1FFF bus. Below-cartridge selectors do not reserve fake ROM bytes
+         in the $F000 window. Generated 0840 vector bridges and cross-bank return
+         stubs use the state-preserving NMOS absolute NOP read instead of `STA`,
+         avoiding writes through mirrored console devices.
+       * Taught the bundled MOS6502 simulator core that undocumented absolute NOP
+         opcode $0C performs its operand bus read. `vcsc-sim` now decodes the
+         masked $0800/$0840 selector families on reads and writes, preserves the
+         underlying console-memory operation, and recovers through the replicated
+         reset bridge from either initially selected physical bank.
+       * Added public `09_bankswitching/08_0840`, which exercises nested generated
+         bank calls/returns and displays `0840` below `pass`/`FAIL`. Its repeated
+         `NOP $0800; JMP` reset bridges also satisfy the established Stella 0840
+         detector pattern; the example `play` target forces `-bs 0840`.
+       * Added `vcsc-disas` 0840 inference from either the VCSC tail signature or
+         established hotspot-access signatures, below-window selector reporting,
+         startup-bank semantics, and byte-exact public-diagnostic round trip.
+       * Added focused profile, simulator read/write selector, install, assembly-
+         review, documentation, and source-hygiene coverage.
 
 [ ] 36. Add UA / UASW.
 

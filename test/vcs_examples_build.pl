@@ -54,6 +54,7 @@ sub profile_from_source {
    return 'cv' if $text =~ /^\s*include\s+"vcs_2k_cv\.c26"\s*$/m;
    return '4ksc' if $text =~ /^\s*include\s+"vcs_4k_sc\.c26"\s*$/m;
    return 'f8' if $text =~ /^\s*include\s+"vcs_8k_f8\.c26"\s*$/m;
+   return '0840' if $text =~ /^\s*include\s+"vcs_8k_0840\.c26"\s*$/m;
    return 'f8sc' if $text =~ /^\s*include\s+"vcs_8k_f8sc\.c26"\s*$/m;
    return 'fa' if $text =~ /^\s*include\s+"vcs_12k_fa\.c26"\s*$/m;
    return 'omni' if $text =~ /^\s*include\s+"vcs_omni_32k\.c26"\s*$/m;
@@ -99,7 +100,7 @@ for my $entry (@examples) {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
    } elsif ($profile eq 'f8') {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs_8k_f8.cfg');
-   } elsif ($profile eq 'cv' || $profile eq '4ksc' || $profile eq 'f8sc' || $profile eq 'fa' || $profile eq 'omni' || $profile eq 'jane') {
+   } elsif ($profile eq 'cv' || $profile eq '4ksc' || $profile eq 'f8sc' || $profile eq 'fa' || $profile eq 'omni' || $profile eq 'jane' || $profile eq '0840') {
       # C26 owns the 4KSC/F8SC/FA cartridge and cartridge-RAM topology; the generic cfg
       # only reserves the RIOT hardware stack, matching the public Makefiles.
       push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
@@ -139,12 +140,12 @@ for my $entry (@examples) {
    my $rom=read_file($bin);
    my $expected_size = ($file eq 'bankswitching_diagnostic.c26' ||
                         $file eq 'banked_standard_renderer.c26') ? 8192
-      : ($profile eq '2k' || $profile eq 'cv') ? 2048 : ($profile eq 'f8' || $profile eq 'f8sc') ? 8192 : $profile eq 'fa' ? 12288 : $profile eq 'jane' ? 16384 : $profile eq 'omni' ? 32768 : 4096;
+      : ($profile eq '2k' || $profile eq 'cv') ? 2048 : ($profile eq 'f8' || $profile eq 'f8sc' || $profile eq '0840') ? 8192 : $profile eq 'fa' ? 12288 : $profile eq 'jane' ? 16384 : $profile eq 'omni' ? 32768 : 4096;
    length($rom)==$expected_size
       or die "$dir produced ".length($rom)." bytes, expected $expected_size\n";
    my %known_signature=map { $_=>1 } (
       "4KSC", "F8\0\0", "F8SC", "F6\0\0", "F6SC",
-      "F4\0\0", "F4SC", "FA\0\0", "CV\0\0", "OMNI", "JANE",
+      "F4\0\0", "F4SC", "FA\0\0", "CV\0\0", "OMNI", "JANE", "0840",
    );
    my $tail_signature=substr($rom,$expected_size-8,4);
    my $vector_offset = $expected_size - 6;

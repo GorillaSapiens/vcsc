@@ -125,6 +125,7 @@ class mos6502
       void Op_LDY(uint16_t src);
       void Op_LSR(uint16_t src);    void Op_LSR_ACC(uint16_t src);
       void Op_NOP(uint16_t src);
+      void Op_NOP_READ(uint16_t src);
       void Op_ORA(uint16_t src);
 
       void Op_PHA(uint16_t src);

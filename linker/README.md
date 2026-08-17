@@ -358,17 +358,21 @@ configuration names rather than semantic `BANK0`/`BANK1` tokens; the public
 profiles retain those conventional labels and place their startup bank in the
 final file chunk.
 
-Every selector hotspot is reserved at the same low twelve-bit offset in every
-bank. An ordinary `ro` or `data` segment region covering any selector is
+Selector hotspots inside the cartridge `$1000-$1FFF` window are reserved at the same low twelve-bit offset in every
+bank. An ordinary `ro` or `data` segment region covering such a selector is
 rejected before placement, so code or ordinary ROM data cannot land on an
-address whose access changes the selected bank. The configured `trampoline`
+address whose access changes the selected bank. Selectors below `$1000`, such as
+0840/EconoBanking `$0800/$0840`, are physical bus triggers rather than cartridge
+ROM addresses and therefore reserve no corresponding `$Fxxx` bytes. The configured `trampoline`
 corridor and `vectorbridge` corridor are reserved the same way. The trampoline
 corridor must fit wholly below the final six vector bytes, and neither generated
 corridor may overlap the other or a selector hotspot.
 
 The current vector bridge is eighteen bytes: byte-identical NMI, RESET, and
-IRQ/BRK entries are copied at that physical offset in every bank. Each entry is
-`BIT BANK0_HOTSPOT; JMP handler`. The final six bytes of every bank contain the
+IRQ/BRK entries are copied at that physical offset in every bank. For ordinary
+cartridge-window selectors each entry is `BIT BANK0_HOTSPOT; JMP handler`. For
+below-window selectors the access is undocumented NMOS `NOP absolute` (`$0C`)
+instead, preserving registers/flags without writing the mirrored console device. The final six bytes of every bank contain the
 same vector words, using BANK0's logical mirror of those three entries, before
 optional cartridge metadata is applied. This makes RESET and IRQ/BRK
 deterministic from every initially selected bank. When a cartridge signature is
@@ -413,7 +417,7 @@ inline_target:
     .word final_target
 ```
 
-`STA` is intentional: F8/F6/F4 react to the hotspot access, while the store
+`STA` is intentional for cartridge-window selectors: F8/F6/F4 react to the hotspot access, while the store
 preserves A and all processor flags just as the original direct `JMP` would.
 The indirect pointer uses BANK0's logical mirror of the inline target word. The
 upper mirror bits are absent from the cartridge bus, so after the bank switch it
@@ -421,6 +425,11 @@ still reads the same low-twelve-bit bytes from the selected physical bank. Every
 bank contains identical entry bytes, which is required because instruction
 fetch continues in the newly selected bank immediately after the hotspot
 access.
+
+Below-window selector trampolines (currently 0840/EconoBanking) substitute NMOS
+absolute NOP-read opcode `$0C` for those selector stores. The undocumented NOP
+performs the required bus read while preserving A/X/Y and processor flags, so a
+mapper transition does not also write a mirrored TIA/RIOT register.
 
 Entries are deduplicated by final target address and destination hotspot. Each
 call site receives its source bank's logical mirror of the common entry offset.
