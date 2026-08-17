@@ -1,7 +1,8 @@
 LEX = flex
 YACC = bison -Werror=conflicts-sr,conflicts-rr
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror -pedantic -MMD -MP
+CFLAGS = -Wall -Wextra -Werror -pedantic
+DEPFLAGS = -MMD -MP
 
 # for debugging
 CFLAGS += -g
@@ -62,7 +63,7 @@ $(TARGET): version.h $(GENHDR) $(GENSRC) $(OBJ)
 vcsc_as.o: version.h
 
 %.o: %.c
-	$(CC) -c $(CFLAGS) $< -o $@
+	$(CC) -c $(CFLAGS) $(DEPFLAGS) $< -o $@
 
 parser.tab.c parser.tab.h: parser.y
 	$(YACC) -v -d -W --report=all parser.y

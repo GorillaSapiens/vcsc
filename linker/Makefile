@@ -1,5 +1,6 @@
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -O2
+DEPFLAGS = -MMD -MP
 LDFLAGS ?=
 EXEEXT ?=
 TARGET = vcsc-ld$(EXEEXT)
@@ -27,7 +28,7 @@ $(TARGET): version.h $(OBJS)
 vcsc_ld.o: version.h
 
 %.o: %.c
-	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 docs:
 	$(MAKE) --no-print-directory -C .. docs

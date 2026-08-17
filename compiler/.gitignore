@@ -1,6 +1,6 @@
-vcsc-cc1
 *.o
 *.d
+vcsc-cc1
 delexer.h
 parser.tab.c
 parser.tab.h

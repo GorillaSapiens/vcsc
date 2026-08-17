@@ -1,3 +1,5 @@
+*.o
+*.d
 vcsc-disas
 version.h
 opcode_table.inc

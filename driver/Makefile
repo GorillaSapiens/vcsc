@@ -1,8 +1,13 @@
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -Werror -pedantic -O2
+DEPFLAGS = -MMD -MP
 LDFLAGS ?=
 EXEEXT ?=
 TARGET = vcsc$(EXEEXT)
+
+SRC = vcsc.c inline_profit.c
+OBJ = $(SRC:.c=.o)
+DEP = $(OBJ:.o=.d)
 
 BINDIR ?= /opt/vcsc/bin
 DESTDIR ?=
@@ -18,8 +23,13 @@ version: version.h
 version.h: FORCE
 	perl ../gen_version_h.pl $@
 
-$(TARGET): vcsc.c inline_profit.c inline_profit.h version.h
-	$(CC) $(CFLAGS) $(LDFLAGS) vcsc.c inline_profit.c -o $(TARGET)
+$(TARGET): version.h $(OBJ)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(OBJ) -o $(TARGET)
+
+vcsc.o: version.h
+
+%.o: %.c
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 docs:
 	$(MAKE) --no-print-directory -C .. docs
@@ -32,6 +42,8 @@ uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(TARGET)
 
 clean:
-	rm -f vcsc vcsc.exe version.h
+	rm -f vcsc vcsc.exe $(OBJ) $(DEP) version.h
+
+-include $(DEP)
 
 .PHONY: docs

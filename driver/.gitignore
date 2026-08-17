@@ -1,2 +1,4 @@
+*.o
+*.d
 vcsc
 version.h

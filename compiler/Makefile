@@ -1,7 +1,8 @@
 LEX = flex
 YACC = bison -Werror=conflicts-sr,conflicts-rr
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror -pedantic -MMD -MP
+CFLAGS = -Wall -Wextra -Werror -pedantic
+DEPFLAGS = -MMD -MP
 LDFLAGS ?=
 EXEEXT ?=
 
@@ -98,7 +99,7 @@ $(TARGET): version.h $(GENHDR) $(GENSRC) $(OBJ)
 vcsc_cc1.o: version.h
 
 %.o: %.c
-	$(CC) -c $(CFLAGS) $< -o $@
+	$(CC) -c $(CFLAGS) $(DEPFLAGS) $< -o $@
 
 parser.tab.c parser.tab.h: parser.y
 	./check_parser.pl parser.y

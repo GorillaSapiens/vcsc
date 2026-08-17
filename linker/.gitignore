@@ -1,4 +1,4 @@
-vcsc-ld
 *.o
 *.d
+vcsc-ld
 version.h

@@ -150,6 +150,25 @@ index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `bankswitching.tx
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `roadmap.txt`')>=0 &&
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `context-history/`')>=0
    or die ".../README.md does not document the compact-context split\n";
+
+# Every installed/user-facing host tool must use compiler-generated dependency
+# files.  Keep dependency generation independent of caller-supplied CFLAGS,
+# include the generated .d files, and ignore both object and dependency files.
+for my $tool (qw(driver compiler assembler linker archiver simulator disassembler)) {
+   my $make=slurp(File::Spec->catfile($repo,$tool,'Makefile'));
+   $make =~ /^DEPFLAGS\s*=\s*-MMD\s+-MP\s*$/m
+      or die "$tool/Makefile does not define standard .d dependency flags\n";
+   index($make,'$(DEPFLAGS)')>=0 &&
+   $make =~ /^-include\s+\$\(DEP(?:S)?\)\s*$/m &&
+   $make =~ /\.o=\.d/
+      or die "$tool/Makefile does not create and include .d dependency files\n";
+   my $ignore=slurp(File::Spec->catfile($repo,$tool,'.gitignore'));
+   $ignore =~ /^\*\.o\s*$/m && $ignore =~ /^\*\.d\s*$/m
+      or die "$tool/.gitignore must ignore *.o and *.d\n";
+}
+my $sim_core_ignore=slurp(File::Spec->catfile($repo,'simulator','mos6502','.gitignore'));
+$sim_core_ignore =~ /^\*\.o\s*$/m && $sim_core_ignore =~ /^\*\.d\s*$/m
+   or die "simulator/mos6502/.gitignore must ignore *.o and *.d\n";
 my $bankswitching=slurp(File::Spec->catfile($repo,'...','bankswitching.txt'));
 index($bankswitching,'BANK0                $F000-$FFFF')>=0
    or die "bankswitching plan lost descending BANK0 logical origin\n";

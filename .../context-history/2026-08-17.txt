@@ -4,3 +4,8 @@ Public READMEs now describe the final-bank xFF8-xFFB mapper signature,
 NUL padding, hotspot safety, and the 6507 NMI-vector overlap.
 2026-08-17 07:17:28 PDT, add OMNI direct profile
 Added vcs_omni_32k.c26 with seven direct RO islands and one $1000 RW island, retained ordinary DATA/BSS startup initialization, added focused/profile/install/hygiene tests, and removed the planned $rwx roadmap work.
+2026-08-17 07:32:28 PDT, host-tool dependency files standardized
+All seven installed host-tool Makefiles now compile through object files,
+generate -MMD -MP .d dependencies independently of CFLAGS/CXXFLAGS,
+include and clean those dependencies, and ignore *.o/*.d build products.
+Source-tree hygiene now locks the convention.

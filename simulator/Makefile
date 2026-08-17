@@ -1,5 +1,6 @@
 CXX = g++
-CFLAGS = -Wall -Wextra -Werror -pedantic -MMD -MP
+CFLAGS = -Wall -Wextra -Werror -pedantic
+DEPFLAGS = -MMD -MP
 LDFLAGS ?=
 EXEEXT ?=
 
@@ -43,7 +44,7 @@ version.h: FORCE
 main.o: version.h
 
 %.o: %.cpp
-	$(CXX) -c $(CFLAGS) $< -o $@
+	$(CXX) -c $(CFLAGS) $(DEPFLAGS) $< -o $@
 
 docs:
 	$(MAKE) --no-print-directory -C .. docs

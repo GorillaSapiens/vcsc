@@ -1,9 +1,13 @@
 CC ?= cc
 CFLAGS ?= -O2
 WARNINGS = -Wall -Wextra -Werror -pedantic
+DEPFLAGS = -MMD -MP
 LDFLAGS ?=
 EXEEXT ?=
 TARGET = vcsc-ar$(EXEEXT)
+
+OBJ = vcsc_ar.o
+DEP = $(OBJ:.o=.d)
 
 BINDIR ?= /opt/vcsc/bin
 DESTDIR ?=
@@ -19,8 +23,13 @@ version: version.h
 version.h: FORCE
 	perl ../gen_version_h.pl $@
 
-$(TARGET): vcsc_ar.c version.h
-	$(CC) $(CFLAGS) $(WARNINGS) $(LDFLAGS) -o $@ vcsc_ar.c
+$(TARGET): version.h $(OBJ)
+	$(CC) $(CFLAGS) $(WARNINGS) $(LDFLAGS) -o $@ $(OBJ)
+
+vcsc_ar.o: version.h
+
+%.o: %.c
+	$(CC) $(CFLAGS) $(WARNINGS) $(DEPFLAGS) -c $< -o $@
 
 docs:
 	$(MAKE) --no-print-directory -C .. docs
@@ -33,6 +42,8 @@ uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(TARGET)
 
 clean:
-	rm -f vcsc-ar vcsc-ar.exe version.h
+	rm -f vcsc-ar vcsc-ar.exe $(OBJ) $(DEP) version.h
+
+-include $(DEP)
 
 .PHONY: docs

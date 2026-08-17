@@ -866,6 +866,11 @@ so tag refs are available during tagged package builds. `test/version_header_gen
 locks branch, annotated-tag, dirty, detached, no-Git, Makefile-delegation, and workflow
 behavior.
 
+All seven installed host-tool Makefiles generate compiler header dependencies with
+a separate `DEPFLAGS = -MMD -MP`, compile through `.o` files, include the resulting
+`.d` files with `-include`, and remove both products on `make clean`. Their tool-local
+`.gitignore` files ignore `*.o` and `*.d`; source-tree hygiene locks this convention.
+
 The six public command-line tools use a common unsupported-option contract: reject the
 option with nonzero status, name it on stderr, and print `Try '<invoked-tool> --help'
 for a list of supported options.` rather than dumping the entire help text. `vcsc-ar`
