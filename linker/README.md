@@ -732,9 +732,11 @@ translation-unit/instantiation owner. Same-owner uses and dead-code
 references do not count. Unselected archive members are silent.
 
 An unused `require` is a fatal, source-located link error. An unused `recommend`
-is a source-located warning and the link continues. This metadata path also
-handles true-inline calls and optimized-away object accesses that leave no
-ordinary relocation.
+is a source-located warning and the link continues. Object warnings print the
+source-level declared type spelling rather than the compiler's internal ABI
+fingerprint; the canonical fingerprint remains present separately in metadata.
+This metadata path also handles true-inline calls and optimized-away object
+accesses that leave no ordinary relocation.
 
 ## Memory usage and map file
 

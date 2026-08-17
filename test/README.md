@@ -350,6 +350,14 @@ vector/hotspot overlap, balanced stack restoration, map identities, and exact
 and compatibility checks. `make installcheck` also builds staged diagnostics
 through both installed C26 profiles.
 
+`vcs_jane.pl` certifies the public `vcs_16k_jane.c26` profile and its explicit
+`fileindex` simulator mapping. It locks selectors `$1FF0/$1FF1/$1FF8/$1FF9`,
+physical startup bank 1, the earlier `$FEE0` vector-bridge corridor required to
+avoid JANE's `$FFF0/$FFF1` hotspots, reset recovery from every initially
+selected physical bank, nested four-bank calls/returns, final-bank `JANE`
+signature placement, Stella-compatible detector bytes, disassembler inference,
+and byte-exact round trip.
+
 `linker_banked_auto_placement.pl` covers deterministic roadmap-item-7 placement.
 It links the same fixture twice, pins runtime and `main` to BANK0, spills an
 unpinned function by capacity, keeps a call-connected function home, collapses a

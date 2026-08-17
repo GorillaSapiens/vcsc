@@ -1,0 +1,43 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+include "vcs.c26"
+
+// Atari JANE (Tarzan prototype): four full-window 4K physical banks.
+// Physical/file banks 0,1,2,3 are selected by $1FF0,$1FF1,$1FF8,$1FF9.
+// Hardware powers up in physical bank 1. VCSC keeps its conventional logical
+// bank0 as the startup/home bank, so logical bank0 is physical/file bank 1.
+cartridge {
+   $fill:0xff $signature:JANE
+   $trampoline_offset:0x0f00 $trampoline_size:0x00e0
+   $vector_bridge_offset:0x0ee0 $vector_bridge_size:0x0012
+   $vectors_offset:0x0ffa $vectors_size:0x0006
+};
+
+bank bank0 {
+   $image_size:0x1000 $file_index:1 $image_offset:0x0000
+   $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
+   $select_access:0x1ff1 $startup
+};
+
+bank bank1 {
+   $image_size:0x1000 $file_index:0 $image_offset:0x0000
+   $link_start:0xd000 $cpu_start:0xf000 $map_size:0x1000
+   $select_access:0x1ff0
+};
+
+bank bank2 {
+   $image_size:0x1000 $file_index:2 $image_offset:0x0000
+   $link_start:0xb000 $cpu_start:0xf000 $map_size:0x1000
+   $select_access:0x1ff8
+};
+
+bank bank3 {
+   $image_size:0x1000 $file_index:3 $image_offset:0x0000
+   $link_start:0x9000 $cpu_start:0xf000 $map_size:0x1000
+   $select_access:0x1ff9
+};
+
+mem bank0 { $start:0xf000 $size:0x0ee0 $ro $priority:2 };
+mem bank1 { $start:0xd000 $size:0x0ee0 $ro };
+mem bank2 { $start:0xb000 $size:0x0ee0 $ro };
+mem bank3 { $start:0x9000 $size:0x0ee0 $ro };

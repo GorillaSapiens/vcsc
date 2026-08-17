@@ -1056,6 +1056,37 @@ void emit_function_contract_metadata(const ASTNode *fn, const char *sym) {
    free(detail.buf);
 }
 
+//! @brief Return the source spelling of a declared base type for user diagnostics.
+static const char *contract_source_type_name(const ASTNode *type) {
+   if (!type)
+      return NULL;
+   if (type->strval && *type->strval)
+      return type->strval;
+   if (type->count > 0 && type->children[0] &&
+       type->children[0]->strval && *type->children[0]->strval)
+      return type->children[0]->strval;
+   return NULL;
+}
+
+//! @brief Append a source-like object type for declaration-contract diagnostics.
+static void append_contract_object_display_type(StrBuf *detail,
+                                                 const ASTNode *type,
+                                                 const ASTNode *declarator) {
+   const char *name = contract_source_type_name(type);
+   const char *bound = array_bound_text(declarator);
+   int pointers = declarator_pointer_depth(declarator);
+
+   sb_append(detail, name ? name : "unknown");
+   while (pointers-- > 0)
+      sb_append_ch(detail, '*');
+   if (declarator_array_count(declarator) > 0) {
+      sb_append_ch(detail, '[');
+      if (bound)
+         sb_append(detail, bound);
+      sb_append_ch(detail, ']');
+   }
+}
+
 //! @brief Emit merged object use-contract metadata with its canonical object type.
 void emit_global_contract_metadata(const ASTNode *node, const char *symname,
                                    bool is_zeropage) {
@@ -1066,6 +1097,7 @@ void emit_global_contract_metadata(const ASTNode *node, const char *symname,
    DeclarationUseContract strength;
    FingerprintCtx ctx;
    StrBuf fp;
+   StrBuf abi_detail;
    StrBuf detail;
    char mode[256];
 
@@ -1085,17 +1117,20 @@ void emit_global_contract_metadata(const ASTNode *node, const char *symname,
 
    memset(&ctx, 0, sizeof(ctx));
    sb_init(&fp);
+   sb_init(&abi_detail);
    sb_init(&detail);
    global_storage_mode(node, is_zeropage, mode, sizeof(mode));
-   append_storage_mode(&fp, &detail, mode);
-   append_type_fingerprint(&fp, &detail, type, declarator,
+   append_storage_mode(&fp, &abi_detail, mode);
+   append_type_fingerprint(&fp, &abi_detail, type, declarator,
                            declaration_pointer_access(node->children[0], declarator), &ctx);
+   append_contract_object_display_type(&detail, type, declarator);
    emit_contract_metadata_symbol("object", strength, symname, origin, node,
                                  fp.buf ? fp.buf : "", detail.buf ? detail.buf : "");
    free(ctx.names);
    free(ctx.ids);
    free(ctx.active);
    free(fp.buf);
+   free(abi_detail.buf);
    free(detail.buf);
 }
 

@@ -78,3 +78,17 @@ and added install, example-roundtrip, compiler, and focused OMNI coverage.
 Added the standard VCSC FIGlet banner to the public CV example README and
 reviewed/pinned its 40 inline-assembly lines in the example assembly allowlist.
 The exact previously failing branding and assembly-allowlist gates now pass.
+2026-08-17 12:54:21 PDT, complete JANE mapper support
+Added the 16K JANE profile with physical bank-1 startup, explicit file-order
+metadata, relocated vector bridge, simulator support, public PASS/FAIL example,
+and exact disassembler inference/round-trip coverage. The diagnostic boots from
+every possible initial bank and exercises nested calls across all four banks.
+2026-08-17 13:13:19 PDT, force JANE mapper in Stella play
+The JANE ROM itself visibly passes under Stella 7.0, but the same image is a
+black screen when interpreted as ordinary F6. The public JANE Makefile now
+forces `stella -bs JANE`, the README documents the Stella 7.0+ requirement and
+diagnostic command, and `vcs_jane.pl` guards the launch/documentation contract.
+2026-08-17 13:45:11 PDT, source type diagnostics
+Declaration-use object warnings now display the source-declared type spelling
+instead of internal ABI fingerprint prose; canonical fingerprints are unchanged.
+JANE now explicitly uses status_result_color, removing its recommendation warning.

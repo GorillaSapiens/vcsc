@@ -48,6 +48,7 @@ my @profiles=(
    ['4KSC', 'vcs_4k_sc.c26',    undef,              1, 0, 1,  4096],
    ['F8',   'vcs_8k_f8.c26',    'vcs_8k_f8.cfg',    2, 1, 0,  8192],
    ['F6',   'vcs_16k_f6.c26',   'vcs_16k_f6.cfg',   4, 1, 0, 16384],
+   ['JANE', 'vcs_16k_jane.c26', undef,               4, 1, 0, 16384],
    ['F4',   'vcs_32k_f4.c26',   'vcs_32k_f4.cfg',   8, 1, 0, 32768],
    ['FA',   'vcs_12k_fa.c26',    'vcs_12k_fa.cfg',    3, 1, 0, 12288],
    ['F8SC', 'vcs_8k_f8sc.c26',  'vcs_8k_f8sc.cfg',  2, 1, 1,  8192],
@@ -101,7 +102,7 @@ for my $p (@profiles) {
    -s $generic_bin==$output_size
       or die "$name C26 profile emitted ".(-s $generic_bin)." bytes, expected $output_size\n";
 
-   if ($name =~ /^(?:CV|4KSC|F8|F6|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
+   if ($name =~ /^(?:CV|4KSC|F8|F6|JANE|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
       my $rom=read_file($generic_bin);
       my $want=$name . ("\0" x (4-length($name)));
       substr($rom,-8,4) eq $want
@@ -139,8 +140,9 @@ for my $p (@profiles) {
       or die "$name map does not report C26 topology\n";
    $map =~ /output-size=\$[0-9A-F]{8}/
       or die "$name map does not report topology output size\n";
+   my @file_order = $name eq 'JANE' ? (1,0,2,3) : reverse(0..$banks-1);
    for my $logical (0..$banks-1) {
-      my $file_index=$banks-1-$logical;
+      my $file_index=$file_order[$logical];
       $map =~ /^\s+bank\Q$logical\E\s+file-index=\Q$file_index\E\b/m
          or die "$name map does not preserve bank$logical file ordering\n";
    }
@@ -167,6 +169,14 @@ for my $p (@profiles) {
          or die "CV profile does not encode the fixed 2K ROM shape\n";
       $map =~ /^\s+cartram\s+read_start=\$F000 write_start=\$F400 size=\$0400 type=rw shared=yes\b/m
          or die "CV map does not retain split-address cartridge RAM\n";
+   }
+   if ($name eq 'JANE') {
+      $text =~ /\$vector_bridge_offset:0x0ee0\s+\$vector_bridge_size:0x0012/ &&
+      $text =~ /bank\s+bank0\s*\{.*?\$file_index:1.*?\$select_access:0x1ff1\s+\$startup/s &&
+      $text =~ /bank\s+bank1\s*\{.*?\$file_index:0.*?\$select_access:0x1ff0/s &&
+      $text =~ /bank\s+bank2\s*\{.*?\$file_index:2.*?\$select_access:0x1ff8/s &&
+      $text =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$select_access:0x1ff9/s
+         or die "JANE profile does not preserve its physical bank order/selectors/startup bank\n";
    }
    if ($name eq 'FA') {
       $text =~ /include\s+"fa_ram_plus\.c26"/ &&

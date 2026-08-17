@@ -47,7 +47,8 @@ typedef enum {
    MAP_FA,
    MAP_DPC,
    MAP_WD,
-   MAP_CV
+   MAP_CV,
+   MAP_JANE
 } mapper_t;
 
 typedef enum {
@@ -349,6 +350,7 @@ static int parse_mapper_name(const char *s, mapper_t *mapper, int *superchip)
    else if (strcmp(s, "dpc") == 0) *mapper = MAP_DPC;
    else if (strcmp(s, "wd") == 0) *mapper = MAP_WD;
    else if (strcmp(s, "cv") == 0) *mapper = MAP_CV;
+   else if (strcmp(s, "jane") == 0) *mapper = MAP_JANE;
    else return 0;
    return 1;
 }
@@ -387,7 +389,7 @@ static void usage(const char *argv0)
       "options:\n"
       "   -i, --input <file>       compatibility alias for positional input\n"
       "   -o, --output <file>      write generated VCSC assembly (.s26)\n"
-      "       --mapper <name>      force 2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|cv\n"
+      "       --mapper <name>      force 2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|cv|jane\n"
       "       --reset-bank <n>     force power-on/reset physical bank\n"
       "       --origin <b:addr>    force logical origin for a bank (repeatable)\n"
       "       --entry <b:addr>     add executable entry point (repeatable)\n"
@@ -740,6 +742,7 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
    case MAP_WD: *bank_size = 1024u; *bank_count = 8u;
       return rom_size == 8192u || rom_size == 8195u;
    case MAP_CV: *bank_size = 2048u; *bank_count = 1u; return rom_size == 2048u;
+   case MAP_JANE: *bank_size = 4096u; *bank_count = 4u; return rom_size == 16384u;
    }
    return 0;
 }
@@ -763,6 +766,19 @@ static int is_probably_cv(const uint8_t *rom, size_t size)
    return 0;
 }
 
+static int is_probably_jane(const uint8_t *rom, size_t size)
+{
+   size_t i;
+   if (size != 16384u) return 0;
+   if (memcmp(rom + size - 8u, "JANE", 4u) == 0) return 1;
+   /* Current Stella heuristic for the Tarzan prototype: LDA $FFF1; RTS. */
+   for (i = 0; i + 3u < size; ++i)
+      if (rom[i] == 0xADu && rom[i + 1u] == 0xF1u &&
+          rom[i + 2u] == 0xFFu && rom[i + 3u] == 0x60u)
+         return 1;
+   return 0;
+}
+
 static mapper_t infer_mapper(const uint8_t *rom, size_t size,
                              size_t *bank_size, size_t *bank_count)
 {
@@ -772,7 +788,7 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
    case 4096u: mapper = MAP_4K; break;
    case 8192u: mapper = MAP_F8; break;
    case 12288u: mapper = MAP_FA; break;
-   case 16384u: mapper = MAP_F6; break;
+   case 16384u: mapper = is_probably_jane(rom, size) ? MAP_JANE : MAP_F6; break;
    case 32768u: mapper = MAP_F4; break;
    case 10240u: case 10495u: mapper = MAP_DPC; break;
    case 8195u: mapper = MAP_WD; break;
@@ -794,6 +810,7 @@ static const char *mapper_name(mapper_t mapper)
    case MAP_DPC: return "DPC";
    case MAP_WD: return "WD";
    case MAP_CV: return "CV";
+   case MAP_JANE: return "JANE";
    case MAP_RAW: return "unknown/raw";
    }
    return "unknown/raw";
@@ -1122,6 +1139,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
    }
    /* CBS RAM Plus (FA) hardware powers up in physical bank 2. */
    if (a->mapper == MAP_FA) a->reset_bank = 2u;
+   if (a->mapper == MAP_JANE) a->reset_bank = 1u;
    return 1;
 }
 
@@ -1442,6 +1460,12 @@ static int selector_bank(mapper_t mapper, uint16_t address, size_t *bank)
       break;
    case MAP_FA:
       if (bus >= 0x1ff8u && bus <= 0x1ffau) { *bank = bus - 0x1ff8u; return 1; }
+      break;
+   case MAP_JANE:
+      if (bus == 0x1ff0u) { *bank = 0u; return 1; }
+      if (bus == 0x1ff1u) { *bank = 1u; return 1; }
+      if (bus == 0x1ff8u) { *bank = 2u; return 1; }
+      if (bus == 0x1ff9u) { *bank = 3u; return 1; }
       break;
    default:
       break;
@@ -4971,7 +4995,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                      "%d SC-window candidate%s, %d write%s)\n",
                  mname,
                  a->mapper == MAP_RAW ? "unknown" :
-                    (a->mapper == MAP_DPC || a->mapper == MAP_FA || a->mapper == MAP_WD || a->mapper == MAP_CV ? "high" :
+                    (a->mapper == MAP_DPC || a->mapper == MAP_FA || a->mapper == MAP_WD || a->mapper == MAP_CV || a->mapper == MAP_JANE ? "high" :
                      ((a->hotspot_refs || superchip_active(a)) ? "high" : "medium")),
                  a->hotspot_refs, a->hotspot_refs == 1 ? "" : "es",
                  a->superchip_refs, a->superchip_refs == 1 ? "" : "s",
@@ -4983,7 +5007,8 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
       fprintf(fp, "; reset/power-on bank: %zu (%s)\n", a->reset_bank,
               a->reset_bank_overridden ? "override" :
               (a->mapper == MAP_FA ? "FA hardware default" :
-               (a->mapper == MAP_WD ? "WD configuration-0 vector bank" : "heuristic")));
+               (a->mapper == MAP_JANE ? "JANE hardware default" :
+                (a->mapper == MAP_WD ? "WD configuration-0 vector bank" : "heuristic"))));
       for (i = 0; i < a->bank_count; ++i) {
          const bank_t *b = &a->banks[i];
          if (b->origin_overridden)
@@ -4999,6 +5024,8 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
          fprintf(fp, "; FA cartridge RAM: write $1000-$10FF, read $1100-$11FF; bank 2 powers up\n");
       if (a->mapper == MAP_CV)
          fprintf(fp, "; CV cartridge RAM: read $1000-$13FF, write $1400-$17FF (1024 bytes)\n");
+      if (a->mapper == MAP_JANE)
+         fprintf(fp, "; JANE selectors: $1FF0->$0, $1FF1->$1, $1FF8->$2, $1FF9->$3; bank 1 powers up\n");
       if (a->mapper == MAP_WD) {
          fprintf(fp, "; WD cartridge RAM: read $1000-$103F, write $1040-$107F (64 bytes)\n");
          fprintf(fp, "; WD selector reads: TIA $30-$3F choose one of eight four-segment 1K arrangements\n");

@@ -26,7 +26,7 @@ The public VCSC cartridge profiles also stamp the final physical bank with a
 four-byte mapper signature at logical addresses `$xFF8-$xFFB` (eight bytes before that bank ends). Short mapper names are
 ASCII-NUL padded: `F8\0\0`, `F6\0\0`, `F4\0\0`, `FA\0\0`, and
 `CV\0\0`; the complete four-byte names are `4KSC`, `F8SC`, `F6SC`, `F4SC`,
-and `OMNI`. Only the final bank in file order contains the signature. Selector-hotspot addresses are valid storage
+`OMNI`, and `JANE`. Only the final bank in file order contains the signature. Selector-hotspot addresses are valid storage
 for these bytes because hardware switching is caused by accessing the address,
 not by the byte stored there. The final two bytes overlap the unused 6507 NMI
 vector while leaving RESET and IRQ/BRK intact.
@@ -50,6 +50,13 @@ with `vcsc-sim`'s selector-free OMNI logical layout.
 `cartram`, verifies DATA/BSS initialization and the `$F000/$F400` split aliases,
 and displays `CV` below `pass`/`FAIL`. The generated image includes the
 `STA $F400,Y` byte pattern used by Stella for CV autodetection.
+
+`07_jane/` is the 16K JANE diagnostic. It preserves physical file-bank order
+0/1/2/3 for selectors `$1FF0/$1FF1/$1FF8/$1FF9`, while hardware startup is
+physical bank 1. The self-test begins correctly from every possible selected
+bank, crosses all four selectors through nested calls/returns, and displays
+`JANE` below `pass`/`FAIL`. The image also carries Stella's `LDA $FFF1; RTS`
+autodetection byte pattern as inert data.
 
 ## Banked standard renderer
 

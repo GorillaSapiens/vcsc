@@ -49,6 +49,7 @@ struct cartridge_bank_t {
    uint16_t hotspot;
    int startup;
    size_t file_index;
+   int has_file_index;
    char name[MAX_NAME];
 };
 
@@ -232,6 +233,15 @@ static void parse_bank_property(cartridge_bank_t *bank, const char *key, const c
       }
       bank->size = (uint16_t)n.value;
    }
+   else if (str_ieq(key, "fileindex")) {
+      n = parse_number(value);
+      if (!n.ok || n.value > 7u) {
+         fprintf(stderr, "vcsc-sim: bad bank file index '%s'\n", value);
+         exit(1);
+      }
+      bank->file_index = (size_t)n.value;
+      bank->has_file_index = 1;
+   }
    else if (str_ieq(key, "hotspot")) {
       n = parse_number(value);
       if (!n.ok || n.value > 0xFFFFu) {
@@ -370,7 +380,7 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
                               str_ieq(cfg->mapper, "F4SC");
       if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") ||
             str_ieq(cfg->mapper, "F4") || str_ieq(cfg->mapper, "FA") ||
-            str_ieq(cfg->mapper, "OMNI") || cfg->superchip_mapper)) {
+            str_ieq(cfg->mapper, "OMNI") || str_ieq(cfg->mapper, "JANE") || cfg->superchip_mapper)) {
          fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
          exit(1);
       }
@@ -380,13 +390,29 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
             fprintf(stderr, "vcsc-sim: %s bank '%s' is not 4K\n", cfg->mapper, cfg->banks[i].name);
             exit(1);
          }
-         for (size_t j = 0; j < cfg->bank_count; ++j)
-            if (cfg->banks[j].start < cfg->banks[i].start)
-               file_index++;
-         cfg->banks[i].file_index = file_index;
+         if (!cfg->banks[i].has_file_index) {
+            for (size_t j = 0; j < cfg->bank_count; ++j)
+               if (cfg->banks[j].start < cfg->banks[i].start)
+                  file_index++;
+            cfg->banks[i].file_index = file_index;
+         }
          if (cfg->banks[i].startup) {
             cfg->startup_bank = i;
             startup_count++;
+         }
+      }
+      for (size_t i = 0; i < cfg->bank_count; ++i) {
+         if (cfg->banks[i].file_index >= cfg->bank_count) {
+            fprintf(stderr, "vcsc-sim: bank '%s' file index %zu is out of range\n",
+                    cfg->banks[i].name, cfg->banks[i].file_index);
+            exit(1);
+         }
+         for (size_t j = i + 1; j < cfg->bank_count; ++j) {
+            if (cfg->banks[i].file_index == cfg->banks[j].file_index) {
+               fprintf(stderr, "vcsc-sim: duplicate physical/file bank index %zu\n",
+                       cfg->banks[i].file_index);
+               exit(1);
+            }
          }
       }
       if (startup_count != 1) {

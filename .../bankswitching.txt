@@ -2173,11 +2173,32 @@ explicit by design.
          excluded from ROM discovery, `--mapper cv` is available, and the public
          diagnostic disassembles/reassembles byte-exactly as a 2048-byte image.
 
-[ ] 34. Add JANE.
+[x] 34. Add JANE.
 
        * Model four full-window 4K banks selected by $1FF0, $1FF1, $1FF8, and
          $1FF9, with hardware startup bank 1. Keep the existing selector topology
          and prove exact bank order/reset/cross-bank calls in a diagnostic.
+
+       Completed 2026-08-17:
+
+       * Added `vcs_16k_jane.c26` with physical/file banks 0/1/2/3 selected by
+         $1FF0/$1FF1/$1FF8/$1FF9. Logical `bank0` remains VCSC's startup/home
+         bank but carries `$file_index:1`, matching JANE's physical power-on bank.
+       * Moved JANE's replicated vector bridge to $FEE0-$FEF1 because its
+         $FFF0/$FFF1 selectors collide with the normal full-window bridge tail.
+         The ordinary $FF00-$FFDF trampoline corridor remains unchanged.
+       * Added simulator-only `vcs_16k_jane.cfg` with explicit `fileindex` BANKS
+         metadata and extended `vcsc-sim` to honor that physical file order while
+         preserving historical inferred ordering for cfgs that omit it.
+       * Added public `09_bankswitching/07_jane`. The diagnostic carries Stella's
+         inert `LDA $FFF1; RTS` detector signature, starts correctly from every
+         initially selected physical bank, traverses 1 -> 0 -> 2 -> 3 -> 1 through
+         nested calls, verifies generated return-bank restoration, and displays
+         `JANE` below `pass`/`FAIL`.
+       * Added `vcsc-disas` JANE inference, physical-startup-bank reporting, exact
+         selector semantics, and byte-exact public-diagnostic round-trip coverage.
+         Profile, install, example, assembly-review, documentation, and hygiene
+         integration are covered by focused regressions.
 
 [ ] 35. Add 0840 / EconoBanking.
 

@@ -78,7 +78,7 @@ profiles.
 For an unbanked image, `type=ro` MEMORY ranges reject guest writes.  For a
 banked image, the simulator additionally:
 
-- accepts `mapper=F8`, `F6`, `F4`, or CBS `FA` (plus the SC variants);
+- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, or `JANE` (plus the SC variants);
 - loads each complete 4K `.bin` chunk into the logical range named by its BANKS
   entry;
 - maps every CPU cartridge-window fetch through the currently selected physical
@@ -91,6 +91,12 @@ banked image, the simulator additionally:
 
 A raw `.bin` therefore requires a banked cfg.  An Intel HEX image can still be
 used when logical bank ranges are already represented explicitly.
+
+A BANKS entry may include `fileindex=N` when physical file order differs from
+logical bank numbering. JANE uses this to preserve file banks 0/1/2/3 while
+VCSC names physical startup bank 1 as logical `bank0`: selectors `$1FF0`,
+`$1FF1`, `$1FF8`, and `$1FF9` select file banks 0, 1, 2, and 3 respectively.
+Cfgs that omit `fileindex` retain the historical inferred ordering.
 
 `--start-bank` defaults to the cfg entry marked `startup=yes`. Tests explicitly
 run every physical start index to prove the generated reset bridges. Split RAM

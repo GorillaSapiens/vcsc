@@ -71,6 +71,8 @@ require_match('true inline function record', $assembly,
    qr/\.export __contractmeta\$V1\$function\$require\$required_inline\$/);
 require_match('canonical unsigned-byte object fingerprint', $assembly,
    qr/__contractmeta\$V1\$object\$require\$required_object\$.*scalarQ28szQ3D1Q3BkindQ3Dunsigned_intQ29/);
+require_match('source-level object diagnostic type', $assembly,
+   qr/__contractmeta\$V1\$object\$require\$required_object\$.*\$uint8_t(?:\n| =)/);
 require_match('canonical void function signature', $assembly,
    qr/__contractmeta\$V1\$function\$require\$required_inline\$.*functionQ28paramsQ3D0Q3Bcode_regionsQ3DQ5BQ5DQ3BreturnQ3D/);
 require_match('true-inline call semantic record', $assembly,

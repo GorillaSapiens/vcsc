@@ -475,5 +475,7 @@ linker computes reachability from `main` and runtime initializer roots using the
 same compiler and hidden-assembly call-graph edges used for activation planning.
 A contract is satisfied only by a reachable semantic use from a different
 translation-unit/instantiation owner. Unused `require` records are fatal;
-unused `recommend` records produce warnings. Metadata in unselected archive
-members remains silent.
+unused `recommend` records produce warnings. Object diagnostics carry the
+source-level declared type spelling (for example `uint8_t` or a typedef name);
+the separate canonical ABI fingerprint remains unchanged for machine checking.
+Metadata in unselected archive members remains silent.

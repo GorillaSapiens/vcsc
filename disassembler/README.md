@@ -87,7 +87,7 @@ position from runtime 6507 addresses:
 ```
 
 The disassembler currently recognizes unbanked 2K/4K, the F8/F6/F4 family
-(with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, CommaVid CV, DPC,
+(with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, CommaVid CV, JANE, DPC,
 and Wickstead Design / WD. Standard DPC
 images are recognized by their distinctive 10240- or 10495-byte layout: two
 4K F8-style program banks followed by 2K of DPC data ROM, with the 10495-byte
@@ -142,6 +142,13 @@ CV is the fixed CommaVid 2K layout. Its ROM occupies only logical
 patterns used for legacy CV detection. CV RAM addresses are excluded from ROM
 code/data discovery, and a generated CV disassembly round-trips as an exact
 2048-byte image.
+
+JANE is a 16K four-bank layout with selectors `$1FF0`, `$1FF1`, `$1FF8`, and
+`$1FF9` selecting physical/file banks 0, 1, 2, and 3. Physical bank 1 is the
+hardware power-on bank. `vcsc-disas` recognizes either VCSC's `JANE` tail
+signature or the established `LDA $FFF1; RTS` detector byte pattern, reports
+the nonstandard power-on bank explicitly, and preserves physical file order on
+round trip. `--mapper jane` forces the same interpretation.
 
 Automatic Superchip promotion requires a decoded write to the `$x000-$x07F`
 write window. A read from `$x080-$x0FF` alone is not sufficient evidence, because

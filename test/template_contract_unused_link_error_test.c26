@@ -3,6 +3,7 @@
 // expectlinkerr: required function 'unused_init' not used
 // expectlinkerr: required function 'unused' not used
 // expectlinkerr: warning: recommended variable 'unused_value' not used
+// expectlinkerr: declared type: unused_byte
 // expectlinkerr: instantiation: unused@
 
 include "machine_6502.c26"

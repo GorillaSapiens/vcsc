@@ -21,6 +21,7 @@ constexpr int kMapF6 = 4;
 constexpr int kMapF4 = 5;
 constexpr int kMapFA = 6;
 constexpr int kMapDPC = 7;
+constexpr int kMapJANE = 10;
 
 struct PendingWrite {
    uint16_t address;
@@ -116,6 +117,12 @@ private:
       }
       else if (mapper_ == kMapFA && bus >= 0x1ff8u && bus <= 0x1ffau) {
          next = static_cast<size_t>(bus - 0x1ff8u); hit = true;
+      }
+      else if (mapper_ == kMapJANE) {
+         if (bus == 0x1ff0u) { next = 0u; hit = true; }
+         else if (bus == 0x1ff1u) { next = 1u; hit = true; }
+         else if (bus == 0x1ff8u) { next = 2u; hit = true; }
+         else if (bus == 0x1ff9u) { next = 3u; hit = true; }
       }
       if (hit && next < bank_count_) bank_ = next;
       return hit;
