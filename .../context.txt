@@ -1147,8 +1147,8 @@ read alias `$F100-$F1FF`. `examples/09_bankswitching/03_fa_ram_plus` is a visibl
 PASS/FAIL diagnostic that allocates all 256 FA RAM bytes, traverses every bank
 selector and generated return, checks persistent RAM/startup behavior, and keeps
 stable NTSC timing. Its simulator oracle passes from every forced physical startup
-bank, and a Stella 7 run visibly displayed green `pass`. C26 and compatibility-cfg
-builds are byte-identical 12288-byte cartridges.
+bank, and a Stella 7 run visibly displayed green `pass` with a centered `FA` line
+below it. C26 and compatibility-cfg builds are byte-identical 12288-byte cartridges.
 
 The generic per-case test timeout is now 20 seconds, and former explicit
 10-second overrides were raised to 20 seconds as well; longer 120-second

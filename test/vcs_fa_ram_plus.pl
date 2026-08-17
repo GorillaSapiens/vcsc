@@ -55,6 +55,11 @@ my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $source=File::Spec->catfile($repo,'examples','09_bankswitching','03_fa_ram_plus','fa_ram_plus_diagnostic.c26');
+my $source_text=read_file($source);
+$source_text =~ /instantiate "six_glyph_component\.c26" as cart_type/ &&
+$source_text =~ /blank \/ blank \/ F \/ A \/ blank \/ blank/ &&
+$source_text =~ /cart_type_draw\(\)/
+   or die "FA visible diagnostic lost its centered FA mapper line\n";
 my $cfg=File::Spec->catfile($vcs,'vcs_12k_fa.cfg');
 my $generic=File::Spec->catfile($vcs,'vcs.cfg');
 my $bin=File::Spec->catfile($tmp,'fa.bin');

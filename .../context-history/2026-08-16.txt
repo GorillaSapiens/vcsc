@@ -153,3 +153,11 @@ allocates all 256 FA RAM bytes and exercises every selector plus generated
 cross-bank returns. Its simulator oracle passes from every forced physical
 startup bank and a Stella 7 run visibly displayed green pass. All 80 editable
 examples build and disassembler-round-trip; compile-only tests pass 499/499.
+2026-08-16 22:27:29 PDT, fix FA diagnostic and topology regressions
+FA PASS/FAIL now displays a centered FA mapper line below the result and
+the Stella bank snapshot grader accepts/graduates FA. Reviewed and pinned
+the example inline assembly in the allowlist. Selector-topology hidden-ROM
+validation now rejects bank-contained RAM-port overlap without rejecting the
+unused generic machine_6502 ROM fallback; the prior topology regression passes.
+Validation: exact reported regressions pass, all eight example shards pass, the
+FA simulator/profile gates pass, and the compile-only suite is 499/499.

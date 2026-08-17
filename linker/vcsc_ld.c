@@ -1290,16 +1290,29 @@ static void validate_c26_topology(linker_config_t *cfg)
             exit(1);
          }
       }
-      for (i = 0; i < cfg->mem_count; ++i) {
-         const memory_region_t *mem = &cfg->mem[i];
-         if (!mem->compiler_declared || !str_ieq(mem->type, "ro"))
-            continue;
-         if (!mem->output_bank_name[0]) {
-            fprintf(stderr,
-                    "vcsc-ld: selector-controlled read-only region '%s' at $%04X-$%04X lies outside every mapped ROM window\n",
-                    mem->name, mem->start,
-                    (uint16_t)((uint32_t)mem->start + mem->size - 1u));
-            exit(1);
+      if (cfg->topology_banks[0].image_offset) {
+         for (i = 0; i < cfg->mem_count; ++i) {
+            const memory_region_t *mem = &cfg->mem[i];
+            uint32_t mem_end;
+            size_t k;
+            if (!mem->compiler_declared || !str_ieq(mem->type, "ro") ||
+                mem->output_bank_name[0])
+               continue;
+            mem_end = (uint32_t)mem->start + mem->size;
+            for (k = 0; k < cfg->topology_bank_count; ++k) {
+               const topology_bank_t *bank = &cfg->topology_banks[k];
+               uint16_t full_start = (uint16_t)(bank->link_start - bank->image_offset);
+               uint32_t full_end = (uint32_t)full_start + bank->image_size;
+               uint32_t hidden_end = (uint32_t)full_start + bank->image_offset;
+               if (mem->start >= full_start && mem_end <= full_end &&
+                   mem->start < hidden_end && mem_end > full_start) {
+                  fprintf(stderr,
+                          "vcsc-ld: selector-controlled read-only region '%s' at $%04X-$%04X lies outside every mapped ROM window\n",
+                          mem->name, mem->start,
+                          (uint16_t)(mem_end - 1u));
+                  exit(1);
+               }
+            }
          }
       }
    }

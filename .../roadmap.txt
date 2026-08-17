@@ -1915,9 +1915,10 @@ items before coding them.
           bank 2 and selects `$1FFA`; logical banks 1/2 occupy physical banks 1/0
           and select `$1FF9/$1FF8`.
         * Generalized selector-controlled C26 profiles to permit a `$200` hidden
-          prefix and reject read-only storage outside mapped ROM. Ordinary FA ROM
-          therefore occupies `$x200-$xEFF`; the complete raw image remains exactly
-          12288 bytes with deterministic fill in the hidden prefix.
+          prefix and reject read-only storage placed inside a bank's hidden RAM-port
+          prefix without rejecting unused generic fallback ROM declarations. Ordinary
+          FA ROM therefore occupies `$x200-$xEFF`; the complete raw image remains
+          exactly 12288 bytes with deterministic fill in the hidden prefix.
         * Added the shared 256-byte `fa_ram` split-address region: writes use
           `$F000-$F0FF`, reads use `$F100-$F1FF`, and allocation/map accounting is
           shared across all banks.
@@ -1926,7 +1927,8 @@ items before coding them.
           transitions plus generated returns, verifies startup physical bank 2,
           persistent RAM, replicated vectors/reset bridges, exact 12K layout, and
           stable frame timing. The cartridge displays lowercase `pass` on green or
-          uppercase `FAIL` on red; a Stella 7 run visibly passed.
+          uppercase `FAIL` on red with a centered `FA` mapper line below the result;
+          a Stella 7 run visibly passed.
         * Added `vcs_fa_ram_plus.pl` plus profile/install/package coverage. The
           simulator runs the diagnostic successfully when forced to start in each
           physical bank, proving the replicated reset bridge restores FA startup
