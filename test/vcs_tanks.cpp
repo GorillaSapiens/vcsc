@@ -30,10 +30,11 @@ constexpr uint16_t kTim1t=0x0294, kTim8t=0x0295, kTim64t=0x0296, kT1024t=0x0297;
 constexpr uint16_t kF8Hotspot0=0x1ff8, kF8Hotspot1=0x1ff9;
 constexpr uint16_t kScWrite=0x1000, kScRead=0x1080;
 
-constexpr uint8_t kStartX0=24, kStartX1=128, kStartY=45, kDirE=2, kDirW=6;
+constexpr uint8_t kStartX0=24, kStartX1=128, kStartY=45;
+constexpr uint8_t kDirNne=1, kDirEne=3, kDirE=4, kDirW=12;
 constexpr uint8_t kSoundFire=1, kSoundHit=2;
 
-enum class Scenario { Neutral, Turn, Move, FireWall, HitP1, HitP0, HitBarrier, PlayerWall, PlayerPlayer, Reset, ExtremeTiming };
+enum class Scenario { Neutral, Turn, Move, Move16, FireWall, HitP1, HitP0, HitBarrier, PlayerWall, PlayerPlayer, Reset, ExtremeTiming };
 
 [[noreturn]] void fail(const char *fmt,...) {
    std::fprintf(stderr,"vcs_tanks: ");
@@ -158,6 +159,8 @@ private:
       } else if(scenario_==Scenario::Move) {
          if(frame_>=1 && frame_<=4) v=static_cast<uint8_t>(v & ~0x10u & ~0x02u); // P0 forward, P1 reverse
          if(frame_>=5 && frame_<=8) v=static_cast<uint8_t>(v & ~0x20u & ~0x01u); // P0 reverse, P1 forward
+      } else if(scenario_==Scenario::Move16) {
+         if(frame_>=1 && frame_<=20) v=static_cast<uint8_t>(v & ~0x10u & ~0x01u); // both forward
       } else if(scenario_==Scenario::HitP1) {
          if(frame_==1) v=static_cast<uint8_t>(v & ~0x01u); // move P1 west before hit
       } else if(scenario_==Scenario::HitP0) {
@@ -234,6 +237,17 @@ private:
       timer_divisor_=a==kTim1t?1:a==kTim8t?8:a==kTim64t?64:1024;
    }
 
+
+   void inject_move16_state() {
+      if(scenario_!=Scenario::Move16 || frame_!=1) return;
+      set_byte("tank0_x",80); set_byte("tank1_x",120);
+      set_byte("tank0_y",60); set_byte("tank1_y",60);
+      set_byte("tank0_prev_x",80); set_byte("tank1_prev_x",120);
+      set_byte("tank0_prev_y",60); set_byte("tank1_prev_y",60);
+      set_byte("tank0_direction",kDirNne); set_byte("tank1_direction",kDirEne);
+      set_byte("tanks_move_phase",0);
+   }
+
    void inject_player_player_state() {
       if(scenario_!=Scenario::PlayerPlayer || frame_!=1) return;
       set_byte("tank0_x",70); set_byte("tank1_x",78);
@@ -295,6 +309,7 @@ private:
       ++frame_;
       arena_started_=false;
       if(selected_file_bank_!=1) fail("VSYNC began without restoring the startup F8 bank");
+      inject_move16_state();
       inject_player_player_state();
       inject_hit_barrier_state();
       inject_extreme_state();
@@ -428,31 +443,36 @@ void require_knockback_distance_and_geometry(const Snapshot& before,const Snapsh
 void require_graphics_base(const Machine& m,const Snapshot& s,uint16_t base) {
    if(s.g0!=static_cast<uint16_t>(base+s.d0*8u) || s.g1!=static_cast<uint16_t>(base+s.d1*8u))
       fail("tank graphics pointer does not include the actual table base");
-   // N and NE are the canonical source drawings. The remaining six payloads
-   // must stay exact 90-degree rotations of the matching canonical silhouette.
-   constexpr std::array<uint8_t,8> n {{0x18,0x18,0x3c,0x7e,0x7e,0x5a,0x3c,0x00}};
-   constexpr std::array<uint8_t,8> ne{{0x00,0x03,0x3f,0x7e,0x1e,0x76,0x34,0x00}};
-   constexpr std::array<uint8_t,8> e {{0x00,0x38,0x5c,0x7f,0x7f,0x5c,0x38,0x00}};
-   constexpr std::array<uint8_t,8> se{{0x00,0x28,0x6c,0x7c,0x1c,0x7c,0x3e,0x06}};
-   constexpr std::array<uint8_t,8> so{{0x00,0x3c,0x5a,0x7e,0x7e,0x3c,0x18,0x18}};
-   constexpr std::array<uint8_t,8> sw{{0x00,0x2c,0x6e,0x78,0x7e,0xfc,0xc0,0x00}};
-   constexpr std::array<uint8_t,8> w {{0x00,0x1c,0x3a,0xfe,0xfe,0x3a,0x1c,0x00}};
-   constexpr std::array<uint8_t,8> nw{{0x60,0x7c,0x3e,0x38,0x3e,0x36,0x14,0x00}};
-   const std::array<const std::array<uint8_t,8>*,8> directions{{
-      &n,&ne,&e,&se,&so,&sw,&w,&nw
+   constexpr std::array<std::array<uint8_t,8>,16> directions{{
+      {{0x00,0x10,0x10,0xd6,0xfe,0xfe,0xc6,0xc6}}, // N
+      {{0x24,0x64,0x79,0xff,0xff,0x4e,0x0e,0x04}}, // NNE
+      {{0x19,0x3a,0x7c,0xff,0xdf,0x0e,0x1c,0x18}}, // NE
+      {{0x1c,0x78,0xfb,0x7c,0x1c,0x1f,0x3e,0x18}}, // ENE
+      {{0xf8,0xf8,0x30,0x3e,0x30,0xf8,0xf8,0x00}}, // E
+      {{0x18,0x3e,0x1f,0x1c,0x7c,0xfb,0x78,0x1c}}, // ESE
+      {{0x18,0x1c,0x0e,0xdf,0xff,0x7c,0x3a,0x19}}, // SE
+      {{0x04,0x0e,0x4e,0xff,0xff,0x79,0x64,0x24}}, // SSE
+      {{0x63,0x63,0x7f,0x7f,0x6b,0x08,0x08,0x00}}, // S
+      {{0x20,0x70,0x72,0xff,0xff,0x9e,0x26,0x24}}, // SSW
+      {{0x18,0x38,0x70,0xfb,0xff,0x3e,0x5c,0x98}}, // SW
+      {{0x18,0x7c,0xf8,0x38,0x3e,0xdf,0x1e,0x38}}, // WSW
+      {{0x00,0x1f,0x1f,0x0c,0x7c,0x0c,0x1f,0x1f}}, // W
+      {{0x38,0x1e,0xdf,0x3e,0x38,0xf8,0x7c,0x18}}, // WNW
+      {{0x98,0x5c,0x3e,0xff,0xfb,0x70,0x38,0x18}}, // NW
+      {{0x24,0x26,0x9e,0xff,0xff,0x72,0x70,0x20}}  // NNW
    }};
    for(unsigned d=0;d<directions.size();++d)
       for(unsigned row=0;row<8;++row)
-         if(m.image_byte(static_cast<uint16_t>(base+d*8u+row))!=(*directions[d])[row])
-            fail("tank graphics no longer match canonical N/NE rotations");
+         if(m.image_byte(static_cast<uint16_t>(base+d*8u+row))!=directions[d][row])
+            fail("tank graphics no longer match canonical 16-way silhouettes");
 }
 
 void require_turn(const std::vector<Snapshot>& s) {
    if(s.size()<30) fail("too few turn snapshots");
-   if(s[1].d0!=1 || s[1].d1!=7) fail("initial left/right rotation did not change both headings");
-   if(s[24].d0!=1 || s[24].d1!=7) fail("held rotation repeated faster than the quarter-rate cadence");
-   if(s[25].d0!=0 || s[25].d1!=0) fail("held rotation did not repeat after 24 frames");
-   if(s[27].d0!=1 || s[27].d1!=7) fail("opposite rotation after release is wrong");
+   if(s[1].d0!=3 || s[1].d1!=13) fail("initial left/right rotation did not change both headings");
+   if(s[24].d0!=3 || s[24].d1!=13) fail("held rotation repeated faster than the quarter-rate cadence");
+   if(s[25].d0!=2 || s[25].d1!=14) fail("held rotation did not repeat after 24 frames");
+   if(s[27].d0!=3 || s[27].d1!=13) fail("opposite rotation after release is wrong");
 }
 
 void require_move(const std::vector<Snapshot>& s) {
@@ -469,6 +489,23 @@ void require_move(const std::vector<Snapshot>& s) {
          fail("movement did not sustain the low-volume engine growl on audio channel 1");
    if(s[9].audv1!=0) fail("engine growl did not stop when both tanks stopped moving");
 }
+
+void require_move16(const std::vector<Snapshot>& s) {
+   if(s.size()<20) fail("too few 16-way movement snapshots");
+   if(s[0].x0!=80 || s[0].y0!=60 || s[0].d0!=kDirNne ||
+      s[0].x1!=120 || s[0].y1!=60 || s[0].d1!=kDirEne)
+      fail("16-way movement setup failed");
+   // Five quarter-rate movement ticks: NNE moves 4 X pixels while advancing
+   // 5 logical Y rows (=10 visible scanlines); ENE moves 5 X pixels while
+   // advancing one logical Y row (=2 visible scanlines). These are close to
+   // 22.5 and 67.5 degrees in screen space and must not collapse to the same
+   // NE trajectory.
+   if(s[17].x0!=84 || s[17].y0!=55)
+      fail("NNE did not follow the 16-way screen-space cadence");
+   if(s[17].x1!=125 || s[17].y1!=59)
+      fail("ENE did not follow the 16-way screen-space cadence");
+}
+
 
 void require_fire_wall(const Machine& m,const std::vector<Snapshot>& s) {
    if(s.size()<7) fail("too few fire snapshots");
@@ -501,7 +538,7 @@ void require_hit_p1(const std::vector<Snapshot>& s) {
    if(!s[moved].spin1) fail("P1 knockback was not completed during the visible hit spin");
    if(s[moved].px1!=s[moved].x1 || s[moved].py1!=s[moved].y1)
       fail("P1 knockback did not establish the translated position as the new legal rollback point");
-   if(s[26].spin1!=0 || s[26].d1>7) fail("P1 spin did not finish on a valid pseudo-random heading");
+   if(s[26].spin1!=0 || s[26].d1>15) fail("P1 spin did not finish on a valid pseudo-random heading");
    if(s[27].sound_kind!=0 || s[27].sound_frames!=0 || s[27].audv0!=0) fail("hit noise did not terminate cleanly");
 }
 
@@ -516,7 +553,7 @@ void require_hit_p0(const std::vector<Snapshot>& s) {
    if(!s[moved].spin0) fail("P0 knockback was not completed during the visible hit spin");
    if(s[moved].px0!=s[moved].x0 || s[moved].py0!=s[moved].y0)
       fail("P0 knockback did not establish the translated position as the new legal rollback point");
-   if(s[26].spin0!=0 || s[26].d0>7) fail("P0 spin did not finish on a valid pseudo-random heading");
+   if(s[26].spin0!=0 || s[26].d0>15) fail("P0 spin did not finish on a valid pseudo-random heading");
 }
 
 void require_hit_barrier(const std::vector<Snapshot>& s) {
@@ -582,17 +619,19 @@ int main(int argc,char **argv) {
    for(int i=0;i<kSymbolCount;++i) a[names[i]]=parse_addr(argv[i+2]);
    const uint16_t graphics_base=a["tanks_graphics"];
 
-   for(const auto scenario : {Scenario::Neutral,Scenario::Turn,Scenario::Move,Scenario::FireWall,
+   for(const auto scenario : {Scenario::Neutral,Scenario::Turn,Scenario::Move,Scenario::Move16,Scenario::FireWall,
                               Scenario::HitP1,Scenario::HitP0,Scenario::HitBarrier,Scenario::PlayerWall,Scenario::PlayerPlayer,Scenario::Reset,
                               Scenario::ExtremeTiming}) {
       Machine m(argv[1],a,scenario);
-      const int frames=(scenario==Scenario::HitP1 || scenario==Scenario::HitP0 || scenario==Scenario::Turn)?30:16;
+      const int frames=(scenario==Scenario::HitP1 || scenario==Scenario::HitP0 || scenario==Scenario::Turn)?30:
+                       (scenario==Scenario::Move16?24:16);
       m.run(frames);
       require_barriers(m.snapshots()[0]);
       require_raster_write_deadlines(m);
       if(scenario==Scenario::Neutral) require_graphics_base(m,m.snapshots()[0],graphics_base);
       else if(scenario==Scenario::Turn) require_turn(m.snapshots());
       else if(scenario==Scenario::Move) require_move(m.snapshots());
+      else if(scenario==Scenario::Move16) require_move16(m.snapshots());
       else if(scenario==Scenario::FireWall) require_fire_wall(m,m.snapshots());
       else if(scenario==Scenario::HitP1) require_hit_p1(m.snapshots());
       else if(scenario==Scenario::HitP0) require_hit_p0(m.snapshots());
@@ -601,6 +640,6 @@ int main(int argc,char **argv) {
       else if(scenario==Scenario::PlayerPlayer) require_player_player(m.snapshots());
       else if(scenario==Scenario::Reset) require_reset(m.snapshots());
    }
-   std::puts("vcs_tanks ok: stable early raster writes, visible missiles, canted tanks, 3+3 score, engine/fire/hit audio, safe knockback, barriers, spin, TIA collisions");
+   std::puts("vcs_tanks ok: stable early raster writes, visible missiles, 16-way tanks, 3+3 score, engine/fire/hit audio, safe knockback, barriers, spin, TIA collisions");
    return 0;
 }

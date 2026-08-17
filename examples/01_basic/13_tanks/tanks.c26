@@ -14,13 +14,33 @@ alias TANKS_RED   __builtin_ntsc_rgb(0xff, 0x20, 0x20)
 
 enum tanks_constants {
    TANKS_DIR_N := 0,
-   TANKS_DIR_NE := 1,
-   TANKS_DIR_E := 2,
-   TANKS_DIR_SE := 3,
-   TANKS_DIR_S := 4,
-   TANKS_DIR_SW := 5,
-   TANKS_DIR_W := 6,
-   TANKS_DIR_NW := 7,
+   TANKS_DIR_NNE := 1,
+   TANKS_DIR_NE := 2,
+   TANKS_DIR_ENE := 3,
+   TANKS_DIR_E := 4,
+   TANKS_DIR_ESE := 5,
+   TANKS_DIR_SE := 6,
+   TANKS_DIR_SSE := 7,
+   TANKS_DIR_S := 8,
+   TANKS_DIR_SSW := 9,
+   TANKS_DIR_SW := 10,
+   TANKS_DIR_WSW := 11,
+   TANKS_DIR_W := 12,
+   TANKS_DIR_WNW := 13,
+   TANKS_DIR_NW := 14,
+   TANKS_DIR_NNW := 15,
+
+   // Hit knockback remains an eight-octant geometry search. The 16-way missile
+   // heading is rounded to the nearest octant before this bounded search.
+   TANKS_KNOCK_N := 0,
+   TANKS_KNOCK_NE := 1,
+   TANKS_KNOCK_E := 2,
+   TANKS_KNOCK_SE := 3,
+   TANKS_KNOCK_S := 4,
+   TANKS_KNOCK_SW := 5,
+   TANKS_KNOCK_W := 6,
+   TANKS_KNOCK_NW := 7,
+
    TANKS_PLAYER_MIN_X := 4,
    TANKS_PLAYER_MAX_X := 148,
    TANKS_PLAYER_MIN_Y := 4,
@@ -45,91 +65,191 @@ enum tanks_constants {
    TANKS_KNOCKBACK_Y_DIAGONAL := 11
 };
 
-// Eight 8x8 tank silhouettes, ordered clockwise from north. N and NE are the
-// canonical source drawings; each remaining direction is an exact 90-degree
-// rotation of the matching cardinal or diagonal template. The renderer doubles
+// Sixteen 8x8 tank silhouettes, ordered clockwise in 22.5-degree steps.
+// N, NNE, and NE are the canonical source drawings. The other headings are
+// exact rotations/reflections of those three templates. The renderer doubles
 // every source row vertically, so each displayed tank is 8 pixels wide by
 // 16 scanlines high.
-page const uint8_t tanks_graphics[64] := {
+page const uint8_t tanks_graphics[128] := {
    // N -- canonical cardinal silhouette.
-   0b...XX...,
-   0b...XX...,
-   0b..XXXX..,
-   0b.XXXXXX.,
-   0b.XXXXXX.,
-   0b.X.XX.X.,
-   0b..XXXX..,
    0b........,
+   0b...X....,
+   0b...X....,
+   0bXX.X.XX.,
+   0bXXXXXXX.,
+   0bXXXXXXX.,
+   0bXX...XX.,
+   0bXX...XX.,
+
+   // NNE -- canonical middle silhouette.
+   0b..X..X..,
+   0b.XX..X..,
+   0b.XXXX..X,
+   0bXXXXXXXX,
+   0bXXXXXXXX,
+   0b.X..XXX.,
+   0b....XXX.,
+   0b.....X..,
 
    // NE -- canonical diagonal; the entire hull is canted upper-right.
-   0b........,
-   0b......XX,
-   0b..XXXXXX,
-   0b.XXXXXX.,
-   0b...XXXX.,
-   0b.XXX.XX.,
-   0b..XX.X..,
-   0b........,
+   0b...XX..X,
+   0b..XXX.X.,
+   0b.XXXXX..,
+   0bXXXXXXXX,
+   0bXX.XXXXX,
+   0b....XXX.,
+   0b...XXX..,
+   0b...XX...,
 
-   // E -- N rotated 90 degrees clockwise.
-   0b........,
-   0b..XXX...,
-   0b.X.XXX..,
-   0b.XXXXXXX,
-   0b.XXXXXXX,
-   0b.X.XXX..,
-   0b..XXX...,
-   0b........,
-
-   // SE -- NE rotated 90 degrees clockwise.
-   0b........,
-   0b..X.X...,
-   0b.XX.XX..,
+   // ENE -- horizontal mirror of NNE, rotated 90 degrees clockwise.
+   0b...XXX..,
+   0b.XXXX...,
+   0bXXXXX.XX,
    0b.XXXXX..,
    0b...XXX..,
-   0b.XXXXX..,
+   0b...XXXXX,
    0b..XXXXX.,
-   0b.....XX.,
+   0b...XX...,
+
+   // E -- N rotated 90 degrees clockwise.
+   0bXXXXX...,
+   0bXXXXX...,
+   0b..XX....,
+   0b..XXXXX.,
+   0b..XX....,
+   0bXXXXX...,
+   0bXXXXX...,
+   0b........,
+
+   // ESE -- NNE rotated 90 degrees clockwise.
+   0b...XX...,
+   0b..XXXXX.,
+   0b...XXXXX,
+   0b...XXX..,
+   0b.XXXXX..,
+   0bXXXXX.XX,
+   0b.XXXX...,
+   0b...XXX..,
+
+   // SE -- NE rotated 90 degrees clockwise.
+   0b...XX...,
+   0b...XXX..,
+   0b....XXX.,
+   0bXX.XXXXX,
+   0bXXXXXXXX,
+   0b.XXXXX..,
+   0b..XXX.X.,
+   0b...XX..X,
+
+   // SSE -- mirrored NNE rotated 180 degrees clockwise.
+   0b.....X..,
+   0b....XXX.,
+   0b.X..XXX.,
+   0bXXXXXXXX,
+   0bXXXXXXXX,
+   0b.XXXX..X,
+   0b.XX..X..,
+   0b..X..X..,
 
    // S -- N rotated 180 degrees.
+   0b.XX...XX,
+   0b.XX...XX,
+   0b.XXXXXXX,
+   0b.XXXXXXX,
+   0b.XX.X.XX,
+   0b....X...,
+   0b....X...,
    0b........,
-   0b..XXXX..,
-   0b.X.XX.X.,
-   0b.XXXXXX.,
-   0b.XXXXXX.,
-   0b..XXXX..,
-   0b...XX...,
-   0b...XX...,
+
+   // SSW -- NNE rotated 180 degrees clockwise.
+   0b..X.....,
+   0b.XXX....,
+   0b.XXX..X.,
+   0bXXXXXXXX,
+   0bXXXXXXXX,
+   0bX..XXXX.,
+   0b..X..XX.,
+   0b..X..X..,
 
    // SW -- NE rotated 180 degrees.
-   0b........,
-   0b..X.XX..,
-   0b.XX.XXX.,
-   0b.XXXX...,
-   0b.XXXXXX.,
-   0bXXXXXX..,
-   0bXX......,
-   0b........,
+   0b...XX...,
+   0b..XXX...,
+   0b.XXX....,
+   0bXXXXX.XX,
+   0bXXXXXXXX,
+   0b..XXXXX.,
+   0b.X.XXX..,
+   0bX..XX...,
+
+   // WSW -- mirrored NNE rotated 270 degrees clockwise.
+   0b...XX...,
+   0b.XXXXX..,
+   0bXXXXX...,
+   0b..XXX...,
+   0b..XXXXX.,
+   0bXX.XXXXX,
+   0b...XXXX.,
+   0b..XXX...,
 
    // W -- N rotated 270 degrees clockwise.
    0b........,
-   0b...XXX..,
-   0b..XXX.X.,
-   0bXXXXXXX.,
-   0bXXXXXXX.,
-   0b..XXX.X.,
-   0b...XXX..,
-   0b........,
-
-   // NW -- NE rotated 270 degrees clockwise.
-   0b.XX.....,
+   0b...XXXXX,
+   0b...XXXXX,
+   0b....XX..,
    0b.XXXXX..,
+   0b....XX..,
+   0b...XXXXX,
+   0b...XXXXX,
+
+   // WNW -- NNE rotated 270 degrees clockwise.
+   0b..XXX...,
+   0b...XXXX.,
+   0bXX.XXXXX,
    0b..XXXXX.,
    0b..XXX...,
+   0bXXXXX...,
+   0b.XXXXX..,
+   0b...XX...,
+
+   // NW -- NE rotated 270 degrees clockwise.
+   0bX..XX...,
+   0b.X.XXX..,
    0b..XXXXX.,
-   0b..XX.XX.,
-   0b...X.X..,
-   0b........,
+   0bXXXXXXXX,
+   0bXXXXX.XX,
+   0b.XXX....,
+   0b..XXX...,
+   0b...XX...,
+
+   // NNW -- horizontal mirror of NNE.
+   0b..X..X..,
+   0b..X..XX.,
+   0bX..XXXX.,
+   0bXXXXXXXX,
+   0bXXXXXXXX,
+   0b.XXX..X.,
+   0b.XXX....,
+   0b..X.....,
+};
+
+// Arena Y units are doubled visible scanline rows, so screen-space 22.5-degree
+// motion cannot use the same X/Y cadence. This 16-step pattern contains thirteen
+// major-axis assists; its inverse contains three. NNE/SSW use 13/16 X for every
+// Y row (13 horizontal pixels per 32 visible vertical pixels), ENE/WSW use the
+// inverse 3/16 Y rows for every X pixel (6 visible vertical pixels per 16 X),
+// and 45-degree headings step Y every other X. These integer ratios closely
+// approximate the visible 22.5/45/67.5-degree directions without fractional
+// coordinate state.
+page const uint8_t tanks_angle_steps[16] := {
+   0,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1
+};
+
+// Packed movement components for the 16 headings. Low nibble is X, high nibble
+// is Y. Codes 1..4 are positive always/13-of-16/half/3-of-16 steps; codes 5..8
+// are their negative counterparts.
+page const uint8_t tanks_motion[16] := {
+   0x50,0x52,0x71,0x81,0x01,0x41,0x31,0x12,
+   0x10,0x16,0x35,0x45,0x05,0x85,0x75,0x56
 };
 
 // VBLANK horizontal fine-motion table for M0/M1. Indexes 1..15 correspond to
@@ -186,10 +306,10 @@ uint8_t tank0_y := TANKS_START_Y;
 uint8_t tank1_y := TANKS_START_Y;
 uint8_t tank0_direction := TANKS_DIR_E;
 uint8_t tank1_direction := TANKS_DIR_W;
-uint8_t *tank0_graphics := tanks_graphics + 16;
-uint8_t *tank1_graphics := tanks_graphics + 48;
-uint8_t tank0_turn_countdown := 0;
-uint8_t tank1_turn_countdown := 0;
+uint8_t *tank0_graphics := tanks_graphics + 32;
+uint8_t *tank1_graphics := tanks_graphics + 96;
+cartram uint8_t tank0_turn_countdown := 0;
+cartram uint8_t tank1_turn_countdown := 0;
 uint8_t tank0_fire_ready := 1;
 uint8_t tank1_fire_ready := 1;
 uint8_t tank0_prev_x := TANKS_LEFT_START_X;
@@ -203,14 +323,14 @@ uint8_t tanks_rng := 0x5d;
 uint8_t tanks_sound_frames := 0;
 uint8_t tanks_sound_kind := TANKS_SOUND_OFF;
 
-// Superchip RAM backs the 86-pair PF2 schedule used by the top-wall/interior
+// Mapper-owned cartridge RAM backs the 86-pair PF2 schedule used by the top-wall/interior
 // kernel. The visible kernel therefore performs one constant-time indexed load
 // per pair instead of taking variable barrier-event branches. Entries 0..1 are
 // the full-width top wall; the remaining entries are zero except for generated
 // vertical barriers. The bottom wall is drawn separately after this schedule.
 cartram uint8_t tanks_barrier_pf2[86];
 
-// Persistent Superchip scratch for hit knockback.  The game is deliberately
+// Persistent cartridge-RAM scratch for hit knockback.  The game is deliberately
 // non-reentrant, so these bytes can replace nested RIOT-RAM activation locals.
 cartram uint8_t tanks_knock_direction;
 cartram uint8_t tanks_knock_amount;
@@ -218,6 +338,7 @@ cartram uint8_t tanks_knock_x;
 cartram uint8_t tanks_knock_y;
 cartram uint8_t tanks_knock_mask;
 cartram uint8_t tanks_knock_row;
+cartram uint8_t tanks_motion_work;
 cartram uint8_t tank0_knockback_pending;
 cartram uint8_t tank1_knockback_pending;
 cartram uint8_t tank0_knockback_index;
@@ -297,13 +418,13 @@ cartram uint8_t tanks_try_knockback(uint8_t *x, uint8_t *y, uint8_t direction) {
    tanks_knock_amount := TANKS_KNOCKBACK_X_CARDINAL;
    if (direction & 1) { tanks_knock_amount := TANKS_KNOCKBACK_X_DIAGONAL; }
 
-   if (direction >= TANKS_DIR_NE) {
-      if (direction <= TANKS_DIR_SE) {
+   if (direction >= TANKS_KNOCK_NE) {
+      if (direction <= TANKS_KNOCK_SE) {
          if (tanks_knock_x > TANKS_PLAYER_MAX_X - tanks_knock_amount) { return 0; }
          tanks_knock_x += tanks_knock_amount;
       }
       else {
-         if (direction >= TANKS_DIR_SW) {
+         if (direction >= TANKS_KNOCK_SW) {
             if (tanks_knock_x < TANKS_PLAYER_MIN_X + tanks_knock_amount) { return 0; }
             tanks_knock_x -= tanks_knock_amount;
          }
@@ -313,18 +434,18 @@ cartram uint8_t tanks_try_knockback(uint8_t *x, uint8_t *y, uint8_t direction) {
    tanks_knock_amount := TANKS_KNOCKBACK_Y_CARDINAL;
    if (direction & 1) { tanks_knock_amount := TANKS_KNOCKBACK_Y_DIAGONAL; }
 
-   if (direction <= TANKS_DIR_NE) {
+   if (direction <= TANKS_KNOCK_NE) {
       if (tanks_knock_y < TANKS_PLAYER_MIN_Y + tanks_knock_amount) { return 0; }
       tanks_knock_y -= tanks_knock_amount;
    }
    else {
-      if (direction == TANKS_DIR_NW) {
+      if (direction == TANKS_KNOCK_NW) {
          if (tanks_knock_y < TANKS_PLAYER_MIN_Y + tanks_knock_amount) { return 0; }
          tanks_knock_y -= tanks_knock_amount;
       }
       else {
-         if (direction >= TANKS_DIR_SE) {
-            if (direction <= TANKS_DIR_SW) {
+         if (direction >= TANKS_KNOCK_SE) {
+            if (direction <= TANKS_KNOCK_SW) {
                if (tanks_knock_y > TANKS_PLAYER_MAX_Y - tanks_knock_amount) { return 0; }
                tanks_knock_y += tanks_knock_amount;
             }
@@ -335,7 +456,7 @@ cartram uint8_t tanks_try_knockback(uint8_t *x, uint8_t *y, uint8_t direction) {
    // Bounds above keep the complete tank out of the outer walls.  Internal
    // barriers live only in PF2 x=48..111.  The 36-byte overlap table folds the
    // reflected half around x=76, then the eight doubled player rows are checked
-   // against the existing Superchip PF2 schedule before the position is committed.
+   // against the existing cartridge-RAM PF2 schedule before the position is committed.
    if (tanks_knock_x >= 41) {
       if (tanks_knock_x <= 111) {
          tanks_knock_row := tanks_knock_x;
@@ -477,59 +598,57 @@ void tanks_reset_game(void) {
    tanks_reset_positions();
 }
 
-void tanks_move_player(uint8_t *x, uint8_t *y, uint8_t direction, uint8_t reverse) {
-   // Reverse is the same heading rotated 180 degrees.  Range tests keep this
-   // substantially smaller than two eight-way switches on 6502.
-   if (reverse) {
-      direction += 4;
-      direction &= 7;
+void tanks_move_object(uint8_t *x, uint8_t *y, uint8_t direction) {
+   tanks_motion_work := tanks_motion[direction];
+
+   // X is either a full step or the 13/16 cadence for the near-vertical
+   // headings. Preserve the packed Y nibble while suppressing a skipped X.
+   if ((tanks_motion_work & 0x0f) == 2 || (tanks_motion_work & 0x0f) == 6) {
+      if (!tanks_angle_steps[*y & 15]) { tanks_motion_work &= 0xf0; }
+   }
+   if (tanks_motion_work & 0x0f) {
+      if ((tanks_motion_work & 0x0f) <= 4) { (*x)++; }
+      else { (*x)--; }
    }
 
-   if (direction >= TANKS_DIR_NE) {
-      if (direction <= TANKS_DIR_SE) {
-         if (*x < TANKS_PLAYER_MAX_X) { (*x)++; }
-      }
-      else {
-         if (direction >= TANKS_DIR_SW) {
-            if (*x > TANKS_PLAYER_MIN_X) { (*x)--; }
-         }
-      }
-   }
+   tanks_motion_work >>= 4;
 
-   if (direction <= TANKS_DIR_NE) {
-      if (*y > TANKS_PLAYER_MIN_Y) { (*y)--; }
+   // Y uses a half cadence for diagonals or the inverse 3/16 cadence for the
+   // near-horizontal headings. One logical Y row is two visible scanlines.
+   if (tanks_motion_work == 3 || tanks_motion_work == 7) {
+      if (*x & 1) { tanks_motion_work := 0; }
    }
    else {
-      if (direction == TANKS_DIR_NW) {
-         if (*y > TANKS_PLAYER_MIN_Y) { (*y)--; }
+      if (tanks_motion_work == 4 || tanks_motion_work == 8) {
+         if (tanks_angle_steps[*x & 15]) { tanks_motion_work := 0; }
       }
-      else {
-         if (direction >= TANKS_DIR_SE) {
-            if (direction <= TANKS_DIR_SW) {
-               if (*y < TANKS_PLAYER_MAX_Y) { (*y)++; }
-            }
-         }
-      }
+   }
+   if (tanks_motion_work) {
+      if (tanks_motion_work <= 4) { (*y)++; }
+      else { (*y)--; }
    }
 }
 
-void tanks_move_missile(uint8_t *x, uint8_t *y, uint8_t direction) {
-   if (direction >= TANKS_DIR_NE) {
-      if (direction <= TANKS_DIR_SE) { (*x)++; }
-      else {
-         if (direction >= TANKS_DIR_SW) { (*x)--; }
-      }
+void tanks_move_player(uint8_t *x, uint8_t *y, uint8_t direction, uint8_t reverse) {
+   // Reverse is the same heading rotated 180 degrees.
+   if (reverse) {
+      direction += 8;
+      direction &= 15;
    }
 
-   if (direction <= TANKS_DIR_NE) { (*y)--; }
-   else {
-      if (direction == TANKS_DIR_NW) { (*y)--; }
-      else {
-         if (direction >= TANKS_DIR_SE) {
-            if (direction <= TANKS_DIR_SW) { (*y)++; }
-         }
-      }
-   }
+   tanks_move_object(x, y, direction);
+
+   // Clamp the complete 8x8 source footprint inside the arena. The common
+   // mover remains branch-light and missiles retain their historical unbounded
+   // coordinates until TIA collision latches stop them.
+   if (*x < TANKS_PLAYER_MIN_X) { *x := TANKS_PLAYER_MIN_X; }
+   else { if (*x > TANKS_PLAYER_MAX_X) { *x := TANKS_PLAYER_MAX_X; } }
+   if (*y < TANKS_PLAYER_MIN_Y) { *y := TANKS_PLAYER_MIN_Y; }
+   else { if (*y > TANKS_PLAYER_MAX_Y) { *y := TANKS_PLAYER_MAX_Y; } }
+}
+
+void tanks_move_missile(uint8_t *x, uint8_t *y, uint8_t direction) {
+   tanks_move_object(x, y, direction);
 }
 
 inline void tanks_launch0(void) {
@@ -551,15 +670,15 @@ inline void tanks_launch1(void) {
 inline void tanks_update_turn0(uint8_t controls) {
    if (!(controls & 0x40)) {
       if (tank0_turn_countdown) { tank0_turn_countdown--; return; }
-      if (tank0_direction == TANKS_DIR_N) { tank0_direction := TANKS_DIR_NW; }
-      else { tank0_direction--; }
+      tank0_direction--;
+      tank0_direction &= 15;
       tank0_turn_countdown := TANKS_TURN_REPEAT;
       return;
    }
    if (!(controls & 0x80)) {
       if (tank0_turn_countdown) { tank0_turn_countdown--; return; }
       tank0_direction++;
-      if (tank0_direction > TANKS_DIR_NW) { tank0_direction := TANKS_DIR_N; }
+      tank0_direction &= 15;
       tank0_turn_countdown := TANKS_TURN_REPEAT;
       return;
    }
@@ -569,15 +688,15 @@ inline void tanks_update_turn0(uint8_t controls) {
 inline void tanks_update_turn1(uint8_t controls) {
    if (!(controls & 0x04)) {
       if (tank1_turn_countdown) { tank1_turn_countdown--; return; }
-      if (tank1_direction == TANKS_DIR_N) { tank1_direction := TANKS_DIR_NW; }
-      else { tank1_direction--; }
+      tank1_direction--;
+      tank1_direction &= 15;
       tank1_turn_countdown := TANKS_TURN_REPEAT;
       return;
    }
    if (!(controls & 0x08)) {
       if (tank1_turn_countdown) { tank1_turn_countdown--; return; }
       tank1_direction++;
-      if (tank1_direction > TANKS_DIR_NW) { tank1_direction := TANKS_DIR_N; }
+      tank1_direction &= 15;
       tank1_turn_countdown := TANKS_TURN_REPEAT;
       return;
    }
@@ -587,17 +706,17 @@ inline void tanks_update_turn1(uint8_t controls) {
 inline void tanks_update_spin0(void) {
    if (!tank0_spin_frames) { return; }
    tank0_direction++;
-   tank0_direction &= 7;
+   tank0_direction &= 15;
    tank0_spin_frames--;
-   if (!tank0_spin_frames) { tank0_direction := tanks_random() & 7; }
+   if (!tank0_spin_frames) { tank0_direction := tanks_random() & 15; }
 }
 
 inline void tanks_update_spin1(void) {
    if (!tank1_spin_frames) { return; }
    tank1_direction++;
-   tank1_direction &= 7;
+   tank1_direction &= 15;
    tank1_spin_frames--;
-   if (!tank1_spin_frames) { tank1_direction := tanks_random() & 7; }
+   if (!tank1_spin_frames) { tank1_direction := tanks_random() & 15; }
 }
 
 inline void tanks_update_controls(void) {
@@ -677,7 +796,7 @@ inline void tanks_update_collisions(void) {
       if (CXM0P & 0x80) {
          missile0_active := 0;
          score_left_score++;
-         tank1_knockback_pending := missile0_direction + 1;
+         tank1_knockback_pending := (((missile0_direction + 1) >> 1) & 7) + 1;
          tank1_knockback_index := tanks_random() & 7;
          tank1_knockback_attempts := 0;
          tank1_spin_frames := TANKS_HIT_SPIN_FRAMES;
@@ -691,7 +810,7 @@ inline void tanks_update_collisions(void) {
       if (CXM1P & 0x80) {
          missile1_active := 0;
          score_right_score++;
-         tank0_knockback_pending := missile1_direction + 1;
+         tank0_knockback_pending := (((missile1_direction + 1) >> 1) & 7) + 1;
          tank0_knockback_index := tanks_random() & 7;
          tank0_knockback_attempts := 0;
          tank0_spin_frames := TANKS_HIT_SPIN_FRAMES;

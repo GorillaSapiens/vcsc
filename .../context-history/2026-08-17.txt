@@ -26,3 +26,15 @@ simulator docs, ABI examples, map expectations, and split-memory regressions.
 Also repaired the two stale direct-topology fixtures by marking their intended
 high ROM bank as `$startup`, preserving Item 42's requirement that `main()` has
 a unique startup/home region.
+2026-08-17 09:23:41 PDT, expand Tanks to 16-way movement
+Tanks now uses sixteen 22.5-degree headings. N, NNE, and NE are the
+canonical glyphs; the remaining thirteen are rotations/reflections. Motion
+accounts for doubled arena Y with half-rate diagonals plus 13/16 and inverse
+3/16 intermediate cadences, giving distinct screen-space trajectories without
+extra persistent RAM; missiles use the same 16-way mover. Two off-beam turn
+repeat counters plus the movement scratch byte were moved explicitly to cartram
+to keep RIOT activation/stack pressure within budget. Hit knockback remains the
+existing bounded octant search after rounding the missile
+heading to the nearest octant. The emulator oracle now dynamically proves NNE
+and ENE diverge, while raster, collision, audio, spin, and barrier behavior stay
+stable.

@@ -26,7 +26,7 @@ and the lifecycle-component model in small, independently understandable steps.
 | 10 | [`four_player_paddleball`](10_four_player_paddleball/) | Four-player team Paddleball using all four paddles across both ports, P0/M0 versus P1/M1, hardware Ball collisions, and team scoring |
 | 11 | [`keypad`](11_keypad/) | Two 12-key keypad controllers scanned in parallel; P0/P1 show a centered Big-font key glyph for the left/right ports |
 | 12 | [`drive`](12_drive/) | Two Indy 500 driving controllers; clockwise/counterclockwise motion wraps independent hexadecimal P0/P1 counters and each fire button turns its glyph red while held |
-| 13 | [`tanks`](13_tanks/) | Two-player joystick tank duel with a 3+3 blue/red score, slowed eight-way driving, fire/hit audio, hit spins, tall pseudo-random vertical barriers, and hardware collision latches |
+| 13 | [`tanks`](13_tanks/) | Two-player joystick tank duel with a 3+3 blue/red score, slowed sixteen-way driving, fire/hit audio, hit spins, tall pseudo-random vertical barriers, and hardware collision latches |
 
 The score, wide-score, big-wide-score, dual-score, and fingerprint examples demonstrate component composition rather than
 a full gameplay renderer. They own the surrounding blank visible lines and call

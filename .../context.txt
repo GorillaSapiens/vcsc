@@ -535,7 +535,7 @@ the 13-byte offset table. Relative to the immediate post-assembly-audit tree the
 benchmarks recover **422 ROM bytes**; collectively they are now **151 ROM bytes smaller**
 than their former hand-written-assembly versions. Current builds are 3617/4090 ROM +
 101/128 RAM, keypad 1647/4090 + 43/128, Driving 1669/4090 + 41/128, and Tanks bank1
-2885/3584 + bank0 3378/3584 with 112/128 RIOT and 99/128 Superchip RAM. Keypad alone
+3534/3584 + bank0 3428/3584 with 127/128 RIOT and 102/128 `cartram`. Keypad alone
 remains 14 ROM bytes above its old asm version; the other three are smaller. A tempting
 direct `LDY index` micro-optimization remains intentionally rejected: its two-byte shrink
 shifted a page-constrained all-five 4K layout so the linker could no longer place it; the
@@ -1061,14 +1061,18 @@ the public example. Main-roadmap Items 39 (FA/RAM Plus), 41 (low-hanging-fruit m
 
 Roadmap item 40 (two-player joystick tank duel) is complete as the public
 `examples/01_basic/13_tanks/` example. It uses the Paddleball blue/red/black/white
-palette and the same three-plus-three score component, P0/P1 as eight-direction
+palette and the same three-plus-three score component, P0/P1 as sixteen-direction
 8x16 tanks, M0/M1 as projectiles, four-scanline top/bottom walls, and one reflected
 four-color-clock playfield bit for each side wall. Three pseudo-random interior
 barrier segments are each one PF2 bit (four color clocks) wide and 28 visible
 scanlines tall; CTRLPF reflection mirrors them into three additional vertical
-barriers. Left/Right rotate, Up drives forward, and Down drives backward. Translation
-moves one pixel every fourth frame. A new turn acts immediately, while a held turn
-repeats after 24 frames. Fire launches a missile only after the previous shot has
+barriers. Left/Right rotate in 22.5-degree steps, Up drives forward, and Down drives
+backward. Translation retains the one-update-per-four-frames cadence. Cardinal and
+45-degree headings account for doubled arena Y by stepping Y every other X;
+NNE/ENE/etc. use deterministic 13/16 or inverse 3/16 cadence patterns so all sixteen
+headings have distinct approximate 22.5-degree screen-space trajectories without
+fractional-coordinate state. Missiles use the same 16-way mover.
+A new turn acts immediately, while a held turn repeats after 24 frames. Fire launches a missile only after the previous shot has
 stopped and starts a four-frame TIA noise burst. Existing missiles advance before
 controls are processed, so a newly launched two-pixel missile gets one visible
 frame centered at physical tank_x+3..+4 before projectile motion begins. The
@@ -1094,17 +1098,15 @@ that overlapped it; CXPPMM
 rolls both tanks back on P0/P1 contact so they cannot drive through each other.
 
 The tank glyph table is written as exactly one visual `0b...X....` byte per
-source line so each 8x8 orientation can be scanned directly in the file. N and NE
-are the canonical source drawings; E/S/W are exact 90-degree rotations of N, and
-SE/SW/NW are exact 90-degree rotations of NE. The diagonal hulls therefore cant
-as a whole rather than retaining a cardinal chassis with only an angled barrel.
-A measured REFP0/REFP1 compression prototype reduced raw glyph data from 64 to
-40 bytes but increased bank0 by 22 bytes overall and consumed two additional
-RIOT RAM bytes, so the full eight-glyph table remains intentionally unreflected.
-The corrected tank graphics pointer includes the actual low/high address of the
+source line so each 8x8 orientation can be scanned directly in the file. N, NNE,
+and NE are the canonical drawings; the other thirteen headings are exact rotations
+or reflections of those templates. The diagonal and intermediate hulls cant as a
+whole rather than retaining a cardinal chassis with only an angled barrel. The
+corrected tank graphics pointer includes the actual low/high address of the
 `tanks_graphics` table instead of assuming page alignment at `$xx00`; the old
 accidental alignment caused scrambled glyphs after score/audio additions moved
-the table. The complete 64-byte payload is pinned by the Tanks regression.
+the table. The complete 128-byte / sixteen-glyph payload is pinned by the Tanks
+regression.
 The 11-line score temporarily owns P0/P1.
 A VBLANK-prepared 160-entry packed player-position table then restores P0/P1 with
 a fixed three-visible-line handoff, replacing coordinate-dependent visible-time
@@ -1117,7 +1119,7 @@ HBLANK, and the bottom wall is established at the start of its own four-line pha
 instead of changing PF0/PF1 partway across the first bottom scanline. Missile enable
 bytes are staged on line B and published early on the following line A; the enable
 remains latched through line B so a shot is visible for two scanlines. An 86-byte
-Superchip PF2 schedule supplies the top-wall continuation and vertical barriers in
+`cartram` PF2 schedule supplies the top-wall continuation and vertical barriers in
 constant time. Missile collision, score, and hit-audio processing consume the
 previous arena's latches in VBLANK. Player collision rollback is consumed earlier,
 at the start of overscan immediately after the arena and before controls overwrite
@@ -1132,11 +1134,14 @@ moving tank after the raster rewrite; tank rows remained coherent and the bottom
 wall rendered continuously.
 
 `tanks` is an 8K F8SC cartridge. The current linker reports bank1 at
-2885/3584 bytes, bank0 at 3378/3584 bytes, RIOT RAM at 112/128 bytes including
-the reserved hardware stack, and Superchip RAM at 99/128 bytes. Off-beam RNG,
+3534/3584 bytes, bank0 at 3428/3584 bytes, RIOT RAM at 127/128 bytes (113 bytes
+of objects plus the 14-byte reserved hardware stack), and `cartram` at 102/128
+bytes. The two turn-repeat counters and one movement scratch byte are explicitly
+in `cartram`; beam-facing position/graphics state remains zero-page. Off-beam RNG,
 tank-graphics pointer selection, and packed player-position lookup are ordinary VCSC;
 the remaining 163 source `asm` statements are reviewed timing-critical raster,
-positioning, or bounded blanking-deadline code. `vcs_tanks.pl/.cpp` covers both joysticks, 24-frame held-turn repeat, quarter-rate translation, fire
+positioning, or bounded blanking-deadline code. `vcs_tanks.pl/.cpp` covers both joysticks, 16-step turning, 24-frame held-turn
+repeat, quarter-rate translation, distinct NNE/ENE minor-axis trajectories, fire
 hold semantics and fire audio, three-plus-three scoring, hit audio/spin/random
 heading, away-side knockback distance/direction, outer-wall bounds, explicit
 barrier-rejection fallback, missile/playfield and missile/player latches,

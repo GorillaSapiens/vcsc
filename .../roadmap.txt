@@ -1963,6 +1963,14 @@ Main Item 42 is complete; focused bankswitching Item 32 (OMNI) is now unblocked.
         headings fall back through neighboring away-side directions, and the emulator
         oracle includes a deterministic case whose preferred destination is inside a
         barrier and must be rejected.
+        Enhanced 2026-08-17 to sixteen facing/movement directions in 22.5-degree
+        steps. N, NNE, and NE are canonical 8x8 silhouettes and the other thirteen
+        glyphs are exact rotations/reflections. Motion accounts for doubled arena Y:
+        45-degree headings step Y every other X and intermediate headings use
+        deterministic 13/16 or inverse 3/16 cadence patterns without extra position RAM. Missiles use the same 16-way mover, hit knockback
+        rounds the projectile heading to the nearest octant for the existing bounded
+        geometry search, and the emulator oracle proves NNE and ENE follow distinct
+        trajectories while all raster/collision/audio invariants remain intact.
 
 [x] 41. Identify other low-hanging-fruit Atari 2600 mapper families that fit the
         existing VCSC bankswitching/linker architecture. Survey established cartridge

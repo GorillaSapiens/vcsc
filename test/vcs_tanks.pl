@@ -37,6 +37,8 @@ $s =~ /score_left_score\+\+/ && $s =~ /score_right_score\+\+/ &&
 $s =~ /score_left_color := TANKS_BLUE/ && $s =~ /score_right_color := TANKS_RED/
    or die "Tanks lost the blue\/red score\n";
 $s =~ /TANKS_TURN_REPEAT := 23/ && $s =~ /tanks_move_phase &= 3/ &&
+$s =~ /TANKS_DIR_NNE := 1/ && $s =~ /TANKS_DIR_NNW := 15/ &&
+$s =~ /tank0_direction &= 15/ && $s =~ /tank1_direction &= 15/ &&
 $s =~ /tank0_spin_frames := TANKS_HIT_SPIN_FRAMES/ && $s =~ /tank1_spin_frames := TANKS_HIT_SPIN_FRAMES/
    or die "Tanks lost quarter-rate controls or hit-spin behavior\n";
 $s =~ /AUDC0 := MUSIC_CONTROL_NOISE/ && $s =~ /AUDF0 := 4/ && $s =~ /AUDF0 := 20/ &&
@@ -73,8 +75,8 @@ $s =~ /TANKS_KNOCKBACK_Y_CARDINAL := 16/ && $s =~ /TANKS_KNOCKBACK_Y_DIAGONAL :=
 $s =~ /tanks_knockback_offsets\[8\].*?0,1,7,0,1,7,2,6/s &&
 $s =~ /tanks_player_pf2_overlap\[36\]/ &&
 $s =~ /tanks_try_knockback.*?lda\.ax tanks_barrier_pf2,x.*?and tanks_knock_mask.*?bne\.same \@knock_pf_blocked/s &&
-$s =~ /tank1_knockback_pending := missile0_direction \+ 1/ &&
-$s =~ /tank0_knockback_pending := missile1_direction \+ 1/
+$s =~ /tank1_knockback_pending := \(\(\(missile0_direction \+ 1\) >> 1\) & 7\) \+ 1/ &&
+$s =~ /tank0_knockback_pending := \(\(\(missile1_direction \+ 1\) >> 1\) & 7\) \+ 1/
    or die "Tanks lost safe away-side hit knockback or playfield preflight checks\n";
 $s =~ /controls & 0x40/ && $s =~ /controls & 0x80/ && $s =~ /controls & 0x04/ && $s =~ /controls & 0x08/ &&
 $s =~ /controls & 0x10/ && $s =~ /controls & 0x20/ && $s =~ /controls & 0x01/ && $s =~ /controls & 0x02/ &&
@@ -83,24 +85,35 @@ $s =~ /INPT4 & 0x80/ && $s =~ /INPT5 & 0x80/
 $s =~ /missile0_x := tank0_x \+ 8/ && $s =~ /missile1_x := tank1_x \+ 8/ &&
 $s =~ /renders M0\/M1.*?five Atari pixels left/s
    or die "Tanks lost physical-center missile positioning calibration\n";
-my($graphics_block)=$s =~ /tanks_graphics\[64\] := \{(.*?)\n\};/s;
+my($graphics_block)=$s =~ /tanks_graphics\[128\] := \{(.*?)\n\};/s;
 defined $graphics_block or die "Tanks graphics table missing\n";
 my @graphics_rows=grep {/0b/} split /\n/,$graphics_block;
-@graphics_rows==64 && !grep { $_ !~ /^\s*0b[.X]{8},\s*$/ } @graphics_rows
+@graphics_rows==128 && !grep { $_ !~ /^\s*0b[.X]{8},\s*$/ } @graphics_rows
    or die "Tanks graphics must keep exactly one visual 0b dot\/X byte per source line\n";
 my @graphics_bits=map { /0b([.X]{8})/ ? $1 : () } @graphics_rows;
 my @expected_graphics=qw(
-...XX... ...XX... ..XXXX.. .XXXXXX. .XXXXXX. .X.XX.X. ..XXXX.. ........
-........ ......XX ..XXXXXX .XXXXXX. ...XXXX. .XXX.XX. ..XX.X.. ........
-........ ..XXX... .X.XXX.. .XXXXXXX .XXXXXXX .X.XXX.. ..XXX... ........
-........ ..X.X... .XX.XX.. .XXXXX.. ...XXX.. .XXXXX.. ..XXXXX. .....XX.
-........ ..XXXX.. .X.XX.X. .XXXXXX. .XXXXXX. ..XXXX.. ...XX... ...XX...
-........ ..X.XX.. .XX.XXX. .XXXX... .XXXXXX. XXXXXX.. XX...... ........
-........ ...XXX.. ..XXX.X. XXXXXXX. XXXXXXX. ..XXX.X. ...XXX.. ........
-.XX..... .XXXXX.. ..XXXXX. ..XXX... ..XXXXX. ..XX.XX. ...X.X.. ........
+........ ...X.... ...X.... XX.X.XX. XXXXXXX. XXXXXXX. XX...XX. XX...XX.
+..X..X.. .XX..X.. .XXXX..X XXXXXXXX XXXXXXXX .X..XXX. ....XXX. .....X..
+...XX..X ..XXX.X. .XXXXX.. XXXXXXXX XX.XXXXX ....XXX. ...XXX.. ...XX...
+...XXX.. .XXXX... XXXXX.XX .XXXXX.. ...XXX.. ...XXXXX ..XXXXX. ...XX...
+XXXXX... XXXXX... ..XX.... ..XXXXX. ..XX.... XXXXX... XXXXX... ........
+...XX... ..XXXXX. ...XXXXX ...XXX.. .XXXXX.. XXXXX.XX .XXXX... ...XXX..
+...XX... ...XXX.. ....XXX. XX.XXXXX XXXXXXXX .XXXXX.. ..XXX.X. ...XX..X
+.....X.. ....XXX. .X..XXX. XXXXXXXX XXXXXXXX .XXXX..X .XX..X.. ..X..X..
+.XX...XX .XX...XX .XXXXXXX .XXXXXXX .XX.X.XX ....X... ....X... ........
+..X..... .XXX.... .XXX..X. XXXXXXXX XXXXXXXX X..XXXX. ..X..XX. ..X..X..
+...XX... ..XXX... .XXX.... XXXXX.XX XXXXXXXX ..XXXXX. .X.XXX.. X..XX...
+...XX... .XXXXX.. XXXXX... ..XXX... ..XXXXX. XX.XXXXX ...XXXX. ..XXX...
+........ ...XXXXX ...XXXXX ....XX.. .XXXXX.. ....XX.. ...XXXXX ...XXXXX
+..XXX... ...XXXX. XX.XXXXX ..XXXXX. ..XXX... XXXXX... .XXXXX.. ...XX...
+X..XX... .X.XXX.. ..XXXXX. XXXXXXXX XXXXX.XX .XXX.... ..XXX... ...XX...
+..X..X.. ..X..XX. X..XXXX. XXXXXXXX XXXXXXXX .XXX..X. .XXX.... ..X.....
 );
 join(' ',@graphics_bits) eq join(' ',@expected_graphics)
-   or die "Tanks graphics no longer match the canonical N/NE silhouettes and their rotations\n";
+   or die "Tanks graphics no longer match the canonical N/NNE/NE silhouettes and their 16-way transforms\n";
+$s =~ /tanks_angle_steps\[16\]/ && $s =~ /tanks_motion\[16\]/ &&
+$s =~ /tanks_move_object\(x, y, direction\)/
+   or die "Tanks lost deterministic 16-way movement support\n";
 
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',$dir,'-T',File::Spec->catfile($vcs,'vcs.cfg'),'-Map',$mapfile,$source,'-o',$bin);
 $rc==0&&!$sig or die "Tanks build failed\n$out$err";
@@ -108,7 +121,7 @@ $rc==0&&!$sig or die "Tanks build failed\n$out$err";
 my$map=read_file($mapfile);
 $map =~ /pinned\s+CODE\.__vcsc_function\$main\s+region=bank0/m &&
 $map =~ /automatic\s+CODE\.__vcsc_function\$tanks_update_overscan\s+region=bank1/m &&
-$map =~ /automatic\s+CODE\.__vcsc_function\$tanks_try_knockback\s+region=bank0/m
+$map =~ /automatic\s+CODE\.__vcsc_function\$tanks_move_object\s+region=bank0/m
    or die "Tanks automatic F8SC code placement did not keep startup home and use both banks\n$map";
 $map =~ /^\s+cartram\s+read_start=\$F080 write_start=\$F000 size=\$0080 type=rw shared=yes\b/m &&
 $map =~ /^\s+ZERO\s+BSS\.cartram\.__vcsc_object\$tanks_barrier_pf2\s+read=\$F080\s+write=\$F000\s+size=\$0056/m
@@ -121,6 +134,6 @@ $rc==0&&!$sig or die"Tanks oracle build failed\n$out$err";
 my@symbols=qw(tank0_x tank1_x tank0_y tank1_y tank0_direction tank1_direction tank0_graphics tank1_graphics tank0_prev_x tank1_prev_x tank0_prev_y tank1_prev_y tank0_spin_frames tank1_spin_frames missile0_x missile1_x missile0_y missile1_y missile0_direction missile1_direction missile0_active missile1_active score_left_score score_right_score tanks_move_phase tanks_rng tanks_sound_frames tanks_sound_kind tanks_barrier_pf2 tanks_graphics);
 my@addr=map{sprintf('0x%04x',symbol_addr($map,$_))}@symbols;
 ($rc,$sig,$out,$err)=capture($oracle,$bin,@addr);$rc==0&&!$sig or die"Tanks oracle run failed\n$out$err";
-$out eq "vcs_tanks ok: stable early raster writes, visible missiles, canted tanks, 3+3 score, engine/fire/hit audio, safe knockback, barriers, spin, TIA collisions\n" or die"unexpected Tanks oracle output: $out";
+$out eq "vcs_tanks ok: stable early raster writes, visible missiles, 16-way tanks, 3+3 score, engine/fire/hit audio, safe knockback, barriers, spin, TIA collisions\n" or die"unexpected Tanks oracle output: $out";
 $err eq '' or die"Tanks oracle stderr: $err";
 print "vcs_tanks ok\n";

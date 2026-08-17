@@ -17,11 +17,14 @@ component used by Paddleball draws a three-digit score for each player across
 the top of the screen.
 
 P0 and P1 draw the two tanks; M0 and M1 are their projectiles. Each 8x8 source
-tank sprite is doubled vertically to 8x16 displayed pixels and has eight
-orientations. The sprite table is intentionally written as one visual-binary
-`0b...X....` byte per source line so every orientation can be inspected directly
-in the C26 source. The four diagonal sprites cant the entire hull, not merely the
-turret/barrel, so NE/SE/SW/NW read as genuinely diagonal vehicles. The top and bottom arena walls are exactly four scanlines high.
+tank sprite is doubled vertically to 8x16 displayed pixels and has sixteen
+orientations in 22.5-degree steps. The sprite table is intentionally written as
+one visual-binary `0b...X....` byte per source line so every orientation can be
+inspected directly in the C26 source. N, NNE, and NE are the canonical drawings;
+the other thirteen headings are rotations or reflections of those shapes. The
+intermediate sprites cant the complete hull so NNE/ENE/ESE/etc. are visibly
+separate headings rather than cosmetic variants of the eight old directions.
+The top and bottom arena walls are exactly four scanlines high.
 The left and right walls are one reflected TIA playfield bit wide, exactly four
 color clocks.
 
@@ -35,10 +38,15 @@ game is played, so pressing the console Reset switch selects another layout
 based on when Reset was pressed. This is deliberately lightweight
 pseudo-randomness, not a claim of hardware entropy.
 
-For each joystick, Left and Right rotate the tank counterclockwise/clockwise.
-Up moves forward in the direction the tank is pointing; Down moves backward.
-Translation advances one pixel every fourth frame while held. A turn happens
-immediately on a new Left/Right press, then a held turn repeats after 24 frames.
+For each joystick, Left and Right rotate the tank counterclockwise/clockwise by
+one 22.5-degree heading. Up moves forward in the direction the tank is pointing;
+Down moves backward. Translation advances on the existing four-frame cadence.
+The movement cadence accounts for the arena's doubled vertical coordinate: 45-degree
+headings step Y every other X, while the intermediate headings use deterministic
+13/16 or inverse 3/16 cadence patterns. That makes NNE/ENE/etc. trace genuinely
+different, approximately 22.5-degree screen-space paths without fractional
+coordinate state. Missiles use the same 16-way motion model. A turn happens immediately on
+a new Left/Right press, then a held turn repeats after 24 frames.
 The fire button launches that tank's missile if its previous missile is no
 longer active. A newly launched two-pixel missile is first rendered centered
 horizontally across the tank (pixels 3-4 of its eight-pixel width); projectile
@@ -52,9 +60,10 @@ effects: firing produces a short four-frame noise burst, while a player hit
 produces a different, longer 24-frame noise burst, increments the shooter's
 score, stops the projectile, and spins the struck tank rapidly for 24 frames. A
 hit also knocks the victim roughly 32 visible Atari pixels away from the shooter.
-The projectile heading supplies the away direction, while the LFSR selects among
-straight-away, adjacent diagonal, and (only as an escape fallback) perpendicular
-headings; no candidate ever points back toward the shooter. Horizontal cardinal
+The projectile heading is rounded to the nearest octant for hit-knockback geometry,
+while the LFSR selects among straight-away, adjacent diagonal, and (only as an
+escape fallback) perpendicular headings; no candidate ever points back toward
+the shooter. Horizontal cardinal
 knockback is 32 pixels; vertical cardinal knockback is 16 doubled arena rows, i.e.
 32 visible scanlines. Diagonals use 23 horizontal pixels plus 11 doubled rows,
 about 31.8 visible pixels overall. Before the translation is committed, all eight doubled tank rows are checked against the
@@ -90,16 +99,18 @@ visible field. P0/P1 graphics are published in the first 3/6 CPU cycles of each
 line-A so moving tanks cannot tear at left-side X positions. The side-wall PF0
 transition is likewise completed during horizontal blank, and the bottom wall
 is established before its first visible pixel instead of changing PF0/PF1 in
-mid-scanline. An 86-byte Superchip PF2 schedule supplies the top-wall continuation
+mid-scanline. An 86-byte `cartram` PF2 schedule supplies the top-wall continuation
 and vertical barriers with constant-time loads. This keeps the complete NTSC
 frame at the scheduler's stable 264-raw / Stella-262 cadence even at extreme
 object positions and during simultaneous hit/audio/spin activity.
 
 The cartridge is 8K F8SC. The source has no explicit `bank0`/`bank1` code or
 constant placement: the linker automatically partitions those whole layouts while
-keeping `main` and startup code in bank 0. Superchip storage remains explicitly
-marked in the source. The current build uses 2885/3584 bytes in bank 1,
-3378/3584 bytes in bank 0, 112/128 bytes of RIOT RAM (including the reserved
-hardware stack), and 99/128 bytes of Superchip RAM. Console Reset clears both
+keeping `main` and startup code in bank 0. Mapper-owned RAM remains explicitly
+marked `cartram` in the source. The current build uses 3534/3584 bytes in bank 1,
+3428/3584 bytes in bank 0, 127/128 bytes of RIOT RAM (113 bytes of objects plus
+the 14-byte reserved hardware stack), and 102/128 bytes of cartridge RAM. The
+two turn-repeat counters and the movement scratch byte are explicitly kept in
+`cartram`; beam-facing position and graphics state remains in zero page. Console Reset clears both
 scores, missiles, spin/audio state, and tank positions while selecting a new
 barrier layout.
