@@ -22,6 +22,15 @@ and reinitialization after console reset without adding more cartridges. Each
 mapper diagnostic executes its complete ordered direct bank-transition matrix
 internally.
 
+The public VCSC cartridge profiles also stamp the final physical 4K bank with a
+four-byte mapper signature at image offsets `$xFF8-$xFFB`. Short mapper names are
+ASCII-NUL padded: `F8\0\0`, `F6\0\0`, `F4\0\0`, and `FA\0\0`; the complete
+four-byte names are `4KSC`, `F8SC`, `F6SC`, and `F4SC`. Only the final bank in
+file order contains the signature. Selector-hotspot addresses are valid storage
+for these bytes because hardware switching is caused by accessing the address,
+not by the byte stored there. The final two bytes overlap the unused 6507 NMI
+vector while leaving RESET and IRQ/BRK intact.
+
 `03_fa_ram_plus/` is the dedicated CBS FA/RAM Plus diagnostic. It displays
 `pass`/`FAIL`, exercises all three selectors through nested cross-bank calls,
 uses all 256 bytes of cartridge RAM, and verifies startup from physical bank 2.

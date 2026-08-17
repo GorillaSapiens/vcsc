@@ -23,9 +23,9 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: Item 42, add the public diagnostic cartridge. Focused
-bankswitching work may instead continue with bankswitching roadmap Item 32, CV /
-CommaVid, when mapper expansion is the requested workstream.
+Current next action: Item 42, generalize automatic placement across all
+multi-region cartridge topologies for both code and compatible writable data.
+Focused bankswitching Item 32 (OMNI) depends on Item 42.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1978,27 +1978,87 @@ CommaVid, when mapper expansion is the requested workstream.
 
         Completed 2026-08-16:
 
-        * Added concrete bankswitching roadmap Items 31-37 in implementation order:
-          4KSC; CV/CommaVid; JANE; 0840/EconoBanking; UA/UASW; 0FA0; then a
-          deliberate reconsideration gate for F0/FA2/FC. The first six are ordered
-          by how directly they reuse the existing direct/selector/split-RAM model.
+        * Added the original concrete bankswitching roadmap Items 31-37 in
+          implementation order: 4KSC; CV/CommaVid; JANE; 0840/EconoBanking;
+          UA/UASW; 0FA0; then a deliberate reconsideration gate for F0/FA2/FC.
+          On 2026-08-17 OMNI was inserted as new Item 32 ahead of CV after the
+          direct-addressing linker audit, shifting that existing queue to Items
+          33-38 without changing their relative order.
         * Completed bankswitching Item 31 immediately: 4KSC now has a direct C26
           profile, full Superchip RAM support, a public PASS/FAIL diagnostic, and
           simulator/disassembler/install/package regression coverage.
 
-[ ] 42. Add a public diagnostic cartridge that exercises and reports the supported
+[ ] 42. Generalize automatic placement across compatible regions in every
+        multi-region cartridge topology.
+
+        Current audit, 2026-08-17: the existing function-placement engine is already
+        close to the desired general policy for F8/F6/F4/FA. It packs whole private
+        CODE/RODATA layouts, honors explicit named-region pins, pins `main` to the
+        startup bank, pins `_`-prefixed startup/runtime functions there, and optimizes
+        switched-bank call locality. The artificial boundary is that the pass returns
+        unless `cartridge_banked` is true, so selector-free direct topologies never
+        participate. Ordinary writable allocation has a parallel limitation: it picks
+        one default `$rw` region and reports overflow instead of trying another
+        compatible writable region. An OMNI probe with a 130-byte unplaced object
+        therefore overflows RIOT `ram` even though its 4K cartridge `$rw` island is
+        empty.
+
+        * Separate "multiple placement regions" from "requires mapper switching".
+          Selector-controlled banks and directly addressed islands must share one
+          deterministic whole-layout allocator without sharing the wrong transfer
+          semantics.
+        * Preserve explicit source placement as a hard pin. Preserve `main` and every
+          `_`-prefixed startup/runtime function as hard startup/home-region pins. An
+          explicit contradictory placement of either class must be diagnosed rather
+          than silently moved.
+        * Never split one function/layout or one data object across regions. Unplaced
+          ordinary functions may be assigned to any compatible `$ro` region with
+          sufficient capacity. Unplaced DATA/BSS may fall through to another
+          compatible `$rw` region when the preferred region cannot fit the object.
+          Existing initialized-DATA load/copy semantics remain unchanged.
+        * Keep current switched-mapper behavior byte-for-byte where semantics demand
+          it: ordinary nonreplicated ROM data references and retained relative
+          branches are same-bank constraints; direct JSR/JMP edges are soft placement
+          preferences whose cuts are implemented by trampolines; replica locality,
+          page/alignment constraints, capacity, and weighted hardware-return depth
+          remain authoritative.
+        * For directly addressed regions, absolute JSR/JMP/data references across
+          regions are ordinary 16-bit references. They must create neither hard
+          same-region unions nor trampoline/cut costs. Relative-branch and component
+          constraints remain hard where applicable.
+        * Permit one direct topology region to be marked as the startup/home region;
+          current validation incorrectly forbids any `$startup` marker when no
+          selectors exist. The marker identifies placement ownership only and must not
+          imply wrong-bank startup recovery, selector access, or vector bridges.
+        * Generalize placement maps and `--explain-bank-placement` reporting so direct
+          multi-region assignments are visible too. Retain the existing option as a
+          compatibility spelling even if the internal abstraction is renamed from
+          "bank placement" to "region placement".
+        * Extend the existing `vcs_direct_8k.c26` certification fixture: deliberately
+          overflow the startup region with unplaced ordinary functions and prove the
+          linker spills whole functions into the other direct region while `main` and
+          `_` startup helpers stay home; prove explicit pins remain fixed and emitted
+          cross-region JSR/data references stay direct with no hotspots, bridges, or
+          trampolines. Keep all existing selector-controlled placement regressions
+          unchanged.
+        * Extend the `vcs_omni_32k.c26` regression with an unplaced writable object
+          larger than remaining RIOT RAM and prove it spills intact into the OMNI
+          `$1000` `$rw` island while its initializer, if any, retains the normal
+          ROM-load/startup-copy model.
+
+[ ] 43. Add a public diagnostic cartridge that exercises and reports the supported
         console switches, controller types, TIA objects, playfield, colors, collisions,
         and audio. Keep the displayed results unambiguous, include deterministic
         self-test screens where practical, document required controller hookups, and
         verify every screen or mode with staged-toolchain and emulator-backed tests.
 
-[ ] 43. Add playfield-color support as an explicit renderer capability. Define
+[ ] 44. Add playfield-color support as an explicit renderer capability. Define
         whether colors are global, per logical row, or both; schedule every COLUPF
         write against the beam; preserve existing renderer output when unused; expose
         a clear application data/API contract; and add static, motion, transition,
         installation, and pixel/color-oracle coverage for each supported profile.
 
-[ ] 44. Add a public side-scroller/platform example. Demonstrate animated player
+[ ] 45. Add a public side-scroller/platform example. Demonstrate animated player
         sprites, horizontal world scrolling, platform/playfield collision, jumping
         and gravity, camera/world-state separation, and at least one collectible,
         hazard, or goal. Use original assets, stay within a documented RAM/ROM/frame

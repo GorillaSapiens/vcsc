@@ -52,6 +52,7 @@ my @profiles=(
    ['F8SC', 'vcs_8k_f8sc.c26',  'vcs_8k_f8sc.cfg',  2, 1, 1,  8192],
    ['F6SC', 'vcs_16k_f6sc.c26', 'vcs_16k_f6sc.cfg', 4, 1, 1, 16384],
    ['F4SC', 'vcs_32k_f4sc.c26', 'vcs_32k_f4sc.cfg', 8, 1, 1, 32768],
+   ['OMNI', 'vcs_omni_32k.c26', undef,              8, 0, 0, 32768],
 );
 
 -f $generic_cfg or die "generic VCS compatibility cfg is missing\n";
@@ -99,7 +100,7 @@ for my $p (@profiles) {
    -s $generic_bin==$output_size
       or die "$name C26 profile emitted ".(-s $generic_bin)." bytes, expected $output_size\n";
 
-   if ($name =~ /^(?:4KSC|F8|F6|F4|FA|F8SC|F6SC|F4SC)$/) {
+   if ($name =~ /^(?:4KSC|F8|F6|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
       my $rom=read_file($generic_bin);
       my $want=$name . ("\0" x (4-length($name)));
       substr($rom,-8,4) eq $want

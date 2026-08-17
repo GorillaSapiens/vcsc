@@ -332,6 +332,18 @@ candidate capacity/cut decisions, accepted and rejected local moves, and final
 byte/cycle/site cut weights plus weighted stack depth. Actual generated bridge
 entries remain authoritative in the map's `TRAMPOLINES` section.
 
+A 2026-08-17 linker audit established the next placement prerequisites. The
+selector-controlled allocator already auto-places unpinned functions, keeps `main`
+and `_` startup/runtime code in the startup bank, and optimizes trampoline cuts.
+However, it is gated entirely on `cartridge_banked`; selector-free direct topologies
+bypass it, direct topologies currently forbid a startup/home marker, and ordinary
+writable allocation overflows its preferred `$rw` region instead of trying another
+compatible one. Main roadmap Item 42 now generalizes both code and writable-data
+placement across compatible direct/switched regions. Bankswitching Item 32 is OMNI
+and depends on that prerequisite; CV/CommaVid moves to Item 33. The public
+`vcs_omni_32k.c26` profile already defines seven direct `$ro` islands plus one 4K
+`$rw` island at $1000 using the existing DATA-copy/BSS-zero startup semantics.
+
 The consolidated standard-renderer bankswitching diagnostic is under:
 
     examples/09_bankswitching/02_standard_renderer/
@@ -1038,7 +1050,7 @@ both ports independently, clockwise/counterclockwise wrap, ambiguous and
 direction-preserving skipped states, per-frame accumulation/reset, button
 press/release, opposite-port SWCHA/SWACNT isolation, public hex arithmetic/color,
 and invariant frame length. Installed-tree checks ship the component and build
-the public example. Main-roadmap Items 39 (FA/RAM Plus) and 41 (low-hanging-fruit mapper survey) are complete. Bankswitching Item 31 adds direct 4KSC with full Superchip RAM and a PASS/FAIL diagnostic; focused mapper work next is Item 32 CV/CommaVid, while the main-roadmap default is Item 42. Every public bankswitching profile now stamps a four-byte mapper signature at physical $xFF8-$xFFB in only the final file bank: `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, or `FA\0\0`. The optional C26 `$signature:` cartridge flag is carried in `__cartmeta$V2$`; the linker still accepts legacy V1 cartridge records without a signature. Stella 7.0 autodetects the 4KSC diagnostic from the resulting `SC` bytes at $xFFA-$xFFB. The compile suite passes 499/499 and the 25 focused bank/profile/example/disassembler E2E gates pass.
+the public example. Main-roadmap Items 39 (FA/RAM Plus) and 41 (low-hanging-fruit mapper survey) are complete. Bankswitching Item 31 adds direct 4KSC with full Superchip RAM and a PASS/FAIL diagnostic. Main-roadmap Item 42 is now the prerequisite for generalized multi-region code and writable-data placement; focused mapper Item 32 is OMNI, with CV/CommaVid moved to Item 33. `vcs_omni_32k.c26` defines seven direct `$ro` islands plus one `$rw` island at $1000 using existing DATA/BSS initialization semantics; no `$rwx` capability is planned. Every public bankswitching profile now stamps a four-byte mapper signature at physical $xFF8-$xFFB in only the final file bank: `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, or `OMNI`. The optional C26 `$signature:` cartridge flag is carried in `__cartmeta$V2$`; the linker still accepts legacy V1 cartridge records without a signature. Stella 7.0 autodetects the 4KSC diagnostic from the resulting `SC` bytes at $xFFA-$xFFB. The convention is documented for users in the top-level README, `libraries/vcs/README.md`, `examples/09_bankswitching/README.md`, and the compiler/linker references. The compile suite passes 499/499 and the 25 focused bank/profile/example/disassembler E2E gates pass.
 
 Roadmap item 40 (two-player joystick tank duel) is complete as the public
 `examples/01_basic/13_tanks/` example. It uses the Paddleball blue/red/black/white
@@ -1130,7 +1142,7 @@ transitions. Its timing stress path drives tanks and missiles to X endpoints 4/1
 and Y endpoints 4/78 while injecting simultaneous hits/spin/audio activity; every
 post-startup frame must retain the 264-raw cadence. Installed-tree and example-build
 coverage include `tanks`. Main-roadmap Items 39 and 41 are complete; the mapper
-survey is concretized in bankswitching Items 31-37, with 4KSC complete and CV next.
+survey is concretized in bankswitching Items 31-38, with 4KSC complete and OMNI next after main-roadmap Item 42.
 
 
 CBS FA/RAM Plus output support is now implemented as `vcs_12k_fa.c26` plus the
@@ -1226,7 +1238,7 @@ NMI bytes at `$FFFA/$FFFB` exercise this case. The standalone
 retains .s26/rebuilt .bin files, prints MD5 values, and requires exact byte
 identity. The focused disassembler roadmap is now complete; future focused
 work is driven by real-ROM failures or newly identified mapper/analysis needs.
-Main roadmap Item 41 mapper survey is complete. Bankswitching roadmap Items 31-37 now queue 4KSC, CV, JANE, 0840, UA/UASW, 0FA0, then F0/FA2/FC reconsideration; 4KSC Item 31 is complete. Main roadmap next is Item 42, while focused mapper work next is bankswitching Item 32 CV/CommaVid. The current compile suite passes 499/499. Four vcsc-disas-focused E2E
+Main roadmap Item 41 mapper survey is complete. Bankswitching roadmap Items 31-38 now queue 4KSC, OMNI, CV, JANE, 0840, UA/UASW, 0FA0, then F0/FA2/FC reconsideration; 4KSC Item 31 is complete. Main-roadmap Item 42 is next and is the prerequisite for bankswitching Item 32 OMNI; CV/CommaVid is now Item 33. The current compile suite passes 499/499. Four vcsc-disas-focused E2E
 regressions pass, with 68 semantic fixtures and all 256 opcode bytes exact. The
 hardening fuzz corpus now uses two deterministic arbitrary images for every
 supported size/mapper family (16 accepted images total), and all 81 editable
@@ -1234,7 +1246,7 @@ VCSC example ROMs are byte-exact disassemble/reassemble gates inside the normal
 eight example-build shards. Native staged vcsc-disas -> staged vcsc-as passes,
 and the static Linux package builds as a seven-tool bundle containing vcsc-disas;
 Windows package wiring is source-hygiene pinned on this non-MinGW host. The E2E
-inventory is now 311 cases. One unrelated legacy renderer case can exceed its
+inventory is now 312 cases. One unrelated legacy renderer case can exceed its
 explicit 12-second harness limit in this container but passes when run directly.
 Commercial ARMAMBSH, Bridge, Stellar Track, the standard 10495-byte Pitfall II
 DPC ROM, Mountain King's 12288-byte CBS FA/RAM Plus ROM, and the 8195-byte

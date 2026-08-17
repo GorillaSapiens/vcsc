@@ -3,6 +3,8 @@
 include "vcs.c26"
 
 // Generic two-chunk directly mapped packaging profile.
+// No real hardware currently supports this exact configuration; this profile
+// exists to certify selector-free direct-region packaging and relocation.
 cartridge { $fill:0xff $vectors_offset:0x0ffa $vectors_size:0x0006 };
 bank bank1 {
    $image_size:0x1000 $file_index:0 $image_offset:0

@@ -172,6 +172,19 @@ configuration, frame support, display resources, and maintained renderer
 families. The library README is the catalog and integration guide for those
 pieces.
 
+VCSC's public Atari mapper profiles place a four-byte mapper signature at
+physical offsets `$xFF8-$xFFB` of the final 4K bank written to the cartridge
+image. Short names are ASCII-NUL padded, so the current signatures are `4KSC`,
+`F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, and `OMNI`. The
+signature is image metadata: bytes at selector-hotspot addresses are safe because
+the address access, not the stored value, performs the hardware bank switch. The
+last two signature bytes intentionally occupy the otherwise-unused 6507 NMI
+vector; RESET and IRQ/BRK vectors remain normal. Besides making VCSC ROMs easy to
+identify in a hex dump, `4KSC` ends in the `SC` marker used by Stella for 4KSC
+autodetection. See [`libraries/vcs/README.md`](libraries/vcs/README.md) for the
+profile layouts and [`linker/README.md`](linker/README.md) for the generic
+`$signature:TEXT` facility.
+
 The examples are intentionally editable demonstrations rather than frozen test
 fixtures. They range from small standalone cartridges to interactive renderer
 diagnostics and are organized by purpose and renderer family. See

@@ -922,8 +922,9 @@ RAM-port prefix.
 
 Detailed roadmap
 ----------------
-The first unfinished leaf in this file is the next bankswitching-specific action
-when main roadmap item 29 becomes active.
+The first unfinished leaf in this file is the next bankswitching-specific action.
+Item 32 (OMNI) depends on main-roadmap Item 42, which generalizes automatic
+placement across compatible direct/switched code regions and writable regions.
 
 [x] 0. Record and lock the initial full-window design decisions.
 
@@ -2084,37 +2085,72 @@ when main roadmap item 29 becomes active.
          Stella's required `SC` bytes at $xFFA-$xFFB, so Stella 7.0 now
          autodetects the diagnostic as 4KSC without a forced mapper option.
 
-[ ] 32. Add CV / CommaVid.
+[ ] 32. Add OMNI for OmniCart PHM direct addressing.
+
+       * Emit one 32K image as eight 4K physical chunks corresponding directly to
+         logical $1000-$1FFF, $3000-$3FFF, $5000-$5FFF, $7000-$7FFF,
+         $9000-$9FFF, $B000-$BFFF, $D000-$DFFF, and $F000-$FFFF. There are no
+         selector hotspots, wrong-bank startup states, reset bridges, or call
+         trampolines. Absolute control transfers and data references are ordinary
+         16-bit 6502 addresses across islands.
+       * Mark the $F000 island as the startup/home placement region so `main` and
+         `_` startup/runtime functions remain together there. Treat normal reset
+         vectors as pointing directly at startup code; OmniCart takeover mechanics
+         are outside the linker contract.
+       * Use the $1000-$1FFF island as ordinary `$rw` cartridge RAM and the other
+         seven islands as ordinary `$ro` code/constant storage. Reuse VCSC's existing
+         initialized-DATA load/copy and BSS-zero semantics; do not add `$rwx` or a new
+         image-backed writable-memory class.
+       * Use the general automatic allocator from main-roadmap Item 42 for unplaced
+         functions across the seven `$ro` islands and for writable DATA/BSS fallback
+         into the `$1000` `$rw` island when preferred RAM cannot fit an object.
+         Explicit island placement remains binding; no function or object may be
+         split across an island boundary.
+       * Stamp `OMNI` at physical $xFF8-$xFFB of only the final file chunk, retaining
+         reset and IRQ/BRK vectors at $FFFC-$FFFF under the established signature
+         convention.
+       * `vcs_omni_32k.c26` now provides the eight direct chunks, seven `$ro`
+         islands plus `$1000` `$rw`, `OMNI` final-bank signature, and normal vectors.
+         Focused profile tests already prove exact 32K file order/fill, explicit
+         cross-island JSR/data access, initialized DATA plus BSS in cartridge RAM,
+         and the complete absence of selector/trampoline/bridge output. Finish the
+         automatic code/RAM spill cases after main-roadmap Item 42, then add a public
+         PASS/FAIL diagnostic once the profile semantics are certified.
+       * Keep `vcs_direct_8k.c26` as the small generic selector-free certification
+         fixture rather than silently redefining it as OmniCart; OMNI gets its own
+         explicit public profile.
+
+[ ] 33. Add CV / CommaVid.
 
        * Model the fixed 2K ROM at $F800-$FFFF plus 1K cartridge RAM with reads at
          $F000-$F3FF and writes at $F400-$F7FF. Reuse the split-address memory
          abstraction and add a PASS/FAIL RAM diagnostic.
 
-[ ] 33. Add JANE.
+[ ] 34. Add JANE.
 
        * Model four full-window 4K banks selected by $1FF0, $1FF1, $1FF8, and
          $1FF9, with hardware startup bank 1. Keep the existing selector topology
          and prove exact bank order/reset/cross-bank calls in a diagnostic.
 
-[ ] 34. Add 0840 / EconoBanking.
+[ ] 35. Add 0840 / EconoBanking.
 
        * Model two 4K banks selected by accesses to $0800 and $0840. Generalize
          selector triggers so reads or writes outside the cartridge $1000-$1FFF
          window can select a bank without pretending those addresses are ROM.
 
-[ ] 35. Add UA / UASW.
+[ ] 36. Add UA / UASW.
 
        * Reuse the below-cartridge selector machinery from 0840 for the UA selector
          aliases around $0220/$0240; support the UASW reversed bank association as
          a distinct exact hardware profile and diagnostic variant.
 
-[ ] 36. Add 0FA0.
+[ ] 37. Add 0FA0.
 
        * Reuse below-window selector support for the two-bank masked/aliased 0FA0
          selector behavior. Keep address-mask semantics explicit rather than
          expanding every alias into an ad-hoc hotspot list.
 
-[ ] 37. Reconsider the next tier: F0, FA2, and FC.
+[ ] 38. Reconsider the next tier: F0, FA2, and FC.
 
        * Evaluate F0 sequential next-bank switching, FA2's larger FA-like bank/RAM
          layout plus flash-save hardware, and FC's staged selector protocol after
