@@ -213,8 +213,9 @@ Cross-chunk calls, jumps, and data references remain ordinary absolute operation
 Flat output is emitted
 in `$file_index` order with each physical chunk padded to `$image_size` using the
 cartridge fill byte. An optional C26 `$signature:TEXT` is 1-4 ASCII alphanumeric
-bytes; it is NUL-padded to four bytes and emitted at `$0FF8-$0FFB` only in the
-final physical 4K bank. This is raw image metadata, so hotspot addresses are safe
+bytes; it is NUL-padded to four bytes and emitted eight bytes before the end of
+only the final physical bank. For the usual 4K banks this is `$0FF8-$0FFB`;
+for a 2K CV image it is `$07F8-$07FB`. This is raw image metadata, so hotspot addresses are safe
 locations: autodetection reads the file before mapper hardware exists, while on
 hardware the access address, not the stored byte value, causes selection. No
 selector, vector bridge, or trampoline is generated merely because multiple

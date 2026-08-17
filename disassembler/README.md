@@ -51,7 +51,7 @@ generated source:
 ```
 
 Supported mapper overrides are `2k`, `4k`, `f8`, `f8sc`, `f6`, `f6sc`,
-`f4`, `f4sc`, `fa`, `dpc`, and `wd`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
+`f4`, `f4sc`, `fa`, `dpc`, `wd`, and `cv`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
 `--code BANK:START-END`, `--data BANK:START-END`, `--table BANK:START-END`, and
 `--pointer BANK:START-END` are repeatable. The bank may be omitted for a one-bank
 cartridge. Numbers accept decimal, `0x` hex, or `$` hex; quote `$` forms in a
@@ -87,7 +87,7 @@ position from runtime 6507 addresses:
 ```
 
 The disassembler currently recognizes unbanked 2K/4K, the F8/F6/F4 family
-(with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, DPC,
+(with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, CommaVid CV, DPC,
 and Wickstead Design / WD. Standard DPC
 images are recognized by their distinctive 10240- or 10495-byte layout: two
 4K F8-style program banks followed by 2K of DPC data ROM, with the 10495-byte
@@ -134,6 +134,14 @@ cartridge RAM use write `$1000-$10FF` and read `$1100-$11FF`, so the first
 from executable-ROM and ROM-data discovery. Because the 6507 exposes only 13
 address pins, FA bank origins such as `$3000`, `$5000`, and `$7000` are valid
 mirrors; origin inference must not force every bank to `$F000`.
+
+CV is the fixed CommaVid 2K layout. Its ROM occupies only logical
+`$F800-$FFFF`; the lower half of the cartridge window is 1K of RAM read at
+`$F000-$F3FF` and written at `$F400-$F7FF`. `vcsc-disas` recognizes VCSC's
+`CV\0\0` tail signature and the established indexed-write instruction
+patterns used for legacy CV detection. CV RAM addresses are excluded from ROM
+code/data discovery, and a generated CV disassembly round-trips as an exact
+2048-byte image.
 
 Automatic Superchip promotion requires a decoded write to the `$x000-$x07F`
 write window. A read from `$x080-$x0FF` alone is not sufficient evidence, because

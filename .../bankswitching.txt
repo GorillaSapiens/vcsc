@@ -2080,7 +2080,7 @@ explicit by design.
        * Added `09_bankswitching/04_4ksc`, a stable NTSC PASS/FAIL cartridge which
          uses all 128 Superchip bytes, tests hostile initial RAM plus reset
          initialization, and displays `4KSC` below `pass`/`FAIL`.
-       * Standardized final-bank mapper signatures at physical $xFF8-$xFFB for
+       * Standardized final-bank mapper signatures at logical $xFF8-$xFFB for
          every public bankswitching profile. Short names are ASCII-NUL padded;
          only the last file bank is stamped. The 4KSC `4KSC` stamp also supplies
          Stella's required `SC` bytes at $xFFA-$xFFB, so Stella 7.0 now
@@ -2111,7 +2111,7 @@ explicit by design.
          the explicit common `cartram` qualifier.
          Explicit island placement remains binding; no function or object may be
          split across an island boundary.
-       * Stamp `OMNI` at physical $xFF8-$xFFB of only the final file chunk, retaining
+       * Stamp `OMNI` at logical $xFF8-$xFFB of only the final file chunk, retaining
          reset and IRQ/BRK vectors at $FFFC-$FFFF under the established signature
          convention.
        * `vcs_omni_32k.c26` now provides the eight direct chunks, seven `$ro`
@@ -2145,11 +2145,33 @@ explicit by design.
          and focused OMNI regressions. The OMNI simulator self-test reaches trace 7
          with all seven probes and full `cartram` sentinel checks passing.
 
-[ ] 33. Add CV / CommaVid.
+[x] 33. Add CV / CommaVid.
 
        * Model the fixed 2K ROM at $F800-$FFFF plus 1K cartridge RAM with reads at
          $F000-$F3FF and writes at $F400-$F7FF. Reuse the split-address memory
          abstraction and add a PASS/FAIL RAM diagnostic.
+
+       Completed 2026-08-17:
+
+       * Added `commavid.c26`, `vcs_2k_cv.c26`, and `vcs_2k_cv.cfg`. The public
+         source qualifier remains the common `cartram`; CV supplies 1024 shared
+         bytes through the fixed $F000 read / $F400 write aliases with no bank
+         selector state. The ROM is an exact 2K image at $F800-$FFFF.
+       * Generalized final-bank mapper signatures from a hard-coded 4K offset to
+         the four bytes beginning eight bytes before the end of the final physical
+         bank. Existing 4K-based profiles remain byte-identical; CV stamps
+         `CV\0\0` at file $07F8-$07FB / logical $FFF8-$FFFB.
+       * Added public `09_bankswitching/06_cv`, which consumes all 1024 cartridge-
+         RAM bytes, verifies hostile-startup DATA/BSS initialization and persistent
+         beginning/middle/end writes, and displays `CV` below `pass`/`FAIL`. A real
+         `STA $F400,Y` access gives Stella its established CV autodetection byte
+         pattern; Stella 7.0 detects the generated 2K image as CV without override.
+       * Added focused profile/simulator/install/hygiene coverage and documented CV
+         alongside the common `cartram` profiles.
+       * Added `vcsc-disas` CV inference from either the VCSC `CV\0\0` tail
+         signature or Stella-compatible indexed RAM-write patterns. CV RAM is
+         excluded from ROM discovery, `--mapper cv` is available, and the public
+         diagnostic disassembles/reassembles byte-exactly as a 2048-byte image.
 
 [ ] 34. Add JANE.
 

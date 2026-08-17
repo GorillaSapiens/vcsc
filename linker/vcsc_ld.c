@@ -1328,9 +1328,9 @@ static void validate_c26_topology(linker_config_t *cfg)
       for (i = 0; i < cfg->topology_bank_count; ++i)
          if (cfg->topology_banks[i].file_index == cfg->topology_bank_count - 1u)
             last = &cfg->topology_banks[i];
-      if (!last || last->image_size != 0x1000u) {
+      if (!last || last->image_size < 8u) {
          fprintf(stderr,
-                 "vcsc-ld: cartridge signature requires a final 4K physical bank\n");
+                 "vcsc-ld: cartridge signature requires at least eight bytes in the final physical bank\n");
          exit(1);
       }
    }
@@ -8431,13 +8431,16 @@ static void write_binary_byte(FILE *fp, const char *path, uint8_t byte)
 
 //! @brief Return the signature byte for one final-bank physical offset.
 static int topology_signature_byte(const linker_config_t *cfg, size_t file_index,
-                                   uint32_t offset, uint8_t *byte)
+                                   uint32_t image_size, uint32_t offset, uint8_t *byte)
 {
+   uint32_t signature_offset;
    if (!cfg || !byte || !(cfg->topology_cartridge.present_mask & 0x80u) ||
-       file_index + 1u != cfg->topology_bank_count ||
-       offset < 0x0ff8u || offset > 0x0ffbu)
+       file_index + 1u != cfg->topology_bank_count || image_size < 8u)
       return 0;
-   *byte = cfg->topology_cartridge.signature[offset - 0x0ff8u];
+   signature_offset = image_size - 8u;
+   if (offset < signature_offset || offset > signature_offset + 3u)
+      return 0;
+   *byte = cfg->topology_cartridge.signature[offset - signature_offset];
    return 1;
 }
 
@@ -8476,7 +8479,7 @@ static void write_flat_binary(const char *path, const linker_config_t *cfg,
                if (used[logical])
                   byte = image[logical];
             }
-            (void)topology_signature_byte(cfg, i, offset, &byte);
+            (void)topology_signature_byte(cfg, i, bank->image_size, offset, &byte);
             write_binary_byte(fp, path, byte);
          }
       }

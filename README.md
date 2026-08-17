@@ -173,15 +173,15 @@ families. The library README is the catalog and integration guide for those
 pieces.
 
 Mapper-owned cartridge RAM uses one programmer-facing named-memory qualifier,
-`cartram`, across Superchip, CBS FA/RAM Plus, and OMNI profiles. The selected
+`cartram`, across Superchip, CBS FA/RAM Plus, CommaVid CV, and OMNI profiles. The selected
 profile defines the actual size and read/write windows, while ordinary unqualified
 variables remain in RIOT RAM. See [`libraries/vcs/README.md`](libraries/vcs/README.md)
 for the mapper-specific layouts.
 
 VCSC's public Atari mapper profiles place a four-byte mapper signature at
-physical offsets `$xFF8-$xFFB` of the final 4K bank written to the cartridge
-image. Short names are ASCII-NUL padded, so the current signatures are `4KSC`,
-`F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, and `OMNI`. The
+logical addresses `$xFF8-$xFFB` in the final physical bank written to the cartridge
+image (eight bytes before that bank ends). Short names are ASCII-NUL padded, so the current signatures are `4KSC`,
+`F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, `CV\0\0`, and `OMNI`. The
 signature is image metadata: bytes at selector-hotspot addresses are safe because
 the address access, not the stored value, performs the hardware bank switch. The
 last two signature bytes intentionally occupy the otherwise-unused 6507 NMI

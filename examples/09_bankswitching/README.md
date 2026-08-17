@@ -22,11 +22,11 @@ and reinitialization after console reset without adding more cartridges. Each
 mapper diagnostic executes its complete ordered direct bank-transition matrix
 internally.
 
-The public VCSC cartridge profiles also stamp the final physical 4K bank with a
-four-byte mapper signature at image offsets `$xFF8-$xFFB`. Short mapper names are
-ASCII-NUL padded: `F8\0\0`, `F6\0\0`, `F4\0\0`, and `FA\0\0`; the complete
-four-byte names are `4KSC`, `F8SC`, `F6SC`, `F4SC`, and `OMNI`. Only the final bank in
-file order contains the signature. Selector-hotspot addresses are valid storage
+The public VCSC cartridge profiles also stamp the final physical bank with a
+four-byte mapper signature at logical addresses `$xFF8-$xFFB` (eight bytes before that bank ends). Short mapper names are
+ASCII-NUL padded: `F8\0\0`, `F6\0\0`, `F4\0\0`, `FA\0\0`, and
+`CV\0\0`; the complete four-byte names are `4KSC`, `F8SC`, `F6SC`, `F4SC`,
+and `OMNI`. Only the final bank in file order contains the signature. Selector-hotspot addresses are valid storage
 for these bytes because hardware switching is caused by accessing the address,
 not by the byte stored there. The final two bytes overlap the unused 6507 NMI
 vector while leaving RESET and IRQ/BRK intact.
@@ -45,6 +45,11 @@ and displays `4KSC` below the green `pass` or red `FAIL` result.
 There is no Stella target because released Atari hardware/emulators do not expose
 PHM's recovered upper address bits; the regression suite executes the cartridge
 with `vcsc-sim`'s selector-free OMNI logical layout.
+
+`06_cv/` is the fixed CommaVid CV diagnostic. It uses all 1024 bytes of
+`cartram`, verifies DATA/BSS initialization and the `$F000/$F400` split aliases,
+and displays `CV` below `pass`/`FAIL`. The generated image includes the
+`STA $F400,Y` byte pattern used by Stella for CV autodetection.
 
 ## Banked standard renderer
 

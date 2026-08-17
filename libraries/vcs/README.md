@@ -18,6 +18,7 @@ Files:
 - `riot.c26` ... RIOT I/O and timer register bindings plus RIOT RAM region names
 - `vcs.cfg` ... reduced operational linker policy shared by C26 cartridge profiles
 - `vcs_2k.c26` ... conventional unbanked 2K topology mapped at `$F800-$FFFF`
+- `vcs_2k_cv.c26`, `commavid.c26` ... CommaVid CV fixed 2K ROM plus shared 1K split-address cartridge RAM; `vcs_2k_cv.cfg` supplies simulator/compatibility mapping
 - `vcs_4k.c26` ... conventional unbanked 4K topology and allocatable ROM
 - `vcs_8k_f8.c26`, `vcs_16k_f6.c26`, `vcs_32k_f4.c26` ... inspectable selector-controlled C26 profiles with exact output order and generated corridors
 - `vcs_12k_fa.c26`, `fa_ram_plus.c26` ... CBS FA/RAM Plus three-bank profile with physical startup bank 2 and shared 256-byte split-address cartridge RAM
@@ -592,7 +593,7 @@ Notes:
 - `vcs_2k.c26` describes a 2048-byte cartridge linked at `$F800-$FFFF`, with vectors in its final six bytes; select it explicitly through reduced `vcs.cfg`.
 - `vcs_4k.c26` describes the standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`; the driver compiles it automatically when no `-T` is supplied.
 - The 4KSC, F8/F6/F4, FA/RAM Plus, banked SC, and OMNI `.c26` profiles are installed beside `vcs.cfg` and emit exact 4K, 8K, 12K, 16K, and 32K images. Profile-specific cfg files remain installed where needed for compatibility and simulator selection; `vcs_omni_32k.cfg` is simulator-only direct logical placement metadata, not a switched-mapper linker profile.
-- Those public mapper profiles stamp only the final 4K file chunk at `$xFF8-$xFFB` with `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, or `OMNI`. The NUL padding prevents a short mapper name from resembling a plausible NMI-vector address, and the trailing `SC` in `4KSC` also satisfies Stella's 4KSC autodetection convention.
+- Those public mapper profiles stamp only the final physical file chunk at logical `$xFF8-$xFFB` with `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, `CV\0\0`, or `OMNI`. The NUL padding prevents a short mapper name from resembling a plausible NMI-vector address, and the trailing `SC` in `4KSC` also satisfies Stella's 4KSC autodetection convention.
 - `vcsc` discovers `vcs.cfg` and `vcs_4k.c26` in the source tree or installed `share/vcs` directory and uses both by default. Pass `-T vcs.cfg` plus another C26 profile to select a different cartridge layout.
 - The 128 physical RIOT RAM bytes are not double-counted. `vcs.c26` declares the full `$80-$FF` block and reduced `vcs.cfg` asks `vcsc-ld` to reserve the top bytes dynamically from the whole-program source call graph before placing ordinary storage. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.
 - Current stack sizing accounts automatically for source-level JSR return addresses; ordinary generated calls push no compiler state. Assembly components use `.callstackextra` object metadata for calls, pushes, or stack-pointer use hidden from the source call graph. C26 renderer templates emit the same assembler directive through inline assembly, including an explicit zero when an audited hidden JSR fits entirely inside the source-call reserve. `player_color_192` now flattens its two single-use mask-preparation wrappers and declares `.callstackextra 0`; the standard and multi-object renderers still declare their measured four supplementary bytes for deeper/repeated helper chains. The standard renderer also exports its assembly-initiated overscan-hook edge. Component code and score-table layouts carry startup-region, page-alignment, private-route, `.pagecontain`, and `.indexrange` facts in the object instead of renderer-specific cfg products. Arbitrary inline-assembly stack use must still be declared explicitly.
@@ -605,7 +606,8 @@ Notes:
 Every public VCSC profile that provides mapper-owned cartridge RAM exposes it to
 source code with the same named-memory qualifier, `cartram`. The physical device
 still depends on the selected profile: Superchip supplies 128 split-address bytes,
-CBS FA/RAM Plus supplies 256 split-address bytes, and OMNI supplies the direct
+CBS FA/RAM Plus supplies 256 split-address bytes, CommaVid CV supplies 1024
+split-address bytes, and OMNI supplies the direct
 `$1000-$1FFF` 4K writable island. This common source name is intentional so code
 using cartridge RAM can move between mapper profiles without renaming every
 declaration. The profile remains authoritative for the size and read/write aliases.
@@ -616,6 +618,21 @@ selected explicitly, for example:
 ```c
 cartram uint8_t state[32];
 ```
+
+### CommaVid CV profile and allocatable RAM
+
+The public `vcs_2k_cv.c26` profile emits one fixed 2K ROM image mapped at
+`$F800-$FFFF`. `commavid.c26` exposes the common `cartram` qualifier as a
+1024-byte split-address device: reads use `$F000-$F3FF` and writes use
+`$F400-$F7FF`. There are no selector hotspots or bank-switch states.
+
+```c
+mem cartram { $read_start:0xF000 $write_start:0xF400 $size:0x0400 $rw };
+```
+
+The profile stamps `CV\0\0` at logical `$FFF8-$FFFB` (file offsets
+`$07F8-$07FB`) and leaves RESET/IRQ at `$FFFC-$FFFF`. DATA/BSS startup uses
+the same per-object split-alias copy/zero machinery as Superchip and FA.
 
 ### FA / RAM Plus profile and allocatable RAM
 

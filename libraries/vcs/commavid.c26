@@ -1,0 +1,10 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// CommaVid CV shared 1K cartridge RAM.
+//
+// VCSC exposes mapper-owned cartridge RAM under the common named-memory
+// qualifier `cartram`. CV uses a fixed split-address window: reads at
+// $F000-$F3FF and writes at $F400-$F7FF address the same 1024-byte RAM.
+// The fixed 2K ROM occupies $F800-$FFFF. There is no bank switching.
+
+mem cartram { $read_start:0xF000 $write_start:0xF400 $size:0x0400 $rw };

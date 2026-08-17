@@ -1,0 +1,17 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+include "vcs.c26"
+include "commavid.c26"
+
+// CommaVid CV: fixed 2K ROM at $F800-$FFFF plus 1K split-address cartridge
+// RAM. Reads from $F000-$F3FF and writes to $F400-$F7FF access the same RAM.
+// There are no selector hotspots or bank-switch state.
+mem rom { $start:0xf800 $size:0x07f8 $ro $priority:1 };
+cartridge {
+   $fill:0xff $signature:CV
+   $vectors_offset:0x07fa $vectors_size:0x0006
+};
+bank bank0 {
+   $image_size:0x0800 $file_index:0 $image_offset:0
+   $link_start:0xf800 $cpu_start:0xf800 $map_size:0x0800
+};

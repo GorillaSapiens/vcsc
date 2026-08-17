@@ -500,7 +500,7 @@ bank bank0 {
 
 `$signature:TEXT` is an optional 1-4 byte ASCII alphanumeric cartridge signature.
 When present, the linker NUL-pads it to exactly four bytes and writes it at
-physical offsets `$0FF8-$0FFB` of only the final `$file_index` bank. Public VCS
+the four bytes beginning eight bytes before the end of only the final `$file_index` bank. Public VCS
 bankswitching profiles use this as their mapper identifier. Profile-owned `mem`
 regions must leave `$xFF8-$xFF9` unavailable to ordinary allocation; the final
 two signature bytes intentionally overlap the otherwise-unused 6507 NMI vector.

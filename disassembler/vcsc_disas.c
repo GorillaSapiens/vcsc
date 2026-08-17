@@ -46,7 +46,8 @@ typedef enum {
    MAP_F4,
    MAP_FA,
    MAP_DPC,
-   MAP_WD
+   MAP_WD,
+   MAP_CV
 } mapper_t;
 
 typedef enum {
@@ -130,6 +131,7 @@ typedef struct {
    uint8_t *spec_seed;
    uint32_t *wd_context_seen;
    uint8_t vector_tail_enabled;
+   uint8_t cv_fixed_upper_half;
    abstract_state_t *states;
 } bank_t;
 
@@ -346,6 +348,7 @@ static int parse_mapper_name(const char *s, mapper_t *mapper, int *superchip)
    else if (strcmp(s, "fa") == 0) *mapper = MAP_FA;
    else if (strcmp(s, "dpc") == 0) *mapper = MAP_DPC;
    else if (strcmp(s, "wd") == 0) *mapper = MAP_WD;
+   else if (strcmp(s, "cv") == 0) *mapper = MAP_CV;
    else return 0;
    return 1;
 }
@@ -384,7 +387,7 @@ static void usage(const char *argv0)
       "options:\n"
       "   -i, --input <file>       compatibility alias for positional input\n"
       "   -o, --output <file>      write generated VCSC assembly (.s26)\n"
-      "       --mapper <name>      force 2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd\n"
+      "       --mapper <name>      force 2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|cv\n"
       "       --reset-bank <n>     force power-on/reset physical bank\n"
       "       --origin <b:addr>    force logical origin for a bank (repeatable)\n"
       "       --entry <b:addr>     add executable entry point (repeatable)\n"
@@ -736,15 +739,36 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
       return rom_size == 10240u || rom_size == 10495u;
    case MAP_WD: *bank_size = 1024u; *bank_count = 8u;
       return rom_size == 8192u || rom_size == 8195u;
+   case MAP_CV: *bank_size = 2048u; *bank_count = 1u; return rom_size == 2048u;
    }
    return 0;
 }
 
-static mapper_t infer_mapper(size_t size, size_t *bank_size, size_t *bank_count)
+static int is_probably_cv(const uint8_t *rom, size_t size)
+{
+   size_t i;
+   if (size != 2048u) return 0;
+   /* VCSC's common four-byte mapper signature occupies logical $FFF8-$FFFB,
+    * which is file $07F8-$07FB in CV's fixed 2K ROM. */
+   if (memcmp(rom + size - 8u, "CV\0\0", 4u) == 0) return 1;
+   /* Stella's established CV heuristics: indexed stores into either edge of
+    * the split write window.  Recognizing the same signatures also identifies
+    * historical CV images that predate VCSC's tail signature convention. */
+   for (i = 0; i + 2u < size; ++i) {
+      if (rom[i] == 0x9du && rom[i + 1u] == 0xffu && rom[i + 2u] == 0xf3u)
+         return 1;
+      if (rom[i] == 0x99u && rom[i + 1u] == 0x00u && rom[i + 2u] == 0xf4u)
+         return 1;
+   }
+   return 0;
+}
+
+static mapper_t infer_mapper(const uint8_t *rom, size_t size,
+                             size_t *bank_size, size_t *bank_count)
 {
    mapper_t mapper;
    switch (size) {
-   case 2048u: mapper = MAP_2K; break;
+   case 2048u: mapper = is_probably_cv(rom, size) ? MAP_CV : MAP_2K; break;
    case 4096u: mapper = MAP_4K; break;
    case 8192u: mapper = MAP_F8; break;
    case 12288u: mapper = MAP_FA; break;
@@ -769,6 +793,7 @@ static const char *mapper_name(mapper_t mapper)
    case MAP_FA: return "FA";
    case MAP_DPC: return "DPC";
    case MAP_WD: return "WD";
+   case MAP_CV: return "CV";
    case MAP_RAW: return "unknown/raw";
    }
    return "unknown/raw";
@@ -1025,7 +1050,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
       a->superchip_override = opt->superchip_override;
    }
    else {
-      a->mapper = infer_mapper(rom_size, &a->bank_size, &a->bank_count);
+      a->mapper = infer_mapper(rom, rom_size, &a->bank_size, &a->bank_count);
    }
    a->wd_bad_dump = a->mapper == MAP_WD && rom_size == 8195u;
    a->video_override = opt->video_override;
@@ -1055,6 +1080,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
          b->reset_vector_evidence = 0;
       }
       b->vector_tail_enabled = a->mapper != MAP_WD;
+      b->cv_fixed_upper_half = a->mapper == MAP_CV;
       if (!allocate_bank(b, b->size)) return 0;
    }
 
@@ -1390,7 +1416,12 @@ static int push_work(analysis_t *a, size_t bank, size_t offset)
 
 static int cart_target_offset(const bank_t *b, uint16_t address, size_t *off)
 {
+   uint16_t bus;
    if (!is_cart_address(address)) return 0;
+   bus = (uint16_t)(address & 0x1fffu);
+   /* CV devotes the lower half of the cartridge window to RAM; unlike a
+    * conventional mirrored 2K ROM, its ROM exists only at $1800-$1FFF. */
+   if (b->cv_fixed_upper_half && bus < 0x1800u) return 0;
    *off = (size_t)(address & (uint16_t)(b->size - 1u));
    return *off < b->size;
 }
@@ -4940,7 +4971,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                      "%d SC-window candidate%s, %d write%s)\n",
                  mname,
                  a->mapper == MAP_RAW ? "unknown" :
-                    (a->mapper == MAP_DPC || a->mapper == MAP_FA || a->mapper == MAP_WD ? "high" :
+                    (a->mapper == MAP_DPC || a->mapper == MAP_FA || a->mapper == MAP_WD || a->mapper == MAP_CV ? "high" :
                      ((a->hotspot_refs || superchip_active(a)) ? "high" : "medium")),
                  a->hotspot_refs, a->hotspot_refs == 1 ? "" : "es",
                  a->superchip_refs, a->superchip_refs == 1 ? "" : "s",
@@ -4966,6 +4997,8 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
       }
       if (a->mapper == MAP_FA)
          fprintf(fp, "; FA cartridge RAM: write $1000-$10FF, read $1100-$11FF; bank 2 powers up\n");
+      if (a->mapper == MAP_CV)
+         fprintf(fp, "; CV cartridge RAM: read $1000-$13FF, write $1400-$17FF (1024 bytes)\n");
       if (a->mapper == MAP_WD) {
          fprintf(fp, "; WD cartridge RAM: read $1000-$103F, write $1040-$107F (64 bytes)\n");
          fprintf(fp, "; WD selector reads: TIA $30-$3F choose one of eight four-segment 1K arrangements\n");

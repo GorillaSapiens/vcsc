@@ -43,6 +43,7 @@ my $blank=File::Spec->catfile($repo,'examples','01_basic','01_blank_screen','bla
 
 my @profiles=(
    ['2K',   'vcs_2k.c26',       undef,              1, 0, 0,  2048],
+   ['CV',   'vcs_2k_cv.c26',    'vcs_2k_cv.cfg',    1, 0, 0,  2048],
    ['4K',   'vcs_4k.c26',       'vcs_4k.cfg',       1, 0, 0,  4096],
    ['4KSC', 'vcs_4k_sc.c26',    undef,              1, 0, 1,  4096],
    ['F8',   'vcs_8k_f8.c26',    'vcs_8k_f8.cfg',    2, 1, 0,  8192],
@@ -100,14 +101,15 @@ for my $p (@profiles) {
    -s $generic_bin==$output_size
       or die "$name C26 profile emitted ".(-s $generic_bin)." bytes, expected $output_size\n";
 
-   if ($name =~ /^(?:4KSC|F8|F6|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
+   if ($name =~ /^(?:CV|4KSC|F8|F6|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
       my $rom=read_file($generic_bin);
       my $want=$name . ("\0" x (4-length($name)));
       substr($rom,-8,4) eq $want
          or die "$name final-bank signature is not NUL-padded at \$xFF8-\$xFFB\n";
       if ($banks > 1) {
+         my $bank_size = int($output_size / $banks);
          for my $file_bank (0..$banks-2) {
-            substr($rom,$file_bank*4096+0x0ff8,4) ne $want
+            substr($rom,$file_bank*$bank_size+$bank_size-8,4) ne $want
                or die "$name signature was duplicated into file bank $file_bank\n";
          }
       }
@@ -157,6 +159,14 @@ for my $p (@profiles) {
          substr($rom,$file_bank*4096,256) eq ("\xFF" x 256)
             or die "$name file bank $file_bank does not retain the reserved Superchip prefix\n";
       }
+   }
+   if ($name eq 'CV') {
+      $text =~ /include\s+"commavid\.c26"/ &&
+      $text =~ /\$image_size:0x0800/ &&
+      $text =~ /\$cpu_start:0xf800/
+         or die "CV profile does not encode the fixed 2K ROM shape\n";
+      $map =~ /^\s+cartram\s+read_start=\$F000 write_start=\$F400 size=\$0400 type=rw shared=yes\b/m
+         or die "CV map does not retain split-address cartridge RAM\n";
    }
    if ($name eq 'FA') {
       $text =~ /include\s+"fa_ram_plus\.c26"/ &&

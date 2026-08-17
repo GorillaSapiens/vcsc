@@ -540,12 +540,22 @@ index($bank_example_make,'-DVCS_NO_DEFAULT_ROM')<0 &&
 index($bank_example_make,'$(VCS_DIR)/vcs.cfg')>=0 &&
 index($bank_example_make,'$(VCS_DIR)/vcs_8k_f8.cfg')<0
    or die "public bank diagnostics must build from C26 topology through reduced vcs.cfg\n";
-for my $profile (qw(vcs_2k.c26 vcs_4k.c26 vcs_4k_sc.c26 vcs_8k_f8.c26 vcs_12k_fa.c26 vcs_16k_f6.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26 vcs_omni_32k.c26)) {
+for my $profile (qw(vcs_2k.c26 vcs_2k_cv.c26 vcs_4k.c26 vcs_4k_sc.c26 vcs_8k_f8.c26 vcs_12k_fa.c26 vcs_16k_f6.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26 vcs_omni_32k.c26)) {
    -f File::Spec->catfile($repo,'libraries','vcs',$profile)
       or die "missing migrated C26 cartridge profile $profile\n";
    index($top_make,"libraries/vcs/$profile")>=0
       or die "$profile is not installed/uninstalled by the top-level Makefile\n";
 }
+-f File::Spec->catfile($repo,'libraries','vcs','commavid.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_2k_cv.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_2k_cv.cfg') &&
+index($top_make,'libraries/vcs/commavid.c26')>=0 &&
+index($top_make,'libraries/vcs/vcs_2k_cv.c26')>=0 &&
+index($top_make,'libraries/vcs/vcs_2k_cv.cfg')>=0 &&
+-f File::Spec->catfile($test,'vcs_cv.pl') &&
+-f File::Spec->catfile($repo,'examples','09_bankswitching','06_cv','cv_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','09_bankswitching','06_cv','README.md')
+   or die "CV profile/diagnostic support is missing installation or test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','fa_ram_plus.c26') &&
 index($top_make,'libraries/vcs/fa_ram_plus.c26')>=0 &&
 -f File::Spec->catfile($repo,'libraries','vcs','vcs_12k_fa.cfg') &&
@@ -944,7 +954,8 @@ index($snapshot_keys,"function_keycode('F2')")>=0
 index($bankswitching,'[x] 11. Add explicit-binding Superchip profiles.')>=0 &&
 index($bankswitching,'[x] 31. Add 4KSC as the first low-hanging-fruit mapper.')>=0 &&
 index($bankswitching,'[x] 32. Add OMNI for OmniCart PHM direct addressing.')>=0 &&
-index($bankswitching,'[ ] 33. Add CV / CommaVid.')>=0
+index($bankswitching,'[x] 33. Add CV / CommaVid.')>=0 &&
+index($bankswitching,'[ ] 34. Add JANE.')>=0
    or die "explicit-binding Superchip roadmap item is not complete\n";
 index($top_make,'libraries/vcs/vcs_4k_sc.c26')>=0 &&
 index($top_make,'libraries/vcs/vcs_4k_sc.cfg')>=0 &&

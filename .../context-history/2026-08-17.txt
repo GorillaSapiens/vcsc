@@ -67,3 +67,10 @@ holds CXP1FB asserted through the hit spin and verifies forward progress afterwa
 Added executable OMNI simulator mapping and public 32K diagnostic. Fixed
 named non-zero-page writable regions so DATA/BSS use absolute addressing,
 and added install, example-roundtrip, compiler, and focused OMNI coverage.
+
+2026-08-17 12:00:48 PDT, complete CommaVid CV support
+- Added fixed 2K CV profile with 1K split-address cartram and simulator cfg.
+- Added public PASS/FAIL CV diagnostic using all 1024 cartridge-RAM bytes.
+- Generalized final-bank signature placement for non-4K physical banks.
+- Fixed named non-ZP writable region address-size metadata.
+- Added vcsc-disas CV inference and byte-exact CV round-trip coverage.
