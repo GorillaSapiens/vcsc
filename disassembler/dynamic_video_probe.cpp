@@ -25,6 +25,7 @@ constexpr int kMapJANE = 10;
 constexpr int kMap0840 = 11;
 constexpr int kMapUA = 12;
 constexpr int kMapUASW = 13;
+constexpr int kMap0FA0 = 14;
 
 struct PendingWrite {
    uint16_t address;
@@ -138,6 +139,13 @@ private:
          switch (bus & 0x1260u) {
          case 0x0220u: next = mapper_ == kMapUASW ? 1u : 0u; hit = true; break;
          case 0x0240u: next = mapper_ == kMapUASW ? 0u : 1u; hit = true; break;
+         default: break;
+         }
+      }
+      else if (mapper_ == kMap0FA0) {
+         switch (bus & 0x16e0u) {
+         case 0x06a0u: next = 0u; hit = true; break;
+         case 0x06c0u: next = 1u; hit = true; break;
          default: break;
          }
       }

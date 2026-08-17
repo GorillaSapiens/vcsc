@@ -26,7 +26,7 @@ The public VCSC cartridge profiles also stamp the final physical bank with a
 four-byte mapper signature at logical addresses `$xFF8-$xFFB` (eight bytes before that bank ends). Short mapper names are
 ASCII-NUL padded: `F8\0\0`, `F6\0\0`, `F4\0\0`, `FA\0\0`, and
 `CV\0\0`; the complete four-byte names are `4KSC`, `F8SC`, `F6SC`, `F4SC`,
-`OMNI`, `JANE`, `0840`, `UA\0\0`, and `UASW`. Only the final bank in file order contains the signature. Selector-hotspot addresses are valid storage
+`OMNI`, `JANE`, `0840`, `UA\0\0`, `UASW`, and `0FA0`. Only the final bank in file order contains the signature. Selector-hotspot addresses are valid storage
 for these bytes because hardware switching is caused by accessing the address,
 not by the byte stored there. The final two bytes overlap the unused 6507 NMI
 vector while leaving RESET and IRQ/BRK intact.
@@ -74,6 +74,13 @@ use read-only NMOS absolute-NOP selector accesses in generated bridges, and
 preserve the underlying TIA/RIOT-side transaction when a low-address selector
 is read or written. The paired cartridges display `UA` or `UASW` below the
 common `pass`/`FAIL` result.
+
+`10_0fa0/` is the Brazilian Fotomania 0FA0 diagnostic. Physical/file bank 1 is
+the startup bank. The mapper uses the explicit mask `(A & $16E0)`: `$06A0`
+selects physical bank 0 and `$06C0` selects physical bank 1, with A11, A8, and
+A4-A0 acting as aliases. VCSC uses `$0FA0/$0FC0` as canonical selector accesses,
+and the focused regression also proves noncanonical read/write aliases. The
+cartridge displays `0FA0` below the large `pass`/`FAIL` result.
 
 ## Banked standard renderer
 

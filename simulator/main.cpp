@@ -382,7 +382,8 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
             str_ieq(cfg->mapper, "F4") || str_ieq(cfg->mapper, "FA") ||
             str_ieq(cfg->mapper, "OMNI") || str_ieq(cfg->mapper, "JANE") ||
             str_ieq(cfg->mapper, "0840") || str_ieq(cfg->mapper, "UA") ||
-            str_ieq(cfg->mapper, "UASW") || cfg->superchip_mapper)) {
+            str_ieq(cfg->mapper, "UASW") || str_ieq(cfg->mapper, "0FA0") ||
+            cfg->superchip_mapper)) {
          fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
          exit(1);
       }
@@ -902,6 +903,27 @@ static int bank_index_for_hotspot(uint16_t addr, size_t *bank_index) {
       return 0;
    }
 
+   /* 0FA0/Fotomania qualifies A12, A10, A9, A7, A6 and A5 after
+      the 6507's 13-bit bus mirror is applied.  Stella's implementation uses
+      (A & $16E0)==$06A0 for physical bank 0 and ==$06C0 for physical bank 1;
+      A11, A8 and A4-A0 are aliases.  Canonical VCSC selectors are the familiar
+      below-window $0FA0/$0FC0 pair, whose low-memory access still reaches the
+      underlying console device. */
+   if (str_ieq(g_cfg.mapper, "0FA0")) {
+      uint16_t decoded = (uint16_t)(canonical & 0x16e0u);
+      uint16_t wanted = decoded == 0x06a0u ? 0x0fa0u :
+                        decoded == 0x06c0u ? 0x0fc0u : 0xffffu;
+      if (wanted != 0xffffu) {
+         for (size_t i = 0; i < g_cfg.bank_count; ++i) {
+            if ((g_cfg.banks[i].hotspot & 0x1fffu) == wanted) {
+               *bank_index = i;
+               return 1;
+            }
+         }
+      }
+      return 0;
+   }
+
    for (size_t i = 0; i < g_cfg.bank_count; ++i) {
       if ((g_cfg.banks[i].hotspot & 0x1FFFu) == canonical) {
          *bank_index = i;
@@ -982,7 +1004,7 @@ void write_cb(uint16_t addr, uint8_t val) {
    if (bank_index_for_hotspot(addr, &selected)) {
       g_selected_bank = selected;
       /* ROM-window hotspot writes target the cartridge and stop here.  A
-         below-window selector such as 0840 or UA overlays a console device, so the
+         below-window selector such as 0840, UA, or 0FA0 overlays a console device, so the
          underlying write must still reach the ordinary memory/TIA model. */
       if ((addr & 0x1fffu) >= 0x1000u)
          return;

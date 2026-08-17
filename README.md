@@ -181,7 +181,7 @@ for the mapper-specific layouts.
 VCSC's public Atari mapper profiles place a four-byte mapper signature at
 logical addresses `$xFF8-$xFFB` in the final physical bank written to the cartridge
 image (eight bytes before that bank ends). Short names are ASCII-NUL padded, so the current signatures are `4KSC`,
-`F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, `CV\0\0`, `OMNI`, `JANE`, `0840`, `UA\0\0`, and `UASW`. The
+`F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, `CV\0\0`, `OMNI`, `JANE`, `0840`, `UA\0\0`, `UASW`, and `0FA0`. The
 signature is image metadata: bytes at selector-hotspot addresses are safe because
 the address access, not the stored value, performs the hardware bank switch. The
 last two signature bytes intentionally occupy the otherwise-unused 6507 NMI

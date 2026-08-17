@@ -1,0 +1,167 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Brazilian Fotomania 0FA0 PASS/FAIL diagnostic. Exercises the masked
+// below-window selector families through nested calls and generated return-bank
+// restoration. Physical/file bank 1 is the hardware startup bank.
+include "vcs_8k_0fa0.c26"
+
+#ifndef SIMULATOR_TEST
+include "frame_ntsc.c26"
+include "fonts/default_decimal.c26"
+instantiate "six_glyph_big_wide_component.c26" as status_result
+instantiate "six_glyph_component.c26" as cart_type (compact_font:=0)
+#endif
+
+uint8_t failure;
+uint8_t trace;
+uint8_t call_count;
+#ifndef SIMULATOR_TEST
+uint8_t STELLA_0FA0_SELECTOR @[0x0fc0/none];
+#endif
+
+#ifndef SIMULATOR_TEST
+// Exact glyph subsets copied from the canonical ASCII fonts.
+// Big table order: space, p, a, s, F, A, I, L.
+// Small table order: space, 0, F, A.
+alias FOTO_GLYPH(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a
+alias FOTO_SMALL_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+bank0 page const uint8_t status_glyphs[128] := {
+   FOTO_GLYPH(0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........),
+   FOTO_GLYPH(0b........,0b........,0b........,0b........,0b........,0bXXXXXXX.,0bXXXXXXXX,0bXXX..XXX,0bXXX..XXX,0bXXX..XXX,0bXXXXXXXX,0bXXXXXXX.,0bXXX.....,0bXXX.....,0bXXX.....,0b........),
+   FOTO_GLYPH(0b........,0b........,0b........,0b........,0b........,0b..XXXXX.,0b.XXXXXXX,0b.....XXX,0b.XXXXXXX,0bXXX..XXX,0bXXXXXXXX,0b.XXXXXXX,0b........,0b........,0b........,0b........),
+   FOTO_GLYPH(0b........,0b........,0b........,0b........,0b........,0b.XXXXXX.,0bXXXXXXXX,0bXXXX....,0b.XXXXXX.,0b....XXXX,0bXXXXXXXX,0b.XXXXXX.,0b........,0b........,0b........,0b........),
+   FOTO_GLYPH(0b........,0b........,0bXXXXXXXX,0bXXXXXXXX,0bXXX.....,0bXXX.....,0bXXXXXX..,0bXXXXXX..,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0b........,0b........,0b........,0b........),
+   FOTO_GLYPH(0b........,0b........,0b...XX...,0b..XXXX..,0b..XXXX..,0b.XXXXXX.,0b.XX..XX.,0bXXX..XXX,0bXXXXXXXX,0bXXXXXXXX,0bXXX..XXX,0bXXX..XXX,0b........,0b........,0b........,0b........),
+   FOTO_GLYPH(0b........,0b........,0b.XXXXX..,0b.XXXXX..,0b..XXX...,0b..XXX...,0b..XXX...,0b..XXX...,0b..XXX...,0b..XXX...,0b.XXXXX..,0b.XXXXX..,0b........,0b........,0b........,0b........),
+   FOTO_GLYPH(0b........,0b........,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0bXXXXXXXX,0bXXXXXXXX,0b........,0b........,0b........,0b........)
+};
+
+bank0 page const uint8_t cart_type_glyphs[32] := {
+   // space -- exact default_ascii.c26 0x20
+   FOTO_SMALL_GLYPH(0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........),
+   // 0 -- exact default_ascii.c26 0x30
+   FOTO_SMALL_GLYPH(0b..XXXX..,0b.XX..XX.,0b.XX..XX.,0b.XX..XX.,0b.XX..XX.,0b.XX..XX.,0b.XX..XX.,0b..XXXX..),
+   // F -- exact default_ascii.c26 0x46
+   FOTO_SMALL_GLYPH(0b.XXXXXX.,0b.XX.....,0b.XX.....,0b.XXXXX..,0b.XX.....,0b.XX.....,0b.XX.....,0b.XX.....),
+   // A -- exact default_ascii.c26 0x41
+   FOTO_SMALL_GLYPH(0b..XXXX..,0b.XX..XX.,0b.XX..XX.,0b.XX..XX.,0b.XXXXXX.,0b.XX..XX.,0b.XX..XX.,0b.XX..XX.)
+};
+
+inline void load_pass(void) {
+   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+0;
+   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+1;
+   asm lda #<{status_glyphs + 16};  asm sta status_result_pointers+2;
+   asm lda #>{status_glyphs + 16};  asm sta status_result_pointers+3;
+   asm lda #<{status_glyphs + 32};  asm sta status_result_pointers+4;
+   asm lda #>{status_glyphs + 32};  asm sta status_result_pointers+5;
+   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+6;
+   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+7;
+   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+8;
+   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+9;
+   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+10;
+   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+11;
+}
+
+inline void load_fail(void) {
+   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+0;
+   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+1;
+   asm lda #<{status_glyphs + 64};   asm sta status_result_pointers+2;
+   asm lda #>{status_glyphs + 64};   asm sta status_result_pointers+3;
+   asm lda #<{status_glyphs + 80};   asm sta status_result_pointers+4;
+   asm lda #>{status_glyphs + 80};   asm sta status_result_pointers+5;
+   asm lda #<{status_glyphs + 96};   asm sta status_result_pointers+6;
+   asm lda #>{status_glyphs + 96};   asm sta status_result_pointers+7;
+   asm lda #<{status_glyphs + 112};  asm sta status_result_pointers+8;
+   asm lda #>{status_glyphs + 112};  asm sta status_result_pointers+9;
+   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+10;
+   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+11;
+}
+
+inline void load_0fa0_type(void) {
+   // " 0FA0 "
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+0;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+1;
+   asm lda #<{cart_type_glyphs + 8};  asm sta cart_type_pointers+2;
+   asm lda #>{cart_type_glyphs + 8};  asm sta cart_type_pointers+3;
+   asm lda #<{cart_type_glyphs + 16}; asm sta cart_type_pointers+4;
+   asm lda #>{cart_type_glyphs + 16}; asm sta cart_type_pointers+5;
+   asm lda #<{cart_type_glyphs + 24}; asm sta cart_type_pointers+6;
+   asm lda #>{cart_type_glyphs + 24}; asm sta cart_type_pointers+7;
+   asm lda #<{cart_type_glyphs + 8};  asm sta cart_type_pointers+8;
+   asm lda #>{cart_type_glyphs + 8};  asm sta cart_type_pointers+9;
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+10;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+11;
+}
+
+bank0 void draw_result(void) {
+   status_result_score := 0;
+   cart_type_score := 0;
+   status_result_init();
+   cart_type_init();
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      status_result_vblank();
+      cart_type_vblank();
+      if (failure) { load_fail(); } else { load_pass(); }
+      load_0fa0_type();
+      // Keep one non-taken Stella-compatible 0FA0 detector opcode in the ROM.
+      // Normal failures never use $FF, so this access is inert during the test.
+      if (failure == 0xff) { asm bit.a STELLA_0FA0_SELECTOR; }
+      COLUBK := failure ? 0x20 : 0xC4;
+      status_result_color := 0x0e;
+      COLUP0 := 0x0E;
+      COLUP1 := 0x0E;
+      PF0 := 0; PF1 := 0; PF2 := 0; GRP0 := 0; GRP1 := 0;
+      ENAM0 := 0; ENAM1 := 0; ENABL := 0; CTRLPF := 0;
+      vcs_ntsc_end_vblank();
+      // 81 blank + 19 result + 11 mapper + 81 blank = 192 visible lines.
+      vcs_ntsc_wait_component_scanlines(81);
+      status_result_draw();
+      vcs_ntsc_component_handoff();
+      cart_type_draw();
+      vcs_ntsc_wait_visible_tail_scanlines(81);
+      vcs_ntsc_begin_overscan();
+      status_result_overscan();
+      cart_type_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}
+#endif
+
+#ifdef SIMULATOR_TEST
+bank0 void simulator_done(void) { while (1) { } }
+#endif
+
+bank0 void bank0_probe(void) {
+   if (trace != 1) { failure := 0x20; }
+   call_count := call_count + 1;
+   trace := 2;
+}
+
+bank1 void bank1_probe(void) {
+   if (trace != 0) { failure := 0x10; }
+   call_count := call_count + 1;
+   trace := 1;
+   bank0_probe();
+   if (trace != 2) { failure := 0x11; }
+   trace := 3;
+}
+
+void main(void) {
+   failure := 0;
+   trace := 0;
+   call_count := 0;
+
+   // Hardware starts in physical bank 1, VCSC logical bank0. Calling the
+   // logical bank1 probe selects physical bank 0 through $0FA0; its nested
+   // bank0 call selects physical bank 1 through $0FC0, and generated return
+   // stubs restore both source banks.
+   bank1_probe();
+   if (trace != 3 || call_count != 2) { failure := 0x01; }
+#ifdef SIMULATOR_TEST
+   asm jmp simulator_done;
+#else
+   draw_result();
+#endif
+}

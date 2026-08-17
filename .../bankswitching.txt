@@ -2262,11 +2262,34 @@ explicit by design.
        * Added profile-matrix, installation, editable-example, assembly-review,
          documentation, and source-hygiene coverage.
 
-[ ] 37. Add 0FA0.
+[x] 37. Add 0FA0.
 
        * Reuse below-window selector support for the two-bank masked/aliased 0FA0
          selector behavior. Keep address-mask semantics explicit rather than
          expanding every alias into an ad-hoc hotspot list.
+
+       Completed 2026-08-17:
+
+       * Added `vcs_8k_0fa0.c26` and `vcs_8k_0fa0.cfg`. Physical/file bank 1 is
+         the hardware startup bank, so VCSC logical `bank0` maps to file index 1
+         and canonical `$0FC0`; logical `bank1` maps to file index 0 and `$0FA0`.
+       * Modeled the actual masked selector decoder explicitly: `(A & $16E0)`
+         equal to `$06A0` selects physical bank 0 and `$06C0` selects physical
+         bank 1. A11, A8, and A4-A0 remain aliases rather than being expanded into
+         an ad-hoc selector list. Reads and writes retain their underlying
+         console-side access before the mapper side effect.
+       * Reused the state-preserving absolute-NOP read for generated below-window
+         bank transitions. Replicated reset bridges recover to startup bank 1
+         even when a simulator/debugger begins with physical bank 0 selected.
+       * Added public `09_bankswitching/10_0fa0`, with big-wide `pass`/`FAIL`, a
+         small `0FA0` label, nested cross-bank call/return certification, and a
+         non-taken Stella detector sequence. Focused tests exercise both initial
+         banks and masked read/write aliases including `$07A7` and `$0ECF`.
+       * Added `vcsc-disas` 0FA0 inference, startup-bank and selector-flow
+         semantics, byte-exact round trip, profile/install/example/assembly-review
+         coverage, and documentation. The regression pins `$16E0` so the stale
+         `$16A0` prose found in one external header cannot replace the executable
+         hardware model accidentally.
 
 [ ] 38. Reconsider the next tier: F0, FA2, and FC. **DEFERRED.**
 

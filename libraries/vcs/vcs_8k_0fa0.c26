@@ -1,0 +1,34 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+include "vcs.c26"
+
+// Brazilian Fotomania 0FA0 8K bankswitching: two full-window 4K ROM banks.
+// Physical/file bank 1 powers up.  The hardware uses a masked below-cartridge
+// decoder: after 6507 13-bit mirroring, (A & $16E0)==$06A0 selects physical
+// bank 0 and ==$06C0 selects physical bank 1.  Canonical VCSC selector aliases
+// are $0FA0 and $0FC0.  A11, A8 and A4-A0 are don't-care alias bits.  Because
+// selector accesses overlay console devices, generated transition stubs use
+// state-preserving NMOS absolute NOP reads rather than writes.
+cartridge {
+   $fill:0xff $signature:0FA0
+   $trampoline_offset:0x0f00 $trampoline_size:0x00e0
+   $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012
+   $vectors_offset:0x0ffa $vectors_size:0x0006
+};
+
+// VCSC logical bank0 is the home/startup bank, which is physical/file bank 1
+// on 0FA0 hardware.
+bank bank0 {
+   $image_size:0x1000 $file_index:1 $image_offset:0x0000
+   $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
+   $select_access:0x0fc0 $startup
+};
+
+bank bank1 {
+   $image_size:0x1000 $file_index:0 $image_offset:0x0000
+   $link_start:0xd000 $cpu_start:0xf000 $map_size:0x1000
+   $select_access:0x0fa0
+};
+
+mem bank0 { $start:0xf000 $size:0x0f00 $ro $priority:2 };
+mem bank1 { $start:0xd000 $size:0x0f00 $ro };

@@ -78,7 +78,7 @@ profiles.
 For an unbanked image, `type=ro` MEMORY ranges reject guest writes.  For a
 banked image, the simulator additionally:
 
-- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, `JANE`, `0840`, `UA`, or `UASW` (plus the SC variants);
+- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, `JANE`, `0840`, `UA`, `UASW`, or `0FA0` (plus the SC variants);
 - loads each complete 4K `.bin` chunk into the logical range named by its BANKS
   entry;
 - maps every CPU cartridge-window fetch through the currently selected physical
@@ -262,3 +262,20 @@ UA bank 0 and `$0240` selects UA bank 1, while UASW reverses those associations.
 Thus shifted aliases such as `$02A0/$02C0` work identically. As with 0840,
 reads sample the underlying console byte before the mapper side effect and writes
 continue to the ordinary low-memory model while also changing the selected bank.
+
+
+### 0FA0 / Fotomania
+
+`mapper=0FA0` models the Brazilian two-bank 8K scheme with physical/file bank 1
+as the power-on bank. Selection is explicitly mask-decoded:
+
+```text
+(A & $16E0) == $06A0  -> file bank 0
+(A & $16E0) == $06C0  -> file bank 1
+```
+
+The profile uses `$0FA0/$0FC0` as canonical accesses, but aliases that differ in
+A11, A8, or A4-A0 behave identically. Reads and writes below the cartridge window
+still reach the underlying console-side memory model before the bank-switch side
+effect. Generated cross-bank transitions use the state-preserving absolute-NOP
+read path introduced for 0840.

@@ -101,3 +101,15 @@ bankswitching roadmap to UA/UASW Item 36.
 2026-08-17 14:56:59 PDT, Completed UA/UASW mapper support
 Added UA/UASW profiles, simulator alias decoding, disassembler support, paired diagnostics, tests, docs, and install coverage; Item 38 remains deferred.
 
+2026-08-17 15:50:05 PDT, complete 0FA0 mapper support
+
+Bankswitching Item 37 is complete. Added the two-bank Brazilian Fotomania
+0FA0 profile and simulator cfg with physical/file bank 1 as hardware startup.
+The selector model pins the executable Stella behavior `(A & $16E0)==$06A0`
+for physical bank 0 and `==$06C0` for physical bank 1 rather than expanding
+aliases or copying stale `$16A0` prose. Generated transitions use canonical
+$0FA0/$0FC0 state-preserving absolute-NOP reads. Added public big-wide
+pass/FAIL + 0FA0 diagnostic, alias read/write/startup recovery tests,
+disassembler inference/flow/round-trip support, installation/profile/example
+coverage, docs, and Stella 7.0 autodetection certification. Item 38 remains
+explicitly deferred by user request.
