@@ -111,9 +111,10 @@ X..XX... .X.XXX.. ..XXXXX. XXXXXXXX XXXXX.XX .XXX.... ..XXX... ...XX...
 );
 join(' ',@graphics_bits) eq join(' ',@expected_graphics)
    or die "Tanks graphics no longer match the canonical N/NNE/NE silhouettes and their 16-way transforms\n";
-$s =~ /tanks_angle_steps\[16\]/ && $s =~ /tanks_motion\[16\]/ &&
+$s =~ /tanks_angle_steps\[16\].*?0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,0/s &&
+$s =~ /tanks_motion\[16\].*?0x50,0x52,0x51,0x61,0x01,0x21,0x11,0x12,\s*0x10,0x16,0x15,0x25,0x05,0x65,0x55,0x56/s &&
 $s =~ /tanks_move_object\(x, y, direction\)/
-   or die "Tanks lost deterministic 16-way movement support\n";
+   or die "Tanks lost logical-grid 16-way movement support\n";
 
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',$dir,'-T',File::Spec->catfile($vcs,'vcs.cfg'),'-Map',$mapfile,$source,'-o',$bin);
 $rc==0&&!$sig or die "Tanks build failed\n$out$err";

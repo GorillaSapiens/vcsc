@@ -31,10 +31,10 @@ constexpr uint16_t kF8Hotspot0=0x1ff8, kF8Hotspot1=0x1ff9;
 constexpr uint16_t kScWrite=0x1000, kScRead=0x1080;
 
 constexpr uint8_t kStartX0=24, kStartX1=128, kStartY=45;
-constexpr uint8_t kDirNne=1, kDirEne=3, kDirE=4, kDirW=12;
+constexpr uint8_t kDirNne=1, kDirNe=2, kDirEne=3, kDirE=4, kDirSw=10, kDirW=12;
 constexpr uint8_t kSoundFire=1, kSoundHit=2;
 
-enum class Scenario { Neutral, Turn, Move, Move16, FireWall, HitP1, HitP0, HitBarrier, PlayerWall, PlayerPlayer, Reset, ExtremeTiming };
+enum class Scenario { Neutral, Turn, Move, Move16, Missile45, FireWall, HitP1, HitP0, HitBarrier, PlayerWall, PlayerPlayer, Reset, ExtremeTiming };
 
 [[noreturn]] void fail(const char *fmt,...) {
    std::fprintf(stderr,"vcs_tanks: ");
@@ -178,6 +178,7 @@ private:
    }
 
    bool fire_pressed(int side) const {
+      if(scenario_==Scenario::Missile45) return frame_==1;
       if(scenario_==Scenario::FireWall) return frame_==1 || frame_==2;
       if(scenario_==Scenario::HitP1 || scenario_==Scenario::HitBarrier) return side==0 && frame_==1;
       if(scenario_==Scenario::HitP0) return side==1 && frame_==1;
@@ -248,6 +249,15 @@ private:
       set_byte("tanks_move_phase",0);
    }
 
+   void inject_missile45_state() {
+      if(scenario_!=Scenario::Missile45 || frame_!=1) return;
+      set_byte("tank0_x",60); set_byte("tank1_x",100);
+      set_byte("tank0_y",60); set_byte("tank1_y",60);
+      set_byte("tank0_prev_x",60); set_byte("tank1_prev_x",100);
+      set_byte("tank0_prev_y",60); set_byte("tank1_prev_y",60);
+      set_byte("tank0_direction",kDirNe); set_byte("tank1_direction",kDirSw);
+   }
+
    void inject_player_player_state() {
       if(scenario_!=Scenario::PlayerPlayer || frame_!=1) return;
       set_byte("tank0_x",70); set_byte("tank1_x",78);
@@ -310,6 +320,7 @@ private:
       arena_started_=false;
       if(selected_file_bank_!=1) fail("VSYNC began without restoring the startup F8 bank");
       inject_move16_state();
+      inject_missile45_state();
       inject_player_player_state();
       inject_hit_barrier_state();
       inject_extreme_state();
@@ -495,15 +506,28 @@ void require_move16(const std::vector<Snapshot>& s) {
    if(s[0].x0!=80 || s[0].y0!=60 || s[0].d0!=kDirNne ||
       s[0].x1!=120 || s[0].y1!=60 || s[0].d1!=kDirEne)
       fail("16-way movement setup failed");
-   // Five quarter-rate movement ticks: NNE moves 4 X pixels while advancing
-   // 5 logical Y rows (=10 visible scanlines); ENE moves 5 X pixels while
-   // advancing one logical Y row (=2 visible scanlines). These are close to
-   // 22.5 and 67.5 degrees in screen space and must not collapse to the same
-   // NE trajectory.
-   if(s[17].x0!=84 || s[17].y0!=55)
-      fail("NNE did not follow the 16-way screen-space cadence");
-   if(s[17].x1!=125 || s[17].y1!=59)
-      fail("ENE did not follow the 16-way screen-space cadence");
+   // Five quarter-rate movement ticks.  NNE/ENE use the same 7/16
+   // minor-axis cadence on opposite axes and must remain distinct from NE.
+   if(s[17].x0!=82 || s[17].y0!=55)
+      fail("NNE did not follow the 16-way logical-grid cadence");
+   if(s[17].x1!=125 || s[17].y1!=57)
+      fail("ENE did not follow the 16-way logical-grid cadence");
+}
+
+
+void require_missile45(const std::vector<Snapshot>& s) {
+   if(s.size()<7) fail("too few diagonal-missile snapshots");
+   if(!s[1].m0a || !s[1].m1a || s[1].m0d!=kDirNe || s[1].m1d!=kDirSw)
+      fail("diagonal fire did not inherit the two tank headings");
+   // Four missile moves after the centered launch frame. A true NE/SW
+   // projectile changes X and logical Y together on every step, matching
+   // the 45-degree tank glyph rather than the old half-Y trajectory.
+   if(s[5].m0x!=static_cast<uint8_t>(s[1].m0x+4) ||
+      s[5].m0y!=static_cast<uint8_t>(s[1].m0y-4))
+      fail("NE missile trajectory does not match the NE tank heading");
+   if(s[5].m1x!=static_cast<uint8_t>(s[1].m1x-4) ||
+      s[5].m1y!=static_cast<uint8_t>(s[1].m1y+4))
+      fail("SW missile trajectory does not match the SW tank heading");
 }
 
 
@@ -619,7 +643,7 @@ int main(int argc,char **argv) {
    for(int i=0;i<kSymbolCount;++i) a[names[i]]=parse_addr(argv[i+2]);
    const uint16_t graphics_base=a["tanks_graphics"];
 
-   for(const auto scenario : {Scenario::Neutral,Scenario::Turn,Scenario::Move,Scenario::Move16,Scenario::FireWall,
+   for(const auto scenario : {Scenario::Neutral,Scenario::Turn,Scenario::Move,Scenario::Move16,Scenario::Missile45,Scenario::FireWall,
                               Scenario::HitP1,Scenario::HitP0,Scenario::HitBarrier,Scenario::PlayerWall,Scenario::PlayerPlayer,Scenario::Reset,
                               Scenario::ExtremeTiming}) {
       Machine m(argv[1],a,scenario);
@@ -632,6 +656,7 @@ int main(int argc,char **argv) {
       else if(scenario==Scenario::Turn) require_turn(m.snapshots());
       else if(scenario==Scenario::Move) require_move(m.snapshots());
       else if(scenario==Scenario::Move16) require_move16(m.snapshots());
+      else if(scenario==Scenario::Missile45) require_missile45(m.snapshots());
       else if(scenario==Scenario::FireWall) require_fire_wall(m,m.snapshots());
       else if(scenario==Scenario::HitP1) require_hit_p1(m.snapshots());
       else if(scenario==Scenario::HitP0) require_hit_p0(m.snapshots());

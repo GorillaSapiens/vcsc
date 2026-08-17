@@ -41,11 +41,13 @@ pseudo-randomness, not a claim of hardware entropy.
 For each joystick, Left and Right rotate the tank counterclockwise/clockwise by
 one 22.5-degree heading. Up moves forward in the direction the tank is pointing;
 Down moves backward. Translation advances on the existing four-frame cadence.
-The movement cadence accounts for the arena's doubled vertical coordinate: 45-degree
-headings step Y every other X, while the intermediate headings use deterministic
-13/16 or inverse 3/16 cadence patterns. That makes NNE/ENE/etc. trace genuinely
-different, approximately 22.5-degree screen-space paths without fractional
-coordinate state. Missiles use the same 16-way motion model. A turn happens immediately on
+Movement follows the same logical coordinate geometry as the sprite table: the four
+45-degree headings change X and Y together on every movement step, and the eight
+intermediate headings use a deterministic 7/16 minor-axis cadence close to
+tan(22.5 degrees). The renderer doubles each source row, but movement deliberately
+does not compensate for that doubling; doing so would make a projectile diverge
+from the rendered angle of its tank. Missiles and tanks use the exact same 16-way
+motion table. A turn happens immediately on
 a new Left/Right press, then a held turn repeats after 24 frames.
 The fire button launches that tank's missile if its previous missile is no
 longer active. A newly launched two-pixel missile is first rendered centered

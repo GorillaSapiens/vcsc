@@ -38,3 +38,9 @@ existing bounded octant search after rounding the missile
 heading to the nearest octant. The emulator oracle now dynamically proves NNE
 and ENE diverge, while raster, collision, audio, spin, and barrier behavior stay
 stable.
+2026-08-17 10:35:29 PDT, align missile and tank headings
+Corrected the 16-way mover to use the same logical coordinate geometry as the
+sprite table. True diagonals now step X and Y together; intermediate headings
+use one shared 7/16 minor-axis cadence. The prior doubled-row compensation made
+NE/SE/SW/NW projectiles visibly diverge from their tank glyphs. Added a dynamic
+NE/SW missile regression that requires equal X/Y displacement after launch.

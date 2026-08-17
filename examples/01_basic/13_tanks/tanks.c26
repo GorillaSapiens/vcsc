@@ -232,24 +232,22 @@ page const uint8_t tanks_graphics[128] := {
    0b..X.....,
 };
 
-// Arena Y units are doubled visible scanline rows, so screen-space 22.5-degree
-// motion cannot use the same X/Y cadence. This 16-step pattern contains thirteen
-// major-axis assists; its inverse contains three. NNE/SSW use 13/16 X for every
-// Y row (13 horizontal pixels per 32 visible vertical pixels), ENE/WSW use the
-// inverse 3/16 Y rows for every X pixel (6 visible vertical pixels per 16 X),
-// and 45-degree headings step Y every other X. These integer ratios closely
-// approximate the visible 22.5/45/67.5-degree directions without fractional
-// coordinate state.
+// Tank graphics and movement share the same logical coordinate grid.  A true
+// diagonal therefore changes X and Y together; do not compensate movement for
+// the renderer doubling each source row, because that would make a projectile
+// visibly diverge from the direction of the doubled tank glyph itself.  The
+// halfway headings use this deterministic 7-of-16 minor-axis cadence, close to
+// tan(22.5 degrees), without fractional coordinate state.
 page const uint8_t tanks_angle_steps[16] := {
-   0,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1
+   0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,0
 };
 
 // Packed movement components for the 16 headings. Low nibble is X, high nibble
-// is Y. Codes 1..4 are positive always/13-of-16/half/3-of-16 steps; codes 5..8
-// are their negative counterparts.
+// is Y. Codes 1/2 are positive always/minor-axis steps; codes 5/6 are their
+// negative counterparts. Tanks and missiles both use this exact table.
 page const uint8_t tanks_motion[16] := {
-   0x50,0x52,0x71,0x81,0x01,0x41,0x31,0x12,
-   0x10,0x16,0x35,0x45,0x05,0x85,0x75,0x56
+   0x50,0x52,0x51,0x61,0x01,0x21,0x11,0x12,
+   0x10,0x16,0x15,0x25,0x05,0x65,0x55,0x56
 };
 
 // VBLANK horizontal fine-motion table for M0/M1. Indexes 1..15 correspond to
@@ -601,8 +599,9 @@ void tanks_reset_game(void) {
 void tanks_move_object(uint8_t *x, uint8_t *y, uint8_t direction) {
    tanks_motion_work := tanks_motion[direction];
 
-   // X is either a full step or the 13/16 cadence for the near-vertical
-   // headings. Preserve the packed Y nibble while suppressing a skipped X.
+   // X is either a full step or the 7/16 minor-axis cadence for the
+   // near-vertical headings. Preserve the packed Y nibble while suppressing
+   // a skipped X.
    if ((tanks_motion_work & 0x0f) == 2 || (tanks_motion_work & 0x0f) == 6) {
       if (!tanks_angle_steps[*y & 15]) { tanks_motion_work &= 0xf0; }
    }
@@ -613,15 +612,11 @@ void tanks_move_object(uint8_t *x, uint8_t *y, uint8_t direction) {
 
    tanks_motion_work >>= 4;
 
-   // Y uses a half cadence for diagonals or the inverse 3/16 cadence for the
-   // near-horizontal headings. One logical Y row is two visible scanlines.
-   if (tanks_motion_work == 3 || tanks_motion_work == 7) {
-      if (*x & 1) { tanks_motion_work := 0; }
-   }
-   else {
-      if (tanks_motion_work == 4 || tanks_motion_work == 8) {
-         if (tanks_angle_steps[*x & 15]) { tanks_motion_work := 0; }
-      }
+   // Y is either a full step or the same 7/16 minor-axis cadence for the
+   // near-horizontal headings. True diagonals therefore change X and Y on
+   // every move, exactly matching the logical slope of the diagonal glyphs.
+   if (tanks_motion_work == 2 || tanks_motion_work == 6) {
+      if (!tanks_angle_steps[*x & 15]) { tanks_motion_work := 0; }
    }
    if (tanks_motion_work) {
       if (tanks_motion_work <= 4) { (*y)++; }

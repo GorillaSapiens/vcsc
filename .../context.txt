@@ -1067,11 +1067,12 @@ four-color-clock playfield bit for each side wall. Three pseudo-random interior
 barrier segments are each one PF2 bit (four color clocks) wide and 28 visible
 scanlines tall; CTRLPF reflection mirrors them into three additional vertical
 barriers. Left/Right rotate in 22.5-degree steps, Up drives forward, and Down drives
-backward. Translation retains the one-update-per-four-frames cadence. Cardinal and
-45-degree headings account for doubled arena Y by stepping Y every other X;
-NNE/ENE/etc. use deterministic 13/16 or inverse 3/16 cadence patterns so all sixteen
-headings have distinct approximate 22.5-degree screen-space trajectories without
-fractional-coordinate state. Missiles use the same 16-way mover.
+backward. Translation retains the one-update-per-four-frames cadence. Movement follows the same logical coordinate geometry as the tank glyph table:
+cardinals step one axis, true 45-degree headings step X and Y together, and
+NNE/ENE/etc. use a deterministic 7/16 minor-axis cadence close to tan(22.5 degrees).
+The mover deliberately does not compensate for doubled sprite rows because doing so
+made projectile trajectories diverge from the rendered tank headings. Missiles use
+the exact same 16-way mover.
 A new turn acts immediately, while a held turn repeats after 24 frames. Fire launches a missile only after the previous shot has
 stopped and starts a four-frame TIA noise burst. Existing missiles advance before
 controls are processed, so a newly launched two-pixel missile gets one visible
