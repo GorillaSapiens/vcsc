@@ -184,7 +184,7 @@ for my $metadata (
    index($assembly, $metadata) >= 0
       or die "compiler did not emit generic split metadata '$metadata'\n";
 }
-index($assembly, 'superchip') < 0
+index($assembly, 'cartram') < 0
    or die "generic fruit source unexpectedly produced a Superchip-named implementation artifact\n";
 
 require_ok('link generic split-address fruit source',

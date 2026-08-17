@@ -221,10 +221,10 @@ simulator reports a directional-access error if generated code uses the wrong
 alias. `--dump-on-stop` mirrors the final bytes into both declared windows so
 the two aliases can be inspected directly.
 
-With `vcs_4k_sc.cfg` and the F8SC/F6SC/F4SC cfg files, the ordinary `superchip` entry therefore models
+With `vcs_4k_sc.cfg` and the F8SC/F6SC/F4SC cfg files, the ordinary `cartram` entry therefore models
 the shared 128-byte cartridge RAM without a compiler-specific name hook. The
 mapper still provides the real cartridge mirroring: writes to the physical
 `$1000-$107F` port update the storage and reads from `$1080-$10FF` return it
 regardless of the selected ROM bank. The canonical BANK0 dump aliases remain
 `$F000-$F07F` and `$F080-$F0FF`. The FA cfg uses the same generic split-memory
-model for its 256-byte `fa_ram`: writes `$F000-$F0FF`, reads `$F100-$F1FF`.
+model for its 256-byte `cartram`: writes `$F000-$F0FF`, reads `$F100-$F1FF`.

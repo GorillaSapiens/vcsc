@@ -2,10 +2,12 @@
 
 // CBS FA / RAM Plus shared 256-byte cartridge RAM.
 //
+// VCSC exposes mapper-owned cartridge RAM to applications under the common
+// named-memory qualifier `cartram`; this file supplies the FA-specific window.
 // FA decodes two adjacent 256-byte ports in the selected 4K cartridge window:
 // writes at $F000-$F0FF and reads at $F100-$F1FF. The underlying RAM is shared
 // by all three ROM banks and survives bank selection. Reset/startup clears BSS
 // and copies DATA through the write alias just like Superchip RAM.
 // Include this file after vcs.c26 when linking with vcs_12k_fa.c26.
 
-mem fa_ram { $read_start:0xF100 $write_start:0xF000 $size:0x0100 $rw };
+mem cartram { $read_start:0xF100 $write_start:0xF000 $size:0x0100 $rw };

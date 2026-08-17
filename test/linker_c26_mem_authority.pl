@@ -83,7 +83,7 @@ bank fred {
 };
 bank wilma {
    $image_size:0x1000 $file_index:1 $image_offset:0
-   $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
+   $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000 $startup
 };
 bank1 const uint8_t marker[4] := {0x11,0x22,0x33,0x44};
 bank1 uint8_t helper(void) { return marker[2]; }
@@ -155,7 +155,7 @@ bank omega {
    $link_start:0xd100 $cpu_start:0xf100 $map_size:0x0f00
    $select_access:0x1ff8
 };
-superchip uint8_t state;
+cartram uint8_t state;
 bank0 void touch(void) {
    state := 0x5a;
    uint8_t x := state;
@@ -175,7 +175,7 @@ $minimal_text =~ /^\s*bank0\s+start=\$F100.*output-bank=alpha mode=switched/m
    or die "mem bank0 was not inferred into selector bank alpha\n$minimal_text";
 $minimal_text =~ /^\s*bank1\s+start=\$D100.*output-bank=omega mode=switched/m
    or die "mem bank1 was not inferred into selector bank omega\n$minimal_text";
-$minimal_text =~ /^\s*superchip\s+read_start=\$F080 write_start=\$F000.*output-bank=<none> mode=shared/m
+$minimal_text =~ /^\s*cartram\s+read_start=\$F080 write_start=\$F000.*output-bank=<none> mode=shared/m
    or die "Superchip aliases were not classified as shared\n$minimal_text";
 $minimal_text =~ /^TRAMPOLINES$/m && $minimal_text =~ /target=\$D100.*remote/s
    or die "switched ROM call did not retain an F8 trampoline\n$minimal_text";
@@ -198,7 +198,7 @@ slurp($full_bin) eq $minimal_image
 my $common_topology = <<'TOPO';
 cartridge { $fill:0xff $vectors_offset:0x0ffa $vectors_size:0x0006 };
 bank low { $image_size:0x1000 $file_index:0 $image_offset:0 $link_start:0x3000 $cpu_start:0x3000 $map_size:0x1000 };
-bank high { $image_size:0x1000 $file_index:1 $image_offset:0 $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000 };
+bank high { $image_size:0x1000 $file_index:1 $image_offset:0 $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000 $startup };
 TOPO
 my $part_a = File::Spec->catfile($tmp, 'part_a.c26');
 my $part_b = File::Spec->catfile($tmp, 'part_b.c26');
@@ -218,7 +218,7 @@ mem payload { $start:0x3800 $size:0x0100 $ro };
 cartridge { $fill:0xff $vectors_offset:0x0ffa $vectors_size:0x0006 };
 bank first { $image_size:0x1000 $file_index:0 $image_offset:0 $link_start:0x3000 $cpu_start:0x3000 $map_size:0x1000 };
 bank second { $image_size:0x1000 $file_index:1 $image_offset:0 $link_start:0x3800 $cpu_start:0x3800 $map_size:0x1000 };
-bank startup { $image_size:0x1000 $file_index:2 $image_offset:0 $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000 };
+bank startup { $image_size:0x1000 $file_index:2 $image_offset:0 $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000 $startup };
 payload const uint8_t byte := 1;
 void main(void) { while (byte) {} }
 SRC

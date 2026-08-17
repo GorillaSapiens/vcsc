@@ -78,7 +78,7 @@ $m =~ /^\s+bank2\s+file-index=0\b.*select-access=\$1FF8/m &&
 $m =~ /^\s+bank1\s+file-index=1\b.*select-access=\$1FF9/m &&
 $m =~ /^\s+bank0\s+file-index=2\b.*select-access=\$1FFA.*startup=yes/m
    or die "FA topology does not report physical selector order/startup bank\n$m";
-$m =~ /^\s+fa_ram\s+read_start=\$F100 write_start=\$F000 size=\$0100 type=rw shared=yes\b/m
+$m =~ /^\s+cartram\s+read_start=\$F100 write_start=\$F000 size=\$0100 type=rw shared=yes\b/m
    or die "FA RAM split-address map is missing\n$m";
 $m =~ /used=256 bytes \(100\.00%\).*free=0 bytes/m
    or die "FA diagnostic does not allocate all 256 cartridge-RAM bytes\n$m";

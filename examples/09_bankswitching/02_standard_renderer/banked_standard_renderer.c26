@@ -85,9 +85,9 @@ bank0 page const uint8_t player1_graphics[8] := {
 };
 
 #ifdef SUPERCHIP_TEST
-superchip uint8_t banked_hook_count;
-superchip uint8_t banked_hook_signature := 0x5a;
-superchip uint8_t banked_hook_epoch;
+cartram uint8_t banked_hook_count;
+cartram uint8_t banked_hook_signature := 0x5a;
+cartram uint8_t banked_hook_epoch;
 #else
 uint8_t banked_hook_count;
 uint8_t banked_hook_signature := 0x5a;

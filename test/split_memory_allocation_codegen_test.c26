@@ -1,9 +1,9 @@
 // vcsc-cc1 -I .
-// expectasm: __memmeta$V2$superchip$RF080$WF000$Z0080$Trw = 0
-// expectasm: .segmentaddrsize "BSS.superchip", absolute
-// expectasm: .segmentaddrsize "DATA.superchip", absolute
-// expectasm: .segment "BSS.superchip.__vcsc_object$foo"
-// expectasm: .segment "BSS.superchip.__vcsc_object$buffer"
+// expectasm: __memmeta$V2$cartram$RF080$WF000$Z0080$Trw = 0
+// expectasm: .segmentaddrsize "BSS.cartram", absolute
+// expectasm: .segmentaddrsize "DATA.cartram", absolute
+// expectasm: .segment "BSS.cartram.__vcsc_object$foo"
+// expectasm: .segment "BSS.cartram.__vcsc_object$buffer"
 // expectasm: lda  foo
 // expectasm: sta  {foo - 128}
 // expectasm: sta  {buffer - 128} + 3
@@ -11,11 +11,11 @@
 // expectasm: lda #<{buffer + 0}
 
 include "machine_6502.c26"
-mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };
+mem cartram { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };
 
 uint8_t i;
-superchip uint8_t foo;
-superchip uint8_t buffer[8];
+cartram uint8_t foo;
+cartram uint8_t buffer[8];
 
 void main(void) {
    foo := 0x11;

@@ -50,7 +50,7 @@ enum tanks_constants {
 // rotation of the matching cardinal or diagonal template. The renderer doubles
 // every source row vertically, so each displayed tank is 8 pixels wide by
 // 16 scanlines high.
-bank0 page const uint8_t tanks_graphics[64] := {
+page const uint8_t tanks_graphics[64] := {
    // N -- canonical cardinal silhouette.
    0b...XX...,
    0b...XX...,
@@ -134,7 +134,7 @@ bank0 page const uint8_t tanks_graphics[64] := {
 
 // VBLANK horizontal fine-motion table for M0/M1. Indexes 1..15 correspond to
 // the negative remainder left by the divide-by-fifteen coarse-position loop.
-bank0 page const uint8_t tanks_reposition_table[16] := {
+page const uint8_t tanks_reposition_table[16] := {
    0x80,0x70,0x60,0x50,0x40,0x30,0x20,0x10,
    0x00,0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90
 };
@@ -143,7 +143,7 @@ bank0 page const uint8_t tanks_reposition_table[16] := {
 // renderer. The high nibble is HMxx and the low nibble is the bounded
 // five-cycle coarse-loop count. Precomputing these controls during VBLANK keeps
 // the post-score P0/P1 handoff at a fixed three scanlines for every legal X.
-bank0 page const uint8_t tanks_player_position_table[160] := {
+page const uint8_t tanks_player_position_table[160] := {
    0x41,0x31,0x21,0x11,0x01,0xf1,0xe1,0xd1,0xc1,0xb1,0xa1,0x91,0x81,0x62,0x52,0x42,
    0x32,0x22,0x12,0x02,0xf2,0xe2,0xd2,0xc2,0xb2,0xa2,0x92,0x82,0x63,0x53,0x43,0x33,
    0x23,0x13,0x03,0xf3,0xe3,0xd3,0xc3,0xb3,0xa3,0x93,0x83,0x64,0x54,0x44,0x34,0x24,
@@ -159,7 +159,7 @@ bank0 page const uint8_t tanks_player_position_table[160] := {
 // Only x=41..76 needs a stored overlap mask. Positions left of 41 or right
 // of 111 cannot touch PF2 barriers at all; positions 77..111 mirror to
 // 152-x because CTRLPF reflects the playfield and the tank is eight pixels wide.
-bank0 page const uint8_t tanks_player_pf2_overlap[36] := {
+page const uint8_t tanks_player_pf2_overlap[36] := {
    0x01,0x01,0x01,0x01,0x03,0x03,0x03,0x03,0x07,0x07,0x07,0x06,
    0x0e,0x0e,0x0e,0x0c,0x1c,0x1c,0x1c,0x18,0x38,0x38,0x38,0x30,
    0x70,0x70,0x70,0x60,0xe0,0xe0,0xe0,0xc0,0xc0,0xc0,0xc0,0x80,
@@ -169,14 +169,14 @@ bank0 page const uint8_t tanks_player_pf2_overlap[36] := {
 // Each random barrier is one PF2 bit, so it is four color clocks wide and
 // extends vertically for many scanlines. CTRLPF reflection mirrors it into the
 // opposite half of the arena.
-bank1 page const uint8_t tanks_barrier_masks[8] := {
+page const uint8_t tanks_barrier_masks[8] := {
    0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80
 };
 
 // Random hit knockback samples only the half-plane away from the shooter.
 // Straight and +/-45-degree headings are deliberately more common than the two
 // perpendicular escape headings used when geometry blocks the preferred path.
-bank1 page const uint8_t tanks_knockback_offsets[8] := {
+page const uint8_t tanks_knockback_offsets[8] := {
    0,1,7,0,1,7,2,6
 };
 
@@ -208,22 +208,22 @@ uint8_t tanks_sound_kind := TANKS_SOUND_OFF;
 // per pair instead of taking variable barrier-event branches. Entries 0..1 are
 // the full-width top wall; the remaining entries are zero except for generated
 // vertical barriers. The bottom wall is drawn separately after this schedule.
-superchip uint8_t tanks_barrier_pf2[86];
+cartram uint8_t tanks_barrier_pf2[86];
 
 // Persistent Superchip scratch for hit knockback.  The game is deliberately
 // non-reentrant, so these bytes can replace nested RIOT-RAM activation locals.
-superchip uint8_t tanks_knock_direction;
-superchip uint8_t tanks_knock_amount;
-superchip uint8_t tanks_knock_x;
-superchip uint8_t tanks_knock_y;
-superchip uint8_t tanks_knock_mask;
-superchip uint8_t tanks_knock_row;
-superchip uint8_t tank0_knockback_pending;
-superchip uint8_t tank1_knockback_pending;
-superchip uint8_t tank0_knockback_index;
-superchip uint8_t tank1_knockback_index;
-superchip uint8_t tank0_knockback_attempts;
-superchip uint8_t tank1_knockback_attempts;
+cartram uint8_t tanks_knock_direction;
+cartram uint8_t tanks_knock_amount;
+cartram uint8_t tanks_knock_x;
+cartram uint8_t tanks_knock_y;
+cartram uint8_t tanks_knock_mask;
+cartram uint8_t tanks_knock_row;
+cartram uint8_t tank0_knockback_pending;
+cartram uint8_t tank1_knockback_pending;
+cartram uint8_t tank0_knockback_index;
+cartram uint8_t tank1_knockback_index;
+cartram uint8_t tank0_knockback_attempts;
+cartram uint8_t tank1_knockback_attempts;
 
 uint8_t tanks_player_position_control[2];
 
@@ -244,7 +244,7 @@ uint8_t tanks_p1_next := 0;
 uint8_t tanks_m0_next := 0;
 uint8_t tanks_m1_next := 0;
 
-bank1 uint8_t tanks_random(void) {
+uint8_t tanks_random(void) {
    // Ordinary game-state LFSR; no beam-facing timing depends on its exact
    // instruction sequence.
    if (tanks_rng & 1) { tanks_rng := (tanks_rng >> 1) ^ 0xb4; }
@@ -288,7 +288,7 @@ inline void tanks_generate_barriers(void) {
    while (i < end) { tanks_barrier_pf2[i] := mask; i++; }
 }
 
-bank0 superchip uint8_t tanks_try_knockback(uint8_t *x, uint8_t *y, uint8_t direction) {
+cartram uint8_t tanks_try_knockback(uint8_t *x, uint8_t *y, uint8_t direction) {
    // X is one visible pixel per unit, while arena Y is one doubled scanline row
    // per unit. Cardinal moves are therefore 32 X units or 16 Y rows; diagonal
    // moves use 23 X units and 11 Y rows, about 31.8 visible pixels overall.
@@ -371,20 +371,20 @@ bank0 superchip uint8_t tanks_try_knockback(uint8_t *x, uint8_t *y, uint8_t dire
 }
 
 
-bank1 void tanks_sound_stop(void) {
+void tanks_sound_stop(void) {
    tanks_sound_frames := 0;
    tanks_sound_kind := TANKS_SOUND_OFF;
    AUDV0 := MUSIC_VOLUME_OFF;
 }
 
-bank1 void tanks_sound_tick(void) {
+void tanks_sound_tick(void) {
    if (tanks_sound_frames) {
       tanks_sound_frames--;
       if (!tanks_sound_frames) { tanks_sound_stop(); }
    }
 }
 
-bank1 void tanks_sound_fire(void) {
+void tanks_sound_fire(void) {
    // A short, dry high-frequency noise burst. Do not cut off a hit explosion.
    if (tanks_sound_kind == TANKS_SOUND_HIT) { return; }
    AUDV0 := MUSIC_VOLUME_OFF;
@@ -395,7 +395,7 @@ bank1 void tanks_sound_fire(void) {
    tanks_sound_kind := TANKS_SOUND_FIRE;
 }
 
-bank1 void tanks_sound_hit(void) {
+void tanks_sound_hit(void) {
    // A much longer, lower noise burst accompanies the rapid hit spin.
    AUDV0 := MUSIC_VOLUME_OFF;
    AUDC0 := MUSIC_CONTROL_NOISE;
@@ -468,7 +468,7 @@ inline void tanks_reset_positions(void) {
    missile1_active := 0;
 }
 
-bank1 void tanks_reset_game(void) {
+void tanks_reset_game(void) {
    score_left_score := 0;
    score_right_score := 0;
    tanks_sound_stop();
@@ -477,7 +477,7 @@ bank1 void tanks_reset_game(void) {
    tanks_reset_positions();
 }
 
-bank1 void tanks_move_player(uint8_t *x, uint8_t *y, uint8_t direction, uint8_t reverse) {
+void tanks_move_player(uint8_t *x, uint8_t *y, uint8_t direction, uint8_t reverse) {
    // Reverse is the same heading rotated 180 degrees.  Range tests keep this
    // substantially smaller than two eight-way switches on 6502.
    if (reverse) {
@@ -513,7 +513,7 @@ bank1 void tanks_move_player(uint8_t *x, uint8_t *y, uint8_t direction, uint8_t 
    }
 }
 
-bank1 void tanks_move_missile(uint8_t *x, uint8_t *y, uint8_t direction) {
+void tanks_move_missile(uint8_t *x, uint8_t *y, uint8_t direction) {
    if (direction >= TANKS_DIR_NE) {
       if (direction <= TANKS_DIR_SE) { (*x)++; }
       else {
@@ -703,7 +703,7 @@ inline void tanks_update_collisions(void) {
    }
 }
 
-bank1 void tanks_update_vblank(void) {
+void tanks_update_vblank(void) {
    // Missile collision latches survive from the preceding arena until CXCLR.
    // Keep score/hit/audio work here so simultaneous missile hits remain within
    // the 37-line VBLANK deadline. Player/playfield rollback happens earlier,
@@ -712,7 +712,7 @@ bank1 void tanks_update_vblank(void) {
    if (SWCHB & 1) { tanks_update_collisions(); }
 }
 
-bank1 void tanks_process_knockback(void) {
+void tanks_process_knockback(void) {
    // Run as a separate top-level overscan call so its activation storage does
    // not stack on top of tanks_update_overscan's frame. First consume the
    // just-finished arena's player collisions while tank*_prev_* is still valid.
@@ -758,7 +758,7 @@ bank1 void tanks_process_knockback(void) {
    }
 }
 
-bank1 void tanks_update_overscan(void) {
+void tanks_update_overscan(void) {
    if (!(SWCHB & 1)) {
       tanks_reset_game();
       return;

@@ -305,7 +305,7 @@ are illustrated by this F8SC description:
         $ro
     };
 
-    mem superchip {
+    mem cartram {
         $read_start:  0xf080
         $write_start: 0xf000
         $size:        0x0080
@@ -388,7 +388,7 @@ For the F8SC example:
 
     mem bank0:       $F100-$FEFF  is inside bank0 $F100-$FFFF
     mem bank1:       $D100-$DEFF  is inside bank1 $D100-$DFFF
-    mem superchip:   read $F080-$F0FF, write $F000-$F07F
+    mem cartram:   read $F080-$F0FF, write $F000-$F07F
 
 The Superchip aliases lie outside every switched-ROM link range and therefore
 have no owning bank. They are one shared split-address allocation. Relocations
@@ -802,7 +802,7 @@ Superchip RAM through split-address named memory
 Superchip storage is allocator-owned named memory, not an absolute external
 alias. The SC machine/profile header defines the region conceptually as:
 
-    mem superchip {
+    mem cartram {
         $read_start:  0xF080
         $write_start: 0xF000
         $size:        0x80
@@ -811,8 +811,8 @@ alias. The SC machine/profile header defines the region conceptually as:
 
 Applications declare ordinary owned objects with the region modifier:
 
-    superchip uint8_t byte;
-    superchip uint8_t buffer[32];
+    cartram uint8_t byte;
+    cartram uint8_t buffer[32];
 
 Loads relocate through the read alias, stores and initialization through the
 write alias, and map accounting counts the physical bytes once across all ROM
@@ -820,7 +820,7 @@ banks. The current SC cfg profiles reserve each bank's $x000-$x0FF RAM-port pref
 begin allocatable ROM at $x100 while still emitting complete 4K physical banks.
 In the planned C26 topology model, the `bank` mapping begins at image offset
 `$0100` and CPU/link address `$x100`; this explicit mapping, not the word
-`superchip`, keeps the RAM aliases shared and outside selector-controlled ROM.
+`cartram`, keeps the RAM aliases shared and outside selector-controlled ROM.
 
 A non-owning `@[read/write]` absolute external binding may not overlap these or
 any other allocator-managed windows. The linker compares the binding's complete
@@ -923,8 +923,9 @@ RAM-port prefix.
 Detailed roadmap
 ----------------
 The first unfinished leaf in this file is the next bankswitching-specific action.
-Item 32 (OMNI) depends on main-roadmap Item 42, which generalizes automatic
-placement across compatible direct/switched code regions and writable regions.
+Main-roadmap Item 42 is complete. OMNI Item 32 can use its generalized automatic
+CODE/RODATA placement across compatible direct regions; RAM placement remains
+explicit by design.
 
 [x] 0. Record and lock the initial full-window design decisions.
 
@@ -1125,7 +1126,7 @@ placement across compatible direct/switched code regions and writable regions.
          to structural linker tests.
        * Implemented profiles reserve `$x000-$x0FF`, allocate ordinary ROM only
          in `$x100-$xEFF`, install `superchip.c26` with the allocatable
-         `mem superchip` region, keep the diagnostic suite's whole-window
+         `mem cartram` region, keep the diagnostic suite's whole-window
          absolute alias private to that suite, and reject SC cfgs whose bank-owned
          read-only regions overlap the RAM ports. Structural tests also mutate
          each public profile to expose the prefix and require the linker to
@@ -1136,10 +1137,10 @@ placement across compatible direct/switched code regions and writable regions.
 
 [x] 12. Add Automatic allocation of variables into Superchip RAM.
 
-       * Define `mem superchip { $read_start:0xF080 $write_start:0xF000
+       * Define `mem cartram { $read_start:0xF080 $write_start:0xF000
          $size:0x80 $rw };` through the SC machine/profile header and allocate
          objects with ordinary named-region syntax such as
-         `superchip uint8_t foo;` and `superchip uint8_t buffer[32];`.
+         `cartram uint8_t foo;` and `cartram uint8_t buffer[32];`.
        * Lock the existing split-address order: explicit bindings use
          `@[read_address/write_address]`, so the first SC byte is equivalent to
          `uint8_t foo@[0xF080/0xF000];`.  Loads use the read alias; stores,
@@ -1152,7 +1153,7 @@ placement across compatible direct/switched code regions and writable regions.
        * Count physical occupancy once and provide deterministic overflow
          diagnostics.
        * Implemented compiler metadata carries both aliases through private
-         `BSS.superchip`/`DATA.superchip` layouts. Unsuffixed direct accesses
+         `BSS.cartram`/`DATA.cartram` layouts. Unsuffixed direct accesses
          retain absolute addressing, direct and runtime array indexing select
          the correct alias, and invalid address-taking, decay, `ref`, local,
          parameter, function, split-address bitfield-write, and bank-owned
@@ -1176,8 +1177,8 @@ placement across compatible direct/switched code regions and writable regions.
 
        * Permit ordinary automatic and function-scope `static` scalars, arrays,
          and other already-supported local object forms to select a split-address
-         writable region, for example `superchip uint8_t scratch;` or
-         `static superchip uint8_t calls;` inside a function body.
+         writable region, for example `cartram uint8_t scratch;` or
+         `static cartram uint8_t calls;` inside a function body.
        * Keep the existing non-reentrant, symbol-backed automatic-local model.
          Reads use the region's read alias; writes and function-entry initializers
          use its write alias. No runtime stack or new lifetime mechanism is
@@ -1214,8 +1215,8 @@ placement across compatible direct/switched code regions and writable regions.
          initializers, compound assignment, increment, bitfields, inline locals,
          repeated nested cross-bank calls, exact eleven-byte occupancy, every
          physical startup bank, and deterministic activation overflow.
-       * Function-scope `static` split objects use persistent `BSS.superchip` or
-         `DATA.superchip`, never activation overlays. Uninitialized storage is
+       * Function-scope `static` split objects use persistent `BSS.cartram` or
+         `DATA.cartram`, never activation overlays. Uninitialized storage is
          cleared at startup, link-time initializers use the DATA copy path, and
          nonconstant initializers run once in the translation-unit startup
          initializer; all destinations use the write alias. F8SC/F6SC/F4SC tests
@@ -1231,7 +1232,7 @@ placement across compatible direct/switched code regions and writable regions.
 [x] 14. Add Superchip-backed value parameters.
 
        * Permit a value parameter to select the split-address writable region, for
-         example `void consume(superchip uint16_t value)`.
+         example `void consume(cartram uint16_t value)`.
        * Allocate the existing callee-owned parameter object in that region. The
          caller writes the argument through the write alias before `JSR`; the
          callee reads it through the read alias, and assignments to the parameter
@@ -1250,7 +1251,7 @@ placement across compatible direct/switched code regions and writable regions.
        Completed 2026-08-04:
 
        * Any named split-address writable `mem` region may back a value parameter;
-         no compiler or linker path recognizes the spelling `superchip`. The
+         no compiler or linker path recognizes the spelling `cartram`. The
          parameter remains an exact-sized callee-owned symbol in the function's
          region-local activation layout.
        * Direct calls evaluate argument expressions left to right and use
@@ -1288,7 +1289,7 @@ placement across compatible direct/switched code regions and writable regions.
 
        * Permit a non-void function's existing hidden `function$__return` object
          to select the split-address region, using syntax such as
-         `superchip uint8_t function(void)`. This extends the existing memory-return
+         `cartram uint8_t function(void)`. This extends the existing memory-return
          ABI; it does not introduce register returns or a second calling convention.
        * Lower `return expression;` to stores through the write alias. Callers read
          the result through the read alias after the call. Preserve exact-sized
@@ -1313,7 +1314,7 @@ placement across compatible direct/switched code regions and writable regions.
          exact-sized hidden `function$__return` object. The implementation derives
          the read symbol, write expression, size, and region-local activation
          segment from ordinary `mem` metadata; no compiler or linker path recognizes
-         the spelling `superchip` or assumes a particular alias order or distance.
+         the spelling `cartram` or assumes a particular alias order or distance.
        * `return expression;`, direct assignment to `$$`, and compound assignment to
          `$$` store through the configured write alias. Reads of `$$` inside the
          callee and result copies in the caller use the configured read alias. A bare
@@ -1395,7 +1396,7 @@ placement across compatible direct/switched code regions and writable regions.
          write/ordinary window. The check is generic, directional, and covers
          block-scope bindings as well as separately compiled file-scope bindings.
        * Convert the bankswitching diagnostic's complete Superchip probe from a
-         non-owning absolute alias to `superchip uint8_t ...[128]`, so the probe
+         non-owning absolute alias to `cartram uint8_t ...[128]`, so the probe
          owns and reserves the entire physical region. Keep TIA and RIOT hardware
          bindings valid because their addresses lie outside the VCS profiles'
          allocator-managed RAM and ROM windows.
@@ -1561,11 +1562,11 @@ placement across compatible direct/switched code regions and writable regions.
        result-storage region using `mem` attributes.
 
        * Classify every named region modifier from its declared `mem` properties,
-         never from a hard-coded spelling such as `bank0` or `superchip`. For a
+         never from a hard-coded spelling such as `bank0` or `cartram`. For a
          function declaration, read-only regions describe code placement; one
          writable region describes the hidden return object's storage.
        * Permit an order-insensitive mixture such as
-         `bank0 superchip uint8_t function(void)`, with the function body in the
+         `bank0 cartram uint8_t function(void)`, with the function body in the
          read-only region and `function$__return` in the writable region. Preserve
          the read-only code-region set and writable result region as separate ABI
          facts even though this item emits at most one function-body copy.
@@ -1624,7 +1625,7 @@ placement across compatible direct/switched code regions and writable regions.
          bank-placement contract.
        * Report every replicated copy and its total physical ROM cost in the map,
          and test local binding, mixed pinned/unpinned callers, the complete
-         `bank0 bank1 superchip` function form, function pointers remaining
+         `bank0 bank1 cartram` function form, function pointers remaining
          unsupported, and deterministic diagnostics for missing copies.
 
        Completed 2026-08-05:
@@ -1645,7 +1646,7 @@ placement across compatible direct/switched code regions and writable regions.
          split-address replica regions, inline region contracts, and unusable
          unbanked/missing linker regions. Report every physical copy, load address,
          per-symbol cost, and aggregate replicated-ROM cost in the map.
-       * Add F8SC local-copy and `bank0 bank1 superchip` execution, mixed automatic
+       * Add F8SC local-copy and `bank0 bank1 cartram` execution, mixed automatic
          placement, F6 missing-copy/fallback and three-copy execution, separate-
          object matching, independent ABI mismatch, and compiler rejection coverage.
          Update compiler, ABI, linker, VCS-library, test-inventory, source-hygiene,
@@ -2097,13 +2098,17 @@ placement across compatible direct/switched code regions and writable regions.
          `_` startup/runtime functions remain together there. Treat normal reset
          vectors as pointing directly at startup code; OmniCart takeover mechanics
          are outside the linker contract.
-       * Use the $1000-$1FFF island as ordinary `$rw` cartridge RAM and the other
-         seven islands as ordinary `$ro` code/constant storage. Reuse VCSC's existing
+       * Use the $1000-$1FFF island as ordinary `$rw` cartridge RAM named
+         `cartram`, the same programmer-facing qualifier used by Superchip and
+         FA/RAM Plus, and use the other seven islands as ordinary `$ro`
+         code/constant storage. Reuse VCSC's existing
          initialized-DATA load/copy and BSS-zero semantics; do not add `$rwx` or a new
          image-backed writable-memory class.
        * Use the general automatic allocator from main-roadmap Item 42 for unplaced
-         functions across the seven `$ro` islands and for writable DATA/BSS fallback
-         into the `$1000` `$rw` island when preferred RAM cannot fit an object.
+         functions and private RODATA across the seven `$ro` islands. Keep writable
+         DATA/BSS placement explicit: ordinary unqualified variables remain in the
+         default RIOT RAM, while source that wants mapper-owned cartridge RAM uses
+         the explicit common `cartram` qualifier.
          Explicit island placement remains binding; no function or object may be
          split across an island boundary.
        * Stamp `OMNI` at physical $xFF8-$xFFB of only the final file chunk, retaining
@@ -2112,9 +2117,9 @@ placement across compatible direct/switched code regions and writable regions.
        * `vcs_omni_32k.c26` now provides the eight direct chunks, seven `$ro`
          islands plus `$1000` `$rw`, `OMNI` final-bank signature, and normal vectors.
          Focused profile tests already prove exact 32K file order/fill, explicit
-         cross-island JSR/data access, initialized DATA plus BSS in cartridge RAM,
-         and the complete absence of selector/trampoline/bridge output. Finish the
-         automatic code/RAM spill cases after main-roadmap Item 42, then add a public
+         cross-island JSR/data access, initialized DATA plus BSS in explicitly selected
+         cartridge RAM, automatic direct-region CODE/RODATA placement infrastructure,
+         and the complete absence of selector/trampoline/bridge output. Add a public
          PASS/FAIL diagnostic once the profile semantics are certified.
        * Keep `vcs_direct_8k.c26` as the small generic selector-free certification
          fixture rather than silently redefining it as OmniCart; OMNI gets its own

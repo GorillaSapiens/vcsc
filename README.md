@@ -172,6 +172,12 @@ configuration, frame support, display resources, and maintained renderer
 families. The library README is the catalog and integration guide for those
 pieces.
 
+Mapper-owned cartridge RAM uses one programmer-facing named-memory qualifier,
+`cartram`, across Superchip, CBS FA/RAM Plus, and OMNI profiles. The selected
+profile defines the actual size and read/write windows, while ordinary unqualified
+variables remain in RIOT RAM. See [`libraries/vcs/README.md`](libraries/vcs/README.md)
+for the mapper-specific layouts.
+
 VCSC's public Atari mapper profiles place a four-byte mapper signature at
 physical offsets `$xFF8-$xFFB` of the final 4K bank written to the cartridge
 image. Short names are ASCII-NUL padded, so the current signatures are `4KSC`,

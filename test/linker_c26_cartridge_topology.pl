@@ -91,7 +91,7 @@ bank bank1 {
 };
 bank rom {
    $image_size:0x1000 $file_index:1 $image_offset:0
-   $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
+   $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000 $startup
 };
 TOPO
 

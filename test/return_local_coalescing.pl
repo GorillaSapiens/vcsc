@@ -80,7 +80,7 @@ MEMORY {
     CPUSTACK: start = $0100, size = $0100, type = rw, define = yes;
     RAM:      start = $0200, size = $1E00, type = rw, define = yes;
     result_ram: start = $2200, size = $0020, type = rw, define = yes;
-    superchip: read_start = $3003, write_start = $5007, size = $0040, type = rw, define = yes;
+    cartram: read_start = $3003, write_start = $5007, size = $0040, type = rw, define = yes;
     ROM:      start = $8000, size = $8000, type = ro, define = yes;
 }
 SEGMENTS {
@@ -96,7 +96,7 @@ write_file($source, <<'SOURCE');
 include "machine_6502.c26"
 mem rom { $start:0x8000 $size:0x8000 $ro $priority:1 };
 mem result_ram { $start:0x2200 $size:0x0020 $rw };
-mem superchip { $read_start:0x3003 $write_start:0x5007 $size:0x0040 $rw };
+mem cartram { $read_start:0x3003 $write_start:0x5007 $size:0x0040 $rw };
 
 uint8_t selector;
 uint8_t status;
@@ -146,8 +146,8 @@ zeropage uint16_t branched_value(void) {
    branch_result := 0x2345;
    return branch_result;
 }
-superchip uint32_t split_value(void) {
-   superchip uint32_t split_result := 0x12345678;
+cartram uint32_t split_value(void) {
+   cartram uint32_t split_result := 0x12345678;
    split_result += 1;
    return split_result;
 }
@@ -193,7 +193,7 @@ my @entries = (
    ['bcd32_value', 'result_bcd32', 'zeropage', 4],
    ['absolute_value', 'absolute_result', 'result_ram', 2],
    ['branched_value', 'branch_result', 'zeropage', 2],
-   ['split_value', 'split_result', 'superchip', 4],
+   ['split_value', 'split_result', 'cartram', 4],
 );
 for my $entry (@entries) {
    my ($function, $local, $region, $size) = @$entry;
@@ -204,8 +204,8 @@ for my $entry (@entries) {
       $map =~ /^\s*ZEROPAGE\.zeropage\.__vcsc_activation\$\Q$function\E run=\$[0-9A-F]{4} size=\$$hexsize\b/m
          or die "coalesced activation for $function is not exactly $size bytes\n$map";
    }
-   elsif ($region eq 'superchip') {
-      $map =~ /^\s*BSS\.superchip\.__vcsc_activation\$\Q$function\E run=\$3003 write=\$5007 size=\$$hexsize\b/m
+   elsif ($region eq 'cartram') {
+      $map =~ /^\s*BSS\.cartram\.__vcsc_activation\$\Q$function\E run=\$3003 write=\$5007 size=\$$hexsize\b/m
          or die "split coalesced activation for $function is not exactly $size bytes\n$map";
    }
    else {

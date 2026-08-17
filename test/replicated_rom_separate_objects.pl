@@ -36,7 +36,7 @@ include "superchip.c26"
 mem bank0 { $start:0xF100 $size:0x0E00 $ro };
 mem bank1 { $start:0xD100 $size:0x0E00 $ro };
 bank0 bank1 const uint8_t shared_table[2] := { 0x12, 0x34 };
-bank1 bank0 superchip uint8_t shared_function(uint8_t index) {
+bank1 bank0 cartram uint8_t shared_function(uint8_t index) {
    return shared_table[index];
 }
 SRC
@@ -46,7 +46,7 @@ include "superchip.c26"
 mem bank0 { $start:0xF100 $size:0x0E00 $ro };
 mem bank1 { $start:0xD100 $size:0x0E00 $ro };
 extern bank1 bank0 const uint8_t shared_table[2];
-bank0 superchip bank1 uint8_t shared_function(uint8_t index);
+bank0 cartram bank1 uint8_t shared_function(uint8_t index);
 bank1 uint8_t bank1_caller(void) {
    return shared_function(1) + shared_table[0];
 }

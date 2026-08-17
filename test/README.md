@@ -227,7 +227,7 @@ shared writable result region, immutable object sets, duplicate names,
 non-read-only regions, mutable duplication, redeclaration mismatch, and function
 pointers remaining unsupported. `replicated_rom_placement.pl` verifies F8SC
 bank-local function and object binding, mixed pinned/automatic callers,
-independent copy offsets and bytes, a complete `bank0 bank1 superchip` function,
+independent copy offsets and bytes, a complete `bank0 bank1 cartram` function,
 one shared return object, map physical-cost accounting, and the absence of
 unnecessary trampolines. `replicated_rom_missing_copy.pl` covers deterministic
 object missing-copy errors, function fallback from a bank without a body, and
@@ -777,19 +777,19 @@ hostile `$A7` split-memory fill and requires the map's `STARTUP INITIALIZATION`
 section to list each DATA copy and BSS clear with exact read/write aliases. It
 also mutates the legacy cfg read alias, write alias, size, and bank tag and
 requires every stale variant to produce the same bytes as the authoritative C26
-`mem superchip` declaration. Its stable overflow fixture still fills all 128
+`mem cartram` declaration. Its stable overflow fixture still fills all 128
 bytes and requires the linker to name the first object that does not fit.
 
 `split_memory_static_local_codegen_test.c26` and
-`superchip_static_locals.pl` cover function-scope `static superchip` storage.
-They require persistent `BSS.superchip`/`DATA.superchip` layouts rather than an
+`superchip_static_locals.pl` cover function-scope `static cartram` storage.
+They require persistent `BSS.cartram`/`DATA.cartram` layouts rather than an
 activation overlay, startup-only zero/constant/runtime initialization through
 the write alias, persistence across repeated calls, packed-bitfield updates,
 exact physical occupancy, and execution from every physical startup bank under
 F8SC, F6SC, and F4SC.
 
 `split_memory_generic_regions.pl` proves that split-address storage is driven by
-authoritative ordinary `mem` metadata rather than by the spelling `superchip` or by
+authoritative ordinary `mem` metadata rather than by the spelling `cartram` or by
 the Superchip window layout. It uses unrelated regions named `banana`, `pair`,
 and `orange`, with sizes of 7, 9, and 5 bytes, unaligned and widely separated
 windows, and a `pair` region whose read window is above its write window. The

@@ -1,7 +1,7 @@
 // vcsc-cc1 -I .
-// expectasm: .segmentaddrsize "BSS.superchip", absolute
-// expectasm: .segmentaddrsize "DATA.superchip", absolute
-// expectasm: .segment "BSS.superchip.__vcsc_activation$touch"
+// expectasm: .segmentaddrsize "BSS.cartram", absolute
+// expectasm: .segmentaddrsize "DATA.cartram", absolute
+// expectasm: .segment "BSS.cartram.__vcsc_activation$touch"
 // expectasm: touch$local:
 // expectasm: touch$buffer:
 // expectasm: touch$packed:
@@ -14,7 +14,7 @@
 // expectasm: sta (ptr2),y
 
 include "machine_6502.c26"
-mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };
+mem cartram { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };
 
 struct Packed {
    uint8_t low:4;
@@ -22,15 +22,15 @@ struct Packed {
 };
 
 inline uint8_t bump(uint8_t value) {
-   superchip uint8_t inline_local := value;
+   cartram uint8_t inline_local := value;
    inline_local++;
    return inline_local;
 }
 
 void touch(void) {
-   superchip uint8_t local := 1;
-   superchip uint8_t buffer[4];
-   superchip Packed packed;
+   cartram uint8_t local := 1;
+   cartram uint8_t buffer[4];
+   cartram Packed packed;
    uint8_t index := 2;
 
    local += 2;

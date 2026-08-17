@@ -156,4 +156,23 @@ $bad_err =~ /configured startup bank is 'PEAR'/
 $bad_err !~ /bank0|BANK0|bank1|BANK1/
    or die "generic main diagnostic leaked conventional bank names\n$bad_err";
 
+# Reserved '_' startup/runtime helpers obey the same home-bank rule as main.
+my $bad_helper_src = File::Spec->catfile($tmp, 'bad-helper.c26');
+write_file($bad_helper_src, <<'SOURCE');
+include "machine_6502.c26"
+mem pear_code { $start:0xF000 $size:0x0F00 $ro };
+mem orange_code { $start:0xD000 $size:0x0F00 $ro };
+orange_code void _startup_helper(void) {}
+void main(void) { _startup_helper(); }
+SOURCE
+my ($helper_rc, $helper_sig, $helper_out, $helper_err) = run_capture(
+   $driver, '-I', $test_inc, '-T', $cfg, $bad_helper_src,
+   '-o', File::Spec->catfile($tmp, 'bad-helper.bin'));
+$helper_rc != 0 && !$helper_sig
+   or die "reserved startup helper explicitly placed outside home unexpectedly linked\n$helper_out\n$helper_err";
+$helper_err =~ /startup\/runtime function '_startup_helper'/ &&
+$helper_err =~ /non-startup region 'BANANA'/ &&
+$helper_err =~ /startup\/home region is 'PEAR'/
+   or die "reserved startup helper contradiction diagnostic is wrong\n$helper_err";
+
 print "Generic startup-bank main placement passed\n";

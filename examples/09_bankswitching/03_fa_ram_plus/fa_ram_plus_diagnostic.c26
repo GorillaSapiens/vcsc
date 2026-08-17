@@ -16,8 +16,8 @@ instantiate "six_glyph_component.c26" as cart_type (compact_font:=0)
 #endif
 
 // Occupy the complete 256-byte FA RAM device: one initialized byte plus 255 BSS.
-fa_ram uint8_t fa_data := 0x5A;
-fa_ram uint8_t fa_bss[255];
+cartram uint8_t fa_data := 0x5A;
+cartram uint8_t fa_bss[255];
 
 uint8_t failure;
 uint8_t trace;

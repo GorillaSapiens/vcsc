@@ -516,6 +516,17 @@ bank1 void remote_code(void) {
 The build still uses `-T libraries/vcs/vcs.cfg`; no profile-specific cfg and no
 special suppression macro are required.
 
+Unqualified functions and private `const` objects do not need `bankN` qualifiers.
+The linker automatically places each whole CODE/RODATA layout in any compatible
+read-only region with room, while keeping `main` and `_` startup/runtime helpers
+in the profile's startup/home bank. Explicit `bankN` placement remains a hard
+override. Selector-controlled profiles optimize call locality and synthesize
+trampolines only when needed; selector-free direct profiles use ordinary 16-bit
+cross-region calls and data references. Writable RAM is intentionally different:
+unqualified DATA/BSS/ZEROPAGE stay in the configured default RAM, and cartridge
+RAM such as `cartram` must still be named explicitly when the programmer wants
+it.
+
 The profiles use descending VCSC logical banks with BANK0 at `$F000-$FFFF` as
 the home/startup bank and final 4K file chunk.  File order and selectors are:
 
@@ -589,6 +600,23 @@ Notes:
 - `legacy-basic-renderers/` remains untouched reference/source material imported from upstream legacy BASIC. The all-five solid-color profile and the separate no-missile per-row-player-color profile are reproducibly normalized beside their contracts and exercised by complete cartridges. See `LEGACY_RENDERER_CONVERSION.md` for the staged conversion inventory.
 - The VCS hardware mirrors TIA and RIOT addresses heavily. The bindings use the conventional canonical addresses.
 
+### Common `cartram` source name
+
+Every public VCSC profile that provides mapper-owned cartridge RAM exposes it to
+source code with the same named-memory qualifier, `cartram`. The physical device
+still depends on the selected profile: Superchip supplies 128 split-address bytes,
+CBS FA/RAM Plus supplies 256 split-address bytes, and OMNI supplies the direct
+`$1000-$1FFF` 4K writable island. This common source name is intentional so code
+using cartridge RAM can move between mapper profiles without renaming every
+declaration. The profile remains authoritative for the size and read/write aliases.
+
+Ordinary unqualified variables still use the default RIOT RAM. Cartridge RAM is
+selected explicitly, for example:
+
+```c
+cartram uint8_t state[32];
+```
+
 ### FA / RAM Plus profile and allocatable RAM
 
 The public `vcs_12k_fa.c26` profile emits three complete 4K physical banks.
@@ -602,10 +630,10 @@ of ordinary allocatable ROM.
 `fa_ram_plus.c26` declares the shared device as:
 
 ```c
-mem fa_ram { $read_start:0xF100 $write_start:0xF000 $size:0x0100 $rw };
+mem cartram { $read_start:0xF100 $write_start:0xF000 $size:0x0100 $rw };
 ```
 
-Applications use ordinary named-memory syntax such as `fa_ram uint8_t state[32];`.
+Applications use ordinary named-memory syntax such as `cartram uint8_t state[32];`.
 DATA/BSS startup writes through the write alias, loads use the read alias, and
 bank changes preserve the 256 physical RAM bytes.
 
@@ -623,11 +651,11 @@ allocated DATA initializer through `$F000-$F07F` on every reset. Mapper switches
 preserve the shared physical bytes; reset intentionally reinitializes them.
 Unallocated bytes have no compiler/runtime lifecycle guarantee.
 
-Include `superchip.c26` after `vcs.c26` to obtain the allocatable named
-region:
+The SC profiles include `superchip.c26`, whose hardware-specific window definition
+exposes the common `cartram` named region:
 
 ```c
-mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };
+mem cartram { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };
 ```
 
 Applications may allocate persistent globals, arrays, automatic locals,
@@ -635,19 +663,19 @@ function-scope static locals, value parameters, and function return objects
 directly:
 
 ```c
-superchip uint8_t foo;
-superchip uint8_t buffer[32];
+cartram uint8_t foo;
+cartram uint8_t buffer[32];
 
-void update(superchip uint16_t value) {
-   superchip uint8_t scratch := foo;
-   static superchip uint8_t calls;
+void update(cartram uint16_t value) {
+   cartram uint8_t scratch := foo;
+   static cartram uint8_t calls;
    value += 1; // caller writes $F000 alias; this load/store uses both aliases
    scratch++;
    calls++;
    foo := scratch;
 }
 
-superchip uint16_t current_value(void) {
+cartram uint16_t current_value(void) {
    $$ := foo;       // write through $F000
    $$ += 1;         // read through $F080, write through $F000
    return;
@@ -660,8 +688,8 @@ their numerical ordering is unrestricted. For the Superchip profile, loads use
 writes, parameter copies, and return writes use `$F000-$F07F`. Automatic locals
 keep VCSC's fixed, non-reentrant
 backing storage and participate in the call-graph activation overlay; inline
-expansions receive private local symbols. Function-scope `static superchip`
-objects instead occupy persistent `BSS.superchip` or `DATA.superchip` storage.
+expansions receive private local symbols. Function-scope `static cartram`
+objects instead occupy persistent `BSS.cartram` or `DATA.cartram` storage.
 Their constant and runtime initializers run through the ordinary startup paths
 exactly once, not whenever control reaches the declaration. The 128 physical
 bytes are shared by every ROM bank and counted once in the map.
@@ -678,17 +706,17 @@ value parameters are supported: callers copy through the write alias using the
 ordinary selective-staging rule, while callees load through the
 read alias and store through the write alias. Only an argument which must
 survive a function call in a later argument remains in caller scratch. A
-non-void function may likewise use `superchip` to place its exact-sized hidden
+non-void function may likewise use `cartram` to place its exact-sized hidden
 return object in the shared window. `return expression;` and assignments to `$$`
 write through `$F000`, while callee and caller reads use `$F080`. One or more separate
 read-only bank modifiers may independently select function-body copies, for
-example `bank0 bank1 superchip uint16_t sample(void)`. Modifier order is
+example `bank0 bank1 cartram uint16_t sample(void)`. Modifier order is
 irrelevant; bodies use `CODE.bank0` and `CODE.bank1` while every copy shares the
 single `sample$__return` object in Superchip RAM. A bank-local call is preferred;
 a caller in another bank may use a normal trampoline to the primary copy.
 
 A Superchip result function may declare one automatic local in the same
-`superchip` region and return that local on every return path. When its type and
+`cartram` region and return that local on every return path. When its type and
 storage contract match exactly and its address does not escape, VCSC aliases the
 local with `function$__return`: initialization and later stores use `$F000`,
 reads use `$F080`, no second Superchip allocation is made, and the final copy is
@@ -701,7 +729,7 @@ compatibility and linker-visible ABI fingerprints, while ordinary `ref T` still
 requires a single
 shared address.
 Absolute bindings may not overlap the allocator-managed Superchip windows,
-so persistence probes must own storage through `superchip` like ordinary
+so persistence probes must own storage through `cartram` like ordinary
 application objects. The maintained diagnostic suite occupies all 128 bytes as
 mixed BSS and DATA, starts the simulator from a hostile nonzero fill, checks
 initialization and aliases throughout the complete bank-transition matrix,

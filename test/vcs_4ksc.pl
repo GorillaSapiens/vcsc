@@ -81,9 +81,9 @@ my $m=read_file($map);
 $m =~ /^\s+bank0\s+file-index=0\b.*image-offset=\$0100.*mode=direct/m &&
 $m !~ /^TRAMPOLINES$/m
    or die "4KSC topology is not a selector-free direct 4K image with a hidden prefix\n$m";
-$m =~ /^\s+superchip\s+read_start=\$F080 write_start=\$F000 size=\$0080 type=rw shared=yes\b/m
+$m =~ /^\s+cartram\s+read_start=\$F080 write_start=\$F000 size=\$0080 type=rw shared=yes\b/m
    or die "4KSC Superchip split-address map is missing\n$m";
-$m =~ /superchip\s+used=128 bytes \(100\.00%\).*free=0 bytes/m
+$m =~ /cartram\s+used=128 bytes \(100\.00%\).*free=0 bytes/m
    or die "4KSC diagnostic does not allocate all 128 Superchip bytes\n$m";
 
 my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure sc_bss sc_data);

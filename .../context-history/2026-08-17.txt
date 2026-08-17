@@ -9,3 +9,20 @@ All seven installed host-tool Makefiles now compile through object files,
 generate -MMD -MP .d dependencies independently of CFLAGS/CXXFLAGS,
 include and clean those dependencies, and ignore *.o/*.d build products.
 Source-tree hygiene now locks the convention.
+2026-08-17 08:24:51 PDT, finish multi-region code placement
+Main roadmap Item 42 now auto-places whole CODE/RODATA layouts across
+selector-controlled banks and selector-free direct regions. Direct startup
+markers are placement-only, explicit pins remain hard, and main plus '_' startup
+helpers stay home. Candidate placement dry-runs final ROM layout constraints.
+Tanks now has no explicit code-bank qualifiers; Superchip RAM remains explicit.
+RAM auto-spill was deliberately rejected; split RIOT/Superchip DATA/BSS startup
+initialization already uses per-object read/write-aware copy and zero records.
+2026-08-17 09:02:18 PDT, unify cartridge RAM name as cartram
+Superchip, CBS FA/RAM Plus, and OMNI profiles now expose mapper-owned RAM
+through the common source memory-region qualifier `cartram`. Hardware-specific
+support filenames and mapper names remain unchanged because their windows and
+behavior differ. Updated examples, compatibility cfgs, compiler/linker/VCS/
+simulator docs, ABI examples, map expectations, and split-memory regressions.
+Also repaired the two stale direct-topology fixtures by marking their intended
+high ROM bank as `$startup`, preserving Item 42's requirement that `main()` has
+a unique startup/home region.

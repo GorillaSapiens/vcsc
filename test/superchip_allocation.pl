@@ -79,11 +79,11 @@ HEAD
 
 uint8_t result;
 uint8_t index;
-superchip uint8_t scalar;
-superchip uint8_t initialized_scalar := 0x5a;
-superchip uint8_t zeroed[16];
+cartram uint8_t scalar;
+cartram uint8_t initialized_scalar := 0x5a;
+cartram uint8_t zeroed[16];
 GLOBALS
-   $src .= 'superchip uint8_t seeded[16] := { ' . join(', ', @seed) . " };\n\n";
+   $src .= 'cartram uint8_t seeded[16] := { ' . join(', ', @seed) . " };\n\n";
 
    for my $bank (0 .. $banks - 1) {
       my $fail = 0xE0 + $bank;
@@ -151,23 +151,23 @@ for my $profile (@profiles) {
       or die "$mapper output is not exactly " . ($banks * 4096) . " bytes\n";
 
    my $map = read_file($map_path);
-   $map =~ /^\s*superchip\s+read_start=\$F080 write_start=\$F000 size=\$0080 type=rw shared=yes.*$/m
+   $map =~ /^\s*cartram\s+read_start=\$F080 write_start=\$F000 size=\$0080 type=rw shared=yes.*$/m
       or die "$mapper map does not describe the shared split-address region\n";
-   $map =~ /^\s*superchip\s+used=34 bytes\b.*\bobjects=34 bytes\b.*\bhardware-stack=0 bytes\s*$/m
+   $map =~ /^\s*cartram\s+used=34 bytes\b.*\bobjects=34 bytes\b.*\bhardware-stack=0 bytes\s*$/m
       or die "$mapper map does not count the 34 physical Superchip bytes exactly once\n";
    $map =~ /^STARTUP INITIALIZATION\n\s+policy=every-reset bss=zero data=copy-through-write-alias$/m
       or die "$mapper map does not describe the reset-time initialization policy\n";
    for my $required (
-      qr/^\s+COPY DATA\.superchip\.__vcsc_object\$initialized_scalar\s+load=\$[0-9A-F]{4} read=\$[0-9A-F]{4} write=\$[0-9A-F]{4} size=\$0001 split=yes$/m,
-      qr/^\s+COPY DATA\.superchip\.__vcsc_object\$seeded\s+load=\$[0-9A-F]{4} read=\$[0-9A-F]{4} write=\$[0-9A-F]{4} size=\$0010 split=yes$/m,
-      qr/^\s+ZERO BSS\.superchip\.__vcsc_object\$scalar\s+read=\$[0-9A-F]{4} write=\$[0-9A-F]{4} size=\$0001 split=yes$/m,
-      qr/^\s+ZERO BSS\.superchip\.__vcsc_object\$zeroed\s+read=\$[0-9A-F]{4} write=\$[0-9A-F]{4} size=\$0010 split=yes$/m,
+      qr/^\s+COPY DATA\.cartram\.__vcsc_object\$initialized_scalar\s+load=\$[0-9A-F]{4} read=\$[0-9A-F]{4} write=\$[0-9A-F]{4} size=\$0001 split=yes$/m,
+      qr/^\s+COPY DATA\.cartram\.__vcsc_object\$seeded\s+load=\$[0-9A-F]{4} read=\$[0-9A-F]{4} write=\$[0-9A-F]{4} size=\$0010 split=yes$/m,
+      qr/^\s+ZERO BSS\.cartram\.__vcsc_object\$scalar\s+read=\$[0-9A-F]{4} write=\$[0-9A-F]{4} size=\$0001 split=yes$/m,
+      qr/^\s+ZERO BSS\.cartram\.__vcsc_object\$zeroed\s+read=\$[0-9A-F]{4} write=\$[0-9A-F]{4} size=\$0010 split=yes$/m,
    ) {
       $map =~ $required
          or die "$mapper map omits a Superchip DATA copy or BSS clear record\n$map";
    }
    my $object_count = 0;
-   while ($map =~ /^\s+(?:BSS|DATA)\.superchip\.__vcsc_object\$\S+\s+(?:load=\$[0-9A-F]{4}\s+)?run=\$([0-9A-F]{4}) write=\$([0-9A-F]{4}) size=\$([0-9A-F]{4})\b/mg) {
+   while ($map =~ /^\s+(?:BSS|DATA)\.cartram\.__vcsc_object\$\S+\s+(?:load=\$[0-9A-F]{4}\s+)?run=\$([0-9A-F]{4}) write=\$([0-9A-F]{4}) size=\$([0-9A-F]{4})\b/mg) {
       my ($read, $write, $size) = (hex($1), hex($2), hex($3));
       $read - $write == 0x80
          or die "$mapper object aliases do not retain the required read/write delta\n";
@@ -208,15 +208,15 @@ my $probe_src = File::Spec->catfile($tmp, 'split_cfg_probe.c26');
 write_file($probe_src, <<'PROBE');
 include "vcs.c26"
 include "superchip.c26"
-superchip uint8_t probe;
+cartram uint8_t probe;
 void main(void) { probe := 1; while (1) {} }
 PROBE
 my $base_cfg = read_file(File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg'));
 my @mismatches = (
-   ['read_start', sub { my $x = shift; $x =~ s/(superchip:\s+(?:start|read_start)\s*=\s*)\$F080/$1\$F081/i or die "cannot mutate read_start\n"; return $x; }],
-   ['write_start', sub { my $x = shift; $x =~ s/(superchip:.*?write_start\s*=\s*)\$F000/$1\$F001/i or die "cannot mutate write_start\n"; return $x; }],
-   ['size', sub { my $x = shift; $x =~ s/(superchip:.*?size\s*=\s*)\$0080/$1\$007F/i or die "cannot mutate size\n"; return $x; }],
-   ['banked', sub { my $x = shift; $x =~ s/(superchip:.*?define\s*=\s*yes)/$1, bank = BANK0/i or die "cannot bank split region\n"; return $x; }],
+   ['read_start', sub { my $x = shift; $x =~ s/(cartram:\s+(?:start|read_start)\s*=\s*)\$F080/$1\$F081/i or die "cannot mutate read_start\n"; return $x; }],
+   ['write_start', sub { my $x = shift; $x =~ s/(cartram:.*?write_start\s*=\s*)\$F000/$1\$F001/i or die "cannot mutate write_start\n"; return $x; }],
+   ['size', sub { my $x = shift; $x =~ s/(cartram:.*?size\s*=\s*)\$0080/$1\$007F/i or die "cannot mutate size\n"; return $x; }],
+   ['banked', sub { my $x = shift; $x =~ s/(cartram:.*?define\s*=\s*yes)/$1, bank = BANK0/i or die "cannot bank split region\n"; return $x; }],
 );
 my $probe_baseline = File::Spec->catfile($tmp, 'split_baseline.bin');
 my ($base_rc, $base_sig, $base_out, $base_err) = run_capture(
@@ -243,8 +243,8 @@ my $overflow_src = File::Spec->catfile($tmp, 'split_overflow.c26');
 write_file($overflow_src, <<'OVERFLOW');
 include "vcs.c26"
 include "superchip.c26"
-superchip uint8_t fits[128];
-superchip uint8_t spill;
+cartram uint8_t fits[128];
+cartram uint8_t spill;
 void main(void) { while (1) {} }
 OVERFLOW
 for my $attempt (1 .. 2) {
@@ -252,7 +252,7 @@ for my $attempt (1 .. 2) {
       $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg'),
       $overflow_src, '-o', File::Spec->catfile($tmp, "split_overflow_$attempt.bin"));
    $rc != 0 && !$sig or die "Superchip overflow attempt $attempt unexpectedly linked\n$out\n$err";
-   $err =~ /superchip overflow while placing BSS\.superchip\.__vcsc_object\$spill\b.*\bin superchip\b/s
+   $err =~ /cartram overflow while placing BSS\.cartram\.__vcsc_object\$spill\b.*\bin cartram\b/s
       or die "Superchip overflow attempt $attempt did not deterministically identify spill\n$err";
 }
 

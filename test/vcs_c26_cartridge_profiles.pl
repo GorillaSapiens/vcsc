@@ -150,7 +150,7 @@ for my $p (@profiles) {
          or die "$name direct profile unexpectedly generated switching machinery\n";
    }
    if ($sc) {
-      $map =~ /^\s+superchip\s+.*output-bank=<none> mode=shared\b/m
+      $map =~ /^\s+cartram\s+.*output-bank=<none> mode=shared\b/m
          or die "$name does not retain Superchip as shared memory\n";
       my $rom=read_file($generic_bin);
       for my $file_bank (0..$banks-1) {
@@ -164,7 +164,7 @@ for my $p (@profiles) {
       $text =~ /\$cpu_start:0xf200/ &&
       $text =~ /\$size:0x0d00/
          or die "FA profile does not encode the 512-byte RAM-port prefix\n";
-      $map =~ /^\s+fa_ram\s+read_start=\$F100 write_start=\$F000 size=\$0100 type=rw shared=yes\b/m
+      $map =~ /^\s+cartram\s+read_start=\$F100 write_start=\$F000 size=\$0100 type=rw shared=yes\b/m
          or die "FA map does not retain split-address cartridge RAM\n";
       my $rom=read_file($generic_bin);
       for my $file_bank (0..2) {
@@ -207,13 +207,39 @@ $dmap =~ /^\s+bank1\s+file-index=0\b.*mode=direct/m &&
 $dmap =~ /^\s+bank0\s+file-index=1\b.*mode=direct/m &&
 $dmap =~ /^\s+\$3001\s+helper\b/m &&
 $dmap =~ /^\s+\$3000\s+marker\b/m &&
-$dmap !~ /^TRAMPOLINES$/m && $dmap !~ /^BANK PLACEMENT$/m
-   or die "direct profile map does not show ordinary direct ownership\n";
+$dmap =~ /^BANK PLACEMENT$/m && $dmap !~ /^TRAMPOLINES$/m &&
+$dmap =~ /pinned\s+CODE\.__vcsc_function\$main\s+region=bank0/m &&
+$dmap =~ /pinned\s+CODE\.bank1\.__vcsc_function\$helper\s+region=bank1/m
+   or die "direct profile map does not show ordinary direct ownership/placement\n";
 index(substr($direct,4096),"\x20\x01\x30")>=0
    or die "direct profile did not emit an ordinary JSR to the first file chunk\n";
 index($direct,"\xAD\xF8\x1F")==-1 && index($direct,"\xAD\xF9\x1F")==-1
    or die "direct profile emitted selector-hotspot reads\n";
 substr($direct,0x12,4096-0x12) eq ("\xFF" x (4096-0x12))
    or die "direct profile did not fill the unused first chunk with the cartridge fill value\n";
+
+# Unqualified direct code must use both directly addressed regions when the
+# startup/home region cannot hold every whole function.  The large functions
+# are generated here rather than carrying thousands of NOPs in a source file.
+my $spill_src=File::Spec->catfile($tmp,'direct_spill.c26');
+my $nops = join('', map { "   asm nop;\n" } 1..2000);
+write_file($spill_src,
+   "include \"vcs_direct_8k.c26\"\n" .
+   "uint8_t first(void) {\n$nops   return 1;\n}\n" .
+   "uint8_t second(void) {\n$nops   return 2;\n}\n" .
+   "void main(void) {\n   COLUBK := first() + second();\n" .
+   "   asm \@forever:;\n   asm jmp \@forever;\n}\n");
+my $spill_bin=File::Spec->catfile($tmp,'direct_spill.bin');
+my $spill_map=File::Spec->catfile($tmp,'direct_spill.map');
+require_ok('build automatic direct-region spill',$driver,'-I',$vcs,
+   '-T',$generic_cfg,'-Map',$spill_map,$spill_src,'-o',$spill_bin);
+my $smap=read_file($spill_map);
+$smap =~ /pinned\s+CODE\.__vcsc_function\$main\s+region=bank0/m
+   or die "direct automatic placement did not keep main in the startup/home region\n$smap";
+$smap =~ /automatic\s+CODE\.__vcsc_function\$(?:first|second)\s+region=bank1/m &&
+$smap =~ /automatic\s+CODE\.__vcsc_function\$(?:first|second)\s+region=bank0/m
+   or die "direct automatic placement did not spill whole unqualified functions across both regions\n$smap";
+$smap !~ /^TRAMPOLINES$/m && $smap !~ /^VECTOR BRIDGES$/m
+   or die "direct automatic spill generated switched-bank machinery\n$smap";
 
 print "C26 cartridge profiles passed\n";

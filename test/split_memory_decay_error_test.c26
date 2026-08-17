@@ -4,9 +4,9 @@
 // expecterr: use '&<' for its read address or '&>' for its write address
 
 include "machine_6502.c26"
-mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };
+mem cartram { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };
 
-superchip uint8_t buffer[8];
+cartram uint8_t buffer[8];
 uint8_t *p;
 
 void main(void) {

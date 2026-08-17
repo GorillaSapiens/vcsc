@@ -75,14 +75,14 @@ void simulator_done(void) { while (true) {} }
 uint16_t make16(void) { return 0x1234; }
 bcd32_t make_bcd32(void) { return 12345678; }
 
-bank1 void consume(superchip uint8_t a,
-                   superchip uint16_t b,
-                   superchip uint24_t c,
-                   superchip uint32_t d,
-                   superchip bcd8_t e,
-                   superchip bcd16_t f,
-                   superchip bcd24_t g,
-                   superchip bcd32_t h) {
+bank1 void consume(cartram uint8_t a,
+                   cartram uint16_t b,
+                   cartram uint24_t c,
+                   cartram uint32_t d,
+                   cartram bcd8_t e,
+                   cartram bcd16_t f,
+                   cartram bcd24_t g,
+                   cartram bcd32_t h) {
    if (a != 5 || b != 0x1234 || c != 0x345678 || d != 0x12345678 ||
        e != 98 || f != 1234 || g != 345678 || h != 12345678) {
       result := 0xe1;
@@ -101,17 +101,17 @@ bank1 void consume(superchip uint8_t a,
    }
 }
 
-inline uint8_t bump(superchip uint8_t value) {
+inline uint8_t bump(cartram uint8_t value) {
    value += 2;
    return value;
 }
 
-bank1 void inner(superchip uint16_t value) {
+bank1 void inner(cartram uint16_t value) {
    value += 3;
    if (value != 0x2004) { result := 0xe3; }
 }
 
-void outer(superchip uint16_t value) {
+void outer(cartram uint16_t value) {
    inner(value);
    value += 2;
    if (value != 0x2003) { result := 0xe4; }
@@ -153,15 +153,15 @@ for my $profile (@profiles) {
    -s $bin == $banks * 4096 or die "$mapper output has wrong size\n";
 
    my $map = read_file($map_path);
-   $map =~ /^\s*superchip\s+used=21 bytes\b.*\bobjects=21 bytes\b/m
+   $map =~ /^\s*cartram\s+used=21 bytes\b.*\bobjects=21 bytes\b/m
       or die "$mapper map does not count 21 physical parameter bytes exactly once\n$map";
-   $map =~ /^\s*BSS\.superchip\.__vcsc_activation\$main run=\$F080 write=\$F000 size=\$0001\b/m
+   $map =~ /^\s*BSS\.cartram\.__vcsc_activation\$main run=\$F080 write=\$F000 size=\$0001\b/m
       or die "$mapper map lost the inline parameter in main's activation\n";
-   $map =~ /^\s*BSS\.superchip\.__vcsc_activation\$consume run=\$F081 write=\$F001 size=\$0014\b/m
+   $map =~ /^\s*BSS\.cartram\.__vcsc_activation\$consume run=\$F081 write=\$F001 size=\$0014\b/m
       or die "$mapper map lost the twenty-byte consume parameter object\n";
-   $map =~ /^\s*BSS\.superchip\.__vcsc_activation\$outer run=\$F081 write=\$F001 size=\$0002\b/m
+   $map =~ /^\s*BSS\.cartram\.__vcsc_activation\$outer run=\$F081 write=\$F001 size=\$0002\b/m
       or die "$mapper map lost outer's overlaid parameter object\n";
-   $map =~ /^\s*BSS\.superchip\.__vcsc_activation\$inner run=\$F083 write=\$F003 size=\$0002\b/m
+   $map =~ /^\s*BSS\.cartram\.__vcsc_activation\$inner run=\$F083 write=\$F003 size=\$0002\b/m
       or die "$mapper map overlapped simultaneously live outer/inner parameters\n";
 
    my $sym = read_file($sym_path);
@@ -199,7 +199,7 @@ for my $profile (@profiles) {
 # A single callee activation larger than the selected split window must fail
 # deterministically. Thirty-three four-byte value parameters require 132 bytes.
 my $overflow_src = File::Spec->catfile($tmp, 'superchip_parameter_overflow.c26');
-my @params = map { "superchip uint32_t p$_" } 0 .. 32;
+my @params = map { "cartram uint32_t p$_" } 0 .. 32;
 my @args = (0) x 33;
 write_file($overflow_src,
    "include \"vcs.c26\"\ninclude \"superchip.c26\"\n" .
@@ -211,7 +211,7 @@ for my $attempt (1 .. 2) {
       $overflow_src, '-o', File::Spec->catfile($tmp, "parameter_overflow_$attempt.bin"));
    $rc != 0 && !$sig
       or die "Superchip parameter overflow attempt $attempt unexpectedly linked\n$out\n$err";
-   $err =~ /superchip overflow while placing activation overlay from <call graph> in superchip/
+   $err =~ /cartram overflow while placing activation overlay from <call graph> in cartram/
       or die "Superchip parameter overflow attempt $attempt was not deterministic\n$err";
 }
 

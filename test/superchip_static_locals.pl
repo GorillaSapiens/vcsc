@@ -73,11 +73,11 @@ void simulator_done(void) { while (true) {} }
 uint8_t runtime_seed(void) { return 0x20; }
 
 bank1 uint8_t next_value(void) {
-   static superchip uint8_t zero;
-   static superchip uint8_t fixed := 4;
-   static superchip uint8_t runtime := runtime_seed();
-   static superchip uint8_t values[2] := { 9, 10 };
-   static superchip Packed bits;
+   static cartram uint8_t zero;
+   static cartram uint8_t fixed := 4;
+   static cartram uint8_t runtime := runtime_seed();
+   static cartram uint8_t values[2] := { 9, 10 };
+   static cartram Packed bits;
 
    zero++;
    fixed += 2;
@@ -122,13 +122,13 @@ for my $profile (@profiles) {
    -s $bin == $banks * 4096 or die "$mapper output has wrong size\n";
 
    my $map = read_file($map_path);
-   $map =~ /^\s*superchip\s+used=6 bytes\b.*\bobjects=6 bytes\b/m
+   $map =~ /^\s*cartram\s+used=6 bytes\b.*\bobjects=6 bytes\b/m
       or die "$mapper map does not count six persistent static-local bytes exactly once\n";
-   $map =~ /^\s*BSS\.superchip\s+run=\$F080 write=\$F000 size=\$0003\b/m
+   $map =~ /^\s*BSS\.cartram\s+run=\$F080 write=\$F000 size=\$0003\b/m
       or die "$mapper map lost the three-byte static-local BSS allocation\n";
-   $map =~ /^\s*DATA\.superchip\s+load=\$[0-9A-F]{4} run=\$F083 write=\$F003 size=\$0003\b/m
+   $map =~ /^\s*DATA\.cartram\s+load=\$[0-9A-F]{4} run=\$F083 write=\$F003 size=\$0003\b/m
       or die "$mapper map lost the three-byte static-local DATA allocation\n";
-   $map !~ /BSS\.superchip\.__vcsc_activation\$next_value/
+   $map !~ /BSS\.cartram\.__vcsc_activation\$next_value/
       or die "$mapper incorrectly placed static Superchip locals in an activation overlay\n";
 
    my $sym = read_file($sym_path);

@@ -1183,24 +1183,26 @@ static void apply_c26_topology_to_linker_config(linker_config_t *cfg)
    cfg->cartridge_banked = selector_count != 0;
    cfg->cartridge_fill_value = cfg->topology_cartridge.fill_value;
 
-   if (!selector_count)
-      return;
+   if (selector_count) {
+      snprintf(cfg->mapper, sizeof(cfg->mapper), "%s", "C26");
+      cfg->trampoline_offset = cfg->topology_cartridge.trampoline_offset;
+      cfg->trampoline_size = cfg->topology_cartridge.trampoline_size;
+      cfg->vector_bridge_offset = cfg->topology_cartridge.vector_bridge_offset;
+      cfg->has_trampoline_offset = 1;
+      cfg->has_trampoline_size = 1;
+      cfg->has_vector_bridge_offset = 1;
+   }
 
-   snprintf(cfg->mapper, sizeof(cfg->mapper), "%s", "C26");
-   cfg->trampoline_offset = cfg->topology_cartridge.trampoline_offset;
-   cfg->trampoline_size = cfg->topology_cartridge.trampoline_size;
-   cfg->vector_bridge_offset = cfg->topology_cartridge.vector_bridge_offset;
-   cfg->has_trampoline_offset = 1;
-   cfg->has_trampoline_size = 1;
-   cfg->has_vector_bridge_offset = 1;
-
+   /* Keep one logical placement record for every C26 output region, including
+      selector-free direct mappings.  cartridge_banked remains the separate
+      statement that accesses crossing these records require mapper switching. */
    for (i = 0; i < cfg->topology_bank_count; ++i) {
       const topology_bank_t *top = &cfg->topology_banks[i];
       cartridge_bank_t *bank = append_cartridge_bank(cfg);
       snprintf(bank->name, sizeof(bank->name), "%s", top->name);
       bank->start = (uint16_t)(top->link_start - top->image_offset);
       bank->size = top->image_size;
-      bank->hotspot = top->select_access;
+      bank->hotspot = top->has_selector ? top->select_access : 0;
       bank->startup = top->startup;
    }
 }
@@ -1316,8 +1318,8 @@ static void validate_c26_topology(linker_config_t *cfg)
          }
       }
    }
-   else if (startup_count != 0u) {
-      fprintf(stderr, "vcsc-ld: directly mapped topology must not mark a startup bank\n");
+   else if (startup_count > 1u) {
+      fprintf(stderr, "vcsc-ld: directly mapped topology may mark at most one startup/home bank\n");
       exit(1);
    }
 
@@ -2103,6 +2105,12 @@ static void validate_linker_config(linker_config_t *cfg)
       cfg->cartridge_banked = 0;
       return;
    }
+
+   /* C26 direct topologies also populate cfg->banks so the whole-layout
+      allocator can treat each directly addressed island as a placement
+      region.  They deliberately do not acquire selector/trampoline semantics. */
+   if (cfg->topology_bank_count && !cfg->cartridge_banked)
+      return;
 
    cfg->cartridge_banked = 1;
    if (!cfg->mapper[0]) {
@@ -4143,6 +4151,147 @@ static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t
    return (uint16_t)addr;
 }
 
+//! @brief Simulate one ROM allocation without emitting diagnostics or terminating.
+//!
+//! Automatic multi-region placement uses this dry-run allocator to test the exact
+//! page/alignment behavior that the final layout pass will apply.  Keeping the
+//! simulation on the same cursor/hole model prevents raw-byte bank budgets from
+//! accepting a placement that later overflows because of unavoidable low-byte
+//! phase or page constraints.
+static int simulate_alloc_from_region_policy(layout_t *layout,
+   const linker_config_t *cfg, const char *mem_name, uint16_t size,
+   uint16_t alignment, const object_layout_t *constraints)
+{
+   memory_cursor_t *cursor = ensure_cursor(layout, cfg, mem_name);
+   uint16_t hole_addr;
+   uint32_t addr;
+   uint32_t end;
+   int wants_page = size > 0 && size <= 0x0100u;
+   int hard_page = constraints &&
+      (constraints->flags & O26_LAYOUT_PAGE_CONTAINED);
+   int has_hard_constraint = constraints &&
+      (constraints->flags & (O26_LAYOUT_PAGE_CONTAINED | O26_LAYOUT_INDEX_RANGE));
+   uint16_t phase = component_alignment_phase(constraints, alignment);
+
+   if (size == 0)
+      return 1;
+   if (hard_page && size > 0x0100u)
+      return 0;
+   if ((wants_page || has_hard_constraint) &&
+       cursor_take_hole(cursor, size, alignment, phase, wants_page,
+                        constraints, &hole_addr))
+      return 1;
+
+   addr = align_up_phase_u32(cursor->cur, alignment, phase);
+   while (!object_page_constraints_hold(constraints, addr)) {
+      addr = align_up_phase_u32(addr + 1u, alignment, phase);
+      if (constraints && constraints->segid == O26_SEG_ZP && addr >= 0x0100u)
+         return 0;
+   }
+   end = addr + size;
+   if (end > 0x10000u || end > cursor->end ||
+       (str_ieq(mem_name, "ROM") && end > 0xFFFAu))
+      return 0;
+   cursor_add_hole(cursor, cursor->cur, addr);
+   cursor->cur = (uint16_t)end;
+   return 1;
+}
+
+//! @brief Simulate branch-aware ROM placement using the production scoring rules.
+static int simulate_alloc_code_branch_aware(layout_t *layout,
+   const linker_config_t *cfg, const char *mem_name, const object_file_t *obj,
+   const object_layout_t *lay, uint16_t alignment)
+{
+   memory_cursor_t *cursor;
+   uint32_t limit;
+   uint32_t addr;
+   uint32_t tail_last;
+   uint32_t step = alignment > 1 ? alignment : 1;
+   uint16_t phase = component_alignment_phase(lay, alignment);
+   size_t i;
+   int found = 0;
+   int best_from_hole = 0;
+   size_t best_hole = 0;
+   uint32_t best_addr = 0;
+   uint32_t best_growth = 0;
+   size_t best_crossings = 0;
+   int best_page_penalty = 0;
+
+   if (!layout_has_branches(obj, lay))
+      return simulate_alloc_from_region_policy(layout, cfg, mem_name, lay->size,
+                                               alignment, lay);
+
+   cursor = ensure_cursor(layout, cfg, mem_name);
+   if (lay->size == 0)
+      return 1;
+   if ((lay->flags & O26_LAYOUT_PAGE_CONTAINED) && lay->size > 0x0100u)
+      return 0;
+   limit = cursor->end;
+   if (str_ieq(mem_name, "ROM") && limit > 0xFFFAu)
+      limit = 0xFFFAu;
+
+#define CONSIDER_SIM_BRANCH_CANDIDATE(candidate_, growth_, from_hole_, hole_) do { \
+      uint32_t candidate_value__ = (candidate_); \
+      size_t crossings__; \
+      int page_penalty__; \
+      uint32_t growth_value__ = (growth_); \
+      if (!layout_branch_contracts_hold_at(obj, lay, (uint16_t)candidate_value__)) \
+         break; \
+      crossings__ = layout_branch_crossings_at(obj, lay, (uint16_t)candidate_value__); \
+      page_penalty__ = range_fits_one_page(candidate_value__, lay->size) ? 0 : 1; \
+      if (!found || crossings__ < best_crossings || \
+          (crossings__ == best_crossings && growth_value__ < best_growth) || \
+          (crossings__ == best_crossings && growth_value__ == best_growth && \
+           page_penalty__ < best_page_penalty) || \
+          (crossings__ == best_crossings && growth_value__ == best_growth && \
+           page_penalty__ == best_page_penalty && candidate_value__ < best_addr)) { \
+         found = 1; \
+         best_crossings = crossings__; \
+         best_growth = growth_value__; \
+         best_page_penalty = page_penalty__; \
+         best_addr = candidate_value__; \
+         best_from_hole = (from_hole_); \
+         best_hole = (hole_); \
+      } \
+   } while (0)
+
+   for (i = 0; i < cursor->hole_count; ++i) {
+      const memory_hole_t hole = cursor->holes[i];
+      addr = align_up_phase_u32(hole.start, alignment, phase);
+      while (addr + lay->size <= hole.end && addr + lay->size <= limit) {
+         if (object_page_constraints_hold(lay, addr))
+            CONSIDER_SIM_BRANCH_CANDIDATE(addr, 0, 1, i);
+         if (addr > 0xffffu - step)
+            break;
+         addr += step;
+      }
+   }
+
+   addr = align_up_phase_u32(cursor->cur, alignment, phase);
+   tail_last = (uint32_t)cursor->cur + 0xffu;
+   if (tail_last > 0xffffu)
+      tail_last = 0xffffu;
+   while (addr <= tail_last && addr + lay->size <= limit) {
+      if (object_page_constraints_hold(lay, addr))
+         CONSIDER_SIM_BRANCH_CANDIDATE(addr, addr + lay->size - cursor->cur, 0, 0);
+      if (addr > 0xffffu - step)
+         break;
+      addr += step;
+   }
+
+#undef CONSIDER_SIM_BRANCH_CANDIDATE
+
+   if (!found)
+      return 0;
+   if (best_from_hole)
+      cursor_consume_hole_range(cursor, best_hole, best_addr, lay->size);
+   else {
+      cursor_add_hole(cursor, cursor->cur, best_addr);
+      cursor->cur = (uint16_t)(best_addr + lay->size);
+   }
+   return 1;
+}
+
 //! @brief Place one code layout by bounded exhaustive low-byte branch scoring.
 static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t *cfg,
    const char *mem_name, const object_file_t *obj, const object_layout_t *lay,
@@ -5172,6 +5321,26 @@ static const memory_region_t *bank_placement_layout_memory(const linker_config_t
    }
 }
 
+//! @brief Return the logical placement owner of one ROM MEMORY region.
+static const char *bank_placement_memory_owner(const memory_region_t *memory)
+{
+   if (!memory)
+      return NULL;
+   if (memory->output_bank_name[0])
+      return memory->output_bank_name;
+   if (memory->bank_name[0])
+      return memory->bank_name;
+   return NULL;
+}
+
+//! @brief Return the logical placement record owning one ROM MEMORY region.
+static const cartridge_bank_t *bank_placement_memory_bank(const linker_config_t *cfg,
+                                                          const memory_region_t *memory)
+{
+   const char *owner = bank_placement_memory_owner(memory);
+   return owner ? find_cartridge_bank(cfg, owner) : NULL;
+}
+
 //! @brief Split a compiler-private layout name into its source segment prefix.
 static int bank_placement_private_base(const char *name, char *base, size_t base_size)
 {
@@ -5233,7 +5402,8 @@ static const memory_region_t *bank_placement_auto_memory(const linker_config_t *
       return NULL;
    for (i = 0; i < cfg->mem_count; ++i) {
       const memory_region_t *mem = &cfg->mem[i];
-      if (!mem->bank_name[0] || !str_ieq(mem->bank_name, bank->name) ||
+      const char *owner = bank_placement_memory_owner(mem);
+      if (!owner || !str_ieq(owner, bank->name) ||
           !str_ieq(mem->type, "ro") || mem->size == 0)
          continue;
       if (!best || mem->size > best->size ||
@@ -5729,6 +5899,130 @@ static void bank_placement_reserve_fixed_rom(const linker_config_t *cfg,
    }
 }
 
+//! @brief Return the hypothetical ROM MEMORY for one layout during a placement trial.
+static const memory_region_t *bank_placement_trial_memory(
+   const linker_config_t *cfg, bank_placement_item_t *items, size_t item_count,
+   const object_layout_t *lay, const bank_placement_component_t *trial_component,
+   const cartridge_bank_t *trial_bank)
+{
+   int item_index = bank_placement_find_item(items, item_count, lay);
+   bank_placement_item_t *item;
+
+   if (item_index < 0)
+      return NULL;
+   item = &items[item_index];
+   if (trial_component &&
+       bank_placement_root(items, item_index) == trial_component->root) {
+      if (item->pin_memory)
+         return item->pin_memory;
+      return bank_placement_auto_memory(cfg, trial_bank);
+   }
+   if (lay->placement_memory[0])
+      return find_memory(cfg, lay->placement_memory);
+   return NULL;
+}
+
+//! @brief Dry-run all currently assigned ROM layouts plus one candidate component.
+//!
+//! The byte ledger is useful for fast rejection and reporting, but it cannot see
+//! holes introduced by page/phase constraints.  This simulation mirrors the ROM
+//! portion of layout_objects() in source order and therefore answers the stronger
+//! question: can the currently selected layouts actually be placed in their regions?
+static int bank_placement_trial_fits(const linker_config_t *cfg,
+   const input_set_t *in, bank_placement_item_t *items, size_t item_count,
+   const bank_placement_component_t *trial_component,
+   const cartridge_bank_t *trial_bank)
+{
+   layout_t sim;
+   const segment_rule_t *code = find_segment_rule(cfg, "CODE");
+   const segment_rule_t *data = find_segment_rule(cfg, "DATA");
+   const char *code_load_name = code && code->load_name[0] ? code->load_name : "ROM";
+   const char *data_load_name = data && data->load_name[0] ? data->load_name : code_load_name;
+   size_t copy_count = 0;
+   size_t zero_count = 0;
+   size_t i, j;
+   int ok = 1;
+
+   memset(&sim, 0, sizeof(sim));
+   for (i = 0; i < in->object_count && ok; ++i) {
+      const object_file_t *obj = &in->objects[i];
+
+      for (j = 0; j < obj->layout_count; ++j) {
+         const object_layout_t *lay = &obj->layouts[j];
+         const memory_region_t *memory;
+         const segment_rule_t *rule;
+         uint16_t alignment;
+
+         if (lay->segid != O26_SEG_TEXT || lay->size == 0)
+            continue;
+         memory = bank_placement_trial_memory(cfg, items, item_count, lay,
+                                              trial_component, trial_bank);
+         if (!memory)
+            continue;
+         rule = find_layout_segment_rule(cfg, lay->name, code);
+         alignment = lay->component_alignment ? lay->component_alignment
+            : (rule && rule->align ? rule->align : 1);
+         if (!simulate_alloc_code_branch_aware(&sim, cfg, memory->name, obj, lay,
+                                               alignment)) {
+            ok = 0;
+            break;
+         }
+      }
+
+      /* Initialized RAM load images are fixed ROM consumers and are placed at
+         this point by layout_objects(), between this object's TEXT and the next
+         object's TEXT.  Include them so a candidate cannot consume their room. */
+      for (j = 0; j < obj->layout_count && ok; ++j) {
+         const object_layout_t *lay = &obj->layouts[j];
+         const segment_rule_t *rule;
+         const char *load_name;
+         uint16_t alignment;
+
+         if (lay->segid == O26_SEG_TEXT ||
+             (lay->image_segid != O26_SEG_DATA && lay->image_segid != O26_SEG_TEXT))
+            continue;
+         rule = find_layout_segment_rule(cfg, lay->name, data);
+         load_name = component_resolve_memory_name(cfg, lay,
+            (rule && rule->load_name[0]) ? rule->load_name : data_load_name);
+         alignment = lay->component_alignment ? lay->component_alignment
+            : (rule && rule->align ? rule->align : 1);
+         if (!simulate_alloc_from_region_policy(&sim, cfg, load_name, lay->size,
+                                                alignment, NULL)) {
+            ok = 0;
+            break;
+         }
+      }
+
+      for (j = 0; j < obj->layout_count; ++j) {
+         const object_layout_t *lay = &obj->layouts[j];
+         if (lay->segid == O26_SEG_DATA ||
+             (lay->segid == O26_SEG_ZP &&
+              (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)))
+            copy_count++;
+         if (lay->segid == O26_SEG_BSS ||
+             (lay->segid == O26_SEG_ZP &&
+              lay->image_segid != O26_SEG_DATA && lay->image_segid != O26_SEG_TEXT &&
+              strstr(lay->name, ".__vcsc_object$") != NULL))
+            zero_count++;
+      }
+   }
+
+   if (ok && !simulate_alloc_from_region_policy(&sim, cfg, data_load_name,
+       (uint16_t)((copy_count + 1u) * 6u), 1, NULL))
+      ok = 0;
+   if (ok && !simulate_alloc_from_region_policy(&sim, cfg, data_load_name,
+       (uint16_t)((zero_count + 1u) * 4u), 1, NULL))
+      ok = 0;
+   if (ok && !simulate_alloc_from_region_policy(&sim, cfg, data_load_name,
+       (uint16_t)((count_init_functions_in_input(in) + 1u) * 2u), 1, NULL))
+      ok = 0;
+
+   for (i = 0; i < sim.cursor_count; ++i)
+      free(sim.cursors[i].holes);
+   free(sim.cursors);
+   return ok;
+}
+
 //! @brief Assign one complete hard component to a logical bank and concrete regions.
 static void bank_placement_assign_component(const linker_config_t *cfg,
                                             bank_placement_item_t *items,
@@ -5759,12 +6053,15 @@ static void bank_placement_assign_component(const linker_config_t *cfg,
                  bank->name, items[i].layout->name, items[i].obj->origin);
          exit(1);
       }
-      if (!memory->bank_name[0] || !str_ieq(memory->bank_name, bank->name)) {
+      {
+         const char *owner = bank_placement_memory_owner(memory);
+         if (!owner || !str_ieq(owner, bank->name)) {
          fprintf(stderr,
                  "vcsc-ld: layout %s from %s is assigned to %s but MEMORY %s belongs to %s\n",
                  items[i].layout->name, items[i].obj->origin, bank->name,
-                 memory->name, memory->bank_name[0] ? memory->bank_name : "no bank");
+                 memory->name, owner ? owner : "no placement region");
          exit(1);
+         }
       }
       bank_placement_consume(budgets, budget_count, memory,
                              items[i].layout->size,
@@ -5837,7 +6134,7 @@ static uint16_t bank_placement_weighted_depth(const linker_config_t *cfg,
    return weighted;
 }
 
-//! @brief Perform deterministic hard-component and soft-call-aware full-window placement.
+//! @brief Perform deterministic whole-layout placement across compatible ROM regions.
 static void assign_automatic_bank_placements(const linker_config_t *cfg,
                                              input_set_t *in,
                                              uint8_t placement_mode,
@@ -5854,11 +6151,17 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
    const cartridge_bank_t *startup;
    size_t i, j;
 
-   if (!cfg || !cfg->cartridge_banked)
+   if (!cfg || cfg->bank_count < 2)
       return;
+   if (cfg->bank_count > 64) {
+      fprintf(stderr,
+              "vcsc-ld: automatic multi-region placement supports at most 64 logical regions\n");
+      exit(1);
+   }
    startup = bank_placement_startup_bank(cfg);
    if (!startup) {
-      fprintf(stderr, "vcsc-ld: banked automatic placement requires one startup bank\n");
+      fprintf(stderr,
+              "vcsc-ld: automatic multi-region placement requires one startup/home bank\n");
       exit(1);
    }
 
@@ -5879,9 +6182,9 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
          if (lay->segid != O26_SEG_TEXT || lay->size == 0)
             continue;
          memory = bank_placement_layout_memory(cfg, lay);
-         if (!memory || !memory->bank_name[0])
+         if (!memory || !bank_placement_memory_owner(memory))
             continue;
-         bank = find_cartridge_bank(cfg, memory->bank_name);
+         bank = bank_placement_memory_bank(cfg, memory);
          if (!bank)
             continue;
          automatic = bank_placement_layout_is_automatic_candidate(lay);
@@ -5921,6 +6224,12 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
          else if (!automatic || reserved_runtime) {
             const cartridge_bank_t *pin_bank = reserved_runtime ? startup : bank;
             const memory_region_t *pin_memory = memory;
+            if (reserved_runtime && !automatic && bank != startup) {
+               fprintf(stderr,
+                       "vcsc-ld: startup/runtime function '%s' is explicitly placed in MEMORY region '%s', which belongs to non-startup region '%s'; the configured startup/home region is '%s'\n",
+                       function_name, memory->name, bank->name, startup->name);
+               exit(1);
+            }
             if (reserved_runtime && bank != startup)
                pin_memory = bank_placement_auto_memory(cfg, startup);
             bank_placement_pin_item(&items[item_count], pin_bank,
@@ -5962,7 +6271,8 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
             target_item = bank_placement_find_item(items, item_count, target.layout);
             control = reloc->type & O26_RTYPE_CONTROL_MASK;
 
-            if ((control == O26_RTYPE_CONTROL_JSR ||
+            if (cfg->cartridge_banked &&
+                (control == O26_RTYPE_CONTROL_JSR ||
                  control == O26_RTYPE_CONTROL_JMP) &&
                 !(reloc->type & O26_RTYPE_INDIRECT_JMP)) {
                /* A replicated function is a soft preference only.  Runtime
@@ -5977,6 +6287,12 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
                continue;
             }
 
+            /* Directly mapped regions share one flat logical 16-bit address
+               space.  Absolute calls, jumps, and data references therefore
+               impose no co-location requirement and carry no cut cost. */
+            if (!cfg->cartridge_banked)
+               continue;
+
             if (target.replica) {
                if (source_item >= 0) {
                   bank_placement_restrict_to_replica(cfg,
@@ -5986,8 +6302,7 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
                   const memory_region_t *source_memory =
                      bank_placement_layout_memory(cfg, source_layout);
                   const cartridge_bank_t *source_bank =
-                     source_memory && source_memory->bank_name[0]
-                        ? find_cartridge_bank(cfg, source_memory->bank_name) : NULL;
+                     bank_placement_memory_bank(cfg, source_memory);
                   if (source_bank &&
                       replica_copy_index_for_bank(cfg, target.replica,
                                                   source_bank) < 0) {
@@ -6011,8 +6326,7 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
                const memory_region_t *source_memory =
                   bank_placement_layout_memory(cfg, source_layout);
                const cartridge_bank_t *source_bank =
-                  source_memory && source_memory->bank_name[0]
-                     ? find_cartridge_bank(cfg, source_memory->bank_name) : NULL;
+                  bank_placement_memory_bank(cfg, source_memory);
                if (source_bank)
                   bank_placement_pin_item(&items[target_item], source_bank,
                                           NULL, 1);
@@ -6152,6 +6466,12 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
       }
       if (!next)
          break;
+      if (!bank_placement_trial_fits(cfg, in, items, item_count, next, next->bank)) {
+         fprintf(stderr,
+                 "vcsc-ld: pinned bank-placement component %u cannot satisfy final page/alignment capacity in %s\n",
+                 next->id, next->bank->name);
+         exit(1);
+      }
       bank_placement_assign_component(cfg, items, item_count, next,
                                       next->bank, &budgets, &budget_count);
       if (explain) {
@@ -6219,6 +6539,13 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
                        "     candidate component=%u bank=%s rejected=capacity free=$%04" PRIX32
                        " need=$%04" PRIX32 "\n",
                        next->id, candidate->name, free_bytes, next->bytes);
+            continue;
+         }
+         if (!bank_placement_trial_fits(cfg, in, items, item_count, next, candidate)) {
+            if (explain)
+               fprintf(stderr,
+                       "     candidate component=%u bank=%s rejected=layout-capacity\n",
+                       next->id, candidate->name);
             continue;
          }
          cost = bank_placement_component_cost(items, edges, edge_count,
@@ -6334,6 +6661,14 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
                   if (explain)
                      fprintf(stderr,
                              "     local-candidate component=%u bank=%s rejected=capacity\n",
+                             component->id, candidate->name);
+                  continue;
+               }
+               if (!bank_placement_trial_fits(cfg, in, items, item_count,
+                                              component, candidate)) {
+                  if (explain)
+                     fprintf(stderr,
+                             "     local-candidate component=%u bank=%s rejected=layout-capacity\n",
                              component->id, candidate->name);
                   continue;
                }
@@ -8786,7 +9121,7 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    write_ram_usage(fp, cfg, in, layout, "  ");
    write_return_coalescing(fp, cfg, in);
 
-   if (cfg->cartridge_banked) {
+   if (cfg->bank_count > 1) {
       uint16_t max_component = 0;
       int have_component = 0;
       fprintf(fp, "\nBANK PLACEMENT\n");
@@ -8854,7 +9189,7 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
          }
       }
 
-      if (in->replica_count > 0) {
+      if (cfg->cartridge_banked && in->replica_count > 0) {
          uint32_t grand_total = 0;
          fprintf(fp, "\nREPLICATED ROM\n");
          for (i = 0; i < in->replica_count; ++i) {
@@ -8883,42 +9218,44 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
          fprintf(fp, "  physical-total-all=$%08" PRIX32 "\n", grand_total);
       }
 
-      size_t jmp_count = 0;
-      size_t jsr_count = 0;
-      for (i = 0; i < layout->bank_trampoline_entry_count; ++i) {
-         if (layout->bank_trampoline_entries[i].kind == BANK_TRAMPOLINE_JSR)
-            jsr_count++;
-         else
-            jmp_count++;
-      }
-      fprintf(fp, "\nTRAMPOLINES\n");
-      fprintf(fp,
-              "  common-offset=$%03X reserved=$%03X used=$%03X replicated=$%08" PRIX32
-              " target-passing=inline entries=%zu jmp=%zu jsr=%zu jmp-size=$%02X jsr-size=$%02X\n",
-              cfg->trampoline_offset, cfg->trampoline_size,
-              layout->bank_trampoline_used,
-              (uint32_t)layout->bank_trampoline_used * (uint32_t)cfg->bank_count,
-              layout->bank_trampoline_entry_count, jmp_count, jsr_count,
-              BANK_JMP_ENTRY_SIZE, BANK_JSR_ENTRY_SIZE);
-      for (i = 0; i < layout->bank_trampoline_entry_count; ++i) {
-         const bank_trampoline_entry_t *entry = &layout->bank_trampoline_entries[i];
-         uint16_t entry_size = bank_trampoline_entry_size(entry->kind);
-         if (entry->kind == BANK_TRAMPOLINE_JSR) {
-            fprintf(fp,
-                    "  JSR entry=%zu offset=$%03X target=$%04X %-20s source=%s hotspot=$%04X destination=%s hotspot=$%04X replicated-bytes=$%08" PRIX32 "\n",
-                    i, (uint16_t)(cfg->trampoline_offset + entry->table_offset),
-                    entry->target_addr, entry->target_name,
-                    entry->source_bank, entry->source_hotspot,
-                    entry->destination_bank, entry->destination_hotspot,
-                    (uint32_t)entry_size * (uint32_t)cfg->bank_count);
+      if (cfg->cartridge_banked) {
+         size_t jmp_count = 0;
+         size_t jsr_count = 0;
+         for (i = 0; i < layout->bank_trampoline_entry_count; ++i) {
+            if (layout->bank_trampoline_entries[i].kind == BANK_TRAMPOLINE_JSR)
+               jsr_count++;
+            else
+               jmp_count++;
          }
-         else {
-            fprintf(fp,
-                    "  JMP entry=%zu offset=$%03X target=$%04X %-20s destination=%s hotspot=$%04X replicated-bytes=$%08" PRIX32 "\n",
-                    i, (uint16_t)(cfg->trampoline_offset + entry->table_offset),
-                    entry->target_addr, entry->target_name,
-                    entry->destination_bank, entry->destination_hotspot,
-                    (uint32_t)entry_size * (uint32_t)cfg->bank_count);
+         fprintf(fp, "\nTRAMPOLINES\n");
+         fprintf(fp,
+                 "  common-offset=$%03X reserved=$%03X used=$%03X replicated=$%08" PRIX32
+                 " target-passing=inline entries=%zu jmp=%zu jsr=%zu jmp-size=$%02X jsr-size=$%02X\n",
+                 cfg->trampoline_offset, cfg->trampoline_size,
+                 layout->bank_trampoline_used,
+                 (uint32_t)layout->bank_trampoline_used * (uint32_t)cfg->bank_count,
+                 layout->bank_trampoline_entry_count, jmp_count, jsr_count,
+                 BANK_JMP_ENTRY_SIZE, BANK_JSR_ENTRY_SIZE);
+         for (i = 0; i < layout->bank_trampoline_entry_count; ++i) {
+            const bank_trampoline_entry_t *entry = &layout->bank_trampoline_entries[i];
+            uint16_t entry_size = bank_trampoline_entry_size(entry->kind);
+            if (entry->kind == BANK_TRAMPOLINE_JSR) {
+               fprintf(fp,
+                       "  JSR entry=%zu offset=$%03X target=$%04X %-20s source=%s hotspot=$%04X destination=%s hotspot=$%04X replicated-bytes=$%08" PRIX32 "\n",
+                       i, (uint16_t)(cfg->trampoline_offset + entry->table_offset),
+                       entry->target_addr, entry->target_name,
+                       entry->source_bank, entry->source_hotspot,
+                       entry->destination_bank, entry->destination_hotspot,
+                       (uint32_t)entry_size * (uint32_t)cfg->bank_count);
+            }
+            else {
+               fprintf(fp,
+                       "  JMP entry=%zu offset=$%03X target=$%04X %-20s destination=%s hotspot=$%04X replicated-bytes=$%08" PRIX32 "\n",
+                       i, (uint16_t)(cfg->trampoline_offset + entry->table_offset),
+                       entry->target_addr, entry->target_name,
+                       entry->destination_bank, entry->destination_hotspot,
+                       (uint32_t)entry_size * (uint32_t)cfg->bank_count);
+            }
          }
       }
    }

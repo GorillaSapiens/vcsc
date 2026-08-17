@@ -48,7 +48,7 @@ $profile_text =~ /\$signature:OMNI/ &&
 (()=$profile_text =~ /\$select_access:/g)==0 &&
 (()=$profile_text =~ /\$ro\b/g)==7 &&
 (()=$profile_text =~ /\$rw\b/g)==1 &&
-$profile_text =~ /mem\s+bank7\s*\{\s*\$start:0x1000\s+\$size:0x1000\s+\$rw\s*\}/s
+$profile_text =~ /mem\s+cartram\s*\{\s*\$start:0x1000\s+\$size:0x1000\s+\$rw\s*\}/s
    or die "OMNI profile topology/capability contract is wrong\n";
 
 my $src=File::Spec->catfile($tmp,'omni.c26');
@@ -56,8 +56,8 @@ write_file($src,<<'SRC');
 include "vcs_omni_32k.c26"
 bank6 const uint8_t marker := 0x42;
 bank6 uint8_t helper(void) { return marker; }
-bank7 uint8_t ram_value := 0x5a;
-bank7 uint8_t scratch;
+cartram uint8_t ram_value := 0x5a;
+cartram uint8_t scratch;
 void main(void) {
    scratch := helper();
    ram_value := scratch;
@@ -81,7 +81,7 @@ for my $bank (0..7) {
    $m =~ /^\s+bank\Q$bank\E\s+file-index=\Q$file\E\b.*link=\$\Q$addr\E\s+cpu=\$\Q$addr\E\b.*mode=direct/m
       or die "OMNI bank$bank topology/file order is wrong\n";
 }
-$m =~ /^\s+bank7\s+start=\$1000\s+size=\$1000\s+type=rw\b.*mode=direct/m &&
+$m =~ /^\s+cartram\s+start=\$1000\s+size=\$1000\s+type=rw\b.*mode=direct/m &&
 $m =~ /^\s+bank0\s+start=\$F000\s+size=\$0FF8\s+type=ro\s+priority=2\b.*mode=direct/m
    or die "OMNI RO/RW memory layout is wrong\n";
 $m =~ /^\s+\$F000\s+main\b/m &&
@@ -90,11 +90,12 @@ $m =~ /^\s+\$3000\s+marker\b/m &&
 $m =~ /^\s+\$1000\s+scratch\b/m &&
 $m =~ /^\s+\$1001\s+ram_value\b/m
    or die "OMNI explicit code/data placement is wrong\n";
-$m =~ /^\s+COPY\s+DATA\.bank7\.__vcsc_object\$ram_value\s+load=\$[0-9A-F]{4}\s+read=\$1001\s+write=\$1001\s+size=\$0001/m &&
-$m =~ /^\s+ZERO\s+BSS\.bank7\.__vcsc_object\$scratch\s+read=\$1000\s+write=\$1000\s+size=\$0001/m
+$m =~ /^\s+COPY\s+DATA\.cartram\.__vcsc_object\$ram_value\s+load=\$[0-9A-F]{4}\s+read=\$1001\s+write=\$1001\s+size=\$0001/m &&
+$m =~ /^\s+ZERO\s+BSS\.cartram\.__vcsc_object\$scratch\s+read=\$1000\s+write=\$1000\s+size=\$0001/m
    or die "OMNI did not reuse normal initialized-DATA/BSS startup semantics\n";
-$m !~ /^TRAMPOLINES$/m && $m !~ /^BANK PLACEMENT$/m && $m !~ /^VECTOR BRIDGES$/m
-   or die "OMNI direct profile generated switched-bank machinery\n";
+$m =~ /^BANK PLACEMENT$/m && $m !~ /^TRAMPOLINES$/m && $m !~ /^VECTOR BRIDGES$/m &&
+$m =~ /pinned\s+CODE\.__vcsc_function\$main\s+region=bank0/m
+   or die "OMNI direct profile placement or switched-bank machinery is wrong\n";
 
 substr($rom,0,4096) eq ("\xFF" x 4096)
    or die "OMNI writable file chunk should remain cartridge fill; DATA initializes at startup\n";

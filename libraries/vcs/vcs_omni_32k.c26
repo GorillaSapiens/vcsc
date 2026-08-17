@@ -6,11 +6,11 @@ include "vcs.c26"
 // No real hardware currently supports this configuration; it describes the
 // planned OMNI memory model and serves as a toolchain certification target.
 //
-// The $1000 island is ordinary writable cartridge RAM.  Its file chunk remains
+// The $1000 island is ordinary writable cartridge RAM and uses the same public
+// `cartram` source qualifier as Superchip and FA/RAM Plus. Its file chunk remains
 // fill; initialized DATA uses VCSC's normal ROM load image plus startup copy and
 // BSS uses normal startup zeroing.  The remaining seven islands are directly
-// addressable ROM.  bank0/$F000 has highest priority and is the current startup
-// home; the general direct-topology $startup marker is roadmap work.  There are
+// addressable ROM.  bank0/$F000 is the startup/home placement island. There are
 // no selector hotspots, wrong-bank startup states, reset bridges, or trampolines.
 cartridge {
    $fill:0xff $signature:OMNI
@@ -47,10 +47,10 @@ bank bank1 {
 };
 bank bank0 {
    $image_size:0x1000 $file_index:7 $image_offset:0
-   $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
+   $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000 $startup
 };
 
-mem bank7 { $start:0x1000 $size:0x1000 $rw };
+mem cartram { $start:0x1000 $size:0x1000 $rw };
 mem bank6 { $start:0x3000 $size:0x1000 $ro };
 mem bank5 { $start:0x5000 $size:0x1000 $ro };
 mem bank4 { $start:0x7000 $size:0x1000 $ro };

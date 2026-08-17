@@ -17,8 +17,8 @@ instantiate "six_glyph_component.c26" as cart_type (compact_font:=0)
 // Occupy the complete 128-byte Superchip device: one initialized byte plus
 // 127 BSS bytes. Startup must copy/zero through $F000-$F07F while ordinary
 // reads use $F080-$F0FF.
-superchip uint8_t sc_data := 0x5A;
-superchip uint8_t sc_bss[127];
+cartram uint8_t sc_data := 0x5A;
+cartram uint8_t sc_bss[127];
 
 uint8_t failure;
 uint8_t index;

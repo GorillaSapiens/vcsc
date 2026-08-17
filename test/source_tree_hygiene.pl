@@ -273,11 +273,11 @@ index($sim_readme,'--split-fill=BYTE')>=0
    or die "simulator documentation lost banked cfg/file-index/reset semantics\n";
 index($bankswitching,'[x] 12. Add Automatic allocation of variables into Superchip RAM.')>=0
    or die "bankswitching plan no longer records completed automatic Superchip allocation\n";
-index($bankswitching,'mem superchip {')>=0 &&
+index($bankswitching,'mem cartram {')>=0 &&
 index($bankswitching,'$read_start:  0xF080')>=0 &&
 index($bankswitching,'$write_start: 0xF000')>=0 &&
 index($bankswitching,'uint8_t foo@[0xF080/0xF000];')>=0 &&
-index($bankswitching,'superchip uint8_t buffer[32];')>=0
+index($bankswitching,'cartram uint8_t buffer[32];')>=0
    or die "bankswitching plan lost exact Superchip read/write allocation syntax\n";
 -f File::Spec->catfile($test,'superchip_allocation.pl') &&
 -f File::Spec->catfile($test,'superchip_locals.pl') &&
@@ -315,11 +315,11 @@ index($bankswitching,'superchip uint8_t buffer[32];')>=0
 !-e File::Spec->catfile($test,'split_memory_local_error_test.c26') &&
 !-e File::Spec->catfile($test,'split_memory_bitfield_write_error_test.c26') &&
 index(slurp(File::Spec->catfile($repo,'libraries','vcs','superchip.c26')),
-      'mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };')>=0
+      'mem cartram { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };')>=0
    or die "automatic Superchip allocation implementation or regression coverage is missing\n";
 for my $cfg_name (qw(vcs_8k_f8sc.cfg vcs_16k_f6sc.cfg vcs_32k_f4sc.cfg)) {
    my $cfg_body=slurp(File::Spec->catfile($repo,'libraries','vcs',$cfg_name));
-   $cfg_body =~ /superchip:\s+read_start\s*=\s*\$F080,\s*write_start\s*=\s*\$F000,\s*size\s*=\s*\$0080,\s*type\s*=\s*rw/
+   $cfg_body =~ /cartram:\s+read_start\s*=\s*\$F080,\s*write_start\s*=\s*\$F000,\s*size\s*=\s*\$0080,\s*type\s*=\s*rw/
       or die "$cfg_name lost the shared split-address Superchip MEMORY region\n";
 }
 index($bankswitching,'[x] 13. Add Superchip-backed local variables.')>=0 &&
@@ -561,7 +561,7 @@ my $omni_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs_omni_32k
 index($direct_profile,'No real hardware currently supports this exact configuration')>=0 &&
 index($omni_profile,'No real hardware currently supports this configuration')>=0 &&
 index($omni_profile,'$signature:OMNI')>=0 &&
-index($omni_profile,'mem bank7 { $start:0x1000 $size:0x1000 $rw }')>=0 &&
+index($omni_profile,'mem cartram { $start:0x1000 $size:0x1000 $rw }')>=0 &&
 -f File::Spec->catfile($test,'vcs_omni_32k.pl')
    or die "direct/OMNI certification profiles or hardware-status comments are incomplete
 ";
@@ -699,10 +699,10 @@ $ram_roadmap =~ /^\[x\] 14\. Remove remaining ordinary application assembly reco
    or die "RAM-optimization roadmap, measured optimizer follow-up, or authoritative accounting fixture is stale\n";
 $roadmap !~ /^\s*\[ \]\s+22i4d\./m
    or die "obsolete active roadmap item 22i4d was restored\n";
-$roadmap =~ /^Current next action: Item 42, generalize automatic placement across all/m &&
+$roadmap =~ /^Current next action: Item 43, add the public console\/TIA diagnostic cartridge\./m &&
 $roadmap =~ /^\[x\] 39\. Add CBS FA \/ RAM Plus cartridge output support/m &&
 $roadmap =~ /^\[x\] 41\. Identify other low-hanging-fruit Atari 2600 mapper families/m &&
-$roadmap =~ /^\[ \] 42\. Generalize automatic placement across compatible regions in every/m &&
+$roadmap =~ /^\[x\] 42\. Generalize automatic code\/RODATA placement across compatible regions in/m &&
 $roadmap =~ /^\[ \] 43\. Add a public diagnostic cartridge/m &&
 $roadmap =~ /^\[x\] 27\. Inventory and define the source-integration contract/m &&
 $roadmap =~ /^\[x\] 28\. Port and verify the minimal unbanked, non-Superchip multisprite profile/m &&
@@ -897,7 +897,7 @@ for my $required (qw(
       or die "missing required Superchip file $required\n";
 }
 my $superchip_header=slurp(File::Spec->catfile($repo,'libraries','vcs','superchip.c26'));
-index($superchip_header,'mem superchip')>=0 &&
+index($superchip_header,'mem cartram')>=0 &&
 index($superchip_header,'$read_start:0xF080')>=0 &&
 index($superchip_header,'$write_start:0xF000')>=0 &&
 index($superchip_header,'$size:0x0080')>=0
@@ -905,10 +905,10 @@ index($superchip_header,'$size:0x0080')>=0
 index($superchip_header,'superchip_ram')<0
    or die "superchip.c26 must not publish a whole-window alias\n";
 my $superchip_diagnostic=slurp(File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26'));
-index($superchip_diagnostic,'superchip uint8_t diagnostic_superchip_bss_head;')>=0 &&
-index($superchip_diagnostic,'superchip uint8_t diagnostic_superchip_data_head := 0x5A;')>=0 &&
-index($superchip_diagnostic,'superchip uint8_t diagnostic_superchip_bss[124];')>=0 &&
-index($superchip_diagnostic,'superchip uint8_t diagnostic_superchip_data_tail := 0xA5;')>=0 &&
+index($superchip_diagnostic,'cartram uint8_t diagnostic_superchip_bss_head;')>=0 &&
+index($superchip_diagnostic,'cartram uint8_t diagnostic_superchip_data_head := 0x5A;')>=0 &&
+index($superchip_diagnostic,'cartram uint8_t diagnostic_superchip_bss[124];')>=0 &&
+index($superchip_diagnostic,'cartram uint8_t diagnostic_superchip_data_tail := 0xA5;')>=0 &&
 index($superchip_diagnostic,'validate_superchip_startup')>=0 &&
 index($superchip_diagnostic,'poison_superchip_before_result')>=0 &&
 index($superchip_diagnostic,'diagnostic_superchip_ram')<0

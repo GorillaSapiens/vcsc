@@ -50,11 +50,11 @@ instantiate "six_glyph_component.c26" as cart_type (compact_font:=0)
 // must clear every BSS byte and copy every DATA byte through the write window.
 // The diagnostic later poisons these objects before entering its result loop;
 // an emulator or console RESET must restore them before main runs again.
-superchip uint8_t diagnostic_superchip_bss_head;
-superchip uint8_t diagnostic_superchip_data_head := 0x5A;
-superchip uint8_t diagnostic_superchip_count;
-superchip uint8_t diagnostic_superchip_bss[124];
-superchip uint8_t diagnostic_superchip_data_tail := 0xA5;
+cartram uint8_t diagnostic_superchip_bss_head;
+cartram uint8_t diagnostic_superchip_data_head := 0x5A;
+cartram uint8_t diagnostic_superchip_count;
+cartram uint8_t diagnostic_superchip_bss[124];
+cartram uint8_t diagnostic_superchip_data_tail := 0xA5;
 #endif
 
 uint8_t failure;

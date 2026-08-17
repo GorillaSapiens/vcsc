@@ -166,16 +166,16 @@ sub run_simulator_matrix {
       }
       my $map=read_file($map_path);
       if ($sc) {
-         $map =~ /^\s*superchip\s+used=128 bytes\b.*\bobjects=128 bytes\b/m
+         $map =~ /^\s*cartram\s+used=128 bytes\b.*\bobjects=128 bytes\b/m
             or die "$mapper diagnostic does not own the complete Superchip region\n$map";
          $map =~ /^STARTUP INITIALIZATION\n\s+policy=every-reset bss=zero data=copy-through-write-alias$/m
             or die "$mapper map does not define the reset-time Superchip initialization policy\n$map";
          for my $required (
-            qr/^\s+COPY DATA\.superchip\.__vcsc_object\$diagnostic_superchip_data_head\s+load=\$[0-9A-F]{4} read=\$F0FE write=\$F07E size=\$0001 split=yes$/m,
-            qr/^\s+COPY DATA\.superchip\.__vcsc_object\$diagnostic_superchip_data_tail\s+load=\$[0-9A-F]{4} read=\$F0FF write=\$F07F size=\$0001 split=yes$/m,
-            qr/^\s+ZERO BSS\.superchip\.__vcsc_object\$diagnostic_superchip_bss_head\s+read=\$F080 write=\$F000 size=\$0001 split=yes$/m,
-            qr/^\s+ZERO BSS\.superchip\.__vcsc_object\$diagnostic_superchip_count\s+read=\$F081 write=\$F001 size=\$0001 split=yes$/m,
-            qr/^\s+ZERO BSS\.superchip\.__vcsc_object\$diagnostic_superchip_bss\s+read=\$F082 write=\$F002 size=\$007C split=yes$/m,
+            qr/^\s+COPY DATA\.cartram\.__vcsc_object\$diagnostic_superchip_data_head\s+load=\$[0-9A-F]{4} read=\$F0FE write=\$F07E size=\$0001 split=yes$/m,
+            qr/^\s+COPY DATA\.cartram\.__vcsc_object\$diagnostic_superchip_data_tail\s+load=\$[0-9A-F]{4} read=\$F0FF write=\$F07F size=\$0001 split=yes$/m,
+            qr/^\s+ZERO BSS\.cartram\.__vcsc_object\$diagnostic_superchip_bss_head\s+read=\$F080 write=\$F000 size=\$0001 split=yes$/m,
+            qr/^\s+ZERO BSS\.cartram\.__vcsc_object\$diagnostic_superchip_count\s+read=\$F081 write=\$F001 size=\$0001 split=yes$/m,
+            qr/^\s+ZERO BSS\.cartram\.__vcsc_object\$diagnostic_superchip_bss\s+read=\$F082 write=\$F002 size=\$007C split=yes$/m,
          ) {
             $map =~ $required
                or die "$mapper map does not report complete Superchip DATA/BSS startup initialization\n$map";
@@ -317,11 +317,11 @@ my $stella_mode=@ARGV && $ARGV[0] eq '--stella' ? shift(@ARGV) : '';
 make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
 my $source=File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26');
 my $source_text=read_file($source);
-$source_text =~ /superchip\s+uint8_t\s+diagnostic_superchip_bss_head\s*;/ &&
-$source_text =~ /superchip\s+uint8_t\s+diagnostic_superchip_data_head\s*:=\s*0x5A\s*;/ &&
-$source_text =~ /superchip\s+uint8_t\s+diagnostic_superchip_count\s*;/ &&
-$source_text =~ /superchip\s+uint8_t\s+diagnostic_superchip_bss\s*\[124\]\s*;/ &&
-$source_text =~ /superchip\s+uint8_t\s+diagnostic_superchip_data_tail\s*:=\s*0xA5\s*;/
+$source_text =~ /cartram\s+uint8_t\s+diagnostic_superchip_bss_head\s*;/ &&
+$source_text =~ /cartram\s+uint8_t\s+diagnostic_superchip_data_head\s*:=\s*0x5A\s*;/ &&
+$source_text =~ /cartram\s+uint8_t\s+diagnostic_superchip_count\s*;/ &&
+$source_text =~ /cartram\s+uint8_t\s+diagnostic_superchip_bss\s*\[124\]\s*;/ &&
+$source_text =~ /cartram\s+uint8_t\s+diagnostic_superchip_data_tail\s*:=\s*0xA5\s*;/
    or die "diagnostic Superchip probe does not own the mixed 128-byte BSS/DATA region\n";
 $source_text !~ /diagnostic_superchip_ram/
    or die "diagnostic still uses the obsolete raw Superchip probe\n";

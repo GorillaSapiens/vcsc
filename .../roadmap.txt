@@ -23,9 +23,8 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: Item 42, generalize automatic placement across all
-multi-region cartridge topologies for both code and compatible writable data.
-Focused bankswitching Item 32 (OMNI) depends on Item 42.
+Current next action: Item 43, add the public console/TIA diagnostic cartridge.
+Main Item 42 is complete; focused bankswitching Item 32 (OMNI) is now unblocked.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1919,7 +1918,7 @@ Focused bankswitching Item 32 (OMNI) depends on Item 42.
           prefix without rejecting unused generic fallback ROM declarations. Ordinary
           FA ROM therefore occupies `$x200-$xEFF`; the complete raw image remains
           exactly 12288 bytes with deterministic fill in the hidden prefix.
-        * Added the shared 256-byte `fa_ram` split-address region: writes use
+        * Added the shared 256-byte `cartram` split-address region: writes use
           `$F000-$F0FF`, reads use `$F100-$F1FF`, and allocation/map accounting is
           shared across all banks.
         * Added the public `09_bankswitching/03_fa_ram_plus` visible PASS/FAIL
@@ -1988,63 +1987,58 @@ Focused bankswitching Item 32 (OMNI) depends on Item 42.
           profile, full Superchip RAM support, a public PASS/FAIL diagnostic, and
           simulator/disassembler/install/package regression coverage.
 
-[ ] 42. Generalize automatic placement across compatible regions in every
-        multi-region cartridge topology.
+[x] 42. Generalize automatic code/RODATA placement across compatible regions in
+        every multi-region cartridge topology.
 
-        Current audit, 2026-08-17: the existing function-placement engine is already
-        close to the desired general policy for F8/F6/F4/FA. It packs whole private
-        CODE/RODATA layouts, honors explicit named-region pins, pins `main` to the
-        startup bank, pins `_`-prefixed startup/runtime functions there, and optimizes
-        switched-bank call locality. The artificial boundary is that the pass returns
-        unless `cartridge_banked` is true, so selector-free direct topologies never
-        participate. Ordinary writable allocation has a parallel limitation: it picks
-        one default `$rw` region and reports overflow instead of trying another
-        compatible writable region. An OMNI probe with a 130-byte unplaced object
-        therefore overflows RIOT `ram` even though its 4K cartridge `$rw` island is
-        empty.
+        Completed 2026-08-17:
 
-        * Separate "multiple placement regions" from "requires mapper switching".
-          Selector-controlled banks and directly addressed islands must share one
-          deterministic whole-layout allocator without sharing the wrong transfer
-          semantics.
-        * Preserve explicit source placement as a hard pin. Preserve `main` and every
-          `_`-prefixed startup/runtime function as hard startup/home-region pins. An
-          explicit contradictory placement of either class must be diagnosed rather
-          than silently moved.
-        * Never split one function/layout or one data object across regions. Unplaced
-          ordinary functions may be assigned to any compatible `$ro` region with
-          sufficient capacity. Unplaced DATA/BSS may fall through to another
-          compatible `$rw` region when the preferred region cannot fit the object.
-          Existing initialized-DATA load/copy semantics remain unchanged.
-        * Keep current switched-mapper behavior byte-for-byte where semantics demand
-          it: ordinary nonreplicated ROM data references and retained relative
-          branches are same-bank constraints; direct JSR/JMP edges are soft placement
-          preferences whose cuts are implemented by trampolines; replica locality,
-          page/alignment constraints, capacity, and weighted hardware-return depth
-          remain authoritative.
-        * For directly addressed regions, absolute JSR/JMP/data references across
-          regions are ordinary 16-bit references. They must create neither hard
-          same-region unions nor trampoline/cut costs. Relative-branch and component
-          constraints remain hard where applicable.
-        * Permit one direct topology region to be marked as the startup/home region;
-          current validation incorrectly forbids any `$startup` marker when no
-          selectors exist. The marker identifies placement ownership only and must not
-          imply wrong-bank startup recovery, selector access, or vector bridges.
-        * Generalize placement maps and `--explain-bank-placement` reporting so direct
-          multi-region assignments are visible too. Retain the existing option as a
-          compatibility spelling even if the internal abstraction is renamed from
-          "bank placement" to "region placement".
-        * Extend the existing `vcs_direct_8k.c26` certification fixture: deliberately
-          overflow the startup region with unplaced ordinary functions and prove the
-          linker spills whole functions into the other direct region while `main` and
-          `_` startup helpers stay home; prove explicit pins remain fixed and emitted
-          cross-region JSR/data references stay direct with no hotspots, bridges, or
-          trampolines. Keep all existing selector-controlled placement regressions
-          unchanged.
-        * Extend the `vcs_omni_32k.c26` regression with an unplaced writable object
-          larger than remaining RIOT RAM and prove it spills intact into the OMNI
-          `$1000` `$rw` island while its initializer, if any, retains the normal
-          ROM-load/startup-copy model.
+        * Separated "multiple placement regions" from "requires mapper switching".
+          Selector-controlled banks and selector-free direct islands now share the
+          same deterministic whole-layout CODE/RODATA allocator. Direct topologies
+          populate logical placement records even though `cartridge_banked` remains
+          false.
+        * Preserved explicit source placement as a hard pin. `main` and every
+          `_`-prefixed startup/runtime function are hard-pinned to the unique
+          startup/home region; explicit contradictory placement is now diagnosed.
+        * Permitted one selector-free direct region to carry `$startup`. For direct
+          mappings this is only a placement/home marker and creates no selector
+          access, wrong-bank startup recovery, vector bridge, or trampoline.
+        * Kept switched-mapper semantics intact: ordinary nonreplicated ROM data
+          references and retained branches remain same-bank constraints; direct
+          JSR/JMP cuts remain weighted soft preferences implemented by trampolines;
+          replica locality and weighted hardware-return depth remain authoritative.
+        * For selector-free direct mappings, absolute JSR/JMP/data references across
+          regions are ordinary 16-bit references and create neither same-region
+          unions nor trampoline/cut costs.
+        * Added an exact ROM-placement dry run before accepting each candidate. It
+          mirrors final source-order allocation, branch/page low-byte constraints,
+          alignment, holes, initialized-DATA load images, and generated copy/zero/init
+          tables. This closes the latent raw-byte-budget bug exposed by Tanks, where a
+          nominally fitting near-full startup bank could overflow during final layout.
+        * Deliberately did NOT generalize writable-memory placement. Ordinary
+          unqualified DATA/BSS/ZEROPAGE keep the configured default RAM (RIOT zero
+          page in the VCS profiles); named RAM such as `cartram` remains an explicit
+          programmer decision because generated/assembly paths may depend on zero-page
+          addressing and timing.
+        * Audited split RIOT/Superchip initialization. Startup already emits one
+          object-specific copy/zero record per allocated DATA/BSS object; Superchip
+          records carry separate readable `$F080-$F0FF` and writable `$F000-$F07F`
+          aliases, while ordinary zero-page records keep their RIOT addresses. No
+          contiguous-RAM assumption or RAM-placement change was needed.
+        * Extended `vcs_direct_8k.c26` with a direct `$startup` home region and a
+          regression that overfills that home region with unqualified whole functions,
+          proving automatic spill into the second direct island while `main` remains
+          home and no hotspots, bridges, or trampolines are generated.
+        * Removed every explicit `bank0`/`bank1` code/RODATA qualifier from
+          `examples/01_basic/13_tanks/`. The example retains its explicit `cartram`
+          RAM qualifiers. Its F8SC map now proves the linker automatically partitions
+          ordinary functions and constants across both banks, including placing the
+          large overscan function in bank1 while keeping `main` and startup code in
+          bank0. The existing emulator-backed Tanks oracle remains green.
+        * Generalized `BANK PLACEMENT` maps and `--explain-bank-placement` reporting
+          to direct multi-region profiles. The option name remains as a compatibility
+          spelling; direct maps report placement but still have no `TRAMPOLINES`
+          section.
 
 [ ] 43. Add a public diagnostic cartridge that exercises and reports the supported
         console switches, controller types, TIA objects, playfield, colors, collisions,

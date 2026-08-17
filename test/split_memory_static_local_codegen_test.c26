@@ -1,28 +1,28 @@
 // vcsc-cc1 -I .
-// expectasm: .segmentaddrsize "BSS.superchip", absolute
-// expectasm: .segmentaddrsize "DATA.superchip", absolute
-// expectasm: .segment "BSS.superchip"
+// expectasm: .segmentaddrsize "BSS.cartram", absolute
+// expectasm: .segmentaddrsize "DATA.cartram", absolute
+// expectasm: .segment "BSS.cartram"
 // expectasm: hold$zero:
 // expectasm: hold$runtime:
-// expectasm: .segment "DATA.superchip"
+// expectasm: .segment "DATA.cartram"
 // expectasm: hold$fixed:
 // expectasm: hold$values:
 // expectasm: lda  hold$zero
 // expectasm: sta  {hold$runtime - 128}
-// forbidasm: BSS.superchip.__vcsc_activation$hold
+// forbidasm: BSS.cartram.__vcsc_activation$hold
 
 include "machine_6502.c26"
-mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };
+mem cartram { $read_start:0xF080 $write_start:0xF000 $size:0x80 $rw };
 
 uint8_t runtime_seed(void) {
    return 0x20;
 }
 
 uint8_t hold(void) {
-   static superchip uint8_t zero;
-   static superchip uint8_t fixed := 4;
-   static superchip uint8_t runtime := runtime_seed();
-   static superchip uint8_t values[2] := { 9, 10 };
+   static cartram uint8_t zero;
+   static cartram uint8_t fixed := 4;
+   static cartram uint8_t runtime := runtime_seed();
+   static cartram uint8_t values[2] := { 9, 10 };
 
    zero++;
    fixed += zero;

@@ -104,9 +104,9 @@ Named function modifiers are classified by their `mem` attributes, never by
 special spellings. Read-only modifiers form an order-insensitive code-placement
 set. One writable modifier, when present, selects the hidden return object's
 storage independently of code placement. Thus declarations equivalent to
-`bank0 superchip uint8_t sample(void)` and
-`superchip bank0 uint8_t sample(void)` have the same ABI contract: code in
-`bank0`, result storage in `superchip`.
+`bank0 cartram uint8_t sample(void)` and
+`cartram bank0 uint8_t sample(void)` have the same ABI contract: code in
+`bank0`, result storage in `cartram`.
 
 With no read-only modifier, code placement remains automatic. With no writable
 modifier, return storage remains the ordinary default. A writable modifier is

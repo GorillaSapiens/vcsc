@@ -73,36 +73,36 @@ mem bank1 { $start:0xD100 $size:0x0E00 $ro };
 uint8_t result;
 void simulator_done(void) { while (true) {} }
 
-superchip uint8_t r8(void) {
+cartram uint8_t r8(void) {
    return 0xa5;
 }
-superchip uint16_t r16(void) {
+cartram uint16_t r16(void) {
    $$ := 0x1233;
    if ($$ != 0x1233) { return 0; }
    $$ += 1;
    return;
 }
-superchip uint24_t r24(void) {
+cartram uint24_t r24(void) {
    return 0x345678;
 }
-superchip uint32_t r32(void) {
+cartram uint32_t r32(void) {
    $$ := 0x12345677;
    $$ += 1;
    return;
 }
-superchip bcd8_t br8(void) {
+cartram bcd8_t br8(void) {
    return 98;
 }
-superchip bcd16_t br16(void) {
+cartram bcd16_t br16(void) {
    $$ := 1233;
    if ($$ != 1233) { return 0; }
    $$ += 1;
    return;
 }
-superchip bcd24_t br24(void) {
+cartram bcd24_t br24(void) {
    return 345678;
 }
-superchip bcd32_t br32(void) {
+cartram bcd32_t br32(void) {
    $$ := 12345677;
    $$ += 1;
    return;
@@ -158,13 +158,13 @@ for my $profile (@profiles) {
    -s $bin == $banks * 4096 or die "$mapper output has wrong size\n";
 
    my $map = read_file($map_path);
-   $map =~ /^\s*superchip\s+used=4 bytes\b.*\bobjects=4 bytes\b/m
+   $map =~ /^\s*cartram\s+used=4 bytes\b.*\bobjects=4 bytes\b/m
       or die "$mapper map does not count four physical return bytes exactly once\n$map";
    for my $item (
       ['r8', 1], ['r16', 2], ['r24', 3], ['r32', 4],
       ['br8', 1], ['br16', 2], ['br24', 3], ['br32', 4]) {
       my ($name, $size) = @$item;
-      $map =~ /^\s*BSS\.superchip\.__vcsc_activation\$\Q$name\E run=\$F080 write=\$F000 size=\$@{[sprintf('%04X', $size)]}\b/m
+      $map =~ /^\s*BSS\.cartram\.__vcsc_activation\$\Q$name\E run=\$F080 write=\$F000 size=\$@{[sprintf('%04X', $size)]}\b/m
          or die "$mapper map lost exact $name return storage\n$map";
       $map =~ /^\s*JSR entry=.*CODE(?:\.[^ ]+)?\.__vcsc_function\$\Q$name\E source=([^ ]+).* destination=([^ ]+)/m
          or die "$mapper map did not generate a cross-bank call for $name\n$map";
@@ -204,10 +204,10 @@ for my $profile (@profiles) {
 # which must overflow the 128-byte Superchip region deterministically.
 my $overflow_src = File::Spec->catfile($tmp, 'superchip_return_overflow.c26');
 my $overflow_text = "include \"vcs.c26\"\ninclude \"superchip.c26\"\n";
-$overflow_text .= "superchip uint32_t f32(void) { return 1; }\n";
+$overflow_text .= "cartram uint32_t f32(void) { return 1; }\n";
 for my $i (reverse 0 .. 31) {
    my $next = $i + 1;
-   $overflow_text .= "superchip uint32_t f$i(void) { return f$next(); }\n";
+   $overflow_text .= "cartram uint32_t f$i(void) { return f$next(); }\n";
 }
 $overflow_text .= "void main(void) { uint32_t v := f0(); while (true) {} }\n";
 write_file($overflow_src, $overflow_text);
@@ -217,7 +217,7 @@ for my $attempt (1 .. 2) {
       $overflow_src, '-o', File::Spec->catfile($tmp, "return_overflow_$attempt.bin"));
    $rc != 0 && !$sig
       or die "Superchip return overflow attempt $attempt unexpectedly linked\n$out\n$err";
-   $err =~ /superchip overflow while placing activation overlay from <call graph> in superchip/
+   $err =~ /cartram overflow while placing activation overlay from <call graph> in cartram/
       or die "Superchip return overflow attempt $attempt was not deterministic\n$err";
 }
 

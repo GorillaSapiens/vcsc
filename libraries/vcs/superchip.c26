@@ -2,10 +2,12 @@
 
 // Atari 2600 Superchip shared 128-byte cartridge RAM.
 //
+// VCSC exposes mapper-owned cartridge RAM to applications under the common
+// named-memory qualifier `cartram`; the selected profile defines its size/windows.
 // Automatic allocations use the ordinary named-memory syntax:
 //
-//     superchip uint8_t foo;
-//     superchip uint8_t buffer[32];
+//     cartram uint8_t foo;
+//     cartram uint8_t buffer[32];
 //
 // The read alias comes first and the write alias second, matching VCSC's
 // existing @[read_address/write_address] split-address syntax.  The physical RAM
@@ -14,5 +16,5 @@
 // through the write window; unallocated bytes have no VCSC lifecycle contract.
 // Include this file after vcs.c26 when linking with an SC profile.
 
-mem superchip { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };
+mem cartram { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };
 

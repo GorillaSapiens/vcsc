@@ -87,8 +87,8 @@ mem bank1 { $start:0xD100 $size:0x0E00 $ro };
 extern bank0 bank1 const uint8_t table[2];
 bank1 bank0 const uint8_t table[2] := { 0x31, 0x42 };
 
-bank1 superchip bank0 uint8_t replicated(uint8_t index);
-bank0 bank1 superchip uint8_t replicated(uint8_t index) {
+bank1 cartram bank0 uint8_t replicated(uint8_t index);
+bank0 bank1 cartram uint8_t replicated(uint8_t index) {
    return table[index];
 }
 
@@ -148,7 +148,7 @@ $map =~ /JSR entry=0 .*CODE\.bank1\.__vcsc_function\$from_bank1 source=BANK0 .*d
    or die "unexpected cross-bank trampoline target\n$map";
 $map !~ /JSR entry=.*__vcsc_function\$replicated/
    or die "a call used a trampoline despite a source-bank-local replicated body\n$map";
-$map =~ /BSS\.superchip\.__vcsc_activation\$replicated\s+run=\$F080 write=\$F000 size=\$0001/
+$map =~ /BSS\.cartram\.__vcsc_activation\$replicated\s+run=\$F080 write=\$F000 size=\$0001/
    or die "replicated function did not retain one shared Superchip result object\n$map";
 
 my $done = map_symbol($map, 'simulator_done');

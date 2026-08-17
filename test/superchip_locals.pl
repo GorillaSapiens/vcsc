@@ -71,14 +71,14 @@ uint8_t result;
 void simulator_done(void) { while (true) {} }
 
 inline uint8_t inline_bump(uint8_t seed) {
-   superchip uint8_t inline_local := seed;
+   cartram uint8_t inline_local := seed;
    inline_local += 2;
    return inline_local;
 }
 
 bank1 void visit(void) {
-   superchip uint16_t word := 0x1234;
-   superchip uint8_t values[2] := { 5, 6 };
+   cartram uint16_t word := 0x1234;
+   cartram uint8_t values[2] := { 5, 6 };
    word += values[1];
    word++;
    values[0]++;
@@ -86,9 +86,9 @@ bank1 void visit(void) {
 }
 
 void main(void) {
-   superchip uint8_t scalar := 3;
-   superchip uint8_t array[4] := { 1, 2, 3, 4 };
-   superchip Packed bits;
+   cartram uint8_t scalar := 3;
+   cartram uint8_t array[4] := { 1, 2, 3, 4 };
+   cartram Packed bits;
    uint8_t index := 2;
    scalar += array[index];
    scalar++;
@@ -131,11 +131,11 @@ for my $profile (@profiles) {
    -s $bin == $banks * 4096 or die "$mapper output has wrong size\n";
 
    my $map = read_file($map_path);
-   $map =~ /^\s*superchip\s+used=11 bytes\b.*\bobjects=11 bytes\b/m
+   $map =~ /^\s*cartram\s+used=11 bytes\b.*\bobjects=11 bytes\b/m
       or die "$mapper map does not count 11 physical local bytes exactly once\n";
-   $map =~ /^\s*BSS\.superchip\.__vcsc_activation\$main run=\$F080 write=\$F000 size=\$0007\b/m
+   $map =~ /^\s*BSS\.cartram\.__vcsc_activation\$main run=\$F080 write=\$F000 size=\$0007\b/m
       or die "$mapper map lost the seven-byte main Superchip activation\n";
-   $map =~ /^\s*BSS\.superchip\.__vcsc_activation\$visit run=\$F087 write=\$F007 size=\$0004\b/m
+   $map =~ /^\s*BSS\.cartram\.__vcsc_activation\$visit run=\$F087 write=\$F007 size=\$0004\b/m
       or die "$mapper map lost the four-byte visit Superchip activation\n";
 
    my $sym = read_file($sym_path);
@@ -165,8 +165,8 @@ write_file($overflow_src, <<'OVERFLOW');
 include "vcs.c26"
 include "superchip.c26"
 void main(void) {
-   superchip uint8_t fits[128];
-   superchip uint8_t spill;
+   cartram uint8_t fits[128];
+   cartram uint8_t spill;
    while (true) {}
 }
 OVERFLOW
@@ -175,7 +175,7 @@ for my $attempt (1 .. 2) {
       $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg'),
       $overflow_src, '-o', File::Spec->catfile($tmp, "superchip_local_overflow_$attempt.bin"));
    $rc != 0 && !$sig or die "Superchip local overflow attempt $attempt unexpectedly linked\n$out\n$err";
-   $err =~ /superchip overflow while placing activation overlay from <call graph> in superchip/
+   $err =~ /cartram overflow while placing activation overlay from <call graph> in cartram/
       or die "Superchip local overflow attempt $attempt was not deterministic\n$err";
 }
 

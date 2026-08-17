@@ -432,7 +432,7 @@ uint16_t count_once(void) {
 A function-scope `static` object is initialized once, either as static data or
 by a startup initializer when its expression needs runtime code. It may select
 any writable named memory region supported for persistent objects, including a
-split-address region such as `superchip`. Such an object lives in persistent
+split-address region such as `cartram`. Such an object lives in persistent
 `BSS.<region>` or `DATA.<region>` storage, never in the owning function's
 activation overlay. An uninitialized object is cleared during startup, a
 link-time initializer is copied during startup, and a runtime initializer runs
@@ -508,8 +508,9 @@ two signature bytes intentionally overlap the otherwise-unused 6507 NMI vector.
 `$image_size`, `$file_index`, `$image_offset`, `$link_start`, `$cpu_start`, and
 `$map_size` are required. `$select_access` and bare `$startup` are optional. A
 bank without `$select_access` is directly mapped; a bank with it is
-selector-controlled. Direct banks do not acquire generated switching code.
-Selector-controlled topologies require exactly one startup bank. Mixing direct
+selector-controlled. Direct banks do not acquire generated switching code. One
+direct bank may carry `$startup` as the linker's startup/home placement marker;
+selector-controlled topologies require exactly one startup bank. Mixing direct
 and selector-controlled banks is rejected until a separate window model is
 defined.
 
@@ -619,13 +620,13 @@ bank may use the primary copy through the ordinary trampoline path. One optional
 body copy:
 
 ```vcsc
-bank0 bank1 superchip uint8_t lookup(uint8_t index) {
+bank0 bank1 cartram uint8_t lookup(uint8_t index) {
    return level_table[index];
 }
 ```
 
 Here `lookup` has a body in both `CODE.bank0` and `CODE.bank1`, but only one
-`lookup$__return` in `superchip`. Region order is immaterial in declarations and
+`lookup$__return` in `cartram`. Region order is immaterial in declarations and
 definitions. Inline functions cannot use any named region because their
 expansions have no independently placeable linker layout. For numbered bank
 regions, `main` may be unmarked or use `bank0`; explicitly placing it in `bank1`
@@ -655,9 +656,11 @@ multi-region object placement because no coherence protocol exists.
 
 Every `$ro` definition must be `const` and its initializer must be representable
 entirely at link time. It cannot require a startup write or silently become
-DATA/BSS in a read-only cartridge region. Unmarked private CODE and RODATA
-layouts remain eligible for deterministic automatic bank placement by a
-bank-aware linker configuration.
+DATA/BSS in a read-only cartridge region. Unmarked private CODE and RODATA layouts remain eligible for deterministic
+automatic placement across every compatible read-only region in a multi-region
+linker topology. Explicit named-region placement remains a hard pin. Automatic
+placement does not extend to writable DATA/BSS/ZEROPAGE; those keep their
+configured or explicitly named RAM regions.
 
 For a Superchip bank, the source region describes only allocatable ROM. Exclude
 the RAM-port prefix, for example `$start:0xD100 $size:0x0E00`; `$size:0x1000`
@@ -670,15 +673,15 @@ A named read/write region may expose separate CPU aliases for the same physical
 storage:
 
 ```vcsc
-mem superchip {
+mem cartram {
    $read_start:  0xF080
    $write_start: 0xF000
    $size:        0x80
    $rw
 };
 
-superchip uint8_t foo;
-superchip uint8_t buffer[32];
+cartram uint8_t foo;
+cartram uint8_t buffer[32];
 ```
 
 The order matches explicit split refs: read address first, write address second.

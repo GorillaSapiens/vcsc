@@ -95,8 +95,11 @@ and vertical barriers with constant-time loads. This keeps the complete NTSC
 frame at the scheduler's stable 264-raw / Stella-262 cadence even at extreme
 object positions and during simultaneous hit/audio/spin activity.
 
-The cartridge is 8K F8SC. The current build uses 2897/3584 bytes in bank 1,
-3380/3584 bytes in bank 0, 112/128 bytes of RIOT RAM (including the reserved
+The cartridge is 8K F8SC. The source has no explicit `bank0`/`bank1` code or
+constant placement: the linker automatically partitions those whole layouts while
+keeping `main` and startup code in bank 0. Superchip storage remains explicitly
+marked in the source. The current build uses 2885/3584 bytes in bank 1,
+3378/3584 bytes in bank 0, 112/128 bytes of RIOT RAM (including the reserved
 hardware stack), and 99/128 bytes of Superchip RAM. Console Reset clears both
 scores, missiles, spin/audio state, and tank positions while selecting a new
 barrier layout.

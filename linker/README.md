@@ -206,8 +206,11 @@ bank rom {
 ```
 
 A bank without `$select_access` is directly mapped. All direct CPU mappings must
-be nonoverlapping, no startup bank is permitted, and cross-chunk calls, jumps,
-and data references remain ordinary absolute operations. Flat output is emitted
+be nonoverlapping. One direct region may carry `$startup`; for a selector-free
+topology that marker names only the startup/home placement region and does not
+request wrong-bank recovery, selector accesses, vector bridges, or trampolines.
+Cross-chunk calls, jumps, and data references remain ordinary absolute operations.
+Flat output is emitted
 in `$file_index` order with each physical chunk padded to `$image_size` using the
 cartridge fill byte. An optional C26 `$signature:TEXT` is 1-4 ASCII alphanumeric
 bytes; it is NUL-padded to four bytes and emitted at `$0FF8-$0FFB` only in the
@@ -455,73 +458,80 @@ Diagnostics identify the input object, source layout/address/bank, target
 symbol/address/bank, and the failed rule. Raw numeric addresses contain no
 relocation and cannot be checked by the linker.
 
-### Deterministic automatic bank placement
+### Deterministic automatic multi-region placement
 
-In a banked profile, compiler-private unmarked `CODE.__vcsc_function$...` and
-`RODATA.__vcsc_object$...`/`RODATA.__vcsc_page$...` layouts are movable across
-the configured full-window banks. Explicit named source `mem` modifiers produce
-`CODE.region` or `RODATA.region` private layouts and are hard pins to that exact
-MEMORY region. An unqualified `main`, startup/non-private runtime layouts, and
-private runtime functions using reserved implementation names beginning with
-`_` are pinned to the unique bank marked `startup=yes`. An explicitly qualified
-`main` is accepted only when that MEMORY region belongs to the same bank. The
-compiler does not interpret region names such as `bank0`; the public profiles
-merely use BANK0 as their conventional startup label.
+Compiler-private unmarked `CODE.__vcsc_function$...` and
+`RODATA.__vcsc_object$...`/`RODATA.__vcsc_page$...` layouts are movable whenever
+a cartridge topology exposes multiple compatible read-only placement regions.
+This policy applies both to selector-controlled banks and selector-free directly
+addressed regions. Explicit named source `mem` modifiers produce `CODE.region`
+or `RODATA.region` private layouts and are hard pins to that exact MEMORY
+region. An unqualified `main`, startup/non-private runtime layouts, and private
+runtime functions using reserved implementation names beginning with `_` are
+pinned to the unique region marked `$startup`. An explicit contradictory
+placement of `main` or an `_` startup/runtime helper is a link error. The
+compiler does not interpret region names such as `bank0`; public profiles merely
+use those names conventionally.
+
+Writable-memory placement is deliberately separate. Ordinary unqualified
+DATA/BSS/ZEROPAGE continue to use the configured default writable region, while
+named regions such as `cartram` remain programmer-selected. The linker does
+not spill an object from zero page into cartridge RAM automatically; code and
+assembly may depend on zero-page addressing and timing.
 
 Before assigning addresses, the linker classifies relationships between ROM
-layouts:
+layouts according to the topology:
 
-- every ROM data/address relocation and every retained branch is a hard
-  same-bank edge;
-- direct JSR and direct absolute JMP edges are soft because the common table can
-  bridge them;
-- repeated soft edges accumulate deterministic static weights equal to each
-  bridge form's payload and one-execution penalty: 15 bytes and 25 extra cycles
-  per JSR relocation site, or 8 bytes and 6 extra cycles per JMP site. Repeated
-  sites remain separate weights even when final trampoline deduplication can
-  share an entry. These are relocation-derived priorities, not guessed dynamic
-  call frequencies or a prediction of final replicated bytes.
+- in selector-controlled cartridges, every ordinary nonreplicated ROM data/address
+  relocation and every retained branch is a hard same-bank edge;
+- selector-controlled direct JSR and direct absolute JMP edges are soft because
+  the common trampoline table can bridge them;
+- repeated selector-controlled soft edges accumulate deterministic static weights
+  equal to each bridge form's payload and one-execution penalty: 15 bytes and 25
+  extra cycles per JSR relocation site, or 8 bytes and 6 extra cycles per JMP
+  site;
+- in selector-free direct mappings, absolute JSR/JMP/data references between
+  regions are ordinary 16-bit references and create neither same-region unions
+  nor trampoline/cut costs;
+- retained relative branches and explicit layout constraints remain hard where
+  the instruction encoding requires them.
 
 Hard edges are collapsed transitively into indivisible components. A component
 inherits any explicit or mandatory pin carried by a member; incompatible pins
 are rejected before address layout. Fixed initialized-data images and generated
-copy/zero/init tables are charged against their ROM regions before automatic
-components are packed.
+copy/zero/init tables remain fixed ROM consumers.
 
-For each logical bank, the largest owned `type=ro` MEMORY entry is its default
-automatic-placement region. Both placement modes assign pinned components first
-in stable input order and preserve all hard constraints:
+For each logical placement region, the largest owned `type=ro` MEMORY entry is
+its default automatic-placement region. Both placement modes assign pinned
+components first and preserve all hard constraints:
 
 - `optimized`, the default, orders movable components by decreasing byte size,
   decreasing soft-edge byte degree, then stable object/layout order. It selects
-  the bank with enough preliminary capacity that minimizes incremental byte
-  weight, then cycle weight and cut-site count. After the greedy pass, a deterministic
-  single-component local search scans stable order to repair early choices. A
-  move is accepted only when it improves the incident cut without increasing
-  weighted hardware-return depth, or leaves the cut unchanged while reducing
-  that depth. The scan repeats to a fixed point.
+  the compatible region that minimizes incremental selector-switch cut cost,
+  using deterministic startup/address/name preference for ties. A deterministic
+  local search then repairs profitable selector-controlled moves without
+  increasing weighted hardware-return depth.
 - `simple` ignores the soft-edge graph, takes movable components in stable input
-  order, and uses the normal deterministic bank preference among banks with
-  enough capacity. It exists to reproduce straightforward packing and to make
-  optimizer comparisons and debugging less mystical.
+  order, and uses the normal deterministic region preference. It exists for
+  straightforward packing and optimizer comparisons.
 
-Bank ties prefer the startup bank, then the higher logical address, then the
-bank name. The ordinary allocator still performs the final alignment,
-page-containment, branch-page, and hole checks. Neither mode weakens the source
-contract: the linker does not split a hard component, move a pin, duplicate
-code/data, or synthesize a far ROM read. A capacity error reports the component
-size and free ordinary-ROM capacity of every bank.
+The preliminary byte ledger provides a fast capacity filter, but it is not the
+final authority: before a candidate assignment is accepted, the linker now
+dry-runs the actual ROM allocator in source order, including alignment,
+page/branch low-byte constraints, holes, initialized-DATA load images, and the
+generated copy/zero/init tables. This prevents a raw-byte fit from becoming a
+later layout overflow. Functions and private RODATA layouts remain whole; they
+are never split across regions.
 
-`--explain-bank-placement` writes the mode, component membership, pins, allowed
-banks, capacity rejections, candidate weighted-cut costs, chosen assignments,
-accepted local moves, final byte/cycle/site cut weights, and final weighted
-stack depth to
-standard error. The map's `BANK PLACEMENT` section records the selected mode,
-component number, pinned or automatic assignment, bank, concrete MEMORY region,
-component bytes, incident cut weight, layout, and input object. The later
-`TRAMPOLINES` section reports the bridges actually created by the resulting cut
-control-flow edges. Through the public driver, pass these linker-only controls
-with, for example, `-Wl,--bank-placement=simple,--explain-bank-placement`.
+Ties prefer the startup/home region, then the higher logical address, then the
+region name. `--explain-bank-placement` remains the compatibility spelling for
+the diagnostic interface and reports both switched banks and direct regions.
+The map's `BANK PLACEMENT` section records mode, component number, pinned or
+automatic assignment, logical region, concrete MEMORY region, component bytes,
+incident cut weight, layout, and input object. A `TRAMPOLINES` section appears
+only when the selected topology actually requires selector-controlled bridges.
+Through the public driver, pass the controls with, for example,
+`-Wl,--bank-placement=simple,--explain-bank-placement`.
 
 `callstack = callgraph` may be placed on one writable `MEMORY` region. After
 all objects and archive members are selected, the linker computes the longest
@@ -952,11 +962,11 @@ Superchip RAM-port prefix. Public SC profiles place ordinary ROM in
 Superchip region is declared as:
 
 ```
-superchip: read_start = $F080, write_start = $F000,
+cartram: read_start = $F080, write_start = $F000,
            size = $0080, type = rw, define = yes;
 ```
 
-Source objects in `BSS.superchip` and `DATA.superchip`, including
+Source objects in `BSS.cartram` and `DATA.cartram`, including
 function-scope static locals, are allocated once in the read window. Static
 locals use persistent layouts rather than call-graph activation overlays.
 Relocations from every ROM bank may target either alias without being mistaken

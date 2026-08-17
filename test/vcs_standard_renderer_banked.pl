@@ -118,13 +118,13 @@ require_re($built{'F8'}{map},qr/^\s*ram\s+used=100 bytes .*objects=88 bytes hard
    'F8 RIOT RAM accounting changed');
 require_re($built{'F8SC'}{map},qr/^\s*ram\s+used=97 bytes .*objects=85 bytes hardware-stack=12 bytes/m,
    'F8SC RIOT RAM accounting changed');
-require_re($built{'F8SC'}{map},qr/^\s*superchip\s+used=3 bytes .*objects=3 bytes hardware-stack=0 bytes/m,
+require_re($built{'F8SC'}{map},qr/^\s*cartram\s+used=3 bytes .*objects=3 bytes hardware-stack=0 bytes/m,
    'F8SC non-critical game state is not three Superchip bytes');
-require_re($built{'F8SC'}{map},qr/^\s*superchip\s+read_start=\$F080 write_start=\$F000 .*mode=shared/m,
+require_re($built{'F8SC'}{map},qr/^\s*cartram\s+read_start=\$F080 write_start=\$F000 .*mode=shared/m,
    'F8SC Superchip region is not shared');
-require_re($built{'F8SC'}{map},qr/COPY DATA\.superchip\.__vcsc_object\$banked_hook_signature .*read=\$F082 write=\$F002 .*split=yes/,
+require_re($built{'F8SC'}{map},qr/COPY DATA\.cartram\.__vcsc_object\$banked_hook_signature .*read=\$F082 write=\$F002 .*split=yes/,
    'F8SC signature is not initialized through split aliases');
-require_re($built{'F8SC'}{map},qr/ZERO BSS\.superchip\.__vcsc_object\$banked_hook_count .*read=\$F080 write=\$F000 .*split=yes/,
+require_re($built{'F8SC'}{map},qr/ZERO BSS\.cartram\.__vcsc_object\$banked_hook_count .*read=\$F080 write=\$F000 .*split=yes/,
    'F8SC count is not initialized through split aliases');
 
 # The generated JSR trampoline costs 37 cycles total, 25 above direct JSR/RTS.

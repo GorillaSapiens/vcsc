@@ -44,7 +44,8 @@ $s =~ /TANKS_FIRE_SOUND_FRAMES := 4/ && $s =~ /TANKS_HIT_SOUND_FRAMES := 24/ &&
 $s =~ /AUDC1 := MUSIC_CONTROL_LOW_BASS/ && $s =~ /AUDF1 := TANKS_ENGINE_FREQ/ &&
 $s =~ /AUDV1 := TANKS_ENGINE_VOLUME/ && $s =~ /TANKS_ENGINE_VOLUME := 2/
    or die "Tanks lost fire\/hit effects or low-volume engine growl\n";
-$s =~ /include "vcs_8k_f8sc\.c26"/ && $s =~ /superchip uint8_t tanks_barrier_pf2\[86\]/ &&
+$s =~ /include "vcs_8k_f8sc\.c26"/ && $s =~ /cartram uint8_t tanks_barrier_pf2\[86\]/ &&
+$s !~ /\bbank[0-9]+\b/ &&
 $s =~ /tanks_barrier_masks\[8\].*?0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80/s &&
 $s =~ /asm lda\.ax tanks_barrier_pf2,x/ && $s =~ /asm sta PF2/ &&
 $s =~ /start := 10 \+ \(r & 7\)/ && $s =~ /end := start \+ 14/
@@ -105,6 +106,13 @@ my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',$dir,'-T',File::Spec->catf
 $rc==0&&!$sig or die "Tanks build failed\n$out$err";
 -s$bin==8192 or die "Tanks ROM is not 8192-byte F8SC\n";
 my$map=read_file($mapfile);
+$map =~ /pinned\s+CODE\.__vcsc_function\$main\s+region=bank0/m &&
+$map =~ /automatic\s+CODE\.__vcsc_function\$tanks_update_overscan\s+region=bank1/m &&
+$map =~ /automatic\s+CODE\.__vcsc_function\$tanks_try_knockback\s+region=bank0/m
+   or die "Tanks automatic F8SC code placement did not keep startup home and use both banks\n$map";
+$map =~ /^\s+cartram\s+read_start=\$F080 write_start=\$F000 size=\$0080 type=rw shared=yes\b/m &&
+$map =~ /^\s+ZERO\s+BSS\.cartram\.__vcsc_object\$tanks_barrier_pf2\s+read=\$F080\s+write=\$F000\s+size=\$0056/m
+   or die "Tanks explicit Superchip RAM placement/init aliasing changed\n$map";
 
 my$cxx=$ENV{CXX}||'c++';my$mos=File::Spec->catdir($repo,qw(simulator mos6502));my$mosobj=File::Spec->catfile($mos,'mos6502.o');my@mos=-f$mosobj?($mosobj):(File::Spec->catfile($mos,'mos6502.cpp'));
 my$oracle_src=File::Spec->catfile($repo,qw(test vcs_tanks.cpp));my$oracle=File::Spec->catfile($tmp,'vcs_tanks_oracle');
