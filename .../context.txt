@@ -1038,9 +1038,7 @@ both ports independently, clockwise/counterclockwise wrap, ambiguous and
 direction-preserving skipped states, per-frame accumulation/reset, button
 press/release, opposite-port SWCHA/SWACNT isolation, public hex arithmetic/color,
 and invariant frame length. Installed-tree checks ship the component and build
-the public example. Main-roadmap Item 39 (CBS FA/RAM Plus output) is complete. Item 41, the
-low-hanging-fruit mapper survey, is now the first unfinished main-roadmap item;
-the supported-controller diagnostic remains Item 42.
+the public example. Main-roadmap Items 39 (FA/RAM Plus) and 41 (low-hanging-fruit mapper survey) are complete. Bankswitching Item 31 adds direct 4KSC with full Superchip RAM and a PASS/FAIL diagnostic; focused mapper work next is Item 32 CV/CommaVid, while the main-roadmap default is Item 42.
 
 Roadmap item 40 (two-player joystick tank duel) is complete as the public
 `examples/01_basic/13_tanks/` example. It uses the Paddleball blue/red/black/white
@@ -1131,9 +1129,8 @@ length, and beam-write deadlines for nonzero GRP0/GRP1 plus side/full PF0
 transitions. Its timing stress path drives tanks and missiles to X endpoints 4/148
 and Y endpoints 4/78 while injecting simultaneous hits/spin/audio activity; every
 post-startup frame must retain the 264-raw cadence. Installed-tree and example-build
-coverage include `tanks`. Item 39 (CBS FA/RAM Plus output support) is complete;
-Item 41 now surveys other low-hanging-fruit mapper families before the public
-diagnostic and later renderer/example work.
+coverage include `tanks`. Main-roadmap Items 39 and 41 are complete; the mapper
+survey is concretized in bankswitching Items 31-37, with 4KSC complete and CV next.
 
 
 CBS FA/RAM Plus output support is now implemented as `vcs_12k_fa.c26` plus the
@@ -1229,15 +1226,15 @@ NMI bytes at `$FFFA/$FFFB` exercise this case. The standalone
 retains .s26/rebuilt .bin files, prints MD5 values, and requires exact byte
 identity. The focused disassembler roadmap is now complete; future focused
 work is driven by real-ROM failures or newly identified mapper/analysis needs.
-Main roadmap ordering now selects Item 41's low-hanging-fruit mapper survey; Item 39 CBS FA/RAM Plus output support is complete. The current compile suite passes 499/499. Four vcsc-disas-focused E2E
+Main roadmap Item 41 mapper survey is complete. Bankswitching roadmap Items 31-37 now queue 4KSC, CV, JANE, 0840, UA/UASW, 0FA0, then F0/FA2/FC reconsideration; 4KSC Item 31 is complete. Main roadmap next is Item 42, while focused mapper work next is bankswitching Item 32 CV/CommaVid. The current compile suite passes 499/499. Four vcsc-disas-focused E2E
 regressions pass, with 68 semantic fixtures and all 256 opcode bytes exact. The
 hardening fuzz corpus now uses two deterministic arbitrary images for every
-supported size/mapper family (16 accepted images total), and all 80 editable
+supported size/mapper family (16 accepted images total), and all 81 editable
 VCSC example ROMs are byte-exact disassemble/reassemble gates inside the normal
 eight example-build shards. Native staged vcsc-disas -> staged vcsc-as passes,
 and the static Linux package builds as a seven-tool bundle containing vcsc-disas;
 Windows package wiring is source-hygiene pinned on this non-MinGW host. The E2E
-inventory is now 310 cases. One unrelated legacy renderer case can exceed its
+inventory is now 311 cases. One unrelated legacy renderer case can exceed its
 explicit 12-second harness limit in this container but passes when run directly.
 Commercial ARMAMBSH, Bridge, Stellar Track, the standard 10495-byte Pitfall II
 DPC ROM, Mountain King's 12288-byte CBS FA/RAM Plus ROM, and the 8195-byte
@@ -1268,4 +1265,4 @@ structural pass recognizes long aligned runs of coherent 8x8 glyphs; Pitfall's
 decimal font at $FF00 is the regression case. Raw `.byte` grouping now stops when
 a graphics region begins so the first detected rows are not swallowed. A single
 bitmap-shaped object and call-mediated/compressed-looking data still remain numeric
-without stronger evidence. The semantic disassembler corpus is now 68/68 exact. WD support recognizes the distinctive 8195-byte Pursuit of the Pink Panther preservation dump, models eight 1K banks selected as four-segment arrangements by TIA $30-$3F reads plus 64 bytes of cartridge RAM, analyzes the historical bank-2/bank-3 correction while preserving the original file order and trailing three bytes exactly. Roadmap items 9, 10, 12, 13, and 16 are complete; Item 12 pointer-table presentation requires real low/high pointer-building data flow and never swallows interior labels, after ARMAMBSH exposed a shifted-byte false positive. Color-table presentation splits around interior labels instead of consuming them. Item 13 adds repeatable `--table` and even-length `--pointer` manual presentation hints on top of the existing mapper/origin/entry/code/data/video/controller overrides; manual data roles may overlap code without replacing executable source. Item 16 pins deterministic output, malformed/truncated failures, duplicated/padded preservation, all-supported-layout fuzzing, all 80 editable examples, install/package integration, and an independent stego smoke baseline. No focused disassembler roadmap item remains unfinished.
+without stronger evidence. The semantic disassembler corpus is now 68/68 exact. WD support recognizes the distinctive 8195-byte Pursuit of the Pink Panther preservation dump, models eight 1K banks selected as four-segment arrangements by TIA $30-$3F reads plus 64 bytes of cartridge RAM, analyzes the historical bank-2/bank-3 correction while preserving the original file order and trailing three bytes exactly. Roadmap items 9, 10, 12, 13, and 16 are complete; Item 12 pointer-table presentation requires real low/high pointer-building data flow and never swallows interior labels, after ARMAMBSH exposed a shifted-byte false positive. Color-table presentation splits around interior labels instead of consuming them. Item 13 adds repeatable `--table` and even-length `--pointer` manual presentation hints on top of the existing mapper/origin/entry/code/data/video/controller overrides; manual data roles may overlap code without replacing executable source. Item 16 pins deterministic output, malformed/truncated failures, duplicated/padded preservation, all-supported-layout fuzzing, all 81 editable examples, install/package integration, and an independent stego smoke baseline. No focused disassembler roadmap item remains unfinished.

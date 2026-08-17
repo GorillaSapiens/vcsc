@@ -864,8 +864,21 @@ static void load_raw_binary(const char *filename) {
       throw std::runtime_error("Failed to open raw binary file");
    std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(in)),
                               std::istreambuf_iterator<char>());
-   if (!g_cfg_loaded || !g_cfg.cartridge_banked)
-      throw std::runtime_error("Raw .bin input requires a banked linker config");
+   if (!g_cfg_loaded || !g_cfg.cartridge_banked) {
+      // Conventional unbanked VCS images have an unambiguous placement in the
+      // 4K cartridge window.  Supporting them directly also lets logical cfgs
+      // such as 4KSC supply split-address cartridge RAM semantics without
+      // pretending that the cartridge is bank-switched.
+      if (bytes.size() == 2048u) {
+         memcpy(mem + 0xF800u, bytes.data(), bytes.size());
+         return;
+      }
+      if (bytes.size() == 4096u) {
+         memcpy(mem + 0xF000u, bytes.data(), bytes.size());
+         return;
+      }
+      throw std::runtime_error("Raw unbanked cartridge must be exactly 2K or 4K");
+   }
    size_t expected = 0;
    for (size_t i = 0; i < g_cfg.bank_count; ++i)
       expected += g_cfg.banks[i].size;

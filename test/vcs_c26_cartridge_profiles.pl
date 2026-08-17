@@ -44,6 +44,7 @@ my $blank=File::Spec->catfile($repo,'examples','01_basic','01_blank_screen','bla
 my @profiles=(
    ['2K',   'vcs_2k.c26',       undef,              1, 0, 0,  2048],
    ['4K',   'vcs_4k.c26',       'vcs_4k.cfg',       1, 0, 0,  4096],
+   ['4KSC', 'vcs_4k_sc.c26',    undef,              1, 0, 1,  4096],
    ['F8',   'vcs_8k_f8.c26',    'vcs_8k_f8.cfg',    2, 1, 0,  8192],
    ['F6',   'vcs_16k_f6.c26',   'vcs_16k_f6.cfg',   4, 1, 0, 16384],
    ['F4',   'vcs_32k_f4.c26',   'vcs_32k_f4.cfg',   8, 1, 0, 32768],
@@ -75,9 +76,15 @@ for my $p (@profiles) {
    if ($sc) {
       $text =~ /include\s+"superchip\.c26"/ &&
       $text =~ /\$image_offset:0x0100/ &&
-      $text =~ /\$cpu_start:0xf100/ &&
-      $text =~ /\$size:0x0e00/
+      $text =~ /\$cpu_start:0xf100/
          or die "$profile_name does not encode the Superchip prefix and shared RAM profile\n";
+      if ($name eq '4KSC') {
+         $text =~ /\$size:0x0efa/
+            or die "4KSC does not reserve vectors inside its direct ROM window\n";
+      } else {
+         $text =~ /\$size:0x0e00/
+            or die "$profile_name banked SC ROM size is wrong\n";
+      }
    } else {
       $text !~ /include\s+"superchip\.c26"/
          or die "$profile_name unexpectedly includes Superchip memory\n";

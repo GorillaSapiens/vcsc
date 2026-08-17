@@ -244,7 +244,9 @@ PASS/FAIL diagnostic in Stella from every forced physical startup bank and under
 randomized developer startup-bank selection. CBS FA/RAM Plus has its own public
 `examples/09_bankswitching/03_fa_ram_plus` PASS/FAIL cartridge and emulator-backed
 self-test covering all three selectors, startup physical bank 2, and all 256 bytes
-of cartridge RAM.
+of cartridge RAM. `examples/09_bankswitching/04_4ksc` similarly exercises direct
+4K Superchip RAM, including the full 128-byte split-address device, and displays
+`4KSC` beneath its PASS/FAIL result.
 
 ## Documentation
 

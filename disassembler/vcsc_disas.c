@@ -336,6 +336,7 @@ static int parse_mapper_name(const char *s, mapper_t *mapper, int *superchip)
    *superchip = -1;
    if (strcmp(s, "2k") == 0) *mapper = MAP_2K;
    else if (strcmp(s, "4k") == 0) *mapper = MAP_4K;
+   else if (strcmp(s, "4ksc") == 0) { *mapper = MAP_4K; *superchip = 1; }
    else if (strcmp(s, "f8") == 0) { *mapper = MAP_F8; *superchip = 0; }
    else if (strcmp(s, "f6") == 0) { *mapper = MAP_F6; *superchip = 0; }
    else if (strcmp(s, "f4") == 0) { *mapper = MAP_F4; *superchip = 0; }
@@ -383,7 +384,7 @@ static void usage(const char *argv0)
       "options:\n"
       "   -i, --input <file>       compatibility alias for positional input\n"
       "   -o, --output <file>      write generated VCSC assembly (.s26)\n"
-      "       --mapper <name>      force 2k|4k|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd\n"
+      "       --mapper <name>      force 2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd\n"
       "       --reset-bank <n>     force power-on/reset physical bank\n"
       "       --origin <b:addr>    force logical origin for a bank (repeatable)\n"
       "       --entry <b:addr>     add executable entry point (repeatable)\n"
@@ -2521,12 +2522,13 @@ drain_work:
 
       /* Superchip RAM uses write $x000-$x07F and read $x080-$x0FF
        * aliases in the cartridge window.  A direct access with the matching
-       * direction is strong evidence for the SC variant of F8/F6/F4. */
+       * direction is strong evidence for 4KSC or an SC F8/F6/F4 variant. */
       {
          unsigned access = opcode_memory_access(opcode);
          uint16_t bus = (uint16_t)(operand & 0x1fffu);
          if (mode == AM_ABSOLUTE &&
-             (a->mapper == MAP_F8 || a->mapper == MAP_F6 || a->mapper == MAP_F4)) {
+             (a->mapper == MAP_4K || a->mapper == MAP_F8 ||
+              a->mapper == MAP_F6 || a->mapper == MAP_F4)) {
             if ((access & ACCESS_WRITE) && bus >= 0x1000u && bus <= 0x107fu) {
                ++a->superchip_refs;
                ++a->superchip_write_refs;
@@ -4919,8 +4921,11 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
    {
       const char *mname = mapper_name(a->mapper);
       char scname[32];
-      if (superchip_active(a) &&
-          (a->mapper == MAP_F8 || a->mapper == MAP_F6 || a->mapper == MAP_F4)) {
+      if (superchip_active(a) && a->mapper == MAP_4K) {
+         mname = "4KSC";
+      }
+      else if (superchip_active(a) &&
+               (a->mapper == MAP_F8 || a->mapper == MAP_F6 || a->mapper == MAP_F4)) {
          snprintf(scname, sizeof(scname), "%sSC", mname);
          mname = scname;
       }

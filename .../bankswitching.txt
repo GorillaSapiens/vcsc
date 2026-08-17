@@ -2037,6 +2037,69 @@ when main roadmap item 29 becomes active.
          where honest; add a true window or device model only when the chosen
          hardware semantics actually require one.
 
+[x] 31. Add 4KSC as the first low-hanging-fruit mapper.
+
+       * Emit one directly mapped 4K physical image with the standard 128-byte
+         Superchip RAM ports hiding the first $100 bytes: writes at $1000-$107F,
+         reads at $1080-$10FF, and ordinary ROM visible from $1100-$1FFF.
+       * Reuse the existing split-address Superchip allocator/runtime rather than
+         adding mapper-specific storage semantics. Keep exact 4096-byte output
+         with deterministic fill in the hidden physical prefix.
+       * Add a public PASS/FAIL diagnostic which allocates all 128 Superchip bytes,
+         verifies DATA/BSS initialization and persistent read/write aliases, and
+         displays `4KSC` below the result. Add simulator, disassembler round-trip,
+         install/package, and hostile-initial-RAM coverage.
+
+       Completed 2026-08-16:
+
+       * Added `vcs_4k_sc.c26` with direct ROM at $F100-$FFFF and a reserved $100
+         physical prefix, plus `vcs_4k_sc.cfg` for simulator/compatibility logical
+         mapping. Generalized hidden-prefix placement checks to direct profiles.
+       * Reused `superchip.c26` unchanged as the shared 128-byte split-address RAM
+         device and taught the simulator/disassembler about direct 4KSC images.
+       * Added `09_bankswitching/04_4ksc`, a stable NTSC PASS/FAIL cartridge which
+         uses all 128 Superchip bytes, tests hostile initial RAM plus reset
+         initialization, and displays `4KSC` below `pass`/`FAIL`.
+
+[ ] 32. Add CV / CommaVid.
+
+       * Model the fixed 2K ROM at $F800-$FFFF plus 1K cartridge RAM with reads at
+         $F000-$F3FF and writes at $F400-$F7FF. Reuse the split-address memory
+         abstraction and add a PASS/FAIL RAM diagnostic.
+
+[ ] 33. Add JANE.
+
+       * Model four full-window 4K banks selected by $1FF0, $1FF1, $1FF8, and
+         $1FF9, with hardware startup bank 1. Keep the existing selector topology
+         and prove exact bank order/reset/cross-bank calls in a diagnostic.
+
+[ ] 34. Add 0840 / EconoBanking.
+
+       * Model two 4K banks selected by accesses to $0800 and $0840. Generalize
+         selector triggers so reads or writes outside the cartridge $1000-$1FFF
+         window can select a bank without pretending those addresses are ROM.
+
+[ ] 35. Add UA / UASW.
+
+       * Reuse the below-cartridge selector machinery from 0840 for the UA selector
+         aliases around $0220/$0240; support the UASW reversed bank association as
+         a distinct exact hardware profile and diagnostic variant.
+
+[ ] 36. Add 0FA0.
+
+       * Reuse below-window selector support for the two-bank masked/aliased 0FA0
+         selector behavior. Keep address-mask semantics explicit rather than
+         expanding every alias into an ad-hoc hotspot list.
+
+[ ] 37. Reconsider the next tier: F0, FA2, and FC.
+
+       * Evaluate F0 sequential next-bank switching, FA2's larger FA-like bank/RAM
+         layout plus flash-save hardware, and FC's staged selector protocol after
+         the simpler descriptor-level families above are complete. Open separate
+         implementation items only for the parts whose hardware contracts fit VCSC
+         cleanly; do not hide new mechanisms behind the existing hotspot model.
+
+
 Decisions intentionally deferred
 --------------------------------
 The following are not settled by this document:

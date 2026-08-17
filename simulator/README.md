@@ -206,6 +206,11 @@ jsr $ffff
 
 This exits with status 0.
 
+Raw unbanked 2K and 4K images are placed in the conventional cartridge window
+when a non-banked cfg is supplied. This lets `vcs_4k_sc.cfg` provide the split
+Superchip RAM aliases while the 4K ROM remains a direct cartridge. Other raw
+unbanked sizes are rejected rather than guessed.
+
 Split-address memory and Superchip mapper support
 -------------------------------------------------
 Any cfg `MEMORY` entry with both `read_start` and `write_start` is modeled as
@@ -216,7 +221,7 @@ simulator reports a directional-access error if generated code uses the wrong
 alias. `--dump-on-stop` mirrors the final bytes into both declared windows so
 the two aliases can be inspected directly.
 
-With F8SC/F6SC/F4SC cfg files, the ordinary `superchip` entry therefore models
+With `vcs_4k_sc.cfg` and the F8SC/F6SC/F4SC cfg files, the ordinary `superchip` entry therefore models
 the shared 128-byte cartridge RAM without a compiler-specific name hook. The
 mapper still provides the real cartridge mirroring: writes to the physical
 `$1000-$107F` port update the storage and reads from `$1080-$10FF` return it

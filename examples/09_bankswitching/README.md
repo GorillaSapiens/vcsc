@@ -26,6 +26,10 @@ internally.
 `pass`/`FAIL`, exercises all three selectors through nested cross-bank calls,
 uses all 256 bytes of cartridge RAM, and verifies startup from physical bank 2.
 
+`04_4ksc/` is the direct 4K Superchip diagnostic. It allocates all 128 bytes of
+Superchip RAM, verifies DATA/BSS reset initialization and read/write aliases,
+and displays `4KSC` below the green `pass` or red `FAIL` result.
+
 ## Banked standard renderer
 
 `02_standard_renderer/` is the consolidated F8 integration of the maintained

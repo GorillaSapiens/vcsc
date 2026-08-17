@@ -161,3 +161,17 @@ validation now rejects bank-contained RAM-port overlap without rejecting the
 unused generic machine_6502 ROM fallback; the prior topology regression passes.
 Validation: exact reported regressions pass, all eight example shards pass, the
 FA simulator/profile gates pass, and the compile-only suite is 499/499.
+2026-08-16 22:49:49 PDT, add 4KSC and queue mapper follow-ups
+Added bankswitching roadmap Items 31-37 in order: 4KSC, CV, JANE,
+0840, UA/UASW, 0FA0, then an F0/FA2/FC reconsideration gate. Main
+roadmap Item 41 is complete; Item 42 is the default main next action and
+CV is the focused mapper next action.
+Implemented direct 4KSC with a $100 hidden Superchip prefix, ROM at
+$F100-$FFFF, shared 128-byte split-address RAM, direct-profile hidden
+prefix validation, simulator raw-4K support, disassembler 4KSC recognition,
+install/package support, and public 09_bankswitching/04_4ksc PASS/FAIL
+coverage. The diagnostic allocates all 128 Superchip bytes and displays
+4KSC below pass/FAIL. Stella 7 snapshot grading confirms green pass / 4KSC.
+Validation: 499/499 compile tests; all 81 editable examples build and
+round-trip across eight shards; 4KSC, FA, topology/profile, allowlist,
+branding, hygiene, staged-install, and static Linux package gates pass.

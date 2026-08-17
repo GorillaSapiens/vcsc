@@ -63,7 +63,7 @@ When run from the built repository tree, it finds:
 - `libraries/vcs/vcs.cfg` for reduced VCS linker operational policy
 - `libraries/vcs/vcs_4k.c26` for the implicit unbanked cartridge topology
 - `libraries/vcs/vcs_2k.c26` for explicit 2048-byte `$F800-$FFFF` builds
-- the installed F8/F6/F4, CBS FA/RAM Plus, and Superchip `.c26` cartridge profiles for explicit builds
+- the installed 4KSC, F8/F6/F4, CBS FA/RAM Plus, and banked Superchip `.c26` cartridge profiles for explicit builds
 - the old profile-specific cfg files only for compatibility and simulator selection
 
 When installed, it expects this layout under the same prefix:

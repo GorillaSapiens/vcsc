@@ -87,7 +87,7 @@ position from runtime 6507 addresses:
 ```
 
 The disassembler currently recognizes unbanked 2K/4K, the F8/F6/F4 family
-(with Superchip evidence reported as F8SC/F6SC/F4SC), CBS RAM Plus / FA, DPC,
+(with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, DPC,
 and Wickstead Design / WD. Standard DPC
 images are recognized by their distinctive 10240- or 10495-byte layout: two
 4K F8-style program banks followed by 2K of DPC data ROM, with the 10495-byte

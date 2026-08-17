@@ -23,9 +23,9 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: Item 41, survey other low-hanging-fruit Atari 2600 mapper
-families and turn the worthwhile descriptor-level additions into concrete roadmap
-items before coding them.
+Current next action: Item 42, add the public diagnostic cartridge. Focused
+bankswitching work may instead continue with bankswitching roadmap Item 32, CV /
+CommaVid, when mapper expansion is the requested workstream.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1965,7 +1965,7 @@ items before coding them.
         oracle includes a deterministic case whose preferred destination is inside a
         barrier and must be rejected.
 
-[ ] 41. Identify other low-hanging-fruit Atari 2600 mapper families that fit the
+[x] 41. Identify other low-hanging-fruit Atari 2600 mapper families that fit the
         existing VCSC bankswitching/linker architecture. Survey established cartridge
         schemes by bank/window shape, startup behavior, hotspots, auxiliary RAM, and
         output-image layout; distinguish descriptor-level additions from schemes that
@@ -1975,6 +1975,16 @@ items before coding them.
         them. Do not broaden mapper support merely because vcsc-disas can recognize a
         scheme; the compiler target must have a clear exact hardware contract and an
         emulator-backed test strategy.
+
+        Completed 2026-08-16:
+
+        * Added concrete bankswitching roadmap Items 31-37 in implementation order:
+          4KSC; CV/CommaVid; JANE; 0840/EconoBanking; UA/UASW; 0FA0; then a
+          deliberate reconsideration gate for F0/FA2/FC. The first six are ordered
+          by how directly they reuse the existing direct/selector/split-RAM model.
+        * Completed bankswitching Item 31 immediately: 4KSC now has a direct C26
+          profile, full Superchip RAM support, a public PASS/FAIL diagnostic, and
+          simulator/disassembler/install/package regression coverage.
 
 [ ] 42. Add a public diagnostic cartridge that exercises and reports the supported
         console switches, controller types, TIA objects, playfield, colors, collisions,

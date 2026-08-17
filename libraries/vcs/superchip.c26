@@ -9,7 +9,7 @@
 //
 // The read alias comes first and the write alias second, matching VCSC's
 // existing @[read_address/write_address] split-address syntax.  The physical RAM
-// is shared across every selected F8SC/F6SC/F4SC ROM bank. Bank switches
+// is shared by direct 4KSC and across every selected F8SC/F6SC/F4SC ROM bank. Bank switches
 // preserve it. Every reset clears allocated BSS and copies allocated DATA
 // through the write window; unallocated bytes have no VCSC lifecycle contract.
 // Include this file after vcs.c26 when linking with an SC profile.

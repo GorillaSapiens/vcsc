@@ -51,6 +51,7 @@ sub profile_from_source {
    my($source)=@_;
    my $text=read_file($source);
    return '2k' if $text =~ /^\s*include\s+"vcs_2k\.c26"\s*$/m;
+   return '4ksc' if $text =~ /^\s*include\s+"vcs_4k_sc\.c26"\s*$/m;
    return 'f8' if $text =~ /^\s*include\s+"vcs_8k_f8\.c26"\s*$/m;
    return 'f8sc' if $text =~ /^\s*include\s+"vcs_8k_f8sc\.c26"\s*$/m;
    return 'fa' if $text =~ /^\s*include\s+"vcs_12k_fa\.c26"\s*$/m;
@@ -95,8 +96,8 @@ for my $entry (@examples) {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
    } elsif ($profile eq 'f8') {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs_8k_f8.cfg');
-   } elsif ($profile eq 'f8sc' || $profile eq 'fa') {
-      # C26 owns the F8SC/FA bank and cartridge-RAM topology; the generic cfg
+   } elsif ($profile eq '4ksc' || $profile eq 'f8sc' || $profile eq 'fa') {
+      # C26 owns the 4KSC/F8SC/FA cartridge and cartridge-RAM topology; the generic cfg
       # only reserves the RIOT hardware stack, matching the public Makefiles.
       push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
    } elsif ($file eq 'fingerprint.c26') {

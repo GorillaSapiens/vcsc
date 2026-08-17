@@ -1290,35 +1290,43 @@ static void validate_c26_topology(linker_config_t *cfg)
             exit(1);
          }
       }
-      if (cfg->topology_banks[0].image_offset) {
-         for (i = 0; i < cfg->mem_count; ++i) {
-            const memory_region_t *mem = &cfg->mem[i];
-            uint32_t mem_end;
-            size_t k;
-            if (!mem->compiler_declared || !str_ieq(mem->type, "ro") ||
-                mem->output_bank_name[0])
-               continue;
-            mem_end = (uint32_t)mem->start + mem->size;
-            for (k = 0; k < cfg->topology_bank_count; ++k) {
-               const topology_bank_t *bank = &cfg->topology_banks[k];
-               uint16_t full_start = (uint16_t)(bank->link_start - bank->image_offset);
-               uint32_t full_end = (uint32_t)full_start + bank->image_size;
-               uint32_t hidden_end = (uint32_t)full_start + bank->image_offset;
-               if (mem->start >= full_start && mem_end <= full_end &&
-                   mem->start < hidden_end && mem_end > full_start) {
-                  fprintf(stderr,
-                          "vcsc-ld: selector-controlled read-only region '%s' at $%04X-$%04X lies outside every mapped ROM window\n",
-                          mem->name, mem->start,
-                          (uint16_t)(mem_end - 1u));
-                  exit(1);
-               }
-            }
-         }
-      }
    }
    else if (startup_count != 0u) {
       fprintf(stderr, "vcsc-ld: directly mapped topology must not mark a startup bank\n");
       exit(1);
+   }
+
+   /* A nonzero image_offset means physical bytes at the beginning of a bank
+    * are hidden by cartridge hardware rather than mapped ROM.  This applies
+    * equally to selector-controlled FA/SC banks and to direct 4KSC.  Reject
+    * only compiler-declared read-only regions that actually try to occupy that
+    * hidden prefix; broad unused compatibility fallbacks remain harmless. */
+   for (i = 0; i < cfg->mem_count; ++i) {
+      const memory_region_t *mem = &cfg->mem[i];
+      uint32_t mem_end;
+      size_t k;
+      if (!mem->compiler_declared || !str_ieq(mem->type, "ro") ||
+          mem->output_bank_name[0])
+         continue;
+      mem_end = (uint32_t)mem->start + mem->size;
+      for (k = 0; k < cfg->topology_bank_count; ++k) {
+         const topology_bank_t *bank = &cfg->topology_banks[k];
+         uint16_t full_start;
+         uint32_t full_end;
+         uint32_t hidden_end;
+         if (!bank->image_offset)
+            continue;
+         full_start = (uint16_t)(bank->link_start - bank->image_offset);
+         full_end = (uint32_t)full_start + bank->image_size;
+         hidden_end = (uint32_t)full_start + bank->image_offset;
+         if (mem->start >= full_start && mem_end <= full_end &&
+             mem->start < hidden_end && mem_end > full_start) {
+            fprintf(stderr,
+                    "vcsc-ld: read-only region '%s' at $%04X-$%04X lies outside every mapped ROM window\n",
+                    mem->name, mem->start, (uint16_t)(mem_end - 1u));
+            exit(1);
+         }
+      }
    }
 
    {

@@ -21,7 +21,7 @@ Files:
 - `vcs_4k.c26` ... conventional unbanked 4K topology and allocatable ROM
 - `vcs_8k_f8.c26`, `vcs_16k_f6.c26`, `vcs_32k_f4.c26` ... inspectable selector-controlled C26 profiles with exact output order and generated corridors
 - `vcs_12k_fa.c26`, `fa_ram_plus.c26` ... CBS FA/RAM Plus three-bank profile with physical startup bank 2 and shared 256-byte split-address cartridge RAM
-- `vcs_8k_f8sc.c26`, `vcs_16k_f6sc.c26`, `vcs_32k_f4sc.c26` ... matching Superchip profiles with a reserved physical prefix and shared split-address RAM
+- `vcs_4k_sc.c26`, `vcs_8k_f8sc.c26`, `vcs_16k_f6sc.c26`, `vcs_32k_f4sc.c26` ... direct/banked Superchip profiles with a reserved physical prefix and shared split-address RAM
 - `vcs_direct_8k.c26` ... generic two-chunk directly mapped packaging profile used to certify selector-free output
 - `vcs_*.cfg` ... retained legacy profile descriptions for simulator input and compatibility/differential certification; public builds use the C26 profiles
 - `bankswitching_diagnostic_suite.c26` ... parameterized F8/F6/F4 all-transition diagnostic used by `vcsc-sim` and authoritative Stella certification
@@ -574,7 +574,7 @@ Notes:
 - `tia.c26` and `riot.c26` can also be included separately if you already have your own base machine definition.
 - `vcs_2k.c26` describes a 2048-byte cartridge linked at `$F800-$FFFF`, with vectors in its final six bytes; select it explicitly through reduced `vcs.cfg`.
 - `vcs_4k.c26` describes the standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`; the driver compiles it automatically when no `-T` is supplied.
-- The F8/F6/F4, FA/RAM Plus, and SC `.c26` profiles are installed beside `vcs.cfg` and emit exact 8K, 12K, 16K, and 32K images. The old profile-specific cfg files remain installed temporarily for compatibility and simulator selection.
+- The 4KSC, F8/F6/F4, FA/RAM Plus, and banked SC `.c26` profiles are installed beside `vcs.cfg` and emit exact 4K, 8K, 12K, 16K, and 32K images. Profile-specific cfg files remain installed where needed for compatibility and simulator selection.
 - `vcsc` discovers `vcs.cfg` and `vcs_4k.c26` in the source tree or installed `share/vcs` directory and uses both by default. Pass `-T vcs.cfg` plus another C26 profile to select a different cartridge layout.
 - The 128 physical RIOT RAM bytes are not double-counted. `vcs.c26` declares the full `$80-$FF` block and reduced `vcs.cfg` asks `vcsc-ld` to reserve the top bytes dynamically from the whole-program source call graph before placing ordinary storage. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.
 - Current stack sizing accounts automatically for source-level JSR return addresses; ordinary generated calls push no compiler state. Assembly components use `.callstackextra` object metadata for calls, pushes, or stack-pointer use hidden from the source call graph. C26 renderer templates emit the same assembler directive through inline assembly, including an explicit zero when an audited hidden JSR fits entirely inside the source-call reserve. `player_color_192` now flattens its two single-use mask-preparation wrappers and declares `.callstackextra 0`; the standard and multi-object renderers still declare their measured four supplementary bytes for deeper/repeated helper chains. The standard renderer also exports its assembly-initiated overscan-hook edge. Component code and score-table layouts carry startup-region, page-alignment, private-route, `.pagecontain`, and `.indexrange` facts in the object instead of renderer-specific cfg products. Arbitrary inline-assembly stack use must still be declared explicitly.
@@ -604,11 +604,13 @@ bank changes preserve the 256 physical RAM bytes.
 
 ### Superchip profiles and allocatable RAM
 
-The public `vcs_8k_f8sc.c26`, `vcs_16k_f6sc.c26`, and `vcs_32k_f4sc.c26`
-profiles use the same logical-bank and hotspot order as F8/F6/F4 while reserving
-the first 256 bytes of every physical 4K chunk for the shared 128-byte
-Superchip RAM ports. Ordinary ROM placement begins at `$x100`; complete 4K
-chunks are still emitted. Hardware power-on contents are unspecified. VCSC
+The public `vcs_4k_sc.c26`, `vcs_8k_f8sc.c26`, `vcs_16k_f6sc.c26`, and
+`vcs_32k_f4sc.c26` profiles reserve
+the first 256 bytes of each physical 4K chunk for the shared 128-byte Superchip
+RAM ports. 4KSC is a single direct chunk with ordinary ROM at `$F100-$FFFF`;
+F8SC/F6SC/F4SC retain their ordinary selector order and begin each selected ROM
+window at `$x100`. Complete 4K chunks are still emitted. Hardware power-on
+contents are unspecified. VCSC
 startup therefore clears every allocated Superchip BSS object and copies every
 allocated DATA initializer through `$F000-$F07F` on every reset. Mapper switches
 preserve the shared physical bytes; reset intentionally reinitializes them.

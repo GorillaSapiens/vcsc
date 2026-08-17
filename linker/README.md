@@ -936,7 +936,7 @@ bounded branch-aware start-address search.
 
 Superchip full-window profiles
 ------------------------------
-F8SC, F6SC, and F4SC use the ordinary F8/F6/F4 bank count, logical addresses,
+4KSC uses one direct 4K chunk; F8SC, F6SC, and F4SC use the ordinary F8/F6/F4 bank count, logical addresses,
 file order, hotspots, trampolines, and reset bridges. The linker additionally
 rejects any bank-owned read-only region which overlaps that bank's `$x000-$x0FF`
 Superchip RAM-port prefix. Public SC profiles place ordinary ROM in
@@ -961,6 +961,10 @@ binding range may not overlap a managed read/ordinary window, and a writable
 binding range may not overlap a managed write/ordinary window. This prevents a
 non-owning alias from silently colliding with an allocated Superchip byte or any
 other linker-owned storage.
+
+A nonzero `$image_offset` is also the generic hidden-prefix contract for direct
+profiles such as 4KSC. Compiler-declared read-only storage may not occupy that
+hidden physical prefix even when no selector machinery exists.
 
 ## Banked standard-renderer composition
 

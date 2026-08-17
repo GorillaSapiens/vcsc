@@ -1260,3 +1260,5 @@ the 50 Hz cadence/control aliases. `vcs_frame_50hz_stella.pl` remains optional
 and independently certifies the forced PAL/SECAM Stella viewport.
 `vcs_video_standard_examples_stella.pl` is the optional Stella companion for the
 public PAL/SECAM interactive examples and verifies their forced-format viewport.
+
+`vcs_4ksc.pl` certifies the direct 4K Superchip profile, full 128-byte split-address RAM lifecycle, hostile-fill reset behavior, PASS/FAIL diagnostic, disassembler recognition, and exact round trip.
