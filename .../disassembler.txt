@@ -29,7 +29,7 @@ The first implementation is now usable and exact-round-trip driven. It builds
 `disassembler/vcsc-disas` and the standalone `disassembler/roundtrip.pl`. The
 implemented foundation includes all 256 opcode bytes, exact addressing-mode
 emission, mandatory branch `.same`/`.cross`, recursive bank-aware control flow,
-unbanked/F8/F6/F4 plus Superchip variants and DPC, per-bank origin inference, overlapping
+unbanked/F8/F6/F4 plus Superchip variants, FA and DPC, per-bank origin inference, overlapping
 instruction streams, code-as-data, definite/possible/unreferenced ROM-use roles,
 canonical and mirrored TIA/RIOT symbolization, conservative sprite rows, static
 video/controller inference, manual mapper/origin/entry/code/data/video/controller
@@ -220,6 +220,7 @@ understood by VCSC:
     F8 / F8SC       8K
     F6 / F6SC      16K
     F4 / F4SC      32K
+    FA             12K + 256-byte RAM
 
 Use a scored/evidence-based classifier. Evidence includes:
 
@@ -242,6 +243,15 @@ Mapper state is part of control-flow state. An access to a selector hotspot can
 change which physical bank supplies subsequent instruction fetches at the same
 runtime address. Reads, writes, and read-modify-write operations must be modeled
 according to the mapper's actual hotspot semantics.
+
+FA is an explicit CBS RAM Plus model rather than an F8 variant. A 12288-byte
+image consists of three 4K physical banks selected by `$1FF8-$1FFA`; physical
+bank 2 is the hardware power-on bank. The 256-byte cartridge RAM write port
+occupies `$1000-$10FF` and the read port `$1100-$11FF`, so the first `$200`
+physical bytes of each bank are preserved exactly but excluded from ROM
+code/data discovery. The 6507's 13-bit external address bus means valid mirrored
+bank origins need not be `$F000`; commercial FA code may intentionally use
+origins such as `$3000`, `$5000`, and `$7000`.
 
 Do not pretend that unrelated schemes are variants of F8/F6/F4. 3F, 3E, E0,
 E7, FE, UA, 0840, DPC+, CDF, and coprocessor cartridges need separate mapper
@@ -357,9 +367,18 @@ control transfers may still jump over the barrier or enter code on either side,
 so a barrier does not by itself prove that all later bytes are data.
 
 Use these barriers to strengthen second-pass island and unused-ROM analysis.
-The implementation bounds one speculative candidate walk to 512 instruction
+For performance, first build one bank-local speculative control-flow graph and
+reverse-walk it from every HLT/JAM/KIL byte. This cheaply marks the only unknown
+starts that can structurally reach a halt. Run the more expensive stateful C/Z/N/V
+validation only for those starts; a start outside that reverse-reachable set cannot
+be rejected by the halt rule. Branch-state analysis still makes the final decision,
+so a structurally reachable but provably dead halt arm remains safe. This prefilter
+must preserve the same established-code/JMP/JSR/local-termination semantics as the
+stateful walk.
+
+The implementation bounds one stateful speculative candidate walk to 512 instruction
 visits so adversarial/random legal-opcode padding cannot make corpus analysis
-quadratic; hitting that budget is inconclusive and never causes promotion or
+pathological; hitting that budget is inconclusive and never causes promotion or
 rejection. Every three consecutive rejected starts are a sequential-flow barrier.
 For the stronger claim that an entire interval through a JAM/KIL endpoint is
 non-code, require all three rejected starts to reach their halt through pure
@@ -611,8 +630,13 @@ wrong semantic guess.
 
 Sprite/font visualization
 -------------------------
-Recognize conservative sprite/font-like byte tables, especially when data flow
-toward GRP0/GRP1 or known score/font renderers supports the interpretation.
+Recognize conservative sprite/font/playfield byte tables when a short,
+straight-line dependency path carries a ROM load into a TIA graphics write.
+Track source bytes loaded into A/X/Y through register transfers and simple ALU
+or accumulator-shift transforms, and recognize STA/STX/STY writes to
+GRP0/GRP1/PF0/PF1/PF2. Runtime-indexed tables may be bounded by a proven
+countdown or by the next known code/vector/label boundary; do not carry graphics
+provenance across calls, branches, unknown raw opcodes, or unrelated loads.
 
 For sprite-like bytes emit exactly one assembler-native binary byte per source
 line and put the X/dot picture beside it, for example:
@@ -631,8 +655,11 @@ byte order exactly; do not vertically reverse, bit-reverse, rotate, trim blank
 rows, or otherwise improve the art.
 
 Use sprite formatting only when evidence is reasonably strong. Numeric lookup
-tables, random constants, compressed graphics, masks, and ordinary data should
-not be turned into fake pictures merely because some rows look attractive.
+tables, random constants, call-mediated/compressed-looking graphics, and ordinary
+data should not be turned into fake pictures merely because some rows look
+attractive. A mask or transformed table that is directly proven to feed PF0/PF1/
+PF2 is graphics data and should use visual rows; a merely mask-shaped byte table
+without that provenance should stay numeric.
 
 Video-standard inference
 ------------------------
@@ -857,8 +884,10 @@ Roadmap
    * Produce deterministic control-flow labels.
    * Validate with synthetic ROMs whose origins are not VCSC defaults.
 
-3. [x] Infer and model F8/F6/F4/DPC bankswitching
+3. [x] Infer and model F8/F6/F4/FA/DPC bankswitching
    * Detect unbanked/F8/F6/F4 from size plus hotspot/control-flow evidence.
+   * Detect 12K CBS RAM Plus / FA; model `$1FF8-$1FFA` selectors, fixed startup
+     bank 2, and the `$1000-$11FF` split RAM overlay without decoding hidden ROM.
    * Detect DPC from its distinctive 10240/10495-byte layout; analyze the first
      8K as two F8-style program banks and preserve the trailing DPC data/RNG bytes.
    * Track mapper state in the control-flow graph.
@@ -945,14 +974,24 @@ Roadmap
    * Select TIA read versus write names according to the actual memory operation.
    * Add load/store/RMW and canonical/mirrored-address round-trip fixtures.
 
-9. [~] Detect and render sprite/font-like data
-   * Use GRP0/GRP1/PF data flow and table access patterns as strong evidence.
+9. [x] Detect and render sprite/font-like data
+   * Use short straight-line GRP0/GRP1/PF0/PF1/PF2 data flow and table access
+     patterns as strong evidence. Track A/X/Y source loads into STA/STX/STY and
+     preserve provenance through register transfers plus simple ALU/accumulator-
+     shift transforms.
+   * Infer exact countdown spans when possible; otherwise bound unresolved
+     runtime-indexed tables at the next known code/vector/label boundary, with a
+     conservative maximum range.
    * Emit one assembler-native `%00110100` byte per source line with the matching
      X/dot picture in a comment for visual scanning.
    * Keep original byte order and all blank rows exactly.
-   * Keep numeric output for low-confidence or non-graphics tables.
-   * Test sprites, fonts, masks, random tables, compressed-looking data, and
-     false-positive cases.
+   * Stop provenance at calls, branches, unknown raw opcodes, or unrelated loads;
+     keep low-confidence/non-graphics data numeric rather than guessing through a
+     decompressor or helper routine.
+   * Regressions cover direct sprites, runtime-indexed font rows, PF masks through
+     ALU transforms, A-to-X register transfers, X-register/STX and Y-register/STY
+     graphics paths, random tables, call-mediated compressed-looking data, and
+     bitmap-shaped false positives.
 
 10. [~] Infer NTSC versus PAL-family timing
     * Analyze VSYNC/VBLANK/WSYNC/timer/frame structure statically.
@@ -1049,7 +1088,7 @@ Roadmap
 Definition of first useful milestone
 ------------------------------------
 The first useful milestone is reached after roadmap items 0 through 3:
-`vcsc-disas` can take arbitrary unbanked/F8/F6/F4 cartridges, infer plausible
+`vcsc-disas` can take arbitrary unbanked/F8/F6/F4/FA cartridges, infer plausible
 bank origins and executable control flow, emit exact branches and instruction
 bytes, and reassemble the original image exactly.
 

@@ -49,7 +49,7 @@ generated source:
 ```
 
 Supported mapper overrides are `2k`, `4k`, `f8`, `f8sc`, `f6`, `f6sc`,
-`f4`, `f4sc`, and `dpc`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
+`f4`, `f4sc`, `fa`, and `dpc`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
 `--code BANK:START-END`, and `--data BANK:START-END` are repeatable. The bank
 may be omitted for a one-bank cartridge. Numbers accept decimal, `0x` hex, or
 `$` hex; quote `$` forms in a shell so the shell does not treat them as variable
@@ -78,7 +78,7 @@ position from runtime 6507 addresses:
 ```
 
 The disassembler currently recognizes unbanked 2K/4K, the F8/F6/F4 family
-(with Superchip evidence reported as F8SC/F6SC/F4SC), and DPC. Standard DPC
+(with Superchip evidence reported as F8SC/F6SC/F4SC), CBS RAM Plus / FA, and DPC. Standard DPC
 images are recognized by their distinctive 10240- or 10495-byte layout: two
 4K F8-style program banks followed by 2K of DPC data ROM, with the 10495-byte
 form carrying an additional 255-byte RNG table.
@@ -98,6 +98,14 @@ each 4K bank are preserved exactly but annotated as hidden by the Superchip RAM
 window rather than decoded as ROM. The hardware maps `$1000-$107F` as the RAM
 write port and `$1080-$10FF` as its read port, so those dump bytes are not
 ordinary runtime ROM.
+
+FA is the historical CBS RAM Plus 12K layout: three 4K banks selected at
+`$1FF8-$1FFA`, with physical bank 2 selected at power-on. Its 256 bytes of
+cartridge RAM use write `$1000-$10FF` and read `$1100-$11FF`, so the first
+`$200` physical bytes of each 4K bank are preserved in the output but excluded
+from executable-ROM and ROM-data discovery. Because the 6507 exposes only 13
+address pins, FA bank origins such as `$3000`, `$5000`, and `$7000` are valid
+mirrors; origin inference must not force every bank to `$F000`.
 
 Automatic Superchip promotion requires a decoded write to the `$x000-$x07F`
 write window. A read from `$x080-$x0FF` alone is not sufficient evidence, because
@@ -174,9 +182,11 @@ header reports rejected-start, barrier, and promoted-island counts.
 
 ## Sprite/font rows
 
-When a ROM table has strong graphics provenance--for example an indexed load
-whose value is subsequently written to `GRP0`, `GRP1`, or a playfield
-register--raw bytes are written one row per line.  The assembler's actual binary
+When a ROM table has strong graphics provenance--for example a ROM load into
+A/X/Y whose value reaches `GRP0`, `GRP1`, `PF0`, `PF1`, or `PF2` along a short
+straight-line dependency path--raw bytes are written one row per line. The
+analysis follows register transfers and simple ALU/accumulator-shift transforms,
+and recognizes `STA`, `STX`, and `STY` graphics writes. The assembler's actual binary
 literal syntax is `%` followed by zeroes and ones, so the X/dot picture is kept
 as a comment rather than inventing new assembler syntax:
 
@@ -185,8 +195,11 @@ as a comment rather than inventing new assembler syntax:
     .byte %01100110    ; .XX..XX.
 ```
 
-Countdown-indexed loops are used when possible to prove the table length; low
-confidence data stays in ordinary numeric form.
+Countdown-indexed loops are used when possible to prove the table length;
+otherwise a runtime-indexed table is conservatively bounded by the next known
+code/vector/label boundary. Calls, branches, unknown raw opcodes, and unrelated
+loads stop provenance, so random tables and call-mediated/compressed-looking data
+stay in ordinary numeric form unless stronger evidence exists.
 
 ## Video and controller inference
 
@@ -238,7 +251,7 @@ zero-page pointer values and loses knowledge conservatively at joins.
 Mapper state is part of control flow. Origin inference uses vectors plus candidate
 `JMP`/`JSR` evidence before final reachability. New mapper recognizers should be
 added as explicit hardware models; do not shoehorn unrelated schemes into the
-F8/F6/F4 implementation. New controller recognizers should add positive evidence
+F8/F6/F4/FA implementation. New controller recognizers should add positive evidence
 and preserve ambiguous output when the accessed registers do not distinguish a
 device.
 
@@ -249,7 +262,7 @@ original bytes.
 
 ## Current limits
 
-Mapper support beyond unbanked/F8/F6/F4/Superchip/DPC is deliberately conservative.
+Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/DPC is deliberately conservative.
 3F, 3E, E0, E7, FE, UA, 0840, DPC+, CDF and coprocessor cartridges need
 separate mapper models rather than being mislabeled as supported families.
 Unsupported layouts that yield no executable instructions fail explicitly rather

@@ -103,6 +103,25 @@ write_bin(File::Spec->catfile($in, 'f8_sc_read_only.bin'),
 write_bin(File::Spec->catfile($in, 'f6.bin'), make_rom(16384, 0xF000, 0x0100, "\xAD\xF6\x1F\x60"));
 write_bin(File::Spec->catfile($in, 'f4.bin'), make_rom(32768, 0xF000, 0x0100, "\xAD\xF4\x1F\x60"));
 
+# CBS RAM Plus / FA: three 4K banks, selectors $1FF8-$1FFA, 256 bytes
+# of RAM with write $1000-$10FF and read $1100-$11FF.  The first $200
+# physical bytes of each bank are therefore hidden from runtime ROM fetches.
+# Use distinct mirrored 6507 origins to prove origin inference is not tied to
+# $F000, and chain bank2 -> bank0 -> bank1 through FA hotspots.
+my $fa = "\x02" x 12288;
+for my $b (0 .. 2) {
+   my $base = $b * 4096;
+   my $origin = 0x3000 + $b * 0x2000;
+   substr($fa, $base + 0x0208, 0x0B, "\xEA" x 0x0B);
+   for my $v (0, 2, 4) {
+      put16(\$fa, $base + 0x0FFA + $v, $origin + 0x0208);
+   }
+}
+substr($fa, 0x2000 + 0x0208, 3, "\xAD\xF8\x1F"); # bank2 -> bank0
+substr($fa, 0x0000 + 0x020B, 3, "\xAD\xF9\x1F"); # bank0 -> bank1
+substr($fa, 0x1000 + 0x020E, 1, "\x60");             # bank1 RTS
+write_bin(File::Spec->catfile($in, 'fa.bin'), $fa);
+
 # A bank origin can be inferred from absolute JMP evidence even when that bank
 # has unusable vectors.  Bank 1 keeps one real RESET path so the cartridge still
 # contains established executable code under the zero-instruction success rule.
@@ -211,6 +230,93 @@ my $not_sprite = make_rom(4096, 0xF000, 0x0100,
 substr($not_sprite, 0x0200, 8,
    pack('C*', 0x3C, 0x66, 0xC3, 0xDB, 0xDB, 0xC3, 0x66, 0x3C));
 write_bin(File::Spec->catfile($in, 'not_sprite.bin'), $not_sprite);
+
+# Graphics provenance survives simple ALU transforms.  PF0 sees only the high
+# nibble after AND, but each source byte is still directly graphical data.
+my $graphics_mask = make_rom(4096, 0xF000, 0x0100,
+   "\xA0\x07" .                 # LDY #7
+   "\xB9\x00\xF2" .           # LDA $F200,Y
+   "\x29\xF0" .                 # AND #$F0
+   "\x85\x0D" .                 # STA PF0
+   "\x88\x10\xF6\x60");    # DEY/BPL F102; RTS
+substr($graphics_mask, 0x0200, 8,
+   pack('C*', 0xF0, 0xE0, 0xC0, 0x80, 0x10, 0x30, 0x70, 0xF0));
+write_bin(File::Spec->catfile($in, 'graphics_mask.bin'), $graphics_mask);
+
+# X/Y loads and stores are legitimate graphics paths too.  This table is loaded
+# through X and written directly to GRP1 through STX.
+my $graphics_stx = make_rom(4096, 0xF000, 0x0100,
+   "\xA0\x07" .                 # LDY #7
+   "\xBE\x20\xF2" .           # LDX $F220,Y
+   "\x86\x1C" .                 # STX GRP1
+   "\x88\x10\xF8\x60");    # DEY/BPL F102; RTS
+substr($graphics_stx, 0x0220, 8,
+   pack('C*', 0x18, 0x3C, 0x7E, 0xDB, 0xFF, 0x24, 0x24, 0x24));
+write_bin(File::Spec->catfile($in, 'graphics_stx.bin'), $graphics_stx);
+
+# Register transfers retain graphics provenance: A loaded from ROM is copied into
+# X before STX publishes it to GRP1.
+my $graphics_transfer = make_rom(4096, 0xF000, 0x0100,
+   "\xA0\x07" .                 # LDY #7
+   "\xB9\x30\xF2" .           # LDA $F230,Y
+   "\xAA" .                         # TAX
+   "\x86\x1C" .                 # STX GRP1
+   "\x88\x10\xF7\x60");    # DEY/BPL F102; RTS
+substr($graphics_transfer, 0x0230, 8,
+   pack('C*', 0x81, 0x42, 0x24, 0x18, 0x18, 0x24, 0x42, 0x81));
+write_bin(File::Spec->catfile($in, 'graphics_transfer.bin'), $graphics_transfer);
+
+# The symmetric Y-register path is valid too: LDY absolute,X feeding STY GRP0.
+my $graphics_sty = make_rom(4096, 0xF000, 0x0100,
+   "\xA2\x07" .                 # LDX #7
+   "\xBC\x28\xF2" .           # LDY $F228,X
+   "\x84\x1B" .                 # STY GRP0
+   "\xCA\x10\xF8\x60");    # DEX/BPL F102; RTS
+substr($graphics_sty, 0x0228, 8,
+   pack('C*', 0x7E, 0x42, 0x5A, 0x5A, 0x42, 0x42, 0x7E, 0x00));
+write_bin(File::Spec->catfile($in, 'graphics_sty.bin'), $graphics_sty);
+
+# A runtime-indexed font/table gets a bounded graphics range.  The explicit
+# routine at F210 supplies a hard end boundary, so exactly 16 font bytes should
+# become visual rows even though X is not statically known.
+my $font_rows = make_rom(4096, 0xF000, 0x0100,
+   "\xAD\x80\x02" .           # LDA SWCHA
+   "\x29\x0F\xAA" .           # AND #$0F / TAX
+   "\xBD\x00\xF2" .           # LDA $F200,X
+   "\x85\x1B" .                 # STA GRP0
+   "\x20\x10\xF2\x60");    # JSR F210; RTS
+substr($font_rows, 0x0200, 16,
+   pack('C*',
+      0x3C,0x66,0x6E,0x76,0x66,0x66,0x3C,0x00,
+      0x18,0x38,0x18,0x18,0x18,0x18,0x3C,0x00));
+substr($font_rows, 0x0210, 1, "\x60");
+write_bin(File::Spec->catfile($in, 'font_rows.bin'), $font_rows);
+
+# Random-looking data with no TIA graphics provenance stays numeric even when
+# indexed like a table.
+my $random_table = make_rom(4096, 0xF000, 0x0100,
+   "\xA0\x0F" .                 # LDY #15
+   "\xB9\x40\xF2" .           # LDA $F240,Y
+   "\x85\x80" .                 # STA ordinary RAM
+   "\x88\x10\xF8\x60");    # DEY/BPL; RTS
+substr($random_table, 0x0240, 16,
+   pack('C*', 0x93,0x07,0xE1,0x4C,0xB6,0x2A,0xD8,0x55,
+              0x01,0xFE,0x73,0x8D,0xC2,0x39,0xA4,0x60));
+write_bin(File::Spec->catfile($in, 'random_table.bin'), $random_table);
+
+# Compressed/transformed-looking bytes whose route to GRP0 crosses a subroutine
+# remain numeric.  The conservative detector must not invent direct graphics
+# provenance across a call whose effects are not proven.
+my $compressed = make_rom(4096, 0xF000, 0x0100,
+   "\xA0\x07" .                 # LDY #7
+   "\xB9\x60\xF2" .           # LDA $F260,Y
+   "\x20\x80\xF1" .           # JSR transform
+   "\x85\x1B" .                 # STA GRP0
+   "\x88\x10\xF5\x60");    # DEY/BPL F102; RTS
+substr($compressed, 0x0180, 4, "\x49\x5A\x2A\x60"); # EOR/ROL/RTS
+substr($compressed, 0x0260, 8,
+   pack('C*', 0xD3,0x11,0x8E,0x70,0x2C,0xF5,0x49,0xA6));
+write_bin(File::Spec->catfile($in, 'compressed_table.bin'), $compressed);
 
 # Static tracing must stop cleanly when execution leaves cartridge ROM.
 my $dynamic_exit = make_rom(4096, 0xF000, 0x0100,
@@ -459,6 +565,18 @@ die "unsupported raw cartridge unexpectedly succeeded\n" if $odd_rc == 0;
 die "unsupported raw failure left an output file\n" if -e $odd_out;
 require_re(slurp($odd_log), qr/no instructions found/i, 'raw-layout zero-instruction error');
 
+my $fa_out = slurp(File::Spec->catfile($out, 'fa.s26'));
+require_re($fa_out, qr/^; mapper: FA \(high confidence;/m, 'FA 12K mapper inference');
+require_re($fa_out, qr/^; reset\/power-on bank: 2 \(FA hardware default\)$/m,
+   'FA startup bank');
+require_re($fa_out, qr/^; bank 0: .*origin \$3000/m, 'FA bank 0 origin');
+require_re($fa_out, qr/^; bank 1: .*origin \$5000/m, 'FA bank 1 origin');
+require_re($fa_out, qr/^; bank 2: .*origin \$7000/m, 'FA bank 2 origin');
+require_re($fa_out, qr/^; FA cartridge RAM: write \$1000-\$10FF, read \$1100-\$11FF; bank 2 powers up$/m,
+   'FA RAM mapping annotation');
+require_re($fa_out, qr/^; usage bytes: .*fa-hidden=1536\b/m,
+   'FA hidden RAM-window bytes excluded from ROM analysis');
+
 my $dpc_out = slurp(File::Spec->catfile($out, 'dpc.s26'));
 require_re($dpc_out, qr/^; mapper: DPC \(high confidence;/m, 'DPC size mapper inference');
 require_re($dpc_out, qr/^; DPC auxiliary data ROM: file \$2000\.\.\$27FF \(2048 bytes\)$/m,
@@ -535,6 +653,46 @@ require_re($sprite_out, qr/\.byte\s+%00111100\s+;\s+\.\.XXXX\.\./,
 my $not_sprite_out = slurp(File::Spec->catfile($out, 'not_sprite.s26'));
 die "non-graphics table was rendered as sprite rows\n"
    if $not_sprite_out =~ /^\s*\.byte\s+%[01]{8}\s+;/m;
+my $graphics_mask_out = slurp(File::Spec->catfile($out, 'graphics_mask.s26'));
+my @mask_rows = ($graphics_mask_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+die "expected 8 transformed playfield rows, got " . scalar(@mask_rows) . "\n"
+   if @mask_rows != 8;
+require_re($graphics_mask_out, qr/\.byte\s+%11110000\s+;\s+XXXX\.\.\.\./,
+   'ALU-transformed PF graphics provenance');
+
+my $graphics_stx_out = slurp(File::Spec->catfile($out, 'graphics_stx.s26'));
+my @stx_rows = ($graphics_stx_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+die "expected 8 STX-fed graphics rows, got " . scalar(@stx_rows) . "\n"
+   if @stx_rows != 8;
+require_re($graphics_stx_out, qr/\.byte\s+%11111111\s+;\s+XXXXXXXX/,
+   'X-register graphics provenance');
+
+my $graphics_transfer_out = slurp(File::Spec->catfile($out, 'graphics_transfer.s26'));
+my @transfer_rows = ($graphics_transfer_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+die "expected 8 transferred graphics rows, got " . scalar(@transfer_rows) . "\n"
+   if @transfer_rows != 8;
+require_re($graphics_transfer_out, qr/\.byte\s+%10000001\s+;\s+X\.\.\.\.\.\.X/,
+   'register-transfer graphics provenance');
+
+my $graphics_sty_out = slurp(File::Spec->catfile($out, 'graphics_sty.s26'));
+my @sty_rows = ($graphics_sty_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+die "expected 8 STY-fed graphics rows, got " . scalar(@sty_rows) . "\n"
+   if @sty_rows != 8;
+require_re($graphics_sty_out, qr/\.byte\s+%01111110\s+;\s+\.XXXXXX\./,
+   'Y-register graphics provenance');
+
+my $font_out = slurp(File::Spec->catfile($out, 'font_rows.s26'));
+my @font_visual = ($font_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+die "expected 16 visual font rows, got " . scalar(@font_visual) . "\n"
+   if @font_visual != 16;
+require_re($font_out, qr/\.byte\s+%00111100\s+;\s+\.\.XXXX\.\./,
+   'runtime-indexed font-table rendering');
+
+for my $non_graphics_name ('random_table.s26', 'compressed_table.s26') {
+   my $text = slurp(File::Spec->catfile($out, $non_graphics_name));
+   die "$non_graphics_name was overclassified as graphics\n"
+      if $text =~ /^\s*\.byte\s+%[01]{8}\s+;/m;
+}
 my $dynamic_exit_out = slurp(File::Spec->catfile($out, 'dynamic_exit.s26'));
 require_re($dynamic_exit_out, qr/JMP\.a\s+\$0080.*control transfer leaves statically decoded cartridge ROM/i,
    'dynamic control exit annotation');

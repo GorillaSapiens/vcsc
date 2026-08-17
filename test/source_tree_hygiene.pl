@@ -643,7 +643,10 @@ $ram_roadmap =~ /^\[x\] 14\. Remove remaining ordinary application assembly reco
    or die "RAM-optimization roadmap, measured optimizer follow-up, or authoritative accounting fixture is stale\n";
 $roadmap !~ /^\s*\[ \]\s+22i4d\./m
    or die "obsolete active roadmap item 22i4d was restored\n";
-$roadmap =~ /^Current next action: none selected\b/m &&
+$roadmap =~ /^Current next action: Item 39, add CBS FA\/RAM Plus cartridge output support\./m &&
+$roadmap =~ /^\[ \] 39\. Add CBS FA \/ RAM Plus cartridge output support/m &&
+$roadmap =~ /^\[ \] 41\. Identify other low-hanging-fruit Atari 2600 mapper families/m &&
+$roadmap =~ /^\[ \] 42\. Add a public diagnostic cartridge/m &&
 $roadmap =~ /^\[x\] 27\. Inventory and define the source-integration contract/m &&
 $roadmap =~ /^\[x\] 28\. Port and verify the minimal unbanked, non-Superchip multisprite profile/m &&
 index($roadmap,'faithful fixed baseline complete')>=0 &&
@@ -652,7 +655,7 @@ index($roadmap,'122 state +')>=0 &&
 index($roadmap,'6 hardware-stack = 128/128 RIOT-RAM bytes')>=0 &&
 index($roadmap,'one renderer source parameterized by visible scanline')>=0 &&
 $roadmap =~ /^\s*\[x\] 22d1\. Hard-cut the source keyword from `template` to/m
-   or die "main roadmap lost the completed item-28 multisprite baseline/modern component or task-27 completion\n";
+   or die "main roadmap lost the FA next action, mapper survey, diagnostic ordering, or completed item-27/item-28 state\n";
 $roadmap =~ /^\s*\[x\] 22i4b5\./m
    or die "two-plus-two score roadmap leaf is not complete\n";
 $roadmap =~ /^\s*\[x\] 22i4b6\./m

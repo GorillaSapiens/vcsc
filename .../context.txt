@@ -1038,8 +1038,8 @@ both ports independently, clockwise/counterclockwise wrap, ambiguous and
 direction-preserving skipped states, per-frame accumulation/reset, button
 press/release, opposite-port SWCHA/SWACNT isolation, public hex arithmetic/color,
 and invariant frame length. Installed-tree checks ship the component and build
-the public example. Item 39 (public supported-controller diagnostic) is now the
-first unfinished main-roadmap item.
+the public example. Main-roadmap Item 39 is now CBS FA/RAM Plus cartridge output
+support; the former supported-controller diagnostic moved to Item 42.
 
 Roadmap item 40 (two-player joystick tank duel) is complete as the public
 `examples/01_basic/13_tanks/` example. It uses the Paddleball blue/red/black/white
@@ -1130,7 +1130,9 @@ length, and beam-write deadlines for nonzero GRP0/GRP1 plus side/full PF0
 transitions. Its timing stress path drives tanks and missiles to X endpoints 4/148
 and Y endpoints 4/78 while injecting simultaneous hits/spin/audio activity; every
 post-startup frame must retain the 264-raw cadence. Installed-tree and example-build
-coverage include `tanks`. Item 39 remains the first unfinished main-roadmap item.
+coverage include `tanks`. Item 39 (CBS FA/RAM Plus output support) is the first
+unfinished main-roadmap item; Item 41 then surveys other low-hanging-fruit mapper
+families before the public diagnostic and later renderer/example work.
 
 The generic per-case test timeout is now 20 seconds, and former explicit
 10-second overrides were raised to 20 seconds as well; longer 120-second
@@ -1181,7 +1183,7 @@ Disassembler side project (2026-08-16):
 `.../disassembler.txt` is the focused context/roadmap.  The new
 `disassembler/vcsc-disas` now has an exact-round-trip first implementation with
 all-opcode decode/emission, mandatory branch `.same`/`.cross`, unbanked and
-F8/F6/F4(+Superchip) and DPC bank-aware analysis, per-bank origin inference, overlapping
+F8/F6/F4(+Superchip), FA and DPC bank-aware analysis, per-bank origin inference, overlapping
 instruction streams, code-as-data and unreferenced-byte roles, TIA/RIOT symbols
 with exact mirror comments, conservative graphics rows, static video/controller
 inference and explicit analysis overrides. A run with zero decoded instructions is
@@ -1202,24 +1204,38 @@ emission so entries inside the vector table remain labelable; Stellar Track's
 NMI bytes at `$FFFA/$FFFB` exercise this case. The standalone
 `disassembler/roundtrip.pl INPUT_DIR OUTPUT_DIR` drives vcsc-disas and vcsc-as,
 retains .s26/rebuilt .bin files, prints MD5 values, and requires exact byte
-identity.  The focused roadmap records remaining analysis-breadth/hardening work;
-this side project does not change main-roadmap ordering, where Item 39 remains
-first unfinished.  Current validation is 499/499 compile tests; the three
-vcsc-disas E2E regressions pass, 50 semantic fixtures, all 256 opcode bytes and
+identity.  The focused roadmap records remaining analysis-breadth/hardening work. Main
+roadmap ordering now selects Item 39 (CBS FA/RAM Plus output support), followed by
+Item 41's low-hanging-fruit mapper survey. Current validation is 499/499 compile
+tests; the three
+vcsc-disas E2E regressions pass, 58 semantic fixtures, all 256 opcode bytes and
 deterministic fuzz round-trip exactly, and a 16-ROM real VCSC corpus (2K/4K, controllers, score,
 PAL/SECAM, F8/F6/F4, and F8SC/F6SC/F4SC) round-trips byte-for-byte.  Native
 staged vcsc-disas install/uninstall also passes.  The E2E inventory is now 308
 cases; one unrelated legacy renderer case can exceed its explicit 12-second
 harness limit in this container but passes when run directly.  Commercial
-Bridge, Stellar Track, and the standard 10495-byte Pitfall II DPC ROM also
+Bridge, Stellar Track, the standard 10495-byte Pitfall II DPC ROM, and Mountain
+King's 12288-byte CBS FA/RAM Plus ROM also
 round-trip exactly; DPC is inferred from its distinctive size/layout and its first
 8K is analyzed as two F8-style program banks while the trailing DPC data/RNG bytes
-remain explicit auxiliary data. Stella 7.0 identifies Bridge and Stellar Track
+remain explicit auxiliary data. FA is inferred from the 12K layout as three 4K
+banks with fixed startup bank 2 and `$1FF8-$1FFA` selectors; its `$1000-$11FF`
+RAM overlay hides the first `$200` bytes of each bank from runtime ROM analysis.
+Mountain King exercises mirrored origins `$3000/$5000/$7000` and round-trips
+exactly. Stella 7.0 identifies Bridge and Stellar Track
 as NTSC, and the broadened static detector now reports Bridge as NTSC/medium and
-Stellar Track as NTSC/high. The speculative island pass tests every unknown start
-with a bounded recursive flow walk, rejects any possible newly speculative
-HLT/JAM/KIL path, uses known C/Z/N/V flags to prune impossible branch arms, and
-promotes only nontrivial safe candidates immediately after three-rejected-start
+Stellar Track as NTSC/high. The speculative island pass first reverse-marks every
+unknown start that can structurally reach HLT/JAM/KIL, then runs the bounded
+stateful C/Z/N/V flow walk only on those candidates. This preserves the halt
+rejection semantics while avoiding repeated full-bank speculative walks; the
+50-fixture disassembler regression fell from about 27.8 seconds to about 6 seconds.
+It promotes only nontrivial safe candidates immediately after three-rejected-start
 barriers. Established code and overlaps remain authoritative. Real `JMP ($xxFF)`
 instructions are emitted raw because vcsc-as intentionally rejects that hazardous
-NMOS indirect-JMP spelling.
+NMOS indirect-JMP spelling. Sprite/font/playfield detection now tracks short
+straight-line A/X/Y provenance from ROM loads through register transfers and simple
+ALU/shift transforms into STA/STX/STY writes to GRP0/GRP1/PF0/PF1/PF2. Countdown
+loops prove exact spans when possible; unresolved runtime-indexed tables stop at a
+known code/vector/label boundary, while calls/branches/unknown opcodes stop
+provenance. Roadmap item 9 is complete; the next focused disassembler item is item
+10, further NTSC/PAL-family timing inference.

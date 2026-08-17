@@ -67,3 +67,29 @@ Implemented bounded per-address speculative flow validation with HLT/JAM/KIL rej
 Promotion also reuses stego-style credibility checks; deterministic 8K/16K/32K random fuzz now records negative barriers but promotes zero speculative islands.
 2026-08-16 16:13:26 PDT, DPC disassembly and zero-code failure
 vcsc-disas now recognizes 10240/10495-byte DPC layouts, analyzes the first 8K as two F8-style program banks, preserves the trailing DPC auxiliary data, and fails without output when analysis finds zero instructions. Pitfall2.bin round-trips byte-identically.
+
+2026-08-16 16:31:25 PDT, speed speculative halt prefilter
+`vcsc_disassembler.pl` had grown to about 27.8 seconds after speculative-island
+analysis and exceeded the generic 20-second E2E timeout.  The disassembler now
+builds one reverse speculative CFG per bank from HLT/JAM/KIL bytes and performs
+the expensive stateful flag analysis only for starts that can structurally reach
+a halt.  The same 50-fixture regression now takes about 6 seconds without a test
+timeout increase.
+
+2026-08-16 16:48:33 PDT, Add FA/RAM Plus disassembly support
+Recognize 12288-byte CBS FA cartridges as three 4K banks, model $1FF8-$1FFA
+selectors, fixed startup bank 2, and the $1000-$11FF split 256-byte RAM window.
+Mountain King now infers $3000/$5000/$7000 bank origins and round-trips exactly.
+2026-08-16 17:03:36 PDT, FA roadmap and graphics provenance
+Main-roadmap Item 39 now targets CBS FA/RAM Plus output support and Item 41
+surveys other low-hanging-fruit mapper families; the former public diagnostic
+and later renderer/example items moved to 42-44.  Disassembler roadmap Item 9
+is complete: graphics provenance follows ROM loads into A/X/Y through register
+transfers and simple ALU/accumulator-shift transforms into STA/STX/STY writes to
+GRP0/GRP1/PF0/PF1/PF2, with conservative range bounds and hard stops at calls,
+branches, unknown opcodes, or unrelated loads.  New regressions cover transformed
+PF masks, STX/STY graphics, register-transfer provenance, runtime-indexed font
+rows, random tables, and compressed-looking call-mediated data.  The semantic corpus is 58/58 exact; all-opcode,
+fuzz, Bridge, Stellar Track, Pitfall II DPC, and Mountain King FA round-trip.
+The source-tree hygiene oracle now pins the new Item 39/41/42 ordering so the
+selected FA next action and mapper survey cannot silently revert.

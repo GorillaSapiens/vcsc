@@ -23,8 +23,9 @@ Immediate TODO
 The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
-Current next action: none selected. Item 36 is the first unfinished roadmap item,
-but no new workstream should be assumed until the user selects one.
+Current next action: Item 39, add CBS FA/RAM Plus cartridge output support.
+Item 41 then surveys other low-hanging-fruit mapper families before the roadmap
+returns to the public diagnostic and renderer/example work.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.
@@ -1880,11 +1881,32 @@ but no new workstream should be assumed until the user selects one.
         rapid transitions, define per-frame accumulation/reset semantics, and add
         emulator-backed tests plus an example that exercises one and two controllers.
 
-[ ] 39. Add a public diagnostic cartridge that exercises and reports the supported
-        console switches, controller types, TIA objects, playfield, colors, collisions,
-        and audio. Keep the displayed results unambiguous, include deterministic
-        self-test screens where practical, document required controller hookups, and
-        verify every screen or mode with staged-toolchain and emulator-backed tests.
+[ ] 39. Add CBS FA / RAM Plus cartridge output support as the next bankswitching
+        target. Reuse the existing full-window bank model rather than adding a special
+        compiler ABI: emit three physical 4K banks, power up/reset in bank 2, select
+        banks 0/1/2 through `$1FF8/$1FF9/$1FFA`, and model the 256-byte cartridge RAM
+        as writes at `$1000-$10FF` and reads at `$1100-$11FF`.
+
+        Acceptance criteria:
+
+        * Reserve the runtime `$1000-$11FF` FA RAM overlay in every bank so ordinary
+          code/const placement uses only `$1200-$1FFF`; account for the resulting
+          3584-byte usable ROM budget per bank and fill hidden physical bytes
+          deterministically in the raw 12288-byte image.
+        * Make bank 2 the reset/startup bank and generate correct per-bank vectors,
+          reset bridges, cross-bank calls/returns, and bank-selection sequences using
+          the existing bankswitching machinery wherever possible.
+        * Expose FA RAM through the same read/write-address memory abstraction used by
+          Superchip RAM, with exact linker symbols/map accounting and no accidental
+          aliasing with RIOT RAM.
+        * Add linker/compiler diagnostics for bank overflow, illegal placement in the
+          RAM overlay, and invalid bank references.
+        * Add a small public FA cartridge plus staged-toolchain and emulator-backed
+          tests covering all three bank selectors, startup bank 2, cross-bank calls,
+          persistent FA RAM reads/writes, vectors, exact 12K output size/order, and
+          stable frame timing.
+        * Document FA/RAM Plus alongside F8/F6/F4 and Superchip targets in the public
+          bankswitching/toolchain documentation.
 
 [x] 40. Add a small two-player joystick tank-duel example in the spirit of Combat.
         Include independent movement and facing, projectile firing, arena/playfield
@@ -1917,13 +1939,30 @@ but no new workstream should be assumed until the user selects one.
         oracle includes a deterministic case whose preferred destination is inside a
         barrier and must be rejected.
 
-[ ] 41. Add playfield-color support as an explicit renderer capability. Define
+[ ] 41. Identify other low-hanging-fruit Atari 2600 mapper families that fit the
+        existing VCSC bankswitching/linker architecture. Survey established cartridge
+        schemes by bank/window shape, startup behavior, hotspots, auxiliary RAM, and
+        output-image layout; distinguish descriptor-level additions from schemes that
+        require genuinely new compiler/linker/runtime machinery. Prioritize the small
+        set with the highest compatibility payoff and lowest implementation risk, and
+        add separate roadmap items with concrete acceptance criteria before coding
+        them. Do not broaden mapper support merely because vcsc-disas can recognize a
+        scheme; the compiler target must have a clear exact hardware contract and an
+        emulator-backed test strategy.
+
+[ ] 42. Add a public diagnostic cartridge that exercises and reports the supported
+        console switches, controller types, TIA objects, playfield, colors, collisions,
+        and audio. Keep the displayed results unambiguous, include deterministic
+        self-test screens where practical, document required controller hookups, and
+        verify every screen or mode with staged-toolchain and emulator-backed tests.
+
+[ ] 43. Add playfield-color support as an explicit renderer capability. Define
         whether colors are global, per logical row, or both; schedule every COLUPF
         write against the beam; preserve existing renderer output when unused; expose
         a clear application data/API contract; and add static, motion, transition,
         installation, and pixel/color-oracle coverage for each supported profile.
 
-[ ] 42. Add a public side-scroller/platform example. Demonstrate animated player
+[ ] 44. Add a public side-scroller/platform example. Demonstrate animated player
         sprites, horizontal world scrolling, platform/playfield collision, jumping
         and gravity, camera/world-state separation, and at least one collectible,
         hazard, or goal. Use original assets, stay within a documented RAM/ROM/frame
