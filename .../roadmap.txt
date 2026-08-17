@@ -24,7 +24,7 @@ The first unfinished leaf item is the default next action. Parent items remain
 unchecked until every child is complete.
 
 Current next action: Item 43, add the public console/TIA diagnostic cartridge.
-Main Item 42 is complete; focused bankswitching Item 32 (OMNI) is now unblocked.
+Main Item 42 and focused bankswitching Item 32 (OMNI) are complete; CV/CommaVid is bankswitching Item 33.
 
 [x] 0. Repair the shared 181-line renderer by deriving its beam schedule
        directly from the proven 192-line renderer.

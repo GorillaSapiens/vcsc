@@ -769,13 +769,13 @@ void emit_mem_region_metadata_for_name(const ASTNode *origin, const char *name) 
    set_add(emitted_mem_region_metadata, strdup(name), (void *)1);
    emit(&es_export, "%s = 0\n", sym);
    emit(&es_export, ".export %s\n", sym);
-   if (split) {
-      /* The VCS default BSS/DATA regions are zero page, but a named split
-         region such as Superchip RAM lives in the cartridge address window.
-         Override the inherited base-segment contract so unsuffixed accesses
-         remain absolute until their aliases are resolved by the linker. */
-      emit(&es_export, ".segmentaddrsize \"BSS.%s\", absolute\n", name);
-      emit(&es_export, ".segmentaddrsize \"DATA.%s\", absolute\n", name);
+   if (!strcmp(type, "rw")) {
+      const char *addrsize = (!split && start + size <= 0x100u) ? "zp" : "absolute";
+      /* Named writable storage owns its own address-size contract.  Do not let
+         the default DATA/BSS zero-page contract leak into a cartridge-RAM
+         region such as OMNI $1000-$1FFF or a split-address mapper window. */
+      emit(&es_export, ".segmentaddrsize \"BSS.%s\", %s\n", name, addrsize);
+      emit(&es_export, ".segmentaddrsize \"DATA.%s\", %s\n", name, addrsize);
    }
 }
 

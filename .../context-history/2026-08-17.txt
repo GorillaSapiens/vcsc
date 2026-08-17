@@ -63,3 +63,7 @@ Tanks knockback now sets a per-player playfield-escape latch. If knockback lands
 inside a wall or PF barrier, CXP0FB/CXP1FB rollback is suppressed until a clean
 non-overlapping frame occurs, allowing the player to drive out. The Tanks oracle
 holds CXP1FB asserted through the hit spin and verifies forward progress afterward.
+2026-08-17 11:38:11 PDT, completed OMNI direct mapper
+Added executable OMNI simulator mapping and public 32K diagnostic. Fixed
+named non-zero-page writable regions so DATA/BSS use absolute addressing,
+and added install, example-roundtrip, compiler, and focused OMNI coverage.

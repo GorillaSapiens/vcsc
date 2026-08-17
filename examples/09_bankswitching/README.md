@@ -25,7 +25,7 @@ internally.
 The public VCSC cartridge profiles also stamp the final physical 4K bank with a
 four-byte mapper signature at image offsets `$xFF8-$xFFB`. Short mapper names are
 ASCII-NUL padded: `F8\0\0`, `F6\0\0`, `F4\0\0`, and `FA\0\0`; the complete
-four-byte names are `4KSC`, `F8SC`, `F6SC`, and `F4SC`. Only the final bank in
+four-byte names are `4KSC`, `F8SC`, `F6SC`, `F4SC`, and `OMNI`. Only the final bank in
 file order contains the signature. Selector-hotspot addresses are valid storage
 for these bytes because hardware switching is caused by accessing the address,
 not by the byte stored there. The final two bytes overlap the unused 6507 NMI
@@ -38,6 +38,13 @@ uses all 256 bytes of cartridge RAM, and verifies startup from physical bank 2.
 `04_4ksc/` is the direct 4K Superchip diagnostic. It allocates all 128 bytes of
 Superchip RAM, verifies DATA/BSS reset initialization and read/write aliases,
 and displays `4KSC` below the green `pass` or red `FAIL` result.
+
+`05_omni/` is the OmniCart PHM direct-addressing diagnostic. It uses all
+4K of same-address `cartram`, calls through all seven RO islands with ordinary
+16-bit JSR/RTS and data references, and displays `OMNI` below `pass`/`FAIL`.
+There is no Stella target because released Atari hardware/emulators do not expose
+PHM's recovered upper address bits; the regression suite executes the cartridge
+with `vcsc-sim`'s selector-free OMNI logical layout.
 
 ## Banked standard renderer
 

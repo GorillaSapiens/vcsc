@@ -567,8 +567,12 @@ assembler source. That explicit contract lets relocatable assembly retain the
 short addressing modes required by the Atari VCS without guessing from a
 symbol's temporary section offset. A target whose default writable region begins
 at `$0200`, or whose highest-priority choice is ambiguous, emits no contract and
-keeps absolute-family addressing. Named zero-page regions continue to use their
-own ZEROPAGE layouts.
+keeps absolute-family addressing. Named writable regions carry their own address-size contract independently of
+the unqualified DATA/BSS default. A named `$rw` region wholly inside page zero
+emits `zp`; a named `$rw` region outside page zero emits `absolute`. Split-address
+writable regions also emit `absolute`. This prevents an explicit cartridge-RAM
+object such as OMNI `cartram` at `$1000-$1FFF` from inheriting RIOT-RAM zero-page
+opcodes merely because ordinary variables default to `ram`.
 
 Compiler-lowered ordinary 6502 memory operations deliberately do **not** carry
 `.z`, `.a`, `.zx`, `.ax`, `.zy`, `.ay`, `.ix`, or `.iy` addressing-mode

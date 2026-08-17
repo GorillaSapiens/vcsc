@@ -119,7 +119,7 @@ physical offsets `$xFF8-$xFFB` of the final 4K bank written to disk. The source
 profile spells the meaningful ASCII bytes with `$signature:TEXT`; signatures
 shorter than four bytes are padded with ASCII NUL, never spaces or underscores.
 Current signatures are `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`,
-`F4\0\0`, `F4SC`, and `FA\0\0`.
+`F4\0\0`, `F4SC`, `FA\0\0`, and `OMNI`.
 
 Only the final physical/file bank receives the signature. Earlier banks retain
 their normal ROM/fill bytes at the same offsets. Hotspot overlap is intentional
@@ -2086,7 +2086,7 @@ explicit by design.
          Stella's required `SC` bytes at $xFFA-$xFFB, so Stella 7.0 now
          autodetects the diagnostic as 4KSC without a forced mapper option.
 
-[ ] 32. Add OMNI for OmniCart PHM direct addressing.
+[x] 32. Add OMNI for OmniCart PHM direct addressing.
 
        * Emit one 32K image as eight 4K physical chunks corresponding directly to
          logical $1000-$1FFF, $3000-$3FFF, $5000-$5FFF, $7000-$7FFF,
@@ -2124,6 +2124,26 @@ explicit by design.
        * Keep `vcs_direct_8k.c26` as the small generic selector-free certification
          fixture rather than silently redefining it as OmniCart; OMNI gets its own
          explicit public profile.
+
+       Completed 2026-08-17:
+
+       * Added `vcs_omni_32k.cfg` and selector-free simulator loading for eight
+         direct 4K chunks. The cfg maps file order directly to the recovered logical
+         addresses and gives `$1000-$1FFF` ordinary same-address `cartram`; it has
+         no selected-bank state or mapper transition behavior.
+       * Added public `09_bankswitching/05_omni`, which consumes all 4096 cartridge-
+         RAM bytes, verifies DATA/BSS startup initialization and persistence, walks
+         a nested direct JSR/RTS chain through every RO island, performs cross-island
+         constant reads, and displays `OMNI` below `pass`/`FAIL`. There is no Stella
+         target because no released hardware/emulator implements PHM addressing.
+       * Fixed named writable address-size metadata exposed by the executable OMNI
+         test: ordinary named `$rw` storage outside page zero now carries `absolute`
+         DATA/BSS contracts, while named page-zero `$rw` storage carries `zp`. This
+         prevents explicit OMNI `cartram` references from inheriting RIOT-RAM ZP
+         opcodes.
+       * Extended install/package, editable-example build/round-trip, source-hygiene,
+         and focused OMNI regressions. The OMNI simulator self-test reaches trace 7
+         with all seven probes and full `cartram` sentinel checks passing.
 
 [ ] 33. Add CV / CommaVid.
 

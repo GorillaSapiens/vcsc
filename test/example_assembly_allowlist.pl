@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@
 # phase: e2e
-# expectstdout: example assembly allowlist ok: 23 sources pinned, no compiler-limitation debt, and every asm use classified
+# expectstdout: example assembly allowlist ok: 24 sources pinned, no compiler-limitation debt, and every asm use classified
 # expectexit: 0
 
 use strict;

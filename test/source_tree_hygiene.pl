@@ -562,8 +562,12 @@ index($direct_profile,'No real hardware currently supports this exact configurat
 index($omni_profile,'No real hardware currently supports this configuration')>=0 &&
 index($omni_profile,'$signature:OMNI')>=0 &&
 index($omni_profile,'mem cartram { $start:0x1000 $size:0x1000 $rw }')>=0 &&
--f File::Spec->catfile($test,'vcs_omni_32k.pl')
-   or die "direct/OMNI certification profiles or hardware-status comments are incomplete
+-f File::Spec->catfile($test,'vcs_omni_32k.pl') &&
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_omni_32k.cfg') &&
+index($top_make,'libraries/vcs/vcs_omni_32k.cfg')>=0 &&
+-f File::Spec->catfile($repo,'examples','09_bankswitching','05_omni','omni_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','09_bankswitching','05_omni','README.md')
+   or die "direct/OMNI certification profiles, simulator cfg, diagnostic, or hardware-status comments are incomplete
 ";
 -f File::Spec->catfile($repo,'libraries','vcs','vcs.cfg') &&
 index($top_make,'libraries/vcs/vcs.cfg')>=0
@@ -892,6 +896,7 @@ for my $required (qw(
    libraries/vcs/vcs_8k_f8sc.cfg
    libraries/vcs/vcs_16k_f6sc.cfg
    libraries/vcs/vcs_32k_f4sc.cfg
+   libraries/vcs/vcs_omni_32k.cfg
 )) {
    -f File::Spec->catfile($repo,split('/', $required))
       or die "missing required Superchip file $required\n";
@@ -938,7 +943,7 @@ index($snapshot_keys,"function_keycode('F2')")>=0
    or die "Stella bank diagnostics lost console-reset lifecycle coverage\n";
 index($bankswitching,'[x] 11. Add explicit-binding Superchip profiles.')>=0 &&
 index($bankswitching,'[x] 31. Add 4KSC as the first low-hanging-fruit mapper.')>=0 &&
-index($bankswitching,'[ ] 32. Add OMNI for OmniCart PHM direct addressing.')>=0 &&
+index($bankswitching,'[x] 32. Add OMNI for OmniCart PHM direct addressing.')>=0 &&
 index($bankswitching,'[ ] 33. Add CV / CommaVid.')>=0
    or die "explicit-binding Superchip roadmap item is not complete\n";
 index($top_make,'libraries/vcs/vcs_4k_sc.c26')>=0 &&

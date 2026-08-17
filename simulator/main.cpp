@@ -59,6 +59,7 @@ struct simulator_config_t {
    size_t bank_count;
    char mapper[16];
    int cartridge_banked;
+   int cartridge_direct_multi;
    int superchip_mapper;
    size_t startup_bank;
 };
@@ -362,13 +363,14 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
 
    if (cfg->bank_count != 0) {
       size_t startup_count = 0;
-      cfg->cartridge_banked = 1;
+      cfg->cartridge_direct_multi = str_ieq(cfg->mapper, "OMNI");
+      cfg->cartridge_banked = !cfg->cartridge_direct_multi;
       cfg->superchip_mapper = str_ieq(cfg->mapper, "F8SC") ||
                               str_ieq(cfg->mapper, "F6SC") ||
                               str_ieq(cfg->mapper, "F4SC");
       if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") ||
             str_ieq(cfg->mapper, "F4") || str_ieq(cfg->mapper, "FA") ||
-            cfg->superchip_mapper)) {
+            str_ieq(cfg->mapper, "OMNI") || cfg->superchip_mapper)) {
          fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
          exit(1);
       }
@@ -388,7 +390,7 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
          }
       }
       if (startup_count != 1) {
-         fprintf(stderr, "vcsc-sim: banked config must name exactly one startup bank\n");
+         fprintf(stderr, "vcsc-sim: multi-region config must name exactly one startup bank\n");
          exit(1);
       }
    }
@@ -864,6 +866,19 @@ static void load_raw_binary(const char *filename) {
       throw std::runtime_error("Failed to open raw binary file");
    std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(in)),
                               std::istreambuf_iterator<char>());
+   if (g_cfg_loaded && g_cfg.cartridge_direct_multi) {
+      size_t expected = 0;
+      for (size_t i = 0; i < g_cfg.bank_count; ++i)
+         expected += g_cfg.banks[i].size;
+      if (bytes.size() != expected)
+         throw std::runtime_error("Raw direct-multi cartridge size does not match config");
+      for (size_t file_index = 0; file_index < g_cfg.bank_count; ++file_index) {
+         size_t bank_index = bank_index_for_file_index(file_index);
+         const cartridge_bank_t *bank = &g_cfg.banks[bank_index];
+         memcpy(mem + bank->start, bytes.data() + file_index * bank->size, bank->size);
+      }
+      return;
+   }
    if (!g_cfg_loaded || !g_cfg.cartridge_banked) {
       // Conventional unbanked VCS images have an unambiguous placement in the
       // 4K cartridge window.  Supporting them directly also lets logical cfgs

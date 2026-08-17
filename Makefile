@@ -179,6 +179,7 @@ install-data:
 	install -m 0644 libraries/vcs/vcs_8k_f8sc.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8sc.cfg
 	install -m 0644 libraries/vcs/vcs_16k_f6sc.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6sc.cfg
 	install -m 0644 libraries/vcs/vcs_32k_f4sc.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4sc.cfg
+	install -m 0644 libraries/vcs/vcs_omni_32k.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_omni_32k.cfg
 	install -d $(DESTDIR)$(DATADIR)/vcs/renderers
 	install -m 0644 libraries/vcs/renderers/COMPONENT_CONVERSION.md \
 	  $(DESTDIR)$(DATADIR)/vcs/renderers/COMPONENT_CONVERSION.md
@@ -324,6 +325,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8sc.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6sc.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4sc.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_omni_32k.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/COMPONENT_CONVERSION.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26
@@ -555,6 +557,7 @@ installcheck: tools
 	  -o "$(INSTALLCHECK_STAGING)/fa_blank.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/fa_blank.bin"` -eq 12288; \
 	test -f "$$stage_vcs/vcs_4k_sc.cfg"; \
+	test -f "$$stage_vcs/vcs_omni_32k.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" \
 	  "$$stage_vcs/vcs_4k_sc.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/4ksc_blank.bin"; \

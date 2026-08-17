@@ -1,0 +1,16 @@
+// vcsc-cc1 -I .
+// expectasm: .segmentaddrsize "BSS.cartram", absolute
+// expectasm: .segmentaddrsize "DATA.cartram", absolute
+// expectasm: .segmentaddrsize "BSS.fastzp", zp
+// expectasm: .segmentaddrsize "DATA.fastzp", zp
+// expectasm: sta wide
+// expectasm: sta fast
+include "machine_6502.c26"
+mem cartram { $start:0x1000 $size:0x1000 $rw };
+mem fastzp { $start:0x0080 $size:0x0010 $rw };
+cartram uint8_t wide := 1;
+fastzp uint8_t fast := 2;
+void main(void) {
+   wide := 3;
+   fast := 4;
+}

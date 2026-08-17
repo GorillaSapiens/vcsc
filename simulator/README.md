@@ -211,6 +211,17 @@ when a non-banked cfg is supplied. This lets `vcs_4k_sc.cfg` provide the split
 Superchip RAM aliases while the 4K ROM remains a direct cartridge. Other raw
 unbanked sizes are rejected rather than guessed.
 
+OMNI direct-multi support
+-------------------------
+`vcs_omni_32k.cfg` describes the planned OmniCart PHM direct-addressing model.
+The simulator loads its eight 4K file chunks directly at logical `$1000`,
+`$3000`, `$5000`, `$7000`, `$9000`, `$B000`, `$D000`, and `$F000`. OMNI has no
+selected-bank state or selector hotspots; the BANKS entries in this cfg are
+file-to-logical placement records only. The `$1000-$1FFF` `cartram` entry is
+same-address writable memory, while the seven program/constant islands remain
+read-only. This mode exists to certify VCSC/OmniCart software before PHM hardware
+is available; it is not an emulation of conventional Atari bank switching.
+
 Split-address memory and Superchip mapper support
 -------------------------------------------------
 Any cfg `MEMORY` entry with both `read_start` and `write_start` is modeled as

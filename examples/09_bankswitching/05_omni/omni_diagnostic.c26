@@ -1,0 +1,241 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// OmniCart OMNI PASS/FAIL diagnostic.
+// Exercises every directly addressed RO island, all 4K of same-address
+// cartridge RAM, ordinary cross-island JSR/RTS and data reads, and leaves a
+// stable green PASS / OMNI display (dark-red FAIL on error).
+
+include "vcs_omni_32k.c26"
+
+#ifndef SIMULATOR_TEST
+include "frame_ntsc.c26"
+include "fonts/default_decimal.c26"
+instantiate "six_glyph_big_wide_component.c26" as status_result
+instantiate "six_glyph_component.c26" as cart_type (compact_font:=0)
+#endif
+
+// Occupy the complete 4K OMNI cartridge-RAM island.  The file chunk itself is
+// fill; startup copies the initialized byte and zeros the remaining BSS through
+// the ordinary same-address $1000-$1FFF writable region.
+cartram uint8_t omni_data := 0x5A;
+cartram uint8_t omni_bss[4095];
+
+uint8_t failure;
+uint8_t trace;
+uint8_t probe_count;
+uint16_t index;
+
+// Put one marker and one callable probe in every directly addressed RO island.
+// The call chain walks $F000->$3000->$5000->$7000->$9000->$B000->$D000->$F000
+// and then returns normally. No selector access or trampoline exists in OMNI.
+bank6 const uint8_t marker6 := 0x36;
+bank5 const uint8_t marker5 := 0x55;
+bank4 const uint8_t marker4 := 0x74;
+bank3 const uint8_t marker3 := 0x93;
+bank2 const uint8_t marker2 := 0xB2;
+bank1 const uint8_t marker1 := 0xD1;
+bank0 const uint8_t marker0 := 0xF0;
+
+bank0 void home_probe(void) {
+   if (trace != 6 || marker0 != 0xF0 || marker6 != 0x36 ||
+       omni_data != 0xA5 || omni_bss[4094] != 0x33) {
+      failure := 0x70;
+   }
+   probe_count := probe_count + 1;
+   trace := 7;
+}
+
+bank1 void probe1(void) {
+   if (trace != 5 || marker1 != 0xD1 || marker0 != 0xF0) { failure := 0x61; }
+   probe_count := probe_count + 1;
+   trace := 6;
+   home_probe();
+   if (trace != 7) { failure := 0x62; }
+}
+
+bank2 void probe2(void) {
+   if (trace != 4 || marker2 != 0xB2 || marker1 != 0xD1) { failure := 0x51; }
+   probe_count := probe_count + 1;
+   trace := 5;
+   probe1();
+   if (trace != 7) { failure := 0x52; }
+}
+
+bank3 void probe3(void) {
+   if (trace != 3 || marker3 != 0x93 || marker2 != 0xB2) { failure := 0x41; }
+   probe_count := probe_count + 1;
+   trace := 4;
+   probe2();
+   if (trace != 7) { failure := 0x42; }
+}
+
+bank4 void probe4(void) {
+   if (trace != 2 || marker4 != 0x74 || marker3 != 0x93) { failure := 0x31; }
+   probe_count := probe_count + 1;
+   trace := 3;
+   probe3();
+   if (trace != 7) { failure := 0x32; }
+}
+
+bank5 void probe5(void) {
+   if (trace != 1 || marker5 != 0x55 || marker4 != 0x74) { failure := 0x21; }
+   probe_count := probe_count + 1;
+   trace := 2;
+   probe4();
+   if (trace != 7) { failure := 0x22; }
+}
+
+bank6 void probe6(void) {
+   if (trace != 0 || marker6 != 0x36 || marker5 != 0x55 ||
+       omni_data != 0xA5 || omni_bss[0] != 0x11) {
+      failure := 0x11;
+   }
+   probe_count := probe_count + 1;
+   trace := 1;
+   probe5();
+   if (trace != 7) { failure := 0x12; }
+}
+
+#ifndef SIMULATOR_TEST
+// Exact glyph subsets copied from the canonical ASCII fonts.
+// Big table order: space, p, a, s, F, A, I, L.
+// Small table order: space, O, M, N, I.
+alias OMNI_GLYPH(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a
+alias OMNI_SMALL_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+page const uint8_t status_glyphs[128] := {
+   OMNI_GLYPH(0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........),
+   OMNI_GLYPH(0b........,0b........,0b........,0b........,0b........,0bXXXXXXX.,0bXXXXXXXX,0bXXX..XXX,0bXXX..XXX,0bXXX..XXX,0bXXXXXXXX,0bXXXXXXX.,0bXXX.....,0bXXX.....,0bXXX.....,0b........),
+   OMNI_GLYPH(0b........,0b........,0b........,0b........,0b........,0b..XXXXX.,0b.XXXXXXX,0b.....XXX,0b.XXXXXXX,0bXXX..XXX,0bXXXXXXXX,0b.XXXXXXX,0b........,0b........,0b........,0b........),
+   OMNI_GLYPH(0b........,0b........,0b........,0b........,0b........,0b.XXXXXX.,0bXXXXXXXX,0bXXXX....,0b.XXXXXX.,0b....XXXX,0bXXXXXXXX,0b.XXXXXX.,0b........,0b........,0b........,0b........),
+   OMNI_GLYPH(0b........,0b........,0bXXXXXXXX,0bXXXXXXXX,0bXXX.....,0bXXX.....,0bXXXXXX..,0bXXXXXX..,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0b........,0b........,0b........,0b........),
+   OMNI_GLYPH(0b........,0b........,0b...XX...,0b..XXXX..,0b..XXXX..,0b.XXXXXX.,0b.XX..XX.,0bXXX..XXX,0bXXXXXXXX,0bXXXXXXXX,0bXXX..XXX,0bXXX..XXX,0b........,0b........,0b........,0b........),
+   OMNI_GLYPH(0b........,0b........,0b.XXXXX..,0b.XXXXX..,0b..XXX...,0b..XXX...,0b..XXX...,0b..XXX...,0b..XXX...,0b..XXX...,0b.XXXXX..,0b.XXXXX..,0b........,0b........,0b........,0b........),
+   OMNI_GLYPH(0b........,0b........,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0bXXXXXXXX,0bXXXXXXXX,0b........,0b........,0b........,0b........)
+};
+
+page const uint8_t cart_type_glyphs[40] := {
+   OMNI_SMALL_GLYPH(0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........),
+   // O
+   OMNI_SMALL_GLYPH(0b.XXXXXX.,0b.XX..XX.,0b.XX..XX.,0b.XX..XX.,0b.XX..XX.,0b.XX..XX.,0b.XX..XX.,0b.XXXXXX.),
+   // M
+   OMNI_SMALL_GLYPH(0b.XX..XX.,0b.XXXXXX.,0b.XXXXXX.,0b.XX.XXX.,0b.XX..XX.,0b.XX..XX.,0b.XX..XX.,0b.XX..XX.),
+   // N
+   OMNI_SMALL_GLYPH(0b.XX..XX.,0b.XXX.XX.,0b.XXX.XX.,0b.XXXXXX.,0b.XX.XXX.,0b.XX.XXX.,0b.XX..XX.,0b.XX..XX.),
+   // I
+   OMNI_SMALL_GLYPH(0b.XXXXXX.,0b...XX...,0b...XX...,0b...XX...,0b...XX...,0b...XX...,0b...XX...,0b.XXXXXX.)
+};
+
+inline void load_pass(void) {
+   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+0;
+   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+1;
+   asm lda #<{status_glyphs + 16};  asm sta status_result_pointers+2;
+   asm lda #>{status_glyphs + 16};  asm sta status_result_pointers+3;
+   asm lda #<{status_glyphs + 32};  asm sta status_result_pointers+4;
+   asm lda #>{status_glyphs + 32};  asm sta status_result_pointers+5;
+   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+6;
+   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+7;
+   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+8;
+   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+9;
+   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+10;
+   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+11;
+}
+
+inline void load_fail(void) {
+   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+0;
+   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+1;
+   asm lda #<{status_glyphs + 64};   asm sta status_result_pointers+2;
+   asm lda #>{status_glyphs + 64};   asm sta status_result_pointers+3;
+   asm lda #<{status_glyphs + 80};   asm sta status_result_pointers+4;
+   asm lda #>{status_glyphs + 80};   asm sta status_result_pointers+5;
+   asm lda #<{status_glyphs + 96};   asm sta status_result_pointers+6;
+   asm lda #>{status_glyphs + 96};   asm sta status_result_pointers+7;
+   asm lda #<{status_glyphs + 112};  asm sta status_result_pointers+8;
+   asm lda #>{status_glyphs + 112};  asm sta status_result_pointers+9;
+   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+10;
+   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+11;
+}
+
+inline void load_omni_type(void) {
+   // blank / O / M / N / I / blank
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+0;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+1;
+   asm lda #<{cart_type_glyphs + 8};  asm sta cart_type_pointers+2;
+   asm lda #>{cart_type_glyphs + 8};  asm sta cart_type_pointers+3;
+   asm lda #<{cart_type_glyphs + 16}; asm sta cart_type_pointers+4;
+   asm lda #>{cart_type_glyphs + 16}; asm sta cart_type_pointers+5;
+   asm lda #<{cart_type_glyphs + 24}; asm sta cart_type_pointers+6;
+   asm lda #>{cart_type_glyphs + 24}; asm sta cart_type_pointers+7;
+   asm lda #<{cart_type_glyphs + 32}; asm sta cart_type_pointers+8;
+   asm lda #>{cart_type_glyphs + 32}; asm sta cart_type_pointers+9;
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+10;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+11;
+}
+
+void draw_result(void) {
+   status_result_score := 0;
+   cart_type_score := 0;
+   status_result_init();
+   cart_type_init();
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      status_result_vblank();
+      cart_type_vblank();
+      if (failure) { load_fail(); } else { load_pass(); }
+      load_omni_type();
+      status_result_color := 0x0E;
+      COLUBK := failure ? 0x20 : 0xC4;
+      COLUP0 := 0x0E;
+      COLUP1 := 0x0E;
+      PF0 := 0; PF1 := 0; PF2 := 0; GRP0 := 0; GRP1 := 0;
+      ENAM0 := 0; ENAM1 := 0; ENABL := 0; CTRLPF := 0;
+      vcs_ntsc_end_vblank();
+      vcs_ntsc_wait_component_scanlines(81);
+      status_result_draw();
+      vcs_ntsc_component_handoff();
+      cart_type_draw();
+      vcs_ntsc_wait_visible_tail_scanlines(81);
+      vcs_ntsc_begin_overscan();
+      status_result_overscan();
+      cart_type_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}
+#endif
+
+#ifdef SIMULATOR_TEST
+void simulator_done(void) {
+   while (1) { }
+}
+#endif
+
+void main(void) {
+   // Prove normal reset initialization across the complete 4K cartram island.
+   if (omni_data != 0x5A) { failure := 0x01; }
+   index := 0;
+   while (index != 4095) {
+      if (omni_bss[index] != 0) { failure := 0x02; }
+      index := index + 1;
+   }
+
+   omni_data := 0xA5;
+   omni_bss[0] := 0x11;
+   omni_bss[2047] := 0x22;
+   omni_bss[4094] := 0x33;
+   trace := 0;
+   probe_count := 0;
+
+   probe6();
+
+   if (trace != 7 || probe_count != 7 || omni_data != 0xA5 ||
+       omni_bss[0] != 0x11 || omni_bss[2047] != 0x22 ||
+       omni_bss[4094] != 0x33) {
+      failure := 0x03;
+   }
+
+#ifdef SIMULATOR_TEST
+   asm jmp simulator_done;
+#else
+   draw_result();
+#endif
+}
