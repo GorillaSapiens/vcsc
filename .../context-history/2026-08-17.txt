@@ -74,3 +74,7 @@ and added install, example-roundtrip, compiler, and focused OMNI coverage.
 - Generalized final-bank signature placement for non-4K physical banks.
 - Fixed named non-ZP writable region address-size metadata.
 - Added vcsc-disas CV inference and byte-exact CV round-trip coverage.
+2026-08-17 12:09:21 PDT, fix CV integration gates
+Added the standard VCSC FIGlet banner to the public CV example README and
+reviewed/pinned its 40 inline-assembly lines in the example assembly allowlist.
+The exact previously failing branding and assembly-allowlist gates now pass.
