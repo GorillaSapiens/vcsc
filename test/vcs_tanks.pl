@@ -50,8 +50,11 @@ $s =~ /include "vcs_8k_f8sc\.c26"/ && $s =~ /cartram uint8_t tanks_barrier_pf2\[
 $s !~ /\bbank[0-9]+\b/ &&
 $s =~ /tanks_barrier_masks\[8\].*?0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80/s &&
 $s =~ /asm lda\.ax tanks_barrier_pf2,x/ && $s =~ /asm sta PF2/ &&
-$s =~ /start := 10 \+ \(r & 7\)/ && $s =~ /end := start \+ 14/
-   or die "Tanks lost vertical pseudo-random playfield barriers\n";
+$s =~ /r := tanks_random\(\) & 3/ && $s =~ /if \(r == 3\) \{ r := 1; \}/ &&
+$s =~ /start := 12 \+ r/ && $s =~ /start := 36 \+ r/ &&
+$s =~ /start := 60 \+ r/ && $s =~ /end := start \+ 14/ &&
+$s =~ /mask := tanks_random\(\);\s*mask := tanks_barrier_masks\[\(mask >> 3\) & 7\]/
+   or die "Tanks lost balanced pseudo-random playfield barriers\n";
 $s =~ /asm sta GRP0;.*?asm sty GRP1;.*?asm cpx #2;.*?asm lda #\$10;\s*asm sta PF0;\s*asm lda #0;\s*asm sta PF1;\s*asm sta PF2;/s &&
 $s =~ /asm cpx #86;\s*asm beq\.same \@done;/ &&
 $s =~ /tanks_draw\(\);.*?PF0 := 0xff;\s*PF1 := 0xff;\s*PF2 := 0xff;\s*WSYNC := 0;\s*WSYNC := 0;\s*WSYNC := 0;\s*WSYNC := 0;/s &&
@@ -67,9 +70,15 @@ $s =~ /tanks_draw\(\);.*?PF0 := 0;\s*PF1 := 0;\s*PF2 := 0;.*?WSYNC := 0;\s*WSYNC
 $s =~ /CXM0P & 0x80/ && $s =~ /CXM1P & 0x80/ &&
 $s =~ /CXM0FB & 0x80/ && $s =~ /CXM1FB & 0x80/ &&
 $s =~ /CXP0FB & 0x80/ && $s =~ /CXP1FB & 0x80/ && $s =~ /CXPPMM & 0x80/ && $s =~ /CXCLR := 0/ &&
+$s =~ /cartram uint8_t tank0_pf_escape/ && $s =~ /cartram uint8_t tank1_pf_escape/ &&
+$s =~ /if \(!tank0_pf_escape\).*?tank0_x := tank0_prev_x/s &&
+$s =~ /if \(!tank1_pf_escape\).*?tank1_x := tank1_prev_x/s &&
+$s =~ /else \{ tank0_pf_escape := 0; \}/ && $s =~ /else \{ tank1_pf_escape := 0; \}/ &&
 $s =~ /tanks_process_knockback\(void\).*?tanks_update_player_collisions\(\);/s &&
+$s =~ /tanks_apply_knockback\(&tank0_x, &tank0_y, tanks_knock_direction\);\s*tank0_pf_escape := 1;/s &&
+$s =~ /tanks_apply_knockback\(&tank1_x, &tank1_y, tanks_knock_direction\);\s*tank1_pf_escape := 1;/s &&
 $s =~ /vcs_ntsc_begin_overscan\(\);\s*tanks_process_knockback\(\);\s*tanks_update_overscan\(\);/s
-   or die "Tanks must consume player collisions before controls overwrite the undo position\n";
+   or die "Tanks must consume player collisions and allow knockback escape from playfield geometry\n";
 $s =~ /TANKS_KNOCKBACK_X_CARDINAL := 32/ && $s =~ /TANKS_KNOCKBACK_X_DIAGONAL := 23/ &&
 $s =~ /TANKS_KNOCKBACK_Y_CARDINAL := 16/ && $s =~ /TANKS_KNOCKBACK_Y_DIAGONAL := 11/ &&
 $s =~ /tanks_knockback_offsets\[8\].*?0,1,7,0,1,7,2,6/s &&
@@ -123,7 +132,7 @@ $rc==0&&!$sig or die "Tanks build failed\n$out$err";
 my$map=read_file($mapfile);
 $map =~ /pinned\s+CODE\.__vcsc_function\$main\s+region=bank0/m &&
 $map =~ /automatic\s+CODE\.__vcsc_function\$tanks_update_overscan\s+region=bank1/m &&
-$map =~ /automatic\s+CODE\.__vcsc_function\$tanks_process_knockback\s+region=bank0/m
+$map =~ /automatic\s+CODE\.__vcsc_function\$tanks_process_knockback\s+region=bank[01]/m
    or die "Tanks automatic F8SC code placement did not keep startup home and use both banks\n$map";
 $map =~ /^\s+cartram\s+read_start=\$F080 write_start=\$F000 size=\$0080 type=rw shared=yes\b/m &&
 $map =~ /^\s+ZERO\s+BSS\.cartram\.__vcsc_object\$tanks_barrier_pf2\s+read=\$F080\s+write=\$F000\s+size=\$0056/m

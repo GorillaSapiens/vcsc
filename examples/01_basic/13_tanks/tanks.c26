@@ -333,6 +333,12 @@ cartram uint8_t tank0_knockback_pending;
 cartram uint8_t tank1_knockback_pending;
 cartram uint8_t tank0_knockback_index;
 cartram uint8_t tank1_knockback_index;
+// Knockback is allowed to deposit a tank inside playfield geometry. While this
+// latch is set, playfield collision rollback is suppressed until one complete
+// visible frame reports no player/playfield overlap, allowing the player to
+// drive out of a wall or barrier instead of becoming permanently trapped.
+cartram uint8_t tank0_pf_escape;
+cartram uint8_t tank1_pf_escape;
 
 uint8_t tanks_player_position_control[2];
 
@@ -373,26 +379,33 @@ inline void tanks_generate_barriers(void) {
    tanks_barrier_pf2[0] := 0xff;
    tanks_barrier_pf2[1] := 0xff;
 
-   // Three 28-scanline vertical barriers live in separate Y bands. Both their
-   // horizontal PF2 bit and exact vertical start vary with the LFSR.
-   r := tanks_random();
-   start := 10 + (r & 7);
+   // Three 28-scanline vertical barriers keep independent pseudo-random X
+   // positions, but share one small vertical offset.  Independent Y jitter
+   // made it impossible to guarantee comfortable passages everywhere at once.
+   // Starts 12/36/60 plus a shared 0..2-pair offset leave at least ten clear
+   // doubled rows (20 visible scanlines) in all four passages: above the first
+   // barrier, between each pair of barriers, and below the last barrier.
+   r := tanks_random() & 3;
+   if (r == 3) { r := 1; }
+
+   start := 12 + r;
    end := start + 14;
-   mask := tanks_barrier_masks[(r >> 3) & 7];
+   mask := tanks_random();
+   mask := tanks_barrier_masks[(mask >> 3) & 7];
    i := start;
    while (i < end) { tanks_barrier_pf2[i] := mask; i++; }
 
-   r := tanks_random();
-   start := 36 + (r & 7);
+   start := 36 + r;
    end := start + 14;
-   mask := tanks_barrier_masks[(r >> 3) & 7];
+   mask := tanks_random();
+   mask := tanks_barrier_masks[(mask >> 3) & 7];
    i := start;
    while (i < end) { tanks_barrier_pf2[i] := mask; i++; }
 
-   r := tanks_random();
-   start := 62 + (r & 7);
+   start := 60 + r;
    end := start + 14;
-   mask := tanks_barrier_masks[(r >> 3) & 7];
+   mask := tanks_random();
+   mask := tanks_barrier_masks[(mask >> 3) & 7];
    i := start;
    while (i < end) { tanks_barrier_pf2[i] := mask; i++; }
 }
@@ -549,6 +562,8 @@ inline void tanks_reset_positions(void) {
    tank1_knockback_pending := 0;
    tank0_knockback_index := 0;
    tank1_knockback_index := 0;
+   tank0_pf_escape := 0;
+   tank1_pf_escape := 0;
    tanks_move_phase := 0;
    missile0_active := 0;
    missile1_active := 0;
@@ -746,8 +761,18 @@ inline void tanks_update_player_collisions(void) {
       tank1_y := tank1_prev_y;
       return;
    }
-   if (CXP0FB & 0x80) { tank0_x := tank0_prev_x; tank0_y := tank0_prev_y; }
-   if (CXP1FB & 0x80) { tank1_x := tank1_prev_x; tank1_y := tank1_prev_y; }
+   // A hit may intentionally leave a tank overlapping playfield geometry. In
+   // that case suppress rollback until the tank has escaped and one clean frame
+   // proves it is no longer touching the playfield. Ordinary movement still
+   // treats the playfield as solid once the escape latch clears.
+   if (CXP0FB & 0x80) {
+      if (!tank0_pf_escape) { tank0_x := tank0_prev_x; tank0_y := tank0_prev_y; }
+   }
+   else { tank0_pf_escape := 0; }
+   if (CXP1FB & 0x80) {
+      if (!tank1_pf_escape) { tank1_x := tank1_prev_x; tank1_y := tank1_prev_y; }
+   }
+   else { tank1_pf_escape := 0; }
 }
 
 inline void tanks_update_collisions(void) {
@@ -807,6 +832,7 @@ void tanks_process_knockback(void) {
       tanks_knock_direction += tanks_knockback_offsets[tank0_knockback_index];
       tanks_knock_direction &= 7;
       tanks_apply_knockback(&tank0_x, &tank0_y, tanks_knock_direction);
+      tank0_pf_escape := 1;
       tank0_prev_x := tank0_x;
       tank0_prev_y := tank0_y;
       tank0_knockback_pending := 0;
@@ -818,6 +844,7 @@ void tanks_process_knockback(void) {
       tanks_knock_direction += tanks_knockback_offsets[tank1_knockback_index];
       tanks_knock_direction &= 7;
       tanks_apply_knockback(&tank1_x, &tank1_y, tanks_knock_direction);
+      tank1_pf_escape := 1;
       tank1_prev_x := tank1_x;
       tank1_prev_y := tank1_y;
       tank1_knockback_pending := 0;

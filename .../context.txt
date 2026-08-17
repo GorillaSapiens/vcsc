@@ -1066,7 +1066,11 @@ palette and the same three-plus-three score component, P0/P1 as sixteen-directio
 four-color-clock playfield bit for each side wall. Three pseudo-random interior
 barrier segments are each one PF2 bit (four color clocks) wide and 28 visible
 scanlines tall; CTRLPF reflection mirrors them into three additional vertical
-barriers. Left/Right rotate in 22.5-degree steps, Up drives forward, and Down drives
+barriers. Their X columns remain independently pseudo-random, while all three
+share one 0..2-pair vertical offset from base starts 12/36/60. This guarantees
+at least 20 visible scanlines in each of the four vertical passages: top,
+upper-to-middle, middle-to-lower, and lower-to-bottom. Left/Right rotate in
+22.5-degree steps, Up drives forward, and Down drives
 backward. Translation retains the one-update-per-four-frames cadence. Movement follows the same logical coordinate geometry as the tank glyph table:
 cardinals step one axis, true 45-degree headings step X and Y together, and
 NNE/ENE/etc. use a deterministic 7/16 minor-axis cadence close to tan(22.5 degrees).
@@ -1092,9 +1096,11 @@ Hit knockback deliberately ignores playfield geometry: interior PF barriers do n
 block the displacement, and crossing an outer wall wraps the complete tank footprint
 through the legal top-left coordinate ranges ($04-$94 X and $04-$4E Y) to the
 opposite side of the arena. This prevents a wall-pinned victim from being farmed
-indefinitely. Ordinary driving remains collision constrained. CXP0FB/CXP1FB make
-the playfield solid to tanks by rolling back movement
-that overlapped it; CXPPMM
+indefinitely. Knockback also sets a per-tank playfield-escape latch: if the tank
+lands overlapping a wall or PF barrier, CXP0FB/CXP1FB rollback is suppressed until
+one complete visible frame reports no playfield overlap, so the player can always
+drive out of the geometry. Ordinary driving is collision constrained again as soon
+as that clean frame clears the latch. CXPPMM
 rolls both tanks back on P0/P1 contact so they cannot drive through each other.
 
 The tank glyph table is written as exactly one visual `0b...X....` byte per
@@ -1123,8 +1129,9 @@ remains latched through line B so a shot is visible for two scanlines. An 86-byt
 constant time. Missile collision, score, and hit-audio processing consume the
 previous arena's latches in VBLANK. Player collision rollback is consumed earlier,
 at the start of overscan immediately after the arena and before controls overwrite
-`tank*_prev_*`; CXP0FB/CXP1FB restore a tank after playfield contact, while CXPPMM
-restores both tanks after P0/P1 contact. Controls, spin advance, missile motion,
+`tank*_prev_*`; CXP0FB/CXP1FB normally restore a tank after playfield contact, but
+the post-knockback escape latch temporarily permits movement out of overlapping
+playfield geometry. CXPPMM still restores both tanks after P0/P1 contact. Controls, spin advance, missile motion,
 Reset, and RNG then continue in overscan. TIA audio channel 1 is reserved for a
 quiet low-bass engine growl while either non-spinning tank has Up or Down held;
 the growl remains continuous across quarter-rate translation frames. Fire and
@@ -1134,20 +1141,22 @@ moving tank after the raster rewrite; tank rows remained coherent and the bottom
 wall rendered continuously.
 
 `tanks` is an 8K F8SC cartridge. The current linker reports bank1 at
-2912/3584 bytes, bank0 at 3507/3584 bytes, RIOT RAM at 125/128 bytes (113 bytes
-of objects plus the 12-byte reserved hardware stack), and `cartram` at 97/128
-bytes. The two turn-repeat counters and one movement scratch byte are explicitly
+3371/3584 bytes, bank0 at 3131/3584 bytes, RIOT RAM at 125/128 bytes (113 bytes
+of objects plus the 12-byte reserved hardware stack), and `cartram` at 99/128
+bytes. The two turn-repeat counters, one movement scratch byte, and two playfield-escape latches are explicitly
 in `cartram`; beam-facing position/graphics state remains zero-page. Off-beam RNG,
 tank-graphics pointer selection, and packed player-position lookup are ordinary VCSC;
 the remaining 147 source `asm` statements are reviewed timing-critical raster,
 positioning, or bounded blanking-deadline code. `vcs_tanks.pl/.cpp` covers both joysticks, 16-step turning, 24-frame held-turn
 repeat, quarter-rate translation, distinct NNE/ENE minor-axis trajectories, fire
 hold semantics and fire audio, three-plus-three scoring, hit audio/spin/random
-heading, away-side knockback distance/direction, explicit barrier pass-through and
-outer-wall wraparound, missile/playfield and missile/player latches,
+heading, away-side knockback distance/direction, explicit barrier pass-through,
+outer-wall wraparound, and escape from a knockback landing inside a barrier while
+CXP1FB remains asserted, missile/playfield and missile/player latches,
 player/playfield rollback,
-player/player rollback, barrier regeneration on Reset, corrected graphics pointers
-and SE/SW orientation, visible ENAM0/ENAM1 assertion after launch, immediate
+player/player rollback, barrier regeneration on Reset, a 20-scanline minimum in
+all four vertical barrier passages, corrected graphics pointers and SE/SW orientation,
+visible ENAM0/ENAM1 assertion after launch, immediate
 post-arena collision rollback with reverse-away recovery checks, invariant frame
 length, and beam-write deadlines for nonzero GRP0/GRP1 plus side/full PF0
 transitions. Its timing stress path drives tanks and missiles to X endpoints 4/148

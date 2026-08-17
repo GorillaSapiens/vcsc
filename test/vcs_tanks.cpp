@@ -165,6 +165,8 @@ private:
          if(frame_==1) v=static_cast<uint8_t>(v & ~0x01u); // move P1 west before hit
       } else if(scenario_==Scenario::HitP0) {
          if(frame_==1) v=static_cast<uint8_t>(v & ~0x10u); // move P0 east before hit
+      } else if(scenario_==Scenario::HitBarrier) {
+         if(frame_==27) v=static_cast<uint8_t>(v & ~0x01u); // drive P1 east out of the barrier after spin
       } else if(scenario_==Scenario::PlayerWall) {
          if(frame_==1) v=static_cast<uint8_t>(v & ~0x10u & ~0x02u);
          if(frame_==3) v=static_cast<uint8_t>(v & ~0x20u & ~0x01u); // back away after rollback
@@ -189,6 +191,7 @@ private:
    uint8_t collision(uint16_t a) const {
       if(scenario_==Scenario::FireWall && frame_==4 && (a==kCxm0fb || a==kCxm1fb)) return 0x80;
       if((scenario_==Scenario::HitP1 || scenario_==Scenario::HitBarrier || scenario_==Scenario::HitWallWrap) && frame_==3 && a==kCxm0p) return 0x80;
+      if(scenario_==Scenario::HitBarrier && frame_>=4 && frame_<=28 && a==kCxp1fb) return 0x80;
       if(scenario_==Scenario::HitP0 && frame_==3 && a==kCxm1p) return 0x80;
       if(scenario_==Scenario::PlayerWall && frame_==2 && arena_started_ && (a==kCxp0fb || a==kCxp1fb)) return 0x80;
       if(scenario_==Scenario::PlayerPlayer && frame_==2 && arena_started_ && a==kCxppmm) return 0x80;
@@ -281,8 +284,14 @@ private:
          set_byte("tank0_direction",kDirE); set_byte("tank1_direction",kDirW);
       }
       // The hit path advances 0x10 to 0x08, selecting knockback offset index 0
-      // so straight-away east is tried before the adjacent diagonal fallback.
+      // so straight-away east is selected. Keep CXP1FB asserted throughout the
+      // hit spin, then drive east while it remains asserted for two more frames.
+      // A tank that landed inside the barrier must make progress out of it.
       if(frame_==3) set_byte("tanks_rng",0x10);
+      if(frame_==27) {
+         set_byte("tank1_direction",kDirE);
+         set_byte("tanks_move_phase",0);
+      }
    }
 
    void inject_hit_wall_wrap_state() {
@@ -404,12 +413,15 @@ void require_raster_write_deadlines(const Machine& m) {
 void require_barriers(const Snapshot& s) {
    if(s.barrier_pf2[0]!=0xff || s.barrier_pf2[1]!=0xff)
       fail("top PF2 wall schedule is wrong");
-   struct Zone { int lo,hi; } zones[]={{10,17},{36,43},{62,69}};
+   struct Zone { int lo,hi; } zones[]={{12,14},{36,38},{60,62}};
    std::array<bool,88> claimed{};
+   std::array<int,3> starts{};
+   size_t zone_index=0;
    for(const auto&z:zones) {
       int first=-1;
       for(int i=z.lo;i<=z.hi;++i) if(s.barrier_pf2[static_cast<size_t>(i)]) { first=i; break; }
-      if(first<0) fail("vertical barrier missing from safe zone");
+      if(first<0) fail("vertical barrier missing from balanced zone");
+      starts[zone_index++]=first;
       const uint8_t mask=s.barrier_pf2[static_cast<size_t>(first)];
       if(!one_bit(mask)) fail("barrier mask is not one four-pixel PF2 column");
       for(int i=0;i<14;++i) {
@@ -421,6 +433,18 @@ void require_barriers(const Snapshot& s) {
    for(int i=2;i<86;++i)
       if(!claimed[static_cast<size_t>(i)] && s.barrier_pf2[static_cast<size_t>(i)]!=0)
          fail("unexpected horizontal playfield debris outside vertical barriers");
+
+   if(starts[1]-starts[0]!=24 || starts[2]-starts[1]!=24)
+      fail("barriers no longer share one vertical offset");
+   const int clear_pairs[]={
+      starts[0]-2,
+      starts[1]-(starts[0]+14),
+      starts[2]-(starts[1]+14),
+      86-(starts[2]+14)
+   };
+   for(const int gap:clear_pairs)
+      if(gap<10)
+         fail("barrier layout leaves less than the required 20-scanline passage");
 }
 
 size_t first_moved(const std::vector<Snapshot>& s,size_t first,uint8_t x,uint8_t y,bool player1) {
@@ -585,7 +609,7 @@ void require_hit_p0(const std::vector<Snapshot>& s) {
 }
 
 void require_hit_barrier(const std::vector<Snapshot>& s) {
-   if(s.size()<8) fail("too few barrier-knockback snapshots");
+   if(s.size()<30) fail("too few barrier-knockback snapshots");
    if(s[0].x0!=4 || s[0].x1!=20 || s[0].y1!=kStartY) fail("barrier-knockback setup failed");
    if(s[3].score0!=1 || s[3].spin1!=23) fail("barrier-knockback hit did not enter hit state");
    // Straight east lands at x=52,y=45, directly in the deterministic PF2
@@ -594,6 +618,8 @@ void require_hit_barrier(const std::vector<Snapshot>& s) {
    require_knockback_distance_and_geometry(s[2],s[moved],true,true);
    if(s[moved].x1!=52 || s[moved].y1!=kStartY)
       fail("knockback did not pass straight through the known PF2 barrier");
+   if(s[28].x1!=53 || s[29].x1!=53)
+      fail("tank knocked into a barrier could not drive out while CXP1FB remained asserted");
 }
 
 void require_hit_wall_wrap(const std::vector<Snapshot>& s) {
@@ -666,7 +692,7 @@ int main(int argc,char **argv) {
                               Scenario::HitP1,Scenario::HitP0,Scenario::HitBarrier,Scenario::HitWallWrap,Scenario::PlayerWall,Scenario::PlayerPlayer,Scenario::Reset,
                               Scenario::ExtremeTiming}) {
       Machine m(argv[1],a,scenario);
-      const int frames=(scenario==Scenario::HitP1 || scenario==Scenario::HitP0 || scenario==Scenario::Turn)?30:
+      const int frames=(scenario==Scenario::HitP1 || scenario==Scenario::HitP0 || scenario==Scenario::HitBarrier || scenario==Scenario::Turn)?30:
                        (scenario==Scenario::Move16?24:16);
       m.run(frames);
       require_barriers(m.snapshots()[0]);

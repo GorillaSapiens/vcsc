@@ -32,10 +32,15 @@ Three additional pseudo-random vertical barriers are generated from an 8-bit
 LFSR. Each barrier is one PF2 bit wide (four color clocks) and 28 visible
 scanlines high. `CTRLPF` reflection mirrors each barrier into the opposite half
 of the arena, so each generated segment appears as a symmetric pair of narrow,
-tall obstacles. The three segments occupy separate Y bands and choose their X
-bit and Y offset independently. The generator advances continuously while the
-game is played, so pressing the console Reset switch selects another layout
-based on when Reset was pressed. This is deliberately lightweight
+tall obstacles. The three segments choose their X bits independently, while a
+small shared vertical offset moves the complete three-barrier layout up or down.
+This deliberately trades some independent Y jitter for playable geometry: every
+one of the four vertical passages (top, upper-to-middle, middle-to-lower, and
+lower-to-bottom) is guaranteed to be at least 20 visible scanlines high. The
+16-scanline-tall tank therefore always has real maneuvering clearance instead of
+merely fitting through on paper. The generator advances continuously while the game
+is played, so pressing the console Reset switch selects another layout based on
+when Reset was pressed. This is deliberately lightweight
 pseudo-randomness, not a claim of hardware entropy.
 
 For each joystick, Left and Right rotate the tank counterclockwise/clockwise by
@@ -70,16 +75,20 @@ knockback is 32 pixels; vertical cardinal knockback is 16 doubled arena rows, i.
 about 31.8 visible pixels overall. Hit knockback deliberately ignores arena
 geometry: it can pass straight through an interior playfield barrier, and crossing
 an outer wall wraps the complete tank footprint into the opposite side of the
-legal arena coordinate range. Ordinary joystick movement still treats all walls
-and barriers as solid. At the end of the spin the tank is left facing a
+legal arena coordinate range. If knockback leaves a tank overlapping a wall or
+barrier, playfield rollback is temporarily suppressed until the tank reaches one
+clean, non-overlapping frame, so the player can always drive out instead of being
+trapped. Ordinary joystick movement otherwise treats all walls and barriers as
+solid. At the end of the spin the tank is left facing a
 pseudo-random direction; movement, turning, and firing are ignored for that tank
 while it is spinning.
 
 All arena contact decisions use the TIA collision latches from the raster that
 was actually drawn. `CXM0FB`/`CXM1FB` stop M0/M1 on the outer walls or a
 playfield barrier. `CXM0P` detects M0 hitting P1 and `CXM1P` detects M1 hitting
-P0. `CXP0FB`/`CXP1FB` make the playfield barriers solid to the tanks by rolling
-back the movement that produced a player/playfield overlap. `CXPPMM` does the
+P0. `CXP0FB`/`CXP1FB` normally make the playfield barriers solid to the tanks by
+rolling back the movement that produced a player/playfield overlap; the one
+exception is the temporary post-knockback escape state described above. `CXPPMM` does the
 same for P0/P1 contact: both tanks return to their last legal positions, so they
 cannot drive through each other even when both move on the same frame. Player
 rollback happens immediately after the arena at the start of overscan, before

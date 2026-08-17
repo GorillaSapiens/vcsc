@@ -51,3 +51,15 @@ of the legal arena coordinate range; ordinary joystick movement remains solid-
 wall and still uses TIA collision rollback. Removed the obsolete barrier-preflight
 scan/table and its scratch bytes. The Tanks oracle now proves both straight
 barrier pass-through and right-wall-to-left-side wraparound.
+2026-08-17 10:57:19 PDT, opened Tanks lower barrier passage
+Moved the three random barrier bands to bases 8, 30, and 52. The latest lower barrier now ends before pair 73, guaranteeing 26 visible scanlines before the bottom wall. Updated the Tanks oracle and README.
+2026-08-17 11:06:52 PDT, rebalance Tanks barrier gaps
+Reworked the three 28-scanline Tanks barriers so their X columns remain
+independently pseudo-random but their Y positions share a 0..2-pair offset
+from starts 12/36/60. All four vertical passages now guarantee at least 20
+visible scanlines; the Tanks emulator regression checks every corridor.
+2026-08-17 11:18:37 PDT, allow post-hit barrier escape
+Tanks knockback now sets a per-player playfield-escape latch. If knockback lands
+inside a wall or PF barrier, CXP0FB/CXP1FB rollback is suppressed until a clean
+non-overlapping frame occurs, allowing the player to drive out. The Tanks oracle
+holds CXP1FB asserted through the hit spin and verifies forward progress afterward.
