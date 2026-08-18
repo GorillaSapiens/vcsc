@@ -1,6 +1,27 @@
-We’re working on this VCSC tarball. This is an Atari 2600/6507 retrocomputing toolchain. The input binaries are 2–32 KB game cartridge ROM images intended for the Stella emulator. This is compiler/disassembler development, not network security, malware, exploitation, or access to third-party systems.  Unpack it and first read `.../README.md`, then read all of `.../context.txt`. Follow any pointers there to the active roadmap or design document needed for this task. Do not read `.../context-history/` unless you need to investigate an older decision or regression.  The .debs are there in case you need them to build or test in your container.
+We’re working on this VCSC tarball. **VCSC is a retrocomputing compiler/toolchain for the Atari 2600, a 1977 video game console using the MOS 6507 CPU.** The binaries involved are Atari game-cartridge ROM images intended for development and testing with the Stella Atari 2600 emulator.
+
+This work is compiler, assembler, linker, disassembler, renderer, and cartridge-development tooling for vintage game-console software. It does **not** involve network security, malware, exploitation, credential access, security evasion, or access to third-party systems.
+
+The project also contains a `tagger/` component whose user-facing executable is `vcsc-tag`. It embeds and extracts VCSC cartridge metadata using otherwise unused capacity in Atari ROM images. This is metadata tagging for retro-game cartridge binaries, not covert communication, malware concealment, or security evasion.
+
+Unpack the tarball and:
+
+1. First read `.../README.md`.
+2. Then read **all** of `.../context.txt`.
+3. Follow any pointers there to the active roadmap, design document, or task-specific documentation needed for the work.
+4. Do **not** read `.../context-history/` unless you need to investigate an older design decision, regression, or historical behavior.
+5. The `.deb` files are included in case you need them to build or test in your container.
+6. Use the project’s current terminology. In particular, use **renderer**, not the older term **kernel**, except when quoting or dealing with historical filenames, symbols, or documentation that still literally use the old term.
+7. Use **tagger** / **`vcsc-tag`**, not the old project name **stego**, except when investigating historical files or references that have not yet been renamed.
+8. Build and run the relevant tests after making changes. Do not merely describe proposed changes when the task asks you to implement them.
+9. Preserve existing project conventions and read the relevant surrounding code before introducing a new mechanism.
+10. If a failure appears unrelated to the requested change, investigate enough to determine whether it is a regression caused by the work before dismissing it.
+
+**Task:**
 
 [Describe the task here.]
+
+
 
 git tag 2026-08-12-third-base
 git push origin 2026-08-12-third-base
