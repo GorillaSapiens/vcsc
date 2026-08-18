@@ -1,4 +1,4 @@
-We’re working on this VCSC tarball. Unpack it and first read `.../README.md`, then read all of `.../context.txt`. Follow any pointers there to the active roadmap or design document needed for this task. Do not read `.../context-history/` unless you need to investigate an older decision or regression.  The .debs are there in case you need them to build or test in your container.
+We’re working on this VCSC tarball. This is an Atari 2600/6507 retrocomputing toolchain. The input binaries are 2–32 KB game cartridge ROM images intended for the Stella emulator. This is compiler/disassembler development, not network security, malware, exploitation, or access to third-party systems.  Unpack it and first read `.../README.md`, then read all of `.../context.txt`. Follow any pointers there to the active roadmap or design document needed for this task. Do not read `.../context-history/` unless you need to investigate an older decision or regression.  The .debs are there in case you need them to build or test in your container.
 
 [Describe the task here.]
 
