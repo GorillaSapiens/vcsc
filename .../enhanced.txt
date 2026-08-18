@@ -1,0 +1,165 @@
+ENHANCED MULTISPRITE SIDE QUEST
+===============================
+
+Source lineage
+--------------
+Authoritative input archive for this work:
+
+    vcsc.20260818_135859.tar.gz
+
+Do not substitute an older enhanced-multisprite WIP archive. This tree descends
+from the archive above.
+
+Goal
+----
+Build a new 192-visible-line multisprite renderer that treats both TIA player
+objects as reusable hardware lanes. The existing maintained
+`renderers/multisprite/` remains unchanged.
+
+The intended logical behavior is:
+
+* one active logical sprite: solid;
+* two sprites sharing scanlines: one on P0 and one on P1, both solid;
+* three or more sharing scanlines: render a fair rotating two-of-N subset, e.g.
+  for three fully overlapping sprites: 0/1, 1/2, 2/0 on successive frames;
+* any logical sprite may use either P0 or P1; P0 is not permanently sprite 0;
+* non-overlapping logical sprites may reuse a hardware player later in the same
+  frame.
+
+Current implementation
+----------------------
+New renderer:
+
+    libraries/vcs/renderers/enhanced_multisprite/enhanced_multisprite.c26
+    libraries/vcs/renderers/enhanced_multisprite/README.md
+
+Public example:
+
+    examples/18_enhanced_multisprite/01_192/01_interactive/
+
+Regression:
+
+    test/vcs_enhanced_multisprite.pl
+    test/vcs_enhanced_multisprite.cpp
+
+The public example uses the existing maintained multisprite interactive controls:
+Game Select cycles logical sprites, the left joystick moves the selected sprite,
+and Reset restores the initial scene.
+
+The initial scene deliberately contains:
+
+* sprites 0/1/2 at the same Y, exercising fair three-way two-of-three rotation;
+* sprites 3/4 at the same Y, exercising solid two-way overlap;
+* sprite 5 isolated, exercising hardware-player reuse later in the frame.
+
+Architecture
+------------
+This first profile is intentionally player-only. It does not yet render M0, M1,
+Ball, or playfield data.
+
+The raster owns 192 visible NTSC scanlines as 96 two-scanline logical bands.
+All six logical sprites are eight rows tall, with each bitmap row held for two
+physical scanlines.
+
+Scheduling is done during VBLANK. The scheduler assigns accepted logical sprite
+intervals to two hardware lanes. Logical assignment is symmetric, but the beam
+setup schedule is intentionally asymmetric:
+
+* P0 is repositioned four logical bands above the sprite top and uses delayed
+  activation;
+* P1 is repositioned one logical band above the sprite top.
+
+This lets equal-Y sprites be prepared on separate setup bands and then appear
+simultaneously on P0/P1.
+
+The scheduler sorts compact one-byte event indices instead of moving whole event
+records. `event_order[]` contains the descending event order plus a sentinel.
+Persistent logical-sprite priority is separate from event scratch and rotates
+when contention omits sprites.
+
+Current public Y range is 0..89 for every logical sprite. X range remains
+0..159. The renderer keeps the same aligned graphics layout and public X/Y/color/
+NUSIZ aliases as the maintained multisprite renderer so the shared interactive
+code can be reused.
+
+Important bugs already found and fixed
+--------------------------------------
+Do not regress into these earlier versions:
+
+1. The first WIP had Y-dependent visible-raster control flow. Moving sprites
+   vertically changed cycle counts and produced unstable frames (observed around
+   268..274 raw harness lines in bad cases). The visible raster was rewritten as
+   a calibrated two-line-band machine so setup/draw paths return through fixed
+   scanline boundaries.
+
+2. An early timing sweep accidentally held the simulated Reset switch active,
+   which restored the initial scene every frame and made the sweep meaningless.
+   The current generated sweep ROMs do not do that.
+
+3. Fair arbitration was briefly broken because VBLANK reused the persistent
+   priority array as temporary event scratch after promoting an omitted sprite.
+   That erased the promotion, causing the same sprite to lose every frame. Event
+   scratch is now separate; the three-way 0/1 -> 1/2 -> 2/0 behavior is tested.
+
+Current automated validation
+----------------------------
+As of this handoff, these focused checks pass in the saved tree:
+
+    perl test/vcs_enhanced_multisprite.pl REPO TMP
+
+Output:
+
+    vcs_enhanced_multisprite ok: 192-line symmetric P0/P1 multiplexer,
+    997-frame Y/XY timing sweeps, fair 3-way 2-of-3 rotation
+
+That regression checks:
+
+* the public example builds as a 4K ROM;
+* static frame timing;
+* a 997-measured-frame Y sweep at stable 262 displayed NTSC lines;
+* a 997-measured-frame combined X/Y sweep at stable 262 displayed NTSC lines;
+* both P0 and P1 are used;
+* three fully overlapping sprites rotate fairly two-of-three;
+* two-way overlap remains solid.
+
+The existing maintained multisprite family still passes:
+
+    perl test/vcs_multisprite_profiles.pl REPO TMP
+
+and the following also pass:
+
+    perl test/example_assembly_allowlist.pl REPO
+    perl test/source_tree_hygiene.pl REPO
+
+The focused automated results are significantly better than the last interactive
+report from the user. That earlier report was against the unstable WIP before the
+current raster rewrite and arbitration fixes.
+
+What still needs to be done
+---------------------------
+The current implementation should be treated as experimental until it is tested
+interactively in Stella after these final fixes. Automated simulator timing now
+passes, but the user has not yet visually confirmed the corrected build.
+
+Next pickup should start with the public example and aggressively exercise:
+
+* vertical motion through the full legal Y range;
+* X motion through both edges while moving vertically;
+* two-way overlap at many X separations;
+* three-way overlap while moving the whole pile vertically;
+* four-, five-, and six-way pileups to judge flicker fairness;
+* sprites crossing each other vertically, which changes lane/event ordering;
+* top and bottom legal Y limits;
+* rapid Game Select changes and Reset.
+
+Watch Stella's displayed scanline count while doing this. Any departure from a
+stable 262-line NTSC frame is a renderer bug even if the simulator sweep still
+passes.
+
+If visual testing is clean, the next useful hardening step is an independent
+Stella-backed regression/raster oracle for the enhanced renderer, analogous to
+the maintained renderer Stella tests. Do that before expanding the profile with
+playfield, missiles, Ball, 181-line support, or other features.
+
+Do not replace or modify the existing `renderers/multisprite/` while finishing
+this side quest. It remains the compatibility/timing oracle.

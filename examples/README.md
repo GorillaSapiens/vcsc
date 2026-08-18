@@ -38,6 +38,7 @@ the shared timing, resource, opcode, and composition contracts.
 | [`15_all_five_player_color_192`](15_all_five_player_color_192/) | Official-opcode 192-line P0/P1/M0/M1/Ball renderer with independent eight-row P0/P1 color tables | Interactive five-object motion with visibly striped players |
 | [`16_all_five_player_color_181`](16_all_five_player_color_181/) | Official-opcode 181-line P0/P1/M0/M1/Ball renderer with independent eight-row P0/P1 color tables | Centered six-digit and independent three-plus-three score compositions above and below combined gameplay |
 | [`17_video_standards`](17_video_standards/) | PAL50 and SECAM50 wrappers around portable components, split into per-standard subtrees | Minimal frames plus interactive stock all-five compositions using compile-time RGB matching |
+| [`18_enhanced_multisprite`](18_enhanced_multisprite/) | Experimental six-logical-sprite renderer that multiplexes both TIA players symmetrically | 192-line interactive overlap diagnostic: three-way fair 2-of-3 rotation, solid two-way overlap, and same-frame player reuse |
 
 The original four 181-line groups contribute a **40-cartridge composition
 matrix**: four gameplay families x four production score layouts x two orders,

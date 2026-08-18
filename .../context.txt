@@ -27,6 +27,7 @@ When asked to read `.../context.txt` and continue in a **new chat**:
 
        .../roadmap.txt                 detailed main-project roadmap
        .../bankswitching.txt           bankswitching design and sub-roadmap
+       .../enhanced.txt                enhanced multisprite side-quest handoff
        .../ram_optimization.txt         focused RIOT-RAM optimization roadmap
        .../instruction.txt             bounded-work and packaging procedure
        .../context-history/YYYY-MM-DD.txt
@@ -1319,3 +1320,16 @@ without writing mirrored console devices. The simulator models that undocumented
 NOP operand read and preserves underlying low-memory read/write behavior; public
 `09_bankswitching/08_0840` and `vcs_0840.pl` certify read/write switching, reset
 recovery, disassembly, and byte-exact round trip. Bankswitching Item 36 UA/UASW reuses this machinery with `(A & $1260)` aliases around $0220/$0240, paired UA/UASW profiles, reversed UASW association, public diagnostics, and exact disassembler round trips. Item 37 0FA0 is complete with physical/file bank 1 startup, explicit `(A & $16E0)==$06A0/$06C0` selector semantics, canonical $0FA0/$0FC0 generated reads, alias read/write certification, public `09_bankswitching/10_0fa0`, and byte-exact disassembly. Item 38 is explicitly deferred, leaving no active focused mapper item.
+
+
+The enhanced-multisprite side quest now has an experimental 192-line renderer at
+`libraries/vcs/renderers/enhanced_multisprite/` plus public interactive example
+`examples/18_enhanced_multisprite/01_192/01_interactive`. All six logical sprites
+may use either TIA player: two-way vertical overlap is solid, while three-or-more
+contention uses persistent rotating priority for fair 2-of-N service. P0 and P1
+have intentionally asymmetric physical setup lead times but symmetric logical
+assignment. The VBLANK scheduler sorts one-byte event indices and uses a sentinel
+record so sprite crossings do not overrun VBLANK or add a variable visible-raster
+path. `vcs_enhanced_multisprite.pl` certifies 997-frame Y and combined X/Y sweeps
+at stable 262-line NTSC timing and checks both hardware lanes plus fair three-way
+2-of-3 rotation. The existing `renderers/multisprite/` remains unchanged.

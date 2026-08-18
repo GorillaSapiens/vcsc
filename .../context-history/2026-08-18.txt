@@ -1,0 +1,2 @@
+2026-08-18 10:14:13 PDT, enhanced multisprite handoff
+Added .../enhanced.txt with the current 192-line symmetric P0/P1 renderer architecture, fixed bug history, focused passing regressions, and remaining Stella visual-validation work.

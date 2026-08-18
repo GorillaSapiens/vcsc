@@ -1,0 +1,722 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// Experimental symmetric six-sprite 192-line renderer.
+//
+// Unlike the faithful multisprite renderer, neither TIA player is permanently
+// assigned to one logical sprite. VBLANK greedily colors the six logical
+// eight-row intervals onto two hardware lanes. Two overlapping sprites are
+// therefore solid; when three or more overlap, a rotating frame priority keeps
+// a fair two-of-N subset. Non-overlapping logical sprites reuse either P0 or P1
+// later in the same frame.
+
+alias TEMPLATE_LOGICAL_HEIGHT 95
+alias TEMPLATE_PLAYER0_MAX_Y 89
+alias TEMPLATE_PLAYER1_MAX_Y 89
+
+// Caller-compatible glyph layout. This deliberately accepts the same 145-byte
+// graphics block used by renderers/multisprite so the existing interactive
+// controls/data can be reused unchanged.
+alias TEMPLATE_SPRITE_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+alias TEMPLATE_PLAYER0_GLYPH(a,b,c,d,e,f,g,h) 0,h,g,f,e,d,c,b,a
+
+alias TEMPLATE_PLAYER0_GRAPHICS_OFFSET 96
+alias TEMPLATE_PLAYER1_GRAPHICS_OFFSET 105
+alias TEMPLATE_PLAYER2_GRAPHICS_OFFSET 113
+alias TEMPLATE_PLAYER3_GRAPHICS_OFFSET 121
+alias TEMPLATE_PLAYER4_GRAPHICS_OFFSET 129
+alias TEMPLATE_PLAYER5_GRAPHICS_OFFSET 137
+
+extern const uint8_t TEMPLATE_graphics[145];
+extern const uint8_t TEMPLATE_pf1[6];
+extern const uint8_t TEMPLATE_pf2[6];
+
+// Public logical-sprite state. Height is retained for API compatibility with
+// the existing interactive controls; this first profile renders the eight
+// bitmap rows and expects the conventional value 9 (8 rows + setup sentinel).
+uint8_t TEMPLATE_x[6];
+uint8_t TEMPLATE_y[6];
+uint8_t TEMPLATE_height[6];
+uint8_t TEMPLATE_nusiz[6];
+uint8_t TEMPLATE_color[6];
+
+alias TEMPLATE_PLAYER0_X TEMPLATE_x[0]
+alias TEMPLATE_PLAYER1_X TEMPLATE_x[1]
+alias TEMPLATE_PLAYER2_X TEMPLATE_x[2]
+alias TEMPLATE_PLAYER3_X TEMPLATE_x[3]
+alias TEMPLATE_PLAYER4_X TEMPLATE_x[4]
+alias TEMPLATE_PLAYER5_X TEMPLATE_x[5]
+alias TEMPLATE_PLAYER0_Y TEMPLATE_y[0]
+alias TEMPLATE_PLAYER1_Y TEMPLATE_y[1]
+alias TEMPLATE_PLAYER2_Y TEMPLATE_y[2]
+alias TEMPLATE_PLAYER3_Y TEMPLATE_y[3]
+alias TEMPLATE_PLAYER4_Y TEMPLATE_y[4]
+alias TEMPLATE_PLAYER5_Y TEMPLATE_y[5]
+alias TEMPLATE_PLAYER0_HEIGHT TEMPLATE_height[0]
+alias TEMPLATE_PLAYER1_HEIGHT TEMPLATE_height[1]
+alias TEMPLATE_PLAYER2_HEIGHT TEMPLATE_height[2]
+alias TEMPLATE_PLAYER3_HEIGHT TEMPLATE_height[3]
+alias TEMPLATE_PLAYER4_HEIGHT TEMPLATE_height[4]
+alias TEMPLATE_PLAYER5_HEIGHT TEMPLATE_height[5]
+alias TEMPLATE_PLAYER0_NUSIZ TEMPLATE_nusiz[0]
+alias TEMPLATE_PLAYER1_NUSIZ TEMPLATE_nusiz[1]
+alias TEMPLATE_PLAYER2_NUSIZ TEMPLATE_nusiz[2]
+alias TEMPLATE_PLAYER3_NUSIZ TEMPLATE_nusiz[3]
+alias TEMPLATE_PLAYER4_NUSIZ TEMPLATE_nusiz[4]
+alias TEMPLATE_PLAYER5_NUSIZ TEMPLATE_nusiz[5]
+alias TEMPLATE_PLAYER0_COLOR TEMPLATE_color[0]
+alias TEMPLATE_PLAYER1_COLOR TEMPLATE_color[1]
+alias TEMPLATE_PLAYER2_COLOR TEMPLATE_color[2]
+alias TEMPLATE_PLAYER3_COLOR TEMPLATE_color[3]
+alias TEMPLATE_PLAYER4_COLOR TEMPLATE_color[4]
+alias TEMPLATE_PLAYER5_COLOR TEMPLATE_color[5]
+
+// Compatibility-only state for the shared interactive example. This enhanced
+// profile is deliberately player-only; M0/M1/Ball are not drawn.
+uint8_t TEMPLATE_unused_object_state[6];
+alias TEMPLATE_MISSILE0_X TEMPLATE_unused_object_state[0]
+alias TEMPLATE_MISSILE1_X TEMPLATE_unused_object_state[1]
+alias TEMPLATE_BALL_X TEMPLATE_unused_object_state[2]
+alias TEMPLATE_MISSILE0_Y TEMPLATE_unused_object_state[3]
+alias TEMPLATE_MISSILE1_Y TEMPLATE_unused_object_state[4]
+alias TEMPLATE_BALL_Y TEMPLATE_unused_object_state[5]
+
+// VBLANK scheduler state. During lane assignment lane_for uses $ff for omitted,
+// 0 for P0, and 1 for P1. setup_* are keyed by logical sprite, with slot 6
+// reserved as a sentinel.
+// event_order[] is a compact descending list terminated by sentinel index 6.
+// setup_code stores the
+// logical sprite in bits 0..2 and lane in bit 7; setup_line stores action_y,
+// two bands above the physical setup band.
+uint8_t TEMPLATE_priority[6];
+uint8_t TEMPLATE_lane_for[6];
+uint8_t TEMPLATE_setup_line[7];
+uint8_t TEMPLATE_setup_code[7];
+uint8_t TEMPLATE_setup_position[7];
+uint8_t TEMPLATE_event_order[7];
+uint8_t TEMPLATE_setup_count;
+
+// Draw-time lane state. A logical bitmap row is held by the TIA for both
+// physical scanlines in one band, so only line A writes GRP0/GRP1.  gfx_index
+// is the row currently displayed; zero means that hardware lane is idle.
+uint8_t TEMPLATE_setup_index;
+uint8_t TEMPLATE_setup_sprite; // VBLANK scheduler scratch
+uint8_t TEMPLATE_pending0_valid; // VBLANK scheduler scratch
+uint8_t TEMPLATE_pair_y;
+uint8_t TEMPLATE_gfx_index[2];
+uint8_t TEMPLATE_current_gfx[2];
+uint8_t TEMPLATE_rows_left[2];
+
+// P0 is positioned four bands before its logical top. setup line B arms its
+// top+1 pointer immediately, then this countdown suppresses the three ordinary
+// bands y+3,y+2,y+1. P1 is positioned one band early and needs no countdown.
+uint8_t TEMPLATE_p0_delay;
+
+// The next setup event is kept hot so ordinary visible lines never index the
+// event tables.  action_y is two bands above the setup band.  Line B there
+// installs HMP/NUSIZ/REFP/color; the following line B enters the setup band.
+uint8_t TEMPLATE_event_code;
+uint8_t TEMPLATE_position_packed;
+uint8_t TEMPLATE_event_stage;
+uint8_t TEMPLATE_action_y;
+
+// One-past-top byte offsets for the six logical glyphs.  The draw pipeline
+// decrements before fetching, so pre-biasing these values saves four cycles on
+// every setup line B.  All six visible glyphs are exactly eight rows.
+page const uint8_t TEMPLATE_graphics_top[6] := { 105,113,121,129,137,145 };
+
+// Packed horizontal controls retained from the proven multisprite P1
+// positioner. Low nibble is coarse_count-1; high nibble is HMPx. Enhanced
+// setup line A deliberately reproduces the same HMP/RESP cycle phase for both
+// hardware players. The table covers X=0..159 including the RESP wrap bucket.
+page const uint8_t TEMPLATE_position_table[160] := {
+   0xc0,0x71,0x61,0x51,0x41,0x31,0x21,0x11,0x01,0xf1,0xe1,0xd1,0xc1,0xb1,0xa1,0x91,
+   0x72,0x62,0x52,0x42,0x32,0x22,0x12,0x02,0xf2,0xe2,0xd2,0xc2,0xb2,0xa2,0x92,0x73,
+   0x63,0x53,0x43,0x33,0x23,0x13,0x03,0xf3,0xe3,0xd3,0xc3,0xb3,0xa3,0x93,0x74,0x64,
+   0x54,0x44,0x34,0x24,0x14,0x04,0xf4,0xe4,0xd4,0xc4,0xb4,0xa4,0x94,0x75,0x65,0x55,
+   0x45,0x35,0x25,0x15,0x05,0xf5,0xe5,0xd5,0xc5,0xb5,0xa5,0x95,0x76,0x66,0x56,0x46,
+   0x36,0x26,0x16,0x06,0xf6,0xe6,0xd6,0xc6,0xb6,0xa6,0x96,0x77,0x67,0x57,0x47,0x37,
+   0x27,0x17,0x07,0xf7,0xe7,0xd7,0xc7,0xb7,0xa7,0x97,0x78,0x68,0x58,0x48,0x38,0x28,
+   0x18,0x08,0xf8,0xe8,0xd8,0xc8,0xb8,0xa8,0x98,0x79,0x69,0x59,0x49,0x39,0x29,0x19,
+   0x09,0xf9,0xe9,0xd9,0xc9,0xb9,0xa9,0x99,0x7a,0x6a,0x5a,0x4a,0x3a,0x2a,0x1a,0x0a,
+   0xfa,0xea,0xda,0xca,0xba,0xaa,0x9a,0x8a,0x40,0x30,0x20,0x10,0x00,0xf0,0xe0,0xd0
+};
+
+enum TEMPLATE_contract {
+   TEMPLATE_VISIBLE_SCANLINES := 192,
+   TEMPLATE_DRAW_ENTRY_CYCLE := 3,
+   TEMPLATE_DRAW_RETURN_CYCLE := 0,
+   TEMPLATE_DRAW_COMPLETE_SCANLINES := 192,
+   TEMPLATE_DRAW_PARTIAL_ENTRY_CYCLES := 0,
+   TEMPLATE_DRAW_PARTIAL_EXIT_CYCLES := 0,
+   TEMPLATE_DRAW_TERMINAL_WSYNC := 1,
+   TEMPLATE_DRAW_HMOVE_COUNT := 6,
+   TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE := 0,
+   TEMPLATE_VBLANK_MAX_CYCLES := 0,
+   TEMPLATE_OVERSCAN_MAX_CYCLES := 0,
+   TEMPLATE_OBJECT_COUNT := 6,
+   TEMPLATE_HARDWARE_LANES := 2,
+   TEMPLATE_BITMAP_ROWS := 8,
+   TEMPLATE_LOGICAL_BANDS := 96
+};
+
+require inline void TEMPLATE_init(void) {
+   asm ldx #0;
+   asm @TEMPLATE_InitPriority:;
+   asm txa;
+   asm sta.zx TEMPLATE_priority,X;
+   asm inx;
+   asm cpx #6;
+   asm bne.same @TEMPLATE_InitPriority;
+}
+
+require inline void TEMPLATE_vblank(void) {
+   asm .callstackextra 2;
+   asm jmp @TEMPLATE_VblankStart;
+
+   // Choose one hardware lane for X. Since every logical sprite is exactly
+   // eight bands tall, conflict tests collapse to small Y-distance checks:
+   // P0's setup+bitmap interval conflicts on the same lane through |dy|<=11;
+   // P1 conflicts through |dy|<=8. Setup events on opposite lanes retain two
+   // ordinary bands between them so the raster can stage the following event.
+   asm @TEMPLATE_ChooseLane:;
+   asm stx.z TEMPLATE_setup_sprite;
+   asm lda.zx TEMPLATE_y,X;
+   asm sta.z TEMPLATE_pair_y;        // candidate Y
+   asm lda #3;                       // bit0=P0 possible, bit1=P1 possible
+   asm sta.z TEMPLATE_position_packed;
+   asm ldy #0;
+
+   asm @TEMPLATE_ChooseLoop:;
+   asm lda.ay TEMPLATE_lane_for,Y;
+   asm cmp #$ff;
+   asm bne.same @TEMPLATE_ChooseAssigned;
+   asm jmp @TEMPLATE_ChooseNext;
+   asm @TEMPLATE_ChooseAssigned:;
+   asm sta.z TEMPLATE_pending0_valid; // other lane
+
+   // Keep the signed Y difference long enough to do both conflict tests.
+   // This avoids the old abs(dy) calculation followed by a second subtract
+   // for cross-lane setup spacing.
+   asm lda.z TEMPLATE_pair_y;
+   asm sec;
+   asm sbc.ay TEMPLATE_y,Y;
+   asm bcs.same @TEMPLATE_ChooseCandidateAtOrAbove;
+
+   // Candidate is below the assigned sprite; X = other_y - candidate_y.
+   asm eor #$ff;
+   asm clc;
+   asm adc #1;
+   asm tax;
+   asm lda.z TEMPLATE_pending0_valid;
+   asm bne.same @TEMPLATE_ChooseBelowOtherP1;
+
+   // Below an existing P0 only the P0 same-lane interval can conflict.
+   asm txa;
+   asm cmp #12;
+   asm bcs.same @TEMPLATE_ChooseAfterOther;
+   asm lda.z TEMPLATE_position_packed;
+   asm and #$fe;
+   asm sta.z TEMPLATE_position_packed;
+   asm jmp @TEMPLATE_ChooseAfterOther;
+
+   asm @TEMPLATE_ChooseBelowOtherP1:;
+   // P1 same-lane reuse needs nine bands. Candidate P0 setup is three
+   // bands above P1's setup, so a 1..5 Y gap also blocks candidate P0.
+   asm txa;
+   asm cmp #9;
+   asm bcs.same @TEMPLATE_ChooseBelowP1SameClear;
+   asm lda.z TEMPLATE_position_packed;
+   asm and #$fd;
+   asm sta.z TEMPLATE_position_packed;
+   asm @TEMPLATE_ChooseBelowP1SameClear:;
+   asm txa;
+   asm cmp #6;
+   asm bcs.same @TEMPLATE_ChooseAfterOther;
+   asm lda.z TEMPLATE_position_packed;
+   asm and #$fe;
+   asm sta.z TEMPLATE_position_packed;
+   asm jmp @TEMPLATE_ChooseAfterOther;
+
+   asm @TEMPLATE_ChooseCandidateAtOrAbove:;
+   // X = candidate_y - other_y (including zero).
+   asm tax;
+   asm lda.z TEMPLATE_pending0_valid;
+   asm bne.same @TEMPLATE_ChooseAboveOtherP1;
+
+   // Existing P0: block candidate P0 inside twelve bands. Candidate P1's
+   // setup conflicts only when candidate_y-other_y is 1..5.
+   asm txa;
+   asm cmp #12;
+   asm bcs.same @TEMPLATE_ChooseAboveP0SameClear;
+   asm lda.z TEMPLATE_position_packed;
+   asm and #$fe;
+   asm sta.z TEMPLATE_position_packed;
+   asm @TEMPLATE_ChooseAboveP0SameClear:;
+   asm txa;
+   asm beq.same @TEMPLATE_ChooseAfterOther;
+   asm cmp #6;
+   asm bcs.same @TEMPLATE_ChooseAfterOther;
+   asm lda.z TEMPLATE_position_packed;
+   asm and #$fd;
+   asm sta.z TEMPLATE_position_packed;
+   asm jmp @TEMPLATE_ChooseAfterOther;
+
+   asm @TEMPLATE_ChooseAboveOtherP1:;
+   // Existing P1: candidate P1 only needs the same-lane nine-band test;
+   // candidate P0's setup is already at least three bands above it.
+   asm txa;
+   asm cmp #9;
+   asm bcs.same @TEMPLATE_ChooseAfterOther;
+   asm lda.z TEMPLATE_position_packed;
+   asm and #$fd;
+   asm sta.z TEMPLATE_position_packed;
+
+   asm @TEMPLATE_ChooseAfterOther:;
+   asm lda.z TEMPLATE_position_packed;
+   asm beq.same @TEMPLATE_ChooseNone;
+   asm @TEMPLATE_ChooseNext:;
+   asm iny;
+   asm cpy #6;
+   asm beq.same @TEMPLATE_ChooseLoopDone;
+   asm jmp @TEMPLATE_ChooseLoop;
+   asm @TEMPLATE_ChooseLoopDone:;
+
+   asm lda.z TEMPLATE_position_packed;
+   asm and #1;
+   asm beq.same @TEMPLATE_ChooseP1;
+   asm lda #0;
+   asm ldx.z TEMPLATE_setup_sprite;
+   asm rts;
+   asm @TEMPLATE_ChooseP1:;
+   asm lda.z TEMPLATE_position_packed;
+   asm and #2;
+   asm beq.same @TEMPLATE_ChooseNone;
+   asm lda #1;
+   asm ldx.z TEMPLATE_setup_sprite;
+   asm rts;
+   asm @TEMPLATE_ChooseNone:;
+   asm lda #$ff;
+   asm ldx.z TEMPLATE_setup_sprite;
+   asm rts;
+
+   asm @TEMPLATE_VblankStart:;
+   // Start each frame with no logical sprite assigned, then visit sprites in
+   // persistent priority order. Omitted sprites are stably promoted below, so
+   // every contested group carries its own fair rotation from frame to frame.
+   asm ldx #5;
+   asm lda #$ff;
+   asm @TEMPLATE_ClearLanes:;
+   asm sta.zx TEMPLATE_lane_for,X;
+   asm dex;
+   asm bpl.same @TEMPLATE_ClearLanes;
+
+   asm lda #0;
+   asm sta.z TEMPLATE_setup_count; // temporary rank counter
+   asm @TEMPLATE_AssignRank:;
+   asm ldx.z TEMPLATE_setup_count;
+   asm lda.zx TEMPLATE_priority,X;
+   asm tax;
+   asm jsr @TEMPLATE_ChooseLane;
+   asm cmp #$ff;
+   asm beq.same @TEMPLATE_AssignNext;
+   asm sta.zx TEMPLATE_lane_for,X;
+   asm @TEMPLATE_AssignNext:;
+   asm inc.z TEMPLATE_setup_count;
+   asm lda.z TEMPLATE_setup_count;
+   asm cmp #6;
+   asm bne.same @TEMPLATE_AssignRank;
+
+   // Stable-partition the priority list: omitted sprites first, then every
+   // sprite that was rendered, preserving order inside both groups. This is
+   // the generalized flicker rotation: 3-way overlap becomes 01,20,12; 4-way
+   // becomes 01,23; and larger groups receive the same no-starvation service.
+   asm lda #0;
+   asm sta.z TEMPLATE_position_packed; // destination for next omitted sprite
+   asm sta.z TEMPLATE_pair_y;          // scan position in priority[]
+   asm @TEMPLATE_PriorityPartition:;
+   asm ldx.z TEMPLATE_pair_y;
+   asm lda.zx TEMPLATE_priority,X;
+   asm sta.z TEMPLATE_setup_sprite;
+   asm tax;
+   asm lda.zx TEMPLATE_lane_for,X;
+   asm cmp #$ff;
+   asm bne.same @TEMPLATE_PriorityNext;
+   asm lda.z TEMPLATE_pair_y;
+   asm cmp.z TEMPLATE_position_packed;
+   asm beq.same @TEMPLATE_PriorityAlreadyFront;
+   asm tay;
+   asm @TEMPLATE_PriorityShift:;
+   asm lda.ay TEMPLATE_priority - 1,Y;
+   asm sta.ay TEMPLATE_priority,Y;
+   asm dey;
+   asm cpy.z TEMPLATE_position_packed;
+   asm bne.same @TEMPLATE_PriorityShift;
+   asm lda.z TEMPLATE_setup_sprite;
+   asm ldy.z TEMPLATE_position_packed;
+   asm sta.ay TEMPLATE_priority,Y;
+   asm @TEMPLATE_PriorityAlreadyFront:;
+   asm inc.z TEMPLATE_position_packed;
+   asm @TEMPLATE_PriorityNext:;
+   asm inc.z TEMPLATE_pair_y;
+   asm lda.z TEMPLATE_pair_y;
+   asm cmp #6;
+   asm bne.same @TEMPLATE_PriorityPartition;
+
+   // Build the at-most-six setup events keyed by logical sprite, while
+   // insertion-sorting only their one-byte indices into event_order[].  The old
+   // renderer shifted three whole event arrays when sprites crossed vertically;
+   // sorting six indices keeps the VBLANK cost bounded much more tightly.
+   asm lda #0;
+   asm sta.z TEMPLATE_setup_count;
+   asm ldx #0;
+   asm @TEMPLATE_BuildEvents:;
+   asm lda.zx TEMPLATE_lane_for,X;
+   asm cmp #$ff;
+   asm beq.flex @TEMPLATE_BuildNext;
+   asm sta.z TEMPLATE_position_packed; // assigned hardware lane
+
+   // Store action_y directly: P1 setup is y+1 and P0 setup is y+4; the
+   // configuration action happens two bands earlier, hence y+3 / y+6.
+   asm lda.zx TEMPLATE_y,X;
+   asm clc;
+   asm adc #3;
+   asm ldy.z TEMPLATE_position_packed;
+   asm bne.same @TEMPLATE_EventActionReady;
+   asm clc;
+   asm adc #3;
+   asm @TEMPLATE_EventActionReady:;
+   asm sta.zx TEMPLATE_setup_line,X;
+   asm sta.z TEMPLATE_pair_y;          // candidate action_y for insertion sort
+
+   asm txa;
+   asm ldy.z TEMPLATE_position_packed;
+   asm beq.same @TEMPLATE_EventCodeReady;
+   asm ora #$80;
+   asm @TEMPLATE_EventCodeReady:;
+   asm sta.zx TEMPLATE_setup_code,X;
+
+   // Horizontal control is VBLANK-precomputed; visible setup never needs the
+   // 160-byte position-table lookup.
+   asm ldy.zx TEMPLATE_x,X;
+   asm lda.ay TEMPLATE_position_table,Y;
+   asm sta.zx TEMPLATE_setup_position,X;
+
+   // Insert logical sprite X into the descending one-byte order list.  Equal
+   // action lines retain logical-sprite order.
+   asm stx.z TEMPLATE_setup_sprite;
+   asm ldy.z TEMPLATE_setup_count;
+   asm @TEMPLATE_InsertOrder:;
+   asm cpy #0;
+   asm beq.same @TEMPLATE_PlaceOrder;
+   asm lda.ay TEMPLATE_event_order - 1,Y;
+   asm tax;
+   asm lda.zx TEMPLATE_setup_line,X;
+   asm cmp.z TEMPLATE_pair_y;
+   asm bcs.same @TEMPLATE_PlaceOrder;
+   asm txa;
+   asm sta.ay TEMPLATE_event_order,Y;
+   asm dey;
+   asm jmp @TEMPLATE_InsertOrder;
+
+   asm @TEMPLATE_PlaceOrder:;
+   asm lda.z TEMPLATE_setup_sprite;
+   asm sta.ay TEMPLATE_event_order,Y;
+   asm ldx.z TEMPLATE_setup_sprite;
+   asm inc.z TEMPLATE_setup_count;
+
+   asm @TEMPLATE_BuildNext:;
+   asm inx;
+   asm cpx #6;
+   asm bne.flex @TEMPLATE_BuildEvents;
+
+   asm ldy.z TEMPLATE_setup_count;
+   asm lda #6;
+   asm sta.ay TEMPLATE_event_order,Y;
+   asm lda #$ff;
+   asm sta TEMPLATE_setup_line + 6;
+   asm lda #0;
+   asm sta TEMPLATE_setup_code + 6;
+   asm sta TEMPLATE_setup_position + 6;
+
+   // Reset the visible-raster state. setup_index is the rank within the
+   // compact event_order[] list.
+   asm lda #0;
+   asm sta.z TEMPLATE_setup_index;
+   asm sta.z TEMPLATE_gfx_index;
+   asm sta.z TEMPLATE_gfx_index + 1;
+   asm sta.z TEMPLATE_current_gfx;
+   asm sta.z TEMPLATE_current_gfx + 1;
+   asm sta.z TEMPLATE_rows_left;
+   asm sta.z TEMPLATE_rows_left + 1;
+   asm sta.z TEMPLATE_event_stage;
+   asm sta.z TEMPLATE_p0_delay;
+
+   // Keep the first event hot so ordinary visible lines never index tables.
+   // event_order[] terminates with index 6, whose setup record is the sentinel.
+   asm lda TEMPLATE_event_order;
+   asm tax;
+   asm lda.zx TEMPLATE_setup_code,X;
+   asm sta.z TEMPLATE_event_code;
+   asm lda.zx TEMPLATE_setup_position,X;
+   asm sta.z TEMPLATE_position_packed;
+   asm lda.zx TEMPLATE_setup_line,X;
+   asm sta.z TEMPLATE_action_y;
+   asm lda #95;
+   asm sta.z TEMPLATE_pair_y;
+
+   // This profile owns both hardware players completely while visible.
+   asm lda #0;
+   asm sta VDELP0;
+   asm sta VDELP1;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm lda #$80;
+   asm sta HMP0;
+   asm sta HMP1;
+}
+
+require inline void TEMPLATE_draw(void) {
+   asm .callstackextra 2;
+   asm jmp @TEMPLATE_NormalLineA;
+
+   // ------------------------------------------------------------------
+   // Ordinary band, line A.
+   //
+   // Each armed lane starts with gfx_index=top+1 and rows_left=8. Thus the
+   // common active path decrements the index and fetches exactly one new bitmap
+   // row per two-scanline band; the ninth visit clears the hardware player.
+   // ------------------------------------------------------------------
+   asm @TEMPLATE_NormalLineA:;
+   // Publish the row at the start of line A, before any possible player X.
+   // The rest of line A prepares the following band's cached row only.
+   asm lda.z TEMPLATE_current_gfx;
+   asm sta GRP0;
+   asm lda.z TEMPLATE_current_gfx + 1;
+   asm sta GRP1;
+   asm ldx.z TEMPLATE_gfx_index;
+   asm beq.flex @TEMPLATE_LineAUpdate1;
+   asm lda.z TEMPLATE_p0_delay;
+   asm beq.flex @TEMPLATE_LineAAdvance0;
+   asm dec.z TEMPLATE_p0_delay;
+   asm jmp @TEMPLATE_LineAUpdate1;
+   asm @TEMPLATE_LineAAdvance0:;
+   asm dec.z TEMPLATE_rows_left;
+   asm bpl.same @TEMPLATE_LineAHaveRow0;
+   asm lda #0;
+   asm sta.z TEMPLATE_gfx_index;
+   asm sta.z TEMPLATE_current_gfx;
+   asm jmp @TEMPLATE_LineAUpdate1;
+   asm @TEMPLATE_LineAHaveRow0:;
+   asm dex;
+   asm stx.z TEMPLATE_gfx_index;
+   asm lda.ax TEMPLATE_graphics,X;
+   asm sta.z TEMPLATE_current_gfx;
+
+   asm @TEMPLATE_LineAUpdate1:;
+   asm ldx.z TEMPLATE_gfx_index + 1;
+   asm beq.flex @TEMPLATE_LineAPublish;
+   asm dec.z TEMPLATE_rows_left + 1;
+   asm bpl.same @TEMPLATE_LineAHaveRow1;
+   asm lda #0;
+   asm sta.z TEMPLATE_gfx_index + 1;
+   asm sta.z TEMPLATE_current_gfx + 1;
+   asm jmp @TEMPLATE_LineAPublish;
+   asm @TEMPLATE_LineAHaveRow1:;
+   asm dex;
+   asm stx.z TEMPLATE_gfx_index + 1;
+   asm lda.ax TEMPLATE_graphics,X;
+   asm sta.z TEMPLATE_current_gfx + 1;
+
+   asm @TEMPLATE_LineAPublish:;
+   asm sta WSYNC;
+   asm jmp @TEMPLATE_NormalLineB;
+
+   // ------------------------------------------------------------------
+   // Ordinary band, line B.
+   //
+   // GRP0/GRP1 naturally retain line A's values. This cheap line handles P0's
+   // delayed activation and the setup-event state machine without endangering
+   // scanline length.
+   // ------------------------------------------------------------------
+   asm @TEMPLATE_NormalLineB:;
+
+   // event_stage means the preceding band installed HMP/attributes and this is
+   // the last ordinary band before the setup band.
+   asm lda.z TEMPLATE_event_stage;
+   asm bne.flex @TEMPLATE_EnterSetupBand;
+
+   // action_y is setup_y+2. Configure the target on this otherwise-cheap line.
+   asm lda.z TEMPLATE_pair_y;
+   asm cmp.z TEMPLATE_action_y;
+   asm bne.flex @TEMPLATE_NormalLineBFinish;
+   asm ldx.z TEMPLATE_event_code;
+   asm bmi.flex @TEMPLATE_ConfigP1;
+   asm lda #$80;
+   asm sta HMP1;
+   // P0 event_code is already the 0..5 logical sprite id.
+   asm lda.zx TEMPLATE_nusiz,X;
+   asm sta NUSIZ0;
+   asm sta REFP0;
+   asm lda.zx TEMPLATE_color,X;
+   asm sta COLUP0;
+   asm jmp @TEMPLATE_ConfigDone;
+   asm @TEMPLATE_ConfigP1:;
+   asm lda #$80;
+   asm sta HMP0;
+   asm txa;
+   asm and #7;
+   asm tax;
+   asm lda.zx TEMPLATE_nusiz,X;
+   asm sta NUSIZ1;
+   asm sta REFP1;
+   asm lda.zx TEMPLATE_color,X;
+   asm sta COLUP1;
+   asm @TEMPLATE_ConfigDone:;
+   asm lda #1;
+   asm sta.z TEMPLATE_event_stage;
+
+   asm @TEMPLATE_NormalLineBFinish:;
+   asm dec.z TEMPLATE_pair_y;
+   asm bmi.flex @TEMPLATE_DrawDone;
+   asm sta WSYNC;
+   asm jmp @TEMPLATE_NormalLineA;
+
+   // Enter the setup band. Only the opposite lane can legitimately be active;
+   // update that one lane to the row for setup_y and force the target blank.
+   asm @TEMPLATE_EnterSetupBand:;
+   asm lda #0;
+   asm sta.z TEMPLATE_event_stage;
+   asm dec.z TEMPLATE_pair_y;
+   asm ldx.z TEMPLATE_event_code;
+   asm bmi.flex @TEMPLATE_PrepareSetup1;
+
+   // P0 setup target, P1 continues. The WSYNC immediately before the setup
+   // label is deliberate: setup line A must begin at CPU cycle 0 so the
+   // retained multisprite packed-position table has exactly its proven phase.
+   asm lda #0;
+   asm sta.z TEMPLATE_gfx_index;
+   asm sta.z TEMPLATE_rows_left;
+   asm sta.z TEMPLATE_current_gfx;
+   asm ldx.z TEMPLATE_gfx_index + 1;
+   asm beq.flex @TEMPLATE_PrepareSetup0Ready;
+   asm dec.z TEMPLATE_rows_left + 1;
+   asm bmi.flex @TEMPLATE_PrepareSetup0Clear1;
+   asm dex;
+   asm stx.z TEMPLATE_gfx_index + 1;
+   asm lda.ax TEMPLATE_graphics,X;
+   asm sta.z TEMPLATE_current_gfx + 1;
+   asm jmp @TEMPLATE_PrepareSetup0Ready;
+   asm @TEMPLATE_PrepareSetup0Clear1:;
+   asm lda #0;
+   asm sta.z TEMPLATE_gfx_index + 1;
+   asm sta.z TEMPLATE_rows_left + 1;
+   asm sta.z TEMPLATE_current_gfx + 1;
+   asm @TEMPLATE_PrepareSetup0Ready:;
+   asm sta WSYNC;
+   asm @TEMPLATE_Setup0LineA:;
+   asm lda.z TEMPLATE_position_packed;
+   asm nop;
+   asm sta HMP0;
+   asm and #$0f;
+   asm tax;
+   asm inx;
+   asm @TEMPLATE_Setup0Delay:;
+   asm dex;
+   asm bne.same @TEMPLATE_Setup0Delay;
+   asm sta RESP0;
+   asm sta WSYNC;
+   asm jmp @TEMPLATE_Setup0LineB;
+
+   // P1 setup target, P0 continues. A P0 whose logical top is this setup
+   // band is activated here because ordinary line A is being replaced.
+   asm @TEMPLATE_PrepareSetup1:;
+   asm lda #0;
+   asm sta.z TEMPLATE_gfx_index + 1;
+   asm sta.z TEMPLATE_rows_left + 1;
+   asm sta.z TEMPLATE_current_gfx + 1;
+   asm ldx.z TEMPLATE_gfx_index;
+   asm beq.flex @TEMPLATE_PrepareSetup1Ready;
+   asm lda.z TEMPLATE_p0_delay;
+   asm beq.flex @TEMPLATE_PrepareSetup1Advance0;
+   asm dec.z TEMPLATE_p0_delay;
+   asm jmp @TEMPLATE_PrepareSetup1Ready;
+   asm @TEMPLATE_PrepareSetup1Advance0:;
+   asm dec.z TEMPLATE_rows_left;
+   asm bmi.flex @TEMPLATE_PrepareSetup1Clear0;
+   asm dex;
+   asm stx.z TEMPLATE_gfx_index;
+   asm lda.ax TEMPLATE_graphics,X;
+   asm sta.z TEMPLATE_current_gfx;
+   asm jmp @TEMPLATE_PrepareSetup1Ready;
+   asm @TEMPLATE_PrepareSetup1Clear0:;
+   asm lda #0;
+   asm sta.z TEMPLATE_gfx_index;
+   asm sta.z TEMPLATE_rows_left;
+   asm sta.z TEMPLATE_current_gfx;
+   asm @TEMPLATE_PrepareSetup1Ready:;
+   asm sta WSYNC;
+   asm @TEMPLATE_Setup1LineA:;
+   asm lda.z TEMPLATE_position_packed;
+   asm nop;
+   asm sta HMP1;
+   asm and #$0f;
+   asm tax;
+   asm inx;
+   asm @TEMPLATE_Setup1Delay:;
+   asm dex;
+   asm bne.same @TEMPLATE_Setup1Delay;
+   asm sta RESP1;
+   asm sta WSYNC;
+   asm jmp @TEMPLATE_Setup1LineB;
+
+   // P0 waits three ordinary bands after setup_y=y+4. P1's setup_y=y+1 means
+   // it can be armed immediately as top+1 for the next ordinary line A.
+   asm @TEMPLATE_Setup0LineB:;
+   asm sta HMOVE;
+   asm ldx.z TEMPLATE_event_code;
+   asm lda.ax TEMPLATE_graphics_top,X;
+   asm sta.z TEMPLATE_gfx_index;
+   asm lda #8;
+   asm sta.z TEMPLATE_rows_left;
+   asm lda #3;
+   asm sta.z TEMPLATE_p0_delay;
+   asm jmp @TEMPLATE_SetupLineBLoadNext;
+
+   asm @TEMPLATE_Setup1LineB:;
+   asm sta HMOVE;
+   asm lda.z TEMPLATE_event_code;
+   asm and #7;
+   asm tax;
+   asm lda.ax TEMPLATE_graphics_top,X;
+   asm sta.z TEMPLATE_gfx_index + 1;
+   asm lda #8;
+   asm sta.z TEMPLATE_rows_left + 1;
+
+   // Advance through the compact event order and keep the next event hot.
+   // Index 6 is a branch-free sentinel with action_y=$ff.
+   asm @TEMPLATE_SetupLineBLoadNext:;
+   asm inc.z TEMPLATE_setup_index;
+   asm ldx.z TEMPLATE_setup_index;
+   asm lda.ax TEMPLATE_event_order,X;
+   asm tax;
+   asm lda.zx TEMPLATE_setup_code,X;
+   asm sta.z TEMPLATE_event_code;
+   asm lda.zx TEMPLATE_setup_position,X;
+   asm sta.z TEMPLATE_position_packed;
+   asm lda.zx TEMPLATE_setup_line,X;
+   asm sta.z TEMPLATE_action_y;
+   asm dec.z TEMPLATE_pair_y;
+   asm sta WSYNC;
+   asm jmp @TEMPLATE_NormalLineA;
+
+   // The final ordinary line B owns visible scanline 192. WSYNC closes it and
+   // returns the caller at cycle 0 of the first overscan line.
+   asm @TEMPLATE_DrawDone:;
+   asm sta WSYNC;
+   asm jmp @TEMPLATE_DrawReturn;
+
+   asm @TEMPLATE_DrawReturn:;
+}
+
+require inline void TEMPLATE_overscan(void) {
+}
