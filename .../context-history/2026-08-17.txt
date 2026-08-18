@@ -113,3 +113,8 @@ pass/FAIL + 0FA0 diagnostic, alias read/write/startup recovery tests,
 disassembler inference/flow/round-trip support, installation/profile/example
 coverage, docs, and Stella 7.0 autodetection certification. Item 38 remains
 explicitly deferred by user request.
+2026-08-17 17:29:13 PDT, Force F8 in standard renderer play target
+  Public 09_bankswitching/02_standard_renderer now runs Stella with -bs F8.
+  Kept original renderer CPX #44 behavior; no autodetection-byte workaround.
+  Added source-hygiene enforcement and documented the explicit mapper launch.
+  Focused renderer, player-color, hygiene, and Stella raster tests pass.

@@ -367,6 +367,7 @@ index($linker_readme,'VBLANK-only')>=0
    or die "banked standard-renderer composition documentation is incomplete\n";
 my $banked_renderer_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','02_standard_renderer','Makefile'));
 $banked_renderer_make =~ /^all:\s+f8\.bin\s*$/m &&
+$banked_renderer_make =~ /^play:\s+f8\.bin\s*\n\s*stella\s+-bs\s+F8\s+f8\.bin\s*$/m &&
 $banked_renderer_make !~ /f6\.bin|f4\.bin|f8sc\.bin/ &&
 index($banked_renderer_make,'vcs_standard_4k_ntsc.cfg')<0
    or die "banked standard renderer must remain one consolidated F8 public diagnostic\n";

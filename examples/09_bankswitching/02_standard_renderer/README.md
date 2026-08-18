@@ -25,3 +25,6 @@ The test suite privately compiles this exact source against F6 and F4, compares
 all three banked rasters with an unbanked 4K reference, and builds an F8SC variant
 whose three non-critical hook bytes live in shared Superchip RAM. The public
 Makefile intentionally emits only `f8.bin` to avoid duplicating diagnostics.
+Its `play` target explicitly launches Stella with `-bs F8`; VCSC already knows
+the cartridge topology, so running the diagnostic does not depend on Stella's
+autodetection heuristics.

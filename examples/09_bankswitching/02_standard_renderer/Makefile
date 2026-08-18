@@ -15,7 +15,7 @@ f8.bin: $(SOURCE)
 clean:
 	rm -f f8.bin f8.hex f8.map f8.sym f8.lst f8.cfg
 
-play:
-	stella *.bin
+play: f8.bin
+	stella -bs F8 f8.bin
 
 .PHONY: all clean play

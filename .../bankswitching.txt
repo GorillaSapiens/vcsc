@@ -2002,6 +2002,8 @@ explicit by design.
          against the unbanked reference for all five profiles. Add independent
          Stella 4K/F8/F8SC snapshot equality, installed-profile compilation,
          map/trampoline assertions, documentation, and source-hygiene coverage.
+         The public F8 `play` target forces `-bs F8`; known VCSC cartridge
+         topology must not depend on Stella autodetection heuristics.
          Multisprite remains deferred to its main-roadmap prerequisites.
 
 [x] 29. Improve automatic placement heuristics without changing semantics.
