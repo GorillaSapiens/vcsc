@@ -859,6 +859,16 @@ Required behavior:
 * Any MD5 mismatch is a failure. Also perform an exact size/byte comparison so
   the project's stronger byte-for-byte round-trip invariant remains the final
   authority even if two MD5 values happen to match.
+* Optionally accept `--stella STELLA` and compare the mapper in generated source
+  with `STELLA -rominfo ROM`'s resolved Bankswitch Type. This is a differential
+  diagnostic, not an oracle: Stella's result combines its MD5-keyed property
+  database with its own autodetector, so a disagreement must be surfaced rather
+  than silently deciding which implementation is right. `--stella-strict` may
+  promote mapper disagreement to command failure for an explicitly requested
+  zero-difference gate.
+* Keep SHA-256 in the generated source header. MD5 exists in the corpus verifier
+  specifically for Stella/database interoperability and round-trip reporting; do
+  not replace the stronger source-identity digest with MD5.
 * A `vcsc-disas` failure, assembler failure, malformed Intel HEX, missing output,
   size mismatch, byte mismatch, or digest mismatch must mark that ROM failed.
 * Continue through the whole input directory after an individual failure, print

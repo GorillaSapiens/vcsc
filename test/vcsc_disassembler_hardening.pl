@@ -74,6 +74,49 @@ $rerr eq '' or die "hardening round-trip corpus wrote stderr:\n$rerr";
 $rout =~ /Summary:\s+6 passed, 0 failed, 6 total\n\z/
    or die "unexpected hardening round-trip summary:\n$rout";
 
+# Optional Stella differential mode is self-contained in the normal suite:
+# emulate `stella -rominfo` so parser/normalization behavior is pinned without
+# requiring the external emulator.  In particular vcsc-disas spells a plain
+# 4K mapper "unbanked 4K" while Stella reports "4K* (4K)".
+my $fake_stella=File::Spec->catfile($tmp,'fake-stella.pl');
+write_raw($fake_stella,<<'FAKE_STELLA');
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Digest::MD5 qw(md5_hex);
+@ARGV == 2 && $ARGV[0] eq '-rominfo' or die "usage: fake-stella -rominfo ROM\n";
+open(my $fh,'<:raw',$ARGV[1]) or die "$ARGV[1]: $!\n";
+local $/; my $rom=<$fh>; close($fh);
+print "  Cart MD5:        ",md5_hex($rom),"\n";
+print "  Bankswitch Type: 4K* (4K)\n";
+FAKE_STELLA
+chmod(0755,$fake_stella) or die "chmod $fake_stella: $!\n";
+my $stella_in=File::Spec->catdir($tmp,'stella-compare-in');
+my $stella_out=File::Spec->catdir($tmp,'stella-compare-out');
+make_path($stella_in,$stella_out);
+write_raw(File::Spec->catfile($stella_in,'plain4k.bin'),$base);
+my($srcmp,$sscmp,$socmp,$secmp)=capture($^X,$roundtrip,'--stella',$fake_stella,$stella_in,$stella_out);
+$srcmp==0 && $sscmp==0 or die "Stella mapper comparison failed\nstdout:\n$socmp\nstderr:\n$secmp";
+$secmp eq '' or die "Stella mapper comparison wrote stderr:\n$secmp";
+$socmp =~ /plain4k\.bin: mapper vcsc=4K stella=4K MATCH\n/
+   or die "Stella mapper comparison lost normalized mapper match:\n$socmp";
+$socmp =~ /Stella mapper comparison: 1 match, 0 mismatch, 0 errors, 1 compared\n\z/
+   or die "unexpected Stella mapper comparison summary:\n$socmp";
+
+# A disagreement is diagnostic by default, but --stella-strict promotes it to
+# failure for callers that intentionally want a zero-difference gate.
+my $fake_wrong=File::Spec->catfile($tmp,'fake-stella-wrong.pl');
+my $wrong=slurp($fake_stella);
+$wrong =~ s/\QBankswitch Type: 4K* (4K)\E/Bankswitch Type: F8* (F8)/
+   or die "could not construct mismatching fake Stella\n";
+write_raw($fake_wrong,$wrong);
+chmod(0755,$fake_wrong) or die "chmod $fake_wrong: $!\n";
+my($mrc,$msig,$mout,$merr)=capture($^X,$roundtrip,'--stella',$fake_wrong,$stella_in,$stella_out);
+$mrc==0 && $msig==0 or die "non-strict Stella mismatch unexpectedly failed\n$mout$merr";
+$mout =~ /mapper vcsc=4K stella=F8 MISMATCH\n/ or die "missing Stella mismatch report\n$mout";
+my($xrc,$xsig,$xout,$xerr)=capture($^X,$roundtrip,'--stella',$fake_wrong,'--stella-strict',$stella_in,$stella_out);
+$xrc!=0 && $xsig==0 or die "strict Stella mismatch did not fail\n$xout$xerr";
+
 # Determinism is source determinism, not merely binary round trip.  The same
 # input and executable must produce byte-identical .s26 text on repeated runs.
 my $det_in=File::Spec->catfile($corpus,'duplicated-16k.bin');

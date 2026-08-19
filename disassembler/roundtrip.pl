@@ -6,13 +6,24 @@ use Digest::MD5 qw(md5_hex);
 use File::Basename qw(basename dirname);
 use File::Path qw(make_path);
 use File::Spec;
+use Getopt::Long qw(GetOptions);
+use IPC::Open3;
+use Symbol qw(gensym);
 
 sub usage {
     my ($fh) = @_;
-    print {$fh} "usage: $0 INPUT_DIR OUTPUT_DIR\n";
+    print {$fh} "usage: $0 [--stella STELLA] [--stella-strict] INPUT_DIR OUTPUT_DIR\n";
 }
 
+my $stella;
+my $stella_strict = 0;
+GetOptions(
+    'stella=s'       => \$stella,
+    'stella-strict!' => \$stella_strict,
+) or do { usage(*STDERR); exit 2; };
 @ARGV == 2 or do { usage(*STDERR); exit 2; };
+$stella_strict && !defined($stella)
+    and die "--stella-strict requires --stella\n";
 my ($input_arg, $output_arg) = @ARGV;
 -d $input_arg or die "$input_arg: input directory does not exist\n";
 
@@ -48,6 +59,55 @@ sub slurp_raw {
     defined $data or $data = '';
     close($fh) or die "$path: close failed: $!\n";
     return $data;
+}
+
+
+sub capture_command {
+    my (@cmd) = @_;
+    my $err = gensym;
+    my $pid = open3(my $in, my $out, $err, @cmd);
+    close($in);
+    local $/;
+    my $stdout = <$out>;
+    my $stderr = <$err>;
+    $stdout = '' if !defined($stdout);
+    $stderr = '' if !defined($stderr);
+    waitpid($pid, 0);
+    return ($? >> 8, $? & 127, $stdout, $stderr);
+}
+
+sub vcsc_mapper_from_source {
+    my ($path) = @_;
+    my $source = slurp_raw($path);
+    $source =~ /^;\s*mapper:\s*(.+?)\s*\(/m
+        or die "$path: generated source has no mapper header\n";
+    my $mapper = $1;
+    if ($mapper =~ /^unbanked\s+(2K|4K)\z/i) {
+        return uc($1);
+    }
+    $mapper =~ /^([A-Za-z0-9+]+)\z/
+        or die "$path: cannot normalize mapper header '$mapper'\n";
+    return uc($1);
+}
+
+sub stella_mapper_for_rom {
+    my ($exe, $path, $expected_md5) = @_;
+    local $ENV{SDL_AUDIODRIVER} = 'dummy' if !defined($ENV{SDL_AUDIODRIVER});
+    local $ENV{SDL_VIDEODRIVER} = 'dummy' if !defined($ENV{SDL_VIDEODRIVER});
+    my ($rc, $sig, $stdout, $stderr) = capture_command($exe, '-rominfo', $path);
+    $sig == 0 or die "Stella -rominfo terminated by signal $sig\n";
+    $rc == 0 or die "Stella -rominfo failed (status $rc): $stderr";
+    my $text = $stdout . $stderr;
+    $text =~ /^\s*Cart MD5:\s*([0-9A-Fa-f]{32})\s*$/m
+        or die "Stella -rominfo did not report Cart MD5\n";
+    my $reported_md5 = lc($1);
+    $reported_md5 eq lc($expected_md5)
+        or die "Stella MD5 $reported_md5 does not match local MD5 $expected_md5\n";
+    $text =~ /^\s*Bankswitch Type:\s*([^\s(]+).*$/m
+        or die "Stella -rominfo did not report Bankswitch Type\n";
+    my $mapper = uc($1);
+    $mapper =~ s/\*+\z//;
+    return $mapper;
 }
 
 sub ihex_to_bin {
@@ -121,6 +181,7 @@ sub ihex_to_bin {
 }
 
 my ($passed, $failed) = (0, 0);
+my ($stella_matches, $stella_mismatches, $stella_errors) = (0, 0, 0);
 for my $name (@files) {
     my $input = File::Spec->catfile($input_dir, $name);
     (my $stem = $name) =~ s/\.bin\z//i;
@@ -149,6 +210,25 @@ for my $name (@files) {
         $md5_original eq $md5_new or die "MD5 mismatch\n";
         length($original) == length($new) or die "size mismatch\n";
         $original eq $new or die "byte mismatch\n";
+
+        if (defined($stella)) {
+            my $vcsc_mapper = vcsc_mapper_from_source($s26);
+            my $stella_mapper = eval { stella_mapper_for_rom($stella, $input, $md5_original) };
+            if (!defined($stella_mapper)) {
+                ++$stella_errors;
+                my $error = $@ || "unknown Stella comparison failure\n";
+                $error =~ s/[\r\n]+\z//;
+                print STDERR "STELLA-ERROR $name: $error\n";
+            }
+            elsif ($vcsc_mapper eq $stella_mapper) {
+                ++$stella_matches;
+                print "$name: mapper vcsc=$vcsc_mapper stella=$stella_mapper MATCH\n";
+            }
+            else {
+                ++$stella_mismatches;
+                print "$name: mapper vcsc=$vcsc_mapper stella=$stella_mapper MISMATCH\n";
+            }
+        }
         1;
     };
     if ($ok) {
@@ -165,4 +245,9 @@ for my $name (@files) {
 }
 
 print "Summary: $passed passed, $failed failed, " . ($passed + $failed) . " total\n";
-exit($failed ? 1 : 0);
+if (defined($stella)) {
+    my $compared = $stella_matches + $stella_mismatches;
+    print "Stella mapper comparison: $stella_matches match, $stella_mismatches mismatch, " .
+          "$stella_errors errors, $compared compared\n";
+}
+exit($failed || $stella_errors || ($stella_strict && $stella_mismatches) ? 1 : 0);

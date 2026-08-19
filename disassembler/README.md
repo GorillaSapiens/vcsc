@@ -347,6 +347,7 @@ normal `test/` directory:
 
 ```sh
 perl disassembler/roundtrip.pl INPUT_DIR OUTPUT_DIR
+perl disassembler/roundtrip.pl --stella stella INPUT_DIR OUTPUT_DIR
 ```
 
 It processes every direct `.bin` in `INPUT_DIR` in lexical order. For each ROM
@@ -354,6 +355,21 @@ it keeps `NAME.s26` and a reconstructed `NAME.bin` in `OUTPUT_DIR`, prints the
 original and reconstructed MD5 values, and also performs an exact size/byte
 comparison. It continues after individual failures and exits nonzero unless the
 entire corpus passes.
+
+`--stella PATH` additionally runs `PATH -rominfo ROM` for every successfully
+round-tripped cartridge and compares Stella's resolved `Bankswitch Type` with
+the mapper in the generated vcsc-disas header.  This is a differential check,
+not the byte-exact pass/fail authority: Stella combines its MD5-keyed properties
+database with its own mapper autodetection, and either detector may expose a bug.
+Mapper disagreements are therefore reported as `MISMATCH` and summarized without
+failing the round-trip run.  `--stella-strict` makes any mapper mismatch fail the
+command when a zero-mismatch corpus gate is desired.  Failure to run or parse an
+explicitly requested Stella comparison is always an error.
+
+The generated `.s26` header keeps SHA-256 as its input-integrity fingerprint.
+The corpus verifier already computes MD5 because that is the identifier used by
+Stella's ROM properties database, so no weaker digest needs to replace SHA-256
+in vcsc-disas itself.
 
 Input and output directories may not alias. Filenames are passed to child
 processes without shell interpolation.
