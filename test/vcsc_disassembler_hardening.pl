@@ -132,25 +132,25 @@ symlink($empty,$alias) or die "symlink $alias: $!\n";
 my($erc,$esig)=capture($^X,$roundtrip,$empty,$alias);
 $erc != 0 && $esig==0 or die "roundtrip accepted aliased input/output directories\n";
 
-# Keep the pre-existing stego side tool independently buildable and preserve a
+# Keep the pre-existing tagger side tool independently buildable and preserve a
 # tiny functional baseline.  Build in TMP so the E2E does not mutate the source
 # tree or race another worker.
-my $stego_src=File::Spec->catfile($repo,'stego','stego.c');
-my $stego=File::Spec->catfile($tmp,'stego-smoke');
+my $tagger_src=File::Spec->catfile($repo,'tagger','tagger.c');
+my $tagger=File::Spec->catfile($tmp,'tagger-smoke');
 my $cc=$ENV{CC} || 'cc';
-my($crc,$csig,$cso,$cse)=capture($cc,'-std=c11','-Wall','-Wextra','-Werror','-pedantic','-O2',$stego_src,'-o',$stego);
-$crc==0 && !$csig or die "stego standalone build failed\n$cso$cse";
-my $stego_rom=chr(0xea)x2048;
-substr($stego_rom,0,3)=pack('C*',0xa9,0x42,0x60);
-substr($stego_rom,2042,6)=pack('v3',0xf800,0xf800,0xf800);
-my $stego_bin=File::Spec->catfile($tmp,'stego.bin');
-write_raw($stego_bin,$stego_rom);
-my($trc,$tsig,$tout,$terr)=capture($stego,$stego_bin);
-$trc==0 && !$tsig or die "stego smoke run failed\n$tout$terr";
-$tout =~ /^size=2048$/m or die "stego smoke lost size report\n";
-$tout =~ /^bank_size=2048$/m or die "stego smoke lost 2K handling\n";
-$tout =~ /^bank=0 reset_vector=\$f800 valid=yes$/m or die "stego smoke lost reset-vector tracing\n";
+my($crc,$csig,$cso,$cse)=capture($cc,'-std=c11','-Wall','-Wextra','-Werror','-pedantic','-O2',$tagger_src,'-o',$tagger);
+$crc==0 && !$csig or die "tagger standalone build failed\n$cso$cse";
+my $tagger_rom=chr(0xea)x2048;
+substr($tagger_rom,0,3)=pack('C*',0xa9,0x42,0x60);
+substr($tagger_rom,2042,6)=pack('v3',0xf800,0xf800,0xf800);
+my $tagger_bin=File::Spec->catfile($tmp,'tagger.bin');
+write_raw($tagger_bin,$tagger_rom);
+my($trc,$tsig,$tout,$terr)=capture($tagger,$tagger_bin);
+$trc==0 && !$tsig or die "tagger smoke run failed\n$tout$terr";
+$tout =~ /^size=2048$/m or die "tagger smoke lost size report\n";
+$tout =~ /^bank_size=2048$/m or die "tagger smoke lost 2K handling\n";
+$tout =~ /^bank=0 reset_vector=\$f800 valid=yes$/m or die "tagger smoke lost reset-vector tracing\n";
 $tout =~ /^total_reachable_instruction_starts=[1-9][0-9]*$/m
-   or die "stego smoke found no reachable instructions\n";
+   or die "tagger smoke found no reachable instructions\n";
 
 print "vcsc-disassembler hardening ok\n";

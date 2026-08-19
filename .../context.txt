@@ -1330,6 +1330,15 @@ contention uses persistent rotating priority for fair 2-of-N service. P0 and P1
 have intentionally asymmetric physical setup lead times but symmetric logical
 assignment. The VBLANK scheduler sorts one-byte event indices and uses a sentinel
 record so sprite crossings do not overrun VBLANK or add a variable visible-raster
-path. `vcs_enhanced_multisprite.pl` certifies 997-frame Y and combined X/Y sweeps
-at stable 262-line NTSC timing and checks both hardware lanes plus fair three-way
-2-of-3 rotation. The existing `renderers/multisprite/` remains unchanged.
+path. Horizontal reuse now uses a renderer-local 160-byte packed RESP/HMP table
+calibrated by exercising all 176 safe controls in Stella 7.0; setup line B begins
+directly with HMOVE, and the table covers public X=0..159 without the false
+phase assumptions from the maintained multisprite table. `vcs_enhanced_multisprite.pl`
+certifies 997-frame Y and combined X/Y sweeps at stable 262-line NTSC timing,
+fair three-way 2-of-3 rotation, the table hash, and both immediate-HMOVE paths.
+Optional `vcs_enhanced_multisprite_stella.pl` / `make stella-enhanced-multisprite-test`
+grades real Stella pixels at both X edges, swaps logical sprites across P0/P1,
+requires solid equal-Y alignment, and checks top reach. Public example accounting
+is currently 2498 ROM bytes / 104 RAM bytes. Next gate is user interactive Stella
+validation, especially moving 3-6-way piles and crossing sprites. The existing
+`renderers/multisprite/` remains unchanged and its Stella oracle still passes.

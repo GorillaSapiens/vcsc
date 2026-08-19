@@ -49,6 +49,19 @@ std::vector<WriteEvent> writes;
 std::vector<uint64_t> vsync_assertions;
 bool vsync_asserted = false;
 
+bool randomize_zp = false;
+uint16_t randomize_zp_address = 0;
+unsigned randomize_zp_count = 0;
+unsigned randomize_zp_modulus = 0;
+uint32_t randomize_state = 0;
+
+uint8_t next_randomized_zp_value() {
+   randomize_state ^= randomize_state << 13;
+   randomize_state ^= randomize_state >> 17;
+   randomize_state ^= randomize_state << 5;
+   return static_cast<uint8_t>(randomize_state % randomize_zp_modulus);
+}
+
 bool timer_active = false;
 uint64_t timer_start = 0;
 uint16_t timer_divisor = 1;
@@ -135,6 +148,15 @@ void apply_writes() {
          const bool next = (event.value & 2) != 0;
          if (next && !vsync_asserted) {
             vsync_assertions.push_back(virtual_cycles);
+            // Test-only RAM mutation happens exactly at the synchronized frame
+            // boundary, before VBLANK work begins.  This lets renderer tests
+            // hammer state-dependent schedulers without spending cartridge
+            // overscan cycles generating pseudo-random inputs themselves.
+            if (randomize_zp && vsync_assertions.size() > 1) {
+               for (unsigned i = 0; i < randomize_zp_count; ++i) {
+                  memory_image[randomize_zp_address + i] = next_randomized_zp_value();
+               }
+            }
          }
          vsync_asserted = next;
       }
@@ -178,7 +200,7 @@ void apply_writes() {
 int main(int argc, char **argv) {
    if (argc < 3) {
       std::fprintf(stderr,
-         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N]\n",
+         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--randomize-zp ADDR COUNT MODULUS SEED]\n",
          argv[0]);
       return 2;
    }
@@ -207,6 +229,33 @@ int main(int argc, char **argv) {
             fail("bad --raw-lines value");
          }
          expected_raw_lines = static_cast<uint64_t>(raw);
+      }
+      else if (std::strcmp(argv[i], "--randomize-zp") == 0) {
+         if (i + 4 >= argc) {
+            fail("--randomize-zp requires ADDR COUNT MODULUS SEED");
+         }
+         char *parse_end = nullptr;
+         const unsigned long address = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || address > 0xff) {
+            fail("bad --randomize-zp address");
+         }
+         const unsigned long count = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || count < 1 || count > 64 || address + count > 0x100) {
+            fail("bad --randomize-zp count");
+         }
+         const unsigned long modulus = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || modulus < 1 || modulus > 256) {
+            fail("bad --randomize-zp modulus");
+         }
+         const unsigned long seed = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || seed > 0xffffffffUL || seed == 0) {
+            fail("bad --randomize-zp seed");
+         }
+         randomize_zp = true;
+         randomize_zp_address = static_cast<uint16_t>(address);
+         randomize_zp_count = static_cast<unsigned>(count);
+         randomize_zp_modulus = static_cast<unsigned>(modulus);
+         randomize_state = static_cast<uint32_t>(seed);
       }
       else {
          fail("unknown option");

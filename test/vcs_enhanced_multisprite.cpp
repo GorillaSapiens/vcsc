@@ -1,5 +1,5 @@
 //! @file vcs_enhanced_multisprite.cpp
-//! @brief Prove symmetric P0/P1 emission and fair three-way arbitration.
+//! @brief Prove symmetric P0/P1 emission and fair N-way arbitration.
 
 #include <array>
 #include <cstdint>
@@ -117,30 +117,48 @@ void apply_writes() {
 }
 
 int logical_color(uint8_t color) {
-   if (color == 0x0e) return 0;
-   if (color == 0x4e) return 1;
-   if (color == 0xce) return 2;
+   constexpr std::array<uint8_t, 6> kColors = {0x0e, 0x4e, 0xce, 0xae, 0x5e, 0xbe};
+   for (size_t i = 0; i < kColors.size(); ++i) {
+      if (color == kColors[i]) return static_cast<int>(i);
+   }
    return -1;
 }
 
-std::set<int> top_pair(int f) {
+std::set<int> pile_pair(int f, int pile_size) {
    if (f < 0 || static_cast<size_t>(f) >= colors.size()) fail("missing frame color data");
-   const auto &c = colors[static_cast<size_t>(f)];
-   if (c.size() != 5) fail("expected exactly five scheduled color events per frame");
-   if (c[2] != 0xae || c[3] != 0x5e || c[4] != 0xbe)
-      fail("two-way overlap or isolated sprite disappeared");
-   const int a = logical_color(c[0]);
-   const int b = logical_color(c[1]);
-   if (a < 0 || b < 0 || a == b) fail("bad three-way overlap color pair");
-   return {a, b};
+   std::set<int> pair;
+   unsigned pile_writes = 0;
+   for (uint8_t color : colors[static_cast<size_t>(f)]) {
+      const int logical = logical_color(color);
+      if (logical >= 0 && logical < pile_size) {
+         pair.insert(logical);
+         ++pile_writes;
+      }
+   }
+   if (pile_writes != 2 || pair.size() != 2)
+      fail("pile-up did not emit exactly two distinct logical sprites");
+   return pair;
+}
+
+bool frame_has_logical_color(int f, int logical) {
+   if (f < 0 || static_cast<size_t>(f) >= colors.size()) fail("missing frame color data");
+   for (uint8_t color : colors[static_cast<size_t>(f)]) {
+      if (logical_color(color) == logical) return true;
+   }
+   return false;
 }
 } // namespace
 
 int main(int argc, char **argv) {
-   if (argc != 2) {
-      std::fprintf(stderr, "usage: %s ROM.bin\n", argv[0]);
+   if (argc != 3) {
+      std::fprintf(stderr, "usage: %s ROM.bin PILE_SIZE\n", argv[0]);
       return 2;
    }
+   char *end = nullptr;
+   const long pile_long = std::strtol(argv[2], &end, 10);
+   if (!end || *end != '\0' || pile_long < 3 || pile_long > 6)
+      fail("PILE_SIZE must be 3 through 6");
+   const int pile_size = static_cast<int>(pile_long);
 
    std::memset(memory_image, 0, sizeof(memory_image));
    // Keep joystick and console switches released. The generic CPU harness has
@@ -157,8 +175,9 @@ int main(int argc, char **argv) {
    mos6502 cpu(read_bus, write_bus, clock_cycle);
    cpu.Reset();
    constexpr uint64_t kInstructionLimit = 100000000;
+   const int last_sample_frame = 2 + pile_size * 2 - 1;
    for (uint64_t instructions = 0;
-        instructions < kInstructionLimit && frame < 9;
+        instructions < kInstructionLimit && frame < last_sample_frame + 1;
         ++instructions) {
       writes.clear();
       const uint64_t before = cpu_cycles;
@@ -166,24 +185,43 @@ int main(int argc, char **argv) {
       virtual_cycles += cpu_cycles - before;
       apply_writes();
    }
-   if (frame < 9) fail("instruction limit reached before arbitration sample");
+   if (frame < last_sample_frame + 1) fail("instruction limit reached before arbitration sample");
 
-   const auto p2 = top_pair(2);
-   const auto p3 = top_pair(3);
-   const auto p4 = top_pair(4);
-   const std::set<std::set<int>> got = {p2, p3, p4};
-   const std::set<std::set<int>> want = {{0,1}, {1,2}, {0,2}};
-   if (got != want) fail("three-way pile-up did not rotate through all 2-of-3 pairs");
-   if (top_pair(5) != p2 || top_pair(6) != p3 || top_pair(7) != p4)
-      fail("three-way arbitration is not a stable three-frame rotation");
+   std::array<unsigned, 6> appearances{};
+   std::vector<std::set<int>> first_rotation;
+   for (int k = 0; k < pile_size; ++k) {
+      const auto pair = pile_pair(2 + k, pile_size);
+      first_rotation.push_back(pair);
+      for (int logical : pair) ++appearances[static_cast<size_t>(logical)];
+   }
+   for (int logical = 0; logical < pile_size; ++logical) {
+      if (appearances[static_cast<size_t>(logical)] != 2)
+         fail("pile-up arbitration is not fair over one N-frame rotation");
+   }
+   for (int k = 0; k < pile_size; ++k) {
+      if (pile_pair(2 + pile_size + k, pile_size) != first_rotation[static_cast<size_t>(k)])
+         fail("pile-up arbitration did not repeat its N-frame rotation");
+   }
 
-   for (int f = 2; f <= 7; ++f) {
+   // The public three-way diagnostic also promises that sprites 3/4 (the
+   // separate two-way overlap) and sprite 5 (isolated) remain solid.
+   if (pile_size == 3) {
+      for (int f = 2; f < 2 + pile_size * 2; ++f) {
+         for (int logical = 3; logical < 6; ++logical) {
+            if (!frame_has_logical_color(f, logical))
+               fail("two-way overlap or isolated sprite disappeared");
+         }
+      }
+   }
+
+   for (int f = 2; f < 2 + pile_size * 2; ++f) {
       if (grp0_nonzero[static_cast<size_t>(f)] == 0)
          fail("P0 emitted no nonzero graphics in a sampled frame");
       if (grp1_nonzero[static_cast<size_t>(f)] == 0)
          fail("P1 emitted no nonzero graphics in a sampled frame");
    }
 
-   std::puts("vcs_enhanced_multisprite arbitration ok: both lanes active, 3-way fair 2-of-3 rotation, 2-way solid");
+   std::printf("vcs_enhanced_multisprite arbitration ok: %d-way pile fair 2-of-%d rotation, both lanes active\n",
+      pile_size, pile_size);
    return 0;
 }

@@ -1,2 +1,24 @@
 2026-08-18 10:14:13 PDT, enhanced multisprite handoff
 Added .../enhanced.txt with the current 192-line symmetric P0/P1 renderer architecture, fixed bug history, focused passing regressions, and remaining Stella visual-validation work.
+
+2026-08-18 17:52:55 PDT, enhanced multisprite X calibration
+Replaced the invalid borrowed multisprite horizontal controls with an enhanced-renderer-local 160-byte packed RESP/HMP table calibrated across all 176 safe controls in Stella 7.0. Setup line B now begins directly with HMOVE; the CPU regression pins the table hash and 997-frame Y/XY timing, and new optional vcs_enhanced_multisprite_stella.pl / make stella-enhanced-multisprite-test certifies X edges, P0/P1 lane swaps, solid equal-Y overlap, and top reach. Existing multisprite Stella oracle remains unchanged and passing.
+
+2026-08-18 18:45:00 PDT, enhanced multisprite branch-contract correction
+- `.same`/`.cross` are timing contracts; `.cross` remains valid/required when a four-cycle taken page-cross branch is part of the raster schedule.
+- Removed the mistaken end-of-frame `BMI.same` trampoline/JMP.
+- End-of-frame pair_y test now crosses WSYNC: ordinary path uses a 3-cycle `BPL.same` to NormalLineA (same phase as the old 3-cycle JMP); final path exits from overscan.
+- Focused 997-frame Y/XY timing + arbitration regression and Stella enhanced pixel oracle pass after the correction.
+
+2026-08-18 18:48:00 PDT, enhanced multisprite VBLANK deadline hardening
+User interactive testing found 265/266-line frames when moving sprite 0 vertically. Reproduction showed the visible 192-line raster remained bounded; the data-dependent VBLANK scheduler was missing the shared 37-line deadline. Replaced insertion sorting with a fixed 12-comparator six-input network, changed ChooseLane to scan only sprites already accepted this frame (max 15 conflict checks instead of 36 six-slot scans), built accepted event records during allocation, and moved the VBLANK scheduler into its own code section so scheduler edits cannot disturb raster branch-page layout. Added generic frame-harness zero-page randomization, three randomized six-Y timing stresses, independent up/down motion for every sprite, and actual fair 3/4/5/6-way pile regressions. Known failing Y vectors 61,19,1,25,69,47 and 35,61,80,71,43,88 are stable after the rewrite; enhanced Stella pixel oracle remains passing.
+
+2026-08-18 20:34:39 PDT, enhanced sprite handoff fix
+Interactive Stella validation exposed visual row/color corruption even after
+frame timing was stable. Setup bands now preserve and publish the continuing
+hardware player's due bitmap row while advancing its cache for the next band;
+STY GRPx + TXA keeps the calibrated five-cycle RESP/HMOVE prefix unchanged.
+Same-lane allocation now reserves the attribute-write line too (P0 distance 15,
+P1 distance 12), preventing COLUP/NUSIZ/REFP from touching the previous
+sprite's last scanline. The Stella oracle now pins exact glyph/color pixels at
+the known bad Y boundaries and forces logical sprite 0 through hardware P1.

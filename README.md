@@ -86,6 +86,7 @@ make stella-bank-test STELLA=stella  # authoritative F8/F6/F4 mapper matrix
 make stella-player-color-192-test STELLA=stella  # player-color-192 visible playfield raster
 make stella-all-five-player-color-192-test STELLA=stella  # all-five + per-row player colors
 make stella-all-five-player-color-181-test STELLA=stella  # 181 gameplay + score above/below
+make stella-enhanced-multisprite-test STELLA=stella  # symmetric P0/P1 multisprite pixel oracle
 make docs          # Doxygen output under doxygen/
 make clean
 ```
