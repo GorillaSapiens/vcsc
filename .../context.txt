@@ -1267,8 +1267,8 @@ emission so entries inside the vector table remain labelable; Stellar Track's
 NMI bytes at `$FFFA/$FFFB` exercise this case. The standalone
 `disassembler/roundtrip.pl INPUT_DIR OUTPUT_DIR` drives vcsc-disas and vcsc-as,
 retains .s26/rebuilt .bin files, prints MD5 values, and requires exact byte
-identity. The focused disassembler roadmap is now complete; future focused
-work is driven by real-ROM failures or newly identified mapper/analysis needs.
+identity. Focused disassembler Items 0-16 are complete; Items 17-26 queue 3F,
+3E, FE, E7, WDSW, FC, GL, CM, DPC+, CDF/CDFJ/CDFJ+.
 Main roadmap Items 41 and 42 are complete. Bankswitching roadmap Items 31-38 queue 4KSC, OMNI, CV, JANE, 0840, UA/UASW, 0FA0, then F0/FA2/FC reconsideration; 4KSC Item 31, OMNI Item 32, CV/CommaVid Item 33, JANE Item 34, 0840 Item 35, UA/UASW Item 36, and 0FA0 Item 37 are complete; Item 38 remains deferred. Main-roadmap
 Item 43 is the next main-project item; 0FA0 is the next bankswitching item at Item 37, while Item 38 is deferred. The current compile suite passes 500/500. Four vcsc-disas-focused E2E
 regressions pass, with 71 semantic fixtures and all 256 opcode bytes exact. The
@@ -1291,14 +1291,14 @@ RAM overlay hides the first `$200` bytes of each bank from runtime ROM analysis.
 Mountain King exercises mirrored origins `$3000/$5000/$7000` and round-trips
 exactly. Stella 7.0 identifies Bridge and Stellar Track
 as NTSC, and the broadened static detector now reports Bridge as NTSC/medium and
-Stellar Track as NTSC/high. Ambiguous size-compatible supported mappers are now
-run as competing RESET-plus-speculative-island control-flow hypotheses to a fixed
-point. A hypothesis whose possible established execution reaches HLT/JAM/KIL is
-eliminated; selector transitions then discriminate surviving models before raw
-detector strings are allowed to break a genuine tie. Raw hotspot counts are not
-ranked across mapper families; a selector transition that avoids an old-mapping
-HLT/JAM/KIL and resumes valid code in the new mapping is treated as strong flow
-evidence. This fixes accidental
+Stellar Track as NTSC/high. Ambiguous size-compatible mappers require a
+cartridge-backed RESET path; islands may extend but never establish one. Survivors
+run to a fixed point. HLT/JAM/KIL normally eliminates a model; a narrow-selector
+bank-changing edge can preserve a mapper against only an abstract possible halt,
+but broad partial-address decoders get no such preference. Branch edges constrain
+C/Z/N/V, preventing impossible complementary-branch JAM paths. Raw hotspot counts
+are never ranked across mapper families; a switch that avoids old-mapping
+HLT/JAM/KIL is strong evidence. This fixes accidental
 mapper signatures spanning unrelated instructions (for example F8 `CPX #$2C` +
 `BCS` producing Stella's raw UA `2C B0 0F` pattern) and lets both primary and
 speculative execution continue in the newly selected bank even when the old-bank
@@ -1326,7 +1326,7 @@ and Super Cobra) now resolves E0 for all seven and round-trips each image
 byte-exactly. Synthetic RESET and speculative-island regressions pin the case
 where an E0 selector is physically followed by JAM in the old bank but valid
 execution continues in the selected bank. The semantic disassembler corpus is
-now 73/73 exact. The standalone corpus verifier now has optional `--stella STELLA` differential mapper checking: it keeps SHA-256 in generated source, reuses its existing per-ROM MD5 for Stella compatibility, runs `STELLA -rominfo ROM`, normalizes the resolved Bankswitch Type, and reports VCSC/Stella mapper MATCH/MISMATCH counts without treating Stella as authoritative; `--stella-strict` promotes mismatches to failure when explicitly desired. The normal hardening suite uses a fake Stella executable so this parser/normalization path is tested without an external emulator. WD support recognizes the distinctive 8195-byte Pursuit of the Pink Panther preservation dump, models eight 1K banks selected as four-segment arrangements by TIA $30-$3F reads plus 64 bytes of cartridge RAM, analyzes the historical bank-2/bank-3 correction while preserving the original file order and trailing three bytes exactly. Roadmap items 9, 10, 12, 13, and 16 are complete; Item 12 pointer-table presentation requires real low/high pointer-building data flow and never swallows interior labels, after ARMAMBSH exposed a shifted-byte false positive. Color-table presentation splits around interior labels instead of consuming them. Item 13 adds repeatable `--table` and even-length `--pointer` manual presentation hints on top of the existing mapper/origin/entry/code/data/video/controller overrides; manual data roles may overlap code without replacing executable source. Item 16 pins deterministic output, malformed/truncated failures, duplicated/padded preservation, all-supported-layout fuzzing, all 88 editable examples, install/package integration, and an independent stego smoke baseline. No focused disassembler roadmap item remains unfinished.
+now 73/73 exact. The standalone corpus verifier now has optional `--stella STELLA` differential mapper checking: it keeps SHA-256 in generated source, reuses its existing per-ROM MD5 for Stella compatibility, runs `STELLA -rominfo ROM`, normalizes the resolved Bankswitch Type, and reports VCSC/Stella mapper MATCH/MISMATCH counts without treating Stella as authoritative; `--stella-strict` promotes mismatches to failure when explicitly desired. The normal hardening suite uses a fake Stella executable so this parser/normalization path is tested without an external emulator. WD support recognizes the distinctive 8195-byte Pursuit of the Pink Panther preservation dump, models eight 1K banks selected as four-segment arrangements by TIA $30-$3F reads plus 64 bytes of cartridge RAM, analyzes the historical bank-2/bank-3 correction while preserving the original file order and trailing three bytes exactly. Roadmap items 9, 10, 12, 13, and 16 are complete; Item 12 pointer-table presentation requires real low/high pointer-building data flow and never swallows interior labels, after ARMAMBSH exposed a shifted-byte false positive. Color-table presentation splits around interior labels instead of consuming them. Item 13 adds repeatable `--table` and even-length `--pointer` manual presentation hints on top of the existing mapper/origin/entry/code/data/video/controller overrides; manual data roles may overlap code without replacing executable source. Item 16 pins deterministic output, malformed/truncated failures, duplicated/padded preservation, all-supported-layout fuzzing, all 88 editable examples, install/package integration, and an independent stego smoke baseline. Items 17-26 now queue the remaining mapper families; see `.../disassembler.txt`. Exact 4K images with identical 2K halves are analyzed as 2K and preserve the duplicate raw.
 
 0840/EconoBanking uses physical file bank 0 as startup, with below-cartridge
 selector families canonically represented by $0800/$0840. C26 selector metadata
@@ -1360,20 +1360,17 @@ is currently 2498 ROM bytes / 104 RAM bytes. Next gate is user interactive Stell
 validation, especially moving 3-6-way piles and crossing sprites. The existing
 `renderers/multisprite/` remains unchanged and its Stella oracle still passes.
 
-2026-08-19 Superchip corpus finding: a large one-way differential cluster
-(4KSC->4K, F8SC->F8, F6SC->F6 versus Stella) exposed over-eager automatic SC
-promotion. Only resolved write-only stores into `$x000-$x07F` are positive SC
-evidence; reads from `$x080-$x0FF` are neutral because ordinary ROM occupies
-that range on a plain cartridge. Any reachable RMW anywhere in `$x000-$x0FF`
-is negative SC evidence: Superchip has separate read and write aliases, so no
-single effective address can provide valid RAM semantics for both phases of an
-RMW. Established RESET/control flow into the SC write port `$x000-$x07F` also
-vetoes automatic SC, because the hardware would fetch the RAM write port rather
-than those physical ROM bytes. The read port is not an execution veto because
-populated SC RAM may be executed intentionally. Nineteen supplied 4K mismatch
-ROMs resolve as plain 4K and round-trip MD5-identically; synthetic RMW tests now
-cover both halves of the SC window while existing true F8SC/F6SC/F4SC fixtures
-remain SC.
+2026-08-19 split-RAM corpus finding: SC, FA/RAM Plus, CV, and WD use disjoint
+read/write aliases, so any reachable RMW in either alias is negative mapper
+evidence; reads are neutral and ordinary stores are not ranked across unrelated
+mappers. SC additionally accepts a resolved write-only store to `$x000-$x07F`
+or, for F8/F6/F4 only, the conventional dump structure where every 4K bank
+duplicates bytes `$000-$07F` at `$080-$0FF`. This structural rule is not used
+for lone 4K images. RESET/control flow into the SC write port vetoes automatic
+promotion. Earlier 4K false positives now stay plain; seven supplied genuine
+F6SC dumps with no decoded SC stores are recovered from the per-bank duplicate
+layout. Regressions cover SC RMW/flow contradictions, structural F6SC, and both
+FA/CV/WD aliases.
 
 2026-08-19 disassembler F6/JANE corpus finding: expanded differential corpora
 exposed a bad mapper-refinement tie-break that preferred the viable hypothesis

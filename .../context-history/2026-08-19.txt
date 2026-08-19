@@ -7,3 +7,31 @@ families; a bank switch that avoids old-mapping JAM/KIL is strong evidence.
 Seven real E0 corpus ROMs now agree with Stella and round-trip byte-exactly.
 Synthetic RESET and speculative-island E0 regressions raise the semantic corpus
 to 73/73 exact.
+
+2026-08-19 12:17:08 PDT, generalize split-RAM RMW evidence
+Disassembler mapper inference now treats reachable RMW instructions in either
+alias of native split-address cartridge RAM as contradictory evidence for that
+mapper. The rule covers FA/RAM Plus, CommaVid CV, and WD in addition to the
+existing Superchip checks. Pure reads of a read alias remain neutral, and plain
+stores are not ranked across unrelated mapper families. Added FA/CV/WD read- and
+write-alias RMW regressions while retaining the SC-specific promotion and
+write-port execution rules.
+
+2026-08-19 13:56:21 PDT, prefer precise bank-switch flow
+Mapper refinement now treats a demonstrated bank-changing edge through a narrow
+cartridge-specific selector as stronger evidence than a merely possible JAM/KIL
+path caused by incomplete abstract data state. Broad partial-address decoders
+such as 0840/UA/0FA0 do not get that preference, avoiding the previous E0-to-0840
+regression. Eight uploaded genuine F8 cases agree with Stella; one disk-I/O blob
+is retained as corpus contamination rather than forcing a mapper match. Added a
+synthetic F8 cross-switch/possible-JAM regression; semantic suite is 88/88 exact.
+2026-08-19 14:31:23 PDT, queued disassembler mapper families
+Added focused disassembler Items 17-26 in implementation order: 3F, 3E, FE, E7, WDSW, FC, GL, CM, DPC+, then CDF/CDFJ/CDFJ+.
+
+2026-08-19 14:48:00 PDT, add structural Superchip evidence
+F8/F6/F4 mapper analysis now recognizes the conventional Superchip dump layout
+when every 4K physical bank duplicates bytes $000-$07F at $080-$0FF. The rule
+complements decoded write-only-store evidence and remains subject to existing
+RMW and write-port execution contradictions; it is deliberately disabled for a
+lone 4K image. Seven supplied F6SC corpus ROMs now agree with Stella and retain
+byte-exact round trips. Added a no-store structural F6SC regression.

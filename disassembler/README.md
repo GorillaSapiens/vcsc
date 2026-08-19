@@ -93,6 +93,13 @@ images are recognized by their distinctive 10240- or 10495-byte layout: two
 4K F8-style program banks followed by 2K of DPC data ROM, with the 10495-byte
 form carrying an additional 255-byte RNG table.
 
+A 4096-byte image whose upper 2048 bytes are byte-for-byte identical to its
+lower 2048 bytes is recognized as a doubled preservation dump of an ordinary
+unbanked 2K cartridge.  `vcsc-disas` analyzes one logical 2K copy with normal
+2K mirroring semantics and emits the duplicate half as preserved raw bytes, so
+disassemble/reassemble still reproduces the original 4096-byte file exactly.
+A merely similar or partially duplicated 4K image remains an ordinary 4K cart.
+
 WD is the custom Pursuit of the Pink Panther mapper. It uses eight 1K ROM banks
 and eight fixed four-segment arrangements selected by reads from TIA `$30-$3F`.
 The cartridge also contains 64 bytes of RAM, read at `$1000-$103F` and written
@@ -120,12 +127,21 @@ The generated header records the input size and SHA-256, mapper evidence,
 physical banks, inferred bank origins and reset bank, video/controller evidence,
 and the `vcsc-disas` version.  When several supported mapper models fit the same
 physical size, `vcsc-disas` now tests those models as competing control-flow
-hypotheses.  Each hypothesis is traced from RESET through mapper transitions and
-credible speculative islands to a fixed point.  Models whose reachable execution
-falls into HLT/JAM/KIL are eliminated. Raw selector-hit counts are not compared
-across mapper families because broad alias decoders can create misleadingly high
-counts. A selector transition that demonstrably avoids an old-mapping HLT/JAM/KIL
-and resumes valid code in the new mapping is strong control-flow evidence.
+hypotheses. Each hypothesis must first establish a cartridge-backed RESET entry;
+speculative islands may extend that RESET-established graph but can never make an
+unbootable hypothesis viable by themselves. The surviving hypothesis is then
+traced through mapper transitions and credible speculative islands to a fixed
+point. A reachable HLT/JAM/KIL normally eliminates a model, but abstract flow can
+over-approximate data-dependent paths that real execution never takes. A mapper
+that demonstrates a bank-changing edge through a narrow cartridge-specific
+selector remains viable despite such a merely possible halt; hypotheses that
+halt without demonstrating their switching mechanism are still eliminated.
+Raw selector-hit counts are not compared across mapper families because broad
+alias decoders can create misleadingly high counts. A selector transition that
+demonstrably avoids an old-mapping HLT/JAM/KIL and resumes valid code in the new
+mapping is especially strong control-flow evidence. Bank changes produced only
+by broad partial-address decoders such as 0840/UA/0FA0 are not, by themselves,
+allowed to outrank another mapper.
 Deliberate VCSC mapper signatures and legacy raw-byte detector patterns are
 tie-break evidence, not a reason to override contradictory executable control
 flow. Dynamic/unresolved control-exit counts are likewise **not** ranked across
@@ -172,19 +188,28 @@ signature or the established `LDA $FFF1; RTS` detector byte pattern, reports
 the nonstandard power-on bank explicitly, and preserves physical file order on
 round trip. `--mapper jane` forces the same interpretation.
 
-Automatic Superchip promotion requires a decoded **write-only store** to the
-`$x000-$x07F` write window. Reads from `$x080-$x0FF` are neutral evidence: a
-plain 4K/F8/F6/F4 cartridge may legitimately read ordinary ROM there. A reachable
-read-modify-write instruction anywhere in `$x000-$x0FF` is negative SC evidence,
-because Superchip deliberately separates the write and read aliases and therefore
-has no single address at which both phases of an RMW operation have valid RAM
-semantics. Established RESET or control flow into the SC write port
-`$x000-$x07F` likewise vetoes automatic promotion, because those instruction
-fetches would hit the RAM write port rather than the physical ROM bytes being
-disassembled. The read port is not used as the same execution veto because a
-program may deliberately execute previously populated cartridge RAM.
-`--mapper f8sc|f6sc|f4sc` remains available when static control-flow analysis
-cannot observe decisive RAM use.
+Split-address cartridge RAM is treated semantically rather than as a byte
+signature. Superchip, CBS RAM Plus/FA, CommaVid CV, and WD all expose separate
+CPU aliases for reading and writing the same physical RAM. A pure read from a
+read alias is neutral mapper evidence because ordinary ROM can also be read at
+that address, and an ordinary store is not compared as a positive score across
+unrelated mapper families. Any reachable 6502 read-modify-write instruction
+whose effective address lies in either alias is negative evidence for that
+split-RAM mapper: an RMW uses one effective address for both phases, while no
+single split alias supplies the intended RAM semantics for both the read and the
+write. This contradiction can eliminate an otherwise size-compatible FA/CV/WD
+mapper hypothesis.
+
+Automatic Superchip promotion accepts either a decoded **write-only store** to
+the `$x000-$x07F` write window or the conventional F8SC/F6SC/F4SC dump layout
+where, in every 4K physical bank, bytes `$000-$07F` are duplicated at
+`$080-$0FF`. The structural rule is not applied to lone 4K images. Reads from
+`$x080-$x0FF` remain neutral. Any reachable RMW anywhere in `$x000-$x0FF` is
+contradictory, and established RESET/control flow into the SC write port
+`$x000-$x07F` vetoes automatic promotion because instruction fetches would hit
+the write alias rather than ROM. The read port is not the same execution veto
+because code may deliberately run from populated cartridge RAM.
+`--mapper f8sc|f6sc|f4sc` remains available for ambiguous cases.
 0840/EconoBanking is an 8K two-bank layout whose selectors live below the
 cartridge window. `vcsc-disas` recognizes the VCSC `0840` tail signature or the
 legacy hotspot-access patterns used by current emulator detectors. It reports
@@ -269,12 +294,18 @@ vectors/JMPs/JSRs and intentional reachable JAM/KIL always override this negativ
 evidence.
 
 Known C/Z/N/V flag state is used to prune impossible branch arms before deciding
-that a halt is reachable. Mapper selector accesses are control-flow edges: the
+that a halt is reachable. Each conditional-branch edge also constrains the tested
+flag in its successor state, so mutually exclusive sequences such as `BMI`
+fallthrough followed immediately by `BPL` cannot invent an impossible third path
+into data. Mapper selector accesses are control-flow edges: the
 next opcode is fetched at the same logical continuation address from the selected
 physical bank. Therefore `LDA $hotspot` followed physically by JAM/KIL in the old
 bank is not a failed path when the selected bank contains the valid continuation.
 The same rule is used for RESET-reachable code, mapper-hypothesis testing, and
-speculative islands. Speculative walks are bounded; a candidate that exceeds the
+speculative islands. During mapper inference, however, an island is supplemental
+evidence only: a candidate mapper with no cartridge-mapped RESET entry is rejected
+before speculative island discovery, even if detached bytes would otherwise form
+a credible routine. Speculative walks are bounded; a candidate that exceeds the
 analysis budget stays inconclusive/raw rather than being guessed. The generated
 header reports rejected-start, barrier, and promoted-island counts.
 

@@ -1217,9 +1217,113 @@ Roadmap
       aliased input/output directories, stale output artifacts, empty/failed
       corpora, and zero-instruction supported images.
 
-All focused disassembler roadmap items are complete. Future work should be driven
-by real-ROM failures, new mapper support, or newly identified analysis-quality
-opportunities rather than advancing an artificial checklist.
+Items 0 through 16 are complete. The next focused work is the ordered mapper
+expansion queue below, driven by real-ROM corpus gaps. Implement one mapper family
+at a time, add exact round-trip fixtures and differential corpus evidence for it,
+and do not let unsupported-family byte signatures distort already-supported CFG
+inference.
+
+17. [ ] Add 3F mapper support
+    * Model Tigervision's split 4K window: selectable lower 2K plus the ROM's
+      fixed final 2K.
+    * Treat writes to `$00-$3F` as value-controlled bank selection without
+      confusing ordinary TIA traffic with proven mapper evidence.
+    * Carry the selected 2K bank in CFG state and preserve variable-sized ROMs
+      exactly.
+    * Add synthetic bank-change/JAM-continuation coverage plus real 3F corpus
+      fixtures and Stella differential checks.
+
+18. [ ] Add 3E mapper support
+    * Build directly on the 3F segmented model: writes to `$3F` select lower-2K
+      ROM banks while writes to `$3E` select lower-window RAM banks.
+    * Model the 1K read/write aliases of the selected RAM bank and apply the
+      split-RAM RMW contradiction rules already used by SC/FA/CV/WD.
+    * Keep ROM-bank count and inferred RAM use separate; do not assume all 32K
+      of possible RAM is physically present merely because the address encoding
+      permits it.
+    * Add exact round-trip and 3E-vs-3F ambiguity fixtures.
+
+19. [ ] Add FE mapper support
+    * Model Activision/SCABS switching through `$01FE`, including the delayed
+      bank decision derived from the data bus rather than treating FE as a
+      conventional hotspot-selected F8 variant.
+    * Preserve the encoded operand/address bytes that trigger the mapper and
+      carry any timing-dependent ambiguity conservatively in CFG state.
+    * Validate Robot Tank/Decathlon-style real ROMs plus synthetic cases where
+      the old physical bank contains JAM after the switching access.
+
+20. [ ] Add E7 mapper support
+    * Model M-Network's selectable lower 2K, fixed final 2K, `$1FE0-$1FE6`
+      ROM selectors, `$1FE7` lower-window RAM selection, and `$1FE8-$1FEB`
+      256-byte RAM-block selectors.
+    * Represent both E7 RAM regions with their actual split read/write aliases;
+      RMW against either alias is negative mapper evidence.
+    * Support the known 8K/12K/16K layouts without flattening their segmented
+      runtime mapping.
+    * Add exact corpus fixtures with and without E7 RAM use.
+
+21. [ ] Add WDSW support
+    * Audit Stella's WDSW designation against the existing WD implementation
+      and identify the exact file-layout/state difference rather than treating
+      the names as aliases by assumption.
+    * Reuse WD's four-segment arrangement and 64-byte split-RAM machinery where
+      hardware semantics are shared, while preserving any WDSW-specific dump
+      ordering or startup behavior exactly.
+    * Pin WD-vs-WDSW classification with real corpus fixtures and byte-exact
+      reconstruction.
+
+22. [ ] Add FC mapper support
+    * Model Amiga Power Play's staged bank-select protocol: write low bank bits
+      at `$1FF8`, high bits at `$1FF9`, then commit the prepared selection by
+      accessing `$1FFC`.
+    * Keep pending selector state distinct from the currently mapped bank so
+      code continues in the old bank until commit.
+    * Cover partial/abandoned selector sequences, commit-before-JAM transitions,
+      multicart layouts through 32K, and exact reconstruction.
+
+23. [ ] Add GL mapper support
+    * Model GameLine's four independently mapped 1K runtime segments and its
+      `$0480/$0580/$0880/$0980 + x` selectors.
+    * Track ROM-versus-RAM segment selection and the selector bit that chooses
+      RAM read versus write mapping; integrate the existing split-RAM RMW
+      contradiction invariant.
+    * Treat modem/PROM control space conservatively and keep unsupported modem
+      behavior from corrupting otherwise exact 6507 disassembly.
+    * Add GameLine corpus fixtures and cross-segment control-flow tests.
+
+24. [ ] Add CM mapper support
+    * Model SpectraVideo CompuMate as a cartridge/peripheral combination rather
+      than a normal hotspot mapper: four 4K ROM banks plus 2K RAM are controlled
+      through SWCHA state.
+    * Carry bank-select, RAM-enable, and RAM-direction state that affects the
+      cartridge mapping; keep keyboard/tape peripheral behavior conservative
+      unless it is needed to resolve code fetches.
+    * Do not apply split-address-RAM assumptions here: CompuMate uses a direction
+      control line rather than separate read/write aliases.
+    * Add exact CompuMate fixtures and controller-state transition tests.
+
+25. [ ] Add DPC+ mapper support
+    * Treat DPC+ as a separate ARM-assisted format, not an extension flag on DPC.
+      Preserve/analyze the 3K ARM driver, six 4K 6507 program banks, Harmony RAM,
+      `$1FF6-$1FFB` bank selectors, and DPC+ register window according to the
+      actual 32K layout.
+    * Begin with exact structural segmentation and 6507 CFG recovery; ARM Thumb
+      analysis may remain conservative/raw where it is not required to identify
+      6507-visible control flow.
+    * Add real DPC+ fixtures and exact reconstruction before attempting richer
+      coprocessor semantics.
+
+26. [ ] Add CDF/CDFJ/CDFJ+ mapper support
+    * Treat CDF as the final item in this queue because it combines ARM execution,
+      fast fetch/jump machinery, datastream state, multiple RAM layouts, and ROM
+      sizes from the original 32K format through larger CDFJ+ variants.
+    * First preserve and identify structural regions and recover 6507-visible
+      program-bank control flow exactly; add ARM-side semantics incrementally only
+      where they materially improve reachable-code inference.
+    * Keep CDF/CDFJ/CDFJ+ version discrimination explicit rather than folding all
+      variants into one approximate mapping.
+    * Require real-format corpus fixtures, Stella differential checks, and exact
+      round trip across every supported CDF generation before marking complete.
 
 Definition of first useful milestone
 ------------------------------------
@@ -1247,3 +1351,8 @@ set has already been filtered to Atari 2600/VCS ROMs. Stella `-rominfo` resolves
 a VCS mapper; it is not a generic Atari-platform classifier, so unrelated 5200,
 7800, or Atari 8-bit binaries of a supported size can receive a plausible-looking
 size-default mapper. Such rows are corpus errors, not mapper-reference evidence.
+
+
+Doubled 2K preservation images
+------------------------------
+A 4096-byte file made from two byte-identical 2048-byte halves is a logical 2K cart. Analyze one half and preserve the duplicate half raw for exact round trip.

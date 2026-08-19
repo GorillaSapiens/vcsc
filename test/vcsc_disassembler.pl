@@ -54,8 +54,25 @@ sub make_rom {
       put16(\$rom, $base + $vec + 0, $origin + $code_off);
       put16(\$rom, $base + $vec + 2, $origin + $code_off);
       put16(\$rom, $base + $vec + 4, $origin + $code_off);
+      # Ordinary synthetic banked fixtures must not accidentally carry the
+      # F8SC/F6SC/F4SC duplicated-hidden-window structural signature merely
+      # because make_rom fills otherwise-unused bytes with NOP.
+      if ($size > 4096 && $bank_size == 4096 &&
+          !($b == 0 && $code_off <= 0x80 &&
+            $code_off + length($code) > 0x80)) {
+         substr($rom, $base + 0x80, 1, "\x18");
+      }
    }
    return $rom;
+}
+
+sub break_sc_layout {
+   my ($sref) = @_;
+   my $size = length($$sref);
+   return if $size < 8192 || ($size % 4096) != 0;
+   for my $b (0 .. int($size / 4096) - 1) {
+      substr($$sref, $b * 4096 + 0x80, 1, "\x18");
+   }
 }
 
 sub require_re {
@@ -76,6 +93,13 @@ make_path($in, $out);
 # Plain 2K/4K and ordinary F8/F6/F4 sizes.
 write_bin(File::Spec->catfile($in, 'plain2k.bin'), make_rom(2048, 0xF800, 0x0100, "\xA9\x42\x60"));
 write_bin(File::Spec->catfile($in, 'plain4k.bin'), make_rom(4096, 0xF000, 0x0100, "\xA9\x42\x60"));
+# A common preservation/dump form stores a mirrored 2K cartridge twice in a
+# 4K file.  This is structurally exact, not heuristic: when both 2K halves are
+# byte-identical, analyze one logical 2K image but preserve the second physical
+# copy verbatim so round trip remains 4096 bytes and byte exact.
+my $doubled_2k_half = make_rom(2048, 0xF800, 0x0100, "\xA9\x2A\x60");
+write_bin(File::Spec->catfile($in, 'doubled2k.bin'),
+          $doubled_2k_half . $doubled_2k_half);
 # Manual analysis hints: a byte sequence that is intentionally a pointer
 # table but has no automatic low/high builder, plus a generic data table.
 my $manual_hints = make_rom(4096, 0xF000, 0x0100, "\xA9\x42\x60");
@@ -110,6 +134,7 @@ write_bin(File::Spec->catfile($in, 'f8.bin'), make_rom(8192, 0xF000, 0x0100, "\x
 # an F8 cartridge: LDA $1FF9 changes the bank supplying the next opcode.  The
 # old-bank next byte is deliberately JAM; bank 1 contains the real continuation.
 my $f8_false_ua = chr(0xEA) x 8192;
+break_sc_layout(\$f8_false_ua);
 substr($f8_false_ua, 0x0100, 10,
    "\xA2\x00" .                 # LDX #0
    "\xE0\x2C" .                 # CPX #$2C
@@ -127,11 +152,57 @@ for my $v (0, 2, 4) {
 }
 write_bin(File::Spec->catfile($in, 'f8_false_ua_flow.bin'), $f8_false_ua);
 
+# Branch-edge state must constrain the tested flag.  This F8 RESET path
+# switches into bank 0, reads the unknown RIOT timer, then uses mutually
+# exhaustive BMI/BPL tests.  If BMI falls through, N is necessarily clear and
+# BPL must be taken; the intervening JAM byte is data and is unreachable.  A
+# path-insensitive fork that forgets the first branch condition falsely kills
+# the otherwise-correct F8 mapper hypothesis.
+my $f8_branch_edge = chr(0xEA) x 8192;
+break_sc_layout(\$f8_branch_edge);
+substr($f8_branch_edge, 0x1000 + 0x0100, 4,
+   "\xAD\xF8\xFF\x02");                    # F8 -> bank0; old-bank JAM
+substr($f8_branch_edge, 0x0103, 9,
+   "\xAD\x84\x02" .                        # LDA INTIM: N unknown
+   "\x30\xFB" .                              # BMI F103
+   "\x10\x01" .                              # BPL F10B if BMI fell through
+   "\x02" .                                      # impossible fallthrough JAM
+   "\x60");                                      # F10B: RTS
+for my $v (0, 2, 4) {
+   put16(\$f8_branch_edge, 0x0FFA + $v, 0x0000);
+   put16(\$f8_branch_edge, 0x1FFA + $v, 0xF100);
+}
+write_bin(File::Spec->catfile($in, 'f8_branch_edge_flags.bin'), $f8_branch_edge);
+
+# Positive mapper flow must outrank a merely possible JAM caused by incomplete
+# abstract data state.  Raw bytes elsewhere make the legacy detector say E0.
+# The E0 RESET path never executes an E0 selector and returns immediately.  F8
+# instead performs a real bank-1 -> bank-0 selector transition, then branches on
+# unknown RAM; one over-approximated branch reaches JAM while the other returns.
+# The possible JAM must not erase the demonstrated F8 switching mechanism.
+my $f8_cross_vs_possible_jam = chr(0x02) x 8192;
+break_sc_layout(\$f8_cross_vs_possible_jam);
+substr($f8_cross_vs_possible_jam, 0x0400, 3, "\x8D\xE0\x1F"); # raw E0 signature only
+substr($f8_cross_vs_possible_jam, 0x1000 + 0x0100, 4,
+   "\xAD\xF8\x1F\x60");                  # F8: switch bank1 -> bank0; E0: RTS
+substr($f8_cross_vs_possible_jam, 0x0103, 6,
+   "\xA5\x80" .                             # unknown RAM value
+   "\xD0\x01" .                             # BNE -> RTS; fallthrough is possible JAM
+   "\x02" .                                   # possible, not proven, JAM path
+   "\x60");                                   # valid continuation
+for my $v (0, 2, 4) {
+   put16(\$f8_cross_vs_possible_jam, 0x0FFA + $v, 0x0000);
+   put16(\$f8_cross_vs_possible_jam, 0x1FFA + $v, 0xF100);
+}
+write_bin(File::Spec->catfile($in, 'f8_cross_switch_possible_jam.bin'),
+          $f8_cross_vs_possible_jam);
+
 # UASW can be inferred from execution semantics even without a raw detector
 # signature.  Under UASW, reading $0220 selects bank 1; under UA it selects
 # bank 0, while the other 8K hypotheses do not make this transition.  The
 # physical byte after the selector is JAM only in the losing hypotheses.
 my $uasw_flow = chr(0xEA) x 8192;
+break_sc_layout(\$uasw_flow);
 substr($uasw_flow, 0x0100, 4, "\xAD\x20\x02\x02");
 substr($uasw_flow, 0x1000 + 0x0103, 1, "\x60");
 for my $v (0, 2, 4) {
@@ -145,6 +216,7 @@ write_bin(File::Spec->catfile($in, 'uasw_flow_only.bin'), $uasw_flow);
 # then LDA $FFE0 replaces that segment with bank 0.  The byte physically after
 # the selector in bank 4 is JAM; the actual next fetch comes from bank 0.
 my $e0_flow = chr(0x02) x 8192;
+break_sc_layout(\$e0_flow);
 substr($e0_flow, 7 * 1024, 3, "\x4C\x00\xF1");          # fixed bank7: JMP $F100
 substr($e0_flow, 4 * 1024 + 0x0100, 4, "\xAD\xE0\xFF\x02");
 substr($e0_flow, 0x0103, 12,
@@ -159,6 +231,7 @@ write_bin(File::Spec->catfile($in, 'e0_flow_only.bin'), $e0_flow);
 # in physical bank 4 at runtime $F203.  Its E0 selector changes segment 0 to
 # bank 0; the old-bank next byte is JAM, while bank 0 contains the continuation.
 my $e0_island = chr(0xEA) x 8192;
+break_sc_layout(\$e0_island);
 substr($e0_island, 7 * 1024, 1, "\x60");               # mapper-neutral RESET path
 for my $v (0, 2, 4) {
    put16(\$e0_island, 7 * 1024 + 0x03FA + $v, 0xFC00);
@@ -211,6 +284,7 @@ write_bin(File::Spec->catfile($in, 'f6.bin'), make_rom(16384, 0xF000, 0x0100, "\
 # fewer dynamic exits would be exactly backwards: the truncated JANE CFG is not
 # positive mapper evidence.  Preserve the normal 16K default, F6.
 my $f6_jane_exit_tie = chr(0xEA) x 16384;
+break_sc_layout(\$f6_jane_exit_tie);
 substr($f6_jane_exit_tie, 0 * 4096 + 0x0100, 1, "\x60");
 substr($f6_jane_exit_tie, 1 * 4096 + 0x0100, 1, "\x60");
 substr($f6_jane_exit_tie, 2 * 4096 + 0x0100, 1, "\x60");
@@ -243,10 +317,33 @@ substr($fa, 0x0000 + 0x020B, 3, "\xAD\xF9\x1F"); # bank0 -> bank1
 substr($fa, 0x1000 + 0x020E, 1, "\x60");             # bank1 RTS
 write_bin(File::Spec->catfile($in, 'fa.bin'), $fa);
 
+# All native split-address cartridge RAM has the same RMW impossibility as
+# Superchip: one effective address cannot be both the read alias and write
+# alias.  FA's split is $F000-$F0FF write / $F100-$F1FF read.  These remain FA
+# by their unique 12K shape, but the contradiction must be reported rather
+# than mistaken for meaningful RAM access.
+my $fa_rmw_write = $fa;
+substr($fa_rmw_write, 2 * 4096 + 0x0208, 4, "\xEE\x20\xF0\x60");
+write_bin(File::Spec->catfile($in, 'fa_rmw_write.bin'), $fa_rmw_write);
+my $fa_rmw_read = $fa;
+substr($fa_rmw_read, 2 * 4096 + 0x0208, 4, "\xEE\x20\xF1\x60");
+write_bin(File::Spec->catfile($in, 'fa_rmw_read.bin'), $fa_rmw_read);
+
+# CV competes with ordinary mirrored 2K ROM.  A deliberate CV tail signature
+# is not allowed to override contradictory executable semantics: reachable RMW
+# against either half of CV's split RAM window eliminates CV and leaves 2K.
+for my $case ([cv_rmw_read => 0xF020], [cv_rmw_write => 0xF420]) {
+   my ($name, $addr) = @$case;
+   my $rom = make_rom(2048, 0xF800, 0x0100, pack('C v C', 0xEE, $addr, 0x60));
+   substr($rom, 0x07F8, 4, "CV\0\0");
+   write_bin(File::Spec->catfile($in, "$name.bin"), $rom);
+}
+
 # A bank origin can be inferred from absolute JMP evidence even when that bank
 # has unusable vectors.  Bank 1 keeps one real RESET path so the cartridge still
 # contains established executable code under the zero-instruction success rule.
 my $jmp_origins = chr(0xEA) x 8192;
+break_sc_layout(\$jmp_origins);
 substr($jmp_origins, 0x0100, 3, pack('C v', 0x4C, 0xD234));
 substr($jmp_origins, 0x1000 + 0x0100, 3, pack('C v', 0x4C, 0xF456));
 for my $v (0, 2, 4) {
@@ -284,6 +381,12 @@ for my $v (0, 2, 4) {
 }
 substr($wd, 8192, 3, "\x12\x34\x56");
 write_bin(File::Spec->catfile($in, 'wd_bad_dump.bin'), $wd);
+my $wd_rmw_read = $wd;
+substr($wd_rmw_read, 0x0000, 4, "\xEE\x20\xF0\x60");
+write_bin(File::Spec->catfile($in, 'wd_rmw_read.bin'), $wd_rmw_read);
+my $wd_rmw_write = $wd;
+substr($wd_rmw_write, 0x0000, 4, "\xEE\x60\xF0\x60");
+write_bin(File::Spec->catfile($in, 'wd_rmw_write.bin'), $wd_rmw_write);
 
 # All eight conditional branches, each in both same-page and cross-page cases.
 my @branch_ops = (0x10, 0x30, 0x50, 0x70, 0x90, 0xB0, 0xD0, 0xF0);
@@ -550,6 +653,22 @@ substr($banked_island, 0x1000 + 0x0206, 9,
    "\xA9\x42\xAA\xA8\xE8\xCA\xC8\x88\x60");
 write_bin(File::Spec->catfile($in, 'speculative_banked_island.bin'), $banked_island);
 
+# Speculative islands may extend a mapper hypothesis only after RESET has
+# established a cartridge-backed execution graph.  A same-sized foreign 6502
+# blob can contain perfectly valid detached routines, but if its RESET vector
+# does not map into cartridge ROM those routines must not resurrect the mapper.
+my $no_reset_island = chr(0xEA) x 16384;
+break_sc_layout(\$no_reset_island);
+substr($no_reset_island, 0x0200, 12,
+   "\x02\x12\x22" .
+   "\xA9\x42\xAA\xA8\xE8\xCA\xC8\x88\x60");
+for my $b (0 .. 3) {
+   for my $v (0, 2, 4) {
+      put16(\$no_reset_island, $b * 4096 + 0x0FFA + $v, 0x0400);
+   }
+}
+write_bin(File::Spec->catfile($in, 'speculative_without_reset.bin'), $no_reset_island);
+
 # A speculative candidate must be rejected when a statically possible path
 # reaches JAM/KIL.  CLC makes the BCC-to-KIL path definitely taken.
 my $island_jam = make_rom(4096, 0xF000, 0x0100, "\x60");
@@ -606,6 +725,17 @@ write_bin(File::Spec->catfile($in, 'f8sc.bin'), $sc);
 my $f6sc = make_rom(16384, 0xF000, 0x0100,
    "\x8D\x00\xF0\xAD\x80\xF0\xAD\xF6\x1F\x60");
 write_bin(File::Spec->catfile($in, 'f6sc.bin'), $f6sc);
+# Commercial SC dumps can provide decisive structural evidence even when the
+# reachable CFG does not expose a direct SC store: each 4K bank duplicates the
+# 128 physical bytes hidden behind the write/read aliases.
+my $f6sc_layout = make_rom(16384, 0xF000, 0x0100,
+   "\xAD\xF6\x1F\x60");
+for my $b (0 .. 3) {
+   my $base = $b * 4096;
+   substr($f6sc_layout, $base + 0x80, 0x80,
+          substr($f6sc_layout, $base, 0x80));
+}
+write_bin(File::Spec->catfile($in, 'f6sc_layout.bin'), $f6sc_layout);
 my $f4sc = make_rom(32768, 0xF000, 0x0100,
    "\x8D\x00\xF0\xAD\x80\xF0\xAD\xF4\x1F\x60");
 write_bin(File::Spec->catfile($in, 'f4sc.bin'), $f4sc);
@@ -837,6 +967,16 @@ die "unsupported raw cartridge unexpectedly succeeded\n" if $odd_rc == 0;
 die "unsupported raw failure left an output file\n" if -e $odd_out;
 require_re(slurp($odd_log), qr/no instructions found/i, 'raw-layout zero-instruction error');
 
+my $doubled_2k_out = slurp(File::Spec->catfile($out, 'doubled2k.s26'));
+require_re($doubled_2k_out, qr/^; mapper: unbanked 2K \(/m,
+   'byte-identical doubled 2K dump recognized as logical 2K');
+require_re($doubled_2k_out,
+   qr/^; preservation image: 2K ROM duplicated byte-for-byte to 4K;/m,
+   'doubled 2K preservation annotation');
+require_re($doubled_2k_out,
+   qr/^; ---- duplicated second 2K copy from preservation image ----$/m,
+   'doubled 2K second-copy preservation section');
+
 my $f8_out = slurp(File::Spec->catfile($out, 'f8.s26'));
 require_re($f8_out, qr/^B0_F100:\s*$/m,
    'bank-qualified colliding label in bank 0');
@@ -854,6 +994,26 @@ require_re($fa_out, qr/^; FA cartridge RAM: write \$1000-\$10FF, read \$1100-\$1
    'FA RAM mapping annotation');
 require_re($fa_out, qr/^; usage bytes: .*fa-hidden=1536\b/m,
    'FA hidden RAM-window bytes excluded from ROM analysis');
+for my $case (
+   ['fa_rmw_write.s26', 'FA write-port'],
+   ['fa_rmw_read.s26',  'FA read-port'],
+) {
+   my ($name, $which) = @$case;
+   my $text = slurp(File::Spec->catfile($out, $name));
+   require_re($text, qr/^; mapper: FA \(high confidence;.*1 native split-RAM RMW conflict\)/m,
+      "$which RMW recorded as split-RAM contradiction");
+}
+for my $case (
+   ['cv_rmw_read.s26',  'CV read-port'],
+   ['cv_rmw_write.s26', 'CV write-port'],
+) {
+   my ($name, $which) = @$case;
+   my $text = slurp(File::Spec->catfile($out, $name));
+   require_re($text, qr/^; mapper: unbanked 2K \(/m,
+      "$which RMW rejects CV mapper hypothesis");
+   require_re($text, qr/^; mapper flow hypotheses: 2 tested, 1 survived; control flow refined selection$/m,
+      "$which split-RAM contradiction refines CV to plain 2K");
+}
 
 my $dpc_out = slurp(File::Spec->catfile($out, 'dpc.s26'));
 require_re($dpc_out, qr/^; mapper: DPC \(high confidence;/m, 'DPC size mapper inference');
@@ -880,6 +1040,15 @@ require_re($wd_out,
    'WD trailing-byte preservation section');
 require_re($wd_out, qr/^\s*\.byte \$12, \$34, \$56$/m,
    'WD trailing bytes preserved exactly');
+for my $case (
+   ['wd_rmw_read.s26',  'WD read-port'],
+   ['wd_rmw_write.s26', 'WD write-port'],
+) {
+   my ($name, $which) = @$case;
+   my $text = slurp(File::Spec->catfile($out, $name));
+   require_re($text, qr/^; mapper: WD \(high confidence;.*1 native split-RAM RMW conflict\)/m,
+      "$which RMW recorded as split-RAM contradiction");
+}
 
 my $vector_interior_out = slurp(File::Spec->catfile($out, 'vector_interior.s26'));
 require_re($vector_interior_out,
@@ -1083,6 +1252,13 @@ require_re($spec_banked,
 require_re($spec_banked, qr/^B1_F206:\n\s*LDA\s+#\$42/m,
    'speculative execution resumes in bank selected by hotspot');
 
+my $spec_no_reset = slurp(File::Spec->catfile($out, 'speculative_without_reset.s26'));
+require_re($spec_no_reset,
+   qr/^; mapper flow hypotheses: 2 tested, 0 survived$/m,
+   'speculative island cannot resurrect mapper hypothesis without RESET');
+require_re($spec_no_reset, qr/^B0_F203:\n\s*LDA\s+#\$42/m,
+   'full presentation may still preserve a detached speculative island');
+
 my $spec_jam = slurp(File::Spec->catfile($out, 'speculative_jam_reject.s26'));
 die "JAM-reaching speculative candidate was promoted\n"
    if $spec_jam =~ /^L_F203:/m ||
@@ -1169,6 +1345,23 @@ require_re($f8_false_ua_out, qr/BCS\.same\s+\$F115.*\n\s*LDA\s+\$1FF9/m,
 require_re($f8_false_ua_out, qr/B1_F109:\n\s*LDA\s+#\$42/m,
    'F8 execution continues in successor bank after selector');
 
+my $f8_branch_edge_out = slurp(File::Spec->catfile($out, 'f8_branch_edge_flags.s26'));
+require_re($f8_branch_edge_out, qr/^; mapper: F8 \(/m,
+   'branch-edge flag refinement preserves valid F8 mapper hypothesis');
+require_re($f8_branch_edge_out, qr/LDA\s+INTIM\n\s*BMI\.same\s+\$F103.*\n\s*BPL\.same\s+\$F10B/m,
+   'mutually exhaustive BMI/BPL path remains executable');
+die "impossible BMI/BPL fallthrough JAM was decoded as reachable code\n"
+   if $f8_branch_edge_out =~ /B0_F10A:\n\s*op02/m;
+
+my $f8_cross_jam_out = slurp(File::Spec->catfile($out, 'f8_cross_switch_possible_jam.s26'));
+require_re($f8_cross_jam_out, qr/^; mapper: F8 \(/m,
+   'real F8 cross-bank selector outranks possible abstract-state JAM path');
+require_re($f8_cross_jam_out,
+   qr/^; mapper flow hypotheses: 7 tested, 1 survived; control flow refined selection$/m,
+   'cross-bank F8 evidence eliminates zero-switch E0 hypothesis');
+require_re($f8_cross_jam_out, qr/B1_F100:\n\s*LDA\s+\$1FF8/m,
+   'F8 cross-bank evidence begins on RESET path');
+
 my $uasw_flow_out = slurp(File::Spec->catfile($out, 'uasw_flow_only.s26'));
 require_re($uasw_flow_out, qr/^; mapper: UASW \(/m,
    'control-flow inference distinguishes UASW from UA and F8');
@@ -1218,6 +1411,13 @@ require_re($f6_jane_tie_out,
 
 my $f6sc_out = slurp(File::Spec->catfile($out, 'f6sc.s26'));
 require_re($f6sc_out, qr/^; mapper: F6SC\b/m, 'F6SC mapper inference');
+my $f6sc_layout_out = slurp(File::Spec->catfile($out, 'f6sc_layout.s26'));
+require_re($f6sc_layout_out, qr/^; mapper: F6SC\b/m,
+   'F6SC duplicated-window structural inference');
+require_re($f6sc_layout_out, qr/^; Superchip structural evidence: /m,
+   'F6SC structural evidence annotation');
+require_re($f6sc_layout_out, qr/\b0 SC writes\b/,
+   'F6SC structural inference does not invent store evidence');
 my $f4sc_out = slurp(File::Spec->catfile($out, 'f4sc.s26'));
 require_re($f4sc_out, qr/^; mapper: F4SC\b/m, 'F4SC mapper inference');
 

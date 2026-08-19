@@ -816,7 +816,16 @@ Applications declare ordinary owned objects with the region modifier:
 
 Loads relocate through the read alias, stores and initialization through the
 write alias, and map accounting counts the physical bytes once across all ROM
-banks. The current SC cfg profiles reserve each bank's $x000-$x0FF RAM-port prefix and
+banks. This split-address contract also gives the disassembler a mapper-inference
+invariant: a 6502 read-modify-write uses one effective address for both its read
+and write phases, so an RMW targeting either alias of a split RAM region cannot
+represent an ordinary read-modify-write of that RAM byte. Such a reachable RMW
+is negative evidence for any mapper whose RAM uses those aliases. Pure reads of
+the read alias are neutral evidence because a plain ROM mapping may expose ROM
+at the same CPU address. Superchip, FA/RAM Plus, CommaVid CV, and WD all use this
+rule; each profile supplies its own read/write ranges.
+
+The current SC cfg profiles reserve each bank's $x000-$x0FF RAM-port prefix and
 begin allocatable ROM at $x100 while still emitting complete 4K physical banks.
 In the planned C26 topology model, the `bank` mapping begins at image offset
 `$0100` and CPU/link address `$x100`; this explicit mapping, not the word
