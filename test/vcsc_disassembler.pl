@@ -180,6 +180,28 @@ write_bin(File::Spec->catfile($in, 'e0_speculative_banked_island.bin'), $e0_isla
 # Read-window-looking evidence alone must not promote it to Superchip.
 write_bin(File::Spec->catfile($in, 'f8_sc_read_only.bin'),
    make_rom(8192, 0xF000, 0x0100, "\xAD\x80\xF0\xAD\xF8\x1F\x60"));
+
+# RMW instructions cannot be valid Superchip RAM operations because the read
+# and write aliases are different addresses.  Any reachable RMW anywhere in
+# $F000-$F0FF is therefore negative SC evidence, not merely "not positive".
+write_bin(File::Spec->catfile($in, 'plain4k_sc_rmw_only.bin'),
+   make_rom(4096, 0xF000, 0x0100, "\x0E\x00\xF0\x60"));
+write_bin(File::Spec->catfile($in, 'plain4k_sc_rmw_write_conflict.bin'),
+   make_rom(4096, 0xF000, 0x0100,
+      "\x8D\x20\xF0" .      # otherwise-positive SC write
+      "\xEE\x40\xF0" .      # RMW in write port: contradiction
+      "\x60"));
+write_bin(File::Spec->catfile($in, 'plain4k_sc_rmw_read_conflict.bin'),
+   make_rom(4096, 0xF000, 0x0100,
+      "\x8D\x20\xF0" .      # otherwise-positive SC write
+      "\xEE\x80\xF0" .      # RMW in read port: contradiction
+      "\x60"));
+
+# A real store into the SC write-window is normally positive evidence, but an
+# established RESET path through that same write port proves that the physical
+# ROM bytes are intended to execute there and therefore vetoes automatic SC.
+write_bin(File::Spec->catfile($in, 'plain4k_sc_write_port_exec.bin'),
+   make_rom(4096, 0xF000, 0x0000, "\x8D\x20\xF0\x60"));
 write_bin(File::Spec->catfile($in, 'f6.bin'), make_rom(16384, 0xF000, 0x0100, "\xAD\xF6\x1F\x60"));
 
 # A wrong mapper must not win merely because it traces less code.  Both F6 and
@@ -1098,6 +1120,40 @@ require_re($f8_read_only, qr/^; mapper: F8 \(/m,
 die "read-only Superchip-window access hid ordinary F8 ROM bytes\n"
    if $f8_read_only =~ /sc-hidden=[1-9]/ ||
       $f8_read_only =~ /hidden by Superchip RAM window/i;
+
+my $sc_rmw_only = slurp(File::Spec->catfile($out, 'plain4k_sc_rmw_only.s26'));
+require_re($sc_rmw_only, qr/^; mapper: unbanked 4K \(/m,
+   'plain 4K RMW access in Superchip write window stays 4K');
+require_re($sc_rmw_only, qr/1 SC RMW conflict/,
+   'write-port RMW recorded as negative Superchip evidence');
+die "RMW-only Superchip candidate hid ordinary 4K ROM bytes\n"
+   if $sc_rmw_only =~ /sc-hidden=[1-9]/ ||
+      $sc_rmw_only =~ /hidden by Superchip RAM window/i;
+
+for my $case (
+   ['plain4k_sc_rmw_write_conflict.s26', 'write-port'],
+   ['plain4k_sc_rmw_read_conflict.s26',  'read-port'],
+) {
+   my ($name, $which) = @$case;
+   my $text = slurp(File::Spec->catfile($out, $name));
+   require_re($text, qr/^; mapper: unbanked 4K \(/m,
+      "$which RMW vetoes otherwise-positive Superchip write evidence");
+   require_re($text, qr/1 SC write, 1 SC RMW conflict/,
+      "$which RMW conflict reported alongside SC write evidence");
+   die "$which RMW conflict still promoted Superchip\n"
+      if $text =~ /sc-hidden=[1-9]/ ||
+         $text =~ /hidden by Superchip RAM window/i;
+}
+
+my $sc_write_exec = slurp(File::Spec->catfile($out, 'plain4k_sc_write_port_exec.s26'));
+require_re($sc_write_exec, qr/^; mapper: unbanked 4K \(/m,
+   'RESET execution in Superchip write port vetoes automatic 4KSC promotion');
+require_re($sc_write_exec, qr/^L_F000:
+\s*STA\s+\$F020/m,
+   'plain 4K write-port code remains executable ROM');
+die "write-port execution conflict still hid ordinary 4K ROM bytes\n"
+   if $sc_write_exec =~ /sc-hidden=[1-9]/ ||
+      $sc_write_exec =~ /hidden by Superchip RAM window/i;
 
 
 my $f8_false_ua_out = slurp(File::Spec->catfile($out, 'f8_false_ua_flow.s26'));

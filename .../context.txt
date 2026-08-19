@@ -1360,6 +1360,21 @@ is currently 2498 ROM bytes / 104 RAM bytes. Next gate is user interactive Stell
 validation, especially moving 3-6-way piles and crossing sprites. The existing
 `renderers/multisprite/` remains unchanged and its Stella oracle still passes.
 
+2026-08-19 Superchip corpus finding: a large one-way differential cluster
+(4KSC->4K, F8SC->F8, F6SC->F6 versus Stella) exposed over-eager automatic SC
+promotion. Only resolved write-only stores into `$x000-$x07F` are positive SC
+evidence; reads from `$x080-$x0FF` are neutral because ordinary ROM occupies
+that range on a plain cartridge. Any reachable RMW anywhere in `$x000-$x0FF`
+is negative SC evidence: Superchip has separate read and write aliases, so no
+single effective address can provide valid RAM semantics for both phases of an
+RMW. Established RESET/control flow into the SC write port `$x000-$x07F` also
+vetoes automatic SC, because the hardware would fetch the RAM write port rather
+than those physical ROM bytes. The read port is not an execution veto because
+populated SC RAM may be executed intentionally. Nineteen supplied 4K mismatch
+ROMs resolve as plain 4K and round-trip MD5-identically; synthetic RMW tests now
+cover both halves of the SC window while existing true F8SC/F6SC/F4SC fixtures
+remain SC.
+
 2026-08-19 disassembler F6/JANE corpus finding: expanded differential corpora
 exposed a bad mapper-refinement tie-break that preferred the viable hypothesis
 with fewer dynamic/unresolved control exits. That rewards truncated wrong CFGs;

@@ -168,8 +168,9 @@ typedef struct {
    int verbose;
    int wd_bad_dump;
    int hotspot_refs;
-   int superchip_refs;
    int superchip_write_refs;
+   int superchip_rmw_conflicts;
+   int superchip_exec_conflicts;
    int dynamic_control_exits;
    int unresolved_indirect_jumps;
    size_t reachable_halts;
@@ -1814,10 +1815,16 @@ static int superchip_active(const analysis_t *a)
 {
    if (a->mapper_overridden && a->superchip_override >= 0)
       return a->superchip_override != 0;
-   /* Reads from $x080-$x0FF are ambiguous with ordinary ROM accesses.
-    * A decoded write into the Superchip write window is the discriminator:
-    * useful SC RAM cannot be consumed without first being written. */
-   return a->superchip_write_refs != 0;
+   /* Only decoded write-only stores into $x000-$x07F are positive SC
+    * evidence.  Reads from $x080-$x0FF are ordinary ROM reads on a plain
+    * cartridge and therefore neutral.  An RMW anywhere in $x000-$x0FF is
+    * contradictory because no Superchip alias supports both the read and
+    * write phases at one effective address.  Established execution through
+    * the write port is contradictory for the same reason: instruction fetches
+    * there would hit the RAM write port rather than physical ROM. */
+   return a->superchip_write_refs != 0 &&
+          a->superchip_rmw_conflicts == 0 &&
+          a->superchip_exec_conflicts == 0;
 }
 
 static int fa_ram_address(const analysis_t *a, uint16_t address)
@@ -2964,7 +2971,10 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
             size_t toff;
             b->roles[voff] |= ROLE_VECTOR;
             b->roles[voff+1] |= ROLE_VECTOR;
-            if (cart_target_offset(b, target, &toff) && !rom_offset_hidden(a, toff)) {
+            if (cart_target_offset(b, target, &toff)) {
+               if (!speculative_done && v == 1u && bi == a->reset_bank && toff < 0x80u)
+                  ++a->superchip_exec_conflicts;
+               if (rom_offset_hidden(a, toff)) continue;
                mark_label(b, toff);
                if (!push_work(a, bi, toff)) return 0;
             }
@@ -3064,21 +3074,26 @@ drain_work:
       transfer_state(a, item.bank, &input_state, &output_state,
                      opcode, mode, operand);
 
-      /* Superchip RAM uses write $x000-$x07F and read $x080-$x0FF
-       * aliases in the cartridge window.  A direct access with the matching
-       * direction is strong evidence for 4KSC or an SC F8/F6/F4 variant. */
+      /* Superchip RAM aliases write $x000-$x07F and read $x080-$x0FF.
+       * Only a resolved write-only store into the write port is positive SC
+       * evidence.  Reads from the read port are neutral because ordinary ROM
+       * lives there on a plain cartridge.  RMW instructions are contradictory
+       * anywhere in the full $x000-$x0FF SC window: one effective address can
+       * never provide both the SC read and write semantics. */
       {
          unsigned access = opcode_memory_access(opcode);
-         uint16_t bus = (uint16_t)(operand & 0x1fffu);
-         if (mode == AM_ABSOLUTE &&
-             (a->mapper == MAP_4K || a->mapper == MAP_F8 ||
-              a->mapper == MAP_F6 || a->mapper == MAP_F4)) {
-            if ((access & ACCESS_WRITE) && bus >= 0x1000u && bus <= 0x107fu) {
-               ++a->superchip_refs;
+         uint16_t effective;
+         if ((a->mapper == MAP_4K || a->mapper == MAP_F8 ||
+              a->mapper == MAP_F6 || a->mapper == MAP_F4) &&
+             resolve_effective_address(&input_state, mode, operand, &effective)) {
+            uint16_t bus = (uint16_t)(effective & 0x1fffu);
+            if (opcode_is_write_only(opcode) &&
+                bus >= 0x1000u && bus <= 0x107fu)
                ++a->superchip_write_refs;
-            }
-            if ((access & ACCESS_READ) && bus >= 0x1080u && bus <= 0x10ffu)
-               ++a->superchip_refs;
+            if ((access & (ACCESS_READ | ACCESS_WRITE)) ==
+                   (ACCESS_READ | ACCESS_WRITE) &&
+                bus >= 0x1000u && bus <= 0x10ffu)
+               ++a->superchip_rmw_conflicts;
          }
       }
 
@@ -3278,6 +3293,8 @@ drain_work:
          if ((!known || taken) && target >= b->origin &&
              (uint32_t)target < (uint32_t)b->origin + (uint32_t)b->size) {
             toff = (size_t)(target - b->origin);
+            if (!speculative_done && toff < 0x80u)
+               ++a->superchip_exec_conflicts;
             if (rom_offset_hidden(a, toff)) ++a->dynamic_control_exits;
             else {
                mark_label(b, toff);
@@ -3312,8 +3329,10 @@ drain_work:
          else {
          if (off + 3u < b->size &&
              !push_work_state(a, item.bank, off + 3u, &after_call)) return 0;
-         if (cart_target_offset(b, operand, &toff) &&
-             !(rom_offset_hidden(a, toff))) {
+         if (cart_target_offset(b, operand, &toff)) {
+            if (!speculative_done && toff < 0x80u)
+               ++a->superchip_exec_conflicts;
+            if (rom_offset_hidden(a, toff)) { ++a->dynamic_control_exits; break; }
             mark_label(b, toff);
             if (!push_work_state(a, item.bank, toff, &output_state)) return 0;
          }
@@ -3334,8 +3353,10 @@ drain_work:
             if (!push_wd_address_state(a, (uint8_t)item.mapper_config, operand, &output_state))
                return 0;
          }
-         else if (cart_target_offset(b, operand, &toff) &&
-             !(rom_offset_hidden(a, toff))) {
+         else if (cart_target_offset(b, operand, &toff)) {
+            if (!speculative_done && toff < 0x80u)
+               ++a->superchip_exec_conflicts;
+            if (rom_offset_hidden(a, toff)) { ++a->dynamic_control_exits; break; }
             mark_label(b, toff);
             if (!push_work_state(a, item.bank, toff, &output_state)) return 0;
          }
@@ -3378,8 +3399,10 @@ drain_work:
             size_t toff;
             b->roles[loff] |= ROLE_DATA_READ;
             b->roles[hoff] |= ROLE_DATA_READ;
-            if (cart_target_offset(b, target, &toff) &&
-                !(rom_offset_hidden(a, toff))) {
+            if (cart_target_offset(b, target, &toff)) {
+               if (!speculative_done && toff < 0x80u)
+                  ++a->superchip_exec_conflicts;
+               if (rom_offset_hidden(a, toff)) { ++a->dynamic_control_exits; break; }
                mark_label(b, toff);
                if (!push_work_state(a, item.bank, toff, &output_state)) return 0;
             }
@@ -5787,20 +5810,22 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
       }
       if (a->mapper_overridden)
          fprintf(fp, "; mapper: %s (override; %d decoded hotspot access%s, "
-                     "%d SC-window candidate%s, %d write%s)\n",
+                     "%d SC write%s, %d SC RMW conflict%s)\n",
                  mname, a->hotspot_refs, a->hotspot_refs == 1 ? "" : "es",
-                 a->superchip_refs, a->superchip_refs == 1 ? "" : "s",
-                 a->superchip_write_refs, a->superchip_write_refs == 1 ? "" : "s");
+                 a->superchip_write_refs, a->superchip_write_refs == 1 ? "" : "s",
+                 a->superchip_rmw_conflicts,
+                 a->superchip_rmw_conflicts == 1 ? "" : "s");
       else
          fprintf(fp, "; mapper: %s (%s confidence; %d decoded hotspot access%s, "
-                     "%d SC-window candidate%s, %d write%s)\n",
+                     "%d SC write%s, %d SC RMW conflict%s)\n",
                  mname,
                  a->mapper == MAP_RAW ? "unknown" :
                     (a->mapper == MAP_DPC || a->mapper == MAP_FA || a->mapper == MAP_WD || a->mapper == MAP_E0 || a->mapper == MAP_CV || a->mapper == MAP_JANE || a->mapper == MAP_0840 || a->mapper == MAP_UA || a->mapper == MAP_UASW || a->mapper == MAP_0FA0 ? "high" :
                      ((a->hotspot_refs || superchip_active(a)) ? "high" : "medium")),
                  a->hotspot_refs, a->hotspot_refs == 1 ? "" : "es",
-                 a->superchip_refs, a->superchip_refs == 1 ? "" : "s",
-                 a->superchip_write_refs, a->superchip_write_refs == 1 ? "" : "s");
+                 a->superchip_write_refs, a->superchip_write_refs == 1 ? "" : "s",
+                 a->superchip_rmw_conflicts,
+                 a->superchip_rmw_conflicts == 1 ? "" : "s");
    }
    if (a->mapper != MAP_RAW) {
       if (!a->mapper_overridden && a->mapper_hypotheses_tested > 1u)

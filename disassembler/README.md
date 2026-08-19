@@ -172,11 +172,19 @@ signature or the established `LDA $FFF1; RTS` detector byte pattern, reports
 the nonstandard power-on bank explicitly, and preserves physical file order on
 round trip. `--mapper jane` forces the same interpretation.
 
-Automatic Superchip promotion requires a decoded write to the `$x000-$x07F`
-write window. A read from `$x080-$x0FF` alone is not sufficient evidence, because
-a plain F8/F6/F4 cartridge may legitimately read ordinary ROM at the same bus
-addresses. `--mapper f8sc|f6sc|f4sc` remains available when static control-flow
-analysis cannot observe the initializing RAM write.
+Automatic Superchip promotion requires a decoded **write-only store** to the
+`$x000-$x07F` write window. Reads from `$x080-$x0FF` are neutral evidence: a
+plain 4K/F8/F6/F4 cartridge may legitimately read ordinary ROM there. A reachable
+read-modify-write instruction anywhere in `$x000-$x0FF` is negative SC evidence,
+because Superchip deliberately separates the write and read aliases and therefore
+has no single address at which both phases of an RMW operation have valid RAM
+semantics. Established RESET or control flow into the SC write port
+`$x000-$x07F` likewise vetoes automatic promotion, because those instruction
+fetches would hit the RAM write port rather than the physical ROM bytes being
+disassembled. The read port is not used as the same execution veto because a
+program may deliberately execute previously populated cartridge RAM.
+`--mapper f8sc|f6sc|f4sc` remains available when static control-flow analysis
+cannot observe decisive RAM use.
 0840/EconoBanking is an 8K two-bank layout whose selectors live below the
 cartridge window. `vcsc-disas` recognizes the VCSC `0840` tail signature or the
 legacy hotspot-access patterns used by current emulator detectors. It reports
