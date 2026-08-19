@@ -234,6 +234,13 @@ Use a scored/evidence-based classifier. Evidence includes:
   is ambiguous with ordinary ROM and must not promote a plain mapper to SC; a
   decoded write to `$x000-$x07F` (or an explicit mapper override) is required.
 * Whether the resulting bank-aware control-flow graph is coherent.
+* For every size-compatible supported mapper, trace RESET-reachable code and
+  credible speculative islands under that mapper's real selector semantics until
+  the reachable graph reaches a fixed point. Eliminate hypotheses whose possible
+  established execution reaches HLT/JAM/KIL, and prefer surviving hypotheses that
+  explain decoded selector accesses. Raw detector byte strings are supporting or
+  tie-break evidence only; bytes spanning unrelated instructions must not select a
+  mapper when executable control flow contradicts that interpretation.
 * Whether JMP/JSR/data-reference constraints agree with the mapper's bank
   windows and inferred origins.
 
@@ -243,7 +250,11 @@ F8 does not by itself identify which physical bank supplies RESET.
 Mapper state is part of control-flow state. An access to a selector hotspot can
 change which physical bank supplies subsequent instruction fetches at the same
 runtime address. Reads, writes, and read-modify-write operations must be modeled
-according to the mapper's actual hotspot semantics.
+according to the mapper's actual hotspot semantics. A physical old-bank byte after
+the selector is not the successor instruction if the access selected another bank;
+for example, `LDA $hotspot` followed by old-bank JAM/KIL is a valid execution line
+when the new bank supplies a valid instruction at the continuation PC. This rule
+applies equally to primary tracing and speculative-island validation.
 
 FA is an explicit CBS RAM Plus model rather than an F8 variant. A 12288-byte
 image consists of three 4K physical banks selected by `$1FF8-$1FFA`; physical
@@ -383,8 +394,10 @@ control transfers may still jump over the barrier or enter code on either side,
 so a barrier does not by itself prove that all later bytes are data.
 
 Use these barriers to strengthen second-pass island and unused-ROM analysis.
-For performance, first build one bank-local speculative control-flow graph and
-reverse-walk it from every HLT/JAM/KIL byte. This cheaply marks the only unknown
+For performance, first build one physical-ROM speculative control-flow graph and
+reverse-walk it from every HLT/JAM/KIL byte. Mapper-selector edges cross to the
+selected physical bank before the next opcode fetch; ordinary branch/JSR edges
+remain bank-local. This cheaply marks the only unknown
 starts that can structurally reach a halt. Run the more expensive stateful C/Z/N/V
 validation only for those starts; a start outside that reverse-reachable set cannot
 be rejected by the halt rule. Branch-state analysis still makes the final decision,

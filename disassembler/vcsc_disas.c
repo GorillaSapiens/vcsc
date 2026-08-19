@@ -170,6 +170,10 @@ typedef struct {
    int superchip_write_refs;
    int dynamic_control_exits;
    int unresolved_indirect_jumps;
+   size_t reachable_halts;
+   int mapper_flow_refined;
+   size_t mapper_hypotheses_tested;
+   size_t mapper_hypotheses_survived;
    size_t speculative_rejected_starts;
    size_t speculative_barriers;
    size_t speculative_islands;
@@ -1649,6 +1653,22 @@ static int resolve_effective_address(const abstract_state_t *state,
    }
 }
 
+/* Resolve a mapper selector from an instruction that actually performs a
+ * memory access.  Keeping this in one place is important: ordinary recursive
+ * tracing, speculative-island validation, and mapper-hypothesis testing all
+ * need to agree about which physical bank supplies the *next* opcode fetch. */
+static int instruction_selector_bank(const analysis_t *a,
+                                     const abstract_state_t *state,
+                                     uint8_t opcode, address_mode_t mode,
+                                     uint16_t operand, size_t *bank)
+{
+   uint16_t effective;
+   if (instruction_flow(opcode) != FLOW_NEXT) return 0;
+   if (!(opcode_memory_access(opcode) & (ACCESS_READ | ACCESS_WRITE))) return 0;
+   if (!resolve_effective_address(state, mode, operand, &effective)) return 0;
+   return selector_bank(a->mapper, effective, bank);
+}
+
 static int superchip_active(const analysis_t *a)
 {
    if (a->mapper_overridden && a->superchip_override >= 0)
@@ -2033,6 +2053,7 @@ static spec_result_t speculative_flow(const analysis_t *a, size_t bi,
                                       spec_context_t *ctx)
 {
    const bank_t *b = &a->banks[bi];
+   size_t node;
    uint8_t opcode;
    address_mode_t mode;
    unsigned len;
@@ -2041,6 +2062,8 @@ static spec_result_t speculative_flow(const analysis_t *a, size_t bi,
    abstract_state_t output_state;
    flow_kind_t flow;
    spec_result_t result = SPEC_SAFE_WEAK;
+   size_t successor_bank = bi;
+   int switched = 0;
 
    if (off >= b->size) return SPEC_SAFE_WEAK;
    if (rom_offset_hidden(a, off)) return SPEC_SAFE_WEAK;
@@ -2058,7 +2081,8 @@ static spec_result_t speculative_flow(const analysis_t *a, size_t bi,
       return SPEC_REJECT;
 
    if (++ctx->steps > ctx->step_limit) return SPEC_SAFE_WEAK;
-   if (ctx->visiting[off]) return SPEC_SAFE_WEAK; /* legitimate loop */
+   node = b->file_offset + off;
+   if (ctx->visiting[node]) return SPEC_SAFE_WEAK; /* legitimate loop */
 
    opcode = a->rom[b->file_offset + off];
    if (opcode_is_cpu_halt(opcode)) return SPEC_REJECT;
@@ -2074,8 +2098,8 @@ static spec_result_t speculative_flow(const analysis_t *a, size_t bi,
             return SPEC_REJECT;
       }
    }
-   if (ctx->counted && !ctx->counted[off]) {
-      ctx->counted[off] = 1u;
+   if (ctx->counted && !ctx->counted[node]) {
+      ctx->counted[node] = 1u;
       ++ctx->instructions;
       if (strncmp(opcode_mnemonics[opcode], "op", 2) == 0)
          ++ctx->unofficial_instructions;
@@ -2087,12 +2111,18 @@ static spec_result_t speculative_flow(const analysis_t *a, size_t bi,
    canonical_pc = (uint16_t)(b->origin + (uint16_t)off);
    transfer_state(a, bi, input_state, &output_state, opcode, mode, operand);
    flow = instruction_flow(opcode);
+   if (flow == FLOW_NEXT &&
+       instruction_selector_bank(a, input_state, opcode, mode, operand,
+                                 &successor_bank) &&
+       successor_bank < a->bank_count)
+      switched = 1;
 
-   ctx->visiting[off] = 1u;
+   ctx->visiting[node] = 1u;
    switch (flow) {
    case FLOW_NEXT:
       if (off + len < b->size)
-         result = speculative_flow(a, bi, off + len, &output_state, ctx);
+         result = speculative_flow(a, switched ? successor_bank : bi,
+                                   off + len, &output_state, ctx);
       else
          result = SPEC_SAFE_WEAK;
       break;
@@ -2172,7 +2202,7 @@ static spec_result_t speculative_flow(const analysis_t *a, size_t bi,
       result = SPEC_SAFE_STRONG;
       break;
    }
-   ctx->visiting[off] = 0u;
+   ctx->visiting[node] = 0u;
    return result;
 }
 
@@ -2209,6 +2239,11 @@ static int speculative_linear_jam_end(const analysis_t *a, size_t bi,
       flow = instruction_flow(opcode);
 
       if (flow == FLOW_NEXT) {
+         size_t successor_bank = bi;
+         if (instruction_selector_bank(a, &state, opcode, mode, operand,
+                                       &successor_bank) &&
+             successor_bank != bi)
+            return 0;
          state = next;
          off += len;
          continue;
@@ -2275,8 +2310,8 @@ static int speculative_candidate_credible(const analysis_t *a,
    size_t allowed_unofficial;
    int credible = 0;
 
-   scratch = (uint8_t *)calloc(b->size, 1);
-   counted = (uint8_t *)calloc(b->size, 1);
+   scratch = (uint8_t *)calloc(a->rom_size, 1);
+   counted = (uint8_t *)calloc(a->rom_size, 1);
    if (!scratch || !counted) goto done;
    memset(&initial, 0, sizeof(initial));
    memset(&ctx, 0, sizeof(ctx));
@@ -2329,89 +2364,116 @@ static int spec_reverse_add_edge(size_t *heads, spec_reverse_edge_t *edges,
  * from which a halt opcode is structurally reachable.  Branch-state analysis
  * still gets the final say, so a structurally reachable but provably dead halt
  * arm is not rejected. */
-static uint8_t *speculative_halt_reachability(const analysis_t *a, size_t bi)
+static uint8_t *speculative_halt_reachability(const analysis_t *a)
 {
-   const bank_t *b = &a->banks[bi];
-   size_t n = b->size;
+   size_t n = a->rom_size;
    uint8_t *may = NULL;
    size_t *heads = NULL;
    spec_reverse_edge_t *edges = NULL;
    size_t *queue = NULL;
    size_t edge_count = 0u;
    size_t qhead = 0u, qtail = 0u;
-   size_t off;
+   size_t bi;
 
    may = (uint8_t *)calloc(n, 1);
    heads = (size_t *)malloc(n * sizeof(*heads));
    edges = (spec_reverse_edge_t *)malloc((n * 2u + 1u) * sizeof(*edges));
    queue = (size_t *)malloc(n * sizeof(*queue));
    if (!may || !heads || !edges || !queue) goto fail;
-   for (off = 0; off < n; ++off) heads[off] = SIZE_MAX;
+   for (bi = 0; bi < n; ++bi) heads[bi] = SIZE_MAX;
 
-   for (off = 0; off < n; ++off) {
-      uint8_t opcode;
-      address_mode_t mode;
-      unsigned len;
-      flow_kind_t flow;
-      if (b->roles[off] & ROLE_CODE_START) continue;
-      if (rom_offset_hidden(a, off)) continue;
-      opcode = a->rom[b->file_offset + off];
-      if (opcode_is_cpu_halt(opcode)) {
-         may[off] = 1u;
-         queue[qtail++] = off;
-         continue;
-      }
-      mode = (address_mode_t)opcode_modes[opcode];
-      len = instruction_length(mode);
-      if (len == 0u || off + len > n) continue;
-      flow = instruction_flow(opcode);
-      if (flow == FLOW_NEXT) {
-         size_t to = off + len;
-         if (to < n && !(b->roles[to] & ROLE_CODE_START) &&
-             !(rom_offset_hidden(a, to)) &&
-             !spec_reverse_add_edge(heads, edges, n * 2u + 1u,
-                                    &edge_count, off, to))
-            goto fail;
-      }
-      else if (flow == FLOW_BRANCH) {
-         size_t fall = off + 2u;
-         int8_t disp = (int8_t)a->rom[b->file_offset + off + 1u];
-         uint16_t pc = (uint16_t)(b->origin + (uint16_t)off);
-         uint16_t target = (uint16_t)(pc + 2u + disp);
-         if (fall < n && !(b->roles[fall] & ROLE_CODE_START) &&
-             !(rom_offset_hidden(a, fall)) &&
-             !spec_reverse_add_edge(heads, edges, n * 2u + 1u,
-                                    &edge_count, off, fall))
-            goto fail;
-         if (target >= b->origin &&
-             (uint32_t)target < (uint32_t)b->origin + (uint32_t)n) {
-            size_t to = (size_t)(target - b->origin);
-            if (!(b->roles[to] & ROLE_CODE_START) &&
-                !(rom_offset_hidden(a, to)) &&
-                !spec_reverse_add_edge(heads, edges, n * 2u + 1u,
-                                       &edge_count, off, to))
-               goto fail;
+   for (bi = 0; bi < a->bank_count; ++bi) {
+      const bank_t *b = &a->banks[bi];
+      size_t off;
+      for (off = 0; off < b->size; ++off) {
+         size_t node = b->file_offset + off;
+         uint8_t opcode;
+         address_mode_t mode;
+         unsigned len;
+         flow_kind_t flow;
+         uint16_t operand = 0;
+         if (b->roles[off] & ROLE_CODE_START) continue;
+         if (rom_offset_hidden(a, off)) continue;
+         opcode = a->rom[node];
+         if (opcode_is_cpu_halt(opcode)) {
+            may[node] = 1u;
+            queue[qtail++] = node;
+            continue;
          }
+         mode = (address_mode_t)opcode_modes[opcode];
+         len = instruction_length(mode);
+         if (len == 0u || off + len > b->size) continue;
+         if (len >= 2u) operand = a->rom[node + 1u];
+         if (len >= 3u) operand |= (uint16_t)a->rom[node + 2u] << 8;
+         flow = instruction_flow(opcode);
+         if (flow == FLOW_NEXT) {
+            size_t successor_bank = bi;
+            size_t tooff = off + len;
+            size_t to;
+            /* The structural prefilter has no incoming abstract register
+             * state, so only directly encoded absolute selector accesses are
+             * recognized here.  Missing an indexed selector merely makes the
+             * prefilter conservative; speculative_flow() does the stateful
+             * final check. */
+            if (mode == AM_ABSOLUTE &&
+                selector_bank(a->mapper, operand, &successor_bank) &&
+                successor_bank >= a->bank_count)
+               successor_bank = bi;
+            if (tooff < a->banks[successor_bank].size &&
+                !(a->banks[successor_bank].roles[tooff] & ROLE_CODE_START) &&
+                !(rom_offset_hidden(a, tooff))) {
+               to = a->banks[successor_bank].file_offset + tooff;
+               if (!spec_reverse_add_edge(heads, edges, n * 2u + 1u,
+                                          &edge_count, node, to))
+                  goto fail;
+            }
+         }
+         else if (flow == FLOW_BRANCH) {
+            size_t fall = off + 2u;
+            int8_t disp = (int8_t)(uint8_t)operand;
+            uint16_t pc = (uint16_t)(b->origin + (uint16_t)off);
+            uint16_t target = (uint16_t)(pc + 2u + disp);
+            if (fall < b->size && !(b->roles[fall] & ROLE_CODE_START) &&
+                !(rom_offset_hidden(a, fall))) {
+               size_t to = b->file_offset + fall;
+               if (!spec_reverse_add_edge(heads, edges, n * 2u + 1u,
+                                          &edge_count, node, to))
+                  goto fail;
+            }
+            if (target >= b->origin &&
+                (uint32_t)target < (uint32_t)b->origin + (uint32_t)b->size) {
+               size_t tooff = (size_t)(target - b->origin);
+               if (!(b->roles[tooff] & ROLE_CODE_START) &&
+                   !(rom_offset_hidden(a, tooff))) {
+                  size_t to = b->file_offset + tooff;
+                  if (!spec_reverse_add_edge(heads, edges, n * 2u + 1u,
+                                             &edge_count, node, to))
+                     goto fail;
+               }
+            }
+         }
+         else if (flow == FLOW_JSR) {
+            size_t tooff;
+            size_t cont = off + 3u;
+            if (cont < b->size && !(b->roles[cont] & ROLE_CODE_START) &&
+                !(rom_offset_hidden(a, cont))) {
+               size_t to = b->file_offset + cont;
+               if (!spec_reverse_add_edge(heads, edges, n * 2u + 1u,
+                                          &edge_count, node, to))
+                  goto fail;
+            }
+            if (cart_target_offset(b, operand, &tooff) &&
+                !(b->roles[tooff] & ROLE_CODE_START) &&
+                !(rom_offset_hidden(a, tooff))) {
+               size_t to = b->file_offset + tooff;
+               if (!spec_reverse_add_edge(heads, edges, n * 2u + 1u,
+                                          &edge_count, node, to))
+                  goto fail;
+            }
+         }
+         /* JMP/RTS/RTI/BRK terminate the local speculative candidate exactly
+          * as speculative_flow() does, so no reverse edge crosses them. */
       }
-      else if (flow == FLOW_JSR) {
-         uint16_t operand = (uint16_t)(a->rom[b->file_offset + off + 1u] |
-                            ((uint16_t)a->rom[b->file_offset + off + 2u] << 8));
-         size_t to;
-         size_t cont = off + 3u;
-         if (cont < n && !(b->roles[cont] & ROLE_CODE_START) &&
-             !(rom_offset_hidden(a, cont)) &&
-             !spec_reverse_add_edge(heads, edges, n * 2u + 1u,
-                                    &edge_count, off, cont))
-            goto fail;
-         if (cart_target_offset(b, operand, &to) &&
-             !(b->roles[to] & ROLE_CODE_START) &&
-             !(rom_offset_hidden(a, to)) &&
-             !spec_reverse_add_edge(heads, edges, n * 2u + 1u,
-                                    &edge_count, off, to))
-            goto fail;
-      }
-      /* JMP/RTS/RTI/BRK terminate the local speculative candidate exactly as
-       * speculative_flow() does, so no reverse edge crosses them. */
    }
 
    while (qhead < qtail) {
@@ -2460,14 +2522,19 @@ static int speculative_candidate_promotable(const analysis_t *a,
 static int discover_speculative_islands(analysis_t *a)
 {
    size_t bi;
+   uint8_t *scratch = NULL;
+   uint8_t *halt_reachable = NULL;
    a->speculative_rejected_starts = 0;
    a->speculative_barriers = 0;
    a->speculative_islands = 0;
 
+   scratch = (uint8_t *)calloc(a->rom_size, 1);
+   if (!scratch) return 0;
+   halt_reachable = speculative_halt_reachability(a);
+   if (!halt_reachable) { free(scratch); return 0; }
+
    for (bi = 0; bi < a->bank_count; ++bi) {
       bank_t *b = &a->banks[bi];
-      uint8_t *scratch;
-      uint8_t *halt_reachable;
       size_t off;
       abstract_state_t initial;
 
@@ -2477,10 +2544,6 @@ static int discover_speculative_islands(analysis_t *a)
       memset(b->spec_barrier, 0, b->size);
       memset(b->spec_barrier_end, 0xff, b->size * sizeof(*b->spec_barrier_end));
       memset(b->spec_seed, 0, b->size);
-      scratch = (uint8_t *)calloc(b->size, 1);
-      if (!scratch) return 0;
-      halt_reachable = speculative_halt_reachability(a, bi);
-      if (!halt_reachable) { free(scratch); return 0; }
       memset(&initial, 0, sizeof(initial));
 
       /* Negative evidence is computed for every not-yet-established start,
@@ -2491,8 +2554,8 @@ static int discover_speculative_islands(analysis_t *a)
          spec_result_t r;
          if (b->roles[off] & ROLE_CODE_START) continue;
          if (rom_offset_hidden(a, off)) continue;
-         if (!halt_reachable[off]) continue;
-         memset(scratch, 0, b->size);
+         if (!halt_reachable[b->file_offset + off]) continue;
+         memset(scratch, 0, a->rom_size);
          memset(&ctx, 0, sizeof(ctx));
          ctx.visiting = scratch;
          ctx.steps = 0u;
@@ -2509,8 +2572,6 @@ static int discover_speculative_islands(analysis_t *a)
             b->spec_strong[off] = 1u;
          }
       }
-      free(halt_reachable);
-      free(scratch);
 
       /* Three consecutive rejected instruction starts are a sequential-flow
        * barrier because no 6502/6507 instruction is longer than three bytes.
@@ -2549,18 +2610,26 @@ static int discover_speculative_islands(analysis_t *a)
          if (!speculative_candidate_promotable(a, bi, candidate)) continue;
          b->spec_seed[candidate] = 1u;
          mark_label(b, candidate);
-         if (!push_work(a, bi, candidate)) return 0;
+         if (!push_work(a, bi, candidate)) {
+            free(halt_reachable);
+            free(scratch);
+            return 0;
+         }
          ++a->speculative_islands;
       }
    }
+   free(halt_reachable);
+   free(scratch);
    return 1;
 }
 
-static int trace_analysis(analysis_t *a, const options_t *opt)
+static int trace_analysis_internal(analysis_t *a, const options_t *opt,
+                                   int reset_only, int run_speculative)
 {
    size_t bi;
    int speculative_done = 0;
    if (a->mapper == MAP_RAW) return 1;
+   a->reachable_halts = 0u;
 
    if (a->mapper == MAP_WD) {
       /* WD powers up in arrangement 0.  Only its top 1K segment supplies the
@@ -2569,7 +2638,9 @@ static int trace_analysis(analysis_t *a, const options_t *opt)
        * owns the entire cartridge window. */
       bank_t *vb = &a->banks[a->reset_bank];
       unsigned v;
-      for (v = 0; v < 3; ++v) {
+      unsigned first_v = reset_only ? 1u : 0u;
+      unsigned last_v = reset_only ? 1u : 2u;
+      for (v = first_v; v <= last_v; ++v) {
          size_t voff = vb->size - 6u + (size_t)v * 2u;
          uint16_t target = read_word(a->rom + vb->file_offset + voff);
          size_t tbank, toff;
@@ -2586,13 +2657,18 @@ static int trace_analysis(analysis_t *a, const options_t *opt)
       }
    }
    else {
-      /* Seed each physical bank from all three vectors.  The reset-bank choice is
-       * still recorded separately; per-bank vector seeds recover conventional
-       * bank-local trampolines without pretending every vector is power-on state. */
-      for (bi = 0; bi < a->bank_count; ++bi) {
+      /* Normal analysis seeds every physical bank from all three vectors so
+       * bank-local trampolines are recovered. Mapper-hypothesis validation is
+       * stricter: start only from the hardware/reset-bank RESET vector so a
+       * wrong mapper cannot rescue itself using unrelated vector-shaped data. */
+      size_t first_bank = reset_only ? a->reset_bank : 0u;
+      size_t last_bank = reset_only ? a->reset_bank : a->bank_count - 1u;
+      for (bi = first_bank; bi <= last_bank; ++bi) {
          bank_t *b = &a->banks[bi];
          unsigned v;
-         for (v = 0; v < 3; ++v) {
+         unsigned first_v = reset_only ? 1u : 0u;
+         unsigned last_v = reset_only ? 1u : 2u;
+         for (v = first_v; v <= last_v; ++v) {
             size_t voff = b->size - 6u + (size_t)v * 2u;
             uint16_t target = read_word(a->rom + b->file_offset + voff);
             size_t toff;
@@ -2675,6 +2751,7 @@ drain_work:
       input_state = b->states[off];
       b->visited[off] = 1;
       opcode = a->rom[b->file_offset + off];
+      if (opcode_is_cpu_halt(opcode)) ++a->reachable_halts;
       mode = (address_mode_t)opcode_modes[opcode];
       len = instruction_length(mode);
       if (off + len > b->size) continue;
@@ -2785,11 +2862,10 @@ drain_work:
          }
       }
 
-      /* Direct absolute accesses to mapper hotspots change which physical bank
-       * supplies the following instruction fetch.  This also covers 0840
-       * selectors below the cartridge window. */
-      if (flow == FLOW_NEXT && mode == AM_ABSOLUTE &&
-          selector_bank(a->mapper, operand, &successor_bank) &&
+      /* Any statically resolved memory access to a mapper selector changes
+       * which physical bank supplies the following opcode fetch. */
+      if (instruction_selector_bank(a, &input_state, opcode, mode, operand,
+                                    &successor_bank) &&
           successor_bank < a->bank_count) {
          switched = 1;
          ++a->hotspot_refs;
@@ -2821,6 +2897,8 @@ drain_work:
                return 0;
          }
          else if (off + len < b->size) {
+            if (switched && successor_bank != item.bank)
+               mark_label(&a->banks[successor_bank], off + len);
             if (!push_work_state(a, switched ? successor_bank : item.bank,
                                  off + len, &output_state))
                return 0;
@@ -2830,16 +2908,22 @@ drain_work:
          int8_t disp = (int8_t)(uint8_t)operand;
          uint16_t target = (uint16_t)(canonical_pc + 2u + disp);
          size_t toff;
+         int known = 0, taken = 0;
+         if (reset_only)
+            known = speculative_branch_outcome(opcode, &output_state, &taken);
          if (a->mapper == MAP_WD) {
-            if (!push_wd_address_state(a, item.wd_config,
-                                       (uint16_t)(canonical_pc + 2u), &output_state) ||
+            if ((!known || !taken) &&
+                !push_wd_address_state(a, item.wd_config,
+                                       (uint16_t)(canonical_pc + 2u), &output_state))
+               return 0;
+            if ((!known || taken) &&
                 !push_wd_address_state(a, item.wd_config, target, &output_state))
                return 0;
          }
          else {
-         if (off + 2u < b->size &&
+         if ((!known || !taken) && off + 2u < b->size &&
              !push_work_state(a, item.bank, off + 2u, &output_state)) return 0;
-         if (target >= b->origin &&
+         if ((!known || taken) && target >= b->origin &&
              (uint32_t)target < (uint32_t)b->origin + (uint32_t)b->size) {
             toff = (size_t)(target - b->origin);
             if (rom_offset_hidden(a, toff)) ++a->dynamic_control_exits;
@@ -2919,7 +3003,7 @@ drain_work:
       }
    }
 
-   if (!speculative_done) {
+   if (run_speculative && !speculative_done) {
       speculative_done = 1;
       if (!discover_speculative_islands(a)) return 0;
       if (a->work_count != 0) goto drain_work;
@@ -2927,6 +3011,217 @@ drain_work:
 
    detect_overlaps(a);
    return 1;
+}
+
+static int trace_analysis(analysis_t *a, const options_t *opt)
+{
+   return trace_analysis_internal(a, opt, 0, 1);
+}
+
+typedef struct {
+   mapper_t mapper;
+   int viable;
+   size_t instructions;
+   size_t halts;
+   int hotspots;
+   int dynamic_exits;
+   int explicit_signature;
+} mapper_hypothesis_t;
+
+static size_t mapper_candidates_for_size(size_t size, mapper_t *out,
+                                         size_t capacity)
+{
+   size_t n = 0u;
+#define ADD_MAPPER(m) do { if (n < capacity) out[n] = (m); ++n; } while (0)
+   switch (size) {
+   case 2048u:
+      ADD_MAPPER(MAP_2K); ADD_MAPPER(MAP_CV);
+      break;
+   case 4096u:
+      ADD_MAPPER(MAP_4K);
+      break;
+   case 8192u:
+      ADD_MAPPER(MAP_F8); ADD_MAPPER(MAP_0840); ADD_MAPPER(MAP_UA);
+      ADD_MAPPER(MAP_UASW); ADD_MAPPER(MAP_0FA0); ADD_MAPPER(MAP_WD);
+      break;
+   case 12288u:
+      ADD_MAPPER(MAP_FA);
+      break;
+   case 16384u:
+      ADD_MAPPER(MAP_F6); ADD_MAPPER(MAP_JANE);
+      break;
+   case 32768u:
+      ADD_MAPPER(MAP_F4);
+      break;
+   case 10240u: case 10495u:
+      ADD_MAPPER(MAP_DPC);
+      break;
+   case 8195u:
+      ADD_MAPPER(MAP_WD);
+      break;
+   default:
+      break;
+   }
+#undef ADD_MAPPER
+   return n;
+}
+
+static int mapper_tail_signature_matches(const uint8_t *rom, size_t size,
+                                         mapper_t mapper)
+{
+   const uint8_t *p;
+   if (size < 8u) return 0;
+   p = rom + size - 8u;
+   switch (mapper) {
+   case MAP_CV: return memcmp(p, "CV\0\0", 4u) == 0;
+   case MAP_F8: return memcmp(p, "F8\0\0", 4u) == 0 ||
+                       memcmp(p, "F8SC", 4u) == 0;
+   case MAP_F6: return memcmp(p, "F6\0\0", 4u) == 0 ||
+                       memcmp(p, "F6SC", 4u) == 0;
+   case MAP_F4: return memcmp(p, "F4\0\0", 4u) == 0 ||
+                       memcmp(p, "F4SC", 4u) == 0;
+   case MAP_FA: return memcmp(p, "FA\0\0", 4u) == 0;
+   case MAP_JANE: return memcmp(p, "JANE", 4u) == 0;
+   case MAP_0840: return memcmp(p, "0840", 4u) == 0;
+   case MAP_UA: return memcmp(p, "UA\0\0", 4u) == 0;
+   case MAP_UASW: return memcmp(p, "UASW", 4u) == 0;
+   case MAP_0FA0: return memcmp(p, "0FA0", 4u) == 0;
+   default: return 0;
+   }
+}
+
+static size_t analysis_instruction_count(const analysis_t *a)
+{
+   size_t bi, off, count = 0u;
+   for (bi = 0; bi < a->bank_count; ++bi)
+      for (off = 0; off < a->banks[bi].size; ++off)
+         if (a->banks[bi].roles[off] & ROLE_CODE_START) ++count;
+   return count;
+}
+
+/* Mapper byte signatures remain useful evidence, but they are no longer
+ * allowed to choose an ambiguous mapper before execution has had a vote.
+ * Competing size-compatible mapper models are run from the RESET path.  A
+ * model that leads established execution into JAM/KIL is discarded; decoded
+ * selector accesses then eliminate models that fail to explain real bank
+ * transitions.  Only after that do explicit VCSC metadata and the legacy
+ * byte-pattern heuristic break a genuine remaining tie. */
+static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
+                                              mapper_t legacy,
+                                              size_t *tested_out,
+                                              size_t *survived_out,
+                                              int *refined_out)
+{
+   mapper_t candidates[8];
+   mapper_hypothesis_t h[8];
+   size_t n, i, survivors = 0u;
+   int best_hotspots = -1;
+   size_t best_count = 0u;
+   mapper_t winner = legacy;
+
+   *tested_out = 0u;
+   *survived_out = 0u;
+   *refined_out = 0;
+   n = mapper_candidates_for_size(size, candidates,
+                                  sizeof(candidates) / sizeof(candidates[0]));
+   if (n <= 1u || n > sizeof(h) / sizeof(h[0])) return legacy;
+
+   memset(h, 0, sizeof(h));
+   for (i = 0; i < n; ++i) {
+      options_t probe_opt;
+      analysis_t probe;
+      memset(&probe_opt, 0, sizeof(probe_opt));
+      probe_opt.mapper_override_set = 1;
+      probe_opt.mapper_override = candidates[i];
+      probe_opt.superchip_override = -1;
+      probe_opt.reset_bank_override = -1;
+      h[i].mapper = candidates[i];
+      h[i].explicit_signature =
+         mapper_tail_signature_matches(rom, size, candidates[i]);
+      ++*tested_out;
+
+      if (!init_analysis(&probe, (uint8_t *)rom, size, &probe_opt)) continue;
+      /* Run each candidate to the same conservative fixed point used by the
+       * real analysis: RESET-reachable code first, then credible speculative
+       * islands.  An otherwise unreachable switch trampoline can therefore
+       * provide the evidence that eliminates a wrong mapper hypothesis. */
+      if (trace_analysis_internal(&probe, &probe_opt, 1, 1)) {
+         h[i].instructions = analysis_instruction_count(&probe);
+         h[i].halts = probe.reachable_halts;
+         h[i].hotspots = probe.hotspot_refs;
+         h[i].dynamic_exits = probe.dynamic_control_exits;
+         h[i].viable = h[i].instructions != 0u && h[i].halts == 0u;
+      }
+      free_analysis(&probe);
+      if (h[i].viable) ++survivors;
+   }
+
+   if (survivors == 0u) return legacy;
+
+   /* A mapper that explains reachable selector accesses is stronger than one
+    * that merely happens not to crash along the sampled static RESET flow. */
+   for (i = 0; i < n; ++i)
+      if (h[i].viable && h[i].hotspots > best_hotspots)
+         best_hotspots = h[i].hotspots;
+   if (best_hotspots > 0) {
+      for (i = 0; i < n; ++i)
+         if (h[i].viable && h[i].hotspots < best_hotspots)
+            h[i].viable = 0;
+   }
+
+   survivors = 0u;
+   for (i = 0; i < n; ++i) if (h[i].viable) ++survivors;
+   if (survivors == 1u) {
+      for (i = 0; i < n; ++i) if (h[i].viable) winner = h[i].mapper;
+   }
+   else {
+      /* An explicit VCSC tail signature is deliberate metadata, unlike a raw
+       * opcode substring.  Use it only after impossible execution models have
+       * already been removed. */
+      size_t signed_count = 0u;
+      mapper_t signed_mapper = legacy;
+      for (i = 0; i < n; ++i) {
+         if (h[i].viable && h[i].explicit_signature) {
+            ++signed_count;
+            signed_mapper = h[i].mapper;
+         }
+      }
+      if (signed_count == 1u) winner = signed_mapper;
+      else {
+         /* Prefer fewer unexplained control exits if that uniquely separates
+          * the remaining models. */
+         int best_exits = -1;
+         size_t exit_count = 0u;
+         mapper_t exit_mapper = legacy;
+         for (i = 0; i < n; ++i) {
+            if (!h[i].viable) continue;
+            if (best_exits < 0 || h[i].dynamic_exits < best_exits) {
+               best_exits = h[i].dynamic_exits;
+               exit_count = 1u;
+               exit_mapper = h[i].mapper;
+            }
+            else if (h[i].dynamic_exits == best_exits) ++exit_count;
+         }
+         if (exit_count == 1u) winner = exit_mapper;
+         else {
+            /* Genuine ambiguity remains. Preserve historical behavior rather
+             * than inventing certainty; the header will report survivor count. */
+            int legacy_survives = 0;
+            for (i = 0; i < n; ++i)
+               if (h[i].viable && h[i].mapper == legacy) legacy_survives = 1;
+            if (!legacy_survives) {
+               for (i = 0; i < n; ++i)
+                  if (h[i].viable) { winner = h[i].mapper; break; }
+            }
+         }
+      }
+   }
+
+   best_count = 0u;
+   for (i = 0; i < n; ++i) if (h[i].viable) ++best_count;
+   *survived_out = best_count;
+   *refined_out = winner != legacy || best_count == 1u;
+   return winner;
 }
 
 static void apply_superchip_window_semantics(analysis_t *a)
@@ -5122,6 +5417,10 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                  a->superchip_write_refs, a->superchip_write_refs == 1 ? "" : "s");
    }
    if (a->mapper != MAP_RAW) {
+      if (!a->mapper_overridden && a->mapper_hypotheses_tested > 1u)
+         fprintf(fp, "; mapper flow hypotheses: %zu tested, %zu survived%s\n",
+                 a->mapper_hypotheses_tested, a->mapper_hypotheses_survived,
+                 a->mapper_flow_refined ? "; control flow refined selection" : "");
       fprintf(fp, "; physical banks: %zu x %zu bytes\n",
               a->bank_count, a->bank_size);
       fprintf(fp, "; reset/power-on bank: %zu (%s)\n", a->reset_bank,
@@ -5441,6 +5740,30 @@ int main(int argc, char **argv)
    if (!init_analysis(&analysis, rom, rom_size, &opt)) {
       free(rom);
       return 1;
+   }
+   if (!opt.mapper_override_set && analysis.mapper != MAP_RAW) {
+      size_t tested = 0u, survived = 0u;
+      int refined = 0;
+      mapper_t legacy = analysis.mapper;
+      mapper_t selected = refine_mapper_by_control_flow(
+         rom, rom_size, legacy, &tested, &survived, &refined);
+      if (selected != legacy) {
+         options_t selected_opt = opt;
+         free_analysis(&analysis);
+         selected_opt.mapper_override_set = 1;
+         selected_opt.mapper_override = selected;
+         selected_opt.superchip_override = -1;
+         if (!init_analysis(&analysis, rom, rom_size, &selected_opt)) {
+            free(rom);
+            return 1;
+         }
+         /* This was automatic inference, not a user --mapper override. */
+         analysis.mapper_overridden = 0;
+         analysis.superchip_override = -1;
+      }
+      analysis.mapper_flow_refined = refined;
+      analysis.mapper_hypotheses_tested = tested;
+      analysis.mapper_hypotheses_survived = survived;
    }
    if (!apply_layout_overrides(&analysis, &opt)) {
       free_analysis(&analysis);

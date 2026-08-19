@@ -1271,14 +1271,14 @@ identity. The focused disassembler roadmap is now complete; future focused
 work is driven by real-ROM failures or newly identified mapper/analysis needs.
 Main roadmap Items 41 and 42 are complete. Bankswitching roadmap Items 31-38 queue 4KSC, OMNI, CV, JANE, 0840, UA/UASW, 0FA0, then F0/FA2/FC reconsideration; 4KSC Item 31, OMNI Item 32, CV/CommaVid Item 33, JANE Item 34, 0840 Item 35, UA/UASW Item 36, and 0FA0 Item 37 are complete; Item 38 remains deferred. Main-roadmap
 Item 43 is the next main-project item; 0FA0 is the next bankswitching item at Item 37, while Item 38 is deferred. The current compile suite passes 500/500. Four vcsc-disas-focused E2E
-regressions pass, with 68 semantic fixtures and all 256 opcode bytes exact. The
+regressions pass, with 71 semantic fixtures and all 256 opcode bytes exact. The
 hardening fuzz corpus now uses two deterministic arbitrary images for every
 supported size/mapper family (16 accepted images total), and all 88 editable
 VCSC example ROMs are byte-exact disassemble/reassemble gates inside the normal
 eight example-build shards. Native staged vcsc-disas -> staged vcsc-as passes,
 and the static Linux package builds as a seven-tool bundle containing vcsc-disas;
 Windows package wiring is source-hygiene pinned on this non-MinGW host. The E2E
-inventory is now 317 cases. One unrelated legacy renderer case can exceed its
+inventory is now 318 cases. One unrelated legacy renderer case can exceed its
 explicit 12-second harness limit in this container but passes when run directly.
 Commercial ARMAMBSH, Bridge, Stellar Track, the standard 10495-byte Pitfall II
 DPC ROM, Mountain King's 12288-byte CBS FA/RAM Plus ROM, and the 8195-byte
@@ -1291,13 +1291,18 @@ RAM overlay hides the first `$200` bytes of each bank from runtime ROM analysis.
 Mountain King exercises mirrored origins `$3000/$5000/$7000` and round-trips
 exactly. Stella 7.0 identifies Bridge and Stellar Track
 as NTSC, and the broadened static detector now reports Bridge as NTSC/medium and
-Stellar Track as NTSC/high. The speculative island pass first reverse-marks every
-unknown start that can structurally reach HLT/JAM/KIL, then runs the bounded
-stateful C/Z/N/V flow walk only on those candidates. This preserves the halt
-rejection semantics while avoiding repeated full-bank speculative walks; the
-50-fixture disassembler regression fell from about 27.8 seconds to about 6 seconds.
-It promotes only nontrivial safe candidates immediately after three-rejected-start
-barriers. Established code and overlaps remain authoritative. Real `JMP ($xxFF)`
+Stellar Track as NTSC/high. Ambiguous size-compatible supported mappers are now
+run as competing RESET-plus-speculative-island control-flow hypotheses to a fixed
+point. A hypothesis whose possible established execution reaches HLT/JAM/KIL is
+eliminated; decoded selector transitions then discriminate surviving models before
+raw detector strings are allowed to break a genuine tie. This fixes accidental
+mapper signatures spanning unrelated instructions (for example F8 `CPX #$2C` +
+`BCS` producing Stella's raw UA `2C B0 0F` pattern) and lets both primary and
+speculative execution continue in the newly selected bank even when the old-bank
+next byte is JAM/KIL. The speculative island pass reverse-marks HLT/JAM/KIL reachability
+on a mapper-aware physical-ROM graph, then runs the bounded stateful C/Z/N/V flow
+walk only on those candidates. It promotes only nontrivial safe candidates immediately
+after three-rejected-start barriers. Established code and overlaps remain authoritative. Real `JMP ($xxFF)`
 instructions are emitted raw because vcsc-as intentionally rejects that hazardous
 NMOS indirect-JMP spelling. Sprite/font/playfield detection tracks short straight-line A/X/Y provenance from
 ROM loads through register transfers and simple ALU/shift transforms into
@@ -1309,7 +1314,7 @@ structural pass recognizes long aligned runs of coherent 8x8 glyphs; Pitfall's
 decimal font at $FF00 is the regression case. Raw `.byte` grouping now stops when
 a graphics region begins so the first detected rows are not swallowed. A single
 bitmap-shaped object and call-mediated/compressed-looking data still remain numeric
-without stronger evidence. The semantic disassembler corpus is now 68/68 exact. WD support recognizes the distinctive 8195-byte Pursuit of the Pink Panther preservation dump, models eight 1K banks selected as four-segment arrangements by TIA $30-$3F reads plus 64 bytes of cartridge RAM, analyzes the historical bank-2/bank-3 correction while preserving the original file order and trailing three bytes exactly. Roadmap items 9, 10, 12, 13, and 16 are complete; Item 12 pointer-table presentation requires real low/high pointer-building data flow and never swallows interior labels, after ARMAMBSH exposed a shifted-byte false positive. Color-table presentation splits around interior labels instead of consuming them. Item 13 adds repeatable `--table` and even-length `--pointer` manual presentation hints on top of the existing mapper/origin/entry/code/data/video/controller overrides; manual data roles may overlap code without replacing executable source. Item 16 pins deterministic output, malformed/truncated failures, duplicated/padded preservation, all-supported-layout fuzzing, all 88 editable examples, install/package integration, and an independent stego smoke baseline. No focused disassembler roadmap item remains unfinished.
+without stronger evidence. The semantic disassembler corpus is now 71/71 exact. WD support recognizes the distinctive 8195-byte Pursuit of the Pink Panther preservation dump, models eight 1K banks selected as four-segment arrangements by TIA $30-$3F reads plus 64 bytes of cartridge RAM, analyzes the historical bank-2/bank-3 correction while preserving the original file order and trailing three bytes exactly. Roadmap items 9, 10, 12, 13, and 16 are complete; Item 12 pointer-table presentation requires real low/high pointer-building data flow and never swallows interior labels, after ARMAMBSH exposed a shifted-byte false positive. Color-table presentation splits around interior labels instead of consuming them. Item 13 adds repeatable `--table` and even-length `--pointer` manual presentation hints on top of the existing mapper/origin/entry/code/data/video/controller overrides; manual data roles may overlap code without replacing executable source. Item 16 pins deterministic output, malformed/truncated failures, duplicated/padded preservation, all-supported-layout fuzzing, all 88 editable examples, install/package integration, and an independent stego smoke baseline. No focused disassembler roadmap item remains unfinished.
 
 0840/EconoBanking uses physical file bank 0 as startup, with below-cartridge
 selector families canonically represented by $0800/$0840. C26 selector metadata

@@ -102,6 +102,43 @@ put16(\$vector_exec, 0xFFE, 0xF000);
 write_bin(File::Spec->catfile($in, 'vector_exec.bin'), $vector_exec);
 write_bin(File::Spec->catfile($in, 'origin_d000.bin'), make_rom(4096, 0xD000, 0x0234, "\xA9\x17\x60"));
 write_bin(File::Spec->catfile($in, 'f8.bin'), make_rom(8192, 0xF000, 0x0100, "\xAD\xF8\x1F\x60"));
+
+
+# Mapper inference must use executable control flow, not raw byte substrings.
+# CPX #$2C followed by this BCS happens to contain 2C B0 0F, the historical
+# UA BIT-$0FB0 signature, across an instruction boundary.  This is nevertheless
+# an F8 cartridge: LDA $1FF9 changes the bank supplying the next opcode.  The
+# old-bank next byte is deliberately JAM; bank 1 contains the real continuation.
+my $f8_false_ua = chr(0xEA) x 8192;
+substr($f8_false_ua, 0x0100, 10,
+   "\xA2\x00" .                 # LDX #0
+   "\xE0\x2C" .                 # CPX #$2C
+   "\xB0\x0F" .                 # BCS F115; raw bytes include 2C B0 0F
+   "\xAD\xF9\x1F" .            # LDA $1FF9: F8 -> bank 1
+   "\x02");                      # JAM only if the switch is ignored
+substr($f8_false_ua, 0x0115, 1, "\x60");
+substr($f8_false_ua, 0x1000 + 0x0109, 9,
+   "\xA9\x42\xAA\xA8\xE8\xCA\xC8\x88\x60");
+# Only bank 0 has a plausible RESET vector, so competing hypotheses begin from
+# the same physical execution path rather than winning on vector-shaped filler.
+for my $v (0, 2, 4) {
+   put16(\$f8_false_ua, 0x0FFA + $v, 0xF100);
+   put16(\$f8_false_ua, 0x1FFA + $v, 0x0000);
+}
+write_bin(File::Spec->catfile($in, 'f8_false_ua_flow.bin'), $f8_false_ua);
+
+# UASW can be inferred from execution semantics even without a raw detector
+# signature.  Under UASW, reading $0220 selects bank 1; under UA it selects
+# bank 0, while the other 8K hypotheses do not make this transition.  The
+# physical byte after the selector is JAM only in the losing hypotheses.
+my $uasw_flow = chr(0xEA) x 8192;
+substr($uasw_flow, 0x0100, 4, "\xAD\x20\x02\x02");
+substr($uasw_flow, 0x1000 + 0x0103, 1, "\x60");
+for my $v (0, 2, 4) {
+   put16(\$uasw_flow, 0x0FFA + $v, 0xF100);
+   put16(\$uasw_flow, 0x1FFA + $v, 0x0000);
+}
+write_bin(File::Spec->catfile($in, 'uasw_flow_only.bin'), $uasw_flow);
 # A plain F8 ROM may legitimately read ordinary ROM in $F080-$F0FF.
 # Read-window-looking evidence alone must not promote it to Superchip.
 write_bin(File::Spec->catfile($in, 'f8_sc_read_only.bin'),
@@ -418,6 +455,22 @@ substr($island, 0x0200, 12,
    "\x02\x12\x22" .
    "\xA9\x42\xAA\xA8\xE8\xCA\xC8\x88\x60");
 write_bin(File::Spec->catfile($in, 'speculative_island.bin'), $island);
+
+
+# The same bank-transition rule applies to speculative islands.  A candidate
+# in bank 0 reads the F8 selector and execution continues at the same logical
+# PC in bank 1.  The byte at that PC in the old bank is JAM and must not poison
+# island validation.  The RESET path is intentionally mapper-neutral: the
+# island itself must provide the evidence that selects F8.
+my $banked_island = make_rom(8192, 0xF000, 0x0100, "\x60");
+substr($banked_island, 0x1000 + 0x0100, 1, "\x60");
+substr($banked_island, 0x0200, 7,
+   "\x02\x12\x22" .             # barrier
+   "\xAD\xF9\x1F" .             # F8 -> bank 1
+   "\x02");                      # old-bank JAM, never fetched after switch
+substr($banked_island, 0x1000 + 0x0206, 9,
+   "\xA9\x42\xAA\xA8\xE8\xCA\xC8\x88\x60");
+write_bin(File::Spec->catfile($in, 'speculative_banked_island.bin'), $banked_island);
 
 # A speculative candidate must be rejected when a statically possible path
 # reaches JAM/KIL.  CLC makes the BCC-to-KIL path definitely taken.
@@ -939,6 +992,19 @@ require_re($spec_island,
    qr/^; speculative analysis: rejected-starts=[1-9]\d* barriers=[1-9]\d* islands=[1-9]\d*$/m,
    'speculative analysis usage summary');
 
+
+my $spec_banked = slurp(File::Spec->catfile($out, 'speculative_banked_island.s26'));
+require_re($spec_banked, qr/^; mapper: F8 \(/m,
+   'banked speculative-island mapper');
+require_re($spec_banked,
+   qr/^; mapper flow hypotheses: 6 tested, 1 survived; control flow refined selection$/m,
+   'banked-island mapper hypotheses converge');
+require_re($spec_banked,
+   qr/speculative instruction island validated by HLT\/JAM\/KIL rejection\nB0_F203:\n\s*LDA\s+\$1FF9/m,
+   'speculative island may end its physical-bank line at an F8 selector');
+require_re($spec_banked, qr/^B1_F206:\n\s*LDA\s+#\$42/m,
+   'speculative execution resumes in bank selected by hotspot');
+
 my $spec_jam = slurp(File::Spec->catfile($out, 'speculative_jam_reject.s26'));
 die "JAM-reaching speculative candidate was promoted\n"
    if $spec_jam =~ /^L_F203:/m ||
@@ -976,6 +1042,31 @@ require_re($f8_read_only, qr/^; mapper: F8 \(/m,
 die "read-only Superchip-window access hid ordinary F8 ROM bytes\n"
    if $f8_read_only =~ /sc-hidden=[1-9]/ ||
       $f8_read_only =~ /hidden by Superchip RAM window/i;
+
+
+my $f8_false_ua_out = slurp(File::Spec->catfile($out, 'f8_false_ua_flow.s26'));
+require_re($f8_false_ua_out, qr/^; mapper: F8 \(/m,
+   'control-flow inference rejects accidental UA byte signature');
+require_re($f8_false_ua_out,
+   qr/^; mapper flow hypotheses: 6 tested, 1 survived; control flow refined selection$/m,
+   'false-UA mapper hypotheses converge');
+require_re($f8_false_ua_out, qr/CPX\s+#\$2C\n\s*BCS\.same\s+/m,
+   'accidental 2C B0 0F sequence remains ordinary decoded F8 code');
+require_re($f8_false_ua_out, qr/BCS\.same\s+\$F115.*\n\s*LDA\s+\$1FF9/m,
+   'F8 selector remains on established RESET execution path');
+require_re($f8_false_ua_out, qr/B1_F109:\n\s*LDA\s+#\$42/m,
+   'F8 execution continues in successor bank after selector');
+
+my $uasw_flow_out = slurp(File::Spec->catfile($out, 'uasw_flow_only.s26'));
+require_re($uasw_flow_out, qr/^; mapper: UASW \(/m,
+   'control-flow inference distinguishes UASW from UA and F8');
+require_re($uasw_flow_out,
+   qr/^; mapper flow hypotheses: 6 tested, 1 survived; control flow refined selection$/m,
+   'UASW mapper hypotheses converge');
+require_re($uasw_flow_out, qr/B0_F100:\n\s*LDA\s+\$0220/m,
+   'UASW selector decoded on RESET path');
+require_re($uasw_flow_out, qr/B1_F103:\n\s*RTS$/m,
+   'UASW successor-bank continuation decoded');
 
 my $f8sc = slurp(File::Spec->catfile($out, 'f8sc.s26'));
 require_re($f8sc, qr/^; mapper: F8SC\b/m, 'F8SC mapper inference');

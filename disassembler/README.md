@@ -110,7 +110,14 @@ inside an otherwise successful disassembly.
 
 The generated header records the input size and SHA-256, mapper evidence,
 physical banks, inferred bank origins and reset bank, video/controller evidence,
-and the `vcsc-disas` version.
+and the `vcsc-disas` version.  When several supported mapper models fit the same
+physical size, `vcsc-disas` now tests those models as competing control-flow
+hypotheses.  Each hypothesis is traced from RESET through mapper transitions and
+credible speculative islands to a fixed point.  Models whose reachable execution
+falls into HLT/JAM/KIL are eliminated; models that explain decoded selector
+accesses outrank models that merely avoid failure.  Deliberate VCSC mapper
+signatures and legacy raw-byte detector patterns are tie-break evidence, not a
+reason to override contradictory executable control flow.
 
 Graphics-oriented data is rendered one byte per line as `%00110100` with a
 matching X/dot picture when the analysis has strong evidence. Besides direct
@@ -239,8 +246,13 @@ vectors/JMPs/JSRs and intentional reachable JAM/KIL always override this negativ
 evidence.
 
 Known C/Z/N/V flag state is used to prune impossible branch arms before deciding
-that a halt is reachable. Speculative walks are bounded; a candidate that exceeds
-the analysis budget stays inconclusive/raw rather than being guessed. The generated
+that a halt is reachable. Mapper selector accesses are control-flow edges: the
+next opcode is fetched at the same logical continuation address from the selected
+physical bank. Therefore `LDA $hotspot` followed physically by JAM/KIL in the old
+bank is not a failed path when the selected bank contains the valid continuation.
+The same rule is used for RESET-reachable code, mapper-hypothesis testing, and
+speculative islands. Speculative walks are bounded; a candidate that exceeds the
+analysis budget stays inconclusive/raw rather than being guessed. The generated
 header reports rejected-start, barrier, and promoted-island counts.
 
 ## Sprite/font rows
