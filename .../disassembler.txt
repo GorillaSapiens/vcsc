@@ -280,9 +280,25 @@ be handled when WD is explicitly selected. Because the selector change is
 hardware-delayed, static control flow should conservatively retain both the old
 and requested successor arrangements when exact cycle placement is not proven.
 
-Do not pretend that unrelated schemes are variants of F8/F6/F4. 3F, 3E, E0,
-E7, FE, UA, 0840, DPC+, CDF, and coprocessor cartridges need separate mapper
-models. DPC has its own explicit model: its distinctive 10240/10495-byte layout
+E0 is an explicit segmented Parker Brothers model. An 8K image is eight physical
+1K banks. Runtime `$1000-$13FF`, `$1400-$17FF`, and `$1800-$1BFF` independently
+select any physical bank via `$1FE0-$1FE7`, `$1FE8-$1FEF`, and `$1FF0-$1FF7`;
+`$1C00-$1FFF` is permanently physical bank 7 and supplies the vectors. The
+deterministic reset configuration is physical banks 4,5,6,7. E0 configuration
+must travel with the CFG state, and both established tracing and speculative
+island validation must fetch the instruction after a selector from the newly
+selected physical bank. Detached E0 islands are promoted conservatively only
+when their speculative path actually exercises an E0 selector, because a bare
+physical 1K chunk has no unique runtime segment/configuration.
+
+Do not rank mapper hypotheses by raw hotspot count. Decoder alias breadth differs
+radically among mapper families (0840 is the concrete failure case), so a false
+mapper may appear to have more selector evidence merely because more addresses
+alias its hotspots. A bank transition that avoids an old-mapping HLT/JAM/KIL and
+continues with valid code in the new mapping is strong positive evidence.
+
+Do not pretend that unrelated schemes are variants of F8/F6/F4. 3F, 3E, E7,
+FE, DPC+, CDF, and coprocessor cartridges need separate mapper models. DPC has its own explicit model: its distinctive 10240/10495-byte layout
 contains two 4K F8-style executable banks followed by 2K of DPC data ROM and, in
 the standard 10495-byte dump, a 255-byte RNG table. File size is decisive evidence
 for this historical format.

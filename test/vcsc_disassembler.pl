@@ -139,6 +139,43 @@ for my $v (0, 2, 4) {
    put16(\$uasw_flow, 0x1FFA + $v, 0x0000);
 }
 write_bin(File::Spec->catfile($in, 'uasw_flow_only.bin'), $uasw_flow);
+
+# Parker Brothers E0 is a segmented mapper, not a whole-4K bank switch.  RESET
+# executes from fixed physical bank 7, jumps into default segment 0 (bank 4),
+# then LDA $FFE0 replaces that segment with bank 0.  The byte physically after
+# the selector in bank 4 is JAM; the actual next fetch comes from bank 0.
+my $e0_flow = chr(0x02) x 8192;
+substr($e0_flow, 7 * 1024, 3, "\x4C\x00\xF1");          # fixed bank7: JMP $F100
+substr($e0_flow, 4 * 1024 + 0x0100, 4, "\xAD\xE0\xFF\x02");
+substr($e0_flow, 0x0103, 12,
+   "\xAD\xE9\xFF" .                                  # E0 segment1 selector/signature
+   "\xA9\x42\xAA\xA8\xE8\xCA\xC8\x88\x60");
+for my $v (0, 2, 4) {
+   put16(\$e0_flow, 7 * 1024 + 0x03FA + $v, 0xFC00);
+}
+write_bin(File::Spec->catfile($in, 'e0_flow_only.bin'), $e0_flow);
+
+# The same rule must work for a speculative island.  The detached routine is
+# in physical bank 4 at runtime $F203.  Its E0 selector changes segment 0 to
+# bank 0; the old-bank next byte is JAM, while bank 0 contains the continuation.
+my $e0_island = chr(0xEA) x 8192;
+substr($e0_island, 7 * 1024, 1, "\x60");               # mapper-neutral RESET path
+for my $v (0, 2, 4) {
+   put16(\$e0_island, 7 * 1024 + 0x03FA + $v, 0xFC00);
+   # Presentation-origin evidence for physical bank 4; E0 ignores these as
+   # hardware vectors, but they make the synthetic island's runtime $F2xx
+   # placement unambiguous to the source emitter.
+   put16(\$e0_island, 4 * 1024 + 0x03FA + $v, 0xF203);
+}
+substr($e0_island, 4 * 1024 + 0x0200, 7,
+   "\x02\x12\x22" .                                  # rejected-start barrier
+   "\xAD\xE0\xFF" .                                  # E0 -> bank0 in segment0
+   "\x02");                                           # old-bank JAM, never fetched
+substr($e0_island, 0x0206, 12,
+   "\xAD\xE9\xFF" .                                  # selector + E0 signature
+   "\xA9\x42\xAA\xA8\xE8\xCA\xC8\x88\x60");
+write_bin(File::Spec->catfile($in, 'e0_speculative_banked_island.bin'), $e0_island);
+
 # A plain F8 ROM may legitimately read ordinary ROM in $F080-$F0FF.
 # Read-window-looking evidence alone must not promote it to Superchip.
 write_bin(File::Spec->catfile($in, 'f8_sc_read_only.bin'),
@@ -997,7 +1034,7 @@ my $spec_banked = slurp(File::Spec->catfile($out, 'speculative_banked_island.s26
 require_re($spec_banked, qr/^; mapper: F8 \(/m,
    'banked speculative-island mapper');
 require_re($spec_banked,
-   qr/^; mapper flow hypotheses: 6 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 7 tested, 1 survived; control flow refined selection$/m,
    'banked-island mapper hypotheses converge');
 require_re($spec_banked,
    qr/speculative instruction island validated by HLT\/JAM\/KIL rejection\nB0_F203:\n\s*LDA\s+\$1FF9/m,
@@ -1048,7 +1085,7 @@ my $f8_false_ua_out = slurp(File::Spec->catfile($out, 'f8_false_ua_flow.s26'));
 require_re($f8_false_ua_out, qr/^; mapper: F8 \(/m,
    'control-flow inference rejects accidental UA byte signature');
 require_re($f8_false_ua_out,
-   qr/^; mapper flow hypotheses: 6 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 7 tested, 1 survived; control flow refined selection$/m,
    'false-UA mapper hypotheses converge');
 require_re($f8_false_ua_out, qr/CPX\s+#\$2C\n\s*BCS\.same\s+/m,
    'accidental 2C B0 0F sequence remains ordinary decoded F8 code');
@@ -1061,12 +1098,35 @@ my $uasw_flow_out = slurp(File::Spec->catfile($out, 'uasw_flow_only.s26'));
 require_re($uasw_flow_out, qr/^; mapper: UASW \(/m,
    'control-flow inference distinguishes UASW from UA and F8');
 require_re($uasw_flow_out,
-   qr/^; mapper flow hypotheses: 6 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 7 tested, 1 survived; control flow refined selection$/m,
    'UASW mapper hypotheses converge');
 require_re($uasw_flow_out, qr/B0_F100:\n\s*LDA\s+\$0220/m,
    'UASW selector decoded on RESET path');
 require_re($uasw_flow_out, qr/B1_F103:\n\s*RTS$/m,
    'UASW successor-bank continuation decoded');
+
+my $e0_flow_out = slurp(File::Spec->catfile($out, 'e0_flow_only.s26'));
+require_re($e0_flow_out, qr/^; mapper: E0 \(/m,
+   'E0 segmented mapper inferred from executable flow');
+require_re($e0_flow_out,
+   qr/^; mapper flow hypotheses: 7 tested, 1 survived; control flow refined selection$/m,
+   'E0 RESET-path mapper hypotheses converge');
+require_re($e0_flow_out, qr/B4_F100:\n\s*LDA\s+\$FFE0/m,
+   'E0 selector decoded in default physical bank 4');
+require_re($e0_flow_out, qr/B0_F103:\n\s*LDA\s+\$FFE9\n\s*LDA\s+#\$42/m,
+   'E0 execution resumes from newly selected physical bank');
+
+my $e0_spec_out = slurp(File::Spec->catfile($out, 'e0_speculative_banked_island.s26'));
+require_re($e0_spec_out, qr/^; mapper: E0 \(/m,
+   'E0 speculative-island mapper inferred');
+require_re($e0_spec_out,
+   qr/^; mapper flow hypotheses: 7 tested, 1 survived; control flow refined selection$/m,
+   'E0 speculative-island hypotheses converge');
+require_re($e0_spec_out,
+   qr/speculative instruction island validated by HLT\/JAM\/KIL rejection\nB4_F203:\n\s*LDA\s+\$FFE0/m,
+   'E0 speculative island may switch away from old-bank JAM');
+require_re($e0_spec_out, qr/B0_F206:\n\s*LDA\s+\$FFE9\n\s*LDA\s+#\$42/m,
+   'E0 speculative execution resumes in selected physical bank');
 
 my $f8sc = slurp(File::Spec->catfile($out, 'f8sc.s26'));
 require_re($f8sc, qr/^; mapper: F8SC\b/m, 'F8SC mapper inference');

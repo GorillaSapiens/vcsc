@@ -1294,8 +1294,11 @@ as NTSC, and the broadened static detector now reports Bridge as NTSC/medium and
 Stellar Track as NTSC/high. Ambiguous size-compatible supported mappers are now
 run as competing RESET-plus-speculative-island control-flow hypotheses to a fixed
 point. A hypothesis whose possible established execution reaches HLT/JAM/KIL is
-eliminated; decoded selector transitions then discriminate surviving models before
-raw detector strings are allowed to break a genuine tie. This fixes accidental
+eliminated; selector transitions then discriminate surviving models before raw
+detector strings are allowed to break a genuine tie. Raw hotspot counts are not
+ranked across mapper families; a selector transition that avoids an old-mapping
+HLT/JAM/KIL and resumes valid code in the new mapping is treated as strong flow
+evidence. This fixes accidental
 mapper signatures spanning unrelated instructions (for example F8 `CPX #$2C` +
 `BCS` producing Stella's raw UA `2C B0 0F` pattern) and lets both primary and
 speculative execution continue in the newly selected bank even when the old-bank
@@ -1314,7 +1317,16 @@ structural pass recognizes long aligned runs of coherent 8x8 glyphs; Pitfall's
 decimal font at $FF00 is the regression case. Raw `.byte` grouping now stops when
 a graphics region begins so the first detected rows are not swallowed. A single
 bitmap-shaped object and call-mediated/compressed-looking data still remain numeric
-without stronger evidence. The semantic disassembler corpus is now 71/71 exact. The standalone corpus verifier now has optional `--stella STELLA` differential mapper checking: it keeps SHA-256 in generated source, reuses its existing per-ROM MD5 for Stella compatibility, runs `STELLA -rominfo ROM`, normalizes the resolved Bankswitch Type, and reports VCSC/Stella mapper MATCH/MISMATCH counts without treating Stella as authoritative; `--stella-strict` promotes mismatches to failure when explicitly desired. The normal hardening suite uses a fake Stella executable so this parser/normalization path is tested without an external emulator. WD support recognizes the distinctive 8195-byte Pursuit of the Pink Panther preservation dump, models eight 1K banks selected as four-segment arrangements by TIA $30-$3F reads plus 64 bytes of cartridge RAM, analyzes the historical bank-2/bank-3 correction while preserving the original file order and trailing three bytes exactly. Roadmap items 9, 10, 12, 13, and 16 are complete; Item 12 pointer-table presentation requires real low/high pointer-building data flow and never swallows interior labels, after ARMAMBSH exposed a shifted-byte false positive. Color-table presentation splits around interior labels instead of consuming them. Item 13 adds repeatable `--table` and even-length `--pointer` manual presentation hints on top of the existing mapper/origin/entry/code/data/video/controller overrides; manual data roles may overlap code without replacing executable source. Item 16 pins deterministic output, malformed/truncated failures, duplicated/padded preservation, all-supported-layout fuzzing, all 88 editable examples, install/package integration, and an independent stego smoke baseline. No focused disassembler roadmap item remains unfinished.
+without stronger evidence. Parker Brothers E0 is now an explicit segmented 8K
+mapper model with eight physical 1K banks, independent selectors for the first
+three 1K runtime windows, fixed physical bank 7 at the top window, and reset
+configuration 4/5/6/7. The initial seven-ROM Stella disagreement cluster
+(Docastle, Ewok Adventure, Gyruss, Lord of the Rings, Popeye, Q-bert's Qubes,
+and Super Cobra) now resolves E0 for all seven and round-trips each image
+byte-exactly. Synthetic RESET and speculative-island regressions pin the case
+where an E0 selector is physically followed by JAM in the old bank but valid
+execution continues in the selected bank. The semantic disassembler corpus is
+now 73/73 exact. The standalone corpus verifier now has optional `--stella STELLA` differential mapper checking: it keeps SHA-256 in generated source, reuses its existing per-ROM MD5 for Stella compatibility, runs `STELLA -rominfo ROM`, normalizes the resolved Bankswitch Type, and reports VCSC/Stella mapper MATCH/MISMATCH counts without treating Stella as authoritative; `--stella-strict` promotes mismatches to failure when explicitly desired. The normal hardening suite uses a fake Stella executable so this parser/normalization path is tested without an external emulator. WD support recognizes the distinctive 8195-byte Pursuit of the Pink Panther preservation dump, models eight 1K banks selected as four-segment arrangements by TIA $30-$3F reads plus 64 bytes of cartridge RAM, analyzes the historical bank-2/bank-3 correction while preserving the original file order and trailing three bytes exactly. Roadmap items 9, 10, 12, 13, and 16 are complete; Item 12 pointer-table presentation requires real low/high pointer-building data flow and never swallows interior labels, after ARMAMBSH exposed a shifted-byte false positive. Color-table presentation splits around interior labels instead of consuming them. Item 13 adds repeatable `--table` and even-length `--pointer` manual presentation hints on top of the existing mapper/origin/entry/code/data/video/controller overrides; manual data roles may overlap code without replacing executable source. Item 16 pins deterministic output, malformed/truncated failures, duplicated/padded preservation, all-supported-layout fuzzing, all 88 editable examples, install/package integration, and an independent stego smoke baseline. No focused disassembler roadmap item remains unfinished.
 
 0840/EconoBanking uses physical file bank 0 as startup, with below-cartridge
 selector families canonically represented by $0800/$0840. C26 selector metadata
