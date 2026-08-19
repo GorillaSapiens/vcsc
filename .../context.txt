@@ -28,6 +28,7 @@ When asked to read `.../context.txt` and continue in a **new chat**:
        .../roadmap.txt                 detailed main-project roadmap
        .../bankswitching.txt           bankswitching design and sub-roadmap
        .../enhanced.txt                enhanced multisprite side-quest handoff
+       .../enhanced_asymmetric.txt     asymmetric-PF enhanced WIP handoff
        .../ram_optimization.txt         focused RIOT-RAM optimization roadmap
        .../instruction.txt             bounded-work and packaging procedure
        .../context-history/YYYY-MM-DD.txt
@@ -1321,6 +1322,12 @@ NOP operand read and preserves underlying low-memory read/write behavior; public
 `09_bankswitching/08_0840` and `vcs_0840.pl` certify read/write switching, reset
 recovery, disassembly, and byte-exact round trip. Bankswitching Item 36 UA/UASW reuses this machinery with `(A & $1260)` aliases around $0220/$0240, paired UA/UASW profiles, reversed UASW association, public diagnostics, and exact disassembler round trips. Item 37 0FA0 is complete with physical/file bank 1 startup, explicit `(A & $16E0)==$06A0/$06C0` selector semantics, canonical $0FA0/$0FC0 generated reads, alias read/write certification, public `09_bankswitching/10_0fa0`, and byte-exact disassembly. Item 38 is explicitly deferred, leaving no active focused mapper item.
 
+
+An asymmetric-playfield extension of the enhanced multisprite side quest is now
+in progress.  It is isolated in `renderers/enhanced_multisprite_asymmetric/`;
+dynamic 32-bit asymmetric PF timing with all six live sprite events is feasible
+and stable, but horizontal sprite positioning is knowingly unfinished.  Read
+`.../enhanced_asymmetric.txt` before continuing that experiment.
 
 The enhanced-multisprite side quest now has an experimental 192-line renderer at
 `libraries/vcs/renderers/enhanced_multisprite/` plus public interactive example

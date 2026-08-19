@@ -1,0 +1,302 @@
+ENHANCED MULTISPRITE + ASYMMETRIC PLAYFIELD WIP
+================================================
+
+Purpose
+-------
+This is a checkpoint/handoff for the enhanced-multisprite side quest after the
+player-only 192-line renderer became visually stable.  The current experiment
+asks whether the same six logical sprites / two reusable TIA player lanes can
+also support a genuinely dynamic asymmetric playfield.  Do not fall back to a
+static playfield; the user explicitly considers that uninteresting because a
+caller can set a static PF during VBLANK.
+
+Source lineage
+--------------
+This work was started from the accepted player-only checkpoint:
+
+    vcsc.20260819_033509_enhanced-visual-handoff-fix.tar.gz
+
+That checkpoint itself descends from the user's vcsc.20260819_001206.tar.gz and
+preserves the user's `stego` -> `tagger` / `vcsc-tag` rename.
+
+The maintained/player-only enhanced renderer remains intact at:
+
+    libraries/vcs/renderers/enhanced_multisprite/enhanced_multisprite.c26
+
+The asymmetric work is intentionally isolated in a sibling renderer so a bad PF
+experiment cannot destabilize the good player-only checkpoint.
+
+Current WIP paths
+-----------------
+Renderer:
+
+    libraries/vcs/renderers/enhanced_multisprite_asymmetric/enhanced_multisprite.c26
+
+Example:
+
+    examples/18_enhanced_multisprite/01_192/02_asymmetric/
+
+The example reuses the existing multisprite interactive controls.  Select cycles
+logical sprites 0..5, left joystick moves the selected logical sprite, and Reset
+restores the diagnostic scene.
+
+Current goal
+------------
+Keep all existing enhanced-multisprite behavior:
+
+* six logical eight-row sprites;
+* either logical sprite can occupy P0 or P1;
+* two-way overlap is solid;
+* three-or-more overlap gets fair persistent rotating 2-of-N arbitration;
+* non-overlapping sprites can reuse either hardware player later in-frame;
+* 192 visible NTSC lines / stable 262-line Stella frames;
+
+and add a dynamic 32-bit asymmetric central playfield with independent left and
+right halves.  PF0 is intentionally omitted for now.  The target is equivalent
+in spirit to the maintained multisprite asymmetric PF model, not a static PF.
+
+Playfield representation
+------------------------
+The renderer currently declares two 192-byte ROM tables:
+
+    TEMPLATE_playfield_left[192]
+    TEMPLATE_playfield_right[192]
+
+There are 96 logical two-scanline bands.  Each 192-byte table is two 96-byte
+planes:
+
+    playfield_left[0..95]     -> left-half PF1
+    playfield_left[96..191]   -> left-half PF2
+    playfield_right[0..95]    -> right-half PF2
+    playfield_right[96..191]  -> right-half PF1
+
+The raster performs four timed PF writes on every physical scanline: PF1/PF2 for
+the left half, then PF2/PF1 for the independently programmable right half.  The
+example uses visibly different left/right patterns so a phase error is obvious.
+
+What is already proven
+----------------------
+The important feasibility result is positive: the full dynamic asymmetric PF
+fits alongside all six live sprite setup events.
+
+Current WIP validation performed before this checkpoint:
+
+* the asymmetric example builds as a 4K cartridge;
+* current linked accounting is 3483/4090 ROM bytes used, 607 free;
+* current linked RAM is 120/128 bytes used, 8 free (112 object + 8 hardware
+  stack), so RAM is now the tighter resource;
+* the timing harness held the experiment at the normal stable 262-line NTSC
+  schedule with all six sprite events active;
+* a PF-only Stella reference was compared against the live-sprite asymmetric
+  renderer; after fixing the trigger-band PF phase, there were zero playfield
+  pixel mismatches wherever the compared pixel was not covered by a sprite or
+  the known TIA HMOVE comb artifact;
+* renderer branch-contract audit passes;
+* source-tree hygiene passes;
+* branding passes;
+* example assembly allowlist passes.
+
+The PF timing therefore appears viable.  Do NOT discard asymmetric PF merely
+because the current sprites are horizontally wrong; horizontal positioning is
+the remaining unfinished problem.
+
+Current raster architecture
+---------------------------
+The ordinary raster and special event paths now preserve the four PF writes.
+Sprite setup is spread over staged bands rather than trying to cram the old
+player-only setup into one already-full scanline:
+
+    ordinary/trigger band -> position band -> setup band
+
+Both P0 and P1 have dedicated position/setup paths.  While one lane is being
+repositioned the other lane's bitmap state continues to be serviced.  The PF
+writes remain at fixed beam phases through ordinary, trigger, position, and setup
+paths.
+
+The existing VBLANK allocator/sorter from the hardened player-only enhanced
+renderer is retained.  It already survived independent sprite motion,
+randomized six-Y stress, and 3/4/5/6-way fairness tests in the player-only
+checkpoint.  The asymmetric experiment has not intentionally changed the
+arbitration policy.
+
+KNOWN BROKEN: horizontal sprite positioning
+-------------------------------------------
+This checkpoint is NOT a finished renderer.
+
+The asymmetric experiment currently has deliberately temporary horizontal
+positioning.  The position bands strobe RESP0/RESP1 at fixed beam phases while
+still loading the old packed HMP control.  The packed control's fine-motion
+nibble can have an effect, but its coarse-count field is not being consumed by a
+variable RESP countdown.  Consequently logical sprites are horizontally
+bunched/misplaced and public X=0..159 is NOT currently honored.
+
+This is expected and is the next task.  Do not waste time debugging the PF when
+looking at the current bunched sprites; the PF itself already survived the
+Stella reference comparison.
+
+Why the old positioner cannot simply be copied
+----------------------------------------------
+The player-only enhanced renderer's 160-byte packed RESP/HMP table was calibrated
+for its own exact RESP/HMOVE beam phase.  The asymmetric raster has four PF writes
+that must remain at fixed phases, so its position scanline is a different timing
+problem.  Reusing the player-only packed countdown verbatim would move PF writes
+or RESP/HMOVE and would invalidate one or the other calibration.
+
+The next positioning approach
+-----------------------------
+Continue from the current position-band implementation and calibrate the
+asymmetric renderer itself in Stella.
+
+Promising approach at checkpoint time:
+
+1. Keep the four PF write phases fixed.  They are the part already proven.
+2. Treat the remaining cycles on a position scanline as several legal RESP
+   timing windows: before, between, and/or after the PF rewrite groups.
+3. Use fixed-total-cost complementary delay paths so selecting a RESP slot does
+   not shift either PF-half write or total scanline length.
+4. Use HMP0/HMP1 for fine positioning inside each coarse RESP slot.
+5. Calibrate P0 and P1 independently; do not assume their usable windows or
+   resulting table bytes are identical.
+6. Exhaustively verify all public X=0..159 in Stella, including X=0 and
+   X=152..159 wrap-edge cases.
+7. Only after a full 160-position map exists should the renderer expose the same
+   X contract as the player-only enhanced renderer.
+
+The rough phase-space estimate looked promising: the available fixed timing
+windows plus HMP fine motion appear sufficient for the roughly eleven coarse
+positions needed to span 160 color clocks.  This was not yet completed or
+certified when this checkpoint was packaged.
+
+Tests still needed before calling this renderer usable
+------------------------------------------------------
+Add a dedicated asymmetric regression rather than weakening/reusing the
+player-only oracle.
+
+Minimum gates:
+
+* all X=0..159 for P0 and P1 in real Stella;
+* exact PF pixels compared to a PF-only reference with live setup events;
+* sprite glyph/color exactness across trigger/position/setup transitions;
+* each logical sprite swept independently through legal Y while the other five
+  remain fixed;
+* randomized six-X/six-Y stress while staying 262 lines;
+* exact 3/4/5/6-way 2-of-N fairness;
+* right-edge sprite wrapping;
+* branch `.same`/`.cross` contracts;
+* original player-only enhanced oracle remains unchanged and passing;
+* maintained legacy multisprite oracle remains unchanged and passing.
+
+Known cleanup/bookkeeping debt
+------------------------------
+Do these after horizontal positioning is working, or sooner if a build/test
+requires them:
+
+* `examples/18_enhanced_multisprite/01_192/02_asymmetric/Makefile` currently
+  lists the player-only
+  `renderers/enhanced_multisprite/enhanced_multisprite.c26` as its dependency,
+  even though the source instantiates
+  `renderers/enhanced_multisprite_asymmetric/enhanced_multisprite.c26`.
+  The build works, but dependency tracking is wrong.
+* `02_asymmetric/README.md` was copied from the player-only interactive example
+  and still says playfield is not rendered.  It is stale.
+* No dedicated `vcs_enhanced_multisprite_asymmetric*.pl` regression or top-level
+  Stella target exists yet.
+* The asymmetric renderer still carries comments/table material inherited from
+  the player-only renderer that will need cleanup once the final X positioner is
+  chosen.
+
+Resource warning
+----------------
+Current accounting:
+
+    ROM: 3490 used / 600 free
+    RAM: 120 used / 8 free
+
+RAM is close enough to the wall that any new persistent byte should be justified.
+Prefer ROM tables, phase reuse, or overlayable scratch where possible.  Do not
+casually add another six-byte logical-sprite array.
+
+Do not regress these prior enhanced-renderer fixes
+--------------------------------------------------
+The player-only side quest already fixed several real user-visible failures.
+Read `.../enhanced.txt` before modifying the common scheduler or copying old
+paths.  In particular preserve:
+
+* bounded VBLANK scheduling rather than data-dependent insertion-sort overruns;
+* fair 2-of-N arbitration;
+* exact continuing-lane GRP row handoff during reposition bands;
+* safe same-lane attribute reuse so COLUP/NUSIZ/REFP do not recolor the prior
+  sprite's final scanline;
+* explicit `.same` / `.cross` timing contracts;
+* the principle that `.cross` is valid when its four-cycle taken cost is part of
+  the deterministic raster schedule;
+* HMOVE combs are a known TIA silicon artifact and are not a renderer bug.
+
+
+Latest interrupted X-positioning work
+-------------------------------------
+A later continuation from this handoff made partial progress on the horizontal
+positioner before the chat timed out.  Preserve these changes when resuming:
+
+* the asymmetric example still builds as a 4K cart; current linked accounting is
+  3490/4090 ROM bytes used (600 free) and 120/128 RAM bytes used (8 free);
+* VBLANK now keeps the first event's packed horizontal control hot in
+  `TEMPLATE_position_packed` instead of spending cycles resetting `pair_y`;
+* the position-band line A preloads `HMP0`/`HMP1` in the tail of the preceding
+  physical scanline, then closes with WSYNC.  This is intentional use of the
+  previous scanline's slack so the next scanline has more room for beam-critical
+  asymmetric-PF/RESP work;
+* VBLANK classifies packed coarse counts 6..10 by setting bit $40 in the event
+  code.  The intended design is for these late-X events to strobe RESP in the
+  tail of the trigger scanline, after the right-half PF rewrite, avoiding the
+  narrow PF2 timing window on the following position scanline;
+* the late-X class bit is NOT YET CONSUMED by a completed raster dispatch.  The
+  code therefore remains a WIP and public X=0..159 is still not restored.  Do
+  not mistake the presence of the class bit for completed positioning;
+* the current structural checks pass: `vcs_renderer_branch_contracts.pl` and
+  `source_tree_hygiene.pl`; the asymmetric example itself builds successfully.
+
+The prior Stella phase work also established that the special-line right-half
+PF2 rewrite has only a narrow safe timing window: the current phase and roughly
+one CPU cycle either side were pixel-exact, while moving it two cycles in either
+direction corrupted the asymmetric PF.  Continue to treat the PF write phase as
+fixed and move/preload sprite-position work around it, especially in the tail of
+the preceding scanline as the user explicitly suggested.
+
+Immediate next task
+-------------------
+Finish the split early/late horizontal-position dispatch.  In particular, consume
+the event-code $40 late-X class and use the tail of the trigger/preceding scanline
+for coarse buckets that cannot coexist with the fixed PF2 rewrite phase.  Then
+Stella-calibrate all public X=0..159 independently for P0 and P1 while leaving
+the four PF write phases unchanged.  Do not broaden the feature set until all
+160 X positions work on both hardware lanes and the PF reference remains
+pixel-exact.
+
+Latest interrupted per-event X preload fix
+-------------------------------------------
+A subsequent continuation discovered a concrete horizontal-positioning bug in
+this WIP: only the first accepted event loaded its packed X control into
+`TEMPLATE_position_packed`.  Later setup events could therefore reuse sprite 0's
+packed position control, independently of the still-unfinished early/late RESP
+coarse dispatch.  That alone caused horizontal bunching/misplacement.
+
+The current source fixes this without changing the physical scanline length or
+PF write phases.  On both P0 and P1 setup paths, the seven-cycle tail of setup
+line A that had previously been pure padding is now used to preload the *next*
+event's packed X control:
+
+    LDY setup_index     ; 3 cycles
+    LDA draw_position,Y ; 4 cycles
+
+A survives WSYNC/physical-line entry, and setup line B immediately stores it to
+`position_packed` at cycle zero.  The old three-cycle tail padding in setup line
+B is correspondingly removed, so the total timing of the two-line setup remains
+unchanged.  This is deliberate use of work at the end of the preceding scanline,
+as suggested by the user.
+
+This change is real progress but does NOT complete public X=0..159.  The `$40`
+late coarse-position class described above is still not fully consumed by a
+finished early/late RESP dispatch.  Resume from this source; do not revert the
+per-event preload and do not assume horizontal positioning is now correct merely
+because each event has its own packed X control.

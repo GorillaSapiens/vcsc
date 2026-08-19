@@ -1,0 +1,7 @@
+2026-08-19 08:39:54 PDT, checkpoint asymmetric X-position WIP
+Preserved the interrupted asymmetric-playfield horizontal-position work.  The
+position-band predecessor scanline now preloads HMP state, and VBLANK marks
+coarse buckets 6..10 with event-code bit $40 for a planned late-RESP path.  The
+late class is not yet consumed by the raster, so public X=0..159 remains WIP.
+The asymmetric example builds at 3490 ROM / 120 RAM; branch-contract and source
+hygiene checks pass.  Updated .../enhanced_asymmetric.txt with exact resume state.
