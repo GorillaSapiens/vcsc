@@ -128,7 +128,11 @@ counts. A selector transition that demonstrably avoids an old-mapping HLT/JAM/KI
 and resumes valid code in the new mapping is strong control-flow evidence.
 Deliberate VCSC mapper signatures and legacy raw-byte detector patterns are
 tie-break evidence, not a reason to override contradictory executable control
-flow.
+flow. Dynamic/unresolved control-exit counts are likewise **not** ranked across
+mapper hypotheses: a wrong mapping can appear artificially cleaner simply by
+truncating the reachable graph. If viable models remain genuinely ambiguous,
+the normal size/signature inference is preserved rather than rewarding the
+model that happened to decode less code.
 
 Graphics-oriented data is rendered one byte per line as `%00110100` with a
 matching X/dot picture when the analysis has strong evidence. Besides direct
@@ -372,6 +376,10 @@ round-tripped cartridge and compares Stella's resolved `Bankswitch Type` with
 the mapper in the generated vcsc-disas header.  This is a differential check,
 not the byte-exact pass/fail authority: Stella combines its MD5-keyed properties
 database with its own mapper autodetection, and either detector may expose a bug.
+The input corpus must already be Atari 2600/VCS ROMs. Stella's mapper detector is
+not a platform detector; an arbitrary same-sized blob from another 6502 system
+can still fall through to a size-default VCS mapper and produce a meaningless
+comparison.
 Mapper disagreements are therefore reported as `MISMATCH` and summarized without
 failing the round-trip run.  `--stella-strict` makes any mapper mismatch fail the
 command when a zero-mismatch corpus gate is desired.  Failure to run or parse an

@@ -194,6 +194,14 @@ JMP destination constrains the destination bank's origin.
 When resolving NMOS 6502/6507 `JMP ($xxFF)`, model the original silicon page-wrap
 behavior: the high destination byte is fetched from `$xx00`, not `$xx+1:00`.
 
+Do not compare raw counts of unresolved/dynamic control exits between mapper
+hypotheses. A wrong mapper can make the graph look deceptively clean by mapping
+execution into an early RTS or otherwise truncating reachable code. Exit counts
+remain useful diagnostics within one analysis, but they are not positive mapper
+evidence. When multiple mapper hypotheses remain viable without discriminating
+selector/flow evidence, retain the ordinary size/signature default rather than
+choosing whichever hypothesis decoded less code.
+
 A bankswitch access followed by a JMP/JSR into the newly selected bank is
 particularly valuable because it can constrain the destination bank directly.
 Solve mapper state, reset bank, and per-bank origins together rather than
@@ -1233,3 +1241,9 @@ the repository test suite.
 
 Do not invert the priority. A disassembler that produces beautiful comments but
 cannot reproduce the input ROM exactly is not a disassembler we can trust.
+
+Corpus differential note (2026-08-19): `roundtrip.pl --stella` assumes the input
+set has already been filtered to Atari 2600/VCS ROMs. Stella `-rominfo` resolves
+a VCS mapper; it is not a generic Atari-platform classifier, so unrelated 5200,
+7800, or Atari 8-bit binaries of a supported size can receive a plausible-looking
+size-default mapper. Such rows are corpus errors, not mapper-reference evidence.

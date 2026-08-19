@@ -3416,7 +3416,6 @@ typedef struct {
    size_t halts;
    int hotspots;
    size_t switch_avoided_halts;
-   int dynamic_exits;
    int explicit_signature;
 } mapper_hypothesis_t;
 
@@ -3543,7 +3542,6 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
          h[i].hotspots = probe.hotspot_refs;
          h[i].switch_avoided_halts = probe.flow_switch_avoided_halts +
                                       probe.speculative_switch_avoided_halts;
-         h[i].dynamic_exits = probe.dynamic_control_exits;
          h[i].viable = h[i].instructions != 0u && h[i].halts == 0u;
       }
       free_analysis(&probe);
@@ -3590,31 +3588,17 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
       }
       if (signed_count == 1u) winner = signed_mapper;
       else {
-         /* Prefer fewer unexplained control exits if that uniquely separates
-          * the remaining models. */
-         int best_exits = -1;
-         size_t exit_count = 0u;
-         mapper_t exit_mapper = legacy;
-         for (i = 0; i < n; ++i) {
-            if (!h[i].viable) continue;
-            if (best_exits < 0 || h[i].dynamic_exits < best_exits) {
-               best_exits = h[i].dynamic_exits;
-               exit_count = 1u;
-               exit_mapper = h[i].mapper;
-            }
-            else if (h[i].dynamic_exits == best_exits) ++exit_count;
-         }
-         if (exit_count == 1u) winner = exit_mapper;
-         else {
-            /* Genuine ambiguity remains. Preserve historical behavior rather
-             * than inventing certainty; the header will report survivor count. */
-            int legacy_survives = 0;
+         /* A wrong mapper can appear artificially "clean" simply because its
+          * mapping truncates the reachable CFG.  Unresolved-exit counts are
+          * therefore not comparable between mapper hypotheses.  If execution
+          * remains genuinely ambiguous, preserve the legacy/size-default
+          * choice unless positive mapper-specific evidence selected otherwise. */
+         int legacy_survives = 0;
+         for (i = 0; i < n; ++i)
+            if (h[i].viable && h[i].mapper == legacy) legacy_survives = 1;
+         if (!legacy_survives) {
             for (i = 0; i < n; ++i)
-               if (h[i].viable && h[i].mapper == legacy) legacy_survives = 1;
-            if (!legacy_survives) {
-               for (i = 0; i < n; ++i)
-                  if (h[i].viable) { winner = h[i].mapper; break; }
-            }
+               if (h[i].viable) { winner = h[i].mapper; break; }
          }
       }
    }

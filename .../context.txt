@@ -1359,3 +1359,15 @@ requires solid equal-Y alignment, and checks top reach. Public example accountin
 is currently 2498 ROM bytes / 104 RAM bytes. Next gate is user interactive Stella
 validation, especially moving 3-6-way piles and crossing sprites. The existing
 `renderers/multisprite/` remains unchanged and its Stella oracle still passes.
+
+2026-08-19 disassembler F6/JANE corpus finding: expanded differential corpora
+exposed a bad mapper-refinement tie-break that preferred the viable hypothesis
+with fewer dynamic/unresolved control exits. That rewards truncated wrong CFGs;
+for example genuine 16K F6 ROMs could be promoted to JANE solely because JANE's
+startup mapping decoded less code. Dynamic-exit counts are no longer compared
+between mapper families. Genuine ambiguity preserves the normal size/signature
+default unless positive selector/flow/signature evidence discriminates a mapper.
+A synthetic 16K F6-vs-JANE regression pins this. The same investigation found
+non-VCS ROMs in the expanded corpus (including Atari 5200/7800/8-bit material);
+`roundtrip.pl --stella` is a VCS mapper differential, not a platform validator,
+and corpus inputs must be prefiltered to Atari 2600/VCS.

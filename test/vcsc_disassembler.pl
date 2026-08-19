@@ -181,6 +181,25 @@ write_bin(File::Spec->catfile($in, 'e0_speculative_banked_island.bin'), $e0_isla
 write_bin(File::Spec->catfile($in, 'f8_sc_read_only.bin'),
    make_rom(8192, 0xF000, 0x0100, "\xAD\x80\xF0\xAD\xF8\x1F\x60"));
 write_bin(File::Spec->catfile($in, 'f6.bin'), make_rom(16384, 0xF000, 0x0100, "\xAD\xF6\x1F\x60"));
+
+# A wrong mapper must not win merely because it traces less code.  Both F6 and
+# JANE are viable here: the ordinary 16K/F6 reset path in bank 3 exits the
+# statically decoded cartridge window, while JANE's fixed startup bank 1 simply
+# returns.  There is no JANE signature or JANE-specific selector evidence, so
+# fewer dynamic exits would be exactly backwards: the truncated JANE CFG is not
+# positive mapper evidence.  Preserve the normal 16K default, F6.
+my $f6_jane_exit_tie = chr(0xEA) x 16384;
+substr($f6_jane_exit_tie, 0 * 4096 + 0x0100, 1, "\x60");
+substr($f6_jane_exit_tie, 1 * 4096 + 0x0100, 1, "\x60");
+substr($f6_jane_exit_tie, 2 * 4096 + 0x0100, 1, "\x60");
+substr($f6_jane_exit_tie, 3 * 4096 + 0x0100, 3, "\x4C\x80\x00");
+for my $b (0 .. 3) {
+   for my $v (0, 2, 4) {
+      put16(\$f6_jane_exit_tie, $b * 4096 + 0x0FFA + $v, 0xF100);
+   }
+}
+write_bin(File::Spec->catfile($in, 'f6_jane_exit_tie.bin'), $f6_jane_exit_tie);
+
 write_bin(File::Spec->catfile($in, 'f4.bin'), make_rom(32768, 0xF000, 0x0100, "\xAD\xF4\x1F\x60"));
 
 # CBS RAM Plus / FA: three 4K banks, selectors $1FF8-$1FFA, 256 bytes
@@ -1134,6 +1153,13 @@ require_re($f8sc, qr/physical ROM bytes hidden by Superchip RAM window/i,
    'Superchip-hidden physical ROM annotation');
 require_re($f8sc, qr/^; usage bytes: .*sc-hidden=512\b/m,
    'F8SC hidden-byte accounting');
+my $f6_jane_tie_out = slurp(File::Spec->catfile($out, 'f6_jane_exit_tie.s26'));
+require_re($f6_jane_tie_out, qr/^; mapper: F6 \(medium confidence;/m,
+   'F6/JANE ambiguity does not reward truncated control flow');
+require_re($f6_jane_tie_out,
+   qr/^; mapper flow hypotheses: 2 tested, 2 survived$/m,
+   'F6/JANE exit-count fixture remains honestly ambiguous');
+
 my $f6sc_out = slurp(File::Spec->catfile($out, 'f6sc.s26'));
 require_re($f6sc_out, qr/^; mapper: F6SC\b/m, 'F6SC mapper inference');
 my $f4sc_out = slurp(File::Spec->catfile($out, 'f4sc.s26'));
