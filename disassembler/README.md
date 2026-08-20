@@ -112,6 +112,14 @@ unbanked 2K cartridge.  `vcsc-disas` analyzes one logical 2K copy with normal
 disassemble/reassemble still reproduces the original 4096-byte file exactly.
 A merely similar or partially duplicated 4K image remains an ordinary 4K cart.
 
+Stella-playable 4094- and 4098-byte preservation dumps are treated as logical
+unbanked 4K cartridges without changing their physical files.  This mirrors
+Stella's generic cartridge behavior: a short image is zero-filled to 4096 bytes
+for runtime analysis, while an overlong image is truncated to 4096 bytes for
+runtime mapping.  VCSC emits only the bytes actually present in a short dump
+and preserves ignored trailing bytes from an overlong dump, so exact round trip
+retains the original 4094/4098-byte input rather than canonicalizing it.
+
 WD is the custom Pursuit of the Pink Panther mapper. It uses eight 1K ROM banks
 and eight fixed four-segment arrangements selected by reads from TIA `$30-$3F`.
 The cartridge also contains 64 bytes of RAM, read at `$1000-$103F` and written

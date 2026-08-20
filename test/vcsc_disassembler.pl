@@ -111,6 +111,14 @@ remove_tree($in, $out);
 make_path($in, $out);
 
 # Plain 1K/2K/4K and ordinary F8/F6/F4 sizes.
+# Stella's generic 4K cartridge accepts preservation dumps a couple of bytes
+# either side of the canonical size: overlong inputs are truncated for runtime
+# mapping and short inputs are zero-filled.  VCSC must use the same logical 4K
+# image for analysis while preserving the exact physical file length/bytes.
+my $odd4k_base = make_rom(4096, 0xF000, 0x0040, "\xA9\x42\x85\x80\x60");
+write_bin(File::Spec->catfile($in, 'odd4k_over.bin'), $odd4k_base . "\x12\x34");
+write_bin(File::Spec->catfile($in, 'odd4k_under.bin'), substr($odd4k_base, 0, 4094));
+
 my $plain1k = make_rom(1024, 0xFC00, 0x0040, "\xA9\x42\x60");
 # Keep an IRQ/BRK-only routine that RESET cannot reach and never invoke BRK.
 # A stock 6507 has no IRQ pin, so the vector must remain vector data and must
@@ -1300,6 +1308,27 @@ require_re($ar_multi_out,
 require_re($ar_multi_out,
    qr/^; AR load 1: .*load-id=\$01, start=\$F000, control=\$14, pages=1/m,
    'AR nonzero multi-load header decoded');
+
+my $odd4k_over_out = slurp(File::Spec->catfile($out, 'odd4k_over.s26'));
+require_re($odd4k_over_out, qr/^; input bytes: 4098$/m,
+   '4098-byte physical size retained');
+require_re($odd4k_over_out, qr/^; mapper: unbanked 4K \(/m,
+   '4098-byte dump analyzed as logical 4K');
+require_re($odd4k_over_out,
+   qr/^; preservation image: 4098-byte overlong 4K dump; Stella-compatible analysis ignores 2 trailing bytes, retained raw for exact round trip$/m,
+   '4098-byte overlong preservation annotation');
+require_re($odd4k_over_out,
+   qr/^; ---- trailing bytes from overlong 4K preservation dump ----$/m,
+   '4098-byte trailing preservation section');
+
+my $odd4k_under_out = slurp(File::Spec->catfile($out, 'odd4k_under.s26'));
+require_re($odd4k_under_out, qr/^; input bytes: 4094$/m,
+   '4094-byte physical size retained');
+require_re($odd4k_under_out, qr/^; mapper: unbanked 4K \(/m,
+   '4094-byte dump analyzed as logical 4K');
+require_re($odd4k_under_out,
+   qr/^; preservation image: 4094-byte short 4K dump; Stella-compatible analysis zero-fills 2 missing tail bytes, but generated source preserves the original file length$/m,
+   '4094-byte short preservation annotation');
 
 my $plain1k_out = slurp(File::Spec->catfile($out, 'plain1k.s26'));
 require_re($plain1k_out, qr/^; mapper: unbanked 1K \(/m,

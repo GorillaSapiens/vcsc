@@ -1159,7 +1159,11 @@ NMI bytes at `$FFFA/$FFFB` exercise this case. The standalone
 retains .s26/rebuilt .bin files, prints MD5 values, and requires exact byte
 identity. Focused disassembler Items 0-22 and 29 are complete; Items 23-28 queue
 GL, CM, DPC+, CDF/CDFJ/CDFJ+, the remaining NMI-vector cleanup, and
-playable malformed/odd-size dumps. Starpath/Supercharger AR fast-load support now
+playable malformed/odd-size dumps. Item 28 is now complete for the two Stella-playable
+4096+/-2 corpus cases: 4098-byte dumps use the first 4096 bytes as the logical 4K cart and
+preserve the two-byte tail raw; 4094-byte dumps zero-fill two logical bytes for analysis but
+emit only the physical 4094 bytes. Both real hashes round-trip exactly and match Stella as 4K.
+Starpath/Supercharger AR fast-load support now
 recognizes exact 8448-byte multiples, reconstructs header-mapped 6K RAM payloads,
 and preserves physical load bytes exactly. E7 now models the 8K/12K/16K
 selector tables, fixed final ROM, both split-RAM regions, and exact CFG state.

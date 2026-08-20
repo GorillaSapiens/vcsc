@@ -1502,7 +1502,7 @@ Unbanked 1K topology extension (2026-08-20)
       stack-aware and may modify the saved return address through RIOT-RAM mirroring.
 
 
-28. [ ] Handle playable malformed/odd-size cartridge dumps
+28. [x] Handle playable malformed/odd-size cartridge dumps
     * Separate physical input-file preservation from the logical runtime cartridge
       image so playable over/underdumps can be analyzed without normalizing away any
       supplied bytes. Exact input reconstruction remains mandatory.
@@ -1513,6 +1513,11 @@ Unbanked 1K topology extension (2026-08-20)
       the byte count is not a canonical power-of-two cartridge size.
     * Preserve excess/trailing bytes as physical dump data and represent absent bytes
       conservatively; do not silently rewrite the source image into a canonical 4K file.
+    * [done 2026-08-20] Implemented Stella-compatible 4096-byte logical
+      normalization for the two corpus cases: 4098-byte inputs analyze only the first
+      4096 bytes and preserve the final two bytes raw; 4094-byte inputs analyze with two
+      zero-filled logical tail bytes but emit no bytes that were absent from the file.
+      Both named hashes now round-trip exactly and compare as `vcsc=4K stella=4K MATCH`.
 
 29. [x] Add Starpath/Arcadia Supercharger image support
     * Recognize any exact 8448-byte multiple as the standard AR fast-load structure:
