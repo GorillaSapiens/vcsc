@@ -214,6 +214,61 @@ for my $v (0, 2, 4) {
 }
 write_bin(File::Spec->catfile($in, 'fe_flow.bin'), $fe);
 
+# M-Network E7 maps a selectable lower 2K plus a fixed final 2K, with RAM
+# overlays in both regions.  Cover all three released ROM sizes because the
+# selector-to-physical-bank mapping differs for 8K, 12K, and 16K carts.
+my $e7_8k = join('', map { chr(($_ * 31 + 11) & 0xff) } 0 .. 8191);
+substr($e7_8k, 1 * 2048 + 0x0100, 3, "\xA9\x42\x60");
+substr($e7_8k, 3 * 2048 + 0x0200, 6,
+   "\xAD\xE5\xFF" .          # 8K: $1FE5 selects lower physical bank 1
+   "\x4C\x00\xF1");
+for my $v (0, 2, 4) {
+   put16(\$e7_8k, 3 * 2048 + 0x07FA + $v, 0xFA00);
+}
+write_bin(File::Spec->catfile($in, 'e7_8k.bin'), $e7_8k);
+
+my $e7_12k = join('', map { chr(($_ * 47 + 29) & 0xff) } 0 .. 12287);
+substr($e7_12k, 4 * 2048 + 0x0100, 3, "\xA9\x43\x60");
+substr($e7_12k, 5 * 2048 + 0x0200, 9,
+   "\xAD\xE2\xFF" .          # 12K quirk: $1FE2 aliases physical bank 0
+   "\xAD\xE6\xFF" .          # and $1FE6 selects physical bank 4
+   "\x4C\x00\xF1");
+for my $v (0, 2, 4) {
+   put16(\$e7_12k, 5 * 2048 + 0x07FA + $v, 0xFA00);
+}
+write_bin(File::Spec->catfile($in, 'e7_12k.bin'), $e7_12k);
+
+my $e7_16k = join('', map { chr(($_ * 53 + 17) & 0xff) } 0 .. 16383);
+substr($e7_16k, 5 * 2048 + 0x0100, 3, "\xA9\x44\x60");
+substr($e7_16k, 7 * 2048 + 0x0200, 27,
+   "\xAD\xE7\xFF" .          # lower window -> 1K RAM
+   "\x8D\x00\xF0" .          # lower RAM write alias
+   "\xAD\x00\xF4" .          # lower RAM read alias
+   "\xAD\xE9\xFF" .          # fixed 256-byte RAM block 1
+   "\x8D\x00\xF8" .          # fixed RAM write alias
+   "\xAD\x00\xF9" .          # fixed RAM read alias
+   "\xAD\xE5\xFF" .          # restore lower ROM physical bank 5
+   "\x4C\x00\xF1");
+for my $v (0, 2, 4) {
+   put16(\$e7_16k, 7 * 2048 + 0x07FA + $v, 0xFA00);
+}
+write_bin(File::Spec->catfile($in, 'e7_16k.bin'), $e7_16k);
+
+# Both E7 RAM regions are split read/write aliases.  A single-address 6502
+# RMW is contradictory in either region; pin both halves in one forced case.
+my $e7_rmw = chr(0xEA) x 16384;
+substr($e7_rmw, 7 * 2048 + 0x0200, 18,
+   "\xAD\xE7\xFF" .          # lower RAM selected
+   "\xEE\x00\xF4" .          # INC lower read alias: contradiction
+   "\xAD\xE9\xFF" .          # fixed RAM block 1 selected
+   "\xEE\x00\xF9" .          # INC fixed read alias: contradiction
+   "\xAD\xE5\xFF" .          # restore ROM bank 5
+   "\x60");
+for my $v (0, 2, 4) {
+   put16(\$e7_rmw, 7 * 2048 + 0x07FA + $v, 0xFA00);
+}
+write_bin(File::Spec->catfile($in, 'e7_rmw.bin'), $e7_rmw);
+
 
 # Mapper inference must use executable control flow, not raw byte substrings.
 # CPX #$2C followed by this BCS happens to contain 2C B0 0F, the historical
@@ -1331,7 +1386,7 @@ my $spec_banked = slurp(File::Spec->catfile($out, 'speculative_banked_island.s26
 require_re($spec_banked, qr/^; mapper: F8 \(/m,
    'banked speculative-island mapper');
 require_re($spec_banked,
-   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 11 tested, 1 survived; control flow refined selection$/m,
    'banked-island mapper hypotheses converge');
 require_re($spec_banked,
    qr/speculative instruction island validated by HLT\/JAM\/KIL rejection\nB0_F203:\n\s*LDA\s+\$1FF9/m,
@@ -1341,7 +1396,7 @@ require_re($spec_banked, qr/^B1_F206:\n\s*LDA\s+#\$42/m,
 
 my $spec_no_reset = slurp(File::Spec->catfile($out, 'speculative_without_reset.s26'));
 require_re($spec_no_reset,
-   qr/^; mapper flow hypotheses: 4 tested, 0 survived$/m,
+   qr/^; mapper flow hypotheses: 5 tested, 0 survived$/m,
    'speculative island cannot resurrect mapper hypothesis without RESET');
 require_re($spec_no_reset, qr/^B0_F203:\n\s*LDA\s+#\$42/m,
    'full presentation may still preserve a detached speculative island');
@@ -1423,7 +1478,7 @@ my $threef_out = slurp(File::Spec->catfile($out, 'threef.s26'));
 require_re($threef_out, qr/^; mapper: 3F \(high confidence;/m,
    '3F mapper inferred from executable selector flow');
 require_re($threef_out,
-   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 11 tested, 1 survived; control flow refined selection$/m,
    '3F mapper hypotheses converge');
 require_re($threef_out, qr/^B1_F100:\n\s*LDA\s+#\$02\n\s*STA\s+\$3F/m,
    '3F lower-bank selector decoded');
@@ -1445,7 +1500,7 @@ require_re($threef32_out, qr/^B3_F104:\n\s*LDA\s+#\$55\n\s*RTS$/m,
 my $threee_out = slurp(File::Spec->catfile($out, 'threee.s26'));
 require_re($threee_out, qr/^; mapper: 3E \(high confidence;/m,
    '3E mapper inferred from RAM+ROM selector signature and flow');
-require_re($threee_out, qr/^; mapper flow hypotheses: 10 tested, /m,
+require_re($threee_out, qr/^; mapper flow hypotheses: 11 tested, /m,
    '3E participates in 8K mapper hypothesis convergence');
 require_re($threee_out, qr/^B3_F900:
 \s*LDA\s+#\$02
@@ -1472,7 +1527,7 @@ my $fe_out = slurp(File::Spec->catfile($out, 'fe_flow.s26'));
 require_re($fe_out, qr/^; mapper: FE \(high confidence;/m,
    'FE mapper inferred from canonical SCABS call signature and executable flow');
 require_re($fe_out,
-   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 11 tested, 1 survived; control flow refined selection$/m,
    'FE mapper hypotheses converge');
 require_re($fe_out, qr/^B0_F100:\n\s*LDX\s+#\$FF\n\s*TXS\n\s*JSR\s+\$D000/m,
    'FE RESET path contains canonical JSR switching idiom');
@@ -1483,11 +1538,52 @@ require_re($fe_out, qr/DEC\s+\$C5\n\s*LDA\s+#\$42\n\s*RTS/m,
 require_re($fe_out, qr/^; FE\/SCABS switching:/m,
    'FE hardware semantics documented in generated source');
 
+my $e7_8k_out = slurp(File::Spec->catfile($out, 'e7_8k.s26'));
+require_re($e7_8k_out, qr/^; mapper: E7 \(high confidence;/m,
+   '8K E7 mapper inferred');
+require_re($e7_8k_out,
+   qr/^; physical banks: 4 x 2048 bytes$/m,
+   '8K E7 physical layout');
+require_re($e7_8k_out,
+   qr/^B3_FA00:\n\s*LDA\s+B3_FFE5\n\s*JMP\s+\$F100/m,
+   '8K E7 fixed-ROM selector routine decoded');
+require_re($e7_8k_out, qr/^B1_F100:\n\s*LDA\s+#\$42\n\s*RTS$/m,
+   '8K E7 selected lower ROM bank decoded');
+
+my $e7_12k_out = slurp(File::Spec->catfile($out, 'e7_12k.s26'));
+require_re($e7_12k_out, qr/^; mapper: E7 \(high confidence;/m,
+   '12K E7 mapper inferred');
+require_re($e7_12k_out, qr/^; physical banks: 6 x 2048 bytes$/m,
+   '12K E7 physical layout');
+require_re($e7_12k_out,
+   qr/^B5_FA00:\n\s*LDA\s+B5_FFE2\n\s*LDA\s+B5_FFE6\n\s*JMP\s+\$F100/m,
+   '12K E7 selector alias table decoded');
+require_re($e7_12k_out, qr/^B4_F100:\n\s*LDA\s+#\$43\n\s*RTS$/m,
+   '12K E7 selected lower ROM bank decoded');
+
+my $e7_16k_out = slurp(File::Spec->catfile($out, 'e7_16k.s26'));
+require_re($e7_16k_out, qr/^; mapper: E7 \(high confidence;/m,
+   '16K E7 mapper inferred');
+require_re($e7_16k_out, qr/^; physical banks: 8 x 2048 bytes$/m,
+   '16K E7 physical layout');
+require_re($e7_16k_out, qr/^; E7 RAM aliases:/m,
+   'E7 split-RAM aliases documented');
+require_re($e7_16k_out, qr/^B5_F100:\n\s*LDA\s+#\$44\n\s*RTS$/m,
+   '16K E7 execution reaches selected lower ROM bank after RAM use');
+
+my $forced_e7_rmw_s26 = File::Spec->catfile($tmp, 'forced_e7_rmw.s26');
+run_ok($disas, '--mapper', 'e7', '-o', $forced_e7_rmw_s26,
+   File::Spec->catfile($in, 'e7_rmw.bin'));
+my $forced_e7_rmw = slurp($forced_e7_rmw_s26);
+require_re($forced_e7_rmw,
+   qr/^; mapper: E7 \(override;.*2 native split-RAM RMW conflicts\)/m,
+   'E7 lower and fixed RAM RMW aliases recorded as contradictions');
+
 my $f8_false_ua_out = slurp(File::Spec->catfile($out, 'f8_false_ua_flow.s26'));
 require_re($f8_false_ua_out, qr/^; mapper: F8 \(/m,
    'control-flow inference rejects accidental UA byte signature');
 require_re($f8_false_ua_out,
-   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 11 tested, 1 survived; control flow refined selection$/m,
    'false-UA mapper hypotheses converge');
 require_re($f8_false_ua_out, qr/CPX\s+#\$2C\n\s*BCS\.same\s+/m,
    'accidental 2C B0 0F sequence remains ordinary decoded F8 code');
@@ -1508,7 +1604,7 @@ my $f8_cross_jam_out = slurp(File::Spec->catfile($out, 'f8_cross_switch_possible
 require_re($f8_cross_jam_out, qr/^; mapper: F8 \(/m,
    'real F8 cross-bank selector outranks possible abstract-state JAM path');
 require_re($f8_cross_jam_out,
-   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 11 tested, 1 survived; control flow refined selection$/m,
    'cross-bank F8 evidence eliminates zero-switch E0 hypothesis');
 require_re($f8_cross_jam_out, qr/B1_F100:\n\s*LDA\s+\$1FF8/m,
    'F8 cross-bank evidence begins on RESET path');
@@ -1517,7 +1613,7 @@ my $uasw_flow_out = slurp(File::Spec->catfile($out, 'uasw_flow_only.s26'));
 require_re($uasw_flow_out, qr/^; mapper: UASW \(/m,
    'control-flow inference distinguishes UASW from UA and F8');
 require_re($uasw_flow_out,
-   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 11 tested, 1 survived; control flow refined selection$/m,
    'UASW mapper hypotheses converge');
 require_re($uasw_flow_out, qr/B0_F100:\n\s*LDA\s+\$0220/m,
    'UASW selector decoded on RESET path');
@@ -1528,7 +1624,7 @@ my $e0_flow_out = slurp(File::Spec->catfile($out, 'e0_flow_only.s26'));
 require_re($e0_flow_out, qr/^; mapper: E0 \(/m,
    'E0 segmented mapper inferred from executable flow');
 require_re($e0_flow_out,
-   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 11 tested, 1 survived; control flow refined selection$/m,
    'E0 RESET-path mapper hypotheses converge');
 require_re($e0_flow_out, qr/B4_F100:\n\s*LDA\s+\$FFE0/m,
    'E0 selector decoded in default physical bank 4');
@@ -1539,7 +1635,7 @@ my $e0_spec_out = slurp(File::Spec->catfile($out, 'e0_speculative_banked_island.
 require_re($e0_spec_out, qr/^; mapper: E0 \(/m,
    'E0 speculative-island mapper inferred');
 require_re($e0_spec_out,
-   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 11 tested, 1 survived; control flow refined selection$/m,
    'E0 speculative-island hypotheses converge');
 require_re($e0_spec_out,
    qr/speculative instruction island validated by HLT\/JAM\/KIL rejection\nB4_F203:\n\s*LDA\s+\$FFE0/m,
@@ -1557,7 +1653,7 @@ my $f6_jane_tie_out = slurp(File::Spec->catfile($out, 'f6_jane_exit_tie.s26'));
 require_re($f6_jane_tie_out, qr/^; mapper: F6 \(medium confidence;/m,
    'F6/JANE ambiguity does not reward truncated control flow');
 require_re($f6_jane_tie_out,
-   qr/^; mapper flow hypotheses: 4 tested, 2 survived$/m,
+   qr/^; mapper flow hypotheses: 5 tested, 2 survived$/m,
    'F6/JANE/3E/3F candidate set retains two viable exit-count hypotheses');
 
 my $f6sc_out = slurp(File::Spec->catfile($out, 'f6sc.s26'));

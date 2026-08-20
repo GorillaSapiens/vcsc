@@ -34,6 +34,7 @@ my @layouts = (
    ['dpc',  10495],
    ['fa',   12288],
    ['f6',   16384],
+   ['e7',   16384],
    ['3e',   32768],
    ['3f',   32768],
    ['f4',   32768],
@@ -78,6 +79,19 @@ sub plant_entry {
       substr($$bufref, 0x1000, 3, "\xA9\x55\x60");
       substr($$bufref, 0x0FFA, 6, pack('v3', 0xf100, 0xf100, 0xf100));
       substr($$bufref, 0x1FFA, 6, pack('v3', 0x0000, 0x0000, 0x0000));
+   }
+   elsif ($layout eq 'e7') {
+      # E7 vectors live in the fixed final 2K.  Exercise both RAM selectors
+      # while executing from fixed ROM, restore lower ROM bank 5, then enter it.
+      my $base = $size - 2048;
+      my $e7_code =
+         "\xAD\xE7\xFF" .       # lower window -> RAM
+         "\xAD\xE9\xFF" .       # fixed RAM block 1
+         "\xAD\xE5\xFF" .       # lower ROM bank 5
+         "\x4C\x00\xF1";
+      substr($$bufref, $base + 0x200, length($e7_code), $e7_code);
+      substr($$bufref, 5 * 2048 + 0x100, length($code), $code);
+      substr($$bufref, $base + 2042, 6, pack('v3', 0xfa00, 0xfa00, 0xfa00));
    }
    elsif ($layout eq '3e') {
       # 3E vectors live in the fixed final 2K.  Exercise the distinguishing

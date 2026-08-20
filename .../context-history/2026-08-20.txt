@@ -1,0 +1,5 @@
+2026-08-20 05:41:00 PDT, Add E7 disassembler mapper
+
+Implemented size-accurate E7 disassembly for 8K, 12K, and 16K images: selectable lower 2K ROM/RAM, fixed final 2K, fixed 256-byte RAM blocks, split read/write aliases, selector-aware CFG state, and RMW contradictions. Added Stella-compatible identification evidence, synthetic exact round trips, and deterministic fuzz coverage. All five E7 mismatches in problems.20260820_121918.zip now resolve E7; the complete 39-ROM bundle remains MD5-exact on round trip.
+
+Added bankswitching roadmap Items 39-44 to backfill public diagnostic/profile support for E0, 3F, 3E, FE/SCABS, WD, and DPC.

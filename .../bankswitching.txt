@@ -2313,6 +2313,56 @@ explicit by design.
          cleanly; do not hide new mechanisms behind the existing hotspot model.
 
 
+[ ] 39. Backfill an E0 public diagnostic cartridge.
+
+       * Add the minimum compiler/linker/simulator profile support needed to
+         build E0 deliberately rather than hand-authoring a disassembler-only
+         fixture.
+       * Add a self-checking `examples/09_bankswitching` PASS/FAIL diagnostic
+         that exercises all three selectable 1K windows plus the fixed top 1K.
+       * Force Stella's E0 mapper in `make play`, and require simulator/Stella
+         execution plus byte-exact `vcsc-disas` round trip.
+
+[ ] 40. Backfill a 3F public diagnostic cartridge.
+
+       * Add a real variable-size 3F output profile using the value-written TIA
+         selector semantics already modeled by `vcsc-disas`.
+       * Exercise at least two lower 2K banks and the fixed final 2K in a
+         self-checking public PASS/FAIL cart; force `-bs 3F` for Stella play.
+       * Pin exact disassembly/reassembly and mapper-detection behavior.
+
+[ ] 41. Backfill a 3E public diagnostic cartridge.
+
+       * Build on the 3F profile, adding `$3E` RAM-bank selection and the split
+         lower-window RAM aliases without pretending `$3F` alone proves 3E.
+       * Exercise ROM->RAM->ROM transitions in a public PASS/FAIL cart and test
+         both simulator behavior and exact disassembly round trip.
+
+[ ] 42. Backfill an FE / SCABS public diagnostic cartridge.
+
+       * Add a profile capable of expressing FE's delayed `$01FE` stack-bus
+         latch rather than faking it as an F8-style hotspot.
+       * Use the released-cart JSR switching idiom in a self-checking diagnostic,
+         force Stella `-bs FE`, and certify return-to-caller bank behavior.
+
+[ ] 43. Backfill a WD public diagnostic cartridge.
+
+       * Add/build the WD four-segment arrangement profile and 64-byte split RAM
+         semantics as first-class output support, including the known dump-order
+         distinction where applicable.
+       * Exercise multiple selector arrangements and RAM in a public PASS/FAIL
+         diagnostic with simulator/Stella and byte-exact disassembler coverage.
+
+[ ] 44. Backfill a DPC public diagnostic cartridge.
+
+       * Add a buildable DPC profile only after the data-fetcher/register model
+         needed by a meaningful diagnostic is available; do not ship a ROM that
+         merely has DPC's file size.
+       * Exercise real DPC data-ROM/data-fetcher behavior in a self-checking
+         PASS/FAIL diagnostic and require simulator/Stella plus exact
+         disassembly/reassembly coverage.
+
+
 Decisions intentionally deferred
 --------------------------------
 The following are not settled by this document:

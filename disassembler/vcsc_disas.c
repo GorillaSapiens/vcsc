@@ -48,6 +48,7 @@ typedef enum {
    MAP_DPC,
    MAP_WD,
    MAP_E0,
+   MAP_E7,
    MAP_3F,
    MAP_3E,
    MAP_CV,
@@ -140,6 +141,7 @@ typedef struct {
    uint8_t *spec_seed;
    uint32_t *wd_context_seen;
    uint64_t *e0_context_seen;
+   uint32_t *e7_context_seen;
    uint64_t *threef_context_seen;
    size_t threef_context_words;
    uint8_t vector_tail_enabled;
@@ -180,6 +182,7 @@ typedef struct {
    int superchip_exec_conflicts;
    int split_ram_rmw_conflicts;
    int threee_ram_select_refs;
+   int e7_specific_refs;
    size_t three_specific_switches;
    int dynamic_control_exits;
    int unresolved_indirect_jumps;
@@ -373,6 +376,7 @@ static int parse_mapper_name(const char *s, mapper_t *mapper, int *superchip)
    else if (strcmp(s, "dpc") == 0) *mapper = MAP_DPC;
    else if (strcmp(s, "wd") == 0) *mapper = MAP_WD;
    else if (strcmp(s, "e0") == 0) *mapper = MAP_E0;
+   else if (strcmp(s, "e7") == 0) *mapper = MAP_E7;
    else if (strcmp(s, "3f") == 0) *mapper = MAP_3F;
    else if (strcmp(s, "3e") == 0) *mapper = MAP_3E;
    else if (strcmp(s, "cv") == 0) *mapper = MAP_CV;
@@ -420,7 +424,7 @@ static void usage(const char *argv0)
       "options:\n"
       "   -i, --input <file>       compatibility alias for positional input\n"
       "   -o, --output <file>      write generated VCSC assembly (.s26)\n"
-      "       --mapper <name>      force 2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|e0|3e|3f|cv|jane|0840|ua|uasw|0fa0|fe\n"
+      "       --mapper <name>      force 2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|e0|e7|3e|3f|cv|jane|0840|ua|uasw|0fa0|fe\n"
       "       --reset-bank <n>     force power-on/reset physical bank\n"
       "       --origin <b:addr>    force logical origin for a bank (repeatable)\n"
       "       --entry <b:addr>     add executable entry point (repeatable)\n"
@@ -778,6 +782,8 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
    case MAP_WD: *bank_size = 1024u; *bank_count = 8u;
       return rom_size == 8192u || rom_size == 8195u;
    case MAP_E0: *bank_size = 1024u; *bank_count = 8u; return rom_size == 8192u;
+   case MAP_E7: *bank_size = 2048u; *bank_count = rom_size / 2048u;
+      return rom_size == 8192u || rom_size == 12288u || rom_size == 16384u;
    case MAP_3F:
    case MAP_3E:
       *bank_size = 2048u; *bank_count = rom_size / 2048u;
@@ -853,6 +859,34 @@ static int is_probably_e0(const uint8_t *rom, size_t size)
    for (i = 0; i < sizeof(signatures) / sizeof(signatures[0]); ++i)
       if (count_signature(rom, size, signatures[i], sizeof(signatures[i])))
          return 1;
+   return 0;
+}
+
+static int is_probably_e7(const uint8_t *rom, size_t size)
+{
+   static const uint8_t sig8[][3] = {
+      { 0xADu, 0xE4u, 0xFFu }, /* LDA $FFE4 */
+      { 0xADu, 0xE5u, 0xFFu }, /* LDA $FFE5 */
+      { 0xADu, 0xE6u, 0xFFu }  /* LDA $FFE6 */
+   };
+   static const uint8_t sig[][3] = {
+      { 0xADu, 0xE2u, 0xFFu }, /* LDA $FFE2 */
+      { 0xADu, 0xE5u, 0xFFu }, /* LDA $FFE5 */
+      { 0xADu, 0xE5u, 0x1Fu }, /* LDA $1FE5 */
+      { 0xADu, 0xE7u, 0x1Fu }, /* LDA $1FE7 */
+      { 0x0Cu, 0xE7u, 0x1Fu }, /* NOP $1FE7 */
+      { 0x8Du, 0xE7u, 0xFFu }, /* STA $FFE7 */
+      { 0x8Du, 0xE7u, 0x1Fu }  /* STA $1FE7 */
+   };
+   size_t i;
+   if (size == 8192u) {
+      for (i = 0; i < sizeof(sig8) / sizeof(sig8[0]); ++i)
+         if (count_signature(rom, size, sig8[i], sizeof(sig8[i]))) return 1;
+      return 0;
+   }
+   if (size != 12288u && size != 16384u) return 0;
+   for (i = 0; i < sizeof(sig) / sizeof(sig[0]); ++i)
+      if (count_signature(rom, size, sig[i], sizeof(sig[i]))) return 1;
    return 0;
 }
 
@@ -995,11 +1029,13 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
       if (mapper == MAP_RAW) mapper = is_probably_0fa0(rom, size) ? MAP_0FA0 : MAP_RAW;
       if (mapper == MAP_RAW && is_probably_fe(rom, size) &&
           !has_f8_selector_signature(rom, size)) mapper = MAP_FE;
-      if (mapper == MAP_RAW) mapper = is_probably_0840(rom, size) ? MAP_0840 : MAP_F8;
+      if (mapper == MAP_RAW) mapper = is_probably_0840(rom, size) ? MAP_0840 : MAP_RAW;
+      if (mapper == MAP_RAW) mapper = is_probably_e7(rom, size) ? MAP_E7 : MAP_F8;
       break;
-   case 12288u: mapper = MAP_FA; break;
-   case 16384u: mapper = is_probably_3e(rom, size) ? MAP_3E :
-                         (is_probably_jane(rom, size) ? MAP_JANE : MAP_F6); break;
+   case 12288u: mapper = is_probably_e7(rom, size) ? MAP_E7 : MAP_FA; break;
+   case 16384u: mapper = is_probably_e7(rom, size) ? MAP_E7 :
+                         (is_probably_3e(rom, size) ? MAP_3E :
+                         (is_probably_jane(rom, size) ? MAP_JANE : MAP_F6)); break;
    case 32768u: mapper = is_probably_3e(rom, size) ? MAP_3E :
                          (is_probably_3f(rom, size) ? MAP_3F : MAP_F4); break;
    case 10240u: case 10495u: mapper = MAP_DPC; break;
@@ -1028,6 +1064,7 @@ static const char *mapper_name(mapper_t mapper)
    case MAP_DPC: return "DPC";
    case MAP_WD: return "WD";
    case MAP_E0: return "E0";
+   case MAP_E7: return "E7";
    case MAP_3F: return "3F";
    case MAP_3E: return "3E";
    case MAP_CV: return "CV";
@@ -1180,6 +1217,100 @@ static uint16_t e0_seed_config(size_t bank, uint16_t pc)
    if (segment < 3u) return e0_config_select(config, segment, (unsigned)bank);
    return config;
 }
+
+#define E7_LOWER_MASK 0x000fu
+#define E7_RAM_SHIFT 4u
+#define E7_RAM_MASK 0x0030u
+
+static uint16_t e7_config_make(unsigned lower, unsigned ram)
+{
+   return (uint16_t)((lower & E7_LOWER_MASK) | ((ram & 3u) << E7_RAM_SHIFT));
+}
+
+static unsigned e7_config_lower(uint16_t config)
+{
+   return (unsigned)(config & E7_LOWER_MASK);
+}
+
+static unsigned e7_config_ram(uint16_t config)
+{
+   return (unsigned)((config & E7_RAM_MASK) >> E7_RAM_SHIFT);
+}
+
+static int e7_lower_is_ram(const analysis_t *a, uint16_t config)
+{
+   return a->bank_count != 0u && e7_config_lower(config) == a->bank_count - 1u;
+}
+
+static int e7_map_address(const analysis_t *a, uint16_t config,
+                          uint16_t address, size_t *bank, size_t *off)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   unsigned lower;
+   if (a->mapper != MAP_E7 || bus < 0x1000u || a->bank_count < 4u) return 0;
+   if (bus < 0x1800u) {
+      if (e7_lower_is_ram(a, config)) return 0;
+      lower = e7_config_lower(config);
+      if (lower >= a->bank_count - 1u) return 0;
+      *bank = lower;
+      *off = (size_t)(bus & 0x07ffu);
+      return 1;
+   }
+   if (bus < 0x1a00u) return 0; /* fixed 256-byte split RAM window */
+   *bank = a->bank_count - 1u;
+   *off = (size_t)(bus & 0x07ffu);
+   return 1;
+}
+
+static int e7_selector_config(const analysis_t *a, uint16_t address,
+                              uint16_t old_config, uint16_t *new_config,
+                              int *specific)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   unsigned lower = e7_config_lower(old_config);
+   unsigned ram = e7_config_ram(old_config);
+   *specific = 0;
+   if (bus >= 0x1fe8u && bus <= 0x1febu) {
+      ram = (unsigned)(bus & 3u);
+      *specific = 1;
+      *new_config = e7_config_make(lower, ram);
+      return 1;
+   }
+   if (a->bank_count == 4u) {
+      if (bus < 0x1fe4u || bus > 0x1fe7u) return 0;
+      lower = (unsigned)(bus & 3u);
+   }
+   else if (a->bank_count == 6u) {
+      static const uint8_t banks[8] = { 0, 1, 0, 1, 2, 3, 4, 5 };
+      if (bus < 0x1fe0u || bus > 0x1fe7u) return 0;
+      lower = banks[bus & 7u];
+   }
+   else if (a->bank_count == 8u) {
+      if (bus < 0x1fe0u || bus > 0x1fe7u) return 0;
+      lower = (unsigned)(bus & 7u);
+   }
+   else return 0;
+   if (lower == a->bank_count - 1u) *specific = 1; /* $1FE7 selects 1K RAM */
+   *new_config = e7_config_make(lower, ram);
+   return 1;
+}
+
+static int e7_ram_port(const analysis_t *a, uint16_t config, uint16_t address)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   if (a->mapper != MAP_E7) return 0;
+   if (bus >= 0x1800u && bus < 0x1a00u) return 1;
+   return e7_lower_is_ram(a, config) && bus >= 0x1000u && bus < 0x1800u;
+}
+
+static uint16_t e7_seed_config(size_t bank, uint16_t pc, size_t bank_count)
+{
+   uint16_t bus = (uint16_t)(pc & 0x1fffu);
+   if (bus >= 0x1000u && bus < 0x1800u && bank < bank_count)
+      return e7_config_make((unsigned)bank, 0u);
+   return e7_config_make(0u, 0u);
+}
+
 
 static int threef_map_address(const analysis_t *a, uint16_t selected_bank,
                               uint16_t address, size_t *bank, size_t *off)
@@ -1370,6 +1501,7 @@ static void free_analysis(analysis_t *a)
          free(a->banks[i].spec_seed);
          free(a->banks[i].wd_context_seen);
          free(a->banks[i].e0_context_seen);
+         free(a->banks[i].e7_context_seen);
          free(a->banks[i].threef_context_seen);
          free(a->banks[i].states);
       }
@@ -1444,6 +1576,14 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
             b->origin = 0xf000u;
          }
       }
+      else if (a->mapper == MAP_E7) {
+         /* E7 maps selectable 2K ROM/RAM at $F000-$F7FF and fixes the final
+          * physical 2K at $F800-$FFFF; $F800-$F9FF is overlaid by RAM, so
+          * executable fixed ROM begins at $FA00. */
+         b->origin = i + 1u == a->bank_count ? 0xf800u : 0xf000u;
+         b->origin_score = 100;
+         b->reset_vector_evidence = i + 1u == a->bank_count;
+      }
       else if (mapper_is_three_family(a->mapper)) {
          /* 3F/3E map a selectable 2K bank at $F000-$F7FF and permanently
           * map the final physical 2K at $F800-$FFFF.  3E may replace the
@@ -1463,6 +1603,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
          b->reset_vector_evidence = i == 0u;
       }
       b->vector_tail_enabled = a->mapper != MAP_WD && a->mapper != MAP_E0 &&
+                               (a->mapper != MAP_E7 || i + 1u == a->bank_count) &&
                                (a->mapper != MAP_FE || i == 0u) &&
                                (!mapper_is_three_family(a->mapper) ||
                                 i + 1u == a->bank_count);
@@ -1475,6 +1616,11 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
          b->e0_context_seen = (uint64_t *)calloc(b->size * 32u,
                                                 sizeof(*b->e0_context_seen));
          if (!b->e0_context_seen) return 0;
+      }
+      else if (a->mapper == MAP_E7) {
+         /* lower selector (up to 8 states) x fixed-RAM block (4 states) */
+         b->e7_context_seen = (uint32_t *)calloc(b->size, sizeof(*b->e7_context_seen));
+         if (!b->e7_context_seen) return 0;
       }
       else if (mapper_is_three_family(a->mapper)) {
          size_t contexts = a->bank_count + 1u;
@@ -1493,6 +1639,15 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
       a->reset_bank = 7u;
       a->banks[7].vector_tail_enabled = 1u;
       a->banks[7].reset_vector_evidence = 1;
+      return 1;
+   }
+
+   if (a->mapper == MAP_E7) {
+      /* E7 vectors are in the fixed final 2K.  Deterministic reset selects
+       * lower ROM bank 0 and fixed RAM block 0. */
+      a->reset_bank = a->bank_count - 1u;
+      a->banks[a->reset_bank].vector_tail_enabled = 1u;
+      a->banks[a->reset_bank].reset_vector_evidence = 1;
       return 1;
    }
 
@@ -1816,6 +1971,12 @@ static int push_work_state_ctx(analysis_t *a, size_t bank, size_t offset,
       if ((b->e0_context_seen[offset * 32u + word] & bit) != 0) return 1;
       b->e0_context_seen[offset * 32u + word] |= bit;
    }
+   else if (a->mapper == MAP_E7) {
+      unsigned context = e7_config_lower(mapper_config) * 4u + e7_config_ram(mapper_config);
+      uint32_t bit = (uint32_t)1u << (context & 31u);
+      if ((b->e7_context_seen[offset] & bit) != 0u) return 1;
+      b->e7_context_seen[offset] |= bit;
+   }
    else if (mapper_is_three_family(a->mapper)) {
       size_t context;
       if (mapper_config == THREEF_CONFIG_UNKNOWN)
@@ -1841,7 +2002,7 @@ static int push_work_state_ctx(analysis_t *a, size_t bank, size_t offset,
    else {
       changed = state_merge(&b->states[offset], state);
    }
-   if (a->mapper != MAP_WD && a->mapper != MAP_E0 && !mapper_is_three_family(a->mapper) &&
+   if (a->mapper != MAP_WD && a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
        (!changed || b->queued[offset])) return 1;
    if (a->work_count == a->work_cap) {
       size_t new_cap = a->work_cap ? a->work_cap * 2u : 256u;
@@ -1864,8 +2025,9 @@ static int push_work_state(analysis_t *a, size_t bank, size_t offset,
 {
    uint16_t pc = (uint16_t)(a->banks[bank].origin + (uint16_t)offset);
    uint16_t config = a->mapper == MAP_E0 ? e0_seed_config(bank, pc) :
+                     (a->mapper == MAP_E7 ? e7_seed_config(bank, pc, a->bank_count) :
                      (mapper_is_three_family(a->mapper) && (pc & 0x1fffu) < 0x1800u ?
-                        (uint16_t)bank : 0u);
+                        (uint16_t)bank : 0u));
    return push_work_state_ctx(a, bank, offset, state, pc, config);
 }
 
@@ -1884,6 +2046,15 @@ static int push_e0_address_state(analysis_t *a, uint16_t config,
 {
    size_t bank, off;
    if (!e0_map_address(a, config, address, &bank, &off)) return 1;
+   return push_work_state_ctx(a, bank, off, state, address, config);
+}
+
+static int push_e7_address_state(analysis_t *a, uint16_t config,
+                                 uint16_t address,
+                                 const abstract_state_t *state)
+{
+   size_t bank, off;
+   if (!e7_map_address(a, config, address, &bank, &off)) return 1;
    return push_work_state_ctx(a, bank, off, state, address, config);
 }
 
@@ -2225,7 +2396,8 @@ static int state_read_byte(const analysis_t *a, size_t bank,
    size_t off;
    if (address <= 0x00ffu)
       return state_zp_get(state, (uint8_t)address, value);
-   if (a->mapper == MAP_WD || a->mapper == MAP_E0 || mapper_is_three_family(a->mapper)) return 0;
+   if (a->mapper == MAP_WD || a->mapper == MAP_E0 || a->mapper == MAP_E7 ||
+       mapper_is_three_family(a->mapper)) return 0;
    if (bank >= a->bank_count || !cart_target_offset(&a->banks[bank], address, &off))
       return 0;
    if (dpc_register_address(a, address) || fa_ram_address(a, address)) return 0;
@@ -2616,6 +2788,9 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t bi,
    int switched = 0;
    int e0_switched = 0;
    uint16_t e0_successor_config = mapper_config;
+   int e7_switched = 0;
+   int e7_specific = 0;
+   uint16_t e7_successor_config = mapper_config;
    int threef_switched = 0;
    int threef_value_known = 0;
    int threef_explicit_ref = 0;
@@ -2665,7 +2840,8 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t bi,
    }
    if (len >= 2u) operand = a->rom[b->file_offset + off + 1u];
    if (len >= 3u) operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
-   canonical_pc = (a->mapper == MAP_E0 || mapper_is_three_family(a->mapper)) ? runtime_pc
+   canonical_pc = (a->mapper == MAP_E0 || a->mapper == MAP_E7 ||
+                   mapper_is_three_family(a->mapper)) ? runtime_pc
                                       : (uint16_t)(b->origin + (uint16_t)off);
    transfer_state(a, bi, input_state, &output_state, opcode, mode, operand);
    flow = instruction_flow(opcode);
@@ -2675,6 +2851,16 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t bi,
       if (resolve_effective_address(input_state, mode, operand, &effective) &&
           e0_selector_config(effective, mapper_config, &e0_successor_config)) {
          e0_switched = 1;
+         if (ctx->counted) ++ctx->mapper_switches;
+      }
+   }
+   else if (flow == FLOW_NEXT && a->mapper == MAP_E7 &&
+            (opcode_memory_access(opcode) & (ACCESS_READ | ACCESS_WRITE))) {
+      uint16_t effective;
+      if (resolve_effective_address(input_state, mode, operand, &effective) &&
+          e7_selector_config(a, effective, mapper_config,
+                             &e7_successor_config, &e7_specific)) {
+         e7_switched = 1;
          if (ctx->counted) ++ctx->mapper_switches;
       }
    }
@@ -2705,6 +2891,24 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t bi,
             size_t old_bank, old_off;
             if (e0_switched &&
                 e0_map_address(a, mapper_config, next_pc, &old_bank, &old_off) &&
+                old_bank != next_bank &&
+                opcode_is_cpu_halt(a->rom[a->banks[old_bank].file_offset + old_off]) &&
+                !opcode_is_cpu_halt(a->rom[a->banks[next_bank].file_offset + next_off]))
+               ++ctx->switch_avoided_halts;
+            result = speculative_flow_ctx(a, next_bank, next_off, next_pc,
+                                          next_config, &output_state, ctx);
+         }
+         else
+            result = SPEC_SAFE_WEAK;
+      }
+      else if (a->mapper == MAP_E7) {
+         uint16_t next_pc = (uint16_t)(canonical_pc + len);
+         uint16_t next_config = e7_switched ? e7_successor_config : mapper_config;
+         size_t next_bank, next_off;
+         if (e7_map_address(a, next_config, next_pc, &next_bank, &next_off)) {
+            size_t old_bank, old_off;
+            if (e7_switched &&
+                e7_map_address(a, mapper_config, next_pc, &old_bank, &old_off) &&
                 old_bank != next_bank &&
                 opcode_is_cpu_halt(a->rom[a->banks[old_bank].file_offset + old_off]) &&
                 !opcode_is_cpu_halt(a->rom[a->banks[next_bank].file_offset + next_off]))
@@ -2784,6 +2988,27 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t bi,
             if (branch == SPEC_REJECT) { result = SPEC_REJECT; break; }
          }
       }
+      else if (a->mapper == MAP_E7) {
+         if (!known || !taken) {
+            uint16_t fall_pc = (uint16_t)(canonical_pc + 2u);
+            size_t fbank, foff;
+            abstract_state_t fall_state;
+            if (state_constrain_branch_edge(opcode, &output_state, 0, &fall_state) &&
+                e7_map_address(a, mapper_config, fall_pc, &fbank, &foff))
+               fall = speculative_flow_ctx(a, fbank, foff, fall_pc,
+                                           mapper_config, &fall_state, ctx);
+            if (fall == SPEC_REJECT) { result = SPEC_REJECT; break; }
+         }
+         if (!known || taken) {
+            size_t tbank, toff;
+            abstract_state_t branch_state;
+            if (state_constrain_branch_edge(opcode, &output_state, 1, &branch_state) &&
+                e7_map_address(a, mapper_config, target, &tbank, &toff))
+               branch = speculative_flow_ctx(a, tbank, toff, target,
+                                             mapper_config, &branch_state, ctx);
+            if (branch == SPEC_REJECT) { result = SPEC_REJECT; break; }
+         }
+      }
       else if (mapper_is_three_family(a->mapper)) {
          if (!known || !taken) {
             uint16_t fall_pc = (uint16_t)(canonical_pc + 2u);
@@ -2849,6 +3074,17 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t bi,
                                           mapper_config, &output_state, ctx);
          if (called == SPEC_REJECT) { result = SPEC_REJECT; break; }
          if (e0_map_address(a, mapper_config, cont_pc, &cbank, &coff))
+            cont = speculative_flow_ctx(a, cbank, coff, cont_pc,
+                                        mapper_config, &after_call, ctx);
+      }
+      else if (a->mapper == MAP_E7) {
+         size_t tbank, toff, cbank, coff;
+         uint16_t cont_pc = (uint16_t)(canonical_pc + 3u);
+         if (e7_map_address(a, mapper_config, operand, &tbank, &toff))
+            called = speculative_flow_ctx(a, tbank, toff, operand,
+                                          mapper_config, &output_state, ctx);
+         if (called == SPEC_REJECT) { result = SPEC_REJECT; break; }
+         if (e7_map_address(a, mapper_config, cont_pc, &cbank, &coff))
             cont = speculative_flow_ctx(a, cbank, coff, cont_pc,
                                         mapper_config, &after_call, ctx);
       }
@@ -2941,6 +3177,7 @@ static spec_result_t speculative_flow(const analysis_t *a, size_t bi,
    uint16_t pc = (uint16_t)(a->banks[bi].origin + (uint16_t)off);
    uint16_t config = 0u;
    if (a->mapper == MAP_E0) config = e0_seed_config(bi, pc);
+   else if (a->mapper == MAP_E7) config = e7_seed_config(bi, pc, a->bank_count);
    else if (mapper_is_three_family(a->mapper) && ((pc & 0x1fffu) < 0x1800u)) config = (uint16_t)bi;
    return speculative_flow_ctx(a, bi, off, pc, config, input_state, ctx);
 }
@@ -2954,8 +3191,9 @@ static int speculative_linear_jam_end(const analysis_t *a, size_t bi,
    size_t steps = 0;
    uint16_t pc = (uint16_t)(b->origin + (uint16_t)start);
    uint16_t mapper_config = a->mapper == MAP_E0 ? e0_seed_config(bi, pc) :
+                            (a->mapper == MAP_E7 ? e7_seed_config(bi, pc, a->bank_count) :
                             (mapper_is_three_family(a->mapper) && ((pc & 0x1fffu) < 0x1800u) ?
-                             (uint16_t)bi : 0u);
+                             (uint16_t)bi : 0u));
    memset(&state, 0, sizeof(state));
 
    while (off < b->size && steps++ < 512u) {
@@ -2991,6 +3229,25 @@ static int speculative_linear_jam_end(const analysis_t *a, size_t bi,
                 resolve_effective_address(&state, mode, operand, &effective))
                (void)e0_selector_config(effective, mapper_config, &next_config);
             if (!e0_map_address(a, next_config, next_pc, &next_bank, &next_off) ||
+                next_bank != bi)
+               return 0;
+            state = next;
+            mapper_config = next_config;
+            pc = next_pc;
+            off = next_off;
+            continue;
+         }
+         else if (a->mapper == MAP_E7) {
+            uint16_t next_pc = (uint16_t)(pc + len);
+            uint16_t next_config = mapper_config;
+            uint16_t effective;
+            int specific = 0;
+            size_t next_bank, next_off;
+            if ((opcode_memory_access(opcode) & (ACCESS_READ | ACCESS_WRITE)) &&
+                resolve_effective_address(&state, mode, operand, &effective))
+               (void)e7_selector_config(a, effective, mapper_config,
+                                        &next_config, &specific);
+            if (!e7_map_address(a, next_config, next_pc, &next_bank, &next_off) ||
                 next_bank != bi)
                return 0;
             state = next;
@@ -3110,6 +3367,8 @@ static int speculative_candidate_credible(const analysis_t *a,
     * validity can contribute mapper evidence without manufacturing dozens of
     * ordinary-code islands from an arbitrary presentation mapping. */
    if (a->mapper == MAP_E0 && ctx.mapper_switches == 0u) goto done;
+   if (a->mapper == MAP_E7 && bi + 1u != a->bank_count &&
+       ctx.mapper_switches == 0u) goto done;
    if (ctx.terminals == 0u && ctx.joins == 0u) goto done;
    if (ctx.unresolved_terminals != 0u &&
        ctx.terminals == ctx.unresolved_terminals && ctx.joins == 0u)
@@ -3450,6 +3709,30 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
          }
       }
    }
+   else if (a->mapper == MAP_E7) {
+      /* E7 vectors always come from the fixed final physical 2K.  Reset
+       * selects lower ROM bank 0 and fixed 256-byte RAM block 0. */
+      bank_t *vb = &a->banks[a->bank_count - 1u];
+      unsigned v;
+      unsigned first_v = reset_only ? 1u : 0u;
+      unsigned last_v = reset_only ? 1u : 2u;
+      uint16_t reset_config = e7_config_make(0u, 0u);
+      for (v = first_v; v <= last_v; ++v) {
+         size_t voff = vb->size - 6u + (size_t)v * 2u;
+         uint16_t target = read_word(a->rom + vb->file_offset + voff);
+         size_t tbank, toff;
+         vb->roles[voff] |= ROLE_VECTOR;
+         vb->roles[voff + 1u] |= ROLE_VECTOR;
+         if (e7_map_address(a, reset_config, target, &tbank, &toff)) {
+            abstract_state_t state;
+            mark_label(&a->banks[tbank], toff);
+            memset(&state, 0, sizeof(state));
+            if (!push_work_state_ctx(a, tbank, toff, &state, target,
+                                     reset_config)) return 0;
+            if (v == 1u) reset_seeded = 1;
+         }
+      }
+   }
    else if (mapper_is_three_family(a->mapper)) {
       /* 3F/3E vectors are always in the fixed final physical 2K.  Power-on
        * selects lower ROM bank 0. */
@@ -3597,6 +3880,9 @@ drain_work:
       uint8_t wd_successor_config = (uint8_t)item.mapper_config;
       int e0_switched = 0;
       uint16_t e0_successor_config = item.mapper_config;
+      int e7_switched = 0;
+      int e7_specific = 0;
+      uint16_t e7_successor_config = item.mapper_config;
       int threef_switched = 0;
       int threef_value_known = 0;
       int threef_explicit_ref = 0;
@@ -3617,7 +3903,7 @@ drain_work:
       if (off + len > b->size) continue;
       mark_instruction(b, off, opcode, len);
       canonical_pc = (a->mapper == MAP_WD || a->mapper == MAP_E0 ||
-                      mapper_is_three_family(a->mapper)) ? item.pc
+                      a->mapper == MAP_E7 || mapper_is_three_family(a->mapper)) ? item.pc
                        : (uint16_t)(b->origin + (uint16_t)off);
       flow = instruction_flow(opcode);
 
@@ -3688,6 +3974,20 @@ drain_work:
             ++a->split_ram_rmw_conflicts;
       }
 
+      /* E7 has two split-RAM regions: the conditional 1K lower window and a
+       * fixed 256-byte upper-window block.  An RMW against either alias is
+       * incompatible with normal RAM semantics because read and write ports
+       * are distinct addresses. */
+      if (a->mapper == MAP_E7) {
+         unsigned access = opcode_memory_access(opcode);
+         uint16_t effective;
+         if ((access & (ACCESS_READ | ACCESS_WRITE)) ==
+                (ACCESS_READ | ACCESS_WRITE) &&
+             resolve_effective_address(&input_state, mode, operand, &effective) &&
+             e7_ram_port(a, item.mapper_config, effective))
+            ++a->split_ram_rmw_conflicts;
+      }
+
       /* Definite ROM reads are independent from executable-byte roles.  Use
        * abstract register/pointer state where available; otherwise keep the
        * conservative possible-range semantics below. */
@@ -3720,6 +4020,13 @@ drain_work:
                      mark_label(&a->banks[dbank], doff);
                   }
                }
+               else if (a->mapper == MAP_E7) {
+                  size_t dbank;
+                  if (e7_map_address(a, item.mapper_config, effective, &dbank, &doff)) {
+                     a->banks[dbank].roles[doff] |= ROLE_DATA_READ;
+                     mark_label(&a->banks[dbank], doff);
+                  }
+               }
                else if (mapper_is_three_family(a->mapper)) {
                   uint16_t bus_addr = (uint16_t)(effective & 0x1fffu);
                   if (item.mapper_config == THREEF_CONFIG_UNKNOWN &&
@@ -3745,7 +4052,7 @@ drain_work:
                }
             }
          }
-         else if (a->mapper != MAP_WD && a->mapper != MAP_E0 && !mapper_is_three_family(a->mapper) &&
+         else if (a->mapper != MAP_WD && a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
                   (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y)) {
             unsigned ix;
             for (ix = 0; ix < 256u; ++ix) {
@@ -3759,7 +4066,7 @@ drain_work:
                if (cart_target_offset(b, operand, &baseoff)) mark_label(b, baseoff);
             }
          }
-         else if (a->mapper != MAP_WD && a->mapper != MAP_E0 && !mapper_is_three_family(a->mapper) &&
+         else if (a->mapper != MAP_WD && a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
                   mode == AM_INDIRECT_INDEXED) {
             uint16_t pointer;
             if (resolve_zp_word(&input_state, (uint8_t)operand, &pointer)) {
@@ -3781,7 +4088,7 @@ drain_work:
                   b->roles[poff] |= ROLE_POSSIBLE;
             }
          }
-         else if (a->mapper != MAP_WD && a->mapper != MAP_E0 && !mapper_is_three_family(a->mapper) &&
+         else if (a->mapper != MAP_WD && a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
                   mode == AM_INDEXED_INDIRECT) {
             size_t poff;
             for (poff = 0; poff < b->size; ++poff)
@@ -3818,6 +4125,17 @@ drain_work:
             ++a->hotspot_refs;
          }
       }
+      if (a->mapper == MAP_E7 && flow == FLOW_NEXT &&
+          (opcode_memory_access(opcode) & (ACCESS_READ | ACCESS_WRITE))) {
+         uint16_t effective;
+         if (resolve_effective_address(&input_state, mode, operand, &effective) &&
+             e7_selector_config(a, effective, item.mapper_config,
+                                &e7_successor_config, &e7_specific)) {
+            e7_switched = 1;
+            ++a->hotspot_refs;
+            if (e7_specific) ++a->e7_specific_refs;
+         }
+      }
       if (three_write_selector(a, &input_state, opcode, mode, operand,
                                &threef_value_known, &threef_successor_config,
                                &threef_explicit_ref, &threee_ram_ref)) {
@@ -3849,6 +4167,25 @@ drain_work:
                }
             }
             if (!push_e0_address_state(a, next_config, next_pc, &output_state))
+               return 0;
+         }
+         else if (a->mapper == MAP_E7) {
+            uint16_t next_pc = (uint16_t)(canonical_pc + len);
+            uint16_t next_config = e7_switched ? e7_successor_config
+                                               : item.mapper_config;
+            if (e7_switched) {
+               size_t old_bank, old_off, next_bank, next_off;
+               if (e7_map_address(a, item.mapper_config, next_pc, &old_bank, &old_off) &&
+                   e7_map_address(a, next_config, next_pc, &next_bank, &next_off) &&
+                   old_bank != next_bank) {
+                  ++a->cross_bank_switches;
+                  mark_label(&a->banks[next_bank], next_off);
+                  if (opcode_is_cpu_halt(a->rom[a->banks[old_bank].file_offset + old_off]) &&
+                      !opcode_is_cpu_halt(a->rom[a->banks[next_bank].file_offset + next_off]))
+                     ++a->flow_switch_avoided_halts;
+               }
+            }
+            if (!push_e7_address_state(a, next_config, next_pc, &output_state))
                return 0;
          }
          else if (mapper_is_three_family(a->mapper)) {
@@ -3933,6 +4270,30 @@ drain_work:
                }
             }
          }
+         else if (a->mapper == MAP_E7) {
+            if (!known || !taken) {
+               uint16_t fall_pc = (uint16_t)(canonical_pc + 2u);
+               size_t fbank, foff;
+               abstract_state_t fall_state;
+               if (state_constrain_branch_edge(opcode, &output_state, 0, &fall_state)) {
+                  if (e7_map_address(a, item.mapper_config, fall_pc, &fbank, &foff) &&
+                      fbank != item.bank)
+                     mark_label(&a->banks[fbank], foff);
+                  if (!push_e7_address_state(a, item.mapper_config, fall_pc, &fall_state))
+                     return 0;
+               }
+            }
+            if (!known || taken) {
+               size_t tbank, toff;
+               abstract_state_t branch_state;
+               if (state_constrain_branch_edge(opcode, &output_state, 1, &branch_state)) {
+                  if (e7_map_address(a, item.mapper_config, target, &tbank, &toff))
+                     mark_label(&a->banks[tbank], toff);
+                  if (!push_e7_address_state(a, item.mapper_config, target, &branch_state))
+                     return 0;
+               }
+            }
+         }
          else if (mapper_is_three_family(a->mapper)) {
             if (!known || !taken) {
                abstract_state_t fall_state;
@@ -4006,6 +4367,18 @@ drain_work:
                 !push_e0_address_state(a, item.mapper_config, operand, &output_state))
                return 0;
          }
+         else if (a->mapper == MAP_E7) {
+            uint16_t cont_pc = (uint16_t)(canonical_pc + 3u);
+            size_t tbank, toff, cbank, coff;
+            if (e7_map_address(a, item.mapper_config, operand, &tbank, &toff))
+               mark_label(&a->banks[tbank], toff);
+            if (e7_map_address(a, item.mapper_config, cont_pc, &cbank, &coff) &&
+                cbank != item.bank)
+               mark_label(&a->banks[cbank], coff);
+            if (!push_e7_address_state(a, item.mapper_config, cont_pc, &after_call) ||
+                !push_e7_address_state(a, item.mapper_config, operand, &output_state))
+               return 0;
+         }
          else if (mapper_is_three_family(a->mapper)) {
             size_t tbank, toff;
             if (threef_map_address(a, item.mapper_config, operand, &tbank, &toff))
@@ -4065,6 +4438,13 @@ drain_work:
             if (!push_e0_address_state(a, item.mapper_config, operand, &output_state))
                return 0;
          }
+         else if (a->mapper == MAP_E7) {
+            size_t tbank, toff;
+            if (e7_map_address(a, item.mapper_config, operand, &tbank, &toff))
+               mark_label(&a->banks[tbank], toff);
+            if (!push_e7_address_state(a, item.mapper_config, operand, &output_state))
+               return 0;
+         }
          else if (mapper_is_three_family(a->mapper)) {
             size_t tbank, toff;
             if (threef_map_address(a, item.mapper_config, operand, &tbank, &toff))
@@ -4102,6 +4482,26 @@ drain_work:
                if (e0_map_address(a, item.mapper_config, target, &tbank, &toff))
                   mark_label(&a->banks[tbank], toff);
                if (!push_e0_address_state(a, item.mapper_config, target, &output_state))
+                  return 0;
+            }
+            else ++a->unresolved_indirect_jumps;
+            break;
+         }
+         if (a->mapper == MAP_E7) {
+            uint16_t ptr = operand;
+            uint16_t high_addr = (uint16_t)((ptr & 0xff00u) |
+                                 ((uint16_t)(ptr + 1u) & 0x00ffu));
+            size_t lbank, loff, hbank, hoff;
+            if (e7_map_address(a, item.mapper_config, ptr, &lbank, &loff) &&
+                e7_map_address(a, item.mapper_config, high_addr, &hbank, &hoff)) {
+               uint16_t target = (uint16_t)(a->rom[a->banks[lbank].file_offset + loff] |
+                                 ((uint16_t)a->rom[a->banks[hbank].file_offset + hoff] << 8));
+               size_t tbank, toff;
+               a->banks[lbank].roles[loff] |= ROLE_DATA_READ;
+               a->banks[hbank].roles[hoff] |= ROLE_DATA_READ;
+               if (e7_map_address(a, item.mapper_config, target, &tbank, &toff))
+                  mark_label(&a->banks[tbank], toff);
+               if (!push_e7_address_state(a, item.mapper_config, target, &output_state))
                   return 0;
             }
             else ++a->unresolved_indirect_jumps;
@@ -4185,6 +4585,7 @@ typedef struct {
    size_t switch_avoided_halts;
    int split_ram_rmw_conflicts;
    int threee_ram_select_refs;
+   int e7_specific_refs;
    size_t three_specific_switches;
    int detector_signature;
    int explicit_signature;
@@ -4203,15 +4604,15 @@ static size_t mapper_candidates_for_size(size_t size, mapper_t *out,
       ADD_MAPPER(MAP_4K);
       break;
    case 8192u:
-      ADD_MAPPER(MAP_F8); ADD_MAPPER(MAP_E0); ADD_MAPPER(MAP_3E); ADD_MAPPER(MAP_3F); ADD_MAPPER(MAP_FE); ADD_MAPPER(MAP_0840);
+      ADD_MAPPER(MAP_F8); ADD_MAPPER(MAP_E0); ADD_MAPPER(MAP_E7); ADD_MAPPER(MAP_3E); ADD_MAPPER(MAP_3F); ADD_MAPPER(MAP_FE); ADD_MAPPER(MAP_0840);
       ADD_MAPPER(MAP_UA); ADD_MAPPER(MAP_UASW); ADD_MAPPER(MAP_0FA0);
       ADD_MAPPER(MAP_WD);
       break;
    case 12288u:
-      ADD_MAPPER(MAP_FA);
+      ADD_MAPPER(MAP_FA); ADD_MAPPER(MAP_E7);
       break;
    case 16384u:
-      ADD_MAPPER(MAP_F6); ADD_MAPPER(MAP_JANE); ADD_MAPPER(MAP_3E); ADD_MAPPER(MAP_3F);
+      ADD_MAPPER(MAP_F6); ADD_MAPPER(MAP_JANE); ADD_MAPPER(MAP_E7); ADD_MAPPER(MAP_3E); ADD_MAPPER(MAP_3F);
       break;
    case 32768u:
       ADD_MAPPER(MAP_F4); ADD_MAPPER(MAP_3E); ADD_MAPPER(MAP_3F);
@@ -4248,6 +4649,7 @@ static int mapper_tail_signature_matches(const uint8_t *rom, size_t size,
                        memcmp(p, "F4SC", 4u) == 0;
    case MAP_FA: return memcmp(p, "FA\0\0", 4u) == 0;
    case MAP_JANE: return memcmp(p, "JANE", 4u) == 0;
+   case MAP_E7: return memcmp(p, "E7\0\0", 4u) == 0;
    case MAP_3E: return memcmp(p, "3E\0\0", 4u) == 0;
    case MAP_3F: return memcmp(p, "3F\0\0", 4u) == 0;
    case MAP_0840: return memcmp(p, "0840", 4u) == 0;
@@ -4272,6 +4674,7 @@ static int mapper_has_precise_selector_edges(mapper_t mapper)
    case MAP_FA:
    case MAP_JANE:
    case MAP_E0:
+   case MAP_E7:
    case MAP_3E:
    case MAP_FE:
       return 1;
@@ -4328,6 +4731,7 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
       probe_opt.reset_bank_override = -1;
       h[i].mapper = candidates[i];
       h[i].detector_signature =
+         candidates[i] == MAP_E7 ? is_probably_e7(rom, size) :
          candidates[i] == MAP_3E ? is_probably_3e(rom, size) :
          candidates[i] == MAP_3F ? is_probably_3f(rom, size) :
          candidates[i] == MAP_FE ? is_probably_fe(rom, size) : 0;
@@ -4349,6 +4753,7 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                                       probe.speculative_switch_avoided_halts;
          h[i].split_ram_rmw_conflicts = probe.split_ram_rmw_conflicts;
          h[i].threee_ram_select_refs = probe.threee_ram_select_refs;
+         h[i].e7_specific_refs = probe.e7_specific_refs;
          h[i].three_specific_switches = probe.three_specific_switches;
          /* A possible JAM reached through incomplete abstract data/loop state
           * is weaker evidence than a decoded selector that actually changes
@@ -4357,7 +4762,11 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
           * demonstrating their switching mechanism remain invalid. */
          {
             int family_evidence = 1;
-            if (h[i].mapper == MAP_3E)
+            if (h[i].mapper == MAP_E7)
+               family_evidence = h[i].detector_signature ||
+                                 h[i].explicit_signature ||
+                                 h[i].e7_specific_refs != 0;
+            else if (h[i].mapper == MAP_3E)
                family_evidence = h[i].detector_signature ||
                                  h[i].explicit_signature ||
                                  h[i].threee_ram_select_refs != 0;
@@ -4381,6 +4790,9 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                         (h[i].cross_bank_switches != 0u &&
                          mapper_has_precise_selector_edges(h[i].mapper)) ||
                            h[i].three_specific_switches != 0u ||
+                           (h[i].mapper == MAP_E7 &&
+                            h[i].detector_signature && h[i].hotspots != 0) ||
+                           (h[i].mapper == MAP_E7 && h[i].e7_specific_refs != 0) ||
                            (h[i].mapper == MAP_3E && h[i].detector_signature));
          }
       }
@@ -4447,6 +4859,7 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                          mapper_has_precise_selector_edges(h[i].mapper) &&
                          !mapper_is_three_family(h[i].mapper)) ||
                         h[i].three_specific_switches != 0u ||
+                        (h[i].mapper == MAP_E7 && h[i].e7_specific_refs != 0) ||
                         (h[i].mapper == MAP_3E && h[i].threee_ram_select_refs != 0);
          if (h[i].viable && specific) have_specific_cross_switch = 1;
       }
@@ -4456,6 +4869,7 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                             mapper_has_precise_selector_edges(h[i].mapper) &&
                             !mapper_is_three_family(h[i].mapper)) ||
                            h[i].three_specific_switches != 0u ||
+                           (h[i].mapper == MAP_E7 && h[i].e7_specific_refs != 0) ||
                            (h[i].mapper == MAP_3E && h[i].threee_ram_select_refs != 0);
             if (h[i].viable && !specific) h[i].viable = 0;
          }
@@ -6694,6 +7108,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                  mname,
                  a->mapper == MAP_RAW ? "unknown" :
                     (a->mapper == MAP_DPC || a->mapper == MAP_FA || a->mapper == MAP_WD || a->mapper == MAP_E0 ||
+                     (a->mapper == MAP_E7 && is_probably_e7(a->rom, a->rom_size)) ||
                      (a->mapper == MAP_3E && is_probably_3e(a->rom, a->rom_size)) ||
                      (a->mapper == MAP_FE && is_probably_fe(a->rom, a->rom_size)) ||
                      a->mapper == MAP_CV || a->mapper == MAP_JANE || a->mapper == MAP_0840 || a->mapper == MAP_UA || a->mapper == MAP_UASW || a->mapper == MAP_0FA0 ? "high" :
@@ -6724,10 +7139,11 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                ((a->mapper == MAP_UA || a->mapper == MAP_UASW) ? "UA hardware default" :
                (a->mapper == MAP_0FA0 ? "0FA0 hardware default" :
                 (a->mapper == MAP_E0 ? "E0 fixed vector bank" :
+                 (a->mapper == MAP_E7 ? "E7 fixed final-2K vector bank; lower ROM bank 0 and RAM block 0 at power-on" :
                  (a->mapper == MAP_3E ? "3E fixed final-2K vector bank; lower ROM bank 0 at power-on" :
                   (a->mapper == MAP_3F ? "3F fixed final-2K vector bank; lower bank 0 at power-on" :
                    (a->mapper == MAP_FE ? "FE deterministic bank 0" :
-                  (a->mapper == MAP_WD ? "WD configuration-0 vector bank" : "heuristic")))))))))));
+                  (a->mapper == MAP_WD ? "WD configuration-0 vector bank" : "heuristic"))))))))))));
       for (i = 0; i < a->bank_count; ++i) {
          const bank_t *b = &a->banks[i];
          if (b->origin_overridden)
@@ -6758,6 +7174,11 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
       if (a->mapper == MAP_E0) {
          fprintf(fp, "; E0 segments: $1000-$13FF, $1400-$17FF, $1800-$1BFF are independently banked 1K windows; $1C00-$1FFF is fixed physical bank 7\n");
          fprintf(fp, "; E0 selectors: $1FE0-$1FE7 select segment 0, $1FE8-$1FEF segment 1, $1FF0-$1FF7 segment 2; reset maps physical banks 4,5,6,7\n");
+      }
+      if (a->mapper == MAP_E7) {
+         fprintf(fp, "; E7 segments: $1000-$17FF is selectable 2K ROM or 1K split RAM; $1800-$19FF is fixed 256-byte split RAM; $1A00-$1FFF is fixed final ROM\n");
+         fprintf(fp, "; E7 selectors: $1FE0-$1FE7 select lower ROM/RAM (8K uses $1FE4-$1FE7; 12K remaps $1FE0/$1FE1); $1FE8-$1FEB select one of four fixed 256-byte RAM blocks\n");
+         fprintf(fp, "; E7 RAM aliases: lower RAM write $1000-$13FF/read $1400-$17FF; fixed RAM write $1800-$18FF/read $1900-$19FF\n");
       }
       if (a->mapper == MAP_3F) {
          fprintf(fp, "; 3F segments: $1000-$17FF is a value-selected 2K bank; $1800-$1FFF is the fixed final physical 2K\n");

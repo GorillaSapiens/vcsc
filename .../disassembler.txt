@@ -1256,7 +1256,7 @@ inference.
     * Automatic inference requires the established released-cart FE call
       signatures; ordinary JSR target bytes alone are not positive FE evidence.
 
-20. [ ] Add E7 mapper support
+20. [x] Add E7 mapper support
     * Model M-Network's selectable lower 2K, fixed final 2K, `$1FE0-$1FE6`
       ROM selectors, `$1FE7` lower-window RAM selection, and `$1FE8-$1FEB`
       256-byte RAM-block selectors.
@@ -1265,6 +1265,20 @@ inference.
     * Support the known 8K/12K/16K layouts without flattening their segmented
       runtime mapping.
     * Add exact corpus fixtures with and without E7 RAM use.
+
+    Completed 2026-08-20:
+    * Added size-accurate 8K/12K/16K lower-selector tables, fixed-final-2K
+      vector/reset semantics, and mapper configuration state across sequential
+      flow, branches, JSR/JMP, indirect JMP, and speculative islands.
+    * Modeled the conditional 1K lower RAM and fixed 256-byte RAM block as
+      split read/write aliases; reachable RMW against either region contradicts
+      the E7 hypothesis.
+    * Added Stella-compatible E7 identification signatures plus decoded selector
+      evidence. Selector accesses from fixed ROM remain positive evidence even
+      when they do not change the immediately following opcode fetch.
+    * Added exact synthetic 8K, 12K, and 16K round trips, explicit RAM/RMW
+      coverage, deterministic fuzz coverage, and fixed all five E7 mismatches in
+      the 2026-08-20 problem corpus without changing any ROM bytes.
 
 21. [ ] Add WDSW support
     * Audit Stella's WDSW designation against the existing WD implementation

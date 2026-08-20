@@ -87,7 +87,7 @@ position from runtime 6507 addresses:
 ```
 
 The disassembler currently recognizes unbanked 2K/4K, the F8/F6/F4 family
-(with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, CommaVid CV, Parker Brothers E0, Tigervision 3F/3E, JANE, 0840/EconoBanking, UA/UASW, 0FA0/Fotomania, DPC,
+(with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, CommaVid CV, Parker Brothers E0, M-Network E7, Tigervision 3F/3E, JANE, 0840/EconoBanking, UA/UASW, 0FA0/Fotomania, DPC,
 and Wickstead Design / WD. Standard DPC
 images are recognized by their distinctive 10240- or 10495-byte layout: two
 4K F8-style program banks followed by 2K of DPC data ROM, with the 10495-byte
@@ -116,6 +116,21 @@ segment always maps physical bank 7. Deterministic reset starts with banks
 4,5,6,7 mapped in order. Mapper state is therefore part of each E0 control-flow
 edge: a selector can make the next opcode come from another physical 1K bank
 even though the runtime PC simply advances normally.
+
+E7 is modeled as 2K physical chunks with a selectable lower `$F000-$F7FF`
+window and a fixed final physical 2K supplying `$FA00-$FFFF`.  The bytes that
+would otherwise appear at `$F800-$F9FF` are overlaid by a fixed 256-byte RAM
+window.  The lower selector table depends on the released image size: 8K uses
+`$1FE4-$1FE7` for its four lower mappings, 12K uses the E7 alias table across
+`$1FE0-$1FE7`, and 16K uses `$1FE0-$1FE7` directly.  Selecting the final lower
+index maps 1K of RAM instead of ROM; `$1FE8-$1FEB` select one of four 256-byte
+RAM blocks in the fixed upper window.  Both RAM areas use split aliases (lower
+write `$F000-$F3FF`, read `$F400-$F7FF`; fixed write `$F800-$F8FF`, read
+`$F900-$F9FF`), so a reachable RMW against either region contradicts E7.
+Selector/configuration state is carried through branches, calls, jumps, and
+speculative islands; decoded E7 selector traffic is positive evidence even
+when the selector executes from fixed ROM and therefore does not change the
+immediately following opcode fetch.
 
 3F is modeled as 2K physical ROM banks. `$F800-$FFFF` always maps the final
 physical 2K and supplies the vectors; `$F000-$F7FF` maps a selected 2K bank and
@@ -500,8 +515,8 @@ original bytes.
 
 ## Current limits
 
-Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/CV/E0/3F/3E/FE/JANE/0840/UA/UASW/0FA0/DPC/WD is deliberately conservative.
-E7, WDSW, FC, GL, CM, DPC+, CDF/CDFJ/CDFJ+ and other coprocessor cartridges need separate mapper models rather than being mislabeled as supported families.
+Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/CV/E0/E7/3F/3E/FE/JANE/0840/UA/UASW/0FA0/DPC/WD is deliberately conservative.
+WDSW, FC, GL, CM, DPC+, CDF/CDFJ/CDFJ+ and other coprocessor cartridges need separate mapper models rather than being mislabeled as supported families.
 Unsupported layouts that yield no executable instructions fail explicitly rather
 than producing a misleading 100%-data source file.
 
