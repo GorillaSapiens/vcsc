@@ -103,9 +103,19 @@ sub stella_mapper_for_rom {
     my $reported_md5 = lc($1);
     $reported_md5 eq lc($expected_md5)
         or die "Stella MD5 $reported_md5 does not match local MD5 $expected_md5\n";
-    $text =~ /^\s*Bankswitch Type:\s*([^\s(]+).*$/m
+    $text =~ /^\s*Bankswitch Type:\s*([^\r\n]+?)\s*$/m
         or die "Stella -rominfo did not report Bankswitch Type\n";
-    my $mapper = uc($1);
+    my $reported = uc($1);
+
+    # Stella calls a native 1024-byte cartridge "2K* (1K)": electrically it
+    # uses Stella's 2K cartridge class, but the parenthetical is the physical
+    # image topology.  VCSC deliberately names that topology 1K, so these are
+    # equivalent for the differential mapper check rather than a disagreement.
+    return '1K' if $reported =~ /^2K\*?\s*\(1K\)\z/;
+
+    $reported =~ /^([^\s(]+)/
+        or die "cannot normalize Stella Bankswitch Type '$reported'\n";
+    my $mapper = $1;
     $mapper =~ s/\*+\z//;
     return $mapper;
 }

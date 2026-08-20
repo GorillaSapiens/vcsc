@@ -88,33 +88,43 @@ use Digest::MD5 qw(md5_hex);
 open(my $fh,'<:raw',$ARGV[1]) or die "$ARGV[1]: $!\n";
 local $/; my $rom=<$fh>; close($fh);
 print "  Cart MD5:        ",md5_hex($rom),"\n";
-print "  Bankswitch Type: 4K* (4K)\n";
+my $size=length($rom);
+print "  Bankswitch Type: ",($size == 1024 ? "2K* (1K)" : "4K* (4K)"),"\n";
 FAKE_STELLA
 chmod(0755,$fake_stella) or die "chmod $fake_stella: $!\n";
 my $stella_in=File::Spec->catdir($tmp,'stella-compare-in');
 my $stella_out=File::Spec->catdir($tmp,'stella-compare-out');
 make_path($stella_in,$stella_out);
 write_raw(File::Spec->catfile($stella_in,'plain4k.bin'),$base);
+my $one_k=chr(0xEA)x1024;
+substr($one_k,0x3fa,6,pack('v3',0xFC80,0xFC80,0xFC80));
+write_raw(File::Spec->catfile($stella_in,'plain1k.bin'),$one_k);
 my($srcmp,$sscmp,$socmp,$secmp)=capture($^X,$roundtrip,'--stella',$fake_stella,$stella_in,$stella_out);
 $srcmp==0 && $sscmp==0 or die "Stella mapper comparison failed\nstdout:\n$socmp\nstderr:\n$secmp";
 $secmp eq '' or die "Stella mapper comparison wrote stderr:\n$secmp";
 $socmp =~ /plain4k\.bin: mapper vcsc=4K stella=4K MATCH\n/
-   or die "Stella mapper comparison lost normalized mapper match:\n$socmp";
-$socmp =~ /Stella mapper comparison: 1 match, 0 mismatch, 0 errors, 1 compared\n\z/
+   or die "Stella mapper comparison lost normalized 4K mapper match:\n$socmp";
+$socmp =~ /plain1k\.bin: mapper vcsc=1K stella=1K MATCH\n/
+   or die "Stella mapper comparison treated Stella 2K* (1K) as a mismatch:\n$socmp";
+$socmp =~ /Stella mapper comparison: 2 match(?:es)?, 0 mismatch, 0 errors, 2 compared\n\z/
    or die "unexpected Stella mapper comparison summary:\n$socmp";
 
 # A disagreement is diagnostic by default, but --stella-strict promotes it to
 # failure for callers that intentionally want a zero-difference gate.
 my $fake_wrong=File::Spec->catfile($tmp,'fake-stella-wrong.pl');
 my $wrong=slurp($fake_stella);
-$wrong =~ s/\QBankswitch Type: 4K* (4K)\E/Bankswitch Type: F8* (F8)/
+$wrong =~ s/"4K\* \(4K\)"/"F8* (F8)"/
    or die "could not construct mismatching fake Stella\n";
 write_raw($fake_wrong,$wrong);
 chmod(0755,$fake_wrong) or die "chmod $fake_wrong: $!\n";
-my($mrc,$msig,$mout,$merr)=capture($^X,$roundtrip,'--stella',$fake_wrong,$stella_in,$stella_out);
+my $stella_wrong_in=File::Spec->catdir($tmp,'stella-wrong-in');
+my $stella_wrong_out=File::Spec->catdir($tmp,'stella-wrong-out');
+make_path($stella_wrong_in,$stella_wrong_out);
+write_raw(File::Spec->catfile($stella_wrong_in,'plain4k.bin'),$base);
+my($mrc,$msig,$mout,$merr)=capture($^X,$roundtrip,'--stella',$fake_wrong,$stella_wrong_in,$stella_wrong_out);
 $mrc==0 && $msig==0 or die "non-strict Stella mismatch unexpectedly failed\n$mout$merr";
 $mout =~ /mapper vcsc=4K stella=F8 MISMATCH\n/ or die "missing Stella mismatch report\n$mout";
-my($xrc,$xsig,$xout,$xerr)=capture($^X,$roundtrip,'--stella',$fake_wrong,'--stella-strict',$stella_in,$stella_out);
+my($xrc,$xsig,$xout,$xerr)=capture($^X,$roundtrip,'--stella',$fake_wrong,'--stella-strict',$stella_wrong_in,$stella_wrong_out);
 $xrc!=0 && $xsig==0 or die "strict Stella mismatch did not fail\n$xout$xerr";
 
 # Determinism is source determinism, not merely binary round trip.  The same

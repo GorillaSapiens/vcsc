@@ -129,6 +129,36 @@ put16(\$concrete_payload, 0x03FA, 0xFC40);
 put16(\$concrete_payload, 0x03FC, 0xFC80);
 put16(\$concrete_payload, 0x03FE, 0xFC40);
 write_bin(File::Spec->catfile($in, 'concrete_payload.bin'), $concrete_payload);
+
+# H1 hybrid-analysis fixture.  Neutral SWCHA leaves the loader path untaken,
+# while one active-low joystick scenario takes it.  The loader first uses the
+# same BRK/IRQ/RTI saved-PC trick as the real 1K removable-cartridge title, then
+# copies five ROM bytes into RIOT RAM and jumps to them.  This pins three H1
+# promises together: external-input branches remain explorable, a known-SP BRK
+# continuation is statically provable, and alternate concrete input discovery
+# can recover dynamically executed RAM code with ROM provenance.
+my $h1_input_payload = chr(0xEA) x 1024;
+substr($h1_input_payload, 0x0000, 5,
+   "\xA9\x42\x85\x90\x60");       # RAM payload: LDA #$42; STA $90; RTS
+substr($h1_input_payload, 0x0040, 3,
+   "\xC6\xFE\x40");                 # IRQ: DEC $FE; RTI
+substr($h1_input_payload, 0x0080, 27,
+   "\xA2\xFF" .                       # LDX #$FF
+   "\x9A" .                           # TXS -> known SP=$FF
+   "\x2C\x80\x02" .                 # BIT SWCHA
+   "\x10\x03" .                       # BPL loader when joystick bit 7 is low
+   "\x4C\x83\xFC" .                 # neutral input: poll forever
+   "\xA9\x3B" .                       # loader: LDA #$3B
+   "\x00" .                           # BRK; IRQ changes saved PC+2 to PC+1
+   "\xA2\x05" .                       # statically proven BRK continuation
+   "\xBD\xFF\xFB" .                 # LDA $FBFF,X -> source $FC00-$FC04
+   "\x95\x7F" .                       # STA $7F,X -> RIOT RAM $80-$84
+   "\xCA\xD0\xF8" .                 # DEX; BNE copy loop
+   "\x4C\x80\x00");                 # JMP $0080
+put16(\$h1_input_payload, 0x03FA, 0xFC40);
+put16(\$h1_input_payload, 0x03FC, 0xFC80);
+put16(\$h1_input_payload, 0x03FE, 0xFC40);
+write_bin(File::Spec->catfile($in, 'h1_input_payload.bin'), $h1_input_payload);
 write_bin(File::Spec->catfile($in, 'plain2k.bin'), make_rom(2048, 0xF800, 0x0100, "\xA9\x42\x60"));
 write_bin(File::Spec->catfile($in, 'plain4k.bin'), make_rom(4096, 0xF000, 0x0100, "\xA9\x42\x60"));
 # A common preservation/dump form stores a mirrored 2K cartridge twice in a
@@ -1190,6 +1220,21 @@ require_re($concrete_out,
 require_re($concrete_out,
    qr/^; \$0084: 4C 80 00\s+JMP \$0080\s+; copied from ROM file \$0004$/m,
    'RAM payload control flow recovered with ROM provenance');
+
+
+my $h1_input_out = slurp(File::Spec->catfile($out, 'h1_input_payload.s26'));
+require_re($h1_input_out,
+   qr/^; static interrupt analysis: 1 provable BRK\/IRQ\/RTI continuation$/m,
+   'known-SP BRK/IRQ/RTI continuation is statically proven');
+require_re($h1_input_out,
+   qr/\bBRK\n(?:L_[0-9A-F]+:\n)?\s*LDX\s+#\$05/m,
+   'static CFG reaches code immediately after the one-byte BRK call');
+require_re($h1_input_out,
+   qr/^; concrete RESET discovery: scenarios=9 productive=[1-9]\d* .*RIOT-RAM-starts=[1-9]\d* .*reachability converged$/m,
+   'input-gated loader is reached by a demand-driven alternate SWCHA scenario');
+require_re($h1_input_out,
+   qr/^; \$0080: A9 42\s+LDA #\$42\s+; copied from ROM file \$0000$/m,
+   'alternate-input execution recovers copied RIOT-RAM payload with provenance');
 
 # A zero-instruction result is not a successful disassembly.  Keep this out of
 # the bulk round-trip directory because failure is the expected outcome.

@@ -102,6 +102,8 @@ typedef struct {
    uint8_t x;
    uint8_t y_known;
    uint8_t y;
+   uint8_t sp_known;
+   uint8_t sp;
    uint8_t carry_known;
    uint8_t carry;
    uint8_t zero_known;
@@ -198,6 +200,7 @@ typedef struct {
    int dynamic_control_exits;
    int unresolved_indirect_jumps;
    size_t reachable_halts;
+   size_t proven_brk_returns;
    int mapper_flow_refined;
    size_t mapper_hypotheses_tested;
    size_t mapper_hypotheses_survived;
@@ -1978,11 +1981,6 @@ static void state_zp_set_unknown(abstract_state_t *state, uint8_t address)
       (uint8_t)~(uint8_t)(1u << (address & 7u));
 }
 
-static void state_zp_set_all_unknown(abstract_state_t *state)
-{
-   memset(state->zp_known, 0, sizeof(state->zp_known));
-}
-
 static int state_zp_get(const abstract_state_t *state, uint8_t address,
                         uint8_t *value)
 {
@@ -2009,6 +2007,7 @@ static int state_merge(abstract_state_t *dst, const abstract_state_t *src)
    MERGE_SCALAR(a);
    MERGE_SCALAR(x);
    MERGE_SCALAR(y);
+   MERGE_SCALAR(sp);
    MERGE_SCALAR(carry);
    MERGE_SCALAR(zero);
    MERGE_SCALAR(negative);
@@ -2564,13 +2563,28 @@ static int dpc_register_address(const analysis_t *a, uint16_t address)
    return a->mapper == MAP_DPC && bus >= 0x1000u && bus <= 0x107fu;
 }
 
+/* RIOT RAM occupies only the $80-$FF half of zero page and is mirrored into
+ * the corresponding half of page one (and elsewhere through the 6507's
+ * partial decode).  Keeping the abstract RAM image indexed by its canonical
+ * $80-$FF address lets ordinary zero-page accesses and stack-page aliases
+ * meet in the same state.  TIA registers at $00-$7F are deliberately *not*
+ * abstract RAM. */
+static int state_riot_ram_alias(uint16_t address, uint8_t *canonical)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   if ((bus & 0x1280u) != 0x0080u) return 0;
+   *canonical = (uint8_t)(0x80u | (bus & 0x007fu));
+   return 1;
+}
+
 static int state_read_byte(const analysis_t *a, size_t bank,
                            const abstract_state_t *state, uint16_t address,
                            uint8_t *value)
 {
+   uint8_t ram_address;
    size_t off;
-   if (address <= 0x00ffu)
-      return state_zp_get(state, (uint8_t)address, value);
+   if (state_riot_ram_alias(address, &ram_address))
+      return state_zp_get(state, ram_address, value);
    if (mapper_is_wd_family(a->mapper) || a->mapper == MAP_FC ||
        a->mapper == MAP_E0 || a->mapper == MAP_E7 ||
        mapper_is_three_family(a->mapper)) return 0;
@@ -2627,20 +2641,82 @@ static void state_apply_memory_write(const abstract_state_t *input,
                                      uint16_t operand)
 {
    uint16_t address;
+   uint8_t ram_address;
    uint8_t value;
+   uint8_t old_value;
    unsigned access = opcode_memory_access(opcode);
+   const char *m = opcode_mnemonics[opcode];
    if (!(access & ACCESS_WRITE)) return;
    if (!resolve_effective_address(input, mode, operand, &address)) {
       if (mode == AM_ZERO_PAGE_X || mode == AM_ZERO_PAGE_Y ||
           mode == AM_INDEXED_INDIRECT || mode == AM_INDIRECT_INDEXED)
-         state_zp_set_all_unknown(output);
+         memset(output->zp_known + (0x80u >> 3), 0,
+                sizeof(output->zp_known) - (0x80u >> 3));
       return;
    }
-   if (address > 0x00ffu) return;
-   if ((access & ACCESS_READ) || !known_store_value(opcode, input, &value))
-      state_zp_set_unknown(output, (uint8_t)address);
-   else
-      state_zp_set_known(output, (uint8_t)address, value);
+   if (!state_riot_ram_alias(address, &ram_address)) return;
+
+   if (!(access & ACCESS_READ) && known_store_value(opcode, input, &value)) {
+      state_zp_set_known(output, ram_address, value);
+      return;
+   }
+
+   /* Preserve provable read-modify-write values.  This matters for stack-page
+    * tricks such as DEC $FE changing the low return byte that BRK pushed at
+    * $01FE. */
+   if ((access & ACCESS_READ) && state_zp_get(input, ram_address, &old_value)) {
+      int known = 1;
+      if (strcmp(m, "INC") == 0) value = (uint8_t)(old_value + 1u);
+      else if (strcmp(m, "DEC") == 0) value = (uint8_t)(old_value - 1u);
+      else if (strcmp(m, "ASL") == 0) value = (uint8_t)(old_value << 1);
+      else if (strcmp(m, "LSR") == 0) value = (uint8_t)(old_value >> 1);
+      else if (strcmp(m, "ROL") == 0 && input->carry_known)
+         value = (uint8_t)((old_value << 1) | input->carry);
+      else if (strcmp(m, "ROR") == 0 && input->carry_known)
+         value = (uint8_t)((old_value >> 1) | (input->carry << 7));
+      else known = 0;
+      if (known) {
+         state_zp_set_known(output, ram_address, value);
+         return;
+      }
+   }
+   state_zp_set_unknown(output, ram_address);
+}
+
+static void state_riot_ram_set_all_unknown(abstract_state_t *state)
+{
+   unsigned address;
+   for (address = 0x80u; address <= 0xffu; ++address)
+      state_zp_set_unknown(state, (uint8_t)address);
+}
+
+static void state_stack_push(abstract_state_t *state, int value_known,
+                             uint8_t value)
+{
+   uint8_t ram_address;
+   if (!state->sp_known) {
+      state_riot_ram_set_all_unknown(state);
+      return;
+   }
+   if (state_riot_ram_alias((uint16_t)(0x0100u | state->sp), &ram_address)) {
+      if (value_known) state_zp_set_known(state, ram_address, value);
+      else state_zp_set_unknown(state, ram_address);
+   }
+   state->sp = (uint8_t)(state->sp - 1u);
+}
+
+static int state_stack_pop(abstract_state_t *state, uint8_t *value)
+{
+   uint8_t ram_address;
+   int known = 0;
+   if (!state->sp_known) {
+      state_riot_ram_set_all_unknown(state);
+      return 0;
+   }
+   state->sp = (uint8_t)(state->sp + 1u);
+   if (state_riot_ram_alias((uint16_t)(0x0100u | state->sp), &ram_address))
+      known = state_zp_get(state, ram_address, value);
+   return known;
 }
 
 static void state_set_nz(abstract_state_t *state, int known, uint8_t value)
@@ -2720,10 +2796,28 @@ static void transfer_state(const analysis_t *a, size_t bank,
       state_set_nz(output, input->y_known, input->y);
    }
    else if (strcmp(m,"TSX") == 0) {
-      output->x_known = 0;
-      state_set_nz(output, 0, 0);
+      output->x_known = input->sp_known;
+      output->x = input->sp;
+      state_set_nz(output, input->sp_known, input->sp);
    }
-   else if (strcmp(m,"PLA") == 0) { output->a_known = 0; state_set_nz(output, 0, 0); }
+   else if (strcmp(m,"TXS") == 0) {
+      output->sp_known = input->x_known;
+      output->sp = input->x;
+   }
+   else if (strcmp(m,"PHA") == 0) {
+      state_stack_push(output, input->a_known, input->a);
+   }
+   else if (strcmp(m,"PHP") == 0) {
+      /* Branch-relevant status bits may be partially known, but unless all
+       * status bits are represented it is safer to record an unknown byte. */
+      state_stack_push(output, 0, 0);
+   }
+   else if (strcmp(m,"PLA") == 0) {
+      uint8_t popped = 0;
+      output->a_known = (uint8_t)state_stack_pop(output, &popped);
+      output->a = popped;
+      state_set_nz(output, output->a_known, popped);
+   }
    else if (strcmp(m,"INX") == 0) {
       if (input->x_known) { output->x_known = 1; output->x = (uint8_t)(input->x + 1u); state_set_nz(output, 1, output->x); }
       else { output->x_known = 0; state_set_nz(output, 0, 0); }
@@ -2745,7 +2839,20 @@ static void transfer_state(const analysis_t *a, size_t bank,
    else if (strcmp(m,"CLD") == 0) { output->decimal_known = 1; output->decimal = 0; }
    else if (strcmp(m,"SED") == 0) { output->decimal_known = 1; output->decimal = 1; }
    else if (strcmp(m,"CLV") == 0) { output->overflow_known = 1; output->overflow = 0; }
-   else if (strcmp(m,"PLP") == 0 || strcmp(m,"RTI") == 0) {
+   else if (strcmp(m,"PLP") == 0) {
+      uint8_t popped = 0;
+      int known = state_stack_pop(output, &popped);
+      output->carry_known = output->zero_known = output->negative_known =
+         output->overflow_known = output->decimal_known = (uint8_t)known;
+      if (known) {
+         output->carry = popped & 0x01u;
+         output->zero = (popped >> 1) & 0x01u;
+         output->decimal = (popped >> 3) & 0x01u;
+         output->overflow = (popped >> 6) & 0x01u;
+         output->negative = (popped >> 7) & 0x01u;
+      }
+   }
+   else if (strcmp(m,"RTI") == 0) {
       output->carry_known = output->zero_known = output->negative_known = 0;
       output->overflow_known = output->decimal_known = 0;
    }
@@ -2945,6 +3052,157 @@ static int state_constrain_branch_edge(uint8_t opcode,
    *known = 1u;
    *value = wanted;
    return 1;
+}
+
+static int state_brk_enter(const abstract_state_t *input, uint16_t pc,
+                           abstract_state_t *output)
+{
+   uint16_t ret = (uint16_t)(pc + 2u);
+   if (!input->sp_known) return 0;
+   *output = *input;
+   /* NMOS 6502 BRK pushes PC+2 high, PC+2 low, then P.  We do not yet carry
+    * every status bit, so the status byte is intentionally unknown while the
+    * return address remains exact. */
+   state_stack_push(output, 1, (uint8_t)(ret >> 8));
+   state_stack_push(output, 1, (uint8_t)ret);
+   state_stack_push(output, 0, 0);
+   return output->sp_known;
+}
+
+static void state_jsr_enter(const abstract_state_t *input, uint16_t pc,
+                            abstract_state_t *output)
+{
+   uint16_t ret = (uint16_t)(pc + 2u);
+   *output = *input;
+   state_stack_push(output, 1, (uint8_t)(ret >> 8));
+   state_stack_push(output, 1, (uint8_t)ret);
+}
+
+static int state_rts_return(const abstract_state_t *input,
+                            abstract_state_t *output, uint16_t *target)
+{
+   uint8_t lo = 0, hi = 0;
+   int lo_known, hi_known;
+   if (!input->sp_known) return 0;
+   *output = *input;
+   lo_known = state_stack_pop(output, &lo);
+   hi_known = state_stack_pop(output, &hi);
+   if (!lo_known || !hi_known) return 0;
+   *target = (uint16_t)((uint16_t)(lo | ((uint16_t)hi << 8)) + 1u);
+   return 1;
+}
+
+static int state_rti_return(const abstract_state_t *input,
+                            abstract_state_t *output, uint16_t *target)
+{
+   uint8_t p = 0, lo = 0, hi = 0;
+   int p_known, lo_known, hi_known;
+   if (!input->sp_known) return 0;
+   *output = *input;
+   p_known = state_stack_pop(output, &p);
+   lo_known = state_stack_pop(output, &lo);
+   hi_known = state_stack_pop(output, &hi);
+   if (p_known) {
+      output->carry_known = output->zero_known = output->negative_known =
+         output->overflow_known = output->decimal_known = 1u;
+      output->carry = p & 0x01u;
+      output->zero = (p >> 1) & 0x01u;
+      output->decimal = (p >> 3) & 0x01u;
+      output->overflow = (p >> 6) & 0x01u;
+      output->negative = (p >> 7) & 0x01u;
+   }
+   else {
+      output->carry_known = output->zero_known = output->negative_known = 0;
+      output->overflow_known = output->decimal_known = 0;
+   }
+   if (!lo_known || !hi_known) return 0;
+   *target = (uint16_t)(lo | ((uint16_t)hi << 8));
+   return 1;
+}
+
+/* Prove a BRK continuation without making the global IRQ entry context
+ * sensitive.  Vector seeding still disassembles the IRQ handler normally; this
+ * bounded local trace is used only to answer "what PC does this particular BRK
+ * return to?".  It follows one uniquely provable interrupt path and gives up on
+ * unknown branches, nested calls, indirect jumps, mapper changes, or any other
+ * ambiguity. */
+static int prove_brk_irq_rti_return(const analysis_t *a, size_t bank,
+                                    uint16_t brk_pc,
+                                    const abstract_state_t *input,
+                                    uint16_t *return_pc,
+                                    abstract_state_t *return_state)
+{
+   const bank_t *b;
+   abstract_state_t state;
+   uint16_t pc;
+   size_t off;
+   unsigned steps;
+
+   if (bank >= a->bank_count) return 0;
+   switch (a->mapper) {
+   case MAP_1K: case MAP_2K: case MAP_4K:
+   case MAP_F8: case MAP_F6: case MAP_F4: case MAP_FA:
+   case MAP_DPC: case MAP_CV:
+      break;
+   default:
+      return 0;
+   }
+   b = &a->banks[bank];
+   if (b->size < 2u || !state_brk_enter(input, brk_pc, &state)) return 0;
+   pc = read_word(a->rom + b->file_offset + b->size - 2u);
+   if (!cart_target_offset(b, pc, &off) || rom_offset_hidden(a, off)) return 0;
+
+   for (steps = 0; steps < 1024u; ++steps) {
+      uint8_t opcode;
+      address_mode_t mode;
+      unsigned len;
+      uint16_t operand = 0;
+      abstract_state_t next;
+      flow_kind_t flow;
+      size_t successor_bank = bank;
+
+      if (!cart_target_offset(b, pc, &off) || rom_offset_hidden(a, off)) return 0;
+      opcode = a->rom[b->file_offset + off];
+      if (opcode_is_cpu_halt(opcode)) return 0;
+      mode = (address_mode_t)opcode_modes[opcode];
+      len = instruction_length(mode);
+      if (len == 0u || off + len > b->size) return 0;
+      if (len >= 2u) operand = a->rom[b->file_offset + off + 1u];
+      if (len >= 3u) operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
+
+      if (opcode == 0x40u)
+         return state_rti_return(&state, return_state, return_pc);
+
+      transfer_state(a, bank, &state, &next, opcode, mode, operand);
+      flow = instruction_flow(opcode);
+
+      /* A bank change inside the interrupt would require mapper-context
+       * propagation through the local trace.  Refuse to guess. */
+      if (instruction_selector_bank(a, &state, opcode, mode, operand,
+                                    &successor_bank) && successor_bank != bank)
+         return 0;
+
+      if (flow == FLOW_NEXT) {
+         pc = (uint16_t)(pc + len);
+         state = next;
+         continue;
+      }
+      if (flow == FLOW_BRANCH) {
+         int taken;
+         int8_t disp = (int8_t)(uint8_t)operand;
+         if (!speculative_branch_outcome(opcode, &next, &taken)) return 0;
+         pc = taken ? (uint16_t)(pc + 2u + disp) : (uint16_t)(pc + 2u);
+         state = next;
+         continue;
+      }
+      if (flow == FLOW_JMP_ABSOLUTE) {
+         pc = operand;
+         state = next;
+         continue;
+      }
+      return 0;
+   }
+   return 0;
 }
 
 static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t bi,
@@ -4599,8 +4857,7 @@ drain_work:
          uint16_t target = (uint16_t)(canonical_pc + 2u + disp);
          size_t toff;
          int known = 0, taken = 0;
-         if (reset_only)
-            known = speculative_branch_outcome(opcode, &output_state, &taken);
+         known = speculative_branch_outcome(opcode, &output_state, &taken);
          if (a->mapper == MAP_FC) {
             if (!known || !taken) {
                abstract_state_t fall_state;
@@ -4729,7 +4986,12 @@ drain_work:
       case FLOW_JSR: {
          size_t toff;
          abstract_state_t after_call;
+         abstract_state_t call_state;
          memset(&after_call, 0, sizeof(after_call));
+         /* The long-standing optimistic continuation says only that a call may
+          * return; do not assume an arbitrary callee preserved SP.  Exact SP
+          * reaches the continuation through a proven RTS edge below. */
+         state_jsr_enter(&output_state, canonical_pc, &call_state);
          if (a->mapper == MAP_FC) {
             uint16_t cont_pc = (uint16_t)(canonical_pc + 3u);
             size_t tbank, toff;
@@ -4738,7 +5000,7 @@ drain_work:
             if (!push_fc_address_state(a, item.bank, item.mapper_config,
                                        cont_pc, &after_call) ||
                 !push_fc_address_state(a, item.bank, item.mapper_config,
-                                       operand, &output_state))
+                                       operand, &call_state))
                return 0;
          }
          else if (a->mapper == MAP_E0) {
@@ -4750,7 +5012,7 @@ drain_work:
                 cbank != item.bank)
                mark_label(&a->banks[cbank], coff);
             if (!push_e0_address_state(a, item.mapper_config, cont_pc, &after_call) ||
-                !push_e0_address_state(a, item.mapper_config, operand, &output_state))
+                !push_e0_address_state(a, item.mapper_config, operand, &call_state))
                return 0;
          }
          else if (a->mapper == MAP_E7) {
@@ -4762,7 +5024,7 @@ drain_work:
                 cbank != item.bank)
                mark_label(&a->banks[cbank], coff);
             if (!push_e7_address_state(a, item.mapper_config, cont_pc, &after_call) ||
-                !push_e7_address_state(a, item.mapper_config, operand, &output_state))
+                !push_e7_address_state(a, item.mapper_config, operand, &call_state))
                return 0;
          }
          else if (mapper_is_three_family(a->mapper)) {
@@ -4771,13 +5033,13 @@ drain_work:
                mark_label(&a->banks[tbank], toff);
             if (!push_threef_address_state(a, item.mapper_config,
                                            (uint16_t)(canonical_pc + 3u), &after_call) ||
-                !push_threef_address_state(a, item.mapper_config, operand, &output_state))
+                !push_threef_address_state(a, item.mapper_config, operand, &call_state))
                return 0;
          }
          else if (mapper_is_wd_family(a->mapper)) {
             if (!push_wd_address_state(a, (uint8_t)item.mapper_config,
                                        (uint16_t)(canonical_pc + 3u), &after_call) ||
-                !push_wd_address_state(a, (uint8_t)item.mapper_config, operand, &output_state))
+                !push_wd_address_state(a, (uint8_t)item.mapper_config, operand, &call_state))
                return 0;
          }
          else if (a->mapper == MAP_FE) {
@@ -4797,7 +5059,7 @@ drain_work:
                   ++a->superchip_exec_conflicts;
                if (rom_offset_hidden(a, toff)) { ++a->dynamic_control_exits; break; }
                mark_label(&a->banks[tbank], toff);
-               if (!push_work_state(a, tbank, toff, &output_state)) return 0;
+               if (!push_work_state(a, tbank, toff, &call_state)) return 0;
             }
             else ++a->dynamic_control_exits;
          }
@@ -4809,7 +5071,7 @@ drain_work:
                ++a->superchip_exec_conflicts;
             if (rom_offset_hidden(a, toff)) { ++a->dynamic_control_exits; break; }
             mark_label(b, toff);
-            if (!push_work_state(a, item.bank, toff, &output_state)) return 0;
+            if (!push_work_state(a, item.bank, toff, &call_state)) return 0;
          }
          else ++a->dynamic_control_exits;
          }
@@ -4969,8 +5231,37 @@ drain_work:
          else ++a->unresolved_indirect_jumps;
          break;
       }
-      case FLOW_RTS:
+      case FLOW_RTS: {
+         uint16_t return_pc;
+         abstract_state_t return_state;
+         size_t return_off;
+         if (state_rts_return(&output_state, &return_state, &return_pc) &&
+             cart_target_offset(b, return_pc, &return_off) &&
+             !rom_offset_hidden(a, return_off)) {
+            mark_label(b, return_off);
+            if (!push_work_state_ctx(a, item.bank, return_off, &return_state,
+                                     return_pc, item.mapper_config))
+               return 0;
+         }
+         break;
+      }
       case FLOW_STOP:
+         if (opcode == 0x00u) {
+            uint16_t return_pc;
+            abstract_state_t return_state;
+            size_t return_off;
+            if (prove_brk_irq_rti_return(a, item.bank, canonical_pc,
+                                         &output_state, &return_pc,
+                                         &return_state) &&
+                cart_target_offset(b, return_pc, &return_off) &&
+                !rom_offset_hidden(a, return_off)) {
+               mark_label(b, return_off);
+               ++a->proven_brk_returns;
+               if (!push_work_state_ctx(a, item.bank, return_off, &return_state,
+                                        return_pc, item.mapper_config))
+                  return 0;
+            }
+         }
          break;
       }
    }
@@ -5040,6 +5331,28 @@ static int concrete_mapper_trusted(const analysis_t *a)
    case MAP_F4:
    case MAP_FA:
       return mapper_tail_signature_matches(a->rom, a->rom_size, a->mapper);
+   case MAP_CV:
+   case MAP_WD:
+   case MAP_WDSW:
+   case MAP_FC:
+   case MAP_E0:
+   case MAP_E7:
+   case MAP_3F:
+   case MAP_3E:
+   case MAP_JANE:
+   case MAP_0840:
+   case MAP_UA:
+   case MAP_UASW:
+   case MAP_0FA0:
+   case MAP_FE:
+      /* These families are never ordinary size defaults: reaching one of
+       * these mapper identities already required a family-specific detector,
+       * exact preservation layout (WDSW), or a user override above. */
+      return 1;
+   case MAP_DPC:
+      /* DPC's data-fetcher/register window needs a faithful coprocessor model
+       * before sampled execution is safe evidence. */
+      return 0;
    default:
       return 0;
    }
@@ -7767,9 +8080,13 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
    else {
       fprintf(fp, "; physical layout: unsupported size; exact raw fallback\n");
    }
+   if (a->proven_brk_returns)
+      fprintf(fp, "; static interrupt analysis: %zu provable BRK/IRQ/RTI continuation%s\n",
+              a->proven_brk_returns, a->proven_brk_returns == 1u ? "" : "s");
    if (a->concrete_available) {
       fprintf(fp,
-              "; concrete RESET discovery: instructions=%u ROM-starts=%u RIOT-RAM-starts=%u RAM-bytes-written=%u%s%s\n",
+              "; concrete RESET discovery: scenarios=%u productive=%u instructions=%u ROM-starts=%u RIOT-RAM-starts=%u RAM-bytes-written=%u%s%s\n",
+              a->concrete.scenarios_run, a->concrete.scenarios_with_new_reachability,
               a->concrete.instructions, a->concrete.rom_instruction_starts,
               a->concrete.ram_instruction_starts, a->concrete.ram_bytes_written,
               a->concrete.halted ? "; CPU halted" : "",
@@ -7777,7 +8094,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                  (a->concrete.converged ? "; reachability converged" :
                   (a->concrete.top_level_return ? "; top-level return reached" : "")));
       fprintf(fp,
-              "; concrete final CPU: PC=$%04X A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X; controllers disconnected, console inputs high\n",
+              "; concrete neutral final CPU: PC=$%04X A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X; inactive controller/console inputs high; alternate active-low input scenarios only for input families actually read\n",
               a->concrete.final_pc, a->concrete.final_a, a->concrete.final_x,
               a->concrete.final_y, a->concrete.final_sp, a->concrete.final_p);
    }

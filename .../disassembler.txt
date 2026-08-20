@@ -945,15 +945,38 @@ H0. [x] Add bounded concrete RESET discovery
      copying, and execution from the copied RAM payload. Fix `TSX` abstract flag
      semantics so unknown X also makes N/Z unknown.
 
-H1. [ ] Make the static CFG stack/interrupt/input aware and explore alternate paths
+H1. [x] Make the static CFG stack/interrupt/input aware and explore alternate paths
    * Add SP to abstract state and model stack effects/data for PHA/PLA, PHP/PLP,
      JSR/RTS, BRK/RTI, and stack-page/RIOT-RAM aliasing where values are provable.
    * Use concrete observations as seeds while retaining both sides of branches whose
      condition depends on controller, console-switch, timer, collision, paddle, or
      other external/unknown input. Connect provable BRK/IRQ/RTI continuations instead
      of treating every BRK as an unconditional CFG terminator.
-   * Extend the concrete bus model to the remaining supported mapper families and add
-     additional deterministic input scenarios only when they provide new reachability.
+   * Extend the concrete bus model to the remaining supported non-coprocessor mapper
+     families and add additional deterministic input scenarios only when an executed
+     path reads that input family. DPC remains static until its data-fetcher/register
+     model is faithful, as already required by the video-analysis contract.
+
+   Completed 2026-08-20:
+   * SP is now abstract state. Provable RIOT-RAM/stack-page aliases survive PHA/PLA,
+     PHP/PLP stack movement, JSR/RTS, stores, and supported RMW operations. Optimistic
+     call continuations do not assume SP preservation; exact SP can return through a
+     proven RTS edge.
+   * Known branch flags prune impossible edges, while external/unknown input reads
+     leave both branch successors live. A bounded local IRQ trace proves BRK/RTI
+     continuations only when the saved stack return address and interrupt path remain
+     exact; it gives up rather than guessing through unknown branches or mapper changes.
+   * Concrete discovery now begins with inactive inputs and, on demand, reruns one
+     active-low SWCHA/SWCHB/INPT input at a time only for families an executed path
+     actually reads. Observations are unioned as positive reachability evidence.
+   * The concrete cartridge bus now covers all supported non-coprocessor families:
+     1K/2K/4K, F8/F6/F4/FA/SC, CV, WD/WDSW, FC, E0, E7, 3F, 3E, FE, JANE, 0840,
+     UA/UASW, and 0FA0. It models segmented mappings, native split RAM, FC staging,
+     delayed WD selection, and FE's post-$01FE data-bus latch. DPC remains excluded.
+   * The synthetic H1 fixture combines a known-SP BRK/IRQ/RTI return with a SWCHA-gated
+     ROM-to-RIOT loader. The real c33caa7d6ac7251bb804e0473198901d.bin now reaches
+     its loader under an alternate SWCHA scenario and recovers 57 executed RIOT-RAM
+     instruction starts with ROM provenance while preserving exact 1K reconstruction.
 
 H2. [ ] Iterate concrete and static discovery to convergence
    * Feed newly proven static entry states and dynamically discovered targets back into

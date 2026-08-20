@@ -19,6 +19,9 @@ typedef struct {
    unsigned rom_instruction_starts;
    unsigned ram_instruction_starts;
    unsigned ram_bytes_written;
+   unsigned scenarios_run;
+   unsigned scenarios_with_new_reachability;
+   uint32_t input_read_mask;
    int halted;
    int instruction_limit;
    int converged;
@@ -39,10 +42,12 @@ typedef struct {
    uint32_t ram_source_offset[VCSC_CONCRETE_RIOT_RAM_SIZE];
 } vcsc_concrete_result_t;
 
-/* Execute one deterministic, controller-inactive machine state from RESET.
- * rom_exec_start and rom_exec_pc are caller-owned arrays of rom_size entries.
- * The pass is discovery evidence only: unsupported mapper families return 0
- * and leave the normal static analysis authoritative. */
+/* Execute bounded concrete discovery from RESET.  The first run uses inactive
+ * controller/console inputs; additional one-active-low-input scenarios are run
+ * only for input families observed by an already executed path. rom_exec_start
+ * and rom_exec_pc are caller-owned arrays of rom_size entries.  The pass is
+ * positive discovery evidence only: unsupported concrete mapper models return
+ * 0 and leave normal static analysis authoritative. */
 int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
                            int mapper, size_t bank_count,
                            size_t reset_bank, int superchip,

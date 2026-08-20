@@ -434,22 +434,39 @@ inside a `.word`.
 
 ## Concrete RESET discovery
 
-For mapper layouts whose CPU-side bus model is currently implemented by the concrete
-probe, `vcsc-disas` performs a bounded execution from the hardware RESET vector using
-the maintained `simulator/mos6502` core. This is positive reachability evidence, not a
+For mapper layouts whose CPU-side bus model is implemented by the concrete probe,
+`vcsc-disas` performs bounded execution from the hardware RESET vector using the
+maintained `simulator/mos6502` core. This is positive reachability evidence, not a
 replacement for recursive static analysis. The execution state includes exact
 PC/A/X/Y/SP/P, the complete 128-byte RIOT RAM with stack-page aliases, RIOT timer and
-TIA WSYNC/VSYNC CPU-side behavior, cartridge banking, disconnected controllers, and
-console inputs high. The initial concrete mapper set is unbanked 1K/2K/4K plus
-F8/F6/F4/FA (including their supported RAM overlays); unsupported mapper models simply
-skip this pass.
+TIA WSYNC CPU-side behavior, cartridge banking/RAM, and deterministic console/input
+states. The concrete bus now covers every currently supported non-coprocessor mapper:
+unbanked 1K/2K/4K, F8/F6/F4/FA (and supported Superchip overlays), CV, WD/WDSW, FC,
+E0, E7, 3F, 3E, FE, JANE, 0840, UA/UASW, and 0FA0. DPC remains intentionally static
+until its data-fetcher/register behavior is modeled faithfully; an unsupported
+concrete model simply leaves static analysis authoritative.
 
-Static analysis is allowed to drain first. Only cartridge instruction starts observed
-concretely but still missing from the static graph are then added as entry evidence.
-This ordering is intentional: injecting every sampled PC with an unknown abstract state
-would destroy useful static register/pointer facts at joins. The generated header
-reports the number of executed instructions, distinct ROM and RIOT-RAM instruction
-starts, RAM bytes written, final CPU state, and why the bounded run stopped.
+Static analysis drains first. Only cartridge instruction starts observed concretely
+but still missing from the static graph are then added as entry evidence. This ordering
+is intentional: injecting every sampled PC with an unknown abstract state would destroy
+useful static register/pointer facts at joins. Concrete execution is also gated on a
+trusted mapper identity: unbanked topology, an explicit `--mapper`, or distinctive
+family evidence. Weak size-default F8/F6/F4/FA guesses do not qualify.
+
+H1 adds stack/interrupt-aware abstract flow. SP is part of abstract state; provable
+RIOT-RAM/stack aliases are carried through pushes/pops, JSR/RTS, and memory writes.
+A bounded local IRQ trace may connect a BRK to a specific RTI continuation when the
+saved stack return address remains provable, including deliberate modification through
+RIOT-RAM's stack-page mirror. Unknown/external-input branch conditions retain both CFG
+edges rather than letting one sampled execution history prove the other edge dead.
+
+Concrete input discovery starts with all controller and console inputs inactive/high.
+If an executed path actually reads SWCHA, SWCHB, or an INPT register, `vcsc-disas`
+then runs small one-active-low-input scenarios for that family and unions only positive
+reachability observations. It does not blindly enumerate the Cartesian product of all
+controller states. The generated header reports scenario count/productivity, executed
+instruction totals, distinct ROM and RIOT-RAM instruction starts, RAM bytes written,
+and the neutral run's final CPU state.
 
 When execution enters RIOT RAM, the probe snapshots the instruction bytes actually
 executed there and tracks simple ROM-to-RAM write provenance. `vcsc-disas` prints that
@@ -457,11 +474,13 @@ RAM execution as a **comment-only** disassembly block, including source ROM file
 when known. Those comments add no cartridge bytes, so disassemble/reassemble identity
 remains authoritative even for loaders and self-modifying/generated RAM code.
 
-A concrete run is necessarily only one machine history. In particular, the neutral
-controller state may leave input-gated paths unexplored. The focused roadmap therefore
-keeps stack/interrupt-aware static alternate-path exploration and iterative
-static/concrete convergence as the next hybrid-analysis work; an unobserved path is
-never classified as impossible merely because this baseline run did not take it.
+`c33caa7d6ac7251bb804e0473198901d.bin` is the regression case for the combined H0/H1
+analysis. Its 1K loader uses SP-sensitive `TSX/PHA`, one-byte `BRK` calls whose IRQ
+handler modifies the saved return PC before `RTI`, a SWCHA-gated loader path, and a
+ROM-to-RIOT-RAM copy followed by `JMP $00C2`. H1's alternate SWCHA execution reaches
+that loader and recovers the RAM-resident game as comment-only instructions with ROM
+provenance. Iterating newly proven static and concrete execution contexts to a full
+fixed point remains H2; sampled execution is never negative reachability proof.
 
 ## Video and controller inference
 
@@ -520,7 +539,9 @@ database with its own mapper autodetection, and either detector may expose a bug
 The input corpus must already be Atari 2600/VCS ROMs. Stella's mapper detector is
 not a platform detector; an arbitrary same-sized blob from another 6502 system
 can still fall through to a size-default VCS mapper and produce a meaningless
-comparison.
+comparison. Stella reports a native 1024-byte cartridge as `2K* (1K)` because it
+uses the 2K cartridge implementation internally; `roundtrip.pl` normalizes that
+spelling to VCSC's physical-topology name `1K`, so it is a mapper match.
 Mapper disagreements are therefore reported as `MISMATCH` and summarized without
 failing the round-trip run.  `--stella-strict` makes any mapper mismatch fail the
 command when a zero-mismatch corpus gate is desired.  Failure to run or parse an
@@ -577,15 +598,13 @@ GL, CM, DPC+, CDF/CDFJ/CDFJ+ and other coprocessor cartridges need separate mapp
 Unsupported layouts that yield no executable instructions fail explicitly rather
 than producing a misleading 100%-data source file.
 
-The bounded concrete RESET pass now exposes some self-modifying and dynamically
-constructed RIOT-RAM code, but sampled execution cannot by itself prove alternate
-input-dependent paths unreachable. Concrete execution is intentionally gated on a
-trusted cartridge topology: unbanked 1K/2K/4K, an explicit `--mapper`, or strong
-banked-mapper signature evidence. A weak size-default F8/F6/F4/FA guess is not enough,
-because executing an unsupported mapper through the wrong hotspot model can manufacture
-false reachability. Static stack/interrupt exploration, unresolved indirect tables,
-unsupported concrete mapper models, and iterative hybrid convergence remain active
-roadmap work. None of these analyses may weaken the byte-round-trip invariant.
+The bounded concrete/hybrid pass now exposes input-gated, self-modifying, and dynamically
+constructed RIOT-RAM code while retaining static alternate branch edges. Concrete
+execution remains intentionally gated on a trusted cartridge topology; a weak
+size-default F8/F6/F4/FA guess is not enough because executing an unsupported mapper
+through the wrong hotspot model can manufacture false reachability. DPC concrete
+execution, unresolved indirect tables, and full iterative hybrid convergence remain
+active roadmap work. None of these analyses may weaken the byte-round-trip invariant.
 
 The detailed implementation roadmap and analysis contracts live in
 `../.../disassembler.txt`.

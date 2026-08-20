@@ -52,3 +52,15 @@ The concrete-discovery handoff exposed vcs_examples_build shard 2/8 as a timeout
 Concrete RESET discovery now requires trusted topology evidence. Unbanked 1K/2K/4K remains unambiguous; explicit --mapper is trusted; automatic F8/F6/F4/FA concrete execution requires strong tail/detector evidence rather than a size-default mapper guess. Added a semantic regression proving weak automatic F4 does not run concrete discovery while explicit --mapper f4 still does. Also hardened vector-interior reference ownership so a vector low byte consumed by an emitted instruction cannot be promoted to an un-emittable label, and roundtrip.pl now normalizes unbanked 1K for Stella comparisons.
 
 Validation: all eight editable-example build/roundtrip shards pass; shard 2/8 falls from over three minutes to under 9 seconds. vcsc_disassembler.pl remains 102/102 exact, hardening and all-opcode roundtrip pass, mapper fuzz remains 30/30, and c33caa7d6ac7251bb804e0473198901d.bin still runs concrete discovery and round-trips byte-exactly.
+
+2026-08-20 12:14:00 PDT, Complete H1 hybrid alternate-path analysis
+
+Completed hybrid disassembler priority H1. Abstract CFG state now includes SP and provable RIOT-RAM/stack-page aliases through stack operations, JSR/RTS, memory stores, and supported RMW operations. A bounded conservative IRQ trace can prove BRK/IRQ/RTI continuations when the saved return PC remains exact, including deliberate return-address modification through the RIOT stack-page mirror; uncertain interrupt paths are left unresolved rather than guessed.
+
+Concrete discovery now starts with inactive inputs and demand-runs one active-low SWCHA, SWCHB, or INPT bit at a time only for input families actually read by execution. The concrete cartridge bus covers every supported non-coprocessor mapper: unbanked 1K/2K/4K, F8/F6/F4/FA and Superchip, CV, WD/WDSW, FC, E0, E7, 3F, 3E, FE, JANE, 0840, UA/UASW, and 0FA0. DPC remains deliberately static until its data-fetcher/register model is faithful.
+
+The synthetic H1 regression combines an input-gated loader, known-SP BRK/IRQ/RTI return, ROM-to-RIOT copy, and execution from copied RAM. On c33caa7d6ac7251bb804e0473198901d.bin, 16 demand-driven scenarios discover 299 ROM instruction starts and 57 RIOT-RAM instruction starts; an alternate SWCHA path reaches the removable-cartridge loader, copies all 128 bytes into RIOT RAM, and executes the game from $00C2 with ROM-file provenance. The ROM remains byte-exact on round trip.
+
+Fixed Stella differential normalization for native 1K cartridges. Stella reports these as `2K* (1K)` because its internal cartridge class is 2K; roundtrip.pl now normalizes that exact spelling to VCSC's physical-topology name `1K`. The real c33 ROM therefore reports `mapper vcsc=1K stella=1K MATCH`. A fake-Stella hardening fixture permanently pins the equivalence.
+
+Validation: semantic disassembler 103/103; hardening pass; all-opcode round trip pass; deterministic mapper fuzz 30/30; all eight editable-example build/roundtrip shards pass; real c33 Stella differential 1/1 mapper match and exact reconstruction. H2 iterative concrete/static convergence is next.
