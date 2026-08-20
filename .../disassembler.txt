@@ -1303,14 +1303,27 @@ inference.
       require Stella's WD signature. Synthetic WD/WDSW E2E fixtures and fuzz
       layouts preserve byte-exact reconstruction for both forms.
 
-22. [ ] Add FC mapper support
-    * Model Amiga Power Play's staged bank-select protocol: write low bank bits
-      at `$1FF8`, high bits at `$1FF9`, then commit the prepared selection by
-      accessing `$1FFC`.
-    * Keep pending selector state distinct from the currently mapped bank so
-      code continues in the old bank until commit.
-    * Cover partial/abandoned selector sequences, commit-before-JAM transitions,
-      multicart layouts through 32K, and exact reconstruction.
+22. [x] Add FC mapper support
+    * Amiga Power Play's staged protocol is modeled with distinct mapped-bank and
+      pending-selector state. Writes to `$1FF8` replace the pending low two bits;
+      writes to `$1FF9` add the high contribution when representable and use
+      Stella's `value % bank_count` fallback otherwise. Reads of those addresses
+      do not stage. Any read/write access to `$1FFC` commits the pending bank.
+    * RESET starts with mapped bank 0 and pending selector 0. Partial/abandoned
+      sequences continue in the old bank; commit edges, including commit-before-
+      JAM and unresolved pending state, continue analysis in the selected bank(s).
+      Supported FC image sizes are 4K/8K/16K/32K and `--mapper fc` enforces them.
+    * Automatic inference uses Stella's three characteristic FC staged-select
+      byte signatures and outranks only the ordinary size-default F mapper, not
+      distinctive mapper families. This fixes all five FC differentials in the
+      2026-08-20 problem corpus: `4a5fddf89801336637ac8e57a7c9a881`,
+      `565b2d41d4bdf960d0912d39ec29d0a7`,
+      `60cd61a2dfccb0e2736434f9792c1672`,
+      `715dbf2e39ba8a52c5fe5cdd927b37e0`, and
+      `bbf8c7c9ed280151934aabe138e41ba7` now agree with Stella as FC.
+    * Synthetic semantic and deterministic fuzz fixtures cover staged low/high
+      selection, read/write commits, the high-value fallback, and exact byte
+      reconstruction. The semantic corpus is 100/100 and mapper fuzz is 28/28.
 
 23. [ ] Add GL mapper support
     * Model GameLine's four independently mapped 1K runtime segments and its

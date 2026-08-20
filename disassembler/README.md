@@ -51,7 +51,7 @@ generated source:
 ```
 
 Supported mapper overrides are `2k`, `4k`, `f8`, `f8sc`, `f6`, `f6sc`,
-`f4`, `f4sc`, `fa`, `dpc`, `wd`, `wdsw`, `e0`, `3f`, `3e`, `fe`, `cv`, `jane`, `0840`, `ua`, `uasw`, and `0fa0`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
+`f4`, `f4sc`, `fa`, `dpc`, `wd`, `wdsw`, `fc`, `e0`, `3f`, `3e`, `fe`, `cv`, `jane`, `0840`, `ua`, `uasw`, and `0fa0`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
 `--code BANK:START-END`, `--data BANK:START-END`, `--table BANK:START-END`, and
 `--pointer BANK:START-END` are repeatable. The bank may be omitted for a one-bank
 cartridge. Numbers accept decimal, `0x` hex, or `$` hex; quote `$` forms in a
@@ -88,7 +88,7 @@ position from runtime 6507 addresses:
 
 The disassembler currently recognizes unbanked 2K/4K, the F8/F6/F4 family
 (with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, CommaVid CV, Parker Brothers E0, M-Network E7, Tigervision 3F/3E, JANE, 0840/EconoBanking, UA/UASW, 0FA0/Fotomania, DPC,
-and Wickstead Design / WD/WDSW. Standard DPC
+Wickstead Design / WD/WDSW, and Amiga Power Play / FC. Standard DPC
 images are recognized by their distinctive 10240- or 10495-byte layout: two
 4K F8-style program banks followed by 2K of DPC data ROM, with the 10495-byte
 form carrying an additional 255-byte RNG table.
@@ -111,6 +111,20 @@ and 3 are interpreted in the corrected logical order used by Stella, while
 source emission keeps the original file order and retains the three non-emulated
 trailing bytes so round trip remains exact. `--mapper wd` accepts only 8192-byte
 images and `--mapper wdsw` only the 8195-byte preservation form.
+
+FC is Amiga Power Play's staged 4K-bank mapper, supported for 4K, 8K,
+16K, and 32K images.  The currently mapped bank and the prepared bank selector
+are separate state.  A write to `$1FF8` replaces the prepared selector with the
+low two bits of the written value.  A write to `$1FF9` supplies the high part;
+when `(value << 2)` names a representable bank it is added to the prepared low
+bits modulo the ROM bank count, otherwise Stella's hardware model falls back to
+`value % bank_count`.  Merely staging either value leaves execution in the old
+bank.  A read or write access to `$1FFC` commits the prepared selector, and the
+next opcode fetch comes from the newly mapped bank.  Reads of `$1FF8/$1FF9` do
+not stage anything.  Reset starts with physical bank 0 mapped and prepared
+selector 0.  Automatic FC inference uses Stella's characteristic staged-select
+byte signatures; `--mapper fc` is available when explicit identification is
+needed.
 
 E0 is modeled as eight physical 1K ROM banks mapped into four 1K runtime
 segments. Accesses to `$1FE0-$1FE7`, `$1FE8-$1FEF`, and `$1FF0-$1FF7` select
@@ -518,8 +532,8 @@ original bytes.
 
 ## Current limits
 
-Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/CV/E0/E7/3F/3E/FE/JANE/0840/UA/UASW/0FA0/DPC/WD/WDSW is deliberately conservative.
-FC, GL, CM, DPC+, CDF/CDFJ/CDFJ+ and other coprocessor cartridges need separate mapper models rather than being mislabeled as supported families.
+Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/CV/E0/E7/3F/3E/FE/JANE/0840/UA/UASW/0FA0/DPC/WD/WDSW/FC is deliberately conservative.
+GL, CM, DPC+, CDF/CDFJ/CDFJ+ and other coprocessor cartridges need separate mapper models rather than being mislabeled as supported families.
 Unsupported layouts that yield no executable instructions fail explicitly rather
 than producing a misleading 100%-data source file.
 

@@ -11,3 +11,11 @@ Implemented Stella-compatible WDSW as the 8195-byte historical WD preservation l
 Automatic 8192-byte WD inference now requires Stella's A5 39 4C (LDA $39; JMP) signature. This fixed the supplied WD-family differential cases: 56210a3b9ea6d5dd8f417a357ed8ca92 -> WDSW, 62ee2b8f59e9cd6285bbdb674a952e8b -> WD, 850fdc358adda5dd8b7a8b9b178e6655 -> UA, and af1c6f6d73a00bc1be6b353fe9a27819 -> F8.
 
 Validation: vcsc_disassembler.pl 99/99; vcsc_disassembler_hardening.pl pass; vcsc_disassembler_opcodes.pl 1/1; vcsc_disassembler_fuzz.pl 26/26; problems.20260820_131335.zip roundtrip 36/36 byte-exact with all four WD-family mapper results matching Stella. Updated disassembler documentation/context and marked roadmap Item 21 complete; FC is next.
+
+2026-08-20 07:50:00 PDT, Add FC disassembler support
+
+Implemented Amiga Power Play / FC disassembly for 4K, 8K, 16K, and 32K images. The CFG now tracks the currently mapped 4K bank separately from FC's pending selector: writes to $1FF8 replace the low two pending bits, writes to $1FF9 apply Stella's high-bit/add-or-modulo rule, and read or write access to $1FFC commits the pending bank. Partial selector sequences continue executing from the old bank, while known and unresolved commit edges transfer analysis to the proper new-bank possibilities. RESET starts in mapped bank 0 with pending selector 0.
+
+Automatic FC inference uses Stella's three characteristic staged-selector signatures and is allowed to outrank the ordinary size-default F mapper without suppressing distinctive mapper families. All five FC mismatches in problems.20260820_144844.zip now agree with Stella as FC: 4a5fddf89801336637ac8e57a7c9a881, 565b2d41d4bdf960d0912d39ec29d0a7, 60cd61a2dfccb0e2736434f9792c1672, 715dbf2e39ba8a52c5fe5cdd927b37e0, and bbf8c7c9ed280151934aabe138e41ba7. The complete 32-ROM problem bundle reconstructs byte-exactly.
+
+Validation: vcsc_disassembler.pl 100/100; vcsc_disassembler_hardening.pl pass; vcsc_disassembler_opcodes.pl 1/1; vcsc_disassembler_fuzz.pl 28/28; five supplied FC corpus images 5/5 Stella mapper matches. Roadmap Item 22 is complete; GL is next.

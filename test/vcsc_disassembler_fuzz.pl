@@ -39,6 +39,7 @@ my @layouts = (
    ['3e',   32768],
    ['3f',   32768],
    ['f4',   32768],
+   ['fc',   32768],
 );
 my @cases;
 
@@ -83,6 +84,22 @@ sub plant_entry {
       substr($$bufref, 0x1000, 3, "\xA9\x55\x60");
       substr($$bufref, 0x0FFA, 6, pack('v3', 0xf100, 0xf100, 0xf100));
       substr($$bufref, 0x1FFA, 6, pack('v3', 0x0000, 0x0000, 0x0000));
+   }
+   elsif ($layout eq 'fc') {
+      # FC bank 0 supplies RESET.  Signature 1 stages bank 6 through the
+      # oversized-high fallback, then a read of $1FFC commits before the next
+      # fetch.  Bank 6 immediately stages/commits bank 3 using a write commit.
+      my $entry = 0x100;
+      my $code0 = "\xA9\x1A\x8D\xF8\x1F\x4A\x4A\x8D\xF9\x1F\xEA\xAD\xFC\x1F";
+      substr($$bufref, $entry, length($code0), $code0);
+      my $next = $entry + length($code0);
+      substr($$bufref, $next, 1, "\x02");
+      my $code6 = "\xA9\x03\x8D\xF8\x1F\x8D\xFC\x1F";
+      substr($$bufref, 6 * 4096 + $next, length($code6), $code6);
+      my $next2 = $next + length($code6);
+      substr($$bufref, 6 * 4096 + $next2, 1, "\x02");
+      substr($$bufref, 3 * 4096 + $next2, 1, "\x60");
+      substr($$bufref, 4090, 6, pack('v3', 0xf100, 0xf100, 0xf100));
    }
    elsif ($layout eq 'e7') {
       # E7 vectors live in the fixed final 2K.  Exercise both RAM selectors
