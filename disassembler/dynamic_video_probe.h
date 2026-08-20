@@ -44,7 +44,8 @@ enum {
    VCSC_VIDEO_MAP_UA,
    VCSC_VIDEO_MAP_UASW,
    VCSC_VIDEO_MAP_0FA0,
-   VCSC_VIDEO_MAP_FE
+   VCSC_VIDEO_MAP_FE,
+   VCSC_VIDEO_MAP_AR
 };
 
 int vcsc_dynamic_video_probe(const uint8_t *rom, size_t rom_size,

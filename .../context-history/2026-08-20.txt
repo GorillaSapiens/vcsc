@@ -105,3 +105,8 @@ both directions: an unused 1K IRQ vector does not promote its target, while the
 H1 reachable-BRK fixture still promotes and decodes its `$FC40` DEC `$FE`; RTI
 handler. The existing NMI-root behavior was deliberately left unchanged in this
 slice; roadmap item 27 keeps that separate 6507 hardware-cleanup question open.
+2026-08-20 15:36:00 PDT, add Starpath/AR support
+
+Implemented structural AR support for Starpath/Arcadia Supercharger fast-load images. Any exact 8448-byte multiple is recognized as one or more standard loads, each containing 8192 bytes of page data plus a 256-byte header. The disassembler decodes the header start address, control byte, page count, load ID, page map, and checksums, reconstructs the three 2K Supercharger RAM banks, and carries reconstructed RAM across nonzero concatenated multi-loads. Payload CFG recovery begins at each load's start address under its initial two-window bank configuration; unresolved $FFF8 configuration changes terminate that fixed-state path rather than fabricating a latch value. Runtime payload code is emitted comment-only with physical-file provenance, while all original load bytes remain raw for exact reconstruction.
+
+Added synthetic single-load and multi-load semantic fixtures plus `--mapper ar`. The 2026-08-20 corpus contains 85 AR images (77 single-load, six triple-load, two quadruple-load). All 85 now reconstruct byte-exactly and all 85 match Stella as AR. Five loads have bad per-page checksums; those are annotated and preserved unchanged instead of being rejected or repaired. Analog cassette timing and the copyrighted 2K Supercharger BIOS are deliberately not synthesized into the source image.

@@ -1514,16 +1514,24 @@ Unbanked 1K topology extension (2026-08-20)
     * Preserve excess/trailing bytes as physical dump data and represent absent bytes
       conservatively; do not silently rewrite the source image into a canonical 4K file.
 
-29. [ ] Add Starpath/Arcadia Supercharger image support
-    * Recognize 8448-byte Supercharger load/tape images and concatenated multi-load
-      forms (for example 3x/4x 8448-byte corpus files) as Atari 2600 software, distinct
-      from ordinary cartridge ROM topology.
-    * Model enough of the Supercharger loader/RAM banking and load-file structure to
-      recover the 6507 payload at its runtime addresses while preserving the original
-      tape/load bytes exactly. Keep unsupported analog tape details out of CFG analysis.
-    * Add real single-load and multi-load corpus fixtures, Stella differential checks,
-      generated RAM-code presentation where appropriate, and byte-exact round trips
-      before treating Supercharger files as ordinary successful corpus entries.
+29. [x] Add Starpath/Arcadia Supercharger image support
+    * Recognize any exact 8448-byte multiple as the standard AR fast-load structure:
+      each load is 8192 bytes of page data followed by a 256-byte header. `--mapper ar`
+      enforces the same structural size rule. Header fields are decoded as start address,
+      control byte, page count, load ID, page map, and checksums.
+    * Reconstruct the three 2K Supercharger RAM banks directly from the page map. Load-ID
+      zero starts from reset-cleared RAM; nonzero concatenated loads inherit the preceding
+      reconstructed RAM image before overlaying their pages. Recover payload control flow
+      from the header start address under the initial two-window bank configuration and
+      show it as comment-only runtime code with source-file provenance. An unresolved
+      `$FFF8` configuration change terminates that fixed-configuration path rather than
+      fabricating a bank state; analog cassette timing and BIOS bytes are not synthesized.
+    * Keep all physical load bytes as raw source so exact reconstruction outranks header
+      validity. Bad header/page checksums are annotated, not repaired or rejected. Synthetic
+      single/multi-load fixtures pin the format. The 2026-08-20 corpus contains 85 AR files
+      (77 single-load, six 3-load, two 4-load): all 85 now reconstruct byte-exactly and all
+      85 agree with Stella as AR. Five loads contain bad page checksums and are deliberately
+      preserved as-is.
 
 Definition of first useful milestone
 ------------------------------------

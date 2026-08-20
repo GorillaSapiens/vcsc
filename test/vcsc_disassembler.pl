@@ -66,6 +66,26 @@ sub make_rom {
    return $rom;
 }
 
+sub make_ar_load {
+   my ($start, $control, $load_id, $bank_byte, $page) = @_;
+   length($page) == 256 or die "AR page must be 256 bytes\n";
+   my $data = $page . (chr(0) x (8192 - 256));
+   my $header = chr(0) x 256;
+   substr($header, 0, 1, chr($start & 0xff));
+   substr($header, 1, 1, chr(($start >> 8) & 0xff));
+   substr($header, 2, 1, chr($control & 0xff));
+   substr($header, 3, 1, chr(1));
+   substr($header, 5, 1, chr($load_id & 0xff));
+   my $sum7 = 0;
+   $sum7 = ($sum7 + ord(substr($header, $_, 1))) & 0xff for 0 .. 7;
+   substr($header, 4, 1, chr((0x55 - $sum7) & 0xff));
+   substr($header, 16, 1, chr($bank_byte & 0xff));
+   my $psum = 0;
+   $psum = ($psum + ord(substr($page, $_, 1))) & 0xff for 0 .. 255;
+   substr($header, 64, 1, chr((0x55 - $psum - $bank_byte) & 0xff));
+   return $data . $header;
+}
+
 sub break_sc_layout {
    my ($sref) = @_;
    my $size = length($$sref);
@@ -1247,7 +1267,39 @@ my $color_table = make_rom(4096, 0xF000, 0x0100,
 substr($color_table, 0x0380, 3, pack('C*', 0x84, 0x46, 0xC8));
 write_bin(File::Spec->catfile($in, 'color_table.bin'), $color_table);
 
+# Starpath/Arcadia Supercharger fast-load images are structurally different
+# from cartridges: each 8448-byte block is 8K page data + a 256-byte header.
+# The header maps data pages into the Supercharger's three 2K RAM banks and
+# supplies the initial start address/control byte.  Keep physical bytes raw for
+# exact reconstruction while emitting a comment-only runtime payload view.
+my $ar_page0 = "\xA9\x42\x85\x80\x60" . (chr(0xEA) x 251);
+my $ar_single = make_ar_load(0xF000, 0x04, 0, 0x00, $ar_page0);
+write_bin(File::Spec->catfile($in, 'ar_single.bin'), $ar_single);
+my $ar_page1 = "\xA9\x99\x85\x81\x60" . (chr(0xEA) x 251);
+my $ar_multi = $ar_single . make_ar_load(0xF000, 0x14, 1, 0x01, $ar_page1);
+write_bin(File::Spec->catfile($in, 'ar_multi.bin'), $ar_multi);
+
 run_ok($^X, $roundtrip, $in, $out);
+
+my $ar_single_out = slurp(File::Spec->catfile($out, 'ar_single.s26'));
+require_re($ar_single_out, qr/^; mapper: AR \(high confidence;/m,
+   '8448-byte image recognized as Starpath AR');
+require_re($ar_single_out,
+   qr/^; Starpath\/Arcadia Supercharger fast-load image: 1 load x 8448 bytes/m,
+   'AR single-load structural annotation');
+require_re($ar_single_out,
+   qr/^; AR load 0: .*load-id=\$00, start=\$F000, control=\$04, pages=1, header-checksum=ok, page-checksums=ok$/m,
+   'AR header decoded');
+require_re($ar_single_out,
+   qr/^; \$F000: A9 42\s+LDA #\$42\s+; loaded from file \$0000$/m,
+   'AR RAM payload decoded with physical provenance');
+my $ar_multi_out = slurp(File::Spec->catfile($out, 'ar_multi.s26'));
+require_re($ar_multi_out,
+   qr/^; Starpath\/Arcadia Supercharger fast-load image: 2 loads x 8448 bytes/m,
+   'AR concatenated multi-load structural annotation');
+require_re($ar_multi_out,
+   qr/^; AR load 1: .*load-id=\$01, start=\$F000, control=\$14, pages=1/m,
+   'AR nonzero multi-load header decoded');
 
 my $plain1k_out = slurp(File::Spec->catfile($out, 'plain1k.s26'));
 require_re($plain1k_out, qr/^; mapper: unbanked 1K \(/m,
@@ -2162,6 +2214,10 @@ require_re($bad_wd_layout, qr/incompatible with 8195-byte input/, 'forced WD rej
 my $bad_wdsw_layout = `$disas --mapper wdsw "@{[File::Spec->catfile($in, 'wd.bin')]}" 2>&1`;
 die "8192-byte WD layout unexpectedly accepted as forced WDSW\n" if $? == 0;
 require_re($bad_wdsw_layout, qr/incompatible with 8192-byte input/, 'forced WDSW rejects WD layout');
+my $bad_ar_layout = `$disas --mapper ar "@{[File::Spec->catfile($in, 'plain4k.bin')]}" 2>&1`;
+die "4K image unexpectedly accepted as forced AR\n" if $? == 0;
+require_re($bad_ar_layout, qr/incompatible with 4096-byte input/,
+   'forced AR rejects non-8448-multiple layout');
 my $bad_origin = `$disas --origin 0:0xD001 "@{[File::Spec->catfile($in, 'plain4k.bin')]}" 2>&1`;
 die "misaligned origin override unexpectedly succeeded\n" if $? == 0;
 require_re($bad_origin, qr/not a valid page-aligned cartridge origin/, 'origin alignment diagnostic');
