@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 # runner: perl @TEST_ROOT@/vcsc_disassembler_fuzz.pl @REPO@ @TMP@
 # phase: e2e
-# timeout: 20
+# timeout: 120
 
 use strict;
 use warnings;
@@ -29,10 +29,13 @@ my @layouts = (
    ['2k',    2048],
    ['4k',    4096],
    ['f8',    8192],
+   ['fe',    8192],
    ['wd',    8195],
    ['dpc',  10495],
    ['fa',   12288],
    ['f6',   16384],
+   ['3e',   32768],
+   ['3f',   32768],
    ['f4',   32768],
 );
 my @cases;
@@ -60,6 +63,38 @@ sub plant_entry {
          substr($$bufref, $base + 0x200, length($code), $code);
          substr($$bufref, $base + 4090, 6, pack('v3', 0xf200, 0xf200, 0xf200));
       }
+   }
+   elsif ($layout eq 'fe') {
+      # FE/SCABS RESET is taken from physical bank 0.  The released-cart JSR
+      # idiom hits stack address $01FE, then uses the following target-high
+      # data byte to select the bank.  Keep the historical Decathlon signature
+      # while making both target and caller continuation deterministic.
+      my $fe_code =
+         "\xA2\xFF\x9A" .       # LDX #$FF; TXS
+         "\x20\x00\xD0" .       # JSR $D000 -> bank 1
+         "\xC6\xC5" .           # DEC $C5: FE detector signature tail
+         "\xA9\x42\x85\x09\x60";
+      substr($$bufref, 0x0100, length($fe_code), $fe_code);
+      substr($$bufref, 0x1000, 3, "\xA9\x55\x60");
+      substr($$bufref, 0x0FFA, 6, pack('v3', 0xf100, 0xf100, 0xf100));
+      substr($$bufref, 0x1FFA, 6, pack('v3', 0x0000, 0x0000, 0x0000));
+   }
+   elsif ($layout eq '3e') {
+      # 3E vectors live in the fixed final 2K.  Exercise the distinguishing
+      # $3E RAM selector and the shared $3F ROM selector twice so the image
+      # carries the canonical 3E identification evidence.
+      my $base = $size - 2048;
+      my $threee_code = "\xA9\x02\x85\x3E\xA9\x00\x85\x3F\xA9\x00\x85\x3F\x60";
+      substr($$bufref, $base + 0x100, length($threee_code), $threee_code);
+      substr($$bufref, $base + 2042, 6, pack('v3', 0xf900, 0xf900, 0xf900));
+   }
+   elsif ($layout eq '3f') {
+      # 3F vectors live in the fixed final 2K.  Repeated explicit STA $3F
+      # provides identification evidence while keeping the selected value known.
+      my $base = $size - 2048;
+      my $threef_code = "\xA9\x00\x85\x3F\xA9\x00\x85\x3F\x60";
+      substr($$bufref, $base + 0x100, length($threef_code), $threef_code);
+      substr($$bufref, $base + 2042, 6, pack('v3', 0xf900, 0xf900, 0xf900));
    }
    else {
       my $program_bytes = $layout eq 'dpc' ? 8192 : $size;

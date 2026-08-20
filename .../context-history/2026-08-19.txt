@@ -35,3 +35,19 @@ complements decoded write-only-store evidence and remains subject to existing
 RMW and write-port execution contradictions; it is deliberately disabled for a
 lone 4K image. Seven supplied F6SC corpus ROMs now agree with Stella and retain
 byte-exact round trips. Added a no-store structural F6SC regression.
+
+2026-08-19 15:34:31 PDT, Add 3F disassembler mapper
+Implemented Tigervision 3F as selected lower 2K plus fixed final 2K, with value-controlled TIA writes carried in CFG state. Added 8K/32K exact-round-trip coverage and Stella differential validation.
+
+2026-08-19 16:37:04 PDT, Add 3E disassembler mapper model
+3E now extends the 3F CFG model with $3E-selected banked split RAM, $3F-selected ROM, mapper-specific evidence, and split-RAM RMW contradictions. The problem corpus also exposed and fixed zero-evidence 3F overmatching; 17 valid Stella=3E samples now agree, while three 16K foreign blobs have non-cartridge RESET vectors.
+
+2026-08-19 16:59:00 PDT, classify disassembler fuzz as long-running
+The deterministic disassembler fuzz matrix now has an explicit 120-second test timeout. Its 20 full mapper-layout disassemble/reassemble cases take about 9.6 seconds standalone, and one pathological 32K 3F fuzz source alone takes roughly 6.7 seconds to reassemble, so the former 20-second ceiling was brittle under parallel test contention without indicating a hang.
+
+2026-08-19 18:27:00 PDT, add FE disassembler mapper
+Implemented Activision/SCABS FE as two 4K banks with delayed $01FE stack-bus
+switching for the released-cart JSR idiom, deterministic bank-0 reset, and
+signature-gated automatic inference so ordinary JSRs cannot overmatch FE. Eight
+real F8-vs-FE corpus mismatches now resolve FE, with a synthetic exact-round-trip
+flow regression and FE added to the deterministic supported-layout fuzz matrix.

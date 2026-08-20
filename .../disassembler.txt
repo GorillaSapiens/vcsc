@@ -1203,7 +1203,7 @@ Roadmap
     * Add malformed/truncated/arbitrary-input fuzz coverage. Boundary sizes around
       supported layouts must fail cleanly with no signal/output artifact, while
       two deterministic arbitrary images for every supported size/mapper family
-      (2K/4K/F8/F6/F4/FA/WD/DPC) round-trip exactly.
+      (2K/4K/F8/F6/F4/FA/WD/DPC/3F/3E) round-trip exactly.
     * Add duplicated/padded-dump preservation tests. Supported duplicated and
       leading-padded 8K/16K/32K images remain byte exact; WD's historical 8195-byte
       bad dump remains separately covered.
@@ -1223,17 +1223,17 @@ at a time, add exact round-trip fixtures and differential corpus evidence for it
 and do not let unsupported-family byte signatures distort already-supported CFG
 inference.
 
-17. [ ] Add 3F mapper support
-    * Model Tigervision's split 4K window: selectable lower 2K plus the ROM's
-      fixed final 2K.
-    * Treat writes to `$00-$3F` as value-controlled bank selection without
-      confusing ordinary TIA traffic with proven mapper evidence.
-    * Carry the selected 2K bank in CFG state and preserve variable-sized ROMs
-      exactly.
-    * Add synthetic bank-change/JAM-continuation coverage plus real 3F corpus
-      fixtures and Stella differential checks.
+17. [x] Add 3F mapper support
+    * Model Tigervision's split window as a value-selected lower 2K plus the
+      ROM's fixed final 2K, with bank 0 selected at power-on.
+    * Every write to `$00-$3F` updates mapper state from the data-bus value;
+      only explicit `$3F` traffic/signatures count as identification evidence.
+    * Carry selected-bank state across CFG edges, including a bank switch whose
+      old physical continuation is HLT/JAM/KIL, and preserve variable sizes.
+    * Synthetic 8K and 32K exact-round-trip cases pin the model; the 8K fixture
+      is independently recognized as 3F by Stella `-rominfo`.
 
-18. [ ] Add 3E mapper support
+18. [x] Add 3E mapper support
     * Build directly on the 3F segmented model: writes to `$3F` select lower-2K
       ROM banks while writes to `$3E` select lower-window RAM banks.
     * Model the 1K read/write aliases of the selected RAM bank and apply the
@@ -1241,9 +1241,11 @@ inference.
     * Keep ROM-bank count and inferred RAM use separate; do not assume all 32K
       of possible RAM is physically present merely because the address encoding
       permits it.
-    * Add exact round-trip and 3E-vs-3F ambiguity fixtures.
+    * Add exact round-trip and 3E-vs-3F ambiguity fixtures. Canonical 3E
+      evidence subsumes 3F because `$3E` RAM selection is the distinguishing
+      operation while `$3F` ROM selection is shared by both schemes.
 
-19. [ ] Add FE mapper support
+19. [x] Add FE mapper support
     * Model Activision/SCABS switching through `$01FE`, including the delayed
       bank decision derived from the data bus rather than treating FE as a
       conventional hotspot-selected F8 variant.
@@ -1251,6 +1253,8 @@ inference.
       carry any timing-dependent ambiguity conservatively in CFG state.
     * Validate Robot Tank/Decathlon-style real ROMs plus synthetic cases where
       the old physical bank contains JAM after the switching access.
+    * Automatic inference requires the established released-cart FE call
+      signatures; ordinary JSR target bytes alone are not positive FE evidence.
 
 20. [ ] Add E7 mapper support
     * Model M-Network's selectable lower 2K, fixed final 2K, `$1FE0-$1FE6`

@@ -51,7 +51,7 @@ generated source:
 ```
 
 Supported mapper overrides are `2k`, `4k`, `f8`, `f8sc`, `f6`, `f6sc`,
-`f4`, `f4sc`, `fa`, `dpc`, `wd`, `e0`, `cv`, `jane`, `0840`, `ua`, `uasw`, and `0fa0`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
+`f4`, `f4sc`, `fa`, `dpc`, `wd`, `e0`, `3f`, `3e`, `fe`, `cv`, `jane`, `0840`, `ua`, `uasw`, and `0fa0`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
 `--code BANK:START-END`, `--data BANK:START-END`, `--table BANK:START-END`, and
 `--pointer BANK:START-END` are repeatable. The bank may be omitted for a one-bank
 cartridge. Numbers accept decimal, `0x` hex, or `$` hex; quote `$` forms in a
@@ -87,7 +87,7 @@ position from runtime 6507 addresses:
 ```
 
 The disassembler currently recognizes unbanked 2K/4K, the F8/F6/F4 family
-(with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, CommaVid CV, Parker Brothers E0, JANE, 0840/EconoBanking, UA/UASW, 0FA0/Fotomania, DPC,
+(with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, CommaVid CV, Parker Brothers E0, Tigervision 3F/3E, JANE, 0840/EconoBanking, UA/UASW, 0FA0/Fotomania, DPC,
 and Wickstead Design / WD. Standard DPC
 images are recognized by their distinctive 10240- or 10495-byte layout: two
 4K F8-style program banks followed by 2K of DPC data ROM, with the 10495-byte
@@ -116,6 +116,17 @@ segment always maps physical bank 7. Deterministic reset starts with banks
 4,5,6,7 mapped in order. Mapper state is therefore part of each E0 control-flow
 edge: a selector can make the next opcode come from another physical 1K bank
 even though the runtime PC simply advances normally.
+
+3F is modeled as 2K physical ROM banks. `$F800-$FFFF` always maps the final
+physical 2K and supplies the vectors; `$F000-$F7FF` maps a selected 2K bank and
+powers up on bank 0. The hardware watches every write to TIA `$00-$3F`; the
+written value modulo the physical-bank count selects the lower bank. VCSC
+therefore carries that selected bank in CFG state and treats the next opcode
+fetch as a cross-bank edge when the lower mapping changes. Ordinary TIA writes
+affect state once 3F is hypothesized but are not identification evidence;
+explicit decoded writes to `$3F` and the historical repeated `STA $3F` pattern
+are used to distinguish 3F from same-sized mapper candidates. Unknown write
+values remain conservative rather than inventing a single bank.
 
 A run that discovers zero instructions is an error. `vcsc-disas` does not call a
 100%-`.byte` dump a successful disassembly; unsupported/raw layouts therefore
@@ -187,6 +198,25 @@ hardware power-on bank. `vcsc-disas` recognizes either VCSC's `JANE` tail
 signature or the established `LDA $FFF1; RTS` detector byte pattern, reports
 the nonstandard power-on bank explicitly, and preserves physical file order on
 round trip. `--mapper jane` forces the same interpretation.
+
+3E extends Tigervision 3F with banked cartridge RAM. A write to `$3E` selects
+one of 32 RAM banks for the lower window; RAM is read through `$F000-$F3FF`
+and written through `$F400-$F7FF`. A write to `$3F` restores a 2K ROM bank.
+Pure `$3F` traffic is not 3E evidence; automatic inference requires the
+distinguishing `$3E` RAM selector, an explicit VCSC signature, or the canonical
+legacy `STA $3E` plus repeated `STA $3F` pattern. RMW against either RAM alias
+contradicts the 3E hypothesis.
+
+FE/SCABS is modeled as two 4K physical banks with the mapper's delayed
+`$01FE` stack-bus latch. Released FE cartridges use a JSR idiom: the low return
+address push hits `$01FE`, and the following JSR target-high byte determines the
+bank that supplies the subroutine (`$E0-$FF` selects physical bank 0 and
+`$C0-$DF` selects bank 1). `vcsc-disas` carries that selected bank across the
+call while RTS returns to the caller continuation in its original bank. Automatic
+FE inference requires one of the established released-cart FE call signatures,
+so an ordinary JSR in an unrelated 8K ROM cannot promote the mapper merely by
+having a convenient target high byte. `--mapper fe` forces the same mapping for
+investigation of uncatalogued cases.
 
 Split-address cartridge RAM is treated semantically rather than as a byte
 signature. Superchip, CBS RAM Plus/FA, CommaVid CV, and WD all expose separate
@@ -470,9 +500,8 @@ original bytes.
 
 ## Current limits
 
-Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/CV/E0/JANE/0840/UA/UASW/0FA0/DPC/WD is deliberately conservative.
-3F, 3E, E7, FE, DPC+, CDF and coprocessor cartridges need separate mapper
-models rather than being mislabeled as supported families.
+Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/CV/E0/3F/3E/FE/JANE/0840/UA/UASW/0FA0/DPC/WD is deliberately conservative.
+E7, WDSW, FC, GL, CM, DPC+, CDF/CDFJ/CDFJ+ and other coprocessor cartridges need separate mapper models rather than being mislabeled as supported families.
 Unsupported layouts that yield no executable instructions fail explicitly rather
 than producing a misleading 100%-data source file.
 

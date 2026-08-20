@@ -127,6 +127,93 @@ write_bin(File::Spec->catfile($in, 'vector_exec.bin'), $vector_exec);
 write_bin(File::Spec->catfile($in, 'origin_d000.bin'), make_rom(4096, 0xD000, 0x0234, "\xA9\x17\x60"));
 write_bin(File::Spec->catfile($in, 'f8.bin'), make_rom(8192, 0xF000, 0x0100, "\xAD\xF8\x1F\x60"));
 
+# Tigervision 3F maps a value-selected 2K bank at $F000-$F7FF and fixes the
+# final physical 2K at $F800-$FFFF.  RESET starts in the fixed bank, explicitly
+# selects lower bank 1 twice (also satisfying Stella's STA-$3F detector), jumps
+# into it, then selects bank 2.  Bank 1's physical continuation is JAM while
+# bank 2 contains the actual next opcode, proving that the selector is a CFG
+# edge rather than an execution-line terminator.  Nonuniform filler avoids
+# accidentally creating the Superchip duplicated-prefix signature.
+my $threef = join('', map { chr(($_ * 73 + 19) & 0xff) } 0 .. 8191);
+substr($threef, 1 * 2048 + 0x0100, 5, "\xA9\x02\x85\x3F\x02");
+substr($threef, 2 * 2048 + 0x0104, 3, "\xA9\x42\x60");
+substr($threef, 3 * 2048 + 0x0100, 11,
+   "\xA9\x01\x85\x3F" .
+   "\xA9\x01\x85\x3F" .
+   "\x4C\x00\xF1");
+for my $v (0, 2, 4) {
+   put16(\$threef, 3 * 2048 + 0x07FA + $v, 0xF900);
+}
+write_bin(File::Spec->catfile($in, 'threef.bin'), $threef);
+
+# 3F is not intrinsically an 8K scheme.  Exercise a 32K/16-bank image so the
+# CFG state and emitter cannot accidentally bake in four physical 2K banks.
+my $threef32 = join('', map { chr(($_ * 41 + 7) & 0xff) } 0 .. 32767);
+substr($threef32, 14 * 2048 + 0x0100, 5, "\xA9\x03\x85\x3F\x02");
+substr($threef32,  3 * 2048 + 0x0104, 3, "\xA9\x55\x60");
+substr($threef32, 15 * 2048 + 0x0100, 11,
+   "\xA9\x0E\x85\x3F" .
+   "\xA9\x0E\x85\x3F" .
+   "\x4C\x00\xF1");
+for my $v (0, 2, 4) {
+   put16(\$threef32, 15 * 2048 + 0x07FA + $v, 0xF900);
+}
+write_bin(File::Spec->catfile($in, 'threef32.bin'), $threef32);
+
+# Tigervision 3E extends 3F with an exact $3E RAM-bank selector.  The lower
+# 2K window can be switched from ROM to one of 32 external 1K RAM banks; in
+# RAM mode $F000-$F3FF reads and $F400-$F7FF writes the same 1K.  Keep the
+# selector routine in the fixed final 2K so switching RAM does not make the
+# following instruction unknowable, then restore ROM bank 1 and enter it.
+my $threee = join('', map { chr(($_ * 59 + 23) & 0xff) } 0 .. 8191);
+substr($threee, 1 * 2048 + 0x0100, 3, "\xA9\x42\x60");
+substr($threee, 3 * 2048 + 0x0100, 22,
+   "\xA9\x02\x85\x3E" .       # select RAM bank 2
+   "\xAD\x00\xF0" .            # read RAM alias
+   "\x8D\x00\xF4" .            # write same RAM through write alias
+   "\xA9\x01\x85\x3F" .       # restore ROM bank 1
+   "\xA9\x01\x85\x3F" .       # repeated ROM selector signature
+   "\x4C\x00\xF1");
+for my $v (0, 2, 4) {
+   put16(\$threee, 3 * 2048 + 0x07FA + $v, 0xF900);
+}
+write_bin(File::Spec->catfile($in, 'threee.bin'), $threee);
+
+# A 3E RAM bank exposes distinct read and write aliases, so an RMW against
+# either half cannot be a normal RAM RMW.  Keep the RMW in the fixed final 2K
+# after selecting RAM so a forced 3E analysis must record the contradiction.
+my $threee_rmw = chr(0xEA) x 8192;
+substr($threee_rmw, 3 * 2048 + 0x0100, 17,
+   "\xA9\x02\x85\x3E" .       # select RAM bank 2
+   "\xEE\x00\xF0" .            # INC read alias: split-RAM contradiction
+   "\xA9\x01\x85\x3F" .       # restore ROM bank 1
+   "\xA9\x01\x85\x3F" .       # repeated ROM selector signature
+   "\x60");
+for my $v (0, 2, 4) {
+   put16(\$threee_rmw, 3 * 2048 + 0x07FA + $v, 0xF900);
+}
+write_bin(File::Spec->catfile($in, 'threee_rmw.bin'), $threee_rmw);
+
+# Activision/SCABS FE delays the bank decision by one bus cycle after the
+# stack-page $01FE access.  In the released-cart JSR idiom, JSR's low return
+# address push hits $01FE and the following target-high byte supplies the bank
+# bit.  This Decathlon-shaped sequence switches from bank 0 to bank 1 while the
+# target bytes in the old mapping are JAM; RTS must return to bank 0.
+my $fe = chr(0xEA) x 8192;
+break_sc_layout(\$fe);
+substr($fe, 0x0000, 1, "\x02");
+substr($fe, 0x1000 + 0x0000, 3, "\xA9\x55\x60");
+substr($fe, 0x0100, 11,
+   "\xA2\xFF\x9A" .        # LDX #$FF; TXS: next JSR low-return push uses $01FE
+   "\x20\x00\xD0" .        # JSR $D000: following target-high byte selects FE bank 1
+   "\xC6\xC5" .            # DEC $C5 completes Stella's Decathlon FE signature
+   "\xA9\x42\x60");        # caller continuation remains in bank 0
+for my $v (0, 2, 4) {
+   put16(\$fe, 0x0FFA + $v, 0xF100);
+   put16(\$fe, 0x1FFA + $v, 0x0000);
+}
+write_bin(File::Spec->catfile($in, 'fe_flow.bin'), $fe);
+
 
 # Mapper inference must use executable control flow, not raw byte substrings.
 # CPX #$2C followed by this BCS happens to contain 2C B0 0F, the historical
@@ -1244,7 +1331,7 @@ my $spec_banked = slurp(File::Spec->catfile($out, 'speculative_banked_island.s26
 require_re($spec_banked, qr/^; mapper: F8 \(/m,
    'banked speculative-island mapper');
 require_re($spec_banked,
-   qr/^; mapper flow hypotheses: 7 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
    'banked-island mapper hypotheses converge');
 require_re($spec_banked,
    qr/speculative instruction island validated by HLT\/JAM\/KIL rejection\nB0_F203:\n\s*LDA\s+\$1FF9/m,
@@ -1254,7 +1341,7 @@ require_re($spec_banked, qr/^B1_F206:\n\s*LDA\s+#\$42/m,
 
 my $spec_no_reset = slurp(File::Spec->catfile($out, 'speculative_without_reset.s26'));
 require_re($spec_no_reset,
-   qr/^; mapper flow hypotheses: 2 tested, 0 survived$/m,
+   qr/^; mapper flow hypotheses: 4 tested, 0 survived$/m,
    'speculative island cannot resurrect mapper hypothesis without RESET');
 require_re($spec_no_reset, qr/^B0_F203:\n\s*LDA\s+#\$42/m,
    'full presentation may still preserve a detached speculative island');
@@ -1332,11 +1419,75 @@ die "write-port execution conflict still hid ordinary 4K ROM bytes\n"
       $sc_write_exec =~ /hidden by Superchip RAM window/i;
 
 
+my $threef_out = slurp(File::Spec->catfile($out, 'threef.s26'));
+require_re($threef_out, qr/^; mapper: 3F \(high confidence;/m,
+   '3F mapper inferred from executable selector flow');
+require_re($threef_out,
+   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
+   '3F mapper hypotheses converge');
+require_re($threef_out, qr/^B1_F100:\n\s*LDA\s+#\$02\n\s*STA\s+\$3F/m,
+   '3F lower-bank selector decoded');
+require_re($threef_out, qr/^B2_F104:\n\s*LDA\s+#\$42\n\s*RTS$/m,
+   '3F execution resumes in value-selected 2K bank after old-bank JAM');
+require_re($threef_out, qr/^B3_F900:\n\s*LDA\s+#\$01\n\s*STA\s+\$3F/m,
+   '3F RESET executes from fixed final 2K bank');
+
+my $threef32_out = slurp(File::Spec->catfile($out, 'threef32.s26'));
+require_re($threef32_out, qr/^; mapper: 3F \(high confidence;/m,
+   '32K 3F mapper inference');
+require_re($threef32_out, qr/^; physical banks: 16 x 2048 bytes$/m,
+   '32K 3F physical bank count');
+require_re($threef32_out, qr/^B14_F100:\n\s*LDA\s+#\$03\n\s*STA\s+\$3F/m,
+   '32K 3F high-numbered selectable bank decoded');
+require_re($threef32_out, qr/^B3_F104:\n\s*LDA\s+#\$55\n\s*RTS$/m,
+   '32K 3F value-selected continuation decoded');
+
+my $threee_out = slurp(File::Spec->catfile($out, 'threee.s26'));
+require_re($threee_out, qr/^; mapper: 3E \(high confidence;/m,
+   '3E mapper inferred from RAM+ROM selector signature and flow');
+require_re($threee_out, qr/^; mapper flow hypotheses: 10 tested, /m,
+   '3E participates in 8K mapper hypothesis convergence');
+require_re($threee_out, qr/^B3_F900:
+\s*LDA\s+#\$02
+\s*STA\s+\$3E/m,
+   '3E RESET path selects external RAM bank');
+require_re($threee_out, qr/STA\s+\$3F/m,
+   '3E RESET path restores selectable ROM bank');
+require_re($threee_out, qr/^B1_F100:
+\s*LDA\s+#\$42
+\s*RTS$/m,
+   '3E execution enters restored lower ROM bank');
+require_re($threee_out, qr/^; 3E cartridge RAM: /m,
+   '3E split-RAM alias description emitted');
+
+my $forced_threee_rmw_s26 = File::Spec->catfile($tmp, 'forced_threee_rmw.s26');
+run_ok($disas, '--mapper', '3e', '-o', $forced_threee_rmw_s26,
+   File::Spec->catfile($in, 'threee_rmw.bin'));
+my $forced_threee_rmw = slurp($forced_threee_rmw_s26);
+require_re($forced_threee_rmw,
+   qr/^; mapper: 3E \(override;.*1 native split-RAM RMW conflict\)/m,
+   '3E RMW against selected RAM read alias recorded as contradiction');
+
+my $fe_out = slurp(File::Spec->catfile($out, 'fe_flow.s26'));
+require_re($fe_out, qr/^; mapper: FE \(high confidence;/m,
+   'FE mapper inferred from canonical SCABS call signature and executable flow');
+require_re($fe_out,
+   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
+   'FE mapper hypotheses converge');
+require_re($fe_out, qr/^B0_F100:\n\s*LDX\s+#\$FF\n\s*TXS\n\s*JSR\s+\$D000/m,
+   'FE RESET path contains canonical JSR switching idiom');
+require_re($fe_out, qr/^B1_D000:\n\s*LDA\s+#\$55\n\s*RTS$/m,
+   'FE JSR target executes from selected physical bank');
+require_re($fe_out, qr/DEC\s+\$C5\n\s*LDA\s+#\$42\n\s*RTS/m,
+   'FE RTS returns to caller continuation in original bank');
+require_re($fe_out, qr/^; FE\/SCABS switching:/m,
+   'FE hardware semantics documented in generated source');
+
 my $f8_false_ua_out = slurp(File::Spec->catfile($out, 'f8_false_ua_flow.s26'));
 require_re($f8_false_ua_out, qr/^; mapper: F8 \(/m,
    'control-flow inference rejects accidental UA byte signature');
 require_re($f8_false_ua_out,
-   qr/^; mapper flow hypotheses: 7 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
    'false-UA mapper hypotheses converge');
 require_re($f8_false_ua_out, qr/CPX\s+#\$2C\n\s*BCS\.same\s+/m,
    'accidental 2C B0 0F sequence remains ordinary decoded F8 code');
@@ -1357,7 +1508,7 @@ my $f8_cross_jam_out = slurp(File::Spec->catfile($out, 'f8_cross_switch_possible
 require_re($f8_cross_jam_out, qr/^; mapper: F8 \(/m,
    'real F8 cross-bank selector outranks possible abstract-state JAM path');
 require_re($f8_cross_jam_out,
-   qr/^; mapper flow hypotheses: 7 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
    'cross-bank F8 evidence eliminates zero-switch E0 hypothesis');
 require_re($f8_cross_jam_out, qr/B1_F100:\n\s*LDA\s+\$1FF8/m,
    'F8 cross-bank evidence begins on RESET path');
@@ -1366,7 +1517,7 @@ my $uasw_flow_out = slurp(File::Spec->catfile($out, 'uasw_flow_only.s26'));
 require_re($uasw_flow_out, qr/^; mapper: UASW \(/m,
    'control-flow inference distinguishes UASW from UA and F8');
 require_re($uasw_flow_out,
-   qr/^; mapper flow hypotheses: 7 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
    'UASW mapper hypotheses converge');
 require_re($uasw_flow_out, qr/B0_F100:\n\s*LDA\s+\$0220/m,
    'UASW selector decoded on RESET path');
@@ -1377,7 +1528,7 @@ my $e0_flow_out = slurp(File::Spec->catfile($out, 'e0_flow_only.s26'));
 require_re($e0_flow_out, qr/^; mapper: E0 \(/m,
    'E0 segmented mapper inferred from executable flow');
 require_re($e0_flow_out,
-   qr/^; mapper flow hypotheses: 7 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
    'E0 RESET-path mapper hypotheses converge');
 require_re($e0_flow_out, qr/B4_F100:\n\s*LDA\s+\$FFE0/m,
    'E0 selector decoded in default physical bank 4');
@@ -1388,7 +1539,7 @@ my $e0_spec_out = slurp(File::Spec->catfile($out, 'e0_speculative_banked_island.
 require_re($e0_spec_out, qr/^; mapper: E0 \(/m,
    'E0 speculative-island mapper inferred');
 require_re($e0_spec_out,
-   qr/^; mapper flow hypotheses: 7 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper flow hypotheses: 10 tested, 1 survived; control flow refined selection$/m,
    'E0 speculative-island hypotheses converge');
 require_re($e0_spec_out,
    qr/speculative instruction island validated by HLT\/JAM\/KIL rejection\nB4_F203:\n\s*LDA\s+\$FFE0/m,
@@ -1406,8 +1557,8 @@ my $f6_jane_tie_out = slurp(File::Spec->catfile($out, 'f6_jane_exit_tie.s26'));
 require_re($f6_jane_tie_out, qr/^; mapper: F6 \(medium confidence;/m,
    'F6/JANE ambiguity does not reward truncated control flow');
 require_re($f6_jane_tie_out,
-   qr/^; mapper flow hypotheses: 2 tested, 2 survived$/m,
-   'F6/JANE exit-count fixture remains honestly ambiguous');
+   qr/^; mapper flow hypotheses: 4 tested, 2 survived$/m,
+   'F6/JANE/3E/3F candidate set retains two viable exit-count hypotheses');
 
 my $f6sc_out = slurp(File::Spec->catfile($out, 'f6sc.s26'));
 require_re($f6sc_out, qr/^; mapper: F6SC\b/m, 'F6SC mapper inference');
