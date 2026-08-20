@@ -1324,10 +1324,12 @@ recovery, disassembly, and byte-exact round trip. Bankswitching Item 36 UA/UASW 
 
 
 An asymmetric-playfield extension of the enhanced multisprite side quest is now
-in progress.  It is isolated in `renderers/enhanced_multisprite_asymmetric/`;
+in progress. It is isolated in `renderers/enhanced_multisprite_asymmetric/`;
 dynamic 32-bit asymmetric PF timing with all six live sprite events is feasible
-and stable, but horizontal sprite positioning is knowingly unfinished.  Read
-`.../enhanced_asymmetric.txt` before continuing that experiment.
+and stable, but horizontal sprite positioning is knowingly unfinished. The
+reconciled WIP keeps event id/HMP metadata separate from lane/coarse RESP-slot
+metadata, defers priority promotion to overscan, and currently builds at 3498
+ROM / 120 RAM. Read `.../enhanced_asymmetric.txt` before continuing it.
 
 The enhanced-multisprite side quest now has an experimental 192-line renderer at
 `libraries/vcs/renderers/enhanced_multisprite/` plus public interactive example
@@ -1349,3 +1351,13 @@ requires solid equal-Y alignment, and checks top reach. Public example accountin
 is currently 2498 ROM bytes / 104 RAM bytes. Next gate is user interactive Stella
 validation, especially moving 3-6-way piles and crossing sprites. The existing
 `renderers/multisprite/` remains unchanged and its Stella oracle still passes.
+
+Checkpoint 2026-08-20: the enhanced asymmetric multisprite WIP now has the full
+PF0/PF1/PF2 non-reflected 40-bit playfield in the buildable source.  The public
+example sets CTRLPF=0; PF0/PF1/PF2 are independent const/ROM data on both halves.
+The raster uses all six PF writes and a ROM-resident branch-free graphics state
+transition table.  Verified example accounting is 3589/4090 ROM and 117/128 RAM.
+Horizontal positioning is still WIP: the final calibrated 11-phase coarse RESP
+dispatch and Stella X=0..159 certification remain.  Read
+`.../enhanced_asymmetric.txt` before continuing this work; preserve this
+checkpoint rather than reverting to the earlier reflected/PF1+PF2 design.

@@ -14,7 +14,7 @@ $(TARGET): $(SOURCE) $(COMMON) \
            $(VCS_DIR)/vcs.c26 \
            $(VCS_DIR)/frame_ntsc.c26 \
            $(VCS_DIR)/color_ntsc.c26 \
-           $(VCS_DIR)/renderers/enhanced_multisprite/enhanced_multisprite.c26
+           $(VCS_DIR)/renderers/enhanced_multisprite_asymmetric/enhanced_multisprite.c26
 	$(VCSC) -I $(VCS_DIR) $(SOURCE) -o $@
 
 clean:

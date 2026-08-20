@@ -7,7 +7,7 @@
 
 <!-- This file is covered under CC0-1.0. See examples/LICENSE.txt. -->
 
-# Interactive enhanced multisprite diagnostic
+# Interactive enhanced multisprite + asymmetric playfield diagnostic
 
 Build with `make`, then `make play`. Game Select cycles logical sprites 0..5;
 the left joystick moves the selected sprite in X/Y and Reset restores the scene.
@@ -22,5 +22,7 @@ The initial scene deliberately demonstrates the new arbitration:
 - logical sprite 5 is isolated, demonstrating that a hardware player can be
   reused for another logical sprite later in the same frame.
 
-This first experimental profile is player-only: playfield, missiles, and Ball
-are intentionally not rendered yet.
+This experimental profile adds a dynamic 32-bit asymmetric central playfield.
+Each logical two-scanline band has independent left PF1/PF2 and right PF2/PF1
+data. PF0, missiles, and Ball are intentionally not rendered yet. Horizontal
+sprite positioning is still under active calibration in this WIP profile.

@@ -27,6 +27,8 @@ alias TEMPLATE_PLAYER4_GRAPHICS_OFFSET 129
 alias TEMPLATE_PLAYER5_GRAPHICS_OFFSET 137
 
 extern const uint8_t TEMPLATE_graphics[145];
+extern const uint8_t TEMPLATE_playfield_left_pf0[96];
+extern const uint8_t TEMPLATE_playfield_right_pf0[96];
 extern const uint8_t TEMPLATE_playfield_left[192];
 extern const uint8_t TEMPLATE_playfield_right[192];
 
@@ -86,9 +88,9 @@ alias TEMPLATE_BALL_Y TEMPLATE_unused_object_state[5]
 // logical sprite, with slot 6 reserved as the sort/draw sentinel. After the
 // fixed sorting network, event_order[] is a compact descending list terminated by
 // index 6.
-// setup_code stores the
-// logical sprite in bits 0..2 and lane in bit 7; setup_line stores action_y,
-// two bands above the physical setup band.
+// setup_code stores logical sprite id in bits 0..2 plus HMP fine motion in
+// bits 4..7; setup_position stores lane in bit 7 plus coarse slot in 0..3.
+// setup_line stores action_y, two bands above the physical setup band.
 uint8_t TEMPLATE_priority[6];
 uint8_t TEMPLATE_lane_for[6];
 uint8_t TEMPLATE_setup_line[7];
@@ -112,12 +114,6 @@ uint8_t TEMPLATE_pending0_valid; // VBLANK scheduler scratch
 uint8_t TEMPLATE_pair_y;
 uint8_t TEMPLATE_gfx_index[2];
 uint8_t TEMPLATE_current_gfx[2];
-uint8_t TEMPLATE_rows_left[2];
-
-// P0 is positioned four bands before its logical top. setup line B arms its
-// top+1 pointer immediately, then this countdown suppresses the three ordinary
-// bands y+3,y+2,y+1. P1 is positioned one band early and needs no countdown.
-uint8_t TEMPLATE_p0_delay;
 
 // The next setup event is kept hot so ordinary visible lines never index the
 // event tables.  action_y is two bands above the setup band.  Line B there
@@ -127,10 +123,29 @@ uint8_t TEMPLATE_position_packed;
 uint8_t TEMPLATE_event_stage;
 uint8_t TEMPLATE_action_y;
 
-// One-past-top byte offsets for the six logical glyphs.  The draw pipeline
-// decrements before fetching, so pre-biasing these values saves four cycles on
-// every setup line B.  All six visible glyphs are exactly eight rows.
-page const uint8_t TEMPLATE_graphics_top[6] := { 105,113,121,129,137,145 };
+// Compact branch-free graphics state.  States 1..6 are per-sprite setup
+// sentinels; states 7..24 are three P0-only delay stages.  The visible glyph
+// states remain the byte offsets in TEMPLATE_graphics.  All delay/sentinel
+// states deliberately index the renderer's leading zero-filled graphics area,
+// so a state can be fed directly to TEMPLATE_graphics after transition.
+page const uint8_t TEMPLATE_graphics_next[145] := {
+   0,104,112,120,128,136,144,1,7,8,2,10,11,3,13,14,
+   4,16,17,5,19,20,6,22,23,0,0,0,0,0,0,0,
+   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   0,0,97,98,99,100,101,102,103,0,105,106,107,108,109,110,
+   111,0,113,114,115,116,117,118,119,0,121,122,123,124,125,126,
+   127,0,129,130,131,132,133,134,135,0,137,138,139,140,141,142,
+   143
+};
+
+// Initial P0 state for logical sprites 0..5.  Each value is the last of that
+// sprite's three zero-output delay states; the transition table walks through
+// the two earlier delay states, the per-sprite setup sentinel, and then the
+// first visible bitmap row.  This replaces rows_left[] plus p0_delay with ROM.
+page const uint8_t TEMPLATE_p0_start_state[6] := { 9,12,15,18,21,24 };
 
 // Packed horizontal controls calibrated for this renderer's own setup phase.
 // Low nibble stores coarse_count-1 and high nibble is HMPx.  Setup line A
@@ -466,27 +481,24 @@ void TEMPLATE_vblank_worker(void) {
    asm @TEMPLATE_AssignActionReady:;
    asm sta.zx TEMPLATE_setup_line,X;
 
+   // Split horizontal state once while X=logical sprite and the assigned lane
+   // are already hot. setup_code becomes id + HMP fine nibble; setup_position
+   // becomes lane (bit 7) + coarse slot (bits 0..3).
    asm txa;
-   asm ldy.z TEMPLATE_position_packed;
-   asm beq.same @TEMPLATE_AssignCodeReady;
-   asm ora #$80;
-   asm @TEMPLATE_AssignCodeReady:;
    asm sta.zx TEMPLATE_setup_code,X;
-
    asm ldy.zx TEMPLATE_x,X;
    asm lda.ay TEMPLATE_position_table,Y;
-   asm sta.zx TEMPLATE_setup_position,X;
-   // Bit 6 marks coarse buckets 6..10.  Those late horizontal positions are
-   // strobed in the tail of the trigger scanline, after its right-half PF
-   // rewrite, so the following position scanline never has to choose between
-   // RESP timing and asymmetric playfield timing.
-   asm and #$0f;
-   asm cmp #6;
-   asm bcc.same @TEMPLATE_AssignPositionClassReady;
-   asm lda.zx TEMPLATE_setup_code,X;
-   asm ora #$40;
+   asm sta.z TEMPLATE_pending0_valid;
+   asm and #$f0;
+   asm ora.z TEMPLATE_setup_sprite;
    asm sta.zx TEMPLATE_setup_code,X;
-   asm @TEMPLATE_AssignPositionClassReady:;
+   asm lda.z TEMPLATE_pending0_valid;
+   asm and #$0f;
+   asm ldy.z TEMPLATE_position_packed;
+   asm beq.same @TEMPLATE_AssignPositionReady;
+   asm ora #$80;
+   asm @TEMPLATE_AssignPositionReady:;
+   asm sta.zx TEMPLATE_setup_position,X;
 
    asm ldy.z TEMPLATE_setup_index;
    asm txa;
@@ -499,20 +511,12 @@ void TEMPLATE_vblank_worker(void) {
    asm cmp #6;
    asm bne.same @TEMPLATE_AssignRank;
 
-   // Move the last omission to the front, preserving the order of everything
-   // that preceded it.  The first candidate can always use an empty lane, so
-   // an omission rank is never zero; $ff means all six were accepted.
-   asm ldy TEMPLATE_setup_line + 6;
-   asm cpy #$ff;
-   asm beq.same @TEMPLATE_PriorityPromoteDone;
-   asm @TEMPLATE_PriorityPromoteShift:;
-   asm lda.ay TEMPLATE_priority - 1,Y;
-   asm sta.ay TEMPLATE_priority,Y;
-   asm dey;
-   asm bne.same @TEMPLATE_PriorityPromoteShift;
+   // Priority promotion changes only the next frame. Preserve the omission
+   // record in scheduler scratch and rotate priority later in overscan.
+   asm lda TEMPLATE_setup_line + 6;
+   asm sta.z TEMPLATE_setup_sprite;
    asm lda TEMPLATE_setup_code + 6;
-   asm sta TEMPLATE_priority;
-   asm @TEMPLATE_PriorityPromoteDone:;
+   asm sta.z TEMPLATE_pending0_valid;
 
    // event_order[0..setup_index-1] already contains every accepted logical
    // sprite. Fill the unused tail with sort-sentinel index 6, then sort all six
@@ -569,10 +573,7 @@ void TEMPLATE_vblank_worker(void) {
    asm sta.z TEMPLATE_gfx_index + 1;
    asm sta.z TEMPLATE_current_gfx;
    asm sta.z TEMPLATE_current_gfx + 1;
-   asm sta.z TEMPLATE_rows_left;
-   asm sta.z TEMPLATE_rows_left + 1;
    asm sta.z TEMPLATE_event_stage;
-   asm sta.z TEMPLATE_p0_delay;
 
    // Keep the first event's action and lane/sprite code hot.  Horizontal
    // control is fetched by rank on the rare position line itself.
@@ -615,24 +616,28 @@ require inline void TEMPLATE_draw(void) {
    asm lda #0;
    asm sta GRP0;
    asm sta GRP1;
+   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
    asm sta PF2;
-   asm bit.a TEMPLATE_playfield_left;
-   asm bit.a TEMPLATE_playfield_left;
+   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
    asm sta WSYNC;
 
+   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
    asm sta PF2;
-   asm bit.a TEMPLATE_playfield_left;
-   asm bit.a TEMPLATE_playfield_left;
+   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
@@ -647,7 +652,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_TopTrigger:;
    asm lda #0;
    asm tay;
-   asm bit.z TEMPLATE_event_code;
+   asm bit.z TEMPLATE_position_packed;
    asm bmi.same @TEMPLATE_TopTriggerP1;
    asm jmp @TEMPLATE_Position0Boundary;
    asm @TEMPLATE_TopTriggerP1:;
@@ -661,42 +666,23 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_NormalLineA:;
    asm sta GRP0;
    asm sty GRP1;
+   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
    asm sta PF2;
 
    asm ldy.z TEMPLATE_gfx_index;
-   asm beq.same @TEMPLATE_LineAIdle0;
-   asm lda.z TEMPLATE_p0_delay;
-   asm beq.same @TEMPLATE_LineAAdvance0;
-   asm dec.z TEMPLATE_p0_delay;
-   asm bit.z TEMPLATE_pair_y;
-   asm nop;
-   asm bpl.same @TEMPLATE_LineAStateReady;
-   asm @TEMPLATE_LineAIdle0:;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm beq.same @TEMPLATE_LineAStateReady;
-   asm @TEMPLATE_LineAAdvance0:;
-   asm dec.z TEMPLATE_rows_left;
-   asm bpl.same @TEMPLATE_LineAHaveRow0;
-   asm ldy #0;
-   asm beq.same @TEMPLATE_LineAStateReady;
-   asm @TEMPLATE_LineAHaveRow0:;
-   asm dey;
-   asm nop;
-   asm @TEMPLATE_LineAStateReady:;
-   asm lda.ax TEMPLATE_playfield_right,X;
-   asm sta PF2;
+   asm lda.ay TEMPLATE_graphics_next,Y;
+   asm sta.z TEMPLATE_gfx_index;
+   asm tay;
+   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
-   asm sty.z TEMPLATE_gfx_index;
+   asm lda.ax TEMPLATE_playfield_right,X;
+   asm sta PF2;
    asm lda.ay TEMPLATE_graphics,Y;
    asm cpx.z TEMPLATE_action_y;
    asm beq.same @TEMPLATE_ArmedLineBBoundary;
@@ -705,32 +691,22 @@ require inline void TEMPLATE_draw(void) {
 
    // Ordinary line B.
    asm @TEMPLATE_NormalLineB:;
+   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
    asm sta PF2;
    asm ldy.z TEMPLATE_gfx_index + 1;
-   asm beq.same @TEMPLATE_LineBIdle1;
-   asm dec.z TEMPLATE_rows_left + 1;
-   asm bpl.same @TEMPLATE_LineBHaveRow1;
-   asm ldy #0;
-   asm beq.same @TEMPLATE_LineBStateReady;
-   asm @TEMPLATE_LineBIdle1:;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm beq.same @TEMPLATE_LineBStateReady;
-   asm @TEMPLATE_LineBHaveRow1:;
-   asm dey;
-   asm nop;
-   asm @TEMPLATE_LineBStateReady:;
-   asm bit.a TEMPLATE_playfield_left;
+   asm lda.ay TEMPLATE_graphics_next,Y;
+   asm sta.z TEMPLATE_gfx_index + 1;
+   asm tay;
+   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
-   asm sty.z TEMPLATE_gfx_index + 1;
    asm lda.ay TEMPLATE_graphics,Y;
    asm sta.z TEMPLATE_current_gfx + 1;
    asm tay;
@@ -755,40 +731,27 @@ require inline void TEMPLATE_draw(void) {
    // the ordinary four-cycle center pad keeps the asymmetric PF rewrite only
    // one cycle earlier while buying enough time for lane dispatch.
    asm sta.z TEMPLATE_current_gfx;
+   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
    asm sta PF2;
-   // This armed-line update is deliberately 18 cycles on all three P1
-   // states.  The trigger line deferred a three-cycle P0 cache store to cycle
-   // zero here; this tighter update exactly recovers those three cycles so the
-   // right-half PF writes remain at the ordinary line-B phase.
    asm ldy.z TEMPLATE_gfx_index + 1;
-   asm beq.same @TEMPLATE_ArmedLineBIdle1;
-   asm dec.z TEMPLATE_rows_left + 1;
-   asm bpl.same @TEMPLATE_ArmedLineBHaveRow1;
-   asm ldy.z TEMPLATE_event_stage; // VBLANK keeps this zero
-   asm beq.same @TEMPLATE_ArmedLineBStateReady;
-   asm @TEMPLATE_ArmedLineBIdle1:;
-   asm bit.z TEMPLATE_event_stage;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm beq.same @TEMPLATE_ArmedLineBStateReady;
-   asm @TEMPLATE_ArmedLineBHaveRow1:;
-   asm bit.z TEMPLATE_pair_y;
-   asm dey;
-   asm @TEMPLATE_ArmedLineBStateReady:;
+   asm lda.ay TEMPLATE_graphics_next,Y;
+   asm sta.z TEMPLATE_gfx_index + 1;
+   asm tay;
+   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
-   asm sty.z TEMPLATE_gfx_index + 1;
    asm lda.ay TEMPLATE_graphics,Y;
    asm tay;
    asm dex;
    asm lda.z TEMPLATE_current_gfx;
-   asm bit.z TEMPLATE_event_code;
+   asm bit.z TEMPLATE_position_packed;
    asm bmi.same @TEMPLATE_ArmedToP1;
    asm jmp @TEMPLATE_Position0Boundary;
    asm @TEMPLATE_ArmedToP1:;
@@ -804,35 +767,26 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_Position0LineA:;
    asm sta GRP0;
    asm sty GRP1;
+   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
    asm sta PF2;
    asm ldy.z TEMPLATE_gfx_index + 1;
-   asm beq.same @TEMPLATE_Position0Idle1;
-   asm dec.z TEMPLATE_rows_left + 1;
-   asm bpl.same @TEMPLATE_Position0HaveRow1;
-   asm ldy #0;
-   asm beq.same @TEMPLATE_Position0StateReady;
-   asm @TEMPLATE_Position0Idle1:;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm beq.same @TEMPLATE_Position0StateReady;
-   asm @TEMPLATE_Position0HaveRow1:;
-   asm dey;
-   asm nop;
-   asm @TEMPLATE_Position0StateReady:;
+   asm lda.ay TEMPLATE_graphics_next,Y;
+   asm sta.z TEMPLATE_gfx_index + 1;
+   asm tay;
    // Spend the old six-cycle center pad preparing horizontal motion for the
    // following scanline; this does not move either right-half PF write.
-   asm lda.z TEMPLATE_position_packed;
+   asm lda.z TEMPLATE_event_code;
    asm sta HMP0;
-   asm lda.ax TEMPLATE_playfield_right,X;
-   asm sta PF2;
+   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
-   asm sty.z TEMPLATE_gfx_index + 1;
+   asm lda.ax TEMPLATE_playfield_right,X;
+   asm sta PF2;
    asm lda.ay TEMPLATE_graphics,Y;
    asm sta.z TEMPLATE_current_gfx + 1;
    // Finish early and wait rather than free-running through the boundary.
@@ -844,23 +798,25 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
    asm sta PF2;
-   asm ldy.z TEMPLATE_event_code;
+   asm lda.z TEMPLATE_event_code;
+   asm and #7;
+   asm tay;
    asm lda.ay TEMPLATE_color,Y;
    asm sta COLUP0;
    asm lda #0;
    asm sta HMP1;
-   asm nop;
+   // Metadata masking costs four cycles.  Spend four fewer padding cycles so
+   // the asymmetric right-half PF rewrite remains at the proven phase.  RESP0
+   // intentionally moves two CPU cycles later; full X is recalibrated below.
    asm sta RESP0;
-   asm bit.z TEMPLATE_pair_y;
-   asm bit.z TEMPLATE_pair_y;
+   asm nop;
+   asm nop;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
    asm dex;
    asm inc.z TEMPLATE_setup_index;
-   asm lda #3;
-   asm sta.z TEMPLATE_p0_delay;
    asm lda.z TEMPLATE_current_gfx + 1;
    asm sta WSYNC;
 
@@ -870,34 +826,23 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_Setup0LineA:;
    asm sta HMOVE;
    asm sta GRP1;
+   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
    asm sta PF2;
    asm ldy.z TEMPLATE_gfx_index + 1;
-   asm beq.same @TEMPLATE_Setup0Idle1;
-   asm dec.z TEMPLATE_rows_left + 1;
-   asm bpl.same @TEMPLATE_Setup0HaveRow1;
-   asm ldy #0;
-   asm beq.same @TEMPLATE_Setup0StateReady;
-   asm @TEMPLATE_Setup0Idle1:;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm beq.same @TEMPLATE_Setup0StateReady;
-   asm @TEMPLATE_Setup0HaveRow1:;
-   asm dey;
-   asm nop;
-   asm @TEMPLATE_Setup0StateReady:;
-   asm bit.z TEMPLATE_pair_y;
-   asm bit.z TEMPLATE_pair_y;
-   asm lda.ax TEMPLATE_playfield_right,X;
-   asm sta PF2;
+   asm lda.ay TEMPLATE_graphics_next,Y;
+   asm sta.z TEMPLATE_gfx_index + 1;
+   asm tay;
+   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
+   asm lda.ax TEMPLATE_playfield_right,X;
+   asm sta PF2;
    asm dex;
-   asm sty.z TEMPLATE_gfx_index + 1;
    asm lda.ay TEMPLATE_graphics,Y;
    asm sta.z TEMPLATE_current_gfx + 1;
    // 69 cycles are used above on every path.  Spend the seven-cycle tail
@@ -909,26 +854,28 @@ require inline void TEMPLATE_draw(void) {
 
    asm @TEMPLATE_Setup0LineB:;
    asm sta.z TEMPLATE_position_packed;
+   asm lda.ax TEMPLATE_playfield_left_pf0 + 1,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left + 1,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 97,X;
    asm sta PF2;
-   // Current P0 setup no longer needs p0_delay here; Position0LineB already
-   // installed it.  Once graphics_top/rows are armed, event_code is free for
-   // the next rank before the center rewrite.
-   asm ldy.z TEMPLATE_event_code;
-   asm lda.ay TEMPLATE_graphics_top,Y;
+   // Arm the branch-free P0 delay state.  Once it is installed event_code is
+   // free for the next rank before the right-half playfield writes.
+   asm lda.z TEMPLATE_event_code;
+   asm and #7;
+   asm tay;
+   asm lda.ay TEMPLATE_p0_start_state,Y;
    asm sta.z TEMPLATE_gfx_index;
-   asm lda #8;
-   asm sta.z TEMPLATE_rows_left;
    asm ldy.z TEMPLATE_setup_index;
    asm lda.ay TEMPLATE_draw_code,Y;
    asm sta.z TEMPLATE_event_code;
-   asm bit.a TEMPLATE_playfield_left;
-   asm lda.ax TEMPLATE_playfield_right + 1,X;
-   asm sta PF2;
+   asm lda.ax TEMPLATE_playfield_right_pf0 + 1,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 97,X;
    asm sta PF1;
+   asm lda.ax TEMPLATE_playfield_right + 1,X;
+   asm sta PF2;
    asm lda.ay TEMPLATE_event_order,Y;
    asm sta.z TEMPLATE_action_y;
    asm lda.z TEMPLATE_current_gfx;
@@ -947,44 +894,25 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_Position1LineA:;
    asm sta GRP0;
    asm sty GRP1;
+   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
    asm sta PF2;
    asm ldy.z TEMPLATE_gfx_index;
-   asm beq.same @TEMPLATE_Position1Idle0;
-   asm lda.z TEMPLATE_p0_delay;
-   asm beq.same @TEMPLATE_Position1Advance0;
-   asm dec.z TEMPLATE_p0_delay;
-   asm bit.z TEMPLATE_pair_y;
-   asm nop;
-   asm bpl.same @TEMPLATE_Position1StateReady;
-   asm @TEMPLATE_Position1Idle0:;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm beq.same @TEMPLATE_Position1StateReady;
-   asm @TEMPLATE_Position1Advance0:;
-   asm dec.z TEMPLATE_rows_left;
-   asm bpl.same @TEMPLATE_Position1HaveRow0;
-   asm ldy #0;
-   asm beq.same @TEMPLATE_Position1StateReady;
-   asm @TEMPLATE_Position1HaveRow0:;
-   asm dey;
-   asm nop;
-   asm @TEMPLATE_Position1StateReady:;
-   asm lda.ax TEMPLATE_playfield_right,X;
-   asm sta PF2;
+   asm lda.ay TEMPLATE_graphics_next,Y;
+   asm sta.z TEMPLATE_gfx_index;
+   asm tay;
+   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
-   asm sty.z TEMPLATE_gfx_index;
+   asm lda.ax TEMPLATE_playfield_right,X;
+   asm sta PF2;
    asm lda.ay TEMPLATE_graphics,Y;
    asm tay;
-   asm lda.z TEMPLATE_position_packed;
+   asm lda.z TEMPLATE_event_code;
    asm sta HMP1;
    asm sta WSYNC;
 
@@ -1018,42 +946,23 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_Setup1LineA:;
    asm sta HMOVE;
    asm sta GRP0;
+   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
    asm sta PF2;
    asm ldy.z TEMPLATE_gfx_index;
-   asm beq.same @TEMPLATE_Setup1Idle0;
-   asm lda.z TEMPLATE_p0_delay;
-   asm beq.same @TEMPLATE_Setup1Advance0;
-   asm dec.z TEMPLATE_p0_delay;
-   asm bit.z TEMPLATE_pair_y;
-   asm nop;
-   asm bpl.same @TEMPLATE_Setup1StateReady;
-   asm @TEMPLATE_Setup1Idle0:;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm beq.same @TEMPLATE_Setup1StateReady;
-   asm @TEMPLATE_Setup1Advance0:;
-   asm dec.z TEMPLATE_rows_left;
-   asm bpl.same @TEMPLATE_Setup1HaveRow0;
-   asm ldy #0;
-   asm beq.same @TEMPLATE_Setup1StateReady;
-   asm @TEMPLATE_Setup1HaveRow0:;
-   asm dey;
-   asm nop;
-   asm @TEMPLATE_Setup1StateReady:;
-   asm lda.ax TEMPLATE_playfield_right,X;
-   asm sta PF2;
+   asm lda.ay TEMPLATE_graphics_next,Y;
+   asm sta.z TEMPLATE_gfx_index;
+   asm tay;
+   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
+   asm lda.ax TEMPLATE_playfield_right,X;
+   asm sta PF2;
    asm dex;
-   asm sty.z TEMPLATE_gfx_index;
    asm lda.ay TEMPLATE_graphics,Y;
    asm sta.z TEMPLATE_current_gfx;
    // Same seven-cycle previous-scanline preload as P0: setup_index already
@@ -1063,24 +972,26 @@ require inline void TEMPLATE_draw(void) {
 
    asm @TEMPLATE_Setup1LineB:;
    asm sta.z TEMPLATE_position_packed;
+   asm lda.ax TEMPLATE_playfield_left_pf0 + 1,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left + 1,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 97,X;
    asm sta PF2;
    asm lda.z TEMPLATE_event_code;
    asm and #7;
-   asm tay;
-   asm lda.ay TEMPLATE_graphics_top,Y;
+   asm clc;
+   asm adc #1;
    asm sta.z TEMPLATE_gfx_index + 1;
-   asm lda #8;
-   asm sta.z TEMPLATE_rows_left + 1;
    asm ldy.z TEMPLATE_setup_index;
    asm lda.ay TEMPLATE_draw_code,Y;
    asm sta.z TEMPLATE_event_code;
-   asm lda.ax TEMPLATE_playfield_right + 1,X;
-   asm sta PF2;
+   asm lda.ax TEMPLATE_playfield_right_pf0 + 1,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 97,X;
    asm sta PF1;
+   asm lda.ax TEMPLATE_playfield_right + 1,X;
+   asm sta PF2;
    asm lda.ay TEMPLATE_event_order,Y;
    asm sta.z TEMPLATE_action_y;
    asm lda.z TEMPLATE_current_gfx;
@@ -1092,4 +1003,15 @@ require inline void TEMPLATE_draw(void) {
 }
 
 require inline void TEMPLATE_overscan(void) {
+   asm ldy.z TEMPLATE_setup_sprite;
+   asm cpy #$ff;
+   asm beq.same @TEMPLATE_OverscanPriorityDone;
+   asm @TEMPLATE_OverscanPriorityShift:;
+   asm lda.ay TEMPLATE_priority - 1,Y;
+   asm sta.ay TEMPLATE_priority,Y;
+   asm dey;
+   asm bne.same @TEMPLATE_OverscanPriorityShift;
+   asm lda.z TEMPLATE_pending0_valid;
+   asm sta TEMPLATE_priority;
+   asm @TEMPLATE_OverscanPriorityDone:;
 }

@@ -300,3 +300,109 @@ late coarse-position class described above is still not fully consumed by a
 finished early/late RESP dispatch.  Resume from this source; do not revert the
 per-event preload and do not assume horizontal positioning is now correct merely
 because each event has its own packed X control.
+
+Continuation note -- 2026-08-19 X-position metadata correction
+---------------------------------------------------------------
+The 172915 handoff was later simplified back to a packed-HMP setup_position
+representation. That simplification was a mistake for the asymmetric problem:
+it makes lane identity fight the HMP sign bit and leaves too little useful
+metadata for a staged RESP positioner.
+
+The active WIP has restored the earlier, cleaner split:
+
+    setup_code / event_code:
+        bits 0..2  logical sprite id
+        bits 4..7  full HMP fine-motion nibble
+
+    setup_position / position_packed:
+        bit 7      hardware lane (0=P0, 1=P1)
+        bits 0..3  coarse RESP slot
+
+Thus HMPx can be loaded directly from event_code (TIA ignores its low nibble),
+while BIT position_packed gives deterministic lane dispatch without confusing
+HMP bit 7 with lane identity.  Position0/1LineB continues to mask event_code
+with #7 before logical-id table lookups.
+
+This restored representation builds at 3498/4090 ROM and 120/128 RAM and the
+renderer branch-contract audit passes. The asymmetric example Makefile now
+depends on the correct asymmetric renderer, its README no longer claims that
+the playfield is absent, and vcsc_branding.pl explicitly allowlists this handoff
+file.
+
+New positioning direction
+-------------------------
+Do not try to make one byte simultaneously be lane, coarse and HMP.  The split
+above is deliberate.  Also keep exploiting the user's observation that beam
+setup can happen at the END OF THE PREVIOUS SCANLINE.
+
+The strongest current cycle-budget direction is:
+
+* perform target color/HMP/other-lane-HMP preparation before the RESP-critical
+  scanline whenever possible;
+* let the position scanline concentrate on the four asymmetric PF writes plus
+  RESP;
+* PF2's left->right rewrite remains the hard timing wall; PF1 has a much wider
+  legal rewrite window and should be moved around RESP rather than treated as
+  equally rigid;
+* the desired coarse RESP phases are a five-CPU-cycle cadence.  Only the slot
+  around the PF2 rewrite needs special treatment; do not build an elaborate
+  early/late system for half the screen if one center slot can be handled by a
+  previous-line strobe or a special PF1/PF2 ordering;
+* the maintained multisprite renderer is useful precedent: it performs an
+  in-raster packed P1 positioner while asymmetric PF is live, and its left-half
+  PF state is prepared outside the RESP countdown.  Reuse that architectural
+  lesson rather than copying its exact cycle phase.
+
+A separate source bug was fixed while resuming: the asymmetric example Makefile
+still depended on renderers/enhanced_multisprite instead of the sibling
+renderers/enhanced_multisprite_asymmetric path.  README bookkeeping was fixed at
+the same time.
+
+Checkpoint handoff -- 2026-08-20 full PF0/PF1/PF2 non-reflected WIP
+---------------------------------------------------------------------
+This checkpoint intentionally preserves working progress before the coarse-X
+positioner is finished.  It is a buildable WIP, not a completed renderer.
+
+The asymmetric enhanced-multisprite renderer has now been converted to a full
+40-bit non-reflected asymmetric playfield:
+
+* CTRLPF is explicitly zero in the public example (REF=0);
+* independent const/ROM PF0 data exists for both left and right halves;
+* the existing const/ROM PF1/PF2 tables remain independent left/right data;
+* ordinary and special visible-line paths now issue all six PF writes
+  (left PF0/PF1/PF2 and right PF0/PF1/PF2);
+* the renderer uses the non-reflected right-half ordering PF0, PF1, PF2;
+* PF0 is present from the start; this checkpoint does not rely on a PF1/PF2-only
+  timing experiment.
+
+The raster state machine was also compacted.  rows_left[2] plus p0_delay were
+removed and replaced by a ROM-resident branch-free graphics transition table
+(`TEMPLATE_graphics_next`) plus six P0 start states.  This both recovers raster
+cycles and reduces persistent RAM pressure.  The example initialization helper
+is deliberately out-of-line so the compiler does not duplicate it at call sites.
+
+Verified build accounting for
+examples/18_enhanced_multisprite/01_192/02_asymmetric is:
+
+    ROM: 3589 / 4090 bytes used, 501 free
+    RAM: 117 / 128 bytes used, 11 free
+
+The example builds successfully in the working container at this checkpoint.
+
+NOT YET COMPLETE: the existing fixed/coarse RESP path has not yet been replaced
+by the final calibrated 11-phase coarse horizontal dispatcher, so public
+X=0..159 is not yet certified.  Do not call this renderer finished and do not
+regress the full six-write non-reflected PF while completing X positioning.
+
+Immediate continuation task:
+
+1. preserve this full PF0/PF1/PF2 raster and branch-free graphics state machine;
+2. use scanline-tail setup aggressively, including carrying/preloading next-line
+   state where that frees the RESP-critical line;
+3. add the 11 fixed coarse RESP phases (five-CPU-cycle cadence) using the existing
+   split event metadata: event_code carries sprite id + HMP nibble and
+   position_packed carries lane + coarse slot;
+4. Stella-calibrate all X=0..159 independently on P0 and P1;
+5. certify stable 262-line NTSC output and pixel-exact full asymmetric PF;
+6. then run the enhanced-renderer and maintained multisprite regressions before
+   calling the feature complete.

@@ -1,0 +1,23 @@
+2026-08-20 05:52:22 PDT, Reconcile asymmetric multisprite WIP
+Used vcsc.20260820_123602 as the authoritative source lineage and layered only
+the five meaningful source/document changes from the prior
+asymmetric-metadata-safety handoff. Generated artifacts and older/missing files
+from that handoff were not allowed to replace the baseline.
+
+The layered changes update the asymmetric renderer, its example Makefile and
+README, .../enhanced_asymmetric.txt, and the branding allowlist. The restored
+metadata contract separates logical-id/HMP data from lane/coarse RESP-slot data;
+priority promotion is deferred to overscan. Horizontal positioning remains WIP.
+The asymmetric example builds at 3498/4090 ROM and 120/128 RAM.
+
+Validation: compile-only suite 500/500. E2E cases all pass when split into
+bounded batches; vcs_all_five_181_unofficial.pl hit its documented container
+timeout under the parallel batch and passed immediately when rerun alone.
+Focused branding, hygiene, branch-contract, enhanced-multisprite, maintained
+multisprite-profile, and asymmetric example-build checks also pass.
+
+Enhanced asymmetric checkpoint: full non-reflected PF0/PF1/PF2 WIP preserved.
+Example builds at 3589/4090 ROM, 117/128 RAM.  Six PF writes are present,
+CTRLPF=0, graphics row state uses ROM transition tables.  Final 11-phase coarse
+RESP calibration/X=0..159 certification remains unfinished.  See
+`.../enhanced_asymmetric.txt` for the continuation contract.
