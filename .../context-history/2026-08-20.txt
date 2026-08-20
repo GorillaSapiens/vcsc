@@ -78,3 +78,30 @@ Added an H2 regression where concrete RESET execution parks on one TIA-read outc
 Kept the H1/H2 console-switch contract exhaustive without imposing an unconditional eightfold emulator cost on every ROM. Concrete RESET discovery still covers all eight startup combinations of COLOR/BW plus left/right difficulty with SELECT/RESET released. It runs the all-high case first; when that complete bounded execution never reads SWCHB, the seven alternate maintained-switch settings are provably execution-equivalent because those bits have no CPU-visible effect before an SWCHB read, so they are counted as covered without redundant emulator runs. If SWCHB is observed, all seven remaining maintained-switch combinations execute explicitly, and SELECT/RESET press-release scenarios still run under every maintained-switch combination.
 
 This reduced deterministic mapper fuzz from several minutes back to 30/30 in 9.8 seconds while preserving the existing scenario-count contract and console-switch regression. The exact user-reported vcs_examples_build_2of8.test passes in isolation in about 6 seconds. The real c33caa7d6ac7251bb804e0473198901d.bin remains byte-exact, reports mapper vcsc=1K stella=1K MATCH, and under H2 records 34 startup/input scenarios, 299 ROM instruction starts, and 57 executed RIOT-RAM instruction starts with the RAM game entered at $00C2. Packaging for this slice must retain the original repository-root archive shape; no synthetic vcsc/ wrapper directory is permitted.
+2026-08-20 14:40:00 PDT, extend disassembler corpus roadmap
+Corpus triage added three end-of-roadmap follow-ups: correct 6507 interrupt-vector
+reachability (no external NMI/IRQ pins; IRQ/BRK only via reachable BRK), support Stella-playable malformed 4098/4094-byte dumps without
+normalizing their physical bytes, and support Starpath/Arcadia Supercharger
+8448-byte load images plus multi-load concatenations. Ms. Pac-Man PAL exposed
+that unconditional IRQ-vector seeding can fabricate an overlapping `$FFF9`
+`BPL $003B` stream even though the game has no reachable BRK; `$003B` is TIA/I/O,
+not RIOT RAM. The c33 1K loader remains the positive regression where reachable
+BRK genuinely makes the IRQ/BRK vector executable.
+
+2026-08-20 14:58:00 PDT, gate IRQ/BRK vector on reachable BRK
+
+Fixed the Ms. Pac-Man false control-flow root. Normal disassembly no longer
+seeds `$FFFE/$FFFF` as executable merely because the IRQ/BRK vector points into
+cartridge ROM. All vector bytes remain classified/preserved as vector data.
+When static analysis actually encounters a reachable BRK, it resolves the
+mapper-visible IRQ/BRK vector in the current mapper state and promotes that
+handler. Known SP carries the architectural BRK pushes into the handler; if SP
+is unknown, A/X/Y/flags are preserved while RIOT-RAM precision is conservatively
+discarded because the three stack writes may alias unknown RAM locations.
+
+`1ee9c1ba95cef2cf987d63f176c54ac3` (Ms. Pac-Man PAL) now has no fabricated
+`$FFF9 BPL $003B` stream and round-trips byte-exactly. Synthetic regressions pin
+both directions: an unused 1K IRQ vector does not promote its target, while the
+H1 reachable-BRK fixture still promotes and decodes its `$FC40` DEC `$FE`; RTI
+handler. The existing NMI-root behavior was deliberately left unchanged in this
+slice; roadmap item 27 keeps that separate 6507 hardware-cleanup question open.

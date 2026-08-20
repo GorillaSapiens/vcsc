@@ -92,9 +92,9 @@ make_path($in, $out);
 
 # Plain 1K/2K/4K and ordinary F8/F6/F4 sizes.
 my $plain1k = make_rom(1024, 0xFC00, 0x0040, "\xA9\x42\x60");
-# Keep an IRQ/BRK-only routine that RESET cannot reach.  Normal disassembly
-# must still follow a valid cartridge-backed IRQ vector as an independent code
-# entry point; mapper-hypothesis probing is the only RESET-only analysis mode.
+# Keep an IRQ/BRK-only routine that RESET cannot reach and never invoke BRK.
+# A stock 6507 has no IRQ pin, so the vector must remain vector data and must
+# not promote this otherwise-unreachable routine into executable code.
 substr($plain1k, 0x0080, 3, "\xA9\x99\x60");
 put16(\$plain1k, 0x03FE, 0xFC80);
 write_bin(File::Spec->catfile($in, 'plain1k.bin'), $plain1k);
@@ -234,7 +234,7 @@ write_bin(File::Spec->catfile($in, 'manual_hints.bin'), $manual_hints);
 # Vector targets may legally point into the high byte of another vector.
 # $FFFF is especially useful as a sentinel and must not produce an unresolved
 # L_FFFF label merely because the high byte lives inside the IRQ .word.
-my $vector_interior = make_rom(4096, 0xF000, 0x0100, "\xA9\x42\x60");
+my $vector_interior = make_rom(4096, 0xF000, 0x0100, "\x00"); # reachable BRK promotes IRQ vector
 put16(\$vector_interior, 0xFFE, 0xFFFF);
 write_bin(File::Spec->catfile($in, 'vector_interior.bin'), $vector_interior);
 
@@ -1256,10 +1256,10 @@ require_re($plain1k_out, qr/^; physical banks: 1 x 1024 bytes$/m,
    '1K physical topology');
 require_re($plain1k_out, qr/^; bank 0: .*origin \$FC00/m,
    '1K canonical top-mirror origin');
-require_re($plain1k_out, qr/^L_FC80:\s*$/m,
-   'valid 1K IRQ vector becomes an executable entry label');
-require_re($plain1k_out, qr/^L_FC80:\s*\n\s*LDA\s+#\$99/m,
-   'IRQ-only 1K routine is followed as code');
+require_re($plain1k_out, qr/^; usage bytes: .*vectors=6\b/m,
+   'all three 1K vector words remain classified as vector data');
+die "unreachable IRQ-only 1K routine was incorrectly promoted to code\n"
+   if $plain1k_out =~ /^L_FC80:\s*\n\s*LDA\s+#\$99/m;
 
 my $concrete_out = slurp(File::Spec->catfile($out, 'concrete_payload.s26'));
 require_re($concrete_out,
@@ -1283,6 +1283,9 @@ my $h1_input_out = slurp(File::Spec->catfile($out, 'h1_input_payload.s26'));
 require_re($h1_input_out,
    qr/^; static interrupt analysis: 1 provable BRK\/IRQ\/RTI continuation$/m,
    'known-SP BRK/IRQ/RTI continuation is statically proven');
+require_re($h1_input_out,
+   qr/^L_FC40:\s*\n\s*DEC\s+\$FE\n\s*RTI/m,
+   'reachable BRK promotes its IRQ/BRK vector target into executable code');
 require_re($h1_input_out,
    qr/\bBRK\n(?:L_[0-9A-F]+:\n)?\s*LDX\s+#\$05/m,
    'static CFG reaches code immediately after the one-byte BRK call');

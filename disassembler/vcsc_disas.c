@@ -3128,12 +3128,63 @@ static int state_rti_return(const abstract_state_t *input,
    return 1;
 }
 
+/* Resolve the IRQ/BRK vector through the cartridge mapping that is active at
+ * the reachable BRK.  On the 6507 this vector is not a hardware entry point:
+ * the package has no IRQ pin, so $FFFE/$FFFF becomes executable evidence only
+ * after BRK itself is reachable. */
+static int mapped_rom_byte(const analysis_t *a, size_t active_bank,
+                           uint16_t mapper_config, uint16_t address,
+                           uint8_t *value, size_t *bank_out, size_t *off_out)
+{
+   size_t bank, off;
+   int mapped = 0;
+
+   if (mapper_is_wd_family(a->mapper))
+      mapped = wd_map_address(a, (uint8_t)mapper_config, address, &bank, &off);
+   else if (a->mapper == MAP_FC)
+      mapped = fc_map_address(a, active_bank, address, &bank, &off);
+   else if (a->mapper == MAP_E0)
+      mapped = e0_map_address(a, mapper_config, address, &bank, &off);
+   else if (a->mapper == MAP_E7)
+      mapped = e7_map_address(a, mapper_config, address, &bank, &off);
+   else if (mapper_is_three_family(a->mapper))
+      mapped = threef_map_address(a, mapper_config, address, &bank, &off);
+   else if (active_bank < a->bank_count &&
+            cart_target_offset(&a->banks[active_bank], address, &off)) {
+      bank = active_bank;
+      mapped = 1;
+   }
+
+   if (!mapped || bank >= a->bank_count || rom_offset_hidden(a, off)) return 0;
+   if (value) *value = a->rom[a->banks[bank].file_offset + off];
+   if (bank_out) *bank_out = bank;
+   if (off_out) *off_out = off;
+   return 1;
+}
+
+static int resolve_brk_vector(const analysis_t *a, size_t active_bank,
+                              uint16_t mapper_config, uint16_t *target,
+                              size_t *target_bank, size_t *target_off)
+{
+   uint8_t lo, hi;
+   uint16_t address;
+   if (!mapped_rom_byte(a, active_bank, mapper_config, 0xfffeu, &lo, NULL, NULL) ||
+       !mapped_rom_byte(a, active_bank, mapper_config, 0xffffu, &hi, NULL, NULL))
+      return 0;
+   address = (uint16_t)(lo | ((uint16_t)hi << 8));
+   if (!mapped_rom_byte(a, active_bank, mapper_config, address, NULL,
+                        target_bank, target_off))
+      return 0;
+   *target = address;
+   return 1;
+}
+
 /* Prove a BRK continuation without making the global IRQ entry context
- * sensitive.  Vector seeding still disassembles the IRQ handler normally; this
- * bounded local trace is used only to answer "what PC does this particular BRK
- * return to?".  It follows one uniquely provable interrupt path and gives up on
- * unknown branches, nested calls, indirect jumps, mapper changes, or any other
- * ambiguity. */
+ * sensitive.  The reachable BRK itself promotes the IRQ handler into the CFG;
+ * this bounded local trace is used only to answer "what PC does this particular
+ * BRK return to?".  It follows one uniquely provable interrupt path and gives
+ * up on unknown branches, nested calls, indirect jumps, mapper changes, or any
+ * other ambiguity. */
 static int prove_brk_irq_rti_return(const analysis_t *a, size_t bank,
                                     uint16_t brk_pc,
                                     const abstract_state_t *input,
@@ -3157,8 +3208,13 @@ static int prove_brk_irq_rti_return(const analysis_t *a, size_t bank,
    }
    b = &a->banks[bank];
    if (b->size < 2u || !state_brk_enter(input, brk_pc, &state)) return 0;
-   pc = read_word(a->rom + b->file_offset + b->size - 2u);
-   if (!cart_target_offset(b, pc, &off) || rom_offset_hidden(a, off)) return 0;
+   {
+      size_t irq_bank, irq_off;
+      if (!resolve_brk_vector(a, bank, 0u, &pc, &irq_bank, &irq_off) ||
+          irq_bank != bank)
+         return 0;
+      off = irq_off;
+   }
 
    for (steps = 0; steps < 1024u; ++steps) {
       uint8_t opcode;
@@ -4373,19 +4429,33 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
    if (a->mapper == MAP_RAW) return 1;
    a->reachable_halts = 0u;
 
+   /* All six bytes remain vector data for exact presentation, but on a stock
+    * 6507 only RESET is an initial executable root.  NMI is not bonded out and
+    * IRQ/BRK is promoted only when a reachable BRK is decoded below. */
+   for (bi = 0; bi < a->bank_count; ++bi) {
+      bank_t *vb = &a->banks[bi];
+      size_t voff;
+      if (!vb->vector_tail_enabled || vb->size < 6u) continue;
+      voff = vb->size - 6u;
+      vb->roles[voff] |= ROLE_VECTOR;
+      vb->roles[voff + 1u] |= ROLE_VECTOR;
+      vb->roles[voff + 2u] |= ROLE_VECTOR;
+      vb->roles[voff + 3u] |= ROLE_VECTOR;
+      vb->roles[voff + 4u] |= ROLE_VECTOR;
+      vb->roles[voff + 5u] |= ROLE_VECTOR;
+   }
+
    if (a->mapper == MAP_E0) {
       /* E0 hardware vectors are always in fixed physical 1K bank 7.
        * Power-on maps banks 4,5,6 into the lower three runtime windows. */
       bank_t *vb = &a->banks[7];
       unsigned v;
       unsigned first_v = reset_only ? 1u : 0u;
-      unsigned last_v = reset_only ? 1u : 2u;
+      unsigned last_v = 1u; /* IRQ/BRK is not a root; reachable BRK promotes it. */
       for (v = first_v; v <= last_v; ++v) {
          size_t voff = vb->size - 6u + (size_t)v * 2u;
          uint16_t target = read_word(a->rom + vb->file_offset + voff);
          size_t tbank, toff;
-         vb->roles[voff] |= ROLE_VECTOR;
-         vb->roles[voff + 1u] |= ROLE_VECTOR;
          if (e0_map_address(a, E0_RESET_CONFIG, target, &tbank, &toff)) {
             abstract_state_t state;
             mark_label(&a->banks[tbank], toff);
@@ -4402,14 +4472,12 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
       bank_t *vb = &a->banks[a->bank_count - 1u];
       unsigned v;
       unsigned first_v = reset_only ? 1u : 0u;
-      unsigned last_v = reset_only ? 1u : 2u;
+      unsigned last_v = 1u;
       uint16_t reset_config = e7_config_make(0u, 0u);
       for (v = first_v; v <= last_v; ++v) {
          size_t voff = vb->size - 6u + (size_t)v * 2u;
          uint16_t target = read_word(a->rom + vb->file_offset + voff);
          size_t tbank, toff;
-         vb->roles[voff] |= ROLE_VECTOR;
-         vb->roles[voff + 1u] |= ROLE_VECTOR;
          if (e7_map_address(a, reset_config, target, &tbank, &toff)) {
             abstract_state_t state;
             mark_label(&a->banks[tbank], toff);
@@ -4426,13 +4494,11 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
       bank_t *vb = &a->banks[a->bank_count - 1u];
       unsigned v;
       unsigned first_v = reset_only ? 1u : 0u;
-      unsigned last_v = reset_only ? 1u : 2u;
+      unsigned last_v = 1u;
       for (v = first_v; v <= last_v; ++v) {
          size_t voff = vb->size - 6u + (size_t)v * 2u;
          uint16_t target = read_word(a->rom + vb->file_offset + voff);
          size_t tbank, toff;
-         vb->roles[voff] |= ROLE_VECTOR;
-         vb->roles[voff + 1u] |= ROLE_VECTOR;
          if (threef_map_address(a, 0u, target, &tbank, &toff)) {
             abstract_state_t state;
             mark_label(&a->banks[tbank], toff);
@@ -4450,13 +4516,11 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
       bank_t *vb = &a->banks[a->reset_bank];
       unsigned v;
       unsigned first_v = reset_only ? 1u : 0u;
-      unsigned last_v = reset_only ? 1u : 2u;
+      unsigned last_v = 1u;
       for (v = first_v; v <= last_v; ++v) {
          size_t voff = vb->size - 6u + (size_t)v * 2u;
          uint16_t target = read_word(a->rom + vb->file_offset + voff);
          size_t tbank, toff;
-         vb->roles[voff] |= ROLE_VECTOR;
-         vb->roles[voff + 1u] |= ROLE_VECTOR;
          if (wd_map_address(a, 0u, target, &tbank, &toff)) {
             mark_label(&a->banks[tbank], toff);
             {
@@ -4469,23 +4533,21 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
       }
    }
    else {
-      /* Normal analysis seeds every physical bank from all three vectors so
-       * bank-local trampolines are recovered. Mapper-hypothesis validation is
-       * stricter: start only from the hardware/reset-bank RESET vector so a
-       * wrong mapper cannot rescue itself using unrelated vector-shaped data. */
+      /* Preserve the established NMI/RESET bank-local discovery policy, but
+       * never seed IRQ/BRK.  On the 6507, $FFFE/$FFFF is followed only after
+       * an actually reachable BRK is decoded below.  Mapper-hypothesis
+       * validation remains RESET-only. */
       size_t first_bank = reset_only ? a->reset_bank : 0u;
       size_t last_bank = reset_only ? a->reset_bank : a->bank_count - 1u;
       for (bi = first_bank; bi <= last_bank; ++bi) {
          bank_t *b = &a->banks[bi];
          unsigned v;
          unsigned first_v = reset_only ? 1u : 0u;
-         unsigned last_v = reset_only ? 1u : 2u;
+         unsigned last_v = 1u;
          for (v = first_v; v <= last_v; ++v) {
             size_t voff = b->size - 6u + (size_t)v * 2u;
             uint16_t target = read_word(a->rom + b->file_offset + voff);
             size_t toff;
-            b->roles[voff] |= ROLE_VECTOR;
-            b->roles[voff+1] |= ROLE_VECTOR;
             if (cart_target_offset(b, target, &toff)) {
                if (!speculative_done && v == 1u && bi == a->reset_bank && toff < 0x80u)
                   ++a->superchip_exec_conflicts;
@@ -5400,9 +5462,31 @@ drain_work:
       }
       case FLOW_STOP:
          if (opcode == 0x00u) {
-            uint16_t return_pc;
-            abstract_state_t return_state;
+            uint16_t irq_pc, return_pc;
+            size_t irq_bank, irq_off;
+            abstract_state_t irq_state, return_state;
             size_t return_off;
+
+            /* BRK is the only stock-6507 path through $FFFE/$FFFF.  Promote
+             * the handler exactly here, using the mapper state active at the
+             * reachable BRK and the architectural stack pushes. */
+            irq_state = output_state;
+            if (!state_brk_enter(&output_state, canonical_pc, &irq_state)) {
+               /* BRK reaches the vector even when SP is abstractly unknown.
+                * Preserve A/X/Y/flags, but the three stack writes could alias
+                * any RIOT-RAM bytes, so discard RAM precision. */
+               irq_state = output_state;
+               irq_state.sp_known = 0u;
+               state_riot_ram_set_all_unknown(&irq_state);
+            }
+            if (resolve_brk_vector(a, item.bank, item.mapper_config, &irq_pc,
+                                   &irq_bank, &irq_off)) {
+               mark_label(&a->banks[irq_bank], irq_off);
+               if (!push_work_state_ctx(a, irq_bank, irq_off, &irq_state, irq_pc,
+                                        item.mapper_config))
+                  return 0;
+            }
+
             if (prove_brk_irq_rti_return(a, item.bank, canonical_pc,
                                          &output_state, &return_pc,
                                          &return_state) &&

@@ -97,9 +97,10 @@ Unbanked 1K cartridges are treated as one physical 1024-byte ROM mirrored four
 times through the 4K cartridge window.  The canonical presentation origin is
 therefore normally `$FC00`, while runtime references in any mirror resolve to
 the same physical byte modulo `$0400`.  The hardware vector bytes are the final
-six physical bytes of the 1K image.  Normal analysis follows all three valid
-cartridge-backed vector targets (NMI, RESET, and IRQ/BRK); RESET alone is used
-only while testing competing mapper hypotheses.  `--mapper 1k` forces this
+six physical bytes of the 1K image.  Normal analysis retains the existing NMI
+and RESET roots, but does not seed IRQ/BRK merely from `$FFFE/$FFFF`; that
+target becomes executable only after analysis encounters a reachable `BRK`.
+RESET alone is used while testing competing mapper hypotheses.  `--mapper 1k` forces this
 topology for a 1024-byte input.
 
 A 4096-byte image whose upper 2048 bytes are byte-for-byte identical to its
@@ -455,9 +456,10 @@ family evidence. Weak size-default F8/F6/F4/FA guesses do not qualify.
 
 H1 adds stack/interrupt-aware abstract flow. SP is part of abstract state; provable
 RIOT-RAM/stack aliases are carried through pushes/pops, JSR/RTS, and memory writes.
-A bounded local IRQ trace may connect a BRK to a specific RTI continuation when the
-saved stack return address remains provable, including deliberate modification through
-RIOT-RAM's stack-page mirror. Unknown/external-input branch conditions retain both CFG
+A reachable `BRK` promotes the mapper-visible `$FFFE/$FFFF` target into the CFG.
+A bounded local IRQ trace may additionally connect that BRK to a specific RTI continuation
+when the saved stack return address remains provable, including deliberate modification
+through RIOT-RAM's stack-page mirror. Unknown/external-input branch conditions retain both CFG
 edges rather than letting one sampled execution history prove the other edge dead.
 
 Concrete input discovery treats the console switches according to their hardware use.

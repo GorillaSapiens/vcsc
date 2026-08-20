@@ -1483,6 +1483,48 @@ Unbanked 1K topology extension (2026-08-20)
     * Require real-format corpus fixtures, Stella differential checks, and exact
       round trip across every supported CDF generation before marking complete.
 
+27. [ ] Correct 6507 interrupt-vector reachability
+    * [done 2026-08-20] IRQ/BRK `$FFFE/$FFFF` is no longer seeded merely because
+      its target resolves into cartridge ROM. A reachable `BRK` promotes the
+      mapper-visible handler target at that point, with exact stack state when SP
+      is known and conservative RIOT-RAM state when it is not.
+    * RESET remains the real hardware reset entry. The 6507 also has no bonded NMI
+      input; remove the remaining legacy unconditional NMI-root behavior separately
+      after checking whether any corpus/title relies on it as a useful manual-style
+      discovery convention.
+    * Regression-pin `1ee9c1ba95cef2cf987d63f176c54ac3` (Ms. Pac-Man PAL): its
+      IRQ/BRK vector points at `$FFEE`, but no reachable BRK enters it. Treating
+      `$FFEE` as an entry fabricated overlapping code at `$FFF9` (`BPL $003B`) in
+      the vector/hotspot tail. The fixed output leaves that stream as data and
+      round-trips byte-exactly.
+    * Keep `c33caa7d6ac7251bb804e0473198901d` as the positive counterexample:
+      reachable BRK really does promote its `$FC80` handler, whose RTI path is
+      stack-aware and may modify the saved return address through RIOT-RAM mirroring.
+
+
+28. [ ] Handle playable malformed/odd-size cartridge dumps
+    * Separate physical input-file preservation from the logical runtime cartridge
+      image so playable over/underdumps can be analyzed without normalizing away any
+      supplied bytes. Exact input reconstruction remains mandatory.
+    * Use `0963aa9f7f6cf5a36ff700001583624e` (4098-byte Space Invaders 2 hack
+      overdump) and `df5cc5cccdc140eb7107f5b8adfacda1` (4094-byte Lumberman hack
+      truncation) as real Stella-playable acceptance cases. Determine and document
+      Stella/hardware-equivalent mapping behavior rather than rejecting solely because
+      the byte count is not a canonical power-of-two cartridge size.
+    * Preserve excess/trailing bytes as physical dump data and represent absent bytes
+      conservatively; do not silently rewrite the source image into a canonical 4K file.
+
+29. [ ] Add Starpath/Arcadia Supercharger image support
+    * Recognize 8448-byte Supercharger load/tape images and concatenated multi-load
+      forms (for example 3x/4x 8448-byte corpus files) as Atari 2600 software, distinct
+      from ordinary cartridge ROM topology.
+    * Model enough of the Supercharger loader/RAM banking and load-file structure to
+      recover the 6507 payload at its runtime addresses while preserving the original
+      tape/load bytes exactly. Keep unsupported analog tape details out of CFG analysis.
+    * Add real single-load and multi-load corpus fixtures, Stella differential checks,
+      generated RAM-code presentation where appropriate, and byte-exact round trips
+      before treating Supercharger files as ordinary successful corpus entries.
+
 Definition of first useful milestone
 ------------------------------------
 The first useful milestone is reached after roadmap items 0 through 3:
