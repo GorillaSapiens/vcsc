@@ -51,7 +51,7 @@ generated source:
 ```
 
 Supported mapper overrides are `2k`, `4k`, `f8`, `f8sc`, `f6`, `f6sc`,
-`f4`, `f4sc`, `fa`, `dpc`, `wd`, `e0`, `3f`, `3e`, `fe`, `cv`, `jane`, `0840`, `ua`, `uasw`, and `0fa0`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
+`f4`, `f4sc`, `fa`, `dpc`, `wd`, `wdsw`, `e0`, `3f`, `3e`, `fe`, `cv`, `jane`, `0840`, `ua`, `uasw`, and `0fa0`. `--origin BANK:ADDRESS`, `--entry BANK:ADDRESS`,
 `--code BANK:START-END`, `--data BANK:START-END`, `--table BANK:START-END`, and
 `--pointer BANK:START-END` are repeatable. The bank may be omitted for a one-bank
 cartridge. Numbers accept decimal, `0x` hex, or `$` hex; quote `$` forms in a
@@ -88,7 +88,7 @@ position from runtime 6507 addresses:
 
 The disassembler currently recognizes unbanked 2K/4K, the F8/F6/F4 family
 (with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, CommaVid CV, Parker Brothers E0, M-Network E7, Tigervision 3F/3E, JANE, 0840/EconoBanking, UA/UASW, 0FA0/Fotomania, DPC,
-and Wickstead Design / WD. Standard DPC
+and Wickstead Design / WD/WDSW. Standard DPC
 images are recognized by their distinctive 10240- or 10495-byte layout: two
 4K F8-style program banks followed by 2K of DPC data ROM, with the 10495-byte
 form carrying an additional 255-byte RNG table.
@@ -103,11 +103,14 @@ A merely similar or partially duplicated 4K image remains an ordinary 4K cart.
 WD is the custom Pursuit of the Pink Panther mapper. It uses eight 1K ROM banks
 and eight fixed four-segment arrangements selected by reads from TIA `$30-$3F`.
 The cartridge also contains 64 bytes of RAM, read at `$1000-$103F` and written
-at `$1040-$107F`. The known 8195-byte preservation dump is recognized directly:
-for runtime analysis its 1K banks 2 and 3 are interpreted in the corrected order
-used by Stella, while source emission keeps the original physical file order and
-retains the three non-emulated trailing bytes so round trip remains exact. A
-corrected 8192-byte image can be forced with `--mapper wd`.
+at `$1040-$107F`. Stella uses two names for the two known file layouts: `WD` is
+the corrected 8192-byte image and is recognized by the distinctive `LDA $39;
+JMP` byte signature; `WDSW` is the historical 8195-byte preservation dump. Both
+run through the same WD hardware model. For WDSW analysis, physical 1K chunks 2
+and 3 are interpreted in the corrected logical order used by Stella, while
+source emission keeps the original file order and retains the three non-emulated
+trailing bytes so round trip remains exact. `--mapper wd` accepts only 8192-byte
+images and `--mapper wdsw` only the 8195-byte preservation form.
 
 E0 is modeled as eight physical 1K ROM banks mapped into four 1K runtime
 segments. Accesses to `$1FE0-$1FE7`, `$1FE8-$1FEF`, and `$1FF0-$1FF7` select
@@ -515,8 +518,8 @@ original bytes.
 
 ## Current limits
 
-Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/CV/E0/E7/3F/3E/FE/JANE/0840/UA/UASW/0FA0/DPC/WD is deliberately conservative.
-WDSW, FC, GL, CM, DPC+, CDF/CDFJ/CDFJ+ and other coprocessor cartridges need separate mapper models rather than being mislabeled as supported families.
+Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/CV/E0/E7/3F/3E/FE/JANE/0840/UA/UASW/0FA0/DPC/WD/WDSW is deliberately conservative.
+FC, GL, CM, DPC+, CDF/CDFJ/CDFJ+ and other coprocessor cartridges need separate mapper models rather than being mislabeled as supported families.
 Unsupported layouts that yield no executable instructions fail explicitly rather
 than producing a misleading 100%-data source file.
 

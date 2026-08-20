@@ -229,7 +229,8 @@ understood by VCSC:
     F6 / F6SC      16K
     F4 / F4SC      32K
     FA             12K + 256-byte RAM
-    WD              8K + 64-byte RAM (8195-byte preservation dump also known)
+    WD              8K corrected image + 64-byte RAM
+    WDSW            8K+3 historical swapped-bank preservation dump
 
 Use a scored/evidence-based classifier. Evidence includes:
 
@@ -279,14 +280,16 @@ the cartridge window. Reads from TIA `$30-$3F` request one of eight fixed bank
 arrangements; writes to those TIA addresses remain ordinary TIA writes. WD also
 has 64 bytes of cartridge RAM, read at `$1000-$103F` and written at
 `$1040-$107F`. Power-on arrangement 0 maps logical banks `0,0,1,3` into
-`$1000,$1400,$1800,$1C00`. The historically common 8195-byte preservation dump
-is a malformed 8K+3 image: logical 1K banks 2 and 3 are reversed in the file and
-the last three bytes are outside the emulated 8K ROM. Analysis must use the
-corrected logical ordering while source emission preserves the original file
-ordering and all three trailing bytes exactly. A corrected 8192-byte image may
-be handled when WD is explicitly selected. Because the selector change is
-hardware-delayed, static control flow should conservatively retain both the old
-and requested successor arrangements when exact cycle placement is not proven.
+`$1000,$1400,$1800,$1C00`. Stella distinguishes the two known dump layouts by
+name while instantiating the same hardware model: `WD` is the corrected 8192-byte
+image, detected by the `A5 39 4C` (`LDA $39; JMP`) signature; `WDSW` is the
+historical 8195-byte 8K+3 preservation image. In WDSW, logical 1K banks 2 and 3
+are reversed in the file and the last three bytes are outside the emulated 8K
+ROM. Analysis must use the corrected logical ordering while source emission
+preserves the original file ordering and all three trailing bytes exactly.
+Because the selector change is hardware-delayed, static control flow should
+conservatively retain both the old and requested successor arrangements when
+exact cycle placement is not proven.
 
 E0 is an explicit segmented Parker Brothers model. An 8K image is eight physical
 1K banks. Runtime `$1000-$13FF`, `$1400-$17FF`, and `$1800-$1BFF` independently
@@ -1280,15 +1283,25 @@ inference.
       coverage, deterministic fuzz coverage, and fixed all five E7 mismatches in
       the 2026-08-20 problem corpus without changing any ROM bytes.
 
-21. [ ] Add WDSW support
-    * Audit Stella's WDSW designation against the existing WD implementation
-      and identify the exact file-layout/state difference rather than treating
-      the names as aliases by assumption.
-    * Reuse WD's four-segment arrangement and 64-byte split-RAM machinery where
-      hardware semantics are shared, while preserving any WDSW-specific dump
-      ordering or startup behavior exactly.
-    * Pin WD-vs-WDSW classification with real corpus fixtures and byte-exact
-      reconstruction.
+21. [x] Add WDSW support
+    * Stella's distinction is file-layout metadata, not different cartridge
+      hardware: 8192-byte corrected images are `WD` when the `A5 39 4C`
+      (`LDA $39; JMP`) signature is present; every 8195-byte 8K+3 image is
+      designated `WDSW`. Both instantiate Stella's `CartridgeWD` and therefore
+      share the same four-segment arrangements, 64-byte split RAM, delayed
+      `$30-$3F` read selectors, and power-on arrangement 0.
+    * WDSW alone applies the historical file correction: physical 1K chunks 2
+      and 3 are swapped for runtime analysis and the trailing three bytes are
+      omitted from emulation but preserved byte-for-byte in generated source.
+      `--mapper wd` and `--mapper wdsw` now enforce their 8192/8195-byte layouts.
+    * The 2026-08-20 problem corpus pins all four WD-family differentials:
+      `56210a3b9ea6d5dd8f417a357ed8ca92` -> WDSW,
+      `62ee2b8f59e9cd6285bbdb674a952e8b` -> WD,
+      `850fdc358adda5dd8b7a8b9b178e6655` -> UA, and
+      `af1c6f6d73a00bc1be6b353fe9a27819` -> F8. The last two exposed a WD
+      false-positive in control-flow refinement; automatic 8K WD hypotheses now
+      require Stella's WD signature. Synthetic WD/WDSW E2E fixtures and fuzz
+      layouts preserve byte-exact reconstruction for both forms.
 
 22. [ ] Add FC mapper support
     * Model Amiga Power Play's staged bank-select protocol: write low bank bits

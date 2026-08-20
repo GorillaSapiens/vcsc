@@ -1239,7 +1239,7 @@ Disassembler side project (2026-08-16):
 `.../disassembler.txt` is the focused context/roadmap.  The new
 `disassembler/vcsc-disas` now has an exact-round-trip first implementation with
 all-opcode decode/emission, mandatory branch `.same`/`.cross`, unbanked and
-F8/F6/F4(+Superchip), FA, DPC and WD bank-aware analysis, per-bank origin inference, overlapping
+F8/F6/F4(+Superchip), FA, DPC and WD/WDSW bank-aware analysis, per-bank origin inference, overlapping
 instruction streams, code-as-data and unreferenced-byte roles, TIA/RIOT symbols
 with exact mirror comments, conservative graphics rows, static plus bounded dynamic
 video inference, controller inference, and explicit analysis overrides. A run with zero decoded instructions is
@@ -1267,15 +1267,15 @@ emission so entries inside the vector table remain labelable; Stellar Track's
 NMI bytes at `$FFFA/$FFFB` exercise this case. The standalone
 `disassembler/roundtrip.pl INPUT_DIR OUTPUT_DIR` drives vcsc-disas and vcsc-as,
 retains .s26/rebuilt .bin files, prints MD5 values, and requires exact byte
-identity. Focused disassembler Items 0-20 are complete; Items 21-26 queue
-WDSW, FC, GL, CM, DPC+, CDF/CDFJ/CDFJ+. E7 now models the 8K/12K/16K
+identity. Focused disassembler Items 0-21 are complete; Items 22-26 queue
+FC, GL, CM, DPC+, CDF/CDFJ/CDFJ+. E7 now models the 8K/12K/16K
 selector tables, fixed final ROM, both split-RAM regions, and exact CFG state.
 Main roadmap Items 41 and 42 are complete. Bankswitching Items 31-37 are complete,
 Item 38 remains deferred, and Items 39-44 queue public diagnostics/profile work
 for E0, 3F, 3E, FE, WD, and DPC. Main-roadmap Item 43 is next. The current
 compile suite passes 500/500. Four vcsc-disas-focused E2E regressions pass, with
-98 semantic fixtures and all 256 opcode bytes exact. The hardening fuzz corpus
-uses two deterministic images for every supported size/mapper family (24 accepted
+99 semantic fixtures and all 256 opcode bytes exact. The hardening fuzz corpus
+uses two deterministic images for every supported size/mapper family (26 accepted
 images total), and all 88 editable
 VCSC example ROMs are byte-exact disassemble/reassemble gates inside the normal
 eight example-build shards. Native staged vcsc-disas -> staged vcsc-as passes,
@@ -1284,8 +1284,7 @@ Windows package wiring is source-hygiene pinned on this non-MinGW host. The E2E
 inventory is now 318 cases. One unrelated legacy renderer case can exceed its
 explicit 12-second harness limit in this container but passes when run directly.
 Commercial ARMAMBSH, Bridge, Stellar Track, the standard 10495-byte Pitfall II
-DPC ROM, Mountain King's 12288-byte CBS FA/RAM Plus ROM, and the 8195-byte
-Pursuit of the Pink Panther WD bad dump all round-trip exactly. DPC is inferred
+DPC ROM, Mountain King's 12288-byte CBS FA/RAM Plus ROM, and both known Pursuit of the Pink Panther WD/WDSW layouts all round-trip exactly. DPC is inferred
 from its distinctive size/layout and its first
 8K is analyzed as two F8-style program banks while the trailing DPC data/RNG bytes
 remain explicit auxiliary data. FA is inferred from the 12K layout as three 4K
@@ -1329,7 +1328,7 @@ and Super Cobra) now resolves E0 for all seven and round-trips each image
 byte-exactly. Synthetic RESET and speculative-island regressions pin the case
 where an E0 selector is physically followed by JAM in the old bank but valid
 execution continues in the selected bank. The semantic disassembler corpus is
-now 94/94 exact. The standalone corpus verifier now has optional `--stella STELLA` differential mapper checking: it keeps SHA-256 in generated source, reuses its existing per-ROM MD5 for Stella compatibility, runs `STELLA -rominfo ROM`, normalizes the resolved Bankswitch Type, and reports VCSC/Stella mapper MATCH/MISMATCH counts without treating Stella as authoritative; `--stella-strict` promotes mismatches to failure when explicitly desired. The normal hardening suite uses a fake Stella executable so this parser/normalization path is tested without an external emulator. WD support recognizes the distinctive 8195-byte Pursuit of the Pink Panther preservation dump, models eight 1K banks selected as four-segment arrangements by TIA $30-$3F reads plus 64 bytes of cartridge RAM, analyzes the historical bank-2/bank-3 correction while preserving the original file order and trailing three bytes exactly. Roadmap items 9, 10, 12, 13, and 16 are complete; Item 12 pointer-table presentation requires real low/high pointer-building data flow and never swallows interior labels, after ARMAMBSH exposed a shifted-byte false positive. Color-table presentation splits around interior labels instead of consuming them. Item 13 adds repeatable `--table` and even-length `--pointer` manual presentation hints on top of the existing mapper/origin/entry/code/data/video/controller overrides; manual data roles may overlap code without replacing executable source. Item 16 pins deterministic output, malformed/truncated failures, duplicated/padded preservation, all-supported-layout fuzzing, all 88 editable examples, install/package integration, and an independent stego smoke baseline. The expanded 20-case mapper fuzz test uses the long-test 120-second timeout because full disassemble/reassemble fuzzing is intentionally expensive under parallel test load. Items 17-19 add 3F/3E/FE CFG support; Items 20-26 remain; see `.../disassembler.txt`. Exact 4K images with identical 2K halves are analyzed as 2K and preserve the duplicate raw.
+now 99/99 exact. The standalone corpus verifier now has optional `--stella STELLA` differential mapper checking: it keeps SHA-256 in generated source, reuses its existing per-ROM MD5 for Stella compatibility, runs `STELLA -rominfo ROM`, normalizes the resolved Bankswitch Type, and reports VCSC/Stella mapper MATCH/MISMATCH counts without treating Stella as authoritative; `--stella-strict` promotes mismatches to failure when explicitly desired. The normal hardening suite uses a fake Stella executable so this parser/normalization path is tested without an external emulator. WD/WDSW support models eight 1K banks selected as four-segment arrangements by TIA $30-$3F reads plus 64 bytes of cartridge RAM. Stella's names distinguish file layouts, not hardware: corrected 8192-byte images are WD when they carry the `A5 39 4C` (`LDA $39; JMP`) signature, while 8195-byte 8K+3 preservation dumps are WDSW. WDSW alone applies the historical bank-2/bank-3 file correction and preserves the three non-emulated trailing bytes exactly. The 2026-08-20 differential corpus now resolves `56210a3b9ea6d5dd8f417a357ed8ca92` as WDSW and `62ee2b8f59e9cd6285bbdb674a952e8b` as WD; requiring the Stella WD signature for automatic 8K WD hypotheses also removes false WD promotions of `850fdc358adda5dd8b7a8b9b178e6655` (UA) and `af1c6f6d73a00bc1be6b353fe9a27819` (F8). Roadmap items 9, 10, 12, 13, and 16 are complete; Item 12 pointer-table presentation requires real low/high pointer-building data flow and never swallows interior labels, after ARMAMBSH exposed a shifted-byte false positive. Color-table presentation splits around interior labels instead of consuming them. Item 13 adds repeatable `--table` and even-length `--pointer` manual presentation hints on top of the existing mapper/origin/entry/code/data/video/controller overrides; manual data roles may overlap code without replacing executable source. Item 16 pins deterministic output, malformed/truncated failures, duplicated/padded preservation, all-supported-layout fuzzing, all 88 editable examples, install/package integration, and an independent stego smoke baseline. The expanded 26-image mapper fuzz test uses the long-test 120-second timeout because full disassemble/reassemble fuzzing is intentionally expensive under parallel test load. Items 17-21 add 3F/3E/FE/E7/WDSW support; Items 22-26 remain; see `.../disassembler.txt`. Exact 4K images with identical 2K halves are analyzed as 2K and preserve the duplicate raw.
 
 0840/EconoBanking uses physical file bank 0 as startup, with below-cartridge
 selector families canonically represented by $0800/$0840. C26 selector metadata
@@ -1363,7 +1362,7 @@ is currently 2498 ROM bytes / 104 RAM bytes. Next gate is user interactive Stell
 validation, especially moving 3-6-way piles and crossing sprites. The existing
 `renderers/multisprite/` remains unchanged and its Stella oracle still passes.
 
-2026-08-19 split-RAM corpus finding: SC, FA/RAM Plus, CV, and WD use disjoint
+2026-08-19 split-RAM corpus finding: SC, FA/RAM Plus, CV, and WD/WDSW use disjoint
 read/write aliases, so any reachable RMW in either alias is negative mapper
 evidence; reads are neutral and ordinary stores are not ranked across unrelated
 mappers. SC additionally accepts a resolved write-only store to `$x000-$x07F`
@@ -1373,7 +1372,7 @@ for lone 4K images. RESET/control flow into the SC write port vetoes automatic
 promotion. Earlier 4K false positives now stay plain; seven supplied genuine
 F6SC dumps with no decoded SC stores are recovered from the per-bank duplicate
 layout. Regressions cover SC RMW/flow contradictions, structural F6SC, and both
-FA/CV/WD aliases.
+FA/CV/WD/WDSW aliases.
 
 2026-08-19 disassembler F6/JANE corpus finding: expanded differential corpora
 exposed a bad mapper-refinement tie-break that preferred the viable hypothesis

@@ -509,26 +509,37 @@ for my $i (0x2000 .. 0x28FE) {
 }
 write_bin(File::Spec->catfile($in, 'dpc.bin'), $dpc);
 
-# Wickstead Design / Pursuit of the Pink Panther.  The preservation dump is
-# uniquely 8K+3 bytes; Stella corrects it by swapping logical 1K banks 2/3 for
-# emulation while ignoring the final three dump bytes.  Power-on arrangement 0
-# maps logical 0,0,1,3 across the four 1K cartridge segments, so the vector in
-# physical file chunk 2 (logical bank 3 after correction) enters physical bank
-# 0 at bus address $1400.  Reading TIA $31 requests arrangement 1.
-my $wd = chr(0x02) x 8195;
-substr($wd, 0x0000, 4, "\xA5\x31\xEA\x60");
-substr($wd, 0x0400 + 3, 1, "\x60");
+# Wickstead Design / Pursuit of the Pink Panther has two file forms in Stella.
+# WDSW is the historical 8K+3 preservation dump: its physical 1K chunks 2/3
+# are reversed and the last three bytes are outside the emulated ROM.  WD is
+# the corrected 8192-byte ordering and is detected by Stella's LDA $39; JMP
+# signature.  Both use the same four-segment hardware and delayed TIA selector.
+# Power-on arrangement 0 maps logical 0,0,1,3, so the WDSW vector in physical
+# file chunk 2 (logical bank 3 after correction) enters bank 0 at bus $1400.
+my $wdsw = chr(0x02) x 8195;
+substr($wdsw, 0x0000, 6, "\xA5\x39\x4C\x05\xD4\x60");
+substr($wdsw, 0x0400 + 3, 1, "\x60");
 for my $v (0, 2, 4) {
-   put16(\$wd, 0x0800 + 0x03FA + $v, 0xD400);
+   put16(\$wdsw, 0x0800 + 0x03FA + $v, 0xD400);
 }
-substr($wd, 8192, 3, "\x12\x34\x56");
-write_bin(File::Spec->catfile($in, 'wd_bad_dump.bin'), $wd);
-my $wd_rmw_read = $wd;
-substr($wd_rmw_read, 0x0000, 4, "\xEE\x20\xF0\x60");
-write_bin(File::Spec->catfile($in, 'wd_rmw_read.bin'), $wd_rmw_read);
-my $wd_rmw_write = $wd;
-substr($wd_rmw_write, 0x0000, 4, "\xEE\x60\xF0\x60");
-write_bin(File::Spec->catfile($in, 'wd_rmw_write.bin'), $wd_rmw_write);
+substr($wdsw, 8192, 3, "\x12\x34\x56");
+write_bin(File::Spec->catfile($in, 'wdsw_bad_dump.bin'), $wdsw);
+
+# Correct the historical dump to Stella's ordinary 8K WD file layout by
+# swapping physical chunks 2/3 and removing the three preservation bytes.
+my $wd = substr($wdsw, 0, 8192);
+my $wd_chunk2 = substr($wd, 2 * 1024, 1024);
+my $wd_chunk3 = substr($wd, 3 * 1024, 1024);
+substr($wd, 2 * 1024, 1024, $wd_chunk3);
+substr($wd, 3 * 1024, 1024, $wd_chunk2);
+write_bin(File::Spec->catfile($in, 'wd.bin'), $wd);
+
+my $wdsw_rmw_read = $wdsw;
+substr($wdsw_rmw_read, 0x0000, 4, "\xEE\x20\xF0\x60");
+write_bin(File::Spec->catfile($in, 'wdsw_rmw_read.bin'), $wdsw_rmw_read);
+my $wdsw_rmw_write = $wdsw;
+substr($wdsw_rmw_write, 0x0000, 4, "\xEE\x60\xF0\x60");
+write_bin(File::Spec->catfile($in, 'wdsw_rmw_write.bin'), $wdsw_rmw_write);
 
 # All eight conditional branches, each in both same-page and cross-page cases.
 my @branch_ops = (0x10, 0x30, 0x50, 0x70, 0x90, 0xB0, 0xD0, 0xF0);
@@ -1166,29 +1177,38 @@ require_re($dpc_out, qr/^; DPC RNG table: file \$2800\.\.\$28FE \(255 bytes\)$/m
 require_re($dpc_out, qr/^; ---- DPC auxiliary 2K display\/data ROM ----$/m,
    'DPC auxiliary source section');
 
-my $wd_out = slurp(File::Spec->catfile($out, 'wd_bad_dump.s26'));
+my $wdsw_out = slurp(File::Spec->catfile($out, 'wdsw_bad_dump.s26'));
+require_re($wdsw_out, qr/^; mapper: WDSW \(high confidence;/m,
+   'WDSW 8195-byte mapper inference');
+require_re($wdsw_out,
+   qr/^; WDSW cartridge RAM: read \$1000-\$103F, write \$1040-\$107F \(64 bytes\)$/m,
+   'WDSW RAM mapping annotation');
+require_re($wdsw_out,
+   qr/^; WDSW 8195-byte preservation form: logical 1K banks 2 and 3 are reversed in the file;/m,
+   'WDSW malformed-dump correction annotation');
+require_re($wdsw_out, qr/WDSW selector -> arrangement 1 \(hardware-delayed\)/,
+   'WDSW TIA selector annotation');
+require_re($wdsw_out,
+   qr/^; ---- trailing bytes from 8195-byte WDSW preservation dump ----$/m,
+   'WDSW trailing-byte preservation section');
+require_re($wdsw_out, qr/^\s*\.byte \$12, \$34, \$56$/m,
+   'WDSW trailing bytes preserved exactly');
+
+my $wd_out = slurp(File::Spec->catfile($out, 'wd.s26'));
 require_re($wd_out, qr/^; mapper: WD \(high confidence;/m,
-   'WD 8195-byte mapper inference');
-require_re($wd_out,
-   qr/^; WD cartridge RAM: read \$1000-\$103F, write \$1040-\$107F \(64 bytes\)$/m,
-   'WD RAM mapping annotation');
-require_re($wd_out,
-   qr/^; WD 8195-byte preservation form: logical 1K banks 2 and 3 are reversed in the file;/m,
-   'WD malformed-dump correction annotation');
+   'corrected 8192-byte WD mapper inference');
 require_re($wd_out, qr/WD selector -> arrangement 1 \(hardware-delayed\)/,
    'WD TIA selector annotation');
-require_re($wd_out,
-   qr/^; ---- trailing bytes from 8195-byte WD preservation dump ----$/m,
-   'WD trailing-byte preservation section');
-require_re($wd_out, qr/^\s*\.byte \$12, \$34, \$56$/m,
-   'WD trailing bytes preserved exactly');
+die "corrected WD mislabeled as WDSW preservation form\n"
+   if $wd_out =~ /WDSW 8195-byte preservation form/;
+
 for my $case (
-   ['wd_rmw_read.s26',  'WD read-port'],
-   ['wd_rmw_write.s26', 'WD write-port'],
+   ['wdsw_rmw_read.s26',  'WDSW read-port'],
+   ['wdsw_rmw_write.s26', 'WDSW write-port'],
 ) {
    my ($name, $which) = @$case;
    my $text = slurp(File::Spec->catfile($out, $name));
-   require_re($text, qr/^; mapper: WD \(high confidence;.*1 native split-RAM RMW conflict\)/m,
+   require_re($text, qr/^; mapper: WDSW \(high confidence;.*1 native split-RAM RMW conflict\)/m,
       "$which RMW recorded as split-RAM contradiction");
 }
 
@@ -1872,6 +1892,12 @@ die "forced plain F8 still applied Superchip hidden-window semantics\n"
 my $bad_mapper = `$disas --mapper f8 "@{[File::Spec->catfile($in, 'plain4k.bin')]}" 2>&1`;
 die "incompatible mapper override unexpectedly succeeded\n" if $? == 0;
 require_re($bad_mapper, qr/incompatible with 4096-byte input/, 'mapper-size contradiction');
+my $bad_wd_layout = `$disas --mapper wd "@{[File::Spec->catfile($in, 'wdsw_bad_dump.bin')]}" 2>&1`;
+die "8195-byte WDSW layout unexpectedly accepted as forced WD\n" if $? == 0;
+require_re($bad_wd_layout, qr/incompatible with 8195-byte input/, 'forced WD rejects WDSW layout');
+my $bad_wdsw_layout = `$disas --mapper wdsw "@{[File::Spec->catfile($in, 'wd.bin')]}" 2>&1`;
+die "8192-byte WD layout unexpectedly accepted as forced WDSW\n" if $? == 0;
+require_re($bad_wdsw_layout, qr/incompatible with 8192-byte input/, 'forced WDSW rejects WD layout');
 my $bad_origin = `$disas --origin 0:0xD001 "@{[File::Spec->catfile($in, 'plain4k.bin')]}" 2>&1`;
 die "misaligned origin override unexpectedly succeeded\n" if $? == 0;
 require_re($bad_origin, qr/not a valid page-aligned cartridge origin/, 'origin alignment diagnostic');

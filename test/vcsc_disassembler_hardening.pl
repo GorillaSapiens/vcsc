@@ -147,7 +147,7 @@ for my $size (@bad_sizes) {
 
 # A structurally supported size is still not a successful disassembly when no
 # instruction exists.  Pin this for every currently size-selected mapper class,
-# including the WD bad-dump and DPC layouts.
+# including the WDSW bad-dump and DPC layouts.
 for my $size (2048,4096,8192,8195,10495,12288,16384,32768) {
    my $path=File::Spec->catfile($tmp,"all-kil-$size.bin");
    my $out=File::Spec->catfile($tmp,"all-kil-$size.s26");

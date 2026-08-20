@@ -30,7 +30,8 @@ my @layouts = (
    ['4k',    4096],
    ['f8',    8192],
    ['fe',    8192],
-   ['wd',    8195],
+   ['wd',    8192],
+   ['wdsw',  8195],
    ['dpc',  10495],
    ['fa',   12288],
    ['f6',   16384],
@@ -48,9 +49,12 @@ sub plant_entry {
       substr($$bufref, 0x100, length($code), $code);
       substr($$bufref, $size - 6, 6, pack('v3', 0xf900, 0xf900, 0xf900));
    }
-   elsif ($layout eq 'wd') {
-      # Every physical 1K chunk can occupy WD's top segment.  Give each a
+   elsif ($layout eq 'wd' || $layout eq 'wdsw') {
+      # Every physical 1K chunk can occupy WD/WDSW's top segment.  Give each a
       # self-contained top-segment vector/entry so the rest remains arbitrary.
+      # Corrected 8K WD requires Stella's distinguishing LDA $39; JMP signature;
+      # WDSW is distinguished structurally by its 8195-byte preservation size.
+      substr($$bufref, 0x80, 3, "\xA5\x39\x4C") if $layout eq 'wd';
       for my $bank (0 .. 7) {
          my $base = $bank * 1024;
          substr($$bufref, $base, length($code), $code);

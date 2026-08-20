@@ -47,6 +47,7 @@ typedef enum {
    MAP_FA,
    MAP_DPC,
    MAP_WD,
+   MAP_WDSW,
    MAP_E0,
    MAP_E7,
    MAP_3F,
@@ -375,6 +376,7 @@ static int parse_mapper_name(const char *s, mapper_t *mapper, int *superchip)
    else if (strcmp(s, "fa") == 0) *mapper = MAP_FA;
    else if (strcmp(s, "dpc") == 0) *mapper = MAP_DPC;
    else if (strcmp(s, "wd") == 0) *mapper = MAP_WD;
+   else if (strcmp(s, "wdsw") == 0) *mapper = MAP_WDSW;
    else if (strcmp(s, "e0") == 0) *mapper = MAP_E0;
    else if (strcmp(s, "e7") == 0) *mapper = MAP_E7;
    else if (strcmp(s, "3f") == 0) *mapper = MAP_3F;
@@ -424,7 +426,7 @@ static void usage(const char *argv0)
       "options:\n"
       "   -i, --input <file>       compatibility alias for positional input\n"
       "   -o, --output <file>      write generated VCSC assembly (.s26)\n"
-      "       --mapper <name>      force 2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|e0|e7|3e|3f|cv|jane|0840|ua|uasw|0fa0|fe\n"
+      "       --mapper <name>      force 2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|wdsw|e0|e7|3e|3f|cv|jane|0840|ua|uasw|0fa0|fe\n"
       "       --reset-bank <n>     force power-on/reset physical bank\n"
       "       --origin <b:addr>    force logical origin for a bank (repeatable)\n"
       "       --entry <b:addr>     add executable entry point (repeatable)\n"
@@ -766,6 +768,11 @@ static int is_doubled_2k_dump(const uint8_t *rom, size_t size)
    return size == 4096u && memcmp(rom, rom + 2048u, 2048u) == 0;
 }
 
+static int mapper_is_wd_family(mapper_t mapper)
+{
+   return mapper == MAP_WD || mapper == MAP_WDSW;
+}
+
 static int mapper_dimensions(mapper_t mapper, size_t rom_size,
                              size_t *bank_size, size_t *bank_count)
 {
@@ -779,8 +786,8 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
    case MAP_FA: *bank_size = 4096u; *bank_count = 3u; return rom_size == 12288u;
    case MAP_DPC: *bank_size = 4096u; *bank_count = 2u;
       return rom_size == 10240u || rom_size == 10495u;
-   case MAP_WD: *bank_size = 1024u; *bank_count = 8u;
-      return rom_size == 8192u || rom_size == 8195u;
+   case MAP_WD: *bank_size = 1024u; *bank_count = 8u; return rom_size == 8192u;
+   case MAP_WDSW: *bank_size = 1024u; *bank_count = 8u; return rom_size == 8195u;
    case MAP_E0: *bank_size = 1024u; *bank_count = 8u; return rom_size == 8192u;
    case MAP_E7: *bank_size = 2048u; *bank_count = rom_size / 2048u;
       return rom_size == 8192u || rom_size == 12288u || rom_size == 16384u;
@@ -910,6 +917,13 @@ static int is_probably_3f(const uint8_t *rom, size_t size)
    return count_signature(rom, size, sta3f, sizeof(sta3f)) >= 2;
 }
 
+static int is_probably_wd(const uint8_t *rom, size_t size)
+{
+   static const uint8_t signature[] = { 0xA5u, 0x39u, 0x4Cu }; /* LDA $39; JMP */
+   if (size != 8192u) return 0;
+   return count_signature(rom, size, signature, sizeof(signature)) != 0;
+}
+
 static int is_probably_0840(const uint8_t *rom, size_t size)
 {
    static const uint8_t lda0800[] = { 0xADu, 0x00u, 0x08u };
@@ -1030,7 +1044,8 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
       if (mapper == MAP_RAW && is_probably_fe(rom, size) &&
           !has_f8_selector_signature(rom, size)) mapper = MAP_FE;
       if (mapper == MAP_RAW) mapper = is_probably_0840(rom, size) ? MAP_0840 : MAP_RAW;
-      if (mapper == MAP_RAW) mapper = is_probably_e7(rom, size) ? MAP_E7 : MAP_F8;
+      if (mapper == MAP_RAW) mapper = is_probably_e7(rom, size) ? MAP_E7 : MAP_RAW;
+      if (mapper == MAP_RAW) mapper = is_probably_wd(rom, size) ? MAP_WD : MAP_F8;
       break;
    case 12288u: mapper = is_probably_e7(rom, size) ? MAP_E7 : MAP_FA; break;
    case 16384u: mapper = is_probably_e7(rom, size) ? MAP_E7 :
@@ -1039,7 +1054,7 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
    case 32768u: mapper = is_probably_3e(rom, size) ? MAP_3E :
                          (is_probably_3f(rom, size) ? MAP_3F : MAP_F4); break;
    case 10240u: case 10495u: mapper = MAP_DPC; break;
-   case 8195u: mapper = MAP_WD; break;
+   case 8195u: mapper = MAP_WDSW; break;
    default: mapper = is_probably_3e(rom, size) ? MAP_3E :
                     (is_probably_3f(rom, size) ? MAP_3F : MAP_RAW); break;
    }
@@ -1063,6 +1078,7 @@ static const char *mapper_name(mapper_t mapper)
    case MAP_FA: return "FA";
    case MAP_DPC: return "DPC";
    case MAP_WD: return "WD";
+   case MAP_WDSW: return "WDSW";
    case MAP_E0: return "E0";
    case MAP_E7: return "E7";
    case MAP_3F: return "3F";
@@ -1080,10 +1096,11 @@ static const char *mapper_name(mapper_t mapper)
 }
 
 /* Wickstead Design / Pursuit of the Pink Panther mapper.  Each configuration
- * maps four independently selected 1K ROM banks into $1000-$1FFF.  The known
- * 8195-byte dump is a malformed preservation image where physical 1K chunks 2
- * and 3 are reversed; keep file offsets unchanged for exact reconstruction but
- * translate logical WD bank numbers while analyzing runtime mappings. */
+ * maps four independently selected 1K ROM banks into $1000-$1FFF.  Stella calls
+ * the corrected 8192-byte layout WD and the historical 8195-byte preservation
+ * layout WDSW.  WDSW reverses physical 1K chunks 2/3 and carries three trailing
+ * non-emulated bytes; keep file offsets unchanged for exact reconstruction but
+ * translate logical bank numbers while analyzing runtime mappings. */
 static const uint8_t wd_bank_org[8][4] = {
    { 0, 0, 1, 3 }, { 0, 1, 2, 3 }, { 4, 5, 6, 7 }, { 7, 4, 2, 3 },
    { 0, 0, 6, 7 }, { 0, 1, 7, 6 }, { 2, 3, 4, 5 }, { 6, 0, 5, 1 }
@@ -1123,7 +1140,7 @@ static int wd_map_address(const analysis_t *a, uint8_t config,
    uint16_t bus = (uint16_t)(address & 0x1fffu);
    unsigned segment;
    size_t logical;
-   if (a->mapper != MAP_WD || bus < 0x1000u) return 0;
+   if (!mapper_is_wd_family(a->mapper) || bus < 0x1000u) return 0;
    if (bus < 0x1080u) return 0; /* 64-byte RAM read/write ports occupy $1000-$107F. */
    segment = (unsigned)((bus - 0x1000u) >> 10);
    if (segment >= 4u) return 0;
@@ -1535,7 +1552,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
    else {
       a->mapper = infer_mapper(rom, rom_size, &a->bank_size, &a->bank_count);
    }
-   a->wd_bad_dump = a->mapper == MAP_WD && rom_size == 8195u;
+   a->wd_bad_dump = a->mapper == MAP_WDSW;
    a->doubled_2k_dump = a->mapper == MAP_2K && is_doubled_2k_dump(rom, rom_size);
    a->video_override = opt->video_override;
    a->input_name = opt->input;
@@ -1558,7 +1575,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
       b->origin = infer_bank_origin(rom + b->file_offset, b->size,
                                     b->size, &b->origin_score,
                                     &b->reset_vector_evidence);
-      if (a->mapper == MAP_WD) {
+      if (mapper_is_wd_family(a->mapper)) {
          b->origin = wd_preferred_origin(a, i);
          b->origin_score = 100;
          b->reset_vector_evidence = 0;
@@ -1602,7 +1619,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
          b->origin_score = 100;
          b->reset_vector_evidence = i == 0u;
       }
-      b->vector_tail_enabled = a->mapper != MAP_WD && a->mapper != MAP_E0 &&
+      b->vector_tail_enabled = !mapper_is_wd_family(a->mapper) && a->mapper != MAP_E0 &&
                                (a->mapper != MAP_E7 || i + 1u == a->bank_count) &&
                                (a->mapper != MAP_FE || i == 0u) &&
                                (!mapper_is_three_family(a->mapper) ||
@@ -1671,7 +1688,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
       return 1;
    }
 
-   if (a->mapper == MAP_WD) {
+   if (mapper_is_wd_family(a->mapper)) {
       /* Configuration 0 is the fixed power-on mapping.  Its top 1K segment
        * supplies the hardware vectors; the RESET target itself may resolve to
        * any of the four segments in that configuration. */
@@ -1950,7 +1967,7 @@ static int push_work_state_ctx(analysis_t *a, size_t bank, size_t offset,
    if (bank >= a->bank_count) return 1;
    b = &a->banks[bank];
    if (offset >= b->size) return 1;
-   if (a->mapper == MAP_WD) {
+   if (mapper_is_wd_family(a->mapper)) {
       unsigned segment = (unsigned)(((pc & 0x1fffu) - 0x1000u) >> 10);
       unsigned context = ((unsigned)mapper_config & 7u) * 4u + (segment & 3u);
       wd_bit = (uint32_t)1u << context;
@@ -2002,7 +2019,7 @@ static int push_work_state_ctx(analysis_t *a, size_t bank, size_t offset,
    else {
       changed = state_merge(&b->states[offset], state);
    }
-   if (a->mapper != MAP_WD && a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
+   if (!mapper_is_wd_family(a->mapper) && a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
        (!changed || b->queued[offset])) return 1;
    if (a->work_count == a->work_cap) {
       size_t new_cap = a->work_cap ? a->work_cap * 2u : 256u;
@@ -2345,6 +2362,7 @@ static int native_split_ram_layout(const analysis_t *a, split_ram_layout_t *ram)
       ram->size = 0x0400u;
       return 1;
    case MAP_WD:
+   case MAP_WDSW:
       ram->read_start = 0x1000u;
       ram->write_start = 0x1040u;
       ram->size = 0x0040u;
@@ -2396,7 +2414,7 @@ static int state_read_byte(const analysis_t *a, size_t bank,
    size_t off;
    if (address <= 0x00ffu)
       return state_zp_get(state, (uint8_t)address, value);
-   if (a->mapper == MAP_WD || a->mapper == MAP_E0 || a->mapper == MAP_E7 ||
+   if (mapper_is_wd_family(a->mapper) || a->mapper == MAP_E0 || a->mapper == MAP_E7 ||
        mapper_is_three_family(a->mapper)) return 0;
    if (bank >= a->bank_count || !cart_target_offset(&a->banks[bank], address, &off))
       return 0;
@@ -3755,7 +3773,7 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
          }
       }
    }
-   else if (a->mapper == MAP_WD) {
+   else if (mapper_is_wd_family(a->mapper)) {
       /* WD powers up in arrangement 0.  Only its top 1K segment supplies the
        * hardware vectors.  Resolve the vector targets through that complete
        * four-segment arrangement rather than pretending a 1K physical bank
@@ -3902,7 +3920,7 @@ drain_work:
       len = instruction_length(mode);
       if (off + len > b->size) continue;
       mark_instruction(b, off, opcode, len);
-      canonical_pc = (a->mapper == MAP_WD || a->mapper == MAP_E0 ||
+      canonical_pc = (mapper_is_wd_family(a->mapper) || a->mapper == MAP_E0 ||
                       a->mapper == MAP_E7 || mapper_is_three_family(a->mapper)) ? item.pc
                        : (uint16_t)(b->origin + (uint16_t)off);
       flow = instruction_flow(opcode);
@@ -4006,7 +4024,7 @@ drain_work:
             int dpc_reg = dpc_register_address(a, effective);
             int fa_ram = fa_ram_address(a, effective);
             if (!sc_read && !dpc_reg && !fa_ram) {
-               if (a->mapper == MAP_WD) {
+               if (mapper_is_wd_family(a->mapper)) {
                   size_t dbank;
                   if (wd_map_address(a, (uint8_t)item.mapper_config, effective, &dbank, &doff)) {
                      a->banks[dbank].roles[doff] |= ROLE_DATA_READ;
@@ -4052,7 +4070,7 @@ drain_work:
                }
             }
          }
-         else if (a->mapper != MAP_WD && a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
+         else if (!mapper_is_wd_family(a->mapper) && a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
                   (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y)) {
             unsigned ix;
             for (ix = 0; ix < 256u; ++ix) {
@@ -4066,7 +4084,7 @@ drain_work:
                if (cart_target_offset(b, operand, &baseoff)) mark_label(b, baseoff);
             }
          }
-         else if (a->mapper != MAP_WD && a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
+         else if (!mapper_is_wd_family(a->mapper) && a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
                   mode == AM_INDIRECT_INDEXED) {
             uint16_t pointer;
             if (resolve_zp_word(&input_state, (uint8_t)operand, &pointer)) {
@@ -4088,7 +4106,7 @@ drain_work:
                   b->roles[poff] |= ROLE_POSSIBLE;
             }
          }
-         else if (a->mapper != MAP_WD && a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
+         else if (!mapper_is_wd_family(a->mapper) && a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
                   mode == AM_INDEXED_INDIRECT) {
             size_t poff;
             for (poff = 0; poff < b->size; ++poff)
@@ -4105,7 +4123,7 @@ drain_work:
          ++a->hotspot_refs;
          if (successor_bank != item.bank) ++a->cross_bank_switches;
       }
-      if (a->mapper == MAP_WD && flow == FLOW_NEXT &&
+      if (mapper_is_wd_family(a->mapper) && flow == FLOW_NEXT &&
           (opcode_memory_access(opcode) & ACCESS_READ)) {
          uint16_t effective;
          if ((mode == AM_ZERO_PAGE || mode == AM_ABSOLUTE) &&
@@ -4207,7 +4225,7 @@ drain_work:
             if (!push_threef_address_state(a, next_config, next_pc, &output_state))
                return 0;
          }
-         else if (a->mapper == MAP_WD) {
+         else if (mapper_is_wd_family(a->mapper)) {
             uint16_t next_pc = (uint16_t)(canonical_pc + len);
             if (wd_switched && wd_successor_config != item.mapper_config) {
                size_t old_bank, old_off, new_bank, new_off;
@@ -4313,7 +4331,7 @@ drain_work:
                }
             }
          }
-         else if (a->mapper == MAP_WD) {
+         else if (mapper_is_wd_family(a->mapper)) {
             if (!known || !taken) {
                abstract_state_t fall_state;
                if (state_constrain_branch_edge(opcode, &output_state, 0, &fall_state) &&
@@ -4388,7 +4406,7 @@ drain_work:
                 !push_threef_address_state(a, item.mapper_config, operand, &output_state))
                return 0;
          }
-         else if (a->mapper == MAP_WD) {
+         else if (mapper_is_wd_family(a->mapper)) {
             if (!push_wd_address_state(a, (uint8_t)item.mapper_config,
                                        (uint16_t)(canonical_pc + 3u), &after_call) ||
                 !push_wd_address_state(a, (uint8_t)item.mapper_config, operand, &output_state))
@@ -4452,7 +4470,7 @@ drain_work:
             if (!push_threef_address_state(a, item.mapper_config, operand, &output_state))
                return 0;
          }
-         else if (a->mapper == MAP_WD) {
+         else if (mapper_is_wd_family(a->mapper)) {
             if (!push_wd_address_state(a, (uint8_t)item.mapper_config, operand, &output_state))
                return 0;
          }
@@ -4527,7 +4545,7 @@ drain_work:
             else ++a->unresolved_indirect_jumps;
             break;
          }
-         if (a->mapper == MAP_WD) {
+         if (mapper_is_wd_family(a->mapper)) {
             ++a->unresolved_indirect_jumps;
             break;
          }
@@ -4621,7 +4639,7 @@ static size_t mapper_candidates_for_size(size_t size, mapper_t *out,
       ADD_MAPPER(MAP_DPC);
       break;
    case 8195u:
-      ADD_MAPPER(MAP_WD);
+      ADD_MAPPER(MAP_WDSW);
       break;
    default:
       if (size >= 8192u && size <= 524288u && (size % 2048u) == 0u) {
@@ -4734,7 +4752,8 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
          candidates[i] == MAP_E7 ? is_probably_e7(rom, size) :
          candidates[i] == MAP_3E ? is_probably_3e(rom, size) :
          candidates[i] == MAP_3F ? is_probably_3f(rom, size) :
-         candidates[i] == MAP_FE ? is_probably_fe(rom, size) : 0;
+         candidates[i] == MAP_FE ? is_probably_fe(rom, size) :
+         candidates[i] == MAP_WD ? is_probably_wd(rom, size) : 0;
       h[i].explicit_signature =
          mapper_tail_signature_matches(rom, size, candidates[i]);
       ++*tested_out;
@@ -4775,6 +4794,13 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                                  h[i].explicit_signature ||
                                  h[i].hotspots != 0 ||
                                  h[i].three_specific_switches != 0u;
+            else if (h[i].mapper == MAP_WD)
+               /* Stella identifies corrected 8K WD images with the distinctive
+                * LDA $39; JMP byte signature.  Without it, WD's segmented
+                * mapping can make unrelated UA/F8 code look artificially
+                * coherent, so keep unsignatured WD available only via
+                * explicit --mapper wd. */
+               family_evidence = h[i].detector_signature;
             else if (h[i].mapper == MAP_FE)
                /* FE's instruction-level JSR model can make unrelated 8K ROMs
                 * appear coherent because ordinary JSR target high bytes also
@@ -6240,12 +6266,13 @@ static void emit_instruction(FILE *fp, const analysis_t *a, size_t bi, size_t of
       fprintf(fp, "    ; mirror of %s ($%04X)", hw.name, hw.canonical);
    else if (!have_hw)
       emit_hardware_rmw_comment(fp, opcode, mode, operand);
-   if (a->mapper == MAP_WD &&
+   if (mapper_is_wd_family(a->mapper) &&
        (mode == AM_ZERO_PAGE || mode == AM_ABSOLUTE) &&
        (opcode_memory_access(opcode) & ACCESS_READ)) {
       uint8_t config;
       if (wd_hotspot_config(operand, &config))
-         fprintf(fp, "    ; WD selector -> arrangement %u (hardware-delayed)",
+         fprintf(fp, "    ; %s selector -> arrangement %u (hardware-delayed)",
+                 mapper_name(a->mapper),
                  (unsigned)config);
    }
    emit_dynamic_control_comment(fp, a, bi, opcode, operand);
@@ -6773,7 +6800,7 @@ static void collect_inference_evidence(const analysis_t *a,
          }
       }
    }
-   if (e->vsync_write && a->mapper != MAP_DPC && a->mapper != MAP_WD &&
+   if (e->vsync_write && a->mapper != MAP_DPC && !mapper_is_wd_family(a->mapper) &&
        a->mapper != MAP_FE) {
       e->dynamic_probe_attempted = 1;
       e->dynamic_probe_available = vcsc_dynamic_video_probe(
@@ -7107,7 +7134,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                      "%d SC write%s, %d SC RMW conflict%s, %d native split-RAM RMW conflict%s)\n",
                  mname,
                  a->mapper == MAP_RAW ? "unknown" :
-                    (a->mapper == MAP_DPC || a->mapper == MAP_FA || a->mapper == MAP_WD || a->mapper == MAP_E0 ||
+                    (a->mapper == MAP_DPC || a->mapper == MAP_FA || mapper_is_wd_family(a->mapper) || a->mapper == MAP_E0 ||
                      (a->mapper == MAP_E7 && is_probably_e7(a->rom, a->rom_size)) ||
                      (a->mapper == MAP_3E && is_probably_3e(a->rom, a->rom_size)) ||
                      (a->mapper == MAP_FE && is_probably_fe(a->rom, a->rom_size)) ||
@@ -7143,7 +7170,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                  (a->mapper == MAP_3E ? "3E fixed final-2K vector bank; lower ROM bank 0 at power-on" :
                   (a->mapper == MAP_3F ? "3F fixed final-2K vector bank; lower bank 0 at power-on" :
                    (a->mapper == MAP_FE ? "FE deterministic bank 0" :
-                  (a->mapper == MAP_WD ? "WD configuration-0 vector bank" : "heuristic"))))))))))));
+                  (mapper_is_wd_family(a->mapper) ? "WD configuration-0 vector bank" : "heuristic"))))))))))));
       for (i = 0; i < a->bank_count; ++i) {
          const bank_t *b = &a->banks[i];
          if (b->origin_overridden)
@@ -7187,12 +7214,12 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
       if (a->mapper == MAP_FE) {
          fprintf(fp, "; FE/SCABS switching: stack access to $01FE arms a one-cycle delayed bank latch; released two-bank JSR idiom uses the following target-high data byte (E/F -> bank 0, C/D -> bank 1); deterministic reset bank is 0\n");
       }
-      if (a->mapper == MAP_WD) {
-         fprintf(fp, "; WD cartridge RAM: read $1000-$103F, write $1040-$107F (64 bytes)\n");
-         fprintf(fp, "; WD selector reads: TIA $30-$3F choose one of eight four-segment 1K arrangements\n");
-         fprintf(fp, "; WD power-on arrangement 0: logical 1K banks 0,0,1,3 at $1000,$1400,$1800,$1C00\n");
+      if (mapper_is_wd_family(a->mapper)) {
+         fprintf(fp, "; %s cartridge RAM: read $1000-$103F, write $1040-$107F (64 bytes)\n", mapper_name(a->mapper));
+         fprintf(fp, "; %s selector reads: TIA $30-$3F choose one of eight four-segment 1K arrangements\n", mapper_name(a->mapper));
+         fprintf(fp, "; %s power-on arrangement 0: logical 1K banks 0,0,1,3 at $1000,$1400,$1800,$1C00\n", mapper_name(a->mapper));
          if (a->wd_bad_dump)
-            fprintf(fp, "; WD 8195-byte preservation form: logical 1K banks 2 and 3 are reversed in the file; final 3 bytes are non-emulated trailing dump data\n");
+            fprintf(fp, "; WDSW 8195-byte preservation form: logical 1K banks 2 and 3 are reversed in the file; final 3 bytes are non-emulated trailing dump data\n");
       }
       if (a->mapper == MAP_DPC) {
          fprintf(fp, "; DPC auxiliary data ROM: file $2000..$27FF (2048 bytes)\n");
@@ -7443,8 +7470,8 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
          emit_physical_raw_range(fp, a, 10240u, a->rom_size);
       }
    }
-   if (a->mapper == MAP_WD && a->rom_size > 8192u) {
-      fputs("; ---- trailing bytes from 8195-byte WD preservation dump ----\n", fp);
+   if (a->mapper == MAP_WDSW) {
+      fputs("; ---- trailing bytes from 8195-byte WDSW preservation dump ----\n", fp);
       fputs("; Stella truncates these three bytes for emulation; retain them for exact reconstruction.\n", fp);
       fputs(".org $2000\n", fp);
       emit_physical_raw_range(fp, a, 8192u, a->rom_size);
