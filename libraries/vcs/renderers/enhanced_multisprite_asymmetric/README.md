@@ -31,11 +31,18 @@ from the enhanced-multisprite work and remain intentionally outside the
 beam-critical raster where possible.
 
 Horizontal metadata is split deliberately: `event_code` carries logical sprite
-id plus the full HMP fine-motion nibble, while `position_packed` carries the
-hardware lane in bit 7 and the coarse RESP slot in bits 0..3.  The final
-11-phase coarse RESP dispatcher is still WIP.  Do not claim public X=0..159 is
-certified from this renderer yet merely because the packed position table is
-present.
+id plus the full HMP fine-motion nibble.  The renderer now contains the actual
+11-entry coarse-RESP landing geometry as one page-contained, 128-byte-aligned
+code object.  Each delay cell is exactly three ROM bytes and five CPU cycles
+(`NOP` + zero-page `BIT`).  P0 entries occupy base+$00..$1e and P1 entries
+base+$40..$5e.  VBLANK converts each raw 0..10 coarse slot to the absolute low
+byte of its landing and stores that byte in `position_packed`; bit 6 of the low
+byte is therefore the hardware-lane tag, tested with `BIT/BVS`.  `event_stage`
+holds the common page byte, so `position_packed:event_stage` is already a
+zero-page indirect-JMP vector.  The visible raster still uses the fixed RESP
+fallback at this checkpoint; wiring `JMP (position_packed)` into the position
+line and replacing the temporary landing RTSes with the calibrated phase paths
+remain WIP, so public X=0..159 is not yet certified.
 
 The raster aggressively moves work into the end of the preceding physical
 scanline when useful.  The current P1 position path, for example, commits the
@@ -44,6 +51,11 @@ spend those cycles on the missing PF0 transitions without exceeding one NTSC
 scanline.
 
 Current checkpoint accounting for the public asymmetric example is
-3602/4090 ROM bytes and 117/128 RAM bytes.  The next task is still to install
-and Stella-calibrate the 11 fixed coarse RESP phases for both hardware lanes
-while keeping all six playfield writes and stable 262-line output.
+3710/4090 ROM bytes and 117/128 RAM bytes.  A trial dedicated 256-byte-aligned
+trampoline page was rejected because the alignment fragmented the 4K link.  The
+replacement landing object uses only 128-byte alignment, is 96 bytes long, and
+links cleanly; in the current build it lands at `$F780`, with P1 beginning at
+`$F7C0`.  The next task is to enter this ready-made vector from the position
+scanline, replace the temporary RTS landings with real RESP phase paths, then
+Stella-calibrate all 11 phases on both hardware lanes while preserving all six
+playfield writes and stable 262-line output.

@@ -1361,3 +1361,17 @@ Horizontal positioning is still WIP: the final calibrated 11-phase coarse RESP
 dispatch and Stella X=0..159 certification remain.  Read
 `.../enhanced_asymmetric.txt` before continuing this work; preserve this
 checkpoint rather than reverting to the earlier reflected/PF1+PF2 design.
+
+Checkpoint 2026-08-20: the full-PF asymmetric enhanced-multisprite WIP now
+contains the real coarse-RESP landing geometry.  A page-contained 96-byte code
+object with 128-byte alignment provides eleven 3-byte/5-cycle entries per lane;
+P0 is base+$00..$1e and P1 base+$40..$5e.  VBLANK stores the absolute landing
+low byte in `position_packed`, pointer-low bit 6 is the P0/P1 lane tag used by
+BIT/BVS, and adjacent `event_stage` holds the common page byte, so the pair is a
+ready zero-page indirect-JMP vector.  The current link places it at $F780/$F7C0
+and builds at 3710/4090 ROM, 117/128 RAM.  The visible raster still uses its
+fixed RESP fallback; the next step is to pre-stage the position-line left PF
+state, enter `JMP (position_packed)`, replace the temporary RTS landings with
+lane-specific RESP continuations, and then Stella-calibrate X=0..159.  The old
+256-byte-aligned trampoline experiment remains rejected.  Read
+`.../enhanced_asymmetric.txt` before continuing.

@@ -89,7 +89,10 @@ alias TEMPLATE_BALL_Y TEMPLATE_unused_object_state[5]
 // fixed sorting network, event_order[] is a compact descending list terminated by
 // index 6.
 // setup_code stores logical sprite id in bits 0..2 plus HMP fine motion in
-// bits 4..7; setup_position stores lane in bit 7 plus coarse slot in 0..3.
+// bits 4..7. setup_position stores the absolute low byte of the selected
+// coarse-RESP landing.  The landing block is 128-byte aligned: P0 entries are
+// at base+$00..$1e and P1 entries at base+$40..$5e, so pointer-low bit 6 is
+// also the cheap hardware-lane flag used by the visible BIT/BVS dispatch.
 // setup_line stores action_y, two bands above the physical setup band.
 uint8_t TEMPLATE_priority[6];
 uint8_t TEMPLATE_lane_for[6];
@@ -120,7 +123,7 @@ uint8_t TEMPLATE_current_gfx[2];
 // installs HMP/NUSIZ/REFP/color; the following line B enters the setup band.
 uint8_t TEMPLATE_event_code;
 uint8_t TEMPLATE_position_packed;
-uint8_t TEMPLATE_event_stage;
+uint8_t TEMPLATE_event_stage; // high byte of position_packed indirect vector while drawing
 uint8_t TEMPLATE_action_y;
 
 // Compact branch-free graphics state.  States 1..6 are per-sprite setup
@@ -299,6 +302,51 @@ void TEMPLATE_sort_events(void) {
    asm stx.z TEMPLATE_event_order + 3;
    asm sty.z TEMPLATE_event_order + 2;
    asm @TEMPLATE_Sort11Done:;
+}
+
+// Compact coarse-RESP landing ladders.  Each delay cell is exactly three ROM
+// bytes and five CPU cycles (NOP + zero-page BIT), so VBLANK can land directly
+// on one of eleven five-cycle phases.  The object is page-contained and only
+// 128-byte aligned -- not 256-byte aligned -- so it does not create the large
+// linker hole rejected by the previous experiment.
+//
+// P0 begins at +$00 and P1 at +$40.  Because a 128-byte-aligned base is either
+// $xx00 or $xx80, bit 6 of every absolute landing low byte is therefore 0 for
+// P0 and 1 for P1 while all entries remain in one 256-byte page.
+page void TEMPLATE_resp_ladders(void) {
+   asm .align 128;
+   asm TEMPLATE_P0RespDelayBase:;
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 0: 10 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 1:  9 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 2:  8 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 3:  7 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 4:  6 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 5:  5 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 6:  4 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 7:  3 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 8:  2 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 9:  1 delay cell
+   asm TEMPLATE_P0RespLanding:;              // slot 10: immediate landing
+   asm rts;
+
+   // P0 occupies 31 bytes.  Pad to +$40 so bit 6 itself is the lane tag.
+   asm .byte $ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea;
+   asm .byte $ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea;
+   asm .byte $ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea;
+
+   asm TEMPLATE_P1RespDelayBase:;
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 0: 10 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 1:  9 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 2:  8 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 3:  7 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 4:  6 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 5:  5 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 6:  4 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 7:  3 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 8:  2 delay cells
+   asm nop; asm bit.z TEMPLATE_event_stage; // slot 9:  1 delay cell
+   asm TEMPLATE_P1RespLanding:;              // slot 10: immediate landing
+   asm rts;
 }
 
 // VBLANK is intentionally out-of-line. Its data-dependent scheduling branches
@@ -492,12 +540,24 @@ void TEMPLATE_vblank_worker(void) {
    asm and #$f0;
    asm ora.z TEMPLATE_setup_sprite;
    asm sta.zx TEMPLATE_setup_code,X;
+   // Convert the coarse slot to the absolute low byte of its eventual indirect
+   // landing while VBLANK owns the cycle budget.  Each slot is three bytes
+   // apart.  P1 adds $40, which makes pointer bit 6 the lane discriminator;
+   // finally add the 128-byte-aligned block base.  Page containment proves the
+   // addition cannot carry into a different pointer high byte.
    asm lda.z TEMPLATE_pending0_valid;
    asm and #$0f;
+   asm sta.z TEMPLATE_pending0_valid;
+   asm asl;
+   asm clc;
+   asm adc.z TEMPLATE_pending0_valid;
    asm ldy.z TEMPLATE_position_packed;
-   asm beq.same @TEMPLATE_AssignPositionReady;
-   asm ora #$80;
-   asm @TEMPLATE_AssignPositionReady:;
+   asm beq.same @TEMPLATE_AssignPositionLaneReady;
+   asm clc;
+   asm adc #$40;
+   asm @TEMPLATE_AssignPositionLaneReady:;
+   asm clc;
+   asm adc #<TEMPLATE_P0RespDelayBase;
    asm sta.zx TEMPLATE_setup_position,X;
 
    asm ldy.z TEMPLATE_setup_index;
@@ -573,6 +633,11 @@ void TEMPLATE_vblank_worker(void) {
    asm sta.z TEMPLATE_gfx_index + 1;
    asm sta.z TEMPLATE_current_gfx;
    asm sta.z TEMPLATE_current_gfx + 1;
+
+   // setup_position/draw_position already contain an absolute landing low byte.
+   // Keep the common page byte adjacent in event_stage, so position_packed and
+   // event_stage form a ready-to-use NMOS indirect-JMP vector in zero page.
+   asm lda #>TEMPLATE_P0RespDelayBase;
    asm sta.z TEMPLATE_event_stage;
 
    // Keep the first event's action and lane/sprite code hot.  Horizontal
@@ -581,7 +646,7 @@ void TEMPLATE_vblank_worker(void) {
    asm sta.z TEMPLATE_action_y;
    asm lda TEMPLATE_draw_code;
    asm sta.z TEMPLATE_event_code;
-   // Keep the first horizontal control hot. pair_y already contains the last
+   // Keep the first absolute landing low byte hot. pair_y already contains the last
    // candidate Y from allocation (0..89), which is safe for its draw-time BIT
    // padding/N-clear role, so do not spend five cycles reinitializing it.
    asm lda TEMPLATE_draw_position;
@@ -653,7 +718,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda #0;
    asm tay;
    asm bit.z TEMPLATE_position_packed;
-   asm bmi.same @TEMPLATE_TopTriggerP1;
+   asm bvs.same @TEMPLATE_TopTriggerP1;
    asm jmp @TEMPLATE_Position0Boundary;
    asm @TEMPLATE_TopTriggerP1:;
    asm jmp @TEMPLATE_Position1Boundary;
@@ -752,7 +817,7 @@ require inline void TEMPLATE_draw(void) {
    asm dex;
    asm lda.z TEMPLATE_current_gfx;
    asm bit.z TEMPLATE_position_packed;
-   asm bmi.same @TEMPLATE_ArmedToP1;
+   asm bvs.same @TEMPLATE_ArmedToP1;
    asm jmp @TEMPLATE_Position0Boundary;
    asm @TEMPLATE_ArmedToP1:;
    asm jmp @TEMPLATE_Position1Boundary;

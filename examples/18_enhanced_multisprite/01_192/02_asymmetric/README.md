@@ -26,6 +26,10 @@ this is not the earlier PF1/PF2-only experiment.  Both physical lines of the
 special position bands now perform the required PF0 left/right transition too.
 
 Horizontal sprite positioning is still under active calibration.  Fine HMP
-metadata and coarse-slot metadata are already generated per event, but the
-final 11 fixed coarse RESP phases have not yet been certified across public
-X=0..159 for both P0 and P1.
+metadata is generated per event.  The coarse path now has a real page-contained
+11-entry landing block: each phase step is three ROM bytes / five CPU cycles,
+P0 occupies base+$00..$1e, and P1 base+$40..$5e.  VBLANK stores the absolute
+landing low byte in `position_packed`; bit 6 identifies P1, and adjacent
+`event_stage` holds the common high byte, making the pair ready for an indirect
+JMP.  The raster still uses the fixed RESP fallback at this checkpoint; entering
+that vector and calibrating all 11 phases across public X=0..159 remain WIP.

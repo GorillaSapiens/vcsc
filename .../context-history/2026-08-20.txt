@@ -21,3 +21,11 @@ Example builds at 3589/4090 ROM, 117/128 RAM.  Six PF writes are present,
 CTRLPF=0, graphics row state uses ROM transition tables.  Final 11-phase coarse
 RESP calibration/X=0..159 certification remains unfinished.  See
 `.../enhanced_asymmetric.txt` for the continuation contract.
+
+2026-08-20 11:42:38 PDT, add compact absolute RESP vector
+The asymmetric enhanced-multisprite WIP now emits a page-contained, 128-byte-
+aligned coarse-RESP landing object.  P0 starts at +$00, P1 at +$40, and each
+coarse cell is three bytes/five cycles.  VBLANK stores absolute pointer lows,
+BIT/BVS uses low-byte bit 6 as the lane tag, and adjacent event_stage holds the
+common pointer high.  Current example: 3710 ROM / 117 RAM.  Raster entry into
+the ladders remains the next step.

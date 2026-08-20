@@ -436,3 +436,72 @@ Targeted structural checks pass:
 The final 11-phase coarse RESP dispatcher remains the immediate next task.  Do
 not regress these PF0 transitions while adding it; all physical scanlines in the
 position bands must continue to present independent left and right PF0 data.
+
+
+Checkpoint continuation -- 2026-08-20 coarse-dispatch offset predecode
+-----------------------------------------------------------------------
+The next bounded checkpoint moves another piece of the eventual RESP dispatcher
+out of the visible raster without changing the still-fixed RESP timing.
+
+During VBLANK, the raw coarse slot 0..10 from TEMPLATE_position_table is now
+converted to `slot * 3` before it is stored in setup_position/draw_position.
+Bit 7 is still reserved for the hardware lane.  Therefore the compact event
+stream carries exactly these dispatch-ready values:
+
+    P0: $00,$03,$06,...,$1e
+    P1: $80,$83,$86,...,$9e
+
+The existing BIT/BMI lane test is unchanged, but the future beam-critical
+dispatch no longer owes a multiply or slot-to-entry conversion.  This adds only
+six ROM bytes and no RAM; the public asymmetric example now builds at:
+
+    ROM: 3608 / 4090 bytes used, 482 free
+    RAM: 117 / 128 bytes used, 11 free
+
+A trial implementation using a dedicated 256-byte-aligned P0/P1 trampoline page
+was intentionally discarded before checkpointing.  Its raw bytes fit in 4K, but
+the absolute page alignment fragmented CODE.__vcsc_function$main enough to make
+the linker overflow.  Do not reintroduce a mostly empty standalone dispatch
+page.  The next implementation should place a compact dispatcher in an existing
+code page or use a branch/jump layout that does not impose a new 256-byte
+alignment constraint.
+
+The raster still executes the same fixed RESP0/RESP1 stores as the prior
+checkpoint.  Public X=0..159 remains unfinished.  This checkpoint is valuable
+because the per-event stream is now in the final cheap-to-dispatch encoding
+while full PF0/PF1/PF2 timing remains untouched.
+
+
+Checkpoint continuation -- 2026-08-20 absolute RESP vector geometry
+--------------------------------------------------------------------
+The next checkpoint replaces the abstract `slot * 3` offset idea with an actual
+linker-safe coarse-RESP landing object, without yet entering it from the visible
+raster.
+
+`TEMPLATE_resp_ladders()` is a page-contained 96-byte code object with only
+128-byte alignment.  Each coarse delay cell is exactly three ROM bytes and five
+CPU cycles (`NOP` + zero-page `BIT`).  P0 entries are at base+$00..$1e; 33 bytes
+of inert padding place P1 at base+$40..$5e.  Because the base is 128-byte
+aligned, pointer-low bit 6 is always 0 for P0 and 1 for P1 while both ladders
+remain in one 256-byte page.  The visible lane tests therefore changed from
+BIT/BMI to BIT/BVS.
+
+VBLANK now converts each raw coarse slot to the *absolute low byte* of its
+landing.  `position_packed` holds that low byte and adjacent `event_stage` holds
+`#>TEMPLATE_P0RespDelayBase`, so the two bytes already form a valid zero-page
+NMOS indirect-JMP vector.  This removes the future raster-side slot multiply,
+base addition, and pointer-high setup.
+
+The current linked example places the object at `$F780`, with P1 beginning at
+`$F7C0`; the map reports size `$0060`, `page=hard`, `component-align=$0080`.
+Verified accounting is:
+
+    ROM: 3710 / 4090 bytes used, 380 free
+    RAM: 117 / 128 bytes used, 11 free
+
+The visible raster still executes the fixed RESP0/RESP1 stores.  The temporary
+landing endpoints are RTS placeholders and must not be called from the raster
+yet.  Immediate next step: restructure the position scanline so its left PF
+state is pre-staged at the tail of the preceding line, then replace the fixed
+RESP store with `JMP (TEMPLATE_position_packed)` and make the selected landing
+return to a lane-specific continuation.  Do not reintroduce 256-byte alignment.
