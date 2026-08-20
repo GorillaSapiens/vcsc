@@ -82,7 +82,7 @@ sub vcsc_mapper_from_source {
     $source =~ /^;\s*mapper:\s*(.+?)\s*\(/m
         or die "$path: generated source has no mapper header\n";
     my $mapper = $1;
-    if ($mapper =~ /^unbanked\s+(2K|4K)\z/i) {
+    if ($mapper =~ /^unbanked\s+(1K|2K|4K)\z/i) {
         return uc($1);
     }
     $mapper =~ /^([A-Za-z0-9+]+)\z/

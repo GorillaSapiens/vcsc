@@ -579,10 +579,13 @@ than producing a misleading 100%-data source file.
 
 The bounded concrete RESET pass now exposes some self-modifying and dynamically
 constructed RIOT-RAM code, but sampled execution cannot by itself prove alternate
-input-dependent paths unreachable. Static stack/interrupt exploration, unresolved
-indirect tables, unsupported concrete mapper models, and iterative hybrid convergence
-remain active roadmap work. None of these analyses may weaken the byte-round-trip
-invariant.
+input-dependent paths unreachable. Concrete execution is intentionally gated on a
+trusted cartridge topology: unbanked 1K/2K/4K, an explicit `--mapper`, or strong
+banked-mapper signature evidence. A weak size-default F8/F6/F4/FA guess is not enough,
+because executing an unsupported mapper through the wrong hotspot model can manufacture
+false reachability. Static stack/interrupt exploration, unresolved indirect tables,
+unsupported concrete mapper models, and iterative hybrid convergence remain active
+roadmap work. None of these analyses may weaken the byte-round-trip invariant.
 
 The detailed implementation roadmap and analysis contracts live in
 `../.../disassembler.txt`.

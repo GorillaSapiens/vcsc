@@ -1808,6 +1808,22 @@ my $f4sc_out = slurp(File::Spec->catfile($out, 'f4sc.s26'));
 require_re($f4sc_out, qr/^; mapper: F4SC\b/m, 'F4SC mapper inference');
 
 
+# Concrete execution must not turn a weak size-default banked mapper guess into
+# positive reachability evidence. Unsupported 32K layouts (for example OMNI)
+# can survive the current static F4 hypothesis by coincidence; emulating them
+# as F4 would manufacture thousands of bogus instruction starts. An explicit
+# --mapper remains a deliberate opt-in to the concrete F4 bus model.
+my $f4_out = slurp(File::Spec->catfile($out, 'f4.s26'));
+die "weak automatic F4 guess unexpectedly ran concrete discovery\n"
+   if $f4_out =~ /^; concrete RESET discovery:/m;
+my $forced_f4_concrete_s26 = File::Spec->catfile($tmp, 'forced_f4_concrete.s26');
+run_ok($disas, '--mapper', 'f4', '-o', $forced_f4_concrete_s26,
+   File::Spec->catfile($in, 'f4.bin'));
+my $forced_f4_concrete = slurp($forced_f4_concrete_s26);
+require_re($forced_f4_concrete, qr/^; concrete RESET discovery:/m,
+   'explicit F4 mapper enables concrete discovery');
+
+
 my $video_ntsc = slurp(File::Spec->catfile($out, 'video_ntsc.s26'));
 require_re($video_ntsc, qr/^; video: NTSC .*\(high confidence\)$/m, 'NTSC inference');
 my $video_pal = slurp(File::Spec->catfile($out, 'video_pal_family.s26'));

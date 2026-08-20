@@ -936,6 +936,11 @@ H0. [x] Add bounded concrete RESET discovery
      only concrete cartridge instruction starts that static analysis did not already
      reach. Concrete observations are positive reachability evidence, never a reason
      to erase stronger abstract facts.
+   * Require a trusted cartridge topology before concrete execution. Unbanked
+     1K/2K/4K, explicit `--mapper`, and strong banked-mapper tail/detector signatures
+     are trusted; weak size-default F8/F6/F4/FA guesses are not. This prevents an
+     unsupported layout that merely survives static mapper refinement from generating
+     fake concrete code under the wrong hotspot model.
    * Regression-pin SP-sensitive `TSX/PHA`, BRK/IRQ/RTI saved-PC mutation, ROM-to-RAM
      copying, and execution from the copied RAM payload. Fix `TSX` abstract flag
      semantics so unknown X also makes N/Z unknown.

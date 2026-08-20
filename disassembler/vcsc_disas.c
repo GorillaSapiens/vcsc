@@ -166,6 +166,8 @@ typedef struct {
 } work_item_t;
 
 static int cart_target_offset(const bank_t *b, uint16_t address, size_t *off);
+static int mapper_tail_signature_matches(const uint8_t *rom, size_t size,
+                                         mapper_t mapper);
 
 typedef struct {
    uint8_t *rom;
@@ -5015,8 +5017,37 @@ drain_work:
    return 1;
 }
 
+static int concrete_mapper_trusted(const analysis_t *a)
+{
+   /* Concrete execution is positive reachability evidence only when the bus
+    * model is known to match the cartridge.  Size-default F8/F6/F4/FA guesses
+    * are deliberately weak: an unsupported mapper can look coherent enough to
+    * survive static hypothesis refinement, then concrete execution under the
+    * wrong hotspot model turns arbitrary data into thousands of fake executed
+    * instructions.  VCSC's explicit tail signatures (or a user --mapper) are
+    * strong enough to opt banked carts in.  Unbanked 1K/2K/4K topology is
+    * unambiguous by size once CV/doubled-2K detection has had its vote. */
+   if (a->mapper_overridden) return 1;
+   switch (a->mapper) {
+   case MAP_1K:
+   case MAP_2K:
+   case MAP_4K:
+      return 1;
+   case MAP_F8:
+      return mapper_tail_signature_matches(a->rom, a->rom_size, a->mapper) ||
+             has_f8_selector_signature(a->rom, a->rom_size);
+   case MAP_F6:
+   case MAP_F4:
+   case MAP_FA:
+      return mapper_tail_signature_matches(a->rom, a->rom_size, a->mapper);
+   default:
+      return 0;
+   }
+}
+
 static int run_concrete_discovery(analysis_t *a)
 {
+   if (!concrete_mapper_trusted(a)) return 1;
    a->concrete_rom_exec = (uint8_t *)calloc(a->rom_size, 1);
    a->concrete_rom_pc = (uint16_t *)calloc(a->rom_size, sizeof(*a->concrete_rom_pc));
    if (!a->concrete_rom_exec || !a->concrete_rom_pc) return 0;
@@ -5459,6 +5490,19 @@ static int instruction_can_emit(const bank_t *b, size_t off)
 }
 
 
+static int emitted_instruction_owns_byte(const bank_t *b, size_t off)
+{
+   size_t i;
+   size_t begin = off >= 2u ? off - 2u : 0u;
+   for (i = begin; i < off; ++i) {
+      unsigned len;
+      if (!instruction_can_emit(b, i)) continue;
+      len = b->inst_len[i];
+      if (i + len > off) return 1;
+   }
+   return 0;
+}
+
 static int emitted_container_start(const bank_t *b, size_t off, size_t *start)
 {
    size_t i;
@@ -5489,7 +5533,8 @@ static int emitted_container_start(const bank_t *b, size_t off, size_t *start)
       size_t base = b->size - 6u;
       if (off >= base && off < b->size && ((off - base) & 1u)) {
          size_t low = off - 1u;
-         if (!(b->roles[low] & ROLE_CODE_START) &&
+         if (!emitted_instruction_owns_byte(b, low) &&
+             !(b->roles[low] & ROLE_CODE_START) &&
              !(b->roles[off] & ROLE_CODE_START)) {
             *start = low;
             return 1;
