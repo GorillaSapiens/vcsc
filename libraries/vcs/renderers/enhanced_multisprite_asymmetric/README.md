@@ -7,74 +7,43 @@
 
 <!-- This file is covered under CC0-1.0. See libraries/LICENSE.txt. -->
 
-# Enhanced multisprite renderer
+# Enhanced multisprite asymmetric-playfield renderer
 
-`enhanced_multisprite.c26` is an experimental 192-visible-line six-sprite
-renderer that treats **both TIA players as multiplexing lanes**. P0 is no longer
-permanently logical sprite 0.
+`enhanced_multisprite.c26` is the experimental 192-visible-line six-sprite
+renderer that multiplexes both TIA players while also drawing a full 40-bit
+asymmetric playfield.  It is intentionally a sibling of the maintained
+player-only `enhanced_multisprite` renderer while the raster is being proven.
+
+The playfield is non-reflected (`CTRLPF` REF=0 in the public example) and is
+supplied entirely from caller-owned const/ROM tables.  Every logical band has
+independent left and right PF0/PF1/PF2 data.  Ordinary visible lines issue the
+six required writes in left PF0/PF1/PF2 then right PF0/PF1/PF2 order.
+Position/setup bands preserve the same full-PF contract; in particular, both
+physical scanlines of a position band now restore left PF0 and rewrite right
+PF0 instead of inheriting the prior scanline's PF0 state.
 
 During VBLANK the six logical eight-row sprite intervals are greedily assigned
-to P0 and P1. Non-overlapping logical sprites may reuse the same hardware player
-later in the frame. Two sprites whose vertical intervals overlap can occupy P0
-and P1 simultaneously and therefore render without flicker. When three or more
-sprites compete for the same scanlines, frame priority rotates through the six
-logical sprites. Three fully overlapping sprites therefore render as `0/1`,
-`1/2`, `2/0` on successive frames; in general an N-way pile-up gets fair
-2-of-N coverage.
+to P0 and P1.  Non-overlapping logical sprites may reuse a hardware player later
+in the frame.  Two overlapping sprites can occupy P0 and P1 simultaneously;
+when more than two contend, rotating priority provides fair 2-of-N coverage.
+The scheduler and branch-free graphics-state transition machinery are inherited
+from the enhanced-multisprite work and remain intentionally outside the
+beam-critical raster where possible.
 
-This first profile intentionally concentrates on the player multiplexer. It owns
-exactly 192 visible NTSC lines as 96 two-scanline logical bands and draws six
-logical 8x8 sprites; M0, M1, Ball, and the caller-supplied playfield tables are
-not yet part of the raster. It accepts the same 145-byte aligned graphics layout
-and public X/Y/color/NUSIZ aliases as the existing `multisprite` renderer so the
-maintained interactive control code can be reused unchanged.
+Horizontal metadata is split deliberately: `event_code` carries logical sprite
+id plus the full HMP fine-motion nibble, while `position_packed` carries the
+hardware lane in bit 7 and the coarse RESP slot in bits 0..3.  The final
+11-phase coarse RESP dispatcher is still WIP.  Do not claim public X=0..159 is
+certified from this renderer yet merely because the packed position table is
+present.
 
-Public Y increases upward and is currently limited to 0..89 for every logical
-sprite. Each bitmap row is held for two physical scanlines. Hardware setup itself
-occupies reserved bands above a sprite. P0 is repositioned four logical bands
-above its top and uses a three-band delayed activation; P1 is repositioned one
-band above its top. That asymmetry is only beam scheduling: any logical sprite
-may be assigned to either hardware player. Two equal-Y sprites can therefore be
-positioned on successive setup bands and become active together.
+The raster aggressively moves work into the end of the preceding physical
+scanline when useful.  The current P1 position path, for example, commits the
+continuing P0 bitmap row in the tail of position line A so position line B can
+spend those cycles on the missing PF0 transitions without exceeding one NTSC
+scanline.
 
-A setup band replaces the ordinary line-A bitmap update for that band. The
-renderer therefore preserves the row already due on the *other* hardware
-player, advances that lane's cached bitmap state for the following band, and
-publishes the preserved row at cycle 0 of setup line A. This avoids duplicated
-or dropped glyph rows while one player is repositioned. The `STY GRPx` / `TXA`
-prefix deliberately consumes the same five cycles as the calibrated packed
-position prefix, so fixing the vertical handoff does not move RESP/HMOVE.
-
-Same-lane reuse also reserves the earlier attribute-write line, not merely the
-RESP/HMOVE setup and eight bitmap bands. P0 lane reuse therefore requires a
-15-Y separation and P1 requires 12; otherwise the scheduler selects the other
-lane or omits the lower-priority sprite for that frame. This prevents a new
-sprite's `COLUPx`, `NUSIZx`, or `REFPx` write from recoloring the last physical
-scanline of the previous sprite.
-
-The VBLANK scheduler is deliberately out-of-line from the visible renderer.
-During lane allocation, `event_order[]` first doubles as a compact list of only
-the sprites already accepted this frame, so a candidate never scans six stale or
-not-yet-visited `lane_for[]` slots. With six logical sprites this bounds conflict
-checks to at most 0+1+2+3+4+5 = 15. Accepted setup records are then ordered by a
-fixed 12-comparator six-input sorting network; its cost does not depend on the
-vertical permutation. A sentinel event keeps end-of-list handling out of the
-visible timing path.
-
-Horizontal reuse uses a renderer-local packed RESP/HMP table calibrated for this
-profile's own beam phase: `RESP0`/`RESP1` are strobed on setup line A and `HMOVE`
-is the first instruction on setup line B. The table was derived by exercising all
-176 safe coarse/fine controls in Stella 7.0 and covers every public X=0..159; it
-is intentionally not the table from the legacy multisprite raster, whose HMOVE
-phase is different. The regression suite includes ordinary Y/XY sweeps, every
-logical sprite moving independently in both Y directions, and randomized
-per-frame mutation of all six Y values while requiring a stable 262-line NTSC
-frame. It also verifies fair 2-of-N arbitration for 3-, 4-, 5-, and 6-way
-pileups. `make stella-enhanced-multisprite-test` additionally grades real Stella
-pixels at the X edges, swaps logical sprites between both hardware lanes, checks
-equal-Y alignment, verifies exact eight-row glyph/color integrity at setup-handoff
-boundaries that previously failed interactively, and verifies top reach.
-
-The implementation deliberately lives beside, rather than replacing,
-`renderers/multisprite/`. The faithful modern renderer remains the compatibility
-and timing oracle.
+Current checkpoint accounting for the public asymmetric example is
+3602/4090 ROM bytes and 117/128 RAM bytes.  The next task is still to install
+and Stella-calibrate the 11 fixed coarse RESP phases for both hardware lanes
+while keeping all six playfield writes and stable 262-line output.

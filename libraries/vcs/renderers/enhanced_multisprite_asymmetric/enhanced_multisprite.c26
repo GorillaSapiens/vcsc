@@ -793,7 +793,13 @@ require inline void TEMPLATE_draw(void) {
    asm sta WSYNC;
 
    asm @TEMPLATE_Position0LineB:;
-   asm bit.z TEMPLATE_pair_y;
+   // This second physical scanline is a full asymmetric PF line too.  The
+   // earlier checkpoint accidentally left PF0 at the previous scanline's
+   // right-half value.  Removing the old three-cycle BIT pad and four cycles
+   // of NOP padding pays for both PF0 transitions while keeping the line at
+   // 75 cycles.  Non-reflected right-half writes follow PF0, PF1, PF2 order.
+   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
@@ -803,18 +809,15 @@ require inline void TEMPLATE_draw(void) {
    asm tay;
    asm lda.ay TEMPLATE_color,Y;
    asm sta COLUP0;
+   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm sta PF0;
    asm lda #0;
    asm sta HMP1;
-   // Metadata masking costs four cycles.  Spend four fewer padding cycles so
-   // the asymmetric right-half PF rewrite remains at the proven phase.  RESP0
-   // intentionally moves two CPU cycles later; full X is recalibrated below.
    asm sta RESP0;
-   asm nop;
-   asm nop;
-   asm lda.ax TEMPLATE_playfield_right,X;
-   asm sta PF2;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
+   asm lda.ax TEMPLATE_playfield_right,X;
+   asm sta PF2;
    asm dex;
    asm inc.z TEMPLATE_setup_index;
    asm lda.z TEMPLATE_current_gfx + 1;
@@ -911,15 +914,19 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
    asm lda.ay TEMPLATE_graphics,Y;
-   asm tay;
+   // Use the last cycles of line A to commit the continuing P0 row.  This
+   // deliberately moves work out of the following RESP-critical scanline.
+   asm sta.z TEMPLATE_current_gfx;
    asm lda.z TEMPLATE_event_code;
    asm sta HMP1;
    asm sta WSYNC;
 
    asm @TEMPLATE_Position1LineB:;
-   // Y carried the continuing P0 row across WSYNC; this three-cycle store
-   // replaces the old three-cycle position-line prefix exactly.
-   asm sty.z TEMPLATE_current_gfx;
+   // Full PF0/PF1/PF2 on the second physical scanline.  The three cycles
+   // recovered above plus the old NOP padding pay for both PF0 transitions;
+   // the complete path is 75 cycles.
+   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
@@ -929,15 +936,15 @@ require inline void TEMPLATE_draw(void) {
    asm tay;
    asm lda.ay TEMPLATE_color,Y;
    asm sta COLUP1;
+   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm sta PF0;
    asm lda #0;
    asm sta HMP0;
-   asm nop;
    asm sta RESP1;
-   asm nop;
-   asm lda.ax TEMPLATE_playfield_right,X;
-   asm sta PF2;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
+   asm lda.ax TEMPLATE_playfield_right,X;
+   asm sta PF2;
    asm dex;
    asm inc.z TEMPLATE_setup_index;
    asm lda.z TEMPLATE_current_gfx;

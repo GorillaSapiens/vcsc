@@ -406,3 +406,33 @@ Immediate continuation task:
 5. certify stable 262-line NTSC output and pixel-exact full asymmetric PF;
 6. then run the enhanced-renderer and maintained multisprite regressions before
    calling the feature complete.
+
+Checkpoint continuation -- 2026-08-20 position-line PF0 completion
+------------------------------------------------------------------
+The next checkpoint fixes a concrete hole in the nominal "full PF0/PF1/PF2"
+raster.  Ordinary lines already rewrote PF0 on both halves, but the second
+physical scanline of each P0/P1 position band did not: it inherited the prior
+scanline's right-half PF0 through WSYNC and never rewrote PF0 at all.  That made
+the special position band observably wrong for genuinely asymmetric PF0 data.
+
+Both Position0LineB and Position1LineB now perform the full non-reflected
+left/right sequence.  Dead padding was removed to pay for the extra PF0 loads
+and stores.  On the P1 path, the continuing P0 bitmap-row store was deliberately
+moved into the tail of Position1LineA, freeing three cycles on the following
+RESP-critical line.  The resulting position-line-B paths are 75 cycles and the
+example still links as a 4K cartridge.
+
+Verified accounting at this checkpoint:
+
+    ROM: 3602 / 4090 bytes used, 488 free
+    RAM: 117 / 128 bytes used, 11 free
+
+Targeted structural checks pass:
+
+    test/vcs_renderer_branch_contracts.pl
+    test/source_tree_hygiene.pl
+    test/vcsc_branding.pl
+
+The final 11-phase coarse RESP dispatcher remains the immediate next task.  Do
+not regress these PF0 transitions while adding it; all physical scanlines in the
+position bands must continue to present independent left and right PF0 data.
