@@ -12,20 +12,19 @@ constexpr uint64_t kCyclesPerLine = 76;
 constexpr unsigned kMaxInstructions = 250000;
 constexpr unsigned kMaxFrameSamples = 12;
 
-/* Keep synchronized with mapper_t; the C API uses integers to avoid exposing
- * the disassembler's private enum through a C++ header. */
-constexpr int kMap2K = 1;
-constexpr int kMap4K = 2;
-constexpr int kMapF8 = 3;
-constexpr int kMapF6 = 4;
-constexpr int kMapF4 = 5;
-constexpr int kMapFA = 6;
-constexpr int kMapDPC = 7;
-constexpr int kMapJANE = 10;
-constexpr int kMap0840 = 11;
-constexpr int kMapUA = 12;
-constexpr int kMapUASW = 13;
-constexpr int kMap0FA0 = 14;
+constexpr int kMap1K = VCSC_VIDEO_MAP_1K;
+constexpr int kMap2K = VCSC_VIDEO_MAP_2K;
+constexpr int kMap4K = VCSC_VIDEO_MAP_4K;
+constexpr int kMapF8 = VCSC_VIDEO_MAP_F8;
+constexpr int kMapF6 = VCSC_VIDEO_MAP_F6;
+constexpr int kMapF4 = VCSC_VIDEO_MAP_F4;
+constexpr int kMapFA = VCSC_VIDEO_MAP_FA;
+constexpr int kMapDPC = VCSC_VIDEO_MAP_DPC;
+constexpr int kMapJANE = VCSC_VIDEO_MAP_JANE;
+constexpr int kMap0840 = VCSC_VIDEO_MAP_0840;
+constexpr int kMapUA = VCSC_VIDEO_MAP_UA;
+constexpr int kMapUASW = VCSC_VIDEO_MAP_UASW;
+constexpr int kMap0FA0 = VCSC_VIDEO_MAP_0FA0;
 
 struct PendingWrite {
    uint16_t address;
@@ -193,11 +192,20 @@ private:
       }
       select_bank(bus);
       size_t off;
-      if (mapper_ == kMap2K)
+      size_t bank_size;
+      if (mapper_ == kMap1K) {
+         off = static_cast<size_t>(bus & 0x03ffu);
+         bank_size = 1024u;
+      }
+      else if (mapper_ == kMap2K) {
          off = static_cast<size_t>(bus & 0x07ffu);
-      else
+         bank_size = 2048u;
+      }
+      else {
          off = static_cast<size_t>(bus & 0x0fffu);
-      size_t physical = bank_ * (mapper_ == kMap2K ? 2048u : 4096u) + off;
+         bank_size = 4096u;
+      }
+      size_t physical = bank_ * bank_size + off;
       return physical < rom_size_ ? rom_[physical] : 0xffu;
    }
 
@@ -365,7 +373,18 @@ extern "C" int vcsc_dynamic_video_probe(const uint8_t *rom, size_t rom_size,
 {
    if (!rom || !result || bank_count == 0u || reset_bank >= bank_count) return 0;
    std::memset(result, 0, sizeof(*result));
-   if (mapper == kMapDPC || mapper < kMap2K || mapper > kMapDPC) return 0;
+   switch (mapper) {
+   case kMap1K:
+   case kMap2K:
+   case kMap4K:
+   case kMapF8:
+   case kMapF6:
+   case kMapF4:
+   case kMapFA:
+      break;
+   default:
+      return 0;
+   }
    ProbeMachine machine(rom, rom_size, mapper, bank_count, reset_bank,
                         superchip != 0);
    return machine.run(result);

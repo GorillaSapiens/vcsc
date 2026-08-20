@@ -423,135 +423,10 @@ Immediate TODO
 Active workstream: `.../roadmap.txt`.
 
 The focused RAM-optimization roadmap is complete through its final ordinary-application
-assembly cleanup.
-Compiler-owned expression scratch is lifetime-colored across the complete runtime
-activation owner, ordinary directly addressable unsigned-byte state uses compact
-lowering, and the high-level animated-frame installer plus its page/pointer optimizer
-work remain complete. A completed fixed-address lowering audit now treats every
-compile-time-constant offset into compiler scratch, activation storage, globals,
-parameters, return objects, and other fixed linker symbols as directly addressable;
-the compiler does not spend Y merely to add a known byte offset, and the old 256-byte
-cutoff on that proof is removed. `ref` parameter pointer slots are direct storage but
-are never mistaken for the referred value; value access still dereferences the slot and
-honors directional read/write aliases. Remaining generated `symbol,Y` and `(ptrN),Y`
-forms represent genuine runtime indexes or pointer indirection. Compiler-generated ordinary
-memory references stay addressing-mode agnostic; explicit source `asm` suffixes remain
-the timing/encoding escape hatch.
-
-Source-language `align(N)` is now the independent object-start alignment contract for
-file-scope data definitions. `N` must be a compile-time positive power of two from 1
-through 32768. `page` retains its separate whole-object containment meaning: a small
-`page` object need not begin at `$xx00`, while `align(256)` requires that start address
-and may span pages. Page-aware compiler proofs may assume low byte zero only from
-`align(256)` or stronger, or from the special exactly-256-byte `page` case where
-containment itself forces a page boundary.
-
-Frame-phase storage uses internal VSYNC/VBLANK/visible/overscan metadata. Access phase
-alone is not enough to reuse a file-scope value: a reusable frame-temporary workspace
-must also carry the explicit internal `__phaseworkspace$V1$symbol` ownership contract,
-while fully phase-scoped compiler scratch receives that eligibility automatically. An
-unscoped use forbids overlay, and the linker conservatively fills the interval between
-the first and last observed phase. Only actual multi-object sharing groups alter normal
-RAM placement, so phase tagging by itself does not move stable component state.
-
-The animated gallery's historical schema-15 closeout records a one-byte `main`
-activation and zero `install_frames()` activation bytes. The one-byte VSYNC compiler
-scratch now aliases the seven-byte VBLANK+visible+overscan `game_workspace`; the old
-48-byte `game_object_masks` schedule no longer exists. Persistent gallery bookkeeping
-remains four bytes: `animation_state` combines the normal modulo-4 phase, the
-independent source-set-03 modulo-3 phase, and the eight-frame hold clock, while
-`control_flags` combines Select-ready, Fire-ready, and pause state. `sprite0` and
-`sprite1` remain separate because the measured derivation trial saved one RAM byte at
-a 50-ROM-byte cost. `install_frames()` remains ordinary high-level VCSC and 232 linked
-bytes.
-
-`player_color_192` now uses an official-opcode direct-countdown schedule for arbitrary
-P0/P1/Ball vertical state. Its private RAM falls from 56 to 10 bytes and total module
-RAM from 69 to 23; the 48-byte mask and VBLANK range-builder code are gone. P0/P1 use
-height+1 thresholds in phase workspace, while Ball uses a directly decremented Y
-counter with the VDELBL pipeline bias. The renderer has no hidden assembly subroutine,
-retains `.callstackextra 0`, and keeps Ball as a public capability.
-
-The direct-countdown conversion reduces the animated gallery from the item-8
-**3545/4090 ROM, 102/128 RAM, 26 free** checkpoint to **3292/4090 ROM and 56/128
-RIOT-RAM bytes**, leaving **72 bytes free (56.25%)**. Object bytes fall from 98 to 52;
-the one-byte `main` activation and four-byte hardware-stack reserve are unchanged.
-From the original measured RAM-roadmap baseline the gallery has now recovered 701 ROM
-bytes and 72 RAM bytes, with activation down by 19 bytes and stack down by four.
-
-Measured VBLANK work from the first saved-Y workspace write through final pre-visible
-PF2 staging falls from 920 to 468 CPU cycles. Every visible pair remains exactly 152
-CPU cycles and the frame remains exactly 192 visible / 262 total lines. Steady
-playfield writes remain at display-harness cycles 10/17/40/47. Nonterminal row
-endings now use that same proven 10/17/40/47 schedule; the first P1 half of the
-following row uses 9/16/40/47 and the terminal row uses 10/17/43/50. The physical
-phase oracle sees 18/25/48/55, 17/24/48/55, and terminal 18/25/51/58 respectively.
-The former 15/22/51/54 row-ending schedule was internally self-consistent but visibly
-corrupted one scanline at every 16-line row boundary in Stella. The default tests now
-pin every PF row of both public 192-line examples: the asymmetric interactive
-playfield and the animated gallery's full/checker/blank/checker/full pattern. Both
-profiles reject the broken boundary schedule; a separate Stella 7.0 snapshot target
-certifies the actual interactive visible raster.
-
-The Ball edge audit found that the mask builder was not the whole bug: every extra
-row-boundary `GRP1` transfers VDELBL, and the first direct-count renderer could still
-transfer a stale ENABL value there. All componentized player/Ball renderers now stage
-ENABL before that transfer. Top clipping and internal row crossings are explicitly
-pinned; a requested four-pair Ball remains four pairs with no duplicated boundary pair
-or dropped successor.
-
-`test/phase_overlay.pl` remains the generic lifetime proof: it verifies positive
-sharing independent of declaration order and refuses overlapping, unscoped,
-misleadingly named, or phase-confined-but-unmarked storage. The six-digit score
-regression proves that solitary phase-tagged component objects retain their historical
-ordinary address order. The detailed implementation and acceptance record lives in
-`.../ram_optimization.txt`.
-
-The separate 8x16 `libraries/vcs/fonts/big_ascii.c26` module contains all 95 printable
-ASCII glyphs in a contiguous 1520-byte `align(256)` table; all large 8x8 ASCII fonts are
-likewise contiguous `align(256)` objects. Linked tests prove that no 8-byte or 16-byte
-glyph crosses a hardware page. The bankswitching diagnostic renders complete centered
-white **PASS** or **FAIL** words with the six-glyph-wide component; its mapper
-transition simulator matrix and recursive example builds pass.
-
-Public-example assembly remains audited by `test/example_assembly_allowlist.pl`. Item
-14 removed every ordinary-application `compiler-limitation` entry. A later 2026-08-15
-re-audit of every public example removed another 76 off-beam ordinary-application
-`asm` statements, reducing current example-source assembly from 890 to 814 statements.
-The current allowlist has 21 source files, all classified only as beam-critical or
-direct hardware idioms. Four-player Paddleball Ball fine-motion preparation, keypad
-and Driving glyph-pointer preparation, and Tanks RNG/graphics/packed-position
-preparation are now ordinary VCSC. The Tanks fixed 6502 knockback barrier scan remains
-assembly because the compiler-generated row loop missed the overscan deadline;
-Reset-vector jumps, deliberate ARR silicon probes, the 50 Hz phase NOPs, RESP/HMOVE
-positioning, and visible raster kernels likewise remain assembly by design. Packed-BCD
-score editing is high-level VCSC using indexed decimal-weight `+=`/`-=`, all-five
-object movement is high-level VCSC, and the fingerprint installs semantic
-`uint16_t[6]` glyph addresses directly. The compiler has narrow regression-pinned
-lowerings for indexed packed-BCD compound arithmetic, direct indexed uint8_t
-compare/update, and constant-index relocatable uint16_t address stores.
-
-Follow-up compiler passes use those high-level examples as code-size benchmarks rather
-than restoring their assembly. File-scope array-decay pointer initializers are relocatable
-data, adjacent array-base plus byte-offset pointer setup is fused, safe promoted
-unsigned-byte work remains byte-sized, constant shifts use direct ASL/LSR, and eligible
-one-byte automatic initializers avoid expression scratch. The second pass additionally
-lowers direct byte `+`/`-`/bitwise operations against memory straight through A, treats
-explicit int8-to-uint8 casts as raw-byte operands where semantics permit, strength-reduces
-constant byte multiplication to shifts/adds, preserves LSR carry across the common
-shift/XOR conditional idiom, and copies direct global/static uint8_t returns without
-scratch. Keypad now spells its ten-byte glyph stride as `key * 10` and no longer needs
-the 13-byte offset table. Relative to the immediate post-assembly-audit tree the four
-benchmarks recover **422 ROM bytes**; collectively they are now **151 ROM bytes smaller**
-than their former hand-written-assembly versions. Current builds are 3617/4090 ROM +
-101/128 RAM, keypad 1647/4090 + 43/128, Driving 1669/4090 + 41/128, and Tanks bank1
-3534/3584 + bank0 3428/3584 with 127/128 RIOT and 102/128 `cartram`. Keypad alone
-remains 14 ROM bytes above its old asm version; the other three are smaller. A tempting
-direct `LDY index` micro-optimization remains intentionally rejected: its two-byte shrink
-shifted a page-constrained all-five 4K layout so the linker could no longer place it; the
-stable `LDA index; TAY` form keeps that cartridge at 4013/4090. Four new compile
-regressions pin the second-pass lowering paths; the full baseline is 499/499 compile-only
-and 303/303 end-to-end.
+assembly cleanup. The durable implementation details, measured RAM/ROM checkpoints,
+phase-overlay rules, renderer scheduling fixes, and assembly closeout live in
+`.../ram_optimization.txt`; keep this compact context pointed at that completed record
+rather than duplicating its historical narrative here.
 
 RAM-roadmap items 0-14 are complete. The final architecture retains the general
 P0/P1/Ball `player_color (lines:=192/181/170)` profiles plus the all-five
@@ -1236,7 +1111,20 @@ the Stella regression checks PF write phases in addition to frame length.
 Validation baseline is 499/499 compile tests and 305/305 E2E tests.
 
 Disassembler side project (2026-08-16):
-`.../disassembler.txt` is the focused context/roadmap.  The new
+`.../disassembler.txt` is the focused context/roadmap. Hybrid-analysis priority
+H0 is complete: a bounded concrete RESET-discovery pass now reuses the maintained
+MOS6502 core with exact PC/A/X/Y/SP/P, RIOT RAM/stack-page aliases, basic timer/WSYNC,
+neutral inputs, and the simple unbanked/F8/F6/F4/FA mapper models. Static CFG analysis
+drains first and only concrete-only ROM starts are added afterward, preserving existing
+abstract-state precision. Executed RIOT-RAM bytes are captured with simple ROM-write
+provenance and emitted as comment-only RAM disassembly. A synthetic regression pins the
+TSX/PHA stack-clear plus BRK/IRQ/RTI return-PC mutation, ROM-to-RAM copy, and RAM payload
+execution. H1 (stack/interrupt/input-aware static alternate-path exploration) is next;
+H2 is iterative concrete/static convergence. On c33caa7d6ac7251bb804e0473198901d.bin
+the neutral-input concrete run reaches 225 distinct ROM instruction starts and writes
+all 128 RIOT-RAM bytes, but does not take the SWCHA-gated branch into the final loader,
+so no RAM payload executes in that baseline state; H1 is required to bridge that path.
+The new
 `disassembler/vcsc-disas` now has an exact-round-trip first implementation with
 all-opcode decode/emission, mandatory branch `.same`/`.cross`, unbanked and
 F8/F6/F4(+Superchip), FA, DPC and WD/WDSW bank-aware analysis, per-bank origin inference, overlapping
@@ -1274,8 +1162,8 @@ Main roadmap Items 41 and 42 are complete. Bankswitching Items 31-37 are complet
 Item 38 remains deferred, and Items 39-44 queue public diagnostics/profile work
 for E0, 3F, 3E, FE, WD, and DPC. Main-roadmap Item 43 is next. The current
 compile suite passes 500/500. Four vcsc-disas-focused E2E regressions pass, with
-99 semantic fixtures and all 256 opcode bytes exact. The hardening fuzz corpus
-uses two deterministic images for every supported size/mapper family (26 accepted
+102 semantic fixtures and all 256 opcode bytes exact. The hardening fuzz corpus
+uses two deterministic images for every supported size/mapper family (30 accepted
 images total), and all 88 editable
 VCSC example ROMs are byte-exact disassemble/reassemble gates inside the normal
 eight example-build shards. Native staged vcsc-disas -> staged vcsc-as passes,
@@ -1328,7 +1216,7 @@ and Super Cobra) now resolves E0 for all seven and round-trips each image
 byte-exactly. Synthetic RESET and speculative-island regressions pin the case
 where an E0 selector is physically followed by JAM in the old bank but valid
 execution continues in the selected bank. The semantic disassembler corpus is
-now 100/100 exact. The standalone corpus verifier now has optional `--stella STELLA` differential mapper checking: it keeps SHA-256 in generated source, reuses its existing per-ROM MD5 for Stella compatibility, runs `STELLA -rominfo ROM`, normalizes the resolved Bankswitch Type, and reports VCSC/Stella mapper MATCH/MISMATCH counts without treating Stella as authoritative; `--stella-strict` promotes mismatches to failure when explicitly desired. The normal hardening suite uses a fake Stella executable so this parser/normalization path is tested without an external emulator. WD/WDSW support models eight 1K banks selected as four-segment arrangements by TIA $30-$3F reads plus 64 bytes of cartridge RAM. Stella's names distinguish file layouts, not hardware: corrected 8192-byte images are WD when they carry the `A5 39 4C` (`LDA $39; JMP`) signature, while 8195-byte 8K+3 preservation dumps are WDSW. WDSW alone applies the historical bank-2/bank-3 file correction and preserves the three non-emulated trailing bytes exactly. The 2026-08-20 differential corpus now resolves `56210a3b9ea6d5dd8f417a357ed8ca92` as WDSW and `62ee2b8f59e9cd6285bbdb674a952e8b` as WD; requiring the Stella WD signature for automatic 8K WD hypotheses also removes false WD promotions of `850fdc358adda5dd8b7a8b9b178e6655` (UA) and `af1c6f6d73a00bc1be6b353fe9a27819` (F8). FC support now models Amiga Power Play's staged 4K-bank selector for 4K/8K/16K/32K images: `$1FF8` writes replace pending low bits, `$1FF9` writes add the representable high contribution or use Stella's modulo fallback, and any `$1FFC` access commits while code remains in the old bank before commit. RESET starts mapped/pending bank 0. Stella-compatible FC signatures identify all five FC cases in `problems.20260820_144844.zip`, and all five agree with Stella while the complete 32-ROM bundle remains byte-exact. Roadmap items 9, 10, 12, 13, and 16 are complete; Item 12 pointer-table presentation requires real low/high pointer-building data flow and never swallows interior labels, after ARMAMBSH exposed a shifted-byte false positive. Color-table presentation splits around interior labels instead of consuming them. Item 13 adds repeatable `--table` and even-length `--pointer` manual presentation hints on top of the existing mapper/origin/entry/code/data/video/controller overrides; manual data roles may overlap code without replacing executable source. Item 16 pins deterministic output, malformed/truncated failures, duplicated/padded preservation, all-supported-layout fuzzing, all 88 editable examples, install/package integration, and an independent stego smoke baseline. The expanded 28-image mapper fuzz test uses the long-test 120-second timeout because full disassemble/reassemble fuzzing is intentionally expensive under parallel test load. Items 17-22 add 3F/3E/FE/E7/WDSW/FC support; Items 23-26 remain; see `.../disassembler.txt`. Exact 4K images with identical 2K halves are analyzed as 2K and preserve the duplicate raw.
+now 102/102 exact. The standalone corpus verifier now has optional `--stella STELLA` differential mapper checking: it keeps SHA-256 in generated source, reuses its existing per-ROM MD5 for Stella compatibility, runs `STELLA -rominfo ROM`, normalizes the resolved Bankswitch Type, and reports VCSC/Stella mapper MATCH/MISMATCH counts without treating Stella as authoritative; `--stella-strict` promotes mismatches to failure when explicitly desired. The normal hardening suite uses a fake Stella executable so this parser/normalization path is tested without an external emulator. WD/WDSW support models eight 1K banks selected as four-segment arrangements by TIA $30-$3F reads plus 64 bytes of cartridge RAM. Stella's names distinguish file layouts, not hardware: corrected 8192-byte images are WD when they carry the `A5 39 4C` (`LDA $39; JMP`) signature, while 8195-byte 8K+3 preservation dumps are WDSW. WDSW alone applies the historical bank-2/bank-3 file correction and preserves the three non-emulated trailing bytes exactly. The 2026-08-20 differential corpus now resolves `56210a3b9ea6d5dd8f417a357ed8ca92` as WDSW and `62ee2b8f59e9cd6285bbdb674a952e8b` as WD; requiring the Stella WD signature for automatic 8K WD hypotheses also removes false WD promotions of `850fdc358adda5dd8b7a8b9b178e6655` (UA) and `af1c6f6d73a00bc1be6b353fe9a27819` (F8). FC support now models Amiga Power Play's staged 4K-bank selector for 4K/8K/16K/32K images: `$1FF8` writes replace pending low bits, `$1FF9` writes add the representable high contribution or use Stella's modulo fallback, and any `$1FFC` access commits while code remains in the old bank before commit. RESET starts mapped/pending bank 0. Stella-compatible FC signatures identify all five FC cases in `problems.20260820_144844.zip`, and all five agree with Stella while the complete 32-ROM bundle remains byte-exact. Roadmap items 9, 10, 12, 13, and 16 are complete; Item 12 pointer-table presentation requires real low/high pointer-building data flow and never swallows interior labels, after ARMAMBSH exposed a shifted-byte false positive. Color-table presentation splits around interior labels instead of consuming them. Item 13 adds repeatable `--table` and even-length `--pointer` manual presentation hints on top of the existing mapper/origin/entry/code/data/video/controller overrides; manual data roles may overlap code without replacing executable source. Item 16 pins deterministic output, malformed/truncated failures, duplicated/padded preservation, all-supported-layout fuzzing, all 88 editable examples, install/package integration, and an independent stego smoke baseline. The expanded 30-image mapper fuzz test uses the long-test 120-second timeout because full disassemble/reassemble fuzzing is intentionally expensive under parallel test load. Items 17-22 add 3F/3E/FE/E7/WDSW/FC support; Items 23-26 remain; see `.../disassembler.txt`. Native 1024-byte cartridges are now analyzed as unbanked 1K ROM mirrored through the 4K cartridge window; normal analysis seeds valid NMI, RESET, and IRQ/BRK vector targets, and the supplied c33caa7d6ac7251bb804e0473198901d.bin round-trips exactly with RESET $FC96 and IRQ/BRK $FC80 recovered as code. The dynamic video probe shares mapper IDs with the C disassembler through `dynamic_video_probe.h` (no duplicated numeric enum) and models 1K ROM mirroring explicitly. Exact 4K images with identical 2K halves are analyzed as 2K and preserve the duplicate raw.
 
 0840/EconoBanking uses physical file bank 0 as startup, with below-cartridge
 selector families canonically represented by $0800/$0840. C26 selector metadata

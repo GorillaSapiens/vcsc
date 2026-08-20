@@ -8,7 +8,7 @@ EXEEXT ?=
 
 TARGET = vcsc-disas$(EXEEXT)
 
-OBJ = vcsc_disas.o dynamic_video_probe.o mos6502_probe.o
+OBJ = vcsc_disas.o concrete_discovery.o dynamic_video_probe.o mos6502_probe.o
 DEP = $(OBJ:.o=.d)
 
 BINDIR ?= /opt/vcsc/bin
@@ -29,8 +29,11 @@ opcode_table.inc: gen_opcode_table.pl ../assembler/default.cfg
 	perl ./gen_opcode_table.pl ../assembler/default.cfg > $@.tmp
 	mv $@.tmp $@
 
-vcsc_disas.o: vcsc_disas.c version.h opcode_table.inc dynamic_video_probe.h
+vcsc_disas.o: vcsc_disas.c version.h opcode_table.inc dynamic_video_probe.h concrete_discovery.h
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c vcsc_disas.c -o $@
+
+concrete_discovery.o: concrete_discovery.cpp concrete_discovery.h dynamic_video_probe.h ../simulator/mos6502/mos6502.h
+	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c concrete_discovery.cpp -o $@
 
 dynamic_video_probe.o: dynamic_video_probe.cpp dynamic_video_probe.h ../simulator/mos6502/mos6502.h
 	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c dynamic_video_probe.cpp -o $@

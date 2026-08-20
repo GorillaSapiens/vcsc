@@ -90,7 +90,45 @@ my $out = File::Spec->catdir($tmp, 'disas-out');
 remove_tree($in, $out);
 make_path($in, $out);
 
-# Plain 2K/4K and ordinary F8/F6/F4 sizes.
+# Plain 1K/2K/4K and ordinary F8/F6/F4 sizes.
+my $plain1k = make_rom(1024, 0xFC00, 0x0040, "\xA9\x42\x60");
+# Keep an IRQ/BRK-only routine that RESET cannot reach.  Normal disassembly
+# must still follow a valid cartridge-backed IRQ vector as an independent code
+# entry point; mapper-hypothesis probing is the only RESET-only analysis mode.
+substr($plain1k, 0x0080, 3, "\xA9\x99\x60");
+put16(\$plain1k, 0x03FE, 0xFC80);
+write_bin(File::Spec->catfile($in, 'plain1k.bin'), $plain1k);
+
+# Concrete RESET discovery torture fixture.  The startup establishes SP=$FF,
+# clears the entire mirrored stack/RIOT-RAM page with TSX/PHA, then uses BRK as
+# a one-byte subroutine call.  The IRQ handler decrements the mirrored saved-PC
+# low byte at $FE before RTI, changing BRK's architectural PC+2 return into
+# PC+1.  Static CFG deliberately stops at BRK; concrete execution must recover
+# the continuation, copy seven ROM bytes to RIOT RAM $80-$86, and execute the
+# generated payload at $0080.
+my $concrete_payload = chr(0xEA) x 1024;
+substr($concrete_payload, 0x0000, 7,
+   "\xA9\x42\x85\x90\x4C\x80\x00"); # RAM payload: LDA #$42; STA $90; JMP $0080
+substr($concrete_payload, 0x0040, 3,
+   "\xC6\xFE\x40");                   # IRQ: DEC $FE; RTI
+substr($concrete_payload, 0x0080, 26,
+   "\xD8" .                           # CLD
+   "\xA9\x00" .                       # LDA #0
+   "\xAA" .                           # TAX
+   "\xCA" .                           # DEX -> X=$FF
+   "\x9A" .                           # TXS -> SP=$FF
+   "\xBA\x48\xD0\xFC" .             # TSX; PHA; BNE back to TSX
+   "\xA9\x3B" .                       # LDA #$3B
+   "\x00" .                           # BRK; IRQ changes saved return to PC+1
+   "\xA2\x07" .                       # concrete-only continuation: LDX #7
+   "\xBD\xFF\xFB" .                  # LDA $FBFF,X -> source $FC00-$FC06
+   "\x95\x7F" .                       # STA $7F,X -> RIOT RAM $80-$86
+   "\xCA\xD0\xF8" .                  # DEX; BNE copy loop
+   "\x4C\x80\x00");                  # JMP $0080
+put16(\$concrete_payload, 0x03FA, 0xFC40);
+put16(\$concrete_payload, 0x03FC, 0xFC80);
+put16(\$concrete_payload, 0x03FE, 0xFC40);
+write_bin(File::Spec->catfile($in, 'concrete_payload.bin'), $concrete_payload);
 write_bin(File::Spec->catfile($in, 'plain2k.bin'), make_rom(2048, 0xF800, 0x0100, "\xA9\x42\x60"));
 write_bin(File::Spec->catfile($in, 'plain4k.bin'), make_rom(4096, 0xF000, 0x0100, "\xA9\x42\x60"));
 # A common preservation/dump form stores a mirrored 2K cartridge twice in a
@@ -1124,6 +1162,35 @@ write_bin(File::Spec->catfile($in, 'color_table.bin'), $color_table);
 
 run_ok($^X, $roundtrip, $in, $out);
 
+my $plain1k_out = slurp(File::Spec->catfile($out, 'plain1k.s26'));
+require_re($plain1k_out, qr/^; mapper: unbanked 1K \(/m,
+   '1024-byte image recognized as unbanked 1K');
+require_re($plain1k_out, qr/^; physical banks: 1 x 1024 bytes$/m,
+   '1K physical topology');
+require_re($plain1k_out, qr/^; bank 0: .*origin \$FC00/m,
+   '1K canonical top-mirror origin');
+require_re($plain1k_out, qr/^L_FC80:\s*$/m,
+   'valid 1K IRQ vector becomes an executable entry label');
+require_re($plain1k_out, qr/^L_FC80:\s*\n\s*LDA\s+#\$99/m,
+   'IRQ-only 1K routine is followed as code');
+
+my $concrete_out = slurp(File::Spec->catfile($out, 'concrete_payload.s26'));
+require_re($concrete_out,
+   qr/^; concrete RESET discovery: .*RIOT-RAM-starts=3 .*reachability converged$/m,
+   'bounded concrete RESET discovery executes generated RIOT-RAM payload');
+require_re($concrete_out,
+   qr/\bBRK\n\s*LDX\s+#\$07/m,
+   'concrete execution seeds the statically opaque BRK continuation');
+require_re($concrete_out,
+   qr/^; ---- concrete RIOT RAM execution \(comment-only discovery\) ----$/m,
+   'concrete RIOT-RAM execution section');
+require_re($concrete_out,
+   qr/^; \$0080: A9 42\s+LDA #\$42\s+; copied from ROM file \$0000$/m,
+   'RAM payload instruction recovered with ROM provenance');
+require_re($concrete_out,
+   qr/^; \$0084: 4C 80 00\s+JMP \$0080\s+; copied from ROM file \$0004$/m,
+   'RAM payload control flow recovered with ROM provenance');
+
 # A zero-instruction result is not a successful disassembly.  Keep this out of
 # the bulk round-trip directory because failure is the expected outcome.
 my $all_kil = File::Spec->catfile($tmp, 'all_kil.bin');
@@ -1944,6 +2011,10 @@ die "forced plain F8 still applied Superchip hidden-window semantics\n"
 my $bad_mapper = `$disas --mapper f8 "@{[File::Spec->catfile($in, 'plain4k.bin')]}" 2>&1`;
 die "incompatible mapper override unexpectedly succeeded\n" if $? == 0;
 require_re($bad_mapper, qr/incompatible with 4096-byte input/, 'mapper-size contradiction');
+my $bad_1k_layout = `$disas --mapper 1k "@{[File::Spec->catfile($in, 'plain2k.bin')]}" 2>&1`;
+die "2K image unexpectedly accepted as forced 1K\n" if $? == 0;
+require_re($bad_1k_layout, qr/incompatible with 2048-byte input/,
+   'forced 1K rejects non-1K layout');
 my $bad_fc_layout = `$disas --mapper fc "@{[File::Spec->catfile($in, 'fa.bin')]}" 2>&1`;
 die "12K image unexpectedly accepted as forced FC\n" if $? == 0;
 require_re($bad_fc_layout, qr/incompatible with 12288-byte input/,

@@ -19,3 +19,28 @@ Implemented Amiga Power Play / FC disassembly for 4K, 8K, 16K, and 32K images. T
 Automatic FC inference uses Stella's three characteristic staged-selector signatures and is allowed to outrank the ordinary size-default F mapper without suppressing distinctive mapper families. All five FC mismatches in problems.20260820_144844.zip now agree with Stella as FC: 4a5fddf89801336637ac8e57a7c9a881, 565b2d41d4bdf960d0912d39ec29d0a7, 60cd61a2dfccb0e2736434f9792c1672, 715dbf2e39ba8a52c5fe5cdd927b37e0, and bbf8c7c9ed280151934aabe138e41ba7. The complete 32-ROM problem bundle reconstructs byte-exactly.
 
 Validation: vcsc_disassembler.pl 100/100; vcsc_disassembler_hardening.pl pass; vcsc_disassembler_opcodes.pl 1/1; vcsc_disassembler_fuzz.pl 28/28; five supplied FC corpus images 5/5 Stella mapper matches. Roadmap Item 22 is complete; GL is next.
+
+2026-08-20 08:46:32 PDT, Add unbanked 1K disassembly
+
+Added a native unbanked 1K topology for 1024-byte Atari 2600 cartridges. One physical 1K ROM is analyzed with normal four-way cartridge-window mirroring, runtime targets resolve modulo $0400, origin inference supports 1K mirror positions, and --mapper 1k enforces the exact 1024-byte layout while source emission preserves only the original physical bytes.
+
+Audited vector entry seeding. Normal disassembly already follows every cartridge-backed NMI, RESET, and IRQ/BRK vector; RESET-only seeding is intentionally limited to temporary mapper-hypothesis validation. Added an explicit semantic regression where the IRQ routine is unreachable from RESET so this behavior is permanently pinned.
+
+The supplied c33caa7d6ac7251bb804e0473198901d.bin now disassembles as unbanked 1K with origin $FC00, RESET $FC96, and IRQ/BRK $FC80, and reconstructs byte-for-byte exactly. Validation: vcsc_disassembler.pl 101/101; vcsc_disassembler_hardening.pl pass; vcsc_disassembler_opcodes.pl 1/1; vcsc_disassembler_fuzz.pl 30/30; supplied ROM roundtrip 1/1 exact.
+2026-08-20 09:24:13 PDT, Repair post-1K regressions
+
+Fixed three regressions exposed by the full E2E run after native 1K support. Adding MAP_1K had shifted the private mapper enum while dynamic_video_probe.cpp still duplicated old integer mapper IDs; FA therefore arrived as the old DPC value and the dynamic video probe was disabled, falling back to RIOT-signature inference. Mapper IDs now live once in dynamic_video_probe.h, mapper_t is explicitly pinned to them, and the probe models 1K mirroring directly. The FA visible diagnostic again reports the stable 264-interval raw / 262-line displayed NTSC timing.
+
+Compacted completed RAM-optimization narrative out of context.txt into its existing focused roadmap pointer, bringing the compact handoff from 103160 bytes down below the enforced 100 KiB ceiling without removing the required item-23/item-28, RAM-closeout, or history-policy pointers. Raised only the load-sensitive vcs_all_five_181_unofficial.pl timeout from 12 to 20 seconds; it passes alone in about 7.6 seconds and had timed out only under the eight-way E2E load.
+
+Validation: the three originally failing tests pass together 3/3 under test.pl; vcs_4ksc.pl plus the four focused disassembler regressions pass 5/5; vcsc_disassembler.pl remains 101/101 and deterministic mapper fuzz remains 30/30.
+
+2026-08-20 10:19:32 PDT, Add bounded concrete RESET discovery
+
+Prepended three hybrid-analysis priorities to the focused disassembler roadmap without renumbering the existing mapper queue. Hybrid H0 is complete: vcsc-disas now reuses the maintained simulator/mos6502 core for a bounded concrete run from the real RESET vector, with exact PC/A/X/Y/SP/P, 6507 mirroring, all 128 RIOT RAM bytes including stack-page aliases, basic RIOT timer and TIA WSYNC/VSYNC CPU-side behavior, neutral controller/console inputs, and the initial unbanked 1K/2K/4K plus F8/F6/F4/FA mapper set. Unsupported concrete mapper models leave the existing static analysis authoritative.
+
+Concrete execution records cartridge instruction starts, RIOT-RAM writes, executed RAM instructions, and simple ROM-to-RAM provenance. Static CFG analysis drains first; only concrete ROM instruction starts that static analysis missed are then seeded, avoiding loss of known pointer/register facts at state joins. Executed RIOT-RAM code is emitted as a comment-only disassembly block so exact cartridge bytes remain unchanged. Fixed TSX abstract semantics so losing X also loses N/Z knowledge.
+
+Added a 1K torture fixture that clears the stack through TSX/PHA, uses BRK plus an IRQ handler that mutates the saved return PC before RTI, copies a ROM payload into RIOT RAM, and jumps into it. The semantic suite is 102/102 exact. On c33caa7d6ac7251bb804e0473198901d.bin the neutral-input concrete run executes 28880 instructions, discovers 225 ROM instruction starts, and writes all 128 RIOT-RAM bytes, but SWCHA keeps it out of the final loader branch so it records no RAM instruction starts; H1 is explicitly the next stack/interrupt/input-aware static alternate-path task.
+
+Validation for H0: vcsc_disassembler.pl 102/102; vcsc_disassembler_hardening.pl pass; vcsc_disassembler_opcodes.pl 1/1; vcsc_disassembler_fuzz.pl 30/30; c33caa7d6ac7251bb804e0473198901d.bin roundtrip 1/1 byte-exact; source-tree hygiene and history-format gates pass; the full compile suite passed 500/500. A full 318-case E2E invocation remained failure-free through case 78 before the external command execution limit terminated the run.

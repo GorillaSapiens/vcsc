@@ -23,13 +23,13 @@ does not advance or reorder the main VCSC roadmap.
 
 Status legend: [ ] not started, [~] partial, [x] complete.
 
-Current implementation status (2026-08-16)
+Current implementation status (2026-08-20)
 ------------------------------------------
 The first implementation is now usable and exact-round-trip driven. It builds
 `disassembler/vcsc-disas` and the standalone `disassembler/roundtrip.pl`. The
 implemented foundation includes all 256 opcode bytes, exact addressing-mode
 emission, mandatory branch `.same`/`.cross`, recursive bank-aware control flow,
-unbanked/F8/F6/F4 plus Superchip variants, FA, DPC and WD, per-bank origin inference, overlapping
+unbanked 1K/2K/4K, F8/F6/F4 plus Superchip variants, FA, DPC and WD, per-bank origin inference, overlapping
 instruction streams, code-as-data, definite/possible/unreferenced ROM-use roles,
 canonical and mirrored TIA/RIOT symbolization, conservative sprite rows, static
 video/controller inference, manual mapper/origin/entry/code/data/video/controller
@@ -916,6 +916,47 @@ manual inspection or emulator testing.
 Roadmap
 -------
 
+Immediate hybrid-analysis priorities (2026-08-20)
+
+H0. [x] Add bounded concrete RESET discovery
+   * Reuse the maintained `simulator/mos6502` CPU core rather than maintaining a
+     second interpreter. Execute from the real RESET vector with exact PC/A/X/Y/SP/P.
+   * Model 6507 mirroring, all 128 RIOT RAM bytes including their stack-page mirrors,
+     RIOT timer behavior needed by ordinary polling loops, TIA WSYNC/VSYNC CPU-side
+     effects, deterministic cartridge banking for the initially supported simple
+     mapper families, and disconnected controllers/console inputs high. Unsupported
+     concrete mapper models must cleanly fall back to static analysis.
+   * Bound execution and stop on CPU halt, a top-level return, a hard instruction
+     limit, or a long no-new-instruction convergence interval. Record cartridge
+     instruction starts, RAM writes, and dynamically executed RIOT-RAM instructions.
+   * Track write provenance into RIOT RAM so code copied/generated from cartridge ROM
+     can be related back to physical input bytes. Present executed RAM code in a
+     comment-only block so exact cartridge reconstruction remains unchanged.
+   * Preserve static-analysis precision: let the ordinary CFG drain first, then seed
+     only concrete cartridge instruction starts that static analysis did not already
+     reach. Concrete observations are positive reachability evidence, never a reason
+     to erase stronger abstract facts.
+   * Regression-pin SP-sensitive `TSX/PHA`, BRK/IRQ/RTI saved-PC mutation, ROM-to-RAM
+     copying, and execution from the copied RAM payload. Fix `TSX` abstract flag
+     semantics so unknown X also makes N/Z unknown.
+
+H1. [ ] Make the static CFG stack/interrupt/input aware and explore alternate paths
+   * Add SP to abstract state and model stack effects/data for PHA/PLA, PHP/PLP,
+     JSR/RTS, BRK/RTI, and stack-page/RIOT-RAM aliasing where values are provable.
+   * Use concrete observations as seeds while retaining both sides of branches whose
+     condition depends on controller, console-switch, timer, collision, paddle, or
+     other external/unknown input. Connect provable BRK/IRQ/RTI continuations instead
+     of treating every BRK as an unconditional CFG terminator.
+   * Extend the concrete bus model to the remaining supported mapper families and add
+     additional deterministic input scenarios only when they provide new reachability.
+
+H2. [ ] Iterate concrete and static discovery to convergence
+   * Feed newly proven static entry states and dynamically discovered targets back into
+     one another without turning sampled execution into proof that alternate paths are
+     impossible.
+   * Keep mapper state, copied/generated RAM contents, indirect targets, and provenance
+     attached to each discovered execution context; stop at a deterministic fixed point.
+
 0. [x] Establish `disassembler/` and exact raw round trip
    * Copy `stego/` to a new top-level `disassembler/` starting point.
    * Rename/adapt the program to build `vcsc-disas`.
@@ -1323,7 +1364,23 @@ inference.
       `bbf8c7c9ed280151934aabe138e41ba7` now agree with Stella as FC.
     * Synthetic semantic and deterministic fuzz fixtures cover staged low/high
       selection, read/write commits, the high-value fallback, and exact byte
-      reconstruction. The semantic corpus is 100/100 and mapper fuzz is 28/28.
+      reconstruction. The semantic corpus is 101/101 and mapper fuzz is 30/30.
+
+Unbanked 1K topology extension (2026-08-20)
+-------------------------------------------
+* A 1024-byte image is one physical 1K ROM mirrored four times through the
+  4K cartridge window. Runtime targets therefore resolve modulo `$0400` while
+  source emission preserves exactly the original 1024 physical bytes.
+* Origin inference supports the four 1K mirror positions and normally presents
+  a top-mirror image at `$FC00`; `--mapper 1k` explicitly selects the topology
+  and rejects other file sizes.
+* The final six physical bytes are NMI/RESET/IRQ-BRK vectors. Normal analysis
+  seeds every vector whose target resolves into cartridge ROM, so an IRQ-only
+  routine is recovered even when RESET never references it. RESET-only seeding
+  remains intentionally limited to temporary mapper-hypothesis validation.
+* `c33caa7d6ac7251bb804e0473198901d.bin` is the real regression: RESET `$FC96`
+  and IRQ/BRK `$FC80` both decode under the 1K topology and the file reconstructs
+  byte-for-byte exactly.
 
 23. [ ] Add GL mapper support
     * Model GameLine's four independently mapped 1K runtime segments and its

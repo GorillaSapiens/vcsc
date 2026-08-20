@@ -86,12 +86,21 @@ position from runtime 6507 addresses:
 .rend
 ```
 
-The disassembler currently recognizes unbanked 2K/4K, the F8/F6/F4 family
+The disassembler currently recognizes unbanked 1K/2K/4K, the F8/F6/F4 family
 (with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, CommaVid CV, Parker Brothers E0, M-Network E7, Tigervision 3F/3E, JANE, 0840/EconoBanking, UA/UASW, 0FA0/Fotomania, DPC,
 Wickstead Design / WD/WDSW, and Amiga Power Play / FC. Standard DPC
 images are recognized by their distinctive 10240- or 10495-byte layout: two
 4K F8-style program banks followed by 2K of DPC data ROM, with the 10495-byte
 form carrying an additional 255-byte RNG table.
+
+Unbanked 1K cartridges are treated as one physical 1024-byte ROM mirrored four
+times through the 4K cartridge window.  The canonical presentation origin is
+therefore normally `$FC00`, while runtime references in any mirror resolve to
+the same physical byte modulo `$0400`.  The hardware vector bytes are the final
+six physical bytes of the 1K image.  Normal analysis follows all three valid
+cartridge-backed vector targets (NMI, RESET, and IRQ/BRK); RESET alone is used
+only while testing competing mapper hypotheses.  `--mapper 1k` forces this
+topology for a 1024-byte input.
 
 A 4096-byte image whose upper 2048 bytes are byte-for-byte identical to its
 lower 2048 bytes is recognized as a doubled preservation dump of an ordinary
@@ -423,6 +432,37 @@ Vector words are emitted symbolically only when doing so preserves the original
 wins and a comment records the vector value instead of hiding executable bytes
 inside a `.word`.
 
+## Concrete RESET discovery
+
+For mapper layouts whose CPU-side bus model is currently implemented by the concrete
+probe, `vcsc-disas` performs a bounded execution from the hardware RESET vector using
+the maintained `simulator/mos6502` core. This is positive reachability evidence, not a
+replacement for recursive static analysis. The execution state includes exact
+PC/A/X/Y/SP/P, the complete 128-byte RIOT RAM with stack-page aliases, RIOT timer and
+TIA WSYNC/VSYNC CPU-side behavior, cartridge banking, disconnected controllers, and
+console inputs high. The initial concrete mapper set is unbanked 1K/2K/4K plus
+F8/F6/F4/FA (including their supported RAM overlays); unsupported mapper models simply
+skip this pass.
+
+Static analysis is allowed to drain first. Only cartridge instruction starts observed
+concretely but still missing from the static graph are then added as entry evidence.
+This ordering is intentional: injecting every sampled PC with an unknown abstract state
+would destroy useful static register/pointer facts at joins. The generated header
+reports the number of executed instructions, distinct ROM and RIOT-RAM instruction
+starts, RAM bytes written, final CPU state, and why the bounded run stopped.
+
+When execution enters RIOT RAM, the probe snapshots the instruction bytes actually
+executed there and tracks simple ROM-to-RAM write provenance. `vcsc-disas` prints that
+RAM execution as a **comment-only** disassembly block, including source ROM file offsets
+when known. Those comments add no cartridge bytes, so disassemble/reassemble identity
+remains authoritative even for loaders and self-modifying/generated RAM code.
+
+A concrete run is necessarily only one machine history. In particular, the neutral
+controller state may leave input-gated paths unexplored. The focused roadmap therefore
+keeps stack/interrupt-aware static alternate-path exploration and iterative
+static/concrete convergence as the next hybrid-analysis work; an unobserved path is
+never classified as impossible merely because this baseline run did not take it.
+
 ## Video and controller inference
 
 Inference comments are evidence, not metadata injected into the cartridge.
@@ -537,10 +577,12 @@ GL, CM, DPC+, CDF/CDFJ/CDFJ+ and other coprocessor cartridges need separate mapp
 Unsupported layouts that yield no executable instructions fail explicitly rather
 than producing a misleading 100%-data source file.
 
-Static code/data analysis is necessarily incomplete for self-modifying code,
-dynamically constructed RAM code, unresolved indirect tables, and similarly
-hostile control flow. Those cases should become more explicit as analysis grows;
-they must never weaken the byte-round-trip invariant.
+The bounded concrete RESET pass now exposes some self-modifying and dynamically
+constructed RIOT-RAM code, but sampled execution cannot by itself prove alternate
+input-dependent paths unreachable. Static stack/interrupt exploration, unresolved
+indirect tables, unsupported concrete mapper models, and iterative hybrid convergence
+remain active roadmap work. None of these analyses may weaken the byte-round-trip
+invariant.
 
 The detailed implementation roadmap and analysis contracts live in
 `../.../disassembler.txt`.

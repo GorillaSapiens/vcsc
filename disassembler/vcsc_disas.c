@@ -9,6 +9,7 @@
 
 #include "version.h"
 #include "dynamic_video_probe.h"
+#include "concrete_discovery.h"
 
 /*
  * vcsc-disas -- conservative Atari 2600 cartridge disassembler.
@@ -38,29 +39,33 @@ typedef enum {
 #include "opcode_table.inc"
 
 typedef enum {
-   MAP_RAW,
-   MAP_2K,
-   MAP_4K,
-   MAP_F8,
-   MAP_F6,
-   MAP_F4,
-   MAP_FA,
-   MAP_DPC,
-   MAP_WD,
-   MAP_WDSW,
-   MAP_FC,
-   MAP_E0,
-   MAP_E7,
-   MAP_3F,
-   MAP_3E,
-   MAP_CV,
-   MAP_JANE,
-   MAP_0840,
-   MAP_UA,
-   MAP_UASW,
-   MAP_0FA0,
-   MAP_FE
+   MAP_RAW = VCSC_VIDEO_MAP_RAW,
+   MAP_1K = VCSC_VIDEO_MAP_1K,
+   MAP_2K = VCSC_VIDEO_MAP_2K,
+   MAP_4K = VCSC_VIDEO_MAP_4K,
+   MAP_F8 = VCSC_VIDEO_MAP_F8,
+   MAP_F6 = VCSC_VIDEO_MAP_F6,
+   MAP_F4 = VCSC_VIDEO_MAP_F4,
+   MAP_FA = VCSC_VIDEO_MAP_FA,
+   MAP_DPC = VCSC_VIDEO_MAP_DPC,
+   MAP_WD = VCSC_VIDEO_MAP_WD,
+   MAP_WDSW = VCSC_VIDEO_MAP_WDSW,
+   MAP_FC = VCSC_VIDEO_MAP_FC,
+   MAP_E0 = VCSC_VIDEO_MAP_E0,
+   MAP_E7 = VCSC_VIDEO_MAP_E7,
+   MAP_3F = VCSC_VIDEO_MAP_3F,
+   MAP_3E = VCSC_VIDEO_MAP_3E,
+   MAP_CV = VCSC_VIDEO_MAP_CV,
+   MAP_JANE = VCSC_VIDEO_MAP_JANE,
+   MAP_0840 = VCSC_VIDEO_MAP_0840,
+   MAP_UA = VCSC_VIDEO_MAP_UA,
+   MAP_UASW = VCSC_VIDEO_MAP_UASW,
+   MAP_0FA0 = VCSC_VIDEO_MAP_0FA0,
+   MAP_FE = VCSC_VIDEO_MAP_FE
 } mapper_t;
+
+_Static_assert((int)MAP_FA == (int)VCSC_VIDEO_MAP_FA, "dynamic-probe mapper IDs drifted");
+_Static_assert((int)MAP_0FA0 == (int)VCSC_VIDEO_MAP_0FA0, "dynamic-probe mapper IDs drifted");
 
 typedef enum {
    FLOW_NEXT,
@@ -199,6 +204,10 @@ typedef struct {
    size_t speculative_islands;
    size_t flow_switch_avoided_halts;
    size_t speculative_switch_avoided_halts;
+   int concrete_available;
+   uint8_t *concrete_rom_exec;
+   uint16_t *concrete_rom_pc;
+   vcsc_concrete_result_t concrete;
    work_item_t *work;
    size_t work_count;
    size_t work_cap;
@@ -367,7 +376,8 @@ static void sha256_hex(const uint8_t *p, size_t n, char out[65])
 static int parse_mapper_name(const char *s, mapper_t *mapper, int *superchip)
 {
    *superchip = -1;
-   if (strcmp(s, "2k") == 0) *mapper = MAP_2K;
+   if (strcmp(s, "1k") == 0) *mapper = MAP_1K;
+   else if (strcmp(s, "2k") == 0) *mapper = MAP_2K;
    else if (strcmp(s, "4k") == 0) *mapper = MAP_4K;
    else if (strcmp(s, "4ksc") == 0) { *mapper = MAP_4K; *superchip = 1; }
    else if (strcmp(s, "f8") == 0) { *mapper = MAP_F8; *superchip = 0; }
@@ -430,7 +440,7 @@ static void usage(const char *argv0)
       "options:\n"
       "   -i, --input <file>       compatibility alias for positional input\n"
       "   -o, --output <file>      write generated VCSC assembly (.s26)\n"
-      "       --mapper <name>      force 2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|wdsw|fc|e0|e7|3e|3f|cv|jane|0840|ua|uasw|0fa0|fe\n"
+      "       --mapper <name>      force 1k|2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|wdsw|fc|e0|e7|3e|3f|cv|jane|0840|ua|uasw|0fa0|fe\n"
       "       --reset-bank <n>     force power-on/reset physical bank\n"
       "       --origin <b:addr>    force logical origin for a bank (repeatable)\n"
       "       --entry <b:addr>     add executable entry point (repeatable)\n"
@@ -782,6 +792,7 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
 {
    switch (mapper) {
    case MAP_RAW: *bank_size = rom_size; *bank_count = 1u; return 1;
+   case MAP_1K: *bank_size = 1024u; *bank_count = 1u; return rom_size == 1024u;
    case MAP_2K: *bank_size = 2048u; *bank_count = 1u; return rom_size == 2048u;
    case MAP_4K: *bank_size = 4096u; *bank_count = 1u; return rom_size == 4096u;
    case MAP_F8: *bank_size = 4096u; *bank_count = 2u; return rom_size == 8192u;
@@ -1059,6 +1070,7 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
 {
    mapper_t mapper;
    switch (size) {
+   case 1024u: mapper = MAP_1K; break;
    case 2048u: mapper = is_probably_cv(rom, size) ? MAP_CV : MAP_2K; break;
    case 4096u: mapper = is_doubled_2k_dump(rom, size) ? MAP_2K :
                          (is_probably_fc(rom, size) ? MAP_FC : MAP_4K); break;
@@ -1100,6 +1112,7 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
 static const char *mapper_name(mapper_t mapper)
 {
    switch (mapper) {
+   case MAP_1K: return "unbanked 1K";
    case MAP_2K: return "unbanked 2K";
    case MAP_4K: return "unbanked 4K";
    case MAP_F8: return "F8";
@@ -1556,6 +1569,8 @@ static void free_analysis(analysis_t *a)
       }
    }
    free(a->banks);
+   free(a->concrete_rom_exec);
+   free(a->concrete_rom_pc);
    free(a->work);
    memset(a, 0, sizeof(*a));
 }
@@ -2702,7 +2717,10 @@ static void transfer_state(const analysis_t *a, size_t bank,
       output->a_known = input->y_known; output->a = input->y;
       state_set_nz(output, input->y_known, input->y);
    }
-   else if (strcmp(m,"TSX") == 0) output->x_known = 0;
+   else if (strcmp(m,"TSX") == 0) {
+      output->x_known = 0;
+      state_set_nz(output, 0, 0);
+   }
    else if (strcmp(m,"PLA") == 0) { output->a_known = 0; state_set_nz(output, 0, 0); }
    else if (strcmp(m,"INX") == 0) {
       if (input->x_known) { output->x_known = 1; output->x = (uint8_t)(input->x + 1u); state_set_nz(output, 1, output->x); }
@@ -3939,6 +3957,7 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
 {
    size_t bi;
    int speculative_done = 0;
+   int concrete_done = 0;
    int reset_seeded = 0;
    if (a->mapper == MAP_RAW) return 1;
    a->reachable_halts = 0u;
@@ -4954,6 +4973,38 @@ drain_work:
       }
    }
 
+   /* Concrete RESET execution supplements, rather than dilutes, the static
+    * graph.  Let the ordinary vector/manual CFG reach a fixed point first,
+    * preserving all abstract register facts on code it already understands.
+    * Only then seed instruction starts that were observed concretely but are
+    * still absent from the static graph.  This is especially important for
+    * BRK/RTI and other dynamic continuations: seeding every observed address
+    * up front with an unknown state would meet away useful pointer/flag facts. */
+   if (!reset_only && !concrete_done && a->concrete_available) {
+      size_t physical;
+      abstract_state_t state;
+      concrete_done = 1;
+      memset(&state, 0, sizeof(state));
+      for (physical = 0; physical < a->rom_size; ++physical) {
+         size_t cb;
+         if (!a->concrete_rom_exec[physical]) continue;
+         for (cb = 0; cb < a->bank_count; ++cb) {
+            bank_t *b = &a->banks[cb];
+            if (physical >= b->file_offset &&
+                physical < b->file_offset + b->size) {
+               size_t off = physical - b->file_offset;
+               uint16_t pc = a->concrete_rom_pc[physical];
+               if (!(b->roles[off] & ROLE_CODE_START) &&
+                   !rom_offset_hidden(a, off) &&
+                   !push_work_state_ctx(a, cb, off, &state, pc, 0u))
+                  return 0;
+               break;
+            }
+         }
+      }
+      if (a->work_count != 0) goto drain_work;
+   }
+
    if (run_speculative && !speculative_done) {
       speculative_done = 1;
       if (!discover_speculative_islands(a)) return 0;
@@ -4961,6 +5012,18 @@ drain_work:
    }
 
    detect_overlaps(a);
+   return 1;
+}
+
+static int run_concrete_discovery(analysis_t *a)
+{
+   a->concrete_rom_exec = (uint8_t *)calloc(a->rom_size, 1);
+   a->concrete_rom_pc = (uint16_t *)calloc(a->rom_size, sizeof(*a->concrete_rom_pc));
+   if (!a->concrete_rom_exec || !a->concrete_rom_pc) return 0;
+   a->concrete_available = vcsc_concrete_discover(
+      a->rom, a->rom_size, (int)a->mapper, a->bank_count, a->reset_bank,
+      superchip_active(a), a->concrete_rom_exec, a->concrete_rom_pc,
+      &a->concrete);
    return 1;
 }
 
@@ -4991,6 +5054,9 @@ static size_t mapper_candidates_for_size(size_t size, mapper_t *out,
    size_t n = 0u;
 #define ADD_MAPPER(m) do { if (n < capacity) out[n] = (m); ++n; } while (0)
    switch (size) {
+   case 1024u:
+      ADD_MAPPER(MAP_1K);
+      break;
    case 2048u:
       ADD_MAPPER(MAP_2K); ADD_MAPPER(MAP_CV);
       break;
@@ -7656,6 +7722,21 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
    else {
       fprintf(fp, "; physical layout: unsupported size; exact raw fallback\n");
    }
+   if (a->concrete_available) {
+      fprintf(fp,
+              "; concrete RESET discovery: instructions=%u ROM-starts=%u RIOT-RAM-starts=%u RAM-bytes-written=%u%s%s\n",
+              a->concrete.instructions, a->concrete.rom_instruction_starts,
+              a->concrete.ram_instruction_starts, a->concrete.ram_bytes_written,
+              a->concrete.halted ? "; CPU halted" : "",
+              a->concrete.instruction_limit ? "; bounded instruction limit reached" :
+                 (a->concrete.converged ? "; reachability converged" :
+                  (a->concrete.top_level_return ? "; top-level return reached" : "")));
+      fprintf(fp,
+              "; concrete final CPU: PC=$%04X A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X; controllers disconnected, console inputs high\n",
+              a->concrete.final_pc, a->concrete.final_a, a->concrete.final_x,
+              a->concrete.final_y, a->concrete.final_sp, a->concrete.final_p);
+   }
+
    {
       inference_evidence_t e;
       const char *video, *vconf, *ctl0, *c0conf, *ctl1, *c1conf;
@@ -7804,6 +7885,71 @@ static void emit_physical_raw_range(FILE *fp, const analysis_t *a,
    }
 }
 
+static void emit_concrete_ram_instruction(FILE *fp, const analysis_t *a,
+                                          unsigned idx)
+{
+   const vcsc_concrete_result_t *r = &a->concrete;
+   uint16_t pc = r->ram_exec_pc[idx];
+   unsigned len = r->ram_exec_len[idx];
+   const uint8_t *bytes = r->ram_exec_bytes + idx * VCSC_CONCRETE_MAX_INSN_BYTES;
+   uint8_t opcode = bytes[0];
+   address_mode_t mode = (address_mode_t)opcode_modes[opcode];
+   const char *mn = opcode_mnemonics[opcode];
+   uint16_t operand = len >= 2u ? bytes[1] : 0u;
+   unsigned j;
+   int contiguous_source = 1;
+   uint32_t source = r->ram_exec_source[idx * VCSC_CONCRETE_MAX_INSN_BYTES];
+   if (len >= 3u) operand |= (uint16_t)bytes[2] << 8;
+
+   fprintf(fp, "; $%04X: ", pc);
+   for (j = 0; j < VCSC_CONCRETE_MAX_INSN_BYTES; ++j) {
+      if (j < len) fprintf(fp, "%02X ", bytes[j]);
+      else fputs("   ", fp);
+   }
+   fprintf(fp, "  %s", mn);
+   switch (mode) {
+   case AM_ACCUMULATOR: fputs(" A", fp); break;
+   case AM_IMMEDIATE: fprintf(fp, " #$%02X", (unsigned)(operand & 0xffu)); break;
+   case AM_ZERO_PAGE: fprintf(fp, " $%02X", (unsigned)(operand & 0xffu)); break;
+   case AM_ZERO_PAGE_X: fprintf(fp, " $%02X,X", (unsigned)(operand & 0xffu)); break;
+   case AM_ZERO_PAGE_Y: fprintf(fp, " $%02X,Y", (unsigned)(operand & 0xffu)); break;
+   case AM_RELATIVE: {
+      uint16_t target = (uint16_t)(pc + 2u + (int8_t)bytes[1]);
+      fprintf(fp, " $%04X", target);
+      break;
+   }
+   case AM_ABSOLUTE: fprintf(fp, " $%04X", operand); break;
+   case AM_ABSOLUTE_X: fprintf(fp, " $%04X,X", operand); break;
+   case AM_ABSOLUTE_Y: fprintf(fp, " $%04X,Y", operand); break;
+   case AM_INDIRECT: fprintf(fp, " ($%04X)", operand); break;
+   case AM_INDEXED_INDIRECT: fprintf(fp, " ($%02X,X)", (unsigned)(operand & 0xffu)); break;
+   case AM_INDIRECT_INDEXED: fprintf(fp, " ($%02X),Y", (unsigned)(operand & 0xffu)); break;
+   case AM_IMPLIED: break;
+   }
+   if (source != VCSC_CONCRETE_NO_SOURCE) {
+      for (j = 1; j < len; ++j) {
+         uint32_t sj = r->ram_exec_source[idx * VCSC_CONCRETE_MAX_INSN_BYTES + j];
+         if (sj != source + j) { contiguous_source = 0; break; }
+      }
+      if (contiguous_source)
+         fprintf(fp, "    ; copied from ROM file $%04" PRIX32, source);
+      else
+         fprintf(fp, "    ; first byte copied from ROM file $%04" PRIX32, source);
+   }
+   fputc('\n', fp);
+}
+
+static void emit_concrete_ram_execution(FILE *fp, const analysis_t *a)
+{
+   unsigned i;
+   if (!a->concrete_available || a->concrete.ram_instruction_starts == 0u) return;
+   fputs("\n; ---- concrete RIOT RAM execution (comment-only discovery) ----\n", fp);
+   fputs("; These bytes were observed executing from RIOT RAM during the bounded RESET run.\n", fp);
+   fputs("; They do not add output bytes; ROM provenance is shown when the write path is known.\n", fp);
+   for (i = 0; i < VCSC_CONCRETE_RIOT_RAM_SIZE; ++i)
+      if (a->concrete.ram_exec_start[i]) emit_concrete_ram_instruction(fp, a, i);
+}
+
 static int emit_source(FILE *fp, const analysis_t *a, const char *input,
                        const char sha[65])
 {
@@ -7901,6 +8047,7 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
       fputs(".org $2000\n", fp);
       emit_physical_raw_range(fp, a, 8192u, a->rom_size);
    }
+   emit_concrete_ram_execution(fp, a);
    return ferror(fp) == 0;
 }
 
@@ -7955,6 +8102,12 @@ int main(int argc, char **argv)
       analysis.mapper_hypotheses_survived = survived;
    }
    if (!apply_layout_overrides(&analysis, &opt)) {
+      free_analysis(&analysis);
+      free(rom);
+      return 1;
+   }
+   if (!run_concrete_discovery(&analysis)) {
+      fprintf(stderr, "concrete discovery setup failed\n");
       free_analysis(&analysis);
       free(rom);
       return 1;
