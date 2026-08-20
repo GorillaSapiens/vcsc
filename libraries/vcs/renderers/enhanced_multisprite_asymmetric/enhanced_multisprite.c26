@@ -88,8 +88,8 @@ alias TEMPLATE_BALL_Y TEMPLATE_unused_object_state[5]
 // logical sprite, with slot 6 reserved as the sort/draw sentinel. After the
 // fixed sorting network, event_order[] is a compact descending list terminated by
 // index 6.
-// setup_code stores logical sprite id in bits 0..2 plus HMP fine motion in
-// bits 4..7. setup_position stores the absolute low byte of the selected
+// setup_code stores the lane-specific graphics start state in bits 0..3
+// (P1=1..6, P0=7..12) plus HMP fine motion in bits 4..7. setup_position stores the absolute low byte of the selected
 // coarse-RESP landing.  The landing block is 128-byte aligned: P0 entries are
 // at base+$00..$1e and P1 entries at base+$40..$5e, so pointer-low bit 6 is
 // also the cheap hardware-lane flag used by the visible BIT/BVS dispatch.
@@ -132,8 +132,13 @@ uint8_t TEMPLATE_action_y;
 // states deliberately index the renderer's leading zero-filled graphics area,
 // so a state can be fed directly to TEMPLATE_graphics after transition.
 page const uint8_t TEMPLATE_graphics_next[145] := {
-   0,104,112,120,128,136,144,1,7,8,2,10,11,3,13,14,
-   4,16,17,5,19,20,6,22,23,0,0,0,0,0,0,0,
+   // States 1..6 are P1 setup sentinels.  States 7..12 are the six P0
+   // setup starts; 13..18 and 19..24 are the two additional P0 blank-delay
+   // stages before joining the same per-sprite sentinel.  Both lane-specific
+   // start-state ranges therefore fit in event_code's otherwise-unused low
+   // nibble and need no visible-line lookup table.
+   0,104,112,120,128,136,144,13,14,15,16,17,18,19,20,21,
+   22,23,24,1,2,3,4,5,6,0,0,0,0,0,0,0,
    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -143,12 +148,6 @@ page const uint8_t TEMPLATE_graphics_next[145] := {
    127,0,129,130,131,132,133,134,135,0,137,138,139,140,141,142,
    143
 };
-
-// Initial P0 state for logical sprites 0..5.  Each value is the last of that
-// sprite's three zero-output delay states; the transition table walks through
-// the two earlier delay states, the per-sprite setup sentinel, and then the
-// first visible bitmap row.  This replaces rows_left[] plus p0_delay with ROM.
-page const uint8_t TEMPLATE_p0_start_state[6] := { 9,12,15,18,21,24 };
 
 // Packed horizontal controls calibrated for this renderer's own setup phase.
 // Low nibble stores coarse_count-1 and high nibble is HMPx.  Setup line A
@@ -313,41 +312,10 @@ void TEMPLATE_sort_events(void) {
 // P0 begins at +$00 and P1 at +$40.  Because a 128-byte-aligned base is either
 // $xx00 or $xx80, bit 6 of every absolute landing low byte is therefore 0 for
 // P0 and 1 for P1 while all entries remain in one 256-byte page.
-page void TEMPLATE_resp_ladders(void) {
-   asm .align 128;
-   asm TEMPLATE_P0RespDelayBase:;
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 0: 10 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 1:  9 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 2:  8 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 3:  7 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 4:  6 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 5:  5 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 6:  4 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 7:  3 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 8:  2 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 9:  1 delay cell
-   asm TEMPLATE_P0RespLanding:;              // slot 10: immediate landing
-   asm rts;
-
-   // P0 occupies 31 bytes.  Pad to +$40 so bit 6 itself is the lane tag.
-   asm .byte $ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea;
-   asm .byte $ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea;
-   asm .byte $ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea;
-
-   asm TEMPLATE_P1RespDelayBase:;
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 0: 10 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 1:  9 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 2:  8 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 3:  7 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 4:  6 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 5:  5 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 6:  4 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 7:  3 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 8:  2 delay cells
-   asm nop; asm bit.z TEMPLATE_event_stage; // slot 9:  1 delay cell
-   asm TEMPLATE_P1RespLanding:;              // slot 10: immediate landing
-   asm rts;
-}
+// Coarse-slot dispatch code is deliberately omitted while the full-PF
+// setup pipeline is being made frame-stable.  setup_position still carries
+// slot*3 with bit 6 as the lane tag; the fixed RESP fallback consumes only
+// that lane bit.
 
 // VBLANK is intentionally out-of-line. Its data-dependent scheduling branches
 // therefore cannot perturb the proven page placement of the visible renderer.
@@ -529,22 +497,26 @@ void TEMPLATE_vblank_worker(void) {
    asm @TEMPLATE_AssignActionReady:;
    asm sta.zx TEMPLATE_setup_line,X;
 
-   // Split horizontal state once while X=logical sprite and the assigned lane
-   // are already hot. setup_code becomes id + HMP fine nibble; setup_position
-   // becomes lane (bit 7) + coarse slot (bits 0..3).
+   // Encode the draw-time lane-specific graphics start state directly into
+   // event_code's low nibble while X=logical sprite and the assigned lane are
+   // hot.  P1 uses id+1 (states 1..6); P0 uses id+7 (states 7..12).
    asm txa;
+   asm clc;
+   asm adc #1;
+   asm ldy.z TEMPLATE_position_packed;
+   asm bne.same @TEMPLATE_AssignStartReady;
+   asm clc;
+   asm adc #6;
+   asm @TEMPLATE_AssignStartReady:;
    asm sta.zx TEMPLATE_setup_code,X;
    asm ldy.zx TEMPLATE_x,X;
    asm lda.ay TEMPLATE_position_table,Y;
    asm sta.z TEMPLATE_pending0_valid;
    asm and #$f0;
-   asm ora.z TEMPLATE_setup_sprite;
+   asm ora.zx TEMPLATE_setup_code,X;
    asm sta.zx TEMPLATE_setup_code,X;
-   // Convert the coarse slot to the absolute low byte of its eventual indirect
-   // landing while VBLANK owns the cycle budget.  Each slot is three bytes
-   // apart.  P1 adds $40, which makes pointer bit 6 the lane discriminator;
-   // finally add the 128-byte-aligned block base.  Page containment proves the
-   // addition cannot carry into a different pointer high byte.
+   // Convert the coarse slot to slot*3 while VBLANK owns the cycle budget.
+   // P1 adds $40, keeping pointer bit 6 as the visible lane discriminator.
    asm lda.z TEMPLATE_pending0_valid;
    asm and #$0f;
    asm sta.z TEMPLATE_pending0_valid;
@@ -556,8 +528,6 @@ void TEMPLATE_vblank_worker(void) {
    asm clc;
    asm adc #$40;
    asm @TEMPLATE_AssignPositionLaneReady:;
-   asm clc;
-   asm adc #<TEMPLATE_P0RespDelayBase;
    asm sta.zx TEMPLATE_setup_position,X;
 
    asm ldy.z TEMPLATE_setup_index;
@@ -616,6 +586,10 @@ void TEMPLATE_vblank_worker(void) {
    asm sta.ay TEMPLATE_draw_code,Y;
    asm lda.zx TEMPLATE_setup_position,X;
    asm sta.ay TEMPLATE_draw_position,Y;
+   // lane_for[] is dead after allocation; reuse its first setup_count bytes as
+   // rank-indexed draw colors so the raster never decodes a logical id.
+   asm lda.zx TEMPLATE_color,X;
+   asm sta.ay TEMPLATE_lane_for,Y;
    asm iny;
    asm jmp @TEMPLATE_CompactEvents;
    asm @TEMPLATE_CompactEventsDone:;
@@ -635,9 +609,8 @@ void TEMPLATE_vblank_worker(void) {
    asm sta.z TEMPLATE_current_gfx + 1;
 
    // setup_position/draw_position already contain an absolute landing low byte.
-   // Keep the common page byte adjacent in event_stage, so position_packed and
-   // event_stage form a ready-to-use NMOS indirect-JMP vector in zero page.
-   asm lda #>TEMPLATE_P0RespDelayBase;
+   // event_stage remains scratch until the calibrated RESP dispatcher is restored.
+   asm lda #0;
    asm sta.z TEMPLATE_event_stage;
 
    // Keep the first event's action and lane/sprite code hot.  Horizontal
@@ -651,6 +624,10 @@ void TEMPLATE_vblank_worker(void) {
    // padding/N-clear role, so do not spend five cycles reinitializing it.
    asm lda TEMPLATE_draw_position;
    asm sta.z TEMPLATE_position_packed;
+   // Cache the current event color for the RESP-critical line.  pair_y is
+   // scratch after VBLANK, so this removes four cycles of rank lookup there.
+   asm lda TEMPLATE_lane_for;
+   asm sta.z TEMPLATE_pair_y;
 
    // This profile owns both hardware players completely while visible.
    asm lda #0;
@@ -772,8 +749,11 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
+   // Y already carries the P1 row into the following line A.  Do not also
+   // cache it on every ordinary line B: position/setup paths rebuild the
+   // cached P1 row from gfx_index before they need it.  The removed store
+   // keeps the LineABoundary WSYNC safely before cycle 76 with full PF0.
    asm lda.ay TEMPLATE_graphics,Y;
-   asm sta.z TEMPLATE_current_gfx + 1;
    asm tay;
    asm dex;
    asm bmi.same @TEMPLATE_DrawLastLineB;
@@ -788,6 +768,15 @@ require inline void TEMPLATE_draw(void) {
    // cached P1 byte is carried in Y directly into the position band, so the
    // otherwise redundant current_gfx+1 store is omitted; those three cycles
    // pay for a deterministic lane dispatch before WSYNC.
+   // Top-edge P0 needs its own boundary entry.  Keep this block away from
+   // the normal P0 fall-through so the balanced trigger dispatch reaches
+   // Position0LineA directly.
+   asm @TEMPLATE_Position0Boundary:;
+   asm sta WSYNC;
+   asm bit.z TEMPLATE_position_packed;
+   asm nop;
+   asm jmp @TEMPLATE_Position0LineA;
+
    asm @TEMPLATE_ArmedLineBBoundary:;
    asm sta WSYNC;
    asm @TEMPLATE_ArmedLineB:;
@@ -815,20 +804,24 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ay TEMPLATE_graphics,Y;
    asm tay;
    asm dex;
+   // End the trigger line before lane dispatch.  Dispatching before WSYNC
+   // pushed the boundary store past cycle 75 and cost an extra scanline.
    asm lda.z TEMPLATE_current_gfx;
+   asm sta WSYNC;
+
+   // Balanced eight-cycle lane dispatch.  Both position-line-A bodies begin
+   // at cycle 8 regardless of which hardware player owns this event.
    asm bit.z TEMPLATE_position_packed;
-   asm bvs.same @TEMPLATE_ArmedToP1;
-   asm jmp @TEMPLATE_Position0Boundary;
-   asm @TEMPLATE_ArmedToP1:;
-   asm jmp @TEMPLATE_Position1Boundary;
+   asm bvc.same @TEMPLATE_ArmedToP0;
+   asm jmp @TEMPLATE_Position1LineA;
+   asm @TEMPLATE_ArmedToP0:;
+   asm nop;
 
    // ---------------------------------------------------------------
    // P0 position band.  P1 is the only lane that may remain active.
    // Line A updates P1 and ends exactly at the physical boundary with the
    // packed horizontal control in A; line B therefore begins at cycle zero.
    // ---------------------------------------------------------------
-   asm @TEMPLATE_Position0Boundary:;
-   asm sta WSYNC;
    asm @TEMPLATE_Position0LineA:;
    asm sta GRP0;
    asm sty GRP1;
@@ -842,22 +835,24 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ay TEMPLATE_graphics_next,Y;
    asm sta.z TEMPLATE_gfx_index + 1;
    asm tay;
-   // Spend the old six-cycle center pad preparing horizontal motion for the
-   // following scanline; this does not move either right-half PF write.
-   asm lda.z TEMPLATE_event_code;
-   asm sta HMP0;
    asm lda.ax TEMPLATE_playfield_right_pf0,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
+   // Carry the continuing P1 row in A across the physical boundary.  The
+   // eight-cycle entry prefix plus this 64-cycle body and two NOPs is exactly
+   // 76 cycles, so line B begins naturally at cycle zero with no WSYNC-at-0
+   // double-line trap.
    asm lda.ay TEMPLATE_graphics,Y;
-   asm sta.z TEMPLATE_current_gfx + 1;
-   // Finish early and wait rather than free-running through the boundary.
-   asm sta WSYNC;
+   asm nop;
+   asm nop;
 
    asm @TEMPLATE_Position0LineB:;
+   asm sta.z TEMPLATE_current_gfx + 1;
+   asm lda.z TEMPLATE_event_code;
+   asm sta HMP0;
    // This second physical scanline is a full asymmetric PF line too.  The
    // earlier checkpoint accidentally left PF0 at the previous scanline's
    // right-half value.  Removing the old three-cycle BIT pad and four cycles
@@ -869,15 +864,13 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
    asm sta PF2;
-   asm lda.z TEMPLATE_event_code;
-   asm and #7;
-   asm tay;
-   asm lda.ay TEMPLATE_color,Y;
+   asm lda.z TEMPLATE_pair_y;
    asm sta COLUP0;
    asm lda.ax TEMPLATE_playfield_right_pf0,X;
    asm sta PF0;
-   asm lda #0;
-   asm sta HMP1;
+   // HMP1 is already zero: Setup1LineB clears it immediately after the
+   // preceding HMOVE has consumed it.  Keep the RESP-critical line free of
+   // redundant opposite-lane cleanup.
    asm sta RESP0;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
@@ -922,43 +915,46 @@ require inline void TEMPLATE_draw(void) {
 
    asm @TEMPLATE_Setup0LineB:;
    asm sta.z TEMPLATE_position_packed;
+   // HMOVE fired on the preceding physical line, so HMP0 is dead now.
+   asm lda #0;
+   asm sta HMP0;
    asm lda.ax TEMPLATE_playfield_left_pf0 + 1,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left + 1,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 97,X;
    asm sta PF2;
-   // Arm the branch-free P0 delay state.  Once it is installed event_code is
-   // free for the next rank before the right-half playfield writes.
+   // event_code's low nibble is already the P0 start state (7..12).
    asm lda.z TEMPLATE_event_code;
-   asm and #7;
-   asm tay;
-   asm lda.ay TEMPLATE_p0_start_state,Y;
+   asm and #$0f;
    asm sta.z TEMPLATE_gfx_index;
-   asm ldy.z TEMPLATE_setup_index;
-   asm lda.ay TEMPLATE_draw_code,Y;
-   asm sta.z TEMPLATE_event_code;
    asm lda.ax TEMPLATE_playfield_right_pf0 + 1,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 97,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right + 1,X;
    asm sta PF2;
-   asm lda.ay TEMPLATE_event_order,Y;
-   asm sta.z TEMPLATE_action_y;
+   // Use the tail to stage the next ordinary band's left PF0 and carry the
+   // two currently displayed rows across the boundary.  The following two
+   // physical lines finish the next-event metadata handoff without spilling
+   // a hidden 77th cycle into an extra scanline.
+   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm sta PF0;
    asm lda.z TEMPLATE_current_gfx;
    asm ldy.z TEMPLATE_current_gfx + 1;
-   // Setup0LineB gained the cycle-zero position_packed store above, replacing
-   // the old three-cycle tail pad exactly.
-   // The JMP itself completes cycle 76, so NormalLineA begins at physical
-   // cycle zero without a post-WSYNC transfer.
-   asm jmp @TEMPLATE_NormalLineA;
+   asm nop;
+   asm jmp @TEMPLATE_PostSetupLineA;
 
    // ---------------------------------------------------------------
    // P1 position/setup bands, symmetric except P0 carries the continuing row.
    // ---------------------------------------------------------------
    asm @TEMPLATE_Position1Boundary:;
    asm sta WSYNC;
+   // Same fixed eight-cycle top-edge prefix as P0.
+   asm bit.z TEMPLATE_position_packed;
+   asm nop;
+   asm jmp @TEMPLATE_Position1LineA;
+
    asm @TEMPLATE_Position1LineA:;
    asm sta GRP0;
    asm sty GRP1;
@@ -978,15 +974,16 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
+   // Carry the continuing P0 row across the exact natural boundary, just as
+   // the P0 position path carries P1.
    asm lda.ay TEMPLATE_graphics,Y;
-   // Use the last cycles of line A to commit the continuing P0 row.  This
-   // deliberately moves work out of the following RESP-critical scanline.
+   asm nop;
+   asm nop;
+
+   asm @TEMPLATE_Position1LineB:;
    asm sta.z TEMPLATE_current_gfx;
    asm lda.z TEMPLATE_event_code;
    asm sta HMP1;
-   asm sta WSYNC;
-
-   asm @TEMPLATE_Position1LineB:;
    // Full PF0/PF1/PF2 on the second physical scanline.  The three cycles
    // recovered above plus the old NOP padding pay for both PF0 transitions;
    // the complete path is 75 cycles.
@@ -996,15 +993,11 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
    asm sta PF2;
-   asm lda.z TEMPLATE_event_code;
-   asm and #7;
-   asm tay;
-   asm lda.ay TEMPLATE_color,Y;
+   asm lda.z TEMPLATE_pair_y;
    asm sta COLUP1;
    asm lda.ax TEMPLATE_playfield_right_pf0,X;
    asm sta PF0;
-   asm lda #0;
-   asm sta HMP0;
+   // HMP0 was cleared after its last HMOVE by Setup0LineB.
    asm sta RESP1;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
@@ -1044,31 +1037,86 @@ require inline void TEMPLATE_draw(void) {
 
    asm @TEMPLATE_Setup1LineB:;
    asm sta.z TEMPLATE_position_packed;
+   // Symmetric post-HMOVE cleanup for P1.
+   asm lda #0;
+   asm sta HMP1;
    asm lda.ax TEMPLATE_playfield_left_pf0 + 1,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left + 1,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 97,X;
    asm sta PF2;
+   // event_code's low nibble is already the P1 start state (1..6).
    asm lda.z TEMPLATE_event_code;
-   asm and #7;
-   asm clc;
-   asm adc #1;
+   asm and #$0f;
    asm sta.z TEMPLATE_gfx_index + 1;
-   asm ldy.z TEMPLATE_setup_index;
-   asm lda.ay TEMPLATE_draw_code,Y;
-   asm sta.z TEMPLATE_event_code;
    asm lda.ax TEMPLATE_playfield_right_pf0 + 1,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 97,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right + 1,X;
    asm sta PF2;
-   asm lda.ay TEMPLATE_event_order,Y;
-   asm sta.z TEMPLATE_action_y;
+   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm sta PF0;
    asm lda.z TEMPLATE_current_gfx;
    asm ldy.z TEMPLATE_current_gfx + 1;
-   // Setup1LineB likewise uses the former tail-pad cycles at its entry.
+   asm nop;
+   asm jmp @TEMPLATE_PostSetupLineA;
+
+   // Post-setup pipeline.  Scheduler spacing guarantees ordinary raster time
+   // after every setup event.  Setup?LineB stages PF0 for line A and carries
+   // P0/P1 rows in A/Y; these two lines finish the next-event metadata handoff
+   // without allowing Setup?LineB to run into a phantom scanline.
+   asm @TEMPLATE_PostSetupLineA:;
+   asm sta GRP0;
+   asm sty GRP1;
+   asm lda.ax TEMPLATE_playfield_left,X;
+   asm sta PF1;
+   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm sta PF2;
+   asm ldy.z TEMPLATE_gfx_index;
+   asm lda.ay TEMPLATE_graphics_next,Y;
+   asm sta.z TEMPLATE_gfx_index;
+   asm tay;
+   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm sta PF0;
+   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm sta PF1;
+   asm lda.ax TEMPLATE_playfield_right,X;
+   asm sta PF2;
+   asm lda.ay TEMPLATE_graphics,Y;
+   asm sta.z TEMPLATE_current_gfx;
+   asm ldy.z TEMPLATE_setup_index;
+   asm lda.ay TEMPLATE_event_order,Y;
+   asm sta.z TEMPLATE_action_y;
+   asm lda.ay TEMPLATE_draw_code,Y;
+   asm nop;
+
+   asm @TEMPLATE_PostSetupLineB:;
+   asm sta.z TEMPLATE_event_code;
+   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm sta PF0;
+   asm lda.ax TEMPLATE_playfield_left,X;
+   asm sta PF1;
+   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm sta PF2;
+   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm sta PF0;
+   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm sta PF1;
+   asm ldy.z TEMPLATE_gfx_index + 1;
+   asm lda.ay TEMPLATE_graphics_next,Y;
+   asm sta.z TEMPLATE_gfx_index + 1;
+   asm tay;
+   asm lda.ax TEMPLATE_playfield_right,X;
+   asm sta PF2;
+   asm lda.ay TEMPLATE_graphics,Y;
+   asm tay;
+   asm lda.z TEMPLATE_current_gfx;
+   asm dex;
+   // Five-cycle pad makes the absolute jump complete exactly at cycle 76.
+   asm bit.z TEMPLATE_event_stage;
+   asm nop;
    asm jmp @TEMPLATE_NormalLineA;
 
    asm @TEMPLATE_DrawReturn:;

@@ -505,3 +505,23 @@ yet.  Immediate next step: restructure the position scanline so its left PF
 state is pre-staged at the tail of the preceding line, then replace the fixed
 RESP store with `JMP (TEMPLATE_position_packed)` and make the selected landing
 return to a lane-specific continuation.  Do not reintroduce 256-byte alignment.
+
+
+2026-08-20 frame-stability checkpoint
+-------------------------------------
+The full PF0/PF1/PF2 non-reflected raster now removes the five phantom
+scanlines previously introduced by Setup0/1LineB overflow.  Setup line B stages
+the following ordinary band's left PF0 and carries the displayed rows; a
+two-line post-setup pipeline finishes next-event action/code metadata inside
+the scheduler-guaranteed ordinary gap.  vcs_frame_timing passes 97 checked
+frames at Stella's 262 displayed lines (`--raw-lines 264`).
+
+Build accounting at this checkpoint: ROM 3709/4090, RAM 117/128.  Focused
+branch-contract, source-hygiene, and branding tests pass.
+
+Still WIP: the visible raster continues to use the fixed RESP fallback.  The
+previous 128-byte coarse RESP ladder was temporarily removed to recover ROM
+while fixing frame stability; setup_position retains slot*3 plus bit-6 lane
+encoding.  pair_y/color staging for subsequent events is also intentionally
+deferred to the upcoming real position-line schedule.  Do not claim horizontal
+X=0..159 calibration yet.
