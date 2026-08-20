@@ -460,13 +460,21 @@ saved stack return address remains provable, including deliberate modification t
 RIOT-RAM's stack-page mirror. Unknown/external-input branch conditions retain both CFG
 edges rather than letting one sampled execution history prove the other edge dead.
 
-Concrete input discovery starts with all controller and console inputs inactive/high.
-If an executed path actually reads SWCHA, SWCHB, or an INPT register, `vcsc-disas`
-then runs small one-active-low-input scenarios for that family and unions only positive
-reachability observations. It does not blindly enumerate the Cartesian product of all
-controller states. The generated header reports scenario count/productivity, executed
-instruction totals, distinct ROM and RIOT-RAM instruction starts, RAM bytes written,
-and the neutral run's final CPU state.
+Concrete input discovery treats the console switches according to their hardware use.
+SELECT and RESET are momentary and therefore start released/high. COLOR/BW and the left
+and right difficulty switches are maintained controls with no universally known startup
+position, so the first pass semantically exhausts all eight combinations of those three
+SWCHB bits. The all-high case runs first; if that bounded execution never reads SWCHB,
+the other seven settings are provably execution-equivalent and are counted as covered
+without redundant emulator runs. Once SWCHB is observed, all remaining maintained-switch
+combinations are executed explicitly. If SWCHB is actually read, `vcsc-disas` additionally runs a SELECT press-and-release and
+a RESET press-and-release under each of the eight maintained-switch combinations. The
+pulse begins after a bounded startup interval and remains asserted long enough for an
+ordinary frame-polling loop to observe it before release. SWCHA joystick directions and
+INPT inputs remain demand-driven one-active-low scenarios rather than a Cartesian product
+of controller states. The generated header reports scenario count/productivity, executed
+instruction totals, distinct ROM and RIOT-RAM instruction starts, RAM bytes written, and
+the all-switches-high run's final CPU state.
 
 When execution enters RIOT RAM, the probe snapshots the instruction bytes actually
 executed there and tracks simple ROM-to-RAM write provenance. `vcsc-disas` prints that
@@ -479,8 +487,14 @@ analysis. Its 1K loader uses SP-sensitive `TSX/PHA`, one-byte `BRK` calls whose 
 handler modifies the saved return PC before `RTI`, a SWCHA-gated loader path, and a
 ROM-to-RIOT-RAM copy followed by `JMP $00C2`. H1's alternate SWCHA execution reaches
 that loader and recovers the RAM-resident game as comment-only instructions with ROM
-provenance. Iterating newly proven static and concrete execution contexts to a full
-fixed point remains H2; sampled execution is never negative reachability proof.
+provenance. H2 now iterates static and concrete discovery to a bounded fixed point:
+when static analysis reaches an entry with exact A/X/Y/SP, modeled flags, and all 128
+RIOT-RAM bytes known, that complete state may continue in the concrete engine. Newly
+observed ROM targets feed back into the CFG, and newly decoded static paths may expose
+another exact seed. The process stops when no new reachability appears. Mapper families
+with cartridge RAM or transient mapper state not represented by the abstract state are
+excluded from static-to-concrete seeding rather than supplied guessed contents. Sampled
+execution is never negative reachability proof.
 
 ## Video and controller inference
 
@@ -602,9 +616,11 @@ The bounded concrete/hybrid pass now exposes input-gated, self-modifying, and dy
 constructed RIOT-RAM code while retaining static alternate branch edges. Concrete
 execution remains intentionally gated on a trusted cartridge topology; a weak
 size-default F8/F6/F4/FA guess is not enough because executing an unsupported mapper
-through the wrong hotspot model can manufacture false reachability. DPC concrete
-execution, unresolved indirect tables, and full iterative hybrid convergence remain
-active roadmap work. None of these analyses may weaken the byte-round-trip invariant.
+through the wrong hotspot model can manufacture false reachability. DPC concrete execution and unresolved indirect tables remain active roadmap work.
+Hybrid fixed-point continuation is implemented conservatively only when the complete
+seed state is exact; mapper-owned RAM/latches that are not represented abstractly block
+that direction of feedback instead of being guessed. None of these analyses may weaken
+the byte-round-trip invariant.
 
 The detailed implementation roadmap and analysis contracts live in
 `../.../disassembler.txt`.

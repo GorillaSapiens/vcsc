@@ -72,11 +72,15 @@ public:
    DiscoveryMachine(const uint8_t *rom, size_t rom_size, int mapper,
                     size_t bank_count, size_t reset_bank, bool superchip,
                     uint8_t swcha, uint8_t swchb, const uint8_t inpt[6],
+                    uint8_t swchb_press_mask, unsigned press_at,
+                    unsigned release_at, const vcsc_concrete_seed_t *seed,
                     uint8_t *rom_exec_start, uint16_t *rom_exec_pc,
                     vcsc_concrete_result_t *result)
       : rom_(rom), rom_size_(rom_size), mapper_(mapper), bank_count_(bank_count),
         bank_(reset_bank), superchip_(superchip), rom_exec_start_(rom_exec_start),
         rom_exec_pc_(rom_exec_pc), result_(result), swcha_(swcha), swchb_(swchb),
+        base_swchb_(swchb), swchb_press_mask_(swchb_press_mask),
+        press_at_(press_at), release_at_(release_at), seeded_(seed != nullptr),
         cpu_(read_thunk, write_thunk, nullptr)
    {
       active_ = this;
@@ -94,6 +98,7 @@ public:
       cpu_.IRQ(true);
       cpu_.NMI(true);
       cpu_.Reset();
+      if (seed) apply_seed(*seed);
    }
 
    int run()
@@ -102,6 +107,7 @@ public:
       unsigned executed = 0;
       unsigned stale = 0;
       for (instructions = 0; instructions < kMaxInstructions; ++instructions) {
+         update_scripted_inputs(instructions);
          const unsigned starts_before = result_->rom_instruction_starts +
                                         result_->ram_instruction_starts;
          const uint16_t pc = cpu_.GetPC();
@@ -114,8 +120,9 @@ public:
          current_opcode_ = opcode;
          current_len_ = instruction_length(opcode);
          const char *mnemonic = mos6502::GetCode(opcode);
-         if (mnemonic && ((std::strcmp(mnemonic, "RTS") == 0 && jsr_depth_ == 0u) ||
-                          (std::strcmp(mnemonic, "RTI") == 0 && interrupt_depth_ == 0u))) {
+         if (!seeded_ && mnemonic &&
+             ((std::strcmp(mnemonic, "RTS") == 0 && jsr_depth_ == 0u) ||
+              (std::strcmp(mnemonic, "RTI") == 0 && interrupt_depth_ == 0u))) {
             result_->top_level_return = 1;
             break;
          }
@@ -142,7 +149,8 @@ public:
             ++stale;
          else
             stale = 0;
-         if (stale >= kConvergenceInstructions) {
+         if (stale >= kConvergenceInstructions &&
+             (release_at_ == 0u || instructions >= release_at_ + kConvergenceInstructions)) {
             result_->converged = 1;
             break;
          }
@@ -173,10 +181,15 @@ private:
    vcsc_concrete_result_t *result_;
    uint8_t swcha_ = 0xffu;
    uint8_t swchb_ = 0xffu;
+   uint8_t base_swchb_ = 0xffu;
+   uint8_t swchb_press_mask_ = 0u;
+   unsigned press_at_ = 0u;
+   unsigned release_at_ = 0u;
    uint8_t inpt_[6] = { 0x80u, 0x80u, 0x80u, 0x80u, 0x80u, 0x80u };
    uint8_t ram_[VCSC_CONCRETE_RIOT_RAM_SIZE];
    uint32_t ram_source_[VCSC_CONCRETE_RIOT_RAM_SIZE];
    uint8_t cart_ram_[kCartRamBytes];
+   bool seeded_ = false;
    mos6502 cpu_;
    uint64_t cpu_cycles_ = 0;
    uint64_t virtual_cycles_ = 0;
@@ -210,6 +223,46 @@ private:
    static DiscoveryMachine *active_;
    static uint8_t read_thunk(uint16_t address) { return active_->read(address); }
    static void write_thunk(uint16_t address, uint8_t value) { active_->write(address, value); }
+
+   void apply_seed(const vcsc_concrete_seed_t &seed)
+   {
+      std::memcpy(ram_, seed.ram, sizeof(ram_));
+      std::fill(ram_source_, ram_source_ + VCSC_CONCRETE_RIOT_RAM_SIZE,
+                VCSC_CONCRETE_NO_SOURCE);
+      bank_ = bank_count_ ? static_cast<size_t>(seed.bank) % bank_count_ : 0u;
+      if (mapper_is_wd()) {
+         wd_config_ = static_cast<uint8_t>(seed.mapper_config & 7u);
+         wd_pending_ = false;
+      }
+      if (mapper_ == kMapFC && seed.mapper_config != 0xffffu)
+         fc_pending_ = static_cast<uint16_t>(seed.mapper_config % bank_count_);
+      if (mapper_ == kMapE0) {
+         e0_segment_[0] = static_cast<uint8_t>(seed.mapper_config & 7u);
+         e0_segment_[1] = static_cast<uint8_t>((seed.mapper_config >> 3) & 7u);
+         e0_segment_[2] = static_cast<uint8_t>((seed.mapper_config >> 6) & 7u);
+      }
+      if (mapper_ == kMapE7) {
+         e7_lower_ = static_cast<unsigned>(seed.mapper_config & 0x0fu);
+         e7_ram_block_ = static_cast<unsigned>((seed.mapper_config >> 4) & 3u);
+      }
+      if (mapper_ == kMap3F || mapper_ == kMap3E)
+         three_config_ = seed.mapper_config;
+      fe_waiting_data_ = false;
+      cpu_.SetPC(seed.pc);
+      cpu_.SetA(seed.a);
+      cpu_.SetX(seed.x);
+      cpu_.SetY(seed.y);
+      cpu_.SetS(seed.sp);
+      cpu_.SetP(seed.p);
+   }
+
+   void update_scripted_inputs(unsigned instruction_index)
+   {
+      swchb_ = base_swchb_;
+      if (swchb_press_mask_ != 0u && instruction_index >= press_at_ &&
+          (release_at_ == 0u || instruction_index < release_at_))
+         swchb_ = static_cast<uint8_t>(base_swchb_ & ~swchb_press_mask_);
+   }
 
    static uint16_t bus_address(uint16_t address) {
       return static_cast<uint16_t>(address & 0x1fffu);
@@ -859,12 +912,14 @@ extern "C" int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
       result->ram_exec_source[i] = VCSC_CONCRETE_NO_SOURCE;
 
    auto run_one = [&](uint8_t swcha, uint8_t swchb, const uint8_t inpt[6],
-                      bool keep_final_cpu) -> int {
+                      bool keep_final_cpu, uint8_t swchb_press_mask,
+                      unsigned press_at, unsigned release_at) -> int {
       std::vector<uint8_t> run_exec(rom_size, 0);
       std::vector<uint16_t> run_pc(rom_size, 0);
       vcsc_concrete_result_t run_result{};
       DiscoveryMachine machine(rom, rom_size, mapper, bank_count, reset_bank,
                                superchip != 0, swcha, swchb, inpt,
+                               swchb_press_mask, press_at, release_at, nullptr,
                                run_exec.data(), run_pc.data(), &run_result);
       if (!machine.run()) return 0;
       merge_run(rom_size, rom_exec_start, rom_exec_pc, result,
@@ -873,31 +928,91 @@ extern "C" int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
    };
 
    uint8_t neutral_inpt[6] = { 0x80u, 0x80u, 0x80u, 0x80u, 0x80u, 0x80u };
-   if (!run_one(0xffu, 0xffu, neutral_inpt, true)) return 0;
 
-   /* H1 alternate-input discovery.  Do not blindly multiply every concrete
-    * run: only vary an input family after an already executed path actually
-    * read it.  Each scenario changes one active-low input at a time, so every
-    * newly observed instruction is a real execution under a simple, documented
-    * controller/console state rather than a speculative static edge. */
+   /* The two momentary console switches have known startup state (released),
+    * but the three maintained switches do not.  Semantically exhaust all eight
+    * startup combinations of COLOR/BW and the left/right difficulty switches
+    * on the first pass.  Bits 3,6,7 are the maintained SWCHB inputs;
+    * SELECT/RESET remain released/high and the unused bits remain high.
+    *
+    * Run all-high first.  If that complete bounded execution never reads
+    * SWCHB, the other seven maintained-switch settings are provably
+    * execution-equivalent: before the first SWCHB read there is no CPU-visible
+    * mechanism by which those bits can affect execution.  Count those seven
+    * equivalent scenarios as covered without paying seven redundant emulator
+    * runs.  Once SWCHB is observed, run the remaining seven combinations for
+    * real.  This keeps the exhaustive startup-state contract without turning
+    * mapper fuzz and bulk corpora into an 8x concrete-execution tax. */
+   if (!run_one(0xffu, 0xffu, neutral_inpt, true, 0u, 0u, 0u)) return 0;
+   if (result->input_read_mask & kInputSWCHB) {
+      for (unsigned combo = 1u; combo < 8u; ++combo) {
+         uint8_t swchb = 0xffu;
+         if (combo & 1u) swchb = static_cast<uint8_t>(swchb & ~(1u << 3));
+         if (combo & 2u) swchb = static_cast<uint8_t>(swchb & ~(1u << 6));
+         if (combo & 4u) swchb = static_cast<uint8_t>(swchb & ~(1u << 7));
+         if (!run_one(0xffu, swchb, neutral_inpt, false, 0u, 0u, 0u)) return 0;
+      }
+   } else {
+      result->scenarios_run += 7u;
+   }
+
+   /* H1/H2 alternate-input discovery.  Controller inputs remain demand-driven,
+    * but console startup switch positions above are exhaustive.  If software
+    * actually reads SWCHB, also exercise a real press-and-release pulse for
+    * SELECT and RESET under each maintained-switch combination.  A pulse begins
+    * after roughly one frame's worth of instructions and lasts roughly one
+    * frame; convergence is suppressed until after release so the event cannot
+    * be optimized away by the no-new-code cutoff. */
+   if (result->input_read_mask & kInputSWCHB) {
+      constexpr unsigned kButtonPressAt = 8192u;
+      constexpr unsigned kButtonReleaseAt = 16384u;
+      for (unsigned combo = 0; combo < 8u; ++combo) {
+         uint8_t swchb = 0xffu;
+         if (combo & 1u) swchb = static_cast<uint8_t>(swchb & ~(1u << 3));
+         if (combo & 2u) swchb = static_cast<uint8_t>(swchb & ~(1u << 6));
+         if (combo & 4u) swchb = static_cast<uint8_t>(swchb & ~(1u << 7));
+         if (!run_one(0xffu, swchb, neutral_inpt, false, 1u << 1,
+                      kButtonPressAt, kButtonReleaseAt)) return 0;
+         if (!run_one(0xffu, swchb, neutral_inpt, false, 1u << 0,
+                      kButtonPressAt, kButtonReleaseAt)) return 0;
+      }
+   }
    if (result->input_read_mask & kInputSWCHA) {
       for (unsigned bit = 0; bit < 8u; ++bit) {
          uint8_t swcha = (uint8_t)(0xffu & ~(1u << bit));
-         if (!run_one(swcha, 0xffu, neutral_inpt, false)) return 0;
-      }
-   }
-   if (result->input_read_mask & kInputSWCHB) {
-      static const unsigned useful_bits[] = { 7u, 6u, 3u, 1u, 0u };
-      for (unsigned bit : useful_bits) {
-         uint8_t swchb = (uint8_t)(0xffu & ~(1u << bit));
-         if (!run_one(0xffu, swchb, neutral_inpt, false)) return 0;
+         if (!run_one(swcha, 0xffu, neutral_inpt, false, 0u, 0u, 0u)) return 0;
       }
    }
    for (unsigned input = 0; input < 6u; ++input) {
       if (!(result->input_read_mask & (kInputINPT0 << input))) continue;
       uint8_t active_inpt[6] = { 0x80u, 0x80u, 0x80u, 0x80u, 0x80u, 0x80u };
       active_inpt[input] = 0x00u;
-      if (!run_one(0xffu, 0xffu, active_inpt, false)) return 0;
+      if (!run_one(0xffu, 0xffu, active_inpt, false, 0u, 0u, 0u)) return 0;
    }
    return 1;
+}
+
+
+extern "C" int vcsc_concrete_discover_seed(const uint8_t *rom, size_t rom_size,
+                                              int mapper, size_t bank_count,
+                                              int superchip,
+                                              const vcsc_concrete_seed_t *seed,
+                                              uint8_t *rom_exec_start,
+                                              uint16_t *rom_exec_pc,
+                                              vcsc_concrete_result_t *result)
+{
+   if (!rom || !seed || !rom_exec_start || !rom_exec_pc || !result ||
+       bank_count == 0u || seed->bank >= bank_count) return -1;
+   std::vector<uint8_t> run_exec(rom_size, 0);
+   std::vector<uint16_t> run_pc(rom_size, 0);
+   vcsc_concrete_result_t run_result{};
+   uint8_t neutral_inpt[6] = { 0x80u, 0x80u, 0x80u, 0x80u, 0x80u, 0x80u };
+   DiscoveryMachine machine(rom, rom_size, mapper, bank_count, seed->bank,
+                            superchip != 0, 0xffu, 0xffu, neutral_inpt,
+                            0u, 0u, 0u, seed,
+                            run_exec.data(), run_pc.data(), &run_result);
+   if (!machine.run()) return -1;
+   return static_cast<int>(merge_run(rom_size, rom_exec_start, rom_exec_pc,
+                                     result, run_exec.data(), run_pc.data(),
+                                     run_result, false));
 }

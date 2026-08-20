@@ -15,6 +15,18 @@ extern "C" {
 #define VCSC_CONCRETE_NO_SOURCE UINT32_MAX
 
 typedef struct {
+   uint16_t pc;
+   uint16_t mapper_config;
+   uint16_t bank;
+   uint8_t a;
+   uint8_t x;
+   uint8_t y;
+   uint8_t sp;
+   uint8_t p;
+   uint8_t ram[VCSC_CONCRETE_RIOT_RAM_SIZE];
+} vcsc_concrete_seed_t;
+
+typedef struct {
    unsigned instructions;
    unsigned rom_instruction_starts;
    unsigned ram_instruction_starts;
@@ -54,6 +66,18 @@ int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
                            uint8_t *rom_exec_start,
                            uint16_t *rom_exec_pc,
                            vcsc_concrete_result_t *result);
+
+/* Continue concrete discovery from one statically proven exact execution state.
+ * The aggregate result/ROM-exec arrays must already have been initialized by
+ * vcsc_concrete_discover().  This is used by H2 fixed-point iteration: static
+ * analysis supplies only fully concrete states, and newly observed execution is
+ * unioned as positive evidence. */
+int vcsc_concrete_discover_seed(const uint8_t *rom, size_t rom_size,
+                                int mapper, size_t bank_count, int superchip,
+                                const vcsc_concrete_seed_t *seed,
+                                uint8_t *rom_exec_start,
+                                uint16_t *rom_exec_pc,
+                                vcsc_concrete_result_t *result);
 
 #ifdef __cplusplus
 }

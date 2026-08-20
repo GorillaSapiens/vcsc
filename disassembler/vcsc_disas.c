@@ -213,6 +213,13 @@ typedef struct {
    uint8_t *concrete_rom_exec;
    uint16_t *concrete_rom_pc;
    vcsc_concrete_result_t concrete;
+   vcsc_concrete_seed_t *h2_seeds;
+   size_t h2_seed_count;
+   size_t h2_seed_cap;
+   size_t h2_seed_processed;
+   unsigned h2_rounds;
+   unsigned h2_seed_runs;
+   unsigned h2_new_reachability;
    work_item_t *work;
    size_t work_count;
    size_t work_cap;
@@ -1576,6 +1583,7 @@ static void free_analysis(analysis_t *a)
    free(a->banks);
    free(a->concrete_rom_exec);
    free(a->concrete_rom_pc);
+   free(a->h2_seeds);
    free(a->work);
    memset(a, 0, sizeof(*a));
 }
@@ -4212,6 +4220,149 @@ static int discover_speculative_islands(analysis_t *a)
    return 1;
 }
 
+#define H2_MAX_STATIC_SEEDS 64u
+#define H2_MAX_ROUNDS 8u
+
+static int h2_mapper_seedable(const analysis_t *a)
+{
+   if (!a->concrete_available || superchip_active(a)) return 0;
+   switch (a->mapper) {
+   case MAP_1K:
+   case MAP_2K:
+   case MAP_4K:
+   case MAP_F8:
+   case MAP_F6:
+   case MAP_F4:
+   case MAP_FC:
+   case MAP_E0:
+   case MAP_3F:
+   case MAP_JANE:
+   case MAP_0840:
+   case MAP_UA:
+   case MAP_UASW:
+   case MAP_0FA0:
+      return 1;
+   default:
+      /* FA/CV/WD/E7/3E have cartridge RAM whose exact contents are not yet
+       * represented by abstract_state_t; FE has a transient post-$01FE data
+       * latch.  Do not manufacture a concrete continuation without that state. */
+      return 0;
+   }
+}
+
+static int h2_state_is_exact(const abstract_state_t *state)
+{
+   unsigned address;
+   if (!state->a_known || !state->x_known || !state->y_known || !state->sp_known ||
+       !state->carry_known || !state->zero_known || !state->negative_known ||
+       !state->overflow_known || !state->decimal_known)
+      return 0;
+   for (address = 0x80u; address <= 0xffu; ++address)
+      if (!state_zp_is_known(state, (uint8_t)address)) return 0;
+   return 1;
+}
+
+static uint8_t h2_status_byte(const abstract_state_t *state)
+{
+   uint8_t p = 0x24u; /* bit 5 is fixed high; keep IRQ-disable set as after RESET */
+   if (state->carry) p |= 0x01u; else p &= (uint8_t)~0x01u;
+   if (state->zero) p |= 0x02u; else p &= (uint8_t)~0x02u;
+   if (state->decimal) p |= 0x08u; else p &= (uint8_t)~0x08u;
+   if (state->overflow) p |= 0x40u; else p &= (uint8_t)~0x40u;
+   if (state->negative) p |= 0x80u; else p &= (uint8_t)~0x80u;
+   return p;
+}
+
+static int h2_seed_equal(const vcsc_concrete_seed_t *a,
+                         const vcsc_concrete_seed_t *b)
+{
+   return a->pc == b->pc && a->mapper_config == b->mapper_config &&
+          a->bank == b->bank && a->a == b->a && a->x == b->x &&
+          a->y == b->y && a->sp == b->sp && a->p == b->p &&
+          memcmp(a->ram, b->ram, sizeof(a->ram)) == 0;
+}
+
+static int h2_record_static_seed(analysis_t *a, const work_item_t *item,
+                                 uint16_t pc, const abstract_state_t *state)
+{
+   vcsc_concrete_seed_t seed;
+   size_t physical;
+   size_t i;
+   vcsc_concrete_seed_t *ns;
+   if (!h2_mapper_seedable(a) || !h2_state_is_exact(state) ||
+       a->h2_seed_count >= H2_MAX_STATIC_SEEDS)
+      return 1;
+   physical = a->banks[item->bank].file_offset + item->offset;
+   if (physical >= a->rom_size || a->concrete_rom_exec[physical]) return 1;
+   memset(&seed, 0, sizeof(seed));
+   seed.pc = pc;
+   seed.mapper_config = item->mapper_config;
+   seed.bank = (uint16_t)item->bank;
+   seed.a = state->a;
+   seed.x = state->x;
+   seed.y = state->y;
+   seed.sp = state->sp;
+   seed.p = h2_status_byte(state);
+   for (i = 0; i < VCSC_CONCRETE_RIOT_RAM_SIZE; ++i)
+      seed.ram[i] = state->zp_value[0x80u + i];
+   for (i = 0; i < a->h2_seed_count; ++i)
+      if (h2_seed_equal(&a->h2_seeds[i], &seed)) return 1;
+   if (a->h2_seed_count == a->h2_seed_cap) {
+      size_t nc = a->h2_seed_cap ? a->h2_seed_cap * 2u : 8u;
+      if (nc > H2_MAX_STATIC_SEEDS) nc = H2_MAX_STATIC_SEEDS;
+      ns = (vcsc_concrete_seed_t *)realloc(a->h2_seeds, nc * sizeof(*ns));
+      if (!ns) return 0;
+      a->h2_seeds = ns;
+      a->h2_seed_cap = nc;
+   }
+   a->h2_seeds[a->h2_seed_count++] = seed;
+   return 1;
+}
+
+static int h2_run_new_static_seeds(analysis_t *a, unsigned *new_reachability)
+{
+   unsigned added = 0u;
+   if (!new_reachability) return 0;
+   while (a->h2_seed_processed < a->h2_seed_count) {
+      const vcsc_concrete_seed_t *seed = &a->h2_seeds[a->h2_seed_processed++];
+      int n = vcsc_concrete_discover_seed(a->rom, a->rom_size, (int)a->mapper,
+                                          a->bank_count, superchip_active(a), seed,
+                                          a->concrete_rom_exec, a->concrete_rom_pc,
+                                          &a->concrete);
+      if (n < 0) return 0;
+      ++a->h2_seed_runs;
+      added += (unsigned)n;
+   }
+   a->h2_new_reachability += added;
+   *new_reachability = added;
+   return 1;
+}
+
+static int seed_missing_concrete_code(analysis_t *a)
+{
+   size_t physical;
+   abstract_state_t state;
+   int queued = 0;
+   memset(&state, 0, sizeof(state));
+   for (physical = 0; physical < a->rom_size; ++physical) {
+      size_t cb;
+      if (!a->concrete_rom_exec[physical]) continue;
+      for (cb = 0; cb < a->bank_count; ++cb) {
+         bank_t *b = &a->banks[cb];
+         if (physical >= b->file_offset && physical < b->file_offset + b->size) {
+            size_t off = physical - b->file_offset;
+            uint16_t pc = a->concrete_rom_pc[physical];
+            if (!(b->roles[off] & ROLE_CODE_START) && !rom_offset_hidden(a, off)) {
+               if (!push_work_state_ctx(a, cb, off, &state, pc, 0u)) return -1;
+               queued = 1;
+            }
+            break;
+         }
+      }
+   }
+   return queued;
+}
+
 static int trace_analysis_internal(analysis_t *a, const options_t *opt,
                                    int reset_only, int run_speculative)
 {
@@ -4446,6 +4597,8 @@ drain_work:
                       a->mapper == MAP_E0 || a->mapper == MAP_E7 ||
                       mapper_is_three_family(a->mapper)) ? item.pc
                        : (uint16_t)(b->origin + (uint16_t)off);
+      if (!reset_only && !h2_record_static_seed(a, &item, canonical_pc, &input_state))
+         return 0;
       flow = instruction_flow(opcode);
 
       if (len >= 2u) operand = a->rom[b->file_offset + off + 1u];
@@ -5274,28 +5427,30 @@ drain_work:
     * BRK/RTI and other dynamic continuations: seeding every observed address
     * up front with an unknown state would meet away useful pointer/flag facts. */
    if (!reset_only && !concrete_done && a->concrete_available) {
-      size_t physical;
-      abstract_state_t state;
+      int seeded;
       concrete_done = 1;
-      memset(&state, 0, sizeof(state));
-      for (physical = 0; physical < a->rom_size; ++physical) {
-         size_t cb;
-         if (!a->concrete_rom_exec[physical]) continue;
-         for (cb = 0; cb < a->bank_count; ++cb) {
-            bank_t *b = &a->banks[cb];
-            if (physical >= b->file_offset &&
-                physical < b->file_offset + b->size) {
-               size_t off = physical - b->file_offset;
-               uint16_t pc = a->concrete_rom_pc[physical];
-               if (!(b->roles[off] & ROLE_CODE_START) &&
-                   !rom_offset_hidden(a, off) &&
-                   !push_work_state_ctx(a, cb, off, &state, pc, 0u))
-                  return 0;
-               break;
-            }
-         }
+      seeded = seed_missing_concrete_code(a);
+      if (seeded < 0) return 0;
+      if (seeded && a->work_count != 0) goto drain_work;
+   }
+
+   /* H2: static and concrete discovery meet at a deterministic fixed point.
+    * A static state may continue concretely only when every CPU register/flag
+    * we model and all RIOT RAM bytes are exact.  New concrete targets are then
+    * fed back to the static work list.  Newly decoded static paths can in turn
+    * expose another exact seed.  Stop when no unprocessed exact seed adds new
+    * reachability, or at the hard round bound. */
+   if (!reset_only && concrete_done && a->concrete_available &&
+       a->h2_rounds < H2_MAX_ROUNDS && a->h2_seed_processed < a->h2_seed_count) {
+      unsigned added = 0u;
+      int seeded;
+      ++a->h2_rounds;
+      if (!h2_run_new_static_seeds(a, &added)) return 0;
+      if (added != 0u) {
+         seeded = seed_missing_concrete_code(a);
+         if (seeded < 0) return 0;
+         if (seeded && a->work_count != 0) goto drain_work;
       }
-      if (a->work_count != 0) goto drain_work;
    }
 
    if (run_speculative && !speculative_done) {
@@ -8094,9 +8249,12 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                  (a->concrete.converged ? "; reachability converged" :
                   (a->concrete.top_level_return ? "; top-level return reached" : "")));
       fprintf(fp,
-              "; concrete neutral final CPU: PC=$%04X A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X; inactive controller/console inputs high; alternate active-low input scenarios only for input families actually read\n",
+              "; concrete neutral final CPU: PC=$%04X A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X; startup exhausts 8 COLOR/BW+difficulty combinations; SELECT/RESET press-release pulses are exercised when SWCHB is read\n",
               a->concrete.final_pc, a->concrete.final_a, a->concrete.final_x,
               a->concrete.final_y, a->concrete.final_sp, a->concrete.final_p);
+      if (a->h2_seed_runs)
+         fprintf(fp, "; H2 fixed-point feedback: rounds=%u exact-static-seeds=%u new-reachability=%u\n",
+                 a->h2_rounds, a->h2_seed_runs, a->h2_new_reachability);
    }
 
    {

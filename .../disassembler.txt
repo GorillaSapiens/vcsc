@@ -966,9 +966,15 @@ H1. [x] Make the static CFG stack/interrupt/input aware and explore alternate pa
      leave both branch successors live. A bounded local IRQ trace proves BRK/RTI
      continuations only when the saved stack return address and interrupt path remain
      exact; it gives up rather than guessing through unknown branches or mapper changes.
-   * Concrete discovery now begins with inactive inputs and, on demand, reruns one
-     active-low SWCHA/SWCHB/INPT input at a time only for families an executed path
-     actually reads. Observations are unioned as positive reachability evidence.
+   * Concrete discovery semantically exhausts all eight startup combinations of the
+     maintained SWCHB COLOR/BW and left/right difficulty switches with SELECT/RESET
+     released. The all-high run comes first; if it never reads SWCHB, the other seven
+     settings are provably execution-equivalent and are counted as covered without
+     redundant emulator runs. Once SWCHB is observed, all seven remaining combinations
+     execute explicitly. When SWCHB is actually read, SELECT and RESET are each exercised as a timed
+     press-and-release pulse under every maintained-switch combination. Controller
+     SWCHA/INPT inputs remain demand-driven one-active-low scenarios. Observations
+     are unioned as positive reachability evidence.
    * The concrete cartridge bus now covers all supported non-coprocessor families:
      1K/2K/4K, F8/F6/F4/FA/SC, CV, WD/WDSW, FC, E0, E7, 3F, 3E, FE, JANE, 0840,
      UA/UASW, and 0FA0. It models segmented mappings, native split RAM, FC staging,
@@ -978,12 +984,35 @@ H1. [x] Make the static CFG stack/interrupt/input aware and explore alternate pa
      its loader under an alternate SWCHA scenario and recovers 57 executed RIOT-RAM
      instruction starts with ROM provenance while preserving exact 1K reconstruction.
 
-H2. [ ] Iterate concrete and static discovery to convergence
+H2. [x] Iterate concrete and static discovery to convergence
    * Feed newly proven static entry states and dynamically discovered targets back into
      one another without turning sampled execution into proof that alternate paths are
      impossible.
    * Keep mapper state, copied/generated RAM contents, indirect targets, and provenance
      attached to each discovered execution context; stop at a deterministic fixed point.
+
+   Completed 2026-08-20:
+   * Static-to-concrete continuation is deliberately proof-gated: A/X/Y/SP, modeled
+     C/Z/N/V/D flags, and all 128 RIOT-RAM bytes must be exact at the entry. No unknown
+     register/RAM byte is filled with a guessed value just to make emulation proceed.
+   * Exact static seeds carry PC, current physical bank, mapper configuration, CPU state,
+     and the complete RIOT-RAM image into the maintained MOS6502 concrete engine. New
+     concrete ROM/RAM execution is unioned with existing positive evidence and missing
+     ROM starts are fed back to the abstract CFG. Newly decoded static paths may produce
+     another exact seed; iteration stops at a deterministic fixed point with hard bounds
+     of 64 unique static seeds and 8 feedback rounds.
+   * Static-to-concrete seeds are enabled only for mapper contexts whose complete dynamic
+     state is represented by the abstract model: unbanked 1K/2K/4K, plain F8/F6/F4, FC,
+     E0, 3F, JANE, 0840, UA/UASW, and 0FA0. FA/CV/WD/E7/3E/Superchip cartridge RAM and
+     FE's transient post-$01FE latch remain concrete-RESET-to-static only until those
+     extra state components can be supplied exactly. This is conservative incompleteness,
+     not guessed execution.
+   * A permanent H2 fixture makes RESET concrete execution park on one TIA-read outcome,
+     lets static analysis find the alternate path, establishes a fully exact CPU+RIOT
+     state there, copies ROM code into RAM, and requires fixed-point feedback to execute
+     that RAM payload. A separate console-switch fixture requires all three maintained
+     switches low plus a SELECT press and release, pinning the eight startup combinations
+     and momentary-switch event scenarios.
 
 0. [x] Establish `disassembler/` and exact raw round trip
    * Copy `stego/` to a new top-level `disassembler/` starting point.

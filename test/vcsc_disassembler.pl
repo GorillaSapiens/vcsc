@@ -159,6 +159,63 @@ put16(\$h1_input_payload, 0x03FA, 0xFC40);
 put16(\$h1_input_payload, 0x03FC, 0xFC80);
 put16(\$h1_input_payload, 0x03FE, 0xFC40);
 write_bin(File::Spec->catfile($in, 'h1_input_payload.bin'), $h1_input_payload);
+
+
+# Console-switch concrete scenarios.  The maintained COLOR/BW and difficulty
+# switches have no universally known startup position, so concrete discovery
+# must try all 2^3 combinations with SELECT/RESET released.  This fixture only
+# advances when all three maintained bits are low, then requires an actual
+# SELECT press followed by release before touching RIOT RAM.
+my $console_switches = chr(0xEA) x 1024;
+substr($console_switches, 0x0080, 30,
+   "\xAD\x82\x02" .                 # LDA SWCHB
+   "\x29\xC8" .                     # AND COLOR/BW + both difficulty bits
+   "\xD0\xF9" .                     # BNE back until all three are low
+   "\xAD\x82\x02" .                 # wait SELECT press
+   "\x29\x02" .
+   "\xD0\xF9" .
+   "\xAD\x82\x02" .                 # wait SELECT release
+   "\x29\x02" .
+   "\xF0\xF9" .
+   "\xA9\x5A" .                     # reached only after press+release
+   "\x85\x90" .
+   "\x4C\x99\xFC");                # park
+put16(\$console_switches, 0x03FA, 0xFC80);
+put16(\$console_switches, 0x03FC, 0xFC80);
+put16(\$console_switches, 0x03FE, 0xFC80);
+write_bin(File::Spec->catfile($in, 'console_switches.bin'), $console_switches);
+
+# H2 fixed-point fixture.  Concrete RESET execution sees TIA read $00 as zero
+# and parks at $FD04.  Static analysis correctly treats the TIA read as unknown
+# and explores the BNE-only loader.  That loader makes every abstract CPU flag,
+# register, SP, and all 128 RIOT-RAM bytes exact before copying a five-byte ROM
+# payload to RAM and jumping to it.  H2 must use that exact static state as a
+# concrete continuation seed, execute the RAM payload, then feed any newly
+# observed cartridge targets back into static analysis without inventing state.
+my $h2_fixed_point = chr(0xEA) x 1024;
+substr($h2_fixed_point, 0x0000, 5, "\xA9\x42\x85\x90\x60");
+my $h2_code =
+   "\xA5\x00" .                     # LDA TIA $00: static unknown, concrete zero
+   "\xD0\x0C" .                     # BNE $FD10: static-only loader edge
+   "\x4C\x04\xFD";                 # concrete RESET path parks forever
+$h2_code .= "\xEA" x (0x10 - length($h2_code));
+$h2_code .= "\xA9\x00";
+for my $addr (0x80 .. 0xFF) {
+   $h2_code .= pack('CC', 0x85, $addr); # make all RIOT RAM exact
+}
+$h2_code .=
+   "\xA2\x7F\x9A" .                 # exact SP
+   "\xA2\x11\xA0\x22" .           # exact X/Y
+   "\xD8\x18\xB8\xA9\x01";      # exact D/C/V/N/Z and A
+for my $i (0 .. 4) {
+   $h2_code .= pack('C*', 0xAD, $i, 0xFC, 0x85, 0x80 + $i);
+}
+$h2_code .= "\x4C\x80\x00";       # enter copied payload
+substr($h2_fixed_point, 0x0100, length($h2_code), $h2_code);
+put16(\$h2_fixed_point, 0x03FA, 0xFD04);
+put16(\$h2_fixed_point, 0x03FC, 0xFD00);
+put16(\$h2_fixed_point, 0x03FE, 0xFD04);
+write_bin(File::Spec->catfile($in, 'h2_fixed_point.bin'), $h2_fixed_point);
 write_bin(File::Spec->catfile($in, 'plain2k.bin'), make_rom(2048, 0xF800, 0x0100, "\xA9\x42\x60"));
 write_bin(File::Spec->catfile($in, 'plain4k.bin'), make_rom(4096, 0xF000, 0x0100, "\xA9\x42\x60"));
 # A common preservation/dump form stores a mirrored 2K cartridge twice in a
@@ -1230,11 +1287,27 @@ require_re($h1_input_out,
    qr/\bBRK\n(?:L_[0-9A-F]+:\n)?\s*LDX\s+#\$05/m,
    'static CFG reaches code immediately after the one-byte BRK call');
 require_re($h1_input_out,
-   qr/^; concrete RESET discovery: scenarios=9 productive=[1-9]\d* .*RIOT-RAM-starts=[1-9]\d* .*reachability converged$/m,
+   qr/^; concrete RESET discovery: scenarios=16 productive=[1-9]\d* .*RIOT-RAM-starts=[1-9]\d* .*reachability converged$/m,
    'input-gated loader is reached by a demand-driven alternate SWCHA scenario');
 require_re($h1_input_out,
    qr/^; \$0080: A9 42\s+LDA #\$42\s+; copied from ROM file \$0000$/m,
    'alternate-input execution recovers copied RIOT-RAM payload with provenance');
+
+
+my $console_switches_out = slurp(File::Spec->catfile($out, 'console_switches.s26'));
+require_re($console_switches_out,
+   qr/^; concrete RESET discovery: scenarios=24 productive=[1-9]\d* .*RAM-bytes-written=1.*reachability converged$/m,
+   'all 8 maintained console-switch startup combinations plus SELECT/RESET press-release scenarios run');
+require_re($console_switches_out, qr/\bLDA\s+#\$5A/m,
+   'SELECT press-release path is recovered as executable code');
+
+my $h2_fixed_out = slurp(File::Spec->catfile($out, 'h2_fixed_point.s26'));
+require_re($h2_fixed_out,
+   qr/^; H2 fixed-point feedback: rounds=[1-9]\d* exact-static-seeds=[1-9]\d* new-reachability=[1-9]\d*$/m,
+   'H2 feeds exact static states into concrete discovery');
+require_re($h2_fixed_out,
+   qr/^; \$0080: A9 42\s+LDA #\$42\s+; copied from ROM file \$0000$/m,
+   'H2 concrete continuation executes the static-only copied RAM payload');
 
 # A zero-instruction result is not a successful disassembly.  Keep this out of
 # the bulk round-trip directory because failure is the expected outcome.
