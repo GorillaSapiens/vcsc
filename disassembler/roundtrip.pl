@@ -101,8 +101,6 @@ sub stella_mapper_for_rom {
     $text =~ /^\s*Cart MD5:\s*([0-9A-Fa-f]{32})\s*$/m
         or die "Stella -rominfo did not report Cart MD5\n";
     my $reported_md5 = lc($1);
-    $reported_md5 eq lc($expected_md5)
-        or die "Stella MD5 $reported_md5 does not match local MD5 $expected_md5\n";
     $text =~ /^\s*Bankswitch Type:\s*([^\r\n]+?)\s*$/m
         or die "Stella -rominfo did not report Bankswitch Type\n";
     my $reported = uc($1);
@@ -117,6 +115,30 @@ sub stella_mapper_for_rom {
         or die "cannot normalize Stella Bankswitch Type '$reported'\n";
     my $mapper = $1;
     $mapper =~ s/\*+\z//;
+
+    # Multi-game images are containers, not one CPU-visible mapper.  Stella
+    # selects a component before cartridge creation and reports the MD5 of
+    # that selected slice.  Accept that deliberate MD5 change only when the
+    # reported NIN1 topology divides the local image evenly and the reported
+    # MD5 matches one exact component slice.
+    if ($reported_md5 ne lc($expected_md5)) {
+        if ($mapper =~ /^(4|8|32)IN1\z/) {
+            my $games = int($1);
+            my $image = slurp_raw($path);
+            length($image) % $games == 0
+                or die "Stella $mapper MD5 $reported_md5 cannot describe uneven local image MD5 $expected_md5\n";
+            my $slice_size = length($image) / $games;
+            my $matched = 0;
+            for my $i (0 .. $games - 1) {
+                my $slice = substr($image, $i * $slice_size, $slice_size);
+                if (md5_hex($slice) eq $reported_md5) { $matched = 1; last; }
+            }
+            $matched
+                or die "Stella $mapper slice MD5 $reported_md5 matches no local component (whole MD5 $expected_md5)\n";
+        } else {
+            die "Stella MD5 $reported_md5 does not match local MD5 $expected_md5\n";
+        }
+    }
     return $mapper;
 }
 

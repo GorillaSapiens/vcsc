@@ -1839,6 +1839,9 @@ A 4096-byte file made from two byte-identical 2048-byte halves is a logical 2K c
       images: Stella may select one component, recompute the MD5 over that slice,
       and then autodetect the slice's mapper. The whole-file MD5 therefore need
       not equal Stella's `Cart MD5` for a multi-game container.
+    * Item 48 implements conservative automatic 4IN1/8IN1/32IN1 containers and
+      Stella selected-slice MD5 normalization. Keep this item open for the more
+      ambiguous 2IN1 case and any future explicit/database container override.
 
 
 42. [x] Require positive JANE evidence before F6 refinement
@@ -1930,3 +1933,23 @@ A 4096-byte file made from two byte-identical 2048-byte halves is a logical 2K c
       pins a `$1FFFF->$20000` HEX boundary. Corpus 512 KiB 3F image
       `e9b1a67e9f0d4eaa5f3d1ed7c9ce40d4` now reconstructs MD5-exactly.
 
+
+48. [x] Add conservative 4IN1/8IN1/32IN1 container disassembly
+    * Container inference is separate from mapper inference and only runs when the
+      whole-cart analysis has demonstrated no CPU-visible mapper selector traffic.
+      Candidate slices must have strong RESET-vector structure, all components must
+      be byte-distinct, and 4IN1/32IN1 require every component to establish code;
+      8IN1 permits one raw component while requiring at least six real roots and
+      seven viable analyses. Identical repeated banks therefore remain preservation
+      dumps rather than becoming false multicarts.
+    * Each component is analyzed once with an independent mapper/CFG/state model.
+      The outer `.s26` is a byte-exact container manifest with no cross-game CFG;
+      file output also writes `.gameNN.s26` sidecars containing each independent
+      disassembly (or raw fallback for an unestablished component).
+    * `roundtrip.pl --stella` now accepts Stella's deliberate NIN1 selected-slice
+      `Cart MD5` only when it matches an exact local component slice; unrelated MD5
+      disagreement remains an error. Synthetic 4IN1 and fake-Stella regressions pin
+      both paths. Focused semantic round trips are 131/131.
+    * Corpus 291bcdb0... and 291dd475... now identify 32IN1, 7465b06b...
+      identifies 8IN1, and 31bb9b8c..., 703f0f7a..., and fe6abc0f... identify
+      4IN1. All six reconstruct byte-exactly and match Stella's container type.

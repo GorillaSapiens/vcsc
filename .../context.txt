@@ -1332,3 +1332,13 @@ Address records, while `.rorg` stays 16-bit. The disassembler widens its generat
 default physical segment for >64 KiB images. `assembler_rorg_directive.pl` pins an
 ELA boundary crossing, and 512 KiB 3F corpus e9b1a67e... now round-trips MD5-exact.
 
+
+2026-08-21 multicart corpus closeout (focused Item 48): 4IN1/8IN1/32IN1 are
+now conservative outer containers, never one shared CPU CFG. Distinct slices with
+strong independent RESET roots are analyzed once each and emitted as `.gameNN.s26`
+sidecars; the outer source preserves exact concatenated bytes. Repeated identical
+banks are excluded from automatic container inference, and CPU-visible mapper flow
+prevents slicing. `roundtrip.pl --stella` accepts an NIN1 selected-slice MD5 only
+when it matches an exact local component. Corpus 291bcdb0/291dd475 -> 32IN1,
+7465b06b -> 8IN1, and 31bb9b8c/703f0f7a/fe6abc0f -> 4IN1; all six are exact and
+match Stella. Focused round trips are 131/131. 2IN1 remains open under Item 41.

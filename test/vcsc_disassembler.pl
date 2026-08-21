@@ -303,6 +303,15 @@ write_bin(File::Spec->catfile($in, 'doubled2k.bin'),
 my $doubled_4k_half = make_rom(4096, 0xF000, 0x0100, "\xAD\xC0\x02\x60");
 write_bin(File::Spec->catfile($in, 'doubled4k.bin'),
           $doubled_4k_half . $doubled_4k_half);
+# Multi-game images are containers, not one bankswitched CPU address space.
+# Four distinct, independently rooted 2K components must be split/analyzed
+# separately while the outer source preserves the exact concatenation.
+my $multicart_4in1 = '';
+for my $game (0 .. 3) {
+   $multicart_4in1 .= make_rom(2048, 0xF800, 0x0100,
+      pack('C*', 0xA9, 0x40 + $game, 0x85, 0x80 + $game, 0x60));
+}
+write_bin(File::Spec->catfile($in, 'multicart_4in1.bin'), $multicart_4in1);
 # Manual analysis hints: a byte sequence that is intentionally a pointer
 # table but has no automatic low/high builder, plus a generic data table.
 my $manual_hints = make_rom(4096, 0xF000, 0x0100, "\xA9\x42\x60");
@@ -1574,6 +1583,19 @@ my $ar_multi = $ar_single . make_ar_load(0xF000, 0x14, 1, 0x01, $ar_page1);
 write_bin(File::Spec->catfile($in, 'ar_multi.bin'), $ar_multi);
 
 run_ok($^X, $roundtrip, $in, $out);
+
+my $multicart_out = slurp(File::Spec->catfile($out, 'multicart_4in1.s26'));
+require_re($multicart_out, qr/^; mapper: 4IN1 \(container;/m,
+   '4IN1 outer image recognized as a container');
+require_re($multicart_out, qr/^; container analysis: 4\/4 component slices established independently$/m,
+   '4IN1 components analyzed independently');
+for my $game (1 .. 4) {
+   my $sidecar = File::Spec->catfile($out, sprintf('multicart_4in1.game%02d.s26', $game));
+   -f $sidecar or die "missing 4IN1 component sidecar $sidecar\n";
+   my $text = slurp($sidecar);
+   require_re($text, qr/^; mapper: unbanked 2K \(/m,
+      "4IN1 component $game independently disassembled");
+}
 
 # A detached island is never enough to satisfy the tool's minimum executable
 # evidence contract.  With no cartridge-backed RESET/manual/concrete entry,

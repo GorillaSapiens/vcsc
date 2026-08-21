@@ -24,3 +24,6 @@ cartridge RAM, and the middle 1K is preserved; doubled 2K CV dumps are preserved
 through the same path. Added cv_saved_4k.bin and cv_doubled_4k.bin. Corpus
 14d365bb... and 3ec12372... now classify CV and round-trip exactly. Focused
 round trips are 129/129.
+
+2026-08-21 12:07:22 PDT, multicart container support
+Implemented conservative 4IN1/8IN1/32IN1 container analysis with independent component sidecars, exact outer reconstruction, and Stella selected-slice MD5 normalization. Six corpus container failures now round-trip exactly and agree with Stella.

@@ -113,6 +113,19 @@ heuristic runs. `vcsc-disas` emits each duplicate half as preserved raw bytes,
 so disassemble/reassemble reproduces the original physical file exactly. Merely
 similar or partially duplicated images are not collapsed.
 
+Multi-game 4IN1/8IN1/32IN1 images are treated as **containers**, not as one
+bankswitched 6507 address space. Automatic detection is intentionally conservative:
+the whole-image analysis must show no CPU-visible selector traffic, candidate
+components need plausible independent RESET roots and executable analyses, and all
+component byte images must be distinct so repeated-bank preservation dumps are not
+misclassified. Each component gets an independent mapper/CFG/state analysis. The
+outer `.s26` preserves the exact concatenated image as a container manifest; when
+`-o` names a file, `vcsc-disas` also writes `.gameNN.s26` sidecars with the
+individual component disassemblies. An unestablished component is preserved raw.
+Automatic 2IN1 inference remains deliberately deferred because an 8K 2x4K image is
+too easily confused with an ordinary F8 cart without stronger database/explicit
+evidence.
+
 Stella-playable 4094- and 4098-byte preservation dumps are treated as logical
 unbanked 4K cartridges without changing their physical files.  This mirrors
 Stella's generic cartridge behavior: a short image is zero-filled to 4096 bytes
@@ -627,7 +640,11 @@ not a platform detector; an arbitrary same-sized blob from another 6502 system
 can still fall through to a size-default VCS mapper and produce a meaningless
 comparison. Stella reports a native 1024-byte cartridge as `2K* (1K)` because it
 uses the 2K cartridge implementation internally; `roundtrip.pl` normalizes that
-spelling to VCSC's physical-topology name `1K`, so it is a mapper match.
+spelling to VCSC's physical-topology name `1K`, so it is a mapper match. For
+4IN1/8IN1/32IN1 containers Stella selects one component before cartridge creation
+and reports that slice's MD5 instead of the whole-file MD5. `roundtrip.pl` accepts
+that difference only when the reported MD5 matches one exact equal-sized local
+component; an unrelated digest mismatch is still a Stella error.
 Mapper disagreements are therefore reported as `MISMATCH` and summarized without
 failing the round-trip run.  `--stella-strict` makes any mapper mismatch fail the
 command when a zero-mismatch corpus gate is desired.  Failure to run or parse an

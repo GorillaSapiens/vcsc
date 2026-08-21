@@ -9728,6 +9728,333 @@ static size_t established_instruction_count(const analysis_t *a)
    return count;
 }
 
+typedef struct {
+   unsigned games;
+   size_t slice_size;
+   unsigned viable_slices;
+   analysis_t *slice_analysis;
+   uint8_t *slice_analyzed;
+} multicart_info_t;
+
+static void free_multicart_info(multicart_info_t *mc)
+{
+   unsigned i;
+   if (mc->slice_analysis && mc->slice_analyzed)
+      for (i = 0u; i < mc->games; ++i)
+         if (mc->slice_analyzed[i]) free_analysis(&mc->slice_analysis[i]);
+   free(mc->slice_analysis);
+   free(mc->slice_analyzed);
+   memset(mc, 0, sizeof(*mc));
+}
+
+static int multicart_user_layout_override(const options_t *opt)
+{
+   return opt->mapper_override_set || opt->reset_bank_override >= 0 ||
+          opt->origin_count != 0u || opt->entry_count != 0u ||
+          opt->code_count != 0u || opt->data_count != 0u ||
+          opt->table_count != 0u || opt->pointer_count != 0u;
+}
+
+static int multicart_slice_reset_vector(const uint8_t *rom, size_t size,
+                                        int *blank)
+{
+   uint16_t reset;
+   if (size < 6u) return 0;
+   reset = (uint16_t)rom[size - 4u] | ((uint16_t)rom[size - 3u] << 8);
+   *blank = reset == 0xffffu;
+   return reset >= 0xf000u;
+}
+
+/* Analyze one independently selected multicart component.  This deliberately
+ * bypasses multicart detection itself: once the outer selector has chosen a
+ * component, the 2600 sees an ordinary cartridge image and normal mapper
+ * inference applies to that slice alone. */
+static int analyze_multicart_slice(analysis_t *a, uint8_t *rom, size_t size,
+                                   const options_t *parent)
+{
+   options_t opt = *parent;
+   size_t tested = 0u, survived = 0u;
+   int refined = 0;
+   mapper_t legacy, selected;
+
+   memset(a, 0, sizeof(*a));
+   opt.output = NULL;
+   opt.output_explicit = 0;
+   opt.mapper_override_set = 0;
+   opt.superchip_override = -1;
+   opt.reset_bank_override = -1;
+   opt.origin_count = opt.entry_count = opt.code_count = opt.data_count = 0u;
+   opt.table_count = opt.pointer_count = 0u;
+
+   if (!init_analysis(a, rom, size, &opt)) return 0;
+   a->physical_rom = rom;
+   a->physical_size = size;
+   legacy = a->mapper;
+   if (legacy != MAP_RAW) {
+      selected = refine_mapper_by_control_flow(rom, size, legacy,
+                                               &tested, &survived, &refined);
+      if (selected != legacy) {
+         options_t selected_opt = opt;
+         free_analysis(a);
+         selected_opt.mapper_override_set = 1;
+         selected_opt.mapper_override = selected;
+         selected_opt.superchip_override = -1;
+         if (!init_analysis(a, rom, size, &selected_opt)) return 0;
+         a->physical_rom = rom;
+         a->physical_size = size;
+         a->mapper_overridden = 0;
+         a->superchip_override = -1;
+      }
+      a->mapper_flow_refined = refined;
+      a->mapper_hypotheses_tested = tested;
+      a->mapper_hypotheses_survived = survived;
+   }
+   if (!apply_layout_overrides(a, &opt) || !run_concrete_discovery(a) ||
+       !trace_analysis(a, &opt)) {
+      free_analysis(a);
+      memset(a, 0, sizeof(*a));
+      return 0;
+   }
+   apply_superchip_window_semantics(a);
+   promote_interior_reference_labels(a);
+   detect_graphics_data(a);
+   detect_analysis_tables(a);
+   if (!apply_semantic_hints(a, &opt)) {
+      free_analysis(a);
+      memset(a, 0, sizeof(*a));
+      return 0;
+   }
+   promote_interior_reference_labels(a);
+   return 1;
+}
+
+static int multicart_candidate(const uint8_t *rom, size_t size,
+                               unsigned games, const options_t *opt,
+                               multicart_info_t *info)
+{
+   size_t slice_size;
+   unsigned i, real_vectors = 0u, blank_vectors = 0u, viable = 0u;
+   unsigned required_viable;
+
+   if (games == 0u || (size % games) != 0u) return 0;
+   slice_size = size / games;
+   if (slice_size != 2048u && slice_size != 4096u &&
+       slice_size != 8192u && slice_size != 16384u) return 0;
+
+   for (i = 0u; i < games; ++i) {
+      int blank = 0;
+      const uint8_t *slice = rom + (size_t)i * slice_size;
+      if (multicart_slice_reset_vector(slice, slice_size, &blank)) {
+         if (blank) ++blank_vectors;
+         else ++real_vectors;
+      }
+   }
+
+   /* Structural gates are intentionally stronger than file-size matching.
+    * 32IN1 dumps are 32 complete 2K games.  4IN1 requires four real RESET
+    * vectors.  8IN1 allows up to two all-$FF/padded component tails seen in
+    * historical dumps, but still requires six real cartridge roots. */
+   if (games == 32u) {
+      if (real_vectors != 32u) return 0;
+      required_viable = 32u;
+   }
+   else if (games == 8u) {
+      if (real_vectors < 6u || real_vectors + blank_vectors != 8u) return 0;
+      required_viable = 7u;
+   }
+   else if (games == 4u) {
+      if (real_vectors != 4u) return 0;
+      required_viable = 4u;
+   }
+   else return 0;
+
+   /* Automatic container inference is deliberately conservative: every
+    * selectable component must be byte-distinct.  Repeated identical banks
+    * are a common dump/preservation shape and are stronger evidence for one
+    * mirrored cartridge than for a multi-game selector.  A future explicit
+    * container override can represent unusual multicarts with duplicate
+    * games without weakening autodetection. */
+   for (i = 0u; i < games; ++i) {
+      unsigned j;
+      for (j = i + 1u; j < games; ++j)
+         if (memcmp(rom + (size_t)i * slice_size,
+                    rom + (size_t)j * slice_size, slice_size) == 0)
+            return 0;
+   }
+
+   info->slice_analysis = (analysis_t *)calloc(games, sizeof(*info->slice_analysis));
+   info->slice_analyzed = (uint8_t *)calloc(games, 1u);
+   if (!info->slice_analysis || !info->slice_analyzed) {
+      free_multicart_info(info);
+      return 0;
+   }
+   info->games = games;
+   info->slice_size = slice_size;
+   for (i = 0u; i < games; ++i) {
+      uint8_t *slice = (uint8_t *)rom + (size_t)i * slice_size;
+      if (analyze_multicart_slice(&info->slice_analysis[i], slice, slice_size, opt)) {
+         info->slice_analyzed[i] = 1u;
+         if (established_instruction_count(&info->slice_analysis[i]) != 0u) ++viable;
+      }
+   }
+   if (viable < required_viable) {
+      free_multicart_info(info);
+      return 0;
+   }
+
+   info->viable_slices = viable;
+   return 1;
+}
+
+static int detect_multicart(const uint8_t *rom, size_t size,
+                            const analysis_t *whole, const options_t *opt,
+                            multicart_info_t *info)
+{
+   static const unsigned counts[] = { 32u, 8u, 4u };
+   size_t i;
+
+   memset(info, 0, sizeof(*info));
+   if (multicart_user_layout_override(opt)) return 0;
+
+   /* Never reinterpret a cart that has demonstrated actual mapper switching.
+    * Multicart selection happens outside the CPU-visible address space; there
+    * should be no established selector traffic connecting component games. */
+   if (whole->hotspot_refs != 0 || whole->cross_bank_switches != 0u ||
+       whole->three_specific_switches != 0u || whole->e7_specific_refs != 0 ||
+       whole->threee_ram_select_refs != 0) return 0;
+
+   for (i = 0u; i < sizeof(counts) / sizeof(counts[0]); ++i)
+      if (multicart_candidate(rom, size, counts[i], opt, info)) return 1;
+   return 0;
+}
+
+static char *multicart_sidecar_name(const char *output, unsigned game)
+{
+   size_t len, stem;
+   char *name;
+   if (!output || strcmp(output, "-") == 0) return NULL;
+   len = strlen(output);
+   stem = len;
+   if (len >= 4u && strcmp(output + len - 4u, ".s26") == 0) stem = len - 4u;
+   name = (char *)malloc(stem + 32u);
+   if (!name) return NULL;
+   memcpy(name, output, stem);
+   snprintf(name + stem, 32u, ".game%02u.s26", game);
+   return name;
+}
+
+static int emit_multicart_raw_sidecar(FILE *fp, const uint8_t *rom, size_t size,
+                                      const char *input, unsigned game,
+                                      unsigned games)
+{
+   size_t off;
+   fprintf(fp, "; generated by vcsc-disas %s\n", VERSION);
+   fprintf(fp, "; input: %s [game %u/%u]\n", input, game, games);
+   fprintf(fp, "; input bytes: %zu\n", size);
+   fputs("; mapper: raw (component could not be established automatically)\n", fp);
+   fputs("; exact-byte fallback is authoritative\n\n.org $0000\n", fp);
+   for (off = 0u; off < size; off += 16u) {
+      size_t end = off + 16u, i;
+      if (end > size) end = size;
+      fputs("    .byte ", fp);
+      for (i = off; i < end; ++i) {
+         if (i != off) fputs(", ", fp);
+         fprintf(fp, "$%02X", rom[i]);
+      }
+      fputc('\n', fp);
+   }
+   return ferror(fp) == 0;
+}
+
+static int emit_multicart_sidecars(const char *output, const uint8_t *rom,
+                                   const multicart_info_t *mc,
+                                   const options_t *opt)
+{
+   unsigned i;
+   if (!output || strcmp(output, "-") == 0) return 1;
+   for (i = 0u; i < mc->games; ++i) {
+      char *name = multicart_sidecar_name(output, i + 1u);
+      char input_label[1024];
+      char sha[65];
+      FILE *fp;
+      uint8_t *slice = (uint8_t *)rom + (size_t)i * mc->slice_size;
+      analysis_t *a = &mc->slice_analysis[i];
+      int analyzed = mc->slice_analyzed[i] != 0u;
+      int ok;
+      if (!name) return 0;
+      fp = fopen(name, "wb");
+      if (!fp) {
+         fprintf(stderr, "%s: %s\n", name, strerror(errno));
+         free(name);
+         return 0;
+      }
+      snprintf(input_label, sizeof(input_label), "%s [game %u/%u]",
+               opt->input, i + 1u, mc->games);
+      if (analyzed && established_instruction_count(a) != 0u) {
+         sha256_hex(slice, mc->slice_size, sha);
+         ok = emit_source(fp, a, input_label, sha);
+      }
+      else {
+         ok = emit_multicart_raw_sidecar(fp, slice, mc->slice_size,
+                                         opt->input, i + 1u, mc->games);
+      }
+      if (fclose(fp) != 0) ok = 0;
+      if (!ok) {
+         fprintf(stderr, "%s: write failed\n", name);
+         free(name);
+         return 0;
+      }
+      free(name);
+   }
+   return 1;
+}
+
+static int emit_multicart_source(FILE *fp, const analysis_t *whole,
+                                 size_t size,
+                                 const multicart_info_t *mc,
+                                 const options_t *opt, const char sha[65])
+{
+   unsigned i;
+   fprintf(fp, "; generated by vcsc-disas %s\n", VERSION);
+   fprintf(fp, "; input: %s\n", opt->input);
+   fprintf(fp, "; input bytes: %zu\n", size);
+   fprintf(fp, "; input sha256: %s\n", sha);
+   fprintf(fp, "; mapper: %uIN1 (container; %u independently selected games x %zu bytes)\n",
+           mc->games, mc->games, mc->slice_size);
+   fprintf(fp, "; container analysis: %u/%u component slices established independently\n",
+           mc->viable_slices, mc->games);
+   fputs("; component selection is external to the 6507 address space; no control-flow edge crosses game boundaries\n", fp);
+   fputs("; the outer source preserves exact bytes; when -o names a file, .gameNN.s26 sidecars contain independent component disassemblies\n\n", fp);
+
+   for (i = 0u; i < mc->games; ++i) {
+      analysis_t *a = &mc->slice_analysis[i];
+      int analyzed = mc->slice_analyzed[i] != 0u;
+      size_t starts = analyzed ? established_instruction_count(a) : 0u;
+      if (analyzed && starts != 0u)
+         fprintf(fp, "; game %02u: file $%04zX..$%04zX, mapper=%s, established-starts=%zu\n",
+                 i + 1u, (size_t)i * mc->slice_size,
+                 (size_t)(i + 1u) * mc->slice_size - 1u,
+                 mapper_name(a->mapper), starts);
+      else
+         fprintf(fp, "; game %02u: file $%04zX..$%04zX, mapper=unknown/raw (no established root)\n",
+                 i + 1u, (size_t)i * mc->slice_size,
+                 (size_t)(i + 1u) * mc->slice_size - 1u);
+   }
+   fputc('\n', fp);
+
+   if (size > 0x10000u)
+      fprintf(fp, ".segmentdef \"__default__\", $0000, $%zX\n", size + 0x10000u);
+   for (i = 0u; i < mc->games; ++i) {
+      size_t first = (size_t)i * mc->slice_size;
+      size_t last = first + mc->slice_size;
+      fprintf(fp, "; ---- game %02u physical slice ----\n", i + 1u);
+      fprintf(fp, ".org $%04zX\n", first);
+      emit_physical_raw_range(fp, whole, first, last);
+      fputc('\n', fp);
+   }
+   return ferror(fp) == 0;
+}
+
 int main(int argc, char **argv)
 {
    options_t opt;
@@ -9739,6 +10066,9 @@ int main(int argc, char **argv)
    size_t analysis_size = 0;
    int odd_4k_dump = 0;
    analysis_t analysis;
+   multicart_info_t multicart;
+   int is_multicart = 0;
+   memset(&multicart, 0, sizeof(multicart));
    char sha[65];
    FILE *out = NULL;
    int ok = 0;
@@ -9823,7 +10153,9 @@ int main(int argc, char **argv)
       return 1;
    }
    promote_interior_reference_labels(&analysis);
-   if (established_instruction_count(&analysis) == 0u) {
+   if (!opt.mapper_override_set)
+      is_multicart = detect_multicart(rom, rom_size, &analysis, &opt, &multicart);
+   if (established_instruction_count(&analysis) == 0u && !is_multicart) {
       fprintf(stderr, "%s: no established instructions found; refusing speculative-only disassembly\n",
               opt.input);
       free_analysis(&analysis);
@@ -9851,7 +10183,9 @@ int main(int argc, char **argv)
       }
    }
 
-   if (!emit_source(out, &analysis, opt.input, sha)) {
+   if (!(is_multicart ?
+         emit_multicart_source(out, &analysis, rom_size, &multicart, &opt, sha) :
+         emit_source(out, &analysis, opt.input, sha))) {
       fprintf(stderr, "%s: write failed\n", opt.output);
       goto done;
    }
@@ -9861,11 +10195,14 @@ int main(int argc, char **argv)
       goto done;
    }
    out = NULL;
+   if (is_multicart && !emit_multicart_sidecars(opt.output, rom, &multicart, &opt))
+      goto done;
    ok = 1;
 
 done:
    if (out && out != stdout) fclose(out);
    free(derived);
+   free_multicart_info(&multicart);
    free_analysis(&analysis);
    free(logical_rom);
    free(rom);

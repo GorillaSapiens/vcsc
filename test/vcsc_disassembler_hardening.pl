@@ -86,9 +86,16 @@ use Digest::MD5 qw(md5_hex);
 @ARGV == 2 && $ARGV[0] eq '-rominfo' or die "usage: fake-stella -rominfo ROM\n";
 open(my $fh,'<:raw',$ARGV[1]) or die "$ARGV[1]: $!\n";
 local $/; my $rom=<$fh>; close($fh);
-print "  Cart MD5:        ",md5_hex($rom),"\n";
 my $size=length($rom);
-print "  Bankswitch Type: ",($size == 1024 ? "2K* (1K)" : "4K* (4K)"),"\n";
+if ($ARGV[1] =~ /multicart4\.bin\z/) {
+   my $slice_size = int($size / 4);
+   my $selected = substr($rom, $slice_size, $slice_size);
+   print "  Cart MD5:        ",md5_hex($selected),"\n";
+   print "  Bankswitch Type: 4IN1 [G2] (2K)\n";
+} else {
+   print "  Cart MD5:        ",md5_hex($rom),"\n";
+   print "  Bankswitch Type: ",($size == 1024 ? "2K* (1K)" : "4K* (4K)"),"\n";
+}
 FAKE_STELLA
 chmod(0755,$fake_stella) or die "chmod $fake_stella: $!\n";
 my $stella_in=File::Spec->catdir($tmp,'stella-compare-in');
@@ -98,6 +105,14 @@ write_raw(File::Spec->catfile($stella_in,'plain4k.bin'),$base);
 my $one_k=chr(0xEA)x1024;
 substr($one_k,0x3fa,6,pack('v3',0xFC80,0xFC80,0xFC80));
 write_raw(File::Spec->catfile($stella_in,'plain1k.bin'),$one_k);
+my $multi4 = '';
+for my $game (0 .. 3) {
+   my $part = chr(0xEA) x 2048;
+   substr($part,0,5,pack('C*',0xA9,0x40+$game,0x85,0x80+$game,0x60));
+   substr($part,2042,6,pack('v3',0xF800,0xF800,0xF800));
+   $multi4 .= $part;
+}
+write_raw(File::Spec->catfile($stella_in,'multicart4.bin'),$multi4);
 my($srcmp,$sscmp,$socmp,$secmp)=capture($^X,$roundtrip,'--stella',$fake_stella,$stella_in,$stella_out);
 $srcmp==0 && $sscmp==0 or die "Stella mapper comparison failed\nstdout:\n$socmp\nstderr:\n$secmp";
 $secmp eq '' or die "Stella mapper comparison wrote stderr:\n$secmp";
@@ -105,7 +120,9 @@ $socmp =~ /plain4k\.bin: mapper vcsc=4K stella=4K MATCH\n/
    or die "Stella mapper comparison lost normalized 4K mapper match:\n$socmp";
 $socmp =~ /plain1k\.bin: mapper vcsc=1K stella=1K MATCH\n/
    or die "Stella mapper comparison treated Stella 2K* (1K) as a mismatch:\n$socmp";
-$socmp =~ /Stella mapper comparison: 2 match(?:es)?, 0 mismatch, 0 errors, 2 compared\n\z/
+$socmp =~ /multicart4\.bin: mapper vcsc=4IN1 stella=4IN1 MATCH\n/
+   or die "Stella selected-slice multicart MD5 was not normalized:\n$socmp";
+$socmp =~ /Stella mapper comparison: 3 match(?:es)?, 0 mismatch, 0 errors, 3 compared\n\z/
    or die "unexpected Stella mapper comparison summary:\n$socmp";
 
 # A disagreement is diagnostic by default, but --stella-strict promotes it to
