@@ -1,6 +1,25 @@
-We’re working on this VCSC tarball. This is a toolchain for a retrocomputing project, a compiler and disassembler for 1970s era Atari 2600 gaming console. Unpack it and first read `.../README.md`, then read all of `.../context.txt`. Follow any pointers there to the active roadmap or design document needed for this task. Do not read `.../context-history/` unless you need to investigate an older decision or regression.  The .debs are there in case you need them to build or test in your container.
+We’re working on this VCSC tarball. This is a toolchain for a retrocomputing project: a compiler, assembler/linker support, and disassembler for the 1970s-era Atari 2600 game console.
+
+Unpack it and first read `.../README.md`, then read all of `.../context.txt`. Follow any pointers there to the active roadmap or design document needed for this task. Do not read `.../context-history/` unless you need to investigate an older decision, regression, or rationale that is not recoverable from the current documents. The `.deb` files are there in case you need them to build or test in your container.
+
+Assume the available tool-execution window may be short. Optimize for useful progress within that window:
+
+* Resume the active task immediately after reading the required context. Do not spend time broadly exploring unrelated parts of the tree.
+* Make substantive progress before running the entire test suite.
+* During development, prefer the smallest relevant builds and targeted tests that can validate the current change. Run the full suite when the work reaches a meaningful checkpoint, when broad regressions are plausible, or before final handoff.
+* If a test fails, diagnose and continue fixing it rather than stopping merely to report the failure.
+* Avoid repeatedly rebuilding or retesting unaffected components unless needed to establish correctness.
+* Keep `.../context.txt` current as you work. Record completed work, important discoveries, unresolved problems, changed assumptions, and the exact next step so another execution window can resume with minimal rediscovery.
+* Update the relevant roadmap/design document when the work changes its status, implementation, or conclusions.
+* Do not create intermediate checkpoint tarballs merely because some progress has been made. Continue working for as long as useful progress is possible.
+* When handing work back, provide only one tarball containing the latest complete state, unless I explicitly request otherwise.
+* If the execution window ends before the whole task is complete, preserve the work and context so the next session can continue directly from the unfinished point.
+* Do not waste execution time narrating routine operations. Briefly report important findings, decisions, regressions, or blockers while continuing the task.
+
+Preserve existing project conventions unless the task explicitly requires changing them. Prefer fixing root causes over adding narrow exceptions or test-specific hacks. Do not weaken tests merely to make them pass unless the test itself is demonstrably wrong.
 
 [Describe the task here.]
+
 
 git tag 2026-08-12-third-base
 git push origin 2026-08-12-third-base

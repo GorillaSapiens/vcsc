@@ -50,6 +50,24 @@ $text =~ /bmi\.(?:same|cross) \@TEMPLATE_PostSetupBottom;/
 $text =~ /TEMPLATE_PostSetup0Immediate:/
    or die "immediate opposite-lane event handoff missing\n";
 
+# Recovered visual-fix contracts.  These are deliberately structural: the
+# timing harness below proves the resulting cycle balance while these checks
+# prevent the exact color/stale-GRP/PF regressions from being silently restored.
+$text =~ /TEMPLATE_PostSetup0LineA:;.*?lda\.ay TEMPLATE_lane_for,Y;\s*asm sta\.z TEMPLATE_pair_y;.*?asm adc #5;/s
+   or die "P0 post-setup per-event color refresh missing\n";
+$text =~ /TEMPLATE_Setup1LineB:;.*?asm iny;\s*asm sty\.z TEMPLATE_setup_index;.*?asm sta\.a TEMPLATE_gfx_index \+ 1;.*?lda\.ay TEMPLATE_lane_for,Y;\s*asm sta\.z TEMPLATE_pair_y;/s
+   or die "P1 setup per-event color refresh/timing balance missing\n";
+$text =~ /TEMPLATE_PostSetupLineA:;\s*.*?asm lda\.z TEMPLATE_current_gfx;\s*asm sta GRP0;/s
+   or die "P1 post-setup stale-GRP suppression missing\n";
+$text =~ /TEMPLATE_P0RespSlot11:;.*?lda\.ax TEMPLATE_playfield_left,X;\s*asm sta PF1;\s*asm jmp TEMPLATE_P0RespAfterLeftPF1;/s
+   or die "P0 phase-63 early left-PF1 correction missing\n";
+$text =~ /TEMPLATE_P1RespSlot11:;.*?lda\.ax TEMPLATE_playfield_left,X;\s*asm sta PF1;\s*asm jmp TEMPLATE_P1RespAfterLeftPF1;/s
+   or die "P1 phase-63 early left-PF1 correction missing\n";
+$text =~ /TEMPLATE_P0RespAfterLeftPF1:;.*?lda\.ax TEMPLATE_playfield_right,X;\s*asm dex;\s*asm nop;\s*asm sta PF2;\s*asm sta RESP0;/s
+   or die "P0 late-family right-PF2 correction missing\n";
+$text =~ /TEMPLATE_P1RespAfterLeftPF1:;.*?lda\.ax TEMPLATE_playfield_right,X;\s*asm dex;\s*asm nop;\s*asm sta PF2;\s*asm sta RESP1;/s
+   or die "P1 late-family right-PF2 correction missing\n";
+
 my$bin=File::Spec->catfile($tmp,'enhanced_asymmetric.bin');
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,$example,'-o',$bin);
 $rc==0 && !$sig or die "asymmetric example build failed\n$out$err";

@@ -1425,28 +1425,60 @@ phase 73 on both hardware lanes.  Obsolete requirements for phases 14/19/24 and
 for the retired adjacent-line pair proof were removed; those assertions described
 an earlier experimental architecture rather than the current renderer.
 
-KNOWN VISIBLE WORK STILL OPEN
------------------------------
-CPU-cycle instrumentation found suspicious playfield schedules in the remaining
-provisional middle paths: the phase-53 family can write right PF2 around cycle 46
-(earlier than the nominal safe right-PF2 window), while the phase-63 family can
-write left PF1 around cycle 28 (just after the nominal left-PF1 deadline).  These
-are prime suspects for the playfield glitches seen during movement and must be
-reworked/verified in Stella.
+RECOVERED VISUAL FIXES -- 2026-08-21
+--------------------------------------
+The visual fixes from the interrupted work window have been reconstructed and
+revalidated.  The resulting cartridge is 3932/4090 ROM bytes and 119/128 RAM
+bytes, matching the last known-good accounting before the rejected PF-pad
+experiment.
 
-Per-event color is also still wrong.  VBLANK compacts the correct color for each
-rank, but visible setup caches only rank 0's color in `pair_y`; later events can
-therefore inherit stale COLUP0/COLUP1.  Fix this after/alongside PF schedule
-cleanup, without disturbing the exact RESP/HMOVE phases.
+Three concrete defects are fixed without moving the proven RESP phases:
+
+* Per-event color handoff now advances `pair_y` from the compact `lane_for[]`
+  color stream on each lane-specific setup path.  P0 pays for the indexed color
+  fetch with the old padding/CLC cycles and uses the still-set carry with
+  `ADC #5`; P1 advances Y/setup_index together and uses an absolute gfx-index
+  store to keep its line at exactly 76 cycles.  Simulator instrumentation saw
+  the configured event colors individually rather than rank 0 being reused.
+* A newly repositioned P1 is kept blank on its first post-setup line.  The old
+  path could write `current_gfx+1` from the previous P1 occupant, producing the
+  one-row horizontal fragment seen above sprite 2.  The post-setup line now
+  reloads the continuing P0 row and waits for P1's setup sentinel to advance.
+* The late phase-53/58/63 PF family now writes right PF2 four cycles later while
+  preserving RESP, by moving the existing DEX+NOP ahead of the PF2 store.
+  Phase 63 additionally writes left PF1 three cycles earlier, then spends those
+  three cycles on a JMP into the common tail.  The intended write phases are
+  therefore approximately 50/55/60 for right PF2, with phase-63 left PF1 near
+  cycle 25 instead of about 28.
+
+`vcs_enhanced_multisprite_asymmetric.pl` still passes the static raster,
+12-phase randomized X stress, phase-73 edge case, continuous 0..159..0 movement,
+and combined randomized X/Y stress.  Its structural checks now pin all three
+recovered fixes so the exact regressions cannot silently return.
+
+ONE PF SEAM STILL OPEN
+----------------------
+Framebuffer comparison of the two physical rows that form each logical PF band
+found a separate P0 post-setup seam.  In the bad band, the last two four-pixel
+groups of left PF1's intended `$A5` pattern are replaced by bits from right PF1
+`$66`.  `PostSetup0LineA` reaches `PostSetupLineBBody` three cycles earlier than
+the equivalent P1 path because P0 has already staged `event_code`; the right-PF
+rewrite can therefore begin while the tail of left PF1 is still on the beam.
+
+Simply adding a three-cycle pad is NOT a valid fix: that experiment changed the
+macro-raster handoff and produced a 266-raw-line frame.  The repair must preserve
+the existing P0 73-cycle body/three-cycle handoff and redistribute those three
+cycles inside the body so the right-PF writes occur later without lengthening the
+macro-line.
 
 NEXT WORK
 ---------
-1. Repair and Stella-verify the phase-53/phase-63 playfield schedules.
+1. Fix that P0 post-setup PF seam by redistributing three cycles inside the
+   existing body; do not add cycles to the macro-line.
 2. Run the 0..159..0 motion sweep after every timing change and Stella-check the
    visible boundary transitions 159<->0<->1, 15<->16, 135<->136, 150<->151.
-3. Fix per-event color handoff.
-4. Finish migration of middle X to the final eleven 23+5n slots and complete a
+3. Finish migration of middle X to the final eleven 23+5n slots and complete a
    Stella pixel sweep of public X=0..159 on both lanes.
-5. Only after ordinary positioning/PF/color are certified, reintroduce the
+4. Only after ordinary positioning/PF/color are certified, reintroduce the
    `(X0,X1,Y)` pair-feasibility scheduler: independent RESP, adjacent-line split,
    optional VDEL-assisted split, then fair flicker as the last fallback.

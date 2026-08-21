@@ -118,3 +118,18 @@ were combined chronologically, compact context now points to both authoritative
 roadmaps while remaining below its 100 KiB ceiling, and the disassembler fuzz
 test retains its explicit 120-second long-test timeout. No renderer or
 disassembler implementation logic was changed by the conflict resolution.
+
+2026-08-21 14:39:08 PDT, recover asymmetric visual fixes
+Recovered the enhanced-asymmetric visual fixes lost across the interrupted tool
+window. Per-event colors now advance from the compact color stream on both setup
+paths; P1 stays blank until its new setup sentinel advances, eliminating the
+stale one-row fragment; and the phase-53/58/63 PF schedules move right PF2 four
+cycles later while phase 63 moves left PF1 three cycles earlier without moving
+RESP. The result matches the prior 3932/4090 ROM, 119/128 RAM checkpoint and the
+asymmetric timing/X-sweep regression passes.
+
+A separate P0 post-setup PF seam remains isolated: that path enters the common
+line-B body three cycles earlier than P1, allowing right PF1 to overwrite the
+tail of left PF1. Adding a three-cycle pad caused a 266-raw-line frame and remains
+rejected. Next work is to redistribute those three cycles within the existing
+73-cycle P0 body without lengthening the macro-line.

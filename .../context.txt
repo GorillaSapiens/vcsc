@@ -1176,8 +1176,13 @@ full non-reflected PF0/PF1/PF2 raster, stable 262-line timing, and the X=0..159.
 movement sweep. Ordinary positioning currently uses measured phases
 23,28,33,37,42,47,50,53,58,63,68,73; the final target remains eleven slots
 23,28,33,38,43,48,53,58,63,68,73 with a direct packed X->{HMP,slot} lookup.
-Paired-RESP experiments are temporarily retired until ordinary rendering is
-certified. Remaining visible work is the phase-53/63 PF timing cleanup,
-per-event color handoff/stale-GRP cleanup, full Stella X=0..159 certification on
-both lanes, and only then restoration of pair-feasibility scheduling. The exact
-timing history and completion gates live in `.../enhanced_asymmetric.txt`.
+Recovered visual fixes now give each event its compacted color, suppress the
+stale one-row P1 fragment after repositioning, and correct the phase-53/58/63
+PF windows while retaining 3932/4090 ROM and 119/128 RAM. The targeted timing/X
+sweep regression passes. The immediate open defect is one P0 post-setup PF seam:
+that path reaches the common line-B body three cycles earlier than P1, so right
+PF1 can overwrite the tail of left PF1. A naive three-cycle pad caused a 266-line
+raw frame and is rejected; redistribute those three cycles inside the existing
+73-cycle P0 body without extending the macro-line. After that, finish full Stella
+X=0..159 certification and the eleven-slot migration before restoring pair
+feasibility scheduling. Exact timing history lives in `.../enhanced_asymmetric.txt`.

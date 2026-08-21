@@ -974,26 +974,33 @@ void TEMPLATE_draw(void) {
    asm jmp TEMPLATE_P0RespAfterRightPF1;
 
    asm TEMPLATE_P0RespSlot11:;
+   // Phase 63 needs left PF1 three cycles earlier than the ordinary late
+   // family. Duplicate only that write, then spend those three cycles on the
+   // JMP so the common tail and RESP phase stay unchanged.
    asm nop; asm bit.z TEMPLATE_event_stage;
+   asm nop;
+   asm lda.ax TEMPLATE_playfield_left,X;
+   asm sta PF1;
+   asm jmp TEMPLATE_P0RespAfterLeftPF1;
    asm TEMPLATE_P0RespSlot10:;
    asm nop; asm bit.z TEMPLATE_event_stage;
    asm TEMPLATE_P0RespSlot9:;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
+   asm TEMPLATE_P0RespAfterLeftPF1:;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield_right_pf0,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
+   // Keep the current-band index for the load, then move the old DEX+NOP tail
+   // ahead of the store. Right PF2 is therefore four cycles later while RESP
+   // and the decremented X seen by the graphics tail are unchanged.
    asm lda.ax TEMPLATE_playfield_right,X;
-   asm sta PF2;
    asm dex;
-   // Use only a two-cycle neutral pad here.  This moves the late family from
-   // 56/61 to 53/58; slot 11's additional five-cycle cell lands at 63.  The
-   // resulting 53/58/63 family closes the old right-edge coverage gap and
-   // leaves the following WSYNC safely before cycle 76.
    asm nop;
+   asm sta PF2;
    asm sta RESP0;
    asm jmp TEMPLATE_P0RespTailGfx;
 
@@ -1154,19 +1161,24 @@ void TEMPLATE_draw(void) {
    // Y still holds the next event rank.
    asm TEMPLATE_PostSetup0LineA:;
    asm sta GRP1;
-   asm bit.z TEMPLATE_event_stage;
+   // Y is the next compact event rank. Refresh the scalar color cache now so
+   // the following position event does not reuse rank 0's color. Rank 6 is
+   // only the terminal sentinel case; that harmless adjacent read is never
+   // consumed by another position event.
+   asm lda.ay TEMPLATE_lane_for,Y;
+   asm sta.z TEMPLATE_pair_y;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
    asm sta PF2;
-   // P0's setup start states 7..12 advance to blank-delay states 13..18.
-   // Arithmetic is timing-identical to the old table lookup/TAY sequence and
-   // preserves Y as the next event rank.
+   // The equality that entered this position/setup pipeline leaves carry set,
+   // and no instruction through Setup0LineB changes it. ADC #5 therefore
+   // advances P0 start states 7..12 to 13..18 exactly like CLC/ADC #6 did.
+   // The removed CLC plus the old BIT/NOP pads pay exactly for the color fetch
+   // while preserving Y as the next event rank and every beam phase.
    asm lda.z TEMPLATE_gfx_index;
-   asm clc;
-   asm adc #6;
+   asm adc #5;
    asm sta.z TEMPLATE_gfx_index;
-   asm nop;
    asm lda.ax TEMPLATE_playfield_right_pf0,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
@@ -1267,12 +1279,18 @@ void TEMPLATE_draw(void) {
    asm jmp TEMPLATE_P1RespAfterRightPF1;
 
    asm TEMPLATE_P1RespSlot11:;
+   // Mirror P0's phase-63 left-PF1 correction without moving RESP.
    asm nop; asm bit.z TEMPLATE_event_stage;
+   asm nop;
+   asm lda.ax TEMPLATE_playfield_left,X;
+   asm sta PF1;
+   asm jmp TEMPLATE_P1RespAfterLeftPF1;
    asm TEMPLATE_P1RespSlot10:;
    asm nop; asm bit.z TEMPLATE_event_stage;
    asm TEMPLATE_P1RespSlot9:;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
+   asm TEMPLATE_P1RespAfterLeftPF1:;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield_right_pf0,X;
@@ -1280,10 +1298,9 @@ void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_playfield_right + 96,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
-   asm sta PF2;
    asm dex;
-   // Mirror the P0 late family: phases 53/58/63 with a two-cycle common pad.
    asm nop;
+   asm sta PF2;
    asm sta RESP1;
    asm jmp TEMPLATE_P1RespTailGfx;
 
@@ -1404,7 +1421,10 @@ void TEMPLATE_draw(void) {
    // and advance to the next compact event now; the extra three cycles are
    // paid for by falling through to PostSetupLineA instead of the old JMP.
    asm sta HMCLR;
-   asm inc.z TEMPLATE_setup_index;
+   // Y still names the current rank from Setup1LineA. Advance both Y and the
+   // scalar rank together so Y can index the next event's compacted color.
+   asm iny;
+   asm sty.z TEMPLATE_setup_index;
    asm lda.ax TEMPLATE_playfield_left_pf0 + 1,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left + 1,X;
@@ -1414,7 +1434,9 @@ void TEMPLATE_draw(void) {
    // event_code's low nibble is already the P1 start state (1..6).
    asm lda.z TEMPLATE_event_code;
    asm and #$0f;
-   asm sta.z TEMPLATE_gfx_index + 1;
+   // Four cycles here rather than the ordinary zero-page store keep the
+   // 76-cycle line exact after replacing the stale-row tail with color work.
+   asm sta.a TEMPLATE_gfx_index + 1;
    asm lda.ax TEMPLATE_playfield_right_pf0 + 1,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 97,X;
@@ -1423,9 +1445,12 @@ void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.ax TEMPLATE_playfield_left_pf0,X;
    asm sta PF0;
-   asm lda.z TEMPLATE_current_gfx;
-   asm ldy.z TEMPLATE_current_gfx + 1;
-   asm nop;
+   // Y is now the next compact event rank. Use the eight-cycle tail formerly
+   // occupied by the stale current_gfx+1 handoff to refresh the color cache;
+   // the forced-absolute gfx-index store above supplies the eighth cycle.
+   // Rank 6 is the terminal sentinel and is never consumed by another setup.
+   asm lda.ay TEMPLATE_lane_for,Y;
+   asm sta.z TEMPLATE_pair_y;
    // Exactly 76 cycles have elapsed. Fall through at cycle zero of the next
    // physical line; this is timing-equivalent to the former three-cycle JMP
    // because setup_index's INC consumed those three cycles above.
@@ -1435,8 +1460,11 @@ void TEMPLATE_draw(void) {
    // P0/P1 rows in A/Y; these two lines finish the next-event metadata handoff
    // without allowing Setup?LineB to run into a phantom scanline.
    asm TEMPLATE_PostSetupLineA:;
+   // P1 was idle before repositioning and remains blank until its setup
+   // sentinel advances. Reload the continuing P0 row instead of writing the
+   // stale cached row of the previous P1 occupant to GRP1.
+   asm lda.z TEMPLATE_current_gfx;
    asm sta GRP0;
-   asm sty GRP1;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + 96,X;
