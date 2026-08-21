@@ -63,8 +63,18 @@ struct FixedZpWrite {
    uint8_t value;
 };
 
+struct SweepZpWrite {
+   uint16_t address;
+   uint8_t minimum;
+   uint8_t maximum;
+   uint8_t value;
+   int direction;
+   bool initialized;
+};
+
 std::vector<RandomizeZpRange> randomize_zp_ranges;
 std::vector<FixedZpWrite> fixed_zp_writes;
+std::vector<SweepZpWrite> sweep_zp_writes;
 bool resp_phase_seen[2][kCyclesPerScanline] = {};
 uint64_t last_resp_line[2] = {UINT64_MAX, UINT64_MAX};
 bool saw_dual_resp_line = false;
@@ -186,6 +196,24 @@ void apply_writes() {
                      memory_image[range.address + i] = next_randomized_zp_value(range);
                   }
                }
+               for (SweepZpWrite &write : sweep_zp_writes) {
+                  if (!write.initialized) {
+                     write.value = write.minimum;
+                     write.direction = 1;
+                     write.initialized = true;
+                  }
+                  else if (write.minimum != write.maximum) {
+                     if (write.direction > 0 && write.value == write.maximum) {
+                        write.direction = -1;
+                     }
+                     else if (write.direction < 0 && write.value == write.minimum) {
+                        write.direction = 1;
+                     }
+                     write.value = static_cast<uint8_t>(
+                        static_cast<int>(write.value) + write.direction);
+                  }
+                  memory_image[write.address] = write.value;
+               }
                for (const FixedZpWrite &write : fixed_zp_writes) {
                   memory_image[write.address] = write.value;
                }
@@ -233,7 +261,7 @@ void apply_writes() {
 int main(int argc, char **argv) {
    if (argc < 3) {
       std::fprintf(stderr,
-         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--randomize-zp ADDR COUNT MODULUS SEED]... [--set-zp ADDR VALUE]... [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
+         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--randomize-zp ADDR COUNT MODULUS SEED]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
          argv[0]);
       return 2;
    }
@@ -289,6 +317,28 @@ int main(int argc, char **argv) {
          randomize_zp_ranges.push_back({
             static_cast<uint16_t>(address), static_cast<unsigned>(count),
             static_cast<unsigned>(modulus), static_cast<uint32_t>(seed)
+         });
+      }
+      else if (std::strcmp(argv[i], "--sweep-zp") == 0) {
+         if (i + 3 >= argc) {
+            fail("--sweep-zp requires ADDR MIN MAX");
+         }
+         char *parse_end = nullptr;
+         const unsigned long address = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || address > 0xff) {
+            fail("bad --sweep-zp address");
+         }
+         const unsigned long minimum = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || minimum > 0xff) {
+            fail("bad --sweep-zp minimum");
+         }
+         const unsigned long maximum = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || maximum > 0xff || maximum < minimum) {
+            fail("bad --sweep-zp maximum");
+         }
+         sweep_zp_writes.push_back({
+            static_cast<uint16_t>(address), static_cast<uint8_t>(minimum),
+            static_cast<uint8_t>(maximum), static_cast<uint8_t>(minimum), 1, false
          });
       }
       else if (std::strcmp(argv[i], "--set-zp") == 0) {

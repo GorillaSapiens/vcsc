@@ -61,3 +61,19 @@ paths.  Added a timing-harness adjacent-RESP assertion and pinned the phase-73
 case.  The hardware-derived final target is eleven phases 23..73 in five-cycle
 steps per line and a direct 160-byte packed X->{slot,HMP} table; the full target
 table and 152-cycle schedule are recorded in enhanced_asymmetric.txt.
+2026-08-21 12:49:00 PDT, asymmetric edge motion regression
+The enhanced asymmetric visual-fix checkpoint repurposes provisional RESP slots
+0/1/2 as ordinary edge classes: phase 23 for public X=1..15, phase 68 for
+X=136..150, and phase 73 for X=0/X=151..159.  Middle positions still use the
+provisional schedules, so the active measured lattice is
+23,28,33,37,42,47,50,53,58,63,68,73 rather than the final eleven 23+5n phases.
+
+Added `vcs_frame_timing --sweep-zp ADDR MIN MAX`; the asymmetric regression now
+moves sprite 0 continuously 0..159..0 across synchronized frames and remains at
+262 displayed lines.  Updated the regression to assert the actual twelve-phase
+ordinary lattice and phase 73 on both lanes.  Removed obsolete assertions for
+14/19/24 and for the retired experimental adjacent-line pair raster.
+
+Visible work remains: phase-53/phase-63 PF schedules have suspicious register
+write windows, and the renderer still reuses rank-0 color for later events.
+Ordinary PF/X/color correctness remains ahead of reintroducing pair scheduling.

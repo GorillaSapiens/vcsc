@@ -1381,23 +1381,19 @@ LATEST RESP IMPLEMENTATION STATUS (2026-08-20):
   run_asymmetric_frame() to solve 4K linker placement without changing behavior.
 
 LATEST ENHANCED-ASYMMETRIC PROGRESS (2026-08-21):
-The passing asymmetric renderer now has its first real adjacent-line 152-cycle
-pair class.  Exact same-Y X=159/X=159 pairs issue RESP0 at phase 73 on physical
-line A, RESP1 at phase 73 on physical line B (absolute cycle 149), then HMOVE at
-absolute cycle 152 with no middle WSYNC.  Stella 7.0 shows the expected wrapped
-X=159 glyph pixels at hardware X=158..159 and 0..5.  The old literal same-line
-dual-RESP pair ladders/groups were removed; other pair geometries currently fall
-back to the proven independent one-RESP paths.  The public example is 3814/4090
-ROM and 119/128 RAM before final checkpoint packaging.
+The visual-fix checkpoint temporarily retires experimental paired RESP raster
+paths while ordinary positioning/PF/color are stabilized.  Ordinary P0/P1 now
+use measured phases 23,28,33,37,42,47,50,53,58,63,68,73: public X=1..15 uses
+phase 23, X=136..150 uses 68, and X=0/X=151..159 uses 73; middle X remains on
+provisional schedules.  The final target is still the eleven hardware-derived
+23,28,33,38,43,48,53,58,63,68,73 slots with a direct packed X->{HMP,slot}
+lookup.
 
-Final horizontal target: eleven RESP phases 23,28,33,38,43,48,53,58,63,68,73;
-line B uses the same lattice +76.  Use a direct 160-byte packed X->{slot,HMP}
-table, not runtime arithmetic.  The 12-phase ordinary path remains until migrated
-and Stella-certified for X=0..159.
-
-Pair scheduling remains `(X0,X1,Y)` feasibility: independent one-RESP,
-adjacent-line 152-cycle split, optional VDEL-assisted split, then fair flicker if
-needed.  Y=89 is only a top-entry case.  Next: migrate ordinary P0/P1 to the
-11-slot table, expand the split-pair classifier beyond the proven phase-73 class,
-full Stella X=0..159, then stale per-event color handoff.  Read the latest section
+`vcs_frame_timing` now has `--sweep-zp`; the asymmetric regression drives sprite
+0 continuously 0..159..0 across frames and remains 262-line stable, asserts the
+actual twelve-phase set, and pins phase 73 on both lanes.  Obsolete 14/19/24 and
+adjacent-pair assertions were removed.  Remaining visible defects are specific:
+phase-53/63 middle schedules have suspect PF write windows and per-event color
+still reuses rank 0's cached color.  Fix PF/color and Stella-sweep X=0..159 on
+both lanes before restoring `(X0,X1,Y)` pair scheduling.  Read the latest section
 of `.../enhanced_asymmetric.txt` before continuing.

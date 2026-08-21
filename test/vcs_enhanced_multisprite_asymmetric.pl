@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# expectstdout: vcs_enhanced_multisprite_asymmetric ok: stable full-PF 192-line raster, phase-73 adjacent-line pair proof, combined X/Y stress
+# expectstdout: vcs_enhanced_multisprite_asymmetric ok: stable full-PF 192-line raster, 12-phase edge coverage, continuous X sweep, combined X/Y stress
 # expectexit: 0
 
 use strict;
@@ -88,29 +88,34 @@ sub expect_timing {
 
 expect_timing('static asymmetric timing',100);
 
-my$phases='14,19,24,28,33,37,42,47,50,53,58,63';
-expect_timing('13-phase randomized X stress',5000,
+my$phases='23,28,33,37,42,47,50,53,58,63,68,73';
+expect_timing('12-phase randomized X stress',5000,
    '--randomize-zp',sprintf('0x%02x',$x_addr),'6','160','0x31415927',
    '--require-resp-phases',$phases);
 
-# Pin the first hardware-derived far-right 152-cycle feasibility class.
-# Sprites 2/3 share Y=74 at public X=159; RESP0 and RESP1 must occur on
-# adjacent physical lines at phase 73, followed by HMOVE at absolute cycle 152.
-expect_timing('phase-73 adjacent-line pair',500,
-   '--set-zp',sprintf('0x%02x',$x_addr+0),'93',
-   '--set-zp',sprintf('0x%02x',$x_addr+1),'115',
+# The visual-fix checkpoint deliberately retired the experimental adjacent-line
+# pair path while ordinary positioning is stabilized.  Pin all six sprites to
+# the final far-right class instead and require phase 73 on both hardware lanes.
+expect_timing('phase-73 ordinary edge class',500,
+   '--set-zp',sprintf('0x%02x',$x_addr+0),'159',
+   '--set-zp',sprintf('0x%02x',$x_addr+1),'159',
    '--set-zp',sprintf('0x%02x',$x_addr+2),'159',
    '--set-zp',sprintf('0x%02x',$x_addr+3),'159',
-   '--set-zp',sprintf('0x%02x',$x_addr+4),'24',
-   '--set-zp',sprintf('0x%02x',$x_addr+5),'136',
+   '--set-zp',sprintf('0x%02x',$x_addr+4),'159',
+   '--set-zp',sprintf('0x%02x',$x_addr+5),'159',
    '--set-zp',sprintf('0x%02x',$y_addr+0),'6',
-   '--set-zp',sprintf('0x%02x',$y_addr+1),'0',
-   '--set-zp',sprintf('0x%02x',$y_addr+2),'74',
-   '--set-zp',sprintf('0x%02x',$y_addr+3),'74',
-   '--set-zp',sprintf('0x%02x',$y_addr+4),'2',
-   '--set-zp',sprintf('0x%02x',$y_addr+5),'1',
-   '--require-resp-phases','73',
-   '--require-adjacent-resp');
+   '--set-zp',sprintf('0x%02x',$y_addr+1),'18',
+   '--set-zp',sprintf('0x%02x',$y_addr+2),'34',
+   '--set-zp',sprintf('0x%02x',$y_addr+3),'50',
+   '--set-zp',sprintf('0x%02x',$y_addr+4),'66',
+   '--set-zp',sprintf('0x%02x',$y_addr+5),'82',
+   '--require-resp-phases','73');
+
+# Movement-sensitive edge regression: mutate sprite 0 once per synchronized
+# frame as 0..159..0.  Static X sweeps missed the historical one-frame line
+# count glitches at transitions.
+expect_timing('continuous X up/down sweep',647,
+   '--sweep-zp',sprintf('0x%02x',$x_addr),'0','159');
 
 # Historical stream-interruption repro: sprites 0/3 share Y=89 and coarse slot
 # 6. The top-edge dispatcher has its own balanced one-RESP entry, so this case
@@ -145,4 +150,4 @@ for my$spec (
       '--require-resp-phases',$phases);
 }
 
-print "vcs_enhanced_multisprite_asymmetric ok: stable full-PF 192-line raster, phase-73 adjacent-line pair proof, combined X/Y stress\n";
+print "vcs_enhanced_multisprite_asymmetric ok: stable full-PF 192-line raster, 12-phase edge coverage, continuous X sweep, combined X/Y stress\n";

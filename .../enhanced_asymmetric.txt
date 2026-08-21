@@ -1382,3 +1382,71 @@ NEXT WORK
 5. Use fair rotating flicker only for geometries that remain impossible after
    independent/split/VDEL classes.
 6. Full Stella sweep public X=0..159 on both lanes, then fix stale per-event color.
+
+IMPLEMENTED CHECKPOINT -- ORDINARY EDGE REMAP AND MOTION SWEEP -- 2026-08-21
+=============================================================================
+This checkpoint temporarily retires the experimental adjacent-line/same-line
+pair raster paths from the active visible scheduler while ordinary positioning,
+playfield timing, color, and frame stability are made correct first.  Pair
+metadata may remain in preparation code, but no adjacent-line RESP proof is a
+current completion contract.
+
+CURRENT ORDINARY RESP LATTICE
+-----------------------------
+The active ordinary positioner now uses these twelve measured RESP write phases
+on both hardware lanes:
+
+    23,28,33,37,42,47,50,53,58,63,68,73
+
+The three former provisional left-edge slots were repurposed rather than adding
+new dispatch entries:
+
+* slot 0 -> phase 23 for public X=1..15;
+* slot 1 -> phase 68 for public X=136..150;
+* slot 2 -> phase 73 for public X=0 and X=151..159.
+
+Their HMP nibbles use the hardware-derived final edge mapping.  Middle X values
+still use the proven provisional slots 3..11 and therefore this is NOT yet the
+final eleven-slot 23+5n lattice.  The final target remains
+23,28,33,38,43,48,53,58,63,68,73 with one direct packed X->{HMP,slot} lookup.
+
+MOVEMENT-SENSITIVE FRAME REGRESSION
+-----------------------------------
+Static independent-X tests were insufficient: the user observed frame-count
+changes while physically moving sprite 0.  `vcs_frame_timing` therefore has a
+`--sweep-zp ADDR MIN MAX` mode that mutates one zero-page byte once per
+synchronized frame in a triangular sequence.  The asymmetric regression now
+moves game_x[0] continuously 0..159..0 and checks every resulting frame.  The
+current edge-remapped tree is stable at 262 displayed lines for that sweep and
+combined randomized X/Y stress.
+
+The regression also asserts the exact active twelve-phase set above and pins
+phase 73 on both hardware lanes.  Obsolete requirements for phases 14/19/24 and
+for the retired adjacent-line pair proof were removed; those assertions described
+an earlier experimental architecture rather than the current renderer.
+
+KNOWN VISIBLE WORK STILL OPEN
+-----------------------------
+CPU-cycle instrumentation found suspicious playfield schedules in the remaining
+provisional middle paths: the phase-53 family can write right PF2 around cycle 46
+(earlier than the nominal safe right-PF2 window), while the phase-63 family can
+write left PF1 around cycle 28 (just after the nominal left-PF1 deadline).  These
+are prime suspects for the playfield glitches seen during movement and must be
+reworked/verified in Stella.
+
+Per-event color is also still wrong.  VBLANK compacts the correct color for each
+rank, but visible setup caches only rank 0's color in `pair_y`; later events can
+therefore inherit stale COLUP0/COLUP1.  Fix this after/alongside PF schedule
+cleanup, without disturbing the exact RESP/HMOVE phases.
+
+NEXT WORK
+---------
+1. Repair and Stella-verify the phase-53/phase-63 playfield schedules.
+2. Run the 0..159..0 motion sweep after every timing change and Stella-check the
+   visible boundary transitions 159<->0<->1, 15<->16, 135<->136, 150<->151.
+3. Fix per-event color handoff.
+4. Finish migration of middle X to the final eleven 23+5n slots and complete a
+   Stella pixel sweep of public X=0..159 on both lanes.
+5. Only after ordinary positioning/PF/color are certified, reintroduce the
+   `(X0,X1,Y)` pair-feasibility scheduler: independent RESP, adjacent-line split,
+   optional VDEL-assisted split, then fair flicker as the last fallback.
