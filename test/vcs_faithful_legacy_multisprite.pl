@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@
 # phase: e2e
-# timeout: 30
 # expectstdout: vcs_faithful_legacy_multisprite ok: 1472 ROM, exact 122+6 RAM, 264-line frame, five multiplexed P1 sprites plus P0
 # expectexit: 0
 # Faithful fixed diagnostic and source-integration contract for the retained

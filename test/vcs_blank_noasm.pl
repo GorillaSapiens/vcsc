@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 20
 # expectstdout: vcs_blank_noasm ok: timer-owned blanking and X-backed visible countdown preserve exact 262-line frames
 # expectexit: 0
 

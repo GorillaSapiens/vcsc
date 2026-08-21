@@ -672,6 +672,18 @@ static int add_branch(o26_writer_t *wr, unsigned char segid, long source, long t
    return 1;
 }
 
+/* Compute a 6502/6507 relative displacement in the 16-bit logical address
+ * space.  Object-mode statements may have a packed .org position that differs
+ * from their active .rorg PC, so numeric branch operands must never be
+ * subtracted directly from the packed object offset. */
+static int o26_branch_disp16(long source_after, long target, long *disp_out)
+{
+   unsigned long delta = ((unsigned long)target - (unsigned long)source_after) & 0xffffUL;
+   long disp = delta >= 0x8000UL ? (long)delta - 0x10000L : (long)delta;
+   if (disp_out) *disp_out = disp;
+   return disp >= -128L && disp <= 127L;
+}
+
 //! @brief Find undef in assembler o26 object writer tables without transferring ownership.
 static o26_undef_t *find_undef(o26_writer_t *wr, const char *name)
 {
@@ -1716,6 +1728,10 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
                return 1;
 
             case EM_REL:
+            {
+               long branch_target = info.value;
+               long disp;
+               long packed_target;
                if (info.is_reloc) {
                   if (info.segid == O26_SEG_UNDEF) {
                      writer_error(wr->ctx, stmt, "o26 output does not support external branch targets");
@@ -1725,13 +1741,23 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
                      writer_error(wr->ctx, stmt, "o26 output does not support cross-segment branch targets");
                      return 0;
                   }
+                  disp = branch_target - (off + 1);
+                  packed_target = branch_target;
                }
-               value = value - (off + 1);
-               if (value < -128 || value > 127) {
+               else {
+                  /* stmt->address is the logical instruction PC (including
+                   * active .rorg); insn_off/off are packed object offsets. */
+                  if (!o26_branch_disp16(stmt->address + 2, branch_target, &disp)) {
+                     writer_error(wr->ctx, stmt, "branch out of range");
+                     return 0;
+                  }
+                  packed_target = insn_off + 2 + disp;
+               }
+               if (disp < -128 || disp > 127) {
                   writer_error(wr->ctx, stmt, "branch out of range");
                   return 0;
                }
-               if (!buf_write_byte(buf, off, (unsigned char)(value & 0xFF))) {
+               if (!buf_write_byte(buf, off, (unsigned char)(disp & 0xFF))) {
                   writer_error(wr->ctx, stmt, "failed to write branch displacement");
                   return 0;
                }
@@ -1740,12 +1766,13 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
                   page_policy = 1;
                else if (stmt->u.insn.branch_page == BRANCH_PAGE_CROSS)
                   page_policy = 2;
-               if (!add_branch(wr, (unsigned char)segid, insn_off, info.value,
+               if (!add_branch(wr, (unsigned char)segid, insn_off, packed_target,
                                opcode, page_policy)) {
                   writer_error(wr->ctx, stmt, "out of memory recording branch metadata");
                   return 0;
                }
                return 1;
+            }
 
             case EM_REL_LONG:
             case EM_ABS:

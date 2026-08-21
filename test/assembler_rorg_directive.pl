@@ -61,6 +61,29 @@ sub run_asm {
    return ($? >> 8, slurp($out), slurp($err), $hex, join(' ', @cmd));
 }
 
+sub run_o26 {
+   my ($name, $body) = @_;
+   my $src = File::Spec->catfile($tmp, "$name.s26");
+   my $obj = File::Spec->catfile($tmp, "$name.o26");
+   my $out = File::Spec->catfile($tmp, "$name.o26.out");
+   my $err = File::Spec->catfile($tmp, "$name.o26.err");
+
+   write_file($src, $body);
+
+   my @cmd = ($asm, '-o', $obj, $src);
+   my $pid = fork();
+   die "fork failed: $!\n" if !defined($pid);
+   if ($pid == 0) {
+      open(STDOUT, '>', $out) or die "open stdout failed: $!\n";
+      open(STDERR, '>', $err) or die "open stderr failed: $!\n";
+      exec @cmd;
+      die "exec failed: $!\n";
+   }
+
+   waitpid($pid, 0);
+   return ($? >> 8, slurp($out), slurp($err), $obj, join(' ', @cmd));
+}
+
 sub parse_ihex {
    my ($path) = @_;
    my %mem;
@@ -142,6 +165,31 @@ if ($wrap_exit != 0) {
 my $wrap_mem = parse_ihex($wrap_hex);
 die "wrapped branch opcode missing\n" if !defined($wrap_mem->{0x8000}) || $wrap_mem->{0x8000} != 0x10;
 die "wrapped branch displacement wrong\n" if !defined($wrap_mem->{0x8001}) || $wrap_mem->{0x8001} != 0x26;
+
+# Numeric relative targets in relocatable o26 output must use the active
+# logical .rorg PC, not the packed object offset.  Disassembler output uses
+# numeric runtime branch targets deliberately so page-contract relaxation does
+# not become self-referential.
+my ($o26_exit, undef, $o26_err, undef, $o26_cmd) = run_o26('rorg_numeric_branch_o26', <<'ASM');
+.segmentdef "CODE", $8000, $1000
+.segment "CODE"
+.org $8000
+.rorg $F800
+   cld
+   ldx #$FF
+   txs
+   inx
+   txa
+B1_F806:
+   sta $00,X
+   inx
+   bne.same $F806
+.rend
+ASM
+
+if ($o26_exit != 0) {
+   die "rorg_numeric_branch_o26 failed, exit $o26_exit\n$o26_cmd\n$o26_err";
+}
 
 my ($align_exit, undef, $align_err, $align_hex, $align_cmd) = run_asm('rorg_align', <<'ASM');
 .segmentdef "CODE", $8000, $1000

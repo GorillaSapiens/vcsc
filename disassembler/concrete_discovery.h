@@ -27,8 +27,19 @@ typedef struct {
 } vcsc_concrete_seed_t;
 
 typedef struct {
+   uint16_t mapper_config;
+   uint8_t a;
+   uint8_t x;
+   uint8_t y;
+   uint8_t sp;
+   uint8_t p;
+   uint8_t valid;
+} vcsc_concrete_rom_state_t;
+
+typedef struct {
    unsigned instructions;
    unsigned rom_instruction_starts;
+   unsigned rom_data_bytes_read;
    unsigned ram_instruction_starts;
    unsigned ram_bytes_written;
    unsigned scenarios_run;
@@ -65,6 +76,8 @@ int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
                            size_t reset_bank, int superchip,
                            uint8_t *rom_exec_start,
                            uint16_t *rom_exec_pc,
+                           uint8_t *rom_data_read,
+                           vcsc_concrete_rom_state_t *rom_exec_state,
                            vcsc_concrete_result_t *result);
 
 /* Continue concrete discovery from one statically proven exact execution state.
@@ -77,6 +90,8 @@ int vcsc_concrete_discover_seed(const uint8_t *rom, size_t rom_size,
                                 const vcsc_concrete_seed_t *seed,
                                 uint8_t *rom_exec_start,
                                 uint16_t *rom_exec_pc,
+                                uint8_t *rom_data_read,
+                                vcsc_concrete_rom_state_t *rom_exec_state,
                                 vcsc_concrete_result_t *result);
 
 #ifdef __cplusplus

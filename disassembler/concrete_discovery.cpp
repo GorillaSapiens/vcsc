@@ -75,10 +75,14 @@ public:
                     uint8_t swchb_press_mask, unsigned press_at,
                     unsigned release_at, const vcsc_concrete_seed_t *seed,
                     uint8_t *rom_exec_start, uint16_t *rom_exec_pc,
+                    uint8_t *rom_data_read,
+                    vcsc_concrete_rom_state_t *rom_exec_state,
                     vcsc_concrete_result_t *result)
       : rom_(rom), rom_size_(rom_size), mapper_(mapper), bank_count_(bank_count),
         bank_(reset_bank), superchip_(superchip), rom_exec_start_(rom_exec_start),
-        rom_exec_pc_(rom_exec_pc), result_(result), swcha_(swcha), swchb_(swchb),
+        rom_exec_pc_(rom_exec_pc), rom_data_read_(rom_data_read),
+        rom_exec_state_(rom_exec_state), result_(result),
+        swcha_(swcha), swchb_(swchb),
         base_swchb_(swchb), swchb_press_mask_(swchb_press_mask),
         press_at_(press_at), release_at_(release_at), seeded_(seed != nullptr),
         cpu_(read_thunk, write_thunk, nullptr)
@@ -94,6 +98,8 @@ public:
          result_->ram_exec_source[i] = VCSC_CONCRETE_NO_SOURCE;
       std::memset(rom_exec_start_, 0, rom_size_);
       std::memset(rom_exec_pc_, 0, rom_size_ * sizeof(*rom_exec_pc_));
+      std::memset(rom_data_read_, 0, rom_size_);
+      std::memset(rom_exec_state_, 0, rom_size_ * sizeof(*rom_exec_state_));
       std::memcpy(inpt_, inpt, sizeof(inpt_));
       cpu_.IRQ(true);
       cpu_.NMI(true);
@@ -178,6 +184,8 @@ private:
    bool superchip_;
    uint8_t *rom_exec_start_;
    uint16_t *rom_exec_pc_;
+   uint8_t *rom_data_read_;
+   vcsc_concrete_rom_state_t *rom_exec_state_;
    vcsc_concrete_result_t *result_;
    uint8_t swcha_ = 0xffu;
    uint8_t swchb_ = 0xffu;
@@ -530,6 +538,19 @@ private:
       return 0u;
    }
 
+   uint16_t current_mapper_config() const
+   {
+      if (mapper_is_wd()) return wd_config_;
+      if (mapper_ == kMapFC) return fc_pending_;
+      if (mapper_ == kMapE0)
+         return static_cast<uint16_t>((e0_segment_[0] & 7u) |
+                ((e0_segment_[1] & 7u) << 3) | ((e0_segment_[2] & 7u) << 6));
+      if (mapper_ == kMapE7)
+         return static_cast<uint16_t>((e7_lower_ & 0x0fu) | ((e7_ram_block_ & 3u) << 4));
+      if (mapper_ == kMap3F || mapper_ == kMap3E) return three_config_;
+      return 0u;
+   }
+
    void note_instruction(uint16_t pc, uint8_t opcode)
    {
       const uint16_t bus = bus_address(pc);
@@ -537,8 +558,16 @@ private:
          size_t physical;
          if (map_cart(bus, &physical)) {
             if (!rom_exec_start_[physical]) {
+               vcsc_concrete_rom_state_t &st = rom_exec_state_[physical];
                rom_exec_start_[physical] = 1;
                rom_exec_pc_[physical] = pc;
+               st.mapper_config = current_mapper_config();
+               st.a = cpu_.GetA();
+               st.x = cpu_.GetX();
+               st.y = cpu_.GetY();
+               st.sp = cpu_.GetS();
+               st.p = cpu_.GetP();
+               st.valid = 1u;
                ++result_->rom_instruction_starts;
             }
          }
@@ -595,6 +624,7 @@ private:
       const uint16_t delta = static_cast<uint16_t>(bus - bus_address(current_pc_));
       const bool fetch_byte = delta < current_len_;
       if (rom_value && !fetch_byte) {
+         rom_data_read_[physical] = 1u;
          current_data_source_ = static_cast<uint32_t>(physical);
          current_data_value_ = value;
          ++current_data_reads_;
@@ -803,9 +833,13 @@ DiscoveryMachine *DiscoveryMachine::active_ = nullptr;
 
 static unsigned merge_run(size_t rom_size,
                           uint8_t *rom_exec_start, uint16_t *rom_exec_pc,
+                          uint8_t *rom_data_read,
+                          vcsc_concrete_rom_state_t *rom_exec_state,
                           vcsc_concrete_result_t *dst,
                           const uint8_t *run_exec_start,
                           const uint16_t *run_exec_pc,
+                          const uint8_t *run_data_read,
+                          const vcsc_concrete_rom_state_t *run_exec_state,
                           const vcsc_concrete_result_t &src,
                           bool keep_final_cpu)
 {
@@ -828,9 +862,14 @@ static unsigned merge_run(size_t rom_size,
    }
 
    for (size_t i = 0; i < rom_size; ++i) {
+      if (run_data_read[i] && !rom_data_read[i]) {
+         rom_data_read[i] = 1u;
+         ++dst->rom_data_bytes_read;
+      }
       if (!run_exec_start[i] || rom_exec_start[i]) continue;
       rom_exec_start[i] = 1;
       rom_exec_pc[i] = run_exec_pc[i];
+      rom_exec_state[i] = run_exec_state[i];
       ++dst->rom_instruction_starts;
       ++new_reachability;
    }
@@ -865,9 +904,11 @@ extern "C" int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
                                         size_t reset_bank, int superchip,
                                         uint8_t *rom_exec_start,
                                         uint16_t *rom_exec_pc,
+                                        uint8_t *rom_data_read,
+                                        vcsc_concrete_rom_state_t *rom_exec_state,
                                         vcsc_concrete_result_t *result)
 {
-   if (!rom || !rom_exec_start || !rom_exec_pc || !result ||
+   if (!rom || !rom_exec_start || !rom_exec_pc || !rom_data_read || !rom_exec_state || !result ||
        bank_count == 0u || reset_bank >= bank_count) return 0;
    switch (mapper) {
    case kMap1K:
@@ -906,6 +947,8 @@ extern "C" int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
    std::memset(result, 0, sizeof(*result));
    std::memset(rom_exec_start, 0, rom_size);
    std::memset(rom_exec_pc, 0, rom_size * sizeof(*rom_exec_pc));
+   std::memset(rom_data_read, 0, rom_size);
+   std::memset(rom_exec_state, 0, rom_size * sizeof(*rom_exec_state));
    for (unsigned i = 0; i < VCSC_CONCRETE_RIOT_RAM_SIZE; ++i)
       result->ram_source_offset[i] = VCSC_CONCRETE_NO_SOURCE;
    for (unsigned i = 0; i < VCSC_CONCRETE_RIOT_RAM_SIZE * VCSC_CONCRETE_MAX_INSN_BYTES; ++i)
@@ -916,14 +959,18 @@ extern "C" int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
                       unsigned press_at, unsigned release_at) -> int {
       std::vector<uint8_t> run_exec(rom_size, 0);
       std::vector<uint16_t> run_pc(rom_size, 0);
+      std::vector<uint8_t> run_data(rom_size, 0);
+      std::vector<vcsc_concrete_rom_state_t> run_state(rom_size);
       vcsc_concrete_result_t run_result{};
       DiscoveryMachine machine(rom, rom_size, mapper, bank_count, reset_bank,
                                superchip != 0, swcha, swchb, inpt,
                                swchb_press_mask, press_at, release_at, nullptr,
-                               run_exec.data(), run_pc.data(), &run_result);
+                               run_exec.data(), run_pc.data(), run_data.data(),
+                               run_state.data(), &run_result);
       if (!machine.run()) return 0;
-      merge_run(rom_size, rom_exec_start, rom_exec_pc, result,
-                run_exec.data(), run_pc.data(), run_result, keep_final_cpu);
+      merge_run(rom_size, rom_exec_start, rom_exec_pc, rom_data_read, rom_exec_state, result,
+                run_exec.data(), run_pc.data(), run_data.data(), run_state.data(), run_result,
+                keep_final_cpu);
       return 1;
    };
 
@@ -999,20 +1046,26 @@ extern "C" int vcsc_concrete_discover_seed(const uint8_t *rom, size_t rom_size,
                                               const vcsc_concrete_seed_t *seed,
                                               uint8_t *rom_exec_start,
                                               uint16_t *rom_exec_pc,
+                                              uint8_t *rom_data_read,
+                                              vcsc_concrete_rom_state_t *rom_exec_state,
                                               vcsc_concrete_result_t *result)
 {
-   if (!rom || !seed || !rom_exec_start || !rom_exec_pc || !result ||
+   if (!rom || !seed || !rom_exec_start || !rom_exec_pc || !rom_data_read || !rom_exec_state || !result ||
        bank_count == 0u || seed->bank >= bank_count) return -1;
    std::vector<uint8_t> run_exec(rom_size, 0);
    std::vector<uint16_t> run_pc(rom_size, 0);
+   std::vector<uint8_t> run_data(rom_size, 0);
+   std::vector<vcsc_concrete_rom_state_t> run_state(rom_size);
    vcsc_concrete_result_t run_result{};
    uint8_t neutral_inpt[6] = { 0x80u, 0x80u, 0x80u, 0x80u, 0x80u, 0x80u };
    DiscoveryMachine machine(rom, rom_size, mapper, bank_count, seed->bank,
                             superchip != 0, 0xffu, 0xffu, neutral_inpt,
                             0u, 0u, 0u, seed,
-                            run_exec.data(), run_pc.data(), &run_result);
+                            run_exec.data(), run_pc.data(), run_data.data(),
+                            run_state.data(), &run_result);
    if (!machine.run()) return -1;
    return static_cast<int>(merge_run(rom_size, rom_exec_start, rom_exec_pc,
-                                     result, run_exec.data(), run_pc.data(),
-                                     run_result, false));
+                                     rom_data_read, rom_exec_state, result, run_exec.data(),
+                                     run_pc.data(), run_data.data(), run_state.data(), run_result,
+                                     false));
 }

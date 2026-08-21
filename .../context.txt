@@ -944,111 +944,13 @@ press/release, opposite-port SWCHA/SWACNT isolation, public hex arithmetic/color
 and invariant frame length. Installed-tree checks ship the component and build
 the public example. Main-roadmap Items 39 (FA/RAM Plus), 41 (low-hanging-fruit mapper survey), and 42 (general automatic multi-region CODE/RODATA placement) are complete. Bankswitching Item 31 adds direct 4KSC with full Superchip RAM and a PASS/FAIL diagnostic. Focused mapper Items 32 OMNI, 33 CV/CommaVid, 34 JANE, 35 0840/EconoBanking, 36 UA/UASW, and 37 0FA0 are complete; Item 38 is explicitly deferred, so that focused mapper queue currently has no active unfinished item. `vcs_omni_32k.c26` defines seven direct `$ro` islands plus one explicitly selected `$rw` island at $1000 using existing DATA/BSS initialization semantics; no `$rwx` capability or automatic RAM spill is planned. `vcs_omni_32k.cfg` gives the simulator the matching selector-free eight-island logical layout, and public `09_bankswitching/05_omni` certifies all seven RO islands plus all 4096 bytes of `cartram`. Every public bankswitching profile now stamps a four-byte mapper signature at logical $xFF8-$xFFB in only the final file bank: `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, `CV\0\0`, `OMNI`, `JANE`, `0840`, `UA\0\0`, `UASW`, or `0FA0`. The optional C26 `$signature:` cartridge flag is carried in `__cartmeta$V2$`; the linker still accepts legacy V1 cartridge records without a signature. Stella 7.0 autodetects the 4KSC diagnostic from the resulting `SC` bytes at $xFFA-$xFFB. The convention is documented for users in the top-level README, `libraries/vcs/README.md`, `examples/09_bankswitching/README.md`, and the compiler/linker references. The compile suite passes 500/500; focused OMNI/CV/JANE profile, example, simulator, disassembler, installation, and hygiene gates pass. JANE uses physical/file bank order 0/1/2/3 with selectors $1FF0/$1FF1/$1FF8/$1FF9 and hardware startup bank 1; VCSC logical `bank0` is therefore file index 1. Its replicated vector bridge lives at $FEE0-$FEF1 to avoid the $FFF0/$FFF1 selector pair, while the standard $FF00-$FFDF trampoline corridor remains available.
 
-Roadmap item 40 (two-player joystick tank duel) is complete as the public
-`examples/01_basic/13_tanks/` example. It uses the Paddleball blue/red/black/white
-palette and the same three-plus-three score component, P0/P1 as sixteen-direction
-8x16 tanks, M0/M1 as projectiles, four-scanline top/bottom walls, and one reflected
-four-color-clock playfield bit for each side wall. Three pseudo-random interior
-barrier segments are each one PF2 bit (four color clocks) wide and 28 visible
-scanlines tall; CTRLPF reflection mirrors them into three additional vertical
-barriers. Their X columns remain independently pseudo-random, while all three
-share one 0..2-pair vertical offset from base starts 12/36/60. This guarantees
-at least 20 visible scanlines in each of the four vertical passages: top,
-upper-to-middle, middle-to-lower, and lower-to-bottom. Left/Right rotate in
-22.5-degree steps, Up drives forward, and Down drives
-backward. Translation retains the one-update-per-four-frames cadence. Movement follows the same logical coordinate geometry as the tank glyph table:
-cardinals step one axis, true 45-degree headings step X and Y together, and
-NNE/ENE/etc. use a deterministic 7/16 minor-axis cadence close to tan(22.5 degrees).
-The mover deliberately does not compensate for doubled sprite rows because doing so
-made projectile trajectories diverge from the rendered tank headings. Missiles use
-the exact same 16-way mover.
-A new turn acts immediately, while a held turn repeats after 24 frames. Fire launches a missile only after the previous shot has
-stopped and starts a four-frame TIA noise burst. Existing missiles advance before
-controls are processed, so a newly launched two-pixel missile gets one visible
-frame centered at physical tank_x+3..+4 before projectile motion begins. The
-cycle-calibrated M0/M1 RESP/HMOVE positioner renders five Atari pixels left of
-its stored X coordinate, so launch stores tank_x+8 to produce that physical
-center without perturbing the positioner's beam timing. Missile-wall/barrier stops use
-CXM0FB/CXM1FB; player hits use CXM0P/CXM1P, increment the shooter's score, stop the
-missile, start a distinct 24-frame hit noise, and spin the struck tank rapidly for
-24 frames before leaving it on a pseudo-random heading. A hit also queues an
-approximately 32-visible-pixel displacement selected pseudo-randomly from the
-half-plane away from the projectile/shooter: horizontal cardinals use 32 X pixels,
-vertical cardinals use 16 doubled rows (=32 scanlines), and diagonals use 23 X
-pixels plus 11 doubled rows (~31.8 visible pixels). Straight and +/-45-degree
-headings are favored, with occasional +/-90-degree away-side headings for variety.
-Hit knockback deliberately ignores playfield geometry: interior PF barriers do not
-block the displacement, and crossing an outer wall wraps the complete tank footprint
-through the legal top-left coordinate ranges ($04-$94 X and $04-$4E Y) to the
-opposite side of the arena. This prevents a wall-pinned victim from being farmed
-indefinitely. Knockback also sets a per-tank playfield-escape latch: if the tank
-lands overlapping a wall or PF barrier, CXP0FB/CXP1FB rollback is suppressed until
-one complete visible frame reports no playfield overlap, so the player can always
-drive out of the geometry. Ordinary driving is collision constrained again as soon
-as that clean frame clears the latch. CXPPMM
-rolls both tanks back on P0/P1 contact so they cannot drive through each other.
-
-The tank glyph table is written as exactly one visual `0b...X....` byte per
-source line so each 8x8 orientation can be scanned directly in the file. N, NNE,
-and NE are the canonical drawings; the other thirteen headings are exact rotations
-or reflections of those templates. The diagonal and intermediate hulls cant as a
-whole rather than retaining a cardinal chassis with only an angled barrel. The
-corrected tank graphics pointer includes the actual low/high address of the
-`tanks_graphics` table instead of assuming page alignment at `$xx00`; the old
-accidental alignment caused scrambled glyphs after score/audio additions moved
-the table. The complete 128-byte / sixteen-glyph payload is pinned by the Tanks
-regression.
-The 11-line score temporarily owns P0/P1.
-A VBLANK-prepared 160-entry packed player-position table then restores P0/P1 with
-a fixed three-visible-line handoff, replacing coordinate-dependent visible-time
-divide loops. The paired arena kernel is 172 lines, followed by a dedicated
-four-scanline bottom wall and two blank tail lines for 192 visible lines total.
-P0/P1 graphics are now published at CPU cycles 3 and 6 of every line-A, before
-visible pixels begin; the previous cycle-38/44 writes caused the horizontal tank
-tears seen at left-side X positions. The side-wall PF0 transition is completed in
-HBLANK, and the bottom wall is established at the start of its own four-line phase
-instead of changing PF0/PF1 partway across the first bottom scanline. Missile enable
-bytes are staged on line B and published early on the following line A; the enable
-remains latched through line B so a shot is visible for two scanlines. An 86-byte
-`cartram` PF2 schedule supplies the top-wall continuation and vertical barriers in
-constant time. Missile collision, score, and hit-audio processing consume the
-previous arena's latches in VBLANK. Player collision rollback is consumed earlier,
-at the start of overscan immediately after the arena and before controls overwrite
-`tank*_prev_*`; CXP0FB/CXP1FB normally restore a tank after playfield contact, but
-the post-knockback escape latch temporarily permits movement out of overlapping
-playfield geometry. CXPPMM still restores both tanks after P0/P1 contact. Controls, spin advance, missile motion,
-Reset, and RNG then continue in overscan. TIA audio channel 1 is reserved for a
-quiet low-bass engine growl while either non-spinning tank has Up or Down held;
-the growl remains continuous across quarter-rate translation frames. Fire and
-hit effects remain independently on audio channel 0. The complete frame remains stable at the
-scheduler's 264-raw / Stella-262 contract. Stella 7.0 was also exercised with a
-moving tank after the raster rewrite; tank rows remained coherent and the bottom
-wall rendered continuously.
-
-`tanks` is an 8K F8SC cartridge. The current linker reports bank1 at
-3371/3584 bytes, bank0 at 3131/3584 bytes, RIOT RAM at 125/128 bytes (113 bytes
-of objects plus the 12-byte reserved hardware stack), and `cartram` at 99/128
-bytes. The two turn-repeat counters, one movement scratch byte, and two playfield-escape latches are explicitly
-in `cartram`; beam-facing position/graphics state remains zero-page. Off-beam RNG,
-tank-graphics pointer selection, and packed player-position lookup are ordinary VCSC;
-the remaining 147 source `asm` statements are reviewed timing-critical raster,
-positioning, or bounded blanking-deadline code. `vcs_tanks.pl/.cpp` covers both joysticks, 16-step turning, 24-frame held-turn
-repeat, quarter-rate translation, distinct NNE/ENE minor-axis trajectories, fire
-hold semantics and fire audio, three-plus-three scoring, hit audio/spin/random
-heading, away-side knockback distance/direction, explicit barrier pass-through,
-outer-wall wraparound, and escape from a knockback landing inside a barrier while
-CXP1FB remains asserted, missile/playfield and missile/player latches,
-player/playfield rollback,
-player/player rollback, barrier regeneration on Reset, a 20-scanline minimum in
-all four vertical barrier passages, corrected graphics pointers and SE/SW orientation,
-visible ENAM0/ENAM1 assertion after launch, immediate
-post-arena collision rollback with reverse-away recovery checks, invariant frame
-length, and beam-write deadlines for nonzero GRP0/GRP1 plus side/full PF0
-transitions. Its timing stress path drives tanks and missiles to X endpoints 4/148
-and Y endpoints 4/78 while injecting simultaneous hits/spin/audio activity; every
-post-startup frame must retain the 264-raw cadence. Installed-tree and example-build
-coverage include `tanks`. Main-roadmap Items 39 and 41 are complete; the mapper
-survey is concretized in bankswitching Items 31-38, with 4KSC, OMNI, CV/CommaVid, JANE, 0840, UA/UASW, and 0FA0 complete through Item 37; Item 38 is deferred.
+Roadmap item 40 (two-player joystick tank duel) is complete as public
+`examples/01_basic/13_tanks/`. It is an 8K F8SC blue/red arena using P0/P1 tanks,
+M0/M1 projectiles, three-plus-three scoring, 16-way movement, randomized barriers,
+collision rollback/knockback/wrap recovery, and separate engine/fire/hit audio. The
+current build remains tight at 125/128 RIOT RAM plus 99/128 Superchip RAM; raster,
+positioning, collision, control, audio, and frame-cadence behavior are pinned by
+`vcs_tanks.pl/.cpp`, with Stella-calibrated 262-line NTSC timing.
 
 
 CBS FA/RAM Plus output support is now implemented as `vcs_12k_fa.c26` plus the
@@ -1065,34 +967,16 @@ stable NTSC timing. Its simulator oracle passes from every forced physical start
 bank, and a Stella 7 run visibly displayed green `pass` with a centered `FA` line
 below it. C26 and compatibility-cfg builds are byte-identical 12288-byte cartridges.
 
-The generic per-case test timeout is now 20 seconds, and former explicit
-10-second overrides were raised to 20 seconds as well; longer 120-second
-exceptions remain unchanged.
+The generic per-case test timeout is 45 seconds. Per-test timeout overrides below
+45 seconds are intentionally omitted so those cases inherit the default; explicit
+45-second and longer overrides remain for tests that need them.
 
-The unified test runner now supports case-level parallelism with `--jobs N`;
-the test and top-level Makefiles expose it as `TEST_JOBS=N`. Parallel workers
-keep each case's existing temporary isolation and buffer completed results so
-reporting remains in deterministic source order. The Makefile default is eight
-workers, so plain `make test` runs in parallel; `make test TEST_JOBS=1` forces a
-serial run when useful for debugging. The
-runner's own smoke test forces out-of-order child completion to pin ordered
-reporting, and all 492 compile tests pass under an eight-worker run. The runner
-also accepts `--timings FILE` and records each case's worker-local wall-clock
-seconds, status, phase, and name in TSV form. The top-level Makefile writes the
-combined compile/E2E report to `test-times.tsv` by default via `TEST_TIMINGS`,
-and the report path remains overrideable. The two longest batch E2Es are now
-sharded for that outer worker pool: example smoke builds run as eight round-robin
-`vcs_examples_build_*of8.test` cases, and score-composition coverage runs as four
-family-level cases backed by the same implementation script. The implementations
-remain manually runnable in full, but no longer register as monolithic tests;
-source-tree hygiene pins all shard descriptors and the single mixed-instance
-assignment so coverage cannot silently disappear. Repository-wide source-tree
-hygiene traversals explicitly prune `.git`, because branch/ref/object history is Git
-metadata rather than editable source and may legitimately retain retired historical
-names. In an eight-worker validation,
-example shards measured about 2.9-4.0 seconds each and score-composition family
-shards about 8.3-8.6 seconds each. The current E2E inventory contains 305
-cases while preserving the same aggregate sharded coverage model.
+The unified test runner supports case-level parallelism with `--jobs N` and TSV
+timing output with `--timings FILE`; the Makefiles expose these as `TEST_JOBS`
+(default 8) and `TEST_TIMINGS`. Results remain deterministic despite parallel
+workers. Example-build and score-composition batches stay sharded for outer
+parallelism, and source-tree hygiene pins that coverage. Repository-wide hygiene
+traversals prune `.git` because Git history is not editable source.
 
 
 Renderer branch timing and absolute alignment hardening (2026-08-15):
@@ -1289,3 +1173,79 @@ A synthetic 16K F6-vs-JANE regression pins this. The same investigation found
 non-VCS ROMs in the expanded corpus (including Atari 5200/7800/8-bit material);
 `roundtrip.pl --stella` is a VCS mapper differential, not a platform validator,
 and corpus inputs must be prefiltered to Atari 2600/VCS.
+
+2026-08-20 3F relative-branch alias investigation: the old assembler failure in
+Espial NTSC/PAL (`f344ac1279152157d63e64aa39479599` and
+`f7a138eed69665b5cd1bfa796a550b01`) was not real execution into zero-page/TIA
+space. Physical bank 3 offset `$7E7` was analyzed through the 3F selectable lower
+window at runtime PC `$37E7`, where bytes `10 38` are `BPL $3821`; the emitter
+then presented that same physical bank only at its fixed final-bank `.rorg
+$F800`, recomputed the source as `$FFE7`, and invented `BPL.cross $0021`. 3F/3E
+relative instructions are now forced raw when the runtime mapper-resolved target
+cannot be represented by the physical bank's canonical `.rorg`. Genuine
+unbanked `$FFxx->$00xx` relative branches remain symbolic and rely on the
+assembler's correct modulo-16-bit arithmetic. A synthetic final-bank-lower-alias
+fixture pins `$F7E7 -> $F821`; both Espial files round-trip exactly after the fix.
+The investigation also exposed a separate precision debt now queued as focused
+disassembler Item 31: concrete-only ROM starts are seeded with unknown CPU state,
+while mapper contexts have separate seen bits but share one merged abstract state
+per physical byte. Espial's real fixed-bank `STX $3F` trampoline at `$3C8C`
+therefore loses its caller-constrained X values (concrete execution observes 0/2),
+becomes an unknown 3F selector, and conservatively fans lower-window flow into all
+physical banks, which is what misclassified the bank-3 bitmap/data tail as code.
+Do not exclude the final bank from 3F selection: Stella's current Cartridge3F
+switches on writes at TIA `$00-$3F` and uses written value modulo ROM-bank count.
+
+
+2026-08-20 follow-up on last-page `.cross` failures: `x` also contained
+`56300ed31fef018bd96768ccc982f7b4`, a separate 16K F6 false-code case.  Its
+final-bank data at `$FFDA` accidentally decodes as `JSR $3020 / BMI $000F /
+BMI $0031 / ...`.  `$3020` is a cartridge mirror on the 6507, so speculative
+validation recursively walked hundreds of apparently valid ROM instructions,
+reached a strong terminal, and consumed the 512-step budget.  The continuation
+at `$FFDD` then became merely weak before the BMI was examined; the strong JSR
+arm won `spec_safe_merge()` and promoted an incompletely checked island.
+Credibility promotion now refuses any candidate whose validation walk exhausts
+its budget.  In addition, an actually examined speculative branch arm that can
+enter `$0000-$007F` is rejected because that is the TIA register window.  A
+proven-not-taken arm and established control flow are unaffected, so genuine
+16-bit assembler wrap semantics stay supported.  Synthetic
+`speculative_tia_branch_reject.bin` pins both mechanisms.  This is focused
+Disassembler Item 32 and is distinct from Item 30's 3F physical-alias
+presentation fix and Item 31's still-open mapper-context abstract-state debt.
+
+2026-08-20 usage-accounting / speculative-cap follow-up: the alarming Espial PAL
+summary `executed=3418 data-read=11 exec+data=5 overlap=463 possible=8
+unreferenced=4761` exposed real analysis/accounting defects. Concrete RESET
+exploration was observing physical ROM data reads but discarding them after
+provenance use; those reads are now retained and fed into `ROLE_DATA_READ`
+(Espial PAL observes 444 distinct ROM data bytes). Concrete-only instruction
+starts also now carry their exact observed A/X/Y/SP/P and mapper config into the
+static seed instead of an all-unknown state. That removes most of the 3F fake-code
+fanout: PAL Espial is now `executed=1377 data-read=444 exec+data=0 overlap=0
+possible=6144 vectors=6 ... unclassified=1698`; NTSC is 1373/444/0/0/6144 and
+1708 unclassified. Mapper-aware unresolved indexed/indirect ROM accesses now mark
+physical `ROLE_POSSIBLE`; the large 6144-byte Espial set is deliberately a broad
+may-read set, not observed data. The residual report term is renamed from
+`unreferenced` to `unclassified` because undiscovered paths are not proof of
+non-use. Item 31 remains partially open only for the deeper per-mapper-context
+abstract-state representation/merge problem.
+
+The speculative validator's historical `512` limit counted static CFG-node visits,
+not emulated CPU instructions or frame time; loops are cycle detected. Even so, the
+fixed 512 was arbitrary and cap exhaustion had been dangerously implicit. The fixed
+constant is now replaced by a per-walk cap equal to the physical bank size. The
+strictly linear JAM/KIL endpoint scan is uncapped because it is finite by bank size;
+stateful speculative walks explicitly report `capped-walks` and `promotion-capped`,
+and exhaustion is inconclusive and can never supply positive promotion evidence. The
+supplied F6 corpus case now reports 2 capped negative-evidence walks and 1 candidate
+denied promotion because of the bank-sized cap. Focused Item 35 records the proper
+follow-up: replace the recursion guard with a state-keyed convergent worklist/fixed
+point rather than another magic number.
+
+The same F6 retest exposed a separate assembler o26 `.rorg` bug: numeric relative
+branches were measured from packed object `.org` offsets rather than logical
+`stmt->address`. The o26 writer now computes numeric relative displacement from
+the logical PC with modulo-16-bit arithmetic while preserving relocatable-object
+semantics; `assembler_rorg_directive.pl` pins a generated local `BNE.same $F806`.
+

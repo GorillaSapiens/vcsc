@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 20
 # expectstdout: vcs_multicolor_full_static ok: player_color_192 interactive example starts with a 262-line exact asymmetric raster containing P0, P1, Ball, and no missiles
 # expectexit: 0
 

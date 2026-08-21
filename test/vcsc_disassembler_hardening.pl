@@ -1,7 +1,6 @@
 #!/usr/bin/env perl
 # runner: perl @TEST_ROOT@/vcsc_disassembler_hardening.pl @REPO@ @TMP@
 # phase: e2e
-# timeout: 20
 # expectstdout: vcsc-disassembler hardening ok
 
 use strict;

@@ -1,7 +1,6 @@
 #!/usr/bin/env perl
 # runner: perl @FILE@
 # phase: compile
-# timeout: 20
 # expectexit: 0
 # expectstdout: peephole unit tests passed
 

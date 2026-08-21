@@ -437,10 +437,16 @@ so a structurally reachable but provably dead halt arm remains safe. This prefil
 must preserve the same established-code/JMP/JSR/local-termination semantics as the
 stateful walk.
 
-The implementation bounds one stateful speculative candidate walk to 512 instruction
-visits so adversarial/random legal-opcode padding cannot make corpus analysis
-pathological; hitting that budget is inconclusive and never causes promotion or
-rejection. Every three consecutive rejected starts are a sequential-flow barrier.
+The implementation bounds one stateful speculative candidate walk by the physical
+bank size in static CFG-node visits, replacing the old arbitrary 512-node constant.
+This is not emulated CPU time: loops are cycle-detected, so a runtime loop that
+executes for thousands of frames may consume only a handful of graph-node visits.
+Hitting the cap is explicitly reported, is inconclusive, and can never supply positive
+evidence for speculative-code promotion. The strictly linear JAM/KIL endpoint scan
+has no artificial node cap because it always advances and is bounded by the physical
+bank. A future state-keyed worklist/fixed-point validator should replace the remaining
+computational guard entirely. Every three consecutive rejected starts are a
+sequential-flow barrier.
 For the stronger claim that an entire interval through a JAM/KIL endpoint is
 non-code, require all three rejected starts to reach their halt through pure
 straight-line fallthrough (a proved not-taken branch may remain on that line).
@@ -518,28 +524,29 @@ can.
 
 Use at least these usage states for reporting:
 
-    definitely executed/fetched
-    definitely read as data
+    definitely executed/fetched on discovered paths
+    definitely observed/provable read as data
     executed and read as data
-    possibly referenced/read
-    unreferenced by all discovered/provable accesses
+    possibly referenced/read by unresolved dynamic accesses
+    unclassified by the analysis performed so far
 
-A region should be called unreferenced only after known control flow and data
-accesses have been analyzed. If an unresolved indexed or indirect access could
-reach the region, classify it as possibly referenced rather than claiming it is
-never read.
+Do not call the residual set `unreferenced` merely because current control-flow and
+data-flow analysis failed to classify it. Concrete RESET exploration may miss
+input-dependent paths, and unresolved indexed/indirect accesses may cover broad
+mapper-dependent ranges. If an unresolved access could reach a region, mark it
+`possible`; otherwise the residual category is `unclassified`, not a proof of
+non-use. A future proof strong enough to establish truly unused ROM may add a
+separate `proven-unused` role, but absence of evidence is not that proof.
 
-When the analyzer can prove that bytes are neither fetched as instructions nor
-read as data, identify them explicitly as unreferenced/unused ROM. Do not
-force-decode them merely because their bit patterns form legal opcodes. Emit
-exact `.byte` data, preferably grouped into readable runs with comments such as:
+Concrete execution must retain physical ROM reads that are not opcode/operand fetches
+and feed them back into the definite data-read role. Mapper-aware unresolved reads
+must conservatively map their possible logical address ranges into physical ROM. Do
+not force-decode residual bytes merely because their bit patterns form legal opcodes.
+Emit exact `.byte` data for bytes not represented as established code.
 
-    ; unreferenced ROM bytes
-
-This information should also appear in an optional analysis summary, with byte
-counts for executed, data-read, overlap, possibly referenced, and unreferenced
-regions. Counts must define how overlaps are handled rather than pretending the
-categories are mutually exclusive.
+The analysis summary reports byte counts for executed, data-read, exec+data, overlap,
+possibly referenced, and unclassified regions. These roles are evidence classes, not
+a claim that every cartridge byte has been proven reachable or unreachable.
 
 Instruction emission
 --------------------
@@ -1574,3 +1581,113 @@ size-default mapper. Such rows are corpus errors, not mapper-reference evidence.
 Doubled 2K preservation images
 ------------------------------
 A 4096-byte file made from two byte-identical 2048-byte halves is a logical 2K cart. Analyze one half and preserve the duplicate half raw for exact round trip.
+
+30. [x] Preserve 3F/3E relative branches whose physical bank presentation cannot represent the runtime alias
+    * A 3F/3E physical ROM bank can execute through the selectable lower 2K
+      window as well as through its canonical emitted `.rorg`.  Usually a
+      relative branch survives that mirror because source and target move by
+      the same amount.  The fixed final bank is the corner case: when it is
+      selected into the lower window, a branch crossing `$x7FF->$x800` enters
+      the fixed upper window.  Re-presenting the same physical source at the
+      final bank's fixed `.rorg` can turn a real cart target such as
+      `$F7E7 -> $F821` into the fictitious `$FFE7 -> $0021`.
+    * Before emitting a 3F/3E relative instruction, compare the runtime target's
+      mapper-resolved physical bank/offset with the target implied by the
+      physical bank's emitted `.rorg`.  If they do not describe the same
+      physical target, no symbolic short relative branch represents that
+      source/target pair in the one-bank presentation; retain the exact bytes as
+      `.byte` instead.  Genuine unbanked `$FFxx->$00xx` branches remain legal
+      symbolic `.cross` branches and keep the assembler's modulo-16-bit fix.
+    * Synthetic `threef_alias_branch.bin` pins the lower-selected-final-bank
+      `$F7E7 BPL $F821` case and exact round trip.  Corpus Espial NTSC/PAL hashes
+      `f344ac1279152157d63e64aa39479599` and
+      `f7a138eed69665b5cd1bfa796a550b01` now keep their physical `$10,$38`
+      bytes raw instead of inventing `BPL.cross $0021`; both round-trip exactly.
+
+31. [ ] Finish mapper-context abstract CPU state precision so distinct bank contexts do not collapse
+    * The first concrete-state loss is fixed.  Concrete RESET discovery now records
+      A/X/Y/SP/P and mapper configuration at each newly observed physical ROM
+      instruction start, and `seed_missing_concrete_code()` seeds static analysis
+      from that exact observed state instead of an all-unknown state/config 0.
+      On Espial PAL this cuts classified executable bytes from 3418 to 1377 and
+      overlap from 463 to 0; the NTSC image shows the same collapse of bogus code.
+    * Remaining debt: `push_work_state_ctx()` tracks mapper contexts separately in
+      `threef_context_seen`, but still stores one merged `b->states[offset]` per
+      physical byte. Distinct contexts can therefore merge away A/X/Y precision,
+      and a revisit in an already-seen context can be suppressed before a newly
+      improved state is merged/requeued. Replace this with mapper-context-specific
+      abstract state (or an equivalent sparse keyed representation) and converge it
+      to a fixed point.
+    * Do not paper this over by banning final-bank selection: Stella 2026
+      deliberately implements 3F writes at TIA `$00-$3F` and selects
+      `value % romBankCount()`, so the final physical bank is a legal lower-bank
+      selection.
+
+
+32. [x] Reject speculative ROM islands that escape validation into the TIA window
+    * The remaining old `.cross requires a short relative branch` corpus failure,
+      `56300ed31fef018bd96768ccc982f7b4`, is unrelated to the 3F alias case.  It
+      is a 16K F6 image whose final-bank bytes around `$FFD0-$FFE8` are table/data.
+      The speculative-island pass promoted `$FFDA` from the accidental decode
+      `JSR $3020 / BMI $000F / BMI $0031 / ...`.  On the 6507, `$3020` is a
+      cartridge mirror, so the speculative JSR walks hundreds of apparently
+      valid ROM instructions and reaches a strong terminal.  That walk consumes
+      the old 512-static-CFG-node validation cap; the continuation at `$FFDD` then returns
+      only `SPEC_SAFE_WEAK` before its BMI is examined.  `spec_safe_merge()` let
+      the already-strong JSR arm win, so an incompletely validated island became
+      executable code.
+    * Credibility promotion now requires that the complete speculative walk stay
+      within its static-CFG-node cap. The old fixed 512-node limit has been replaced
+      by a per-walk cap equal to the physical bank size. Cap exhaustion is explicitly
+      counted in the emitted analysis diagnostics, remains inconclusive/non-destructive
+      during negative-evidence scanning, and can never count as sufficient validation
+      for promotion. The strictly linear JAM/KIL endpoint scan is uncapped because it
+      is finite by construction.  Separately, when a speculative conditional
+      branch is actually examined, any arm that can be taken into `$0000-$007F`
+      is hard negative evidence: that is the TIA register window, not instruction
+      storage.  A branch proven not-taken by abstract flags is still allowed.
+    * Established/vector-reachable flow is unchanged, so this does not undo the
+      assembler's correct modulo-16-bit relative-branch support or the explicit
+      wraparound fixture.  Synthetic `speculative_tia_branch_reject.bin` pins
+      both the long-JSR budget-exhaustion mechanism and the possible TIA branch.
+      The corpus F6 image now keeps the accidental bytes as data/raw source rather
+      than manufacturing executable `$000F/$0031` targets. Its current diagnostics
+      expose 2 capped negative-evidence walks and 1 candidate denied promotion due
+      to the bank-sized cap, instead of silently hiding the cutoff.
+
+33. [x] Make ROM-usage accounting preserve observed reads and stop claiming unexplained bytes are unused
+    * Concrete RESET discovery now distinguishes instruction fetch bytes from
+      physical cartridge ROM data reads and feeds the latter into `ROLE_DATA_READ`.
+      Espial PAL concretely observes 444 distinct ROM data bytes; the old summary
+      reported only 11 because those concrete read observations were discarded.
+    * Mapper-aware unresolved indexed/indirect accesses now populate
+      `ROLE_POSSIBLE` over the physical banks/ranges they can address. Broad
+      unresolved 3F accesses can therefore produce a large conservative `possible`
+      set; that means "may be read", not "is data".
+    * Rename the residual summary category from `unreferenced` to `unclassified`.
+      On Espial PAL the old `executed=3418 data-read=11 overlap=463 possible=8
+      unreferenced=4761` becomes `executed=1377 data-read=444 overlap=0
+      possible=6144 unclassified=1698`. Absence from discovered paths is no longer
+      presented as proof that a byte is unused.
+
+34. [x] Honor logical `.rorg` PCs for numeric relative branches in o26 output
+    * A generated F6 source exposed that the o26 writer computed a numeric relative
+      branch displacement from the packed `.org` object offset rather than the
+      active logical `.rorg` PC. A local `BNE.same $F806` could therefore be falsely
+      rejected as out of range even though flat binary assembly was correct.
+    * Numeric relative operands now use `stmt->address + 2` with modulo-16-bit
+      displacement arithmetic; relocatable operands retain packed-object relocation
+      semantics. `assembler_rorg_directive.pl` pins the o26 case.
+
+
+35. [ ] Replace the speculative recursion cap with a state-keyed fixed-point validator
+    * The old fixed 512-node limit was arbitrary and is gone; the current guard is one
+      physical bank's byte count in static CFG-node visits. This is a computational
+      safety valve, not a runtime/frame budget, and exhaustion is visible and can only
+      reduce speculative promotion/rejection confidence.
+    * The principled endpoint is a worklist keyed by physical location, mapper context,
+      and the abstract state facts that affect successors. Merge/widen states and run
+      to convergence so loops and diamonds terminate because the abstract lattice
+      converges, not because an arbitrary recursion counter expires.
+    * Do not memoize by physical byte alone: the same byte under a different mapper
+      configuration or branch/register/zero-page state can have different successors.

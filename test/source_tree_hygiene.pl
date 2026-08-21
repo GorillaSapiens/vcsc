@@ -18,6 +18,21 @@ my $fixtures=File::Spec->catdir($repo,'assembler','tests');
 my @python_test_helpers=glob(File::Spec->catfile($test,'*.py'));
 @python_test_helpers and die "Python test helpers are not permitted: @python_test_helpers\n";
 
+my $test_runner=slurp(File::Spec->catfile($test,'test.pl'));
+$test_runner =~ /timeout\s*=>\s*45\s*,/
+   or die "test runner default timeout is not 45 seconds\n";
+my @short_timeout_headers;
+find({no_chdir=>1,wanted=>sub {
+   return unless -f $File::Find::name;
+   my $rel=File::Spec->abs2rel($File::Find::name,$repo); $rel =~ s{\\}{/}g;
+   my $body=slurp($File::Find::name);
+   while ($body =~ /^\s*#\s*timeout:\s*(\d+)\s*$/mg) {
+      push @short_timeout_headers,"$rel:$1" if $1 < 45;
+   }
+}},$test);
+@short_timeout_headers and
+   die "per-test timeout below 45 seconds remains: @short_timeout_headers\n";
+
 my $retired_game_name='po'.'ng';
 my @retired_game_name_hits;
 find({no_chdir=>1,wanted=>sub {

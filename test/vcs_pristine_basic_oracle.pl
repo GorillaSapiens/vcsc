@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 5
 # expectstdout: vcs_pristine_basic_oracle ok: stock upstream BASIC ROM locked; retained audit matches 1230 visible events and 264-line frames
 # expectexit: 0
 

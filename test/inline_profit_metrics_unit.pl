@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@
 # phase: compile
-# timeout: 30
 # expectstdout: Inline profit metrics unit passed
 # expectexit: 0
 

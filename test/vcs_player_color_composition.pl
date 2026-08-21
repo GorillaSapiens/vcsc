@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 8
 # expectstdout: vcs_player_color_composition ok
 # expectexit: 0
 

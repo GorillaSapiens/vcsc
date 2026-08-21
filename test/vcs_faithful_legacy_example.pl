@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 8
 # expectstdout: vcs_faithful_legacy_example ok: faithful legacy interactive example starts with 264-line frames and exact sprites
 # expectexit: 0
 

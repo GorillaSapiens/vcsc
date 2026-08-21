@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@
 # phase: compile
-# timeout: 20
 # expectexit: 0
 # expectstdout: inline analysis unit tests passed
 

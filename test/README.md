@@ -173,7 +173,7 @@ Run one test, a few tests, or a whole subdirectory:
 ```
 
 The runner does not stop at the first failure. It prints per-test progress and summarizes all failures at the end.
-Tests without an explicit `timeout:` header use a 20-second per-case timeout; long-running cases can override it in their header.
+Tests without an explicit `timeout:` header use a 45-second per-case timeout; long-running cases can override it in their header.
 
 ## Header-driven behavior
 

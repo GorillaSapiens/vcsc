@@ -236,11 +236,15 @@ typedef struct {
    size_t speculative_rejected_starts;
    size_t speculative_barriers;
    size_t speculative_islands;
+   size_t speculative_capped_walks;
+   size_t speculative_promotion_capped;
    size_t flow_switch_avoided_halts;
    size_t speculative_switch_avoided_halts;
    int concrete_available;
    uint8_t *concrete_rom_exec;
    uint16_t *concrete_rom_pc;
+   uint8_t *concrete_rom_data_read;
+   vcsc_concrete_rom_state_t *concrete_rom_state;
    vcsc_concrete_result_t concrete;
    vcsc_concrete_seed_t *h2_seeds;
    size_t h2_seed_count;
@@ -1822,6 +1826,8 @@ static void free_analysis(analysis_t *a)
    free(a->ar_loads);
    free(a->concrete_rom_exec);
    free(a->concrete_rom_pc);
+   free(a->concrete_rom_data_read);
+   free(a->concrete_rom_state);
    free(a->h2_seeds);
    free(a->work);
    memset(a, 0, sizeof(*a));
@@ -2426,6 +2432,38 @@ static int push_e7_address_state(analysis_t *a, uint16_t config,
    size_t bank, off;
    if (!e7_map_address(a, config, address, &bank, &off)) return 1;
    return push_work_state_ctx(a, bank, off, state, address, config);
+}
+
+static int threef_relative_branch_needs_raw(const analysis_t *a, size_t source_bank,
+                                              size_t source_off, uint16_t config,
+                                              uint16_t runtime_pc, int8_t displacement)
+{
+   size_t target_bank, target_off;
+   uint16_t runtime_target;
+   uint16_t presentation_pc;
+   uint16_t presentation_target;
+   uint16_t target_presentation;
+
+   if (!mapper_is_three_family(a->mapper) || source_bank >= a->bank_count) return 0;
+   runtime_target = (uint16_t)(runtime_pc + 2u + displacement);
+   if (!threef_map_address(a, config, runtime_target, &target_bank, &target_off))
+      return 0;
+
+   /* A physical 2K bank in 3F/3E can be visible in more than one runtime
+    * window.  Most relative branches survive presentation under the bank's
+    * canonical .rorg because source and target move by the same mirror delta.
+    * The fixed final bank is the exception when it is also selected into the
+    * lower window and a branch crosses the $x7FF->$x800 boundary: the runtime
+    * branch is perfectly ordinary cartridge flow, but spelling the same bytes
+    * at the fixed-bank .rorg can wrap $FFxx->$00xx and invent a non-cartridge
+    * target.  In that case no symbolic relative operand represents the physical
+    * source/target pair under this one-bank presentation, so preserve the bytes
+    * raw instead of printing a misleading branch. */
+   presentation_pc = (uint16_t)(a->banks[source_bank].origin + (uint16_t)source_off);
+   presentation_target = (uint16_t)(presentation_pc + 2u + displacement);
+   target_presentation =
+      (uint16_t)(a->banks[target_bank].origin + (uint16_t)target_off);
+   return presentation_target != target_presentation;
 }
 
 static int push_threef_address_state(analysis_t *a, uint16_t config,
@@ -3241,6 +3279,7 @@ typedef struct {
    uint8_t *counted;
    size_t steps;
    size_t step_limit;
+   int exhausted;
    size_t instructions;
    size_t official_instructions;
    size_t unofficial_instructions;
@@ -3252,6 +3291,18 @@ typedef struct {
    size_t joins;
    int strict_conflicts;
 } spec_context_t;
+
+/* This is a local static-CFG plausibility walk, not CPU execution.  Loops are
+ * cycle-detected rather than iterated frame after frame.  Bound one speculative
+ * walk by the physical bank size rather than by the old arbitrary 512-node
+ * constant: if path/state fanout requires more graph visits than there are bytes
+ * in the bank, leave the detached candidate inconclusive/raw.  Exhaustion can
+ * never by itself promote or reject a candidate.  A future state-keyed fixed-point
+ * validator should make even this computational guard unnecessary. */
+static size_t speculative_step_limit(const bank_t *b)
+{
+   return b->size;
+}
 
 static spec_result_t spec_safe_merge(spec_result_t a, spec_result_t b)
 {
@@ -3564,7 +3615,10 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t bi,
        (b->roles[off] & (ROLE_CODE_BYTE | ROLE_DATA_READ | ROLE_POSSIBLE | ROLE_VECTOR)))
       return SPEC_REJECT;
 
-   if (++ctx->steps > ctx->step_limit) return SPEC_SAFE_WEAK;
+   if (++ctx->steps > ctx->step_limit) {
+      ctx->exhausted = 1;
+      return SPEC_SAFE_WEAK;
+   }
    node = b->file_offset + off;
    if (ctx->visiting[node]) return SPEC_SAFE_WEAK; /* legitimate loop */
 
@@ -3757,6 +3811,19 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t bi,
       spec_result_t fall = SPEC_SAFE_WEAK, branch = SPEC_SAFE_WEAK;
 
       known = speculative_branch_outcome(opcode, &output_state, &taken);
+
+      /* A speculative ROM island must not become credible merely because one
+       * unknown branch arm falls out of cartridge space.  $0000-$007F is the
+       * TIA register window on the 2600, not instruction storage; if that arm
+       * can be taken, treating it as a weak/unresolved edge lets random data at
+       * the top of ROM masquerade as code (for example BMI from $FFDD wrapping
+       * to $000F).  Established control flow is handled elsewhere and remains
+       * authoritative; this is only negative evidence for speculative starts. */
+      if ((!known || taken) && target < 0x0080u) {
+         result = SPEC_REJECT;
+         break;
+      }
+
       if (a->mapper == MAP_FC) {
          if (!known || !taken) {
             uint16_t fall_pc = (uint16_t)(canonical_pc + 2u);
@@ -4010,7 +4077,6 @@ static int speculative_linear_jam_end(const analysis_t *a, size_t bi,
    const bank_t *b = &a->banks[bi];
    abstract_state_t state;
    size_t off = start;
-   size_t steps = 0;
    uint16_t pc = (uint16_t)(b->origin + (uint16_t)start);
    uint16_t mapper_config = a->mapper == MAP_FC ? FC_CONFIG_UNKNOWN :
                             (a->mapper == MAP_E0 ? e0_seed_config(bi, pc) :
@@ -4019,7 +4085,9 @@ static int speculative_linear_jam_end(const analysis_t *a, size_t bi,
                              (uint16_t)bi : 0u)));
    memset(&state, 0, sizeof(state));
 
-   while (off < b->size && steps++ < 512u) {
+   /* This walk is strictly linear and advances by at least one byte on every
+    * iteration, so a separate instruction budget is unnecessary. */
+   while (off < b->size) {
       uint8_t opcode;
       address_mode_t mode;
       unsigned len;
@@ -4183,9 +4251,9 @@ static size_t speculative_inbound_references(const analysis_t *a,
 
 static int speculative_candidate_credible(const analysis_t *a,
                                           size_t bi, size_t off,
-                                          size_t *switch_saves_out)
+                                          size_t *switch_saves_out,
+                                          int *capped_out)
 {
-   const bank_t *b = &a->banks[bi];
    uint8_t *scratch = NULL;
    uint8_t *counted = NULL;
    abstract_state_t initial;
@@ -4195,6 +4263,7 @@ static int speculative_candidate_credible(const analysis_t *a,
    size_t allowed_unofficial;
    int credible = 0;
    if (switch_saves_out) *switch_saves_out = 0u;
+   if (capped_out) *capped_out = 0;
 
    scratch = (uint8_t *)calloc(a->rom_size, 1);
    counted = (uint8_t *)calloc(a->rom_size, 1);
@@ -4203,9 +4272,18 @@ static int speculative_candidate_credible(const analysis_t *a,
    memset(&ctx, 0, sizeof(ctx));
    ctx.visiting = scratch;
    ctx.counted = counted;
-   ctx.step_limit = b->size < 256u ? b->size * 2u : 512u;
+   ctx.step_limit = speculative_step_limit(&a->banks[bi]);
    ctx.strict_conflicts = 1;
    result = speculative_flow(a, bi, off, &initial, &ctx);
+   /* SPEC_SAFE_WEAK is deliberately used inside the graph when the bounded
+    * validator runs out of steps, because exhaustion is not proof of bad code.
+    * But it is also not proof of good code: another strong arm (notably a JSR
+    * target) must not let a partially unexamined candidate become a promoted
+    * island.  Require the entire credibility walk to stay within its budget. */
+   if (ctx.exhausted) {
+      if (capped_out) *capped_out = 1;
+      goto done;
+   }
    if (result != SPEC_SAFE_STRONG || ctx.instructions < 4u) goto done;
    /* For segmented E0, an unreferenced physical 1K chunk has no unique
     * runtime address/configuration.  Promote only speculative routines that
@@ -4398,12 +4476,14 @@ fail:
 
 static int speculative_candidate_promotable(const analysis_t *a,
                                              size_t bi, size_t off,
-                                             size_t *switch_saves_out)
+                                             size_t *switch_saves_out,
+                                             int *capped_out)
 {
    const bank_t *b = &a->banks[bi];
    flow_kind_t flow;
    uint8_t r;
    if (switch_saves_out) *switch_saves_out = 0u;
+   if (capped_out) *capped_out = 0;
    if (off >= b->size || b->spec_rejected[off]) return 0;
    if (rom_offset_hidden(a, off)) return 0;
    r = b->roles[off];
@@ -4413,7 +4493,7 @@ static int speculative_candidate_promotable(const analysis_t *a,
    if (flow == FLOW_RTS || flow == FLOW_JMP_ABSOLUTE ||
        flow == FLOW_JMP_INDIRECT || flow == FLOW_STOP)
       return 0;
-   return speculative_candidate_credible(a, bi, off, switch_saves_out);
+   return speculative_candidate_credible(a, bi, off, switch_saves_out, capped_out);
 }
 
 static int discover_speculative_islands(analysis_t *a)
@@ -4424,6 +4504,8 @@ static int discover_speculative_islands(analysis_t *a)
    a->speculative_rejected_starts = 0;
    a->speculative_barriers = 0;
    a->speculative_islands = 0;
+   a->speculative_capped_walks = 0;
+   a->speculative_promotion_capped = 0;
 
    scratch = (uint8_t *)calloc(a->rom_size, 1);
    if (!scratch) return 0;
@@ -4456,8 +4538,9 @@ static int discover_speculative_islands(analysis_t *a)
          memset(&ctx, 0, sizeof(ctx));
          ctx.visiting = scratch;
          ctx.steps = 0u;
-         ctx.step_limit = b->size < 256u ? b->size * 2u : 512u;
+         ctx.step_limit = speculative_step_limit(b);
          r = speculative_flow(a, bi, off, &initial, &ctx);
+         if (ctx.exhausted) ++a->speculative_capped_walks;
          if (r == SPEC_REJECT) {
             uint16_t reject_end;
             b->spec_rejected[off] = 1u;
@@ -4502,11 +4585,15 @@ static int discover_speculative_islands(analysis_t *a)
       for (off = 0; off + 2u < b->size; ++off) {
          size_t candidate;
          size_t switch_saves = 0u;
+         int capped = 0;
          if (!b->spec_barrier[off] || b->spec_barrier_end[off] == UINT16_MAX) continue;
          candidate = (size_t)b->spec_barrier_end[off] + 1u;
          if (candidate >= b->size) continue;
          if (!speculative_candidate_promotable(a, bi, candidate,
-                                               &switch_saves)) continue;
+                                               &switch_saves, &capped)) {
+            if (capped) ++a->speculative_promotion_capped;
+            continue;
+         }
          b->spec_seed[candidate] = 1u;
          a->speculative_switch_avoided_halts += switch_saves;
          mark_label(b, candidate);
@@ -4631,6 +4718,8 @@ static int h2_run_new_static_seeds(analysis_t *a, unsigned *new_reachability)
       int n = vcsc_concrete_discover_seed(a->rom, a->rom_size, (int)a->mapper,
                                           a->bank_count, superchip_active(a), seed,
                                           a->concrete_rom_exec, a->concrete_rom_pc,
+                                          a->concrete_rom_data_read,
+                                          a->concrete_rom_state,
                                           &a->concrete);
       if (n < 0) return 0;
       ++a->h2_seed_runs;
@@ -4641,12 +4730,29 @@ static int h2_run_new_static_seeds(analysis_t *a, unsigned *new_reachability)
    return 1;
 }
 
+static void abstract_state_from_concrete_start(
+   abstract_state_t *state, const vcsc_concrete_rom_state_t *concrete)
+{
+   memset(state, 0, sizeof(*state));
+   if (!concrete || !concrete->valid) return;
+   state->a_known = state->x_known = state->y_known = state->sp_known = 1u;
+   state->a = concrete->a;
+   state->x = concrete->x;
+   state->y = concrete->y;
+   state->sp = concrete->sp;
+   state->carry_known = state->zero_known = state->decimal_known = 1u;
+   state->overflow_known = state->negative_known = 1u;
+   state->carry = (uint8_t)((concrete->p >> 0) & 1u);
+   state->zero = (uint8_t)((concrete->p >> 1) & 1u);
+   state->decimal = (uint8_t)((concrete->p >> 3) & 1u);
+   state->overflow = (uint8_t)((concrete->p >> 6) & 1u);
+   state->negative = (uint8_t)((concrete->p >> 7) & 1u);
+}
+
 static int seed_missing_concrete_code(analysis_t *a)
 {
    size_t physical;
-   abstract_state_t state;
    int queued = 0;
-   memset(&state, 0, sizeof(state));
    for (physical = 0; physical < a->rom_size; ++physical) {
       size_t cb;
       if (!a->concrete_rom_exec[physical]) continue;
@@ -4656,7 +4762,16 @@ static int seed_missing_concrete_code(analysis_t *a)
             size_t off = physical - b->file_offset;
             uint16_t pc = a->concrete_rom_pc[physical];
             if (!(b->roles[off] & ROLE_CODE_START) && !rom_offset_hidden(a, off)) {
-               if (!push_work_state_ctx(a, cb, off, &state, pc, 0u)) return -1;
+               abstract_state_t state;
+               uint16_t config = 0u;
+               if (a->concrete_rom_state) {
+                  abstract_state_from_concrete_start(&state, &a->concrete_rom_state[physical]);
+                  if (a->concrete_rom_state[physical].valid)
+                     config = a->concrete_rom_state[physical].mapper_config;
+               }
+               else
+                  memset(&state, 0, sizeof(state));
+               if (!push_work_state_ctx(a, cb, off, &state, pc, config)) return -1;
                queued = 1;
             }
             break;
@@ -4664,6 +4779,87 @@ static int seed_missing_concrete_code(analysis_t *a)
       }
    }
    return queued;
+}
+
+/* Mark one logical cartridge address as possible ROM data under the
+ * mapper/configuration active at the referencing instruction.  This is
+ * intentionally conservative: ROLE_POSSIBLE means "a reachable unresolved
+ * data access may read this byte", not "this byte was observed at runtime". */
+static void mark_possible_rom_address(analysis_t *a, size_t current_bank,
+                                      uint16_t mapper_config,
+                                      uint16_t address)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   size_t bank, off;
+   split_ram_layout_t ram;
+
+   /* These address ranges are RAM/register overlays, not cartridge ROM. */
+   if (superchip_active(a) && bus >= 0x1080u && bus <= 0x10ffu) return;
+   if (dpc_register_address(a, address) || fa_ram_address(a, address)) return;
+   if (native_split_ram_layout(a, &ram) && split_ram_port_contains(&ram, address)) return;
+   if (a->mapper == MAP_E7 && e7_ram_port(a, mapper_config, address)) return;
+   if (a->mapper == MAP_3E && threee_ram_port(mapper_config, address)) return;
+
+   if (mapper_is_wd_family(a->mapper)) {
+      if (wd_map_address(a, (uint8_t)mapper_config, address, &bank, &off))
+         a->banks[bank].roles[off] |= ROLE_POSSIBLE;
+      return;
+   }
+   if (a->mapper == MAP_FC) {
+      if (fc_map_address(a, current_bank, address, &bank, &off))
+         a->banks[bank].roles[off] |= ROLE_POSSIBLE;
+      return;
+   }
+   if (a->mapper == MAP_E0) {
+      if (e0_map_address(a, mapper_config, address, &bank, &off))
+         a->banks[bank].roles[off] |= ROLE_POSSIBLE;
+      return;
+   }
+   if (a->mapper == MAP_E7) {
+      if (e7_map_address(a, mapper_config, address, &bank, &off))
+         a->banks[bank].roles[off] |= ROLE_POSSIBLE;
+      return;
+   }
+   if (mapper_is_three_family(a->mapper)) {
+      if (bus < 0x1000u) return;
+      if (bus < 0x1800u && mapper_config == THREEF_CONFIG_UNKNOWN) {
+         size_t sel;
+         /* Unknown 3F/3E ROM selection means any physical ROM bank can supply
+          * the lower 2K window.  3E RAM is also possible, but RAM has no ROM
+          * byte to classify. */
+         for (sel = 0; sel < a->bank_count; ++sel)
+            if (threef_map_address(a, (uint16_t)sel, address, &bank, &off))
+               a->banks[bank].roles[off] |= ROLE_POSSIBLE;
+      }
+      else if (threef_map_address(a, mapper_config, address, &bank, &off))
+         a->banks[bank].roles[off] |= ROLE_POSSIBLE;
+      return;
+   }
+
+   if (current_bank < a->bank_count &&
+       cart_target_offset(&a->banks[current_bank], address, &off))
+      a->banks[current_bank].roles[off] |= ROLE_POSSIBLE;
+}
+
+static void mark_possible_rom_range(analysis_t *a, size_t current_bank,
+                                    uint16_t mapper_config,
+                                    uint16_t base, unsigned count)
+{
+   unsigned i;
+   for (i = 0; i < count; ++i)
+      mark_possible_rom_address(a, current_bank, mapper_config,
+                                (uint16_t)(base + (uint16_t)i));
+}
+
+static void mark_possible_any_cart_address(analysis_t *a, size_t current_bank,
+                                           uint16_t mapper_config)
+{
+   unsigned bus;
+   /* A completely unresolved zero-page pointer can address any 6507-visible
+    * cartridge byte.  Enumerating the 4K cartridge window is cheap and avoids
+    * falsely calling mapper-dependent table bytes "unreferenced". */
+   for (bus = 0x1000u; bus <= 0x1fffu; ++bus)
+      mark_possible_rom_address(a, current_bank, mapper_config, (uint16_t)bus);
 }
 
 static int trace_analysis_internal(analysis_t *a, const options_t *opt,
@@ -4918,6 +5114,10 @@ drain_work:
        * refuses to accept. */
       if (opcode == 0x6cu && (operand & 0x00ffu) == 0x00ffu)
          b->force_raw[off] = 1u;
+      if (mode == AM_RELATIVE &&
+          threef_relative_branch_needs_raw(a, item.bank, off, item.mapper_config,
+                                           canonical_pc, (int8_t)(operand & 0xffu)))
+         b->force_raw[off] = 1u;
       transfer_state(a, item.bank, &input_state, &output_state,
                      opcode, mode, operand);
 
@@ -5082,48 +5282,33 @@ drain_work:
                }
             }
          }
-         else if (!mapper_is_wd_family(a->mapper) && a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
-                  (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y)) {
-            unsigned ix;
-            for (ix = 0; ix < 256u; ++ix) {
-               uint16_t addr = (uint16_t)(operand + (uint16_t)ix);
-               size_t doff;
-               if (cart_target_offset(b, addr, &doff))
-                  b->roles[doff] |= ROLE_POSSIBLE;
-            }
-            {
+         else if (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y) {
+            mark_possible_rom_range(a, item.bank, item.mapper_config,
+                                    operand, 256u);
+            if (!mapper_is_wd_family(a->mapper) && a->mapper != MAP_FC &&
+                a->mapper != MAP_E0 && a->mapper != MAP_E7 &&
+                !mapper_is_three_family(a->mapper)) {
                size_t baseoff;
                if (cart_target_offset(b, operand, &baseoff)) mark_label(b, baseoff);
             }
          }
-         else if (!mapper_is_wd_family(a->mapper) && a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
-                  mode == AM_INDIRECT_INDEXED) {
+         else if (mode == AM_INDIRECT_INDEXED) {
             uint16_t pointer;
             if (resolve_zp_word(&input_state, (uint8_t)operand, &pointer)) {
-               unsigned iy;
-               for (iy = 0; iy < 256u; ++iy) {
-                  uint16_t addr = (uint16_t)(pointer + (uint16_t)iy);
-                  size_t doff;
-                  if (cart_target_offset(b, addr, &doff))
-                     b->roles[doff] |= ROLE_POSSIBLE;
-               }
-               {
+               mark_possible_rom_range(a, item.bank, item.mapper_config,
+                                       pointer, 256u);
+               if (!mapper_is_wd_family(a->mapper) && a->mapper != MAP_FC &&
+                   a->mapper != MAP_E0 && a->mapper != MAP_E7 &&
+                   !mapper_is_three_family(a->mapper)) {
                   size_t baseoff;
                   if (cart_target_offset(b, pointer, &baseoff)) mark_label(b, baseoff);
                }
             }
-            else {
-               size_t poff;
-               for (poff = 0; poff < b->size; ++poff)
-                  b->roles[poff] |= ROLE_POSSIBLE;
-            }
+            else
+               mark_possible_any_cart_address(a, item.bank, item.mapper_config);
          }
-         else if (!mapper_is_wd_family(a->mapper) && a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
-                  mode == AM_INDEXED_INDIRECT) {
-            size_t poff;
-            for (poff = 0; poff < b->size; ++poff)
-               b->roles[poff] |= ROLE_POSSIBLE;
-         }
+         else if (mode == AM_INDEXED_INDIRECT)
+            mark_possible_any_cart_address(a, item.bank, item.mapper_config);
       }
 
       /* Any statically resolved memory access to a mapper selector changes
@@ -5846,14 +6031,32 @@ static int concrete_mapper_trusted(const analysis_t *a)
 
 static int run_concrete_discovery(analysis_t *a)
 {
+   size_t bi;
    if (!concrete_mapper_trusted(a)) return 1;
    a->concrete_rom_exec = (uint8_t *)calloc(a->rom_size, 1);
    a->concrete_rom_pc = (uint16_t *)calloc(a->rom_size, sizeof(*a->concrete_rom_pc));
-   if (!a->concrete_rom_exec || !a->concrete_rom_pc) return 0;
+   a->concrete_rom_data_read = (uint8_t *)calloc(a->rom_size, 1);
+   a->concrete_rom_state = (vcsc_concrete_rom_state_t *)calloc(
+      a->rom_size, sizeof(*a->concrete_rom_state));
+   if (!a->concrete_rom_exec || !a->concrete_rom_pc ||
+       !a->concrete_rom_data_read || !a->concrete_rom_state)
+      return 0;
    a->concrete_available = vcsc_concrete_discover(
       a->rom, a->rom_size, (int)a->mapper, a->bank_count, a->reset_bank,
       superchip_active(a), a->concrete_rom_exec, a->concrete_rom_pc,
+      a->concrete_rom_data_read, a->concrete_rom_state,
       &a->concrete);
+   if (a->concrete_available) {
+      for (bi = 0; bi < a->bank_count; ++bi) {
+         bank_t *b = &a->banks[bi];
+         size_t off;
+         for (off = 0; off < b->size; ++off) {
+            size_t physical = b->file_offset + off;
+            if (physical < a->rom_size && a->concrete_rom_data_read[physical])
+               b->roles[off] |= ROLE_DATA_READ;
+         }
+      }
+   }
    return 1;
 }
 
@@ -7664,18 +7867,18 @@ static void emit_raw_run(FILE *fp, const analysis_t *a, size_t bi,
 {
    const bank_t *b = &a->banks[bi];
    size_t i;
-   int unreferenced = 1;
+   int unclassified = 1;
    int overlap = 0;
    int sc_hidden = superchip_active(a) && start < 0x100u && end <= 0x100u;
    for (i = start; i < end; ++i) {
       uint8_t r = b->roles[i];
       if (r & (ROLE_CODE_BYTE | ROLE_DATA_READ | ROLE_POSSIBLE | ROLE_VECTOR))
-         unreferenced = 0;
+         unclassified = 0;
       if (r & ROLE_OVERLAP) overlap = 1;
    }
    if (overlap) fprintf(fp, "    ; overlapping executable bytes; exact raw spelling\n");
    else if (sc_hidden) fprintf(fp, "    ; physical ROM bytes hidden by Superchip RAM window\n");
-   else if (unreferenced) fprintf(fp, "    ; unreferenced ROM bytes\n");
+   else if (unclassified) fprintf(fp, "    ; ROM bytes not classified by discovered code/data references\n");
    fprintf(fp, "    .byte ");
    for (i = start; i < end; ++i) {
       if (i != start) fputs(", ", fp);
@@ -8407,7 +8610,7 @@ static void emit_usage_summary(FILE *fp, const analysis_t *a)
 {
    size_t bi;
    size_t executed = 0, data = 0, exec_data = 0, overlap = 0;
-   size_t possible = 0, unreferenced = 0, vectors = 0, sc_hidden = 0, fa_hidden = 0;
+   size_t possible = 0, unclassified = 0, vectors = 0, sc_hidden = 0, fa_hidden = 0;
    for (bi = 0; bi < a->bank_count; ++bi) {
       const bank_t *b = &a->banks[bi];
       size_t off;
@@ -8424,16 +8627,17 @@ static void emit_usage_summary(FILE *fp, const analysis_t *a)
          if (a->mapper == MAP_FA && off < 0x200u) ++fa_hidden;
          else if (superchip_active(a) && off < 0x100u) ++sc_hidden;
          else if (!(r & (ROLE_CODE_BYTE | ROLE_DATA_READ | ROLE_POSSIBLE | ROLE_VECTOR)))
-            ++unreferenced;
+            ++unclassified;
       }
    }
    fprintf(fp,
-      "; usage bytes: executed=%zu data-read=%zu exec+data=%zu overlap=%zu possible=%zu vectors=%zu sc-hidden=%zu fa-hidden=%zu unreferenced=%zu\n",
-      executed, data, exec_data, overlap, possible, vectors, sc_hidden, fa_hidden, unreferenced);
+      "; usage bytes: executed=%zu data-read=%zu exec+data=%zu overlap=%zu possible=%zu vectors=%zu sc-hidden=%zu fa-hidden=%zu unclassified=%zu\n",
+      executed, data, exec_data, overlap, possible, vectors, sc_hidden, fa_hidden, unclassified);
    fprintf(fp,
-      "; speculative analysis: rejected-starts=%zu barriers=%zu islands=%zu\n",
+      "; speculative analysis: rejected-starts=%zu barriers=%zu islands=%zu capped-walks=%zu promotion-capped=%zu\n",
       a->speculative_rejected_starts, a->speculative_barriers,
-      a->speculative_islands);
+      a->speculative_islands, a->speculative_capped_walks,
+      a->speculative_promotion_capped);
 }
 
 static const char *video_override_display(const char *s)
@@ -8617,9 +8821,10 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
               a->proven_brk_returns, a->proven_brk_returns == 1u ? "" : "s");
    if (a->concrete_available) {
       fprintf(fp,
-              "; concrete RESET discovery: scenarios=%u productive=%u instructions=%u ROM-starts=%u RIOT-RAM-starts=%u RAM-bytes-written=%u%s%s\n",
+              "; concrete RESET discovery: scenarios=%u productive=%u instructions=%u ROM-starts=%u ROM-data-bytes=%u RIOT-RAM-starts=%u RAM-bytes-written=%u%s%s\n",
               a->concrete.scenarios_run, a->concrete.scenarios_with_new_reachability,
               a->concrete.instructions, a->concrete.rom_instruction_starts,
+              a->concrete.rom_data_bytes_read,
               a->concrete.ram_instruction_starts, a->concrete.ram_bytes_written,
               a->concrete.halted ? "; CPU halted" : "",
               a->concrete.instruction_limit ? "; bounded instruction limit reached" :

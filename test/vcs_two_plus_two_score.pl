@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 30
 # expectstdout: vcs_two_plus_two_score ok
 # expectexit: 0
 

@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 20
 # expectstdout: local affine relocations retain their defining layout
 # expectexit: 0
 

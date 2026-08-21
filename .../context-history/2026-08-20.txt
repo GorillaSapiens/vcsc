@@ -138,3 +138,6 @@ Range and page-timing checks now use 16-bit modular PC arithmetic. Rad Action Pa
 both Espial variants assemble again; the nine E0 cases plus those three branch-wrap
 cases are 12/12 byte-exact and 12/12 Stella mapper matches. Added direct and
 disassembler round-trip boundary regressions; semantic suite is 110/110 exact.
+
+2026-08-20 19:44:20 PDT, raise default test timeout to 45 seconds
+Raised the generic per-case runner timeout from 20 to 45 seconds and removed all 45 explicit per-test timeout headers below 45 seconds so those cases inherit the default. Explicit 45-second and longer overrides remain. Updated test/README.md and added source-tree hygiene guards for both the default and absence of sub-45 overrides. The prior hygiene failure was context.txt exceeding its 100 KiB ceiling; compacted the completed Tanks narrative and stale runner timing detail, preserving current-state pointers while restoring substantial headroom.

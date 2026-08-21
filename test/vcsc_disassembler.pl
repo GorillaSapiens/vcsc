@@ -299,6 +299,26 @@ for my $v (0, 2, 4) {
 }
 write_bin(File::Spec->catfile($in, 'threef.bin'), $threef);
 
+
+# The fixed final 2K bank can also be selected into 3F's lower window.  A
+# relative branch near the end of that lower-window alias can cross into the
+# fixed upper window.  Runtime $F7E7 + BPL $38 targets cartridge address $F821;
+# the same physical bytes are emitted under bank 3's fixed .rorg at $FFE7, where
+# naively recomputing the operand would invent BPL $0021.  That symbolic branch
+# is not representable under the one physical-bank presentation and must stay
+# raw.  This is distinct from a genuine unbanked 16-bit $FFxx->$00xx branch.
+my $threef_alias_branch = join('', map { chr(($_ * 29 + 11) & 0xff) } 0 .. 8191);
+substr($threef_alias_branch, 3 * 2048 + 0x0021, 1, "\x60");
+substr($threef_alias_branch, 3 * 2048 + 0x0100, 11,
+   "\xA9\x03\x85\x3F" .
+   "\xA9\x03\x85\x3F" .
+   "\x4C\xE7\xF7");
+substr($threef_alias_branch, 3 * 2048 + 0x07E7, 3, "\x10\x38\x60");
+for my $v (0, 2, 4) {
+   put16(\$threef_alias_branch, 3 * 2048 + 0x07FA + $v, 0xF900);
+}
+write_bin(File::Spec->catfile($in, 'threef_alias_branch.bin'), $threef_alias_branch);
+
 # 3F is not intrinsically an 8K scheme.  Exercise a 32K/16-bank image so the
 # CFG state and emitter cannot accidentally bake in four physical 2K banks.
 my $threef32 = join('', map { chr(($_ * 41 + 7) & 0xff) } 0 .. 32767);
@@ -1021,6 +1041,23 @@ substr($island_jam, 0x0200, 16,
    ("\x02" x 6));
 write_bin(File::Spec->catfile($in, 'speculative_jam_reject.bin'), $island_jam);
 
+# A detached candidate near the end of the address space must not be promoted
+# when a statically possible relative branch wraps into the TIA register window.
+# Reproduce the corpus failure's second ingredient too: the candidate first JSRs
+# through a cartridge mirror to a long, valid-looking routine that consumes the
+# entire 512-step credibility budget and terminates strongly.  Older validation
+# then reached the BMI continuation only after the budget was exhausted, returned
+# weak without inspecting it, and let the strong JSR arm promote the island.
+my $island_tia_branch = make_rom(4096, 0xF000, 0x0800, "\x60");
+substr($island_tia_branch, 0x0020, 511, ("\xEA" x 510) . "\x60");
+substr($island_tia_branch, 0x0FD0, 12,
+   "\x02\x12\x22" .             # barrier; candidate starts at $FFD3
+   "\x20\x20\x30" .             # JSR $3020 -> cart mirror of $F020
+   "\x30\x40" .                   # BMI $0018 if N is set
+   "\xEA\xEA\x60\xEA");
+write_bin(File::Spec->catfile($in, 'speculative_tia_branch_reject.bin'),
+   $island_tia_branch);
+
 # Conversely, abstract flag state may prove the JAM arm impossible.  SEC makes
 # BCC not taken, so this otherwise identical candidate is a valid island.
 my $island_dead_jam = make_rom(4096, 0xF000, 0x0100, "\x60");
@@ -1353,6 +1390,12 @@ require_re($concrete_out,
    qr/^; concrete RESET discovery: .*RIOT-RAM-starts=3 .*reachability converged$/m,
    'bounded concrete RESET discovery executes generated RIOT-RAM payload');
 require_re($concrete_out,
+   qr/^; concrete RESET discovery: .*ROM-data-bytes=[1-9]\d* .*RIOT-RAM-starts=3/m,
+   'concrete discovery retains observed ROM data reads');
+require_re($concrete_out,
+   qr/^; usage bytes: .*data-read=[1-9]\d*/m,
+   'observed concrete ROM reads feed usage-role accounting');
+require_re($concrete_out,
    qr/\bBRK\n\s*LDX\s+#\$07/m,
    'concrete execution seeds the statically opaque BRK continuation');
 require_re($concrete_out,
@@ -1596,10 +1639,10 @@ require_re($code_data, qr/LDA\s+L_F100\s*\+\s*1\b/, 'code-as-data interior alias
 
 my $known_indirect = slurp(File::Spec->catfile($out, 'known_indirect_data.s26'));
 require_re($known_indirect,
-   qr/^; usage bytes: .*data-read=[1-9]\d* .*possible=0 .*unreferenced=[1-9]\d*$/m,
+   qr/^; usage bytes: .*data-read=[1-9]\d* .*possible=0 .*unclassified=[1-9]\d*$/m,
    'resolved indirect-read usage accounting');
-require_re($known_indirect, qr/unreferenced ROM bytes/i,
-   'provably unreferenced ROM annotation');
+require_re($known_indirect, qr/ROM bytes not classified by discovered code\/data references/i,
+   'unclassified ROM annotation');
 
 
 my $pointer_table_out = slurp(File::Spec->catfile($out, 'pointer_table.s26'));
@@ -1729,7 +1772,7 @@ require_re($spec_island,
 require_re($spec_island, qr/^L_F203:\n\s*LDA\s+#\$42\n\s*TAX\n\s*TAY\n\s*INX\n\s*DEX\n\s*INY\n\s*DEY\n\s*RTS$/m,
    'credible safe routine after three-start barrier promoted');
 require_re($spec_island,
-   qr/^; speculative analysis: rejected-starts=[1-9]\d* barriers=[1-9]\d* islands=[1-9]\d*$/m,
+   qr/^; speculative analysis: rejected-starts=[1-9]\d* barriers=[1-9]\d* islands=[1-9]\d* capped-walks=\d+ promotion-capped=\d+$/m,
    'speculative analysis usage summary');
 
 
@@ -1756,6 +1799,11 @@ my $spec_jam = slurp(File::Spec->catfile($out, 'speculative_jam_reject.s26'));
 die "JAM-reaching speculative candidate was promoted\n"
    if $spec_jam =~ /^L_F203:/m ||
       $spec_jam =~ /speculative instruction island.*\nL_F203:/i;
+
+my $spec_tia_branch = slurp(File::Spec->catfile($out, 'speculative_tia_branch_reject.s26'));
+die "TIA-targeting speculative candidate was promoted\n"
+   if $spec_tia_branch =~ /^L_FFD3:/m ||
+      $spec_tia_branch =~ /speculative instruction island.*\nL_FFD3:/i;
 
 my $spec_dead_jam = slurp(File::Spec->catfile($out, 'speculative_dead_jam.s26'));
 require_re($spec_dead_jam, qr/^L_F203:\n\s*SEC\n\s*BCC\.same\s+/m,
@@ -1837,6 +1885,15 @@ require_re($threef_out, qr/^B2_F104:\n\s*LDA\s+#\$42\n\s*RTS$/m,
    '3F execution resumes in value-selected 2K bank after old-bank JAM');
 require_re($threef_out, qr/^B3_F900:\n\s*LDA\s+#\$01\n\s*STA\s+\$3F/m,
    '3F RESET executes from fixed final 2K bank');
+
+
+my $threef_alias_out = slurp(File::Spec->catfile($out, 'threef_alias_branch.s26'));
+require_re($threef_alias_out, qr/^; mapper: 3F \(/m,
+   '3F alias-branch fixture keeps 3F mapping');
+die "3F lower-window alias branch was mis-presented as a zero-page target\n"
+   if $threef_alias_out =~ /\bBPL\.cross\s+\$0021\b/;
+require_re($threef_alias_out, qr/\.byte[^\n]*\$10, \$38/i,
+   '3F lower-to-fixed alias branch preserved as exact raw bytes');
 
 my $threef32_out = slurp(File::Spec->catfile($out, 'threef32.s26'));
 require_re($threef32_out, qr/^; mapper: 3F \(high confidence;/m,
