@@ -1811,3 +1811,31 @@ A 4096-byte file made from two byte-identical 2048-byte halves is a logical 2K c
     * Synthetic fixtures pin direct JAM rejection, JMP-to-JAM rejection, and an
       F8 hotspot escape whose correct post-switch continuation must survive.
       Focused disassembler round trips are 122/122 exact.
+
+
+41. [ ] Treat multi-game images such as Stella 4IN1 as containers, not mappers
+    * Do not model Stella-style `2IN1`/`4IN1`/`8IN1` images as one cartridge
+      address space whose games can control-flow or bankswitch into one another.
+      Treat the outer image as a container of independently selectable cartridge
+      slices. On real hardware the game selector commonly drives otherwise-unused
+      high ROM address lines or equivalent selection logic, so the 2600 sees only
+      the selected slice.
+    * Split a confidently identified container into its component images and run
+      mapper/origin/vector/concrete-execution/video/controller/usage/speculative
+      analysis independently for each slice. Each game has its own RESET/IRQ
+      vectors, labels, usage map, MD5, inferred hardware, and possibly a different
+      bankswitching scheme from its neighbors.
+    * Preserve the complete outer image byte-for-byte. Exact reconstruction is
+      performed by independently reassembling each slice and concatenating the
+      resulting binaries in their original order; no control-flow edge or ROM
+      reference may cross a container boundary.
+    * Keep container detection separate from mapper detection. A 16K blob might
+      be one F6 cartridge or four independent 4K games; a 32K 4IN1 might contain
+      four unrelated 8K games using F8, E0, F8SC, or other schemes. Do not infer a
+      multi-game container from file size alone. Use strong structural/database
+      evidence and expose ambiguity rather than silently slicing a normal banked
+      cartridge.
+    * Account for Stella's reported MD5 semantics when differential-testing these
+      images: Stella may select one component, recompute the MD5 over that slice,
+      and then autodetect the slice's mapper. The whole-file MD5 therefore need
+      not equal Stella's `Cart MD5` for a multi-game container.
