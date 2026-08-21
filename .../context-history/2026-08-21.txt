@@ -9,3 +9,18 @@ Once family evidence exists, a bank-changing RESET edge under exactly one polari
 can distinguish UA from UASW. Added doubled-4K, raw-UA, and raw-UASW regressions.
 Focused disassembler round trips are 126/126; corpus 3290d62b..., 4e4a263c..., and
 d214c7a7... now match Stella as 4K, UA, and UASW and round-trip byte-exactly.
+
+2026-08-21 08:38:35 PDT, fix UA precedence and 4K CV storage
+
+Super Soccer exposed an Item-43 regression: one unreachable raw LDA $02C0
+signature admitted UA/UASW and prematurely suppressed F8 despite four genuine
+F8 bank-changing selector edges. Raw UA signatures now nominate the family but
+do not erase an alternative mapper with established narrow-selector switching;
+0e7e7342... is F8 again. Added f8_raw_ua_data.bin.
+
+The two remaining CV mismatches were 4096-byte storage forms of a 2K CV ROM.
+VCSC now follows Stella's 4K CV layout: the final 2K are ROM, the first 1K seed
+cartridge RAM, and the middle 1K is preserved; doubled 2K CV dumps are preserved
+through the same path. Added cv_saved_4k.bin and cv_doubled_4k.bin. Corpus
+14d365bb... and 3ec12372... now classify CV and round-trip exactly. Focused
+round trips are 129/129.

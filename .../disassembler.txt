@@ -1880,3 +1880,53 @@ A 4096-byte file made from two byte-identical 2048-byte halves is a logical 2K c
       4e4a263c... -> UA, and d214c7a7... -> UASW now match Stella and reconstruct
       byte-exactly.
 
+44. [x] Prevent raw UA signatures from overriding established narrow-selector flow
+    * Super Soccer (Digivision) contains one unreachable raw `LDA $02C0` byte
+      sequence but executes four genuine F8 `$1FF8/$1FF9` bank-changing edges.
+      Item 43's UA-family gate admitted UA/UASW from the raw pattern and then
+      pruned evidence-free alternatives before F8's stronger flow evidence could
+      win, regressing a previous F8 classification to UASW.
+    * A raw UA-family signature now nominates UA/UASW without suppressing another
+      viable mapper that has already demonstrated mapper-specific bank-changing
+      flow through a narrow selector. The existing later cross-switch preference
+      can therefore choose F8 over broad UA aliases when actual execution supports
+      F8. Raw UA evidence still works when no stronger competing mapper flow exists.
+    * `f8_raw_ua_data.bin` pins an unreachable `LDA $02C0` alongside genuine F8
+      switching. Corpus `0e7e73421606873b544e858c59dc283e` is F8 again and
+      reconstructs byte-exactly.
+
+45. [x] Support Stella's 4K CV preservation/storage forms
+    * CV hardware still contains only 2K of ROM at `$F800-$FFFF`, but Stella also
+      accepts 4096-byte images. For those images the final 2K are the executable
+      ROM; the first 1K initializes CV cartridge RAM and the middle 1K is preserved
+      storage. A doubled `2K || 2K` CV dump is another common 4K representation.
+    * Automatic 4K detection now considers the established CV write signatures
+      before ordinary 4K/FC inference. Static and concrete mapping fetch CV ROM
+      from physical file offset `$0800` for a 4K storage image, and concrete reset
+      seeds the 1K CV RAM from the first 1K to match Stella semantics.
+    * Source emission preserves the complete first 2K raw and emits the analyzed
+      final 2K at `.org $0800`, giving exact 4096-byte reconstruction for both save
+      and doubled forms. `cv_saved_4k.bin` and `cv_doubled_4k.bin` pin both layouts.
+      Corpus `14d365bbfaac3d20c6119591f57acca4` and
+      `3ec12372ca3e870b11ca70edc7ec26a4` now identify as CV and round-trip exactly.
+      Focused disassembler round trips are 129/129.
+
+46. [x] Recognize the historical Stella 4KSC tail marker
+    * Some 4K Superchip dumps identify the hardware with ASCII `SC` in the
+      otherwise-unused NMI-vector bytes `$FFFA-$FFFB`, without VCSC's newer
+      four-byte `4KSC` marker or semantic SC accesses. Treat that marker as
+      explicit 4KSC metadata; do not re-enable the ambiguous lone-4K duplicated-
+      prefix heuristic. `stella_4ksc_marker.bin` pins marker-only detection.
+    * Corpus `a3621a0c349a826141e2539f7a5184ac` now identifies as 4KSC and
+      reconstructs byte-exactly. Focused semantic round trips are 130/130.
+
+47. [x] Round-trip physical cartridge images larger than 64 KiB
+    * Large 3F images use `.org` for physical file offsets while `.rorg` remains
+      the 16-bit runtime PC. `vcsc-as --hex` now accepts physical offsets through
+      `$7FFFF` and emits Intel HEX type-04 Extended Linear Address records when
+      crossing 64 KiB boundaries. Data records never straddle an ELA boundary.
+    * `vcsc-disas` widens the generated default physical segment for inputs above
+      64 KiB while retaining 16-bit logical addresses. `assembler_rorg_directive.pl`
+      pins a `$1FFFF->$20000` HEX boundary. Corpus 512 KiB 3F image
+      `e9b1a67e9f0d4eaa5f3d1ed7c9ce40d4` now reconstructs MD5-exactly.
+

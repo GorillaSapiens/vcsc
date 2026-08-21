@@ -517,6 +517,25 @@ for my $v (0, 2, 4) {
 }
 write_bin(File::Spec->catfile($in, 'f8_false_ua_flow.bin'), $f8_false_ua);
 
+# A raw UA-family byte signature is only candidate evidence.  It must not erase
+# a narrower mapper whose established selector actually changes banks.  This
+# models an ordinary F8 image with an unreachable LDA $02C0 byte sequence in
+# data: both no-switch continuations are locally harmless, so the decision must
+# come from F8's real $1FF9 bank-changing edge rather than a JAM escape.
+my $f8_raw_ua_data = chr(0xEA) x 8192;
+break_sc_layout(\$f8_raw_ua_data);
+substr($f8_raw_ua_data, 0x0100, 6,
+   "\xAD\xF9\x1F" .            # LDA $1FF9: F8 -> bank 1
+   "\xA9\x11\x60");             # harmless no-switch continuation
+substr($f8_raw_ua_data, 0x1000 + 0x0103, 3,
+   "\xA9\x42\x60");             # actual F8 continuation in bank 1
+substr($f8_raw_ua_data, 0x0800, 3, "\xAD\xC0\x02"); # unreachable raw UA signature
+for my $v (0, 2, 4) {
+   put16(\$f8_raw_ua_data, 0x0FFA + $v, 0xF100);
+   put16(\$f8_raw_ua_data, 0x1FFA + $v, 0x0000);
+}
+write_bin(File::Spec->catfile($in, 'f8_raw_ua_data.bin'), $f8_raw_ua_data);
+
 # Branch-edge state must constrain the tested flag.  This F8 RESET path
 # switches into bank 0, reads the unknown RIOT timer, then uses mutually
 # exhaustive BMI/BPL tests.  If BMI falls through, N is necessarily clear and
@@ -735,6 +754,14 @@ write_bin(File::Spec->catfile($in, 'plain4k_sc_rmw_read_conflict.bin'),
 # ROM bytes are intended to execute and therefore vetoes automatic SC.
 write_bin(File::Spec->catfile($in, 'plain4k_sc_write_port_exec.bin'),
    make_rom(4096, 0xF000, 0x0000, "\x8D\x20\xF0\xAD\xA0\xF0\x60"));
+
+# Historical Stella 4KSC images use ASCII "SC" in the unbonded NMI-vector
+# bytes at $FFFA-$FFFB.  This is explicit mapper metadata just like VCSC's
+# newer 4-byte "4KSC" signature, and must work without semantic SC accesses.
+my $stella_4ksc_marker = make_rom(4096, 0xF000, 0x0100, "\xA9\x42\x60");
+substr($stella_4ksc_marker, 0x0080, 1, "\x18"); # do not rely on prefix duplication
+substr($stella_4ksc_marker, 0x0FFA, 2, "SC");
+write_bin(File::Spec->catfile($in, 'stella_4ksc_marker.bin'), $stella_4ksc_marker);
 write_bin(File::Spec->catfile($in, 'f6.bin'), make_rom(16384, 0xF000, 0x0100, "\xAD\xF6\x1F\x60"));
 
 # A wrong mapper must not win merely because it traces less code.  Both F6 and
@@ -819,6 +846,17 @@ for my $case ([cv_rmw_read => 0xF020], [cv_rmw_write => 0xF420]) {
    substr($rom, 0x07F8, 4, "CV\0\0");
    write_bin(File::Spec->catfile($in, "$name.bin"), $rom);
 }
+
+# Stella accepts two 4K storage forms for the intrinsically 2K CV mapper.
+# A doubled 2K image is analyzed as the final 2K ROM and preserved exactly;
+# the MagiCard-style save image stores initial cartridge RAM/padding in the
+# first 2K and the actual CV ROM in the final 2K.
+my $cv_2k = make_rom(2048, 0xF800, 0x0100, "\xA9\x42\x99\x00\xF4\x60");
+my $cv_doubled_4k = $cv_2k . $cv_2k;
+write_bin(File::Spec->catfile($in, 'cv_doubled_4k.bin'), $cv_doubled_4k);
+my $cv_saved_prefix = join('', map { chr(($_ * 37 + 11) & 255) } 0 .. 1023) . ("\xFF" x 1024);
+my $cv_saved_4k = $cv_saved_prefix . $cv_2k;
+write_bin(File::Spec->catfile($in, 'cv_saved_4k.bin'), $cv_saved_4k);
 
 # A bank origin can be inferred from absolute JMP evidence even when that bank
 # has unusable vectors.  Bank 1 keeps one real RESET path so the cartridge still
@@ -1751,6 +1789,17 @@ require_re($sc_disjoint, qr/^; mapper: F8SC\b/m,
 require_re($sc_disjoint,
    qr/1 SC write, 0 SC RMW conflicts, 1 SC read, 0 SC paired offsets/,
    'disjoint SC aliases are diagnostic evidence without an artificial byte-pair requirement');
+my $cv_doubled_out = slurp(File::Spec->catfile($out, 'cv_doubled_4k.s26'));
+require_re($cv_doubled_out, qr/^; mapper: CV \(high confidence;/m,
+   'doubled 2K CV storage form remains CV');
+require_re($cv_doubled_out, qr/^; preservation image: CV 2K ROM duplicated byte-for-byte to 4K;/m,
+   'doubled 2K CV preservation form is documented');
+my $cv_saved_out = slurp(File::Spec->catfile($out, 'cv_saved_4k.s26'));
+require_re($cv_saved_out, qr/^; mapper: CV \(high confidence;/m,
+   '4K CV save-image storage form remains CV');
+require_re($cv_saved_out, qr/^; preservation image: Stella 4K CV save form;/m,
+   '4K CV saved-RAM preservation form is documented');
+
 for my $case (
    ['cv_rmw_read.s26',  'CV read-port'],
    ['cv_rmw_write.s26', 'CV write-port'],
@@ -2152,6 +2201,13 @@ for my $case (
          $text =~ /hidden by Superchip RAM window/i;
 }
 
+my $stella_4ksc_marker_out = slurp(File::Spec->catfile($out, 'stella_4ksc_marker.s26'));
+require_re($stella_4ksc_marker_out, qr/^; mapper: 4KSC \(high confidence;/m,
+   'historical Stella SC marker at $FFFA-$FFFB identifies 4KSC');
+require_re($stella_4ksc_marker_out,
+   qr/0 SC writes, 0 SC RMW conflicts, 0 SC reads, 0 SC paired offsets/,
+   'historical Stella 4KSC marker does not require semantic SC evidence');
+
 my $sc_write_exec = slurp(File::Spec->catfile($out, 'plain4k_sc_write_port_exec.s26'));
 require_re($sc_write_exec, qr/^; mapper: unbanked 4K \(/m,
    'RESET execution in Superchip write port vetoes paired automatic 4KSC promotion');
@@ -2291,6 +2347,17 @@ require_re($f8_false_ua_out, qr/BCS\.same\s+\$F115.*\n\s*LDA\s+\$1FF9/m,
    'F8 selector remains on established RESET execution path');
 require_re($f8_false_ua_out, qr/B1_F109:\n\s*LDA\s+#\$42/m,
    'F8 execution continues in successor bank after selector');
+
+my $f8_raw_ua_data_out = slurp(File::Spec->catfile($out, 'f8_raw_ua_data.s26'));
+require_re($f8_raw_ua_data_out, qr/^; mapper: F8 \(/m,
+   'raw UA signature in data cannot override established narrow F8 switching');
+require_re($f8_raw_ua_data_out,
+   qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
+   'raw-UA-data F8 mapper hypotheses converge');
+require_re($f8_raw_ua_data_out, qr/B0_F100:\n\s*LDA\s+\$1FF9/m,
+   'raw-UA-data fixture retains established F8 selector');
+require_re($f8_raw_ua_data_out, qr/B1_F103:\n\s*LDA\s+#\$42/m,
+   'raw-UA-data fixture continues in selected F8 bank');
 
 my $f8_branch_edge_out = slurp(File::Spec->catfile($out, 'f8_branch_edge_flags.s26'));
 require_re($f8_branch_edge_out, qr/^; mapper: F8 \(/m,

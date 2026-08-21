@@ -111,6 +111,8 @@ public:
       active_ = this;
       std::memset(ram_, 0, sizeof(ram_));
       std::memset(cart_ram_, 0, sizeof(cart_ram_));
+      if (mapper_ == kMapCV && rom_size_ == 4096u)
+         std::memcpy(cart_ram_, rom_, 1024u);  // Stella 4K CV save-image RAM seed.
       std::fill(ram_source_, ram_source_ + VCSC_CONCRETE_RIOT_RAM_SIZE, VCSC_CONCRETE_NO_SOURCE);
       std::memset(result_, 0, sizeof(*result_));
       for (unsigned i = 0; i < VCSC_CONCRETE_RIOT_RAM_SIZE; ++i)
@@ -492,7 +494,8 @@ private:
       }
       if (mapper_ == kMapCV) {
          if (bus < 0x1800u) return false;
-         *physical = static_cast<size_t>(bus & 0x07ffu);
+         const size_t base = rom_size_ == 4096u ? 2048u : 0u;
+         *physical = base + static_cast<size_t>(bus & 0x07ffu);
          return *physical < rom_size_;
       }
       if (mapper_is_wd()) {

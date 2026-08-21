@@ -1311,3 +1311,24 @@ a unique bank-changing RESET edge distinguishes normal UA from swapped UASW.
 Synthetic semantic round trips are 126/126. Corpus 3290d62b... now 4K, 4e4a263c...
 UA, d214c7a7... UASW; all three reconstruct byte-exactly.
 
+2026-08-21 mapper follow-up (focused Items 44-45): Item 43 raw UA-family
+signatures are nomination evidence, not authority over stronger established
+mapper flow. A viable narrow-selector mapper with a real bank-changing edge is
+no longer pruned merely because raw bytes resemble UA; Super Soccer
+0e7e7342... is F8 again despite one unreachable `LDA $02C0`, and
+`f8_raw_ua_data.bin` pins that regression. CV now accepts Stella's 4K storage
+form as one logical 2K ROM in the final half: the first 1K seeds cartridge RAM,
+the middle 1K is preserved storage, and doubled 2K CV dumps use the same path.
+Static/concrete mapping reads ROM from physical `$0800-$0FFF`, complete input
+bytes are preserved on output, and `cv_saved_4k.bin`/`cv_doubled_4k.bin` pin
+both forms. Corpus 14d365bb... and 3ec12372... now identify CV and reconstruct
+exactly. Focused semantic round trips are 129/129.
+
+2026-08-21 corpus closeout (focused Items 46-47): historical 4KSC ASCII `SC`
+at `$FFFA-$FFFB` is now explicit 4KSC metadata without reviving lone-4K prefix
+inference; corpus a3621a0c... is 4KSC and exact. Direct assembler HEX now supports
+physical `.org` offsets through `$7FFFF` using Intel HEX type-04 Extended Linear
+Address records, while `.rorg` stays 16-bit. The disassembler widens its generated
+default physical segment for >64 KiB images. `assembler_rorg_directive.pl` pins an
+ELA boundary crossing, and 512 KiB 3F corpus e9b1a67e... now round-trips MD5-exact.
+

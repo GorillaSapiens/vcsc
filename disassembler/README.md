@@ -207,7 +207,9 @@ by broad partial-address decoders such as 0840/UA/0FA0 are not, by themselves,
 allowed to establish that mapper family. UA/UASW therefore require independent
 UA-family byte/metadata evidence or a switch that demonstrably avoids a JAM; once
 the family is established, a bank-changing edge under only one of UA/UASW may
-distinguish the selector polarity.
+distinguish the selector polarity. A raw UA-family byte signature nominates that
+family but cannot suppress another mapper that has already demonstrated a real
+bank-changing edge through a narrow cartridge selector (for example F8 $1FF8/$1FF9).
 Deliberate VCSC mapper signatures and legacy raw-byte detector patterns are
 tie-break evidence, not a reason to override contradictory executable control
 flow. Dynamic/unresolved control-exit counts are likewise **not** ranked across
@@ -244,8 +246,11 @@ CV is the fixed CommaVid 2K layout. Its ROM occupies only logical
 `$F000-$F3FF` and written at `$F400-$F7FF`. `vcsc-disas` recognizes VCSC's
 `CV\0\0` tail signature and the established indexed-write instruction
 patterns used for legacy CV detection. CV RAM addresses are excluded from ROM
-code/data discovery, and a generated CV disassembly round-trips as an exact
-2048-byte image.
+code/data discovery. In addition to the normal 2048-byte image, the disassembler
+supports Stella's 4096-byte CV preservation form: the final 2K are the actual ROM,
+the first 1K seeds cartridge RAM, and the intervening 1K is preserved storage.
+A byte-identical doubled 2K CV dump is handled by the same 4K storage path. Both
+forms are emitted so the complete original input round-trips byte-for-byte.
 
 JANE is a 16K four-bank layout with selectors `$1FF0`, `$1FF1`, `$1FF8`, and
 `$1FF9` selecting physical/file banks 0, 1, 2, and 3. Physical bank 1 is the
@@ -289,8 +294,10 @@ write. This contradiction can eliminate an otherwise size-compatible FA/CV/WD
 mapper hypothesis.
 
 Automatic Superchip promotion uses three kinds of evidence. An explicit VCSC
-`4KSC`/`F8SC`/`F6SC`/`F4SC` tail signature is a hardware declaration. For banked
-F8/F6/F4 images, the conventional dump layout where every 4K physical bank
+`4KSC`/`F8SC`/`F6SC`/`F4SC` tail signature is a hardware declaration. Historical
+4KSC dumps using Stella's ASCII `SC` marker in `$FFFA-$FFFB` are recognized as
+the same explicit 4KSC declaration. For banked F8/F6/F4 images, the conventional
+dump layout where every 4K physical bank
 duplicates bytes `$000-$07F` at `$080-$0FF` is strong structural evidence; that
 rule is not applied to lone 4K images. Otherwise semantic inference requires
 **established use of both split aliases**: at least one resolved write through
@@ -316,10 +323,11 @@ UA and UASW are 8K two-bank layouts with alias-decoded selectors below the
 cartridge window. UA uses `(A & $1260)==$0220` for bank 0 and `==$0240` for bank
 1; UASW swaps those associations. `vcsc-disas` recognizes VCSC's `UA\0\0`
 and `UASW` tail signatures plus the established historical UA access patterns.
-Those raw patterns establish the UA family, not necessarily its polarity: mapper-
+Those raw patterns nominate the UA family, not necessarily its polarity: mapper-
 aware RESET flow distinguishes UA from UASW when one model actually changes bank
-and the other does not. Broad alias traffic without independent family evidence
-is not enough to invent UA/UASW. Both variants power on in physical bank 0 and
+and the other does not. A raw signature is not allowed to erase independently
+established narrow-selector flow from another mapper such as F8. Broad alias
+traffic without independent family evidence is not enough to invent UA/UASW. Both variants power on in physical bank 0 and
 round-trip byte-exactly.
 
 

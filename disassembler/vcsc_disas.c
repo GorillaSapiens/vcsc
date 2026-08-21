@@ -953,7 +953,8 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
    case MAP_3E:
       *bank_size = 2048u; *bank_count = rom_size / 2048u;
       return rom_size >= 8192u && rom_size <= 524288u && (rom_size % 2048u) == 0u;
-   case MAP_CV: *bank_size = 2048u; *bank_count = 1u; return rom_size == 2048u;
+   case MAP_CV: *bank_size = 2048u; *bank_count = 1u;
+      return rom_size == 2048u || rom_size == 4096u;
    case MAP_JANE: *bank_size = 4096u; *bank_count = 4u; return rom_size == 16384u;
    case MAP_0840: *bank_size = 4096u; *bank_count = 2u; return rom_size == 8192u;
    case MAP_UA: *bank_size = 4096u; *bank_count = 2u; return rom_size == 8192u;
@@ -969,9 +970,11 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
 static int is_probably_cv(const uint8_t *rom, size_t size)
 {
    size_t i;
-   if (size != 2048u) return 0;
-   /* VCSC's common four-byte mapper signature occupies logical $FFF8-$FFFB,
-    * which is file $07F8-$07FB in CV's fixed 2K ROM. */
+   if (size != 2048u && size != 4096u) return 0;
+   /* VCSC's common four-byte mapper signature occupies logical $FFF8-$FFFB.
+    * A normal CV image is 2K.  Stella also accepts a 4K preservation image:
+    * bytes $0000-$03FF seed cartridge RAM and the final 2K are the actual ROM.
+    * A doubled 2K dump is another 4K storage form and is harmless here. */
    if (memcmp(rom + size - 8u, "CV\0\0", 4u) == 0) return 1;
    /* Stella's established CV heuristics: indexed stores into either edge of
     * the split write window.  Recognizing the same signatures also identifies
@@ -1219,8 +1222,9 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
    switch (size) {
    case 1024u: mapper = MAP_1K; break;
    case 2048u: mapper = is_probably_cv(rom, size) ? MAP_CV : MAP_2K; break;
-   case 4096u: mapper = is_doubled_2k_dump(rom, size) ? MAP_2K :
-                         (is_probably_fc(rom, size) ? MAP_FC : MAP_4K); break;
+   case 4096u: mapper = is_probably_cv(rom, size) ? MAP_CV :
+                         (is_doubled_2k_dump(rom, size) ? MAP_2K :
+                         (is_probably_fc(rom, size) ? MAP_FC : MAP_4K)); break;
    case 8192u:
       if (is_doubled_4k_dump(rom, size)) { mapper = MAP_4K; break; }
       mapper = is_probably_e0(rom, size) ? MAP_E0 : MAP_RAW;
@@ -1988,6 +1992,8 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
    for (i = 0; i < a->bank_count; ++i) {
       bank_t *b = &a->banks[i];
       b->file_offset = i * a->bank_size;
+      if (a->mapper == MAP_CV && a->rom_size == 4096u)
+         b->file_offset += 2048u;  /* Stella: final 2K are the CV ROM. */
       b->size = a->bank_size;
       b->origin = infer_bank_origin(rom + b->file_offset, b->size,
                                     b->size, &b->origin_score,
@@ -2888,7 +2894,14 @@ static int superchip_tail_signature(const analysis_t *a)
    const uint8_t *p;
    if (a->rom_size < 8u) return 0;
    p = a->rom + a->rom_size - 8u;
-   if (a->mapper == MAP_4K) return memcmp(p, "4KSC", 4u) == 0;
+   if (a->mapper == MAP_4K) {
+      /* Stella's historical 4KSC convention stores ASCII "SC" in the
+       * otherwise-unused 6507 NMI vector bytes at $FFFA-$FFFB.  VCSC's
+       * newer "4KSC" declaration at $FFF8-$FFFB deliberately ends in the
+       * same marker, so accept either spelling as explicit 4KSC metadata. */
+      return memcmp(p, "4KSC", 4u) == 0 ||
+             (p[2] == (uint8_t)'S' && p[3] == (uint8_t)'C');
+   }
    if (a->mapper == MAP_F8) return memcmp(p, "F8SC", 4u) == 0;
    if (a->mapper == MAP_F6) return memcmp(p, "F6SC", 4u) == 0;
    if (a->mapper == MAP_F4) return memcmp(p, "F4SC", 4u) == 0;
@@ -6416,7 +6429,7 @@ static size_t mapper_candidates_for_size(size_t size, mapper_t *out,
       ADD_MAPPER(MAP_2K); ADD_MAPPER(MAP_CV);
       break;
    case 4096u:
-      ADD_MAPPER(MAP_4K); ADD_MAPPER(MAP_FC);
+      ADD_MAPPER(MAP_4K); ADD_MAPPER(MAP_CV); ADD_MAPPER(MAP_FC);
       break;
    case 8192u:
       ADD_MAPPER(MAP_F8); ADD_MAPPER(MAP_E0); ADD_MAPPER(MAP_E7); ADD_MAPPER(MAP_3E); ADD_MAPPER(MAP_3F); ADD_MAPPER(MAP_FE); ADD_MAPPER(MAP_0840);
@@ -6768,10 +6781,16 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
              h[i].detector_signature)
             have_identified_ua = 1;
       if (have_identified_ua) {
-         for (i = 0; i < n; ++i)
+         for (i = 0; i < n; ++i) {
+            int narrow_switch = h[i].cross_bank_switches != 0u &&
+                                mapper_has_precise_selector_edges(h[i].mapper) &&
+                                !mapper_is_three_family(h[i].mapper);
             if (h[i].viable && h[i].mapper != MAP_UA && h[i].mapper != MAP_UASW &&
-                !h[i].detector_signature && !h[i].explicit_signature)
+                !h[i].detector_signature && !h[i].explicit_signature &&
+                !narrow_switch && h[i].three_specific_switches == 0u &&
+                h[i].e7_specific_refs == 0 && h[i].threee_ram_select_refs == 0)
                h[i].viable = 0;
+         }
       }
    }
 
@@ -9136,6 +9155,12 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
          fprintf(fp, "; preservation image: 2K ROM duplicated byte-for-byte to 4K; second copy retained raw for exact round trip\n");
       if (a->doubled_4k_dump)
          fprintf(fp, "; preservation image: 4K ROM duplicated byte-for-byte to 8K; second copy retained raw for exact round trip\n");
+      if (a->mapper == MAP_CV && a->physical_size == 4096u) {
+         if (memcmp(a->physical_rom, a->physical_rom + 2048u, 2048u) == 0)
+            fprintf(fp, "; preservation image: CV 2K ROM duplicated byte-for-byte to 4K; final 2K are analyzed as ROM\n");
+         else
+            fprintf(fp, "; preservation image: Stella 4K CV save form; first 1K seeds cartridge RAM, middle 1K is preserved storage, final 2K are ROM\n");
+      }
       if (a->odd_4k_dump) {
          if (a->physical_size < 4096u)
             fprintf(fp, "; preservation image: %zu-byte short 4K dump; Stella-compatible analysis zero-fills %zu missing tail byte%s, but generated source preserves the original file length\n",
@@ -9547,6 +9572,19 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
 {
    size_t bi;
    emit_header(fp, a, input, sha);
+   {
+      size_t physical_size = a->physical_size ? a->physical_size : a->rom_size;
+      if (physical_size > 0x10000u) {
+         /* Direct assembler output uses physical file offsets as .org values.
+          * Widen the default segment beyond the 16-bit CPU address space so
+          * large 3F and preservation images can still round-trip through Intel
+          * HEX while .rorg keeps every runtime address strictly 16-bit.  Leave
+          * one extra 64K page of layout headroom for intermediate relaxation
+          * passes; it emits no bytes. */
+         fprintf(fp, ".segmentdef \"__default__\", $0000, $%zX\n",
+                 physical_size + 0x10000u);
+      }
+   }
    if (a->mapper == MAP_AR) {
       size_t li;
       for (li = 0u; li < a->ar_load_count; ++li) {
@@ -9565,6 +9603,13 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
       fprintf(fp, ".org $0000\n");
       emit_physical_raw_range(fp, a, 0u, a->rom_size);
       return ferror(fp) == 0;
+   }
+
+   if (a->mapper == MAP_CV && a->physical_size == 4096u) {
+      fputs("; ---- CV preservation prefix (saved RAM/padding or duplicate ROM) ----\n", fp);
+      fputs(".org $0000\n", fp);
+      emit_physical_raw_range(fp, a, 0u, 2048u);
+      fputc('\n', fp);
    }
 
    for (bi = 0; bi < a->bank_count; ++bi) {

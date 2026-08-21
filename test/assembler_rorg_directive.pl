@@ -87,6 +87,7 @@ sub run_o26 {
 sub parse_ihex {
    my ($path) = @_;
    my %mem;
+   my $base = 0;
    open(my $fh, '<', $path) or die "could not open $path: $!\n";
    while (my $line = <$fh>) {
       chomp $line;
@@ -97,10 +98,15 @@ sub parse_ihex {
       my $addr = hex($addr_hex);
       my $type = hex($type_hex);
       next if $type == 1;
-      die "unsupported ihex record type $type\n" if $type != 0;
       die "bad ihex data length\n" if length($data_hex) != $len * 2;
+      if ($type == 4) {
+         die "bad extended-linear-address record\n" if $len != 2 || $addr != 0;
+         $base = hex($data_hex) << 16;
+         next;
+      }
+      die "unsupported ihex record type $type\n" if $type != 0;
       for my $i (0 .. $len - 1) {
-         $mem{$addr + $i} = hex(substr($data_hex, $i * 2, 2));
+         $mem{$base + $addr + $i} = hex(substr($data_hex, $i * 2, 2));
       }
    }
    close($fh);
@@ -189,6 +195,35 @@ ASM
 
 if ($o26_exit != 0) {
    die "rorg_numeric_branch_o26 failed, exit $o26_exit\n$o26_cmd\n$o26_err";
+}
+
+# Direct Intel HEX output must preserve physical file offsets above 64 KiB.
+# Runtime/logical addresses remain 16-bit under .rorg; only the output address
+# uses Intel HEX extended-linear-address records.
+my ($wide_exit, undef, $wide_err, $wide_hex, $wide_cmd) = run_asm('wide_physical_rorg', <<'ASM');
+.segmentdef "__default__", $0000, $30000
+.org $1FFF8
+.rorg $FFF8
+.byte $A1,$A2,$A3,$A4,$A5,$A6,$A7,$A8
+.rend
+.org $20000
+.rorg $F000
+.byte $B1,$B2,$B3,$B4
+.rend
+ASM
+
+if ($wide_exit != 0) {
+   die "wide_physical_rorg failed, exit $wide_exit\n$wide_cmd\n$wide_err";
+}
+my $wide_mem = parse_ihex($wide_hex);
+for my $pair (
+   [0x1FFF8, 0xA1], [0x1FFFF, 0xA8],
+   [0x20000, 0xB1], [0x20003, 0xB4]) {
+   my ($addr, $want) = @$pair;
+   my $got = $wide_mem->{$addr};
+   die sprintf("wide address %05X missing\n", $addr) if !defined($got);
+   die sprintf("wide address %05X got %02X expected %02X\n", $addr, $got, $want)
+      if $got != $want;
 }
 
 my ($align_exit, undef, $align_err, $align_hex, $align_cmd) = run_asm('rorg_align', <<'ASM');

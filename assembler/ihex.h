@@ -7,14 +7,14 @@
 
 #include <stdio.h>
 
-#define IHEX_MAX_ADDR 65536
+#define IHEX_MAX_ADDR 524288L
 
 typedef struct ihex_image {
    unsigned char data[IHEX_MAX_ADDR];
    unsigned char used[IHEX_MAX_ADDR];
    int has_data;
-   unsigned short min_addr;
-   unsigned short max_addr;
+   unsigned long min_addr;
+   unsigned long max_addr;
 } ihex_image_t;
 
 void ihex_image_init(ihex_image_t *img);

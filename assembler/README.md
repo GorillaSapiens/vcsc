@@ -638,6 +638,12 @@ start:
 
 `.align` uses the logical address while `.rorg` is active and still emits padding at the physical output address.
 
+Direct Intel HEX output supports physical `.org` offsets through `$7FFFF` (512 KiB).
+When output crosses a 64 KiB boundary, `vcsc-as` emits Intel HEX type-04 Extended
+Linear Address records; `.rorg` remains a 16-bit CPU/runtime address. This lets a
+large cartridge image preserve physical file-bank offsets without pretending the
+6507 itself has an address wider than 16 bits.
+
 ### Raw `opXX` opcode form
 
 The assembler accepts `opXX` where `XX` is a hexadecimal opcode byte.  `default.cfg` gives every byte a configured addressing mode, either through an ordinary mnemonic or through an `opXX` placeholder entry, so raw `opXX` is self-describing by default: the assembler uses the opcode byte's configured addressing mode and operand size, and rejects operands or suffixes that disagree with that mode.

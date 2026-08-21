@@ -32,13 +32,13 @@ int ihex_write_byte(ihex_image_t *img, long addr, unsigned char value)
 
    if (!img->has_data) {
       img->has_data = 1;
-      img->min_addr = (unsigned short)addr;
-      img->max_addr = (unsigned short)addr;
+      img->min_addr = (unsigned long)addr;
+      img->max_addr = (unsigned long)addr;
    } else {
-      if (addr < img->min_addr)
-         img->min_addr = (unsigned short)addr;
-      if (addr > img->max_addr)
-         img->max_addr = (unsigned short)addr;
+      if ((unsigned long)addr < img->min_addr)
+         img->min_addr = (unsigned long)addr;
+      if ((unsigned long)addr > img->max_addr)
+         img->max_addr = (unsigned long)addr;
    }
 
    return 1;
@@ -84,7 +84,8 @@ static void ihex_emit_record(FILE *fp,
 //! @brief Handle Intel HEX dump logic for ihex.
 int ihex_dump(FILE *fp, const ihex_image_t *img)
 {
-   unsigned int addr;
+   unsigned long addr;
+   unsigned long current_upper = 0u;
 
    if (!img->has_data) {
       ihex_emit_record(fp, 0, 0, 0x01, NULL);
@@ -95,7 +96,8 @@ int ihex_dump(FILE *fp, const ihex_image_t *img)
    while (addr <= img->max_addr) {
       unsigned char buf[16];
       unsigned char count;
-      unsigned int start;
+      unsigned long start;
+      unsigned long upper;
 
       while (addr <= img->max_addr && !img->used[addr])
          addr++;
@@ -104,16 +106,25 @@ int ihex_dump(FILE *fp, const ihex_image_t *img)
          break;
 
       start = addr;
-      count = 0;
+      upper = start >> 16;
+      if (upper != current_upper) {
+         unsigned char ext[2];
+         ext[0] = (unsigned char)((upper >> 8) & 0xffu);
+         ext[1] = (unsigned char)(upper & 0xffu);
+         ihex_emit_record(fp, 2, 0, 0x04, ext);
+         current_upper = upper;
+      }
 
+      count = 0;
       while (addr <= img->max_addr &&
              img->used[addr] &&
+             (addr >> 16) == upper &&
              count < sizeof(buf)) {
          buf[count++] = img->data[addr];
          addr++;
       }
 
-      ihex_emit_record(fp, count, (unsigned short)start, 0x00, buf);
+      ihex_emit_record(fp, count, (unsigned short)(start & 0xffffu), 0x00, buf);
    }
 
    ihex_emit_record(fp, 0, 0, 0x01, NULL);
