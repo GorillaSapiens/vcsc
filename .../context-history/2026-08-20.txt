@@ -4,6 +4,30 @@ Implemented size-accurate E7 disassembly for 8K, 12K, and 16K images: selectable
 
 Added bankswitching roadmap Items 39-44 to backfill public diagnostic/profile support for E0, 3F, 3E, FE/SCABS, WD, and DPC.
 
+2026-08-20 05:52:22 PDT, Reconcile asymmetric multisprite WIP
+Used vcsc.20260820_123602 as the authoritative source lineage and layered only
+the five meaningful source/document changes from the prior
+asymmetric-metadata-safety handoff. Generated artifacts and older/missing files
+from that handoff were not allowed to replace the baseline.
+
+The layered changes update the asymmetric renderer, its example Makefile and
+README, .../enhanced_asymmetric.txt, and the branding allowlist. The restored
+metadata contract separates logical-id/HMP data from lane/coarse RESP-slot data;
+priority promotion is deferred to overscan. Horizontal positioning remains WIP.
+The asymmetric example builds at 3498/4090 ROM and 120/128 RAM.
+
+Validation: compile-only suite 500/500. E2E cases all pass when split into
+bounded batches; vcs_all_five_181_unofficial.pl hit its documented container
+timeout under the parallel batch and passed immediately when rerun alone.
+Focused branding, hygiene, branch-contract, enhanced-multisprite, maintained
+multisprite-profile, and asymmetric example-build checks also pass.
+
+Enhanced asymmetric checkpoint: full non-reflected PF0/PF1/PF2 WIP preserved.
+Example builds at 3589/4090 ROM, 117/128 RAM.  Six PF writes are present,
+CTRLPF=0, graphics row state uses ROM transition tables.  Final 11-phase coarse
+RESP calibration/X=0..159 certification remains unfinished.  See
+`.../enhanced_asymmetric.txt` for the continuation contract.
+
 2026-08-20 07:08:46 PDT, Add WDSW disassembler support
 
 Implemented Stella-compatible WDSW as the 8195-byte historical WD preservation layout rather than a separate hardware mapper. WDSW and corrected 8192-byte WD share the Wickstead Design four-segment mapper, 64-byte split RAM, delayed TIA $30-$3F read selectors, and power-on arrangement 0; WDSW additionally swaps physical 1K chunks 2/3 for runtime analysis and preserves the three trailing non-emulated dump bytes exactly.
@@ -27,6 +51,7 @@ Added a native unbanked 1K topology for 1024-byte Atari 2600 cartridges. One phy
 Audited vector entry seeding. Normal disassembly already follows every cartridge-backed NMI, RESET, and IRQ/BRK vector; RESET-only seeding is intentionally limited to temporary mapper-hypothesis validation. Added an explicit semantic regression where the IRQ routine is unreachable from RESET so this behavior is permanently pinned.
 
 The supplied c33caa7d6ac7251bb804e0473198901d.bin now disassembles as unbanked 1K with origin $FC00, RESET $FC96, and IRQ/BRK $FC80, and reconstructs byte-for-byte exactly. Validation: vcsc_disassembler.pl 101/101; vcsc_disassembler_hardening.pl pass; vcsc_disassembler_opcodes.pl 1/1; vcsc_disassembler_fuzz.pl 30/30; supplied ROM roundtrip 1/1 exact.
+
 2026-08-20 09:24:13 PDT, Repair post-1K regressions
 
 Fixed three regressions exposed by the full E2E run after native 1K support. Adding MAP_1K had shifted the private mapper enum while dynamic_video_probe.cpp still duplicated old integer mapper IDs; FA therefore arrived as the old DPC value and the dynamic video probe was disabled, falling back to RIOT-signature inference. Mapper IDs now live once in dynamic_video_probe.h, mapper_t is explicitly pinned to them, and the probe models 1K mirroring directly. The FA visible diagnostic again reports the stable 264-interval raw / 262-line displayed NTSC timing.
@@ -53,6 +78,14 @@ Concrete RESET discovery now requires trusted topology evidence. Unbanked 1K/2K/
 
 Validation: all eight editable-example build/roundtrip shards pass; shard 2/8 falls from over three minutes to under 9 seconds. vcsc_disassembler.pl remains 102/102 exact, hardening and all-opcode roundtrip pass, mapper fuzz remains 30/30, and c33caa7d6ac7251bb804e0473198901d.bin still runs concrete discovery and round-trips byte-exactly.
 
+2026-08-20 11:42:38 PDT, add compact absolute RESP vector
+The asymmetric enhanced-multisprite WIP now emits a page-contained, 128-byte-
+aligned coarse-RESP landing object.  P0 starts at +$00, P1 at +$40, and each
+coarse cell is three bytes/five cycles.  VBLANK stores absolute pointer lows,
+BIT/BVS uses low-byte bit 6 as the lane tag, and adjacent event_stage holds the
+common pointer high.  Current example: 3710 ROM / 117 RAM.  Raster entry into
+the ladders remains the next step.
+
 2026-08-20 12:14:00 PDT, Complete H1 hybrid alternate-path analysis
 
 Completed hybrid disassembler priority H1. Abstract CFG state now includes SP and provable RIOT-RAM/stack-page aliases through stack operations, JSR/RTS, memory stores, and supported RMW operations. A bounded conservative IRQ trace can prove BRK/IRQ/RTI continuations when the saved return PC remains exact, including deliberate return-address modification through the RIOT stack-page mirror; uncertain interrupt paths are left unresolved rather than guessed.
@@ -78,6 +111,7 @@ Added an H2 regression where concrete RESET execution parks on one TIA-read outc
 Kept the H1/H2 console-switch contract exhaustive without imposing an unconditional eightfold emulator cost on every ROM. Concrete RESET discovery still covers all eight startup combinations of COLOR/BW plus left/right difficulty with SELECT/RESET released. It runs the all-high case first; when that complete bounded execution never reads SWCHB, the seven alternate maintained-switch settings are provably execution-equivalent because those bits have no CPU-visible effect before an SWCHB read, so they are counted as covered without redundant emulator runs. If SWCHB is observed, all seven remaining maintained-switch combinations execute explicitly, and SELECT/RESET press-release scenarios still run under every maintained-switch combination.
 
 This reduced deterministic mapper fuzz from several minutes back to 30/30 in 9.8 seconds while preserving the existing scenario-count contract and console-switch regression. The exact user-reported vcs_examples_build_2of8.test passes in isolation in about 6 seconds. The real c33caa7d6ac7251bb804e0473198901d.bin remains byte-exact, reports mapper vcsc=1K stella=1K MATCH, and under H2 records 34 startup/input scenarios, 299 ROM instruction starts, and 57 executed RIOT-RAM instruction starts with the RAM game entered at $00C2. Packaging for this slice must retain the original repository-root archive shape; no synthetic vcsc/ wrapper directory is permitted.
+
 2026-08-20 14:40:00 PDT, extend disassembler corpus roadmap
 Corpus triage added three end-of-roadmap follow-ups: correct 6507 interrupt-vector
 reachability (no external NMI/IRQ pins; IRQ/BRK only via reachable BRK), support Stella-playable malformed 4098/4094-byte dumps without
@@ -105,6 +139,7 @@ both directions: an unused 1K IRQ vector does not promote its target, while the
 H1 reachable-BRK fixture still promotes and decodes its `$FC40` DEC `$FE`; RTI
 handler. The existing NMI-root behavior was deliberately left unchanged in this
 slice; roadmap item 27 keeps that separate 6507 hardware-cleanup question open.
+
 2026-08-20 15:36:00 PDT, add Starpath/AR support
 
 Implemented structural AR support for Starpath/Arcadia Supercharger fast-load images. Any exact 8448-byte multiple is recognized as one or more standard loads, each containing 8192 bytes of page data plus a 256-byte header. The disassembler decodes the header start address, control byte, page count, load ID, page map, and checksums, reconstructs the three 2K Supercharger RAM banks, and carries reconstructed RAM across nonzero concatenated multi-loads. Payload CFG recovery begins at each load's start address under its initial two-window bank configuration; unresolved $FFF8 configuration changes terminate that fixed-state path rather than fabricating a latch value. Runtime payload code is emitted comment-only with physical-file provenance, while all original load bytes remain raw for exact reconstruction.
@@ -116,7 +151,6 @@ Added synthetic single-load and multi-load semantic fixtures plus `--mapper ar`.
 Completed disassembler roadmap item 28 for the two corpus oddballs. Stella's generic 4K cartridge model truncates overlong images and zero-fills short ones, so vcsc-disas now separates logical analysis bytes from physical preservation bytes for exact 4098- and 4094-byte inputs. The 4098-byte Space Invaders 2 hack analyzes the first 4096 bytes as an unbanked 4K cart and emits its final two bytes in a raw preservation tail. The 4094-byte Lumberman hack analyzes a zero-padded logical 4K image, including its present RESET vector, while emission stops at the actual 4094-byte end and does not synthesize the absent IRQ/BRK bytes.
 
 Both real hashes reconstruct byte-for-byte and roundtrip.pl with Stella reports vcsc=4K stella=4K MATCH. Added synthetic over/under fixtures to the semantic suite and documented that odd-size preservation input is never silently canonicalized.
-
 
 2026-08-20 17:01:00 PDT, fix E0/E7 and wrapped branches
 
@@ -139,6 +173,14 @@ both Espial variants assemble again; the nine E0 cases plus those three branch-w
 cases are 12/12 byte-exact and 12/12 Stella mapper matches. Added direct and
 disassembler round-trip boundary regressions; semantic suite is 110/110 exact.
 
+2026-08-20 19:22:04 PDT, raise default test timeout to 45 seconds
+`test/test.pl` now defaults every case to 45 seconds. Explicit timeout
+headers below 45 seconds were removed from 46 tests so they inherit the new
+default; explicit 45/60/90/120/180/240-second exceptions remain intact.
+`test/README.md` documents the new default. `.../context.txt` was compacted
+below its 100 KiB hard ceiling without weakening `source_tree_hygiene.pl`, and
+its testing-policy summary now records the 45-second rule.
+
 2026-08-20 19:44:20 PDT, raise default test timeout to 45 seconds
 Raised the generic per-case runner timeout from 20 to 45 seconds and removed all 45 explicit per-test timeout headers below 45 seconds so those cases inherit the default. Explicit 45-second and longer overrides remain. Updated test/README.md and added source-tree hygiene guards for both the default and absence of sub-45 overrides. The prior hygiene failure was context.txt exceeding its 100 KiB ceiling; compacted the completed Tanks narrative and stale runner timing detail, preserving current-state pointers while restoring substantial headroom.
 
@@ -160,6 +202,18 @@ Raised the generic per-case runner timeout from 20 to 45 seconds and removed all
 Replaced instruction-count timing for concrete SELECT/RESET exploration with the cartridge's observed VBLANK frame clock. Under each of the eight maintained COLOR/BW+difficulty configurations, SELECT and RESET each get a fresh RESET run with 10 VBLANK assertion intervals released, 10 pressed, then 10 released; convergence is gated until the 30th assertion. Non-video baselines that never assert VBLANK retain the old bounded instruction-timed fallback because no frame clock exists.
 
 Updated console_switches.bin to require the complete frame-timed SELECT sequence before writing its proof RAM byte. The old 8192/16384-instruction pulse misses the frame-10 window. Focused vcsc-disas regression remains 119/119 byte-exact.
+
+2026-08-20 23:51:31 PDT, clean asymmetric handoff regressions
+Removed the leaked .tmp_bottom_repro.c26 development source that the recursive
+example builder mistook for a public example and that overflowed 4K.  Reviewed
+and pinned the asymmetric example's 30 compact indexed-zero-page motion asm
+statements in example_assembly_allowlist.tsv; updated the allowlist source count
+to 30.  The real asymmetric example remains 3686/4090 ROM and 119/128 RAM.
+The exact two reported failures plus asymmetric timing, branch contracts,
+hygiene, and branding pass.  A clean full make test rebuilt successfully and
+finished 500/500 compile tests; the e2e run had no failures through 78/319 before
+the container execution window terminated the command.
+
 2026-08-20 23:52:50 PDT, gate JANE inference on positive evidence
 Four expanded-corpus 16K images were falsely promoted from F6 to JANE because
 control-flow refinement allowed a coherent JANE startup-bank model to survive

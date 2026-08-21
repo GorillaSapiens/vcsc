@@ -22,3 +22,12 @@ Same-lane allocation now reserves the attribute-write line too (P0 distance 15,
 P1 distance 12), preventing COLUP/NUSIZ/REFP from touching the previous
 sprite's last scanline. The Stella oracle now pins exact glyph/color pixels at
 the known bad Y boundaries and forces logical sprite 0 through hardware P1.
+
+2026-08-18 23:01:47 PDT, asymmetric enhanced PF checkpoint
+Added a sibling 192-line enhanced-multisprite experiment with a dynamic 32-bit
+asymmetric central playfield.  Four timed PF writes survive ordinary and all
+six live sprite event paths at stable frame timing; Stella comparison against a
+PF-only reference found no PF mismatches outside sprite/HMOVE pixels.  Current
+4K accounting is 3483 ROM / 120 RAM.  Horizontal RESP positioning is deliberately
+unfinished and sprites remain bunched; `.../enhanced_asymmetric.txt` records the
+exact handoff and next calibration work.

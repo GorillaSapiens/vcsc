@@ -28,6 +28,7 @@ When asked to read `.../context.txt` and continue in a **new chat**:
        .../roadmap.txt                 detailed main-project roadmap
        .../bankswitching.txt           bankswitching design and sub-roadmap
        .../enhanced.txt                enhanced multisprite side-quest handoff
+       .../enhanced_asymmetric.txt     asymmetric-PF enhanced WIP handoff
        .../ram_optimization.txt         focused RIOT-RAM optimization roadmap
        .../instruction.txt             bounded-work and packaging procedure
        .../context-history/YYYY-MM-DD.txt
@@ -1131,6 +1132,14 @@ NOP operand read and preserves underlying low-memory read/write behavior; public
 recovery, disassembly, and byte-exact round trip. Bankswitching Item 36 UA/UASW reuses this machinery with `(A & $1260)` aliases around $0220/$0240, paired profiles, reversed UASW association, public diagnostics, and exact round trips. Item 37 0FA0 is complete with `(A & $16E0)==$06A0/$06C0`, public `09_bankswitching/10_0fa0`, and exact disassembly. Item 38 remains deferred; Items 39-44 now backfill missing public diagnostics for E0/3F/3E/FE/WD/DPC.
 
 
+An asymmetric-playfield extension of the enhanced multisprite side quest is now
+in progress. It is isolated in `renderers/enhanced_multisprite_asymmetric/`;
+dynamic 32-bit asymmetric PF timing with all six live sprite events is feasible
+and stable, but horizontal sprite positioning is knowingly unfinished. The
+reconciled WIP keeps event id/HMP metadata separate from lane/coarse RESP-slot
+metadata, defers priority promotion to overscan, and currently builds at 3498
+ROM / 120 RAM. Read `.../enhanced_asymmetric.txt` before continuing it.
+
 The enhanced-multisprite side quest now has an experimental 192-line renderer at
 `libraries/vcs/renderers/enhanced_multisprite/` plus public interactive example
 `examples/18_enhanced_multisprite/01_192/01_interactive`. All six logical sprites
@@ -1152,193 +1161,23 @@ is currently 2498 ROM bytes / 104 RAM bytes. Next gate is user interactive Stell
 validation, especially moving 3-6-way piles and crossing sprites. The existing
 `renderers/multisprite/` remains unchanged and its Stella oracle still passes.
 
-2026-08-19/20 split-RAM corpus finding: SC, FA/RAM Plus, CV, and WD/WDSW use
-disjoint read/write aliases, so an established RMW in either alias is negative
-mapper evidence. For SC, neither a cartridge-space write nor read alone is
-sufficient: semantic promotion requires established resolved use of both
-`$x000-$x07F` writes and `$x080-$x0FF` reads; the offsets need not match, though
-matching offsets are reported as stronger evidence. Speculative islands never
-vote on SC hardware. Explicit VCSC SC tail signatures are authoritative, while
-banked F8/F6/F4 also accepts the canonical per-bank `$000-$07F == $080-$0FF`
-dump structure unless established RMW/write-port execution contradicts it; the
-structural rule is not used for lone 4K images. This fixes the 2026-08-20 corpus
-batch's eight false Fx->FxSC promotions and one false F6SC->F6 demotion; all nine
-now match Stella and round-trip byte-exactly. FA/CV/WD/WDSW split-RAM RMW rules
-remain unchanged.
+Disassembler corpus/hardening work through 2026-08-21 is preserved in
+`.../disassembler.txt` and the merged daily files under `.../context-history/`.
+Recent completed work includes the UA/UASW duplicated-4K closeout, F8-vs-UA
+precedence repair, Stella 4K CV storage forms, historical 4KSC tail metadata,
+>64 KiB physical HEX/disassembly support, and conservative 4IN1/8IN1/32IN1
+container handling. Focused semantic round trips reached 131/131; 2IN1 remains
+open under disassembler Item 41. Keep the roadmap rather than this compact
+context as the authoritative implementation record.
 
-2026-08-19 disassembler F6/JANE corpus finding: expanded differential corpora
-exposed a bad mapper-refinement tie-break that preferred the viable hypothesis
-with fewer dynamic/unresolved control exits. That rewards truncated wrong CFGs;
-for example genuine 16K F6 ROMs could be promoted to JANE solely because JANE's
-startup mapping decoded less code. Dynamic-exit counts are no longer compared
-between mapper families. Genuine ambiguity preserves the normal size/signature
-default unless positive selector/flow/signature evidence discriminates a mapper.
-A synthetic 16K F6-vs-JANE regression pins this. A 2026-08-20 follow-up found
-four more F6 images where JANE became the sole surviving model with no positive
-JANE evidence. Automatic JANE refinement now requires the raw `AD F1 FF 60`
-Stella detector signature or explicit VCSC `JANE` metadata; coherent execution
-under JANE's startup mapping alone is never enough. The same investigation found
-non-VCS ROMs in the expanded corpus (including Atari 5200/7800/8-bit material);
-`roundtrip.pl --stella` is a VCS mapper differential, not a platform validator,
-and corpus inputs must be prefiltered to Atari 2600/VCS.
-
-2026-08-20 3F relative-branch alias investigation: the old assembler failure in
-Espial NTSC/PAL (`f344ac1279152157d63e64aa39479599` and
-`f7a138eed69665b5cd1bfa796a550b01`) was not real execution into zero-page/TIA
-space. Physical bank 3 offset `$7E7` was analyzed through the 3F selectable lower
-window at runtime PC `$37E7`, where bytes `10 38` are `BPL $3821`; the emitter
-then presented that same physical bank only at its fixed final-bank `.rorg
-$F800`, recomputed the source as `$FFE7`, and invented `BPL.cross $0021`. 3F/3E
-relative instructions are now forced raw when the runtime mapper-resolved target
-cannot be represented by the physical bank's canonical `.rorg`. Genuine
-unbanked `$FFxx->$00xx` relative branches remain symbolic and rely on the
-assembler's correct modulo-16-bit arithmetic. A synthetic final-bank-lower-alias
-fixture pins `$F7E7 -> $F821`; both Espial files round-trip exactly after the fix.
-The investigation also exposed a separate precision debt now queued as focused
-disassembler Item 31: concrete-only ROM starts are seeded with unknown CPU state,
-while mapper contexts have separate seen bits but share one merged abstract state
-per physical byte. Espial's real fixed-bank `STX $3F` trampoline at `$3C8C`
-therefore loses its caller-constrained X values (concrete execution observes 0/2),
-becomes an unknown 3F selector, and conservatively fans lower-window flow into all
-physical banks, which is what misclassified the bank-3 bitmap/data tail as code.
-Do not exclude the final bank from 3F selection: Stella's current Cartridge3F
-switches on writes at TIA `$00-$3F` and uses written value modulo ROM-bank count.
-
-
-2026-08-20 follow-up on last-page `.cross` failures: `x` also contained
-`56300ed31fef018bd96768ccc982f7b4`, a separate 16K F6 false-code case.  Its
-final-bank data at `$FFDA` accidentally decodes as `JSR $3020 / BMI $000F /
-BMI $0031 / ...`.  `$3020` is a cartridge mirror on the 6507, so speculative
-validation recursively walked hundreds of apparently valid ROM instructions,
-reached a strong terminal, and consumed the 512-step budget.  The continuation
-at `$FFDD` then became merely weak before the BMI was examined; the strong JSR
-arm won `spec_safe_merge()` and promoted an incompletely checked island.
-Credibility promotion now refuses any candidate whose validation walk exhausts
-its budget.  In addition, an actually examined speculative branch arm that can
-enter `$0000-$007F` is rejected because that is the TIA register window.  A
-proven-not-taken arm and established control flow are unaffected, so genuine
-16-bit assembler wrap semantics stay supported.  Synthetic
-`speculative_tia_branch_reject.bin` pins both mechanisms.  This is focused
-Disassembler Item 32 and is distinct from Item 30's 3F physical-alias
-presentation fix and Item 31's still-open mapper-context abstract-state debt.
-
-2026-08-20 usage-accounting / speculative-cap follow-up: the alarming Espial PAL
-summary `executed=3418 data-read=11 exec+data=5 overlap=463 possible=8
-unreferenced=4761` exposed real analysis/accounting defects. Concrete RESET
-exploration was observing physical ROM data reads but discarding them after
-provenance use; those reads are now retained and fed into `ROLE_DATA_READ`
-(Espial PAL observes 444 distinct ROM data bytes). Concrete-only instruction
-starts also now carry their exact observed A/X/Y/SP/P and mapper config into the
-static seed instead of an all-unknown state. That removes most of the 3F fake-code
-fanout: PAL Espial established code fell to 1377 bytes with 444 observed data
-bytes, zero established overlap, 6144 conservative possible-data bytes, and 1698
-unclassified bytes; speculative code is now reported separately. Mapper-aware unresolved indexed/indirect ROM accesses now mark
-physical `ROLE_POSSIBLE`; the large 6144-byte Espial set is deliberately a broad
-may-read set, not observed data. The residual report term is renamed from
-`unreferenced` to `unclassified` because undiscovered paths are not proof of
-non-use. Item 31 remains partially open only for the deeper per-mapper-context
-abstract-state representation/merge problem.
-
-The speculative validator's historical `512` limit counted static CFG-node visits,
-not emulated CPU instructions or frame time; loops are cycle detected. Even so, the
-fixed 512 was arbitrary and cap exhaustion had been dangerously implicit. The fixed
-constant is now replaced by a per-walk cap equal to the physical bank size. The
-strictly linear JAM/KIL endpoint scan is uncapped because it is finite by bank size;
-stateful speculative walks explicitly report `capped-walks` and `promotion-capped`,
-and exhaustion is inconclusive and can never supply positive promotion evidence. The
-supplied F6 corpus case now reports 2 capped negative-evidence walks and 1 candidate
-denied promotion because of the bank-sized cap. Focused Item 35 records the proper
-follow-up: replace the recursion guard with a state-keyed convergent worklist/fixed
-point rather than another magic number.
-
-2026-08-20 speculative-confidence quarantine (focused Item 37): detached islands
-are presentation evidence only. Before island discovery the analyzer snapshots
-established roles/evidence and freezes the established Superchip hardware decision.
-Speculative tracing cannot rank/select mappers, vote on SC/native-RAM behavior, feed
-video/controller inference, seed H2 concrete execution, or merge abstract state back
-into established code. It may still add code/labels/data/graphics/table provenance for
-source readability. Usage reports `established-code` and `speculative-code` separately,
-and speculative-only ROMs are rejected. Synthetic F8/E0 selector, NTSC/keypad, and
-SC self-feedback fixtures pin the boundary; focused disassembler round trips are
-118/118. Corpus file `7dfab820ff27b972aa148893f3c19953` is now deliberately
-rejected: it is an Atari 8-bit cartridge (`$D20E/$D400`, `$B000` vector), not VCS;
-the old analyzer had zero surviving mapper hypotheses and resurrected it from nine
-speculative islands.
-
-The same F6 retest exposed a separate assembler o26 `.rorg` bug: numeric relative
-branches were measured from packed object `.org` offsets rather than logical
-`stmt->address`. The o26 writer now computes numeric relative displacement from
-the logical PC with modulo-16-bit arithmetic while preserving relocatable-object
-semantics; `assembler_rorg_directive.pl` pins a generated local `BNE.same $F806`.
-
-
-2026-08-20 concrete startup VBLANK dwell (focused Item 38): baseline RESET
-scenarios still require 16384 consecutive instructions with no new ROM/RAM
-instruction starts before convergence, but instruction count alone is no longer
-enough once a cartridge demonstrates video-frame activity. SELECT/RESET remain
-released during the baseline sweep; after the first assertion of TIA VBLANK bit 1,
-baseline convergence is suppressed until at least ten low-to-high VBLANK assertion
-edges have been observed. Repeated writes while VBLANK is already high do not count
-again. Programs that never assert VBLANK retain the ordinary stale-reachability
-fallback rather than running pointlessly to the 250000-instruction ceiling. The
-separate SELECT/RESET runs still occur only after baseline exploration when SWCHB
-is read. Each video run now uses the same VBLANK-edge clock: 10 frames released,
-10 pressed, then 10 released; convergence cannot end before the 30th assertion.
-Only a baseline with no VBLANK activity keeps the historical instruction-timed
-fallback. `baseline_vblank.bin` pins the baseline minimum and `console_switches.bin`
-pins the complete 10/10/10 momentary-switch sequence; focused disassembler round
-trips remain 119/119.
-
-
-2026-08-20 static branch-edge confidence (focused Item 40): concrete discovery
-now records taken/fall-through outcomes at each retained physical branch source,
-runtime PC, and mapper context. For an abstractly unknown conditional branch, an
-arm observed from that source is established directly; an unobserved arm gets a
-local mapper-aware negative-evidence walk before establishment. Deterministic
-HLT/JAM/KIL rejects only that edge, while another unknown branch, exhaustion, or
-other inconclusive validation keeps it. Mapper transitions happen before the next
-opcode fetch, so the F8 regression `LDA $1FF8` correctly follows the selected bank
-and survives despite JAM in the old bank. Proven flag outcomes are unchanged; a
-mapper without trusted concrete discovery still retains both feasible arms. Direct
-JAM, JMP-to-JAM, and hotspot-escape fixtures bring focused round trips to 122/122.
-
-2026-08-21 UA/UASW corpus closeout (focused Item 43): exact duplicated 4K halves
-stored as an 8K file are now analyzed as logical unbanked 4K and preserved raw on
-output. UA/UASW broad-decoder traffic is no longer family evidence by itself;
-automatic family admission requires historical UA bytes/explicit metadata or a
-switch that demonstrably avoids JAM. Once the UA family is independently known,
-a unique bank-changing RESET edge distinguishes normal UA from swapped UASW.
-Synthetic semantic round trips are 126/126. Corpus 3290d62b... now 4K, 4e4a263c...
-UA, d214c7a7... UASW; all three reconstruct byte-exactly.
-
-2026-08-21 mapper follow-up (focused Items 44-45): Item 43 raw UA-family
-signatures are nomination evidence, not authority over stronger established
-mapper flow. A viable narrow-selector mapper with a real bank-changing edge is
-no longer pruned merely because raw bytes resemble UA; Super Soccer
-0e7e7342... is F8 again despite one unreachable `LDA $02C0`, and
-`f8_raw_ua_data.bin` pins that regression. CV now accepts Stella's 4K storage
-form as one logical 2K ROM in the final half: the first 1K seeds cartridge RAM,
-the middle 1K is preserved storage, and doubled 2K CV dumps use the same path.
-Static/concrete mapping reads ROM from physical `$0800-$0FFF`, complete input
-bytes are preserved on output, and `cv_saved_4k.bin`/`cv_doubled_4k.bin` pin
-both forms. Corpus 14d365bb... and 3ec12372... now identify CV and reconstruct
-exactly. Focused semantic round trips are 129/129.
-
-2026-08-21 corpus closeout (focused Items 46-47): historical 4KSC ASCII `SC`
-at `$FFFA-$FFFB` is now explicit 4KSC metadata without reviving lone-4K prefix
-inference; corpus a3621a0c... is 4KSC and exact. Direct assembler HEX now supports
-physical `.org` offsets through `$7FFFF` using Intel HEX type-04 Extended Linear
-Address records, while `.rorg` stays 16-bit. The disassembler widens its generated
-default physical segment for >64 KiB images. `assembler_rorg_directive.pl` pins an
-ELA boundary crossing, and 512 KiB 3F corpus e9b1a67e... now round-trips MD5-exact.
-
-
-2026-08-21 multicart corpus closeout (focused Item 48): 4IN1/8IN1/32IN1 are
-now conservative outer containers, never one shared CPU CFG. Distinct slices with
-strong independent RESET roots are analyzed once each and emitted as `.gameNN.s26`
-sidecars; the outer source preserves exact concatenated bytes. Repeated identical
-banks are excluded from automatic container inference, and CPU-visible mapper flow
-prevents slicing. `roundtrip.pl --stella` accepts an NIN1 selected-slice MD5 only
-when it matches an exact local component. Corpus 291bcdb0/291dd475 -> 32IN1,
-7465b06b -> 8IN1, and 31bb9b8c/703f0f7a/fe6abc0f -> 4IN1; all six are exact and
-match Stella. Focused round trips are 131/131. 2IN1 remains open under Item 41.
+Enhanced-asymmetric multisprite work remains active in
+`.../enhanced_asymmetric.txt`. The 2026-08-21 visual-fix checkpoint keeps the
+full non-reflected PF0/PF1/PF2 raster, stable 262-line timing, and the X=0..159..0
+movement sweep. Ordinary positioning currently uses measured phases
+23,28,33,37,42,47,50,53,58,63,68,73; the final target remains eleven slots
+23,28,33,38,43,48,53,58,63,68,73 with a direct packed X->{HMP,slot} lookup.
+Paired-RESP experiments are temporarily retired until ordinary rendering is
+certified. Remaining visible work is the phase-53/63 PF timing cleanup,
+per-event color handoff/stale-GRP cleanup, full Stella X=0..159 certification on
+both lanes, and only then restoration of pair-feasibility scheduling. The exact
+timing history and completion gates live in `.../enhanced_asymmetric.txt`.
