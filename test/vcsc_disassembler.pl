@@ -745,6 +745,12 @@ put16(\$branch, 0xFFC, 0xF000 + $main);
 put16(\$branch, 0xFFE, 0xF000 + $main);
 write_bin(File::Spec->catfile($in, 'branches.bin'), $branch);
 
+# A relative branch may wrap the 16-bit CPU PC from $FFxx into $00xx.  The
+# disassembler should preserve the real short branch and its .cross contract;
+# vcsc-as must encode the wrapped displacement rather than relaxing it long.
+my $branch_wrap = make_rom(4096, 0xF000, 0x0FF0, "\x10\x20\x60");
+write_bin(File::Spec->catfile($in, 'branch_wrap_ffff.bin'), $branch_wrap);
+
 # Reachable overlapping BIT-skip stream.
 my $bit = make_rom(4096, 0xF000, 0x0100,
    "\xA5\x80" .       # LDA $80
@@ -1561,6 +1567,10 @@ for my $mn (qw(BPL BMI BVC BVS BCC BCS BNE BEQ)) {
    require_re($branches, qr/\b\Q$mn\E\.same\b/, "$mn same-page annotation");
    require_re($branches, qr/\b\Q$mn\E\.cross\b/, "$mn cross-page annotation");
 }
+
+my $branch_wrap_out = slurp(File::Spec->catfile($out, 'branch_wrap_ffff.s26'));
+require_re($branch_wrap_out, qr/\bBPL\.cross\s+\$0012\b/,
+   '16-bit wrapped relative branch retained as short cross-page branch');
 
 my $bits = slurp(File::Spec->catfile($out, 'bit_skip.s26'));
 require_re($bits, qr/\.byte\s+\$2C/i, 'BIT-skip raw prefix');

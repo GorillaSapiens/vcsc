@@ -696,10 +696,13 @@ bmi.cross final     ; taken branch must cross a page
 ```
 
 The page comparison uses the PC after the two-byte branch instruction, exactly
-matching the NMOS 6502/6507 taken-branch timing rule. Bare branches and `.flex`
-are placement preferences, not contracts: the linker minimizes their page
-crossings but may allow one when other constraints require it. `.same` and
-`.cross` are hard contracts and cause an error if no valid placement exists.
+matching the NMOS 6502/6507 taken-branch timing rule. Relative displacement and
+that page comparison use 16-bit CPU-PC wraparound, so a branch near `$FFFF` may
+legitimately target `$00xx` with an ordinary signed 8-bit displacement. Bare
+branches and `.flex` are placement preferences, not contracts: the linker
+minimizes their page crossings but may allow one when other constraints require
+it. `.same` and `.cross` are hard contracts and cause an error if no valid
+placement exists.
 
 These suffixes are valid only on the eight relative conditional branches (or
 their matching raw-opcode spellings, such as `opF0.same`). A hard annotation

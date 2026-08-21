@@ -117,3 +117,24 @@ Completed disassembler roadmap item 28 for the two corpus oddballs. Stella's gen
 
 Both real hashes reconstruct byte-for-byte and roundtrip.pl with Stella reports vcsc=4K stella=4K MATCH. Added synthetic over/under fixtures to the semantic suite and documented that odd-size preservation input is never silently canonicalized.
 
+
+2026-08-20 17:01:00 PDT, fix E0/E7 and wrapped branches
+
+The latest differential corpus exposed nine 8K Gyruss/Popeye-family images that
+VCSC called E7 while Stella called E0. Every image carries Stella's explicit E0
+`STA $FFE9` detector signature and none carries the 8K-E7 `$FFE4-$FFE6` signatures.
+The real E0 abstract probe can stall in an early RAM-clear loop; under the wrong E7
+model, later bytes can instead look like mapper-dependent E7 selector accesses.
+Hypothesis refinement now records E0 detector evidence and preserves Stella's
+E0-before-E7 precedence over an unsignatured E7 hypothesis, while explicit/genuine
+E7 evidence remains authoritative. All nine corpus cases now classify E0.
+
+Also fixed a real assembler bug in relative-branch range checking. NMOS 6502/6507
+relative branches add the signed displacement to a 16-bit post-instruction PC, so
+branches such as `$FFDD -> $000F` and `$FFE7 -> $0021` are valid short branches.
+`vcsc-as` had used unbounded integer subtraction and incorrectly attempted long-branch
+relaxation, where `.same`/`.cross` then correctly rejected the timing-changing form.
+Range and page-timing checks now use 16-bit modular PC arithmetic. Rad Action Pak and
+both Espial variants assemble again; the nine E0 cases plus those three branch-wrap
+cases are 12/12 byte-exact and 12/12 Stella mapper matches. Added direct and
+disassembler round-trip boundary regressions; semantic suite is 110/110 exact.

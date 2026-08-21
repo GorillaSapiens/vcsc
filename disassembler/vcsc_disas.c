@@ -6027,6 +6027,7 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
       probe_opt.reset_bank_override = -1;
       h[i].mapper = candidates[i];
       h[i].detector_signature =
+         candidates[i] == MAP_E0 ? is_probably_e0(rom, size) :
          candidates[i] == MAP_E7 ? is_probably_e7(rom, size) :
          candidates[i] == MAP_3E ? is_probably_3e(rom, size) :
          candidates[i] == MAP_3F ? is_probably_3f(rom, size) :
@@ -6138,6 +6139,25 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
       if (have_identified_3e) {
          for (i = 0; i < n; ++i)
             if (h[i].viable && h[i].mapper == MAP_3F)
+               h[i].viable = 0;
+      }
+   }
+
+   /* On 8K images Stella tests its narrow E0 byte signatures before the
+    * 8K E7 signatures.  Preserve that evidence ordering when both static
+    * models remain viable.  In particular, a wrong E7 mapping can decode
+    * ordinary bytes as apparent $FE4-$FE6 selector traffic and must not use
+    * those model-dependent accesses to steal a ROM that already contains an
+    * established E0 signature.  Deliberate VCSC E7 tail metadata remains
+    * stronger than this legacy detector precedence. */
+   {
+      int have_identified_e0 = 0;
+      for (i = 0; i < n; ++i)
+         if (h[i].viable && h[i].mapper == MAP_E0 && h[i].detector_signature)
+            have_identified_e0 = 1;
+      if (have_identified_e0) {
+         for (i = 0; i < n; ++i)
+            if (h[i].viable && h[i].mapper == MAP_E7 && !h[i].explicit_signature)
                h[i].viable = 0;
       }
    }

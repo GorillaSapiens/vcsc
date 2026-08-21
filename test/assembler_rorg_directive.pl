@@ -124,6 +124,25 @@ for my $pair (@expect) {
    die sprintf("address %04X got %02X expected %02X\n", $addr, $got, $want) if $got != $want;
 }
 
+# Relative branches use the 6502's 16-bit wrapped PC.  A short branch near
+# $FFFF to $00xx is not a long branch merely because host-integer subtraction
+# sees a ~64K gap; .cross must remain a two-byte timing-exact branch.
+my ($wrap_exit, undef, $wrap_err, $wrap_hex, $wrap_cmd) = run_asm('rorg_branch_wrap', <<'ASM');
+.segmentdef "CODE", $8000, $1000
+.segment "CODE"
+.org $8000
+.rorg $FFF9
+   bpl.cross $0021
+.rend
+ASM
+
+if ($wrap_exit != 0) {
+   die "rorg_branch_wrap failed, exit $wrap_exit\n$wrap_cmd\n$wrap_err";
+}
+my $wrap_mem = parse_ihex($wrap_hex);
+die "wrapped branch opcode missing\n" if !defined($wrap_mem->{0x8000}) || $wrap_mem->{0x8000} != 0x10;
+die "wrapped branch displacement wrong\n" if !defined($wrap_mem->{0x8001}) || $wrap_mem->{0x8001} != 0x26;
+
 my ($align_exit, undef, $align_err, $align_hex, $align_cmd) = run_asm('rorg_align', <<'ASM');
 .segmentdef "CODE", $8000, $1000
 .segment "CODE"

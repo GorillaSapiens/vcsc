@@ -300,7 +300,12 @@ must travel with the CFG state, and both established tracing and speculative
 island validation must fetch the instruction after a selector from the newly
 selected physical bank. Detached E0 islands are promoted conservatively only
 when their speculative path actually exercises an E0 selector, because a bare
-physical 1K chunk has no unique runtime segment/configuration.
+physical 1K chunk has no unique runtime segment/configuration. 2026-08-20 corpus
+refinement: on 8K images, established E0 detector evidence keeps Stella's E0-before-E7
+precedence over an otherwise unsignatured E7 hypothesis. This prevents a wrong E7
+mapping from manufacturing `$FFE4-$FFE6` selector traffic in Gyruss/Popeye-family
+images whose real startup path begins with a static-analysis-resistant RAM-clear loop.
+An explicit VCSC E7 signature or genuine E7 detector evidence still identifies E7.
 
 Do not rank mapper hypotheses by raw hotspot count. Decoder alias breadth differs
 radically among mapper families (0840 is the concrete failure case), so a false

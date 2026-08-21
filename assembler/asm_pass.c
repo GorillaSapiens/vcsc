@@ -261,6 +261,16 @@ static int expr_is_s8_or_u8_value(long value)
    return value >= -128 && value <= 0xFF;
 }
 
+//! @brief Compute an NMOS 6502/6507 relative-branch displacement with 16-bit PC wrap.
+static int branch_disp16(long source_after, long target, long *disp_out)
+{
+   unsigned long delta = ((unsigned long)target - (unsigned long)source_after) & 0xffffUL;
+   long disp = delta >= 0x8000UL ? (long)delta - 0x10000L : (long)delta;
+   if (disp_out)
+      *disp_out = disp;
+   return disp >= -128L && disp <= 127L;
+}
+
 //! @brief Return whether insn is long branch candidate in assembler pass and relaxation engine.
 static int insn_is_long_branch_candidate(const insn_info_t *insn, emit_mode_t mode)
 {
@@ -282,8 +292,7 @@ static int insn_can_relax_long_branch(const stmt_t *stmt, const asm_context_t *c
    if (expr_eval(stmt->u.insn.expr, &ctx->symbols, stmt->scope, stmt->file, stmt->address + 1, &value) != EXPR_EVAL_OK)
       return 0;
 
-   disp = value - (stmt->address + 2);
-   return disp >= -128 && disp <= 127;
+   return branch_disp16(stmt->address + 2, value, &disp);
 }
 
 
@@ -1881,14 +1890,14 @@ static int segment_phase_candidate_score(asm_context_t *ctx,
             ok = 0;
             break;
          }
-         disp = target_new - (entries[i].new_emit + 2);
-         if (disp < -128 || disp > 127) {
+         if (!branch_disp16(entries[i].new_emit + 2, target_new, &disp)) {
             ok = 0;
             break;
          }
          source_abs = phase + entries[i].new_emit;
          target_abs = phase + target_new;
-         crosses = ((((source_abs + 2) ^ target_abs) & 0xff00L) != 0);
+         crosses = (((((source_abs + 2) & 0xffffL) ^
+                       (target_abs & 0xffffL)) & 0xff00L) != 0);
          if ((spec == BRANCH_PAGE_SAME && crosses) ||
              (spec == BRANCH_PAGE_CROSS && !crosses)) {
             ok = 0;
@@ -2016,7 +2025,8 @@ static void validate_branch_page_specs(asm_context_t *ctx)
              expr_eval(stmt->u.insn.expr, &ctx->symbols, stmt->scope, stmt->file,
                        stmt->address + 1, &target) != EXPR_EVAL_OK)
             continue;
-         crosses = ((((stmt->address + 2) ^ target) & 0xff00L) != 0);
+         crosses = (((((stmt->address + 2) & 0xffffL) ^
+                       (target & 0xffffL)) & 0xff00L) != 0);
          if ((spec == BRANCH_PAGE_SAME && crosses) ||
              (spec == BRANCH_PAGE_CROSS && !crosses)) {
             asm_error(ctx, stmt, "%s page requirement is not satisfied at $%04lX -> $%04lX",
@@ -2605,8 +2615,7 @@ static int insn_emit_pass2(asm_context_t *ctx,
       case EM_REL: {
          long disp;
 
-         disp = value - (logical_pc + 1);
-         if (disp < -128 || disp > 127) {
+         if (!branch_disp16(logical_pc + 1, value, &disp)) {
             asm_error(ctx, stmt, "branch out of range");
             return -1;
          }
