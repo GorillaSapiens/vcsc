@@ -30,7 +30,8 @@ The first implementation is now usable and exact-round-trip driven. It builds
 implemented foundation includes all 256 opcode bytes, exact addressing-mode
 emission, mandatory branch `.same`/`.cross`, recursive bank-aware control flow,
 unbanked 1K/2K/4K, F8/F6/F4 plus Superchip variants, FA, DPC and WD, per-bank origin inference, overlapping
-instruction streams, code-as-data, definite/possible/unreferenced ROM-use roles,
+instruction streams, code-as-data, established/speculative confidence, and
+definite/possible/unclassified ROM-use roles,
 canonical and mirrored TIA/RIOT symbolization, conservative sprite rows, static
 video/controller inference, manual mapper/origin/entry/code/data/video/controller
 hints, deterministic output, and exact raw-byte fallback for uncertain regions.
@@ -246,11 +247,12 @@ Use a scored/evidence-based classifier. Evidence includes:
   Explicit VCSC SC signatures and the canonical per-bank duplicated hidden
   window remain independent raw-image evidence.
 * Whether the resulting bank-aware control-flow graph is coherent.
-* For every size-compatible supported mapper, trace RESET-reachable code and
-  credible speculative islands under that mapper's real selector semantics until
-  the reachable graph reaches a fixed point. Eliminate hypotheses whose possible
+* For every size-compatible supported mapper, trace only RESET-established code
+  under that mapper's real selector semantics until the established graph reaches a
+  fixed point. Detached speculative islands are excluded from mapper viability,
+  selector counts, ranking, and contradictions. Eliminate hypotheses whose possible
   established execution reaches HLT/JAM/KIL, and prefer surviving hypotheses that
-  explain decoded selector accesses. Raw detector byte strings are supporting or
+  explain established decoded selector accesses. Raw detector byte strings are supporting or
   tie-break evidence only; bytes spanning unrelated instructions must not select a
   mapper when executable control flow contradicts that interpretation.
 * Whether JMP/JSR/data-reference constraints agree with the mapper's bank
@@ -1390,8 +1392,9 @@ inference.
       split read/write aliases; reachable RMW against either region contradicts
       the E7 hypothesis.
     * Added Stella-compatible E7 identification signatures plus decoded selector
-      evidence. Selector accesses from fixed ROM remain positive evidence even
-      when they do not change the immediately following opcode fetch.
+      established evidence. Selector accesses from fixed ROM remain positive
+      evidence even when they do not change the immediately following opcode fetch;
+      detached speculative selector traffic is presentation-only.
     * Added exact synthetic 8K, 12K, and 16K round trips, explicit RAM/RMW
       coverage, deterministic fuzz coverage, and fixed all five E7 mismatches in
       the 2026-08-20 problem corpus without changing any ROM bytes.
@@ -1669,8 +1672,9 @@ A 4096-byte file made from two byte-identical 2048-byte halves is a logical 2K c
       set; that means "may be read", not "is data".
     * Rename the residual summary category from `unreferenced` to `unclassified`.
       On Espial PAL the old `executed=3418 data-read=11 overlap=463 possible=8
-      unreferenced=4761` becomes `executed=1377 data-read=444 overlap=0
-      possible=6144 unclassified=1698`. Absence from discovered paths is no longer
+      unreferenced=4761` became `established-code=1377 data-read=444 overlap=0
+      possible=6144 unclassified=1698` before later speculative code was split into
+      its own reported class. Absence from discovered paths is no longer
       presented as proof that a byte is unused.
 
 34. [x] Honor logical `.rorg` PCs for numeric relative branches in o26 output
@@ -1717,3 +1721,34 @@ A 4096-byte file made from two byte-identical 2048-byte halves is a logical 2K c
       valid SC, structural F6SC without decoded stores, and write-port execution
       as a contradiction. All nine supplied Fx/FxSC mismatches now match the
       Stella classification and round-trip byte-exactly.
+
+
+37. [x] Quarantine speculative islands from cartridge-level inference
+    * Freeze established ROM roles and behavioral evidence before detached island
+      discovery. Promoted islands retain separate speculative provenance and may
+      improve only source presentation; they cannot become established execution.
+    * Mapper hypothesis refinement now runs with speculative discovery disabled.
+      Detached selector accesses therefore cannot make a mapper viable, increase
+      hotspot counts, avoid a mapper HLT, or rank one mapper above another.
+    * Speculative tracing cannot merge abstract state into an established code
+      start, cannot seed H2 concrete execution, and restores mapper/RAM/Superchip
+      evidence after presentation tracing. The established Superchip hardware
+      decision is frozen during the speculative phase so an island cannot change
+      its own ROM/RAM mapping halfway through validation.
+    * Static video/controller recognition walks established code only. Superchip
+      semantic evidence and contradictions likewise remain established-only.
+      Graphics, color/pointer tables, labels, and data provenance may still use
+      speculative roles because those are reversible source-presentation choices.
+    * Usage diagnostics now report `established-code` and `speculative-code`
+      separately. A cartridge with no established instruction is rejected even if
+      detached bytes form credible islands.
+    * Regression fixtures prove detached F8/E0 selector traffic does not vote on
+      mapper hypotheses; detached NTSC timer/keypad idioms do not affect video or
+      controller inference; speculative SC read/write traffic cannot change the
+      hardware model halfway through its own walk; speculative code still renders
+      and round-trips exactly; and speculative-only input is refused.
+    * The expanded corpus file `7dfab820ff27b972aa148893f3c19953` is correctly
+      rejected by the established-code requirement: it is an Atari 8-bit computer
+      cartridge using `$D20E/$D400/$0244` and a `$B000` cartridge vector. Stella's
+      F8 label is size-shaped autodetection; the old VCSC run had zero surviving
+      mapper hypotheses and incorrectly resurrected it via nine speculative islands.

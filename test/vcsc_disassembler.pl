@@ -1020,11 +1020,11 @@ substr($island, 0x0200, 12,
 write_bin(File::Spec->catfile($in, 'speculative_island.bin'), $island);
 
 
-# The same bank-transition rule applies to speculative islands.  A candidate
-# in bank 0 reads the F8 selector and execution continues at the same logical
-# PC in bank 1.  The byte at that PC in the old bank is JAM and must not poison
-# island validation.  The RESET path is intentionally mapper-neutral: the
-# island itself must provide the evidence that selects F8.
+# The same bank-transition semantics apply while rendering speculative islands.
+# A candidate in bank 0 reads the F8 selector and execution continues at the same
+# logical PC in bank 1.  The byte at that PC in the old bank is JAM and must not
+# poison island validation.  The detached selector itself must not vote on mapper
+# inference; F8 comes from the independently established size/topology decision.
 my $banked_island = make_rom(8192, 0xF000, 0x0100, "\x60");
 substr($banked_island, 0x1000 + 0x0100, 1, "\x60");
 substr($banked_island, 0x0200, 7,
@@ -1035,10 +1035,9 @@ substr($banked_island, 0x1000 + 0x0206, 9,
    "\xA9\x42\xAA\xA8\xE8\xCA\xC8\x88\x60");
 write_bin(File::Spec->catfile($in, 'speculative_banked_island.bin'), $banked_island);
 
-# Speculative islands may extend a mapper hypothesis only after RESET has
-# established a cartridge-backed execution graph.  A same-sized foreign 6502
-# blob can contain perfectly valid detached routines, but if its RESET vector
-# does not map into cartridge ROM those routines must not resurrect the mapper.
+# A same-sized foreign 6502 blob can contain perfectly valid detached routines,
+# but if its RESET vector does not establish cartridge code those routines must
+# not resurrect mapper viability or make the disassembly successful.
 my $no_reset_island = chr(0xEA) x 16384;
 break_sc_layout(\$no_reset_island);
 substr($no_reset_island, 0x0200, 12,
@@ -1049,7 +1048,41 @@ for my $b (0 .. 3) {
       put16(\$no_reset_island, $b * 4096 + 0x0FFA + $v, 0x0400);
    }
 }
-write_bin(File::Spec->catfile($in, 'speculative_without_reset.bin'), $no_reset_island);
+my $no_reset_path = File::Spec->catfile($tmp, 'speculative_without_reset.bin');
+write_bin($no_reset_path, $no_reset_island);
+
+# A promoted island may contain perfectly convincing hardware-access idioms,
+# but those bytes are still only a presentation hypothesis.  Keep a trivial
+# established RESET path and put NTSC-timer + keypad-looking traffic exclusively
+# in the detached island.  Neither video nor controller inference may consume it.
+my $spec_inference = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($spec_inference, 0x0200, 23,
+   "\x02\x12\x22" .             # rejected-start barrier
+   "\xA9\x2A\x8D\x96\x02" . # TIM64T := 42
+   "\xA9\x22\x8D\x96\x02" . # TIM64T := 34
+   "\x8D\x80\x02" .           # STA SWCHA
+   "\x24\x38\x24\x39\x24\x3C" . # keypad-looking INPT reads
+   "\x60");
+write_bin(File::Spec->catfile($in, 'speculative_inference_quarantine.bin'),
+   $spec_inference);
+
+# Speculative SC-looking traffic must not change the hardware model even inside
+# the speculative phase.  This detached F8 island touches both split aliases and
+# then calls ordinary ROM at $F080.  If those speculative accesses were allowed
+# to activate Superchip mid-walk, $F080 would become hidden by the RAM window and
+# the candidate's own control-flow interpretation would change.
+my $spec_sc_freeze = make_rom(8192, 0xF000, 0x0100, "\x60");
+substr($spec_sc_freeze, 0x1000 + 0x0100, 1, "\x60");
+substr($spec_sc_freeze, 0x0080, 3, "\xA9\x11\x60");
+substr($spec_sc_freeze, 0x0200, 15,
+   "\x02\x12\x22" .             # rejected-start barrier
+   "\xA9\x42" .                 # known write value
+   "\x8D\x00\x10" .           # STA $1000: SC write alias
+   "\xAD\x80\x10" .           # LDA $1080: SC read alias
+   "\x20\x80\xF0" .           # JSR $F080: must remain ROM
+   "\x60");
+write_bin(File::Spec->catfile($in, 'speculative_sc_hardware_freeze.bin'),
+   $spec_sc_freeze);
 
 # A speculative candidate must be rejected when a statically possible path
 # reaches JAM/KIL.  CLC makes the BCC-to-KIL path definitely taken.
@@ -1357,6 +1390,17 @@ write_bin(File::Spec->catfile($in, 'ar_multi.bin'), $ar_multi);
 
 run_ok($^X, $roundtrip, $in, $out);
 
+# A detached island is never enough to satisfy the tool's minimum executable
+# evidence contract.  With no cartridge-backed RESET/manual/concrete entry,
+# the disassembler must now refuse the image rather than letting speculation
+# turn a foreign/same-sized blob into apparent code.
+my $no_reset_out = File::Spec->catfile($tmp, 'speculative_without_reset.s26');
+my $no_reset_rc = system($disas, '-o', $no_reset_out, $no_reset_path);
+die "speculative-only image unexpectedly disassembled successfully\n"
+   if $no_reset_rc == 0;
+die "speculative-only rejection unexpectedly created output\n"
+   if -e $no_reset_out;
+
 my $ar_single_out = slurp(File::Spec->catfile($out, 'ar_single.s26'));
 require_re($ar_single_out, qr/^; mapper: AR \(high confidence;/m,
    '8448-byte image recognized as Starpath AR');
@@ -1479,7 +1523,7 @@ my $kil_rc = system($kil_cmd);
 die "all-KIL cartridge unexpectedly disassembled successfully\n" if $kil_rc == 0;
 die "zero-instruction failure left an output file\n" if -e $all_kil_out;
 my $kil_text = slurp($kil_log);
-require_re($kil_text, qr/no instructions found/i, 'zero-instruction hard error');
+require_re($kil_text, qr/no (?:established )?instructions found/i, 'zero-instruction hard error');
 
 # Unsupported/raw layouts likewise cannot claim a successful disassembly when
 # no instruction map exists.
@@ -1492,7 +1536,7 @@ my $odd_cmd = qq{"$disas" -o "$odd_out" "$odd_raw" >"$odd_log" 2>&1};
 my $odd_rc = system($odd_cmd);
 die "unsupported raw cartridge unexpectedly succeeded\n" if $odd_rc == 0;
 die "unsupported raw failure left an output file\n" if -e $odd_out;
-require_re(slurp($odd_log), qr/no instructions found/i, 'raw-layout zero-instruction error');
+require_re(slurp($odd_log), qr/no (?:established )?instructions found/i, 'raw-layout zero-instruction error');
 
 my $doubled_2k_out = slurp(File::Spec->catfile($out, 'doubled2k.s26'));
 require_re($doubled_2k_out, qr/^; mapper: unbanked 2K \(/m,
@@ -1812,20 +1856,44 @@ my $spec_banked = slurp(File::Spec->catfile($out, 'speculative_banked_island.s26
 require_re($spec_banked, qr/^; mapper: F8 \(/m,
    'banked speculative-island mapper');
 require_re($spec_banked,
-   qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
-   'banked-island mapper hypotheses converge');
+   qr/^; mapper flow hypotheses: 12 tested, 6 survived$/m,
+   'speculative selector traffic does not rank mapper hypotheses');
+require_re($spec_banked,
+   qr/^; mapper: F8 \(medium confidence; 0 decoded hotspot accesses,/m,
+   'speculative F8 hotspot does not become mapper evidence');
 require_re($spec_banked,
    qr/speculative instruction island validated by HLT\/JAM\/KIL rejection\nB0_F203:\n\s*LDA\s+\$1FF9/m,
    'speculative island may end its physical-bank line at an F8 selector');
 require_re($spec_banked, qr/^B1_F206:\n\s*LDA\s+#\$42/m,
    'speculative execution resumes in bank selected by hotspot');
 
-my $spec_no_reset = slurp(File::Spec->catfile($out, 'speculative_without_reset.s26'));
-require_re($spec_no_reset,
-   qr/^; mapper flow hypotheses: 6 tested, 0 survived$/m,
-   'speculative island cannot resurrect mapper hypothesis without RESET');
-require_re($spec_no_reset, qr/^B0_F203:\n\s*LDA\s+#\$42/m,
-   'full presentation may still preserve a detached speculative island');
+my $spec_inference_out = slurp(File::Spec->catfile($out,
+   'speculative_inference_quarantine.s26'));
+require_re($spec_inference_out,
+   qr/^; video: unknown \(unknown confidence\)$/m,
+   'speculative timer traffic excluded from video inference');
+require_re($spec_inference_out,
+   qr/^; controller port 0: unused or unknown \(low confidence\)$/m,
+   'speculative keypad traffic excluded from controller inference');
+require_re($spec_inference_out,
+   qr/^; usage bytes: established-code=1 speculative-code=[1-9]\d* /m,
+   'usage report separates established and speculative code');
+require_re($spec_inference_out,
+   qr/speculative instruction island validated by HLT\/JAM\/KIL rejection\nL_F203:/m,
+   'quarantined speculative code remains available for presentation');
+
+my $spec_sc_freeze_out = slurp(File::Spec->catfile($out,
+   'speculative_sc_hardware_freeze.s26'));
+require_re($spec_sc_freeze_out, qr/^; mapper: F8 \(/m,
+   'speculative SC hardware-freeze mapper remains plain F8');
+require_re($spec_sc_freeze_out,
+   qr/^; mapper: F8 \(medium confidence; 0 decoded hotspot accesses, 0 SC writes, 0 SC RMW conflicts, 0 SC reads,/m,
+   'speculative SC accesses do not become hardware evidence');
+require_re($spec_sc_freeze_out, qr/^B0_F080:\n\s*LDA\s+#\$11/m,
+   'speculative SC accesses cannot hide ordinary ROM mid-phase');
+require_re($spec_sc_freeze_out,
+   qr/^; usage bytes: established-code=[1-9]\d* speculative-code=[1-9]\d* /m,
+   'speculative SC hardware-freeze code remains quarantined');
 
 my $spec_jam = slurp(File::Spec->catfile($out, 'speculative_jam_reject.s26'));
 die "JAM-reaching speculative candidate was promoted\n"
@@ -2097,8 +2165,11 @@ my $e0_spec_out = slurp(File::Spec->catfile($out, 'e0_speculative_banked_island.
 require_re($e0_spec_out, qr/^; mapper: E0 \(/m,
    'E0 speculative-island mapper inferred');
 require_re($e0_spec_out,
-   qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
-   'E0 speculative-island hypotheses converge');
+   qr/^; mapper flow hypotheses: 12 tested, 3 survived$/m,
+   'E0 speculative selector traffic excluded from mapper ranking');
+require_re($e0_spec_out,
+   qr/^; mapper: E0 \(high confidence; 0 decoded hotspot accesses,/m,
+   'E0 raw signature may identify mapper without speculative semantic votes');
 require_re($e0_spec_out,
    qr/speculative instruction island validated by HLT\/JAM\/KIL rejection\nB4_F203:\n\s*LDA\s+\$FFE0/m,
    'E0 speculative island may switch away from old-bank JAM');

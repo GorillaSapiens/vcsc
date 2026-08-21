@@ -1014,10 +1014,11 @@ The new
 `disassembler/vcsc-disas` now has an exact-round-trip first implementation with
 all-opcode decode/emission, mandatory branch `.same`/`.cross`, unbanked and
 F8/F6/F4(+Superchip), FA, DPC and WD/WDSW bank-aware analysis, per-bank origin inference, overlapping
-instruction streams, code-as-data and unreferenced-byte roles, TIA/RIOT symbols
+instruction streams, established/speculative confidence, code-as-data and
+unclassified-byte roles, TIA/RIOT symbols
 with exact mirror comments, conservative graphics rows, static plus bounded dynamic
-video inference, controller inference, and explicit analysis overrides. A run with zero decoded instructions is
-a hard error; raw `.byte` fallback is used only for uncertain regions inside an
+video inference, controller inference, and explicit analysis overrides. A run with zero established
+instructions is a hard error; raw `.byte` fallback is used only for uncertain regions inside an
 otherwise successful disassembly. Video inference now
 accumulates arbitrary statically-known TIM64T values, parameterized timer-helper
 arguments recovered at JSR call sites, broad counted-WSYNC loop lengths, and
@@ -1055,7 +1056,7 @@ Main roadmap Items 41 and 42 are complete. Bankswitching Items 31-37 are complet
 Item 38 remains deferred, and Items 39-44 queue public diagnostics/profile work
 for E0, 3F, 3E, FE, WD, and DPC. Main-roadmap Item 43 is next. The current
 compile suite passes 500/500. Four vcsc-disas-focused E2E regressions pass, with
-107 semantic fixtures and all 256 opcode bytes exact. The hardening fuzz corpus
+118 semantic fixtures and all 256 opcode bytes exact. The hardening fuzz corpus
 uses two deterministic images for every supported size/mapper family (30 accepted
 images total), and all 88 editable
 VCSC example ROMs are byte-exact disassemble/reassemble gates inside the normal
@@ -1224,9 +1225,9 @@ provenance use; those reads are now retained and fed into `ROLE_DATA_READ`
 (Espial PAL observes 444 distinct ROM data bytes). Concrete-only instruction
 starts also now carry their exact observed A/X/Y/SP/P and mapper config into the
 static seed instead of an all-unknown state. That removes most of the 3F fake-code
-fanout: PAL Espial is now `executed=1377 data-read=444 exec+data=0 overlap=0
-possible=6144 vectors=6 ... unclassified=1698`; NTSC is 1373/444/0/0/6144 and
-1708 unclassified. Mapper-aware unresolved indexed/indirect ROM accesses now mark
+fanout: PAL Espial established code fell to 1377 bytes with 444 observed data
+bytes, zero established overlap, 6144 conservative possible-data bytes, and 1698
+unclassified bytes; speculative code is now reported separately. Mapper-aware unresolved indexed/indirect ROM accesses now mark
 physical `ROLE_POSSIBLE`; the large 6144-byte Espial set is deliberately a broad
 may-read set, not observed data. The residual report term is renamed from
 `unreferenced` to `unclassified` because undiscovered paths are not proof of
@@ -1244,6 +1245,20 @@ supplied F6 corpus case now reports 2 capped negative-evidence walks and 1 candi
 denied promotion because of the bank-sized cap. Focused Item 35 records the proper
 follow-up: replace the recursion guard with a state-keyed convergent worklist/fixed
 point rather than another magic number.
+
+2026-08-20 speculative-confidence quarantine (focused Item 37): detached islands
+are presentation evidence only. Before island discovery the analyzer snapshots
+established roles/evidence and freezes the established Superchip hardware decision.
+Speculative tracing cannot rank/select mappers, vote on SC/native-RAM behavior, feed
+video/controller inference, seed H2 concrete execution, or merge abstract state back
+into established code. It may still add code/labels/data/graphics/table provenance for
+source readability. Usage reports `established-code` and `speculative-code` separately,
+and speculative-only ROMs are rejected. Synthetic F8/E0 selector, NTSC/keypad, and
+SC self-feedback fixtures pin the boundary; focused disassembler round trips are
+118/118. Corpus file `7dfab820ff27b972aa148893f3c19953` is now deliberately
+rejected: it is an Atari 8-bit cartridge (`$D20E/$D400`, `$B000` vector), not VCS;
+the old analyzer had zero surviving mapper hypotheses and resurrected it from nine
+speculative islands.
 
 The same F6 retest exposed a separate assembler o26 `.rorg` bug: numeric relative
 branches were measured from packed object `.org` offsets rather than logical

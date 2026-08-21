@@ -165,9 +165,9 @@ RAM blocks in the fixed upper window.  Both RAM areas use split aliases (lower
 write `$F000-$F3FF`, read `$F400-$F7FF`; fixed write `$F800-$F8FF`, read
 `$F900-$F9FF`), so a reachable RMW against either region contradicts E7.
 Selector/configuration state is carried through branches, calls, jumps, and
-speculative islands; decoded E7 selector traffic is positive evidence even
-when the selector executes from fixed ROM and therefore does not change the
-immediately following opcode fetch.
+speculative islands so detached code is rendered under the correct E7 mapping.
+Only established selector traffic is cartridge-identification evidence; detached
+speculative accesses never vote for or against E7.
 
 3F is modeled as 2K physical ROM banks. `$F800-$FFFF` always maps the final
 physical 2K and supplies the vectors; `$F000-$F7FF` maps a selected 2K bank and
@@ -189,12 +189,11 @@ inside an otherwise successful disassembly.
 The generated header records the input size and SHA-256, mapper evidence,
 physical banks, inferred bank origins and reset bank, video/controller evidence,
 and the `vcsc-disas` version.  When several supported mapper models fit the same
-physical size, `vcsc-disas` now tests those models as competing control-flow
-hypotheses. Each hypothesis must first establish a cartridge-backed RESET entry;
-speculative islands may extend that RESET-established graph but can never make an
-unbootable hypothesis viable by themselves. The surviving hypothesis is then
-traced through mapper transitions and credible speculative islands to a fixed
-point. A reachable HLT/JAM/KIL normally eliminates a model, but abstract flow can
+physical size, `vcsc-disas` tests those models as competing **established**
+control-flow hypotheses. Detached speculative islands are deliberately excluded
+from mapper viability, selector counts, ranking, and contradiction evidence. A
+hypothesis must establish a cartridge-backed RESET graph on its own. A reachable
+HLT/JAM/KIL in that established graph normally eliminates a model, but abstract flow can
 over-approximate data-dependent paths that real execution never takes. A mapper
 that demonstrates a bank-changing edge through a narrow cartridge-specific
 selector remains viable despite such a merely possible halt; hypotheses that
@@ -391,13 +390,21 @@ into data. Mapper selector accesses are control-flow edges: the
 next opcode is fetched at the same logical continuation address from the selected
 physical bank. Therefore `LDA $hotspot` followed physically by JAM/KIL in the old
 bank is not a failed path when the selected bank contains the valid continuation.
-The same rule is used for RESET-reachable code, mapper-hypothesis testing, and
-speculative islands. During mapper inference, however, an island is supplemental
-evidence only: a candidate mapper with no cartridge-mapped RESET entry is rejected
-before speculative island discovery, even if detached bytes would otherwise form
-a credible routine. Speculative walks are bounded; a candidate that exceeds the
-analysis budget stays inconclusive/raw rather than being guessed. The generated
-header reports rejected-start, barrier, and promoted-island counts.
+The same selector-transition semantics are used for RESET-reachable code and
+speculative-island validation, but the confidence classes are quarantined. Before
+detached discovery begins, `vcsc-disas` freezes the established code/data roles,
+mapper/Superchip/RAM evidence, and Superchip hardware decision. Speculative tracing
+may add labels, code, data provenance, graphics/table hints, and mapper-state edges
+for **source presentation only**. It cannot alter mapper selection or ranking,
+Superchip promotion/vetoes, native-RAM evidence, video/controller inference, H2
+concrete seeds, or established abstract state. A speculative path may terminate at
+established code but cannot merge its state back into that code. A ROM with only
+speculative instructions and no established instruction is rejected.
+
+Speculative walks remain bounded; a candidate that exceeds the analysis budget
+stays inconclusive/raw rather than being guessed. The generated header reports
+`established-code` and `speculative-code` separately, plus rejected-start, barrier,
+promoted-island, and cap counts.
 
 ## Sprite/font rows
 
@@ -519,6 +526,8 @@ execution is never negative reachability proof.
 ## Video and controller inference
 
 Inference comments are evidence, not metadata injected into the cartridge.
+Only **established** instructions contribute static video/controller evidence;
+register idioms found solely in detached speculative islands are ignored.
 Static video recognition understands both the maintained VCSC RIOT timer
 signatures and conventional counted-`WSYNC` frame loops. The `42/34` timer pair
 is strong NTSC evidence and `52/41` is strong 50-Hz PAL-family evidence; counted

@@ -127,6 +127,8 @@ typedef struct {
    int reset_vector_evidence;
    int origin_overridden;
    uint8_t *roles;
+   uint8_t *established_roles;
+   int established_roles_valid;
    uint8_t *inst_len;
    uint8_t *inst_opcode;
    uint8_t *queued;
@@ -243,6 +245,8 @@ typedef struct {
    size_t speculative_promotion_capped;
    size_t flow_switch_avoided_halts;
    size_t speculative_switch_avoided_halts;
+   int speculative_phase;
+   int speculative_superchip_active;
    int concrete_available;
    uint8_t *concrete_rom_exec;
    uint16_t *concrete_rom_pc;
@@ -263,6 +267,78 @@ typedef struct {
    size_t work_count;
    size_t work_cap;
 } analysis_t;
+
+/* Fields below describe established cartridge behavior.  Speculative-island
+ * tracing is allowed to decode bytes for presentation, but any changes it
+ * makes to these counters are rolled back before analysis leaves the
+ * speculative phase. */
+typedef struct {
+   int hotspot_refs;
+   size_t cross_bank_switches;
+   int superchip_write_refs;
+   int superchip_read_refs;
+   uint8_t superchip_write_offsets[0x80];
+   uint8_t superchip_read_offsets[0x80];
+   int superchip_rmw_conflicts;
+   int superchip_exec_conflicts;
+   int split_ram_rmw_conflicts;
+   int threee_ram_select_refs;
+   int e7_specific_refs;
+   size_t three_specific_switches;
+   int dynamic_control_exits;
+   int unresolved_indirect_jumps;
+   size_t reachable_halts;
+   size_t proven_brk_returns;
+   size_t flow_switch_avoided_halts;
+} established_evidence_snapshot_t;
+
+static void save_established_evidence(const analysis_t *a,
+                                      established_evidence_snapshot_t *s)
+{
+   s->hotspot_refs = a->hotspot_refs;
+   s->cross_bank_switches = a->cross_bank_switches;
+   s->superchip_write_refs = a->superchip_write_refs;
+   s->superchip_read_refs = a->superchip_read_refs;
+   memcpy(s->superchip_write_offsets, a->superchip_write_offsets,
+          sizeof(s->superchip_write_offsets));
+   memcpy(s->superchip_read_offsets, a->superchip_read_offsets,
+          sizeof(s->superchip_read_offsets));
+   s->superchip_rmw_conflicts = a->superchip_rmw_conflicts;
+   s->superchip_exec_conflicts = a->superchip_exec_conflicts;
+   s->split_ram_rmw_conflicts = a->split_ram_rmw_conflicts;
+   s->threee_ram_select_refs = a->threee_ram_select_refs;
+   s->e7_specific_refs = a->e7_specific_refs;
+   s->three_specific_switches = a->three_specific_switches;
+   s->dynamic_control_exits = a->dynamic_control_exits;
+   s->unresolved_indirect_jumps = a->unresolved_indirect_jumps;
+   s->reachable_halts = a->reachable_halts;
+   s->proven_brk_returns = a->proven_brk_returns;
+   s->flow_switch_avoided_halts = a->flow_switch_avoided_halts;
+}
+
+static void restore_established_evidence(analysis_t *a,
+                                         const established_evidence_snapshot_t *s)
+{
+   a->hotspot_refs = s->hotspot_refs;
+   a->cross_bank_switches = s->cross_bank_switches;
+   a->superchip_write_refs = s->superchip_write_refs;
+   a->superchip_read_refs = s->superchip_read_refs;
+   memcpy(a->superchip_write_offsets, s->superchip_write_offsets,
+          sizeof(a->superchip_write_offsets));
+   memcpy(a->superchip_read_offsets, s->superchip_read_offsets,
+          sizeof(a->superchip_read_offsets));
+   a->superchip_rmw_conflicts = s->superchip_rmw_conflicts;
+   a->superchip_exec_conflicts = s->superchip_exec_conflicts;
+   a->split_ram_rmw_conflicts = s->split_ram_rmw_conflicts;
+   a->threee_ram_select_refs = s->threee_ram_select_refs;
+   a->e7_specific_refs = s->e7_specific_refs;
+   a->three_specific_switches = s->three_specific_switches;
+   a->dynamic_control_exits = s->dynamic_control_exits;
+   a->unresolved_indirect_jumps = s->unresolved_indirect_jumps;
+   a->reachable_halts = s->reachable_halts;
+   a->proven_brk_returns = s->proven_brk_returns;
+   a->flow_switch_avoided_halts = s->flow_switch_avoided_halts;
+}
 
 #define MAX_HINT_SPECS 128u
 
@@ -1744,6 +1820,7 @@ static uint16_t infer_bank_origin(const uint8_t *data, size_t size,
 static int allocate_bank(bank_t *b, size_t size)
 {
    b->roles = (uint8_t *)calloc(size, 1);
+   b->established_roles = (uint8_t *)calloc(size, 1);
    b->inst_len = (uint8_t *)calloc(size, 1);
    b->inst_opcode = (uint8_t *)calloc(size, 1);
    b->queued = (uint8_t *)calloc(size, 1);
@@ -1769,7 +1846,7 @@ static int allocate_bank(bank_t *b, size_t size)
    b->spec_seed = (uint8_t *)calloc(size, 1);
    b->wd_context_seen = (uint32_t *)calloc(size, sizeof(*b->wd_context_seen));
    b->states = (abstract_state_t *)calloc(size, sizeof(*b->states));
-   return b->roles && b->inst_len && b->inst_opcode && b->queued && b->visited &&
+   return b->roles && b->established_roles && b->inst_len && b->inst_opcode && b->queued && b->visited &&
           b->state_seen && b->graphics && b->font_start && b->color_start && b->color_len &&
           b->pointer_start && b->pointer_words && b->pointer_manual &&
           b->manual_table_byte && b->manual_table_start &&
@@ -1785,6 +1862,7 @@ static void free_analysis(analysis_t *a)
    if (a->banks) {
       for (i = 0; i < a->bank_count; ++i) {
          free(a->banks[i].roles);
+         free(a->banks[i].established_roles);
          free(a->banks[i].inst_len);
          free(a->banks[i].inst_opcode);
          free(a->banks[i].queued);
@@ -2301,6 +2379,14 @@ static int push_work_state_ctx(analysis_t *a, size_t bank, size_t offset,
    if (bank >= a->bank_count) return 1;
    b = &a->banks[bank];
    if (offset >= b->size) return 1;
+   /* A detached speculative island may terminate at already established code,
+    * but it must never merge its unknown/guessed state back into that trusted
+    * graph.  Otherwise one false island can erase register facts and alter
+    * controller/video/data inference even if its own bytes are later treated
+    * as low-confidence presentation only. */
+   if (a->speculative_phase && b->established_roles_valid &&
+       (b->established_roles[offset] & ROLE_CODE_START))
+      return 1;
    if (mapper_is_wd_family(a->mapper)) {
       unsigned segment = (unsigned)(((pc & 0x1fffu) - 0x1000u) >> 10);
       unsigned context = ((unsigned)mapper_config & 7u) * 4u + (segment & 3u);
@@ -2797,6 +2883,13 @@ static unsigned superchip_paired_offsets(const analysis_t *a)
 
 static int superchip_active(const analysis_t *a)
 {
+   /* Detached speculative code is analyzed under the cartridge hardware model
+    * established before speculation began.  Speculative SC accesses/conflicts
+    * may be useful for presentation, but may not change the RAM/ROM mapping of
+    * later instructions in the same speculative phase. */
+   if (a->speculative_phase)
+      return a->speculative_superchip_active;
+
    if (a->mapper_overridden && a->superchip_override >= 0)
       return a->superchip_override != 0;
 
@@ -3280,6 +3373,33 @@ static void mark_instruction(bank_t *b, size_t off, uint8_t opcode,
 static void mark_label(bank_t *b, size_t off)
 {
    if (off < b->size) b->roles[off] |= ROLE_LABEL;
+}
+
+/* Speculative islands are a presentation aid, not cartridge evidence.  Freeze
+ * every role established by vectors, user hints, static RESET flow, concrete
+ * execution, and H2 feedback before detached-island promotion begins.  Later
+ * semantic inference consults this snapshot while the normal role map remains
+ * free to describe speculative instructions well enough for byte-exact source
+ * emission. */
+static void freeze_established_roles(analysis_t *a)
+{
+   size_t bi;
+   for (bi = 0; bi < a->bank_count; ++bi) {
+      bank_t *b = &a->banks[bi];
+      memcpy(b->established_roles, b->roles, b->size);
+      b->established_roles_valid = 1;
+   }
+}
+
+static uint8_t established_role(const bank_t *b, size_t off)
+{
+   if (off >= b->size) return 0u;
+   return b->established_roles_valid ? b->established_roles[off] : b->roles[off];
+}
+
+static int established_code_start(const bank_t *b, size_t off)
+{
+   return (established_role(b, off) & ROLE_CODE_START) != 0u;
 }
 
 static void detect_overlaps(analysis_t *a)
@@ -4905,8 +5025,10 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
 {
    size_t bi;
    int speculative_done = 0;
+   int speculative_evidence_saved = 0;
    int concrete_done = 0;
    int reset_seeded = 0;
+   established_evidence_snapshot_t established_evidence = {0};
    if (a->mapper == MAP_RAW) return 1;
    a->reachable_halts = 0u;
 
@@ -5140,7 +5262,8 @@ drain_work:
                       a->mapper == MAP_E0 || a->mapper == MAP_E7 ||
                       mapper_is_three_family(a->mapper)) ? item.pc
                        : (uint16_t)(b->origin + (uint16_t)off);
-      if (!reset_only && !h2_record_static_seed(a, &item, canonical_pc, &input_state))
+      if (!reset_only && !speculative_done &&
+          !h2_record_static_seed(a, &item, canonical_pc, &input_state))
          return 0;
       flow = instruction_flow(opcode);
 
@@ -6002,7 +6125,7 @@ drain_work:
     * fed back to the static work list.  Newly decoded static paths can in turn
     * expose another exact seed.  Stop when no unprocessed exact seed adds new
     * reachability, or at the hard round bound. */
-   if (!reset_only && concrete_done && a->concrete_available &&
+   if (!reset_only && !speculative_done && concrete_done && a->concrete_available &&
        a->h2_rounds < H2_MAX_ROUNDS && a->h2_seed_processed < a->h2_seed_count) {
       unsigned added = 0u;
       int seeded;
@@ -6016,11 +6139,26 @@ drain_work:
    }
 
    if (run_speculative && !speculative_done) {
+      /* Snapshot the entire trusted role/evidence model before detached code
+       * is allowed to execute through the static tracer.  The speculative
+       * phase may improve source presentation, but must not change what we
+       * believe about mapper hardware, RAM, controllers, video, or established
+       * reachability. */
+      detect_overlaps(a);
+      freeze_established_roles(a);
+      save_established_evidence(a, &established_evidence);
+      speculative_evidence_saved = 1;
       speculative_done = 1;
+      a->speculative_superchip_active = superchip_active(a);
+      a->speculative_phase = 1;
       if (!discover_speculative_islands(a)) return 0;
       if (a->work_count != 0) goto drain_work;
    }
 
+   if (speculative_evidence_saved) {
+      restore_established_evidence(a, &established_evidence);
+      a->speculative_phase = 0;
+   }
    detect_overlaps(a);
    return 1;
 }
@@ -6288,17 +6426,16 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
       ++*tested_out;
 
       if (!init_analysis(&probe, (uint8_t *)rom, size, &probe_opt)) continue;
-      /* Run each candidate to the same conservative fixed point used by the
-       * real analysis: RESET-reachable code first, then credible speculative
-       * islands.  An otherwise unreachable switch trampoline can therefore
-       * provide the evidence that eliminates a wrong mapper hypothesis. */
-      if (trace_analysis_internal(&probe, &probe_opt, 1, 1)) {
+      /* Mapper identity is a cartridge-level conclusion.  Test only the
+       * established RESET/control-flow graph here: detached speculative
+       * islands are presentation guesses and must never select, reject, or
+       * rank a mapper hypothesis. */
+      if (trace_analysis_internal(&probe, &probe_opt, 1, 0)) {
          h[i].instructions = analysis_instruction_count(&probe);
          h[i].halts = probe.reachable_halts;
          h[i].hotspots = probe.hotspot_refs;
          h[i].cross_bank_switches = probe.cross_bank_switches;
-         h[i].switch_avoided_halts = probe.flow_switch_avoided_halts +
-                                      probe.speculative_switch_avoided_halts;
+         h[i].switch_avoided_halts = probe.flow_switch_avoided_halts;
          h[i].split_ram_rmw_conflicts = probe.split_ram_rmw_conflicts;
          h[i].threee_ram_select_refs = probe.threee_ram_select_refs;
          h[i].e7_specific_refs = probe.e7_specific_refs;
@@ -8061,7 +8198,7 @@ static int decoded_instruction_at(const analysis_t *a, size_t bi, size_t off,
 {
    const bank_t *b = &a->banks[bi];
    unsigned len;
-   if (off >= b->size || !(b->roles[off] & ROLE_CODE_START)) return 0;
+   if (off >= b->size || !established_code_start(b, off)) return 0;
    len = b->inst_len[off];
    if (len == 0u || off + len > b->size) return 0;
    *opcode = b->inst_opcode[off];
@@ -8075,11 +8212,11 @@ static int decoded_instruction_at(const analysis_t *a, size_t bi, size_t off,
 static int next_code_start(const bank_t *b, size_t off, size_t *next)
 {
    unsigned len;
-   if (off >= b->size || !(b->roles[off] & ROLE_CODE_START)) return 0;
+   if (off >= b->size || !established_code_start(b, off)) return 0;
    len = b->inst_len[off];
    if (len == 0u || off + len >= b->size) return 0;
    *next = off + len;
-   return (b->roles[*next] & ROLE_CODE_START) != 0;
+   return established_code_start(b, *next);
 }
 
 static int immediate_before_store(const analysis_t *a, size_t bi, size_t off,
@@ -8089,7 +8226,7 @@ static int immediate_before_store(const analysis_t *a, size_t bi, size_t off,
    size_t prev;
    if (off < 2u) return 0;
    prev = off - 2u;
-   if (!(b->roles[prev] & ROLE_CODE_START) || b->inst_len[prev] != 2u)
+   if (!established_code_start(b, prev) || b->inst_len[prev] != 2u)
       return 0;
    if (b->inst_opcode[prev] != 0xa9u || prev + 2u != off) return 0;
    *value = a->rom[b->file_offset + prev + 1u];
@@ -8655,16 +8792,20 @@ static void infer_controller_port(const inference_evidence_t *e, int port,
 static void emit_usage_summary(FILE *fp, const analysis_t *a)
 {
    size_t bi;
-   size_t executed = 0, data = 0, exec_data = 0, overlap = 0;
+   size_t established_code = 0, speculative_code = 0;
+   size_t data = 0, exec_data = 0, overlap = 0;
    size_t possible = 0, unclassified = 0, vectors = 0, sc_hidden = 0, fa_hidden = 0;
    for (bi = 0; bi < a->bank_count; ++bi) {
       const bank_t *b = &a->banks[bi];
       size_t off;
       for (off = 0; off < b->size; ++off) {
-         uint8_t r = b->roles[off];
+         uint8_t r = established_role(b, off);
+         uint8_t presentation = b->roles[off];
          int ex = (r & ROLE_CODE_BYTE) != 0;
          int dr = (r & ROLE_DATA_READ) != 0;
-         if (ex) ++executed;
+         int sx = !ex && (presentation & ROLE_CODE_BYTE) != 0;
+         if (ex) ++established_code;
+         if (sx) ++speculative_code;
          if (dr) ++data;
          if (ex && dr) ++exec_data;
          if (r & ROLE_OVERLAP) ++overlap;
@@ -8672,13 +8813,15 @@ static void emit_usage_summary(FILE *fp, const analysis_t *a)
          if (r & ROLE_VECTOR) ++vectors;
          if (a->mapper == MAP_FA && off < 0x200u) ++fa_hidden;
          else if (superchip_active(a) && off < 0x100u) ++sc_hidden;
-         else if (!(r & (ROLE_CODE_BYTE | ROLE_DATA_READ | ROLE_POSSIBLE | ROLE_VECTOR)))
+         else if (!sx &&
+                  !(r & (ROLE_CODE_BYTE | ROLE_DATA_READ | ROLE_POSSIBLE | ROLE_VECTOR)))
             ++unclassified;
       }
    }
    fprintf(fp,
-      "; usage bytes: executed=%zu data-read=%zu exec+data=%zu overlap=%zu possible=%zu vectors=%zu sc-hidden=%zu fa-hidden=%zu unclassified=%zu\n",
-      executed, data, exec_data, overlap, possible, vectors, sc_hidden, fa_hidden, unclassified);
+      "; usage bytes: established-code=%zu speculative-code=%zu data-read=%zu exec+data=%zu overlap=%zu possible=%zu vectors=%zu sc-hidden=%zu fa-hidden=%zu unclassified=%zu\n",
+      established_code, speculative_code, data, exec_data, overlap, possible,
+      vectors, sc_hidden, fa_hidden, unclassified);
    fprintf(fp,
       "; speculative analysis: rejected-starts=%zu barriers=%zu islands=%zu capped-walks=%zu promotion-capped=%zu\n",
       a->speculative_rejected_starts, a->speculative_barriers,
@@ -9310,13 +9453,13 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
    return ferror(fp) == 0;
 }
 
-static size_t decoded_instruction_count(const analysis_t *a)
+static size_t established_instruction_count(const analysis_t *a)
 {
    size_t bi, off, count = 0u;
    if (a->mapper == MAP_AR) return a->ar_instruction_count;
    for (bi = 0; bi < a->bank_count; ++bi)
       for (off = 0; off < a->banks[bi].size; ++off)
-         if (a->banks[bi].roles[off] & ROLE_CODE_START) ++count;
+         if (established_code_start(&a->banks[bi], off)) ++count;
    return count;
 }
 
@@ -9415,8 +9558,8 @@ int main(int argc, char **argv)
       return 1;
    }
    promote_interior_reference_labels(&analysis);
-   if (decoded_instruction_count(&analysis) == 0u) {
-      fprintf(stderr, "%s: no instructions found; refusing 100%%-data disassembly\n",
+   if (established_instruction_count(&analysis) == 0u) {
+      fprintf(stderr, "%s: no established instructions found; refusing speculative-only disassembly\n",
               opt.input);
       free_analysis(&analysis);
       free(logical_rom);
