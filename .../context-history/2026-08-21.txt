@@ -1,0 +1,34 @@
+2026-08-21 06:22:00 PDT, dual RESP proof and hybrid scheduler
+Continued from vcsc.20260821_065301.  The enhanced asymmetric same-Y/same-coarse
+classifier now reaches a real PF-aware pair path that can issue RESP0 and RESP1
+on the same physical scanline while retaining 262-line frame timing.  A fixed
+X=31/32,Y=74 diagnostic proves the dual path is exercised; four additional
+10,000-frame combined randomized X/Y runs remained stable while requiring dual
+RESP occurrence.
+
+An exact randomized failure exposed a top-edge marker interaction: Y=89 pair
+records carry bits 7+6, while the special top dispatcher only understands the
+ordinary lane bit.  Y=89 same-slot pairs now deliberately fall back to the two
+proven one-RESP paths, and the former failing state is pinned by the asymmetric
+regression.
+
+Stella 7.0 pixel checks then showed that horizontal calibration is older than the
+current asymmetric RESP lattice.  Ordinary requested X=31/100 rendered around
+10/73 and a true pair requested at X=31/32 rendered around 13/23.  The source
+comment claiming complete Stella calibration was corrected.  The next plan is
+to calibrate the ordinary eleven-phase table first, prefer adjacent-scanline
+split one-RESP positioning when possible, retain literal dual RESP only where it
+helps, use VDELP0/VDELP1 only if graphics-latch scheduling needs another line,
+and allow fair rotating flicker only as a final unschedulable fallback.
+2026-08-21 07:09:00 PDT, make tar fallback preserves sources
+The top-level `make tar` target now hard-codes the VCSC archive basename and
+works both in a real Git checkout and in an unpacked source release.  Without a
+Git worktree it creates a temporary external Git index, stages the source tree
+under the shipped ignore rules, emits `git ls-files`, and removes the temporary
+repository without touching the source tree.
+
+`examples/.gitignore` now explicitly unignores the faithful legacy multisprite
+diagnostic data source.  That `.s26` is intentionally revision-controlled even
+though generated `.s26` files are ignored generally.  This makes release-tar
+regeneration preserve the tracked-ignore exception instead of depending on Git
+history that is absent from the release archive.

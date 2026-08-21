@@ -1025,3 +1025,181 @@ NEXT WORK -- DO NOT REGRESS THE 11-PHASE CHECKPOINT
 
 IMPORTANT: the next checkpoint must start from this real 11-phase state.  Do not
 revert to the four-region P0 checkpoint or to the fixed-RESP 1658/1408 trees.
+
+IMPLEMENTED CHECKPOINT -- PAIR CLASSIFIER + CLEAN TEST TREE -- 2026-08-20
+==========================================================================
+This section supersedes the older "NEXT WORK" status above for the current tree.
+
+CURRENT STABLE STATE
+--------------------
+* Both lanes retain the measured eleven RESP instruction-end phases:
+  14,19,24,28,33,36,42,47,50,56,61.
+* The close opposite-lane event pipeline no longer swallows the following event.
+* Six accepted logical sprites fit the VBLANK timer after fixed-size compaction,
+  rank-0 direct compaction, coarse-position table reuse, and allocator cleanup.
+* The bottom-edge post-setup underflow can no longer turn X=$ff into a phantom
+  event, and the stale five-cycle Y=89 top-edge pad is gone.
+* Combined randomized X/Y timing is stable at 262 displayed NTSC lines with the
+  exact phase-set assertion enabled.
+* The accepted-sprite allocator scans its compact list backward.  The RESP jump
+  page is 256-byte aligned, so setup_position directly stores slot*3 + lane*$40.
+* A surviving same-Y P1 performs the coarse-slot comparison only after conflict
+  scanning.  If it shares the P0 coarse slot, the already-accepted P0 setup-code
+  low nibble is rewritten from ordinary 7..12 to 1..6.  Because P0/P1 identity
+  still comes from setup_position, 1..6 is a zero-RAM marker saying that P0 owns
+  a candidate same-Y/same-coarse pair.
+* This marker is groundwork only.  The visible raster still emits the two events
+  through the proven one-RESP paths; true same-scanline two-RESP scheduling is
+  NOT complete.
+
+CURRENT BUILD
+-------------
+The public asymmetric example builds at:
+
+    ROM 3686 / 4090 (404 bytes free)
+    RAM 119 / 128 (9 bytes free; hardware stack included)
+
+Its four compact joystick motion helpers intentionally use 30 lines of hand
+6502 assembly for indexed zero-page game_x/game_y updates.  They replaced large
+six-way C switches to recover several hundred bytes of 4K ROM.  This reviewed
+6502 indexed-addressing idiom is pinned in
+`test/fixtures/example_assembly_allowlist.tsv`.
+
+REGRESSIONS AT THIS CHECKPOINT
+------------------------------
+The following targeted harness set passes:
+
+* example_assembly_allowlist.pl
+* vcs_examples_build_2of8.test
+* vcs_enhanced_multisprite_asymmetric.pl
+* vcs_renderer_branch_contracts.pl
+* source_tree_hygiene.pl
+* vcsc_branding.pl
+
+The recursive example-build failure in the prior handoff was not a renderer ROM
+regression: that archive accidentally contained the hidden development source
+`examples/18_enhanced_multisprite/01_192/02_asymmetric/.tmp_bottom_repro.c26`.
+The recursive test discovered it as an editable public example and its temporary
+4K reproduction overflowed.  The scratch file is removed from the clean tree;
+the real asymmetric example remains at the 3686-byte build above.
+
+NEXT WORK
+---------
+1. Preserve this stable classifier checkpoint while implementing real 2-RESP.
+2. For a marked P0/P1 pair, make the event records adjacent with a common action
+   band/graphics delay and consume both ranks deterministically.
+3. Add a shared PF-aware dual-RESP position path without duplicating a miniature
+   renderer; the first duplicated experimental implementation exceeded 4K.
+4. Calibrate pair RESP ordering and public X=0..159 in Stella for same-slot,
+   adjacent, moderate, and far-separated pairs and both lane orders.
+5. Finish per-event color handoff after the pair raster structure is stable.
+6. Keep the maintained symmetric enhanced-multisprite regression green.
+
+IMPLEMENTED CHECKPOINT -- TRUE DUAL RESP PROOF + HYBRID FALLBACK -- 2026-08-21
+==============================================================================
+This section supersedes the pair-classifier-only status above for the current
+progress tree.  It is a timing-stable proof checkpoint, NOT final horizontal
+calibration.
+
+WHAT NOW WORKS
+--------------
+* The zero-RAM same-Y/same-coarse classifier now feeds a real same-scanline
+  dual-RESP raster path.  Pair metadata is staged on its own PF-aware line and
+  the marked P0 setup vector selects one of eleven pair landing stubs; the
+  selected group emits consecutive RESP0/RESP1 strobes while both target lanes
+  are blank, then rejoins the existing P0 setup/HMOVE pipeline.
+* A deterministic same-slot pair (logical sprites 2/3, X=31/32, Y=74) exercises
+  a true dual-RESP physical line.  The timing harness observes RESP0 at
+  instruction-end phase 25 and RESP1 at 28 for that slot.
+* Combined randomized X/Y stress remains frame-stable.  In addition to the
+  asymmetric regression's seeded runs, four independent 10,000-frame runs
+  completed at 262 displayed NTSC lines while requiring at least one physical
+  line containing both RESP0 and RESP1.
+* A discovered top-edge pair bug is currently avoided by falling back to the
+  proven two-one-RESP schedule for the exact marked-pair case that enters through
+  the action-95 top trigger.  Public Y=89 is NOT intrinsically incompatible with
+  dual RESP: Y=89 merely selects the special top-entry path, while horizontal
+  slot/phase determines whether a particular pair is feasible.  The exact former
+  crash state remains pinned as a regression until the top dispatcher is made
+  pair-aware.
+* `vcs_frame_timing` gained repeated `--set-zp`, `--require-resp-phases`, and
+  `--require-dual-resp` controls so the asymmetric test can require the ordinary
+  eleven-phase lattice while also proving that a true pair path was exercised.
+
+CURRENT BUILD
+-------------
+The current public asymmetric example builds at approximately:
+
+    ROM 3905 / 4090
+    RAM 119 / 128
+
+The increase from the classifier checkpoint is the experimental shared dual-
+RESP machinery.  It still fits the 4K target without adding RAM.
+
+IMPORTANT STELLA FINDING -- X TABLE IS STILL PROVISIONAL
+-------------------------------------------------------
+Stella 7.0 pixel snapshots disproved the source comment that the 160-entry
+`TEMPLATE_position_table` had already been calibrated for this renderer.  A
+normal, non-dual P0/P1 case requesting X=31 and X=100 rendered at roughly X=10
+and X=73.  The deterministic dual case requesting X=31/32 rendered its two
+players around X=13 and X=23.  Thus this is not merely a special pair-table
+problem: the ordinary asymmetric position table is still inherited from the
+older RESP timing and must be recalibrated against the measured asymmetric
+phase lattice before horizontal placement can be called correct.
+
+The observed ordinary displacement closely tracks the phase difference between
+this renderer's 14,19,24,28,33,36,42,47,50,56,61 lattice and the maintained
+symmetric renderer's later 21,26,31,36,41,46,51,56,61,66,71 lattice.  Use that
+as a calibration lead, but certify the resulting table with Stella pixels rather
+than trusting arithmetic alone.
+
+HYBRID SCHEDULER / VDEL DESIGN DECISION
+---------------------------------------
+Do not classify pair scheduling by Y alone and do not require literal same-line
+dual RESP for every overlap.  Classify each accepted P0/P1 pair by the complete
+feasibility tuple `(X0, X1, Y)` (plus the derived coarse slots/RESP phases).  Y
+selects the available vertical entry/setup windows; X0/X1 determine the RESP
+landing phases inside those windows.  Choose the least expensive correct class:
+
+1. Ordinary independent one-RESP positioning when the two events do not need a
+   coupled setup window.
+2. Adjacent-scanline split positioning when both lanes are blank and one RESP can
+   be issued a scanline early.  Give each lane its ordinary calibrated RESP phase
+   on its own physical line, preload both HMP values, then apply them together at
+   the later HMOVE.  This should be the preferred paired case because it reuses
+   the proven one-RESP X calibration.
+3. Literal same-line dual RESP only for `(X0, X1, Y)` geometries where the two
+   strobes and surrounding PF/setup work fit cleanly and where the dual path has
+   its own Stella-verified horizontal calibration.
+4. VDELP0/VDELP1-assisted split when graphics-data handoff, rather than RESP, is
+   the limiting deadline.  VDEL can let GRPx be prepared on the preceding line,
+   but it does not make RESP cheaper and its cross-coupled GRP latch semantics
+   require deliberate use.
+5. Fair flicker/omission only when no non-flicker feasibility class fits.  Keep
+   persistent rotating allocation priority so omission is distributed rather
+   than starving one sprite.
+
+Public Y=89 is therefore only a top-entry case, not a blanket split-only rule.
+The current implementation still falls back for the known marked-pair top-entry
+state because that dispatcher is not pair-aware yet; future scheduling should
+allow any Y=89 `(X0, X1)` combination whose measured cycle window is safe.
+
+NEXT WORK
+---------
+1. Recalibrate the ordinary P0/P1 `TEMPLATE_position_table` for public X=0..159
+   against the actual eleven asymmetric RESP phases; verify edges/wraps in
+   Stella, not just the timing harness.
+2. Prototype the adjacent-scanline split pair path so it can reuse those ordinary
+   calibrated positions.  Build a feasibility classifier over `(X0, X1, Y)`; do
+   not encode Y=89 as a permanent split-only exception.
+3. Make the action-95 top dispatcher pair-aware, then compare split versus literal
+   dual RESP across same-slot, adjacent-slot, moderate, and far-separated X pairs
+   including Y=89.  Retain literal dual RESP only where it genuinely reduces
+   scheduling pressure and its measured phases are safe.
+4. Use VDELP0/VDELP1 only if the resulting graphics handoff, rather than RESP,
+   is the limiting cycle budget.
+5. Finish the stale per-event color handoff after the pair raster structure and
+   X calibration are stable; current draw color still caches the first compact
+   event's color.
+6. Keep the maintained symmetric enhanced-multisprite regression and all branch,
+   hygiene, branding, example-build, and asymmetric timing gates green.

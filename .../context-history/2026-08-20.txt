@@ -36,3 +36,13 @@ default; explicit 45/60/90/120/180/240-second exceptions remain intact.
 `test/README.md` documents the new default. `.../context.txt` was compacted
 below its 100 KiB hard ceiling without weakening `source_tree_hygiene.pl`, and
 its testing-policy summary now records the 45-second rule.
+2026-08-20 23:51:31 PDT, clean asymmetric handoff regressions
+Removed the leaked .tmp_bottom_repro.c26 development source that the recursive
+example builder mistook for a public example and that overflowed 4K.  Reviewed
+and pinned the asymmetric example's 30 compact indexed-zero-page motion asm
+statements in example_assembly_allowlist.tsv; updated the allowlist source count
+to 30.  The real asymmetric example remains 3686/4090 ROM and 119/128 RAM.
+The exact two reported failures plus asymmetric timing, branch contracts,
+hygiene, and branding pass.  A clean full make test rebuilt successfully and
+finished 500/500 compile tests; the e2e run had no failures through 78/319 before
+the container execution window terminated the command.

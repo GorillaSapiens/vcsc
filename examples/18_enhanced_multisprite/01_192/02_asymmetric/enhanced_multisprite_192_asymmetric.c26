@@ -60,8 +60,21 @@ page const uint8_t game_playfield_right[192] := {
 };
 
 void initialize_enhanced_scene(void) {
-   initialize_multisprite_scene();
+   // Initialize only state this player-only diagnostic actually consumes.
+   // The shared multisprite initializer also writes missile/ball compatibility
+   // state and a set of Y positions immediately overwritten below; omitting
+   // those dead stores keeps the asymmetric 4K stress cartridge linkable as
+   // the beam-critical renderer grows.
+   COLUBK := VCS_NTSC_DARK_BLUE;
+   COLUPF := VCS_NTSC_GOLDENROD;
    CTRLPF := 0;
+
+   game_PLAYER0_X := 18;
+   game_PLAYER1_X := 36;
+   game_PLAYER2_X := 62;
+   game_PLAYER3_X := 88;
+   game_PLAYER4_X := 114;
+   game_PLAYER5_X := 140;
 
    // Three-way overlap: two of these three are visible every frame and the
    // pair rotates 0/1, 1/2, 2/0. Their X positions stay independent.
@@ -75,6 +88,31 @@ void initialize_enhanced_scene(void) {
 
    // One isolated sprite demonstrates same-frame hardware-player reuse.
    game_PLAYER5_Y := 16;
+
+   game_PLAYER0_HEIGHT := 9;
+   game_PLAYER1_HEIGHT := 9;
+   game_PLAYER2_HEIGHT := 9;
+   game_PLAYER3_HEIGHT := 9;
+   game_PLAYER4_HEIGHT := 9;
+   game_PLAYER5_HEIGHT := 9;
+
+   game_PLAYER0_NUSIZ := 0;
+   game_PLAYER1_NUSIZ := 0;
+   game_PLAYER2_NUSIZ := 0;
+   game_PLAYER3_NUSIZ := 0;
+   game_PLAYER4_NUSIZ := 0;
+   game_PLAYER5_NUSIZ := 0;
+
+   game_PLAYER0_COLOR := VCS_NTSC_GRAY_92;
+   game_PLAYER1_COLOR := VCS_NTSC_LIGHT_CORAL;
+   game_PLAYER2_COLOR := VCS_NTSC_PALE_GREEN;
+   game_PLAYER3_COLOR := VCS_NTSC_SKY_BLUE;
+   game_PLAYER4_COLOR := VCS_NTSC_ORCHID;
+   game_PLAYER5_COLOR := VCS_NTSC_AQUAMARINE;
+
+   selected_object := SELECTED_PLAYER0;
+   select_switch_ready := 1;
+   game_init();
 }
 
 // Keep the interactive controls fragmented into separate out-of-line helpers.
@@ -84,44 +122,42 @@ void update_asymmetric_selection(void) {
    update_multisprite_selection();
 }
 void move_asymmetric_left(void) {
-   switch (selected_object) {
-      case SELECTED_PLAYER0: if (game_PLAYER0_X > 0) { game_PLAYER0_X--; } break;
-      case SELECTED_PLAYER1: if (game_PLAYER1_X > 0) { game_PLAYER1_X--; } break;
-      case SELECTED_PLAYER2: if (game_PLAYER2_X > 0) { game_PLAYER2_X--; } break;
-      case SELECTED_PLAYER3: if (game_PLAYER3_X > 0) { game_PLAYER3_X--; } break;
-      case SELECTED_PLAYER4: if (game_PLAYER4_X > 0) { game_PLAYER4_X--; } break;
-      default: if (game_PLAYER5_X > 0) { game_PLAYER5_X--; }
-   }
+   asm ldx.z selected_object;
+   asm lda.zx game_x,X;
+   asm beq.same @done;
+   asm sec;
+   asm sbc #1;
+   asm sta.zx game_x,X;
+   asm @done:;
 }
 void move_asymmetric_right(void) {
-   switch (selected_object) {
-      case SELECTED_PLAYER0: if (game_PLAYER0_X < 159) { game_PLAYER0_X++; } break;
-      case SELECTED_PLAYER1: if (game_PLAYER1_X < 159) { game_PLAYER1_X++; } break;
-      case SELECTED_PLAYER2: if (game_PLAYER2_X < 159) { game_PLAYER2_X++; } break;
-      case SELECTED_PLAYER3: if (game_PLAYER3_X < 159) { game_PLAYER3_X++; } break;
-      case SELECTED_PLAYER4: if (game_PLAYER4_X < 159) { game_PLAYER4_X++; } break;
-      default: if (game_PLAYER5_X < 159) { game_PLAYER5_X++; }
-   }
+   asm ldx.z selected_object;
+   asm lda.zx game_x,X;
+   asm cmp #159;
+   asm bcs.same @done;
+   asm clc;
+   asm adc #1;
+   asm sta.zx game_x,X;
+   asm @done:;
 }
 void move_asymmetric_up(void) {
-   switch (selected_object) {
-      case SELECTED_PLAYER0: if (game_PLAYER0_Y < game_PLAYER0_MAX_Y) { game_PLAYER0_Y++; } break;
-      case SELECTED_PLAYER1: if (game_PLAYER1_Y < game_PLAYER1_MAX_Y) { game_PLAYER1_Y++; } break;
-      case SELECTED_PLAYER2: if (game_PLAYER2_Y < game_PLAYER1_MAX_Y) { game_PLAYER2_Y++; } break;
-      case SELECTED_PLAYER3: if (game_PLAYER3_Y < game_PLAYER1_MAX_Y) { game_PLAYER3_Y++; } break;
-      case SELECTED_PLAYER4: if (game_PLAYER4_Y < game_PLAYER1_MAX_Y) { game_PLAYER4_Y++; } break;
-      default: if (game_PLAYER5_Y < game_PLAYER1_MAX_Y) { game_PLAYER5_Y++; }
-   }
+   asm ldx.z selected_object;
+   asm lda.zx game_y,X;
+   asm cmp #89;
+   asm bcs.same @done;
+   asm clc;
+   asm adc #1;
+   asm sta.zx game_y,X;
+   asm @done:;
 }
 void move_asymmetric_down(void) {
-   switch (selected_object) {
-      case SELECTED_PLAYER0: if (game_PLAYER0_Y > 0) { game_PLAYER0_Y--; } break;
-      case SELECTED_PLAYER1: if (game_PLAYER1_Y > 0) { game_PLAYER1_Y--; } break;
-      case SELECTED_PLAYER2: if (game_PLAYER2_Y > 0) { game_PLAYER2_Y--; } break;
-      case SELECTED_PLAYER3: if (game_PLAYER3_Y > 0) { game_PLAYER3_Y--; } break;
-      case SELECTED_PLAYER4: if (game_PLAYER4_Y > 0) { game_PLAYER4_Y--; } break;
-      default: if (game_PLAYER5_Y > 0) { game_PLAYER5_Y--; }
-   }
+   asm ldx.z selected_object;
+   asm lda.zx game_y,X;
+   asm beq.same @done;
+   asm sec;
+   asm sbc #1;
+   asm sta.zx game_y,X;
+   asm @done:;
 }
 void update_asymmetric_motion(void) {
    if (!(SWCHA & 0x40)) { move_asymmetric_left(); }
