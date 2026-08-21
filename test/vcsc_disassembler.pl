@@ -569,6 +569,25 @@ write_bin(File::Spec->catfile($in, 'e0_speculative_banked_island.bin'), $e0_isla
 write_bin(File::Spec->catfile($in, 'f8_sc_read_only.bin'),
    make_rom(8192, 0xF000, 0x0100, "\xAD\x80\xF0\xAD\xF8\x1F\x60"));
 
+# Ordinary banked ROMs may also write cartridge space.  A write to the
+# Superchip-looking $x000-$x07F alias is not enough by itself: automatic
+# semantic promotion requires established use of the $x080-$x0FF read alias as
+# well.  Pin that rule at every
+# F8/F6/F4 size because corpus false positives occurred in all three families.
+write_bin(File::Spec->catfile($in, 'f8_sc_write_only.bin'),
+   make_rom(8192, 0xF000, 0x0100, "\x8D\x20\xF0\xAD\xF8\x1F\x60"));
+write_bin(File::Spec->catfile($in, 'f6_sc_write_only.bin'),
+   make_rom(16384, 0xF000, 0x0100, "\x8D\x20\xF0\xAD\xF6\x1F\x60"));
+write_bin(File::Spec->catfile($in, 'f4_sc_write_only.bin'),
+   make_rom(32768, 0xF000, 0x0100, "\x8D\x20\xF0\xAD\xF4\x1F\x60"));
+
+# The two aliases need not use the same RAM offset.  This is still genuine
+# split-address SC behavior and must not be rejected just because no individual
+# byte is observed on both sides of the analysis.
+write_bin(File::Spec->catfile($in, 'f8sc_disjoint_offsets.bin'),
+   make_rom(8192, 0xF000, 0x0100,
+      "\x8D\x20\xF0\xAD\xA1\xF0\xAD\xF8\x1F\x60"));
+
 # RMW instructions cannot be valid Superchip RAM operations because the read
 # and write aliases are different addresses.  Any reachable RMW anywhere in
 # $F000-$F0FF is therefore negative SC evidence, not merely "not positive".
@@ -585,11 +604,11 @@ write_bin(File::Spec->catfile($in, 'plain4k_sc_rmw_read_conflict.bin'),
       "\xEE\x80\xF0" .      # RMW in read port: contradiction
       "\x60"));
 
-# A real store into the SC write-window is normally positive evidence, but an
-# established RESET path through that same write port proves that the physical
-# ROM bytes are intended to execute there and therefore vetoes automatic SC.
+# Even paired semantic SC evidence must not override established RESET/control
+# flow through the SC write port: instruction fetch there proves those physical
+# ROM bytes are intended to execute and therefore vetoes automatic SC.
 write_bin(File::Spec->catfile($in, 'plain4k_sc_write_port_exec.bin'),
-   make_rom(4096, 0xF000, 0x0000, "\x8D\x20\xF0\x60"));
+   make_rom(4096, 0xF000, 0x0000, "\x8D\x20\xF0\xAD\xA0\xF0\x60"));
 write_bin(File::Spec->catfile($in, 'f6.bin'), make_rom(16384, 0xF000, 0x0100, "\xAD\xF6\x1F\x60"));
 
 # A wrong mapper must not win merely because it traces less code.  Both F6 and
@@ -1116,6 +1135,12 @@ for my $b (0 .. 3) {
           substr($f6sc_layout, $base, 0x80));
 }
 write_bin(File::Spec->catfile($in, 'f6sc_layout.bin'), $f6sc_layout);
+# VCSC-generated images carry an explicit four-byte mapper declaration at
+# $xFF8-$xFFB in the final file bank.  It must remain authoritative even when
+# the image has neither the legacy duplicate-prefix shape nor decoded SC RAM use.
+my $f8sc_signature = make_rom(8192, 0xF000, 0x0100, "\xAD\xF8\x1F\x60");
+substr($f8sc_signature, length($f8sc_signature) - 8, 4, "F8SC");
+write_bin(File::Spec->catfile($in, 'f8sc_signature.bin'), $f8sc_signature);
 my $f4sc = make_rom(32768, 0xF000, 0x0100,
    "\x8D\x00\xF0\xAD\x80\xF0\xAD\xF4\x1F\x60");
 write_bin(File::Spec->catfile($in, 'f4sc.bin'), $f4sc);
@@ -1505,6 +1530,13 @@ for my $case (
    require_re($text, qr/^; mapper: FA \(high confidence;.*1 native split-RAM RMW conflict\)/m,
       "$which RMW recorded as split-RAM contradiction");
 }
+
+my $sc_disjoint = slurp(File::Spec->catfile($out, 'f8sc_disjoint_offsets.s26'));
+require_re($sc_disjoint, qr/^; mapper: F8SC\b/m,
+   'F8SC semantic inference accepts disjoint established read/write offsets');
+require_re($sc_disjoint,
+   qr/1 SC write, 0 SC RMW conflicts, 1 SC read, 0 SC paired offsets/,
+   'disjoint SC aliases are diagnostic evidence without an artificial byte-pair requirement');
 for my $case (
    ['cv_rmw_read.s26',  'CV read-port'],
    ['cv_rmw_write.s26', 'CV write-port'],
@@ -1834,9 +1866,29 @@ require_re($reachable_jam_out, qr/^L_F100:\n\s*op02\b/im,
 my $f8_read_only = slurp(File::Spec->catfile($out, 'f8_sc_read_only.s26'));
 require_re($f8_read_only, qr/^; mapper: F8 \(/m,
    'plain F8 read in Superchip read window stays F8');
+require_re($f8_read_only, qr/0 SC writes, 0 SC RMW conflicts, 1 SC read, 0 SC paired offsets/,
+   'read-only Superchip-looking access remains unpaired evidence');
 die "read-only Superchip-window access hid ordinary F8 ROM bytes\n"
    if $f8_read_only =~ /sc-hidden=[1-9]/ ||
       $f8_read_only =~ /hidden by Superchip RAM window/i;
+
+for my $case (
+   ['f8_sc_write_only.s26', 'F8'],
+   ['f6_sc_write_only.s26', 'F6'],
+   ['f4_sc_write_only.s26', 'F4'],
+) {
+   my ($name, $mapper) = @$case;
+   my $text = slurp(File::Spec->catfile($out, $name));
+   require_re($text, qr/^; mapper: \Q$mapper\E \(/m,
+      "$mapper write-only Superchip-looking access stays plain");
+   require_re($text,
+      qr/1 SC write, 0 SC RMW conflicts, 0 SC reads, 0 SC paired offsets/,
+      "$mapper write-only evidence is recorded but not paired");
+   die "$mapper write-only access incorrectly promoted Superchip\n"
+      if $text =~ /^; mapper: \Q${mapper}SC\E\b/m ||
+         $text =~ /sc-hidden=[1-9]/ ||
+         $text =~ /hidden by Superchip RAM window/i;
+}
 
 my $sc_rmw_only = slurp(File::Spec->catfile($out, 'plain4k_sc_rmw_only.s26'));
 require_re($sc_rmw_only, qr/^; mapper: unbanked 4K \(/m,
@@ -1864,7 +1916,9 @@ for my $case (
 
 my $sc_write_exec = slurp(File::Spec->catfile($out, 'plain4k_sc_write_port_exec.s26'));
 require_re($sc_write_exec, qr/^; mapper: unbanked 4K \(/m,
-   'RESET execution in Superchip write port vetoes automatic 4KSC promotion');
+   'RESET execution in Superchip write port vetoes paired automatic 4KSC promotion');
+require_re($sc_write_exec, qr/1 SC write, 0 SC RMW conflicts, 1 SC read, 1 SC paired offset/,
+   'write-port execution fixture contains otherwise-positive paired SC evidence');
 require_re($sc_write_exec, qr/^L_F000:
 \s*STA\s+\$F020/m,
    'plain 4K write-port code remains executable ROM');
@@ -2053,6 +2107,8 @@ require_re($e0_spec_out, qr/B0_F206:\n\s*LDA\s+\$FFE9\n\s*LDA\s+#\$42/m,
 
 my $f8sc = slurp(File::Spec->catfile($out, 'f8sc.s26'));
 require_re($f8sc, qr/^; mapper: F8SC\b/m, 'F8SC mapper inference');
+require_re($f8sc, qr/1 SC write, 0 SC RMW conflicts, 1 SC read, 1 SC paired offset/,
+   'F8SC semantic inference requires paired write/read alias evidence');
 require_re($f8sc, qr/physical ROM bytes hidden by Superchip RAM window/i,
    'Superchip-hidden physical ROM annotation');
 require_re($f8sc, qr/^; usage bytes: .*sc-hidden=512\b/m,
@@ -2066,6 +2122,8 @@ require_re($f6_jane_tie_out,
 
 my $f6sc_out = slurp(File::Spec->catfile($out, 'f6sc.s26'));
 require_re($f6sc_out, qr/^; mapper: F6SC\b/m, 'F6SC mapper inference');
+require_re($f6sc_out, qr/1 SC write, 0 SC RMW conflicts, 1 SC read, 1 SC paired offset/,
+   'F6SC semantic inference requires paired write/read alias evidence');
 my $f6sc_layout_out = slurp(File::Spec->catfile($out, 'f6sc_layout.s26'));
 require_re($f6sc_layout_out, qr/^; mapper: F6SC\b/m,
    'F6SC duplicated-window structural inference');
@@ -2073,8 +2131,16 @@ require_re($f6sc_layout_out, qr/^; Superchip structural evidence: /m,
    'F6SC structural evidence annotation');
 require_re($f6sc_layout_out, qr/\b0 SC writes\b/,
    'F6SC structural inference does not invent store evidence');
+my $f8sc_signature_out = slurp(File::Spec->catfile($out, 'f8sc_signature.s26'));
+require_re($f8sc_signature_out, qr/^; mapper: F8SC\b/m,
+   'explicit VCSC F8SC tail signature is authoritative');
+require_re($f8sc_signature_out,
+   qr/0 SC writes, 0 SC RMW conflicts, 0 SC reads, 0 SC paired offsets/,
+   'explicit F8SC signature does not require invented semantic evidence');
 my $f4sc_out = slurp(File::Spec->catfile($out, 'f4sc.s26'));
 require_re($f4sc_out, qr/^; mapper: F4SC\b/m, 'F4SC mapper inference');
+require_re($f4sc_out, qr/1 SC write, 0 SC RMW conflicts, 1 SC read, 1 SC paired offset/,
+   'F4SC semantic inference requires paired write/read alias evidence');
 
 
 # Concrete execution must not turn a weak size-default banked mapper guess into

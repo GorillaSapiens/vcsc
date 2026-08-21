@@ -239,9 +239,12 @@ Use a scored/evidence-based classifier. Evidence includes:
 * Executed or referenced F8/F6/F4 selector hotspots.
 * Which physical bank contains a plausible reset path.
 * Per-bank vectors and reset/vector bridge patterns.
-* Superchip read/write-window accesses. A read from `$x080-$x0FF` by itself
-  is ambiguous with ordinary ROM and must not promote a plain mapper to SC; a
-  decoded write to `$x000-$x07F` (or an explicit mapper override) is required.
+* Superchip read/write-window accesses. Neither half alone is sufficient:
+  semantic promotion requires established resolved use of both the write alias
+  `$x000-$x07F` and the read alias `$x080-$x0FF`. The accesses need not use the
+  same RAM-byte offset. Speculative islands do not vote on mapper hardware.
+  Explicit VCSC SC signatures and the canonical per-bank duplicated hidden
+  window remain independent raw-image evidence.
 * Whether the resulting bank-aware control-flow graph is coherent.
 * For every size-compatible supported mapper, trace RESET-reachable code and
   credible speculative islands under that mapper's real selector semantics until
@@ -1691,3 +1694,26 @@ A 4096-byte file made from two byte-identical 2048-byte halves is a logical 2K c
       converges, not because an arbitrary recursion counter expires.
     * Do not memoize by physical byte alone: the same byte under a different mapper
       configuration or branch/register/zero-page state can have different successors.
+
+36. [x] Correct F8/F6/F4 Superchip inference in the expanded corpus
+    * Eight supplied F8/F6/F4 images were false-promoted to SC because any
+      established or speculative store into `$x000-$x07F` counted as sufficient
+      positive evidence. All eight lacked the canonical duplicated-prefix dump
+      structure and had no established read from the SC read alias.
+    * One genuine F6SC image was demoted because a detached speculative island
+      accidentally decoded an RMW in the SC window. Its four 4K banks have the
+      canonical duplicated prefix; established flow observes 36 SC writes and
+      42 SC reads across 16 matching byte offsets.
+    * Speculative islands now contribute neither positive nor negative SC
+      evidence. A plain cartridge-space store is not enough: semantic inference
+      requires established accesses to both split aliases. Matching offsets are
+      reported as extra strength but are not required by the hardware.
+    * Explicit VCSC SC tail signatures are authoritative. Canonical duplicated
+      bank prefixes remain strong automatic evidence unless established hardware
+      behavior contradicts SC; established RMW or execution through the write
+      alias vetoes heuristic inference.
+    * Synthetic regressions pin write-only F8/F6/F4 as plain, read-only F8 as
+      plain, paired SC at all three bank sizes, disjoint read/write offsets as
+      valid SC, structural F6SC without decoded stores, and write-port execution
+      as a contradiction. All nine supplied Fx/FxSC mismatches now match the
+      Stella classification and round-trip byte-exactly.

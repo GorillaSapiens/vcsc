@@ -282,15 +282,23 @@ single split alias supplies the intended RAM semantics for both the read and the
 write. This contradiction can eliminate an otherwise size-compatible FA/CV/WD
 mapper hypothesis.
 
-Automatic Superchip promotion accepts either a decoded **write-only store** to
-the `$x000-$x07F` write window or the conventional F8SC/F6SC/F4SC dump layout
-where, in every 4K physical bank, bytes `$000-$07F` are duplicated at
-`$080-$0FF`. The structural rule is not applied to lone 4K images. Reads from
-`$x080-$x0FF` remain neutral. Any reachable RMW anywhere in `$x000-$x0FF` is
-contradictory, and established RESET/control flow into the SC write port
-`$x000-$x07F` vetoes automatic promotion because instruction fetches would hit
-the write alias rather than ROM. The read port is not the same execution veto
-because code may deliberately run from populated cartridge RAM.
+Automatic Superchip promotion uses three kinds of evidence. An explicit VCSC
+`4KSC`/`F8SC`/`F6SC`/`F4SC` tail signature is a hardware declaration. For banked
+F8/F6/F4 images, the conventional dump layout where every 4K physical bank
+duplicates bytes `$000-$07F` at `$080-$0FF` is strong structural evidence; that
+rule is not applied to lone 4K images. Otherwise semantic inference requires
+**established use of both split aliases**: at least one resolved write through
+`$x000-$x07F` and at least one resolved read through `$x080-$x0FF`. The accesses
+need not use the same RAM byte. A write alone is ordinary cartridge-bus traffic
+and is not SC evidence, while a read alone is ambiguous with ordinary ROM.
+
+Speculative islands never contribute positive or negative Superchip evidence.
+For automatically inferred SC, any established RMW anywhere in `$x000-$x0FF`
+is contradictory, and established RESET/control flow into the SC write port
+`$x000-$x07F` vetoes promotion because instruction fetches would hit the write
+alias rather than ROM. The read port is not the same execution veto because code
+may deliberately run from populated cartridge RAM. Explicit VCSC SC signatures
+remain authoritative.
 `--mapper f8sc|f6sc|f4sc` remains available for ambiguous cases.
 0840/EconoBanking is an 8K two-bank layout whose selectors live below the
 cartridge window. `vcsc-disas` recognizes the VCSC `0840` tail signature or the

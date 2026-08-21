@@ -220,6 +220,9 @@ typedef struct {
    int hotspot_refs;
    size_t cross_bank_switches;
    int superchip_write_refs;
+   int superchip_read_refs;
+   uint8_t superchip_write_offsets[0x80];
+   uint8_t superchip_read_offsets[0x80];
    int superchip_rmw_conflicts;
    int superchip_exec_conflicts;
    int split_ram_rmw_conflicts;
@@ -2771,20 +2774,55 @@ static int superchip_layout_signature(const analysis_t *a)
    return 1;
 }
 
+static int superchip_tail_signature(const analysis_t *a)
+{
+   const uint8_t *p;
+   if (a->rom_size < 8u) return 0;
+   p = a->rom + a->rom_size - 8u;
+   if (a->mapper == MAP_4K) return memcmp(p, "4KSC", 4u) == 0;
+   if (a->mapper == MAP_F8) return memcmp(p, "F8SC", 4u) == 0;
+   if (a->mapper == MAP_F6) return memcmp(p, "F6SC", 4u) == 0;
+   if (a->mapper == MAP_F4) return memcmp(p, "F4SC", 4u) == 0;
+   return 0;
+}
+
+static unsigned superchip_paired_offsets(const analysis_t *a)
+{
+   unsigned i, pairs = 0u;
+   for (i = 0u; i < 0x80u; ++i)
+      if (a->superchip_write_offsets[i] && a->superchip_read_offsets[i])
+         ++pairs;
+   return pairs;
+}
+
 static int superchip_active(const analysis_t *a)
 {
    if (a->mapper_overridden && a->superchip_override >= 0)
       return a->superchip_override != 0;
-   /* A decoded write-only store into $x000-$x07F or the conventional per-bank
-    * duplicated 128-byte hidden-window layout is positive SC evidence. Reads
-    * from $x080-$x0FF remain neutral.  An RMW anywhere in $x000-$x0FF is
-    * contradictory because no Superchip alias supports both the read and
-    * write phases at one effective address.  Established execution through
-    * the write port is contradictory for the same reason: instruction fetches
-    * there would hit the RAM write port rather than physical ROM. */
-   return (a->superchip_write_refs != 0 || superchip_layout_signature(a)) &&
-          a->superchip_rmw_conflicts == 0 &&
-          a->superchip_exec_conflicts == 0;
+
+   /* Deliberate VCSC metadata is an explicit hardware declaration. */
+   if (superchip_tail_signature(a)) return 1;
+
+   /* Only established control flow contributes contradictions, so these cannot
+    * be manufactured by a speculative interpretation of detached data.  A real
+    * RMW in either split alias, or real instruction fetch through the write
+    * alias, is incompatible with automatic Superchip inference and therefore
+    * outranks heuristic structural/semantic evidence. */
+   if (a->superchip_rmw_conflicts != 0 || a->superchip_exec_conflicts != 0)
+      return 0;
+
+   /* The conventional duplicated hidden-window dump layout is strong raw-image
+    * evidence for banked SC cartridges. */
+   if (superchip_layout_signature(a)) return 1;
+
+   /* A plain F8/F6/F4 ROM may legally write arbitrary cartridge addresses, so
+    * a store into $x000-$x07F is not sufficient evidence by itself.  Semantic
+    * SC inference requires established accesses to both halves of the split RAM:
+    * at least one resolved write through $x000-$x07F and at least one resolved
+    * read through $x080-$x0FF.  They need not touch the same byte; the paired
+    * offset count is retained as stronger diagnostic evidence, not a requirement.
+    * Speculative islands contribute neither positive nor negative SC evidence. */
+   return a->superchip_write_refs != 0 && a->superchip_read_refs != 0;
 }
 
 typedef struct {
@@ -5122,12 +5160,13 @@ drain_work:
                      opcode, mode, operand);
 
       /* Superchip RAM aliases write $x000-$x07F and read $x080-$x0FF.
-       * Only a resolved write-only store into the write port is positive SC
-       * evidence.  Reads from the read port are neutral because ordinary ROM
-       * lives there on a plain cartridge.  RMW instructions are contradictory
-       * anywhere in the full $x000-$x0FF SC window: one effective address can
-       * never provide both the SC read and write semantics. */
-      {
+       * Plain ROM writes are legal bus activity, so a store alone is not SC
+       * evidence.  Record established use of both aliases and exact offsets;
+       * superchip_active() requires both aliases, while matching offsets provide
+       * an additional diagnostic strength signal.  Speculative islands must not
+       * decide mapper hardware.  Established RMW remains contradictory because
+       * one effective address cannot supply both split-alias phases. */
+      if (!speculative_done) {
          unsigned access = opcode_memory_access(opcode);
          uint16_t effective;
          if ((a->mapper == MAP_4K || a->mapper == MAP_F8 ||
@@ -5135,8 +5174,15 @@ drain_work:
              resolve_effective_address(&input_state, mode, operand, &effective)) {
             uint16_t bus = (uint16_t)(effective & 0x1fffu);
             if (opcode_is_write_only(opcode) &&
-                bus >= 0x1000u && bus <= 0x107fu)
+                bus >= 0x1000u && bus <= 0x107fu) {
                ++a->superchip_write_refs;
+               a->superchip_write_offsets[bus - 0x1000u] = 1u;
+            }
+            if ((access & ACCESS_READ) && !(access & ACCESS_WRITE) &&
+                bus >= 0x1080u && bus <= 0x10ffu) {
+               ++a->superchip_read_refs;
+               a->superchip_read_offsets[bus - 0x1080u] = 1u;
+            }
             if ((access & (ACCESS_READ | ACCESS_WRITE)) ==
                    (ACCESS_READ | ACCESS_WRITE) &&
                 bus >= 0x1000u && bus <= 0x10ffu)
@@ -8677,16 +8723,18 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
       }
       if (a->mapper_overridden)
          fprintf(fp, "; mapper: %s (override; %d decoded hotspot access%s, "
-                     "%d SC write%s, %d SC RMW conflict%s, %d native split-RAM RMW conflict%s)\n",
+                     "%d SC write%s, %d SC RMW conflict%s, %d SC read%s, %u SC paired offset%s, %d native split-RAM RMW conflict%s)\n",
                  mname, a->hotspot_refs, a->hotspot_refs == 1 ? "" : "es",
                  a->superchip_write_refs, a->superchip_write_refs == 1 ? "" : "s",
                  a->superchip_rmw_conflicts,
                  a->superchip_rmw_conflicts == 1 ? "" : "s",
+                 a->superchip_read_refs, a->superchip_read_refs == 1 ? "" : "s",
+                 superchip_paired_offsets(a), superchip_paired_offsets(a) == 1u ? "" : "s",
                  a->split_ram_rmw_conflicts,
                  a->split_ram_rmw_conflicts == 1 ? "" : "s");
       else
          fprintf(fp, "; mapper: %s (%s confidence; %d decoded hotspot access%s, "
-                     "%d SC write%s, %d SC RMW conflict%s, %d native split-RAM RMW conflict%s)\n",
+                     "%d SC write%s, %d SC RMW conflict%s, %d SC read%s, %u SC paired offset%s, %d native split-RAM RMW conflict%s)\n",
                  mname,
                  a->mapper == MAP_RAW ? "unknown" :
                     (a->mapper == MAP_DPC || a->mapper == MAP_FA || mapper_is_wd_family(a->mapper) || a->mapper == MAP_E0 ||
@@ -8700,6 +8748,8 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                  a->superchip_write_refs, a->superchip_write_refs == 1 ? "" : "s",
                  a->superchip_rmw_conflicts,
                  a->superchip_rmw_conflicts == 1 ? "" : "s",
+                 a->superchip_read_refs, a->superchip_read_refs == 1 ? "" : "s",
+                 superchip_paired_offsets(a), superchip_paired_offsets(a) == 1u ? "" : "s",
                  a->split_ram_rmw_conflicts,
                  a->split_ram_rmw_conflicts == 1 ? "" : "s");
    }

@@ -1150,17 +1150,19 @@ is currently 2498 ROM bytes / 104 RAM bytes. Next gate is user interactive Stell
 validation, especially moving 3-6-way piles and crossing sprites. The existing
 `renderers/multisprite/` remains unchanged and its Stella oracle still passes.
 
-2026-08-19 split-RAM corpus finding: SC, FA/RAM Plus, CV, and WD/WDSW use disjoint
-read/write aliases, so any reachable RMW in either alias is negative mapper
-evidence; reads are neutral and ordinary stores are not ranked across unrelated
-mappers. SC additionally accepts a resolved write-only store to `$x000-$x07F`
-or, for F8/F6/F4 only, the conventional dump structure where every 4K bank
-duplicates bytes `$000-$07F` at `$080-$0FF`. This structural rule is not used
-for lone 4K images. RESET/control flow into the SC write port vetoes automatic
-promotion. Earlier 4K false positives now stay plain; seven supplied genuine
-F6SC dumps with no decoded SC stores are recovered from the per-bank duplicate
-layout. Regressions cover SC RMW/flow contradictions, structural F6SC, and both
-FA/CV/WD/WDSW aliases.
+2026-08-19/20 split-RAM corpus finding: SC, FA/RAM Plus, CV, and WD/WDSW use
+disjoint read/write aliases, so an established RMW in either alias is negative
+mapper evidence. For SC, neither a cartridge-space write nor read alone is
+sufficient: semantic promotion requires established resolved use of both
+`$x000-$x07F` writes and `$x080-$x0FF` reads; the offsets need not match, though
+matching offsets are reported as stronger evidence. Speculative islands never
+vote on SC hardware. Explicit VCSC SC tail signatures are authoritative, while
+banked F8/F6/F4 also accepts the canonical per-bank `$000-$07F == $080-$0FF`
+dump structure unless established RMW/write-port execution contradicts it; the
+structural rule is not used for lone 4K images. This fixes the 2026-08-20 corpus
+batch's eight false Fx->FxSC promotions and one false F6SC->F6 demotion; all nine
+now match Stella and round-trip byte-exactly. FA/CV/WD/WDSW split-RAM RMW rules
+remain unchanged.
 
 2026-08-19 disassembler F6/JANE corpus finding: expanded differential corpora
 exposed a bad mapper-refinement tie-break that preferred the viable hypothesis
