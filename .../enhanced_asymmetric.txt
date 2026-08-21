@@ -1203,3 +1203,182 @@ NEXT WORK
    event's color.
 6. Keep the maintained symmetric enhanced-multisprite regression and all branch,
    hygiene, branding, example-build, and asymmetric timing gates green.
+
+IMPLEMENTED CHECKPOINT -- 12-PHASE ORDINARY X CALIBRATION -- 2026-08-21
+==============================================================================
+This checkpoint supersedes the provisional ordinary-X status above.  The passing
+renderer was restored after rejecting the first far-right late-family experiment.
+
+PASSING ORDINARY RESP LATTICE
+-----------------------------
+Ordinary P0 and P1 positioning now uses the exact instruction-end phase set:
+
+    14,19,24,28,33,37,42,47,50,53,58,63
+
+The extra phase relative to the prior eleven-slot checkpoint closes ordinary
+coarse-position holes without destabilizing frame timing.  The asymmetric timing
+regression passes combined randomized X/Y stress at 262 displayed NTSC lines and
+still requires the true dual-RESP proof path to execute.  Current public example
+accounting at this checkpoint is approximately 3915/4090 ROM and 119/128 RAM.
+
+STELLA CALIBRATION FINDINGS
+---------------------------
+Stella 7.0 pixel checks confirm that the revised ordinary mapping is exact for
+checked middle/left positions.  Verified examples include P0 public X=31 and X=55
+and P1 public X=20 and X=100.  X=55 was one of the former arithmetic-hole cases,
+so the phase-37 correction is doing real useful work rather than merely changing
+the timing harness.
+
+Do NOT extrapolate the simple `(RESP phase delta) * 3 color clocks` arithmetic
+through HBLANK.  Provisional far-right entries around public X=140 and X=159
+wrapped back toward the left edge in Stella.  The remaining ordinary-X problem is
+therefore specifically the far-right/HBLANK timing class, not a generally bad
+position table.  Full X=0..159 certification is still incomplete.
+
+REJECTED FIRST LATE-X FAMILY
+----------------------------
+An experimental expanded late-RESP family attempted to carry the continuing
+graphics byte across WSYNC so HMOVE could remain at cycle 0 while supporting
+far-right phases.  It was rejected and is NOT present in this checkpoint.  The
+first arrangement disturbed shared dispatch control flow: the static scene
+collapsed to RESP0 phases 28/61 and emitted no RESP1 at all.  This was a routing
+regression, not evidence that late horizontal positioning is impossible.  The
+known-good 12-phase renderer was restored before this checkpoint.
+
+SCHEDULER CONSEQUENCE
+---------------------
+Continue using the `(X0, X1, Y)` feasibility paradigm.  Add far-right/HBLANK as
+an explicit ordinary-positioning class rather than pretending all X values share
+one modulo phase model.  Prefer adjacent-scanline split RESP for paired sprites
+when it lets each lane reuse a Stella-certified ordinary position.  Retain literal
+same-line dual RESP only where its complete geometry is measured safe.  VDELP0/1
+remains an option when GRPx handoff, rather than RESP itself, is the limiting
+deadline; fair rotating flicker remains the last-resort class.
+
+NEXT WORK
+---------
+1. Design a safe far-right/HBLANK ordinary-X path without rearranging or corrupting
+   the existing P0/P1 dispatch families.
+2. Stella-sweep the complete public X=0..159 range for both lanes and pin the
+   resulting mapping in regression data.
+3. Feed that certified ordinary mapping into the `(X0,X1,Y)` feasibility classifier
+   and implement the preferred adjacent-scanline split-pair path.
+4. Revisit literal dual-RESP calibration only for geometries where it is actually
+   cheaper than the split path.
+5. Fix stale per-event color handoff after horizontal scheduling is stable.
+
+
+
+IMPLEMENTED CHECKPOINT -- 152-CYCLE PHASE-73 SPLIT PROOF -- 2026-08-21
+===============================================================================
+This supersedes the literal-dual pair proof as the preferred pair architecture.
+The maintained ordinary one-RESP paths are still on the provisional 12-phase
+lattice; this checkpoint proves the new two-line scheduler at the hardest coarse
+position before migrating every ordinary X entry.
+
+HARDWARE-DERIVED FINAL COARSE LATTICE
+-------------------------------------
+Treat each two-scanline logical band as one 152-CPU-cycle scheduling unit.  The
+beam still wraps every 76 CPU cycles, but there is no need to execute WSYNC at
+the internal A/B boundary when the path is cycle exact.
+
+The final target coarse RESP write phases and HMP coverage are:
+
+    slot   line-A RESP   line-B RESP   coarse X   HMP-covered hardware X
+      0         23            99            6             -1 .. 14
+      1         28           104           21             14 .. 29
+      2         33           109           36             29 .. 44
+      3         38           114           51             44 .. 59
+      4         43           119           66             59 .. 74
+      5         48           124           81             74 .. 89
+      6         53           129           96             89 .. 104
+      7         58           134          111            104 .. 119
+      8         63           139          126            119 .. 134
+      9         68           144          141            134 .. 149
+     10         73           149          156            149 .. 164
+
+Five CPU cycles move RESP by 15 color clocks, while the sixteen HMP values span
+one overlapping 16-pixel interval.  Eleven slots therefore cover the complete
+0..159 hardware range continuously.  Cycle 75 is the wrap cliff; the last useful
+coarse write is phase 73, with one slot of fine-motion reach still available.
+
+FINAL X MAPPING IS A LOOKUP TABLE, NOT RUNTIME MATH
+---------------------------------------------------
+Do not add divide-by-15, modulo, shift-bucket, or correction arithmetic to the
+renderer.  The final implementation should keep one direct 160-byte packed table
+indexed by public X.  Each byte carries HMP in the high nibble and coarse slot
+0..10 in the low nibble, exactly like the current provisional table.
+
+VCSC public X uses the existing multiplexed-player convention: public X selects
+hardware origin X-1 modulo 160.  With the hardware-derived lattice, the target
+packed table is therefore:
+
+    0xda,0x60,0x50,0x40,0x30,0x20,0x10,0x00,0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90,0x80,
+    0x61,0x51,0x41,0x31,0x21,0x11,0x01,0xf1,0xe1,0xd1,0xc1,0xb1,0xa1,0x91,0x81,0x62,
+    0x52,0x42,0x32,0x22,0x12,0x02,0xf2,0xe2,0xd2,0xc2,0xb2,0xa2,0x92,0x82,0x63,0x53,
+    0x43,0x33,0x23,0x13,0x03,0xf3,0xe3,0xd3,0xc3,0xb3,0xa3,0x93,0x83,0x64,0x54,0x44,
+    0x34,0x24,0x14,0x04,0xf4,0xe4,0xd4,0xc4,0xb4,0xa4,0x94,0x84,0x65,0x55,0x45,0x35,
+    0x25,0x15,0x05,0xf5,0xe5,0xd5,0xc5,0xb5,0xa5,0x95,0x85,0x66,0x56,0x46,0x36,0x26,
+    0x16,0x06,0xf6,0xe6,0xd6,0xc6,0xb6,0xa6,0x96,0x86,0x67,0x57,0x47,0x37,0x27,0x17,
+    0x07,0xf7,0xe7,0xd7,0xc7,0xb7,0xa7,0x97,0x87,0x68,0x58,0x48,0x38,0x28,0x18,0x08,
+    0xf8,0xe8,0xd8,0xc8,0xb8,0xa8,0x98,0x88,0x69,0x59,0x49,0x39,0x29,0x19,0x09,0xf9,
+    0xe9,0xd9,0xc9,0xb9,0xa9,0x99,0x89,0x6a,0x5a,0x4a,0x3a,0x2a,0x1a,0x0a,0xfa,0xea
+
+FIRST IMPLEMENTED 152-CYCLE CLASS -- X=159/X=159
+-------------------------------------------------
+The current renderer now routes only an exact same-Y public X=159/X=159 pair
+through the new split path.  This is deliberately narrow: it proves the hardest
+coarse phase while every other pair geometry retains the known-good independent
+one-RESP behavior.
+
+Physical line A is cycle exact with no terminal WSYNC:
+
+* HMP0 is loaded before the strobe.
+* Left PF writes complete first; right PF0/PF1 remain in their safe windows.
+* Paired-P1 metadata is staged before right PF2 so PF2 lands at cycle 65.
+* RESP0 writes at cycle 73.
+* A three-cycle BIT consumes the remainder and execution falls into line B at
+  absolute cycle 76.
+
+Physical line B repeats the PF schedule, writes RESP1 at local cycle 73
+(absolute 149), then immediately executes STA HMOVE so the HMOVE write lands at
+absolute cycle 152 / cycle 0 of the following physical scanline.  There is no
+WSYNC at the A/B boundary and no WSYNC before this HMOVE.  The pair then writes
+GRP1 and spends the ordinary HMOVE-equivalent three cycles on a JMP, rejoining
+the existing Setup0 path at exactly cycle 6; subsequent PF phases are unchanged.
+
+The old provisional ordinary table encodes public X=159 with HMP nibble $c.
+The hardware-derived phase-73 slot requires $e.  This narrow proof uses EOR #$20
+on the two pair HMP bytes under the beam.  That is a temporary proof device, not
+the final mapping method: migration to the direct 160-byte target table above
+must remove this special correction.
+
+VALIDATION
+----------
+* Public asymmetric example: 3814/4090 ROM, 119/128 RAM at this checkpoint.
+* `vcs_enhanced_multisprite_asymmetric.pl` passes combined randomized X/Y frame
+  stress and pins an exact X=159/X=159 same-Y pair.  The timing harness now has
+  `--require-adjacent-resp`; the pinned case also requires RESP phase 73 on both
+  lanes.  Same-line dual RESP is no longer a completion requirement.
+* Stella 7.0 pixel snapshot of the exact pair shows the expected wrapped glyph
+  extent at hardware X=158..159 and X=0..5.  That matches the logical sprite-0
+  shape at public X=159 and proves the phase-73 coarse position plus HMP result
+  is pixel-correct, not merely frame-stable.
+* The earlier phase-33 split experiment also passed timing and Stella for public
+  X=30/X=41 before this harder phase-73 class replaced it in the maintained tree.
+
+NEXT WORK
+---------
+1. Replace the provisional ordinary 12-phase mapping with the direct 160-byte
+   target table and eleven 23+5n landing phases for both P0 and P1.
+2. Make ordinary late slots 68/73 consume the full positioning line rather than
+   relying on a terminal WSYNC; preload/carry graphics or use the setup-line
+   rejoin technique proven here.
+3. Expand pair feasibility from the exact X=159 proof to any pair whose two
+   table-selected slots can be scheduled on the two 76-cycle halves.  The
+   natural baseline is one independent table slot per physical line.
+4. Keep VDELP0/VDELP1 as a graphics-handoff tool only if the late ordinary
+   position path cannot carry the required GRPx byte cleanly.
+5. Use fair rotating flicker only for geometries that remain impossible after
+   independent/split/VDEL classes.
+6. Full Stella sweep public X=0..159 on both lanes, then fix stale per-event color.

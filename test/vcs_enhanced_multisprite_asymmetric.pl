@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# expectstdout: vcs_enhanced_multisprite_asymmetric ok: stable full-PF 192-line raster, exact 11-phase P0/P1 RESP lattice, combined X/Y stress
+# expectstdout: vcs_enhanced_multisprite_asymmetric ok: stable full-PF 192-line raster, phase-73 adjacent-line pair proof, combined X/Y stress
 # expectexit: 0
 
 use strict;
@@ -32,12 +32,12 @@ my$text=read_file($renderer);
 
 $text =~ /TEMPLATE_HARDWARE_LANES\s*:=\s*2/ or die "asymmetric renderer lost two-lane contract\n";
 $text =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*192/ or die "asymmetric renderer lost 192-line contract\n";
-$text =~ /TEMPLATE_P0RespSlot5:;.*?asm bit\.z TEMPLATE_event_stage;/s
-   or die "P0 slot-5 calibrated three-cycle delay missing\n";
+$text =~ /TEMPLATE_P0RespSlot5:;.*?asm bit\.a TEMPLATE_event_stage;/s
+   or die "P0 slot-5 calibrated four-cycle delay missing\n";
 $text =~ /TEMPLATE_P0RespSlot8:;.*?asm bit\.z TEMPLATE_event_stage;/s
    or die "P0 slot-8 calibrated three-cycle delay missing\n";
-$text =~ /TEMPLATE_P1RespSlot5:;.*?asm bit\.z TEMPLATE_event_stage;/s
-   or die "P1 slot-5 calibrated three-cycle delay missing\n";
+$text =~ /TEMPLATE_P1RespSlot5:;.*?asm bit\.a TEMPLATE_event_stage;/s
+   or die "P1 slot-5 calibrated four-cycle delay missing\n";
 $text =~ /TEMPLATE_P1RespSlot8:;.*?asm bit\.z TEMPLATE_event_stage;/s
    or die "P1 slot-8 calibrated three-cycle delay missing\n";
 $text !~ /sta\.a RESP[01]/ or die "late RESP slots regressed to exact-boundary absolute TIA stores\n";
@@ -88,20 +88,19 @@ sub expect_timing {
 
 expect_timing('static asymmetric timing',100);
 
-my$phases='14,19,24,28,33,36,42,47,50,56,61';
-expect_timing('11-phase randomized X stress',5000,
+my$phases='14,19,24,28,33,37,42,47,50,53,58,63';
+expect_timing('13-phase randomized X stress',5000,
    '--randomize-zp',sprintf('0x%02x',$x_addr),'6','160','0x31415927',
-   '--require-resp-phases',$phases,
-   '--require-dual-resp');
+   '--require-resp-phases',$phases);
 
-# Pin one real same-Y/same-coarse pair so the experimental two-RESP path cannot
-# silently disappear behind random coverage. Sprites 2/3 share Y=74 and coarse
-# slot 2; the remaining objects reproduce a known stable allocator ordering.
-expect_timing('same-slot true dual RESP',500,
+# Pin the first hardware-derived far-right 152-cycle feasibility class.
+# Sprites 2/3 share Y=74 at public X=159; RESP0 and RESP1 must occur on
+# adjacent physical lines at phase 73, followed by HMOVE at absolute cycle 152.
+expect_timing('phase-73 adjacent-line pair',500,
    '--set-zp',sprintf('0x%02x',$x_addr+0),'93',
    '--set-zp',sprintf('0x%02x',$x_addr+1),'115',
-   '--set-zp',sprintf('0x%02x',$x_addr+2),'31',
-   '--set-zp',sprintf('0x%02x',$x_addr+3),'32',
+   '--set-zp',sprintf('0x%02x',$x_addr+2),'159',
+   '--set-zp',sprintf('0x%02x',$x_addr+3),'159',
    '--set-zp',sprintf('0x%02x',$x_addr+4),'24',
    '--set-zp',sprintf('0x%02x',$x_addr+5),'136',
    '--set-zp',sprintf('0x%02x',$y_addr+0),'6',
@@ -110,7 +109,8 @@ expect_timing('same-slot true dual RESP',500,
    '--set-zp',sprintf('0x%02x',$y_addr+3),'74',
    '--set-zp',sprintf('0x%02x',$y_addr+4),'2',
    '--set-zp',sprintf('0x%02x',$y_addr+5),'1',
-   '--require-dual-resp');
+   '--require-resp-phases','73',
+   '--require-adjacent-resp');
 
 # Historical stream-interruption repro: sprites 0/3 share Y=89 and coarse slot
 # 6. The top-edge dispatcher has its own balanced one-RESP entry, so this case
@@ -142,8 +142,7 @@ for my$spec (
    expect_timing("combined X/Y stress $xs/$ys",5000,
       '--randomize-zp',sprintf('0x%02x',$x_addr),'6','160',$xs,
       '--randomize-zp',sprintf('0x%02x',$y_addr),'6','90',$ys,
-      '--require-resp-phases',$phases,
-      '--require-dual-resp');
+      '--require-resp-phases',$phases);
 }
 
-print "vcs_enhanced_multisprite_asymmetric ok: stable full-PF 192-line raster, exact 11-phase P0/P1 RESP lattice, combined X/Y stress\n";
+print "vcs_enhanced_multisprite_asymmetric ok: stable full-PF 192-line raster, phase-73 adjacent-line pair proof, combined X/Y stress\n";

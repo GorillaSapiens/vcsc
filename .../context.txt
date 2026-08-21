@@ -1381,21 +1381,23 @@ LATEST RESP IMPLEMENTATION STATUS (2026-08-20):
   run_asymmetric_frame() to solve 4K linker placement without changing behavior.
 
 LATEST ENHANCED-ASYMMETRIC PROGRESS (2026-08-21):
-The current full-PF0/PF1/PF2 192-line asymmetric renderer retains ordinary P0
-and P1 RESP instruction-end phases 14,19,24,28,33,36,42,47,50,56,61 and the
-close-event, six-sprite VBLANK, bottom-underflow, and top-edge timing fixes.  It
-now also has a real same-Y/same-coarse same-scanline RESP0+RESP1 proof path;
-combined randomized X/Y stress stays at 262 displayed lines while requiring a
-dual-RESP physical line.  Y=89 pairs deliberately fall back to the proven two
-one-RESP paths after the special top dispatcher exposed a marker interaction.
-Current example: 3905/4090 ROM, 119/128 RAM.
+The passing asymmetric renderer now has its first real adjacent-line 152-cycle
+pair class.  Exact same-Y X=159/X=159 pairs issue RESP0 at phase 73 on physical
+line A, RESP1 at phase 73 on physical line B (absolute cycle 149), then HMOVE at
+absolute cycle 152 with no middle WSYNC.  Stella 7.0 shows the expected wrapped
+X=159 glyph pixels at hardware X=158..159 and 0..5.  The old literal same-line
+dual-RESP pair ladders/groups were removed; other pair geometries currently fall
+back to the proven independent one-RESP paths.  The public example is 3814/4090
+ROM and 119/128 RAM before final checkpoint packaging.
 
-Stella 7.0 pixel checks prove the inherited 160-entry X table is NOT calibrated
-for this asymmetric phase lattice, even on ordinary non-dual events.  The next
-order is: calibrate ordinary P0/P1 public X=0..159; prefer adjacent-scanline
-one-RESP pair splitting where it can reuse that calibration; retain literal
-dual RESP only where useful; use VDELP0/VDELP1 only if graphics-latch handoff
-needs another line; permit fair rotating flicker only as a final fallback; then
-fix the stale per-event color handoff.  The timing harness now supports repeated
---set-zp, --require-resp-phases, and --require-dual-resp.  Read the latest
-section of `.../enhanced_asymmetric.txt` before continuing this side quest.
+Final horizontal target: eleven RESP phases 23,28,33,38,43,48,53,58,63,68,73;
+line B uses the same lattice +76.  Use a direct 160-byte packed X->{slot,HMP}
+table, not runtime arithmetic.  The 12-phase ordinary path remains until migrated
+and Stella-certified for X=0..159.
+
+Pair scheduling remains `(X0,X1,Y)` feasibility: independent one-RESP,
+adjacent-line 152-cycle split, optional VDEL-assisted split, then fair flicker if
+needed.  Y=89 is only a top-entry case.  Next: migrate ordinary P0/P1 to the
+11-slot table, expand the split-pair classifier beyond the proven phase-73 class,
+full Stella X=0..159, then stale per-event color handoff.  Read the latest section
+of `.../enhanced_asymmetric.txt` before continuing.

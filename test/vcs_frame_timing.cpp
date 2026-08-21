@@ -68,6 +68,7 @@ std::vector<FixedZpWrite> fixed_zp_writes;
 bool resp_phase_seen[2][kCyclesPerScanline] = {};
 uint64_t last_resp_line[2] = {UINT64_MAX, UINT64_MAX};
 bool saw_dual_resp_line = false;
+bool saw_adjacent_resp_lines = false;
 std::vector<unsigned> expected_resp_phases;
 std::vector<unsigned> required_resp_phases;
 
@@ -159,8 +160,12 @@ void apply_writes() {
          const unsigned lane = event.address == kResp1 ? 1u : 0u;
          const uint64_t line = virtual_cycles / kCyclesPerScanline;
          resp_phase_seen[lane][virtual_cycles % kCyclesPerScanline] = true;
+         const uint64_t other_line = last_resp_line[lane ^ 1u];
          last_resp_line[lane] = line;
-         if (last_resp_line[lane ^ 1u] == line) saw_dual_resp_line = true;
+         if (other_line == line) saw_dual_resp_line = true;
+         if (other_line != UINT64_MAX && other_line + 1 == line) {
+            saw_adjacent_resp_lines = true;
+         }
       }
       if (event.address == kWsync) {
          const uint64_t within_line = virtual_cycles % kCyclesPerScanline;
@@ -228,7 +233,7 @@ void apply_writes() {
 int main(int argc, char **argv) {
    if (argc < 3) {
       std::fprintf(stderr,
-         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--randomize-zp ADDR COUNT MODULUS SEED]... [--set-zp ADDR VALUE]... [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp]\n",
+         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--randomize-zp ADDR COUNT MODULUS SEED]... [--set-zp ADDR VALUE]... [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
          argv[0]);
       return 2;
    }
@@ -237,6 +242,7 @@ int main(int argc, char **argv) {
    bool require_audio_start_sync = false;
    bool require_audio_retune_muted = false;
    bool require_dual_resp = false;
+   bool require_adjacent_resp = false;
    uint64_t expected_raw_lines = kDefaultVsyncIntervalScanlines;
    for (int i = 3; i < argc; ++i) {
       if (std::strcmp(argv[i], "--no-audio") == 0) {
@@ -302,6 +308,9 @@ int main(int argc, char **argv) {
       }
       else if (std::strcmp(argv[i], "--require-dual-resp") == 0) {
          require_dual_resp = true;
+      }
+      else if (std::strcmp(argv[i], "--require-adjacent-resp") == 0) {
+         require_adjacent_resp = true;
       }
       else if (std::strcmp(argv[i], "--require-resp-phases") == 0) {
          if (++i >= argc) {
@@ -439,6 +448,10 @@ int main(int argc, char **argv) {
 
    if (require_dual_resp && !saw_dual_resp_line) {
       fail("test run did not exercise a same-scanline RESP0/RESP1 pair");
+   }
+
+   if (require_adjacent_resp && !saw_adjacent_resp_lines) {
+      fail("test run did not exercise adjacent-line RESP0/RESP1 positioning");
    }
 
    if (!required_resp_phases.empty()) {
