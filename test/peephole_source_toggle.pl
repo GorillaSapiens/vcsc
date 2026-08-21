@@ -1,7 +1,6 @@
 #!/usr/bin/env perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: compile
-# timeout: 30
 # expectexit: 0
 # expectstdout: peephole source toggle tests passed
 

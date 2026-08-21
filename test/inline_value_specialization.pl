@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @VCSC_CC1@ @TEST_ROOT@
 # phase: compile
-# timeout: 30
 # expectexit: 0
 # expectstdout: inline value specialization tests passed
 

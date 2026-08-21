@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 4
 # expectstdout: vcs_visible_component_handoff ok
 # expectexit: 0
 

@@ -77,6 +77,74 @@ void initialize_enhanced_scene(void) {
    game_PLAYER5_Y := 16;
 }
 
+// Keep the interactive controls fragmented into separate out-of-line helpers.
+// The RESP jump table is page-contained; one monolithic control function can
+// otherwise fail placement despite the cartridge having enough total ROM.
+void update_asymmetric_selection(void) {
+   update_multisprite_selection();
+}
+void move_asymmetric_left(void) {
+   switch (selected_object) {
+      case SELECTED_PLAYER0: if (game_PLAYER0_X > 0) { game_PLAYER0_X--; } break;
+      case SELECTED_PLAYER1: if (game_PLAYER1_X > 0) { game_PLAYER1_X--; } break;
+      case SELECTED_PLAYER2: if (game_PLAYER2_X > 0) { game_PLAYER2_X--; } break;
+      case SELECTED_PLAYER3: if (game_PLAYER3_X > 0) { game_PLAYER3_X--; } break;
+      case SELECTED_PLAYER4: if (game_PLAYER4_X > 0) { game_PLAYER4_X--; } break;
+      default: if (game_PLAYER5_X > 0) { game_PLAYER5_X--; }
+   }
+}
+void move_asymmetric_right(void) {
+   switch (selected_object) {
+      case SELECTED_PLAYER0: if (game_PLAYER0_X < 159) { game_PLAYER0_X++; } break;
+      case SELECTED_PLAYER1: if (game_PLAYER1_X < 159) { game_PLAYER1_X++; } break;
+      case SELECTED_PLAYER2: if (game_PLAYER2_X < 159) { game_PLAYER2_X++; } break;
+      case SELECTED_PLAYER3: if (game_PLAYER3_X < 159) { game_PLAYER3_X++; } break;
+      case SELECTED_PLAYER4: if (game_PLAYER4_X < 159) { game_PLAYER4_X++; } break;
+      default: if (game_PLAYER5_X < 159) { game_PLAYER5_X++; }
+   }
+}
+void move_asymmetric_up(void) {
+   switch (selected_object) {
+      case SELECTED_PLAYER0: if (game_PLAYER0_Y < game_PLAYER0_MAX_Y) { game_PLAYER0_Y++; } break;
+      case SELECTED_PLAYER1: if (game_PLAYER1_Y < game_PLAYER1_MAX_Y) { game_PLAYER1_Y++; } break;
+      case SELECTED_PLAYER2: if (game_PLAYER2_Y < game_PLAYER1_MAX_Y) { game_PLAYER2_Y++; } break;
+      case SELECTED_PLAYER3: if (game_PLAYER3_Y < game_PLAYER1_MAX_Y) { game_PLAYER3_Y++; } break;
+      case SELECTED_PLAYER4: if (game_PLAYER4_Y < game_PLAYER1_MAX_Y) { game_PLAYER4_Y++; } break;
+      default: if (game_PLAYER5_Y < game_PLAYER1_MAX_Y) { game_PLAYER5_Y++; }
+   }
+}
+void move_asymmetric_down(void) {
+   switch (selected_object) {
+      case SELECTED_PLAYER0: if (game_PLAYER0_Y > 0) { game_PLAYER0_Y--; } break;
+      case SELECTED_PLAYER1: if (game_PLAYER1_Y > 0) { game_PLAYER1_Y--; } break;
+      case SELECTED_PLAYER2: if (game_PLAYER2_Y > 0) { game_PLAYER2_Y--; } break;
+      case SELECTED_PLAYER3: if (game_PLAYER3_Y > 0) { game_PLAYER3_Y--; } break;
+      case SELECTED_PLAYER4: if (game_PLAYER4_Y > 0) { game_PLAYER4_Y--; } break;
+      default: if (game_PLAYER5_Y > 0) { game_PLAYER5_Y--; }
+   }
+}
+void update_asymmetric_motion(void) {
+   if (!(SWCHA & 0x40)) { move_asymmetric_left(); }
+   else { if (!(SWCHA & 0x80)) { move_asymmetric_right(); } }
+   if (!(SWCHA & 0x10)) { move_asymmetric_up(); }
+   else { if (!(SWCHA & 0x20)) { move_asymmetric_down(); } }
+}
+
+void run_asymmetric_frame(void) {
+   vcs_ntsc_vsync();
+   vcs_ntsc_begin_vblank();
+   game_vblank();
+   vcs_ntsc_end_vblank();
+
+   game_draw();
+
+   vcs_ntsc_begin_overscan();
+   game_overscan();
+   if (!(SWCHB & 0x01)) { initialize_enhanced_scene(); }
+   else { update_asymmetric_selection(); update_asymmetric_motion(); }
+   vcs_ntsc_end_overscan();
+}
+
 void main(void) {
    SWACNT := 0;
    SWBCNT := 0;
@@ -84,17 +152,6 @@ void main(void) {
    initialize_enhanced_scene();
 
    while (1) {
-      vcs_ntsc_vsync();
-      vcs_ntsc_begin_vblank();
-      game_vblank();
-      vcs_ntsc_end_vblank();
-
-      game_draw();
-
-      vcs_ntsc_begin_overscan();
-      game_overscan();
-      if (!(SWCHB & 0x01)) { initialize_enhanced_scene(); }
-      else { update_multisprite_controls(); }
-      vcs_ntsc_end_overscan();
+      run_asymmetric_frame();
    }
 }

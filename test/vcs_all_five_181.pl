@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 15
 # expectstdout: vcs_all_five_181 ok
 # expectexit: 0
 

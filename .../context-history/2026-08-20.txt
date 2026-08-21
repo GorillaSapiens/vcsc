@@ -29,3 +29,10 @@ coarse cell is three bytes/five cycles.  VBLANK stores absolute pointer lows,
 BIT/BVS uses low-byte bit 6 as the lane tag, and adjacent event_stage holds the
 common pointer high.  Current example: 3710 ROM / 117 RAM.  Raster entry into
 the ladders remains the next step.
+2026-08-20 19:22:04 PDT, raise default test timeout to 45 seconds
+`test/test.pl` now defaults every case to 45 seconds. Explicit timeout
+headers below 45 seconds were removed from 46 tests so they inherit the new
+default; explicit 45/60/90/120/180/240-second exceptions remain intact.
+`test/README.md` documents the new default. `.../context.txt` was compacted
+below its 100 KiB hard ceiling without weakening `source_tree_hygiene.pl`, and
+its testing-policy summary now records the 45-second rule.

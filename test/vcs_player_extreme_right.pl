@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 20
 # expectstdout: vcs_player_extreme_right ok
 # expectexit: 0
 

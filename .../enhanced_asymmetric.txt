@@ -525,3 +525,503 @@ while fixing frame stability; setup_position retains slot*3 plus bit-6 lane
 encoding.  pair_y/color staging for subsequent events is also intentionally
 deferred to the upcoming real position-line schedule.  Do not claim horizontal
 X=0..159 calibration yet.
+
+LATEST HANDOFF / RESP CASE-SCHEDULER ROADMAP -- 2026-08-20
+==========================================================
+This section is the authoritative continuation plan if the current chat is lost.
+It intentionally distinguishes VERIFIED SOURCE STATE from PLANNED RESP WORK.
+Do not infer that a planned item has been implemented unless this section says
+it is verified in source.
+
+VERIFIED CURRENT SOURCE STATE
+-----------------------------
+Baseline for this handoff is the current `vcsc_do_resp2` working tree, which is
+newer than the 1408 frame-stable checkpoint.  The current asymmetric renderer
+builds successfully at:
+
+    ROM: 3691 / 4090 bytes used, 399 free
+    RAM: 117 / 128 bytes used, 11 free
+
+A fresh timing-harness run on the public asymmetric example reports:
+
+    vcs_frame_timing ok: 97 frames at 262 lines, 0 AUDV0 writes
+
+using `--raw-lines 264`.
+
+The verified source already contains these post-1408 changes:
+
+* full PF0/PF1/PF2 non-reflected asymmetric playfield remains intact;
+* the trigger line pre-stages the following position band's left PF0 in its tail;
+* Position0LineA and Position1LineA exploit that staged PF0 and no longer reload
+  it at the beginning of the line;
+* target-lane HMP and COLUP are moved out of the RESP-critical line B and into
+  position line A while the target hardware player is idle;
+* continuing-lane bitmap handling on line B uses PHA/PLA instead of a zero-page
+  current_gfx save/reload;
+* fixed RESP0/RESP1 strobes are STILL present.  Variable horizontal coarse RESP
+  has NOT yet been implemented in source;
+* the five event-dependent phantom scanlines fixed in the 1408 checkpoint remain
+  fixed.  Do not reintroduce setup-line overflow while changing RESP timing.
+
+Current event metadata still predecodes the coarse slot during VBLANK as
+`slot*3`; P1 adds $40, so bit 6 remains available as a lane tag.  The old
+128-byte landing object is not currently emitted.  `event_stage` is scratch.
+
+THE CENTRAL DESIGN CHANGE
+-------------------------
+Do not force every positioning event through one universal scanline schedule.
+Classify the visible raster by the number of RESP strobes required on that
+physical scanline, then schedule PF writes around the requested RESP times:
+
+    0 RESP: no sprite reposition on this line
+    1 RESP: one hardware player must be repositioned
+    2 RESP: both P0 and P1 must be repositioned
+
+The playfield is non-reflected and full 40-bit asymmetric.  Think of the three
+right-half writes as ordered timing landmarks:
+
+    R0 = right PF0
+    R1 = right PF1
+    R2 = right PF2
+
+Use the END OF THE PREVIOUS SCANLINE aggressively.  Left-side state need not all
+be loaded after the new line starts.  Any PF register whose previous right-half
+bits have already been consumed may be loaded with the next line's left value in
+the tail.  The current verified code already does this for left PF0.  The next
+RESP implementation should attempt to stage left PF1 too, and if useful carry a
+left PF2 value across the boundary in A/Y so the hot line starts with as little
+left-PF work as possible.
+
+0-RESP CASE
+-----------
+There is only one fundamental 0-RESP case.  It has abundant cycles.  Use it to:
+
+* issue the normal six PF writes;
+* perform as much next-line PF staging as possible;
+* advance graphics state;
+* preload upcoming event metadata/color/HMP when safe;
+* pay scheduler/bookkeeping costs that do not belong on a RESP-critical line.
+
+This case is the preferred place to hide work for following 1-RESP/2-RESP
+lines.
+
+1-RESP CASES
+------------
+The eleven coarse X slots are timestamps, not eleven different algorithms.
+Classify a requested RESP relative to R0/R1/R2.  Fundamental one-RESP orderings
+are:
+
+    RESP R0 R1 R2
+    R0 RESP R1 R2
+    R0 R1 RESP R2
+    R0 R1 R2 RESP
+
+Boundary/collision variants around the preferred R0/R1/R2 phases may require
+moving that PF write to the early or late edge of its legal window.  Conceptually
+this gives seven useful scheduling classes:
+
+    before R0
+    around R0
+    between R0/R1
+    around R1
+    between R1/R2
+    around R2
+    after R2
+
+A compact four-class implementation was worked out on paper as a likely first
+coding pass:
+
+    coarse slots 0-2: RESP early, then remaining right PF writes
+    coarse slots 3-5: R0 before RESP; R1/R2 after
+    coarse slots 6-8: R0/R1 (and where legal R2) before RESP
+    coarse slots 9-10: all right PF writes plus bookkeeping before late RESP
+
+Do not treat those group boundaries as sacred; change them if Stella/pixel
+calibration says a neighboring placement is cleaner.
+
+KNOWN-GOOD COARSE PHASE REFERENCE
+---------------------------------
+The maintained symmetric enhanced multisprite positioner was measured and uses
+an exact five-CPU-cycle coarse cadence.  Its useful RESP phases are:
+
+    slot:  0  1  2  3  4  5  6  7  8  9  10
+    cycle:21 26 31 36 41 46 51 56 61 66 71
+
+The current asymmetric fixed RESP happens near the slot-2 / cycle-31 anchor.
+Prefer reproducing the known-good 21..71 lattice if the full-PF schedules allow
+it.  A compact PF-aware paper schedule also produced approximately:
+
+    22,27,32,36,41,46,50,55,60,65,70
+
+That alternate lattice has NOT been coded or calibrated.  It is acceptable only
+if the HMP/coarse table is regenerated from actual Stella pixels.  Never reuse
+the existing 160-byte X table merely because the phases look close.
+
+DELAY / DISPATCH MECHANISM
+--------------------------
+A useful linker-safe primitive has already been proven in an earlier checkpoint:
+
+    NOP             ; 2 cycles, 1 byte
+    BIT zp          ; 3 cycles, 2 bytes
+
+Together they are exactly 5 cycles / 3 ROM bytes.  A descending trampoline
+ladder can therefore provide 0/5/10-cycle offsets with only three bytes per
+step.  An earlier 128-byte-aligned, page-contained P0/P1 landing object linked
+successfully.  A dedicated 256-byte-aligned page did NOT: its alignment
+fragmented the 4K linker enough to overflow `main`.  Do not revive the 256-byte
+layout.
+
+Possible implementations, in preferred order of simplicity:
+
+1. Keep the already split P0/P1 raster paths and use lane-specific handlers with
+   literal `STA RESP0` or `STA RESP1`; this avoids paying a lane-selection tax at
+   the actual RESP cycle.
+2. Use compact per-player 5-cycle ladders in one 128-byte-contained object.
+3. Reuse the existing `slot*3` predecode and bit-6 lane tag if it still saves
+   code.  If pointer geometry becomes awkward, lane identity can instead be
+   carried in event metadata and the pointer may use all eight low bits.
+4. `position_packed:event_stage` are adjacent zero-page bytes and can form an
+   NMOS indirect-JMP vector if an indirect dispatcher proves smaller.  This was
+   demonstrated previously but removed while recovering ROM for frame stability.
+
+Do not add a large branch chain in the beam-critical line.  The point of VBLANK
+predecode/trampolines is to keep data-dependent timing out of the visible path.
+
+REGISTER / SCANLINE-TAIL OPPORTUNITIES
+--------------------------------------
+Current verified code carries a continuing bitmap byte across the boundary and
+uses PHA/PLA on line B.  Further cycle recovery candidates, NOT YET CODED:
+
+* carry the continuing graphics-state INDEX in Y across the boundary and defer
+  the actual `LDA graphics,Y` until the cheapest side of RESP; this can remove
+  the PHA/PLA pair or move it out of the hot region;
+* carry a next-line left PF value in A and another in Y when their lifetimes do
+  not collide with the graphics state;
+* pre-stage next-line PF0 and PF1 late in the previous line; PF2 may be the only
+  left-half PF write that must remain early on the RESP line;
+* move DEX, INC setup_index, next-event loads, and continuing-glyph preparation
+  progressively BEFORE RESP as the requested RESP moves to later coarse slots;
+  leave them after RESP for early slots;
+* HMP and current-event color are already moved into line A in the current
+  source.  Preserve that win unless a measured schedule proves a better home.
+
+An earlier attempt simply moved the existing lane branch before WSYNC and caused
+an extra scanline because the old line then exceeded cycle 75.  Do NOT repeat
+that exact edit.  A pre-WSYNC lane decision is only worth revisiting after enough
+other work has been moved earlier/later that the boundary is still exact.  If a
+BIT/BVS lane flag is used, remember that loads/stores preserve V, which can make
+V a useful lane-state carrier across non-flag-changing instructions.
+
+2-RESP CASES
+------------
+The current scheduler has historically avoided overlapping setup/position events,
+which helped create the overconstrained single-position-line design.  The final
+case scheduler should allow a physical scanline to reposition both hardware
+players when needed and select a true 2-RESP schedule.
+
+Let A and B be the two RESP strobes ordered by required cycle (A <= B).  Ignoring
+exact spacing, there are ten fundamental interleavings with R0/R1/R2:
+
+    A B R0 R1 R2
+    A R0 B R1 R2
+    A R0 R1 B R2
+    A R0 R1 R2 B
+    R0 A B R1 R2
+    R0 A R1 B R2
+    R0 A R1 R2 B
+    R0 R1 A B R2
+    R0 R1 A R2 B
+    R0 R1 R2 A B
+
+Each ordering may have spacing subclasses:
+
+* same coarse slot;
+* adjacent slots (5-cycle separation);
+* moderate separation where one useful operation fits between RESP writes;
+* far separation where multiple PF/bookkeeping operations fit between them.
+
+When both players want the same/near phase, test whether consecutive
+`STA RESP0` / `STA RESP1` (or reverse order) plus independent HMP calibration is
+cheaper than treating them as two fully separate timed islands.  Player identity
+should be orthogonal to the ordering: support P0-then-P1 and P1-then-P0 without
+duplicating the entire timing architecture where possible.
+
+SCHEDULER CHANGES REQUIRED FOR 0/1/2 RESP
+-----------------------------------------
+Once the one-RESP path is proven, modify the VBLANK event scheduler so each
+physical positioning line can be classified explicitly as 0, 1, or 2 RESP
+operations.  Do not relax conflict rules blindly: setup/color/HMP writes that can
+corrupt an already visible same-lane sprite still need their existing exclusion
+windows.  The goal is to allow two independent hardware-lane RESP operations on
+the same line when their setup lifetimes make that safe, not to permit arbitrary
+same-lane overlap.
+
+Precompute as much as possible during VBLANK:
+
+* lane(s) to reposition;
+* coarse slot(s);
+* HMP fine nibble(s);
+* case class / ordering where cheap to encode;
+* event color and graphics start state;
+* any dispatch entry low byte or compact case id.
+
+The visible raster should consume a compact hot record rather than chase logical
+sprite ids.
+
+HMP / X TABLE RECALIBRATION
+---------------------------
+After real variable RESP exists, build a small diagnostic path/cart if that is
+faster than testing through the full scheduler.  It MUST use the same full
+PF0/PF1/PF2 non-reflected raster timing as the production position line.
+
+Calibration order:
+
+1. P0 only, HMP disabled/neutral: verify eleven visibly distinct coarse phases.
+2. P1 only, same test.
+3. Add HMP and sweep public X=0..159 for P0.
+4. Sweep X=0..159 for P1.
+5. Generate the final 160-entry packed position table(s) from measured Stella
+   pixels, not from assumed phase math.
+6. Verify leftmost and rightmost positions explicitly; avoid the historical
+   false phase assumptions that affected older position tables.
+7. Then exercise P0/P1 swaps and two-RESP same/adjacent/far slot pairs.
+
+If P0 and P1 need different packed tables because their exact STA timing differs,
+use separate tables or encode the delta during VBLANK.  Correct pixels are more
+important than saving a handful of ROM bytes.
+
+PLAYFIELD VALIDATION
+--------------------
+Every physical visible scanline, INCLUDING trigger/position/setup special lines,
+must preserve independent left/right PF0/PF1/PF2.  Keep CTRLPF REF=0.  Do not
+quietly fall back to PF1/PF2-only or reflected PF to make RESP easier.
+
+Add/extend a pixel oracle that uses deliberately different PF0/PF1/PF2 patterns
+on left and right so omission of any one special-line write is obvious.  Check
+special position/setup bands as well as ordinary lines.
+
+FRAME / RASTER VALIDATION
+-------------------------
+The frame-stability bug previously added one raw scanline per setup event.  Any
+RESP integration must preserve:
+
+    97 checked frames at 262 displayed lines with --raw-lines 264
+
+for the static asymmetric example.  Also vary event count and Y ordering so no
+0/1/2-RESP case introduces a hidden 77+ cycle path.  Use branch `.same`/`.cross`
+contracts consistently and inspect map/listing placement when adding branches;
+linker page placement has caused real regressions before.
+
+COLOR / EVENT PIPELINE FOLLOW-UP
+--------------------------------
+Current-event HMP/color are staged in position line A.  `pair_y` is currently the
+hot color scratch.  Verify that every subsequent event receives the correct
+color after the RESP dispatcher changes the event handoff.  Do not reintroduce
+the former SetupLineB overflow by stuffing next-event color/metadata back there.
+Use ordinary 0-RESP bands / scanline tails for that handoff when possible.
+
+ROM/RAM BUDGET
+--------------
+Current verified budget is 3691/4090 ROM and 117/128 RAM, leaving 399 ROM bytes
+and 11 RAM bytes.  Earlier experiments showed the design can fit, but alignment
+fragmentation matters.  Prefer compact fall-through handlers, shared tails, and
+128-byte-contained ladders.  `setup_count` becomes dead after VBLANK and may be
+reused as draw-time scratch if genuinely necessary; confirm overscan does not
+need any candidate byte before aliasing it.  Do not spend RAM merely to simplify
+code that can be predecoded in VBLANK.
+
+TEST / COMPLETION GATES
+-----------------------
+Do not call this feature complete until ALL of the following are true:
+
+1. Full PF0/PF1/PF2 non-reflected asymmetric raster remains correct on ordinary
+   and every special line.
+2. 0-RESP, 1-RESP, and 2-RESP visible paths are implemented as required by the
+   scheduler.
+3. All eleven coarse RESP phases are real variable strobes, not fixed fallback.
+4. P0 public X=0..159 is Stella pixel-calibrated.
+5. P1 public X=0..159 is Stella pixel-calibrated.
+6. Two-player same-slot, adjacent-slot, middle-distance, and far-distance X
+   combinations work in both P0/P1 orders.
+7. Combined X/Y movement and sprite crossings remain correct.
+8. Three-or-more logical-sprite contention still rotates fairly 2-of-N.
+9. Static and stressed frames remain 262 displayed NTSC lines.
+10. `vcs_renderer_branch_contracts.pl`, source-tree hygiene, branding, the
+    asymmetric-specific tests, and the maintained player-only enhanced
+    multisprite regression pass.
+11. Existing `libraries/vcs/renderers/enhanced_multisprite/` remains untouched
+    except for deliberately shared tests/docs; do not regress the already-good
+    symmetric renderer while finishing the asymmetric sibling.
+12. Update public README/handoff docs with actual measured X behavior and final
+    ROM/RAM accounting.
+
+NEXT ACTION IN A NEW CHAT
+-------------------------
+Start from this checkpoint.  Read top-level README.md, all of `.../context.txt`,
+then this file.  Do NOT read context-history unless investigating a regression.
+Build the asymmetric example and reproduce the 3691 ROM / 117 RAM and 97-frame
+262-line timing baseline.  Then implement REAL one-RESP coarse movement first,
+using the case-based PF scheduling above.  The next handoff is only meaningful if
+at least two coarse slots visibly/traceably produce different RESP phases; do not
+spend another entire iteration on dispatcher scaffolding with the fixed RESP
+still active.  Once one-RESP works, checkpoint it immediately, then proceed to
+full 11-slot Stella calibration and finally 2-RESP scheduling.
+
+IMPLEMENTED CHECKPOINT -- REAL P0 RESP PHASES -- 2026-08-20
+===========================================================
+This section supersedes any earlier statement that both lanes still use one
+fixed RESP store.
+
+Implemented in source now:
+- TEMPLATE_draw() remains out-of-line and its raster labels are global within
+  the generated assembly, avoiding the old inline/main local-label collision.
+- The asymmetric example moves its large joystick/select control tree into the
+  out-of-line update_asymmetric_controls() function.  This shrinks main enough
+  that raster growth no longer collides with the reset/vector placement window.
+- run_asymmetric_frame() is also out-of-line; main is intentionally tiny.
+- TEMPLATE_position_table[160] is no longer page-constrained.  It is VBLANK-only
+  and does not need same-page indexed timing.
+- P0 position line A carries next-line left PF0 in A and the continuing P1
+  graphics-state index in Y.  P0 line B no longer uses PHA/PLA and no longer
+  reloads PF0.
+- P1 uses the same A/Y carry optimization, but its RESP store is still the
+  fixed fallback at this checkpoint.
+- P0 has a real PF-aware four-region coarse scheduler driven by slot*3:
+    slots 0..2  -> RESP immediately after carried left PF0
+    slots 3..5  -> RESP after left PF1
+    slots 6..8  -> RESP after left PF2
+    slots 9..10 -> RESP after right PF0
+  All six non-reflected PF writes still occur on the line.
+
+Measured with the repository 6502 timing harness modified only to log TIA RESP
+writes, while randomizing PLAYER0..5 X to 0..159 at VSYNC:
+    RESP0 instruction-end phases: 14, 25, 36, 42 CPU cycles
+    197 checked frames remained at 262 displayed lines (--raw-lines 264)
+So P0 horizontal positioning is no longer a fixed-strobe scaffold: the beam
+really sees multiple RESP phases as X changes.
+
+Current build immediately before this note:
+    ROM 3745 / 4090
+    RAM 119 / 128 (10-byte hardware stack because draw/frame/control helpers
+                      are now genuinely out-of-line)
+
+Still required before calling the renderer complete:
+1. Replace the four coarse P0 regions with enough insertion phases to cover all
+   eleven coarse slots, ideally reproducing or closely approximating the proven
+   21,26,31,36,41,46,51,56,61,66,71 lattice.
+2. Mirror/merge the real scheduler for P1 without duplicating a large handler
+   forest.  Keep full PF0/PF1/PF2 on every special line.
+3. Rebuild the 160-entry HMP/coarse table against the actual new P0 phases, then
+   independently calibrate P1 if its RESP store timing differs.
+4. Stella pixel sweep X=0..159 for P0 and P1; require each requested X to land
+   on the requested public pixel with no jumps or gaps.
+5. Implement/test the 2-RESP cases from the earlier case enumeration.  Include
+   same coarse slot, adjacent, moderate, and far-separated pairs and both lane
+   orders.
+6. Recheck full asymmetric playfield pixels on every special line and maintain
+   stable 262-line NTSC output.
+7. Run renderer branch contracts, hygiene, branding, asymmetric-specific tests,
+   and the maintained sibling enhanced-multisprite regression.
+
+Do NOT discard this four-phase P0 implementation while experimenting.  It is
+our first measured proof that PF-aware RESP placement works under the full
+six-write asymmetric raster.  Branch experiments should start from a tarball
+containing this exact checkpoint or later.
+
+IMPLEMENTED CHECKPOINT -- REAL 11-PHASE RESP, BOTH LANES -- 2026-08-20
+=====================================================================
+This section supersedes the four-region P0-only status immediately above.
+
+The visible raster now executes a real indirect 11-entry coarse RESP dispatcher
+for BOTH hardware players under the full non-reflected PF0/PF1/PF2 asymmetric
+playfield.  The implementation uses the previously proven 128-byte-contained
+jump-table geometry:
+
+* VBLANK converts each coarse slot to slot*3 and adds the lane offset (+$40 for
+  P1), then adds the absolute low byte of TEMPLATE_P0RespJumpBase.
+* adjacent zero-page bytes position_packed:event_stage form the absolute JMP
+  vector; event_stage holds the common page byte.
+* P0 has eleven 3-byte JMP entries at base+$00 and P1 eleven entries at
+  base+$40.  Pointer-low bit 6 therefore remains a cheap lane discriminator.
+* Position?LineB commits carried left PF0 and immediately performs
+  `JMP (TEMPLATE_position_packed)`; the target slot handler places RESP around
+  the legal PF rewrite windows rather than running a variable delay loop.
+
+Measured instruction-end RESP phases with PLAYER0..5 X randomized to 0..159 at
+VSYNC are now, for BOTH P0 and P1:
+
+    slot:   0  1  2  3  4  5  6  7  8  9 10
+    phase: 14 19 24 28 33 36 42 47 50 56 61 CPU cycles
+
+The two highest-delay members of the middle classes originally ended at phases
+38 and 52.  Those paths consumed exactly 76 cycles through the WSYNC store and
+occasionally produced a 265-raw-line interval.  Their unique first delay cell
+is now a 3-cycle zero-page BIT instead of the normal 5-cycle NOP+BIT cell,
+shifting those two phases to 36 and 50 and restoring two cycles of safety.
+The phases remain eleven distinct coarse positions.
+
+NORMAL-SCENE TIMING RESULT
+--------------------------
+With the normal public scene and randomized X, the timing tracer sees all eleven
+P0 phases and all complete post-startup intervals sampled are the expected
+264 raw harness lines (Stella-calibrated 262 displayed NTSC lines).  The first
+startup interval remains 263 raw as expected.
+
+P1 EXECUTION RESULT
+-------------------
+The current public event pipeline can skip an immediately following opposite-
+lane event when its action band is only three bands away, so the default static
+scene does not exercise P1 reliably.  A forced spaced-but-overlapping scene was
+used ONLY as a diagnostic to prove the compiled P1 paths.  It measured all eleven
+P1 phases listed above.  This diagnostic scene accepts all six events and exposes
+a separate VBLANK-budget issue: its VSYNC interval is 265 raw lines.  The visible
+P1 RESP raster itself executes the expected phases; the one-line growth occurs
+with the heavy six-accepted-event VBLANK workload and must be fixed separately.
+
+CURRENT BUILD
+-------------
+After the two cycle-76 fixes:
+
+    ROM 3993 / 4090 (97 bytes free)
+    RAM 119 / 128 (9 bytes free; hardware stack included by linker accounting)
+
+The asymmetric example's large control code is intentionally fragmented into
+out-of-line selection/motion helpers.  This is a linker-placement requirement:
+the 128-byte-contained RESP table plus the previously large monolithic control
+function fragmented the 4K image even though raw capacity was sufficient.
+Do not casually recombine those helpers while RESP remains this close to 4K.
+
+FOCUSED GATES PASS AT THIS CHECKPOINT
+-------------------------------------
+* asymmetric example builds successfully;
+* vcs_renderer_branch_contracts.pl passes;
+* source_tree_hygiene.pl passes;
+* vcsc_branding.pl passes.
+
+NEXT WORK -- DO NOT REGRESS THE 11-PHASE CHECKPOINT
+---------------------------------------------------
+1. Preserve this exact 11-phase implementation as the new safe baseline.
+2. Fix the post-setup metadata pipeline so an immediately following opposite-
+   lane event is not skipped.  In particular, same-Y / close-overlap P0+P1 must
+   both reach their position events instead of the two-line metadata handoff
+   consuming the next trigger band.
+3. Fix the VBLANK budget when all six logical sprites are accepted.  The forced
+   spaced-overlap diagnostic currently grows to 265 raw harness lines although
+   visible draw timing is unchanged.  Optimize/precompute allocation/compaction
+   rather than hiding this by changing visible frame timing.
+4. Revisit the scheduler to represent true 0/1/2-RESP physical lines.  The
+   earlier ten A/B/R0/R1/R2 ordering cases remain the design basis for genuine
+   simultaneous P0/P1 positioning.  The current implementation still schedules
+   lane position events separately; do not call the 2-RESP completion gate met.
+5. Recalibrate the 160-entry packed X table against the NEW measured phase set
+   14,19,24,28,33,36,42,47,50,56,61.  The existing table was calibrated for the
+   maintained symmetric renderer and must not be assumed pixel-correct here.
+6. Stella pixel-sweep public X=0..159 independently for P0 and P1, including
+   edges, swaps, crossings, same-slot/adjacent/far pairs, and HMP fine motion.
+7. Add/extend an asymmetric-specific oracle so every special position/setup line
+   proves independent left/right PF0/PF1/PF2 pixels, not merely frame length.
+8. Re-run the maintained sibling enhanced-multisprite regression and the full
+   relevant suite before final handoff.
+
+IMPORTANT: the next checkpoint must start from this real 11-phase state.  Do not
+revert to the four-region P0 checkpoint or to the fixed-RESP 1658/1408 trees.

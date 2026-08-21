@@ -1,4 +1,4 @@
-We’re working on this VCSC tarball. Unpack it and first read `.../README.md`, then read all of `.../context.txt`. Follow any pointers there to the active roadmap or design document needed for this task. Do not read `.../context-history/` unless you need to investigate an older decision or regression.  The .debs are there in case you need them to build or test in your container.
+We’re working on this VCSC tarball. This is a toolchain for a retrocomputing project, a compiler and disassembler for 1970s era Atari 2600 gaming console. Unpack it and first read `.../README.md`, then read all of `.../context.txt`. Follow any pointers there to the active roadmap or design document needed for this task. Do not read `.../context-history/` unless you need to investigate an older decision or regression.  The .debs are there in case you need them to build or test in your container.
 
 [Describe the task here.]
 

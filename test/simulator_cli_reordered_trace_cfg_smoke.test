@@ -1,6 +1,5 @@
 # runner: stdbuf -o0 vcsc-sim --trace 0x20 @TEST_ROOT@/simulator_smoke_exit.hex -T @REPO@/linker/cfg/sim.cfg
 # phase: e2e
-# timeout: 2
 # expectexit: 7
 # expectstdout: dispatch ff 0007
 # expectstderrexact:

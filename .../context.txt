@@ -455,30 +455,12 @@ unscoped use forbids overlay, and the linker conservatively fills the interval b
 the first and last observed phase. Only actual multi-object sharing groups alter normal
 RAM placement, so phase tagging by itself does not move stable component state.
 
-The animated gallery's historical schema-15 closeout records a one-byte `main`
-activation and zero `install_frames()` activation bytes. The one-byte VSYNC compiler
-scratch now aliases the seven-byte VBLANK+visible+overscan `game_workspace`; the old
-48-byte `game_object_masks` schedule no longer exists. Persistent gallery bookkeeping
-remains four bytes: `animation_state` combines the normal modulo-4 phase, the
-independent source-set-03 modulo-3 phase, and the eight-frame hold clock, while
-`control_flags` combines Select-ready, Fire-ready, and pause state. `sprite0` and
-`sprite1` remain separate because the measured derivation trial saved one RAM byte at
-a 50-ROM-byte cost. `install_frames()` remains ordinary high-level VCSC and 232 linked
-bytes.
-
 `player_color_192` now uses an official-opcode direct-countdown schedule for arbitrary
 P0/P1/Ball vertical state. Its private RAM falls from 56 to 10 bytes and total module
 RAM from 69 to 23; the 48-byte mask and VBLANK range-builder code are gone. P0/P1 use
 height+1 thresholds in phase workspace, while Ball uses a directly decremented Y
 counter with the VDELBL pipeline bias. The renderer has no hidden assembly subroutine,
 retains `.callstackextra 0`, and keeps Ball as a public capability.
-
-The direct-countdown conversion reduces the animated gallery from the item-8
-**3545/4090 ROM, 102/128 RAM, 26 free** checkpoint to **3292/4090 ROM and 56/128
-RIOT-RAM bytes**, leaving **72 bytes free (56.25%)**. Object bytes fall from 98 to 52;
-the one-byte `main` activation and four-byte hardware-stack reserve are unchanged.
-From the original measured RAM-roadmap baseline the gallery has now recovered 701 ROM
-bytes and 72 RAM bytes, with activation down by 19 bytes and stack down by four.
 
 Measured VBLANK work from the first saved-Y workspace write through final pre-visible
 PF2 staging falls from 920 to 468 CPU cycles. Every visible pair remains exactly 152
@@ -1191,9 +1173,9 @@ stable NTSC timing. Its simulator oracle passes from every forced physical start
 bank, and a Stella 7 run visibly displayed green `pass` with a centered `FA` line
 below it. C26 and compatibility-cfg builds are byte-identical 12288-byte cartridges.
 
-The generic per-case test timeout is now 20 seconds, and former explicit
-10-second overrides were raised to 20 seconds as well; longer 120-second
-exceptions remain unchanged.
+The generic per-case test timeout is now 45 seconds. Per-test timeout
+directives below 45 seconds were removed so those cases inherit the default;
+explicit 45-second and longer exceptions remain unchanged.
 
 The unified test runner now supports case-level parallelism with `--jobs N`;
 the test and top-level Makefiles expose it as `TEST_JOBS=N`. Parallel workers
@@ -1375,3 +1357,39 @@ state, enter `JMP (position_packed)`, replace the temporary RTS landings with
 lane-specific RESP continuations, and then Stella-calibrate X=0..159.  The old
 256-byte-aligned trampoline experiment remains rejected.  Read
 `.../enhanced_asymmetric.txt` before continuing.
+
+Latest enhanced-asymmetric checkpoint note (2026-08-20): the current preserved
+working tree is newer than the 1408 frame-stable tarball.  It builds the full
+PF0/PF1/PF2 non-reflected asymmetric renderer at 3691/4090 ROM and 117/128 RAM
+and `vcs_frame_timing` reports 97 checked frames at 262 displayed lines with
+`--raw-lines 264`.  Trigger-line tail PF0 staging plus HMP/color movement into
+position line A are present; line B uses PHA/PLA for the continuing row.  The
+visible RESP itself is STILL the fixed fallback.  The complete remaining
+0/1/2-RESP case-scheduler design, known-good coarse cycle lattice, scanline-tail
+plan, HMP/Stella calibration procedure, 2-RESP ordering matrix, and completion
+gates are now recorded in `.../enhanced_asymmetric.txt`.  That file is the
+authoritative roadmap for this side quest.
+
+LATEST RESP IMPLEMENTATION STATUS (2026-08-20):
+- Full PF0/PF1/PF2 non-reflected asymmetric raster remains frame-stable.
+- P0 now has REAL variable coarse RESP timing: randomized-X harness measured
+  four distinct instruction-end phases 14,25,36,42 cycles.
+- P1 still uses the fixed RESP fallback.
+- Exact implementation and remaining completion gates are in
+  .../enhanced_asymmetric.txt under "IMPLEMENTED CHECKPOINT -- REAL P0 RESP PHASES".
+- Current example was split into out-of-line update_asymmetric_controls() and
+  run_asymmetric_frame() to solve 4K linker placement without changing behavior.
+
+LATEST ENHANCED-ASYMMETRIC RESP CHECKPOINT (2026-08-20):
+The full PF0/PF1/PF2 non-reflected renderer now has REAL eleven-slot indirect
+coarse RESP dispatch for BOTH P0 and P1.  Measured instruction-end phases are
+14,19,24,28,33,36,42,47,50,56,61 cycles for each lane.  The old exact-cycle-76
+slot paths were shortened by two cycles and normal randomized-X frames remain
+at the expected 264 raw harness interval / Stella 262 displayed NTSC lines.
+Current build is 3993/4090 ROM and 119/128 RAM.  Focused branch/hygiene/branding
+gates pass.  Two important defects remain: the post-setup pipeline can skip an
+immediately following opposite-lane event, and a diagnostic scene accepting all
+six events makes VBLANK grow to a 265-raw-line interval.  X=0..159 HMP/Stella
+pixel calibration and genuine 2-RESP same-line scheduling are also unfinished.
+Read the final "IMPLEMENTED CHECKPOINT -- REAL 11-PHASE RESP, BOTH LANES" section
+of `.../enhanced_asymmetric.txt` before changing this renderer.

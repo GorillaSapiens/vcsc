@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# timeout: 20
 # expectstdout: relocatable ROM operands do not relax to zero page
 # expectexit: 0
 

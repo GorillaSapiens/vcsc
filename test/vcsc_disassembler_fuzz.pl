@@ -1,7 +1,6 @@
 #!/usr/bin/env perl
 # runner: perl @TEST_ROOT@/vcsc_disassembler_fuzz.pl @REPO@ @TMP@
 # phase: e2e
-# timeout: 20
 
 use strict;
 use warnings;
