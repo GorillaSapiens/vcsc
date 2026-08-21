@@ -191,27 +191,70 @@ write_bin(File::Spec->catfile($in, 'h1_input_payload.bin'), $h1_input_payload);
 
 # Console-switch concrete scenarios.  The maintained COLOR/BW and difficulty
 # switches have no universally known startup position, so concrete discovery
-# must try all 2^3 combinations with SELECT/RESET released.  This fixture only
-# advances when all three maintained bits are low, then requires an actual
-# SELECT press followed by release before touching RIOT RAM.
+# must try all 2^3 combinations with SELECT/RESET released.  In the all-low
+# combination this fixture generates one VBLANK assertion per synthetic frame
+# and accepts SELECT only if it is released through frames 1-9, pressed through
+# frames 10-19, and released again through frames 20-29.  Only a true
+# 10-frame/10-frame/10-frame pulse writes RAM $93.  The historical
+# 8192/16384-instruction pulse misses the frame-10 window and parks in failure.
 my $console_switches = chr(0xEA) x 1024;
-substr($console_switches, 0x0080, 30,
-   "\xAD\x82\x02" .                 # LDA SWCHB
-   "\x29\xC8" .                     # AND COLOR/BW + both difficulty bits
-   "\xD0\xF9" .                     # BNE back until all three are low
-   "\xAD\x82\x02" .                 # wait SELECT press
-   "\x29\x02" .
-   "\xD0\xF9" .
-   "\xAD\x82\x02" .                 # wait SELECT release
-   "\x29\x02" .
-   "\xF0\xF9" .
-   "\xA9\x5A" .                     # reached only after press+release
-   "\x85\x90" .
-   "\x4C\x99\xFC");                # park
+substr($console_switches, 0x0080, 108,
+   "\xA9\x00\x85\x90\x85\x91" . # frame=0; phase=0
+   "\xA9\x02\x85\x01" .         # loop: assert VBLANK
+   "\xA9\x00\x85\x01" .         # clear VBLANK
+   "\xE6\x90" .                   # ++frame
+   "\xAD\x82\x02\x29\xC8" .   # maintained COLOR/BW+difficulty bits
+   "\xD0\xEF" .                   # other combinations: next frame
+   "\xA5\x90\xC9\x0A\x90\x15" . # frame < 10 -> released check
+   "\xC9\x14\x90\x1B" .       # frame < 20 -> pressed check
+   "\xC9\x1E\x90\x29" .       # frame < 30 -> released-again check
+   "\xA5\x91\xC9\x02\xD0\x3E" . # all three phases observed?
+   "\xA9\x5A\x85\x93" .         # reached only after full 10/10/10 pulse
+   "\x4C\xE9\xFC" .              # park
+   "\xAD\x82\x02\x29\x02\xF0\x29" . # pre10: SELECT must be released
+   "\x4C\x86\xFC" .
+   "\xAD\x82\x02\x29\x02\xD0\x1F" . # 10..19: SELECT must be pressed
+   "\xA5\x91\xD0\xBF" .       # keep phase/failure marker once set
+   "\xA9\x01\x85\x91\x4C\x86\xFC" .
+   "\xAD\x82\x02\x29\x02\xF0\x0D" . # 20..29: SELECT must be released
+   "\xA5\x91\xC9\x01\xD0\xAB" .
+   "\xA9\x02\x85\x91\x4C\x86\xFC" .
+   "\xA9\xFF\x85\x91\x4C\x86\xFC" . # mark timing failure, keep framing
+   "\x4C\xE9\xFC");              # park forever after frame 30
 put16(\$console_switches, 0x03FA, 0xFC80);
 put16(\$console_switches, 0x03FC, 0xFC80);
 put16(\$console_switches, 0x03FE, 0xFC80);
 write_bin(File::Spec->catfile($in, 'console_switches.bin'), $console_switches);
+
+# Baseline VBLANK dwell regression.  Static reachability settles during the
+# delay loop long before the tenth frame marker.  Concrete discovery must not
+# declare the baseline converged once VBLANK use has been observed until ten
+# VBLANK assertion edges occur; only then does execution jump into the RAM
+# payload.  The old 16384-stale-instruction-only rule stopped several frames
+# too early and never reached $00A0.
+my $baseline_vblank = chr(0xEA) x 1024;
+substr($baseline_vblank, 0x0080, 61,
+   "\xA9\xA9\x85\xA0" .           # RAM $A0: LDA #$5A
+   "\xA9\x5A\x85\xA1" .
+   "\xA9\x85\x85\xA2" .           # RAM $A2: STA $91
+   "\xA9\x91\x85\xA3" .
+   "\xA9\x4C\x85\xA4" .           # RAM $A4: JMP $00A0
+   "\xA9\xA0\x85\xA5" .
+   "\xA9\x00\x85\xA6" .
+   "\xA9\x00\x85\x90" .           # frame counter
+   "\xA0\x08" .                     # frame: LDY #8
+   "\xA2\xFF" .                     # outer: LDX #$FF
+   "\xCA\xD0\xFD" .                # inner: DEX / BNE inner
+   "\x88\xD0\xF8" .                # DEY / BNE outer
+   "\xA9\x02\x85\x01" .           # assert VBLANK
+   "\xA9\x00\x85\x01" .           # clear VBLANK
+   "\xE6\x90\xA5\x90\xC9\x0A" . # ++frame; CMP #10
+   "\xD0\xE6" .                     # BNE frame
+   "\x4C\xA0\x00");               # JMP $00A0 after tenth assertion
+put16(\$baseline_vblank, 0x03FA, 0xFC80);
+put16(\$baseline_vblank, 0x03FC, 0xFC80);
+put16(\$baseline_vblank, 0x03FE, 0xFC80);
+write_bin(File::Spec->catfile($in, 'baseline_vblank.bin'), $baseline_vblank);
 
 # H2 fixed-point fixture.  Concrete RESET execution sees TIA read $00 as zero
 # and parks at $FD04.  Static analysis correctly treats the TIA read as unknown
@@ -511,6 +554,55 @@ for my $v (0, 2, 4) {
 }
 write_bin(File::Spec->catfile($in, 'f8_cross_switch_possible_jam.bin'),
           $f8_cross_vs_possible_jam);
+
+# Concrete execution takes BEQ because RIOT RAM starts at zero.  Static RESET
+# analysis does not know that RAM value, so historically it promoted both arms
+# and called the never-observed fallthrough JAM established code.  An unknown
+# branch arm that was not seen concretely now gets a mapper-aware sanity walk;
+# this fallthrough must be rejected without rejecting the branch or cartridge.
+my $static_branch_jam = make_rom(4096, 0xF000, 0x0100,
+   "\xA5\x80" .                            # LDA $80: abstractly unknown, concretely 0
+   "\xF0\x01" .                            # BEQ F105: concrete arm
+   "\x02" .                                  # never-observed JAM fallthrough
+   "\x60");                                  # F105: RTS
+write_bin(File::Spec->catfile($in, 'static_branch_unobserved_jam.bin'),
+          $static_branch_jam);
+
+# Same confidence rule through an unconditional jump: the unobserved fall arm
+# jumps to JAM rather than containing it directly.  Validation must follow the
+# deterministic JMP before deciding the edge is bad.
+my $static_branch_jmp_jam = make_rom(4096, 0xF000, 0x0100,
+   "\xA5\x80" .                            # LDA $80
+   "\xF0\x03" .                            # BEQ F107: concrete arm
+   "\x4C\x10\xF1" .                       # unobserved JMP F110
+   "\x60");                                  # F107: RTS
+substr($static_branch_jmp_jam, 0x0110, 1, "\x02");
+write_bin(File::Spec->catfile($in, 'static_branch_unobserved_jmp_jam.bin'),
+          $static_branch_jmp_jam);
+
+# Critical mapper caveat: an unobserved branch arm is good even when the byte
+# physically following a selector is JAM in the old F8 bank.  The LDA $1FF8
+# switches bank 1 -> bank 0; the next opcode at F107 must therefore be fetched
+# from bank 0, where it is RTS.  Rejecting the old-bank JAM would be a false
+# negative caused by validating bytes instead of mapper-aware execution flow.
+my $static_branch_hotspot = chr(0xEA) x 8192;
+break_sc_layout(\$static_branch_hotspot);
+substr($static_branch_hotspot, 0x1000 + 0x0100, 10,
+   "\xA5\x80" .                            # LDA $80: concrete zero
+   "\xF0\x05" .                            # BEQ F109: concrete arm
+   "\xAD\xF8\x1F" .                       # unobserved arm selects bank 0
+   "\x02" .                                  # bank-1 F107 JAM: must never be fetched
+   "\xEA" .                                  # F108
+   "\x60");                                  # bank-1 F109 concrete RTS
+substr($static_branch_hotspot, 0x0107, 1, "\x60"); # bank-0 F107 actual successor
+# Stamp VCSC's explicit F8 signature so concrete discovery is trusted for this
+# synthetic banked image.  The four-byte signature intentionally occupies the
+# otherwise-unused NMI vector bytes at $FFF8-$FFFB; RESET/IRQ remain ordinary.
+substr($static_branch_hotspot, 0x1FF8, 4, "F8\0\0");
+put16(\$static_branch_hotspot, 0x1FFC, 0xF100);
+put16(\$static_branch_hotspot, 0x1FFE, 0xF100);
+write_bin(File::Spec->catfile($in, 'static_branch_hotspot_avoids_jam.bin'),
+          $static_branch_hotspot);
 
 # UASW can be inferred from execution semantics even without a raw detector
 # signature.  Under UASW, reading $0220 selects bank 1; under UA it selects
@@ -1498,10 +1590,23 @@ require_re($h1_input_out,
 
 my $console_switches_out = slurp(File::Spec->catfile($out, 'console_switches.s26'));
 require_re($console_switches_out,
-   qr/^; concrete RESET discovery: scenarios=24 productive=[1-9]\d* .*RAM-bytes-written=1.*reachability converged$/m,
-   'all 8 maintained console-switch startup combinations plus SELECT/RESET press-release scenarios run');
-require_re($console_switches_out, qr/\bLDA\s+#\$5A/m,
-   'SELECT press-release path is recovered as executable code');
+   qr/^; concrete RESET discovery: scenarios=24 productive=[1-9]\d* .*RAM-bytes-written=3.*reachability converged$/m,
+   'all 8 maintained configurations run and SELECT receives a full 10-frame released/pressed/released pulse');
+require_re($console_switches_out, qr/10 VBLANK frames released, 10 pressed, then 10 released/m,
+   'generated header documents frame-counted SELECT/RESET pulse timing');
+
+my $baseline_vblank_out = slurp(File::Spec->catfile($out, 'baseline_vblank.s26'));
+require_re($baseline_vblank_out,
+   qr/^; concrete RESET discovery: .*reachability converged$/m,
+   'baseline concrete discovery converges after VBLANK dwell');
+my ($baseline_vblank_instructions) =
+   $baseline_vblank_out =~ /^; concrete RESET discovery: .*instructions=(\d+)/m;
+defined($baseline_vblank_instructions) or die "missing VBLANK baseline instruction count\n";
+$baseline_vblank_instructions >= 40000
+   or die "VBLANK baseline converged before ten assertion edges: $baseline_vblank_instructions instructions\n";
+require_re($baseline_vblank_out,
+   qr/requires 10 VBLANK assertions before convergence once VBLANK is used/m,
+   'generated header documents ten-VBLANK baseline minimum');
 
 my $h2_fixed_out = slurp(File::Spec->catfile($out, 'h2_fixed_point.s26'));
 require_re($h2_fixed_out,
@@ -2138,6 +2243,32 @@ require_re($f8_cross_jam_out,
    'cross-bank F8 evidence eliminates zero-switch E0 hypothesis');
 require_re($f8_cross_jam_out, qr/B1_F100:\n\s*LDA\s+\$1FF8/m,
    'F8 cross-bank evidence begins on RESET path');
+
+my $static_branch_jam_out = slurp(File::Spec->catfile($out, 'static_branch_unobserved_jam.s26'));
+require_re($static_branch_jam_out,
+   qr/^; static branch confidence: checked=\d+ concrete-edges=\d+ rejected=[1-9]\d* rejected-halt=[1-9]\d* inconclusive=\d+$/m,
+   'never-observed static JAM arm is rejected by confidence gate');
+require_re($static_branch_jam_out, qr/LDA\s+\$80\n\s*BEQ\.same\s+\$F105/m,
+   'concrete branch arm remains established');
+die "never-observed direct JAM branch arm became established code\n"
+   if $static_branch_jam_out =~ /F104:\n\s*op02/m;
+
+my $static_branch_jmp_jam_out = slurp(File::Spec->catfile($out, 'static_branch_unobserved_jmp_jam.s26'));
+require_re($static_branch_jmp_jam_out,
+   qr/^; static branch confidence: .*rejected=[1-9]\d* rejected-halt=[1-9]\d*/m,
+   'unobserved static arm follows JMP through to JAM before rejection');
+die "JMP-to-JAM branch arm became established code\n"
+   if $static_branch_jmp_jam_out =~ /JMP\s+\$F110/;
+
+my $static_branch_hotspot_out = slurp(File::Spec->catfile($out, 'static_branch_hotspot_avoids_jam.s26'));
+require_re($static_branch_hotspot_out, qr/^; mapper: F8 \(/m,
+   'hotspot branch confidence fixture remains F8');
+require_re($static_branch_hotspot_out, qr/BEQ\.same\s+\$F109.*\n\s*LDA\s+\$1FF8/ms,
+   'unobserved static arm containing F8 selector remains established');
+require_re($static_branch_hotspot_out, qr/B0_F107:\n\s*RTS$/m,
+   'static branch validator follows selector into successor F8 bank');
+die "old-bank JAM after hotspot was incorrectly established\n"
+   if $static_branch_hotspot_out =~ /B1_F107:\n\s*op02/m;
 
 my $uasw_flow_out = slurp(File::Spec->catfile($out, 'uasw_flow_only.s26'));
 require_re($uasw_flow_out, qr/^; mapper: UASW \(/m,

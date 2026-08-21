@@ -11,6 +11,10 @@
 namespace {
 constexpr unsigned kMaxInstructions = 250000;
 constexpr unsigned kConvergenceInstructions = 16384;
+constexpr unsigned kBaselineVblankAssertions = 10;
+constexpr unsigned kButtonPhaseVblankAssertions = 10;
+constexpr unsigned kButtonFallbackPressAt = 8192;
+constexpr unsigned kButtonFallbackReleaseAt = 16384;
 constexpr uint64_t kCyclesPerLine = 76;
 constexpr int kMap1K = VCSC_VIDEO_MAP_1K;
 constexpr int kMap2K = VCSC_VIDEO_MAP_2K;
@@ -67,24 +71,41 @@ static unsigned instruction_length(uint8_t opcode)
    return 3u;
 }
 
+static bool conditional_branch_opcode(uint8_t opcode)
+{
+   switch (opcode) {
+   case 0x10u: case 0x30u: case 0x50u: case 0x70u:
+   case 0x90u: case 0xb0u: case 0xd0u: case 0xf0u:
+      return true;
+   default:
+      return false;
+   }
+}
+
 class DiscoveryMachine {
 public:
    DiscoveryMachine(const uint8_t *rom, size_t rom_size, int mapper,
                     size_t bank_count, size_t reset_bank, bool superchip,
                     uint8_t swcha, uint8_t swchb, const uint8_t inpt[6],
                     uint8_t swchb_press_mask, unsigned press_at,
-                    unsigned release_at, const vcsc_concrete_seed_t *seed,
+                    unsigned release_at, unsigned finish_at,
+                    bool pulse_by_vblank, unsigned min_vblank_assertions,
+                    const vcsc_concrete_seed_t *seed,
                     uint8_t *rom_exec_start, uint16_t *rom_exec_pc,
                     uint8_t *rom_data_read,
+                    uint8_t *rom_branch_edges,
                     vcsc_concrete_rom_state_t *rom_exec_state,
                     vcsc_concrete_result_t *result)
       : rom_(rom), rom_size_(rom_size), mapper_(mapper), bank_count_(bank_count),
         bank_(reset_bank), superchip_(superchip), rom_exec_start_(rom_exec_start),
         rom_exec_pc_(rom_exec_pc), rom_data_read_(rom_data_read),
+        rom_branch_edges_(rom_branch_edges),
         rom_exec_state_(rom_exec_state), result_(result),
         swcha_(swcha), swchb_(swchb),
         base_swchb_(swchb), swchb_press_mask_(swchb_press_mask),
-        press_at_(press_at), release_at_(release_at), seeded_(seed != nullptr),
+        press_at_(press_at), release_at_(release_at), finish_at_(finish_at),
+        pulse_by_vblank_(pulse_by_vblank),
+        min_vblank_assertions_(min_vblank_assertions), seeded_(seed != nullptr),
         cpu_(read_thunk, write_thunk, nullptr)
    {
       active_ = this;
@@ -99,6 +120,7 @@ public:
       std::memset(rom_exec_start_, 0, rom_size_);
       std::memset(rom_exec_pc_, 0, rom_size_ * sizeof(*rom_exec_pc_));
       std::memset(rom_data_read_, 0, rom_size_);
+      std::memset(rom_branch_edges_, 0, rom_size_);
       std::memset(rom_exec_state_, 0, rom_size_ * sizeof(*rom_exec_state_));
       std::memcpy(inpt_, inpt, sizeof(inpt_));
       cpu_.IRQ(true);
@@ -144,6 +166,18 @@ public:
          ++executed;
          virtual_cycles_ += delta;
          apply_pending();
+         if (current_rom_physical_ != static_cast<size_t>(-1) &&
+             current_rom_physical_ < rom_size_ &&
+             conditional_branch_opcode(opcode) &&
+             rom_exec_start_[current_rom_physical_] &&
+             rom_exec_pc_[current_rom_physical_] == pc &&
+             rom_exec_state_[current_rom_physical_].valid &&
+             rom_exec_state_[current_rom_physical_].mapper_config ==
+                current_mapper_config_at_fetch_) {
+            const uint16_t fallthrough = static_cast<uint16_t>(pc + 2u);
+            const uint8_t edge = cpu_.GetPC() == fallthrough ? 0x01u : 0x02u;
+            rom_branch_edges_[current_rom_physical_] |= edge;
+         }
          update_register_provenance(opcode);
          if (mnemonic) {
             if (std::strcmp(mnemonic, "JSR") == 0) ++jsr_depth_;
@@ -155,8 +189,14 @@ public:
             ++stale;
          else
             stale = 0;
-         if (stale >= kConvergenceInstructions &&
-             (release_at_ == 0u || instructions >= release_at_ + kConvergenceInstructions)) {
+         const bool vblank_minimum_met =
+            min_vblank_assertions_ == 0u || vblank_assertions_ == 0u ||
+            vblank_assertions_ >= min_vblank_assertions_;
+         const unsigned script_clock = pulse_by_vblank_ ? vblank_assertions_ : instructions;
+         const bool scripted_input_complete =
+            swchb_press_mask_ == 0u || finish_at_ == 0u || script_clock >= finish_at_;
+         if (stale >= kConvergenceInstructions && scripted_input_complete &&
+             vblank_minimum_met) {
             result_->converged = 1;
             break;
          }
@@ -185,6 +225,7 @@ private:
    uint8_t *rom_exec_start_;
    uint16_t *rom_exec_pc_;
    uint8_t *rom_data_read_;
+   uint8_t *rom_branch_edges_;
    vcsc_concrete_rom_state_t *rom_exec_state_;
    vcsc_concrete_result_t *result_;
    uint8_t swcha_ = 0xffu;
@@ -193,6 +234,12 @@ private:
    uint8_t swchb_press_mask_ = 0u;
    unsigned press_at_ = 0u;
    unsigned release_at_ = 0u;
+   unsigned finish_at_ = 0u;
+   bool pulse_by_vblank_ = false;
+   unsigned min_vblank_assertions_ = 0u;
+   unsigned vblank_assertions_ = 0u;
+   bool vblank_value_known_ = false;
+   bool vblank_asserted_ = false;
    uint8_t inpt_[6] = { 0x80u, 0x80u, 0x80u, 0x80u, 0x80u, 0x80u };
    uint8_t ram_[VCSC_CONCRETE_RIOT_RAM_SIZE];
    uint32_t ram_source_[VCSC_CONCRETE_RIOT_RAM_SIZE];
@@ -209,6 +256,8 @@ private:
    unsigned pending_count_ = 0;
    uint16_t current_pc_ = 0;
    uint8_t current_opcode_ = 0;
+   size_t current_rom_physical_ = static_cast<size_t>(-1);
+   uint16_t current_mapper_config_at_fetch_ = 0u;
    unsigned current_len_ = 1;
    uint32_t current_data_source_ = VCSC_CONCRETE_NO_SOURCE;
    uint8_t current_data_value_ = 0;
@@ -267,10 +316,16 @@ private:
    void update_scripted_inputs(unsigned instruction_index)
    {
       swchb_ = base_swchb_;
-      if (swchb_press_mask_ != 0u && instruction_index >= press_at_ &&
-          (release_at_ == 0u || instruction_index < release_at_))
+      const unsigned script_clock = pulse_by_vblank_ ? vblank_assertions_ : instruction_index;
+      if (swchb_press_mask_ != 0u && script_clock >= press_at_ &&
+          (release_at_ == 0u || script_clock < release_at_))
          swchb_ = static_cast<uint8_t>(base_swchb_ & ~swchb_press_mask_);
    }
+
+public:
+   unsigned vblank_assertions() const { return vblank_assertions_; }
+
+private:
 
    static uint16_t bus_address(uint16_t address) {
       return static_cast<uint16_t>(address & 0x1fffu);
@@ -554,14 +609,17 @@ private:
    void note_instruction(uint16_t pc, uint8_t opcode)
    {
       const uint16_t bus = bus_address(pc);
+      current_rom_physical_ = static_cast<size_t>(-1);
+      current_mapper_config_at_fetch_ = current_mapper_config();
       if (bus & 0x1000u) {
          size_t physical;
          if (map_cart(bus, &physical)) {
+            current_rom_physical_ = physical;
             if (!rom_exec_start_[physical]) {
                vcsc_concrete_rom_state_t &st = rom_exec_state_[physical];
                rom_exec_start_[physical] = 1;
                rom_exec_pc_[physical] = pc;
-               st.mapper_config = current_mapper_config();
+               st.mapper_config = current_mapper_config_at_fetch_;
                st.a = cpu_.GetA();
                st.x = cpu_.GetX();
                st.y = cpu_.GetY();
@@ -744,6 +802,13 @@ private:
       three_write_selector(bus, value);
       if (tia_selected(bus)) {
          const uint16_t reg = static_cast<uint16_t>(bus & 0x3fu);
+         if (reg == 0x01u) {
+            const bool asserted = (value & 0x02u) != 0u;
+            if (asserted && (!vblank_value_known_ || !vblank_asserted_))
+               ++vblank_assertions_;
+            vblank_asserted_ = asserted;
+            vblank_value_known_ = true;
+         }
          if (reg == 0x02u) queue_write(reg, value);
          fe_observe_access(bus, value);
          return;
@@ -834,11 +899,13 @@ DiscoveryMachine *DiscoveryMachine::active_ = nullptr;
 static unsigned merge_run(size_t rom_size,
                           uint8_t *rom_exec_start, uint16_t *rom_exec_pc,
                           uint8_t *rom_data_read,
+                          uint8_t *rom_branch_edges,
                           vcsc_concrete_rom_state_t *rom_exec_state,
                           vcsc_concrete_result_t *dst,
                           const uint8_t *run_exec_start,
                           const uint16_t *run_exec_pc,
                           const uint8_t *run_data_read,
+                          const uint8_t *run_branch_edges,
                           const vcsc_concrete_rom_state_t *run_exec_state,
                           const vcsc_concrete_result_t &src,
                           bool keep_final_cpu)
@@ -866,12 +933,25 @@ static unsigned merge_run(size_t rom_size,
          rom_data_read[i] = 1u;
          ++dst->rom_data_bytes_read;
       }
-      if (!run_exec_start[i] || rom_exec_start[i]) continue;
-      rom_exec_start[i] = 1;
-      rom_exec_pc[i] = run_exec_pc[i];
-      rom_exec_state[i] = run_exec_state[i];
-      ++dst->rom_instruction_starts;
-      ++new_reachability;
+      if (!run_exec_start[i]) continue;
+      if (!rom_exec_start[i]) {
+         rom_exec_start[i] = 1;
+         rom_exec_pc[i] = run_exec_pc[i];
+         rom_exec_state[i] = run_exec_state[i];
+         rom_branch_edges[i] = run_branch_edges[i];
+         ++dst->rom_instruction_starts;
+         ++new_reachability;
+      }
+      else if (rom_exec_pc[i] == run_exec_pc[i] &&
+               rom_exec_state[i].valid && run_exec_state[i].valid &&
+               rom_exec_state[i].mapper_config == run_exec_state[i].mapper_config) {
+         /* Preserve branch outcomes only for the concrete physical-PC/mapper
+          * context represented by the aggregate state.  If the same physical
+          * byte also executes through another mapper alias, that other context
+          * remains uncorroborated and static analysis must validate it rather
+          * than borrowing an edge observed elsewhere. */
+         rom_branch_edges[i] |= run_branch_edges[i];
+      }
    }
 
    for (unsigned i = 0; i < VCSC_CONCRETE_RIOT_RAM_SIZE; ++i) {
@@ -905,10 +985,12 @@ extern "C" int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
                                         uint8_t *rom_exec_start,
                                         uint16_t *rom_exec_pc,
                                         uint8_t *rom_data_read,
+                                        uint8_t *rom_branch_edges,
                                         vcsc_concrete_rom_state_t *rom_exec_state,
                                         vcsc_concrete_result_t *result)
 {
-   if (!rom || !rom_exec_start || !rom_exec_pc || !rom_data_read || !rom_exec_state || !result ||
+   if (!rom || !rom_exec_start || !rom_exec_pc || !rom_data_read || !rom_branch_edges ||
+       !rom_exec_state || !result ||
        bank_count == 0u || reset_bank >= bank_count) return 0;
    switch (mapper) {
    case kMap1K:
@@ -948,6 +1030,7 @@ extern "C" int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
    std::memset(rom_exec_start, 0, rom_size);
    std::memset(rom_exec_pc, 0, rom_size * sizeof(*rom_exec_pc));
    std::memset(rom_data_read, 0, rom_size);
+   std::memset(rom_branch_edges, 0, rom_size);
    std::memset(rom_exec_state, 0, rom_size * sizeof(*rom_exec_state));
    for (unsigned i = 0; i < VCSC_CONCRETE_RIOT_RAM_SIZE; ++i)
       result->ram_source_offset[i] = VCSC_CONCRETE_NO_SOURCE;
@@ -956,20 +1039,27 @@ extern "C" int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
 
    auto run_one = [&](uint8_t swcha, uint8_t swchb, const uint8_t inpt[6],
                       bool keep_final_cpu, uint8_t swchb_press_mask,
-                      unsigned press_at, unsigned release_at) -> int {
+                      unsigned press_at, unsigned release_at, unsigned finish_at,
+                      bool pulse_by_vblank, unsigned min_vblank_assertions,
+                      unsigned *vblank_assertions_out) -> int {
       std::vector<uint8_t> run_exec(rom_size, 0);
       std::vector<uint16_t> run_pc(rom_size, 0);
       std::vector<uint8_t> run_data(rom_size, 0);
+      std::vector<uint8_t> run_branch_edges(rom_size, 0);
       std::vector<vcsc_concrete_rom_state_t> run_state(rom_size);
       vcsc_concrete_result_t run_result{};
       DiscoveryMachine machine(rom, rom_size, mapper, bank_count, reset_bank,
                                superchip != 0, swcha, swchb, inpt,
-                               swchb_press_mask, press_at, release_at, nullptr,
+                               swchb_press_mask, press_at, release_at, finish_at,
+                               pulse_by_vblank, min_vblank_assertions, nullptr,
                                run_exec.data(), run_pc.data(), run_data.data(),
+                               run_branch_edges.data(),
                                run_state.data(), &run_result);
       if (!machine.run()) return 0;
-      merge_run(rom_size, rom_exec_start, rom_exec_pc, rom_data_read, rom_exec_state, result,
-                run_exec.data(), run_pc.data(), run_data.data(), run_state.data(), run_result,
+      if (vblank_assertions_out) *vblank_assertions_out = machine.vblank_assertions();
+      merge_run(rom_size, rom_exec_start, rom_exec_pc, rom_data_read, rom_branch_edges,
+                rom_exec_state, result, run_exec.data(), run_pc.data(), run_data.data(),
+                run_branch_edges.data(), run_state.data(), run_result,
                 keep_final_cpu);
       return 1;
    };
@@ -988,16 +1078,23 @@ extern "C" int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
     * mechanism by which those bits can affect execution.  Count those seven
     * equivalent scenarios as covered without paying seven redundant emulator
     * runs.  Once SWCHB is observed, run the remaining seven combinations for
-    * real.  This keeps the exhaustive startup-state contract without turning
-    * mapper fuzz and bulk corpora into an 8x concrete-execution tax. */
-   if (!run_one(0xffu, 0xffu, neutral_inpt, true, 0u, 0u, 0u)) return 0;
+    * real.  Baseline convergence is additionally held off until at least ten
+    * VBLANK assertion edges have been observed once the program demonstrates
+    * that it uses VBLANK; non-VBLANK programs retain the ordinary reachability
+    * convergence rule.  This keeps the exhaustive startup-state contract
+    * without turning mapper fuzz and bulk corpora into an 8x concrete-execution
+    * tax. */
+   unsigned baseline_vblank_assertions[8] = { 0u };
+   if (!run_one(0xffu, 0xffu, neutral_inpt, true, 0u, 0u, 0u, 0u, false,
+                kBaselineVblankAssertions, &baseline_vblank_assertions[0])) return 0;
    if (result->input_read_mask & kInputSWCHB) {
       for (unsigned combo = 1u; combo < 8u; ++combo) {
          uint8_t swchb = 0xffu;
          if (combo & 1u) swchb = static_cast<uint8_t>(swchb & ~(1u << 3));
          if (combo & 2u) swchb = static_cast<uint8_t>(swchb & ~(1u << 6));
          if (combo & 4u) swchb = static_cast<uint8_t>(swchb & ~(1u << 7));
-         if (!run_one(0xffu, swchb, neutral_inpt, false, 0u, 0u, 0u)) return 0;
+         if (!run_one(0xffu, swchb, neutral_inpt, false, 0u, 0u, 0u, 0u, false,
+                      kBaselineVblankAssertions, &baseline_vblank_assertions[combo])) return 0;
       }
    } else {
       result->scenarios_run += 7u;
@@ -1005,36 +1102,45 @@ extern "C" int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
 
    /* H1/H2 alternate-input discovery.  Controller inputs remain demand-driven,
     * but console startup switch positions above are exhaustive.  If software
-    * actually reads SWCHB, also exercise a real press-and-release pulse for
-    * SELECT and RESET under each maintained-switch combination.  A pulse begins
-    * after roughly one frame's worth of instructions and lasts roughly one
-    * frame; convergence is suppressed until after release so the event cannot
-    * be optimized away by the no-new-code cutoff. */
+    * actually reads SWCHB, exercise SELECT and RESET independently under every
+    * maintained-switch combination.  Video programs use the cartridge's own
+    * VBLANK assertion edges as the clock: ten frames released, ten frames held
+    * pressed, then ten frames released again.  This gives frame-polling and
+    * debounce logic enough time in every phase.  If a baseline never asserts
+    * VBLANK, there is no observable frame clock; retain the historical bounded
+    * instruction-timed pulse as a non-video fallback rather than forcing that
+    * scenario to the hard instruction ceiling. */
    if (result->input_read_mask & kInputSWCHB) {
-      constexpr unsigned kButtonPressAt = 8192u;
-      constexpr unsigned kButtonReleaseAt = 16384u;
       for (unsigned combo = 0; combo < 8u; ++combo) {
          uint8_t swchb = 0xffu;
          if (combo & 1u) swchb = static_cast<uint8_t>(swchb & ~(1u << 3));
          if (combo & 2u) swchb = static_cast<uint8_t>(swchb & ~(1u << 6));
          if (combo & 4u) swchb = static_cast<uint8_t>(swchb & ~(1u << 7));
+         const bool frame_timed = baseline_vblank_assertions[combo] != 0u;
+         const unsigned press_at = frame_timed ? kButtonPhaseVblankAssertions
+                                               : kButtonFallbackPressAt;
+         const unsigned release_at = frame_timed ? 2u * kButtonPhaseVblankAssertions
+                                                 : kButtonFallbackReleaseAt;
+         const unsigned finish_at = frame_timed ? 3u * kButtonPhaseVblankAssertions
+                                                : kButtonFallbackReleaseAt +
+                                                     kConvergenceInstructions;
          if (!run_one(0xffu, swchb, neutral_inpt, false, 1u << 1,
-                      kButtonPressAt, kButtonReleaseAt)) return 0;
+                      press_at, release_at, finish_at, frame_timed, 0u, nullptr)) return 0;
          if (!run_one(0xffu, swchb, neutral_inpt, false, 1u << 0,
-                      kButtonPressAt, kButtonReleaseAt)) return 0;
+                      press_at, release_at, finish_at, frame_timed, 0u, nullptr)) return 0;
       }
    }
    if (result->input_read_mask & kInputSWCHA) {
       for (unsigned bit = 0; bit < 8u; ++bit) {
          uint8_t swcha = (uint8_t)(0xffu & ~(1u << bit));
-         if (!run_one(swcha, 0xffu, neutral_inpt, false, 0u, 0u, 0u)) return 0;
+         if (!run_one(swcha, 0xffu, neutral_inpt, false, 0u, 0u, 0u, 0u, false, 0u, nullptr)) return 0;
       }
    }
    for (unsigned input = 0; input < 6u; ++input) {
       if (!(result->input_read_mask & (kInputINPT0 << input))) continue;
       uint8_t active_inpt[6] = { 0x80u, 0x80u, 0x80u, 0x80u, 0x80u, 0x80u };
       active_inpt[input] = 0x00u;
-      if (!run_one(0xffu, 0xffu, active_inpt, false, 0u, 0u, 0u)) return 0;
+      if (!run_one(0xffu, 0xffu, active_inpt, false, 0u, 0u, 0u, 0u, false, 0u, nullptr)) return 0;
    }
    return 1;
 }
@@ -1047,25 +1153,30 @@ extern "C" int vcsc_concrete_discover_seed(const uint8_t *rom, size_t rom_size,
                                               uint8_t *rom_exec_start,
                                               uint16_t *rom_exec_pc,
                                               uint8_t *rom_data_read,
+                                              uint8_t *rom_branch_edges,
                                               vcsc_concrete_rom_state_t *rom_exec_state,
                                               vcsc_concrete_result_t *result)
 {
-   if (!rom || !seed || !rom_exec_start || !rom_exec_pc || !rom_data_read || !rom_exec_state || !result ||
+   if (!rom || !seed || !rom_exec_start || !rom_exec_pc || !rom_data_read ||
+       !rom_branch_edges || !rom_exec_state || !result ||
        bank_count == 0u || seed->bank >= bank_count) return -1;
    std::vector<uint8_t> run_exec(rom_size, 0);
    std::vector<uint16_t> run_pc(rom_size, 0);
    std::vector<uint8_t> run_data(rom_size, 0);
+   std::vector<uint8_t> run_branch_edges(rom_size, 0);
    std::vector<vcsc_concrete_rom_state_t> run_state(rom_size);
    vcsc_concrete_result_t run_result{};
    uint8_t neutral_inpt[6] = { 0x80u, 0x80u, 0x80u, 0x80u, 0x80u, 0x80u };
    DiscoveryMachine machine(rom, rom_size, mapper, bank_count, seed->bank,
                             superchip != 0, 0xffu, 0xffu, neutral_inpt,
-                            0u, 0u, 0u, seed,
+                            0u, 0u, 0u, 0u, false, 0u, seed,
                             run_exec.data(), run_pc.data(), run_data.data(),
+                            run_branch_edges.data(),
                             run_state.data(), &run_result);
    if (!machine.run()) return -1;
    return static_cast<int>(merge_run(rom_size, rom_exec_start, rom_exec_pc,
-                                     rom_data_read, rom_exec_state, result, run_exec.data(),
-                                     run_pc.data(), run_data.data(), run_state.data(), run_result,
+                                     rom_data_read, rom_branch_edges, rom_exec_state, result,
+                                     run_exec.data(), run_pc.data(), run_data.data(),
+                                     run_branch_edges.data(), run_state.data(), run_result,
                                      false));
 }

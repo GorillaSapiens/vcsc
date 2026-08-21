@@ -245,12 +245,18 @@ typedef struct {
    size_t speculative_promotion_capped;
    size_t flow_switch_avoided_halts;
    size_t speculative_switch_avoided_halts;
+   size_t static_branch_edges_checked;
+   size_t static_branch_edges_rejected;
+   size_t static_branch_edges_rejected_halt;
+   size_t static_branch_edges_inconclusive;
+   size_t static_branch_edges_concrete;
    int speculative_phase;
    int speculative_superchip_active;
    int concrete_available;
    uint8_t *concrete_rom_exec;
    uint16_t *concrete_rom_pc;
    uint8_t *concrete_rom_data_read;
+   uint8_t *concrete_rom_branch_edges;
    vcsc_concrete_rom_state_t *concrete_rom_state;
    vcsc_concrete_result_t concrete;
    vcsc_concrete_seed_t *h2_seeds;
@@ -1908,6 +1914,7 @@ static void free_analysis(analysis_t *a)
    free(a->concrete_rom_exec);
    free(a->concrete_rom_pc);
    free(a->concrete_rom_data_read);
+   free(a->concrete_rom_branch_edges);
    free(a->concrete_rom_state);
    free(a->h2_seeds);
    free(a->work);
@@ -3448,6 +3455,9 @@ typedef struct {
    size_t unresolved_terminals;
    size_t joins;
    int strict_conflicts;
+   int static_edge_validation;
+   int hit_halt;
+   int hit_invalid_target;
 } spec_context_t;
 
 /* This is a local static-CFG plausibility walk, not CPU execution.  Loops are
@@ -3761,10 +3771,13 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t bi,
    if (off >= b->size) return SPEC_SAFE_WEAK;
    if (rom_offset_hidden(a, off)) return SPEC_SAFE_WEAK;
 
-   /* Established control flow is authoritative, even if it deliberately
-    * reaches a CPU-locking opcode.  The JAM/KIL rule applies only to newly
-    * speculative decoding. */
-   if (b->roles[off] & ROLE_CODE_START) {
+   /* Established control flow is authoritative for detached-island discovery,
+    * even if it deliberately reaches a CPU-locking opcode.  Provisional
+    * static-branch validation is deliberately different: it must be able to
+    * walk through code that static analysis has already tentatively marked,
+    * otherwise two over-approximated branch arms can corroborate one another.
+    * Concrete execution remains an authoritative join below. */
+   if (!ctx->static_edge_validation && (b->roles[off] & ROLE_CODE_START)) {
       if (ctx->counted) ++ctx->joins;
       return SPEC_SAFE_WEAK;
    }
@@ -3781,7 +3794,10 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t bi,
    if (ctx->visiting[node]) return SPEC_SAFE_WEAK; /* legitimate loop */
 
    opcode = a->rom[b->file_offset + off];
-   if (opcode_is_cpu_halt(opcode)) return SPEC_REJECT;
+   if (opcode_is_cpu_halt(opcode)) {
+      ctx->hit_halt = 1;
+      return SPEC_REJECT;
+   }
 
    mode = (address_mode_t)opcode_modes[opcode];
    len = instruction_length(mode);
@@ -3970,6 +3986,16 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t bi,
 
       known = speculative_branch_outcome(opcode, &output_state, &taken);
 
+      /* A provisional branch-edge sanity walk is deliberately local.  Once it
+       * reaches another unresolved conditional branch, that second edge gets
+       * its own confidence decision when normal static analysis processes it.
+       * Do not let a JAM behind some deeper, separately unknown arm reject the
+       * original edge wholesale. */
+      if (ctx->static_edge_validation && !known) {
+         result = SPEC_SAFE_WEAK;
+         break;
+      }
+
       /* A speculative ROM island must not become credible merely because one
        * unknown branch arm falls out of cartridge space.  $0000-$007F is the
        * TIA register window on the 2600, not instruction storage; if that arm
@@ -3978,6 +4004,7 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t bi,
        * to $000F).  Established control flow is handled elsewhere and remains
        * authoritative; this is only negative evidence for speculative starts. */
       if ((!known || taken) && target < 0x0080u) {
+         ctx->hit_invalid_target = 1;
          result = SPEC_REJECT;
          break;
       }
@@ -4184,11 +4211,37 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t bi,
    }
 
    case FLOW_JMP_ABSOLUTE:
-      if (ctx->counted) { ++ctx->control_transfers; ++ctx->terminals; }
-      /* A local speculative island has reached an ordinary hard terminator.
-       * JMP targets are analyzed independently; per the island rule the local
-       * linear candidate succeeds here. */
-      result = SPEC_SAFE_STRONG;
+      if (ctx->counted) ++ctx->control_transfers;
+      if (ctx->static_edge_validation) {
+         size_t tbank, toff;
+         int mapped = 0;
+         if (mapper_is_wd_family(a->mapper))
+            mapped = wd_map_address(a, (uint8_t)mapper_config, operand, &tbank, &toff);
+         else if (a->mapper == MAP_FC)
+            mapped = fc_map_address(a, bi, operand, &tbank, &toff);
+         else if (a->mapper == MAP_E0)
+            mapped = e0_map_address(a, mapper_config, operand, &tbank, &toff);
+         else if (a->mapper == MAP_E7)
+            mapped = e7_map_address(a, mapper_config, operand, &tbank, &toff);
+         else if (mapper_is_three_family(a->mapper))
+            mapped = threef_map_address(a, mapper_config, operand, &tbank, &toff);
+         else if (cart_target_offset(b, operand, &toff)) {
+            tbank = bi;
+            mapped = 1;
+         }
+         if (mapped && !rom_offset_hidden(a, toff))
+            result = speculative_flow_ctx(a, tbank, toff, operand,
+                                          mapper_config, &output_state, ctx);
+         else
+            result = SPEC_SAFE_WEAK;
+      }
+      else {
+         if (ctx->counted) ++ctx->terminals;
+         /* A local speculative island has reached an ordinary hard terminator.
+          * JMP targets are analyzed independently; per the island rule the local
+          * linear candidate succeeds here. */
+         result = SPEC_SAFE_STRONG;
+      }
       break;
 
    case FLOW_JMP_INDIRECT:
@@ -4227,6 +4280,165 @@ static spec_result_t speculative_flow(const analysis_t *a, size_t bi,
    else if (a->mapper == MAP_E7) config = e7_seed_config(bi, pc, a->bank_count);
    else if (mapper_is_three_family(a->mapper) && ((pc & 0x1fffu) < 0x1800u)) config = (uint16_t)bi;
    return speculative_flow_ctx(a, bi, off, pc, config, input_state, ctx);
+}
+
+/* Static analysis deliberately over-approximates an unknown conditional
+ * branch by considering both arms.  Concrete startup/H2 discovery gives us a
+ * useful confidence boundary: an arm observed concretely from this same
+ * physical branch/runtime-PC/mapper context is established immediately; an arm
+ * never observed from that source context gets a local,
+ * mapper-aware sanity walk before it is allowed to become established-static
+ * code.  The walk follows deterministic instructions and mapper transitions,
+ * including a hotspot that changes the bank supplying the very next opcode.
+ * It rejects HLT/JAM/KIL (and impossible low-memory execution), but stops
+ * inconclusively at a second unresolved branch rather than letting uncertainty
+ * snowball backwards and reject the original edge.
+ *
+ * This is negative evidence only.  Exhaustion or any unresolved continuation
+ * keeps the edge; lack of proof must never erase valid code. */
+static int static_branch_successor_allowed(analysis_t *a, size_t bi, size_t off,
+                                           uint16_t runtime_pc,
+                                           uint16_t mapper_config,
+                                           const abstract_state_t *state)
+{
+   spec_context_t ctx;
+   spec_result_t result;
+   if (!a->concrete_available || bi >= a->bank_count) return 1;
+   if (off >= a->banks[bi].size || rom_offset_hidden(a, off)) return 1;
+
+   memset(&ctx, 0, sizeof(ctx));
+   ctx.visiting = (uint8_t *)calloc(a->rom_size ? a->rom_size : 1u, 1u);
+   if (!ctx.visiting) return 1; /* allocation failure cannot delete code */
+   ctx.step_limit = a->rom_size ? a->rom_size : a->banks[bi].size;
+   ctx.static_edge_validation = 1;
+   ++a->static_branch_edges_checked;
+   result = speculative_flow_ctx(a, bi, off, runtime_pc, mapper_config,
+                                 state, &ctx);
+   free(ctx.visiting);
+
+   if (ctx.exhausted) {
+      ++a->static_branch_edges_inconclusive;
+      return 1;
+   }
+   if (result == SPEC_REJECT) {
+      ++a->static_branch_edges_rejected;
+      if (ctx.hit_halt) ++a->static_branch_edges_rejected_halt;
+      return 0;
+   }
+   return 1;
+}
+
+static int concrete_branch_edge_observed(const analysis_t *a, size_t bank,
+                                         size_t off, uint16_t runtime_pc,
+                                         uint16_t mapper_config, int taken)
+{
+   size_t physical;
+   uint8_t bit = taken ? 0x02u : 0x01u;
+   if (!a->concrete_available || !a->concrete_rom_branch_edges ||
+       !a->concrete_rom_pc || !a->concrete_rom_state ||
+       bank >= a->bank_count || off >= a->banks[bank].size)
+      return 0;
+   physical = a->banks[bank].file_offset + off;
+   return physical < a->rom_size &&
+          a->concrete_rom_state[physical].valid &&
+          a->concrete_rom_pc[physical] == runtime_pc &&
+          a->concrete_rom_state[physical].mapper_config == mapper_config &&
+          (a->concrete_rom_branch_edges[physical] & bit) != 0u;
+}
+
+static int push_static_branch_candidate(analysis_t *a, size_t bank, size_t off,
+                                        uint16_t pc, uint16_t mapper_config,
+                                        const abstract_state_t *state,
+                                        int validate, int label,
+                                        int branch_target)
+{
+   bank_t *b;
+   if (bank >= a->bank_count) return 1;
+   b = &a->banks[bank];
+   if (off >= b->size) return 1;
+   if (rom_offset_hidden(a, off)) {
+      if (branch_target) ++a->dynamic_control_exits;
+      return 1;
+   }
+   if (validate &&
+       !static_branch_successor_allowed(a, bank, off, pc, mapper_config, state))
+      return 1;
+   if (label) mark_label(b, off);
+   if (branch_target && !a->speculative_phase && off < 0x80u &&
+       (a->mapper == MAP_4K || a->mapper == MAP_F8 ||
+        a->mapper == MAP_F6 || a->mapper == MAP_F4))
+      ++a->superchip_exec_conflicts;
+   return push_work_state_ctx(a, bank, off, state, pc, mapper_config);
+}
+
+/* Map one conditional-branch successor exactly as the normal static tracer
+ * would, then apply the confidence gate above before queueing it.  3F/3E with
+ * unknown lower-window selection preserves all possible ROM banks; each gets
+ * validated independently so one bad bank does not suppress a good one. */
+static int push_static_branch_address_state(analysis_t *a, size_t active_bank,
+                                            uint16_t mapper_config,
+                                            uint16_t address,
+                                            const abstract_state_t *state,
+                                            int validate, int label,
+                                            int branch_target)
+{
+   size_t bank, off;
+
+   if (mapper_is_wd_family(a->mapper)) {
+      if (!wd_map_address(a, (uint8_t)mapper_config, address, &bank, &off)) return 1;
+      return push_static_branch_candidate(a, bank, off, address, mapper_config,
+                                          state, validate,
+                                          label || bank != active_bank,
+                                          branch_target);
+   }
+   if (a->mapper == MAP_FC) {
+      if (!fc_map_address(a, active_bank, address, &bank, &off)) return 1;
+      return push_static_branch_candidate(a, bank, off, address, mapper_config,
+                                          state, validate,
+                                          label || bank != active_bank,
+                                          branch_target);
+   }
+   if (a->mapper == MAP_E0) {
+      if (!e0_map_address(a, mapper_config, address, &bank, &off)) return 1;
+      return push_static_branch_candidate(a, bank, off, address, mapper_config,
+                                          state, validate,
+                                          label || bank != active_bank,
+                                          branch_target);
+   }
+   if (a->mapper == MAP_E7) {
+      if (!e7_map_address(a, mapper_config, address, &bank, &off)) return 1;
+      return push_static_branch_candidate(a, bank, off, address, mapper_config,
+                                          state, validate,
+                                          label || bank != active_bank,
+                                          branch_target);
+   }
+   if (mapper_is_three_family(a->mapper)) {
+      uint16_t bus = (uint16_t)(address & 0x1fffu);
+      if (mapper_config == THREEF_CONFIG_UNKNOWN && bus >= 0x1000u && bus < 0x1800u) {
+         size_t i;
+         for (i = 0; i < a->bank_count; ++i) {
+            if (!threef_map_address(a, (uint16_t)i, address, &bank, &off)) continue;
+            if (!push_static_branch_candidate(a, bank, off, address, (uint16_t)i,
+                                              state, validate,
+                                              label || bank != active_bank,
+                                              branch_target))
+               return 0;
+         }
+         return 1;
+      }
+      if (!threef_map_address(a, mapper_config, address, &bank, &off)) return 1;
+      return push_static_branch_candidate(a, bank, off, address, mapper_config,
+                                          state, validate,
+                                          label || bank != active_bank,
+                                          branch_target);
+   }
+
+   if (active_bank >= a->bank_count ||
+       !cart_target_offset(&a->banks[active_bank], address, &off))
+      return 1;
+   return push_static_branch_candidate(a, active_bank, off,
+      (uint16_t)(a->banks[active_bank].origin + (uint16_t)off), 0u,
+      state, validate, label, branch_target);
 }
 
 static int speculative_linear_jam_end(const analysis_t *a, size_t bi,
@@ -4877,6 +5089,7 @@ static int h2_run_new_static_seeds(analysis_t *a, unsigned *new_reachability)
                                           a->bank_count, superchip_active(a), seed,
                                           a->concrete_rom_exec, a->concrete_rom_pc,
                                           a->concrete_rom_data_read,
+                                          a->concrete_rom_branch_edges,
                                           a->concrete_rom_state,
                                           &a->concrete);
       if (n < 0) return 0;
@@ -5671,131 +5884,36 @@ drain_work:
       case FLOW_BRANCH: {
          int8_t disp = (int8_t)(uint8_t)operand;
          uint16_t target = (uint16_t)(canonical_pc + 2u + disp);
-         size_t toff;
          int known = 0, taken = 0;
+         int validate_fall = 0, validate_taken = 0;
          known = speculative_branch_outcome(opcode, &output_state, &taken);
-         if (a->mapper == MAP_FC) {
-            if (!known || !taken) {
-               abstract_state_t fall_state;
-               if (state_constrain_branch_edge(opcode, &output_state, 0, &fall_state) &&
-                   !push_fc_address_state(a, item.bank, item.mapper_config,
-                                          (uint16_t)(canonical_pc + 2u), &fall_state))
-                  return 0;
-            }
-            if (!known || taken) {
-               size_t tbank, toff;
-               abstract_state_t branch_state;
-               if (state_constrain_branch_edge(opcode, &output_state, 1, &branch_state)) {
-                  if (fc_map_address(a, item.bank, target, &tbank, &toff))
-                     mark_label(&a->banks[tbank], toff);
-                  if (!push_fc_address_state(a, item.bank, item.mapper_config,
-                                             target, &branch_state))
-                     return 0;
-               }
-            }
+         if (!known && !speculative_done && a->concrete_available) {
+            if (concrete_branch_edge_observed(a, item.bank, off, canonical_pc,
+                                              item.mapper_config, 0))
+               ++a->static_branch_edges_concrete;
+            else
+               validate_fall = 1;
+            if (concrete_branch_edge_observed(a, item.bank, off, canonical_pc,
+                                              item.mapper_config, 1))
+               ++a->static_branch_edges_concrete;
+            else
+               validate_taken = 1;
          }
-         else if (a->mapper == MAP_E0) {
-            if (!known || !taken) {
-               uint16_t fall_pc = (uint16_t)(canonical_pc + 2u);
-               size_t fbank, foff;
-               abstract_state_t fall_state;
-               if (state_constrain_branch_edge(opcode, &output_state, 0, &fall_state)) {
-                  if (e0_map_address(a, item.mapper_config, fall_pc, &fbank, &foff) &&
-                      fbank != item.bank)
-                     mark_label(&a->banks[fbank], foff);
-                  if (!push_e0_address_state(a, item.mapper_config, fall_pc, &fall_state))
-                     return 0;
-               }
-            }
-            if (!known || taken) {
-               size_t tbank, toff;
-               abstract_state_t branch_state;
-               if (state_constrain_branch_edge(opcode, &output_state, 1, &branch_state)) {
-                  if (e0_map_address(a, item.mapper_config, target, &tbank, &toff))
-                     mark_label(&a->banks[tbank], toff);
-                  if (!push_e0_address_state(a, item.mapper_config, target, &branch_state))
-                     return 0;
-               }
-            }
-         }
-         else if (a->mapper == MAP_E7) {
-            if (!known || !taken) {
-               uint16_t fall_pc = (uint16_t)(canonical_pc + 2u);
-               size_t fbank, foff;
-               abstract_state_t fall_state;
-               if (state_constrain_branch_edge(opcode, &output_state, 0, &fall_state)) {
-                  if (e7_map_address(a, item.mapper_config, fall_pc, &fbank, &foff) &&
-                      fbank != item.bank)
-                     mark_label(&a->banks[fbank], foff);
-                  if (!push_e7_address_state(a, item.mapper_config, fall_pc, &fall_state))
-                     return 0;
-               }
-            }
-            if (!known || taken) {
-               size_t tbank, toff;
-               abstract_state_t branch_state;
-               if (state_constrain_branch_edge(opcode, &output_state, 1, &branch_state)) {
-                  if (e7_map_address(a, item.mapper_config, target, &tbank, &toff))
-                     mark_label(&a->banks[tbank], toff);
-                  if (!push_e7_address_state(a, item.mapper_config, target, &branch_state))
-                     return 0;
-               }
-            }
-         }
-         else if (mapper_is_three_family(a->mapper)) {
-            if (!known || !taken) {
-               abstract_state_t fall_state;
-               if (state_constrain_branch_edge(opcode, &output_state, 0, &fall_state) &&
-                   !push_threef_address_state(a, item.mapper_config,
-                                              (uint16_t)(canonical_pc + 2u), &fall_state))
-                  return 0;
-            }
-            if (!known || taken) {
-               size_t tbank, toff;
-               abstract_state_t branch_state;
-               if (state_constrain_branch_edge(opcode, &output_state, 1, &branch_state)) {
-                  if (threef_map_address(a, item.mapper_config, target, &tbank, &toff))
-                     mark_label(&a->banks[tbank], toff);
-                  if (!push_threef_address_state(a, item.mapper_config, target, &branch_state))
-                     return 0;
-               }
-            }
-         }
-         else if (mapper_is_wd_family(a->mapper)) {
-            if (!known || !taken) {
-               abstract_state_t fall_state;
-               if (state_constrain_branch_edge(opcode, &output_state, 0, &fall_state) &&
-                   !push_wd_address_state(a, (uint8_t)item.mapper_config,
-                                          (uint16_t)(canonical_pc + 2u), &fall_state))
-                  return 0;
-            }
-            if (!known || taken) {
-               abstract_state_t branch_state;
-               if (state_constrain_branch_edge(opcode, &output_state, 1, &branch_state) &&
-                   !push_wd_address_state(a, (uint8_t)item.mapper_config, target, &branch_state))
-                  return 0;
-            }
-         }
-         else {
+
          if (!known || !taken) {
             abstract_state_t fall_state;
-            if (off + 2u < b->size &&
-                state_constrain_branch_edge(opcode, &output_state, 0, &fall_state) &&
-                !push_work_state(a, item.bank, off + 2u, &fall_state)) return 0;
+            if (state_constrain_branch_edge(opcode, &output_state, 0, &fall_state) &&
+                !push_static_branch_address_state(a, item.bank, item.mapper_config,
+                   (uint16_t)(canonical_pc + 2u), &fall_state,
+                   validate_fall, 0, 0))
+               return 0;
          }
-         if ((!known || taken) && target >= b->origin &&
-             (uint32_t)target < (uint32_t)b->origin + (uint32_t)b->size) {
+         if (!known || taken) {
             abstract_state_t branch_state;
-            if (!state_constrain_branch_edge(opcode, &output_state, 1, &branch_state)) break;
-            toff = (size_t)(target - b->origin);
-            if (!speculative_done && toff < 0x80u)
-               ++a->superchip_exec_conflicts;
-            if (rom_offset_hidden(a, toff)) ++a->dynamic_control_exits;
-            else {
-               mark_label(b, toff);
-               if (!push_work_state(a, item.bank, toff, &branch_state)) return 0;
-            }
-         }
+            if (state_constrain_branch_edge(opcode, &output_state, 1, &branch_state) &&
+                !push_static_branch_address_state(a, item.bank, item.mapper_config,
+                   target, &branch_state, validate_taken, 1, 1))
+               return 0;
          }
          break;
       }
@@ -6220,15 +6338,18 @@ static int run_concrete_discovery(analysis_t *a)
    a->concrete_rom_exec = (uint8_t *)calloc(a->rom_size, 1);
    a->concrete_rom_pc = (uint16_t *)calloc(a->rom_size, sizeof(*a->concrete_rom_pc));
    a->concrete_rom_data_read = (uint8_t *)calloc(a->rom_size, 1);
+   a->concrete_rom_branch_edges = (uint8_t *)calloc(a->rom_size, 1);
    a->concrete_rom_state = (vcsc_concrete_rom_state_t *)calloc(
       a->rom_size, sizeof(*a->concrete_rom_state));
    if (!a->concrete_rom_exec || !a->concrete_rom_pc ||
-       !a->concrete_rom_data_read || !a->concrete_rom_state)
+       !a->concrete_rom_data_read || !a->concrete_rom_branch_edges ||
+       !a->concrete_rom_state)
       return 0;
    a->concrete_available = vcsc_concrete_discover(
       a->rom, a->rom_size, (int)a->mapper, a->bank_count, a->reset_bank,
       superchip_active(a), a->concrete_rom_exec, a->concrete_rom_pc,
-      a->concrete_rom_data_read, a->concrete_rom_state,
+      a->concrete_rom_data_read, a->concrete_rom_branch_edges,
+      a->concrete_rom_state,
       &a->concrete);
    if (a->concrete_available) {
       for (bi = 0; bi < a->bank_count; ++bi) {
@@ -8823,6 +8944,11 @@ static void emit_usage_summary(FILE *fp, const analysis_t *a)
       established_code, speculative_code, data, exec_data, overlap, possible,
       vectors, sc_hidden, fa_hidden, unclassified);
    fprintf(fp,
+      "; static branch confidence: checked=%zu concrete-edges=%zu rejected=%zu rejected-halt=%zu inconclusive=%zu\n",
+      a->static_branch_edges_checked, a->static_branch_edges_concrete,
+      a->static_branch_edges_rejected, a->static_branch_edges_rejected_halt,
+      a->static_branch_edges_inconclusive);
+   fprintf(fp,
       "; speculative analysis: rejected-starts=%zu barriers=%zu islands=%zu capped-walks=%zu promotion-capped=%zu\n",
       a->speculative_rejected_starts, a->speculative_barriers,
       a->speculative_islands, a->speculative_capped_walks,
@@ -9024,7 +9150,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                  (a->concrete.converged ? "; reachability converged" :
                   (a->concrete.top_level_return ? "; top-level return reached" : "")));
       fprintf(fp,
-              "; concrete neutral final CPU: PC=$%04X A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X; startup exhausts 8 COLOR/BW+difficulty combinations; SELECT/RESET press-release pulses are exercised when SWCHB is read\n",
+              "; concrete neutral final CPU: PC=$%04X A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X; startup first explores COLOR/BW+difficulty baselines with SELECT/RESET released and requires 10 VBLANK assertions before convergence once VBLANK is used; when SWCHB is read, each SELECT/RESET scenario runs 10 VBLANK frames released, 10 pressed, then 10 released (instruction-timed fallback only when no VBLANK clock exists)\n",
               a->concrete.final_pc, a->concrete.final_a, a->concrete.final_x,
               a->concrete.final_y, a->concrete.final_sp, a->concrete.final_p);
       if (a->h2_seed_runs)

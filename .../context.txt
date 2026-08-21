@@ -1266,3 +1266,33 @@ branches were measured from packed object `.org` offsets rather than logical
 the logical PC with modulo-16-bit arithmetic while preserving relocatable-object
 semantics; `assembler_rorg_directive.pl` pins a generated local `BNE.same $F806`.
 
+
+2026-08-20 concrete startup VBLANK dwell (focused Item 38): baseline RESET
+scenarios still require 16384 consecutive instructions with no new ROM/RAM
+instruction starts before convergence, but instruction count alone is no longer
+enough once a cartridge demonstrates video-frame activity. SELECT/RESET remain
+released during the baseline sweep; after the first assertion of TIA VBLANK bit 1,
+baseline convergence is suppressed until at least ten low-to-high VBLANK assertion
+edges have been observed. Repeated writes while VBLANK is already high do not count
+again. Programs that never assert VBLANK retain the ordinary stale-reachability
+fallback rather than running pointlessly to the 250000-instruction ceiling. The
+separate SELECT/RESET runs still occur only after baseline exploration when SWCHB
+is read. Each video run now uses the same VBLANK-edge clock: 10 frames released,
+10 pressed, then 10 released; convergence cannot end before the 30th assertion.
+Only a baseline with no VBLANK activity keeps the historical instruction-timed
+fallback. `baseline_vblank.bin` pins the baseline minimum and `console_switches.bin`
+pins the complete 10/10/10 momentary-switch sequence; focused disassembler round
+trips remain 119/119.
+
+
+2026-08-20 static branch-edge confidence (focused Item 40): concrete discovery
+now records taken/fall-through outcomes at each retained physical branch source,
+runtime PC, and mapper context. For an abstractly unknown conditional branch, an
+arm observed from that source is established directly; an unobserved arm gets a
+local mapper-aware negative-evidence walk before establishment. Deterministic
+HLT/JAM/KIL rejects only that edge, while another unknown branch, exhaustion, or
+other inconclusive validation keeps it. Mapper transitions happen before the next
+opcode fetch, so the F8 regression `LDA $1FF8` correctly follows the selected bank
+and survives despite JAM in the old bank. Proven flag outcomes are unchanged; a
+mapper without trusted concrete discovery still retains both feasible arms. Direct
+JAM, JMP-to-JAM, and hotspot-escape fixtures bring focused round trips to 122/122.

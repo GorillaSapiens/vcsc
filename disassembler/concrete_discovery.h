@@ -67,8 +67,11 @@ typedef struct {
 
 /* Execute bounded concrete discovery from RESET.  The first run uses inactive
  * controller/console inputs; additional one-active-low-input scenarios are run
- * only for input families observed by an already executed path. rom_exec_start
- * and rom_exec_pc are caller-owned arrays of rom_size entries.  The pass is
+ * only for input families observed by an already executed path. rom_exec_start,
+ * rom_exec_pc, rom_data_read, and rom_branch_edges are caller-owned arrays of
+ * rom_size entries.  For a conditional branch, rom_branch_edges bit 0 records an
+ * observed fall-through and bit 1 an observed taken edge, but only for the same
+ * retained physical-PC/mapper context stored in rom_exec_pc/rom_exec_state.  The pass is
  * positive discovery evidence only: unsupported concrete mapper models return
  * 0 and leave normal static analysis authoritative. */
 int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
@@ -77,6 +80,7 @@ int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
                            uint8_t *rom_exec_start,
                            uint16_t *rom_exec_pc,
                            uint8_t *rom_data_read,
+                           uint8_t *rom_branch_edges,
                            vcsc_concrete_rom_state_t *rom_exec_state,
                            vcsc_concrete_result_t *result);
 
@@ -91,6 +95,7 @@ int vcsc_concrete_discover_seed(const uint8_t *rom, size_t rom_size,
                                 uint8_t *rom_exec_start,
                                 uint16_t *rom_exec_pc,
                                 uint8_t *rom_data_read,
+                                uint8_t *rom_branch_edges,
                                 vcsc_concrete_rom_state_t *rom_exec_state,
                                 vcsc_concrete_result_t *result);
 

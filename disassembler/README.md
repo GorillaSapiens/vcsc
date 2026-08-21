@@ -484,8 +484,25 @@ RIOT-RAM/stack aliases are carried through pushes/pops, JSR/RTS, and memory writ
 A reachable `BRK` promotes the mapper-visible `$FFFE/$FFFF` target into the CFG.
 A bounded local IRQ trace may additionally connect that BRK to a specific RTI continuation
 when the saved stack return address remains provable, including deliberate modification
-through RIOT-RAM's stack-page mirror. Unknown/external-input branch conditions retain both CFG
-edges rather than letting one sampled execution history prove the other edge dead.
+through RIOT-RAM's stack-page mirror. Unknown/external-input branch conditions are
+still over-approximated statically, but sampled branch outcomes now provide a per-edge
+confidence check rather than globally proving an alternate edge dead. Concrete discovery
+records taken/fall-through outcomes at the branch **source**, keyed to the retained physical
+byte, runtime PC, and mapper configuration. A statically feasible arm actually observed
+from that same source context is established immediately. An unknown arm not observed there
+gets a local mapper-aware sanity walk before it is admitted as established-static code.
+
+That walk is deliberately negative evidence only. It follows deterministic control flow and
+mapper transitions, including selector/hotspot side effects before fetching the next opcode;
+therefore an F8 arm that executes `LDA $1FF8` is judged in the newly selected bank, not by
+the stale bytes physically following the load in the old bank. If the deterministic arm
+reaches HLT/JAM/KIL (or impossible low-memory execution), only that edge is rejected--the
+mapper is not. The walk stops inconclusively at a second unresolved conditional branch, and
+allocation failure or its safety bound always keeps the edge. Branch outcomes already proven
+by abstract flags are not challenged. If no trusted concrete model exists, static analysis
+retains both feasible arms as before because VCSC has no observation that one went untaken.
+The generated header reports static-edge checks, concretely observed edges, rejected edges,
+HLT/JAM/KIL rejections, and inconclusive checks.
 
 Concrete input discovery treats the console switches according to their hardware use.
 SELECT and RESET are momentary and therefore start released/high. COLOR/BW and the left
@@ -494,10 +511,18 @@ position, so the first pass semantically exhausts all eight combinations of thos
 SWCHB bits. The all-high case runs first; if that bounded execution never reads SWCHB,
 the other seven settings are provably execution-equivalent and are counted as covered
 without redundant emulator runs. Once SWCHB is observed, all remaining maintained-switch
-combinations are executed explicitly. If SWCHB is actually read, `vcsc-disas` additionally runs a SELECT press-and-release and
-a RESET press-and-release under each of the eight maintained-switch combinations. The
-pulse begins after a bounded startup interval and remains asserted long enough for an
-ordinary frame-polling loop to observe it before release. SWCHA joystick directions and
+combinations are executed explicitly. Each baseline scenario runs with SELECT/RESET
+released and, once the program demonstrates VBLANK use, cannot converge until at least
+ten VBLANK assertion edges have been observed. Programs that never assert VBLANK retain
+the normal no-new-reachability convergence fallback. If SWCHB is actually read,
+`vcsc-disas` additionally runs a SELECT scenario and a RESET scenario under each of the
+eight maintained-switch combinations. For programs that assert VBLANK, each fresh RESET
+scenario runs for ten VBLANK assertion intervals with the momentary switch released, ten
+with it pressed, and ten more after release before it may converge. Thus ordinary
+frame-polling and debounce logic sees a full 10/10/10-frame sequence rather than an
+instruction-count approximation. If a baseline never asserts VBLANK, there is no observed
+frame clock to count; only that non-video case retains the historical bounded
+instruction-timed press/release fallback. SWCHA joystick directions and
 INPT inputs remain demand-driven one-active-low scenarios rather than a Cartesian product
 of controller states. The generated header reports scenario count/productivity, executed
 instruction totals, distinct ROM and RIOT-RAM instruction starts, RAM bytes written, and

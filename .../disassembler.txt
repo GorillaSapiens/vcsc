@@ -988,8 +988,10 @@ H1. [x] Make the static CFG stack/interrupt/input aware and explore alternate pa
      released. The all-high run comes first; if it never reads SWCHB, the other seven
      settings are provably execution-equivalent and are counted as covered without
      redundant emulator runs. Once SWCHB is observed, all seven remaining combinations
-     execute explicitly. When SWCHB is actually read, SELECT and RESET are each exercised as a timed
-     press-and-release pulse under every maintained-switch combination. Controller
+     execute explicitly. When SWCHB is actually read, SELECT and RESET are each exercised
+     independently under every maintained-switch combination. Video programs use their
+     observed VBLANK assertion edges as the clock: ten frames released, ten frames pressed,
+     then ten frames released again. Controller
      SWCHA/INPT inputs remain demand-driven one-active-low scenarios. Observations
      are unioned as positive reachability evidence.
    * The concrete cartridge bus now covers all supported non-coprocessor families:
@@ -1752,3 +1754,60 @@ A 4096-byte file made from two byte-identical 2048-byte halves is a logical 2K c
       cartridge using `$D20E/$D400/$0244` and a `$B000` cartridge vector. Stella's
       F8 label is size-shaped autodetection; the old VCSC run had zero surviving
       mapper hypotheses and incorrectly resurrected it via nine speculative islands.
+
+38. [x] Gate concrete startup convergence on real VBLANK activity
+    * The historical 16384-consecutive-stale-instruction threshold is retained as
+      the reachability convergence test, but instruction count alone is no longer
+      allowed to end an ordinary video baseline after only a few frames.
+    * Baseline RESET scenarios run with SELECT/RESET released. Once execution
+      asserts TIA VBLANK bit 1, convergence is suppressed until at least ten
+      low-to-high VBLANK assertion edges have been observed. Repeated writes while
+      VBLANK remains asserted do not count as additional frames.
+    * Programs that never assert VBLANK retain the normal stale-reachability
+      convergence fallback instead of being forced to the 250000-instruction hard
+      ceiling. Halt/top-level-return and the hard ceiling remain safety exits.
+    * SELECT/RESET scenarios remain separate fresh RESET runs after the baseline sweep;
+      Item 39 replaces their historical instruction-count pulse timing with frame timing.
+    * `baseline_vblank.bin` deliberately places its tenth VBLANK assertion after
+      more than 40000 executed instructions, proving that the old 16384-stale-only
+      cutoff would stop too early. Focused disassembler round trips are 119/119.
+
+39. [x] Drive SELECT/RESET scenarios from VBLANK frames
+    * For every maintained COLOR/BW+difficulty combination, SELECT and RESET are
+      exercised independently from a fresh RESET when SWCHB is observed. Video
+      scenarios count the same low-to-high TIA VBLANK assertions used by baseline
+      dwell: 10 frames released, 10 frames pressed, then 10 frames released.
+    * Input state changes immediately after the 10th and 20th assertion edges;
+      convergence is forbidden until the 30th edge, so polling/debounce code gets
+      a full ten-frame dwell in each phase. The ordinary stale-reachability rule
+      may extend the final released phase but can never shorten it.
+    * A baseline that never asserts VBLANK has no observed frame clock. Only that
+      non-video case retains the historical bounded 8192/16384-instruction pulse
+      fallback, avoiding pointless 250000-instruction runs while preserving prior
+      input exploration behavior.
+    * `console_switches.bin` now rejects early press, requires SELECT throughout
+      frames 10-19, requires release throughout frames 20-29, and writes its proof
+      byte only after the complete 10/10/10 sequence. The historical instruction
+      pulse misses this timing window. Focused disassembler round trips remain
+      119/119 exact.
+
+
+
+40. [x] Validate never-observed static branch arms before establishment
+    * Concrete discovery now records conditional taken/fall-through outcomes at
+      the branch source for the retained physical-byte/runtime-PC/mapper context.
+      An unknown static arm observed from that same context is established
+      immediately; an arm never observed there receives a local mapper-aware
+      negative-evidence walk before becoming established-static code.
+    * Validation follows deterministic control flow and selector/hotspot effects
+      before the next opcode fetch. Thus a branch arm that executes `LDA $1FF8`
+      and continues safely in the selected F8 bank is retained even if the old
+      bank contains JAM/KIL at the same continuation address.
+    * A deterministic HLT/JAM/KIL rejects only that branch edge, never the mapper.
+      The validator stops inconclusively at another unresolved conditional edge;
+      exhaustion/allocation failure keeps the edge. Abstractly proven branch
+      outcomes are not challenged, and without trusted concrete discovery both
+      feasible static arms remain authoritative as before.
+    * Synthetic fixtures pin direct JAM rejection, JMP-to-JAM rejection, and an
+      F8 hotspot escape whose correct post-switch continuation must survive.
+      Focused disassembler round trips are 122/122 exact.
