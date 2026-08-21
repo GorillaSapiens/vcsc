@@ -296,6 +296,13 @@ write_bin(File::Spec->catfile($in, 'plain4k.bin'), make_rom(4096, 0xF000, 0x0100
 my $doubled_2k_half = make_rom(2048, 0xF800, 0x0100, "\xA9\x2A\x60");
 write_bin(File::Spec->catfile($in, 'doubled2k.bin'),
           $doubled_2k_half . $doubled_2k_half);
+# Stella likewise collapses an 8K image whose two 4K halves are exactly
+# identical to one logical 4K cartridge.  Include a UA-looking opcode in the
+# logical image so the structural duplicate rule must run before 8K mapper
+# heuristics; preserve the duplicate second half verbatim for round trip.
+my $doubled_4k_half = make_rom(4096, 0xF000, 0x0100, "\xAD\xC0\x02\x60");
+write_bin(File::Spec->catfile($in, 'doubled4k.bin'),
+          $doubled_4k_half . $doubled_4k_half);
 # Manual analysis hints: a byte sequence that is intentionally a pointer
 # table but has no automatic low/high builder, plus a generic data table.
 my $manual_hints = make_rom(4096, 0xF000, 0x0100, "\xA9\x42\x60");
@@ -618,6 +625,33 @@ for my $v (0, 2, 4) {
 }
 write_bin(File::Spec->catfile($in, 'uasw_flow_only.bin'), $uasw_flow);
 
+# Raw UA-family signatures establish the family but do not by themselves
+# distinguish the two selector polarities.  Under ordinary UA, $02C0 selects
+# bank 1; under UASW it selects bank 0.  The losing variant therefore fetches
+# JAM from the old bank while the correct variant reaches RTS in bank 1.
+my $ua_raw_variant = chr(0xEA) x 8192;
+break_sc_layout(\$ua_raw_variant);
+substr($ua_raw_variant, 0x0100, 4, "\xAD\xC0\x02\x02");
+substr($ua_raw_variant, 0x1000 + 0x0103, 1, "\x60");
+for my $v (0, 2, 4) {
+   put16(\$ua_raw_variant, 0x0FFA + $v, 0xF100);
+   put16(\$ua_raw_variant, 0x1FFA + $v, 0x0000);
+}
+write_bin(File::Spec->catfile($in, 'ua_raw_variant.bin'), $ua_raw_variant);
+
+# $021F,X is one of the historical UA detector signatures.  With X=1 its
+# effective $0220 access selects bank 1 only under the swapped UASW polarity.
+# This pins behavioral variant selection without relying on VCSC tail metadata.
+my $uasw_raw_variant = chr(0xEA) x 8192;
+break_sc_layout(\$uasw_raw_variant);
+substr($uasw_raw_variant, 0x0100, 6, "\xA2\x01\xBD\x1F\x02\x02");
+substr($uasw_raw_variant, 0x1000 + 0x0105, 1, "\x60");
+for my $v (0, 2, 4) {
+   put16(\$uasw_raw_variant, 0x0FFA + $v, 0xF100);
+   put16(\$uasw_raw_variant, 0x1FFA + $v, 0x0000);
+}
+write_bin(File::Spec->catfile($in, 'uasw_raw_variant.bin'), $uasw_raw_variant);
+
 # Parker Brothers E0 is a segmented mapper, not a whole-4K bank switch.  RESET
 # executes from fixed physical bank 7, jumps into default segment 0 (bank 4),
 # then LDA $FFE0 replaces that segment with bank 0.  The byte physically after
@@ -721,6 +755,27 @@ for my $b (0 .. 3) {
    }
 }
 write_bin(File::Spec->catfile($in, 'f6_jane_exit_tie.bin'), $f6_jane_exit_tie);
+
+
+# A coherent JANE startup-bank interpretation is not mapper evidence by itself.
+# This fixture deliberately makes the ordinary F6 power-on bank halt while
+# JANE's fixed bank 1 returns cleanly, but contains neither the Stella JANE
+# signature nor an established access to JANE's unique $1FF0/$1FF1 selectors.
+# Automatic inference must keep the normal 16K default, F6, rather than rescue
+# the image by choosing whichever startup bank happens to decode farther.
+my $f6_jane_no_evidence = chr(0xEA) x 16384;
+break_sc_layout(\$f6_jane_no_evidence);
+substr($f6_jane_no_evidence, 1 * 4096 + 0x0100, 1, "\x60");
+substr($f6_jane_no_evidence, 3 * 4096 + 0x0100, 1, "\x02");
+for my $b (0 .. 3) {
+   for my $v (0, 2, 4) {
+      put16(\$f6_jane_no_evidence, $b * 4096 + 0x0FFA + $v, 0xF100);
+   }
+}
+write_bin(File::Spec->catfile($in, 'f6_jane_no_evidence_rescue.bin'),
+   $f6_jane_no_evidence);
+
+
 
 write_bin(File::Spec->catfile($in, 'f4.bin'), make_rom(32768, 0xF000, 0x0100, "\xAD\xF4\x1F\x60"));
 
@@ -1653,6 +1708,16 @@ require_re($doubled_2k_out,
    qr/^; ---- duplicated second 2K copy from preservation image ----$/m,
    'doubled 2K second-copy preservation section');
 
+my $doubled_4k_out = slurp(File::Spec->catfile($out, 'doubled4k.s26'));
+require_re($doubled_4k_out, qr/^; mapper: unbanked 4K \(/m,
+   'byte-identical doubled 4K dump recognized as logical 4K before UA heuristics');
+require_re($doubled_4k_out,
+   qr/^; preservation image: 4K ROM duplicated byte-for-byte to 8K;/m,
+   'doubled 4K preservation annotation');
+require_re($doubled_4k_out,
+   qr/^; ---- duplicated second 4K copy from preservation image ----$/m,
+   'doubled 4K second-copy preservation section');
+
 my $f8_out = slurp(File::Spec->catfile($out, 'f8.s26'));
 require_re($f8_out, qr/^B0_F100:\s*$/m,
    'bank-qualified colliding label in bank 0');
@@ -1961,8 +2026,8 @@ my $spec_banked = slurp(File::Spec->catfile($out, 'speculative_banked_island.s26
 require_re($spec_banked, qr/^; mapper: F8 \(/m,
    'banked speculative-island mapper');
 require_re($spec_banked,
-   qr/^; mapper flow hypotheses: 12 tested, 6 survived$/m,
-   'speculative selector traffic does not rank mapper hypotheses');
+   qr/^; mapper flow hypotheses: 12 tested, 4 survived$/m,
+   'speculative selector traffic and evidence-free UA variants do not rank mapper hypotheses');
 require_re($spec_banked,
    qr/^; mapper: F8 \(medium confidence; 0 decoded hotspot accesses,/m,
    'speculative F8 hotspot does not become mapper evidence');
@@ -2281,6 +2346,25 @@ require_re($uasw_flow_out, qr/B0_F100:\n\s*LDA\s+\$0220/m,
 require_re($uasw_flow_out, qr/B1_F103:\n\s*RTS$/m,
    'UASW successor-bank continuation decoded');
 
+
+my $ua_raw_variant_out = slurp(File::Spec->catfile($out, 'ua_raw_variant.s26'));
+require_re($ua_raw_variant_out, qr/^; mapper: UA \(/m,
+   'raw UA-family signature plus mapper flow selects ordinary UA polarity');
+require_re($ua_raw_variant_out,
+   qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
+   'ordinary UA variant evidence removes unsigned competing 8K hypotheses');
+require_re($ua_raw_variant_out, qr/B1_F103:\n\s*RTS$/m,
+   'ordinary UA selector continues in bank 1');
+
+my $uasw_raw_variant_out = slurp(File::Spec->catfile($out, 'uasw_raw_variant.s26'));
+require_re($uasw_raw_variant_out, qr/^; mapper: UASW \(/m,
+   'raw UA-family signature plus mapper flow selects swapped UASW polarity');
+require_re($uasw_raw_variant_out,
+   qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
+   'UASW variant evidence removes unsigned competing 8K hypotheses');
+require_re($uasw_raw_variant_out, qr/B1_F105:\n\s*RTS$/m,
+   'UASW indexed selector continues in bank 1');
+
 my $e0_flow_out = slurp(File::Spec->catfile($out, 'e0_flow_only.s26'));
 require_re($e0_flow_out, qr/^; mapper: E0 \(/m,
    'E0 segmented mapper inferred from executable flow');
@@ -2319,8 +2403,18 @@ my $f6_jane_tie_out = slurp(File::Spec->catfile($out, 'f6_jane_exit_tie.s26'));
 require_re($f6_jane_tie_out, qr/^; mapper: F6 \(medium confidence;/m,
    'F6/JANE ambiguity does not reward truncated control flow');
 require_re($f6_jane_tie_out,
-   qr/^; mapper flow hypotheses: 6 tested, 2 survived$/m,
-   'F6/JANE/3E/3F candidate set retains two viable exit-count hypotheses');
+   qr/^; mapper flow hypotheses: 6 tested, 1 survived; control flow refined selection$/m,
+   'JANE requires positive family evidence instead of mere coherent startup flow');
+
+
+my $f6_jane_no_evidence_out =
+   slurp(File::Spec->catfile($out, 'f6_jane_no_evidence_rescue.s26'));
+require_re($f6_jane_no_evidence_out, qr/^; mapper: F6 \(medium confidence;/m,
+   'coherent JANE startup bank cannot rescue an evidence-free 16K image');
+require_re($f6_jane_no_evidence_out,
+   qr/^; mapper flow hypotheses: 6 tested, 0 survived$/m,
+   'evidence-free JANE hypothesis is not viable merely because F6 halts');
+
 
 my $f6sc_out = slurp(File::Spec->catfile($out, 'f6sc.s26'));
 require_re($f6sc_out, qr/^; mapper: F6SC\b/m, 'F6SC mapper inference');

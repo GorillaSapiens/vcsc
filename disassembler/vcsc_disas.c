@@ -219,6 +219,7 @@ typedef struct {
    int verbose;
    int wd_bad_dump;
    int doubled_2k_dump;
+   int doubled_4k_dump;
    int hotspot_refs;
    size_t cross_bank_switches;
    int superchip_write_refs;
@@ -916,6 +917,11 @@ static int is_doubled_2k_dump(const uint8_t *rom, size_t size)
    return size == 4096u && memcmp(rom, rom + 2048u, 2048u) == 0;
 }
 
+static int is_doubled_4k_dump(const uint8_t *rom, size_t size)
+{
+   return size == 8192u && memcmp(rom, rom + 4096u, 4096u) == 0;
+}
+
 static int mapper_is_wd_family(mapper_t mapper)
 {
    return mapper == MAP_WD || mapper == MAP_WDSW;
@@ -1216,6 +1222,7 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
    case 4096u: mapper = is_doubled_2k_dump(rom, size) ? MAP_2K :
                          (is_probably_fc(rom, size) ? MAP_FC : MAP_4K); break;
    case 8192u:
+      if (is_doubled_4k_dump(rom, size)) { mapper = MAP_4K; break; }
       mapper = is_probably_e0(rom, size) ? MAP_E0 : MAP_RAW;
       if (mapper == MAP_RAW) mapper = is_probably_3e(rom, size) ? MAP_3E : MAP_RAW;
       if (mapper == MAP_RAW) mapper = is_probably_3f(rom, size) ? MAP_3F : MAP_RAW;
@@ -1243,6 +1250,10 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
    }
    if (mapper == MAP_2K && is_doubled_2k_dump(rom, size)) {
       *bank_size = 2048u;
+      *bank_count = 1u;
+   }
+   else if (mapper == MAP_4K && is_doubled_4k_dump(rom, size)) {
+      *bank_size = 4096u;
       *bank_count = 1u;
    }
    else
@@ -1934,6 +1945,10 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
          a->bank_size = 2048u;
          a->bank_count = 1u;
       }
+      else if (a->mapper == MAP_4K && is_doubled_4k_dump(rom, rom_size)) {
+         a->bank_size = 4096u;
+         a->bank_count = 1u;
+      }
       else if (!mapper_dimensions(a->mapper, rom_size, &a->bank_size, &a->bank_count)) {
          fprintf(stderr, "--mapper %s is incompatible with %zu-byte input\n",
                  mapper_name(a->mapper), rom_size);
@@ -1947,6 +1962,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
    }
    a->wd_bad_dump = a->mapper == MAP_WDSW;
    a->doubled_2k_dump = a->mapper == MAP_2K && is_doubled_2k_dump(rom, rom_size);
+   a->doubled_4k_dump = a->mapper == MAP_4K && is_doubled_4k_dump(rom, rom_size);
    a->video_override = opt->video_override;
    a->input_name = opt->input;
    a->controller_override[0] = opt->controller_override[0];
@@ -6519,6 +6535,7 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
     * ambiguous 4K cartridge.  Preserve the legacy logical-2K decision before
     * introducing 4K mapper hypotheses such as FC. */
    if (size == 4096u && is_doubled_2k_dump(rom, size)) return legacy;
+   if (size == 8192u && is_doubled_4k_dump(rom, size)) return legacy;
    n = mapper_candidates_for_size(size, candidates,
                                   sizeof(candidates) / sizeof(candidates[0]));
    if (n == 0u || n > sizeof(h) / sizeof(h[0])) return legacy;
@@ -6540,6 +6557,9 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
          candidates[i] == MAP_3E ? is_probably_3e(rom, size) :
          candidates[i] == MAP_3F ? is_probably_3f(rom, size) :
          candidates[i] == MAP_FE ? is_probably_fe(rom, size) :
+         candidates[i] == MAP_JANE ? is_probably_jane(rom, size) :
+         (candidates[i] == MAP_UA || candidates[i] == MAP_UASW) ?
+            infer_ua_variant(rom, size) != MAP_RAW :
          candidates[i] == MAP_WD ? is_probably_wd(rom, size) :
          candidates[i] == MAP_FC ? is_probably_fc(rom, size) : 0;
       h[i].explicit_signature =
@@ -6581,6 +6601,25 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                                  h[i].explicit_signature ||
                                  h[i].hotspots != 0 ||
                                  h[i].three_specific_switches != 0u;
+            else if (h[i].mapper == MAP_JANE)
+               /* JANE overlaps ordinary F6 at $1FF8/$1FF9, and tracing the
+                * wrong startup mapping can manufacture apparently meaningful
+                * accesses to $1FF0/$1FF1 too.  The known JANE cartridge is a
+                * one-off Tarzan prototype with a distinctive Stella detector
+                * signature.  Do not promote arbitrary 16K images to JANE from
+                * model-dependent control flow alone: require that raw-image
+                * signature or explicit VCSC JANE metadata. */
+               family_evidence = h[i].detector_signature ||
+                                 h[i].explicit_signature;
+            else if (h[i].mapper == MAP_UA || h[i].mapper == MAP_UASW)
+               /* UA and UASW use broad partial-address decoding.  A wrong
+                * model can manufacture selector traffic from ordinary reads,
+                * so raw hotspot observations alone are not family evidence.
+                * Require an established UA byte signature/explicit metadata,
+                * or the stronger semantic fact that switching avoided a JAM. */
+               family_evidence = h[i].detector_signature ||
+                                 h[i].explicit_signature ||
+                                 h[i].switch_avoided_halts != 0u;
             else if (h[i].mapper == MAP_FC)
                /* FC shares $1FF8/$1FF9 addresses with ordinary F-series carts;
                 * require Stella's established staged-selector signatures for
@@ -6611,6 +6650,11 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                            h[i].three_specific_switches != 0u ||
                            (h[i].mapper == MAP_E7 &&
                             h[i].detector_signature && h[i].hotspots != 0) ||
+                           ((h[i].mapper == MAP_UA || h[i].mapper == MAP_UASW) &&
+                            h[i].detector_signature &&
+                            h[i].cross_bank_switches != 0u) ||
+                           ((h[i].mapper == MAP_UA || h[i].mapper == MAP_UASW) &&
+                            h[i].switch_avoided_halts != 0u) ||
                            (h[i].mapper == MAP_E7 && h[i].e7_specific_refs != 0) ||
                            (h[i].mapper == MAP_3E && h[i].detector_signature) ||
                            (h[i].mapper == MAP_FC && h[i].detector_signature &&
@@ -6685,6 +6729,48 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
             if (h[i].viable &&
                 (h[i].mapper == MAP_4K || h[i].mapper == MAP_F8 ||
                  h[i].mapper == MAP_F6 || h[i].mapper == MAP_F4))
+               h[i].viable = 0;
+      }
+   }
+
+   /* UA and UASW share the same broad selector alias set; they differ only
+    * in which selector class chooses which physical bank.  Once independent
+    * UA-family evidence has admitted both hypotheses, a bank-changing RESET
+    * edge under exactly one variant is useful variant evidence rather than a
+    * generic broad-decoder hotspot count.  Preserve ambiguity if both or
+    * neither variant actually changes banks. */
+   {
+      int ua_i = -1, uasw_i = -1;
+      for (i = 0; i < n; ++i) {
+         if (h[i].viable && h[i].mapper == MAP_UA) ua_i = (int)i;
+         if (h[i].viable && h[i].mapper == MAP_UASW) uasw_i = (int)i;
+      }
+      if (ua_i >= 0 && uasw_i >= 0 &&
+          !h[ua_i].explicit_signature && !h[uasw_i].explicit_signature) {
+         int ua_cross = h[ua_i].cross_bank_switches != 0u;
+         int uasw_cross = h[uasw_i].cross_bank_switches != 0u;
+         if (ua_cross != uasw_cross) {
+            if (ua_cross) h[uasw_i].viable = 0;
+            else h[ua_i].viable = 0;
+         }
+      }
+   }
+
+   /* If legacy byte detection identified the UA family and mapper-aware
+    * flow kept at least one UA variant alive, do not let unrelated unsigned
+    * 8K hypotheses win merely because their accidental startup CFG is also
+    * halt-free.  Distinctive/explicit evidence for another family remains in
+    * contention; this only removes evidence-free alternatives. */
+   if (legacy == MAP_UA || legacy == MAP_UASW) {
+      int have_identified_ua = 0;
+      for (i = 0; i < n; ++i)
+         if (h[i].viable && (h[i].mapper == MAP_UA || h[i].mapper == MAP_UASW) &&
+             h[i].detector_signature)
+            have_identified_ua = 1;
+      if (have_identified_ua) {
+         for (i = 0; i < n; ++i)
+            if (h[i].viable && h[i].mapper != MAP_UA && h[i].mapper != MAP_UASW &&
+                !h[i].detector_signature && !h[i].explicit_signature)
                h[i].viable = 0;
       }
    }
@@ -9048,6 +9134,8 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
               a->bank_count, a->bank_size);
       if (a->doubled_2k_dump)
          fprintf(fp, "; preservation image: 2K ROM duplicated byte-for-byte to 4K; second copy retained raw for exact round trip\n");
+      if (a->doubled_4k_dump)
+         fprintf(fp, "; preservation image: 4K ROM duplicated byte-for-byte to 8K; second copy retained raw for exact round trip\n");
       if (a->odd_4k_dump) {
          if (a->physical_size < 4096u)
             fprintf(fp, "; preservation image: %zu-byte short 4K dump; Stella-compatible analysis zero-fills %zu missing tail byte%s, but generated source preserves the original file length\n",
@@ -9551,6 +9639,12 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
       fputs("; ---- duplicated second 2K copy from preservation image ----\n", fp);
       fputs(".org $0800\n", fp);
       emit_physical_raw_range(fp, a, 2048u, 4096u);
+      fputc('\n', fp);
+   }
+   if (a->doubled_4k_dump) {
+      fputs("; ---- duplicated second 4K copy from preservation image ----\n", fp);
+      fputs(".org $1000\n", fp);
+      emit_physical_raw_range(fp, a, 4096u, 8192u);
       fputc('\n', fp);
    }
    if (a->mapper == MAP_DPC) {

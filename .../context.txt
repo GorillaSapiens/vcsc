@@ -119,9 +119,10 @@ General workflow invariants
   `COPYING`, `Makefile`, `compiler/`, and `test/` remain at archive root.
 * Preserve `.../instruction.txt`; it is intentional durable guidance.
 * `.../bankswitching.txt` is the sole bankswitching design record; do not create a duplicate elsewhere.
-* Package returned archives with a UTC timestamp:
-
-      date -u "+%Y%m%d_%H%M%S"
+* Use the top-level `make tar` target for all future VCSC source-tarball
+  creation and returned source archives. Do not hand-roll source tarballs with
+  direct `tar` commands; `make tar` owns file selection and the UTC-timestamped
+  archive name.
 
 * Use the term "renderer," never "kernel," for VCSC display implementations.
 * Do not change the top-level README unless the task actually requires it.
@@ -1172,7 +1173,11 @@ for example genuine 16K F6 ROMs could be promoted to JANE solely because JANE's
 startup mapping decoded less code. Dynamic-exit counts are no longer compared
 between mapper families. Genuine ambiguity preserves the normal size/signature
 default unless positive selector/flow/signature evidence discriminates a mapper.
-A synthetic 16K F6-vs-JANE regression pins this. The same investigation found
+A synthetic 16K F6-vs-JANE regression pins this. A 2026-08-20 follow-up found
+four more F6 images where JANE became the sole surviving model with no positive
+JANE evidence. Automatic JANE refinement now requires the raw `AD F1 FF 60`
+Stella detector signature or explicit VCSC `JANE` metadata; coherent execution
+under JANE's startup mapping alone is never enough. The same investigation found
 non-VCS ROMs in the expanded corpus (including Atari 5200/7800/8-bit material);
 `roundtrip.pl --stella` is a VCS mapper differential, not a platform validator,
 and corpus inputs must be prefiltered to Atari 2600/VCS.
@@ -1296,3 +1301,13 @@ opcode fetch, so the F8 regression `LDA $1FF8` correctly follows the selected ba
 and survives despite JAM in the old bank. Proven flag outcomes are unchanged; a
 mapper without trusted concrete discovery still retains both feasible arms. Direct
 JAM, JMP-to-JAM, and hotspot-escape fixtures bring focused round trips to 122/122.
+
+2026-08-21 UA/UASW corpus closeout (focused Item 43): exact duplicated 4K halves
+stored as an 8K file are now analyzed as logical unbanked 4K and preserved raw on
+output. UA/UASW broad-decoder traffic is no longer family evidence by itself;
+automatic family admission requires historical UA bytes/explicit metadata or a
+switch that demonstrably avoids JAM. Once the UA family is independently known,
+a unique bank-changing RESET edge distinguishes normal UA from swapped UASW.
+Synthetic semantic round trips are 126/126. Corpus 3290d62b... now 4K, 4e4a263c...
+UA, d214c7a7... UASW; all three reconstruct byte-exactly.
+

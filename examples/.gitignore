@@ -7,4 +7,5 @@
 *.map
 *.o26
 *.s26
+!10_faithful_legacy_multisprite/01_diagnostic/faithful_legacy_multisprite_diagnostic_data.s26
 *.sym

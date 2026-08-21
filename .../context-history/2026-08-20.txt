@@ -160,3 +160,12 @@ Raised the generic per-case runner timeout from 20 to 45 seconds and removed all
 Replaced instruction-count timing for concrete SELECT/RESET exploration with the cartridge's observed VBLANK frame clock. Under each of the eight maintained COLOR/BW+difficulty configurations, SELECT and RESET each get a fresh RESET run with 10 VBLANK assertion intervals released, 10 pressed, then 10 released; convergence is gated until the 30th assertion. Non-video baselines that never assert VBLANK retain the old bounded instruction-timed fallback because no frame clock exists.
 
 Updated console_switches.bin to require the complete frame-timed SELECT sequence before writing its proof RAM byte. The old 8192/16384-instruction pulse misses the frame-10 window. Focused vcsc-disas regression remains 119/119 byte-exact.
+2026-08-20 23:52:50 PDT, gate JANE inference on positive evidence
+Four expanded-corpus 16K images were falsely promoted from F6 to JANE because
+control-flow refinement allowed a coherent JANE startup-bank model to survive
+without any JANE-specific raw-image evidence. Automatic JANE now requires the
+Stella `AD F1 FF 60` detector signature or explicit VCSC `JANE` tail metadata;
+model-dependent execution coherence cannot select JANE by itself. Added an
+exact regression where evidence-free JANE runs cleanly while F6 halts. The four
+supplied mismatches now report F6 and round-trip byte-exactly; focused semantic
+round trips are 123/123.

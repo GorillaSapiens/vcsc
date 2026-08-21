@@ -107,10 +107,11 @@ topology for a 1024-byte input.
 
 A 4096-byte image whose upper 2048 bytes are byte-for-byte identical to its
 lower 2048 bytes is recognized as a doubled preservation dump of an ordinary
-unbanked 2K cartridge.  `vcsc-disas` analyzes one logical 2K copy with normal
-2K mirroring semantics and emits the duplicate half as preserved raw bytes, so
-disassemble/reassemble still reproduces the original 4096-byte file exactly.
-A merely similar or partially duplicated 4K image remains an ordinary 4K cart.
+unbanked 2K cartridge. Likewise, an 8192-byte image made from two byte-identical
+4K halves is analyzed as one logical unbanked 4K cartridge before any 8K mapper
+heuristic runs. `vcsc-disas` emits each duplicate half as preserved raw bytes,
+so disassemble/reassemble reproduces the original physical file exactly. Merely
+similar or partially duplicated images are not collapsed.
 
 Stella-playable 4094- and 4098-byte preservation dumps are treated as logical
 unbanked 4K cartridges without changing their physical files.  This mirrors
@@ -203,7 +204,10 @@ alias decoders can create misleadingly high counts. A selector transition that
 demonstrably avoids an old-mapping HLT/JAM/KIL and resumes valid code in the new
 mapping is especially strong control-flow evidence. Bank changes produced only
 by broad partial-address decoders such as 0840/UA/0FA0 are not, by themselves,
-allowed to outrank another mapper.
+allowed to establish that mapper family. UA/UASW therefore require independent
+UA-family byte/metadata evidence or a switch that demonstrably avoids a JAM; once
+the family is established, a bank-changing edge under only one of UA/UASW may
+distinguish the selector polarity.
 Deliberate VCSC mapper signatures and legacy raw-byte detector patterns are
 tie-break evidence, not a reason to override contradictory executable control
 flow. Dynamic/unresolved control-exit counts are likewise **not** ranked across
@@ -248,7 +252,10 @@ JANE is a 16K four-bank layout with selectors `$1FF0`, `$1FF1`, `$1FF8`, and
 hardware power-on bank. `vcsc-disas` recognizes either VCSC's `JANE` tail
 signature or the established `LDA $FFF1; RTS` detector byte pattern, reports
 the nonstandard power-on bank explicitly, and preserves physical file order on
-round trip. `--mapper jane` forces the same interpretation.
+round trip. Automatic mapper refinement does not promote an otherwise ordinary
+16K image to JANE merely because JANE's startup-bank interpretation happens to
+decode coherently; raw JANE signature evidence is required. `--mapper jane`
+forces the same interpretation for unsigned or experimental images.
 
 3E extends Tigervision 3F with banked cartridge RAM. A write to `$3E` selects
 one of 32 RAM banks for the lower window; RAM is read through `$F000-$F3FF`
@@ -308,9 +315,12 @@ round-trips VCSC-generated 0840 images byte-exactly.
 UA and UASW are 8K two-bank layouts with alias-decoded selectors below the
 cartridge window. UA uses `(A & $1260)==$0220` for bank 0 and `==$0240` for bank
 1; UASW swaps those associations. `vcsc-disas` recognizes VCSC's `UA\0\0`
-and `UASW` tail signatures, and also recognizes the established UA access
-patterns as UA when no explicit swapped signature is present. Both report
-physical bank 0 as power-on and round-trip byte-exactly.
+and `UASW` tail signatures plus the established historical UA access patterns.
+Those raw patterns establish the UA family, not necessarily its polarity: mapper-
+aware RESET flow distinguishes UA from UASW when one model actually changes bank
+and the other does not. Broad alias traffic without independent family evidence
+is not enough to invent UA/UASW. Both variants power on in physical bank 0 and
+round-trip byte-exactly.
 
 
 Conditional branches are always emitted with the VCSC timing contract

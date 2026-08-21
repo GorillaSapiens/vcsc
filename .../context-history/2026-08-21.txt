@@ -1,0 +1,11 @@
+2026-08-21 05:42:00 PDT, harden UA/UASW mapper inference
+
+The latest corpus exposed three UA-family mismatches. An 8K image consisting of
+two byte-identical 4K halves is now collapsed to one logical 4K image before 8K
+mapper heuristics, with the duplicate half preserved raw for exact reconstruction.
+UA/UASW broad alias traffic no longer counts as family evidence by itself; raw UA
+signatures/explicit metadata or a switch that actually avoids JAM are required.
+Once family evidence exists, a bank-changing RESET edge under exactly one polarity
+can distinguish UA from UASW. Added doubled-4K, raw-UA, and raw-UASW regressions.
+Focused disassembler round trips are 126/126; corpus 3290d62b..., 4e4a263c..., and
+d214c7a7... now match Stella as 4K, UA, and UASW and round-trip byte-exactly.

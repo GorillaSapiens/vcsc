@@ -1008,8 +1008,19 @@ installcheck: tools
 	rm -rf $(INSTALLCHECK_STAGING)
 
 tar:
-	rm -f ../`basename $$(git rev-parse --show-toplevel)`.*.tar.gz
-	git ls-files | tar -czv -T - -f /tmp/`basename $$(git rev-parse --show-toplevel)`.`date -u "+%Y%m%d_%H%M%S"`.tar.gz
+	@set -eu; \
+	out=/tmp/vcsc.`date -u "+%Y%m%d_%H%M%S"`.tar.gz; \
+	if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
+	  git ls-files -z | tar --null -czv -T - -f "$$out"; \
+	else \
+	  tmp=`mktemp -d`; \
+	  trap 'rm -rf "$$tmp"' EXIT HUP INT TERM; \
+	  git init -q "$$tmp"; \
+	  GIT_DIR="$$tmp/.git" GIT_WORK_TREE="$(CURDIR)" git add -A; \
+	  GIT_DIR="$$tmp/.git" GIT_WORK_TREE="$(CURDIR)" git ls-files -z | \
+	    tar --null -C "$(CURDIR)" -czv -T - -f "$$out"; \
+	fi; \
+	echo "$$out"
 
 patch:
 	rm -f ../`basename $$(git rev-parse --show-toplevel)`.*.patch

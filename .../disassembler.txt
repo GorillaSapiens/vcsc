@@ -1839,3 +1839,44 @@ A 4096-byte file made from two byte-identical 2048-byte halves is a logical 2K c
       images: Stella may select one component, recompute the MD5 over that slice,
       and then autodetect the slice's mapper. The whole-file MD5 therefore need
       not equal Stella's `Cart MD5` for a multi-game container.
+
+
+42. [x] Require positive JANE evidence before F6 refinement
+    * Expanded 16K corpus testing found four ordinary F6 images being promoted
+      to JANE even though none contained Stella's JANE detector signature or
+      VCSC `JANE` tail metadata. JANE could become the only surviving control-
+      flow hypothesis simply because its fixed startup bank decoded farther than
+      the F6 reset-bank hypothesis.
+    * JANE is now a family-gated mapper during control-flow refinement, like the
+      other distinctive mapper families. Automatic JANE requires the raw
+      `AD F1 FF 60` (`LDA $FFF1; RTS`) detector signature or explicit VCSC JANE
+      metadata; mapper-dependent execution coherence alone cannot select it.
+    * Do not use modeled `$1FF0/$1FF1` accesses alone as automatic JANE proof. A
+      wrong startup mapping can manufacture such accesses from unrelated bytes.
+      `--mapper jane` remains available for unsigned/experimental JANE images.
+    * A focused regression makes F6 halt while evidence-free JANE returns, and
+      requires the result to remain F6. The semantic round-trip suite is 123/123.
+      The four supplied JANE-vs-F6 mismatches now identify as F6 and reconstruct
+      byte-exactly.
+
+43. [x] Harden UA/UASW family and duplicated-4K inference
+    * An 8K image whose two 4K halves are byte-identical is now treated as one
+      logical unbanked 4K cartridge before 8K mapper detection, while the second
+      physical copy is emitted raw for byte-exact reconstruction. This fixes a
+      corpus false-UA case whose duplicated 4K program happened to contain UA
+      access signatures.
+    * UA/UASW hypotheses no longer survive merely because their broad partial-
+      address decoder turns ordinary accesses into modeled hotspots. Automatic
+      family evidence requires a historical UA byte signature, explicit VCSC
+      UA/UASW metadata, or the stronger semantic fact that a modeled switch
+      avoids a reachable JAM/KIL.
+    * A raw UA-family signature establishes the family but not selector polarity.
+      When both UA and UASW remain viable and neither has explicit variant metadata,
+      a bank-changing RESET edge under exactly one variant selects that polarity.
+      Evidence-free competing 8K hypotheses cannot steal an independently
+      identified viable UA family merely by having a halt-free startup graph.
+    * Added doubled-4K, raw-UA, and raw-UASW exact-round-trip fixtures. Focused
+      disassembler round trips are 126/126. Corpus cases 3290d62b... -> 4K,
+      4e4a263c... -> UA, and d214c7a7... -> UASW now match Stella and reconstruct
+      byte-exactly.
+
