@@ -1147,7 +1147,7 @@ The enhanced-asymmetric multisprite side quest is active in
 `renderers/enhanced_multisprite_asymmetric/`; read `.../enhanced_asymmetric.txt`
 before continuing it.  Dynamic non-reflected PF0/PF1/PF2 timing, per-event
 colors, X=0..159 ordinary movement, top-band PF preload, and Y=0..95 sprite top
-reach are all implemented.  The public diagnostic is now unbanked 4K and full-Y randomized timing is stable.
+reach are all implemented.  The public diagnostic is now unbanked 4K and full-Y randomized timing is stable.  A host C Monte Carlo model reproduced the reported catastrophic scheduler collapse to one sprite: blindly seeding the first candidate on P0 can strand P1 when priority[1] is 1..5 bands above it.  `ChooseLane` now seeds that first sprite on P1 only for this case; exhaustive first-pair testing and multi-million random layouts have minimum two accepted sprites, and the focused raster regression passes at 3770/4090 ROM, 115/128 RAM.  The current greedy allocator is still not globally optimal, and solid 0/1/2 same-Y display requires the planned same-line horizontal-reuse scheduler.
 
 The enhanced-multisprite side quest now has an experimental 192-line renderer at
 `libraries/vcs/renderers/enhanced_multisprite/` plus public interactive example

@@ -1705,3 +1705,56 @@ change sprite arbitration: the 0/1/2 same-Y cluster still uses the current
 two-of-three policy, and the reported disappearance of sprite 5 remains the
 immediate scheduler bug to root-cause.  Fix sprite 5 before extending same-line
 horizontal reuse for the 0/1/2 cluster.
+
+SCHEDULER MONTE CARLO + ONE-SPRITE COLLAPSE FIX -- 2026-08-22
+-------------------------------------------------------------
+The user's report that a busy layout can collapse to only one visible logical
+sprite is reproduced independently of the raster.  New host model
+`test/vcs_enhanced_multisprite_asymmetric_scheduler.c` mirrors the renderer's
+P0/P1 Y-conflict rules and runs millions of random X/Y layouts.  The historical
+greedy allocator has a deterministic one-sprite witness with identity priority:
+
+  X={50,34,100,133,115,97}
+  Y={16,20,20,18,18,20}
+
+The root cause is lane orientation, not frame timing.  The first candidate was
+always seeded on P0.  When priority[1] is 1..5 logical bands above it, that P0
+choice leaves candidate two blocked on P0 by the 15-band same-lane setup window
+and blocked on P1 by the asymmetric opposite-lane setup hazard.  In a narrow
+pile the same bad seed can strand the second hardware player and cascade into a
+one-sprite frame.
+
+`ChooseLane` now looks only at priority[1] when placing the first accepted
+sprite.  For a +1..+5 gap it seeds the first sprite on P1; all other cases retain
+the historical P0 seed.  Exhaustive Y0/Y1 testing proves the first two priority
+candidates are always accepted under the current conflict model.  Five million
+deterministic Monte Carlo layouts report no one-sprite result (minimum two),
+and fairness simulation reports a worst observed consecutive omission gap of
+four frames.  A Stella version of the deterministic witness visibly changed
+from one sprite to two, confirming that the host model found a real renderer
+failure rather than a modeling artifact.
+
+The focused asymmetric raster/X/Y regression still passes and the 4K public
+example remains comfortably inside ROM/RAM at 3770/4090 ROM and 115/128 RAM.
+The Perl regression compiles and runs a deterministic 250,000-layout copy of the
+host scheduler model so the one-sprite failure cannot silently return.
+
+This is deliberately a bounded repair, not the final scheduler.  Brute-force
+comparison of the host model against all legal two-lane assignments confirms
+that the priority-order greedy allocator can still omit more sprites than
+necessary for some geometries.  Also, three exact-same-Y logical sprites cannot
+all be represented by the current one-logical-sprite-per-hardware-lane model;
+the requested solid 0/1/2 cluster requires the planned horizontal same-line
+reuse/pair-feasibility work, not merely a different greedy lane choice.
+
+CURRENT NEXT WORK
+-----------------
+1. Use the host model as the cheap scheduler oracle while replacing avoidable
+   greedy omissions with bounded lane rebalancing that preserves persistent
+   priority/fairness and VBLANK timing.
+2. Reintroduce horizontal pair/same-line reuse so sufficiently separated
+   same-Y triples such as the diagnostic 0/1/2 cluster need not flicker.
+3. Keep the 12x16 diagonal PF diagnostic and the full-Y/full-X timing sweeps
+   active while scheduler changes are made.
+4. Stella-certify all X=0..159 on both lanes and finish the intended eleven-slot
+   RESP lattice after scheduler correctness is stable.

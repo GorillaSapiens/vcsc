@@ -1,0 +1,24 @@
+2026-08-22 08:16:44 PDT, fix asymmetric one-sprite scheduler collapse
+
+A new independent C host model copies the enhanced-asymmetric allocator's
+15-band P0, 12-band P1, and directional 1..5-band cross-lane conflict rules and
+Monte-Carlo tests random X/Y layouts.  It reproduces the user's "only one
+sprite" failure with identity priority at X={50,34,100,133,115,97},
+Y={16,20,20,18,18,20}.  The greedy allocator blindly seeded the first sprite on
+P0; a second sprite 1..5 bands above is then blocked on both lanes and a narrow
+pile can cascade to one accepted sprite.
+
+ChooseLane now looks at priority[1] only when placing the first accepted sprite:
+for a +1..+5 Y gap the first sprite seeds P1, otherwise it retains P0.  This
+small repair guarantees the first two priority candidates a lane for every
+legal Y0/Y1 pair without a second allocation pass.  Five million deterministic
+random layouts have minimum two accepted sprites and the fairness simulation's
+worst observed omission gap is four frames.  A forced-priority Stella witness
+also changed from one visible sprite to two.  The focused asymmetric regression
+passes and the public 4K image is 3770/4090 ROM, 115/128 RAM.
+
+`vcs_enhanced_multisprite_asymmetric.pl` now compiles and runs the independent
+scheduler model for 250,000 deterministic layouts and pins hist[1]==0.  The
+remaining scheduler work is distinct: brute-force host comparison still finds
+avoidable greedy omissions, and solid three-sprite same-Y clusters require true
+horizontal same-line reuse rather than only two-lane reassignment.

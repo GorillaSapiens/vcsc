@@ -55,6 +55,8 @@ $text =~ /\@TEMPLATE_PreloadTopLoop:;.*?asm cmp #95;.*?asm bcc\.same \@TEMPLATE_
    or die "band-95 setup is no longer preloaded during VBLANK\n";
 $text !~ /TEMPLATE_TopTrigger/
    or die "obsolete visible action_y=95 trigger path returned\n";
+$text =~ /TEMPLATE_ChooseLane:;.*?ldy\.z TEMPLATE_setup_index;.*?ldx\.z TEMPLATE_priority \+ 1;.*?lda\.zx TEMPLATE_y,X;.*?sbc\.z TEMPLATE_pair_y;.*?cmp #6;.*?bcc\.same \@TEMPLATE_ChooseFirstP1/s
+   or die "first-candidate scheduler lookahead missing\n";
 
 # Recovered visual-fix contracts.  These are deliberately structural: the
 # timing harness below proves the resulting cycle balance while these checks
@@ -103,6 +105,23 @@ defined($x_hex) && defined($y_hex) or die "could not locate asymmetric X/Y array
 my$x_addr=hex($x_hex); my$y_addr=hex($y_hex);
 $x_addr<=0xff && $y_addr<=0xff or die "asymmetric X/Y arrays left zero page\n";
 $y_addr==$x_addr+6 or die "asymmetric X/Y array layout changed\n";
+
+# Run the independent host copy of the lane allocator before the CPU timing
+# sweeps.  It exists specifically to catch greedy-allocation failures that a
+# stable 262-line frame cannot reveal (including the historical one-sprite
+# frame).
+my$cc=$ENV{CC}||'cc';
+my$scheduler_model=File::Spec->catfile($tmp,'asymmetric_scheduler_model');
+($rc,$sig,$out,$err)=capture($cc,'-std=c99','-O2','-Wall','-Wextra','-Werror',
+   File::Spec->catfile($repo,qw(test vcs_enhanced_multisprite_asymmetric_scheduler.c)),
+   '-o',$scheduler_model);
+$rc==0 && !$sig or die "scheduler model build failed\n$out$err";
+$out eq '' && $err eq '' or die "scheduler model build wrote output\n$out$err";
+($rc,$sig,$out,$err)=capture($scheduler_model,'250000','0x31415927');
+$rc==0 && !$sig or die "scheduler Monte Carlo failed\n$out$err";
+$out =~ /asymmetric scheduler monte carlo ok: 250000 layouts, min=2, worst-gap=\d+, hist=1:0,/
+   or die "bad scheduler Monte Carlo output: $out";
+$err eq '' or die "scheduler Monte Carlo stderr: $err";
 
 my$cxx=$ENV{CXX}||'c++';
 my$mos=File::Spec->catdir($repo,qw(simulator mos6502));

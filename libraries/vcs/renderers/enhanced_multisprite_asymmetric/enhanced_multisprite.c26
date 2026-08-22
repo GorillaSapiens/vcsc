@@ -502,7 +502,31 @@ void TEMPLATE_vblank_worker(void) {
    // return P0 immediately, and later iterations terminate with DEY/BMI.
    asm ldy.z TEMPLATE_setup_index;
    asm bne.same @TEMPLATE_ChooseHavePrior;
+
+   // Do not seed the first accepted sprite blindly on P0.  If priority[1] is
+   // 1..5 bands above priority[0], that orientation makes the second sprite
+   // impossible on both lanes: P0 is still inside the long same-lane setup
+   // window and P1 hits the opposite-lane setup-spacing hazard.  In a narrow
+   // six-sprite pile the old greedy choice could therefore emit only one
+   // logical sprite for an entire frame.
+   //
+   // Looking at the second priority candidate is sufficient to eliminate that
+   // catastrophic case without adding a second allocation pass.  Seed the
+   // lower first sprite on P1 only for a +1..+5 Y gap; every other relative-Y
+   // case keeps the historical P0 seed and guarantees candidate two a lane.
+   asm ldx.z TEMPLATE_priority + 1;
+   asm lda.zx TEMPLATE_y,X;
+   asm sec;
+   asm sbc.z TEMPLATE_pair_y;
+   asm beq.same @TEMPLATE_ChooseFirstP0;
+   asm cmp #6;
+   asm bcc.same @TEMPLATE_ChooseFirstP1;
+   asm @TEMPLATE_ChooseFirstP0:;
    asm lda #0;
+   asm ldx.z TEMPLATE_setup_sprite;
+   asm rts;
+   asm @TEMPLATE_ChooseFirstP1:;
+   asm lda #1;
    asm ldx.z TEMPLATE_setup_sprite;
    asm rts;
    asm @TEMPLATE_ChooseHavePrior:;
