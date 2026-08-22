@@ -1986,3 +1986,73 @@ continuation can later decide when a real RESP/HMOVE reposition also fits.
 Do not describe this geometry as unavoidable three-way contention.  The
 fairness repair is working here; it is fairly rotating an omission that should
 not exist.
+
+TOP-EDGE LANE JITTER AND 12:04 TWO-COLUMN WITNESS -- 2026-08-22
+-----------------------------------------------------------------
+The user's phosphor screenshot exposed a different defect from fairness: sprite
+0 visibly hopped by one logical band when persistent priority moved it between
+P0 and P1.  A real-6502 GRP-write sweep with a fixed logical Y isolated the
+lane mismatch precisely:
+
+  Y       old P0/P1 first-GRP delta
+  85..88  0 physical lines
+  89..91  2 physical lines
+  92..95  0 physical lines
+
+Only P0 uses the VBLANK top-preload path at Y=89..91.  Its predecessor-state
+map was one blank state too short there, so P0 published the glyph one logical
+band before the ordinary P1 path.  `graphics_next[39..44]` now maps the P0-only
+89..91 cases through an extra predecessor, with formerly unreachable states
+67..72 providing the needed 55..60 chain.  After the change the measured P0
+and P1 first nonzero GRP line is identical for every Y=85..95.
+
+`test/vcs_frame_timing.cpp` now has
+`--require-stable-first-visible-line MASK`.  The focused asymmetric regression
+uses three Y=90 sprites so the fair priority queue repeatedly assigns each
+logical glyph to both P0 and P1.  The old predecessor table fails with a
+56-versus-58 first-line hop; the corrected table passes.  This is deliberately
+a real-GRP regression rather than a scheduler-table assertion.
+
+The later 12:04 screenshot is also a stronger flicker witness.  Pixel geometry
+and integer joystick motion resolve it to approximately:
+
+  id       0   1   2   3   4   5
+  X       34  34  46  46  34  46
+  Y       90  76  82  68  61  58
+
+The six eight-band glyph intervals have maximum simultaneous occupancy two.
+Nevertheless two distinct limitations remain in the current implementation:
+
+* With identity priority the greedy allocator accepts only four sprites.
+  The exact omit/P0/P1 oracle finds a legal current-graph assignment of five.
+  Therefore at least one omission in this exact scene is purely greedy and can
+  be removed by better bounded lane choice without changing raster machinery.
+* The exact oracle still cannot assign all six under today's 15-band P0,
+  12-band P1, and directional +1..+6 setup constraints.  That final omission
+  is not caused by bitmap overlap; it is caused by reserving the full normal
+  horizontal-position/setup pipeline for every logical sprite.  The two
+  horizontal columns make retained-X continuation the appropriate next raster
+  primitive.
+
+The host scheduler model now pins this distinction: visible occupancy=2,
+greedy accepted=4, exact current-graph optimum=5.  This prevents a future
+allocator change from claiming that a five-sprite result has solved the whole
+screenshot.
+
+Two tempting threshold-only shortcuts were tested and rejected.  Allowing P1
+same-lane gap 10 without a new raster path can produce an accepted logical
+sprite that never emits nonzero GRP.  Allowing candidate-below P0 gap 14 passed
+the broad randomized focused test but a deterministic two-sprite construction
+stretched the frame to 264 raw harness lines.  The 15/12 constants therefore
+encode real pipeline work, not merely conservative allocator policy.
+
+CURRENT NEXT STEP
+-----------------
+Implement a real retained-X short continuation event, initially for equal-X,
+vertically disjoint successors.  It must avoid RESP/HMOVE reposition work and
+handoff color/graphics state only after the previous occupant is finished; do
+not simulate it by weakening same-lane distance checks.  In parallel, use the
+exact host oracle to find a bounded, VBLANK-cheap rebalancing rule that raises
+the 12:04 witness from greedy four to the current-graph optimum five without
+making any Monte Carlo layout worse.  Re-run the Y=90 lane-stability GRP oracle
+on every raster change.

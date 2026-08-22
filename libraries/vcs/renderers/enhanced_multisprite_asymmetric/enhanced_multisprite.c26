@@ -140,9 +140,9 @@ page const uint8_t TEMPLATE_graphics_next[145] := {
    // unreachable and double as the VBLANK coarse-slot x3 table (0,3,...,30).
    0,104,112,120,128,136,144,13,14,15,16,17,18,19,20,21,
    22,23,24,1,2,3,4,5,6,0,3,6,9,12,15,18,
-   21,24,27,30,33,36,39,55,49,7,13,19,1,0,0,0,
+   21,24,27,30,33,36,39,67,55,49,13,19,1,0,0,0,
    0,7,8,9,10,11,12,49,50,51,52,53,54,0xf2,0xf1,0xf0,
-   0xf8,0xf5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   0xf8,0xf5,0,55,56,57,58,59,60,0,0,0,0,0,0,0,
    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
    0,0,97,98,99,100,101,102,103,0,105,106,107,108,109,110,
    111,0,113,114,115,116,117,118,119,0,121,122,123,124,125,126,
@@ -451,9 +451,13 @@ void TEMPLATE_vblank_worker(void) {
    asm cmp #95;
    asm beq.same @TEMPLATE_PreloadTopVisibleState;
    // Y=89..94 maps to six predecessor-state bases stored in otherwise
-   // unreachable graphics_next states 39..44.  States 55..60 supply the one
-   // extra blank predecessor needed by P0 at Y=89; P1 at Y=92 already fits
-   // the existing chain.  Preloading every action_y>=95 keeps setup work out
+   // unreachable graphics_next states 39..44.  P0 alone reaches preload at
+   // Y=89..91 while P1 still uses the ordinary visible setup path; those three
+   // cases need one extra blank predecessor to remain vertically aligned with
+   // P1.  States 67..72 -> 55..60 provide the additional Y=89 predecessor,
+   // while the Y=90/91 entries select 55/49 directly.  Y=92..94 are already
+   // shared by both lanes and retain their proven states.  Preloading every
+   // action_y>=95 keeps setup work out
    // of the first visible band, where there is no spare scanline above it.
    asm sec;
    asm sbc #89;

@@ -231,6 +231,28 @@ expect_timing('two-pile persistent fairness',100,
       sprintf('0x%02x',$draw_addr),sprintf('0x%02x',$count_addr),
    '--require-visible-spread','0x3f','1');
 
+# Top-edge lane-consistency witness for the phosphor-visible vertical jitter.
+# Three same-Y sprites force fair priority rotation to move each logical sprite
+# between P0 and P1 on successive displayed frames.  Y=90 is deliberately in
+# the historical P0-only preload range (89..91): before the extra predecessor
+# state fix, P0 began two physical scanlines above P1 and the same glyph visibly
+# hopped up/down as its lane assignment rotated.
+expect_timing('top-edge lane vertical stability',100,
+   '--released-inputs',
+   '--set-zp',sprintf('0x%02x',$x_addr+0),'34',
+   '--set-zp',sprintf('0x%02x',$x_addr+1),'46',
+   '--set-zp',sprintf('0x%02x',$x_addr+2),'70',
+   '--set-zp',sprintf('0x%02x',$y_addr+0),'90',
+   '--set-zp',sprintf('0x%02x',$y_addr+1),'90',
+   '--set-zp',sprintf('0x%02x',$y_addr+2),'90',
+   '--set-zp',sprintf('0x%02x',$y_addr+3),'55',
+   '--set-zp',sprintf('0x%02x',$y_addr+4),'35',
+   '--set-zp',sprintf('0x%02x',$y_addr+5),'15',
+   '--verify-asymmetric-visibility',
+      sprintf('0x%02x',$y_addr),sprintf('0x%02x',$color_addr),
+      sprintf('0x%02x',$draw_addr),sprintf('0x%02x',$count_addr),
+   '--require-stable-first-visible-line','0x07');
+
 my$phases='23,28,33,37,42,47,50,53,58,63,68,73';
 expect_timing('12-phase randomized X stress',5000,
    '--randomize-zp',sprintf('0x%02x',$x_addr),'6','160','0x31415927',

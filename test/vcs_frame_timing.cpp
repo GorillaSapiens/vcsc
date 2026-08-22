@@ -118,6 +118,9 @@ struct AsymmetricVisibilityCheck {
    uint8_t spread_mask = 0;
    unsigned maximum_spread = 0;
    uint64_t visible_frames[6] = {0, 0, 0, 0, 0, 0};
+   uint8_t stable_first_line_mask = 0;
+   int first_visible_line[6] = {-1, -1, -1, -1, -1, -1};
+   int reference_first_line[6] = {-1, -1, -1, -1, -1, -1};
 };
 
 AsymmetricVisibilityCheck asymmetric_visibility;
@@ -261,8 +264,25 @@ void verify_asymmetric_previous_frame() {
 
    const uint8_t visible = accepted_mask & asymmetric_visibility.seen_mask;
    for (unsigned id = 0; id < 6; ++id) {
-      if (visible & static_cast<uint8_t>(1u << id))
+      if (visible & static_cast<uint8_t>(1u << id)) {
          ++asymmetric_visibility.visible_frames[id];
+         if (asymmetric_visibility.stable_first_line_mask & static_cast<uint8_t>(1u << id)) {
+            const int line = asymmetric_visibility.first_visible_line[id];
+            if (line < 0) {
+               std::fprintf(stderr,
+                  "vcs_frame_timing: sprite %u was visible but has no first-line sample\n", id);
+               std::exit(1);
+            }
+            int &reference = asymmetric_visibility.reference_first_line[id];
+            if (reference < 0) reference = line;
+            else if (line != reference) {
+               std::fprintf(stderr,
+                  "vcs_frame_timing: sprite %u first visible line jittered from %d to %d\n",
+                  id, reference, line);
+               std::exit(1);
+            }
+         }
+      }
    }
 }
 
@@ -281,6 +301,11 @@ void apply_writes() {
                if (memory_image[asymmetric_visibility.color_address + id] == color) {
                   asymmetric_visibility.seen_mask |= static_cast<uint8_t>(1u << id);
                   asymmetric_visibility.ever_seen_mask |= static_cast<uint8_t>(1u << id);
+                  if (asymmetric_visibility.first_visible_line[id] < 0 &&
+                      !vsync_assertions.empty()) {
+                     asymmetric_visibility.first_visible_line[id] = static_cast<int>(
+                        (virtual_cycles - vsync_assertions.back()) / kCyclesPerScanline);
+                  }
                }
             }
          }
@@ -306,6 +331,8 @@ void apply_writes() {
          if (next && !vsync_asserted) {
             verify_asymmetric_previous_frame();
             asymmetric_visibility.seen_mask = 0;
+            for (unsigned id = 0; id < 6; ++id)
+               asymmetric_visibility.first_visible_line[id] = -1;
             vsync_assertions.push_back(virtual_cycles);
             // Test-only RAM mutation happens exactly at the synchronized frame
             // boundary, before VBLANK work begins.  This lets renderer tests
@@ -382,7 +409,7 @@ void apply_writes() {
 int main(int argc, char **argv) {
    if (argc < 3) {
       std::fprintf(stderr,
-         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--randomize-zp ADDR COUNT MODULUS SEED]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--released-inputs] [--expect-memory ADDR VALUE]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
+         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--randomize-zp ADDR COUNT MODULUS SEED]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--released-inputs] [--expect-memory ADDR VALUE]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--require-stable-first-visible-line MASK] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
          argv[0]);
       return 2;
    }
@@ -561,6 +588,14 @@ int main(int argc, char **argv) {
             fail("bad --require-visible-spread maximum");
          asymmetric_visibility.spread_mask = static_cast<uint8_t>(mask);
          asymmetric_visibility.maximum_spread = static_cast<unsigned>(spread);
+      }
+      else if (std::strcmp(argv[i], "--require-stable-first-visible-line") == 0) {
+         if (++i >= argc) fail("--require-stable-first-visible-line requires MASK");
+         char *parse_end = nullptr;
+         const unsigned long mask = std::strtoul(argv[i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || mask == 0 || mask > 0x3f)
+            fail("bad --require-stable-first-visible-line mask");
+         asymmetric_visibility.stable_first_line_mask = static_cast<uint8_t>(mask);
       }
       else if (std::strcmp(argv[i], "--expect-resp-phases") == 0) {
          if (++i >= argc) {
@@ -744,6 +779,9 @@ int main(int argc, char **argv) {
          return 1;
       }
    }
+
+   if (asymmetric_visibility.stable_first_line_mask && !asymmetric_visibility.enabled)
+      fail("--require-stable-first-visible-line needs --verify-asymmetric-visibility");
 
    if (asymmetric_visibility.spread_mask) {
       if (!asymmetric_visibility.enabled)

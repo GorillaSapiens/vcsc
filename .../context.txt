@@ -1206,3 +1206,29 @@ now in `test/vcs_enhanced_multisprite_asymmetric_scheduler.c`.  Next work should
 be a short same-lane continuation/reuse path using the two idle bands between
 0's last row and 2's first row, starting with retained-X reuse, before tackling
 true same-scanline >2 horizontal multiplexing.  See `.../enhanced_asymmetric.txt`.
+
+2026-08-22 12:04 enhanced-asymmetric follow-up: the phosphor-visible vertical
+"jitter" is real and had a lane-dependent top-preload off-by-one.  A direct
+real-6502 GRP trace at fixed Y showed P0 and P1 aligned for Y=85..88 and
+92..95, but P0 began two physical scanlines early at Y=89..91.  The P0-only
+top-preload predecessor map now gives those three Y values one additional
+blank state (using formerly unreachable graphics states 67..72); fixed-Y
+P0/P1 traces are aligned exactly for Y=85..95.  The focused regression now
+contains `--require-stable-first-visible-line` and a three-way Y=90 priority
+rotation that fails on the old table (two-line hop) and passes on the new one.
+
+The same 12:04 screenshot resolves to integer joystick geometry approximately
+X={34,34,46,46,34,46}, Y={90,76,82,68,61,58}.  Maximum visible bitmap
+occupancy is only two, so the user's suspicion about unnecessary flicker is
+substantive.  Under the *current setup-reservation graph*, however, identity
+priority's greedy allocator accepts only four; the exact 3^6 host oracle can
+accept five, and no current-graph assignment accepts all six.  Thus this scene
+exposes both remaining issues at once: one sprite of greedy avoidable flicker
+(4 vs 5) and one omission caused by the renderer's long normal position/setup
+reservations even though the bitmap intervals are two-colorable.  The host
+scheduler test now pins that 4/5/6 distinction.  Do not "fix" this by merely
+lowering P0/P1 same-lane gap constants: P1 gap-10 relaxation can schedule a
+sprite that never reaches GRP, while a P0 gap-14 experiment produced a 264-raw-
+line frame in a deterministic scene.  The next raster change must be a genuine
+retained-X/short-continuation event, with the exact host oracle used separately
+to develop bounded lane rebalancing.

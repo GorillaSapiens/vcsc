@@ -455,6 +455,54 @@ int main(int argc, char **argv)
       }
    }
 
+   /* Second phosphor witness: the user's later 12:04 scene resolves at
+    * integer joystick coordinates to two horizontal columns:
+    *
+    *   X={34,34,46,46,34,46}
+    *   Y={90,76,82,68,61,58}
+    *
+    * Its eight-band glyph intervals are still only two-deep, yet the current
+    * setup-reservation graph cannot schedule all six.  More importantly, the
+    * identity-priority greedy allocator accepts only four although the exact
+    * current-graph oracle can accept five.  This separates two remaining
+    * problems: avoidable greedy flicker (4 versus 5) and the retained-X
+    * continuation work needed to get from the current graph's optimum 5 to
+    * the visually possible six-sprite stream.
+    */
+   init_identity(&one);
+   {
+      static const uint8_t wx[NS] = {34,34,46,46,34,46};
+      static const uint8_t wy[NS] = {90,76,82,68,61,58};
+      int max_live = 0;
+      int band;
+      memcpy(one.x, wx, sizeof(wx));
+      memcpy(one.y, wy, sizeof(wy));
+      for (band = 0; band < 96; ++band) {
+         int live = 0;
+         int id;
+         for (id = 0; id < NS; ++id)
+            if (band <= one.y[id] && band + 7 >= one.y[id])
+               ++live;
+         if (live > max_live)
+            max_live = live;
+      }
+      if (max_live != 2) {
+         fprintf(stderr, "12:04 screenshot witness unexpectedly has %d-way visible overlap\n", max_live);
+         return 1;
+      }
+      schedule(&one, 1);
+      if (one.accepted_count != 4) {
+         fprintf(stderr, "12:04 screenshot greedy witness changed from four accepted sprites\n");
+         dump(&one);
+         return 1;
+      }
+      if (exact_max_accepted(&one) != 5) {
+         fprintf(stderr, "12:04 screenshot current-graph optimum changed from five\n");
+         dump(&one);
+         return 1;
+      }
+   }
+
    /* Two independent three-way piles expose the old single-loser promotion
     * bug cleanly.  Four sprites are visible every frame, so over six frames a
     * fair scheduler must show every logical sprite exactly four times.  The
