@@ -140,8 +140,8 @@ page const uint8_t TEMPLATE_graphics_next[145] := {
    // unreachable and double as the VBLANK coarse-slot x3 table (0,3,...,30).
    0,104,112,120,128,136,144,13,14,15,16,17,18,19,20,21,
    22,23,24,1,2,3,4,5,6,0,3,6,9,12,15,18,
-   21,24,27,30,33,36,39,42,0,0,0,0,0,0,0,0,
-   0,7,8,9,10,11,12,0xe8,0xe5,0xe4,0xed,0xec,0xeb,0xf2,0xf1,0xf0,
+   21,24,27,30,33,36,39,55,49,7,13,19,1,0,0,0,
+   0,7,8,9,10,11,12,49,50,51,52,53,54,0xf2,0xf1,0xf0,
    0xf8,0xf5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
    0,0,97,98,99,100,101,102,103,0,105,106,107,108,109,110,
@@ -413,7 +413,7 @@ void TEMPLATE_vblank_worker(void) {
 
    // VBLANK can use the conventional divide-by-15 positioner instead of the
    // PF-aware visible-raster lattice.  The EOR/shift tail synthesizes HMP
-   // directly, avoiding another 160-byte X table now that ROM is banked.
+   // directly, avoiding a second 160-byte X table in the compact 4K profile.
    asm sec;
    asm sta WSYNC;
    asm sta HMCLR;
@@ -436,38 +436,23 @@ void TEMPLATE_vblank_worker(void) {
    // logical band named by Y.  Band 95 is the first visible pair, therefore
    // Y=95 starts on the first glyph state immediately.  Each lower Y needs one
    // additional zero-filled predecessor.  The existing state graph already
-   // contains the complete five-step blank chain needed for P0 Y=90:
-   //   49..54 -> 7..12 -> 13..18 -> 19..24 -> 1..6 -> first glyph.
-   // P1 only reaches this VBLANK path at Y>=93, so it uses the tail of the
-   // same chain without requiring any new state-table entries.
+   // contains the complete six-step blank chain needed for P0 Y=89:
+   //   55..60 -> 49..54 -> 7..12 -> 13..18 -> 19..24 -> 1..6 -> glyph.
+   // P1 reaches this path at Y>=92 and uses the shorter tail of the same chain.
    asm @TEMPLATE_PreloadTopState:;
    asm ldx.z TEMPLATE_pair_y;
    asm lda.zx TEMPLATE_y,X;
    asm cmp #95;
    asm beq.same @TEMPLATE_PreloadTopVisibleState;
-   asm cmp #94;
-   asm beq.same @TEMPLATE_PreloadTopBlank94;
-   asm cmp #93;
-   asm beq.same @TEMPLATE_PreloadTopBlank93;
-   asm cmp #92;
-   asm beq.same @TEMPLATE_PreloadTopBlank92;
-   asm cmp #91;
-   asm beq.same @TEMPLATE_PreloadTopBlank91;
-   // Only P0 can reach the preloaded path at Y=90.
-   asm lda #49;
-   asm jmp @TEMPLATE_PreloadTopBlankHaveBase;
-   asm @TEMPLATE_PreloadTopBlank91:;
-   asm lda #7;
-   asm jmp @TEMPLATE_PreloadTopBlankHaveBase;
-   asm @TEMPLATE_PreloadTopBlank92:;
-   asm lda #13;
-   asm jmp @TEMPLATE_PreloadTopBlankHaveBase;
-   asm @TEMPLATE_PreloadTopBlank93:;
-   asm lda #19;
-   asm jmp @TEMPLATE_PreloadTopBlankHaveBase;
-   asm @TEMPLATE_PreloadTopBlank94:;
-   asm lda #1;
-   asm @TEMPLATE_PreloadTopBlankHaveBase:;
+   // Y=89..94 maps to six predecessor-state bases stored in otherwise
+   // unreachable graphics_next states 39..44.  States 55..60 supply the one
+   // extra blank predecessor needed by P0 at Y=89; P1 at Y=92 already fits
+   // the existing chain.  Preloading every action_y>=95 keeps setup work out
+   // of the first visible band, where there is no spare scanline above it.
+   asm sec;
+   asm sbc #89;
+   asm tay;
+   asm lda.ay TEMPLATE_graphics_next + 39,Y;
    asm clc;
    asm adc.z TEMPLATE_pair_y;
    asm tay;
@@ -525,22 +510,40 @@ void TEMPLATE_vblank_worker(void) {
    asm @TEMPLATE_ChooseLoop:;
    asm lda.ay TEMPLATE_event_order,Y;
    asm tax;
-   asm lda.zx TEMPLATE_lane_for,X;
-   asm sta.z TEMPLATE_pending0_valid; // other lane
 
-   // Keep the signed Y difference long enough to do both conflict tests.
-   // This avoids the old abs(dy) calculation followed by a second subtract
-   // for cross-lane setup spacing.
+   // A separation of fifteen or more bands cannot conflict on either lane.
+   // Reject those overwhelmingly common pairs before paying for lane_for[]
+   // and the lane-specific checks.  Besides being cheaper, this keeps busy
+   // six-sprite VBLANK scheduling comfortably ahead of the display deadline.
    asm lda.z TEMPLATE_pair_y;
    asm sec;
    asm sbc.zx TEMPLATE_y,X;
-   asm bcs.same @TEMPLATE_ChooseCandidateAtOrAbove;
+   asm bcc.same @TEMPLATE_ChooseCandidateBelow;
+   asm cmp #15;
+   asm bcc.same @TEMPLATE_ChooseAboveClose;
+   asm jmp @TEMPLATE_ChooseAfterOther;
 
-   // Candidate is below the assigned sprite; X = other_y - candidate_y.
+   asm @TEMPLATE_ChooseAboveClose:;
+   asm sta.z TEMPLATE_event_stage;
+   asm lda.zx TEMPLATE_lane_for,X;
+   asm sta.z TEMPLATE_pending0_valid; // other lane
+   asm ldx.z TEMPLATE_event_stage;
+   asm jmp @TEMPLATE_ChooseCandidateAtOrAbove;
+
+   asm @TEMPLATE_ChooseCandidateBelow:;
+   // Candidate is below the assigned sprite; abs(dy) is cheap here.
    asm eor #$ff;
    asm clc;
    asm adc #1;
-   asm tax;
+   asm cmp #15;
+   asm bcc.same @TEMPLATE_ChooseBelowClose;
+   asm jmp @TEMPLATE_ChooseAfterOther;
+
+   asm @TEMPLATE_ChooseBelowClose:;
+   asm sta.z TEMPLATE_event_stage;
+   asm lda.zx TEMPLATE_lane_for,X;
+   asm sta.z TEMPLATE_pending0_valid; // other lane
+   asm ldx.z TEMPLATE_event_stage;
    asm lda.z TEMPLATE_pending0_valid;
    asm bne.same @TEMPLATE_ChooseBelowOtherP1;
 
@@ -849,13 +852,13 @@ void TEMPLATE_vblank_worker(void) {
    // event_order[] is sorted descending.  Consume its prefix whose action_y is
    // above band 95, positioning those hardware lanes during VBLANK and
    // initializing their graphics state at the exact clipped row required by
-   // Y=90..95.  setup_index then naturally names the first ordinary event.
+   // Y=89..95 when setup would begin in/above band 95.  setup_index then naturally names the first ordinary event.
    asm @TEMPLATE_PreloadTopLoop:;
    asm ldy.z TEMPLATE_setup_index;
    asm cpy.z TEMPLATE_setup_count;
    asm beq.same @TEMPLATE_PreloadTopDone;
    asm lda.ay TEMPLATE_event_order,Y;
-   asm cmp #96;
+   asm cmp #95;
    asm bcc.same @TEMPLATE_PreloadTopDone;
    asm lda.ay TEMPLATE_draw_code,Y;
    asm sta.z TEMPLATE_event_code;
@@ -948,22 +951,16 @@ void TEMPLATE_draw(void) {
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
-   asm dex;
-   asm lda.z TEMPLATE_action_y;
-   asm cmp #95;
-   asm beq.same TEMPLATE_TopTrigger;
-   asm lda.z TEMPLATE_current_gfx;
-   asm jmp TEMPLATE_LineABoundary;
-   asm TEMPLATE_TopTrigger:;
-   asm bit.z TEMPLATE_position_packed;
-   asm bvs.same TEMPLATE_TopTriggerP1;
-   asm sta WSYNC;
-   asm jmp TEMPLATE_Position0LineA;
-   asm TEMPLATE_TopTriggerP1:;
+   // Every event whose setup would begin in band 95 is pre-positioned during
+   // VBLANK.  The first visible line therefore needs no exceptional trigger
+   // path: finish P1's normal row transition and enter band 94 exactly like
+   // an ordinary line-B boundary.  This also avoids the old action_y=95 path
+   // that could reach WSYNC seven cycles into the following scanline.
    asm lda.ay TEMPLATE_graphics,Y;
    asm tay;
-   asm sta WSYNC;
-   asm jmp TEMPLATE_Position1LineA;
+   asm dex;
+   asm lda.z TEMPLATE_current_gfx;
+   asm jmp TEMPLATE_LineABoundary;
 
    // Ordinary line A.  The current trigger is deliberately one band above the
    // position band.  Thus this line can remain completely ordinary; only its

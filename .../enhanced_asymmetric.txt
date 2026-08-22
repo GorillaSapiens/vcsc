@@ -1612,3 +1612,96 @@ NEXT WORK UPDATE
    the final eleven slots 23,28,33,38,43,48,53,58,63,68,73.
 3. Restore pair-feasibility scheduling only after ordinary/top positioning is
    timing-certified.
+
+4K RECOVERY + FULL-Y DEADLINE CLOSEOUT -- 2026-08-21
+-----------------------------------------------------
+The F8SC detour is no longer required.  The public asymmetric diagnostic is back
+on an ordinary unbanked 4096-byte cartridge and uses no Superchip RAM.  The key
+packing win is an example-specific 28-byte reset stub: this diagnostic explicitly
+initializes every writable DATA value and has no constructors, so it can clear
+RIOT RAM/TIA directly and tail-enter `main` instead of linking the generic
+328-byte copy/zero/init runtime.  The resulting public image is 3752/4090 ROM
+bytes and 115/128 RIOT RAM bytes, leaving 338 ROM bytes and 13 RAM bytes free.
+The Makefile deliberately uses `-nostdlib`; the startup file warns that it is not
+suitable for programs that rely on nonzero DATA initializers or constructors.
+
+The last known full-Y timing failures are also closed at their root causes:
+
+* `ChooseLane` now rejects prior sprites at |dy|>=15 before loading lane metadata
+  or running lane-specific conflict checks.  Busy six-sprite frames therefore
+  avoid paying the expensive close-pair path for the overwhelmingly common far
+  pairs.
+* More importantly, every event whose setup `action_y` is >=95 is now consumed
+  by the VBLANK top-preload prefix.  The earlier implementation used >=96, so a
+  P1 at Y=92 (and P0 at Y=89) could still start setup on the first visible band.
+  The special visible action-95 path then reached its second WSYNC seven cycles
+  into the following scanline, producing a one-line frame extension.  VBLANK
+  preloading now includes those events.  An extra six-state blank predecessor
+  chain in otherwise unreachable `graphics_next` entries supports P0 Y=89.
+  With no action-95 event left for visible time, the obsolete `TopTrigger` path
+  is removed and the top line-B tail uses the ordinary graphics continuation.
+
+The formerly failing static layout X={14,97,9,53,99,15},
+Y={79,21,92,56,84,84} is stable.  More importantly, the timing harness passes
+4997 checked randomized frames with all six X values in 0..159 and all six Y
+values in 0..95.  `vcs_enhanced_multisprite_asymmetric.pl` now uses that full
+Y range for all three combined randomized seeds, builds the actual 4K/nostdlib
+public cartridge, and pins the >=95 VBLANK-preload contract so the visible
+action-95 regression cannot return.  The example assembly allowlist and source
+tree hygiene checks are updated and passing.
+
+CURRENT NEXT WORK
+-----------------
+1. Stella-certify every public X=0..159 on both lanes, especially the transition
+   boundaries 159<->0<->1, 15<->16, 135<->136, and 150<->151.
+2. Migrate the middle X range from the current twelve measured phases to the
+   intended final eleven-slot lattice 23,28,33,38,43,48,53,58,63,68,73 if the
+   pixel oracle confirms it.  Do not sacrifice the now-proven 4K/full-Y timing.
+3. Reintroduce the richer `(X0,X1,Y)` pair-feasibility scheduler only after the
+   ordinary positioner is pixel-certified; use independent/adjacent RESP where
+   feasible and fair flicker only as the last fallback.
+4. Finish with the full repository suite and a final Stella torture pass.
+
+
+4K STARTUP PACKAGING/SMOKE-BUILD FIX -- 2026-08-21
+--------------------------------------------------
+The first 4K handoff exposed two integration failures even though the focused
+working-tree build passed.  The compact startup source was absent from that
+archive, so `vcs_enhanced_multisprite_asymmetric.pl` could not open it; and the
+generic editable-example smoke builder compiled the asymmetric `.c26` with the
+stock runtime instead of the example's `-nostdlib` startup, overflowing 4K while
+placing `game_draw`.
+
+The source-adjacent
+`enhanced_multisprite_192_asymmetric_startup.s26` is now part of the handoff.
+`test/vcs_examples_build.pl` also has a general public-example convention:
+when `<stem>_startup.s26` exists beside an editable `<stem>.c26`, the smoke build
+uses `-nostdlib` and links that startup after the C source.  This makes the
+recursive example corpus exercise the same runtime topology as the public
+Makefile rather than silently substituting the generic startup.
+
+Verified after the repair: the public example builds at 3752/4090 ROM and
+115/128 RIOT RAM; `vcs_enhanced_multisprite_asymmetric.pl` passes;
+`vcs_examples_build.pl --shard 2/8` passes all 12 selected examples including
+the asymmetric diagnostic; assembly allowlist and source-tree hygiene pass.
+
+Packaging root cause: `examples/.gitignore` ignored all `*.s26`, so the compact
+startup was omitted by `make tar`'s temporary `git add -A` even though it existed
+in the working tree.  The asymmetric startup now has an explicit negated
+`.gitignore` entry, matching the existing faithful-multisprite data exception.
+
+
+DIAGNOSTIC PLAYFIELD REWORK -- 2026-08-22
+------------------------------------------
+The public asymmetric diagnostic now uses twelve 16-scanline visual rows (eight
+logical two-scanline bands each) instead of six 32-scanline rows.  Its full
+40-bit asymmetric playfield is a set of one-bit diagonals with exactly five
+blank playfield bits between diagonals; successive rows shift by one bit.  This
+makes stale PF bytes, half-screen timing errors, and row-boundary mistakes much
+easier to spot while preserving the established raster timing.
+
+The focused asymmetric regression remains stable.  This checkpoint does not yet
+change sprite arbitration: the 0/1/2 same-Y cluster still uses the current
+two-of-three policy, and the reported disappearance of sprite 5 remains the
+immediate scheduler bug to root-cause.  Fix sprite 5 before extending same-line
+horizontal reuse for the 0/1/2 cluster.

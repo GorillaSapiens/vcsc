@@ -8,4 +8,5 @@
 *.o26
 *.s26
 !10_faithful_legacy_multisprite/01_diagnostic/faithful_legacy_multisprite_diagnostic_data.s26
+!18_enhanced_multisprite/01_192/02_asymmetric/enhanced_multisprite_192_asymmetric_startup.s26
 *.sym

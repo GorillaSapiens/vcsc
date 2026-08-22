@@ -422,14 +422,13 @@ Important active constraints and open questions
 
 Enhanced asymmetric top-edge checkpoint (2026-08-21)
 -----------------------------------------------------
-The asymmetric 192-line renderer now accepts Y=0..95 and prepositions events
-that would otherwise need setup above the visible raster during VBLANK.  Y=95
-reaches the first visible playfield band; Stella verification covered both
-hardware lanes with independent X and correct colors.  The public example is
-now F8SC/8K.  It uses `VCS_NTSC_EXTENDED_VBLANK` with a 51/25 TIM64T split
-(VBLANK/overscan) while preserving the same total blanking budget.  The existing
-4K/Y<=89 asymmetric Perl regression has not yet been migrated to F8SC/Y<=95;
-that is the immediate follow-up.  Detailed state is in
+The asymmetric 192-line renderer accepts Y=0..95 and prepositions every event
+whose setup action would begin at/above band 95 during VBLANK.  Y=95 reaches
+the first visible playfield band; Stella verification covered both lanes with
+independent X and correct colors.  The public example is again ordinary 4K
+(3752/4090 ROM, 115/128 RAM) and uses `VCS_NTSC_EXTENDED_VBLANK` with the
+51/25 TIM64T split.  Full six-sprite randomized X=0..159/Y=0..95 timing is now
+stable; detailed state and remaining X/pair certification work are in
 `.../enhanced_asymmetric.txt`.
 
 Immediate TODO
@@ -1148,7 +1147,7 @@ The enhanced-asymmetric multisprite side quest is active in
 `renderers/enhanced_multisprite_asymmetric/`; read `.../enhanced_asymmetric.txt`
 before continuing it.  Dynamic non-reflected PF0/PF1/PF2 timing, per-event
 colors, X=0..159 ordinary movement, top-band PF preload, and Y=0..95 sprite top
-reach are all implemented.  The public diagnostic is now F8SC/8K.
+reach are all implemented.  The public diagnostic is now unbanked 4K and full-Y randomized timing is stable.
 
 The enhanced-multisprite side quest now has an experimental 192-line renderer at
 `libraries/vcs/renderers/enhanced_multisprite/` plus public interactive example
@@ -1181,33 +1180,49 @@ open under disassembler Item 41. Keep the roadmap rather than this compact
 context as the authoritative implementation record.
 
 Enhanced-asymmetric multisprite work remains active in
-`.../enhanced_asymmetric.txt`.  The current F8SC/8K checkpoint keeps the full
-non-reflected PF0/PF1/PF2 raster, correct per-event colors, the stale-P1-row and
-PF-seam fixes, stable X=0..159..0 ordinary motion, and the first-band PF preload.
-Sprites now expose public Y=0..95; Y=90..95 uses VBLANK RESP/HMOVE plus seeded
-graphics state, and Stella verified both lanes at Y=95 with independent X/color.
-The example selects `VCS_NTSC_EXTENDED_VBLANK` (51 TIM64T VBLANK / 25 overscan).
+`.../enhanced_asymmetric.txt`.  The full non-reflected PF0/PF1/PF2 raster,
+per-event colors, stale-P1-row/PF seam repairs, first-band PF preload, public
+X=0..159 motion, and public Y=0..95 top reach are implemented.  Events whose
+setup would begin at action_y>=95 are now pre-positioned during VBLANK; this
+closes the last known full-Y frame-length bug, where P1 Y=92/P0 Y=89 could enter
+the first visible band's setup path and add one scanline.  `ChooseLane` also
+skips |dy|>=15 pairs before lane-specific work.  The known failing layout and
+4997-frame all-six randomized X=0..159/Y=0..95 stress now hold a stable
+262-line frame with the 51/25 extended-VBLANK split.
 
-The F8SC regression migration is now implemented. `vcs_frame_timing.cpp` accepts
-4K or 8K F8/F8SC images and models $1FF8/$1FF9 bank selection, 6507 13-bit
-cartridge mirroring, and Superchip RAM ports.  The asymmetric regression builds
-with `-DVCS_NTSC_EXTENDED_VBLANK -T vcs.cfg`, requires 8192 bytes, certifies two
-simultaneous Y=95 sprites, and sweeps Y=89..95.  All 14 existing timing-harness
-users pass, and the assembly allowlist was deliberately refreshed for the F8SC
-source.  A newly exposed open timing case remains: extending the existing
-six-sprite randomized Y stress from 0..89 to the full 0..95 range can rarely
-miss the 51-TIM64T VBLANK deadline (reproduced with two accepted Y=93 top events
-in an otherwise busy scheduler frame).  Keep the explicit top-edge tests; the
-next timing task is to shorten that worst-case VBLANK path, then continue full
-Stella X=0..159 certification/final eleven-slot migration before restoring
-pair-feasibility scheduling.
+The public asymmetric diagnostic has been squeezed back to a conventional
+unbanked 4K cartridge: 3752/4090 ROM bytes and 115/128 RIOT RAM bytes, with no
+Superchip RAM.  Its example-specific 28-byte `-nostdlib` reset stub is safe
+because this fixture explicitly initializes all writable DATA and has no
+constructors; it clears RIOT RAM/TIA and tail-enters `main` instead of paying the
+generic 328-byte copy/zero/init runtime.  The regression builds this exact 4K
+image, uses the full Y=0..95 range in all combined random seeds, retains the
+Y=95/top-pair and continuous X tests, and pins the >=95 VBLANK-preload contract.
+The assembly allowlist and source-tree hygiene gates pass.
 
-The residual two "goofy" scanlines above the enhanced-asymmetric raster were an
-F8SC bank-handoff artifact, not a remaining PF seam.  `run_asymmetric_frame()`
-was in bank0 and cleared VBLANK before the cross-bank bridge into bank1
-`game_draw()`, producing two visible bridge-time rows (194 nonblank Stella rows
-instead of 192).  The frame driver is now pinned to bank1 with `game_draw`; one
-extra WSYNC is spent after overscan while VBLANK remains asserted to retain the
-existing 262-line frame calibration.  Stella 1x shows exactly 192 nonblank rows
-with the first rows matching, and the asymmetric regression pins co-residency in
-the link map and passes its timing/X/Y/top-edge cases.
+No current frame-length/PF/color/top-reach defect is known.  Remaining enhanced
+asymmetric work is certification/capability: Stella pixel-check all X=0..159 on
+both lanes, migrate the middle range from the present 12 measured RESP phases
+23,28,33,37,42,47,50,53,58,63,68,73 to the intended final eleven-slot lattice
+23,28,33,38,43,48,53,58,63,68,73 if the pixel oracle confirms it, then restore
+the richer two-sprite pair-feasibility scheduler before the final full-suite and
+Stella torture pass.
+
+2026-08-21 enhanced-asymmetric 4K integration follow-up: the compact
+source-adjacent startup is now included in the project/handoff, and the generic
+editable-example smoke builder recognizes `<stem>_startup.s26`, adds `-nostdlib`,
+and links it after the C source.  This fixes the two 319-suite failures from the
+first 4K handoff: missing asymmetric startup in the focused regression and the
+smoke builder relinking the example with the generic runtime until `game_draw`
+overflowed 4K.  Public example remains 3752/4090 ROM, 115/128 RAM; asymmetric
+regression, example shard 2/8, assembly allowlist, and source-tree hygiene pass.
+The missing startup archive bug was specifically caused by `examples/.gitignore`
+ignoring `*.s26`; it now explicitly unignores the asymmetric startup so `make tar`
+contains it.
+
+2026-08-22 asymmetric diagnostic update: the public playfield is now 12 visual
+rows x 16 scanlines, using one-bit diagonals separated by five blank PF bits and
+a one-bit row-to-row shift.  The focused timing regression still passes.  The
+renderer scheduler itself is unchanged here: the 0/1/2 same-Y cluster still
+flickers under two-of-three arbitration, and the user-observed missing sprite 5
+is the immediate bug to investigate next.

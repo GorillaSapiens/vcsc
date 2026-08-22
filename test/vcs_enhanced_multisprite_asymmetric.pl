@@ -27,7 +27,9 @@ $repo=abs_path($repo)//die "resolve repo\n"; make_path($tmp); $tmp=abs_path($tmp
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my$renderer=File::Spec->catfile($vcs,qw(renderers enhanced_multisprite_asymmetric enhanced_multisprite.c26));
-my$example=File::Spec->catfile($repo,qw(examples 18_enhanced_multisprite 01_192 02_asymmetric enhanced_multisprite_192_asymmetric.c26));
+my$example_dir=File::Spec->catdir($repo,qw(examples 18_enhanced_multisprite 01_192 02_asymmetric));
+my$example=File::Spec->catfile($example_dir,'enhanced_multisprite_192_asymmetric.c26');
+my$startup=File::Spec->catfile($example_dir,'enhanced_multisprite_192_asymmetric_startup.s26');
 my$text=read_file($renderer);
 
 $text =~ /TEMPLATE_HARDWARE_LANES\s*:=\s*2/ or die "asymmetric renderer lost two-lane contract\n";
@@ -49,6 +51,10 @@ $text =~ /bmi\.(?:same|cross) \@TEMPLATE_PostSetupBottom;/
    or die "bottom-edge X-underflow termination guard missing\n";
 $text =~ /TEMPLATE_PostSetup0Immediate:/
    or die "immediate opposite-lane event handoff missing\n";
+$text =~ /\@TEMPLATE_PreloadTopLoop:;.*?asm cmp #95;.*?asm bcc\.same \@TEMPLATE_PreloadTopDone;/s
+   or die "band-95 setup is no longer preloaded during VBLANK\n";
+$text !~ /TEMPLATE_TopTrigger/
+   or die "obsolete visible action_y=95 trigger path returned\n";
 
 # Recovered visual-fix contracts.  These are deliberately structural: the
 # timing harness below proves the resulting cycle balance while these checks
@@ -71,23 +77,23 @@ $text =~ /TEMPLATE_P1RespAfterLeftPF1:;.*?lda\.ax TEMPLATE_playfield_right,X;\s*
    or die "P1 late-family right-PF2 correction missing\n";
 
 my$bin=File::Spec->catfile($tmp,'enhanced_asymmetric.bin');
-my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-DVCS_NTSC_EXTENDED_VBLANK','-T',File::Spec->catfile($vcs,'vcs.cfg'),$example,'-o',$bin);
+my($rc,$sig,$out,$err)=capture($driver,'-nostdlib','-I',$vcs,'-DVCS_NTSC_EXTENDED_VBLANK','-DMULTISPRITE_NO_RETAINED_PF_ROWS','-T',File::Spec->catfile($vcs,'vcs.cfg'),$example,$startup,'-o',$bin);
 $rc==0 && !$sig or die "asymmetric example build failed\n$out$err";
 $out=without_usage($out); $out eq '' or die "asymmetric example build stdout: $out";
 $err eq '' or die "asymmetric example build stderr: $err";
-(-s $bin)==8192 or die "asymmetric example is not an 8K F8SC ROM\n";
+(-s $bin)==4096 or die "asymmetric example is not a 4K ROM\n";
 
-# F8 bank bridges must not execute after VBLANK is cleared.  The first F8SC
-# top-edge checkpoint let run_asymmetric_frame live in bank0 while game_draw
-# lived in bank1; that bridge consumed visible beam time and Stella showed two
-# bogus scanlines before the intended 192-line raster.  Keep the frame driver
-# and beam renderer co-resident.
+# The public diagnostic is deliberately back on an ordinary unbanked 4K
+# cartridge.  This removes every visible-time bankswitch hazard and proves the
+# enhanced renderer itself does not require F8SC or Superchip RAM.
 (my$map=$bin) =~ s/\.bin\z/.map/;
 my$map_text=read_file($map);
-$map_text =~ /CODE\.__vcsc_function\$game_draw\s+load=\$[0-9A-Fa-f]+.*?bank=bank1/m
-   or die "asymmetric game_draw left bank1\n";
-$map_text =~ /CODE(?:\.bank1)?\.__vcsc_function\$run_asymmetric_frame\s+load=\$[0-9A-Fa-f]+.*?bank=bank1/m
-   or die "asymmetric frame driver is not co-resident with game_draw\n";
+$map_text =~ /output-size=\$00001000/
+   or die "asymmetric example lost 4K cartridge topology\n";
+$map_text =~ /CODE\.__vcsc_function\$game_draw\s+load=\$[0-9A-Fa-f]+/m
+   or die "asymmetric game_draw is not in unbanked ROM\n";
+$map_text =~ /CODE\.__vcsc_function\$run_asymmetric_frame\s+load=\$[0-9A-Fa-f]+/m
+   or die "asymmetric frame driver is not in unbanked ROM\n";
 
 (my$sym=$bin) =~ s/\.bin\z/.sym/;
 my$sym_text=read_file($sym);
@@ -113,7 +119,7 @@ sub expect_timing {
    my($r,$s,$o,$e)=capture($timing,$bin,$assertions,'--no-audio','--raw-lines','264',@args);
    $r==0 && !$s or die "$name failed\n$o$e";
    my$checked=$assertions-3;
-   $o eq "vcs_frame_timing ok: $checked frames at 262 lines, 0 AUDV0 writes\n"
+   $o eq "vcs_frame_timing ok: $checked frames at 262 lines, 1 AUDV0 writes\n"
       or die "bad $name output: $o";
    $e eq '' or die "$name stderr: $e";
 }
@@ -195,7 +201,7 @@ for my$spec (
    my($xs,$ys)=@$spec;
    expect_timing("combined X/Y stress $xs/$ys",5000,
       '--randomize-zp',sprintf('0x%02x',$x_addr),'6','160',$xs,
-      '--randomize-zp',sprintf('0x%02x',$y_addr),'6','90',$ys,
+      '--randomize-zp',sprintf('0x%02x',$y_addr),'6','96',$ys,
       '--require-resp-phases',$phases);
 }
 

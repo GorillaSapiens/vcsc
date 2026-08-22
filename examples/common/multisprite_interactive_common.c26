@@ -38,8 +38,12 @@ align(256) const uint8_t game_graphics[145] := {
 };
 
 // Six retained playfield rows are consumed from high index to low index.
+// The enhanced asymmetric profile has its own full 40-bit tables and can
+// suppress these otherwise-dead compatibility rows to save cartridge ROM.
+#ifndef MULTISPRITE_NO_RETAINED_PF_ROWS
 const uint8_t game_pf1[6] := { 0x81,0x42,0x24,0x18,0xa5,0xc3 };
 const uint8_t game_pf2[6] := { 0x81,0x3c,0x5a,0xa5,0x66,0xe7 };
+#endif
 
 alias SELECTED_PLAYER0 0
 alias SELECTED_PLAYER1 1

@@ -120,8 +120,17 @@ for my $entry (@examples) {
    }
    -f $source or die "missing editable example $source\n";
    my $source_dir=File::Spec->catdir($examples_root,$dir);
+   my $stem=$file; $stem =~ s/\.c26\z//;
+   my $local_startup=File::Spec->catfile($source_dir,"${stem}_startup.s26");
+   if (-f $local_startup) {
+      # Public examples may deliberately replace the generic runtime with a
+      # source-adjacent startup.  Keep the smoke build faithful to the
+      # example Makefile instead of silently relinking the C file with the
+      # stock runtime (which can also change ROM placement/size).
+      push @extra,'-nostdlib';
+   }
    my @cmd=($driver,'-I',$vcs,'-I',$source_dir,'-Map',$map,@extra);
-   # Renderer source operands must follow the C source. Move any trailing .s26
+   # Renderer/source assembly operands must follow the C source. Move any trailing .s26
    # operand after the example while leaving compiler/linker options in place.
    my @renderer=grep { /\.s26\z/ } @cmd;
    @cmd=grep { !/\.s26\z/ } @cmd;
@@ -134,6 +143,8 @@ for my $entry (@examples) {
          File::Spec->catfile($source_dir,'faithful_legacy_multisprite_diagnostic_data.s26'),
          File::Spec->catfile($faithful_multisprite,'faithful_legacy_multisprite_renderer.s26'),
          File::Spec->catfile($faithful_multisprite,'faithful_legacy_multisprite_startup.s26');
+   } elsif (-f $local_startup) {
+      push @renderer,$local_startup;
    }
    push @cmd,$source,@renderer,'-o',$bin;
    my($rc,$sig,$out,$err)=capture(@cmd);

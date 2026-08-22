@@ -25,11 +25,28 @@ PF0/PF1/PF2 data, with `CTRLPF := 0`.  PF0 is part of the raster from the start;
 this is not the earlier PF1/PF2-only experiment.  Both physical lines of the
 special position bands now perform the required PF0 left/right transition too.
 
-Horizontal sprite positioning is still under active calibration.  Fine HMP
-metadata is generated per event.  The coarse path now has a real page-contained
-11-entry landing block: each phase step is three ROM bytes / five CPU cycles,
-P0 occupies base+$00..$1e, and P1 base+$40..$5e.  VBLANK stores the absolute
-landing low byte in `position_packed`; bit 6 identifies P1, and adjacent
-`event_stage` holds the common high byte, making the pair ready for an indirect
-JMP.  The raster still uses the fixed RESP fallback at this checkpoint; entering
-that vector and calibrating all 11 phases across public X=0..159 remain WIP.
+For visual diagnosis the playfield is now organized as **12 rows of 16 scanlines**
+(eight logical two-scanline bands per row), rather than six 32-scanline rows.  The
+40-bit pattern is a family of one-bit diagonals separated by exactly five blank
+playfield bits.  Each successive 16-line row shifts the pattern by one bit, so a
+stale byte, wrong half, or mistimed PF rewrite stands out immediately.
+
+The current diagnostic is again a conventional **4K** cartridge.  It uses a
+small example-specific startup because this fixture explicitly initializes all
+writable state and therefore does not need the generic DATA/copy/constructor
+startup machinery.  The linked image currently uses about 3.7 KiB of ROM and
+115 bytes of RIOT RAM; no bankswitching or Superchip RAM is required.
+
+Horizontal positioning covers public X=0..159 on both hardware players with the
+current measured twelve-phase RESP lattice
+`23,28,33,37,42,47,50,53,58,63,68,73`.  Public Y is 0..95.  Events whose normal
+setup would begin in or above the first visible band are pre-positioned during
+VBLANK, so sprites can reach the very top without spending an impossible setup
+scanline in visible time.
+
+The automated timing regression now hammers the complete X=0..159 / Y=0..95
+range, including the historical action-Y=95 top-edge failure and two simultaneous
+Y=95 sprites, at a stable 262-line NTSC frame.  Remaining WIP is quality/capability
+work rather than a known frame-length defect: finish Stella pixel certification
+of every X position, migrate the middle X range to the intended final eleven-slot
+lattice, then restore the richer two-sprite pair-feasibility scheduler.
