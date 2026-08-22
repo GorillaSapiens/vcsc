@@ -1758,3 +1758,231 @@ CURRENT NEXT WORK
    active while scheduler changes are made.
 4. Stella-certify all X=0..159 on both lanes and finish the intended eleven-slot
    RESP lattice after scheduler correctness is stable.
+
+SCHEDULER/Raster DIVERGENCE + PERSISTENT-MISSING-SPRITE FIX -- 2026-08-22
+-------------------------------------------------------------------------
+The user's clarification is important: the reported sprite 5 was not merely
+absent in one captured flicker phase; it never appeared.  The earlier inference
+that the screenshot represented a 3/4/5 same-Y triple was wrong.  In the public
+diagnostic sprite 5 remains at Y=16; sprites 1/2 are at Y=76, sprites 3/4 are at
+Y=42, and sprite 0 had been moved down near the bottom.  A permanently absent 5
+therefore had to be treated as a scheduler/raster correctness failure, not as an
+expected two-lane arbitration result.
+
+Two concrete root causes were found.
+
+1. The 6502 allocator did not actually implement the host C model's close-above
+   test.  `@TEMPLATE_ChooseAboveClose` correctly saved
+   `candidate_y-other_y` and restored it into X, then loaded the prior sprite's
+   lane into A and jumped to `@TEMPLATE_ChooseCandidateAtOrAbove`.  That label
+   immediately executed `TAX`, replacing the real delta with the prior lane
+   value (0 or 1).  Every close-above pair was therefore classified with a fake
+   distance of zero or one.  The host Monte Carlo was modeling the intended
+   algorithm and could not expose this assembly-only divergence.  The stray
+   `TAX` is removed; X now remains the saved Y delta.
+
+2. The opposite-lane hazard was one band too narrow.  The scheduler allowed a
+   P1 sprite six logical bands above a P0 sprite.  P1 action_y is Y+3 while P0
+   action_y is Y+6, so that geometry produces only three action bands between
+   the P1 event and the following P0 event.  The visible P1 post-setup pipeline
+   does not return to the ordinary trigger test until action-4, so the following
+   P0 event is swallowed.  The only supported three-band handoff is the opposite
+   ordering produced by exact-same-Y P0 then P1.  All allocator/model
+   opposite-lane checks and first/rank-4 lookaheads now use the correct +1..+6
+   hazard rather than +1..+5.
+
+A real 6502 witness pins the failure:
+
+  X={143,82,135,107,49,159}
+  Y={9,18,67,73,60,23}
+  priority={5,1,2,0,3,4}
+
+Before the repair the allocator emitted five draw records (scheduled mask $3e)
+but the raster produced nonzero player graphics for only sprite 3 (visible mask
+$08); missing mask $36 includes sprite 5.  A forced Stella snapshot showed the
+same one-visible-sprite failure.  With both fixes the witness has a safe schedule
+and every accepted sprite produces graphics.
+
+`test/vcs_frame_timing.cpp` now has two test-only facilities needed to keep this
+class of bug pinned: `--released-inputs` leaves SWCHA/SWCHB high so RESET is not
+accidentally held during the run, and
+`--verify-asymmetric-visibility Y COLOR DRAW COUNT` compares the scheduler's
+compacted draw records against actual nonzero GRP0/GRP1 writes using the
+example's per-sprite colors.  Y=0 is exempt because the maintained multisprite
+contract defines it as the fully clipped bottom position.  `--require-visible-mask`
+and `--expect-memory` support fixed-scene assertions.  This also exposed a
+weakness in the older timing-only stress: its zero-initialized RIOT inputs held
+RESET low, so the example reinitialized `game_priority` every overscan and never
+exercised persistent fairness.
+
+`vcs_enhanced_multisprite_asymmetric.pl` now includes both the five-scheduled /
+one-visible 6502 witness above and a screenshot-family scene with
+X={18,36,62,88,114,140}, Y={12,76,76,42,42,16}.  In the repaired renderer the
+latter schedules six and all six actually appear.  A Stella 7.0 snapshot of that
+scene visibly shows 0,1,2,3,4,5 together, including sprite 5 at its original
+Y=16.
+
+The C Monte Carlo is retained as the cheap allocation oracle, but it now also
+checks that every accepted lane assignment produces a raster-safe action stream.
+The mistaken screenshot-specific 3/4/5 fairness reconstruction was removed;
+there is only a generic exact-same-Y fairness witness.  At 250,000 deterministic
+layouts the maintained allocator reports:
+
+  min=2, worst fairness gap=4
+  histogram 2:205, 3:7172, 4:56665, 5:123611, 6:62347
+  exact-search prefix=20000, avoidable greedy omissions=7188, worst optimal gap=3
+
+The existing rank-4 one-candidate lookahead remains because it is provably
+non-regressive and cheap.  A rank-3 safe lookahead was also prototyped in the C
+model; it reduced the 20k exact-prefix avoidable count from 7188 to 6918 and was
+non-regressive in a 500k-layout comparison.  The direct 6502 implementation was
+rejected, however: its extra close-case scan exceeded the already-tight VBLANK
+budget and produced a 265-raw-line frame at combined-stress frame 259 for seeds
+0x6d2b79f5/0x1234567b.  That experiment was fully reverted.  Future lane
+rebalancing must reuse/compact existing scheduler work rather than simply adding
+another accepted-list scan.
+
+Current public size after the correctness repair is 3794/4090 ROM bytes and
+115/128 RIOT RAM bytes.  The focused asymmetric regression passes, including the
+full-X/full-Y timing stress and the new scheduler-to-raster visibility checks.
+
+CURRENT NEXT WORK
+-----------------
+1. Treat the persistent missing-sprite bug as fixed and keep the new real-CPU
+   visibility oracle active; do not infer sprite presence from draw records alone.
+2. Use the exact host search to find a VBLANK-cheap, non-regressive lane
+   rebalancing scheme.  7188/20000 exact-prefix layouts still have avoidable
+   greedy omissions, so unnecessary flicker remains measurable.
+3. Reintroduce horizontal same-line reuse/pair feasibility for the genuinely
+   impossible one-sprite-per-lane cases (notably the 0/1/2 same-Y cluster).
+4. Preserve the 264-raw-line timing budget while doing scheduler work; the
+   rejected rank-3 experiment demonstrates there is essentially no room for an
+   extra close-pair scan.
+5. Continue Stella X=0..159 pixel certification and the final eleven-slot RESP
+   lattice only after scheduler correctness remains stable.
+
+ALL-OMISSION FAIRNESS REPAIR -- 2026-08-22
+-------------------------------------------
+The user's phosphor-on screenshot exposed a separate persistent-priority defect:
+some logical sprites visibly flickered more often than peers even though no sprite
+was permanently lost.  The old policy remembered only the last omission in a
+frame and promoted that one logical id to the front of `priority[]`.  That policy
+is fair for one isolated contention group, but not when two or more independent
+groups omit sprites in the same frame.
+
+A deterministic host witness makes the bias obvious without relying on visual
+judgment:
+
+  Y={76,76,76,42,42,42}
+
+This is two independent exact-same-Y three-way piles far enough apart to reuse the
+hardware lanes.  Four logical sprites can be shown each frame.  Over six frames,
+the historical single-last-omission policy produces service counts:
+
+  sprites 0..5: 5,5,2,5,5,2
+
+so logical sprites 2 and 5 receive less than half the service of their peers.  A
+fair omitted-first queue must instead produce exactly:
+
+  sprites 0..5: 4,4,4,4,4,4
+
+The scheduler now records every omission in a six-bit mask in `setup_code[6]`.
+That replaces the old last-rank/last-id bookkeeping and is slightly cheaper on
+the VBLANK omission path.  At the end of VBLANK the mask is preserved in
+`setup_sprite`.  After the visible raster, overscan uses dead `event_order[]` as
+a six-byte temporary queue and stable-partitions `priority[]`: all sprites omitted
+this frame first, then all sprites shown this frame, preserving relative order in
+both groups.  Moving the full queue rebuild to overscan avoids the already-tight
+VBLANK deadline that killed the earlier rank-3 rescan experiment.
+
+`test/vcs_frame_timing.cpp` now supports `--require-visible-spread MASK MAX` on
+top of the existing asymmetric visibility oracle.  The focused regression runs
+the two-pile witness on the real 6502 model for 97 checked frames and requires the
+actual nonzero-GRP visibility counts of all six sprites to differ by no more than
+one frame.  The host Monte Carlo also pins the exact six-frame 4/4/4/4/4/4 result.
+At 250,000 deterministic layouts the scheduler still has minimum two accepted
+sprites and the single-frame histogram is unchanged, while the worst observed
+consecutive omission gap over the 12-frame fairness sweep improves from four to
+two frames.
+
+This repair addresses fairness only; it does not claim the greedy allocator is
+optimal.  The exact host oracle still reports 7188/20000 layouts where a better
+legal lane assignment would draw more sprites in the current frame.  Same-line
+horizontal reuse is also still needed to eliminate genuinely unavoidable
+one-sprite-per-lane flicker such as a single three-way exact-Y pile.
+
+Current public accounting after the fairness repair:
+
+  ROM: 3842/4090 bytes
+  RAM: 115/128 bytes
+
+CURRENT NEXT WORK
+-----------------
+1. Keep the all-omission stable priority queue and the real-GRP visibility-spread
+   oracle active while changing the allocator.
+2. Use the exact host search to find VBLANK-cheap lane rebalancing that reduces
+   the remaining 7188/20000 avoidable greedy omissions without sacrificing the
+   264-raw-line timing budget.
+3. Reintroduce horizontal same-line reuse/pair feasibility for geometries where
+   two hardware lanes are intrinsically insufficient.
+4. Continue Stella X=0..159 pixel certification and final RESP-lattice cleanup
+   after scheduler correctness remains stable.
+
+VALIDATION CHECKPOINT -- 2026-08-22
+-----------------------------------
+The all-omission fairness repair passes the 250,000-layout host scheduler model,
+the focused asymmetric real-CPU regression, source-tree hygiene, context-history
+format, example-assembly allowlist, and the four shared multisprite renderer
+tests.  The complete compile phase is 500/500.  A full 319-case E2E run was
+interrupted by the execution-window limit after its first 78 completed cases,
+all passing; this is not a claim that the complete E2E suite was run to
+completion.
+
+STAGGERED 0/1/2 FLICKER DIAGNOSIS -- 2026-08-22
+------------------------------------------------
+The user's phosphor-on screenshot around 10:55 is not an intrinsically
+three-way visible overlap.  Using unchanged sprites 3/4 at Y=42 and sprite 5
+at Y=16 as screen-coordinate anchors, the moved cluster is approximately (and
+at joystick integer resolution effectively) X={62,72,62}, Y={86,82,76} for
+sprites 0/1/2.  The eight bitmap bands are therefore:
+
+  sprite 0: 86..79
+  sprite 1: 82..75
+  sprite 2: 76..69
+
+At no logical band are all three live.  The maximum visible occupancy is two,
+and sprites 0 and 2 do not overlap at all.  They are also horizontally aligned
+in the screenshot.  A hardware-lane coloring 0+2 on one player and 1 on the
+other should therefore be solid; the user's expectation is correct.
+
+The current flicker comes from a renderer scheduling limitation, not from the
+new fairness queue and not from a shortage of two TIA players.  The allocator
+uses the complete reposition/setup reservations as its compatibility graph:
+P0 same-lane reuse requires 15 bands, P1 requires 12, and the normal event
+stream also rejects the directional P1-above-P0 gap of 1..6 bands.  For
+Y={86,82,76}, those setup reservations make the current graph require an
+omission even though the actual bitmap-overlap graph is two-colorable.  With
+identity priority the current allocator draws 0/1 and omits 2; the all-omission
+fairness queue then rotates the avoidable loss, so over three frames 0/1/2 each
+receive exactly 2/3 service.  Phosphor makes that unnecessary 2-of-3 rotation
+especially obvious.
+
+`test/vcs_enhanced_multisprite_asymmetric_scheduler.c` now contains this exact
+staggered-chain witness.  It independently verifies that visible occupancy
+never exceeds two and records the current known deficit/fair 2/2/2 rotation so
+the next continuation work starts from a deterministic geometry rather than a
+visual impression.
+
+This changes the priority of the next scheduler work.  Before attempting true
+same-scanline >2 horizontal multiplexing, add a shorter same-lane continuation
+path for vertically disjoint sprites.  The important target is the two blank
+bands between sprite 0's last row (79) and sprite 2's first row (76): the lane
+is idle during bands 78 and 77, which should be enough to prepare sprite 2
+without reserving the full 12/15-band normal position/setup interval.  Because
+0 and 2 share X in this witness, the first implementation can exploit retained
+horizontal state and need only hand off color/graphics state; a generalized
+continuation can later decide when a real RESP/HMOVE reposition also fits.
+
+Do not describe this geometry as unavoidable three-way contention.  The
+fairness repair is working here; it is fairly rotating an omission that should
+not exist.

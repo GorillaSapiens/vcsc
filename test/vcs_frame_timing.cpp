@@ -31,6 +31,10 @@ constexpr uint16_t kVsync = 0x0000;
 constexpr uint16_t kWsync = 0x0002;
 constexpr uint16_t kResp0 = 0x0010;
 constexpr uint16_t kResp1 = 0x0011;
+constexpr uint16_t kColup0 = 0x0006;
+constexpr uint16_t kColup1 = 0x0007;
+constexpr uint16_t kGrp0 = 0x001b;
+constexpr uint16_t kGrp1 = 0x001c;
 constexpr uint16_t kAudc0 = 0x0015;
 constexpr uint16_t kAudf0 = 0x0017;
 constexpr uint16_t kAudv0 = 0x0019;
@@ -40,6 +44,8 @@ constexpr uint16_t kTim1t = 0x0294;
 constexpr uint16_t kTim8t = 0x0295;
 constexpr uint16_t kTim64t = 0x0296;
 constexpr uint16_t kT1024t = 0x0297;
+constexpr uint16_t kSwcha = 0x0280;
+constexpr uint16_t kSwchb = 0x0282;
 
 struct WriteEvent {
    uint16_t address;
@@ -79,6 +85,11 @@ struct FixedZpWrite {
    uint8_t value;
 };
 
+struct ExpectedMemory {
+   uint16_t address;
+   uint8_t value;
+};
+
 struct SweepZpWrite {
    uint16_t address;
    uint8_t minimum;
@@ -91,6 +102,25 @@ struct SweepZpWrite {
 std::vector<RandomizeZpRange> randomize_zp_ranges;
 std::vector<FixedZpWrite> fixed_zp_writes;
 std::vector<SweepZpWrite> sweep_zp_writes;
+std::vector<ExpectedMemory> expected_memory;
+bool released_inputs = false;
+
+struct AsymmetricVisibilityCheck {
+   bool enabled = false;
+   uint16_t y_address = 0;
+   uint16_t color_address = 0;
+   uint16_t draw_code_address = 0;
+   uint16_t setup_count_address = 0;
+   uint8_t lane_color[2] = {0, 0};
+   uint8_t seen_mask = 0;
+   uint8_t ever_seen_mask = 0;
+   uint8_t required_seen_mask = 0;
+   uint8_t spread_mask = 0;
+   unsigned maximum_spread = 0;
+   uint64_t visible_frames[6] = {0, 0, 0, 0, 0, 0};
+};
+
+AsymmetricVisibilityCheck asymmetric_visibility;
 bool resp_phase_seen[2][kCyclesPerScanline] = {};
 uint64_t last_resp_line[2] = {UINT64_MAX, UINT64_MAX};
 bool saw_dual_resp_line = false;
@@ -194,8 +224,67 @@ void load_timer(uint16_t address, uint8_t value) {
    }
 }
 
+void verify_asymmetric_previous_frame() {
+   if (!asymmetric_visibility.enabled || vsync_assertions.size() <= 2) return;
+
+   unsigned count = memory_image[asymmetric_visibility.setup_count_address];
+   if (count > 6) { std::fprintf(stderr, "vcs_frame_timing: asymmetric visibility setup count exceeds six\n"); std::exit(1); }
+
+   uint8_t accepted_mask = 0;
+   for (unsigned i = 0; i < count; ++i) {
+      const uint8_t code = memory_image[asymmetric_visibility.draw_code_address + i] & 0x0f;
+      int id = -1;
+      if (code >= 1 && code <= 6) id = code - 1;
+      else if (code >= 7 && code <= 12) id = code - 7;
+      else { std::fprintf(stderr, "vcs_frame_timing: asymmetric visibility saw invalid draw code\n"); std::exit(1); }
+      accepted_mask |= static_cast<uint8_t>(1u << id);
+   }
+
+   // Y=0 is the maintained multisprite convention for a completely clipped
+   // bottom position.  Such a scheduled sprite is intentionally not required
+   // to produce a nonzero GRP write in the visible raster.
+   for (unsigned id = 0; id < 6; ++id) {
+      if (memory_image[asymmetric_visibility.y_address + id] == 0)
+         accepted_mask &= static_cast<uint8_t>(~(1u << id));
+   }
+
+   const uint8_t missing = accepted_mask &
+      static_cast<uint8_t>(~asymmetric_visibility.seen_mask);
+   if (missing) {
+      std::fprintf(stderr,
+         "vcs_frame_timing: asymmetric frame %zu scheduled mask $%02x "
+         "but visible mask was $%02x (missing $%02x)\n",
+         vsync_assertions.size(), accepted_mask,
+         asymmetric_visibility.seen_mask, missing);
+      std::exit(1);
+   }
+
+   const uint8_t visible = accepted_mask & asymmetric_visibility.seen_mask;
+   for (unsigned id = 0; id < 6; ++id) {
+      if (visible & static_cast<uint8_t>(1u << id))
+         ++asymmetric_visibility.visible_frames[id];
+   }
+}
+
 void apply_writes() {
    for (const WriteEvent &event : writes) {
+      if (asymmetric_visibility.enabled) {
+         if (event.address == kColup0 || event.address == kColup1) {
+            const unsigned lane = event.address == kColup1 ? 1u : 0u;
+            asymmetric_visibility.lane_color[lane] = event.value;
+         }
+         else if ((event.address == kGrp0 || event.address == kGrp1) &&
+                  event.value != 0) {
+            const unsigned lane = event.address == kGrp1 ? 1u : 0u;
+            const uint8_t color = asymmetric_visibility.lane_color[lane];
+            for (unsigned id = 0; id < 6; ++id) {
+               if (memory_image[asymmetric_visibility.color_address + id] == color) {
+                  asymmetric_visibility.seen_mask |= static_cast<uint8_t>(1u << id);
+                  asymmetric_visibility.ever_seen_mask |= static_cast<uint8_t>(1u << id);
+               }
+            }
+         }
+      }
       if (event.address == kResp0 || event.address == kResp1) {
          const unsigned lane = event.address == kResp1 ? 1u : 0u;
          const uint64_t line = virtual_cycles / kCyclesPerScanline;
@@ -215,6 +304,8 @@ void apply_writes() {
       else if (event.address == kVsync) {
          const bool next = (event.value & 2) != 0;
          if (next && !vsync_asserted) {
+            verify_asymmetric_previous_frame();
+            asymmetric_visibility.seen_mask = 0;
             vsync_assertions.push_back(virtual_cycles);
             // Test-only RAM mutation happens exactly at the synchronized frame
             // boundary, before VBLANK work begins.  This lets renderer tests
@@ -291,7 +382,7 @@ void apply_writes() {
 int main(int argc, char **argv) {
    if (argc < 3) {
       std::fprintf(stderr,
-         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--randomize-zp ADDR COUNT MODULUS SEED]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
+         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--randomize-zp ADDR COUNT MODULUS SEED]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--released-inputs] [--expect-memory ADDR VALUE]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
          argv[0]);
       return 2;
    }
@@ -411,6 +502,66 @@ int main(int argc, char **argv) {
          }
          if (required_resp_phases.empty()) fail("bad --require-resp-phases value");
       }
+      else if (std::strcmp(argv[i], "--released-inputs") == 0) {
+         released_inputs = true;
+      }
+      else if (std::strcmp(argv[i], "--expect-memory") == 0) {
+         if (i + 2 >= argc) {
+            fail("--expect-memory requires ADDR VALUE");
+         }
+         char *address_end = nullptr;
+         const unsigned long address = std::strtoul(argv[++i], &address_end, 0);
+         if (!address_end || *address_end != '\0' || address > 0xffff) {
+            fail("bad --expect-memory address");
+         }
+         char *value_end = nullptr;
+         const unsigned long value = std::strtoul(argv[++i], &value_end, 0);
+         if (!value_end || *value_end != '\0' || value > 0xff) {
+            fail("bad --expect-memory value");
+         }
+         expected_memory.push_back({static_cast<uint16_t>(address),
+                                    static_cast<uint8_t>(value)});
+      }
+      else if (std::strcmp(argv[i], "--verify-asymmetric-visibility") == 0) {
+         if (i + 4 >= argc) {
+            fail("--verify-asymmetric-visibility requires Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR");
+         }
+         uint16_t *fields[4] = {
+            &asymmetric_visibility.y_address,
+            &asymmetric_visibility.color_address,
+            &asymmetric_visibility.draw_code_address,
+            &asymmetric_visibility.setup_count_address
+         };
+         for (unsigned field = 0; field < 4; ++field) {
+            char *parse_end = nullptr;
+            const unsigned long value = std::strtoul(argv[++i], &parse_end, 0);
+            if (!parse_end || *parse_end != '\0' || value > 0xffff)
+               fail("bad --verify-asymmetric-visibility address");
+            *fields[field] = static_cast<uint16_t>(value);
+         }
+         asymmetric_visibility.enabled = true;
+      }
+      else if (std::strcmp(argv[i], "--require-visible-mask") == 0) {
+         if (++i >= argc) fail("--require-visible-mask requires MASK");
+         char *parse_end = nullptr;
+         const unsigned long mask = std::strtoul(argv[i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || mask > 0x3f)
+            fail("bad --require-visible-mask value");
+         asymmetric_visibility.required_seen_mask = static_cast<uint8_t>(mask);
+      }
+      else if (std::strcmp(argv[i], "--require-visible-spread") == 0) {
+         if (i + 2 >= argc) fail("--require-visible-spread requires MASK MAX");
+         char *mask_end = nullptr;
+         const unsigned long mask = std::strtoul(argv[++i], &mask_end, 0);
+         if (!mask_end || *mask_end != '\0' || mask == 0 || mask > 0x3f)
+            fail("bad --require-visible-spread mask");
+         char *spread_end = nullptr;
+         const unsigned long spread = std::strtoul(argv[++i], &spread_end, 0);
+         if (!spread_end || *spread_end != '\0' || spread > 1000000UL)
+            fail("bad --require-visible-spread maximum");
+         asymmetric_visibility.spread_mask = static_cast<uint8_t>(mask);
+         asymmetric_visibility.maximum_spread = static_cast<unsigned>(spread);
+      }
       else if (std::strcmp(argv[i], "--expect-resp-phases") == 0) {
          if (++i >= argc) {
             fail("--expect-resp-phases requires a comma-separated list");
@@ -468,6 +619,11 @@ int main(int argc, char **argv) {
    }
    else {
       std::memcpy(memory_image + kRomBase, cartridge_image, kBankSize);
+   }
+
+   if (released_inputs) {
+      memory_image[kSwcha] = 0xff;
+      memory_image[kSwchb] = 0xff;
    }
 
    mos6502 cpu(read_bus, write_bus, clock_cycle);
@@ -562,6 +718,59 @@ int main(int argc, char **argv) {
                return 1;
             }
          }
+      }
+   }
+
+   for (const ExpectedMemory &expect : expected_memory) {
+      if (memory_image[expect.address] != expect.value) {
+         std::fprintf(stderr,
+            "vcs_frame_timing: memory $%04x expected $%02x, got $%02x\n",
+            expect.address, expect.value, memory_image[expect.address]);
+         return 1;
+      }
+   }
+
+   if (asymmetric_visibility.required_seen_mask) {
+      if (!asymmetric_visibility.enabled)
+         fail("--require-visible-mask needs --verify-asymmetric-visibility");
+      const uint8_t missing = asymmetric_visibility.required_seen_mask &
+         static_cast<uint8_t>(~asymmetric_visibility.ever_seen_mask);
+      if (missing) {
+         std::fprintf(stderr,
+            "vcs_frame_timing: required visible mask $%02x, saw $%02x "
+            "(never saw $%02x)\n",
+            asymmetric_visibility.required_seen_mask,
+            asymmetric_visibility.ever_seen_mask, missing);
+         return 1;
+      }
+   }
+
+   if (asymmetric_visibility.spread_mask) {
+      if (!asymmetric_visibility.enabled)
+         fail("--require-visible-spread needs --verify-asymmetric-visibility");
+      uint64_t minimum = UINT64_MAX;
+      uint64_t maximum = 0;
+      for (unsigned id = 0; id < 6; ++id) {
+         if (!(asymmetric_visibility.spread_mask & static_cast<uint8_t>(1u << id)))
+            continue;
+         const uint64_t count = asymmetric_visibility.visible_frames[id];
+         if (count < minimum) minimum = count;
+         if (count > maximum) maximum = count;
+      }
+      if (maximum - minimum > asymmetric_visibility.maximum_spread) {
+         std::fprintf(stderr,
+            "vcs_frame_timing: visible-frame spread %llu exceeds %u for mask $%02x "
+            "(counts=%llu,%llu,%llu,%llu,%llu,%llu)\n",
+            static_cast<unsigned long long>(maximum - minimum),
+            asymmetric_visibility.maximum_spread,
+            asymmetric_visibility.spread_mask,
+            static_cast<unsigned long long>(asymmetric_visibility.visible_frames[0]),
+            static_cast<unsigned long long>(asymmetric_visibility.visible_frames[1]),
+            static_cast<unsigned long long>(asymmetric_visibility.visible_frames[2]),
+            static_cast<unsigned long long>(asymmetric_visibility.visible_frames[3]),
+            static_cast<unsigned long long>(asymmetric_visibility.visible_frames[4]),
+            static_cast<unsigned long long>(asymmetric_visibility.visible_frames[5]));
+         return 1;
       }
    }
 

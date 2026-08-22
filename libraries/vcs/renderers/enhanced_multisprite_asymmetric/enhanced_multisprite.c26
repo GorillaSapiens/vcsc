@@ -168,6 +168,12 @@ const uint8_t TEMPLATE_position_table[160] := {   0xd2,0x60,0x50,0x40,0x30,0x20,
    0xe1,0xd1,0xc1,0xb1,0xa1,0x91,0x81,0x62,0x52,0x42,0x32,0x22,0x12,0x02,0xf2,0xe2
 };
 
+// Logical-sprite bit lookup used only by the VBLANK omission recorder.  The
+// resulting six-bit mask survives through the visible raster in setup_sprite
+// and lets overscan rebuild the persistent priority queue without spending a
+// second allocation pass inside the already-tight VBLANK budget.
+const uint8_t TEMPLATE_sprite_bit[6] := { 1,2,4,8,16,32 };
+
 
 
 enum TEMPLATE_contract {
@@ -504,7 +510,7 @@ void TEMPLATE_vblank_worker(void) {
    asm bne.same @TEMPLATE_ChooseHavePrior;
 
    // Do not seed the first accepted sprite blindly on P0.  If priority[1] is
-   // 1..5 bands above priority[0], that orientation makes the second sprite
+   // 1..6 bands above priority[0], that orientation makes the second sprite
    // impossible on both lanes: P0 is still inside the long same-lane setup
    // window and P1 hits the opposite-lane setup-spacing hazard.  In a narrow
    // six-sprite pile the old greedy choice could therefore emit only one
@@ -512,14 +518,14 @@ void TEMPLATE_vblank_worker(void) {
    //
    // Looking at the second priority candidate is sufficient to eliminate that
    // catastrophic case without adding a second allocation pass.  Seed the
-   // lower first sprite on P1 only for a +1..+5 Y gap; every other relative-Y
+   // lower first sprite on P1 only for a +1..+6 Y gap; every other relative-Y
    // case keeps the historical P0 seed and guarantees candidate two a lane.
    asm ldx.z TEMPLATE_priority + 1;
    asm lda.zx TEMPLATE_y,X;
    asm sec;
    asm sbc.z TEMPLATE_pair_y;
    asm beq.same @TEMPLATE_ChooseFirstP0;
-   asm cmp #6;
+   asm cmp #7;
    asm bcc.same @TEMPLATE_ChooseFirstP1;
    asm @TEMPLATE_ChooseFirstP0:;
    asm lda #0;
@@ -582,7 +588,9 @@ void TEMPLATE_vblank_worker(void) {
 
    asm @TEMPLATE_ChooseBelowOtherP1:;
    // P1 same-lane reuse needs twelve bands, including the attribute-write line. Candidate P0 setup is three
-   // bands above P1's setup, so a 1..5 Y gap also blocks candidate P0.
+   // bands above P1's setup.  A six-band logical gap leaves only three
+   // action bands between a P1 event and the following P0 event; the P1
+   // post-setup path returns at action-4, so 1..6 must block candidate P0.
    asm txa;
    asm cmp #12;
    asm bcs.same @TEMPLATE_ChooseBelowP1SameClear;
@@ -591,7 +599,7 @@ void TEMPLATE_vblank_worker(void) {
    asm sta.z TEMPLATE_position_packed;
    asm @TEMPLATE_ChooseBelowP1SameClear:;
    asm txa;
-   asm cmp #6;
+   asm cmp #7;
    asm bcs.same @TEMPLATE_ChooseAfterOther;
    asm lda.z TEMPLATE_position_packed;
    asm and #$fe;
@@ -599,13 +607,17 @@ void TEMPLATE_vblank_worker(void) {
    asm jmp @TEMPLATE_ChooseAfterOther;
 
    asm @TEMPLATE_ChooseCandidateAtOrAbove:;
-   // X = candidate_y - other_y (including zero).
-   asm tax;
+   // X already holds candidate_y-other_y (including zero).  Do not TAX here:
+   // A still holds the prior sprite's lane from the setup above, so TAX would
+   // collapse every close-above delta to 0 or 1 and make the host scheduler
+   // model diverge catastrophically from the 6502 allocator.
    asm lda.z TEMPLATE_pending0_valid;
    asm bne.same @TEMPLATE_ChooseAboveOtherP1;
 
-   // Existing P0: block candidate P0 inside fifteen bands, including the attribute-write line. Candidate P1's
-   // setup conflicts only when candidate_y-other_y is 1..5.
+   // Existing P0: block candidate P0 inside fifteen bands, including the
+   // attribute-write line.  Candidate P1 also blocks at +1..+6: +6 puts its
+   // action three bands before the P0 action, but the P1 post-setup path does
+   // not return to the ordinary trigger check until four bands later.
    asm txa;
    asm cmp #15;
    asm bcs.same @TEMPLATE_ChooseAboveP0SameClear;
@@ -630,7 +642,7 @@ void TEMPLATE_vblank_worker(void) {
    asm sta.z TEMPLATE_position_packed;
    asm jmp @TEMPLATE_ChooseNext;
    asm @TEMPLATE_ChooseAboveP0Nonzero:;
-   asm cmp #6;
+   asm cmp #7;
    asm bcs.same @TEMPLATE_ChooseAfterOther;
    asm lda.z TEMPLATE_position_packed;
    asm and #$7d;
@@ -656,6 +668,27 @@ void TEMPLATE_vblank_worker(void) {
    asm jmp @TEMPLATE_ChooseLoop;
    asm @TEMPLATE_ChooseLoopDone:;
 
+   // One bounded lookahead is provably safe without reopening the expensive
+   // suffix-search experiment: when priority rank 4 still has both lanes,
+   // choose its orientation so the final rank-5 candidate is not needlessly
+   // stranded by the asymmetric +1..+6-band P0->P1 hazard.  There is no
+   // candidate after rank 5, so this can only keep or increase the number of
+   // accepted sprites; it cannot trade a later acceptance away.
+   asm lda.z TEMPLATE_position_packed;
+   asm cmp #3;
+   asm bne.same @TEMPLATE_ChoosePreferP0;
+   asm lda.z TEMPLATE_setup_count;
+   asm cmp #4;
+   asm bne.same @TEMPLATE_ChoosePreferP0;
+   asm ldx.z TEMPLATE_priority + 5;
+   asm lda.zx TEMPLATE_y,X;
+   asm sec;
+   asm sbc.z TEMPLATE_pair_y;
+   asm beq.same @TEMPLATE_ChoosePreferP0;
+   asm cmp #7;
+   asm bcc.same @TEMPLATE_ChooseP1;
+
+   asm @TEMPLATE_ChoosePreferP0:;
    asm lda.z TEMPLATE_position_packed;
    asm and #1;
    asm beq.same @TEMPLATE_ChooseP1;
@@ -686,19 +719,15 @@ void TEMPLATE_vblank_worker(void) {
    // Visit sprites in persistent priority order. event_order[] doubles as the
    // compact accepted-sprite list while lanes are allocated, so stale lane_for[]
    // entries never need to be cleared: ChooseLane only reads ids already appended
-   // this frame. The last omitted sprite is promoted below for fair rotation.
+   // this frame.  Record every omitted logical id in a six-bit mask; overscan
+   // moves all losers ahead of all winners while preserving the order within
+   // both groups.  Promoting only the final omission is unfair when two
+   // independent contention groups both lose a sprite in the same frame.
    asm lda #0;
    asm sta.z TEMPLATE_setup_index; // accepted count during allocation
-
-   // Track the last sprite omitted by this frame's greedy allocation.  Slot 6
-   // is scratch until the event sentinel is installed below: setup_line[6]
-   // holds the omitted sprite's priority rank and setup_code[6] its logical id.
-   // Promoting only the last omission is enough to rotate every contended group
-   // fairly (3-way: 01,20,12; 4-way: 01,30,23,12; and likewise through six)
-   // without the old second full stable-partition pass through priority[].
-   asm lda #$ff;
-   asm sta TEMPLATE_setup_line + 6;
+   // setup_code[6] is scheduler scratch until the draw sentinel is installed.
    asm lda #0;
+   asm sta TEMPLATE_setup_code + 6;
    asm sta.z TEMPLATE_setup_count; // temporary rank counter
    asm @TEMPLATE_AssignRank:;
    asm ldx.z TEMPLATE_setup_count;
@@ -707,9 +736,8 @@ void TEMPLATE_vblank_worker(void) {
    asm jsr @TEMPLATE_ChooseLane;
    asm cmp #$ff;
    asm bne.same @TEMPLATE_AssignAccepted;
-   asm lda.z TEMPLATE_setup_count;
-   asm sta TEMPLATE_setup_line + 6;
-   asm txa;
+   asm lda.ax TEMPLATE_sprite_bit,X;
+   asm ora TEMPLATE_setup_code + 6;
    asm sta TEMPLATE_setup_code + 6;
    asm jmp @TEMPLATE_AssignNext;
    asm @TEMPLATE_AssignAccepted:;
@@ -775,12 +803,10 @@ void TEMPLATE_vblank_worker(void) {
    asm cmp #6;
    asm bne.same @TEMPLATE_AssignRank;
 
-   // Priority promotion changes only the next frame. Preserve the omission
-   // record in scheduler scratch and rotate priority later in overscan.
-   asm lda TEMPLATE_setup_line + 6;
-   asm sta.z TEMPLATE_setup_sprite;
+   // Priority promotion changes only the next frame. Preserve the complete
+   // omission mask in scheduler scratch and rebuild priority later in overscan.
    asm lda TEMPLATE_setup_code + 6;
-   asm sta.z TEMPLATE_pending0_valid;
+   asm sta.z TEMPLATE_setup_sprite;
 
    // event_order[0..setup_index-1] already contains every accepted logical
    // sprite. Fill the unused tail with sort-sentinel index 6, then sort all six
@@ -1743,15 +1769,53 @@ void TEMPLATE_draw(void) {
 }
 
 require inline void TEMPLATE_overscan(void) {
-   asm ldy.z TEMPLATE_setup_sprite;
-   asm cpy #$ff;
+   // Stable-partition the six-entry priority queue into omitted sprites first,
+   // then sprites that were shown.  event_order[] is dead after draw() returns,
+   // so it is free as a six-byte temporary queue during overscan.  This gives
+   // every simultaneously contended group service on the next frame; the old
+   // single-last-omission promotion could give one member of each of two
+   // independent 3-way piles only one third of the service its peers received.
+   asm lda.z TEMPLATE_setup_sprite;
    asm beq.same @TEMPLATE_OverscanPriorityDone;
-   asm @TEMPLATE_OverscanPriorityShift:;
-   asm lda.ay TEMPLATE_priority - 1,Y;
-   asm sta.ay TEMPLATE_priority,Y;
-   asm dey;
-   asm bne.same @TEMPLATE_OverscanPriorityShift;
-   asm lda.z TEMPLATE_pending0_valid;
-   asm sta TEMPLATE_priority;
+   asm lda #0;
+   asm sta.z TEMPLATE_setup_index; // destination index in event_order[]
+   asm ldx #0;
+   asm @TEMPLATE_OverscanCopyOmitted:;
+   asm lda.zx TEMPLATE_priority,X;
+   asm tay;
+   asm lda.ay TEMPLATE_sprite_bit,Y;
+   asm and.z TEMPLATE_setup_sprite;
+   asm beq.same @TEMPLATE_OverscanOmittedNext;
+   asm tya;
+   asm ldy.z TEMPLATE_setup_index;
+   asm sta.ay TEMPLATE_event_order,Y;
+   asm inc.z TEMPLATE_setup_index;
+   asm @TEMPLATE_OverscanOmittedNext:;
+   asm inx;
+   asm cpx #6;
+   asm bne.same @TEMPLATE_OverscanCopyOmitted;
+
+   asm ldx #0;
+   asm @TEMPLATE_OverscanCopyAccepted:;
+   asm lda.zx TEMPLATE_priority,X;
+   asm tay;
+   asm lda.ay TEMPLATE_sprite_bit,Y;
+   asm and.z TEMPLATE_setup_sprite;
+   asm bne.same @TEMPLATE_OverscanAcceptedNext;
+   asm tya;
+   asm ldy.z TEMPLATE_setup_index;
+   asm sta.ay TEMPLATE_event_order,Y;
+   asm inc.z TEMPLATE_setup_index;
+   asm @TEMPLATE_OverscanAcceptedNext:;
+   asm inx;
+   asm cpx #6;
+   asm bne.same @TEMPLATE_OverscanCopyAccepted;
+
+   asm ldx #5;
+   asm @TEMPLATE_OverscanInstallPriority:;
+   asm lda.zx TEMPLATE_event_order,X;
+   asm sta.zx TEMPLATE_priority,X;
+   asm dex;
+   asm bpl.same @TEMPLATE_OverscanInstallPriority;
    asm @TEMPLATE_OverscanPriorityDone:;
 }

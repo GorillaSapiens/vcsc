@@ -1146,8 +1146,21 @@ recovery, disassembly, and byte-exact round trip. Bankswitching Item 36 UA/UASW 
 The enhanced-asymmetric multisprite side quest is active in
 `renderers/enhanced_multisprite_asymmetric/`; read `.../enhanced_asymmetric.txt`
 before continuing it.  Dynamic non-reflected PF0/PF1/PF2 timing, per-event
-colors, X=0..159 ordinary movement, top-band PF preload, and Y=0..95 sprite top
-reach are all implemented.  The public diagnostic is now unbanked 4K and full-Y randomized timing is stable.  A host C Monte Carlo model reproduced the reported catastrophic scheduler collapse to one sprite: blindly seeding the first candidate on P0 can strand P1 when priority[1] is 1..5 bands above it.  `ChooseLane` now seeds that first sprite on P1 only for this case; exhaustive first-pair testing and multi-million random layouts have minimum two accepted sprites, and the focused raster regression passes at 3770/4090 ROM, 115/128 RAM.  The current greedy allocator is still not globally optimal, and solid 0/1/2 same-Y display requires the planned same-line horizontal-reuse scheduler.
+colors, X=0..159 movement, top-band preload, Y=0..95 top reach, and the compact
+unbanked 4K diagnostic are implemented.  The persistent-missing-sprite bugs are
+fixed: close-above delta is no longer clobbered by `TAX`, and the directional
+opposite-lane hazard is +1..+6.  Persistent fairness now records *all* omissions
+per frame and stable-partitions omitted sprites ahead of shown sprites in overscan;
+a two-independent-three-way-pile witness changed from service 5,5,2 / 5,5,2 to
+4,4,4 / 4,4,4, and the 250k Monte Carlo worst consecutive omission gap fell from
+4 to 2.  The real-CPU GRP oracle requires all six visibility counts to stay within
+one frame over 97 checked frames.  Current size is 3842/4090 ROM and 115/128 RAM.
+Focused scheduler, asymmetric, hygiene, history-format, allowlist, and shared-renderer
+tests pass; the compile phase is 500/500, while the full E2E run was interrupted
+after 78 passing cases and is not a completed full-suite certification.
+The greedy allocator is still not globally optimal (7188/20000 exact-prefix
+layouts have avoidable omissions; worst optimal gap 3), and same-line horizontal
+reuse is still required for intrinsically three-way exact-Y contention.
 
 The enhanced-multisprite side quest now has an experimental 192-line renderer at
 `libraries/vcs/renderers/enhanced_multisprite/` plus public interactive example
@@ -1179,50 +1192,17 @@ container handling. Focused semantic round trips reached 131/131; 2IN1 remains
 open under disassembler Item 41. Keep the roadmap rather than this compact
 context as the authoritative implementation record.
 
-Enhanced-asymmetric multisprite work remains active in
-`.../enhanced_asymmetric.txt`.  The full non-reflected PF0/PF1/PF2 raster,
-per-event colors, stale-P1-row/PF seam repairs, first-band PF preload, public
-X=0..159 motion, and public Y=0..95 top reach are implemented.  Events whose
-setup would begin at action_y>=95 are now pre-positioned during VBLANK; this
-closes the last known full-Y frame-length bug, where P1 Y=92/P0 Y=89 could enter
-the first visible band's setup path and add one scanline.  `ChooseLane` also
-skips |dy|>=15 pairs before lane-specific work.  The known failing layout and
-4997-frame all-six randomized X=0..159/Y=0..95 stress now hold a stable
-262-line frame with the 51/25 extended-VBLANK split.
-
-The public asymmetric diagnostic has been squeezed back to a conventional
-unbanked 4K cartridge: 3752/4090 ROM bytes and 115/128 RIOT RAM bytes, with no
-Superchip RAM.  Its example-specific 28-byte `-nostdlib` reset stub is safe
-because this fixture explicitly initializes all writable DATA and has no
-constructors; it clears RIOT RAM/TIA and tail-enters `main` instead of paying the
-generic 328-byte copy/zero/init runtime.  The regression builds this exact 4K
-image, uses the full Y=0..95 range in all combined random seeds, retains the
-Y=95/top-pair and continuous X tests, and pins the >=95 VBLANK-preload contract.
-The assembly allowlist and source-tree hygiene gates pass.
-
-No current frame-length/PF/color/top-reach defect is known.  Remaining enhanced
-asymmetric work is certification/capability: Stella pixel-check all X=0..159 on
-both lanes, migrate the middle range from the present 12 measured RESP phases
-23,28,33,37,42,47,50,53,58,63,68,73 to the intended final eleven-slot lattice
-23,28,33,38,43,48,53,58,63,68,73 if the pixel oracle confirms it, then restore
-the richer two-sprite pair-feasibility scheduler before the final full-suite and
-Stella torture pass.
-
-2026-08-21 enhanced-asymmetric 4K integration follow-up: the compact
-source-adjacent startup is now included in the project/handoff, and the generic
-editable-example smoke builder recognizes `<stem>_startup.s26`, adds `-nostdlib`,
-and links it after the C source.  This fixes the two 319-suite failures from the
-first 4K handoff: missing asymmetric startup in the focused regression and the
-smoke builder relinking the example with the generic runtime until `game_draw`
-overflowed 4K.  Public example remains 3752/4090 ROM, 115/128 RAM; asymmetric
-regression, example shard 2/8, assembly allowlist, and source-tree hygiene pass.
-The missing startup archive bug was specifically caused by `examples/.gitignore`
-ignoring `*.s26`; it now explicitly unignores the asymmetric startup so `make tar`
-contains it.
-
-2026-08-22 asymmetric diagnostic update: the public playfield is now 12 visual
-rows x 16 scanlines, using one-bit diagonals separated by five blank PF bits and
-a one-bit row-to-row shift.  The focused timing regression still passes.  The
-renderer scheduler itself is unchanged here: the 0/1/2 same-Y cluster still
-flickers under two-of-three arbitration, and the user-observed missing sprite 5
-is the immediate bug to investigate next.
+2026-08-22 staggered 0/1/2 phosphor diagnosis: the visible flicker in the latest
+screenshot is avoidable and is not a fairness failure.  Screen geometry resolves
+to about X={62,72,62}, Y={86,82,76} for 0/1/2; their eight-row spans are
+86..79, 82..75, and 76..69, so maximum simultaneous bitmap occupancy is only
+two.  Sprites 0 and 2 are vertically disjoint and horizontally aligned, hence
+0+2 can share one hardware player while 1 occupies the other.  The current
+allocator nevertheless omits one because it colors the longer setup/event
+reservations (P0 15 bands, P1 12, plus directional 1..6 event hazard), not the
+visible intervals.  The all-omission queue then fairly rotates this *avoidable*
+omission 2/2/2 over three frames.  A deterministic staggered-chain witness is
+now in `test/vcs_enhanced_multisprite_asymmetric_scheduler.c`.  Next work should
+be a short same-lane continuation/reuse path using the two idle bands between
+0's last row and 2's first row, starting with retained-X reuse, before tackling
+true same-scanline >2 horizontal multiplexing.  See `.../enhanced_asymmetric.txt`.

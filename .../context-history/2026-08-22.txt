@@ -22,3 +22,29 @@ scheduler model for 250,000 deterministic layouts and pins hist[1]==0.  The
 remaining scheduler work is distinct: brute-force host comparison still finds
 avoidable greedy omissions, and solid three-sprite same-Y clusters require true
 horizontal same-line reuse rather than only two-lane reassignment.
+
+2026-08-22 10:38:30 PDT, fix multi-omission scheduler fairness
+
+The asymmetric persistent-priority policy was only fair when a frame had one
+omission.  It remembered and promoted the last omitted sprite, so two independent
+three-way piles at Y={76,76,76,42,42,42} produced six-frame visibility counts
+5,5,2 / 5,5,2.  The renderer now accumulates a six-bit omission mask during
+VBLANK and stable-partitions all omitted ids ahead of all shown ids in overscan,
+using dead event_order[] as temporary storage.  The same witness becomes exactly
+4,4,4 / 4,4,4 without adding VBLANK work.
+
+The host Monte Carlo's deterministic 250k fairness sweep improves from worst
+consecutive omission gap 4 to 2 with the single-frame acceptance histogram
+unchanged.  `vcs_frame_timing` gained `--require-visible-spread`; the focused
+real-CPU regression holds two independent three-way piles for 97 checked frames
+and requires all six actual nonzero-GRP visibility counts to differ by at most
+one.  Public accounting is 3842/4090 ROM and 115/128 RAM; the focused asymmetric
+regression still passes at stable 262-line timing.
+
+Validation checkpoint for this repair: the 250,000-layout host scheduler model,
+the focused asymmetric real-CPU regression, source-tree hygiene, context-history
+format, example-assembly allowlist, and the four shared multisprite renderer tests
+all pass.  The complete compile phase is 500/500.  A full 319-case E2E run did
+not finish inside the execution window; its first 78 completed cases passed, with
+no fairness-related failure observed.  Do not treat that interrupted run as a
+completed full-suite certification.

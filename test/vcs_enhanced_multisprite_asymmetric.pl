@@ -55,8 +55,12 @@ $text =~ /\@TEMPLATE_PreloadTopLoop:;.*?asm cmp #95;.*?asm bcc\.same \@TEMPLATE_
    or die "band-95 setup is no longer preloaded during VBLANK\n";
 $text !~ /TEMPLATE_TopTrigger/
    or die "obsolete visible action_y=95 trigger path returned\n";
-$text =~ /TEMPLATE_ChooseLane:;.*?ldy\.z TEMPLATE_setup_index;.*?ldx\.z TEMPLATE_priority \+ 1;.*?lda\.zx TEMPLATE_y,X;.*?sbc\.z TEMPLATE_pair_y;.*?cmp #6;.*?bcc\.same \@TEMPLATE_ChooseFirstP1/s
+$text =~ /TEMPLATE_ChooseLane:;.*?ldy\.z TEMPLATE_setup_index;.*?ldx\.z TEMPLATE_priority \+ 1;.*?lda\.zx TEMPLATE_y,X;.*?sbc\.z TEMPLATE_pair_y;.*?cmp #7;.*?bcc\.same \@TEMPLATE_ChooseFirstP1/s
    or die "first-candidate scheduler lookahead missing\n";
+$text =~ /\@TEMPLATE_ChooseCandidateAtOrAbove:;\s*(?:\/\/[^\n]*\n\s*)*asm lda\.z TEMPLATE_pending0_valid;/s
+   or die "close-above scheduler delta is clobbered before lane test\n";
+$text =~ /TEMPLATE_ChooseBelowOtherP1:;.*?asm cmp #7;.*?\@TEMPLATE_ChooseCandidateAtOrAbove:;.*?\@TEMPLATE_ChooseAboveP0Nonzero:;\s*asm cmp #7;/s
+   or die "six-band opposite-lane raster hazard is not blocked in both directions\n";
 
 # Recovered visual-fix contracts.  These are deliberately structural: the
 # timing harness below proves the resulting cycle balance while these checks
@@ -101,9 +105,19 @@ $map_text =~ /CODE\.__vcsc_function\$run_asymmetric_frame\s+load=\$[0-9A-Fa-f]+/
 my$sym_text=read_file($sym);
 my($x_hex)=$sym_text =~ /^game_x\s+([0-9a-fA-F]{4})\s*$/m;
 my($y_hex)=$sym_text =~ /^game_y\s+([0-9a-fA-F]{4})\s*$/m;
-defined($x_hex) && defined($y_hex) or die "could not locate asymmetric X/Y arrays\n";
-my$x_addr=hex($x_hex); my$y_addr=hex($y_hex);
-$x_addr<=0xff && $y_addr<=0xff or die "asymmetric X/Y arrays left zero page\n";
+my($color_hex)=$sym_text =~ /^game_color\s+([0-9a-fA-F]{4})\s*$/m;
+my($priority_hex)=$sym_text =~ /^game_priority\s+([0-9a-fA-F]{4})\s*$/m;
+my($draw_hex)=$sym_text =~ /^game_draw_code\s+([0-9a-fA-F]{4})\s*$/m;
+my($count_hex)=$sym_text =~ /^game_setup_count\s+([0-9a-fA-F]{4})\s*$/m;
+defined($x_hex) && defined($y_hex) && defined($color_hex) &&
+   defined($priority_hex) && defined($draw_hex) && defined($count_hex)
+   or die "could not locate asymmetric scheduler/visibility symbols\n";
+my$x_addr=hex($x_hex); my$y_addr=hex($y_hex); my$color_addr=hex($color_hex);
+my$priority_addr=hex($priority_hex); my$draw_addr=hex($draw_hex);
+my$count_addr=hex($count_hex);
+$x_addr<=0xff && $y_addr<=0xff && $color_addr<=0xff &&
+   $priority_addr<=0xff && $draw_addr<=0xff && $count_addr<=0xff
+   or die "asymmetric scheduler state left zero page\n";
 $y_addr==$x_addr+6 or die "asymmetric X/Y array layout changed\n";
 
 # Run the independent host copy of the lane allocator before the CPU timing
@@ -119,7 +133,7 @@ $rc==0 && !$sig or die "scheduler model build failed\n$out$err";
 $out eq '' && $err eq '' or die "scheduler model build wrote output\n$out$err";
 ($rc,$sig,$out,$err)=capture($scheduler_model,'250000','0x31415927');
 $rc==0 && !$sig or die "scheduler Monte Carlo failed\n$out$err";
-$out =~ /asymmetric scheduler monte carlo ok: 250000 layouts, min=2, worst-gap=\d+, hist=1:0,/
+$out =~ /asymmetric scheduler monte carlo ok: 250000 layouts, min=2, worst-gap=2, hist=1:0,/
    or die "bad scheduler Monte Carlo output: $out";
 $err eq '' or die "scheduler Monte Carlo stderr: $err";
 
@@ -144,6 +158,78 @@ sub expect_timing {
 }
 
 expect_timing('static asymmetric timing',100);
+
+# 6502/raster witness for the scheduler/model divergence that could mark five
+# sprites accepted while only one actually reached a nonzero GRP write.  The
+# historical allocator's close-above path clobbered dy with the prior lane and
+# also admitted an unsupported six-band P1->P0 handoff; this exact state lost
+# sprite 5 (among others) despite draw_code claiming it was scheduled.
+expect_timing('scheduled sprite visibility witness',100,
+   '--released-inputs',
+   '--set-zp',sprintf('0x%02x',$x_addr+0),'143',
+   '--set-zp',sprintf('0x%02x',$x_addr+1),'82',
+   '--set-zp',sprintf('0x%02x',$x_addr+2),'135',
+   '--set-zp',sprintf('0x%02x',$x_addr+3),'107',
+   '--set-zp',sprintf('0x%02x',$x_addr+4),'49',
+   '--set-zp',sprintf('0x%02x',$x_addr+5),'159',
+   '--set-zp',sprintf('0x%02x',$y_addr+0),'9',
+   '--set-zp',sprintf('0x%02x',$y_addr+1),'18',
+   '--set-zp',sprintf('0x%02x',$y_addr+2),'67',
+   '--set-zp',sprintf('0x%02x',$y_addr+3),'73',
+   '--set-zp',sprintf('0x%02x',$y_addr+4),'60',
+   '--set-zp',sprintf('0x%02x',$y_addr+5),'23',
+   '--set-zp',sprintf('0x%02x',$priority_addr+0),'5',
+   '--set-zp',sprintf('0x%02x',$priority_addr+1),'1',
+   '--set-zp',sprintf('0x%02x',$priority_addr+2),'2',
+   '--set-zp',sprintf('0x%02x',$priority_addr+3),'0',
+   '--set-zp',sprintf('0x%02x',$priority_addr+4),'3',
+   '--set-zp',sprintf('0x%02x',$priority_addr+5),'4',
+   '--verify-asymmetric-visibility',
+      sprintf('0x%02x',$y_addr),sprintf('0x%02x',$color_addr),
+      sprintf('0x%02x',$draw_addr),sprintf('0x%02x',$count_addr));
+
+# Screenshot-family witness: sprite 0 moved near the bottom while 1/2 and 3/4
+# retain the diagnostic's paired Y positions and sprite 5 remains at Y=16.
+# This geometry is fully drawable with the corrected scheduler; every logical
+# sprite must actually appear, not merely rotate through an internal schedule.
+expect_timing('all-six persistent visibility witness',100,
+   '--released-inputs',
+   '--set-zp',sprintf('0x%02x',$x_addr+0),'18',
+   '--set-zp',sprintf('0x%02x',$x_addr+1),'36',
+   '--set-zp',sprintf('0x%02x',$x_addr+2),'62',
+   '--set-zp',sprintf('0x%02x',$x_addr+3),'88',
+   '--set-zp',sprintf('0x%02x',$x_addr+4),'114',
+   '--set-zp',sprintf('0x%02x',$x_addr+5),'140',
+   '--set-zp',sprintf('0x%02x',$y_addr+0),'12',
+   '--set-zp',sprintf('0x%02x',$y_addr+1),'76',
+   '--set-zp',sprintf('0x%02x',$y_addr+2),'76',
+   '--set-zp',sprintf('0x%02x',$y_addr+3),'42',
+   '--set-zp',sprintf('0x%02x',$y_addr+4),'42',
+   '--set-zp',sprintf('0x%02x',$y_addr+5),'16',
+   '--verify-asymmetric-visibility',
+      sprintf('0x%02x',$y_addr),sprintf('0x%02x',$color_addr),
+      sprintf('0x%02x',$draw_addr),sprintf('0x%02x',$count_addr),
+   '--require-visible-mask','0x3f',
+   '--expect-memory',sprintf('0x%02x',$count_addr),'6');
+
+# Two independent three-way same-Y piles require two omissions per frame.  The
+# historical policy promoted only the *last* omission, which heavily favored
+# two members of each pile over the third.  The renderer now stable-partitions
+# every omitted sprite ahead of every shown sprite in overscan.  Over 97 checked
+# frames all six logical sprites must therefore receive service within one frame
+# of each other; count actual GRP visibility, not just scheduler records.
+expect_timing('two-pile persistent fairness',100,
+   '--released-inputs',
+   '--set-zp',sprintf('0x%02x',$y_addr+0),'76',
+   '--set-zp',sprintf('0x%02x',$y_addr+1),'76',
+   '--set-zp',sprintf('0x%02x',$y_addr+2),'76',
+   '--set-zp',sprintf('0x%02x',$y_addr+3),'42',
+   '--set-zp',sprintf('0x%02x',$y_addr+4),'42',
+   '--set-zp',sprintf('0x%02x',$y_addr+5),'42',
+   '--verify-asymmetric-visibility',
+      sprintf('0x%02x',$y_addr),sprintf('0x%02x',$color_addr),
+      sprintf('0x%02x',$draw_addr),sprintf('0x%02x',$count_addr),
+   '--require-visible-spread','0x3f','1');
 
 my$phases='23,28,33,37,42,47,50,53,58,63,68,73';
 expect_timing('12-phase randomized X stress',5000,
