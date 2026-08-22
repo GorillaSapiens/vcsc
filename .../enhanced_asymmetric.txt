@@ -1456,29 +1456,83 @@ Three concrete defects are fixed without moving the proven RESP phases:
 and combined randomized X/Y stress.  Its structural checks now pin all three
 recovered fixes so the exact regressions cannot silently return.
 
-ONE PF SEAM STILL OPEN
-----------------------
+PF SEAMS CLOSED -- 2026-08-21
+--------------------------------
 Framebuffer comparison of the two physical rows that form each logical PF band
-found a separate P0 post-setup seam.  In the bad band, the last two four-pixel
-groups of left PF1's intended `$A5` pattern are replaced by bits from right PF1
-`$66`.  `PostSetup0LineA` reaches `PostSetupLineBBody` three cycles earlier than
-the equivalent P1 path because P0 has already staged `event_code`; the right-PF
-rewrite can therefore begin while the tail of left PF1 is still on the beam.
+isolated two remaining three-cycle timing errors, and both are fixed without
+lengthening a scanline or moving the proven RESP phases.
 
-Simply adding a three-cycle pad is NOT a valid fix: that experiment changed the
-macro-raster handoff and produced a 266-raw-line frame.  The repair must preserve
-the existing P0 73-cycle body/three-cycle handoff and redistribute those three
-cycles inside the body so the right-PF writes occur later without lengthening the
-macro-line.
+* P0 entered `PostSetupLineBBody` three cycles earlier than the equivalent P1
+  path because P0 had already staged `event_code`.  Moving the existing
+  `LDY gfx_index+1` ahead of the right-half PF0/PF1 rewrite spends the same three
+  cycles in the same line but delays those right-half stores by three cycles.
+  Right PF2 and the line endpoint are unchanged.  This fixes the seam where the
+  tail of left PF1 (`$A5`) was being replaced by right PF1 (`$66`).
+* P1 had a separate seam in `Setup1LineB`.  Moving the existing
+  `STY setup_index` until after the right PF1 store advances the affected left
+  PF writes and right PF0/PF1 by three cycles, while leaving right PF2 and the
+  76-cycle endpoint unchanged.
+
+A Stella framebuffer oracle comparing paired physical rows now reports zero PF
+mismatches in the default scene and in three substantially different X/Y
+arrangements.  The static raster, twelve-phase randomized X stress, phase-73
+edge case, continuous 0..159..0 movement, and combined randomized X/Y timing
+regression all remain stable at 262 displayed lines.  The public example remains
+3932/4090 ROM bytes and 119/128 RAM bytes.
+
+TOP BAND PLAYFIELD PRELOAD -- 2026-08-21
+-----------------------------------------
+The remaining corruption in the first visible playfield scanline had a different
+cause from the setup-path PF seams above.  `game_draw()` enters the first visible
+scanline about nine CPU cycles after its left-edge PF deadline, so band 95's
+PF0/PF1/PF2 cannot be established from inside `TEMPLATE_draw()` before the beam
+has already emitted pixels.
+
+The maintained fix preloads band 95's left PF0/PF1/PF2 at the end of
+`TEMPLATE_vblank_worker()` while VBLANK is still asserted.  The first visible
+line therefore no longer tries to establish its left PF half after the beam has
+already started.  Its right-half PF0/PF1 are moved three cycles earlier by
+relocating one existing three-cycle BIT pad until after PF1; total line length
+is unchanged.  Physical line B now includes the ordinary line-B graphics-state
+work and center PF2 pad before its right-half rewrite, closing the separate
+second-line seam without changing the following position/setup schedule.
+
+A Stella 7.0 1x snapshot of the default scene shows zero PF/background pixel
+differences between the two physical rows of the top band, and the next bands
+also pair exactly.  `vcs_enhanced_multisprite_asymmetric.pl` remains stable at
+262 displayed lines through static raster, twelve-phase randomized X stress,
+phase-73 edge coverage, the continuous 0..159..0 movement sweep, and combined
+randomized X/Y stress.  The public 4K diagnostic still happens to fit at
+3967/4090 ROM bytes and 119/128 RAM bytes, but 4K is no longer a design
+constraint.  This checkpoint intentionally contains only the playfield repair;
+the unfinished Y=90..95 sprite-preload prototype is not present.
+
+TOP-EDGE Y LIMIT STILL OPEN
+---------------------------
+The user-visible top-reach defect is real and independent of the PF fixes.  At
+the current public maximum Y=89, an eight-row sprite begins around Stella
+framebuffer row 27 even though the stable visible raster begins around row 15.
+Simply raising the Y clamp to 95 does not move the sprite higher: the first few
+bands occur before the normal visible-raster position/setup pipeline has enough
+lead time to establish RESP/HMOVE and graphics state.
+
+A prototype confirmed that top-edge sprites need their horizontal position and
+initial graphics pipeline state preloaded during VBLANK.  That prototype was
+rejected from this checkpoint because it also introduced a frame-deadline
+regression while being squeezed into the 4K layout.  None of that unfinished
+sprite-preload experiment remains here.  The user has explicitly accepted F8SC
+for this renderer/example, so 4K size/placement is no longer a constraint on the
+next top-reach implementation; correctness and stable timing take priority.
 
 NEXT WORK
 ---------
-1. Fix that P0 post-setup PF seam by redistributing three cycles inside the
-   existing body; do not add cycles to the macro-line.
+1. Implement the VBLANK preload for sprites entering the first visible bands so
+   public Y can reach the true top of the 192-line raster.  F8SC is acceptable;
+   preserve 262-line frame timing rather than contorting the code to fit 4K.
 2. Run the 0..159..0 motion sweep after every timing change and Stella-check the
    visible boundary transitions 159<->0<->1, 15<->16, 135<->136, 150<->151.
 3. Finish migration of middle X to the final eleven 23+5n slots and complete a
    Stella pixel sweep of public X=0..159 on both lanes.
-4. Only after ordinary positioning/PF/color are certified, reintroduce the
-   `(X0,X1,Y)` pair-feasibility scheduler: independent RESP, adjacent-line split,
-   optional VDEL-assisted split, then fair flicker as the last fallback.
+4. Only after ordinary positioning/PF/color/top reach are certified, reintroduce
+   the `(X0,X1,Y)` pair-feasibility scheduler: independent RESP, adjacent-line
+   split, optional VDEL-assisted split, then fair flicker as the last fallback.

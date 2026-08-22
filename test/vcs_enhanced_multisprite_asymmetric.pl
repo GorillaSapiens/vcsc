@@ -55,10 +55,12 @@ $text =~ /TEMPLATE_PostSetup0Immediate:/
 # prevent the exact color/stale-GRP/PF regressions from being silently restored.
 $text =~ /TEMPLATE_PostSetup0LineA:;.*?lda\.ay TEMPLATE_lane_for,Y;\s*asm sta\.z TEMPLATE_pair_y;.*?asm adc #5;/s
    or die "P0 post-setup per-event color refresh missing\n";
-$text =~ /TEMPLATE_Setup1LineB:;.*?asm iny;\s*asm sty\.z TEMPLATE_setup_index;.*?asm sta\.a TEMPLATE_gfx_index \+ 1;.*?lda\.ay TEMPLATE_lane_for,Y;\s*asm sta\.z TEMPLATE_pair_y;/s
+$text =~ /TEMPLATE_Setup1LineB:;.*?asm iny;.*?asm sta\.a TEMPLATE_gfx_index \+ 1;.*?asm sta PF1;\s*.*?asm sty\.z TEMPLATE_setup_index;.*?lda\.ay TEMPLATE_lane_for,Y;\s*asm sta\.z TEMPLATE_pair_y;/s
    or die "P1 setup per-event color refresh/timing balance missing\n";
 $text =~ /TEMPLATE_PostSetupLineA:;\s*.*?asm lda\.z TEMPLATE_current_gfx;\s*asm sta GRP0;/s
    or die "P1 post-setup stale-GRP suppression missing\n";
+$text =~ /TEMPLATE_PostSetupLineBBody:;.*?asm sta PF2;\s*.*?asm ldy\.z TEMPLATE_gfx_index \+ 1;\s*asm lda\.ax TEMPLATE_playfield_right_pf0,X;\s*asm sta PF0;\s*asm lda\.ax TEMPLATE_playfield_right \+ 96,X;\s*asm sta PF1;\s*asm lda\.ay TEMPLATE_graphics_next,Y;/s
+   or die "P0 post-setup PF seam timing redistribution missing\n";
 $text =~ /TEMPLATE_P0RespSlot11:;.*?lda\.ax TEMPLATE_playfield_left,X;\s*asm sta PF1;\s*asm jmp TEMPLATE_P0RespAfterLeftPF1;/s
    or die "P0 phase-63 early left-PF1 correction missing\n";
 $text =~ /TEMPLATE_P1RespSlot11:;.*?lda\.ax TEMPLATE_playfield_left,X;\s*asm sta PF1;\s*asm jmp TEMPLATE_P1RespAfterLeftPF1;/s

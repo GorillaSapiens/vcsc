@@ -1171,18 +1171,29 @@ open under disassembler Item 41. Keep the roadmap rather than this compact
 context as the authoritative implementation record.
 
 Enhanced-asymmetric multisprite work remains active in
-`.../enhanced_asymmetric.txt`. The 2026-08-21 visual-fix checkpoint keeps the
-full non-reflected PF0/PF1/PF2 raster, stable 262-line timing, and the X=0..159..0
+`.../enhanced_asymmetric.txt`. The 2026-08-21 PF-clean checkpoint keeps the full
+non-reflected PF0/PF1/PF2 raster, stable 262-line timing, and the X=0..159..0
 movement sweep. Ordinary positioning currently uses measured phases
 23,28,33,37,42,47,50,53,58,63,68,73; the final target remains eleven slots
 23,28,33,38,43,48,53,58,63,68,73 with a direct packed X->{HMP,slot} lookup.
-Recovered visual fixes now give each event its compacted color, suppress the
-stale one-row P1 fragment after repositioning, and correct the phase-53/58/63
-PF windows while retaining 3932/4090 ROM and 119/128 RAM. The targeted timing/X
-sweep regression passes. The immediate open defect is one P0 post-setup PF seam:
-that path reaches the common line-B body three cycles earlier than P1, so right
-PF1 can overwrite the tail of left PF1. A naive three-cycle pad caused a 266-line
-raw frame and is rejected; redistribute those three cycles inside the existing
-73-cycle P0 body without extending the macro-line. After that, finish full Stella
-X=0..159 certification and the eleven-slot migration before restoring pair
-feasibility scheduling. Exact timing history lives in `.../enhanced_asymmetric.txt`.
+Per-event colors are correct, the stale one-row P1 fragment is suppressed, the
+late phase-53/58/63 PF windows are corrected, and the final P0/P1 post-setup PF
+seams are closed by relocating existing three-cycle instructions rather than
+lengthening either line. Stella paired-row comparisons show zero PF mismatches
+for the default scene plus three alternate X/Y layouts. The first visible PF
+band is now also repaired: band 95's left PF0/PF1/PF2 are preloaded at the end
+of VBLANK because `game_draw()` enters that scanline after the left-edge PF
+deadline; its first-line right PF0/PF1 pad is redistributed by three cycles and
+line B now uses the ordinary graphics/PF center timing. A Stella 7.0 snapshot
+shows zero PF/background differences across the two physical top-band rows. The
+targeted static/X/Y/movement regression remains stable at 262 lines; the 4K
+example is 3967/4090 ROM and 119/128 RAM, though 4K is no longer a requirement.
+The immediate open defect is top reach:
+raising the public Y clamp beyond 89 does not move sprites higher because the
+first visible bands need RESP/HMOVE and graphics state preloaded during VBLANK.
+The unfinished Y=90..95 prototype is not in this checkpoint. The user explicitly
+accepts F8SC for this renderer/example, so the next implementation should favor
+correctness and stable 262-line timing over preserving a 4K layout, then proceed
+to full Stella X=0..159 certification and the eleven-slot migration before
+restoring pair-feasibility scheduling. Exact timing history lives in
+`.../enhanced_asymmetric.txt`.

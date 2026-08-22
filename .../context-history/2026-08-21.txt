@@ -133,3 +133,19 @@ line-B body three cycles earlier than P1, allowing right PF1 to overwrite the
 tail of left PF1. Adding a three-cycle pad caused a 266-raw-line frame and remains
 rejected. Next work is to redistribute those three cycles within the existing
 73-cycle P0 body without lengthening the macro-line.
+
+2026-08-21 15:53:18 PDT, close remaining asymmetric PF seams
+The last two visible enhanced-asymmetric playfield seams are fixed without
+adding raster cycles. P0 now moves the existing gfx-index LDY ahead of the
+right-half PF0/PF1 rewrite, delaying those stores three cycles while preserving
+right PF2 and the line endpoint. P1 moves its existing setup-index STY until
+after right PF1, advancing the affected PF writes three cycles while preserving
+the 76-cycle endpoint. Stella paired-row framebuffer comparisons report zero PF
+mismatches in the default scene and three alternate X/Y layouts; the targeted
+static/random/motion timing regression remains stable at 262 lines.
+
+Top reach remains separate: Y above 89 cannot usefully advance because sprites
+in the first visible bands need position and initial graphics state preloaded in
+VBLANK. A proof preload was rejected and reverted after it made the 4K draw
+component unplaceable. Next work is a smaller VBLANK preload that preserves the
+4K composition.
