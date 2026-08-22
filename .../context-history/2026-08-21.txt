@@ -149,3 +149,10 @@ in the first visible bands need position and initial graphics state preloaded in
 VBLANK. A proof preload was rejected and reverted after it made the 4K draw
 component unplaceable. Next work is a smaller VBLANK preload that preserves the
 4K composition.
+2026-08-21 18:12:15 PDT, top-edge sprites reach Y=95
+Asymmetric enhanced multisprite now prepositions top events during VBLANK and
+seeds their graphics state so public Y=90..95 is visible; Y=95 reaches the first
+visible playfield band.  The example moved to F8SC/8K and uses the validated
+51/25 VBLANK/overscan TIM64T split.  Stella had verified Y=95 on both player
+lanes with independent X and correct colors.  Existing 4K/Y<=89 regression
+migration remains follow-up work.

@@ -420,6 +420,18 @@ Important active constraints and open questions
 * Multisprite renderer work remains on the main roadmap and must not be smuggled
   into bankswitching placement work.
 
+Enhanced asymmetric top-edge checkpoint (2026-08-21)
+-----------------------------------------------------
+The asymmetric 192-line renderer now accepts Y=0..95 and prepositions events
+that would otherwise need setup above the visible raster during VBLANK.  Y=95
+reaches the first visible playfield band; Stella verification covered both
+hardware lanes with independent X and correct colors.  The public example is
+now F8SC/8K.  It uses `VCS_NTSC_EXTENDED_VBLANK` with a 51/25 TIM64T split
+(VBLANK/overscan) while preserving the same total blanking budget.  The existing
+4K/Y<=89 asymmetric Perl regression has not yet been migrated to F8SC/Y<=95;
+that is the immediate follow-up.  Detailed state is in
+`.../enhanced_asymmetric.txt`.
+
 Immediate TODO
 --------------
 Active workstream: `.../roadmap.txt`.
@@ -1132,13 +1144,11 @@ NOP operand read and preserves underlying low-memory read/write behavior; public
 recovery, disassembly, and byte-exact round trip. Bankswitching Item 36 UA/UASW reuses this machinery with `(A & $1260)` aliases around $0220/$0240, paired profiles, reversed UASW association, public diagnostics, and exact round trips. Item 37 0FA0 is complete with `(A & $16E0)==$06A0/$06C0`, public `09_bankswitching/10_0fa0`, and exact disassembly. Item 38 remains deferred; Items 39-44 now backfill missing public diagnostics for E0/3F/3E/FE/WD/DPC.
 
 
-An asymmetric-playfield extension of the enhanced multisprite side quest is now
-in progress. It is isolated in `renderers/enhanced_multisprite_asymmetric/`;
-dynamic 32-bit asymmetric PF timing with all six live sprite events is feasible
-and stable, but horizontal sprite positioning is knowingly unfinished. The
-reconciled WIP keeps event id/HMP metadata separate from lane/coarse RESP-slot
-metadata, defers priority promotion to overscan, and currently builds at 3498
-ROM / 120 RAM. Read `.../enhanced_asymmetric.txt` before continuing it.
+The enhanced-asymmetric multisprite side quest is active in
+`renderers/enhanced_multisprite_asymmetric/`; read `.../enhanced_asymmetric.txt`
+before continuing it.  Dynamic non-reflected PF0/PF1/PF2 timing, per-event
+colors, X=0..159 ordinary movement, top-band PF preload, and Y=0..95 sprite top
+reach are all implemented.  The public diagnostic is now F8SC/8K.
 
 The enhanced-multisprite side quest now has an experimental 192-line renderer at
 `libraries/vcs/renderers/enhanced_multisprite/` plus public interactive example
@@ -1171,29 +1181,23 @@ open under disassembler Item 41. Keep the roadmap rather than this compact
 context as the authoritative implementation record.
 
 Enhanced-asymmetric multisprite work remains active in
-`.../enhanced_asymmetric.txt`. The 2026-08-21 PF-clean checkpoint keeps the full
-non-reflected PF0/PF1/PF2 raster, stable 262-line timing, and the X=0..159..0
-movement sweep. Ordinary positioning currently uses measured phases
-23,28,33,37,42,47,50,53,58,63,68,73; the final target remains eleven slots
-23,28,33,38,43,48,53,58,63,68,73 with a direct packed X->{HMP,slot} lookup.
-Per-event colors are correct, the stale one-row P1 fragment is suppressed, the
-late phase-53/58/63 PF windows are corrected, and the final P0/P1 post-setup PF
-seams are closed by relocating existing three-cycle instructions rather than
-lengthening either line. Stella paired-row comparisons show zero PF mismatches
-for the default scene plus three alternate X/Y layouts. The first visible PF
-band is now also repaired: band 95's left PF0/PF1/PF2 are preloaded at the end
-of VBLANK because `game_draw()` enters that scanline after the left-edge PF
-deadline; its first-line right PF0/PF1 pad is redistributed by three cycles and
-line B now uses the ordinary graphics/PF center timing. A Stella 7.0 snapshot
-shows zero PF/background differences across the two physical top-band rows. The
-targeted static/X/Y/movement regression remains stable at 262 lines; the 4K
-example is 3967/4090 ROM and 119/128 RAM, though 4K is no longer a requirement.
-The immediate open defect is top reach:
-raising the public Y clamp beyond 89 does not move sprites higher because the
-first visible bands need RESP/HMOVE and graphics state preloaded during VBLANK.
-The unfinished Y=90..95 prototype is not in this checkpoint. The user explicitly
-accepts F8SC for this renderer/example, so the next implementation should favor
-correctness and stable 262-line timing over preserving a 4K layout, then proceed
-to full Stella X=0..159 certification and the eleven-slot migration before
-restoring pair-feasibility scheduling. Exact timing history lives in
-`.../enhanced_asymmetric.txt`.
+`.../enhanced_asymmetric.txt`.  The current F8SC/8K checkpoint keeps the full
+non-reflected PF0/PF1/PF2 raster, correct per-event colors, the stale-P1-row and
+PF-seam fixes, stable X=0..159..0 ordinary motion, and the first-band PF preload.
+Sprites now expose public Y=0..95; Y=90..95 uses VBLANK RESP/HMOVE plus seeded
+graphics state, and Stella verified both lanes at Y=95 with independent X/color.
+The example selects `VCS_NTSC_EXTENDED_VBLANK` (51 TIM64T VBLANK / 25 overscan).
+
+The F8SC regression migration is now implemented. `vcs_frame_timing.cpp` accepts
+4K or 8K F8/F8SC images and models $1FF8/$1FF9 bank selection, 6507 13-bit
+cartridge mirroring, and Superchip RAM ports.  The asymmetric regression builds
+with `-DVCS_NTSC_EXTENDED_VBLANK -T vcs.cfg`, requires 8192 bytes, certifies two
+simultaneous Y=95 sprites, and sweeps Y=89..95.  All 14 existing timing-harness
+users pass, and the assembly allowlist was deliberately refreshed for the F8SC
+source.  A newly exposed open timing case remains: extending the existing
+six-sprite randomized Y stress from 0..89 to the full 0..95 range can rarely
+miss the 51-TIM64T VBLANK deadline (reproduced with two accepted Y=93 top events
+in an otherwise busy scheduler frame).  Keep the explicit top-edge tests; the
+next timing task is to shorten that worst-case VBLANK path, then continue full
+Stella X=0..159 certification/final eleven-slot migration before restoring
+pair-feasibility scheduling.

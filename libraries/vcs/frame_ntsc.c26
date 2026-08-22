@@ -122,10 +122,21 @@ inline void vcs_ntsc_vsync(void) {
 // final WSYNC to enter the next phase on a scanline boundary.  Exact cycle
 // calibration and deliberate-overrun coverage live in the frame-scheduler
 // emulator regressions.
+// A renderer that must do beam-independent positioning during VBLANK can ask
+// for a heavier VBLANK/lighter overscan split.  The two preloads still sum to
+// the same 76 TIM64T quanta, so the calibrated total blank-frame budget is
+// unchanged; only which blank phase owns nine quanta is different.
+#ifdef VCS_NTSC_EXTENDED_VBLANK
+enum vcs_ntsc_deadline_timing {
+   VCS_NTSC_VBLANK_TIM64T := 51,
+   VCS_NTSC_OVERSCAN_TIM64T := 25
+};
+#else
 enum vcs_ntsc_deadline_timing {
    VCS_NTSC_VBLANK_TIM64T := 42,
    VCS_NTSC_OVERSCAN_TIM64T := 34
 };
+#endif
 
 #ifdef VCS_NTSC_DIAGNOSTICS
 // Optional sticky diagnostics.  Define the object-like alias

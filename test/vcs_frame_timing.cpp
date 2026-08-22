@@ -17,7 +17,8 @@
 namespace {
 
 constexpr uint16_t kRomBase = 0xF000;
-constexpr size_t kRomSize = 4096;
+constexpr size_t kBankSize = 4096;
+constexpr size_t kF8RomSize = 8192;
 constexpr uint64_t kCyclesPerScanline = 76;
 constexpr uint64_t kExpectedDisplayedScanlines = 262;
 // This deliberately minimal harness does not model Stella's full TIA frame
@@ -46,6 +47,21 @@ struct WriteEvent {
 };
 
 uint8_t memory_image[65536];
+uint8_t cartridge_image[kF8RomSize];
+uint8_t superchip_ram[128];
+size_t cartridge_size = 0;
+unsigned selected_f8_chunk = 1;
+
+void map_f8_chunk(unsigned chunk) {
+   selected_f8_chunk = chunk & 1u;
+}
+
+void maybe_select_f8(uint16_t address) {
+   if (cartridge_size != kF8RomSize) return;
+   const uint16_t bus = address & 0x1fff;
+   if (bus == 0x1ff8) map_f8_chunk(0);
+   else if (bus == 0x1ff9) map_f8_chunk(1);
+}
 uint64_t virtual_cycles = 0;
 std::vector<WriteEvent> writes;
 std::vector<uint64_t> vsync_assertions;
@@ -122,6 +138,14 @@ uint8_t timer_value(uint64_t cycle) {
 }
 
 uint8_t read_bus(uint16_t address) {
+   maybe_select_f8(address);
+   if (cartridge_size == kF8RomSize && (address & 0x1000)) {
+      const uint16_t offset = address & 0x0fff;
+      if (offset >= 0x0080 && offset <= 0x00ff) {
+         return superchip_ram[offset - 0x0080];
+      }
+      return cartridge_image[selected_f8_chunk * kBankSize + offset];
+   }
    if (address == kTimint) {
       if (!timer_active) {
          return memory_image[kTimint];
@@ -142,7 +166,13 @@ uint8_t read_bus(uint16_t address) {
 }
 
 void write_bus(uint16_t address, uint8_t value) {
-   if (address < kRomBase) {
+   maybe_select_f8(address);
+   if (cartridge_size == kF8RomSize && (address & 0x1fff) >= 0x1000 &&
+       (address & 0x1fff) <= 0x107f) {
+      superchip_ram[address & 0x7f] = value;
+   }
+   else if (!(cartridge_size == kF8RomSize && (address & 0x1000)) &&
+            address < kRomBase) {
       memory_image[address] = value;
    }
    writes.push_back({address, value});
@@ -413,13 +443,31 @@ int main(int argc, char **argv) {
    }
 
    std::memset(memory_image, 0, sizeof(memory_image));
-   std::ifstream rom(argv[1], std::ios::binary);
+   std::memset(cartridge_image, 0, sizeof(cartridge_image));
+   std::memset(superchip_ram, 0, sizeof(superchip_ram));
+   std::ifstream rom(argv[1], std::ios::binary | std::ios::ate);
    if (!rom) {
       fail("could not open ROM");
    }
-   rom.read(reinterpret_cast<char *>(memory_image + kRomBase), kRomSize);
-   if (rom.gcount() != static_cast<std::streamsize>(kRomSize)) {
-      fail("ROM is not exactly 4096 bytes");
+   const std::streamoff rom_size = rom.tellg();
+   if (rom_size != static_cast<std::streamoff>(kBankSize) &&
+       rom_size != static_cast<std::streamoff>(kF8RomSize)) {
+      fail("ROM is not exactly 4096 or 8192 bytes");
+   }
+   cartridge_size = static_cast<size_t>(rom_size);
+   rom.seekg(0, std::ios::beg);
+   rom.read(reinterpret_cast<char *>(cartridge_image), rom_size);
+   if (rom.gcount() != rom_size) {
+      fail("could not read complete ROM");
+   }
+   if (cartridge_size == kF8RomSize) {
+      // F8/F8SC file chunk 1 is the startup bank ($1FF9).  The 6507 only
+      // exposes 13 address bits, so banked code linked at $Dxxx and $Fxxx
+      // reaches the same cartridge window; read_bus() applies that mirror.
+      map_f8_chunk(1);
+   }
+   else {
+      std::memcpy(memory_image + kRomBase, cartridge_image, kBankSize);
    }
 
    mos6502 cpu(read_bus, write_bus, clock_cycle);

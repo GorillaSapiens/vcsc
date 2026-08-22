@@ -2,7 +2,11 @@
 
 // Symmetric P0/P1 six-sprite multiplexer, using the maintained multisprite
 // scene data and Select/joystick/Reset controls.
-include "vcs.c26"
+include "vcs_8k_f8sc.c26"
+
+// The build selects VCS_NTSC_EXTENDED_VBLANK because top-edge sprites are
+// pre-positioned during VBLANK.  frame_ntsc.c26 moves nine timer quanta from
+// this example's light overscan into VBLANK without changing the frame total.
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
 instantiate "renderers/enhanced_multisprite_asymmetric/enhanced_multisprite.c26" as game
@@ -143,7 +147,7 @@ void move_asymmetric_right(void) {
 void move_asymmetric_up(void) {
    asm ldx.z selected_object;
    asm lda.zx game_y,X;
-   asm cmp #89;
+   asm cmp #95;
    asm bcs.same @done;
    asm clc;
    asm adc #1;

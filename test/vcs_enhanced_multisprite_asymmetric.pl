@@ -71,11 +71,11 @@ $text =~ /TEMPLATE_P1RespAfterLeftPF1:;.*?lda\.ax TEMPLATE_playfield_right,X;\s*
    or die "P1 late-family right-PF2 correction missing\n";
 
 my$bin=File::Spec->catfile($tmp,'enhanced_asymmetric.bin');
-my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,$example,'-o',$bin);
+my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-DVCS_NTSC_EXTENDED_VBLANK','-T',File::Spec->catfile($vcs,'vcs.cfg'),$example,'-o',$bin);
 $rc==0 && !$sig or die "asymmetric example build failed\n$out$err";
 $out=without_usage($out); $out eq '' or die "asymmetric example build stdout: $out";
 $err eq '' or die "asymmetric example build stderr: $err";
-(-s $bin)==4096 or die "asymmetric example is not a 4K ROM\n";
+(-s $bin)==8192 or die "asymmetric example is not an 8K F8SC ROM\n";
 
 (my$sym=$bin) =~ s/\.bin\z/.sym/;
 my$sym_text=read_file($sym);
@@ -141,6 +141,23 @@ expect_timing('continuous X up/down sweep',647,
 # 6. The top-edge dispatcher has its own balanced one-RESP entry, so this case
 # deliberately falls back to the proven split events rather than carrying the
 # pair marker into the top boundary.
+expect_timing('two simultaneous Y=95 top-edge sprites',500,
+   '--set-zp',sprintf('0x%02x',$x_addr+0),'18',
+   '--set-zp',sprintf('0x%02x',$x_addr+1),'126',
+   '--set-zp',sprintf('0x%02x',$x_addr+2),'62',
+   '--set-zp',sprintf('0x%02x',$x_addr+3),'88',
+   '--set-zp',sprintf('0x%02x',$x_addr+4),'114',
+   '--set-zp',sprintf('0x%02x',$x_addr+5),'140',
+   '--set-zp',sprintf('0x%02x',$y_addr+0),'95',
+   '--set-zp',sprintf('0x%02x',$y_addr+1),'95',
+   '--set-zp',sprintf('0x%02x',$y_addr+2),'72',
+   '--set-zp',sprintf('0x%02x',$y_addr+3),'48',
+   '--set-zp',sprintf('0x%02x',$y_addr+4),'24',
+   '--set-zp',sprintf('0x%02x',$y_addr+5),'8');
+
+expect_timing('top-edge Y 89 through 95 sweep',64,
+   '--sweep-zp',sprintf('0x%02x',$y_addr),'89','95');
+
 expect_timing('top-edge pair split fallback',500,
    '--set-zp',sprintf('0x%02x',$x_addr+0),'90',
    '--set-zp',sprintf('0x%02x',$x_addr+1),'124',

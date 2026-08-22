@@ -10,8 +10,8 @@
 // later in the same frame.
 
 alias TEMPLATE_LOGICAL_HEIGHT 95
-alias TEMPLATE_PLAYER0_MAX_Y 89
-alias TEMPLATE_PLAYER1_MAX_Y 89
+alias TEMPLATE_PLAYER0_MAX_Y 95
+alias TEMPLATE_PLAYER1_MAX_Y 95
 
 // Caller-compatible glyph layout. This deliberately accepts the same 145-byte
 // graphics block used by renderers/multisprite so the existing interactive
@@ -360,6 +360,145 @@ void TEMPLATE_vblank_worker(void) {
    asm .callstackextra 2;
    asm jmp @TEMPLATE_VblankStart;
 
+   // Pre-position one accepted event whose normal setup pipeline begins above
+   // band 95.  setup_index names its compact rank; event_code and
+   // position_packed have already been loaded from that rank.  pair_y,
+   // action_y, and event_stage are free draw-time scratch until the first
+   // ordinary visible event is made hot below.
+   //
+   // The packed positioner is intentionally the same cycle shape as the
+   // ordinary enhanced renderer: a three-cycle prefix followed by TXA, then
+   // RESP on the calibrated coarse slot and HMOVE at cycle zero of the next
+   // scanline.  Playfield timing is irrelevant while VBLANK is asserted.
+   asm @TEMPLATE_PreloadTop:;
+   asm lda.z TEMPLATE_event_code;
+   asm and #$0f;
+   asm bit.z TEMPLATE_position_packed;
+   asm bvs.same @TEMPLATE_PreloadTopP1Id;
+   asm sec;
+   asm sbc #7;
+   asm jmp @TEMPLATE_PreloadTopHaveId;
+   asm @TEMPLATE_PreloadTopP1Id:;
+   asm sec;
+   asm sbc #1;
+   asm @TEMPLATE_PreloadTopHaveId:;
+   asm sta.z TEMPLATE_pair_y;
+   asm tax;
+   asm lda.zx TEMPLATE_color,X;
+   asm bit.z TEMPLATE_position_packed;
+   asm bvs.same @TEMPLATE_PreloadTopColor1;
+   asm sta COLUP0;
+   asm jmp @TEMPLATE_PreloadTopColorDone;
+   asm @TEMPLATE_PreloadTopColor1:;
+   asm sta COLUP1;
+   asm @TEMPLATE_PreloadTopColorDone:;
+
+   // The faithful divide-by-15 positioner uses the legacy X origin, seven
+   // logical pixels to the right of this renderer's public convention. Rotate
+   // by -7 modulo 160; 153..159 intentionally wrap through the TIA left edge.
+   asm lda.zx TEMPLATE_x,X;
+   asm sec;
+   asm sbc #7;
+   asm bcs.same @TEMPLATE_PreloadTopXReady;
+   asm clc;
+   asm adc #160;
+   asm @TEMPLATE_PreloadTopXReady:;
+   asm bit.z TEMPLATE_position_packed;
+   asm bvs.same @TEMPLATE_PreloadTopUseP1;
+   asm ldx #0;
+   asm jmp @TEMPLATE_PreloadTopHaveLane;
+   asm @TEMPLATE_PreloadTopUseP1:;
+   asm ldx #1;
+   asm @TEMPLATE_PreloadTopHaveLane:;
+
+   // VBLANK can use the conventional divide-by-15 positioner instead of the
+   // PF-aware visible-raster lattice.  The EOR/shift tail synthesizes HMP
+   // directly, avoiding another 160-byte X table now that ROM is banked.
+   asm sec;
+   asm sta WSYNC;
+   asm sta HMCLR;
+   asm @TEMPLATE_PreloadTopDivide15:;
+   asm sbc #15;
+   asm bcs.same @TEMPLATE_PreloadTopDivide15;
+   asm eor #7;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta HMP0,X;
+   asm sta RESP0,X;
+   asm sta WSYNC;
+   asm sta HMOVE;
+   asm txa;
+   asm sta.z TEMPLATE_position_packed;
+
+   // Seed the graphics pipeline so the first bitmap row is published on the
+   // logical band named by Y.  Band 95 is the first visible pair, therefore
+   // Y=95 starts on the first glyph state immediately.  Each lower Y needs one
+   // additional zero-filled predecessor.  The existing state graph already
+   // contains the complete five-step blank chain needed for P0 Y=90:
+   //   49..54 -> 7..12 -> 13..18 -> 19..24 -> 1..6 -> first glyph.
+   // P1 only reaches this VBLANK path at Y>=93, so it uses the tail of the
+   // same chain without requiring any new state-table entries.
+   asm @TEMPLATE_PreloadTopState:;
+   asm ldx.z TEMPLATE_pair_y;
+   asm lda.zx TEMPLATE_y,X;
+   asm cmp #95;
+   asm beq.same @TEMPLATE_PreloadTopVisibleState;
+   asm cmp #94;
+   asm beq.same @TEMPLATE_PreloadTopBlank94;
+   asm cmp #93;
+   asm beq.same @TEMPLATE_PreloadTopBlank93;
+   asm cmp #92;
+   asm beq.same @TEMPLATE_PreloadTopBlank92;
+   asm cmp #91;
+   asm beq.same @TEMPLATE_PreloadTopBlank91;
+   // Only P0 can reach the preloaded path at Y=90.
+   asm lda #49;
+   asm jmp @TEMPLATE_PreloadTopBlankHaveBase;
+   asm @TEMPLATE_PreloadTopBlank91:;
+   asm lda #7;
+   asm jmp @TEMPLATE_PreloadTopBlankHaveBase;
+   asm @TEMPLATE_PreloadTopBlank92:;
+   asm lda #13;
+   asm jmp @TEMPLATE_PreloadTopBlankHaveBase;
+   asm @TEMPLATE_PreloadTopBlank93:;
+   asm lda #19;
+   asm jmp @TEMPLATE_PreloadTopBlankHaveBase;
+   asm @TEMPLATE_PreloadTopBlank94:;
+   asm lda #1;
+   asm @TEMPLATE_PreloadTopBlankHaveBase:;
+   asm clc;
+   asm adc.z TEMPLATE_pair_y;
+   asm tay;
+   asm lda #0;
+   asm jmp @TEMPLATE_PreloadTopInstallState;
+
+   asm @TEMPLATE_PreloadTopVisibleState:;
+   asm txa;
+   asm clc;
+   asm adc #1;
+   asm tay;
+   asm lda.ay TEMPLATE_graphics_next,Y; // first/top bitmap state for this id
+   asm tay;
+   asm lda.ay TEMPLATE_graphics,Y;
+
+   asm @TEMPLATE_PreloadTopInstallState:;
+   asm ldx.z TEMPLATE_position_packed;
+   asm bne.same @TEMPLATE_PreloadTopInstall1;
+   asm sty.z TEMPLATE_gfx_index;
+   asm sta.z TEMPLATE_current_gfx;
+   // HMOVE consumes HMP during the first part of this scanline.  Clear motion
+   // only after the graphics-state work above; clearing it immediately after
+   // HMOVE collapses fine motion and produces 15-pixel coarse jumps.
+   asm sta HMCLR;
+   asm rts;
+   asm @TEMPLATE_PreloadTopInstall1:;
+   asm sty.z TEMPLATE_gfx_index + 1;
+   asm sta.z TEMPLATE_current_gfx + 1;
+   asm sta HMCLR;
+   asm rts;
+
    // Choose one hardware lane for X. Since every logical sprite is exactly
    // eight bands tall, conflict tests collapse to small Y-distance checks:
    // P0's attribute/setup+bitmap interval conflicts on the same lane through
@@ -686,30 +825,9 @@ void TEMPLATE_vblank_worker(void) {
    asm sta.z TEMPLATE_current_gfx;
    asm sta.z TEMPLATE_current_gfx + 1;
 
-   // setup_position/draw_position contain absolute low bytes into the shared
-   // page-contained RESP jump block.  Keep its page byte adjacent so
-   // position_packed:event_stage is a ready-to-use NMOS indirect-JMP vector.
-   asm lda #>TEMPLATE_P0RespJumpBase;
-   asm sta.z TEMPLATE_event_stage;
-
-   // Keep the first event's action and lane/sprite code hot.  Horizontal
-   // control is fetched by rank on the rare position line itself.
-   asm lda TEMPLATE_event_order;
-   asm sta.z TEMPLATE_action_y;
-   asm lda TEMPLATE_draw_code;
-   asm sta.z TEMPLATE_event_code;
-   // Keep the first absolute landing low byte hot. pair_y already contains the last
-   // candidate Y from allocation (0..89), which is safe for its draw-time BIT
-   // padding/N-clear role, so do not spend five cycles reinitializing it.
-   asm lda TEMPLATE_draw_position;
-   asm sta.z TEMPLATE_position_packed;
-   // Cache the current event color for the RESP-critical line.  pair_y is
-   // scratch after VBLANK, so this removes four cycles of rank lookup there.
-   asm lda TEMPLATE_lane_for;
-   asm sta.z TEMPLATE_pair_y;
-
    // This profile owns both hardware players completely while visible.
-   asm lda #0;
+   // Establish the idle TIA state before any top-edge pre-positioning so the
+   // preload helper's RESP/HMOVE result is not overwritten afterward.
    asm sta VDELP0;
    asm sta VDELP1;
    asm sta NUSIZ0;
@@ -718,9 +836,50 @@ void TEMPLATE_vblank_worker(void) {
    asm sta REFP1;
    asm sta GRP0;
    asm sta GRP1;
+   asm sta GRP1;
    asm lda #$80;
    asm sta HMP0;
    asm sta HMP1;
+
+   // setup_position/draw_position contain absolute low bytes into the shared
+   // page-contained visible RESP jump block.  Keep its page byte adjacent so
+   // position_packed:event_stage is a ready-to-use NMOS indirect-JMP vector
+   // after top-edge preloading is complete.
+   //
+   // event_order[] is sorted descending.  Consume its prefix whose action_y is
+   // above band 95, positioning those hardware lanes during VBLANK and
+   // initializing their graphics state at the exact clipped row required by
+   // Y=90..95.  setup_index then naturally names the first ordinary event.
+   asm @TEMPLATE_PreloadTopLoop:;
+   asm ldy.z TEMPLATE_setup_index;
+   asm cpy.z TEMPLATE_setup_count;
+   asm beq.same @TEMPLATE_PreloadTopDone;
+   asm lda.ay TEMPLATE_event_order,Y;
+   asm cmp #96;
+   asm bcc.same @TEMPLATE_PreloadTopDone;
+   asm lda.ay TEMPLATE_draw_code,Y;
+   asm sta.z TEMPLATE_event_code;
+   asm lda.ay TEMPLATE_draw_position,Y;
+   asm sta.z TEMPLATE_position_packed;
+   asm jsr @TEMPLATE_PreloadTop;
+   asm inc.z TEMPLATE_setup_index;
+   asm jmp @TEMPLATE_PreloadTopLoop;
+
+   asm @TEMPLATE_PreloadTopDone:;
+   asm lda #>TEMPLATE_P0RespJumpBase;
+   asm sta.z TEMPLATE_event_stage;
+
+   // Keep the first non-preloaded event hot.  Index setup_count is the
+   // branch-free $ff action sentinel when every accepted sprite was preloaded.
+   asm ldy.z TEMPLATE_setup_index;
+   asm lda.ay TEMPLATE_event_order,Y;
+   asm sta.z TEMPLATE_action_y;
+   asm lda.ay TEMPLATE_draw_code,Y;
+   asm sta.z TEMPLATE_event_code;
+   asm lda.ay TEMPLATE_draw_position,Y;
+   asm sta.z TEMPLATE_position_packed;
+   asm lda.ay TEMPLATE_lane_for,Y;
+   asm sta.z TEMPLATE_pair_y;
 
    // game_draw() enters the first visible scanline after its left-edge PF
    // deadline.  Preload band 95's left PF half while VBLANK is still asserted
@@ -742,8 +901,9 @@ require inline void TEMPLATE_vblank(void) {
 void TEMPLATE_draw(void) {
    asm .callstackextra 2;
 
-   // The top pair is sprite-free, but draw() begins after the first line's
-   // left-edge PF deadline. VBLANK has already preloaded that left half. Keep
+   // draw() begins after the first line's left-edge PF deadline. VBLANK has
+   // already preloaded that left half. Top-edge sprites may also have been
+   // pre-positioned and seeded into gfx_index/current_gfx before entry. Keep
    // the remaining work phase-compatible with the ordinary A/B raster so both
    // physical rows of band 95 display identical playfield data. gfx_index 0
    // self-loops, so these normal graphics-state operations are harmless here.
