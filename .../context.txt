@@ -1201,3 +1201,13 @@ in an otherwise busy scheduler frame).  Keep the explicit top-edge tests; the
 next timing task is to shorten that worst-case VBLANK path, then continue full
 Stella X=0..159 certification/final eleven-slot migration before restoring
 pair-feasibility scheduling.
+
+The residual two "goofy" scanlines above the enhanced-asymmetric raster were an
+F8SC bank-handoff artifact, not a remaining PF seam.  `run_asymmetric_frame()`
+was in bank0 and cleared VBLANK before the cross-bank bridge into bank1
+`game_draw()`, producing two visible bridge-time rows (194 nonblank Stella rows
+instead of 192).  The frame driver is now pinned to bank1 with `game_draw`; one
+extra WSYNC is spent after overscan while VBLANK remains asserted to retain the
+existing 262-line frame calibration.  Stella 1x shows exactly 192 nonblank rows
+with the first rows matching, and the asymmetric regression pins co-residency in
+the link map and passes its timing/X/Y/top-edge cases.

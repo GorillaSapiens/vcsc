@@ -170,7 +170,7 @@ void update_asymmetric_motion(void) {
    else { if (!(SWCHA & 0x20)) { move_asymmetric_down(); } }
 }
 
-void run_asymmetric_frame(void) {
+bank1 void run_asymmetric_frame(void) {
    vcs_ntsc_vsync();
    vcs_ntsc_begin_vblank();
    game_vblank();
@@ -183,6 +183,9 @@ void run_asymmetric_frame(void) {
    if (!(SWCHB & 0x01)) { initialize_enhanced_scene(); }
    else { update_asymmetric_selection(); update_asymmetric_motion(); }
    vcs_ntsc_end_overscan();
+   // Keep the 262-line frame budget after moving the F8 bank handoff out of
+   // visible time.  VBLANK remains asserted across this extra boundary.
+   WSYNC := 0;
 }
 
 void main(void) {

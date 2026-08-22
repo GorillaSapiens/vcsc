@@ -77,6 +77,18 @@ $out=without_usage($out); $out eq '' or die "asymmetric example build stdout: $o
 $err eq '' or die "asymmetric example build stderr: $err";
 (-s $bin)==8192 or die "asymmetric example is not an 8K F8SC ROM\n";
 
+# F8 bank bridges must not execute after VBLANK is cleared.  The first F8SC
+# top-edge checkpoint let run_asymmetric_frame live in bank0 while game_draw
+# lived in bank1; that bridge consumed visible beam time and Stella showed two
+# bogus scanlines before the intended 192-line raster.  Keep the frame driver
+# and beam renderer co-resident.
+(my$map=$bin) =~ s/\.bin\z/.map/;
+my$map_text=read_file($map);
+$map_text =~ /CODE\.__vcsc_function\$game_draw\s+load=\$[0-9A-Fa-f]+.*?bank=bank1/m
+   or die "asymmetric game_draw left bank1\n";
+$map_text =~ /CODE(?:\.bank1)?\.__vcsc_function\$run_asymmetric_frame\s+load=\$[0-9A-Fa-f]+.*?bank=bank1/m
+   or die "asymmetric frame driver is not co-resident with game_draw\n";
+
 (my$sym=$bin) =~ s/\.bin\z/.sym/;
 my$sym_text=read_file($sym);
 my($x_hex)=$sym_text =~ /^game_x\s+([0-9a-fA-F]{4})\s*$/m;

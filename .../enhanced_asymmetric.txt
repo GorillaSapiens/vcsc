@@ -1577,3 +1577,38 @@ NEXT WORK UPDATE
    the final eleven slots 23,28,33,38,43,48,53,58,63,68,73.
 3. Restore pair-feasibility scheduling only after ordinary/top positioning is
    timing-certified.
+
+F8 VISIBLE-BANK HANDOFF FIX -- 2026-08-21
+------------------------------------------
+The two thin/corrupt scanlines still visible above the intended top playfield
+were not another PF-phase error.  They appeared only after the diagnostic moved
+to F8SC.  `run_asymmetric_frame()` was left in startup `bank0` while
+`game_draw()` and its PF tables lived in `bank1`; `vcs_ntsc_end_vblank()` cleared
+VBLANK first, then the linker-generated cross-bank JSR bridge ran with the beam
+visible.  Stella consequently exposed two bridge-time scanlines before the
+192-line renderer started.  A native 1x snapshot contained 194 nonblank rows;
+the first row repeated the preloaded left PF state across both halves and the
+second repeated the stale right PF state.
+
+The example now pins `run_asymmetric_frame()` to `bank1`, co-resident with
+`game_draw()`, so the only frame-loop bank handoff occurs while VBLANK is still
+asserted.  Removing the visible bridge shortened the CPU harness frame by one
+raw scanline, so the example adds one final blanked WSYNC after
+`vcs_ntsc_end_overscan()` to preserve the existing Stella-calibrated 262-line
+frame budget.  This WSYNC occurs with VBLANK still asserted and cannot affect
+the visible raster.
+
+Stella 7.0 1x now shows exactly 192 nonblank rows, and the first four rows have
+identical intended PF/background pixel counts.  The asymmetric timing regression
+again passes all static, edge, top-Y, continuous-X, and combined X/Y cases.  The
+regression also checks the link map so `run_asymmetric_frame -> game_draw` cannot
+silently regain a bank bridge.
+
+NEXT WORK UPDATE
+----------------
+1. Shorten the worst-case VBLANK scheduler/top-preload path enough that six-way
+   randomized X/Y stress can use the full public Y=0..95 range at stable timing.
+2. Complete the Stella X=0..159 certification and migrate the middle range to
+   the final eleven slots 23,28,33,38,43,48,53,58,63,68,73.
+3. Restore pair-feasibility scheduling only after ordinary/top positioning is
+   timing-certified.

@@ -156,3 +156,13 @@ visible playfield band.  The example moved to F8SC/8K and uses the validated
 51/25 VBLANK/overscan TIM64T split.  Stella had verified Y=95 on both player
 lanes with independent X and correct colors.  Existing 4K/Y<=89 regression
 migration remains follow-up work.
+
+2026-08-21 19:02:49 PDT, remove F8 visible bank-bridge scanlines
+The two residual top-of-screen PF-looking scanlines were caused by the F8SC
+migration: run_asymmetric_frame remained in bank0 and cleared VBLANK before the
+linker bridge into bank1 game_draw.  Stella therefore exposed bridge execution
+as two extra visible rows, giving 194 nonblank rows instead of the renderer's
+192.  Pinning the frame driver to bank1 makes the draw call same-bank; a final
+blanked WSYNC after overscan restores the established 262-line frame calibration.
+Stella now has exactly 192 nonblank rows with the top rows identical.  The
+asymmetric regression checks the map for frame/draw bank co-residency and passes.
