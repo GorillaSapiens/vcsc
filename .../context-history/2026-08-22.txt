@@ -12458,3 +12458,27 @@ focused asymmetric suite now holds dense 1..4-column randomized X/Y layouts for
 16 frames apiece. Focused asymmetric, NTSC scheduler, 50 Hz scheduler, and
 NTSC/PAL/SECAM compile-contract tests pass. Public asymmetric accounting is now
 4085/4090 ROM and 115/128 RAM.
+
+2026-08-22 23:45:05 PDT, repair stale exact-six regression
+
+The 0/1/2 retained-X allocator improvement changed the below-P1 exact-six path
+from an inline `LDA position_packed; BMI` test to `JSR TEMPLATE_exact_six_p0`.
+The old structural regex therefore failed even though the semantic hazard rule
+remained intact. The test now pins both halves of the new contract: the exact-six
+helper maps a still-possible ordinary P0 lane to the deferred $80 marker, and
+`TEMPLATE_ProveP0Retain` turns that marker into retained P0 ($81) only after a
+later same-X predecessor proves the continuation. Without that proof the marker
+naturally resolves to no usable lane.
+
+Added a real-6502 regression for the user's staggered cluster
+X={62,72,62,88,114,140}, Y={86,82,76,42,42,16}, identity priority. It requires
+all six logical sprites to be actually visible and the final scheduler count to
+be six across the held run. The focused asymmetric test passes. The separate C
+scheduler model is now explicitly documented as the ordinary full-setup baseline
+oracle; its retained-X deficit witness is intentionally historical/baseline, not
+a claim about the current renderer.
+
+The user's immediately preceding broad run passed every other E2E case (318/319),
+and this change touches only tests/comments/hot records. Local compile validation
+was 500/500 and the corrected focused asymmetric E2E passes. Current public
+asymmetric accounting remains 4089/4090 ROM and 115/128 RAM.

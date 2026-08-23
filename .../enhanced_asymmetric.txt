@@ -61,12 +61,13 @@ Current contract
 
 Current accounting and validation boundary
 ------------------------------------------
-Current public accounting is 4085/4090 ROM and 115/128 RAM.
+Current public accounting is 4089/4090 ROM and 115/128 RAM.
 
-The compile phase is recorded at 500/500. The last broad E2E pass before the
-newest shared frame-scheduler phase fix covered all 319 cases, including all
-eight recursive example-build shards. Focused asymmetric and shared scheduler
-tests pass after the new change; repeat broad E2E before handoff.
+The compile phase is 500/500. The user's latest broad E2E run passed 318/319;
+the sole failure was a stale structural assertion in the asymmetric test that
+still expected the pre-deferral inline exact-six sequence. After correcting that
+assertion, the focused asymmetric test passes, so the combined validation state
+is 319/319 with no production-source change after the user's broad run.
 
 Timing status
 -------------
@@ -94,19 +95,25 @@ reported 262. The maintained CPU test now also supports held ZP randomization an
 exact pre-mutation failure dumps, and the asymmetric regression uses 16-frame
 held dense-X layouts.
 
-Allocator work still unfinished
---------------------------------
-Even after frame timing is stable, the greedy lane allocator is not globally
-optimal for every visible-occupancy<=2 layout. Retained-X short continuation and
-bounded lane rebalancing are the intended mechanisms. Do not fake progress by
-lowering the 15/12 reservation distances or broad directional hazard windows;
+Allocator status
+----------------
+The user's staggered 0/1/2 witness X={62,72,62}, Y={86,82,76} is now solid:
+0 and 2 share one hardware player by retained X while overlapping sprite 1 uses
+the other. The exact-six P1->P0 decision is scan-order independent: an unresolved
+P0 possibility is deferred as the otherwise-invalid $80 marker and becomes $81
+only when a later backward-scan equal-X P0 proves retention; without that proof
+it naturally decodes as no lane. The focused real-6502 regression pins identity
+priority to all six visible sprites. The host C scheduler remains intentionally
+a full-setup baseline oracle and no longer claims to model retained-X exactly.
+
+Broader allocator quality is still unfinished for other occupancy<=2 layouts.
+Do not lower the 15/12 reservation distances or broad directional hazard windows;
 those shortcuts have already scheduled invisible sprites or lengthened frames.
 
 Immediate next work
 -------------------
-Finish broad E2E validation, then run the current diagnostic interactively in
-Stella against same/near-column layouts while priority evolves. If it remains
-stable at 262, continue the broader retained-X allocator-quality work. If any
+Continue interactive Stella testing of same/near-column layouts while priority
+evolves, then pursue any remaining avoidable occupancy<=2 omissions. If any
 263-line frame remains, save the exact X/Y/priority state and hold it for several
 frames. Treat real Stella as authoritative for line count; the CPU harness is
 still useful for deadline overruns but cannot see the pre-WSYNC instruction-phase

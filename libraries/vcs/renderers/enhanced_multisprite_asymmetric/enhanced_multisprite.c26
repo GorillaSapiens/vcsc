@@ -346,10 +346,31 @@ page void TEMPLATE_resp_jump_table(void) {
    // position survives.  Three bytes come out of the old +$24..+$3f pad.
    asm TEMPLATE_P0RetainJump:;
    asm jmp TEMPLATE_P0RetainSlot;
-   // 39-byte P0 table -> pad 25 bytes so P1 still starts exactly at +$40.
-   asm .byte $ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea;
-   asm .byte $ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea;
-   asm .byte $ea,$ea,$ea,$ea,$ea;
+   // The old 25-byte P0/P1 alignment pad is useful VBLANK code space.
+   // A retained-P0 proof normally sets bit 7 only while P0 is still viable.
+   // Exact-six deferral uses the otherwise-invalid $80 state (bit7 set, lane
+   // bit0 clear) as a marker; seeing the later same-X proof turns it into $81.
+   asm TEMPLATE_ProveP0Retain:;
+   asm lda.z TEMPLATE_position_packed;
+   asm bmi.same @TEMPLATE_ProveP0Marker;
+   asm lsr;
+   asm bcc.same @TEMPLATE_ProveP0Done;
+   asm rol;
+   asm ora #$80;
+   asm @TEMPLATE_ProveP0Store:;
+   asm sta.z TEMPLATE_position_packed;
+   asm @TEMPLATE_ProveP0Done:;
+   asm rts;
+   asm @TEMPLATE_ProveP0Marker:;
+   asm ora #1;
+   asm bne.same @TEMPLATE_ProveP0Store;
+   // Relocate the tiny bridge-partner marker here too, freeing its old 9-byte
+   // F1F7..F1FF neighborhood for the exact-six helper below.
+   asm TEMPLATE_bridge_mark_partner:;
+   asm ora.z TEMPLATE_setup_line + 6;
+   asm sta.z TEMPLATE_setup_line + 6;
+   asm rts;
+   asm .byte $ea,$ea,$ea;
    asm TEMPLATE_P1RespJumpBase:;
    asm jmp TEMPLATE_P1RespSlot0;
    asm jmp TEMPLATE_P1RespSlot1;
@@ -392,13 +413,20 @@ void TEMPLATE_bridge_has_middle_y(void) {
    asm sec;
 }
 
-void TEMPLATE_bridge_mark_partner(void) {
-   // A is one logical-sprite bit. setup_line[6] is zero before allocation and
-   // is explicitly cleared again before it becomes the sort sentinel, so it
-   // can cache any number of future bridge endpoints during this one pass.
-   asm .align 4096, $1f9;
-   asm ora.z TEMPLATE_setup_line + 6;
-   asm sta.z TEMPLATE_setup_line + 6;
+void TEMPLATE_exact_six_p0(void) {
+   // At exact-six, the P1 conflict has already removed P1 and its retained
+   // flag.  With no prior retained proof, position_packed is therefore 0 or 1.
+   // Map 1 -> $80 and 0 -> 0; $80 is an impossible normal lane encoding and
+   // means "P0 may be restored if an earlier equal-X P0 is found later in the
+   // backward scan".  An already-proven retained P0 is negative and untouched.
+   // This nine-byte helper occupies the old bridge-marker hole exactly.
+   asm .align 4096, $1f7;
+   asm lda.z TEMPLATE_position_packed;
+   asm bmi.same @TEMPLATE_ExactSixP0Done;
+   asm lsr;
+   asm ror;
+   asm sta.z TEMPLATE_position_packed;
+   asm @TEMPLATE_ExactSixP0Done:;
 }
 
 void TEMPLATE_bridge_mask_test(void) {
@@ -701,10 +729,11 @@ void TEMPLATE_vblank_worker(void) {
    asm ldx.z TEMPLATE_setup_sprite;
    asm cmp.zx TEMPLATE_x,X;
    asm bne.same @TEMPLATE_ChooseBelowP0Conflict;
-   asm lda.z TEMPLATE_position_packed;
-   asm ora #$80;
-   asm sta.z TEMPLATE_position_packed;
+   asm jsr TEMPLATE_ProveP0Retain;
    asm jmp @TEMPLATE_ChooseAfterOther;
+   // JSR is three bytes shorter than the old LDA/ORA/STA sequence.  These bytes
+   // are unreachable and preserve every later page-sensitive allocator address.
+   asm .byte $ea,$ea,$ea;
    asm @TEMPLATE_ChooseBelowP0Conflict:;
    asm lda.z TEMPLATE_position_packed;
    asm and #$7e;
@@ -743,7 +772,7 @@ void TEMPLATE_vblank_worker(void) {
    // four-band event gap instead of the ordinary unsafe three-band gap.
    asm cmp #6;
    asm bne.same @TEMPLATE_ChooseBelowP1P0Conflict;
-   asm lda.z TEMPLATE_position_packed;
+   asm jsr TEMPLATE_exact_six_p0;
    asm bmi.same @TEMPLATE_ChooseAfterOther;
    asm @TEMPLATE_ChooseBelowP1P0Conflict:;
    asm lda.z TEMPLATE_position_packed;
@@ -764,8 +793,9 @@ void TEMPLATE_vblank_worker(void) {
    // action three bands before the P0 action, but the P1 post-setup path does
    // not return to the ordinary trigger check until four bands later.
    asm txa;
-   asm cmp #15;
-   asm bcs.same @TEMPLATE_ChooseAboveP0SameClear;
+   // AboveClose already proved X<15.  Keep four cycles here while saving one
+   // byte so the rest of this page-sensitive allocator stays at its old phase.
+   asm bit.a TEMPLATE_position_packed;
    asm lda.z TEMPLATE_position_packed;
    asm and #$7e;
    asm sta.z TEMPLATE_position_packed;

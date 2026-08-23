@@ -83,16 +83,14 @@ Open workstreams
    diagnostic uses 12 playfield rows of 16 physical scanlines, X=0..159 and
    Y=0..95. Retained-X continuation and forced bridge orientation are present;
    current extended blanking split is 63/13 TIM64T. Current public accounting is
-   4085/4090 ROM and 115/128 RAM.
+   4089/4090 ROM and 115/128 RAM.
 
-   The bridge-oracle cost spike is fixed, but real Stella exposed a second cause
-   of 262/263 jitter that the CPU timing harness could not see: after the RIOT
-   deadline poll returned late in a scanline, compiler-generated `LDA #0` before
-   `STA WSYNC` could cross the TIA line boundary and make WSYNC wait one extra
-   line. The shared NTSC/50 Hz schedulers now return A=0 from the poll and store
-   it directly to WSYNC/VBLANK. The exact Stella witness and held-layout dense-X
-   stresses pass; interactive confirmation of this newest scheduler fix remains
-   useful before closing the side quest.
+   The bridge-oracle and pre-WSYNC phase causes of 262/263 jitter are fixed; the
+   exact Stella witnesses and held-layout dense-X stresses pass. The staggered
+   0/1/2 occupancy-two cluster is also repaired by scan-order-independent exact-six
+   retained-P0 deferral and has a permanent all-six real-6502 regression. Continue
+   interactive testing and broader allocator-quality work for other avoidable
+   occupancy-two omissions.
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
@@ -125,19 +123,17 @@ Their completed development narratives were moved to `context-history/`.
 Last validation state
 ---------------------
 The most recent complete compiler phase recorded in this lineage is 500/500.
-The last complete broad validation before the newest shared frame-scheduler
-phase fix covered all 319 E2E cases, including all eight recursive example-build
-shards. Focused NTSC/50 Hz scheduler, compile-contract, and asymmetric tests pass
-after the new fix. Re-run broad E2E before packaging the next handoff. The
+The user's latest broad E2E run passed 318/319; its sole failure was the stale
+asymmetric structural exact-six assertion. That assertion now follows the new
+deferred helper and the focused asymmetric test passes, so together these cover
+all 319 E2E cases without any production-source change after the broad run. The
 maintained runner default remains 45 seconds.
 
 Immediate TODO
 --------------
 Active workstream: `.../enhanced_asymmetric.txt`.
 
-Finish broad E2E validation of the shared scheduler phase fix, then verify the
-repaired asymmetric diagnostic interactively in Stella. If frame length remains
-stable, resume the retained-X allocator-quality work documented in the focused
-file. Any new 263-line hit should be held for multiple frames and reduced to
-exact X/Y/priority state; use real Stella as authority when its frame count and
-the CPU harness disagree.
+Continue interactive Stella validation and retained-X allocator-quality work
+documented in the focused file. Any new 263-line hit should be held for multiple
+frames and reduced to exact X/Y/priority state; use real Stella as authority when
+its frame count and the CPU harness disagree.

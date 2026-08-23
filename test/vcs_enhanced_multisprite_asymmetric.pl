@@ -63,8 +63,12 @@ $text =~ /\@TEMPLATE_ChooseCandidateAtOrAbove:;\s*(?:\/\/[^\n]*\n\s*)*asm lda\.z
 # deliberately makes the exact six-band case safe by moving the P0 action one
 # band later, so pin both the 1..5 rejection and the narrowly qualified +6
 # exception rather than requiring the pre-retained blanket cmp #7 shape.
-$text =~ /TEMPLATE_ChooseBelowOtherP1:;.*?asm cmp #7;\s*asm bcs\.same \@TEMPLATE_ChooseAfterOther;.*?asm cmp #6;\s*asm bne\.same \@TEMPLATE_ChooseBelowP1P0Conflict;.*?asm lda\.z TEMPLATE_position_packed;\s*asm bmi\.same \@TEMPLATE_ChooseAfterOther;/s
+$text =~ /TEMPLATE_ChooseBelowOtherP1:;.*?asm cmp #7;\s*asm bcs\.same \@TEMPLATE_ChooseAfterOther;.*?asm cmp #6;\s*asm bne\.same \@TEMPLATE_ChooseBelowP1P0Conflict;.*?asm jsr TEMPLATE_exact_six_p0;\s*asm bmi\.same \@TEMPLATE_ChooseAfterOther;/s
    or die "below-P1 six-band hazard/retained-P0 exception contract regressed\n";
+$text =~ /void TEMPLATE_exact_six_p0\(void\) \{.*?asm lda\.z TEMPLATE_position_packed;\s*asm bmi\.same \@TEMPLATE_ExactSixP0Done;\s*asm lsr;\s*asm ror;\s*asm sta\.z TEMPLATE_position_packed;\s*asm \@TEMPLATE_ExactSixP0Done:;/s
+   or die "below-P1 exact-six deferred retained-P0 proof regressed\n";
+$text =~ /TEMPLATE_ProveP0Retain:;.*?asm bmi\.same \@TEMPLATE_ProveP0Marker;.*?asm \@TEMPLATE_ProveP0Marker:;\s*asm ora #1;\s*asm bne\.same \@TEMPLATE_ProveP0Store;/s
+   or die "deferred exact-six marker no longer resolves on retained-P0 proof\n";
 $text =~ /\@TEMPLATE_ChooseCandidateAtOrAbove:;.*?asm beq\.same \@TEMPLATE_ChooseAfterOther;\s*asm cmp #7;\s*asm bcs\.same \@TEMPLATE_ChooseAfterOther;.*?asm cmp #6;\s*asm bne\.same \@TEMPLATE_ChooseAboveP0P1Conflict;.*?asm and TEMPLATE_draw_code \+ 6;\s*asm bne\.same \@TEMPLATE_ChooseAfterOther;/s
    or die "above-P0 six-band hazard/retained-P0 exception contract regressed\n";
 
@@ -212,6 +216,38 @@ expect_timing('all-six persistent visibility witness',100,
    '--set-zp',sprintf('0x%02x',$y_addr+3),'42',
    '--set-zp',sprintf('0x%02x',$y_addr+4),'42',
    '--set-zp',sprintf('0x%02x',$y_addr+5),'16',
+   '--verify-asymmetric-visibility',
+      sprintf('0x%02x',$y_addr),sprintf('0x%02x',$color_addr),
+      sprintf('0x%02x',$draw_addr),sprintf('0x%02x',$count_addr),
+   '--require-visible-mask','0x3f',
+   '--expect-memory',sprintf('0x%02x',$count_addr),'6');
+
+# User 23:00 staggered retained-X regression.  Sprites 0 and 2 share X and
+# are vertically disjoint while sprite 1 overlaps each separately.  Maximum
+# bitmap occupancy is two, so 0+2 can share one hardware player and 1 can use
+# the other.  The exact-six deferred retained-P0 proof makes this coloring
+# independent of backward-scan order; identity priority must render all six
+# sprites continuously rather than fairly rotating an avoidable omission.
+expect_timing('staggered retained-X all-six witness',100,
+   '--released-inputs',
+   '--set-zp',sprintf('0x%02x',$x_addr+0),'62',
+   '--set-zp',sprintf('0x%02x',$x_addr+1),'72',
+   '--set-zp',sprintf('0x%02x',$x_addr+2),'62',
+   '--set-zp',sprintf('0x%02x',$x_addr+3),'88',
+   '--set-zp',sprintf('0x%02x',$x_addr+4),'114',
+   '--set-zp',sprintf('0x%02x',$x_addr+5),'140',
+   '--set-zp',sprintf('0x%02x',$y_addr+0),'86',
+   '--set-zp',sprintf('0x%02x',$y_addr+1),'82',
+   '--set-zp',sprintf('0x%02x',$y_addr+2),'76',
+   '--set-zp',sprintf('0x%02x',$y_addr+3),'42',
+   '--set-zp',sprintf('0x%02x',$y_addr+4),'42',
+   '--set-zp',sprintf('0x%02x',$y_addr+5),'16',
+   '--set-zp',sprintf('0x%02x',$priority_addr+0),'0',
+   '--set-zp',sprintf('0x%02x',$priority_addr+1),'1',
+   '--set-zp',sprintf('0x%02x',$priority_addr+2),'2',
+   '--set-zp',sprintf('0x%02x',$priority_addr+3),'3',
+   '--set-zp',sprintf('0x%02x',$priority_addr+4),'4',
+   '--set-zp',sprintf('0x%02x',$priority_addr+5),'5',
    '--verify-asymmetric-visibility',
       sprintf('0x%02x',$y_addr),sprintf('0x%02x',$color_addr),
       sprintf('0x%02x',$draw_addr),sprintf('0x%02x',$count_addr),

@@ -1,12 +1,11 @@
 /*
- * Host-side model of the enhanced asymmetric VBLANK lane allocator.
+ * Host-side model of the enhanced asymmetric full-setup allocator baseline.
  *
  * This is intentionally tiny and independent of the 6502 implementation.  It
- * exists to make scheduler pathologies cheap to search: random X/Y layouts can
- * be evaluated millions of times without running a whole emulated video frame.
- * X is retained in the generated state because the next scheduler stage will
- * use horizontal pair feasibility, even though the current two-lane allocator
- * only depends on Y.
+ * makes the ordinary 15/12-band setup graph cheap to search and remains useful
+ * as a lower-bound/baseline oracle after retained-X continuation was added to
+ * the real renderer.  X is retained so deterministic witnesses can identify
+ * geometries where equal-X continuation beats this baseline graph.
  */
 #include <stdint.h>
 #include <stdio.h>
@@ -402,14 +401,11 @@ int main(int argc, char **argv)
     * Sprites 0/1/2 are NOT a three-way visible overlap.  With eight bitmap
     * bands, 0 occupies 86..79, 1 occupies 82..75, and 2 occupies 76..69:
     * at every band at most two are live.  The natural lane coloring is
-    * 0+2 on one lane and 1 on the other.  Nevertheless the present renderer
-    * must omit one of 0/1/2 because its allocation compatibility describes
-    * the longer position/setup pipeline (P0 15 bands, P1 12 bands, plus the
-    * directional 1..6 event hazard), not merely visible bitmap overlap.
-    *
-    * Keep this as an explicit known-deficit witness until a short same-lane
-    * continuation/reuse event is implemented.  Fair priority should rotate
-    * the unnecessary omission; it must not disguise it as starvation.
+    * 0+2 on one lane and 1 on the other.  This baseline full-setup graph must
+    * omit one because it models the long position/setup reservations only.
+    * The real renderer now beats this baseline with retained-X continuation;
+    * the Perl/6502 regression separately requires all six sprites to render.
+    * Keeping the old graph result here proves why the continuation is useful.
     */
    init_identity(&one);
    {
@@ -440,7 +436,7 @@ int main(int argc, char **argv)
          int k;
          schedule(&one, 1);
          if (one.accepted_count != 5) {
-            fprintf(stderr, "staggered-chain known-deficit witness changed before continuation support\n");
+            fprintf(stderr, "staggered-chain full-setup baseline changed unexpectedly\n");
             dump(&one);
             return 1;
          }
@@ -461,13 +457,12 @@ int main(int argc, char **argv)
     *   X={34,34,46,46,34,46}
     *   Y={90,76,82,68,61,58}
     *
-    * Its eight-band glyph intervals are still only two-deep, yet the current
-    * setup-reservation graph cannot schedule all six.  More importantly, the
-    * identity-priority greedy allocator accepts only four although the exact
-    * current-graph oracle can accept five.  This separates two remaining
-    * problems: avoidable greedy flicker (4 versus 5) and the retained-X
-    * continuation work needed to get from the current graph's optimum 5 to
-    * the visually possible six-sprite stream.
+    * Its eight-band glyph intervals are still only two-deep, yet the baseline
+    * full-setup graph cannot schedule all six.  More importantly, the baseline
+    * identity-priority greedy allocator accepts only four although its exact
+    * graph oracle can accept five.  The real renderer may improve on both with
+    * retained-X continuation; this model intentionally measures the older
+    * ordinary-setup lower bound rather than duplicating the 6502 machinery.
     */
    init_identity(&one);
    {
