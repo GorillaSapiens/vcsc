@@ -18,9 +18,24 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 43, add the public console/TIA diagnostic cartridge.
+Current next action: Item 43, efficient startup for simple RAM setup.
 
-[ ] 43. Add a public diagnostic cartridge that exercises and reports the supported
+[ ] 43. Efficient startup for simple RAM setup.
+
+        * The compiler should accept only the `void main(void);` signature.
+        * `main` is non-returning.  A fall-through/return from `main` must use
+          `JMP ($FFFC)` rather than `RTS`; startup must enter `main` with `JMP`,
+          not `JSR`, so no hardware-stack slot is wasted on an impossible return.
+        * The linker should detect when the abbreviated startup is safe and select
+          it automatically: no DATA copy, no runtime initializer work, and no
+          cartridge-RAM initialization requirement beyond the simple RIOT-RAM
+          clear handled by that startup.
+        * Preserve the full startup for programs whose initialized data, runtime
+          initializers, or mapper/cartridge RAM require it.
+        * Add compiler/linker/startup regressions proving both automatic choices
+          and the reset-vector fallback for an erroneous return from `main`.
+
+[ ] 44. Add a public diagnostic cartridge that exercises and reports the supported
         console switches, controller types, TIA objects, playfield, colors,
         collisions, and audio.
 
@@ -29,7 +44,7 @@ Current next action: Item 43, add the public console/TIA diagnostic cartridge.
         * Document required controller hookups and emulator configuration.
         * Verify every screen/mode with staged-toolchain and emulator-backed tests.
 
-[ ] 44. Add playfield-color support as an explicit renderer capability.
+[ ] 45. Add playfield-color support as an explicit renderer capability.
 
         * Define whether colors are global, per logical row, or both.
         * Schedule every COLUPF write against the beam.
@@ -38,7 +53,7 @@ Current next action: Item 43, add the public console/TIA diagnostic cartridge.
         * Add static, motion, transition, installation, and pixel/color-oracle
           coverage for every supported profile.
 
-[ ] 45. Add a public side-scroller/platform example.
+[ ] 46. Add a public side-scroller/platform example.
 
         * Demonstrate animated player sprites, horizontal world scrolling,
           platform/playfield collision, jumping/gravity, and camera/world-state

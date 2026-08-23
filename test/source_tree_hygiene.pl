@@ -666,10 +666,11 @@ index($context,'Immediate TODO')>=0
 $context !~ /^\s*\[x\]/m
    or die "compact context contains completed checklist history\n";
 
-$roadmap =~ /^Current next action: Item 43, add the public console\/TIA diagnostic cartridge\./m &&
-$roadmap =~ /^\[ \] 43\. Add a public diagnostic cartridge/m &&
-$roadmap =~ /^\[ \] 44\. Add playfield-color support/m &&
-$roadmap =~ /^\[ \] 45\. Add a public side-scroller\/platform example\./m &&
+$roadmap =~ /^Current next action: Item 43, efficient startup for simple RAM setup\./m &&
+$roadmap =~ /^\[ \] 43\. Efficient startup for simple RAM setup\./m &&
+$roadmap =~ /^\[ \] 44\. Add a public diagnostic cartridge/m &&
+$roadmap =~ /^\[ \] 45\. Add playfield-color support/m &&
+$roadmap =~ /^\[ \] 46\. Add a public side-scroller\/platform example\./m &&
 $roadmap !~ /^\s*\[x\]/m
    or die "main roadmap must contain only unfinished current work\n";
 

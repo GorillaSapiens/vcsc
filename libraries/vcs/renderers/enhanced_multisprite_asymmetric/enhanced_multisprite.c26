@@ -856,19 +856,19 @@ void TEMPLATE_vblank_worker(void) {
    asm beq.same @TEMPLATE_ChooseP1;
    // Return lane in bit0 and retained-X in bit7.  Keeping the flag in A avoids
    // a zero-page store on every ordinary accepted sprite.
+   asm ldx.z TEMPLATE_setup_sprite;
    asm lda.z TEMPLATE_position_packed;
    asm and #$80;
-   asm ldx.z TEMPLATE_setup_sprite;
    asm rts;
    asm @TEMPLATE_ChooseP1:;
    asm lda.z TEMPLATE_position_packed;
    asm and #2;
    asm beq.same @TEMPLATE_ChooseNone;
+   asm ldx.z TEMPLATE_setup_sprite;
    asm lda.z TEMPLATE_position_packed;
    asm and #$40;
    asm asl;
    asm ora #1;
-   asm ldx.z TEMPLATE_setup_sprite;
    asm rts;
    asm @TEMPLATE_ChooseNone:;
    // 0/1 are ordinary lanes and $80/$81 are retained lanes; 2 is the compact

@@ -110,11 +110,22 @@ Broader allocator quality is still unfinished for other occupancy<=2 layouts.
 Do not lower the 15/12 reservation distances or broad directional hazard windows;
 those shortcuts have already scheduled invisible sprites or lengthened frames.
 
+A newly exposed retained-X rendering bug is active. `ChooseLane` used to form
+$80/$81 for retained P0/P1 and then execute `LDX`, destroying the N flag before
+the caller's `BMI`; that flag-clobber is now fixed by loading X before the final
+A/flag-producing operations. With retained P0 now genuinely reachable, the
+existing retained-P0 route is visibly wrong: it skips repositioning but falls
+through the ordinary P0 setup pipeline, allowing stale GRP0/color state and
+placing the replacement bitmap at the wrong vertical phase. The user's 23:51/
+23:52 captures show the result as malformed 3/5 glyphs and a 5 that can appear
+higher in one frame than another.
+
 Immediate next work
 -------------------
-Continue interactive Stella testing of same/near-column layouts while priority
-evolves, then pursue any remaining avoidable occupancy<=2 omissions. If any
-263-line frame remains, save the exact X/Y/priority state and hold it for several
-frames. Treat real Stella as authoritative for line count; the CPU harness is
-still useful for deadline overruns but cannot see the pre-WSYNC instruction-phase
-boundary that caused this bug.
+Implement a dedicated retained-P0 graphics/color handoff path. It must preserve
+the already-correct X position, retire the previous GRP0/color at the correct
+band, and begin the successor bitmap at its requested Y without traversing the
+normal RESP/HMOVE setup states. Then add a real-6502/pixel regression that checks
+the actual glyph rows and vertical position (not merely nonzero graphics under
+the expected color), and rerun the focused asymmetric timing/visibility suite.
+Do not treat the current source as a completed renderer fix yet.

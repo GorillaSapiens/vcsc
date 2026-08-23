@@ -1,0 +1,19 @@
+2026-08-23 06:55:00 PDT, retained-P0 follow-up
+ENHANCED ASYMMETRIC RETAINED-P0 FOLLOW-UP
+==========================================
+
+* Added main-roadmap Item 43, "Efficient startup for simple RAM setup", ahead
+  of the previous roadmap items. It records that the compiler accepts only
+  `void main(void);`, main is non-returning, erroneous fall-through/return uses
+  `JMP ($FFFC)` rather than `RTS`, startup enters main with `JMP`, and the linker
+  should automatically select the abbreviated RIOT-BSS-only startup when safe.
+* Fixed one concrete retained-X dispatcher bug in
+  `enhanced_multisprite_asymmetric/enhanced_multisprite.c26`: the final `LDX` in
+  `ChooseLane` clobbered N after forming $80/$81, so the caller's `BMI` could
+  never reliably dispatch retained lanes. The X load now occurs before the
+  final A/flag-producing operations. This is byte/cycle-neutral.
+* That fix exposed the next real renderer defect: retained P0 currently skips
+  positioning but still traverses the ordinary P0 setup pipeline, producing
+  stale/recolored GRP0 data and a vertically late successor bitmap. The dedicated
+  retained-P0 graphics/color handoff requested by the user was not completed
+  before the message-stream interruption.

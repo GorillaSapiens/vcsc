@@ -88,14 +88,15 @@ Open workstreams
    The bridge-oracle and pre-WSYNC phase causes of 262/263 jitter are fixed; the
    exact Stella witnesses and held-layout dense-X stresses pass. The staggered
    0/1/2 occupancy-two cluster is also repaired by scan-order-independent exact-six
-   retained-P0 deferral and has a permanent all-six real-6502 regression. Continue
-   interactive testing and broader allocator-quality work for other avoidable
-   occupancy-two omissions.
+   retained-P0 deferral and has a permanent all-six real-6502 regression. A newly
+   exposed retained-P0 raster bug is active: retained-lane dispatch now reaches
+   the real path, but P0 still falls through ordinary setup and can leave stale/
+   vertically shifted graphics. The immediate next step is the dedicated retained-
+   P0 graphics/color handoff described in `.../enhanced_asymmetric.txt`.
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
-   work, when the user has not selected another task, begins with Item 43: the
-   public console/TIA diagnostic cartridge. Items 44 and 45 remain after it.
+   work, when the user has not selected another task, begins with Item 43: efficient startup for simple RAM setup. Items 44 and 45 remain after it.
 
 3. **Bankswitching**
    `.../bankswitching.txt` contains the durable cartridge model plus unfinished
