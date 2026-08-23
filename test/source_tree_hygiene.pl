@@ -185,25 +185,15 @@ my $sim_core_ignore=slurp(File::Spec->catfile($repo,'simulator','mos6502','.giti
 $sim_core_ignore =~ /^\*\.o\s*$/m && $sim_core_ignore =~ /^\*\.d\s*$/m
    or die "simulator/mos6502/.gitignore must ignore *.o and *.d\n";
 my $bankswitching=slurp(File::Spec->catfile($repo,'...','bankswitching.txt'));
-index($bankswitching,'BANK0                $F000-$FFFF')>=0
-   or die "bankswitching plan lost descending BANK0 logical origin\n";
-index($bankswitching,'VCSC BANK0 is always the final 4K chunk in the file')>=0
-   or die "bankswitching plan lost lowest-address-first output order\n";
-index($bankswitching,'[x] 2. Extend the cfg parser and linker image model for multiple full 4K banks.')>=0
-   or die "bankswitching plan no longer records the completed multi-bank image foundation\n";
-index($bankswitching,'[x] 3. Add per-bank vectors and same-offset reset bridges.')>=0
-   or die "bankswitching plan no longer records completed per-bank reset bridges\n";
-index($bankswitching,'[x] 10. Make archive selection, listings, map output, simulator execution,')>=0 &&
-index($bankswitching,'Stella is the authoritative end-to-end execution environment')>=0 &&
-$bankswitching =~ /every possible ordered source-bank\s+to destination-bank transition/ &&
-$bankswitching =~ /one cartridge\s+per mapper rather than one cartridge per transition/ &&
-$bankswitching =~ /stable final green-background\/white-PASS or dark-red-\s*background\/white-FAIL frame/ &&
-$bankswitching =~ /exact letters copied\s+from the default ASCII font/ &&
-$bankswitching =~ /six-glyph-wide score\s+component/ &&
-$bankswitching =~ /deliberately poisoned F8SC image/ &&
-$bankswitching =~ /exactly 262 scanlines/ &&
-$bankswitching =~ /proving read-window\/write-window\s+direction/
-   or die "bankswitching plan lost completed Stella bank diagnostics or future Superchip extension\n";
+length($bankswitching) <= 16 * 1024 &&
+index($bankswitching,'Never use bare "bank 0" without saying which identity is meant.')>=0 &&
+index($bankswitching,'file_index(BANKn) = bank_count - 1 - n')>=0 &&
+index($bankswitching,'Public VCSC cartridge profiles reserve four bytes')>=0 &&
+$bankswitching =~ /^\[ \] 38\. Reconsider the next tier: F0, FA2, and FC\. \*\*DEFERRED\.\*\*/m &&
+$bankswitching =~ /^\[ \] 39\. Backfill an E0 public diagnostic cartridge\./m &&
+$bankswitching =~ /^\[ \] 44\. Backfill a DPC public diagnostic cartridge\./m &&
+$bankswitching !~ /^\[x\]/m
+   or die "bankswitching hot record lost durable identities/open work or exceeded 16 KiB\n";
 -f File::Spec->catfile($test,'assembler_relocatable_zp_relaxation.pl') &&
 -f File::Spec->catfile($test,'linker_banked_archive_reporting.pl') &&
 -f File::Spec->catfile($test,'vcs_bankswitching_diagnostic.pl') &&
@@ -286,14 +276,6 @@ index($sim_readme,'The region name, window order,')>=0 &&
 index($sim_readme,'--reset-on-pc=ADDR')>=0 &&
 index($sim_readme,'--split-fill=BYTE')>=0
    or die "simulator documentation lost banked cfg/file-index/reset semantics\n";
-index($bankswitching,'[x] 12. Add Automatic allocation of variables into Superchip RAM.')>=0
-   or die "bankswitching plan no longer records completed automatic Superchip allocation\n";
-index($bankswitching,'mem cartram {')>=0 &&
-index($bankswitching,'$read_start:  0xF080')>=0 &&
-index($bankswitching,'$write_start: 0xF000')>=0 &&
-index($bankswitching,'uint8_t foo@[0xF080/0xF000];')>=0 &&
-index($bankswitching,'cartram uint8_t buffer[32];')>=0
-   or die "bankswitching plan lost exact Superchip read/write allocation syntax\n";
 -f File::Spec->catfile($test,'superchip_allocation.pl') &&
 -f File::Spec->catfile($test,'superchip_locals.pl') &&
 -f File::Spec->catfile($test,'superchip_static_locals.pl') &&
@@ -337,16 +319,6 @@ for my $cfg_name (qw(vcs_8k_f8sc.cfg vcs_16k_f6sc.cfg vcs_32k_f4sc.cfg)) {
    $cfg_body =~ /cartram:\s+read_start\s*=\s*\$F080,\s*write_start\s*=\s*\$F000,\s*size\s*=\s*\$0080,\s*type\s*=\s*rw/
       or die "$cfg_name lost the shared split-address Superchip MEMORY region\n";
 }
-index($bankswitching,'[x] 13. Add Superchip-backed local variables.')>=0 &&
-index($bankswitching,'[x] 14. Add Superchip-backed value parameters.')>=0 &&
-index($bankswitching,'[x] 15. Add Superchip-backed function return storage.')>=0 &&
-index($bankswitching,'[x] 21. Add explicit multi-bank duplication for immutable objects and functions.')>=0 &&
-index($bankswitching,'[x] 22. Coalesce a single returned automatic variable with `$$`.')>=0 &&
-index($bankswitching,'[x] 23. Integrate automatic Superchip initialization and lifecycle tests.')>=0 &&
-index($bankswitching,'bank0 bank1 const uint8_t table[] := { ... };')>=0 &&
-index($bankswitching,'Combining `inline` with any named bank/memory-region specification')>=0 &&
-index($bankswitching,'RETURN COALESCING')>=0
-   or die "bankswitching plan lost completed Superchip locals, bank duplication, return coalescing, or lifecycle rules\n";
 my $compiler_readme=slurp(File::Spec->catfile($repo,'compiler','README.md'));
 my $abi_text=slurp(File::Spec->catfile($repo,'compiler','ABI.txt'));
 my $linker_readme=slurp(File::Spec->catfile($repo,'linker','README.md'));
@@ -356,30 +328,7 @@ index($abi_text,'Returned-local coalescing')>=0 &&
 index($linker_readme,'`RETURN COALESCING` is descriptive')>=0 &&
 index($test_readme,'return_local_coalescing.pl')>=0
    or die "return-local coalescing documentation is incomplete\n";
-index($bankswitching,'[x] 24. Define generic C26 cartridge-output and bank topology.')>=0 &&
-index($bankswitching,'[x] 25. Make C26 `mem` declarations authoritative and derive output-bank ownership.')>=0 &&
-index($bankswitching,'[x] 26. Migrate existing cartridge profiles and add a direct-bank packaging profile.')>=0 &&
-index($bankswitching,'[x] 27. Move component-specific placement constraints out of cfg files.')>=0 &&
--f File::Spec->catfile($test,'linker_c26_mem_authority.pl') &&
--f File::Spec->catfile($test,'vcs_c26_cartridge_profiles.pl') &&
--f File::Spec->catfile($test,'assembler_component_constraints.pl') &&
-index($compiler_readme,'Complete declarations are authoritative linker metadata')>=0 &&
-index($compiler_readme,'configuration-only input')>=0 &&
-index($abi_text,'Authoritative memory-region metadata')>=0 &&
-index($linker_readme,'## Authoritative C26 memory regions')>=0 &&
-index($linker_readme,'constructs its internal direct or selector-controlled bank model')>=0 &&
-index($linker_readme,'## Component-owned placement and hidden-stack contracts')>=0 &&
-index($test_readme,'vcs_c26_cartridge_profiles.pl')>=0 &&
-index($test_readme,'assembler_component_constraints.pl')>=0 &&
-index($test_readme,'vcs_interactive_sprite_orientation.pl')>=0
-   or die "C26 profile migration, authoritative memory, or regression documentation is incomplete\n";
 
-index($bankswitching,'[x] 28. Add the first composable banked profile for the maintained standard renderer.')>=0 &&
-index($bankswitching,'37 cycles total, 25 more than direct JSR/RTS')>=0 &&
-index($compiler_readme,'bank0 page const uint8_t glyph[8]')>=0 &&
-index($test_readme,'vcs_standard_renderer_banked.pl')>=0 &&
-index($linker_readme,'VBLANK-only')>=0
-   or die "banked standard-renderer composition documentation is incomplete\n";
 my $banked_renderer_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','02_standard_renderer','Makefile'));
 $banked_renderer_make =~ /^all:\s+f8\.bin\s*$/m &&
 $banked_renderer_make =~ /^play:\s+f8\.bin\s*\n\s*stella\s+-bs\s+F8\s+f8\.bin\s*$/m &&
@@ -650,84 +599,18 @@ for my $name (qw(missing size start type)) {
    index($body,'expectlinkfail')<0
       or die "stale cfg $name regression still expects C26 allocator metadata to lose\n";
 }
-index($bankswitching,'[x] 5. Add the byte-identical common trampoline table and cross-bank JMP.')>=0 &&
-index($bankswitching,'STA  destination_hotspot')>=0 &&
-index($bankswitching,'JMP  (BANK0-mirror address of inline_target)')>=0 &&
-index($bankswitching,'target word never begins at page offset $FF')>=0
-   or die "bankswitching plan lost the completed inline-target JMP trampoline design\n";
-index($bankswitching,'[x] 6. Add JSR-to-indirect-JMP cross-bank calls and return stubs.')>=0 &&
-index($bankswitching,'JSR  body')>=0 &&
-index($bankswitching,'STA  source_hotspot')>=0 &&
-index($bankswitching,'__call_stack_weighted_depth')>=0
-   or die "bankswitching plan lost the completed cross-bank JSR return path\n";
-index($bankswitching,'[x] 7. Add placement constraints and deterministic automatic bank placement.')>=0 &&
-$bankswitching =~ /placement modes assign pinned components first in stable input order/ &&
-$bankswitching =~ /15 bytes and 25 extra cycles\s+for JSR, or 8 bytes and 6 extra cycles\s+for JMP/ &&
-index($bankswitching,'RODATA.bank1.__vcsc_object$level_table')>=0
-   or die "bankswitching plan lost completed deterministic automatic placement\n";
 -f File::Spec->catfile($test,'linker_banked_auto_placement.pl')
    or die "automatic bank-placement regression test is missing\n";
-index($bankswitching,'[x] 29. Improve automatic placement heuristics without changing semantics.')>=0 &&
-index($bankswitching,'`optimized` as the default')>=0 &&
-index($bankswitching,'`simple` as an explicit stable')>=0 &&
-index($bankswitching,'`--explain-bank-placement`')>=0 &&
-index($bankswitching,'refuses any cut')>=0 &&
-index($bankswitching,'weighted hardware-return depth')>=0
-   or die "bankswitching plan lost completed placement optimization and stack guard\n";
 -f File::Spec->catfile($test,'linker_banked_placement_modes.pl')
    or die "placement-mode optimization regression test is missing\n";
-index($bankswitching,'[x] 34. Add JANE.')>=0 &&
-$bankswitching =~ /\$1FF0, \$1FF1, \$1FF8, and\s+\$1FF9/ &&
-index($bankswitching,'hardware startup bank 1')>=0
-   or die "bankswitching plan lost completed JANE mapper support\n";
-index($bankswitching,'[x] 36. Add UA / UASW.')>=0 &&
-index($bankswitching,'(A & $1260)')>=0 &&
-index($bankswitching,'UASW')>=0 &&
-index($bankswitching,'[x] 37. Add 0FA0.')>=0 &&
-index($bankswitching,'(A & $16E0)')>=0 &&
-index($bankswitching,'[ ] 38. Reconsider the next tier: F0, FA2, and FC. **DEFERRED.**')>=0
-   or die "bankswitching plan lost completed UA/UASW/0FA0 support or Item 38 deferral\n";
-index($bankswitching,'30. Mapper-family policy gate — not an unfinished implementation item.')>=0 &&
-$bankswitching =~ /There is no\s+current action while no concrete program requires unsupported hardware/
-   or die "bankswitching plan no longer distinguishes the mapper-family policy gate from implementation work\n";
-index($bankswitching,'[x] 8. Add and certify `vcs_8k_f8.cfg`.')>=0
-   or die "bankswitching plan no longer records the certified F8 profile\n";
 -f File::Spec->catfile($repo,'libraries','vcs','vcs_8k_f8.cfg') &&
 -f File::Spec->catfile($test,'vcs_f8_profile.pl') &&
 -f File::Spec->catfile($test,'fixtures','bankswitching','f8_profile_diagnostic.c26')
    or die "certified F8 profile or its diagnostics are missing\n";
-index($bankswitching,'[x] 9. Add F6 and F4 through the same implementation.')>=0
-   or die "bankswitching plan no longer records certified F6/F4 profiles\n";
 -f File::Spec->catfile($repo,'libraries','vcs','vcs_16k_f6.cfg') &&
 -f File::Spec->catfile($repo,'libraries','vcs','vcs_32k_f4.cfg') &&
 -f File::Spec->catfile($test,'vcs_f6_f4_profiles.pl')
    or die "certified F6/F4 profiles or their regression test are missing\n";
-$bankswitching =~ /linker pins its private layout to the unique BANKS entry marked `startup=yes`/ &&
-$bankswitching =~ /The compiler does not interpret names such\s+as `bank0`/ &&
-$bankswitching =~ /orders unpinned components by decreasing byte size/
-   or die "bankswitching plan lost generic startup-main or constrained automatic placement\n";
-index($bankswitching,q{begin allocatable ROM at})>=0 &&
-index($bankswitching,'$x100')>=0
-   or die "bankswitching plan lost Superchip ROM-prefix reservation\n";
-index($bankswitching,'bank1 void some_function(void)')>=0 &&
-index($bankswitching,'$start:0xD100 $size:0x0E00')>=0
-   or die "bankswitching plan lost named function-region syntax or correct Superchip ROM span\n";
-index($bankswitching,'Every selector hotspot is reserved at the same low twelve-bit offset')>=0 &&
-index($bankswitching,'hotspot bytes may not become code or ordinary ROM data')>=0
-   or die "bankswitching plan lost per-bank hotspot reservation\n";
-index($bankswitching,'CARTRIDGE trampoline')>=0 &&
-index($bankswitching,'trampolinesize')>=0 &&
-index($bankswitching,'CARTRIDGE vectorbridge')>=0 &&
-index($bankswitching,'BIT BANK0_HOTSPOT; JMP __reset')>=0 &&
-index($bankswitching,q{F4's $1FFA and $1FFB selector})>=0
-   or die "bankswitching plan lost implemented vector bridge design\n";
-index($bankswitching,'Three bank identities must be kept separate')>=0 &&
-index($bankswitching,'F8      0           BANK1')>=0 &&
-index($bankswitching,'1           BANK0      $F000-$FFFF   $1FF9')>=0 &&
-index($bankswitching,'F4      0           BANK7')>=0 &&
-index($bankswitching,'7           BANK0      $F000-$FFFF   $1FFB')>=0 &&
-index($bankswitching,'file_index(BANKn) = bank_count - 1 - n')>=0
-   or die "bankswitching plan lost logical/file/hotspot identity tables\n";
 
 # The two complete drawscreen profiles remain installed intentionally.  They are
 # legacy compatibility/regression targets, not preferred component APIs and not
@@ -751,73 +634,52 @@ index($component_guide,'Retirement of these working profiles is not a completion
 my $context=slurp(File::Spec->catfile($repo,'...','context.txt'));
 my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
 my $ram_roadmap=slurp(File::Spec->catfile($repo,'...','ram_optimization.txt'));
-index($context,'Active workstream: `.../roadmap.txt`.')>=0 &&
-index($context,'The focused RAM-optimization roadmap is complete through its final ordinary-application')>=0 &&
-index($context,'RAM-roadmap items 0-14 are complete.')>=0 &&
-index($context,'The RAM optimization workstream is complete.')>=0 &&
-index($context,'The description is mandatory and at most 50 characters.')>=0 &&
-index($context,'The complete header line is')>=0 &&
-index($context,'Continuation/detail lines are not')>=0 &&
-index($context,'Main-roadmap item 23 is now complete:')>=0 &&
-index($context,'Main-roadmap items 27 and 28 also remain complete')>=0 &&
-index($context,'faithful_legacy_multisprite')>=0 &&
-index($context,'renderers/multisprite/multisprite.c26')>=0 &&
-index($context,'192- and 181-line')>=0 &&
-length($context) <= 100 * 1024
-   or die "compact context lost its completed item-23/item-28 pointers, completed RAM/assembly closeout, history-title policy, or size ceiling\n";
-$ram_roadmap =~ /^\[x\] 0\. Add authoritative RAM-accounting fixtures before optimizing\./m &&
-$ram_roadmap =~ /^\[x\] 1\. Add lifetime overlay between separate expressions inside one function\./m &&
-$ram_roadmap =~ /^\[x\] 2\. Stop duplicating scratch groups for repeated expansions of one inline/m &&
-$ram_roadmap =~ /^\[x\] 3\. Improve compact lowering for simple byte state updates\./m &&
-$ram_roadmap =~ /^\[x\] 4\. Make `install_frames\(\)` ordinary VCSC and establish a minimal-assembly/m &&
-$ram_roadmap =~ /^\[x\] 5a\. Separate hard page containment from explicit power-of-two alignment,/m &&
-$ram_roadmap =~ /^\[x\] 4a\. Recover high-level frame-installation ROM through the existing optimizer/m &&
-$ram_roadmap =~ /^\[x\] 5\. Overlay scratch across frame phases when contracts prove the lifetimes do/m &&
-$ram_roadmap =~ /^\[x\] 6\. Reduce the gallery's persistent bookkeeping without changing behavior\./m &&
-$ram_roadmap =~ /^\[x\] 7\. Reduce hardware-stack reservation by measurement, not by blanket inlining\./m &&
-$ram_roadmap =~ /^\[x\] 8\. Remeasure the animated gallery on the existing P0\/P1\/Ball renderer after/m &&
-$ram_roadmap =~ /^\[x\] 9\. Replace or redesign `game_object_masks` using an official-opcode direct-/m &&
-$ram_roadmap =~ /^\[x\] 10\. Investigate a more compact Ball\/object schedule without removing Ball\./m &&
-$ram_roadmap =~ /^\[x\] 10a\. Propagate the delayed-Ball row-boundary repair and RAM cleanup through/m &&
-$ram_roadmap =~ /^\[x\] 11\. Only if a generally useful capability split is still justified, create a/m &&
-$ram_roadmap =~ /^\[x\] 12\. Only if a generally useful capability split is still justified, create an/m &&
-$ram_roadmap =~ /^\[x\] 13\. Establish completion gates and choose the retained architecture\./m &&
-$ram_roadmap =~ /^\[x\] 14\. Remove remaining ordinary application assembly recorded by the example allowlist\./m &&
--f File::Spec->catfile($repo,qw(test fixtures vcs_animated_gallery_ram_accounting golden.json))
-   or die "RAM-optimization roadmap, measured optimizer follow-up, or authoritative accounting fixture is stale\n";
-$roadmap !~ /^\s*\[ \]\s+22i4d\./m
-   or die "obsolete active roadmap item 22i4d was restored\n";
+my %hot_limits=(
+   'README.md' => 8*1024,
+   'context.txt' => 16*1024,
+   'roadmap.txt' => 12*1024,
+   'bankswitching.txt' => 16*1024,
+   'disassembler.txt' => 16*1024,
+   'enhanced.txt' => 12*1024,
+   'enhanced_asymmetric.txt' => 20*1024,
+   'ram_optimization.txt' => 8*1024,
+   'inline_roadmap.txt' => 8*1024,
+   'video_standard_roadmap.txt' => 8*1024,
+   'instruction.txt' => 8*1024,
+);
+my $hot_total=0;
+for my $name (sort keys %hot_limits) {
+   my $body=slurp(File::Spec->catfile($repo,'...',$name));
+   my $bytes=length($body);
+   $bytes <= $hot_limits{$name}
+      or die ".../$name exceeds compact hot-record limit: $bytes > $hot_limits{$name}\n";
+   $hot_total += $bytes;
+}
+$hot_total <= 64*1024
+   or die "developer hot records exceed 64 KiB total: $hot_total\n";
+
+index($context,'Active workstream: `.../enhanced_asymmetric.txt`.')>=0 &&
+index($context,'hard 16 KiB ceiling')>=0 &&
+index($context,'Completed narratives belong in `.../context-history/YYYY-MM-DD.txt`.')>=0 &&
+index($context,'Current unresolved bug: some fixed complete sprite-position sets still')>=0 &&
+index($context,'multiple consecutive')>=0 &&
+index($context,'Immediate TODO')>=0
+   or die "compact context lost hot-state discipline or the active multi-frame timing bug\n";
+$context !~ /^\s*\[x\]/m
+   or die "compact context contains completed checklist history\n";
+
 $roadmap =~ /^Current next action: Item 43, add the public console\/TIA diagnostic cartridge\./m &&
-$roadmap =~ /^\[x\] 39\. Add CBS FA \/ RAM Plus cartridge output support/m &&
-$roadmap =~ /^\[x\] 41\. Identify other low-hanging-fruit Atari 2600 mapper families/m &&
-$roadmap =~ /^\[x\] 42\. Generalize automatic code\/RODATA placement across compatible regions in/m &&
 $roadmap =~ /^\[ \] 43\. Add a public diagnostic cartridge/m &&
-$roadmap =~ /^\[x\] 27\. Inventory and define the source-integration contract/m &&
-$roadmap =~ /^\[x\] 28\. Port and verify the minimal unbanked, non-Superchip multisprite profile/m &&
-index($roadmap,'faithful fixed baseline complete')>=0 &&
-index($roadmap,'1472/4090 ROM bytes')>=0 &&
-index($roadmap,'122 state +')>=0 &&
-index($roadmap,'6 hardware-stack = 128/128 RIOT-RAM bytes')>=0 &&
-index($roadmap,'one renderer source parameterized by visible scanline')>=0 &&
-$roadmap =~ /^\s*\[x\] 22d1\. Hard-cut the source keyword from `template` to/m
-   or die "main roadmap lost completed FA/mapper-survey status, placement prerequisites, diagnostic follow-up, or completed item-27/item-28 state\n";
-$roadmap =~ /^\s*\[x\] 22i4b5\./m
-   or die "two-plus-two score roadmap leaf is not complete\n";
-$roadmap =~ /^\s*\[x\] 22i4b6\./m
-   or die "composition-matrix roadmap leaf is not complete\n";
-$roadmap =~ /^\s*\[x\] 22i4c1\./m
-   or die "public composition-matrix roadmap leaf is not complete\n";
-$roadmap =~ /^\[x\] 24\. Add a widely spaced six-glyph score-display variant\./m
-   or die "widely spaced score roadmap item is not complete\n";
-$roadmap =~ /^\[x\] 29\. Add general 8K-and-larger Atari cartridge bankswitching/m &&
-$roadmap =~ /^\[x\] 30\. Add Superchip cartridge RAM support/m
-   or die "main roadmap lost completed banking or Superchip status\n";
-$roadmap =~ /^\s*\[x\] 22i4\./m
-   or die "visible-component roadmap gate is not complete\n";
-$roadmap =~ /^\[x\] 34\./m
-   or die "animated-sprite roadmap item is not complete\n";
-$roadmap !~ /Task 22 remains the active roadmap family/
-   or die "stale task-22 active-roadmap summary was restored\n";
+$roadmap =~ /^\[ \] 44\. Add playfield-color support/m &&
+$roadmap =~ /^\[ \] 45\. Add a public side-scroller\/platform example\./m &&
+$roadmap !~ /^\s*\[x\]/m
+   or die "main roadmap must contain only unfinished current work\n";
+
+index($ram_roadmap,'No unfinished items.')>=0 &&
+index($ram_roadmap,'test/fixtures/vcs_animated_gallery_ram_accounting/golden.json')>=0 &&
+$ram_roadmap !~ /^\s*\[x\]/m &&
+-f File::Spec->catfile($repo,qw(test fixtures vcs_animated_gallery_ram_accounting golden.json))
+   or die "RAM closeout lost durable accounting authority or regained completed checklist history\n";
 
 $context !~ /^Change log$/m
    or die "compact context regained an embedded chronological changelog\n";
@@ -1033,15 +895,6 @@ my $snapshot_keys=slurp(File::Spec->catfile($test,'stella_snapshot_keys.pl'));
 index($snapshot_keys,"'--reset'")>=0 &&
 index($snapshot_keys,"function_keycode('F2')")>=0
    or die "Stella bank diagnostics lost console-reset lifecycle coverage\n";
-index($bankswitching,'[x] 11. Add explicit-binding Superchip profiles.')>=0 &&
-index($bankswitching,'[x] 31. Add 4KSC as the first low-hanging-fruit mapper.')>=0 &&
-index($bankswitching,'[x] 32. Add OMNI for OmniCart PHM direct addressing.')>=0 &&
-index($bankswitching,'[x] 33. Add CV / CommaVid.')>=0 &&
-index($bankswitching,'[x] 34. Add JANE.')>=0 &&
-index($bankswitching,'[x] 35. Add 0840 / EconoBanking.')>=0 &&
-index($bankswitching,'[x] 36. Add UA / UASW.')>=0 &&
-index($bankswitching,'[x] 37. Add 0FA0.')>=0
-   or die "explicit-binding Superchip roadmap item is not complete\n";
 index($top_make,'libraries/vcs/vcs_4k_sc.c26')>=0 &&
 index($top_make,'libraries/vcs/vcs_4k_sc.cfg')>=0 &&
 index($top_make,'libraries/vcs/vcs_8k_f8sc.c26')>=0 &&

@@ -1,333 +1,51 @@
 ENHANCED MULTISPRITE SIDE QUEST
 ===============================
 
-Source lineage
---------------
-Authoritative input archive for the current work:
+Purpose
+-------
+Durable state for the symmetric experimental 192-line player-only renderer.
+Completed debugging history was moved to `.../context-history/`; the full
+pre-cleanup document is archived in 2026-08-22.
 
-    vcsc.20260819_001206.tar.gz
-
-The user said the only change from the previous handoff was renaming the old
-`stego` directory/executable to `tagger`. Preserve that rename. Do not substitute
-an older enhanced-multisprite WIP archive.
-
-Goal
-----
-Build a 192-visible-line multisprite renderer that treats both TIA player
-objects as reusable hardware lanes. The existing maintained
-`renderers/multisprite/` remains unchanged.
-
-The intended logical behavior is:
-
-* one active logical sprite: solid;
-* two sprites sharing scanlines: one on P0 and one on P1, both solid;
-* three or more sharing scanlines: render a fair rotating two-of-N subset, e.g.
-  for three fully overlapping sprites: 0/1, 1/2, 2/0 on successive frames;
-* any logical sprite may use either P0 or P1; P0 is not permanently sprite 0;
-* non-overlapping logical sprites may reuse a hardware player later in the same
-  frame.
-
-Current implementation
-----------------------
+Paths
+-----
 Renderer:
 
     libraries/vcs/renderers/enhanced_multisprite/enhanced_multisprite.c26
-    libraries/vcs/renderers/enhanced_multisprite/README.md
 
 Public example:
 
     examples/18_enhanced_multisprite/01_192/01_interactive/
 
-Regressions:
+Focused tests:
 
     test/vcs_enhanced_multisprite.pl
     test/vcs_enhanced_multisprite.cpp
     test/vcs_enhanced_multisprite_stella.pl
 
-Optional independent pixel oracle:
+Goal and durable architecture
+-----------------------------
+* Six logical sprites may use either TIA player. One/two-way overlap is solid;
+  3+-way overlap uses persistent rotating two-of-N service.
+* Non-overlapping logical sprites may reuse a physical player later in the frame.
+* Raster is 192 visible lines / 96 two-line logical bands; public Y is 0..89 and
+  X is 0..159.
+* Scheduling occurs during VBLANK with bounded event ordering. P0 and P1 have
+  intentionally different physical setup lead times but symmetric logical
+  assignment.
+* Horizontal position uses the renderer-local 160-byte packed RESP/HMP table.
+  Do not copy the maintained multisprite table; its HMOVE phase is different.
+  Setup line B must begin directly with `STA HMOVE` unless the table is
+  recalibrated in Stella.
+* Same-lane reservations include attribute/setup/bitmap work; current safe reuse
+  distances are 15 logical Y units for P0 and 12 for P1.
+* Do not modify/replace `renderers/multisprite/`; it remains the maintained
+  compatibility and timing oracle.
 
-    make stella-enhanced-multisprite-test STELLA=/path/to/stella
-
-The public example uses the existing maintained multisprite interactive controls:
-Game Select cycles logical sprites, the left joystick moves the selected sprite,
-and Reset restores the initial scene.
-
-The initial scene deliberately contains:
-
-* sprites 0/1/2 at the same Y, exercising fair three-way two-of-three rotation;
-* sprites 3/4 at the same Y, exercising solid two-way overlap;
-* sprite 5 isolated, exercising hardware-player reuse later in the frame.
-
-Current public example accounting is 2621 ROM bytes and 106 RAM bytes including
-eight hardware-stack bytes, leaving 1469 ROM bytes and 22 RAM bytes in a 4K cart.
-The extra stack pair comes from moving the VBLANK scheduler out of the caller's
-inline code so scheduler branch/layout changes cannot disturb the visible raster.
-
-Architecture
-------------
-This first profile is intentionally player-only. It does not yet render M0, M1,
-Ball, or playfield data.
-
-The raster owns 192 visible NTSC scanlines as 96 two-scanline logical bands.
-All six logical sprites are eight rows tall, with each bitmap row held for two
-physical scanlines.
-
-Scheduling is done during VBLANK. The scheduler assigns accepted logical sprite
-intervals to two hardware lanes. Logical assignment is symmetric, but the beam
-setup schedule is intentionally asymmetric:
-
-* P0 is repositioned four logical bands above the sprite top and uses delayed
-  activation;
-* P1 is repositioned one logical band above the sprite top.
-
-This lets equal-Y sprites be prepared on separate setup bands and then appear
-simultaneously on P0/P1.
-
-The VBLANK scheduler now runs in its own function/code section. During lane
-allocation, `event_order[0..setup_index-1]` is also the compact list of sprites
-already accepted this frame. ChooseLane scans only that list, so six candidates
-perform at most 15 real conflict checks instead of the old 36 fixed six-slot
-scans. Accepted setup records are then sorted by a fixed 12-comparator six-input
-sorting network. The sorting cost is bounded and independent of vertical order;
-`event_order[]` becomes the descending event order plus sentinel index 6.
-Persistent logical-sprite priority is separate from event scratch and promotes
-the last omitted sprite for fair frame-to-frame rotation.
-
-Current public Y range is 0..89 for every logical sprite. X range is 0..159.
-The renderer keeps the same aligned graphics layout and public X/Y/color/NUSIZ
-aliases as the maintained multisprite renderer so the shared interactive code
-can be reused.
-
-Horizontal-position architecture
---------------------------------
-Do NOT copy the maintained `multisprite` packed position table into this
-renderer. That table is calibrated for a different late-HMOVE raster phase.
-Doing so caused ordinary X positions to land roughly eight pixels off and made
-right-edge positions wrap incorrectly.
-
-The enhanced renderer now has its own 160-byte packed position table. The low
-nibble is coarse_count-1 and the high nibble is HMPx. Setup line A performs the
-packed countdown and strobes RESP0/RESP1. After the WSYNC that closes line A,
-`STA HMOVE` is deliberately the first instruction on setup line B. Moving HMOVE
-behind a JMP changes the TIA phase and invalidates the table.
-
-The table was derived empirically in Stella 7.0 by exercising all 176 safe
-controls (16 fine-motion nibbles x coarse counts 1..11). With line-B HMOVE at
-its current phase those controls cover all 160 hardware-player origins with no
-gaps. Public X follows VCSC's existing multiplexed-player origin convention, so
-entry X selects calibrated full-width hardware origin X-1 modulo 160.
-
-The regression pins the table bytes by SHA-256:
-
-    d550adb50aee0badf340a4dba0f6a66c4956afd41046408529813f8ba56db324
-
-If the table or RESP/HMOVE phase changes, rerun the independent Stella
-calibration instead of hand-adjusting constants.
-
-Important bugs already found and fixed
---------------------------------------
-Do not regress into these earlier versions:
-
-1. The first WIP had Y-dependent visible-raster control flow. Moving sprites
-   vertically changed cycle counts and produced unstable frames (observed around
-   268..274 raw harness lines in bad cases). The visible raster was rewritten as
-   a calibrated two-line-band machine so setup/draw paths return through fixed
-   scanline boundaries.
-
-2. An early timing sweep accidentally held the simulated Reset switch active,
-   which restored the initial scene every frame and made the sweep meaningless.
-   The current generated sweep ROMs keep RIOT controls released.
-
-3. Fair arbitration was briefly broken because VBLANK reused the persistent
-   priority array as temporary event scratch after promoting an omitted sprite.
-   That erased the promotion, causing the same sprite to lose every frame. Event
-   scratch is now separate; the three-way 0/1 -> 1/2 -> 2/0 behavior is tested.
-
-4. The first stable-timing rewrite copied the maintained multisprite P1 packed
-   horizontal table. Its RESP/HMOVE phase did not match this raster, so otherwise
-   valid code rendered about eight pixels off and X=152..159 wrapped badly.
-   Attempts to compensate by rotating that table or by borrowing the standard
-   divide-by-15 positioner exposed additional first-bucket/scanline-budget
-   problems. The final fix is the renderer-local Stella-calibrated packed table
-   described above.
-
-5. The setup line originally reached `HMOVE` through a JMP after WSYNC. That
-   delayed HMOVE by three CPU cycles and created gaps/duplicates in the reachable
-   horizontal origins. Line B now begins directly with `STA HMOVE`; the 176-control
-   Stella sweep then covered all 160 positions.
-
-6. The first apparently-stable scheduler regression moved all six Y coordinates
-   together. That preserved most relative ordering and completely missed the
-   interactive case where one selected sprite moves through five stationary
-   sprites. The user exposed 265/266-line frames simply by moving sprite 0 down.
-   Reproducing that exact motion showed the visible 192-line raster was not
-   overrunning; `game_vblank()` was sometimes missing the shared 37-line NTSC
-   VBLANK deadline. A first fairness optimization fixed smooth single-sprite
-   motion but randomized six-Y stress still found bad permutations (including
-   61,19,1,25,69,47 and later 35,61,80,71,43,88). The root causes were the
-   data-dependent insertion sort and ChooseLane scanning all six logical slots
-   for every candidate. The current scheduler uses a fixed 12-comparator sorting
-   network and scans only already-accepted sprites (maximum 15 conflict checks).
-   VBLANK also lives out-of-line from the visible renderer, eliminating the old
-   need for dead phase-padding bytes.
-
-Integration fixes after first full user `make`
-----------------------------------------------
-The first packaged enhanced renderer exposed three integration failures in the
-user's complete E2E suite. They are fixed in this checkpoint:
-
-* Every conditional branch in the hand-written enhanced renderer now has an
-  explicit `.same` or `.cross` timing contract. `.cross` is not discouraged: it
-  is required when the taken path deliberately needs the NMOS 6502 four-cycle
-  page-cross case. An earlier integration fix got this wrong and replaced the
-  end-of-frame branch with `BMI.same` plus a trampoline/JMP, making the taken
-  path slower rather than preserving its intended timing.
-
-  The corrected renderer does not use that trampoline. `DrawDone` is too far
-  away for a hard short-relative `.cross`, so the end test now occurs across
-  the existing WSYNC boundary:
-
-      dec.z pair_y
-      sta WSYNC
-      bpl.same NormalLineA
-      jmp DrawReturn
-
-  On ordinary bands the three-cycle taken `BPL.same` exactly replaces the old
-  three-cycle `JMP NormalLineA` at the start of the next scanline. On the final
-  band the branch is not taken and the absolute exit happens after WSYNC, in
-  overscan, so it cannot perturb visible-raster timing. Two byte-neutral timing
-  cleanups keep the backward BPL within short-relative range: the fallthrough
-  into NormalLineB uses a 3-cycle `BIT.z` instead of a 3-cycle JMP-to-next-label,
-  and known-N-clear transfers in line A use 3-cycle `BPL.same` in place of JMP.
-* `test/vcsc_disassembler_hardening.pl` now follows the user's `stego` ->
-  `tagger` / `vcsc-tag` rename and builds `tagger/tagger.c` for its standalone
-  smoke test.
-* `test/version_header_generation.pl` now checks `tagger/Makefile` rather than
-  the removed `stego/Makefile`.
-
-The three user-reported regressions (`vcs_renderer_branch_contracts.pl`,
-`vcsc_disassembler_hardening.pl`, and `version_header_generation.pl`) all pass,
-as does `vcs_enhanced_multisprite.pl` afterward.
-
-Current automated validation
-----------------------------
-These focused checks pass in the saved tree:
-
-    perl test/vcs_enhanced_multisprite.pl REPO TMP
-
-Output:
-
-    vcs_enhanced_multisprite ok: 192-line symmetric P0/P1 multiplexer,
-    randomized timing stress, fair 3-6-way arbitration
-
-That regression checks:
-
-* the public example builds as a 4K ROM;
-* static frame timing;
-* 997-measured-frame whole-formation Y and combined X/Y sweeps;
-* every logical sprite moving independently through Y in both directions while
-  the other five remain fixed;
-* three deterministic pseudo-random seeds, 4,997 measured frames each, mutating
-  all six Y bytes independently at every VSYNC while requiring 262 lines;
-* both P0 and P1 are used;
-* actual 3-, 4-, 5-, and 6-way pileups each emit exactly two logical sprites per
-  frame, every pile member appears exactly twice per N-frame rotation, and the
-  N-frame rotation repeats;
-* the public three-way example's separate two-way overlap and isolated sprite
-  remain solid;
-* the calibrated 160-byte X table hash;
-* immediate line-B HMOVE phase on both hardware lanes.
-
-Temporary stress during this work also ran 19,997 consecutive frames with all
-six Y values pseudo-randomized every frame after the final scheduler rewrite; no
-frame-length failure occurred. The generic `vcs_frame_timing.cpp` harness now has
-a `--randomize-zp ADDR COUNT MODULUS SEED` option so this class of state-dependent
-blanking regression can be tested without spending cartridge overscan cycles on
-random-number generation.
-
-The independent Stella 7.0 pixel oracle also passes:
-
-    perl test/vcs_enhanced_multisprite_stella.pl REPO TMP
-
-Output:
-
-    Stella enhanced multisprite pixels passed: calibrated X edges,
-    symmetric lanes, exact setup-handoff glyph/color rows, solid overlap,
-    and top reach
-
-It forces logical sprites onto opposite hardware lanes by reversing priority,
-checks left-edge and X=159 wrap placement without horizontal overlap, requires
-equal-Y sprites to occupy the same 16 physical rows, checks the legal top Y,
-and compares every P0-colored pixel against the declared eight-row glyph at the
-known-bad setup-handoff Y positions 64, 52, 44, 28, and 25. A separate case
-forces logical sprite 0 through hardware P1.
-
-The existing maintained multisprite Stella oracle still passes unchanged:
-
-    perl test/vcs_multisprite_stella.pl REPO TMP
-
-and the following also pass:
-
-    perl test/example_assembly_allowlist.pl REPO
-    perl test/source_tree_hygiene.pl REPO
-
-Visual handoff/color fixes after user validation
------------------------------------------------
-A second interactive Stella pass found stable 262-line frames but visible glyph
-corruption while moving sprite 0 vertically: duplicated/missing rows, misplaced
-fragments, and colors briefly attached to the wrong glyph. The black bars at the
-left edge are normal TIA HMOVE combs and are deliberately not treated as a
-renderer defect.
-
-Two independent raster bugs caused the real corruption:
-
-* A setup band replaces ordinary line A. The old PrepareSetup0/PrepareSetup1
-  code advanced the opposite lane's cached bitmap row but never published the
-  row that ordinary line A would have written. Depending on where another
-  sprite's setup landed, the continuing sprite could repeat one row and lose
-  another. The setup entry now preserves the currently due opposite-lane row in
-  Y, advances current_gfx for the following band, loads the packed position into
-  X before WSYNC, then begins setup line A with `STY GRPother; TXA`. That is the
-  same five-cycle prefix as the old `LDA position_packed; NOP`, so the calibrated
-  RESP/HMOVE phase and 160-byte X table are unchanged.
-
-* Same-lane conflict windows covered positioning plus the bitmap but not the
-  earlier attribute write. At the boundary, a lower sprite could write COLUPx
-  while the upper sprite's final physical scanline was still visible. Stella
-  reproduced this as a one-line fragment of the old glyph in the new color.
-  Empirical boundary checks show the safe reuse distances are 15 Y units for P0
-  and 12 for P1. The allocator now reserves those complete
-  attribute/setup/bitmap intervals.
-
-The strengthened Stella oracle now checks exact P0 glyph pixels (not merely
-color extent) at Y=64,52,44,28,25, the positions that exposed the old bugs, and
-also forces logical sprite 0 onto hardware P1. Any duplicated, missing, shifted,
-or recolored row fails because the oracle compares the complete colored pixel
-set against the declared eight-row glyph. CPU/source regression also pins the
-15/12 reuse windows and the cycle-neutral `STY GRPother; TXA` setup prefixes.
-
-What still needs to be done
----------------------------
-The next useful step is another USER/interactive Stella validation of the
-visual-handoff fix above. The previous passes exposed first VBLANK deadline
-misses and then per-row setup/color corruption that CPU-only timing could not
-see. Automated Stella now covers the exact known bad Y boundaries, but the
-interactive feel/flicker of moving and crossing piles still needs human eyes.
-Aggressively exercise:
-
-* vertical motion through the full legal Y range;
-* X motion through both edges while moving vertically;
-* two-way overlap at many X separations;
-* three-way overlap while moving the whole pile vertically;
-* four-, five-, and six-way pileups to judge flicker fairness;
-* sprites crossing each other vertically, which changes lane/event ordering;
-* top and bottom legal Y limits;
-* rapid Game Select changes and Reset.
-
-Watch Stella's displayed scanline count while doing this. It must stay at 262.
-If the visual behavior is clean, this 192-line player-only renderer is a good
-checkpoint. Do not expand it with playfield, missiles, Ball, 181-line support,
-or other features until the user has accepted the interactive 192-line behavior.
-
-Do not replace or modify the existing `renderers/multisprite/` while finishing
-this side quest. It remains the compatibility/timing oracle.
+Open work
+---------
+The renderer is waiting only on any further user interactive Stella validation.
+If resumed, exercise moving/crossing 3-6-way piles, both X edges, full Y range,
+and top/bottom limits while watching Stella's scanline count. Keep expansion to
+playfield/missiles/Ball/181-line profiles out of this side quest until the
+player-only behavior is accepted.

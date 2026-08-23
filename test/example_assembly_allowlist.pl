@@ -14,7 +14,6 @@ use File::Spec;
 my $repo=abs_path(shift @ARGV // die "usage: $0 REPO\n");
 die "usage: $0 REPO\n" if @ARGV;
 my $fixture=File::Spec->catfile($repo,qw(test fixtures example_assembly_allowlist.tsv));
-my $roadmap=File::Spec->catfile($repo,'...','ram_optimization.txt');
 
 sub slurp {
    my($path)=@_;
@@ -52,10 +51,6 @@ for my $line (split /\n/,slurp($fixture)) {
    exists $expected{$path} and die "duplicate assembly allowlist path: $path\n";
    $expected{$path}={count=>0+$count,digest=>$digest};
 }
-
-my $roadmap_text=slurp($roadmap);
-$roadmap_text =~ /Remove remaining ordinary application assembly recorded by the example allowlist\./
-   or die "compiler-limitation example assembly has no named roadmap follow-up\n";
 
 my %actual;
 my $examples=File::Spec->catdir($repo,'examples');

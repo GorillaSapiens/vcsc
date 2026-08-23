@@ -1,107 +1,18 @@
-VCSC PAL + SECAM VIDEO-STANDARD ROADMAP
-=======================================
+VCSC PAL / SECAM VIDEO-STANDARD -- DURABLE CLOSEOUT
+==================================================
 
-Purpose
--------
-Implement PAL and SECAM together as one 50 Hz video-standard workstream. Share
-frame/timing infrastructure where the hardware contract is genuinely common,
-but keep PAL and SECAM explicit public profiles because their color behavior is
-not interchangeable. NTSC output must remain byte-for-byte stable.
+Status
+------
+No unfinished items. Completed implementation history is archived in
+`.../context-history/`; the full pre-cleanup roadmap is in 2026-08-22.
 
-Status legend: [ ] not started, [~] partial, [x] complete.
-
-0. [x] Shared 50 Hz frame infrastructure
-   * Define the common 76-CPU-cycle scanline and measured 312-line 50 Hz frame
-     contract: 3 VSYNC + 45 VBLANK + 228 visible + 36 overscan.
-   * Put common scheduler mechanics in one directly-instantiated source module;
-     expose thin `frame_pal.c26` and `frame_secam.c26` front ends with distinct
-     public names and diagnostics.
-   * Calibrate PAL/SECAM RIOT TIM64T phase deadlines independently of NTSC and
-     verify phase entry/return contracts in the CPU scheduler harness.
-   * Verify Stella recognizes stable PAL50 and SECAM50 frames and does not change
-     any existing NTSC scheduler output.
-   * Unit/E2E coverage: compile both front ends, exact constants, timer preloads,
-     frame length, VBLANK boundaries, overrun diagnostics, installed files.
-
-1. [x] PAL palette and compile-time RGB matching
-   * Add `__builtin_pal_rgb(r,g,b)` using the project-selected Stella-compatible
-     PAL reference palette and a public `color_pal.c26` alias set.
-   * Keep PAL color-loss behavior explicit: palette matching chooses a TIA byte;
-     the alternating-line color-loss effect is a display property, not a fake
-     second palette baked into the matcher.
-   * Unit/E2E coverage: exact reference colors, nearest-color tie behavior,
-     argument/range diagnostics, no NTSC palette regression.
-
-2. [x] SECAM palette and legal-color contract
-   * Add a SECAM compile-time color matcher/mapping based on the eight distinct
-     SECAM colors. Make legal mappings explicit rather than reusing PAL bytes.
-   * Add `color_secam.c26`, including clear legal-color aliases and diagnostics
-     for requested color/effect contracts that SECAM cannot represent faithfully.
-   * Unit/E2E coverage: all eight colors, mapping/range diagnostics, and explicit
-     rejection/warning cases as appropriate.
-
-   Completed: `__builtin_secam_rgb()` maps through the eight-color SECAM
-   reference set and returns canonical low even TIA bytes; `color_secam.c26`
-   exposes only those eight public aliases. Higher-level callers therefore cannot
-   accidentally request a ninth SECAM color through the typed palette surface.
-   Raw numeric TIA color writes remain the documented low-level escape hatch and
-   are intentionally not diagnosed because the compiler cannot infer their display
-   intent. Compile/E2E tests lock all eight colors and generic builtin diagnostics.
-
-3. [x] 50 Hz audio/timing helpers
-   * Add PAL/SECAM audio constants only where the machine clock changes the TIA
-     result; share frame-rate helpers where both standards are identical.
-   * Keep NTSC `sound_ntsc.c26` unchanged.
-   * Unit/E2E coverage: note/control aliases and frame-duration helpers.
-
-4. [x] Renderer/component portability profiles
-   * Classify every maintained visible component as timing-portable, palette-
-     portable with recoloring, or unavailable on PAL/SECAM.
-   * Port reusable renderers only when the 228-line visible composition and
-     VBLANK/overscan callback budgets are measured. Do not scatter PAL/SECAM
-     conditionals through NTSC renderer bodies.
-   * Add PAL/SECAM-specific profile wrappers or template parameters only where
-     their timing contracts remain independently testable.
-   * Unit/E2E coverage: exact 312-line frames and raster equivalence where the
-     geometry is intended to be shared.
-
-5. [x] Public examples and emulator-backed acceptance
-   * Add minimal PAL and SECAM cartridges plus at least one representative
-     gameplay/component composition for each standard.
-   * Force the intended Stella display format in tests and verify frame/raster
-     output; verify PAL color-loss expectations and SECAM eight-color behavior.
-   * Document which source assets/colors are portable and which require a
-     standard-specific palette.
-
-6. [x] Installation, docs, and final integration
-   * Install all new public frame/color/sound/profile files and examples.
-   * Update `libraries/vcs/README.md`, renderer authoring guidance, examples, and
-     top-level install/uninstall/installcheck coverage.
-   * Run the complete compile/E2E/installcheck matrices, with NTSC regression
-     hashes/timing unchanged.
-   * Mark main-roadmap items 32 and 33 complete together only when both PAL and
-     SECAM meet their acceptance criteria.
-
-Completion summary
-------------------
-PAL and SECAM now share one measured 50 Hz scheduler core while retaining distinct
-public frame, color, and sound front ends. The common frame is 312 lines: 3 VSYNC,
-45 VBLANK, 228 visible, and 36 overscan. PAL RGB matching uses the Stella-compatible
-128-entry reference palette; SECAM exposes the eight canonical display colors.
-Shared 50 Hz sound helpers provide frame-duration constants and the public PAL/SECAM
-front ends preserve distinct machine identities. Maintained scheduler-neutral C26
-renderers/components are classified as timing-portable; legacy full-frame renderers
-remain explicitly NTSC-only. Public examples are organized under separate `examples/17_video_standards/pal/`
-and `secam/` subtrees, each with local `00_blank` and `01_all_five` numbering.
-They use `__builtin_pal_rgb()` / `__builtin_secam_rgb()` directly and build from
-the installed toolchain. The PAL/SECAM all-five examples use the same RGB intents
-as the NTSC all-five example before standard-specific palette matching. Because
-SECAM50 is not reliably distinguishable from PAL50 by timing alone, each public
-example's `make play` target forces the corresponding Stella `-format`; `-tv` is
-not a display-format option. The interactive all-five examples are verified under
-Stella 7.0.
-
-Current validation: 499/499 compile tests and 305/305 E2E tests (run in bounded
-exact groups where needed); the Stella 7.0 50 Hz phase/snapshot regression passes,
-and staged installed-tree builds cover all four reorganized video-standard examples. NTSC scheduler and renderer regressions remain
-green. Main-roadmap items 32 and 33 close together.
+Durable decisions
+-----------------
+* NTSC, PAL, and SECAM remain explicit target/display contracts.
+* PAL and SECAM may share 50 Hz frame/timing infrastructure where the hardware
+  timing contract is genuinely common, but their color/palette behavior remains
+  separate.
+* Renderer/example play targets must pass the intended `-tv` setting to Stella;
+  do not infer correctness from a default emulator standard.
+* Exact frame/raster regressions and the public video-standard examples are the
+  authorities for behavior. Do not duplicate per-version test totals here.

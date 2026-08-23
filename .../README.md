@@ -7,47 +7,99 @@
 
 # For Developer Eyes Only
 
-The deliberately terse directory name is `...`. This directory is **for developer eyes only**. Its contents are project-maintenance records, not user documentation or installed toolchain data. They stay in the source tree so work can continue consistently across development sessions without presenting internal process files as part of the public interface.
+The deliberately terse directory name is `...`. Its files are internal handoff
+and planning records, not user documentation. The directory is intentionally
+split into **hot state** that may be read during ordinary work and **cold history**
+that should be opened only for a specific older question.
+
+## Context discipline
+
+The purpose of this directory is to *save* chat context, not consume it.
+
+- `context.txt` is the only automatic new-chat bootstrap and has a hard **16 KiB**
+  ceiling.
+- Focused active documents have small limits enforced by
+  `test/source_tree_hygiene.pl`; completed focused documents should normally be
+  only a few KiB.
+- Hot files contain durable invariants, current authoritative state, unfinished
+  acceptance criteria, and immediate next work only.
+- Completed implementation narratives, dated experiments, old test totals,
+  superseded plans, and old measurements go in `context-history/`.
+- Never keep an old checkpoint merely because a test looks for its prose. Tests
+  should enforce structure/contracts or inspect executable artifacts instead.
+- Update current state by replacement/consolidation. Do not append a new
+  chronological checkpoint to a hot file.
 
 ## Files
 
 ### `context.txt`
 
-The compact durable project handoff. It contains current state, durable invariants, active constraints, and the immediate next action. **Treat it as a new-chat bootstrap, not a per-turn checklist:** read it once near the start of a new chat, retain that state in the conversation, and do not reread the whole file on later turns merely because another task arrived. If later verification is needed, read only the relevant section, search result, line range, or tail. Re-reading unchanged handoff text repeatedly wastes the chat context that this file exists to conserve. Keep it small by updating existing state rather than appending history.
-
-### Chat and archive lineage
-
-Do not develop the same VCSC source lineage concurrently in multiple chats. A returned tarball is a handoff point: finish work in one chat, use that chat's returned archive as the input to the next chat, and then continue there. The newest user-supplied archive is the sole source-tree authority for that chat; never silently combine it with, or overwrite it from, an older working copy remembered from another chat.
-
-If parallel chats were used accidentally, stop normal development and reconcile the divergent archives explicitly before doing more work. Compare the trees, identify changes unique to each lineage, and deliberately merge or choose between them. Do **not** assume that the archive with the newest timestamp contains all prior work, and do not package a stale working tree over a newer one.
+Read once near the start of a new chat. It contains source-lineage rules, durable
+workflow constraints, the small set of open workstreams, last meaningful
+validation boundary, and the immediate next step. Do not reread it wholesale on
+every turn.
 
 ### `roadmap.txt`
 
-The detailed main-project roadmap and acceptance criteria formerly embedded in `context.txt`. The compact context selects the active workstream; this file preserves the full main checklist.
+Only unfinished main-project roadmap items and their acceptance criteria.
+Completed main-roadmap material is historical.
 
-### `context-history/`
+### `enhanced_asymmetric.txt`
 
-One chronological development-log file per local work date, named `YYYY-MM-DD.txt`. These files are historical archives and should be opened only when investigating an older decision, regression, or implementation detail—not read wholesale during every handoff. Entries may have multiline details, but every entry begins with an ASCII-only `YYYY-MM-DD HH:MM:SS PDT, short description` header; the description is at most 50 characters and the complete header is at most 72 characters.
+Compact active handoff for the asymmetric-playfield enhanced multisprite WIP.
+Read it when that side quest is the current task.
+
+### `enhanced.txt`
+
+Compact durable handoff for the symmetric enhanced-multisprite side quest.
 
 ### `bankswitching.txt`
 
-The detailed internal design and ordered sub-roadmap for full-window F8/F6/F4 bankswitching, per-bank vectors and reset bridges, cross-bank trampolines, cartridge output order, and Superchip RAM. The compact `context.txt` handoff selects the active workstream; `roadmap.txt` owns the detailed main-project checklist.
+Durable cartridge/bank identity rules plus unfinished bankswitching work. It is
+the sole internal bankswitching design record; do not create a duplicate.
 
-### `video_standard_roadmap.txt`
+### `disassembler.txt`
 
-The focused roadmap for the combined PAL + SECAM 50 Hz video-standard workstream.
-It shares frame/timing infrastructure where appropriate while keeping the PAL and
-SECAM palette/display contracts separate.
+Durable exact-round-trip disassembler contract plus unfinished mapper/analysis
+work.
 
 ### `ram_optimization.txt`
 
-The focused RIOT-RAM optimization roadmap. It records the animated-gallery RAM baseline, explains renderer object-mask and hardware-stack ownership, and orders compiler lifetime overlay, repeated-inline scratch sharing, compact lowering, high-level example cleanup, phase overlay, direct-countdown renderer work, stack reduction, and optional two-sprite-only renderer profiles.
+Short durable closeout for the completed RIOT-RAM optimization workstream.
+Authoritative current accounting lives in executable fixtures/tests, not here.
+
+### `inline_roadmap.txt`
+
+Short durable closeout for specialization/inlining policy. Open new optimizer
+work as a new concrete roadmap item rather than reviving its old diary.
+
+### `video_standard_roadmap.txt`
+
+Short durable closeout for PAL/SECAM work and the few video-standard invariants
+future changes must preserve.
 
 ### `instruction.txt`
 
-The intentionally retained default workflow for bounded roadmap work: finish only complete steps, reserve time for testing and cleanup, package a clean tree, and place the download link first. It is durable project guidance, not accidental conversational residue.
+Default bounded-work/handoff instructions for starting another development
+session. It also retains the user's release-tag reminder at the bottom.
 
-## Obsolete internal files removed during the hygiene audit
+### `context-history/`
 
-- The former top-level `NOTES.md` duplicated maintained documentation and contained stale claims, including that source-level inline functions were unsupported.
-- The former `software_stack_inventory.txt` was a frozen historical snapshot. The executable regression `test/software_stack_inventory.pl` is now the authoritative check for removed software-stack emitters and runtime symbols.
+Cold chronological archive: one file per local work date, `YYYY-MM-DD.txt`.
+Ordinary handoffs must not read this directory wholesale. Search or open only the
+date needed to recover an older decision, regression, measurement, or discarded
+approach.
+
+Each entry begins with:
+
+    YYYY-MM-DD HH:MM:SS PDT, short description
+
+The entry description is ASCII and at most 50 characters; the complete header is
+at most 72 characters. Detail lines may be arbitrary.
+
+## Source lineage
+
+Do not develop the same VCSC source lineage concurrently in multiple chats. The
+newest user-supplied archive in the current chat is that chat's sole source-tree
+authority. If lineages diverge, reconcile them explicitly before further work;
+a newer timestamp alone does not prove ancestry.
