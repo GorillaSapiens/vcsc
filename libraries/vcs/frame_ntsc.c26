@@ -125,11 +125,16 @@ inline void vcs_ntsc_vsync(void) {
 // A renderer that must do beam-independent positioning during VBLANK can ask
 // for a heavier VBLANK/lighter overscan split.  The two preloads still sum to
 // the same 76 TIM64T quanta, so the calibrated total blank-frame budget is
-// unchanged; only which blank phase owns nine quanta is different.
+// unchanged; only which blank phase owns those quanta changes.  This split is
+// scanline-phase calibrated, not just sum-of-cycles calibrated: the asymmetric
+// renderer can preload two X=0/Y=95 sprites after its worst persistent-priority
+// schedule and still reach the VBLANK deadline.  Smaller VBLANK shares can let
+// that scene settle at 265 lines in Stella 7.0 even though overscan has ample
+// spare time.
 #ifdef VCS_NTSC_EXTENDED_VBLANK
 enum vcs_ntsc_deadline_timing {
-   VCS_NTSC_VBLANK_TIM64T := 51,
-   VCS_NTSC_OVERSCAN_TIM64T := 25
+   VCS_NTSC_VBLANK_TIM64T := 63,
+   VCS_NTSC_OVERSCAN_TIM64T := 13
 };
 #else
 enum vcs_ntsc_deadline_timing {

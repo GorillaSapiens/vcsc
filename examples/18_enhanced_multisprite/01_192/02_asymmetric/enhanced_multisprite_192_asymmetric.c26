@@ -5,8 +5,8 @@
 include "vcs_4k.c26"
 
 // The build selects VCS_NTSC_EXTENDED_VBLANK because top-edge sprites are
-// pre-positioned during VBLANK.  frame_ntsc.c26 moves nine timer quanta from
-// this example's light overscan into VBLANK without changing the frame total.
+// pre-positioned during VBLANK.  frame_ntsc.c26 moves timer budget from this
+// example's light overscan into VBLANK without changing the frame total.
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
 instantiate "renderers/enhanced_multisprite_asymmetric/enhanced_multisprite.c26" as game

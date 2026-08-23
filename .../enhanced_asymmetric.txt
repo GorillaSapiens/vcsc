@@ -2056,3 +2056,164 @@ exact host oracle to find a bounded, VBLANK-cheap rebalancing rule that raises
 the 12:04 witness from greedy four to the current-graph optimum five without
 making any Monte Carlo layout worse.  Re-run the Y=90 lane-stability GRP oracle
 on every raster change.
+
+
+RETAINED-X TEST/DEADLINE REPAIR -- 2026-08-22
+------------------------------------------------
+The first retained-X checkpoint compiled and fit 4K but was not yet regression
+clean.  Two failures were immediate: the renderer branch audit rejected two new
+`.flex` branches, and the old structural six-band hazard regex no longer matched
+the retained-P0 exception.  Once those gates were repaired, the focused timing
+sweep also exposed a real hidden regression: several randomized all-six-normal
+frames crossed the VBLANK deadline and became 265 raw harness lines.
+
+The branch fixes preserve timing semantics rather than merely silencing the
+audit.  The below-P0 `cmp #15`/far branch was unreachable because that label is
+entered only after the earlier abs(dy)<15 test, so it was removed.  The now-long
+AssignRank back edge is expressed as `beq.same` to a local exit followed by an
+unconditional `jmp`, which is the explicit form of the assembler's relaxed long
+branch and leaves no timing-flexible conditional branch in the renderer.
+
+The six-band test was genuinely stale after retained P0 was introduced.  Normal
+P1-above-P0 separation 1..6 is still illegal, but retained P0 starts one action
+band later, making the exact-six case a safe four-band event gap.  The Perl
+contract now checks 1..5 blocking and requires the exact-six escape to be gated
+by the retained-P0 flag/mask in both traversal directions.
+
+The VBLANK overrun was caused by carrying retained-X tests through every normal
+accepted record.  The allocator now returns four accepted encodings directly in
+A: lane 0/1 normally and $80/$81 when retained; 2 is the reject code.  The hot
+assignment loop tests the sign before `cmp #2`, so retained dispatch shares the
+existing accept/reject decision.  Normal records then use the old cheap builder.
+Retained records use a separate short builder and write the dedicated no-RESP
+landing directly instead of computing a coarse RESP slot only to overwrite it.
+This recovers enough deadline margin for all three 5000-frame combined X/Y
+stress seeds while keeping retained-X machinery present.
+
+Validation at this checkpoint:
+
+* `vcs_enhanced_multisprite_asymmetric.pl` passes, including all combined X/Y
+  stress seeds and the real-GRP visibility/fairness checks already in that test;
+* `vcs_renderer_branch_contracts.pl` passes and the asymmetric renderer contains
+  no `.flex` conditional branches;
+* source-tree hygiene, context-history format, example assembly allowlist, and
+  branding checks pass;
+* compile phase is 500/500;
+* full E2E was interrupted by the execution timeout after 78/319 passing cases,
+  so a later window should rerun the complete 319-case E2E suite.
+
+Current public accounting is 3980/4090 ROM and 115/128 RAM.  Retained-X is still
+experimental rather than complete: do not claim arbitrary-priority six-sprite
+flicker elimination from this checkpoint.
+
+TOP-LEFT DUAL-PRELOAD FRAME-LENGTH FIX -- 2026-08-22
+------------------------------------------------------
+The interactive configuration reported at 15:59 is reproducible with
+X={0,0,62,88,114,140}, Y={95,95,82,74,66,58}.  With the previous 51/25
+extended VBLANK/overscan split, the persistent fairness queue evolves into a
+more expensive VBLANK event order.  A cycle trace measures the first timer
+poll at about 3391 cycles after TIM64T is loaded, but preload 51 underflows
+after only (51+1)*64 = 3328 cycles.  The scheduler therefore misses the
+intended phase boundary.  Stella 7.0 directly reproduces the user's steady
+265-line / 59.3-Hz frame for this scene.
+
+This is a blanking-budget split bug, not a visible-raster lane-allocation bug.
+At this checkpoint overscan was comparatively cheap, so
+`VCS_NTSC_EXTENDED_VBLANK` kept the same total 76 TIM64T quanta and moved the
+split to 57/19.  A later forced bridge-orientation scan increased worst-case
+VBLANK work; the current split is 63/13 as recorded below.  Preload 57 gives a
+3712-cycle VBLANK deadline, roughly 321 cycles beyond the measured expensive
+schedule.  Preload 19 gives a 1280-cycle overscan deadline; observed overscan
+work is about 543 cycles, leaving roughly 737 cycles.  A 56/20 experiment fixed
+this exact scene but made the existing Y=90 top-edge lane-stability witness one
+raw line long, so 57/19 is the least aggressive split found that satisfies
+both constraints.
+
+`vcs_enhanced_multisprite_asymmetric.pl` now includes a deterministic
+`persistent top-left dual-preload deadline` case with the exact X/Y geometry.
+It deliberately does not initialize `game_priority[]`; released console inputs
+allow the real overscan fairness code to evolve priority across frames.  This is
+essential because identity priority alone does not expose the steady-state
+cost.  The old 51/25 split fails this witness; 57/19 passed it at this checkpoint
+together with the Y=90 lane-stability test and the existing randomized X/Y
+stress.  Current code uses the later 63/13 split.
+
+Real Stella 7.0 verification of the same fixed scene reported 262 lines /
+60.0 Hz with 57/19, versus 265 / 59.3 Hz with 51/25.  Keep the total blanking budget
+unchanged unless a separate frame-policy change is intentional; future
+scheduler optimizations may recover margin but must not silently depend on the
+cheaper identity-priority ordering.
+
+Validation after this repair: the focused asymmetric regression, renderer
+branch contracts, shared NTSC frame scheduler, source-tree hygiene, history
+format, example assembly allowlist, and branding checks pass; the complete
+E2E suite is 319/319.
+
+
+16:41 RETAINED-COLUMN BRIDGE ORIENTATION -- 2026-08-22
+-------------------------------------------------------
+The user's later phosphor screenshot showed sprite 3 almost disappearing and
+the top of sprite 4 malformed.  This was not an unavoidable two-player limit.
+The relevant deterministic geometry is:
+
+  id       0   1   2   3   4    5
+  X        0   0  62  72  62  140
+  Y       95  95  71  64  59   12
+
+Sprites 2 and 4 are equal-X endpoints separated by 12 logical bands.  Sprite 3
+sits seven bands below the upper endpoint and five above the lower endpoint.
+The retained-X/event hazards admit one physical coloring for that component:
+2 and 4 must use P1, while 3 uses P0.  All three are drawable in the same frame.
+
+The historical generic tie-break chose P0 whenever both lanes were available.
+That made the result depend on the persistent fairness permutation: identity
+priority could omit 4, while priority {0,1,2,4,3,5} could omit 3.  The latter is
+the direct explanation for the user's nearly absent 3 and partial/malformed 4.
+Fairness itself was not the fault; it merely changed which traversal order hit
+the orientation bug.
+
+`TEMPLATE_bridge_prefers_p1()` is a VBLANK-only forced-orientation oracle.  For
+the current candidate it searches for an equal-X endpoint exactly 12 bands away
+and then for any sprite at the required middle Y (seven below the upper / five
+above the lower).  When both physical lanes are otherwise free and that pattern
+is present, `ChooseLane` takes P1 instead of the historical P0 tie-break.  The
+check is also used for the first candidate, so the result does not depend on
+which endpoint or bridge happens to lead the priority queue.  Ordinary lane
+selection is unchanged when the forced component is absent.
+
+The focused Perl regression permanently pins the two previously failing queues:
+identity {0,1,2,3,4,5} and inherited {0,1,2,4,3,5}.  Both require six scheduler
+records, actual real-6502 GRP visibility mask $3f, and stable first visible lines
+for sprites 2/3/4.  During development the exact scene was also swept through
+all 6! = 720 priority permutations with the real renderer; all 720 scheduled and
+actually rendered all six sprites at stable vertical positions and the calibrated
+frame length.  That exhaustive sweep was a development proof, not a 720-case
+permanent test loop.
+
+The extra forced-orientation scan consumes VBLANK time.  The interim 57/19
+extended VBLANK/overscan split used by the preceding top-left repair no longer
+had enough worst-case margin once this scan was added.  The current
+`VCS_NTSC_EXTENDED_VBLANK` split is therefore 63/13 TIM64T.  Total blanking
+budget remains 76 quanta; only ownership moves toward VBLANK.  Do not regress
+this to 57/19 merely because the earlier top-left fixture passes in isolation.
+
+HANDOFF STATE
+-------------
+The bridge-orientation implementation and its two focused regressions are in the
+source tree.  The one-time 720-permutation real-6502 development sweep passed.
+The user's subsequent full E2E run reached 318/319; the sole failure was
+`vcs_examples_build_2of8.test`.  The recursive smoke builder compiled the
+asymmetric C26 directly and did not replay its Makefile's required
+`-DVCS_NTSC_EXTENDED_VBLANK -DMULTISPRITE_NO_RETAINED_PF_ROWS`, so the generic
+configuration overflowed 4K while the public Makefile build still fit.  The
+smoke test now mirrors those two flags specifically for
+`enhanced_multisprite_192_asymmetric.c26`; the exact shard 2/8 wrapper passes.
+This is a test-harness fidelity repair and does not change renderer code or the
+bridge geometry.
+
+CURRENT NEXT STEP
+-----------------
+Wait for the user's full-suite and interactive Stella results.  If failures are
+reported, start from the exact failing test/configuration.  If the suite is
+clean, continue the broader retained-X allocator work on cases where visible
+occupancy <= 2 but the scheduler still cannot find a no-flicker coloring.

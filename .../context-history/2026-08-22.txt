@@ -48,3 +48,32 @@ all pass.  The complete compile phase is 500/500.  A full 319-case E2E run did
 not finish inside the execution window; its first 78 completed cases passed, with
 no fairness-related failure observed.  Do not treat that interrupted run as a
 completed full-suite certification.
+
+2026-08-22 16:17:13 PDT, fix persistent top-edge frame overrun
+
+The exact interactive scene X={0,0,62,88,114,140},
+Y={95,95,82,74,66,58} reproduces the reported steady 265-line frame in
+Stella 7.0 with the old 51/25 extended blanking split.  Persistent fairness
+changes the priority order until asymmetric VBLANK scheduling takes about
+3391 cycles before its first timer poll, beyond the 3328-cycle deadline of a
+51 TIM64T preload.
+
+Keep the total blanking budget at 76 quanta but use 57/19 for extended VBLANK
+and overscan.  The same scene is 262 lines / 60.0 Hz in Stella 7.0 and the
+existing Y=90 lane-stability witness remains stable.  A new focused regression
+pins the scene but deliberately leaves game_priority[] persistent so the old
+51/25 split fails after the fairness order evolves.
+
+The focused timing/contract/hygiene checks pass, and the complete E2E suite
+finishes 319/319.
+
+2026-08-22 18:59:40 PDT, fix asymmetric smoke-build flags
+
+The user's full E2E run reached 318/319; only vcs_examples_build_2of8.test
+failed because the recursive example smoke builder did not reproduce the
+asymmetric example Makefile's VCS_NTSC_EXTENDED_VBLANK and
+MULTISPRITE_NO_RETAINED_PF_ROWS defines.  Without those public build flags the
+example overflowed 4K while placing __zero_table.  vcs_examples_build.pl now
+mirrors the two required defines for enhanced_multisprite_192_asymmetric.c26.
+The exact vcs_examples_build_2of8.test wrapper passes 1/1.  Renderer code is
+unchanged by this repair.

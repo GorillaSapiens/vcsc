@@ -138,12 +138,12 @@ page const uint8_t TEMPLATE_graphics_next[145] := {
    // start-state ranges therefore fit in event_code's otherwise-unused low
    // nibble and need no visible-line lookup table. States 25..35 are otherwise
    // unreachable and double as the VBLANK coarse-slot x3 table (0,3,...,30).
-   0,104,112,120,128,136,144,13,14,15,16,17,18,19,20,21,
+   0,104,112,120,128,136,144,1,2,3,4,5,6,19,20,21,
    22,23,24,1,2,3,4,5,6,0,3,6,9,12,15,18,
-   21,24,27,30,33,36,39,67,55,49,13,19,1,0,0,0,
+   21,24,27,30,33,36,39,79,73,67,13,19,1,0,0,0,
    0,7,8,9,10,11,12,49,50,51,52,53,54,0xf2,0xf1,0xf0,
-   0xf8,0xf5,0,55,56,57,58,59,60,0,0,0,0,0,0,0,
-   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   0xf8,0xf5,0,55,56,57,58,59,60,67,68,69,70,71,72,73,
+   74,75,76,77,78,0,0,0,0,0,0,0,0,0,0,0,
    0,0,97,98,99,100,101,102,103,0,105,106,107,108,109,110,
    111,0,113,114,115,116,117,118,119,0,121,122,123,124,125,126,
    127,0,129,130,131,132,133,134,135,0,137,138,139,140,141,142,
@@ -341,10 +341,15 @@ page void TEMPLATE_resp_jump_table(void) {
    asm jmp TEMPLATE_P0RespSlot9;
    asm jmp TEMPLATE_P0RespSlot10;
    asm jmp TEMPLATE_P0RespSlot11;
-   // 36-byte P0 table -> pad 28 bytes so P1 starts exactly at +$40.
+   // Equal-X retained continuation: same jump-page/lane encoding, but the
+   // landing replaces RESP0 with HMCLR so the already-correct horizontal
+   // position survives.  Three bytes come out of the old +$24..+$3f pad.
+   asm TEMPLATE_P0RetainJump:;
+   asm jmp TEMPLATE_P0RetainSlot;
+   // 39-byte P0 table -> pad 25 bytes so P1 still starts exactly at +$40.
    asm .byte $ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea;
    asm .byte $ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea;
-   asm .byte $ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea;
+   asm .byte $ea,$ea,$ea,$ea,$ea;
    asm TEMPLATE_P1RespJumpBase:;
    asm jmp TEMPLATE_P1RespSlot0;
    asm jmp TEMPLATE_P1RespSlot1;
@@ -358,10 +363,62 @@ page void TEMPLATE_resp_jump_table(void) {
    asm jmp TEMPLATE_P1RespSlot9;
    asm jmp TEMPLATE_P1RespSlot10;
    asm jmp TEMPLATE_P1RespSlot11;
+   asm TEMPLATE_P1RetainJump:;
+   asm jmp TEMPLATE_P1RetainSlot;
 }
 
 // VBLANK is intentionally out-of-line. Its data-dependent scheduling branches
 // therefore cannot perturb the proven page placement of the visible renderer.
+
+// VBLANK-only lane-orientation oracle. Kept as a separate function so its rare
+// same-X bridge scan can occupy otherwise-unused ROM holes instead of inflating
+// the page-sensitive vblank worker's contiguous placement.
+void TEMPLATE_bridge_prefers_p1(void) {
+   // Equal-X endpoints 12 bands apart with a bridge seven bands below the
+   // upper endpoint have one safe physical orientation: endpoints on P1.
+   asm ldx.z TEMPLATE_setup_sprite;
+   asm ldy.zx TEMPLATE_x,X;
+   asm ldx #5;
+   asm @TEMPLATE_ChooseBridgePartnerLoop:;
+   asm tya;
+   asm cmp.zx TEMPLATE_x,X;
+   asm bne.same @TEMPLATE_ChooseBridgePartnerNext;
+   asm lda.zx TEMPLATE_y,X;
+   asm sec;
+   asm sbc.z TEMPLATE_pair_y;
+   asm cmp #12;
+   asm beq.same @TEMPLATE_ChooseBridgePartnerAbove;
+   asm cmp #$f4;
+   asm bne.same @TEMPLATE_ChooseBridgePartnerNext;
+   asm lda.z TEMPLATE_pair_y;
+   asm sec;
+   asm sbc #7;
+   asm jmp @TEMPLATE_ChooseBridgeHaveMiddleY;
+   asm @TEMPLATE_ChooseBridgePartnerAbove:;
+   asm lda.z TEMPLATE_pair_y;
+   asm clc;
+   asm adc #5;
+   asm @TEMPLATE_ChooseBridgeHaveMiddleY:;
+   asm tay;
+   asm ldx #5;
+   asm @TEMPLATE_ChooseBridgeMiddleLoop:;
+   asm tya;
+   asm cmp.zx TEMPLATE_y,X;
+   asm beq.same @TEMPLATE_ChooseBridgeYes;
+   asm dex;
+   asm bpl.same @TEMPLATE_ChooseBridgeMiddleLoop;
+   asm clc;
+   asm rts;
+   asm @TEMPLATE_ChooseBridgePartnerNext:;
+   asm dex;
+   asm bpl.same @TEMPLATE_ChooseBridgePartnerLoop;
+   asm clc;
+   asm rts;
+   asm @TEMPLATE_ChooseBridgeYes:;
+   asm sec;
+   asm rts;
+}
+
 void TEMPLATE_vblank_worker(void) {
    asm .callstackextra 2;
    asm jmp @TEMPLATE_VblankStart;
@@ -532,9 +589,10 @@ void TEMPLATE_vblank_worker(void) {
    asm cmp #7;
    asm bcc.same @TEMPLATE_ChooseFirstP1;
    asm @TEMPLATE_ChooseFirstP0:;
-   asm lda #0;
-   asm ldx.z TEMPLATE_setup_sprite;
-   asm rts;
+   // With both lanes free, use the same short forced-orientation test as later
+   // candidates.  This matters when the first priority sprite is an endpoint
+   // of a drawable same-X / overlap / same-X bridge component.
+   asm jmp @TEMPLATE_ChoosePreferP0;
    asm @TEMPLATE_ChooseFirstP1:;
    asm lda #1;
    asm ldx.z TEMPLATE_setup_sprite;
@@ -581,12 +639,25 @@ void TEMPLATE_vblank_worker(void) {
    asm lda.z TEMPLATE_pending0_valid;
    asm bne.same @TEMPLATE_ChooseBelowOtherP1;
 
-   // Below an existing P0 only the P0 same-lane interval can conflict.
+   // Below an existing P0, a vertically disjoint sprite at the exact same X
+   // can keep P0's horizontal position instead of paying another RESP/HMOVE
+   // setup.  Bit 7 is a tentative "candidate P0 retains X" flag; it is
+   // committed only if P0 is ultimately selected.
    asm txa;
-   asm cmp #15;
-   asm bcs.same @TEMPLATE_ChooseAfterOther;
+   asm cmp #8;
+   asm bcc.same @TEMPLATE_ChooseBelowP0Conflict;
+   asm ldx.ay TEMPLATE_event_order,Y;
+   asm lda.zx TEMPLATE_x,X;
+   asm ldx.z TEMPLATE_setup_sprite;
+   asm cmp.zx TEMPLATE_x,X;
+   asm bne.same @TEMPLATE_ChooseBelowP0Conflict;
    asm lda.z TEMPLATE_position_packed;
-   asm and #$fe;
+   asm ora #$80;
+   asm sta.z TEMPLATE_position_packed;
+   asm jmp @TEMPLATE_ChooseAfterOther;
+   asm @TEMPLATE_ChooseBelowP0Conflict:;
+   asm lda.z TEMPLATE_position_packed;
+   asm and #$7e;
    asm sta.z TEMPLATE_position_packed;
    asm jmp @TEMPLATE_ChooseAfterOther;
 
@@ -598,15 +669,35 @@ void TEMPLATE_vblank_worker(void) {
    asm txa;
    asm cmp #12;
    asm bcs.same @TEMPLATE_ChooseBelowP1SameClear;
+   asm cmp #8;
+   asm bcc.same @TEMPLATE_ChooseBelowP1Conflict;
+   asm ldx.ay TEMPLATE_event_order,Y;
+   asm lda.zx TEMPLATE_x,X;
+   asm ldx.z TEMPLATE_setup_sprite;
+   asm cmp.zx TEMPLATE_x,X;
+   asm bne.same @TEMPLATE_ChooseBelowP1Conflict;
    asm lda.z TEMPLATE_position_packed;
-   asm and #$7d;
+   asm ora #$40;
+   asm sta.z TEMPLATE_position_packed;
+   asm jmp @TEMPLATE_ChooseBelowP1SameClear;
+   asm @TEMPLATE_ChooseBelowP1Conflict:;
+   asm lda.z TEMPLATE_position_packed;
+   asm and #$bd;
    asm sta.z TEMPLATE_position_packed;
    asm @TEMPLATE_ChooseBelowP1SameClear:;
    asm txa;
    asm cmp #7;
    asm bcs.same @TEMPLATE_ChooseAfterOther;
+   // A retained P0 action is one band later than the ordinary P0 setup
+   // action.  Exactly six logical bands below P1 therefore becomes a safe
+   // four-band event gap instead of the ordinary unsafe three-band gap.
+   asm cmp #6;
+   asm bne.same @TEMPLATE_ChooseBelowP1P0Conflict;
    asm lda.z TEMPLATE_position_packed;
-   asm and #$fe;
+   asm bmi.same @TEMPLATE_ChooseAfterOther;
+   asm @TEMPLATE_ChooseBelowP1P0Conflict:;
+   asm lda.z TEMPLATE_position_packed;
+   asm and #$7e;
    asm sta.z TEMPLATE_position_packed;
    asm jmp @TEMPLATE_ChooseAfterOther;
 
@@ -626,30 +717,27 @@ void TEMPLATE_vblank_worker(void) {
    asm cmp #15;
    asm bcs.same @TEMPLATE_ChooseAboveP0SameClear;
    asm lda.z TEMPLATE_position_packed;
-   asm and #$fe;
+   asm and #$7e;
    asm sta.z TEMPLATE_position_packed;
    asm @TEMPLATE_ChooseAboveP0SameClear:;
    asm txa;
-   asm bne.same @TEMPLATE_ChooseAboveP0Nonzero;
-   // Exact same Y. P0 was just eliminated by the same-lane test above. Record
-   // the accepted P0 id only if P1 is still possible, set a tentative pair
-   // hint, and continue directly instead of bouncing through the generic tail.
-   asm lda.z TEMPLATE_position_packed;
-   asm bne.same @TEMPLATE_ChooseSameYAlive;
-   asm jmp @TEMPLATE_ChooseNone;
-   asm @TEMPLATE_ChooseSameYAlive:;
-   asm lda.ay TEMPLATE_event_order,Y;
-   asm sta.z TEMPLATE_draw_code + 6;
-   // At this point P0 is clear and P1 is known live, so the complete mask is
-   // exactly bit1 plus our tentative pair bit.
-   asm lda #2;
-   asm sta.z TEMPLATE_position_packed;
-   asm jmp @TEMPLATE_ChooseNext;
-   asm @TEMPLATE_ChooseAboveP0Nonzero:;
+   // Exact same Y is the supported P0->P1 three-band handoff.  P0 was
+   // eliminated above; leave P1 untouched and continue the ordinary scan.
+   asm beq.same @TEMPLATE_ChooseAfterOther;
    asm cmp #7;
    asm bcs.same @TEMPLATE_ChooseAfterOther;
+   // If the lower P0 was already accepted as an equal-X retained successor,
+   // a logical gap of six has a four-band action gap and is safe.  The
+   // retained-P0 mask lives in draw_code[6] during allocation.
+   asm cmp #6;
+   asm bne.same @TEMPLATE_ChooseAboveP0P1Conflict;
+   asm ldx.ay TEMPLATE_event_order,Y;
+   asm lda.ax TEMPLATE_sprite_bit,X;
+   asm and TEMPLATE_draw_code + 6;
+   asm bne.same @TEMPLATE_ChooseAfterOther;
+   asm @TEMPLATE_ChooseAboveP0P1Conflict:;
    asm lda.z TEMPLATE_position_packed;
-   asm and #$7d;
+   asm and #$bd;
    asm sta.z TEMPLATE_position_packed;
    asm jmp @TEMPLATE_ChooseAfterOther;
 
@@ -660,7 +748,7 @@ void TEMPLATE_vblank_worker(void) {
    asm cmp #12;
    asm bcs.same @TEMPLATE_ChooseAfterOther;
    asm lda.z TEMPLATE_position_packed;
-   asm and #$7d;
+   asm and #$bd;
    asm sta.z TEMPLATE_position_packed;
 
    asm @TEMPLATE_ChooseAfterOther:;
@@ -672,42 +760,40 @@ void TEMPLATE_vblank_worker(void) {
    asm jmp @TEMPLATE_ChooseLoop;
    asm @TEMPLATE_ChooseLoopDone:;
 
-   // One bounded lookahead is provably safe without reopening the expensive
-   // suffix-search experiment: when priority rank 4 still has both lanes,
-   // choose its orientation so the final rank-5 candidate is not needlessly
-   // stranded by the asymmetric +1..+6-band P0->P1 hazard.  There is no
-   // candidate after rank 5, so this can only keep or increase the number of
-   // accepted sprites; it cannot trade a later acceptance away.
-   asm lda.z TEMPLATE_position_packed;
-   asm cmp #3;
-   asm bne.same @TEMPLATE_ChoosePreferP0;
-   asm lda.z TEMPLATE_setup_count;
-   asm cmp #4;
-   asm bne.same @TEMPLATE_ChoosePreferP0;
-   asm ldx.z TEMPLATE_priority + 5;
-   asm lda.zx TEMPLATE_y,X;
-   asm sec;
-   asm sbc.z TEMPLATE_pair_y;
-   asm beq.same @TEMPLATE_ChoosePreferP0;
-   asm cmp #7;
-   asm bcc.same @TEMPLATE_ChooseP1;
-
+   // When both lanes remain free, consult the rare forced bridge orientation
+   // before taking the historical P0 tie-break.
    asm @TEMPLATE_ChoosePreferP0:;
+   asm lda.z TEMPLATE_position_packed;
+   asm and #3;
+   asm cmp #3;
+   asm bne.same @TEMPLATE_ChoosePreferP0Fast;
+   asm jsr TEMPLATE_bridge_prefers_p1;
+   asm bcc.same @TEMPLATE_ChoosePreferP0Fast;
+   asm jmp @TEMPLATE_ChooseP1;
+   asm @TEMPLATE_ChoosePreferP0Fast:;
    asm lda.z TEMPLATE_position_packed;
    asm and #1;
    asm beq.same @TEMPLATE_ChooseP1;
-   asm lda #0;
+   // Return lane in bit0 and retained-X in bit7.  Keeping the flag in A avoids
+   // a zero-page store on every ordinary accepted sprite.
+   asm lda.z TEMPLATE_position_packed;
+   asm and #$80;
    asm ldx.z TEMPLATE_setup_sprite;
    asm rts;
    asm @TEMPLATE_ChooseP1:;
    asm lda.z TEMPLATE_position_packed;
    asm and #2;
    asm beq.same @TEMPLATE_ChooseNone;
-   asm lda #1;
+   asm lda.z TEMPLATE_position_packed;
+   asm and #$40;
+   asm asl;
+   asm ora #1;
    asm ldx.z TEMPLATE_setup_sprite;
    asm rts;
    asm @TEMPLATE_ChooseNone:;
-   asm lda #$ff;
+   // 0/1 are ordinary lanes and $80/$81 are retained lanes; 2 is the compact
+   // non-negative rejection code used by the hot assignment loop.
+   asm lda #2;
    asm ldx.z TEMPLATE_setup_sprite;
    asm rts;
 
@@ -732,47 +818,56 @@ void TEMPLATE_vblank_worker(void) {
    // setup_code[6] is scheduler scratch until the draw sentinel is installed.
    asm lda #0;
    asm sta TEMPLATE_setup_code + 6;
+   // draw_code[6] is dead until compaction; use it as the retained-P0 mask so
+   // later opposite-lane checks can recognize the safe six-band handoff.
+   asm sta TEMPLATE_draw_code + 6;
    asm sta.z TEMPLATE_setup_count; // temporary rank counter
    asm @TEMPLATE_AssignRank:;
    asm ldx.z TEMPLATE_setup_count;
    asm lda.zx TEMPLATE_priority,X;
    asm tax;
    asm jsr @TEMPLATE_ChooseLane;
-   asm cmp #$ff;
+   // Retained lanes are negative ($80/$81), ordinary lanes are 0/1, and 2
+   // means omitted.  Testing the sign before CMP folds retained dispatch into
+   // the existing accept/reject decision instead of paying a second hot-path
+   // flag test after every accepted sprite.
+   asm bmi.same @TEMPLATE_AssignRetainedAccepted;
+   asm cmp #2;
    asm bne.same @TEMPLATE_AssignAccepted;
    asm lda.ax TEMPLATE_sprite_bit,X;
    asm ora TEMPLATE_setup_code + 6;
    asm sta TEMPLATE_setup_code + 6;
    asm jmp @TEMPLATE_AssignNext;
    asm @TEMPLATE_AssignAccepted:;
-   asm sta.z TEMPLATE_position_packed; // lane plus transient paired-P1 bit7
+   // Ordinary lane 0/1.  CMP #2 leaves carry clear for the bounded ADCs below.
+   asm sta.z TEMPLATE_position_packed;
    asm and #1;
    asm sta.zx TEMPLATE_lane_for,X;
 
-   // Build this accepted sprite's complete setup record while X and the lane are
-   // already hot. This eliminates the old second six-sprite pass after allocation.
-   // CMP #$ff on the accepted path left carry clear; Y<=89, so both bounded
-   // additions below also leave it clear.
+   // Keep the common non-retained path almost identical to the pre-retained
+   // allocator.  Retained-X is rare; paying its flag tests several times for
+   // every ordinary accepted sprite pushed worst-case VBLANK over the deadline.
+   // One early dispatch keeps ordinary scheduling cheap and gives retained
+   // records their own compact builder.
+   // Ordinary record: P1 action is Y+3, P0 action is Y+6.
+   // CMP #2 on the ordinary accepted path leaves carry clear; Y<=89.
    asm lda.zx TEMPLATE_y,X;
    asm adc #3;
    asm ldy.z TEMPLATE_position_packed;
-   asm bne.same @TEMPLATE_AssignActionReady;
+   asm bne.same @TEMPLATE_AssignNormalActionReady;
    asm adc #3;
-   asm @TEMPLATE_AssignActionReady:;
+   asm @TEMPLATE_AssignNormalActionReady:;
    asm sta.zx TEMPLATE_setup_line,X;
 
-   // Encode the draw-time lane-specific graphics start state directly into
-   // event_code's low nibble while X=logical sprite and the assigned lane are
-   // hot.  P1 uses id+1 (states 1..6); P0 uses id+7 (states 7..12).
-   // The bounded action-Y additions above left carry clear; id<=5.
+   // P1 uses states id+1; ordinary P0 uses states id+7.
    asm txa;
    asm adc #1;
    asm ldy.z TEMPLATE_position_packed;
-   asm bne.same @TEMPLATE_AssignStartReady;
-   // id+1 is at most 6, so carry is already known clear on this P0 add.
+   asm bne.same @TEMPLATE_AssignNormalStartReady;
    asm adc #6;
-   asm @TEMPLATE_AssignStartReady:;
+   asm @TEMPLATE_AssignNormalStartReady:;
    asm sta.zx TEMPLATE_setup_code,X;
+
    asm ldy.zx TEMPLATE_x,X;
    asm lda.ay TEMPLATE_position_table,Y;
    asm ldy.z TEMPLATE_position_packed;
@@ -780,22 +875,64 @@ void TEMPLATE_vblank_worker(void) {
    asm and #$f0;
    asm ora.zx TEMPLATE_setup_code,X;
    asm sta.zx TEMPLATE_setup_code,X;
-   // Convert coarse slot 0..10 to slot*3 through unreachable graphics-next
-   // states 25..37.  This saves the old scratch/ASL/ADC sequence without adding
-   // a ROM object. P1 adds $40, retaining pointer bit 6 as the lane tag.
    asm lda.z TEMPLATE_pending0_valid;
    asm and #$0f;
    asm tay;
-   // id+1/+6 left carry clear and the intervening loads/logic preserve it.
    asm lda.ay TEMPLATE_graphics_next + 25,Y;
    asm ldy.z TEMPLATE_position_packed;
-   asm beq.same @TEMPLATE_AssignPositionLaneReady;
+   asm beq.same @TEMPLATE_AssignNormalPositionLaneReady;
    asm adc #$40;
-   asm @TEMPLATE_AssignPositionLaneReady:;
-   // slot*3 is at most 30 (94 after P1's +$40).  The jump block is 256-byte
-   // aligned, so this offset already is the absolute indirect-JMP low byte.
+   asm @TEMPLATE_AssignNormalPositionLaneReady:;
+   asm sta.zx TEMPLATE_setup_position,X;
+   asm jmp @TEMPLATE_AssignAppend;
+
+   asm @TEMPLATE_AssignRetainedAccepted:;
+   // Retained lane $80/$81.  Normalize lane_for but keep bit7 in
+   // position_packed for the visible-record builder.
+   asm sta.z TEMPLATE_position_packed;
+   asm and #1;
+   asm sta.zx TEMPLATE_lane_for,X;
+   asm clc;
+   asm @TEMPLATE_AssignRetainedRecord:;
+   // Retained P1 keeps its ordinary Y+3 action.  Retained P0 skips the normal
+   // RESP/HMOVE pipeline and uses the shorter state chain at action Y+5.
+   asm lda.zx TEMPLATE_y,X;
+   asm adc #3;
+   asm ldy.zx TEMPLATE_lane_for,X;
+   asm bne.same @TEMPLATE_AssignRetainedActionReady;
+   asm adc #2;
+   asm @TEMPLATE_AssignRetainedActionReady:;
+   asm sta.zx TEMPLATE_setup_line,X;
+
+   // Both retained lanes enter the short graphics chain at states id+1.
+   asm txa;
+   asm adc #1;
+   asm sta.zx TEMPLATE_setup_code,X;
+
+   // Only retained P0 changes the directional six-band hazard.  Remember those
+   // accepted logical ids so later candidates can recognize the safe exception.
+   asm ldy.zx TEMPLATE_lane_for,X;
+   asm bne.same @TEMPLATE_AssignRetainedMaskDone;
+   asm lda.ax TEMPLATE_sprite_bit,X;
+   asm ora TEMPLATE_draw_code + 6;
+   asm sta TEMPLATE_draw_code + 6;
+   asm @TEMPLATE_AssignRetainedMaskDone:;
+
+   // Retained-X still needs the fine-motion nibble in event_code, but no coarse
+   // RESP slot calculation: draw_position is the dedicated no-RESP landing.
+   asm ldy.zx TEMPLATE_x,X;
+   asm lda.ay TEMPLATE_position_table,Y;
+   asm and #$f0;
+   asm ora.zx TEMPLATE_setup_code,X;
+   asm sta.zx TEMPLATE_setup_code,X;
+   asm lda #<TEMPLATE_P1RetainJump;
+   asm ldy.zx TEMPLATE_lane_for,X;
+   asm bne.same @TEMPLATE_AssignRetainedPositionReady;
+   asm lda #<TEMPLATE_P0RetainJump;
+   asm @TEMPLATE_AssignRetainedPositionReady:;
    asm sta.zx TEMPLATE_setup_position,X;
 
+   asm @TEMPLATE_AssignAppend:;
    asm ldy.z TEMPLATE_setup_index;
    asm txa;
    asm sta.ay TEMPLATE_event_order,Y;
@@ -805,7 +942,12 @@ void TEMPLATE_vblank_worker(void) {
    asm inc.z TEMPLATE_setup_count;
    asm lda.z TEMPLATE_setup_count;
    asm cmp #6;
-   asm bne.same @TEMPLATE_AssignRank;
+   // This loop body no longer fits a short backwards branch.  Spell the
+   // assembler's long-branch sequence explicitly so the only conditional
+   // branch has a declared same-page timing contract.
+   asm beq.same @TEMPLATE_AssignRanksDone;
+   asm jmp @TEMPLATE_AssignRank;
+   asm @TEMPLATE_AssignRanksDone:;
 
    // Priority promotion changes only the next frame. Preserve the complete
    // omission mask in scheduler scratch and rebuild priority later in overscan.
@@ -1175,6 +1317,19 @@ void TEMPLATE_draw(void) {
    asm sta PF0;
    asm jmp (TEMPLATE_position_packed);
 
+   // Equal-X retained landing.  It has the same cycle shape as slot 3, but
+   // clears pending motion instead of strobing RESP0.  Setup therefore runs at
+   // its proven beam phases while the hardware player's X position is retained.
+   asm TEMPLATE_P0RetainSlot:;
+   asm lda.ax TEMPLATE_playfield_left,X;
+   asm sta PF1;
+   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm sta PF2;
+   asm sta HMCLR;
+   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm sta PF0;
+   asm jmp TEMPLATE_P0RespAfterRightPF0;
+
    // Alternate P0 slot groups live before the slot-0 fall-through block so
    // the common WSYNC can flow directly into Setup0LineA on the next line.
    asm TEMPLATE_P0RespSlot5:;
@@ -1483,6 +1638,17 @@ void TEMPLATE_draw(void) {
    asm TEMPLATE_Position1LineB:;
    asm sta PF0;
    asm jmp (TEMPLATE_position_packed);
+
+   // P1 equal-X retained landing mirrors the P0 no-RESP path.
+   asm TEMPLATE_P1RetainSlot:;
+   asm lda.ax TEMPLATE_playfield_left,X;
+   asm sta PF1;
+   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm sta PF2;
+   asm sta HMCLR;
+   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm sta PF0;
+   asm jmp TEMPLATE_P1RespAfterRightPF0;
 
    asm TEMPLATE_P1RespSlot5:;
    // Mirror P0's calibrated four-cycle slot-5 delay.

@@ -420,16 +420,33 @@ Important active constraints and open questions
 * Multisprite renderer work remains on the main roadmap and must not be smuggled
   into bankswitching placement work.
 
-Enhanced asymmetric top-edge checkpoint (2026-08-21)
+Enhanced asymmetric top-edge checkpoint (2026-08-22)
 -----------------------------------------------------
 The asymmetric 192-line renderer accepts Y=0..95 and prepositions every event
 whose setup action would begin at/above band 95 during VBLANK.  Y=95 reaches
-the first visible playfield band; Stella verification covered both lanes with
-independent X and correct colors.  The public example is again ordinary 4K
-(3752/4090 ROM, 115/128 RAM) and uses `VCS_NTSC_EXTENDED_VBLANK` with the
-51/25 TIM64T split.  Full six-sprite randomized X=0..159/Y=0..95 timing is now
-stable; detailed state and remaining X/pair certification work are in
-`.../enhanced_asymmetric.txt`.
+the first visible playfield band; Stella verification covers both lanes with
+independent X and correct colors.  Last measured public accounting is
+3980/4090 ROM and 115/128 RAM.
+
+The current extended NTSC blanking split is 63/13 TIM64T, preserving the same
+total 76 quanta.  The earlier 51/25 split let the persistent top-left witness
+X={0,0,62,88,114,140}, Y={95,95,82,74,66,58} settle at 265 lines in Stella;
+57/19 fixed that before the later bridge-orientation scheduler work, and 63/13
+is the current split after budgeting the extra VBLANK scan.
+
+The later 16:41 screenshot exposed a priority-dependent retained-X coloring
+bug, not legitimate flicker.  For the relevant component, sprites 2 and 4 have
+the same X and are 12 bands apart, while sprite 3 bridges them seven bands
+below the upper endpoint/five above the lower.  This component has one safe
+physical orientation: endpoints 2/4 on P1 and bridge 3 on P0.  The old generic
+P0 tie-break could omit 4 under identity priority or omit 3 under an inherited
+priority queue.  `TEMPLATE_bridge_prefers_p1()` now detects this forced
+orientation whenever both lanes are free.  Focused regressions pin both known
+bad queues; a one-time real-6502 sweep of all 720 priority permutations rendered
+all six sprites with stable vertical placement and the calibrated frame length.
+The earlier 319/319 full-suite result predates this final bridge-orientation
+change; the user will run the complete suite after this preservation handoff.
+Detailed state remains in `.../enhanced_asymmetric.txt`.
 
 Immediate TODO
 --------------
@@ -1232,3 +1249,46 @@ sprite that never reaches GRP, while a P0 gap-14 experiment produced a 264-raw-
 line frame in a deterministic scene.  The next raster change must be a genuine
 retained-X/short-continuation event, with the exact host oracle used separately
 to develop bounded lane rebalancing.
+
+2026-08-22 retained-X test-repair checkpoint: the first packaged retained-X
+experiment exposed two structural test failures and one hidden VBLANK timing
+regression.  `vcs_renderer_branch_contracts.pl` was correct to reject the two
+new `.flex` branches.  The redundant far below-P0 branch was removed, and the
+long AssignRank loop is now written explicitly as a local `beq.same` exit plus
+`jmp`, preserving the assembler long-branch cycle shape while restoring an
+explicit timing contract.  The asymmetric structural hazard test was stale:
+ordinary P1-above-P0 gaps 1..6 remain unsafe, but retained P0 deliberately makes
+exact gap 6 safe by moving the P0 action one band later.  The test now pins the
+1..5 rejection plus the narrowly qualified retained-P0 +6 exception in both
+directions instead of requiring the pre-retained blanket shape.
+
+The retained record builder was also too expensive on every ordinary accepted
+sprite and could extend randomized stress frames to 265 raw harness lines.
+ChooseLane now returns ordinary lanes as 0/1, retained lanes as $80/$81, and
+omission as 2.  The hot assignment loop folds retained dispatch into the
+accept/reject test, keeps the common non-retained record path close to the old
+fast path, and uses a separate retained record builder that skips coarse RESP
+slot calculation entirely.  The three 5000-frame combined X/Y stress seeds are
+back at stable 264 raw harness lines.  Public size remains 3980/4090 ROM and
+115/128 RAM.  The two originally reported tests pass; the complete compile
+phase is 500/500.  A full E2E run was started and reached 78/319 passing before
+the execution timeout killed the make process, so do not claim full-suite
+completion from this checkpoint.
+
+2026-08-22 16:41 bridge-orientation closeout: the disappearing `3` and malformed
+`4` top were traced to the retained-X same-column bridge being colored according
+to traversal priority.  The current scheduler detects equal-X endpoints 12 bands
+apart plus a middle sprite at the 7/5 split and forces the only safe orientation
+(endpoints P1, bridge P0).  The exact fixture uses X={0,0,62,72,62,140},
+Y={95,95,71,64,59,12}.  Identity priority and inherited priority
+{0,1,2,4,3,5} are permanent real-GRP regressions; the development sweep covered
+all 720 priority permutations and rendered mask $3f.  The extra VBLANK work moved
+the current extended deadline split from the interim 57/19 to 63/13.  Preserve
+this implementation; the next action is user full-suite/Stella validation, not
+rediscovery of the bridge geometry.  The user then ran the full E2E suite and got
+318/319: only `vcs_examples_build_2of8.test` failed because the recursive example
+smoke builder compiled this source without the two Makefile-required defines
+`VCS_NTSC_EXTENDED_VBLANK` and `MULTISPRITE_NO_RETAINED_PF_ROWS`, overflowing 4K.
+`vcs_examples_build.pl` now mirrors those public-example flags for
+`enhanced_multisprite_192_asymmetric.c26`; the exact shard 2/8 test passes.  This
+was a smoke-harness fidelity bug, not a renderer-size regression.

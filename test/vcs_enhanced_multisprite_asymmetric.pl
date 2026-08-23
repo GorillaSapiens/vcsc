@@ -59,8 +59,14 @@ $text =~ /TEMPLATE_ChooseLane:;.*?ldy\.z TEMPLATE_setup_index;.*?ldx\.z TEMPLATE
    or die "first-candidate scheduler lookahead missing\n";
 $text =~ /\@TEMPLATE_ChooseCandidateAtOrAbove:;\s*(?:\/\/[^\n]*\n\s*)*asm lda\.z TEMPLATE_pending0_valid;/s
    or die "close-above scheduler delta is clobbered before lane test\n";
-$text =~ /TEMPLATE_ChooseBelowOtherP1:;.*?asm cmp #7;.*?\@TEMPLATE_ChooseCandidateAtOrAbove:;.*?\@TEMPLATE_ChooseAboveP0Nonzero:;\s*asm cmp #7;/s
-   or die "six-band opposite-lane raster hazard is not blocked in both directions\n";
+# Ordinary P1-above-P0 gaps 1..6 are unsafe.  Retained-X P0 continuation
+# deliberately makes the exact six-band case safe by moving the P0 action one
+# band later, so pin both the 1..5 rejection and the narrowly qualified +6
+# exception rather than requiring the pre-retained blanket cmp #7 shape.
+$text =~ /TEMPLATE_ChooseBelowOtherP1:;.*?asm cmp #7;\s*asm bcs\.same \@TEMPLATE_ChooseAfterOther;.*?asm cmp #6;\s*asm bne\.same \@TEMPLATE_ChooseBelowP1P0Conflict;.*?asm lda\.z TEMPLATE_position_packed;\s*asm bmi\.same \@TEMPLATE_ChooseAfterOther;/s
+   or die "below-P1 six-band hazard/retained-P0 exception contract regressed\n";
+$text =~ /\@TEMPLATE_ChooseCandidateAtOrAbove:;.*?asm beq\.same \@TEMPLATE_ChooseAfterOther;\s*asm cmp #7;\s*asm bcs\.same \@TEMPLATE_ChooseAfterOther;.*?asm cmp #6;\s*asm bne\.same \@TEMPLATE_ChooseAboveP0P1Conflict;.*?asm and TEMPLATE_draw_code \+ 6;\s*asm bne\.same \@TEMPLATE_ChooseAfterOther;/s
+   or die "above-P0 six-band hazard/retained-P0 exception contract regressed\n";
 
 # Recovered visual-fix contracts.  These are deliberately structural: the
 # timing harness below proves the resulting cycle balance while these checks
@@ -212,6 +218,44 @@ expect_timing('all-six persistent visibility witness',100,
    '--require-visible-mask','0x3f',
    '--expect-memory',sprintf('0x%02x',$count_addr),'6');
 
+# User 16:41 retained-column bridge regression.  Sprites 2 and 4 share X and
+# are 12 bands apart; sprite 3 sits seven bands below 2/five above 4.  The
+# directional setup hazard therefore has one safe physical coloring: 2/4 on P1
+# and 3 on P0.  The historical P0 tie-break depended on persistent priority
+# order: identity omitted 4, while 0,1,2,4,3,5 omitted 3.  Pin both formerly
+# bad queues every frame and require all six actual GRP streams, stable vertical
+# placement, and six scheduler records.
+sub expect_bridge_scene {
+   my($name,@priority)=@_;
+   my@args=(
+      '--released-inputs',
+      '--set-zp',sprintf('0x%02x',$x_addr+0),'0',
+      '--set-zp',sprintf('0x%02x',$x_addr+1),'0',
+      '--set-zp',sprintf('0x%02x',$x_addr+2),'62',
+      '--set-zp',sprintf('0x%02x',$x_addr+3),'72',
+      '--set-zp',sprintf('0x%02x',$x_addr+4),'62',
+      '--set-zp',sprintf('0x%02x',$x_addr+5),'140',
+      '--set-zp',sprintf('0x%02x',$y_addr+0),'95',
+      '--set-zp',sprintf('0x%02x',$y_addr+1),'95',
+      '--set-zp',sprintf('0x%02x',$y_addr+2),'71',
+      '--set-zp',sprintf('0x%02x',$y_addr+3),'64',
+      '--set-zp',sprintf('0x%02x',$y_addr+4),'59',
+      '--set-zp',sprintf('0x%02x',$y_addr+5),'12');
+   for my$i(0..5) {
+      push@args,'--set-zp',sprintf('0x%02x',$priority_addr+$i),$priority[$i];
+   }
+   push@args,
+      '--verify-asymmetric-visibility',
+         sprintf('0x%02x',$y_addr),sprintf('0x%02x',$color_addr),
+         sprintf('0x%02x',$draw_addr),sprintf('0x%02x',$count_addr),
+      '--require-visible-mask','0x3f',
+      '--require-stable-first-visible-line','0x1c',
+      '--expect-memory',sprintf('0x%02x',$count_addr),'6';
+   expect_timing($name,100,@args);
+}
+expect_bridge_scene('same-X bridge identity priority',0,1,2,3,4,5);
+expect_bridge_scene('same-X bridge inherited priority',0,1,2,4,3,5);
+
 # Two independent three-way same-Y piles require two omissions per frame.  The
 # historical policy promoted only the *last* omission, which heavily favored
 # two members of each pile over the third.  The renderer now stable-partitions
@@ -252,6 +296,28 @@ expect_timing('top-edge lane vertical stability',100,
       sprintf('0x%02x',$y_addr),sprintf('0x%02x',$color_addr),
       sprintf('0x%02x',$draw_addr),sprintf('0x%02x',$count_addr),
    '--require-stable-first-visible-line','0x07');
+
+# Persistent top-left dual-preload deadline witness from the interactive
+# example.  With the old 51/25 extended split this scene can begin near the
+# nominal frame length, then fairness changes priority and the VBLANK scheduler
+# settles into an expensive ordering: its first deadline poll occurs after the
+# 51 preload has already expired, producing a 265-line frame in Stella 7.0.
+# Leave game_priority[] unpinned so overscan must evolve the real persistent
+# schedule; pinning identity priority would miss the regression.
+expect_timing('persistent top-left dual-preload deadline',120,
+   '--released-inputs',
+   '--set-zp',sprintf('0x%02x',$x_addr+0),'0',
+   '--set-zp',sprintf('0x%02x',$x_addr+1),'0',
+   '--set-zp',sprintf('0x%02x',$x_addr+2),'62',
+   '--set-zp',sprintf('0x%02x',$x_addr+3),'88',
+   '--set-zp',sprintf('0x%02x',$x_addr+4),'114',
+   '--set-zp',sprintf('0x%02x',$x_addr+5),'140',
+   '--set-zp',sprintf('0x%02x',$y_addr+0),'95',
+   '--set-zp',sprintf('0x%02x',$y_addr+1),'95',
+   '--set-zp',sprintf('0x%02x',$y_addr+2),'82',
+   '--set-zp',sprintf('0x%02x',$y_addr+3),'74',
+   '--set-zp',sprintf('0x%02x',$y_addr+4),'66',
+   '--set-zp',sprintf('0x%02x',$y_addr+5),'58');
 
 my$phases='23,28,33,37,42,47,50,53,58,63,68,73';
 expect_timing('12-phase randomized X stress',5000,

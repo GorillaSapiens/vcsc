@@ -95,6 +95,12 @@ for my $entry (@examples) {
    my $map=File::Spec->catfile($tmp,"$tag.map");
    my $profile=profile_from_source($source);
    my @extra;
+   if ($file eq 'enhanced_multisprite_192_asymmetric.c26') {
+      # This public example deliberately trades blanking time toward VBLANK and
+      # omits the common retained-PF-row data to stay within its 4K ROM budget.
+      # Mirror its Makefile flags so the recursive smoke build is faithful.
+      push @extra,'-DVCS_NTSC_EXTENDED_VBLANK','-DMULTISPRITE_NO_RETAINED_PF_ROWS';
+   }
    if ($file eq 'bankswitching_diagnostic.c26' ||
        $file eq 'banked_standard_renderer.c26') {
       push @extra,'-DMAPPER_BANKS=2',
