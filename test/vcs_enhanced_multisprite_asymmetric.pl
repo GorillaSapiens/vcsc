@@ -319,6 +319,33 @@ expect_timing('persistent top-left dual-preload deadline',120,
    '--set-zp',sprintf('0x%02x',$y_addr+4),'66',
    '--set-zp',sprintf('0x%02x',$y_addr+5),'58');
 
+# Held-layout Monte Carlo exposed a second VBLANK deadline failure that uniform
+# per-frame X randomization almost never sampled: when all six X coordinates
+# collapse to one column, repeated bridge-orientation searches could push a
+# particular priority/Y state across the next WSYNC boundary.  Pin the complete
+# deterministic witness for many frames so the bridge scan must stay below the
+# calibrated 262-line deadline rather than merely averaging out.
+expect_timing('same-column bridge-oracle deadline',120,
+   '--released-inputs',
+   '--set-zp',sprintf('0x%02x',$x_addr+0),'0',
+   '--set-zp',sprintf('0x%02x',$x_addr+1),'0',
+   '--set-zp',sprintf('0x%02x',$x_addr+2),'0',
+   '--set-zp',sprintf('0x%02x',$x_addr+3),'0',
+   '--set-zp',sprintf('0x%02x',$x_addr+4),'0',
+   '--set-zp',sprintf('0x%02x',$x_addr+5),'0',
+   '--set-zp',sprintf('0x%02x',$y_addr+0),'94',
+   '--set-zp',sprintf('0x%02x',$y_addr+1),'93',
+   '--set-zp',sprintf('0x%02x',$y_addr+2),'46',
+   '--set-zp',sprintf('0x%02x',$y_addr+3),'81',
+   '--set-zp',sprintf('0x%02x',$y_addr+4),'62',
+   '--set-zp',sprintf('0x%02x',$y_addr+5),'65',
+   '--set-zp',sprintf('0x%02x',$priority_addr+0),'5',
+   '--set-zp',sprintf('0x%02x',$priority_addr+1),'2',
+   '--set-zp',sprintf('0x%02x',$priority_addr+2),'4',
+   '--set-zp',sprintf('0x%02x',$priority_addr+3),'0',
+   '--set-zp',sprintf('0x%02x',$priority_addr+4),'3',
+   '--set-zp',sprintf('0x%02x',$priority_addr+5),'1');
+
 my$phases='23,28,33,37,42,47,50,53,58,63,68,73';
 expect_timing('12-phase randomized X stress',5000,
    '--randomize-zp',sprintf('0x%02x',$x_addr),'6','160','0x31415927',

@@ -82,15 +82,17 @@ Open workstreams
    Read `.../enhanced_asymmetric.txt` when working on it. The current 192-line
    diagnostic uses 12 playfield rows of 16 physical scanlines, X=0..159 and
    Y=0..95. Retained-X continuation and forced bridge orientation are present;
-   current extended blanking split is 63/13 TIM64T. Last recorded public size is
-   3980/4090 ROM and 115/128 RAM.
+   current extended blanking split is 63/13 TIM64T. Current public accounting is
+   4085/4090 ROM and 115/128 RAM.
 
-   Current unresolved bug: some fixed complete sprite-position sets still
-   produce a mixture of 262- and 263-scanline Stella frames as persistent
-   priority evolves. A single-frame scheduler Monte Carlo can miss this. Any
-   timing search must hold one complete X/Y layout for several consecutive
-   frames and evolve the real persistent priority/omission state. Reduce any hit
-   to a deterministic multi-frame regression before changing the scheduler.
+   The held-layout 262/263-frame jitter has a deterministic regression and is
+   fixed in the current tree: repeated bridge-orientation searches were pushing
+   worst-case VBLANK across its next WSYNC. The bridge oracle now scans only the
+   future priority suffix, rejects non-12-band Y pairs before touching X, and
+   caches proven future P1 endpoints in scheduler scratch. The exact witness,
+   all 720 bridge priority permutations, and 252,200 held-layout timing frames
+   pass. Interactive Stella verification is still useful before declaring the
+   side quest visually closed.
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
@@ -123,21 +125,18 @@ Their completed development narratives were moved to `context-history/`.
 Last validation state
 ---------------------
 The most recent complete compiler phase recorded in this lineage is 500/500.
-The user's later full E2E run reached 318/319; the sole failure was
-`vcs_examples_build_2of8.test`, caused by the recursive smoke builder omitting
-the asymmetric example's required `VCS_NTSC_EXTENDED_VBLANK` and
-`MULTISPRITE_NO_RETAINED_PF_ROWS` defines. The smoke builder was corrected and
-the exact shard passes. A complete 319-case E2E rerun after that correction is
-not recorded here, so do not claim one.
+After the asymmetric timing repair and recursive example-builder correction,
+all 319 E2E cases have been covered and pass. The bounded validation also ran
+all eight recursive example-build shards successfully. The maintained runner's
+default timeout remains 45 seconds; no validation-only timeout reduction was
+committed to the tree.
 
 Immediate TODO
 --------------
 Active workstream: `.../enhanced_asymmetric.txt`.
 
-Extend/use the scheduler/timing Monte Carlo so each randomly chosen complete
-six-sprite X/Y layout is simulated for multiple consecutive frames with
-persistent priority state. Find layouts that intermittently produce 263-line
-Stella frames, minimize one to a deterministic witness, then determine whether
-the extra line comes from VBLANK deadline overrun, overscan, or visible-raster
-control flow. Keep the current 63/13 split and retained-X/bridge behavior intact
-until the witness proves which budget/path is wrong.
+Verify the repaired asymmetric diagnostic interactively in Stella, especially
+same/near-column layouts and the formerly jittering fixed witness. If frame
+length remains stable, resume the retained-X allocator-quality work documented
+in the focused file. Any new 263-line hit should again be held for multiple
+frames and reduced to exact X/Y/priority state before changing timing code.

@@ -45,8 +45,11 @@ Current contract
 * Retained-X continuation is experimental: equal-X vertically disjoint sprites
   may reuse a lane without repeating normal RESP/HMOVE work.
 * The equal-X 12-band endpoint / 7+5 bridge geometry has a forced physical
-  orientation: endpoints on P1, bridge on P0. Keep that scheduler rule; it was
-  exhaustively checked over all 720 priority permutations during development.
+  orientation: endpoints on P1, bridge on P0. The VBLANK oracle scans only the
+  future priority suffix, tests +/-12 Y before X, and caches proven future P1
+  endpoint bits in `setup_line[6]` until that byte is cleared for its sort
+  sentinel role. Keep that rule and scratch lifetime; all 720 priority
+  permutations are verified against the real renderer.
 * P0 top-preload Y=89..91 has an extra predecessor state so P0/P1 first visible
   GRP lines match across Y=85..95. Re-run the lane-stability GRP oracle after any
   raster-state change.
@@ -58,35 +61,29 @@ Current contract
 
 Current accounting and validation boundary
 ------------------------------------------
-Last recorded public accounting is 3980/4090 ROM and 115/128 RAM.
+Current public accounting is 4085/4090 ROM and 115/128 RAM.
 
-The compile phase is recorded at 500/500. A user full E2E run later reached
-318/319; its only failure was the recursive example builder omitting the two
-required asymmetric-example defines. `test/vcs_examples_build.pl` was fixed to
-mirror `VCS_NTSC_EXTENDED_VBLANK` and `MULTISPRITE_NO_RETAINED_PF_ROWS`, and the
-exact 2/8 shard passes. A complete 319-case rerun after that fix is not recorded.
+The compile phase is recorded at 500/500. After the recursive example builder
+was fixed to mirror `VCS_NTSC_EXTENDED_VBLANK` and
+`MULTISPRITE_NO_RETAINED_PF_ROWS`, all 319 E2E cases have been covered and pass,
+including all eight recursive example-build shards. Interactive Stella checking
+of same/near-column layouts remains external validation, not a completed item.
 
-Known unresolved timing bug
----------------------------
-The user can still find complete fixed sprite-position sets that alternate
-between **262 and 263 Stella scanlines across successive frames**, producing
-rapid image jitter. This is state-dependent: a position set may render correctly
-for most frames and overrun only for particular persistent-priority/omission
-orders.
+Timing status
+-------------
+The state-dependent 262/263 Stella-frame jitter now has a permanent real-6502
+regression. Its cause was VBLANK cost, not visible-raster control flow: repeated
+bridge-orientation searches became pathological when many sprites shared an X
+column. The repaired oracle limits partner work to later priority ranks and
+performs the rare +/-12 Y test before any X comparison; a proven first endpoint
+caches its future partner so priority order does not change bridge orientation.
 
-Therefore a one-frame Monte Carlo is insufficient. Any host or real-6502 search
-must:
-
-1. choose one complete X/Y position set for all six sprites;
-2. keep those positions fixed for several consecutive frames;
-3. carry the same persistent priority/omission state the real renderer carries;
-4. inspect every frame for a 263-line event, not merely the first frame;
-5. save the exact positions, starting priority, frame number, and resulting event
-   order for every hit.
-
-Do not assume the fault is visible-raster work. Earlier failures have come from
-VBLANK deadline misses after priority evolves. Distinguish VBLANK, overscan, and
-visible-raster causes with a deterministic cycle/line trace.
+The deterministic all-X witness passes 117 checked frames at the calibrated
+262-line interval. Development validation also passed all 720 bridge priority
+permutations and 252,200 held-layout checked frames with persistent priority
+state across X palettes of 1, 2, 3, 4, 8, and 160 values, including shifted
+same/near-column clusters. Keep the permanent witness even if future Monte Carlo
+changes. Interactive Stella confirmation remains the next external check.
 
 Allocator work still unfinished
 --------------------------------
@@ -98,15 +95,9 @@ those shortcuts have already scheduled invisible sprites or lengthened frames.
 
 Immediate next work
 -------------------
-First fix the intermittent 262/263 frame-length bug:
-
-* extend the scheduler/timing Monte Carlo to simulate multiple consecutive frames
-  per fixed random layout with persistent state;
-* run enough layouts to find rare state/order combinations;
-* minimize the first hit to a deterministic multi-frame fixture;
-* reproduce it in the real 6502 timing harness/Stella path;
-* identify the exact deadline/path that creates the extra scanline;
-* add a permanent regression before changing scheduler/raster code.
-
-Only after stable 262-line timing is restored should broader retained-X allocator
-quality work resume.
+Run the current diagnostic interactively in Stella and try the former jitter
+population: all-same-X and near-same-X layouts while priority evolves. If the
+frame remains stable at 262, continue the broader retained-X allocator-quality
+work. If any 263-line frame remains, save the exact X/Y layout and priority
+state, hold it for multiple frames in `vcs_frame_timing`, and add a deterministic
+regression before changing the 63/13 blanking split or raster contracts.

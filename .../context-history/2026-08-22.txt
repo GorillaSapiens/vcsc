@@ -12370,3 +12370,49 @@ source_tree_hygiene.pl passes, and example_assembly_allowlist.pl passes. The
 branding test requires generated libraries/runtime/libvcsc.l26; rebuilding that
 from the clean source archive is blocked in this container because bison is not
 installed, so no full branding result is claimed here.
+
+
+2026-08-22 21:22:29 PDT, fix asymmetric held-layout frame jitter
+
+The intermittent 262/263 Stella-frame jitter was reduced to the supplied
+same-column state X={0,0,0,0,0,0}, Y={94,93,46,81,62,65}, priority=
+{5,2,4,0,3,1}. In the baseline tarball the pinned real-6502 harness crossed the
+VBLANK boundary and produced a 267-raw-line interval instead of the calibrated
+264-raw-line / 262-Stella interval. Repeated bridge-orientation searches were the
+dominant variable cost.
+
+Reworked the bridge oracle without changing its forced geometry. It now scans
+only priorities later than the current candidate, checks the rare +/-12 Y
+separation before paying for X comparisons, and records a proven future endpoint
+bit in setup_line[6], which is scheduler scratch until the existing sort-sentinel
+clear. Tiny middle-scan, mask-test, and mask-write helpers are phase-pinned into
+otherwise-unused ROM holes at F2F1, F67E, and F1F9. The main bridge oracle fills
+the complete 64-byte F3C0 hole. The 63/13 TIM64T split and visible renderer are
+unchanged.
+
+Added `same-column bridge-oracle deadline` to
+`vcs_enhanced_multisprite_asymmetric.pl`. The deterministic witness now passes
+117 checked frames at 262 lines. The existing focused asymmetric test passes,
+and a real-renderer sweep passed all 720 priority permutations of the bridge
+scene.
+
+Held-layout Monte Carlo then ran 252,200 checked frames with X/Y fixed for each
+run while the real persistent priority/omission state evolved. It covered 300
+layouts each for X palettes of 1, 2, 3, 4, 8, and 160 values plus 200 shifted
+same/near-column layouts each for palette sizes 1 through 4. No 263-line interval
+was found. Current public accounting is 4085/4090 ROM and 115/128 RAM.
+
+2026-08-22 21:48:01 PDT, complete asymmetric E2E validation
+
+Completed broad E2E validation after the asymmetric bridge-oracle timing fix
+and recursive example-builder correction. All 319 E2E cases were covered in
+bounded source-order shards because this container cannot keep one monolithic
+runner invocation alive long enough. All eight `vcs_examples_build_*of8`
+shards separately passed their real recursive build/round-trip commands.
+
+Most bounded runner shards passed with a stricter temporary 15-second default
+timeout. `vcs_all_five_181_unofficial.pl` exceeded that reduced timeout under
+parallel contention but passed its normal command serially in 5.84 seconds.
+The maintained `test/test.pl` was not changed and still uses the project-wide
+45-second default. No validation-only runner copy is part of the source tree.
+

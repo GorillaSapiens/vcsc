@@ -661,10 +661,8 @@ $hot_total <= 64*1024
 index($context,'Active workstream: `.../enhanced_asymmetric.txt`.')>=0 &&
 index($context,'hard 16 KiB ceiling')>=0 &&
 index($context,'Completed narratives belong in `.../context-history/YYYY-MM-DD.txt`.')>=0 &&
-index($context,'Current unresolved bug: some fixed complete sprite-position sets still')>=0 &&
-index($context,'multiple consecutive')>=0 &&
 index($context,'Immediate TODO')>=0
-   or die "compact context lost hot-state discipline or the active multi-frame timing bug\n";
+   or die "compact context lost hot-state discipline or active-workstream pointer\n";
 $context !~ /^\s*\[x\]/m
    or die "compact context contains completed checklist history\n";
 

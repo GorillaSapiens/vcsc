@@ -370,53 +370,103 @@ page void TEMPLATE_resp_jump_table(void) {
 // VBLANK is intentionally out-of-line. Its data-dependent scheduling branches
 // therefore cannot perturb the proven page placement of the visible renderer.
 
-// VBLANK-only lane-orientation oracle. Kept as a separate function so its rare
-// same-X bridge scan can occupy otherwise-unused ROM holes instead of inflating
-// the page-sensitive vblank worker's contiguous placement.
-void TEMPLATE_bridge_prefers_p1(void) {
-   // Equal-X endpoints 12 bands apart with a bridge seven bands below the
-   // upper endpoint have one safe physical orientation: endpoints on P1.
-   asm ldx.z TEMPLATE_setup_sprite;
-   asm ldy.zx TEMPLATE_x,X;
-   asm ldx #5;
-   asm @TEMPLATE_ChooseBridgePartnerLoop:;
-   asm tya;
-   asm cmp.zx TEMPLATE_x,X;
-   asm bne.same @TEMPLATE_ChooseBridgePartnerNext;
-   asm lda.zx TEMPLATE_y,X;
-   asm sec;
-   asm sbc.z TEMPLATE_pair_y;
-   asm cmp #12;
-   asm beq.same @TEMPLATE_ChooseBridgePartnerAbove;
-   asm cmp #$f4;
-   asm bne.same @TEMPLATE_ChooseBridgePartnerNext;
-   asm lda.z TEMPLATE_pair_y;
-   asm sec;
-   asm sbc #7;
-   asm jmp @TEMPLATE_ChooseBridgeHaveMiddleY;
-   asm @TEMPLATE_ChooseBridgePartnerAbove:;
-   asm lda.z TEMPLATE_pair_y;
-   asm clc;
-   asm adc #5;
-   asm @TEMPLATE_ChooseBridgeHaveMiddleY:;
-   asm tay;
+// VBLANK-only lane-orientation oracle. Kept as separate functions so the rare
+// same-X bridge look-ahead can occupy otherwise-unused ROM holes instead of
+// inflating the page-sensitive vblank worker's contiguous placement.
+void TEMPLATE_bridge_has_middle_y(void) {
+   // A is the required bridge-middle band and Y is the future partner's bit.
+   // Preserve Y while scanning all six logical Y values; on success return the
+   // partner bit in A with carry set.  The absolute phase pins this tiny helper
+   // into the otherwise-unused F2F1 hole without perturbing live F1xx code.
+   asm .align 512, $0f1;
    asm ldx #5;
    asm @TEMPLATE_ChooseBridgeMiddleLoop:;
-   asm tya;
    asm cmp.zx TEMPLATE_y,X;
    asm beq.same @TEMPLATE_ChooseBridgeYes;
    asm dex;
    asm bpl.same @TEMPLATE_ChooseBridgeMiddleLoop;
    asm clc;
    asm rts;
-   asm @TEMPLATE_ChooseBridgePartnerNext:;
-   asm dex;
-   asm bpl.same @TEMPLATE_ChooseBridgePartnerLoop;
-   asm clc;
-   asm rts;
    asm @TEMPLATE_ChooseBridgeYes:;
+   asm tya;
    asm sec;
-   asm rts;
+}
+
+void TEMPLATE_bridge_mark_partner(void) {
+   // A is one logical-sprite bit. setup_line[6] is zero before allocation and
+   // is explicitly cleared again before it becomes the sort sentinel, so it
+   // can cache any number of future bridge endpoints during this one pass.
+   asm .align 4096, $1f9;
+   asm ora.z TEMPLATE_setup_line + 6;
+   asm sta.z TEMPLATE_setup_line + 6;
+}
+
+void TEMPLATE_bridge_mask_test(void) {
+   // Return Z=0 iff the current logical sprite was marked by an earlier bridge
+   // endpoint.  No carry contract is needed; the caller tests Z directly.
+   asm .align 2048, $67e;
+   asm ldx.z TEMPLATE_setup_sprite;
+   asm lda.ax TEMPLATE_sprite_bit,X;
+   asm and.z TEMPLATE_setup_line + 6;
+}
+
+void TEMPLATE_bridge_prefers_p1(void) {
+   // Equal-X endpoints 12 bands apart with a bridge seven bands below the
+   // upper endpoint have one safe physical orientation: endpoints on P1.
+   // Search only priorities later than the current candidate.  Check vertical
+   // separation first: exact +/-12 is much rarer than equal X, especially in
+   // same-column stress layouts, so ordinary candidates never pay an X lookup.
+   // A first endpoint that proves the bridge caches its future partner bit in
+   // setup_line[6]; a later endpoint falls through to that mask after its short
+   // suffix has been searched.
+   asm ldy #5;
+   asm cpy.z TEMPLATE_setup_count;
+   asm beq.same @TEMPLATE_ChooseBridgeNo;
+
+   asm @TEMPLATE_ChooseBridgePartnerLoop:;
+   asm ldx.zy TEMPLATE_priority,Y;
+   asm lda.zx TEMPLATE_y,X;
+   // The initial CPY and every loop-back CPY prove Y>setup_count here, so
+   // carry is already set for this subtraction.
+   asm sbc.z TEMPLATE_pair_y;
+   asm cmp #12;
+   asm beq.same @TEMPLATE_ChooseBridgePartnerAbove;
+   asm cmp #$f4;
+   asm bne.same @TEMPLATE_ChooseBridgePartnerNext;
+   asm lda.z TEMPLATE_pair_y;
+   // CMP #$f4 matched, so carry is already set for SBC.
+   asm sbc #7;
+   asm bcs.same @TEMPLATE_ChooseBridgeHaveMiddleY;
+   asm @TEMPLATE_ChooseBridgePartnerAbove:;
+   asm lda.z TEMPLATE_pair_y;
+   // CMP #12 matched, so ADC #4 plus carry computes +5.
+   asm adc #4;
+   asm @TEMPLATE_ChooseBridgeHaveMiddleY:;
+   // Preserve the required middle Y only on the rare +/-12 path while checking
+   // that the endpoint X coordinates really match.  Y still holds the future
+   // priority rank, so the partner id is cheap to reload after the comparison.
+   asm sta.z TEMPLATE_event_stage;
+   asm lda.zx TEMPLATE_x,X;
+   asm ldx.z TEMPLATE_setup_sprite;
+   asm cmp.zx TEMPLATE_x,X;
+   asm bne.same @TEMPLATE_ChooseBridgePartnerNext;
+   asm ldx.zy TEMPLATE_priority,Y;
+   asm lda.z TEMPLATE_event_stage;
+   asm ldy.ax TEMPLATE_sprite_bit,X;
+   asm jsr TEMPLATE_bridge_has_middle_y;
+   asm bcc.same @TEMPLATE_ChooseBridgeNo;
+   // Successful middle lookup returned the future partner bit in A.  Tail-call
+   // the cache writer; its ORA result is nonzero, which is also our Z contract.
+   asm jmp TEMPLATE_bridge_mark_partner;
+
+   asm @TEMPLATE_ChooseBridgePartnerNext:;
+   asm dey;
+   asm cpy.z TEMPLATE_setup_count;
+   asm bne.same @TEMPLATE_ChooseBridgePartnerLoop;
+   asm @TEMPLATE_ChooseBridgeNo:;
+   // No future bridge partner.  A prior endpoint may already have marked this
+   // sprite, so tail-call the tiny mask lookup and return its Z flag unchanged.
+   asm jmp TEMPLATE_bridge_mask_test;
 }
 
 void TEMPLATE_vblank_worker(void) {
@@ -768,7 +818,7 @@ void TEMPLATE_vblank_worker(void) {
    asm cmp #3;
    asm bne.same @TEMPLATE_ChoosePreferP0Fast;
    asm jsr TEMPLATE_bridge_prefers_p1;
-   asm bcc.same @TEMPLATE_ChoosePreferP0Fast;
+   asm beq.same @TEMPLATE_ChoosePreferP0Fast;
    asm jmp @TEMPLATE_ChooseP1;
    asm @TEMPLATE_ChoosePreferP0Fast:;
    asm lda.z TEMPLATE_position_packed;
