@@ -896,7 +896,7 @@ void TEMPLATE_vblank_worker(void) {
    asm lda #0;
    asm sta.z TEMPLATE_setup_index; // accepted count during allocation
    // setup_code[6] is scheduler scratch until the draw sentinel is installed.
-   asm lda #0;
+   // A is still zero after the store above; keep the VBLANK hot path compact.
    asm sta TEMPLATE_setup_code + 6;
    // draw_code[6] is dead until compaction; use it as the retained-P0 mask so
    // later opposite-lane checks can recognize the safe six-band handoff.
@@ -1358,9 +1358,15 @@ void TEMPLATE_draw(void) {
    asm jmp TEMPLATE_Position1LineA;
 
    asm TEMPLATE_Position0LineA:;
-   // ArmedLineB already staged this band's left PF0.  P0 is guaranteed idle
-   // while it is being repositioned, so only the continuing P1 row needs a
-   // GRP write.  Y enters as P1's graphics-state index.
+   // Ordinary P0 setup enters with current_gfx=0.  Retained-X P0 instead
+   // carries the predecessor's next row here.  Publish it unconditionally so
+   // retained setup keeps the predecessor alive while ordinary setup stays
+   // blank; the matching tail/reload cycle savings keep this line at its
+   // established 76-cycle phase.
+   asm lda.z TEMPLATE_current_gfx;
+   asm sta GRP0;
+   // ArmedLineB already staged this band's left PF0. Y enters as P1's
+   // graphics-state index.
    asm lda.ay TEMPLATE_graphics,Y;
    asm sta GRP1;
    asm lda.ax TEMPLATE_playfield_left,X;
@@ -1369,10 +1375,9 @@ void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lda.ay TEMPLATE_graphics_next,Y;
    asm sta.z TEMPLATE_gfx_index + 1;
-   // Deliberately reload the state in three cycles rather than TAY in two;
-   // that one-cycle difference makes this physical line land exactly on the
-   // 76-cycle boundary after moving HMP/color out of line B.
-   asm ldy.z TEMPLATE_gfx_index + 1;
+   // Position0 now spends one additional cycle publishing retained GRP0; keep
+   // the same final line phase by carrying the new P1 state in Y directly.
+   asm tay;
    asm lda.ax TEMPLATE_playfield_right_pf0,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 96,X;
@@ -1390,8 +1395,6 @@ void TEMPLATE_draw(void) {
    // in Y.  This removes PHA/PLA plus the redundant line-B PF0 reload, freeing
    // seven cycles for real coarse-RESP scheduling.
    asm lda.ax TEMPLATE_playfield_left_pf0,X;
-   asm bit.z TEMPLATE_event_stage;
-   asm nop;
 
    asm TEMPLATE_Position0LineB:;
    asm sta PF0;

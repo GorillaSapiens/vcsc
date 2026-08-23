@@ -17,3 +17,19 @@ ENHANCED ASYMMETRIC RETAINED-P0 FOLLOW-UP
   stale/recolored GRP0 data and a vertically late successor bitmap. The dedicated
   retained-P0 graphics/color handoff requested by the user was not completed
   before the message-stream interruption.
+
+2026-08-23 12:56:14 PDT, retained-P0 first raster step
+RETAINED-P0 FIRST RASTER STEP
+=============================
+
+* Removed a redundant VBLANK `LDA #0`; A was already zero. This saves two ROM
+  bytes and two VBLANK cycles.
+* `Position0LineA` now publishes `current_gfx` to GRP0. Ordinary P0 publishes
+  zero; retained P0 preserves the predecessor row. Matching `TAY`/padding
+  reductions keep the established line phase unchanged.
+* Focused asymmetric timing/visibility stress passes. The known equal-X trace
+  restores the next predecessor row at line 86, proving the handoff direction.
+* The handoff remains unfinished: successor COLUP0 is still installed too early
+  and later predecessor rows are still missing. A pre-WSYNC trigger experiment
+  caused 270 raw lines and was reverted; do not add cycles there. A naive
+  P0RetainSlot advance overflowed the 4K image and was also discarded.

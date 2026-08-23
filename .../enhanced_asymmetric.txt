@@ -114,18 +114,97 @@ A newly exposed retained-X rendering bug is active. `ChooseLane` used to form
 $80/$81 for retained P0/P1 and then execute `LDX`, destroying the N flag before
 the caller's `BMI`; that flag-clobber is now fixed by loading X before the final
 A/flag-producing operations. With retained P0 now genuinely reachable, the
-existing retained-P0 route is visibly wrong: it skips repositioning but falls
-through the ordinary P0 setup pipeline, allowing stale GRP0/color state and
-placing the replacement bitmap at the wrong vertical phase. The user's 23:51/
-23:52 captures show the result as malformed 3/5 glyphs and a 5 that can appear
-higher in one frame than another.
+existing retained-P0 route is visibly wrong because it skips RESP/HMOVE but then
+falls through the ordinary P0 setup pipeline.
+
+The latest real-6502 tracing corrected an earlier diagnosis: the successor P0
+bitmap itself ultimately starts at the requested Y. Corruption happens during
+the handoff *before* that point. For the tight equal-X case, the predecessor
+begins correctly, then the ordinary position/setup states stop advancing its
+GRP0 rows. `COLUP0` can change to the successor color while predecessor GRP0 is
+still latched, so a stale predecessor glyph row is displayed in the successor
+color; P0 may then blank before the successor starts normally. This explains the
+malformed/two-color 3/5 and 4/5 captures, including the apparent vertical jump.
+The current visibility oracle can be fooled by exactly this stale-glyph/new-color
+combination and must eventually verify actual glyph bytes/rows.
+
+Keep the existing retained-P0 scheduling trigger at **Y+5**. For the tightest
+same-X predecessor/successor relation, the intended handoff spans Y+5 trigger,
+Y+4 position, Y+3 setup, Y+2 post-setup, Y+1 final predecessor row, then Y first
+successor row. Do not move the trigger to Y+1 and do not weaken the exact-six
+scheduler rules. The dedicated retained path must use the existing setup bands
+to keep emitting/advancing the predecessor through its natural last row, delay
+the successor color until predecessor graphics are retired, preserve the already
+correct X position, and leave the successor's existing Y-start behavior intact.
+It must not execute RESP0/HMOVE.
+
+The retained-P0 implementation has now been cycle-budgeted far enough that the
+next edit should be direct implementation, not more scheduler redesign:
+
+* Keep the existing Y+5 trigger. A Y+1 trigger was explored and rejected because
+  it changes event ordering relative to intervening P1 events and would invalidate
+  already-proven exact-six scheduler assumptions.
+* At the P0 trigger/position boundary, carry `current_gfx` across WSYNC just as the
+  P1 path already carries its current glyph. Ordinary P0 enters with
+  `current_gfx=0`, so an unconditional `STA GRP0` in the shared position entry is
+  harmless for ordinary setup but preserves the predecessor for retained setup.
+  This can replace the existing three-cycle `JMP Position0LineA` with a three-cycle
+  `STA GRP0` plus fall-through, keeping the established beam phase unchanged.
+* Remove/delay the successor `COLUP0` installation from `Position0LineA`; changing
+  color there while predecessor GRP0 is still latched is the observed corruption.
+* `P0RetainSlot` has enough otherwise-unused scanline budget to advance the
+  predecessor's descending P0 graphics state for the following band while still
+  servicing the asymmetric PF writes. A viable register plan finishes that slot
+  with A=continuing P1 glyph and Y=continuing P0 glyph. The next retained setup
+  line can therefore publish both players with two three-cycle stores instead of
+  doing a graphics-table lookup under the beam.
+* Retained setup must skip the ordinary HMOVE work. Either clear the pending HMP
+  state in `P0RetainSlot` or enter after the HMOVE portion, whichever is smaller
+  without perturbing ordinary P0 timing.
+* Retained `Setup0LineB` must not overwrite `gfx_index[0]` with the successor state
+  while predecessor rows remain. Preserve/advance the predecessor through Y+1;
+  only then install successor color/state for the already-correct first row at Y.
+
+Graphics-state chains run downward (for example sprite 0 uses
+104,103,...,97,0), so preserve that direction when advancing predecessor state.
+Production progress in this handoff
+-----------------------------------
+The first retained-P0 raster step has now landed. `Position0LineA` unconditionally
+publishes `current_gfx` to GRP0. Ordinary P0 reaches that point with zero, while
+retained P0 carries the predecessor row, so this is safe for both paths. The line
+was kept cycle-neutral by replacing the later `LDY gfx_index+1` with `TAY` and
+removing five cycles of tail padding. Focused asymmetric timing/visibility stress
+passes unchanged. A separate VBLANK cleanup removed a redundant `LDA #0`, saving
+two bytes and two VBLANK cycles; current accounting is 4087/4090 ROM, 115/128 RAM.
+
+The deterministic equal-X trace now restores one of the missing predecessor rows:
+GRP0 at lines 76..86 is `3c,66,c3,db,db,c3`. The remaining bug is explicit:
+COLUP0 still changes to the successor at line 87, rows 88/90 are still absent,
+and a stale `c3` can still appear later before the correctly-positioned successor
+starts at line 96. Thus the first continuation write is correct but not sufficient.
+
+A rejected experiment tried loading `current_gfx` before the trigger-line WSYNC
+and replacing the post-WSYNC JMP with `STA GRP0`; the extra pre-WSYNC cycles pushed
+the frame to 270 raw lines. It was fully reverted. Do not add work before that
+WSYNC.
+
+An exploratory P0RetainSlot predecessor-advance edit also exceeded the remaining
+ROM budget before timing could be tested; it was not committed. Any remaining
+handoff must reuse/replace existing instructions rather than simply add the full
+state-advance sequence.
 
 Immediate next work
 -------------------
-Implement a dedicated retained-P0 graphics/color handoff path. It must preserve
-the already-correct X position, retire the previous GRP0/color at the correct
-band, and begin the successor bitmap at its requested Y without traversing the
-normal RESP/HMOVE setup states. Then add a real-6502/pixel regression that checks
-the actual glyph rows and vertical position (not merely nonzero graphics under
-the expected color), and rerun the focused asymmetric timing/visibility suite.
-Do not treat the current source as a completed renderer fix yet.
+Continue the dedicated retained-P0 handoff from the now-committed Position0 GRP0
+write. Make `P0RetainSlot` advance the predecessor P0 state using byte-neutral
+redistribution, then feed a retained setup path that publishes the remaining
+predecessor rows, skips HMOVE, and postpones successor COLUP0/gfx installation
+until the Y+1 -> Y handoff. Do not add cycles before ArmedLineB's P0 WSYNC, change
+Y+5 scheduling, or weaken the exact-six allocator rules. Validate against the known
+staggered equal-X witness X={62,72,62,88,114,140}, Y={86,82,76,42,42,16},
+priority={0,1,2,3,4,5}, tracing exact GRP0 bytes/colors rather than visibility.
+Then reproduce the malformed 3/5/4/5 captures if possible, add a real-6502/pixel
+regression for exact glyph rows/vertical position, and run focused asymmetric
+timing/visibility/branch-contract tests. ROM is only 4087/4090 after the current VBLANK size saving, so keep the
+remaining implementation essentially byte-neutral. Do not call the renderer fixed until
+this path is implemented and validated.

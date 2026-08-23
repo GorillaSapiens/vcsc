@@ -88,11 +88,15 @@ Open workstreams
    The bridge-oracle and pre-WSYNC phase causes of 262/263 jitter are fixed; the
    exact Stella witnesses and held-layout dense-X stresses pass. The staggered
    0/1/2 occupancy-two cluster is also repaired by scan-order-independent exact-six
-   retained-P0 deferral and has a permanent all-six real-6502 regression. A newly
-   exposed retained-P0 raster bug is active: retained-lane dispatch now reaches
-   the real path, but P0 still falls through ordinary setup and can leave stale/
-   vertically shifted graphics. The immediate next step is the dedicated retained-
-   P0 graphics/color handoff described in `.../enhanced_asymmetric.txt`.
+   retained-P0 deferral and has a permanent all-six real-6502 regression. The
+   dedicated retained-P0 raster handoff is now partly implemented: Position0LineA
+   publishes `current_gfx`, restoring the first previously-lost predecessor row
+   without changing its established 76-cycle phase. The successor still installs
+   COLUP0 too early and the remaining predecessor rows are not yet advanced. Keep
+   the existing Y+5 trigger; next make P0RetainSlot advance the predecessor and
+   feed a retained setup path that skips HMOVE and delays successor color/state.
+   Current accounting is 4087/4090 ROM, 115/128 RAM. See
+   `.../enhanced_asymmetric.txt` for the exact trace and next edits.
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
