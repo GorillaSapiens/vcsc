@@ -63,27 +63,36 @@ Current accounting and validation boundary
 ------------------------------------------
 Current public accounting is 4085/4090 ROM and 115/128 RAM.
 
-The compile phase is recorded at 500/500. After the recursive example builder
-was fixed to mirror `VCS_NTSC_EXTENDED_VBLANK` and
-`MULTISPRITE_NO_RETAINED_PF_ROWS`, all 319 E2E cases have been covered and pass,
-including all eight recursive example-build shards. Interactive Stella checking
-of same/near-column layouts remains external validation, not a completed item.
+The compile phase is recorded at 500/500. The last broad E2E pass before the
+newest shared frame-scheduler phase fix covered all 319 cases, including all
+eight recursive example-build shards. Focused asymmetric and shared scheduler
+tests pass after the new change; repeat broad E2E before handoff.
 
 Timing status
 -------------
-The state-dependent 262/263 Stella-frame jitter now has a permanent real-6502
-regression. Its cause was VBLANK cost, not visible-raster control flow: repeated
-bridge-orientation searches became pathological when many sprites shared an X
-column. The repaired oracle limits partner work to later priority ranks and
-performs the rare +/-12 Y test before any X comparison; a proven first endpoint
-caches its future partner so priority order does not change bridge orientation.
+The bridge-oracle cost spike remains fixed: future-priority scanning, Y-first
++/-12 tests, and cached future P1 endpoints remove its pathological repeated
+search cost. The permanent all-X bridge witness and all 720 priority
+permutations remain valuable regressions.
 
-The deterministic all-X witness passes 117 checked frames at the calibrated
-262-line interval. Development validation also passed all 720 bridge priority
-permutations and 252,200 held-layout checked frames with persistent priority
-state across X palettes of 1, 2, 3, 4, 8, and 160 values, including shifted
-same/near-column clusters. Keep the permanent witness even if future Monte Carlo
-changes. Interactive Stella confirmation remains the next external check.
+Real Stella then exposed a separate 262/263 mechanism. With the 63/13 split, a
+valid state X={14,0,25,88,114,140}, Y={76,67,95,95,95,95}, priority=
+{2,3,4,5,0,1} returned from `vcs_ntsc_finish_deadline()` on scanline 52 at
+horizontal CPU phase 72. The old `WSYNC := 0` materialized zero with a two-cycle
+LDA before its STA; that pushed the TIA write across the 76-cycle boundary and
+WSYNC then consumed another whole line. The host CPU harness still called the
+frame 262 because its memory-write callback does not model this exact TIA
+instruction phase, so real Stella is authoritative for this boundary.
+
+The shared NTSC and PAL/SECAM 50 Hz scheduler cores now preserve A=0 by reading
+INTIM into caller-clobbered X and use direct `STA WSYNC; STA VBLANK` at VBLANK
+exit. An asserted TIMINT ($80) is normalized with ASL only on that already-late
+path. Normal-path visible entry remains cycle 3. The 63/13 split is unchanged. In Stella 7 the witness now
+passes 80/80 frames at 262, five other fixed stress scenes pass, and 384 held
+real-Stella frames across 1/2/3/4/8/160-value X palettes with valid Y=0..95 all
+reported 262. The maintained CPU test now also supports held ZP randomization and
+exact pre-mutation failure dumps, and the asymmetric regression uses 16-frame
+held dense-X layouts.
 
 Allocator work still unfinished
 --------------------------------
@@ -95,9 +104,10 @@ those shortcuts have already scheduled invisible sprites or lengthened frames.
 
 Immediate next work
 -------------------
-Run the current diagnostic interactively in Stella and try the former jitter
-population: all-same-X and near-same-X layouts while priority evolves. If the
-frame remains stable at 262, continue the broader retained-X allocator-quality
-work. If any 263-line frame remains, save the exact X/Y layout and priority
-state, hold it for multiple frames in `vcs_frame_timing`, and add a deterministic
-regression before changing the 63/13 blanking split or raster contracts.
+Finish broad E2E validation, then run the current diagnostic interactively in
+Stella against same/near-column layouts while priority evolves. If it remains
+stable at 262, continue the broader retained-X allocator-quality work. If any
+263-line frame remains, save the exact X/Y/priority state and hold it for several
+frames. Treat real Stella as authoritative for line count; the CPU harness is
+still useful for deadline overruns but cannot see the pre-WSYNC instruction-phase
+boundary that caused this bug.

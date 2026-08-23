@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# expectstdout: vcs_enhanced_multisprite_asymmetric ok: stable full-PF 192-line raster, 12-phase edge coverage, continuous X sweep, combined X/Y stress
+# expectstdout: vcs_enhanced_multisprite_asymmetric ok: stable full-PF 192-line raster, held-layout dense-X stress, 12-phase edge coverage, continuous X sweep, combined X/Y stress
 # expectexit: 0
 
 use strict;
@@ -346,6 +346,23 @@ expect_timing('same-column bridge-oracle deadline',120,
    '--set-zp',sprintf('0x%02x',$priority_addr+4),'3',
    '--set-zp',sprintf('0x%02x',$priority_addr+5),'1');
 
+# Hold each randomized geometry for sixteen complete frames.  Per-frame
+# randomization badly under-samples the scheduler's persistent priority cycle:
+# some timing failures occur only on one of several fairness permutations for
+# a fixed layout.  Dense 1..4-column populations deliberately hammer the
+# same/near-column bridge cases that exposed that blind spot.
+for my$columns (1..4) {
+   expect_timing("held-layout dense-X stress $columns columns",1603,
+      '--released-inputs',
+      '--randomize-zp-held',sprintf('0x%02x',$x_addr),'6',$columns,
+         sprintf('0x%08x',0x51000000+$columns),'16',
+      '--randomize-zp-held',sprintf('0x%02x',$y_addr),'6','96',
+         sprintf('0x%08x',0x61000000+$columns),'16',
+      '--dump-zp',sprintf('0x%02x',$x_addr),'6',
+      '--dump-zp',sprintf('0x%02x',$y_addr),'6',
+      '--dump-zp',sprintf('0x%02x',$priority_addr),'6');
+}
+
 my$phases='23,28,33,37,42,47,50,53,58,63,68,73';
 expect_timing('12-phase randomized X stress',5000,
    '--randomize-zp',sprintf('0x%02x',$x_addr),'6','160','0x31415927',
@@ -425,4 +442,4 @@ for my$spec (
       '--require-resp-phases',$phases);
 }
 
-print "vcs_enhanced_multisprite_asymmetric ok: stable full-PF 192-line raster, 12-phase edge coverage, continuous X sweep, combined X/Y stress\n";
+print "vcs_enhanced_multisprite_asymmetric ok: stable full-PF 192-line raster, held-layout dense-X stress, 12-phase edge coverage, continuous X sweep, combined X/Y stress\n";

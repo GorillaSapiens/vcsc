@@ -78,6 +78,8 @@ struct RandomizeZpRange {
    unsigned count;
    unsigned modulus;
    uint32_t state;
+   unsigned hold_frames;
+   unsigned frames_until_refresh;
 };
 
 struct FixedZpWrite {
@@ -100,6 +102,14 @@ struct SweepZpWrite {
 };
 
 std::vector<RandomizeZpRange> randomize_zp_ranges;
+
+struct DumpZpRange {
+   uint16_t address;
+   unsigned count;
+};
+std::vector<DumpZpRange> dump_zp_ranges;
+uint64_t live_expected_raw_cycles = 0;
+
 std::vector<FixedZpWrite> fixed_zp_writes;
 std::vector<SweepZpWrite> sweep_zp_writes;
 std::vector<ExpectedMemory> expected_memory;
@@ -334,14 +344,43 @@ void apply_writes() {
             for (unsigned id = 0; id < 6; ++id)
                asymmetric_visibility.first_visible_line[id] = -1;
             vsync_assertions.push_back(virtual_cycles);
+            // Check the frame that just ended before mutating RAM for the next
+            // one, so a failure dump identifies the exact held layout that
+            // produced the bad interval rather than its successor.
+            if (live_expected_raw_cycles && vsync_assertions.size() > 3) {
+               const size_t n = vsync_assertions.size();
+               const uint64_t delta = vsync_assertions[n - 1] - vsync_assertions[n - 2];
+               if (delta != live_expected_raw_cycles) {
+                  std::fprintf(stderr,
+                     "vcs_frame_timing: live frame %zu has %llu cycles (%llu raw lines); expected %llu\n",
+                     n - 1,
+                     static_cast<unsigned long long>(delta),
+                     static_cast<unsigned long long>(delta / kCyclesPerScanline),
+                     static_cast<unsigned long long>(live_expected_raw_cycles));
+                  for (const DumpZpRange &range : dump_zp_ranges) {
+                     std::fprintf(stderr, "  zp[$%02x..$%02x]=", range.address,
+                        static_cast<unsigned>(range.address + range.count - 1));
+                     for (unsigned j = 0; j < range.count; ++j)
+                        std::fprintf(stderr, "%s%u", j ? "," : "", memory_image[range.address + j]);
+                     std::fprintf(stderr, "\n");
+                  }
+                  std::exit(1);
+               }
+            }
             // Test-only RAM mutation happens exactly at the synchronized frame
             // boundary, before VBLANK work begins.  This lets renderer tests
             // hammer state-dependent schedulers without spending cartridge
             // overscan cycles generating pseudo-random inputs themselves.
             if (vsync_assertions.size() > 1) {
                for (RandomizeZpRange &range : randomize_zp_ranges) {
-                  for (unsigned i = 0; i < range.count; ++i) {
-                     memory_image[range.address + i] = next_randomized_zp_value(range);
+                  if (range.frames_until_refresh == 0) {
+                     for (unsigned i = 0; i < range.count; ++i) {
+                        memory_image[range.address + i] = next_randomized_zp_value(range);
+                     }
+                     range.frames_until_refresh = range.hold_frames - 1;
+                  }
+                  else {
+                     --range.frames_until_refresh;
                   }
                }
                for (SweepZpWrite &write : sweep_zp_writes) {
@@ -409,7 +448,7 @@ void apply_writes() {
 int main(int argc, char **argv) {
    if (argc < 3) {
       std::fprintf(stderr,
-         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--randomize-zp ADDR COUNT MODULUS SEED]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--released-inputs] [--expect-memory ADDR VALUE]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--require-stable-first-visible-line MASK] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
+         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--randomize-zp ADDR COUNT MODULUS SEED]... [--randomize-zp-held ADDR COUNT MODULUS SEED FRAMES]... [--dump-zp ADDR COUNT]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--released-inputs] [--expect-memory ADDR VALUE]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--require-stable-first-visible-line MASK] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
          argv[0]);
       return 2;
    }
@@ -464,8 +503,38 @@ int main(int argc, char **argv) {
          }
          randomize_zp_ranges.push_back({
             static_cast<uint16_t>(address), static_cast<unsigned>(count),
-            static_cast<unsigned>(modulus), static_cast<uint32_t>(seed)
+            static_cast<unsigned>(modulus), static_cast<uint32_t>(seed), 1, 0
          });
+      }
+      else if (std::strcmp(argv[i], "--randomize-zp-held") == 0) {
+         if (i + 5 >= argc) {
+            fail("--randomize-zp-held requires ADDR COUNT MODULUS SEED FRAMES");
+         }
+         char *parse_end = nullptr;
+         const unsigned long address = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || address > 0xff) fail("bad --randomize-zp-held address");
+         const unsigned long count = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || count < 1 || count > 64 || address + count > 0x100) fail("bad --randomize-zp-held count");
+         const unsigned long modulus = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || modulus < 1 || modulus > 256) fail("bad --randomize-zp-held modulus");
+         const unsigned long seed = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || seed > 0xffffffffUL || seed == 0) fail("bad --randomize-zp-held seed");
+         const unsigned long hold = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || hold < 1 || hold > 1000000UL) fail("bad --randomize-zp-held frames");
+         randomize_zp_ranges.push_back({
+            static_cast<uint16_t>(address), static_cast<unsigned>(count),
+            static_cast<unsigned>(modulus), static_cast<uint32_t>(seed),
+            static_cast<unsigned>(hold), 0
+         });
+      }
+      else if (std::strcmp(argv[i], "--dump-zp") == 0) {
+         if (i + 2 >= argc) fail("--dump-zp requires ADDR COUNT");
+         char *parse_end = nullptr;
+         const unsigned long address = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || address > 0xff) fail("bad --dump-zp address");
+         const unsigned long count = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || count < 1 || count > 64 || address + count > 0x100) fail("bad --dump-zp count");
+         dump_zp_ranges.push_back({static_cast<uint16_t>(address), static_cast<unsigned>(count)});
       }
       else if (std::strcmp(argv[i], "--sweep-zp") == 0) {
          if (i + 3 >= argc) {
@@ -621,6 +690,7 @@ int main(int argc, char **argv) {
       }
    }
    const uint64_t expected_raw_cycles = expected_raw_lines * kCyclesPerScanline;
+   live_expected_raw_cycles = expected_raw_cycles;
 
    char *end = nullptr;
    const long requested = std::strtol(argv[2], &end, 10);

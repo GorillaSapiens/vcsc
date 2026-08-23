@@ -12416,3 +12416,45 @@ parallel contention but passed its normal command serially in 5.84 seconds.
 The maintained `test/test.pl` was not changed and still uses the project-wide
 45-second default. No validation-only runner copy is part of the source tree.
 
+
+
+2026-08-22 22:40:17 PDT, fix real-Stella pre-WSYNC phase jitter
+
+Interactive Stella disproved the earlier CPU-harness-only closure of the
+262/263 jitter. A valid deterministic state X={14,0,25,88,114,140},
+Y={76,67,95,95,95,95}, priority={2,3,4,5,0,1} produced 263 on all 80 checked
+frames in the 63/13 build. The pre-bridge-optimization ROM also reproduced it,
+so this witness predates the latest bridge-oracle change rather than being a
+regression caused by that optimization.
+
+Debugger breakpoints identified a second timing mechanism. Both good and bad
+states reached the RIOT deadline before underflow, but after
+`vcs_ntsc_finish_deadline()` the good state was on scanline 52 at horizontal CPU
+phase 64 while the bad state was at phase 72. The compiler-generated
+`WSYNC := 0` sequence was `LDA #0; STA WSYNC`. In the late state those two load
+cycles pushed the following TIA store across the 76-cycle boundary, after which
+WSYNC stalled for another entire line. The simplified host timing harness did
+not model this intra-instruction TIA write boundary and incorrectly reported the
+same bad state as 262.
+
+A 64/12 TIM64T experiment hid the Stella symptom but reduced overscan margin and
+made the reset-path CPU harness one raw line longer, so it was rejected. The
+root fix keeps 63/13. Production polling reads INTIM into caller-clobbered X so
+A retains the zero from a clear TIMINT read, including an INTIM-underflow race;
+an asserted TIMINT is exactly $80 and its already-late path uses one-byte ASL to
+normalize A. VBLANK exit consumes that zero with direct
+`STA WSYNC; STA VBLANK`, eliminating the pre-WSYNC load while preserving cycle-3
+visible entry. The same fix was applied to the shared 50 Hz PAL/SECAM scheduler
+core. Compile contracts pin the poll and direct-store order.
+
+The real-Stella witness passes 80/80 at 262 after the fix. Default, historical
+top-left, retained-bridge, old all-X deadline, and all-Y=95 scenes also pass.
+Additional held real-Stella sampling covered 384 valid frames across random X
+palettes of 1, 2, 3, 4, 8, and 160 values with Y constrained to the documented
+0..95 range; every frame was 262. The host timing harness gained
+`--randomize-zp-held` and `--dump-zp`; live interval failures are checked before
+the next frame mutates RAM so dumps identify the actual failing layout. The
+focused asymmetric suite now holds dense 1..4-column randomized X/Y layouts for
+16 frames apiece. Focused asymmetric, NTSC scheduler, 50 Hz scheduler, and
+NTSC/PAL/SECAM compile-contract tests pass. Public asymmetric accounting is now
+4085/4090 ROM and 115/128 RAM.

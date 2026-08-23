@@ -182,20 +182,32 @@ static void vcs_ntsc_finish_deadline(void) {
    asm lda vcs_ntsc_overrun_flags
    asm ora vcs_ntsc_overrun_phase
    asm sta vcs_ntsc_overrun_flags
+   // The phase transition consumes A directly.  The normal path reaches
+   // @done with A == 0 from INTIM; normalize only the overrun tail.
+   asm lda #0
    asm @done:
 }
 #else
-// Keep the mandatory production path compact: one shared 13-byte subroutine,
+// Keep the mandatory production path compact: one shared polling subroutine,
 // no result construction, and no RAM workspace.  Inline assembly is used here
 // only to express the RIOT polling loop exactly; it remains an optimizer barrier.
 static void vcs_ntsc_finish_deadline(void) {
    asm @wait:
    asm lda TIMINT
-   asm bmi @done
-   asm lda INTIM
+   asm bmi @timint_overrun
+   // X is caller-clobbered.  Reading INTIM into X preserves the zero already
+   // in A, including the race where INTIM underflows between the TIMINT and
+   // INTIM reads.
+   asm ldx INTIM
    asm bmi @done
    asm bne @wait
    asm @done:
+   asm rts
+   // TIMINT is exactly $80 when asserted; one-byte ASL normalizes it to zero.
+   // This path is already an overrun, so its extra two cycles are irrelevant to
+   // the normal deadline phase.
+   asm @timint_overrun:
+   asm asl
 }
 #endif
 
@@ -216,8 +228,11 @@ inline void vcs_ntsc_end_vblank(void) {
    vcs_ntsc_overrun_phase := VCS_NTSC_VBLANK_OVERRUN`uint8_t;
 #endif
    vcs_ntsc_finish_deadline();
-   WSYNC := 0;
-   VBLANK := 0;
+   // finish_deadline guarantees A == 0.  Store it directly: materializing
+   // another zero here can cross the scanline boundary when the RIOT poll
+   // returns late in a line, turning one frame into 263 scanlines.
+   asm sta WSYNC
+   asm sta VBLANK
 }
 
 // Begin the shared 30-scanline overscan budget. Component overscan callbacks

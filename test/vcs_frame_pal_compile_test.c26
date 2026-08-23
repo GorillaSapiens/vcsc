@@ -2,6 +2,9 @@
 // expectasm: lda #$34
 // expectasm: lda #$29
 // expectasm: sta  $0296
+// expectasmordered: jsr vcs_pal_finish_deadline
+// expectasmordered: sta $02
+// expectasmordered: sta $01
 // forbidasm: vcs_pal_overrun_flags
 include "vcs.c26"
 include "frame_pal.c26"

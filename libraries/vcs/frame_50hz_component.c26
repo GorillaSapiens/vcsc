@@ -86,17 +86,25 @@ static void TEMPLATE_finish_deadline(void) {
    asm lda TEMPLATE_overrun_flags
    asm ora TEMPLATE_overrun_phase
    asm sta TEMPLATE_overrun_flags
+   // Normal completion already has A == 0 from INTIM.  Normalize only the
+   // overrun tail so the phase transition can consume A directly.
+   asm lda #0
    asm @done:
 }
 #else
 static void TEMPLATE_finish_deadline(void) {
    asm @wait:
    asm lda TIMINT
-   asm bmi @done
-   asm lda INTIM
+   asm bmi @timint_overrun
+   // Preserve A==0 across the INTIM read.  X is caller-clobbered.
+   asm ldx INTIM
    asm bmi @done
    asm bne @wait
    asm @done:
+   asm rts
+   // An asserted TIMINT read is $80, so ASL yields the required zero.
+   asm @timint_overrun:
+   asm asl
 }
 #endif
 
@@ -110,8 +118,11 @@ inline void TEMPLATE_end_vblank(void) {
    TEMPLATE_overrun_phase := 1;
 #endif
    TEMPLATE_finish_deadline();
-   WSYNC := 0;
-   VBLANK := 0;
+   // Do not materialize zero between the timer poll and WSYNC: if the poll
+   // returns near the end of a scanline, that load can push WSYNC onto the
+   // following line and lengthen the frame.
+   asm sta WSYNC
+   asm sta VBLANK
 }
 
 inline void TEMPLATE_begin_overscan(void) {

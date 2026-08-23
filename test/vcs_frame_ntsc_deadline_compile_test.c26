@@ -3,13 +3,18 @@
 // expectasm: lda #$22
 // expectasm: sta  $0296
 // expectasmordered: lda $0285
-// expectasmordered: bmi @done
-// expectasmordered: lda $0284
+// expectasmordered: bmi @timint_overrun
+// expectasmordered: ldx $0284
 // expectasmordered: bmi @done
 // expectasmordered: bne @wait
-// expectasm: sta  $02
-// expectasm: sta  $01
-// expectasm: jsr vcs_ntsc_finish_deadline
+// expectasmordered: @done:
+// expectasmordered: rts
+// expectasmordered: @timint_overrun:
+// expectasmordered: asl
+// expectasmordered: rts
+// expectasmordered: jsr vcs_ntsc_finish_deadline
+// expectasmordered: sta $02
+// expectasmordered: sta $01
 // forbidasm: jsr vcs_ntsc_begin_vblank
 // forbidasm: jsr vcs_ntsc_end_vblank
 // forbidasm: jsr vcs_ntsc_begin_overscan
