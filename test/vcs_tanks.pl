@@ -134,9 +134,12 @@ $map =~ /pinned\s+CODE\.__vcsc_function\$main\s+region=bank0/m &&
 $map =~ /automatic\s+CODE\.__vcsc_function\$tanks_update_overscan\s+region=bank1/m &&
 $map =~ /automatic\s+CODE\.__vcsc_function\$tanks_process_knockback\s+region=bank[01]/m
    or die "Tanks automatic F8SC code placement did not keep startup home and use both banks\n$map";
-$map =~ /^\s+cartram\s+read_start=\$F080 write_start=\$F000 size=\$0080 type=rw shared=yes\b/m &&
-$map =~ /^\s+ZERO\s+BSS\.cartram\.__vcsc_object\$tanks_barrier_pf2\s+read=\$F080\s+write=\$F000\s+size=\$0056/m
+$map =~ /^\s+cartram\s+read_start=\$F080 write_start=\$F000 size=\$0080 type=rw shared=yes\b/m
+   or die "Tanks Superchip RAM window changed\n$map";
+$map =~ /^\s+ZERO\s+BSS\.cartram\.__vcsc_object\$tanks_barrier_pf2\s+read=\$([0-9A-Fa-f]{4})\s+write=\$([0-9A-Fa-f]{4})\s+size=\$0056\s+split=yes/m
    or die "Tanks explicit Superchip RAM placement/init aliasing changed\n$map";
+hex($1)-hex($2)==0x80
+   or die "Tanks barrier read/write aliases are not separated by the Superchip 0x80-byte window\n$map";
 
 my$cxx=$ENV{CXX}||'c++';my$mos=File::Spec->catdir($repo,qw(simulator mos6502));my$mosobj=File::Spec->catfile($mos,'mos6502.o');my@mos=-f$mosobj?($mosobj):(File::Spec->catfile($mos,'mos6502.cpp'));
 my$oracle_src=File::Spec->catfile($repo,qw(test vcs_tanks.cpp));my$oracle=File::Spec->catfile($tmp,'vcs_tanks_oracle');

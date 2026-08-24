@@ -89,17 +89,18 @@ die "score compile wrote output\n$out$err" if $out ne '' || $err ne '';
 die "pre-template score build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 die "pre-template score build wrote output\n$out$err" if without_cartridge_usage($out) ne '' || $err ne '';
 
-for my $rompath ($bin,$oldbin) {
+for my $spec ([$bin,0xf000],[$oldbin,0xf056]) {
+   my($rompath,$expected_reset)=@$spec;
    my $rom=read_file($rompath);
    length($rom)==4096 or die "$rompath is not 4096 bytes\n";
    my ($nmi,$reset,$irq)=unpack('v3',substr($rom,0x0ffa,6));
-   $reset==0xf056 or die sprintf("%s RESET vector is %04x, expected f056\n",$rompath,$reset);
+   $reset==$expected_reset or die sprintf("%s RESET vector is %04x, expected %04x\n",$rompath,$reset,$expected_reset);
    for my $v ($nmi,$irq) { $v>=0xf000 && $v<=0xffff or die "$rompath vector outside ROM\n"; }
 }
 
 my $map_text=read_file($map);
-require_re($map_text,qr/\$0084\s+score_offsets|score_offsets\s+.*\$0084/,
-           'component compact offsets are not anchored at the first allocatable RAM byte');
+require_re($map_text,qr/\$0083\s+score_offsets|score_offsets\s+.*\$0083/,
+           'component compact offsets are not anchored immediately after compact startup workspace');
 for my $symbol (qw(score_score score_offsets score_pointers score_delayed)) {
    require_re($map_text,qr/\b\Q$symbol\E\b/,"score map is missing $symbol");
 }

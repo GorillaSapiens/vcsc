@@ -101,10 +101,8 @@ $map_text =~ /region=ram\s+depth=2\s+bytes=\$0006\s+physical=\$00FA-\$00FF/
    or die "map does not report the expected two-source-call plus full-startup hardware-stack reserve\n";
 $map_text =~ /__stack_top\s+\$00F9/
    or die "map does not stop ordinary allocation below the computed stack reserve\n";
-$map_text =~ /BSS\s+run=\$0084\s+size=\$0000/
-   or die "direct indexed player unexpectedly allocates BSS scratch after the four-byte startup workspace\n";
-$map_text =~ /DATA\.__vcsc_object\$music_index\s+load=\$[0-9A-F]+\s+run=\$0084\s+size=\$0001/
-   or die "music_index is not the first one-byte player-state object after startup workspace\n";
+$map_text =~ /BSS\.__vcsc_object\$music_index\s+run=\$0084\s+size=\$0001/
+   or die "zero-initialized music_index is not the first one-byte player-state object after startup workspace\n";
 $map_text =~ /DATA\.__vcsc_object\$music_counter\s+load=\$[0-9A-F]+\s+run=\$0085\s+size=\$0001/
    or die "music_counter is not the second one-byte player-state object after startup workspace\n";
 $map_text =~ /\bmusic\b/ or die "map is missing ROM score symbol music\n";

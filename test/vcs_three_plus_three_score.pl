@@ -157,8 +157,8 @@ my $map=read_file($mapfile);
 $map =~ /score_pointers\s+run=\$[0-9A-Fa-f]+ size=\$000C/ or die "component pointer allocation changed\n";
 $map =~ /score_scratch\s+run=\$[0-9A-Fa-f]+ size=\$0002/ or die "component scratch allocation changed\n";
 $map =~ /score_left_hundreds_rows\s+run=\$[0-9A-Fa-f]+ size=\$0008/ or die "component left-hundreds row cache changed\n";
-$map =~ /score_left_score\s+load=\$[0-9A-Fa-f]+ run=\$[0-9A-Fa-f]+ size=\$0002/ or die "left score allocation changed\n";
-$map =~ /score_right_score\s+load=\$[0-9A-Fa-f]+ run=\$[0-9A-Fa-f]+ size=\$0002/ or die "right score allocation changed\n";
+$map =~ /BSS\.__vcsc_object\$score_left_score\s+run=\$[0-9A-Fa-f]+ size=\$0002/ or die "left score allocation changed\n";
+$map =~ /BSS\.__vcsc_object\$score_right_score\s+run=\$[0-9A-Fa-f]+ size=\$0002/ or die "right score allocation changed\n";
 
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
@@ -183,7 +183,7 @@ $rc==0 && !$sig or die "public dual-score example build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "public dual-score example wrote output\n$out$err";
 -s $public_bin==2048 or die "public dual-score example is not 2048 bytes\n";
 my $public_map_text=read_file($public_map);
-$public_map_text =~ /rom\s+used=1544 bytes/ or die "public dual-score ROM accounting changed\n";
+$public_map_text =~ /rom\s+used=1533 bytes/ or die "public dual-score ROM accounting changed\n";
 $public_map_text =~ /ram\s+used=45 bytes.*objects=41 bytes hardware-stack=4 bytes/ or die "public dual-score RAM accounting changed\n";
 
 my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));

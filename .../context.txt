@@ -112,11 +112,12 @@ Open workstreams
    further user interactive Stella validation. Do not modify the maintained
    `renderers/multisprite/` compatibility renderer while working on it.
 
-6. **Startup/DATA ROM optimization -- active side quest**
-   Read `.../startup_data_optimization.txt`. A prototype compiler change emits
-   mutable all-zero static initializers as BSS/ZEROPAGE rather than DATA, avoiding
-   pointless startup copies and unlocking compact startup in more examples. It is
-   not yet fully validated; no exploratory example-source cleanup is retained.
+6. **Zero static initializer placement**
+   Mutable all-zero link-time static initializers are emitted directly as
+   BSS/ZEROPAGE rather than DATA. This avoids pointless ROM copies and lets more
+   programs select the compact startup. Const/readonly objects and pointer
+   initializers that require backing objects retain their required storage
+   semantics. Regression tests own the detailed placement/footprint expectations.
 
 Completed focused work
 ----------------------
@@ -126,16 +127,14 @@ Their completed development narratives were moved to `context-history/`.
 
 Last validation state
 ---------------------
-Current broad validation is clean: compiler 502/502 and effective E2E 320/320.
-A temporary runner capped every E2E timeout at two seconds: 250 cases passed
-under that stricter limit, and the 70 timeout-only cases all passed when rerun
-with their unchanged repository-defined timeout values. Source-tree hygiene and
+Current broad validation is clean under the normal repository test target:
+compiler 502/502 and E2E 320/320. Source-tree hygiene, branding, and
 context-history formatting pass.
 
 Immediate TODO
 --------------
-Active workstream: `.../startup_data_optimization.txt`.
+Active workstream: `.../roadmap.txt`.
 
-Finish and validate the all-zero static-initializer -> BSS/ZEROPAGE compiler
-optimization before any broader example-source initializer cleanup. Main roadmap
-Item 44 remains next when this side quest is closed or explicitly deferred.
+Continue with main roadmap Item 44, the public diagnostic cartridge. Broader
+example-source initializer cleanup is optional future ROM optimization, not an
+active workstream.

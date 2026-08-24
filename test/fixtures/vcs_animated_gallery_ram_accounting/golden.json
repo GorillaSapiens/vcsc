@@ -150,7 +150,7 @@
          "free_ram_bytes" : 77,
          "object_bytes" : 47,
          "ram_bytes" : 51,
-         "rom_bytes" : 3243,
+         "rom_bytes" : 3237,
          "stack_bytes" : 4
       },
       "object_schedule_bytes_after" : 0,
@@ -408,14 +408,14 @@
       },
       {
          "class" : "persistent_state",
-         "name" : "sprite1",
+         "name" : "animation_state",
          "size" : 1,
          "start" : 172,
          "subclass" : "gallery_control"
       },
       {
          "class" : "persistent_state",
-         "name" : "animation_state",
+         "name" : "sprite1",
          "size" : 1,
          "start" : 173,
          "subclass" : "gallery_control"
@@ -720,7 +720,7 @@
          "activation_bytes" : 0,
          "free_ram_bytes" : 77,
          "ram_bytes" : 51,
-         "rom_bytes" : 3243,
+         "rom_bytes" : 3237,
          "stack_bytes" : 4
       },
       "decision" : "retain-general-p0-p1-ball-renderer",
@@ -732,7 +732,7 @@
          "activation_bytes" : -20,
          "free_ram_bytes" : 77,
          "ram_bytes" : -77,
-         "rom_bytes" : -750,
+         "rom_bytes" : -756,
          "stack_bytes" : -4
       },
       "useful_game_state_margin" : true

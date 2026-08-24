@@ -1,0 +1,16 @@
+2026-08-24 09:20:43 PDT, close zero-init BSS optimization
+Completed and fully validated the compiler optimization that emits mutable
+all-zero link-time static initializers directly into BSS/ZEROPAGE instead of
+DATA. Const/readonly objects and pointer initializers requiring backing objects
+retain their required storage semantics. This removes pointless startup copies
+and allows additional examples to select the compact startup.
+
+Updated affected executable regressions and deterministic layout/ROM goldens
+rather than weakening them. Notable fallout included three-plus-three score
+BSS placement, 181/192 combined renderer footprints, animated-gallery object
+placement/accounting, multisprite profiles, Ode to Joy state placement,
+six-glyph score families, and Tanks Superchip alias checks. The Tanks regression
+now pins the read/write +$80 alias invariant rather than incidental BSS order.
+Removed the temporary `startup_data_optimization.txt` developer work file.
+
+Final normal repository validation is clean: compiler 502/502 and E2E 320/320.
