@@ -118,6 +118,17 @@ The host C scheduler remains the ordinary full-setup baseline oracle. Broader
 allocator quality for other occupancy<=2 layouts is still unfinished. Do not
 lower the 15/12 ordinary reservations or broad directional hazard windows.
 
+Real-Stella allocator-quality witness: the interactive diagnostic can produce a
+close staggered logical 2/5/0 cluster at distinct X positions where visible
+occupancy never exceeds two sprites, yet the current scheduler fair-flickers the
+cluster. The cause is not the same-X <13 rule: under the ordinary P0=15/P1=12
+setup reservations, all three logical sprites conflict for the two hardware
+lanes even though their visible glyph lifetimes do not form a three-way overlap.
+Keep this 2/5/0 case as a concrete target for broader occupancy<=2 work. Any fix
+should come from proving a tighter different-X handoff/setup schedule (or an
+equivalent safe allocator capability), not by weakening the measured same-X
+threshold or globally lowering the established 15/12 reservations.
+
 Immediate next work
 -------------------
 Resume broader allocator-quality work for occupancy<=2 layouts while preserving

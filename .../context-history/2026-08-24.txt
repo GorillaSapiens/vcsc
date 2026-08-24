@@ -14,3 +14,16 @@ now pins the read/write +$80 alias invariant rather than incidental BSS order.
 Removed the temporary `startup_data_optimization.txt` developer work file.
 
 Final normal repository validation is clean: compiler 502/502 and E2E 320/320.
+
+2026-08-24 10:00:00 PDT, GitHub Actions Node 24 and 2/5/0 witness
+Updated both package-artifact upload steps in `.github/workflows/build-packages.yml`
+from `actions/upload-artifact@v4` to `@v7`, eliminating the deprecated Node.js 20
+action runtime on GitHub-hosted runners. `actions/checkout@v6` already targets
+Node.js 24 and was intentionally left unchanged.
+
+Recorded the real-Stella 2/5/0 allocator-quality witness in
+`.../enhanced_asymmetric.txt`: the close stagger has distinct X positions and
+visible occupancy <=2, but current P0=15/P1=12 setup reservations make the three
+logical sprites mutually conflict for two hardware lanes, causing fair flicker.
+This is a target for tighter proven different-X handoff scheduling, not a reason
+to weaken the same-X <13 invariant or the ordinary reservation constants.
