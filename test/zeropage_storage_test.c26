@@ -11,6 +11,9 @@ include "machine_6502.c26"
 zeropage int16_t z := 5;
 zeropage int8_t q;
 
-int16_t main(void) {
+int16_t test_entry(void) {
    return z;
+}
+
+void main(void) {
 }

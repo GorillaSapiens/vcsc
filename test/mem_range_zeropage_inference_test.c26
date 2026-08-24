@@ -16,6 +16,9 @@ mem zeropage { $start:0x0100 $size:0x0100 $rw };
 banana int16_t a := 5;
 zeropage int16_t b := 6;
 
-int16_t main(void) {
+int16_t test_entry(void) {
    return a;
+}
+
+void main(void) {
 }

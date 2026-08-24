@@ -11,6 +11,9 @@ uint16_t ram_init := 2;
 uint16_t ram_zero;
 zeropage uint16_t zp_zero;
 
-uint8_t main(void) {
+uint8_t test_entry(void) {
    return rom_byte + (uint8_t)ram_init + (uint8_t)ram_zero + (uint8_t)zp_zero;
+}
+
+void main(void) {
 }

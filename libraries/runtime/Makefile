@@ -43,6 +43,7 @@ install: all
 	$(INSTALL_DATA) libvcsc.l26 $(DESTDIR)$(LIBDIR)/libvcsc.l26
 	$(INSTALL_DATA) vcsc-runtime.inc $(DESTDIR)$(INCLUDEDIR)/vcsc-runtime.inc
 	$(INSTALL_DATA) vcsc-rt0.s26 $(DESTDIR)$(DATADIR)/runtime/vcsc-rt0.s26
+	$(INSTALL_DATA) vcsc-rt1-simple.s26 $(DESTDIR)$(DATADIR)/runtime/vcsc-rt1-simple.s26
 	$(INSTALL_DATA) $(ZP_SOURCES) $(DESTDIR)$(DATADIR)/runtime/
 	$(INSTALL_DATA) README.md $(DESTDIR)$(DATADIR)/runtime/README.md
 	$(INSTALL_DATA) ../LICENSE.txt $(DESTDIR)$(DATADIR)/runtime/LICENSE.txt
@@ -51,6 +52,7 @@ uninstall:
 	rm -f $(DESTDIR)$(LIBDIR)/libvcsc.l26
 	rm -f $(DESTDIR)$(INCLUDEDIR)/vcsc-runtime.inc
 	rm -f $(DESTDIR)$(DATADIR)/runtime/vcsc-rt0.s26
+	rm -f $(DESTDIR)$(DATADIR)/runtime/vcsc-rt1-simple.s26
 	rm -f $(addprefix $(DESTDIR)$(DATADIR)/runtime/,$(ZP_SOURCES))
 	rm -f $(DESTDIR)$(DATADIR)/runtime/README.md
 	rm -f $(DESTDIR)$(DATADIR)/runtime/LICENSE.txt

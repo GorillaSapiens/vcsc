@@ -22,6 +22,9 @@ uint16_t id16(uint16_t value) {
    return value;
 }
 
-uint16_t main(void) {
+uint16_t test_entry(void) {
    return id16(0x1234`uint16_t);
+}
+
+void main(void) {
 }

@@ -9,6 +9,9 @@ uint16_t sbrk(uint16_t amount) {
    return amount;
 }
 
-uint16_t main(void) {
+uint16_t test_entry(void) {
    return sbrk(7);
+}
+
+void main(void) {
 }

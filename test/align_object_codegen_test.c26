@@ -7,6 +7,9 @@ include "machine_6502.c26"
 
 align(128 * 2) const uint8_t aligned_table[300] := { 0 };
 
-uint8_t main(void) {
+uint8_t test_entry(void) {
    return aligned_table[0];
+}
+
+void main(void) {
 }

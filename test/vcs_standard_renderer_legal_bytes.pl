@@ -190,7 +190,7 @@ my $rom=read_file($bin);
 length($rom)==4096 or die "legal profile is not a 4096-byte cartridge\n";
 my ($count,$error)=scan_profile($rom,read_file($map),$official,\%layout);
 defined($error) and die "legal linked profile failed opcode gate: $error\n";
-$count>800 or die "linked opcode gate decoded only $count instructions\n";
+$count>700 or die "linked opcode gate decoded only $count instructions\n";
 
 # Raw opXX spellings intentionally remain available without --illegals. Prove
 # that the linked-byte gate catches that escape hatch rather than relying only

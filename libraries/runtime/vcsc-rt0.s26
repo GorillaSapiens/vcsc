@@ -12,6 +12,7 @@
 .export __reset
 .export __nmi
 .export __irqbrk
+.export __vcsc_startup_full
 
 .import main
 
@@ -30,6 +31,7 @@
 
 .segment "CODE"
 
+__vcsc_startup_full:
 __reset:
    sei
    cld
@@ -111,8 +113,8 @@ _copy_full_page:
    ldy #0
 _copy_full_loop:
    ; Two temporary hardware-stack bytes hold the byte offset/data while ptr1
-   ; changes roles.  Stock startup already requires two hardware-stack bytes
-   ; for its eventual JSR main, so this does not increase RAM reservation.
+   ; changes roles. The linker reserves these real startup bytes explicitly;
+   ; main itself is tail-entered and contributes no return-address slot.
    tya
    pha
    ldy #0
@@ -267,10 +269,8 @@ _call_init_trampoline:
    jmp (ptr1)
 
 _start_main:
-   jsr main
-
-_forever:
-   jmp _forever
+   ; main is non-returning and its compiler epilogue jumps through RESET.
+   jmp main
 
 ; The 6502 image format still requires NMI and IRQ/BRK vector targets.
 ; The 6507 used by the VCS has no connected hardware interrupt inputs, and

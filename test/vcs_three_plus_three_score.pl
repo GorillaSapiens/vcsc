@@ -183,7 +183,7 @@ $rc==0 && !$sig or die "public dual-score example build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "public dual-score example wrote output\n$out$err";
 -s $public_bin==2048 or die "public dual-score example is not 2048 bytes\n";
 my $public_map_text=read_file($public_map);
-$public_map_text =~ /rom\s+used=1545 bytes/ or die "public dual-score ROM accounting changed\n";
+$public_map_text =~ /rom\s+used=1544 bytes/ or die "public dual-score ROM accounting changed\n";
 $public_map_text =~ /ram\s+used=45 bytes.*objects=41 bytes hardware-stack=4 bytes/ or die "public dual-score RAM accounting changed\n";
 
 my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));

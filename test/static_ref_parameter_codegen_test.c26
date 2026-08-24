@@ -14,7 +14,10 @@ int16_t bump(static ref u1 x, u1 y) {
    return x;
 }
 
-int16_t main(void) {
+int16_t test_entry(void) {
    u1 a := 7;
    return bump(a, 2`u1);
+}
+
+void main(void) {
 }

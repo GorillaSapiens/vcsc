@@ -91,7 +91,7 @@ $lerr eq '' or die "valid component link wrote stderr:\n$lerr";
 my $map_text=read_file($map);
 $map_text =~ /COMPONENT_CODE\s+load=\$[0-9A-F]{4}\s+size=\$0001.*component-region=\@startup.*component-align=\$0100.*component-private=yes/
    or die "map lacks component placement contract\n";
-$map_text =~ /region=ram\s+depth=2\s+bytes=\$0006.*extra=\$0002/
+$map_text =~ /region=ram\s+depth=1\s+bytes=\$0004.*extra=\$0002/
    or die "map lacks component hidden-stack accounting\n";
 
 my @bad = (

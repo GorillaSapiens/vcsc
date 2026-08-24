@@ -100,7 +100,7 @@ $rc==0 && !$sig or die "timing harness build failed\n$out$err";
 for my $lines (192,181,170) {
    ($rc,$sig,$out,$err)=capture($timing,$built{$lines}{unofficial}[0],50,'--no-audio','--raw-lines',264);
    $rc==0 && !$sig or die "$lines timing harness failed\n$out$err";
-   $out eq "vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes\n"
+   $out eq "vcs_frame_timing ok: 47 frames at 262 lines, 1 AUDV0 writes\n"
       or die "unexpected $lines timing output: $out";
    $err eq '' or die "$lines timing stderr: $err";
 }

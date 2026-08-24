@@ -97,8 +97,8 @@ $map_text =~ /^\s+\$([0-9A-Fa-f]{4})\s+__reset\s+/m or die "map is missing __res
 hex($1)==$reset or die sprintf("RESET vector %04x disagrees with map __reset %04x\n",$reset,hex($1));
 $map_text =~ /ram\s+start=\$0080\s+size=\$007A\s+type=rw/
    or die "map does not expose the call-graph-sized RIOT RAM arena\n";
-$map_text =~ /region=ram\s+depth=3\s+bytes=\$0006\s+physical=\$00FA-\$00FF/
-   or die "map does not report the expected three-level hardware-stack reserve\n";
+$map_text =~ /region=ram\s+depth=2\s+bytes=\$0006\s+physical=\$00FA-\$00FF/
+   or die "map does not report the expected two-source-call plus full-startup hardware-stack reserve\n";
 $map_text =~ /__stack_top\s+\$00F9/
    or die "map does not stop ordinary allocation below the computed stack reserve\n";
 $map_text =~ /BSS\s+run=\$0084\s+size=\$0000/

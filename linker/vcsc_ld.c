@@ -2912,10 +2912,18 @@ static int call_graph_longest_weighted_depth_visit(
    return best;
 }
 
+//! @brief Return whether the selected stock startup tail-enters main.
+static int selected_startup_tail_enters_main(const input_set_t *in)
+{
+   return selected_objects_have_export(in, "__vcsc_startup_simple") ||
+          selected_objects_have_export(in, "__vcsc_startup_full");
+}
+
 //! @brief Validate symbol backed call graph invariants and return its maximum function depth.
 static uint16_t enforce_symbol_backed_call_graph(const input_set_t *in,
                                                  const linker_config_t *cfg,
-                                                 uint16_t *weighted_depth_out)
+                                                 uint16_t *weighted_depth_out,
+                                                 int tail_main)
 {
    call_graph_node_t *nodes = NULL;
    call_graph_edge_t *edges = NULL;
@@ -3001,10 +3009,27 @@ static uint16_t enforce_symbol_backed_call_graph(const input_set_t *in,
    node_banks = (const cartridge_bank_t **)xcalloc(node_count, sizeof(*node_banks));
    for (i = 0; i < node_count; ++i)
       node_banks[i] = call_graph_function_bank(cfg, in, nodes[i].name);
+   /* Stack reservation is rooted only at actual language entry paths. main is
+      tail-entered by startup, so its first function owns no JSR return address;
+      runtime initializer roots are called and therefore retain their first slot. */
    for (i = 0; i < node_count; ++i) {
-      int depth = call_graph_longest_depth_visit((int)i, edges, edge_count, depth_memo);
-      int weighted_depth = call_graph_longest_weighted_depth_visit(
+      const char *display = display_function_symbol(nodes[i].name);
+      int depth;
+      int weighted_depth;
+      int main_root = !strcmp(display, "main");
+      int init_root = symbol_is_init_function(display);
+
+      if (!main_root && !init_root)
+         continue;
+      depth = call_graph_longest_depth_visit((int)i, edges, edge_count, depth_memo);
+      weighted_depth = call_graph_longest_weighted_depth_visit(
          (int)i, edges, edge_count, node_banks, weighted_depth_memo);
+      if (main_root && tail_main) {
+         if (depth > 0)
+            depth--;
+         if (weighted_depth > 0)
+            weighted_depth--;
+      }
       if (depth > max_depth)
          max_depth = depth;
       if (weighted_depth > max_weighted_depth)
@@ -3470,7 +3495,8 @@ static void enforce_declaration_use_contracts(const input_set_t *in)
 static void reserve_call_stack_from_call_graph(linker_config_t *cfg,
                                                uint16_t depth,
                                                uint16_t weighted_depth,
-                                               size_t init_count)
+                                               size_t init_count,
+                                               int full_startup)
 {
    memory_region_t *target = NULL;
    size_t i;
@@ -3490,17 +3516,24 @@ static void reserve_call_stack_from_call_graph(linker_config_t *cfg,
    if (!target)
       return;
 
-   /* Each active source function accounts for one two-byte JSR return address.
+   /* depth/weighted_depth already count active hardware return addresses from
+      the actual startup roots: main contributes no entry slot because startup
+      tail-jumps to it, while a runtime initializer contributes its real JSR.
       A cross-bank edge contributes one additional two-byte return address for
-      the JSR inside the common trampoline entry. weighted_depth is therefore
-      the maximum number of simultaneously active hardware return addresses.
-      The stock startup also preserves its two-byte init-table cursor while an
-      init function runs. callstack_extra reserves a configuration-declared
+      the JSR inside the common trampoline entry. The stock startup also
+      preserves its two-byte init-table cursor while an init function runs.
+      Full generic startup also has a real two-byte transient stack requirement
+      during table-driven initialization. callstack_extra reserves a configuration-declared
       number of additional top-of-RAM bytes for stack use hidden inside included
       or separately assembled routines. */
    if (weighted_depth < depth)
       weighted_depth = depth;
    bytes = (uint32_t)weighted_depth * 2u;
+   /* Full startup has a real two-byte transient hardware-stack requirement
+      while copying/zeroing through generic pointers.  This replaces the old
+      accidental coverage supplied by main's impossible JSR return slot. */
+   if (full_startup)
+      bytes += 2u;
    if (init_count > 0)
       bytes += 2u;
    bytes += target->callstack_extra;
@@ -3550,9 +3583,12 @@ static void add_global(layout_t *layout, const char *name, uint16_t addr, uint8_
 //! @brief Add generated symbols to linker layout and image writer state, growing storage or preserving uniqueness as needed.
 static void add_generated_symbols(layout_t *layout)
 {
-   add_global(layout, "__copy_table", layout->copy_table_addr, O26_SEG_ABS, "<linker>");
-   add_global(layout, "__zero_table", layout->zero_table_addr, O26_SEG_ABS, "<linker>");
-   add_global(layout, "__init_table", layout->init_table_addr, O26_SEG_ABS, "<linker>");
+   if (layout->copy_table_size)
+      add_global(layout, "__copy_table", layout->copy_table_addr, O26_SEG_ABS, "<linker>");
+   if (layout->zero_table_size)
+      add_global(layout, "__zero_table", layout->zero_table_addr, O26_SEG_ABS, "<linker>");
+   if (layout->init_table_size)
+      add_global(layout, "__init_table", layout->init_table_addr, O26_SEG_ABS, "<linker>");
    add_global(layout, "__stack_start", layout->stack_start, O26_SEG_ABS, "<linker>");
    add_global(layout, "__stack_top", layout->stack_top, O26_SEG_ABS, "<linker>");
    if (layout->call_stack_enabled) {
@@ -5895,7 +5931,7 @@ static void bank_placement_reserve_fixed_rom(const linker_config_t *cfg,
             zero_count++;
       }
    }
-   if (table_memory) {
+   if (table_memory && !selected_objects_have_export(in, "__vcsc_startup_simple")) {
       uint32_t table_bytes = (uint32_t)(copy_count + 1u) * 6u +
                              (uint32_t)(zero_count + 1u) * 4u +
                              (uint32_t)(count_init_functions_in_input(in) + 1u) * 2u;
@@ -6135,7 +6171,8 @@ static uint16_t bank_placement_weighted_depth(const linker_config_t *cfg,
                                               const input_set_t *in)
 {
    uint16_t weighted = 0;
-   (void)enforce_symbol_backed_call_graph(in, cfg, &weighted);
+   (void)enforce_symbol_backed_call_graph(in, cfg, &weighted,
+                                          selected_startup_tail_enters_main(in));
    return weighted;
 }
 
@@ -7027,6 +7064,96 @@ static int activation_segment_parse(const char *name,
    return **owner_out != '\0';
 }
 
+//! @brief Return whether one writable MEMORY region is exactly ordinary RIOT RAM.
+static int startup_simple_memory_is_riot(const memory_region_t *mem)
+{
+   uint32_t end;
+   if (!mem || !str_ieq(mem->type, "rw") || mem->has_write_start)
+      return 0;
+   end = (uint32_t)mem->start + (mem->physical_size ? mem->physical_size : mem->size);
+   return mem->start >= 0x0080u && end <= 0x0100u;
+}
+
+//! @brief Resolve the runtime MEMORY region used by a startup-zeroed layout.
+static const memory_region_t *startup_simple_layout_run_memory(
+   const linker_config_t *cfg, const object_layout_t *lay)
+{
+   const segment_rule_t *fallback;
+   const segment_rule_t *run_rule;
+   char explicit_region[MAX_NAME];
+   char suffix_storage[MAX_NAME];
+   const char *owner = NULL;
+   const char *suffix;
+   const char *run_name;
+
+   if (!cfg || !lay)
+      return NULL;
+   fallback = find_segment_rule(cfg, lay->segid == O26_SEG_ZP ? "ZEROPAGE" : "BSS");
+   run_name = rule_run_region_name(fallback);
+
+   if (activation_segment_parse(lay->name, explicit_region,
+                                sizeof(explicit_region), &owner)) {
+      if (explicit_region[0])
+         run_name = explicit_region;
+   }
+   else {
+      suffix = segment_name_suffix(lay->name, suffix_storage, sizeof(suffix_storage));
+      if (suffix &&
+          ((lay->segid == O26_SEG_BSS && segment_name_matches_prefix(lay->name, "BSS")) ||
+           (lay->segid == O26_SEG_ZP &&
+            (segment_name_matches_prefix(lay->name, "ZEROPAGE") ||
+             segment_name_matches_prefix(lay->name, "ZP") ||
+             segment_name_matches_prefix(lay->name, "ZERO")))))
+         run_name = suffix;
+   }
+
+   run_rule = find_layout_segment_rule(cfg, lay->name, fallback);
+   if (run_rule)
+      run_name = rule_run_region_name(run_rule);
+   run_name = component_resolve_memory_name(cfg, lay, run_name);
+   return run_name && *run_name ? find_memory(cfg, run_name) : NULL;
+}
+
+//! @brief Return whether the compact reset path can replace generic startup.
+static int startup_simple_is_safe(const linker_config_t *cfg, const input_set_t *in)
+{
+   size_t i, j;
+
+   if (!cfg || !in || count_init_functions_in_input(in) != 0)
+      return 0;
+
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->layout_count; ++j) {
+         const object_layout_t *lay = &obj->layouts[j];
+         int needs_zero = 0;
+
+         if (lay->size == 0)
+            continue;
+
+         /* Any link-time DATA image requires the generic ROM-to-RAM copier. */
+         if (lay->segid == O26_SEG_DATA ||
+             (lay->segid == O26_SEG_ZP &&
+              (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)))
+            return 0;
+
+         if (lay->segid == O26_SEG_BSS &&
+             strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
+            needs_zero = 1;
+         else if (lay->segid == O26_SEG_ZP &&
+                  lay->image_segid != O26_SEG_DATA && lay->image_segid != O26_SEG_TEXT &&
+                  strstr(lay->name, ".__vcsc_object$") != NULL &&
+                  strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
+            needs_zero = 1;
+
+         if (needs_zero &&
+             !startup_simple_memory_is_riot(startup_simple_layout_run_memory(cfg, lay)))
+            return 0;
+      }
+   }
+   return 1;
+}
+
 //! @brief Find or append a memory-region name in the activation planner.
 static int activation_region_find_or_add(char (**regions)[MAX_NAME], size_t *count,
                                          const char *name) {
@@ -7602,21 +7729,23 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
 
    layout_activation_segments(cfg, in, layout, bss_run_name, zp_run_name);
 
-   layout->copy_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
-      (uint16_t)((layout->copy_record_count + 1) * 6), 1, NULL,
-      "__copy_table", "<linker>");
-   layout->zero_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
-      (uint16_t)((layout->zero_record_count + 1) * 4), 1, NULL,
-      "__zero_table", "<linker>");
-   {
-      size_t init_count = count_init_functions_in_input(in);
-      layout->init_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
-         (uint16_t)((init_count + 1) * 2), 1, NULL,
-         "__init_table", "<linker>");
-      layout->init_table_size = (uint16_t)((init_count + 1) * 2);
+   if (!selected_objects_have_export(in, "__vcsc_startup_simple")) {
+      layout->copy_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
+         (uint16_t)((layout->copy_record_count + 1) * 6), 1, NULL,
+         "__copy_table", "<linker>");
+      layout->zero_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
+         (uint16_t)((layout->zero_record_count + 1) * 4), 1, NULL,
+         "__zero_table", "<linker>");
+      {
+         size_t init_count = count_init_functions_in_input(in);
+         layout->init_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
+            (uint16_t)((init_count + 1) * 2), 1, NULL,
+            "__init_table", "<linker>");
+         layout->init_table_size = (uint16_t)((init_count + 1) * 2);
+      }
+      layout->copy_table_size = (uint16_t)((layout->copy_record_count + 1) * 6);
+      layout->zero_table_size = (uint16_t)((layout->zero_record_count + 1) * 4);
    }
-   layout->copy_table_size = (uint16_t)((layout->copy_record_count + 1) * 6);
-   layout->zero_table_size = (uint16_t)((layout->zero_record_count + 1) * 4);
 
    {
       memory_cursor_t *stack_cursor = ensure_cursor(layout, cfg, data_run_name);
@@ -8946,8 +9075,17 @@ static void write_call_stack_diagnostics(FILE *fp, const linker_config_t *cfg,
       for (i = 0; i < node_count; ++i)
          banks[i] = call_graph_function_bank(cfg, in, nodes[i].name);
       for (i = 0; i < node_count; ++i) {
-         int depth = call_graph_longest_weighted_depth_visit((int)i, edges,
+         const char *display = display_function_symbol(nodes[i].name);
+         int main_root = !strcmp(display, "main");
+         int init_root = symbol_is_init_function(display);
+         int depth;
+
+         if (!main_root && !init_root)
+            continue;
+         depth = call_graph_longest_weighted_depth_visit((int)i, edges,
             edge_count, banks, memo);
+         if (main_root && selected_startup_tail_enters_main(in) && depth > 0)
+            depth--;
          if (depth > best ||
              (depth == best && root >= 0 &&
               strcmp(nodes[i].name, nodes[root].name) < 0)) {
@@ -9012,10 +9150,21 @@ static void write_call_stack_diagnostics(FILE *fp, const linker_config_t *cfg,
               "  HIDDEN bytes=$%04X reason=linker-configured-callstack-extra object=<linker-script>\n",
               (unsigned)(layout->call_stack_extra - hidden_total));
    }
+   hidden_total = layout->call_stack_extra;
+   if (selected_objects_have_export(in, "__vcsc_startup_full")) {
+      hidden_total += 2u;
+      fprintf(fp,
+              "  HIDDEN bytes=$0002 reason=full-startup-transient-stack object=<runtime>\n");
+   }
+   if (count_init_functions_in_input(in) > 0) {
+      hidden_total += 2u;
+      fprintf(fp,
+              "  HIDDEN bytes=$0002 reason=runtime-init-cursor object=<runtime>\n");
+   }
    fprintf(fp,
            "  TOTAL source-bytes=$%04X hidden-bytes=$%04X total-bytes=$%04X\n",
            (unsigned)(layout->call_stack_weighted_depth * 2u),
-           layout->call_stack_extra, layout->call_stack_size);
+           (unsigned)hidden_total, layout->call_stack_size);
 
    for (i = 0; i < node_count; ++i)
       free(nodes[i].name);
@@ -9421,7 +9570,10 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    }
 
    fprintf(fp, "\nSTARTUP INITIALIZATION\n");
-   fprintf(fp, "  policy=every-reset bss=zero data=copy-through-write-alias\n");
+   if (selected_objects_have_export(in, "__vcsc_startup_simple"))
+      fprintf(fp, "  policy=compact-riot-clear\n");
+   else
+      fprintf(fp, "  policy=every-reset bss=zero data=copy-through-write-alias\n");
    for (i = 0; i < layout->copy_record_count; ++i) {
       const copy_record_t *rec = &layout->copy_records[i];
       fprintf(fp, "  COPY %-48s load=$%04X read=$%04X write=$%04X size=$%04X%s\n",
@@ -9436,9 +9588,13 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    }
 
    fprintf(fp, "\nTABLES\n");
-   fprintf(fp, "  __copy_table  $%04X size=$%04X\n", layout->copy_table_addr, layout->copy_table_size);
-   fprintf(fp, "  __zero_table  $%04X size=$%04X\n", layout->zero_table_addr, layout->zero_table_size);
-   fprintf(fp, "  __init_table  $%04X size=$%04X\n", layout->init_table_addr, layout->init_table_size);
+   if (layout->copy_table_size || layout->zero_table_size || layout->init_table_size) {
+      fprintf(fp, "  __copy_table  $%04X size=$%04X\n", layout->copy_table_addr, layout->copy_table_size);
+      fprintf(fp, "  __zero_table  $%04X size=$%04X\n", layout->zero_table_addr, layout->zero_table_size);
+      fprintf(fp, "  __init_table  $%04X size=$%04X\n", layout->init_table_addr, layout->init_table_size);
+   }
+   else
+      fprintf(fp, "  (not generated for compact startup)\n");
    fprintf(fp, "  __stack_start $%04X\n", layout->stack_start);
    fprintf(fp, "  __stack_top   $%04X\n", layout->stack_top);
    if (layout->call_stack_enabled) {
@@ -10039,6 +10195,10 @@ int main(int argc, char **argv)
    synthesize_c26_segment_rules(&cfg);
    apply_component_constraints(&cfg, &inputs);
    validate_linker_config(&cfg);
+   if (selected_objects_have_export(&inputs, "__vcsc_startup_full") &&
+       startup_simple_is_safe(&cfg, &inputs)) {
+      reselect_needed_objects_with_preferred_provider(&inputs, "__vcsc_startup_simple");
+   }
    if ((cfg.cartridge_banked || cfg.topology_bank_count) && !ends_with(hex_path, ".bin")) {
       fprintf(stderr,
               "vcsc-ld: cartridge topology requires a flat .bin output\n");
@@ -10054,10 +10214,13 @@ int main(int argc, char **argv)
    {
       uint16_t weighted_call_depth = 0;
       uint16_t call_depth = enforce_symbol_backed_call_graph(
-         &inputs, &cfg, &weighted_call_depth);
+         &inputs, &cfg, &weighted_call_depth,
+         selected_startup_tail_enters_main(&inputs));
       size_t init_count = count_init_functions_in_input(&inputs);
       reserve_call_stack_from_call_graph(&cfg, call_depth,
-                                         weighted_call_depth, init_count);
+                                         weighted_call_depth, init_count,
+                                         selected_objects_have_export(
+                                            &inputs, "__vcsc_startup_full"));
    }
    warn_unused_cmdline_objects(&inputs);
    apply_phase_workspace_metadata(&inputs);

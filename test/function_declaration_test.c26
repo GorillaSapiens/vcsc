@@ -5,10 +5,13 @@ include "machine_6502.c26"
 
 int16_t twice(int16_t x);
 
-int16_t main(void) {
+int16_t test_entry(void) {
    return twice(21);
 }
 
 int16_t twice(int16_t x) {
    return x + x;
+}
+
+void main(void) {
 }

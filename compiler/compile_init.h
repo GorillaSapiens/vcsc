@@ -22,6 +22,7 @@ bool encode_integer_initializer_value(long long value, unsigned char *buf, int s
 bool encode_integer_literal_text(const char *text, unsigned char *buf, int size, const ASTNode *type);
 bool encode_init_const_int_value(const InitConstValue *value, unsigned char *buf, int size, const ASTNode *type);
 void emit_initializer_bytes_line(EmitSink *sink, const unsigned char *bytes, int size);
+bool global_initializer_is_all_zero(const ASTNode *type, const ASTNode *declarator, ASTNode *expression, int size);
 bool emit_global_initializer(EmitSink *sink, const ASTNode *type, const ASTNode *declarator, ASTNode *expression, int size);
 void emit_sink_append(EmitSink *dst, const EmitSink *src);
 void remember_pending_global_init(const char *name, const char *symbol, const ASTNode *type, const ASTNode *declarator,

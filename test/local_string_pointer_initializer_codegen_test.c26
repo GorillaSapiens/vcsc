@@ -5,7 +5,10 @@
 
 include "machine_6502.c26"
 
-int16_t main(void) {
+int16_t test_entry(void) {
    int8_t *s := "foo";
    return 0;
+}
+
+void main(void) {
 }

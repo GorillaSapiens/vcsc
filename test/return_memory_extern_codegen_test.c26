@@ -15,6 +15,9 @@ include "machine_6502.c26"
 
 extern bcd24_t foreign(void);
 
-bcd24_t main(void) {
+bcd24_t test_entry(void) {
    return foreign();
+}
+
+void main(void) {
 }

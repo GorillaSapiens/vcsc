@@ -14,9 +14,12 @@ struct S {
    U u;
 };
 
-int16_t main(void) {
+int16_t test_entry(void) {
    S s;
    int16_t a := sizeof(s.u.b);
    int16_t b := sizeof(int16_t);
    return a + b;
+}
+
+void main(void) {
 }

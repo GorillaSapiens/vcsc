@@ -36,7 +36,10 @@ again:
    return local;
 }
 
-uint8_t main(void) {
+uint8_t test_entry(void) {
    uint8_t value := 3`uint8_t;
    return adjust(value, 0`uint8_t) + adjust(value, 2`uint8_t);
+}
+
+void main(void) {
 }

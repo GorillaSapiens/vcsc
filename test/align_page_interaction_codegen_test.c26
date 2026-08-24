@@ -7,6 +7,9 @@ include "machine_6502.c26"
 
 page align(256) const uint8_t aligned_page_table[192] := { 0 };
 
-uint8_t main(void) {
+uint8_t test_entry(void) {
    return aligned_page_table[0];
+}
+
+void main(void) {
 }

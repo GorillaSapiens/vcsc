@@ -87,9 +87,9 @@ for my $map ($smap,$mmap) {
    require_re($map,qr/^\s*RENDERER_RODATA\s+load=\$[0-9A-Fa-f]{2}00\s+size=\$0058\b/m,
       'player-color score table is not page aligned');
 }
-require_re($smap,qr/region=ram\s+depth=3\s+bytes=\$000A\s+physical=\$00F6-\$00FF\s+extra=\$0004/,
+require_re($smap,qr/region=ram\s+depth=2\s+bytes=\$0008\s+physical=\$00F8-\$00FF\s+extra=\$0004/,
    'static player-color stack accounting changed');
-require_re($mmap,qr/region=ram\s+depth=4\s+bytes=\$000C\s+physical=\$00F4-\$00FF\s+extra=\$0004/,
+require_re($mmap,qr/region=ram\s+depth=3\s+bytes=\$000C\s+physical=\$00F4-\$00FF\s+extra=\$0004/,
    'motion player-color stack accounting changed');
 
 for my $map ($smap,$mmap) {

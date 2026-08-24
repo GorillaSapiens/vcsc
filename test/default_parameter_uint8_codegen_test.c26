@@ -11,6 +11,9 @@ uint8_t id8(uint8_t value) {
    return value;
 }
 
-uint8_t main(void) {
+uint8_t test_entry(void) {
    return id8(0x5a`uint8_t);
+}
+
+void main(void) {
 }

@@ -253,7 +253,7 @@ require_ok('unbanked compatibility link', $vcsc, '-I', $include,
            '-o', $unbanked_bin, $unbanked_src);
 my $unbanked = slurp($unbanked_bin);
 length($unbanked) == 4096 or die "stock 4K output size changed\n";
-sha256_hex($unbanked) eq '1d3cb32e7335a5d9cad6fa83c8993fe3fe3409b670284ae694f77e900231d75a'
+sha256_hex($unbanked) eq 'b98d91231f1a5447df93bc8bcf15a14306bce9ffa7199b84fb673ef59e5dc5d7'
    or die "stock vcs_4k.cfg output changed byte-for-byte\n";
 
 print "banked image model enforced\n";

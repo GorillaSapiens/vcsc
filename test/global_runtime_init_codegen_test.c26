@@ -22,6 +22,9 @@ int16_t twice(int16_t x) {
 int16_t seed := 3;
 int16_t g := twice(seed) + 1;
 
-int16_t main(void) {
+int16_t test_entry(void) {
    return g;
+}
+
+void main(void) {
 }

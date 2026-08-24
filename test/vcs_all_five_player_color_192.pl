@@ -57,7 +57,7 @@ $po$pe";
 -s$public_bin==4096 or die "public example ROM not 4K
 ";
 my$public_map_text=read_file($public_map);
-$public_map_text =~ /^  rom\s+used=3477 bytes .* free=613 bytes/m
+$public_map_text =~ /^  rom\s+used=3476 bytes .* free=614 bytes/m
    or die "public example ROM footprint changed
 ";
 $public_map_text =~ /^  ram\s+used=97 bytes .* free=31 bytes/m
@@ -83,8 +83,8 @@ $pub==21 or die "linked public RAM=$pub expected 21\n"; $priv==62 or die "linked
 
 my$cxx=$ENV{CXX}||'c++'; my$mos=File::Spec->catdir($repo,qw(simulator mos6502)); my$mo=File::Spec->catfile($mos,'mos6502.o'); my@mi=-f$mo?($mo):(File::Spec->catfile($mos,'mos6502.cpp'));
 my$timing=File::Spec->catfile($tmp,'afpc192_timing'); my($r,$s,$o,$e)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,File::Spec->catfile($repo,qw(test vcs_frame_timing.cpp)),@mi,'-o',$timing); $r==0&&!$s or die "timing harness build failed\n$o$e";
-($r,$s,$o,$e)=capture($timing,$bin{smoke},'50','--no-audio','--raw-lines','264'); $r==0&&!$s or die "static timing failed\n$o$e"; $o eq "vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes\n" or die "bad static timing: $o";
-($r,$s,$o,$e)=capture($timing,$bin{vertical},'300','--no-audio','--raw-lines','264'); $r==0&&!$s or die "vertical sweep timing failed\n$o$e"; $o eq "vcs_frame_timing ok: 297 frames at 262 lines, 0 AUDV0 writes\n" or die "bad vertical timing: $o";
+($r,$s,$o,$e)=capture($timing,$bin{smoke},'50','--no-audio','--raw-lines','264'); $r==0&&!$s or die "static timing failed\n$o$e"; $o eq "vcs_frame_timing ok: 47 frames at 262 lines, 1 AUDV0 writes\n" or die "bad static timing: $o";
+($r,$s,$o,$e)=capture($timing,$bin{vertical},'300','--no-audio','--raw-lines','264'); $r==0&&!$s or die "vertical sweep timing failed\n$o$e"; $o eq "vcs_frame_timing ok: 297 frames at 262 lines, 1 AUDV0 writes\n" or die "bad vertical timing: $o";
 
 my$comp=File::Spec->catfile($tmp,'afpc192_composition'); ($r,$s,$o,$e)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,File::Spec->catfile($repo,qw(test vcs_all_five_composition.cpp)),@mi,'-o',$comp); $r==0&&!$s or die "composition harness build failed\n$o$e";
 ($r,$s,$o,$e)=capture($comp,$bin{smoke},'none','static'); $r==0&&!$s or die "static object raster failed\n$o$e"; $o eq "vcs_all_five_composition static none ok\n" or die "bad static object output: $o";

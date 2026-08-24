@@ -5,7 +5,7 @@
 // expectasmordered: .segment "ZEROPAGE.register.__vcsc_activation$capture"
 // expectasmordered: capture$x:
 // expectasmordered: 	.res 2
-// expectasmordered: .proc main
+// expectasmordered: .proc test_entry
 // expectasmordered: lda #$34
 // expectasmordered: sta  __vcsc_scratch_
 // expectasmordered: lda #$12
@@ -23,6 +23,9 @@ int16_t capture(register int16_t x) {
    return x;
 }
 
-int16_t main(void) {
+int16_t test_entry(void) {
    return capture(0x1234);
+}
+
+void main(void) {
 }

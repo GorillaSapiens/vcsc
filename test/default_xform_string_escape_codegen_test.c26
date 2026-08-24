@@ -18,6 +18,9 @@ int8_t nl[2] := "\n";
 int8_t *ps := "\\n";
 int8_t *pn := "\n";
 
-int16_t main(void) {
+int16_t test_entry(void) {
    return 0;
+}
+
+void main(void) {
 }

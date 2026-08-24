@@ -10,8 +10,11 @@ void bump(ref int16_t x) {
    x++;
 }
 
-int16_t main(void) {
+int16_t test_entry(void) {
    int16_t a;
    bump(a);
    return a;
+}
+
+void main(void) {
 }

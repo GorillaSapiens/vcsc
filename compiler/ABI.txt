@@ -164,8 +164,11 @@ directly through their linker-resolved `__vcsc_scratch_N` symbols. A purpose-
 specific `ptr0`/`ptr1` indirect address is prepared only when a dynamic or
 out-of-range offset actually requires one.
 
-Every entry through reset/startup initializes the 6502 hardware stack, copies
-DATA, clears BSS, and walks init tables. Copy and zero records carry the runtime
+Every entry through reset/startup initializes the 6502 hardware stack. The full
+startup copies DATA, clears BSS, and walks init tables. When the linked program
+has no DATA, runtime initializer, or startup-zero requirement outside ordinary
+RIOT RAM, the linker instead selects the compact startup, which clears the whole
+RIOT RAM block directly. Copy and zero records in the full path carry the runtime
 write address, so split-address storage is initialized through its write alias;
 its readable alias is reporting and subsequent-load metadata. Mapper bank
 switches do not run startup and preserve shared writable storage, while a reset
@@ -176,14 +179,22 @@ and `arg1`, plus two bytes each for `ptr0` through `ptr2`. Startup selects the
 complete set. Fixed-width shifts, multiplication, division, and remainder use
 those pointers plus compiler-owned expression scratch; no scalar helper owns
 private BSS or selects additional runtime workspace.
-The linker reserves two hardware-stack bytes per active source function for JSR
-return addresses. If one or more runtime initializer functions are linked, it also
-reserves one fixed two-byte allowance because startup preserves its init-table
-cursor while calling each initializer.
+The linker reserves two hardware-stack bytes per active JSR return address.
+Startup tail-jumps to `main`, so `main` itself contributes no impossible entry
+return slot; calls made by `main` contribute normally. If one or more runtime
+initializer functions are linked, the linker also reserves one fixed two-byte
+allowance because full startup preserves its init-table cursor while calling each
+initializer. Selecting the full table-driven startup also reserves its real
+two-byte transient PHA/PLA workspace; the compact startup needs neither allowance.
 
 A, P, X, and Y are caller-clobbered across ordinary function calls. None carries
 a language-level return value. Special assembly APIs may document stronger
 register contracts, but ordinary VCSC calls do not.
+
+The program entry point has exactly the signature `void main(void)`. `main` is
+non-returning at the ABI level: stock startup enters it with `JMP`, and every
+source-level `return;` or fall-through from `main` reaches `JMP ($FFFC)`, which
+re-enters the reset vector rather than executing `RTS`.
 
 The decimal-mode flag is not part of the call ABI. Startup executes CLD, and
 compiler-generated packed-BCD addition/subtraction emits a local SED/CLD pair

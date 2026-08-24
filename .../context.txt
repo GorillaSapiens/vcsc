@@ -78,7 +78,7 @@ annotations for beam-sensitive branches.
 
 Open workstreams
 ----------------
-1. **Enhanced asymmetric multisprite -- active side quest**
+1. **Enhanced asymmetric multisprite -- side quest**
    Read `.../enhanced_asymmetric.txt` when working on it. The current 192-line
    diagnostic uses 12 playfield rows of 16 physical scanlines, X=0..159 and
    Y=0..95. Current extended blanking split is 63/13 TIM64T. The scheduler now
@@ -92,7 +92,8 @@ Open workstreams
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
-   work, when the user has not selected another task, begins with Item 43: efficient startup for simple RAM setup. Items 44 and 45 remain after it.
+   work, when the user has not selected another task, begins with Item 44: the public diagnostic cartridge. Items 45 and 46 remain after it.
+   Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
    `.../bankswitching.txt` contains the durable cartridge model plus unfinished
@@ -111,6 +112,12 @@ Open workstreams
    further user interactive Stella validation. Do not modify the maintained
    `renderers/multisprite/` compatibility renderer while working on it.
 
+6. **Startup/DATA ROM optimization -- active side quest**
+   Read `.../startup_data_optimization.txt`. A prototype compiler change emits
+   mutable all-zero static initializers as BSS/ZEROPAGE rather than DATA, avoiding
+   pointless startup copies and unlocking compact startup in more examples. It is
+   not yet fully validated; no exploratory example-source cleanup is retained.
+
 Completed focused work
 ----------------------
 `.../ram_optimization.txt`, `.../inline_roadmap.txt`, and
@@ -119,16 +126,16 @@ Their completed development narratives were moved to `context-history/`.
 
 Last validation state
 ---------------------
-Current broad validation is clean: compiler 500/500 and E2E 319/319.  The E2E
-validation used a temporary stricter 2-second runner to identify slow cases, then
-reran all 22 slow cases with the repository's unchanged 45-second runner; all
-22 passed.  The focused asymmetric real-6502 test, renderer branch contracts,
-source-tree hygiene, and history-format checks also pass.
+Current broad validation is clean: compiler 502/502 and effective E2E 320/320.
+A temporary runner capped every E2E timeout at two seconds: 250 cases passed
+under that stricter limit, and the 70 timeout-only cases all passed when rerun
+with their unchanged repository-defined timeout values. Source-tree hygiene and
+context-history formatting pass.
 
 Immediate TODO
 --------------
-Active workstream: `.../enhanced_asymmetric.txt`.
+Active workstream: `.../startup_data_optimization.txt`.
 
-Resume broader occupancy<=2 allocator-quality work without weakening the
-same-X <13 invariant, ordinary P0=15/P1=12 setup reservations, or persistent
-fair-omission policy.
+Finish and validate the all-zero static-initializer -> BSS/ZEROPAGE compiler
+optimization before any broader example-source initializer cleanup. Main roadmap
+Item 44 remains next when this side quest is closed or explicitly deferred.

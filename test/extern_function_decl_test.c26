@@ -6,6 +6,9 @@ include "machine_6502.c26"
 
 extern int16_t foreign_add(int16_t a, int16_t b);
 
-int16_t main(void) {
+int16_t test_entry(void) {
    return foreign_add(1, 2);
+}
+
+void main(void) {
 }

@@ -46,12 +46,12 @@ my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$mapfile,$source,'-o',$bin);
 $rc==0 && !$sig or die "RAM-usage fixture failed\n$out$err";
 $err eq '' or die "RAM-usage fixture wrote stderr:\n$err";
-$out =~ /\AMEMORY USAGE\n(?:  [^\n]+\n)*  ram\s+used=15 bytes \(11\.72%\) free=113 bytes \(88\.28%\) objects=9 bytes hardware-stack=6 bytes\n\z/
+$out =~ /\AMEMORY USAGE\n(?:  [^\n]+\n)*  ram\s+used=9 bytes \(7\.03%\) free=119 bytes \(92\.97%\) objects=5 bytes hardware-stack=4 bytes\n\z/
    or die "wrong terminal RAM usage report:\n$out";
 my $map=read_file($mapfile);
-$map =~ /MEMORY USAGE\n(?:  [^\n]+\n)*  ram\s+used=15 bytes \(11\.72%\) free=113 bytes \(88\.28%\) objects=9 bytes hardware-stack=6 bytes/
+$map =~ /MEMORY USAGE\n(?:  [^\n]+\n)*  ram\s+used=9 bytes \(7\.03%\) free=119 bytes \(92\.97%\) objects=5 bytes hardware-stack=4 bytes/
    or die "map memory usage section missing or wrong\n$map";
-$map =~ /CALL STACK\n  region=ram depth=3 bytes=\$0006 physical=\$00FA-\$00FF extra=\$0000/
+$map =~ /CALL STACK\n  region=ram depth=2 bytes=\$0004 physical=\$00FC-\$00FF extra=\$0000/
    or die "map hardware-stack detail missing or wrong\n$map";
 $map =~ /BSS\.__vcsc_object\$payload\s+run=\$[0-9A-Fa-f]{4}\s+size=\$0005/
    or die "payload storage missing from map\n$map";

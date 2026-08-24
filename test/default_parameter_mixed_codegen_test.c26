@@ -15,6 +15,9 @@ uint16_t mixed(uint8_t a, uint16_t b, uint16_t c) {
    return a + b + c;
 }
 
-uint16_t main(void) {
+uint16_t test_entry(void) {
    return mixed(1`uint8_t, 2`uint16_t, 3`uint16_t);
+}
+
+void main(void) {
 }

@@ -22,8 +22,11 @@ union WordOverlay {
    WordBits bits;
 };
 
-int16_t main(void) {
+int16_t test_entry(void) {
    int16_t a := sizeof(PackedBits);
    int16_t b := sizeof(WordOverlay);
    return a + b;
+}
+
+void main(void) {
 }

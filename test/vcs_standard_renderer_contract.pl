@@ -183,11 +183,11 @@ my $rom_map=build_smoke(
    File::Spec->catfile($tmp,'standard_renderer_contract_rom.bin'),
    File::Spec->catfile($tmp,'standard_renderer_contract_rom.map'));
 
-require_re($rom_map,qr/ram\s+start=\$0080\s+size=\$0076\s+type=rw/,
-   'profile did not reserve six call-graph bytes plus four supplementary bytes');
-require_re($rom_map,qr/region=ram\s+depth=3\s+bytes=\$000A\s+physical=\$00F6-\$00FF\s+extra=\$0004/,
+require_re($rom_map,qr/ram\s+start=\$0080\s+size=\$0078\s+type=rw/,
+   'profile did not reserve four call-graph bytes plus four supplementary bytes');
+require_re($rom_map,qr/region=ram\s+depth=2\s+bytes=\$0008\s+physical=\$00F8-\$00FF\s+extra=\$0004/,
    'map does not report the hook-aware four-byte supplementary allowance');
-symbol_addr($rom_map,'__call_stack_depth') == 3
+symbol_addr($rom_map,'__call_stack_depth') == 2
    or die "__call_stack_depth does not include drawscreen -> overscan hook\n";
 symbol_addr($rom_map,'__call_stack_extra') == 4
    or die "__call_stack_extra is not four\n";
@@ -205,7 +205,29 @@ $workspace == $score_color + 1 or die "private workspace does not follow applica
 $playfield_pos == $workspace + 12 or die "pointer workspace is not twelve contiguous bytes\n";
 $masks == $playfield_pos + 1 or die "object masks do not follow playfield position\n";
 $masks + 44 - $object_x == 80 or die "mandatory module state span is not 80 bytes\n";
-$object_x != 0x80 or die "module state was forced back to the old fixed RAM base\n";
+
+# Prove the module state is relocatable rather than relying on its natural base.
+# Compact startup legitimately leaves $80 available, so force one live byte ahead
+# of the module and verify that the complete adjacency block moves with it.
+my $reloc_src=File::Spec->catfile($tmp,'standard_renderer_contract_reloc.c26');
+my $reloc_text=$rom_src_text;
+$reloc_text =~ s/include "renderers\/standard_4k_ntsc\/standard_4k_ntsc\.c26"/uint8_t relocation_pad;\n\ninclude "renderers\/standard_4k_ntsc\/standard_4k_ntsc.c26"/
+   or die "could not insert relocation pad into ROM smoke\n";
+$reloc_text =~ s/void main\(void\) \{/void main(void) {\n   relocation_pad := 1;/
+   or die "could not make relocation pad live in ROM smoke\n";
+write_file($reloc_src,$reloc_text);
+my $reloc_map=build_smoke(
+   $driver,$vcs,$cfg,[$profile_c26,$reloc_src,$renderer],
+   File::Spec->catfile($tmp,'standard_renderer_contract_reloc.bin'),
+   File::Spec->catfile($tmp,'standard_renderer_contract_reloc.map'));
+my $reloc_pad=symbol_addr($reloc_map,'relocation_pad');
+my $reloc_object_x=symbol_addr($reloc_map,'vcs_standard_object_x');
+my $reloc_masks=symbol_addr($reloc_map,'vcs_standard_object_masks');
+$reloc_pad == 0x80 or die sprintf("relocation pad did not occupy first RIOT byte: \$%04X\n",$reloc_pad);
+$reloc_object_x == $reloc_pad + 1
+   or die "module state did not relocate after the live leading byte\n";
+$reloc_masks + 44 - $reloc_object_x == 80
+   or die "relocated mandatory module state span is not 80 bytes\n";
 
 my $rom_pf=symbol_addr($rom_map,'vcs_standard_playfield');
 $rom_pf >= 0xf000
@@ -244,8 +266,8 @@ my $legacy_map=build_smoke($driver,$vcs,$legacy_cfg,[$rom_src,$legacy_renderer],
 read_file($legacy_bin) eq read_file(File::Spec->catfile($tmp,'standard_renderer_contract_rom.bin'))
    or die "component-owned renderer image differs from the legacy cfg-owned image
 ";
-require_re($legacy_map,qr/region=ram\s+depth=3\s+bytes=\$000A.*extra=\$0004/,
-   'legacy differential build did not preserve stack accounting');
+require_re($legacy_map,qr/region=ram\s+depth=2\s+bytes=\$0008.*extra=\$0004/,
+   'legacy differential build did not preserve tail-entry stack accounting');
 
 # A compatibility cfg may duplicate the component contract only when it agrees.
 my $duplicate_bin=File::Spec->catfile($tmp,'standard_renderer_duplicate_contract.bin');

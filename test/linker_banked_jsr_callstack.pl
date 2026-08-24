@@ -121,11 +121,11 @@ require_ok('compile and link weighted banked call graph',
            '-o', $bin, $src);
 my $map_text = slurp($map);
 length(slurp($bin)) == 8192 or die "weighted banked program was not 8K\n";
-$map_text =~ /CALL STACK\n  region=ram depth=3 bytes=\$000A physical=\$00F6-\$00FF extra=\$0000 weighted-depth=5 bank-extra-slots=2/
+$map_text =~ /CALL STACK\n  region=ram depth=2 bytes=\$0008 physical=\$00F8-\$00FF extra=\$0000 weighted-depth=4 bank-extra-slots=2/
    or die "cross-bank edges did not add two weighted return-address slots\n$map_text";
-$map_text =~ /^\s*\$0003\s+__call_stack_depth\b/m
+$map_text =~ /^\s*\$0002\s+__call_stack_depth\b/m
    or die "ordinary source call depth symbol is wrong\n$map_text";
-$map_text =~ /^\s*\$0005\s+__call_stack_weighted_depth\b/m
+$map_text =~ /^\s*\$0004\s+__call_stack_weighted_depth\b/m
    or die "weighted hardware-return depth symbol is wrong\n$map_text";
 $map_text =~ /^\s*\$0002\s+__call_stack_bank_extra_slots\b/m
    or die "bank bridge stack-slot symbol is wrong\n$map_text";

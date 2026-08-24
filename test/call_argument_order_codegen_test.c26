@@ -19,6 +19,9 @@ int16_t ord4(int16_t a, int16_t b, int16_t c, int16_t d) {
    return a + b + c + d;
 }
 
-int16_t main(void) {
+int16_t test_entry(void) {
    return ord4(1, 2, 3, 4);
+}
+
+void main(void) {
 }

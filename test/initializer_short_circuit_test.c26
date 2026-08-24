@@ -1,6 +1,8 @@
 // vcsc-cc1
-// expectasm: and_short:
-// expectasm: 	.byte $00
+// expectasmordered: .segment "BSS.__vcsc_object$and_short"
+// expectasmordered: and_short:
+// expectasmordered: 	.res 1
+// forbidasm: .segment "DATA.__vcsc_object$and_short"
 // expectasm: or_short:
 // expectasm: 	.byte $01
 // expectasm: ternary:

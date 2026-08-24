@@ -9,6 +9,9 @@ include "machine_6502.c26"
 
 page const uint8_t page_table[4] := { 1, 2, 3, 4 };
 
-uint8_t main(void) {
+uint8_t test_entry(void) {
    return page_table[0];
+}
+
+void main(void) {
 }

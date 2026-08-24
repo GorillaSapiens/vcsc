@@ -17,7 +17,7 @@ uint8_t ge(u2 a, u2 b) {
    return a >= b;
 }
 
-s2 main(void) {
+s2 test_entry(void) {
    if (widen(0xff`s1) != 0xffff`s2) {
       return 1;
    }
@@ -25,4 +25,7 @@ s2 main(void) {
       return 2;
    }
    return 0;
+}
+
+void main(void) {
 }

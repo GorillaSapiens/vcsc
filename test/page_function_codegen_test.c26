@@ -11,6 +11,9 @@ uint8_t ordinary_function(uint8_t value) {
    return hard_page_function(value);
 }
 
-uint8_t main(void) {
+uint8_t test_entry(void) {
    return ordinary_function(1);
+}
+
+void main(void) {
 }

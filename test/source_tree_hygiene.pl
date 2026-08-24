@@ -658,7 +658,7 @@ for my $name (sort keys %hot_limits) {
 $hot_total <= 64*1024
    or die "developer hot records exceed 64 KiB total: $hot_total\n";
 
-index($context,'Active workstream: `.../enhanced_asymmetric.txt`.')>=0 &&
+index($context,'Active workstream: `.../roadmap.txt`.')>=0 &&
 index($context,'hard 16 KiB ceiling')>=0 &&
 index($context,'Completed narratives belong in `.../context-history/YYYY-MM-DD.txt`.')>=0 &&
 index($context,'Immediate TODO')>=0
@@ -666,8 +666,8 @@ index($context,'Immediate TODO')>=0
 $context !~ /^\s*\[x\]/m
    or die "compact context contains completed checklist history\n";
 
-$roadmap =~ /^Current next action: Item 43, efficient startup for simple RAM setup\./m &&
-$roadmap =~ /^\[ \] 43\. Efficient startup for simple RAM setup\./m &&
+$roadmap =~ /^Current next action: Item 44, public diagnostic cartridge\./m &&
+$roadmap !~ /^\[ \] 43\./m &&
 $roadmap =~ /^\[ \] 44\. Add a public diagnostic cartridge/m &&
 $roadmap =~ /^\[ \] 45\. Add playfield-color support/m &&
 $roadmap =~ /^\[ \] 46\. Add a public side-scroller\/platform example\./m &&

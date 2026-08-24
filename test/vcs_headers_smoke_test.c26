@@ -15,7 +15,7 @@ int24_t frame_delta := -1;
 uint32_t long_count := 0x12345678;
 int32_t long_delta := -1;
 
-int16_t main(void) {
+int16_t test_entry(void) {
    int8_t x := INPT4;
    bcd8_t score := 42;
    bcd32_t total := 12345678;
@@ -33,4 +33,7 @@ int16_t main(void) {
    VBLANK := x;
    TIM64T := 42;
    return INTIM + SWCHB;
+}
+
+void main(void) {
 }

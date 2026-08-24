@@ -10,6 +10,10 @@ include "vcs.c26"
 // call-graph-derived reserve or the runtime's own storage.
 int8_t payload[128];
 
-void main(void) {
+void store_payload(void) {
    payload[0] := 1;
+}
+
+void main(void) {
+   store_payload();
 }

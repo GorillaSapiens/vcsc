@@ -12,6 +12,7 @@
 #include "compile.h"
 #include "compile_expr.h"
 #include "compile_function.h"
+#include "compile_function_registry.h"
 #include "compile_init.h"
 #include "compile_internal.h"
 #include "compile_inline_prepass.h"
@@ -416,6 +417,7 @@ void do_compile(FILE *out) {
       emit(&es_export, ".segmentaddrsize \"DATA\", zp\n");
    }
    analyze_static_parameter_call_graph();
+   validate_main_signature(resolve_function_designator_target("main"));
    emit_symbol_backed_call_graph_metadata();
    emit_runtime_global_init_function();
    compiler_scratch_emit_bss();

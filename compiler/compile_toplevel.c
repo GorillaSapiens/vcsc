@@ -494,8 +494,12 @@ void compile_function_decl(ASTNode *node) {
       }
    }
 
+   /* main is the reset tail-entry and has no caller to return to. */
    emit(&es_code, "@fini:\n");
-   emit(&es_code, "    rts\n");
+   if (!strcmp(name, "main"))
+      emit(&es_code, "    jmp ($fffc)\n");
+   else
+      emit(&es_code, "    rts\n");
    emit(&es_code, ".endproc\n");
    if (code_region_name) {
       emit(&es_code, ".segment \"CODE\"\n");
@@ -1494,6 +1498,27 @@ void compile_global_decl_item(ASTNode *node) {
    {
       char symbuf[256];
       snprintf(symbuf, sizeof(symbuf), "%s", symname);
+
+      if (!is_const && !is_readonly_mem &&
+          global_initializer_is_all_zero(type, declarator, uexpr ? uexpr : expression, size)) {
+         if (is_zeropage) {
+            char segbuf[256];
+            build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "ZEROPAGE");
+            emit_data_object_segment(&es_zp, segbuf, symname, is_page, object_alignment, size);
+            emit(&es_zp, "%s:\n", symname);
+            emit(&es_zp, "\t.res %d\n", size);
+            restore_object_segment(&es_zp, segbuf);
+         }
+         else {
+            char segbuf[256];
+            build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "BSS");
+            emit_data_object_segment(&es_bss, segbuf, symname, is_page, object_alignment, size);
+            emit(&es_bss, "%s:\n", symname);
+            emit(&es_bss, "\t.res %d\n", size);
+            restore_object_segment(&es_bss, segbuf);
+         }
+         return;
+      }
 
       if (emit_global_initializer(&init_es, type, declarator, uexpr ? uexpr : expression, size)) {
          if (is_zeropage) {

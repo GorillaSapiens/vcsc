@@ -150,7 +150,7 @@
          "free_ram_bytes" : 77,
          "object_bytes" : 47,
          "ram_bytes" : 51,
-         "rom_bytes" : 3244,
+         "rom_bytes" : 3243,
          "stack_bytes" : 4
       },
       "object_schedule_bytes_after" : 0,
@@ -225,9 +225,9 @@
             "main",
             "vcs_ntsc_finish_deadline"
          ],
-         "weighted_depth" : 2
+         "weighted_depth" : 1
       },
-      "depth" : 2,
+      "depth" : 1,
       "edges" : [
          {
             "from" : "main",
@@ -247,31 +247,35 @@
          {
             "bytes" : 0,
             "reason" : ".callstackextra"
+         },
+         {
+            "bytes" : 2,
+            "reason" : "full-startup-transient-stack"
          }
       ],
       "hidden_extra" : 0,
       "size" : 4,
       "start" : 252,
       "totals" : {
-         "hidden_bytes" : 0,
-         "source_bytes" : 4,
+         "hidden_bytes" : 2,
+         "source_bytes" : 2,
          "total_bytes" : 4
       },
-      "weighted_depth" : 2
+      "weighted_depth" : 1
    },
    "hardware_stack_reduction" : {
-      "floor" : "with stock startup JSR main and a real main -> install_frames/deadline source call, four hardware-stack bytes are the conservative minimum without a separate startup/ABI change",
+      "floor" : "with stock full startup tail-entering main, one real main-to-helper source return plus the full startup transient stack requirement conservatively require four hardware-stack bytes",
       "free_ram_bytes" : 26,
-      "hidden_stack_bytes" : 0,
+      "hidden_stack_bytes" : 2,
       "previous_free_ram_bytes" : 22,
       "previous_ram_bytes" : 106,
       "previous_stack_bytes" : 8,
-      "proof" : "historical item-7 mask-renderer proof: single-use prepare_object_masks and prepare_one wrappers were flattened; the remaining set_range JSR was never deeper than startup -> main plus one ordinary source callee, so explicit .callstackextra 0 was sufficient; item 9 subsequently removes the mask builder entirely while retaining the four-byte stack floor",
+      "proof" : "the remaining source path has one real main-to-helper return slot; stock full startup also requires a real two-byte transient PHA/PLA stack slot, while explicit .callstackextra remains zero",
       "ram_bytes" : 102,
       "ram_saved_bytes" : 4,
       "rom_bytes" : 3545,
       "rom_delta_bytes" : 0,
-      "source_stack_bytes" : 4,
+      "source_stack_bytes" : 2,
       "stack_bytes" : 4,
       "stack_saved_bytes" : 4
    },
@@ -716,7 +720,7 @@
          "activation_bytes" : 0,
          "free_ram_bytes" : 77,
          "ram_bytes" : 51,
-         "rom_bytes" : 3244,
+         "rom_bytes" : 3243,
          "stack_bytes" : 4
       },
       "decision" : "retain-general-p0-p1-ball-renderer",
@@ -728,7 +732,7 @@
          "activation_bytes" : -20,
          "free_ram_bytes" : 77,
          "ram_bytes" : -77,
-         "rom_bytes" : -749,
+         "rom_bytes" : -750,
          "stack_bytes" : -4
       },
       "useful_game_state_margin" : true

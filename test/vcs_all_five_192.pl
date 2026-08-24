@@ -141,7 +141,7 @@ $map =~ /^\s+RODATA\.__vcsc_object\$game_playfield\s+load=\$[0-9A-Fa-f]{4}\s+siz
    or die "game playfield is not a page-contained 48-byte ROM object\n";
 $map !~ /(?:score|font)/i or die "gameplay-only map retained score/font symbols\n";
 $map !~ /RENDERER_RODATA/ or die "gameplay-only link retained predecessor score ROM segment\n";
-$map =~ /region=ram\s+depth=2\s+bytes=\$0008\s+physical=\$00F8-\$00FF\s+extra=\$0004/
+$map =~ /region=ram\s+depth=1\s+bytes=\$0006\s+physical=\$00FA-\$00FF\s+extra=\$0004/
    or die "component map lost the inline-assembly helper stack allowance\n";
 
 my $cxx=$ENV{CXX} || 'c++';
@@ -150,7 +150,7 @@ my $mos_obj=File::Spec->catfile($mos,'mos6502.o');
 my @mos_input=-f $mos_obj ? ($mos_obj) : (File::Spec->catfile($mos,'mos6502.cpp'));
 my @harnesses=(
    ['timing','vcs_frame_timing.cpp','50','--no-audio','--raw-lines','264',
-      qr/^vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes
+      qr/^vcs_frame_timing ok: 47 frames at 262 lines, 1 AUDV0 writes
 $/],
    ['phase','vcs_playfield_phase.cpp','12','12','40','all-five-192',
       qr/^vcs_playfield_raster ok: 12 rows x 16 lines x 160 pixels\n$/],

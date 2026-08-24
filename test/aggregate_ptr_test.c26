@@ -16,7 +16,7 @@ int16_t getx(Point *p) {
    return p->x;
 }
 
-int16_t main(void) {
+int16_t test_entry(void) {
    Point p;
    Point q;
    Value v;
@@ -25,4 +25,7 @@ int16_t main(void) {
    q := p;
    v.i := q.y;
    return getx(&q);
+}
+
+void main(void) {
 }

@@ -1,11 +1,11 @@
 // vcsc-cc1 -I .
-// expectasm: main$sum:
-// expectasm: main$i:
-// expectasm: main$j:
+// expectasm: test_entry$sum:
+// expectasm: test_entry$i:
+// expectasm: test_entry$j:
 // expectasmordered: lda #$01
-// expectasmordered: sta main$i
+// expectasmordered: sta test_entry$i
 // expectasmordered: lda #$02
-// expectasmordered: sta main$j
+// expectasmordered: sta test_entry$j
 // expectasmordered: @for_start_
 
 include "machine_6502.c26"
@@ -13,11 +13,14 @@ include "machine_6502.c26"
 type u8 { $size:1 $integer:unsigned };
 type intlit { $size:2 $integer:signed $endian:little };
 
-int16_t main(void) {
+int16_t test_entry(void) {
    u8 sum := 0;
    for (u8 i := 1, j := 2; i < 4; i++) {
       sum += i;
       sum += j;
    }
    return sum;
+}
+
+void main(void) {
 }

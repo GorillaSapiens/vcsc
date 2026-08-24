@@ -1,0 +1,49 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+; Compact stock startup selected automatically when every startup-cleared
+; writable object lives in ordinary RIOT RAM and there is no DATA copy or
+; runtime initializer work.
+
+.weak __nmi
+.weak __irqbrk
+
+.global __reset
+.global __nmi
+.global __irqbrk
+
+.export __reset
+.export __nmi
+.export __irqbrk
+.export __vcsc_startup_simple
+
+.import main
+
+.segment "CODE"
+
+__vcsc_startup_simple:
+__reset:
+   sei
+   cld
+   ldx #$ff
+   txs
+
+   lda #0
+   ldx #$7f
+@clear_ram:
+   sta $80,x
+   dex
+   bpl.same @clear_ram
+
+   ldx #$2c
+@clear_tia:
+   sta $00,x
+   dex
+   bpl.same @clear_tia
+
+   ldx #$ff
+   txs
+   jmp main
+
+__nmi:
+__irqbrk:
+   rti

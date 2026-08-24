@@ -11,6 +11,9 @@ mem bank0 { $start:0xf000 $size:0x1000 $ro };
 
 bank0 page const uint8_t banked_table[4] := { 1, 2, 3, 4 };
 
-uint8_t main(void) {
+uint8_t test_entry(void) {
    return banked_table[2];
+}
+
+void main(void) {
 }

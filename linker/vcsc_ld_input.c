@@ -866,6 +866,51 @@ void select_needed_objects(input_set_t *in)
    } while (progress);
 }
 
+//! @brief Return whether the selected program exports one exact symbol.
+int selected_objects_have_export(const input_set_t *in, const char *name)
+{
+   size_t i;
+   if (!in || !name)
+      return 0;
+   for (i = 0; i < in->object_count; ++i) {
+      if (object_exports_symbol(&in->objects[i], name))
+         return 1;
+   }
+   return 0;
+}
+
+//! @brief Re-run archive selection after forcing one preferred provider.
+void reselect_needed_objects_with_preferred_provider(input_set_t *in, const char *symbol)
+{
+   object_file_t *provider;
+   size_t i, m;
+
+   if (!in || !symbol || !*symbol)
+      return;
+
+   /* The selected-program array owns only its shallow array storage here; the
+      parsed command/archive objects still own the referenced object payloads. */
+   free(in->objects);
+   in->objects = NULL;
+   in->object_count = 0;
+   for (i = 0; i < in->cmd_object_count; ++i)
+      in->cmd_objects[i].selected = 0;
+   for (i = 0; i < in->archive_count; ++i) {
+      for (m = 0; m < in->archives[i].member_count; ++m) {
+         in->archives[i].members[m].selected = 0;
+         in->archives[i].members[m].obj.selected = 0;
+      }
+   }
+
+   provider = find_best_provider(in, symbol);
+   if (!provider) {
+      fprintf(stderr, "vcsc-ld: preferred startup provider '%s' is unavailable\n", symbol);
+      exit(1);
+   }
+   include_object(in, provider);
+   select_needed_objects(in);
+}
+
 //! @brief Report unused cmdline objects diagnostics with the location/context expected by linker object/archive loader callers.
 void warn_unused_cmdline_objects(const input_set_t *in)
 {

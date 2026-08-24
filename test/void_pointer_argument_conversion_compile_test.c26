@@ -11,7 +11,10 @@ static int16_t mem_cmp(const void* dst, const void* src, int16_t cnt) {
    return cnt;
 }
 
-int16_t main(void) {
+int16_t test_entry(void) {
    BYTE a[11], b[11];
    return mem_cmp(a, b, 11);
+}
+
+void main(void) {
 }

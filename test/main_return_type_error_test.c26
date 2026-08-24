@@ -1,0 +1,9 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: entry function 'main' must have signature 'void main(void)'
+
+include "machine_6502.c26"
+
+int16_t main(void) {
+   return 0;
+}

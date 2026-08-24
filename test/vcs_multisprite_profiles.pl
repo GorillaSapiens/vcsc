@@ -107,9 +107,9 @@ $score_component =~ /parameter\s+mutable_color\s*:=\s*0/
    or die "six-glyph mutable-color compact pointer/offset contract changed\n";
 
 my @examples=(
-   ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2622,84,78,6],
-   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3418,99,93,6],
-   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3418,99,93,6],
+   ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2621,84,78,6],
+   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3417,99,93,6],
+   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3417,99,93,6],
 );
 my %bins;
 my %state_bases;

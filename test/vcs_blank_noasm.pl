@@ -76,7 +76,7 @@ $out =~ /\brom\s+used=(\d+)\s+bytes/ or die "blank_noasm build did not report RO
 my $rom_used=$1;
 $rom_used <= 520 or die "blank_noasm uses $rom_used ROM bytes; timer-demo budget is 520\n";
 $out =~ /\bram\s+used=(\d+)\s+bytes/ or die "blank_noasm build did not report RAM usage\n$out";
-$1 == 15 or die "blank_noasm uses $1 RAM bytes; expected 15 after direct byte automatic-initializer lowering\n";
+$1 == 11 or die "blank_noasm uses $1 RAM bytes; expected 11 with compact startup and one real call slot\n";
 die "blank_noasm build wrote unexpected output\nstdout:\n$out\nstderr:\n$err"
    if without_cartridge_usage($out) ne '' || $err ne '';
 
@@ -102,7 +102,7 @@ die "timing harness compile wrote output\nstdout:\n$out\nstderr:\n$err" if $out 
 
 ($exit,$sig,$out,$err)=run_capture($timing_exe,$bin,'45','--no-audio','--raw-lines','264');
 die "timing harness exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
-$out eq "vcs_frame_timing ok: 42 frames at 262 lines, 0 AUDV0 writes\n"
+$out eq "vcs_frame_timing ok: 42 frames at 262 lines, 1 AUDV0 writes\n"
    or die "blank_noasm lost exact frame timing: $out";
 $err eq '' or die "timing harness stderr: $err";
 

@@ -8,6 +8,6 @@ include "machine_6502.c26"
 
 int8_t *helper(int8_t *p);
 
-int16_t main(void) {
-   return helper((int8_t *)0) != (int8_t *)0;
+void main(void) {
+   helper((int8_t *)0);
 }

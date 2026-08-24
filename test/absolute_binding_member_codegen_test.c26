@@ -12,8 +12,11 @@ struct Pair {
 
 Pair regs@[0x0200/0x0200];
 
-int16_t main(void) {
+int16_t test_entry(void) {
    uint8_t x := regs.b;
    regs.c := x;
    return 0;
+}
+
+void main(void) {
 }

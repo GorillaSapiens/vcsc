@@ -10,4 +10,7 @@
 
 include "machine_6502.c26"
 int16_t bump(int16_t x) { $$ := x; $$ += 1; return; }
-int16_t main(void) { return bump(41); }
+int16_t test_entry(void) { return bump(41); }
+
+void main(void) {
+}

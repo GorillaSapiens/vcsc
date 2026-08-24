@@ -30,6 +30,7 @@ bool function_return_storage_addresses(const ASTNode *fn,
                                        char *write_buf, size_t write_size,
                                        bool *is_zeropage_out, bool *is_split_out);
 void validate_function_return_type(const ASTNode *fn);
+void validate_main_signature(const ASTNode *fn);
 void record_call_graph_edge(const ASTNode *caller, const ASTNode *callee);
 void record_activation_lifetime_edge(const ASTNode *caller, const ASTNode *callee);
 void analyze_static_parameter_call_graph(void);

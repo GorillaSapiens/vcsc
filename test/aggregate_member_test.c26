@@ -7,11 +7,14 @@ struct Point {
    int16_t y;
 };
 
-int16_t main(void) {
+int16_t test_entry(void) {
    Point p;
    Point q;
    p.x := 3;
    p.y := 4;
    q := p;
    return q.y;
+}
+
+void main(void) {
 }

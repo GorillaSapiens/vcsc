@@ -58,7 +58,7 @@ $rc==0 && !$sig or die "big-wide example build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "big-wide example wrote output\n$out$err";
 -s $bin==2048 or die "big-wide public example is not 2048 bytes\n";
 my $map_text=read_file($map);
-$map_text =~ /rom\s+used=1116 bytes/ or die "big-wide ROM accounting changed\n";
+$map_text =~ /rom\s+used=1115 bytes/ or die "big-wide ROM accounting changed\n";
 $map_text =~ /ram\s+used=35 bytes.*objects=31 bytes hardware-stack=4 bytes/ or die "big-wide RAM accounting changed\n";
 $map_text =~ /score_pointers\s+run=\$[0-9A-Fa-f]+ size=\$000C/ or die "big-wide pointer allocation changed\n";
 $map_text =~ /score_row\s+run=\$[0-9A-Fa-f]+ size=\$0001/ or die "big-wide row allocation changed\n";

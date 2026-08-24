@@ -10,7 +10,7 @@ type ushort    { $size:2  $integer:unsigned $endian:little };
 type int16_t       { $size:2    $integer:signed $endian:little };
 type uint      { $size:2  $integer:unsigned $endian:little };
 
-short main(void) {
+short test_entry(void) {
    int16_t x := 2;
    int16_t y := 0;
    switch (x) {
@@ -19,4 +19,7 @@ short main(void) {
       default: y := 99;
    }
    return y;
+}
+
+void main(void) {
 }

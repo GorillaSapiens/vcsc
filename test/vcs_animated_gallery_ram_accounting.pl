@@ -75,8 +75,8 @@ index($asm,'__phaseworkspace$V1$__vcsc_scratch_0')<0
    or die "fixed VSYNC unexpectedly materialized phase-scoped compiler scratch\n";
 index($asm,'__phaseworkspace$V1$game_workspace')>=0
    or die "direct-countdown renderer workspace lacks explicit phase-workspace ownership metadata\n";
-$map =~ /rom\s+used=3244 bytes .*free=846 bytes/
-   or die "3244-byte absolute-alignment animated-gallery ROM result changed\n";
+$map =~ /rom\s+used=3243 bytes .*free=847 bytes/
+   or die "3243-byte absolute-alignment animated-gallery ROM result changed\n";
 $map =~ /ram\s+used=51 bytes .*free=77 bytes .*objects=47 bytes hardware-stack=4 bytes/
    or die "51-byte post-startup-rewrite RAM result changed\n";
 $map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$00E8/m
@@ -117,8 +117,9 @@ my @hidden;
 while ($map =~ /^\s+HIDDEN bytes=\$([0-9A-Fa-f]{4}) reason=(\S+) object=\S+$/mg) {
    push @hidden,{bytes=>hexnum($1),reason=>$2};
 }
-@hidden==1 && $hidden[0]{bytes}==0 && $hidden[0]{reason} eq '.callstackextra'
-   or die "audited zero-byte hidden hardware-stack explanation changed\n";
+@hidden==2 && $hidden[0]{bytes}==0 && $hidden[0]{reason} eq '.callstackextra' &&
+$hidden[1]{bytes}==2 && $hidden[1]{reason} eq 'full-startup-transient-stack'
+   or die "audited hidden hardware-stack explanation changed\n";
 $map =~ /^\s+TOTAL source-bytes=\$([0-9A-Fa-f]{4}) hidden-bytes=\$([0-9A-Fa-f]{4}) total-bytes=\$([0-9A-Fa-f]{4})$/m
    or die "map missing hardware-stack total explanation\n";
 my %stack_totals=(source_bytes=>hexnum($1),hidden_bytes=>hexnum($2),total_bytes=>hexnum($3));
@@ -306,17 +307,17 @@ my $report={
       previous_free_ram_bytes=>22, free_ram_bytes=>26,
       previous_stack_bytes=>8, stack_bytes=>4, stack_saved_bytes=>4,
       rom_bytes=>3545, rom_delta_bytes=>0,
-      source_stack_bytes=>4, hidden_stack_bytes=>0,
-      proof=>'historical item-7 mask-renderer proof: single-use prepare_object_masks and prepare_one wrappers were flattened; the remaining set_range JSR was never deeper than startup -> main plus one ordinary source callee, so explicit .callstackextra 0 was sufficient; item 9 subsequently removes the mask builder entirely while retaining the four-byte stack floor',
-      floor=>'with stock startup JSR main and a real main -> install_frames/deadline source call, four hardware-stack bytes are the conservative minimum without a separate startup/ABI change',
+      source_stack_bytes=>2, hidden_stack_bytes=>2,
+      proof=>'the remaining source path has one real main-to-helper return slot; stock full startup also requires a real two-byte transient PHA/PLA stack slot, while explicit .callstackextra remains zero',
+      floor=>'with stock full startup tail-entering main, one real main-to-helper source return plus the full startup transient stack requirement conservatively require four hardware-stack bytes',
    },
    post_optimization_remeasurement=>{
       renderer_profile=>'player_color_192 P0/P1/Ball',
       ball_capability_retained=>JSON::PP::true,
       gallery_ball_height=>0,
       baseline=>{rom_bytes=>3993, ram_bytes=>128, activation_bytes=>20, stack_bytes=>8, free_ram_bytes=>0},
-      current=>{rom_bytes=>3244, ram_bytes=>51, activation_bytes=>0, stack_bytes=>4, free_ram_bytes=>77},
-      total_delta=>{rom_bytes=>-749, ram_bytes=>-77, activation_bytes=>-20, stack_bytes=>-4, free_ram_bytes=>77},
+      current=>{rom_bytes=>3243, ram_bytes=>51, activation_bytes=>0, stack_bytes=>4, free_ram_bytes=>77},
+      total_delta=>{rom_bytes=>-750, ram_bytes=>-77, activation_bytes=>-20, stack_bytes=>-4, free_ram_bytes=>77},
       free_ram_percent=>60.15625,
       useful_game_state_margin=>JSON::PP::true,
       decision=>'retain-general-p0-p1-ball-renderer',
@@ -377,7 +378,7 @@ my $report={
       renderer_module_bytes_before=>69, renderer_module_bytes_after=>23,
       gallery_before=>{rom_bytes=>3545, ram_bytes=>102, free_ram_bytes=>26, object_bytes=>98, stack_bytes=>4},
       gallery_after_renderer_fix=>{rom_bytes=>3292, ram_bytes=>56, free_ram_bytes=>72, object_bytes=>52, stack_bytes=>4},
-      gallery_current=>{rom_bytes=>3244, ram_bytes=>51, free_ram_bytes=>77, object_bytes=>47, stack_bytes=>4},
+      gallery_current=>{rom_bytes=>3243, ram_bytes=>51, free_ram_bytes=>77, object_bytes=>47, stack_bytes=>4},
       postcloseout_runtime_main_delta=>{rom_bytes=>81, ram_bytes=>-5, free_ram_bytes=>5, object_bytes=>-5},
       absolute_alignment_link_delta=>{rom_bytes=>-133, ram_bytes=>0},
       frame_scheduler_262_rom_cost=>4,

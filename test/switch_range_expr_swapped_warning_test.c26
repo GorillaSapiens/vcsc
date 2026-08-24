@@ -8,7 +8,7 @@
 
 include "machine_6502.c26"
 
-int16_t main(void) {
+int16_t test_entry(void) {
    int16_t x := 3;
    switch (x) {
       case 5 - 0 to 1 + 1:
@@ -16,4 +16,7 @@ int16_t main(void) {
       default:
          return 0;
    }
+}
+
+void main(void) {
 }

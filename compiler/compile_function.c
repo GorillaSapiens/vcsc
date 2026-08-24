@@ -112,7 +112,29 @@ bool return_type_has_value(const ASTNode *type, const ASTNode *declarator) {
           !return_type_is_void(type, declarator);
 }
 
-//! @brief Return whether a function owns a callee-side return object.
+//! @brief Require the program entry point to have exactly `void main(void)`.
+void validate_main_signature(const ASTNode *fn) {
+   const ASTNode *declarator;
+   const ASTNode *return_decl;
+   const ASTNode *params;
+   const char *name;
+
+   if (!fn)
+      return;
+   declarator = function_declarator_node(fn);
+   name = declarator_name(declarator);
+   if (!name || strcmp(name, "main"))
+      return;
+
+   return_decl = function_return_declarator_from_callable(declarator);
+   params = declarator_parameter_list(declarator);
+   if (!return_type_is_void(function_return_type(fn), return_decl) ||
+       !params || params->count != 1 || !parameter_is_void(params->children[0])) {
+      error_user("[%s:%d.%d] entry function 'main' must have signature 'void main(void)'",
+                 fn->file, fn->line, fn->column);
+   }
+}
+
 bool function_has_return_object(const ASTNode *fn) {
    const ASTNode *declarator;
 

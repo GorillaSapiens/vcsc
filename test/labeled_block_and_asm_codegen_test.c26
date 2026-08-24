@@ -13,7 +13,10 @@ blk: {
 here: asm rts;
 }
 
-int16_t main(void) {
+int16_t test_entry(void) {
    helper();
    return 0;
+}
+
+void main(void) {
 }

@@ -1,7 +1,7 @@
 // vcsc-cc1 -I .
-// expectasmordered: lda  main$ppp
+// expectasmordered: lda  test_entry$ppp
 // expectasmordered: sta ptr0
-// expectasmordered: lda  main$ppp + 1
+// expectasmordered: lda  test_entry$ppp + 1
 // expectasmordered: sta ptr0+1
 // expectasmordered: ldy #0
 // expectasmordered: lda (ptr0),y
@@ -17,7 +17,7 @@
 
 include "machine_6502.c26"
 
-int16_t main(void) {
+int16_t test_entry(void) {
    int16_t x;
    int16_t *p;
    int16_t **pp;
@@ -27,4 +27,7 @@ int16_t main(void) {
    ppp := &pp;
    ***ppp := 7;
    return ***ppp;
+}
+
+void main(void) {
 }

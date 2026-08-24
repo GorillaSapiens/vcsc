@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@
 # phase: e2e
-# expectstdout: vcs_faithful_legacy_multisprite ok: 1472 ROM, exact 122+6 RAM, 264-line frame, five multiplexed P1 sprites plus P0
+# expectstdout: vcs_faithful_legacy_multisprite ok: 1474 ROM, exact 122+6 RAM, 264-line frame, five multiplexed P1 sprites plus P0
 # expectexit: 0
 # Faithful fixed diagnostic and source-integration contract for the retained
 # unbanked/non-Superchip multisprite renderer.
@@ -100,8 +100,8 @@ require_re($startup_text,qr/lda\s+#0.*?ldx\s+#\$7f.*?sta\s+\$80,x/s,
    $driver,'-nostdlib','-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$map,
    $source,$fixture,$renderer,$startup,'-o',$bin);
 $err eq '' or die "faithful multisprite build stderr: $err";
-require_re($out,qr/ROM\s+used=1472 bytes .* free=2618 bytes/s,
-   'faithful multisprite fixed diagnostic ROM cost changed from 1472 bytes');
+require_re($out,qr/ROM\s+used=1474 bytes .* free=2616 bytes/s,
+   'faithful multisprite fixed diagnostic ROM cost changed from 1474 bytes');
 require_re($out,qr/ram\s+used=128 bytes .* objects=122 bytes hardware-stack=6 bytes/s,
    'faithful multisprite fixed diagnostic RAM accounting changed');
 length(slurp($bin))==4096 or die "faithful multisprite diagnostic is not a 4096-byte ROM\n";
@@ -135,4 +135,4 @@ $out eq "vcs_faithful_legacy_compare multisprite oracle ok: 391 visible events, 
    or die "unexpected faithful multisprite oracle output: $out";
 $err eq '' or die "faithful multisprite oracle stderr: $err";
 
-print "vcs_faithful_legacy_multisprite ok: 1472 ROM, exact 122+6 RAM, 264-line frame, five multiplexed P1 sprites plus P0\n";
+print "vcs_faithful_legacy_multisprite ok: 1474 ROM, exact 122+6 RAM, 264-line frame, five multiplexed P1 sprites plus P0\n";

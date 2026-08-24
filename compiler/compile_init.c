@@ -830,6 +830,39 @@ static bool emit_global_array_decay_pointer_initializer(EmitSink *es,
                                           lv.offset + lv.ptr_adjust);
 }
 
+//! @brief Return whether a link-time initializer is representable entirely as zero bytes.
+bool global_initializer_is_all_zero(const ASTNode *type, const ASTNode *declarator, ASTNode *expression, int size) {
+   ASTNode *uexpr = (ASTNode *) unwrap_expr_node(expression);
+   unsigned char *bytes;
+   bool all_zero = true;
+
+   if (!type || size < 0 || !expression) {
+      return false;
+   }
+   if (uexpr) {
+      if (pointer_initializer_uses_backing_object(type, declarator, uexpr)) {
+         return false;
+      }
+   }
+   bytes = (unsigned char *) calloc(size ? size : 1, sizeof(unsigned char));
+   if (!bytes) {
+      return false;
+   }
+   if (!build_initializer_bytes(bytes, size, 0, uexpr ? uexpr : expression,
+                                type, declarator, size)) {
+      free(bytes);
+      return false;
+   }
+   for (int i = 0; i < size; i++) {
+      if (bytes[i] != 0) {
+         all_zero = false;
+         break;
+      }
+   }
+   free(bytes);
+   return all_zero;
+}
+
 //! @brief Emit global initializer for compiler initializer lowering diagnostics or output files.
 bool emit_global_initializer(EmitSink *es, const ASTNode *type, const ASTNode *declarator, ASTNode *expression, int size) {
    ASTNode *uexpr = (ASTNode *) unwrap_expr_node(expression);

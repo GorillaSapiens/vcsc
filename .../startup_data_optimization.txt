@@ -1,0 +1,38 @@
+VCSC STARTUP/DATA ROM OPTIMIZATION
+==================================
+
+Status
+------
+Exploratory compiler optimization is in the current tree but is not yet closed
+or broadly validated.
+
+Durable finding
+---------------
+An explicit all-zero mutable static initializer currently forces DATA/startup
+copying even though BSS startup clearing gives identical initial bytes. The
+prototype in compiler/compile_init.[ch] and compiler/compile_toplevel.c detects
+link-time initializers whose encoded bytes are all zero and emits those objects
+as BSS/ZEROPAGE instead of DATA. Const/readonly objects and pointer initializers
+that require backing objects are excluded.
+
+Measured effect
+---------------
+On the post-roadmap-43 public examples, the prototype increased compact-startup
+use from 4 to 7 example maps and reduced occupied ROM by another 1,929 bytes
+across the 96 produced maps. The compiler suite is now 502/502. The former initializer_short_circuit_test.c26
+golden was updated to require the folded-zero object in BSS (`.res 1`) and to
+forbid a DATA object for it, so the new optimization is pinned explicitly.
+
+A separate source audit found many nonzero declaration initializers that are
+unconditionally overwritten before first use (notably select/fire readiness
+latches and score colors). Those are candidates for later source cleanup, but
+no such example-source cleanup is retained in this tree.
+
+Next step
+---------
+Finish the zero-initializer compiler optimization as a real change: add/update
+focused regressions for scalar/aggregate zero initializers and exclusions, run
+E2E validation, measure compact-startup/ROM changes again, then close or retain
+this file accordingly.
+Do not start broad example-source initializer cleanup until the compiler change
+is independently green.

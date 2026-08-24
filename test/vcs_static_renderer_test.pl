@@ -99,7 +99,7 @@ $map =~ /^\s*RENDERER_RODATA\s+load=\$([0-9A-Fa-f]{4})\s+size=\$0058\b/m
 my $renderer_rodata_load=hex($1);
 ($renderer_rodata_load & 0xff)==0 && $renderer_rodata_load==$renderer_load+0x300
    or die sprintf("score table is not page-aligned immediately after renderer code at %04X\n",$renderer_rodata_load);
-require_re($map,qr/region=ram\s+depth=3\s+bytes=\$000A\s+physical=\$00F6-\$00FF\s+extra=\$0004/,
+require_re($map,qr/region=ram\s+depth=2\s+bytes=\$0008\s+physical=\$00F8-\$00FF\s+extra=\$0004/,
    'map lost the standard renderer hook-aware stack allowance');
 map_symbol($map,'vcs_standard_renderer_drawscreen')==$renderer_load
    or die "standard renderer entry does not match its component load address\n";
@@ -171,13 +171,17 @@ require_re($src,
    qr/while\s*\(1\)\s*\{\s*configure_static_frame\(\);\s*vcs_standard_renderer_drawscreen\(\);\s*\}/s,
    'static scene no longer reapplies volatile TIA geometry before each deterministic draw');
 
-# Lock the imported zero-page addends used by the six-digit score pipeline.
+# Lock the imported zero-page addends used by the six-digit score pipeline,
+# while allowing the linker to relocate the workspace as startup RAM changes.
 my $renderer_bytes=substr($rom,$renderer_load-0xf000,0x300);
-for my $pattern (
-   "\xB1\x9B", "\xB1\x9D", "\xB1\x9F",
-   "\xB1\xA1", "\xB1\xA3", "\xB1\xA5") {
+my $workspace=map_symbol($map,'vcs_standard_pointer_workspace');
+$workspace >= 0x80 && $workspace + 10 <= 0xff
+   or die sprintf("score-pointer workspace is not wholly in zero page at %04X\n",$workspace);
+for my $offset (0,2,4,6,8,10) {
+   my $pattern=pack('CC',0xB1,($workspace+$offset)&0xff);
    index($renderer_bytes,$pattern)>=0
-      or die sprintf("renderer is missing score-pointer opcode bytes %s\n",unpack('H*',$pattern));
+      or die sprintf("renderer is missing score-pointer opcode bytes %s for workspace+%d\n",
+                     unpack('H*',$pattern),$offset);
 }
 index($renderer_bytes,"\x29\xF0\x4A")>=0
    or die "renderer lost legal AND/LSR score-nibble sequence\n";

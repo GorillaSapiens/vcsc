@@ -106,7 +106,7 @@ require_ok('function-region link', $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEF
 my $map_text = slurp($map);
 $map_text =~ /CODE\.bank1\.__vcsc_function\$placed\s+load=\$D100\s+size=\$0002\s+page=hard/
    or die "map did not place the private function layout in BANK1 at D100\n$map_text";
-$map_text =~ /CODE\.__vcsc_function\$main\s+load=\$F[0-9A-Fa-f]{3}\s+size=\$0001/
+$map_text =~ /CODE\.__vcsc_function\$main\s+load=\$F[0-9A-Fa-f]{3}\s+size=\$0003/
    or die "map did not place unpinned main in the ordinary home ROM region\n$map_text";
 $map_text =~ /^\s*\$D100\s+placed\b/m
    or die "placed symbol did not resolve to D100\n";

@@ -97,11 +97,11 @@ for my $i (0 .. $#expected_prefix) {
 my $map_text = read_file($map);
 $map_text =~ /^\s*\$([0-9A-Fa-f]{4})\s+__reset\b/m && hex($1)==$reset
    or die sprintf("map __reset does not match RESET vector %04x\n", $reset);
-$map_text =~ /ram\s+start=\$0080\s+size=\$007C\s+type=rw/
+$map_text =~ /ram\s+start=\$0080\s+size=\$007E\s+type=rw/
    or die "map does not expose the call-graph-sized RIOT RAM arena\n";
-$map_text =~ /region=ram\s+depth=2\s+bytes=\$0004\s+physical=\$00FC-\$00FF/
-   or die "map does not report the expected two-level hardware-stack reserve\n";
-$map_text =~ /__stack_top\s+\$00FB/
+$map_text =~ /region=ram\s+depth=1\s+bytes=\$0002\s+physical=\$00FE-\$00FF/
+   or die "map does not report the expected one-call hardware-stack reserve\n";
+$map_text =~ /__stack_top\s+\$00FD/
    or die "map does not stop ordinary allocation below the hardware stack\n";
 $map_text =~ /\bmain\b/
    or die "map is missing main\n";

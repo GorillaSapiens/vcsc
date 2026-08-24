@@ -17,16 +17,16 @@ workspace expected by generated code.
 
 ### Startup/runtime pieces
 
-- `vcsc-rt0.s26`
-  - exports `__reset`
-  - initializes the 6502 hardware stack
-  - copies every `DATA` object from ROM to its runtime write address using
-    `__copy_table`
-  - zeros every `BSS` object through its runtime write address using
-    `__zero_table`
-  - walks the linker-generated `__init_table`
-  - calls `main`
-  - supplies weak `__nmi` and `__irqbrk` vector fillers that execute `rti`
+- `vcsc-rt0.s26` is the full stock startup. It initializes the hardware stack,
+  copies `DATA` through `__copy_table`, zeros `BSS` through `__zero_table`, walks
+  `__init_table`, and tail-jumps to `main`.
+- `vcsc-rt1-simple.s26` is the compact stock startup. It clears all 128 bytes of
+  ordinary RIOT RAM plus TIA registers and tail-jumps to `main`; it needs no
+  linker startup tables or runtime pointer workspace. The linker selects it only
+  when there is no DATA copy, runtime initializer, or startup-zero requirement
+  outside ordinary RIOT RAM.
+- Both stock startups export `__reset` and supply weak `__nmi` and `__irqbrk`
+  vector fillers that execute `rti`.
 - `vcsc-zp-*.s26`
   - each file exports one independently selectable zero-page cell
   - `_vcsc_arg0` and `_vcsc_arg1` are one byte each
@@ -39,8 +39,10 @@ workspace expected by generated code.
     `_vcsc_arg0`, or `_vcsc_arg1` only when their generated code actually
     imports those cells
 
-The complete startup sequence runs after every entry through `__reset`, not only
-at cartridge power-on. For a split-address region such as Superchip RAM, table
+The selected startup sequence runs after every entry through `__reset`, not only
+at cartridge power-on. The full startup performs object-by-object initialization;
+the compact startup's blanket RIOT-RAM clear has the same reset semantics for
+programs that qualify for it. For a split-address region such as Superchip RAM, table
 records contain the write-window address, so DATA copies and BSS clearing never
 read from or write through the wrong alias. A reset deliberately restores all
 allocated persistent BSS/DATA objects to their declared startup state; ordinary
@@ -94,9 +96,10 @@ that need dynamic allocation must supply their own allocator and storage policy.
 
 ## What it requires
 
-`runtime` assumes this linker and its startup conventions. The linker must provide
-`__copy_table`, `__zero_table`, and `__init_table`, and its configuration must define the normal `CODE`, `DATA`, `BSS`, `ZEROPAGE`,
-`STARTUP`, and vector regions.
+`runtime` assumes this linker and its startup conventions. The full startup
+requires `__copy_table`, `__zero_table`, and `__init_table`; the compact startup
+does not generate or import those tables. The linker configuration must define
+the normal `CODE`, `DATA`, `BSS`, `ZEROPAGE`, `STARTUP`, and vector regions.
 
 Machine assumptions:
 
@@ -104,8 +107,9 @@ Machine assumptions:
 - hardware stack at page `$01xx`
 - zero page is available for the selected `vcsc-zp-*.s26` workspace members
 
-The linker selects the startup archive member through `__reset`, `__nmi`, and
-`__irqbrk`.
+The linker first resolves the ordinary stock reset provider, then automatically
+reselects the compact stock provider when the selected program is safe for the
+blanket RIOT-RAM clear. Custom reset providers are not replaced.
 
 ## When to use it
 

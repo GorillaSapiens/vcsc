@@ -126,3 +126,67 @@ without weakening the maintained 45-second policy, a temporary 2-second copy of
 the runner identified 22 slow cases; all other E2E cases passed under that
 stricter limit, and all 22 slow cases then passed with the unchanged repository
 runner at 45 seconds.
+
+
+2026-08-23 18:13:10 PDT, roadmap 43 compact startup
+ROADMAP 43 COMPACT STARTUP
+==========================
+
+Completed main-roadmap Item 43.
+
+* The language entry contract is now exactly `void main(void)`. Validation runs
+  after whole-program semantic/call-graph analysis so an unrelated intended
+  diagnostic is not masked by an old harness signature. Ordinary functions still
+  end in `RTS`; `main` return/fall-through emits `JMP ($FFFC)`.
+* Both stock startup paths tail-enter `main` with `JMP`, so the linker no longer
+  reserves an impossible startup-to-main return address. Call-stack accounting is
+  rooted at the actual entry paths: calls made by `main` count normally, runtime
+  initializer roots retain their real JSR slot, and the full table-driven startup
+  explicitly reserves its real two-byte transient PHA/PLA use.
+* Added `libraries/runtime/vcsc-rt1-simple.s26`, based on the abbreviated 192-line
+  asymmetric example startup. It initializes SP, clears all ordinary RIOT RAM and
+  TIA registers directly, restores SP, and tail-jumps to `main` without generic
+  copy/zero/init tables.
+* The linker automatically reselects that compact stock startup only when there is
+  no DATA image, no runtime initializer, and every persistent startup-zeroed
+  writable object lives wholly in ordinary RIOT RAM. DATA, runtime initializers,
+  Superchip/split-address or other cartridge RAM, and custom startup providers keep
+  the full/general path. Compact maps report `policy=compact-riot-clear`; generic
+  startup tables are omitted entirely.
+* Added `test/vcs_startup_selection.pl` to pin compact/full automatic selection,
+  cartridge-RAM rejection, table suppression, zero main-entry stack reserve,
+  both startups' tail `JMP main`, RESET-vector wiring, and main's `JMP ($FFFC)`
+  fallback. Added compile-time main return-type/parameter-signature regressions.
+* Migrated successful compiler harnesses that used value-returning `main` so their
+  original code-generation coverage remains in ordinary helper functions while a
+  valid `void main(void)` supplies the entry point. Negative tests keep their
+  intended primary diagnostics. Link/layout golden expectations were updated only
+  where the removed entry slot or compact startup legitimately changed ROM/RAM
+  placement/accounting.
+* Final cleanup fixed three stale renderer expectations exposed by the compact
+  startup: public wide-score ROM use is 1324 bytes; standard-renderer relocatability
+  is now proved by forcing a live leading RIOT byte and checking the whole 80-byte
+  block moves intact; score-pointer opcode checks derive zero-page operands from
+  the linked workspace symbol instead of pinning an accidental absolute address.
+
+Validation is clean: compiler 502/502. A two-second capped E2E sweep passed 250
+of 320 cases and identified 70 timeout-only cases; every one of those 70 then
+passed with its unchanged repository-defined timeout, for effective E2E 320/320.
+Focused startup-selection, standard-renderer contract, static-renderer, wide-score,
+source-tree hygiene, and context-history-format tests pass.
+
+2026-08-23 18:59:18 PDT, audit startup DATA waste
+Measured roadmap-43 ROM usage across public examples and investigated why only
+four maps selected compact startup. Prototyped treating mutable all-zero static
+initializers as BSS/ZEROPAGE rather than DATA. The prototype converted three
+additional maps to compact startup and saved 1,929 occupied ROM bytes across 96
+produced maps. Compiler validation reached 501/502; the sole known failure is an
+assembly golden that expects an explicit zero initializer as `.byte $00`.
+Also audited nonzero initializers and found many declaration defaults overwritten
+before first use; those source edits are not retained and remain future work.
+
+ZERO-INITIALIZER GOLDEN FIX
+---------------------------
+- Updated test/initializer_short_circuit_test.c26 for the zero-initializer-to-BSS prototype: the short-circuited zero object must now be emitted as BSS `.res 1`, and its DATA object is explicitly forbidden.
+- Focused regression passes; full compiler suite passes 502/502.
+- E2E/broader validation of the zero-initializer optimization remains unfinished and is tracked in startup_data_optimization.txt.

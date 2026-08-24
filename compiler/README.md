@@ -1014,9 +1014,12 @@ binding it to a `ref` parameter, taking its address, or exposing it to inline
 assembly forces the normal separate objects and copy. The public
 `function$__return` symbol remains the allocation's ABI name.
 
-The callee ends with `RTS`; it does not place a language return value in A, X,
-or Y. After the call, a caller that uses the value copies it from the return
-symbol's read address. Declarations and definitions must agree independently on
+An ordinary callee ends with `RTS`; it does not place a language return value in
+A, X, or Y. `main` is the sole exception: it must be exactly `void main(void)`,
+stock startup tail-jumps to it, and its return/fall-through epilogue is
+`JMP ($FFFC)` so an erroneous return restarts through the RESET vector without
+requiring a fictitious hardware-stack return address. After an ordinary call, a
+caller that uses the value copies it from the return symbol's read address. Declarations and definitions must agree independently on
 the result region and code-region set. ABI metadata records an ordinary result
 region's identity/address class or a split region's identity and both window
 starts. Any writable modifier on a `void` function is rejected because there is

@@ -12,6 +12,6 @@ union Shared {
 
 extern Shared shared_union;
 
-int16_t main(void) {
-   return shared_union.whole;
+void main(void) {
+   _ := shared_union.whole;
 }

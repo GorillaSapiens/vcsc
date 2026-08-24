@@ -13,6 +13,6 @@ struct Packet {
 
 extern Packet shared;
 
-int16_t main(void) {
-   return shared.value;
+void main(void) {
+   _ := shared.value;
 }
