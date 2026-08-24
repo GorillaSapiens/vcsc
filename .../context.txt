@@ -81,22 +81,14 @@ Open workstreams
 1. **Enhanced asymmetric multisprite -- active side quest**
    Read `.../enhanced_asymmetric.txt` when working on it. The current 192-line
    diagnostic uses 12 playfield rows of 16 physical scanlines, X=0..159 and
-   Y=0..95. Retained-X continuation and forced bridge orientation are present;
-   current extended blanking split is 63/13 TIM64T. Current public accounting is
-   4089/4090 ROM and 115/128 RAM.
-
-   The bridge-oracle and pre-WSYNC phase causes of 262/263 jitter are fixed; the
-   exact Stella witnesses and held-layout dense-X stresses pass. The staggered
-   0/1/2 occupancy-two cluster is also repaired by scan-order-independent exact-six
-   retained-P0 deferral and has a permanent all-six real-6502 regression. The
-   dedicated retained-P0 raster handoff is now partly implemented: Position0LineA
-   publishes `current_gfx`, restoring the first previously-lost predecessor row
-   without changing its established 76-cycle phase. The successor still installs
-   COLUP0 too early and the remaining predecessor rows are not yet advanced. Keep
-   the existing Y+5 trigger; next make P0RetainSlot advance the predecessor and
-   feed a retained setup path that skips HMOVE and delays successor color/state.
-   Current accounting is 4087/4090 ROM, 115/128 RAM. See
-   `.../enhanced_asymmetric.txt` for the exact trace and next edits.
+   Y=0..95. Current extended blanking split is 63/13 TIM64T. The scheduler now
+   enforces the measured same-X rule: identical X with |delta-Y|<13 cannot reuse
+   that hardware player. This remains separate from ordinary P0=15/P1=12 full
+   setup reservations. P0 retained-X is limited to delta 13..14; exact-delta-12
+   P1 reuse remains legal only when X differs. The obsolete forced delta-12
+   bridge orientation is retired in favor of fair omission. Current public
+   accounting is 3993/4090 ROM and 115/128 RAM. See
+   `.../enhanced_asymmetric.txt` for maintained boundary regressions and next work.
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
@@ -127,18 +119,16 @@ Their completed development narratives were moved to `context-history/`.
 
 Last validation state
 ---------------------
-The most recent complete compiler phase recorded in this lineage is 500/500.
-The user's latest broad E2E run passed 318/319; its sole failure was the stale
-asymmetric structural exact-six assertion. That assertion now follows the new
-deferred helper and the focused asymmetric test passes, so together these cover
-all 319 E2E cases without any production-source change after the broad run. The
-maintained runner default remains 45 seconds.
+Current broad validation is clean: compiler 500/500 and E2E 319/319.  The E2E
+validation used a temporary stricter 2-second runner to identify slow cases, then
+reran all 22 slow cases with the repository's unchanged 45-second runner; all
+22 passed.  The focused asymmetric real-6502 test, renderer branch contracts,
+source-tree hygiene, and history-format checks also pass.
 
 Immediate TODO
 --------------
 Active workstream: `.../enhanced_asymmetric.txt`.
 
-Continue interactive Stella validation and retained-X allocator-quality work
-documented in the focused file. Any new 263-line hit should be held for multiple
-frames and reduced to exact X/Y/priority state; use real Stella as authority when
-its frame count and the CPU harness disagree.
+Resume broader occupancy<=2 allocator-quality work without weakening the
+same-X <13 invariant, ordinary P0=15/P1=12 setup reservations, or persistent
+fair-omission policy.

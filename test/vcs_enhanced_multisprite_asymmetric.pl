@@ -59,6 +59,16 @@ $text =~ /TEMPLATE_ChooseLane:;.*?ldy\.z TEMPLATE_setup_index;.*?ldx\.z TEMPLATE
    or die "first-candidate scheduler lookahead missing\n";
 $text =~ /\@TEMPLATE_ChooseCandidateAtOrAbove:;\s*(?:\/\/[^\n]*\n\s*)*asm lda\.z TEMPLATE_pending0_valid;/s
    or die "close-above scheduler delta is clobbered before lane test\n";
+# Same-X reuse is a measured 13-band scheduler invariant, separate from the
+# ordinary P0=15/P1=12 full-position reservations.  P0 may use retained-X only
+# at 13..14; P1's exact-12 ordinary reuse must reject identical X in both scan
+# directions while preserving exact-12 reuse for differing X coordinates.
+$text =~ /\@TEMPLATE_ChooseBelowClose:;.*?asm lda\.z TEMPLATE_pending0_valid;.*?asm bne\.same \@TEMPLATE_ChooseBelowOtherP1;.*?asm txa;\s*asm cmp #13;\s*asm bcc\.same \@TEMPLATE_ChooseBelowP0Conflict;.*?asm cmp\.zx TEMPLATE_x,X;\s*asm bne\.same \@TEMPLATE_ChooseBelowP0Conflict;\s*asm jsr TEMPLATE_ProveP0Retain;/s
+   or die "same-X delta-13 P0 retain threshold regressed\n";
+$text =~ /\@TEMPLATE_ChooseBelowOtherP1:;.*?asm txa;\s*asm cmp #13;\s*asm bcs\.same \@TEMPLATE_ChooseBelowP1SameClear;\s*asm cmp #12;\s*asm bcc\.same \@TEMPLATE_ChooseBelowP1Conflict;.*?asm cmp\.zx TEMPLATE_x,X;\s*asm bne\.same \@TEMPLATE_ChooseBelowP1SameClear;\s*asm \@TEMPLATE_ChooseBelowP1Conflict:/s
+   or die "same-X exact-12 below-P1 rejection regressed\n";
+$text =~ /\@TEMPLATE_ChooseAboveOtherP1:;.*?asm txa;\s*asm cmp #13;\s*asm bcs\.same \@TEMPLATE_ChooseAfterOther;\s*asm cmp #12;\s*asm bcc\.same \@TEMPLATE_ChooseAboveP1Conflict;.*?asm cmp\.zx TEMPLATE_x,X;\s*asm bne\.same \@TEMPLATE_ChooseAfterOther;\s*asm \@TEMPLATE_ChooseAboveP1Conflict:/s
+   or die "same-X exact-12 above-P1 rejection regressed\n";
 # Ordinary P1-above-P0 gaps 1..6 are unsafe.  Retained-X P0 continuation
 # deliberately makes the exact six-band case safe by moving the P0 action one
 # band later, so pin both the 1..5 rejection and the narrowly qualified +6
@@ -117,13 +127,14 @@ my($x_hex)=$sym_text =~ /^game_x\s+([0-9a-fA-F]{4})\s*$/m;
 my($y_hex)=$sym_text =~ /^game_y\s+([0-9a-fA-F]{4})\s*$/m;
 my($color_hex)=$sym_text =~ /^game_color\s+([0-9a-fA-F]{4})\s*$/m;
 my($priority_hex)=$sym_text =~ /^game_priority\s+([0-9a-fA-F]{4})\s*$/m;
+my($graphics_hex)=$sym_text =~ /^game_graphics\s+([0-9a-fA-F]{4})\s*$/m;
 my($draw_hex)=$sym_text =~ /^game_draw_code\s+([0-9a-fA-F]{4})\s*$/m;
 my($count_hex)=$sym_text =~ /^game_setup_count\s+([0-9a-fA-F]{4})\s*$/m;
 defined($x_hex) && defined($y_hex) && defined($color_hex) &&
-   defined($priority_hex) && defined($draw_hex) && defined($count_hex)
+   defined($priority_hex) && defined($graphics_hex) && defined($draw_hex) && defined($count_hex)
    or die "could not locate asymmetric scheduler/visibility symbols\n";
 my$x_addr=hex($x_hex); my$y_addr=hex($y_hex); my$color_addr=hex($color_hex);
-my$priority_addr=hex($priority_hex); my$draw_addr=hex($draw_hex);
+my$priority_addr=hex($priority_hex); my$graphics_addr=hex($graphics_hex); my$draw_addr=hex($draw_hex);
 my$count_addr=hex($count_hex);
 $x_addr<=0xff && $y_addr<=0xff && $color_addr<=0xff &&
    $priority_addr<=0xff && $draw_addr<=0xff && $count_addr<=0xff
@@ -222,13 +233,13 @@ expect_timing('all-six persistent visibility witness',100,
    '--require-visible-mask','0x3f',
    '--expect-memory',sprintf('0x%02x',$count_addr),'6');
 
-# User 23:00 staggered retained-X regression.  Sprites 0 and 2 share X and
-# are vertically disjoint while sprite 1 overlaps each separately.  Maximum
-# bitmap occupancy is two, so 0+2 can share one hardware player and 1 can use
-# the other.  The exact-six deferred retained-P0 proof makes this coloring
-# independent of backward-scan order; identity priority must render all six
-# sprites continuously rather than fairly rotating an avoidable omission.
-expect_timing('staggered retained-X all-six witness',100,
+# Staggered same-X fallback regression.  Sprites 0 and 2 share X and are
+# vertically disjoint while sprite 1 overlaps each separately.  Although the
+# bitmap occupancy is only two, reusing P0 inside its 8..14-band setup exclusion
+# window requires a fragile live-glyph/color handoff.  Prefer a rare, fair
+# omission instead: every scheduled sprite must render all eight exact glyph
+# rows and the persistent priority rotation must give 0/1/2 equal exposure.
+expect_timing('staggered same-X fair-flicker witness',100,
    '--released-inputs',
    '--set-zp',sprintf('0x%02x',$x_addr+0),'62',
    '--set-zp',sprintf('0x%02x',$x_addr+1),'72',
@@ -242,55 +253,103 @@ expect_timing('staggered retained-X all-six witness',100,
    '--set-zp',sprintf('0x%02x',$y_addr+3),'42',
    '--set-zp',sprintf('0x%02x',$y_addr+4),'42',
    '--set-zp',sprintf('0x%02x',$y_addr+5),'16',
-   '--set-zp',sprintf('0x%02x',$priority_addr+0),'0',
-   '--set-zp',sprintf('0x%02x',$priority_addr+1),'1',
-   '--set-zp',sprintf('0x%02x',$priority_addr+2),'2',
-   '--set-zp',sprintf('0x%02x',$priority_addr+3),'3',
-   '--set-zp',sprintf('0x%02x',$priority_addr+4),'4',
-   '--set-zp',sprintf('0x%02x',$priority_addr+5),'5',
    '--verify-asymmetric-visibility',
       sprintf('0x%02x',$y_addr),sprintf('0x%02x',$color_addr),
       sprintf('0x%02x',$draw_addr),sprintf('0x%02x',$count_addr),
    '--require-visible-mask','0x3f',
+   '--require-visible-spread','0x07','1',
+   '--verify-asymmetric-glyphs',sprintf('0x%04x',$graphics_addr),'0x05',
+   '--expect-memory',sprintf('0x%02x',$count_addr),'5');
+
+# Exact boundary reported by the user: same-X sprites eight bands apart.
+# Sprite 1 overlaps both endpoints, so forcing 0+2 onto retained P0 used to
+# expose the live handoff defect.  The scheduler should instead rotate the
+# single omission fairly while every accepted endpoint emits a complete glyph.
+expect_timing('same-X delta-8 fair-flicker boundary',100,
+   '--released-inputs',
+   '--set-zp',sprintf('0x%02x',$x_addr+0),'62',
+   '--set-zp',sprintf('0x%02x',$x_addr+1),'72',
+   '--set-zp',sprintf('0x%02x',$x_addr+2),'62',
+   '--set-zp',sprintf('0x%02x',$x_addr+3),'88',
+   '--set-zp',sprintf('0x%02x',$x_addr+4),'114',
+   '--set-zp',sprintf('0x%02x',$x_addr+5),'140',
+   '--set-zp',sprintf('0x%02x',$y_addr+0),'84',
+   '--set-zp',sprintf('0x%02x',$y_addr+1),'80',
+   '--set-zp',sprintf('0x%02x',$y_addr+2),'76',
+   '--set-zp',sprintf('0x%02x',$y_addr+3),'42',
+   '--set-zp',sprintf('0x%02x',$y_addr+4),'42',
+   '--set-zp',sprintf('0x%02x',$y_addr+5),'16',
+   '--verify-asymmetric-visibility',
+      sprintf('0x%02x',$y_addr),sprintf('0x%02x',$color_addr),
+      sprintf('0x%02x',$draw_addr),sprintf('0x%02x',$count_addr),
+   '--require-visible-mask','0x3f',
+   '--require-visible-spread','0x07','1',
+   '--verify-asymmetric-glyphs',sprintf('0x%04x',$graphics_addr),'0x05',
+   '--expect-memory',sprintf('0x%02x',$count_addr),'5');
+
+# Measured same-X threshold boundary.  At delta 12 the scheduler must not reuse
+# the same hardware player; this six-sprite column can still render continuously
+# by alternating P0/P1.  The historical same-X reuse path corrupts this witness.
+expect_timing('same-X delta-12 no-reuse boundary',100,
+   '--released-inputs',
+   (map { ('--set-zp',sprintf('0x%02x',$x_addr+$_),'62') } 0..5),
+   '--set-zp',sprintf('0x%02x',$y_addr+0),'90',
+   '--set-zp',sprintf('0x%02x',$y_addr+1),'78',
+   '--set-zp',sprintf('0x%02x',$y_addr+2),'66',
+   '--set-zp',sprintf('0x%02x',$y_addr+3),'54',
+   '--set-zp',sprintf('0x%02x',$y_addr+4),'42',
+   '--set-zp',sprintf('0x%02x',$y_addr+5),'30',
+   '--verify-asymmetric-visibility',
+      sprintf('0x%02x',$y_addr),sprintf('0x%02x',$color_addr),
+      sprintf('0x%02x',$draw_addr),sprintf('0x%02x',$count_addr),
+   '--require-visible-mask','0x3f',
+   '--verify-asymmetric-glyphs',sprintf('0x%04x',$graphics_addr),'0x3f',
    '--expect-memory',sprintf('0x%02x',$count_addr),'6');
 
-# User 16:41 retained-column bridge regression.  Sprites 2 and 4 share X and
-# are 12 bands apart; sprite 3 sits seven bands below 2/five above 4.  The
-# directional setup hazard therefore has one safe physical coloring: 2/4 on P1
-# and 3 on P0.  The historical P0 tie-break depended on persistent priority
-# order: identity omitted 4, while 0,1,2,4,3,5 omitted 3.  Pin both formerly
-# bad queues every frame and require all six actual GRP streams, stable vertical
-# placement, and six scheduler records.
-sub expect_bridge_scene {
-   my($name,@priority)=@_;
-   my@args=(
-      '--released-inputs',
-      '--set-zp',sprintf('0x%02x',$x_addr+0),'0',
-      '--set-zp',sprintf('0x%02x',$x_addr+1),'0',
-      '--set-zp',sprintf('0x%02x',$x_addr+2),'62',
-      '--set-zp',sprintf('0x%02x',$x_addr+3),'72',
-      '--set-zp',sprintf('0x%02x',$x_addr+4),'62',
-      '--set-zp',sprintf('0x%02x',$x_addr+5),'140',
-      '--set-zp',sprintf('0x%02x',$y_addr+0),'95',
-      '--set-zp',sprintf('0x%02x',$y_addr+1),'95',
-      '--set-zp',sprintf('0x%02x',$y_addr+2),'71',
-      '--set-zp',sprintf('0x%02x',$y_addr+3),'64',
-      '--set-zp',sprintf('0x%02x',$y_addr+4),'59',
-      '--set-zp',sprintf('0x%02x',$y_addr+5),'12');
-   for my$i(0..5) {
-      push@args,'--set-zp',sprintf('0x%02x',$priority_addr+$i),$priority[$i];
-   }
-   push@args,
-      '--verify-asymmetric-visibility',
-         sprintf('0x%02x',$y_addr),sprintf('0x%02x',$color_addr),
-         sprintf('0x%02x',$draw_addr),sprintf('0x%02x',$count_addr),
-      '--require-visible-mask','0x3f',
-      '--require-stable-first-visible-line','0x1c',
-      '--expect-memory',sprintf('0x%02x',$count_addr),'6';
-   expect_timing($name,100,@args);
-}
-expect_bridge_scene('same-X bridge identity priority',0,1,2,3,4,5);
-expect_bridge_scene('same-X bridge inherited priority',0,1,2,4,3,5);
+# At the threshold itself same-player reuse is allowed again.  Repeated delta-13
+# reuse down one column must preserve all six complete eight-byte glyph streams.
+expect_timing('same-X delta-13 reuse boundary',100,
+   '--released-inputs',
+   (map { ('--set-zp',sprintf('0x%02x',$x_addr+$_),'62') } 0..5),
+   '--set-zp',sprintf('0x%02x',$y_addr+0),'90',
+   '--set-zp',sprintf('0x%02x',$y_addr+1),'77',
+   '--set-zp',sprintf('0x%02x',$y_addr+2),'64',
+   '--set-zp',sprintf('0x%02x',$y_addr+3),'51',
+   '--set-zp',sprintf('0x%02x',$y_addr+4),'38',
+   '--set-zp',sprintf('0x%02x',$y_addr+5),'25',
+   '--verify-asymmetric-visibility',
+      sprintf('0x%02x',$y_addr),sprintf('0x%02x',$color_addr),
+      sprintf('0x%02x',$draw_addr),sprintf('0x%02x',$count_addr),
+   '--require-visible-mask','0x3f',
+   '--verify-asymmetric-glyphs',sprintf('0x%04x',$graphics_addr),'0x3f',
+   '--expect-memory',sprintf('0x%02x',$count_addr),'6');
+
+# Historical equal-X delta-12 bridge.  The old bridge oracle forced endpoints
+# 2/4 onto P1 so all six could be scheduled, but real-raster threshold testing
+# showed same-X reuse below 13 is not generally safe.  Accept one omission here
+# and require persistent priority to rotate it fairly among 2/3/4; every accepted
+# endpoint must still emit its complete glyph.
+expect_timing('same-X delta-12 bridge fair-flicker',100,
+   '--released-inputs',
+   '--set-zp',sprintf('0x%02x',$x_addr+0),'0',
+   '--set-zp',sprintf('0x%02x',$x_addr+1),'0',
+   '--set-zp',sprintf('0x%02x',$x_addr+2),'62',
+   '--set-zp',sprintf('0x%02x',$x_addr+3),'72',
+   '--set-zp',sprintf('0x%02x',$x_addr+4),'62',
+   '--set-zp',sprintf('0x%02x',$x_addr+5),'140',
+   '--set-zp',sprintf('0x%02x',$y_addr+0),'95',
+   '--set-zp',sprintf('0x%02x',$y_addr+1),'95',
+   '--set-zp',sprintf('0x%02x',$y_addr+2),'71',
+   '--set-zp',sprintf('0x%02x',$y_addr+3),'64',
+   '--set-zp',sprintf('0x%02x',$y_addr+4),'59',
+   '--set-zp',sprintf('0x%02x',$y_addr+5),'12',
+   '--verify-asymmetric-visibility',
+      sprintf('0x%02x',$y_addr),sprintf('0x%02x',$color_addr),
+      sprintf('0x%02x',$draw_addr),sprintf('0x%02x',$count_addr),
+   '--require-visible-mask','0x3f',
+   '--require-visible-spread','0x1c','1',
+   '--verify-asymmetric-glyphs',sprintf('0x%04x',$graphics_addr),'0x1c',
+   '--expect-memory',sprintf('0x%02x',$count_addr),'5');
 
 # Two independent three-way same-Y piles require two omissions per frame.  The
 # historical policy promoted only the *last* omission, which heavily favored
@@ -355,13 +414,10 @@ expect_timing('persistent top-left dual-preload deadline',120,
    '--set-zp',sprintf('0x%02x',$y_addr+4),'66',
    '--set-zp',sprintf('0x%02x',$y_addr+5),'58');
 
-# Held-layout Monte Carlo exposed a second VBLANK deadline failure that uniform
-# per-frame X randomization almost never sampled: when all six X coordinates
-# collapse to one column, repeated bridge-orientation searches could push a
-# particular priority/Y state across the next WSYNC boundary.  Pin the complete
-# deterministic witness for many frames so the bridge scan must stay below the
-# calibrated 262-line deadline rather than merely averaging out.
-expect_timing('same-column bridge-oracle deadline',120,
+# Keep the former bridge-oracle deadline state as a dense same-column scheduler
+# timing witness.  The bridge look-ahead itself is gone, but this priority/Y
+# arrangement remains useful for detecting VBLANK deadline regressions.
+expect_timing('same-column scheduler deadline',120,
    '--released-inputs',
    '--set-zp',sprintf('0x%02x',$x_addr+0),'0',
    '--set-zp',sprintf('0x%02x',$x_addr+1),'0',
@@ -386,7 +442,7 @@ expect_timing('same-column bridge-oracle deadline',120,
 # randomization badly under-samples the scheduler's persistent priority cycle:
 # some timing failures occur only on one of several fairness permutations for
 # a fixed layout.  Dense 1..4-column populations deliberately hammer the
-# same/near-column bridge cases that exposed that blind spot.
+# same/near-column scheduler cases that exposed that blind spot.
 for my$columns (1..4) {
    expect_timing("held-layout dense-X stress $columns columns",1603,
       '--released-inputs',

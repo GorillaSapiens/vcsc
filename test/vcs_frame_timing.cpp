@@ -131,6 +131,9 @@ struct AsymmetricVisibilityCheck {
    uint8_t stable_first_line_mask = 0;
    int first_visible_line[6] = {-1, -1, -1, -1, -1, -1};
    int reference_first_line[6] = {-1, -1, -1, -1, -1, -1};
+   uint16_t graphics_address = 0;
+   uint8_t exact_glyph_mask = 0;
+   uint8_t exact_glyph_rows[6] = {0, 0, 0, 0, 0, 0};
 };
 
 AsymmetricVisibilityCheck asymmetric_visibility;
@@ -272,6 +275,19 @@ void verify_asymmetric_previous_frame() {
       std::exit(1);
    }
 
+   if (asymmetric_visibility.exact_glyph_mask) {
+      const uint8_t required = accepted_mask & asymmetric_visibility.exact_glyph_mask;
+      for (unsigned id = 0; id < 6; ++id) {
+         if (!(required & static_cast<uint8_t>(1u << id))) continue;
+         if (asymmetric_visibility.exact_glyph_rows[id] != 8) {
+            std::fprintf(stderr,
+               "vcs_frame_timing: asymmetric frame %zu sprite %u emitted %u exact glyph rows; expected 8\n",
+               vsync_assertions.size(), id, asymmetric_visibility.exact_glyph_rows[id]);
+            std::exit(1);
+         }
+      }
+   }
+
    const uint8_t visible = accepted_mask & asymmetric_visibility.seen_mask;
    for (unsigned id = 0; id < 6; ++id) {
       if (visible & static_cast<uint8_t>(1u << id)) {
@@ -309,6 +325,25 @@ void apply_writes() {
             const uint8_t color = asymmetric_visibility.lane_color[lane];
             for (unsigned id = 0; id < 6; ++id) {
                if (memory_image[asymmetric_visibility.color_address + id] == color) {
+                  if (asymmetric_visibility.exact_glyph_mask & static_cast<uint8_t>(1u << id)) {
+                     const unsigned row = asymmetric_visibility.exact_glyph_rows[id];
+                     if (row >= 8) {
+                        std::fprintf(stderr,
+                           "vcs_frame_timing: asymmetric frame %zu sprite %u emitted extra nonzero glyph byte $%02x\n",
+                           vsync_assertions.size(), id, event.value);
+                        std::exit(1);
+                     }
+                     const uint16_t expected_address = static_cast<uint16_t>(
+                        asymmetric_visibility.graphics_address + 104u + 8u * id - row);
+                     const uint8_t expected = memory_image[expected_address];
+                     if (event.value != expected) {
+                        std::fprintf(stderr,
+                           "vcs_frame_timing: asymmetric frame %zu sprite %u glyph row %u was $%02x; expected $%02x\n",
+                           vsync_assertions.size(), id, row, event.value, expected);
+                        std::exit(1);
+                     }
+                     ++asymmetric_visibility.exact_glyph_rows[id];
+                  }
                   asymmetric_visibility.seen_mask |= static_cast<uint8_t>(1u << id);
                   asymmetric_visibility.ever_seen_mask |= static_cast<uint8_t>(1u << id);
                   if (asymmetric_visibility.first_visible_line[id] < 0 &&
@@ -341,8 +376,10 @@ void apply_writes() {
          if (next && !vsync_asserted) {
             verify_asymmetric_previous_frame();
             asymmetric_visibility.seen_mask = 0;
-            for (unsigned id = 0; id < 6; ++id)
+            for (unsigned id = 0; id < 6; ++id) {
                asymmetric_visibility.first_visible_line[id] = -1;
+               asymmetric_visibility.exact_glyph_rows[id] = 0;
+            }
             vsync_assertions.push_back(virtual_cycles);
             // Check the frame that just ended before mutating RAM for the next
             // one, so a failure dump identifies the exact held layout that
@@ -448,7 +485,7 @@ void apply_writes() {
 int main(int argc, char **argv) {
    if (argc < 3) {
       std::fprintf(stderr,
-         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--randomize-zp ADDR COUNT MODULUS SEED]... [--randomize-zp-held ADDR COUNT MODULUS SEED FRAMES]... [--dump-zp ADDR COUNT]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--released-inputs] [--expect-memory ADDR VALUE]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--require-stable-first-visible-line MASK] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
+         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--randomize-zp ADDR COUNT MODULUS SEED]... [--randomize-zp-held ADDR COUNT MODULUS SEED FRAMES]... [--dump-zp ADDR COUNT]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--released-inputs] [--expect-memory ADDR VALUE]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--verify-asymmetric-glyphs GRAPHICS_ADDR MASK] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--require-stable-first-visible-line MASK] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
          argv[0]);
       return 2;
    }
@@ -636,6 +673,19 @@ int main(int argc, char **argv) {
             *fields[field] = static_cast<uint16_t>(value);
          }
          asymmetric_visibility.enabled = true;
+      }
+      else if (std::strcmp(argv[i], "--verify-asymmetric-glyphs") == 0) {
+         if (i + 2 >= argc) fail("--verify-asymmetric-glyphs requires GRAPHICS_ADDR MASK");
+         char *address_end = nullptr;
+         const unsigned long address = std::strtoul(argv[++i], &address_end, 0);
+         if (!address_end || *address_end != '\0' || address > 0xffff)
+            fail("bad --verify-asymmetric-glyphs graphics address");
+         char *mask_end = nullptr;
+         const unsigned long mask = std::strtoul(argv[++i], &mask_end, 0);
+         if (!mask_end || *mask_end != '\0' || mask == 0 || mask > 0x3f)
+            fail("bad --verify-asymmetric-glyphs mask");
+         asymmetric_visibility.graphics_address = static_cast<uint16_t>(address);
+         asymmetric_visibility.exact_glyph_mask = static_cast<uint8_t>(mask);
       }
       else if (std::strcmp(argv[i], "--require-visible-mask") == 0) {
          if (++i >= argc) fail("--require-visible-mask requires MASK");
@@ -834,6 +884,9 @@ int main(int argc, char **argv) {
          return 1;
       }
    }
+
+   if (asymmetric_visibility.exact_glyph_mask && !asymmetric_visibility.enabled)
+      fail("--verify-asymmetric-glyphs needs --verify-asymmetric-visibility");
 
    if (asymmetric_visibility.required_seen_mask) {
       if (!asymmetric_visibility.enabled)

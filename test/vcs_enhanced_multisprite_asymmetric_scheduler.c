@@ -403,9 +403,9 @@ int main(int argc, char **argv)
     * at every band at most two are live.  The natural lane coloring is
     * 0+2 on one lane and 1 on the other.  This baseline full-setup graph must
     * omit one because it models the long position/setup reservations only.
-    * The real renderer now beats this baseline with retained-X continuation;
-    * the Perl/6502 regression separately requires all six sprites to render.
-    * Keeping the old graph result here proves why the continuation is useful.
+    * The production renderer now deliberately matches this five-sprite result
+    * for the unsafe same-X delta-10 geometry and rotates the omission fairly.
+    * Keeping the ordinary graph result here provides an independent baseline.
     */
    init_identity(&one);
    {

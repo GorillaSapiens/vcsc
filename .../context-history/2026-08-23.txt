@@ -33,3 +33,96 @@ RETAINED-P0 FIRST RASTER STEP
   and later predecessor rows are still missing. A pre-WSYNC trigger experiment
   caused 270 raw lines and was reverted; do not add cycles there. A naive
   P0RetainSlot advance overflowed the 4K image and was also discarded.
+
+2026-08-23 14:54:32 PDT, retire retained-P0 handoff
+
+The retained-P0 raster repair was abandoned after the user proposed treating the
+rare same-X boundary as a scheduler fallback instead. Inspection showed the real
+allocator admitted retained P0 only inside the ordinary P0 exclusion window:
+`ChooseBelowClose` had already proved |dy|<15, while `CMP #8` admitted equal-X
+P0 continuation for deltas 8..14. That optimization was the sole reason the
+renderer had to carry a live predecessor through P0 position/setup and was the
+source of stale-glyph/new-successor-color corruption.
+
+The production policy now changes that threshold from `CMP #8` to `CMP #15`.
+Because the enclosing path already guarantees delta<15, retained P0 is never
+selected there: P1 is tried normally, and if P1 also conflicts the existing
+persistent priority order omits/rotates one logical sprite. Retained P1 is left
+unchanged. Keeping the old instruction footprint avoids moving page-sensitive
+renderer code; an initial literal deletion of the retained-P0 decision block
+increased alignment padding enough to overflow 4K. With the one-byte semantic
+change the diagnostic remains 4087/4090 ROM and 115/128 RAM.
+
+The timing harness gained an exact asymmetric-glyph oracle so color-only
+visibility can no longer accept a stale glyph. The former delta-10 retained-P0
+witness X={62,72,62,88,114,140}, Y={86,82,76,42,42,16} now schedules five,
+rotates the omission fairly, eventually shows all six, and requires every
+scheduled endpoint to emit all eight expected glyph bytes. A second explicit
+same-X delta-8 boundary witness Y={84,80,76,42,42,16} enforces the same policy.
+The host full-setup scheduler's existing 2/2/2 staggered-chain fairness oracle
+now describes the intended behavior rather than a lower bound to beat.
+
+Focused validation at this checkpoint: `vcs_enhanced_multisprite_asymmetric.pl`
+and `vcs_renderer_branch_contracts.pl` pass. Full-suite validation follows.
+
+2026-08-23 15:26:00 PDT, same-X threshold measurement
+SAME-X THRESHOLD MEASUREMENT
+============================
+
+The scheduler was intentionally not changed in this step. A temporary probe ROM
+restored the historical retained-P0 gate so both retained raster paths could be
+measured with the maintained exact eight-byte glyph oracle.
+
+* Retained P0 fails at delta-Y 8..12 and passes at 13..14. Delta 12 is a
+  one-row-shift failure; delta 13 survives the full X sweep and vertical
+  translation sweep.
+* Retained P1 fails at delta-Y 8..10. Delta 11 passes direct X/Y sweeps and
+  randomized surrounding-event stress when no later same-X successor violates
+  the same limit.
+* Randomized apparent failures at P1 delta 11 and P0 delta 13 were reduced to a
+  later same-X successor at delta 10 or delta 8/9. The candidate handoff itself
+  was not the failing transition.
+* A six-sprite single-column chain with every adjacent delta exactly 12 fails
+  immediately. The same chain at delta 13 renders all six exact glyphs, passes
+  all horizontal positions, passes vertical translation through the usable
+  raster, and passes 60 shuffled priority permutations.
+
+Thus the minimum simple lane-independent scheduler invariant is 13: if X is
+identical and |delta-Y| < 13, do not reuse that hardware player. The ordinary
+P0=15/P1=12 full-position/setup reservations remain separate constraints. Next
+step is to bake the threshold into `ChooseLane` and add maintained delta-12 and
+repeated-delta-13 regressions.
+
+2026-08-23 15:51:17 PDT, enforce same-X reuse floor at delta 13
+
+Baked the real-raster threshold measurement into the asymmetric scheduler. An
+identical-X pair may no longer reuse the same hardware player when |delta-Y| is
+below 13. This remains distinct from the ordinary full-position/setup windows:
+P0 still reserves 15 bands and P1 12. Retained P0 is now available only in the
+measured-safe delta-13..14 window; P1's ordinary exact-delta-12 reuse remains
+available only when X differs. Rejected reuse tries the other lane and then uses
+the existing persistent fair-omission policy.
+
+The prior equal-X delta-12 bridge oracle was incompatible with the new invariant:
+it forced two endpoints 12 bands apart onto P1 specifically to avoid flicker.
+Retired that oracle and its VBLANK helpers. The historical 7+5 bridge witness now
+accepts one fair omission, rotates service among the three contenders within one
+frame, and requires byte-exact glyph output for every scheduled endpoint. Removing
+the obsolete oracle also reduced public ROM use from 4087 to 3993 bytes while RAM
+remains 115/128.
+
+Added maintained real-6502 boundary regressions. A six-sprite single-column
+chain with adjacent delta 12 must avoid same-player reuse but still renders all
+six by alternating P0/P1; the corresponding delta-13 chain permits reuse. Both
+cases require all eight exact glyph bytes for all six logical sprites. Existing
+delta-8 and delta-10 fair-flicker witnesses remain intact.
+
+Focused `vcs_enhanced_multisprite_asymmetric.pl`, renderer branch contracts,
+source-tree hygiene, and context-history formatting pass. Broad validation is
+also clean: compiler 500/500 and E2E 319/319. The monolithic E2E run hit the
+execution-window limit after 78 passes because several simulator tests
+intentionally continue running after producing their expected output. To finish
+without weakening the maintained 45-second policy, a temporary 2-second copy of
+the runner identified 22 slow cases; all other E2E cases passed under that
+stricter limit, and all 22 slow cases then passed with the unchanged repository
+runner at 45 seconds.

@@ -40,16 +40,17 @@ Current contract
   avoidable scheduler omissions.
 * Normal same-lane setup reservations are intentionally long: P0 15 logical
   bands, P1 12. Directional cross-lane setup hazards are real timing constraints.
-  A retained-P0 path has one narrowly tested exact-gap exception; do not weaken
-  constants globally to improve an allocator score.
-* Retained-X continuation is experimental: equal-X vertically disjoint sprites
-  may reuse a lane without repeating normal RESP/HMOVE work.
-* The equal-X 12-band endpoint / 7+5 bridge geometry has a forced physical
-  orientation: endpoints on P1, bridge on P0. The VBLANK oracle scans only the
-  future priority suffix, tests +/-12 Y before X, and caches proven future P1
-  endpoint bits in `setup_line[6]` until that byte is cleared for its sort
-  sentinel role. Keep that rule and scratch lifetime; all 720 priority
-  permutations are verified against the real renderer.
+  Do not weaken these constants globally to improve an allocator score.
+* Same-X reuse is governed by a measured lane-independent raster invariant:
+  if X is identical and |delta-Y| < 13, do not reuse that hardware player.
+  This is separate from the ordinary full-position/setup reservations (P0 15,
+  P1 12). P0 retained-X is available only at delta 13..14; P1 exact-delta-12
+  ordinary reuse is allowed only when X differs. Try the other player first,
+  then use persistent fair omission if neither lane is legal.
+* The former equal-X delta-12 bridge orientation is intentionally retired. Its
+  endpoints may no longer share P1 merely to avoid flicker; the maintained 7+5
+  bridge witness now fair-flickers one of the three contenders and verifies
+  complete glyph output for every scheduled sprite.
 * P0 top-preload Y=89..91 has an extra predecessor state so P0/P1 first visible
   GRP lines match across Y=85..95. Re-run the lane-stability GRP oracle after any
   raster-state change.
@@ -61,20 +62,20 @@ Current contract
 
 Current accounting and validation boundary
 ------------------------------------------
-Current public accounting is 4089/4090 ROM and 115/128 RAM.
+Current public accounting is 3993/4090 ROM and 115/128 RAM.
 
-The compile phase is 500/500. The user's latest broad E2E run passed 318/319;
-the sole failure was a stale structural assertion in the asymmetric test that
-still expected the pre-deferral inline exact-six sequence. After correcting that
-assertion, the focused asymmetric test passes, so the combined validation state
-is 319/319 with no production-source change after the user's broad run.
+The same-X threshold change passes the focused real-6502 asymmetric test,
+renderer branch-contract audit, source-tree hygiene, and history-format checks.
+Broad validation is also clean: compiler 500/500 and E2E 319/319.  Because many
+simulator tests deliberately run after printing their expected output, the E2E
+pass used a temporary 2-second runner only to identify slow cases, then reran all
+22 such cases with the repository's unchanged 45-second runner; all 22 passed.
 
 Timing status
 -------------
-The bridge-oracle cost spike remains fixed: future-priority scanning, Y-first
-+/-12 tests, and cached future P1 endpoints remove its pathological repeated
-search cost. The permanent all-X bridge witness and all 720 priority
-permutations remain valuable regressions.
+The obsolete delta-12 bridge oracle has been removed, reducing both ROM use and
+VBLANK work. Its former dense same-column deadline state remains as a generic
+scheduler timing regression.
 
 Real Stella then exposed a separate 262/263 mechanism. With the 63/13 split, a
 valid state X={14,0,25,88,114,140}, Y={76,67,95,95,95,95}, priority=
@@ -97,114 +98,28 @@ held dense-X layouts.
 
 Allocator status
 ----------------
-The user's staggered 0/1/2 witness X={62,72,62}, Y={86,82,76} is now solid:
-0 and 2 share one hardware player by retained X while overlapping sprite 1 uses
-the other. The exact-six P1->P0 decision is scan-order independent: an unresolved
-P0 possibility is deferred as the otherwise-invalid $80 marker and becomes $81
-only when a later backward-scan equal-X P0 proves retention; without that proof
-it naturally decodes as no lane. The focused real-6502 regression pins identity
-priority to all six visible sprites. The host C scheduler remains intentionally
-a full-setup baseline oracle and no longer claims to model retained-X exactly.
+Production now enforces the measured same-X threshold in `ChooseLane`:
 
-Broader allocator quality is still unfinished for other occupancy<=2 layouts.
-Do not lower the 15/12 reservation distances or broad directional hazard windows;
-those shortcuts have already scheduled invisible sprites or lengthened frames.
+* identical X and |delta-Y| < 13 cannot reuse the same hardware player;
+* P0's ordinary full-setup reservation remains 15 bands; retained P0 is used
+  only for the measured-safe 13..14 same-X window;
+* P1's ordinary full-setup reservation remains 12 bands, but exact delta 12
+  reuses P1 only when X differs;
+* rejected same-X reuse falls through to the other lane and then persistent
+  fair omission.
 
-A newly exposed retained-X rendering bug is active. `ChooseLane` used to form
-$80/$81 for retained P0/P1 and then execute `LDX`, destroying the N flag before
-the caller's `BMI`; that flag-clobber is now fixed by loading X before the final
-A/flag-producing operations. With retained P0 now genuinely reachable, the
-existing retained-P0 route is visibly wrong because it skips RESP/HMOVE but then
-falls through the ordinary P0 setup pipeline.
+Maintained real-6502 regressions pin the unsafe/safe boundary. A six-sprite
+single-column delta-12 chain must avoid same-player reuse yet still renders all
+six by alternating players; the corresponding delta-13 chain permits reuse.
+Both require all eight exact glyph bytes for all six sprites. Historical delta-8
+and delta-10 staggered witnesses still require fair flicker and byte-exact glyphs.
 
-The latest real-6502 tracing corrected an earlier diagnosis: the successor P0
-bitmap itself ultimately starts at the requested Y. Corruption happens during
-the handoff *before* that point. For the tight equal-X case, the predecessor
-begins correctly, then the ordinary position/setup states stop advancing its
-GRP0 rows. `COLUP0` can change to the successor color while predecessor GRP0 is
-still latched, so a stale predecessor glyph row is displayed in the successor
-color; P0 may then blank before the successor starts normally. This explains the
-malformed/two-color 3/5 and 4/5 captures, including the apparent vertical jump.
-The current visibility oracle can be fooled by exactly this stale-glyph/new-color
-combination and must eventually verify actual glyph bytes/rows.
-
-Keep the existing retained-P0 scheduling trigger at **Y+5**. For the tightest
-same-X predecessor/successor relation, the intended handoff spans Y+5 trigger,
-Y+4 position, Y+3 setup, Y+2 post-setup, Y+1 final predecessor row, then Y first
-successor row. Do not move the trigger to Y+1 and do not weaken the exact-six
-scheduler rules. The dedicated retained path must use the existing setup bands
-to keep emitting/advancing the predecessor through its natural last row, delay
-the successor color until predecessor graphics are retired, preserve the already
-correct X position, and leave the successor's existing Y-start behavior intact.
-It must not execute RESP0/HMOVE.
-
-The retained-P0 implementation has now been cycle-budgeted far enough that the
-next edit should be direct implementation, not more scheduler redesign:
-
-* Keep the existing Y+5 trigger. A Y+1 trigger was explored and rejected because
-  it changes event ordering relative to intervening P1 events and would invalidate
-  already-proven exact-six scheduler assumptions.
-* At the P0 trigger/position boundary, carry `current_gfx` across WSYNC just as the
-  P1 path already carries its current glyph. Ordinary P0 enters with
-  `current_gfx=0`, so an unconditional `STA GRP0` in the shared position entry is
-  harmless for ordinary setup but preserves the predecessor for retained setup.
-  This can replace the existing three-cycle `JMP Position0LineA` with a three-cycle
-  `STA GRP0` plus fall-through, keeping the established beam phase unchanged.
-* Remove/delay the successor `COLUP0` installation from `Position0LineA`; changing
-  color there while predecessor GRP0 is still latched is the observed corruption.
-* `P0RetainSlot` has enough otherwise-unused scanline budget to advance the
-  predecessor's descending P0 graphics state for the following band while still
-  servicing the asymmetric PF writes. A viable register plan finishes that slot
-  with A=continuing P1 glyph and Y=continuing P0 glyph. The next retained setup
-  line can therefore publish both players with two three-cycle stores instead of
-  doing a graphics-table lookup under the beam.
-* Retained setup must skip the ordinary HMOVE work. Either clear the pending HMP
-  state in `P0RetainSlot` or enter after the HMOVE portion, whichever is smaller
-  without perturbing ordinary P0 timing.
-* Retained `Setup0LineB` must not overwrite `gfx_index[0]` with the successor state
-  while predecessor rows remain. Preserve/advance the predecessor through Y+1;
-  only then install successor color/state for the already-correct first row at Y.
-
-Graphics-state chains run downward (for example sprite 0 uses
-104,103,...,97,0), so preserve that direction when advancing predecessor state.
-Production progress in this handoff
------------------------------------
-The first retained-P0 raster step has now landed. `Position0LineA` unconditionally
-publishes `current_gfx` to GRP0. Ordinary P0 reaches that point with zero, while
-retained P0 carries the predecessor row, so this is safe for both paths. The line
-was kept cycle-neutral by replacing the later `LDY gfx_index+1` with `TAY` and
-removing five cycles of tail padding. Focused asymmetric timing/visibility stress
-passes unchanged. A separate VBLANK cleanup removed a redundant `LDA #0`, saving
-two bytes and two VBLANK cycles; current accounting is 4087/4090 ROM, 115/128 RAM.
-
-The deterministic equal-X trace now restores one of the missing predecessor rows:
-GRP0 at lines 76..86 is `3c,66,c3,db,db,c3`. The remaining bug is explicit:
-COLUP0 still changes to the successor at line 87, rows 88/90 are still absent,
-and a stale `c3` can still appear later before the correctly-positioned successor
-starts at line 96. Thus the first continuation write is correct but not sufficient.
-
-A rejected experiment tried loading `current_gfx` before the trigger-line WSYNC
-and replacing the post-WSYNC JMP with `STA GRP0`; the extra pre-WSYNC cycles pushed
-the frame to 270 raw lines. It was fully reverted. Do not add work before that
-WSYNC.
-
-An exploratory P0RetainSlot predecessor-advance edit also exceeded the remaining
-ROM budget before timing could be tested; it was not committed. Any remaining
-handoff must reuse/replace existing instructions rather than simply add the full
-state-advance sequence.
+The host C scheduler remains the ordinary full-setup baseline oracle. Broader
+allocator quality for other occupancy<=2 layouts is still unfinished. Do not
+lower the 15/12 ordinary reservations or broad directional hazard windows.
 
 Immediate next work
 -------------------
-Continue the dedicated retained-P0 handoff from the now-committed Position0 GRP0
-write. Make `P0RetainSlot` advance the predecessor P0 state using byte-neutral
-redistribution, then feed a retained setup path that publishes the remaining
-predecessor rows, skips HMOVE, and postpones successor COLUP0/gfx installation
-until the Y+1 -> Y handoff. Do not add cycles before ArmedLineB's P0 WSYNC, change
-Y+5 scheduling, or weaken the exact-six allocator rules. Validate against the known
-staggered equal-X witness X={62,72,62,88,114,140}, Y={86,82,76,42,42,16},
-priority={0,1,2,3,4,5}, tracing exact GRP0 bytes/colors rather than visibility.
-Then reproduce the malformed 3/5/4/5 captures if possible, add a real-6502/pixel
-regression for exact glyph rows/vertical position, and run focused asymmetric
-timing/visibility/branch-contract tests. ROM is only 4087/4090 after the current VBLANK size saving, so keep the
-remaining implementation essentially byte-neutral. Do not call the renderer fixed until
-this path is implemented and validated.
+Resume broader allocator-quality work for occupancy<=2 layouts while preserving
+the same-X <13 invariant, ordinary P0=15/P1=12 setup reservations, persistent
+fair omission, and the maintained exact-glyph boundary regressions.

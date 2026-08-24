@@ -364,13 +364,10 @@ page void TEMPLATE_resp_jump_table(void) {
    asm @TEMPLATE_ProveP0Marker:;
    asm ora #1;
    asm bne.same @TEMPLATE_ProveP0Store;
-   // Relocate the tiny bridge-partner marker here too, freeing its old 9-byte
-   // F1F7..F1FF neighborhood for the exact-six helper below.
-   asm TEMPLATE_bridge_mark_partner:;
-   asm ora.z TEMPLATE_setup_line + 6;
-   asm sta.z TEMPLATE_setup_line + 6;
-   asm rts;
-   asm .byte $ea,$ea,$ea;
+   // The old equal-X delta-12 bridge marker is obsolete: the measured same-X
+   // rule now rejects reuse below thirteen bands.  Keep the historical pad so
+   // the P1 jump-table phase remains unchanged.
+   asm .byte $ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea;
    asm TEMPLATE_P1RespJumpBase:;
    asm jmp TEMPLATE_P1RespSlot0;
    asm jmp TEMPLATE_P1RespSlot1;
@@ -394,24 +391,10 @@ page void TEMPLATE_resp_jump_table(void) {
 // VBLANK-only lane-orientation oracle. Kept as separate functions so the rare
 // same-X bridge look-ahead can occupy otherwise-unused ROM holes instead of
 // inflating the page-sensitive vblank worker's contiguous placement.
-void TEMPLATE_bridge_has_middle_y(void) {
-   // A is the required bridge-middle band and Y is the future partner's bit.
-   // Preserve Y while scanning all six logical Y values; on success return the
-   // partner bit in A with carry set.  The absolute phase pins this tiny helper
-   // into the otherwise-unused F2F1 hole without perturbing live F1xx code.
-   asm .align 512, $0f1;
-   asm ldx #5;
-   asm @TEMPLATE_ChooseBridgeMiddleLoop:;
-   asm cmp.zx TEMPLATE_y,X;
-   asm beq.same @TEMPLATE_ChooseBridgeYes;
-   asm dex;
-   asm bpl.same @TEMPLATE_ChooseBridgeMiddleLoop;
-   asm clc;
-   asm rts;
-   asm @TEMPLATE_ChooseBridgeYes:;
-   asm tya;
-   asm sec;
-}
+// The former equal-X delta-12 bridge-orientation oracle was retired when
+// real-raster measurement established a lane-independent same-X reuse floor of
+// thirteen bands.  Delta-12 endpoints must now use different players or flicker;
+// no VBLANK look-ahead is needed for that superseded physical coloring.
 
 void TEMPLATE_exact_six_p0(void) {
    // At exact-six, the P1 conflict has already removed P1 and its retained
@@ -427,74 +410,6 @@ void TEMPLATE_exact_six_p0(void) {
    asm ror;
    asm sta.z TEMPLATE_position_packed;
    asm @TEMPLATE_ExactSixP0Done:;
-}
-
-void TEMPLATE_bridge_mask_test(void) {
-   // Return Z=0 iff the current logical sprite was marked by an earlier bridge
-   // endpoint.  No carry contract is needed; the caller tests Z directly.
-   asm .align 2048, $67e;
-   asm ldx.z TEMPLATE_setup_sprite;
-   asm lda.ax TEMPLATE_sprite_bit,X;
-   asm and.z TEMPLATE_setup_line + 6;
-}
-
-void TEMPLATE_bridge_prefers_p1(void) {
-   // Equal-X endpoints 12 bands apart with a bridge seven bands below the
-   // upper endpoint have one safe physical orientation: endpoints on P1.
-   // Search only priorities later than the current candidate.  Check vertical
-   // separation first: exact +/-12 is much rarer than equal X, especially in
-   // same-column stress layouts, so ordinary candidates never pay an X lookup.
-   // A first endpoint that proves the bridge caches its future partner bit in
-   // setup_line[6]; a later endpoint falls through to that mask after its short
-   // suffix has been searched.
-   asm ldy #5;
-   asm cpy.z TEMPLATE_setup_count;
-   asm beq.same @TEMPLATE_ChooseBridgeNo;
-
-   asm @TEMPLATE_ChooseBridgePartnerLoop:;
-   asm ldx.zy TEMPLATE_priority,Y;
-   asm lda.zx TEMPLATE_y,X;
-   // The initial CPY and every loop-back CPY prove Y>setup_count here, so
-   // carry is already set for this subtraction.
-   asm sbc.z TEMPLATE_pair_y;
-   asm cmp #12;
-   asm beq.same @TEMPLATE_ChooseBridgePartnerAbove;
-   asm cmp #$f4;
-   asm bne.same @TEMPLATE_ChooseBridgePartnerNext;
-   asm lda.z TEMPLATE_pair_y;
-   // CMP #$f4 matched, so carry is already set for SBC.
-   asm sbc #7;
-   asm bcs.same @TEMPLATE_ChooseBridgeHaveMiddleY;
-   asm @TEMPLATE_ChooseBridgePartnerAbove:;
-   asm lda.z TEMPLATE_pair_y;
-   // CMP #12 matched, so ADC #4 plus carry computes +5.
-   asm adc #4;
-   asm @TEMPLATE_ChooseBridgeHaveMiddleY:;
-   // Preserve the required middle Y only on the rare +/-12 path while checking
-   // that the endpoint X coordinates really match.  Y still holds the future
-   // priority rank, so the partner id is cheap to reload after the comparison.
-   asm sta.z TEMPLATE_event_stage;
-   asm lda.zx TEMPLATE_x,X;
-   asm ldx.z TEMPLATE_setup_sprite;
-   asm cmp.zx TEMPLATE_x,X;
-   asm bne.same @TEMPLATE_ChooseBridgePartnerNext;
-   asm ldx.zy TEMPLATE_priority,Y;
-   asm lda.z TEMPLATE_event_stage;
-   asm ldy.ax TEMPLATE_sprite_bit,X;
-   asm jsr TEMPLATE_bridge_has_middle_y;
-   asm bcc.same @TEMPLATE_ChooseBridgeNo;
-   // Successful middle lookup returned the future partner bit in A.  Tail-call
-   // the cache writer; its ORA result is nonzero, which is also our Z contract.
-   asm jmp TEMPLATE_bridge_mark_partner;
-
-   asm @TEMPLATE_ChooseBridgePartnerNext:;
-   asm dey;
-   asm cpy.z TEMPLATE_setup_count;
-   asm bne.same @TEMPLATE_ChooseBridgePartnerLoop;
-   asm @TEMPLATE_ChooseBridgeNo:;
-   // No future bridge partner.  A prior endpoint may already have marked this
-   // sprite, so tail-call the tiny mask lookup and return its Z flag unchanged.
-   asm jmp TEMPLATE_bridge_mask_test;
 }
 
 void TEMPLATE_vblank_worker(void) {
@@ -667,9 +582,8 @@ void TEMPLATE_vblank_worker(void) {
    asm cmp #7;
    asm bcc.same @TEMPLATE_ChooseFirstP1;
    asm @TEMPLATE_ChooseFirstP0:;
-   // With both lanes free, use the same short forced-orientation test as later
-   // candidates.  This matters when the first priority sprite is an endpoint
-   // of a drawable same-X / overlap / same-X bridge component.
+   // With both lanes free, use the ordinary tie-break shared with later
+   // candidates.
    asm jmp @TEMPLATE_ChoosePreferP0;
    asm @TEMPLATE_ChooseFirstP1:;
    asm lda #1;
@@ -717,12 +631,13 @@ void TEMPLATE_vblank_worker(void) {
    asm lda.z TEMPLATE_pending0_valid;
    asm bne.same @TEMPLATE_ChooseBelowOtherP1;
 
-   // Below an existing P0, a vertically disjoint sprite at the exact same X
-   // can keep P0's horizontal position instead of paying another RESP/HMOVE
-   // setup.  Bit 7 is a tentative "candidate P0 retains X" flag; it is
-   // committed only if P0 is ultimately selected.
+   // Equal-X continuation is safe only once the logical sprites are at least
+   // thirteen bands apart.  This threshold is a measured raster property and
+   // is deliberately separate from P0's ordinary fifteen-band RESP/setup
+   // reservation.  At 13..14, exact-X P0 reuse may therefore retain hardware
+   // position; below 13 it must use the other player or fair-flicker.
    asm txa;
-   asm cmp #8;
+   asm cmp #13;
    asm bcc.same @TEMPLATE_ChooseBelowP0Conflict;
    asm ldx.ay TEMPLATE_event_order,Y;
    asm lda.zx TEMPLATE_x,X;
@@ -741,29 +656,33 @@ void TEMPLATE_vblank_worker(void) {
    asm jmp @TEMPLATE_ChooseAfterOther;
 
    asm @TEMPLATE_ChooseBelowOtherP1:;
-   // P1 same-lane reuse needs twelve bands, including the attribute-write line. Candidate P0 setup is three
-   // bands above P1's setup.  A six-band logical gap leaves only three
-   // action bands between a P1 event and the following P0 event; the P1
-   // post-setup path returns at action-4, so 1..6 must block candidate P0.
+   // P1's ordinary RESP/setup reservation is twelve bands, but measured
+   // same-X continuation needs thirteen.  Therefore <12 always conflicts on
+   // P1, exactly 12 conflicts only when X is identical, and >=13 is clear.
+   // Candidate P0 setup is three bands above P1's setup.  A six-band logical
+   // gap leaves only three action bands between a P1 event and the following
+   // P0 event; the post-setup path returns at action-4, so 1..6 still blocks
+   // candidate P0 independently of the same-X rule.
    asm txa;
-   asm cmp #12;
+   asm cmp #13;
    asm bcs.same @TEMPLATE_ChooseBelowP1SameClear;
-   asm cmp #8;
+   asm cmp #12;
    asm bcc.same @TEMPLATE_ChooseBelowP1Conflict;
+   // Exact delta 12: non-identical X may use ordinary P1 positioning, but
+   // identical X must not reuse P1.
    asm ldx.ay TEMPLATE_event_order,Y;
    asm lda.zx TEMPLATE_x,X;
    asm ldx.z TEMPLATE_setup_sprite;
    asm cmp.zx TEMPLATE_x,X;
-   asm bne.same @TEMPLATE_ChooseBelowP1Conflict;
-   asm lda.z TEMPLATE_position_packed;
-   asm ora #$40;
-   asm sta.z TEMPLATE_position_packed;
-   asm jmp @TEMPLATE_ChooseBelowP1SameClear;
+   asm bne.same @TEMPLATE_ChooseBelowP1SameClear;
    asm @TEMPLATE_ChooseBelowP1Conflict:;
    asm lda.z TEMPLATE_position_packed;
    asm and #$bd;
    asm sta.z TEMPLATE_position_packed;
    asm @TEMPLATE_ChooseBelowP1SameClear:;
+   // The exact-12 X comparison clobbers X; all other paths already have the
+   // same delta cached here, so reload it uniformly before cross-lane checks.
+   asm ldx.z TEMPLATE_event_stage;
    asm txa;
    asm cmp #7;
    asm bcs.same @TEMPLATE_ChooseAfterOther;
@@ -822,11 +741,21 @@ void TEMPLATE_vblank_worker(void) {
    asm jmp @TEMPLATE_ChooseAfterOther;
 
    asm @TEMPLATE_ChooseAboveOtherP1:;
-   // Existing P1: candidate P1 only needs the same-lane twelve-band test;
-   // candidate P0's setup is already at least three bands above it.
+   // Existing P1: ordinary reuse is legal at twelve bands only when X differs.
+   // Equal-X reuse is forbidden until thirteen; candidate P0's setup is already
+   // at least three bands above this P1 and needs no additional close-above test.
    asm txa;
-   asm cmp #12;
+   asm cmp #13;
    asm bcs.same @TEMPLATE_ChooseAfterOther;
+   asm cmp #12;
+   asm bcc.same @TEMPLATE_ChooseAboveP1Conflict;
+   // Exact delta 12: preserve ordinary P1 reuse for different X coordinates.
+   asm ldx.ay TEMPLATE_event_order,Y;
+   asm lda.zx TEMPLATE_x,X;
+   asm ldx.z TEMPLATE_setup_sprite;
+   asm cmp.zx TEMPLATE_x,X;
+   asm bne.same @TEMPLATE_ChooseAfterOther;
+   asm @TEMPLATE_ChooseAboveP1Conflict:;
    asm lda.z TEMPLATE_position_packed;
    asm and #$bd;
    asm sta.z TEMPLATE_position_packed;
@@ -840,17 +769,10 @@ void TEMPLATE_vblank_worker(void) {
    asm jmp @TEMPLATE_ChooseLoop;
    asm @TEMPLATE_ChooseLoopDone:;
 
-   // When both lanes remain free, consult the rare forced bridge orientation
-   // before taking the historical P0 tie-break.
+   // When both lanes remain free, keep the historical P0 tie-break.  The old
+   // equal-X delta-12 bridge oracle forced both endpoints onto P1; the measured
+   // <13 same-X rule makes that physical coloring intentionally unavailable.
    asm @TEMPLATE_ChoosePreferP0:;
-   asm lda.z TEMPLATE_position_packed;
-   asm and #3;
-   asm cmp #3;
-   asm bne.same @TEMPLATE_ChoosePreferP0Fast;
-   asm jsr TEMPLATE_bridge_prefers_p1;
-   asm beq.same @TEMPLATE_ChoosePreferP0Fast;
-   asm jmp @TEMPLATE_ChooseP1;
-   asm @TEMPLATE_ChoosePreferP0Fast:;
    asm lda.z TEMPLATE_position_packed;
    asm and #1;
    asm beq.same @TEMPLATE_ChooseP1;
