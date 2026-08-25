@@ -1,0 +1,22 @@
+2026-08-25 00:03:05 PDT, fonts and enhanced 228 timing
+Added the supplied compact printable-ASCII 4x6 font as
+`libraries/vcs/fonts/half_ascii.c26` and the supplied two-character pairing
+helper as executable `make_pair_font.pl`. Documented the pair-font workflow
+and added `vcs_half_ascii_font.pl` to verify the 95-glyph/570-byte source,
+blank high source bit, pairing behavior, and compilability of both source and
+generated tables.
+
+Completed native 228-line support for the sole enhanced asymmetric multisprite
+renderer and PAL/SECAM examples. Diagnosed the apparent 229-line renderer as an
+F8 call-placement bug: the post-VBLANK bank trampoline delayed `game_draw`
+long enough for its first WSYNC to miss the current line. The examples now enter
+the renderer bank while VBLANK is still asserted and run end-VBLANK, draw,
+component handoff, and begin-overscan resident there. Restored the renderer's
+normal final-WSYNC contract for both 192 and 228 instead of special-casing the
+bottom path.
+
+The 192 randomized asymmetric stress, 50 Hz CPU timing, native-228 matrix/layout,
+renderer branch contracts, focused font test, changed recursive example shards,
+and Stella 7 PAL/SECAM example matrix pass. The public 228 F8 examples use
+123/128 RIOT RAM. The stale video-standard layout test was generalized to keep
+`00_blank`, `01_all_five`, and contiguous numbering as the durable contract.

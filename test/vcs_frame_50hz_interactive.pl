@@ -26,15 +26,22 @@ for my$case(
    ['pal','player-color',[],qw(17_video_standards pal 02_player_color pal_player_color_228_interactive.c26)],
    ['pal','all-five-unofficial',['-Wa,--illegals'],qw(17_video_standards pal 03_all_five_unofficial pal_all_five_unofficial_228_interactive.c26)],
    ['pal','multisprite',['-Wa,--illegals'],qw(17_video_standards pal 04_multisprite pal_multisprite_228_interactive.c26)],
+   ['pal','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS','-T',File::Spec->catfile($vcs,'vcs_8k_f8.cfg')],qw(17_video_standards pal 05_enhanced_multisprite_asymmetric pal_enhanced_multisprite_asymmetric_228_interactive.c26)],
    ['secam','all-five',[],qw(17_video_standards secam 01_all_five secam_all_five_228_interactive.c26)],
    ['secam','player-color',[],qw(17_video_standards secam 02_player_color secam_player_color_228_interactive.c26)],
    ['secam','all-five-unofficial',['-Wa,--illegals'],qw(17_video_standards secam 03_all_five_unofficial secam_all_five_unofficial_228_interactive.c26)],
-   ['secam','multisprite',['-Wa,--illegals'],qw(17_video_standards secam 04_multisprite secam_multisprite_228_interactive.c26)]
+   ['secam','multisprite',['-Wa,--illegals'],qw(17_video_standards secam 04_multisprite secam_multisprite_228_interactive.c26)],
+   ['secam','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS','-T',File::Spec->catfile($vcs,'vcs_8k_f8.cfg')],qw(17_video_standards secam 05_enhanced_multisprite_asymmetric secam_enhanced_multisprite_asymmetric_228_interactive.c26)]
 ) {
    my($standard,$family,$flags,@parts)=@$case;
    my$source=File::Spec->catfile($repo,'examples',@parts);
    my$rom=File::Spec->catfile($tmp,"$standard-$family.bin");
-   ($r,$s,$o,$e)=capture($driver,'-I',$vcs,@$flags,$source,'-o',$rom);
+   my@inputs=($source);
+   if ($family eq 'enhanced-asymmetric') {
+      (my$startup=$source) =~ s/\.c26\z/_startup.s26/;
+      push@inputs,$startup;
+   }
+   ($r,$s,$o,$e)=capture($driver,'-I',$vcs,@$flags,@inputs,'-o',$rom);
    $r==0&&!$s or die"interactive build failed for $source\n$o$e";
    $o =~ s/\AMEMORY USAGE\n(?:  [^\n]+\n)+//;
    $o eq '' && $e eq '' or die"interactive build wrote output for $source\n$o$e";

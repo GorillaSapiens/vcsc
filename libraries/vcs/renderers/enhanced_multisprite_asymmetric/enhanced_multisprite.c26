@@ -1,6 +1,14 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
-// Experimental asymmetric-playfield six-sprite 192-line renderer.
+// Experimental asymmetric-playfield six-sprite renderer.
+// Supported visible-line profiles are 192 (NTSC) and 228 (PAL/SECAM).
+// The line parameter is compile-time only; the raster remains two physical
+// scanlines per logical sprite/playfield band.
+//
+//     instantiate "renderers/enhanced_multisprite_asymmetric/enhanced_multisprite.c26" as game (lines:=192)
+//     instantiate "renderers/enhanced_multisprite_asymmetric/enhanced_multisprite.c26" as game (lines:=228)
+
+parameter lines;
 //
 // Unlike the faithful multisprite renderer, neither TIA player is permanently
 // assigned to one logical sprite. VBLANK greedily colors the six logical
@@ -9,9 +17,21 @@
 // a fair two-of-N subset. Non-overlapping logical sprites reuse either P0 or P1
 // later in the same frame.
 
+#if TEMPLATE_lines == 228
+alias TEMPLATE_LOGICAL_BAND_COUNT 114
+alias TEMPLATE_LOGICAL_HEIGHT 113
+alias TEMPLATE_TOP_PRELOAD_BASE 107
+alias TEMPLATE_PLAYFIELD_HALF 114
+alias TEMPLATE_PLAYFIELD_BYTES 228
+#else
+alias TEMPLATE_LOGICAL_BAND_COUNT 96
 alias TEMPLATE_LOGICAL_HEIGHT 95
-alias TEMPLATE_PLAYER0_MAX_Y 95
-alias TEMPLATE_PLAYER1_MAX_Y 95
+alias TEMPLATE_TOP_PRELOAD_BASE 89
+alias TEMPLATE_PLAYFIELD_HALF 96
+alias TEMPLATE_PLAYFIELD_BYTES 192
+#endif
+alias TEMPLATE_PLAYER0_MAX_Y TEMPLATE_LOGICAL_HEIGHT
+alias TEMPLATE_PLAYER1_MAX_Y TEMPLATE_LOGICAL_HEIGHT
 
 // Caller-compatible glyph layout. This deliberately accepts the same 145-byte
 // graphics block used by renderers/multisprite so the existing interactive
@@ -27,10 +47,14 @@ alias TEMPLATE_PLAYER4_GRAPHICS_OFFSET 129
 alias TEMPLATE_PLAYER5_GRAPHICS_OFFSET 137
 
 extern const uint8_t TEMPLATE_graphics[145];
-extern const uint8_t TEMPLATE_playfield_left_pf0[96];
-extern const uint8_t TEMPLATE_playfield_right_pf0[96];
-extern const uint8_t TEMPLATE_playfield_left[192];
-extern const uint8_t TEMPLATE_playfield_right[192];
+#if TEMPLATE_lines == 228
+extern const uint8_t TEMPLATE_playfield_pf0[TEMPLATE_PLAYFIELD_BYTES];
+#else
+extern const uint8_t TEMPLATE_playfield_left_pf0[TEMPLATE_LOGICAL_BAND_COUNT];
+extern const uint8_t TEMPLATE_playfield_right_pf0[TEMPLATE_LOGICAL_BAND_COUNT];
+#endif
+extern const uint8_t TEMPLATE_playfield_left[TEMPLATE_PLAYFIELD_BYTES];
+extern const uint8_t TEMPLATE_playfield_right[TEMPLATE_PLAYFIELD_BYTES];
 
 // Public logical-sprite state. Height is retained for API compatibility with
 // the existing interactive controls; this first profile renders the eight
@@ -172,15 +196,22 @@ const uint8_t TEMPLATE_position_table[160] := {   0xd2,0x60,0x50,0x40,0x30,0x20,
 // resulting six-bit mask survives through the visible raster in setup_sprite
 // and lets overscan rebuild the persistent priority queue without spending a
 // second allocation pass inside the already-tight VBLANK budget.
+#if TEMPLATE_lines == 228
+// The 228-line profile spends six of its remaining RIOT bytes to keep this hot
+// lookup out of the already-full visible ROM bank.  init() builds the powers of
+// two explicitly so compact no-copy cartridge startups remain valid.
+uint8_t TEMPLATE_sprite_bit[6];
+#else
 const uint8_t TEMPLATE_sprite_bit[6] := { 1,2,4,8,16,32 };
+#endif
 
 
 
 enum TEMPLATE_contract {
-   TEMPLATE_VISIBLE_SCANLINES := 192,
+   TEMPLATE_VISIBLE_SCANLINES := TEMPLATE_lines,
    TEMPLATE_DRAW_ENTRY_CYCLE := 3,
    TEMPLATE_DRAW_RETURN_CYCLE := 0,
-   TEMPLATE_DRAW_COMPLETE_SCANLINES := 192,
+   TEMPLATE_DRAW_COMPLETE_SCANLINES := TEMPLATE_lines,
    TEMPLATE_DRAW_PARTIAL_ENTRY_CYCLES := 0,
    TEMPLATE_DRAW_PARTIAL_EXIT_CYCLES := 0,
    TEMPLATE_DRAW_TERMINAL_WSYNC := 1,
@@ -191,23 +222,51 @@ enum TEMPLATE_contract {
    TEMPLATE_OBJECT_COUNT := 6,
    TEMPLATE_HARDWARE_LANES := 2,
    TEMPLATE_BITMAP_ROWS := 8,
-   TEMPLATE_LOGICAL_BANDS := 96
+   TEMPLATE_LOGICAL_BANDS := TEMPLATE_LOGICAL_BAND_COUNT
 };
 
 require inline void TEMPLATE_init(void) {
-   asm ldx #0;
+   // Build identity priority in place. Count down to keep the loop compact.
+   asm ldx #5;
    asm @TEMPLATE_InitPriority:;
    asm txa;
    asm sta.zx TEMPLATE_priority,X;
+   asm dex;
+   asm bpl.same @TEMPLATE_InitPriority;
+#if TEMPLATE_lines == 228
+   // The native-228 profile keeps sprite_bit in zero page rather than spending
+   // six more bytes in the cycle-critical ROM bank.
+   asm lda #1;
+   asm ldx #0;
+   asm @TEMPLATE_InitSpriteBit:;
+   asm sta.zx TEMPLATE_sprite_bit,X;
+   asm asl;
    asm inx;
    asm cpx #6;
-   asm bne.same @TEMPLATE_InitPriority;
+   asm bne.same @TEMPLATE_InitSpriteBit;
+#endif
 }
 
 // Fixed six-input descending sorting network: 12 compare/exchanges regardless
 // of the sprites' vertical permutation. Keeping this outside the inline draw
 // caller also isolates VBLANK scheduling changes from raster branch-page layout.
 void TEMPLATE_sort_events(void) {
+   // Inline-assembly beam code needs literal profile geometry symbols.  C26
+   // aliases do not rewrite opaque asm operands, so publish the same compile-time
+   // values to the assembler without generating any runtime bytes.
+#if TEMPLATE_lines == 228
+   asm TEMPLATE_LOGICAL_HEIGHT = 113;
+   asm TEMPLATE_TOP_PRELOAD_BASE = 107;
+   asm TEMPLATE_PLAYFIELD_HALF = 114;
+   asm TEMPLATE_PF0_LEFT = TEMPLATE_playfield_pf0;
+   asm TEMPLATE_PF0_RIGHT = TEMPLATE_playfield_pf0 + 114;
+#else
+   asm TEMPLATE_LOGICAL_HEIGHT = 95;
+   asm TEMPLATE_TOP_PRELOAD_BASE = 89;
+   asm TEMPLATE_PLAYFIELD_HALF = 96;
+   asm TEMPLATE_PF0_LEFT = TEMPLATE_playfield_left_pf0;
+   asm TEMPLATE_PF0_RIGHT = TEMPLATE_playfield_right_pf0;
+#endif
    asm ldx.z TEMPLATE_event_order + 1;
    asm lda.zx TEMPLATE_setup_line,X;
    asm ldy.z TEMPLATE_event_order + 2;
@@ -417,7 +476,7 @@ void TEMPLATE_vblank_worker(void) {
    asm jmp @TEMPLATE_VblankStart;
 
    // Pre-position one accepted event whose normal setup pipeline begins above
-   // band 95.  setup_index names its compact rank; event_code and
+   // the top visible band.  setup_index names its compact rank; event_code and
    // position_packed have already been loaded from that rank.  pair_y,
    // action_y, and event_stage are free draw-time scratch until the first
    // ordinary visible event is made hot below.
@@ -489,8 +548,8 @@ void TEMPLATE_vblank_worker(void) {
    asm sta.z TEMPLATE_position_packed;
 
    // Seed the graphics pipeline so the first bitmap row is published on the
-   // logical band named by Y.  Band 95 is the first visible pair, therefore
-   // Y=95 starts on the first glyph state immediately.  Each lower Y needs one
+   // logical band named by Y.  The highest logical band is the first visible pair, therefore
+   // a sprite at the maximum Y starts on the first glyph state immediately.  Each lower Y needs one
    // additional zero-filled predecessor.  The existing state graph already
    // contains the complete six-step blank chain needed for P0 Y=89:
    //   55..60 -> 49..54 -> 7..12 -> 13..18 -> 19..24 -> 1..6 -> glyph.
@@ -498,19 +557,19 @@ void TEMPLATE_vblank_worker(void) {
    asm @TEMPLATE_PreloadTopState:;
    asm ldx.z TEMPLATE_pair_y;
    asm lda.zx TEMPLATE_y,X;
-   asm cmp #95;
+   asm cmp #TEMPLATE_LOGICAL_HEIGHT;
    asm beq.same @TEMPLATE_PreloadTopVisibleState;
-   // Y=89..94 maps to six predecessor-state bases stored in otherwise
+   // the six Y values immediately below the maximum map to predecessor-state bases stored in otherwise
    // unreachable graphics_next states 39..44.  P0 alone reaches preload at
-   // Y=89..91 while P1 still uses the ordinary visible setup path; those three
+   // the lowest three top-preload Y values while P1 still uses the ordinary visible setup path; those three
    // cases need one extra blank predecessor to remain vertically aligned with
    // P1.  States 67..72 -> 55..60 provide the additional Y=89 predecessor,
-   // while the Y=90/91 entries select 55/49 directly.  Y=92..94 are already
+   // while the the next two top-preload Y values entries select 55/49 directly.  the upper three top-preload Y values are already
    // shared by both lanes and retain their proven states.  Preloading every
-   // action_y>=95 keeps setup work out
+   // action_y at/above the top band keeps setup work out
    // of the first visible band, where there is no spare scanline above it.
    asm sec;
-   asm sbc #89;
+   asm sbc #TEMPLATE_TOP_PRELOAD_BASE;
    asm tay;
    asm lda.ay TEMPLATE_graphics_next + 39,Y;
    asm clc;
@@ -731,7 +790,11 @@ void TEMPLATE_vblank_worker(void) {
    asm cmp #6;
    asm bne.same @TEMPLATE_ChooseAboveP0P1Conflict;
    asm ldx.ay TEMPLATE_event_order,Y;
+#if TEMPLATE_lines == 228
+   asm lda.zx TEMPLATE_sprite_bit,X;
+#else
    asm lda.ax TEMPLATE_sprite_bit,X;
+#endif
    asm and TEMPLATE_draw_code + 6;
    asm bne.same @TEMPLATE_ChooseAfterOther;
    asm @TEMPLATE_ChooseAboveP0P1Conflict:;
@@ -836,7 +899,11 @@ void TEMPLATE_vblank_worker(void) {
    asm bmi.same @TEMPLATE_AssignRetainedAccepted;
    asm cmp #2;
    asm bne.same @TEMPLATE_AssignAccepted;
+#if TEMPLATE_lines == 228
+   asm lda.zx TEMPLATE_sprite_bit,X;
+#else
    asm lda.ax TEMPLATE_sprite_bit,X;
+#endif
    asm ora TEMPLATE_setup_code + 6;
    asm sta TEMPLATE_setup_code + 6;
    asm jmp @TEMPLATE_AssignNext;
@@ -915,7 +982,11 @@ void TEMPLATE_vblank_worker(void) {
    // accepted logical ids so later candidates can recognize the safe exception.
    asm ldy.zx TEMPLATE_lane_for,X;
    asm bne.same @TEMPLATE_AssignRetainedMaskDone;
+#if TEMPLATE_lines == 228
+   asm lda.zx TEMPLATE_sprite_bit,X;
+#else
    asm lda.ax TEMPLATE_sprite_bit,X;
+#endif
    asm ora TEMPLATE_draw_code + 6;
    asm sta TEMPLATE_draw_code + 6;
    asm @TEMPLATE_AssignRetainedMaskDone:;
@@ -1048,15 +1119,15 @@ void TEMPLATE_vblank_worker(void) {
    // after top-edge preloading is complete.
    //
    // event_order[] is sorted descending.  Consume its prefix whose action_y is
-   // above band 95, positioning those hardware lanes during VBLANK and
+   // above the top visible band, positioning those hardware lanes during VBLANK and
    // initializing their graphics state at the exact clipped row required by
-   // Y=89..95 when setup would begin in/above band 95.  setup_index then naturally names the first ordinary event.
+   // the top seven logical Y positions when setup would begin in/above the top visible band.  setup_index then naturally names the first ordinary event.
    asm @TEMPLATE_PreloadTopLoop:;
    asm ldy.z TEMPLATE_setup_index;
    asm cpy.z TEMPLATE_setup_count;
    asm beq.same @TEMPLATE_PreloadTopDone;
    asm lda.ay TEMPLATE_event_order,Y;
-   asm cmp #95;
+   asm cmp #TEMPLATE_LOGICAL_HEIGHT;
    asm bcc.same @TEMPLATE_PreloadTopDone;
    asm lda.ay TEMPLATE_draw_code,Y;
    asm sta.z TEMPLATE_event_code;
@@ -1083,15 +1154,15 @@ void TEMPLATE_vblank_worker(void) {
    asm sta.z TEMPLATE_pair_y;
 
    // game_draw() enters the first visible scanline after its left-edge PF
-   // deadline.  Preload band 95's left PF half while VBLANK is still asserted
+   // deadline.  Preload the top band's left PF half while VBLANK is still asserted
    // so the first visible pixels are already correct; the draw-time rewrites
    // are identical values and preserve the proven right-half timing.
-   asm ldx #95;
-   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm ldx #TEMPLATE_LOGICAL_HEIGHT;
+   asm lda.ax TEMPLATE_PF0_LEFT,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
 }
 
@@ -1106,9 +1177,9 @@ void TEMPLATE_draw(void) {
    // already preloaded that left half. Top-edge sprites may also have been
    // pre-positioned and seeded into gfx_index/current_gfx before entry. Keep
    // the remaining work phase-compatible with the ordinary A/B raster so both
-   // physical rows of band 95 display identical playfield data. gfx_index 0
+   // physical rows of the top band display identical playfield data. gfx_index 0
    // self-loops, so these normal graphics-state operations are harmless here.
-   asm ldx #95;
+   asm ldx #TEMPLATE_LOGICAL_HEIGHT;
    asm lda.z TEMPLATE_current_gfx;
    asm sta GRP0;
    asm lda.z TEMPLATE_current_gfx + 1;
@@ -1118,9 +1189,9 @@ void TEMPLATE_draw(void) {
    asm sta.z TEMPLATE_gfx_index;
    asm tay;
    asm bit.z TEMPLATE_event_stage;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm bit.z TEMPLATE_event_stage;
    asm lda.ax TEMPLATE_playfield_right,X;
@@ -1129,30 +1200,30 @@ void TEMPLATE_draw(void) {
    asm sta.z TEMPLATE_current_gfx;
    asm sta WSYNC;
 
-   // Physical line B of band 95 uses the same PF/P1 graphics phases as an
+   // Physical line B of the top band uses the same PF/P1 graphics phases as an
    // ordinary line B.  The old shortened top-line path rewrote right PF0/PF1
    // twelve cycles too early, corrupting parts of the still-visible left half.
-   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm lda.ax TEMPLATE_PF0_LEFT,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
    asm sta PF2;
    asm ldy.z TEMPLATE_gfx_index + 1;
    asm lda.ay TEMPLATE_graphics_next,Y;
    asm sta.z TEMPLATE_gfx_index + 1;
    asm tay;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
-   // Every event whose setup would begin in band 95 is pre-positioned during
+   // Every event whose setup would begin in the top band is pre-positioned during
    // VBLANK.  The first visible line therefore needs no exceptional trigger
-   // path: finish P1's normal row transition and enter band 94 exactly like
-   // an ordinary line-B boundary.  This also avoids the old action_y=95 path
+   // path: finish P1's normal row transition and enter the next lower band exactly like
+   // an ordinary line-B boundary.  This also avoids the old top-band action_y path
    // that could reach WSYNC seven cycles into the following scanline.
    asm lda.ay TEMPLATE_graphics,Y;
    asm tay;
@@ -1168,20 +1239,20 @@ void TEMPLATE_draw(void) {
    asm TEMPLATE_NormalLineA:;
    asm sta GRP0;
    asm sty GRP1;
-   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm lda.ax TEMPLATE_PF0_LEFT,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
 
    asm ldy.z TEMPLATE_gfx_index;
    asm lda.ay TEMPLATE_graphics_next,Y;
    asm sta.z TEMPLATE_gfx_index;
    asm tay;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
@@ -1193,19 +1264,19 @@ void TEMPLATE_draw(void) {
 
    // Ordinary line B.
    asm TEMPLATE_NormalLineB:;
-   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm lda.ax TEMPLATE_PF0_LEFT,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
    asm ldy.z TEMPLATE_gfx_index + 1;
    asm lda.ay TEMPLATE_graphics_next,Y;
    asm sta.z TEMPLATE_gfx_index + 1;
    asm tay;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
@@ -1221,6 +1292,9 @@ void TEMPLATE_draw(void) {
    asm jmp TEMPLATE_LineABoundary;
 
    asm TEMPLATE_DrawLastLineB:;
+   // Finish the last physical line at a real scanline boundary for every
+   // height profile.  Banked callers must enter the visible renderer from its
+   // resident bank before VBLANK is released; see the PAL/SECAM examples.
    asm sta WSYNC;
    asm jmp TEMPLATE_DrawReturn;
 
@@ -1246,19 +1320,19 @@ void TEMPLATE_draw(void) {
    // the ordinary four-cycle center pad keeps the asymmetric PF rewrite only
    // one cycle earlier while buying enough time for lane dispatch.
    asm sta.z TEMPLATE_current_gfx;
-   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm lda.ax TEMPLATE_PF0_LEFT,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
    asm ldy.z TEMPLATE_gfx_index + 1;
    asm lda.ay TEMPLATE_graphics_next,Y;
    asm sta.z TEMPLATE_gfx_index + 1;
    asm tay;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
@@ -1269,7 +1343,7 @@ void TEMPLATE_draw(void) {
    asm dex;
    asm bit.z TEMPLATE_position_packed;
    asm bvs.same TEMPLATE_ArmedToP1Boundary;
-   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm lda.ax TEMPLATE_PF0_LEFT,X;
    asm sta PF0;
    asm sta WSYNC;
    asm jmp TEMPLATE_Position0LineA;
@@ -1293,16 +1367,16 @@ void TEMPLATE_draw(void) {
    asm sta GRP1;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
    asm lda.ay TEMPLATE_graphics_next,Y;
    asm sta.z TEMPLATE_gfx_index + 1;
    // Position0 now spends one additional cycle publishing retained GRP0; keep
    // the same final line phase by carrying the new P1 state in Y directly.
    asm tay;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
@@ -1316,7 +1390,7 @@ void TEMPLATE_draw(void) {
    // Carry next-line left PF0 in A and the continuing P1 graphics-state index
    // in Y.  This removes PHA/PLA plus the redundant line-B PF0 reload, freeing
    // seven cycles for real coarse-RESP scheduling.
-   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm lda.ax TEMPLATE_PF0_LEFT,X;
 
    asm TEMPLATE_Position0LineB:;
    asm sta PF0;
@@ -1328,10 +1402,10 @@ void TEMPLATE_draw(void) {
    asm TEMPLATE_P0RetainSlot:;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
    asm sta HMCLR;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
    asm jmp TEMPLATE_P0RespAfterRightPF0;
 
@@ -1347,10 +1421,10 @@ void TEMPLATE_draw(void) {
    asm TEMPLATE_P0RespSlot3:;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
    asm sta RESP0;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
    asm jmp TEMPLATE_P0RespAfterRightPF0;
 
@@ -1361,11 +1435,11 @@ void TEMPLATE_draw(void) {
    asm TEMPLATE_P0RespSlot6:;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm sta RESP0;
    asm jmp TEMPLATE_P0RespAfterRightPF1;
@@ -1385,11 +1459,11 @@ void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
    asm TEMPLATE_P0RespAfterLeftPF1:;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    // Keep the current-band index for the load, then move the old DEX+NOP tail
    // ahead of the store. Right PF2 is therefore four cycles later while RESP
@@ -1407,11 +1481,11 @@ void TEMPLATE_draw(void) {
    asm sta PF1;
    asm nop;
    asm sta RESP0;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
@@ -1428,11 +1502,11 @@ void TEMPLATE_draw(void) {
    // Final slot 9: phase-68 coarse RESP for public X=136..150.
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm bit.a TEMPLATE_event_stage;
    asm lda.ax TEMPLATE_playfield_right,X;
@@ -1451,11 +1525,11 @@ void TEMPLATE_draw(void) {
    // Edge class: phase-73 RESP followed immediately by boundary HMOVE.
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm bit.a TEMPLATE_event_stage;
    asm lda.ax TEMPLATE_playfield_right,X;
@@ -1473,7 +1547,7 @@ void TEMPLATE_draw(void) {
 
    // Shared completion tails for provisional middle slots 3..11.
    asm TEMPLATE_P0RespAfterRightPF0:;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm TEMPLATE_P0RespAfterRightPF1:;
    asm lda.ax TEMPLATE_playfield_right,X;
@@ -1491,19 +1565,19 @@ void TEMPLATE_draw(void) {
    asm sta HMOVE;
    asm sta GRP1;
    asm TEMPLATE_Setup0LineAAfterGRP1:;
-   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm lda.ax TEMPLATE_PF0_LEFT,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
    asm ldy.z TEMPLATE_gfx_index + 1;
    asm lda.ay TEMPLATE_graphics_next,Y;
    asm sta.z TEMPLATE_gfx_index + 1;
    asm tay;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
@@ -1525,7 +1599,7 @@ void TEMPLATE_draw(void) {
    // INC zp on the RESP-critical paths.
    asm sta HMCLR;
    asm iny;
-   asm lda.ax TEMPLATE_playfield_left_pf0 + 1,X;
+   asm lda.ax TEMPLATE_PF0_LEFT + 1,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left + 1,X;
    asm sta PF1;
@@ -1535,7 +1609,7 @@ void TEMPLATE_draw(void) {
    asm lda.z TEMPLATE_event_code;
    asm and #$0f;
    asm sta.z TEMPLATE_gfx_index;
-   asm lda.ax TEMPLATE_playfield_right_pf0 + 1,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT + 1,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 97,X;
    asm sta PF1;
@@ -1544,7 +1618,7 @@ void TEMPLATE_draw(void) {
    // Stage the next band's left PF0 exactly as before.  Y is already the
    // next event rank.  The remaining eleven cycles preload its action_y while
    // carrying the continuing P1 byte in A across the physical boundary.
-   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm lda.ax TEMPLATE_PF0_LEFT,X;
    asm sta PF0;
    asm lda.ay TEMPLATE_event_order,Y;
    // Force absolute addressing: four cycles here are part of the exact
@@ -1566,7 +1640,7 @@ void TEMPLATE_draw(void) {
    asm sta.z TEMPLATE_pair_y;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
    // The equality that entered this position/setup pipeline leaves carry set,
    // and no instruction through Setup0LineB changes it. ADC #5 therefore
@@ -1576,9 +1650,9 @@ void TEMPLATE_draw(void) {
    asm lda.z TEMPLATE_gfx_index;
    asm adc #5;
    asm sta.z TEMPLATE_gfx_index;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
@@ -1618,19 +1692,19 @@ void TEMPLATE_draw(void) {
    // by removing the old next-line lane dispatcher plus the former end pad pay
    // for the seven-cycle load/store exactly.
    asm sta GRP0;
-   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm lda.ax TEMPLATE_PF0_LEFT,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
    asm ldy.z TEMPLATE_gfx_index;
    asm lda.ay TEMPLATE_graphics_next,Y;
    asm sta.z TEMPLATE_gfx_index;
    asm tay;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
@@ -1638,7 +1712,7 @@ void TEMPLATE_draw(void) {
    asm sta HMP1;
    asm lda.z TEMPLATE_pair_y;
    asm sta COLUP1;
-   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm lda.ax TEMPLATE_PF0_LEFT,X;
 
    asm TEMPLATE_Position1LineB:;
    asm sta PF0;
@@ -1648,10 +1722,10 @@ void TEMPLATE_draw(void) {
    asm TEMPLATE_P1RetainSlot:;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
    asm sta HMCLR;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
    asm jmp TEMPLATE_P1RespAfterRightPF0;
 
@@ -1663,10 +1737,10 @@ void TEMPLATE_draw(void) {
    asm TEMPLATE_P1RespSlot3:;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
    asm sta RESP1;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
    asm jmp TEMPLATE_P1RespAfterRightPF0;
 
@@ -1677,11 +1751,11 @@ void TEMPLATE_draw(void) {
    asm TEMPLATE_P1RespSlot6:;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm sta RESP1;
    asm jmp TEMPLATE_P1RespAfterRightPF1;
@@ -1699,11 +1773,11 @@ void TEMPLATE_draw(void) {
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
    asm TEMPLATE_P1RespAfterLeftPF1:;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm dex;
@@ -1718,11 +1792,11 @@ void TEMPLATE_draw(void) {
    asm sta PF1;
    asm nop;
    asm sta RESP1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
@@ -1739,11 +1813,11 @@ void TEMPLATE_draw(void) {
    // Final slot 9: phase-68 coarse RESP for public X=136..150.
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm bit.a TEMPLATE_event_stage;
    asm lda.ax TEMPLATE_playfield_right,X;
@@ -1762,11 +1836,11 @@ void TEMPLATE_draw(void) {
    // Edge class: phase-73 RESP followed immediately by boundary HMOVE.
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm bit.a TEMPLATE_event_stage;
    asm lda.ax TEMPLATE_playfield_right,X;
@@ -1784,7 +1858,7 @@ void TEMPLATE_draw(void) {
 
    // Shared completion tails for provisional middle slots 3..11.
    asm TEMPLATE_P1RespAfterRightPF0:;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm TEMPLATE_P1RespAfterRightPF1:;
    asm lda.ax TEMPLATE_playfield_right,X;
@@ -1799,19 +1873,19 @@ void TEMPLATE_draw(void) {
    asm sta HMOVE;
    asm sta GRP0;
    asm TEMPLATE_Setup1LineAAfterGRP0:;
-   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm lda.ax TEMPLATE_PF0_LEFT,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
    asm ldy.z TEMPLATE_gfx_index;
    asm lda.ay TEMPLATE_graphics_next,Y;
    asm sta.z TEMPLATE_gfx_index;
    asm tay;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
@@ -1832,7 +1906,7 @@ void TEMPLATE_draw(void) {
    // Y still names the current rank from Setup1LineA. Advance both Y and the
    // scalar rank together so Y can index the next event's compacted color.
    asm iny;
-   asm lda.ax TEMPLATE_playfield_left_pf0 + 1,X;
+   asm lda.ax TEMPLATE_PF0_LEFT + 1,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left + 1,X;
    asm sta PF1;
@@ -1844,7 +1918,7 @@ void TEMPLATE_draw(void) {
    // Four cycles here rather than the ordinary zero-page store keep the
    // 76-cycle line exact after replacing the stale-row tail with color work.
    asm sta.a TEMPLATE_gfx_index + 1;
-   asm lda.ax TEMPLATE_playfield_right_pf0 + 1,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT + 1,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_right + 97,X;
    asm sta PF1;
@@ -1855,7 +1929,7 @@ void TEMPLATE_draw(void) {
    asm sty.z TEMPLATE_setup_index;
    asm lda.ax TEMPLATE_playfield_right + 1,X;
    asm sta PF2;
-   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm lda.ax TEMPLATE_PF0_LEFT,X;
    asm sta PF0;
    // Y is now the next compact event rank. Use the eight-cycle tail formerly
    // occupied by the stale current_gfx+1 handoff to refresh the color cache;
@@ -1879,15 +1953,15 @@ void TEMPLATE_draw(void) {
    asm sta GRP0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
    asm ldy.z TEMPLATE_gfx_index;
    asm lda.ay TEMPLATE_graphics_next,Y;
    asm sta.z TEMPLATE_gfx_index;
    asm tay;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right,X;
    asm sta PF2;
@@ -1902,11 +1976,11 @@ void TEMPLATE_draw(void) {
    asm TEMPLATE_PostSetupLineB:;
    asm sta.z TEMPLATE_event_code;
    asm TEMPLATE_PostSetupLineBBody:;
-   asm lda.ax TEMPLATE_playfield_left_pf0,X;
+   asm lda.ax TEMPLATE_PF0_LEFT,X;
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 96,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
    // Pull the P1 graphics-state load ahead of the right-half PF rewrite.
    // It costs the same three cycles in the same line, but delays right PF0/PF1
@@ -1914,9 +1988,9 @@ void TEMPLATE_draw(void) {
    // the formerly proven P1 phase and leaves right PF2 and total line length
    // unchanged.
    asm ldy.z TEMPLATE_gfx_index + 1;
-   asm lda.ax TEMPLATE_playfield_right_pf0,X;
+   asm lda.ax TEMPLATE_PF0_RIGHT,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 96,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF1;
    asm lda.ay TEMPLATE_graphics_next,Y;
    asm sta.z TEMPLATE_gfx_index + 1;
@@ -1937,7 +2011,9 @@ void TEMPLATE_draw(void) {
    asm @TEMPLATE_PostSetupBottom:;
    // The last visible band has already been emitted. Do not let X=$ff match
    // the $ff action sentinel and synthesize a phantom bottom-edge event.
-   // WSYNC completes the physical line, then fall through to DrawReturn.
+   // This setup-tail exit obeys the same full-height component contract as the
+   // ordinary bottom path: finish the final physical line at WSYNC, then return
+   // at the next scanline boundary.
    asm sta WSYNC;
 
    asm TEMPLATE_DrawReturn:;

@@ -8,5 +8,7 @@
 *.o26
 *.s26
 !10_faithful_legacy_multisprite/01_diagnostic/faithful_legacy_multisprite_diagnostic_data.s26
-!18_enhanced_multisprite/01_192/02_asymmetric/enhanced_multisprite_192_asymmetric_startup.s26
+!18_enhanced_multisprite/01_192/01_asymmetric/enhanced_multisprite_192_asymmetric_startup.s26
+!17_video_standards/pal/05_enhanced_multisprite_asymmetric/pal_enhanced_multisprite_asymmetric_228_interactive_startup.s26
+!17_video_standards/secam/05_enhanced_multisprite_asymmetric/secam_enhanced_multisprite_asymmetric_228_interactive_startup.s26
 *.sym

@@ -27,13 +27,16 @@ $repo=abs_path($repo)//die "resolve repo\n"; make_path($tmp); $tmp=abs_path($tmp
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my$renderer=File::Spec->catfile($vcs,qw(renderers enhanced_multisprite_asymmetric enhanced_multisprite.c26));
-my$example_dir=File::Spec->catdir($repo,qw(examples 18_enhanced_multisprite 01_192 02_asymmetric));
+my$example_dir=File::Spec->catdir($repo,qw(examples 18_enhanced_multisprite 01_192 01_asymmetric));
 my$example=File::Spec->catfile($example_dir,'enhanced_multisprite_192_asymmetric.c26');
 my$startup=File::Spec->catfile($example_dir,'enhanced_multisprite_192_asymmetric_startup.s26');
 my$text=read_file($renderer);
 
 $text =~ /TEMPLATE_HARDWARE_LANES\s*:=\s*2/ or die "asymmetric renderer lost two-lane contract\n";
-$text =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*192/ or die "asymmetric renderer lost 192-line contract\n";
+$text =~ /parameter lines;/ or die "asymmetric renderer lost lines parameter\n";
+$text =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_lines/ or die "asymmetric renderer lost parameterized visible-line contract\n";
+$text =~ /TEMPLATE_lines == 228.*?TEMPLATE_LOGICAL_BAND_COUNT 114.*?TEMPLATE_LOGICAL_HEIGHT 113/s
+   or die "asymmetric renderer lost native 228-line geometry\n";
 $text =~ /TEMPLATE_P0RespSlot5:;.*?asm bit\.a TEMPLATE_event_stage;/s
    or die "P0 slot-5 calibrated four-cycle delay missing\n";
 $text =~ /TEMPLATE_P0RespSlot8:;.*?asm bit\.z TEMPLATE_event_stage;/s
@@ -51,8 +54,8 @@ $text =~ /bmi\.(?:same|cross) \@TEMPLATE_PostSetupBottom;/
    or die "bottom-edge X-underflow termination guard missing\n";
 $text =~ /TEMPLATE_PostSetup0Immediate:/
    or die "immediate opposite-lane event handoff missing\n";
-$text =~ /\@TEMPLATE_PreloadTopLoop:;.*?asm cmp #95;.*?asm bcc\.same \@TEMPLATE_PreloadTopDone;/s
-   or die "band-95 setup is no longer preloaded during VBLANK\n";
+$text =~ /\@TEMPLATE_PreloadTopLoop:;.*?asm cmp #TEMPLATE_LOGICAL_HEIGHT;.*?asm bcc\.same \@TEMPLATE_PreloadTopDone;/s
+   or die "top-band setup is no longer parameterized/preloaded during VBLANK\n";
 $text !~ /TEMPLATE_TopTrigger/
    or die "obsolete visible action_y=95 trigger path returned\n";
 $text =~ /TEMPLATE_ChooseLane:;.*?ldy\.z TEMPLATE_setup_index;.*?ldx\.z TEMPLATE_priority \+ 1;.*?lda\.zx TEMPLATE_y,X;.*?sbc\.z TEMPLATE_pair_y;.*?cmp #7;.*?bcc\.same \@TEMPLATE_ChooseFirstP1/s
@@ -91,7 +94,7 @@ $text =~ /TEMPLATE_Setup1LineB:;.*?asm iny;.*?asm sta\.a TEMPLATE_gfx_index \+ 1
    or die "P1 setup per-event color refresh/timing balance missing\n";
 $text =~ /TEMPLATE_PostSetupLineA:;\s*.*?asm lda\.z TEMPLATE_current_gfx;\s*asm sta GRP0;/s
    or die "P1 post-setup stale-GRP suppression missing\n";
-$text =~ /TEMPLATE_PostSetupLineBBody:;.*?asm sta PF2;\s*.*?asm ldy\.z TEMPLATE_gfx_index \+ 1;\s*asm lda\.ax TEMPLATE_playfield_right_pf0,X;\s*asm sta PF0;\s*asm lda\.ax TEMPLATE_playfield_right \+ 96,X;\s*asm sta PF1;\s*asm lda\.ay TEMPLATE_graphics_next,Y;/s
+$text =~ /TEMPLATE_PostSetupLineBBody:;.*?asm sta PF2;\s*.*?asm ldy\.z TEMPLATE_gfx_index \+ 1;\s*asm lda\.ax TEMPLATE_PF0_RIGHT,X;\s*asm sta PF0;\s*asm lda\.ax TEMPLATE_playfield_right \+ TEMPLATE_PLAYFIELD_HALF,X;\s*asm sta PF1;\s*asm lda\.ay TEMPLATE_graphics_next,Y;/s
    or die "P0 post-setup PF seam timing redistribution missing\n";
 $text =~ /TEMPLATE_P0RespSlot11:;.*?lda\.ax TEMPLATE_playfield_left,X;\s*asm sta PF1;\s*asm jmp TEMPLATE_P0RespAfterLeftPF1;/s
    or die "P0 phase-63 early left-PF1 correction missing\n";

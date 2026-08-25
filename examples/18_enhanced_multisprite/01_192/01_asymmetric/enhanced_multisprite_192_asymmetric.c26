@@ -9,7 +9,7 @@ include "vcs_4k.c26"
 // example's light overscan into VBLANK without changing the frame total.
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
-instantiate "renderers/enhanced_multisprite_asymmetric/enhanced_multisprite.c26" as game
+instantiate "renderers/enhanced_multisprite_asymmetric/enhanced_multisprite.c26" as game (lines:=192)
 include "../../../common/multisprite_interactive_common.c26"
 
 // Twelve 16-scanline diagnostic rows.  Each row is eight logical
@@ -28,8 +28,7 @@ page const uint8_t game_playfield_left_pf0[96] := {
    ASYM_ROW8(0x20), ASYM_ROW8(0x10), ASYM_ROW8(0x00), ASYM_ROW8(0x00),
    ASYM_ROW8(0x80), ASYM_ROW8(0x40), ASYM_ROW8(0x20), ASYM_ROW8(0x10)
 };
-page const uint8_t game_playfield_right_pf0[96] := {
-   ASYM_ROW8(0x80), ASYM_ROW8(0x40), ASYM_ROW8(0x20), ASYM_ROW8(0x10),
+page const uint8_t game_playfield_right_pf0[96] := {ASYM_ROW8(0x80), ASYM_ROW8(0x40), ASYM_ROW8(0x20), ASYM_ROW8(0x10),
    ASYM_ROW8(0x00), ASYM_ROW8(0x00), ASYM_ROW8(0x80), ASYM_ROW8(0x40),
    ASYM_ROW8(0x20), ASYM_ROW8(0x10), ASYM_ROW8(0x00), ASYM_ROW8(0x00)
 };

@@ -9,4 +9,4 @@
 
 # Enhanced multisprite examples
 
-These examples exercise the symmetric P0/P1 enhanced multisprite renderer.
+These examples exercise the maintained asymmetric-playfield enhanced multisprite renderer. The NTSC diagnostic uses 192 active lines; native PAL/SECAM 228-line examples live under `17_video_standards`.

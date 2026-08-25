@@ -9,4 +9,4 @@
 
 # 192-line enhanced multisprite
 
-The interactive example uses the complete 192-line visible field.
+`01_asymmetric` is the maintained 192-active-line asymmetric-playfield diagnostic.

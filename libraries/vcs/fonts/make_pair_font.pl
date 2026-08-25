@@ -1,9 +1,10 @@
 #!/usr/bin/env perl
+# This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 use strict;
 use warnings;
 
 # Usage:
-#   ./make_pair_font.pl default_ascii_4x6_shifted.c26 "HELLO WORLD"
+#   ./make_pair_font.pl half_ascii.c26 "HELLO WORLD"
 #
 # Reads a 4x6 ASCII font in VCS_FONT_GLYPH(...) format, splits the
 # message into two-character chunks, and writes an 8x6 glyph table

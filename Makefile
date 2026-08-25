@@ -22,7 +22,6 @@ STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP ?= $(CURDIR)/.stella-all-five-player-c
 STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP ?= $(CURDIR)/.stella-all-five-player-color-181-test
 STELLA_FAITHFUL_MULTISPRITE_TEST_TMP ?= $(CURDIR)/.stella-faithful-multisprite-test
 STELLA_MULTISPRITE_TEST_TMP ?= $(CURDIR)/.stella-multisprite-test
-STELLA_ENHANCED_MULTISPRITE_TEST_TMP ?= $(CURDIR)/.stella-enhanced-multisprite-test
 STELLA_50HZ_TEST_TMP ?= $(CURDIR)/.stella-50hz-test
 WINDOWS_TRIPLET ?= x86_64-w64-mingw32
 WINDOWS_HOST_CC ?= cc
@@ -84,7 +83,7 @@ exam:
 #	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
 
 clean:
-	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP) $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP) $(STELLA_MULTISPRITE_TEST_TMP) $(STELLA_ENHANCED_MULTISPRITE_TEST_TMP) $(STELLA_50HZ_TEST_TMP)
+	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP) $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP) $(STELLA_MULTISPRITE_TEST_TMP) $(STELLA_50HZ_TEST_TMP)
 	rm -f test-times.tsv
 	@$(MAKE) --no-print-directory -C ./assembler clean
 	@$(MAKE) --no-print-directory -C ./linker clean
@@ -1101,10 +1100,5 @@ stella-multisprite-test: tools
 	  "$(CURDIR)" "$(STELLA_MULTISPRITE_TEST_TMP)"
 	rm -rf $(STELLA_MULTISPRITE_TEST_TMP)
 
-stella-enhanced-multisprite-test: tools
-	rm -rf $(STELLA_ENHANCED_MULTISPRITE_TEST_TMP)
-	VCSC_STELLA="$(STELLA)" perl test/vcs_enhanced_multisprite_stella.pl \
-	  "$(CURDIR)" "$(STELLA_ENHANCED_MULTISPRITE_TEST_TMP)"
-	rm -rf $(STELLA_ENHANCED_MULTISPRITE_TEST_TMP)
 
-.PHONY: all tools install install-core install-examples install-data uninstall uninstall-examples uninstall-data package windows installcheck tarball unit sieve e2e test stella-50hz-test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-three-plus-three-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-faithful-multisprite-test stella-multisprite-test stella-enhanced-multisprite-test docs
+.PHONY: all tools install install-core install-examples install-data uninstall uninstall-examples uninstall-data package windows installcheck tarball unit sieve e2e test stella-50hz-test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-three-plus-three-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-faithful-multisprite-test stella-multisprite-test docs

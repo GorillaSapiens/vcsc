@@ -11,6 +11,7 @@
 namespace {
 constexpr uint16_t kRomBase = 0xf000;
 constexpr size_t kRomSize = 4096;
+constexpr size_t kF8RomSize = 8192;
 constexpr uint64_t kCyclesPerLine = 76;
 constexpr uint16_t kVsync = 0x0000;
 constexpr uint16_t kVblank = 0x0001;
@@ -40,6 +41,9 @@ struct Timer {
 };
 
 uint8_t memory_image[65536];
+uint8_t rom_banks[2][kRomSize];
+bool f8_rom = false;
+unsigned active_bank = 0;
 uint64_t virtual_cycles = 0;
 std::vector<WriteEvent> pending_writes;
 std::vector<uint64_t> vsync_assertions;
@@ -73,6 +77,10 @@ uint8_t current_timer_value() {
 }
 
 uint8_t read_bus(uint16_t a) {
+   if (f8_rom && (a & 0x1fff) == 0x1ff8) active_bank = 0;
+   else if (f8_rom && (a & 0x1fff) == 0x1ff9) active_bank = 1;
+   if (a & 0x1000)
+      return rom_banks[active_bank][a & 0x0fff];
    if (a == kTimint) {
       sync_timer();
       return timer.interrupt_flag ? 0x80 : 0;
@@ -87,7 +95,9 @@ uint8_t read_bus(uint16_t a) {
 }
 
 void write_bus(uint16_t a, uint8_t v) {
-   if (a < kRomBase) memory_image[a] = v;
+   if (f8_rom && (a & 0x1fff) == 0x1ff8) active_bank = 0;
+   else if (f8_rom && (a & 0x1fff) == 0x1ff9) active_bank = 1;
+   if (!(a & 0x1000)) memory_image[a] = v;
    pending_writes.push_back({a, v});
 }
 void clock_cycle(mos6502 *) {}
@@ -177,10 +187,21 @@ int main(int argc, char **argv) {
    // Reset and make the public interactive examples intentionally reboot.
    memory_image[kSwcha] = 0xff;
    memory_image[kSwchb] = 0xff;
-   std::ifstream rom(argv[1], std::ios::binary);
+   std::ifstream rom(argv[1], std::ios::binary | std::ios::ate);
    if (!rom) fail("cannot open ROM");
-   rom.read(reinterpret_cast<char *>(memory_image + kRomBase), kRomSize);
-   if (rom.gcount() != static_cast<std::streamsize>(kRomSize)) fail("bad ROM size");
+   const auto size = rom.tellg();
+   rom.seekg(0);
+   if (size == static_cast<std::streamsize>(kRomSize)) {
+      rom.read(reinterpret_cast<char *>(rom_banks[0]), kRomSize);
+      active_bank = 0;
+   }
+   else if (size == static_cast<std::streamsize>(kF8RomSize)) {
+      rom.read(reinterpret_cast<char *>(rom_banks[0]), kRomSize);
+      rom.read(reinterpret_cast<char *>(rom_banks[1]), kRomSize);
+      f8_rom = true;
+      active_bank = 1;
+   }
+   else fail("bad ROM size");
 
    mos6502 cpu(read_bus, write_bus, clock_cycle);
    cpu.Reset();
@@ -200,12 +221,20 @@ int main(int argc, char **argv) {
    for (size_t i = 2; i + 1 < vsync_assertions.size(); ++i) {
       const uint64_t start = vsync_assertions[i];
       const uint64_t end = vsync_assertions[i + 1];
-      if (end - start != 314 * kCyclesPerLine)
-         fail("frame is not 314 raw lines / 312 Stella lines");
       const auto &begin_vblank = find_vblank(start, end, 2, 0);
       const auto &end_vblank = find_vblank(start, end, 0, 0);
       const auto &begin_overscan = find_vblank(start, end, 2, 1);
       const uint64_t base = start / kCyclesPerLine;
+      if (end - start != 314 * kCyclesPerLine) {
+         char message[224];
+         std::snprintf(message, sizeof(message),
+            "frame is %.3f raw lines; VBLANK begin/end/overscan lines are %llu/%llu/%llu, expected 3/48/276",
+            double(end - start) / double(kCyclesPerLine),
+            (unsigned long long)(begin_vblank.cycle / kCyclesPerLine - base),
+            (unsigned long long)(end_vblank.cycle / kCyclesPerLine - base),
+            (unsigned long long)(begin_overscan.cycle / kCyclesPerLine - base));
+         fail(message);
+      }
       if (begin_vblank.cycle / kCyclesPerLine != base + 3)
          fail("VBLANK did not begin after three VSYNC lines");
       if (end_vblank.cycle / kCyclesPerLine != base + 48)

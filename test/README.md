@@ -1265,16 +1265,6 @@ not require a graphical Stella installation. It locks all five multiplexed rank
 phases at representative edge/interior X coordinates, natural X=159 wrap/clipping,
 the P1 top edge, 181 P0 sort invariance, and the P0 Y=0 broad-stripe regression.
 
-`vcs_enhanced_multisprite.pl` locks the experimental 192-line symmetric
-P0/P1 multiplexer: 997-frame Y and combined X/Y sweeps must remain at 262
-displayed lines, both hardware lanes must emit graphics, two-way overlap must
-remain solid, and a three-way pile-up must rotate fairly through all three
-2-of-3 pairs. `vcs_enhanced_multisprite_stella.pl` is the independent pixel
-oracle for its in-raster horizontal positioner. Run it through
-`make stella-enhanced-multisprite-test STELLA=/path/to/stella`; it locks the
-renderer-local packed X calibration at the left/right edges, swaps the same
-logical sprites across P0 and P1, requires equal-Y sprites to stay aligned, and
-checks the legal top Y without making graphical Stella part of default `make`.
 
 `fixed_large_offset_codegen_test.c26` locks the fixed-address audit past the old
 8-bit-offset boundary: an automatic byte at offset 299 must use direct

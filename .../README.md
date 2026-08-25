@@ -49,10 +49,6 @@ Completed main-roadmap material is historical.
 Compact active handoff for the asymmetric-playfield enhanced multisprite WIP.
 Read it when that side quest is the current task.
 
-### `enhanced.txt`
-
-Compact durable handoff for the symmetric enhanced-multisprite side quest.
-
 ### `bankswitching.txt`
 
 Durable cartridge/bank identity rules plus unfinished bankswitching work. It is

@@ -33,11 +33,13 @@ for my$spec(
    ['pal','__builtin_pal_rgb',qw(17_video_standards pal 02_player_color pal_player_color_228_interactive.c26)],
    ['pal','__builtin_pal_rgb',qw(17_video_standards pal 03_all_five_unofficial pal_all_five_unofficial_228_interactive.c26)],
    ['pal','__builtin_pal_rgb',qw(17_video_standards pal 04_multisprite pal_multisprite_228_interactive.c26)],
+   ['pal','__builtin_pal_rgb',qw(17_video_standards pal 05_enhanced_multisprite_asymmetric pal_enhanced_multisprite_asymmetric_228_interactive.c26)],
    ['secam','__builtin_secam_rgb',qw(17_video_standards secam 00_blank secam50_blank.c26)],
    ['secam','__builtin_secam_rgb',qw(17_video_standards secam 01_all_five secam_all_five_228_interactive.c26)],
    ['secam','__builtin_secam_rgb',qw(17_video_standards secam 02_player_color secam_player_color_228_interactive.c26)],
    ['secam','__builtin_secam_rgb',qw(17_video_standards secam 03_all_five_unofficial secam_all_five_unofficial_228_interactive.c26)],
-   ['secam','__builtin_secam_rgb',qw(17_video_standards secam 04_multisprite secam_multisprite_228_interactive.c26)]) {
+   ['secam','__builtin_secam_rgb',qw(17_video_standards secam 04_multisprite secam_multisprite_228_interactive.c26)],
+   ['secam','__builtin_secam_rgb',qw(17_video_standards secam 05_enhanced_multisprite_asymmetric secam_enhanced_multisprite_asymmetric_228_interactive.c26)]) {
    my($standard,$builtin,@parts)=@$spec;
    my$src=File::Spec->catfile($repo,'examples',@parts);
    -f$src or die"missing reorganized $standard example $src\n";
@@ -73,20 +75,28 @@ for my$case(
    ['pal','PAL','player-color',[],qw(17_video_standards pal 02_player_color pal_player_color_228_interactive.c26)],
    ['pal','PAL','all-five-unofficial',['-Wa,--illegals'],qw(17_video_standards pal 03_all_five_unofficial pal_all_five_unofficial_228_interactive.c26)],
    ['pal','PAL','multisprite',['-Wa,--illegals'],qw(17_video_standards pal 04_multisprite pal_multisprite_228_interactive.c26)],
+   ['pal','PAL','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS','-T',File::Spec->catfile($vcs,'vcs_8k_f8.cfg')],qw(17_video_standards pal 05_enhanced_multisprite_asymmetric pal_enhanced_multisprite_asymmetric_228_interactive.c26)],
    ['secam','SECAM','all-five',[],qw(17_video_standards secam 01_all_five secam_all_five_228_interactive.c26)],
    ['secam','SECAM','player-color',[],qw(17_video_standards secam 02_player_color secam_player_color_228_interactive.c26)],
    ['secam','SECAM','all-five-unofficial',['-Wa,--illegals'],qw(17_video_standards secam 03_all_five_unofficial secam_all_five_unofficial_228_interactive.c26)],
-   ['secam','SECAM','multisprite',['-Wa,--illegals'],qw(17_video_standards secam 04_multisprite secam_multisprite_228_interactive.c26)]) {
+   ['secam','SECAM','multisprite',['-Wa,--illegals'],qw(17_video_standards secam 04_multisprite secam_multisprite_228_interactive.c26)],
+   ['secam','SECAM','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS','-T',File::Spec->catfile($vcs,'vcs_8k_f8.cfg')],qw(17_video_standards secam 05_enhanced_multisprite_asymmetric secam_enhanced_multisprite_asymmetric_228_interactive.c26)]) {
    my($standard,$format,$family,$flags,@parts)=@$case;
    my$tag="$standard-$family";
    my$src=File::Spec->catfile($repo,'examples',@parts);
    my$rom=File::Spec->catfile($tmp,"$tag.bin");
-   ok("build $tag example",$driver,'-I',$vcs,@$flags,$src,'-o',$rom);
+   my@inputs=($src);
+   if ($family eq 'enhanced-asymmetric') {
+      (my$startup=$src) =~ s/\.c26\z/_startup.s26/;
+      push@inputs,$startup;
+   }
+   ok("build $tag example",$driver,'-I',$vcs,@$flags,@inputs,'-o',$rom);
    my$display=360+($$%40);$display++ while-e"/tmp/.X11-unix/X$display";my$d=":$display";
    my$xpid=fork();defined$xpid or die"fork Xvfb\n";if(!$xpid){open(STDOUT,'>:raw',"$tmp/$tag.xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$d,'-ac','-screen','0','1024x768x24');die$!}
    select undef,undef,undef,.2;local$ENV{DISPLAY}=$d;local$ENV{XAUTHORITY}='/dev/null';local$ENV{HOME}="$tmp/home-$tag";local$ENV{SDL_AUDIODRIVER}='dummy';make_path($ENV{HOME});
    my$snap="$tmp/snap-$tag";my$user="$tmp/user-$tag";make_path($snap,$user);unlink glob("$snap/*.png");
-   my@cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-format',$format,'-bs','4K','-snapsavedir',$snap,'-snapname',$tag,'-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
+   my$bs=$family eq 'enhanced-asymmetric' ? 'F8' : '4K';
+   my@cmd=($stella,'-video','software','-turbo','1','-audio.enabled','0','-format',$format,'-bs',$bs,'-snapsavedir',$snap,'-snapname',$tag,'-sssingle','1','-ss1x','1','-exitlauncher','0','-confirmexit','0','-userdir',$user,$rom);
    my$pid=fork();defined$pid or die"fork Stella\n";if(!$pid){open(STDOUT,'>:raw',"$tmp/$tag.stella.log");open(STDERR,'>&STDOUT');exec@cmd;die$!}
    ok("snapshot $tag example",$perl,$keys);my@png;for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}terminate($pid);terminate($xpid);@png==1 or die"$tag Stella produced ".scalar(@png)." snapshots\n";
    my($w,$h)=png_dimensions($png[0]);$w==320&&$h==274 or die"$tag example snapshot ${w}x${h}, expected 320x274\n";

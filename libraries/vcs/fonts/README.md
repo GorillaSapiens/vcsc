@@ -10,9 +10,10 @@
 # VCS score fonts
 
 This directory contains eight conventional 8x8 score-font families, one
-8x16 Big font family, and one special six-slice VCSC logo table.
-Every pixel row is written on its own line using visual binary notation: `.` is
-a clear pixel and `X` is a set pixel.
+8x16 Big font family, one compact 4x6 printable-ASCII source font, one helper
+for packing two 4x6 characters into an 8x6 message glyph, and one special
+six-slice VCSC logo table. Every pixel row is written on its own line using
+visual binary notation: `.` is a clear pixel and `X` is a set pixel.
 
 Each conventional 8x8 family has three modules:
 
@@ -45,6 +46,26 @@ page. This matters for cycle-sensitive `(pointer),Y` glyph reads.
 | Whimsey | `whimsey_decimal.c26` | `whimsey_hex.c26` | Heavy playful strokes; upstream spelling retained |
 | Tiny | `tiny_decimal.c26` | `tiny_hex.c26` | Compact 3x5 forms inside an 8x8 cell |
 
+
+
+## Compact 4x6 ASCII source and paired-message helper
+
+`half_ascii.c26` contains all 95 printable ASCII characters as six-row,
+four-bit cells in the 570-byte `score_font` table. The high bit of every
+four-bit source row is intentionally blank, matching the compact shifted form
+used by narrow text renderers.
+
+`make_pair_font.pl` consumes that 4x6 source plus a printable-ASCII message and
+writes a C26 table named `message_font`. It combines the message two characters
+at a time into one 8x6 glyph; an odd final character is paired with a space.
+For example:
+
+```sh
+./make_pair_font.pl half_ascii.c26 "HELLO WORLD" > hello_pairs.c26
+```
+
+The generated table is message-specific rather than another interchangeable
+`score_font` family.
 
 ## Big 8x16 font family
 

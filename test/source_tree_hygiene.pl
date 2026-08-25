@@ -640,7 +640,6 @@ my %hot_limits=(
    'roadmap.txt' => 12*1024,
    'bankswitching.txt' => 16*1024,
    'disassembler.txt' => 16*1024,
-   'enhanced.txt' => 12*1024,
    'enhanced_asymmetric.txt' => 20*1024,
    'ram_optimization.txt' => 8*1024,
    'inline_roadmap.txt' => 8*1024,

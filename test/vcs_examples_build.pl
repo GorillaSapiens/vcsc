@@ -96,11 +96,12 @@ for my $entry (@examples) {
    my $profile=profile_from_source($source);
    my $source_text=read_file($source);
    my @extra;
-   if ($file eq 'enhanced_multisprite_192_asymmetric.c26') {
-      # This public example deliberately trades blanking time toward VBLANK and
-      # omits the common retained-PF-row data to stay within its 4K ROM budget.
-      # Mirror its Makefile flags so the recursive smoke build is faithful.
-      push @extra,'-DVCS_NTSC_EXTENDED_VBLANK','-DMULTISPRITE_NO_RETAINED_PF_ROWS';
+   if ($source_text =~ m{renderers/enhanced_multisprite_asymmetric/enhanced_multisprite\.c26}) {
+      # The asymmetric renderer owns its playfield rows; common retained-PF-row
+      # data is never part of these cartridges.  NTSC's 192-line diagnostic also
+      # moves blanking budget toward VBLANK for top-edge prepositioning.
+      push @extra,'-DMULTISPRITE_NO_RETAINED_PF_ROWS';
+      push @extra,'-DVCS_NTSC_EXTENDED_VBLANK' if $source_text =~ /include\s+"frame_ntsc\.c26"/;
    }
    if ($file eq 'bankswitching_diagnostic.c26' ||
        $file eq 'banked_standard_renderer.c26') {

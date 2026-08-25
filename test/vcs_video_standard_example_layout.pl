@@ -76,8 +76,14 @@ for my$standard(qw(pal secam)) {
       $_ ne '.' && $_ ne '..' && -d File::Spec->catdir($dir,$_)
    } readdir($sdh);
    closedir($sdh);
-   join(' ',@numbered) eq '00_blank 01_all_five'
-      or die "$standard example numbering must be 00_blank 01_all_five\n";
+   @numbered >= 2 && $numbered[0] eq '00_blank' && $numbered[1] eq '01_all_five'
+      or die "$standard examples must begin 00_blank 01_all_five\n";
+   for my$i(0..$#numbered) {
+      $numbered[$i] =~ /\A(\d\d)_/
+         or die "$standard example directory is not numbered: $numbered[$i]\n";
+      int($1) == $i
+         or die "$standard example numbering must be contiguous from 00; got $numbered[$i] at index $i\n";
+   }
 }
 
 print "vcs_video_standard_example_layout ok\n";

@@ -1,0 +1,43 @@
+; This file is covered under CC0-1.0. See examples/LICENSE.txt.
+;
+; Compact startup for the native 228-line F8 enhanced-asymmetric diagnostic.
+;
+; This example initializes every writable DATA value explicitly before the
+; first frame and needs no C constructors.  The stock generic VCSC runtime
+; therefore spends several hundred ROM bytes on copy/zero/init machinery this
+; cartridge cannot use.  Clear the whole RIOT RAM/TIA windows directly and
+; tail-enter main instead.  Do not copy this startup into programs that depend
+; on nonzero DATA initializers or constructors.
+
+.import main
+.export __reset
+.export __nmi
+.export __irqbrk
+
+.segment "CODE"
+__reset:
+   sei
+   cld
+   ldx #$ff
+   txs
+
+   lda #0
+   ldx #$7f
+@clear_ram:
+   sta $80,x
+   dex
+   bpl.same @clear_ram
+
+   ldx #$2c
+@clear_tia:
+   sta $00,x
+   dex
+   bpl.same @clear_tia
+
+   ldx #$ff
+   txs
+   jmp main
+
+__nmi:
+__irqbrk:
+   rti

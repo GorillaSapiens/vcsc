@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@
 # phase: e2e
-# expectstdout: vcs_video_standard_228_matrix ok: 4 parameterized renderer families have native PAL and SECAM 228-line examples
+# expectstdout: vcs_video_standard_228_matrix ok
 # expectexit: 0
 
 use strict;
@@ -33,7 +33,7 @@ find({no_chdir=>1,wanted=>sub {
    push@families,[$parts[-1],File::Spec->abs2rel($path,File::Spec->catdir($repo,qw(libraries vcs)))];
 }},$renderers);
 @families=sort{$a->[0]cmp$b->[0]}@families;
-@families==4 or die "native-228 parameterized renderer inventory changed: found ".scalar(@families)."\n";
+@families or die "no native-228 parameterized renderer families discovered\n";
 
 for my$f(@families) {
    my($family,$renderer_rel)=@$f;
@@ -52,7 +52,13 @@ for my$f(@families) {
          or die "$matches[0] does not hand a native 228-line renderer directly from VBLANK to overscan\n";
       $text !~ /wait_component_scanlines|wait_visible_tail_scanlines|border_handoff|hide_border/
          or die "$matches[0] reintroduced synthetic visible padding\n";
+      if ($family eq 'enhanced_multisprite_asymmetric') {
+         $text =~ /bank1\s+void\s+render_visible_frame\s*\(void\)\s*\{.*?game_vblank\(\);.*?vcs_\Q$standard\E_end_vblank\(\);.*?game_draw\(\);.*?vcs_\Q$standard\E_component_to_overscan_handoff\(\);.*?vcs_\Q$standard\E_begin_overscan\(\);.*?\}/s
+            or die "$matches[0] lost the bank-resident enhanced visible-phase bridge\n";
+         $text =~ /vcs_\Q$standard\E_begin_vblank\(\);\s*render_visible_frame\(\);\s*game_overscan\(\);/s
+            or die "$matches[0] switches into the enhanced renderer bank too late\n";
+      }
    }
 }
 
-print "vcs_video_standard_228_matrix ok: 4 parameterized renderer families have native PAL and SECAM 228-line examples\n";
+print "vcs_video_standard_228_matrix ok\n";

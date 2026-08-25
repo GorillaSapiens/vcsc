@@ -176,3 +176,24 @@ Focused player-color, unofficial all-five, multisprite, native all-five, video
 portability, assembly-policy, and example round-trip regressions pass. Fixed
 192/181 composition renderers and experimental/legacy NTSC kernels remain
 explicitly fixed-height; they were not mislabeled as 228 via visible padding.
+
+2026-08-24 23:20:00 PDT, enhanced multisprite 228 consolidation
+Retired the temporary symmetric enhanced-multisprite renderer, its public
+example, dedicated tests, Stella make target, and obsolete `enhanced.txt` hot
+record. The asymmetric-playfield implementation is now the sole enhanced
+renderer; its 192 diagnostic moved to `01_asymmetric`.
+
+Made asymmetric enhanced multisprite require a `lines` parameter. The existing
+192 profile remains 96 two-scanline bands with Y=0..95; the new 228 profile is
+114 bands with Y=0..113 and derives draw/preload/playfield geometry from the
+profile. Added native PAL and SECAM 228-line interactive examples with direct
+VBLANK-to-renderer-to-overscan handoff. The 228 profile combines both 114-byte
+PF0 halves into one page-contained table, avoiding a wasted page boundary while
+the tight 192 4K profile retains its two existing 96-byte PF0 tables.
+
+Generalized the native-228 matrix test so every renderer advertising a 228
+`lines` profile must have exactly one PAL and SECAM example. Fixed the video
+standard layout regression to require `00_blank`, `01_all_five`, and contiguous
+numbered directories rather than assuming the directory ends after all-five.
+The recursive example builder now recognizes asymmetric-renderer instantiation
+instead of one filename when applying its required build flags.
