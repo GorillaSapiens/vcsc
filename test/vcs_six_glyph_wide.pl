@@ -75,7 +75,7 @@ $rc==0 && !$sig or die "wide fixture build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "wide fixture build wrote output\n$out$err";
 -s $bin==4096 or die "wide fixture is not 4096 bytes\n";
 my $map_text=read_file($map);
-$map_text =~ /rom\s+used=1240 bytes/ or die "wide fixture ROM accounting changed\n";
+$map_text =~ /rom\s+used=1245 bytes/ or die "wide fixture ROM accounting changed\n";
 $map_text =~ /ram\s+used=27 bytes.*objects=23 bytes hardware-stack=4 bytes/ or die "wide fixture RAM accounting changed\n";
 $map_text =~ /score_pointers\s+run=\$[0-9A-Fa-f]+ size=\$000A/ or die "wide pointer allocation changed\n";
 $map_text =~ /score_offset2\s+run=\$[0-9A-Fa-f]+ size=\$0001/ or die "wide offset allocation changed\n";
@@ -104,7 +104,7 @@ $rc==0 && !$sig or die "public wide example build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "public wide example wrote output\n$out$err";
 -s $public_bin==2048 or die "public wide example is not 2048 bytes\n";
 my $public_map_text=read_file($public_map);
-$public_map_text =~ /rom\s+used=1316 bytes/ or die "public wide example ROM accounting changed\n";
+$public_map_text =~ /rom\s+used=1321 bytes/ or die "public wide example ROM accounting changed\n";
 $public_map_text =~ /ram\s+used=33 bytes.*objects=29 bytes hardware-stack=4 bytes/ or die "public wide example RAM accounting changed\n";
 
 my $cxx=$ENV{CXX} || 'c++';

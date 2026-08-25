@@ -9,6 +9,9 @@ No unfinished items. Completed implementation history is archived in
 Durable decisions
 -----------------
 * NTSC, PAL, and SECAM remain explicit target/display contracts.
+* Every maintained frame generator uses an exact three-scanline VSYNC pulse:
+  assertion and deassertion are at the same cycle phase, exactly 228 CPU cycles
+  apart. Keep downstream phase compensation outside the asserted VSYNC interval.
 * PAL and SECAM may share 50 Hz frame/timing infrastructure where the hardware
   timing contract is genuinely common, but their color/palette behavior remains
   separate.

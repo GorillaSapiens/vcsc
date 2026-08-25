@@ -17,8 +17,9 @@ parameter and named local storage are statically allocated, while the local
 initializer runs when control reaches its declaration. The television frame is
 expressed entirely in VCSC source, with no inline assembly.
 
-VSYNC and the 192-line visible region still demonstrate explicit scanline
-countdowns where the beam itself sets the deadline:
+The 192-line visible region still demonstrates an explicit scanline countdown
+where the beam itself sets the deadline. VSYNC is instead written as an exact
+three-line pulse with aligned assertion and deassertion phases:
 
 ```c
 for (uint8_t i := 192; i; i--) {
@@ -56,9 +57,10 @@ wraparound. A single `WSYNC` then aligns the phase transition.
 
 For this source-level NTSC frame layout, `TIM64T=42` is calibrated for the
 37-line VBLANK budget and `TIM64T=34` for the 30-line overscan budget. After the
-overscan timer expires, three blanked `WSYNC` boundaries complete the calibrated
-Stella frame boundary. These are fixed phase/frame-boundary alignment, not a
-per-scanline blanking loop. Code added inside either timer budget must still
+overscan timer expires, two blanked `WSYNC` boundaries remain in the closeout;
+the next frame's leading VSYNC-alignment `WSYNC` supplies the third boundary around
+the transition. These are fixed phase/frame-boundary alignment, not a per-scanline
+blanking loop. Code added inside either timer budget must still
 finish before the next beam-critical phase; a timer makes the available time
 usable, not infinite.
 

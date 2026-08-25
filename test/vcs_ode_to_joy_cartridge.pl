@@ -124,11 +124,13 @@ $source_text !~ /\basm\b/
    or die "Ode to Joy contains inline assembly\n";
 $source_text =~ /TIM64T\s*:=\s*42\s*;/ && $source_text =~ /TIM64T\s*:=\s*35\s*;/
    or die "Ode to Joy lost the calibrated timer-owned blanking deadlines\n";
+$source_text =~ /WSYNC\s*:=\s*2\s*;\s*VSYNC\s*:=\s*2\s*;\s*WSYNC\s*:=\s*0\s*;\s*WSYNC\s*:=\s*0\s*;\s*WSYNC\s*:=\s*0\s*;\s*VSYNC\s*:=\s*0\s*;/s
+   or die "Ode to Joy lost exact same-phase VSYNC sequence\n";
 my @timer_waits=($source_text =~ /while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\)/g);
 @timer_waits == 2 or die "Ode to Joy must wait on TIMINT in both blanking phases\n";
 $source_text =~ /TIM64T\s*:=\s*42\s*;.*?while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\).*?WSYNC\s*:=\s*_\s*;\s*VBLANK\s*:=\s*0\s*;/s
    or die "Ode to Joy lost timer-owned VBLANK deadline/alignment\n";
-$source_text =~ /TIM64T\s*:=\s*35\s*;\s*music_tick\(\);.*?WSYNC\s*:=\s*_\s*;\s*while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\).*?WSYNC\s*:=\s*_\s*;.*?WSYNC\s*:=\s*_\s*;/s
+$source_text =~ /TIM64T\s*:=\s*35\s*;\s*music_tick\(\);.*?WSYNC\s*:=\s*_\s*;\s*while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\).*?WSYNC\s*:=\s*_\s*;/s
    or die "music_tick is not enclosed by the calibrated phase-normalized overscan tail\n";
 $source_text =~ /uint8_t\s+music_index\s*:=\s*0\s*;/
    or die "source does not retain the current score index\n";

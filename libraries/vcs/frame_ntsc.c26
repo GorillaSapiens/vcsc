@@ -90,30 +90,23 @@ inline void vcs_ntsc_component_handoff(void) {
    asm bit.z CXM0P;
 }
 
-// Generate the standard three-scanline NTSC vertical-sync pulse.  The caller
-// enters at an arbitrary cycle and leaves immediately after clearing VSYNC;
-// the following phase helper will own alignment of the first VBLANK line.
+// Generate an exact three-scanline NTSC vertical-sync pulse.  First align to
+// a scanline boundary, then assert and clear VSYNC at the same cycle phase
+// exactly three WSYNC boundaries apart (3 * 76 = 228 CPU cycles).  Keeping the
+// two VSYNC assignments symmetric also makes the pulse width independent of
+// the caller's entry phase and compiler addressing-mode relaxation.
 inline void vcs_ntsc_vsync(void) {
+   // The leading WSYNC fixes the scanline phase.  The dead-flags BIT read is a
+   // side-effect-free three-cycle delay; compiler literal reload then places
+   // the VSYNC assertion at the historical cycle-8 phase. Repeat that delay
+   // before clearing VSYNC so the two edges stay exactly 228 cycles apart.
+   WSYNC := 2;
+   asm bit.z CXM0P;
    VSYNC := 2;
-   // This pulse is fixed at three lines. Spell the three WSYNC boundaries
-   // directly so the scheduler does not allocate a runtime loop parameter in
-   // every caller merely to count the constant NTSC VSYNC length.
    WSYNC := 0;
    WSYNC := 0;
    WSYNC := 0;
-   // The former constant-count loop spent fourteen bookkeeping cycles after
-   // its third WSYNC before this historical final NOP. Preserve that measured
-   // return phase without paying a RAM byte for the loop parameter.
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   // Normalize the VSYNC-clear phase explicitly so compiler addressing-mode
-   // relaxation cannot move the following VBLANK schedule.
-   asm nop;
+   asm bit.z CXM0P;
    VSYNC := 0;
 }
 
@@ -216,6 +209,15 @@ static void vcs_ntsc_finish_deadline(void) {
 // VBLANK, start/read the RIOT timer, wait for expiry, or perform the final phase
 // transition; all their cycles and WSYNC stalls consume this shared deadline.
 inline void vcs_ntsc_begin_vblank(void) {
+   // Exact VSYNC now clears at cycle 8 instead of the historical padded clear
+   // at cycle 21. Keep those thirteen compensation cycles out of the asserted
+   // pulse: restore the old callback entry phase only after VSYNC is low.
+   asm bit.z CXM0P;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
    VBLANK := 2;
    TIM64T := VCS_NTSC_VBLANK_TIM64T`uint8_t;
 }
@@ -245,21 +247,20 @@ inline void vcs_ntsc_begin_overscan(void) {
 }
 
 // Wait only for the unused overscan budget and align the following VSYNC phase.
-// VBLANK remains asserted across overscan and VSYNC.  Stella's TIA frame
-// accounting needs two additional blanked WSYNC boundaries after the timer-owned
-// overscan budget; without them these scheduler users are reported as 260-line
-// / 60.5 Hz frames even though the simplified CPU harness sees 262 raw lines.
-// Keep the compensation here, after all game work and visible drawing, so it
-// cannot perturb any component entry or beam-critical raster phase.  The CPU-only
-// scheduler regression therefore expects 264 raw harness lines for Stella's
-// authoritative 262-line / 60.0 Hz result.  If callbacks missed the deadline,
-// continue at the next scanline boundary; optional diagnostics record the overrun.
+// VBLANK remains asserted across overscan and VSYNC. Stella's TIA frame
+// accounting needs three blanked frame-boundary WSYNCs around this transition.
+// Two remain here after the timer-owned overscan budget; the leading alignment
+// WSYNC in the next exact VSYNC pulse supplies the third. Keep the compensation
+// after all game work and visible drawing so it cannot perturb component raster
+// timing. The CPU-only scheduler regression therefore still expects 264 raw
+// harness lines for Stella's authoritative 262-line / 60.0 Hz result.
+// If callbacks missed the deadline, continue at the next scanline boundary;
+// optional diagnostics record the overrun.
 inline void vcs_ntsc_end_overscan(void) {
 #ifdef VCS_NTSC_DIAGNOSTICS
    vcs_ntsc_overrun_phase := VCS_NTSC_OVERSCAN_OVERRUN`uint8_t;
 #endif
    vcs_ntsc_finish_deadline();
-   WSYNC := 0;
    WSYNC := 0;
    WSYNC := 0;
 }

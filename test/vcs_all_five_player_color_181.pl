@@ -27,8 +27,8 @@ my$cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_nt
 my$component=File::Spec->catfile($vcs,qw(renderers all_five_player_color_181 all_five_player_color_181.c26));
 my$example_root=File::Spec->catdir($repo,qw(examples 16_all_five_player_color_181));
 my@jobs=(
- ['above',File::Spec->catfile($example_root,qw(01_score_above 01_static all_five_player_color_181_score_above.c26)),3355,735],
- ['below',File::Spec->catfile($example_root,qw(02_score_below 01_static all_five_player_color_181_score_below.c26)),3355,735],
+ ['above',File::Spec->catfile($example_root,qw(01_score_above 01_static all_five_player_color_181_score_above.c26)),3360,730],
+ ['below',File::Spec->catfile($example_root,qw(02_score_below 01_static all_five_player_color_181_score_below.c26)),3360,730],
 );
 my(%bin,%map,%source);
 for my$j(@jobs){
@@ -94,7 +94,7 @@ for my$j(@interactive_jobs){
    without_usage($o) eq ''&&$e eq '' or die "$n interactive example build wrote output\n$o$e";
    -s$interactive_bin{$n}==4096 or die "$n interactive example is not 4K\n";
    my$im=read_file($imap);
-   $im =~ /^  [Rr][Oo][Mm]\s+used=4049 bytes .* free=41 bytes/m
+   $im =~ /^  [Rr][Oo][Mm]\s+used=4054 bytes .* free=36 bytes/m
       or die "$n interactive example ROM footprint changed\n";
    $im =~ /^  ram\s+used=123 bytes .* free=5 bytes/m
       or die "$n interactive example RAM footprint changed\n";

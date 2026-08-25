@@ -1009,6 +1009,13 @@ report unique object bytes, the separately identified hardware-stack reserve,
 combined used bytes, and physical free bytes exactly.
 
 
+`vcs_example_vsync_contract.pl` inventories every public example that directly
+owns VSYNC instead of using a frame helper, pins the three reviewed low-level
+exceptions, and executes the assembly example through the common timing harness.
+The frame timing and NTSC/50 Hz scheduler harnesses measure both VSYNC edges and
+reject any pulse other than exactly 228 CPU cycles.
+
+
 `vcs_frame_ntsc_scheduler.pl` uses a deliberately calibrated pseudo-TIA frame
 period. The CPU-only harness observes **264 raw WSYNC intervals** for cartridges
 that Stella 7.0 reports as **262 scanlines / 60.0 Hz**. This two-line calibration

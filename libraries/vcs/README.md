@@ -180,10 +180,12 @@ compiler lowering improvements from silently moving beam-sensitive work.
 start scheduler-owned TIM64T deadlines. Their matching end operations wait only
 for the unused part of the phase and detect RIOT timer underflow without mistaking
 a wrapped `INTIM` value for remaining time. `vcs_ntsc_end_vblank()` issues its
-boundary `WSYNC` and clears VBLANK. `vcs_ntsc_end_overscan()` leaves VBLANK
-asserted for VSYNC and issues three blanked `WSYNC` boundaries: the normal deadline
-boundary plus two frame-closeout boundaries required by Stella/TIA accounting for
-a stable 262-scanline, 60.0 Hz NTSC frame. A missed deadline cannot be repaired
+boundary `WSYNC` and clears VBLANK. `vcs_ntsc_vsync()` aligns first and then
+asserts/deasserts VSYNC at the same cycle phase exactly 228 CPU cycles apart.
+`vcs_ntsc_end_overscan()` leaves VBLANK asserted for VSYNC and issues two blanked
+frame-closeout boundaries; the leading alignment `WSYNC` in the next exact VSYNC
+pulse supplies the third boundary around the transition required by Stella/TIA
+accounting for a stable 262-scanline, 60.0 Hz NTSC frame. A missed deadline cannot be repaired
 generically, so the production path continues at the next scanline boundary and
 produces one long frame rather than waiting on wrapped timer state. Component callbacks must
 not touch VBLANK, INTIM, TIMINT, or a timer-start register, and must not
@@ -206,9 +208,10 @@ scanlines, with 76 CPU cycles per scanline. Their public names remain separate
 audio, and renderer contracts cannot accidentally collapse the two standards.
 
 The calibrated RIOT deadlines are `TIM64T=52` for VBLANK and `TIM64T=41` for
-overscan. As with the NTSC scheduler, the CPU timing harness counts two TIA
-frame-closeout boundaries beyond Stella's displayed frame total: a stable 312-line
-PAL/SECAM frame is therefore 314 raw harness intervals. The visible-component
+overscan. The shared 50 Hz core uses the same exact three-line, 228-CPU-cycle
+VSYNC contract as NTSC. As with the NTSC scheduler, the CPU timing harness counts
+two TIA frame-closeout boundaries beyond Stella's displayed frame total: a stable
+312-line PAL/SECAM frame is therefore 314 raw harness intervals. The visible-component
 entry/handoff and diagnostic-overrun contracts mirror the NTSC API with the
 standard-specific prefix. Define `VCS_PAL_DIAGNOSTICS` or
 `VCS_SECAM_DIAGNOSTICS` before including the corresponding front end to retain

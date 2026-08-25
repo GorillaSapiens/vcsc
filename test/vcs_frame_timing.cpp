@@ -71,6 +71,7 @@ void maybe_select_f8(uint16_t address) {
 uint64_t virtual_cycles = 0;
 std::vector<WriteEvent> writes;
 std::vector<uint64_t> vsync_assertions;
+std::vector<uint64_t> vsync_deassertions;
 bool vsync_asserted = false;
 
 struct RandomizeZpRange {
@@ -373,6 +374,9 @@ void apply_writes() {
       }
       else if (event.address == kVsync) {
          const bool next = (event.value & 2) != 0;
+         if (!next && vsync_asserted) {
+            vsync_deassertions.push_back(virtual_cycles);
+         }
          if (next && !vsync_asserted) {
             verify_asymmetric_previous_frame();
             asymmetric_visibility.seen_mask = 0;
@@ -802,6 +806,18 @@ int main(int argc, char **argv) {
    }
    if (timer_overrun_read) {
       fail("overscan timer underflowed before the player finished");
+   }
+   if (vsync_deassertions.size() + 1 < vsync_assertions.size()) {
+      fail("missing VSYNC deassertion");
+   }
+   for (size_t i = 0; i < vsync_deassertions.size(); ++i) {
+      const uint64_t pulse = vsync_deassertions[i] - vsync_assertions[i];
+      if (pulse != 3 * kCyclesPerScanline) {
+         std::fprintf(stderr,
+            "vcs_frame_timing: VSYNC pulse %zu is %llu cycles; expected 228\n",
+            i, static_cast<unsigned long long>(pulse));
+         return 1;
+      }
    }
 
    // Startup occurs before the first complete measured frame, and the first

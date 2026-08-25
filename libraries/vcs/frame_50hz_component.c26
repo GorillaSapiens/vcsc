@@ -55,18 +55,16 @@ inline void TEMPLATE_component_handoff(void) {
 }
 
 inline void TEMPLATE_vsync(void) {
+   // The leading WSYNC fixes the scanline phase. A side-effect-free three-cycle
+   // BIT delay plus compiler literal reload places both VSYNC stores at cycle 8,
+   // exactly 228 CPU cycles apart.
+   WSYNC := 2;
+   asm bit.z CXM0P;
    VSYNC := 2;
    WSYNC := 0;
    WSYNC := 0;
    WSYNC := 0;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
-   asm nop;
+   asm bit.z CXM0P;
    VSYNC := 0;
 }
 
@@ -109,6 +107,14 @@ static void TEMPLATE_finish_deadline(void) {
 #endif
 
 inline void TEMPLATE_begin_vblank(void) {
+   // Keep the exact pulse exact; restore the historical callback phase only
+   // after VSYNC is low (3 + 5*2 = 13 cycles).
+   asm bit.z CXM0P;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
+   asm nop;
    VBLANK := 2;
    TIM64T := TEMPLATE_vblank_tim64t`uint8_t;
 }
@@ -135,10 +141,9 @@ inline void TEMPLATE_end_overscan(void) {
    TEMPLATE_overrun_phase := 2;
 #endif
    TEMPLATE_finish_deadline();
-   // The maintained NTSC scheduler requires the same two blanked TIA-frame
-   // accounting boundaries in addition to the deadline-owned overscan line.
-   // PAL/SECAM calibration tests verify this common 50 Hz core independently.
-   WSYNC := 0;
+   // Two post-deadline accounting boundaries remain here; the next frame's
+   // leading alignment WSYNC is the adjacent frame boundary. This keeps the
+   // exact three-line pulse from lengthening the 312-line PAL/SECAM display.
    WSYNC := 0;
    WSYNC := 0;
 }

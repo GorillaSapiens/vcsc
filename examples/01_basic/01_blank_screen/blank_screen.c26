@@ -32,15 +32,14 @@ void main(void) {
 
    // 262 scanlines: 3 VSYNC, 37 vertical blank, 192 visible, 30 overscan.
    asm @frame:;
+   // Align first, then assert/deassert VSYNC at the same instruction phase.
    asm lda #2;
-   asm sta VSYNC;
-   asm ldx #3;
-   asm @vsync:;
    asm sta WSYNC;
-   asm dex;
-   asm bne @vsync;
-
+   asm sta VSYNC;
    asm lda #0;
+   asm sta WSYNC;
+   asm sta WSYNC;
+   asm sta WSYNC;
    asm sta VSYNC;
    asm lda #2;
    asm sta VBLANK;

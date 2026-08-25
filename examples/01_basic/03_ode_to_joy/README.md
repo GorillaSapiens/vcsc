@@ -34,7 +34,8 @@ the overscan timer counts down. Because the short and note-transition paths
 through `music_tick()` take different numbers of cycles, Ode uses a separately
 calibrated overscan preload of `TIM64T=35`. One `WSYNC` after `music_tick()`
 normalizes the polling phase, the program waits out the remaining timer budget,
-and two final `WSYNC` boundaries align the following VSYNC. The VBLANK path
+and one final `WSYNC` boundary plus the next frame's leading VSYNC-alignment
+`WSYNC` complete the frame closeout. The VBLANK path
 uses the simpler `blank_noasm` deadline form because this example has no
 variable VBLANK work. This exact source-only schedule reports a stable 262-line
 NTSC frame in Stella. A dynamic regression also verifies

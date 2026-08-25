@@ -27,3 +27,44 @@ visible occupancy <=2, but current P0=15/P1=12 setup reservations make the three
 logical sprites mutually conflict for two hardware lanes, causing fair flicker.
 This is a target for tighter proven different-X handoff scheduling, not a reason
 to weaken the same-X <13 invariant or the ordinary reservation constants.
+
+2026-08-24 20:30:00 PDT, exact three-line VSYNC
+Corrected every maintained frame generator so VSYNC is asserted and cleared at
+the same scanline phase exactly 3 * 76 = 228 CPU cycles apart. The shared NTSC
+and PAL/SECAM schedulers preserve the historical cycle-8 assertion and move the
+old downstream phase compensation after VSYNC is low. Their established NTSC
+42/34 and extended 63/13 timer splits and PAL/SECAM 52/41 splits remain intact.
+The next-frame alignment WSYNC now owns one of the old frame-closeout boundaries,
+so displayed 262-line NTSC and 312-line PAL/SECAM calibration is unchanged.
+
+Updated the three public examples that own VSYNC directly: blank_screen,
+blank_noasm, and ode_to_joy. Added vcs_example_vsync_contract.pl to inventory
+direct example VSYNC writers and reject new unreviewed implementations. Extended
+the common timing harness and both scheduler harnesses to measure falling edges
+and require a 228-cycle pulse. Updated affected reviewed assembly and ROM-size
+goldens.
+
+Validation after the correction: compiler 502/502; focused frame/render/hygiene
+regressions 12/12; recursive all-example build/link/disassembly round-trip 8/8
+shards; Stella 7.0 PAL/SECAM scheduler and public video-standard example checks
+pass. A broad E2E run reached 78/321 clean before the container command window
+terminated it, with no observed test failure.
+
+2026-08-24 20:52:40 PDT, reconcile exact-VSYNC ROM baselines
+The user's full 321-test E2E run exposed eight stale ROM-accounting goldens
+after the exact-VSYNC scheduler correction. Rebuilt each affected cartridge and
+confirmed a uniform +5-byte ROM delta with unchanged RAM. The net growth is the
+real code-size cost of the exact-sync helper after its replacement frame-closeout
+boundary is accounted for; raster/timing behavior remained correct.
+
+Updated only the affected footprint expectations: all_five_181 official/unofficial
+1474->1479, player_color_181 official/unofficial 1143->1148, animated gallery
+3237->3242 (including authoritative JSON and free-ROM 853->848), multisprite 192
+2618->2623 and both 181 profiles 3409->3414, big-wide 1107->1112, wide fixture
+1240->1245 and public wide 1316->1321, wide_181 2776->2781, and public dual-score
+1533->1538. All RAM-accounting contracts are unchanged.
+
+All eight formerly failing E2E tests pass together under the normal test runner.
+A container-wide E2E attempt again reached 78/321 clean before the known local
+execution hang/window at the next test; the user's prior complete run had already
+shown the other 313 tests passing.

@@ -150,7 +150,7 @@
          "free_ram_bytes" : 77,
          "object_bytes" : 47,
          "ram_bytes" : 51,
-         "rom_bytes" : 3237,
+         "rom_bytes" : 3242,
          "stack_bytes" : 4
       },
       "object_schedule_bytes_after" : 0,
@@ -720,7 +720,7 @@
          "activation_bytes" : 0,
          "free_ram_bytes" : 77,
          "ram_bytes" : 51,
-         "rom_bytes" : 3237,
+         "rom_bytes" : 3242,
          "stack_bytes" : 4
       },
       "decision" : "retain-general-p0-p1-ball-renderer",

@@ -127,9 +127,14 @@ Their completed development narratives were moved to `context-history/`.
 
 Last validation state
 ---------------------
-Current broad validation is clean under the normal repository test target:
-compiler 502/502 and E2E 320/320. Source-tree hygiene, branding, and
-context-history formatting pass.
+After the exact-VSYNC correction, compiler validation is clean 502/502. Focused
+frame/render/hygiene regressions pass 12/12, all eight recursive example build /
+round-trip shards pass, and Stella 7.0 PAL/SECAM scheduler/example checks pass.
+The user's full 321-test E2E run exposed eight stale ROM-size goldens, all caused
+by the exact-sync helper's uniform +5-byte ROM cost with RAM unchanged; those
+baselines are reconciled and the eight formerly failing E2E tests pass 8/8. A
+container-wide rerun still reaches 78/321 clean before the known local execution
+hang/window.
 
 Immediate TODO
 --------------

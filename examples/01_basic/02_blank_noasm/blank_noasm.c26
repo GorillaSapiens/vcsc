@@ -33,11 +33,13 @@ void main(void) {
    // 262 scanlines: 3 VSYNC, 37 vertical blank, 192 visible, 30 overscan.
    while(1) {
 
-      // 3 scanlines VSYNC
+      // Exactly 3 scanlines VSYNC: align first, then use the same phase
+      // for assertion and deassertion.
+      WSYNC := 2;
       VSYNC := 2;
-      for (uint8_t i := 3; i; i--) {
-         WSYNC := _;
-      }
+      WSYNC := 0;
+      WSYNC := 0;
+      WSYNC := 0;
       VSYNC := 0;
 
       // 37 scanlines vertical blank. The RIOT timer owns the deadline, so
@@ -71,11 +73,9 @@ void main(void) {
       }
       WSYNC := _;
 
-      // Stella's TIA frame accounting needs two additional blanked scanline
-      // boundaries here. Without them this timer-owned layout is reported as
-      // a 260-line / ~60.5 Hz frame even though the CPU-only interval is 262
-      // lines. These are frame-boundary compensation, not game-logic waits.
-      WSYNC := _;
+      // Stella's TIA frame accounting needs one additional blanked boundary
+      // here; the second is now the leading alignment WSYNC of the next exact
+      // VSYNC pulse. These are frame-boundary compensation, not game-logic waits.
       WSYNC := _;
    }
 }

@@ -53,17 +53,19 @@ my $mos_source=File::Spec->catfile($mos_dir,'mos6502.cpp');
 my $mos_obj=File::Spec->catfile($mos_dir,'mos6502.o');
 
 my $text=read_file($source);
-for my $count (3,192) {
+for my $count (192) {
    $text =~ /for\s*\(\s*uint8_t\s+i\s*:=\s*$count\s*;\s*i\s*;\s*i--\s*\)\s*\{\s*WSYNC\s*:=\s*_\s*;/s
       or die "blank_noasm no longer uses the X-backed $count-line source countdown\n";
 }
 $text !~ /for\s*\(\s*uint8_t\s+i\s*:=\s*(?:37|30)\s*;/
    or die "blank_noasm regressed to WSYNC-counted blanking\n";
+$text =~ /WSYNC\s*:=\s*2\s*;\s*VSYNC\s*:=\s*2\s*;\s*WSYNC\s*:=\s*0\s*;\s*WSYNC\s*:=\s*0\s*;\s*WSYNC\s*:=\s*0\s*;\s*VSYNC\s*:=\s*0\s*;/s
+   or die "blank_noasm lost exact same-phase VSYNC sequence\n";
 $text =~ /TIM64T\s*:=\s*42\s*;/ && $text =~ /TIM64T\s*:=\s*34\s*;/
    or die "blank_noasm lost calibrated VBLANK/overscan TIM64T deadlines\n";
 $text =~ /TIM64T\s*:=\s*42\s*;.*?while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\).*?WSYNC\s*:=\s*_\s*;\s*VBLANK\s*:=\s*0\s*;/s
    or die "blank_noasm lost timer-owned VBLANK deadline/alignment\n";
-$text =~ /TIM64T\s*:=\s*34\s*;.*?while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\).*?WSYNC\s*:=\s*_\s*;.*?WSYNC\s*:=\s*_\s*;.*?WSYNC\s*:=\s*_\s*;/s
+$text =~ /TIM64T\s*:=\s*34\s*;.*?while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\).*?WSYNC\s*:=\s*_\s*;.*?WSYNC\s*:=\s*_\s*;/s
    or die "blank_noasm lost Stella-calibrated timer-owned overscan tail\n";
 my @timer_waits=($text =~ /while\s*\(\s*!\s*\(\s*TIMINT\s*&\s*0x80\s*\)\s*\)/g);
 @timer_waits == 2 or die "blank_noasm must wait on TIMINT in both blanking phases\n";
@@ -85,8 +87,8 @@ die "blank_noasm compile exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
 die "blank_noasm compile wrote output\nstdout:\n$out\nstderr:\n$err" if $out ne '' || $err ne '';
 my $asm_text=read_file($asm);
 my @counts=($asm_text =~ /\bldx #\$([0-9a-fA-F]{2})\s+\@for_start_\d+:\s+sta\s+\$02\s+\@for_step_\d+:\s+dex\s+bne \@for_start_\d+/sg);
-@counts == 2 && join(',',map { lc($_) } @counts) eq '03,c0'
-   or die "blank_noasm countdowns did not lower to the expected VSYNC/visible X loops\n";
+@counts == 1 && join(',',map { lc($_) } @counts) eq 'c0'
+   or die "blank_noasm visible countdown did not lower to the expected X loop\n";
 $asm_text =~ /lda #\$2a\s+sta\s+\$0296.*?lda\s+\$0285\s+and #\$80\s+beq/s
    or die "blank_noasm VBLANK timer did not lower to TIM64T/TIMINT polling\n";
 $asm_text =~ /lda #\$22\s+sta\s+\$0296.*?lda\s+\$0285\s+and #\$80\s+beq/s

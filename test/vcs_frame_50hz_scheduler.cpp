@@ -38,6 +38,7 @@ uint8_t memory_image[65536];
 uint64_t virtual_cycles = 0;
 std::vector<WriteEvent> pending_writes;
 std::vector<uint64_t> vsync_assertions;
+std::vector<uint64_t> vsync_deassertions;
 std::vector<TimedWrite> vblank_writes;
 std::vector<TimedWrite> timer_writes;
 bool vsync_asserted = false;
@@ -112,6 +113,7 @@ void apply_writes() {
       }
       else if (event.address == kVsync) {
          const bool next = (event.value & 2) != 0;
+         if (!next && vsync_asserted) vsync_deassertions.push_back(virtual_cycles);
          if (next && !vsync_asserted) vsync_assertions.push_back(virtual_cycles);
          vsync_asserted = next;
       }
@@ -155,7 +157,7 @@ void check_mode(const std::string &mode, uint16_t flag_address) {
       fail("unknown mode");
    }
 
-   if (vsync_assertions.size() < 8) fail("too few frames");
+   if (vsync_assertions.size() < 8 || vsync_deassertions.size() < 8) fail("too few frames");
    for (size_t i = 2; i + 1 < vsync_assertions.size(); ++i) {
       const uint64_t start = vsync_assertions[i];
       const uint64_t end = vsync_assertions[i + 1];
@@ -163,6 +165,10 @@ void check_mode(const std::string &mode, uint16_t flag_address) {
          fail("wrong steady-state frame length in " + mode);
       }
       if (start % kCyclesPerLine != 8) fail("VSYNC assertion cycle changed");
+      if (i >= vsync_deassertions.size() ||
+          vsync_deassertions[i] - start != 3 * kCyclesPerLine) {
+         fail("VSYNC pulse is not exactly three scanlines");
+      }
 
       const auto &begin_vblank = find_vblank(start, end, 2, 0);
       const auto &end_vblank = find_vblank(start, end, 0, 0);

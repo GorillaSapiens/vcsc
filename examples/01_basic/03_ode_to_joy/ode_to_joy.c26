@@ -106,11 +106,13 @@ void main(void) {
    // useful program work runs while the RIOT timer counts down instead of
    // spending those intervals in per-scanline WSYNC loops.
    while (1) {
-      // 3 scanlines VSYNC.
+      // Exactly 3 scanlines VSYNC: align first, then use the same phase
+      // for assertion and deassertion.
+      WSYNC := 2;
       VSYNC := 2;
-      for (uint8_t i := 3; i; i--) {
-         WSYNC := _;
-      }
+      WSYNC := 0;
+      WSYNC := 0;
+      WSYNC := 0;
       VSYNC := 0;
 
       // 37 scanlines vertical blank. A real game can read controls, update
@@ -146,9 +148,8 @@ void main(void) {
       while (!(TIMINT & 0x80)) {
       }
 
-      // Two final blanked boundaries align the next VSYNC. This exact
-      // timer/WSYNC combination is calibrated against Stella at 262 lines.
-      WSYNC := _;
+      // One final blanked boundary remains here; the leading alignment WSYNC
+      // of the next exact VSYNC pulse supplies the second frame boundary.
       WSYNC := _;
 
    }
