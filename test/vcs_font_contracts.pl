@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@
 # phase: e2e
-# expectstdout: vcs font contracts ok: 8 ASCII families, distinct glyphs, matched source styles, and unchanged logo pixels
+# expectstdout: vcs font contracts ok: 9 ASCII families, distinct glyphs, matched decimal/upper-hex/lower-hex subsets, and unchanged logo pixels
 # expectexit: 0
 
 use strict;
@@ -55,6 +55,7 @@ my @families=(
    ['retroputer','Retroputer'],
    ['tiny','Tiny'],
    ['whimsey','Whimsey'],
+   ['wonk','Wonk'],
 );
 my $license_line='// This font is covered under CC0-1.0. See libraries/LICENSE.txt.';
 
@@ -69,6 +70,7 @@ for my $family (@families) {
    my $ascii_path=File::Spec->catfile($fonts,"${base}_ascii.c26");
    my $decimal_path=File::Spec->catfile($fonts,"${base}_decimal.c26");
    my $hex_path=File::Spec->catfile($fonts,"${base}_hex.c26");
+   my $lhex_path=File::Spec->catfile($fonts,"${base}_lhex.c26");
    my($ascii_text,$ascii)=glyphs($ascii_path,95);
    $ascii_text =~ /align\s*\(\s*256\s*\)\s+const\s+uint8_t\s+score_font\s*\[\s*760\s*\]\s*:=/
       or die "$ascii_path is not one contiguous 256-aligned 760-byte table\n";
@@ -76,11 +78,20 @@ for my $family (@families) {
       or die "$ascii_path still requests impossible whole-table page containment\n";
    my($decimal_text,$decimal)=glyphs($decimal_path,10);
    my($hex_text,$hex)=glyphs($hex_path,16);
+   my($lhex_text,$lhex)=glyphs($lhex_path,16);
+
+   $decimal_text =~ /page\s+const\s+uint8_t\s+score_font\s*\[\s*80\s*\]\s*:=/
+      or die "$decimal_path is not one page-contained 80-byte table\n";
+   $hex_text =~ /page\s+const\s+uint8_t\s+score_font\s*\[\s*128\s*\]\s*:=/
+      or die "$hex_path is not one page-contained 128-byte table\n";
+   $lhex_text =~ /page\s+const\s+uint8_t\s+score_font\s*\[\s*128\s*\]\s*:=/
+      or die "$lhex_path is not one page-contained 128-byte table\n";
 
    my @headers=(
       [$ascii_text,"// $display\n// Characters: printable ASCII from space (0x20) through tilde (0x7E)\n$license_line\n\n"],
-      [$decimal_text,"// $display\n// Characters: 0-9\n$license_line\n\n"],
-      [$hex_text,"// $display\n// Characters: 0-9 and A-F\n$license_line\n\n"],
+      [$decimal_text,"// $display (subset)\n// Characters: 0-9\n$license_line\n// Generated from ${base}_ascii.c26.\n\n"],
+      [$hex_text,"// $display (subset)\n// Characters: 0-9 and A-F\n$license_line\n// Generated from ${base}_ascii.c26.\n\n"],
+      [$lhex_text,"// $display (subset)\n// Characters: 0-9 and a-f\n$license_line\n// Generated from ${base}_ascii.c26.\n\n"],
    );
    for my $header (@headers) {
       index($header->[0],$header->[1])==0
@@ -103,13 +114,17 @@ for my $family (@families) {
          "$base ASCII digit $digit");
       same_glyph($ascii->[ord('0')-0x20+$digit],$hex->[$digit],
          "$base ASCII/hex digit $digit");
+      same_glyph($ascii->[ord('0')-0x20+$digit],$lhex->[$digit],
+         "$base ASCII/lower-hex digit $digit");
    }
    for my $letter (0..5) {
       same_glyph($ascii->[ord('A')-0x20+$letter],$hex->[10+$letter],
          "$base ASCII letter ".chr(ord('A')+$letter));
+      same_glyph($ascii->[ord('a')-0x20+$letter],$lhex->[10+$letter],
+         "$base ASCII letter ".chr(ord('a')+$letter));
    }
 
-   my @reference=(@$decimal,@$hex);
+   my @reference=(@$decimal,@$hex,@$lhex);
    my @empty_rows=grep {
       my $row=$_;
       !grep { $_->[$row] ne '........' } @reference;
@@ -144,4 +159,4 @@ my $logo_rows=join("\n",map {@$_} @$logo);
 sha256_hex($logo_rows) eq 'eb79c068605cc8e84250651de1067b579c6b673af7265120098790e070c40e6a'
    or die "logo_font.c26 glyph pixels changed\n";
 
-print "vcs font contracts ok: 8 ASCII families, distinct glyphs, matched source styles, and unchanged logo pixels\n";
+print "vcs font contracts ok: 9 ASCII families, distinct glyphs, matched decimal/upper-hex/lower-hex subsets, and unchanged logo pixels\n";

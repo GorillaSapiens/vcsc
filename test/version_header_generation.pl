@@ -105,6 +105,9 @@ mkdir($nogit) or die "could not mkdir $nogit: $!\n";
 my $plain = generate($nogit);
 $plain =~ /^#define VERSION "\d{4}-\d\d-\d\d \d\d:\d\d:\d\dZ nogit \S+ clean"\n$/
    or die "unexpected no-git version: $plain";
+my $plain_again = generate($nogit);
+$plain_again eq $plain
+   or die "no-git version changed across an unchanged tree\nfirst: $plain second: $plain_again";
 
 for my $component (qw(driver compiler assembler linker archiver simulator tagger disassembler)) {
    my $makefile = slurp(File::Spec->catfile($repo, $component, 'Makefile'));

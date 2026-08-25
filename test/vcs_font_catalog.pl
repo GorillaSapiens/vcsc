@@ -72,7 +72,7 @@ my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $fonts=File::Spec->catdir($vcs,'fonts');
 my $example=File::Spec->catfile($repo,'test','fixtures','vcs_examples','03_six_digit_score','golden.c26');
-my @families=qw(default 21st_century alarm_clock handwritten interrupted retroputer whimsey tiny);
+my @families=qw(default 21st_century alarm_clock handwritten interrupted retroputer whimsey tiny wonk);
 my $example_text=read_file($example);
 
 -f File::Spec->catfile($fonts,'README.md') or die "font catalog README is missing\n";
@@ -82,14 +82,20 @@ my $example_text=read_file($example);
 for my $family (@families) {
    my $dec_file=File::Spec->catfile($fonts,"${family}_decimal.c26");
    my $hex_file=File::Spec->catfile($fonts,"${family}_hex.c26");
+   my $lhex_file=File::Spec->catfile($fonts,"${family}_lhex.c26");
    my $dec_symbol="score_font";
    my $hex_symbol="score_font";
+   my $lhex_symbol="score_font";
    -f $dec_file or die "missing $dec_file\n";
    -f $hex_file or die "missing $hex_file\n";
+   -f $lhex_file or die "missing $lhex_file\n";
    my @dec=parse_rows($dec_file,$dec_symbol,80);
    my @hex=parse_rows($hex_file,$hex_symbol,128);
+   my @lhex=parse_rows($lhex_file,$lhex_symbol,128);
    join(',',@dec) eq join(',',@hex[0..79])
       or die "$family hexadecimal variant does not preserve decimal glyphs\n";
+   join(',',@dec) eq join(',',@lhex[0..79])
+      or die "$family lowercase hexadecimal variant does not preserve decimal glyphs\n";
 }
 
 -f File::Spec->catfile($fonts,'hexadecimal_decimal.c26')
@@ -99,7 +105,7 @@ for my $family (@families) {
 
 # Every module must build in the real six-digit cartridge, not merely parse.
 for my $family (@families) {
-   for my $variant (qw(decimal hex)) {
+   for my $variant (qw(decimal hex lhex)) {
       my $module="fonts/${family}_${variant}.c26";
       my $source=$example_text;
       $source =~ s/include\s+"fonts\/default_decimal\.c26"/include "$module"/

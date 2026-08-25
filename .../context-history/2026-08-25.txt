@@ -77,3 +77,49 @@ assertion-to-assertion period instead of the stale 263-line harness calibration,
 and refreshed the reviewed assembly fingerprint. The exact 228-cycle VSYNC
 pulse remains unchanged. Focused VSYNC, blank-noasm, Ode-to-Joy, cartridge
 profile, and recursive example shard 1/8 tests pass.
+
+
+2026-08-25 08:42:06 PDT, refresh font subset contracts
+Audited the font-related failures after the ASCII/subset refresh. The committed
+subsets regenerate byte-for-byte from their ASCII sources and all recursive
+public example build shards still pass, so the font data/build changes are
+sound. Updated stale tests for `(subset)` provenance headers and `page`
+placement, added Wonk as the ninth conventional 8x8 family, and added lower-hex
+coverage across the conventional, Big, and compact 4x6 families. The new
+`make_font_subsets.pl` also needed the library tree's explicit CC0 notice; that
+was a real source-tree hygiene failure rather than a stale expectation. Updated
+the font README to describe four-module families and generated lower-hex
+subsets. Focused font/contracts/hygiene/example-build tests pass.
+
+2026-08-25 09:16:02 PDT, profile test-suite wall time
+The apparent stall on e2e_default_xform_string_escape_verify.c26 was a runner
+presentation artifact: that test itself takes about 0.08 seconds, but parallel
+results are reported in deterministic source order, so the terminal displays
+the last completed case while waiting for the next one.
+
+Removed nine pathological successful E2Es that could consume the full simulator
+timeout: direct/archive init, named-memory, three zeropage-init checks, and four
+stale cfg-mismatch memory-region cases. The first five printed success and then
+spun forever; the four cfg-mismatch cases predated authoritative C26 mem metadata,
+so their intentionally stale cfg now links successfully and then spun forever.
+They now exit explicitly; the cfg cases also assert the authoritative C26 map.
+This removes up to 405 seconds of aggregate worker timeout from a successful run.
+
+The existing --timings/--timings-append TSV instrumentation is now flushed a row
+as each deterministic result is reported, preserving partial profiling data if a
+long run is interrupted. Added make slow-tests (default top 20,
+TEST_SLOWEST=N override) and documented it. Profiling identified the score
+composition raster shards and recursive example build+roundtrip shards as the
+largest remaining individual E2Es (roughly 13-20 seconds here).
+
+gen_version_h.pl now leaves an identical version.h untouched. The FORCE rule
+still checks Git state every invocation, but unchanged branch/tag/SHA/dirty
+metadata no longer bumps the header mtime and needlessly rebuilds every tool
+before make test. No-Git archive builds now likewise reuse the existing header
+stamp until clean removes it. Git-backed make and no-Git generator smokes both
+confirm unchanged repeated invocations are stable.
+
+Validation: 502/502 compile-side tests pass. All 323 E2E cases were exercised
+across bounded profiling runs and pass; the timing/slow-test, version-header,
+hygiene, nine repaired E2Es, all recursive example shards, renderer suites, and
+disassembler suites were included.

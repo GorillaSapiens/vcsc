@@ -1,11 +1,15 @@
 // vcsc-cc1 -I .
 // linkcfg: e2e_mem_region_cfg_type_mismatch__bad.cfg
+// expectmap: banana     start=$0400 size=$0100 type=rw
+// expectexit: 0
 include "machine_6502.c26"
 mem banana { $start:0x0400 $size:0x0100 $rw };
 
 banana int16_t x;
 
 void main(void) {
-   while (1) {
-   }
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
 }

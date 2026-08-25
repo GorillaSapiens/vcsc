@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
-# expectstdout: vcs_ascii_font_alignment ok: 8 contiguous 760-byte ASCII fonts start on 256-byte boundaries and no 8-byte glyph crosses a page
+# expectstdout: vcs_ascii_font_alignment ok: 9 contiguous 760-byte ASCII fonts start on 256-byte boundaries and no 8-byte glyph crosses a page
 # expectexit: 0
 
 use strict;
@@ -23,7 +23,7 @@ my $tmp=shift @ARGV // die "usage: $0 REPO TMP\n";
 make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my @fonts=qw(21st_century alarm_clock default handwritten interrupted retroputer tiny whimsey);
+my @fonts=qw(21st_century alarm_clock default handwritten interrupted retroputer tiny whimsey wonk);
 
 for my $font (@fonts) {
    my $src=File::Spec->catfile($tmp,"${font}_ascii_probe.c26");
@@ -45,4 +45,4 @@ for my $font (@fonts) {
       (($start & 0xff)+7)<256 or die sprintf("%s glyph 0x%02X crosses a hardware page\n",$font,0x20+$glyph);
    }
 }
-print "vcs_ascii_font_alignment ok: 8 contiguous 760-byte ASCII fonts start on 256-byte boundaries and no 8-byte glyph crosses a page\n";
+print "vcs_ascii_font_alignment ok: 9 contiguous 760-byte ASCII fonts start on 256-byte boundaries and no 8-byte glyph crosses a page\n";

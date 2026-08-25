@@ -9,16 +9,19 @@
 
 # VCS score fonts
 
-This directory contains eight conventional 8x8 score-font families, one
-8x16 Big font family, one compact 4x6 printable-ASCII source font, one helper
-for packing two 4x6 characters into an 8x6 message glyph, and one special
-six-slice VCSC logo table. Every pixel row is written on its own line using
-visual binary notation: `.` is a clear pixel and `X` is a set pixel.
+This directory contains nine conventional 8x8 score-font families, one
+8x16 Big font family, one compact 4x6 printable-ASCII source font, helpers for
+generating font subsets and packing two 4x6 characters into an 8x6 message
+glyph, and one special six-slice VCSC logo table. Every pixel row is written on
+its own line using visual binary notation: `.` is a clear pixel and `X` is a
+set pixel.
 
-Each conventional 8x8 family has three modules:
+Each conventional 8x8 family has four modules:
 
 - `*_decimal.c26` defines ten glyphs, `0` through `9`, in an 80-byte array.
 - `*_hex.c26` defines sixteen glyphs, `0` through `9` and `A` through `F`, in a
+  128-byte array.
+- `*_lhex.c26` defines sixteen glyphs, `0` through `9` and `a` through `f`, in a
   128-byte array.
 - `*_ascii.c26` defines all 95 printable ASCII glyphs from space (`0x20`)
   through tilde (`0x7E`) in a 760-byte array. Every glyph in one ASCII module
@@ -28,8 +31,9 @@ Include exactly one font-family module in a translation unit. Every
 family module defines the common table symbol `score_font`, which is the
 interface expected by display components. The special
 `logo_font.c26` table uses its own `logo_font` symbol and may coexist with one
-conventional family. Decimal (80-byte) and hexadecimal (128-byte) tables use
-the VCSC `page` modifier because the complete table fits in one 256-byte page.
+conventional family. Decimal (80-byte) and upper/lower hexadecimal (128-byte)
+tables use the VCSC `page` modifier because the complete table fits in one
+256-byte page.
 The 760-byte ASCII tables instead use `align(256)`: the table begins at `$xx00`
 but remains one contiguous multi-page object. Because every ASCII glyph is
 exactly eight bytes and 256 is divisible by eight, no glyph can cross a hardware
@@ -45,13 +49,19 @@ page. This matters for cycle-sensitive `(pointer),Y` glyph reads.
 | Retroputer | `retroputer_decimal.c26` | `retroputer_hex.c26` | Squared computer-terminal style |
 | Whimsey | `whimsey_decimal.c26` | `whimsey_hex.c26` | Heavy playful strokes; upstream spelling retained |
 | Tiny | `tiny_decimal.c26` | `tiny_hex.c26` | Compact 3x5 forms inside an 8x8 cell |
+| Wonk | `wonk_decimal.c26` | `wonk_hex.c26` | Irregular hand-built display style |
 
-
+`make_font_subsets.pl foo_ascii.c26` regenerates that ASCII source's decimal,
+uppercase-hex, and lowercase-hex modules in place. Generated subsets retain the
+source font's license/comments, identify their ASCII source, and use `page`
+instead of `align(256)`.
 
 ## Compact 4x6 ASCII source and paired-message helper
 
 `half_ascii.c26` contains all 95 printable ASCII characters as six-row,
-four-bit cells in the 570-byte `score_font` table. The high bit of every
+four-bit cells in the 570-byte `score_font` table. Its generated
+`half_decimal.c26`, `half_hex.c26`, and `half_lhex.c26` subsets provide the same
+three compact numeric selections as the 8x8 families. The high bit of every
 four-bit source row is intentionally blank, matching the compact shifted form
 used by narrow text renderers.
 
@@ -73,18 +83,20 @@ The Big family uses sixteen rows per 8-pixel-wide glyph:
 
 - `big_decimal.c26` contains `0` through `9` in a 160-byte table.
 - `big_hex.c26` contains `0` through `9` and `A` through `F` in a 256-byte table.
+- `big_lhex.c26` contains `0` through `9` and `a` through `f` in a 256-byte table.
 - `big_ascii.c26` contains all 95 printable ASCII characters in a 1520-byte table.
 
-The decimal and hexadecimal glyphs are exact subsets of `big_ascii.c26`; they
-are not separately redrawn versions. Every module stores source rows
+The decimal and upper/lower hexadecimal glyphs are exact subsets of
+`big_ascii.c26`; they are not separately redrawn versions. Every module stores source rows
 top-to-bottom and uses the 16-row `VCS_FONT_GLYPH` alias to emit them
 bottom-to-top for the display raster.
 
-All three tables use `align(256)`. The decimal table fits within one hardware
-page and the hexadecimal table occupies exactly one page. The ASCII table spans
-multiple pages, but each glyph is exactly sixteen bytes and 256 is divisible by
-16, so no individual glyph crosses a page. All three modules define the common
-`score_font` symbol and therefore must be included one at a time.
+The three generated subsets use `page`; the decimal table fits within one
+hardware page and each hexadecimal table occupies exactly one page. The ASCII
+table uses `align(256)` and spans multiple pages, but each glyph is exactly
+sixteen bytes and 256 is divisible by 16, so no individual glyph crosses a
+page. All four modules define the common `score_font` symbol and therefore must
+be included one at a time.
 
 The Big fonts require a 16-row display component.
 `six_glyph_big_wide_component.c26` provides the six-glyph wide score profile;
@@ -108,18 +120,19 @@ module:
 include "fonts/default_decimal.c26"
 ```
 
-For hexadecimal output, include the corresponding `*_hex.c26` module and
-use digit values in the range `0..15`; packed BCD naturally supplies only
-`0..9`. Example 04 selects `whimsey_hex.c26` to display a binary 24-bit
+For hexadecimal output, include the corresponding `*_hex.c26` or `*_lhex.c26`
+module and use digit values in the range `0..15`; packed BCD naturally supplies
+only `0..9`. Example 04 selects `whimsey_hex.c26` to display a binary 24-bit
 processor fingerprint as six hexadecimal digits, while two edge-justified
 components redirect their pointers to `logo_font.c26`.
 
 The arrays are stored in the row order consumed by the display code, but source
 rows are written top-to-bottom. `VCS_FONT_GLYPH` performs the reversal at
 compile time. ASCII digits are byte-identical to the corresponding decimal and
-hexadecimal glyphs, and ASCII `A` through `F` are byte-identical to the
-hexadecimal glyphs. Each ASCII family preserves the same blank row and column
-margins as its decimal and hexadecimal source family.
+upper/lower hexadecimal glyphs, ASCII `A` through `F` are byte-identical to the
+uppercase hexadecimal glyphs, and ASCII `a` through `f` are byte-identical to
+the lowercase hexadecimal glyphs. Each ASCII family preserves the same blank
+row and column margins as its generated subsets.
 
 ## License
 

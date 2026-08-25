@@ -244,7 +244,9 @@ linked-program execution, target-library integration, renderer timing, and
 source-tree hygiene. Test cases run eight-at-a-time by default, and `make test`
 writes per-case elapsed wall-clock times to `test-times.tsv`; override the
 filename with `TEST_TIMINGS=/path/to/file.tsv` or force serial execution with
-`TEST_JOBS=1`.
+`TEST_JOBS=1`. Timing rows are flushed as tests are reported, so interrupted
+runs retain partial profiling data. `make slow-tests` prints the 20 slowest
+recorded cases (`TEST_SLOWEST=N` changes the count) without rerunning tests.
 
 Run selected tests directly from `test/`, for example:
 

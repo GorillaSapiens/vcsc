@@ -1,5 +1,6 @@
 // vcsc-cc1 -I .
 // expectsim: OK
+// expectexit: 0
 // object: e2e_zeropage_init_cross_tu_verify__def.c26
 include "machine_6502.c26"
 
@@ -13,12 +14,20 @@ void print_ok(void) {
    asm ldx #<ok;
    asm ldy #>ok;
    asm jsr $ffff;
+   asm lda #$ff;
+   asm ldx #0;
+   asm ldy #0;
+   asm jsr $ffff;
 }
 
 void print_bad(void) {
    asm lda #0;
    asm ldx #<bad;
    asm ldy #>bad;
+   asm jsr $ffff;
+   asm lda #$ff;
+   asm ldx #1;
+   asm ldy #0;
    asm jsr $ffff;
 }
 
@@ -28,7 +37,5 @@ void main(void) {
    }
    else {
       print_bad();
-   }
-   while (1) {
    }
 }

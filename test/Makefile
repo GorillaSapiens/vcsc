@@ -2,6 +2,7 @@
 
 TEST_JOBS ?= 8
 TEST_TIMINGS ?= test-times.tsv
+TEST_SLOWEST ?= 20
 
 unit:
 	./test.pl --jobs $(TEST_JOBS) --timings "$(TEST_TIMINGS)" --compile-only
@@ -14,4 +15,9 @@ test:
 	./test.pl --jobs $(TEST_JOBS) --timings "$(TEST_TIMINGS)" --compile-only
 	./test.pl --jobs $(TEST_JOBS) --timings "$(TEST_TIMINGS)" --timings-append --e2e-only
 
-.PHONY: all unit e2e test
+slow-tests:
+	@test -s "$(TEST_TIMINGS)" || { echo "missing timing report: $(TEST_TIMINGS)" >&2; exit 1; }
+	@printf 'seconds\tstatus\tphase\ttest\n'
+	@tail -n +2 "$(TEST_TIMINGS)" | sort -nr | head -n $(TEST_SLOWEST)
+
+.PHONY: all unit e2e test slow-tests

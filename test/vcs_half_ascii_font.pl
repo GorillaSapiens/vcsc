@@ -30,6 +30,9 @@ my$tmp=shift@ARGV // usage(); usage() if@ARGV;
 make_path($tmp); $tmp=abs_path($tmp) // die "resolve tmp\n";
 my$fonts=File::Spec->catdir($repo,qw(libraries vcs fonts));
 my$font=File::Spec->catfile($fonts,'half_ascii.c26');
+my$decimal=File::Spec->catfile($fonts,'half_decimal.c26');
+my$hex=File::Spec->catfile($fonts,'half_hex.c26');
+my$lhex=File::Spec->catfile($fonts,'half_lhex.c26');
 my$helper=File::Spec->catfile($fonts,'make_pair_font.pl');
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
@@ -50,6 +53,32 @@ my@glyph_headers=$text =~ /^\s*\/\/\s+0x([0-9A-Fa-f]{2})\b/mg;
 for my$i(0..94) {
    hex($glyph_headers[$i])==0x20+$i
       or die sprintf("half_ascii.c26 glyph order changed at 0x%02X\n",0x20+$i);
+}
+
+my@ascii_glyphs;
+for my$i(0..94) {
+   push @ascii_glyphs,join('/',@rows[$i*6..$i*6+5]);
+}
+for my$spec (
+   [$decimal, [ '0'..'9' ], '0-9', 60],
+   [$hex, [ '0'..'9','A'..'F' ], '0-9 and A-F', 96],
+   [$lhex, [ '0'..'9','a'..'f' ], '0-9 and a-f', 96],
+) {
+   my($path,$chars,$desc,$size)=@$spec;
+   -f$path or die "missing $path\n";
+   my$subset=read_file($path);
+   $subset =~ m{\A// 4x6 \(subset\)\n} or die "$path lost its subset title\n";
+   $subset =~ /^\/\/ Characters: \Q$desc\E$/m or die "$path has the wrong Characters line\n";
+   $subset =~ /^\/\/ Generated from half_ascii\.c26\.$/m or die "$path lost its source provenance\n";
+   $subset =~ /page\s+const\s+uint8_t\s+score_font\s*\[\s*\Q$size\E\s*\]\s*:=/
+      or die "$path is not a page-contained $size-byte table\n";
+   my@subset_rows=$subset =~ /0b([.X]{4})/g;
+   @subset_rows==@$chars*6 or die "$path has ".scalar(@subset_rows)." rows, expected ".(@$chars*6)."\n";
+   for my$i(0..$#$chars) {
+      my$key=join('/',@subset_rows[$i*6..$i*6+5]);
+      $key eq $ascii_glyphs[ord($chars->[$i])-0x20]
+         or die "$path glyph $chars->[$i] differs from half_ascii.c26\n";
+   }
 }
 
 # The source font itself must compile and remain addressable through its last byte.

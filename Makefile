@@ -13,6 +13,7 @@ DOXYGEN ?= doxygen
 STELLA ?= stella
 TEST_JOBS ?= 8
 TEST_TIMINGS ?= $(CURDIR)/test-times.tsv
+TEST_SLOWEST ?= 20
 STELLA_BANK_TEST_TMP ?= $(CURDIR)/.stella-bank-test
 STELLA_RENDERER_BANK_TEST_TMP ?= $(CURDIR)/.stella-renderer-bank-test
 STELLA_WIDE_SCORE_TEST_TMP ?= $(CURDIR)/.stella-wide-score-test
@@ -1029,6 +1030,9 @@ e2e: tools
 
 test: tools
 	@$(MAKE) --no-print-directory -C ./test test TEST_JOBS=$(TEST_JOBS) TEST_TIMINGS="$(TEST_TIMINGS)"
+
+slow-tests:
+	@$(MAKE) --no-print-directory -C ./test slow-tests TEST_TIMINGS="$(TEST_TIMINGS)" TEST_SLOWEST=$(TEST_SLOWEST)
 
 stella-50hz-test: tools
 	rm -rf $(STELLA_50HZ_TEST_TMP)

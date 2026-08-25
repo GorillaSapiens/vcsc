@@ -147,10 +147,21 @@ seconds status  phase   test
 7.392115        pass    e2e     vcs_paddleball.pl
 ```
 
-(The actual file uses tabs, not spaces.) Set `TEST_TIMINGS=/path/to/file.tsv` to
-choose another filename. Direct runner invocations can use `--timings FILE`;
+(The actual file uses tabs, not spaces.) Timing rows are flushed as each
+source-order result is reported, so an interrupted or timed-out suite still
+leaves useful partial measurements behind. Set `TEST_TIMINGS=/path/to/file.tsv`
+to choose another filename. Direct runner invocations can use `--timings FILE`;
 `--timings-append` appends rows without repeating the header and is used by the
 Makefile to combine its compile and E2E phases into one report.
+
+From the repository root, show the 20 slowest recorded cases with:
+
+```sh
+make slow-tests
+```
+
+Set `TEST_SLOWEST=N` to change the count. This reports the existing timing file;
+it does not rerun the suite.
 
 Run only compile-side checks:
 

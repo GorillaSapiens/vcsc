@@ -11,6 +11,7 @@ use Getopt::Long qw(GetOptions);
 use Text::ParseWords qw(shellwords);
 use Time::HiRes qw(sleep time);
 use Storable qw(nstore retrieve);
+use IO::Handle ();
 
 $| = 1; # turns on autoflush
 binmode STDOUT, ':encoding(UTF-8)';
@@ -855,6 +856,7 @@ die "[$FAIL] no tests selected\n" if !@cases;
 
 my @failures;
 my @timings;
+my $timings_fh;
 my $total = scalar(@cases);
 my $index = 0;
 my $passed = 0;
@@ -867,6 +869,26 @@ if (-t STDOUT) {
 else {
    $post = "\n";
 }
+
+sub open_timings_report {
+   return if !defined($timings_file);
+   my $has_header = $timings_append && -s $timings_file;
+   my $mode = $timings_append ? '>>' : '>';
+   open($timings_fh, $mode, $timings_file)
+      or die "[$FAIL] could not write timing report $timings_file: $!\n";
+   print $timings_fh "seconds\tstatus\tphase\ttest\n" if !$has_header;
+   $timings_fh->autoflush(1);
+}
+
+sub write_timing_row {
+   my ($timing) = @_;
+   return if !defined($timings_fh);
+   my $seconds = defined($timing->{seconds}) ? sprintf('%.6f', $timing->{seconds}) : '';
+   my $status = $timing->{ok} ? 'pass' : 'FAIL';
+   print $timings_fh join("\t", $seconds, $status, $timing->{phase}, $timing->{name}), "\n";
+}
+
+open_timings_report();
 
 sub run_case {
    my ($case) = @_;
@@ -886,12 +908,14 @@ sub report_case_result {
    my $phase = ($case->{kind} eq 'vcsc-compile' ||
                 (defined($case->{meta}->{phase}) && $case->{meta}->{phase} eq 'compile'))
       ? 'compile' : 'e2e';
-   push @timings, {
+   my $timing = {
       name => $case->{name},
       phase => $phase,
       ok => $result->{ok} ? 1 : 0,
       seconds => $result->{elapsed_seconds},
    };
+   push @timings, $timing;
+   write_timing_row($timing);
 
    if ($result->{ok}) {
       $passed++;
@@ -1002,22 +1026,12 @@ else {
    run_cases_parallel(\@cases, $jobs);
 }
 
-sub write_timings_report {
-   return if !defined($timings_file);
-   my $has_header = $timings_append && -s $timings_file;
-   my $mode = $timings_append ? '>>' : '>';
-   open(my $fh, $mode, $timings_file)
-      or die "[$FAIL] could not write timing report $timings_file: $!\n";
-   print $fh "seconds\tstatus\tphase\ttest\n" if !$has_header;
-   for my $timing (@timings) {
-      my $seconds = defined($timing->{seconds}) ? sprintf('%.6f', $timing->{seconds}) : '';
-      my $status = $timing->{ok} ? 'pass' : 'FAIL';
-      print $fh join("\t", $seconds, $status, $timing->{phase}, $timing->{name}), "\n";
-   }
-   close($fh) or die "[$FAIL] could not close timing report $timings_file: $!\n";
+sub close_timings_report {
+   return if !defined($timings_fh);
+   close($timings_fh) or die "[$FAIL] could not close timing report $timings_file: $!\n";
 }
 
-write_timings_report();
+close_timings_report();
 
 print "\nSummary: $passed passed, " . scalar(@failures) . " failed, $total total\n";
 if (@failures) {

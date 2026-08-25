@@ -79,11 +79,30 @@ if (have_git_head()) {
    $version = "$stamp $ref $hash $state";
 }
 else {
-   my $stamp = strftime('%Y-%m-%d %H:%M:%SZ', gmtime(time));
+   # In an unpacked source archive there is no Git identity to change between
+   # ordinary make invocations.  Reuse the existing header's mtime as the
+   # build stamp so the FORCE check remains cheap and stable until clean removes
+   # version.h or the tree is built in Git again.
+   my $epoch = -f $output ? (stat($output))[9] : time;
+   my $stamp = strftime('%Y-%m-%d %H:%M:%SZ', gmtime($epoch));
    $version = "$stamp nogit " . no_git_identity() . " clean";
 }
 
 $version =~ s/([\\"])/\\$1/g;
+my $contents = qq{#define VERSION "$version"\n};
+
+# version.h is intentionally regenerated through a FORCE prerequisite so Git
+# state changes are noticed.  Do not touch the file when the rendered version
+# is unchanged: rewriting an identical header makes every tool rebuild on each
+# top-level make/test invocation.
+if (-f $output) {
+   open(my $in, '<', $output) or die "could not read $output: $!\n";
+   local $/;
+   my $old = <$in>;
+   close($in) or die "could not close $output: $!\n";
+   exit 0 if defined($old) && $old eq $contents;
+}
+
 open(my $out, '>', $output) or die "could not write $output: $!\n";
-print $out qq{#define VERSION "$version"\n};
+print $out $contents;
 close($out) or die "could not close $output: $!\n";
