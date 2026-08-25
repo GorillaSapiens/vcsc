@@ -37,6 +37,11 @@ $text =~ /parameter lines;/ or die "asymmetric renderer lost lines parameter\n";
 $text =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_lines/ or die "asymmetric renderer lost parameterized visible-line contract\n";
 $text =~ /TEMPLATE_lines == 228.*?TEMPLATE_LOGICAL_BAND_COUNT 114.*?TEMPLATE_LOGICAL_HEIGHT 113/s
    or die "asymmetric renderer lost native 228-line geometry\n";
+$text =~ /asm \.def TEMPLATE_PF0_LEFT TEMPLATE_playfield_left_pf0;/ &&
+$text =~ /asm \.def TEMPLATE_PF0_RIGHT TEMPLATE_playfield_right_pf0;/
+   or die "PF0 aliases no longer preserve relocatable table symbols\n";
+$text !~ /TEMPLATE_playfield_(?:left|right)\s*\+\s*97\b/
+   or die "hard-coded 192-only +97 playfield-plane offset returned\n";
 $text =~ /TEMPLATE_P0RespSlot5:;.*?asm bit\.a TEMPLATE_event_stage;/s
    or die "P0 slot-5 calibrated four-cycle delay missing\n";
 $text =~ /TEMPLATE_P0RespSlot8:;.*?asm bit\.z TEMPLATE_event_stage;/s
@@ -126,6 +131,26 @@ $map_text =~ /CODE\.__vcsc_function\$run_asymmetric_frame\s+load=\$[0-9A-Fa-f]+/
 
 (my$sym=$bin) =~ s/\.bin\z/.sym/;
 my$sym_text=read_file($sym);
+my($pf0_left_hex)=$sym_text =~ /^game_playfield_left_pf0\s+([0-9a-fA-F]{4})\s*$/m;
+my($pf0_right_hex)=$sym_text =~ /^game_playfield_right_pf0\s+([0-9a-fA-F]{4})\s*$/m;
+defined($pf0_left_hex) && defined($pf0_right_hex)
+   or die "could not locate linked asymmetric PF0 tables\n";
+my$linked_image=read_file($bin);
+sub absx_operand_count {
+   my($image,$addr)=@_;
+   my$needle=pack('C3',0xbd,$addr&0xff,($addr>>8)&0xff);
+   my$count=0; my$at=-1;
+   while(1){ $at=index($image,$needle,$at+1); last if$at<0; ++$count; }
+   return$count;
+}
+my$pf0_left_addr=hex($pf0_left_hex); my$pf0_right_addr=hex($pf0_right_hex);
+absx_operand_count($linked_image,$pf0_left_addr)>=10 &&
+absx_operand_count($linked_image,$pf0_left_addr+1)>=2 &&
+absx_operand_count($linked_image,$pf0_right_addr)>=20 &&
+absx_operand_count($linked_image,$pf0_right_addr+1)>=2
+   or die sprintf("linked PF0 indexed operands do not target ROM tables left=%04x right=%04x\n",$pf0_left_addr,$pf0_right_addr);
+absx_operand_count($linked_image,0)==0
+   or die "linked PF0 relocation regressed to LDA \$0000,X\n";
 my($x_hex)=$sym_text =~ /^game_x\s+([0-9a-fA-F]{4})\s*$/m;
 my($y_hex)=$sym_text =~ /^game_y\s+([0-9a-fA-F]{4})\s*$/m;
 my($color_hex)=$sym_text =~ /^game_color\s+([0-9a-fA-F]{4})\s*$/m;

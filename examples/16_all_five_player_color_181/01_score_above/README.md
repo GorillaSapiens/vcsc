@@ -16,5 +16,4 @@ exactly 192 visible scanlines.
 
 | No. | Example | Purpose |
 |---:|---|---|
-| 01 | [`static`](01_static/) | Five-object scene with patterned P0/P1 row colors and fixed score `123456` |
-| 02 | [`interactive`](02_interactive/) | Game Select cycles all five objects; left joystick moves the selected object in both axes |
+| 01 | [`interactive`](01_interactive/) | Game Select cycles all five objects; left joystick moves the selected object in both axes |

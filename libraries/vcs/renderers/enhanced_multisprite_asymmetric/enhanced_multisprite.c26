@@ -47,12 +47,8 @@ alias TEMPLATE_PLAYER4_GRAPHICS_OFFSET 129
 alias TEMPLATE_PLAYER5_GRAPHICS_OFFSET 137
 
 extern const uint8_t TEMPLATE_graphics[145];
-#if TEMPLATE_lines == 228
-extern const uint8_t TEMPLATE_playfield_pf0[TEMPLATE_PLAYFIELD_BYTES];
-#else
 extern const uint8_t TEMPLATE_playfield_left_pf0[TEMPLATE_LOGICAL_BAND_COUNT];
 extern const uint8_t TEMPLATE_playfield_right_pf0[TEMPLATE_LOGICAL_BAND_COUNT];
-#endif
 extern const uint8_t TEMPLATE_playfield_left[TEMPLATE_PLAYFIELD_BYTES];
 extern const uint8_t TEMPLATE_playfield_right[TEMPLATE_PLAYFIELD_BYTES];
 
@@ -191,6 +187,15 @@ const uint8_t TEMPLATE_position_table[160] := {   0xd2,0x60,0x50,0x40,0x30,0x20,
    0xfb,0xeb,0xdb,0xcb,0xbb,0xab,0x9b,0x8b,0x61,0x51,0x41,0x31,0x21,0x11,0x01,0xf1,
    0xe1,0xd1,0xc1,0xb1,0xa1,0x91,0x81,0x62,0x52,0x42,0x32,0x22,0x12,0x02,0xf2,0xe2
 };
+#if TEMPLATE_lines == 228
+// VBLANK-only replacement for the old graphics_next[25..36] x3 reuse.
+// Keeping this tiny table independent lets the 228 scheduler live outside the
+// visible renderer bank; the visible bank then has room for the real PF0 data.
+const uint8_t TEMPLATE_position_slot_x3[12] := {
+   0,3,6,9,12,15,18,21,24,27,30,33
+};
+#endif
+
 
 // Logical-sprite bit lookup used only by the VBLANK omission recorder.  The
 // resulting six-bit mask survives through the visible raster in setup_sprite
@@ -258,15 +263,16 @@ void TEMPLATE_sort_events(void) {
    asm TEMPLATE_LOGICAL_HEIGHT = 113;
    asm TEMPLATE_TOP_PRELOAD_BASE = 107;
    asm TEMPLATE_PLAYFIELD_HALF = 114;
-   asm TEMPLATE_PF0_LEFT = TEMPLATE_playfield_pf0;
-   asm TEMPLATE_PF0_RIGHT = TEMPLATE_playfield_pf0 + 114;
 #else
    asm TEMPLATE_LOGICAL_HEIGHT = 95;
    asm TEMPLATE_TOP_PRELOAD_BASE = 89;
    asm TEMPLATE_PLAYFIELD_HALF = 96;
-   asm TEMPLATE_PF0_LEFT = TEMPLATE_playfield_left_pf0;
-   asm TEMPLATE_PF0_RIGHT = TEMPLATE_playfield_right_pf0;
 #endif
+   // These must remain textual aliases.  An assembler '=' equate to a
+   // relocatable table loses the relocation in o26 output and turns the PF0
+   // loads into absolute $0000+X reads after final link.
+   asm .def TEMPLATE_PF0_LEFT TEMPLATE_playfield_left_pf0;
+   asm .def TEMPLATE_PF0_RIGHT TEMPLATE_playfield_right_pf0;
    asm ldx.z TEMPLATE_event_order + 1;
    asm lda.zx TEMPLATE_setup_line,X;
    asm ldy.z TEMPLATE_event_order + 2;
@@ -471,10 +477,8 @@ void TEMPLATE_exact_six_p0(void) {
    asm @TEMPLATE_ExactSixP0Done:;
 }
 
-void TEMPLATE_vblank_worker(void) {
+void TEMPLATE_preload_top(void) {
    asm .callstackextra 2;
-   asm jmp @TEMPLATE_VblankStart;
-
    // Pre-position one accepted event whose normal setup pipeline begins above
    // the top visible band.  setup_index names its compact rank; event_code and
    // position_packed have already been loaded from that rank.  pair_y,
@@ -602,6 +606,13 @@ void TEMPLATE_vblank_worker(void) {
    asm sta.z TEMPLATE_current_gfx + 1;
    asm sta HMCLR;
    asm rts;
+
+
+}
+
+void TEMPLATE_vblank_worker(void) {
+   asm .callstackextra 2;
+   asm jmp @TEMPLATE_VblankStart;
 
    // Choose one hardware lane for X. Since every logical sprite is exactly
    // eight bands tall, conflict tests collapse to small Y-distance checks:
@@ -947,7 +958,11 @@ void TEMPLATE_vblank_worker(void) {
    asm lda.z TEMPLATE_pending0_valid;
    asm and #$0f;
    asm tay;
+#if TEMPLATE_lines == 228
+   asm lda.ay TEMPLATE_position_slot_x3,Y;
+#else
    asm lda.ay TEMPLATE_graphics_next + 25,Y;
+#endif
    asm ldy.z TEMPLATE_position_packed;
    asm beq.same @TEMPLATE_AssignNormalPositionLaneReady;
    asm adc #$40;
@@ -1088,6 +1103,11 @@ void TEMPLATE_vblank_worker(void) {
    // action_y=$ff cannot trigger before the X-underflow termination path.
    // Leaving those bytes stale saves another twelve worst-case VBLANK cycles.
 
+#if TEMPLATE_lines == 228
+}
+
+void TEMPLATE_visible_preload(void) {
+   asm .callstackextra 2;
    // Reset the visible-raster state. setup_index is the rank within the
    // compact draw-order event stream.
    asm lda #0;
@@ -1133,7 +1153,7 @@ void TEMPLATE_vblank_worker(void) {
    asm sta.z TEMPLATE_event_code;
    asm lda.ay TEMPLATE_draw_position,Y;
    asm sta.z TEMPLATE_position_packed;
-   asm jsr @TEMPLATE_PreloadTop;
+   TEMPLATE_preload_top();
    asm inc.z TEMPLATE_setup_index;
    asm jmp @TEMPLATE_PreloadTopLoop;
 
@@ -1164,10 +1184,91 @@ void TEMPLATE_vblank_worker(void) {
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
    asm sta PF2;
+#else
+   // Reset the visible-raster state. setup_index is the rank within the
+   // compact draw-order event stream.
+   asm lda #0;
+   asm sta.z TEMPLATE_setup_index;
+   asm sta.z TEMPLATE_gfx_index;
+   asm sta.z TEMPLATE_gfx_index + 1;
+   asm sta.z TEMPLATE_current_gfx;
+   asm sta.z TEMPLATE_current_gfx + 1;
+
+   // This profile owns both hardware players completely while visible.
+   // Establish the idle TIA state before any top-edge pre-positioning so the
+   // preload helper's RESP/HMOVE result is not overwritten afterward.
+   asm sta VDELP0;
+   asm sta VDELP1;
+   asm sta NUSIZ0;
+   asm sta NUSIZ1;
+   asm sta REFP0;
+   asm sta REFP1;
+   asm sta GRP0;
+   asm sta GRP1;
+   asm sta GRP1;
+   asm lda #$80;
+   asm sta HMP0;
+   asm sta HMP1;
+
+   // setup_position/draw_position contain absolute low bytes into the shared
+   // page-contained visible RESP jump block.  Keep its page byte adjacent so
+   // position_packed:event_stage is a ready-to-use NMOS indirect-JMP vector
+   // after top-edge preloading is complete.
+   //
+   // event_order[] is sorted descending.  Consume its prefix whose action_y is
+   // above the top visible band, positioning those hardware lanes during VBLANK and
+   // initializing their graphics state at the exact clipped row required by
+   // the top seven logical Y positions when setup would begin in/above the top visible band.  setup_index then naturally names the first ordinary event.
+   asm @TEMPLATE_PreloadTopLoop:;
+   asm ldy.z TEMPLATE_setup_index;
+   asm cpy.z TEMPLATE_setup_count;
+   asm beq.same @TEMPLATE_PreloadTopDone;
+   asm lda.ay TEMPLATE_event_order,Y;
+   asm cmp #TEMPLATE_LOGICAL_HEIGHT;
+   asm bcc.same @TEMPLATE_PreloadTopDone;
+   asm lda.ay TEMPLATE_draw_code,Y;
+   asm sta.z TEMPLATE_event_code;
+   asm lda.ay TEMPLATE_draw_position,Y;
+   asm sta.z TEMPLATE_position_packed;
+   TEMPLATE_preload_top();
+   asm inc.z TEMPLATE_setup_index;
+   asm jmp @TEMPLATE_PreloadTopLoop;
+
+   asm @TEMPLATE_PreloadTopDone:;
+   asm lda #>TEMPLATE_P0RespJumpBase;
+   asm sta.z TEMPLATE_event_stage;
+
+   // Keep the first non-preloaded event hot.  Index setup_count is the
+   // branch-free $ff action sentinel when every accepted sprite was preloaded.
+   asm ldy.z TEMPLATE_setup_index;
+   asm lda.ay TEMPLATE_event_order,Y;
+   asm sta.z TEMPLATE_action_y;
+   asm lda.ay TEMPLATE_draw_code,Y;
+   asm sta.z TEMPLATE_event_code;
+   asm lda.ay TEMPLATE_draw_position,Y;
+   asm sta.z TEMPLATE_position_packed;
+   asm lda.ay TEMPLATE_lane_for,Y;
+   asm sta.z TEMPLATE_pair_y;
+
+   // game_draw() enters the first visible scanline after its left-edge PF
+   // deadline.  Preload the top band's left PF half while VBLANK is still asserted
+   // so the first visible pixels are already correct; the draw-time rewrites
+   // are identical values and preserve the proven right-half timing.
+   asm ldx #TEMPLATE_LOGICAL_HEIGHT;
+   asm lda.ax TEMPLATE_PF0_LEFT,X;
+   asm sta PF0;
+   asm lda.ax TEMPLATE_playfield_left,X;
+   asm sta PF1;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF,X;
+   asm sta PF2;
+#endif
 }
 
 require inline void TEMPLATE_vblank(void) {
    TEMPLATE_vblank_worker();
+#if TEMPLATE_lines == 228
+   TEMPLATE_visible_preload();
+#endif
 }
 
 void TEMPLATE_draw(void) {
@@ -1603,7 +1704,7 @@ void TEMPLATE_draw(void) {
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left + 1,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 97,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF + 1,X;
    asm sta PF2;
    // event_code's low nibble is already the P0 start state (7..12).
    asm lda.z TEMPLATE_event_code;
@@ -1611,7 +1712,7 @@ void TEMPLATE_draw(void) {
    asm sta.z TEMPLATE_gfx_index;
    asm lda.ax TEMPLATE_PF0_RIGHT + 1,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 97,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF + 1,X;
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield_right + 1,X;
    asm sta PF2;
@@ -1910,7 +2011,7 @@ void TEMPLATE_draw(void) {
    asm sta PF0;
    asm lda.ax TEMPLATE_playfield_left + 1,X;
    asm sta PF1;
-   asm lda.ax TEMPLATE_playfield_left + 97,X;
+   asm lda.ax TEMPLATE_playfield_left + TEMPLATE_PLAYFIELD_HALF + 1,X;
    asm sta PF2;
    // event_code's low nibble is already the P1 start state (1..6).
    asm lda.z TEMPLATE_event_code;
@@ -1920,7 +2021,7 @@ void TEMPLATE_draw(void) {
    asm sta.a TEMPLATE_gfx_index + 1;
    asm lda.ax TEMPLATE_PF0_RIGHT + 1,X;
    asm sta PF0;
-   asm lda.ax TEMPLATE_playfield_right + 97,X;
+   asm lda.ax TEMPLATE_playfield_right + TEMPLATE_PLAYFIELD_HALF + 1,X;
    asm sta PF1;
    // setup_index only needs to be committed before the following post-setup
    // line.  Moving this existing three-cycle store here advances both left PF

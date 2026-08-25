@@ -27,8 +27,8 @@ my$cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_nt
 my$component=File::Spec->catfile($vcs,qw(renderers all_five_player_color_181 all_five_player_color_181.c26));
 my$example_root=File::Spec->catdir($repo,qw(examples 16_all_five_player_color_181));
 my@jobs=(
- ['above',File::Spec->catfile($example_root,qw(01_score_above 01_static all_five_player_color_181_score_above.c26)),3360,730],
- ['below',File::Spec->catfile($example_root,qw(02_score_below 01_static all_five_player_color_181_score_below.c26)),3360,730],
+ ['above',File::Spec->catfile($repo,qw(test fixtures all_five_player_color_181 static_score_above.c26)),3360,730],
+ ['below',File::Spec->catfile($repo,qw(test fixtures all_five_player_color_181 static_score_below.c26)),3360,730],
 );
 my(%bin,%map,%source);
 for my$j(@jobs){
@@ -37,21 +37,21 @@ for my$j(@jobs){
    $bin{$n}=File::Spec->catfile($tmp,"all_five_player_color_181_$n.bin");
    $map{$n}=File::Spec->catfile($tmp,"all_five_player_color_181_$n.map");
    my($r,$s,$o,$e)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$map{$n},$src,'-o',$bin{$n});
-   $r==0&&!$s or die "$n public example build failed\n$o$e";
-   without_usage($o) eq ''&&$e eq '' or die "$n public example build wrote output\n$o$e";
-   -s$bin{$n}==4096 or die "$n public example is not 4K\n";
+   $r==0&&!$s or die "$n private static fixture build failed\n$o$e";
+   without_usage($o) eq ''&&$e eq '' or die "$n private static fixture build wrote output\n$o$e";
+   -s$bin{$n}==4096 or die "$n private static fixture is not 4K\n";
    my$m=read_file($map{$n});
    $m =~ /^  [Rr][Oo][Mm]\s+used=\Q$rom_used\E bytes .* free=\Q$rom_free\E bytes/m
-      or die "$n public example ROM footprint changed\n";
+      or die "$n private static fixture ROM footprint changed\n";
    $m =~ /^  ram\s+used=108 bytes .* free=20 bytes/m
-      or die "$n public example RAM footprint changed\n";
+      or die "$n private static fixture RAM footprint changed\n";
    $source{$n} =~ /instantiate "renderers\/all_five_player_color_181\/all_five_player_color_181\.c26" as game/
-      or die "$n public example does not instantiate the combined 181 renderer\n";
+      or die "$n private static fixture does not instantiate the combined 181 renderer\n";
    $source{$n} =~ /page const uint8_t game_player0_colors\[8\]/ &&
    $source{$n} =~ /page const uint8_t game_player1_colors\[8\]/
-      or die "$n public example lost player color tables\n";
+      or die "$n private static fixture lost player color tables\n";
    $source{$n} =~ /score_score\s*:=\s*123456;/
-      or die "$n public example lost fixed score\n";
+      or die "$n private static fixture lost fixed score\n";
 }
 $source{above} =~ /score_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw\(\);/s
    or die "score-above example lost component order\n";
@@ -72,7 +72,7 @@ playfield_rows($interactive_common_text) eq $canonical_playfield
    or die "181 combined interactive playfield diverged from canonical all-five 181 pattern\n";
 for my$n(qw(above below)) {
    playfield_rows($source{$n}) eq $canonical_playfield
-      or die "$n static 181 combined playfield diverged from canonical all-five 181 pattern\n";
+      or die "$n private static 181 combined playfield diverged from canonical all-five 181 pattern\n";
 }
 $interactive_common_text =~ /Game Select cycles P0, P1, M0, M1, Ball/ &&
 $interactive_common_text =~ /game_object_x\[selected_object\]/ &&
@@ -80,8 +80,8 @@ $interactive_common_text =~ /object_y\[selected_object\]/ &&
 $interactive_common_text =~ /score_score\s*:=\s*123456;/
    or die "181 combined interactive controls changed\n";
 my@interactive_jobs=(
- ['above',File::Spec->catfile($example_root,qw(01_score_above 02_interactive all_five_player_color_181_score_above_interactive.c26))],
- ['below',File::Spec->catfile($example_root,qw(02_score_below 02_interactive all_five_player_color_181_score_below_interactive.c26))],
+ ['above',File::Spec->catfile($example_root,qw(01_score_above 01_interactive all_five_player_color_181_score_above_interactive.c26))],
+ ['below',File::Spec->catfile($example_root,qw(02_score_below 01_interactive all_five_player_color_181_score_below_interactive.c26))],
 );
 my(%interactive_bin,%interactive_source);
 for my$j(@interactive_jobs){

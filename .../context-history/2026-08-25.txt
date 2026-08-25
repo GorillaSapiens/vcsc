@@ -20,3 +20,45 @@ renderer branch contracts, focused font test, changed recursive example shards,
 and Stella 7 PAL/SECAM example matrix pass. The public 228 F8 examples use
 123/128 RIOT RAM. The stale video-standard layout test was generalized to keep
 `00_blank`, `01_all_five`, and contiguous numbering as the durable contract.
+
+2026-08-25 04:46:33 PDT, isolate asymmetric PF corruption
+The 192/PAL/SECAM asymmetric playfield investigation found two concrete renderer
+bugs: relocatable PF0 assembler '=' aliases lost relocation and linked indexed
+loads against zero-page addresses, while two special setup paths retained the
+192-only +97 PF1/PF2 plane stride. The WIP tree converts PF0 aliases to textual
+.def names and derives those offsets from TEMPLATE_PLAYFIELD_HALF. Correcting
+PF0 placement increases the 228 F8 hard-component pressure; VBLANK/top-preload
+work is therefore being separated from the visible hard component, with a tiny
+228-only coarse-slot table. Emergency handoff preserves this unfinished state;
+revalidation and a linked-operand regression remain mandatory.
+
+2026-08-25 05:45:52 PDT, finish asymmetric PF and static cleanup
+Revalidated the emergency enhanced-asymmetric WIP and completed the playfield
+repair. PF0 aliases remain textual `.def` aliases so final indexed loads retain
+the ROM-table relocation; special PF1/PF2 accesses derive their second-plane
+offset from `TEMPLATE_PLAYFIELD_HALF` instead of the old 192-only +97. The
+focused 192 torture test now also inspects the final linked ROM and requires the
+PF0 LDA abs,X operands to target `game_playfield_left_pf0` and
+`game_playfield_right_pf0`, with no `$0000,X` regression. The same test forbids
+hard-coded +97 plane accesses in the renderer.
+
+Revalidated native 228 PAL/SECAM after the WIP VBLANK/preload split. CPU 50 Hz
+timing, native-228 matrix, renderer branch contracts, and Stella 7 PAL/SECAM
+example tests pass. Fresh Stella snapshots show the intended orderly asymmetric
+playfield for 192, PAL 228, and SECAM 228; the remaining narrow bars at the
+extreme left of the 192 diagnostic are the renderer's intentional HMOVE blank,
+not stale PF data. Current measured footprints are 3996/4090 ROM and 115/128
+RAM for the 192 4K diagnostic, and PAL 228 bank1=3616, bank0=1039, RAM=123/128.
+
+Removed the redundant public static score-above/score-below examples from
+`examples/16_all_five_player_color_181`. Their interactive counterparts are now
+`01_interactive`. Exact static raster sources were retained privately under
+`test/fixtures/all_five_player_color_181/` for renderer regressions, and the
+focused Perl/Stella tests and top-level installcheck paths were updated. All
+eight recursive example build/link/disassembly shards pass with 95 public
+examples. A broad E2E run reached 78/323 with no failures before the container
+execution window ended. The focused non-Stella all-five-player-color-181 regression passes.
+The explicit Stella equivalence test still exposes its pre-existing eight-pixel
+terminal-row difference between the combined 181 renderer and its all-five
+golden; neither renderer nor fixture source changed from the prior checkpoint,
+so that unrelated issue was not folded into this cleanup.

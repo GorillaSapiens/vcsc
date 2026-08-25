@@ -16,16 +16,15 @@ of the standard 192-line visible field.
 
 | No. | Example | Purpose |
 |---:|---|---|
-| 01 | [`score_above`](01_score_above/) | Static and interactive six-digit score above 181-line combined gameplay |
-| 02 | [`score_below`](02_score_below/) | Static and interactive six-digit score below 181-line combined gameplay |
+| 01 | [`score_above`](01_score_above/) | Interactive six-digit score above 181-line combined gameplay |
+| 02 | [`score_below`](02_score_below/) | Interactive six-digit score below 181-line combined gameplay |
 
-The centered six-digit score orders each include a static raster diagnostic and
-an unbanked 4K interactive cartridge. Game Select cycles P0/P1/M0/M1/Ball in
-the interactive cartridges, and the left joystick moves the selected object in
-both axes while the score remains fixed. Both interactive orders link at
-4058/4090 ROM and 123/128 RAM.
+Each centered six-digit score order has one unbanked 4K interactive cartridge.
+Game Select cycles P0/P1/M0/M1/Ball, and the left joystick moves the selected
+object in both axes while the score remains fixed. Both orders link at 4054/4090
+ROM and 123/128 RAM.
 
-All four cartridges use the same full-width eleven-row playfield pattern as
+Both cartridges use the same full-width eleven-row playfield pattern as
 `examples/common/all_five_181_interactive_common.c26`; the regression suite
 compares those source rows directly so sparse test data cannot mask reflected
 playfield timing bugs. The player positioning handoff is physically continuous

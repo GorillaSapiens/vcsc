@@ -37,9 +37,10 @@ Vertical contract
   by PAL/SECAM. It has no synthetic top/bottom visible padding.
 * The asymmetric playfield is one logical row per two scanlines. PF0/PF1/PF2
   are independently supplied for left and right halves.
-* The 228 profile packs left/right PF0 into one page-contained 228-byte table;
-  the 192 profile retains separate page-contained 96-byte PF0 tables so its
-  very tight unbanked 4K diagnostic remains linkable.
+* PF0 left/right halves are separate page-contained tables for both heights.
+  Do not use assembler `=` equates as aliases for relocatable PF0 symbols: the
+  relocation is lost in o26 output. Use textual `.def` aliases so final linked
+  indexed loads retain the ROM-table relocation.
 * The 192 NTSC `VCS_NTSC_EXTENDED_VBLANK` TIM64T split remains 63/13. Do not
   change the total blanking budget without a measured timing witness.
 

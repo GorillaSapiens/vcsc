@@ -119,19 +119,20 @@ Their completed development narratives were moved to `context-history/`.
 
 Last validation state
 ---------------------
-Enhanced asymmetric multisprite now keeps the proven 192 profile and adds native
-228-line PAL/SECAM F8 profiles. The 228 visible phase switches into the renderer
-bank while VBLANK is still asserted so no F8 trampoline can steal the first
-visible scanline. The 192 randomized scheduler/raster stress, PAL/SECAM 50 Hz
-CPU timing, native-228 matrix/layout checks, renderer branch contracts, changed
-example round-trip shards, and Stella 7 PAL/SECAM example matrix pass. The new
-compact 4x6 ASCII font/pair-generator regression passes. Full compiler validation
-last remained 502/502; no compiler sources changed in this work.
+Enhanced asymmetric playfield repair is complete. PF0 indexed loads retain
+final-link relocation to the ROM PF0 tables, second-plane PF1/PF2 offsets derive
+from the selected 192/228 geometry, and the focused regression checks both facts
+in the linked ROM/source. The 192 randomized scheduler/raster stress, PAL/SECAM
+50 Hz CPU timing, native-228 matrix/layout checks, renderer branch contracts,
+all eight recursive example shards, and Stella 7 PAL/SECAM frame/example matrix
+pass. The redundant public all_five_player_color_181 static score examples were
+removed; their exact-raster sources remain private test fixtures and the two
+interactive examples are now numbered 01_interactive.
 
 Immediate TODO
 --------------
 Active workstream: `.../roadmap.txt`.
 
-Continue with main roadmap Item 44, the public diagnostic cartridge. Broader
-example-source initializer cleanup is optional future ROM optimization, not an
-active workstream.
+Continue with main roadmap Item 44, the public diagnostic cartridge. Enhanced
+asymmetric allocator-quality work remains an optional side quest documented in
+`.../enhanced_asymmetric.txt`.
