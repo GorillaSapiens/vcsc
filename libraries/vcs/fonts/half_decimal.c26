@@ -1,0 +1,100 @@
+// 4x6 (subset)
+// This font is covered under CC0-1.0. See libraries/LICENSE.txt.
+// Generated from half_ascii.c26.
+// Characters: 0-9
+// Generated from the supplied font.png bitmap.
+
+alias VCS_FONT_GLYPH(a,b,c,d,e,f) f,e,d,c,b,a
+
+page const uint8_t score_font[60] := {
+   // 0x30 0
+   VCS_FONT_GLYPH(
+      0b..X.,
+      0b.X.X,
+      0b.X.X,
+      0b.X.X,
+      0b..X.,
+      0b....
+   ),
+   // 0x31 1
+   VCS_FONT_GLYPH(
+      0b..X.,
+      0b.XX.,
+      0b..X.,
+      0b..X.,
+      0b..X.,
+      0b....
+   ),
+   // 0x32 2
+   VCS_FONT_GLYPH(
+      0b.XX.,
+      0b...X,
+      0b..X.,
+      0b.X..,
+      0b.XXX,
+      0b....
+   ),
+   // 0x33 3
+   VCS_FONT_GLYPH(
+      0b.XX.,
+      0b...X,
+      0b..X.,
+      0b...X,
+      0b.XX.,
+      0b....
+   ),
+   // 0x34 4
+   VCS_FONT_GLYPH(
+      0b.X.X,
+      0b.X.X,
+      0b.XXX,
+      0b...X,
+      0b...X,
+      0b....
+   ),
+   // 0x35 5
+   VCS_FONT_GLYPH(
+      0b.XXX,
+      0b.X..,
+      0b.XXX,
+      0b...X,
+      0b.XX.,
+      0b....
+   ),
+   // 0x36 6
+   VCS_FONT_GLYPH(
+      0b.XXX,
+      0b.X..,
+      0b.XXX,
+      0b.X.X,
+      0b.XXX,
+      0b....
+   ),
+   // 0x37 7
+   VCS_FONT_GLYPH(
+      0b.XXX,
+      0b...X,
+      0b..X.,
+      0b..X.,
+      0b..X.,
+      0b....
+   ),
+   // 0x38 8
+   VCS_FONT_GLYPH(
+      0b.XXX,
+      0b.X.X,
+      0b..X.,
+      0b.X.X,
+      0b.XXX,
+      0b....
+   ),
+   // 0x39 9
+   VCS_FONT_GLYPH(
+      0b.XXX,
+      0b.X.X,
+      0b.XXX,
+      0b...X,
+      0b.XXX,
+      0b....
+   )
+};

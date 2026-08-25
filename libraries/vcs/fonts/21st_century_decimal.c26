@@ -1,11 +1,12 @@
-// 21st Century
+// 21st Century (subset)
 // Characters: 0-9
 // This font is covered under CC0-1.0. See libraries/LICENSE.txt.
+// Generated from 21st_century_ascii.c26.
 
 alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 
 page const uint8_t score_font[80] := {
-   // 0
+   // 0x30 0
    VCS_FONT_GLYPH(
       0b..XXXX..,
       0b.X....X.,
@@ -16,8 +17,7 @@ page const uint8_t score_font[80] := {
       0b.X....X.,
       0b..XXXX..
    ),
-
-   // 1
+   // 0x31 1
    VCS_FONT_GLYPH(
       0b....X...,
       0b....X...,
@@ -28,8 +28,7 @@ page const uint8_t score_font[80] := {
       0b....X...,
       0b....X...
    ),
-
-   // 2
+   // 0x32 2
    VCS_FONT_GLYPH(
       0b...XXX..,
       0b......X.,
@@ -40,8 +39,7 @@ page const uint8_t score_font[80] := {
       0b.X......,
       0b.XXXXXX.
    ),
-
-   // 3
+   // 0x33 3
    VCS_FONT_GLYPH(
       0b...XXX..,
       0b......X.,
@@ -52,8 +50,7 @@ page const uint8_t score_font[80] := {
       0b......X.,
       0b.XXXXX..
    ),
-
-   // 4
+   // 0x34 4
    VCS_FONT_GLYPH(
       0b.X....X.,
       0b.X....X.,
@@ -64,8 +61,7 @@ page const uint8_t score_font[80] := {
       0b......X.,
       0b......X.
    ),
-
-   // 5
+   // 0x35 5
    VCS_FONT_GLYPH(
       0b.XXXX...,
       0b.X......,
@@ -76,8 +72,7 @@ page const uint8_t score_font[80] := {
       0b......X.,
       0b.XXXXX..
    ),
-
-   // 6
+   // 0x36 6
    VCS_FONT_GLYPH(
       0b..XX....,
       0b.X......,
@@ -88,8 +83,7 @@ page const uint8_t score_font[80] := {
       0b.X....X.,
       0b..XXXX..
    ),
-
-   // 7
+   // 0x37 7
    VCS_FONT_GLYPH(
       0b.XXXXXX.,
       0b......X.,
@@ -100,8 +94,7 @@ page const uint8_t score_font[80] := {
       0b...X....,
       0b...X....
    ),
-
-   // 8
+   // 0x38 8
    VCS_FONT_GLYPH(
       0b..XXXX..,
       0b.X....X.,
@@ -112,8 +105,7 @@ page const uint8_t score_font[80] := {
       0b.X....X.,
       0b..XXXX..
    ),
-
-   // 9
+   // 0x39 9
    VCS_FONT_GLYPH(
       0b..XXXX..,
       0b.X....X.,
@@ -124,5 +116,4 @@ page const uint8_t score_font[80] := {
       0b......X.,
       0b....XX..
    )
-
 };

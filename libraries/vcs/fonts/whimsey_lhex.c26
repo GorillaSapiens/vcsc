@@ -1,11 +1,11 @@
 // Whimsey (subset)
-// Characters: 0-9
+// Characters: 0-9 and a-f
 // This font is covered under CC0-1.0. See libraries/LICENSE.txt.
 // Generated from whimsey_ascii.c26.
 
 alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 
-page const uint8_t score_font[80] := {
+page const uint8_t score_font[128] := {
    // 0x30 0
    VCS_FONT_GLYPH(
       0b..XXXX..,
@@ -115,5 +115,71 @@ page const uint8_t score_font[80] := {
       0b.XXXXXX.,
       0b.XXXXXX.,
       0b..XXXX..
+   ),
+   // 0x61 a
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0b..XXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.
+   ),
+   // 0x62 b
+   VCS_FONT_GLYPH(
+      0b.XX.....,
+      0b.XX.....,
+      0b.XXXXX..,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XX..XX.,
+      0b.XXXXX..
+   ),
+   // 0x63 c
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XX...X.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.
+   ),
+   // 0x64 d
+   VCS_FONT_GLYPH(
+      0b.....XX.,
+      0b.....XX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.
+   ),
+   // 0x65 e
+   VCS_FONT_GLYPH(
+      0b........,
+      0b........,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XXXXXX.,
+      0b.XX.....,
+      0b.XXXXXX.
+   ),
+   // 0x66 f
+   VCS_FONT_GLYPH(
+      0b..XXXXX.,
+      0b.XXXXXX.,
+      0b.XXX..X.,
+      0b.XXXXX..,
+      0b.XXXX...,
+      0b.XXX....,
+      0b.XXX....,
+      0b.XXX....
    )
 };
