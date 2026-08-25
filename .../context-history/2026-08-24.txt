@@ -68,3 +68,24 @@ All eight formerly failing E2E tests pass together under the normal test runner.
 A container-wide E2E attempt again reached 78/321 clean before the known local
 execution hang/window at the next test; the user's prior complete run had already
 shown the other 313 tests passing.
+
+2026-08-24 21:28:26 PDT, Tanks missile power-on latch fix
+Investigated a Stella 7.0/Windows report where P0 fire made its first sound but
+M0 never appeared and later fire presses were suppressed, while P1 and Stella
+8.0/Linux behaved normally. A clean Stella 7.0/Linux player profile showed M0,
+but Stella developer TIA randomization reproduced the missing left missile.
+
+The Tanks startup initialized ENAMx, HMMx, NUSIZx, and other beam state but had
+never cleared RESMP0/RESMP1. A nonzero RESMP0 leaves M0 locked to P0: launch
+sets missile0_active and starts audio, but the independently positioned missile
+is hidden/attached, so the active latch can prevent later launches. A controlled
+Stella 7 probe that seeded RESMP0=2 after startup reproduced the missing M0;
+seeding the same dirty state before the corrected startup initialization leaves
+M0 visible.
+
+Tanks now explicitly clears both RESMP0 and RESMP1 before initial missile
+positioning. vcs_tanks.pl pins that startup invariant so neither reset-to-player
+latch can become an implicit power-on-state dependency again. Validation:
+vcs_tanks.pl, example_assembly_allowlist.pl, source_tree_hygiene.pl, and
+context_history_format.pl pass; example build/round-trip shard 5/8 containing
+Tanks also passes; the Stella 7 dirty-RESMP0 repair probe shows the P0 missile.

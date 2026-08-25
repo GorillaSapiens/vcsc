@@ -95,6 +95,8 @@ $s =~ /INPT4 & 0x80/ && $s =~ /INPT5 & 0x80/
 $s =~ /missile0_x := tank0_x \+ 8/ && $s =~ /missile1_x := tank1_x \+ 8/ &&
 $s =~ /renders M0\/M1.*?five Atari pixels left/s
    or die "Tanks lost physical-center missile positioning calibration\n";
+$s =~ /RESMP0 := 0;\s*RESMP1 := 0;.*?tanks_position_missiles\(\);/s
+   or die "Tanks must clear both missile-to-player reset latches before initial positioning\n";
 my($graphics_block)=$s =~ /tanks_graphics\[128\] := \{(.*?)\n\};/s;
 defined $graphics_block or die "Tanks graphics table missing\n";
 my @graphics_rows=grep {/0b/} split /\n/,$graphics_block;

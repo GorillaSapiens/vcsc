@@ -1128,6 +1128,12 @@ void main(void) {
    ENAM0 := 0;
    ENAM1 := 0;
    ENABL := 0;
+   // Do not rely on power-on TIA state: Stella developer-mode randomization
+   // can leave a missile locked to its player until RESMPx is explicitly
+   // cleared. A locked M0 makes the first P0 shot active but invisible, so
+   // subsequent fire presses are correctly (but confusingly) suppressed.
+   RESMP0 := 0;
+   RESMP1 := 0;
    REFP0 := 0;
    REFP1 := 0;
    NUSIZ0 := 0x10;
