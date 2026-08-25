@@ -62,3 +62,18 @@ The explicit Stella equivalence test still exposes its pre-existing eight-pixel
 terminal-row difference between the combined 181 renderer and its all-five
 golden; neither renderer nor fixture source changed from the prior checkpoint,
 so that unrelated issue was not folded into this cleanup.
+
+2026-08-25 06:22:50 PDT, fix blank-screen 263-line frame
+The hand-written `examples/01_basic/01_blank_screen` frame loop still emitted
+30 explicit overscan WSYNCs after the exact-VSYNC repair. Because the next
+frame now begins with a leading alignment WSYNC before asserting VSYNC, that
+alignment is itself the 30th overscan line; retaining all 30 explicit waits
+made the assertion-to-assertion frame period 263 scanlines in Stella.
+
+Changed the explicit overscan loop to 29 lines so the next frame's alignment
+WSYNC completes the intended 30-line overscan interval. Strengthened
+`vcs_example_vsync_contract.pl` to require an actual 262-line raw
+assertion-to-assertion period instead of the stale 263-line harness calibration,
+and refreshed the reviewed assembly fingerprint. The exact 228-cycle VSYNC
+pulse remains unchanged. Focused VSYNC, blank-noasm, Ode-to-Joy, cartridge
+profile, and recursive example shard 1/8 tests pass.

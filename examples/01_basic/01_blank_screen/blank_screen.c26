@@ -61,7 +61,9 @@ void main(void) {
    asm lda #2;
    asm sta VBLANK;
    asm lda #0;
-   asm ldx #30;
+   // The leading alignment WSYNC of the next frame is the 30th overscan
+   // scanline, so this loop emits the preceding 29.
+   asm ldx #29;
    asm @overscan:;
    asm sta WSYNC;
    asm dex;

@@ -73,7 +73,8 @@ for my $standard (qw(pal secam)) {
 }
 
 # Execute the lowest-level assembly example through the common timing harness,
-# so its source-level exception is protected by a measured 228-cycle pulse.
+# so its source-level exception is protected by a measured 228-cycle pulse
+# and an actual 262-scanline assertion-to-assertion frame period.
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $source=File::Spec->catfile($repo,split('/', $expected[0]));
@@ -89,7 +90,7 @@ my $harness=File::Spec->catfile($tmp,'vcs_frame_timing_vsync_contract');
 ($rc,$sig,$out,$err)=capture('c++','-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$hsrc,@mos_input,'-o',$harness);
 $rc==0 && !$sig or die "timing harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "timing harness build wrote output\n$out$err";
-($rc,$sig,$out,$err)=capture($harness,$bin,'45','--no-audio','--raw-lines','263');
+($rc,$sig,$out,$err)=capture($harness,$bin,'45','--no-audio','--raw-lines','262');
 $rc==0 && !$sig or die "blank_screen timing failed\n$out$err";
 $out eq "vcs_frame_timing ok: 42 frames at 262 lines, 1 AUDV0 writes\n"
    or die "unexpected blank_screen timing output: $out";
