@@ -123,3 +123,18 @@ Validation: 502/502 compile-side tests pass. All 323 E2E cases were exercised
 across bounded profiling runs and pass; the timing/slow-test, version-header,
 hygiene, nine repaired E2Es, all recursive example shards, renderer suites, and
 disassembler suites were included.
+
+2026-08-25 11:18:15 PDT, canonicalize observed RAM hardware operands
+The concrete RIOT-RAM execution listing now routes operands through the same
+access-aware TIA/RIOT symbol lookup used by ordinary ROM disassembly. Direct
+and indexed observed operands therefore print canonical base names where the
+access direction makes the name honest (for example VBLANK, AUDV0, WSYNC,
+HMOVE, and GRP0,X). TIA reads whose address only has a write-side mnemonic and
+ordinary RIOT RAM addresses intentionally remain numeric. The same observed-
+instruction formatter is shared by Starpath reconstructed RAM payload comments.
+
+Added a synthetic concrete-RAM regression requiring both STA AUDV0 and indexed
+STA GRP0,X while preserving exact-byte round trip. The focused vcsc-disas suite
+passes 131/131. The supplied c33caa7d6ac7251bb804e0473198901d 1K removable-
+cartridge ROM now shows canonical TIA names throughout its concrete RAM tail;
+BIT read-side addresses and RIOT RAM remain raw by design.

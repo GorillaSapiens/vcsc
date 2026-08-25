@@ -9420,6 +9420,57 @@ static void emit_physical_raw_range(FILE *fp, const analysis_t *a,
    }
 }
 
+static void emit_observed_instruction_operand(FILE *fp, uint8_t opcode,
+                                              address_mode_t mode,
+                                              uint16_t operand, uint16_t pc,
+                                              uint8_t relative_byte)
+{
+   hw_symbol_t hw;
+   int have_hw = hardware_symbol(opcode, mode, operand, &hw);
+   if (!have_hw && (mode == AM_ZERO_PAGE_X || mode == AM_ZERO_PAGE_Y))
+      have_hw = hardware_symbol(opcode, AM_ZERO_PAGE, operand, &hw);
+   else if (!have_hw && (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y))
+      have_hw = hardware_symbol(opcode, AM_ABSOLUTE, operand, &hw);
+
+   switch (mode) {
+   case AM_ACCUMULATOR: fputs(" A", fp); break;
+   case AM_IMMEDIATE: fprintf(fp, " #$%02X", (unsigned)(operand & 0xffu)); break;
+   case AM_ZERO_PAGE:
+      fputc(' ', fp);
+      if (have_hw) emit_hw_operand(fp, &hw, operand);
+      else fprintf(fp, "$%02X", (unsigned)(operand & 0xffu));
+      break;
+   case AM_ZERO_PAGE_X:
+   case AM_ZERO_PAGE_Y:
+      fputc(' ', fp);
+      if (have_hw) emit_hw_operand(fp, &hw, operand);
+      else fprintf(fp, "$%02X", (unsigned)(operand & 0xffu));
+      fprintf(fp, ",%c", mode == AM_ZERO_PAGE_X ? 'X' : 'Y');
+      break;
+   case AM_RELATIVE: {
+      uint16_t target = (uint16_t)(pc + 2u + (int8_t)relative_byte);
+      fprintf(fp, " $%04X", target);
+      break;
+   }
+   case AM_ABSOLUTE:
+      fputc(' ', fp);
+      if (have_hw) emit_hw_operand(fp, &hw, operand);
+      else fprintf(fp, "$%04X", operand);
+      break;
+   case AM_ABSOLUTE_X:
+   case AM_ABSOLUTE_Y:
+      fputc(' ', fp);
+      if (have_hw) emit_hw_operand(fp, &hw, operand);
+      else fprintf(fp, "$%04X", operand);
+      fprintf(fp, ",%c", mode == AM_ABSOLUTE_X ? 'X' : 'Y');
+      break;
+   case AM_INDIRECT: fprintf(fp, " ($%04X)", operand); break;
+   case AM_INDEXED_INDIRECT: fprintf(fp, " ($%02X,X)", (unsigned)(operand & 0xffu)); break;
+   case AM_INDIRECT_INDEXED: fprintf(fp, " ($%02X),Y", (unsigned)(operand & 0xffu)); break;
+   case AM_IMPLIED: break;
+   }
+}
+
 static void emit_concrete_ram_instruction(FILE *fp, const analysis_t *a,
                                           unsigned idx)
 {
@@ -9442,25 +9493,8 @@ static void emit_concrete_ram_instruction(FILE *fp, const analysis_t *a,
       else fputs("   ", fp);
    }
    fprintf(fp, "  %s", mn);
-   switch (mode) {
-   case AM_ACCUMULATOR: fputs(" A", fp); break;
-   case AM_IMMEDIATE: fprintf(fp, " #$%02X", (unsigned)(operand & 0xffu)); break;
-   case AM_ZERO_PAGE: fprintf(fp, " $%02X", (unsigned)(operand & 0xffu)); break;
-   case AM_ZERO_PAGE_X: fprintf(fp, " $%02X,X", (unsigned)(operand & 0xffu)); break;
-   case AM_ZERO_PAGE_Y: fprintf(fp, " $%02X,Y", (unsigned)(operand & 0xffu)); break;
-   case AM_RELATIVE: {
-      uint16_t target = (uint16_t)(pc + 2u + (int8_t)bytes[1]);
-      fprintf(fp, " $%04X", target);
-      break;
-   }
-   case AM_ABSOLUTE: fprintf(fp, " $%04X", operand); break;
-   case AM_ABSOLUTE_X: fprintf(fp, " $%04X,X", operand); break;
-   case AM_ABSOLUTE_Y: fprintf(fp, " $%04X,Y", operand); break;
-   case AM_INDIRECT: fprintf(fp, " ($%04X)", operand); break;
-   case AM_INDEXED_INDIRECT: fprintf(fp, " ($%02X,X)", (unsigned)(operand & 0xffu)); break;
-   case AM_INDIRECT_INDEXED: fprintf(fp, " ($%02X),Y", (unsigned)(operand & 0xffu)); break;
-   case AM_IMPLIED: break;
-   }
+   emit_observed_instruction_operand(fp, opcode, mode, operand, pc,
+                                     len >= 2u ? bytes[1] : 0u);
    if (source != VCSC_CONCRETE_NO_SOURCE) {
       for (j = 1; j < len; ++j) {
          uint32_t sj = r->ram_exec_source[idx * VCSC_CONCRETE_MAX_INSN_BYTES + j];
@@ -9514,25 +9548,8 @@ static void emit_ar_payload_instruction(FILE *fp, const ar_load_t *load,
       else fputs("   ", fp);
    }
    fprintf(fp, "  %s", mn);
-   switch (mode) {
-   case AM_ACCUMULATOR: fputs(" A", fp); break;
-   case AM_IMMEDIATE: fprintf(fp, " #$%02X", (unsigned)(operand & 0xffu)); break;
-   case AM_ZERO_PAGE: fprintf(fp, " $%02X", (unsigned)(operand & 0xffu)); break;
-   case AM_ZERO_PAGE_X: fprintf(fp, " $%02X,X", (unsigned)(operand & 0xffu)); break;
-   case AM_ZERO_PAGE_Y: fprintf(fp, " $%02X,Y", (unsigned)(operand & 0xffu)); break;
-   case AM_RELATIVE: {
-      uint16_t target = (uint16_t)(pc + 2u + (int8_t)bytes[1]);
-      fprintf(fp, " $%04X", target);
-      break;
-   }
-   case AM_ABSOLUTE: fprintf(fp, " $%04X", operand); break;
-   case AM_ABSOLUTE_X: fprintf(fp, " $%04X,X", operand); break;
-   case AM_ABSOLUTE_Y: fprintf(fp, " $%04X,Y", operand); break;
-   case AM_INDIRECT: fprintf(fp, " ($%04X)", operand); break;
-   case AM_INDEXED_INDIRECT: fprintf(fp, " ($%02X,X)", (unsigned)(operand & 0xffu)); break;
-   case AM_INDIRECT_INDEXED: fprintf(fp, " ($%02X),Y", (unsigned)(operand & 0xffu)); break;
-   case AM_IMPLIED: break;
-   }
+   emit_observed_instruction_operand(fp, opcode, mode, operand, pc,
+                                     len >= 2u ? bytes[1] : 0u);
    if (sources[0] != AR_NO_SOURCE) {
       for (j = 1u; j < len; ++j)
          if (sources[j] != sources[0] + j) contiguous = 0;

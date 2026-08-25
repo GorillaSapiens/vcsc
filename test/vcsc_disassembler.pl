@@ -136,7 +136,7 @@ write_bin(File::Spec->catfile($in, 'plain1k.bin'), $plain1k);
 # generated payload at $0080.
 my $concrete_payload = chr(0xEA) x 1024;
 substr($concrete_payload, 0x0000, 7,
-   "\xA9\x42\x85\x90\x4C\x80\x00"); # RAM payload: LDA #$42; STA $90; JMP $0080
+   "\x85\x19\x95\x1B\x4C\x80\x00"); # RAM payload: STA AUDV0; STA GRP0,X; JMP $0080
 substr($concrete_payload, 0x0040, 3,
    "\xC6\xFE\x40");                   # IRQ: DEC $FE; RTI
 substr($concrete_payload, 0x0080, 26,
@@ -1678,8 +1678,11 @@ require_re($concrete_out,
    qr/^; ---- concrete RIOT RAM execution \(comment-only discovery\) ----$/m,
    'concrete RIOT-RAM execution section');
 require_re($concrete_out,
-   qr/^; \$0080: A9 42\s+LDA #\$42\s+; copied from ROM file \$0000$/m,
-   'RAM payload instruction recovered with ROM provenance');
+   qr/^; \$0080: 85 19\s+STA AUDV0\s+; copied from ROM file \$0000$/m,
+   'RAM payload instruction recovered with canonical TIA name and ROM provenance');
+require_re($concrete_out,
+   qr/^; \$0082: 95 1B\s+STA GRP0,X\s+; copied from ROM file \$0002$/m,
+   'RAM payload indexed operand uses canonical TIA base register name');
 require_re($concrete_out,
    qr/^; \$0084: 4C 80 00\s+JMP \$0080\s+; copied from ROM file \$0004$/m,
    'RAM payload control flow recovered with ROM provenance');
