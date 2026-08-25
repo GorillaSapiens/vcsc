@@ -159,8 +159,8 @@ int main(int argc, char **argv) {
       static_cast<uint64_t>(std::strtoull(argv[4], nullptr, 0)) : 43;
    const bool all_five_profile = argc == 6 && std::strcmp(argv[5], "all-five") == 0;
    const bool all_five_192_profile = argc == 6 && std::strcmp(argv[5], "all-five-192") == 0;
-   const bool all_five_phase_192_profile = argc == 6 &&
-      std::strcmp(argv[5], "all-five-phase-192") == 0;
+   const bool all_five_phase_228_profile = argc == 6 &&
+      std::strcmp(argv[5], "all-five-phase-228") == 0;
    const bool all_five_181_official_profile = argc == 6 &&
       std::strcmp(argv[5], "all-five-181-official") == 0;
    const bool player_diagonal_profile = argc == 6 &&
@@ -174,18 +174,18 @@ int main(int argc, char **argv) {
    const bool diagonal_values_profile = player_diagonal_profile ||
                                         player_diagonal_192_profile ||
                                         player_gallery_192_profile ||
-                                        all_five_diagonal_profile ||
-                                        all_five_phase_192_profile;
+                                        all_five_diagonal_profile;
    const bool all_five_fixed_profile = all_five_192_profile ||
-                                       all_five_phase_192_profile ||
+                                       all_five_phase_228_profile ||
                                        all_five_181_official_profile ||
                                        all_five_diagonal_profile;
    if (argc == 6 && !all_five_profile && !all_five_fixed_profile &&
        !player_diagonal_profile && !player_diagonal_192_profile &&
        !player_gallery_192_profile)
       fail("unknown timing profile");
-   if (raster_rows != 0 && raster_rows != 10 && raster_rows != 11 && raster_rows != 12)
-      fail("checked raster row count must be 10, 11, or 12");
+   if (raster_rows != 0 && raster_rows != 10 && raster_rows != 11 &&
+       raster_rows != 12 && raster_rows != 15)
+      fail("checked raster row count must be 10, 11, 12, or 15");
    if (source_rows != raster_rows && !(raster_rows == 11 && source_rows == 12))
       fail("source row count must equal checked rows or be 12 when checking 11");
    std::memset(memory_image, 0, sizeof(memory_image));
@@ -261,8 +261,12 @@ int main(int argc, char **argv) {
    if (raster_rows && all_five_fixed_profile) {
       size_t steady_lines = 0;
       for (int row = 0; row < raster_rows; ++row) {
-         for (int subline = 0; subline < 16; ++subline) {
-            const uint64_t line = first_row_line + row * 16 + subline;
+         const int row_lines = all_five_phase_228_profile && row == 0 ? 4 : 16;
+         const uint64_t row_base = all_five_phase_228_profile
+            ? first_row_line + (row == 0 ? 0 : 4 + (row - 1) * 16)
+            : first_row_line + row * 16;
+         for (int subline = 0; subline < row_lines; ++subline) {
+            const uint64_t line = row_base + subline;
             const auto found = by_line.find(line);
             if (found == by_line.end() || found->second.size() != 4) {
                std::fprintf(stderr,
@@ -272,7 +276,7 @@ int main(int argc, char **argv) {
                return 1;
             }
 
-            if (subline == 15 && row + 1 < raster_rows) {
+            if (subline == row_lines - 1 && row + 1 < raster_rows) {
                const uint16_t addresses[] = {kPf1, kPf2, kPf1, kPf2};
                const uint64_t cycles[] = {22, 29, 45, 48};
                for (size_t i = 0; i < 4; ++i) {
@@ -319,8 +323,8 @@ int main(int argc, char **argv) {
                return 1;
             }
 
-            const bool steady = (row == 0 && subline >= 1 && subline <= 14) ||
-                                (row > 0 && subline >= 3 && subline <= 14);
+            const bool steady = (row == 0 && subline >= 1 && subline <= row_lines - 2) ||
+                                (row > 0 && subline >= 3 && subline <= row_lines - 2);
             if (steady) {
                const bool p0_phase = found->second[0].cycle == 25 &&
                                      found->second[1].cycle == 32;
@@ -401,7 +405,10 @@ int main(int argc, char **argv) {
       if (steady_lines < 100) fail("too few all-five steady scanlines checked");
    }
 
-   if (raster_rows) {
+   if (all_five_phase_228_profile)
+      std::printf("vcs_playfield_all_five_phase_228 ok: 228 lines (4 + 14x16) with proven PF phases\n");
+
+   if (raster_rows && !all_five_phase_228_profile) {
       if (player_diagonal_192_profile || player_gallery_192_profile) {
          const uint8_t (*expected_playfield)[4] = player_diagonal_192_profile ?
             kDiagonalPlayfield192 : kGalleryPlayfield192;
@@ -578,10 +585,7 @@ int main(int argc, char **argv) {
             }
          }
       }
-      if (all_five_phase_192_profile)
-         std::printf("vcs_playfield_all_five_phase_192 ok: %d rows x 16 lines with proven PF phases\n",
-                     raster_rows);
-      else if (player_diagonal_192_profile)
+      if (player_diagonal_192_profile)
          std::printf("vcs_playfield_diagonal_192 ok: %d asymmetric rows x 16 lines with proven PF phases\n",
                      raster_rows);
       else if (player_gallery_192_profile)
@@ -590,7 +594,7 @@ int main(int argc, char **argv) {
       else
          std::printf("vcs_playfield_raster ok: %d rows x 16 lines x 160 pixels\n",
                      raster_rows);
-   } else {
+   } else if (!all_five_phase_228_profile) {
       std::printf("vcs_playfield_phase ok: %zu scanlines at cycles 24/31, 25/32, or 27/34,41,48\n", checked);
    }
    return 0;

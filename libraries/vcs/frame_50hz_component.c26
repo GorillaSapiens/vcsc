@@ -54,6 +54,18 @@ inline void TEMPLATE_component_handoff(void) {
    asm bit.z CXM0P;
 }
 
+// A full-height cycle-counted visible component returns at cycle zero of the
+// line after its final visible WSYNC.  The generic 228-line wait path reaches
+// begin_overscan() sixteen cycles later because of loop-exit bookkeeping.
+// Normalize the component path to that same established phase so the shared
+// overscan TIM64T deadline retains its calibrated 312-line frame.
+inline void TEMPLATE_component_to_overscan_handoff(void) {
+   asm ldy #3;
+   asm @visible_to_overscan_delay:;
+   asm dey;
+   asm bne.same @visible_to_overscan_delay;
+}
+
 inline void TEMPLATE_vsync(void) {
    // The leading WSYNC fixes the scanline phase. A side-effect-free three-cycle
    // BIT delay plus compiler literal reload places both VSYNC stores at cycle 8,

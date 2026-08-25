@@ -10,7 +10,7 @@
 # SECAM50 examples
 
 - `00_blank`: minimal 312-line SECAM50 frame.
-- `01_all_five`: interactive stock 192-line all-five renderer centered in the
+- `01_all_five`: interactive `all_five (lines:=228)` renderer using the full
   SECAM 228-line visible window.
 
 The examples use `__builtin_secam_rgb(r,g,b)` directly. The builtin is evaluated

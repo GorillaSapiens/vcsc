@@ -4,8 +4,8 @@ ROOT ?= ../../../..
 VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
 
-TARGET := pal_all_five_192_interactive.bin
-SOURCE := pal_all_five_192_interactive.c26
+TARGET := pal_all_five_228_interactive.bin
+SOURCE := pal_all_five_228_interactive.c26
 
 all: $(TARGET)
 

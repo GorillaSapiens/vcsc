@@ -29,9 +29,9 @@ my$phase_src=File::Spec->catfile($repo,qw(test vcs_playfield_phase.cpp));
 my$phase=File::Spec->catfile($tmp,'vcs_video_standard_playfield_phase');
 for my$spec(
    ['pal','__builtin_pal_rgb',qw(17_video_standards pal 00_blank pal50_blank.c26)],
-   ['pal','__builtin_pal_rgb',qw(17_video_standards pal 01_all_five pal_all_five_192_interactive.c26)],
+   ['pal','__builtin_pal_rgb',qw(17_video_standards pal 01_all_five pal_all_five_228_interactive.c26)],
    ['secam','__builtin_secam_rgb',qw(17_video_standards secam 00_blank secam50_blank.c26)],
-   ['secam','__builtin_secam_rgb',qw(17_video_standards secam 01_all_five secam_all_five_192_interactive.c26)]) {
+   ['secam','__builtin_secam_rgb',qw(17_video_standards secam 01_all_five secam_all_five_228_interactive.c26)]) {
    my($standard,$builtin,@parts)=@$spec;
    my$src=File::Spec->catfile($repo,'examples',@parts);
    -f$src or die"missing reorganized $standard example $src\n";
@@ -43,12 +43,12 @@ for my$spec(
 ok('build 50 Hz playfield phase harness',$cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$phase_src,@mos_input,'-o',$phase);
 
 for my$case(
-   ['pal','PAL',qw(17_video_standards pal 01_all_five pal_all_five_192_interactive.c26)],
-   ['secam','SECAM',qw(17_video_standards secam 01_all_five secam_all_five_192_interactive.c26)]) {
+   ['pal','PAL',qw(17_video_standards pal 01_all_five pal_all_five_228_interactive.c26)],
+   ['secam','SECAM',qw(17_video_standards secam 01_all_five secam_all_five_228_interactive.c26)]) {
    my($standard,$format,@parts)=@$case;my$src=File::Spec->catfile($repo,'examples',@parts);my$rom=File::Spec->catfile($tmp,"$standard-all-five.bin");
    ok("build $standard example",$driver,'-I',$vcs,$src,'-o',$rom);
-   my($phase_out,$phase_err)=ok("$standard playfield phase",$phase,$rom,'12','12','65','all-five-phase-192');
-   $phase_out eq "vcs_playfield_all_five_phase_192 ok: 12 rows x 16 lines with proven PF phases\n"
+   my($phase_out,$phase_err)=ok("$standard playfield phase",$phase,$rom,'15','15','48','all-five-phase-228');
+   $phase_out eq "vcs_playfield_all_five_phase_228 ok: 228 lines (4 + 14x16) with proven PF phases\n"
       or die "$standard playfield phase output: $phase_out";
    $phase_err eq '' or die "$standard playfield phase stderr: $phase_err";
    my$display=360+($$%40);$display++ while-e"/tmp/.X11-unix/X$display";my$d=":$display";

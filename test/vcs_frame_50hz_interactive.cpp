@@ -15,6 +15,10 @@ constexpr uint64_t kCyclesPerLine = 76;
 constexpr uint16_t kVsync = 0x0000;
 constexpr uint16_t kVblank = 0x0001;
 constexpr uint16_t kWsync = 0x0002;
+constexpr uint16_t kColup0 = 0x0006;
+constexpr uint16_t kColup1 = 0x0007;
+constexpr uint16_t kColupf = 0x0008;
+constexpr uint16_t kColubk = 0x0009;
 constexpr uint16_t kSwcha = 0x0280;
 constexpr uint16_t kSwchb = 0x0282;
 constexpr uint16_t kIntim = 0x0284;
@@ -40,6 +44,7 @@ uint64_t virtual_cycles = 0;
 std::vector<WriteEvent> pending_writes;
 std::vector<uint64_t> vsync_assertions;
 std::vector<TimedWrite> vblank_writes;
+std::vector<TimedWrite> color_writes;
 bool vsync_asserted = false;
 Timer timer;
 
@@ -116,6 +121,9 @@ void apply_writes() {
       else if (e.address == kVblank) {
          vblank_writes.push_back({virtual_cycles, e.address, e.value});
       }
+      else if (e.address >= kColup0 && e.address <= kColubk) {
+         color_writes.push_back({virtual_cycles, e.address, e.value});
+      }
       else if (e.address >= kTim1t && e.address <= kT1024t) {
          load_timer(e.address, e.value);
       }
@@ -131,6 +139,31 @@ const TimedWrite &find_vblank(uint64_t start, uint64_t end, uint8_t value,
       if (seen++ == occurrence) return e;
    }
    fail("missing expected VBLANK write");
+}
+
+uint8_t color_at(uint16_t address, uint64_t cycle) {
+   uint8_t value = 0;
+   for (const auto &e : color_writes) {
+      if (e.cycle > cycle) break;
+      if (e.address == address) value = e.value;
+   }
+   return value;
+}
+
+void check_active_field_colors(uint64_t frame_base_line, uint64_t line,
+                               const char *which) {
+   const uint64_t sample = (frame_base_line + line) * kCyclesPerLine + 23;
+   const uint8_t bg = color_at(kColubk, sample);
+   const uint8_t p0 = color_at(kColup0, sample);
+   const uint8_t p1 = color_at(kColup1, sample);
+   const uint8_t pf = color_at(kColupf, sample);
+   if (p0 == bg || p1 == bg || pf == bg) {
+      char message[192];
+      std::snprintf(message, sizeof(message),
+         "%s visible line %llu is still border-colored: bg=$%02x p0=$%02x p1=$%02x pf=$%02x",
+         which, static_cast<unsigned long long>(line), bg, p0, p1, pf);
+      fail(message);
+   }
 }
 }
 
@@ -179,6 +212,13 @@ int main(int argc, char **argv) {
          fail("visible phase did not begin after 45 VBLANK lines");
       if (begin_overscan.cycle / kCyclesPerLine != base + 276)
          fail("overscan did not begin after 228 visible lines");
+
+      // The PAL/SECAM example now instantiates the renderer for the complete
+      // 228-line visible field.  There must be no synthetic 17/19-line border
+      // wrapper: active P0/P1/PF colors are already live on the first visible
+      // line and remain live through the last one.
+      check_active_field_colors(base, 48, "first");
+      check_active_field_colors(base, 275, "last");
    }
    std::puts("vcs_frame_50hz_interactive ok");
    return 0;

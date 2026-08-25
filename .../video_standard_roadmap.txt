@@ -15,6 +15,14 @@ Durable decisions
 * PAL and SECAM may share 50 Hz frame/timing infrastructure where the hardware
   timing contract is genuinely common, but their color/palette behavior remains
   separate.
+* Visible scanline count belongs to the renderer/component contract. The
+  official all-five renderer uses the compile-time `lines` parameter: 192 for
+  the native NTSC field and 228 for the native PAL/SECAM field. Do not emulate a
+  native full-height renderer by wrapping a shorter renderer in visible padding.
+* A full-height 228-line component returns at cycle zero after its terminal
+  WSYNC. PAL/SECAM callers use `component_to_overscan_handoff()` before
+  `begin_overscan()` to restore the calibrated timer-entry phase; this bridge
+  adds cycles, not visible scanlines.
 * Renderer/example play targets must pass the intended `-tv` setting to Stella;
   do not infer correctness from a default emulator standard.
 * Exact frame/raster regressions and the public video-standard examples are the

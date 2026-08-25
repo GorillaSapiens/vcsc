@@ -89,3 +89,63 @@ latch can become an implicit power-on-state dependency again. Validation:
 vcs_tanks.pl, example_assembly_allowlist.pl, source_tree_hygiene.pl, and
 context_history_format.pl pass; example build/round-trip shard 5/8 containing
 Tanks also passes; the Stella 7 dirty-RESMP0 repair probe shows the P0 missile.
+
+2026-08-24 21:58:00 PDT, PAL/SECAM all-five visible-border handoff
+Reproduced the public PAL all-five edge corruption in Stella 7: a player staged
+at the top leaked vertically through the 17-line visible prefix and a player at
+the bottom persisted through the 19-line tail. SECAM had the same defect. The
+192-line renderer itself was correct; the 50 Hz wrapper used WSYNC-only visible
+padding around a component whose vblank() intentionally preloads first-line TIA
+state and whose draw() intentionally leaves the terminal state live until
+overscan.
+
+Added an opt-in 192-line `border_handoff` contract to all_five. It reuses two
+post-vblank builder-scratch lanes, so RAM use does not increase. PAL/SECAM save
+the intended background/playfield colors after game_vblank(), hide P0/P1/PF by
+matching their colors to COLUBK during the prefix/tail, and restore the ordinary
+P0/P1/PF colors entirely in first-line horizontal blank. The restoration
+replaces the redundant first-line left-PF preload at the same measured cycle
+budget, preserving the established renderer entry phase. The ordinary NTSC
+all_five_192 instantiation remains byte-for-byte unchanged.
+
+Extended the 50 Hz CPU regression to sample every visible prefix/tail line at
+the first visible pixel phase and require P0/P1/PF colors equal COLUBK, then
+require active colors restored before the first component pixels. Updated the
+playfield phase oracle for the border handoff's intentional first-line PF-write
+optimization. Real Stella 7 PAL and SECAM edge probes clip top/bottom sprites
+normally after the fix. Focused 50 Hz scheduler/Stella, video-standard,
+all-five interactive, renderer, layout, VSYNC, assembly-allowlist, and hygiene
+checks pass; recursive example build/round-trip shards 6/8 (PAL) and 8/8
+(SECAM) pass.
+
+2026-08-24 22:15:00 PDT, native 228-line all-five profile
+Superseded the temporary PAL/SECAM 192-line visible-border handoff after the
+visible-height contract was clarified: visible scanlines belong to the renderer,
+not to a wrapper. Extended the official all_five `lines` parameter with a native
+228-line scoreless profile while leaving the 192-, 181-, and 170-line profiles
+intact. The 228 profile uses a 60-byte/15-packed-row playfield and 114 public
+2-scanline object positions (Y=0..113). Its first packed row contributes four
+visible lines and the following fourteen rows contribute sixteen each, so the
+existing proven two-line raster pipeline covers exactly 228 active lines with no
+synthetic visible borders.
+
+PAL and SECAM public all-five examples now instantiate `lines:=228` directly and
+use the full 228-line field. Added a 16-cycle 50 Hz component-to-overscan phase
+handoff because a cycle-counted full-height component returns at cycle zero,
+whereas the generic 228-line wait loop reaches begin_overscan sixteen cycles
+later. This preserves the calibrated 314-raw/312-Stella frame without adding a
+visible line. The ordinary NTSC `lines:=192` ROM remains byte-for-byte unchanged.
+
+Added vcs_all_five_228.pl and extended the 50 Hz frame/playfield harnesses to
+lock native 228-line geometry, first/last visible activity, edge object motion,
+playfield phases, and the absence of the obsolete border handoff. Real Stella 7
+PAL and SECAM edge probes clip top/bottom objects cleanly.
+
+Focused validation after the native-height refactor passes: vcs_all_five_228.pl,
+vcs_all_five_192.pl, vcs_frame_50hz_interactive.pl, the nine-example all-five
+interactive matrix, video-standard layout, source-tree hygiene, and history
+format. Real Stella 7 forced-format PAL/SECAM example and scheduler tests pass.
+Recursive editable-example build/link/disassembly shards 6/8 (PAL) and 8/8
+(SECAM) pass, as do the PAL and SECAM example Makefile targets after renaming
+their binaries to 228. A broad 322-test E2E run reached 78/322 clean before the
+container command window expired, with no observed failure.

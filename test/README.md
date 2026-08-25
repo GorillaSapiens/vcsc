@@ -1285,9 +1285,13 @@ PAL/SECAM 50 Hz coverage
 `vcs_frame_50hz_scheduler.pl` locks the shared PAL/SECAM scheduler deadlines,
 phase boundaries, 314-raw/312-Stella frame accounting, and diagnostics.
 `vcs_frame_50hz_interactive.pl` builds both public all-five examples with
-inactive RIOT controls and proves the 228-line visible composition; this avoids
-the false-reset behavior produced by zero-initialized console-switch inputs.
-`vcs_video_standard_portability.pl` locks the scheduler-neutral component
+inactive RIOT controls and proves that native renderer output begins on the first
+visible scanline, remains active through the 228th, and enters overscan at the
+calibrated boundary; this avoids the false-reset behavior produced by
+zero-initialized console-switch inputs. `vcs_all_five_228.pl` locks the
+`lines:=228` renderer profile, 60-byte/15-packed-row geometry, full `0..113`
+object-Y range, first/last-field edge behavior, and the absence of synthetic
+visible borders. `vcs_video_standard_portability.pl` locks the scheduler-neutral component
 classification in `libraries/vcs/VIDEO_STANDARDS.md`. PAL/SECAM RGB compile
 and E2E tests lock the reference palettes, while the sound compile tests lock
 the 50 Hz cadence/control aliases. `vcs_frame_50hz_stella.pl` remains optional

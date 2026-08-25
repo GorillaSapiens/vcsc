@@ -1,19 +1,21 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
 // Parameterized official-opcode P0/P1/M0/M1/BL gameplay component.
-// Supported visible-line profiles are 192, 181, and 170.
+// Supported visible-line profiles are 228, 192, 181, and 170.
 //
+//     instantiate "renderers/all_five/all_five.c26" as game (lines:=228)
 //     instantiate "renderers/all_five/all_five.c26" as game (lines:=192)
 //     instantiate "renderers/all_five/all_five.c26" as game (lines:=181)
 //     instantiate "renderers/all_five/all_five.c26" as game (lines:=170)
 //
-// 192 is the full-height scoreless profile. 181 composes with one 11-line
-// visible component. 170 composes with two 11-line visible components.
+// 228 and 192 are full-height scoreless profiles for native PAL/SECAM and
+// NTSC visible windows respectively. 181 composes with one 11-line visible
+// component. 170 composes with two 11-line visible components.
 // The line parameter is compile-time only; no runtime line-count state exists.
 
 parameter lines;
 
-#if TEMPLATE_lines == 192
+#if TEMPLATE_lines == 192 || TEMPLATE_lines == 228
 // Repeatable official-opcode TEMPLATE_lines-scanline P0/P1/M0/M1/BL gameplay component
 // derived from the proven player-color raster. Player colors are solid for the
 // complete frame; the two per-row color-table slots are used to update M1 and
@@ -21,16 +23,18 @@ parameter lines;
 //
 // Instantiate with:
 //
+//     instantiate "renderers/all_five/all_five.c26" as game (lines:=228)
 //     instantiate "renderers/all_five/all_five.c26" as game (lines:=192)
 //
-// Include vcs.c26 first. Each instance requires a page-contained immutable
-// INSTANCE_playfield[48]. The component draws an exact 192-line scoreless
-// gameplay field as twelve uniform 16-line rows. It cannot be combined
-// with the independent eleven-line score inside the standard visible field.
+// Include vcs.c26 first. The 192-line profile requires a page-contained
+// immutable INSTANCE_playfield[48]; the 228-line profile requires
+// INSTANCE_playfield[60]. 192 draws twelve 16-line packed rows. 228 draws a
+// four-line first packed row followed by fourteen 16-line rows, for exactly
+// 228 visible scanlines.
 //
 // It owns no score/font, VSYNC, VBLANK, or RIOT timer state. draw() returns on
-// the boundary after the 192nd visible line; overscan() clears gameplay state
-// and restores application Y values.
+// the boundary after TEMPLATE_lines visible scanlines; overscan() clears
+// gameplay state and restores application Y values.
 
 // The machine-readable visible handoff fields below are defined in
 // renderers/COMPONENT_CONVERSION.md under "Measured visible-component handoff".
@@ -47,13 +51,24 @@ enum TEMPLATE_contract {
    TEMPLATE_VBLANK_MAX_CYCLES := 1800,
    TEMPLATE_OVERSCAN_MAX_CYCLES := 66,
    TEMPLATE_OBJECT_COUNT := 5,
+#if TEMPLATE_lines == 228
+   TEMPLATE_PLAYFIELD_BYTES := 60,
+   TEMPLATE_PLAYFIELD_ROWS := 15,
+#else
    TEMPLATE_PLAYFIELD_BYTES := 48,
    TEMPLATE_PLAYFIELD_ROWS := 12,
+#endif
    TEMPLATE_PLAYFIELD_ROW_BYTES := 4,
    TEMPLATE_WORKSPACE_BYTES := 0,
+#if TEMPLATE_lines == 228
+   TEMPLATE_PRIVATE_RAM_BYTES := 60,
+   TEMPLATE_PUBLIC_RAM_BYTES := 23,
+   TEMPLATE_MODULE_RAM_BYTES := 83
+#else
    TEMPLATE_PRIVATE_RAM_BYTES := 48,
    TEMPLATE_PUBLIC_RAM_BYTES := 23,
    TEMPLATE_MODULE_RAM_BYTES := 71
+#endif
 };
 
 alias TEMPLATE_OBJECT_PLAYER0 0
@@ -70,7 +85,11 @@ alias TEMPLATE_BALL_X TEMPLATE_object_x[TEMPLATE_OBJECT_BALL]
 alias TEMPLATE_PLAYER0_NUSIZ TEMPLATE_player0_nusiz
 alias TEMPLATE_PLAYER1_NUSIZ TEMPLATE_player1_nusiz
 
+#if TEMPLATE_lines == 228
+extern const uint8_t TEMPLATE_playfield[60];
+#else
 extern const uint8_t TEMPLATE_playfield[48];
+#endif
 
 // Shared fine-motion conversion table. Indexes 1..15 correspond to the
 // negative remainder left by the 15-pixel coarse-position loop.
@@ -103,7 +122,11 @@ uint8_t TEMPLATE_player1_color;
 // lane is beam-dead and doubles as the renderer's private scratch/state, so no
 // separate workspace is consumed. The final lane byte backs the public
 // playfield-position control without increasing RAM.
+#if TEMPLATE_lines == 228
+uint8_t TEMPLATE_object_masks[60];
+#else
 uint8_t TEMPLATE_object_masks[48];
+#endif
 alias TEMPLATE_playfield_position TEMPLATE_object_masks[47]
 
 require inline void TEMPLATE_init(void) {
@@ -128,30 +151,54 @@ require inline void TEMPLATE_vblank(void) {
    asm clc;
    asm adc #4;
    asm tax;
+#if TEMPLATE_lines == 228
+   asm cpx #60;
+#else
    asm cpx #48;
+#endif
    asm bcc.same @clear;
    // The Ball is biased one pair ahead for VDELBL staging, so the inclusive
    // preparation limit is 96 even though visible pair indices end at 95.
+#if TEMPLATE_lines == 228
+   asm lda #120;
+#else
    asm lda #96;
+#endif
    asm sta.z TEMPLATE_object_masks + 31;
    asm lda.z TEMPLATE_ball_y;
    asm clc;
+#if TEMPLATE_lines == 228
+   asm adc #8;
+#else
    asm adc #2;
+#endif
    asm ldy.z TEMPLATE_ball_height;
    asm ldx #0;
    asm jsr @prepare_one;
    // Missiles use the original one-pair bias and 0..95 preparation limit.
+#if TEMPLATE_lines == 228
+   asm lda #119;
+#else
    asm lda #95;
+#endif
    asm sta.z TEMPLATE_object_masks + 31;
    asm lda.z TEMPLATE_missile1_y;
    asm clc;
+#if TEMPLATE_lines == 228
+   asm adc #7;
+#else
    asm adc #1;
+#endif
    asm ldy.z TEMPLATE_missile1_height;
    asm ldx #1;
    asm jsr @prepare_one;
    asm lda.z TEMPLATE_missile0_y;
    asm clc;
+#if TEMPLATE_lines == 228
+   asm adc #7;
+#else
    asm adc #1;
+#endif
    asm ldy.z TEMPLATE_missile0_height;
    asm ldx #2;
    asm jsr @prepare_one;
@@ -169,7 +216,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta.z TEMPLATE_object_masks + 23;
 
    // No special terminal row is required: Ball, P0, and P1 all remain in
-   // the ordinary raster pipeline through row twelve.
+   // the ordinary raster pipeline through the final packed row.
    asm rts;
 
    asm @prepare_one:;
@@ -297,6 +344,22 @@ require inline void TEMPLATE_vblank(void) {
    asm .byte $01,$03,$07,$0f,$1f,$3f,$7f,$ff;
    asm @TEMPLATE_prepare_object_masks_done:;
 
+#if TEMPLATE_lines == 228
+   // 228 lines are 114 two-scanline object positions: two positions in the
+   // first playfield row followed by fourteen ordinary eight-position rows.
+   // The builder keeps its simple eight-bit range arithmetic by biasing the
+   // non-player coordinates six positions upward.  Discard those six unused
+   // leading bits before the visible loop so physical Y=0 is still the first
+   // visible pair.
+   asm ldx #6;
+   asm @TEMPLATE_shift_first_mask_row:;
+   asm lsr.z TEMPLATE_object_masks;
+   asm lsr.z TEMPLATE_object_masks + 1;
+   asm lsr.z TEMPLATE_object_masks + 2;
+   asm dex;
+   asm bne.same @TEMPLATE_shift_first_mask_row;
+#endif
+
    // The builder is finished with its scratch lane. Reuse two dead lane bytes
    // for the only public Y values the visible loop actually mutates.
    asm lda.z TEMPLATE_player0_y;
@@ -401,7 +464,11 @@ require inline void TEMPLATE_vblank(void) {
    asm stx GRP1;
    asm stx CXCLR;
    asm dec.z TEMPLATE_player0_y;
+#if TEMPLATE_lines == 228
+   asm lda #2;
+#else
    asm lda #8;
+#endif
    asm sta.z TEMPLATE_object_masks + 43;
    asm lda #10;
    asm clc;
@@ -570,7 +637,11 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
+#if TEMPLATE_lines == 228
+   asm cpx #56;
+#else
    asm cpx #44;
+#endif
    asm bne.same @terminalrenderer_not_equal;
    asm jmp @terminalrenderer;
    asm @terminalrenderer_not_equal:;
@@ -714,8 +785,8 @@ require inline void TEMPLATE_draw(void) {
    asm jmp @altrenderer;
 
    // The final row needs no object setup for a following line.  Finish its
-   // reflected right half, then WSYNC through the remainder of visible line
-   // 231.  draw() therefore returns at cycle zero of line 232 and the caller's
+   // reflected right half, then WSYNC through the remainder of the final visible
+   // line. draw() returns at cycle zero of the following line so the caller's
    // immediate VBLANK write cannot leave a partially drawn extra scanline.
    asm @terminalrenderer:;
    asm ldy.ax TEMPLATE_playfield+2,x;
@@ -2289,5 +2360,5 @@ require inline void TEMPLATE_overscan(void) {
 }
 #else
 // Deliberately fail at file scope with a descriptive unresolved size token.
-extern const uint8_t TEMPLATE_playfield[TEMPLATE_lines_must_be_170_181_or_192];
+extern const uint8_t TEMPLATE_playfield[TEMPLATE_lines_must_be_170_181_192_or_228];
 #endif

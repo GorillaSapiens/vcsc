@@ -4,7 +4,12 @@ include "vcs.c26"
 include "frame_secam.c26"
 include "playfield.c26"
 
-page const uint8_t game_playfield[48] := {
+alias VIDEO_BACKGROUND_COLOR __builtin_secam_rgb(0x24, 0x28, 0xb0)
+alias VIDEO_PLAYFIELD_COLOR  __builtin_secam_rgb(0xea, 0xc2, 0x54)
+alias VIDEO_PLAYER0_COLOR    __builtin_secam_rgb(0x79, 0xdd, 0xfb)
+alias VIDEO_PLAYER1_COLOR    __builtin_secam_rgb(0xea, 0x82, 0xdc)
+
+page const uint8_t game_playfield[60] := {
    VCS_PLAYFIELD_ROW(0bX......._...X...._.......X_........),
    VCS_PLAYFIELD_ROW(0b.X......_....X..._........_X.......),
    VCS_PLAYFIELD_ROW(0b..X....._.....X.._........_.X......),
@@ -16,10 +21,13 @@ page const uint8_t game_playfield[48] := {
    VCS_PLAYFIELD_ROW(0b........_X......._...X...._.......X),
    VCS_PLAYFIELD_ROW(0b........_.X......_....X..._......X.),
    VCS_PLAYFIELD_ROW(0b........_..X....._.....X.._.....X..),
-   VCS_PLAYFIELD_ROW(0b........_...X...._......X._....X...)
+   VCS_PLAYFIELD_ROW(0b........_...X...._......X._....X...),
+   VCS_PLAYFIELD_ROW(0b.......X_........_..X....._......X.),
+   VCS_PLAYFIELD_ROW(0b......X._........_.X......_.....X..),
+   VCS_PLAYFIELD_ROW(0b.....X.._........_X......._....X...)
 };
 
-instantiate "renderers/all_five/all_five.c26" as game (lines:=192)
+instantiate "renderers/all_five/all_five.c26" as game (lines:=228)
 
 // These source rows are intentionally bottom-to-top. The maintained renderers
 // reverse macro arguments for highest-index-to-zero traversal, so this makes
@@ -50,7 +58,7 @@ page const uint8_t p1_graphics[8] := {
    )
 };
 
-alias OBJECT_MAX_Y 95
+alias OBJECT_MAX_Y 113
 alias SELECTED_PLAYER0  0
 alias SELECTED_PLAYER1  1
 alias SELECTED_MISSILE0 2
@@ -128,8 +136,8 @@ void main(void) {
    SWACNT := 0;
    SWBCNT := 0;
    VBLANK := 2;
-   COLUBK := __builtin_secam_rgb(0x24, 0x28, 0xb0);
-   COLUPF := __builtin_secam_rgb(0xea, 0xc2, 0x54);
+   COLUBK := VIDEO_BACKGROUND_COLOR;
+   COLUPF := VIDEO_PLAYFIELD_COLOR;
    CTRLPF := 0x21;
 
    game_PLAYER0_X := 20;
@@ -153,8 +161,8 @@ void main(void) {
    game_missile0_height := 5;
    game_missile1_height := 7;
    game_ball_height := 3;
-   game_player0_color := __builtin_secam_rgb(0x79, 0xdd, 0xfb);
-   game_player1_color := __builtin_secam_rgb(0xea, 0x82, 0xdc);
+   game_player0_color := VIDEO_PLAYER0_COLOR;
+   game_player1_color := VIDEO_PLAYER1_COLOR;
    game_playfield_position := 8;
 
    game_init();
@@ -164,9 +172,8 @@ void main(void) {
       vcs_secam_begin_vblank();
       game_vblank();
       vcs_secam_end_vblank();
-      vcs_secam_wait_component_scanlines(17);
       game_draw();
-      vcs_secam_wait_visible_tail_scanlines(19);
+      vcs_secam_component_to_overscan_handoff();
       vcs_secam_begin_overscan();
       game_overscan();
       update_controls();

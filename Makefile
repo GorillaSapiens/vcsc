@@ -771,9 +771,9 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/pal_sound.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_sound_secam_compile_test.c26" -o "$(INSTALLCHECK_STAGING)/secam_sound.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/secam_sound.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/17_video_standards/pal/01_all_five/pal_all_five_192_interactive.c26" -o "$(INSTALLCHECK_STAGING)/pal_all_five.bin"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/17_video_standards/pal/01_all_five/pal_all_five_228_interactive.c26" -o "$(INSTALLCHECK_STAGING)/pal_all_five.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/pal_all_five.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/17_video_standards/secam/01_all_five/secam_all_five_192_interactive.c26" -o "$(INSTALLCHECK_STAGING)/secam_all_five.bin"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/17_video_standards/secam/01_all_five/secam_all_five_228_interactive.c26" -o "$(INSTALLCHECK_STAGING)/secam_all_five.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/secam_all_five.bin"` -eq 4096; \
 	test -f "$$stage_vcs/six_glyph_component.c26"; \
 	test ! -e "$$stage_vcs/six_glyph_color_component.c26"; \

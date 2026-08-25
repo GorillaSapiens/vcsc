@@ -32,9 +32,9 @@ join(' ',@standard_dirs) eq 'pal secam'
 
 my @cases=(
    ['pal','__builtin_pal_rgb','00_blank','pal50_blank.c26'],
-   ['pal','__builtin_pal_rgb','01_all_five','pal_all_five_192_interactive.c26'],
+   ['pal','__builtin_pal_rgb','01_all_five','pal_all_five_228_interactive.c26'],
    ['secam','__builtin_secam_rgb','00_blank','secam50_blank.c26'],
-   ['secam','__builtin_secam_rgb','01_all_five','secam_all_five_192_interactive.c26'],
+   ['secam','__builtin_secam_rgb','01_all_five','secam_all_five_228_interactive.c26'],
 );
 for my$case(@cases) {
    my($standard,$builtin,$numbered,$file)=@$case;

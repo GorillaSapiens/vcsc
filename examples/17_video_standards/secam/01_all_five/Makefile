@@ -4,8 +4,8 @@ ROOT ?= ../../../..
 VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
 
-TARGET := secam_all_five_192_interactive.bin
-SOURCE := secam_all_five_192_interactive.c26
+TARGET := secam_all_five_228_interactive.bin
+SOURCE := secam_all_five_228_interactive.c26
 
 all: $(TARGET)
 

@@ -81,7 +81,7 @@ Files:
 - `../../examples/11_all_five_170/` ... `all_five (lines:=170)` interactive composition with an eleven-line score above and another below
 - `../../examples/12_all_five_170_unofficial/` ... matching `all_five_unofficial (lines:=170)` dual-score composition, built explicitly with `-Wa,--illegals`
 - `../../examples/13_player_color_170/` ... `player_color (lines:=170)` interactive composition with an eleven-line score above and another below
-- `../../examples/17_video_standards/` ... separate `pal/` and `secam/` 50 Hz example trees with minimal frames and measured interactive 192-line all-five compositions using `__builtin_pal_rgb()` / `__builtin_secam_rgb()` directly
+- `../../examples/17_video_standards/` ... separate `pal/` and `secam/` 50 Hz example trees with minimal frames and native interactive 228-line all-five compositions using `__builtin_pal_rgb()` / `__builtin_secam_rgb()` directly
 - `../../examples/18_enhanced_multisprite/` ... 192-line interactive diagnostic for the symmetric P0/P1 six-sprite multiplexer, with deliberate three-way, two-way, and isolated overlap cases
 
 ## Bank-switching diagnostic suite
@@ -224,8 +224,12 @@ forces PAL and SECAM display formats and verifies their stable 50 Hz viewport.
 `VIDEO_STANDARDS.md` classifies the maintained renderers/components. Scheduler-neutral
 C26 visible components are timing-portable when their published line and entry/return
 contracts fit the 228-line visible budget; the retained monolithic legacy/standard
-NTSC renderers remain NTSC-only. The public 192-line all-five examples demonstrate
-the measured wrapper: 17 pre-component helper lines and an 18-line visible tail.
+NTSC renderers remain NTSC-only. The public PAL/SECAM all-five examples instantiate `all_five (lines:=228)` and
+consume the complete 228-line visible field directly. A full-height cycle-counted
+component returns at cycle zero after its terminal WSYNC; the standard-specific
+`component_to_overscan_handoff()` supplies the 16-cycle phase normalization that
+the generic 228-line wait path would have contributed before `begin_overscan()`.
+It does not add a visible scanline.
 
 ## PAL and SECAM sound/cadence constants
 
