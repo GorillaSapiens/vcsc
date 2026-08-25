@@ -15,10 +15,11 @@ Durable decisions
 * PAL and SECAM may share 50 Hz frame/timing infrastructure where the hardware
   timing contract is genuinely common, but their color/palette behavior remains
   separate.
-* Visible scanline count belongs to the renderer/component contract. The
-  official all-five renderer uses the compile-time `lines` parameter: 192 for
-  the native NTSC field and 228 for the native PAL/SECAM field. Do not emulate a
-  native full-height renderer by wrapping a shorter renderer in visible padding.
+* Visible scanline count belongs to the renderer/component contract. Every
+  maintained line-parameterized full-height family (`all_five`, `player_color`,
+  `all_five_unofficial`, and `multisprite`) has a native `lines:=228` PAL/SECAM
+  profile. Do not emulate a native full-height renderer by wrapping a shorter
+  renderer in visible padding.
 * A full-height 228-line component returns at cycle zero after its terminal
   WSYNC. PAL/SECAM callers use `component_to_overscan_handoff()` before
   `begin_overscan()` to restore the calibrated timer-entry phase; this bridge

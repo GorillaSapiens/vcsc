@@ -26,3 +26,15 @@ Use each example's `make play` target, which explicitly selects `-format PAL`
 or `-format SECAM`. For a direct SECAM launch use `stella -format SECAM ROM.bin`.
 Stella's `-tv` option is the emulated console Color/B&W switch; it does not
 select PAL or SECAM.
+
+## Native 228-line renderer matrix
+
+Both PAL and SECAM directories maintain native 228-line examples for the
+parameterized full-height renderer families: `all_five`, `player_color`,
+`all_five_unofficial`, and `multisprite`. These examples use the full active
+field directly; none wraps a 192-line renderer in visible padding.
+
+Fixed-height composition profiles are not mislabeled as 228-line renderers. In
+particular, `all_five_player_color_192` remains a separate hard-scheduled
+192-line component until that renderer is genuinely parameterized. Retained
+legacy/compatibility renderers remain NTSC-only by contract.

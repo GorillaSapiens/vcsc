@@ -11,11 +11,12 @@
 
 `multisprite.c26` is the modern composable derivative of the retained
 `faithful_legacy_multisprite` raster. It draws one independent P0 plus five
-logical sprites multiplexed through P1 and a six-row asymmetric playfield. The
-required `lines` instantiation parameter selects one of the two maintained,
+logical sprites multiplexed through P1 and a profile-sized asymmetric playfield. The
+required `lines` instantiation parameter selects one of the three maintained,
 cycle-proven visible profiles:
 
 ```vcsc
+instantiate "renderers/multisprite/multisprite.c26" as game (lines:=228)
 instantiate "renderers/multisprite/multisprite.c26" as game (lines:=192)
 instantiate "renderers/multisprite/multisprite.c26" as game (lines:=181)
 ```
@@ -28,21 +29,23 @@ path, so cartridges using it must be assembled with `-Wa,--illegals`.
 
 | `lines` | Logical core height | Typical composition | Module RAM |
 | ---: | ---: | --- | ---: |
-| 192 | 95 | full-height, scoreless | 72 bytes |
+| 228 | 113 | native PAL/SECAM full visible field | 72 bytes |
+| 192 | 95 | native NTSC full visible field | 72 bytes |
 | 181 | 89 | one independent 11-line score above or below | 72 bytes |
 
 The legacy logical Y counter is not a physical scanline count. After restoring
-the faithful two-scanline cadence, the measured 192 profile enters the retained
-core at logical Y=95 and closes the field with its terminal line. The 181
-profile enters at logical Y=89. When it follows or precedes a score component,
+the faithful two-scanline cadence, the native 228 profile enters the retained
+core at logical Y=113, the measured 192 profile at Y=95, and the 181 profile
+at Y=89. When it follows or precedes a score component,
 its draw path spends two owned lines in the faithful divide-by-15 P0
 repositioner before entering the hot multiplexing loop, so P0 remains legal over
 the complete X=0..159 range. Adjacent visible components use
 `vcs_ntsc_component_handoff()`.
 
-Both profiles preserve the faithful five-P1 multiplexing algorithm, six
-playfield rows, P0 trailing clear, TXS/PHP enable pipeline, and beam-critical
-reposition schedule. Graphics-pointer adjustment is fully 16-bit for both P0
+All three profiles preserve the faithful five-P1 multiplexing algorithm and
+beam-critical scheduling. The 228 profile retains eight playfield rows while
+the 192/181 profiles retain six. All profiles keep the same P0 trailing clear,
+TXS/PHP enable pipeline, and beam-critical reposition schedule. Graphics-pointer adjustment is fully 16-bit for both P0
 and P1, so pointer arithmetic itself is correct across page boundaries. The
 actual `(ptr),Y` glyph loads are still cycle-sensitive to a 6502 page crossing,
 so the public graphics layout below deliberately prevents those crossings.
@@ -61,8 +64,8 @@ align(256) const uint8_t game_graphics[145] := {
    // bytes 129..136: logical P4
    // bytes 137..144: logical P5
 };
-const uint8_t game_pf1[6] := { ... };
-const uint8_t game_pf2[6] := { ... };
+const uint8_t game_pf1[game_PLAYFIELD_ROWS_VALUE] := { ... };
+const uint8_t game_pf2[game_PLAYFIELD_ROWS_VALUE] := { ... };
 ```
 
 For an instance named `game`, the required offsets are available as
@@ -93,13 +96,13 @@ ordinary right-edge bucket made top-ranked X=143..151 jump or wrap. Public P1
 coordinates are never biased or restored, so vertical sort/flicker transitions
 cannot leak an internal coordinate mutation into application state.
 
-Both profiles preserve the faithful renderer's **frame-persistent
+All three profiles preserve the faithful renderer's **frame-persistent
 flicker-sort order**. When two or more logical P1 sprites occupy overlapping
 vertical bands, the sorter omits the conflicting sprite for the current frame
 and rotates it behind the other sprite(s) for the next frame. The conflicting
 sprites therefore flicker/round-robin instead of lower-numbered sprites losing
 permanently. The packed horizontal-control workspace cannot itself retain that
-order because it is overwritten before `draw()`, so both profiles retain the exact
+order because it is overwritten before `draw()`, so all profiles retain the exact
 five-value permutation nibble-packed in three bytes between frames. Six-frame
 regressions require the overlap winner to alternate in 192 and in both 181 score
 compositions.
@@ -114,7 +117,8 @@ subroutines are inlined, reducing declared hidden hardware-stack depth from four
 to two.
 
 The maintained legal Y ranges are exposed as `PLAYER0_MAX_Y` and
-`PLAYER1_MAX_Y`: 95/92 for `lines:=192`, and 89/86 for `lines:=181`. Y increases
+`PLAYER1_MAX_Y`: 113/110 for `lines:=228`, 95/92 for `lines:=192`, and 89/86
+for `lines:=181`. Y increases
 upward. The P1 maxima are the highest public coordinates that still reach the
 first gameplay line in the calibrated raster. Y=0 is the completely clipped
 bottom position; `vblank()` guards the faithful P0 predecrement so that zero
@@ -145,6 +149,7 @@ component lifecycle.
 
 ## Maintained examples
 
+- `examples/17_video_standards/{pal,secam}/04_multisprite/` instantiate the native `lines:=228` profile.
 - `examples/14_multisprite/01_192/01_interactive/` — full-height interactive
   P0 + five-P1 demonstration.
 - `examples/14_multisprite/02_181_score_above/01_interactive/` — 11-line score

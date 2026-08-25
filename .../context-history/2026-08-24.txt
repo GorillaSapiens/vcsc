@@ -149,3 +149,30 @@ Recursive editable-example build/link/disassembly shards 6/8 (PAL) and 8/8
 (SECAM) pass, as do the PAL and SECAM example Makefile targets after renaming
 their binaries to 228. A broad 322-test E2E run reached 78/322 clean before the
 container command window expired, with no observed failure.
+
+
+2026-08-24 22:51:00 PDT, native 228-line renderer matrix
+Extended every maintained line-parameterized full-height renderer family to a
+native 228-line PAL/SECAM profile. `all_five` was already complete; added 228
+profiles to `player_color`, `all_five_unofficial`, and `multisprite`. The new
+profiles use the full active field directly: player-color and unofficial
+all-five use 60-byte/15-packed-row playfields and Y=0..113 object geometry;
+multisprite uses logical height 113, eight retained playfield rows, P0 Y=0..113,
+and multiplexed P1 Y=0..110. Existing 192/181/170 profiles remain intact.
+
+Added PAL and SECAM public interactive examples for all three newly extended
+families under `17_video_standards`, plus a dedicated eight-row 228 multisprite
+common scene. The recursive example builder now derives the required unofficial
+opcode flag from renderer instantiation as well as legacy filename conventions,
+so standard-prefixed multisprite examples cannot silently build without
+`-Wa,--illegals`. Updated the reviewed example-assembly allowlist for the four
+new direct Reset-vector idioms.
+
+Added `vcs_video_standard_228_matrix.pl` to require one native PAL and SECAM
+example for every renderer advertising a 228 `lines` profile. Expanded the 50 Hz
+CPU harness to build/test all eight native renderer/standard combinations and
+expanded the optional Stella 7 test to launch/snapshot the complete matrix.
+Focused player-color, unofficial all-five, multisprite, native all-five, video
+portability, assembly-policy, and example round-trip regressions pass. Fixed
+192/181 composition renderers and experimental/legacy NTSC kernels remain
+explicitly fixed-height; they were not mislabeled as 228 via visible padding.

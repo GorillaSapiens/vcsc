@@ -1,0 +1,202 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+include "vcs.c26"
+include "frame_pal.c26"
+include "playfield.c26"
+
+page const uint8_t game_playfield[60] := {
+   VCS_PLAYFIELD_ROW(0bX......._...X...._.......X_........),
+   VCS_PLAYFIELD_ROW(0b.X......_....X..._........_X.......),
+   VCS_PLAYFIELD_ROW(0b..X....._.....X.._........_.X......),
+   VCS_PLAYFIELD_ROW(0b...X...._......X._........_..X.....),
+   VCS_PLAYFIELD_ROW(0b....X..._.......X_........_...X....),
+   VCS_PLAYFIELD_ROW(0b.....X.._........_X......._....X...),
+   VCS_PLAYFIELD_ROW(0b......X._........_.X......_.....X..),
+   VCS_PLAYFIELD_ROW(0b.......X_........_..X....._......X.),
+   VCS_PLAYFIELD_ROW(0b........_X......._...X...._.......X),
+   VCS_PLAYFIELD_ROW(0b........_.X......_....X..._......X.),
+   VCS_PLAYFIELD_ROW(0b........_..X....._.....X.._.....X..),
+   VCS_PLAYFIELD_ROW(0b........_...X...._......X._....X...),
+   VCS_PLAYFIELD_ROW(0b.......X_........_..X....._......X.),
+   VCS_PLAYFIELD_ROW(0b......X._........_.X......_.....X..),
+   VCS_PLAYFIELD_ROW(0b.....X.._........_X......._....X...)
+};
+
+// Stored in the renderer's highest-index-to-zero display order.
+page const uint8_t game_player0_colors[8] := {
+   __builtin_pal_rgb(0xea,0xc2,0x54), __builtin_pal_rgb(0xea,0x82,0xdc),
+   __builtin_pal_rgb(0x79,0xdd,0xfb), __builtin_pal_rgb(0x95,0xe0,0x95),
+   __builtin_pal_rgb(0xff,0xa0,0x70), __builtin_pal_rgb(0xc0,0x90,0xff),
+   __builtin_pal_rgb(0x70,0xd0,0xff), __builtin_pal_rgb(0xf0,0xf0,0x80)
+};
+
+page const uint8_t game_player1_colors[8] := {
+   __builtin_pal_rgb(0x95,0xe0,0x95), __builtin_pal_rgb(0x79,0xdd,0xfb),
+   __builtin_pal_rgb(0xea,0x82,0xdc), __builtin_pal_rgb(0xea,0xc2,0x54),
+   __builtin_pal_rgb(0xf0,0xf0,0x80), __builtin_pal_rgb(0x70,0xd0,0xff),
+   __builtin_pal_rgb(0xc0,0x90,0xff), __builtin_pal_rgb(0xff,0xa0,0x70)
+};
+
+instantiate "renderers/player_color/player_color.c26" as game (lines:=228)
+
+// These source rows are intentionally bottom-to-top. The maintained renderers
+// reverse macro arguments for highest-index-to-zero traversal, so this makes
+// the displayed sprites match the faithful legacy interactive example.
+page const uint8_t p0_graphics[8] := {
+   game_SPRITE_GLYPH(
+      0b.X....X.,
+      0bX.X..X.X,
+      0bX.XXXX.X,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b.XX..XX.
+   )
+};
+
+page const uint8_t p1_graphics[8] := {
+   game_SPRITE_GLYPH(
+      0bX.X..X.X,
+      0b.X.XX.X.,
+      0b..X..X..,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b.XX..XX.,
+      0b..XXXX..
+   )
+};
+
+alias OBJECT_MAX_Y 113
+alias SELECTED_PLAYER0 0
+alias SELECTED_PLAYER1 1
+alias SELECTED_BALL    2
+alias SELECTED_OBJECT_COUNT 3
+
+uint8_t selected_object := SELECTED_PLAYER0;
+uint8_t select_switch_ready := 1;
+
+inline void update_object_selection(void) {
+   if (SWCHB & 0x02) {
+      select_switch_ready := 1;
+   }
+   else {
+      if (select_switch_ready) {
+         selected_object++;
+         if (selected_object >= SELECTED_OBJECT_COUNT) {
+            selected_object := SELECTED_PLAYER0;
+         }
+         select_switch_ready := 0;
+      }
+   }
+}
+
+inline void move_selected_object(void) {
+   if (!(SWCHA & 0x40)) {
+      switch (selected_object) {
+         case SELECTED_PLAYER0:
+            if (game_PLAYER0_X > 0) { game_PLAYER0_X--; }
+            break;
+         case SELECTED_PLAYER1:
+            if (game_PLAYER1_X > 0) { game_PLAYER1_X--; }
+            break;
+         default:
+            if (game_BALL_X > 0) { game_BALL_X--; }
+      }
+   }
+   else {
+      if (!(SWCHA & 0x80)) {
+         switch (selected_object) {
+            case SELECTED_PLAYER0:
+               if (game_PLAYER0_X < 159) { game_PLAYER0_X++; }
+               break;
+            case SELECTED_PLAYER1:
+               if (game_PLAYER1_X < 159) { game_PLAYER1_X++; }
+               break;
+            default:
+               if (game_BALL_X < 159) { game_BALL_X++; }
+         }
+      }
+   }
+
+   if (!(SWCHA & 0x10)) {
+      switch (selected_object) {
+         case SELECTED_PLAYER0:
+            if (game_player0_y > 0) { game_player0_y--; }
+            break;
+         case SELECTED_PLAYER1:
+            if (game_player1_y > 0) { game_player1_y--; }
+            break;
+         default:
+            if (game_ball_y > 0) { game_ball_y--; }
+      }
+   }
+   else {
+      if (!(SWCHA & 0x20)) {
+         switch (selected_object) {
+            case SELECTED_PLAYER0:
+               if (game_player0_y < OBJECT_MAX_Y) { game_player0_y++; }
+               break;
+            case SELECTED_PLAYER1:
+               if (game_player1_y < OBJECT_MAX_Y) { game_player1_y++; }
+               break;
+            default:
+               if (game_ball_y < OBJECT_MAX_Y) { game_ball_y++; }
+         }
+      }
+   }
+}
+
+inline void update_controls(void) {
+   // Keep the console Reset path scratch-free; the renderer's hidden
+   // assembly helper stack now consumes the bytes previously borrowed here.
+   asm lda SWCHB;
+   asm and #$01;
+   asm bne @reset_not_pressed;
+   asm jmp ($fffc);
+   asm @reset_not_pressed:;
+   update_object_selection();
+   move_selected_object();
+}
+
+void main(void) {
+   SWACNT := 0;
+   SWBCNT := 0;
+   VBLANK := 2;
+   COLUBK := __builtin_pal_rgb(0x24,0x28,0xb0);
+   COLUPF := __builtin_pal_rgb(0xea,0xc2,0x54);
+   CTRLPF := 0x21;
+
+   game_PLAYER0_X := 44;
+   game_PLAYER1_X := 108;
+   game_PLAYER0_NUSIZ := 0x20;
+   game_PLAYER1_NUSIZ := 0x20;
+   game_BALL_X := 78;
+
+   game_player0_y := 70;
+   game_player1_y := 42;
+   game_ball_y := 45;
+
+   game_player0_graphics := p0_graphics;
+   game_player1_graphics := p1_graphics;
+   game_player0_height := 7;
+   game_player1_height := 7;
+   game_ball_height := 3;
+   game_playfield_position := 8;
+
+   game_init();
+
+   while (1) {
+      vcs_pal_vsync();
+      vcs_pal_begin_vblank();
+      game_vblank();
+      vcs_pal_end_vblank();
+      game_draw();
+      vcs_pal_component_to_overscan_handoff();
+      vcs_pal_begin_overscan();
+      game_overscan();
+      update_controls();
+      vcs_pal_end_overscan();
+   }
+}

@@ -1,0 +1,47 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+include "vcs.c26"
+include "frame_pal.c26"
+
+alias VIDEO_BACKGROUND_COLOR __builtin_pal_rgb(0x24, 0x28, 0xb0)
+alias VIDEO_PLAYFIELD_COLOR  __builtin_pal_rgb(0xea, 0xc2, 0x54)
+alias VIDEO_PLAYER0_COLOR    __builtin_pal_rgb(0xf0, 0xf0, 0xf0)
+alias VIDEO_PLAYER1_COLOR    __builtin_pal_rgb(0xea, 0x82, 0xdc)
+alias VIDEO_PLAYER2_COLOR    __builtin_pal_rgb(0x95, 0xe0, 0x95)
+alias VIDEO_PLAYER3_COLOR    __builtin_pal_rgb(0x79, 0xdd, 0xfb)
+alias VIDEO_PLAYER4_COLOR    __builtin_pal_rgb(0xc0, 0x90, 0xff)
+alias VIDEO_PLAYER5_COLOR    __builtin_pal_rgb(0x70, 0xd0, 0xff)
+
+instantiate "renderers/multisprite/multisprite.c26" as game (lines:=228)
+include "../../../common/multisprite_228_interactive_common.c26"
+
+inline void initialize_228_scene(void) {
+   initialize_multisprite_scene();
+   game_PLAYER0_Y := 92;
+   game_PLAYER1_Y := 16;
+   game_PLAYER2_Y := 34;
+   game_PLAYER3_Y := 52;
+   game_PLAYER4_Y := 70;
+   game_PLAYER5_Y := 88;
+}
+
+void main(void) {
+   SWACNT := 0;
+   SWBCNT := 0;
+   VBLANK := 2;
+   initialize_228_scene();
+
+   while (1) {
+      vcs_pal_vsync();
+      vcs_pal_begin_vblank();
+      game_vblank();
+      vcs_pal_end_vblank();
+      game_draw();
+      vcs_pal_component_to_overscan_handoff();
+      vcs_pal_begin_overscan();
+      game_overscan();
+      if (!(SWCHB & 0x01)) { initialize_228_scene(); }
+      else { update_multisprite_controls(); }
+      vcs_pal_end_overscan();
+   }
+}

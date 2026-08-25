@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 90
-# expectstdout: vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y frame timing, persistent overlap flicker in all profiles, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, compact score glyph state, RAM/ROM contracts, and interactive examples locked
+# expectstdout: vcs_multisprite_profiles ok: parameterized 228/192/181 modern multisprite, exhaustive legal X/Y frame timing, persistent overlap flicker in all profiles, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, compact score glyph state, RAM/ROM contracts, and interactive examples locked
 # expectexit: 0
 
 use strict;
@@ -36,11 +36,12 @@ my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $renderer=File::Spec->catfile($vcs,qw(renderers multisprite multisprite.c26));
 my $text=read_file($renderer);
 $text =~ /parameter\s+lines\s*;/ or die "multisprite lines parameter is missing\n";
-$text =~ /#if\s+TEMPLATE_lines\s*==\s*192/ or die "multisprite 192 profile is missing\n";
+$text =~ /#if\s+TEMPLATE_lines\s*==\s*228/ or die "multisprite 228 profile is missing\n";
+$text =~ /#elif\s+TEMPLATE_lines\s*==\s*192/ or die "multisprite 192 profile is missing\n";
 $text =~ /#elif\s+TEMPLATE_lines\s*==\s*181/ or die "multisprite 181 profile is missing\n";
 my $persistent_sort_contracts=()=$text =~ /alias\s+TEMPLATE_PERSISTENT_SORT_BYTES\s+3\b/g;
 my $module_ram_contracts=()=$text =~ /alias\s+TEMPLATE_MODULE_RAM_BYTES_VALUE\s+72\b/g;
-$persistent_sort_contracts==2 && $module_ram_contracts==2 &&
+$persistent_sort_contracts==3 && $module_ram_contracts==3 &&
 $text =~ /TEMPLATE_MODULE_RAM_BYTES\s*:=\s*TEMPLATE_MODULE_RAM_BYTES_VALUE/
    or die "multisprite profile RAM contract changed\n";
 $text =~ /uint8_t\s+TEMPLATE_sprite_sort\[3\]/ &&
@@ -182,7 +183,7 @@ my $bad=File::Spec->catfile($tmp,'multisprite_bad_lines.c26');
 write_file($bad,qq{include "vcs.c26"\ninstantiate "renderers/multisprite/multisprite.c26" as game (lines:=180)\nvoid main(void) { while (1) {} }\n});
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Wa,--illegals',$bad,'-o',File::Spec->catfile($tmp,'bad.bin'));
 $rc!=0 && !$sig or die "lines:=180 unexpectedly compiled\n";
-$err =~ /TEMPLATE_lines_must_be_181_or_192/ or die "lines:=180 did not fail through the renderer profile guard\n$err";
+$err =~ /TEMPLATE_lines_must_be_181_192_or_228/ or die "lines:=180 did not fail through the renderer profile guard\n$err";
 
 # Build the MOS6502 raster oracle and the independent score pixel oracle.
 my $cxx=$ENV{CXX} || 'c++';
@@ -221,4 +222,4 @@ for my $case (['181-score-above',40],['181-score-below',221]) {
    $err eq '' or die "$mode score raster stderr: $err";
 }
 
-print "vcs_multisprite_profiles ok: parameterized 192/181 modern multisprite, exhaustive legal X/Y frame timing, persistent overlap flicker in all profiles, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, compact score glyph state, RAM/ROM contracts, and interactive examples locked\n";
+print "vcs_multisprite_profiles ok: parameterized 228/192/181 modern multisprite, exhaustive legal X/Y frame timing, persistent overlap flicker in all profiles, clipped P0 bottom edge, exact six-player/playfield and 123456 score rasters, page-safe glyph layout, hard branch-page timing contracts, compact score glyph state, RAM/ROM contracts, and interactive examples locked\n";

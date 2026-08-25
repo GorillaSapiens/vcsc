@@ -28,12 +28,12 @@ The following C26 components are **timing portable** across NTSC/PAL/SECAM.
 They own no VSYNC, VBLANK, or RIOT frame timer and publish their visible-line
 contract independently of the frame scheduler:
 
-- `renderers/all_five/all_five.c26` (181 or 192 lines)
+- `renderers/all_five/all_five.c26` (170, 181, 192, or 228 lines)
 - `renderers/all_five_player_color_181/all_five_player_color_181.c26`
 - `renderers/all_five_player_color_192/all_five_player_color_192.c26`
-- `renderers/all_five_unofficial/all_five_unofficial.c26` (181 or 192 lines)
-- `renderers/multisprite/multisprite.c26` (181 or 192 lines)
-- `renderers/player_color/player_color.c26` (181 or 192 lines)
+- `renderers/all_five_unofficial/all_five_unofficial.c26` (170, 181, 192, or 228 lines)
+- `renderers/multisprite/multisprite.c26` (181, 192, or 228 lines)
+- `renderers/player_color/player_color.c26` (170, 181, 192, or 228 lines)
 - `renderers/player_color_181_unofficial/player_color_181_unofficial.c26`
 - `renderers/poison_debug_score/poison_debug_score.c26`
 - `six_glyph_component.c26`
@@ -63,13 +63,27 @@ renderer rewrite, not a PAL conditional added to their existing bodies.
 
 ## 228-line PAL50 / SECAM50 composition
 
-The public 50 Hz frame front ends expose 228 visible lines.  A 192-line visible
-component can therefore be centered with scheduler-aware blank gaps.  The
-maintained all-five 192-line examples use 17 pre-component helper lines and an
-18-line visible tail.  The renderer's terminal WSYNC boundary is part of its
-published raster contract, so this measured composition reaches overscan at the
-228-line boundary; do not replace the measured wrapper with arithmetic on source
-line counts alone.
+The public 50 Hz frame front ends expose 228 visible lines. Native full-height
+examples therefore instantiate a renderer with `lines:=228`; they do not center
+a 192-line raster inside synthetic visible borders. The maintained 228-line
+profiles are currently:
 
-Use emulator-backed timing tests for every new composition.  A component that
-fits numerically can still have an incompatible entry/return phase.
+- `all_five`
+- `all_five_unofficial`
+- `player_color`
+- `multisprite`
+
+All four return after exactly 228 visible lines and then use the PAL/SECAM
+`component_to_overscan_handoff()` phase bridge before the calibrated 36-line
+overscan interval. The bridge consumes cycles only; it does not add a visible
+scanline.
+
+Some timing-portable components are intentionally fixed-height composition
+profiles rather than full-height renderer families: the 181-line score variants
+and the 11-line score components remain useful inside explicit compositions.
+`all_five_player_color_192` is still a separately cycle-scheduled fixed 192-line
+profile; it must be genuinely generalized before it can have a native 228-line
+example. Do not fake that conversion with visible padding.
+
+Use emulator-backed timing tests for every new full-height profile. A component
+that fits numerically can still have an incompatible entry/return phase.

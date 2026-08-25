@@ -73,7 +73,7 @@ without_usage($out) eq '' && $err eq '' or die "player-color 192 terminal build 
 my $terminal_map=read_file($terminal_mapfile);
 my $text=read_file($module);
 $text =~ /^parameter\s+lines;/m or die "unified player-color renderer lacks required lines parameter\n";
-$text =~ /#if TEMPLATE_lines == 192(.*?)#elif TEMPLATE_lines == 181/s
+$text =~ /#if TEMPLATE_lines == 192 \|\| TEMPLATE_lines == 228(.*?)#elif TEMPLATE_lines == 181/s
    or die "could not isolate player-color 192 branch\n";
 $text=$1;
 my $fixture=read_file($source);

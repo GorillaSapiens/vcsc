@@ -9,7 +9,20 @@
 
 parameter lines;
 
-#if TEMPLATE_lines == 192
+#if TEMPLATE_lines == 228
+alias TEMPLATE_LOGICAL_HEIGHT 113
+alias TEMPLATE_PF_ROW_MAX 7
+alias TEMPLATE_P0_TOP_LIMIT 114
+alias TEMPLATE_P1_TOP_LIMIT 113
+alias TEMPLATE_PLAYER0_MAX_Y 113
+alias TEMPLATE_PLAYER1_MAX_Y 110
+alias TEMPLATE_PLAYFIELD_ROWS 8
+alias TEMPLATE_PLAYFIELD_BYTES_VALUE 16
+alias TEMPLATE_DRAW_HMOVE_COUNT_VALUE 5
+alias TEMPLATE_DRAW_SUCCESSOR_VALUE 0
+alias TEMPLATE_PERSISTENT_SORT_BYTES 3
+alias TEMPLATE_MODULE_RAM_BYTES_VALUE 72
+#elif TEMPLATE_lines == 192
 alias TEMPLATE_LOGICAL_HEIGHT 95
 alias TEMPLATE_PF_ROW_MAX 5
 alias TEMPLATE_P0_TOP_LIMIT 96
@@ -17,6 +30,7 @@ alias TEMPLATE_P1_TOP_LIMIT 95
 alias TEMPLATE_PLAYER0_MAX_Y 95
 alias TEMPLATE_PLAYER1_MAX_Y 92
 alias TEMPLATE_PLAYFIELD_ROWS 6
+alias TEMPLATE_PLAYFIELD_BYTES_VALUE 12
 alias TEMPLATE_DRAW_HMOVE_COUNT_VALUE 5
 alias TEMPLATE_DRAW_SUCCESSOR_VALUE 0
 alias TEMPLATE_PERSISTENT_SORT_BYTES 3
@@ -29,12 +43,13 @@ alias TEMPLATE_P1_TOP_LIMIT 89
 alias TEMPLATE_PLAYER0_MAX_Y 89
 alias TEMPLATE_PLAYER1_MAX_Y 86
 alias TEMPLATE_PLAYFIELD_ROWS 6
+alias TEMPLATE_PLAYFIELD_BYTES_VALUE 12
 alias TEMPLATE_DRAW_HMOVE_COUNT_VALUE 6
 alias TEMPLATE_DRAW_SUCCESSOR_VALUE 1
 alias TEMPLATE_PERSISTENT_SORT_BYTES 3
 alias TEMPLATE_MODULE_RAM_BYTES_VALUE 72
 #else
-extern const uint8_t TEMPLATE_pf1[TEMPLATE_lines_must_be_181_or_192];
+extern const uint8_t TEMPLATE_pf1[TEMPLATE_lines_must_be_181_192_or_228];
 #endif
 
 // Machine-readable visible-component handoff. The 192 profile owns the whole
@@ -54,7 +69,7 @@ enum TEMPLATE_contract {
    TEMPLATE_MULTIPLEXED_PLAYERS := 5,
    TEMPLATE_OBJECT_COUNT := 6,
    TEMPLATE_PLAYFIELD_ROWS_VALUE := TEMPLATE_PLAYFIELD_ROWS,
-   TEMPLATE_PLAYFIELD_BYTES := 12,
+   TEMPLATE_PLAYFIELD_BYTES := TEMPLATE_PLAYFIELD_BYTES_VALUE,
    TEMPLATE_GRAPHICS_BYTES := 145,
    TEMPLATE_GRAPHICS_DATA_OFFSET := 96,
    TEMPLATE_STATE_BYTES := 67,
@@ -243,7 +258,11 @@ require inline void TEMPLATE_vblank(void) {
    asm lda TEMPLATE_sprite_sort + 2;
    asm and #$0f;
    asm sta TEMPLATE_state + 64;
+#if TEMPLATE_lines == 228
+   asm lda #7;
+#else
    asm lda #5;
+#endif
    asm sta TEMPLATE_state + 48;
    asm @TEMPLATE_fsstart:;
    asm ldx #255;
@@ -315,7 +334,9 @@ require inline void TEMPLATE_vblank(void) {
    asm lda TEMPLATE_state + 29,x;
    asm tax;
    asm lda TEMPLATE_state + 14,x;
-#if TEMPLATE_lines == 192
+#if TEMPLATE_lines == 228
+   asm cmp #113;
+#elif TEMPLATE_lines == 192
    asm cmp #95;
 #else
    asm cmp #89;
@@ -440,7 +461,9 @@ require inline void TEMPLATE_vblank(void) {
    asm lda #255;
    asm sta TEMPLATE_state + 37;
    asm lda TEMPLATE_state + 13;
-#if TEMPLATE_lines == 192
+#if TEMPLATE_lines == 228
+   asm cmp #114;
+#elif TEMPLATE_lines == 192
    asm cmp #96;
 #else
    asm cmp #90;
@@ -499,7 +522,9 @@ require inline void TEMPLATE_draw(void) {
    asm sta NUSIZ0;
    asm lda.z TEMPLATE_player0_color;
    asm sta COLUP0;
-#if TEMPLATE_lines == 192
+#if TEMPLATE_lines == 228
+   asm ldy #113;
+#elif TEMPLATE_lines == 192
    asm ldy #95;
 #elif TEMPLATE_lines == 181
    asm ldy #89;
@@ -514,7 +539,7 @@ require inline void TEMPLATE_draw(void) {
    asm nop;
    asm nop;
    asm nop;
-#if TEMPLATE_lines == 192
+#if TEMPLATE_lines == 192 || TEMPLATE_lines == 228
    asm nop;
    // The 181 profile arrived here through PositionASpriteSubroutine and has
    // already spent the six cycles represented by these three NOPs.
@@ -531,7 +556,7 @@ require inline void TEMPLATE_draw(void) {
    asm bit.z TEMPLATE_state + 66;
 #endif
    asm @TEMPLATE_RendererLoopa:;
-#if TEMPLATE_lines == 192
+#if TEMPLATE_lines == 192 || TEMPLATE_lines == 228
    asm bit.z CXM0P;
    asm nop;
    asm nop;
@@ -749,7 +774,7 @@ require inline void TEMPLATE_draw(void) {
    asm jmp @TEMPLATE_BackFromSwitchDrawP0KV;
 
    asm @TEMPLATE_DoneWithRenderer:;
-#if TEMPLATE_lines == 192
+#if TEMPLATE_lines == 192 || TEMPLATE_lines == 228
    asm sta WSYNC;
 #endif
    asm ldx.z TEMPLATE_state + 65;

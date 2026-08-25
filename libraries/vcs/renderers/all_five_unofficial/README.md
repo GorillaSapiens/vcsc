@@ -14,6 +14,7 @@ of `../all_five/all_five.c26`. The required `lines` instantiation parameter
 selects the same maintained visible profiles as the official renderer:
 
 ```vcsc
+instantiate "renderers/all_five_unofficial/all_five_unofficial.c26" as game (lines:=228)
 instantiate "renderers/all_five_unofficial/all_five_unofficial.c26" as game (lines:=192)
 instantiate "renderers/all_five_unofficial/all_five_unofficial.c26" as game (lines:=181)
 instantiate "renderers/all_five_unofficial/all_five_unofficial.c26" as game (lines:=170)
@@ -27,7 +28,8 @@ code at instantiation time.
 
 | `lines` | Playfield | Typical composition | Component RAM |
 | ---: | ---: | --- | ---: |
-| 192 | 48 bytes / 12 rows | full-height, scoreless | 71 bytes |
+| 228 | 60 bytes / 15 packed rows | native PAL/SECAM full visible field | 83 bytes |
+| 192 | 48 bytes / 12 rows | native NTSC full visible field | 71 bytes |
 | 181 | 44 bytes / 11 rows | one independent 11-line score above or below | 67 bytes |
 | 170 | 40 bytes / 10 rows | independent 11-line scores above **and** below | 67 bytes |
 
@@ -49,6 +51,7 @@ the official renderer.
 
 ## Maintained examples
 
+- `examples/17_video_standards/{pal,secam}/03_all_five_unofficial/` instantiate the native `lines:=228` profile.
 - `examples/08_all_five_181_unofficial/` instantiates `lines:=181` with one score.
 - `examples/12_all_five_170_unofficial/` instantiates `lines:=170` between an
   11-line score above and an 11-line score below.

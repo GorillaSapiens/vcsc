@@ -1,23 +1,26 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
 // Parameterized official-opcode P0/P1/BL player-color gameplay component.
-// Supported visible-line profiles are 192, 181, and 170.
+// Supported visible-line profiles are 228, 192, 181, and 170.
 //
+//     instantiate "renderers/player_color/player_color.c26" as game (lines:=228)
 //     instantiate "renderers/player_color/player_color.c26" as game (lines:=192)
 //     instantiate "renderers/player_color/player_color.c26" as game (lines:=181)
 //     instantiate "renderers/player_color/player_color.c26" as game (lines:=170)
 //
-// 192 is the full-height scoreless profile. 181 composes with one 11-line
+// 228 and 192 are full-height scoreless profiles for native PAL/SECAM and
+// NTSC visible windows respectively. 181 composes with one 11-line
 // visible component. 170 composes with two 11-line visible components.
 // The line parameter is compile-time only; no runtime line-count state exists.
 // Player color tables are page-contained; define VCS_PLAYER_COLOR_MUTABLE_COLORS
-// before a 192-line instantiation when an application must update them in RAM.
+// before a full-height instantiation when an application must update them in RAM.
 
 parameter lines;
 
-#if TEMPLATE_lines == 192
-// Full-height scoreless 192-line profile. Each instance requires a page-contained
-// immutable TEMPLATE_playfield[48]. Player colors may be mutable when
+#if TEMPLATE_lines == 192 || TEMPLATE_lines == 228
+// Full-height scoreless profile. Each instance requires a page-contained
+// immutable TEMPLATE_playfield[48] for 192 lines or TEMPLATE_playfield[60] for
+// 228 lines. Player colors may be mutable when
 // VCS_PLAYER_COLOR_MUTABLE_COLORS is defined before instantiation.
 // The machine-readable visible handoff fields below are defined in
 // renderers/COMPONENT_CONVERSION.md under "Measured visible-component handoff".
@@ -34,8 +37,13 @@ enum TEMPLATE_contract {
    TEMPLATE_VBLANK_MAX_CYCLES := 1800,
    TEMPLATE_OVERSCAN_MAX_CYCLES := 66,
    TEMPLATE_OBJECT_COUNT := 3,
+#if TEMPLATE_lines == 228
+   TEMPLATE_PLAYFIELD_BYTES := 60,
+   TEMPLATE_PLAYFIELD_ROWS := 15,
+#else
    TEMPLATE_PLAYFIELD_BYTES := 48,
    TEMPLATE_PLAYFIELD_ROWS := 12,
+#endif
    TEMPLATE_PLAYFIELD_ROW_BYTES := 4,
    TEMPLATE_WORKSPACE_BYTES := 7,
    TEMPLATE_PRIVATE_RAM_BYTES := 10,
@@ -53,7 +61,11 @@ alias TEMPLATE_BALL_X TEMPLATE_object_x[TEMPLATE_OBJECT_BALL]
 alias TEMPLATE_PLAYER0_NUSIZ TEMPLATE_object_x[2]
 alias TEMPLATE_PLAYER1_NUSIZ TEMPLATE_object_x[3]
 
+#if TEMPLATE_lines == 228
+extern const uint8_t TEMPLATE_playfield[60];
+#else
 extern const uint8_t TEMPLATE_playfield[48];
+#endif
 #ifdef VCS_PLAYER_COLOR_MUTABLE_COLORS
 extern uint8_t TEMPLATE_player0_colors[8];
 extern uint8_t TEMPLATE_player1_colors[8];
@@ -203,7 +215,11 @@ require inline void TEMPLATE_vblank(void) {
    asm stx GRP1;
    asm stx CXCLR;
    asm dec.z TEMPLATE_player0_y;
+#if TEMPLATE_lines == 228
+   asm lda #2;
+#else
    asm lda #8;
+#endif
    asm sta.z TEMPLATE_workspace;
    asm lda #10;
    asm clc;
@@ -419,7 +435,11 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF1;
    asm lda.ax TEMPLATE_playfield+1,x;
    asm sta PF2;
+#if TEMPLATE_lines == 228
+   asm cpx #56;
+#else
    asm cpx #44;
+#endif
    asm bne.same @terminalrenderer_not_equal;
    asm jmp @terminalrenderer;
    asm @terminalrenderer_not_equal:;

@@ -94,6 +94,7 @@ for my $entry (@examples) {
    my $bin=File::Spec->catfile($tmp,"$tag.bin");
    my $map=File::Spec->catfile($tmp,"$tag.map");
    my $profile=profile_from_source($source);
+   my $source_text=read_file($source);
    my @extra;
    if ($file eq 'enhanced_multisprite_192_asymmetric.c26') {
       # This public example deliberately trades blanking time toward VBLANK and
@@ -119,9 +120,11 @@ for my $entry (@examples) {
       push @extra,'-Wa,--illegals','-T',$faithful_cfg;
    } elsif ($file eq 'faithful_legacy_multisprite_diagnostic.c26') {
       push @extra,'-nostdlib','-Wa,--illegals','-T',$faithful_multisprite_cfg;
-   } elsif ($file =~ /\Amultisprite_.*\.c26\z/) {
+   } elsif ($file =~ /\Amultisprite_.*\.c26\z/ ||
+            $source_text =~ /instantiate\s+"renderers\/multisprite\/multisprite\.c26"/) {
       push @extra,'-Wa,--illegals';
-   } elsif ($file =~ /_unofficial_.*\.c26\z/) {
+   } elsif ($file =~ /_unofficial_.*\.c26\z/ ||
+            $source_text =~ /instantiate\s+"renderers\/all_five_unofficial\/all_five_unofficial\.c26"/) {
       push @extra,'-Wa,--illegals';
    }
    -f $source or die "missing editable example $source\n";
