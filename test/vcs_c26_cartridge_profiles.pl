@@ -52,6 +52,8 @@ my @profiles=(
    ['UASW', 'vcs_8k_uasw.c26',  undef,               2, 1, 0,  8192],
    ['0FA0', 'vcs_8k_0fa0.c26',  undef,               2, 1, 0,  8192],
    ['E0',   'vcs_8k_e0.c26',    undef,              8, 0, 0,  8192],
+   ['3F',   'vcs_8k_3f.c26',    undef,    4, 0, 0,  8192],
+   ['3E',   'vcs_8k_3e.c26',    undef,    4, 0, 0,  8192],
    ['F6',   'vcs_16k_f6.c26',   'vcs_16k_f6.cfg',   4, 1, 0, 16384],
    ['JANE', 'vcs_16k_jane.c26', undef,               4, 1, 0, 16384],
    ['F4',   'vcs_32k_f4.c26',   'vcs_32k_f4.cfg',   8, 1, 0, 32768],
@@ -101,13 +103,21 @@ for my $p (@profiles) {
    my $stem=lc($name); $stem =~ s/[^a-z0-9]+/_/g;
    my $generic_bin=File::Spec->catfile($tmp,"$stem.generic.bin");
    my $generic_map=File::Spec->catfile($tmp,"$stem.generic.map");
+   my $build_source=$blank;
+   if ($name =~ /^(?:3F|3E)$/) {
+      $build_source=File::Spec->catfile($tmp,"blank_screen_${stem}.c26");
+      my $blank_text=read_file($blank);
+      $blank_text =~ s/include\s+"vcs\.c26"/alias VCS_TIA_USE_40_MIRROR 1\ninclude "vcs.c26"/;
+      open(my $fh,'>',$build_source) or die "open $build_source: $!\n";
+      print $fh $blank_text; close($fh);
+   }
    require_ok("build $name from C26 topology and reduced cfg",
       $driver,'-I',$vcs,'-T',$generic_cfg,
-      '-Map',$generic_map,$profile,$blank,'-o',$generic_bin);
+      '-Map',$generic_map,$profile,$build_source,'-o',$generic_bin);
    -s $generic_bin==$output_size
       or die "$name C26 profile emitted ".(-s $generic_bin)." bytes, expected $output_size\n";
 
-   if ($name =~ /^(?:CV|4KSC|F8|0840|UA|UASW|0FA0|E0|F6|JANE|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
+   if ($name =~ /^(?:CV|4KSC|F8|0840|UA|UASW|0FA0|E0|3F|3E|F6|JANE|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
       my $rom=read_file($generic_bin);
       my $want=$name . ("\0" x (4-length($name)));
       substr($rom,-8,4) eq $want
@@ -134,7 +144,7 @@ for my $p (@profiles) {
       my $legacy_bin=File::Spec->catfile($tmp,"$stem.legacy.bin");
       require_ok("differential build $name with legacy cfg",
          $driver,'-I',$vcs,'-T',$legacy,
-         $profile,$blank,'-o',$legacy_bin);
+         $profile,$build_source,'-o',$legacy_bin);
       read_file($generic_bin) eq read_file($legacy_bin)
          or die "$name C26 profile and legacy cfg do not emit identical cartridges
 ";
@@ -145,7 +155,7 @@ for my $p (@profiles) {
       or die "$name map does not report C26 topology\n";
    $map =~ /output-size=\$[0-9A-F]{8}/
       or die "$name map does not report topology output size\n";
-   my @file_order = $name eq 'E0' ? (0..7) : $name eq 'JANE' ? (1,0,2,3) : $name =~ /^(?:0840|UA|UASW)$/ ? (0,1) : reverse(0..$banks-1);
+   my @file_order = $name eq 'E0' ? (0..7) : $name =~ /^(?:3F|3E)$/ ? (0..$banks-1) : $name eq 'JANE' ? (1,0,2,3) : $name =~ /^(?:0840|UA|UASW)$/ ? (0,1) : reverse(0..$banks-1);
    for my $logical (0..$banks-1) {
       my $file_index=$file_order[$logical];
       $map =~ /^\s+bank\Q$logical\E\s+file-index=\Q$file_index\E\b/m
@@ -221,6 +231,20 @@ for my $p (@profiles) {
       $map =~ /^\s+bank7\s+file-index=7\b.*cpu=\$1C00.*startup=yes/m &&
       $map !~ /^TRAMPOLINES$/m
          or die "E0 map does not preserve fixed top bank/no fake whole-window trampolines\n";
+   }
+
+   if ($name =~ /^(?:3F|3E)$/) {
+      $text =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$cpu_start:0x1800.*?\$startup/s &&
+      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$cpu_start:0x1000/s &&
+      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$cpu_start:0x1000/s &&
+      $text =~ /bank\s+bank2\s*\{.*?\$file_index:2.*?\$cpu_start:0x1000/s &&
+      $text !~ /\$select_access:/
+         or die "$name profile does not preserve selectable-lower/fixed-final 2K topology\n";
+      $map =~ /^\s+bank3\s+file-index=3\b.*cpu=\$1800.*startup=yes/m &&
+      $map !~ /^TRAMPOLINES$/m
+         or die "$name map does not preserve fixed final bank/no fake trampolines\n";
+      $text =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/
+         or die "$name profile does not select the safe TIA mirror binding\n";
    }
 
    if ($name eq 'JANE') {

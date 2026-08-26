@@ -26,7 +26,7 @@ The public VCSC cartridge profiles also stamp the final physical bank with a
 four-byte mapper signature at logical addresses `$xFF8-$xFFB` (eight bytes before that bank ends). Short mapper names are
 ASCII-NUL padded: `F8\0\0`, `F6\0\0`, `F4\0\0`, `FA\0\0`, and
 `CV\0\0`; the complete four-byte names are `4KSC`, `F8SC`, `F6SC`, `F4SC`,
-`OMNI`, `JANE`, `0840`, `UA\0\0`, `UASW`, `0FA0`, and `E0\0\0`. Only the final bank in file order contains the signature. Selector-hotspot addresses are valid storage
+`OMNI`, `JANE`, `0840`, `UA\0\0`, `UASW`, `0FA0`, `E0\0\0`, `3F\0\0`, and `3E\0\0`. Only the final bank in file order contains the signature. Selector-hotspot addresses are valid storage
 for these bytes because hardware switching is caused by accessing the address,
 not by the byte stored there. The final two bytes overlap the unused 6507 NMI
 vector while leaving RESET and IRQ/BRK intact.
@@ -94,3 +94,12 @@ Stella's `E0` mapper.
 standard all-five renderer with generic C26 topology.  Its only bank switch is a
 VBLANK-only overscan-hook round trip; F6, F4, F8SC, and unbanked-reference builds
 remain private regression variants of the same source.
+
+`12_3f/` is the classic 3F diagnostic. It exercises multiple lower 2K ROM banks
+plus the fixed final 2K, forces Stella's 3F mapper, and renders large PASS/FAIL
+with small `3F`. The profile transparently uses the `$40-$7F` TIA mirror so
+ordinary display writes do not become 3F bank-select writes.
+
+`13_3e/` is the classic 3E diagnostic. It exercises lower-ROM switching, two
+1K RAM banks, read/write aliases, RAM persistence, ROM restoration, and the
+fixed final 2K, then renders large PASS/FAIL with small `3E`.

@@ -55,18 +55,42 @@ struct WriteEvent {
 uint8_t memory_image[65536];
 uint8_t cartridge_image[kF8RomSize];
 uint8_t superchip_ram[128];
+uint8_t threee_ram[32][1024];
 size_t cartridge_size = 0;
+enum class CartridgeTimingMapper { Plain, F8, ThreeF, ThreeE };
+CartridgeTimingMapper cartridge_mapper = CartridgeTimingMapper::Plain;
 unsigned selected_f8_chunk = 1;
+unsigned selected_three_chunk = 0;
+bool threee_ram_selected = false;
+unsigned threee_ram_bank = 0;
 
 void map_f8_chunk(unsigned chunk) {
    selected_f8_chunk = chunk & 1u;
 }
 
 void maybe_select_f8(uint16_t address) {
-   if (cartridge_size != kF8RomSize) return;
+   if (cartridge_mapper != CartridgeTimingMapper::F8) return;
    const uint16_t bus = address & 0x1fff;
    if (bus == 0x1ff8) map_f8_chunk(0);
    else if (bus == 0x1ff9) map_f8_chunk(1);
+}
+
+bool three_mapper() {
+   return cartridge_mapper == CartridgeTimingMapper::ThreeF ||
+          cartridge_mapper == CartridgeTimingMapper::ThreeE;
+}
+
+uint8_t read_three_cartridge(uint16_t address) {
+   const uint16_t bus = address & 0x1fff;
+   if (bus >= 0x1800) {
+      return cartridge_image[3u * 0x0800u + (bus - 0x1800u)];
+   }
+   if (cartridge_mapper == CartridgeTimingMapper::ThreeE && threee_ram_selected) {
+      if (bus < 0x1400)
+         return threee_ram[threee_ram_bank][bus - 0x1000u];
+      return 0xff;
+   }
+   return cartridge_image[selected_three_chunk * 0x0800u + (bus - 0x1000u)];
 }
 uint64_t virtual_cycles = 0;
 std::vector<WriteEvent> writes;
@@ -186,7 +210,9 @@ uint8_t timer_value(uint64_t cycle) {
 
 uint8_t read_bus(uint16_t address) {
    maybe_select_f8(address);
-   if (cartridge_size == kF8RomSize && (address & 0x1000)) {
+   if (three_mapper() && (address & 0x1000))
+      return read_three_cartridge(address);
+   if (cartridge_mapper == CartridgeTimingMapper::F8 && (address & 0x1000)) {
       const uint16_t offset = address & 0x0fff;
       if (offset >= 0x0080 && offset <= 0x00ff) {
          return superchip_ram[offset - 0x0080];
@@ -214,11 +240,29 @@ uint8_t read_bus(uint16_t address) {
 
 void write_bus(uint16_t address, uint8_t value) {
    maybe_select_f8(address);
-   if (cartridge_size == kF8RomSize && (address & 0x1fff) >= 0x1000 &&
-       (address & 0x1fff) <= 0x107f) {
+   const uint16_t bus = address & 0x1fff;
+   if (cartridge_mapper == CartridgeTimingMapper::ThreeF && bus <= 0x003f) {
+      selected_three_chunk = value & 3u;
+      threee_ram_selected = false;
+   }
+   else if (cartridge_mapper == CartridgeTimingMapper::ThreeE && bus == 0x003f) {
+      selected_three_chunk = value & 3u;
+      threee_ram_selected = false;
+   }
+   else if (cartridge_mapper == CartridgeTimingMapper::ThreeE && bus == 0x003e) {
+      threee_ram_bank = value & 31u;
+      threee_ram_selected = true;
+   }
+   if (cartridge_mapper == CartridgeTimingMapper::ThreeE && threee_ram_selected &&
+       bus >= 0x1400 && bus < 0x1800) {
+      threee_ram[threee_ram_bank][bus - 0x1400u] = value;
+   }
+   else if (cartridge_mapper == CartridgeTimingMapper::F8 && bus >= 0x1000 &&
+            bus <= 0x107f) {
       superchip_ram[address & 0x7f] = value;
    }
-   else if (!(cartridge_size == kF8RomSize && (address & 0x1000)) &&
+   else if (!(three_mapper() && (address & 0x1000)) &&
+            !(cartridge_mapper == CartridgeTimingMapper::F8 && (address & 0x1000)) &&
             address < kRomBase) {
       memory_image[address] = value;
    }
@@ -315,14 +359,22 @@ void verify_asymmetric_previous_frame() {
 
 void apply_writes() {
    for (const WriteEvent &event : writes) {
-      if (asymmetric_visibility.enabled) {
-         if (event.address == kColup0 || event.address == kColup1) {
-            const unsigned lane = event.address == kColup1 ? 1u : 0u;
+      // 3F owns writes in $00-$3F.  Treat classic 3E the same way here so
+      // mapper-profile timing remains valid even on implementations that do
+      // not forward the cartridge-owned low page to TIA.  Both families can
+      // always reach TIA through its $40-$7F mirror.
+      const bool tia_write = event.address < 0x0080u &&
+         (!three_mapper() || event.address >= 0x0040u);
+      const uint16_t tia_address = tia_write
+         ? static_cast<uint16_t>(event.address & 0x003fu) : event.address;
+      if (asymmetric_visibility.enabled && tia_write) {
+         if (tia_address == kColup0 || tia_address == kColup1) {
+            const unsigned lane = tia_address == kColup1 ? 1u : 0u;
             asymmetric_visibility.lane_color[lane] = event.value;
          }
-         else if ((event.address == kGrp0 || event.address == kGrp1) &&
+         else if ((tia_address == kGrp0 || tia_address == kGrp1) &&
                   event.value != 0) {
-            const unsigned lane = event.address == kGrp1 ? 1u : 0u;
+            const unsigned lane = tia_address == kGrp1 ? 1u : 0u;
             const uint8_t color = asymmetric_visibility.lane_color[lane];
             for (unsigned id = 0; id < 6; ++id) {
                if (memory_image[asymmetric_visibility.color_address + id] == color) {
@@ -356,8 +408,8 @@ void apply_writes() {
             }
          }
       }
-      if (event.address == kResp0 || event.address == kResp1) {
-         const unsigned lane = event.address == kResp1 ? 1u : 0u;
+      if (tia_write && (tia_address == kResp0 || tia_address == kResp1)) {
+         const unsigned lane = tia_address == kResp1 ? 1u : 0u;
          const uint64_t line = virtual_cycles / kCyclesPerScanline;
          resp_phase_seen[lane][virtual_cycles % kCyclesPerScanline] = true;
          const uint64_t other_line = last_resp_line[lane ^ 1u];
@@ -367,12 +419,12 @@ void apply_writes() {
             saw_adjacent_resp_lines = true;
          }
       }
-      if (event.address == kWsync) {
+      if (tia_write && tia_address == kWsync) {
          const uint64_t within_line = virtual_cycles % kCyclesPerScanline;
          virtual_cycles += within_line ? kCyclesPerScanline - within_line
                                        : kCyclesPerScanline;
       }
-      else if (event.address == kVsync) {
+      else if (tia_write && tia_address == kVsync) {
          const bool next = (event.value & 2) != 0;
          if (!next && vsync_asserted) {
             vsync_deassertions.push_back(virtual_cycles);
@@ -453,14 +505,14 @@ void apply_writes() {
                event.address == kTim64t || event.address == kT1024t) {
          load_timer(event.address, event.value);
       }
-      else if (event.address == kAudc0 || event.address == kAudf0 ||
-               event.address == kAudv0) {
-         channel0_write_order.push_back(event.address);
-         if ((event.address == kAudc0 || event.address == kAudf0) &&
+      else if (tia_write && (tia_address == kAudc0 || tia_address == kAudf0 ||
+               tia_address == kAudv0)) {
+         channel0_write_order.push_back(tia_address);
+         if ((tia_address == kAudc0 || tia_address == kAudf0) &&
              channel0_volume != 0) {
             channel0_retuned_while_audible = true;
          }
-         if (event.address == kAudv0) {
+         if (tia_address == kAudv0) {
             channel0_volume = event.value & 0x0f;
             ++audv0_writes;
             saw_audv0_zero |= event.value == 0;
@@ -755,6 +807,7 @@ int main(int argc, char **argv) {
    std::memset(memory_image, 0, sizeof(memory_image));
    std::memset(cartridge_image, 0, sizeof(cartridge_image));
    std::memset(superchip_ram, 0, sizeof(superchip_ram));
+   std::memset(threee_ram, 0, sizeof(threee_ram));
    std::ifstream rom(argv[1], std::ios::binary | std::ios::ate);
    if (!rom) {
       fail("could not open ROM");
@@ -771,12 +824,26 @@ int main(int argc, char **argv) {
       fail("could not read complete ROM");
    }
    if (cartridge_size == kF8RomSize) {
-      // F8/F8SC file chunk 1 is the startup bank ($1FF9).  The 6507 only
-      // exposes 13 address bits, so banked code linked at $Dxxx and $Fxxx
-      // reaches the same cartridge window; read_bus() applies that mirror.
-      map_f8_chunk(1);
+      const uint8_t *signature = cartridge_image + cartridge_size - 8u;
+      if (std::memcmp(signature, "3F\0\0", 4) == 0) {
+         cartridge_mapper = CartridgeTimingMapper::ThreeF;
+         selected_three_chunk = 0;
+      }
+      else if (std::memcmp(signature, "3E\0\0", 4) == 0) {
+         cartridge_mapper = CartridgeTimingMapper::ThreeE;
+         selected_three_chunk = 0;
+         threee_ram_selected = false;
+      }
+      else {
+         // F8/F8SC file chunk 1 is the startup bank ($1FF9).  The 6507 only
+         // exposes 13 address bits, so banked code linked at $Dxxx and $Fxxx
+         // reaches the same cartridge window; read_bus() applies that mirror.
+         cartridge_mapper = CartridgeTimingMapper::F8;
+         map_f8_chunk(1);
+      }
    }
    else {
+      cartridge_mapper = CartridgeTimingMapper::Plain;
       std::memcpy(memory_image + kRomBase, cartridge_image, kBankSize);
    }
 

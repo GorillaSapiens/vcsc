@@ -42,5 +42,9 @@ xform {
    '\0' 0x00,
 };
 
+#ifdef VCS_TIA_USE_40_MIRROR
+include "tia_mirror_40.c26"
+#else
 include "tia.c26"
+#endif
 include "riot.c26"

@@ -1219,6 +1219,77 @@ static int c26_topology_is_e0(const linker_config_t *cfg)
           cart->signature[2] == 0 && cart->signature[3] == 0;
 }
 
+//! @brief Return whether the C26 topology is classic Tigervision 3F or 3E.
+static int c26_topology_is_3f_family(const linker_config_t *cfg)
+{
+   const topology_cartridge_t *cart;
+   if (!cfg || cfg->topology_bank_count < 3u || cfg->topology_bank_count > 8u)
+      return 0;
+   cart = &cfg->topology_cartridge;
+   if (!(cart->present_mask & 0x80u) || cart->signature[2] != 0 ||
+       cart->signature[3] != 0)
+      return 0;
+   return cart->signature[0] == '3' &&
+          (cart->signature[1] == 'F' || cart->signature[1] == 'E');
+}
+
+//! @brief Validate classic Tigervision lower-2K/fixed-final-2K topology.
+static void validate_c26_3f_family_topology(const linker_config_t *cfg)
+{
+   size_t i;
+   size_t startup_count = 0;
+   size_t final_index = cfg->topology_bank_count - 1u;
+
+   for (i = 0; i < cfg->topology_bank_count; ++i) {
+      const topology_bank_t *bank = &cfg->topology_banks[i];
+      uint16_t canonical_link = (uint16_t)(bank->link_start & 0x1fffu);
+      if (bank->image_size != 0x0800u || bank->image_offset != 0 ||
+          bank->map_size != 0x0800u) {
+         fprintf(stderr,
+                 "vcsc-ld: 3F/3E bank '%s' must be one fully mapped 2K physical chunk\n",
+                 bank->name);
+         exit(1);
+      }
+      if (bank->has_selector) {
+         fprintf(stderr,
+                 "vcsc-ld: 3F/3E bank '%s' must not use address-only $select_access metadata; selection is value-written TIA state\n",
+                 bank->name);
+         exit(1);
+      }
+      if (canonical_link != (uint16_t)(bank->cpu_start & 0x1fffu)) {
+         fprintf(stderr,
+                 "vcsc-ld: 3F/3E bank '%s' link address $%04X is not a 6507 alias of CPU window $%04X\n",
+                 bank->name, bank->link_start, bank->cpu_start);
+         exit(1);
+      }
+      if (bank->file_index == final_index) {
+         if (bank->cpu_start != 0x1800u) {
+            fprintf(stderr,
+                    "vcsc-ld: 3F/3E final physical bank must use fixed $1800-$1FFF CPU window\n");
+            exit(1);
+         }
+      } else if (bank->cpu_start != 0x1000u) {
+         fprintf(stderr,
+                 "vcsc-ld: 3F/3E selectable bank '%s' must use lower $1000-$17FF CPU window\n",
+                 bank->name);
+         exit(1);
+      }
+      if (bank->startup) {
+         startup_count++;
+         if (bank->file_index != final_index) {
+            fprintf(stderr,
+                    "vcsc-ld: 3F/3E startup/home marker must be on the fixed final physical bank\n");
+            exit(1);
+         }
+      }
+   }
+   if (startup_count != 1u) {
+      fprintf(stderr,
+              "vcsc-ld: 3F/3E topology requires the fixed final 2K as the single startup/home bank\n");
+      exit(1);
+   }
+}
+
 //! @brief Validate the segmented 8x1K Parker Brothers E0 output profile.
 static void validate_c26_e0_topology(const linker_config_t *cfg)
 {
@@ -1284,6 +1355,7 @@ static void validate_c26_topology(linker_config_t *cfg)
    size_t startup_count = 0;
    const unsigned int complete_generated_mask = 0x7fu;
    int e0_profile;
+   int threef_family;
 
    if (cfg->topology_bank_count == 0) {
       if (cfg->topology_cartridge.present) {
@@ -1297,6 +1369,7 @@ static void validate_c26_topology(linker_config_t *cfg)
       exit(1);
    }
    e0_profile = c26_topology_is_e0(cfg);
+   threef_family = c26_topology_is_3f_family(cfg);
 
    for (i = 0; i < cfg->topology_bank_count; ++i) {
       topology_bank_t *bank = &cfg->topology_banks[i];
@@ -1335,7 +1408,7 @@ static void validate_c26_topology(linker_config_t *cfg)
                     bank->name, other->name);
             exit(1);
          }
-         if (!e0_profile && !bank->has_selector && !other->has_selector &&
+         if (!e0_profile && !threef_family && !bank->has_selector && !other->has_selector &&
              ranges_overlap_u32(bank->cpu_start, bank->map_size,
                                 other->cpu_start, other->map_size)) {
             fprintf(stderr, "vcsc-ld: directly mapped CPU ranges '%s' and '%s' overlap\n",
@@ -1353,6 +1426,8 @@ static void validate_c26_topology(linker_config_t *cfg)
 
    if (e0_profile)
       validate_c26_e0_topology(cfg);
+   if (threef_family)
+      validate_c26_3f_family_topology(cfg);
 
    if (selector_count && selector_count != cfg->topology_bank_count) {
       fprintf(stderr, "vcsc-ld: mixed direct and selector-controlled banks require a future window/device model\n");

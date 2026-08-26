@@ -180,3 +180,38 @@ checks real `pass` + `E0` glyphs instead of accepting a solid green background.
 The Stella test also isolates XDG_CONFIG_HOME so a developer's saved debugger
 state cannot hijack certification. A forced `stella -bs E0` snapshot graded as
 320x228 with green PASS, large `pass`, and small `E0`.
+
+
+2026-08-25 18:55:00 PDT, complete classic 3F and 3E output support
+Implemented classic Tigervision-family build support around a selectable lower
+2K window plus fixed final 2K. Public 8K and 16K C26 profiles/cfgs now exist
+for both 3F and 3E; the linker validates their segmented physical-bank topology
+without fake whole-window trampolines. vcsc-sim models 3F value-written lower
+ROM selection and 3E exact $3F ROM selection plus 32 1K RAM banks selected by
+$3E, with read alias $1000-$13FF and write alias $1400-$17FF.
+
+Added public 3F and 3E diagnostics with large PASS/FAIL and small mapper text.
+Both simulator self-tests pass, both are detected by vcsc-disas at high
+confidence and round-trip byte-exactly, and forced Stella snapshots grade PASS.
+Classic 3F required an important hardware-facing profile rule: because Stella's
+3F mapper owns low-page writes for bank selection, normal TIA accesses use the
+$40-$7F TIA mirror through the new tia_mirror_40.c26 binding. 3E deliberately
+keeps normal low TIA addresses because its mapper forwards those accesses.
+Bankswitching Items 40 and 41 are retired; Item 42 FE/SCABS is next.
+
+2026-08-25 20:01:58 PDT, fix 3E TIA mirror frame timing
+The public 3E profiles had intentionally retained ordinary low-page TIA
+addresses based on Stella 7 forwarding non-hotspot writes. Current Stella
+behavior can leave that page cartridge-owned, swallowing writes such as VSYNC
+and WSYNC; the resulting picture can still look plausible while frame cadence
+is catastrophically wrong (the reported case was 675 scanlines per frame).
+
+Both 8K and 16K classic 3E profiles now select VCS_TIA_USE_40_MIRROR, matching
+3F for ordinary TIA I/O while keeping literal $3E/$3F mapper-control writes.
+The focused 3F/3E regression compiles vcs_frame_timing.cpp with strict warnings
+and requires 47 consecutive 262-line frames from both visible diagnostics. The
+timing harness now models classic 3F/3E low-page cartridge ownership, 3F ROM
+selection, and 3E ROM/RAM selection plus split RAM aliases. Under that model the
+old 3E image fails before producing enough frames; the corrected image passes
+at exactly 262 lines. Screenshot grading remains as a separate glyph/display
+check rather than a substitute for timing certification.

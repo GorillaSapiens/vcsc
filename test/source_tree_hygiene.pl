@@ -190,7 +190,9 @@ index($bankswitching,'Never use bare "bank 0" without saying which identity is m
 index($bankswitching,'file_index(BANKn) = bank_count - 1 - n')>=0 &&
 index($bankswitching,'Public VCSC cartridge profiles reserve four bytes')>=0 &&
 $bankswitching =~ /^\[ \] 38\. Reconsider the next tier: F0, FA2, and FC\. \*\*DEFERRED\.\*\*/m &&
-$bankswitching =~ /^\[ \] 40\. Backfill a 3F public diagnostic cartridge\./m &&
+$bankswitching =~ /^\[ \] 42\. Backfill an FE \/ SCABS public diagnostic cartridge\./m &&
+$bankswitching !~ /Backfill a 3F public diagnostic cartridge/ &&
+$bankswitching !~ /Backfill a 3E public diagnostic cartridge/ &&
 $bankswitching =~ /^\[ \] 44\. Backfill a DPC public diagnostic cartridge\./m &&
 $bankswitching !~ /^\[x\]/m
    or die "bankswitching hot record lost durable identities/open work or exceeded 16 KiB\n";
@@ -425,6 +427,8 @@ index($examples_build,q{include\s+"vcs_8k_ua\.c26"})>=0 &&
 index($examples_build,q{include\s+"vcs_8k_uasw\.c26"})>=0 &&
 index($examples_build,q{include\s+"vcs_8k_0fa0\.c26"})>=0 &&
 index($examples_build,q{include\s+"vcs_8k_e0\.c26"})>=0 &&
+index($examples_build,q{include\s+"vcs_8k_3f\.c26"})>=0 &&
+index($examples_build,q{include\s+"vcs_8k_3e\.c26"})>=0 &&
 index($examples_build,q{$profile eq '2k'})>=0 &&
 index($examples_build,q{$profile eq 'f8'})>=0 &&
 index($examples_build,q{$profile eq '0840'})>=0 &&
@@ -432,6 +436,8 @@ index($examples_build,q{$profile eq 'ua'})>=0 &&
 index($examples_build,q{$profile eq 'uasw'})>=0 &&
 index($examples_build,q{$profile eq '0fa0'})>=0 &&
 index($examples_build,q{$profile eq 'e0'})>=0 &&
+index($examples_build,q{$profile eq '3f'})>=0 &&
+index($examples_build,q{$profile eq '3e'})>=0 &&
 index($examples_build,q{'disassembler','roundtrip.pl'})>=0 &&
 index($examples_build,'disassembler-roundtrip')>=0 &&
 index($examples_build,'example disassembler round trip failed')>=0
@@ -515,7 +521,7 @@ index($bank_example_make,'-DVCS_NO_DEFAULT_ROM')<0 &&
 index($bank_example_make,'$(VCS_DIR)/vcs.cfg')>=0 &&
 index($bank_example_make,'$(VCS_DIR)/vcs_8k_f8.cfg')<0
    or die "public bank diagnostics must build from C26 topology through reduced vcs.cfg\n";
-for my $profile (qw(vcs_2k.c26 vcs_2k_cv.c26 vcs_4k.c26 vcs_4k_sc.c26 vcs_8k_f8.c26 vcs_8k_0840.c26 vcs_8k_ua.c26 vcs_8k_uasw.c26 vcs_8k_0fa0.c26 vcs_8k_e0.c26 vcs_12k_fa.c26 vcs_16k_f6.c26 vcs_16k_jane.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26 vcs_omni_32k.c26)) {
+for my $profile (qw(vcs_2k.c26 vcs_2k_cv.c26 vcs_4k.c26 vcs_4k_sc.c26 vcs_8k_f8.c26 vcs_8k_0840.c26 vcs_8k_ua.c26 vcs_8k_uasw.c26 vcs_8k_0fa0.c26 vcs_8k_e0.c26 vcs_8k_3f.c26 vcs_8k_3e.c26 vcs_16k_3f.c26 vcs_16k_3e.c26 vcs_12k_fa.c26 vcs_16k_f6.c26 vcs_16k_jane.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26 vcs_omni_32k.c26)) {
    -f File::Spec->catfile($repo,'libraries','vcs',$profile)
       or die "missing migrated C26 cartridge profile $profile\n";
    index($top_make,"libraries/vcs/$profile")>=0
@@ -571,6 +577,21 @@ index($top_make,'libraries/vcs/vcs_8k_e0.cfg')>=0 &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','11_e0','README.md') &&
 index($top_make,'test/vcs_e0.pl')>=0
    or die "E0 profile/diagnostic support is missing installation or Stella/test coverage\n";
+-f File::Spec->catfile($repo,'libraries','vcs','tia_mirror_40.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_8k_3f.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_8k_3e.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_16k_3f.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_16k_3e.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_8k_3f.cfg') &&
+-f File::Spec->catfile($repo,'libraries','vcs','vcs_8k_3e.cfg') &&
+-f File::Spec->catfile($test,'vcs_3f_3e.pl') &&
+-f File::Spec->catfile($repo,'examples','09_bankswitching','12_3f','3f_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','09_bankswitching','13_3e','3e_diagnostic.c26') &&
+index($top_make,'libraries/vcs/tia_mirror_40.c26')>=0 &&
+index($top_make,'libraries/vcs/vcs_16k_3f.c26')>=0 &&
+index($top_make,'libraries/vcs/vcs_16k_3e.c26')>=0 &&
+index($top_make,'test/vcs_3f_3e.pl')>=0
+   or die "3F/3E profile/diagnostic support is missing installation or Stella/test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','vcs_16k_jane.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','vcs_16k_jane.cfg') &&
 index($top_make,'libraries/vcs/vcs_16k_jane.c26')>=0 &&
@@ -855,6 +876,15 @@ for my $required (qw(
    libraries/vcs/vcs_8k_0fa0.cfg
    libraries/vcs/vcs_8k_e0.c26
    libraries/vcs/vcs_8k_e0.cfg
+   libraries/vcs/tia_mirror_40.c26
+   libraries/vcs/vcs_8k_3f.c26
+   libraries/vcs/vcs_8k_3e.c26
+   libraries/vcs/vcs_16k_3f.c26
+   libraries/vcs/vcs_16k_3e.c26
+   libraries/vcs/vcs_8k_3f.cfg
+   libraries/vcs/vcs_8k_3e.cfg
+   libraries/vcs/vcs_16k_3f.cfg
+   libraries/vcs/vcs_16k_3e.cfg
    libraries/vcs/vcs_16k_jane.c26
    libraries/vcs/vcs_16k_jane.cfg
    libraries/vcs/vcs_32k_f4sc.c26

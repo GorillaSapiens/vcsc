@@ -50,6 +50,11 @@ with `$1FE0-$1FE7`, `$1400-$17FF` with `$1FE8-$1FEF`, and `$1800-$1BFF` with
 physical banks 4/5/6/7. One physical chunk may appear in more than one window,
 so do not model E0 as one selector per bank or as four F8-style whole windows.
 
+Classic 3F and 3E reserve the low TIA write page for mapper control. Public
+profiles therefore bind ordinary TIA accesses through the equivalent `$40-$7F`
+mirror; 3E mapper selection itself remains literal `$3E`/`$3F`. Do not depend
+on an emulator forwarding non-hotspot low-page writes to the TIA.
+
 Ordinary linker symbols remain 16-bit. Do not invent far pointers for this
 family. Selector-controlled families, segmented-window families, direct islands,
 and coprocessor formats are different hardware models and must not be forced into
@@ -80,7 +85,7 @@ only the final file bank. Short signatures are padded with ASCII NUL, never spac
 or underscore. Current signatures include:
 
     4KSC  F8\0\0  F8SC  F6\0\0  F6SC  F4\0\0  F4SC  FA\0\0
-    CV\0\0  OMNI  JANE  0840  UA\0\0  UASW  0FA0  E0\0\0
+    CV\0\0  OMNI  JANE  0840  UA\0\0  UASW  0FA0  E0\0\0  3F\0\0  3E\0\0
 
 The bytes are metadata; real hardware switches because the hotspot address is
 accessed, not because of the stored byte value.
@@ -92,20 +97,6 @@ Open work
         Do not schedule this unless the user explicitly reopens it. If reopened,
         evaluate each hardware contract separately rather than hiding new
         mechanisms behind the existing hotspot model.
-
-[ ] 40. Backfill a 3F public diagnostic cartridge.
-
-        * Add a variable-size 3F output profile using value-written TIA selector
-          semantics.
-        * Exercise at least two lower 2K banks plus the fixed final 2K.
-        * Force Stella 3F and pin exact mapper detection/disassembly/reassembly.
-
-[ ] 41. Backfill a 3E public diagnostic cartridge.
-
-        * Build on 3F with `$3E` RAM-bank selection and correct lower-window RAM
-          aliases.
-        * Exercise ROM -> RAM -> ROM transitions and exact simulator/disassembler
-          behavior.
 
 [ ] 42. Backfill an FE / SCABS public diagnostic cartridge.
 

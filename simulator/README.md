@@ -78,7 +78,7 @@ profiles.
 For an unbanked image, `type=ro` MEMORY ranges reject guest writes.  For a
 banked image, the simulator additionally:
 
-- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, `JANE`, `0840`, `UA`, `UASW`, `0FA0`, or `E0` (plus the SC variants);
+- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, `JANE`, `0840`, `UA`, `UASW`, `0FA0`, `E0`, `3F`, or `3E` (plus the SC variants);
 - loads each physical `.bin` chunk into the logical range named by its BANKS
   entry (4K for the conventional banked profiles, 1K for E0);
 - maps every CPU cartridge-window fetch through the currently selected physical
@@ -280,6 +280,15 @@ A11, A8, or A4-A0 behave identically. Reads and writes below the cartridge windo
 still reach the underlying console-side memory model before the bank-switch side
 effect. Generated cross-bank transitions use the state-preserving absolute-NOP
 read path introduced for 0840.
+
+### 3F / 3E
+
+`mapper=3F` maps the final physical 2K permanently at `$1800-$1FFF` and a
+value-selected ROM bank at `$1000-$17FF`; writes in the low TIA page update the
+lower-bank selection. `mapper=3E` keeps the same fixed-final ROM shape, uses
+exact `$3F` writes to select lower ROM, and exact `$3E` writes to select one of
+32 1K cartridge-RAM banks. In 3E RAM mode reads use `$1000-$13FF` and writes use
+`$1400-$17FF`; returning through `$3F` restores lower-ROM mode.
 
 ### E0 / Parker Brothers
 

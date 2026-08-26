@@ -63,6 +63,8 @@ struct simulator_config_t {
    int cartridge_direct_multi;
    int superchip_mapper;
    int e0_mapper;
+   int threef_mapper;
+   int threee_mapper;
    size_t startup_bank;
 };
 
@@ -92,6 +94,9 @@ static simulator_config_t g_cfg = {};
 static int g_cfg_loaded = 0;
 static size_t g_selected_bank = 0;
 static size_t g_e0_segment_bank[3] = {0, 0, 0};
+static int g_3e_ram_selected = 0;
+static uint8_t g_3e_ram_bank = 0;
+static uint8_t g_3e_ram[32][1024] = {};
 static std::vector<std::vector<uint8_t>> g_split_memory;
 
 void trace_regs(void);
@@ -381,12 +386,15 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
                               str_ieq(cfg->mapper, "F6SC") ||
                               str_ieq(cfg->mapper, "F4SC");
       cfg->e0_mapper = str_ieq(cfg->mapper, "E0");
+      cfg->threef_mapper = str_ieq(cfg->mapper, "3F");
+      cfg->threee_mapper = str_ieq(cfg->mapper, "3E");
       if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") ||
             str_ieq(cfg->mapper, "F4") || str_ieq(cfg->mapper, "FA") ||
             str_ieq(cfg->mapper, "OMNI") || str_ieq(cfg->mapper, "JANE") ||
             str_ieq(cfg->mapper, "0840") || str_ieq(cfg->mapper, "UA") ||
             str_ieq(cfg->mapper, "UASW") || str_ieq(cfg->mapper, "0FA0") ||
-            cfg->e0_mapper || cfg->superchip_mapper)) {
+            cfg->e0_mapper || cfg->threef_mapper || cfg->threee_mapper ||
+            cfg->superchip_mapper)) {
          fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
          exit(1);
       }
@@ -396,10 +404,12 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
       }
       for (size_t i = 0; i < cfg->bank_count; ++i) {
          size_t file_index = 0;
-         uint16_t wanted_size = cfg->e0_mapper ? 0x0400u : 0x1000u;
+         uint16_t wanted_size = cfg->e0_mapper ? 0x0400u :
+                                (cfg->threef_mapper || cfg->threee_mapper) ? 0x0800u : 0x1000u;
          if (cfg->banks[i].size != wanted_size) {
             fprintf(stderr, "vcsc-sim: %s bank '%s' is not %s\n",
-                    cfg->mapper, cfg->banks[i].name, cfg->e0_mapper ? "1K" : "4K");
+                    cfg->mapper, cfg->banks[i].name, cfg->e0_mapper ? "1K" :
+                    (cfg->threef_mapper || cfg->threee_mapper) ? "2K" : "4K");
             exit(1);
          }
          if (cfg->e0_mapper && !cfg->banks[i].has_file_index) {
@@ -438,6 +448,11 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
       }
       if (cfg->e0_mapper && cfg->banks[cfg->startup_bank].file_index != 7u) {
          fprintf(stderr, "vcsc-sim: E0 startup bank must be fixed physical/file bank 7\n");
+         exit(1);
+      }
+      if ((cfg->threef_mapper || cfg->threee_mapper) &&
+          cfg->banks[cfg->startup_bank].file_index != cfg->bank_count - 1u) {
+         fprintf(stderr, "vcsc-sim: 3F/3E startup bank must be the fixed final physical/file bank\n");
          exit(1);
       }
    }
@@ -965,6 +980,11 @@ static int bank_index_for_hotspot(uint16_t addr, size_t *bank_index) {
 
 static size_t selected_bank_index_for_address(uint16_t addr) {
    uint16_t canonical = (uint16_t)(addr & 0x1fffu);
+   if (g_cfg.threef_mapper || g_cfg.threee_mapper) {
+      if (canonical >= 0x1800u)
+         return bank_index_for_file_index(g_cfg.bank_count - 1u);
+      return g_selected_bank;
+   }
    if (!g_cfg.e0_mapper)
       return g_selected_bank;
    if (canonical < 0x1400u)
@@ -980,6 +1000,10 @@ static uint16_t selected_bank_address(uint16_t addr) {
    uint16_t canonical = (uint16_t)(addr & 0x1fffu);
    size_t bank_index = selected_bank_index_for_address(addr);
    const cartridge_bank_t *bank = &g_cfg.banks[bank_index];
+   if (g_cfg.threef_mapper || g_cfg.threee_mapper) {
+      uint16_t window_base = canonical < 0x1800u ? 0x1000u : 0x1800u;
+      return (uint16_t)(bank->start + (canonical - window_base));
+   }
    if (g_cfg.e0_mapper) {
       uint16_t window_base = canonical < 0x1400u ? 0x1000u :
                              canonical < 0x1800u ? 0x1400u :
@@ -992,6 +1016,10 @@ static uint16_t selected_bank_address(uint16_t addr) {
 static uint8_t peek_mem(uint16_t addr) {
    size_t region_index;
    uint16_t offset;
+   uint16_t canonical = (uint16_t)(addr & 0x1fffu);
+   if (g_cfg.threee_mapper && g_3e_ram_selected &&
+       canonical >= 0x1000u && canonical < 0x1400u)
+      return g_3e_ram[g_3e_ram_bank][canonical - 0x1000u];
    if (split_memory_offset(addr, 0, &region_index, &offset))
       return g_split_memory[region_index][offset];
    if (cartridge_window_address(addr))
@@ -1052,6 +1080,30 @@ void write_cb(uint16_t addr, uint8_t val) {
    if (trace_ops & TRACE_OP_WRITES)
       printf("write $%02x -> $%04x\n", val, addr);
 
+   {
+      uint16_t canonical = (uint16_t)(addr & 0x1fffu);
+      if (g_cfg.threef_mapper && canonical <= 0x003fu) {
+         g_selected_bank = bank_index_for_file_index((size_t)val % g_cfg.bank_count);
+      }
+      else if (g_cfg.threee_mapper && canonical == 0x003fu) {
+         g_selected_bank = bank_index_for_file_index((size_t)val % g_cfg.bank_count);
+         g_3e_ram_selected = 0;
+      }
+      else if (g_cfg.threee_mapper && canonical == 0x003eu) {
+         g_3e_ram_bank = (uint8_t)(val & 31u);
+         g_3e_ram_selected = 1;
+      }
+      if (g_cfg.threee_mapper && g_3e_ram_selected &&
+          canonical >= 0x1000u && canonical < 0x1800u) {
+         if (canonical < 0x1400u) {
+            fprintf(stderr, "vcsc-sim: write to 3E RAM read alias at $%04X\n", addr);
+            trace_regs(); trace_disasm(gpc); exit(1);
+         }
+         g_3e_ram[g_3e_ram_bank][canonical - 0x1400u] = val;
+         return;
+      }
+   }
+
    if (bank_index_for_hotspot(addr, &selected)) {
       g_selected_bank = selected;
       /* ROM-window hotspot writes target the cartridge and stop here.  A
@@ -1087,6 +1139,14 @@ uint8_t read_cb(uint16_t addr) {
    size_t read_region_index;
    uint16_t write_offset;
    uint16_t read_offset;
+   {
+      uint16_t canonical = (uint16_t)(addr & 0x1fffu);
+      if (g_cfg.threee_mapper && g_3e_ram_selected &&
+          canonical >= 0x1400u && canonical < 0x1800u) {
+         fprintf(stderr, "vcsc-sim: read from 3E RAM write alias at $%04X\n", addr);
+         trace_regs(); trace_disasm(gpc); exit(1);
+      }
+   }
    if (split_memory_offset(addr, 1, &write_region_index, &write_offset) &&
        !split_memory_offset(addr, 0, &read_region_index, &read_offset)) {
       fprintf(stderr,
@@ -1268,6 +1328,19 @@ int main (int argc, char **argv) {
          g_e0_segment_bank[1] = bank_index_for_file_index(5u);
          g_e0_segment_bank[2] = bank_index_for_file_index(6u);
          g_selected_bank = g_cfg.startup_bank;
+      }
+      else if (g_cfg.threef_mapper || g_cfg.threee_mapper) {
+         g_3e_ram_selected = 0;
+         if (opts.start_bank_set) {
+            if (opts.start_bank >= g_cfg.bank_count) {
+               fprintf(stderr, "vcsc-sim: start bank %zu is outside 0..%zu\n",
+                       opts.start_bank, g_cfg.bank_count - 1);
+               return 1;
+            }
+            g_selected_bank = bank_index_for_file_index(opts.start_bank);
+         } else {
+            g_selected_bank = bank_index_for_file_index(0u);
+         }
       }
       else if (opts.start_bank_set) {
          if (opts.start_bank >= g_cfg.bank_count) {

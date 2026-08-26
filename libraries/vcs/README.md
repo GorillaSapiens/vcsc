@@ -25,6 +25,8 @@ Files:
 - `vcs_8k_ua.c26`, `vcs_8k_uasw.c26` ... UA Limited 8K alias-decoded profiles; UA maps `$0220`-family accesses to bank 0 and `$0240`-family accesses to bank 1, while UASW swaps that association; their cfg files supply simulator-only masked selector semantics
 - `vcs_8k_0fa0.c26` ... Brazilian Fotomania 0FA0 two-bank 8K profile; `(A & $16E0)==$06A0/$06C0` selects physical bank 0/1, physical bank 1 powers up, and `vcs_8k_0fa0.cfg` supplies simulator metadata
 - `vcs_8k_e0.c26` ... Parker Brothers E0 eight-by-1K segmented profile; three independent selectable 1K windows plus fixed physical bank 7, with `vcs_8k_e0.cfg` supplying simulator mapping
+- `vcs_8k_3f.c26`, `vcs_16k_3f.c26` ... classic 3F selectable-lower-2K/fixed-final-2K profiles; they automatically bind ordinary TIA accesses through the `$40-$7F` mirror while `$00-$3F` remains available to the mapper
+- `vcs_8k_3e.c26`, `vcs_16k_3e.c26` ... classic 3E ROM/RAM extension of the same 2K-window family, with 32 1K RAM banks and simulator cfgs for both public sizes
 - `vcs_16k_jane.c26` ... JANE four-bank 16K profile preserving physical selectors `$1FF0/$1FF1/$1FF8/$1FF9` and hardware startup in physical bank 1; `vcs_16k_jane.cfg` supplies simulator-only physical-file mapping
 - `vcs_12k_fa.c26`, `fa_ram_plus.c26` ... CBS FA/RAM Plus three-bank profile with physical startup bank 2 and shared 256-byte split-address cartridge RAM
 - `vcs_4k_sc.c26`, `vcs_8k_f8sc.c26`, `vcs_16k_f6sc.c26`, `vcs_32k_f4sc.c26` ... direct/banked Superchip profiles with a reserved physical prefix and shared split-address RAM
@@ -618,8 +620,8 @@ Notes:
 - `tia.c26` and `riot.c26` can also be included separately if you already have your own base machine definition.
 - `vcs_2k.c26` describes a 2048-byte cartridge linked at `$F800-$FFFF`, with vectors in its final six bytes; select it explicitly through reduced `vcs.cfg`.
 - `vcs_4k.c26` describes the standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`; the driver compiles it automatically when no `-T` is supplied.
-- The 4KSC, F8/F6/F4, 0840, UA/UASW, 0FA0, E0, JANE, FA/RAM Plus, banked SC, and OMNI `.c26` profiles are installed beside `vcs.cfg` and emit exact 4K, 8K, 12K, 16K, and 32K images. Profile-specific cfg files remain installed where needed for compatibility and simulator selection; `vcs_omni_32k.cfg` is simulator-only direct logical placement metadata, not a switched-mapper linker profile.
-- Those public mapper profiles stamp only the final physical file chunk at logical `$xFF8-$xFFB` with `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, `CV\0\0`, `OMNI`, `JANE`, `0840`, `UA\0\0`, `UASW`, `0FA0`, or `E0\0\0`. The NUL padding prevents a short mapper name from resembling a plausible NMI-vector address, and the trailing `SC` in `4KSC` also satisfies Stella's 4KSC autodetection convention.
+- The 4KSC, F8/F6/F4, 0840, UA/UASW, 0FA0, E0, 3F/3E, JANE, FA/RAM Plus, banked SC, and OMNI `.c26` profiles are installed beside `vcs.cfg` and emit exact 4K, 8K, 12K, 16K, and 32K images. Profile-specific cfg files remain installed where needed for compatibility and simulator selection; `vcs_omni_32k.cfg` is simulator-only direct logical placement metadata, not a switched-mapper linker profile.
+- Those public mapper profiles stamp only the final physical file chunk at logical `$xFF8-$xFFB` with `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, `CV\0\0`, `OMNI`, `JANE`, `0840`, `UA\0\0`, `UASW`, `0FA0`, `E0\0\0`, `3F\0\0`, or `3E\0\0`. The NUL padding prevents a short mapper name from resembling a plausible NMI-vector address, and the trailing `SC` in `4KSC` also satisfies Stella's 4KSC autodetection convention.
 - `vcsc` discovers `vcs.cfg` and `vcs_4k.c26` in the source tree or installed `share/vcs` directory and uses both by default. Pass `-T vcs.cfg` plus another C26 profile to select a different cartridge layout.
 - The 128 physical RIOT RAM bytes are not double-counted. `vcs.c26` declares the full `$80-$FF` block and reduced `vcs.cfg` asks `vcsc-ld` to reserve the top bytes dynamically from the whole-program source call graph before placing ordinary storage. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.
 - Current stack sizing accounts automatically for source-level JSR return addresses; ordinary generated calls push no compiler state. Assembly components use `.callstackextra` object metadata for calls, pushes, or stack-pointer use hidden from the source call graph. C26 renderer templates emit the same assembler directive through inline assembly, including an explicit zero when an audited hidden JSR fits entirely inside the source-call reserve. `player_color_192` now flattens its two single-use mask-preparation wrappers and declares `.callstackextra 0`; the standard and multi-object renderers still declare their measured four supplementary bytes for deeper/repeated helper chains. The standard renderer also exports its assembly-initiated overscan-hook edge. Component code and score-table layouts carry startup-region, page-alignment, private-route, `.pagecontain`, and `.indexrange` facts in the object instead of renderer-specific cfg products. Arbitrary inline-assembly stack use must still be declared explicitly.
@@ -708,6 +710,23 @@ the mapper switch. Generated transitions use the same state-preserving NMOS
 absolute-NOP read as the other below-window profiles.
 
 The final physical bank carries the `0FA0` signature at `$FFF8-$FFFB`.
+
+### Classic 3F and 3E profiles
+
+The public `vcs_8k_3f.c26` / `vcs_16k_3f.c26` profiles expose a selectable lower
+2K window at `$1000-$17FF` and a fixed final physical 2K at `$1800-$1FFF`. A
+write in the low TIA page selects the lower 3F ROM bank from the written value.
+Because classic 3F owns those low-page writes, the profile selects
+`tia_mirror_40.c26`: ordinary TIA reads/writes use the equivalent `$40-$7F`
+mirror automatically instead of accidentally changing ROM banks.
+
+Classic 3E uses the same ROM shape but reserves exact `$3F` for lower-ROM bank
+selection and exact `$3E` for one of 32 1K RAM banks. In RAM mode `$1000-$13FF`
+is the read alias and `$1400-$17FF` the write alias. 3E also selects
+`tia_mirror_40.c26` for ordinary TIA accesses. This keeps VSYNC/WSYNC and the
+rest of TIA I/O off the cartridge-owned low write page and works whether an
+emulator forwards non-hotspot `$00-$3D` writes or not. The final physical bank
+carries `3F\0\0` or `3E\0\0` metadata and owns RESET/vectors.
 
 ### E0 profile
 
