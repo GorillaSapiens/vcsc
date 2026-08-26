@@ -11,6 +11,9 @@ include "vcs_32k_f4sc.c26"
 include "frame_ntsc.c26"
 include "frame_pal.c26"
 include "frame_secam.c26"
+include "color_ntsc.c26"
+include "color_pal.c26"
+include "color_secam.c26"
 include "diagnostic_pair_indices.c26"
 include "diagnostic_pairs.c26"
 include "diagnostic_support.c26"
@@ -47,18 +50,23 @@ enum diagnostic_layout {
    DIAGNOSTIC_ROW_SWITCH1 := 30,
    DIAGNOSTIC_ROW_DETAIL0 := 36,
    DIAGNOSTIC_ROW_DETAIL1 := 42,
-   DIAGNOSTIC_ROW_COUNT := 8,
-   DIAGNOSTIC_VISIBLE_USED := 117,
-   DIAGNOSTIC_NTSC_VISIBLE_TAIL := 67,
-   DIAGNOSTIC_NTSC_PADDLE_TAIL := 63,
-   DIAGNOSTIC_PAL_VISIBLE_TAIL := 103,
+   DIAGNOSTIC_ROW_TIA := 48,
+   DIAGNOSTIC_ROW_COUNT := 9
+};
+
+enum diagnostic_timing {
+   DIAGNOSTIC_VISIBLE_USED := 150,
+   DIAGNOSTIC_NTSC_VISIBLE_TAIL := 33,
+   DIAGNOSTIC_NTSC_INIT_TAIL := 32,
+   DIAGNOSTIC_NTSC_PADDLE_TAIL := 29,
+   DIAGNOSTIC_PAL_VISIBLE_TAIL := 69,
    // PAL's controller-initialization path ends one scanline later in phase
    // than an ordinary non-paddle frame.  Calibrate that transition explicitly
    // rather than allowing a single 313-line displayed frame at mode entry.
-   DIAGNOSTIC_PAL_INIT_TAIL := 102,
-   DIAGNOSTIC_PAL_PADDLE_TAIL := 99,
-   DIAGNOSTIC_SECAM_VISIBLE_TAIL := 102,
-   DIAGNOSTIC_SECAM_PADDLE_TAIL := 98
+   DIAGNOSTIC_PAL_INIT_TAIL := 68,
+   DIAGNOSTIC_PAL_PADDLE_TAIL := 65,
+   DIAGNOSTIC_SECAM_VISIBLE_TAIL := 68,
+   DIAGNOSTIC_SECAM_PADDLE_TAIL := 64
 };
 
 // Non-beam-critical UI/application state belongs in shared Superchip RAM.
@@ -74,7 +82,9 @@ cartram uint8_t diagnostic_ui_phase;
 cartram uint8_t diagnostic_keypad_scan_row;
 cartram uint8_t diagnostic_drive_position0;
 cartram uint8_t diagnostic_drive_position1;
-cartram uint8_t diagnostic_rows[48];
+cartram uint8_t diagnostic_tia_collision_pass;
+cartram uint8_t diagnostic_audio_phase;
+cartram uint8_t diagnostic_rows[54];
 #ifdef DIAGNOSTIC_TEST_SWEEP
 cartram uint8_t diagnostic_test_frames;
 #endif
@@ -442,24 +452,30 @@ bank7 void diagnostic_update_numeric_detail(uint8_t row) {
    }
 }
 
-bank0 void diagnostic_update_controls(void) {
+bank0 void diagnostic_update_controls_impl(void) {
 #ifndef DIAGNOSTIC_TEST_SWEEP
-   uint8_t sw := SWCHB;
-   uint8_t select_down := (sw & 0x02) == 0;
-   if (select_down && !diagnostic_select_was_down) {
-      if ((sw & 0x01) == 0) {
-         if (diagnostic_tv_mode == DIAGNOSTIC_TV_SECAM) { diagnostic_tv_mode := DIAGNOSTIC_TV_NTSC; }
-         else { diagnostic_tv_mode := diagnostic_tv_mode + 1; }
-         diagnostic_controller_needs_init := 1;
-         diagnostic_ui_dirty := diagnostic_ui_dirty | 1;
-      } else {
-         diagnostic_controller_mode := (diagnostic_controller_mode + 1) & 3;
-         diagnostic_controller_needs_init := 1;
-         diagnostic_ui_dirty := diagnostic_ui_dirty | 2;
-      }
-      diagnostic_ui_phase := 0;
+   if (SWCHB & 0x02) {
+      diagnostic_select_was_down := 0;
+      return;
    }
-   diagnostic_select_was_down := select_down;
+   if (diagnostic_select_was_down) { return; }
+   diagnostic_select_was_down := 1;
+
+   if ((SWCHB & 0x01) == 0) {
+      if (diagnostic_tv_mode == DIAGNOSTIC_TV_SECAM) { diagnostic_tv_mode := DIAGNOSTIC_TV_NTSC; }
+      else { diagnostic_tv_mode := diagnostic_tv_mode + 1; }
+      diagnostic_controller_needs_init := 1;
+      diagnostic_ui_dirty := diagnostic_ui_dirty | 1;
+   } else {
+      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING) {
+         diagnostic_controller_mode := DIAGNOSTIC_CONTROLLER_JOYSTICK;
+      } else {
+         diagnostic_controller_mode := diagnostic_controller_mode + 1;
+      }
+      diagnostic_controller_needs_init := 1;
+      diagnostic_ui_dirty := diagnostic_ui_dirty | 2;
+   }
+   diagnostic_ui_phase := 0;
 #else
    diagnostic_test_frames := diagnostic_test_frames + 1;
    if (diagnostic_test_frames == 16) {
@@ -470,6 +486,161 @@ bank0 void diagnostic_update_controls(void) {
       diagnostic_ui_phase := 0;
    }
 #endif
+}
+
+
+// Keep the self-test text outside the formatting bank; bank5 is intentionally
+// reserved for the larger switch/header formatter.
+bank0 void diagnostic_update_tia_status(void) {
+   asm lda diagnostic_tia_collision_pass;
+   asm beq @fail;
+   asm lda #9;
+   asm sta diagnostic_rows+50;
+   asm lda #107;
+   asm sta diagnostic_rows+51;
+   asm rts;
+   asm @fail:;
+   asm lda #108;
+   asm sta diagnostic_rows+50;
+   asm lda #109;
+   asm sta diagnostic_rows+51;
+}
+
+// --- Deterministic TIA hardware panel -----------------------------------
+// The text renderer owns P0/P1 earlier in the frame. This compact panel
+// deliberately reuses all five movable TIA objects after the final text row,
+// adds a reflected playfield pattern and standard-appropriate colors, then
+// forces three independent collision-latch paths. Including the bank-switch and
+// standard-specific setup, it consumes eighteen complete visible scanlines; the following tail wait absorbs the cleanup
+// scanline and normalizes the return phase before overscan.
+bank0 void diagnostic_draw_tia_panel(void) {
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) {
+      COLUP0 := VCS_NTSC_LIGHT_CORAL;
+      COLUP1 := VCS_NTSC_SKY_BLUE_2;
+      COLUPF := VCS_NTSC_PALE_GREEN;
+   }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) {
+      COLUP0 := VCS_PAL_PINK;
+      COLUP1 := VCS_PAL_SKY_BLUE;
+      COLUPF := VCS_PAL_GREEN;
+   }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) {
+      COLUP0 := VCS_SECAM_RED;
+      COLUP1 := VCS_SECAM_BLUE;
+      COLUPF := VCS_SECAM_GREEN;
+   }
+
+   COLUBK := 0;
+   CTRLPF := 1;
+   PF0 := 0xf0; PF1 := 0xaa; PF2 := 0x55;
+   NUSIZ0 := 0x20; NUSIZ1 := 0x20;
+   REFP0 := 0; REFP1 := 0;
+   VDELP0 := 0; VDELP1 := 0; VDELBL := 0;
+   RESMP0 := 0; RESMP1 := 0;
+   CXCLR := 0;
+
+   // One blank setup line, then position P0/M0/P1/M1/Ball at visibly
+   // separated coarse X coordinates. RESP/RESM/RESBL care only about the
+   // strobe cycle, not the value in A.
+   asm sta WSYNC;
+   asm lda #0;
+   asm nop; asm nop; asm nop; asm nop;
+   asm sta RESP0;
+   asm nop; asm nop; asm nop; asm nop; asm nop;
+   asm sta RESM0;
+   asm nop; asm nop; asm nop; asm nop; asm nop;
+   asm sta RESP1;
+   asm nop; asm nop; asm nop; asm nop; asm nop;
+   asm sta RESM1;
+   asm nop; asm nop; asm nop; asm nop;
+   asm sta RESBL;
+   asm sta WSYNC;
+
+   GRP0 := 0xff;
+   GRP1 := 0x81;
+   ENAM0 := 2;
+   ENAM1 := 2;
+   ENABL := 2;
+   WSYNC := 0; WSYNC := 0; WSYNC := 0; WSYNC := 0;
+   WSYNC := 0; WSYNC := 0; WSYNC := 0; WSYNC := 0;
+
+   // Force unambiguous collision geometry after the separated display band.
+   // First lock each missile to its player for one line, then release it at the
+   // centered position.  Make the playfield solid during the four collision
+   // lines so Ball/PF cannot depend on the decorative PF pattern above.
+   RESMP0 := 2;
+   RESMP1 := 2;
+   WSYNC := 0;
+   RESMP0 := 0;
+   RESMP1 := 0;
+   PF0 := 0xff; PF1 := 0xff; PF2 := 0xff;
+   WSYNC := 0; WSYNC := 0; WSYNC := 0; WSYNC := 0;
+
+   // We are now at cycle zero of the cleanup scanline. Read the sticky
+   // latches before clearing the objects; CXCLR is deferred until next frame.
+   // Fixed-cycle reduction: M0/P0 and M1/P1 are both bit 6, while Ball/PF
+   // is bit 7. Avoid boolean short-circuit paths here; their different lengths
+   // can move the first tail WSYNC by a whole scanline as latches change.
+   asm lda CXM0P;
+   asm and CXM1P;
+   asm and #$40;
+   asm asl;
+   asm and CXBLPF;
+   asm sta diagnostic_tia_collision_pass;
+   GRP0 := 0; GRP1 := 0;
+   ENAM0 := 0; ENAM1 := 0; ENABL := 0;
+   PF0 := 0; PF1 := 0; PF2 := 0;
+   RESMP0 := 0; RESMP1 := 0;
+   CTRLPF := 0;
+   COLUBK := 0;
+}
+
+// Alternate short, distinct beeps between the two TIA audio channels. The
+// waveform/frequency registers are programmed once while muted; live frames
+// only perform two table-indexed volume writes and advance a 64-frame phase.
+bank0 const uint8_t diagnostic_audio0[64] := {
+   6,6,6,6, 0,0,0,0, 0,0,0,0, 0,0,0,0,
+   0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
+   0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
+   0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
+};
+
+bank0 const uint8_t diagnostic_audio1[64] := {
+   0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
+   0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
+   6,6,6,6, 0,0,0,0, 0,0,0,0, 0,0,0,0,
+   0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0
+};
+
+bank0 void diagnostic_audio_tick(void) {
+   asm ldx diagnostic_audio_phase;
+   asm lda diagnostic_audio0,x;
+   asm sta AUDV0;
+   asm lda diagnostic_audio1,x;
+   asm sta AUDV1;
+   asm inx;
+   asm txa;
+   asm and #63;
+   asm sta diagnostic_audio_phase;
+}
+
+// Keep the common F4SC trampoline count flat: the frame crosses into bank0
+// through this one dispatcher for both the visible TIA panel and the overscan
+// application work. The bank0 helpers themselves use ordinary same-bank calls.
+bank0 void diagnostic_bank0_task(uint8_t task) {
+   if (task == 0) {
+      diagnostic_draw_tia_panel();
+      return;
+   }
+   diagnostic_update_controls_impl();
+   // A SELECT edge is already the heaviest overscan path because it updates
+   // mode state and primes a controller transition. Optional UI/audio cadence
+   // work can wait one frame; keeping it off that edge preserves the blanking
+   // deadline instead of lengthening the transition frame.
+   if (!diagnostic_frame_init_only && !diagnostic_controller_needs_init) {
+      if (diagnostic_ui_phase == 0) { diagnostic_update_tia_status(); }
+      diagnostic_audio_tick();
+   }
 }
 
 // --- Frame owner ---------------------------------------------------------
@@ -537,6 +708,8 @@ bank1 void diagnostic_frame(void) {
    diagnostic_prepare_row(DIAGNOSTIC_ROW_SWITCH1); diagnostic_draw_text_row();
    diagnostic_prepare_row(DIAGNOSTIC_ROW_DETAIL0); diagnostic_draw_text_row();
    diagnostic_prepare_row(DIAGNOSTIC_ROW_DETAIL1); diagnostic_draw_text_row();
+   diagnostic_prepare_row(DIAGNOSTIC_ROW_TIA); diagnostic_draw_text_row();
+   diagnostic_bank0_task(0);
 
    // Paddle measurement owns a four-line visible sampling cycle.  Calling the
    // component's beam-level hooks explicitly keeps its lifecycle honest and
@@ -554,7 +727,13 @@ bank1 void diagnostic_frame(void) {
       if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && !diagnostic_frame_init_only) {
          vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_PADDLE_TAIL);
       } else {
-         vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_VISIBLE_TAIL);
+         // The paddle initialization entry is one line later in phase than the
+         // ordinary path after the TIA panel. Use a 33-line base tail for both
+         // and spend the normal path's extra blank line explicitly.
+         if (!(diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && diagnostic_frame_init_only)) {
+            WSYNC := 0;
+         }
+         vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_INIT_TAIL);
       }
       vcs_ntsc_begin_overscan();
    }
@@ -621,7 +800,7 @@ bank1 void diagnostic_frame(void) {
          }
       }
    }
-   diagnostic_update_controls();
+   diagnostic_bank0_task(1);
    diagnostic_text_overscan();
 
    if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && diagnostic_frame_init_only) {
@@ -660,14 +839,22 @@ bank0 void main(void) {
    PF0 := 0; PF1 := 0; PF2 := 0;
    GRP0 := 0; GRP1 := 0; ENAM0 := 0; ENAM1 := 0; ENABL := 0;
    SWACNT := 0;
+   AUDV0 := 0; AUDV1 := 0;
+   AUDC0 := 4; AUDC1 := 4;
+   AUDF0 := 10; AUDF1 := 4;
 
 #ifdef DIAGNOSTIC_TEST_TV
    diagnostic_tv_mode := DIAGNOSTIC_TEST_TV`uint8_t;
 #else
    diagnostic_tv_mode := DIAGNOSTIC_TV_NTSC;
 #endif
+#ifdef DIAGNOSTIC_TEST_CONTROLLER
+   diagnostic_controller_mode := DIAGNOSTIC_TEST_CONTROLLER`uint8_t;
+   diagnostic_frame_controller_mode := DIAGNOSTIC_TEST_CONTROLLER`uint8_t;
+#else
    diagnostic_controller_mode := DIAGNOSTIC_CONTROLLER_JOYSTICK;
    diagnostic_frame_controller_mode := DIAGNOSTIC_CONTROLLER_JOYSTICK;
+#endif
    diagnostic_frame_tv_mode := diagnostic_tv_mode;
    diagnostic_controller_needs_init := 1;
    diagnostic_frame_init_only := 1;
@@ -677,12 +864,25 @@ bank0 void main(void) {
    diagnostic_keypad_scan_row := 0;
    diagnostic_drive_position0 := 0;
    diagnostic_drive_position1 := 0;
+   diagnostic_tia_collision_pass := 0;
+   diagnostic_audio_phase := 0;
 #ifdef DIAGNOSTIC_TEST_SWEEP
    diagnostic_test_frames := 0;
 #endif
 
    diagnostic_component_init();
    diagnostic_initialize_rows();
+   // Derive both selectable header rows from the actual startup state. This is
+   // a no-op for the normal NTSC/joystick boot and keeps forced Stella
+   // certification builds honest for every TV/controller combination.
+   diagnostic_ui_dirty := 3;
+   diagnostic_update_one_header_row();
+   diagnostic_update_one_header_row();
+   diagnostic_rows[DIAGNOSTIC_ROW_TIA+0] := DIAG_PAIR_TI;
+   diagnostic_rows[DIAGNOSTIC_ROW_TIA+1] := DIAG_PAIR_A_SPACE;
+   diagnostic_rows[DIAGNOSTIC_ROW_TIA+4] := DIAG_PAIR_BLANK;
+   diagnostic_rows[DIAGNOSTIC_ROW_TIA+5] := DIAG_PAIR_BLANK;
+   diagnostic_update_tia_status();
    diagnostic_update_switches();
    while (1) {
       diagnostic_frame();

@@ -13,3 +13,66 @@ in VBLANK. A moving Gray-code timing regression reproduces the old NTSC 265-raw-
 line instability and now passes for NTSC/PAL/SECAM. Console color labels were
 changed from COLC/COLB to COLR/B&W; SECAM tails were recalibrated after the code-
 layout/timing change.
+
+2026-08-26 10:07:01 PDT, recursive example build repair
+The diagnostic exposed an old assumption in test/vcs_examples_build.pl that
+all .c26 files below examples/ are standalone cartridge entry points. The
+recursive build now excludes local C26 fragments included by another example
+source, so diagnostic_pair_indices.c26, diagnostic_pairs.c26, and
+diagnostic_support.c26 are tested through vcsc_diagnostic.c26 instead of as
+independent cartridges. Direct F6/F6SC/F4/F4SC profile recognition and expected
+ROM sizes were also added; this prevents a direct 32K F4SC example from falling
+back to the default 4K profile. Compile-only tests passed 502/502, all eight
+recursive example shards passed, and the remaining e2e tail passed in bounded
+batches.
+
+2026-08-26 11:27:07 PDT, diagnostic TIA and switch certification
+Real SWCHB frame-boundary injection now verifies SELECT debounce/controller
+cycling and RESET+SELECT TV-standard cycling, and exposed/fixed genuine
+transition frame overruns. The diagnostic gained a compact TIA hardware panel
+for P0/P1/M0/M1/Ball/playfield/colors/collisions plus alternating dual-channel
+audio. Stella exposed an initially false collision FAIL; the geometry was
+corrected to force unambiguous overlap and now reports TIA PASS. Normal RAM was
+reduced to 127/128 bytes by moving collision state to F4SC RAM and replacing
+expensive status/audio helpers with compact assembly. Public diagnostic READMEs
+and inventory integration were added. Twelve Stella 7.0 reference screens now
+cover NTSC/PAL/SECAM x joystick/paddle/keypad/driving; subset filtering was
+added so the matrix can be certified under short tool windows. Universal
+controller autodetection was rejected as electrically ambiguous; keypad matrix
+scanning requires actively driven rows and remains explicit pending real-
+hardware validation of any safer alternate probe.
+The optional Stella diagnostic script is explicitly marked with its Make target
+so source-tree hygiene recognizes it as an intentional non-default test.
+
+2026-08-26 11:51:26 PDT, close public diagnostic cartridge
+Main-roadmap Item 44 is complete. The public 32K F4SC diagnostic reports live
+console switches plus explicit joystick, paddle, keypad, and driving-controller
+input; exercises P0/P1/M0/M1/Ball, reflected playfield, standard-dependent
+colors, sticky collision latches, and both audio channels; and supports
+NTSC/PAL/SECAM in one ROM. Real SWCHB injection permanently covers SELECT
+debounce/controller cycling and RESET+SELECT TV-standard cycling at exact frame
+boundaries. The TIA self-test now reports PASS with unambiguous collision
+geometry.
+
+All 12 reviewed Stella 7.0 screens (three TV standards x four controller modes)
+match their final 1x RGB references. Universal controller-type autodetection is
+intentionally not advertised: passive controllers are electrically ambiguous
+while idle, and keypad scanning must actively drive matrix rows. The public
+README documents explicit controller selection and emulator hookup.
+
+Closeout also fixed two integration issues found by broad validation: the leaf
+README now carries the required VCSC banner, and the optional Stella helper no
+longer uses a leading `make` comment that test.pl could misread as a runnable
+command. Source-tree hygiene now treats a direct top-level Makefile reference as
+valid registration for optional non-default helpers. Final validation passed
+502/502 compile tests and all 326 default e2e tests; all eight recursive example
+shards cover 99/99 examples.
+
+2026-08-26 11:53:24 PDT, harden diagnostic closeout hygiene
+The main-roadmap hygiene oracle now expects Item 45 as the first unfinished
+item and rejects stale Item 44 checklist prose. Optional Stella helpers can be
+registered by a direct top-level Makefile reference without acquiring a fake
+test.pl runner header. The top-level clean target now removes every declared
+STELLA_*_TEST_TMP directory, including the previously omitted three-plus-three
+and new diagnostic directories; source-tree hygiene generically enforces that
+contract.

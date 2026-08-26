@@ -243,6 +243,11 @@ $bankswitching !~ /^\[x\]/m
 -f File::Spec->catfile($repo,'examples','09_bankswitching','02_standard_renderer','README.md')
    or die "bank-aware archive/simulator/Stella diagnostics are incomplete\n";
 my $top_make=slurp(File::Spec->catfile($repo,'Makefile'));
+my @stella_tmp_vars=($top_make =~ /^(STELLA_[A-Z0-9_]+_TEST_TMP)\s*\?=/mg);
+my($clean_recipe)=$top_make =~ /^clean:\n((?:\t.*\n)+)/m;
+defined($clean_recipe) or die "top-level Makefile has no parseable clean recipe\n";
+my @uncleaned_stella_tmp=grep { index($clean_recipe,'$(' . $_ . ')') < 0 } @stella_tmp_vars;
+@uncleaned_stella_tmp and die "clean target omits Stella temp variables: @uncleaned_stella_tmp\n";
 index($top_make,'stella-bank-test: tools')>=0 &&
 index($top_make,'--stella')>=0 &&
 index($top_make,'install -m 0644 libraries/vcs/bankswitching_diagnostic_suite.c26')>=0 &&
@@ -697,9 +702,9 @@ index($context,'Immediate TODO')>=0
 $context !~ /^\s*\[x\]/m
    or die "compact context contains completed checklist history\n";
 
-$roadmap =~ /^Current next action: Item 44, public diagnostic cartridge\./m &&
+$roadmap =~ /^Current next action: Item 45, playfield-color renderer support\./m &&
 $roadmap !~ /^\[ \] 43\./m &&
-$roadmap =~ /^\[ \] 44\. Add a public diagnostic cartridge/m &&
+$roadmap !~ /^\[ \] 44\./m &&
 $roadmap =~ /^\[ \] 45\. Add playfield-color support/m &&
 $roadmap =~ /^\[ \] 46\. Add a public side-scroller\/platform example\./m &&
 $roadmap !~ /^\s*\[x\]/m
@@ -794,6 +799,11 @@ sub referenced_elsewhere {
       next if $other eq $path;
       return 1 if index($text{$other},$name)>=0;
    }
+   # Optional emulator-backed helpers are intentionally outside test.pl's
+   # default runner discovery. A direct top-level Makefile reference is a
+   # real registration point and should keep such a helper out of the dead-file
+   # check without giving it a fake runner header.
+   return 1 if index($top_make,$name)>=0;
    return 0;
 }
 

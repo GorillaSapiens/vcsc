@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Cwd qw(abs_path);
 use File::Find qw(find);
+use File::Basename qw(dirname);
 use File::Path qw(make_path);
 use File::Spec;
 use IPC::Open3;
@@ -62,22 +63,50 @@ sub profile_from_source {
    return '3f' if $text =~ /^\s*include\s+"vcs_8k_3f\.c26"\s*$/m;
    return '3e' if $text =~ /^\s*include\s+"vcs_8k_3e\.c26"\s*$/m;
    return 'f8sc' if $text =~ /^\s*include\s+"vcs_8k_f8sc\.c26"\s*$/m;
+   return 'f6' if $text =~ /^\s*include\s+"vcs_16k_f6\.c26"\s*$/m;
+   return 'f6sc' if $text =~ /^\s*include\s+"vcs_16k_f6sc\.c26"\s*$/m;
+   return 'f4' if $text =~ /^\s*include\s+"vcs_32k_f4\.c26"\s*$/m;
+   return 'f4sc' if $text =~ /^\s*include\s+"vcs_32k_f4sc\.c26"\s*$/m;
    return 'fa' if $text =~ /^\s*include\s+"vcs_12k_fa\.c26"\s*$/m;
    return 'omni' if $text =~ /^\s*include\s+"vcs_omni_32k\.c26"\s*$/m;
    return 'jane' if $text =~ /^\s*include\s+"vcs_16k_jane\.c26"\s*$/m;
    return '4k';
 }
+my @example_sources;
 find({
    no_chdir=>1,
    wanted=>sub {
       return unless -f $_ && /\.c26\z/;
       my $source=$File::Find::name;
       return if $source =~ m{[\/]examples[\/]common[\/]};
-      my($vol,$dir,$file)=File::Spec->splitpath($source);
-      my $rel=File::Spec->abs2rel($dir,$examples_root);
-      push @examples,[$rel,$file];
+      push @example_sources,$source;
    },
 },$examples_root);
+
+# A .c26 beneath examples is not necessarily a cartridge entry point.  A public
+# example may keep generated tables or other include-only C26 fragments beside
+# its main source.  Compile the entry points, not files that another example
+# source includes by a path which resolves inside the examples tree.
+my %included_fragment;
+for my $source (@example_sources) {
+   my $text=read_file($source);
+   while ($text =~ /^\s*include\s+"([^"]+\.c26)"\s*$/mg) {
+      my $candidate=File::Spec->rel2abs($1,dirname($source));
+      next unless -f $candidate;
+      $candidate=abs_path($candidate);
+      next unless defined($candidate);
+      my $rel=File::Spec->abs2rel($candidate,$examples_root);
+      next if $rel =~ /^\.\.(?:[\/]|\z)/;
+      $included_fragment{$candidate}=1;
+   }
+}
+for my $source (@example_sources) {
+   my $absolute=abs_path($source);
+   next if defined($absolute) && $included_fragment{$absolute};
+   my($vol,$dir,$file)=File::Spec->splitpath($source);
+   my $rel=File::Spec->abs2rel($dir,$examples_root);
+   push @examples,[$rel,$file];
+}
 @examples=sort { $a->[0] cmp $b->[0] || $a->[1] cmp $b->[1] } @examples;
 @examples or die "no editable examples found under $examples_root\n";
 my $all_example_count=scalar(@examples);
@@ -114,7 +143,7 @@ for my $entry (@examples) {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
    } elsif ($profile eq 'f8') {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs_8k_f8.cfg');
-   } elsif ($profile eq 'cv' || $profile eq '4ksc' || $profile eq 'f8sc' || $profile eq 'fa' || $profile eq 'omni' || $profile eq 'jane' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq '3f' || $profile eq '3e') {
+   } elsif ($profile eq 'cv' || $profile eq '4ksc' || $profile eq 'f8sc' || $profile eq 'f6' || $profile eq 'f6sc' || $profile eq 'f4' || $profile eq 'f4sc' || $profile eq 'fa' || $profile eq 'omni' || $profile eq 'jane' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq '3f' || $profile eq '3e') {
       # C26 owns the 4KSC/F8SC/FA cartridge and cartridge-RAM topology; the generic cfg
       # only reserves the RIOT hardware stack, matching the public Makefiles.
       push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
@@ -167,7 +196,12 @@ for my $entry (@examples) {
    my $rom=read_file($bin);
    my $expected_size = ($file eq 'bankswitching_diagnostic.c26' ||
                         $file eq 'banked_standard_renderer.c26') ? 8192
-      : ($profile eq '2k' || $profile eq 'cv') ? 2048 : ($profile eq 'f8' || $profile eq 'f8sc' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq '3f' || $profile eq '3e') ? 8192 : $profile eq 'fa' ? 12288 : $profile eq 'jane' ? 16384 : $profile eq 'omni' ? 32768 : 4096;
+      : ($profile eq '2k' || $profile eq 'cv') ? 2048
+      : ($profile eq 'f8' || $profile eq 'f8sc' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq '3f' || $profile eq '3e') ? 8192
+      : $profile eq 'fa' ? 12288
+      : ($profile eq 'f6' || $profile eq 'f6sc' || $profile eq 'jane') ? 16384
+      : ($profile eq 'f4' || $profile eq 'f4sc' || $profile eq 'omni') ? 32768
+      : 4096;
    length($rom)==$expected_size
       or die "$dir produced ".length($rom)." bytes, expected $expected_size\n";
    my %known_signature=map { $_=>1 } (

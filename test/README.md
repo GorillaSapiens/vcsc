@@ -798,6 +798,28 @@ poisoned FAIL reference—rejects hidden empty-stem sidecars, and catches broken
 shell command substitutions which would otherwise print misleading
 `/bin/sh: ...: not found` messages while still producing cartridges.
 
+`vcs_diagnostic_cartridge.pl` builds the public 32K F4SC field diagnostic and
+locks its controller, console-switch, TIA-object, collision, color, and dual-audio
+contracts. Its frame harness injects real SWCHB values only at synchronized VSYNC
+boundaries, proving held-SELECT debounce, the complete controller-mode cycle,
+RESET+SELECT television-standard cycling, and exact NTSC/PAL/SECAM frame timing.
+It also stresses moving driving-controller Gray-code phases and checks that the
+TIA panel retains unambiguous P0/M0, P1/M1, and Ball/playfield collision geometry.
+
+`vcs_diagnostic_cartridge_stella.pl` is the optional independent Stella 7.0
+raster certification. Run the complete 12-screen matrix with:
+
+```sh
+make stella-diagnostic-test STELLA=/path/to/stella
+```
+
+The matrix covers NTSC/PAL/SECAM x joystick/paddle/keypad/driving and compares
+1x RGB snapshots against reviewed references. Hosts with short execution windows
+may set `VCSC_STELLA_CASES` to a comma-separated subset such as
+`pal_keypad,secam_driving`; the default remains all 12 cases. The test requires
+Xvfb but is intentionally outside the default e2e suite so ordinary test hosts do
+not need a graphical Stella installation.
+
 
 `superchip_allocation.pl` starts every F8SC/F6SC/F4SC allocation run from a
 hostile `$A7` split-memory fill and requires the map's `STARTUP INITIALIZATION`

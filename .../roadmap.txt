@@ -18,16 +18,7 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 44, public diagnostic cartridge.
-
-[ ] 44. Add a public diagnostic cartridge that exercises and reports the supported
-        console switches, controller types, TIA objects, playfield, colors,
-        collisions, and audio.
-
-        * Keep displayed results unambiguous.
-        * Include deterministic self-test screens where practical.
-        * Document required controller hookups and emulator configuration.
-        * Verify every screen/mode with staged-toolchain and emulator-backed tests.
+Current next action: Item 45, playfield-color renderer support.
 
 [ ] 45. Add playfield-color support as an explicit renderer capability.
 

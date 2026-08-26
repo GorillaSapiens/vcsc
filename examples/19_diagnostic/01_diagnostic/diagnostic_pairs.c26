@@ -1,13 +1,13 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 // 8x8 score-compatible paired-message glyphs
 // Generated from: libraries/vcs/fonts/half_ascii.c26
-// Message: "  VCSCDIAGNOSTICNTPAL SECAM JOYSTICKDDLEKEYPADDRIVING P0P1P2P3F0F1F2F3COLRB& D0A0B1A1B0 1 L0L1 R U ...D..LDLR..FRF] [ [1[2[3[4[5[6[7[8[9[*[0[#00010203040506070809101112131415161718192021222324252 3 4 5 6 7 8 9 W "
+// Message: "  VCSCDIAGNOSTICNTPAL SECAM JOYSTICKDDLEKEYPADDRIVING P0P1P2P3F0F1F2F3COLRB& D0A0B1A1B0 1 L0L1 R U ...D..LDLR..FRF] [ [1[2[3[4[5[6[7[8[9[*[0[#00010203040506070809101112131415161718192021222324252 3 4 5 6 7 8 9 W A SSFAIL"
 // Two source characters per 8-bit glyph; odd messages are space-padded.
 // --score adds one blank row above and below the original 4x6 pair.
 
 alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 
-bank1 align(256) const uint8_t score_font[848] := {
+bank1 align(256) const uint8_t score_font[880] := {
    // 0: "  " (0x20 0x20)
    VCS_FONT_GLYPH(
       0b........,
@@ -1276,6 +1276,54 @@ bank1 align(256) const uint8_t score_font[848] := {
       0b.X.X....,
       0b.XXX....,
       0b.X.X....,
+      0b........,
+      0b........
+   ),
+
+   // 106: "A " (0x41 0x20)
+   VCS_FONT_GLYPH(
+      0b........,
+      0b.XXX....,
+      0b.X.X....,
+      0b.XXX....,
+      0b.X.X....,
+      0b.X.X....,
+      0b........,
+      0b........
+   ),
+
+   // 107: "SS" (0x53 0x53)
+   VCS_FONT_GLYPH(
+      0b........,
+      0b.XXX.XXX,
+      0b.X...X..,
+      0b.XXX.XXX,
+      0b...X...X,
+      0b.XXX.XXX,
+      0b........,
+      0b........
+   ),
+
+   // 108: "FA" (0x46 0x41)
+   VCS_FONT_GLYPH(
+      0b........,
+      0b.XXX.XXX,
+      0b.X...X.X,
+      0b.XX..XXX,
+      0b.X...X.X,
+      0b.X...X.X,
+      0b........,
+      0b........
+   ),
+
+   // 109: "IL" (0x49 0x4C)
+   VCS_FONT_GLYPH(
+      0b........,
+      0b.XXX.X..,
+      0b..X..X..,
+      0b..X..X..,
+      0b..X..X..,
+      0b.XXX.XXX,
       0b........,
       0b........
    )

@@ -139,6 +139,17 @@ struct ExpectedMemory {
    uint8_t value;
 };
 
+struct RawLineMemoryRule {
+   uint8_t value;
+   uint64_t lines;
+};
+
+struct RawLineMemoryOracle {
+   bool enabled = false;
+   uint16_t address = 0;
+   std::vector<RawLineMemoryRule> rules;
+};
+
 struct SweepZpWrite {
    uint16_t address;
    uint8_t minimum;
@@ -162,6 +173,8 @@ std::vector<SweepZpWrite> sweep_zp_writes;
 std::vector<FrameMemorySequence> frame_memory_sequences;
 std::vector<ReadMemorySequence> read_memory_sequences;
 std::vector<ExpectedMemory> expected_memory;
+RawLineMemoryOracle raw_line_memory_oracle;
+std::vector<uint64_t> frame_expected_raw_cycles;
 bool released_inputs = false;
 
 struct AsymmetricVisibilityCheck {
@@ -230,6 +243,33 @@ uint8_t timer_value(uint64_t cycle) {
 
    const uint64_t after_underflow = ticks - timer_loaded - 1;
    return static_cast<uint8_t>(255 - (after_underflow & 255));
+}
+
+uint8_t peek_memory(uint16_t address) {
+   const uint16_t bus = address & 0x1fff;
+   if ((cartridge_mapper == CartridgeTimingMapper::F8 ||
+        cartridge_mapper == CartridgeTimingMapper::F4SC) &&
+       (bus & 0x1000)) {
+      const uint16_t offset = bus & 0x0fff;
+      if (offset >= 0x0080 && offset <= 0x00ff) {
+         return superchip_ram[offset - 0x0080];
+      }
+   }
+   if (cartridge_mapper == CartridgeTimingMapper::ThreeE &&
+       threee_ram_selected && bus >= 0x1000 && bus < 0x1400) {
+      return threee_ram[threee_ram_bank][bus - 0x1000];
+   }
+   return memory_image[address];
+}
+
+uint64_t raw_lines_for_memory_value(uint8_t value) {
+   for (const RawLineMemoryRule &rule : raw_line_memory_oracle.rules) {
+      if (rule.value == value) return rule.lines;
+   }
+   std::fprintf(stderr,
+      "vcs_frame_timing: no raw-line mapping for memory $%04x value $%02x\n",
+      raw_line_memory_oracle.address, value);
+   std::exit(1);
 }
 
 uint8_t read_bus(uint16_t address) {
@@ -480,16 +520,19 @@ void apply_writes() {
             // Check the frame that just ended before mutating RAM for the next
             // one, so a failure dump identifies the exact held layout that
             // produced the bad interval rather than its successor.
-            if (live_expected_raw_cycles && vsync_assertions.size() > 3) {
+            if (vsync_assertions.size() > 3) {
                const size_t n = vsync_assertions.size();
                const uint64_t delta = vsync_assertions[n - 1] - vsync_assertions[n - 2];
-               if (delta != live_expected_raw_cycles) {
+               const uint64_t live_expected = raw_line_memory_oracle.enabled
+                  ? frame_expected_raw_cycles[n - 2]
+                  : live_expected_raw_cycles;
+               if (live_expected && delta != live_expected) {
                   std::fprintf(stderr,
                      "vcs_frame_timing: live frame %zu has %llu cycles (%llu raw lines); expected %llu\n",
                      n - 1,
                      static_cast<unsigned long long>(delta),
                      static_cast<unsigned long long>(delta / kCyclesPerScanline),
-                     static_cast<unsigned long long>(live_expected_raw_cycles));
+                     static_cast<unsigned long long>(live_expected));
                   for (const DumpZpRange &range : dump_zp_ranges) {
                      std::fprintf(stderr, "  zp[$%02x..$%02x]=", range.address,
                         static_cast<unsigned>(range.address + range.count - 1));
@@ -499,6 +542,11 @@ void apply_writes() {
                   }
                   std::exit(1);
                }
+            }
+            if (raw_line_memory_oracle.enabled) {
+               const uint8_t mode = peek_memory(raw_line_memory_oracle.address);
+               const uint64_t lines = raw_lines_for_memory_value(mode);
+               frame_expected_raw_cycles.push_back(lines * kCyclesPerScanline);
             }
             // Test-only RAM mutation happens exactly at the synchronized frame
             // boundary, before VBLANK work begins.  This lets renderer tests
@@ -585,7 +633,7 @@ void apply_writes() {
 int main(int argc, char **argv) {
    if (argc < 3) {
       std::fprintf(stderr,
-         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--randomize-zp ADDR COUNT MODULUS SEED]... [--randomize-zp-held ADDR COUNT MODULUS SEED FRAMES]... [--dump-zp ADDR COUNT]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--released-inputs] [--expect-memory ADDR VALUE]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--verify-asymmetric-glyphs GRAPHICS_ADDR MASK] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--require-stable-first-visible-line MASK] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
+         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--raw-lines-by-memory ADDR VALUE:LINES[,VALUE:LINES...]] [--randomize-zp ADDR COUNT MODULUS SEED]... [--randomize-zp-held ADDR COUNT MODULUS SEED FRAMES]... [--dump-zp ADDR COUNT]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--frame-sequence ADDR VALUE[,VALUE...]]... [--read-sequence ADDR VALUE[,VALUE...]]... [--released-inputs] [--expect-memory ADDR VALUE]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--verify-asymmetric-glyphs GRAPHICS_ADDR MASK] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--require-stable-first-visible-line MASK] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
          argv[0]);
       return 2;
    }
@@ -616,6 +664,42 @@ int main(int argc, char **argv) {
             fail("bad --raw-lines value");
          }
          expected_raw_lines = static_cast<uint64_t>(raw);
+      }
+      else if (std::strcmp(argv[i], "--raw-lines-by-memory") == 0) {
+         if (i + 2 >= argc) {
+            fail("--raw-lines-by-memory requires ADDR VALUE:LINES[,VALUE:LINES...]");
+         }
+         char *parse_end = nullptr;
+         const unsigned long address = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || address > 0xffff) {
+            fail("bad --raw-lines-by-memory address");
+         }
+         raw_line_memory_oracle.enabled = true;
+         raw_line_memory_oracle.address = static_cast<uint16_t>(address);
+         const char *cursor = argv[++i];
+         while (*cursor) {
+            char *value_end = nullptr;
+            const unsigned long value = std::strtoul(cursor, &value_end, 0);
+            if (!value_end || value_end == cursor || value > 0xff || *value_end != ':') {
+               fail("bad --raw-lines-by-memory value");
+            }
+            cursor = value_end + 1;
+            char *lines_end = nullptr;
+            const unsigned long lines = std::strtoul(cursor, &lines_end, 10);
+            if (!lines_end || lines_end == cursor || lines < 1) {
+               fail("bad --raw-lines-by-memory lines");
+            }
+            raw_line_memory_oracle.rules.push_back({
+               static_cast<uint8_t>(value), static_cast<uint64_t>(lines)
+            });
+            if (*lines_end == '\0') break;
+            if (*lines_end != ',') fail("bad --raw-lines-by-memory mapping");
+            cursor = lines_end + 1;
+            if (!*cursor) fail("bad --raw-lines-by-memory mapping");
+         }
+         if (raw_line_memory_oracle.rules.empty()) {
+            fail("bad --raw-lines-by-memory mapping");
+         }
       }
       else if (std::strcmp(argv[i], "--randomize-zp") == 0) {
          if (i + 4 >= argc) {
@@ -896,7 +980,7 @@ int main(int argc, char **argv) {
       }
    }
    const uint64_t expected_raw_cycles = expected_raw_lines * kCyclesPerScanline;
-   live_expected_raw_cycles = expected_raw_cycles;
+   live_expected_raw_cycles = raw_line_memory_oracle.enabled ? 0 : expected_raw_cycles;
 
    char *end = nullptr;
    const long requested = std::strtol(argv[2], &end, 10);
@@ -1001,7 +1085,11 @@ int main(int argc, char **argv) {
       const uint64_t delta = vsync_assertions[i] - vsync_assertions[i - 1];
       const uint64_t interval_lines = delta / kCyclesPerScanline;
       const bool whole_lines = (delta % kCyclesPerScanline) == 0;
-      if (!whole_lines || delta != expected_raw_cycles) {
+      const uint64_t frame_expected_cycles = raw_line_memory_oracle.enabled
+         ? frame_expected_raw_cycles[i - 1]
+         : expected_raw_cycles;
+      const uint64_t frame_expected_lines = frame_expected_cycles / kCyclesPerScanline;
+      if (!whole_lines || delta != frame_expected_cycles) {
          std::fprintf(stderr,
             "vcs_frame_timing: frame %zu has %llu-cycle VSYNC spacing "
             "(%llu raw harness lines); expected %llu cycles (%llu raw lines), "
@@ -1009,8 +1097,8 @@ int main(int argc, char **argv) {
             i,
             static_cast<unsigned long long>(delta),
             static_cast<unsigned long long>(interval_lines),
-            static_cast<unsigned long long>(expected_raw_cycles),
-            static_cast<unsigned long long>(expected_raw_lines),
+            static_cast<unsigned long long>(frame_expected_cycles),
+            static_cast<unsigned long long>(frame_expected_lines),
             static_cast<unsigned long long>(kExpectedDisplayedScanlines));
          return 1;
       }
@@ -1065,10 +1153,11 @@ int main(int argc, char **argv) {
    }
 
    for (const ExpectedMemory &expect : expected_memory) {
-      if (memory_image[expect.address] != expect.value) {
+      const uint8_t actual = peek_memory(expect.address);
+      if (actual != expect.value) {
          std::fprintf(stderr,
             "vcs_frame_timing: memory $%04x expected $%02x, got $%02x\n",
-            expect.address, expect.value, memory_image[expect.address]);
+            expect.address, expect.value, actual);
          return 1;
       }
    }
