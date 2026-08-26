@@ -70,6 +70,13 @@ enum diagnostic_timing {
 };
 
 // Non-beam-critical UI/application state belongs in shared Superchip RAM.
+// Keep the boot-platform latch first: diagnostic_boot.s26 writes its split
+// write alias at $F000 before entering main().
+cartram uint8_t diagnostic_boot_7800;
+cartram uint24_t diagnostic_cpu_fingerprint;
+cartram uint8_t diagnostic_probe_accumulator;
+cartram uint8_t diagnostic_probe_flags;
+cartram uint8_t diagnostic_crc_input;
 cartram uint8_t diagnostic_tv_mode;
 cartram uint8_t diagnostic_controller_mode;
 cartram uint8_t diagnostic_frame_controller_mode;
@@ -489,6 +496,181 @@ bank0 void diagnostic_update_controls_impl(void) {
 }
 
 
+// --- CPU/platform identity ------------------------------------------------
+// The four ARR-immediate probes and CRC-24/OPENPGP are the same silicon
+// fingerprint used by the standalone VCSC fingerprint fixture.  The probes run
+// once before frame rendering begins; on a real 2600 this fingerprints the
+// 6507, while a 7800 fingerprints the compatibility-mode 6502-family CPU.
+// All state lives in Superchip RAM so the already-tight RIOT allocation does
+// not grow.
+inline void diagnostic_crc24_feed(void) {
+   asm lda diagnostic_crc_input;
+   asm eor diagnostic_cpu_fingerprint+2;
+   asm sta diagnostic_cpu_fingerprint+2;
+   asm ldx #8;
+   asm @crc_bit:;
+   asm lda diagnostic_cpu_fingerprint;
+   asm asl;
+   asm sta diagnostic_cpu_fingerprint;
+   asm lda diagnostic_cpu_fingerprint+1;
+   asm rol;
+   asm sta diagnostic_cpu_fingerprint+1;
+   asm lda diagnostic_cpu_fingerprint+2;
+   asm rol;
+   asm sta diagnostic_cpu_fingerprint+2;
+   asm bcc @crc_next;
+   asm lda diagnostic_cpu_fingerprint;
+   asm eor #$fb;
+   asm sta diagnostic_cpu_fingerprint;
+   asm lda diagnostic_cpu_fingerprint+1;
+   asm eor #$4c;
+   asm sta diagnostic_cpu_fingerprint+1;
+   asm lda diagnostic_cpu_fingerprint+2;
+   asm eor #$86;
+   asm sta diagnostic_cpu_fingerprint+2;
+   asm @crc_next:;
+   asm dex;
+   asm bne @crc_bit;
+}
+
+bank0 void diagnostic_compute_cpu_fingerprint(void) {
+   // CRC-24/OPENPGP init 0xB704CE, polynomial 0x864CFB.
+   asm lda #$ce;
+   asm sta diagnostic_cpu_fingerprint;
+   asm lda #$04;
+   asm sta diagnostic_cpu_fingerprint+1;
+   asm lda #$b7;
+   asm sta diagnostic_cpu_fingerprint+2;
+
+   asm cld;
+   asm sec;
+   asm lda #$e5;
+   asm ARR #$b8; // Unstable unofficial ARR; emits bytes $6B,$B8.
+   asm sta diagnostic_probe_accumulator;
+   asm php;
+   asm pla;
+   asm and #$c3;
+   asm sta diagnostic_probe_flags;
+   asm lda diagnostic_probe_accumulator;
+   asm sta diagnostic_crc_input;
+   diagnostic_crc24_feed();
+   asm lda diagnostic_probe_flags;
+   asm sta diagnostic_crc_input;
+   diagnostic_crc24_feed();
+
+   asm cld;
+   asm sec;
+   asm lda #$36;
+   asm ARR #$6b; // Unstable unofficial ARR; emits bytes $6B,$6B.
+   asm sta diagnostic_probe_accumulator;
+   asm php;
+   asm pla;
+   asm and #$c3;
+   asm sta diagnostic_probe_flags;
+   asm lda diagnostic_probe_accumulator;
+   asm sta diagnostic_crc_input;
+   diagnostic_crc24_feed();
+   asm lda diagnostic_probe_flags;
+   asm sta diagnostic_crc_input;
+   diagnostic_crc24_feed();
+
+   asm sed;
+   asm clc;
+   asm lda #$f6;
+   asm ARR #$6b; // Unstable unofficial ARR; emits bytes $6B,$6B.
+   asm sta diagnostic_probe_accumulator;
+   asm php;
+   asm pla;
+   asm and #$c3;
+   asm sta diagnostic_probe_flags;
+   asm lda diagnostic_probe_accumulator;
+   asm sta diagnostic_crc_input;
+   diagnostic_crc24_feed();
+   asm lda diagnostic_probe_flags;
+   asm sta diagnostic_crc_input;
+   diagnostic_crc24_feed();
+
+   asm cld;
+   asm clc;
+   asm lda #$06;
+   asm ARR #$6b; // Unstable unofficial ARR; emits bytes $6B,$6B.
+   asm sta diagnostic_probe_accumulator;
+   asm php;
+   asm pla;
+   asm and #$c3;
+   asm sta diagnostic_probe_flags;
+   asm lda diagnostic_probe_accumulator;
+   asm sta diagnostic_crc_input;
+   diagnostic_crc24_feed();
+   asm lda diagnostic_probe_flags;
+   asm sta diagnostic_crc_input;
+   diagnostic_crc24_feed();
+   asm cld;
+}
+
+bank0 const uint8_t diagnostic_hex_pair[16] := {
+   DIAG_PAIR_DIGIT_0_SPACE, DIAG_PAIR_DIGIT_1_SPACE,
+   DIAG_PAIR_DIGIT_2_SPACE, DIAG_PAIR_DIGIT_3_SPACE,
+   DIAG_PAIR_DIGIT_4_SPACE, DIAG_PAIR_DIGIT_5_SPACE,
+   DIAG_PAIR_DIGIT_6_SPACE, DIAG_PAIR_DIGIT_7_SPACE,
+   DIAG_PAIR_DIGIT_8_SPACE, DIAG_PAIR_DIGIT_9_SPACE,
+   DIAG_PAIR_A_SPACE, DIAG_PAIR_B_SPACE, DIAG_PAIR_C_SPACE,
+   DIAG_PAIR_D_SPACE, DIAG_PAIR_E_SPACE, DIAG_PAIR_F_SPACE
+};
+
+bank0 void diagnostic_format_boot_rows(void) {
+   // Preserve the compact VCSC heading while identifying the host console.
+   asm lda diagnostic_boot_7800;
+   asm beq @is_2600;
+   asm lda #111; // DIAG_PAIR_NUM_78
+   asm bne @store_machine;
+   asm @is_2600:;
+   asm lda #110; // DIAG_PAIR_NUM_26
+   asm @store_machine:;
+   asm sta diagnostic_rows+3;
+   asm lda #71;  // DIAG_PAIR_NUM_00
+   asm sta diagnostic_rows+4;
+   asm lda #0;   // DIAG_PAIR_BLANK
+   asm sta diagnostic_rows+2;
+   asm sta diagnostic_rows+5;
+
+   // Six hexadecimal digits occupy the second row.  Each half-font digit is
+   // deliberately paired with a blank; the wider spacing makes the silicon
+   // fingerprint readable without adding another renderer or another row.
+   asm lda diagnostic_cpu_fingerprint+2;
+   asm lsr; asm lsr; asm lsr; asm lsr;
+   asm tax;
+   asm lda diagnostic_hex_pair,x;
+   asm sta diagnostic_rows+6;
+   asm lda diagnostic_cpu_fingerprint+2;
+   asm and #$0f;
+   asm tax;
+   asm lda diagnostic_hex_pair,x;
+   asm sta diagnostic_rows+7;
+
+   asm lda diagnostic_cpu_fingerprint+1;
+   asm lsr; asm lsr; asm lsr; asm lsr;
+   asm tax;
+   asm lda diagnostic_hex_pair,x;
+   asm sta diagnostic_rows+8;
+   asm lda diagnostic_cpu_fingerprint+1;
+   asm and #$0f;
+   asm tax;
+   asm lda diagnostic_hex_pair,x;
+   asm sta diagnostic_rows+9;
+
+   asm lda diagnostic_cpu_fingerprint;
+   asm lsr; asm lsr; asm lsr; asm lsr;
+   asm tax;
+   asm lda diagnostic_hex_pair,x;
+   asm sta diagnostic_rows+10;
+   asm lda diagnostic_cpu_fingerprint;
+   asm and #$0f;
+   asm tax;
+   asm lda diagnostic_hex_pair,x;
+   asm sta diagnostic_rows+11;
+}
+
 // Keep the self-test text outside the formatting bank; bank5 is intentionally
 // reserved for the larger switch/header formatter.
 bank0 void diagnostic_update_tia_status(void) {
@@ -525,9 +707,9 @@ bank0 void diagnostic_draw_tia_panel(void) {
       COLUPF := VCS_PAL_GREEN;
    }
    if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) {
-      COLUP0 := VCS_SECAM_RED;
-      COLUP1 := VCS_SECAM_BLUE;
-      COLUPF := VCS_SECAM_GREEN;
+      COLUP0 := VCS_SECAM_YELLOW;
+      COLUP1 := VCS_SECAM_CYAN;
+      COLUPF := VCS_SECAM_MAGENTA;
    }
 
    COLUBK := 0;
@@ -556,6 +738,8 @@ bank0 void diagnostic_draw_tia_panel(void) {
    asm sta RESBL;
    asm sta WSYNC;
 
+   // P0 is a solid eight-pixel bar; P1 is an outline pair.  Keep both the
+   // graphics and colors different so a swapped/stuck player path is obvious.
    GRP0 := 0xff;
    GRP1 := 0x81;
    ENAM0 := 2;
@@ -870,8 +1054,10 @@ bank0 void main(void) {
    diagnostic_test_frames := 0;
 #endif
 
+   diagnostic_compute_cpu_fingerprint();
    diagnostic_component_init();
    diagnostic_initialize_rows();
+   diagnostic_format_boot_rows();
    // Derive both selectable header rows from the actual startup state. This is
    // a no-op for the normal NTSC/joystick boot and keeps forced Stella
    // certification builds honest for every TV/controller combination.

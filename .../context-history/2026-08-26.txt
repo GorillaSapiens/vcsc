@@ -76,3 +76,39 @@ test.pl runner header. The top-level clean target now removes every declared
 STELLA_*_TEST_TMP directory, including the previously omitted three-plus-three
 and new diagnostic directories; source-tree hygiene generically enforces that
 contract.
+
+2026-08-26 12:10:00 PDT, Half glyph readability cleanup
+Hand-tuned the Half 3x5 source glyphs used by the diagnostic pair compositor:
+`*` is now a five-row diagonal/cross asterisk, `#` uses two full crossbars,
+`M` has a stronger double-width center, and `N` uses an asymmetric diagonal so
+it no longer resembles `M`. Uppercase `B` now uses the requested
+XX./X.X/XX./X.X/XX. shape. Regenerated half_decimal/half_hex/half_lhex and the
+checked-in diagnostic pair font. The Half font regression now locks these five
+source shapes, while the diagnostic regression regenerates pair rows in memory
+and rejects a stale diagnostic_pairs.c26. All eight recursive example shards,
+font contracts, the diagnostic cartridge test, assembly allowlist, and hygiene
+checks pass. All 12 NTSC/PAL/SECAM x controller Stella references were refreshed
+for the intentional text raster change and independently revalidated.
+
+2026-08-26 12:54:00 PDT, diagnostic boot signature and fingerprint
+Extended the completed F4SC diagnostic cartridge with pre-clear boot-platform
+capture and the existing silicon fingerprint machinery. A diagnostic-specific
+reset shim scans RIOT RAM before normal startup clearing for the observed Atari
+7800 compatibility-loader signature `6C FC FF EA`, preserves the result across
+RAM/TIA initialization, and commits it to Superchip RAM for later display. The
+fourth byte is intentionally part of the signature: `EA` is not needed by the
+preceding `JMP ($FFFC)` but strengthens the observed-loader fingerprint. A
+reset-cycle regression plants `6C FC FF EA` and a `6C FC FF 00` negative probe,
+proving capture-before-clear and requiring all four signature bytes.
+
+The diagnostic now displays `VCSC 2600`/`VCSC 7800` plus the existing six-hex-
+digit ARR/CRC-24 silicon fingerprint. The implementation reuses the standalone
+fingerprint contract rather than inventing a second algorithm. SECAM TIA-test
+colors were changed to a deliberately separated yellow P0, cyan P1, and magenta
+playfield; P0/P1 also use distinct silhouettes in all standards (solid `$FF`
+versus outline `$81`). All 12 reviewed Stella 7.0 diagnostic references were
+refreshed for the intentional display/palette change and pass. Focused
+diagnostic, fingerprint, assembly-allowlist, branding, recursive-example, and
+hygiene checks pass. A broad default e2e checkpoint reached 226/326 with no
+failures before the container command ceiling, and five subsequent tail tests
+also passed; the remaining e2e tail still needs completion.

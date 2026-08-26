@@ -108,11 +108,11 @@ page const uint8_t score_font[96] := {
    ),
    // 0x42 B
    VCS_FONT_GLYPH(
-      0b.XXX,
+      0b.XX.,
       0b.X.X,
       0b.XX.,
       0b.X.X,
-      0b.XXX,
+      0b.XX.,
       0b....
    ),
    // 0x43 C

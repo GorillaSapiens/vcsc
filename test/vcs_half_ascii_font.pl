@@ -59,6 +59,23 @@ my@ascii_glyphs;
 for my$i(0..94) {
    push @ascii_glyphs,join('/',@rows[$i*6..$i*6+5]);
 }
+
+# These tiny glyphs are deliberately hand-tuned for readability when two
+# 4-bit cells are composited into one score glyph.  Keep the left source bit
+# blank as inter-character spacing and lock the 3x5 shapes that are easiest to
+# confuse in the field diagnostic.
+my %readable = (
+   0x23 => '..X./.XXX/..X./.XXX/..X./....', # #
+   0x2A => '.X.X/..X./.XXX/..X./.X.X/....', # *
+   0x42 => '.XX./.X.X/.XX./.X.X/.XX./....', # B
+   0x4D => '.X.X/.XXX/.XXX/.X.X/.X.X/....', # M
+   0x4E => '.X.X/.XX./.X.X/..XX/.X.X/....', # N
+);
+for my $code (sort {$a<=>$b} keys %readable) {
+   my $got=$ascii_glyphs[$code-0x20];
+   $got eq $readable{$code}
+      or die sprintf("half_ascii.c26 glyph 0x%02X lost its readable 3x5 shape: %s\n",$code,$got);
+}
 for my$spec (
    [$decimal, [ '0'..'9' ], '0-9', 60],
    [$hex, [ '0'..'9','A'..'F' ], '0-9 and A-F', 96],

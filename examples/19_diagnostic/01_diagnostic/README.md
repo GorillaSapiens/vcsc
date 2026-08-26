@@ -22,6 +22,26 @@ cartridge. The same ROM supports NTSC, PAL, and SECAM.
 Controller-mode changes take effect on a frame boundary. Holding SELECT does
 not repeatedly advance the mode; release it before the next selection.
 
+## Host and CPU fingerprint
+
+The first display row identifies the host as `2600` or `7800`. Detection is done
+by the cartridge's reset shim **before ordinary RIOT RAM is cleared**. A 7800
+compatibility-mode boot leaves a loader image in RIOT RAM containing the
+four-byte signature `6C FC FF EA`; the shim scans for that sequence, remembers
+the result in F4SC RAM, and then establishes the cartridge's normal clean RAM
+state. `6C FC FF` is `JMP ($FFFC)`, an indirect jump through the cartridge reset
+vector. The following `EA` is a NOP and is unreachable after that unconditional
+jump, so it is not required for the jump itself; it is included because it is
+part of the observed 7800 loader image and makes the signature substantially
+less likely to occur accidentally.
+
+The second row is a six-hex-digit CPU silicon fingerprint. It uses the same four
+unofficial `ARR` probes and CRC-24/OPENPGP reduction as the standalone VCSC
+fingerprint example. On a 2600 this fingerprints the 6507; on a 7800 it
+fingerprints the compatibility-mode 6502-family CPU instead. These values are
+intended for comparing real machines, not as a CPU revision database built into
+the cartridge.
+
 ## Controller hookups
 
 * **JOYSTICK:** one CX10-compatible joystick per controller port. Direction and
@@ -45,7 +65,10 @@ background probe.
 The final text row reports `TIA PASS` only when the cartridge observes the
 expected player/missile and ball/playfield collision latches. Beneath it, the
 hardware panel draws P0, P1, both missiles, the ball, and a reflected playfield
-using colors selected for the active television standard. Audio channel 0 and
+using colors selected for the active television standard. P0 and P1 deliberately
+use different silhouettes and different colors in every standard. SECAM uses
+yellow for P0, cyan for P1, and magenta for the playfield so the three paths are
+easy to distinguish despite SECAM's small fixed palette. Audio channel 0 and
 channel 1 emit short distinct alternating beeps.
 
 The cartridge is intended as a field aid, not as a substitute for an oscilloscope

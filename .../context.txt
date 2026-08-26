@@ -122,15 +122,18 @@ Their completed development narratives were moved to `context-history/`.
 
 Last validation state
 ---------------------
-Main-roadmap Item 44, the public 32K F4SC diagnostic cartridge, is complete.
-Current broad validation is 502/502 compile tests and 326/326 default e2e tests;
-the optional Stella 7.0 diagnostic matrix also matches all 12 reviewed
-NTSC/PAL/SECAM x joystick/paddle/keypad/driving reference screens.
+Main-roadmap Item 44 remains complete; a post-closeout diagnostic enhancement is
+currently awaiting only the remaining broad-suite tail. The cartridge now
+captures the observed 7800 RIOT-RAM boot signature before startup clearing,
+displays 2600/7800 plus the existing six-hex-digit silicon fingerprint, uses
+more distinctive SECAM TIA-test colors, and gives P0/P1 distinct silhouettes.
+Focused diagnostic/fingerprint/example/hygiene checks pass and all 12 Stella 7.0
+reference screens match. The latest broad e2e checkpoint passed 226/326 before
+the container command ceiling; five subsequent tail tests also passed.
 
 Immediate TODO
 --------------
-Active workstream: `.../roadmap.txt`.
-
-Continue with main roadmap Item 45, playfield-color renderer support. Enhanced
-asymmetric allocator-quality work remains an optional side quest documented in
-`.../enhanced_asymmetric.txt`.
+Finish the remaining default e2e tail for the diagnostic enhancement. If clean,
+restore the normal main-roadmap next step: Item 45, playfield-color renderer
+support. Enhanced asymmetric allocator-quality work remains an optional side
+quest documented in `.../enhanced_asymmetric.txt`.

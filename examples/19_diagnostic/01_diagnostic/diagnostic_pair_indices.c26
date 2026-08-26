@@ -111,5 +111,12 @@ enum diagnostic_pair_index {
    DIAG_PAIR_SS := 107, // 'SS'
    DIAG_PAIR_FA := 108, // 'FA'
    DIAG_PAIR_IL := 109, // 'IL'
-   DIAG_PAIR_COUNT := 110
+   DIAG_PAIR_NUM_26 := 110, // '26'
+   DIAG_PAIR_NUM_78 := 111, // '78'
+   DIAG_PAIR_B_SPACE := 112, // 'B '
+   DIAG_PAIR_C_SPACE := 113, // 'C '
+   DIAG_PAIR_D_SPACE := 114, // 'D '
+   DIAG_PAIR_E_SPACE := 115, // 'E '
+   DIAG_PAIR_F_SPACE := 116, // 'F '
+   DIAG_PAIR_COUNT := 117
 };

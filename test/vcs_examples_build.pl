@@ -128,6 +128,7 @@ for my $entry (@examples) {
    my $profile=profile_from_source($source);
    my $source_text=read_file($source);
    my @extra;
+   push @extra,'-Wa,--illegals' if $file eq 'vcsc_diagnostic.c26';
    if ($source_text =~ m{renderers/enhanced_multisprite_asymmetric/enhanced_multisprite\.c26}) {
       # The asymmetric renderer owns its playfield rows; common retained-PF-row
       # data is never part of these cartridges.  NTSC's 192-line diagnostic also
@@ -185,6 +186,8 @@ for my $entry (@examples) {
          File::Spec->catfile($source_dir,'faithful_legacy_multisprite_diagnostic_data.s26'),
          File::Spec->catfile($faithful_multisprite,'faithful_legacy_multisprite_renderer.s26'),
          File::Spec->catfile($faithful_multisprite,'faithful_legacy_multisprite_startup.s26');
+   } elsif ($file eq 'vcsc_diagnostic.c26') {
+      push @renderer,File::Spec->catfile($source_dir,'diagnostic_boot.s26');
    } elsif (-f $local_startup) {
       push @renderer,$local_startup;
    }

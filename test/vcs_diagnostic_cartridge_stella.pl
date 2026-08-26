@@ -53,6 +53,7 @@ my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my$example=File::Spec->catdir($repo,qw(examples 19_diagnostic 01_diagnostic));
 my$source=File::Spec->catfile($example,'vcsc_diagnostic.c26');
+my$boot=File::Spec->catfile($example,'diagnostic_boot.s26');
 my$keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
 my$digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 
@@ -79,7 +80,7 @@ for my$standard (
       my$reference=File::Spec->catfile($repo,'test','fixtures','diagnostic',"reference_${name}_stella_7.0.png");
       -s$reference or die"missing Stella reference $reference\n";
       ok("build $name diagnostic",$driver,'-I',$vcs,'-I',$example,'-T',File::Spec->catfile($vcs,'vcs.cfg'),
-         "-DDIAGNOSTIC_TEST_TV=$tv","-DDIAGNOSTIC_TEST_CONTROLLER=$mode",$source,'-o',$rom);
+         '-Wa,--illegals',"-DDIAGNOSTIC_TEST_TV=$tv","-DDIAGNOSTIC_TEST_CONTROLLER=$mode",$source,$boot,'-o',$rom);
 
       # A fresh private X server per case avoids stale SDL/X11 state after
       # repeatedly terminating Stella during the 12-screen matrix.
