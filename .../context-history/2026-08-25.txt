@@ -138,3 +138,45 @@ STA GRP0,X while preserving exact-byte round trip. The focused vcsc-disas suite
 passes 131/131. The supplied c33caa7d6ac7251bb804e0473198901d 1K removable-
 cartridge ROM now shows canonical TIA names throughout its concrete RAM tail;
 BIT read-side addresses and RIOT RAM remain raw by design.
+
+2026-08-25 13:14:14 PDT, E0 output profile and public diagnostic
+Implemented first-class E0 build support as eight physical 1K chunks: three
+independently selected CPU windows plus fixed physical bank 7. The linker now
+validates the segmented C26 topology without pretending E0 has one selector per
+bank. vcsc-sim models the three selectors independently and powers up as physical
+banks 4/5/6/7. Added installed vcs_8k_e0.c26/vcs_8k_e0.cfg profiles.
+
+Added examples/09_bankswitching/11_e0 with probes in all eight physical chunks.
+The diagnostic verifies all three selectable windows and the fixed window, has a
+fixed-bank green-PASS/red-FAIL display, forces Stella -bs E0, and carries the
+E0\0\0 signature. Simulator self-test, live Stella snapshot grading, high-
+confidence vcsc-disas detection, and exact byte round trip all pass. Installed
+staging also built the E0 example as exactly 8192 bytes and disassembled it as E0.
+
+Focused topology, memory-authority, cartridge-profile, example-allowlist, and
+recursive example-build tests pass. Bankswitching Item 39 is retired; Item 40,
+the 3F public diagnostic/profile, is the next open bankswitching item.
+
+2026-08-25 17:19:32 PDT, review E0 direct VSYNC writer
+The new E0 public diagnostic legitimately owns VSYNC directly in fixed bank 7,
+but vcs_example_vsync_contract.pl still pinned only the three older low-level
+examples. Added the E0 source to the explicit reviewed writer inventory and
+made the contract assert its exact same-phase 3-scanline VSYNC store sequence,
+rather than merely allowlisting the filename. Updated the test README wording.
+Focused VSYNC/E0/hygiene checks pass, followed by the full suite: 324/324.
+
+2026-08-25 18:14:19 PDT, add E0 PASS/FAIL text display
+The E0 diagnostic now matches the other bankswitch examples: large `pass`/`FAIL`
+with small `E0` underneath. The completed mapper self-test explicitly freezes
+E0's three selectable windows to physical banks 0/1/2 before display entry;
+bank 0 holds renderer code, bank 1 holds the glyph tables, bank 2 holds component
+lifecycle code, and fixed bank 7 retains startup/self-test control. This explicit
+0/1/2 handoff is required because E0 calls do not implicitly select a physical
+bank. The old direct-VSYNC E0 exception was removed; the display now uses the
+shared NTSC frame helpers.
+
+The E0 regression now pins the display topology and the Stella snapshot grader
+checks real `pass` + `E0` glyphs instead of accepting a solid green background.
+The Stella test also isolates XDG_CONFIG_HOME so a developer's saved debugger
+state cannot hijack certification. A forced `stella -bs E0` snapshot graded as
+320x228 with green PASS, large `pass`, and small `E0`.

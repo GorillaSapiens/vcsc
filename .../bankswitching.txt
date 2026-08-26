@@ -43,6 +43,13 @@ Classic full-window mapping:
 
     file_index(BANKn) = bank_count - 1 - n
 
+E0 is segmented rather than full-window: eight physical 1K chunks feed three
+independently selectable windows plus a fixed top chunk. `$1000-$13FF` selects
+with `$1FE0-$1FE7`, `$1400-$17FF` with `$1FE8-$1FEF`, and `$1800-$1BFF` with
+`$1FF0-$1FF7`; `$1C00-$1FFF` is always physical bank 7. Power-on mapping is
+physical banks 4/5/6/7. One physical chunk may appear in more than one window,
+so do not model E0 as one selector per bank or as four F8-style whole windows.
+
 Ordinary linker symbols remain 16-bit. Do not invent far pointers for this
 family. Selector-controlled families, segmented-window families, direct islands,
 and coprocessor formats are different hardware models and must not be forced into
@@ -73,7 +80,7 @@ only the final file bank. Short signatures are padded with ASCII NUL, never spac
 or underscore. Current signatures include:
 
     4KSC  F8\0\0  F8SC  F6\0\0  F6SC  F4\0\0  F4SC  FA\0\0
-    CV\0\0  OMNI  JANE  0840  UA\0\0  UASW  0FA0
+    CV\0\0  OMNI  JANE  0840  UA\0\0  UASW  0FA0  E0\0\0
 
 The bytes are metadata; real hardware switches because the hotspot address is
 accessed, not because of the stored byte value.
@@ -85,13 +92,6 @@ Open work
         Do not schedule this unless the user explicitly reopens it. If reopened,
         evaluate each hardware contract separately rather than hiding new
         mechanisms behind the existing hotspot model.
-
-[ ] 39. Backfill an E0 public diagnostic cartridge.
-
-        * Add the minimum compiler/linker/simulator profile support to build E0.
-        * Exercise all three selectable 1K windows plus the fixed top 1K.
-        * Force Stella E0 for play; require simulator/Stella execution and exact
-          `vcsc-disas` round trip.
 
 [ ] 40. Backfill a 3F public diagnostic cartridge.
 

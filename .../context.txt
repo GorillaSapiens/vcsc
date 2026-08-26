@@ -95,8 +95,8 @@ Open workstreams
 3. **Bankswitching**
    `.../bankswitching.txt` contains the durable cartridge model plus unfinished
    mapper diagnostics. Item 38 (F0/FA2/FC tier) is explicitly deferred until the
-   user reopens it. Items 39-44 are diagnostic/profile backfills for E0, 3F, 3E,
-   FE/SCABS, WD, and DPC.
+   user reopens it. Items 40-44 are diagnostic/profile backfills for 3F, 3E,
+   FE/SCABS, WD, and DPC; 3F is the next open bankswitching item.
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished

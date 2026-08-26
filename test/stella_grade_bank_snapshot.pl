@@ -109,13 +109,13 @@ sub decode_png_rgb {
 }
 
 @ARGV>=2 && @ARGV<=3
-   or die "usage: $0 SNAPSHOT.png pass|fail [F8|F6|F4|FA|4KSC|F8SC|F6SC|F4SC|??????]\n";
+   or die "usage: $0 SNAPSHOT.png pass|fail [F8|F6|F4|FA|4KSC|F8SC|F6SC|F4SC|E0|??????]\n";
 my $expect=lc($ARGV[1]);
 $expect eq 'pass' || $expect eq 'fail'
    or die "result must be pass or fail\n";
 my $cart=$ARGV[2] // 'F8';
-$cart =~ /^(?:F[468](?:SC)?|FA|4KSC|\?{6})$/
-   or die "cart type must be F8/F6/F4/FA/4KSC, F8SC/F6SC/F4SC, or ??????\n";
+$cart =~ /^(?:F[468](?:SC)?|FA|4KSC|E0|\?{6})$/
+   or die "cart type must be F8/F6/F4/FA/4KSC, F8SC/F6SC/F4SC, E0, or ??????\n";
 
 my($width,$height,$rgb_at)=decode_png_rgb($ARGV[0]);
 my @center=$rgb_at->(int($width/2),int($height/2));
@@ -200,6 +200,8 @@ my %small=(
    8=>[qw(00111100 01100110 01100110 00111100 01100110 01100110 01100110 00111100)],
    S=>[qw(00111100 01100110 01100000 00111100 00000110 00000110 01100110 00111100)],
    C=>[qw(00111100 01100110 01100000 01100000 01100000 01100000 01100110 00111100)],
+   E=>[qw(01111110 01100000 01100000 01111100 01100000 01100000 01100000 01111110)],
+   0=>[qw(00111100 01100110 01100110 01100110 01100110 01100110 01100110 00111100)],
    '?'=>[qw(00111100 01100110 00000110 00001100 00011000 00000000 00011000 00011000)],
 );
 

@@ -62,6 +62,7 @@ struct simulator_config_t {
    int cartridge_banked;
    int cartridge_direct_multi;
    int superchip_mapper;
+   int e0_mapper;
    size_t startup_bank;
 };
 
@@ -90,6 +91,7 @@ struct simulator_options_t {
 static simulator_config_t g_cfg = {};
 static int g_cfg_loaded = 0;
 static size_t g_selected_bank = 0;
+static size_t g_e0_segment_bank[3] = {0, 0, 0};
 static std::vector<std::vector<uint8_t>> g_split_memory;
 
 void trace_regs(void);
@@ -378,19 +380,31 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
       cfg->superchip_mapper = str_ieq(cfg->mapper, "F8SC") ||
                               str_ieq(cfg->mapper, "F6SC") ||
                               str_ieq(cfg->mapper, "F4SC");
+      cfg->e0_mapper = str_ieq(cfg->mapper, "E0");
       if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") ||
             str_ieq(cfg->mapper, "F4") || str_ieq(cfg->mapper, "FA") ||
             str_ieq(cfg->mapper, "OMNI") || str_ieq(cfg->mapper, "JANE") ||
             str_ieq(cfg->mapper, "0840") || str_ieq(cfg->mapper, "UA") ||
             str_ieq(cfg->mapper, "UASW") || str_ieq(cfg->mapper, "0FA0") ||
-            cfg->superchip_mapper)) {
+            cfg->e0_mapper || cfg->superchip_mapper)) {
          fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
+         exit(1);
+      }
+      if (cfg->e0_mapper && cfg->bank_count != 8u) {
+         fprintf(stderr, "vcsc-sim: E0 requires exactly eight physical 1K banks\n");
          exit(1);
       }
       for (size_t i = 0; i < cfg->bank_count; ++i) {
          size_t file_index = 0;
-         if (cfg->banks[i].size != 0x1000u) {
-            fprintf(stderr, "vcsc-sim: %s bank '%s' is not 4K\n", cfg->mapper, cfg->banks[i].name);
+         uint16_t wanted_size = cfg->e0_mapper ? 0x0400u : 0x1000u;
+         if (cfg->banks[i].size != wanted_size) {
+            fprintf(stderr, "vcsc-sim: %s bank '%s' is not %s\n",
+                    cfg->mapper, cfg->banks[i].name, cfg->e0_mapper ? "1K" : "4K");
+            exit(1);
+         }
+         if (cfg->e0_mapper && !cfg->banks[i].has_file_index) {
+            fprintf(stderr, "vcsc-sim: E0 bank '%s' requires an explicit fileindex\n",
+                    cfg->banks[i].name);
             exit(1);
          }
          if (!cfg->banks[i].has_file_index) {
@@ -420,6 +434,10 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
       }
       if (startup_count != 1) {
          fprintf(stderr, "vcsc-sim: multi-region config must name exactly one startup bank\n");
+         exit(1);
+      }
+      if (cfg->e0_mapper && cfg->banks[cfg->startup_bank].file_index != 7u) {
+         fprintf(stderr, "vcsc-sim: E0 startup bank must be fixed physical/file bank 7\n");
          exit(1);
       }
    }
@@ -866,6 +884,18 @@ static int bank_index_for_hotspot(uint16_t addr, size_t *bank_index) {
    if (!g_cfg_loaded || !g_cfg.cartridge_banked)
       return 0;
 
+   /* Parker Brothers E0 uses three groups of eight selectors in the fixed
+      top 1K.  The low three selector bits choose the physical bank and the
+      selector group chooses one of the three independently mapped windows. */
+   if (g_cfg.e0_mapper && canonical >= 0x1fe0u && canonical <= 0x1ff7u) {
+      uint16_t selector = (uint16_t)(canonical - 0x1fe0u);
+      size_t segment = (size_t)(selector >> 3);
+      size_t file_bank = (size_t)(selector & 7u);
+      *bank_index = bank_index_for_file_index(file_bank);
+      g_e0_segment_bank[segment] = *bank_index;
+      return 1;
+   }
+
    /* 0840/EconoBanking decodes A11 and A6 below the cartridge window; the
       remaining low address bits are aliases.  Keep the cfg's exact $0800/$0840
       selector declarations as the canonical bank identities. */
@@ -933,8 +963,29 @@ static int bank_index_for_hotspot(uint16_t addr, size_t *bank_index) {
    return 0;
 }
 
+static size_t selected_bank_index_for_address(uint16_t addr) {
+   uint16_t canonical = (uint16_t)(addr & 0x1fffu);
+   if (!g_cfg.e0_mapper)
+      return g_selected_bank;
+   if (canonical < 0x1400u)
+      return g_e0_segment_bank[0];
+   if (canonical < 0x1800u)
+      return g_e0_segment_bank[1];
+   if (canonical < 0x1c00u)
+      return g_e0_segment_bank[2];
+   return bank_index_for_file_index(7u);
+}
+
 static uint16_t selected_bank_address(uint16_t addr) {
-   const cartridge_bank_t *bank = &g_cfg.banks[g_selected_bank];
+   uint16_t canonical = (uint16_t)(addr & 0x1fffu);
+   size_t bank_index = selected_bank_index_for_address(addr);
+   const cartridge_bank_t *bank = &g_cfg.banks[bank_index];
+   if (g_cfg.e0_mapper) {
+      uint16_t window_base = canonical < 0x1400u ? 0x1000u :
+                             canonical < 0x1800u ? 0x1400u :
+                             canonical < 0x1c00u ? 0x1800u : 0x1c00u;
+      return (uint16_t)(bank->start + (canonical - window_base));
+   }
    return (uint16_t)(bank->start + (addr & 0x0FFFu));
 }
 
@@ -1047,10 +1098,12 @@ uint8_t read_cb(uint16_t addr) {
    }
    uint8_t value = peek_mem(addr);
    if (trace_ops & TRACE_OP_READS) {
-      if (cartridge_window_address(addr))
+      if (cartridge_window_address(addr)) {
+         size_t selected_for_addr = selected_bank_index_for_address(addr);
          printf("read $%04x [file-bank=%zu %s] -> $%02x\n", addr,
-                g_cfg.banks[g_selected_bank].file_index,
-                g_cfg.banks[g_selected_bank].name, value);
+                g_cfg.banks[selected_for_addr].file_index,
+                g_cfg.banks[selected_for_addr].name, value);
+      }
       else
          printf("read $%04x -> $%02x\n", addr, value);
    }
@@ -1205,7 +1258,18 @@ int main (int argc, char **argv) {
    initialize_split_memory(opts.split_fill_set ? opts.split_fill : 0);
 
    if (g_cfg_loaded && g_cfg.cartridge_banked) {
-      if (opts.start_bank_set) {
+      if (g_cfg.e0_mapper) {
+         if (opts.start_bank_set) {
+            fprintf(stderr,
+                    "vcsc-sim: --start-bank is not meaningful for E0's three independent windows\n");
+            return 1;
+         }
+         g_e0_segment_bank[0] = bank_index_for_file_index(4u);
+         g_e0_segment_bank[1] = bank_index_for_file_index(5u);
+         g_e0_segment_bank[2] = bank_index_for_file_index(6u);
+         g_selected_bank = g_cfg.startup_bank;
+      }
+      else if (opts.start_bank_set) {
          if (opts.start_bank >= g_cfg.bank_count) {
             fprintf(stderr, "vcsc-sim: start bank %zu is outside 0..%zu\n",
                     opts.start_bank, g_cfg.bank_count - 1);

@@ -51,6 +51,7 @@ my @profiles=(
    ['UA',   'vcs_8k_ua.c26',    undef,               2, 1, 0,  8192],
    ['UASW', 'vcs_8k_uasw.c26',  undef,               2, 1, 0,  8192],
    ['0FA0', 'vcs_8k_0fa0.c26',  undef,               2, 1, 0,  8192],
+   ['E0',   'vcs_8k_e0.c26',    undef,              8, 0, 0,  8192],
    ['F6',   'vcs_16k_f6.c26',   'vcs_16k_f6.cfg',   4, 1, 0, 16384],
    ['JANE', 'vcs_16k_jane.c26', undef,               4, 1, 0, 16384],
    ['F4',   'vcs_32k_f4.c26',   'vcs_32k_f4.cfg',   8, 1, 0, 32768],
@@ -106,7 +107,7 @@ for my $p (@profiles) {
    -s $generic_bin==$output_size
       or die "$name C26 profile emitted ".(-s $generic_bin)." bytes, expected $output_size\n";
 
-   if ($name =~ /^(?:CV|4KSC|F8|0840|UA|UASW|0FA0|F6|JANE|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
+   if ($name =~ /^(?:CV|4KSC|F8|0840|UA|UASW|0FA0|E0|F6|JANE|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
       my $rom=read_file($generic_bin);
       my $want=$name . ("\0" x (4-length($name)));
       substr($rom,-8,4) eq $want
@@ -144,7 +145,7 @@ for my $p (@profiles) {
       or die "$name map does not report C26 topology\n";
    $map =~ /output-size=\$[0-9A-F]{8}/
       or die "$name map does not report topology output size\n";
-   my @file_order = $name eq 'JANE' ? (1,0,2,3) : $name =~ /^(?:0840|UA|UASW)$/ ? (0,1) : reverse(0..$banks-1);
+   my @file_order = $name eq 'E0' ? (0..7) : $name eq 'JANE' ? (1,0,2,3) : $name =~ /^(?:0840|UA|UASW)$/ ? (0,1) : reverse(0..$banks-1);
    for my $logical (0..$banks-1) {
       my $file_index=$file_order[$logical];
       $map =~ /^\s+bank\Q$logical\E\s+file-index=\Q$file_index\E\b/m
@@ -208,6 +209,18 @@ for my $p (@profiles) {
       $map =~ /^\s+bank0\s+file-index=1\b.*select-access=\$0FC0.*startup=yes/m &&
       $map =~ /^\s+bank1\s+file-index=0\b.*select-access=\$0FA0/m
          or die "0FA0 map does not preserve selector/file order\n";
+   }
+
+   if ($name eq 'E0') {
+      $text =~ /bank\s+bank7\s*\{.*?\$file_index:7.*?\$cpu_start:0x1c00.*?\$startup/s &&
+      $text =~ /bank\s+bank0\s*\{.*?\$cpu_start:0x1000/s &&
+      $text =~ /bank\s+bank1\s*\{.*?\$cpu_start:0x1400/s &&
+      $text =~ /bank\s+bank2\s*\{.*?\$cpu_start:0x1800/s &&
+      $text !~ /\$select_access:/
+         or die "E0 profile does not preserve segmented 8x1K topology/fixed bank 7\n";
+      $map =~ /^\s+bank7\s+file-index=7\b.*cpu=\$1C00.*startup=yes/m &&
+      $map !~ /^TRAMPOLINES$/m
+         or die "E0 map does not preserve fixed top bank/no fake whole-window trampolines\n";
    }
 
    if ($name eq 'JANE') {

@@ -1021,8 +1021,9 @@ combined used bytes, and physical free bytes exactly.
 
 
 `vcs_example_vsync_contract.pl` inventories every public example that directly
-owns VSYNC instead of using a frame helper, pins the three reviewed low-level
-exceptions, and executes the assembly example through the common timing harness.
+owns VSYNC instead of using a frame helper, pins the reviewed low-level
+exceptions (including the fixed-bank E0 diagnostic), and executes the basic
+assembly example through the common timing harness.
 The frame timing and NTSC/50 Hz scheduler harnesses measure both VSYNC edges and
 reject any pulse other than exactly 228 CPU cycles.
 

@@ -78,11 +78,12 @@ profiles.
 For an unbanked image, `type=ro` MEMORY ranges reject guest writes.  For a
 banked image, the simulator additionally:
 
-- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, `JANE`, `0840`, `UA`, `UASW`, or `0FA0` (plus the SC variants);
-- loads each complete 4K `.bin` chunk into the logical range named by its BANKS
-  entry;
+- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, `JANE`, `0840`, `UA`, `UASW`, `0FA0`, or `E0` (plus the SC variants);
+- loads each physical `.bin` chunk into the logical range named by its BANKS
+  entry (4K for the conventional banked profiles, 1K for E0);
 - maps every CPU cartridge-window fetch through the currently selected physical
-  chunk while preserving the low twelve address bits;
+  chunk; conventional mappers preserve the low twelve address bits, while E0
+  preserves the offset within each independently selected 1K segment;
 - changes the selected chunk on reads or writes to the configured hotspots;
 - fetches reset vectors through the selected bank, including F4's
   `$1FFA/$1FFB` vector/hotspot overlap;
@@ -279,3 +280,15 @@ A11, A8, or A4-A0 behave identically. Reads and writes below the cartridge windo
 still reach the underlying console-side memory model before the bank-switch side
 effect. Generated cross-bank transitions use the state-preserving absolute-NOP
 read path introduced for 0840.
+
+### E0 / Parker Brothers
+
+`mapper=E0` loads eight 1K physical/file chunks. At reset, physical banks 4, 5,
+6, and 7 occupy `$1000-$13FF`, `$1400-$17FF`, `$1800-$1BFF`, and
+`$1C00-$1FFF`. Reads or writes to `$1FE0-$1FE7`, `$1FE8-$1FEF`, or
+`$1FF0-$1FF7` replace the selected physical bank in the corresponding first,
+second, or third 1K window; the top window remains physical bank 7. Selector
+reads sample the byte from fixed bank 7 before applying the switch, matching the
+normal cartridge bus transaction order. Because E0 has three simultaneous bank
+states, `--start-bank` is rejected for this mapper rather than pretending one
+scalar start bank can describe it.

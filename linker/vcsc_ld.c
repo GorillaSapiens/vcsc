@@ -1207,6 +1207,75 @@ static void apply_c26_topology_to_linker_config(linker_config_t *cfg)
    }
 }
 
+//! @brief Return whether the C26 topology is the Parker Brothers E0 profile.
+static int c26_topology_is_e0(const linker_config_t *cfg)
+{
+   const topology_cartridge_t *cart;
+   if (!cfg || cfg->topology_bank_count != 8u)
+      return 0;
+   cart = &cfg->topology_cartridge;
+   return (cart->present_mask & 0x80u) &&
+          cart->signature[0] == 'E' && cart->signature[1] == '0' &&
+          cart->signature[2] == 0 && cart->signature[3] == 0;
+}
+
+//! @brief Validate the segmented 8x1K Parker Brothers E0 output profile.
+static void validate_c26_e0_topology(const linker_config_t *cfg)
+{
+   size_t i;
+   size_t startup_count = 0;
+   for (i = 0; i < cfg->topology_bank_count; ++i) {
+      const topology_bank_t *bank = &cfg->topology_banks[i];
+      uint16_t canonical_link = (uint16_t)(bank->link_start & 0x1fffu);
+      if (bank->image_size != 0x0400u || bank->image_offset != 0 ||
+          bank->map_size != 0x0400u) {
+         fprintf(stderr,
+                 "vcsc-ld: E0 bank '%s' must be one fully mapped 1K physical chunk\n",
+                 bank->name);
+         exit(1);
+      }
+      if (bank->has_selector) {
+         fprintf(stderr,
+                 "vcsc-ld: E0 bank '%s' must not use one-bank $select_access metadata; E0 selectors are segment-specific\n",
+                 bank->name);
+         exit(1);
+      }
+      if (canonical_link != (uint16_t)(bank->cpu_start & 0x1fffu)) {
+         fprintf(stderr,
+                 "vcsc-ld: E0 bank '%s' link address $%04X is not a 6507 alias of CPU window $%04X\n",
+                 bank->name, bank->link_start, bank->cpu_start);
+         exit(1);
+      }
+      if (bank->file_index == 7u) {
+         if (bank->cpu_start != 0x1c00u) {
+            fprintf(stderr,
+                    "vcsc-ld: E0 physical bank 7 must use the fixed $1C00-$1FFF CPU window\n");
+            exit(1);
+         }
+      } else if (bank->cpu_start != 0x1000u &&
+                 bank->cpu_start != 0x1400u &&
+                 bank->cpu_start != 0x1800u) {
+         fprintf(stderr,
+                 "vcsc-ld: E0 switchable bank '%s' must choose $1000, $1400, or $1800 as its canonical compile window\n",
+                 bank->name);
+         exit(1);
+      }
+      if (bank->startup) {
+         startup_count++;
+         if (bank->file_index != 7u) {
+            fprintf(stderr,
+                    "vcsc-ld: E0 startup/home marker must be on fixed physical bank 7\n");
+            exit(1);
+         }
+      }
+   }
+   if (startup_count != 1u) {
+      fprintf(stderr,
+              "vcsc-ld: E0 topology requires fixed physical bank 7 as the single startup/home bank\n");
+      exit(1);
+   }
+}
+
 //! @brief Validate generic C26 topology independently of legacy cfg topology.
 static void validate_c26_topology(linker_config_t *cfg)
 {
@@ -1214,6 +1283,7 @@ static void validate_c26_topology(linker_config_t *cfg)
    size_t selector_count = 0;
    size_t startup_count = 0;
    const unsigned int complete_generated_mask = 0x7fu;
+   int e0_profile;
 
    if (cfg->topology_bank_count == 0) {
       if (cfg->topology_cartridge.present) {
@@ -1226,6 +1296,7 @@ static void validate_c26_topology(linker_config_t *cfg)
       fprintf(stderr, "vcsc-ld: C26 bank declarations require one cartridge declaration\n");
       exit(1);
    }
+   e0_profile = c26_topology_is_e0(cfg);
 
    for (i = 0; i < cfg->topology_bank_count; ++i) {
       topology_bank_t *bank = &cfg->topology_banks[i];
@@ -1264,7 +1335,7 @@ static void validate_c26_topology(linker_config_t *cfg)
                     bank->name, other->name);
             exit(1);
          }
-         if (!bank->has_selector && !other->has_selector &&
+         if (!e0_profile && !bank->has_selector && !other->has_selector &&
              ranges_overlap_u32(bank->cpu_start, bank->map_size,
                                 other->cpu_start, other->map_size)) {
             fprintf(stderr, "vcsc-ld: directly mapped CPU ranges '%s' and '%s' overlap\n",
@@ -1279,6 +1350,9 @@ static void validate_c26_topology(linker_config_t *cfg)
          }
       }
    }
+
+   if (e0_profile)
+      validate_c26_e0_topology(cfg);
 
    if (selector_count && selector_count != cfg->topology_bank_count) {
       fprintf(stderr, "vcsc-ld: mixed direct and selector-controlled banks require a future window/device model\n");

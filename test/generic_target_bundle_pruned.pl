@@ -39,6 +39,8 @@ for my $parts (
    [qw(libraries vcs vcs_4k_sc.c26)],
    [qw(libraries vcs vcs_4k_sc.cfg)],
    [qw(libraries vcs vcs_8k_f8.c26)],
+   [qw(libraries vcs vcs_8k_e0.c26)],
+   [qw(libraries vcs vcs_8k_e0.cfg)],
    [qw(libraries vcs vcs_12k_fa.c26)],
    [qw(libraries vcs fa_ram_plus.c26)],
    [qw(libraries vcs vcs_16k_f6.c26)],
