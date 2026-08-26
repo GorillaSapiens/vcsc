@@ -1,0 +1,15 @@
+2026-08-26 08:07:27 PDT, diagnostic timing and text progress
+Diagnostic controller transitions now hold exact 262-line NTSC and 312-line
+PAL/SECAM cadence in the automatic sweep. Controller/TV changes are pinned to
+frame boundaries, transition initialization and UI work are spread across
+frames, and prose labels now use the close-spacing six-glyph score renderer
+instead of the unreadable wide-spacing variant. The cartridge remains open
+pending input-control, Stella visual, permanent-regression, integration, and
+full-suite certification.
+
+2026-08-26 09:24:00 PDT, driving cadence and switch labels
+The diagnostic Driving mode now samples each controller exactly once per frame
+in VBLANK. A moving Gray-code timing regression reproduces the old NTSC 265-raw-
+line instability and now passes for NTSC/PAL/SECAM. Console color labels were
+changed from COLC/COLB to COLR/B&W; SECAM tails were recalibrated after the code-
+layout/timing change.

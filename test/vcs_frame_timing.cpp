@@ -19,6 +19,7 @@ namespace {
 constexpr uint16_t kRomBase = 0xF000;
 constexpr size_t kBankSize = 4096;
 constexpr size_t kF8RomSize = 8192;
+constexpr size_t kF4RomSize = 32768;
 constexpr uint64_t kCyclesPerScanline = 76;
 constexpr uint64_t kExpectedDisplayedScanlines = 262;
 // This deliberately minimal harness does not model Stella's full TIA frame
@@ -53,13 +54,14 @@ struct WriteEvent {
 };
 
 uint8_t memory_image[65536];
-uint8_t cartridge_image[kF8RomSize];
+uint8_t cartridge_image[kF4RomSize];
 uint8_t superchip_ram[128];
 uint8_t threee_ram[32][1024];
 size_t cartridge_size = 0;
-enum class CartridgeTimingMapper { Plain, F8, ThreeF, ThreeE };
+enum class CartridgeTimingMapper { Plain, F8, F4SC, ThreeF, ThreeE };
 CartridgeTimingMapper cartridge_mapper = CartridgeTimingMapper::Plain;
 unsigned selected_f8_chunk = 1;
+unsigned selected_f4_chunk = 7;
 unsigned selected_three_chunk = 0;
 bool threee_ram_selected = false;
 unsigned threee_ram_bank = 0;
@@ -68,11 +70,16 @@ void map_f8_chunk(unsigned chunk) {
    selected_f8_chunk = chunk & 1u;
 }
 
-void maybe_select_f8(uint16_t address) {
-   if (cartridge_mapper != CartridgeTimingMapper::F8) return;
+void maybe_select_banked(uint16_t address) {
    const uint16_t bus = address & 0x1fff;
-   if (bus == 0x1ff8) map_f8_chunk(0);
-   else if (bus == 0x1ff9) map_f8_chunk(1);
+   if (cartridge_mapper == CartridgeTimingMapper::F8) {
+      if (bus == 0x1ff8) map_f8_chunk(0);
+      else if (bus == 0x1ff9) map_f8_chunk(1);
+   }
+   else if (cartridge_mapper == CartridgeTimingMapper::F4SC &&
+            bus >= 0x1ff4 && bus <= 0x1ffb) {
+      selected_f4_chunk = static_cast<unsigned>(bus - 0x1ff4);
+   }
 }
 
 bool three_mapper() {
@@ -112,6 +119,21 @@ struct FixedZpWrite {
    uint8_t value;
 };
 
+// Test-only external/input mutation applied exactly at synchronized frame
+// boundaries.  Unlike the older ZP helpers, this accepts the full 16-bit bus
+// address so controller registers such as SWCHA/SWCHB can be exercised.
+struct FrameMemorySequence {
+   uint16_t address;
+   std::vector<uint8_t> values;
+   size_t index = 0;
+};
+
+struct ReadMemorySequence {
+   uint16_t address;
+   std::vector<uint8_t> values;
+   size_t index = 0;
+};
+
 struct ExpectedMemory {
    uint16_t address;
    uint8_t value;
@@ -137,6 +159,8 @@ uint64_t live_expected_raw_cycles = 0;
 
 std::vector<FixedZpWrite> fixed_zp_writes;
 std::vector<SweepZpWrite> sweep_zp_writes;
+std::vector<FrameMemorySequence> frame_memory_sequences;
+std::vector<ReadMemorySequence> read_memory_sequences;
 std::vector<ExpectedMemory> expected_memory;
 bool released_inputs = false;
 
@@ -209,7 +233,14 @@ uint8_t timer_value(uint64_t cycle) {
 }
 
 uint8_t read_bus(uint16_t address) {
-   maybe_select_f8(address);
+   for (ReadMemorySequence &sequence : read_memory_sequences) {
+      if (sequence.address == address) {
+         const uint8_t value = sequence.values[sequence.index];
+         sequence.index = (sequence.index + 1) % sequence.values.size();
+         return value;
+      }
+   }
+   maybe_select_banked(address);
    if (three_mapper() && (address & 0x1000))
       return read_three_cartridge(address);
    if (cartridge_mapper == CartridgeTimingMapper::F8 && (address & 0x1000)) {
@@ -218,6 +249,13 @@ uint8_t read_bus(uint16_t address) {
          return superchip_ram[offset - 0x0080];
       }
       return cartridge_image[selected_f8_chunk * kBankSize + offset];
+   }
+   if (cartridge_mapper == CartridgeTimingMapper::F4SC && (address & 0x1000)) {
+      const uint16_t offset = address & 0x0fff;
+      if (offset >= 0x0080 && offset <= 0x00ff) {
+         return superchip_ram[offset - 0x0080];
+      }
+      return cartridge_image[selected_f4_chunk * kBankSize + offset];
    }
    if (address == kTimint) {
       if (!timer_active) {
@@ -239,7 +277,7 @@ uint8_t read_bus(uint16_t address) {
 }
 
 void write_bus(uint16_t address, uint8_t value) {
-   maybe_select_f8(address);
+   maybe_select_banked(address);
    const uint16_t bus = address & 0x1fff;
    if (cartridge_mapper == CartridgeTimingMapper::ThreeF && bus <= 0x003f) {
       selected_three_chunk = value & 3u;
@@ -257,12 +295,14 @@ void write_bus(uint16_t address, uint8_t value) {
        bus >= 0x1400 && bus < 0x1800) {
       threee_ram[threee_ram_bank][bus - 0x1400u] = value;
    }
-   else if (cartridge_mapper == CartridgeTimingMapper::F8 && bus >= 0x1000 &&
-            bus <= 0x107f) {
+   else if ((cartridge_mapper == CartridgeTimingMapper::F8 ||
+             cartridge_mapper == CartridgeTimingMapper::F4SC) &&
+            bus >= 0x1000 && bus <= 0x107f) {
       superchip_ram[address & 0x7f] = value;
    }
    else if (!(three_mapper() && (address & 0x1000)) &&
             !(cartridge_mapper == CartridgeTimingMapper::F8 && (address & 0x1000)) &&
+            !(cartridge_mapper == CartridgeTimingMapper::F4SC && (address & 0x1000)) &&
             address < kRomBase) {
       memory_image[address] = value;
    }
@@ -497,6 +537,10 @@ void apply_writes() {
                for (const FixedZpWrite &write : fixed_zp_writes) {
                   memory_image[write.address] = write.value;
                }
+               for (FrameMemorySequence &sequence : frame_memory_sequences) {
+                  memory_image[sequence.address] = sequence.values[sequence.index];
+                  sequence.index = (sequence.index + 1) % sequence.values.size();
+               }
             }
          }
          vsync_asserted = next;
@@ -666,6 +710,62 @@ int main(int argc, char **argv) {
          }
          fixed_zp_writes.push_back({static_cast<uint16_t>(address), static_cast<uint8_t>(value)});
       }
+      else if (std::strcmp(argv[i], "--frame-sequence") == 0) {
+         if (i + 2 >= argc) {
+            fail("--frame-sequence requires ADDR VALUE[,VALUE...]");
+         }
+         char *parse_end = nullptr;
+         const unsigned long address = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || address > 0xffff) {
+            fail("bad --frame-sequence address");
+         }
+
+         FrameMemorySequence sequence;
+         sequence.address = static_cast<uint16_t>(address);
+         const char *cursor = argv[++i];
+         while (*cursor) {
+            char *value_end = nullptr;
+            const unsigned long value = std::strtoul(cursor, &value_end, 0);
+            if (!value_end || value_end == cursor || value > 0xff) {
+               fail("bad --frame-sequence value");
+            }
+            sequence.values.push_back(static_cast<uint8_t>(value));
+            if (*value_end == '\0') break;
+            if (*value_end != ',') fail("bad --frame-sequence value");
+            cursor = value_end + 1;
+            if (!*cursor) fail("bad --frame-sequence value");
+         }
+         if (sequence.values.empty()) fail("bad --frame-sequence value");
+         frame_memory_sequences.push_back(sequence);
+      }
+      else if (std::strcmp(argv[i], "--read-sequence") == 0) {
+         if (i + 2 >= argc) {
+            fail("--read-sequence requires ADDR VALUE[,VALUE...]");
+         }
+         char *parse_end = nullptr;
+         const unsigned long address = std::strtoul(argv[++i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || address > 0xffff) {
+            fail("bad --read-sequence address");
+         }
+
+         ReadMemorySequence sequence;
+         sequence.address = static_cast<uint16_t>(address);
+         const char *cursor = argv[++i];
+         while (*cursor) {
+            char *value_end = nullptr;
+            const unsigned long value = std::strtoul(cursor, &value_end, 0);
+            if (!value_end || value_end == cursor || value > 0xff) {
+               fail("bad --read-sequence value");
+            }
+            sequence.values.push_back(static_cast<uint8_t>(value));
+            if (*value_end == '\0') break;
+            if (*value_end != ',') fail("bad --read-sequence value");
+            cursor = value_end + 1;
+            if (!*cursor) fail("bad --read-sequence value");
+         }
+         if (sequence.values.empty()) fail("bad --read-sequence value");
+         read_memory_sequences.push_back(sequence);
+      }
       else if (std::strcmp(argv[i], "--require-dual-resp") == 0) {
          require_dual_resp = true;
       }
@@ -814,8 +914,9 @@ int main(int argc, char **argv) {
    }
    const std::streamoff rom_size = rom.tellg();
    if (rom_size != static_cast<std::streamoff>(kBankSize) &&
-       rom_size != static_cast<std::streamoff>(kF8RomSize)) {
-      fail("ROM is not exactly 4096 or 8192 bytes");
+       rom_size != static_cast<std::streamoff>(kF8RomSize) &&
+       rom_size != static_cast<std::streamoff>(kF4RomSize)) {
+      fail("ROM is not exactly 4096, 8192, or 32768 bytes");
    }
    cartridge_size = static_cast<size_t>(rom_size);
    rom.seekg(0, std::ios::beg);
@@ -823,7 +924,11 @@ int main(int argc, char **argv) {
    if (rom.gcount() != rom_size) {
       fail("could not read complete ROM");
    }
-   if (cartridge_size == kF8RomSize) {
+   if (cartridge_size == kF4RomSize) {
+      cartridge_mapper = CartridgeTimingMapper::F4SC;
+      selected_f4_chunk = 7;
+   }
+   else if (cartridge_size == kF8RomSize) {
       const uint8_t *signature = cartridge_image + cartridge_size - 8u;
       if (std::memcmp(signature, "3F\0\0", 4) == 0) {
          cartridge_mapper = CartridgeTimingMapper::ThreeF;

@@ -43,6 +43,7 @@
 // and VBLANK.6 must be clear so INPT4/5 report the live column level.
 
 parameter port := 0;
+parameter key_only := 0;
 
 enum TEMPLATE_key_codes {
    TEMPLATE_KEY_NONE := 0,
@@ -75,12 +76,16 @@ enum TEMPLATE_key_masks {
    TEMPLATE_MASK_HASH := 0x0800
 };
 
+#if !TEMPLATE_key_only
 uint16_t TEMPLATE_keys := 0;
 uint16_t TEMPLATE_pressed := 0;
 uint16_t TEMPLATE_released := 0;
+#endif
 uint8_t TEMPLATE_key := TEMPLATE_KEY_NONE;
 
+#if !TEMPLATE_key_only
 static uint16_t TEMPLATE_next_keys := 0;
+#endif
 static uint8_t TEMPLATE_next_key := TEMPLATE_KEY_NONE;
 static uint8_t TEMPLATE_row_bits := 0;
 
@@ -110,21 +115,25 @@ require inline void TEMPLATE_init(void) {
    asm sta.z TEMPLATE_row_bits;
    SWCHA := TEMPLATE_row_bits | 0x0f;
 #endif
+#if !TEMPLATE_key_only
    TEMPLATE_keys := 0;
    TEMPLATE_pressed := 0;
    TEMPLATE_released := 0;
-   TEMPLATE_key := TEMPLATE_KEY_NONE;
    TEMPLATE_next_keys := 0;
+#endif
+   TEMPLATE_key := TEMPLATE_KEY_NONE;
    TEMPLATE_next_key := TEMPLATE_KEY_NONE;
 }
 
 require void TEMPLATE_begin_scan(void) {
+#if !TEMPLATE_key_only
    TEMPLATE_next_keys := 0;
-   TEMPLATE_next_key := TEMPLATE_KEY_NONE;
    // Edge masks are one-frame pulses beginning when the previous full scan
    // commits and ending when the next scan starts.
    TEMPLATE_pressed := 0;
    TEMPLATE_released := 0;
+#endif
+   TEMPLATE_next_key := TEMPLATE_KEY_NONE;
 }
 
 // Select exactly one matrix row LOW and leave the other three HIGH. The other
@@ -212,6 +221,7 @@ require void TEMPLATE_read_row(uint8_t row) {
    asm sta.z TEMPLATE_next_key;
    asm @have_first:;
 
+#if !TEMPLATE_key_only
    // OR this row's three bits into the 12-bit row-major snapshot. Hand-code
    // the four tiny shifts so input sampling stays far away from frame deadlines
    // instead of invoking the compiler's generic 16-bit shift lowering.
@@ -260,10 +270,12 @@ require void TEMPLATE_read_row(uint8_t row) {
    asm @row0:;
    asm ora.z TEMPLATE_next_keys;
    asm sta.z TEMPLATE_next_keys;
+#endif
    asm @done:;
 }
 
 require void TEMPLATE_end_scan(void) {
+#if !TEMPLATE_key_only
    // Compute edge masks and atomically publish the completed 12-bit snapshot.
    asm lda.z TEMPLATE_keys;
    asm eor #$ff;
@@ -287,12 +299,10 @@ require void TEMPLATE_end_scan(void) {
    asm sta.z TEMPLATE_keys;
    asm lda.z TEMPLATE_next_keys+1;
    asm sta.z TEMPLATE_keys+1;
+#endif
    asm lda.z TEMPLATE_next_key;
    asm sta.z TEMPLATE_key;
 
-   // Leave all four rows inactive HIGH. As above, the absolute-X read is
-   // electrically identical to LDA SWCHA but does not make Stella mistake a
-   // keypad-only ROM for one that also consumes joystick directions.
    asm ldx #0;
    asm lda.ax SWCHA,x;
 #if TEMPLATE_port == 0
@@ -302,3 +312,4 @@ require void TEMPLATE_end_scan(void) {
 #endif
    asm sta SWCHA;
 }
+

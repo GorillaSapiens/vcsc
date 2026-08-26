@@ -46,6 +46,7 @@ my @expected=(
    'examples/01_basic/01_blank_screen/blank_screen.c26',
    'examples/01_basic/02_blank_noasm/blank_noasm.c26',
    'examples/01_basic/03_ode_to_joy/ode_to_joy.c26',
+   'examples/19_diagnostic/01_diagnostic/vcsc_diagnostic.c26',
 );
 join("\n",@direct) eq join("\n",@expected)
    or die "direct example VSYNC writers changed:\n".join("\n",@direct)."\n";
@@ -60,6 +61,13 @@ for my $rel (@expected[1,2]) {
    $t =~ /WSYNC\s*:=\s*2\s*;\s*VSYNC\s*:=\s*2\s*;\s*WSYNC\s*:=\s*0\s*;\s*WSYNC\s*:=\s*0\s*;\s*WSYNC\s*:=\s*0\s*;\s*VSYNC\s*:=\s*0\s*;/s
       or die "$rel lost exact same-phase VSYNC sequence\n";
 }
+my $diag=read_file(File::Spec->catfile($repo,split('/', $expected[3])));
+my @diag_direct=($diag =~ /\bVSYNC\s*:=/g);
+@diag_direct==1 && $diag =~ /\bVSYNC\s*:=\s*0\s*;/ &&
+$diag =~ /vcs_ntsc_vsync\s*\(\s*\)/ &&
+$diag =~ /vcs_pal_vsync\s*\(\s*\)/ &&
+$diag =~ /vcs_secam_vsync\s*\(\s*\)/
+   or die "$expected[3] must use shared per-standard VSYNC helpers; only its startup clear may write VSYNC directly\n";
 for my $standard (qw(pal secam)) {
    my $root=File::Spec->catdir($examples,'17_video_standards',$standard);
    find({no_chdir=>1,wanted=>sub {

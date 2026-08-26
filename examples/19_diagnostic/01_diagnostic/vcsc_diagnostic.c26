@@ -1,0 +1,690 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+//
+// VCSC field diagnostic cartridge.  One 32K F4SC image supports NTSC, PAL,
+// and SECAM plus joystick, four-paddle, keypad, and driving controllers.
+// SELECT cycles controller type.  Hold RESET while pressing SELECT to cycle
+// NTSC -> PAL -> SECAM -> NTSC.  Fixed labels are pre-cooked from the Half
+// font with make_pair_font.pl --score and displayed by the existing six-glyph
+// score renderer.
+
+include "vcs_32k_f4sc.c26"
+include "frame_ntsc.c26"
+include "frame_pal.c26"
+include "frame_secam.c26"
+include "diagnostic_pair_indices.c26"
+include "diagnostic_pairs.c26"
+include "diagnostic_support.c26"
+
+// The ordinary score lifecycle needs a score_font symbol while preparing its
+// initial pointers.  The diagnostic immediately redirects all six full
+// pointers to message_font before every visible row.
+instantiate "six_glyph_component.c26" as diagnostic_text (compact_font:=0, mutable_color:=1)
+instantiate "four_paddles.c26" as diagnostic_paddles
+instantiate "keypad_controller.c26" as diagnostic_left_keypad (port:=0, key_only:=1)
+instantiate "keypad_controller.c26" as diagnostic_right_keypad (port:=1, key_only:=1)
+instantiate "driving_controller.c26" as diagnostic_left_drive (port:=0)
+instantiate "driving_controller.c26" as diagnostic_right_drive (port:=1)
+
+enum diagnostic_tv_modes {
+   DIAGNOSTIC_TV_NTSC := 0,
+   DIAGNOSTIC_TV_PAL := 1,
+   DIAGNOSTIC_TV_SECAM := 2
+};
+
+enum diagnostic_controller_modes {
+   DIAGNOSTIC_CONTROLLER_JOYSTICK := 0,
+   DIAGNOSTIC_CONTROLLER_PADDLE := 1,
+   DIAGNOSTIC_CONTROLLER_KEYPAD := 2,
+   DIAGNOSTIC_CONTROLLER_DRIVING := 3
+};
+
+enum diagnostic_layout {
+   DIAGNOSTIC_ROW_VCSC := 0,
+   DIAGNOSTIC_ROW_TITLE := 6,
+   DIAGNOSTIC_ROW_TV := 12,
+   DIAGNOSTIC_ROW_CONTROLLER := 18,
+   DIAGNOSTIC_ROW_SWITCH0 := 24,
+   DIAGNOSTIC_ROW_SWITCH1 := 30,
+   DIAGNOSTIC_ROW_DETAIL0 := 36,
+   DIAGNOSTIC_ROW_DETAIL1 := 42,
+   DIAGNOSTIC_ROW_COUNT := 8,
+   DIAGNOSTIC_VISIBLE_USED := 117,
+   DIAGNOSTIC_NTSC_VISIBLE_TAIL := 67,
+   DIAGNOSTIC_NTSC_PADDLE_TAIL := 63,
+   DIAGNOSTIC_PAL_VISIBLE_TAIL := 103,
+   // PAL's controller-initialization path ends one scanline later in phase
+   // than an ordinary non-paddle frame.  Calibrate that transition explicitly
+   // rather than allowing a single 313-line displayed frame at mode entry.
+   DIAGNOSTIC_PAL_INIT_TAIL := 102,
+   DIAGNOSTIC_PAL_PADDLE_TAIL := 99,
+   DIAGNOSTIC_SECAM_VISIBLE_TAIL := 102,
+   DIAGNOSTIC_SECAM_PADDLE_TAIL := 98
+};
+
+// Non-beam-critical UI/application state belongs in shared Superchip RAM.
+cartram uint8_t diagnostic_tv_mode;
+cartram uint8_t diagnostic_controller_mode;
+cartram uint8_t diagnostic_frame_controller_mode;
+cartram uint8_t diagnostic_frame_tv_mode;
+cartram uint8_t diagnostic_controller_needs_init;
+cartram uint8_t diagnostic_frame_init_only;
+cartram uint8_t diagnostic_select_was_down;
+cartram uint8_t diagnostic_ui_dirty;
+cartram uint8_t diagnostic_ui_phase;
+cartram uint8_t diagnostic_keypad_scan_row;
+cartram uint8_t diagnostic_drive_position0;
+cartram uint8_t diagnostic_drive_position1;
+cartram uint8_t diagnostic_rows[48];
+#ifdef DIAGNOSTIC_TEST_SWEEP
+cartram uint8_t diagnostic_test_frames;
+#endif
+
+// A complete row is six pre-cooked pair glyphs.  The pair font is 256-aligned
+// and each glyph is eight bytes, so a low-byte/page-delta pair is sufficient
+// to form six real zero-page pointers.  Split the work across three explicit
+// blank scanlines; the visible renderer itself never pays for text formatting.
+bank1 void diagnostic_prepare_row(uint8_t offset) {
+   asm ldx diagnostic_prepare_row$offset;
+
+   asm ldy diagnostic_rows,x;
+   asm lda diagnostic_pair_low,y;
+   asm sta.z diagnostic_text_pointers+0;
+   asm lda diagnostic_pair_page,y;
+   asm clc;
+   asm adc #>score_font;
+   asm sta.z diagnostic_text_pointers+1;
+   asm inx;
+   asm ldy diagnostic_rows,x;
+   asm lda diagnostic_pair_low,y;
+   asm sta.z diagnostic_text_pointers+2;
+   asm lda diagnostic_pair_page,y;
+   asm clc;
+   asm adc #>score_font;
+   asm sta.z diagnostic_text_pointers+3;
+   asm inx;
+   asm sta WSYNC;
+
+   asm ldy diagnostic_rows,x;
+   asm lda diagnostic_pair_low,y;
+   asm sta.z diagnostic_text_pointers+4;
+   asm lda diagnostic_pair_page,y;
+   asm clc;
+   asm adc #>score_font;
+   asm sta.z diagnostic_text_pointers+5;
+   asm inx;
+   asm ldy diagnostic_rows,x;
+   asm lda diagnostic_pair_low,y;
+   asm sta.z diagnostic_text_pointers+6;
+   asm lda diagnostic_pair_page,y;
+   asm clc;
+   asm adc #>score_font;
+   asm sta.z diagnostic_text_pointers+7;
+   asm inx;
+   asm sta WSYNC;
+
+   asm ldy diagnostic_rows,x;
+   asm lda diagnostic_pair_low,y;
+   asm sta.z diagnostic_text_pointers+8;
+   asm lda diagnostic_pair_page,y;
+   asm clc;
+   asm adc #>score_font;
+   asm sta.z diagnostic_text_pointers+9;
+   asm inx;
+   asm ldy diagnostic_rows,x;
+   asm lda diagnostic_pair_low,y;
+   asm sta.z diagnostic_text_pointers+10;
+   asm lda diagnostic_pair_page,y;
+   asm clc;
+   asm adc #>score_font;
+   asm sta.z diagnostic_text_pointers+11;
+   asm sta WSYNC;
+}
+
+// One non-inline wrapper owns the renderer body.  Its leading WSYNC makes the
+// call/trampoline phase irrelevant and then the harmless BIT establishes the
+// renderer's documented cycle-3 entry phase.  Every row therefore costs one
+// alignment line plus the renderer's eleven scanlines.
+bank1 void diagnostic_draw_text_row(void) {
+   WSYNC := 0;
+   asm bit.z CXM0P;
+   diagnostic_text_draw();
+}
+
+bank1 void diagnostic_component_init(void) {
+   diagnostic_text_score := 0;
+   diagnostic_text_color := 0x0e;
+   diagnostic_text_init();
+}
+
+// Controller-family lifecycle wrappers deliberately live away from the UI
+// bank.  This keeps heavy reusable controller code together and limits the
+// F4SC cross-bank surface to a handful of stable entry points.
+bank2 void diagnostic_paddle_vblank(void) {
+   if (diagnostic_controller_needs_init) {
+      diagnostic_paddles_init();
+      diagnostic_controller_needs_init := 0;
+   }
+   diagnostic_paddles_vblank();
+}
+
+bank2 void diagnostic_paddle_overscan(void) {
+   // Constant-gap form of four_paddles_account_gap().  The diagnostic has a
+   // fixed unsampled display span, so keeping this calculation in the same
+   // bank removes a subroutine call from the overscan deadline while retaining
+   // the component's midpoint estimate for a channel that completed in the gap.
+   asm lda.z diagnostic_paddles_elapsed;
+   asm clc;
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { asm adc #48; }
+   else { asm adc #57; }
+   asm bcc @midpoint_ok;
+   asm lda #$ff;
+   asm @midpoint_ok:;
+   asm tay;
+
+   asm ldx #0;
+   asm @channel:;
+   asm lda diagnostic_paddles_active0,x;
+   asm beq @next;
+   asm lda INPT0,x;
+   asm bpl @next;
+   asm tya;
+   asm sta diagnostic_paddles_position0,x;
+   asm lda #0;
+   asm sta diagnostic_paddles_active0,x;
+   asm @next:;
+   asm inx;
+   asm cpx #4;
+   asm bne @channel;
+
+   asm clc;
+   asm lda.z diagnostic_paddles_elapsed;
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { asm adc #96; }
+   else { asm adc #114; }
+   asm bcc @elapsed_ok;
+   asm lda #$ff;
+   asm @elapsed_ok:;
+   asm sta.z diagnostic_paddles_elapsed;
+
+   diagnostic_paddles_overscan();
+}
+
+bank2 void diagnostic_paddle_dump(void) {
+   diagnostic_paddles_dump();
+}
+
+bank3 void diagnostic_keypad_vblank(void) {
+   if (diagnostic_controller_needs_init) {
+      diagnostic_left_keypad_init();
+      diagnostic_right_keypad_init();
+      diagnostic_keypad_scan_row := 0;
+      diagnostic_controller_needs_init := 0;
+   }
+}
+
+bank3 void diagnostic_keypad_overscan(void) {
+   if (diagnostic_keypad_scan_row == 0) {
+      diagnostic_left_keypad_begin_scan();
+      diagnostic_right_keypad_begin_scan();
+   }
+   diagnostic_left_keypad_select_row(diagnostic_keypad_scan_row);
+   diagnostic_right_keypad_select_row(diagnostic_keypad_scan_row);
+   // 7 scanlines is about 446 us at NTSC and longer at PAL/SECAM, safely above
+   // the CX50 matrix settle requirement for every supported TV standard.
+   WSYNC := 0; WSYNC := 0; WSYNC := 0; WSYNC := 0;
+   WSYNC := 0; WSYNC := 0; WSYNC := 0;
+   diagnostic_left_keypad_read_row(diagnostic_keypad_scan_row);
+   diagnostic_right_keypad_read_row(diagnostic_keypad_scan_row);
+   if (diagnostic_keypad_scan_row == 3) {
+      diagnostic_left_keypad_end_scan();
+      diagnostic_right_keypad_end_scan();
+      diagnostic_keypad_scan_row := 0;
+   } else {
+      diagnostic_keypad_scan_row := diagnostic_keypad_scan_row + 1;
+   }
+}
+
+bank4 void diagnostic_driving_vblank(void) {
+   if (diagnostic_controller_needs_init) {
+      diagnostic_left_drive_init();
+      diagnostic_right_drive_init();
+      diagnostic_controller_needs_init := 0;
+      return;
+   }
+
+   // Driving, like joystick and keypad, only needs one acquisition per frame.
+   // Keep it inside the scheduler-owned VBLANK deadline and never surround the
+   // data-dependent Gray decoder with controller-owned WSYNCs.
+   diagnostic_left_drive_begin_frame();
+   diagnostic_right_drive_begin_frame();
+   diagnostic_left_drive_sample();
+   diagnostic_right_drive_sample();
+   diagnostic_drive_position0 := diagnostic_drive_position0 + (uint8_t) diagnostic_left_drive_delta;
+   diagnostic_drive_position1 := diagnostic_drive_position1 + (uint8_t) diagnostic_right_drive_delta;
+}
+
+// --- UI formatting -------------------------------------------------------
+// Runs in bank5 with the decimal lookup tables.  Only pair indices are written
+// to Superchip RAM here; the beam-time renderer later expands them to pointers.
+
+inline void diagnostic_blank_row(uint8_t offset) {
+   diagnostic_rows[offset+0] := DIAG_PAIR_BLANK;
+   diagnostic_rows[offset+1] := DIAG_PAIR_BLANK;
+   diagnostic_rows[offset+2] := DIAG_PAIR_BLANK;
+   diagnostic_rows[offset+3] := DIAG_PAIR_BLANK;
+   diagnostic_rows[offset+4] := DIAG_PAIR_BLANK;
+   diagnostic_rows[offset+5] := DIAG_PAIR_BLANK;
+}
+
+inline void diagnostic_format_number_row(uint8_t offset,
+                                               uint8_t label0, uint8_t value0,
+                                               uint8_t label1, uint8_t value1) {
+   diagnostic_rows[offset+0] := label0;
+   diagnostic_rows[offset+1] := diagnostic_number_hi[value0];
+   diagnostic_rows[offset+2] := diagnostic_number_lo[value0];
+   diagnostic_rows[offset+3] := label1;
+   diagnostic_rows[offset+4] := diagnostic_number_hi[value1];
+   diagnostic_rows[offset+5] := diagnostic_number_lo[value1];
+}
+
+bank5 const uint8_t diagnostic_fixed_header[12] := {
+   DIAG_PAIR_VC, DIAG_PAIR_SC, DIAG_PAIR_BLANK, DIAG_PAIR_BLANK, DIAG_PAIR_BLANK, DIAG_PAIR_BLANK,
+   DIAG_PAIR_DI, DIAG_PAIR_AG, DIAG_PAIR_NO, DIAG_PAIR_ST, DIAG_PAIR_IC, DIAG_PAIR_BLANK
+};
+
+bank5 const uint8_t diagnostic_tv_header[18] := {
+   DIAG_PAIR_BLANK, DIAG_PAIR_BLANK, DIAG_PAIR_NT, DIAG_PAIR_SC, DIAG_PAIR_BLANK, DIAG_PAIR_BLANK,
+   DIAG_PAIR_BLANK, DIAG_PAIR_BLANK, DIAG_PAIR_PA, DIAG_PAIR_L_SPACE, DIAG_PAIR_BLANK, DIAG_PAIR_BLANK,
+   DIAG_PAIR_BLANK, DIAG_PAIR_SE, DIAG_PAIR_CA, DIAG_PAIR_M_SPACE, DIAG_PAIR_BLANK, DIAG_PAIR_BLANK
+};
+
+bank5 const uint8_t diagnostic_controller_header[24] := {
+   DIAG_PAIR_BLANK, DIAG_PAIR_JO, DIAG_PAIR_YS, DIAG_PAIR_TI, DIAG_PAIR_CK, DIAG_PAIR_BLANK,
+   DIAG_PAIR_BLANK, DIAG_PAIR_PA, DIAG_PAIR_DD, DIAG_PAIR_LE, DIAG_PAIR_BLANK, DIAG_PAIR_BLANK,
+   DIAG_PAIR_BLANK, DIAG_PAIR_KE, DIAG_PAIR_YP, DIAG_PAIR_AD, DIAG_PAIR_BLANK, DIAG_PAIR_BLANK,
+   DIAG_PAIR_BLANK, DIAG_PAIR_DR, DIAG_PAIR_IV, DIAG_PAIR_IN, DIAG_PAIR_G_SPACE, DIAG_PAIR_BLANK
+};
+
+bank5 void diagnostic_initialize_rows(void) {
+   uint8_t i := 0;
+   while (i < 12) {
+      diagnostic_rows[i] := diagnostic_fixed_header[i];
+      i := i + 1;
+   }
+   i := 0;
+   while (i < 6) {
+      diagnostic_rows[DIAGNOSTIC_ROW_TV+i] := diagnostic_tv_header[i];
+      diagnostic_rows[DIAGNOSTIC_ROW_CONTROLLER+i] := diagnostic_controller_header[i];
+      i := i + 1;
+   }
+
+   diagnostic_rows[DIAGNOSTIC_ROW_SWITCH0+0] := DIAG_PAIR_SE;
+   diagnostic_rows[DIAGNOSTIC_ROW_SWITCH0+2] := DIAG_PAIR_SPACE_R;
+   diagnostic_rows[DIAGNOSTIC_ROW_SWITCH0+3] := DIAG_PAIR_ST;
+   diagnostic_rows[DIAGNOSTIC_ROW_SWITCH0+5] := DIAG_PAIR_BLANK;
+   diagnostic_rows[DIAGNOSTIC_ROW_SWITCH1+0] := DIAG_PAIR_CO;
+   diagnostic_rows[DIAGNOSTIC_ROW_SWITCH1+1] := DIAG_PAIR_LR;
+   diagnostic_rows[DIAGNOSTIC_ROW_SWITCH1+2] := DIAG_PAIR_SPACE_D;
+   diagnostic_rows[DIAGNOSTIC_ROW_SWITCH1+4] := DIAG_PAIR_SPACE_D;
+   diagnostic_blank_row(DIAGNOSTIC_ROW_DETAIL0);
+   diagnostic_blank_row(DIAGNOSTIC_ROW_DETAIL1);
+}
+
+bank5 void diagnostic_update_one_header_row(void) {
+   uint8_t i := 0;
+   uint8_t base := 0;
+   if (diagnostic_ui_dirty & 1) {
+      if (diagnostic_tv_mode == DIAGNOSTIC_TV_PAL) { base := 6; }
+      if (diagnostic_tv_mode == DIAGNOSTIC_TV_SECAM) { base := 12; }
+      while (i < 6) {
+         diagnostic_rows[DIAGNOSTIC_ROW_TV+i] := diagnostic_tv_header[base+i];
+         i := i + 1;
+      }
+      diagnostic_ui_dirty := diagnostic_ui_dirty & 0xfe;
+      return;
+   }
+   if (diagnostic_ui_dirty & 2) {
+      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE) { base := 6; }
+      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD) { base := 12; }
+      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING) { base := 18; }
+      while (i < 6) {
+         diagnostic_rows[DIAGNOSTIC_ROW_CONTROLLER+i] := diagnostic_controller_header[base+i];
+         i := i + 1;
+      }
+      diagnostic_ui_dirty := diagnostic_ui_dirty & 0xfd;
+   }
+}
+
+bank5 void diagnostic_update_switches(void) {
+   uint8_t sw := SWCHB;
+   diagnostic_rows[DIAGNOSTIC_ROW_SWITCH0+1] := (sw & 0x02) ? DIAG_PAIR_L0 : DIAG_PAIR_L1;
+   diagnostic_rows[DIAGNOSTIC_ROW_SWITCH0+4] := (sw & 0x01) ? DIAG_PAIR_DIGIT_0_SPACE : DIAG_PAIR_DIGIT_1_SPACE;
+   if (sw & 0x08) {
+      diagnostic_rows[DIAGNOSTIC_ROW_SWITCH1+0] := DIAG_PAIR_CO;
+      diagnostic_rows[DIAGNOSTIC_ROW_SWITCH1+1] := DIAG_PAIR_LR;
+   } else {
+      diagnostic_rows[DIAGNOSTIC_ROW_SWITCH1+0] := DIAG_PAIR_BAMP;
+      diagnostic_rows[DIAGNOSTIC_ROW_SWITCH1+1] := DIAG_PAIR_W_SPACE;
+   }
+   diagnostic_rows[DIAGNOSTIC_ROW_SWITCH1+3] := (sw & 0x40) ? DIAG_PAIR_D0B : DIAG_PAIR_D0A;
+   diagnostic_rows[DIAGNOSTIC_ROW_SWITCH1+5] := (sw & 0x80) ? DIAG_PAIR_D1B : DIAG_PAIR_D1A;
+}
+
+bank6 void diagnostic_update_simple_detail(uint8_t row) {
+   // Joystick and keypad detail rows share the small lookup-table bank.
+   if (row == 0) {
+      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_JOYSTICK) {
+         uint8_t joy0 := SWCHA;
+         uint8_t dl0 := 0;
+         uint8_t rf0 := 0;
+         if ((joy0 & 0x20) == 0) { dl0 := dl0 | 1; }
+         if ((joy0 & 0x40) == 0) { dl0 := dl0 | 2; }
+         if ((joy0 & 0x80) == 0) { rf0 := rf0 | 1; }
+         if ((INPT4 & 0x80) == 0) { rf0 := rf0 | 2; }
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL0+0] := DIAG_PAIR_P0;
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL0+1] := (joy0 & 0x10) ? DIAG_PAIR_SPACE_DOT : DIAG_PAIR_SPACE_U;
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL0+2] := diagnostic_dl_pair[dl0];
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL0+3] := diagnostic_rf_pair[rf0];
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL0+4] := DIAG_PAIR_BLANK;
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL0+5] := DIAG_PAIR_BLANK;
+      }
+      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD) {
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL0+0] := DIAG_PAIR_P0;
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL0+1] := diagnostic_key_pair[diagnostic_left_keypad_key];
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL0+2] := DIAG_PAIR_CLOSE_SPACE;
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL0+3] := DIAG_PAIR_P1;
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL0+4] := diagnostic_key_pair[diagnostic_right_keypad_key];
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL0+5] := DIAG_PAIR_CLOSE_SPACE;
+      }
+   } else {
+      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_JOYSTICK) {
+         uint8_t joy1 := SWCHA;
+         uint8_t dl1 := 0;
+         uint8_t rf1 := 0;
+         if ((joy1 & 0x02) == 0) { dl1 := dl1 | 1; }
+         if ((joy1 & 0x04) == 0) { dl1 := dl1 | 2; }
+         if ((joy1 & 0x08) == 0) { rf1 := rf1 | 1; }
+         if ((INPT5 & 0x80) == 0) { rf1 := rf1 | 2; }
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL1+0] := DIAG_PAIR_P1;
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL1+1] := (joy1 & 0x01) ? DIAG_PAIR_SPACE_DOT : DIAG_PAIR_SPACE_U;
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL1+2] := diagnostic_dl_pair[dl1];
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL1+3] := diagnostic_rf_pair[rf1];
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL1+4] := DIAG_PAIR_BLANK;
+         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL1+5] := DIAG_PAIR_BLANK;
+      }
+      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD) {
+         diagnostic_blank_row(DIAGNOSTIC_ROW_DETAIL1);
+      }
+   }
+}
+
+bank7 void diagnostic_update_numeric_detail(uint8_t row) {
+   // Paddle and driving values are deliberately refreshed one row per frame.
+   if (row == 0) {
+      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE) {
+         diagnostic_format_number_row(DIAGNOSTIC_ROW_DETAIL0,
+            diagnostic_paddles_button0 ? DIAG_PAIR_F0 : DIAG_PAIR_P0, diagnostic_paddles_position0,
+            diagnostic_paddles_button1 ? DIAG_PAIR_F1 : DIAG_PAIR_P1, diagnostic_paddles_position1);
+      }
+      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING) {
+         diagnostic_format_number_row(DIAGNOSTIC_ROW_DETAIL0,
+            diagnostic_left_drive_button ? DIAG_PAIR_F0 : DIAG_PAIR_P0, diagnostic_drive_position0,
+            diagnostic_right_drive_button ? DIAG_PAIR_F1 : DIAG_PAIR_P1, diagnostic_drive_position1);
+      }
+   } else {
+      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE) {
+         diagnostic_format_number_row(DIAGNOSTIC_ROW_DETAIL1,
+            diagnostic_paddles_button2 ? DIAG_PAIR_F2 : DIAG_PAIR_P2, diagnostic_paddles_position2,
+            diagnostic_paddles_button3 ? DIAG_PAIR_F3 : DIAG_PAIR_P3, diagnostic_paddles_position3);
+      }
+      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING) {
+         diagnostic_blank_row(DIAGNOSTIC_ROW_DETAIL1);
+      }
+   }
+}
+
+bank0 void diagnostic_update_controls(void) {
+#ifndef DIAGNOSTIC_TEST_SWEEP
+   uint8_t sw := SWCHB;
+   uint8_t select_down := (sw & 0x02) == 0;
+   if (select_down && !diagnostic_select_was_down) {
+      if ((sw & 0x01) == 0) {
+         if (diagnostic_tv_mode == DIAGNOSTIC_TV_SECAM) { diagnostic_tv_mode := DIAGNOSTIC_TV_NTSC; }
+         else { diagnostic_tv_mode := diagnostic_tv_mode + 1; }
+         diagnostic_controller_needs_init := 1;
+         diagnostic_ui_dirty := diagnostic_ui_dirty | 1;
+      } else {
+         diagnostic_controller_mode := (diagnostic_controller_mode + 1) & 3;
+         diagnostic_controller_needs_init := 1;
+         diagnostic_ui_dirty := diagnostic_ui_dirty | 2;
+      }
+      diagnostic_ui_phase := 0;
+   }
+   diagnostic_select_was_down := select_down;
+#else
+   diagnostic_test_frames := diagnostic_test_frames + 1;
+   if (diagnostic_test_frames == 16) {
+      diagnostic_test_frames := 0;
+      diagnostic_controller_mode := (diagnostic_controller_mode + 1) & 3;
+      diagnostic_controller_needs_init := 1;
+      diagnostic_ui_dirty := diagnostic_ui_dirty | 2;
+      diagnostic_ui_phase := 0;
+   }
+#endif
+}
+
+// --- Frame owner ---------------------------------------------------------
+
+bank1 void diagnostic_frame(void) {
+   diagnostic_frame_controller_mode := diagnostic_controller_mode;
+   diagnostic_frame_tv_mode := diagnostic_tv_mode;
+   diagnostic_frame_init_only := diagnostic_controller_needs_init;
+
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_vsync(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_vsync(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_vsync(); }
+
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_begin_vblank(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_begin_vblank(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_begin_vblank(); }
+
+   diagnostic_text_vblank();
+
+   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_JOYSTICK && diagnostic_frame_init_only) {
+      SWACNT := 0;
+      diagnostic_controller_needs_init := 0;
+   }
+   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE) {
+      if (diagnostic_frame_init_only) {
+         diagnostic_paddles_init();
+         // account_gap() is part of the component's required lifecycle.  Zero
+         // pairs is a true no-op here; regular frames use the constant-gap form
+         // above so the banked call cannot consume the overscan deadline.
+         diagnostic_paddles_account_gap(0);
+         diagnostic_controller_needs_init := 0;
+      } else {
+         diagnostic_paddles_vblank();
+      }
+   }
+   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD) {
+      if (diagnostic_frame_init_only) {
+         diagnostic_left_keypad_init();
+         diagnostic_right_keypad_init();
+         diagnostic_keypad_scan_row := 0;
+         diagnostic_controller_needs_init := 0;
+      }
+   }
+   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING) {
+      diagnostic_driving_vblank();
+   }
+
+   // Row zero pointer preparation consumes three scheduler-owned VBLANK lines.
+   diagnostic_prepare_row(DIAGNOSTIC_ROW_VCSC);
+
+   COLUBK := 0x00;
+   diagnostic_text_color := 0x0e;
+   PF0 := 0; PF1 := 0; PF2 := 0;
+   GRP0 := 0; GRP1 := 0; ENAM0 := 0; ENAM1 := 0; ENABL := 0;
+
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_end_vblank(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_end_vblank(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_end_vblank(); }
+
+   diagnostic_draw_text_row();
+   diagnostic_prepare_row(DIAGNOSTIC_ROW_TITLE); diagnostic_draw_text_row();
+   diagnostic_prepare_row(DIAGNOSTIC_ROW_TV); diagnostic_draw_text_row();
+   diagnostic_prepare_row(DIAGNOSTIC_ROW_CONTROLLER); diagnostic_draw_text_row();
+   diagnostic_prepare_row(DIAGNOSTIC_ROW_SWITCH0); diagnostic_draw_text_row();
+   diagnostic_prepare_row(DIAGNOSTIC_ROW_SWITCH1); diagnostic_draw_text_row();
+   diagnostic_prepare_row(DIAGNOSTIC_ROW_DETAIL0); diagnostic_draw_text_row();
+   diagnostic_prepare_row(DIAGNOSTIC_ROW_DETAIL1); diagnostic_draw_text_row();
+
+   // Paddle measurement owns a four-line visible sampling cycle.  Calling the
+   // component's beam-level hooks explicitly keeps its lifecycle honest and
+   // preserves the same raw position units as the standalone paddle example.
+   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && !diagnostic_frame_init_only) {
+      diagnostic_paddles_sample0(); WSYNC := 0;
+      diagnostic_paddles_sample1(); WSYNC := 0;
+      diagnostic_paddles_advance_pair();
+      diagnostic_paddles_sample2(); WSYNC := 0;
+      diagnostic_paddles_sample3(); WSYNC := 0;
+      diagnostic_paddles_advance_pair();
+   }
+
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) {
+      if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && !diagnostic_frame_init_only) {
+         vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_PADDLE_TAIL);
+      } else {
+         vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_VISIBLE_TAIL);
+      }
+      vcs_ntsc_begin_overscan();
+   }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) {
+      if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE) {
+         if (diagnostic_frame_init_only) {
+            vcs_pal_wait_visible_tail_scanlines(DIAGNOSTIC_PAL_INIT_TAIL);
+         } else {
+            vcs_pal_wait_visible_tail_scanlines(DIAGNOSTIC_PAL_PADDLE_TAIL);
+         }
+      } else {
+         vcs_pal_wait_visible_tail_scanlines(DIAGNOSTIC_PAL_VISIBLE_TAIL);
+      }
+      vcs_pal_begin_overscan();
+   }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) {
+      if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && !diagnostic_frame_init_only) {
+         vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_PADDLE_TAIL);
+      } else {
+         vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_VISIBLE_TAIL);
+      }
+      vcs_secam_begin_overscan();
+   }
+
+   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && !diagnostic_frame_init_only) {
+      diagnostic_paddle_overscan();
+   }
+   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD && !diagnostic_frame_init_only) {
+      diagnostic_keypad_overscan();
+   }
+   // Input changes are recorded near the end of overscan and become active on
+   // the next frame.  UI construction is deliberately spread across frames so
+   // no controller mode can consume a whole blanking deadline formatting text.
+   if (diagnostic_frame_init_only) {
+      if (diagnostic_ui_dirty) { diagnostic_update_one_header_row(); }
+      diagnostic_ui_phase := 0;
+   } else {
+      if (diagnostic_ui_phase == 0) {
+         if (diagnostic_ui_dirty) { diagnostic_update_one_header_row(); }
+         else { diagnostic_update_switches(); }
+         diagnostic_ui_phase := 1;
+      } else {
+         if (diagnostic_ui_phase == 1) {
+            if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_JOYSTICK ||
+                diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD) {
+               diagnostic_update_simple_detail(0);
+            } else {
+               diagnostic_update_numeric_detail(0);
+            }
+            diagnostic_ui_phase := 2;
+         } else {
+            if (diagnostic_ui_phase == 2) {
+               if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_JOYSTICK ||
+                   diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD) {
+                  diagnostic_update_simple_detail(1);
+               } else {
+                  diagnostic_update_numeric_detail(1);
+               }
+               diagnostic_ui_phase := 3;
+            } else {
+               diagnostic_update_switches();
+               diagnostic_ui_phase := 0;
+            }
+         }
+      }
+   }
+   diagnostic_update_controls();
+   diagnostic_text_overscan();
+
+   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && diagnostic_frame_init_only) {
+      // Keep the paddle capacitors dumped through the transition frame, then
+      // prime component state before the scheduler's final alignment.  The next
+      // frame's begin_vblank clears VBLANK.7 and starts the first measurement
+      // without paying a one-scanline first-acquisition penalty.
+      diagnostic_paddles_elapsed := 0;
+      diagnostic_paddles_active0 := 1;
+      diagnostic_paddles_active1 := 1;
+      diagnostic_paddles_active2 := 1;
+      diagnostic_paddles_active3 := 1;
+      diagnostic_paddles_complete := 0;
+      diagnostic_paddles_dumped := 0;
+      VBLANK := 0x82;
+   }
+
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_end_overscan(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_end_overscan(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_end_overscan(); }
+
+   // Paddle dumping is deliberately keyed to the frame-start mode so a SELECT
+   // transition cannot skip cleanup for the measurement that just completed.
+   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && !diagnostic_frame_init_only) {
+      diagnostic_paddles_dump();
+   }
+}
+
+bank0 void main(void) {
+   VBLANK := 2;
+   VSYNC := 0;
+   COLUBK := 0;
+   COLUP0 := 0x0e;
+   COLUP1 := 0x0e;
+   COLUPF := 0x0e;
+   PF0 := 0; PF1 := 0; PF2 := 0;
+   GRP0 := 0; GRP1 := 0; ENAM0 := 0; ENAM1 := 0; ENABL := 0;
+   SWACNT := 0;
+
+#ifdef DIAGNOSTIC_TEST_TV
+   diagnostic_tv_mode := DIAGNOSTIC_TEST_TV`uint8_t;
+#else
+   diagnostic_tv_mode := DIAGNOSTIC_TV_NTSC;
+#endif
+   diagnostic_controller_mode := DIAGNOSTIC_CONTROLLER_JOYSTICK;
+   diagnostic_frame_controller_mode := DIAGNOSTIC_CONTROLLER_JOYSTICK;
+   diagnostic_frame_tv_mode := diagnostic_tv_mode;
+   diagnostic_controller_needs_init := 1;
+   diagnostic_frame_init_only := 1;
+   diagnostic_select_was_down := 0;
+   diagnostic_ui_dirty := 0;
+   diagnostic_ui_phase := 0;
+   diagnostic_keypad_scan_row := 0;
+   diagnostic_drive_position0 := 0;
+   diagnostic_drive_position1 := 0;
+#ifdef DIAGNOSTIC_TEST_SWEEP
+   diagnostic_test_frames := 0;
+#endif
+
+   diagnostic_component_init();
+   diagnostic_initialize_rows();
+   diagnostic_update_switches();
+   while (1) {
+      diagnostic_frame();
+   }
+}

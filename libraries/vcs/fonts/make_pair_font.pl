@@ -5,13 +5,20 @@ use warnings;
 
 # Usage:
 #   ./make_pair_font.pl half_ascii.c26 "HELLO WORLD"
+#   ./make_pair_font.pl --score half_ascii.c26 "HELLO WORLD"
 #
 # Reads a 4x6 ASCII font in VCS_FONT_GLYPH(...) format, splits the
 # message into two-character chunks, and writes an 8x6 glyph table
 # to stdout.  An odd final character is paired with a space.
 
+my $score_mode = 0;
+if (@ARGV && $ARGV[0] eq '--score') {
+    shift @ARGV;
+    $score_mode = 1;
+}
+
 @ARGV == 2
-    or die "usage: $0 FONTFILE \"MESSAGE\"\n";
+    or die "usage: $0 [--score] FONTFILE \"MESSAGE\"\n";
 
 my ($font_file, $message) = @ARGV;
 
@@ -74,14 +81,21 @@ for my $c (@chars) {
 push @chars, 0x20 if @chars & 1;
 
 my $glyph_count = @chars / 2;
-my $byte_count  = $glyph_count * 6;
+my $rows_per_glyph = $score_mode ? 8 : 6;
+my $byte_count  = $glyph_count * $rows_per_glyph;
 
-print "// 8x6 paired-message glyphs\n";
+print $score_mode ? "// 8x8 score-compatible paired-message glyphs\n" : "// 8x6 paired-message glyphs\n";
 print "// Generated from: $font_file\n";
 print "// Message: ", comment_string($message), "\n";
-print "// Two source characters per 8-bit glyph; odd messages are space-padded.\n\n";
+print "// Two source characters per 8-bit glyph; odd messages are space-padded.\n";
+print "// --score adds one blank row above and below the original 4x6 pair.\n" if $score_mode;
+print "\n";
 
-print "alias VCS_FONT_GLYPH(a,b,c,d,e,f) f,e,d,c,b,a\n\n";
+if ($score_mode) {
+    print "alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a\n\n";
+} else {
+    print "alias VCS_FONT_GLYPH(a,b,c,d,e,f) f,e,d,c,b,a\n\n";
+}
 print "align(256) const uint8_t message_font[$byte_count] := {\n";
 
 for (my $i = 0; $i < @chars; $i += 2) {
@@ -93,10 +107,11 @@ for (my $i = 0; $i < @chars; $i += 2) {
         $n, comment_string($pair), $left, $right;
     print "   VCS_FONT_GLYPH(\n";
 
-    for my $row (0 .. 5) {
-        my $bits = $font{$left}[$row] . $font{$right}[$row];
-        my $comma = $row == 5 ? "" : ",";
-        print "      0b$bits$comma\n";
+    my @bits = map { $font{$left}[$_] . $font{$right}[$_] } 0 .. 5;
+    @bits = ('........', @bits, '........') if $score_mode;
+    for my $row (0 .. $#bits) {
+        my $comma = $row == $#bits ? "" : ",";
+        print "      0b$bits[$row]$comma\n";
     }
 
     my $comma = ($i + 2 < @chars) ? "," : "";

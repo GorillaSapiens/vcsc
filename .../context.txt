@@ -138,3 +138,39 @@ Active workstream: `.../roadmap.txt`.
 Continue with main roadmap Item 44, the public diagnostic cartridge. Enhanced
 asymmetric allocator-quality work remains an optional side quest documented in
 `.../enhanced_asymmetric.txt`.
+
+Diagnostic cartridge checkpoint (incomplete)
+-------------------------------------------
+A working-but-not-yet-certified 32K F4SC diagnostic is under
+`examples/19_diagnostic/01_diagnostic/`. It links without relaxed linker limits
+and includes the Half-font/pair-font UI, runtime NTSC/PAL/SECAM selection,
+joystick/paddle/keypad/driving modes, console-switch state, four numeric paddle
+positions, simple keypad state, and driving position.
+
+Reusable changes made for it include `make_pair_font.pl --score`, a backward-
+compatible `key_only:=1` keypad-controller mode, and 32K F4SC support in the
+frame-timing harness. The UI now uses the close-spacing six-glyph score renderer
+for prose/fixed labels; the earlier wide renderer made pair-font words appear as
+separated two-character chunks.
+
+The automatic controller sweep survives repeated joystick -> paddle -> keypad ->
+driving transitions at exact frame cadence. Driving now samples exactly once per
+frame in VBLANK, with no controller-owned WSYNCs; the regression varies the real
+Gray-code sequence frame by frame and passes under NTSC/PAL/SECAM. The older
+multi-sample path could produce a 265-raw-line NTSC frame while the wheel moved.
+The UI labels now show `COLR` for color and `B&W` for black-and-white. SECAM
+visible/paddle tails were recalibrated by one line after the driving-path layout
+change; all three moving-wheel sweeps are exact again. Controller and TV-standard
+changes remain pinned to frame boundaries, controller entry frames are
+initialization-only, and UI updates are spread across frames to stay within
+timing budgets.
+
+DO NOT call the cartridge complete yet. Work had just begun on extending the
+generic frame-timing harness to inject actual SWCHB values on selected frames.
+The next work is to finish that harness support and permanently verify SELECT
+debounce/controller cycling plus RESET+SELECT NTSC->PAL->SECAM switching,
+including exact timing on the transition frames. Then finish real Stella visual
+certification of the close-spacing UI in each useful mode/standard, turn the
+successful timing sweeps into permanent reasonably fast regressions, integrate
+the public example/docs/inventory, run the relevant/full suite, and close main
+roadmap Item 44.
