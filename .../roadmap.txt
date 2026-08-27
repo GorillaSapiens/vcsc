@@ -18,9 +18,23 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 45, playfield-color renderer support.
+Current next action: Item 45, sample paddles during score rendering.
 
-[ ] 45. Add playfield-color support as an explicit renderer capability.
+[ ] 45. Add optional paddle sampling to score renderers.
+
+        * Allow paddle timing to continue through score scanlines instead of
+          treating the whole score raster as an unsampled account_gap().
+        * Support both two-paddle and four-paddle readers with deterministic,
+          beam-safe sampling points chosen from each renderer's available cycles.
+        * Preserve byte/pixel/timing-identical renderer output when paddle
+          sampling is not requested.
+        * Define the compile-time component contract rather than adding a
+          runtime callback or other variable-cost mechanism.
+        * Add timing and emulator-backed regressions that prove sampling cadence,
+          paddle resolution, and unchanged score output across supported video
+          standards.
+
+[ ] 46. Add playfield-color support as an explicit renderer capability.
 
         * Define whether colors are global, per logical row, or both.
         * Schedule every COLUPF write against the beam.
@@ -29,7 +43,7 @@ Current next action: Item 45, playfield-color renderer support.
         * Add static, motion, transition, installation, and pixel/color-oracle
           coverage for every supported profile.
 
-[ ] 46. Add a public side-scroller/platform example.
+[ ] 47. Add a public side-scroller/platform example.
 
         * Demonstrate animated player sprites, horizontal world scrolling,
           platform/playfield collision, jumping/gravity, and camera/world-state

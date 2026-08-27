@@ -90,7 +90,8 @@ Open workstreams
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
    work, when the user has not selected another task, begins with Item 45:
-   playfield-color renderer support. Item 46 remains after it.
+   optional paddle sampling during score rendering. Item 46 is playfield-color
+   renderer support; Item 47 remains after it.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -150,5 +151,18 @@ history formatting pass. The user-supplied `bdf2c26.pl` and
 
 Immediate TODO
 --------------
-Return to main-roadmap Item 45 (playfield-color renderer support) unless the
-user requests another focused task first.
+Continue the selected diagnostic P1-row corruption investigation. Current
+findings: the apparent Superchip address shift is not causal; forcing DETAIL0
+and DETAIL1 to identical fixed glyph indices still leaves DETAIL0 clean while
+DETAIL1 can corrupt; simulator traces show identical/correct six font pointers
+and expected GRP data for both rows. An independent F4SC cartridge using the
+same five-row full-pointer six-glyph renderer for nine consecutive rows renders
+cleanly in Stella, so the reusable renderer is not generically broken. The
+corruption therefore depends on another state/composition owner in the full
+diagnostic. Next isolate the full diagnostic composition around two identical
+detail rows until the corruption disappears, then fix that state owner. Also
+replace the broad Stella mask over the two live controller rows with a check
+that tolerates legitimate changing input glyphs but still catches structural
+corruption. Do not use the one-byte RAM-padding workaround. After this focused
+task closes, return to main-roadmap Item 45 (optional paddle sampling during
+score rendering).
