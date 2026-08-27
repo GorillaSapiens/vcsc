@@ -66,6 +66,9 @@ my $indices=File::Spec->catfile($example,'diagnostic_pair_indices.c26');
 my $pairs=File::Spec->catfile($example,'pairs_message.txt');
 my $pair_font=File::Spec->catfile($example,'diagnostic_pairs.c26');
 my $support=File::Spec->catfile($example,'diagnostic_support.c26');
+my $collision_objects=File::Spec->catfile($example,'diagnostic_collision_objects.font');
+my $collision_helper=File::Spec->catfile($example,'make_collision_font.pl');
+my $collision_font=File::Spec->catfile($example,'diagnostic_collision_font.c26');
 my $half_font=File::Spec->catfile($vcs,qw(fonts half_ascii.c26));
 my $pair_helper=File::Spec->catfile($vcs,qw(fonts make_pair_font.pl));
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
@@ -78,6 +81,8 @@ $ignore_text =~ /^!19_diagnostic\/01_diagnostic\/diagnostic_boot\.s26$/m
 
 my $src=read_file($source);
 my $idx=read_file($indices);
+my $collision_object_text=read_file($collision_objects);
+my $collision_font_text=read_file($collision_font);
 my $msg=read_file($pairs);
 my $pair_text=read_file($pair_font);
 my $support_text=read_file($support);
@@ -140,31 +145,43 @@ $idx =~ /DIAG_PAIR_W_SPACE\s*:=\s*105,\s*\/\/ 'W '/ &&
 $msg =~ /COLRB&/ && $msg =~ /W A SSFAIL/
    or die "diagnostic COLOR/B&W labels are not pre-cooked as COLR and B&W\n";
 
+# The collision panel has its own human-editable microglyph source.  The checked
+# C26 tables are generated because each 6-pixel icon straddles the renderer's
+# six 8-bit chunks differently.  Regenerate and compare the whole file so a
+# one-line glyph tweak can never leave stale beam-time tables behind.
+my($collision_rc,$collision_sig,$collision_out,$collision_err)=run_capture($collision_helper,$collision_objects);
+$collision_rc==0 && !$collision_sig or die "regenerate diagnostic collision font failed\n$collision_out$collision_err";
+$collision_err eq '' or die "regenerate diagnostic collision font wrote stderr:\n$collision_err";
+$collision_out eq $collision_font_text
+   or die "diagnostic_collision_font.c26 is stale relative to diagnostic_collision_objects.font\n";
+$collision_object_text =~ /XX\._XX\._XXX_XXX_XX\._XX\./ &&
+$collision_object_text =~ /^PASS$/m &&
+$collision_font_text =~ /top:\s+M0-P1 M0-P0 M1-P0 M1-P1 P0-PF P0-BL P1-PF P1-BL/ &&
+$collision_font_text =~ /bottom:\s+M0-PF M0-BL M1-PF M1-BL BL-PF P0-P1 M0-M1 PASS/ &&
+$collision_font_text =~ /diagnostic_collision_top_font\[144\]/ &&
+$collision_font_text =~ /diagnostic_collision_bottom_font\[144\]/
+   or die "diagnostic collision icon font lost its 6-object/15-pair layout\n";
+
 $src =~ /bank4 void diagnostic_driving_vblank\(void\).*?diagnostic_left_drive_begin_frame\(\);.*?diagnostic_right_drive_begin_frame\(\);.*?diagnostic_left_drive_sample\(\);.*?diagnostic_right_drive_sample\(\);.*?diagnostic_drive_position0.*?diagnostic_drive_position1/s
    or die "diagnostic driving mode lost its once-per-frame VBLANK sample\n";
 $src !~ /diagnostic_driving_overscan/
    or die "diagnostic driving mode must not sample again in overscan\n";
 
-$src =~ /bank0 void diagnostic_tia_animation_tick\(void\).*?DIAGNOSTIC_TEST_TIA_FREEZE.*?diagnostic_tia_m0_x := 34;.*?diagnostic_tia_m1_x := 115;.*?diagnostic_tia_ball_x := 78;.*?asm cmp #27;.*?asm lda #26;.*?asm adc #8;.*?asm sta diagnostic_tia_m0_x;.*?asm cmp #30;.*?asm lda #29;.*?asm eor #\$ff;.*?asm adc #145;.*?asm sta diagnostic_tia_m1_x;.*?asm cmp #31;.*?asm lda #30;.*?asm adc #48;.*?asm sta diagnostic_tia_ball_x;.*?asm and #63;.*?asm sta diagnostic_tia_phase;/s &&
-$src =~ /bank0 void diagnostic_draw_tia_panel\(void\).*?PF0 := 0; PF1 := 0; PF2 := 0;.*?diagnostic_tia_phase == 0.*?CXCLR := 0;.*?lda #32;.*?sta RESP0,x;.*?lda #120;.*?sta RESP0,x;.*?lda diagnostic_tia_m0_x;.*?lda diagnostic_tia_m1_x;.*?lda diagnostic_tia_ball_x;.*?sta HMOVE;.*?GRP0 := 0x7e;.*?ENAM0 := 2;.*?GRP1 := 0x18;.*?ENAM1 := 2;.*?PF2 := 0x80; ENABL := 2;.*?asm lda CXM1P;.*?asm sta diagnostic_tia_cxm1p;.*?asm and CXM0P;.*?asm and #\$40;.*?asm asl;.*?asm lda CXBLPF;.*?asm sta diagnostic_tia_cxblpf;.*?asm and diagnostic_tia_collision_pass;/s
-   or die "diagnostic TIA collision animation lost visible motion, objects, or sticky latch checks\n";
-$src =~ /DIAGNOSTIC_ROW_TIA_M0P\s*:=\s*54.*?DIAGNOSTIC_ROW_TIA_M1P\s*:=\s*60.*?DIAGNOSTIC_ROW_TIA_BLPF\s*:=\s*66/s &&
-$src =~ /diagnostic_collision_pair\[4\].*?DIAG_PAIR_NUM_00.*?DIAG_PAIR_NUM_40.*?DIAG_PAIR_NUM_80.*?DIAG_PAIR_NUM_C0/s &&
-$src =~ /diagnostic_update_tia_status\(void\).*?diagnostic_tia_cxm0p.*?diagnostic_rows\+57.*?diagnostic_tia_cxm1p.*?diagnostic_rows\+63.*?diagnostic_tia_cxblpf.*?diagnostic_rows\+69.*?diagnostic_tia_collision_pass.*?diagnostic_rows\+71/s
-   or die "diagnostic collision-register readout is incomplete\n";
+$src =~ /bank0 void diagnostic_tia_animation_tick\(void\).*?DIAGNOSTIC_TEST_TIA_FREEZE.*?diagnostic_tia_m0_x := 34;.*?diagnostic_tia_m1_x := 115;.*?diagnostic_tia_ball_x := 82;.*?asm cmp #27;.*?asm lda #26;.*?asm adc #8;.*?asm sta diagnostic_tia_m0_x;.*?asm cmp #30;.*?asm lda #29;.*?asm eor #\$ff;.*?asm adc #145;.*?asm sta diagnostic_tia_m1_x;.*?asm cmp #31;.*?asm lda #30;.*?asm adc #52;.*?asm sta diagnostic_tia_ball_x;.*?asm and #63;.*?asm sta diagnostic_tia_phase;/s &&
+$src =~ /bank0 void diagnostic_draw_tia_panel\(void\).*?PF0 := 0; PF1 := 0; PF2 := 0;.*?CXCLR := 0;.*?lda #32;.*?sta RESP0,x;.*?lda #120;.*?sta RESP0,x;.*?lda diagnostic_tia_m0_x;.*?lda diagnostic_tia_m1_x;.*?lda diagnostic_tia_ball_x;.*?sta HMOVE;.*?GRP0 := 0x7e;.*?ENAM0 := 2;.*?GRP1 := 0x18;.*?ENAM1 := 2;.*?PF2 := 0x80; ENABL := 2;.*?asm lda CXM0P;.*?asm sta diagnostic_tia_top_mask;.*?asm lda CXM1P;.*?asm lda CXP0FB;.*?asm lda CXP1FB;.*?asm lda CXM0FB;.*?asm sta diagnostic_tia_bottom_mask;.*?asm lda CXM1FB;.*?asm lda CXBLPF;.*?asm lda CXPPMM;.*?asm lda diagnostic_tia_top_mask;.*?asm cmp #\$50;.*?asm sta diagnostic_tia_pass;.*?asm lda diagnostic_tia_bottom_mask;.*?asm cmp #\$08;.*?asm and diagnostic_tia_pass;.*?asm ora diagnostic_tia_bottom_mask;/s
+   or die "diagnostic TIA collision animation lost visible motion or 15-bit latch capture\n";
+$src =~ /DIAGNOSTIC_ROW_COUNT\s*:=\s*9/ && $src =~ /cartram uint8_t diagnostic_rows\[54\]/ &&
+$src =~ /cartram uint8_t diagnostic_tia_top_mask;\s*cartram uint8_t diagnostic_tia_bottom_mask;\s*cartram uint8_t diagnostic_tia_pass;/s &&
+$src =~ /bank3 void diagnostic_bank3_task\(uint8_t task\).*?diagnostic_prepare_collision_top\(\);.*?diagnostic_draw_collision_row\(\);.*?diagnostic_prepare_collision_bottom\(\);.*?diagnostic_draw_collision_row\(\);/s &&
+$src =~ /diagnostic_prepare_row\(DIAGNOSTIC_ROW_DETAIL1\); diagnostic_draw_text_row\(\);\s*diagnostic_bank3_task\(0\);/s &&
+$src =~ /asm lda #5;\s*asm sta\.a diagnostic_text_row;.*?\@diagnostic_collision_draw_loop/s
+   or die "diagnostic 15-bit collision icon display is incomplete\n";
 $src =~ /bank0 const uint8_t diagnostic_audio0\[64\].*?6,6,6,6/s &&
 $src =~ /bank0 const uint8_t diagnostic_audio1\[64\].*?6,6,6,6/s &&
 $src =~ /bank0 void diagnostic_audio_tick\(void\).*?asm ldx diagnostic_audio_phase;.*?asm lda diagnostic_audio0,x;.*?asm sta AUDV0;.*?asm lda diagnostic_audio1,x;.*?asm sta AUDV1;.*?asm sta diagnostic_audio_phase;/s &&
-$src =~ /cartram uint8_t diagnostic_tia_collision_pass;/ &&
+$src =~ /cartram uint8_t diagnostic_tia_top_mask;/ && $src =~ /cartram uint8_t diagnostic_tia_bottom_mask;/ &&
 $src =~ /AUDC0 := 4; AUDC1 := 4;.*?AUDF0 := 10; AUDF1 := 4;/s
    or die "diagnostic dual-channel audio cadence or cartridge-RAM TIA state is incomplete\n";
-$idx =~ /DIAG_PAIR_CX\s*:=\s*117/ && $idx =~ /DIAG_PAIR_M0\s*:=\s*118/ &&
-$idx =~ /DIAG_PAIR_M1\s*:=\s*119/ && $idx =~ /DIAG_PAIR_P_SPACE\s*:=\s*120/ &&
-$idx =~ /DIAG_PAIR_BL\s*:=\s*121/ && $idx =~ /DIAG_PAIR_PF\s*:=\s*122/ &&
-$idx =~ /DIAG_PAIR_NUM_40\s*:=\s*123/ && $idx =~ /DIAG_PAIR_NUM_80\s*:=\s*124/ &&
-$idx =~ /DIAG_PAIR_NUM_C0\s*:=\s*125/ && $idx =~ /DIAG_PAIR_OK\s*:=\s*126/
-   or die "diagnostic collision-register labels/values are not pre-cooked\n";
-
 my $boot_text=read_file($boot);
 $boot_text =~ /lda \$80,x.*?cmp #\$6c.*?lda \$81,x.*?cmp #\$fc.*?lda \$82,x.*?cmp #\$ff.*?lda \$83,x.*?cmp #\$ea.*?cpx #\$7d/s &&
 $boot_text =~ /\@clear_riot:.*?sta \$80,x.*?\@clear_superchip:.*?sta \$f000,x.*?\@clear_tia:.*?sta \$00,x.*?tya.*?sta \$f000/s

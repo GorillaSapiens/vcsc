@@ -111,8 +111,14 @@ for my$standard (
          or die"$name diagnostic first lit row is $actual_row instead of $expected_first_lit_row\n";
       $reference_row eq "$expected_first_lit_row\n"
          or die"$name reference first lit row is $reference_row instead of $expected_first_lit_row\n";
-      my($actual,$ae)=ok("$name actual digest",$perl,$digest,$png[0]);
-      my($wanted,$we)=ok("$name reference digest",$perl,$digest,$reference);
+      # The two controller-detail text rows are intentionally live input.
+      # Pinning their exact pixels made the golden raster depend on when F12
+      # happened to land relative to the phased UI refresh (driving mode was
+      # especially visible).  Ignore only those rows; the controller heading,
+      # switch rows, collision bitmap, and collision lanes remain pixel-exact.
+      my@digest_mask=('--mask-rows','109-126');
+      my($actual,$ae)=ok("$name actual digest",$perl,$digest,@digest_mask,$png[0]);
+      my($wanted,$we)=ok("$name reference digest",$perl,$digest,@digest_mask,$reference);
       $ae eq ''&&$we eq '' or die$ae.$we;
       $actual eq $wanted or die"$name diagnostic Stella raster differs: actual=$actual reference=$wanted";
       print "ok $name\n";

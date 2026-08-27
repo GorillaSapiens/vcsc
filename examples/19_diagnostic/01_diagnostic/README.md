@@ -62,29 +62,50 @@ background probe.
 
 ## TIA collision animation
 
-The bottom of the display is a live, human-readable TIA collision test. Three
-rows show the actual hardware collision registers being exercised:
+The bottom of the display is a live, human-readable view of **all 15 pairwise
+TIA collision latches** among `M0`, `M1`, `P0`, `P1`, Ball (`BL`), and
+playfield (`PF`). There are no register names or hexadecimal values on screen.
+Instead, the panel uses two rows of eight compact six-pixel icons. Each icon is
+formed by concatenating the two three-pixel object microglyphs for that
+collision pair. The otherwise blank middle scanline becomes a solid six-pixel
+bar when that collision latch is set, visually joining the two objects.
 
-* `CXM0P` -- missile 0 against player 0; the expected latched value is `40`.
-* `CXM1P` -- missile 1 against player 1; the expected latched value is `40`.
-* `CXBLPF` -- Ball against playfield; the expected latched value is `80`.
+The icons follow the TIA register-bit order:
 
-Directly below those rows are three matching four-scanline collision lanes. In
+```text
+top:    M0-P1 M0-P0 M1-P0 M1-P1 P0-PF P0-BL P1-PF P1-BL
+bottom: M0-PF M0-BL M1-PF M1-BL BL-PF P0-P1 M0-M1 CHECK
+```
+
+The lower-right sixteenth slot is a check mark. It appears only when the full
+15-bit collision bitmap is exactly the three collisions intentionally driven by
+the animation, so an unexpected extra collision prevents the check even if all
+three intended collisions occurred.
+
+Directly below the bitmap are three matching four-scanline collision lanes. In
 the first lane M0 approaches a large P0 `0` shape, in the second M1 approaches
 a narrow P1 `1` shape, and in the third the Ball approaches a centered
-playfield wall. Only the two objects relevant to a lane are enabled there, so a
-collision can be understood just by watching the screen rather than knowing the
-TIA register map in advance. M0/P0 use the P0 color, M1/P1 use the P1 color, and
-Ball/playfield use the playfield color. SECAM deliberately uses yellow, cyan,
-and magenta for those three paths.
+playfield wall. Only the two objects relevant to a lane are enabled there. The
+animation therefore intends to light only `M0-P0`, `M1-P1`, and `BL-PF`; the
+other twelve pair icons should remain unconnected. M0/P0 use the P0 color,
+M1/P1 use the P1 color, and Ball/playfield use the playfield color. SECAM
+deliberately uses yellow, cyan, and magenta for those three paths.
 
 The objects move slowly toward their targets and then hold visibly in contact.
-`CXCLR` is strobed only when the 64-frame animation cycle restarts. Consequently
-each displayed register changes from `00` to its hardware-latched collision
-value and stays there even after the instant of first contact. `OK` appears at
-the end of the `CXBLPF` row only after all three expected collision bits have
-latched. This intentionally demonstrates the TIA's sticky collision-latch
-behavior rather than reducing several tests to an unexplained PASS/FAIL bit.
+The screen itself is rendered with P0/P1, which would create unrelated collision
+bits. To keep the 15-bit bitmap honest, `CXCLR` is therefore strobed every frame
+after the text/icon raster and immediately before the three controlled lanes.
+The collision registers are captured only after those lane objects have been
+disabled; a lit connection bar is consequently a direct report of a hardware
+TIA collision latch from the controlled test, not a collision caused by drawing
+the user interface. Once an approaching pair reaches contact it remains there,
+so its connection stays visibly lit.
+
+The six object microglyphs are deliberately easy to edit. Their canonical
+source is `diagnostic_collision_objects.font`; each bitmap row contains the six
+three-pixel glyphs as `M0_M1_P0_P1_BL_PF`. `make_collision_font.pl` converts
+that source into the checked-in `diagnostic_collision_font.c26`. Running the
+diagnostic Makefile regenerates the C26 file when the editable font changes.
 
 Audio channel 0 and channel 1 also emit short distinct alternating beeps.
 

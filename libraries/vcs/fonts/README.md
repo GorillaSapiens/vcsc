@@ -11,10 +11,10 @@
 
 This directory contains nine conventional 8x8 score-font families, one
 8x16 Big font family, one compact 4x6 printable-ASCII source font, helpers for
-generating font subsets and packing two 4x6 characters into an 8x6 message
-glyph, and one special six-slice VCSC logo table. Every pixel row is written on
-its own line using visual binary notation: `.` is a clear pixel and `X` is a
-set pixel.
+importing BDF fonts, generating font subsets, and packing fixed messages into
+display glyphs, plus one special six-slice VCSC logo table. Every pixel row is
+written on its own line using visual binary notation: `.` is a clear pixel and
+`X` is a set pixel.
 
 Each conventional 8x8 family has four modules:
 
@@ -55,6 +55,36 @@ page. This matters for cycle-sensitive `(pointer),Y` glyph reads.
 uppercase-hex, and lowercase-hex modules in place. Generated subsets retain the
 source font's license/comments, identify their ASCII source, and use `page`
 instead of `align(256)`.
+
+## Font conversion and fixed-message helpers
+
+`bdf2c26.pl` converts a small BDF bitmap font into a VCSC font module. The BDF
+cell may be at most eight pixels wide and 26 rows high. By default it emits the
+printable-ASCII range (`0x20` through `0x7e`) as `score_font`; `--first`,
+`--last`, and `--name` select another range or table name, and `--strict` makes
+a missing requested glyph an error instead of a blank cell. For example:
+
+```sh
+./bdf2c26.pl spleen-5x8.bdf > spleen_ascii.c26
+./bdf2c26.pl --first 0x30 --last 0x39 foo.bdf > foo_decimal.c26
+```
+
+`make_message_glyphs.pl` pre-renders one fixed message from any compatible C26
+`VCS_FONT_GLYPH(...)` font into exactly six eight-bit output glyphs, or 48
+columns. It crops blank edge columns from each non-space source glyph, inserts
+one blank column between adjacent characters, and treats a literal space as one
+additional blank column. The generated table is named `message_font`; input
+that cannot fit in 48 columns is rejected. For example:
+
+```sh
+./make_message_glyphs.pl half_ascii.c26 "TIA COLL" > tia_message.c26
+```
+
+This helper is useful when a fixed label should use an existing score renderer
+without carrying a general-purpose text renderer or the whole source font into
+the cartridge. `make_pair_font.pl`, described below, is the specialized 4x6
+variant that preserves two source character cells per 8x6 output glyph instead
+of horizontally cropping and repacking an entire message.
 
 ## Compact 4x6 ASCII source and paired-message helper
 

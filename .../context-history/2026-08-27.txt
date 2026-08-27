@@ -36,3 +36,66 @@ vcsc_branding.pl treating intentional .../release.txt as unexpected residue.
 Kept release.txt by design, added it to the developer-record allowlist and
 required-file checks, and documented it in .../README.md. The focused branding
 test passes with release.txt present.
+
+2026-08-27 10:32:28 PDT, TIA collision icon panel
+Replaced the diagnostic's three textual collision-register rows with a compact
+15-bit collision display covering every pair among M0/M1/P0/P1/BL/PF.  Two
+rows of eight six-pixel icons fit the existing 48-pixel display width; each
+icon concatenates two editable three-pixel object microglyphs and fills its
+blank middle row when the corresponding hardware collision bit is set.  The
+sixteenth slot is a check mark that appears only for the exact intended bitmap
+(M0-P0, M1-P1, and BL-PF, with no extra collisions).
+
+Added diagnostic_collision_objects.font as the human-editable glyph source,
+make_collision_font.pl, and generated diagnostic_collision_font.c26.  The
+glyph source uses the user's proposed six 3x6 shapes essentially verbatim so
+future visual tweaks do not require renderer changes.  Added regeneration and
+layout checks to vcs_diagnostic_cartridge.pl and documented the display.
+
+Because the 48-pixel UI itself uses P0/P1 and can set collision latches, CXCLR
+now fires every frame after the text/icon raster and immediately before the
+three controlled collision lanes.  All eight TIA collision registers are read
+after those lanes, packed into the 15 visible pair bits, and checked for the
+exact expected bitmap.  The animation still approaches and holds the three
+intended contacts.
+
+The prior working session reported the focused diagnostic regression green
+after recalibrating fixed visible tails and measured bank0 at 2200/3584 bytes,
+RIOT RAM at 112/128, and F4SC RAM at 81/128.  Stella fixture refresh was still
+incomplete: eight post-change captures had completed, while the four SECAM
+cases had not finished before the execution window ended.
+
+This immediate handoff was reconstructed onto vcsc.20260827_131646 source after
+the user requested the current state before final certification.  The local
+container currently lacks the built driver/vcsc prerequisite, so this handoff
+was packaged without rerunning the focused build.  Exact next step: build the
+toolchain, run vcs_diagnostic_cartridge.pl, finish all 12 Stella reference
+captures, then run the normal checkpoint tests.
+
+2026-08-27 12:03:17 PDT, Font utility scripts
+Added user-supplied bdf2c26.pl and make_message_glyphs.pl under
+libraries/vcs/fonts, preserving executable mode and naming the latter without
+the upload-only "(1)" suffix. Added the explicit library CC0 notice to
+bdf2c26.pl so it satisfies source-tree policy. Documented both helpers in the
+font README: BDF import constraints/options and the fixed-message six-glyph
+48-column packing behavior. Font contracts, branding, and source-tree hygiene
+pass with the additions.
+
+2026-08-27 12:03:18 PDT, Collision panel certification
+Completed certification of the diagnostic TIA 15-bit collision icon panel on
+the reconstructed handoff lineage. Rebuilt the toolchain from the supplied
+Bison/Flex packages and reran vcs_diagnostic_cartridge.pl successfully.
+Verified all 12 Stella 7.0 NTSC/PAL/SECAM x joystick/paddle/keypad/driving
+reference cases against the final per-frame CXCLR semantics. One SECAM driving
+attempt produced no F12 snapshot under Xvfb; an immediate isolated rerun passed
+with an exact digest, so this was treated as launch/snapshot flake rather than a
+raster mismatch.
+
+The Stella digest intentionally masks only live controller-detail rows 109-126;
+the standard/controller heading, switches, both collision-icon rows, and all
+three controlled collision lanes remain pixel-certified. The full jobs=8 e2e
+checkpoint reached 325/327 with only vcs_diagnostic_cartridge.pl and
+vcs_examples_build_3of8.test timing out under contention; both pass when rerun
+alone. Compile-only validation passes 502/502. Thus every one of the 327 e2e
+cases is individually green on this source state, while the two heavy cases can
+exceed their wall-clock limits when run concurrently on this container.

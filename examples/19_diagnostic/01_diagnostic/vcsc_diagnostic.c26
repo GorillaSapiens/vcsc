@@ -17,6 +17,7 @@ include "color_secam.c26"
 include "diagnostic_pair_indices.c26"
 include "diagnostic_pairs.c26"
 include "diagnostic_support.c26"
+include "diagnostic_collision_font.c26"
 
 // The ordinary score lifecycle needs a score_font symbol while preparing its
 // initial pointers.  The diagnostic immediately redirects all six full
@@ -51,26 +52,23 @@ enum diagnostic_layout {
    DIAGNOSTIC_ROW_SWITCH1 := 36,
    DIAGNOSTIC_ROW_DETAIL0 := 42,
    DIAGNOSTIC_ROW_DETAIL1 := 48,
-   DIAGNOSTIC_ROW_TIA_M0P := 54,
-   DIAGNOSTIC_ROW_TIA_M1P := 60,
-   DIAGNOSTIC_ROW_TIA_BLPF := 66,
-   DIAGNOSTIC_ROW_COUNT := 12
+   DIAGNOSTIC_ROW_COUNT := 9
 };
 
 enum diagnostic_timing {
-   DIAGNOSTIC_VISIBLE_USED := 135,
-   DIAGNOSTIC_NTSC_VISIBLE_TAIL := 6,
-   DIAGNOSTIC_NTSC_INIT_TAIL := 6,
-   DIAGNOSTIC_NTSC_PADDLE_TAIL := 3,
-   DIAGNOSTIC_PAL_VISIBLE_TAIL := 42,
+   DIAGNOSTIC_VISIBLE_USED := 124,
+   DIAGNOSTIC_NTSC_VISIBLE_TAIL := 17,
+   DIAGNOSTIC_NTSC_INIT_TAIL := 17,
+   DIAGNOSTIC_NTSC_PADDLE_TAIL := 14,
+   DIAGNOSTIC_PAL_VISIBLE_TAIL := 53,
    // PAL's controller-initialization path ends one scanline later in phase
    // than an ordinary non-paddle frame.  Calibrate that transition explicitly
    // rather than allowing a single 313-line displayed frame at mode entry.
-   DIAGNOSTIC_PAL_INIT_TAIL := 42,
-   DIAGNOSTIC_PAL_PADDLE_TAIL := 39,
-   DIAGNOSTIC_SECAM_VISIBLE_TAIL := 41,
-   DIAGNOSTIC_SECAM_INIT_TAIL := 42,
-   DIAGNOSTIC_SECAM_PADDLE_TAIL := 37
+   DIAGNOSTIC_PAL_INIT_TAIL := 53,
+   DIAGNOSTIC_PAL_PADDLE_TAIL := 50,
+   DIAGNOSTIC_SECAM_VISIBLE_TAIL := 52,
+   DIAGNOSTIC_SECAM_INIT_TAIL := 53,
+   DIAGNOSTIC_SECAM_PADDLE_TAIL := 48
 };
 
 // Non-beam-critical UI/application state belongs in shared Superchip RAM.
@@ -93,16 +91,15 @@ cartram uint8_t diagnostic_ui_phase;
 cartram uint8_t diagnostic_keypad_scan_row;
 cartram uint8_t diagnostic_drive_position0;
 cartram uint8_t diagnostic_drive_position1;
-cartram uint8_t diagnostic_tia_collision_pass;
-cartram uint8_t diagnostic_tia_cxm0p;
-cartram uint8_t diagnostic_tia_cxm1p;
-cartram uint8_t diagnostic_tia_cxblpf;
+cartram uint8_t diagnostic_tia_top_mask;
+cartram uint8_t diagnostic_tia_bottom_mask;
+cartram uint8_t diagnostic_tia_pass;
 cartram uint8_t diagnostic_tia_phase;
 cartram uint8_t diagnostic_tia_m0_x;
 cartram uint8_t diagnostic_tia_m1_x;
 cartram uint8_t diagnostic_tia_ball_x;
 cartram uint8_t diagnostic_audio_phase;
-cartram uint8_t diagnostic_rows[72];
+cartram uint8_t diagnostic_rows[54];
 #ifdef DIAGNOSTIC_TEST_SWEEP
 cartram uint8_t diagnostic_test_frames;
 #endif
@@ -178,6 +175,158 @@ bank1 void diagnostic_draw_text_row(void) {
    diagnostic_text_draw();
 }
 
+bank3 void diagnostic_prepare_collision_top(void) {
+   asm lda diagnostic_tia_top_mask;
+   asm lsr; asm lsr; asm lsr; asm lsr;
+   asm tax;
+   asm lda diagnostic_collision_window_a,x;
+   asm clc; asm adc #<{diagnostic_collision_top_font + 0};
+   asm sta.z diagnostic_text_pointers+0;
+   asm lda #>diagnostic_collision_top_font;
+   asm sta.z diagnostic_text_pointers+1;
+   asm lda diagnostic_collision_window_b,x;
+   asm clc; asm adc #<{diagnostic_collision_top_font + 24};
+   asm sta.z diagnostic_text_pointers+2;
+   asm lda #>diagnostic_collision_top_font;
+   asm sta.z diagnostic_text_pointers+3;
+   asm sta WSYNC;
+
+   asm lda diagnostic_collision_window_c,x;
+   asm clc; asm adc #<{diagnostic_collision_top_font + 48};
+   asm sta.z diagnostic_text_pointers+4;
+   asm lda #>diagnostic_collision_top_font;
+   asm sta.z diagnostic_text_pointers+5;
+   asm lda diagnostic_tia_top_mask;
+   asm and #15;
+   asm tax;
+   asm lda diagnostic_collision_window_a,x;
+   asm clc; asm adc #<{diagnostic_collision_top_font + 72};
+   asm sta.z diagnostic_text_pointers+6;
+   asm lda #>diagnostic_collision_top_font;
+   asm sta.z diagnostic_text_pointers+7;
+   asm sta WSYNC;
+
+   asm lda diagnostic_collision_window_b,x;
+   asm clc; asm adc #<{diagnostic_collision_top_font + 96};
+   asm sta.z diagnostic_text_pointers+8;
+   asm lda #>diagnostic_collision_top_font;
+   asm sta.z diagnostic_text_pointers+9;
+   asm lda diagnostic_collision_window_c,x;
+   asm clc; asm adc #<{diagnostic_collision_top_font + 120};
+   asm sta.z diagnostic_text_pointers+10;
+   asm lda #>diagnostic_collision_top_font;
+   asm sta.z diagnostic_text_pointers+11;
+   asm sta WSYNC;
+}
+
+bank3 void diagnostic_prepare_collision_bottom(void) {
+   asm lda diagnostic_tia_bottom_mask;
+   asm lsr; asm lsr; asm lsr; asm lsr;
+   asm tax;
+   asm lda diagnostic_collision_window_a,x;
+   asm clc; asm adc #<{diagnostic_collision_bottom_font + 0};
+   asm sta.z diagnostic_text_pointers+0;
+   asm lda #>diagnostic_collision_bottom_font;
+   asm sta.z diagnostic_text_pointers+1;
+   asm lda diagnostic_collision_window_b,x;
+   asm clc; asm adc #<{diagnostic_collision_bottom_font + 24};
+   asm sta.z diagnostic_text_pointers+2;
+   asm lda #>diagnostic_collision_bottom_font;
+   asm sta.z diagnostic_text_pointers+3;
+   asm sta WSYNC;
+
+   asm lda diagnostic_collision_window_c,x;
+   asm clc; asm adc #<{diagnostic_collision_bottom_font + 48};
+   asm sta.z diagnostic_text_pointers+4;
+   asm lda #>diagnostic_collision_bottom_font;
+   asm sta.z diagnostic_text_pointers+5;
+   asm lda diagnostic_tia_bottom_mask;
+   asm and #15;
+   asm tax;
+   asm lda diagnostic_collision_window_a,x;
+   asm clc; asm adc #<{diagnostic_collision_bottom_font + 72};
+   asm sta.z diagnostic_text_pointers+6;
+   asm lda #>diagnostic_collision_bottom_font;
+   asm sta.z diagnostic_text_pointers+7;
+   asm sta WSYNC;
+
+   asm lda diagnostic_collision_window_b,x;
+   asm clc; asm adc #<{diagnostic_collision_bottom_font + 96};
+   asm sta.z diagnostic_text_pointers+8;
+   asm lda #>diagnostic_collision_bottom_font;
+   asm sta.z diagnostic_text_pointers+9;
+   asm lda diagnostic_collision_window_c,x;
+   asm clc; asm adc #<{diagnostic_collision_bottom_font + 120};
+   asm sta.z diagnostic_text_pointers+10;
+   asm lda #>diagnostic_collision_bottom_font;
+   asm sta.z diagnostic_text_pointers+11;
+   asm sta WSYNC;
+}
+
+bank3 void diagnostic_draw_collision_row(void) {
+   WSYNC := 0;
+   asm bit.z CXM0P;
+
+   asm lda #$03;
+   asm sta NUSIZ0;
+   asm sta NUSIZ1;
+   asm nop; asm nop; asm nop; asm nop;
+   asm sta HMCLR;
+   asm lda #$80;
+   asm sta HMP0;
+   asm lda #$90;
+   asm sta HMP1;
+   asm nop;
+   asm sta RESP0;
+   asm sta RESP1;
+   asm lda diagnostic_text_color;
+   asm sta COLUP0;
+   asm sta COLUP1;
+   asm sta WSYNC;
+
+   asm sta HMOVE;
+   GRP0 := 0;
+   GRP1 := 0;
+   GRP0 := 0;
+   asm sta REFP0;
+   asm sta REFP1;
+   asm nop;
+   VDELP0 := 1;
+   VDELP1 := 1;
+   asm lda #5;
+   asm sta.a diagnostic_text_row;
+
+   asm @diagnostic_collision_draw_loop:;
+   asm ldy diagnostic_text_row;
+   asm lda (diagnostic_text_pointers),y;
+   asm sta GRP0;
+   asm sta WSYNC;
+   asm lda (diagnostic_text_pointers+$2),y;
+   asm sta GRP1;
+   asm lda (diagnostic_text_pointers+$4),y;
+   asm sta GRP0;
+   asm lda (diagnostic_text_pointers+$6),y;
+   asm sta diagnostic_text_delayed;
+   asm lda (diagnostic_text_pointers+$8),y;
+   asm tax;
+   asm lda (diagnostic_text_pointers+$a),y;
+   asm tay;
+   asm lda diagnostic_text_delayed;
+   asm sta GRP1;
+   asm stx GRP0;
+   asm sty GRP1;
+   asm sta GRP0;
+   asm dec diagnostic_text_row;
+   asm bpl.same @diagnostic_collision_draw_loop;
+
+   GRP0 := 0;
+   GRP1 := 0;
+   GRP0 := 0;
+   VDELP0 := 0;
+   VDELP1 := 0;
+   WSYNC := 0;
+}
+
 bank1 void diagnostic_component_init(void) {
    diagnostic_text_color := 0x0e;
    diagnostic_text_init();
@@ -248,7 +397,7 @@ bank3 void diagnostic_keypad_vblank(void) {
    }
 }
 
-bank3 void diagnostic_keypad_overscan(void) {
+bank3 void diagnostic_keypad_overscan_impl(void) {
    if (diagnostic_keypad_scan_row == 0) {
       diagnostic_left_keypad_begin_scan();
       diagnostic_right_keypad_begin_scan();
@@ -268,6 +417,21 @@ bank3 void diagnostic_keypad_overscan(void) {
    } else {
       diagnostic_keypad_scan_row := diagnostic_keypad_scan_row + 1;
    }
+}
+
+bank3 void diagnostic_bank3_task(uint8_t task) {
+   if (task) {
+      diagnostic_keypad_overscan_impl();
+      return;
+   }
+
+   // Cross-bank entry phase is irrelevant: align before touching the three
+   // deterministic pointer-preparation scanlines.
+   WSYNC := 0;
+   diagnostic_prepare_collision_top();
+   diagnostic_draw_collision_row();
+   diagnostic_prepare_collision_bottom();
+   diagnostic_draw_collision_row();
 }
 
 bank4 void diagnostic_driving_vblank(void) {
@@ -775,53 +939,11 @@ bank0 void diagnostic_compute_cpu_fingerprint(void) {
 
 
 
-// Four possible values exist in a TIA collision register's readable high bits.
-// Keep the display conversion table tiny and pre-cooked so the live overscan
-// path never formats hexadecimal text.
-bank0 align(4) const uint8_t diagnostic_collision_pair[4] := {
-   DIAG_PAIR_NUM_00, DIAG_PAIR_NUM_40, DIAG_PAIR_NUM_80, DIAG_PAIR_NUM_C0
-};
-bank0 page const uint8_t diagnostic_collision_ok_pair[2] := {
-   DIAG_PAIR_BLANK, DIAG_PAIR_OK
-};
-
-// The three collision registers exercised by the visible animation are shown
-// verbatim.  Their latches are sticky: each line starts at 00 after CXCLR and
-// stays set after the moving object visibly reaches its target.  The final OK
-// appears only after all three expected paths have latched.
-bank0 void diagnostic_update_tia_status(void) {
-   asm lda diagnostic_tia_cxm0p;
-   asm lsr; asm lsr; asm lsr; asm lsr; asm lsr; asm lsr;
-   asm tax;
-   asm lda diagnostic_collision_pair,x;
-   asm sta diagnostic_rows+57;
-
-   asm lda diagnostic_tia_cxm1p;
-   asm lsr; asm lsr; asm lsr; asm lsr; asm lsr; asm lsr;
-   asm tax;
-   asm lda diagnostic_collision_pair,x;
-   asm sta diagnostic_rows+63;
-
-   asm lda diagnostic_tia_cxblpf;
-   asm lsr; asm lsr; asm lsr; asm lsr; asm lsr; asm lsr;
-   asm tax;
-   asm lda diagnostic_collision_pair,x;
-   asm sta diagnostic_rows+69;
-
-   // Convert pass bit 7 to table index 0/1 without a data-dependent branch.
-   asm lda diagnostic_tia_collision_pass;
-   asm asl;
-   asm lda #0;
-   asm rol;
-   asm tax;
-   asm lda diagnostic_collision_ok_pair,x;
-   asm sta diagnostic_rows+71;
-}
-
 // Slow one-pixel-per-two-frames motion gives a human enough time to follow the
 // test. M0 approaches P0 from the left, M1 approaches P1 from the right, and
-// Ball approaches the center playfield wall. The final few frames remain in
-// contact, then the 64-frame cycle restarts. Keep this path fixed-cycle: blanking
+// Ball approaches the center playfield wall and stops a few pixels inside it
+// so the BL/PF latch is not balanced on a one-pixel edge. The final few frames
+// remain in contact, then the 64-frame cycle restarts. Keep this path fixed-cycle: blanking
 // deadlines must not depend on the animation phase.
 bank0 void diagnostic_tia_animation_tick(void) {
 #ifdef DIAGNOSTIC_TEST_TIA_FREEZE
@@ -831,7 +953,7 @@ bank0 void diagnostic_tia_animation_tick(void) {
    diagnostic_tia_phase := 63;
    diagnostic_tia_m0_x := 34;
    diagnostic_tia_m1_x := 115;
-   diagnostic_tia_ball_x := 78;
+   diagnostic_tia_ball_x := 82;
 #else
    // Clamp each approach at the first comfortably visible contact point.
    // The branch paths are cycle-balanced so animation phase cannot move the
@@ -873,7 +995,7 @@ bank0 void diagnostic_tia_animation_tick(void) {
    asm nop; asm nop;
    asm @ball_ready:;
    asm clc;
-   asm adc #48;
+   asm adc #52;
    asm sta diagnostic_tia_ball_x;
 
    asm lda diagnostic_tia_phase;
@@ -885,12 +1007,11 @@ bank0 void diagnostic_tia_animation_tick(void) {
 }
 
 // --- Human-readable TIA collision animation -----------------------------
-// The text renderer owns P0/P1 earlier in the frame. This panel repositions all
-// five movable TIA objects after the three collision-register rows. P0 and P1
-// are stationary targets. Their missiles visibly crawl into them while Ball
-// crawls into an eight-pixel reflected playfield wall at screen center. CXCLR
-// is strobed only at the start of each animation cycle so a viewer can watch
-// each collision register change from 00 to its sticky latched value.
+// The text and icon display above use P0/P1 themselves, so they necessarily
+// create unrelated player collisions. Clear those display-side effects before
+// the three isolated collision lanes, then capture all 15 hardware latch bits
+// after the lane objects have been disabled. The two icon rows on the next
+// frame therefore describe only this controlled TIA test, not the UI raster.
 bank0 const uint8_t diagnostic_reposition_table[16] := {
    0x70,0x60,0x50,0x40,0x30,0x20,0x10,0x00,
    0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90,0x80
@@ -922,9 +1043,11 @@ bank0 void diagnostic_draw_tia_panel(void) {
    RESMP0 := 0; RESMP1 := 0;
    HMCLR := 0;
 
-   // The text above shows the previous frame's latched values. Clearing at
-   // phase zero makes the next visible scene begin with three explicit 00s.
-   if (diagnostic_tia_phase == 0) { CXCLR := 0; }
+   // The 48-pixel text/icon renderer also uses P0/P1 and would contaminate a
+   // comprehensive collision bitmap. Clear every frame immediately before the
+   // controlled lanes. The registers are read only after those lanes finish,
+   // so the bitmap still directly certifies the TIA collision latches.
+   CXCLR := 0;
 
    // Each object uses two deterministic setup lines. The first line times
    // RESPx; the second computes/stores fine motion from the subtraction
@@ -1014,10 +1137,9 @@ bank0 void diagnostic_draw_tia_panel(void) {
    asm sta HMOVE;
 
    // Three four-line lanes make the test visually self-explanatory. Only the
-   // two objects named by each collision register are enabled in its lane, so
-   // the viewer can watch M0 hit a large "0", M1 hit a large "1", and the
-   // Ball hit the center playfield wall. The lane order matches the three text
-   // rows directly above the panel.
+   // intended pair is enabled in each lane: M0/P0, M1/P1, then Ball/PF. The
+   // two icon rows above retain all fifteen hardware collision bits, so these
+   // three bars should light while the other twelve pair icons stay clear.
    GRP0 := 0x7e; GRP1 := 0;
    ENAM0 := 2; ENAM1 := 0; ENABL := 0;
    WSYNC := 0;
@@ -1036,21 +1158,63 @@ bank0 void diagnostic_draw_tia_panel(void) {
    PF2 := 0x80; ENABL := 2;
    WSYNC := 0; WSYNC := 0; WSYNC := 0; WSYNC := 0;
 
-   // Snapshot the actual sticky hardware registers. The fixed-cycle reduction
-   // keeps the panel's cleanup phase independent of whether a collision has
-   // happened yet: expected bits are CXM0P.6, CXM1P.6, and CXBLPF.7.
-   asm lda CXM1P;
-   asm sta diagnostic_tia_cxm1p;
-   asm and CXM0P;
-   asm and #$40;
-   asm asl;
-   asm sta diagnostic_tia_collision_pass;
+   // Pack all fifteen sticky TIA collision bits into the same order as the
+   // two rows of eight six-pixel icons.  The spare low bit of the bottom row
+   // becomes a check mark once the three collisions driven by this animation
+   // have all latched.  No numeric formatting or register-name text remains.
    asm lda CXM0P;
-   asm sta diagnostic_tia_cxm0p;
+   asm and #$c0;
+   asm sta diagnostic_tia_top_mask;
+   asm lda CXM1P;
+   asm and #$c0;
+   asm lsr; asm lsr;
+   asm ora diagnostic_tia_top_mask;
+   asm sta diagnostic_tia_top_mask;
+   asm lda CXP0FB;
+   asm and #$c0;
+   asm lsr; asm lsr; asm lsr; asm lsr;
+   asm ora diagnostic_tia_top_mask;
+   asm sta diagnostic_tia_top_mask;
+   asm lda CXP1FB;
+   asm and #$c0;
+   asm lsr; asm lsr; asm lsr; asm lsr; asm lsr; asm lsr;
+   asm ora diagnostic_tia_top_mask;
+   asm sta diagnostic_tia_top_mask;
+
+   asm lda CXM0FB;
+   asm and #$c0;
+   asm sta diagnostic_tia_bottom_mask;
+   asm lda CXM1FB;
+   asm and #$c0;
+   asm lsr; asm lsr;
+   asm ora diagnostic_tia_bottom_mask;
+   asm sta diagnostic_tia_bottom_mask;
    asm lda CXBLPF;
-   asm sta diagnostic_tia_cxblpf;
-   asm and diagnostic_tia_collision_pass;
-   asm sta diagnostic_tia_collision_pass;
+   asm and #$80;
+   asm lsr; asm lsr; asm lsr; asm lsr;
+   asm ora diagnostic_tia_bottom_mask;
+   asm sta diagnostic_tia_bottom_mask;
+   asm lda CXPPMM;
+   asm and #$c0;
+   asm lsr; asm lsr; asm lsr; asm lsr; asm lsr;
+   asm ora diagnostic_tia_bottom_mask;
+   asm sta diagnostic_tia_bottom_mask;
+
+   // The spare sixteenth icon is a real all-clear check: it lights only when
+   // the complete 15-bit bitmap is exactly the three collisions this animation
+   // intends (top=$50, bottom=$08).  Extract Z from P without a branch so this
+   // remains fixed-cycle even on faulty hardware that reports extra collisions.
+   asm lda diagnostic_tia_top_mask;
+   asm cmp #$50;
+   asm php; asm pla; asm and #2; asm lsr;
+   asm sta diagnostic_tia_pass;
+   asm lda diagnostic_tia_bottom_mask;
+   asm cmp #$08;
+   asm php; asm pla; asm and #2; asm lsr;
+   asm and diagnostic_tia_pass;
+   asm sta diagnostic_tia_pass;
+   asm ora diagnostic_tia_bottom_mask;
+   asm sta diagnostic_tia_bottom_mask;
 
    GRP0 := 0; GRP1 := 0;
    ENAM0 := 0; ENAM1 := 0; ENABL := 0;
@@ -1065,7 +1229,6 @@ bank0 void diagnostic_draw_tia_panel(void) {
    // Start and finish on WSYNC boundaries so this fixed-cycle bookkeeping has
    // a constant visible-line cost independent of the collision values.
    WSYNC := 0;
-   diagnostic_update_tia_status();
    diagnostic_tia_animation_tick();
    WSYNC := 0;
 }
@@ -1203,9 +1366,7 @@ bank1 void diagnostic_frame(void) {
    diagnostic_prepare_row(DIAGNOSTIC_ROW_SWITCH1); diagnostic_draw_text_row();
    diagnostic_prepare_row(DIAGNOSTIC_ROW_DETAIL0); diagnostic_draw_text_row();
    diagnostic_prepare_row(DIAGNOSTIC_ROW_DETAIL1); diagnostic_draw_text_row();
-   diagnostic_prepare_row(DIAGNOSTIC_ROW_TIA_M0P); diagnostic_draw_text_row();
-   diagnostic_prepare_row(DIAGNOSTIC_ROW_TIA_M1P); diagnostic_draw_text_row();
-   diagnostic_prepare_row(DIAGNOSTIC_ROW_TIA_BLPF); diagnostic_draw_text_row();
+   diagnostic_bank3_task(0);
    diagnostic_bank0_task(0);
 
    // Paddle measurement owns a four-line visible sampling cycle.  Calling the
@@ -1271,7 +1432,7 @@ bank1 void diagnostic_frame(void) {
       diagnostic_paddle_overscan();
    }
    if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD && !diagnostic_frame_init_only) {
-      diagnostic_keypad_overscan();
+      diagnostic_bank3_task(1);
    }
    if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING && !diagnostic_frame_init_only) {
       diagnostic_driving_vblank();
@@ -1376,10 +1537,9 @@ bank0 void main(void) {
    diagnostic_keypad_scan_row := 0;
    diagnostic_drive_position0 := 0;
    diagnostic_drive_position1 := 0;
-   diagnostic_tia_collision_pass := 0;
-   diagnostic_tia_cxm0p := 0;
-   diagnostic_tia_cxm1p := 0;
-   diagnostic_tia_cxblpf := 0;
+   diagnostic_tia_top_mask := 0;
+   diagnostic_tia_bottom_mask := 0;
+   diagnostic_tia_pass := 0;
    diagnostic_tia_phase := 0;
    diagnostic_tia_m0_x := 8;
    diagnostic_tia_m1_x := 144;
@@ -1398,22 +1558,6 @@ bank0 void main(void) {
    diagnostic_ui_dirty := 3;
    diagnostic_update_one_header_row();
    diagnostic_update_one_header_row();
-   diagnostic_rows[DIAGNOSTIC_ROW_TIA_M0P+0] := DIAG_PAIR_CX;
-   diagnostic_rows[DIAGNOSTIC_ROW_TIA_M0P+1] := DIAG_PAIR_M0;
-   diagnostic_rows[DIAGNOSTIC_ROW_TIA_M0P+2] := DIAG_PAIR_P_SPACE;
-   diagnostic_rows[DIAGNOSTIC_ROW_TIA_M0P+4] := DIAG_PAIR_BLANK;
-   diagnostic_rows[DIAGNOSTIC_ROW_TIA_M0P+5] := DIAG_PAIR_BLANK;
-   diagnostic_rows[DIAGNOSTIC_ROW_TIA_M1P+0] := DIAG_PAIR_CX;
-   diagnostic_rows[DIAGNOSTIC_ROW_TIA_M1P+1] := DIAG_PAIR_M1;
-   diagnostic_rows[DIAGNOSTIC_ROW_TIA_M1P+2] := DIAG_PAIR_P_SPACE;
-   diagnostic_rows[DIAGNOSTIC_ROW_TIA_M1P+4] := DIAG_PAIR_BLANK;
-   diagnostic_rows[DIAGNOSTIC_ROW_TIA_M1P+5] := DIAG_PAIR_BLANK;
-   diagnostic_rows[DIAGNOSTIC_ROW_TIA_BLPF+0] := DIAG_PAIR_CX;
-   diagnostic_rows[DIAGNOSTIC_ROW_TIA_BLPF+1] := DIAG_PAIR_BL;
-   diagnostic_rows[DIAGNOSTIC_ROW_TIA_BLPF+2] := DIAG_PAIR_PF;
-   diagnostic_rows[DIAGNOSTIC_ROW_TIA_BLPF+4] := DIAG_PAIR_BLANK;
-   diagnostic_rows[DIAGNOSTIC_ROW_TIA_BLPF+5] := DIAG_PAIR_BLANK;
-   diagnostic_update_tia_status();
    diagnostic_update_switches();
    while (1) {
       diagnostic_frame();
