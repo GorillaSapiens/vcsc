@@ -60,16 +60,33 @@ exercised. Keypad mode actively drives the controller-port row lines as required
 by the matrix and therefore is intentionally an explicit mode rather than a
 background probe.
 
-## TIA self-test panel
+## TIA collision animation
 
-The final text row reports `TIA PASS` only when the cartridge observes the
-expected player/missile and ball/playfield collision latches. Beneath it, the
-hardware panel draws P0, P1, both missiles, the ball, and a reflected playfield
-using colors selected for the active television standard. P0 and P1 deliberately
-use different silhouettes and different colors in every standard. SECAM uses
-yellow for P0, cyan for P1, and magenta for the playfield so the three paths are
-easy to distinguish despite SECAM's small fixed palette. Audio channel 0 and
-channel 1 emit short distinct alternating beeps.
+The bottom of the display is a live, human-readable TIA collision test. Three
+rows show the actual hardware collision registers being exercised:
+
+* `CXM0P` -- missile 0 against player 0; the expected latched value is `40`.
+* `CXM1P` -- missile 1 against player 1; the expected latched value is `40`.
+* `CXBLPF` -- Ball against playfield; the expected latched value is `80`.
+
+Directly below those rows are three matching four-scanline collision lanes. In
+the first lane M0 approaches a large P0 `0` shape, in the second M1 approaches
+a narrow P1 `1` shape, and in the third the Ball approaches a centered
+playfield wall. Only the two objects relevant to a lane are enabled there, so a
+collision can be understood just by watching the screen rather than knowing the
+TIA register map in advance. M0/P0 use the P0 color, M1/P1 use the P1 color, and
+Ball/playfield use the playfield color. SECAM deliberately uses yellow, cyan,
+and magenta for those three paths.
+
+The objects move slowly toward their targets and then hold visibly in contact.
+`CXCLR` is strobed only when the 64-frame animation cycle restarts. Consequently
+each displayed register changes from `00` to its hardware-latched collision
+value and stays there even after the instant of first contact. `OK` appears at
+the end of the `CXBLPF` row only after all three expected collision bits have
+latched. This intentionally demonstrates the TIA's sticky collision-latch
+behavior rather than reducing several tests to an unexplained PASS/FAIL bit.
+
+Audio channel 0 and channel 1 also emit short distinct alternating beeps.
 
 The cartridge is intended as a field aid, not as a substitute for an oscilloscope
 or a known-good controller when diagnosing intermittent analog hardware.

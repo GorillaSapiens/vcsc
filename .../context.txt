@@ -123,13 +123,28 @@ Their completed development narratives were moved to `context-history/`.
 Last validation state
 ---------------------
 Main-roadmap Item 44 remains complete, including the post-closeout diagnostic
-work. The diagnostic uses page-safe five-row paired glyphs: 117 glyphs occupy
-587 bytes (585 payload plus two page-boundary pad bytes), `DIAGNOSTIC` and the
-CPU fingerprint have separate rows, and the pre-clear 7800 signature capture is
-maintained by the explicit diagnostic reset shim. All 12 Stella 7.0 diagnostic
-references match and share first-lit row 18; the compact format intentionally
-removed the old synthetic blank glyph row. Frame geometry remains 262 NTSC / 312
-PAL+SECAM lines.
+work. The field diagnostic now has a human-readable TIA collision animation:
+three rows display raw `CXM0P`, `CXM1P`, and `CXBLPF` values while M0 approaches
+P0, M1 approaches P1, and Ball approaches a center playfield wall. `CXCLR` is
+strobed only when the 64-frame cycle restarts, so the display demonstrates the
+sticky collision latches and shows `OK` only after the expected 40/40/80 bits
+have all latched. Object repositioning is fixed at two scanlines per object so
+animation X cannot perturb frame length.
+
+The page-safe five-row paired glyph set now has 127 glyphs and occupies 637
+bytes (635 payload plus two page-boundary pad bytes). The pre-clear 7800
+signature capture and six-digit CPU fingerprint remain intact. Stella reference
+fixtures for NTSC/PAL/SECAM x joystick/paddle/keypad/driving use a test-only
+final-contact freeze; the ordinary cartridge remains animated. Current measured
+diagnostic footprint is bank0 3461/3584 bytes, RIOT RAM 122/128, and F4SC RAM
+100/128.
+
+Post-change validation: the focused diagnostic regression passes, reviewed
+inline-assembly allowlist passes, and the compile suite is clean at 502/502. The
+user's full 327-test e2e run passed 326/327; the sole failure was
+`vcsc_branding.pl` rejecting intentional `.../release.txt`. The branding test
+now treats `release.txt` as a required developer record and passes with it
+present. The other 326 tests were unchanged by that maintenance fix.
 
 All seven public score components expose `glyph_rows`. Ordinary score components
 default to 8 rows and big-wide defaults to 16. Score-font-based nondefault
@@ -137,11 +152,6 @@ instances use tightly packed glyph stride; two-plus-two selects rows from its
 native support tables; three-plus-three preserves its native unrolled default
 path. Default optimized kernels remain timing-compatible, and
 `vcs_score_glyph_rows.pl` owns the family-wide nondefault-height contract.
-
-Final broad validation is clean at 502/502 compile tests and 327/327 default e2e
-tests. All eight recursive example-build shards pass. The maintained diagnostic
-reset shim remains explicitly exempted from examples/.gitignore so `make tar`
-cannot silently omit it again.
 
 Immediate TODO
 --------------

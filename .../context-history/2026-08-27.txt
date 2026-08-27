@@ -1,0 +1,38 @@
+2026-08-27 05:45:03 PDT, TIA collision animation
+Reworked the field diagnostic's TIA area from an opaque PASS/FAIL self-test into
+three visible collision demonstrations. The display now shows raw CXM0P, CXM1P,
+and CXBLPF values while M0 approaches P0, M1 approaches P1, and Ball approaches
+a center playfield wall. CXCLR is strobed only when the 64-frame animation cycle
+restarts, so the viewer can watch the collision registers latch and remain set.
+The moving objects stop at contact and the final row gains OK only after the
+expected 40/40/80 collision bits have all latched.
+
+Changed each horizontal object reposition to a deterministic two-scanline
+transaction: the first line times RESPx and the second computes/stores fine
+motion before the shared HMOVE. This removed animation-X-dependent 262/263-line
+frame jitter seen when the old variable-time positioning crossed a scanline.
+
+Added a DIAGNOSTIC_TEST_TIA_FREEZE build mode used only by the Stella raster
+regression. It starts normally so CXCLR is exercised, then holds the final
+contact geometry for deterministic reference screenshots. Updated all 12
+NTSC/PAL/SECAM x joystick/paddle/keypad/driving Stella reference images and the
+diagnostic README to describe the collision lanes, raw register values, sticky
+latches, and expected bits.
+
+Extended the page-safe five-row pair font with collision labels/values. It now
+contains 127 glyphs in 637 bytes (635 payload plus the two existing page pads).
+Current diagnostic footprint is bank0 3461/3584 bytes, RIOT RAM 122/128, and
+F4SC RAM 100/128.
+
+Validation completed here: focused diagnostic regression passes; the reviewed
+example-assembly allowlist was updated for the intentionally expanded diagnostic
+and passes; compile suite passes 502/502. A full 327-test e2e rerun was started,
+but the container execution window expired before completion. No remaining
+failure attributable to this change is known.
+
+2026-08-27 06:02:00 PDT, Keep release reminder
+The user's full diagnostic handoff e2e run passed 326/327. The sole failure was
+vcsc_branding.pl treating intentional .../release.txt as unexpected residue.
+Kept release.txt by design, added it to the developer-record allowlist and
+required-file checks, and documented it in .../README.md. The focused branding
+test passes with release.txt present.

@@ -77,7 +77,12 @@ future changes must preserve.
 ### `instruction.txt`
 
 Default bounded-work/handoff instructions for starting another development
-session. It also retains the user's release-tag reminder at the bottom.
+session.
+
+### `release.txt`
+
+Short human-only release/tag reminder. Keep it in the developer-record directory;
+it is intentional project state, not generated residue.
 
 ### `context-history/`
 

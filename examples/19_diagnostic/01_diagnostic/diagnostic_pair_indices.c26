@@ -118,5 +118,15 @@ enum diagnostic_pair_index {
    DIAG_PAIR_D_SPACE := 114, // 'D '
    DIAG_PAIR_E_SPACE := 115, // 'E '
    DIAG_PAIR_F_SPACE := 116, // 'F '
-   DIAG_PAIR_COUNT := 117
+   DIAG_PAIR_CX := 117, // 'CX'
+   DIAG_PAIR_M0 := 118, // 'M0'
+   DIAG_PAIR_M1 := 119, // 'M1'
+   DIAG_PAIR_P_SPACE := 120, // 'P '
+   DIAG_PAIR_BL := 121, // 'BL'
+   DIAG_PAIR_PF := 122, // 'PF'
+   DIAG_PAIR_NUM_40 := 123, // '40'
+   DIAG_PAIR_NUM_80 := 124, // '80'
+   DIAG_PAIR_NUM_C0 := 125, // 'C0'
+   DIAG_PAIR_OK := 126, // 'OK'
+   DIAG_PAIR_COUNT := 127
 };

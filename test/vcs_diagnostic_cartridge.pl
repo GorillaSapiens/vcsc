@@ -95,14 +95,14 @@ $pair_rc==0 && !$pair_sig or die "regenerate diagnostic pair font failed\n$pair_
 $pair_err eq '' or die "regenerate diagnostic pair font wrote stderr:\n$pair_err";
 my @checked_rows=$pair_text =~ /0b([.X]{8})/g;
 my @generated_rows=$pair_out =~ /0b([.X]{8})/g;
-@checked_rows==585 && @generated_rows==585
+@checked_rows==635 && @generated_rows==635
    or die "diagnostic five-row pair font row count changed\n";
 join('',@checked_rows) eq join('',@generated_rows)
    or die "diagnostic_pairs.c26 is stale relative to half_ascii.c26\n";
 $pair_text =~ m{// 70: "\[#".*?VCS_FONT_GLYPH\(\n\s*0b\.XX\.X\.X\.,\n\s*0b\.X\.XXXXX,\n\s*0b\.X\.\.X\.X\.,\n\s*0b\.X\.XXXXX,\n\s*0b\.XX\.X\.X\.\n\s*\)}s
    or die "diagnostic keypad # lost its five-column bracketed composition\n";
-$pair_text =~ /score_font\[587\]/ && $pair_out =~ /message_font\[587\]/
-   or die "diagnostic five-row pair font lost page-safe 587-byte storage\n";
+$pair_text =~ /score_font\[637\]/ && $pair_out =~ /message_font\[637\]/
+   or die "diagnostic five-row pair font lost page-safe 637-byte storage\n";
 my @checked_pads=$pair_text =~ /page-boundary padding before glyph (\d+)/g;
 my @generated_pads=$pair_out =~ /page-boundary padding before glyph (\d+)/g;
 join(',',@checked_pads) eq '51,102' && join(',',@generated_pads) eq '51,102'
@@ -111,14 +111,14 @@ join(',',@checked_pads) eq '51,102' && join(',',@generated_pads) eq '51,102'
 # The runtime address tables must point at the page-safe packed starts.  A
 # five-row glyph beginning above offset 250 would make (pointer),Y acquire a
 # data-dependent page-cross cycle in the beam renderer.
-$support_text =~ /diagnostic_pair_low\[117\]\s*:=\s*\{(.*?)\};/s
+$support_text =~ /diagnostic_pair_low\[127\]\s*:=\s*\{(.*?)\};/s
    or die "diagnostic support lost low-byte pair table\n";
 my @pair_low=$1 =~ /\b(\d+)\b/g;
-$support_text =~ /diagnostic_pair_page\[117\]\s*:=\s*\{(.*?)\};/s
+$support_text =~ /diagnostic_pair_page\[127\]\s*:=\s*\{(.*?)\};/s
    or die "diagnostic support lost page pair table\n";
 my @pair_page=$1 =~ /\b(\d+)\b/g;
-@pair_low==117 && @pair_page==117 or die "diagnostic pair address table count changed\n";
-for my $i (0..116) {
+@pair_low==127 && @pair_page==127 or die "diagnostic pair address table count changed\n";
+for my $i (0..126) {
    my $offset=$i*5 + int($i/51);
    my $want_low=$offset & 255;
    my $want_page=$offset >> 8;
@@ -145,17 +145,25 @@ $src =~ /bank4 void diagnostic_driving_vblank\(void\).*?diagnostic_left_drive_be
 $src !~ /diagnostic_driving_overscan/
    or die "diagnostic driving mode must not sample again in overscan\n";
 
-$src =~ /bank0 void diagnostic_draw_tia_panel\(void\).*?PF0 := 0xf0;.*?GRP0 := 0xff;.*?GRP1 := 0x81;.*?ENAM0 := 2;.*?ENAM1 := 2;.*?ENABL := 2;.*?RESMP0 := 2;.*?RESMP1 := 2;.*?RESMP0 := 0;.*?RESMP1 := 0;.*?PF0 := 0xff; PF1 := 0xff; PF2 := 0xff;.*?asm lda CXM0P;.*?asm and CXM1P;.*?asm and #\$40;.*?asm asl;.*?asm and CXBLPF;/s
-   or die "diagnostic TIA panel lost an object, forced collision geometry, or collision self-test\n";
+$src =~ /bank0 void diagnostic_tia_animation_tick\(void\).*?DIAGNOSTIC_TEST_TIA_FREEZE.*?diagnostic_tia_m0_x := 34;.*?diagnostic_tia_m1_x := 115;.*?diagnostic_tia_ball_x := 78;.*?asm cmp #27;.*?asm lda #26;.*?asm adc #8;.*?asm sta diagnostic_tia_m0_x;.*?asm cmp #30;.*?asm lda #29;.*?asm eor #\$ff;.*?asm adc #145;.*?asm sta diagnostic_tia_m1_x;.*?asm cmp #31;.*?asm lda #30;.*?asm adc #48;.*?asm sta diagnostic_tia_ball_x;.*?asm and #63;.*?asm sta diagnostic_tia_phase;/s &&
+$src =~ /bank0 void diagnostic_draw_tia_panel\(void\).*?PF0 := 0; PF1 := 0; PF2 := 0;.*?diagnostic_tia_phase == 0.*?CXCLR := 0;.*?lda #32;.*?sta RESP0,x;.*?lda #120;.*?sta RESP0,x;.*?lda diagnostic_tia_m0_x;.*?lda diagnostic_tia_m1_x;.*?lda diagnostic_tia_ball_x;.*?sta HMOVE;.*?GRP0 := 0x7e;.*?ENAM0 := 2;.*?GRP1 := 0x18;.*?ENAM1 := 2;.*?PF2 := 0x80; ENABL := 2;.*?asm lda CXM1P;.*?asm sta diagnostic_tia_cxm1p;.*?asm and CXM0P;.*?asm and #\$40;.*?asm asl;.*?asm lda CXBLPF;.*?asm sta diagnostic_tia_cxblpf;.*?asm and diagnostic_tia_collision_pass;/s
+   or die "diagnostic TIA collision animation lost visible motion, objects, or sticky latch checks\n";
+$src =~ /DIAGNOSTIC_ROW_TIA_M0P\s*:=\s*54.*?DIAGNOSTIC_ROW_TIA_M1P\s*:=\s*60.*?DIAGNOSTIC_ROW_TIA_BLPF\s*:=\s*66/s &&
+$src =~ /diagnostic_collision_pair\[4\].*?DIAG_PAIR_NUM_00.*?DIAG_PAIR_NUM_40.*?DIAG_PAIR_NUM_80.*?DIAG_PAIR_NUM_C0/s &&
+$src =~ /diagnostic_update_tia_status\(void\).*?diagnostic_tia_cxm0p.*?diagnostic_rows\+57.*?diagnostic_tia_cxm1p.*?diagnostic_rows\+63.*?diagnostic_tia_cxblpf.*?diagnostic_rows\+69.*?diagnostic_tia_collision_pass.*?diagnostic_rows\+71/s
+   or die "diagnostic collision-register readout is incomplete\n";
 $src =~ /bank0 const uint8_t diagnostic_audio0\[64\].*?6,6,6,6/s &&
 $src =~ /bank0 const uint8_t diagnostic_audio1\[64\].*?6,6,6,6/s &&
 $src =~ /bank0 void diagnostic_audio_tick\(void\).*?asm ldx diagnostic_audio_phase;.*?asm lda diagnostic_audio0,x;.*?asm sta AUDV0;.*?asm lda diagnostic_audio1,x;.*?asm sta AUDV1;.*?asm sta diagnostic_audio_phase;/s &&
 $src =~ /cartram uint8_t diagnostic_tia_collision_pass;/ &&
 $src =~ /AUDC0 := 4; AUDC1 := 4;.*?AUDF0 := 10; AUDF1 := 4;/s
    or die "diagnostic dual-channel audio cadence or cartridge-RAM TIA state is incomplete\n";
-$idx =~ /DIAG_PAIR_A_SPACE\s*:=\s*106/ && $idx =~ /DIAG_PAIR_SS\s*:=\s*107/ &&
-$idx =~ /DIAG_PAIR_FA\s*:=\s*108/ && $idx =~ /DIAG_PAIR_IL\s*:=\s*109/
-   or die "diagnostic TIA PASS/FAIL labels are not pre-cooked\n";
+$idx =~ /DIAG_PAIR_CX\s*:=\s*117/ && $idx =~ /DIAG_PAIR_M0\s*:=\s*118/ &&
+$idx =~ /DIAG_PAIR_M1\s*:=\s*119/ && $idx =~ /DIAG_PAIR_P_SPACE\s*:=\s*120/ &&
+$idx =~ /DIAG_PAIR_BL\s*:=\s*121/ && $idx =~ /DIAG_PAIR_PF\s*:=\s*122/ &&
+$idx =~ /DIAG_PAIR_NUM_40\s*:=\s*123/ && $idx =~ /DIAG_PAIR_NUM_80\s*:=\s*124/ &&
+$idx =~ /DIAG_PAIR_NUM_C0\s*:=\s*125/ && $idx =~ /DIAG_PAIR_OK\s*:=\s*126/
+   or die "diagnostic collision-register labels/values are not pre-cooked\n";
 
 my $boot_text=read_file($boot);
 $boot_text =~ /lda \$80,x.*?cmp #\$6c.*?lda \$81,x.*?cmp #\$fc.*?lda \$82,x.*?cmp #\$ff.*?lda \$83,x.*?cmp #\$ea.*?cpx #\$7d/s &&
@@ -163,15 +171,16 @@ $boot_text =~ /\@clear_riot:.*?sta \$80,x.*?\@clear_superchip:.*?sta \$f000,x.*?
    or die "diagnostic boot shim lost pre-clear 7800 signature capture or startup clearing\n";
 $src =~ /cartram uint8_t diagnostic_boot_7800;\s*cartram uint24_t diagnostic_cpu_fingerprint;/s &&
 $src =~ /ARR #\$b8.*?ARR #\$6b.*?ARR #\$6b.*?ARR #\$6b/s &&
-$src =~ /diagnostic_compute_cpu_fingerprint\(\);.*?diagnostic_format_boot_rows\(\);/s
+$src =~ /diagnostic_compute_cpu_fingerprint\(\);.*?diagnostic_initialize_rows\(\);/s &&
+$src =~ /bank5 const uint8_t diagnostic_hex_pair\[16\].*?bank5 void diagnostic_initialize_rows\(void\).*?diagnostic_cpu_fingerprint\+2.*?diagnostic_rows\+17/s
    or die "diagnostic CPU fingerprint capture/display path is incomplete\n";
 $idx =~ /DIAG_PAIR_NUM_26\s*:=\s*110/ && $idx =~ /DIAG_PAIR_NUM_78\s*:=\s*111/ &&
-$idx =~ /DIAG_PAIR_F_SPACE\s*:=\s*116/ && $idx =~ /DIAG_PAIR_COUNT\s*:=\s*117/
+$idx =~ /DIAG_PAIR_F_SPACE\s*:=\s*116/ && $idx =~ /DIAG_PAIR_COUNT\s*:=\s*127/
    or die "diagnostic platform/fingerprint pair indices are incomplete\n";
 $src =~ /DIAGNOSTIC_TV_SECAM.*?COLUP0 := VCS_SECAM_YELLOW;\s*COLUP1 := VCS_SECAM_CYAN;\s*COLUPF := VCS_SECAM_MAGENTA;/s
    or die "diagnostic SECAM TIA colors are no longer distinctive\n";
-$src =~ /GRP0 := 0xff;.*?GRP1 := 0x81;/s
-   or die "diagnostic P0/P1 silhouettes are no longer distinct\n";
+$src =~ /GRP0 := 0x7e;.*?GRP0 := 0x81;.*?GRP1 := 0x18;.*?GRP1 := 0x3c;/s
+   or die "diagnostic P0/P1 collision-lane digits are no longer distinct\n";
 
 my $timing_source=File::Spec->catfile($repo,'test','vcs_frame_timing.cpp');
 my $timing=File::Spec->catfile($tmp,'vcs_frame_timing_diagnostic');

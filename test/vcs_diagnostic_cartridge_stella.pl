@@ -81,7 +81,7 @@ for my$standard (
       my$reference=File::Spec->catfile($repo,'test','fixtures','diagnostic',"reference_${name}_stella_7.0.png");
       -s$reference or die"missing Stella reference $reference\n";
       ok("build $name diagnostic",$driver,'-I',$vcs,'-I',$example,'-T',File::Spec->catfile($vcs,'vcs.cfg'),
-         '-Wa,--illegals',"-DDIAGNOSTIC_TEST_TV=$tv","-DDIAGNOSTIC_TEST_CONTROLLER=$mode",$source,$boot,'-o',$rom);
+         '-Wa,--illegals',"-DDIAGNOSTIC_TEST_TV=$tv","-DDIAGNOSTIC_TEST_CONTROLLER=$mode",'-DDIAGNOSTIC_TEST_TIA_FREEZE=1',$source,$boot,'-o',$rom);
 
       # A fresh private X server per case avoids stale SDL/X11 state after
       # repeatedly terminating Stella during the 12-screen matrix.
