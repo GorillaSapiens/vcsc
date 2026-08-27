@@ -221,3 +221,14 @@ of the opening-bracket cell and renders a true five-column `.X.X./XXXXX/.X.X./
 XXXXX/.X.X.` body. The diagnostic pair font is regenerated with that option.
 Font and diagnostic regressions pin the exact widened raster and freshness
 contract. `vcs_half_ascii_font.pl` and `vcs_diagnostic_cartridge.pl` pass.
+
+2026-08-26 18:47:00 PDT, refine Half N glyph
+Changed the Half ASCII `N` to the requested five-row shape
+`.X.X/.XX./.XXX/..XX/.X.X`, preserving the blank sixth source row. Regenerated
+all Half subsets; decimal/hex/lhex remain byte-identical because none contain
+`N`. Regenerated the diagnostic five-row pair font with the existing page-safe
+and wide-bracket-hash options, so `NO`, `NT`, `IN`, and other composed uses now
+carry the revised glyph. Updated the font regression to pin the new shape.
+Refreshed and independently revalidated all 12 diagnostic Stella references.
+`vcs_half_ascii_font.pl`, `vcs_diagnostic_cartridge.pl`, source hygiene, and
+history-format hygiene pass.

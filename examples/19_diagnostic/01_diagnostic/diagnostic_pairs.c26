@@ -59,7 +59,7 @@ bank1 align(256) const uint8_t score_font[587] := {
    VCS_FONT_GLYPH(
       0b.X.X.XXX,
       0b.XX..X.X,
-      0b.X.X.X.X,
+      0b.XXX.X.X,
       0b..XX.X.X,
       0b.X.X.XXX
    ),
@@ -239,7 +239,7 @@ bank1 align(256) const uint8_t score_font[587] := {
    VCS_FONT_GLYPH(
       0b.XXX.X.X,
       0b..X..XX.,
-      0b..X..X.X,
+      0b..X..XXX,
       0b..X...XX,
       0b.XXX.X.X
    ),

@@ -69,7 +69,7 @@ my %readable = (
    0x2A => '.X.X/..X./.XXX/..X./.X.X/....', # *
    0x42 => '.XX./.X.X/.XX./.X.X/.XX./....', # B
    0x4D => '.X.X/.XXX/.XXX/.X.X/.X.X/....', # M
-   0x4E => '.X.X/.XX./.X.X/..XX/.X.X/....', # N
+   0x4E => '.X.X/.XX./.XXX/..XX/.X.X/....', # N
 );
 for my $code (sort {$a<=>$b} keys %readable) {
    my $got=$ascii_glyphs[$code-0x20];
