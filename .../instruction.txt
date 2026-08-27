@@ -12,15 +12,11 @@ Assume the available tool-execution window may be short. Optimize for useful pro
 * Put every completed change, decision, experiment, obsolete checkpoint, old measurement, and superseded plan in that day's `.../context-history/YYYY-MM-DD.txt`. Replace stale hot-state text instead of appending history to it.
 * Update the relevant hot roadmap/design file only when unfinished status, a durable invariant, or the next action changes. Do not preserve completed checklist prose there merely for archaeology; history and tests own that.
 * Prefer executable regressions as durable memory of implementation facts. Do not make hygiene tests depend on completed prose staying in hot context files.
-* Do not create intermediate checkpoint tarballs merely because some progress has been made. Continue working for as long as useful progress is possible.
+* Every turn should end with the creation of a handoff tarball in case chat length limits are reached.
 * When handing work back, provide only one tarball containing the latest complete state unless I explicitly request otherwise.
+* Tarball download link should come at the beginning of your response to avoid bugs with links at the end of the response.
 * If the execution window ends before the whole task is complete, preserve the unfinished state and exact next step in the relevant compact hot file; record completed work separately in daily history.
 * Do not waste execution time narrating routine operations. Briefly report important findings, decisions, regressions, or blockers while continuing the task.
 
 Preserve existing project conventions unless the task explicitly requires changing them. Prefer fixing root causes over adding narrow exceptions or test-specific hacks. Do not weaken tests merely to make them pass unless the test itself is demonstrably wrong.
 
-[Describe the task here.]
-
-
-git tag 2026-08-12-third-base
-git push origin 2026-08-12-third-base

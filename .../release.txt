@@ -1,0 +1,4 @@
+Quick notes for humans on how to do a release:
+
+git tag 2026-08-12-third-base
+git push origin 2026-08-12-third-base
