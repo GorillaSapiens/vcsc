@@ -165,15 +165,20 @@ require_re($source,qr/upper_logo_score\s*:=\s*12345\s*;.*?lower_logo_score\s*:=\
            'both logos are no longer driven by the fixed six-glyph value 012345');
 require_re($source,qr/inline\s+void\s+load_logo_pointers\s*\(void\).*?lda #<logo_font;.*?sta upper_logo_pointers;.*?sta lower_logo_pointers;.*?adc #\$08;.*?sta upper_logo_pointers\+10;.*?sta lower_logo_pointers\+10;.*?lda #>logo_font;.*?sta upper_logo_pointers\+11;.*?sta lower_logo_pointers\+11;/s,
            'both logo pointer sets are no longer redirected to the six logo-font slices');
-for my $pair ([$component,'big-wide',19],[$left_component,'left',11],[$right_component,'right',11]) {
-   my ($path,$name,$lines)=@$pair;
+for my $pair ([$component,'big-wide',16,19],[$left_component,'left',8,11],[$right_component,'right',8,11]) {
+   my ($path,$name,$rows,$lines)=@$pair;
    my $text=read_file($path);
    for my $phase (qw(init vblank draw overscan)) {
       require_re($text,qr/require\s+inline\s+void\s+TEMPLATE_\Q$phase\E\s*\(/,
                  "$name component is missing required $phase lifecycle");
    }
-   require_re($text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*\Q$lines\E/,
-              "$name component no longer declares $lines visible scanlines");
+   require_re($text,qr/parameter\s+glyph_rows\s*:=\s*\Q$rows\E\s*;/,
+              "$name component lost its $rows-row default");
+   require_re($text,qr/#(?:if|elif)\s+TEMPLATE_glyph_rows\s*==\s*\Q$rows\E\s*
+\s*alias\s+TEMPLATE_VISIBLE_SCANLINES_VALUE\s+\Q$lines\E\b/,
+              "$name component no longer maps its default height to $lines visible scanlines");
+   require_re($text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/,
+              "$name component no longer publishes parameterized visible scanlines");
 }
 require_re($source,qr/vcs_ntsc_begin_vblank\(\).*?display_vblank\(\).*?upper_logo_vblank\(\).*?lower_logo_vblank\(\).*?load_logo_pointers\(\).*?vcs_ntsc_end_vblank\(\)/s,
            'all three display vblank lifecycles are not inside the scheduler-owned budget');

@@ -1,18 +1,17 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
-// 8x8 score-compatible paired-message glyphs
+// 8x5 compact paired-message glyphs
 // Generated from: libraries/vcs/fonts/half_ascii.c26
 // Message: "  VCSCDIAGNOSTICNTPAL SECAM JOYSTICKDDLEKEYPADDRIVING P0P1P2P3F0F1F2F3COLRB& D0A0B1A1B0 1 L0L1 R U ...D..LDLR..FRF] [ [1[2[3[4[5[6[7[8[9[*[0[#00010203040506070809101112131415161718192021222324252 3 4 5 6 7 8 9 W A SSFAIL2678B C D E F "
 // Two source characters per 8-bit glyph; odd messages are space-padded.
-// --score adds one blank row above and below the original 4x6 pair.
+// --five drops the source font's blank sixth row and page-pads only when
+// needed so no five-byte glyph crosses a 256-byte page.
+// --wide-bracket-hash lets [# borrow the unused fourth column of [.
 
-alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
+alias VCS_FONT_GLYPH(a,b,c,d,e) e,d,c,b,a
 
-bank1 align(256) const uint8_t score_font[936] := {
-   // 0: "  " (0x20 0x20)
+bank1 align(256) const uint8_t score_font[587] := {
+   // 0: "  " (0x20 0x20) offset=0x000
    VCS_FONT_GLYPH(
-      0b........,
-      0b........,
-      0b........,
       0b........,
       0b........,
       0b........,
@@ -20,1396 +19,1052 @@ bank1 align(256) const uint8_t score_font[936] := {
       0b........
    ),
 
-   // 1: "VC" (0x56 0x43)
+   // 1: "VC" (0x56 0x43) offset=0x005
    VCS_FONT_GLYPH(
-      0b........,
       0b.X.X.XXX,
       0b.X.X.X..,
       0b.X.X.X..,
       0b.X.X.X..,
-      0b..X..XXX,
-      0b........,
-      0b........
+      0b..X..XXX
    ),
 
-   // 2: "SC" (0x53 0x43)
+   // 2: "SC" (0x53 0x43) offset=0x00A
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XXX,
       0b.X...X..,
       0b.XXX.X..,
       0b...X.X..,
-      0b.XXX.XXX,
-      0b........,
-      0b........
+      0b.XXX.XXX
    ),
 
-   // 3: "DI" (0x44 0x49)
+   // 3: "DI" (0x44 0x49) offset=0x00F
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..XXX,
       0b.X.X..X.,
       0b.X.X..X.,
       0b.X.X..X.,
-      0b.XX..XXX,
-      0b........,
-      0b........
+      0b.XX..XXX
    ),
 
-   // 4: "AG" (0x41 0x47)
+   // 4: "AG" (0x41 0x47) offset=0x014
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XXX,
       0b.X.X.X..,
       0b.XXX.X.X,
       0b.X.X.X.X,
-      0b.X.X.XXX,
-      0b........,
-      0b........
+      0b.X.X.XXX
    ),
 
-   // 5: "NO" (0x4E 0x4F)
+   // 5: "NO" (0x4E 0x4F) offset=0x019
    VCS_FONT_GLYPH(
-      0b........,
       0b.X.X.XXX,
       0b.XX..X.X,
       0b.X.X.X.X,
       0b..XX.X.X,
-      0b.X.X.XXX,
-      0b........,
-      0b........
+      0b.X.X.XXX
    ),
 
-   // 6: "ST" (0x53 0x54)
+   // 6: "ST" (0x53 0x54) offset=0x01E
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XXX,
       0b.X....X.,
       0b.XXX..X.,
       0b...X..X.,
-      0b.XXX..X.,
-      0b........,
-      0b........
+      0b.XXX..X.
    ),
 
-   // 7: "IC" (0x49 0x43)
+   // 7: "IC" (0x49 0x43) offset=0x023
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XXX,
       0b..X..X..,
       0b..X..X..,
       0b..X..X..,
-      0b.XXX.XXX,
-      0b........,
-      0b........
+      0b.XXX.XXX
    ),
 
-   // 8: "NT" (0x4E 0x54)
+   // 8: "NT" (0x4E 0x54) offset=0x028
    VCS_FONT_GLYPH(
-      0b........,
       0b.X.X.XXX,
       0b.XX...X.,
-      0b.X.X..X.,
+      0b.XXX..X.,
       0b..XX..X.,
-      0b.X.X..X.,
-      0b........,
-      0b........
+      0b.X.X..X.
    ),
 
-   // 9: "PA" (0x50 0x41)
+   // 9: "PA" (0x50 0x41) offset=0x02D
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XXX,
       0b.X.X.X.X,
       0b.XXX.XXX,
       0b.X...X.X,
-      0b.X...X.X,
-      0b........,
-      0b........
+      0b.X...X.X
    ),
 
-   // 10: "L " (0x4C 0x20)
+   // 10: "L " (0x4C 0x20) offset=0x032
    VCS_FONT_GLYPH(
-      0b........,
       0b.X......,
       0b.X......,
       0b.X......,
       0b.X......,
-      0b.XXX....,
-      0b........,
-      0b........
+      0b.XXX....
    ),
 
-   // 11: "SE" (0x53 0x45)
+   // 11: "SE" (0x53 0x45) offset=0x037
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XXX,
       0b.X...X..,
       0b.XXX.XX.,
       0b...X.X..,
-      0b.XXX.XXX,
-      0b........,
-      0b........
+      0b.XXX.XXX
    ),
 
-   // 12: "CA" (0x43 0x41)
+   // 12: "CA" (0x43 0x41) offset=0x03C
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XXX,
       0b.X...X.X,
       0b.X...XXX,
       0b.X...X.X,
-      0b.XXX.X.X,
-      0b........,
-      0b........
+      0b.XXX.X.X
    ),
 
-   // 13: "M " (0x4D 0x20)
+   // 13: "M " (0x4D 0x20) offset=0x041
    VCS_FONT_GLYPH(
-      0b........,
       0b.X.X....,
       0b.XXX....,
       0b.XXX....,
       0b.X.X....,
-      0b.X.X....,
-      0b........,
-      0b........
+      0b.X.X....
    ),
 
-   // 14: "JO" (0x4A 0x4F)
+   // 14: "JO" (0x4A 0x4F) offset=0x046
    VCS_FONT_GLYPH(
-      0b........,
       0b...X.XXX,
       0b...X.X.X,
       0b...X.X.X,
       0b.X.X.X.X,
-      0b.XXX.XXX,
-      0b........,
-      0b........
+      0b.XXX.XXX
    ),
 
-   // 15: "YS" (0x59 0x53)
+   // 15: "YS" (0x59 0x53) offset=0x04B
    VCS_FONT_GLYPH(
-      0b........,
       0b.X.X.XXX,
       0b.X.X.X..,
       0b..X..XXX,
       0b..X....X,
-      0b..X..XXX,
-      0b........,
-      0b........
+      0b..X..XXX
    ),
 
-   // 16: "TI" (0x54 0x49)
+   // 16: "TI" (0x54 0x49) offset=0x050
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XXX,
       0b..X...X.,
       0b..X...X.,
       0b..X...X.,
-      0b..X..XXX,
-      0b........,
-      0b........
+      0b..X..XXX
    ),
 
-   // 17: "CK" (0x43 0x4B)
+   // 17: "CK" (0x43 0x4B) offset=0x055
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.X.X,
       0b.X...X.X,
       0b.X...XX.,
       0b.X...X.X,
-      0b.XXX.X.X,
-      0b........,
-      0b........
+      0b.XXX.X.X
    ),
 
-   // 18: "DD" (0x44 0x44)
+   // 18: "DD" (0x44 0x44) offset=0x05A
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..XX.,
       0b.X.X.X.X,
       0b.X.X.X.X,
       0b.X.X.X.X,
-      0b.XX..XX.,
-      0b........,
-      0b........
+      0b.XX..XX.
    ),
 
-   // 19: "LE" (0x4C 0x45)
+   // 19: "LE" (0x4C 0x45) offset=0x05F
    VCS_FONT_GLYPH(
-      0b........,
       0b.X...XXX,
       0b.X...X..,
       0b.X...XX.,
       0b.X...X..,
-      0b.XXX.XXX,
-      0b........,
-      0b........
+      0b.XXX.XXX
    ),
 
-   // 20: "KE" (0x4B 0x45)
+   // 20: "KE" (0x4B 0x45) offset=0x064
    VCS_FONT_GLYPH(
-      0b........,
       0b.X.X.XXX,
       0b.X.X.X..,
       0b.XX..XX.,
       0b.X.X.X..,
-      0b.X.X.XXX,
-      0b........,
-      0b........
+      0b.X.X.XXX
    ),
 
-   // 21: "YP" (0x59 0x50)
+   // 21: "YP" (0x59 0x50) offset=0x069
    VCS_FONT_GLYPH(
-      0b........,
       0b.X.X.XXX,
       0b.X.X.X.X,
       0b..X..XXX,
       0b..X..X..,
-      0b..X..X..,
-      0b........,
-      0b........
+      0b..X..X..
    ),
 
-   // 22: "AD" (0x41 0x44)
+   // 22: "AD" (0x41 0x44) offset=0x06E
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XX.,
       0b.X.X.X.X,
       0b.XXX.X.X,
       0b.X.X.X.X,
-      0b.X.X.XX.,
-      0b........,
-      0b........
+      0b.X.X.XX.
    ),
 
-   // 23: "DR" (0x44 0x52)
+   // 23: "DR" (0x44 0x52) offset=0x073
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..XXX,
       0b.X.X.X.X,
       0b.X.X.XX.,
       0b.X.X.X.X,
-      0b.XX..X.X,
-      0b........,
-      0b........
+      0b.XX..X.X
    ),
 
-   // 24: "IV" (0x49 0x56)
+   // 24: "IV" (0x49 0x56) offset=0x078
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.X.X,
       0b..X..X.X,
       0b..X..X.X,
       0b..X..X.X,
-      0b.XXX..X.,
-      0b........,
-      0b........
+      0b.XXX..X.
    ),
 
-   // 25: "IN" (0x49 0x4E)
+   // 25: "IN" (0x49 0x4E) offset=0x07D
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.X.X,
       0b..X..XX.,
       0b..X..X.X,
       0b..X...XX,
-      0b.XXX.X.X,
-      0b........,
-      0b........
+      0b.XXX.X.X
    ),
 
-   // 26: "G " (0x47 0x20)
+   // 26: "G " (0x47 0x20) offset=0x082
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX....,
       0b.X......,
       0b.X.X....,
       0b.X.X....,
-      0b.XXX....,
-      0b........,
-      0b........
+      0b.XXX....
    ),
 
-   // 27: "P0" (0x50 0x30)
+   // 27: "P0" (0x50 0x30) offset=0x087
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX..X.,
       0b.X.X.X.X,
       0b.XXX.X.X,
       0b.X...X.X,
-      0b.X....X.,
-      0b........,
-      0b........
+      0b.X....X.
    ),
 
-   // 28: "P1" (0x50 0x31)
+   // 28: "P1" (0x50 0x31) offset=0x08C
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX..X.,
       0b.X.X.XX.,
       0b.XXX..X.,
       0b.X....X.,
-      0b.X....X.,
-      0b........,
-      0b........
+      0b.X....X.
    ),
 
-   // 29: "P2" (0x50 0x32)
+   // 29: "P2" (0x50 0x32) offset=0x091
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XX.,
       0b.X.X...X,
       0b.XXX..X.,
       0b.X...X..,
-      0b.X...XXX,
-      0b........,
-      0b........
+      0b.X...XXX
    ),
 
-   // 30: "P3" (0x50 0x33)
+   // 30: "P3" (0x50 0x33) offset=0x096
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XX.,
       0b.X.X...X,
       0b.XXX..X.,
       0b.X.....X,
-      0b.X...XX.,
-      0b........,
-      0b........
+      0b.X...XX.
    ),
 
-   // 31: "F0" (0x46 0x30)
+   // 31: "F0" (0x46 0x30) offset=0x09B
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX..X.,
       0b.X...X.X,
       0b.XX..X.X,
       0b.X...X.X,
-      0b.X....X.,
-      0b........,
-      0b........
+      0b.X....X.
    ),
 
-   // 32: "F1" (0x46 0x31)
+   // 32: "F1" (0x46 0x31) offset=0x0A0
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX..X.,
       0b.X...XX.,
       0b.XX...X.,
       0b.X....X.,
-      0b.X....X.,
-      0b........,
-      0b........
+      0b.X....X.
    ),
 
-   // 33: "F2" (0x46 0x32)
+   // 33: "F2" (0x46 0x32) offset=0x0A5
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XX.,
       0b.X.....X,
       0b.XX...X.,
       0b.X...X..,
-      0b.X...XXX,
-      0b........,
-      0b........
+      0b.X...XXX
    ),
 
-   // 34: "F3" (0x46 0x33)
+   // 34: "F3" (0x46 0x33) offset=0x0AA
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XX.,
       0b.X.....X,
       0b.XX...X.,
       0b.X.....X,
-      0b.X...XX.,
-      0b........,
-      0b........
+      0b.X...XX.
    ),
 
-   // 35: "CO" (0x43 0x4F)
+   // 35: "CO" (0x43 0x4F) offset=0x0AF
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XXX,
       0b.X...X.X,
       0b.X...X.X,
       0b.X...X.X,
-      0b.XXX.XXX,
-      0b........,
-      0b........
+      0b.XXX.XXX
    ),
 
-   // 36: "LR" (0x4C 0x52)
+   // 36: "LR" (0x4C 0x52) offset=0x0B4
    VCS_FONT_GLYPH(
-      0b........,
       0b.X...XXX,
       0b.X...X.X,
       0b.X...XX.,
       0b.X...X.X,
-      0b.XXX.X.X,
-      0b........,
-      0b........
+      0b.XXX.X.X
    ),
 
-   // 37: "B&" (0x42 0x26)
+   // 37: "B&" (0x42 0x26) offset=0x0B9
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..XXX,
       0b.X.X.X.X,
       0b.XX...XX,
       0b.X.X.X.X,
-      0b.XX..XXX,
-      0b........,
-      0b........
+      0b.XX..XXX
    ),
 
-   // 38: " D" (0x20 0x44)
+   // 38: " D" (0x20 0x44) offset=0x0BE
    VCS_FONT_GLYPH(
-      0b........,
       0b.....XX.,
       0b.....X.X,
       0b.....X.X,
       0b.....X.X,
-      0b.....XX.,
-      0b........,
-      0b........
+      0b.....XX.
    ),
 
-   // 39: "0A" (0x30 0x41)
+   // 39: "0A" (0x30 0x41) offset=0x0C3
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XXX,
       0b.X.X.X.X,
       0b.X.X.XXX,
       0b.X.X.X.X,
-      0b..X..X.X,
-      0b........,
-      0b........
+      0b..X..X.X
    ),
 
-   // 40: "0B" (0x30 0x42)
+   // 40: "0B" (0x30 0x42) offset=0x0C8
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XX.,
       0b.X.X.X.X,
       0b.X.X.XX.,
       0b.X.X.X.X,
-      0b..X..XX.,
-      0b........,
-      0b........
+      0b..X..XX.
    ),
 
-   // 41: "1A" (0x31 0x41)
+   // 41: "1A" (0x31 0x41) offset=0x0CD
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XXX,
       0b.XX..X.X,
       0b..X..XXX,
       0b..X..X.X,
-      0b..X..X.X,
-      0b........,
-      0b........
+      0b..X..X.X
    ),
 
-   // 42: "1B" (0x31 0x42)
+   // 42: "1B" (0x31 0x42) offset=0x0D2
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XX.,
       0b.XX..X.X,
       0b..X..XX.,
       0b..X..X.X,
-      0b..X..XX.,
-      0b........,
-      0b........
+      0b..X..XX.
    ),
 
-   // 43: "0 " (0x30 0x20)
+   // 43: "0 " (0x30 0x20) offset=0x0D7
    VCS_FONT_GLYPH(
-      0b........,
       0b..X.....,
       0b.X.X....,
       0b.X.X....,
       0b.X.X....,
-      0b..X.....,
-      0b........,
-      0b........
+      0b..X.....
    ),
 
-   // 44: "1 " (0x31 0x20)
+   // 44: "1 " (0x31 0x20) offset=0x0DC
    VCS_FONT_GLYPH(
-      0b........,
       0b..X.....,
       0b.XX.....,
       0b..X.....,
       0b..X.....,
-      0b..X.....,
-      0b........,
-      0b........
+      0b..X.....
    ),
 
-   // 45: "L0" (0x4C 0x30)
+   // 45: "L0" (0x4C 0x30) offset=0x0E1
    VCS_FONT_GLYPH(
-      0b........,
       0b.X....X.,
       0b.X...X.X,
       0b.X...X.X,
       0b.X...X.X,
-      0b.XXX..X.,
-      0b........,
-      0b........
+      0b.XXX..X.
    ),
 
-   // 46: "L1" (0x4C 0x31)
+   // 46: "L1" (0x4C 0x31) offset=0x0E6
    VCS_FONT_GLYPH(
-      0b........,
       0b.X....X.,
       0b.X...XX.,
       0b.X....X.,
       0b.X....X.,
-      0b.XXX..X.,
-      0b........,
-      0b........
+      0b.XXX..X.
    ),
 
-   // 47: " R" (0x20 0x52)
+   // 47: " R" (0x20 0x52) offset=0x0EB
    VCS_FONT_GLYPH(
-      0b........,
       0b.....XXX,
       0b.....X.X,
       0b.....XX.,
       0b.....X.X,
-      0b.....X.X,
-      0b........,
-      0b........
+      0b.....X.X
    ),
 
-   // 48: " U" (0x20 0x55)
+   // 48: " U" (0x20 0x55) offset=0x0F0
    VCS_FONT_GLYPH(
-      0b........,
       0b.....X.X,
       0b.....X.X,
       0b.....X.X,
       0b.....X.X,
-      0b.....XXX,
-      0b........,
-      0b........
+      0b.....XXX
    ),
 
-   // 49: " ." (0x20 0x2E)
+   // 49: " ." (0x20 0x2E) offset=0x0F5
    VCS_FONT_GLYPH(
       0b........,
       0b........,
       0b........,
       0b........,
-      0b........,
-      0b......X.,
-      0b........,
-      0b........
+      0b......X.
    ),
 
-   // 50: ".." (0x2E 0x2E)
+   // 50: ".." (0x2E 0x2E) offset=0x0FA
    VCS_FONT_GLYPH(
       0b........,
       0b........,
       0b........,
       0b........,
-      0b........,
-      0b..X...X.,
-      0b........,
-      0b........
+      0b..X...X.
    ),
 
-   // 51: "D." (0x44 0x2E)
+   // page-boundary padding before glyph 51
+   0,
+   // 51: "D." (0x44 0x2E) offset=0x100
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX.....,
       0b.X.X....,
       0b.X.X....,
       0b.X.X....,
-      0b.XX...X.,
-      0b........,
-      0b........
+      0b.XX...X.
    ),
 
-   // 52: ".L" (0x2E 0x4C)
+   // 52: ".L" (0x2E 0x4C) offset=0x105
    VCS_FONT_GLYPH(
-      0b........,
       0b.....X..,
       0b.....X..,
       0b.....X..,
       0b.....X..,
-      0b..X..XXX,
-      0b........,
-      0b........
+      0b..X..XXX
    ),
 
-   // 53: "DL" (0x44 0x4C)
+   // 53: "DL" (0x44 0x4C) offset=0x10A
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..X..,
       0b.X.X.X..,
       0b.X.X.X..,
       0b.X.X.X..,
-      0b.XX..XXX,
-      0b........,
-      0b........
+      0b.XX..XXX
    ),
 
-   // 54: "R." (0x52 0x2E)
+   // 54: "R." (0x52 0x2E) offset=0x10F
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX....,
       0b.X.X....,
       0b.XX.....,
       0b.X.X....,
-      0b.X.X..X.,
-      0b........,
-      0b........
+      0b.X.X..X.
    ),
 
-   // 55: ".F" (0x2E 0x46)
+   // 55: ".F" (0x2E 0x46) offset=0x114
    VCS_FONT_GLYPH(
-      0b........,
       0b.....XXX,
       0b.....X..,
       0b.....XX.,
       0b.....X..,
-      0b..X..X..,
-      0b........,
-      0b........
+      0b..X..X..
    ),
 
-   // 56: "RF" (0x52 0x46)
+   // 56: "RF" (0x52 0x46) offset=0x119
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XXX,
       0b.X.X.X..,
       0b.XX..XX.,
       0b.X.X.X..,
-      0b.X.X.X..,
-      0b........,
-      0b........
+      0b.X.X.X..
    ),
 
-   // 57: "] " (0x5D 0x20)
+   // 57: "] " (0x5D 0x20) offset=0x11E
    VCS_FONT_GLYPH(
-      0b........,
       0b..XX....,
       0b...X....,
       0b...X....,
       0b...X....,
-      0b..XX....,
-      0b........,
-      0b........
+      0b..XX....
    ),
 
-   // 58: "[ " (0x5B 0x20)
+   // 58: "[ " (0x5B 0x20) offset=0x123
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX.....,
       0b.X......,
       0b.X......,
       0b.X......,
-      0b.XX.....,
-      0b........,
-      0b........
+      0b.XX.....
    ),
 
-   // 59: "[1" (0x5B 0x31)
+   // 59: "[1" (0x5B 0x31) offset=0x128
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX...X.,
       0b.X...XX.,
       0b.X....X.,
       0b.X....X.,
-      0b.XX...X.,
-      0b........,
-      0b........
+      0b.XX...X.
    ),
 
-   // 60: "[2" (0x5B 0x32)
+   // 60: "[2" (0x5B 0x32) offset=0x12D
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..XX.,
       0b.X.....X,
       0b.X....X.,
       0b.X...X..,
-      0b.XX..XXX,
-      0b........,
-      0b........
+      0b.XX..XXX
    ),
 
-   // 61: "[3" (0x5B 0x33)
+   // 61: "[3" (0x5B 0x33) offset=0x132
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..XX.,
       0b.X.....X,
       0b.X....X.,
       0b.X.....X,
-      0b.XX..XX.,
-      0b........,
-      0b........
+      0b.XX..XX.
    ),
 
-   // 62: "[4" (0x5B 0x34)
+   // 62: "[4" (0x5B 0x34) offset=0x137
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..X.X,
       0b.X...X.X,
       0b.X...XXX,
       0b.X.....X,
-      0b.XX....X,
-      0b........,
-      0b........
+      0b.XX....X
    ),
 
-   // 63: "[5" (0x5B 0x35)
+   // 63: "[5" (0x5B 0x35) offset=0x13C
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..XXX,
       0b.X...X..,
       0b.X...XXX,
       0b.X.....X,
-      0b.XX..XX.,
-      0b........,
-      0b........
+      0b.XX..XX.
    ),
 
-   // 64: "[6" (0x5B 0x36)
+   // 64: "[6" (0x5B 0x36) offset=0x141
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..XXX,
       0b.X...X..,
       0b.X...XXX,
       0b.X...X.X,
-      0b.XX..XXX,
-      0b........,
-      0b........
+      0b.XX..XXX
    ),
 
-   // 65: "[7" (0x5B 0x37)
+   // 65: "[7" (0x5B 0x37) offset=0x146
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..XXX,
       0b.X.....X,
       0b.X....X.,
       0b.X....X.,
-      0b.XX...X.,
-      0b........,
-      0b........
+      0b.XX...X.
    ),
 
-   // 66: "[8" (0x5B 0x38)
+   // 66: "[8" (0x5B 0x38) offset=0x14B
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..XXX,
       0b.X...X.X,
       0b.X....X.,
       0b.X...X.X,
-      0b.XX..XXX,
-      0b........,
-      0b........
+      0b.XX..XXX
    ),
 
-   // 67: "[9" (0x5B 0x39)
+   // 67: "[9" (0x5B 0x39) offset=0x150
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..XXX,
       0b.X...X.X,
       0b.X...XXX,
       0b.X.....X,
-      0b.XX..XXX,
-      0b........,
-      0b........
+      0b.XX..XXX
    ),
 
-   // 68: "[*" (0x5B 0x2A)
+   // 68: "[*" (0x5B 0x2A) offset=0x155
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..X.X,
       0b.X....X.,
       0b.X...XXX,
       0b.X....X.,
-      0b.XX..X.X,
-      0b........,
-      0b........
+      0b.XX..X.X
    ),
 
-   // 69: "[0" (0x5B 0x30)
+   // 69: "[0" (0x5B 0x30) offset=0x15A
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX...X.,
       0b.X...X.X,
       0b.X...X.X,
       0b.X...X.X,
-      0b.XX...X.,
-      0b........,
-      0b........
+      0b.XX...X.
    ),
 
-   // 70: "[#" (0x5B 0x23)
+   // 70: "[#" (0x5B 0x23) offset=0x15F
    VCS_FONT_GLYPH(
-      0b........,
-      0b.XX...X.,
-      0b.X...XXX,
-      0b.X....X.,
-      0b.X...XXX,
-      0b.XX...X.,
-      0b........,
-      0b........
+      0b.XX.X.X.,
+      0b.X.XXXXX,
+      0b.X..X.X.,
+      0b.X.XXXXX,
+      0b.XX.X.X.
    ),
 
-   // 71: "00" (0x30 0x30)
+   // 71: "00" (0x30 0x30) offset=0x164
    VCS_FONT_GLYPH(
-      0b........,
       0b..X...X.,
       0b.X.X.X.X,
       0b.X.X.X.X,
       0b.X.X.X.X,
-      0b..X...X.,
-      0b........,
-      0b........
+      0b..X...X.
    ),
 
-   // 72: "01" (0x30 0x31)
+   // 72: "01" (0x30 0x31) offset=0x169
    VCS_FONT_GLYPH(
-      0b........,
       0b..X...X.,
       0b.X.X.XX.,
       0b.X.X..X.,
       0b.X.X..X.,
-      0b..X...X.,
-      0b........,
-      0b........
+      0b..X...X.
    ),
 
-   // 73: "02" (0x30 0x32)
+   // 73: "02" (0x30 0x32) offset=0x16E
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XX.,
       0b.X.X...X,
       0b.X.X..X.,
       0b.X.X.X..,
-      0b..X..XXX,
-      0b........,
-      0b........
+      0b..X..XXX
    ),
 
-   // 74: "03" (0x30 0x33)
+   // 74: "03" (0x30 0x33) offset=0x173
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XX.,
       0b.X.X...X,
       0b.X.X..X.,
       0b.X.X...X,
-      0b..X..XX.,
-      0b........,
-      0b........
+      0b..X..XX.
    ),
 
-   // 75: "04" (0x30 0x34)
+   // 75: "04" (0x30 0x34) offset=0x178
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..X.X,
       0b.X.X.X.X,
       0b.X.X.XXX,
       0b.X.X...X,
-      0b..X....X,
-      0b........,
-      0b........
+      0b..X....X
    ),
 
-   // 76: "05" (0x30 0x35)
+   // 76: "05" (0x30 0x35) offset=0x17D
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XXX,
       0b.X.X.X..,
       0b.X.X.XXX,
       0b.X.X...X,
-      0b..X..XX.,
-      0b........,
-      0b........
+      0b..X..XX.
    ),
 
-   // 77: "06" (0x30 0x36)
+   // 77: "06" (0x30 0x36) offset=0x182
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XXX,
       0b.X.X.X..,
       0b.X.X.XXX,
       0b.X.X.X.X,
-      0b..X..XXX,
-      0b........,
-      0b........
+      0b..X..XXX
    ),
 
-   // 78: "07" (0x30 0x37)
+   // 78: "07" (0x30 0x37) offset=0x187
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XXX,
       0b.X.X...X,
       0b.X.X..X.,
       0b.X.X..X.,
-      0b..X...X.,
-      0b........,
-      0b........
+      0b..X...X.
    ),
 
-   // 79: "08" (0x30 0x38)
+   // 79: "08" (0x30 0x38) offset=0x18C
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XXX,
       0b.X.X.X.X,
       0b.X.X..X.,
       0b.X.X.X.X,
-      0b..X..XXX,
-      0b........,
-      0b........
+      0b..X..XXX
    ),
 
-   // 80: "09" (0x30 0x39)
+   // 80: "09" (0x30 0x39) offset=0x191
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XXX,
       0b.X.X.X.X,
       0b.X.X.XXX,
       0b.X.X...X,
-      0b..X..XXX,
-      0b........,
-      0b........
+      0b..X..XXX
    ),
 
-   // 81: "10" (0x31 0x30)
+   // 81: "10" (0x31 0x30) offset=0x196
    VCS_FONT_GLYPH(
-      0b........,
       0b..X...X.,
       0b.XX..X.X,
       0b..X..X.X,
       0b..X..X.X,
-      0b..X...X.,
-      0b........,
-      0b........
+      0b..X...X.
    ),
 
-   // 82: "11" (0x31 0x31)
+   // 82: "11" (0x31 0x31) offset=0x19B
    VCS_FONT_GLYPH(
-      0b........,
       0b..X...X.,
       0b.XX..XX.,
       0b..X...X.,
       0b..X...X.,
-      0b..X...X.,
-      0b........,
-      0b........
+      0b..X...X.
    ),
 
-   // 83: "12" (0x31 0x32)
+   // 83: "12" (0x31 0x32) offset=0x1A0
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XX.,
       0b.XX....X,
       0b..X...X.,
       0b..X..X..,
-      0b..X..XXX,
-      0b........,
-      0b........
+      0b..X..XXX
    ),
 
-   // 84: "13" (0x31 0x33)
+   // 84: "13" (0x31 0x33) offset=0x1A5
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XX.,
       0b.XX....X,
       0b..X...X.,
       0b..X....X,
-      0b..X..XX.,
-      0b........,
-      0b........
+      0b..X..XX.
    ),
 
-   // 85: "14" (0x31 0x34)
+   // 85: "14" (0x31 0x34) offset=0x1AA
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..X.X,
       0b.XX..X.X,
       0b..X..XXX,
       0b..X....X,
-      0b..X....X,
-      0b........,
-      0b........
+      0b..X....X
    ),
 
-   // 86: "15" (0x31 0x35)
+   // 86: "15" (0x31 0x35) offset=0x1AF
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XXX,
       0b.XX..X..,
       0b..X..XXX,
       0b..X....X,
-      0b..X..XX.,
-      0b........,
-      0b........
+      0b..X..XX.
    ),
 
-   // 87: "16" (0x31 0x36)
+   // 87: "16" (0x31 0x36) offset=0x1B4
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XXX,
       0b.XX..X..,
       0b..X..XXX,
       0b..X..X.X,
-      0b..X..XXX,
-      0b........,
-      0b........
+      0b..X..XXX
    ),
 
-   // 88: "17" (0x31 0x37)
+   // 88: "17" (0x31 0x37) offset=0x1B9
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XXX,
       0b.XX....X,
       0b..X...X.,
       0b..X...X.,
-      0b..X...X.,
-      0b........,
-      0b........
+      0b..X...X.
    ),
 
-   // 89: "18" (0x31 0x38)
+   // 89: "18" (0x31 0x38) offset=0x1BE
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XXX,
       0b.XX..X.X,
       0b..X...X.,
       0b..X..X.X,
-      0b..X..XXX,
-      0b........,
-      0b........
+      0b..X..XXX
    ),
 
-   // 90: "19" (0x31 0x39)
+   // 90: "19" (0x31 0x39) offset=0x1C3
    VCS_FONT_GLYPH(
-      0b........,
       0b..X..XXX,
       0b.XX..X.X,
       0b..X..XXX,
       0b..X....X,
-      0b..X..XXX,
-      0b........,
-      0b........
+      0b..X..XXX
    ),
 
-   // 91: "20" (0x32 0x30)
+   // 91: "20" (0x32 0x30) offset=0x1C8
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX...X.,
       0b...X.X.X,
       0b..X..X.X,
       0b.X...X.X,
-      0b.XXX..X.,
-      0b........,
-      0b........
+      0b.XXX..X.
    ),
 
-   // 92: "21" (0x32 0x31)
+   // 92: "21" (0x32 0x31) offset=0x1CD
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX...X.,
       0b...X.XX.,
       0b..X...X.,
       0b.X....X.,
-      0b.XXX..X.,
-      0b........,
-      0b........
+      0b.XXX..X.
    ),
 
-   // 93: "22" (0x32 0x32)
+   // 93: "22" (0x32 0x32) offset=0x1D2
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..XX.,
       0b...X...X,
       0b..X...X.,
       0b.X...X..,
-      0b.XXX.XXX,
-      0b........,
-      0b........
+      0b.XXX.XXX
    ),
 
-   // 94: "23" (0x32 0x33)
+   // 94: "23" (0x32 0x33) offset=0x1D7
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..XX.,
       0b...X...X,
       0b..X...X.,
       0b.X.....X,
-      0b.XXX.XX.,
-      0b........,
-      0b........
+      0b.XXX.XX.
    ),
 
-   // 95: "24" (0x32 0x34)
+   // 95: "24" (0x32 0x34) offset=0x1DC
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..X.X,
       0b...X.X.X,
       0b..X..XXX,
       0b.X.....X,
-      0b.XXX...X,
-      0b........,
-      0b........
+      0b.XXX...X
    ),
 
-   // 96: "25" (0x32 0x35)
+   // 96: "25" (0x32 0x35) offset=0x1E1
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..XXX,
       0b...X.X..,
       0b..X..XXX,
       0b.X.....X,
-      0b.XXX.XX.,
-      0b........,
-      0b........
+      0b.XXX.XX.
    ),
 
-   // 97: "2 " (0x32 0x20)
+   // 97: "2 " (0x32 0x20) offset=0x1E6
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX.....,
       0b...X....,
       0b..X.....,
       0b.X......,
-      0b.XXX....,
-      0b........,
-      0b........
+      0b.XXX....
    ),
 
-   // 98: "3 " (0x33 0x20)
+   // 98: "3 " (0x33 0x20) offset=0x1EB
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX.....,
       0b...X....,
       0b..X.....,
       0b...X....,
-      0b.XX.....,
-      0b........,
-      0b........
+      0b.XX.....
    ),
 
-   // 99: "4 " (0x34 0x20)
+   // 99: "4 " (0x34 0x20) offset=0x1F0
    VCS_FONT_GLYPH(
-      0b........,
       0b.X.X....,
       0b.X.X....,
       0b.XXX....,
       0b...X....,
-      0b...X....,
-      0b........,
-      0b........
+      0b...X....
    ),
 
-   // 100: "5 " (0x35 0x20)
+   // 100: "5 " (0x35 0x20) offset=0x1F5
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX....,
       0b.X......,
       0b.XXX....,
       0b...X....,
-      0b.XX.....,
-      0b........,
-      0b........
+      0b.XX.....
    ),
 
-   // 101: "6 " (0x36 0x20)
+   // 101: "6 " (0x36 0x20) offset=0x1FA
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX....,
       0b.X......,
       0b.XXX....,
       0b.X.X....,
-      0b.XXX....,
-      0b........,
-      0b........
+      0b.XXX....
    ),
 
-   // 102: "7 " (0x37 0x20)
+   // page-boundary padding before glyph 102
+   0,
+   // 102: "7 " (0x37 0x20) offset=0x200
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX....,
       0b...X....,
       0b..X.....,
       0b..X.....,
-      0b..X.....,
-      0b........,
-      0b........
+      0b..X.....
    ),
 
-   // 103: "8 " (0x38 0x20)
+   // 103: "8 " (0x38 0x20) offset=0x205
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX....,
       0b.X.X....,
       0b..X.....,
       0b.X.X....,
-      0b.XXX....,
-      0b........,
-      0b........
+      0b.XXX....
    ),
 
-   // 104: "9 " (0x39 0x20)
+   // 104: "9 " (0x39 0x20) offset=0x20A
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX....,
       0b.X.X....,
       0b.XXX....,
       0b...X....,
-      0b.XXX....,
-      0b........,
-      0b........
+      0b.XXX....
    ),
 
-   // 105: "W " (0x57 0x20)
+   // 105: "W " (0x57 0x20) offset=0x20F
    VCS_FONT_GLYPH(
-      0b........,
       0b.X.X....,
       0b.X.X....,
       0b.X.X....,
       0b.XXX....,
-      0b.X.X....,
-      0b........,
-      0b........
+      0b.X.X....
    ),
 
-   // 106: "A " (0x41 0x20)
+   // 106: "A " (0x41 0x20) offset=0x214
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX....,
       0b.X.X....,
       0b.XXX....,
       0b.X.X....,
-      0b.X.X....,
-      0b........,
-      0b........
+      0b.X.X....
    ),
 
-   // 107: "SS" (0x53 0x53)
+   // 107: "SS" (0x53 0x53) offset=0x219
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XXX,
       0b.X...X..,
       0b.XXX.XXX,
       0b...X...X,
-      0b.XXX.XXX,
-      0b........,
-      0b........
+      0b.XXX.XXX
    ),
 
-   // 108: "FA" (0x46 0x41)
+   // 108: "FA" (0x46 0x41) offset=0x21E
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XXX,
       0b.X...X.X,
       0b.XX..XXX,
       0b.X...X.X,
-      0b.X...X.X,
-      0b........,
-      0b........
+      0b.X...X.X
    ),
 
-   // 109: "IL" (0x49 0x4C)
+   // 109: "IL" (0x49 0x4C) offset=0x223
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.X..,
       0b..X..X..,
       0b..X..X..,
       0b..X..X..,
-      0b.XXX.XXX,
-      0b........,
-      0b........
+      0b.XXX.XXX
    ),
 
-   // 110: "26" (0x32 0x36)
+   // 110: "26" (0x32 0x36) offset=0x228
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX..XXX,
       0b...X.X..,
       0b..X..XXX,
       0b.X...X.X,
-      0b.XXX.XXX,
-      0b........,
-      0b........
+      0b.XXX.XXX
    ),
 
-   // 111: "78" (0x37 0x38)
+   // 111: "78" (0x37 0x38) offset=0x22D
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX.XXX,
       0b...X.X.X,
       0b..X...X.,
       0b..X..X.X,
-      0b..X..XXX,
-      0b........,
-      0b........
+      0b..X..XXX
    ),
 
-   // 112: "B " (0x42 0x20)
+   // 112: "B " (0x42 0x20) offset=0x232
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX.....,
       0b.X.X....,
       0b.XX.....,
       0b.X.X....,
-      0b.XX.....,
-      0b........,
-      0b........
+      0b.XX.....
    ),
 
-   // 113: "C " (0x43 0x20)
+   // 113: "C " (0x43 0x20) offset=0x237
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX....,
       0b.X......,
       0b.X......,
       0b.X......,
-      0b.XXX....,
-      0b........,
-      0b........
+      0b.XXX....
    ),
 
-   // 114: "D " (0x44 0x20)
+   // 114: "D " (0x44 0x20) offset=0x23C
    VCS_FONT_GLYPH(
-      0b........,
       0b.XX.....,
       0b.X.X....,
       0b.X.X....,
       0b.X.X....,
-      0b.XX.....,
-      0b........,
-      0b........
+      0b.XX.....
    ),
 
-   // 115: "E " (0x45 0x20)
+   // 115: "E " (0x45 0x20) offset=0x241
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX....,
       0b.X......,
       0b.XX.....,
       0b.X......,
-      0b.XXX....,
-      0b........,
-      0b........
+      0b.XXX....
    ),
 
-   // 116: "F " (0x46 0x20)
+   // 116: "F " (0x46 0x20) offset=0x246
    VCS_FONT_GLYPH(
-      0b........,
       0b.XXX....,
       0b.X......,
       0b.XX.....,
       0b.X......,
-      0b.X......,
-      0b........,
-      0b........
+      0b.X......
    )
 
 };

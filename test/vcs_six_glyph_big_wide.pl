@@ -38,17 +38,22 @@ my $map=File::Spec->catfile($tmp,'big_wide_score.map');
 
 my $source=read_file($component);
 for my $contract (
-   'TEMPLATE_VISIBLE_SCANLINES := 19', 'TEMPLATE_DRAW_COMPLETE_SCANLINES := 19',
    'TEMPLATE_GLYPH_ORIGIN_0 := 36', 'TEMPLATE_GLYPH_ORIGIN_1 := 52',
    'TEMPLATE_GLYPH_ORIGIN_2 := 68', 'TEMPLATE_GLYPH_ORIGIN_3 := 84',
    'TEMPLATE_GLYPH_ORIGIN_4 := 100', 'TEMPLATE_GLYPH_ORIGIN_5 := 116',
-   'TEMPLATE_GLYPH_WIDTH := 8', 'TEMPLATE_GLYPH_HEIGHT := 16',
+   'TEMPLATE_GLYPH_WIDTH := 8',
    'TEMPLATE_GLYPH_ORIGIN_PITCH := 16') {
    index($source,$contract)>=0 or die "big-wide component lost contract '$contract'\n";
 }
+$source =~ /parameter\s+glyph_rows\s*:=\s*16/ &&
+$source =~ /TEMPLATE_GLYPH_HEIGHT\s*:=\s*TEMPLATE_glyph_rows/ &&
+$source =~ /#elif TEMPLATE_glyph_rows == 16\s*\nalias TEMPLATE_VISIBLE_SCANLINES_VALUE 19/ &&
+$source =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/ &&
+$source =~ /TEMPLATE_DRAW_COMPLETE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/
+   or die "big-wide component lost glyph_rows default-height contract\n";
 $source =~ /uint16_t\s+TEMPLATE_pointers\[6\].*uint8_t\s+TEMPLATE_row.*uint8_t\s+TEMPLATE_delayed/s
    or die "big-wide component lost six-pointer/row/delayed storage\n";
-$source =~ /asm lda #15;\s*asm sta\.a TEMPLATE_row;.*asm bpl\.same \@TEMPLATE_draw_loop;/s
+$source =~ /#elif TEMPLATE_glyph_rows == 16\s*\n\s*asm lda #15;.*asm sta\.a TEMPLATE_row;.*asm bpl\.same \@TEMPLATE_draw_loop;/s
    or die "big-wide component lost sixteen-row cycle-counted loop\n";
 $source =~ /asm lda #\$06;\s*asm sta NUSIZ0;\s*asm sta NUSIZ1;/s
    or die "big-wide component lost wide copy geometry\n";

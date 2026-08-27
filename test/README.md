@@ -501,6 +501,8 @@ optional `vcs_six_glyph_wide_stella.pl` regenerates the emulator snapshot and
 compares decoded RGB pixels with that checked-in oracle. It also hashes the
 centered component so the wide profile cannot silently alter its predecessor.
 
+`vcs_score_glyph_rows.pl` enforces the family-wide `glyph_rows` API: every score component has its historical height as the default, publishes `glyph_rows+3` visible scanlines, rejects unsupported heights, and compiles a nondefault five-row instance. The score-font-based components additionally prove that nondefault fonts use a tightly packed `glyph_rows` byte stride; two-plus-two keeps its native support-table stride while selecting the rendered row count.
+
 `vcs_six_glyph_component.pl` builds independent centered-score instances with
 distinct values in both draw orders, a widely spaced score-only pair at raw
 scanlines 70 and 180, and centered fixed/mutable-color scores immediately after
@@ -814,8 +816,11 @@ make stella-diagnostic-test STELLA=/path/to/stella
 ```
 
 The matrix covers NTSC/PAL/SECAM x joystick/paddle/keypad/driving and compares
-1x RGB snapshots against reviewed references. Hosts with short execution windows
-may set `VCSC_STELLA_CASES` to a comma-separated subset such as
+1x RGB snapshots against reviewed references. With the compact five-row pair
+font there is no synthetic blank glyph row above the text, so every case must
+begin its first lit raster on snapshot row 18. This keeps controller-specific
+vertical shifts from being hidden by refreshing a shifted golden image. Hosts with short execution
+windows may set `VCSC_STELLA_CASES` to a comma-separated subset such as
 `pal_keypad,secam_driving`; the default remains all 12 cases. The test requires
 Xvfb but is intentionally outside the default e2e suite so ordinary test hosts do
 not need a graphical Stella installation.

@@ -91,8 +91,11 @@ $source =~ /parameter\s+compact_font\s*:=\s*1/
 for my $variant ([$component,'centered'],[$left_component,'left'],[$right_component,'right']) {
    my ($path,$name)=@$variant;
    my $text=read_file($path);
-   $text =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*11/
-      or die "$name component visible scanline contract is not 11\n";
+   $text =~ /parameter\s+glyph_rows\s*:=\s*8/ &&
+   $text =~ /#elif TEMPLATE_glyph_rows == 8\s*\nalias TEMPLATE_VISIBLE_SCANLINES_VALUE 11/ &&
+   $text =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/ &&
+   $text =~ /TEMPLATE_DRAW_COMPLETE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/
+      or die "$name component lost glyph_rows default-height contract\n";
    for my $phase (qw(init vblank draw overscan)) {
       $text =~ /require\s+inline\s+void\s+TEMPLATE_\Q$phase\E\s*\(/
          or die "$name component is missing required TEMPLATE_$phase lifecycle declaration\n";

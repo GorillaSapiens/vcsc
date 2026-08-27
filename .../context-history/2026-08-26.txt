@@ -112,3 +112,112 @@ diagnostic, fingerprint, assembly-allowlist, branding, recursive-example, and
 hygiene checks pass. A broad default e2e checkpoint reached 226/326 with no
 failures before the container command ceiling, and five subsequent tail tests
 also passed; the remaining e2e tail still needs completion.
+
+2026-08-26 13:13:03 PDT, diagnostic handoff packaging repair
+The first diagnostic boot-signature handoff omitted maintained
+`examples/19_diagnostic/01_diagnostic/diagnostic_boot.s26` because the examples
+`.gitignore` globally ignores generated `.s26` files. Restored the reset shim and
+added an explicit negation for it, matching the existing maintained-assembly
+exceptions. The diagnostic regression now requires that exception so a future
+handoff cannot silently drop the pre-clear startup code while still passing in a
+development tree.
+
+Completed the previously interrupted broad checkpoint from the recorded timing
+log rather than rerunning already certified cases. Final totals are 502/502
+compile tests and 326/326 default e2e tests, including all eight recursive
+example-build shards and the full disassembler tail. The diagnostic enhancement
+is therefore fully validated and the main-roadmap next step returns to Item 45.
+
+2026-08-26 13:45:27 PDT, normalize diagnostic vertical origin
+Stella references exposed two controller-specific raster-origin errors that the
+per-case golden-image comparison had preserved: NTSC paddle began one scanline
+below the other NTSC modes, while PAL driving began one scanline above the other
+PAL modes. SECAM was already internally stable. Rebalanced blank visible
+scanlines from the post-panel tails to the pre-text gap and calibrated the
+controller/init tails so all NTSC/PAL/SECAM x joystick/paddle/keypad/driving
+steady-state screens now start on snapshot row 19 without changing 262/312-line
+frame geometry. The diagnostic timing/input regression passes, including live
+SELECT/RESET transitions and PAL/SECAM controller sweeps.
+
+Extended stella_png_rgb_digest.pl with --first-lit-row and made the optional
+diagnostic Stella matrix require row 19 for both actual and reviewed references
+before comparing RGB digests. All 12 references were refreshed and independently
+revalidated, so a future shifted reference can no longer certify itself. The
+assembly allowlist, branding, source hygiene, and recursive example shard 3/8
+also pass.
+
+2026-08-26 14:04:00 PDT, compact diagnostic pair glyphs
+The diagnostic pair font no longer stores three known-blank rows per glyph.
+`make_pair_font.pl --five` emits only the five nonblank Half source rows, reducing
+the checked-in 117-glyph diagnostic table from 936 bytes to 585 bytes, a 351-byte
+ROM saving. `six_glyph_component.c26` gained an opt-in full-pointer `glyph_rows`
+mode while retaining the existing eight-row default contract for all other users;
+the diagnostic selects five rows and external pointer ownership. The component
+also avoids allocating the unused BCD score in external-pointer mode. Font and
+diagnostic regressions now verify five-row generation and reject stale generated
+pair data.
+
+Also fixed a display regression introduced by the CPU fingerprint: its six pair
+indices had overwritten `DIAGNOSTIC_ROW_TITLE`. The title is restored and the
+fingerprint now occupies a distinct row. Despite adding the row, compact glyphs
+reduce the diagnostic's occupied visible raster. Timing calibration remains
+unfinished: the synthetic automatic controller sweep currently produces 267 raw
+lines during the second driving stint around frames 116-119; forced driving and
+real SELECT-driven driving remain stable. This is the exact continuation point.
+
+2026-08-26 15:59:03 PDT, fix compact glyph page timing
+The five-row diagnostic pair format exposed character-dependent beam timing:
+naively packing 5-byte glyphs allowed some glyphs to straddle a 256-byte page,
+so `(pointer),Y` loads gained page-cross cycles depending on the displayed pair.
+That was the root cause of the synthetic second-driving-stint 267-line frames.
+`make_pair_font.pl --five` now inserts only the minimum pad byte before a glyph
+that would cross a page. The 117-glyph diagnostic font is 587 bytes total: 585
+bytes of glyph rows plus two pad bytes, still saving 349 bytes versus the old
+936-byte padded form. Font regressions explicitly verify page-safe packing.
+
+Also identified the remaining SECAM sweep discrepancy as controller-init frame
+calibration, not steady driving behavior. The existing SECAM one-line init-tail
+adjustment now applies to keypad/driving initialization as needed. The complete
+diagnostic timing regression is clean again across NTSC/PAL/SECAM, including the
+moving-controller sweep. Work then moved to the requested component-wide
+`glyph_rows` API; only `six_glyph_component.c26` is partially converted so far.
+
+2026-08-26 17:04:02 PDT, finish score glyph rows
+Completed the requested family-wide `glyph_rows` API. All seven public score
+components expose a backward-compatible height parameter: ordinary score
+components default to 8 rows and big-wide defaults to 16. Score-font-based
+nondefault instances use tightly packed `glyph_rows`-byte glyph stride;
+two-plus-two keeps its native support-table storage while selecting the rendered
+row count. Three-plus-three preserves its unrolled native eight-row path and
+compiles out unused leading rows for shorter fonts. `vcs_score_glyph_rows.pl`
+now owns the family invariant and builds a five-row instance of every component.
+
+Preserved default raster behavior rather than accepting parameterization-induced
+changes. In particular, left/right full-pointer kernels must reload their
+compile-time row index with explicit `LDY #n` before each indirect load: an
+intermediate `DEY` implementation was wrong because the preceding glyph load had
+already put pixel data in Y, and it made the fingerprint example run 265 raw
+lines. Restoring explicit row indices returns the default fingerprint cartridge
+to stable 262-line timing. Updated stale static tests to recognize the equivalent
+parameterized visible-scanline contracts without weakening their runtime checks.
+
+Resolved the compact-diagnostic Stella-origin question. The old row-19 contract
+measured the first lit glyph row after an intentionally stored blank top row;
+five-row packing removes that blank, so row 18 is the correct first-lit origin.
+A real remaining NTSC-paddle one-line skew was normalized by balancing its
+pre-text gap against its post-visible tail. All 12 NTSC/PAL/SECAM x controller
+Stella references now independently start on first-lit row 18 and match their
+reviewed images while preserving 262/312-line frame geometry.
+
+Final validation is 502/502 compile tests and 327/327 default e2e tests. After
+the last left/right kernel correction, all directly affected score/fingerprint
+consumers and all eight recursive example-build shards were rerun and passed.
+
+2026-08-26 17:52:00 PDT, widen bracketed keypad hash
+Kept the generic Half `#` unchanged, but added an explicit
+`make_pair_font.pl --wide-bracket-hash` composition option for five-row pair
+fonts. When composing `[#`, the hash borrows the otherwise-unused fourth column
+of the opening-bracket cell and renders a true five-column `.X.X./XXXXX/.X.X./
+XXXXX/.X.X.` body. The diagnostic pair font is regenerated with that option.
+Font and diagnostic regressions pin the exact widened raster and freshness
+contract. `vcs_half_ascii_font.pl` and `vcs_diagnostic_cartridge.pl` pass.

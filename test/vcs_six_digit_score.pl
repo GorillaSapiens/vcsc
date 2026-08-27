@@ -141,8 +141,12 @@ for my $phase (qw(init vblank draw overscan)) {
    require_re($component_text,qr/require\s+inline\s+void\s+TEMPLATE_\Q$phase\E\s*\(/,
               "component is missing required $phase lifecycle");
 }
-require_re($component_text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*11/,
-           'component visible contract is no longer eleven scanlines');
+require_re($component_text,qr/parameter\s+glyph_rows\s*:=\s*8/,
+           'component glyph_rows default is no longer eight');
+require_re($component_text,qr/#elif TEMPLATE_glyph_rows == 8\s+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 11/,
+           'component eight-row default no longer maps to eleven visible scanlines');
+require_re($component_text,qr/TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/,
+           'component visible contract no longer publishes the glyph-row-derived value');
 require_re($component_text,qr/parameter\s+compact_font\s*:=\s*1/,
            'component compact mode is no longer the default');
 require_re($component_text,qr/#if TEMPLATE_compact_font.*?uint8_t\s+TEMPLATE_offsets\[2\].*?uint16_t\s+TEMPLATE_pointers\[4\].*?#else/s,

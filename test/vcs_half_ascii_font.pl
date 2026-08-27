@@ -121,12 +121,47 @@ $out =~ /\/\/\s+1:\s+"! "\s+\(0x21 0x20\)/
 my@paired=$out =~ /0b([.X]{8})/g;
 @paired==12 or die "paired output has ".scalar(@paired)." rows, expected 12\n";
 
+# Diagnostic pair tables may deliberately discard Half's blank sixth source
+# row.  The compact form is exactly five stored rows per paired glyph.
+($rc,$sig,$out,$err)=capture($helper,'--five',$font,'AB!');
+$rc==0&&!$sig or die "make_pair_font --five failed\n$out$err";
+$err eq '' or die "make_pair_font --five stderr: $err";
+
+# Five-byte packed glyphs must never straddle a 256-byte page: (ptr),Y
+# page-cross cycles are beam-visible in the score renderers.  Fifty-one
+# five-byte glyphs fit through offset 0xFA; glyph 51 must start at the next
+# page, adding exactly one storage byte for 52 glyphs.
+my($prc,$psig,$pout,$perr)=capture($helper,'--five',$font,'AA' x 52);
+$prc==0&&!$psig or die "make_pair_font --five page probe failed\n$pout$perr";
+$perr eq '' or die "make_pair_font --five page probe stderr: $perr";
+$pout =~ /message_font\[261\]/ or die "five-row page-safe probe has wrong storage size\n";
+my @prows=$pout =~ /0b([.X]{8})/g;
+@prows==260 or die "five-row page-safe probe has ".scalar(@prows)." raster rows, expected 260\n";
+my @pads=$pout =~ /page-boundary padding before glyph (\d+)/g;
+@pads==1 && $pads[0]==51 or die "five-row page-safe probe did not pad exactly before glyph 51\n";
+$pout =~ /\/\/ 50:.*offset=0x0FA/ && $pout =~ /\/\/ 51:.*offset=0x100/
+   or die "five-row page-safe probe offsets do not bracket the page correctly\n";
+$out =~ /const\s+uint8_t\s+message_font\s*\[\s*10\s*\]/
+   or die "five-row paired odd message did not produce two 8x5 glyphs\n";
+my@five_paired=$out =~ /0b([.X]{8})/g;
+@five_paired==10 or die "five-row paired output has ".scalar(@five_paired)." rows, expected 10\n";
+
+# A caller may explicitly widen # when it follows [ in a packed pair.  This is
+# used by the diagnostic keypad display, where # is always bracketed and can
+# borrow the otherwise-unused fourth column of the opening-bracket cell.
+my($wrc,$wsig,$wout,$werr)=capture($helper,'--five','--wide-bracket-hash',$font,'[#');
+$wrc==0&&!$wsig or die "make_pair_font wide bracket hash failed\n$wout$werr";
+$werr eq '' or die "make_pair_font wide bracket hash stderr: $werr";
+my @wide_hash=$wout =~ /0b([.X]{8})/g;
+join('/',@wide_hash) eq '.XX.X.X./.X.XXXXX/.X..X.X./.X.XXXXX/.XX.X.X.'
+   or die "wide bracketed # raster changed: ".join('/',@wide_hash)."\n";
+
 my$gen=File::Spec->catfile($tmp,'paired.c26');
 open($fh,'>',$gen) or die "write $gen: $!\n"; print {$fh}$out; close($fh);
 my$genprobe=File::Spec->catfile($tmp,'paired_probe.c26');
 my$genbin=File::Spec->catfile($tmp,'paired_probe.bin');
 open($fh,'>',$genprobe) or die "write $genprobe: $!\n";
-print {$fh} qq{include "vcs.c26"\ninclude "$gen"\nuint8_t probe;\nvoid main(void) { probe := message_font[0] ^ message_font[11]; while (1) { } }\n};
+print {$fh} qq{include "vcs.c26"\ninclude "$gen"\nuint8_t probe;\nvoid main(void) { probe := message_font[0] ^ message_font[9]; while (1) { } }\n};
 close($fh);
 ($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,$genprobe,'-o',$genbin);
 $rc==0&&!$sig or die "paired font probe build failed\n$out$err";

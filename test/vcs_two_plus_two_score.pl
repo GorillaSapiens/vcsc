@@ -48,8 +48,8 @@ my $source=read_file($component);
 my $tables=read_file($support);
 my $example=read_file($fixture);
 for my $field (
-   [VISIBLE_SCANLINES=>11],[DRAW_ENTRY_CYCLE=>3],[DRAW_RETURN_CYCLE=>0],
-   [DRAW_COMPLETE_SCANLINES=>11],[DRAW_PARTIAL_ENTRY_CYCLES=>0],
+   [DRAW_ENTRY_CYCLE=>3],[DRAW_RETURN_CYCLE=>0],
+   [DRAW_PARTIAL_ENTRY_CYCLES=>0],
    [DRAW_PARTIAL_EXIT_CYCLES=>0],[DRAW_TERMINAL_WSYNC=>1],
    [DRAW_HMOVE_COUNT=>1],[DRAW_SUCCESSOR_ON_RETURN_LINE=>1],
    [LEFT_X_MIN=>0],[LEFT_X_MAX=>64],[RIGHT_X_MIN=>32],[RIGHT_X_MAX=>144],
@@ -58,6 +58,12 @@ for my $field (
    $source =~ /\bTEMPLATE_\Q$name\E\s*:=\s*\Q$value\E\b/
       or die "component has no TEMPLATE_$name := $value contract\n";
 }
+$source =~ /parameter\s+glyph_rows\s*:=\s*8/ &&
+$source =~ /#elif TEMPLATE_glyph_rows == 8\s*\nalias TEMPLATE_VISIBLE_SCANLINES_VALUE 11/ &&
+$source =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/ &&
+$source =~ /TEMPLATE_DRAW_COMPLETE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/
+   or die "two-plus-two component lost glyph_rows default-height contract\n";
+
 for my $phase (qw(init vblank draw overscan)) {
    $source =~ /require\s+inline\s+void\s+TEMPLATE_\Q$phase\E\s*\(/
       or die "component is missing required TEMPLATE_$phase lifecycle declaration\n";

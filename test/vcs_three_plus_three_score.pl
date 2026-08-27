@@ -122,7 +122,7 @@ my $public_map=File::Spec->catfile($tmp,'dual_score.map');
 
 my $source=read_file($component);
 for my $contract (
-   'TEMPLATE_VISIBLE_SCANLINES := 11', 'TEMPLATE_DRAW_ENTRY_CYCLE := 3',
+   'TEMPLATE_DRAW_ENTRY_CYCLE := 3',
    'TEMPLATE_DRAW_RETURN_CYCLE := 0', 'TEMPLATE_DRAW_TERMINAL_WSYNC := 1',
    'TEMPLATE_DRAW_HMOVE_COUNT := 1', 'TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE := 1',
    'TEMPLATE_LEFT_GLYPH_ORIGIN_0 := 20', 'TEMPLATE_LEFT_GLYPH_ORIGIN_1 := 36',
@@ -131,6 +131,11 @@ for my $contract (
    'TEMPLATE_GLYPH_WIDTH := 8', 'TEMPLATE_GLYPH_ORIGIN_PITCH := 16') {
    index($source,$contract)>=0 or die "three-plus-three component lost contract '$contract'\n";
 }
+$source =~ /parameter\s+glyph_rows\s*:=\s*8/ &&
+$source =~ /#elif TEMPLATE_glyph_rows == 8\s*\nalias TEMPLATE_VISIBLE_SCANLINES_VALUE 11/ &&
+$source =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/ &&
+$source =~ /TEMPLATE_DRAW_COMPLETE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/
+   or die "three-plus-three component lost glyph_rows default-height contract\n";
 $source =~ /recommend\s+bcd16_t\s+TEMPLATE_left_score\s*:=\s*0/ &&
 $source =~ /recommend\s+bcd16_t\s+TEMPLATE_right_score\s*:=\s*0/ &&
 $source =~ /recommend\s+uint8_t\s+TEMPLATE_left_color\s*:=\s*0x0e/ &&

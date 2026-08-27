@@ -470,7 +470,7 @@ align(256) const uint8_t score_font[570] := {
    VCS_FONT_GLYPH(
       0b.X.X,
       0b.XX.,
-      0b.X.X,
+      0b.XXX,
       0b..XX,
       0b.X.X,
       0b....

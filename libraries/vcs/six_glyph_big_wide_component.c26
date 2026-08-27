@@ -7,15 +7,16 @@
 //     instantiate "six_glyph_big_wide_component.c26" as score1
 //
 // Include fonts/big_decimal.c26 or fonts/big_hex.c26 first. The font must
-// define the shared 256-aligned, page-contained score_font table with sixteen
-// bytes per glyph. Each instance owns its packed score, six 16-bit glyph
+// define the shared 256-aligned, page-contained score_font table. The default
+// uses sixteen bytes per glyph; nondefault glyph_rows fonts are tightly packed.
+// Each instance owns its packed score, six 16-bit glyph
 // pointers, one row counter, one delayed glyph byte, and one mutable color.
 //
 // The 8-pixel glyph origins are X=36,52,68,84,100,116: 16-pixel pitch with
 // one glyph-width of blank space between adjacent glyphs, spanning X=36..123.
 //
 // Visible contract: enter TEMPLATE_draw at the canonical cycle-3 phase with
-// VBLANK clear. It consumes exactly nineteen scanlines and returns at cycle
+// VBLANK clear. It consumes glyph_rows+3 scanlines and returns at cycle
 // zero of the following line. Use vcs_ntsc_component_handoff() before an
 // adjacent visible component. It owns P0/P1 graphics, colors, reflection,
 // VDEL, NUSIZ, horizontal motion, and RESP0/RESP1 while drawing. It preserves
@@ -24,11 +25,50 @@
 // collision latches. A/X/Y and arithmetic flags are clobbered; hardware stack
 // depth is unchanged at lifecycle boundaries.
 
+// Number of stored and rendered rows per glyph. Big fonts default to sixteen.
+parameter glyph_rows := 16;
+
+#if TEMPLATE_glyph_rows == 1
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 4
+#elif TEMPLATE_glyph_rows == 2
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 5
+#elif TEMPLATE_glyph_rows == 3
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 6
+#elif TEMPLATE_glyph_rows == 4
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 7
+#elif TEMPLATE_glyph_rows == 5
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 8
+#elif TEMPLATE_glyph_rows == 6
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 9
+#elif TEMPLATE_glyph_rows == 7
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 10
+#elif TEMPLATE_glyph_rows == 8
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 11
+#elif TEMPLATE_glyph_rows == 9
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 12
+#elif TEMPLATE_glyph_rows == 10
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 13
+#elif TEMPLATE_glyph_rows == 11
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 14
+#elif TEMPLATE_glyph_rows == 12
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 15
+#elif TEMPLATE_glyph_rows == 13
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 16
+#elif TEMPLATE_glyph_rows == 14
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 17
+#elif TEMPLATE_glyph_rows == 15
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 18
+#elif TEMPLATE_glyph_rows == 16
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 19
+#else
+extern const uint8_t TEMPLATE_glyph_rows_must_be_1_through_16[TEMPLATE_glyph_rows];
+#endif
+
 enum TEMPLATE_contract {
-   TEMPLATE_VISIBLE_SCANLINES := 19,
+   TEMPLATE_VISIBLE_SCANLINES := TEMPLATE_VISIBLE_SCANLINES_VALUE,
    TEMPLATE_DRAW_ENTRY_CYCLE := 3,
    TEMPLATE_DRAW_RETURN_CYCLE := 0,
-   TEMPLATE_DRAW_COMPLETE_SCANLINES := 19,
+   TEMPLATE_DRAW_COMPLETE_SCANLINES := TEMPLATE_VISIBLE_SCANLINES_VALUE,
    TEMPLATE_DRAW_PARTIAL_ENTRY_CYCLES := 0,
    TEMPLATE_DRAW_PARTIAL_EXIT_CYCLES := 0,
    TEMPLATE_DRAW_TERMINAL_WSYNC := 1,
@@ -43,7 +83,7 @@ enum TEMPLATE_contract {
    TEMPLATE_GLYPH_ORIGIN_4 := 100,
    TEMPLATE_GLYPH_ORIGIN_5 := 116,
    TEMPLATE_GLYPH_WIDTH := 8,
-   TEMPLATE_GLYPH_HEIGHT := 16,
+   TEMPLATE_GLYPH_HEIGHT := TEMPLATE_glyph_rows,
    TEMPLATE_GLYPH_ORIGIN_PITCH := 16
 };
 
@@ -53,6 +93,24 @@ uint8_t TEMPLATE_row;
 uint8_t TEMPLATE_delayed;
 recommend uint8_t TEMPLATE_color := 0x0e;
 
+#if TEMPLATE_glyph_rows != 16
+// Non-native-height score fonts are tightly packed: digit N starts at
+// N*glyph_rows. Native-height instantiations omit this table and retain their
+// established pointer-generation code byte-for-byte.
+const uint8_t TEMPLATE_glyph_offsets[10] := {
+   0,
+   TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows
+};
+#endif
+
 static inline void TEMPLATE_prepare_pointers(void) {
    // Build six complete pointers in human digit order. A big glyph occupies
    // sixteen bytes, so the high packed-BCD nibble is already digit*16 and the
@@ -60,6 +118,15 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm lda TEMPLATE_score+2;
    asm tax;
    asm and #$f0;
+#if TEMPLATE_glyph_rows == 16
+#else
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm tay;
+   asm lda.ay TEMPLATE_glyph_offsets,y;
+#endif
    asm clc;
    asm adc #<score_font;
    asm sta TEMPLATE_pointers;
@@ -68,10 +135,15 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm sta TEMPLATE_pointers+1;
    asm txa;
    asm and #$0f;
+#if TEMPLATE_glyph_rows == 16
    asm asl;
    asm asl;
    asm asl;
    asm asl;
+#else
+   asm tay;
+   asm lda.ay TEMPLATE_glyph_offsets,y;
+#endif
    asm clc;
    asm adc #<score_font;
    asm sta TEMPLATE_pointers+2;
@@ -82,6 +154,15 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm lda TEMPLATE_score+1;
    asm tax;
    asm and #$f0;
+#if TEMPLATE_glyph_rows == 16
+#else
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm tay;
+   asm lda.ay TEMPLATE_glyph_offsets,y;
+#endif
    asm clc;
    asm adc #<score_font;
    asm sta TEMPLATE_pointers+4;
@@ -90,10 +171,15 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm sta TEMPLATE_pointers+5;
    asm txa;
    asm and #$0f;
+#if TEMPLATE_glyph_rows == 16
    asm asl;
    asm asl;
    asm asl;
    asm asl;
+#else
+   asm tay;
+   asm lda.ay TEMPLATE_glyph_offsets,y;
+#endif
    asm clc;
    asm adc #<score_font;
    asm sta TEMPLATE_pointers+6;
@@ -104,6 +190,15 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm lda TEMPLATE_score;
    asm tax;
    asm and #$f0;
+#if TEMPLATE_glyph_rows == 16
+#else
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm tay;
+   asm lda.ay TEMPLATE_glyph_offsets,y;
+#endif
    asm clc;
    asm adc #<score_font;
    asm sta TEMPLATE_pointers+8;
@@ -112,10 +207,15 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm sta TEMPLATE_pointers+9;
    asm txa;
    asm and #$0f;
+#if TEMPLATE_glyph_rows == 16
    asm asl;
    asm asl;
    asm asl;
    asm asl;
+#else
+   asm tay;
+   asm lda.ay TEMPLATE_glyph_offsets,y;
+#endif
    asm clc;
    asm adc #<score_font;
    asm sta TEMPLATE_pointers+10;
@@ -172,7 +272,39 @@ require inline void TEMPLATE_draw(void) {
    VDELP1 := 1;
 
    // Absolute store is intentional: this is inside cycle-counted setup.
+#if TEMPLATE_glyph_rows == 1
+   asm lda #0;
+#elif TEMPLATE_glyph_rows == 2
+   asm lda #1;
+#elif TEMPLATE_glyph_rows == 3
+   asm lda #2;
+#elif TEMPLATE_glyph_rows == 4
+   asm lda #3;
+#elif TEMPLATE_glyph_rows == 5
+   asm lda #4;
+#elif TEMPLATE_glyph_rows == 6
+   asm lda #5;
+#elif TEMPLATE_glyph_rows == 7
+   asm lda #6;
+#elif TEMPLATE_glyph_rows == 8
+   asm lda #7;
+#elif TEMPLATE_glyph_rows == 9
+   asm lda #8;
+#elif TEMPLATE_glyph_rows == 10
+   asm lda #9;
+#elif TEMPLATE_glyph_rows == 11
+   asm lda #10;
+#elif TEMPLATE_glyph_rows == 12
+   asm lda #11;
+#elif TEMPLATE_glyph_rows == 13
+   asm lda #12;
+#elif TEMPLATE_glyph_rows == 14
+   asm lda #13;
+#elif TEMPLATE_glyph_rows == 15
+   asm lda #14;
+#elif TEMPLATE_glyph_rows == 16
    asm lda #15;
+#endif
    asm sta.a TEMPLATE_row;
 
    asm @TEMPLATE_draw_loop:;

@@ -59,6 +59,7 @@ my$digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 
 my%requested=map { $_=>1 } grep { length } split(/,/, $ENV{VCSC_STELLA_CASES}//'');
 my%seen;
+my$expected_first_lit_row=18;
 my$display=350+($$%30);
 for my$standard (
    ['ntsc',0,'NTSC'],
@@ -103,6 +104,13 @@ for my$standard (
       my@png; for(1..40){@png=grep{-s$_}glob("$snap/*.png");last if@png==1;select undef,undef,undef,.05}
       terminate($pid); terminate($xpid);
       @png==1 or die"$name Stella produced ".scalar(@png)." snapshots\n";
+      my($actual_row,$are)=ok("$name actual first lit row",$perl,$digest,'--first-lit-row',$png[0]);
+      my($reference_row,$rre)=ok("$name reference first lit row",$perl,$digest,'--first-lit-row',$reference);
+      $are eq ''&&$rre eq '' or die$are.$rre;
+      $actual_row eq "$expected_first_lit_row\n"
+         or die"$name diagnostic first lit row is $actual_row instead of $expected_first_lit_row\n";
+      $reference_row eq "$expected_first_lit_row\n"
+         or die"$name reference first lit row is $reference_row instead of $expected_first_lit_row\n";
       my($actual,$ae)=ok("$name actual digest",$perl,$digest,$png[0]);
       my($wanted,$we)=ok("$name reference digest",$perl,$digest,$reference);
       $ae eq ''&&$we eq '' or die$ae.$we;

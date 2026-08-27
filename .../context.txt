@@ -122,18 +122,27 @@ Their completed development narratives were moved to `context-history/`.
 
 Last validation state
 ---------------------
-Main-roadmap Item 44 remains complete; a post-closeout diagnostic enhancement is
-currently awaiting only the remaining broad-suite tail. The cartridge now
-captures the observed 7800 RIOT-RAM boot signature before startup clearing,
-displays 2600/7800 plus the existing six-hex-digit silicon fingerprint, uses
-more distinctive SECAM TIA-test colors, and gives P0/P1 distinct silhouettes.
-Focused diagnostic/fingerprint/example/hygiene checks pass and all 12 Stella 7.0
-reference screens match. The latest broad e2e checkpoint passed 226/326 before
-the container command ceiling; five subsequent tail tests also passed.
+Main-roadmap Item 44 remains complete, including the post-closeout diagnostic
+work. The diagnostic uses page-safe five-row paired glyphs: 117 glyphs occupy
+587 bytes (585 payload plus two page-boundary pad bytes), `DIAGNOSTIC` and the
+CPU fingerprint have separate rows, and the pre-clear 7800 signature capture is
+maintained by the explicit diagnostic reset shim. All 12 Stella 7.0 diagnostic
+references match and share first-lit row 18; the compact format intentionally
+removed the old synthetic blank glyph row. Frame geometry remains 262 NTSC / 312
+PAL+SECAM lines.
+
+All seven public score components expose `glyph_rows`. Ordinary score components
+default to 8 rows and big-wide defaults to 16. Score-font-based nondefault
+instances use tightly packed glyph stride; two-plus-two selects rows from its
+native support tables; three-plus-three preserves its native unrolled default
+path. Default optimized kernels remain timing-compatible, and
+`vcs_score_glyph_rows.pl` owns the family-wide nondefault-height contract.
+
+Final broad validation is clean at 502/502 compile tests and 327/327 default e2e
+tests. All eight recursive example-build shards pass. The maintained diagnostic
+reset shim remains explicitly exempted from examples/.gitignore so `make tar`
+cannot silently omit it again.
 
 Immediate TODO
 --------------
-Finish the remaining default e2e tail for the diagnostic enhancement. If clean,
-restore the normal main-roadmap next step: Item 45, playfield-color renderer
-support. Enhanced asymmetric allocator-quality work remains an optional side
-quest documented in `.../enhanced_asymmetric.txt`.
+Return to main-roadmap Item 45: playfield-color renderer support.

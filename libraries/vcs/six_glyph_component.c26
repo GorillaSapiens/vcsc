@@ -10,8 +10,10 @@
 //
 //     instantiate "six_glyph_component.c26" as score1 (mutable_color:=1)
 //
-// Set compact_font:=0 only when an application deliberately writes all six
-// glyph pointers itself. Normal scores should keep the compact default.
+// Normal eight-row fonts use the compact default. Setting glyph_rows to 1..7
+// automatically selects the six-full-pointer path and treats score_font as a
+// tightly packed glyph_rows-byte-per-digit table. Set compact_font:=0 explicitly
+// only when an eight-row application also needs six redirectable full pointers.
 //
 // Include one fonts/*_decimal.c26 or fonts/*_hex.c26 module first; it must
 // define the shared page-contained score_font table. Compact mode stores two
@@ -22,7 +24,8 @@
 // byte.
 //
 // Visible contract: enter TEMPLATE_draw at the canonical cycle-3 phase with
-// VBLANK clear. It consumes exactly eleven scanlines and returns at cycle zero
+// VBLANK clear. The normal eight-row form consumes exactly eleven scanlines;
+// full-pointer mode consumes glyph_rows+3 scanlines. It returns at cycle zero
 // of the following line. Use vcs_ntsc_component_handoff() before an adjacent
 // visible component. It owns P0/P1 graphics, colors, reflection, VDEL, NUSIZ,
 // horizontal motion, and RESP0/RESP1 while drawing. It may leave all of that
@@ -32,13 +35,43 @@
 // arithmetic flags are clobbered; hardware stack depth is unchanged at
 // lifecycle boundaries.
 
+// Normal score use keeps compact page-contained-font storage.
+parameter compact_font := 1;
+// Number of stored and rendered rows per glyph. Default score fonts use eight.
+parameter glyph_rows := 8;
+// Set external_pointers:=1 when the application owns all six pointers and
+// does not need the BCD score or automatic init/vblank pointer preparation.
+parameter external_pointers := 0;
+// Fixed white is free; set this to one only when the application changes color.
+parameter mutable_color := 0;
+
 // The machine-readable visible handoff fields below are defined in
 // renderers/COMPONENT_CONVERSION.md under "Measured visible-component handoff".
+#if TEMPLATE_glyph_rows == 1
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 4
+#elif TEMPLATE_glyph_rows == 2
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 5
+#elif TEMPLATE_glyph_rows == 3
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 6
+#elif TEMPLATE_glyph_rows == 4
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 7
+#elif TEMPLATE_glyph_rows == 5
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 8
+#elif TEMPLATE_glyph_rows == 6
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 9
+#elif TEMPLATE_glyph_rows == 7
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 10
+#elif TEMPLATE_glyph_rows == 8
+alias TEMPLATE_VISIBLE_SCANLINES_VALUE 11
+#else
+extern const uint8_t TEMPLATE_glyph_rows_must_be_1_through_8[TEMPLATE_glyph_rows];
+#endif
+
 enum TEMPLATE_contract {
-   TEMPLATE_VISIBLE_SCANLINES := 11,
+   TEMPLATE_VISIBLE_SCANLINES := TEMPLATE_VISIBLE_SCANLINES_VALUE,
    TEMPLATE_DRAW_ENTRY_CYCLE := 3,
    TEMPLATE_DRAW_RETURN_CYCLE := 0,
-   TEMPLATE_DRAW_COMPLETE_SCANLINES := 11,
+   TEMPLATE_DRAW_COMPLETE_SCANLINES := TEMPLATE_VISIBLE_SCANLINES_VALUE,
    TEMPLATE_DRAW_PARTIAL_ENTRY_CYCLES := 0,
    TEMPLATE_DRAW_PARTIAL_EXIT_CYCLES := 0,
    TEMPLATE_DRAW_TERMINAL_WSYNC := 1,
@@ -48,13 +81,10 @@ enum TEMPLATE_contract {
    TEMPLATE_OVERSCAN_MAX_CYCLES := 0
 };
 
-// Normal score use keeps compact page-contained-font storage.
-parameter compact_font := 1;
-// Fixed white is free; set this to one only when the application changes color.
-parameter mutable_color := 0;
-
+#if !TEMPLATE_external_pointers
 recommend bcd24_t TEMPLATE_score := 0;
-#if TEMPLATE_compact_font
+#endif
+#if TEMPLATE_compact_font && TEMPLATE_glyph_rows == 8
 uint8_t TEMPLATE_offsets[2];
 uint16_t TEMPLATE_pointers[4];
 uint8_t TEMPLATE_delayed;
@@ -67,7 +97,29 @@ uint8_t TEMPLATE_delayed;
 recommend uint8_t TEMPLATE_color := 0x0e;
 #endif
 
-#if TEMPLATE_compact_font
+#if !TEMPLATE_external_pointers && TEMPLATE_glyph_rows != 8
+// Non-native-height fonts are tightly packed: digit N starts at N*glyph_rows.
+// Keep the table out of native eight-row instantiations so their ROM/RAM and
+// beam-critical generated code remain unchanged.
+const uint8_t TEMPLATE_glyph_offsets[10] := {
+   0,
+   TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows,
+   TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows + TEMPLATE_glyph_rows
+};
+#endif
+
+#if TEMPLATE_external_pointers
+static inline void TEMPLATE_prepare_pointers(void) {
+}
+#else
+#if TEMPLATE_compact_font && TEMPLATE_glyph_rows == 8
 static inline void TEMPLATE_prepare_pointers(void) {
    // Digits 1/2: only digit*8 is needed because score_font is page-contained.
    asm lda TEMPLATE_score+2;
@@ -135,7 +187,16 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm lda TEMPLATE_score+2;
    asm tax;
    asm and #$f0;
+#if TEMPLATE_glyph_rows == 8
    asm lsr;
+#else
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm tay;
+   asm lda.ay TEMPLATE_glyph_offsets,y;
+#endif
    asm clc;
    asm adc #<score_font;
    asm sta TEMPLATE_pointers;
@@ -144,9 +205,14 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm sta TEMPLATE_pointers+1;
    asm txa;
    asm and #$0f;
+#if TEMPLATE_glyph_rows == 8
    asm asl;
    asm asl;
    asm asl;
+#else
+   asm tay;
+   asm lda.ay TEMPLATE_glyph_offsets,y;
+#endif
    asm clc;
    asm adc #<score_font;
    asm sta TEMPLATE_pointers+2;
@@ -157,7 +223,16 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm lda TEMPLATE_score+1;
    asm tax;
    asm and #$f0;
+#if TEMPLATE_glyph_rows == 8
    asm lsr;
+#else
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm tay;
+   asm lda.ay TEMPLATE_glyph_offsets,y;
+#endif
    asm clc;
    asm adc #<score_font;
    asm sta TEMPLATE_pointers+4;
@@ -166,9 +241,14 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm sta TEMPLATE_pointers+5;
    asm txa;
    asm and #$0f;
+#if TEMPLATE_glyph_rows == 8
    asm asl;
    asm asl;
    asm asl;
+#else
+   asm tay;
+   asm lda.ay TEMPLATE_glyph_offsets,y;
+#endif
    asm clc;
    asm adc #<score_font;
    asm sta TEMPLATE_pointers+6;
@@ -179,7 +259,16 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm lda TEMPLATE_score;
    asm tax;
    asm and #$f0;
+#if TEMPLATE_glyph_rows == 8
    asm lsr;
+#else
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm tay;
+   asm lda.ay TEMPLATE_glyph_offsets,y;
+#endif
    asm clc;
    asm adc #<score_font;
    asm sta TEMPLATE_pointers+8;
@@ -188,9 +277,14 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm sta TEMPLATE_pointers+9;
    asm txa;
    asm and #$0f;
+#if TEMPLATE_glyph_rows == 8
    asm asl;
    asm asl;
    asm asl;
+#else
+   asm tay;
+   asm lda.ay TEMPLATE_glyph_offsets,y;
+#endif
    asm clc;
    asm adc #<score_font;
    asm sta TEMPLATE_pointers+10;
@@ -198,6 +292,7 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm adc #0;
    asm sta TEMPLATE_pointers+11;
 }
+#endif
 #endif
 
 require inline void TEMPLATE_init(void) {
@@ -208,7 +303,7 @@ require inline void TEMPLATE_vblank(void) {
    TEMPLATE_prepare_pointers();
 }
 
-#if TEMPLATE_compact_font
+#if TEMPLATE_compact_font && TEMPLATE_glyph_rows == 8
 require inline void TEMPLATE_draw(void) {
    // Line one re-establishes the score's fixed P0/P1 geometry. The historical
    // eight-cycle padding now preloads digit 2's row-7 offset; BIT/NOP preserve
@@ -537,7 +632,23 @@ require inline void TEMPLATE_draw(void) {
    // This store sits inside the cycle-counted visible setup. Keep its
    // historical four-cycle absolute timing explicit in handwritten assembly;
    // compiler-lowered ordinary RAM references intentionally remain relaxable.
+#if TEMPLATE_glyph_rows == 1
+   asm lda #0;
+#elif TEMPLATE_glyph_rows == 2
+   asm lda #1;
+#elif TEMPLATE_glyph_rows == 3
+   asm lda #2;
+#elif TEMPLATE_glyph_rows == 4
+   asm lda #3;
+#elif TEMPLATE_glyph_rows == 5
+   asm lda #4;
+#elif TEMPLATE_glyph_rows == 6
+   asm lda #5;
+#elif TEMPLATE_glyph_rows == 7
+   asm lda #6;
+#else
    asm lda #7;
+#endif
    asm sta.a TEMPLATE_row;
 
    asm @TEMPLATE_draw_loop:;

@@ -3,9 +3,9 @@
 // VCSC field diagnostic cartridge.  One 32K F4SC image supports NTSC, PAL,
 // and SECAM plus joystick, four-paddle, keypad, and driving controllers.
 // SELECT cycles controller type.  Hold RESET while pressing SELECT to cycle
-// NTSC -> PAL -> SECAM -> NTSC.  Fixed labels are pre-cooked from the Half
-// font with make_pair_font.pl --score and displayed by the existing six-glyph
-// score renderer.
+// NTSC -> PAL -> SECAM -> NTSC. Fixed labels are pre-cooked from the Half
+// font with make_pair_font.pl --five and displayed by the existing six-glyph
+// renderer in its five-row full-pointer mode.
 
 include "vcs_32k_f4sc.c26"
 include "frame_ntsc.c26"
@@ -21,7 +21,7 @@ include "diagnostic_support.c26"
 // The ordinary score lifecycle needs a score_font symbol while preparing its
 // initial pointers.  The diagnostic immediately redirects all six full
 // pointers to message_font before every visible row.
-instantiate "six_glyph_component.c26" as diagnostic_text (compact_font:=0, mutable_color:=1)
+instantiate "six_glyph_component.c26" as diagnostic_text (compact_font:=0, glyph_rows:=5, external_pointers:=1, mutable_color:=1)
 instantiate "four_paddles.c26" as diagnostic_paddles
 instantiate "keypad_controller.c26" as diagnostic_left_keypad (port:=0, key_only:=1)
 instantiate "keypad_controller.c26" as diagnostic_right_keypad (port:=1, key_only:=1)
@@ -44,29 +44,31 @@ enum diagnostic_controller_modes {
 enum diagnostic_layout {
    DIAGNOSTIC_ROW_VCSC := 0,
    DIAGNOSTIC_ROW_TITLE := 6,
-   DIAGNOSTIC_ROW_TV := 12,
-   DIAGNOSTIC_ROW_CONTROLLER := 18,
-   DIAGNOSTIC_ROW_SWITCH0 := 24,
-   DIAGNOSTIC_ROW_SWITCH1 := 30,
-   DIAGNOSTIC_ROW_DETAIL0 := 36,
-   DIAGNOSTIC_ROW_DETAIL1 := 42,
-   DIAGNOSTIC_ROW_TIA := 48,
-   DIAGNOSTIC_ROW_COUNT := 9
+   DIAGNOSTIC_ROW_FINGERPRINT := 12,
+   DIAGNOSTIC_ROW_TV := 18,
+   DIAGNOSTIC_ROW_CONTROLLER := 24,
+   DIAGNOSTIC_ROW_SWITCH0 := 30,
+   DIAGNOSTIC_ROW_SWITCH1 := 36,
+   DIAGNOSTIC_ROW_DETAIL0 := 42,
+   DIAGNOSTIC_ROW_DETAIL1 := 48,
+   DIAGNOSTIC_ROW_TIA := 54,
+   DIAGNOSTIC_ROW_COUNT := 10
 };
 
 enum diagnostic_timing {
-   DIAGNOSTIC_VISIBLE_USED := 150,
-   DIAGNOSTIC_NTSC_VISIBLE_TAIL := 33,
-   DIAGNOSTIC_NTSC_INIT_TAIL := 32,
-   DIAGNOSTIC_NTSC_PADDLE_TAIL := 29,
-   DIAGNOSTIC_PAL_VISIBLE_TAIL := 69,
+   DIAGNOSTIC_VISIBLE_USED := 135,
+   DIAGNOSTIC_NTSC_VISIBLE_TAIL := 45,
+   DIAGNOSTIC_NTSC_INIT_TAIL := 45,
+   DIAGNOSTIC_NTSC_PADDLE_TAIL := 41,
+   DIAGNOSTIC_PAL_VISIBLE_TAIL := 81,
    // PAL's controller-initialization path ends one scanline later in phase
    // than an ordinary non-paddle frame.  Calibrate that transition explicitly
    // rather than allowing a single 313-line displayed frame at mode entry.
-   DIAGNOSTIC_PAL_INIT_TAIL := 68,
-   DIAGNOSTIC_PAL_PADDLE_TAIL := 65,
-   DIAGNOSTIC_SECAM_VISIBLE_TAIL := 68,
-   DIAGNOSTIC_SECAM_PADDLE_TAIL := 64
+   DIAGNOSTIC_PAL_INIT_TAIL := 80,
+   DIAGNOSTIC_PAL_PADDLE_TAIL := 77,
+   DIAGNOSTIC_SECAM_VISIBLE_TAIL := 79,
+   DIAGNOSTIC_SECAM_INIT_TAIL := 80,
+   DIAGNOSTIC_SECAM_PADDLE_TAIL := 75
 };
 
 // Non-beam-critical UI/application state belongs in shared Superchip RAM.
@@ -91,13 +93,13 @@ cartram uint8_t diagnostic_drive_position0;
 cartram uint8_t diagnostic_drive_position1;
 cartram uint8_t diagnostic_tia_collision_pass;
 cartram uint8_t diagnostic_audio_phase;
-cartram uint8_t diagnostic_rows[54];
+cartram uint8_t diagnostic_rows[60];
 #ifdef DIAGNOSTIC_TEST_SWEEP
 cartram uint8_t diagnostic_test_frames;
 #endif
 
-// A complete row is six pre-cooked pair glyphs.  The pair font is 256-aligned
-// and each glyph is eight bytes, so a low-byte/page-delta pair is sufficient
+// A complete row is six pre-cooked pair glyphs. The pair font is 256-aligned
+// and each glyph is five bytes, so a low-byte/page-delta pair is sufficient
 // to form six real zero-page pointers.  Split the work across three explicit
 // blank scanlines; the visible renderer itself never pays for text formatting.
 bank1 void diagnostic_prepare_row(uint8_t offset) {
@@ -157,10 +159,10 @@ bank1 void diagnostic_prepare_row(uint8_t offset) {
    asm sta WSYNC;
 }
 
-// One non-inline wrapper owns the renderer body.  Its leading WSYNC makes the
+// One non-inline wrapper owns the renderer body. Its leading WSYNC makes the
 // call/trampoline phase irrelevant and then the harmless BIT establishes the
-// renderer's documented cycle-3 entry phase.  Every row therefore costs one
-// alignment line plus the renderer's eleven scanlines.
+// renderer's documented cycle-3 entry phase. In five-row mode each row costs
+// one alignment line plus the renderer's eight scanlines.
 bank1 void diagnostic_draw_text_row(void) {
    WSYNC := 0;
    asm bit.z CXM0P;
@@ -168,7 +170,6 @@ bank1 void diagnostic_draw_text_row(void) {
 }
 
 bank1 void diagnostic_component_init(void) {
-   diagnostic_text_score := 0;
    diagnostic_text_color := 0x0e;
    diagnostic_text_init();
 }
@@ -434,29 +435,117 @@ bank6 void diagnostic_update_simple_detail(uint8_t row) {
    }
 }
 
-bank7 void diagnostic_update_numeric_detail(uint8_t row) {
-   // Paddle and driving values are deliberately refreshed one row per frame.
-   if (row == 0) {
-      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE) {
-         diagnostic_format_number_row(DIAGNOSTIC_ROW_DETAIL0,
-            diagnostic_paddles_button0 ? DIAG_PAIR_F0 : DIAG_PAIR_P0, diagnostic_paddles_position0,
-            diagnostic_paddles_button1 ? DIAG_PAIR_F1 : DIAG_PAIR_P1, diagnostic_paddles_position1);
-      }
-      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING) {
-         diagnostic_format_number_row(DIAGNOSTIC_ROW_DETAIL0,
-            diagnostic_left_drive_button ? DIAG_PAIR_F0 : DIAG_PAIR_P0, diagnostic_drive_position0,
-            diagnostic_right_drive_button ? DIAG_PAIR_F1 : DIAG_PAIR_P1, diagnostic_drive_position1);
-      }
-   } else {
-      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE) {
-         diagnostic_format_number_row(DIAGNOSTIC_ROW_DETAIL1,
-            diagnostic_paddles_button2 ? DIAG_PAIR_F2 : DIAG_PAIR_P2, diagnostic_paddles_position2,
-            diagnostic_paddles_button3 ? DIAG_PAIR_F3 : DIAG_PAIR_P3, diagnostic_paddles_position3);
-      }
-      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING) {
-         diagnostic_blank_row(DIAGNOSTIC_ROW_DETAIL1);
-      }
-   }
+bank7 void diagnostic_update_numeric_detail0(void) {
+   // Row 0 is deliberately handwritten. The old C formatter expanded into
+   // ~2.4 KiB and could miss the overscan deadline on a driving/UI phase.
+   // All 256-byte decimal lookup tables are page-aligned, so indexed loads
+   // retain fixed timing for every value.
+   asm lda diagnostic_controller_mode;
+   asm cmp #1;
+   asm bne @driving;
+
+   asm lda diagnostic_paddles_button0;
+   asm beq @paddle_p0;
+   asm lda #31;
+   asm bne @paddle_store0;
+   asm @paddle_p0:;
+   asm lda #27;
+   asm @paddle_store0:;
+   asm sta diagnostic_rows+42;
+   asm ldx diagnostic_paddles_position0;
+   asm lda diagnostic_number_hi,x;
+   asm sta diagnostic_rows+43;
+   asm lda diagnostic_number_lo,x;
+   asm sta diagnostic_rows+44;
+
+   asm lda diagnostic_paddles_button1;
+   asm beq @paddle_p1;
+   asm lda #32;
+   asm bne @paddle_store1;
+   asm @paddle_p1:;
+   asm lda #28;
+   asm @paddle_store1:;
+   asm sta diagnostic_rows+45;
+   asm ldx diagnostic_paddles_position1;
+   asm lda diagnostic_number_hi,x;
+   asm sta diagnostic_rows+46;
+   asm lda diagnostic_number_lo,x;
+   asm sta diagnostic_rows+47;
+   asm rts;
+
+   asm @driving:;
+   asm lda diagnostic_left_drive_button;
+   asm beq @drive_p0;
+   asm lda #31;
+   asm bne @drive_store0;
+   asm @drive_p0:;
+   asm lda #27;
+   asm @drive_store0:;
+   asm sta diagnostic_rows+42;
+   asm ldx diagnostic_drive_position0;
+   asm lda diagnostic_number_hi,x;
+   asm sta diagnostic_rows+43;
+   asm lda diagnostic_number_lo,x;
+   asm sta diagnostic_rows+44;
+
+   asm lda diagnostic_right_drive_button;
+   asm beq @drive_p1;
+   asm lda #32;
+   asm bne @drive_store1;
+   asm @drive_p1:;
+   asm lda #28;
+   asm @drive_store1:;
+   asm sta diagnostic_rows+45;
+   asm ldx diagnostic_drive_position1;
+   asm lda diagnostic_number_hi,x;
+   asm sta diagnostic_rows+46;
+   asm lda diagnostic_number_lo,x;
+   asm sta diagnostic_rows+47;
+}
+
+bank7 void diagnostic_update_numeric_detail1(void) {
+   asm lda diagnostic_controller_mode;
+   asm cmp #1;
+   asm beq @paddle;
+
+   // Driving has only two controls; keep the second numeric row blank.
+   asm lda #0;
+   asm sta diagnostic_rows+48;
+   asm sta diagnostic_rows+49;
+   asm sta diagnostic_rows+50;
+   asm sta diagnostic_rows+51;
+   asm sta diagnostic_rows+52;
+   asm sta diagnostic_rows+53;
+   asm rts;
+
+   asm @paddle:;
+   asm lda diagnostic_paddles_button2;
+   asm beq @paddle_p2;
+   asm lda #33;
+   asm bne @paddle_store2;
+   asm @paddle_p2:;
+   asm lda #29;
+   asm @paddle_store2:;
+   asm sta diagnostic_rows+48;
+   asm ldx diagnostic_paddles_position2;
+   asm lda diagnostic_number_hi,x;
+   asm sta diagnostic_rows+49;
+   asm lda diagnostic_number_lo,x;
+   asm sta diagnostic_rows+50;
+
+   asm lda diagnostic_paddles_button3;
+   asm beq @paddle_p3;
+   asm lda #34;
+   asm bne @paddle_store3;
+   asm @paddle_p3:;
+   asm lda #30;
+   asm @paddle_store3:;
+   asm sta diagnostic_rows+51;
+   asm ldx diagnostic_paddles_position3;
+   asm lda diagnostic_number_hi,x;
+   asm sta diagnostic_rows+52;
+   asm lda diagnostic_number_lo,x;
+   asm sta diagnostic_rows+53;
 }
 
 bank0 void diagnostic_update_controls_impl(void) {
@@ -641,34 +730,34 @@ bank0 void diagnostic_format_boot_rows(void) {
    asm lsr; asm lsr; asm lsr; asm lsr;
    asm tax;
    asm lda diagnostic_hex_pair,x;
-   asm sta diagnostic_rows+6;
+   asm sta diagnostic_rows+12;
    asm lda diagnostic_cpu_fingerprint+2;
    asm and #$0f;
    asm tax;
    asm lda diagnostic_hex_pair,x;
-   asm sta diagnostic_rows+7;
+   asm sta diagnostic_rows+13;
 
    asm lda diagnostic_cpu_fingerprint+1;
    asm lsr; asm lsr; asm lsr; asm lsr;
    asm tax;
    asm lda diagnostic_hex_pair,x;
-   asm sta diagnostic_rows+8;
+   asm sta diagnostic_rows+14;
    asm lda diagnostic_cpu_fingerprint+1;
    asm and #$0f;
    asm tax;
    asm lda diagnostic_hex_pair,x;
-   asm sta diagnostic_rows+9;
+   asm sta diagnostic_rows+15;
 
    asm lda diagnostic_cpu_fingerprint;
    asm lsr; asm lsr; asm lsr; asm lsr;
    asm tax;
    asm lda diagnostic_hex_pair,x;
-   asm sta diagnostic_rows+10;
+   asm sta diagnostic_rows+16;
    asm lda diagnostic_cpu_fingerprint;
    asm and #$0f;
    asm tax;
    asm lda diagnostic_hex_pair,x;
-   asm sta diagnostic_rows+11;
+   asm sta diagnostic_rows+17;
 }
 
 // Keep the self-test text outside the formatting bank; bank5 is intentionally
@@ -677,15 +766,15 @@ bank0 void diagnostic_update_tia_status(void) {
    asm lda diagnostic_tia_collision_pass;
    asm beq @fail;
    asm lda #9;
-   asm sta diagnostic_rows+50;
+   asm sta diagnostic_rows+56;
    asm lda #107;
-   asm sta diagnostic_rows+51;
+   asm sta diagnostic_rows+57;
    asm rts;
    asm @fail:;
    asm lda #108;
-   asm sta diagnostic_rows+50;
+   asm sta diagnostic_rows+56;
    asm lda #109;
-   asm sta diagnostic_rows+51;
+   asm sta diagnostic_rows+57;
 }
 
 // --- Deterministic TIA hardware panel -----------------------------------
@@ -868,7 +957,7 @@ bank1 void diagnostic_frame(void) {
          diagnostic_controller_needs_init := 0;
       }
    }
-   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING) {
+   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING && diagnostic_frame_init_only) {
       diagnostic_driving_vblank();
    }
 
@@ -884,8 +973,29 @@ bank1 void diagnostic_frame(void) {
    if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_end_vblank(); }
    if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_end_vblank(); }
 
+   // Controller callbacks reach the shared VBLANK deadline on slightly
+   // different scanlines. Move blank visible lines from the tail to the front
+   // so every standard/controller combination starts the diagnostic raster at
+   // one common vertical origin. Every path executes at least one WSYNC here;
+   // diagnostic_draw_text_row() performs the final row-entry WSYNC itself.
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) {
+      // With five-row packed glyphs there is no synthetic blank row above the
+      // first lit glyph row.  Keep a real two-line pre-text gap for every
+      // controller so paddle mode shares the same raster origin as the
+      // digital-controller paths; its post-visible tail is one line shorter
+      // to preserve the 262-line frame contract.
+      WSYNC := 0; WSYNC := 0;
+   }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) {
+      WSYNC := 0; WSYNC := 0;
+   }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) {
+      WSYNC := 0; WSYNC := 0;
+   }
+
    diagnostic_draw_text_row();
    diagnostic_prepare_row(DIAGNOSTIC_ROW_TITLE); diagnostic_draw_text_row();
+   diagnostic_prepare_row(DIAGNOSTIC_ROW_FINGERPRINT); diagnostic_draw_text_row();
    diagnostic_prepare_row(DIAGNOSTIC_ROW_TV); diagnostic_draw_text_row();
    diagnostic_prepare_row(DIAGNOSTIC_ROW_CONTROLLER); diagnostic_draw_text_row();
    diagnostic_prepare_row(DIAGNOSTIC_ROW_SWITCH0); diagnostic_draw_text_row();
@@ -908,16 +1018,14 @@ bank1 void diagnostic_frame(void) {
    }
 
    if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) {
-      if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && !diagnostic_frame_init_only) {
-         vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_PADDLE_TAIL);
-      } else {
-         // The paddle initialization entry is one line later in phase than the
-         // ordinary path after the TIA panel. Use a 33-line base tail for both
-         // and spend the normal path's extra blank line explicitly.
-         if (!(diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && diagnostic_frame_init_only)) {
-            WSYNC := 0;
+      if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE) {
+         if (diagnostic_frame_init_only) {
+            vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_INIT_TAIL);
+         } else {
+            vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_PADDLE_TAIL);
          }
-         vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_INIT_TAIL);
+      } else {
+         vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_VISIBLE_TAIL);
       }
       vcs_ntsc_begin_overscan();
    }
@@ -934,10 +1042,24 @@ bank1 void diagnostic_frame(void) {
       vcs_pal_begin_overscan();
    }
    if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) {
-      if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && !diagnostic_frame_init_only) {
-         vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_PADDLE_TAIL);
+      if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE) {
+         if (diagnostic_frame_init_only) {
+            vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_INIT_TAIL);
+         } else {
+            vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_PADDLE_TAIL);
+         }
       } else {
-         vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_VISIBLE_TAIL);
+         // Keypad/driving setup completes at a different 50 Hz phase than an
+         // ordinary frame.  Use the same one-line init calibration as the
+         // paddle transition; this is a post-visible tail adjustment and does
+         // not move the steady diagnostic raster.
+         if (diagnostic_frame_init_only &&
+             (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD ||
+              diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING)) {
+            vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_INIT_TAIL);
+         } else {
+            vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_VISIBLE_TAIL);
+         }
       }
       vcs_secam_begin_overscan();
    }
@@ -947,6 +1069,9 @@ bank1 void diagnostic_frame(void) {
    }
    if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD && !diagnostic_frame_init_only) {
       diagnostic_keypad_overscan();
+   }
+   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING && !diagnostic_frame_init_only) {
+      diagnostic_driving_vblank();
    }
    // Input changes are recorded near the end of overscan and become active on
    // the next frame.  UI construction is deliberately spread across frames so
@@ -965,7 +1090,7 @@ bank1 void diagnostic_frame(void) {
                 diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD) {
                diagnostic_update_simple_detail(0);
             } else {
-               diagnostic_update_numeric_detail(0);
+               diagnostic_update_numeric_detail0();
             }
             diagnostic_ui_phase := 2;
          } else {
@@ -974,7 +1099,7 @@ bank1 void diagnostic_frame(void) {
                    diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD) {
                   diagnostic_update_simple_detail(1);
                } else {
-                  diagnostic_update_numeric_detail(1);
+                  diagnostic_update_numeric_detail1();
                }
                diagnostic_ui_phase := 3;
             } else {

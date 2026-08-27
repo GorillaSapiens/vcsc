@@ -65,33 +65,73 @@ my $boot=File::Spec->catfile($example,'diagnostic_boot.s26');
 my $indices=File::Spec->catfile($example,'diagnostic_pair_indices.c26');
 my $pairs=File::Spec->catfile($example,'pairs_message.txt');
 my $pair_font=File::Spec->catfile($example,'diagnostic_pairs.c26');
+my $support=File::Spec->catfile($example,'diagnostic_support.c26');
 my $half_font=File::Spec->catfile($vcs,qw(fonts half_ascii.c26));
 my $pair_helper=File::Spec->catfile($vcs,qw(fonts make_pair_font.pl));
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $generic=File::Spec->catfile($vcs,'vcs.cfg');
+my $examples_ignore=File::Spec->catfile($repo,'examples','.gitignore');
+
+my $ignore_text=read_file($examples_ignore);
+$ignore_text =~ /^!19_diagnostic\/01_diagnostic\/diagnostic_boot\.s26$/m
+   or die "examples/.gitignore would omit maintained diagnostic_boot.s26 from handoff tarballs\n";
 
 my $src=read_file($source);
 my $idx=read_file($indices);
 my $msg=read_file($pairs);
 my $pair_text=read_file($pair_font);
+my $support_text=read_file($support);
 my $half_text=read_file($half_font);
 
 # The diagnostic pair table is checked in because rendering must be cheap on
 # the 2600, but it is generated from Half.  Compare the actual row bytes with
-# a fresh make_pair_font.pl --score run so Half readability fixes cannot leave
+# a fresh make_pair_font.pl --five run so Half readability fixes cannot leave
 # stale pre-cooked diagnostic glyphs behind.
 $pair_text =~ /^\/\/ Message: "([^"]*)"$/m
    or die "diagnostic pair font lost its source message\n";
 my $pair_message=$1;
-my($pair_rc,$pair_sig,$pair_out,$pair_err)=run_capture($pair_helper,'--score',$half_font,$pair_message);
+my($pair_rc,$pair_sig,$pair_out,$pair_err)=run_capture($pair_helper,'--five','--wide-bracket-hash',$half_font,$pair_message);
 $pair_rc==0 && !$pair_sig or die "regenerate diagnostic pair font failed\n$pair_out$pair_err";
 $pair_err eq '' or die "regenerate diagnostic pair font wrote stderr:\n$pair_err";
 my @checked_rows=$pair_text =~ /0b([.X]{8})/g;
 my @generated_rows=$pair_out =~ /0b([.X]{8})/g;
-@checked_rows==936 && @generated_rows==936
-   or die "diagnostic pair font row count changed\n";
+@checked_rows==585 && @generated_rows==585
+   or die "diagnostic five-row pair font row count changed\n";
 join('',@checked_rows) eq join('',@generated_rows)
    or die "diagnostic_pairs.c26 is stale relative to half_ascii.c26\n";
+$pair_text =~ m{// 70: "\[#".*?VCS_FONT_GLYPH\(\n\s*0b\.XX\.X\.X\.,\n\s*0b\.X\.XXXXX,\n\s*0b\.X\.\.X\.X\.,\n\s*0b\.X\.XXXXX,\n\s*0b\.XX\.X\.X\.\n\s*\)}s
+   or die "diagnostic keypad # lost its five-column bracketed composition\n";
+$pair_text =~ /score_font\[587\]/ && $pair_out =~ /message_font\[587\]/
+   or die "diagnostic five-row pair font lost page-safe 587-byte storage\n";
+my @checked_pads=$pair_text =~ /page-boundary padding before glyph (\d+)/g;
+my @generated_pads=$pair_out =~ /page-boundary padding before glyph (\d+)/g;
+join(',',@checked_pads) eq '51,102' && join(',',@generated_pads) eq '51,102'
+   or die "diagnostic five-row pair font page padding changed\n";
+
+# The runtime address tables must point at the page-safe packed starts.  A
+# five-row glyph beginning above offset 250 would make (pointer),Y acquire a
+# data-dependent page-cross cycle in the beam renderer.
+$support_text =~ /diagnostic_pair_low\[117\]\s*:=\s*\{(.*?)\};/s
+   or die "diagnostic support lost low-byte pair table\n";
+my @pair_low=$1 =~ /\b(\d+)\b/g;
+$support_text =~ /diagnostic_pair_page\[117\]\s*:=\s*\{(.*?)\};/s
+   or die "diagnostic support lost page pair table\n";
+my @pair_page=$1 =~ /\b(\d+)\b/g;
+@pair_low==117 && @pair_page==117 or die "diagnostic pair address table count changed\n";
+for my $i (0..116) {
+   my $offset=$i*5 + int($i/51);
+   my $want_low=$offset & 255;
+   my $want_page=$offset >> 8;
+   $pair_low[$i]==$want_low && $pair_page[$i]==$want_page
+      or die "diagnostic pair address mismatch at glyph $i\n";
+   $pair_low[$i] <= 250
+      or die "diagnostic pair glyph $i crosses a 256-byte page\n";
+}
+$src =~ /glyph_rows:=5/ &&
+$src =~ /DIAGNOSTIC_ROW_TITLE\s*:=\s*6.*?DIAGNOSTIC_ROW_FINGERPRINT\s*:=\s*12/s &&
+$src =~ /diagnostic_prepare_row\(DIAGNOSTIC_ROW_TITLE\);\s*diagnostic_draw_text_row\(\);.*?diagnostic_prepare_row\(DIAGNOSTIC_ROW_FINGERPRINT\);/s &&
+$src =~ /diagnostic_rows\+12.*?diagnostic_rows\+17/s
+   or die "diagnostic lost five-row text mode, DIAGNOSTIC title, or separate fingerprint row\n";
 $src =~ /DIAG_PAIR_CO.*DIAG_PAIR_LR/s &&
 $src =~ /DIAG_PAIR_BAMP.*DIAG_PAIR_W_SPACE/s &&
 $idx =~ /DIAG_PAIR_LR\s*:=\s*36,\s*\/\/ 'LR'/ &&

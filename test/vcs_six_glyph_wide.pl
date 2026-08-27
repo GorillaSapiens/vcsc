@@ -53,10 +53,14 @@ for my $contract (
    'TEMPLATE_GLYPH_ORIGIN_0 := 36', 'TEMPLATE_GLYPH_ORIGIN_1 := 52',
    'TEMPLATE_GLYPH_ORIGIN_2 := 68', 'TEMPLATE_GLYPH_ORIGIN_3 := 84',
    'TEMPLATE_GLYPH_ORIGIN_4 := 100', 'TEMPLATE_GLYPH_ORIGIN_5 := 116',
-   'TEMPLATE_GLYPH_WIDTH := 8', 'TEMPLATE_GLYPH_ORIGIN_PITCH := 16',
-   'TEMPLATE_VISIBLE_SCANLINES := 11') {
+   'TEMPLATE_GLYPH_WIDTH := 8', 'TEMPLATE_GLYPH_ORIGIN_PITCH := 16') {
    index($source,$contract)>=0 or die "wide component lost contract '$contract'\n";
 }
+$source =~ /parameter\s+glyph_rows\s*:=\s*8/ &&
+$source =~ /#elif TEMPLATE_glyph_rows == 8\s*\nalias TEMPLATE_VISIBLE_SCANLINES_VALUE 11/ &&
+$source =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/ &&
+$source =~ /TEMPLATE_DRAW_COMPLETE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/
+   or die "wide component lost glyph_rows default-height contract\n";
 $source =~ /asm lda #\$06;\s*asm sta NUSIZ0;\s*asm sta NUSIZ1;/s
    or die "wide component lost three-medium-copy setup\n";
 $source =~ /parameter\s+compact_font\s*:=\s*1/ &&
@@ -67,7 +71,7 @@ $source =~ /recommend uint8_t TEMPLATE_color := 0x0e;/
    or die "wide component lost mutable color support\n";
 $source =~ /VDELP0 := 1;.*VDELP1 := 1;/s
    or die "wide component lost the delayed-player pipeline\n";
-sha256_hex(read_file($centered)) eq 'd95bf69c8c88f86849b07e48598cb6aed90d1819e24dc7c9cfbfbff6b59d2eba'
+sha256_hex(read_file($centered)) eq '48fca77d69ddbb12a087f11d4c4dfbc145572570a4ec95957f160a89dc9d1e5f'
    or die "centered six-glyph component changed while adding the wide profile\n";
 
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$map,$fixture,'-o',$bin);

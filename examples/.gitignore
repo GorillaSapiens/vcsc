@@ -11,4 +11,5 @@
 !18_enhanced_multisprite/01_192/01_asymmetric/enhanced_multisprite_192_asymmetric_startup.s26
 !17_video_standards/pal/05_enhanced_multisprite_asymmetric/pal_enhanced_multisprite_asymmetric_228_interactive_startup.s26
 !17_video_standards/secam/05_enhanced_multisprite_asymmetric/secam_enhanced_multisprite_asymmetric_228_interactive_startup.s26
+!19_diagnostic/01_diagnostic/diagnostic_boot.s26
 *.sym

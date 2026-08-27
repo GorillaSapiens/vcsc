@@ -7,7 +7,9 @@ use Digest::SHA qw(sha256_hex);
 
 sub read_file { my($p)=@_; open(my $f,'<:raw',$p) or die "read $p: $!\n"; local $/; my $d=<$f>; close($f); return $d // ''; }
 sub paeth { my($a,$b,$c)=@_; my $p=$a+$b-$c; my($pa,$pb,$pc)=(abs($p-$a),abs($p-$b),abs($p-$c)); return $a if $pa<=$pb && $pa<=$pc; return $b if $pb<=$pc; return $c; }
-@ARGV==1 or die "usage: $0 SNAPSHOT.png\n";
+my $first_lit = 0;
+if (@ARGV && $ARGV[0] eq '--first-lit-row') { shift @ARGV; $first_lit = 1; }
+@ARGV==1 or die "usage: $0 [--first-lit-row] SNAPSHOT.png\n";
 my $path=$ARGV[0]; my $png=read_file($path);
 substr($png,0,8) eq "\x89PNG\r\n\x1a\n" or die "$path is not PNG\n";
 my($w,$h,$depth,$ct,$interlace,$palette,$idat); ($palette,$idat)=('','');
@@ -24,7 +26,7 @@ defined($w) && $depth==8 && $interlace==0 or die "$path uses unsupported PNG enc
 my %ch=(0=>1,2=>3,3=>1,4=>2,6=>4); exists($ch{$ct}) or die "$path uses unsupported PNG color type $ct\n";
 my $c=$ch{$ct}; my $rowbytes=$w*$c; my $raw=uncompress($idat); defined($raw) or die "$path has invalid compressed data\n";
 length($raw)==($rowbytes+1)*$h or die "$path has unexpected scanline bytes\n";
-my @prev=(0)x$rowbytes; my $pos=0; my $rgb='';
+my @prev=(0)x$rowbytes; my $pos=0; my $rgb=''; my $first_lit_row;
 for my $y (0..$h-1) {
    my $filter=ord(substr($raw,$pos++,1)); my @row=unpack('C*',substr($raw,$pos,$rowbytes)); $pos+=$rowbytes;
    for my $x (0..$#row) {
@@ -33,12 +35,23 @@ for my $y (0..$h-1) {
       elsif($filter==3){$row[$x]=($row[$x]+int(($left+$up)/2))&255} elsif($filter==4){$row[$x]=($row[$x]+paeth($left,$up,$ul))&255}
       elsif($filter!=0){die "$path uses unknown PNG filter $filter\n"}
    }
+   my $row_rgb='';
    for my $x (0..$w-1) {
       my $i=$x*$c;
-      if($ct==0 || $ct==4){$rgb.=pack('C3',($row[$i])x3)}
-      elsif($ct==3){my $p=$row[$i]*3; $rgb.=substr($palette,$p,3)}
-      else{$rgb.=pack('C3',@row[$i,$i+1,$i+2])}
+      if($ct==0 || $ct==4){$row_rgb.=pack('C3',($row[$i])x3)}
+      elsif($ct==3){my $p=$row[$i]*3; $row_rgb.=substr($palette,$p,3)}
+      else{$row_rgb.=pack('C3',@row[$i,$i+1,$i+2])}
    }
+   if (!defined($first_lit_row)) {
+      my @px=unpack('C*',$row_rgb);
+      for my $v (@px) { if ($v > 16) { $first_lit_row=$y; last; } }
+   }
+   $rgb.=$row_rgb;
    @prev=@row;
 }
-print "$w x $h ",sha256_hex($rgb),"\n";
+if ($first_lit) {
+   defined($first_lit_row) or die "$path has no lit pixels above threshold\n";
+   print "$first_lit_row\n";
+} else {
+   print "$w x $h ",sha256_hex($rgb),"\n";
+}

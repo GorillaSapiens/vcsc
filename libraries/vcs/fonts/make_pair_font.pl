@@ -6,19 +6,36 @@ use warnings;
 # Usage:
 #   ./make_pair_font.pl half_ascii.c26 "HELLO WORLD"
 #   ./make_pair_font.pl --score half_ascii.c26 "HELLO WORLD"
+#   ./make_pair_font.pl --five half_ascii.c26 "HELLO WORLD"
+#   ./make_pair_font.pl --five --wide-bracket-hash half_ascii.c26 "[#]"
 #
 # Reads a 4x6 ASCII font in VCS_FONT_GLYPH(...) format, splits the
-# message into two-character chunks, and writes an 8x6 glyph table
-# to stdout.  An odd final character is paired with a space.
+# message into two-character chunks, and writes a paired glyph table to stdout.
+# An odd final character is paired with a space.
 
 my $score_mode = 0;
-if (@ARGV && $ARGV[0] eq '--score') {
-    shift @ARGV;
-    $score_mode = 1;
+my $five_mode = 0;
+my $wide_bracket_hash = 0;
+while (@ARGV && $ARGV[0] =~ /^--/) {
+    my $opt = shift @ARGV;
+    if ($opt eq '--score') {
+        $score_mode = 1;
+    } elsif ($opt eq '--five') {
+        $five_mode = 1;
+    } elsif ($opt eq '--wide-bracket-hash') {
+        $wide_bracket_hash = 1;
+    } else {
+        die "usage: $0 [--score|--five] [--wide-bracket-hash] FONTFILE \"MESSAGE\"\n";
+    }
 }
 
+$score_mode && $five_mode
+    and die "$0: --score and --five are mutually exclusive\n";
+$wide_bracket_hash && !$five_mode
+    and die "$0: --wide-bracket-hash requires --five\n";
+
 @ARGV == 2
-    or die "usage: $0 [--score] FONTFILE \"MESSAGE\"\n";
+    or die "usage: $0 [--score|--five] [--wide-bracket-hash] FONTFILE \"MESSAGE\"\n";
 
 my ($font_file, $message) = @ARGV;
 
@@ -81,33 +98,70 @@ for my $c (@chars) {
 push @chars, 0x20 if @chars & 1;
 
 my $glyph_count = @chars / 2;
-my $rows_per_glyph = $score_mode ? 8 : 6;
-my $byte_count  = $glyph_count * $rows_per_glyph;
+my $rows_per_glyph = $score_mode ? 8 : $five_mode ? 5 : 6;
+my @glyph_offsets;
+my $byte_count = 0;
+for my $glyph (0 .. $glyph_count - 1) {
+    if ($five_mode && ($byte_count & 0xff) > 251) {
+        $byte_count += 256 - ($byte_count & 0xff);
+    }
+    push @glyph_offsets, $byte_count;
+    $byte_count += $rows_per_glyph;
+}
 
-print $score_mode ? "// 8x8 score-compatible paired-message glyphs\n" : "// 8x6 paired-message glyphs\n";
+print $score_mode ? "// 8x8 score-compatible paired-message glyphs\n" : $five_mode ? "// 8x5 compact paired-message glyphs\n" : "// 8x6 paired-message glyphs\n";
 print "// Generated from: $font_file\n";
 print "// Message: ", comment_string($message), "\n";
 print "// Two source characters per 8-bit glyph; odd messages are space-padded.\n";
 print "// --score adds one blank row above and below the original 4x6 pair.\n" if $score_mode;
+print "// --five drops the source font's blank sixth row and page-pads only when\n" if $five_mode;
+print "// needed so no five-byte glyph crosses a 256-byte page.\n" if $five_mode;
+print "// --wide-bracket-hash lets [# borrow the unused fourth column of [.\n" if $wide_bracket_hash;
 print "\n";
 
 if ($score_mode) {
     print "alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a\n\n";
+} elsif ($five_mode) {
+    print "alias VCS_FONT_GLYPH(a,b,c,d,e) e,d,c,b,a\n\n";
 } else {
     print "alias VCS_FONT_GLYPH(a,b,c,d,e,f) f,e,d,c,b,a\n\n";
 }
 print "align(256) const uint8_t message_font[$byte_count] := {\n";
 
+my $emitted_bytes = 0;
 for (my $i = 0; $i < @chars; $i += 2) {
     my ($left, $right) = @chars[$i, $i + 1];
     my $pair = chr($left) . chr($right);
     my $n = $i / 2;
 
-    printf "   // %d: %s (0x%02X 0x%02X)\n",
-        $n, comment_string($pair), $left, $right;
+    if ($five_mode && $emitted_bytes < $glyph_offsets[$n]) {
+        my $pad = $glyph_offsets[$n] - $emitted_bytes;
+        print "   // page-boundary padding before glyph $n\n";
+        for (1 .. $pad) {
+            print "   0,\n";
+        }
+        $emitted_bytes += $pad;
+    }
+
+    printf "   // %d: %s (0x%02X 0x%02X) offset=0x%03X\n",
+        $n, comment_string($pair), $left, $right, $glyph_offsets[$n];
     print "   VCS_FONT_GLYPH(\n";
 
-    my @bits = map { $font{$left}[$_] . $font{$right}[$_] } 0 .. 5;
+    my @bits = map { $font{$left}[$_] . $font{$right}[$_] } 0 .. ($five_mode ? 4 : 5);
+
+    # The diagnostic keypad always displays # as [#].  In that composition
+    # the '[' glyph leaves its fourth cell column unused, so let # borrow it
+    # and render as a real five-column hash without changing the generic Half
+    # font or widening any other paired character.
+    if ($wide_bracket_hash && $left == ord('[') && $right == ord('#')) {
+        my @hash5 = ('.X.X.', 'XXXXX', '.X.X.', 'XXXXX', '.X.X.');
+        for my $row (0 .. 4) {
+            my $left4 = $font{$left}[$row];
+            substr($left4, 3, 1, '.');
+            $bits[$row] = substr($left4, 0, 3) . $hash5[$row];
+        }
+    }
+
     @bits = ('........', @bits, '........') if $score_mode;
     for my $row (0 .. $#bits) {
         my $comma = $row == $#bits ? "" : ",";
@@ -116,6 +170,7 @@ for (my $i = 0; $i < @chars; $i += 2) {
 
     my $comma = ($i + 2 < @chars) ? "," : "";
     print "   )$comma\n\n";
+    $emitted_bytes += $rows_per_glyph;
 }
 
 print "};\n";

@@ -79,6 +79,11 @@ for my $spec (@components) {
       $text=$branch;
       $text =~ /\bTEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_lines\b/
          or die "$label has no parameterized visible-scanline contract\n";
+   } elsif ($rel =~ /^(?:six_glyph(?:_wide|_left|_right)?_component|two_plus_two_score_component)\.c26$/) {
+      $text =~ /parameter\s+glyph_rows\s*:=\s*8/ &&
+      $text =~ /#elif TEMPLATE_glyph_rows == 8\s*\nalias TEMPLATE_VISIBLE_SCANLINES_VALUE 11/ &&
+      $text =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/
+         or die "$label has no glyph_rows default visible-scanline contract\n";
    } else {
       require_value($text,'VISIBLE_SCANLINES',$lines,$label);
    }
@@ -87,6 +92,9 @@ for my $spec (@components) {
    if ($parameterized_renderer) {
       $text =~ /\bTEMPLATE_DRAW_COMPLETE_SCANLINES\s*:=\s*TEMPLATE_lines\b/
          or die "$label has no parameterized complete-scanline contract\n";
+   } elsif ($rel =~ /^(?:six_glyph(?:_wide|_left|_right)?_component|two_plus_two_score_component)\.c26$/) {
+      $text =~ /TEMPLATE_DRAW_COMPLETE_SCANLINES\s*:=\s*TEMPLATE_VISIBLE_SCANLINES_VALUE/
+         or die "$label has no glyph_rows complete-scanline contract\n";
    } else {
       require_value($text,'DRAW_COMPLETE_SCANLINES',$lines,$label);
    }
