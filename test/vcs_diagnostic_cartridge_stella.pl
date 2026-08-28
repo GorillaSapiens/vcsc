@@ -112,7 +112,10 @@ for my$standard (
       $reference_row eq "$expected_first_lit_row\n"
          or die"$name reference first lit row is $reference_row instead of $expected_first_lit_row\n";
       if ($name eq 'ntsc_joystick') {
-         ok("$name P1 trailing blank",$perl,$digest,'--assert-dark-rect','178,122,209,126',$png[0]);
+         # P1's live row ends at x=173 with no controller input.  badpatch.patch
+         # exposed a nondeterministic staging failure that emitted extra glyphs
+         # to the right; keep this assertion outside the masked live-row digest.
+         ok("$name P1 trailing blank",$perl,$digest,'--assert-dark-rect','174,121,220,126',$png[0]);
       }
 
       # The two controller-detail text rows are intentionally live input.

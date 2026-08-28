@@ -99,7 +99,8 @@ cartram uint8_t diagnostic_tia_m0_x;
 cartram uint8_t diagnostic_tia_m1_x;
 cartram uint8_t diagnostic_tia_ball_x;
 cartram uint8_t diagnostic_audio_phase;
-cartram uint8_t diagnostic_rows[54];
+cartram uint8_t diagnostic_rows[48];
+uint8_t diagnostic_detail1_row[6];
 #ifdef DIAGNOSTIC_TEST_SWEEP
 cartram uint8_t diagnostic_test_frames;
 #endif
@@ -173,6 +174,39 @@ bank1 void diagnostic_draw_text_row(void) {
    WSYNC := 0;
    asm bit.z CXM0P;
    diagnostic_text_draw();
+}
+
+// DETAIL1 is staged in ordinary RIOT RAM.  Keeping these six pair indices out
+// of Superchip RAM avoids the unstable cartridge-RAM readback that was feeding
+// arbitrary pair numbers into the pointer expander after badpatch.patch.
+bank1 void diagnostic_prepare_detail1_row(void) {
+   // The generic argument-bearing prepare path consumed this alignment line
+   // before its first pair expansion.  Make it explicit so moving DETAIL1 to
+   // ordinary RAM does not pull this row or the rest of the frame up one line.
+   WSYNC := 0;
+   asm ldy diagnostic_detail1_row+0;
+   asm lda diagnostic_pair_low,y; asm sta.z diagnostic_text_pointers+0;
+   asm lda diagnostic_pair_page,y; asm clc; asm adc #>score_font; asm sta.z diagnostic_text_pointers+1;
+   asm ldy diagnostic_detail1_row+1;
+   asm lda diagnostic_pair_low,y; asm sta.z diagnostic_text_pointers+2;
+   asm lda diagnostic_pair_page,y; asm clc; asm adc #>score_font; asm sta.z diagnostic_text_pointers+3;
+   asm sta WSYNC;
+
+   asm ldy diagnostic_detail1_row+2;
+   asm lda diagnostic_pair_low,y; asm sta.z diagnostic_text_pointers+4;
+   asm lda diagnostic_pair_page,y; asm clc; asm adc #>score_font; asm sta.z diagnostic_text_pointers+5;
+   asm ldy diagnostic_detail1_row+3;
+   asm lda diagnostic_pair_low,y; asm sta.z diagnostic_text_pointers+6;
+   asm lda diagnostic_pair_page,y; asm clc; asm adc #>score_font; asm sta.z diagnostic_text_pointers+7;
+   asm sta WSYNC;
+
+   asm ldy diagnostic_detail1_row+4;
+   asm lda diagnostic_pair_low,y; asm sta.z diagnostic_text_pointers+8;
+   asm lda diagnostic_pair_page,y; asm clc; asm adc #>score_font; asm sta.z diagnostic_text_pointers+9;
+   asm ldy diagnostic_detail1_row+5;
+   asm lda diagnostic_pair_low,y; asm sta.z diagnostic_text_pointers+10;
+   asm lda diagnostic_pair_page,y; asm clc; asm adc #>score_font; asm sta.z diagnostic_text_pointers+11;
+   asm sta WSYNC;
 }
 
 bank3 void diagnostic_prepare_collision_top(void) {
@@ -527,7 +561,12 @@ bank5 void diagnostic_initialize_rows(void) {
    diagnostic_rows[DIAGNOSTIC_ROW_SWITCH1+2] := DIAG_PAIR_SPACE_D;
    diagnostic_rows[DIAGNOSTIC_ROW_SWITCH1+4] := DIAG_PAIR_SPACE_D;
    diagnostic_blank_row(DIAGNOSTIC_ROW_DETAIL0);
-   diagnostic_blank_row(DIAGNOSTIC_ROW_DETAIL1);
+   diagnostic_detail1_row[0] := DIAG_PAIR_BLANK;
+   diagnostic_detail1_row[1] := DIAG_PAIR_BLANK;
+   diagnostic_detail1_row[2] := DIAG_PAIR_BLANK;
+   diagnostic_detail1_row[3] := DIAG_PAIR_BLANK;
+   diagnostic_detail1_row[4] := DIAG_PAIR_BLANK;
+   diagnostic_detail1_row[5] := DIAG_PAIR_BLANK;
 
    // Startup-only host/CPU formatting lives here so it shares the existing
    // bank-5 initialization trampoline instead of consuming scarce bank-0 ROM.
@@ -658,15 +697,20 @@ bank6 void diagnostic_update_simple_detail(uint8_t row) {
          if ((joy1 & 0x04) == 0) { dl1 := dl1 | 2; }
          if ((joy1 & 0x08) == 0) { rf1 := rf1 | 1; }
          if ((INPT5 & 0x80) == 0) { rf1 := rf1 | 2; }
-         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL1+0] := DIAG_PAIR_P1;
-         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL1+1] := (joy1 & 0x01) ? DIAG_PAIR_SPACE_DOT : DIAG_PAIR_SPACE_U;
-         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL1+2] := diagnostic_dl_pair[dl1];
-         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL1+3] := diagnostic_rf_pair[rf1];
-         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL1+4] := DIAG_PAIR_BLANK;
-         diagnostic_rows[DIAGNOSTIC_ROW_DETAIL1+5] := DIAG_PAIR_BLANK;
+         diagnostic_detail1_row[0] := DIAG_PAIR_P1;
+         diagnostic_detail1_row[1] := (joy1 & 0x01) ? DIAG_PAIR_SPACE_DOT : DIAG_PAIR_SPACE_U;
+         diagnostic_detail1_row[2] := diagnostic_dl_pair[dl1];
+         diagnostic_detail1_row[3] := diagnostic_rf_pair[rf1];
+         diagnostic_detail1_row[4] := DIAG_PAIR_BLANK;
+         diagnostic_detail1_row[5] := DIAG_PAIR_BLANK;
       }
       if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD) {
-         diagnostic_blank_row(DIAGNOSTIC_ROW_DETAIL1);
+         diagnostic_detail1_row[0] := DIAG_PAIR_BLANK;
+         diagnostic_detail1_row[1] := DIAG_PAIR_BLANK;
+         diagnostic_detail1_row[2] := DIAG_PAIR_BLANK;
+         diagnostic_detail1_row[3] := DIAG_PAIR_BLANK;
+         diagnostic_detail1_row[4] := DIAG_PAIR_BLANK;
+         diagnostic_detail1_row[5] := DIAG_PAIR_BLANK;
       }
    }
 }
@@ -746,12 +790,12 @@ bank7 void diagnostic_update_numeric_detail1(void) {
 
    // Driving has only two controls; keep the second numeric row blank.
    asm lda #0;
-   asm sta diagnostic_rows+48;
-   asm sta diagnostic_rows+49;
-   asm sta diagnostic_rows+50;
-   asm sta diagnostic_rows+51;
-   asm sta diagnostic_rows+52;
-   asm sta diagnostic_rows+53;
+   asm sta diagnostic_detail1_row+0;
+   asm sta diagnostic_detail1_row+1;
+   asm sta diagnostic_detail1_row+2;
+   asm sta diagnostic_detail1_row+3;
+   asm sta diagnostic_detail1_row+4;
+   asm sta diagnostic_detail1_row+5;
    asm rts;
 
    asm @paddle:;
@@ -762,12 +806,12 @@ bank7 void diagnostic_update_numeric_detail1(void) {
    asm @paddle_p2:;
    asm lda #29;
    asm @paddle_store2:;
-   asm sta diagnostic_rows+48;
+   asm sta diagnostic_detail1_row+0;
    asm ldx diagnostic_paddles_position2;
    asm lda diagnostic_number_hi,x;
-   asm sta diagnostic_rows+49;
+   asm sta diagnostic_detail1_row+1;
    asm lda diagnostic_number_lo,x;
-   asm sta diagnostic_rows+50;
+   asm sta diagnostic_detail1_row+2;
 
    asm lda diagnostic_paddles_button3;
    asm beq @paddle_p3;
@@ -776,12 +820,12 @@ bank7 void diagnostic_update_numeric_detail1(void) {
    asm @paddle_p3:;
    asm lda #30;
    asm @paddle_store3:;
-   asm sta diagnostic_rows+51;
+   asm sta diagnostic_detail1_row+3;
    asm ldx diagnostic_paddles_position3;
    asm lda diagnostic_number_hi,x;
-   asm sta diagnostic_rows+52;
+   asm sta diagnostic_detail1_row+4;
    asm lda diagnostic_number_lo,x;
-   asm sta diagnostic_rows+53;
+   asm sta diagnostic_detail1_row+5;
 }
 
 bank0 void diagnostic_update_controls_impl(void) {
@@ -1052,19 +1096,15 @@ bank0 void diagnostic_draw_tia_panel(void) {
    // RESPx; the second computes/stores fine motion from the subtraction
    // remainder. Keeping that post-RESP work behind its own WSYNC prevents
    // high-X positions from silently consuming an extra scanline.
-   // P0 target remains physically at x=32.  The raw coordinate is 26 because
-   // the extra pre-RESP NOP below moves the strobe six color clocks later.
+   // P0 target at x=32.
    asm sta WSYNC;
    asm ldx #0;
    asm bit.z CXM0P;
-   asm lda #26;
+   asm lda #32;
    asm sec;
    asm @p0_divide:;
    asm sbc #15;
    asm bcs.same @p0_divide;
-   // Shift the P0 RESP strobe off the phase that poisons the next frame's
-   // six-glyph player state. Fine motion is still derived from the target.
-   asm nop; asm nop; asm nop;
    asm sta RESP0,x;
    asm sta WSYNC;
    asm tay;
@@ -1368,7 +1408,7 @@ bank1 void diagnostic_frame(void) {
    diagnostic_prepare_row(DIAGNOSTIC_ROW_SWITCH0); diagnostic_draw_text_row();
    diagnostic_prepare_row(DIAGNOSTIC_ROW_SWITCH1); diagnostic_draw_text_row();
    diagnostic_prepare_row(DIAGNOSTIC_ROW_DETAIL0); diagnostic_draw_text_row();
-   diagnostic_prepare_row(DIAGNOSTIC_ROW_DETAIL1); diagnostic_draw_text_row();
+   diagnostic_prepare_detail1_row(); diagnostic_draw_text_row();
    diagnostic_bank3_task(0);
    diagnostic_bank0_task(0);
 
@@ -1443,6 +1483,13 @@ bank1 void diagnostic_frame(void) {
    // Input changes are recorded near the end of overscan and become active on
    // the next frame.  UI construction is deliberately spread across frames so
    // no controller mode can consume a whole blanking deadline formatting text.
+#ifdef DIAGNOSTIC_TEST_UI_PHASE
+   // Debug builds can pin the scheduler to one of its four work phases.  Set
+   // the stored value immediately before and after dispatch so other code sees
+   // the selected phase too, while leaving the production four-frame scheduler
+   // completely unchanged when the define is absent.
+   diagnostic_ui_phase := DIAGNOSTIC_TEST_UI_PHASE`uint8_t;
+#endif
    if (diagnostic_frame_init_only) {
       if (diagnostic_ui_dirty) { diagnostic_update_one_header_row(); }
       diagnostic_ui_phase := 0;
@@ -1476,6 +1523,9 @@ bank1 void diagnostic_frame(void) {
          }
       }
    }
+#ifdef DIAGNOSTIC_TEST_UI_PHASE
+   diagnostic_ui_phase := DIAGNOSTIC_TEST_UI_PHASE`uint8_t;
+#endif
    diagnostic_bank0_task(1);
    diagnostic_text_overscan();
 

@@ -23,3 +23,47 @@ A broad jobs=8 e2e rerun after the fix reached 239/327 with every reported case
 passing before the container command timeout. The change-specific diagnostic,
 assembly allowlist, VSYNC contract, source-tree hygiene, history-format, and all
 12 Stella reference checks had already passed separately.
+
+2026-08-28 10:25:15 PDT, P1 staging supersedes RESP theory
+The earlier 08:39 RESP0-phase closeout is superseded. User testing showed the
+P1 corruption still present, and the surrounding six-glyph rows made a
+cross-frame TIA-state explanation implausible. The TIA panel P0 positioning was
+returned to its original x=32 behavior.
+
+Fresh Stella launches of the same bad cartridge produced several different P1
+rasters. Hardcoding DETAIL1 pair indices was stable, and normal font pointer
+lookup using fixed indices was stable. Private collision workspace, a dedicated
+Superchip reader, and direct assembly stores to the Superchip row did not fix
+it. Moving only the six live DETAIL1 pair indices from Superchip cartridge RAM
+to ordinary RIOT RAM produced 12/12 stable fresh Stella boots. This isolates the
+active problem to live DETAIL1 cartridge-RAM staging/readback rather than the
+font tables, pointer lookup tables, or six-glyph renderer.
+
+The current source adds `diagnostic_detail1_row[6]` in ordinary RAM plus a
+dedicated `diagnostic_prepare_detail1_row()` pointer-expansion path. A leading
+WSYNC explicitly preserves the scanline consumed by the former generic prepare
+path. The Stella regression keeps a hard dark-rectangle oracle on the corrupt P1
+trailing area before masking the live controller rows.
+
+Focused tests currently pass: vcs_diagnostic_cartridge.pl, vcsc_branding.pl,
+source_tree_hygiene.pl, and context_history_format.pl. The 12-case Stella matrix
+and full 327-test suite still need rerunning before this is certified.
+
+2026-08-28 10:35:46 PDT, Add four UI-phase diagnostic ROMs
+The user observed that holding right joystick fire could reveal the correct P1
+glyph beneath the corruption, suggesting frame-phased behavior. The diagnostic
+UI scheduler already runs a four-frame cycle and phase 2 owns DETAIL1 updates.
+
+Added `DIAGNOSTIC_TEST_UI_PHASE` debug builds and changed
+examples/19_diagnostic/01_diagnostic/Makefile so plain `make` produces exactly
+four F4SC ROMs: vcsc_diagnostic_phase0.bin through phase3.bin. Each build forces
+its selected UI phase immediately before and after dispatch, making that same
+phase execute on every steady-state frame. `make play0` through `make play3`
+launch individual variants; README documents the temporary diagnostic mode.
+All four variants build successfully and produce distinct binaries.
+
+The diagnostic assembly allowlist was stale from the earlier DETAIL1 changes:
+the source now contains 615 asm statements. Repinned its reviewed digest to
+e7f6b0bf71bf8d403940deff48962f82217336f5ca33eab9c31cac134bfc3af8.
+Focused diagnostic-cartridge, assembly-allowlist, source-tree-hygiene, and
+branding tests pass.

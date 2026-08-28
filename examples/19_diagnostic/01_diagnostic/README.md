@@ -9,8 +9,13 @@
 
 # VCSC field diagnostic
 
-Build with `make`; run with `make play` or load `vcsc_diagnostic.bin` as an F4SC
-cartridge. The same ROM supports NTSC, PAL, and SECAM.
+Build with `make`. During the P1 corruption investigation this diagnostic
+produces four F4SC cartridges: `vcsc_diagnostic_phase0.bin` through
+`vcsc_diagnostic_phase3.bin`. Each cartridge pins `diagnostic_ui_phase` to that
+number on every steady-state frame, so the four UI-update phases can be tested
+independently. Use `make play0` through `make play3` to launch a particular
+phase (`make play` aliases `play0`). Each ROM still supports NTSC, PAL, and
+SECAM.
 
 ## Controls
 

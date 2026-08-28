@@ -123,20 +123,34 @@ Their completed development narratives were moved to `context-history/`.
 
 Last validation state
 ---------------------
-The field diagnostic P1-detail corruption bisected to badpatch.patch / commit
-4785eb36... is fixed. The dense collision-icon display exposed a bad RESP0 phase
-in the following animated TIA panel's P0 positioning. Delaying that P0 RESP0 by
-one NOP and changing its raw positioning coordinate from 32 to 26 preserves the
-original visible x=32 while avoiding the next-frame player-copy corruption.
+The diagnostic P1-detail corruption was bisected by the user to badpatch.patch /
+commit 4785eb36.... The old RESP0-phase explanation is disproved. The current
+working theory remains DETAIL1 pair-index staging: fixed pair indices and fixed
+pointer lookup are stable, while the live Superchip-backed DETAIL1 row was not;
+moving the six live DETAIL1 indices into RIOT RAM was stable across 12 fresh
+Stella boots. The current source keeps that RIOT-RAM `diagnostic_detail1_row[6]`
+and its dedicated pointer-preparation path.
 
-The NTSC joystick Stella case now checks the previously masked trailing P1
-rectangle before applying the live controller-row mask. The final fix passes
-that oracle repeatedly, the focused diagnostic and reviewed-assembly tests pass,
-and all 12 Stella 7.0 NTSC/PAL/SECAM x controller reference cases remain
-pixel-exact outside the intentional live-detail mask. A broad jobs=8 e2e rerun
-then reached 239/327 with every reported case passing before the container
-command timeout. `.../p1_corruption.txt` is the compact closeout.
+A new user observation may make the remaining corruption deterministic: while
+holding right joystick fire, the correct P1 letter can be seen underneath the
+corrupt raster. `diagnostic_ui_phase` already spreads UI updates across a
+four-frame cycle, and phase 2 owns the P1 detail-row rebuild. To isolate that
+cycle, the diagnostic Makefile now builds exactly four ROMs,
+`vcsc_diagnostic_phase0.bin` through `vcsc_diagnostic_phase3.bin`, each compiled
+with `DIAGNOSTIC_TEST_UI_PHASE=N`. In those builds the selected phase is forced
+immediately before and after UI dispatch, so every steady-state frame executes
+the same UI phase. `make play0`..`make play3` launch them. All four variants
+build successfully and have distinct hashes.
+
+The diagnostic asm allowlist had also been stale from the earlier DETAIL1 work
+(615 asm statements versus 595). It was deliberately repinned after review;
+`example_assembly_allowlist.pl`, `source_tree_hygiene.pl`, `vcsc_branding.pl`,
+and `vcs_diagnostic_cartridge.pl` pass on this tree.
 
 Immediate TODO
 --------------
-Return to main-roadmap Item 45: optional paddle sampling during score rendering.
+Run the four phase-locked diagnostic ROMs on Stella/hardware and identify which
+phase(s) show the P1 corruption, including the right-fire observation. If only
+one or some phases corrupt, compare the six DETAIL1 pair indices and the twelve
+expanded pointer bytes at frame boundaries for those phases. Once the fault is
+isolated and fixed, rerun the 12-case Stella diagnostic matrix and full suite.
