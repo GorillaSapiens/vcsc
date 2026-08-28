@@ -67,3 +67,52 @@ the source now contains 615 asm statements. Repinned its reviewed digest to
 e7f6b0bf71bf8d403940deff48962f82217336f5ca33eab9c31cac134bfc3af8.
 Focused diagnostic-cartridge, assembly-allowlist, source-tree-hygiene, and
 branding tests pass.
+
+2026-08-28 10:58:00 PDT, Replace phase lock with skip ROMs
+The user reported that the four phase-locked diagnostic ROMs were not useful:
+each one showed either a blank P1 or an uncorrupted P1. That means pinning a
+single scheduler phase does not exercise the transition that corrupts the
+normal four-phase cycle.
+
+Replaced the temporary `DIAGNOSTIC_TEST_UI_PHASE` experiment with
+`DIAGNOSTIC_SKIP_UI_PHASE`. examples/19_diagnostic/01_diagnostic/Makefile now
+builds vcsc_diagnostic_skip0.bin through skip3.bin, and each build omits one
+steady-state UI phase while preserving the other three in order. `make play0`
+through `make play3` launch the four skip variants; README and hot context now
+describe the new experiment.
+
+2026-08-28 11:12:00 PDT, Correct skip-phase experiment cadence
+The user reported that all four first-generation skip-one-phase ROMs showed
+only a blank or perfectly formed P1. Inspection found the experiment itself
+changed the scheduler from its normal four-frame 0,1,2,3 cadence to a
+three-frame loop by advancing over the omitted phase before dispatch. That
+made the result ambiguous because frame phasing, not just phase work, changed.
+
+Reworked `DIAGNOSTIC_SKIP_UI_PHASE` so every phase still consumes one frame and
+advances normally; only the selected phase's work is suppressed. DETAIL1 is
+seeded with a neutral valid P1 row so skip2 remains visible without its normal
+refresh. The debug skip selector lives in cartridge RAM and is initialized by
+fixed-size handwritten `LDA #imm` / `STA` assembly. All four resulting 32 KiB
+ROMs now have identical memory maps and differ at exactly one byte (offset
+30708), whose value is 0, 1, 2, or 3. This removes code-layout and collapsed-
+cadence confounds from the next hardware/Stella comparison.
+
+Focused `vcs_diagnostic_cartridge.pl`, `example_assembly_allowlist.pl`,
+`source_tree_hygiene.pl`, `vcsc_branding.pl`, and `context_history_format.pl`
+pass. The diagnostic asm allowlist is repinned to 617 reviewed statements,
+digest 5ad48e98faa2f4889fe35b32193d4f1e3e71ba83affe93d39178975516fdec02.
+
+2026-08-28 14:39:16 PDT, Restore full four-phase diagnostic
+The user reported that every corrected skip-one-phase ROM showed either a blank
+or perfectly formed P1; none reproduced the corruption. This rules out any one
+UI phase being sufficient by itself under the preserved four-frame cadence and
+identical-layout experiment.
+
+Removed the temporary skip-phase selector, conditional scheduler suppression,
+seeded debug P1 row, four-ROM Makefile targets, and debug README text. Restored
+the normal single vcsc_diagnostic.bin build with the ordinary 0,1,2,3 scheduler
+fully enabled. Restored the diagnostic asm allowlist to the non-debug source.
+The restored source has 615 reviewed asm statements; the non-debug allowlist
+digest is e7f6b0bf71bf8d403940deff48962f82217336f5ca33eab9c31cac134bfc3af8.
+Focused diagnostic, assembly-allowlist, source-tree-hygiene, branding, and
+history-format tests pass after restoration.

@@ -1483,13 +1483,6 @@ bank1 void diagnostic_frame(void) {
    // Input changes are recorded near the end of overscan and become active on
    // the next frame.  UI construction is deliberately spread across frames so
    // no controller mode can consume a whole blanking deadline formatting text.
-#ifdef DIAGNOSTIC_TEST_UI_PHASE
-   // Debug builds can pin the scheduler to one of its four work phases.  Set
-   // the stored value immediately before and after dispatch so other code sees
-   // the selected phase too, while leaving the production four-frame scheduler
-   // completely unchanged when the define is absent.
-   diagnostic_ui_phase := DIAGNOSTIC_TEST_UI_PHASE`uint8_t;
-#endif
    if (diagnostic_frame_init_only) {
       if (diagnostic_ui_dirty) { diagnostic_update_one_header_row(); }
       diagnostic_ui_phase := 0;
@@ -1523,9 +1516,6 @@ bank1 void diagnostic_frame(void) {
          }
       }
    }
-#ifdef DIAGNOSTIC_TEST_UI_PHASE
-   diagnostic_ui_phase := DIAGNOSTIC_TEST_UI_PHASE`uint8_t;
-#endif
    diagnostic_bank0_task(1);
    diagnostic_text_overscan();
 

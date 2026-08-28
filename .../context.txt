@@ -125,32 +125,27 @@ Last validation state
 ---------------------
 The diagnostic P1-detail corruption was bisected by the user to badpatch.patch /
 commit 4785eb36.... The old RESP0-phase explanation is disproved. The current
-working theory remains DETAIL1 pair-index staging: fixed pair indices and fixed
-pointer lookup are stable, while the live Superchip-backed DETAIL1 row was not;
-moving the six live DETAIL1 indices into RIOT RAM was stable across 12 fresh
+working theory remains DETAIL1 pair-index/pointer staging: fixed pair indices and
+fixed pointer lookup are stable, while the live Superchip-backed DETAIL1 row was
+not; moving the six live DETAIL1 indices into RIOT RAM was stable across 12 fresh
 Stella boots. The current source keeps that RIOT-RAM `diagnostic_detail1_row[6]`
 and its dedicated pointer-preparation path.
 
-A new user observation may make the remaining corruption deterministic: while
-holding right joystick fire, the correct P1 letter can be seen underneath the
-corrupt raster. `diagnostic_ui_phase` already spreads UI updates across a
-four-frame cycle, and phase 2 owns the P1 detail-row rebuild. To isolate that
-cycle, the diagnostic Makefile now builds exactly four ROMs,
-`vcsc_diagnostic_phase0.bin` through `vcsc_diagnostic_phase3.bin`, each compiled
-with `DIAGNOSTIC_TEST_UI_PHASE=N`. In those builds the selected phase is forced
-immediately before and after UI dispatch, so every steady-state frame executes
-the same UI phase. `make play0`..`make play3` launch them. All four variants
-build successfully and have distinct hashes.
-
-The diagnostic asm allowlist had also been stale from the earlier DETAIL1 work
-(615 asm statements versus 595). It was deliberately repinned after review;
-`example_assembly_allowlist.pl`, `source_tree_hygiene.pl`, `vcsc_branding.pl`,
-and `vcs_diagnostic_cartridge.pl` pass on this tree.
+The user observed that holding right joystick fire can reveal the correct P1
+letter beneath the corrupt raster, suggesting frame-dependent corruption. Two
+controlled scheduler experiments did not isolate a single phase: phase-locked
+ROMs and corrected skip-one-phase ROMs all showed either blank P1 or a clean P1,
+never the corruption. The skip builds preserved the normal four-frame cadence and
+identical layout, so the corruption appears to require the complete changing
+0,1,2,3 sequence rather than any one phase acting alone. The temporary phase/skip
+debug build machinery has now been removed; the diagnostic is back to one normal
+`vcsc_diagnostic.bin` with all four UI phases enabled.
 
 Immediate TODO
 --------------
-Run the four phase-locked diagnostic ROMs on Stella/hardware and identify which
-phase(s) show the P1 corruption, including the right-fire observation. If only
-one or some phases corrupt, compare the six DETAIL1 pair indices and the twelve
-expanded pointer bytes at frame boundaries for those phases. Once the fault is
-isolated and fixed, rerun the 12-case Stella diagnostic matrix and full suite.
+Reproduce the corruption with the restored normal four-phase diagnostic, then
+trace the six DETAIL1 pair indices and the twelve expanded six-glyph pointer
+bytes frame-by-frame across the complete 0,1,2,3 cycle. Compare a corrupt run
+against a clean run, with special attention to the transition after phase 2 and
+right-joystick-fire changes. Once the actual clobber is isolated and fixed, rerun
+the 12-case Stella diagnostic matrix and full suite.
