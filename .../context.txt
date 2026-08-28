@@ -90,8 +90,13 @@ Open workstreams
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
    work, when the user has not selected another task, begins with Item 45:
-   optional paddle sampling during score rendering. Item 46 is playfield-color
-   renderer support; Item 47 remains after it.
+   make final linked `.lst` files useful to humans by correlating original C26/S26
+   source, generated assembly, final linked addresses, and emitted bytes. Item 46
+   is exhaustive Superchip RAM access regression coverage for 4KSC/F8SC/F6SC/
+   F4SC, including constant/runtime indexes, read/write aliases, DATA/BSS,
+   read-modify-write forms, boundary bytes, and execution oracles. Item 47 is
+   optional paddle sampling; Item 48 is playfield-color renderer support; Item 49
+   remains after it.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -143,6 +148,13 @@ debug build machinery has now been removed; the diagnostic is back to one normal
 
 Immediate TODO
 --------------
+Main-roadmap priority is Item 45: make the final linked `.lst` human-readable
+with source provenance, generated assembly, final addresses, and emitted bytes.
+Immediately after that, Item 46 is the permanent Superchip RAM access suite:
+compiler-level and execution regressions for the SC read/write aliases across
+4KSC/F8SC/F6SC/F4SC, using ordinary generated `cartram` accesses. Do both before
+paddle sampling or later main-roadmap items.
+
 Reproduce the corruption with the restored normal four-phase diagnostic, then
 trace the six DETAIL1 pair indices and the twelve expanded six-glyph pointer
 bytes frame-by-frame across the complete 0,1,2,3 cycle. Compare a corrupt run

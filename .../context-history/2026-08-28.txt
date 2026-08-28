@@ -116,3 +116,20 @@ The restored source has 615 reviewed asm statements; the non-debug allowlist
 digest is e7f6b0bf71bf8d403940deff48962f82217336f5ca33eab9c31cac134bfc3af8.
 Focused diagnostic, assembly-allowlist, source-tree-hygiene, branding, and
 history-format tests pass after restoration.
+
+2026-08-28 15:40:11 PDT, human-readable linked listing first
+Roadmap reprioritized: final linked .lst output is now Item 45, ahead of all
+other main-roadmap work. The intended listing preserves original C26/S26 source
+provenance through the toolchain and shows generated assembly, final linked
+addresses/bank placement, and emitted bytes. Superchip read/write aliases must
+be obvious in the listing. Former Items 45-47 moved to 46-48. This turn changed
+only files under the developer-record directory; no source/code changes.
+
+2026-08-28 15:45:17 PDT, document SC access regression plan
+
+Added main-roadmap Item 46 immediately after the human-readable linked-listing
+work. The permanent Superchip access suite must cover ordinary compiler-generated
+cartram scalar/array accesses, constant and runtime indexes, copies and
+read-modify-write forms, DATA/BSS, boundary/sentinel cases, linked read/write
+alias operands, simulator/emulator readback, and 4KSC/F8SC/F6SC/F4SC diagnostic
+coverage. Later roadmap items were renumbered 47-49.
