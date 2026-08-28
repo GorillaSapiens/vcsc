@@ -702,12 +702,12 @@ index($context,'Immediate TODO')>=0
 $context !~ /^\s*\[x\]/m
    or die "compact context contains completed checklist history\n";
 
-$roadmap =~ /^Current next action: Item 45, playfield-color renderer support\./m &&
-$roadmap !~ /^\[ \] 43\./m &&
-$roadmap !~ /^\[ \] 44\./m &&
-$roadmap =~ /^\[ \] 45\. Add playfield-color support/m &&
-$roadmap =~ /^\[ \] 46\. Add a public side-scroller\/platform example\./m &&
-$roadmap !~ /^\s*\[x\]/m
+my ($next_roadmap_item)=$roadmap =~ /^Current next action: Item (\d+)\b/m;
+my @open_roadmap_items=$roadmap =~ /^\[ \] (\d+)\./mg;
+defined($next_roadmap_item) &&
+@open_roadmap_items &&
+$next_roadmap_item == $open_roadmap_items[0] &&
+$roadmap !~ /^\s*\[x\]/mi
    or die "main roadmap must contain only unfinished current work\n";
 
 index($ram_roadmap,'No unfinished items.')>=0 &&

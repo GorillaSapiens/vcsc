@@ -99,3 +99,51 @@ vcs_examples_build_3of8.test timing out under contention; both pass when rerun
 alone. Compile-only validation passes 502/502. Thus every one of the 327 e2e
 cases is individually green on this source state, while the two heavy cases can
 exceed their wall-clock limits when run concurrently on this container.
+
+2026-08-27 17:12:00 PDT, P1 corruption narrowed
+The user-provided git bisect identified the badpatch change as the introduction
+point for the diagnostic P1 corruption. Experiments isolated the failure to TIA
+player state left by the dense collision-icon/TIA-panel composition rather than
+font addresses, Superchip placement, six-glyph workspace, VDEL, HMOVE, NUSIZ,
+or the reusable six-glyph implementation itself.
+
+A current fix candidate rebases both player counters with RESP0 and RESP1 at the
+start of the visible field, before the existing blank pre-text gap. Stella NTSC
+captures with this change show the previously malformed P1 detail row clean.
+The tree also carries an inactive DIAGNOSTIC_TEST_MIRROR_DETAIL path and a new
+--rows option in stella_png_rgb_digest.pl for building a structural regression.
+That regression is not finished: the first dedicated mirror-row test variant
+overflowed bank 5. Exact next step is to compact the oracle, certify the player
+rebase across the diagnostic matrix, and stop masking structural corruption in
+the two controller-detail rows.
+
+2026-08-27 20:15:53 PDT, decouple roadmap hygiene test
+The main roadmap was already correct after paddle sampling was inserted as the
+new Item 45, shifting playfield-color support to 46 and the platform example to
+47. source_tree_hygiene.pl still hard-coded the previous Item 45/46 prose and
+therefore rejected valid unfinished-only roadmap state. Replaced that brittle
+content coupling with a structural check: the declared Current next action must
+match the first unchecked roadmap item, at least one unchecked item must exist,
+and no completed [x] checklist entries may remain. The focused hygiene test
+passes.
+
+2026-08-27 21:20:00 PDT, P1 corruption hard regression handoff
+The earlier visible-field RESP0/RESP1 candidate was disproved by the user's real
+screenshot and by a new Stella pixel oracle. The NTSC joystick fixture now
+asserts that x=178..209, y=122..126 is dark before masking the live controller
+rows. Fresh failing captures place unintended pixels around x=192..206 on all
+five P1 glyph scanlines.
+
+Further attempts were explicitly disproved: blanking the terminal collision-icon
+row, canonicalizing NUSIZ/RESP at the TIA-panel exit, and canonicalizing NUSIZ/
+RESP before each text row (including RESP at a post-WSYNC cycle-zero boundary).
+Each could produce a clean-looking run but subsequently failed the dark-rectangle
+oracle. The source was therefore returned to the clean failing dense-icon state;
+none of those experiments remains as a claimed fix.
+
+Created .../p1_corruption.txt as the focused handoff with the complete bisect
+facts, ruled-out experiments, hard oracle, and next step. The strongest remaining
+hypothesis is a six_glyph close-copy/reset phase hazard: construct a tiny cartridge
+that renders dense glyph data, performs the panel's P0 RESP/HMP/HMOVE transaction,
+and then verifies a next-frame blank tail. Fix the reusable renderer if that tiny
+reproducer fails. Always package a tarball before a chat boundary.

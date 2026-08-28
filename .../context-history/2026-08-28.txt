@@ -1,0 +1,25 @@
+2026-08-28 08:39:46 PDT, P1 diagnostic RESP phase fix
+The P1 detail corruption bisected by the user to badpatch.patch / commit
+4785eb36... was isolated to the animated TIA panel's P0 RESP0 phase after the
+dense collision-icon rows. The renderer data, pointers, RAM workspace, VDEL,
+NUSIZ, and GRP latch flushes were not corrupting the glyph bytes; moving the P0
+RESP0 strobe itself was the reliable discriminator.
+
+The final fix adds one NOP before that P0 RESP0 and changes the positioning
+routine's raw P0 coordinate from 32 to 26 while retaining the normal fine-motion
+lookup. This keeps the visible P0 collision target at the original x=32 and
+therefore preserves the existing collision-lane golden pixels, while moving the
+RESP strobe off the phase that produced the next-frame extra player copy.
+
+The Stella regression now checks rectangle (178,122)-(209,126) for darkness
+before masking the two live controller-detail rows. It caught the original bug
+and rejected several startup-sensitive false fixes. The final source passed
+repeated fresh NTSC joystick captures, all 12 Stella 7.0 standard/controller
+reference cases, vcs_diagnostic_cartridge.pl, and example_assembly_allowlist.pl.
+The latter fixture was deliberately repinned to the reviewed diagnostic asm
+SHA-256 c4f15584425aa56d47bc1d25506d5e3e13190c9d71be51fedf534cf420ebc4a7.
+
+A broad jobs=8 e2e rerun after the fix reached 239/327 with every reported case
+passing before the container command timeout. The change-specific diagnostic,
+assembly allowlist, VSYNC contract, source-tree hygiene, history-format, and all
+12 Stella reference checks had already passed separately.

@@ -123,46 +123,20 @@ Their completed development narratives were moved to `context-history/`.
 
 Last validation state
 ---------------------
-The field diagnostic TIA area now uses the completed compact 15-bit collision
-panel. Six editable 3x6 microglyphs for M0/M1/P0/P1/BL/PF live in
-`examples/19_diagnostic/01_diagnostic/diagnostic_collision_objects.font`; every
-pair becomes one six-pixel icon, arranged as two rows of eight, with the spare
-slot used for the exact-pass check mark. A collision fills the otherwise blank
-middle row connecting its two object glyphs. The controlled lanes intentionally
-exercise only M0-P0, M1-P1, and BL-PF; the check mark requires exactly those
-three bits and suppresses on any unexpected extra collision.
+The field diagnostic P1-detail corruption bisected to badpatch.patch / commit
+4785eb36... is fixed. The dense collision-icon display exposed a bad RESP0 phase
+in the following animated TIA panel's P0 positioning. Delaying that P0 RESP0 by
+one NOP and changing its raw positioning coordinate from 32 to 26 preserves the
+original visible x=32 while avoiding the next-frame player-copy corruption.
 
-Because the 48-pixel UI itself uses P0/P1, CXCLR is strobed every frame after
-the text/icon raster and immediately before the three controlled collision
-lanes. All eight TIA collision registers are captured after those lanes and
-packed into the 15 displayed pair bits. The focused diagnostic regression
-passes on the current lineage, and all 12 Stella 7.0 NTSC/PAL/SECAM x
-joystick/paddle/keypad/driving references are certified. Stella comparison
-masks only the two live controller-detail rows; collision icons and lanes remain
-pixel-exact.
-
-Current checkpoint validation: compile-only 502/502 passes. A full jobs=8 e2e
-run reached 325/327; the only failures were wall-clock timeouts in the two heavy
-cases `vcs_diagnostic_cartridge.pl` and `vcs_examples_build_3of8.test`, and both
-pass when rerun alone. Source-tree hygiene, font contracts, branding, and
-history formatting pass. The user-supplied `bdf2c26.pl` and
-`make_message_glyphs.pl` are installed and documented under
-`libraries/vcs/fonts/`.
+The NTSC joystick Stella case now checks the previously masked trailing P1
+rectangle before applying the live controller-row mask. The final fix passes
+that oracle repeatedly, the focused diagnostic and reviewed-assembly tests pass,
+and all 12 Stella 7.0 NTSC/PAL/SECAM x controller reference cases remain
+pixel-exact outside the intentional live-detail mask. A broad jobs=8 e2e rerun
+then reached 239/327 with every reported case passing before the container
+command timeout. `.../p1_corruption.txt` is the compact closeout.
 
 Immediate TODO
 --------------
-Continue the selected diagnostic P1-row corruption investigation. Current
-findings: the apparent Superchip address shift is not causal; forcing DETAIL0
-and DETAIL1 to identical fixed glyph indices still leaves DETAIL0 clean while
-DETAIL1 can corrupt; simulator traces show identical/correct six font pointers
-and expected GRP data for both rows. An independent F4SC cartridge using the
-same five-row full-pointer six-glyph renderer for nine consecutive rows renders
-cleanly in Stella, so the reusable renderer is not generically broken. The
-corruption therefore depends on another state/composition owner in the full
-diagnostic. Next isolate the full diagnostic composition around two identical
-detail rows until the corruption disappears, then fix that state owner. Also
-replace the broad Stella mask over the two live controller rows with a check
-that tolerates legitimate changing input glyphs but still catches structural
-corruption. Do not use the one-byte RAM-padding workaround. After this focused
-task closes, return to main-roadmap Item 45 (optional paddle sampling during
-score rendering).
+Return to main-roadmap Item 45: optional paddle sampling during score rendering.

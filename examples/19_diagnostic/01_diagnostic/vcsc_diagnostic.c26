@@ -529,7 +529,6 @@ bank5 void diagnostic_initialize_rows(void) {
    diagnostic_blank_row(DIAGNOSTIC_ROW_DETAIL0);
    diagnostic_blank_row(DIAGNOSTIC_ROW_DETAIL1);
 
-
    // Startup-only host/CPU formatting lives here so it shares the existing
    // bank-5 initialization trampoline instead of consuming scarce bank-0 ROM.
    // Preserve the compact VCSC heading while identifying the host console.
@@ -1053,16 +1052,19 @@ bank0 void diagnostic_draw_tia_panel(void) {
    // RESPx; the second computes/stores fine motion from the subtraction
    // remainder. Keeping that post-RESP work behind its own WSYNC prevents
    // high-X positions from silently consuming an extra scanline.
-   // P0 target at x=32.
+   // P0 target remains physically at x=32.  The raw coordinate is 26 because
+   // the extra pre-RESP NOP below moves the strobe six color clocks later.
    asm sta WSYNC;
    asm ldx #0;
    asm bit.z CXM0P;
-   asm lda #32;
+   asm lda #26;
    asm sec;
    asm @p0_divide:;
    asm sbc #15;
    asm bcs.same @p0_divide;
-   asm nop; asm nop;
+   // Shift the P0 RESP strobe off the phase that poisons the next frame's
+   // six-glyph player state. Fine motion is still derived from the target.
+   asm nop; asm nop; asm nop;
    asm sta RESP0,x;
    asm sta WSYNC;
    asm tay;
@@ -1336,6 +1338,7 @@ bank1 void diagnostic_frame(void) {
    if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_end_vblank(); }
    if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_end_vblank(); }
    if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_end_vblank(); }
+
 
    // Controller callbacks reach the shared VBLANK deadline on slightly
    // different scanlines. Move blank visible lines from the tail to the front
