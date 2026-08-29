@@ -94,3 +94,26 @@ placement, and timing remain unchanged. The diagnostic structural regression
 pins the centered six-pair header. All 833 default tests pass, and all 12
 Stella 7.0 NTSC/PAL/SECAM x controller raster references were refreshed and
 verified.
+2026-08-29 12:10:19 PDT, lock direct Superchip RAM access
+Completed main-roadmap Item 47 with a focused 4KSC compiler regression rather
+than duplicating the same physical Superchip RAM semantics across F8SC/F6SC/F4SC.
+The new test/superchip_direct_access.pl builds ordinary C26 programs that fill
+all 128 SC bytes, verify hostile-fill BSS clearing and initialized DATA copying,
+exercise first/middle/last boundaries, scalar and array constant accesses,
+runtime-index loads/stores, array copy, and read-modify-write, and inspect the
+final linked listing so direct operands and runtime pointer bases resolve to the
+$F080-$F0FF read window and $F000-$F07F write window. Simulator checks verify
+both aliases expose the expected final physical bytes. No compiler change was
+needed: the generated code already obeyed the SC split-window contract.
+
+Advanced the hot main roadmap to Item 48 and documented that the FxSC mapper
+variants should not multiply this compiler-lowering test unless their RAM
+semantics diverge.
+
+Validation: the new regression passes directly and through test.pl; focused
+4KSC, split-memory codegen, linked-listing, and hygiene regressions are green.
+All 502 compile-phase tests pass. A broad e2e rerun found no failures in the
+ordinary tail regressions; the execution window prevented completing the known
+heavy diagnostic/disassembler and recursive example-build tail in one sweep.
+The input handoff already had all 331 prior e2e cases green, and this change did
+not modify compiler/linker/runtime/example code.

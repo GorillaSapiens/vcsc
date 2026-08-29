@@ -839,6 +839,16 @@ requires every stale variant to produce the same bytes as the authoritative C26
 `mem cartram` declaration. Its stable overflow fixture still fills all 128
 bytes and requires the linker to name the first object that does not fit.
 
+`superchip_direct_access.pl` is the focused compiler-level direct-access contract.
+It builds only 4KSC because the SC RAM device semantics are identical in the FxSC
+profiles. One ordinary `cartram uint8_t[128]` program sweeps every physical byte
+through compiler-generated runtime indexing after hostile-fill startup, including
+first/middle/last sentinels and adjacent-byte checks. A second program covers
+scalar and array accesses, constant/runtime indexes, `dst[i] := src[i]`,
+read-modify-write, initialized DATA, and zero BSS. Its final linked listing must
+resolve loads/pointer bases into `$F080-$F0FF` and stores into `$F000-$F07F`; the
+simulator independently verifies the resulting values through both aliases.
+
 `split_memory_static_local_codegen_test.c26` and
 `superchip_static_locals.pl` cover function-scope `static cartram` storage.
 They require persistent `BSS.cartram`/`DATA.cartram` layouts rather than an

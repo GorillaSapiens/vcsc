@@ -18,41 +18,7 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 47, add exhaustive Superchip RAM access regressions.
-
-[ ] 47. Add exhaustive Superchip RAM access regressions.
-
-        * Treat the Superchip read/write split as a compiler and mapper contract:
-          ordinary `cartram` source reads must use the `$F080-$F0FF` read alias
-          and writes must use the corresponding `$F000-$F07F` write alias.
-        * Exercise ordinary compiler-generated C26 accesses, not inline-assembly
-          substitutes, so the tests cover the lowering that application code uses.
-        * Cover scalar `cartram` objects plus arrays with constant-index and
-          runtime-index reads and writes, including `x := sc[i]`, `sc[i] := x`,
-          `dst[i] := src[i]`, and read-modify-write forms such as `sc[i] += 1`.
-        * Include a small unmistakable pattern test (for example six bytes
-          `11 22 33 44 55 66`, followed by a runtime-index overwrite/readback)
-          so an alias or offset error identifies the exact failed byte.
-        * Cover initialized Superchip DATA and zero-initialized BSS, and exercise
-          the first, middle, and last usable bytes of the 128-byte SC region with
-          sentinels so adjacent-byte corruption and off-by-$80 errors are caught.
-        * Add structural compiler/linker assertions that final linked operands use
-          the proper read alias for loads and write alias for stores, for both
-          constant and runtime-index forms. This complements, but does not replace,
-          execution tests.
-        * Add simulator/emulator-backed execution checks that write through the SC
-          write window, read the values back through the SC read window, compare
-          against expected values, and prove neighboring bytes remain unchanged.
-        * Run the same semantic access-pattern self-test under 4KSC, F8SC, F6SC,
-          and F4SC. Integrate it into the existing FxSC bankswitching diagnostics
-          so F8SC/F6SC/F4SC inherit it automatically, including their existing
-          physical-start-bank coverage; give 4KSC equivalent dedicated coverage.
-        * Keep a focused unit/regression test for the compiler-level `cartram`
-          access contract even after the mapper diagnostics pass, so a future
-          lowering regression fails without requiring a full diagnostic ROM run.
-        * Keep this separate from Item 46: these tests certify intended direct SC
-          accesses; Item 46 prevents unrelated CPU dummy reads from accidentally
-          hitting side-effectful mapper addresses.
+Current next action: Item 48, add optional paddle sampling to score renderers.
 
 [ ] 48. Add optional paddle sampling to score renderers.
 

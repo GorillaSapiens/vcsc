@@ -283,6 +283,7 @@ index($sim_readme,'--reset-on-pc=ADDR')>=0 &&
 index($sim_readme,'--split-fill=BYTE')>=0
    or die "simulator documentation lost banked cfg/file-index/reset semantics\n";
 -f File::Spec->catfile($test,'superchip_allocation.pl') &&
+-f File::Spec->catfile($test,'superchip_direct_access.pl') &&
 -f File::Spec->catfile($test,'superchip_locals.pl') &&
 -f File::Spec->catfile($test,'superchip_static_locals.pl') &&
 -f File::Spec->catfile($test,'split_memory_generic_regions.pl') &&
