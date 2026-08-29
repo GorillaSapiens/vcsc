@@ -44,9 +44,9 @@ Files:
 - `six_glyph_big_wide_component.c26` ... matching wide geometry for the Big decimal/hex fonts; `glyph_rows:=16` by default and nondefault tightly packed heights consume `glyph_rows+3` visible scanlines
 - `six_glyph_left_component.c26` ... mutable-color variant justified at X=0..47; `glyph_rows:=8` by default, with tightly packed shorter fonts automatically using six full pointers
 - `six_glyph_right_component.c26` ... mutable-color variant justified at X=112..159; `glyph_rows:=8` by default, with tightly packed shorter fonts automatically using six full pointers
-- `six_glyph_component.c26` ... canonical centered 48-pixel/six-glyph lifecycle display; `glyph_rows:=8` preserves the compact default, shorter tightly packed fonts use six full pointers, `external_pointers:=1` lets callers own those pointers, and `mutable_color:=1` adds an application-visible color byte
-- `three_plus_three_score_component.c26` ... dual score with independent three-digit packed-BCD values and colors, centered as X=20,36,52 and X=100,116,132; `glyph_rows:=8` by default and shorter score fonts are tightly packed
-- `two_paddles.c26` ... two analog CX30-style paddles plus both fire buttons on either controller port, with explicit VBLANK dump/charge ownership and multi-frame raw timing
+- `six_glyph_component.c26` ... canonical centered 48-pixel/six-glyph lifecycle display; `glyph_rows:=8` preserves the compact default, shorter tightly packed fonts use six full pointers, `external_pointers:=1` lets callers own those pointers, `mutable_color:=1` adds an application-visible color byte, and compile-time `paddle_samples:=2` can spend setup-line slack on bounded paddle probes
+- `three_plus_three_score_component.c26` ... dual score with independent three-digit packed-BCD values and colors, centered as X=20,36,52 and X=100,116,132; `glyph_rows:=8` by default, shorter score fonts are tightly packed, and optional compile-time two/four-paddle sampling uses deterministic score-line slots
+- `two_paddles.c26` ... two analog CX30-style paddles plus both fire buttons on either controller port, with explicit VBLANK dump/charge ownership, multi-frame raw timing, and bounded score-renderer probe helpers
 - `keypad_controller.c26` ... one 12-key Atari-style keypad on either controller port, with explicit row selection, caller-owned settle timing, stable 12-bit state, and press/release edge masks
 - `driving_controller.c26` ... one Atari Indy 500 driving controller on either port, with Gray-code direction decoding, signed per-sample step/per-frame delta, skipped-state direction preservation, and live fire-button state
 - `two_plus_two_score_support.c26` ... shared page-contained compact decimal glyph and calibrated horizontal-position tables for two-plus-two scores
@@ -231,6 +231,14 @@ and `sample1()` once per two-line slot followed by `advance_pair()`, and
 Measurements may carry across frames and saturate at raw 255 instead of being
 silently clipped at one frame.
 
+For score renderers that explicitly opt into paddle sampling, the component
+also exposes `score_sample0()`, `score_sample1()`, `score_advance_pair()`, and
+`score_account_a()`. The score probes require X=0, preserve X/Y, and have a
+17-cycle threshold-completion path (the worst case). `score_account_a()` takes a scheduled count of
+two-scanline pairs in A and saturates the shared elapsed counter. Applications
+bind these through tiny instance-prefixed inline hooks before score-component
+instantiation, so the ordinary score path pays no runtime dispatch cost.
+
 `dump()` is deliberately separate from the scheduler callbacks. With
 `frame_ntsc.c26`, call it immediately after `vcs_ntsc_end_overscan()`, while
 VBLANK.1 is already asserted. It writes VBLANK.7 only for a completed
@@ -260,6 +268,13 @@ VBLANK sample cycles consume 28 lines and leave enough of the scheduler's
 time across the unsampled remainder, score, and display setup. The emulator
 oracle exercises distinct, simultaneous, and staggered four-channel thresholds
 plus every fire button while requiring invariant frame length.
+
+Four-paddle score integration adds the same bounded channel-0/1 probes plus
+`score_latch23_fixed()`, a fixed 24-cycle channel-2/3 latch with no
+data-dependent branch. A score renderer can therefore place it inside a
+calibrated horizontal-position delay without moving RESP timing. The application
+later calls `score_commit_latched23()` in a known blank/slack line. The public
+four-player Paddleball example uses exactly this contract.
 
 The public four-player cartridge at
 `examples/01_basic/10_four_player_paddleball/` assigns the left-port blue team
@@ -375,7 +390,7 @@ wrap the value explicitly at 999.
 Each instance owns **28 RIOT-RAM bytes**: two two-byte packed-BCD values, two
 color bytes, six 16-bit glyph pointers, two private raster scratch bytes, and
 an eight-byte cache of the left hundreds glyph. The cache is refreshed during
-`init()`/`vblank()` so the visible kernel can hit the two late P1 copy windows
+`init()`/`vblank()` so the visible renderer can hit the two late P1 copy windows
 without overrunning a scanline.
 The component consumes exactly **11 visible scanlines**, enters `draw()` at
 cycle 3, returns at cycle 0 after its terminal `WSYNC`, and performs one
@@ -384,6 +399,22 @@ color, and horizontal-motion state it needs; before `HMOVE` it clears
 M0/M1/Ball motion so preserved non-player geometry is not displaced. It does
 not own playfield, missile/Ball enable/width, audio, collision, or scheduler
 state.
+
+`paddle_samples:=0` is the default and preserves the ordinary renderer path.
+With `paddle_samples:=2`, the application defines `score_paddle_sample0()`,
+`score_paddle_sample1()`, and `score_paddle_advance_pair()` before instantiation;
+the renderer reserves X=0 and invokes them in deterministic setup-line slack.
+With `paddle_samples:=4`, it additionally requires
+`score_paddle_latch23_fixed()`. That fixed-cycle hook replaces part of the
+existing P1-positioning delay, so analog threshold state cannot move RESP1; the
+application commits the channel-2/3 latch later through its paddle instance.
+The two Paddleball examples demonstrate both modes.
+
+The centered `six_glyph_component.c26` likewise accepts `paddle_samples:=2` and
+calls two compile-time hooks in its setup-line slack. Unlike three-plus-three it
+does not reserve X itself, so wrappers around the public paddle probes must load
+X=0. `examples/19_diagnostic/01_diagnostic` uses that form on every text row and
+keeps only the right-port pair in a compact two-line tail sampler.
 
 The complete public example is
 [`examples/01_basic/08_dual_score`](../../examples/01_basic/08_dual_score/).

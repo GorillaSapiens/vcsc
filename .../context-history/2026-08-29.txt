@@ -117,3 +117,55 @@ ordinary tail regressions; the execution window prevented completing the known
 heavy diagnostic/disassembler and recursive example-build tail in one sweep.
 The input handoff already had all 331 prior e2e cases green, and this change did
 not modify compiler/linker/runtime/example code.
+2026-08-29 13:45:44 PDT, score-integrated paddle sampling
+Completed main-roadmap Item 48. The centered three-plus-three score renderer now
+accepts compile-time paddle_samples:=2 or 4; the centered six-glyph renderer
+accepts paddle_samples:=2. Sampling-disabled builds retain the ordinary source
+path, and test/vcs_score_paddle_sampling.pl proves the default and explicit-zero
+forms produce byte-identical ROMs.
+
+Two- and four-paddle components expose bounded score probes plus explicit
+elapsed accounting. Four-channel three-plus-three mode samples channels 0/1 in
+setup-line slack and uses a fixed 24-cycle branchless latch for channels 2/3
+inside the existing P1 positioning delay; applications commit that latch later
+in a known blank/slack line so threshold state cannot move RESP1.
+
+Both public Paddleball examples use the new score sampling. The field diagnostic
+uses the six-glyph slots for channels 0/1 on every text row and retains only a
+compact two-line channel-2/3 tail sample. Updated source-contract regressions pin
+all three integrations. Existing Paddleball emulator oracles prove two/four
+channel RC resolution and stable frame timing, while the diagnostic's existing
+NTSC/PAL/SECAM runs exercise the enabled score path under all three standards.
+
+Focused validation: vcs_score_paddle_sampling.pl, both Paddleball tests,
+three-plus-three score, six-glyph component, score glyph rows, source-tree
+hygiene, and context-history format all pass. The complete diagnostic cartridge
+regression also passes directly. The main roadmap now advances to Item 49.
+2026-08-29 13:51:35 PDT, certify score-integrated paddle sampling
+Final Item 48 validation is clean: all 502 compile-phase tests and all 333 e2e
+tests pass. The complete sweep includes both Paddleball emulator oracles, the
+field diagnostic, the score/rendering contract regressions, recursive example
+builds, and the long disassembler tests. Example assembly allowlist hashes were
+refreshed only for the three intentionally changed beam-critical examples.
+2026-08-29 14:38:30 PDT, fix score paddle line overrun
+Post-Item-48 hardware testing found Paddleball frames stretching from 262 to
+263 displayed scanlines for blue/channel-0 paddle positions whose RC thresholds
+completed in the first three-plus-three score setup line. The emulator oracle
+reproduced the failure for raw threshold lines 18 through 37: the completion
+path reached WSYNC at cycle 77, yielding a 265-line raw frame instead of 264.
+
+Kept the no-paddle renderer path byte-identical. Paddle-enabled builds now defer
+the HMBL zero until line 2 after RESP0; that removes three cycles from the busy
+first line while adding a harmless five-cycle clear to a line with ample slack
+and without changing P0 positioning. Corrected the paddle-component/docs cycle
+budget from 16 to 17 cycles where it had been understated.
+
+The Paddleball oracle now sweeps every formerly failing threshold 18..37, and a
+manual full blue threshold sweep 0..400 with the red channel fixed at 200 is
+stable. Four-player Paddleball and the generic score-paddle contract also pass.
+
+Validation: all 502 compile-phase tests pass. All 333 e2e tests are accounted
+for green; the broad run passed through 242/333 before the command window, then
+the remaining 91 cases were completed in bounded groups, including the full
+diagnostic cartridge, all eight recursive example-build shards, both
+Paddleballs, score/rendering regressions, and all disassembler tests.

@@ -11,8 +11,13 @@ alias PADDLEBALL_WHITE __builtin_ntsc_rgb(0xff, 0xff, 0xff)
 alias PADDLEBALL_BLUE  __builtin_ntsc_rgb(0x20, 0x40, 0xff)
 alias PADDLEBALL_RED   __builtin_ntsc_rgb(0xff, 0x20, 0x20)
 
-instantiate "three_plus_three_score_component.c26" as score
 instantiate "two_paddles.c26" as paddles (port:=0)
+
+// Bind the score renderer's compile-time paddle slots directly to this reader.
+inline void score_paddle_sample0(void) { paddles_score_sample0(); }
+inline void score_paddle_sample1(void) { paddles_score_sample1(); }
+inline void score_paddle_advance_pair(void) { paddles_score_advance_pair(); }
+instantiate "three_plus_three_score_component.c26" as score (paddle_samples:=2)
 
 // Local 181-line Paddleball playfield renderer. P0/P1 are reserved for the score;
 // gameplay uses M0/M1 as paddles and Ball as the ball.
@@ -192,8 +197,13 @@ inline void paddleball_draw(void) {
    asm sta ENAM1;
    asm sta ENABL;
 
-   // Lines 0..2: blank gap between the score and the top wall.
+   // Lines 0..2: blank gap between the score and the top wall. The score
+   // sampled both channels in its first two scanlines and advanced one pair.
+   // Nine more pairs account the remaining score/setup time and the one odd
+   // VBLANK scanline intentionally left out of the pre-score gap.
    asm sta WSYNC;
+   asm lda #9;
+   paddles_score_account_a();
    asm sta WSYNC;
    asm sta WSYNC;
 
@@ -489,10 +499,10 @@ void main(void) {
 
       vcs_ntsc_begin_vblank();
       paddles_vblank();
-      // 20 two-line units cover the fixed remainder of 37-line VBLANK, the
-      // 11 score lines, the 3-line score gap, the 4-line top wall, and the
-      // 1-line gap below that wall before the visible pair sampler begins.
-      paddles_account_gap(20);
+      // Account only the first 20 of the 21 remaining VBLANK scanlines here.
+      // The score now samples both paddles itself and advances one pair; the
+      // rest of the score/setup span is advanced in a known blank gameplay line.
+      paddles_account_gap(10);
       score_vblank();
       // The score preserves playfield state; clear the prior frame's bottom
       // wall so the score is drawn over black rather than a white PF stripe.

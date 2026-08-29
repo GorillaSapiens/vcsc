@@ -89,10 +89,10 @@ Open workstreams
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
-   work begins with Item 48, optional paddle sampling in score renderers.
-   Items 46-47 are complete; executable regressions own the linker dummy-read
-   hazard and ordinary Superchip `cartram` read/write contracts. Items 49-50
-   follow.
+   work begins with Item 49, playfield-color renderer support. Items 46-48 are
+   complete; executable regressions own the linker dummy-read hazard, ordinary
+   Superchip `cartram` read/write contracts, and score-integrated paddle
+   sampling. Item 50 follows.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -135,13 +135,25 @@ correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 
 Last validation state
 ---------------------
-Main-roadmap Items 46-47 are complete. Item 47 is locked by
+Main-roadmap Items 46-48 are complete. Item 47 is locked by
 `test/superchip_direct_access.pl`: under 4KSC it fills all 128 Superchip bytes,
 checks hostile-fill BSS clearing, DATA copying, first/middle/last boundaries,
 constant and runtime-index loads/stores, array copy, and read-modify-write, and
 asserts final linked operands/pointer bases use `$F080-$F0FF` for reads and
 `$F000-$F07F` for writes. The equivalent F8SC/F6SC/F4SC reruns were intentionally
 not duplicated because those profiles use the same Superchip RAM contract.
+
+Item 48 adds compile-time paddle slots to the centered three-plus-three and
+six-glyph score renderers. Disabled sampling retains the existing renderer
+path; `test/vcs_score_paddle_sampling.pl` additionally proves the default and
+explicit `paddle_samples:=0` builds are byte-identical. Two- and four-paddle
+components expose 17-cycle worst-case score probes; four-channel
+three-plus-three mode uses a fixed 24-cycle latch for channels 2/3 so threshold
+state cannot move RESP1. Paddle-enabled three-plus-three builds defer HMBL
+cleanup to line 2 after RESP0 so a channel-0 threshold completion cannot push
+line 1 past WSYNC; `test/vcs_paddleball.cpp` sweeps the formerly failing raw
+threshold interval 18..37. Paddleball, four-player Paddleball, and the field
+diagnostic all use the score-sampling path.
 
 C26 `$read_hazard` and cfg
 `read_hazard = yes` mark mapper ranges where CPU read bus cycles have side
@@ -159,18 +171,15 @@ rather than the destructive `$F05D`. The final map keeps DETAIL1 at read `$F0CB`
 / write `$F04B`, and the structural regression proves the five indexed lookups
 cannot dummy-read `$F000-$F07F`.
 
-Latest validation: all 502 compile-phase tests pass. The new Item 47 4KSC
-regression and the focused 4KSC/split-memory/linked-listing/hygiene regressions
-pass. A broad current e2e rerun found no failures in the ordinary cases reached;
-the execution window cut off the known heavyweight diagnostic/disassembler and
-recursive example-build tail before a complete 332-case rerun. The incoming
-handoff had all 331 prior e2e cases green, and Item 47 changes only tests/docs,
-not compiler/linker/runtime/example code. The optional Stella 7.0 diagnostic
-oracle remains part of the prior certified state.
+Latest validation: all 502 compile-phase tests and all 333 e2e tests pass. Item
+48 focused coverage includes the score-paddle sampling contract, the blue-paddle
+18..37 timing sweep, both Paddleball emulator oracles, unchanged score renderer
+regressions, the complete diagnostic cartridge regression, source-tree hygiene,
+and history-format checks. The optional Stella 7.0 diagnostic oracle remains
+part of the prior certified state.
 
 Immediate TODO
 --------------
-Main-roadmap priority is Item 48: add optional paddle sampling to score
-renderers. Read `.../roadmap.txt` for the acceptance criteria. Items 46-47 should
-remain closed unless a regression disproves their linker or direct-access
-contracts.
+Main-roadmap priority is Item 49: add playfield-color support as an explicit
+renderer capability. Read `.../roadmap.txt` for the acceptance criteria. Items
+46-48 should remain closed unless a regression disproves their contracts.

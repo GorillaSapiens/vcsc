@@ -53,11 +53,14 @@ uint8_t TEMPLATE_button0 := 0;
 uint8_t TEMPLATE_button1 := 0;
 uint8_t TEMPLATE_valid := 0;
 
-// active bit 0/1 means that channel has not charged yet. dumped means the
-// capacitors are currently held discharged and a new measurement should begin
-// after the scheduler releases VBLANK.7.
+// Per-channel active flags use bit 7 (0x80=active, 0=complete). Keeping the
+// flags separate makes the two-paddle state a strict prefix of the four-paddle
+// model and provides a 17-cycle score-renderer probe when the caller reserves
+// X=0. dumped means the capacitors are currently held discharged and a new
+// measurement should begin after the scheduler releases VBLANK.7.
 uint8_t TEMPLATE_elapsed := 0;
-uint8_t TEMPLATE_active := 0;
+uint8_t TEMPLATE_active0 := 0;
+uint8_t TEMPLATE_active1 := 0;
 uint8_t TEMPLATE_dumped := 1;
 
 require inline void TEMPLATE_init(void) {
@@ -68,56 +71,108 @@ require inline void TEMPLATE_init(void) {
    TEMPLATE_button1 := 0;
    TEMPLATE_valid := 0;
    TEMPLATE_elapsed := 0;
-   TEMPLATE_active := 0;
+   TEMPLATE_active0 := 0;
+   TEMPLATE_active1 := 0;
    TEMPLATE_dumped := 1;
    VBLANK := 0x82;
 }
 
 // Sample one channel at the current two-line time slot. INPTx.7 remains high
 // after the capacitor reaches the input threshold, until the next dump.
-require inline void TEMPLATE_sample0(void) {
+inline void TEMPLATE_sample0(void) {
+   asm bit.z TEMPLATE_active0;
+   asm bpl.same @not_ready;
 #if TEMPLATE_port == 0
    asm bit.z INPT0;
 #elif TEMPLATE_port == 1
    asm bit.z INPT2;
 #endif
-   asm bpl @not_ready;
-   asm lda.z TEMPLATE_active;
-   asm and #$01;
-   asm beq @not_ready;
+   asm bpl.same @not_ready;
    asm lda.z TEMPLATE_elapsed;
    asm sta.z TEMPLATE_position0;
-   asm lda.z TEMPLATE_active;
-   asm and #$fe;
-   asm sta.z TEMPLATE_active;
+   asm lda #0;
+   asm sta.z TEMPLATE_active0;
    asm @not_ready:;
 }
 
-require inline void TEMPLATE_sample1(void) {
+inline void TEMPLATE_sample1(void) {
+   asm bit.z TEMPLATE_active1;
+   asm bpl.same @not_ready;
 #if TEMPLATE_port == 0
    asm bit.z INPT1;
 #elif TEMPLATE_port == 1
    asm bit.z INPT3;
 #endif
-   asm bpl @not_ready;
-   asm lda.z TEMPLATE_active;
-   asm and #$02;
-   asm beq @not_ready;
+   asm bpl.same @not_ready;
    asm lda.z TEMPLATE_elapsed;
    asm sta.z TEMPLATE_position1;
-   asm lda.z TEMPLATE_active;
-   asm and #$fd;
-   asm sta.z TEMPLATE_active;
+   asm lda #0;
+   asm sta.z TEMPLATE_active1;
    asm @not_ready:;
 }
 
-require inline void TEMPLATE_advance_pair(void) {
-   asm lda.z TEMPLATE_active;
-   asm beq @done;
+// Score-renderer probes. The caller must reserve X=0. Each helper is at most
+// 17 cycles on the threshold-completion path, preserves X=0 and Y, and clobbers
+// A/flags. The active bit is ANDed with INPTx.7 so one branch covers both tests. These are intended only for compile-time scheduled renderer slots.
+inline void TEMPLATE_score_sample0(void) {
+   asm lda.z TEMPLATE_active0;
+#if TEMPLATE_port == 0
+   asm and.z INPT0;
+#elif TEMPLATE_port == 1
+   asm and.z INPT2;
+#endif
+   asm bpl.same @not_ready;
+   asm lda.z TEMPLATE_elapsed;
+   asm sta.z TEMPLATE_position0;
+   asm stx.z TEMPLATE_active0;
+   asm @not_ready:;
+}
+
+inline void TEMPLATE_score_sample1(void) {
+   asm lda.z TEMPLATE_active1;
+#if TEMPLATE_port == 0
+   asm and.z INPT1;
+#elif TEMPLATE_port == 1
+   asm and.z INPT3;
+#endif
+   asm bpl.same @not_ready;
+   asm lda.z TEMPLATE_elapsed;
+   asm sta.z TEMPLATE_position1;
+   asm stx.z TEMPLATE_active1;
+   asm @not_ready:;
+}
+
+inline void TEMPLATE_advance_pair(void) {
+   asm lda.z TEMPLATE_active0;
+   asm ora.z TEMPLATE_active1;
+   asm beq.same @done;
    asm inc.z TEMPLATE_elapsed;
-   asm bne @done;
+   asm bne.same @done;
    asm dec.z TEMPLATE_elapsed;
    asm @done:;
+}
+
+// Score slots advance unconditionally: once both channels complete, elapsed is
+// no longer observable until the next measurement anyway. This keeps the
+// beam-critical path bounded to 12 cycles including saturation at raw 255.
+inline void TEMPLATE_score_advance_pair(void) {
+   asm inc.z TEMPLATE_elapsed;
+   asm bne.same @done;
+   asm dec.z TEMPLATE_elapsed;
+   asm @done:;
+}
+
+// Add a compile-time scheduled unsampled span while another visible component
+// owns the beam. A holds the number of two-scanline pairs. The helper preserves
+// X/Y and saturates at 255 in at most 12 cycles, making it safe to place in a
+// known blank scanline adjacent to score rendering.
+inline void TEMPLATE_score_account_a(void) {
+   asm clc;
+   asm adc.z TEMPLATE_elapsed;
+   asm bcc.same @store;
+   asm lda #$ff;
+   asm @store:;
+   asm sta.z TEMPLATE_elapsed;
 }
 
 static inline void TEMPLATE_sample_blank_pair(void) {
@@ -134,7 +189,8 @@ static inline void TEMPLATE_sample_blank_pair(void) {
 require inline void TEMPLATE_vblank(void) {
    if (TEMPLATE_dumped) {
       TEMPLATE_elapsed := 0;
-      TEMPLATE_active := 3;
+      TEMPLATE_active0 := 0x80;
+      TEMPLATE_active1 := 0x80;
       TEMPLATE_dumped := 0;
    }
 
@@ -151,7 +207,7 @@ require inline void TEMPLATE_account_gap(uint8_t pairs) {
    uint8_t half := pairs >> 1;
    uint8_t value := 0;
 
-   if (TEMPLATE_active & 1) {
+   if (TEMPLATE_active0) {
 #if TEMPLATE_port == 0
       if (INPT0 & 0x80) {
 #elif TEMPLATE_port == 1
@@ -160,10 +216,10 @@ require inline void TEMPLATE_account_gap(uint8_t pairs) {
          value := TEMPLATE_elapsed + half;
          if (value < TEMPLATE_elapsed) { value := TEMPLATE_RAW_TIMEOUT; }
          TEMPLATE_position0 := value;
-         TEMPLATE_active &= 0xfe;
+         TEMPLATE_active0 := 0;
       }
    }
-   if (TEMPLATE_active & 2) {
+   if (TEMPLATE_active1) {
 #if TEMPLATE_port == 0
       if (INPT1 & 0x80) {
 #elif TEMPLATE_port == 1
@@ -172,11 +228,11 @@ require inline void TEMPLATE_account_gap(uint8_t pairs) {
          value := TEMPLATE_elapsed + half;
          if (value < TEMPLATE_elapsed) { value := TEMPLATE_RAW_TIMEOUT; }
          TEMPLATE_position1 := value;
-         TEMPLATE_active &= 0xfd;
+         TEMPLATE_active1 := 0;
       }
    }
 
-   if (TEMPLATE_active) {
+   if (TEMPLATE_active0 || TEMPLATE_active1) {
       value := TEMPLATE_elapsed + pairs;
       if (value < TEMPLATE_elapsed) { value := TEMPLATE_RAW_TIMEOUT; }
       TEMPLATE_elapsed := value;
@@ -186,16 +242,17 @@ require inline void TEMPLATE_account_gap(uint8_t pairs) {
 // Finish this frame's sampling without owning the complete overscan budget.
 // Button values are normalized to 1=pressed, 0=released.
 require inline void TEMPLATE_overscan(void) {
-   if (TEMPLATE_active) {
+   if (TEMPLATE_active0 || TEMPLATE_active1) {
       for (uint8_t i := TEMPLATE_OVERSCAN_PAIRS; i; i--) {
          TEMPLATE_sample_blank_pair();
       }
    }
 
    if (TEMPLATE_elapsed == TEMPLATE_RAW_TIMEOUT) {
-      if (TEMPLATE_active & 1) { TEMPLATE_position0 := TEMPLATE_RAW_TIMEOUT; }
-      if (TEMPLATE_active & 2) { TEMPLATE_position1 := TEMPLATE_RAW_TIMEOUT; }
-      TEMPLATE_active := 0;
+      if (TEMPLATE_active0) { TEMPLATE_position0 := TEMPLATE_RAW_TIMEOUT; }
+      if (TEMPLATE_active1) { TEMPLATE_position1 := TEMPLATE_RAW_TIMEOUT; }
+      TEMPLATE_active0 := 0;
+      TEMPLATE_active1 := 0;
    }
 
 #if TEMPLATE_port == 0
@@ -205,7 +262,7 @@ require inline void TEMPLATE_overscan(void) {
    TEMPLATE_button0 := (SWCHA & 0x08) == 0;
    TEMPLATE_button1 := (SWCHA & 0x04) == 0;
 #endif
-   if (!TEMPLATE_active) { TEMPLATE_valid := 1; }
+   if (!(TEMPLATE_active0 || TEMPLATE_active1)) { TEMPLATE_valid := 1; }
 }
 
 // Dump completed measurements only after scheduler-owned overscan has ended.
@@ -214,8 +271,9 @@ require inline void TEMPLATE_overscan(void) {
 require inline void TEMPLATE_dump(void) {
    // Keep the post-scheduler path cycle-balanced. frame_ntsc.c26 has already
    // performed its final WSYNC alignment, so a variable-length branch here
-   // would move the next VSYNC phase. Both paths below consume 18 cycles.
-   asm lda.z TEMPLATE_active;
+   // must not move the next VSYNC phase. Both paths below consume 21 cycles.
+   asm lda.z TEMPLATE_active0;
+   asm ora.z TEMPLATE_active1;
    asm bne @still_active;
    asm lda #$82;
    asm sta VBLANK;

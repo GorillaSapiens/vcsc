@@ -18,21 +18,7 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 48, add optional paddle sampling to score renderers.
-
-[ ] 48. Add optional paddle sampling to score renderers.
-
-        * Allow paddle timing to continue through score scanlines instead of
-          treating the whole score raster as an unsampled account_gap().
-        * Support both two-paddle and four-paddle readers with deterministic,
-          beam-safe sampling points chosen from each renderer's available cycles.
-        * Preserve byte/pixel/timing-identical renderer output when paddle
-          sampling is not requested.
-        * Define the compile-time component contract rather than adding a
-          runtime callback or other variable-cost mechanism.
-        * Add timing and emulator-backed regressions that prove sampling cadence,
-          paddle resolution, and unchanged score output across supported video
-          standards.
+Current next action: Item 49, add playfield-color support to renderers.
 
 [ ] 49. Add playfield-color support as an explicit renderer capability.
 

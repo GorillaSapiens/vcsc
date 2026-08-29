@@ -11,8 +11,14 @@ alias PADDLEBALL_WHITE __builtin_ntsc_rgb(0xff, 0xff, 0xff)
 alias PADDLEBALL_BLUE  __builtin_ntsc_rgb(0x20, 0x40, 0xff)
 alias PADDLEBALL_RED   __builtin_ntsc_rgb(0xff, 0x20, 0x20)
 
-instantiate "three_plus_three_score_component.c26" as score
 instantiate "four_paddles.c26" as paddles
+
+// Bind all four score-renderer sample slots directly to the shared paddle reader.
+inline void score_paddle_sample0(void) { paddles_score_sample0(); }
+inline void score_paddle_sample1(void) { paddles_score_sample1(); }
+inline void score_paddle_latch23_fixed(void) { paddles_score_latch23_fixed(); }
+inline void score_paddle_advance_pair(void) { paddles_score_advance_pair(); }
+instantiate "three_plus_three_score_component.c26" as score (paddle_samples:=4)
 
 // Four-player team Paddleball. Controller port 0 is the blue team: paddle 0
 // drives P0 (outer) and paddle 1 drives M0 (inner). Controller port 1 is the
@@ -250,9 +256,14 @@ inline void paddleball_draw(void) {
    asm lda #$11;              // reflected PF, 2-pixel Ball
    asm sta CTRLPF;
 
-   // Lines 3..6: full-width top wall.
+   // Lines 3..6: full-width top wall. Commit the score's fixed-phase right
+   // pair latch on line 4, then account the remaining score/setup time on line
+   // 5. Both operations occur after the wall pixels are already established.
    asm sta WSYNC;
+   paddles_score_commit_latched23();
    asm sta WSYNC;
+   asm lda #9;
+   paddles_score_account_a();
    asm sta WSYNC;
    asm sta WSYNC;
 
@@ -587,7 +598,9 @@ void update_game(void) {
 
 void paddleball_vblank_paddles(void) {
    paddles_vblank();
-   paddles_account_gap(14);
+   // Four-paddle VBLANK sampling consumes 28 lines. Account eight of the nine
+   // remaining VBLANK lines here; score/setup accounting continues in raster.
+   paddles_account_gap(4);
 }
 
 void paddleball_overscan_paddles(void) {
@@ -622,10 +635,9 @@ void main(void) {
       vcs_ntsc_vsync();
 
       vcs_ntsc_begin_vblank();
-      // Four-paddle VBLANK sampling consumes 28 of the 37 blank lines, leaving
-      // enough deadline headroom for bookkeeping before the VBLANK deadline.
-      // The helper accounts the remaining nine VBLANK lines + 11 score lines
-      // + 8 setup lines as 14 unsampled two-line units.
+      // Four-paddle VBLANK sampling consumes 28 of the 37 blank lines. The
+      // helper leaves the score itself sampled instead of pre-accounting it as
+      // one large unsampled gap.
       paddleball_vblank_paddles();
       score_vblank();
       PF0 := 0;

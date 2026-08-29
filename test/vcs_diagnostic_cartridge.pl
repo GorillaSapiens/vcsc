@@ -200,6 +200,11 @@ $src =~ /bank4 void diagnostic_driving_vblank\(void\).*?diagnostic_left_drive_be
    or die "diagnostic driving mode lost its once-per-frame VBLANK sample\n";
 $src !~ /diagnostic_driving_overscan/
    or die "diagnostic driving mode must not sample again in overscan\n";
+$src =~ /instantiate "four_paddles\.c26" as diagnostic_paddles.*?diagnostic_text_paddle_sample0.*?diagnostic_paddles_score_sample0\(\).*?diagnostic_text_paddle_sample1.*?diagnostic_paddles_score_sample1\(\).*?instantiate "six_glyph_component\.c26" as diagnostic_text .*?paddle_samples:=2/s &&
+$src =~ /asm lda #6;\s*diagnostic_paddles_score_account_a\(\);/s &&
+$src =~ /diagnostic_paddles_sample2\(\); WSYNC := _;\s*diagnostic_paddles_sample3\(\); WSYNC := _;\s*diagnostic_paddles_advance_pair\(\);/s &&
+$src !~ /diagnostic_paddles_sample0\(\); WSYNC := _;/
+   or die "diagnostic lost score-integrated paddle sampling\n";
 
 my %collision_expected=(
    diagnostic_collision_expected_top   => [0x80,0x40,0x20,0x10,0x08,0x04,0x02,0x01, 0,0,0,0,0,0,0,0],

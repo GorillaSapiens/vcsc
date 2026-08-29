@@ -45,6 +45,16 @@ parameter external_pointers := 0;
 // Fixed white is free; set this to one only when the application changes color.
 parameter mutable_color := 0;
 
+// Optional compile-time two-channel paddle sampling. The application supplies
+// TEMPLATE_paddle_sample0/1 hooks before instantiation. Sampling is placed only
+// in setup-line slack; the disabled path is source-identical to the historical
+// renderer and the visible scanline contract does not change.
+parameter paddle_samples := 0;
+
+#if TEMPLATE_paddle_samples != 0 && TEMPLATE_paddle_samples != 2
+extern const uint8_t TEMPLATE_paddle_samples_must_be_0_or_2[0];
+#endif
+
 // The machine-readable visible handoff fields below are defined in
 // renderers/COMPONENT_CONVERSION.md under "Measured visible-component handoff".
 #if TEMPLATE_glyph_rows == 1
@@ -340,6 +350,9 @@ require inline void TEMPLATE_draw(void) {
    // preload digit 2 here before WSYNC instead.
    asm ldy TEMPLATE_offsets+1;
 #endif
+#if TEMPLATE_paddle_samples == 2
+   TEMPLATE_paddle_sample0();
+#endif
    asm sta WSYNC;
 
    // Line two applies motion, flushes hostile player state, and preserves Y
@@ -362,6 +375,9 @@ require inline void TEMPLATE_draw(void) {
    asm ldy TEMPLATE_offsets;
    asm lda score_font+7,y;
    asm sta.a GRP0;
+#if TEMPLATE_paddle_samples == 2
+   TEMPLATE_paddle_sample1();
+#endif
    asm sta WSYNC;
    // Reuse the five cycles formerly occupied by digit 2's pointer fetch to
    // restore Y=row. STX then lands digit 2 on the original cycle.
@@ -614,6 +630,9 @@ require inline void TEMPLATE_draw(void) {
    asm sta COLUP0;
    asm sta COLUP1;
 #endif
+#if TEMPLATE_paddle_samples == 2
+   TEMPLATE_paddle_sample0();
+#endif
    asm sta WSYNC;
 
    // Line two applies motion, flushes both current/delayed player latches, and
@@ -650,6 +669,9 @@ require inline void TEMPLATE_draw(void) {
    asm lda #7;
 #endif
    asm sta.a TEMPLATE_row;
+#if TEMPLATE_paddle_samples == 2
+   TEMPLATE_paddle_sample1();
+#endif
 
    asm @TEMPLATE_draw_loop:;
    asm ldy TEMPLATE_row;

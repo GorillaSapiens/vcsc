@@ -29,8 +29,16 @@ my$bin=File::Spec->catfile($tmp,'paddleball.bin');my$mapfile=File::Spec->catfile
 my$c=read_file($component);my$p=read_file($source);
 $c =~ /parameter port := 0/ && $c =~ /TEMPLATE_position0/ && $c =~ /TEMPLATE_position1/ &&
 $c =~ /TEMPLATE_button0/ && $c =~ /TEMPLATE_button1/ && $c =~ /TEMPLATE_dump/ &&
-$c =~ /TEMPLATE_account_gap/ or die "two-paddle API contract missing\n";
+$c =~ /TEMPLATE_account_gap/ && $c =~ /TEMPLATE_score_sample0/ &&
+$c =~ /TEMPLATE_score_sample1/ && $c =~ /TEMPLATE_score_advance_pair/ &&
+$c =~ /TEMPLATE_score_account_a/ or die "two-paddle API contract missing\n";
 $p =~ /three_plus_three_score_component\.c26/ && $p =~ /two_paddles\.c26/ or die "Paddleball lost required component composition\n";
+$p =~ /inline void score_paddle_sample0\(void\) \{ paddles_score_sample0\(\); \}/ &&
+$p =~ /inline void score_paddle_sample1\(void\) \{ paddles_score_sample1\(\); \}/ &&
+$p =~ /inline void score_paddle_advance_pair\(void\) \{ paddles_score_advance_pair\(\); \}/ &&
+$p =~ /instantiate "three_plus_three_score_component\.c26" as score \(paddle_samples:=2\)/ &&
+$p =~ /asm lda #9;\s*paddles_score_account_a\(\);/s
+   or die "Paddleball no longer samples paddles through the score renderer\n";
 $p =~ /score_left_color := PADDLEBALL_BLUE/ && $p =~ /score_right_color := PADDLEBALL_RED/ or die "Paddleball lost blue\/red score colors\n";
 $p =~ /asm lda #\$ff;\s*asm sta PF0;\s*asm sta PF1;\s*asm sta PF2;/s or die "Paddleball lost full-width walls\n";
 $p =~ /0x80,0x80,0x80,0x80, 0x00,0x00,0x00,0x00/ or die "Paddleball lost dashed center pattern\n";

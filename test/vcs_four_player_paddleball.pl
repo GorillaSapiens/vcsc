@@ -32,12 +32,22 @@ my$c=read_file($component);my$t=read_file($two);my$p=read_file($source);
 $c =~ /TEMPLATE_position0/ && $c =~ /TEMPLATE_position1/ && $c =~ /TEMPLATE_position2/ && $c =~ /TEMPLATE_position3/ &&
 $c =~ /TEMPLATE_button0/ && $c =~ /TEMPLATE_button1/ && $c =~ /TEMPLATE_button2/ && $c =~ /TEMPLATE_button3/ &&
 $c =~ /TEMPLATE_sample0/ && $c =~ /TEMPLATE_sample1/ && $c =~ /TEMPLATE_sample2/ && $c =~ /TEMPLATE_sample3/ &&
-$c =~ /same two-scanline raw units as two_paddles\.c26/ && $c =~ /TEMPLATE_dump/
+$c =~ /same two-scanline raw units as two_paddles\.c26/ && $c =~ /TEMPLATE_dump/ &&
+$c =~ /TEMPLATE_score_sample0/ && $c =~ /TEMPLATE_score_sample1/ &&
+$c =~ /TEMPLATE_score_latch23_fixed/ && $c =~ /TEMPLATE_score_commit_latched23/ &&
+$c =~ /TEMPLATE_score_advance_pair/ && $c =~ /TEMPLATE_score_account_a/
    or die "four-paddle API contract missing\n";
 $t =~ /parameter port := 0/ && $t =~ /TEMPLATE_position0/ && $t =~ /TEMPLATE_position1/ && $t =~ /TEMPLATE_button0/ && $t =~ /TEMPLATE_button1/
    or die "two-paddle subset API regressed\n";
 
 $p =~ /include "vcs_4k\.c26"/ && $p =~ /instantiate "four_paddles\.c26" as paddles/ or die "four-player example lost 4K\/four-paddle composition\n";
+$p =~ /inline void score_paddle_sample0\(void\) \{ paddles_score_sample0\(\); \}/ &&
+$p =~ /inline void score_paddle_sample1\(void\) \{ paddles_score_sample1\(\); \}/ &&
+$p =~ /inline void score_paddle_latch23_fixed\(void\) \{ paddles_score_latch23_fixed\(\); \}/ &&
+$p =~ /inline void score_paddle_advance_pair\(void\) \{ paddles_score_advance_pair\(\); \}/ &&
+$p =~ /instantiate "three_plus_three_score_component\.c26" as score \(paddle_samples:=4\)/ &&
+$p =~ /paddles_score_commit_latched23\(\);.*?asm lda #9;\s*paddles_score_account_a\(\);/s
+   or die "four-player Paddleball no longer samples all four paddles through the score renderer\n";
 $p =~ /paddle 0\s+.*P0.*paddle 1\s+.*M0/s && $p =~ /paddle 2\s+.*P1.*paddle 3\s+.*M1/s
    or die "four-player team\/object allocation changed\n";
 $p =~ /paddles_sample0\(\);\s*WSYNC := _;/s &&

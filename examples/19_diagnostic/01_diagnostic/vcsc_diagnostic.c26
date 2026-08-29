@@ -21,11 +21,25 @@ include "diagnostic_collision_font.c26"
 include "diagnostic_fingerprint_font.c26"
 include "fonts/logo_font.c26"
 
+// The paddle reader comes first so the text renderer can bind its optional
+// compile-time score-sampling slots directly to the four analog channels.
+instantiate "four_paddles.c26" as diagnostic_paddles
+// The six-glyph setup has room for one bounded probe on each of its first two
+// scanlines. Sample the left-port pair there on every text row; the right-port
+// pair retains a compact two-line sample at the bottom of the diagnostic.
+inline void diagnostic_text_paddle_sample0(void) {
+   asm ldx #0;
+   diagnostic_paddles_score_sample0();
+}
+inline void diagnostic_text_paddle_sample1(void) {
+   asm ldx #0;
+   diagnostic_paddles_score_sample1();
+}
+
 // The ordinary score lifecycle needs a score_font symbol while preparing its
 // initial pointers.  The diagnostic immediately redirects all six full
 // pointers to message_font before every visible row.
-instantiate "six_glyph_component.c26" as diagnostic_text (compact_font:=0, glyph_rows:=5, external_pointers:=1, mutable_color:=1)
-instantiate "four_paddles.c26" as diagnostic_paddles
+instantiate "six_glyph_component.c26" as diagnostic_text (compact_font:=0, glyph_rows:=5, external_pointers:=1, mutable_color:=1, paddle_samples:=2)
 instantiate "keypad_controller.c26" as diagnostic_left_keypad (port:=0, key_only:=1)
 instantiate "keypad_controller.c26" as diagnostic_right_keypad (port:=1, key_only:=1)
 instantiate "driving_controller.c26" as diagnostic_left_drive (port:=0)
@@ -59,16 +73,16 @@ enum diagnostic_timing {
    DIAGNOSTIC_VISIBLE_USED := 124,
    DIAGNOSTIC_NTSC_VISIBLE_TAIL := 11,
    DIAGNOSTIC_NTSC_INIT_TAIL := 11,
-   DIAGNOSTIC_NTSC_PADDLE_TAIL := 8,
+   DIAGNOSTIC_NTSC_PADDLE_TAIL := 10,
    DIAGNOSTIC_PAL_VISIBLE_TAIL := 47,
    // PAL's controller-initialization path ends one scanline later in phase
    // than an ordinary non-paddle frame.  Calibrate that transition explicitly
    // rather than allowing a single 313-line displayed frame at mode entry.
    DIAGNOSTIC_PAL_INIT_TAIL := 47,
-   DIAGNOSTIC_PAL_PADDLE_TAIL := 44,
+   DIAGNOSTIC_PAL_PADDLE_TAIL := 46,
    DIAGNOSTIC_SECAM_VISIBLE_TAIL := 47,
    DIAGNOSTIC_SECAM_INIT_TAIL := 47,
-   DIAGNOSTIC_SECAM_PADDLE_TAIL := 43
+   DIAGNOSTIC_SECAM_PADDLE_TAIL := 45
 };
 
 // Non-beam-critical UI/application state belongs in shared Superchip RAM.
@@ -162,6 +176,10 @@ bank1 void diagnostic_prepare_row(uint8_t offset) {
    asm clc;
    asm adc #>score_font;
    asm sta.z diagnostic_text_pointers+11;
+   // One text-row cadence is twelve scanlines (three prepare, one alignment,
+   // eight renderer). Advance six two-line units before the next score probes.
+   asm lda #6;
+   diagnostic_paddles_score_account_a();
    asm sta WSYNC;
 }
 
@@ -203,6 +221,8 @@ bank1 void diagnostic_prepare_detail1_row(void) {
    asm ldy diagnostic_detail1_row+5;
    asm lda diagnostic_pair_low,y; asm sta.z diagnostic_text_pointers+10;
    asm lda diagnostic_pair_page,y; asm clc; asm adc #>score_font; asm sta.z diagnostic_text_pointers+11;
+   asm lda #6;
+   diagnostic_paddles_score_account_a();
    asm sta WSYNC;
 }
 
@@ -580,17 +600,19 @@ bank2 void diagnostic_paddle_vblank(void) {
       diagnostic_controller_needs_init := 0;
    }
    diagnostic_paddles_vblank();
+   // Keep the public four-paddle advance hook exercised and account the first
+   // two scanlines of the fixed post-sampler VBLANK remainder here.
+   diagnostic_paddles_advance_pair();
 }
 
 bank2 void diagnostic_paddle_overscan(void) {
-   // Constant-gap form of four_paddles_account_gap().  The diagnostic has a
-   // fixed unsampled display span, so keeping this calculation in the same
-   // bank removes a subroutine call from the overscan deadline while retaining
-   // the component's midpoint estimate for a channel that completed in the gap.
+   // Constant-gap finish for the portions of the raster not covered by the
+   // text renderer's integrated paddle probes. Each prepared text row already
+   // advances six pairs, so only the remaining fixed span is accounted here.
    asm lda.z diagnostic_paddles_elapsed;
    asm clc;
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { asm adc #48; }
-   else { asm adc #57; }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { asm adc #27; }
+   else { asm adc #36; }
    asm bcc @midpoint_ok;
    asm lda #$ff;
    asm @midpoint_ok:;
@@ -613,8 +635,8 @@ bank2 void diagnostic_paddle_overscan(void) {
 
    asm clc;
    asm lda.z diagnostic_paddles_elapsed;
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { asm adc #96; }
-   else { asm adc #114; }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { asm adc #54; }
+   else { asm adc #72; }
    asm bcc @elapsed_ok;
    asm lda #$ff;
    asm @elapsed_ok:;
@@ -1536,13 +1558,10 @@ bank1 void diagnostic_frame(void) {
    diagnostic_bank3_task(0);
    diagnostic_bank0_task(0);
 
-   // Paddle measurement owns a four-line visible sampling cycle.  Calling the
-   // component's beam-level hooks explicitly keeps its lifecycle honest and
-   // preserves the same raw position units as the standalone paddle example.
+   // Channels 0/1 are sampled repeatedly inside every text row. The six-glyph
+   // setup has only two safe slots, so finish the right-port pair here in two
+   // lines instead of the old four-line all-channel sampling island.
    if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && !diagnostic_frame_init_only) {
-      diagnostic_paddles_sample0(); WSYNC := _;
-      diagnostic_paddles_sample1(); WSYNC := _;
-      diagnostic_paddles_advance_pair();
       diagnostic_paddles_sample2(); WSYNC := _;
       diagnostic_paddles_sample3(); WSYNC := _;
       diagnostic_paddles_advance_pair();

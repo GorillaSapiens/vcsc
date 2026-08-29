@@ -18,6 +18,17 @@
 // nondefault score_font tables are tightly packed at glyph_rows bytes per digit.
 parameter glyph_rows := 8;
 
+// Optional compile-time paddle sampling. 0 preserves the historical renderer
+// byte-for-byte. 2 samples one two-paddle reader; 4 samples all channels of a
+// four-paddle reader. Four-channel mode uses a fixed-cycle latch for channels
+// 2/3 so paddle state can never move the calibrated RESP1 phase. The application
+// supplies instance-prefixed hooks before instantiation; see libraries/vcs/README.md.
+parameter paddle_samples := 0;
+
+#if TEMPLATE_paddle_samples != 0 && TEMPLATE_paddle_samples != 2 && TEMPLATE_paddle_samples != 4
+extern const uint8_t TEMPLATE_paddle_samples_must_be_0_2_or_4[0];
+#endif
+
 // Visible contract: enter TEMPLATE_draw at the canonical cycle-3 phase with
 // VBLANK clear. It consumes glyph_rows+3 scanlines and returns at cycle zero
 // of the following line. Use vcs_ntsc_component_handoff() before an adjacent
@@ -154,7 +165,7 @@ static inline void TEMPLATE_prepare_left(void) {
    asm adc #0;
    asm sta.z TEMPLATE_pointers + 5;
 
-   // Cache the eight left-hundreds rows in zero page. The visible kernel uses
+   // Cache the eight left-hundreds rows in zero page. The visible renderer uses
    // these direct loads to make room for both late P1 copy updates.
    asm ldy #0; asm lda.iy (TEMPLATE_pointers),y; asm sta.z TEMPLATE_left_hundreds_rows + 0;
    asm ldy #1; asm lda.iy (TEMPLATE_pointers),y; asm sta.z TEMPLATE_left_hundreds_rows + 1;
@@ -253,7 +264,12 @@ require inline void TEMPLATE_draw(void) {
    asm sta REFP1;
    asm sta HMM0;
    asm sta HMM1;
+#if TEMPLATE_paddle_samples == 0
+   // Keep the historical no-paddle path byte-for-byte unchanged. Paddle-enabled
+   // builds defer HMBL until line 2 to leave the channel-0 completion path
+   // safely before this line's WSYNC.
    asm sta HMBL;
+#endif
    asm lda #3;
    asm sta NUSIZ0;
    asm sta NUSIZ1;
@@ -261,6 +277,13 @@ require inline void TEMPLATE_draw(void) {
    asm sta COLUP0;
    asm lda.z TEMPLATE_right_color;
    asm sta COLUP1;
+#if TEMPLATE_paddle_samples >= 2
+   // The score-paddle hook contract reserves X=0 and budgets a 17-cycle
+   // completed probe. HMBL is deliberately deferred to line 2: with it here
+   // the completed channel-0 path would write WSYNC at cycle 77.
+   asm ldx #0;
+   TEMPLATE_paddle_sample0();
+#endif
    asm sta WSYNC;
 
    // Line 2: fixed P0 base X=20. This is the same measured cycle-three
@@ -275,6 +298,19 @@ require inline void TEMPLATE_draw(void) {
    asm dex;
    asm bne.same @TEMPLATE_left_position_loop;
    asm sta RESP0;
+#if TEMPLATE_paddle_samples >= 2
+   // Finish the motion-register cleanup that the paddle-enabled first line
+   // deferred. This occurs after RESP0, so it cannot disturb P0 positioning;
+   // line 2 has ample worst-case headroom for the five cycles.
+   asm lda #0;
+   asm sta HMBL;
+
+   // X is zero when the fixed-position loop terminates. Sample the second
+   // channel on the companion scanline, then advance the shared two-line RC
+   // clock. Both hooks are compile-time bound and have fixed worst-case budgets.
+   TEMPLATE_paddle_sample1();
+   TEMPLATE_paddle_advance_pair();
+#endif
    asm sta WSYNC;
 
    // Line 3: fixed P1 base X=100. Preload the first left hundreds row
@@ -282,6 +318,21 @@ require inline void TEMPLATE_draw(void) {
    // blank while the next scanline can begin with the first P0 glyph latched.
    asm ldy #$58;
    asm sty HMP1;
+#if TEMPLATE_paddle_samples == 4
+   // The historical X=8 divide-delay occupies exactly 48 cycles after HMP1.
+   // A four-paddle reader supplies a fixed 24-cycle latch for channels 2/3;
+   // eight harmless three-cycle BITs fill the other 24 cycles. RESP1 therefore
+   // lands on the identical cycle regardless of paddle threshold state.
+   TEMPLATE_paddle_latch23_fixed();
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+   asm bit.z CXM0P;
+#else
    asm tya;
    asm and #$0f;
    asm tax;
@@ -289,6 +340,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_right_position_loop:;
    asm dex;
    asm bne.same @TEMPLATE_right_position_loop;
+#endif
    asm sta RESP1;
 #if TEMPLATE_glyph_rows == 1
    asm ldy #0;

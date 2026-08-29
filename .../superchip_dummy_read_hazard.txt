@@ -33,4 +33,4 @@ Next work
 ---------
 Do not reopen this as active design unless a regression disproves the contract.
 Item 47 subsequently locked ordinary Superchip RAM accesses; the main roadmap
-now continues with Item 48.
+now continues with Item 49.

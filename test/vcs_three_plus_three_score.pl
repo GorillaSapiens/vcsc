@@ -151,8 +151,9 @@ for my $phase (qw(init vblank draw overscan)) {
 }
 $source !~ /\b(?:VSYNC|VBLANK|TIM1T|TIM8T|TIM64T|T1024T|INTIM|TIMINT|AUDC0|AUDC1|AUDF0|AUDF1|AUDV0|AUDV1)\b\s*:=/
    or die "component takes ownership of scheduler or audio hardware\n";
-$source =~ /asm sta HMM0;\s*asm sta HMM1;\s*asm sta HMBL;/s
-   or die "component does not neutralize hostile missile/Ball motion\n";
+$source =~ /asm sta HMM0;\s*asm sta HMM1;.*?#if TEMPLATE_paddle_samples == 0.*?asm sta HMBL;/s &&
+$source =~ /asm sta RESP0;.*?#if TEMPLATE_paddle_samples >= 2.*?asm lda #0;\s*asm sta HMBL;/s
+   or die "component does not neutralize hostile missile/Ball motion on both sampling paths\n";
 
 my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$mapfile,$fixture,'-o',$bin);
 $rc==0 && !$sig or die "boundary fixture build failed\n$out$err";

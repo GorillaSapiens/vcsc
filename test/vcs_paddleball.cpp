@@ -352,6 +352,14 @@ int main(int argc,char **argv) {
    // 264 raw intervals (Stella: 262 displayed scanlines).
    Machine simultaneous(argv[1],addresses,200,200); simultaneous.run_timing_only();
    Machine asymmetric(argv[1],addresses,200,160); asymmetric.run_timing_only();
+   // Item 48 originally put the channel-0 score probe one cycle past the safe
+   // first setup-line budget. Raw thresholds 18..37 complete in that slot and
+   // produced a 265-line raw frame (Stella: 263 displayed lines). Sweep every
+   // formerly bad blue-paddle threshold so no phase hole survives.
+   for(int threshold=18; threshold<=37; ++threshold) {
+      Machine blue_score(argv[1],addresses,threshold,200);
+      blue_score.run_timing_only();
+   }
    // Hold the right paddle around the ball's first right-edge arrival so this
    // probe sees both a wall rebound and a paddle rebound while also checking
    // that audio writes in overscan do not perturb frame length.
