@@ -30,13 +30,13 @@ bank1 const uint8_t cart_type_glyphs[24] := {
    ),
    // 0x30 0
    CART_TYPE_GLYPHS_GLYPH(
-      0b..XXXXX.,
+      0b..XXXX..,
       0b.XX..XX.,
       0b.XX.XXX.,
       0b.XX.XXX.,
       0b.XXX.XX.,
       0b.XXX.XX.,
       0b.XX..XX.,
-      0b.XXXXX..
+      0b..XXXX..
    )
 };

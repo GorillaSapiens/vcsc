@@ -1,0 +1,9 @@
+2026-08-29 06:14:39 PDT, narrow default slashed zero
+Applied the user-supplied zero.patch.  The canonical default_ascii zero keeps
+its diagonal slash but uses symmetric four-pixel top and bottom caps.  Ran
+make fonts so default decimal/hex/lhex and mapper diagnostic subsets are
+derived from the ASCII source of truth.  Updated the exact font-contract and
+independent score-raster expectations for the intentional glyph change.
+Validation: 502/502 compile tests pass; all 331 e2e cases pass, with the long
+diagnostic cartridge driver run directly after the ordered suite hit the
+outer command timeout.

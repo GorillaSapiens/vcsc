@@ -8,14 +8,14 @@ alias VCS_FONT_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 page const uint8_t score_font[80] := {
    // 0x30 0
    VCS_FONT_GLYPH(
-      0b..XXXXX.,
+      0b..XXXX..,
       0b.XX..XX.,
       0b.XX.XXX.,
       0b.XX.XXX.,
       0b.XXX.XX.,
       0b.XXX.XX.,
       0b.XX..XX.,
-      0b.XXXXX..
+      0b..XXXX..
    ),
    // 0x31 1
    VCS_FONT_GLYPH(
