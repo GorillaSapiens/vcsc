@@ -9,8 +9,8 @@
 
 # F8/F6/F4 complete transition diagnostics
 
-`bankswitching_diagnostic.c26` is the editable wrapper around the installed
-`bankswitching_diagnostic_suite.c26` source. One build selects a mapper only:
+`bankswitching_diagnostic.c26` contains the complete editable diagnostic. One build
+selects a mapper only:
 
 ```sh
 ../../../driver/vcsc -I ../../../libraries/vcs \
@@ -35,18 +35,23 @@ that startup reinitializes allocated objects on every reset.
 
 The stable result display has two centered white lines. On green success the
 first line is lowercase **pass** in the 8x16 Big font; on dark-red failure it is
-uppercase **FAIL**. Those glyphs are copied exactly from
-`libraries/vcs/fonts/big_ascii.c26` and rendered by
+uppercase **FAIL**. Those glyphs come from the checked-in generated `status_font.c26` subset of
+`libraries/vcs/fonts/big_ascii.c26` and are rendered by
 `six_glyph_big_wide_component.c26` as `blank/p/a/s/s/blank` or
 `blank/F/A/I/L/blank`.
 
-Directly below it, `six_glyph_component.c26` uses exact glyphs from
-`libraries/vcs/fonts/default_ascii.c26` to identify the cartridge. Ordinary
+Directly below it, `six_glyph_component.c26` uses the checked-in generated
+`cart_type_font.c26` subset of `libraries/vcs/fonts/default_ascii.c26` to identify
+the cartridge. Ordinary
 images show centered `F8`, `F6`, or `F4`; Superchip images show `F8SC`, `F6SC`,
 or `F4SC`. The deliberately poisoned image shows `??????` instead of claiming a
 mapper identity. The combined visible block is 19 + 11 = 30 scanlines, with 81
 blank visible lines above and below, so every result frame remains exactly 262
 NTSC scanlines.
+
+The two subset files are ordinary checked-in example sources, so building the
+example does not require Perl. Run `make fonts` in this directory (or top-level
+`make fonts`) to regenerate them from the canonical `*_ascii.c26` fonts.
 
 `make` emits exactly seven cartridges:
 

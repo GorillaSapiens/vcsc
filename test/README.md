@@ -766,10 +766,10 @@ out of the image and reports, resolves the selected member at its logical
 BANK1 call bridge with the archive-member origin intact.
 
 `vcs_bankswitching_diagnostic.pl` builds one F8, one F6, and one F4 image
-from `libraries/vcs/bankswitching_diagnostic_suite.c26`. The diagnostic composes
+from `examples/09_bankswitching/01_diagnostic/bankswitching_diagnostic.c26`. The diagnostic composes
 a 19-line Big-wide result word with an 11-line centered cart-type line. The test
-locks both 12-byte six-pointer workspaces and the page-contained 128-byte Big and
-64-byte default ASCII subset tables. Each image executes its complete ordered
+locks both 12-byte six-pointer workspaces and the page-contained checked-in
+generated 128-byte Big and 64-byte default ASCII subset tables. Each image executes its complete ordered
 source-bank to destination-bank direct-JMP matrix internally.
 The normal `make test` path builds each image from C26 topology and runs it in compatibility-cfg-driven `vcsc-sim` from every
 physical/file startup bank and checks RIOT-RAM signatures, exact matrix counts,

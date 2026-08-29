@@ -315,8 +315,10 @@ my $tmp=shift @ARGV // die "usage: $0 REPO TMP [--stella]\n";
 my $stella_mode=@ARGV && $ARGV[0] eq '--stella' ? shift(@ARGV) : '';
 @ARGV and die "usage: $0 REPO TMP [--stella]\n";
 make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
-my $source=File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26');
+my $source=File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','bankswitching_diagnostic.c26');
 my $source_text=read_file($source);
+my $status_font=read_file(File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','status_font.c26'));
+my $cart_type_font=read_file(File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','cart_type_font.c26'));
 $source_text =~ /cartram\s+uint8_t\s+diagnostic_superchip_bss_head\s*;/ &&
 $source_text =~ /cartram\s+uint8_t\s+diagnostic_superchip_data_head\s*:=\s*0x5A\s*;/ &&
 $source_text =~ /cartram\s+uint8_t\s+diagnostic_superchip_count\s*;/ &&
@@ -332,9 +334,11 @@ $source_text =~ /instantiate\s+"six_glyph_big_wide_component\.c26"\s+as\s+status
    or die "diagnostic does not use the Big wide result component\n";
 $source_text =~ /instantiate\s+"six_glyph_component\.c26"\s+as\s+cart_type/
    or die "diagnostic does not use the centered six-glyph cart-type component\n";
-$source_text =~ /bank0\s+page\s+const\s+uint8_t\s+status_big_glyphs\s*\[128\]/ &&
-$source_text =~ /bank0\s+page\s+const\s+uint8_t\s+status_small_glyphs\s*\[64\]/
-   or die "diagnostic ASCII subset tables are not page-contained\n";
+$source_text =~ /include\s+"status_font\.c26"/ &&
+$source_text =~ /include\s+"cart_type_font\.c26"/ &&
+$status_font =~ /bank0\s+page\s+const\s+uint8_t\s+status_big_glyphs\s*\[128\]/ &&
+$cart_type_font =~ /bank0\s+page\s+const\s+uint8_t\s+status_small_glyphs\s*\[64\]/
+   or die "diagnostic generated ASCII subset tables are not page-contained\n";
 $source_text =~ /load_status_pass.*status_big_glyphs\s*\+\s*16.*status_big_glyphs\s*\+\s*32.*status_big_glyphs\s*\+\s*48.*status_big_glyphs\s*\+\s*48/s
    or die "diagnostic pass pointer order is not blank\/p\/a\/s\/s\/blank\n";
 $source_text =~ /load_status_fail.*status_big_glyphs\s*\+\s*64.*status_big_glyphs\s*\+\s*80.*status_big_glyphs\s*\+\s*96.*status_big_glyphs\s*\+\s*112/s

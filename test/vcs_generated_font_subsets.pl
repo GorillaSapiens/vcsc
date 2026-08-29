@@ -77,6 +77,7 @@ for my $source (@ascii) {
 }
 
 my @cases=(
+   [qw(01_diagnostic bankswitching_diagnostic.c26)],
    [qw(03_fa_ram_plus fa_ram_plus_diagnostic.c26)],
    [qw(04_4ksc 4ksc_diagnostic.c26)],
    [qw(05_omni omni_diagnostic.c26)],

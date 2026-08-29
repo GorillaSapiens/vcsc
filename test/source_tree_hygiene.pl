@@ -237,7 +237,7 @@ $bankswitching !~ /^\[x\]/m
 -f File::Spec->catfile($repo,'examples','15_all_five_player_color_192','01_interactive','all_five_player_color_192_interactive.c26') &&
 !-e File::Spec->catfile($test,'stella_snapshot_keys.py') &&
 !-e File::Spec->catfile($test,'stella_grade_bank_snapshot.py') &&
--f File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','bankswitching_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','02_standard_renderer','banked_standard_renderer.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','02_standard_renderer','README.md')
@@ -250,8 +250,7 @@ my @uncleaned_stella_tmp=grep { index($clean_recipe,'$(' . $_ . ')') < 0 } @stel
 @uncleaned_stella_tmp and die "clean target omits Stella temp variables: @uncleaned_stella_tmp\n";
 index($top_make,'stella-bank-test: tools')>=0 &&
 index($top_make,'--stella')>=0 &&
-index($top_make,'install -m 0644 libraries/vcs/bankswitching_diagnostic_suite.c26')>=0 &&
-index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/bankswitching_diagnostic_suite.c26')>=0 &&
+index($top_make,'bankswitching_diagnostic_suite.c26')<0 &&
 index($top_make,'--stop-pc=0x$$sim_done')>=0 &&
 index($top_make,'--split-fill=0xA7 --reset-on-pc=0x$$sc_done')>=0 &&
 index($top_make,'policy=every-reset bss=zero data=copy-through-write-alias')>=0 &&
@@ -925,7 +924,7 @@ index($superchip_header,'$size:0x0080')>=0
    or die "superchip.c26 lost the allocatable split-memory region\n";
 index($superchip_header,'superchip_ram')<0
    or die "superchip.c26 must not publish a whole-window alias\n";
-my $superchip_diagnostic=slurp(File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26'));
+my $superchip_diagnostic=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','bankswitching_diagnostic.c26'));
 index($superchip_diagnostic,'cartram uint8_t diagnostic_superchip_bss_head;')>=0 &&
 index($superchip_diagnostic,'cartram uint8_t diagnostic_superchip_data_head := 0x5A;')>=0 &&
 index($superchip_diagnostic,'cartram uint8_t diagnostic_superchip_bss[124];')>=0 &&

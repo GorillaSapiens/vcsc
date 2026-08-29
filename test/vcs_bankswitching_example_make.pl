@@ -33,7 +33,7 @@ my $tmp=shift @ARGV // die "usage: $0 REPO TMP\n";
 my $src=File::Spec->catdir($repo,'examples','09_bankswitching','01_diagnostic');
 my $work=File::Spec->catdir($tmp,'bankswitching-example');
 make_path($work);
-for my $name (qw(Makefile bankswitching_diagnostic.c26)) {
+for my $name (qw(Makefile bankswitching_diagnostic.c26 status_font.c26 cart_type_font.c26)) {
    copy(File::Spec->catfile($src,$name),File::Spec->catfile($work,$name))
       or die "copy $name: $!\n";
 }

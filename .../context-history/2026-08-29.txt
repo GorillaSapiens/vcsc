@@ -7,3 +7,24 @@ independent score-raster expectations for the intentional glyph change.
 Validation: 502/502 compile tests pass; all 331 e2e cases pass, with the long
 diagnostic cartridge driver run directly after the ordered suite hit the
 outer command timeout.
+2026-08-29 06:45:06 PDT, move bank diagnostic into example
+Moved the complete F8/F6/F4/F8SC/F6SC/F4SC transition diagnostic out of
+libraries/vcs and into examples/09_bankswitching/01_diagnostic. The public
+library no longer installs or documents the one-off diagnostic source; staged
+install checks compile the installed example against the installed general VCS
+library instead.
+
+Because the moved source is now a real example, replaced its hand-copied Big
+and default ASCII glyph tables with checked-in status_font.c26 and
+cart_type_font.c26 files generated from the canonical *_ascii.c26 fonts. Its
+Makefile now exposes fonts and top-level make fonts regenerates both files;
+ordinary builds still do not require Perl. Updated diagnostic, example-build,
+generated-font, hygiene, install-layout, documentation, and reviewed-assembly
+contracts for the new ownership boundary.
+
+Validation: 502/502 compile tests pass. All 331 default e2e cases pass across
+bounded runs after the monolithic parallel run hit the execution ceiling. All
+eight recursive example-build/disassembly shards pass. A staged install proves
+the suite is absent from share/vcs and the complete example builds from the
+installed examples tree. All seven generated diagnostic ROMs are byte-identical
+to builds from the former library source.

@@ -33,7 +33,6 @@ Files:
 - `vcs_direct_8k.c26` ... generic two-chunk directly mapped packaging profile used to certify selector-free output; no real hardware currently implements this exact mapping
 - `vcs_omni_32k.c26` ... OmniCart/OMNI direct-addressing profile: seven directly addressed 4K RO islands plus one 4K RW island at `$1000`; `vcs_omni_32k.cfg` gives `vcsc-sim` the matching selector-free logical layout; no real hardware currently implements OMNI
 - `vcs_*.cfg` ... retained legacy profile descriptions for simulator input and compatibility/differential certification; public builds use the C26 profiles
-- `bankswitching_diagnostic_suite.c26` ... parameterized F8/F6/F4 all-transition diagnostic used by `vcsc-sim` and authoritative Stella certification
 - `color_ntsc.c26`, `color_pal.c26`, `color_secam.c26` ... readable standard-specific aliases backed by the compile-time RGB palette matchers
 - `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, VSYNC, and scheduler-owned VBLANK/overscan deadlines
 - `frame_pal.c26`, `frame_secam.c26` ... distinct PAL50/SECAM50 public front ends over the shared measured 312-line `frame_50hz_component.c26` scheduler core
@@ -85,38 +84,6 @@ Files:
 - `../../examples/13_player_color_170/` ... `player_color (lines:=170)` interactive composition with an eleven-line score above and another below
 - `../../examples/17_video_standards/` ... separate `pal/` and `secam/` 50 Hz example trees with minimal frames and native interactive 228-line all-five compositions using `__builtin_pal_rgb()` / `__builtin_secam_rgb()` directly
 - `../../examples/18_enhanced_multisprite/` ... maintained asymmetric-playfield enhanced multisprite diagnostic; the renderer is line-parameterized for 192 and native PAL/SECAM 228 active lines
-
-## Bank-switching diagnostic suite
-
-`bankswitching_diagnostic_suite.c26` is compiled with `MAPPER_BANKS` and,
-for the Superchip twins, `SUPERCHIP_TEST`. One cartridge internally executes the
-complete ordered source-bank to destination-bank direct-JMP matrix for its
-mapper. Every source bank also verifies a same-bank JSR/RTS path; BANK0 adds a
-nested BANK0-to-BANK1 call and return. RIOT-RAM signatures, matrix counts, and
-hardware-stack balance are checked before the cartridge settles on a two-line
-result display. Green success shows lowercase **pass** with the 16-row Big font;
-dark-red failure shows uppercase **FAIL**. A centered second line identifies
-`F8`, `F6`, `F4`, `F8SC`, `F6SC`, or `F4SC`; the deliberately poisoned image
-shows `??????`. The result line uses `six_glyph_big_wide_component.c26` with
-exact glyphs from `fonts/big_ascii.c26`, and the cart-type line uses
-`six_glyph_component.c26` with exact glyphs from `fonts/default_ascii.c26`.
-The 19-line and 11-line components form one centered 30-line block, and the
-complete frame remains exactly 262 scanlines.
-
-The editable wrapper and Makefile live under
-`examples/09_bankswitching/01_diagnostic/`. Each diagnostic includes the selected C26 cartridge profile. `vcs.c26` now
-describes only the common machine types, registers, and RIOT RAM; the profile
-supplies the cartridge topology and allocatable ROM. The default driver adds
-`vcs_4k.c26`, whose `mem rom` spans `$F000-$FFF9` and excludes the six vector
-bytes from allocation.
-
-A normal build emits the six mapper
-images—F8, F6, F4, F8SC, F6SC, and F4SC—plus `poisoned.bin`, a deliberately
-failing F8SC image for inspecting and grading the FAIL frame. The normal
-simulator regression runs the six mapper images from every physical startup
-bank; SC runs begin with hostile RAM, poison it, reset, and pass a second time.
-Stella runs the same forced and randomized startup-bank matrix and presses
-console Reset before grading each SC frame, including the poisoned FAIL image.
 
 ## Video-standard color matching
 

@@ -149,7 +149,6 @@ install-data:
 	install -m 0644 libraries/vcs/color_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/color_ntsc.c26
 	install -m 0644 libraries/vcs/color_pal.c26 $(DESTDIR)$(DATADIR)/vcs/color_pal.c26
 	install -m 0644 libraries/vcs/color_secam.c26 $(DESTDIR)$(DATADIR)/vcs/color_secam.c26
-	install -m 0644 libraries/vcs/bankswitching_diagnostic_suite.c26 $(DESTDIR)$(DATADIR)/vcs/bankswitching_diagnostic_suite.c26
 	install -m 0644 libraries/vcs/frame_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/frame_ntsc.c26
 	install -m 0644 libraries/vcs/frame_50hz_component.c26 $(DESTDIR)$(DATADIR)/vcs/frame_50hz_component.c26
 	install -m 0644 libraries/vcs/frame_pal.c26 $(DESTDIR)$(DATADIR)/vcs/frame_pal.c26
@@ -318,7 +317,6 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/color_ntsc.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/color_pal.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/color_secam.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/bankswitching_diagnostic_suite.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/frame_ntsc.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/frame_50hz_component.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/frame_pal.c26
@@ -615,7 +613,6 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" "$$stage_vcs/vcs_2k.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" -o "$(INSTALLCHECK_STAGING)/blank_screen_2k.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/blank_screen_2k.bin"` -eq 2048; \
-	test -f "$$stage_vcs/bankswitching_diagnostic_suite.c26"; \
 	for profile in vcs.cfg vcs_2k.c26 vcs_2k_cv.c26 vcs_4k.c26 vcs_4k_sc.c26 vcs_8k_f8.c26 vcs_8k_0840.c26 vcs_8k_ua.c26 vcs_8k_uasw.c26 vcs_8k_0fa0.c26 vcs_8k_e0.c26 vcs_8k_3f.c26 vcs_8k_3e.c26 vcs_16k_3f.c26 vcs_16k_3e.c26 vcs_12k_fa.c26 vcs_16k_f6.c26 vcs_16k_jane.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26 vcs_omni_32k.c26 fa_ram_plus.c26 commavid.c26; do test -f "$$stage_vcs/$$profile"; done; \
 	test -f "$$stage_vcs/vcs_8k_f8.cfg"; \
 	test -f "$$stage_vcs/vcs_12k_fa.cfg"; \
@@ -710,7 +707,7 @@ installcheck: tools
 	  -DMAPPER_BANKS=2 -DSIMULATOR_TEST \
 	  -T "$$stage_vcs/vcs.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.map" \
-	  "$$stage_vcs/bankswitching_diagnostic_suite.c26" \
+	  "$$stage_examples/09_bankswitching/01_diagnostic/bankswitching_diagnostic.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"` -eq 8192; \
 	sim_done=`awk '$$2 == "simulator_done" { print substr($$1, 2); exit }' "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.map"`; \
@@ -749,7 +746,7 @@ installcheck: tools
 	  -DMAPPER_BANKS=2 -DSUPERCHIP_TEST -DSIMULATOR_TEST \
 	  -T "$$stage_vcs/vcs.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map" \
-	  "$$stage_vcs/bankswitching_diagnostic_suite.c26" \
+	  "$$stage_examples/09_bankswitching/01_diagnostic/bankswitching_diagnostic.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin"` -eq 8192; \
 	sc_done=`awk '$$2 == "simulator_done" { print substr($$1, 2); exit }' "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map"`; \
