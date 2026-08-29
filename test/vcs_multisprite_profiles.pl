@@ -23,6 +23,7 @@ sub capture {
 sub read_file { my($p)=@_; open(my $fh,'<:raw',$p) or die "read $p: $!\n"; local $/; my $d=<$fh>; close($fh); return defined($d)?$d:''; }
 sub write_file { my($p,$d)=@_; open(my $fh,'>:raw',$p) or die "write $p: $!\n"; print {$fh} $d; close($fh) or die "close $p: $!\n"; }
 sub without_usage { my($s)=@_; $s =~ s/\AMEMORY USAGE\n(?:  [^\n]+\n)+//; return $s; }
+sub map_zp { my($map,$name)=@_; $map =~ /^\s*\$([0-9A-Fa-f]{4})\s+\Q$name\E\b/m or die "map missing $name\n"; my$v=hex($1); $v<=0xff or die "$name is not zero-page\n"; return sprintf("0x%02x",$v); }
 
 my $repo=shift @ARGV // usage();
 my $tmp=shift @ARGV // usage();
@@ -109,10 +110,11 @@ $score_component =~ /parameter\s+mutable_color\s*:=\s*0/
 
 my @examples=(
    ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2623,84,78,6],
-   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3414,99,93,6],
-   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3414,99,93,6],
+   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3605,101,95,6],
+   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3605,101,95,6],
 );
 my %bins;
+my %maps;
 my %state_bases;
 for my $e (@examples) {
    my($mode,@parts)=@$e;
@@ -131,6 +133,7 @@ for my $e (@examples) {
    without_usage($out) eq '' or die "$mode public example wrote unexpected stdout\n$out";
    -s $bin==4096 or die "$mode public example is not a 4K cartridge\n";
    my $maptext=read_file($map);
+   $maps{$mode}=$maptext;
    $maptext =~ /BSS\.__vcsc_object\$game_state\s+run=\$([0-9A-Fa-f]{4})\s+size=\$0043\b/
       or die "$mode game_state is not exactly 67 bytes\n";
    $state_bases{$mode}="0x$1";
@@ -177,6 +180,20 @@ $common =~ /SELECTED_OBJECT_COUNT\s+6\b/ or die "interactive Select cycle is not
 $common =~ /game_MISSILE0_Y\s*:=\s*250/ && $common =~ /game_MISSILE1_Y\s*:=\s*251/ && $common =~ /game_BALL_Y\s*:=\s*252/
    or die "maintained minimal profile no longer keeps M0/M1/Ball off the active raster\n";
 
+# Both public 181 score compositions must use the same edge-triggered right-
+# joystick editor as the other six-digit interactive examples.
+for my $mode (qw(181-score-above 181-score-below)) {
+   my @parts = $mode eq '181-score-above'
+      ? qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26)
+      : qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26);
+   my $itext=read_file(File::Spec->catfile($repo,@parts));
+   $itext =~ /include "\.\.\/\.\.\/\.\.\/common\/fixed_six_digit_controls_compact\.c26"/
+      or die "$mode interactive score lost compact shared right-joystick controls\n";
+   $itext =~ /update_multisprite_controls\(\);\s*update_score_controls\(\);/s
+      or die "$mode interactive score controls are not updated during overscan\n";
+}
+
+
 # Unsupported scanline counts must fail during instantiation rather than silently
 # selecting one of the calibrated raster profiles.
 my $bad=File::Spec->catfile($tmp,'multisprite_bad_lines.c26');
@@ -199,6 +216,21 @@ for my $mode (qw(192 181-score-above 181-score-below)) {
    $rc==0 && !$sig or die "$mode raster oracle failed\n$out$err";
    $out =~ /^vcs_multisprite_profiles \Q$mode\E ok:/ or die "unexpected $mode raster output: $out";
    $err eq '' or die "$mode raster stderr: $err";
+}
+
+my $score_controls=File::Spec->catfile($tmp,'vcs_multisprite_score_controls');
+($rc,$sig,$out,$err)=capture($cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,
+   File::Spec->catfile($repo,qw(test vcs_all_five_interactive_example_matrix.cpp)),@mos_input,'-o',$score_controls);
+$rc==0 && !$sig && $out eq '' && $err eq '' or die "multisprite score-control harness build failed\n$out$err";
+for my $mode (qw(181-score-above 181-score-below)) {
+   my @args=($bins{$mode},'score_only',(map {'0x80'} 1..8),
+      map_zp($maps{$mode},'selected_score_digit'),map_zp($maps{$mode},'right_joystick_ready'),
+      map_zp($maps{$mode},'score_score'),map_zp($maps{$mode},'score_color'));
+   ($rc,$sig,$out,$err)=capture($score_controls,@args);
+   $rc==0 && !$sig or die "$mode score-control runtime failed\n$out$err";
+   $out =~ /^vcs_all_five_interactive_example_matrix score_only ok:/
+      or die "unexpected $mode score-control output: $out";
+   $err eq '' or die "$mode score-control stderr: $err";
 }
 
 # The public scene must honor the graphics placement contract directly. The

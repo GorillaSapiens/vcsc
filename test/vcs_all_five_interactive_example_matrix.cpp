@@ -57,15 +57,17 @@ struct Profile {
    uint8_t max_y;
    bool has_score;
    bool dual_three;
+   bool score_only;
 };
 
 Profile parse_profile(const std::string &name) {
-   if (name == "all5_192") return {"all5_192", 95, false, false};
-   if (name == "all5_above") return {"all5_above", 87, true, false};
-   if (name == "all5_below") return {"all5_below", 87, true, false};
-   if (name == "all5_dual") return {"all5_dual", 79, true, false};
-   if (name == "all5_3x3_above") return {"all5_3x3_above", 87, true, true};
-   if (name == "all5_3x3_below") return {"all5_3x3_below", 87, true, true};
+   if (name == "all5_192") return {"all5_192", 95, false, false, false};
+   if (name == "all5_above") return {"all5_above", 87, true, false, false};
+   if (name == "all5_below") return {"all5_below", 87, true, false, false};
+   if (name == "all5_dual") return {"all5_dual", 79, true, false, false};
+   if (name == "all5_3x3_above") return {"all5_3x3_above", 87, true, true, false};
+   if (name == "all5_3x3_below") return {"all5_3x3_below", 87, true, true, false};
+   if (name == "score_only") return {"score_only", 0, true, false, true};
    fail("bad profile");
 }
 
@@ -96,6 +98,7 @@ public:
       validate_frame_spacing();
       require_initial("initial state");
 
+      if (!profile_.score_only) {
       advance(kLeftLeft, kIdle);
       require(memory_[object_x_] == 19, "P0 did not move left by one pixel");
       advance(kLeftRight, kIdle);
@@ -136,11 +139,14 @@ public:
       memory_[y_[4]] = profile_.max_y;
       advance(kLeftDown, kIdle);
       require(memory_[y_[4]] == profile_.max_y, "Y overflow escaped renderer range");
+      }
 
       if (profile_.has_score) exercise_score();
 
-      memory_[object_x_] = 12;
-      set_selected_object(3);
+      if (!profile_.score_only) {
+         memory_[object_x_] = 12;
+         set_selected_object(3);
+      }
       if (profile_.has_score) {
          if (profile_.dual_three) {
             set_three_score(score_, 999);
@@ -393,14 +399,16 @@ private:
 
    void require_initial(const char *which) const {
       const std::string prefix = std::string(which) + " ";
-      const std::array<uint8_t,5> x{{20,130,50,110,80}};
-      const std::array<uint8_t,5> y{{18,78,34,62,48}};
-      for (size_t i = 0; i < 5; ++i) {
-         require(memory_[object_x_ + i] == x[i], (prefix + "object X changed").c_str());
-         require(memory_[y_[i]] == y[i], (prefix + "object Y changed").c_str());
+      if (!profile_.score_only) {
+         const std::array<uint8_t,5> x{{20,130,50,110,80}};
+         const std::array<uint8_t,5> y{{18,78,34,62,48}};
+         for (size_t i = 0; i < 5; ++i) {
+            require(memory_[object_x_ + i] == x[i], (prefix + "object X changed").c_str());
+            require(memory_[y_[i]] == y[i], (prefix + "object Y changed").c_str());
+         }
+         require(selected_object() == 0, (prefix + "selected object is not P0").c_str());
+         require(select_ready(), (prefix + "SELECT latch is not armed").c_str());
       }
-      require(selected_object() == 0, (prefix + "selected object is not P0").c_str());
-      require(select_ready(), (prefix + "SELECT latch is not armed").c_str());
       if (profile_.has_score) {
          if (profile_.dual_three) {
             require(three_score_value(score_) == 123, (prefix + "left 3+3 score changed").c_str());
@@ -430,7 +438,7 @@ Machine *Machine::active_ = nullptr;
 int main(int argc, char **argv) {
    if (argc != 15) {
       std::fprintf(stderr,
-         "usage: %s ROM all5_192|all5_above|all5_below|all5_dual|all5_3x3_above|all5_3x3_below object_x p0_y p1_y m0_y m1_y ball_y selected_object select_ready score_digit|none score_ready|none score|none score_color|none\n",
+         "usage: %s ROM all5_192|all5_above|all5_below|all5_dual|all5_3x3_above|all5_3x3_below|score_only object_x p0_y p1_y m0_y m1_y ball_y selected_object select_ready score_digit|none score_ready|none score|none score_color|none\n",
          argv[0]);
       return 2;
    }

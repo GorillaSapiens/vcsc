@@ -18,6 +18,7 @@ sub read_file { my($p)=@_; open(my$f,'<:raw',$p) or die "read $p: $!\n"; local$/
 sub write_file { my($p,$d)=@_; open(my$f,'>:raw',$p) or die "write $p: $!\n"; print{$f}$d; close$f or die "close $p: $!\n"; }
 sub without_usage { my($o)=@_; $o =~ s/\AMEMORY USAGE\n(?:  [^\n]+\n)+//; return$o; }
 sub bss_size { my($m,$n)=@_; $m =~ /^\s+BSS\.__vcsc_object\$\Q$n\E\s+run=\$[0-9A-Fa-f]{4}\s+size=\$([0-9A-Fa-f]{4})\b/m or die "map missing BSS $n\n"; return hex$1; }
+sub map_zp { my($map,$name)=@_; $map =~ /^\s*\$([0-9A-Fa-f]{4})\s+\Q$name\E\b/m or die "map missing $name\n"; my$v=hex($1); $v<=0xff or die "$name is not zero-page\n"; return $v; }
 
 my$repo=shift@ARGV // usage(); my$tmp=shift@ARGV // usage(); usage() if@ARGV;
 $repo=abs_path($repo) or die "resolve repo\n"; $tmp=abs_path($tmp) or die "resolve tmp\n";
@@ -74,16 +75,22 @@ for my$n(qw(above below)) {
    playfield_rows($source{$n}) eq $canonical_playfield
       or die "$n private static 181 combined playfield diverged from canonical all-five 181 pattern\n";
 }
-$interactive_common_text =~ /Game Select cycles P0, P1, M0, M1, Ball/ &&
-$interactive_common_text =~ /game_object_x\[selected_object\]/ &&
-$interactive_common_text =~ /object_y\[selected_object\]/ &&
-$interactive_common_text =~ /score_score\s*:=\s*123456;/
+$interactive_common_text =~ /SELECTED_OBJECT_COUNT\s+5/ &&
+$interactive_common_text =~ /selected_object/ &&
+$interactive_common_text =~ /object_y\[5\]/ &&
+$interactive_common_text =~ /selected_score_digit/ &&
+$interactive_common_text =~ /right_joystick_ready/ &&
+$interactive_common_text =~ /score_score\s*:=\s*123456;/ &&
+$interactive_common_text =~ /SWCHA/ &&
+$interactive_common_text =~ /score_color\s*\+=\s*0x10/ &&
+$interactive_common_text =~ /sed;/ &&
+$interactive_common_text =~ /sbc\s+#\$10/
    or die "181 combined interactive controls changed\n";
 my@interactive_jobs=(
  ['above',File::Spec->catfile($example_root,qw(01_score_above 01_interactive all_five_player_color_181_score_above_interactive.c26))],
  ['below',File::Spec->catfile($example_root,qw(02_score_below 01_interactive all_five_player_color_181_score_below_interactive.c26))],
 );
-my(%interactive_bin,%interactive_source);
+my(%interactive_bin,%interactive_source,%interactive_map);
 for my$j(@interactive_jobs){
    my($n,$isrc)=@$j;
    $interactive_source{$n}=read_file($isrc);
@@ -94,10 +101,13 @@ for my$j(@interactive_jobs){
    without_usage($o) eq ''&&$e eq '' or die "$n interactive example build wrote output\n$o$e";
    -s$interactive_bin{$n}==4096 or die "$n interactive example is not 4K\n";
    my$im=read_file($imap);
-   $im =~ /^  [Rr][Oo][Mm]\s+used=4054 bytes .* free=36 bytes/m
+   $interactive_map{$n}=$im;
+   $im =~ /^  [Rr][Oo][Mm]\s+used=4051 bytes .* free=39 bytes/m
       or die "$n interactive example ROM footprint changed\n";
-   $im =~ /^  ram\s+used=123 bytes .* free=5 bytes/m
+   $im =~ /^  ram\s+used=124 bytes .* free=4 bytes/m
       or die "$n interactive example RAM footprint changed\n";
+   $interactive_source{$n} =~ /instantiate "six_glyph_component\.c26" as score \(mutable_color:=1\)/
+      or die "$n interactive example lost mutable score color\n";
    $interactive_source{$n} =~ /include "\.\.\/\.\.\/\.\.\/common\/all_five_player_color_181_interactive_common\.c26"/
       or die "$n interactive example lost shared controls\n";
 }
@@ -105,6 +115,39 @@ $interactive_source{above} =~ /score_draw\(\);\s*vcs_ntsc_component_handoff\(\);
    or die "interactive score-above example lost component order\n";
 $interactive_source{below} =~ /game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*score_draw\(\);/s
    or die "interactive score-below example lost component order\n";
+
+# Exercise the public cartridges with the same input oracle used by the other
+# all-five score examples.  These combined-renderer cartridges keep their Y
+# controls in the compact object_y[5] array, so pass those addresses directly.
+my$cxx_controls=$ENV{CXX}||'c++';
+my$mos_controls=File::Spec->catdir($repo,qw(simulator mos6502));
+my$mos_controls_obj=File::Spec->catfile($mos_controls,'mos6502.o');
+my@mos_controls_input=-f$mos_controls_obj?($mos_controls_obj):(File::Spec->catfile($mos_controls,'mos6502.cpp'));
+my$controls=File::Spec->catfile($tmp,'afpc181_controls');
+my($cr,$cs,$co,$ce)=capture($cxx_controls,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos_controls,
+   File::Spec->catfile($repo,qw(test vcs_all_five_interactive_example_matrix.cpp)),@mos_controls_input,'-o',$controls);
+$cr==0&&!$cs && $co eq '' && $ce eq '' or die "combined interactive control harness build failed\n$co$ce";
+for my$n(qw(above below)) {
+   my$im=$interactive_map{$n};
+   my$oy=map_zp($im,'object_y');
+   my@yargs=map { sprintf('0x%02x',$oy+$_) } (0..4);
+   my@args=(
+      $interactive_bin{$n},($n eq 'above'?'all5_above':'all5_below'),
+      sprintf('0x%02x',map_zp($im,'game_object_x')),
+      @yargs,
+      sprintf('0x%02x',map_zp($im,'selected_object')),
+      sprintf('0x%02x',map_zp($im,'select_switch_ready')),
+      sprintf('0x%02x',map_zp($im,'selected_score_digit')),
+      sprintf('0x%02x',map_zp($im,'right_joystick_ready')),
+      sprintf('0x%02x',map_zp($im,'score_score')),
+      sprintf('0x%02x',map_zp($im,'score_color'))
+   );
+   ($cr,$cs,$co,$ce)=capture($controls,@args);
+   $cr==0&&!$cs or die "$n combined interactive controls failed\n$co$ce";
+   $co =~ /^vcs_all_five_interactive_example_matrix all5_\Q$n\E ok:/
+      or die "unexpected $n combined interactive control output: $co";
+   $ce eq '' or die "$n combined interactive control stderr: $ce";
+}
 
 my$src=read_file($component); my$m=read_file($map{above});
 $src =~ /TEMPLATE_VISIBLE_SCANLINES\s*:=\s*181/ or die "visible-line contract changed\n";
@@ -159,7 +202,7 @@ for my$n(qw(above below)){
    $o eq "vcs_frame_timing ok: 47 frames at 262 lines, 1 AUDV0 writes\n"
       or die "bad $n frame timing output: $o";
    $e eq '' or die "$n frame timing stderr: $e";
-   ($r,$s,$o,$e)=capture($timing,$interactive_bin{$n},'50','--no-audio','--raw-lines','264');
+   ($r,$s,$o,$e)=capture($timing,$interactive_bin{$n},'50','--no-audio','--raw-lines','264','--released-inputs');
    $r==0&&!$s or die "$n interactive frame timing failed\n$o$e";
    $o eq "vcs_frame_timing ok: 47 frames at 262 lines, 0 AUDV0 writes\n"
       or die "bad $n interactive frame timing output: $o";

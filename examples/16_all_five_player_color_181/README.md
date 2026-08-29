@@ -21,8 +21,10 @@ of the standard 192-line visible field.
 
 Each centered six-digit score order has one unbanked 4K interactive cartridge.
 Game Select cycles P0/P1/M0/M1/Ball, and the left joystick moves the selected
-object in both axes while the score remains fixed. Both orders link at 4054/4090
-ROM and 123/128 RAM.
+object in both axes. The right joystick edits the six-digit score: Left/Right
+select a decimal digit, Up/Down decrement/increment that digit, and a horizontal
+selection advances the score hue. Both orders remain unbanked 4K cartridges at
+4051/4090 ROM and 124/128 RAM.
 
 Both cartridges use the same full-width eleven-row playfield pattern as
 `examples/common/all_five_181_interactive_common.c26`; the regression suite

@@ -9,13 +9,15 @@
 
 # Interactive score-below diagnostic
 
-The fixed six-digit score is below the 181-line combined gameplay field. P0 and P1 retain independent eight-row color tables while P0, P1, M0,
+The editable six-digit score is below the 181-line combined gameplay field. P0 and P1 retain independent eight-row color tables while P0, P1, M0,
 M1, and Ball remain independently movable.
 
 Use **Game Select** to cycle P0 -> P1 -> M0 -> M1 -> Ball. The **left
-joystick** moves the selected object in both axes. The score remains fixed at
-`123456` so the cartridge can fit the combined renderer, score, and useful
-five-object interaction in an unbanked 4K ROM. It links at **4058/4090 ROM bytes**
-(32 free) and **123/128 RAM bytes** (5 free).
+joystick** moves the selected object in both axes. On the **right joystick**,
+Left/Right select one of the six decimal digits, Up/Down decrement/increment the
+selected digit, and horizontal selection advances the score hue. A new score
+action requires returning the right joystick fully neutral first. **Reset**
+restores the initial scene and `123456`. The cartridge remains unbanked 4K at
+**4051/4090 ROM bytes** (39 free) and **124/128 RAM bytes** (4 free).
 
 Build with `make`.

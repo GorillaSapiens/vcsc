@@ -228,3 +228,36 @@ failures were stale source-contract expectations for the newly added hazard
 flag and pass after being updated. All eight example-build shards, linker hazard,
 Superchip/FxSC, FA, CV, diagnostic, video-standard, and disassembler/fuzz tests
 are green.
+
+2026-08-28 21:09:12 PDT, fix interactive score controls
+Audited public interactive score examples after finding the group-16 combined
+181-line score cartridges did not react to the right joystick. Four normal
+six-digit interactives were genuinely missing score editing: group 16
+score-above/score-below and group 14 multisprite 181 score-above/score-below.
+The poison-score interactives are intentional no-op hostile diagnostics; the
+remaining ordinary score examples already have score controls.
+
+The near-full group-16 cartridges now integrate compact hand-written 6502
+controls: Select cycles P0/P1/M0/M1/Ball, the left joystick moves the selected
+object, and the right joystick uses one-action-per-press score editing with
+full-neutral re-arm. Left/Right select one of six decimal digits and advance
+score hue; Up/Down increment/decrement the selected packed-BCD digit. Reset
+restarts the cartridge. Both orders remain unbanked 4K at 4051/4090 ROM and
+124/128 RAM.
+
+The group-14 181 multisprite score examples now use the new compact shared
+`fixed_six_digit_controls_compact.c26`, preserving the same right-stick behavior
+without pulling generic 24-bit runtime workspace. Both link at 3605/4090 ROM
+and 101/128 RAM. `vcs_public_score_controls.pl` now includes centered score
+layouts plus the group-14 and group-16 special cases, closing the structural
+audit gap that let these examples escape the earlier cleanup. The assembly
+allowlist pins both reviewed compact-control sources.
+
+Validation: both focused cartridge suites, public score controls, all-five
+interactive examples, assembly allowlist, and source-tree hygiene pass. Runtime
+MOS6502 input oracles cover score digit selection, packed-BCD up/down changes,
+color changes, hold/neutral re-arm behavior, object movement, Reset, and 262-line
+timing for the changed public cartridges. All 502 compile-phase tests pass. A
+broad 329-case e2e run passed 241 cases with no failures before the outer command
+timeout; subsequent unrelated long-tail diagnostics also exceeded the command
+window, so no claim is made here that the entire e2e tail was rerun.

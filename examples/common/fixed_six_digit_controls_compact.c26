@@ -1,0 +1,132 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Compact fixed-position six-digit packed-BCD score controls for cartridges
+// that must avoid the generic 24-bit arithmetic workspace. The including
+// source must instantiate the mutable-color display as `score`.
+
+uint8_t selected_score_digit := 0;
+uint8_t right_joystick_ready := 0x0f;
+
+inline void initialize_score_state(void) {
+   score_score := 123456;
+   score_color := VCS_NTSC_GRAY_92;
+   selected_score_digit := 0;
+   right_joystick_ready := 0x0f;
+}
+
+inline void update_score_controls(void) {
+   // One action per press. A direction roll stays latched until the entire
+   // right joystick returns neutral, matching fixed_six_digit_controls.c26.
+   asm lda.z right_joystick_ready;
+   asm beq.flex @compact_score_latched;
+   asm lda SWCHA;
+   asm and #$0f;
+   asm cmp #$0f;
+   asm beq.flex @compact_score_done;
+   asm tay;
+
+   // Horizontal changes the selected decimal digit and advances the hue.
+   asm and #$04;
+   asm bne.flex @compact_score_check_left;
+   asm inc.z selected_score_digit;
+   asm lda.z selected_score_digit;
+   asm cmp #$06;
+   asm bcc.flex @compact_score_color;
+   asm lda #$00;
+   asm sta.z selected_score_digit;
+   asm beq.flex @compact_score_color;
+   asm @compact_score_check_left:;
+   asm tya;
+   asm and #$08;
+   asm bne.flex @compact_score_vertical;
+   asm dec.z selected_score_digit;
+   asm bpl.flex @compact_score_color;
+   asm lda #$05;
+   asm sta.z selected_score_digit;
+   asm @compact_score_color:;
+   asm lda.z score_color;
+   asm clc;
+   asm adc #$10;
+   asm sta.z score_color;
+
+   // Vertical changes the selected decimal weight directly in packed BCD.
+   // selected_score_digit is ones..hundred-thousands; each packed byte owns
+   // two digits, so digit>>1 selects the byte and digit&1 selects its nibble.
+   asm @compact_score_vertical:;
+   asm tya;
+   asm and #$01;
+   asm beq.flex @compact_score_increment;
+   asm tya;
+   asm and #$02;
+   asm beq.flex @compact_score_decrement;
+   asm bne.flex @compact_score_latch;
+
+   asm @compact_score_increment:;
+   asm ldx.z selected_score_digit;
+   asm txa;
+   asm lsr;
+   asm tax;
+   asm lda.zx score_score,x;
+   asm sed;
+   asm bcc.flex @compact_score_inc_even;
+   asm clc;
+   asm adc #$10;
+   asm jmp @compact_score_inc_store;
+   asm @compact_score_inc_even:;
+   asm clc;
+   asm adc #$01;
+   asm @compact_score_inc_store:;
+   asm sta.zx score_score,x;
+   asm @compact_score_inc_carry:;
+   asm bcc.flex @compact_score_adjust_done;
+   asm inx;
+   asm cpx #$03;
+   asm bcs.flex @compact_score_adjust_done;
+   asm lda.zx score_score,x;
+   asm sec;
+   asm adc #$00;
+   asm sta.zx score_score,x;
+   asm jmp @compact_score_inc_carry;
+
+   asm @compact_score_decrement:;
+   asm ldx.z selected_score_digit;
+   asm txa;
+   asm lsr;
+   asm tax;
+   asm lda.zx score_score,x;
+   asm sed;
+   asm bcc.flex @compact_score_dec_even;
+   asm sec;
+   asm sbc #$10;
+   asm jmp @compact_score_dec_store;
+   asm @compact_score_dec_even:;
+   asm sec;
+   asm sbc #$01;
+   asm @compact_score_dec_store:;
+   asm sta.zx score_score,x;
+   asm @compact_score_dec_borrow:;
+   asm bcs.flex @compact_score_adjust_done;
+   asm inx;
+   asm cpx #$03;
+   asm bcs.flex @compact_score_adjust_done;
+   asm lda.zx score_score,x;
+   asm clc;
+   asm sbc #$00;
+   asm sta.zx score_score,x;
+   asm jmp @compact_score_dec_borrow;
+
+   asm @compact_score_adjust_done:;
+   asm cld;
+   asm @compact_score_latch:;
+   asm lda #$00;
+   asm sta.z right_joystick_ready;
+   asm beq.flex @compact_score_done;
+
+   asm @compact_score_latched:;
+   asm lda SWCHA;
+   asm and #$0f;
+   asm cmp #$0f;
+   asm bne.flex @compact_score_done;
+   asm sta.z right_joystick_ready;
+   asm @compact_score_done:;
+}

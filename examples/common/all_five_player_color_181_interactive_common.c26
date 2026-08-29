@@ -1,8 +1,8 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
-// Shared 181-line all-five/player-color interactive body with a fixed score.
-// The including cartridge must instantiate `game` and `score`, then define
-// draw_visible_components() for score-above or score-below ordering.
+// Shared 181-line all-five/player-color interactive body.
+// The including cartridge must instantiate `game` and a mutable-color `score`,
+// then define draw_visible_components() for score-above or score-below ordering.
 
 page const uint8_t game_playfield[44] := {
    VCS_PLAYFIELD_ROW(0bX.....X._....X..._..X....._X.....X.),
@@ -74,51 +74,191 @@ alias SELECTED_OBJECT_COUNT 5
 
 uint8_t selected_object := 0;
 uint8_t select_switch_ready := 1;
+uint8_t selected_score_digit := 0;
+uint8_t right_joystick_ready := 1;
 uint8_t object_y[5] := { 18, 78, 34, 62, 48 };
 
 inline void update_controls(void) {
-   // Game Select cycles P0, P1, M0, M1, Ball once per press.
-   if (SWCHB & 0x02) {
-      select_switch_ready := 1;
-   }
-   else {
-      if (select_switch_ready) {
-         selected_object++;
-         if (selected_object >= SELECTED_OBJECT_COUNT) {
-            selected_object := 0;
-         }
-         select_switch_ready := 0;
-      }
-   }
+   // Compact hand-written controls keep this combined renderer + score inside
+   // an unbanked 4K cartridge.  X indexes the five contiguous object arrays;
+   // Y holds the sampled SWCHA value for both joysticks.
+   asm lda SWCHB;
+   asm lsr;
+   asm bcc.flex @afpc_reset;
+   asm and #$01;
+   asm beq.flex @afpc_select_pressed;
+   // A is $02 on release; keep that nonzero value as the ready flag.
+   asm sta.z select_switch_ready;
+   asm bne.flex @afpc_move_object;
 
-   // Left joystick moves the selected object in both axes.
-   if (!(SWCHA & 0x40)) {
-      if (game_object_x[selected_object] > 0) {
-         game_object_x[selected_object]--;
-      }
-   }
-   else {
-      if (!(SWCHA & 0x80)) {
-         if (game_object_x[selected_object] < 159) {
-            game_object_x[selected_object]++;
-         }
-      }
-   }
+   asm @afpc_reset:;
+   asm jmp ($fffc);
 
-   if (!(SWCHA & 0x10)) {
-      if (object_y[selected_object] > 0) {
-         object_y[selected_object]--;
-      }
-   }
-   else {
-      if (!(SWCHA & 0x20)) {
-         if (object_y[selected_object] < OBJECT_MAX_Y) {
-            object_y[selected_object]++;
-         }
-      }
-   }
+   asm @afpc_select_pressed:;
+   asm lda.z select_switch_ready;
+   asm beq.flex @afpc_move_object;
+   asm lda #$00;
+   asm sta.z select_switch_ready;
+   asm inc.z selected_object;
+   asm lda.z selected_object;
+   asm cmp #$05;
+   asm bcc.flex @afpc_move_object;
+   asm lda #$00;
+   asm sta.z selected_object;
+
+   asm @afpc_move_object:;
+   asm ldx.z selected_object;
+   asm ldy SWCHA;
+
+   // Left joystick horizontal: left has priority over right.
+   asm tya;
+   asm and #$40;
+   asm bne.flex @afpc_check_right;
+   asm lda.zx game_object_x,x;
+   asm beq.flex @afpc_check_up;
+   asm dec.zx game_object_x,x;
+   asm jmp @afpc_check_up;
+   asm @afpc_check_right:;
+   asm tya;
+   asm and #$80;
+   asm bne.flex @afpc_check_up;
+   asm lda.zx game_object_x,x;
+   asm cmp #$9f;
+   asm bcs.flex @afpc_check_up;
+   asm inc.zx game_object_x,x;
+
+   // Left joystick vertical: up has priority over down.
+   asm @afpc_check_up:;
+   asm tya;
+   asm and #$10;
+   asm bne.flex @afpc_check_down;
+   asm lda.zx object_y,x;
+   asm beq.flex @afpc_score_controls;
+   asm dec.zx object_y,x;
+   asm jmp @afpc_score_controls;
+   asm @afpc_check_down:;
+   asm tya;
+   asm and #$20;
+   asm bne.flex @afpc_score_controls;
+   asm lda.zx object_y,x;
+   asm cmp #$57;
+   asm bcs.flex @afpc_score_controls;
+   asm inc.zx object_y,x;
+
+   // Right joystick uses the standard immediate one-action-per-press score
+   // controls.  Full neutral is required before another direction can act.
+   asm @afpc_score_controls:;
+   asm lda.z right_joystick_ready;
+   asm beq.flex @afpc_score_latched;
+   asm tya;
+   asm and #$0f;
+   asm cmp #$0f;
+   asm beq.flex @afpc_controls_done;
+   // Keep Y as the sampled joystick state; the ready byte is just a latch.
+
+   // Right/left select the decimal digit; either horizontal action advances
+   // the score hue by $10, matching the other interactive score examples.
+   asm and #$04;
+   asm bne.flex @afpc_score_check_left;
+   asm inc.z selected_score_digit;
+   asm lda.z selected_score_digit;
+   asm cmp #$06;
+   asm bcc.flex @afpc_score_color;
+   asm lda #$00;
+   asm sta.z selected_score_digit;
+   asm beq.flex @afpc_score_color;
+   asm @afpc_score_check_left:;
+   asm tya;
+   asm and #$08;
+   asm bne.flex @afpc_score_vertical;
+   asm dec.z selected_score_digit;
+   asm bpl.flex @afpc_score_color;
+   asm lda #$05;
+   asm sta.z selected_score_digit;
+   asm @afpc_score_color:;
+   score_color += 0x10;
+
+   // Up/down add/subtract 10^selected_digit directly in packed BCD.  This is
+   // equivalent to the shared bcd24_t weight-table implementation, but avoids
+   // bringing its 24-bit generic arithmetic into this nearly-full 4K image.
+   asm @afpc_score_vertical:;
+   asm tya;
+   asm and #$01;
+   asm beq.flex @afpc_score_increment;
+   asm tya;
+   asm and #$02;
+   asm beq.flex @afpc_score_decrement;
+   asm bne.flex @afpc_score_latch;
+
+   asm @afpc_score_increment:;
+   asm ldx.z selected_score_digit;
+   asm txa;
+   asm lsr;
+   asm tax;
+   asm lda.zx score_score,x;
+   asm sed;
+   asm bcc.flex @afpc_score_inc_even;
+   asm clc;
+   asm adc #$10;
+   asm jmp @afpc_score_inc_store;
+   asm @afpc_score_inc_even:;
+   asm clc;
+   asm adc #$01;
+   asm @afpc_score_inc_store:;
+   asm sta.zx score_score,x;
+   asm @afpc_score_inc_carry:;
+   asm bcc.flex @afpc_score_adjust_done;
+   asm inx;
+   asm cpx #$03;
+   asm bcs.flex @afpc_score_adjust_done;
+   asm lda.zx score_score,x;
+   asm sec;
+   asm adc #$00;
+   asm sta.zx score_score,x;
+   asm jmp @afpc_score_inc_carry;
+
+   asm @afpc_score_decrement:;
+   asm ldx.z selected_score_digit;
+   asm txa;
+   asm lsr;
+   asm tax;
+   asm lda.zx score_score,x;
+   asm sed;
+   asm bcc.flex @afpc_score_dec_even;
+   asm sec;
+   asm sbc #$10;
+   asm jmp @afpc_score_dec_store;
+   asm @afpc_score_dec_even:;
+   asm sec;
+   asm sbc #$01;
+   asm @afpc_score_dec_store:;
+   asm sta.zx score_score,x;
+   asm @afpc_score_dec_borrow:;
+   asm bcs.flex @afpc_score_adjust_done;
+   asm inx;
+   asm cpx #$03;
+   asm bcs.flex @afpc_score_adjust_done;
+   asm lda.zx score_score,x;
+   asm clc;
+   asm sbc #$00;
+   asm sta.zx score_score,x;
+   asm jmp @afpc_score_dec_borrow;
+
+   asm @afpc_score_adjust_done:;
+   asm cld;
+   asm @afpc_score_latch:;
+   asm lda #$00;
+   asm sta.z right_joystick_ready;
+   asm beq.flex @afpc_controls_done;
+
+   asm @afpc_score_latched:;
+   asm tya;
+   asm and #$0f;
+   asm cmp #$0f;
+   asm bne.flex @afpc_controls_done;
+   asm sta.z right_joystick_ready;
+   asm @afpc_controls_done:;
 }
-
 inline void sync_object_y(void) {
    game_player0_y := object_y[0];
    game_player1_y := object_y[1];

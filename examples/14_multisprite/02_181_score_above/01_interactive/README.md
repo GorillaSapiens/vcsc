@@ -12,7 +12,9 @@
 Build with `make`. The cartridge draws an 11-line six-digit score, hands off to
 181 lines of multisprite gameplay, and keeps a standard 262-line NTSC frame.
 Select cycles P0/P1..P5; the left joystick moves the selected sprite
-horizontally and vertically within the 181-line profile's legal range; Reset
-restores the scene.
+horizontally and vertically within the 181-line profile's legal range. On the
+right joystick, Left/Right select a decimal digit and Up/Down decrement/increment
+that digit; return fully neutral between score actions. Reset restores the scene
+and score to `123456`.
 
 Joystick Up moves toward larger Y, Down toward smaller Y, and Y=0 is the fully clipped bottom edge. Public P1 X positions run from the left edge at 0 through the rightmost position at 159 without a vertical-sort-dependent horizontal shift.

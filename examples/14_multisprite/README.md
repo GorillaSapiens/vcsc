@@ -22,7 +22,10 @@ with `-Wa,--illegals`.
 Select cycles P0 and the five logical P1 sprites. The left joystick moves the
 selected sprite horizontally across X=0..159 and vertically through the
 profile-specific legal Y range. Up moves upward and Down moves downward; Y=0 is
-the fully clipped bottom position. The automated MOS6502/TIA regression sweeps
+the fully clipped bottom position. In both 181-line score compositions, the
+right joystick edits the six-digit score: Left/Right select a decimal digit and
+Up/Down decrement/increment it, with full-neutral re-arm between actions. The
+automated MOS6502/TIA regression sweeps
 every legal independent X/Y position and requires a stable 262-line NTSC frame.
 For every profile it also forces two logical P1 sprites into the same vertical
 band for consecutive frames and verifies the faithful flicker arbitration: the
