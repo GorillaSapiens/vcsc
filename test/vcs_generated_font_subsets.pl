@@ -152,6 +152,29 @@ for my $case (@cases) {
    }
 }
 
+# The field diagnostic's collision bitmap is also checked-in generated data.
+# It derives readable A..O labels from the canonical Half ASCII font; ordinary
+# example builds must consume the checked-in file without requiring Perl.
+{
+   my $dir=File::Spec->catdir($repo,'examples','19_diagnostic','01_diagnostic');
+   my $outdir=File::Spec->catdir($tmp,'19_diagnostic');
+   make_path($outdir);
+   my ($exit,$sig,$out,$err)=run_capture('make','-s','-C',$dir,'fonts',"FONT_SUBSET_DIR=$outdir");
+   die "19_diagnostic make fonts exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
+      if $exit || $sig;
+   my $file='diagnostic_collision_font.c26';
+   my $got=File::Spec->catfile($outdir,$file);
+   my $want=File::Spec->catfile($dir,$file);
+   -f $want or die "19_diagnostic does not check in $file\n";
+   slurp($got) eq slurp($want)
+      or die "19_diagnostic/$file is stale; run top-level make fonts\n";
+   my ($dry_exit,$dry_sig,$dry_out,$dry_err)=run_capture(
+      'make','-n','-C',$dir,'all','PERL=/definitely/missing/perl');
+   die "19_diagnostic ordinary make dry-run failed: $dry_err" if $dry_exit || $dry_sig;
+   index($dry_out,'/definitely/missing/perl') < 0
+      or die "19_diagnostic ordinary build unexpectedly requires Perl\n";
+}
+
 # Directly lock the canonical slashed zero into one mapper subset. All other
 # copies are protected by the deterministic regeneration comparisons above.
 my $eco=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','08_0840','cart_type_font.c26'));

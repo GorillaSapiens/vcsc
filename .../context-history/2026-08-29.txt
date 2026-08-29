@@ -41,3 +41,56 @@ numbered example classes.
 
 Validation: 502/502 compile tests and all 331 e2e cases pass across bounded
 runs; all eight recursive example-build/disassembly shards pass.
+2026-08-29 07:32:57 PDT, collision labels A through O
+Replaced the field diagnostic's unreadable collision-pair microglyphs with
+Half-font letters A through O. The README now carries the A-O-to-TIA-latch
+legend; a latched collision adds a six-pixel underline without obscuring the
+letter, while the sixteenth slot remains the exact-bitmap check mark.
+
+The checked-in diagnostic_collision_font.c26 is now generated directly from
+libraries/vcs/fonts/half_ascii.c26 by make_collision_font.pl. The diagnostic
+Makefile exposes a fonts target, so top-level make fonts regenerates it, while
+ordinary example builds consume the checked-in file and do not require Perl.
+Removed the obsolete diagnostic_collision_objects.font source and extended the
+generated-font regression for this contract.
+
+Validation: 502/502 compile tests and all 331 default e2e cases pass across
+bounded runs, including the diagnostic cartridge driver and all eight recursive
+example-build/disassembly shards. Re-blessed the 12 Stella 7.0 NTSC/PAL/SECAM x
+controller references for the intentional collision-raster change and rechecked
+all 12 references successfully.
+2026-08-29 10:35:51 PDT, exhaustive diagnostic collision sweep
+Reworked the field diagnostic so the A-O panel now physically exercises all
+15 unordered TIA collision pairs among M0, M1, P0, P1, BL, and PF one at a
+time. Each phase clears CXCLR, renders only the requested collision sources,
+reads the complete collision-register bitmap, and records pass only when the
+one expected latch is present with no extras. Each successful A-O phase gains
+an underline; the sixteenth check mark now requires all fifteen remembered
+results to pass. The Stella certification build runs the same hardware tests
+one phase per frame and freezes after the complete A-O sweep for deterministic
+screenshots.
+
+Replaced the approximate text VCSC heading with the canonical six-slice
+libraries/vcs/fonts/logo_font.c26 logo. The six-hex-digit CPU fingerprint now
+uses a checked-in 0-9A-F subset generated from big_ascii.c26, with local and
+top-level make fonts regeneration support. Folded the 2600/7800 host identifier
+into the TV-standard row to recover the raster space required by the larger
+logo/fingerprint. Aligned PAL and SECAM visible-raster origin with NTSC while
+preserving the standard frame lengths. Updated the diagnostic README, assembly
+allowlist, generated-font contracts, exhaustive collision-phase regression,
+and all twelve Stella 7.0 references.
+
+Validation: 502/502 compile tests pass. The 331-case e2e run had only
+vcs_examples_build_3of8.test time out under parallel contention; that exact
+shard passes alone, so all 331 e2e cases are accounted for green. The complete
+diagnostic cartridge regression passes directly. All 12 Stella 7.0
+NTSC/PAL/SECAM x joystick/paddle/keypad/driving raster cases pass sequentially.
+
+2026-08-29 11:02:05 PDT, center diagnostic heading
+The field diagnostic title now renders as " DIAGNOSTIC " instead of
+"DIAGNOSTIC  ". Three title-only pair-font slots were repurposed as IA/GN/OS,
+so the pair table remains 127 glyphs / 637 bytes and all later pair indices,
+placement, and timing remain unchanged. The diagnostic structural regression
+pins the centered six-pair header. All 833 default tests pass, and all 12
+Stella 7.0 NTSC/PAL/SECAM x controller raster references were refreshed and
+verified.

@@ -44,6 +44,15 @@ sub parse_dump {
    }
    return \@mem;
 }
+sub parse_u8_array {
+   my($text,$name,$count)=@_;
+   $text =~ /\bconst uint8_t \Q$name\E\[$count\]\s*:=\s*\{(.*?)\};/s
+      or die "missing ${name}[$count]\n";
+   my @v=map { /^0x/i ? hex($_) : 0+$_ } ($1 =~ /\b(?:0x[0-9A-Fa-f]+|\d+)\b/g);
+   @v==$count or die "$name has ".scalar(@v)." entries; expected $count\n";
+   return \@v;
+}
+
 sub switch_sequence {
    my($length,$down,@starts)=@_;
    my @values=(0xff) x $length;
@@ -66,10 +75,13 @@ my $indices=File::Spec->catfile($example,'diagnostic_pair_indices.c26');
 my $pairs=File::Spec->catfile($example,'pairs_message.txt');
 my $pair_font=File::Spec->catfile($example,'diagnostic_pairs.c26');
 my $support=File::Spec->catfile($example,'diagnostic_support.c26');
-my $collision_objects=File::Spec->catfile($example,'diagnostic_collision_objects.font');
 my $collision_helper=File::Spec->catfile($example,'make_collision_font.pl');
 my $collision_font=File::Spec->catfile($example,'diagnostic_collision_font.c26');
 my $half_font=File::Spec->catfile($vcs,qw(fonts half_ascii.c26));
+my $big_font=File::Spec->catfile($vcs,qw(fonts big_ascii.c26));
+my $logo_font=File::Spec->catfile($vcs,qw(fonts logo_font.c26));
+my $fingerprint_font=File::Spec->catfile($example,'diagnostic_fingerprint_font.c26');
+my $subset_helper=File::Spec->catfile($vcs,qw(fonts make_font_subset.pl));
 my $pair_helper=File::Spec->catfile($vcs,qw(fonts make_pair_font.pl));
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $generic=File::Spec->catfile($vcs,'vcs.cfg');
@@ -81,8 +93,9 @@ $ignore_text =~ /^!19_diagnostic\/01_diagnostic\/diagnostic_boot\.s26$/m
 
 my $src=read_file($source);
 my $idx=read_file($indices);
-my $collision_object_text=read_file($collision_objects);
 my $collision_font_text=read_file($collision_font);
+my $fingerprint_font_text=read_file($fingerprint_font);
+my $logo_font_text=read_file($logo_font);
 my $msg=read_file($pairs);
 my $pair_text=read_file($pair_font);
 my $support_text=read_file($support);
@@ -132,11 +145,33 @@ for my $i (0..126) {
    $pair_low[$i] <= 250
       or die "diagnostic pair glyph $i crosses a 256-byte page\n";
 }
+$src =~ /diagnostic_fixed_header\[6\]\s*:=\s*\{\s*DIAG_PAIR_SPACE_D,\s*DIAG_PAIR_IA,\s*DIAG_PAIR_GN,\s*DIAG_PAIR_OS,\s*DIAG_PAIR_TI,\s*DIAG_PAIR_C_SPACE\s*\}/s
+   or die "diagnostic title is no longer centered as ' DIAGNOSTIC '\n";
 $src =~ /glyph_rows:=5/ &&
-$src =~ /DIAGNOSTIC_ROW_TITLE\s*:=\s*6.*?DIAGNOSTIC_ROW_FINGERPRINT\s*:=\s*12/s &&
-$src =~ /diagnostic_prepare_row\(DIAGNOSTIC_ROW_TITLE\);\s*diagnostic_draw_text_row\(\);.*?diagnostic_prepare_row\(DIAGNOSTIC_ROW_FINGERPRINT\);/s &&
-$src =~ /diagnostic_rows\+12.*?diagnostic_rows\+17/s
-   or die "diagnostic lost five-row text mode, DIAGNOSTIC title, or separate fingerprint row\n";
+$src =~ /include "diagnostic_fingerprint_font\.c26"/ &&
+$src =~ /include "fonts\/logo_font\.c26"/ &&
+$src =~ /DIAGNOSTIC_ROW_TITLE\s*:=\s*6.*?DIAGNOSTIC_ROW_TV\s*:=\s*18/s &&
+$src =~ /bank3 void diagnostic_prepare_logo\(void\).*?logo_font\+40/s &&
+$src =~ /bank3 void diagnostic_draw_logo\(void\).*\@diagnostic_logo_draw_loop/s &&
+$src =~ /bank3 void diagnostic_prepare_fingerprint\(void\).*?diagnostic_fingerprint_font/s &&
+$src =~ /bank3 void diagnostic_draw_fingerprint\(void\).*?lda #15;.*\@diagnostic_fingerprint_draw_loop/s &&
+$src =~ /diagnostic_bank3_task\(3\);\s*diagnostic_prepare_row\(DIAGNOSTIC_ROW_TITLE\); diagnostic_draw_text_row\(\);\s*diagnostic_bank3_task\(4\);\s*diagnostic_prepare_row\(DIAGNOSTIC_ROW_TV\);/s &&
+$src =~ /DIAG_PAIR_NUM_26.*?DIAG_PAIR_NUM_78/s
+   or die "diagnostic lost canonical logo, Big-font fingerprint, title, or combined host/TV row\n";
+
+# The fingerprint is a checked-in generated 0-9A-F subset of the canonical Big
+# ASCII font.  Regenerate it independently so a font edit cannot leave the
+# diagnostic's more-readable six-digit display stale.
+my $regen_fingerprint=File::Spec->catfile($tmp,'diagnostic_fingerprint_font.c26');
+my($fp_rc,$fp_sig,$fp_out,$fp_err)=run_capture($subset_helper,'--bank','bank3','--license','examples/LICENSE.txt',
+   $big_font,$regen_fingerprint,'diagnostic_fingerprint_font','0123456789ABCDEF');
+$fp_rc==0 && !$fp_sig or die "regenerate diagnostic fingerprint font failed\n$fp_out$fp_err";
+$fp_err eq '' or die "regenerate diagnostic fingerprint font wrote stderr:\n$fp_err";
+read_file($regen_fingerprint) eq $fingerprint_font_text
+   or die "diagnostic_fingerprint_font.c26 is stale relative to big_ascii.c26\n";
+$logo_font_text =~ /page const uint8_t logo_font\[48\]/ &&
+$src =~ /asm lda #<logo_font;.*?asm lda #<\{logo_font\+40\}/s
+   or die "diagnostic does not draw the canonical six-slice VCSC logo\n";
 $src =~ /DIAG_PAIR_CO.*DIAG_PAIR_LR/s &&
 $src =~ /DIAG_PAIR_BAMP.*DIAG_PAIR_W_SPACE/s &&
 $idx =~ /DIAG_PAIR_LR\s*:=\s*36,\s*\/\/ 'LR'/ &&
@@ -145,38 +180,60 @@ $idx =~ /DIAG_PAIR_W_SPACE\s*:=\s*105,\s*\/\/ 'W '/ &&
 $msg =~ /COLRB&/ && $msg =~ /W A SSFAIL/
    or die "diagnostic COLOR/B&W labels are not pre-cooked as COLR and B&W\n";
 
-# The collision panel has its own human-editable microglyph source.  The checked
-# C26 tables are generated because each 6-pixel icon straddles the renderer's
-# six 8-bit chunks differently.  Regenerate and compare the whole file so a
-# one-line glyph tweak can never leave stale beam-time tables behind.
-my($collision_rc,$collision_sig,$collision_out,$collision_err)=run_capture($collision_helper,$collision_objects);
+# The collision panel uses canonical Half-font letters A..O, packed into the
+# two six-glyph rows with a six-pixel underline added only for active latches.
+# Regenerate and compare the whole file so a Half-font edit cannot leave stale
+# beam-time tables behind.
+my($collision_rc,$collision_sig,$collision_out,$collision_err)=run_capture($collision_helper,$half_font);
 $collision_rc==0 && !$collision_sig or die "regenerate diagnostic collision font failed\n$collision_out$collision_err";
 $collision_err eq '' or die "regenerate diagnostic collision font wrote stderr:\n$collision_err";
 $collision_out eq $collision_font_text
-   or die "diagnostic_collision_font.c26 is stale relative to diagnostic_collision_objects.font\n";
-$collision_object_text =~ /XX\._XX\._XXX_XXX_XX\._XX\./ &&
-$collision_object_text =~ /^PASS$/m &&
-$collision_font_text =~ /top:\s+M0-P1 M0-P0 M1-P0 M1-P1 P0-PF P0-BL P1-PF P1-BL/ &&
-$collision_font_text =~ /bottom:\s+M0-PF M0-BL M1-PF M1-BL BL-PF P0-P1 M0-M1 PASS/ &&
+   or die "diagnostic_collision_font.c26 is stale relative to half_ascii.c26\n";
+$collision_font_text =~ /top:\s+A=M0-P1 B=M0-P0 C=M1-P0 D=M1-P1 E=P0-PF F=P0-BL G=P1-PF H=P1-BL/ &&
+$collision_font_text =~ /bottom:\s+I=M0-PF J=M0-BL K=M1-PF L=M1-BL M=BL-PF N=P0-P1 O=M0-M1 CHECK/ &&
+$collision_font_text =~ /six-pixel underline/ &&
 $collision_font_text =~ /diagnostic_collision_top_font\[144\]/ &&
 $collision_font_text =~ /diagnostic_collision_bottom_font\[144\]/
-   or die "diagnostic collision icon font lost its 6-object/15-pair layout\n";
+   or die "diagnostic collision font lost its A-through-O 15-latch layout\n";
 
 $src =~ /bank4 void diagnostic_driving_vblank\(void\).*?diagnostic_left_drive_begin_frame\(\);.*?diagnostic_right_drive_begin_frame\(\);.*?diagnostic_left_drive_sample\(\);.*?diagnostic_right_drive_sample\(\);.*?diagnostic_drive_position0.*?diagnostic_drive_position1/s
    or die "diagnostic driving mode lost its once-per-frame VBLANK sample\n";
 $src !~ /diagnostic_driving_overscan/
    or die "diagnostic driving mode must not sample again in overscan\n";
 
-$src =~ /bank0 void diagnostic_tia_animation_tick\(void\).*?DIAGNOSTIC_TEST_TIA_FREEZE.*?diagnostic_tia_m0_x := 34;.*?diagnostic_tia_m1_x := 115;.*?diagnostic_tia_ball_x := 82;.*?asm cmp #27;.*?asm lda #26;.*?asm adc #8;.*?asm sta diagnostic_tia_m0_x;.*?asm cmp #30;.*?asm lda #29;.*?asm eor #\$ff;.*?asm adc #145;.*?asm sta diagnostic_tia_m1_x;.*?asm cmp #31;.*?asm lda #30;.*?asm adc #52;.*?asm sta diagnostic_tia_ball_x;.*?asm and #63;.*?asm sta diagnostic_tia_phase;/s &&
-$src =~ /bank0 void diagnostic_draw_tia_panel\(void\).*?PF0 := 0; PF1 := 0; PF2 := 0;.*?CXCLR := _;.*?lda #32;.*?sta RESP0,x;.*?lda #120;.*?sta RESP0,x;.*?lda diagnostic_tia_m0_x;.*?lda diagnostic_tia_m1_x;.*?lda diagnostic_tia_ball_x;.*?sta HMOVE;.*?GRP0 := 0x7e;.*?ENAM0 := 2;.*?GRP1 := 0x18;.*?ENAM1 := 2;.*?PF2 := 0x80; ENABL := 2;.*?asm lda CXM0P;.*?asm sta diagnostic_tia_top_mask;.*?asm lda CXM1P;.*?asm lda CXP0FB;.*?asm lda CXP1FB;.*?asm lda CXM0FB;.*?asm sta diagnostic_tia_bottom_mask;.*?asm lda CXM1FB;.*?asm lda CXBLPF;.*?asm lda CXPPMM;.*?asm lda diagnostic_tia_top_mask;.*?asm cmp #\$50;.*?asm sta diagnostic_tia_pass;.*?asm lda diagnostic_tia_bottom_mask;.*?asm cmp #\$08;.*?asm and diagnostic_tia_pass;.*?asm ora diagnostic_tia_bottom_mask;/s
-   or die "diagnostic TIA collision animation lost visible motion or 15-bit latch capture\n";
+my %collision_expected=(
+   diagnostic_collision_expected_top   => [0x80,0x40,0x20,0x10,0x08,0x04,0x02,0x01, 0,0,0,0,0,0,0,0],
+   diagnostic_collision_expected_bottom=> [0,0,0,0,0,0,0,0, 0x80,0x40,0x20,0x10,0x08,0x04,0x02,0],
+   diagnostic_collision_grp0           => [0,0xff,0xff,0,0xff,0xff,0,0, 0,0,0,0,0,0xff,0,0],
+   diagnostic_collision_grp1           => [0xff,0,0,0xff,0,0,0xff,0xff, 0,0,0,0,0,0xff,0,0],
+   diagnostic_collision_enam0          => [2,2,0,0,0,0,0,0, 2,2,0,0,0,0,2,0],
+   diagnostic_collision_enam1          => [0,0,2,2,0,0,0,0, 0,0,2,2,0,0,2,0],
+   diagnostic_collision_enabl          => [0,0,0,0,0,2,0,2, 0,2,0,2,2,0,0,0],
+   diagnostic_collision_pf             => [0,0,0,0,0xff,0,0xff,0, 0xff,0,0xff,0,0xff,0,0,0],
+);
+for my $name (sort keys %collision_expected) {
+   my $got=parse_u8_array($src,$name,16);
+   join(',',@$got) eq join(',',@{$collision_expected{$name}})
+      or die "$name no longer isolates the A-through-O collision sequence\n";
+}
+
+$src =~ /bank0 const uint8_t diagnostic_collision_expected_top\[16\].*?0x80,0x40,0x20,0x10,0x08,0x04,0x02,0x01/s &&
+$src =~ /bank0 const uint8_t diagnostic_collision_expected_bottom\[16\].*?0x80,0x40,0x20,0x10,0x08,0x04,0x02/s &&
+$src =~ /diagnostic_collision_grp0\[16\]/ &&
+$src =~ /diagnostic_collision_grp1\[16\]/ &&
+$src =~ /diagnostic_collision_enam0\[16\]/ &&
+$src =~ /diagnostic_collision_enam1\[16\]/ &&
+$src =~ /diagnostic_collision_enabl\[16\]/ &&
+$src =~ /diagnostic_collision_pf\[16\]/ &&
+$src =~ /bank0 void diagnostic_draw_tia_panel\(void\).*?CXCLR := _;.*\@diagnostic_collision_position_loop.*?diagnostic_collision_grp0,x.*?diagnostic_collision_grp1,x.*?diagnostic_collision_enam0,x.*?diagnostic_collision_enam1,x.*?diagnostic_collision_enabl,x.*?diagnostic_collision_pf,x.*?asm lda CXM0P;.*?asm lda CXM1P;.*?asm lda CXP0FB;.*?asm lda CXP1FB;.*?asm lda CXM0FB;.*?asm lda CXM1FB;.*?asm lda CXBLPF;.*?asm lda CXPPMM;.*?cmp diagnostic_collision_expected_top,x.*?cmp diagnostic_collision_expected_bottom,x.*?cmp #\$ff;.*?cmp #\$fe;.*?DIAGNOSTIC_TEST_TIA_FREEZE.*?cmp #\$f0;.*?beq\.flex \@diagnostic_collision_phase_done;.*?adc #16.*?\@diagnostic_collision_phase_done/s
+   or die "diagnostic lost exhaustive isolated A-through-O collision testing\n";
 $src =~ /DIAGNOSTIC_ROW_COUNT\s*:=\s*9/ && $src =~ /cartram uint8_t diagnostic_rows\[48\];\s*cartram uint8_t diagnostic_detail1_row\[6\];/s &&
-$src =~ /cartram uint8_t diagnostic_tia_top_mask;\s*cartram uint8_t diagnostic_tia_bottom_mask;\s*cartram uint8_t diagnostic_tia_pass;/s &&
+$src =~ /cartram uint8_t diagnostic_tia_top_mask;\s*cartram uint8_t diagnostic_tia_bottom_mask;\s*cartram uint8_t diagnostic_tia_current_top;\s*cartram uint8_t diagnostic_tia_current_bottom;\s*cartram uint8_t diagnostic_tia_pass;/s &&
 $src =~ /bank3 void diagnostic_bank3_task\(uint8_t task\).*?diagnostic_prepare_collision_top\(\);.*?diagnostic_draw_collision_row\(\);.*?diagnostic_prepare_collision_bottom\(\);.*?diagnostic_draw_collision_row\(\);/s &&
 $src =~ /bank1 void diagnostic_prepare_detail1_row\(void\).*?diagnostic_detail1_row\+0.*?diagnostic_detail1_row\+5/s &&
 $src =~ /diagnostic_prepare_detail1_row\(\); diagnostic_draw_text_row\(\);\s*diagnostic_bank3_task\(0\);/s &&
 $src =~ /asm lda #5;\s*asm sta\.a diagnostic_text_row;.*?\@diagnostic_collision_draw_loop/s
-   or die "diagnostic 15-bit collision icon display is incomplete\n";
+   or die "diagnostic 15-bit collision letter display is incomplete\n";
 $src =~ /bank0 const uint8_t diagnostic_audio0\[64\].*?6,6,6,6/s &&
 $src =~ /bank0 const uint8_t diagnostic_audio1\[64\].*?6,6,6,6/s &&
 $src =~ /bank0 void diagnostic_audio_tick\(void\).*?asm ldx diagnostic_audio_phase;.*?asm lda diagnostic_audio0,x;.*?asm sta AUDV0;.*?asm lda diagnostic_audio1,x;.*?asm sta AUDV1;.*?asm sta diagnostic_audio_phase;/s &&
@@ -190,16 +247,13 @@ $boot_text =~ /\@clear_riot:.*?sta \$80,x.*?\@clear_superchip:.*?sta \$f000,x.*?
 $src =~ /cartram uint8_t diagnostic_boot_7800;\s*cartram uint24_t diagnostic_cpu_fingerprint;/s &&
 $src =~ /ARR #\$b8.*?ARR #\$6b.*?ARR #\$6b.*?ARR #\$6b/s &&
 $src =~ /diagnostic_compute_cpu_fingerprint\(\);.*?diagnostic_initialize_rows\(\);/s &&
-$src =~ /bank5 const uint8_t diagnostic_hex_pair\[16\].*?bank5 void diagnostic_initialize_rows\(void\).*?diagnostic_cpu_fingerprint\+2.*?diagnostic_rows\+17/s
-   or die "diagnostic CPU fingerprint capture/display path is incomplete\n";
+$src =~ /diagnostic_cpu_fingerprint\+2.*?diagnostic_cpu_fingerprint\+1.*?diagnostic_cpu_fingerprint.*?diagnostic_fingerprint_font/s
+   or die "diagnostic CPU fingerprint capture/Big-font display path is incomplete\n";
 $idx =~ /DIAG_PAIR_NUM_26\s*:=\s*110/ && $idx =~ /DIAG_PAIR_NUM_78\s*:=\s*111/ &&
 $idx =~ /DIAG_PAIR_F_SPACE\s*:=\s*116/ && $idx =~ /DIAG_PAIR_COUNT\s*:=\s*127/
    or die "diagnostic platform/fingerprint pair indices are incomplete\n";
 $src =~ /DIAGNOSTIC_TV_SECAM.*?COLUP0 := VCS_SECAM_YELLOW;\s*COLUP1 := VCS_SECAM_CYAN;\s*COLUPF := VCS_SECAM_MAGENTA;/s
    or die "diagnostic SECAM TIA colors are no longer distinctive\n";
-$src =~ /GRP0 := 0x7e;.*?GRP0 := 0x81;.*?GRP1 := 0x18;.*?GRP1 := 0x3c;/s
-   or die "diagnostic P0/P1 collision-lane digits are no longer distinct\n";
-
 my $timing_source=File::Spec->catfile($repo,'test','vcs_frame_timing.cpp');
 my $timing=File::Spec->catfile($tmp,'vcs_frame_timing_diagnostic');
 my $mos_dir=File::Spec->catdir($repo,'simulator','mos6502');
@@ -222,14 +276,14 @@ my $input_list_text=read_file($input_list);
 $input_map_text =~ /^\s+ZERO BSS\.cartram\.__vcsc_object\$diagnostic_boot_7800\s+read=\$F080 write=\$F000 size=\$0001 split=yes$/m
    or die "diagnostic_boot_7800 is not the first Superchip byte expected by diagnostic_boot.s26\n";
 my $detail1_addr=map_symbol_addr($input_map_text,'diagnostic_detail1_row');
-$detail1_addr==0xF0CB
+$detail1_addr==0xF0CA
    or die sprintf("DETAIL1 moved out of expected Superchip read address: %04X\n",$detail1_addr);
-$input_map_text =~ /^\s+ZERO BSS\.cartram\.__vcsc_object\$diagnostic_detail1_row\s+read=\$F0CB write=\$F04B size=\$0006 split=yes$/m
+$input_map_text =~ /^\s+ZERO BSS\.cartram\.__vcsc_object\$diagnostic_detail1_row\s+read=\$F0CA write=\$F04A size=\$0006 split=yes$/m
    or die "diagnostic DETAIL1 is no longer allocated in Superchip RAM\n";
 my $reposition_addr=map_symbol_addr($input_map_text,'diagnostic_reposition_table');
 my $wrapped_base=($reposition_addr+16-256)&0xffff;
 my @wrapped_operands=$input_list_text =~ /LDA \(\(diagnostic_reposition_table \+ 16\) - 256\),Y\s+=> \$([0-9A-Fa-f]{4})/g;
-@wrapped_operands==5 or die "diagnostic lost one of five wrapped reposition lookups\n";
+@wrapped_operands==1 or die "diagnostic lost wrapped reposition lookup used by five-object positioning\n";
 for my $encoded (@wrapped_operands) {
    hex($encoded)==$wrapped_base
       or die sprintf("diagnostic wrapped lookup encoded %s, expected %04X\n",$encoded,$wrapped_base);

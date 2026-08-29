@@ -1,7 +1,7 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 // 8x5 compact paired-message glyphs
 // Generated from: libraries/vcs/fonts/half_ascii.c26
-// Message: "  VCSCDIAGNOSTICNTPAL SECAM JOYSTICKDDLEKEYPADDRIVING P0P1P2P3F0F1F2F3COLRB& D0A0B1A1B0 1 L0L1 R U ...D..LDLR..FRF] [ [1[2[3[4[5[6[7[8[9[*[0[#00010203040506070809101112131415161718192021222324252 3 4 5 6 7 8 9 W A SSFAIL2678B C D E F CXM0M1P BLPF4080C0OK"
+// Message: "  VCSCIAGNOSSTICNTPAL SECAM JOYSTICKDDLEKEYPADDRIVING P0P1P2P3F0F1F2F3COLRB& D0A0B1A1B0 1 L0L1 R U ...D..LDLR..FRF] [ [1[2[3[4[5[6[7[8[9[*[0[#00010203040506070809101112131415161718192021222324252 3 4 5 6 7 8 9 W A SSFAIL2678B C D E F CXM0M1P BLPF4080C0OK"
 // Two source characters per 8-bit glyph; odd messages are space-padded.
 // --five drops the source font's blank sixth row and page-pads only when
 // needed so no five-byte glyph crosses a 256-byte page.
@@ -37,31 +37,31 @@ bank1 align(256) const uint8_t score_font[637] := {
       0b.XXX.XXX
    ),
 
-   // 3: "DI" (0x44 0x49) offset=0x00F
+   // 3: "IA" (0x49 0x41) offset=0x00F
    VCS_FONT_GLYPH(
-      0b.XX..XXX,
-      0b.X.X..X.,
-      0b.X.X..X.,
-      0b.X.X..X.,
-      0b.XX..XXX
+      0b.XXX.XXX,
+      0b..X..X.X,
+      0b..X..XXX,
+      0b..X..X.X,
+      0b.XXX.X.X
    ),
 
-   // 4: "AG" (0x41 0x47) offset=0x014
+   // 4: "GN" (0x47 0x4E) offset=0x014
+   VCS_FONT_GLYPH(
+      0b.XXX.X.X,
+      0b.X...XX.,
+      0b.X.X.XXX,
+      0b.X.X..XX,
+      0b.XXX.X.X
+   ),
+
+   // 5: "OS" (0x4F 0x53) offset=0x019
    VCS_FONT_GLYPH(
       0b.XXX.XXX,
       0b.X.X.X..,
-      0b.XXX.X.X,
-      0b.X.X.X.X,
-      0b.X.X.XXX
-   ),
-
-   // 5: "NO" (0x4E 0x4F) offset=0x019
-   VCS_FONT_GLYPH(
       0b.X.X.XXX,
-      0b.XX..X.X,
-      0b.XXX.X.X,
-      0b..XX.X.X,
-      0b.X.X.XXX
+      0b.X.X...X,
+      0b.XXX.XXX
    ),
 
    // 6: "ST" (0x53 0x54) offset=0x01E

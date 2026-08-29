@@ -59,7 +59,7 @@ my$digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 
 my%requested=map { $_=>1 } grep { length } split(/,/, $ENV{VCSC_STELLA_CASES}//'');
 my%seen;
-my$expected_first_lit_row=18;
+my$expected_first_lit_row=19;
 my$display=350+($$%30);
 for my$standard (
    ['ntsc',0,'NTSC'],

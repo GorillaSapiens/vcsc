@@ -22,25 +22,32 @@ cartridge. The same ROM supports NTSC, PAL, and SECAM.
 Controller-mode changes take effect on a frame boundary. Holding SELECT does
 not repeatedly advance the mode; release it before the next selection.
 
-## Host and CPU fingerprint
+## Logo, host, and CPU fingerprint
 
-The first display row identifies the host as `2600` or `7800`. Detection is done
-by the cartridge's reset shim **before ordinary RIOT RAM is cleared**. A 7800
-compatibility-mode boot leaves a loader image in RIOT RAM containing the
-four-byte signature `6C FC FF EA`; the shim scans for that sequence, remembers
-the result in F4SC RAM, and then establishes the cartridge's normal clean RAM
-state. `6C FC FF` is `JMP ($FFFC)`, an indirect jump through the cartridge reset
-vector. The following `EA` is a NOP and is unreachable after that unconditional
-jump, so it is not required for the jump itself; it is included because it is
-part of the observed 7800 loader image and makes the signature substantially
-less likely to occur accidentally.
+The top mark is rendered directly from the canonical
+`libraries/vcs/fonts/logo_font.c26` six-slice VCSC logo.  It is not a locally
+redrawn approximation.
 
-The second row is a six-hex-digit CPU silicon fingerprint. It uses the same four
-unofficial `ARR` probes and CRC-24/OPENPGP reduction as the standalone VCSC
-fingerprint example. On a 2600 this fingerprints the 6507; on a 7800 it
-fingerprints the compatibility-mode 6502-family CPU instead. These values are
-intended for comparing real machines, not as a CPU revision database built into
-the cartridge.
+The TV-standard row also identifies the host as `2600` or `7800` (for example,
+`2600 NTSC`). Detection is done by the cartridge's reset shim **before ordinary
+RIOT RAM is cleared**. A 7800 compatibility-mode boot leaves a loader image in
+RIOT RAM containing the four-byte signature `6C FC FF EA`; the shim scans for
+that sequence, remembers the result in F4SC RAM, and then establishes the
+cartridge's normal clean RAM state. `6C FC FF` is `JMP ($FFFC)`, an indirect
+jump through the cartridge reset vector. The following `EA` is a NOP and is
+unreachable after that unconditional jump, so it is not required for the jump
+itself; it is included because it is part of the observed 7800 loader image and
+makes the signature substantially less likely to occur accidentally.
+
+The six-hex-digit CPU silicon fingerprint is rendered with the canonical larger
+`big_ascii.c26` glyphs rather than the compact two-character status font.  The
+checked-in `diagnostic_fingerprint_font.c26` is a generated `0-9A-F` subset;
+`make fonts` regenerates it.  The fingerprint uses the same four unofficial
+`ARR` probes and CRC-24/OPENPGP reduction as the standalone VCSC fingerprint
+example. On a 2600 this fingerprints the 6507; on a 7800 it fingerprints the
+compatibility-mode 6502-family CPU instead. These values are intended for
+comparing real machines, not as a CPU revision database built into the
+cartridge.
 
 ## Controller hookups
 
@@ -60,52 +67,55 @@ exercised. Keypad mode actively drives the controller-port row lines as required
 by the matrix and therefore is intentionally an explicit mode rather than a
 background probe.
 
-## TIA collision animation
+## TIA collision test
 
-The bottom of the display is a live, human-readable view of **all 15 pairwise
+The bottom of the display is a live, human-readable test of **all 15 pairwise
 TIA collision latches** among `M0`, `M1`, `P0`, `P1`, Ball (`BL`), and
-playfield (`PF`). There are no register names or hexadecimal values on screen.
-Instead, the panel uses two rows of eight compact six-pixel icons. Each icon is
-formed by concatenating the two three-pixel object microglyphs for that
-collision pair. The otherwise blank middle scanline becomes a solid six-pixel
-bar when that collision latch is set, visually joining the two objects.
+playfield (`PF`). The fifteen tests are labeled `A` through `O` in TIA
+register-bit order. A six-pixel underline beneath a letter means that pair's
+most recent isolated hardware test passed. The lower-right sixteenth slot is a
+check mark meaning **all fifteen A-O tests currently pass**.
 
-The icons follow the TIA register-bit order:
+| Label | Collision | Label | Collision |
+| --- | --- | --- | --- |
+| `A` | M0-P1 | `I` | M0-PF |
+| `B` | M0-P0 | `J` | M0-BL |
+| `C` | M1-P0 | `K` | M1-PF |
+| `D` | M1-P1 | `L` | M1-BL |
+| `E` | P0-PF | `M` | BL-PF |
+| `F` | P0-BL | `N` | P0-P1 |
+| `G` | P1-PF | `O` | M0-M1 |
+| `H` | P1-BL | check | all A-O pass |
 
-```text
-top:    M0-P1 M0-P0 M1-P0 M1-P1 P0-PF P0-BL P1-PF P1-BL
-bottom: M0-PF M0-BL M1-PF M1-BL BL-PF P0-P1 M0-M1 CHECK
-```
+On screen the top row is `A B C D E F G H`; the bottom row is
+`I J K L M N O` followed by the check slot.  The cartridge exercises **one and
+only one pair at a time**.  All five movable TIA objects are placed at the same
+horizontal position; each phase enables only the two objects named by that
+letter, except playfield phases, which enable the named movable object plus a
+full playfield.  The complete 15-bit collision register bitmap is then captured.
+A phase passes only when that entire bitmap contains exactly its one expected
+latch and no unexpected collision bits.
 
-The lower-right sixteenth slot is a check mark. It appears only when the full
-15-bit collision bitmap is exactly the three collisions intentionally driven by
-the animation, so an unexpected extra collision prevents the check even if all
-three intended collisions occurred.
+Normal operation holds each A-O phase for sixteen frames so the currently
+exercised pair is visible, followed by one sixteen-frame idle phase, then repeats.
+A successful phase sets its letter's underline; a later failure of the same phase
+removes it.  The check mark is computed from all fifteen remembered results, so
+it cannot appear until every collision pair has actually passed.  The Stella
+certification build merely accelerates this same physical sequence to one phase
+per frame; it does not synthesize pass bits.
 
-Directly below the bitmap are three matching four-scanline collision lanes. In
-the first lane M0 approaches a large P0 `0` shape, in the second M1 approaches
-a narrow P1 `1` shape, and in the third the Ball approaches a centered
-playfield wall. Only the two objects relevant to a lane are enabled there. The
-animation therefore intends to light only `M0-P0`, `M1-P1`, and `BL-PF`; the
-other twelve pair icons should remain unconnected. M0/P0 use the P0 color,
-M1/P1 use the P1 color, and Ball/playfield use the playfield color. SECAM
-deliberately uses yellow, cyan, and magenta for those three paths.
+The screen itself uses P0/P1 and therefore dirties collision latches. `CXCLR` is
+strobed immediately before the controlled collision lane. The collision
+registers are read only after that isolated lane has run, so UI drawing cannot
+make a test pass.
 
-The objects move slowly toward their targets and then hold visibly in contact.
-The screen itself is rendered with P0/P1, which would create unrelated collision
-bits. To keep the 15-bit bitmap honest, `CXCLR` is therefore strobed every frame
-after the text/icon raster and immediately before the three controlled lanes.
-The collision registers are captured only after those lane objects have been
-disabled; a lit connection bar is consequently a direct report of a hardware
-TIA collision latch from the controlled test, not a collision caused by drawing
-the user interface. Once an approaching pair reaches contact it remains there,
-so its connection stays visibly lit.
-
-The six object microglyphs are deliberately easy to edit. Their canonical
-source is `diagnostic_collision_objects.font`; each bitmap row contains the six
-three-pixel glyphs as `M0_M1_P0_P1_BL_PF`. `make_collision_font.pl` converts
-that source into the checked-in `diagnostic_collision_font.c26`. Running the
-diagnostic Makefile regenerates the C26 file when the editable font changes.
+The collision labels use the canonical `libraries/vcs/fonts/half_ascii.c26`
+letters. `make_collision_font.pl` centers `A` through `O` in the six-pixel
+collision cells and generates both inactive and underlined-pass states in the
+checked-in `diagnostic_collision_font.c26`. Run `make fonts` in this directory,
+or at repository top level, after changing the Half ASCII or Big ASCII font.
+Ordinary example builds consume the checked-in generated files and do not
+require Perl.
 
 Audio channel 0 and channel 1 also emit short distinct alternating beeps.
 
