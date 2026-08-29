@@ -170,7 +170,7 @@ $src !~ /diagnostic_driving_overscan/
 $src =~ /bank0 void diagnostic_tia_animation_tick\(void\).*?DIAGNOSTIC_TEST_TIA_FREEZE.*?diagnostic_tia_m0_x := 34;.*?diagnostic_tia_m1_x := 115;.*?diagnostic_tia_ball_x := 82;.*?asm cmp #27;.*?asm lda #26;.*?asm adc #8;.*?asm sta diagnostic_tia_m0_x;.*?asm cmp #30;.*?asm lda #29;.*?asm eor #\$ff;.*?asm adc #145;.*?asm sta diagnostic_tia_m1_x;.*?asm cmp #31;.*?asm lda #30;.*?asm adc #52;.*?asm sta diagnostic_tia_ball_x;.*?asm and #63;.*?asm sta diagnostic_tia_phase;/s &&
 $src =~ /bank0 void diagnostic_draw_tia_panel\(void\).*?PF0 := 0; PF1 := 0; PF2 := 0;.*?CXCLR := 0;.*?lda #32;.*?sta RESP0,x;.*?lda #120;.*?sta RESP0,x;.*?lda diagnostic_tia_m0_x;.*?lda diagnostic_tia_m1_x;.*?lda diagnostic_tia_ball_x;.*?sta HMOVE;.*?GRP0 := 0x7e;.*?ENAM0 := 2;.*?GRP1 := 0x18;.*?ENAM1 := 2;.*?PF2 := 0x80; ENABL := 2;.*?asm lda CXM0P;.*?asm sta diagnostic_tia_top_mask;.*?asm lda CXM1P;.*?asm lda CXP0FB;.*?asm lda CXP1FB;.*?asm lda CXM0FB;.*?asm sta diagnostic_tia_bottom_mask;.*?asm lda CXM1FB;.*?asm lda CXBLPF;.*?asm lda CXPPMM;.*?asm lda diagnostic_tia_top_mask;.*?asm cmp #\$50;.*?asm sta diagnostic_tia_pass;.*?asm lda diagnostic_tia_bottom_mask;.*?asm cmp #\$08;.*?asm and diagnostic_tia_pass;.*?asm ora diagnostic_tia_bottom_mask;/s
    or die "diagnostic TIA collision animation lost visible motion or 15-bit latch capture\n";
-$src =~ /DIAGNOSTIC_ROW_COUNT\s*:=\s*9/ && $src =~ /cartram uint8_t diagnostic_rows\[48\];\s*uint8_t diagnostic_detail1_row\[6\];/s &&
+$src =~ /DIAGNOSTIC_ROW_COUNT\s*:=\s*9/ && $src =~ /cartram uint8_t diagnostic_rows\[48\];\s*cartram uint8_t diagnostic_detail1_row\[6\];/s &&
 $src =~ /cartram uint8_t diagnostic_tia_top_mask;\s*cartram uint8_t diagnostic_tia_bottom_mask;\s*cartram uint8_t diagnostic_tia_pass;/s &&
 $src =~ /bank3 void diagnostic_bank3_task\(uint8_t task\).*?diagnostic_prepare_collision_top\(\);.*?diagnostic_draw_collision_row\(\);.*?diagnostic_prepare_collision_bottom\(\);.*?diagnostic_draw_collision_row\(\);/s &&
 $src =~ /bank1 void diagnostic_prepare_detail1_row\(void\).*?diagnostic_detail1_row\+0.*?diagnostic_detail1_row\+5/s &&
@@ -214,11 +214,33 @@ require_ok('compile diagnostic frame timing','g++','-std=c++17','-Wall','-Wextra
 # path, and they read the final mode directly from F4SC Superchip RAM.
 my $input_bin=File::Spec->catfile($tmp,'diagnostic-input.bin');
 my $input_map=File::Spec->catfile($tmp,'diagnostic-input.map');
+my $input_list=File::Spec->catfile($tmp,'diagnostic-input.lst');
 require_ok('build input-driven diagnostic',$driver,'-I',$vcs,'-I',$example,'-T',$generic,
-   '-Wa,--illegals','-DDIAGNOSTIC_TEST_TV=0','-Map',$input_map,$source,$boot,'-o',$input_bin);
+   '-Wa,--illegals','-DDIAGNOSTIC_TEST_TV=0','-Map',$input_map,'-List='.$input_list,$source,$boot,'-o',$input_bin);
 my $input_map_text=read_file($input_map);
+my $input_list_text=read_file($input_list);
 $input_map_text =~ /^\s+ZERO BSS\.cartram\.__vcsc_object\$diagnostic_boot_7800\s+read=\$F080 write=\$F000 size=\$0001 split=yes$/m
    or die "diagnostic_boot_7800 is not the first Superchip byte expected by diagnostic_boot.s26\n";
+my $detail1_addr=map_symbol_addr($input_map_text,'diagnostic_detail1_row');
+$detail1_addr==0xF0CB
+   or die sprintf("DETAIL1 moved out of expected Superchip read address: %04X\n",$detail1_addr);
+$input_map_text =~ /^\s+ZERO BSS\.cartram\.__vcsc_object\$diagnostic_detail1_row\s+read=\$F0CB write=\$F04B size=\$0006 split=yes$/m
+   or die "diagnostic DETAIL1 is no longer allocated in Superchip RAM\n";
+my $reposition_addr=map_symbol_addr($input_map_text,'diagnostic_reposition_table');
+my $wrapped_base=($reposition_addr+16-256)&0xffff;
+my @wrapped_operands=$input_list_text =~ /LDA \(\(diagnostic_reposition_table \+ 16\) - 256\),Y\s+=> \$([0-9A-Fa-f]{4})/g;
+@wrapped_operands==5 or die "diagnostic lost one of five wrapped reposition lookups\n";
+for my $encoded (@wrapped_operands) {
+   hex($encoded)==$wrapped_base
+      or die sprintf("diagnostic wrapped lookup encoded %s, expected %04X\n",$encoded,$wrapped_base);
+}
+for my $y (0xF0..0xFF) {
+   my $final=($wrapped_base+$y)&0xffff;
+   next unless (($wrapped_base&0xff)+$y)>0xff;
+   my $dummy=($wrapped_base&0xff00)|($final&0xff);
+   !($dummy>=0xF000 && $dummy<=0xF07F)
+      or die sprintf("diagnostic reposition lookup can ghost-read Superchip write alias %04X at Y=%02X\n",$dummy,$y);
+}
 my $controller_mode=map_symbol_addr($input_map_text,'diagnostic_controller_mode');
 my $tv_mode=map_symbol_addr($input_map_text,'diagnostic_tv_mode');
 my $frame_tv_mode=map_symbol_addr($input_map_text,'diagnostic_frame_tv_mode');

@@ -545,7 +545,10 @@ fast uint16_t counter;
 
 An allocatable region must provide `$start`, either `$size` or `$end`, and
 exactly one of `$rw` or `$ro`. Split-address writable storage instead provides
-`$read_start`, `$write_start`, size/end, and `$rw`. A completely empty `mem`
+`$read_start`, `$write_start`, size/end, and `$rw`. An optional `$read_hazard`
+flag marks the write alias (or `$start` for a single-address region) as a range
+where a CPU *read bus cycle* has side effects; the compiler preserves that fact
+for final-link NMOS 6502 dummy/ghost-read checking. A completely empty `mem`
 declaration remains available as a policy-only name and creates no allocator
 region.
 
@@ -697,7 +700,9 @@ symbolic aliases in relocations rather than replacing the object with a fixed
 integer address; the linker therefore allocates each object once and can report
 both final addresses. Neither the region name nor the relative order, spacing, alignment, or size
 of the two windows is significant; those facts come entirely from the
-source-level `mem` declaration.
+source-level `mem` declaration. Mapper RAM whose write port is destructive when
+read should add `$read_hazard`; the stock Superchip, FA/RAM Plus, and CommaVid
+profiles do so.
 
 Split-address allocation supports persistent file-scope objects and automatic
 local objects, including arrays and inline-expansion-private locals. Automatic

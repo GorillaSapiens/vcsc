@@ -64,7 +64,7 @@ $pt =~ /include\s+"commavid\.c26"/ &&
 $pt =~ /\$signature:CV\b/ &&
 $pt =~ /\$image_size:0x0800/ &&
 $pt =~ /\$link_start:0xf800\s+\$cpu_start:0xf800\s+\$map_size:0x0800/ &&
-$dt =~ /mem\s+cartram\s*\{\s*\$read_start:0xF000\s+\$write_start:0xF400\s+\$size:0x0400\s+\$rw\s*\}/s
+$dt =~ /mem\s+cartram\s*\{\s*\$read_start:0xF000\s+\$write_start:0xF400\s+\$size:0x0400\s+\$rw\s+\$read_hazard\s*\}/s
    or die "CV profile/device contract is wrong\n";
 
 my $bin=File::Spec->catfile($tmp,'cv.bin');

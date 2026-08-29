@@ -147,6 +147,427 @@ static int str_ieq(const char *a, const char *b)
    return *a == '\0' && *b == '\0';
 }
 
+typedef enum {
+   NMOS_IMP = 0,
+   NMOS_ACC,
+   NMOS_IMM,
+   NMOS_ZP,
+   NMOS_ZPX,
+   NMOS_ZPY,
+   NMOS_ABS,
+   NMOS_ABSX,
+   NMOS_ABSY,
+   NMOS_IND,
+   NMOS_INDX,
+   NMOS_INDY,
+   NMOS_REL
+} nmos_addr_mode_t;
+
+typedef enum {
+   NMOS_ACCESS_NONE = 0,
+   NMOS_ACCESS_READ,
+   NMOS_ACCESS_WRITE,
+   NMOS_ACCESS_RMW
+} nmos_access_t;
+
+typedef struct {
+   const memory_region_t *memory;
+   uint16_t address;
+   const char *cycle;
+   uint8_t index;
+   int has_index;
+} read_hazard_hit_t;
+
+/* Generated from assembler/default.cfg's operand-shape table.  Keep all 256
+   entries explicit: raw opXX assembly is intentionally first-class VCSC input. */
+static const uint8_t nmos6502_addr_mode[256] = {
+   NMOS_IMP, NMOS_INDX, NMOS_IMP, NMOS_INDX, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_IMP, NMOS_IMM, NMOS_ACC, NMOS_IMM, NMOS_ABS, NMOS_ABS, NMOS_ABS, NMOS_ABS,
+   NMOS_REL, NMOS_INDY, NMOS_IMP, NMOS_INDY, NMOS_ZPX, NMOS_ZPX, NMOS_ZPX, NMOS_ZPX, NMOS_IMP, NMOS_ABSY, NMOS_IMP, NMOS_ABSY, NMOS_ABSX, NMOS_ABSX, NMOS_ABSX, NMOS_ABSX,
+   NMOS_ABS, NMOS_INDX, NMOS_IMP, NMOS_INDX, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_IMP, NMOS_IMM, NMOS_ACC, NMOS_IMM, NMOS_ABS, NMOS_ABS, NMOS_ABS, NMOS_ABS,
+   NMOS_REL, NMOS_INDY, NMOS_IMP, NMOS_INDY, NMOS_ZPX, NMOS_ZPX, NMOS_ZPX, NMOS_ZPX, NMOS_IMP, NMOS_ABSY, NMOS_IMP, NMOS_ABSY, NMOS_ABSX, NMOS_ABSX, NMOS_ABSX, NMOS_ABSX,
+   NMOS_IMP, NMOS_INDX, NMOS_IMP, NMOS_INDX, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_IMP, NMOS_IMM, NMOS_ACC, NMOS_IMM, NMOS_ABS, NMOS_ABS, NMOS_ABS, NMOS_ABS,
+   NMOS_REL, NMOS_INDY, NMOS_IMP, NMOS_INDY, NMOS_ZPX, NMOS_ZPX, NMOS_ZPX, NMOS_ZPX, NMOS_IMP, NMOS_ABSY, NMOS_IMP, NMOS_ABSY, NMOS_ABSX, NMOS_ABSX, NMOS_ABSX, NMOS_ABSX,
+   NMOS_IMP, NMOS_INDX, NMOS_IMP, NMOS_INDX, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_IMP, NMOS_IMM, NMOS_ACC, NMOS_IMM, NMOS_IND, NMOS_ABS, NMOS_ABS, NMOS_ABS,
+   NMOS_REL, NMOS_INDY, NMOS_IMP, NMOS_INDY, NMOS_ZPX, NMOS_ZPX, NMOS_ZPX, NMOS_ZPX, NMOS_IMP, NMOS_ABSY, NMOS_IMP, NMOS_ABSY, NMOS_ABSX, NMOS_ABSX, NMOS_ABSX, NMOS_ABSX,
+   NMOS_IMM, NMOS_INDX, NMOS_IMM, NMOS_INDX, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_IMP, NMOS_IMM, NMOS_IMP, NMOS_IMM, NMOS_ABS, NMOS_ABS, NMOS_ABS, NMOS_ABS,
+   NMOS_REL, NMOS_INDY, NMOS_IMP, NMOS_INDY, NMOS_ZPX, NMOS_ZPX, NMOS_ZPY, NMOS_ZPY, NMOS_IMP, NMOS_ABSY, NMOS_IMP, NMOS_ABSY, NMOS_ABSX, NMOS_ABSX, NMOS_ABSY, NMOS_ABSY,
+   NMOS_IMM, NMOS_INDX, NMOS_IMM, NMOS_INDX, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_IMP, NMOS_IMM, NMOS_IMP, NMOS_IMM, NMOS_ABS, NMOS_ABS, NMOS_ABS, NMOS_ABS,
+   NMOS_REL, NMOS_INDY, NMOS_IMP, NMOS_INDY, NMOS_ZPX, NMOS_ZPX, NMOS_ZPY, NMOS_ZPY, NMOS_IMP, NMOS_ABSY, NMOS_IMP, NMOS_ABSY, NMOS_ABSX, NMOS_ABSX, NMOS_ABSY, NMOS_ABSY,
+   NMOS_IMM, NMOS_INDX, NMOS_IMM, NMOS_INDX, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_IMP, NMOS_IMM, NMOS_IMP, NMOS_IMM, NMOS_ABS, NMOS_ABS, NMOS_ABS, NMOS_ABS,
+   NMOS_REL, NMOS_INDY, NMOS_IMP, NMOS_INDY, NMOS_ZPX, NMOS_ZPX, NMOS_ZPX, NMOS_ZPX, NMOS_IMP, NMOS_ABSY, NMOS_IMP, NMOS_ABSY, NMOS_ABSX, NMOS_ABSX, NMOS_ABSX, NMOS_ABSX,
+   NMOS_IMM, NMOS_INDX, NMOS_IMM, NMOS_INDX, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_ZP, NMOS_IMP, NMOS_IMM, NMOS_IMP, NMOS_IMM, NMOS_ABS, NMOS_ABS, NMOS_ABS, NMOS_ABS,
+   NMOS_REL, NMOS_INDY, NMOS_IMP, NMOS_INDY, NMOS_ZPX, NMOS_ZPX, NMOS_ZPX, NMOS_ZPX, NMOS_IMP, NMOS_ABSY, NMOS_IMP, NMOS_ABSY, NMOS_ABSX, NMOS_ABSX, NMOS_ABSX, NMOS_ABSX
+};
+
+static uint8_t nmos6502_instruction_size(uint8_t opcode)
+{
+   switch ((nmos_addr_mode_t)nmos6502_addr_mode[opcode]) {
+      case NMOS_IMP:
+      case NMOS_ACC:
+         return 1;
+      case NMOS_IMM:
+      case NMOS_ZP:
+      case NMOS_ZPX:
+      case NMOS_ZPY:
+      case NMOS_INDX:
+      case NMOS_INDY:
+      case NMOS_REL:
+         return 2;
+      case NMOS_ABS:
+      case NMOS_ABSX:
+      case NMOS_ABSY:
+      case NMOS_IND:
+         return 3;
+   }
+   return 1;
+}
+
+static int nmos6502_is_kil(uint8_t opcode)
+{
+   switch (opcode) {
+      case 0x02: case 0x12: case 0x22: case 0x32:
+      case 0x42: case 0x52: case 0x62: case 0x72:
+      case 0x92: case 0xB2: case 0xD2: case 0xF2:
+         return 1;
+   }
+   return 0;
+}
+
+static int nmos6502_is_branch(uint8_t opcode)
+{
+   return (opcode & 0x1Fu) == 0x10u;
+}
+
+static int nmos6502_is_store(uint8_t opcode)
+{
+   switch (opcode) {
+      case 0x81: case 0x83: case 0x84: case 0x85: case 0x86: case 0x87:
+      case 0x8C: case 0x8D: case 0x8E: case 0x8F:
+      case 0x91: case 0x93: case 0x94: case 0x95: case 0x96: case 0x97:
+      case 0x99: case 0x9B: case 0x9C: case 0x9D: case 0x9E: case 0x9F:
+         return 1;
+   }
+   return 0;
+}
+
+static int nmos6502_is_rmw(uint8_t opcode)
+{
+   switch (opcode) {
+      case 0x03: case 0x06: case 0x07: case 0x0E: case 0x0F:
+      case 0x13: case 0x16: case 0x17: case 0x1B: case 0x1E: case 0x1F:
+      case 0x23: case 0x26: case 0x27: case 0x2E: case 0x2F:
+      case 0x33: case 0x36: case 0x37: case 0x3B: case 0x3E: case 0x3F:
+      case 0x43: case 0x46: case 0x47: case 0x4E: case 0x4F:
+      case 0x53: case 0x56: case 0x57: case 0x5B: case 0x5E: case 0x5F:
+      case 0x63: case 0x66: case 0x67: case 0x6E: case 0x6F:
+      case 0x73: case 0x76: case 0x77: case 0x7B: case 0x7E: case 0x7F:
+      case 0xC3: case 0xC6: case 0xC7: case 0xCE: case 0xCF:
+      case 0xD3: case 0xD6: case 0xD7: case 0xDB: case 0xDE: case 0xDF:
+      case 0xE3: case 0xE6: case 0xE7: case 0xEE: case 0xEF:
+      case 0xF3: case 0xF6: case 0xF7: case 0xFB: case 0xFE: case 0xFF:
+         return 1;
+   }
+   return 0;
+}
+
+static int nmos6502_is_stable_indexed_store(uint8_t opcode)
+{
+   return opcode == 0x99u || opcode == 0x9Du;
+}
+
+static int nmos6502_is_stack_push(uint8_t opcode)
+{
+   return opcode == 0x08u || opcode == 0x48u;
+}
+
+static int nmos6502_is_stack_pull(uint8_t opcode)
+{
+   return opcode == 0x28u || opcode == 0x68u;
+}
+
+static nmos_access_t nmos6502_access_kind(uint8_t opcode)
+{
+   nmos_addr_mode_t mode = (nmos_addr_mode_t)nmos6502_addr_mode[opcode];
+   if (nmos6502_is_store(opcode))
+      return NMOS_ACCESS_WRITE;
+   if (nmos6502_is_rmw(opcode))
+      return NMOS_ACCESS_RMW;
+   if (opcode == 0x20u || opcode == 0x4Cu || opcode == 0x6Cu ||
+       opcode == 0x00u || nmos6502_is_branch(opcode) || nmos6502_is_kil(opcode))
+      return NMOS_ACCESS_NONE;
+   switch (mode) {
+      case NMOS_ZP: case NMOS_ZPX: case NMOS_ZPY:
+      case NMOS_ABS: case NMOS_ABSX: case NMOS_ABSY:
+      case NMOS_INDX: case NMOS_INDY:
+         return NMOS_ACCESS_READ;
+      default:
+         return NMOS_ACCESS_NONE;
+   }
+}
+
+static const memory_region_t *read_hazard_at(const linker_config_t *cfg,
+                                             uint16_t address)
+{
+   size_t i;
+   if (!cfg)
+      return NULL;
+   for (i = 0; i < cfg->mem_count; ++i) {
+      const memory_region_t *mem = &cfg->mem[i];
+      uint32_t start;
+      uint32_t end;
+      if (!mem->read_hazard || mem->size == 0)
+         continue;
+      start = mem->has_write_start ? mem->write_start : mem->start;
+      end = start + mem->size;
+      if (address >= start && (uint32_t)address < end)
+         return mem;
+   }
+   return NULL;
+}
+
+static int read_hazard_range_overlap(const linker_config_t *cfg,
+                                     uint16_t start, uint16_t end,
+                                     read_hazard_hit_t *hit,
+                                     const char *cycle)
+{
+   uint32_t a;
+   for (a = start; a <= end; ++a) {
+      const memory_region_t *mem = read_hazard_at(cfg, (uint16_t)a);
+      if (mem) {
+         if (hit) {
+            memset(hit, 0, sizeof(*hit));
+            hit->memory = mem;
+            hit->address = (uint16_t)a;
+            hit->cycle = cycle;
+         }
+         return 1;
+      }
+   }
+   return 0;
+}
+
+static int record_read_hazard(const linker_config_t *cfg, uint16_t address,
+                              const char *cycle, uint8_t index, int has_index,
+                              read_hazard_hit_t *hit)
+{
+   const memory_region_t *mem = read_hazard_at(cfg, address);
+   if (!mem)
+      return 0;
+   if (hit) {
+      memset(hit, 0, sizeof(*hit));
+      hit->memory = mem;
+      hit->address = address;
+      hit->cycle = cycle;
+      hit->index = index;
+      hit->has_index = has_index;
+   }
+   return 1;
+}
+
+/* Check reads implied by an operand.  Runtime-computed indirect effective
+   addresses are intentionally not guessed, but all statically knowable dummy,
+   pointer, direct, indexed, and RMW reads are modeled. */
+static int nmos6502_operand_read_hazard_range(const linker_config_t *cfg,
+                                              uint8_t opcode, uint16_t operand,
+                                              uint8_t index_min, uint8_t index_max,
+                                              read_hazard_hit_t *hit)
+{
+   nmos_addr_mode_t mode = (nmos_addr_mode_t)nmos6502_addr_mode[opcode];
+   nmos_access_t access = nmos6502_access_kind(opcode);
+   unsigned int i;
+
+   switch (mode) {
+      case NMOS_ZP:
+         if ((access == NMOS_ACCESS_READ || access == NMOS_ACCESS_RMW) &&
+             record_read_hazard(cfg, (uint8_t)operand,
+                                "architectural zero-page read", 0, 0, hit))
+            return 1;
+         break;
+
+      case NMOS_ZPX:
+      case NMOS_ZPY:
+         if (record_read_hazard(cfg, (uint8_t)operand,
+                                "zero-page indexed dummy read", 0, 0, hit))
+            return 1;
+         if (access == NMOS_ACCESS_READ || access == NMOS_ACCESS_RMW) {
+            for (i = index_min; i <= (unsigned int)index_max; ++i) {
+               if (record_read_hazard(cfg, (uint8_t)(operand + i),
+                                      "zero-page indexed architectural read",
+                                      (uint8_t)i, 1, hit))
+                  return 1;
+            }
+         }
+         break;
+
+      case NMOS_ABS:
+         if ((access == NMOS_ACCESS_READ || access == NMOS_ACCESS_RMW) &&
+             record_read_hazard(cfg, operand, "architectural absolute read",
+                                0, 0, hit))
+            return 1;
+         break;
+
+      case NMOS_ABSX:
+      case NMOS_ABSY:
+         for (i = index_min; i <= (unsigned int)index_max; ++i) {
+            uint16_t final = (uint16_t)(operand + i);
+            uint16_t dummy = (uint16_t)((operand & 0xFF00u) | (final & 0x00FFu));
+            int crossed = ((unsigned int)(operand & 0x00FFu) + i) > 0xFFu;
+            const memory_region_t *dummy_mem;
+
+            if ((access == NMOS_ACCESS_WRITE || access == NMOS_ACCESS_RMW ||
+                 (access == NMOS_ACCESS_READ && crossed)) &&
+                (dummy_mem = read_hazard_at(cfg, dummy)) != NULL) {
+               /* An indexed STA pre-read of the exact write-port byte which is
+                  immediately overwritten by that same STA cannot leave RAM
+                  corruption.  Do not extend this exception to unstable
+                  unofficial stores whose page-cross write address is silicon-
+                  dependent. */
+               if (!(access == NMOS_ACCESS_WRITE &&
+                     nmos6502_is_stable_indexed_store(opcode) &&
+                     dummy == final && dummy_mem->has_write_start)) {
+                  if (hit) {
+                     memset(hit, 0, sizeof(*hit));
+                     hit->memory = dummy_mem;
+                     hit->address = dummy;
+                     hit->cycle = access == NMOS_ACCESS_READ
+                        ? "absolute indexed page-cross dummy read"
+                        : "absolute indexed pre-write/RMW dummy read";
+                     hit->index = (uint8_t)i;
+                     hit->has_index = 1;
+                  }
+                  return 1;
+               }
+            }
+            if ((access == NMOS_ACCESS_READ || access == NMOS_ACCESS_RMW) &&
+                record_read_hazard(cfg, final,
+                                   "absolute indexed architectural read",
+                                   (uint8_t)i, 1, hit))
+               return 1;
+         }
+         break;
+
+      case NMOS_INDX:
+         if (record_read_hazard(cfg, (uint8_t)operand,
+                                "(zp,X) unindexed dummy read", 0, 0, hit))
+            return 1;
+         if (read_hazard_range_overlap(cfg, 0x0000u, 0x00FFu, hit,
+                                       "(zp,X) runtime-indexed pointer read"))
+            return 1;
+         break;
+
+      case NMOS_INDY:
+         if (record_read_hazard(cfg, (uint8_t)operand,
+                                "(zp),Y pointer low read", 0, 0, hit) ||
+             record_read_hazard(cfg, (uint8_t)(operand + 1u),
+                                "(zp),Y pointer high read", 0, 0, hit))
+            return 1;
+         break;
+
+      case NMOS_IND: {
+         uint16_t hi = (uint16_t)((operand & 0xFF00u) |
+                                  ((operand + 1u) & 0x00FFu));
+         if (record_read_hazard(cfg, operand, "JMP indirect vector low read",
+                                0, 0, hit) ||
+             record_read_hazard(cfg, hi, "JMP indirect vector high read",
+                                0, 0, hit))
+            return 1;
+         break;
+      }
+
+      default:
+         break;
+   }
+   return 0;
+}
+
+static int nmos6502_instruction_read_hazard_range(const linker_config_t *cfg,
+                                                  uint8_t opcode, uint16_t pc,
+                                                  uint16_t operand,
+                                                  uint8_t index_min, uint8_t index_max,
+                                                  read_hazard_hit_t *hit)
+{
+   uint8_t size = nmos6502_instruction_size(opcode);
+   unsigned int i;
+
+   for (i = 0; i < size; ++i) {
+      if (record_read_hazard(cfg, (uint16_t)(pc + i),
+                             "instruction/operand fetch", 0, 0, hit))
+         return 1;
+   }
+
+   if (opcode == 0x00u) {
+      if (record_read_hazard(cfg, (uint16_t)(pc + 1u),
+                             "BRK padding-byte read", 0, 0, hit) ||
+          record_read_hazard(cfg, 0xFFFEu, "BRK vector low read", 0, 0, hit) ||
+          record_read_hazard(cfg, 0xFFFFu, "BRK vector high read", 0, 0, hit))
+         return 1;
+      return 0;
+   }
+
+   if (nmos6502_is_branch(opcode)) {
+      uint16_t next = (uint16_t)(pc + 2u);
+      uint16_t target = (uint16_t)(next + (int8_t)(operand & 0xFFu));
+      if (record_read_hazard(cfg, next, "taken-branch next-PC dummy read",
+                             0, 0, hit))
+         return 1;
+      if ((next & 0xFF00u) != (target & 0xFF00u)) {
+         uint16_t dummy = (uint16_t)((next & 0xFF00u) | (target & 0x00FFu));
+         if (record_read_hazard(cfg, dummy,
+                                "taken page-cross branch dummy read", 0, 0, hit))
+            return 1;
+      }
+      return 0;
+   }
+
+   if (opcode == 0x6Cu) {
+      uint16_t hi = (uint16_t)((operand & 0xFF00u) |
+                               ((operand + 1u) & 0x00FFu));
+      if (record_read_hazard(cfg, operand, "JMP indirect vector low read",
+                             0, 0, hit) ||
+          record_read_hazard(cfg, hi, "JMP indirect vector high read",
+                             0, 0, hit))
+         return 1;
+      return 0;
+   }
+
+   if (opcode == 0x20u) {
+      if (read_hazard_range_overlap(cfg, 0x0100u, 0x01FFu, hit,
+                                    "JSR stack-page dummy read"))
+         return 1;
+      return 0;
+   }
+
+   if (nmos6502_is_stack_pull(opcode) || opcode == 0x40u || opcode == 0x60u) {
+      if (record_read_hazard(cfg, (uint16_t)(pc + 1u),
+                             "stack instruction next-PC dummy read", 0, 0, hit) ||
+          read_hazard_range_overlap(cfg, 0x0100u, 0x01FFu, hit,
+                                    "runtime stack-page read"))
+         return 1;
+      return 0;
+   }
+
+   if (nmos6502_is_stack_push(opcode) || nmos6502_is_kil(opcode)) {
+      if (record_read_hazard(cfg, (uint16_t)(pc + 1u),
+                             nmos6502_is_kil(opcode)
+                                ? "KIL/JAM next-PC bus read"
+                                : "stack push next-PC dummy read",
+                             0, 0, hit))
+         return 1;
+      return 0;
+   }
+
+   if (nmos6502_addr_mode[opcode] == NMOS_IMP ||
+       nmos6502_addr_mode[opcode] == NMOS_ACC) {
+      if (record_read_hazard(cfg, (uint16_t)(pc + 1u),
+                             "implied/accumulator next-PC dummy read",
+                             0, 0, hit))
+         return 1;
+      return 0;
+   }
+
+   return nmos6502_operand_read_hazard_range(cfg, opcode, operand,
+                                             index_min, index_max, hit);
+}
 
 //! @brief Duplicate a string for tool-owned storage, terminating with a diagnostic on failure.
 char *xstrdup(const char *s)
@@ -590,7 +1011,7 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    const char *p;
    const char *mark;
    size_t name_len;
-   unsigned int read_start, write_start, size, split, priority;
+   unsigned int read_start, write_start, size, split, priority, read_hazard = 0;
    char type_code;
    int consumed = 0;
 
@@ -604,9 +1025,17 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    name_len = (size_t)(mark - p);
    if (name_len >= sizeof(out->name))
       return -1;
-   if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X%n",
+   if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X%n",
               &read_start, &write_start, &size, &split, &type_code,
-              &priority, &consumed) != 6 || split > 1u ||
+              &priority, &read_hazard, &consumed) != 7) {
+      read_hazard = 0;
+      consumed = 0;
+      if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X%n",
+                 &read_start, &write_start, &size, &split, &type_code,
+                 &priority, &consumed) != 6)
+         return -1;
+   }
+   if (split > 1u || read_hazard > 1u ||
        (type_code != 'W' && type_code != 'O'))
       return -1;
 
@@ -616,6 +1045,7 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    out->start = (uint16_t)read_start;
    out->write_start = (uint16_t)write_start;
    out->has_write_start = (int)split;
+   out->read_hazard = (int)read_hazard;
    out->size = (uint16_t)size;
    out->physical_size = (uint16_t)size;
    snprintf(out->type, sizeof(out->type), "%s", type_code == 'W' ? "rw" : "ro");
@@ -634,6 +1064,7 @@ static int mem_declaration_equal(const memory_region_t *a,
    return a->start == b->start &&
           a->write_start == b->write_start &&
           a->has_write_start == b->has_write_start &&
+          a->read_hazard == b->read_hazard &&
           a->size == b->size &&
           str_ieq(a->type, b->type) &&
           a->priority == b->priority;
@@ -872,6 +1303,7 @@ static void collect_c26_mem_declarations(linker_config_t *cfg, const input_set_t
          if (mem) {
             int callstack_callgraph = mem->callstack_callgraph;
             uint16_t callstack_extra = mem->callstack_extra;
+            int cfg_read_hazard = mem->read_hazard;
             char file[MAX_PATH];
             char bank_name[MAX_NAME];
             int fill_yes = mem->fill_yes;
@@ -883,6 +1315,7 @@ static void collect_c26_mem_declarations(linker_config_t *cfg, const input_set_t
             mem->define_yes = 1;
             mem->callstack_callgraph = callstack_callgraph;
             mem->callstack_extra = callstack_extra;
+            mem->read_hazard = mem->read_hazard || cfg_read_hazard;
             snprintf(mem->file, sizeof(mem->file), "%s", file);
             snprintf(mem->bank_name, sizeof(mem->bank_name), "%s", bank_name);
             mem->fill_yes = fill_yes;
@@ -1997,6 +2430,8 @@ static void parse_memory_property(memory_region_t *mem, const char *key, const c
    } else if (str_ieq(key, "write_start")) {
       mem->write_start = parse_u16_property("memory write_start", value, 0, 0xFFFFu);
       mem->has_write_start = 1;
+   } else if (str_ieq(key, "read_hazard")) {
+      mem->read_hazard = parse_yes_no("memory read_hazard", value);
    } else if (str_ieq(key, "size")) {
       mem->size = parse_u16_property("memory size", value, 1, 0xFFFFu);
    } else if (str_ieq(key, "type")) {
@@ -4181,7 +4616,8 @@ static uint16_t component_alignment_phase(const object_layout_t *constraints,
 }
 
 //! @brief Return whether all hard page constraints for one object hold at an address.
-static int object_page_constraints_hold(const object_layout_t *lay, uint32_t addr)
+static int object_page_constraints_hold(const linker_config_t *cfg,
+                                        const object_layout_t *lay, uint32_t addr)
 {
    if (!lay)
       return 1;
@@ -4200,12 +4636,20 @@ static int object_page_constraints_hold(const object_layout_t *lay, uint32_t add
       if (!range_fits_one_page(range_addr, range_size))
          return 0;
    }
+   for (size_t i = 0; i < lay->read_hazard_constraint_count; ++i) {
+      const read_hazard_constraint_t *constraint = &lay->read_hazard_constraints[i];
+      uint16_t operand = (uint16_t)(addr + constraint->operand_delta);
+      if (nmos6502_operand_read_hazard_range(cfg, constraint->opcode, operand,
+                                             0, 255, NULL))
+         return 0;
+   }
    return 1;
 }
 
 //! @brief Consume the earliest hole satisfying alignment and page constraints.
-static int cursor_take_hole(memory_cursor_t *cursor, uint16_t size, uint16_t alignment,
-                            uint16_t phase, int prefer_whole_page, const object_layout_t *constraints,
+static int cursor_take_hole(memory_cursor_t *cursor, const linker_config_t *cfg,
+                            uint16_t size, uint16_t alignment, uint16_t phase,
+                            int prefer_whole_page, const object_layout_t *constraints,
                             uint16_t *addr_out)
 {
    size_t i;
@@ -4220,7 +4664,7 @@ static int cursor_take_hole(memory_cursor_t *cursor, uint16_t size, uint16_t ali
       uint32_t addr = align_up_phase_u32(hole.start, alignment, phase);
 
       while (addr + size <= hole.end && addr <= 0xffffu) {
-         if (object_page_constraints_hold(constraints, addr) &&
+         if (object_page_constraints_hold(cfg, constraints, addr) &&
              (!prefer_whole_page || range_fits_one_page(addr, size)))
             break;
          addr = align_up_phase_u32(addr + 1u, alignment, phase);
@@ -4299,7 +4743,8 @@ static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t
    int hard_page = constraints &&
       (constraints->flags & O26_LAYOUT_PAGE_CONTAINED);
    int has_hard_constraint = constraints &&
-      (constraints->flags & (O26_LAYOUT_PAGE_CONTAINED | O26_LAYOUT_INDEX_RANGE));
+      (constraints->flags & (O26_LAYOUT_PAGE_CONTAINED | O26_LAYOUT_INDEX_RANGE) ||
+       constraints->read_hazard_constraint_count != 0);
    uint16_t phase = component_alignment_phase(constraints, alignment);
 
    if (size == 0)
@@ -4310,11 +4755,11 @@ static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t
       exit(1);
    }
    if ((wants_page || has_hard_constraint) &&
-       cursor_take_hole(cursor, size, alignment, phase, wants_page, constraints, &hole_addr))
+       cursor_take_hole(cursor, cfg, size, alignment, phase, wants_page, constraints, &hole_addr))
       return hole_addr;
 
    addr = align_up_phase_u32(cursor->cur, alignment, phase);
-   while (!object_page_constraints_hold(constraints, addr)) {
+   while (!object_page_constraints_hold(cfg, constraints, addr)) {
       addr = align_up_phase_u32(addr + 1u, alignment, phase);
       if (constraints && constraints->segid == O26_SEG_ZP && addr >= 0x0100u) {
          fprintf(stderr,
@@ -4360,7 +4805,8 @@ static int simulate_alloc_from_region_policy(layout_t *layout,
    int hard_page = constraints &&
       (constraints->flags & O26_LAYOUT_PAGE_CONTAINED);
    int has_hard_constraint = constraints &&
-      (constraints->flags & (O26_LAYOUT_PAGE_CONTAINED | O26_LAYOUT_INDEX_RANGE));
+      (constraints->flags & (O26_LAYOUT_PAGE_CONTAINED | O26_LAYOUT_INDEX_RANGE) ||
+       constraints->read_hazard_constraint_count != 0);
    uint16_t phase = component_alignment_phase(constraints, alignment);
 
    if (size == 0)
@@ -4368,12 +4814,12 @@ static int simulate_alloc_from_region_policy(layout_t *layout,
    if (hard_page && size > 0x0100u)
       return 0;
    if ((wants_page || has_hard_constraint) &&
-       cursor_take_hole(cursor, size, alignment, phase, wants_page,
+       cursor_take_hole(cursor, cfg, size, alignment, phase, wants_page,
                         constraints, &hole_addr))
       return 1;
 
    addr = align_up_phase_u32(cursor->cur, alignment, phase);
-   while (!object_page_constraints_hold(constraints, addr)) {
+   while (!object_page_constraints_hold(cfg, constraints, addr)) {
       addr = align_up_phase_u32(addr + 1u, alignment, phase);
       if (constraints && constraints->segid == O26_SEG_ZP && addr >= 0x0100u)
          return 0;
@@ -4449,7 +4895,7 @@ static int simulate_alloc_code_branch_aware(layout_t *layout,
       const memory_hole_t hole = cursor->holes[i];
       addr = align_up_phase_u32(hole.start, alignment, phase);
       while (addr + lay->size <= hole.end && addr + lay->size <= limit) {
-         if (object_page_constraints_hold(lay, addr))
+         if (object_page_constraints_hold(cfg, lay, addr))
             CONSIDER_SIM_BRANCH_CANDIDATE(addr, 0, 1, i);
          if (addr > 0xffffu - step)
             break;
@@ -4462,7 +4908,7 @@ static int simulate_alloc_code_branch_aware(layout_t *layout,
    if (tail_last > 0xffffu)
       tail_last = 0xffffu;
    while (addr <= tail_last && addr + lay->size <= limit) {
-      if (object_page_constraints_hold(lay, addr))
+      if (object_page_constraints_hold(cfg, lay, addr))
          CONSIDER_SIM_BRANCH_CANDIDATE(addr, addr + lay->size - cursor->cur, 0, 0);
       if (addr > 0xffffu - step)
          break;
@@ -4551,7 +4997,7 @@ static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t 
       const memory_hole_t hole = cursor->holes[i];
       addr = align_up_phase_u32(hole.start, alignment, phase);
       while (addr + lay->size <= hole.end && addr + lay->size <= limit) {
-         if (object_page_constraints_hold(lay, addr))
+         if (object_page_constraints_hold(cfg, lay, addr))
             CONSIDER_BRANCH_CANDIDATE(addr, 0, 1, i);
          if (addr > 0xffffu - step)
             break;
@@ -4567,7 +5013,7 @@ static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t 
    if (tail_last > 0xffffu)
       tail_last = 0xffffu;
    while (addr <= tail_last && addr + lay->size <= limit) {
-      if (object_page_constraints_hold(lay, addr))
+      if (object_page_constraints_hold(cfg, lay, addr))
          CONSIDER_BRANCH_CANDIDATE(addr, addr + lay->size - cursor->cur, 0, 0);
       if (addr > 0xffffu - step)
          break;
@@ -5797,6 +6243,212 @@ static uint16_t bank_placement_current_word(const o26_segment_t *segment,
          break;
    }
    return reloc->offset < segment->length ? segment->data[reloc->offset] : 0;
+}
+
+
+//! @brief Return whether one source listing record represents an instruction.
+static int listing_record_is_instruction(const listing_record_t *record,
+                                         uint8_t opcode)
+{
+   const char *p;
+   if (!record || record->size != nmos6502_instruction_size(opcode) ||
+       !record->asm_text)
+      return 0;
+   p = record->asm_text;
+   while (isspace((unsigned char)*p))
+      ++p;
+   if (strncasecmp(p, "asm ", 4) == 0) {
+      p += 4;
+      while (isspace((unsigned char)*p))
+         ++p;
+   }
+   while (*p) {
+      const char *colon = strchr(p, ':');
+      const char *space = strpbrk(p, " \t");
+      if (!colon || (space && space < colon))
+         break;
+      p = colon + 1;
+      while (isspace((unsigned char)*p))
+         ++p;
+   }
+   return *p != '\0' && *p != '.' && *p != ';' &&
+      (isalpha((unsigned char)*p) || *p == '_');
+}
+
+//! @brief Find the selected definition of an imported symbol and its owning layout.
+static object_layout_t *read_hazard_export_layout(input_set_t *in,
+                                                  const char *name,
+                                                  const symbol_t **symbol_out)
+{
+   char *weak;
+   size_t pass, i, j;
+   if (symbol_out)
+      *symbol_out = NULL;
+   if (!in || !name)
+      return NULL;
+   weak = make_weak_name(name);
+   for (pass = 0; pass < 2; ++pass) {
+      const char *wanted = pass == 0 ? name : weak;
+      for (i = 0; i < in->object_count; ++i) {
+         object_file_t *obj = &in->objects[i];
+         for (j = 0; j < obj->export_count; ++j) {
+            const symbol_t *sym = &obj->exports[j];
+            const object_layout_t *found;
+            if (strcmp(sym->name, wanted) != 0 || sym->segid == O26_SEG_ABS)
+               continue;
+            found = find_layout_for_value(obj, sym->segid, sym->value);
+            if (found) {
+               if (symbol_out)
+                  *symbol_out = sym;
+               free(weak);
+               return &obj->layouts[(size_t)(found - obj->layouts)];
+            }
+         }
+      }
+   }
+   free(weak);
+   return NULL;
+}
+
+//! @brief Resolve one pre-layout relocation to a movable ROM layout and operand delta.
+static object_layout_t *read_hazard_reloc_target(input_set_t *in,
+                                                 object_file_t *obj,
+                                                 const reloc_t *reloc,
+                                                 uint16_t current_word,
+                                                 uint16_t *delta_out,
+                                                 const char **name_out)
+{
+   object_layout_t *target = NULL;
+   uint16_t target_value = current_word;
+   const char *name = NULL;
+
+   if (reloc->segid == O26_SEG_UNDEF) {
+      const symbol_t *sym = NULL;
+      if (reloc->undef_index >= obj->undef_count)
+         return NULL;
+      target = read_hazard_export_layout(in, obj->undefs[reloc->undef_index], &sym);
+      if (!target || !sym)
+         return NULL;
+      target_value = (uint16_t)(sym->value + current_word);
+      name = obj->undefs[reloc->undef_index];
+   } else if (reloc->has_layout_index) {
+      if (reloc->layout_index >= obj->layout_count)
+         return NULL;
+      target = &obj->layouts[reloc->layout_index];
+      target_value = current_word;
+      name = target->name;
+   } else if (reloc->segid != O26_SEG_ABS) {
+      const object_layout_t *found = find_layout_for_value(obj, reloc->segid,
+                                                           current_word);
+      if (!found)
+         return NULL;
+      target = &obj->layouts[(size_t)(found - obj->layouts)];
+      target_value = current_word;
+      name = target->name;
+   }
+
+   /* Load-address operands are movable before ROM placement.  Runtime RAM
+      layouts have separate load/run placement and are left to final validation
+      rather than incorrectly constraining their ROM initializer image. */
+   if (!target || target->segid != O26_SEG_TEXT)
+      return NULL;
+   if (delta_out)
+      *delta_out = (uint16_t)(target_value - target->packed_base);
+   if (name_out)
+      *name_out = name ? name : target->name;
+   return target;
+}
+
+//! @brief Add one unique destructive-read placement constraint to a ROM layout.
+static void add_read_hazard_constraint(object_layout_t *target, uint8_t opcode,
+                                       uint16_t operand_delta,
+                                       const listing_record_t *record,
+                                       const char *referenced_name)
+{
+   size_t i;
+   read_hazard_constraint_t *constraint;
+   for (i = 0; i < target->read_hazard_constraint_count; ++i) {
+      constraint = &target->read_hazard_constraints[i];
+      if (constraint->opcode == opcode &&
+          constraint->operand_delta == operand_delta &&
+          constraint->source_line == record->source_line &&
+          strcmp(constraint->source_file ? constraint->source_file : "",
+                 record->source_file ? record->source_file : "") == 0)
+         return;
+   }
+   target->read_hazard_constraints = (read_hazard_constraint_t *)xrealloc(
+      target->read_hazard_constraints,
+      (target->read_hazard_constraint_count + 1) * sizeof(*target->read_hazard_constraints));
+   constraint = &target->read_hazard_constraints[target->read_hazard_constraint_count++];
+   memset(constraint, 0, sizeof(*constraint));
+   constraint->opcode = opcode;
+   constraint->operand_delta = operand_delta;
+   constraint->source_file = record->source_file;
+   constraint->source_line = record->source_line;
+   constraint->asm_text = record->asm_text;
+   constraint->referenced_name = referenced_name ? referenced_name : target->name;
+}
+
+//! @brief Discover relocatable operands whose final placement must avoid destructive reads.
+static void prepare_read_hazard_constraints(const linker_config_t *cfg,
+                                            input_set_t *in)
+{
+   size_t i, j, k;
+   if (!cfg || !in)
+      return;
+   for (i = 0; i < in->object_count; ++i) {
+      object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->listing_count; ++j) {
+         const listing_record_t *record = &obj->listing[j];
+         object_layout_t *source_layout;
+         const o26_segment_t *segment;
+         size_t statement_offset;
+         uint8_t opcode;
+         nmos_addr_mode_t mode;
+
+         if (record->layout_index >= obj->layout_count || record->size < 2)
+            continue;
+         source_layout = &obj->layouts[record->layout_index];
+         if (source_layout->image_segid == O26_SEG_TEXT)
+            segment = &obj->text;
+         else if (source_layout->image_segid == O26_SEG_DATA)
+            segment = &obj->data;
+         else
+            continue;
+         statement_offset = (size_t)source_layout->image_base + record->offset;
+         if (statement_offset >= segment->length)
+            continue;
+         opcode = segment->data[statement_offset];
+         if (!listing_record_is_instruction(record, opcode))
+            continue;
+         mode = (nmos_addr_mode_t)nmos6502_addr_mode[opcode];
+         if (mode != NMOS_ABS && mode != NMOS_ABSX &&
+             mode != NMOS_ABSY && mode != NMOS_IND)
+            continue;
+
+         for (k = 0; k < segment->reloc_count; ++k) {
+            const reloc_t *reloc = &segment->relocs[k];
+            uint16_t current_word;
+            uint16_t delta;
+            const char *referenced_name = NULL;
+            object_layout_t *target;
+            uint8_t shape = reloc->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD);
+            if (shape == 0)
+               continue;
+            if (reloc->offset != statement_offset + 1u &&
+                reloc->offset != statement_offset + 2u)
+               continue;
+            current_word = bank_placement_current_word(segment, reloc);
+            target = read_hazard_reloc_target(in, obj, reloc, current_word,
+                                              &delta, &referenced_name);
+            if (!target)
+               continue;
+            add_read_hazard_constraint(target, opcode, delta, record,
+                                       referenced_name);
+            break;
+         }
+      }
+   }
 }
 
 //! @brief Attach a hard bank pin discovered before component collapse.
@@ -7772,7 +8424,7 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                         phase_overlay_candidate_t *member = &phase_candidates[k];
                         if (member->group_index != group_index)
                            continue;
-                        if (!object_page_constraints_hold(member->lay, group->run_addr) ||
+                        if (!object_page_constraints_hold(cfg, member->lay, group->run_addr) ||
                             (member->lay->component_alignment > 1 &&
                              (group->run_addr % member->lay->component_alignment) !=
                                 member->lay->component_phase)) {
@@ -7835,7 +8487,7 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                         phase_overlay_candidate_t *member = &phase_candidates[k];
                         if (member->group_index != group_index)
                            continue;
-                        if (!object_page_constraints_hold(member->lay, group->run_addr) ||
+                        if (!object_page_constraints_hold(cfg, member->lay, group->run_addr) ||
                             (member->lay->component_alignment > 1 &&
                              (group->run_addr % member->lay->component_alignment) !=
                                 member->lay->component_phase)) {
@@ -9913,6 +10565,142 @@ static linked_listing_entry_t *collect_linked_listing_entries(const input_set_t 
    return entries;
 }
 
+//! @brief Resolve a final instruction operand to a local exact layout when available.
+static const object_layout_t *listing_operand_reference(const object_file_t *obj,
+                                                        const object_layout_t *layout,
+                                                        const listing_record_t *record,
+                                                        const char **name_out)
+{
+   const o26_segment_t *segment;
+   size_t statement_offset;
+   size_t i;
+   if (name_out)
+      *name_out = "<fixed operand>";
+   if (!obj || !layout || !record)
+      return NULL;
+   if (layout->image_segid == O26_SEG_TEXT)
+      segment = &obj->text;
+   else if (layout->image_segid == O26_SEG_DATA)
+      segment = &obj->data;
+   else
+      return NULL;
+   statement_offset = (size_t)layout->image_base + record->offset;
+   for (i = 0; i < segment->reloc_count; ++i) {
+      const reloc_t *reloc = &segment->relocs[i];
+      if (reloc->offset != statement_offset + 1u &&
+          reloc->offset != statement_offset + 2u)
+         continue;
+      if (reloc->segid == O26_SEG_UNDEF && reloc->undef_index < obj->undef_count) {
+         if (name_out)
+            *name_out = obj->undefs[reloc->undef_index];
+         return NULL;
+      }
+      if (reloc->has_layout_index && reloc->layout_index < obj->layout_count) {
+         if (name_out)
+            *name_out = obj->layouts[reloc->layout_index].name;
+         return &obj->layouts[reloc->layout_index];
+      }
+      if (reloc->segid == O26_SEG_ABS) {
+         if (name_out)
+            *name_out = "<absolute operand>";
+         return NULL;
+      }
+      if (name_out)
+         *name_out = "<relocatable operand>";
+      return NULL;
+   }
+   return NULL;
+}
+
+//! @brief Limit symbolic indexed references to effective addresses inside their object.
+static int indexed_reference_range(const object_layout_t *target, uint16_t operand,
+                                   uint8_t *min_out, uint8_t *max_out)
+{
+   uint32_t base;
+   unsigned int i;
+   unsigned int first = 256u, last = 0u, matches = 0u;
+   if (!target || !min_out || !max_out || target->size == 0)
+      return 0;
+   base = target->segid == O26_SEG_TEXT ? target->load_addr : target->run_addr;
+   for (i = 0; i < 256u; ++i) {
+      uint16_t effective = (uint16_t)(operand + i);
+      if ((uint32_t)effective >= base &&
+          (uint32_t)effective < base + target->size) {
+         if (first == 256u)
+            first = i;
+         last = i;
+         matches++;
+      }
+   }
+   if (matches == 0 || matches != last - first + 1u)
+      return 0;
+   *min_out = (uint8_t)first;
+   *max_out = (uint8_t)last;
+   return 1;
+}
+
+//! @brief Reject destructive NMOS-6502 reads visible in the final linked instruction bytes.
+static void validate_linked_read_hazards(const linker_config_t *cfg,
+                                         const input_set_t *in)
+{
+   linked_listing_entry_t *entries;
+   size_t count = 0;
+   size_t i;
+
+   entries = collect_linked_listing_entries(in, &count);
+   for (i = 0; i < count; ++i) {
+      const linked_listing_entry_t *entry = &entries[i];
+      const listing_record_t *record = entry->record;
+      uint8_t opcode = entry->bytes[0];
+      uint16_t operand = 0;
+      read_hazard_hit_t hit;
+      uint32_t write_start;
+      uint32_t write_end;
+      const char *reference = "<fixed operand>";
+      const object_layout_t *target;
+      uint8_t index_min = 0, index_max = 255;
+
+      if (!listing_record_is_instruction(record, opcode))
+         continue;
+      if (record->size >= 2)
+         operand = entry->bytes[1];
+      if (record->size >= 3)
+         operand |= (uint16_t)(entry->bytes[2] << 8);
+      target = listing_operand_reference(entry->obj, entry->layout, record, &reference);
+      if ((nmos6502_addr_mode[opcode] == NMOS_ABSX ||
+           nmos6502_addr_mode[opcode] == NMOS_ABSY) && target)
+         (void)indexed_reference_range(target, operand, &index_min, &index_max);
+      if (!nmos6502_instruction_read_hazard_range(cfg, opcode, entry->addr,
+                                                  operand, index_min, index_max, &hit))
+         continue;
+      write_start = hit.memory->has_write_start ? hit.memory->write_start
+                                                : hit.memory->start;
+      write_end = write_start + hit.memory->size - 1u;
+      fprintf(stderr,
+              "vcsc-ld: destructive dummy/read hazard at %s:%u: %s\n"
+              "vcsc-ld: linked PC=$%04X opcode=$%02X operand=$%04X may perform %s at $%04X%s%s\n"
+              "vcsc-ld: operand/reference %s; memory '%s' destructive-read window $%04X-$%04X\n",
+              record->source_file ? record->source_file : entry->obj->origin,
+              (unsigned)record->source_line,
+              record->asm_text ? record->asm_text : "<assembly instruction>",
+              entry->addr, opcode, operand,
+              hit.cycle ? hit.cycle : "a read",
+              hit.address,
+              hit.has_index ? " with runtime index $" : "",
+              hit.has_index ? "XX" : "",
+              reference ? reference : "<unknown operand>",
+              hit.memory->name,
+              (unsigned)write_start, (unsigned)write_end);
+      if (hit.has_index)
+         fprintf(stderr,
+                 "vcsc-ld: first statically hazardous index value is $%02X\n",
+                 hit.index);
+      free(entries);
+      exit(1);
+   }
+   free(entries);
+}
+
 //! @brief Return whether two records share the same original source statement.
 static int listing_same_source(const listing_record_t *a, const listing_record_t *b)
 {
@@ -10546,6 +11334,7 @@ int main(int argc, char **argv)
    validate_absolute_binding_memory_regions(&cfg, &inputs);
    validate_mem_region_metadata(&cfg, &inputs);
    prepare_replicated_rom(&cfg, &inputs);
+   prepare_read_hazard_constraints(&cfg, &inputs);
    assign_automatic_bank_placements(&cfg, &inputs,
                                     bank_placement_mode,
                                     explain_bank_placement);
@@ -10568,6 +11357,7 @@ int main(int argc, char **argv)
    enforce_branch_page_contracts(&inputs);
    add_generated_symbols(&layout);
    resolve_all(&inputs, &layout, &cfg);
+   validate_linked_read_hazards(&cfg, &inputs);
    enforce_declaration_use_contracts(&inputs);
 
    image = (uint8_t *)xmalloc(65536);

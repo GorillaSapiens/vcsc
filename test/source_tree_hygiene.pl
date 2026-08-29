@@ -319,7 +319,7 @@ index($sim_readme,'--split-fill=BYTE')>=0
 !-e File::Spec->catfile($test,'split_memory_local_error_test.c26') &&
 !-e File::Spec->catfile($test,'split_memory_bitfield_write_error_test.c26') &&
 index(slurp(File::Spec->catfile($repo,'libraries','vcs','superchip.c26')),
-      'mem cartram { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };')>=0
+      'mem cartram { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw $read_hazard };')>=0
    or die "automatic Superchip allocation implementation or regression coverage is missing\n";
 for my $cfg_name (qw(vcs_8k_f8sc.cfg vcs_16k_f6sc.cfg vcs_32k_f4sc.cfg)) {
    my $cfg_body=slurp(File::Spec->catfile($repo,'libraries','vcs',$cfg_name));
@@ -705,11 +705,13 @@ $context !~ /^\s*\[x\]/m
 
 my $sc_dummy_hazard=slurp(File::Spec->catfile($repo,'...','superchip_dummy_read_hazard.txt'));
 index($sc_dummy_hazard,'SUPERCHIP DUMMY-READ HAZARD')>=0 &&
-index($sc_dummy_hazard,'$F050 -> diagnostic_detail1_row[5]')>=0 &&
-index($sc_dummy_hazard,'Why this is a linker problem')>=0 &&
-index($sc_dummy_hazard,'Acceptance criteria for Item 46')>=0 &&
+index($sc_dummy_hazard,'Closed as main-roadmap Item 46')>=0 &&
+index($sc_dummy_hazard,'`$read_hazard`')>=0 &&
+index($sc_dummy_hazard,'all 256 opcode')>=0 &&
+index($sc_dummy_hazard,'Runtime-computed indirect effective addresses')>=0 &&
+index($sc_dummy_hazard,'Item 47')>=0 &&
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `superchip_dummy_read_hazard.txt`')>=0
-   or die "Superchip dummy-read hot record lost root cause, linker plan, or README index\n";
+   or die "Superchip dummy-read closeout lost durable contract or README index\n";
 
 my ($next_roadmap_item)=$roadmap =~ /^Current next action: Item (\d+)\b/m;
 my @open_roadmap_items=$roadmap =~ /^\[ \] (\d+)\./mg;

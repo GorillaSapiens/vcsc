@@ -6,201 +6,31 @@
 SUPERCHIP DUMMY-READ HAZARD
 ===========================
 
-Purpose
--------
-This is the focused hot record for the unfinished linker fix exposed by the
-2026-08-28 diagnostic P1 corruption. The bug is not a diagnostic-specific TIA
-problem and must not be fixed by merely moving one variable, padding one object,
-or rewriting one lookup. The linker must understand 6502 bus-cycle side effects
-well enough to keep CPU dummy/ghost reads away from mapper addresses where a
-read itself has destructive or otherwise visible consequences.
+Status
+------
+Closed as main-roadmap Item 46 on 2026-08-28. Detailed reproduction, discarded
+hypotheses, implementation notes, and validation are in that day's context
+history. Executable coverage lives in `test/linker_dummy_read_hazards.pl` and
+`test/vcs_diagnostic_cartridge.pl`; the optional independent raster oracle is
+`test/vcs_diagnostic_cartridge_stella.pl`.
 
-Read this file when working on main-roadmap Item 46. Keep only the durable root
-cause, required linker model, acceptance criteria, and unfinished next steps
-here. Completed experiments belong in the daily context history.
-
-Observed root cause
--------------------
-The user's git bisect placed the start of the diagnostic corruption in
-`badpatch.patch` / commit `4785eb36...`. That patch introduced a 16-byte
-`diagnostic_reposition_table` and indexed table lookups used by the animated TIA
-panel. One generated lookup intentionally used a wrapped index instead of first
-normalizing Y:
-
-    lda diagnostic_reposition_table + 16 - 256,y
-
-In the reproducing F4SC diagnostic link, the table was placed at `$F14D`, so the
-encoded absolute,Y operand became `$F05D`. Y is deliberately in the `$F0-$FF`
-range. The architecturally visible final read is therefore in ROM, but the NMOS
-6502 page-cross sequence performs an intermediate dummy/ghost read before the
-high-byte correction.
-
-For two fixed diagnostic positions the address arithmetic is exact:
-
-    P0 x=32, Y=$F3:
-        encoded base       $F05D
-        final read          $F150
-        dummy/ghost read    $F050
-
-    P1 x=120, Y=$F1:
-        encoded base       $F05D
-        final read          $F14E
-        dummy/ghost read    $F04E
-
-On Superchip cartridges `$F000-$F07F` is the RAM write port and
-`$F080-$F0FF` is the corresponding read port. A CPU *read cycle* to the write
-port is destructive to the underlying Superchip RAM; the exact latched value is
-a bus/device effect and must not be treated as a harmless ordinary read. Thus
-the 6502's dummy reads at `$F050` and `$F04E` corrupt Superchip bytes even
-though no source-level store targets them.
-
-At the time of the failure, `diagnostic_detail1_row[6]` occupied:
-
-    write aliases  $F04B-$F050
-    read aliases   $F0CB-$F0D0
-
-The two dummy reads therefore hit exactly:
-
-    $F04E -> diagnostic_detail1_row[3]
-    $F050 -> diagnostic_detail1_row[5]
-
-Trace evidence
---------------
-Normal source-level writes to DETAIL1 were trapped and were correct. Phase 2
-refreshed the six bytes to the expected sequence:
-
-    1c 31 32 32 00 00
-
-Later frames read back:
-
-    1c 31 32 54 00 11
-             ^^    ^^
-
-Only logical bytes 3 and 5 changed, matching the two ghost addresses above.
-Normal Stella write traps did not identify an unexpected CPU store because the
-offending CPU bus operations are reads; the destructive effect occurs in the
-Superchip write-port hardware/model.
-
-Controls that rule out earlier theories
----------------------------------------
-The following observations are durable discriminators and should not be
-re-investigated unless a new result contradicts them:
-
-* Keeping `diagnostic_detail1_row` in RIOT RAM is clean.
-* Keeping it in physical RIOT RAM but forcing absolute addressing through the
-  `$20AF` 6507 mirror is also clean. This rules out zero-page versus absolute
-  instruction width/timing as the cause.
-* Forcing `.a` absolute accesses to the RIOT copy is clean for the same reason.
-* Moving/padding/moating the Superchip objects changes where the visible damage
-  appears rather than curing the class of problem; address layout changes which
-  bytes overlap the hazardous ghost-read addresses.
-* Direct `cartram` load/store lowering visibly uses the correct split aliases in
-  the human-readable `.lst`: stores target the `$F000-$F07F` write alias and
-  loads target the corresponding `$F080-$F0FF` read alias.
-* Replacing the wrapped lookup temporarily with a no-page-cross sequence such as
-  `TYA / AND #15 / TAY / LDA table,Y` keeps DETAIL1 correct even while DETAIL1
-  remains in Superchip RAM. That is a diagnostic experiment only, not the final
-  solution because it changes timing and fixes one call site rather than the
-  toolchain hazard.
-
-Why this is a linker problem
-----------------------------
-The source-level lookup is legal 6502 code and its architecturally visible
-result is a ROM read. Whether its *intermediate bus cycle* is harmless depends
-on the final relocated operand, the mapper's address semantics, and the final
-placement of the referenced table. Those facts converge at link time.
-
-The linker already owns final bank/section placement and mapper profile. It must
-therefore prevent a legal relocation from creating a CPU dummy/ghost access to
-an address range whose read semantics have side effects. This must be a generic
-placement/hazard rule, not a hard-coded exception for the diagnostic or for one
-symbol name.
-
-Required hazard model
----------------------
-The linker/map model needs an explicit notion of logical CPU address ranges for
-which a *read bus cycle* is hazardous. Superchip `$F000-$F07F` is the first
-required range because reads of the RAM write port are destructive. The model
-must be extensible to other mapper/TIA/hotspot ranges if future profiles expose
-similar read-side effects.
-
-The instruction-side analysis must model real NMOS 6502 bus cycles, not only the
-architectural effective address. At minimum Item 46 must cover the exact class
-that caused this bug: absolute indexed reads whose page crossing produces an
-uncorrected-high-byte dummy read. The design should be table/data driven enough
-to extend to other known dummy-access forms (for example indexed stores,
-read-modify-write instructions, and indirect-indexed page-cross reads) rather
-than baking in one LDA-absolute,Y special case.
-
-For a linker-resolvable absolute indexed operand, derive the set of possible
-intermediate addresses from the final encoded base and the instruction's dummy
-cycle rule. If index range metadata is unavailable, use the conservative full
-`$00-$FF` range. Future compiler/assembler metadata may narrow the range, but
-correctness must not depend on such metadata being present.
-
-Placement policy
+Durable contract
 ----------------
-When a relocation/instruction would permit an intermediate read to overlap a
-mapper-declared hazardous-read range, the linker should first try to satisfy a
-placement constraint that moves the referenced relocatable object/section while
-preserving source semantics and instruction timing. The diagnostic case should
-be solved by placing the table so the encoded indexed base and its page-cross
-intermediate addresses are in ordinary ROM, not the Superchip write window.
+Mapper storage may declare a CPU-read side-effect range with C26 `$read_hazard`
+or cfg `read_hazard = yes`. For split-address RAM this is the write alias.
+`vcsc-ld` checks statically knowable NMOS 6502 bus reads from final linked code,
+including all 256 opcode bytes, unofficial encodings, and handwritten assembly. Movable referenced
+objects receive placement constraints; a fixed unsafe instruction is a hard
+source-correlated link error. Runtime-computed indirect effective addresses and
+return targets are not statically knowable and are not guessed.
 
-The fix should normally change only final placement/operand bytes. It must not
-silently add instructions, normalize indexes, or otherwise perturb a beam-
-sensitive sequence merely to avoid the hazard.
+The stock Superchip, FA/RAM Plus, and CommaVid RAM declarations mark their write
+ports hazardous. The diagnostic DETAIL1 row is back in Superchip RAM, and its
+original wrapped absolute,Y reposition lookup is retained; the linker relocates
+the referenced table so its page-cross dummy reads cannot enter `$F000-$F07F`.
 
-If placement is fixed or no legal placement exists, linking must fail loudly
-with a diagnostic that identifies:
-
-* the source-provenance line when available;
-* the final instruction and encoded base operand;
-* the possible dummy/ghost address or hazardous overlap range;
-* the mapper/profile hazard involved; and
-* the referenced symbol/section whose placement caused the conflict.
-
-The human-readable `.lst` should make a surviving/avoided hazard auditable. A
-focused regression should ensure diagnostics use final linked addresses rather
-than pre-relocation guesses.
-
-Acceptance criteria for Item 46
--------------------------------
-1. Add mapper-level hazardous-read metadata, beginning with the Superchip write
-   window for 4KSC/F8SC/F6SC/F4SC.
-2. Add linker analysis of the real dummy-read address set for absolute indexed
-   page-cross reads and make the mechanism extensible to other 6502 dummy cycles.
-3. Constrain relocatable placement to avoid hazardous intermediate reads without
-   changing instruction count/cycles; emit a hard, source-correlated error when
-   no safe placement is possible.
-4. Add a minimal synthetic regression whose legal final ROM lookup would, without
-   the fix, encode a base that ghost-reads the Superchip write port. Prove the
-   linker either relocates it safely or rejects an intentionally impossible
-   fixed-placement form.
-5. Add coverage for each SC profile (4KSC/F8SC/F6SC/F4SC) and ensure bank identity
-   does not change the logical-address hazard calculation.
-6. After the generic linker fix works, restore the diagnostic's live DETAIL1 row
-   to Superchip RAM and restore the original timing-sensitive wrapped table
-   lookup. The diagnostic must remain clean without a source-level workaround.
-7. Preserve the existing hard P1 pixel/oracle coverage and add a structural
-   regression checking that no final diagnostic indexed lookup can dummy-read
-   the SC write port.
-8. Run the 12-case diagnostic Stella matrix, all focused linker/mapper tests, and
-   the complete VCSC suites before closing the item.
-
-Relationship to Item 47
------------------------
-The exhaustive ordinary Superchip access suite remains important and follows
-this linker fix as roadmap Item 47. It certifies direct compiler-generated
-`cartram` reads/writes and split aliases. It is complementary: direct SC access
-lowering was not the cause of this corruption, while Item 46 protects unrelated
-CPU reads whose *intermediate bus cycles* accidentally touch side-effectful SC
-addresses.
-
-Immediate next step
--------------------
-Implement Item 46 in the linker/map placement machinery. Start with a tiny
-synthetic F8SC/F4SC reproducer that creates the same absolute,Y page-cross ghost
-read into `$F000-$F07F`, then add mapper hazard metadata and a placement
-constraint. Only after the generic regression passes should the diagnostic RIOT
-workaround be removed and the real P1 case used as an integration proof.
+Next work
+---------
+Do not reopen this as active design unless a regression disproves the contract.
+The main roadmap now continues with Item 47, exhaustive ordinary Superchip RAM
+access regressions.

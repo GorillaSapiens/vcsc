@@ -10,4 +10,4 @@
 // and copies DATA through the write alias just like Superchip RAM.
 // Include this file after vcs.c26 when linking with vcs_12k_fa.c26.
 
-mem cartram { $read_start:0xF100 $write_start:0xF000 $size:0x0100 $rw };
+mem cartram { $read_start:0xF100 $write_start:0xF000 $size:0x0100 $rw $read_hazard };

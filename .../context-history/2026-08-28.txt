@@ -177,3 +177,54 @@ source-correlated errors when no safe placement exists. The exhaustive direct
 Superchip access suite moves to Item 47; later main items shift to 48-50. The
 current diagnostic RIOT workaround remains temporary and must be removed only
 after the generic linker solution is proven.
+
+2026-08-28 20:16:38 PDT, complete linker dummy-read hazard fix
+Main-roadmap Item 46 is complete. Added C26 `$read_hazard` metadata and
+legacy cfg `read_hazard = yes`; split-address regions treat their write alias
+as the CPU-read side-effect range. Superchip 4KSC/F8SC/F6SC/F4SC, CBS FA/RAM
+Plus, and CommaVid CV declarations now mark their destructive write ports, and
+the legacy F8SC/F6SC/F4SC/FA/CV cfg files carry the same operational metadata.
+
+The linker now evaluates statically knowable NMOS 6502 bus reads from final
+linked bytes. Its explicit 256-entry addressing-mode model covers every opcode
+byte, including unofficial encodings and handwritten `opXX` assembly. The
+model includes instruction/operand fetches, direct reads/RMWs, zero-page
+indexed dummy reads, absolute X/Y page-cross reads, indexed store/RMW pre-reads,
+(zp,X) and (zp),Y pointer reads, JMP-indirect vector reads, branch dummy reads,
+stack reads, JSR, BRK/vector reads, implied/accumulator next-PC reads, and
+KIL/JAM cycles. Runtime-computed indirect effective addresses and return targets
+remain inherently unknowable and are not guessed.
+
+Relocatable referenced layouts receive read-hazard placement constraints rather
+than instruction rewrites. Fixed unsafe instructions fail with final-PC,
+operand, cycle, mapper range, referenced-symbol, and source/assembly provenance.
+A stable indexed STA pre-read of exactly the physical write-port byte immediately
+overwritten by that same STA is allowed; wrong-high-byte dummy reads, unstable
+unofficial indexed stores, and RMW pre-reads remain hazards.
+
+Added `test/linker_dummy_read_hazards.pl`. It builds raw handwritten assembly
+for all 256 opcode bytes and exercises representative hazardous cycles in every
+statically analyzable family, plus movable-placement and fixed-provenance cases.
+The diagnostic integration adds a final-linked structural oracle.
+
+Restored `diagnostic_detail1_row[6]` to Superchip RAM. The original
+beam-sensitive wrapped absolute,Y lookup is unchanged. The linker now places
+`diagnostic_reposition_table` at `$F1F0`, encoding the five wrapped accesses
+against `$F100` instead of the corrupting `$F05D`; Y=`$F0-$FF` therefore
+stays in `$F100-$F1FF` without ghost reads of `$F04E/$F050`. DETAIL1 remains
+at read `$F0CB`, write `$F04B`.
+
+Regenerated all 12 Stella 7.0 NTSC/PAL/SECAM x joystick/paddle/keypad/driving
+reference captures because the old images contained effects of the ghost-read
+corruption. The corrected Superchip output was previously cross-checked against
+a temporary RIOT-RAM control and matched pixel-for-pixel. The full optional
+12-case Stella oracle passed after re-blessing; closeout rechecked all four NTSC
+cases against those references.
+
+Final validation: 502/502 compile-phase tests pass and 329/329 e2e tests pass.
+The monolithic e2e run hit the outer execution timeout after case 241, so the
+remaining ordered tail was completed in bounded batches; the two discovered
+failures were stale source-contract expectations for the newly added hazard
+flag and pass after being updated. All eight example-build shards, linker hazard,
+Superchip/FxSC, FA, CV, diagnostic, video-standard, and disassembler/fuzz tests
+are green.

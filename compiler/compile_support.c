@@ -525,6 +525,21 @@ static int32_t mem_metadata_priority_flag(const ASTNode *flags) {
    return priority;
 }
 
+//! @brief Return whether one exact flag is present in a mem declaration.
+static bool mem_metadata_has_flag(const ASTNode *flags, const char *want) {
+   if (!flags || is_empty(flags) || !want) {
+      return false;
+   }
+   for (int i = 0; i < flags->count; ++i) {
+      const char *text = flags->children[i] && flags->children[i]->strval
+         ? flags->children[i]->strval : NULL;
+      if (text && !strcmp(text, want)) {
+         return true;
+      }
+   }
+   return false;
+}
+
 static Set *emitted_mem_region_metadata = NULL;
 
 //! @brief Parse unsigned integer flag from a mem declaration flag list.
@@ -610,6 +625,7 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
    bool have_size;
    bool have_end;
    bool split;
+   bool read_hazard;
    bool has_allocation_flag;
    int32_t priority;
    char *source_suffix;
@@ -628,9 +644,10 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
    have_end = mem_metadata_parse_u16_flag(flags, "$end:", &end);
    type = mem_metadata_type_flag(flags);
    split = have_read_start || have_write_start;
+   read_hazard = mem_metadata_has_flag(flags, "$read_hazard");
    priority = mem_metadata_priority_flag(flags);
    has_allocation_flag = have_start || have_read_start || have_write_start ||
-      have_size || have_end || type != NULL || priority != 0;
+      have_size || have_end || type != NULL || priority != 0 || read_hazard;
 
    /* Retain the old ability to declare an empty policy-only mem name. It does
       not describe allocatable bytes and therefore emits no linker region. */
@@ -670,12 +687,12 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
 
    source_suffix = mem_metadata_source_suffix(mem_decl);
    snprintf(symbol, sizeof(symbol),
-            MEM_DECL_META_PREFIX "%s$R%04X$W%04X$Z%04X$X%d$T%c$P%08X%s",
+            MEM_DECL_META_PREFIX "%s$R%04X$W%04X$Z%04X$X%d$T%c$P%08X$H%d%s",
             name, start & 0xffffu,
             (split ? write_start : start) & 0xffffu,
             size & 0xffffu, split ? 1 : 0,
             !strcmp(type, "rw") ? 'W' : 'O',
-            (unsigned int)priority, source_suffix);
+            (unsigned int)priority, read_hazard ? 1 : 0, source_suffix);
    free(source_suffix);
    emit(&es_export, "%s = 0\n", symbol);
    emit(&es_export, ".export %s\n", symbol);

@@ -100,7 +100,7 @@ cartram uint8_t diagnostic_tia_m1_x;
 cartram uint8_t diagnostic_tia_ball_x;
 cartram uint8_t diagnostic_audio_phase;
 cartram uint8_t diagnostic_rows[48];
-uint8_t diagnostic_detail1_row[6];
+cartram uint8_t diagnostic_detail1_row[6];
 #ifdef DIAGNOSTIC_TEST_SWEEP
 cartram uint8_t diagnostic_test_frames;
 #endif
@@ -176,13 +176,11 @@ bank1 void diagnostic_draw_text_row(void) {
    diagnostic_text_draw();
 }
 
-// DETAIL1 is staged in ordinary RIOT RAM.  Keeping these six pair indices out
-// of Superchip RAM avoids the unstable cartridge-RAM readback that was feeding
-// arbitrary pair numbers into the pointer expander after badpatch.patch.
+// DETAIL1 lives in Superchip RAM.  The linker must keep all statically knowable
+// NMOS 6502 dummy reads away from the destructive Superchip write alias.
 bank1 void diagnostic_prepare_detail1_row(void) {
-   // The generic argument-bearing prepare path consumed this alignment line
-   // before its first pair expansion.  Make it explicit so moving DETAIL1 to
-   // ordinary RAM does not pull this row or the rest of the frame up one line.
+   // Keep the alignment line explicit before the first pair expansion so this
+   // timing-sensitive row stays phase-compatible with the generic prepare path.
    WSYNC := 0;
    asm ldy diagnostic_detail1_row+0;
    asm lda diagnostic_pair_low,y; asm sta.z diagnostic_text_pointers+0;

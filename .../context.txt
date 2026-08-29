@@ -89,12 +89,10 @@ Open workstreams
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
-   work begins with Item 46: make the linker understand destructive CPU
-   dummy/ghost-read hazards and prevent final placement from letting an indexed
-   page-cross read touch side-effectful mapper addresses such as the Superchip
-   `$F000-$F07F` write port. Read `.../superchip_dummy_read_hazard.txt` for the
-   reproduced addresses and full unfinished design. Item 47 is the exhaustive
-   direct Superchip RAM access suite; Items 48-50 follow afterward.
+   work begins with Item 47, the exhaustive direct Superchip RAM access suite.
+   Item 46, the generic linker dummy/ghost-read hazard fix, is complete; its
+   short durable contract remains in `.../superchip_dummy_read_hazard.txt` and
+   executable regressions own the detailed behavior. Items 48-50 follow.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -137,32 +135,34 @@ correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 
 Last validation state
 ---------------------
-The diagnostic P1 corruption bisected by the user to `badpatch.patch` / commit
-`4785eb36...` is now explained. The patch introduced a wrapped absolute,Y
-reposition-table lookup. With the table linked at `$F14D`, the encoded operand
-was `$F05D`; Y values `$F3` and `$F1` produced final ROM reads at `$F150` and
-`$F14E`, but the NMOS 6502 page-cross dummy reads hit `$F050` and `$F04E`. Those
-addresses are in the Superchip `$F000-$F07F` RAM write port and exactly overlapped
-DETAIL1 bytes 5 and 3. The destructive read cycles changed those bytes without a
-source-level CPU store. Read `.../superchip_dummy_read_hazard.txt` for exact
-trace values, controls, and the required generic linker solution.
+Main-roadmap Item 46 is complete. C26 `$read_hazard` and cfg
+`read_hazard = yes` mark mapper ranges where CPU read bus cycles have side
+effects; stock Superchip, FA/RAM Plus, and CommaVid write aliases are marked.
+`vcsc-ld` models statically knowable NMOS 6502 reads/dummy reads from final
+linked instruction bytes for all 256 opcode values, including unofficial raw
+`opXX` handwritten assembly. Movable referenced layouts receive safe-placement
+constraints; fixed unsafe instructions hard-error with source/assembly
+provenance. Runtime-computed indirect effective addresses remain unknowable.
 
-Controls rule out the old RESP/TIA-state, zero-page-vs-absolute timing, ordinary
-SC load/store-alias lowering, and simple adjacent-array-overrun theories. RIOT
-RAM at both zero-page and forced absolute aliases is clean; direct SC aliases in
-the human-readable `.lst` are correct; and eliminating the page-cross lookup
-keeps a Superchip-backed DETAIL1 row clean. The current source still contains the
-RIOT DETAIL1 workaround only as a temporary stable checkpoint until Item 46 fixes
-the linker generically.
+The diagnostic DETAIL1 row is restored to Superchip RAM. Its original wrapped
+absolute,Y reposition-table lookup remains timing-identical; the linker places
+`diagnostic_reposition_table` at `$F1F0`, so the wrapped operand is `$F100`
+rather than the destructive `$F05D`. The final map keeps DETAIL1 at read `$F0CB`
+/ write `$F04B`, and the structural regression proves the five indexed lookups
+cannot dummy-read `$F000-$F07F`.
+
+Validation after the fix: all 502 compile-phase tests pass. All 329 e2e tests
+pass; the long suite was completed in ordered batches after the outer command
+window interrupted the monolithic run. The optional Stella 7.0 diagnostic
+oracle was re-blessed for all 12 NTSC/PAL/SECAM x controller cases in the
+preceding validation pass; this closeout rechecked NTSC joystick/paddle/keypad
+and driving against those references. Focused SC/FxSC/FA/CV and linker hazard
+tests also pass after marking the legacy cfg RAM write aliases hazardous.
 
 Immediate TODO
 --------------
-Main-roadmap priority is Item 46: implement generic linker awareness of destructive
-6502 dummy/ghost reads. Add mapper-declared hazardous-read ranges, begin with the
-Superchip write port, analyze final indexed relocations and real page-cross dummy
-addresses, constrain relocatable placement to safe addresses, and hard-error when
-no safe placement exists. Do not fix only the diagnostic.
-
-After the generic linker regression passes, restore `diagnostic_detail1_row[6]` to
-Superchip RAM and prove the original timing-sensitive wrapped reposition lookup is
-clean. Then proceed to Item 47, the exhaustive ordinary Superchip access suite.
+Main-roadmap priority is Item 47: add exhaustive ordinary Superchip RAM access
+regressions for compiler-generated `cartram` reads/writes, split aliases,
+DATA/BSS, boundary bytes, runtime indexes, and 4KSC/F8SC/F6SC/F4SC execution.
+Read `.../roadmap.txt` for the acceptance criteria. Item 46 should remain closed
+unless a regression disproves its linker hazard contract.

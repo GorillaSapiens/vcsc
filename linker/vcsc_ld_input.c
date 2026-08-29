@@ -1050,8 +1050,10 @@ void free_object(object_file_t *obj)
    for (i = 0; i < obj->export_count; ++i)
       free(obj->exports[i].name);
    free(obj->exports);
-   for (i = 0; i < obj->layout_count; ++i)
+   for (i = 0; i < obj->layout_count; ++i) {
       free(obj->layouts[i].name);
+      free(obj->layouts[i].read_hazard_constraints);
+   }
    free(obj->layouts);
    free(obj->branches);
    free_listing_array(obj->listing, obj->listing_count);

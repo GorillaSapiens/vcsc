@@ -16,5 +16,5 @@
 // through the write window; unallocated bytes have no VCSC lifecycle contract.
 // Include this file after vcs.c26 when linking with an SC profile.
 
-mem cartram { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw };
+mem cartram { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw $read_hazard };
 

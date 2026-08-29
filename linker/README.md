@@ -200,6 +200,7 @@ silently ignored. It understands:
 - `align = N` on a segment rule, where N is a power of two
 - `callstack = callgraph/no`
 - `callstack_extra = N` on the same writable region to reserve additional top-of-memory hardware-stack bytes required by included or separately assembled code
+- `read_hazard = yes/no` on a `MEMORY` region whose write/start window has side effects when the CPU performs a read bus cycle
 - `bank = NAME` on a cartridge-output `MEMORY` region in a banked profile
 - `mapper = F8/F6/F4`, `fillval = BYTE`, `trampoline = OFFSET`,
   `trampolinesize = SIZE`, and `vectorbridge = OFFSET` inside `CARTRIDGE`
@@ -272,6 +273,34 @@ are selected even when they contain no ordinary referenced symbol. This permits
 an inspectable profile to be compiled as a configuration-only C26 input. Source
 which uses a named placement modifier must instead include the profile so the
 compiler can resolve that `mem` name while compiling the declaration.
+
+### Destructive CPU read/dummy-read hazards
+
+A C26 `mem` declaration may carry `$read_hazard`; legacy cfg input expresses the
+same property as `read_hazard = yes`. For a split-address region the hazardous
+range is its write alias, and for a single-address region it is the ordinary
+start/size range. This models devices such as Superchip cartridge RAM where a
+CPU read cycle to the write port is not harmless.
+
+Before placement is finalized, `vcsc-ld` derives constraints from relocatable
+6502 operands whose statically knowable reads or dummy reads could enter one of
+those ranges. It models the final linked NMOS bus behavior for all 256 opcode
+bytes, including unofficial encodings and handwritten `opXX` assembly. Covered
+static cycles include instruction/operand fetches, zero-page indexed dummy
+reads, absolute indexed page-cross/pre-write/RMW reads, indirect pointer reads,
+JMP-indirect vector reads, branch dummy reads, stack-read cycles, BRK/vector
+reads, implied/accumulator next-PC reads, and KIL/JAM reads. Runtime-computed
+indirect effective addresses and return targets cannot be inferred by the
+linker and therefore are not guessed.
+
+When the referenced object is movable, the linker keeps the instruction and its
+timing unchanged and chooses a placement that makes every statically considered
+bus read safe. If fixed handwritten assembly or other placement constraints
+leave a hazardous read, the link fails with the final PC/operand, bus-cycle kind,
+hazardous address/range, mapper memory name, and available source/assembly
+provenance. A stable indexed STA pre-read of the exact write-port byte that the
+same instruction immediately overwrites is permitted; wrong-high-byte dummy
+reads and RMW pre-reads remain hazards.
 
 ### C26 cartridge-profile foundation
 

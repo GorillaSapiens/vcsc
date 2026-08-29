@@ -71,6 +71,7 @@ typedef struct {
    uint16_t start;
    uint16_t write_start;
    int has_write_start;
+   int read_hazard;
    uint16_t size;
    uint16_t physical_size;
    char type[16];
@@ -191,6 +192,15 @@ typedef struct {
 } symbol_t;
 
 typedef struct {
+   uint8_t opcode;
+   uint16_t operand_delta;
+   const char *source_file;
+   const char *asm_text;
+   const char *referenced_name;
+   uint16_t source_line;
+} read_hazard_constraint_t;
+
+typedef struct {
    char *name;
    uint8_t segid;
    uint8_t image_segid;
@@ -220,6 +230,8 @@ typedef struct {
    uint8_t phase_overlay_eligible;
    uint32_t placement_component_bytes;
    uint32_t placement_cut_weight;
+   read_hazard_constraint_t *read_hazard_constraints;
+   size_t read_hazard_constraint_count;
 } object_layout_t;
 
 #define BANK_PLACEMENT_NONE      0
