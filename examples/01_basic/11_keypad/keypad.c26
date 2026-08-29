@@ -218,7 +218,7 @@ inline void keypad_prepare_glyphs(void) {
 // P0 is centered on the left 80-pixel half at x=36; P1 is centered on the
 // right half at x=116. Position once at startup: neither player's X changes.
 inline void keypad_position_players(void) {
-   HMCLR := 0;
+   HMCLR := _;
 
    asm sta WSYNC;
    asm ldx #0;

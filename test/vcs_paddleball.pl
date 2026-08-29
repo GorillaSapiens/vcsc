@@ -47,7 +47,7 @@ $p !~ /paddleball_(?:left|right)_y \+= 2/ && $p !~ /paddleball_(?:left|right)_y 
 $p =~ /PADDLEBALL_PADDLE_TOP_Y := 9/ && $p =~ /PADDLEBALL_PADDLE_BOTTOM_Y := 159/ &&
 $p =~ /PADDLEBALL_PADDLE_RAW_MIN := 12/ && $p =~ /PADDLEBALL_BALL_TOP_Y := 8/
    or die "Paddleball paddle endpoint calibration changed\n";
-$p =~ /paddles_sample0\(\);\s*WSYNC := 0;/s &&
+$p =~ /paddles_sample0\(\);\s*WSYNC := _;/s &&
 $p =~ /paddles_sample1\(\);.*?asm inx;\s*asm sta WSYNC;\s*paddles_advance_pair\(\);/s &&
 $p =~ /Both paddles transition on line B/s
    or die "Paddleball lost split RC sampling or common paddle raster phase\n";
@@ -60,7 +60,7 @@ $p =~ /paddleball_sound_tick\(\);.*?if \(paddles_valid\)/s
    or die "Paddleball lost octave-separated square-wave sound effects\n";
 $p =~ /left_ball_collision := CXM0FB & 0x40/ &&
 $p =~ /right_ball_collision := CXM1FB & 0x40/ &&
-$p =~ /CXCLR := 0/ &&
+$p =~ /CXCLR := _/ &&
 $p !~ /overlaps_paddle/ && $p !~ /PADDLEBALL_(?:LEFT|RIGHT)_COLLISION_X/
    or die "Paddleball must use TIA M0-Ball and M1-Ball collision latches\n";
 

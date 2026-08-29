@@ -297,7 +297,7 @@ inline void paddleball_draw(void) {
    asm @p1_done_a:;
 
    paddles_sample0();
-   WSYNC := 0;
+   WSYNC := _;
 
    // Pair line B: M0/M1 inner paddles, Ball, channel 1.
    asm cpx.z paddleball_m0_start_pair;
@@ -366,7 +366,7 @@ inline void paddleball_draw(void) {
    asm @p1_done_b:;
 
    paddles_sample2();
-   WSYNC := 0;
+   WSYNC := _;
 
    // Pair line B: same object schedule, channel 3.
    asm cpx.z paddleball_m0_start_pair;

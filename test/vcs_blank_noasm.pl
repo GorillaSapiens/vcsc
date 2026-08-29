@@ -59,7 +59,7 @@ for my $count (192) {
 }
 $text !~ /for\s*\(\s*uint8_t\s+i\s*:=\s*(?:37|30)\s*;/
    or die "blank_noasm regressed to WSYNC-counted blanking\n";
-$text =~ /WSYNC\s*:=\s*2\s*;\s*VSYNC\s*:=\s*2\s*;\s*WSYNC\s*:=\s*0\s*;\s*WSYNC\s*:=\s*0\s*;\s*WSYNC\s*:=\s*0\s*;\s*VSYNC\s*:=\s*0\s*;/s
+$text =~ /WSYNC\s*:=\s*_\s*;\s*VSYNC\s*:=\s*2\s*;\s*WSYNC\s*:=\s*_\s*;\s*WSYNC\s*:=\s*_\s*;\s*WSYNC\s*:=\s*_\s*;\s*VSYNC\s*:=\s*0\s*;/s
    or die "blank_noasm lost exact same-phase VSYNC sequence\n";
 $text =~ /TIM64T\s*:=\s*42\s*;/ && $text =~ /TIM64T\s*:=\s*34\s*;/
    or die "blank_noasm lost calibrated VBLANK/overscan TIM64T deadlines\n";

@@ -108,11 +108,11 @@ void main(void) {
    while (1) {
       // Exactly 3 scanlines VSYNC: align first, then use the same phase
       // for assertion and deassertion.
-      WSYNC := 2;
+      WSYNC := _;
       VSYNC := 2;
-      WSYNC := 0;
-      WSYNC := 0;
-      WSYNC := 0;
+      WSYNC := _;
+      WSYNC := _;
+      WSYNC := _;
       VSYNC := 0;
 
       // 37 scanlines vertical blank. A real game can read controls, update

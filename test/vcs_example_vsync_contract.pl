@@ -58,7 +58,7 @@ for my $rel ($expected[0]) {
 }
 for my $rel (@expected[1,2]) {
    my $t=read_file(File::Spec->catfile($repo,split('/', $rel)));
-   $t =~ /WSYNC\s*:=\s*2\s*;\s*VSYNC\s*:=\s*2\s*;\s*WSYNC\s*:=\s*0\s*;\s*WSYNC\s*:=\s*0\s*;\s*WSYNC\s*:=\s*0\s*;\s*VSYNC\s*:=\s*0\s*;/s
+   $t =~ /WSYNC\s*:=\s*_\s*;\s*VSYNC\s*:=\s*2\s*;\s*WSYNC\s*:=\s*_\s*;\s*WSYNC\s*:=\s*_\s*;\s*WSYNC\s*:=\s*_\s*;\s*VSYNC\s*:=\s*0\s*;/s
       or die "$rel lost exact same-phase VSYNC sequence\n";
 }
 my $diag=read_file(File::Spec->catfile($repo,split('/', $expected[3])));

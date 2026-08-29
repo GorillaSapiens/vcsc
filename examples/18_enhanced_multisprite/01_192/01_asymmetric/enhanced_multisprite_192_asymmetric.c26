@@ -147,7 +147,7 @@ void run_asymmetric_frame(void) {
    vcs_ntsc_end_overscan();
    // Calibrated terminal blank boundary: VBLANK remains asserted and the
    // public diagnostic stays at a stable 262-line NTSC frame.
-   WSYNC := 0;
+   WSYNC := _;
 }
 
 void main(void) {

@@ -171,7 +171,7 @@ bank1 void diagnostic_prepare_row(uint8_t offset) {
 // renderer's documented cycle-3 entry phase. In five-row mode each row costs
 // one alignment line plus the renderer's eight scanlines.
 bank1 void diagnostic_draw_text_row(void) {
-   WSYNC := 0;
+   WSYNC := _;
    asm bit.z CXM0P;
    diagnostic_text_draw();
 }
@@ -181,7 +181,7 @@ bank1 void diagnostic_draw_text_row(void) {
 bank1 void diagnostic_prepare_detail1_row(void) {
    // Keep the alignment line explicit before the first pair expansion so this
    // timing-sensitive row stays phase-compatible with the generic prepare path.
-   WSYNC := 0;
+   WSYNC := _;
    asm ldy diagnostic_detail1_row+0;
    asm lda diagnostic_pair_low,y; asm sta.z diagnostic_text_pointers+0;
    asm lda diagnostic_pair_page,y; asm clc; asm adc #>score_font; asm sta.z diagnostic_text_pointers+1;
@@ -296,7 +296,7 @@ bank3 void diagnostic_prepare_collision_bottom(void) {
 }
 
 bank3 void diagnostic_draw_collision_row(void) {
-   WSYNC := 0;
+   WSYNC := _;
    asm bit.z CXM0P;
 
    asm lda #$03;
@@ -356,7 +356,7 @@ bank3 void diagnostic_draw_collision_row(void) {
    GRP0 := 0;
    VDELP0 := 0;
    VDELP1 := 0;
-   WSYNC := 0;
+   WSYNC := _;
 }
 
 bank1 void diagnostic_component_init(void) {
@@ -438,8 +438,8 @@ bank3 void diagnostic_keypad_overscan_impl(void) {
    diagnostic_right_keypad_select_row(diagnostic_keypad_scan_row);
    // 7 scanlines is about 446 us at NTSC and longer at PAL/SECAM, safely above
    // the CX50 matrix settle requirement for every supported TV standard.
-   WSYNC := 0; WSYNC := 0; WSYNC := 0; WSYNC := 0;
-   WSYNC := 0; WSYNC := 0; WSYNC := 0;
+   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
+   WSYNC := _; WSYNC := _; WSYNC := _;
    diagnostic_left_keypad_read_row(diagnostic_keypad_scan_row);
    diagnostic_right_keypad_read_row(diagnostic_keypad_scan_row);
    if (diagnostic_keypad_scan_row == 3) {
@@ -459,7 +459,7 @@ bank3 void diagnostic_bank3_task(uint8_t task) {
 
    // Cross-bank entry phase is irrelevant: align before touching the three
    // deterministic pointer-preparation scanlines.
-   WSYNC := 0;
+   WSYNC := _;
    diagnostic_prepare_collision_top();
    diagnostic_draw_collision_row();
    diagnostic_prepare_collision_bottom();
@@ -1082,13 +1082,13 @@ bank0 void diagnostic_draw_tia_panel(void) {
    REFP0 := 0; REFP1 := 0;
    VDELP0 := 0; VDELP1 := 0; VDELBL := 0;
    RESMP0 := 0; RESMP1 := 0;
-   HMCLR := 0;
+   HMCLR := _;
 
    // The 48-pixel text/icon renderer also uses P0/P1 and would contaminate a
    // comprehensive collision bitmap. Clear every frame immediately before the
    // controlled lanes. The registers are read only after those lanes finish,
    // so the bitmap still directly certifies the TIA collision latches.
-   CXCLR := 0;
+   CXCLR := _;
 
    // Each object uses two deterministic setup lines. The first line times
    // RESPx; the second computes/stores fine motion from the subtraction
@@ -1182,21 +1182,21 @@ bank0 void diagnostic_draw_tia_panel(void) {
    // three bars should light while the other twelve pair icons stay clear.
    GRP0 := 0x7e; GRP1 := 0;
    ENAM0 := 2; ENAM1 := 0; ENABL := 0;
-   WSYNC := 0;
-   GRP0 := 0x81; WSYNC := 0;
-   GRP0 := 0x81; WSYNC := 0;
-   GRP0 := 0x7e; WSYNC := 0;
+   WSYNC := _;
+   GRP0 := 0x81; WSYNC := _;
+   GRP0 := 0x81; WSYNC := _;
+   GRP0 := 0x7e; WSYNC := _;
 
    GRP0 := 0; GRP1 := 0x18;
    ENAM0 := 0; ENAM1 := 2;
-   WSYNC := 0;
-   GRP1 := 0x38; WSYNC := 0;
-   GRP1 := 0x18; WSYNC := 0;
-   GRP1 := 0x3c; WSYNC := 0;
+   WSYNC := _;
+   GRP1 := 0x38; WSYNC := _;
+   GRP1 := 0x18; WSYNC := _;
+   GRP1 := 0x3c; WSYNC := _;
 
    GRP1 := 0; ENAM1 := 0;
    PF2 := 0x80; ENABL := 2;
-   WSYNC := 0; WSYNC := 0; WSYNC := 0; WSYNC := 0;
+   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
 
    // Pack all fifteen sticky TIA collision bits into the same order as the
    // two rows of eight six-pixel icons.  The spare low bit of the bottom row
@@ -1260,7 +1260,7 @@ bank0 void diagnostic_draw_tia_panel(void) {
    ENAM0 := 0; ENAM1 := 0; ENABL := 0;
    PF0 := 0; PF1 := 0; PF2 := 0;
    RESMP0 := 0; RESMP1 := 0;
-   HMCLR := 0;
+   HMCLR := _;
    CTRLPF := 0;
    COLUBK := 0;
 
@@ -1268,9 +1268,9 @@ bank0 void diagnostic_draw_tia_panel(void) {
    // controller paths already have carefully calibrated blanking deadlines.
    // Start and finish on WSYNC boundaries so this fixed-cycle bookkeeping has
    // a constant visible-line cost independent of the collision values.
-   WSYNC := 0;
+   WSYNC := _;
    diagnostic_tia_animation_tick();
-   WSYNC := 0;
+   WSYNC := _;
 }
 
 // Alternate short, distinct beeps between the two TIA audio channels. The
@@ -1389,13 +1389,13 @@ bank1 void diagnostic_frame(void) {
       // controller so paddle mode shares the same raster origin as the
       // digital-controller paths; its post-visible tail is one line shorter
       // to preserve the 262-line frame contract.
-      WSYNC := 0; WSYNC := 0;
+      WSYNC := _; WSYNC := _;
    }
    if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) {
-      WSYNC := 0; WSYNC := 0;
+      WSYNC := _; WSYNC := _;
    }
    if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) {
-      WSYNC := 0; WSYNC := 0;
+      WSYNC := _; WSYNC := _;
    }
 
    diagnostic_draw_text_row();
@@ -1414,11 +1414,11 @@ bank1 void diagnostic_frame(void) {
    // component's beam-level hooks explicitly keeps its lifecycle honest and
    // preserves the same raw position units as the standalone paddle example.
    if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && !diagnostic_frame_init_only) {
-      diagnostic_paddles_sample0(); WSYNC := 0;
-      diagnostic_paddles_sample1(); WSYNC := 0;
+      diagnostic_paddles_sample0(); WSYNC := _;
+      diagnostic_paddles_sample1(); WSYNC := _;
       diagnostic_paddles_advance_pair();
-      diagnostic_paddles_sample2(); WSYNC := 0;
-      diagnostic_paddles_sample3(); WSYNC := 0;
+      diagnostic_paddles_sample2(); WSYNC := _;
+      diagnostic_paddles_sample3(); WSYNC := _;
       diagnostic_paddles_advance_pair();
    }
 

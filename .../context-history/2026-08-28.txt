@@ -311,3 +311,22 @@ passed 320/330 directly; seven heavyweight tests timed out under contention and
 three map-sanity tests false-triggered because the temporary working-directory
 name contained `font`. After moving the unchanged tree to a neutral path, all
 ten affected tests passed sequentially, so all 330 e2e cases are green.
+
+2026-08-28 23:17:57 PDT, example TIA strobe discard stores
+Converted 61 data-ignored TIA strobe assignments in nine editable example
+sources to the C26 discard-store form: 54 WSYNC writes, four HMCLR writes, and
+three CXCLR writes.  This includes the two introductory no-assembly examples'
+VSYNC alignment writes; VSYNC itself still receives the meaningful 2/0 values.
+
+Added vcs_example_discard_strobes.pl so any C26 assignment in examples to
+WSYNC, RSYNC, RESP0/1, RESM0/1, RESBL, HMOVE, HMCLR, or CXCLR must ultimately
+store `_`.  Timing padding must be explicit rather than hidden in a meaningless
+strobe RHS.  Updated existing source-shape tests to lock the discard form.
+
+All nine changed examples build.  Their focused frame/input/renderer tests pass,
+as do all eight recursive example-build/disassembler shards when run without
+heavy-suite contention.  The complete 502-test compile phase passes.  The broad
+e2e run passed through its first 203 cases before the outer execution window;
+subsequent focused batches covering the changed examples and surrounding VCS
+renderer/profile tests were green.  The diagnostic cartridge builds/round-trips
+and a direct 60-frame NTSC timing run remains stable at 262 scanlines.

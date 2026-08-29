@@ -432,6 +432,11 @@ directly addressable so every store preserves A without hidden stack traffic.
 `e2e_discard_assignment_verify.c26` verifies that one incoming A value reaches
 all three targets and that discarded-expression side effects remain intact.
 
+`vcs_example_discard_strobes.pl` audits editable examples for TIA registers whose
+write data is ignored. C26 assignments to WSYNC/RSYNC, RESP0/RESP1, RESM0/RESM1,
+RESBL, HMOVE, HMCLR, and CXCLR must terminate in the discard token so the source
+does not materialize a meaningless value merely to trigger the hardware strobe.
+
 `assign_expr_value_codegen_test.c26`,
 `assign_expr_condition_codegen_test.c26`, and
 `vcs_write_only_chained_assignment_codegen_test.c26` verify that a valued

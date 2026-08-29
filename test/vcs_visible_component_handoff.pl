@@ -115,7 +115,7 @@ for my $spec (@components) {
       my $actual_hmove=()=$body =~ /(?:\bHMOVE\s*:=|\bsta(?:\.[A-Za-z]+)?\s+HMOVE\b)/g;
       $actual_hmove==$hmove
          or die "$label draw has $actual_hmove HMOVE strobes, contract says $hmove\n";
-      $body =~ /(?:\bsta(?:\.[A-Za-z]+)?\s+WSYNC\b|\bWSYNC\s*:=\s*0)\s*;(?:\s*asm\s+\@[A-Za-z0-9_]+:;)*\s*\z/s
+      $body =~ /(?:\bsta(?:\.[A-Za-z]+)?\s+WSYNC\b|\bWSYNC\s*:=\s*(?:0|_))\s*;(?:\s*asm\s+\@[A-Za-z0-9_]+:;)*\s*\z/s
          or die "$label draw does not end through its own terminal WSYNC\n";
       $body !~ /\b(?:VSYNC|VBLANK|TIM1T|TIM8T|TIM64T|T1024T|INTIM|TIMINT|AUDC0|AUDC1|AUDF0|AUDF1|AUDV0|AUDV1)\s*:=/
          or die "$label draw writes scheduler or audio state\n";

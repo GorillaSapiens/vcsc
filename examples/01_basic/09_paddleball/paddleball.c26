@@ -238,7 +238,7 @@ inline void paddleball_draw(void) {
    asm lda paddleball_pf2_pairs,x;
    asm sta PF2;
    paddles_sample0();
-   WSYNC := 0;
+   WSYNC := _;
 
    // Both paddles transition on line B. Keeping M0 and M1 in the same raster
    // phase removes the one-scanline vertical bias that existed when M0 changed
@@ -502,7 +502,7 @@ void main(void) {
       // Start gameplay with fresh collision latches. The score component does
       // not use M0/M1/Ball, so any M0-Ball or M1-Ball latch set after this
       // point belongs to the Paddleball renderer below.
-      CXCLR := 0;
+      CXCLR := _;
       vcs_ntsc_end_vblank();
 
       score_draw();

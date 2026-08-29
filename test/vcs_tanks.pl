@@ -57,7 +57,7 @@ $s =~ /mask := tanks_random\(\);\s*mask := tanks_barrier_masks\[\(mask >> 3\) & 
    or die "Tanks lost balanced pseudo-random playfield barriers\n";
 $s =~ /asm sta GRP0;.*?asm sty GRP1;.*?asm cpx #2;.*?asm lda #\$10;\s*asm sta PF0;\s*asm lda #0;\s*asm sta PF1;\s*asm sta PF2;/s &&
 $s =~ /asm cpx #86;\s*asm beq\.same \@done;/ &&
-$s =~ /tanks_draw\(\);.*?PF0 := 0xff;\s*PF1 := 0xff;\s*PF2 := 0xff;\s*WSYNC := 0;\s*WSYNC := 0;\s*WSYNC := 0;\s*WSYNC := 0;/s &&
+$s =~ /tanks_draw\(\);.*?PF0 := 0xff;\s*PF1 := 0xff;\s*PF2 := 0xff;\s*WSYNC := _;\s*WSYNC := _;\s*WSYNC := _;\s*WSYNC := _;/s &&
 $s =~ /CTRLPF := 0x01/
    or die "Tanks lost early side-wall or dedicated 4-scanline bottom-wall geometry\n";
 $s =~ /tank0_graphics := tanks_graphics;\s*tank0_graphics \+= tank0_direction << 3;/ &&
@@ -65,11 +65,11 @@ $s =~ /tank1_graphics := tanks_graphics;\s*tank1_graphics \+= tank1_direction <<
 $s =~ /tanks_player_position_table\[160\]/ &&
 $s =~ /tanks_player_position_control\[0\] := tanks_player_position_table\[tank0_x\]/ &&
 $s =~ /tanks_player_position_control\[1\] := tanks_player_position_table\[tank1_x\]/ &&
-$s =~ /tanks_draw\(\);.*?PF0 := 0;\s*PF1 := 0;\s*PF2 := 0;.*?WSYNC := 0;\s*WSYNC := 0;/s
+$s =~ /tanks_draw\(\);.*?PF0 := 0;\s*PF1 := 0;\s*PF2 := 0;.*?WSYNC := _;\s*WSYNC := _;/s
    or die "Tanks lost high-level sprite-base preparation or fixed-time player positioning\n";
 $s =~ /CXM0P & 0x80/ && $s =~ /CXM1P & 0x80/ &&
 $s =~ /CXM0FB & 0x80/ && $s =~ /CXM1FB & 0x80/ &&
-$s =~ /CXP0FB & 0x80/ && $s =~ /CXP1FB & 0x80/ && $s =~ /CXPPMM & 0x80/ && $s =~ /CXCLR := 0/ &&
+$s =~ /CXP0FB & 0x80/ && $s =~ /CXP1FB & 0x80/ && $s =~ /CXPPMM & 0x80/ && $s =~ /CXCLR := _/ &&
 $s =~ /cartram uint8_t tank0_pf_escape/ && $s =~ /cartram uint8_t tank1_pf_escape/ &&
 $s =~ /if \(!tank0_pf_escape\).*?tank0_x := tank0_prev_x/s &&
 $s =~ /if \(!tank1_pf_escape\).*?tank1_x := tank1_prev_x/s &&

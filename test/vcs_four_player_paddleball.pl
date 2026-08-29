@@ -40,9 +40,9 @@ $t =~ /parameter port := 0/ && $t =~ /TEMPLATE_position0/ && $t =~ /TEMPLATE_pos
 $p =~ /include "vcs_4k\.c26"/ && $p =~ /instantiate "four_paddles\.c26" as paddles/ or die "four-player example lost 4K\/four-paddle composition\n";
 $p =~ /paddle 0\s+.*P0.*paddle 1\s+.*M0/s && $p =~ /paddle 2\s+.*P1.*paddle 3\s+.*M1/s
    or die "four-player team\/object allocation changed\n";
-$p =~ /paddles_sample0\(\);\s*WSYNC := 0;/s &&
+$p =~ /paddles_sample0\(\);\s*WSYNC := _;/s &&
 $p =~ /paddles_sample1\(\);.*?asm inx;.*?asm sta WSYNC;\s*asm sta PF2;.*?paddles_advance_pair\(\);/s &&
-$p =~ /paddles_sample2\(\);\s*WSYNC := 0;/s &&
+$p =~ /paddles_sample2\(\);\s*WSYNC := _;/s &&
 $p =~ /paddles_sample3\(\);.*?asm inx;.*?asm sta WSYNC;\s*asm sta PF2;.*?paddles_advance_pair\(\);/s
    or die "four-player renderer lost one-sample-per-scanline schedule\n";
 $p !~ /paddleball_pf2_pairs|paddleball_reposition_table/ &&
