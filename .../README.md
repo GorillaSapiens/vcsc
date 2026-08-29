@@ -54,6 +54,13 @@ Read it when that side quest is the current task.
 Durable cartridge/bank identity rules plus unfinished bankswitching work. It is
 the sole internal bankswitching design record; do not create a duplicate.
 
+### `superchip_dummy_read_hazard.txt`
+
+Focused active record for the linker-level NMOS 6502 dummy/ghost-read hazard
+exposed by the Superchip diagnostic corruption. It contains the exact reproduced
+addresses, ruled-out theories, mapper hazard model, placement policy, acceptance
+criteria, and immediate next step for main-roadmap Item 46.
+
 ### `disassembler.txt`
 
 Durable exact-round-trip disassembler contract plus unfinished mapper/analysis

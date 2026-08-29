@@ -676,6 +676,7 @@ my %hot_limits=(
    'context.txt' => 16*1024,
    'roadmap.txt' => 12*1024,
    'bankswitching.txt' => 16*1024,
+   'superchip_dummy_read_hazard.txt' => 12*1024,
    'disassembler.txt' => 16*1024,
    'enhanced_asymmetric.txt' => 20*1024,
    'ram_optimization.txt' => 8*1024,
@@ -701,6 +702,14 @@ index($context,'Immediate TODO')>=0
    or die "compact context lost hot-state discipline or active-workstream pointer\n";
 $context !~ /^\s*\[x\]/m
    or die "compact context contains completed checklist history\n";
+
+my $sc_dummy_hazard=slurp(File::Spec->catfile($repo,'...','superchip_dummy_read_hazard.txt'));
+index($sc_dummy_hazard,'SUPERCHIP DUMMY-READ HAZARD')>=0 &&
+index($sc_dummy_hazard,'$F050 -> diagnostic_detail1_row[5]')>=0 &&
+index($sc_dummy_hazard,'Why this is a linker problem')>=0 &&
+index($sc_dummy_hazard,'Acceptance criteria for Item 46')>=0 &&
+index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `superchip_dummy_read_hazard.txt`')>=0
+   or die "Superchip dummy-read hot record lost root cause, linker plan, or README index\n";
 
 my ($next_roadmap_item)=$roadmap =~ /^Current next action: Item (\d+)\b/m;
 my @open_roadmap_items=$roadmap =~ /^\[ \] (\d+)\./mg;

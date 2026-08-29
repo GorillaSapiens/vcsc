@@ -89,12 +89,12 @@ Open workstreams
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
-   work, when the user has not selected another task, begins with Item 46:
-   exhaustive Superchip RAM access regression coverage for 4KSC/F8SC/F6SC/F4SC,
-   including constant/runtime indexes, read/write aliases, DATA/BSS,
-   read-modify-write forms, boundary bytes, and execution oracles. Item 47 is
-   optional paddle sampling; Item 48 is playfield-color renderer support; Item 49
-   remains after it.
+   work begins with Item 46: make the linker understand destructive CPU
+   dummy/ghost-read hazards and prevent final placement from letting an indexed
+   page-cross read touch side-effectful mapper addresses such as the Superchip
+   `$F000-$F07F` write port. Read `.../superchip_dummy_read_hazard.txt` for the
+   reproduced addresses and full unfinished design. Item 47 is the exhaustive
+   direct Superchip RAM access suite; Items 48-50 follow afterward.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -137,34 +137,32 @@ correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 
 Last validation state
 ---------------------
-The diagnostic P1-detail corruption was bisected by the user to badpatch.patch /
-commit 4785eb36.... The old RESP0-phase explanation is disproved. The current
-working theory remains DETAIL1 pair-index/pointer staging: fixed pair indices and
-fixed pointer lookup are stable, while the live Superchip-backed DETAIL1 row was
-not; moving the six live DETAIL1 indices into RIOT RAM was stable across 12 fresh
-Stella boots. The current source keeps that RIOT-RAM `diagnostic_detail1_row[6]`
-and its dedicated pointer-preparation path.
+The diagnostic P1 corruption bisected by the user to `badpatch.patch` / commit
+`4785eb36...` is now explained. The patch introduced a wrapped absolute,Y
+reposition-table lookup. With the table linked at `$F14D`, the encoded operand
+was `$F05D`; Y values `$F3` and `$F1` produced final ROM reads at `$F150` and
+`$F14E`, but the NMOS 6502 page-cross dummy reads hit `$F050` and `$F04E`. Those
+addresses are in the Superchip `$F000-$F07F` RAM write port and exactly overlapped
+DETAIL1 bytes 5 and 3. The destructive read cycles changed those bytes without a
+source-level CPU store. Read `.../superchip_dummy_read_hazard.txt` for exact
+trace values, controls, and the required generic linker solution.
 
-The user observed that holding right joystick fire can reveal the correct P1
-letter beneath the corrupt raster, suggesting frame-dependent corruption. Two
-controlled scheduler experiments did not isolate a single phase: phase-locked
-ROMs and corrected skip-one-phase ROMs all showed either blank P1 or a clean P1,
-never the corruption. The skip builds preserved the normal four-frame cadence and
-identical layout, so the corruption appears to require the complete changing
-0,1,2,3 sequence rather than any one phase acting alone. The temporary phase/skip
-debug build machinery has now been removed; the diagnostic is back to one normal
-`vcsc_diagnostic.bin` with all four UI phases enabled.
+Controls rule out the old RESP/TIA-state, zero-page-vs-absolute timing, ordinary
+SC load/store-alias lowering, and simple adjacent-array-overrun theories. RIOT
+RAM at both zero-page and forced absolute aliases is clean; direct SC aliases in
+the human-readable `.lst` are correct; and eliminating the page-cross lookup
+keeps a Superchip-backed DETAIL1 row clean. The current source still contains the
+RIOT DETAIL1 workaround only as a temporary stable checkpoint until Item 46 fixes
+the linker generically.
 
 Immediate TODO
 --------------
-Main-roadmap priority is Item 46: add the permanent Superchip RAM access suite,
-with compiler-level and execution regressions for SC read/write aliases across
-4KSC/F8SC/F6SC/F4SC using ordinary generated `cartram` accesses. Do this before
-paddle sampling or later main-roadmap items.
+Main-roadmap priority is Item 46: implement generic linker awareness of destructive
+6502 dummy/ghost reads. Add mapper-declared hazardous-read ranges, begin with the
+Superchip write port, analyze final indexed relocations and real page-cross dummy
+addresses, constrain relocatable placement to safe addresses, and hard-error when
+no safe placement exists. Do not fix only the diagnostic.
 
-Reproduce the corruption with the restored normal four-phase diagnostic, then
-trace the six DETAIL1 pair indices and the twelve expanded six-glyph pointer
-bytes frame-by-frame across the complete 0,1,2,3 cycle. Compare a corrupt run
-against a clean run, with special attention to the transition after phase 2 and
-right-joystick-fire changes. Once the actual clobber is isolated and fixed, rerun
-the 12-case Stella diagnostic matrix and full suite.
+After the generic linker regression passes, restore `diagnostic_detail1_row[6]` to
+Superchip RAM and prove the original timing-sensitive wrapped reposition lookup is
+clean. Then proceed to Item 47, the exhaustive ordinary Superchip access suite.

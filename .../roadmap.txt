@@ -18,9 +18,44 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 46, add exhaustive Superchip RAM access regressions.
+Current next action: Item 46, fix linker dummy-read hazards.
 
-[ ] 46. Add exhaustive Superchip RAM access regressions.
+[ ] 46. Make the linker avoid destructive dummy/ghost reads.
+
+        * Read `.../superchip_dummy_read_hazard.txt` before implementation; it
+          contains the reproduced addresses, controls, root cause, and required
+          generic linker model.
+        * Treat mapper ranges where a CPU read has side effects as link-time
+          hazards. Superchip `$F000-$F07F` (the RAM write port) is the first
+          required hazardous-read range.
+        * Model real NMOS 6502 intermediate bus cycles, beginning with absolute
+          indexed page-cross reads whose uncorrected-high-byte dummy read can
+          differ from the final architectural address. Keep the mechanism
+          extensible to the other known indexed/dummy-access forms.
+        * Analyze final relocated operands and mapper layout, not source-level
+          intent. Conservatively consider the full index range when no narrower
+          compiler/assembler range information exists.
+        * Prefer placement constraints that move relocatable tables/sections so
+          all possible intermediate reads are harmless while preserving the
+          original instruction count and timing. Never fix this by silently
+          inserting index-normalization instructions into beam-sensitive code.
+        * If a fixed placement or other constraint makes a safe link impossible,
+          emit a hard source-correlated error naming the instruction, encoded
+          operand, hazardous dummy address/range, mapper hazard, and referenced
+          symbol/section.
+        * Add a minimal synthetic SC regression that reproduces the diagnostic's
+          legal ROM lookup plus destructive page-cross ghost read, and prove the
+          linker relocates a movable case safely and rejects an intentionally
+          impossible fixed-placement case. Cover 4KSC/F8SC/F6SC/F4SC.
+        * After the generic linker fix passes, move the diagnostic DETAIL1 row
+          back to Superchip RAM and retain the original timing-sensitive wrapped
+          reposition-table lookup. The P1 corruption must remain gone without a
+          diagnostic-specific workaround.
+        * Add a final-linked structural oracle that no indexed diagnostic access
+          can dummy-read the SC write port, retain the hard P1 pixel oracle, then
+          run the 12-case Stella matrix and complete suites.
+
+[ ] 47. Add exhaustive Superchip RAM access regressions.
 
         * Treat the Superchip read/write split as a compiler and mapper contract:
           ordinary `cartram` source reads must use the `$F080-$F0FF` read alias
@@ -50,11 +85,11 @@ Current next action: Item 46, add exhaustive Superchip RAM access regressions.
         * Keep a focused unit/regression test for the compiler-level `cartram`
           access contract even after the mapper diagnostics pass, so a future
           lowering regression fails without requiring a full diagnostic ROM run.
-        * Preserve the current P1 investigation as motivation only, not as the
-          oracle: these tests must stand alone and certify Superchip accesses even
-          if the diagnostic corruption ultimately has another cause.
+        * Keep this separate from Item 46: these tests certify intended direct SC
+          accesses; Item 46 prevents unrelated CPU dummy reads from accidentally
+          hitting side-effectful mapper addresses.
 
-[ ] 47. Add optional paddle sampling to score renderers.
+[ ] 48. Add optional paddle sampling to score renderers.
 
         * Allow paddle timing to continue through score scanlines instead of
           treating the whole score raster as an unsampled account_gap().
@@ -68,7 +103,7 @@ Current next action: Item 46, add exhaustive Superchip RAM access regressions.
           paddle resolution, and unchanged score output across supported video
           standards.
 
-[ ] 48. Add playfield-color support as an explicit renderer capability.
+[ ] 49. Add playfield-color support as an explicit renderer capability.
 
         * Define whether colors are global, per logical row, or both.
         * Schedule every COLUPF write against the beam.
@@ -77,7 +112,7 @@ Current next action: Item 46, add exhaustive Superchip RAM access regressions.
         * Add static, motion, transition, installation, and pixel/color-oracle
           coverage for every supported profile.
 
-[ ] 49. Add a public side-scroller/platform example.
+[ ] 50. Add a public side-scroller/platform example.
 
         * Demonstrate animated player sprites, horizontal world scrolling,
           platform/playfield collision, jumping/gravity, and camera/world-state

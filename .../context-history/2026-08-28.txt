@@ -158,3 +158,22 @@ single long runner exceeded the container command window after 240 cases, the
 remaining 88 were completed in ordered batches. Item 45 is complete and removed
 from the unfinished roadmap; Item 46 (exhaustive Superchip RAM access
 regressions) is now the main-roadmap next action.
+
+2026-08-28 17:49:14 PDT, document linker dummy-read hazard
+The diagnostic P1 corruption is now attributed to NMOS 6502 page-cross dummy
+reads from a wrapped absolute,Y reposition-table lookup. With the table linked
+at $F14D the encoded base was $F05D; Y=$F3 and Y=$F1 reached final ROM addresses
+$F150/$F14E but ghost-read $F050/$F04E, which are Superchip write-port aliases
+for DETAIL1 bytes 5 and 3. Normal CPU write traps were clean because the
+corruption is caused by read bus cycles with destructive SC write-port side
+effects. RIOT zero-page/absolute controls and a no-page-cross SC control rule
+out the earlier timing and direct cartram-lowering theories.
+
+Created `.../superchip_dummy_read_hazard.txt` as the detailed active design
+record. Reprioritized the main roadmap so Item 46 is a generic linker fix:
+mapper-declared hazardous-read ranges, real 6502 dummy-cycle analysis on final
+relocations, placement constraints that preserve instruction timing, and hard
+source-correlated errors when no safe placement exists. The exhaustive direct
+Superchip access suite moves to Item 47; later main items shift to 48-50. The
+current diagnostic RIOT workaround remains temporary and must be removed only
+after the generic linker solution is proven.
