@@ -261,3 +261,31 @@ timing for the changed public cartridges. All 502 compile-phase tests pass. A
 broad 329-case e2e run passed 241 cases with no failures before the outer command
 timeout; subsequent unrelated long-tail diagnostics also exceeded the command
 window, so no claim is made here that the entire e2e tail was rerun.
+
+2026-08-28 21:53:38 PDT, default font slashed zero
+Changed default_ascii digit 0 to a slashed zero and regenerated the
+decimal, uppercase-hex, and lowercase-hex subsets. Updated independent
+score raster oracle tables and added a font-contract assertion for the
+new default-zero pixels.
+
+2026-08-28 22:24:05 PDT, generate mapper font subsets
+Replaced hand-copied canonical font tables in the FA RAM+, 4KSC, Omni, CV,
+JANE, 0840, UA/UASW, 0FA0, E0, 3F, and 3E diagnostics with checked-in
+custom subset files. Added `libraries/vcs/fonts/make_font_subset.pl` for
+arbitrary ordered subsets from canonical C26 fonts, with selectable bank/page
+placement and license text. Each affected example Makefile has an explicit
+`make fonts` regeneration target; normal builds consume the checked-in files
+and do not require Perl.
+
+Added `vcs_generated_font_subsets.pl`, which regenerates every custom subset
+through its example Makefile into a temporary directory and byte-compares it
+against the checked-in copy. It also verifies ordinary example builds do not
+invoke Perl and locks the 0840 subset to the canonical slashed zero. UA/UASW
+wrappers include their local generated fragments directly so recursive example
+discovery recognizes them as include-only files instead of standalone carts.
+
+Validation: all 502 compile-phase tests pass. All 330 e2e cases are green.
+The broad eight-job e2e run exposed four resource-contention failures: the
+120-second diagnostic and example-build shards 5, 6, and 8. The diagnostic and
+shard 5 pass through the normal runner when run alone; shards 6 and 8 pass after
+the UA wrapper include fix. The other 326 e2e cases passed in the broad run.

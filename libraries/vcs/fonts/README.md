@@ -41,7 +41,7 @@ page. This matters for cycle-sensitive `(pointer),Y` glyph reads.
 
 | Family | Decimal module | Hexadecimal module | Notes |
 |---|---|---|---|
-| Default | `default_decimal.c26` | `default_hex.c26` | Original standard score digits |
+| Default | `default_decimal.c26` | `default_hex.c26` | Original standard score digits; slashed zero |
 | 21st Century | `21st_century_decimal.c26` | `21st_century_hex.c26` | Thin geometric strokes |
 | Alarm Clock | `alarm_clock_decimal.c26` | `alarm_clock_hex.c26` | Broken seven-segment appearance |
 | Handwritten | `handwritten_decimal.c26` | `handwritten_hex.c26` | Slanted hand-drawn digits |
@@ -55,6 +55,14 @@ page. This matters for cycle-sensitive `(pointer),Y` glyph reads.
 uppercase-hex, and lowercase-hex modules in place. Generated subsets retain the
 source font's license/comments, identify their ASCII source, and use `page`
 instead of `align(256)`.
+
+`make_font_subset.pl` generates an arbitrary checked-in subset in a caller-chosen
+character order and table name. It defaults to `page`, accepts `--bank` for
+bank-qualified placement and `--no-page` when a page constraint is unwanted.
+The bankswitching diagnostics use their local `make fonts` targets to regenerate
+small mapper-name and PASS/FAIL tables from `default_ascii.c26` and
+`big_ascii.c26`. Those generated `.c26` files are committed, so ordinary example
+builds do not require Perl.
 
 ## Font conversion and fixed-message helpers
 

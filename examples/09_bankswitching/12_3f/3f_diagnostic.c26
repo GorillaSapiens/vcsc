@@ -19,20 +19,7 @@ bank1 uint8_t bank1_probe(void) { call_count := call_count + 1; return 0x31; }
 bank2 uint8_t bank2_probe(void) { call_count := call_count + 1; return 0x32; }
 
 #ifndef SIMULATOR_TEST
-// Exact glyph subsets copied from the canonical ASCII fonts.
-// Big table order: space, p, a, s, F, A, I, L.
-alias MAP_GLYPH(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a
-alias MAP_SMALL_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
-bank3 page const uint8_t status_glyphs[128] := {
-   MAP_GLYPH(0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........),
-   MAP_GLYPH(0b........,0b........,0b........,0b........,0b........,0bXXXXXXX.,0bXXXXXXXX,0bXXX..XXX,0bXXX..XXX,0bXXX..XXX,0bXXXXXXXX,0bXXXXXXX.,0bXXX.....,0bXXX.....,0bXXX.....,0b........),
-   MAP_GLYPH(0b........,0b........,0b........,0b........,0b........,0b..XXXXX.,0b.XXXXXXX,0b.....XXX,0b.XXXXXXX,0bXXX..XXX,0bXXXXXXXX,0b.XXXXXXX,0b........,0b........,0b........,0b........),
-   MAP_GLYPH(0b........,0b........,0b........,0b........,0b........,0b.XXXXXX.,0bXXXXXXXX,0bXXXX....,0b.XXXXXX.,0b....XXXX,0bXXXXXXXX,0b.XXXXXX.,0b........,0b........,0b........,0b........),
-   MAP_GLYPH(0b........,0b........,0bXXXXXXXX,0bXXXXXXXX,0bXXX.....,0bXXX.....,0bXXXXXX..,0bXXXXXX..,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0b........,0b........,0b........,0b........),
-   MAP_GLYPH(0b........,0b........,0b...XX...,0b..XXXX..,0b..XXXX..,0b.XXXXXX.,0b.XX..XX.,0bXXX..XXX,0bXXXXXXXX,0bXXXXXXXX,0bXXX..XXX,0bXXX..XXX,0b........,0b........,0b........,0b........),
-   MAP_GLYPH(0b........,0b........,0b.XXXXX..,0b.XXXXX..,0b..XXX...,0b..XXX...,0b..XXX...,0b..XXX...,0b..XXX...,0b..XXX...,0b.XXXXX..,0b.XXXXX..,0b........,0b........,0b........,0b........),
-   MAP_GLYPH(0b........,0b........,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0bXXX.....,0bXXXXXXXX,0bXXXXXXXX,0b........,0b........,0b........,0b........)
-};
+include "status_font.c26"
 
 inline void load_pass(void) {
    asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+0;
@@ -64,11 +51,7 @@ inline void load_fail(void) {
    asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+11;
 }
 
-bank3 page const uint8_t cart_type_glyphs[24] := {
-   MAP_SMALL_GLYPH(0b........,0b........,0b........,0b........,0b........,0b........,0b........,0b........),
-   MAP_SMALL_GLYPH(0b..XXXX..,0b.XX..XX.,0b.....XX.,0b...XXX..,0b.....XX.,0b.....XX.,0b.XX..XX.,0b..XXXX..),
-   MAP_SMALL_GLYPH(0b.XXXXXX.,0b.XX.....,0b.XX.....,0b.XXXXX..,0b.XX.....,0b.XX.....,0b.XX.....,0b.XX.....)
-};
+include "cart_type_font.c26"
 
 inline void load_mapper_type(void) {
    // "  3F  "

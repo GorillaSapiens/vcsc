@@ -76,11 +76,15 @@ my $source=File::Spec->catfile($example_dir,'e0_diagnostic.c26');
 my $example_make=File::Spec->catfile($example_dir,'Makefile');
 
 my $src=read_file($source);
+my $status_font=read_file(File::Spec->catfile($example_dir,'status_font.c26'));
+my $cart_font=read_file(File::Spec->catfile($example_dir,'cart_type_font.c26'));
 $src =~ /instantiate "six_glyph_big_wide_component\.c26" as status_result/ &&
 $src =~ /instantiate "six_glyph_component\.c26" as cart_type \(compact_font:=0\)/ &&
 $src =~ /bank0 void draw_result\(void\)/ &&
-$src =~ /bank1 const uint8_t status_glyphs\[128\]/ &&
-$src =~ /bank1 const uint8_t cart_type_glyphs\[24\]/ &&
+$src =~ /include "status_font\.c26"/ &&
+$src =~ /include "cart_type_font\.c26"/ &&
+$status_font =~ /bank1 const uint8_t status_glyphs\[128\]/ &&
+$cart_font =~ /bank1 const uint8_t cart_type_glyphs\[24\]/ &&
 $src =~ /bank2 void component_init\(void\)/ &&
 $src =~ /bank2 void component_vblank\(void\)/ &&
 $src =~ /asm lda \$1fe0;\s*asm lda \$1fe9;\s*asm lda \$1ff2;\s*draw_result\(\);/s

@@ -1,4 +1,8 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 include "vcs_8k_ua.c26"
 const uint8_t uasw_diagnostic := 0;
+#ifndef SIMULATOR_TEST
+include "ua_status_font.c26"
+include "ua_cart_type_font.c26"
+#endif
 include "../../common/ua_diagnostic_common.c26"

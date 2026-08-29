@@ -109,6 +109,15 @@ for my $family (@families) {
       $seen{$k}=$i;
    }
 
+   if ($base eq 'default') {
+      my @slashed_zero=(
+         '..XXXXX.', '.XX..XX.', '.XX.XXX.', '.XX.XXX.',
+         '.XXX.XX.', '.XXX.XX.', '.XX..XX.', '.XXXXX..',
+      );
+      key($ascii->[ord('0')-0x20]) eq join('/',@slashed_zero)
+         or die "default ASCII zero lost its slash\n";
+   }
+
    for my $digit (0..9) {
       same_glyph($ascii->[ord('0')-0x20+$digit],$decimal->[$digit],
          "$base ASCII digit $digit");
