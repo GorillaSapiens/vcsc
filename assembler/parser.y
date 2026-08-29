@@ -47,6 +47,9 @@ typedef struct YYLTYPE {
 
 int yylex(void);
 void yyerror(const char *s);
+int lexer_listing_origin_active(void);
+const char *lexer_listing_origin_file(void);
+int lexer_listing_origin_line(void);
 
 program_ir_t g_program;
 
@@ -54,6 +57,13 @@ static void free_if(char *s)
 {
    if (s)
       free(s);
+}
+
+static void append_stmt(stmt_t *stmt)
+{
+   if (lexer_listing_origin_active())
+      stmt_set_listing_origin(stmt, lexer_listing_origin_file(), lexer_listing_origin_line());
+   program_ir_append(&g_program, stmt);
 }
 %}
 
@@ -111,31 +121,31 @@ line
 statement
    : LABEL_DEF
      {
-        program_ir_append(&g_program, stmt_make_label(@1.filename, @1.first_line, $1));
+        append_stmt(stmt_make_label(@1.filename, @1.first_line, $1));
         free_if($1);
      }
    | LABEL_DEF directive_stmt
      {
-        program_ir_append(&g_program, stmt_make_dir(@2.filename, @2.first_line, $1, $2));
+        append_stmt(stmt_make_dir(@2.filename, @2.first_line, $1, $2));
         free_if($1);
      }
    | LABEL_DEF instruction_stmt
      {
         $2->label = strdup($1);
-        program_ir_append(&g_program, $2);
+        append_stmt($2);
         free_if($1);
      }
    | directive_stmt
      {
-        program_ir_append(&g_program, stmt_make_dir(@1.filename, @1.first_line, NULL, $1));
+        append_stmt(stmt_make_dir(@1.filename, @1.first_line, NULL, $1));
      }
    | instruction_stmt
      {
-        program_ir_append(&g_program, $1);
+        append_stmt($1);
      }
    | const_stmt
      {
-        program_ir_append(&g_program, $1);
+        append_stmt($1);
      }
    ;
 

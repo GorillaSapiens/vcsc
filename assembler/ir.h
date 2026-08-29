@@ -72,6 +72,8 @@ struct stmt {
    stmt_kind_t kind;
    const char *file;
    int line;
+   const char *listing_file;
+   int listing_line;
    long address;
    long emit_address;
    int rorg_active;
@@ -104,6 +106,7 @@ stmt_t *stmt_make_dir(const char *file, int line, char *label, directive_info_t 
 stmt_t *stmt_make_const(const char *file, int line, char *name, expr_t *expr);
 stmt_t *stmt_make_const_default(const char *file, int line, char *name, expr_t *expr);
 stmt_t *stmt_make_const_set(const char *file, int line, char *name, expr_t *expr);
+void stmt_set_listing_origin(stmt_t *stmt, const char *file, int line);
 
 const char *mode_spec_suffix(mode_spec_t spec);
 const char *branch_page_spec_suffix(branch_page_spec_t spec);

@@ -387,10 +387,19 @@ static bool default_writable_storage_is_zeropage(const ASTNode *program) {
 }
 
 static bool peephole_enabled = true;
+static bool listing_provenance = false;
 
 //! @brief Enable or disable the compiler assembly peephole pass.
 void set_peephole_enabled(bool enabled) {
    peephole_enabled = enabled;
+}
+
+void set_listing_provenance_enabled(bool enabled) {
+   listing_provenance = enabled;
+}
+
+bool listing_provenance_enabled(void) {
+   return listing_provenance;
 }
 
 //! @brief Run the compile stage of the compiler tool pipeline.
@@ -403,6 +412,8 @@ void do_compile(FILE *out) {
    emit(&es_header, "; this file produced by \"vcsc-cc1\" compiler\n");
    emit(&es_header, ".include \"vcsc-runtime.inc\"\n");
    emit(&es_code,   ".segment \"CODE\"\n");
+   if (listing_provenance_enabled())
+      emit(&es_code, "    ;@@SOURCE 0\n");
    emit(&es_rodata, ".segment \"RODATA\"\n");
    emit(&es_data,   ".segment \"DATA\"\n");
    emit(&es_bss,    ".segment \"BSS\"\n");
@@ -419,6 +430,8 @@ void do_compile(FILE *out) {
    analyze_static_parameter_call_graph();
    validate_main_signature(resolve_function_designator_target("main"));
    emit_symbol_backed_call_graph_metadata();
+   if (listing_provenance_enabled())
+      emit(&es_code, "    ;@@SOURCE 0\n");
    emit_runtime_global_init_function();
    compiler_scratch_emit_bss();
    emit_peephole_optimize(&es_code, peephole_enabled);

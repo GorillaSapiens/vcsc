@@ -30,8 +30,13 @@ configuration profile and links through the reduced `libraries/vcs/vcs.cfg`.
 An explicit `-T` suppresses that implicit profile. The driver links
 `libraries/runtime/libvcsc.l26` unless `-nostdlib` is used.
 Successful links also create same-stem `.map`, `.sym`, `.lst`, and DiStella
-`.cfg` files by default. The naming and suppression options above are forwarded
-directly to `vcsc-ld`. Bank-placement diagnostics are linker-only options; use
+`.cfg` files by default. For linked C26 builds the driver automatically carries
+source provenance through the temporary assembly/object stages so the final
+`.lst` correlates original C26 statements with generated assembly, final
+addresses, and relocated bytes. `-S` remains ordinary clean assembly output; the
+provenance markers are an internal linked-build detail. The naming and
+suppression options above are forwarded directly to `vcsc-ld`. Bank-placement
+diagnostics are linker-only options; use
 `-Wl,--bank-placement=simple,--explain-bank-placement` for stable simple packing
 and its decision trace. Optimized placement remains the linker default.
 

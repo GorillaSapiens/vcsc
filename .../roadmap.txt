@@ -18,39 +18,7 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 45, make linked .lst files useful to humans.
-
-[ ] 45. Make final linked `.lst` files human-readable source listings.
-
-        * Replace the current mostly-hex linked-byte dump with a listing that is
-          useful for debugging compiler output by a human.
-        * For C26 input, preserve source provenance through compile, assemble,
-          and link so the final listing can group generated instructions under
-          the original `.c26` filename, line number, and source statement.
-        * For every emitted instruction/data record, show the final linked
-          logical address, emitted bytes, and readable generated assembly. The
-          listing must reflect relocation and final bank placement rather than
-          only temporary pre-link addresses.
-        * Make read/write aliases and effective operands obvious in the final
-          text. In particular, cartridge-RAM accesses should make it easy to see
-          the distinct Superchip read and write addresses actually encoded.
-        * Preserve useful source correspondence for maintained `.s26` input as
-          well; assembler-only code should not degrade into an anonymous hex
-          dump.
-        * Handle compiler-generated/inlined code without lying about provenance:
-          associate it with the originating C26 statement when known and mark
-          synthetic/linker-generated material clearly when no source line owns
-          it.
-        * Keep the format deterministic and practical for diffing. If Stella or
-          other tooling consumes the existing `.lst`, retain compatibility when
-          feasible; otherwise provide an explicit compatible sidecar rather than
-          sacrificing the human-readable linked listing.
-        * Add focused regressions that compile, assemble, and link representative
-          C26 and S26 inputs and verify source line, generated instruction, final
-          address, and emitted-byte correlation, including a Superchip
-          read/write-alias case.
-        * Document the listing contract and the command-line/build behavior that
-          produces it.
+Current next action: Item 46, add exhaustive Superchip RAM access regressions.
 
 [ ] 46. Add exhaustive Superchip RAM access regressions.
 

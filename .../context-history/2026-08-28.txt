@@ -133,3 +133,28 @@ cartram scalar/array accesses, constant and runtime indexes, copies and
 read-modify-write forms, DATA/BSS, boundary/sentinel cases, linked read/write
 alias operands, simulator/emulator readback, and 4KSC/F8SC/F6SC/F4SC diagnostic
 coverage. Later roadmap items were renumbered 47-49.
+
+2026-08-28 16:28:19 PDT, complete human-readable linked listing
+Final linked .lst sidecars now carry maintained C26/S26 source provenance through
+compiler, assembler, O26, relocation, and final bank placement. Source statements
+are printed before their emitted instructions with final logical addresses,
+relocated bytes, readable generated 6502 assembly, and resolved 16-bit operands.
+This makes split-address mappings visible directly; the focused F8SC regression
+shows the generated Superchip store through the write alias and load through the
+read alias, separated by exactly 0x80. Compiler-generated or otherwise
+unattributed material is labeled rather than assigned false source ownership,
+and legacy/Stella RAM-constant information remains in the same sidecar.
+
+Provenance markers initially interfered with assembly peephole matching and
+changed several renderer ROM footprints. They are now optimization-transparent.
+A dedicated peephole-source-toggle regression verifies that source provenance
+does not change optimized generated assembly after metadata is stripped.
+Documentation in linker/README.md, driver/README.md, and test/README.md records
+the final listing contract and normal build behavior.
+
+Validation on the completed implementation: all 502 compile-phase tests pass.
+The complete 328-case e2e set also passes on this source revision; because the
+single long runner exceeded the container command window after 240 cases, the
+remaining 88 were completed in ordered batches. Item 45 is complete and removed
+from the unfinished roadmap; Item 46 (exhaustive Superchip RAM access
+regressions) is now the main-roadmap next action.

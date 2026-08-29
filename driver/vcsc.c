@@ -1251,6 +1251,8 @@ static void run_cc_variant(const char *cc_path, const driver_options_t *opt,
    path_dirname(input, input_dir, sizeof(input_dir));
    strvec_push(&cmd, cc_path);
    strvec_push(&cmd, "-quiet");
+   if (!opt->asm_only)
+      strvec_push(&cmd, "-flisting-provenance");
    strvec_push(&cmd, "-I");
    strvec_push(&cmd, input_dir);
    add_include_flags(&cmd, &opt->include_dirs);

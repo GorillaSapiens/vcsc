@@ -11,6 +11,9 @@
 
 static char g_source_file[4096] = "<input>";
 static long g_source_line = 1;
+static char g_origin_file[4096] = "";
+static long g_origin_line = 0;
+static int g_origin_active = 0;
 
 static void parse_file_marker(const char *text)
 {
@@ -46,6 +49,40 @@ static void parse_file_marker(const char *text)
    g_source_line = line_no;
 }
 
+
+
+static void parse_source_marker(const char *text)
+{
+   const char *p = text;
+   char *end;
+   long line_no;
+
+   while (*p == ' ' || *p == '\t')
+      p++;
+   if (strncmp(p, ";@@SOURCE ", 10) != 0)
+      return;
+   p += 10;
+   line_no = strtol(p, &end, 10);
+   if (end == p || line_no < 0)
+      return;
+   if (line_no == 0) {
+      strcpy(g_origin_file, "<compiler-generated>");
+      g_origin_line = 0;
+      g_origin_active = 1;
+      return;
+   }
+   while (*end == ' ' || *end == '\t')
+      end++;
+   strncpy(g_origin_file, end, sizeof(g_origin_file) - 1);
+   g_origin_file[sizeof(g_origin_file) - 1] = '\0';
+   {
+      size_t n = strlen(g_origin_file);
+      while (n > 0 && (g_origin_file[n - 1] == '\n' || g_origin_file[n - 1] == '\r'))
+         g_origin_file[--n] = '\0';
+   }
+   g_origin_line = line_no;
+   g_origin_active = 1;
+}
 
 static int ascii_lower(int ch)
 {
@@ -84,10 +121,14 @@ static int suffix_is_plain_expression_mode(const char *text)
           !strcmp(suffix, ".ay");
 }
 
+int lexer_listing_origin_active(void) { return g_origin_active; }
+const char *lexer_listing_origin_file(void) { return g_origin_file; }
+int lexer_listing_origin_line(void) { return (int)g_origin_line; }
+
 #define YY_USER_ACTION                        \
    do {                                       \
       yylloc.first_line = (int)g_source_line; \
-      yylloc.last_line = (int)g_source_line;  \
+      yylloc.last_line = yylloc.first_line;   \
       yylloc.first_column = 1;                \
       yylloc.last_column = 1;                 \
       yylloc.filename = g_source_file;        \
@@ -111,6 +152,7 @@ OPCODETOK    {IDENT}{MODE_SUFFIX}?
 %%
 
 ^@@FILE[^\n]*\n             { parse_file_marker(yytext); }
+^[ \t]*";@@SOURCE "[^\n]*\n     { parse_source_marker(yytext); }
 
 ";"[^\n]*                  { }
 {WS}                       { }

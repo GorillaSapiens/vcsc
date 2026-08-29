@@ -24,4 +24,7 @@ void listing_write_record(listing_writer_t *lst,
 
 void listing_write_no_bytes(listing_writer_t *lst, const stmt_t *stmt);
 
+//! Render one parsed assembler statement as owned human-readable text.
+char *listing_render_stmt_alloc(const stmt_t *stmt);
+
 #endif

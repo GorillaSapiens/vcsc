@@ -73,11 +73,19 @@ The linker also accepts this positional form:
 
 For `game.bin`, a successful link normally writes `game.map`, `game.sym`,
 `game.lst`, and `game.cfg` beside it. Stella automatically consumes the latter
-three when its debugger opens. The symbol file contains final ROM and RAM
-addresses. The list file is a final linked-byte listing with DASM-compatible
-RAM constant rows. The DiStella config classifies known executable layouts as
-`CODE` and all other occupied bytes as `DATA`; font, graphics, color, and audio
-ranges can be refined later with Stella's debugger.
+three when its debugger opens. The symbol file contains final ROM and RAM addresses. The list file is a
+human-readable final linked listing: each maintained C26/S26 source statement is
+shown before the generated assembly it produced, with final linked logical
+addresses, relocated bytes, and readable assembler text. Three-byte 6502
+instructions also show their resolved 16-bit operand (`=> $xxxx`), so split
+read/write aliases such as Superchip RAM are visible directly. Compiler-created
+code without a source statement is labeled `<compiler-generated>`; linker tables,
+vectors, legacy-object bytes, and other unattributed material are retained in a
+separate section instead of being hidden. DASM-compatible RAM constant rows are
+preserved so Stella can continue consuming the same `.lst` sidecar. The
+DiStella config classifies known executable layouts as `CODE` and all other
+occupied bytes as `DATA`; font, graphics, color, and audio ranges can be refined
+later with Stella's debugger.
 
 The `.map` file is VCSC's fuller layout/usage report; Stella does not consume
 it. VCSC deliberately does not create a ROM-specific `.script`, because Stella

@@ -23,6 +23,7 @@ my $driver_off = File::Spec->catfile($tmp, 'driver_off.s26');
 my $re_enabled = File::Spec->catfile($tmp, 're_enabled.s26');
 my $re_disabled = File::Spec->catfile($tmp, 're_disabled.s26');
 my $debug = File::Spec->catfile($tmp, 'debug.txt');
+my $provenance_on = File::Spec->catfile($tmp, 'provenance_on.s26');
 
 sub run_ok {
    my (@cmd) = @_;
@@ -40,6 +41,7 @@ run_ok($cc1, '-quiet', '-I', $test, '-fno-peephole', $src, '-o', $off);
 run_ok($cc1, '-quiet', '-I', $test, '-fpeephole', $src, '-o', $on);
 run_ok($driver, '-S', '-I', $test, '-fno-peephole', $src, '-o', $driver_off);
 run_ok($cc1, '-quiet', '-I', $test, '-fno-peephole', '-fpeephole', $src, '-o', $re_enabled);
+run_ok($cc1, '-quiet', '-I', $test, '-fpeephole', '-flisting-provenance', $src, '-o', $provenance_on);
 run_ok($cc1, '-quiet', '-I', $test, '-fpeephole', '-fno-peephole', $src, '-o', $re_disabled);
 
 my $off_text = slurp($off);
@@ -48,6 +50,11 @@ my $driver_text = slurp($driver_off);
 $driver_text eq $off_text or die "driver -fno-peephole did not match direct cc1 output\n";
 slurp($re_enabled) eq $on_text or die "last -fpeephole option did not re-enable optimization\n";
 slurp($re_disabled) eq $off_text or die "last -fno-peephole option did not disable optimization\n";
+
+my $provenance_text = slurp($provenance_on);
+$provenance_text =~ s/^\s*;\@\@SOURCE[^\n]*\n//mg;
+$provenance_text eq $on_text
+   or die "listing provenance changed optimized assembly after markers were removed\n";
 
 my @patterns = (
    [ 'dup_lda', qr/lda #\$00\n    sta  __vcsc_scratch_0\n    lda #\$00\n    sta  __vcsc_scratch_0 \+ 1/ ],

@@ -58,7 +58,16 @@ sub mark_page_contained {
       my $branches=get_u16(\$data,\$p);
       $p += $branches * ($magic eq "B26\2" ? 7 : 6);
    }
-   $p==length($data) or die "unexpected o26 branch tail\n";
+   if ($p<length($data)) {
+      substr($data,$p,4) eq "L26\1" or die "unexpected o26 branch tail\n";
+      $p += 4;
+      my $records=get_u16(\$data,\$p);
+      for (1..$records) {
+         $p += 8;
+         skip_cstr(\$data,\$p) for 1..3;
+      }
+   }
+   $p==length($data) or die "unexpected o26 listing tail\n";
    $found==1 or die "layout $want found $found times\n";
    write_file($path,$data);
 }

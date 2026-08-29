@@ -9821,8 +9821,171 @@ static const char *symbol_at_address(const layout_t *layout, uint16_t addr)
    return NULL;
 }
 
-//! @brief Write a DASM-shaped linked-byte listing accepted by Stella's list loader.
+//! One source-correlated statement placed into the final linked address space.
+typedef struct {
+   const object_file_t *obj;
+   const object_layout_t *layout;
+   const listing_record_t *record;
+   const uint8_t *bytes;
+   uint16_t addr;
+} linked_listing_entry_t;
+
+//! @brief Compare linked listing statements by final address, bank/layout, then source.
+static int compare_linked_listing_entries(const void *a, const void *b)
+{
+   const linked_listing_entry_t *aa = (const linked_listing_entry_t *)a;
+   const linked_listing_entry_t *bb = (const linked_listing_entry_t *)b;
+   int cmp;
+   if (aa->addr != bb->addr)
+      return aa->addr < bb->addr ? -1 : 1;
+   cmp = strcmp(aa->layout->placement_bank, bb->layout->placement_bank);
+   if (cmp)
+      return cmp;
+   cmp = strcmp(aa->layout->name ? aa->layout->name : "", bb->layout->name ? bb->layout->name : "");
+   if (cmp)
+      return cmp;
+   cmp = strcmp(aa->record->source_file ? aa->record->source_file : "",
+                bb->record->source_file ? bb->record->source_file : "");
+   if (cmp)
+      return cmp;
+   if (aa->record->source_line != bb->record->source_line)
+      return aa->record->source_line < bb->record->source_line ? -1 : 1;
+   return aa->record->offset < bb->record->offset ? -1 : aa->record->offset > bb->record->offset;
+}
+
+//! @brief Return final relocated bytes backing one source-listing record.
+static const uint8_t *linked_listing_record_bytes(const object_file_t *obj,
+                                                  const object_layout_t *layout,
+                                                  const listing_record_t *record)
+{
+   const o26_segment_t *seg;
+   size_t offset;
+   if (layout->image_segid == O26_SEG_TEXT)
+      seg = &obj->text;
+   else if (layout->image_segid == O26_SEG_DATA)
+      seg = &obj->data;
+   else
+      return NULL;
+   offset = (size_t)layout->image_base + record->offset;
+   if (offset > seg->length || record->size > seg->length - offset)
+      return NULL;
+   return seg->data + offset;
+}
+
+//! @brief Gather all source-correlated statement records with their final placements.
+static linked_listing_entry_t *collect_linked_listing_entries(const input_set_t *in,
+                                                               size_t *count_out)
+{
+   linked_listing_entry_t *entries = NULL;
+   size_t count = 0;
+   size_t i;
+
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      size_t j;
+      for (j = 0; j < obj->listing_count; ++j) {
+         const listing_record_t *record = &obj->listing[j];
+         const object_layout_t *layout;
+         const uint8_t *bytes;
+         uint32_t addr;
+         if (record->layout_index >= obj->layout_count || record->size == 0)
+            continue;
+         layout = &obj->layouts[record->layout_index];
+         if ((uint32_t)record->offset + record->size > layout->size)
+            continue;
+         bytes = linked_listing_record_bytes(obj, layout, record);
+         if (!bytes)
+            continue;
+         addr = (uint32_t)layout->load_addr + record->offset;
+         if (addr > 0xffffu || addr + record->size > 0x10000u)
+            continue;
+         entries = (linked_listing_entry_t *)xrealloc(entries, (count + 1) * sizeof(*entries));
+         entries[count].obj = obj;
+         entries[count].layout = layout;
+         entries[count].record = record;
+         entries[count].bytes = bytes;
+         entries[count].addr = (uint16_t)addr;
+         count++;
+      }
+   }
+   qsort(entries, count, sizeof(*entries), compare_linked_listing_entries);
+   *count_out = count;
+   return entries;
+}
+
+//! @brief Return whether two records share the same original source statement.
+static int listing_same_source(const listing_record_t *a, const listing_record_t *b)
+{
+   if (!a || !b)
+      return 0;
+   return a->source_line == b->source_line &&
+          !strcmp(a->source_file ? a->source_file : "", b->source_file ? b->source_file : "") &&
+          !strcmp(a->source_text ? a->source_text : "", b->source_text ? b->source_text : "");
+}
+
+//! @brief Print one source-origin banner before the machine instructions it generated.
+static void write_listing_source_banner(FILE *fp, const linked_listing_entry_t *entry)
+{
+   const listing_record_t *record = entry->record;
+   const char *file = record->source_file && record->source_file[0] ? record->source_file : "<unknown>";
+   const char *text = record->source_text && record->source_text[0] ? record->source_text : "";
+
+   if (!strcmp(file, "<compiler-generated>")) {
+      fprintf(fp, "; <compiler-generated>");
+   } else if (record->source_line) {
+      fprintf(fp, "; %s:%u", file, (unsigned)record->source_line);
+   } else {
+      fprintf(fp, "; %s", file);
+   }
+   if (entry->layout->placement_bank[0])
+      fprintf(fp, " [bank %s]", entry->layout->placement_bank);
+   else if (entry->layout->name && entry->layout->name[0])
+      fprintf(fp, " [layout %s]", entry->layout->name);
+   if (text[0])
+      fprintf(fp, " | %s", text);
+   fputc('\n', fp);
+}
+
+//! @brief Print one final linked statement in a DASM-compatible human-readable row.
+static void write_listing_statement(FILE *fp, unsigned *line,
+                                    const linked_listing_entry_t *entry,
+                                    uint8_t *covered)
+{
+   const listing_record_t *record = entry->record;
+   unsigned offset = 0;
+   while (offset < record->size) {
+      unsigned count = record->size - offset;
+      unsigned n;
+      uint16_t addr = (uint16_t)(entry->addr + offset);
+      if (count > 8)
+         count = 8;
+      fprintf(fp, "%5u %04x ", (*line)++, addr);
+      for (n = 0; n < count; ++n) {
+         fprintf(fp, "%02x ", entry->bytes[offset + n]);
+         covered[(uint16_t)(addr + n)] = 1;
+      }
+      while (n++ < 8)
+         fputs("   ", fp);
+      if (offset == 0 && record->asm_text && record->asm_text[0]) {
+         fprintf(fp, "; %s", record->asm_text);
+         /* A three-byte 6502 instruction has a final 16-bit operand.  Showing
+            its resolved value makes split read/write aliases (notably SC RAM)
+            obvious without making humans decode little-endian bytes by eye. */
+         if (record->size == 3 && record->asm_text[0] != '.') {
+            uint16_t operand = (uint16_t)(entry->bytes[1] | (entry->bytes[2] << 8));
+            fprintf(fp, "  => $%04X", operand);
+         }
+      } else if (offset != 0) {
+         fprintf(fp, "; +%u", offset);
+      }
+      fputc('\n', fp);
+      offset += count;
+   }
+}
+
+//! @brief Write a DASM-shaped, source-correlated final linked listing.
 static void write_stella_list_file(const char *path,
+                                   const input_set_t *in,
                                    const layout_t *layout,
                                    const uint8_t *image,
                                    const uint8_t *used)
@@ -9831,6 +9994,11 @@ static void write_stella_list_file(const char *path,
    unsigned line = 1;
    size_t i;
    uint32_t addr = 0;
+   uint8_t *covered;
+   linked_listing_entry_t *entries;
+   size_t entry_count;
+   const listing_record_t *previous_source = NULL;
+   const object_layout_t *previous_layout = NULL;
 
    if (!path)
       return;
@@ -9841,7 +10009,8 @@ static void write_stella_list_file(const char *path,
    }
 
    fprintf(fp, "------- VCSC linked image listing\n");
-   fprintf(fp, "------- RAM symbols use DASM constant rows; ROM rows show final bytes.\n");
+   fprintf(fp, "------- Human source listing; addresses and bytes are final after relocation.\n");
+   fprintf(fp, "------- RAM symbols retain DASM constant rows for Stella compatibility.\n");
 
    /* Stella's DASM-list parser recognizes RAM constants from columns beginning
       at offset 20 in the form "high low NAME =". */
@@ -9856,18 +10025,35 @@ static void write_stella_list_file(const char *path,
               symbol->name);
    }
 
+   covered = (uint8_t *)xcalloc(65536, 1);
+   entries = collect_linked_listing_entries(in, &entry_count);
+   if (entry_count)
+      fputs("------- Source-correlated linked statements\n", fp);
+   for (i = 0; i < entry_count; ++i) {
+      const linked_listing_entry_t *entry = &entries[i];
+      if (previous_layout != entry->layout || !listing_same_source(previous_source, entry->record))
+         write_listing_source_banner(fp, entry);
+      write_listing_statement(fp, &line, entry, covered);
+      previous_source = entry->record;
+      previous_layout = entry->layout;
+   }
+   free(entries);
+
+   /* Linker-generated vectors/tables and bytes from legacy objects have no
+      source provenance.  Keep them visible rather than silently omitting them. */
+   fputs("------- Unattributed/linker-generated linked bytes\n", fp);
    while (addr < 65536u) {
       unsigned count = 0;
       const char *label;
       uint32_t start;
 
-      while (addr < 65536u && !used[addr])
+      while (addr < 65536u && (!used[addr] || covered[addr]))
          addr++;
       if (addr >= 65536u)
          break;
       start = addr;
       fprintf(fp, "%5u %04x ", line++, (unsigned)start);
-      while (addr < 65536u && used[addr] && count < 8) {
+      while (addr < 65536u && used[addr] && !covered[addr] && count < 8) {
          fprintf(fp, "%02x ", image[addr]);
          addr++;
          count++;
@@ -9877,9 +10063,12 @@ static void write_stella_list_file(const char *path,
       label = symbol_at_address(layout, (uint16_t)start);
       if (label)
          fprintf(fp, "; %s", label);
+      else
+         fputs("; <linker-generated/unattributed>", fp);
       fputc('\n', fp);
    }
 
+   free(covered);
    if (fclose(fp) != 0) {
       fprintf(stderr, "vcsc-ld: close failed for '%s': %s\n", path, strerror(errno));
       exit(1);
@@ -10392,7 +10581,7 @@ int main(int argc, char **argv)
                   &cfg, &inputs, &layout, used);
    write_stella_symbol_file(sym_output.enabled ? sym_output.path : NULL, &layout);
    write_stella_list_file(list_output.enabled ? list_output.path : NULL,
-                          &layout, image, used);
+                          &inputs, &layout, image, used);
    write_stella_config_file(cfg_output.enabled ? cfg_output.path : NULL,
                             &cfg, &inputs, used);
    if (!trial_mode) {

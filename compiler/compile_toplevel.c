@@ -480,6 +480,8 @@ void compile_function_decl(ASTNode *node) {
    if (code_region_name && *code_region_name) {
       emit(&es_code, ".segment \"CODE.%s\"\n", code_region_name);
    }
+   if (listing_provenance_enabled() && node->file && node->line > 0)
+      emit(&es_code, "    ;@@SOURCE %d %s\n", node->line, node->file);
    emit(&es_code, ".proc %s\n", sym);
    if (has_modifier(modifiers, "page")) {
       emit(&es_code, ".pagecontain\n");
@@ -495,6 +497,8 @@ void compile_function_decl(ASTNode *node) {
    }
 
    /* main is the reset tail-entry and has no caller to return to. */
+   if (listing_provenance_enabled())
+      emit(&es_code, "    ;@@SOURCE 0\n");
    emit(&es_code, "@fini:\n");
    if (!strcmp(name, "main"))
       emit(&es_code, "    jmp ($fffc)\n");

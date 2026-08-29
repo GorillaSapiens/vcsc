@@ -167,6 +167,7 @@ static void stmt_free(stmt_t *stmt)
       return;
 
    free((char *)stmt->file);
+   free((char *)stmt->listing_file);
    free(stmt->label);
    free(stmt->scope);
    free(stmt->segment);
@@ -210,6 +211,16 @@ void program_ir_free(program_ir_t *prog)
    prog->tail = NULL;
 }
 
+//! @brief Override human-listing provenance without changing semantic assembler locations.
+void stmt_set_listing_origin(stmt_t *stmt, const char *file, int line)
+{
+   if (!stmt)
+      return;
+   free((char *)stmt->listing_file);
+   stmt->listing_file = xstrdup(file ? file : "<input>");
+   stmt->listing_line = line;
+}
+
 //! @brief Return stmt make label data used by assembler IR builder; returned pointers alias existing storage unless explicitly allocated by the function name.
 stmt_t *stmt_make_label(const char *file, int line, char *label)
 {
@@ -224,6 +235,8 @@ stmt_t *stmt_make_label(const char *file, int line, char *label)
    stmt->kind = STMT_LABEL;
    stmt->file = xstrdup(file ? file : "<input>");
    stmt->line = line;
+   stmt->listing_file = xstrdup(file ? file : "<input>");
+   stmt->listing_line = line;
    stmt->address = 0;
    stmt->active = 1;
    stmt->label = xstrdup(label);
@@ -246,6 +259,8 @@ stmt_t *stmt_make_insn(const char *file, int line, char *label, char *opcode_tex
    stmt->kind = STMT_INSN;
    stmt->file = xstrdup(file ? file : "<input>");
    stmt->line = line;
+   stmt->listing_file = xstrdup(file ? file : "<input>");
+   stmt->listing_line = line;
    stmt->address = 0;
    stmt->active = 1;
    stmt->label = xstrdup(label);
@@ -275,6 +290,8 @@ stmt_t *stmt_make_dir(const char *file, int line, char *label, directive_info_t 
    stmt->kind = STMT_DIR;
    stmt->file = xstrdup(file ? file : "<input>");
    stmt->line = line;
+   stmt->listing_file = xstrdup(file ? file : "<input>");
+   stmt->listing_line = line;
    stmt->address = 0;
    stmt->active = 1;
    stmt->label = xstrdup(label);
@@ -298,6 +315,8 @@ static stmt_t *stmt_make_const_kind(const char *file, int line, char *name, expr
    stmt->kind = STMT_CONST;
    stmt->file = xstrdup(file ? file : "<input>");
    stmt->line = line;
+   stmt->listing_file = xstrdup(file ? file : "<input>");
+   stmt->listing_line = line;
    stmt->address = 0;
    stmt->active = 1;
    stmt->label = NULL;
@@ -410,6 +429,8 @@ static stmt_t *stmt_clone(const stmt_t *stmt)
    out->kind = stmt->kind;
    out->file = xstrdup(stmt->file ? stmt->file : "<input>");
    out->line = stmt->line;
+   out->listing_file = xstrdup(stmt->listing_file ? stmt->listing_file : (stmt->file ? stmt->file : "<input>"));
+   out->listing_line = stmt->listing_line;
    out->address = stmt->address;
    out->emit_address = stmt->emit_address;
    out->rorg_active = stmt->rorg_active;

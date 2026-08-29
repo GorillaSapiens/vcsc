@@ -34,6 +34,15 @@
 
 void emit_mem_region_metadata_for_modifiers(const ASTNode *origin, const ASTNode *modifiers);
 
+
+//! @brief Mark subsequent generated assembly with its originating C26 statement.
+static void emit_statement_source_marker(const ASTNode *node) {
+   if (!listing_provenance_enabled() || !node || !node->file || node->line <= 0) {
+      return;
+   }
+   emit(&es_code, "    ;@@SOURCE %d %s\n", node->line, node->file);
+}
+
 static const char *loop_break_stack[128];
 static const char *loop_continue_stack[128];
 static int loop_depth = 0;
@@ -3159,6 +3168,8 @@ void compile_statement_list(ASTNode *node, Context *ctx) {
       const char *page_selector_target = NULL;
       bool page_selector_sequence = false;
       int reused_pointer_skip = 0;
+
+      emit_statement_source_marker(stmt);
 
       if (ctx && i + 1 < node->count &&
           compile_compact_array_pointer_base_update(stmt, node->children[i + 1], ctx)) {

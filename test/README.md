@@ -1244,6 +1244,12 @@ output names, per-sidecar disable switches, high-level driver passthrough, and
 protection against overwriting a same-stem linker script. ROM-specific Stella
 `.script` files remain user-owned and are intentionally not generated.
 
+`linker_human_listing.pl` locks the human `.lst` contract. It verifies maintained
+S26 source text is paired with final bytes and generated assembler, verifies C26
+source filename/line/statement provenance survives compile/assemble/link, marks
+compiler-generated code honestly, and checks a real F8SC `cartram` store/load
+shows distinct final Superchip write/read aliases separated by `$80`.
+
 `vcs_bankswitching_diagnostic.pl` also certifies the explicit-binding
 F8SC/F6SC/F4SC profiles. It checks every allocatable bank region begins at
 `$x100` with size `$0E00`, verifies the C26 profiles keep the RAM-port prefix out of ROM,

@@ -40,6 +40,9 @@
 #define O26_BRANCH_MAGIC_V2 "B26\2"
 #define O26_BRANCH_MAGIC_SIZE 4
 
+#define O26_LIST_MAGIC "L26\1"
+#define O26_LIST_MAGIC_SIZE 4
+
 #define BRANCH_PAGE_FLEX  0
 #define BRANCH_PAGE_SAME  1
 #define BRANCH_PAGE_CROSS 2
@@ -234,6 +237,17 @@ typedef struct {
    int has_layout_index;
 } reloc_t;
 
+//! Source-correlated statement metadata carried from assembler objects.
+typedef struct {
+   uint16_t layout_index;
+   uint16_t offset;
+   uint16_t size;
+   uint16_t source_line;
+   char *source_file;
+   char *source_text;
+   char *asm_text;
+} listing_record_t;
+
 typedef struct {
    uint8_t segid;
    uint16_t source;
@@ -269,6 +283,8 @@ typedef struct {
    size_t layout_count;
    branch_t *branches;
    size_t branch_count;
+   listing_record_t *listing;
+   size_t listing_count;
    uint16_t place_text_load;
    uint16_t place_data_load;
    uint16_t place_data_run;

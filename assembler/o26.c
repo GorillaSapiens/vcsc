@@ -13,6 +13,7 @@
 #include <stdarg.h>
 
 #include "o26.h"
+#include "listing.h"
 #include "util.h"
 
 symbol_t *find_declared_symbol(symtab_t *tab, const program_ir_t *prog, const stmt_t *stmt, const char *name);
@@ -49,6 +50,8 @@ asm_segment_t *segment_find(asm_context_t *ctx, const char *name);
 
 #define O26_BRANCH_MAGIC "B26\2"
 #define O26_BRANCH_MAGIC_SIZE 4
+#define O26_LIST_MAGIC "L26\1"
+#define O26_LIST_MAGIC_SIZE 4
 
 #define DEFAULT_SEGMENT_NAME "__default__"
 
@@ -108,6 +111,17 @@ typedef struct o26_branch {
    struct o26_branch *next;
 } o26_branch_t;
 
+typedef struct o26_listing_record {
+   unsigned short layout_index;
+   unsigned short offset;
+   unsigned short size;
+   unsigned short source_line;
+   char *source_file;
+   char *source_text;
+   char *asm_text;
+   struct o26_listing_record *next;
+} o26_listing_record_t;
+
 typedef struct o26_writer {
    asm_context_t *ctx;
    o26_segment_buf_t text;
@@ -120,6 +134,8 @@ typedef struct o26_writer {
    o26_branch_t *branches_tail;
    o26_undef_t *undefs;
    o26_export_t *exports;
+   o26_listing_record_t *listing;
+   o26_listing_record_t *listing_tail;
 } o26_writer_t;
 
 typedef struct reloc_expr_info {
@@ -1804,6 +1820,177 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
    return 1;
 }
 
+
+static unsigned short listing_layout_index(const o26_writer_t *wr, const o26_segment_layout_t *want)
+{
+   unsigned int index = 0;
+   const o26_segment_layout_t *layout;
+   for (layout = wr->layouts; layout; layout = layout->next, ++index) {
+      if (layout == want)
+         return (unsigned short)index;
+   }
+   return 0xffffu;
+}
+
+static char *listing_source_line_text(const char *path, int line)
+{
+   FILE *fp;
+   char buf[4096];
+   int current = 1;
+   char *start;
+   char *end;
+
+   if (!path || line <= 0 || path[0] == '<')
+      return strdup("");
+   fp = fopen(path, "r");
+   if (!fp)
+      return strdup("");
+   while (fgets(buf, sizeof(buf), fp)) {
+      if (current++ != line)
+         continue;
+      fclose(fp);
+      start = buf;
+      while (*start == ' ' || *start == '\t')
+         start++;
+      end = start + strlen(start);
+      while (end > start && (end[-1] == '\r' || end[-1] == '\n' || end[-1] == ' ' || end[-1] == '\t'))
+         *--end = '\0';
+      return strdup(start);
+   }
+   fclose(fp);
+   return strdup("");
+}
+
+static long listing_stmt_byte_count(o26_writer_t *wr, const stmt_t *stmt)
+{
+   const expr_list_node_t *node;
+   long count = 0;
+   int segid;
+
+   if (!stmt || !stmt->active)
+      return 0;
+   if (stmt->kind == STMT_INSN)
+      return stmt->u.insn.size;
+   if (stmt->kind != STMT_DIR || !stmt->u.dir)
+      return 0;
+
+   if (!strcmp(stmt->u.dir->name, ".byte")) {
+      for (node = stmt->u.dir->exprs; node; node = node->next)
+         count++;
+      return count;
+   }
+   if (!strcmp(stmt->u.dir->name, ".word")) {
+      for (node = stmt->u.dir->exprs; node; node = node->next)
+         count += 2;
+      return count;
+   }
+   if (!strcmp(stmt->u.dir->name, ".text") || !strcmp(stmt->u.dir->name, ".ascii") || !strcmp(stmt->u.dir->name, ".asciiz")) {
+      unsigned char sbuf[1024];
+      int slen = 0;
+      if (stmt->u.dir->string && !decode_escaped_string(stmt->u.dir->string, sbuf, (int)sizeof(sbuf), &slen))
+         return 0;
+      return slen + (!strcmp(stmt->u.dir->name, ".asciiz") ? 1 : 0);
+   }
+   if (!strcmp(stmt->u.dir->name, ".res")) {
+      if (!stmt->u.dir->exprs || stmt->u.dir->exprs->next)
+         return 0;
+      if (expr_eval(stmt->u.dir->exprs->expr, &wr->ctx->symbols, stmt->scope, stmt->file, stmt->address, &count) != EXPR_EVAL_OK)
+         return 0;
+      segid = segment_name_to_o26(stmt->segment);
+      if (segid == O26_SEG_ZP) {
+         const o26_segment_layout_t *layout = find_layout_const(wr, stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME);
+         if (!layout || layout->image_segid != O26_SEG_DATA)
+            return 0;
+      }
+      return count;
+   }
+   if (!strcmp(stmt->u.dir->name, ".align")) {
+      const expr_list_node_t *args = stmt->u.dir->exprs;
+      long boundary, offset = 0;
+      const asm_segment_t *seg;
+      if (!args)
+         return 0;
+      if (expr_eval(args->expr, &wr->ctx->symbols, stmt->scope, stmt->file, stmt->address, &boundary) != EXPR_EVAL_OK || boundary <= 0)
+         return 0;
+      if (args->next && expr_eval(args->next->expr, &wr->ctx->symbols, stmt->scope, stmt->file, stmt->address, &offset) != EXPR_EVAL_OK)
+         return 0;
+      segid = segment_name_to_o26(stmt->segment);
+      if (segid == O26_SEG_ZP) {
+         const o26_segment_layout_t *layout = find_layout_const(wr, stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME);
+         if (!layout || layout->image_segid != O26_SEG_DATA)
+            return 0;
+      }
+      if (wr->ctx->object_mode_o26 && !stmt->rorg_active) {
+         seg = segment_find(wr->ctx, stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME);
+         return align_padding_for_address((seg ? seg->reloc_phase : 0) + stmt->emit_address, boundary, offset);
+      }
+      return align_padding_for_address(stmt->address, boundary, offset);
+   }
+   return 0;
+}
+
+static int collect_listing_records(o26_writer_t *wr)
+{
+   const stmt_t *stmt;
+   for (stmt = wr->ctx->prog->head; stmt; stmt = stmt->next) {
+      int segid;
+      long image_off;
+      long size;
+      const o26_segment_layout_t *layout;
+      unsigned short layout_index;
+      o26_listing_record_t *record;
+
+      size = listing_stmt_byte_count(wr, stmt);
+      if (size <= 0 || size > 0xffff)
+         continue;
+      segid = segment_name_to_o26(stmt->segment);
+      if (segid == O26_SEG_BSS)
+         continue;
+      layout = find_layout_const(wr, stmt->segment ? stmt->segment : DEFAULT_SEGMENT_NAME);
+      if (!layout || (layout->image_segid != O26_SEG_TEXT && layout->image_segid != O26_SEG_DATA))
+         continue;
+      image_off = (segid == O26_SEG_ZP) ? packed_stmt_image_offset(wr, stmt) : packed_stmt_offset(wr, stmt);
+      if (image_off < layout->image_base || (unsigned long)(image_off - layout->image_base) > 0xffffu)
+         continue;
+      layout_index = listing_layout_index(wr, layout);
+      if (layout_index == 0xffffu)
+         continue;
+
+      record = (o26_listing_record_t *)calloc(1, sizeof(*record));
+      if (!record)
+         return 0;
+      record->layout_index = layout_index;
+      record->offset = (unsigned short)(image_off - layout->image_base);
+      record->size = (unsigned short)size;
+      record->source_line = (unsigned short)((stmt->listing_line > 0 && stmt->listing_line <= 0xffff) ? stmt->listing_line : 0);
+      record->source_file = strdup(stmt->listing_file ? stmt->listing_file : (stmt->file ? stmt->file : "<input>"));
+      record->source_text = listing_source_line_text(stmt->listing_file ? stmt->listing_file : stmt->file, stmt->listing_line);
+      record->asm_text = listing_render_stmt_alloc(stmt);
+      if (!record->source_file || !record->source_text || !record->asm_text) {
+         free(record->source_file); free(record->source_text); free(record->asm_text); free(record);
+         return 0;
+      }
+      if (wr->listing_tail)
+         wr->listing_tail->next = record;
+      else
+         wr->listing = record;
+      wr->listing_tail = record;
+   }
+   return 1;
+}
+
+static void free_listing_records(o26_listing_record_t *record)
+{
+   while (record) {
+      o26_listing_record_t *next = record->next;
+      free(record->source_file);
+      free(record->source_text);
+      free(record->asm_text);
+      free(record);
+      record = next;
+   }
+}
+
 //! @brief Write 8-bit using the on-disk format expected by assembler o26 object writer.
 static int write_u8(FILE *fp, unsigned char v) { return fputc(v, fp) != EOF; }
 //! @brief Write 16-bit using the on-disk format expected by assembler o26 object writer.
@@ -1817,6 +2004,31 @@ static int write_cstr(FILE *fp, const char *s)
 {
    size_t n = strlen(s) + 1;
    return fwrite(s, 1, n, fp) == n;
+}
+
+
+static int write_listing_records(FILE *fp, const o26_listing_record_t *record)
+{
+   unsigned int count = 0;
+   const o26_listing_record_t *p;
+   for (p = record; p; p = p->next)
+      count++;
+   if (count > 0xffffu)
+      return 0;
+   if (fwrite(O26_LIST_MAGIC, 1, O26_LIST_MAGIC_SIZE, fp) != O26_LIST_MAGIC_SIZE ||
+       !write_u16(fp, (unsigned short)count))
+      return 0;
+   for (; record; record = record->next) {
+      if (!write_u16(fp, record->layout_index) ||
+          !write_u16(fp, record->offset) ||
+          !write_u16(fp, record->size) ||
+          !write_u16(fp, record->source_line) ||
+          !write_cstr(fp, record->source_file ? record->source_file : "") ||
+          !write_cstr(fp, record->source_text ? record->source_text : "") ||
+          !write_cstr(fp, record->asm_text ? record->asm_text : ""))
+         return 0;
+   }
+   return 1;
 }
 
 //! @brief Write reloc table using the on-disk format expected by assembler o26 object writer.
@@ -2014,6 +2226,10 @@ int o26_write_object_file(FILE *fp, asm_context_t *ctx)
 
    if (ctx->error_count)
       goto fail;
+   if (!collect_listing_records(&wr)) {
+      fprintf(stderr, "failed collecting o26 listing metadata\n");
+      goto fail;
+   }
 
    mode = O26_MODE_OBJECT | O26_MODE_16BIT | O26_MODE_6502 | O26_MODE_BREL | O26_MODE_ALIGN1;
 
@@ -2035,7 +2251,8 @@ int o26_write_object_file(FILE *fp, asm_context_t *ctx)
        !write_reloc_table(fp, wr.data.relocs) ||
        !write_exports(fp, wr.exports) ||
        !write_layouts(fp, wr.layouts) ||
-       !write_branches(fp, wr.branches)) {
+       !write_branches(fp, wr.branches) ||
+       !write_listing_records(fp, wr.listing)) {
       fprintf(stderr, "failed writing o26 object contents\n");
       goto fail;
    }
@@ -2048,6 +2265,7 @@ int o26_write_object_file(FILE *fp, asm_context_t *ctx)
    free_exports(wr.exports);
    free_layouts(wr.layouts);
    free_branches(wr.branches);
+   free_listing_records(wr.listing);
    return ctx->error_count ? 0 : 1;
 
 fail:
@@ -2059,5 +2277,6 @@ fail:
    free_exports(wr.exports);
    free_layouts(wr.layouts);
    free_branches(wr.branches);
+   free_listing_records(wr.listing);
    return 0;
 }

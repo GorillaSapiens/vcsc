@@ -117,9 +117,9 @@ $map =~ /^\s*\$D[0-9A-Fa-f]{3}\s+remote\s+\Q$archive\E\(remote\.o26\)/m
 
 $sym =~ /^remote\s+d[0-9a-f]{3}$/mi
    or die "Stella symbol file omitted remote's logical BANK1 address\n$sym";
-$list =~ /^\s*\d+\s+d[0-9a-f]{3}\s+60\s+.*; remote\s*$/mi
-   or die "linked listing omitted remote's BANK1 bytes\n$list";
-$list =~ /^\s*\d+\s+f[0-9a-f]{3}\s+20\s+[0-9a-f]{2}\s+f[0-9a-f]\s+60\s+.*; __reset\s*$/mi
-   or die "linked listing omitted BANK0 startup bytes\n$list";
+$list =~ /remote\.s26:4 \[bank BANK1\] \| RTS\n\s*\d+\s+d[0-9a-f]{3}\s+60\s+.*; RTS\s*$/mi
+   or die "linked listing omitted remote's BANK1 source/bytes\n$list";
+$list =~ /root\.s26:8 \[bank BANK0\] \| JSR main\n\s*\d+\s+f[0-9a-f]{3}\s+20\s+[0-9a-f]{2}\s+f[0-9a-f]\s+.*; JSR main/mis
+   or die "linked listing omitted BANK0 startup source/bytes\n$list";
 
 print "banked archive reporting passed\n";
