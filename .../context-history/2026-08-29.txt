@@ -28,3 +28,16 @@ eight recursive example-build/disassembly shards pass. A staged install proves
 the suite is absent from share/vcs and the complete example builds from the
 installed examples tree. All seven generated diagnostic ROMs are byte-identical
 to builds from the former library source.
+2026-08-29 07:06:44 PDT, localize narrow example helpers
+Moved five helpers out of examples/common because each served only one numbered
+example class: UA/UASW diagnostic support into 09_bankswitching/09_ua, compact
+multisprite score controls into 14_multisprite, three-plus-three controls into
+06_all_five_181, combined all-five/player-color controls into
+16_all_five_player_color_181, and the PAL/SECAM 228-line multisprite body into
+17_video_standards. Updated includes, Makefile dependencies, reviewed-assembly
+paths, font/subset and source-shape tests, and hygiene ownership checks.
+examples/common now contains only the six helpers shared across multiple
+numbered example classes.
+
+Validation: 502/502 compile tests and all 331 e2e cases pass across bounded
+runs; all eight recursive example-build/disassembly shards pass.

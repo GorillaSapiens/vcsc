@@ -5,4 +5,4 @@ const uint8_t uasw_diagnostic := 1;
 include "ua_status_font.c26"
 include "ua_cart_type_font.c26"
 #endif
-include "../../common/ua_diagnostic_common.c26"
+include "ua_diagnostic_common.c26"

@@ -10,7 +10,7 @@ include "fonts/default_decimal.c26"
 instantiate "renderers/all_five/all_five.c26" as game (lines:=181)
 instantiate "three_plus_three_score_component.c26" as score
 
-include "../../../common/three_plus_three_controls.c26"
+include "../../three_plus_three_controls.c26"
 
 inline void draw_visible_components(void) {
    game_draw();

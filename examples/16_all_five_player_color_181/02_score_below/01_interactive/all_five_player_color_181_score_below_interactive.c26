@@ -16,4 +16,4 @@ inline void draw_visible_components(void) {
    score_draw();
 }
 
-include "../../../common/all_five_player_color_181_interactive_common.c26"
+include "../../all_five_player_color_181_interactive_common.c26"

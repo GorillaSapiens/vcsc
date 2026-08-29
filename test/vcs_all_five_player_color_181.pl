@@ -59,7 +59,7 @@ $source{above} =~ /score_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw
 $source{below} =~ /game_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*score_draw\(\);/s
    or die "score-below example lost component order\n";
 
-my$interactive_common=File::Spec->catfile($repo,qw(examples common all_five_player_color_181_interactive_common.c26));
+my$interactive_common=File::Spec->catfile($repo,qw(examples 16_all_five_player_color_181 all_five_player_color_181_interactive_common.c26));
 my$interactive_common_text=read_file($interactive_common);
 my$canonical_181_common=read_file(File::Spec->catfile($repo,qw(examples common all_five_181_interactive_common.c26)));
 sub playfield_rows {
@@ -108,7 +108,7 @@ for my$j(@interactive_jobs){
       or die "$n interactive example RAM footprint changed\n";
    $interactive_source{$n} =~ /instantiate "six_glyph_component\.c26" as score \(mutable_color:=1\)/
       or die "$n interactive example lost mutable score color\n";
-   $interactive_source{$n} =~ /include "\.\.\/\.\.\/\.\.\/common\/all_five_player_color_181_interactive_common\.c26"/
+   $interactive_source{$n} =~ /include "\.\.\/\.\.\/all_five_player_color_181_interactive_common\.c26"/
       or die "$n interactive example lost shared controls\n";
 }
 $interactive_source{above} =~ /score_draw\(\);\s*vcs_ntsc_component_handoff\(\);\s*game_draw\(\);/s

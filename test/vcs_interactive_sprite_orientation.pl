@@ -62,7 +62,7 @@ my @definitions=(
    [qw(examples 05_all_five_192 01_interactive all_five_192_interactive.c26)],
    [qw(examples common player_color_181_interactive_common.c26)],
    [qw(examples common all_five_181_interactive_common.c26)],
-   [qw(examples common all_five_player_color_181_interactive_common.c26)],
+   [qw(examples 16_all_five_player_color_181 all_five_player_color_181_interactive_common.c26)],
    [qw(examples 11_all_five_170 01_score_above_and_below 01_interactive all_five_170_score_above_and_below_interactive.c26)],
 );
 
@@ -94,7 +94,8 @@ for my $path (@leaves) {
    next if $path eq $faithful_path;
    my $text=read_file($path);
    my $covered=$text =~ /\bp0_graphics\s*\[8\]/ ||
-               $text =~ /include\s+"\.\.\/\.\.\/\.\.\/common\/(?:player_color|all_five|all_five_player_color)_181_interactive_common\.c26|multisprite_interactive_common\.c26"/;
+               $text =~ /include\s+"\.\.\/\.\.\/\.\.\/common\/(?:player_color|all_five)_181_interactive_common\.c26|multisprite_interactive_common\.c26"/ ||
+               $text =~ /include\s+"\.\.\/\.\.\/all_five_player_color_181_interactive_common\.c26"/;
    $covered or die "$path does not use a normalized interactive sprite definition\n";
 }
 

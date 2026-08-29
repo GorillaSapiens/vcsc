@@ -8,7 +8,7 @@ include "fonts/default_decimal.c26"
 instantiate "renderers/multisprite/multisprite.c26" as game (lines:=181)
 instantiate "six_glyph_component.c26" as score (mutable_color:=1)
 include "../../../common/multisprite_interactive_common.c26"
-include "../../../common/fixed_six_digit_controls_compact.c26"
+include "../../fixed_six_digit_controls_compact.c26"
 
 inline void initialize_score(void) {
    initialize_score_state();

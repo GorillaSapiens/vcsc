@@ -3,7 +3,7 @@
 ROOT ?= ../../../..
 VCSC ?= $(ROOT)/driver/vcsc
 VCS_DIR ?= $(ROOT)/libraries/vcs
-COMMON := $(ROOT)/examples/common/multisprite_228_interactive_common.c26
+COMMON := $(ROOT)/examples/17_video_standards/multisprite_228_interactive_common.c26
 
 TARGET := pal_multisprite_228_interactive.bin
 SOURCE := pal_multisprite_228_interactive.c26

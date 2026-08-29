@@ -10,7 +10,7 @@ COMMON := $(ROOT)/examples/common/multisprite_interactive_common.c26
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCE) $(COMMON) \
+$(TARGET): $(SOURCE) $(COMMON) ../../fixed_six_digit_controls_compact.c26 \
            $(VCS_DIR)/vcs.c26 \
            $(VCS_DIR)/frame_ntsc.c26 \
            $(VCS_DIR)/color_ntsc.c26 \

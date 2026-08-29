@@ -77,7 +77,7 @@ for my $parts (
 ) {
    my $path=File::Spec->catfile($repo,'examples',@$parts);
    my $text=read_file($path);
-   $text =~ /include "\.\.\/\.\.\/\.\.\/common\/fixed_six_digit_controls_compact\.c26"/ &&
+   $text =~ /include "\.\.\/\.\.\/fixed_six_digit_controls_compact\.c26"/ &&
    $text =~ /update_score_controls\(\);/
       or die "$path does not use the compact right-joystick score controls\n";
    ++$six_public;
@@ -85,7 +85,7 @@ for my $parts (
 
 # The nearly-full combined all-five/player-color 4K cartridges integrate the
 # same right-stick behavior into their compact shared object-control body.
-my $combined_common=read_file(File::Spec->catfile($repo,qw(examples common all_five_player_color_181_interactive_common.c26)));
+my $combined_common=read_file(File::Spec->catfile($repo,qw(examples 16_all_five_player_color_181 all_five_player_color_181_interactive_common.c26)));
 $combined_common =~ /selected_score_digit/ &&
 $combined_common =~ /right_joystick_ready/ &&
 $combined_common =~ /score_color\s*\+=\s*0x10/ &&

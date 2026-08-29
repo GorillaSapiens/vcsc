@@ -13,10 +13,10 @@ TARGETS := ua_diagnostic.bin uasw_diagnostic.bin
 
 all: $(TARGETS)
 
-ua_diagnostic.bin: ua_diagnostic.c26 ../../common/ua_diagnostic_common.c26
+ua_diagnostic.bin: ua_diagnostic.c26 ua_diagnostic_common.c26
 	$(VCSC) -I $(VCS_DIR) -T $(VCS_DIR)/vcs.cfg -Map ua_diagnostic.map ua_diagnostic.c26 -o $@
 
-uasw_diagnostic.bin: uasw_diagnostic.c26 ../../common/ua_diagnostic_common.c26
+uasw_diagnostic.bin: uasw_diagnostic.c26 ua_diagnostic_common.c26
 	$(VCSC) -I $(VCS_DIR) -T $(VCS_DIR)/vcs.cfg -Map uasw_diagnostic.map uasw_diagnostic.c26 -o $@
 
 $(TARGETS): $(COMMITTED_FONT_SUBSETS)

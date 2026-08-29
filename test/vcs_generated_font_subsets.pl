@@ -141,7 +141,7 @@ for my $case (@cases) {
    index($dry_out,'/definitely/missing/perl') < 0
       or die "09_ua ordinary build unexpectedly requires Perl\n";
 
-   my $common=slurp(File::Spec->catfile($repo,'examples','common','ua_diagnostic_common.c26'));
+   my $common=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','09_ua','ua_diagnostic_common.c26'));
    $common !~ /Exact glyph subsets copied from the canonical ASCII fonts/
       or die "UA common body still contains hand-copied canonical glyphs\n";
    for my $wrapper (qw(ua_diagnostic.c26 uasw_diagnostic.c26)) {

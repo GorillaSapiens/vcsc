@@ -13,7 +13,7 @@ alias VIDEO_PLAYER4_COLOR    __builtin_secam_rgb(0xc0, 0x90, 0xff)
 alias VIDEO_PLAYER5_COLOR    __builtin_secam_rgb(0x70, 0xd0, 0xff)
 
 instantiate "renderers/enhanced_multisprite_asymmetric/enhanced_multisprite.c26" as game (lines:=228)
-include "../../../common/multisprite_228_interactive_common.c26"
+include "../../multisprite_228_interactive_common.c26"
 
 // Native 228-line asymmetric playfield: 114 two-scanline logical bands.
 // PF1/PF2 halves are stored as two contiguous 114-byte planes.

@@ -14,7 +14,7 @@ $(TARGET): $(SOURCE) $(VCS_DIR)/color_ntsc.c26 \
            $(VCS_DIR)/playfield.c26 \
            $(VCS_DIR)/three_plus_three_score_component.c26 \
            $(VCS_DIR)/renderers/all_five/all_five.c26 \
-           $(ROOT)/examples/common/three_plus_three_controls.c26 \
+           $(ROOT)/examples/06_all_five_181/three_plus_three_controls.c26 \
            $(ROOT)/examples/common/all_five_181_interactive_common.c26 \
            $(VCS_DIR)/fonts/default_decimal.c26
 	$(VCSC) -I $(VCS_DIR) -Map $(TARGET:.bin=.map) $(SOURCE) -o $@

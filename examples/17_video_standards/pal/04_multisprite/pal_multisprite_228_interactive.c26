@@ -13,7 +13,7 @@ alias VIDEO_PLAYER4_COLOR    __builtin_pal_rgb(0xc0, 0x90, 0xff)
 alias VIDEO_PLAYER5_COLOR    __builtin_pal_rgb(0x70, 0xd0, 0xff)
 
 instantiate "renderers/multisprite/multisprite.c26" as game (lines:=228)
-include "../../../common/multisprite_228_interactive_common.c26"
+include "../../multisprite_228_interactive_common.c26"
 
 inline void initialize_228_scene(void) {
    initialize_multisprite_scene();
