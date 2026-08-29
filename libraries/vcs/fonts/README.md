@@ -51,10 +51,15 @@ page. This matters for cycle-sensitive `(pointer),Y` glyph reads.
 | Tiny | `tiny_decimal.c26` | `tiny_hex.c26` | Compact 3x5 forms inside an 8x8 cell |
 | Wonk | `wonk_decimal.c26` | `wonk_hex.c26` | Irregular hand-built display style |
 
-`make_font_subsets.pl foo_ascii.c26` regenerates that ASCII source's decimal,
-uppercase-hex, and lowercase-hex modules in place. Generated subsets retain the
-source font's license/comments, identify their ASCII source, and use `page`
-instead of `align(256)`.
+The `*_ascii.c26` modules are the source of truth for every conventional font
+family. From the repository root, `make fonts` regenerates every library
+`*_decimal.c26`, `*_hex.c26`, and `*_lhex.c26` module from those ASCII sources,
+then regenerates all checked-in custom font subsets used by examples.
+
+`make_font_subsets.pl foo_ascii.c26` performs the per-family library step: it
+regenerates that ASCII source's decimal, uppercase-hex, and lowercase-hex
+modules in place. Generated subsets retain the source font's license/comments,
+identify their ASCII source, and use `page` instead of `align(256)`.
 
 `make_font_subset.pl` generates an arbitrary checked-in subset in a caller-chosen
 character order and table name. It defaults to `page`, accepts `--bank` for

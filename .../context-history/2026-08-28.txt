@@ -289,3 +289,25 @@ The broad eight-job e2e run exposed four resource-contention failures: the
 120-second diagnostic and example-build shards 5, 6, and 8. The diagnostic and
 shard 5 pass through the normal runner when run alone; shards 6 and 8 pass after
 the UA wrapper include fix. The other 326 e2e cases passed in the broad run.
+
+2026-08-28 22:53:51 PDT, top-level font regeneration
+Added a repository-level `make fonts` target. Every
+`libraries/vcs/fonts/*_ascii.c26` file is canonical: the target runs
+`make_font_subsets.pl` over every current ASCII family to regenerate the
+checked-in decimal, uppercase-hex, and lowercase-hex modules, then discovers
+every example Makefile with a `fonts` target and regenerates its checked-in
+custom subsets. Ordinary example builds still consume the generated files and
+do not require Perl.
+
+Extended `vcs_generated_font_subsets.pl` to lock the top-level target contract
+and independently regenerate every library family from a temporary copy of its
+ASCII source before byte-comparing all three checked-in standard subsets. The
+existing mapper-specific temporary regeneration checks remain. Documented the
+top-level command in the project and font READMEs.
+
+Validation: `make fonts` regenerated all 11 current ASCII families and all 11
+example font targets. All 502 compile-phase tests pass. The eight-way e2e run
+passed 320/330 directly; seven heavyweight tests timed out under contention and
+three map-sanity tests false-triggered because the temporary working-directory
+name contained `font`. After moving the unchanged tree to a neutral path, all
+ten affected tests passed sequentially, so all 330 e2e cases are green.

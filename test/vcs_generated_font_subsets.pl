@@ -7,6 +7,7 @@
 use strict;
 use warnings;
 use Cwd qw(abs_path);
+use File::Copy qw(copy);
 use File::Path qw(make_path);
 use File::Spec;
 use IPC::Open3;
@@ -36,6 +37,44 @@ my $tmp=shift @ARGV // usage();
 usage() if @ARGV;
 $repo=abs_path($repo) // die "could not resolve repo root\n";
 $tmp=abs_path($tmp) // die "could not resolve temp dir\n";
+
+# The repository-level contract is deliberately simple: every *_ascii.c26 is
+# canonical, `make fonts` regenerates its standard decimal/hex/lhex derivatives,
+# and then delegates custom example subsets to the examples' own `fonts` targets.
+my $top_make=slurp(File::Spec->catfile($repo,'Makefile'));
+$top_make =~ /^FONT_ASCII_SOURCES\s*:=.*wildcard libraries\/vcs\/fonts\/\*_ascii\.c26/m
+   or die "top-level Makefile does not discover canonical *_ascii.c26 fonts\n";
+$top_make =~ /^fonts:\n((?:\t[^\n]*\n)+)/m
+   or die "top-level Makefile has no fonts target\n";
+my $top_fonts_rule=$1;
+index($top_fonts_rule,'make_font_subsets.pl') >= 0
+   or die "top-level fonts target does not regenerate library subsets\n";
+index($top_fonts_rule,'find examples') >= 0 && index($top_fonts_rule,' fonts ') >= 0
+   or die "top-level fonts target does not regenerate example subsets\n";
+
+my $fonts=File::Spec->catdir($repo,'libraries','vcs','fonts');
+my $library_tmp=File::Spec->catdir($tmp,'library-fonts');
+make_path($library_tmp);
+my @ascii=sort glob(File::Spec->catfile($fonts,'*_ascii.c26'));
+@ascii or die "no canonical *_ascii.c26 fonts found\n";
+for my $source (@ascii) {
+   $source =~ m{([^/]+)_ascii\.c26\z}
+      or die "unexpected ASCII font path $source\n";
+   my $stem=$1;
+   my $copy=File::Spec->catfile($library_tmp,"${stem}_ascii.c26");
+   copy($source,$copy) or die "copy $source -> $copy: $!\n";
+   my ($exit,$sig,$out,$err)=run_capture(
+      $^X,File::Spec->catfile($fonts,'make_font_subsets.pl'),$copy);
+   die "$stem standard subset regeneration exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err"
+      if $exit || $sig;
+   for my $kind (qw(decimal hex lhex)) {
+      my $got=File::Spec->catfile($library_tmp,"${stem}_${kind}.c26");
+      my $want=File::Spec->catfile($fonts,"${stem}_${kind}.c26");
+      -f $want or die "$stem ASCII source has no checked-in $kind subset\n";
+      slurp($got) eq slurp($want)
+         or die "$want is stale; run top-level make fonts\n";
+   }
+}
 
 my @cases=(
    [qw(03_fa_ram_plus fa_ram_plus_diagnostic.c26)],

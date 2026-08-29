@@ -151,9 +151,8 @@ rather than the destructive `$F05D`. The final map keeps DETAIL1 at read `$F0CB`
 / write `$F04B`, and the structural regression proves the five indexed lookups
 cannot dummy-read `$F000-$F07F`.
 
-Validation after the fix: all 502 compile-phase tests pass. All 329 e2e tests
-pass; the long suite was completed in ordered batches after the outer command
-window interrupted the monolithic run. The optional Stella 7.0 diagnostic
+Latest validation: all 502 compile-phase tests and all 330 e2e tests pass.
+The optional Stella 7.0 diagnostic
 oracle was re-blessed for all 12 NTSC/PAL/SECAM x controller cases in the
 preceding validation pass; this closeout rechecked NTSC joystick/paddle/keypad
 and driving against those references. Focused SC/FxSC/FA/CV and linker hazard

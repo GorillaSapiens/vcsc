@@ -78,6 +78,7 @@ Useful top-level targets include:
 make test          # complete unified test suite
 make unit          # compile-only tests
 make e2e           # linked/simulated and generic tests
+make fonts         # regenerate all library/example font subsets from *_ascii.c26
 make sieve         # quick driver smoke build
 make installcheck  # staged installed-toolchain validation
 make linux         # build a self-contained native Linux tar.gz with examples

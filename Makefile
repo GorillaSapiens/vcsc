@@ -14,6 +14,9 @@ STELLA ?= stella
 TEST_JOBS ?= 8
 TEST_TIMINGS ?= $(CURDIR)/test-times.tsv
 TEST_SLOWEST ?= 20
+PERL ?= perl
+FONT_ASCII_SOURCES := $(sort $(wildcard libraries/vcs/fonts/*_ascii.c26))
+
 STELLA_BANK_TEST_TMP ?= $(CURDIR)/.stella-bank-test
 STELLA_RENDERER_BANK_TEST_TMP ?= $(CURDIR)/.stella-renderer-bank-test
 STELLA_WIDE_SCORE_TEST_TMP ?= $(CURDIR)/.stella-wide-score-test
@@ -72,6 +75,20 @@ tools: clean
 	@$(MAKE) --no-print-directory -C ./disassembler all
 
 .PHONY: exam
+
+fonts:
+	@set -e; \
+	for font in $(FONT_ASCII_SOURCES); do \
+		echo ==== $$font; \
+		$(PERL) libraries/vcs/fonts/make_font_subsets.pl "$$font"; \
+	done; \
+	for makefile in $$(find examples -type f -name Makefile | sort); do \
+		if grep -q '^fonts:' "$$makefile"; then \
+			dir=$${makefile%/Makefile}; \
+			echo ==== $$dir; \
+			$(MAKE) --no-print-directory -C "$$dir" fonts PERL="$(PERL)"; \
+		fi; \
+	done
 
 exam:
 	@for each in $$(find examples -type f -name Makefile \
@@ -1155,4 +1172,4 @@ stella-multisprite-test: tools
 	rm -rf $(STELLA_MULTISPRITE_TEST_TMP)
 
 
-.PHONY: all tools install install-core install-examples install-data uninstall uninstall-examples uninstall-data package windows installcheck tarball unit sieve e2e test stella-50hz-test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-three-plus-three-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-faithful-multisprite-test stella-multisprite-test stella-diagnostic-test docs
+.PHONY: all tools fonts install install-core install-examples install-data uninstall uninstall-examples uninstall-data package windows installcheck tarball unit sieve e2e test stella-50hz-test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-three-plus-three-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-faithful-multisprite-test stella-multisprite-test stella-diagnostic-test docs
