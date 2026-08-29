@@ -11,10 +11,11 @@
 // All four paddle capacitors are released together when VBLANK.7 is cleared,
 // so one elapsed counter is the correct wall-clock for every channel. The
 // public positions use the same two-scanline raw units as two_paddles.c26.
-// A renderer does not need to sample all four on every pair: the intended
-// timing-safe pattern is one channel per scanline, for example channels 0/1
-// on one two-line pair and 2/3 on the next. Each channel is then observed at
-// four-scanline cadence while elapsed still advances every two scanlines.
+// A renderer does not need to branch on all four on one scanline.  When exact
+// cross-channel comparability matters, score_latch0123_fixed() captures all
+// four INPT bits at one fixed beam phase and the inexpensive commit helpers may
+// consume that snapshot later. The built-in blank sampler uses that mechanism
+// once per four-scanline group, then advances elapsed by two two-scanline units.
 //
 // Typical NTSC lifecycle:
 //
@@ -62,8 +63,11 @@ uint8_t TEMPLATE_active2 := 0;
 uint8_t TEMPLATE_active3 := 0;
 uint8_t TEMPLATE_complete := 0;
 uint8_t TEMPLATE_dumped := 1;
-// Fixed-phase score latch for channels 2/3. The three-plus-three score uses
-// this instead of variable-time completion branches inside its RESP1 delay.
+// Fixed-phase score latches.  The three-plus-three score uses 2/3 instead of
+// variable-time completion branches inside its RESP1 delay; diagnostic-style
+// users may snapshot all four channels together for directly comparable input.
+uint8_t TEMPLATE_score_latch0 := 0;
+uint8_t TEMPLATE_score_latch1 := 0;
 uint8_t TEMPLATE_score_latch2 := 0;
 uint8_t TEMPLATE_score_latch3 := 0;
 uint8_t TEMPLATE_score_latch_time := 0;
@@ -86,6 +90,8 @@ require inline void TEMPLATE_init(void) {
    TEMPLATE_active3 := 0;
    TEMPLATE_complete := 0;
    TEMPLATE_dumped := 1;
+   TEMPLATE_score_latch0 := 0;
+   TEMPLATE_score_latch1 := 0;
    TEMPLATE_score_latch2 := 0;
    TEMPLATE_score_latch3 := 0;
    TEMPLATE_score_latch_time := 0;
@@ -184,6 +190,70 @@ inline void TEMPLATE_score_sample3(void) {
    asm @not_ready:;
 }
 
+// Thirty fixed cycles. Capture all four analog input bits plus one shared
+// timestamp without data-dependent branches.  The snapshot may be committed
+// channel-by-channel later, even on different scanlines, without introducing
+// a sampling-phase bias between ports.
+inline void TEMPLATE_score_latch0123_fixed(void) {
+   asm lda.z INPT0;
+   asm sta.z TEMPLATE_score_latch0;
+   asm lda.z INPT1;
+   asm sta.z TEMPLATE_score_latch1;
+   asm lda.z INPT2;
+   asm sta.z TEMPLATE_score_latch2;
+   asm lda.z INPT3;
+   asm sta.z TEMPLATE_score_latch3;
+   asm lda.z TEMPLATE_elapsed;
+   asm sta.z TEMPLATE_score_latch_time;
+}
+
+// A latched-channel commit is at most 19 cycles, preserves X/Y, and clobbers
+// A/flags.  Testing active&latch makes stale/high snapshots harmless after a
+// channel has already completed.
+inline void TEMPLATE_score_commit_latched0(void) {
+   asm lda.z TEMPLATE_active0;
+   asm and.z TEMPLATE_score_latch0;
+   asm bpl.same @not_ready;
+   asm lda.z TEMPLATE_score_latch_time;
+   asm sta.z TEMPLATE_position0;
+   asm lda #0;
+   asm sta.z TEMPLATE_active0;
+   asm @not_ready:;
+}
+
+inline void TEMPLATE_score_commit_latched1(void) {
+   asm lda.z TEMPLATE_active1;
+   asm and.z TEMPLATE_score_latch1;
+   asm bpl.same @not_ready;
+   asm lda.z TEMPLATE_score_latch_time;
+   asm sta.z TEMPLATE_position1;
+   asm lda #0;
+   asm sta.z TEMPLATE_active1;
+   asm @not_ready:;
+}
+
+inline void TEMPLATE_score_commit_latched2(void) {
+   asm lda.z TEMPLATE_active2;
+   asm and.z TEMPLATE_score_latch2;
+   asm bpl.same @not_ready;
+   asm lda.z TEMPLATE_score_latch_time;
+   asm sta.z TEMPLATE_position2;
+   asm lda #0;
+   asm sta.z TEMPLATE_active2;
+   asm @not_ready:;
+}
+
+inline void TEMPLATE_score_commit_latched3(void) {
+   asm lda.z TEMPLATE_active3;
+   asm and.z TEMPLATE_score_latch3;
+   asm bpl.same @not_ready;
+   asm lda.z TEMPLATE_score_latch_time;
+   asm sta.z TEMPLATE_position3;
+   asm lda #0;
+   asm sta.z TEMPLATE_active3;
+   asm @not_ready:;
+}
+
 // Fixed 24-cycle score probe for the right-port pair. It records active&INPT
 // state plus the shared timestamp without any data-dependent branches, so a
 // renderer may safely substitute it for calibrated horizontal-position delay.
@@ -247,19 +317,23 @@ inline void TEMPLATE_advance_pair(void) {
    asm @done:;
 }
 
-// Four scanlines, one channel per line. Elapsed advances after each two-line
-// pair, preserving the same raw units as two_paddles.c26.
+// Four scanlines. Snapshot all four channels together on the first line, then
+// commit one channel per line from that shared timestamp. This gives every
+// channel exactly the same physical sampling phase instead of merely assigning
+// staggered probes the same numeric bucket. After the fourth commit, advance
+// by two two-scanline raw units so wall-clock scaling remains unchanged.
 static inline void TEMPLATE_sample_blank_cycle(void) {
-   TEMPLATE_sample0();
+   TEMPLATE_score_latch0123_fixed();
+   TEMPLATE_score_commit_latched0();
    WSYNC := 0;
-   TEMPLATE_sample1();
+   TEMPLATE_score_commit_latched1();
    WSYNC := 0;
-   TEMPLATE_advance_pair();
-   TEMPLATE_sample2();
+   TEMPLATE_score_commit_latched2();
    WSYNC := 0;
-   TEMPLATE_sample3();
+   TEMPLATE_score_commit_latched3();
+   asm lda #2;
+   TEMPLATE_score_account_a();
    WSYNC := 0;
-   TEMPLATE_advance_pair();
 }
 
 require inline void TEMPLATE_vblank(void) {
@@ -271,6 +345,11 @@ require inline void TEMPLATE_vblank(void) {
       TEMPLATE_active3 := 0x80;
       TEMPLATE_complete := 0;
       TEMPLATE_dumped := 0;
+      TEMPLATE_score_latch0 := 0;
+      TEMPLATE_score_latch1 := 0;
+      TEMPLATE_score_latch2 := 0;
+      TEMPLATE_score_latch3 := 0;
+      TEMPLATE_score_latch_time := 0;
    }
 
    for (uint8_t i := TEMPLATE_VBLANK_CYCLES; i; i--) {

@@ -153,7 +153,12 @@ state cannot move RESP1. Paddle-enabled three-plus-three builds defer HMBL
 cleanup to line 2 after RESP0 so a channel-0 threshold completion cannot push
 line 1 past WSYNC; `test/vcs_paddleball.cpp` sweeps the formerly failing raw
 threshold interval 18..37. Paddleball, four-player Paddleball, and the field
-diagnostic all use the score-sampling path.
+diagnostic all use the score-sampling path. For four-channel diagnostic work,
+`four_paddles.c26` also provides a fixed 30-cycle INPT0..INPT3 snapshot plus
+per-channel commit helpers. The diagnostic snapshots all four channels at the
+same row-alignment phase and commits them later from one shared timestamp;
+`test/vcs_diagnostic_paddle_sampling.pl` exhaustively checks equal NTSC
+thresholds 0..255 plus representative PAL/SECAM points.
 
 C26 `$read_hazard` and cfg
 `read_hazard = yes` mark mapper ranges where CPU read bus cycles have side
@@ -171,12 +176,13 @@ rather than the destructive `$F05D`. The final map keeps DETAIL1 at read `$F0CB`
 / write `$F04B`, and the structural regression proves the five indexed lookups
 cannot dummy-read `$F000-$F07F`.
 
-Latest validation: all 502 compile-phase tests and all 333 e2e tests pass. Item
-48 focused coverage includes the score-paddle sampling contract, the blue-paddle
-18..37 timing sweep, both Paddleball emulator oracles, unchanged score renderer
-regressions, the complete diagnostic cartridge regression, source-tree hygiene,
-and history-format checks. The optional Stella 7.0 diagnostic oracle remains
-part of the prior certified state.
+The diagnostic range follow-up is certified against the existing 502/502
+compile-phase baseline. A complete 334-case e2e run produced 333 passes with
+only the new exhaustive diagnostic paddle sweep hitting its original 45-second
+test budget under parallel contention; that same regression passes through the
+normal runner after raising only its timeout to 90 seconds. Coverage remains all
+256 NTSC thresholds plus representative PAL/SECAM points. The optional Stella
+7.0 diagnostic oracle remains part of the prior certified state.
 
 Immediate TODO
 --------------

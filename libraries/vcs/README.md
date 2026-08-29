@@ -259,22 +259,28 @@ two-paddle state/lifecycle vocabulary (`position0/1`, `button0/1`, `valid`,
 frames; applications should apply their own endpoint calibration.
 
 All four RC capacitors are released together, but a beam-critical renderer
-should not test all four threshold-completion paths on one scanline. The public
-four-player example samples one channel per scanline: 0/1 on one two-line pair
-and 2/3 on the next. The shared elapsed counter advances after every pair, so
-all four positions retain the same units as `two_paddles.c26`. Seven four-line
-VBLANK sample cycles consume 28 lines and leave enough of the scheduler's
-37-line deadline for component bookkeeping; `account_gap()` preserves elapsed
-time across the unsampled remainder, score, and display setup. The emulator
-oracle exercises distinct, simultaneous, and staggered four-channel thresholds
-plus every fire button while requiring invariant frame length.
+should not branch through four threshold-completion paths on one scanline. The
+built-in four-line blank sampler therefore snapshots INPT0..INPT3 together at
+one fixed phase, then commits one channel per line from that shared timestamp.
+This avoids giving the right-port pair a systematic phase/range offset merely
+because its commit runs later. The shared elapsed counter advances once per
+four-line group, so all four positions retain the same units as
+`two_paddles.c26`. Seven VBLANK sample groups consume 28 lines and leave enough
+of the scheduler's 37-line deadline for component bookkeeping; `account_gap()`
+preserves elapsed time across the unsampled remainder, score, and display setup.
+The emulator oracle exercises distinct, simultaneous, and staggered four-channel
+thresholds plus every fire button while requiring invariant frame length.
 
 Four-paddle score integration adds the same bounded channel-0/1 probes plus
 `score_latch23_fixed()`, a fixed 24-cycle channel-2/3 latch with no
 data-dependent branch. A score renderer can therefore place it inside a
-calibrated horizontal-position delay without moving RESP timing. The application
-later calls `score_commit_latched23()` in a known blank/slack line. The public
-four-player Paddleball example uses exactly this contract.
+calibrated horizontal-position delay without moving RESP timing. For diagnostics
+that require directly comparable channels, `score_latch0123_fixed()` captures
+all four comparator bits plus one timestamp in 30 fixed cycles; the four
+`score_commit_latchedN()` helpers may then consume that snapshot in later slack
+without changing the measured phase. The public four-player Paddleball example
+uses the 2/3 contract; the field diagnostic uses the simultaneous four-channel
+form.
 
 The public four-player cartridge at
 `examples/01_basic/10_four_player_paddleball/` assigns the left-port blue team
@@ -411,10 +417,13 @@ application commits the channel-2/3 latch later through its paddle instance.
 The two Paddleball examples demonstrate both modes.
 
 The centered `six_glyph_component.c26` likewise accepts `paddle_samples:=2` and
-calls two compile-time hooks in its setup-line slack. Unlike three-plus-three it
-does not reserve X itself, so wrappers around the public paddle probes must load
-X=0. `examples/19_diagnostic/01_diagnostic` uses that form on every text row and
-keeps only the right-port pair in a compact two-line tail sampler.
+calls two compile-time hooks in its setup-line slack. The hooks own their own
+register contract; direct 17-cycle paddle probes reserve X=0, while the field
+diagnostic instead commits channels 0/1 from a simultaneous four-channel latch.
+Its row-alignment line takes the fixed snapshot, the following row preparation
+commits 2/3 from the same timestamp, and a final two-line commit drains the last
+row. Thus all four displayed diagnostic values share identical sampling phase
+rather than merely identical nominal elapsed units.
 
 The complete public example is
 [`examples/01_basic/08_dual_score`](../../examples/01_basic/08_dual_score/).

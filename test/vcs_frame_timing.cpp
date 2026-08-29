@@ -29,6 +29,7 @@ constexpr uint64_t kExpectedDisplayedScanlines = 262;
 // Do not mistake the harness raw count for displayed scanlines.
 constexpr uint64_t kDefaultVsyncIntervalScanlines = 263;
 constexpr uint16_t kVsync = 0x0000;
+constexpr uint16_t kVblank = 0x0001;
 constexpr uint16_t kWsync = 0x0002;
 constexpr uint16_t kResp0 = 0x0010;
 constexpr uint16_t kResp1 = 0x0011;
@@ -47,6 +48,8 @@ constexpr uint16_t kTim64t = 0x0296;
 constexpr uint16_t kT1024t = 0x0297;
 constexpr uint16_t kSwcha = 0x0280;
 constexpr uint16_t kSwchb = 0x0282;
+constexpr uint16_t kInpt0 = 0x0038;
+constexpr uint16_t kInpt3 = 0x003b;
 
 struct WriteEvent {
    uint16_t address;
@@ -139,6 +142,11 @@ struct ExpectedMemory {
    uint8_t value;
 };
 
+struct ExpectedMemoryEqualRange {
+   uint16_t address;
+   unsigned count;
+};
+
 struct RawLineMemoryRule {
    uint8_t value;
    uint64_t lines;
@@ -173,9 +181,14 @@ std::vector<SweepZpWrite> sweep_zp_writes;
 std::vector<FrameMemorySequence> frame_memory_sequences;
 std::vector<ReadMemorySequence> read_memory_sequences;
 std::vector<ExpectedMemory> expected_memory;
+std::vector<ExpectedMemoryEqualRange> expected_memory_equal_ranges;
 RawLineMemoryOracle raw_line_memory_oracle;
 std::vector<uint64_t> frame_expected_raw_cycles;
 bool released_inputs = false;
+bool paddle_inputs = false;
+bool paddle_dumped = true;
+uint64_t paddle_release_cycle = 0;
+uint64_t paddle_threshold_cycles[4] = {0,0,0,0};
 
 struct AsymmetricVisibilityCheck {
    bool enabled = false;
@@ -273,6 +286,12 @@ uint64_t raw_lines_for_memory_value(uint8_t value) {
 }
 
 uint8_t read_bus(uint16_t address) {
+   if (paddle_inputs && address >= kInpt0 && address <= kInpt3) {
+      if (paddle_dumped) return 0;
+      const unsigned channel = static_cast<unsigned>(address - kInpt0);
+      return virtual_cycles - paddle_release_cycle >= paddle_threshold_cycles[channel]
+         ? 0x80 : 0x00;
+   }
    for (ReadMemorySequence &sequence : read_memory_sequences) {
       if (sequence.address == address) {
          const uint8_t value = sequence.values[sequence.index];
@@ -504,6 +523,13 @@ void apply_writes() {
          virtual_cycles += within_line ? kCyclesPerScanline - within_line
                                        : kCyclesPerScanline;
       }
+      else if (tia_write && tia_address == kVblank) {
+         if (paddle_inputs) {
+            const bool next_dumped = (event.value & 0x80) != 0;
+            if (paddle_dumped && !next_dumped) paddle_release_cycle = virtual_cycles;
+            paddle_dumped = next_dumped;
+         }
+      }
       else if (tia_write && tia_address == kVsync) {
          const bool next = (event.value & 2) != 0;
          if (!next && vsync_asserted) {
@@ -633,7 +659,7 @@ void apply_writes() {
 int main(int argc, char **argv) {
    if (argc < 3) {
       std::fprintf(stderr,
-         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--raw-lines-by-memory ADDR VALUE:LINES[,VALUE:LINES...]] [--randomize-zp ADDR COUNT MODULUS SEED]... [--randomize-zp-held ADDR COUNT MODULUS SEED FRAMES]... [--dump-zp ADDR COUNT]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--frame-sequence ADDR VALUE[,VALUE...]]... [--read-sequence ADDR VALUE[,VALUE...]]... [--released-inputs] [--expect-memory ADDR VALUE]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--verify-asymmetric-glyphs GRAPHICS_ADDR MASK] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--require-stable-first-visible-line MASK] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
+         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--raw-lines-by-memory ADDR VALUE:LINES[,VALUE:LINES...]] [--randomize-zp ADDR COUNT MODULUS SEED]... [--randomize-zp-held ADDR COUNT MODULUS SEED FRAMES]... [--dump-zp ADDR COUNT]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--frame-sequence ADDR VALUE[,VALUE...]]... [--read-sequence ADDR VALUE[,VALUE...]]... [--released-inputs] [--paddle-lines L0,L1,L2,L3] [--expect-memory ADDR VALUE]... [--expect-memory-equal ADDR COUNT]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--verify-asymmetric-glyphs GRAPHICS_ADDR MASK] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--require-stable-first-visible-line MASK] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
          argv[0]);
       return 2;
    }
@@ -878,6 +904,25 @@ int main(int argc, char **argv) {
       else if (std::strcmp(argv[i], "--released-inputs") == 0) {
          released_inputs = true;
       }
+      else if (std::strcmp(argv[i], "--paddle-lines") == 0) {
+         if (++i >= argc) fail("--paddle-lines requires L0,L1,L2,L3");
+         const char *cursor = argv[i];
+         for (unsigned channel = 0; channel < 4; ++channel) {
+            char *end = nullptr;
+            const unsigned long lines = std::strtoul(cursor, &end, 0);
+            if (!end || end == cursor || lines > 10000) fail("bad --paddle-lines value");
+            paddle_threshold_cycles[channel] = static_cast<uint64_t>(lines) * kCyclesPerScanline;
+            if (channel == 3) {
+               if (*end != '\0') fail("bad --paddle-lines value");
+            }
+            else {
+               if (*end != ',') fail("bad --paddle-lines value");
+               cursor = end + 1;
+               if (!*cursor) fail("bad --paddle-lines value");
+            }
+         }
+         paddle_inputs = true;
+      }
       else if (std::strcmp(argv[i], "--expect-memory") == 0) {
          if (i + 2 >= argc) {
             fail("--expect-memory requires ADDR VALUE");
@@ -894,6 +939,18 @@ int main(int argc, char **argv) {
          }
          expected_memory.push_back({static_cast<uint16_t>(address),
                                     static_cast<uint8_t>(value)});
+      }
+      else if (std::strcmp(argv[i], "--expect-memory-equal") == 0) {
+         if (i + 2 >= argc) fail("--expect-memory-equal requires ADDR COUNT");
+         char *address_end = nullptr;
+         const unsigned long address = std::strtoul(argv[++i], &address_end, 0);
+         if (!address_end || *address_end != '\0' || address > 0xffff)
+            fail("bad --expect-memory-equal address");
+         char *count_end = nullptr;
+         const unsigned long count = std::strtoul(argv[++i], &count_end, 0);
+         if (!count_end || *count_end != '\0' || count < 2 || count > 64 || address + count > 0x10000)
+            fail("bad --expect-memory-equal count");
+         expected_memory_equal_ranges.push_back({static_cast<uint16_t>(address), static_cast<unsigned>(count)});
       }
       else if (std::strcmp(argv[i], "--verify-asymmetric-visibility") == 0) {
          if (i + 4 >= argc) {
@@ -1159,6 +1216,22 @@ int main(int argc, char **argv) {
             "vcs_frame_timing: memory $%04x expected $%02x, got $%02x\n",
             expect.address, expect.value, actual);
          return 1;
+      }
+   }
+   for (const ExpectedMemoryEqualRange &expect : expected_memory_equal_ranges) {
+      const uint8_t reference = peek_memory(expect.address);
+      for (unsigned j = 1; j < expect.count; ++j) {
+         const uint16_t address = static_cast<uint16_t>(expect.address + j);
+         const uint8_t actual = peek_memory(address);
+         if (actual != reference) {
+            std::fprintf(stderr,
+               "vcs_frame_timing: memory range $%04x..$%04x not equal:",
+               expect.address, static_cast<unsigned>(expect.address + expect.count - 1));
+            for (unsigned k = 0; k < expect.count; ++k)
+               std::fprintf(stderr, "%s$%02x", k ? "," : " ", peek_memory(static_cast<uint16_t>(expect.address + k)));
+            std::fprintf(stderr, "\n");
+            return 1;
+         }
       }
    }
 

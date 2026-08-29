@@ -169,3 +169,41 @@ for green; the broad run passed through 242/333 before the command window, then
 the remaining 91 cases were completed in bounded groups, including the full
 diagnostic cartridge, all eight recursive example-build shards, both
 Paddleballs, score/rendering regressions, and all disassembler tests.
+2026-08-29 15:18:50 PDT, equalize diagnostic paddle sampling
+Post-Item-48 testing found another field-diagnostic defect: equal physical
+paddles did not report comparable ranges. Channels 0/1 reached raw 0..95 while
+2/3 reached 1..113 because the diagnostic sampled 0/1 repeatedly inside each
+six-glyph row but deferred 2/3, and the four-paddle blank sampler observed the
+four comparator bits on different scanlines.
+
+The four-paddle component now supports a fixed 30-cycle all-channel snapshot:
+score_latch0123_fixed() records INPT0..INPT3 plus one shared elapsed timestamp,
+and score_commit_latched0..3() may consume that snapshot later without changing
+the measured phase. Its four-line blank sampler uses the same mechanism, so all
+channels are observed at one physical instant before their commits are spread
+across safe lines.
+
+The diagnostic takes one simultaneous snapshot on every text-row alignment
+line. The six-glyph score slots commit channels 0/1 from that snapshot;
+following row-preparation lines commit 2/3 from the identical timestamp. A
+final two-line commit drains the last row without resampling. Transition
+priming now also clears every score latch. This removes both the one-count
+left/right-port offset and the larger right-port range extension.
+
+The frame-timing harness gained deterministic four-channel analog thresholds
+and an equal-memory-range assertion. test/vcs_diagnostic_paddle_sampling.pl
+sweeps every NTSC threshold from 0 through 255 while requiring all four stored
+positions to be equal and every frame to remain 262 displayed lines; PAL and
+SECAM receive representative equal-channel sweeps. The exhaustive NTSC sweep
+passes, as do the focused Paddleball, four-player Paddleball, score-paddle,
+three-plus-three, six-glyph, hygiene, and history-format regressions.
+2026-08-29 15:34:39 PDT, certify equal diagnostic paddle sampling
+The exhaustive diagnostic paddle regression now carries a 90-second test-runner
+budget because its 256-position NTSC sweep takes about 35 seconds alone and can
+exceed 45 seconds under --jobs 8 contention. The coverage was not reduced.
+Through test.pl the regression passes with all four channels equal across every
+NTSC threshold 0..255 and representative PAL/SECAM points, with stable frame
+length. The preceding complete 334-case e2e run had 333 passes and only this
+regression timing out at the old 45-second limit; after raising the limit, that
+remaining case passes through the normal runner. The earlier 502/502 compile
+phase remains green; the timeout metadata change does not affect compilation.

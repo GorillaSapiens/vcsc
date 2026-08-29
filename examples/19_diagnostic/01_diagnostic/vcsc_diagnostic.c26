@@ -22,18 +22,17 @@ include "diagnostic_fingerprint_font.c26"
 include "fonts/logo_font.c26"
 
 // The paddle reader comes first so the text renderer can bind its optional
-// compile-time score-sampling slots directly to the four analog channels.
+// compile-time score-sampling slots directly to the analog acquisition state.
 instantiate "four_paddles.c26" as diagnostic_paddles
-// The six-glyph setup has room for one bounded probe on each of its first two
-// scanlines. Sample the left-port pair there on every text row; the right-port
-// pair retains a compact two-line sample at the bottom of the diagnostic.
+// Each row's alignment line takes one fixed-phase snapshot of INPT0..INPT3.
+// The six-glyph setup commits channels 0/1 in its two bounded score slots;
+// channels 2/3 are committed in the following row's preparation lines.  All
+// four therefore observe the same physical instant and the same timestamp.
 inline void diagnostic_text_paddle_sample0(void) {
-   asm ldx #0;
-   diagnostic_paddles_score_sample0();
+   diagnostic_paddles_score_commit_latched0();
 }
 inline void diagnostic_text_paddle_sample1(void) {
-   asm ldx #0;
-   diagnostic_paddles_score_sample1();
+   diagnostic_paddles_score_commit_latched1();
 }
 
 // The ordinary score lifecycle needs a score_font symbol while preparing its
@@ -141,6 +140,11 @@ bank1 void diagnostic_prepare_row(uint8_t offset) {
    asm adc #>score_font;
    asm sta.z diagnostic_text_pointers+3;
    asm inx;
+   // One text-row cadence is twelve scanlines (three prepare, one alignment,
+   // eight renderer). Advance the shared clock before any of this row's four
+   // probes so channels 0..3 all record the same two-scanline timestamp bucket.
+   asm lda #6;
+   diagnostic_paddles_score_account_a();
    asm sta WSYNC;
 
    asm ldy diagnostic_rows,x;
@@ -159,6 +163,9 @@ bank1 void diagnostic_prepare_row(uint8_t offset) {
    asm adc #>score_font;
    asm sta.z diagnostic_text_pointers+7;
    asm inx;
+   // Commit channel 2 from the previous row's simultaneous snapshot.  The
+   // commit preserves X and has enough headroom even if either lookup crosses.
+   diagnostic_paddles_score_commit_latched2();
    asm sta WSYNC;
 
    asm ldy diagnostic_rows,x;
@@ -176,10 +183,7 @@ bank1 void diagnostic_prepare_row(uint8_t offset) {
    asm clc;
    asm adc #>score_font;
    asm sta.z diagnostic_text_pointers+11;
-   // One text-row cadence is twelve scanlines (three prepare, one alignment,
-   // eight renderer). Advance six two-line units before the next score probes.
-   asm lda #6;
-   diagnostic_paddles_score_account_a();
+   diagnostic_paddles_score_commit_latched3();
    asm sta WSYNC;
 }
 
@@ -188,6 +192,10 @@ bank1 void diagnostic_prepare_row(uint8_t offset) {
 // renderer's documented cycle-3 entry phase. In five-row mode each row costs
 // one alignment line plus the renderer's eight scanlines.
 bank1 void diagnostic_draw_text_row(void) {
+   // prepare_row() ended with WSYNC, so entry reaches this alignment scanline
+   // at a fixed early phase. Capture all four paddle comparators together;
+   // commits may occur later because the shared latch_time preserves the event.
+   diagnostic_paddles_score_latch0123_fixed();
    WSYNC := _;
    asm bit.z CXM0P;
    diagnostic_text_draw();
@@ -205,6 +213,8 @@ bank1 void diagnostic_prepare_detail1_row(void) {
    asm ldy diagnostic_detail1_row+1;
    asm lda diagnostic_pair_low,y; asm sta.z diagnostic_text_pointers+2;
    asm lda diagnostic_pair_page,y; asm clc; asm adc #>score_font; asm sta.z diagnostic_text_pointers+3;
+   asm lda #6;
+   diagnostic_paddles_score_account_a();
    asm sta WSYNC;
 
    asm ldy diagnostic_detail1_row+2;
@@ -213,6 +223,7 @@ bank1 void diagnostic_prepare_detail1_row(void) {
    asm ldy diagnostic_detail1_row+3;
    asm lda diagnostic_pair_low,y; asm sta.z diagnostic_text_pointers+6;
    asm lda diagnostic_pair_page,y; asm clc; asm adc #>score_font; asm sta.z diagnostic_text_pointers+7;
+   diagnostic_paddles_score_commit_latched2();
    asm sta WSYNC;
 
    asm ldy diagnostic_detail1_row+4;
@@ -221,8 +232,7 @@ bank1 void diagnostic_prepare_detail1_row(void) {
    asm ldy diagnostic_detail1_row+5;
    asm lda diagnostic_pair_low,y; asm sta.z diagnostic_text_pointers+10;
    asm lda diagnostic_pair_page,y; asm clc; asm adc #>score_font; asm sta.z diagnostic_text_pointers+11;
-   asm lda #6;
-   diagnostic_paddles_score_account_a();
+   diagnostic_paddles_score_commit_latched3();
    asm sta WSYNC;
 }
 
@@ -1558,12 +1568,13 @@ bank1 void diagnostic_frame(void) {
    diagnostic_bank3_task(0);
    diagnostic_bank0_task(0);
 
-   // Channels 0/1 are sampled repeatedly inside every text row. The six-glyph
-   // setup has only two safe slots, so finish the right-port pair here in two
-   // lines instead of the old four-line all-channel sampling island.
+   // Channels 2/3 from the final row still need to consume that row's shared
+   // snapshot.  These are commits only--the analog inputs were sampled at the
+   // same alignment phase as channels 0/1--so the two lines cannot skew the
+   // four readings. Account the two elapsed scanlines afterward as one pair.
    if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && !diagnostic_frame_init_only) {
-      diagnostic_paddles_sample2(); WSYNC := _;
-      diagnostic_paddles_sample3(); WSYNC := _;
+      diagnostic_paddles_score_commit_latched2(); WSYNC := _;
+      diagnostic_paddles_score_commit_latched3(); WSYNC := _;
       diagnostic_paddles_advance_pair();
    }
 
@@ -1667,12 +1678,19 @@ bank1 void diagnostic_frame(void) {
       // frame's begin_vblank clears VBLANK.7 and starts the first measurement
       // without paying a one-scanline first-acquisition penalty.
       diagnostic_paddles_elapsed := 0;
-      diagnostic_paddles_active0 := 1;
-      diagnostic_paddles_active1 := 1;
-      diagnostic_paddles_active2 := 1;
-      diagnostic_paddles_active3 := 1;
+      // Score probes use bit 7 of each active flag, so transition priming must
+      // match the component's normal measurement initialization exactly.
+      diagnostic_paddles_active0 := 0x80;
+      diagnostic_paddles_active1 := 0x80;
+      diagnostic_paddles_active2 := 0x80;
+      diagnostic_paddles_active3 := 0x80;
       diagnostic_paddles_complete := 0;
       diagnostic_paddles_dumped := 0;
+      diagnostic_paddles_score_latch0 := 0;
+      diagnostic_paddles_score_latch1 := 0;
+      diagnostic_paddles_score_latch2 := 0;
+      diagnostic_paddles_score_latch3 := 0;
+      diagnostic_paddles_score_latch_time := 0;
       VBLANK := 0x82;
    }
 
