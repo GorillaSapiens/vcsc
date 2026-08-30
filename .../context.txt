@@ -98,9 +98,11 @@ Open workstreams
 3. **Bankswitching**
    `.../bankswitching.txt` contains the durable cartridge model plus unfinished
    mapper diagnostics. Item 38 (F0/FA2/FC tier) is explicitly deferred until the
-   user reopens it. Items 42-44 are diagnostic/profile backfills for FE/SCABS, WD, and DPC;
-   FE/SCABS is the next open bankswitching item. 3F and classic 3E are complete;
-   both public families route ordinary TIA I/O through the `$40-$7F` mirror so
+   user reopens it. FE/SCABS Item 42 is complete with a public profile,
+   delayed-`$01FE` simulator/linker contract, direct top-level JSR/RTS idiom,
+   exact round trip, and Stella certification. Item 43 WD is the next open
+   bankswitching item; Item 44 DPC follows. 3F and classic 3E are complete; both
+   public families route ordinary TIA I/O through the `$40-$7F` mirror so
    mapper-owned low-page writes cannot corrupt frame timing.
 
 4. **Disassembler**

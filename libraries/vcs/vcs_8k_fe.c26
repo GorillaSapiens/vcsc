@@ -1,0 +1,38 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+include "vcs.c26"
+
+// Activision/SCABS FE: two full-window 4K ROM banks with no address hotspot.
+// Physical/file bank 0 is the deterministic RESET bank and is linked in the
+// $F000-$FFFF high-byte range. Physical/file bank 1 is linked at $D000-$DFFF.
+//
+// FE watches stack address $01FE.  An access to $01FE arms a one-cycle delayed
+// latch; the *following* data-bus value chooses the bank.  Released cartridges
+// exploit this with a top-level JSR while S=$FF: JSR's low return-byte push
+// hits $01FE and its following target-high fetch selects D/C -> bank 1 or
+// E/F -> bank 0. RTS later reads $01FE and the following caller-high byte
+// restores the caller bank automatically.
+//
+// VCSC therefore keeps unqualified ROM in bank0 and permits reviewed direct
+// cross-bank JSRs only from main. There are no generic FE JMP/data bridges.
+cartridge {
+   $fill:0xff $signature:FE
+   $vectors_offset:0x0ffa $vectors_size:0x0006
+};
+
+bank bank0 {
+   $image_size:0x1000 $file_index:0 $image_offset:0x0000
+   $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
+   $startup
+};
+
+bank bank1 {
+   $image_size:0x1000 $file_index:1 $image_offset:0x0000
+   $link_start:0xd000 $cpu_start:0xd000 $map_size:0x1000
+};
+
+// Keep RESET/NMI/IRQ vectors out of bank0 allocation. The final-bank mapper
+// signature occupies offsets $FF8-$FFB in physical bank 1, so reserve that
+// tail there as well.
+mem bank0 { $start:0xf000 $size:0x0ffa $ro $priority:2 };
+mem bank1 { $start:0xd000 $size:0x0ff8 $ro };

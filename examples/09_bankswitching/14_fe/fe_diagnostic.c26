@@ -1,0 +1,145 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Activision/SCABS FE PASS/FAIL diagnostic. This deliberately uses the
+// released-cart direct-JSR switch and automatic RTS return-bank restoration.
+include "vcs_8k_fe.c26"
+
+#ifndef SIMULATOR_TEST
+include "frame_ntsc.c26"
+include "fonts/default_decimal.c26"
+instantiate "six_glyph_big_wide_component.c26" as status_result (initial_color:=0)
+instantiate "six_glyph_component.c26" as cart_type (compact_font:=0)
+#endif
+
+uint8_t failure;
+uint8_t trace;
+uint8_t stack_after;
+uint8_t signature_sum;
+
+// Stella/vcsc-disas FE detection recognizes the released Decathlon signature
+// JSR $D000; DEC $C5. Keep the exact bytes as inert, validated data while the
+// executable call below independently exercises the same hardware mechanism.
+bank0 const uint8_t fe_stella_signature[5] := { 0x20, 0x00, 0xD0, 0xC6, 0xC5 };
+
+bank1 uint8_t bank1_probe(void) {
+   if (trace != 0) { failure := 0x11; }
+   trace := 0x5A;
+   return 0xA5;
+}
+
+#ifndef SIMULATOR_TEST
+include "status_font.c26"
+include "cart_type_font.c26"
+
+inline void load_pass(void) {
+   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+0;
+   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+1;
+   asm lda #<{status_glyphs + 16};  asm sta status_result_pointers+2;
+   asm lda #>{status_glyphs + 16};  asm sta status_result_pointers+3;
+   asm lda #<{status_glyphs + 32};  asm sta status_result_pointers+4;
+   asm lda #>{status_glyphs + 32};  asm sta status_result_pointers+5;
+   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+6;
+   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+7;
+   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+8;
+   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+9;
+   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+10;
+   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+11;
+}
+
+inline void load_fail(void) {
+   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+0;
+   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+1;
+   asm lda #<{status_glyphs + 64};   asm sta status_result_pointers+2;
+   asm lda #>{status_glyphs + 64};   asm sta status_result_pointers+3;
+   asm lda #<{status_glyphs + 80};   asm sta status_result_pointers+4;
+   asm lda #>{status_glyphs + 80};   asm sta status_result_pointers+5;
+   asm lda #<{status_glyphs + 96};   asm sta status_result_pointers+6;
+   asm lda #>{status_glyphs + 96};   asm sta status_result_pointers+7;
+   asm lda #<{status_glyphs + 112};  asm sta status_result_pointers+8;
+   asm lda #>{status_glyphs + 112};  asm sta status_result_pointers+9;
+   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+10;
+   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+11;
+}
+
+inline void load_fe_type(void) {
+   // "  FE  "
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+0;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+1;
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+2;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+3;
+   asm lda #<{cart_type_glyphs + 8};  asm sta cart_type_pointers+4;
+   asm lda #>{cart_type_glyphs + 8};  asm sta cart_type_pointers+5;
+   asm lda #<{cart_type_glyphs + 16}; asm sta cart_type_pointers+6;
+   asm lda #>{cart_type_glyphs + 16}; asm sta cart_type_pointers+7;
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+8;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+9;
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+10;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+11;
+}
+
+bank0 void draw_result(void) {
+   status_result_score := 0;
+   cart_type_score := 0;
+   status_result_init();
+   cart_type_init();
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      status_result_vblank();
+      cart_type_vblank();
+      if (failure) { load_fail(); } else { load_pass(); }
+      load_fe_type();
+      status_result_color := 0x0E;
+      COLUBK := failure ? 0x20 : 0xC4;
+      COLUP0 := 0x0E;
+      COLUP1 := 0x0E;
+      PF0 := 0; PF1 := 0; PF2 := 0; GRP0 := 0; GRP1 := 0;
+      ENAM0 := 0; ENAM1 := 0; ENABL := 0; CTRLPF := 0;
+      vcs_ntsc_end_vblank();
+      vcs_ntsc_wait_component_scanlines(81);
+      status_result_draw();
+      vcs_ntsc_component_handoff();
+      cart_type_draw();
+      vcs_ntsc_wait_visible_tail_scanlines(81);
+      vcs_ntsc_begin_overscan();
+      status_result_overscan();
+      cart_type_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}
+#endif
+
+#ifdef SIMULATOR_TEST
+bank0 void simulator_done(void) { while (1) { } }
+#endif
+
+void main(void) {
+   failure := 0;
+   trace := 0;
+   stack_after := 0;
+
+   // Keep the inert FE detector signature live and verify its bytes.
+   signature_sum := fe_stella_signature[0] + fe_stella_signature[1] +
+                    fe_stella_signature[2] + fe_stella_signature[3] +
+                    fe_stella_signature[4];
+   if (signature_sum != 0x7B) { failure := 0x01; }
+
+   // The released FE idiom requires the switching JSR itself to start with
+   // S=$FF so its low return-byte push addresses stack location $01FE.
+   asm ldx #$ff;
+   asm txs;
+   if (bank1_probe() != 0xA5) { failure := 0x02; }
+
+   // RTS must have selected the caller bank from the high return byte and
+   // restored the hardware stack exactly.
+   asm tsx;
+   asm stx stack_after;
+   if (stack_after != 0xFF) { failure := 0x03; }
+   if (trace != 0x5A) { failure := 0x04; }
+
+#ifdef SIMULATOR_TEST
+   asm jmp simulator_done;
+#else
+   draw_result();
+#endif
+}

@@ -1265,6 +1265,16 @@ source filename/line/statement provenance survives compile/assemble/link, marks
 compiler-generated code honestly, and checks a real F8SC `cartram` store/load
 shows distinct final Superchip write/read aliases separated by `$80`.
 
+`vcs_fe.pl` certifies the FE/SCABS profile as a delayed stack-bus mapper rather
+than a hotspot mapper. It builds and executes the public 8K diagnostic, requires
+a direct top-level JSR into the `$D000` bank and an RTS return to `$F000`, checks
+that the visible build stays on the stack-safe simple startup path, and rejects
+nested cross-bank JSRs. A raw poisoned fixture changes the bank-1 copy of the
+JSR target-high fetch byte, so it fails if `$01FE` switches immediately instead
+of one bus cycle later. The same test requires high-confidence FE disassembly and
+byte-exact round trip; `make stella-bank-test STELLA=/path/to/stella` additionally
+forces Stella `-bs FE` and grades the public green `pass` / `FE` frame.
+
 `vcs_bankswitching_diagnostic.pl` also certifies the explicit-binding
 F8SC/F6SC/F4SC profiles. It checks every allocatable bank region begins at
 `$x100` with size `$0E00`, verifies the C26 profiles keep the RAM-port prefix out of ROM,

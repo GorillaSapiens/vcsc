@@ -78,11 +78,11 @@ profiles.
 For an unbanked image, `type=ro` MEMORY ranges reject guest writes.  For a
 banked image, the simulator additionally:
 
-- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, `JANE`, `0840`, `UA`, `UASW`, `0FA0`, `E0`, `3F`, or `3E` (plus the SC variants);
+- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, `JANE`, `0840`, `UA`, `UASW`, `0FA0`, `E0`, `FE`, `3F`, or `3E` (plus the SC variants);
 - loads each physical `.bin` chunk into the logical range named by its BANKS
-  entry (4K for the conventional banked profiles, 1K for E0);
+  entry (4K for the conventional banked profiles and FE, 1K for E0);
 - maps every CPU cartridge-window fetch through the currently selected physical
-  chunk; conventional mappers preserve the low twelve address bits, while E0
+  chunk; conventional mappers and FE preserve the low twelve address bits, while E0
   preserves the offset within each independently selected 1K segment;
 - changes the selected chunk on reads or writes to the configured hotspots;
 - fetches reset vectors through the selected bank, including F4's
@@ -301,3 +301,18 @@ reads sample the byte from fixed bank 7 before applying the switch, matching the
 normal cartridge bus transaction order. Because E0 has three simultaneous bank
 states, `--start-bank` is rejected for this mapper rather than pretending one
 scalar start bank can describe it.
+
+### FE / SCABS
+
+`mapper=FE` loads two 4K physical/file chunks. Physical bank 0 is the
+`$F000-$FFFF` reset/startup view and physical bank 1 is the `$D000-$DFFF`
+alternate view. FE does not switch on an address hotspot. Any mirrored access to
+`$01FE` arms a latch; the **following bus cycle's data** selects the bank using
+`((value >> 5) ^ 7) & 1`, which maps E/F values to bank 0 and C/D values to bank
+1 for the released two-bank cartridge.
+
+The simulator observes that ordering literally: a read from `$01FE` returns the
+byte using the old bank state, then arms the latch, and only the next read/write
+bus value changes the selected bank. This makes the released `SP=$FF`, direct
+`JSR $Dxxx`, `RTS` idiom work without a synthetic hotspot. Reset restores
+physical bank 0 and clears any pending latch.

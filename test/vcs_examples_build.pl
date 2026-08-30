@@ -60,6 +60,7 @@ sub profile_from_source {
    return 'uasw' if $text =~ /^\s*include\s+"vcs_8k_uasw\.c26"\s*$/m;
    return '0fa0' if $text =~ /^\s*include\s+"vcs_8k_0fa0\.c26"\s*$/m;
    return 'e0' if $text =~ /^\s*include\s+"vcs_8k_e0\.c26"\s*$/m;
+   return 'fe' if $text =~ /^\s*include\s+"vcs_8k_fe\.c26"\s*$/m;
    return '3f' if $text =~ /^\s*include\s+"vcs_8k_3f\.c26"\s*$/m;
    return '3e' if $text =~ /^\s*include\s+"vcs_8k_3e\.c26"\s*$/m;
    return 'f8sc' if $text =~ /^\s*include\s+"vcs_8k_f8sc\.c26"\s*$/m;
@@ -144,7 +145,7 @@ for my $entry (@examples) {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
    } elsif ($profile eq 'f8') {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs_8k_f8.cfg');
-   } elsif ($profile eq 'cv' || $profile eq '4ksc' || $profile eq 'f8sc' || $profile eq 'f6' || $profile eq 'f6sc' || $profile eq 'f4' || $profile eq 'f4sc' || $profile eq 'fa' || $profile eq 'omni' || $profile eq 'jane' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq '3f' || $profile eq '3e') {
+   } elsif ($profile eq 'cv' || $profile eq '4ksc' || $profile eq 'f8sc' || $profile eq 'f6' || $profile eq 'f6sc' || $profile eq 'f4' || $profile eq 'f4sc' || $profile eq 'fa' || $profile eq 'omni' || $profile eq 'jane' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq 'fe' || $profile eq '3f' || $profile eq '3e') {
       # C26 owns the 4KSC/F8SC/FA cartridge and cartridge-RAM topology; the generic cfg
       # only reserves the RIOT hardware stack, matching the public Makefiles.
       push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
@@ -200,7 +201,7 @@ for my $entry (@examples) {
    my $expected_size = ($file eq 'bankswitching_diagnostic.c26' ||
                         $file eq 'banked_standard_renderer.c26') ? 8192
       : ($profile eq '2k' || $profile eq 'cv') ? 2048
-      : ($profile eq 'f8' || $profile eq 'f8sc' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq '3f' || $profile eq '3e') ? 8192
+      : ($profile eq 'f8' || $profile eq 'f8sc' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq 'fe' || $profile eq '3f' || $profile eq '3e') ? 8192
       : $profile eq 'fa' ? 12288
       : ($profile eq 'f6' || $profile eq 'f6sc' || $profile eq 'jane') ? 16384
       : ($profile eq 'f4' || $profile eq 'f4sc' || $profile eq 'omni') ? 32768
@@ -209,7 +210,7 @@ for my $entry (@examples) {
       or die "$dir produced ".length($rom)." bytes, expected $expected_size\n";
    my %known_signature=map { $_=>1 } (
       "4KSC", "F8\0\0", "F8SC", "F6\0\0", "F6SC",
-      "F4\0\0", "F4SC", "FA\0\0", "CV\0\0", "OMNI", "JANE", "0840", "UA\0\0", "UASW", "0FA0", "E0\0\0", "3F\0\0", "3E\0\0",
+      "F4\0\0", "F4SC", "FA\0\0", "CV\0\0", "OMNI", "JANE", "0840", "UA\0\0", "UASW", "0FA0", "E0\0\0", "FE\0\0", "3F\0\0", "3E\0\0",
    );
    my $tail_signature=substr($rom,$expected_size-8,4);
    my $vector_offset = $expected_size - 6;

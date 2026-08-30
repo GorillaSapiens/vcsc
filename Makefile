@@ -1116,6 +1116,8 @@ stella-bank-test: tools
 	  "$(CURDIR)" "$(STELLA_BANK_TEST_TMP)" --stella
 	VCSC_STELLA="$(STELLA)" perl test/vcs_e0.pl \
 	  "$(CURDIR)" "$(STELLA_BANK_TEST_TMP)/e0" --stella
+	VCSC_STELLA="$(STELLA)" perl test/vcs_fe.pl \
+	  "$(CURDIR)" "$(STELLA_BANK_TEST_TMP)/fe" --stella
 	VCSC_STELLA="$(STELLA)" perl test/vcs_3f_3e.pl \
 	  "$(CURDIR)" "$(STELLA_BANK_TEST_TMP)/3f3e" --stella
 	rm -rf $(STELLA_BANK_TEST_TMP)

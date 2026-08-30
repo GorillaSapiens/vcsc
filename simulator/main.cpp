@@ -63,6 +63,7 @@ struct simulator_config_t {
    int cartridge_direct_multi;
    int superchip_mapper;
    int e0_mapper;
+   int fe_mapper;
    int threef_mapper;
    int threee_mapper;
    size_t startup_bank;
@@ -96,6 +97,7 @@ static size_t g_selected_bank = 0;
 static size_t g_e0_segment_bank[3] = {0, 0, 0};
 static int g_3e_ram_selected = 0;
 static uint8_t g_3e_ram_bank = 0;
+static int g_fe_waiting_data = 0;
 static uint8_t g_3e_ram[32][1024] = {};
 static std::vector<std::vector<uint8_t>> g_split_memory;
 
@@ -386,6 +388,7 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
                               str_ieq(cfg->mapper, "F6SC") ||
                               str_ieq(cfg->mapper, "F4SC");
       cfg->e0_mapper = str_ieq(cfg->mapper, "E0");
+      cfg->fe_mapper = str_ieq(cfg->mapper, "FE");
       cfg->threef_mapper = str_ieq(cfg->mapper, "3F");
       cfg->threee_mapper = str_ieq(cfg->mapper, "3E");
       if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") ||
@@ -393,13 +396,17 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
             str_ieq(cfg->mapper, "OMNI") || str_ieq(cfg->mapper, "JANE") ||
             str_ieq(cfg->mapper, "0840") || str_ieq(cfg->mapper, "UA") ||
             str_ieq(cfg->mapper, "UASW") || str_ieq(cfg->mapper, "0FA0") ||
-            cfg->e0_mapper || cfg->threef_mapper || cfg->threee_mapper ||
+            cfg->e0_mapper || cfg->fe_mapper || cfg->threef_mapper || cfg->threee_mapper ||
             cfg->superchip_mapper)) {
          fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
          exit(1);
       }
       if (cfg->e0_mapper && cfg->bank_count != 8u) {
          fprintf(stderr, "vcsc-sim: E0 requires exactly eight physical 1K banks\n");
+         exit(1);
+      }
+      if (cfg->fe_mapper && cfg->bank_count != 2u) {
+         fprintf(stderr, "vcsc-sim: FE requires exactly two physical 4K banks\n");
          exit(1);
       }
       for (size_t i = 0; i < cfg->bank_count; ++i) {
@@ -412,9 +419,9 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
                     (cfg->threef_mapper || cfg->threee_mapper) ? "2K" : "4K");
             exit(1);
          }
-         if (cfg->e0_mapper && !cfg->banks[i].has_file_index) {
-            fprintf(stderr, "vcsc-sim: E0 bank '%s' requires an explicit fileindex\n",
-                    cfg->banks[i].name);
+         if ((cfg->e0_mapper || cfg->fe_mapper) && !cfg->banks[i].has_file_index) {
+            fprintf(stderr, "vcsc-sim: %s bank '%s' requires an explicit fileindex\n",
+                    cfg->mapper, cfg->banks[i].name);
             exit(1);
          }
          if (!cfg->banks[i].has_file_index) {
@@ -448,6 +455,10 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
       }
       if (cfg->e0_mapper && cfg->banks[cfg->startup_bank].file_index != 7u) {
          fprintf(stderr, "vcsc-sim: E0 startup bank must be fixed physical/file bank 7\n");
+         exit(1);
+      }
+      if (cfg->fe_mapper && cfg->banks[cfg->startup_bank].file_index != 0u) {
+         fprintf(stderr, "vcsc-sim: FE startup bank must be physical/file bank 0\n");
          exit(1);
       }
       if ((cfg->threef_mapper || cfg->threee_mapper) &&
@@ -894,9 +905,29 @@ static size_t bank_index_for_file_index(size_t file_index) {
    exit(1);
 }
 
+static size_t fe_bank_from_data(uint8_t value) {
+   return (size_t)(((value >> 5) ^ 0x07u) & 1u);
+}
+
+static void fe_observe_access(uint16_t addr, uint8_t value) {
+   if (!g_cfg_loaded || !g_cfg.fe_mapper)
+      return;
+   const uint16_t bus = (uint16_t)(addr & 0x1fffu);
+   const int was_waiting = g_fe_waiting_data;
+   if (was_waiting) {
+      const size_t file_bank = fe_bank_from_data(value);
+      g_selected_bank = bank_index_for_file_index(file_bank);
+      g_fe_waiting_data = 0;
+   }
+   if (bus == 0x01feu)
+      g_fe_waiting_data = 1;
+}
+
 static int bank_index_for_hotspot(uint16_t addr, size_t *bank_index) {
    uint16_t canonical = (uint16_t)(addr & 0x1FFFu);
    if (!g_cfg_loaded || !g_cfg.cartridge_banked)
+      return 0;
+   if (g_cfg.fe_mapper)
       return 0;
 
    /* Parker Brothers E0 uses three groups of eight selectors in the fixed
@@ -1080,6 +1111,12 @@ void write_cb(uint16_t addr, uint8_t val) {
    if (trace_ops & TRACE_OP_WRITES)
       printf("write $%02x -> $%04x\n", val, addr);
 
+   /* FE commits any previously armed latch from this cycle's data bus and
+      arms again when the current address is $01FE.  Writes can be observed
+      before the ordinary device side effect because FE changes only the ROM
+      bank mapping. */
+   fe_observe_access(addr, val);
+
    {
       uint16_t canonical = (uint16_t)(addr & 0x1fffu);
       if (g_cfg.threef_mapper && canonical <= 0x003fu) {
@@ -1169,6 +1206,9 @@ uint8_t read_cb(uint16_t addr) {
    }
    if (bank_index_for_hotspot(addr, &selected))
       g_selected_bank = selected;
+   /* FE must see the value returned by the old mapping on this bus cycle; the
+      selected bank changes only after that value has been sampled. */
+   fe_observe_access(addr, value);
    return value;
 }
 
@@ -1361,12 +1401,17 @@ int main (int argc, char **argv) {
 
    cpu = new mos6502(read_cb, write_cb, clock_cb);
 
+   g_fe_waiting_data = 0;
    cpu->Reset();
 
    int reset_on_pc_done = 0;
    while (1) {
       gpc = cpu->GetPC();
       if (opts.reset_on_pc_set && !reset_on_pc_done && gpc == opts.reset_on_pc) {
+         if (g_cfg_loaded && g_cfg.fe_mapper) {
+            g_selected_bank = g_cfg.startup_bank;
+            g_fe_waiting_data = 0;
+         }
          cpu->Reset();
          reset_on_pc_done = 1;
          continue;

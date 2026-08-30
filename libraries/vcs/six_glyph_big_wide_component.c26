@@ -27,6 +27,9 @@
 
 // Number of stored and rendered rows per glyph. Big fonts default to sixteen.
 parameter glyph_rows := 16;
+// Override to zero for targets that require BSS-only startup; the default keeps
+// the historical mutable color and generated output unchanged.
+parameter initial_color := 0x0e;
 
 #if TEMPLATE_glyph_rows == 1
 alias TEMPLATE_VISIBLE_SCANLINES_VALUE 4
@@ -91,7 +94,7 @@ recommend bcd24_t TEMPLATE_score := 0;
 uint16_t TEMPLATE_pointers[6];
 uint8_t TEMPLATE_row;
 uint8_t TEMPLATE_delayed;
-recommend uint8_t TEMPLATE_color := 0x0e;
+recommend uint8_t TEMPLATE_color := TEMPLATE_initial_color;
 
 #if TEMPLATE_glyph_rows != 16
 // Non-native-height score fonts are tightly packed: digit N starts at

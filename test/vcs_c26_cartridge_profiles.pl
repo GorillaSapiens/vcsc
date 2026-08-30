@@ -52,6 +52,7 @@ my @profiles=(
    ['UASW', 'vcs_8k_uasw.c26',  undef,               2, 1, 0,  8192],
    ['0FA0', 'vcs_8k_0fa0.c26',  undef,               2, 1, 0,  8192],
    ['E0',   'vcs_8k_e0.c26',    undef,              8, 0, 0,  8192],
+   ['FE',   'vcs_8k_fe.c26',    undef,              2, 0, 0,  8192],
    ['3F',   'vcs_8k_3f.c26',    undef,    4, 0, 0,  8192],
    ['3E',   'vcs_8k_3e.c26',    undef,    4, 0, 0,  8192],
    ['F6',   'vcs_16k_f6.c26',   'vcs_16k_f6.cfg',   4, 1, 0, 16384],
@@ -117,7 +118,7 @@ for my $p (@profiles) {
    -s $generic_bin==$output_size
       or die "$name C26 profile emitted ".(-s $generic_bin)." bytes, expected $output_size\n";
 
-   if ($name =~ /^(?:CV|4KSC|F8|0840|UA|UASW|0FA0|E0|3F|3E|F6|JANE|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
+   if ($name =~ /^(?:CV|4KSC|F8|0840|UA|UASW|0FA0|E0|FE|3F|3E|F6|JANE|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
       my $rom=read_file($generic_bin);
       my $want=$name . ("\0" x (4-length($name)));
       substr($rom,-8,4) eq $want
@@ -155,7 +156,7 @@ for my $p (@profiles) {
       or die "$name map does not report C26 topology\n";
    $map =~ /output-size=\$[0-9A-F]{8}/
       or die "$name map does not report topology output size\n";
-   my @file_order = $name eq 'E0' ? (0..7) : $name =~ /^(?:3F|3E)$/ ? (0..$banks-1) : $name eq 'JANE' ? (1,0,2,3) : $name =~ /^(?:0840|UA|UASW)$/ ? (0,1) : reverse(0..$banks-1);
+   my @file_order = $name eq 'E0' ? (0..7) : $name =~ /^(?:3F|3E)$/ ? (0..$banks-1) : $name eq 'JANE' ? (1,0,2,3) : $name =~ /^(?:0840|UA|UASW|FE)$/ ? (0,1) : reverse(0..$banks-1);
    for my $logical (0..$banks-1) {
       my $file_index=$file_order[$logical];
       $map =~ /^\s+bank\Q$logical\E\s+file-index=\Q$file_index\E\b/m
@@ -164,6 +165,9 @@ for my $p (@profiles) {
    if ($selector) {
       $map =~ /^CARTRIDGE\n\s+mapper=C26\b/m && $map =~ /mode=selector/
          or die "$name did not derive selector-controlled linker machinery from C26\n";
+   } elsif ($name eq 'FE') {
+      $map =~ /mode=fe-delayed/ && $map !~ /^TRAMPOLINES$/m
+         or die "FE profile did not preserve delayed-latch topology\n";
    } else {
       $map =~ /mode=direct/ && $map !~ /^TRAMPOLINES$/m
          or die "$name direct profile unexpectedly generated switching machinery\n";
@@ -231,6 +235,17 @@ for my $p (@profiles) {
       $map =~ /^\s+bank7\s+file-index=7\b.*cpu=\$1C00.*startup=yes/m &&
       $map !~ /^TRAMPOLINES$/m
          or die "E0 map does not preserve fixed top bank/no fake whole-window trampolines\n";
+   }
+
+   if ($name eq 'FE') {
+      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$link_start:0xf000.*?\$cpu_start:0xf000.*?\$startup/s &&
+      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$link_start:0xd000.*?\$cpu_start:0xd000/s &&
+      $text !~ /\$select_access:/
+         or die "FE profile does not preserve the released two-bank delayed-latch topology\n";
+      $map =~ /^\s+bank0\s+file-index=0\b.*cpu=\$F000.*mode=fe-delayed.*startup=yes/m &&
+      $map =~ /^\s+bank1\s+file-index=1\b.*cpu=\$D000.*mode=fe-delayed/m &&
+      $map !~ /^TRAMPOLINES$/m
+         or die "FE map does not preserve startup/file order or delayed mode\n";
    }
 
    if ($name =~ /^(?:3F|3E)$/) {

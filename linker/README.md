@@ -202,7 +202,7 @@ silently ignored. It understands:
 - `callstack_extra = N` on the same writable region to reserve additional top-of-memory hardware-stack bytes required by included or separately assembled code
 - `read_hazard = yes/no` on a `MEMORY` region whose write/start window has side effects when the CPU performs a read bus cycle
 - `bank = NAME` on a cartridge-output `MEMORY` region in a banked profile
-- `mapper = F8/F6/F4`, `fillval = BYTE`, `trampoline = OFFSET`,
+- `mapper = F8/F6/F4/FE`, `fillval = BYTE`, `trampoline = OFFSET`,
   `trampolinesize = SIZE`, and `vectorbridge = OFFSET` inside `CARTRIDGE`
 - `start`, `size`, `hotspot`, and `startup = yes/no` on a named `BANKS` entry
 
@@ -239,6 +239,17 @@ locations: autodetection reads the file before mapper hardware exists, while on
 hardware the access address, not the stored byte value, causes selection. No
 selector, vector bridge, or trampoline is generated merely because multiple
 direct banks exist.
+
+FE/SCABS is one deliberate exception to the ordinary nonoverlapping-direct
+rule. A C26 cartridge with signature `FE`, exactly two 4K banks, file bank 0
+linked/visible at `$F000`, file bank 1 linked/visible at `$D000`, and startup on
+bank 0 is recognized as `mode=fe-delayed`. Those aliases describe alternate
+mapper states, not simultaneously visible direct regions. FE has no generated
+selector hotspot or trampoline corridor: automatic ROM remains in startup bank
+0, explicit `bank1` placement is allowed, and only a direct cross-bank JSR from
+top-level `main` is accepted. Nested cross-bank calls and cross-bank data, JMP,
+or branch relocations are rejected because the released FE protocol depends on
+the exact `$01FE` stack-bus sequence rather than a generic bridge.
 
 A bank with `$select_access` is selector-controlled. All banks in the current
 selector model must have the same full-window shape, selectors must be unique

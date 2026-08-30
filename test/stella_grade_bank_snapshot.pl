@@ -109,13 +109,13 @@ sub decode_png_rgb {
 }
 
 @ARGV>=2 && @ARGV<=3
-   or die "usage: $0 SNAPSHOT.png pass|fail [F8|F6|F4|FA|4KSC|F8SC|F6SC|F4SC|E0|3F|3E|??????]\n";
+   or die "usage: $0 SNAPSHOT.png pass|fail [F8|F6|F4|FA|4KSC|F8SC|F6SC|F4SC|E0|FE|3F|3E|??????]\n";
 my $expect=lc($ARGV[1]);
 $expect eq 'pass' || $expect eq 'fail'
    or die "result must be pass or fail\n";
 my $cart=$ARGV[2] // 'F8';
-$cart =~ /^(?:F[468](?:SC)?|FA|4KSC|E0|3F|3E|\?{6})$/
-   or die "cart type must be F8/F6/F4/FA/4KSC, F8SC/F6SC/F4SC, E0, 3F, 3E, or ??????\n";
+$cart =~ /^(?:F[468](?:SC)?|FA|4KSC|E0|FE|3F|3E|\?{6})$/
+   or die "cart type must be F8/F6/F4/FA/4KSC, F8SC/F6SC/F4SC, E0, FE, 3F, 3E, or ??????\n";
 
 my($width,$height,$rgb_at)=decode_png_rgb($ARGV[0]);
 my @center=$rgb_at->(int($width/2),int($height/2));

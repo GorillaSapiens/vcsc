@@ -1652,6 +1652,18 @@ static int c26_topology_is_e0(const linker_config_t *cfg)
           cart->signature[2] == 0 && cart->signature[3] == 0;
 }
 
+//! @brief Return whether the C26 topology is Activision/SCABS FE.
+static int c26_topology_is_fe(const linker_config_t *cfg)
+{
+   const topology_cartridge_t *cart;
+   if (!cfg || cfg->topology_bank_count != 2u)
+      return 0;
+   cart = &cfg->topology_cartridge;
+   return (cart->present_mask & 0x80u) &&
+          cart->signature[0] == 'F' && cart->signature[1] == 'E' &&
+          cart->signature[2] == 0 && cart->signature[3] == 0;
+}
+
 //! @brief Return whether the C26 topology is classic Tigervision 3F or 3E.
 static int c26_topology_is_3f_family(const linker_config_t *cfg)
 {
@@ -1780,6 +1792,52 @@ static void validate_c26_e0_topology(const linker_config_t *cfg)
    }
 }
 
+//! @brief Validate the two-bank delayed-latch Activision/SCABS FE topology.
+static void validate_c26_fe_topology(const linker_config_t *cfg)
+{
+   size_t i;
+   size_t startup_count = 0;
+
+   for (i = 0; i < cfg->topology_bank_count; ++i) {
+      const topology_bank_t *bank = &cfg->topology_banks[i];
+      uint16_t expected_link = bank->file_index == 0u ? 0xf000u : 0xd000u;
+      if (bank->image_size != 0x1000u || bank->image_offset != 0u ||
+          bank->map_size != 0x1000u) {
+         fprintf(stderr,
+                 "vcsc-ld: FE bank '%s' must be one fully mapped 4K physical chunk\n",
+                 bank->name);
+         exit(1);
+      }
+      if (bank->has_selector) {
+         fprintf(stderr,
+                 "vcsc-ld: FE bank '%s' must not use $select_access; FE switches from the delayed $01FE data-bus latch\n",
+                 bank->name);
+         exit(1);
+      }
+      if (bank->file_index > 1u || bank->link_start != expected_link ||
+          bank->cpu_start != expected_link) {
+         fprintf(stderr,
+                 "vcsc-ld: FE physical bank %u must use logical/cpu window $%04X-$%04X\n",
+                 (unsigned)bank->file_index, expected_link,
+                 (uint16_t)(expected_link + 0x0fffu));
+         exit(1);
+      }
+      if (bank->startup) {
+         startup_count++;
+         if (bank->file_index != 0u) {
+            fprintf(stderr,
+                    "vcsc-ld: FE startup/home marker must be on physical/file bank 0\n");
+            exit(1);
+         }
+      }
+   }
+   if (startup_count != 1u) {
+      fprintf(stderr,
+              "vcsc-ld: FE topology requires physical/file bank 0 as the single startup/home bank\n");
+      exit(1);
+   }
+}
+
 //! @brief Validate generic C26 topology independently of legacy cfg topology.
 static void validate_c26_topology(linker_config_t *cfg)
 {
@@ -1788,6 +1846,7 @@ static void validate_c26_topology(linker_config_t *cfg)
    size_t startup_count = 0;
    const unsigned int complete_generated_mask = 0x7fu;
    int e0_profile;
+   int fe_profile;
    int threef_family;
 
    if (cfg->topology_bank_count == 0) {
@@ -1802,6 +1861,7 @@ static void validate_c26_topology(linker_config_t *cfg)
       exit(1);
    }
    e0_profile = c26_topology_is_e0(cfg);
+   fe_profile = c26_topology_is_fe(cfg);
    threef_family = c26_topology_is_3f_family(cfg);
 
    for (i = 0; i < cfg->topology_bank_count; ++i) {
@@ -1841,7 +1901,7 @@ static void validate_c26_topology(linker_config_t *cfg)
                     bank->name, other->name);
             exit(1);
          }
-         if (!e0_profile && !threef_family && !bank->has_selector && !other->has_selector &&
+         if (!e0_profile && !fe_profile && !threef_family && !bank->has_selector && !other->has_selector &&
              ranges_overlap_u32(bank->cpu_start, bank->map_size,
                                 other->cpu_start, other->map_size)) {
             fprintf(stderr, "vcsc-ld: directly mapped CPU ranges '%s' and '%s' overlap\n",
@@ -1859,6 +1919,8 @@ static void validate_c26_topology(linker_config_t *cfg)
 
    if (e0_profile)
       validate_c26_e0_topology(cfg);
+   if (fe_profile)
+      validate_c26_fe_topology(cfg);
    if (threef_family)
       validate_c26_3f_family_topology(cfg);
 
@@ -5160,7 +5222,7 @@ static const cartridge_bank_t *cartridge_bank_for_address(const linker_config_t 
 {
    size_t i;
 
-   if (!cfg || !cfg->cartridge_banked)
+   if (!cfg || (!cfg->cartridge_banked && !c26_topology_is_fe(cfg)))
       return NULL;
    for (i = 0; i < cfg->bank_count; ++i) {
       const cartridge_bank_t *bank = &cfg->banks[i];
@@ -6992,6 +7054,7 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
    size_t component_count = 0;
    size_t budget_count = 0;
    const cartridge_bank_t *startup;
+   int fe_profile;
    size_t i, j;
 
    if (!cfg || cfg->bank_count < 2)
@@ -7002,6 +7065,7 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
       exit(1);
    }
    startup = bank_placement_startup_bank(cfg);
+   fe_profile = c26_topology_is_fe(cfg);
    if (!startup) {
       fprintf(stderr,
               "vcsc-ld: automatic multi-region placement requires one startup/home bank\n");
@@ -7077,6 +7141,19 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
                pin_memory = bank_placement_auto_memory(cfg, startup);
             bank_placement_pin_item(&items[item_count], pin_bank,
                                     pin_memory, 1);
+         }
+         else if (fe_profile) {
+            const memory_region_t *pin_memory = bank_placement_auto_memory(cfg, startup);
+            if (!pin_memory) {
+               fprintf(stderr,
+                       "vcsc-ld: FE startup bank '%s' has no ordinary allocatable ROM MEMORY region\n",
+                       startup->name);
+               exit(1);
+            }
+            /* FE's released-cart direct-JSR switch requires S=$FF.  Keep all
+               unqualified material in the startup bank so only explicit bank1
+               declarations can create a reviewed FE transition. */
+            bank_placement_pin_item(&items[item_count], startup, pin_memory, 1);
          }
          (void)bank_placement_private_base(lay->name, base, sizeof(base));
          item_count++;
@@ -8734,7 +8811,7 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
    uint16_t source_address;
    uint8_t control;
 
-   if (!cfg || !cfg->cartridge_banked)
+   if (!cfg || (!cfg->cartridge_banked && !c26_topology_is_fe(cfg)))
       return target->address;
 
    source_layout = find_layout_for_image_offset(obj, image_segid, r->offset);
@@ -8767,6 +8844,54 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
       return target->address;
 
    control = r->type & O26_RTYPE_CONTROL_MASK;
+
+   if (c26_topology_is_fe(cfg)) {
+      if (control == O26_RTYPE_CONTROL_JSR) {
+         const char *caller = call_graph_layout_function_name(source_layout);
+         const char *display = caller ? display_function_symbol(caller) : NULL;
+         if (!display || strcmp(display, "main") != 0) {
+            fprintf(stderr,
+                    "vcsc-ld: FE cross-bank JSR in %s layout '%s' at $%04X (%s) targets '%s' at $%04X (%s), but FE direct switching requires a top-level main call with S=$FF\n",
+                    obj->origin, source_layout->name, source_address, source_bank->name,
+                    target->name, target->address, different_bank->name);
+            exit(1);
+         }
+         if ((r->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) !=
+             O26_RTYPE_WORD) {
+            fprintf(stderr,
+                    "vcsc-ld: direct FE cross-bank JSR relocation in %s is not a 16-bit operand\n",
+                    obj->origin);
+            exit(1);
+         }
+         /* Released FE/SCABS carts intentionally execute this JSR directly.
+            With S=$FF its low return-address push hits $01FE; the following
+            target-high fetch selects D/C -> physical bank 1 or E/F -> bank 0.
+            RTS later reads $01FE and the caller-high byte restores the source
+            bank automatically. */
+         return target->address;
+      }
+      if (control == O26_RTYPE_CONTROL_JMP) {
+         fprintf(stderr,
+                 "vcsc-ld: FE cross-bank JMP in %s layout '%s' at $%04X (%s) targets '%s' at $%04X (%s); FE has no address hotspot, use the reviewed top-level JSR/RTS switching idiom\n",
+                 obj->origin, source_layout->name, source_address, source_bank->name,
+                 target->name, target->address, different_bank->name);
+         exit(1);
+      }
+      if (control == O26_RTYPE_CONTROL_BRANCH) {
+         fprintf(stderr,
+                 "vcsc-ld: FE cross-bank conditional branch in %s layout '%s' at $%04X (%s) targets '%s' at $%04X (%s); conditional branches may not cross banks\n",
+                 obj->origin, source_layout->name, source_address, source_bank->name,
+                 target->name, target->address, different_bank->name);
+         exit(1);
+      }
+      fprintf(stderr,
+              "vcsc-ld: FE cross-bank ROM %s relocation in %s layout '%s' at $%04X (%s) targets '%s' at $%04X (%s); FE data references do not switch banks\n",
+              relocation_width_name(r->type), obj->origin, source_layout->name,
+              source_address, source_bank->name, target->name, target->address,
+              different_bank->name);
+      exit(1);
+   }
+
    if (control == O26_RTYPE_CONTROL_JSR) {
       bank_trampoline_entry_t *entry;
       uint32_t address;
@@ -9527,7 +9652,7 @@ static void enforce_branch_bank_contracts(const linker_config_t *cfg,
 {
    size_t i;
 
-   if (!cfg || !cfg->cartridge_banked)
+   if (!cfg || (!cfg->cartridge_banked && !c26_topology_is_fe(cfg)))
       return;
 
    for (i = 0; i < in->object_count; ++i) {
@@ -10025,7 +10150,8 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
                  "  %-12s file-index=%u image-size=$%04X image-offset=$%04X link=$%04X cpu=$%04X map-size=$%04X mode=%s",
                  bank->name, (unsigned)bank->file_index, bank->image_size,
                  bank->image_offset, bank->link_start, bank->cpu_start,
-                 bank->map_size, bank->has_selector ? "selector" : "direct");
+                 bank->map_size, bank->has_selector ? "selector" :
+                 (c26_topology_is_fe(cfg) ? "fe-delayed" : "direct"));
          if (bank->has_selector)
             fprintf(fp, " select-access=$%04X", bank->select_access);
          if (bank->startup)

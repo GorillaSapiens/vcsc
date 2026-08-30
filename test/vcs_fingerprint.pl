@@ -194,8 +194,10 @@ require_re($source,qr/alias\s+BACKGROUND_COLOR\s+0x84/,
            'background is no longer medium blue');
 require_re($source,qr/display_color\s*:=\s*0x0e/,
            'big-wide fingerprint is no longer bright white');
-require_re($component_text,qr/recommend\s+uint8_t\s+TEMPLATE_color\s*:=\s*0x0e/,
-           'big-wide component no longer defaults to bright white');
+require_re($component_text,qr/parameter\s+initial_color\s*:=\s*0x0e/,
+           'big-wide component initial-color parameter no longer defaults to bright white');
+require_re($component_text,qr/recommend\s+uint8_t\s+TEMPLATE_color\s*:=\s*TEMPLATE_initial_color/,
+           'big-wide component color no longer follows its initial-color parameter');
 require_re($source,qr/fingerprint\s*\^=\s*\(uint24_t\)value\s*<<\s*16/,
            'CRC input byte is no longer XORed into the high CRC byte in VCSC');
 require_re($source,qr/fingerprint\s*\^=\s*0x864cfb/,

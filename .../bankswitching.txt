@@ -50,6 +50,19 @@ with `$1FE0-$1FE7`, `$1400-$17FF` with `$1FE8-$1FEF`, and `$1800-$1BFF` with
 physical banks 4/5/6/7. One physical chunk may appear in more than one window,
 so do not model E0 as one selector per bank or as four F8-style whole windows.
 
+FE/SCABS is also not an F8-style hotspot mapper. The released two-bank
+layout stores physical/file bank 0 as the `$F000-$FFFF` startup view and
+physical/file bank 1 as the `$D000-$DFFF` alternate view. Any access to mirrored
+`$01FE` arms a latch; the **following** bus cycle's data selects the bank
+(`E/F` high nybbles select physical bank 0, `C/D` select physical bank 1).
+With `SP=$FF`, a top-level `JSR $Dxxx` pushes its low return byte to `$01FE` and
+the following target-high fetch selects bank 1. `RTS` later reads `$01FE`,
+arming the same latch so the following caller-high stack byte restores bank 0.
+VCSC therefore pins automatic FE ROM to startup bank 0, permits explicit bank-1
+placement, and only lowers a cross-bank JSR directly when its caller is
+`main`; cross-bank data, branches, jumps, and nested calls are rejected rather
+than pretending FE has a generic trampoline corridor.
+
 Classic 3F and 3E reserve the low TIA write page for mapper control. Public
 profiles therefore bind ordinary TIA accesses through the equivalent `$40-$7F`
 mirror; 3E mapper selection itself remains literal `$3E`/`$3F`. Do not depend
@@ -85,7 +98,7 @@ only the final file bank. Short signatures are padded with ASCII NUL, never spac
 or underscore. Current signatures include:
 
     4KSC  F8\0\0  F8SC  F6\0\0  F6SC  F4\0\0  F4SC  FA\0\0
-    CV\0\0  OMNI  JANE  0840  UA\0\0  UASW  0FA0  E0\0\0  3F\0\0  3E\0\0
+    CV\0\0  OMNI  JANE  0840  UA\0\0  UASW  0FA0  E0\0\0  FE\0\0  3F\0\0  3E\0\0
 
 The bytes are metadata; real hardware switches because the hotspot address is
 accessed, not because of the stored byte value.
@@ -97,13 +110,6 @@ Open work
         Do not schedule this unless the user explicitly reopens it. If reopened,
         evaluate each hardware contract separately rather than hiding new
         mechanisms behind the existing hotspot model.
-
-[ ] 42. Backfill an FE / SCABS public diagnostic cartridge.
-
-        * Model FE's delayed `$01FE` stack-bus latch rather than an F8-style
-          hotspot.
-        * Exercise the released-cart JSR switching idiom and return-to-caller bank
-          behavior; force Stella FE.
 
 [ ] 43. Backfill a WD public diagnostic cartridge.
 

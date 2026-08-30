@@ -190,7 +190,9 @@ index($bankswitching,'Never use bare "bank 0" without saying which identity is m
 index($bankswitching,'file_index(BANKn) = bank_count - 1 - n')>=0 &&
 index($bankswitching,'Public VCSC cartridge profiles reserve four bytes')>=0 &&
 $bankswitching =~ /^\[ \] 38\. Reconsider the next tier: F0, FA2, and FC\. \*\*DEFERRED\.\*\*/m &&
-$bankswitching =~ /^\[ \] 42\. Backfill an FE \/ SCABS public diagnostic cartridge\./m &&
+$bankswitching !~ /^\[ \] 42\./m &&
+$bankswitching =~ /^\[ \] 43\. Backfill a WD public diagnostic cartridge\./m &&
+index($bankswitching,'FE/SCABS is also not an F8-style hotspot mapper.')>=0 &&
 $bankswitching !~ /Backfill a 3F public diagnostic cartridge/ &&
 $bankswitching !~ /Backfill a 3E public diagnostic cartridge/ &&
 $bankswitching =~ /^\[ \] 44\. Backfill a DPC public diagnostic cartridge\./m &&
@@ -199,6 +201,10 @@ $bankswitching !~ /^\[x\]/m
 -f File::Spec->catfile($test,'assembler_relocatable_zp_relaxation.pl') &&
 -f File::Spec->catfile($test,'linker_banked_archive_reporting.pl') &&
 -f File::Spec->catfile($test,'vcs_bankswitching_diagnostic.pl') &&
+-f File::Spec->catfile($test,'vcs_fe.pl') &&
+-f File::Spec->catfile($repo,qw(libraries vcs vcs_8k_fe.c26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs vcs_8k_fe.cfg)) &&
+-f File::Spec->catfile($repo,qw(examples 09_bankswitching 14_fe fe_diagnostic.c26)) &&
 -f File::Spec->catfile($test,'phase_overlay.pl') &&
 -f File::Spec->catfile($test,'align_language_placement.pl') &&
 -f File::Spec->catfile($test,'vcs_ascii_font_alignment.pl') &&
