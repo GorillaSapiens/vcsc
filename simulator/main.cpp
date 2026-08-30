@@ -63,6 +63,7 @@ struct simulator_config_t {
    int cartridge_direct_multi;
    int superchip_mapper;
    int e0_mapper;
+   int wd_mapper;
    int fe_mapper;
    int threef_mapper;
    int threee_mapper;
@@ -98,6 +99,14 @@ static size_t g_e0_segment_bank[3] = {0, 0, 0};
 static int g_3e_ram_selected = 0;
 static uint8_t g_3e_ram_bank = 0;
 static int g_fe_waiting_data = 0;
+static uint8_t g_wd_config = 0;
+static int g_wd_pending = 0;
+static uint8_t g_wd_pending_config = 0;
+static uint64_t g_wd_pending_cycle = 0;
+static const uint8_t g_wd_bank_org[8][4] = {
+   {0,0,1,3}, {0,1,2,3}, {4,5,6,7}, {7,4,2,3},
+   {0,0,6,7}, {0,1,7,6}, {2,3,4,5}, {6,0,5,1}
+};
 static uint8_t g_3e_ram[32][1024] = {};
 static std::vector<std::vector<uint8_t>> g_split_memory;
 
@@ -388,6 +397,7 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
                               str_ieq(cfg->mapper, "F6SC") ||
                               str_ieq(cfg->mapper, "F4SC");
       cfg->e0_mapper = str_ieq(cfg->mapper, "E0");
+      cfg->wd_mapper = str_ieq(cfg->mapper, "WD");
       cfg->fe_mapper = str_ieq(cfg->mapper, "FE");
       cfg->threef_mapper = str_ieq(cfg->mapper, "3F");
       cfg->threee_mapper = str_ieq(cfg->mapper, "3E");
@@ -396,7 +406,7 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
             str_ieq(cfg->mapper, "OMNI") || str_ieq(cfg->mapper, "JANE") ||
             str_ieq(cfg->mapper, "0840") || str_ieq(cfg->mapper, "UA") ||
             str_ieq(cfg->mapper, "UASW") || str_ieq(cfg->mapper, "0FA0") ||
-            cfg->e0_mapper || cfg->fe_mapper || cfg->threef_mapper || cfg->threee_mapper ||
+            cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper || cfg->threef_mapper || cfg->threee_mapper ||
             cfg->superchip_mapper)) {
          fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
          exit(1);
@@ -405,21 +415,25 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
          fprintf(stderr, "vcsc-sim: E0 requires exactly eight physical 1K banks\n");
          exit(1);
       }
+      if (cfg->wd_mapper && cfg->bank_count != 8u) {
+         fprintf(stderr, "vcsc-sim: WD requires exactly eight physical 1K banks\n");
+         exit(1);
+      }
       if (cfg->fe_mapper && cfg->bank_count != 2u) {
          fprintf(stderr, "vcsc-sim: FE requires exactly two physical 4K banks\n");
          exit(1);
       }
       for (size_t i = 0; i < cfg->bank_count; ++i) {
          size_t file_index = 0;
-         uint16_t wanted_size = cfg->e0_mapper ? 0x0400u :
+         uint16_t wanted_size = (cfg->e0_mapper || cfg->wd_mapper) ? 0x0400u :
                                 (cfg->threef_mapper || cfg->threee_mapper) ? 0x0800u : 0x1000u;
          if (cfg->banks[i].size != wanted_size) {
             fprintf(stderr, "vcsc-sim: %s bank '%s' is not %s\n",
-                    cfg->mapper, cfg->banks[i].name, cfg->e0_mapper ? "1K" :
+                    cfg->mapper, cfg->banks[i].name, (cfg->e0_mapper || cfg->wd_mapper) ? "1K" :
                     (cfg->threef_mapper || cfg->threee_mapper) ? "2K" : "4K");
             exit(1);
          }
-         if ((cfg->e0_mapper || cfg->fe_mapper) && !cfg->banks[i].has_file_index) {
+         if ((cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper) && !cfg->banks[i].has_file_index) {
             fprintf(stderr, "vcsc-sim: %s bank '%s' requires an explicit fileindex\n",
                     cfg->mapper, cfg->banks[i].name);
             exit(1);
@@ -455,6 +469,10 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
       }
       if (cfg->e0_mapper && cfg->banks[cfg->startup_bank].file_index != 7u) {
          fprintf(stderr, "vcsc-sim: E0 startup bank must be fixed physical/file bank 7\n");
+         exit(1);
+      }
+      if (cfg->wd_mapper && cfg->banks[cfg->startup_bank].file_index != 3u) {
+         fprintf(stderr, "vcsc-sim: WD startup bank must be physical/file bank 3\n");
          exit(1);
       }
       if (cfg->fe_mapper && cfg->banks[cfg->startup_bank].file_index != 0u) {
@@ -923,11 +941,29 @@ static void fe_observe_access(uint16_t addr, uint8_t value) {
       g_fe_waiting_data = 1;
 }
 
+static void wd_note_selector_read(uint16_t addr) {
+   if (!g_cfg_loaded || !g_cfg.wd_mapper) return;
+   const uint16_t bus = (uint16_t)(addr & 0x1fffu);
+   if (bus >= 0x0030u && bus <= 0x003fu) {
+      g_wd_pending = 1;
+      g_wd_pending_config = (uint8_t)(bus & 7u);
+      g_wd_pending_cycle = counter;
+   }
+}
+
+static void wd_commit_after_instruction(void) {
+   if (g_cfg_loaded && g_cfg.wd_mapper && g_wd_pending &&
+       counter > g_wd_pending_cycle + 3u) {
+      g_wd_config = g_wd_pending_config;
+      g_wd_pending = 0;
+   }
+}
+
 static int bank_index_for_hotspot(uint16_t addr, size_t *bank_index) {
    uint16_t canonical = (uint16_t)(addr & 0x1FFFu);
    if (!g_cfg_loaded || !g_cfg.cartridge_banked)
       return 0;
-   if (g_cfg.fe_mapper)
+   if (g_cfg.fe_mapper || g_cfg.wd_mapper)
       return 0;
 
    /* Parker Brothers E0 uses three groups of eight selectors in the fixed
@@ -1011,6 +1047,12 @@ static int bank_index_for_hotspot(uint16_t addr, size_t *bank_index) {
 
 static size_t selected_bank_index_for_address(uint16_t addr) {
    uint16_t canonical = (uint16_t)(addr & 0x1fffu);
+   if (g_cfg.wd_mapper) {
+      if (canonical < 0x1000u) return g_cfg.startup_bank;
+      size_t segment = (size_t)((canonical - 0x1000u) >> 10);
+      if (segment > 3u) segment = 3u;
+      return bank_index_for_file_index(g_wd_bank_org[g_wd_config & 7u][segment]);
+   }
    if (g_cfg.threef_mapper || g_cfg.threee_mapper) {
       if (canonical >= 0x1800u)
          return bank_index_for_file_index(g_cfg.bank_count - 1u);
@@ -1031,6 +1073,10 @@ static uint16_t selected_bank_address(uint16_t addr) {
    uint16_t canonical = (uint16_t)(addr & 0x1fffu);
    size_t bank_index = selected_bank_index_for_address(addr);
    const cartridge_bank_t *bank = &g_cfg.banks[bank_index];
+   if (g_cfg.wd_mapper) {
+      uint16_t window_base = (uint16_t)(0x1000u + ((canonical - 0x1000u) & 0x0c00u));
+      return (uint16_t)(bank->start + (canonical - window_base));
+   }
    if (g_cfg.threef_mapper || g_cfg.threee_mapper) {
       uint16_t window_base = canonical < 0x1800u ? 0x1000u : 0x1800u;
       return (uint16_t)(bank->start + (canonical - window_base));
@@ -1194,6 +1240,7 @@ uint8_t read_cb(uint16_t addr) {
       exit(1);
    }
    uint8_t value = peek_mem(addr);
+   wd_note_selector_read(addr);
    if (trace_ops & TRACE_OP_READS) {
       if (cartridge_window_address(addr)) {
          size_t selected_for_addr = selected_bank_index_for_address(addr);
@@ -1358,7 +1405,17 @@ int main (int argc, char **argv) {
    initialize_split_memory(opts.split_fill_set ? opts.split_fill : 0);
 
    if (g_cfg_loaded && g_cfg.cartridge_banked) {
-      if (g_cfg.e0_mapper) {
+      if (g_cfg.wd_mapper) {
+         if (opts.start_bank_set) {
+            fprintf(stderr,
+                    "vcsc-sim: --start-bank is not meaningful for WD's four-segment arrangements\n");
+            return 1;
+         }
+         g_wd_config = 0u;
+         g_wd_pending = 0;
+         g_selected_bank = g_cfg.startup_bank;
+      }
+      else if (g_cfg.e0_mapper) {
          if (opts.start_bank_set) {
             fprintf(stderr,
                     "vcsc-sim: --start-bank is not meaningful for E0's three independent windows\n");
@@ -1412,6 +1469,10 @@ int main (int argc, char **argv) {
             g_selected_bank = g_cfg.startup_bank;
             g_fe_waiting_data = 0;
          }
+         if (g_cfg_loaded && g_cfg.wd_mapper) {
+            g_wd_config = 0u;
+            g_wd_pending = 0;
+         }
          cpu->Reset();
          reset_on_pc_done = 1;
          continue;
@@ -1428,6 +1489,7 @@ int main (int argc, char **argv) {
          trace_disasm(gpc);
       }
       cpu->Run(1, counter, mos6502::INST_COUNT);
+      wd_commit_after_instruction();
       if ((!g_cfg_loaded || !g_cfg.cartridge_banked) && cpu->GetPC() == 0xFFFF) {
 
          uint8_t op = cpu->GetA();
@@ -1438,6 +1500,7 @@ int main (int argc, char **argv) {
          store_mem(0xFFFF, 0x60, 1); // insert an RTS there
 
          cpu->Run(1, counter, mos6502::INST_COUNT);
+      wd_commit_after_instruction();
 
          store_mem(0xFFFF, tmp, 1); // restore original value
       }

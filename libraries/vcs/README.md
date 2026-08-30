@@ -552,7 +552,7 @@ RAM such as `cartram` must still be named explicitly when the programmer wants
 it.
 
 The conventional F8/F6/F4 profiles use descending VCSC logical banks with BANK0
-at `$F000-$FFFF` as the home/startup bank and final 4K file chunk. JANE, 0840, UA, UASW, 0FA0, E0, and FE
+at `$F000-$FFFF` as the home/startup bank and final 4K file chunk. JANE, 0840, UA, UASW, 0FA0, E0, FE, and WD
 preserve their hardware-specific physical startup/file ordering instead. Selected
 file-order and selector layouts are:
 
@@ -566,20 +566,22 @@ UASW     BANK0 $F000 via $0240     BANK1 $D000 via $0220    alias-decoded    UAS
 0FA0     BANK1 $D000 via $0FA0     BANK0 $F000 via $0FC0    mask $16E0      0FA0
 E0       physical 0 (1K)           physical 7 fixed $1C00    $1FE0-$1FF7     E0\0\0
 FE       physical 0 $F000         physical 1 $D000          delayed $01FE     FE\0\0
+WD       physical 0 (1K)           physical 7 (1K)           reads $30-$3F    WD\0\0
 F6       BANK3 $9000 via $1FF6     BANK0 $F000 via $1FF9    $1FF6-$1FF9     F6\0\0
 F4       BANK7 $1000 via $1FF4     BANK0 $F000 via $1FFB    $1FF4-$1FFB     F4\0\0
 ```
 
 For the conventional selector-hotspot 4K physical-bank profiles in that table
-(excluding E0 and FE), each bank allocates ordinary ROM only through `$xEFF`.
+(excluding E0, FE, and WD), each bank allocates ordinary ROM only through `$xEFF`.
 `$xF00-$xFDF` is the byte-identical trampoline table, `$xFE0-$xFF1` is the
 byte-identical vector bridge, and the remaining tail contains reserved selector
 bytes, mapper metadata, and vectors. E0 instead uses 1K physical chunks; banks
 0-6 expose their full 1K, while fixed bank 7 reserves `$FFE0-$FFFF` for E0
 selectors, mapper metadata, and vectors as described below. FE uses complete 4K
 physical chunks but has no generated trampoline or vector-bridge corridor; its
-`$01FE` control access is on the stack bus rather than in cartridge ROM. The final physical
-bank stores the profile's four-byte mapper signature at `$xFF8-$xFFB`; shorter
+`$01FE` control access is on the stack bus rather than in cartridge ROM. WD uses
+eight 1K physical chunks plus split cartridge RAM and delayed TIA-read
+arrangement selection. The final physical bank stores the profile's four-byte mapper signature at `$xFF8-$xFFB`; shorter
 names are ASCII-NUL padded. Those locations may overlap cartridge-window
 selector hotspots because switching is caused by the bus access address rather
 than the ROM byte value. 0840, UA/UASW, and 0FA0 selectors are below the
@@ -633,8 +635,8 @@ Notes:
 - `tia.c26` and `riot.c26` can also be included separately if you already have your own base machine definition.
 - `vcs_2k.c26` describes a 2048-byte cartridge linked at `$F800-$FFFF`, with vectors in its final six bytes; select it explicitly through reduced `vcs.cfg`.
 - `vcs_4k.c26` describes the standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`; the driver compiles it automatically when no `-T` is supplied.
-- The 4KSC, F8/F6/F4, 0840, UA/UASW, 0FA0, E0, FE, 3F/3E, JANE, FA/RAM Plus, banked SC, and OMNI `.c26` profiles are installed beside `vcs.cfg` and emit exact 4K, 8K, 12K, 16K, and 32K images. Profile-specific cfg files remain installed where needed for compatibility and simulator selection; `vcs_omni_32k.cfg` is simulator-only direct logical placement metadata, not a switched-mapper linker profile.
-- Those public mapper profiles stamp only the final physical file chunk at logical `$xFF8-$xFFB` with `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, `CV\0\0`, `OMNI`, `JANE`, `0840`, `UA\0\0`, `UASW`, `0FA0`, `E0\0\0`, `FE\0\0`, `3F\0\0`, or `3E\0\0`. The NUL padding prevents a short mapper name from resembling a plausible NMI-vector address, and the trailing `SC` in `4KSC` also satisfies Stella's 4KSC autodetection convention.
+- The 4KSC, F8/F6/F4, 0840, UA/UASW, 0FA0, E0, FE, WD, 3F/3E, JANE, FA/RAM Plus, banked SC, and OMNI `.c26` profiles are installed beside `vcs.cfg` and emit exact 4K, 8K, 12K, 16K, and 32K images. Profile-specific cfg files remain installed where needed for compatibility and simulator selection; `vcs_omni_32k.cfg` is simulator-only direct logical placement metadata, not a switched-mapper linker profile.
+- Those public mapper profiles stamp only the final physical file chunk at logical `$xFF8-$xFFB` with `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, `CV\0\0`, `OMNI`, `JANE`, `0840`, `UA\0\0`, `UASW`, `0FA0`, `E0\0\0`, `FE\0\0`, `WD\0\0`, `3F\0\0`, or `3E\0\0`. The NUL padding prevents a short mapper name from resembling a plausible NMI-vector address, and the trailing `SC` in `4KSC` also satisfies Stella's 4KSC autodetection convention.
 - `vcsc` discovers `vcs.cfg` and `vcs_4k.c26` in the source tree or installed `share/vcs` directory and uses both by default. Pass `-T vcs.cfg` plus another C26 profile to select a different cartridge layout.
 - The 128 physical RIOT RAM bytes are not double-counted. `vcs.c26` declares the full `$80-$FF` block and reduced `vcs.cfg` asks `vcsc-ld` to reserve the top bytes dynamically from the whole-program source call graph before placing ordinary storage. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.
 - Current stack sizing accounts automatically for source-level JSR return addresses; ordinary generated calls push no compiler state. Assembly components use `.callstackextra` object metadata for calls, pushes, or stack-pointer use hidden from the source call graph. C26 renderer templates emit the same assembler directive through inline assembly, including an explicit zero when an audited hidden JSR fits entirely inside the source-call reserve. `player_color_192` now flattens its two single-use mask-preparation wrappers and declares `.callstackextra 0`; the standard and multi-object renderers still declare their measured four supplementary bytes for deeper/repeated helper chains. The standard renderer also exports its assembly-initiated overscan-hook edge. Component code and score-table layouts carry startup-region, page-alignment, private-route, `.pagecontain`, and `.indexrange` facts in the object instead of renderer-specific cfg products. Arbitrary inline-assembly stack use must still be declared explicitly.
@@ -784,6 +786,27 @@ startup path, explicitly establishes `SP=$FF` before its bank-crossing JSR, and
 sets display state afterward. The final physical bank carries `FE\0\0` at
 `$DFF8-$DFFB`; the startup bank retains RESET and IRQ/BRK vectors at
 `$FFFC-$FFFF`.
+
+### WD / Wickstead Design profile
+
+The public `vcs_8k_wd.c26` profile emits the corrected 8192-byte WD image as
+eight physical 1K chunks in file order 0 through 7. WD maps four 1K segments at
+`$1000-$13FF`, `$1400-$17FF`, `$1800-$1BFF`, and `$1C00-$1FFF`; reads of
+TIA `$30-$3F` select one of eight complete segment arrangements. The new
+arrangement becomes visible only after the selector read has aged beyond the
+hardware delay, so VCSC models selection as a delayed read side effect rather
+than an ordinary hotspot bank change. Power-on arrangement 0 maps physical
+chunks `0,0,1,3`, making physical/file chunk 3 the startup/vector chunk.
+
+WD also exposes 64 bytes of split-address cartridge RAM: reads use
+`$1000-$103F` and writes use `$1040-$107F`. Because the mapper owns TIA reads
+at `$30-$3F`, the profile binds ordinary TIA I/O through the equivalent
+`$40-$7F` mirror; deliberate three-cycle dead-flag delays use raw TIA `$00`,
+which is not a WD selector. VCSC does not synthesize generic WD cross-arrangement
+trampolines: explicitly banked code/data must only execute after program code has
+selected an arrangement that maps that physical chunk into its canonical CPU
+segment. `vcs_8k_wd.cfg` gives `vcsc-sim` the matching arrangement/RAM model.
+The final physical chunk carries `WD\0\0` in its reserved tail.
 
 ### JANE profile
 

@@ -141,7 +141,7 @@ require inline void TEMPLATE_vblank(void) {
    // schedule so its public X coordinate remains bit-for-bit compatible.
    asm sta WSYNC;
    asm ldx #4;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_ball_divide_loop:;
@@ -207,7 +207,7 @@ require inline void TEMPLATE_draw(void) {
    asm tya;
    asm and #$0f;
    asm tax;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_player0_position_loop:;
    asm dex;
    asm bne.same @TEMPLATE_player0_position_loop;
@@ -263,7 +263,7 @@ require inline void TEMPLATE_draw(void) {
    // only PF1/PF2 here exposed a malformed half-initialized row before the
    // first complete timed scanline.
    asm sta WSYNC;
-   asm bit.z CXM0P;
+   asm bit.z $00;
 
    // The first visible line is the P0 half of the normal two-line pipeline.
    // Do the non-display work before the playfield writes so the left and right
@@ -448,7 +448,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta COLUP1;
    // ENABL was staged before the row-boundary GRP1. Preserve the old seven-cycle
    // slot so every beam-critical write remains at its proven phase.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm nop;
    asm nop;
    asm ldy.z TEMPLATE_player0_y;
@@ -547,10 +547,10 @@ require inline void TEMPLATE_draw(void) {
    asm @terminalrenderer:;
    asm ldy.ax TEMPLATE_playfield+2,x;
    asm lda.ax TEMPLATE_playfield+3,x;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm nop;
    asm sty PF2;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm sta.a PF1;
    asm sta WSYNC;
 

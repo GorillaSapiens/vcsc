@@ -134,7 +134,7 @@ For the maintained NTSC lifecycle contract:
 - `draw()` owns exactly its declared complete visible scanlines;
 - maintained components perform their own terminal WSYNC;
 - `draw()` returns at cycle 0 of the following line;
-- `vcs_ntsc_component_handoff()` is the three-cycle `BIT.z CXM0P` bridge, so a
+- `vcs_ntsc_component_handoff()` is the three-cycle `BIT.z $00` bridge, so a
   composable successor begins at cycle 3 of that return line;
 - a 192-line component normally has no visible successor on its return line.
 

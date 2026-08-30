@@ -98,12 +98,13 @@ Open workstreams
 3. **Bankswitching**
    `.../bankswitching.txt` contains the durable cartridge model plus unfinished
    mapper diagnostics. Item 38 (F0/FA2/FC tier) is explicitly deferred until the
-   user reopens it. FE/SCABS Item 42 is complete with a public profile,
-   delayed-`$01FE` simulator/linker contract, direct top-level JSR/RTS idiom,
-   exact round trip, and Stella certification. Item 43 WD is the next open
-   bankswitching item; Item 44 DPC follows. 3F and classic 3E are complete; both
-   public families route ordinary TIA I/O through the `$40-$7F` mirror so
-   mapper-owned low-page writes cannot corrupt frame timing.
+   user reopens it. FE/SCABS Item 42 and WD Item 43 are complete with public
+   profiles, simulator hardware models, exact disassembly, and Stella-visible
+   diagnostics. WD uses eight 1K chunks, delayed `$30-$3F` read-selected
+   arrangements, 64-byte split RAM, and the `$40-$7F` TIA mirror so ordinary
+   collision/input reads cannot switch arrangements. Item 44 DPC is the next
+   open bankswitching item. 3F and classic 3E are also complete and use the
+   same TIA-mirror principle for their mapper-owned low-page controls.
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished
@@ -185,6 +186,19 @@ test budget under parallel contention; that same regression passes through the
 normal runner after raising only its timeout to 90 seconds. Coverage remains all
 256 NTSC thresholds plus representative PAL/SECAM points. The optional Stella
 7.0 diagnostic oracle remains part of the prior certified state.
+
+Bankswitching Items 42 FE/SCABS and 43 WD are complete. FE's public topology,
+delayed `$01FE` model, direct top-level JSR/RTS idiom, and Stella diagnostic
+remain covered by `test/vcs_fe.pl`. WD now has public `vcs_8k_wd` topology/cfg,
+linker validation, delayed arrangement selection in `vcsc-sim`, 64-byte split
+RAM, exact disassembly, and a Stella-visible PASS/WD diagnostic covered by
+`test/vcs_wd.pl`. WD ordinary TIA I/O is bound through `$40-$7F`, and frame
+dead-flag delays use raw `$00`, avoiding accidental `$30-$3F` selector reads.
+Bankswitching Item 44 DPC is next; Item 38 remains explicitly deferred.
+WD closeout validation has 502/502 compile tests green and all 336 e2e cases
+accounted for green; five long cases that timed out only during an accidental
+duplicate eight-job run pass standalone after the four genuine contract/branding
+failures from the mapper-safe delay/profile change were corrected.
 
 Immediate TODO
 --------------

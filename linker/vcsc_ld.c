@@ -1652,6 +1652,18 @@ static int c26_topology_is_e0(const linker_config_t *cfg)
           cart->signature[2] == 0 && cart->signature[3] == 0;
 }
 
+//! @brief Return whether the C26 topology is Wickstead Design WD.
+static int c26_topology_is_wd(const linker_config_t *cfg)
+{
+   const topology_cartridge_t *cart;
+   if (!cfg || cfg->topology_bank_count != 8u)
+      return 0;
+   cart = &cfg->topology_cartridge;
+   return (cart->present_mask & 0x80u) &&
+          cart->signature[0] == 'W' && cart->signature[1] == 'D' &&
+          cart->signature[2] == 0 && cart->signature[3] == 0;
+}
+
 //! @brief Return whether the C26 topology is Activision/SCABS FE.
 static int c26_topology_is_fe(const linker_config_t *cfg)
 {
@@ -1792,6 +1804,52 @@ static void validate_c26_e0_topology(const linker_config_t *cfg)
    }
 }
 
+//! @brief Validate the segmented 8x1K Wickstead Design output profile.
+static void validate_c26_wd_topology(const linker_config_t *cfg)
+{
+   size_t i;
+   size_t startup_count = 0;
+   for (i = 0; i < cfg->topology_bank_count; ++i) {
+      const topology_bank_t *bank = &cfg->topology_banks[i];
+      uint16_t canonical_link = (uint16_t)(bank->link_start & 0x1fffu);
+      if (bank->image_size != 0x0400u || bank->image_offset != 0u ||
+          bank->map_size != 0x0400u) {
+         fprintf(stderr,
+                 "vcsc-ld: WD bank '%s' must be one fully mapped 1K physical chunk\n",
+                 bank->name);
+         exit(1);
+      }
+      if (bank->has_selector) {
+         fprintf(stderr,
+                 "vcsc-ld: WD bank '%s' must not use one-bank $select_access metadata; WD selects complete four-segment arrangements from TIA $30-$3F reads\n",
+                 bank->name);
+         exit(1);
+      }
+      if (canonical_link != (uint16_t)(bank->cpu_start & 0x1fffu) ||
+          (bank->cpu_start != 0x1000u && bank->cpu_start != 0x1400u &&
+           bank->cpu_start != 0x1800u && bank->cpu_start != 0x1c00u)) {
+         fprintf(stderr,
+                 "vcsc-ld: WD bank '%s' link address $%04X must alias one 1K CPU segment at $1000/$1400/$1800/$1C00\n",
+                 bank->name, bank->link_start);
+         exit(1);
+      }
+      if (bank->startup) {
+         startup_count++;
+         if (bank->file_index != 3u || bank->cpu_start != 0x1c00u ||
+             bank->link_start != 0xfc00u) {
+            fprintf(stderr,
+                    "vcsc-ld: WD startup/home bank must be physical/file chunk 3 at logical $FC00 / CPU $1C00\n");
+            exit(1);
+         }
+      }
+   }
+   if (startup_count != 1u) {
+      fprintf(stderr,
+              "vcsc-ld: WD topology requires physical/file chunk 3 as the single startup/home bank\n");
+      exit(1);
+   }
+}
+
 //! @brief Validate the two-bank delayed-latch Activision/SCABS FE topology.
 static void validate_c26_fe_topology(const linker_config_t *cfg)
 {
@@ -1846,6 +1904,7 @@ static void validate_c26_topology(linker_config_t *cfg)
    size_t startup_count = 0;
    const unsigned int complete_generated_mask = 0x7fu;
    int e0_profile;
+   int wd_profile;
    int fe_profile;
    int threef_family;
 
@@ -1861,6 +1920,7 @@ static void validate_c26_topology(linker_config_t *cfg)
       exit(1);
    }
    e0_profile = c26_topology_is_e0(cfg);
+   wd_profile = c26_topology_is_wd(cfg);
    fe_profile = c26_topology_is_fe(cfg);
    threef_family = c26_topology_is_3f_family(cfg);
 
@@ -1901,7 +1961,7 @@ static void validate_c26_topology(linker_config_t *cfg)
                     bank->name, other->name);
             exit(1);
          }
-         if (!e0_profile && !fe_profile && !threef_family && !bank->has_selector && !other->has_selector &&
+         if (!e0_profile && !wd_profile && !fe_profile && !threef_family && !bank->has_selector && !other->has_selector &&
              ranges_overlap_u32(bank->cpu_start, bank->map_size,
                                 other->cpu_start, other->map_size)) {
             fprintf(stderr, "vcsc-ld: directly mapped CPU ranges '%s' and '%s' overlap\n",
@@ -1919,6 +1979,8 @@ static void validate_c26_topology(linker_config_t *cfg)
 
    if (e0_profile)
       validate_c26_e0_topology(cfg);
+   if (wd_profile)
+      validate_c26_wd_topology(cfg);
    if (fe_profile)
       validate_c26_fe_topology(cfg);
    if (threef_family)
@@ -7055,6 +7117,7 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
    size_t budget_count = 0;
    const cartridge_bank_t *startup;
    int fe_profile;
+   int wd_profile;
    size_t i, j;
 
    if (!cfg || cfg->bank_count < 2)
@@ -7066,6 +7129,7 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
    }
    startup = bank_placement_startup_bank(cfg);
    fe_profile = c26_topology_is_fe(cfg);
+   wd_profile = c26_topology_is_wd(cfg);
    if (!startup) {
       fprintf(stderr,
               "vcsc-ld: automatic multi-region placement requires one startup/home bank\n");
@@ -7142,17 +7206,18 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
             bank_placement_pin_item(&items[item_count], pin_bank,
                                     pin_memory, 1);
          }
-         else if (fe_profile) {
+         else if (fe_profile || wd_profile) {
             const memory_region_t *pin_memory = bank_placement_auto_memory(cfg, startup);
             if (!pin_memory) {
                fprintf(stderr,
-                       "vcsc-ld: FE startup bank '%s' has no ordinary allocatable ROM MEMORY region\n",
-                       startup->name);
+                       "vcsc-ld: %s startup bank '%s' has no ordinary allocatable ROM MEMORY region\n",
+                       wd_profile ? "WD" : "FE", startup->name);
                exit(1);
             }
-            /* FE's released-cart direct-JSR switch requires S=$FF.  Keep all
-               unqualified material in the startup bank so only explicit bank1
-               declarations can create a reviewed FE transition. */
+            /* FE requires reviewed direct-JSR transitions and WD requires an
+               explicitly selected four-segment arrangement. Keep unqualified
+               material in the startup/home chunk; only explicit bank placement
+               may create mapper-dependent references. */
             bank_placement_pin_item(&items[item_count], startup, pin_memory, 1);
          }
          (void)bank_placement_private_base(lay->name, base, sizeof(base));
@@ -10151,7 +10216,8 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
                  bank->name, (unsigned)bank->file_index, bank->image_size,
                  bank->image_offset, bank->link_start, bank->cpu_start,
                  bank->map_size, bank->has_selector ? "selector" :
-                 (c26_topology_is_fe(cfg) ? "fe-delayed" : "direct"));
+                 (c26_topology_is_fe(cfg) ? "fe-delayed" :
+                  (c26_topology_is_wd(cfg) ? "wd-segmented" : "direct")));
          if (bank->has_selector)
             fprintf(fp, " select-access=$%04X", bank->select_access);
          if (bank->startup)

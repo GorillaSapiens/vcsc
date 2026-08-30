@@ -52,7 +52,8 @@ my @profiles=(
    ['UASW', 'vcs_8k_uasw.c26',  undef,               2, 1, 0,  8192],
    ['0FA0', 'vcs_8k_0fa0.c26',  undef,               2, 1, 0,  8192],
    ['E0',   'vcs_8k_e0.c26',    undef,              8, 0, 0,  8192],
-   ['FE',   'vcs_8k_fe.c26',    undef,              2, 0, 0,  8192],
+   ['FE',   'vcs_8k_fe.c26',    undef,    2, 0, 0,  8192],
+   ['WD',   'vcs_8k_wd.c26',    undef,    8, 0, 0,  8192],
    ['3F',   'vcs_8k_3f.c26',    undef,    4, 0, 0,  8192],
    ['3E',   'vcs_8k_3e.c26',    undef,    4, 0, 0,  8192],
    ['F6',   'vcs_16k_f6.c26',   'vcs_16k_f6.cfg',   4, 1, 0, 16384],
@@ -105,7 +106,7 @@ for my $p (@profiles) {
    my $generic_bin=File::Spec->catfile($tmp,"$stem.generic.bin");
    my $generic_map=File::Spec->catfile($tmp,"$stem.generic.map");
    my $build_source=$blank;
-   if ($name =~ /^(?:3F|3E)$/) {
+   if ($text =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/) {
       $build_source=File::Spec->catfile($tmp,"blank_screen_${stem}.c26");
       my $blank_text=read_file($blank);
       $blank_text =~ s/include\s+"vcs\.c26"/alias VCS_TIA_USE_40_MIRROR 1\ninclude "vcs.c26"/;
@@ -118,7 +119,7 @@ for my $p (@profiles) {
    -s $generic_bin==$output_size
       or die "$name C26 profile emitted ".(-s $generic_bin)." bytes, expected $output_size\n";
 
-   if ($name =~ /^(?:CV|4KSC|F8|0840|UA|UASW|0FA0|E0|FE|3F|3E|F6|JANE|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
+   if ($name =~ /^(?:CV|4KSC|F8|0840|UA|UASW|0FA0|E0|FE|WD|3F|3E|F6|JANE|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
       my $rom=read_file($generic_bin);
       my $want=$name . ("\0" x (4-length($name)));
       substr($rom,-8,4) eq $want
@@ -156,7 +157,7 @@ for my $p (@profiles) {
       or die "$name map does not report C26 topology\n";
    $map =~ /output-size=\$[0-9A-F]{8}/
       or die "$name map does not report topology output size\n";
-   my @file_order = $name eq 'E0' ? (0..7) : $name =~ /^(?:3F|3E)$/ ? (0..$banks-1) : $name eq 'JANE' ? (1,0,2,3) : $name =~ /^(?:0840|UA|UASW|FE)$/ ? (0,1) : reverse(0..$banks-1);
+   my @file_order = $name =~ /^(?:E0|WD)$/ ? (0..7) : $name =~ /^(?:3F|3E)$/ ? (0..$banks-1) : $name eq 'JANE' ? (1,0,2,3) : $name =~ /^(?:0840|UA|UASW|FE)$/ ? (0,1) : reverse(0..$banks-1);
    for my $logical (0..$banks-1) {
       my $file_index=$file_order[$logical];
       $map =~ /^\s+bank\Q$logical\E\s+file-index=\Q$file_index\E\b/m
@@ -168,6 +169,9 @@ for my $p (@profiles) {
    } elsif ($name eq 'FE') {
       $map =~ /mode=fe-delayed/ && $map !~ /^TRAMPOLINES$/m
          or die "FE profile did not preserve delayed-latch topology\n";
+   } elsif ($name eq 'WD') {
+      $map =~ /mode=wd-segmented/ && $map !~ /^TRAMPOLINES$/m
+         or die "WD profile did not preserve segmented arrangement topology\n";
    } else {
       $map =~ /mode=direct/ && $map !~ /^TRAMPOLINES$/m
          or die "$name direct profile unexpectedly generated switching machinery\n";
@@ -246,6 +250,20 @@ for my $p (@profiles) {
       $map =~ /^\s+bank1\s+file-index=1\b.*cpu=\$D000.*mode=fe-delayed/m &&
       $map !~ /^TRAMPOLINES$/m
          or die "FE map does not preserve startup/file order or delayed mode\n";
+   }
+
+   if ($name eq 'WD') {
+      $text =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$link_start:0xfc00.*?\$cpu_start:0x1c00.*?\$startup/s &&
+      $text =~ /bank\s+bank7\s*\{.*?\$file_index:7.*?\$link_start:0xd000.*?\$cpu_start:0x1000/s &&
+      $text !~ /\$select_access:/ &&
+      $text =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/ &&
+      $text =~ /mem\s+cartram\s*\{.*?\$read_start:0xf000.*?\$write_start:0xf040.*?\$size:0x0040/s
+         or die "WD profile does not preserve corrected 8x1K arrangement plus 64-byte split RAM topology\n";
+      $map =~ /^\s+bank3\s+file-index=3\b.*cpu=\$1C00.*mode=wd-segmented.*startup=yes/m &&
+      $map =~ /^\s+bank7\s+file-index=7\b.*cpu=\$1000.*mode=wd-segmented/m &&
+      $map =~ /^\s+cartram\s+read_start=\$F000 write_start=\$F040 size=\$0040 type=rw shared=yes\b/m &&
+      $map !~ /^TRAMPOLINES$/m
+         or die "WD map does not preserve corrected chunk order, startup mapping, or split RAM\n";
    }
 
    if ($name =~ /^(?:3F|3E)$/) {

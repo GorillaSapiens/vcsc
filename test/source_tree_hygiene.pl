@@ -191,8 +191,9 @@ index($bankswitching,'file_index(BANKn) = bank_count - 1 - n')>=0 &&
 index($bankswitching,'Public VCSC cartridge profiles reserve four bytes')>=0 &&
 $bankswitching =~ /^\[ \] 38\. Reconsider the next tier: F0, FA2, and FC\. \*\*DEFERRED\.\*\*/m &&
 $bankswitching !~ /^\[ \] 42\./m &&
-$bankswitching =~ /^\[ \] 43\. Backfill a WD public diagnostic cartridge\./m &&
+$bankswitching !~ /^\[ \] 43\./m &&
 index($bankswitching,'FE/SCABS is also not an F8-style hotspot mapper.')>=0 &&
+index($bankswitching,'WD/Wickstead Design uses eight physical 1K chunks')>=0 &&
 $bankswitching !~ /Backfill a 3F public diagnostic cartridge/ &&
 $bankswitching !~ /Backfill a 3E public diagnostic cartridge/ &&
 $bankswitching =~ /^\[ \] 44\. Backfill a DPC public diagnostic cartridge\./m &&

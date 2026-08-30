@@ -76,7 +76,7 @@ $source =~ /asm sta REFP0;\s*asm sta REFP1;\s*asm sta HMM0;\s*asm sta HMM1;\s*as
    or die "component does not clear hostile reflection and preserved-object motion\n";
 $source =~ /asm sta GRP0;\s*asm sta GRP1;\s*asm sta GRP0;\s*asm sta VDELP0;\s*asm sta VDELP1;/s
    or die "component does not flush both hostile player pipelines before drawing\n";
-$source =~ /asm sta GRP0;\s*(?:asm bit\.z CXM0P;\s*){5}asm sta GRP1;\s*asm sta WSYNC;\s*\}/s
+$source =~ /asm sta GRP0;\s*(?:asm bit\.z \$00;\s*){5}asm sta GRP1;\s*asm sta WSYNC;\s*\}/s
    or die "component does not own right-edge final-row latching and terminal cleanup\n";
 
 for my $decl (

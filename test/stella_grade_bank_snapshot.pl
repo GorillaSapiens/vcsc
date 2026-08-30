@@ -109,13 +109,13 @@ sub decode_png_rgb {
 }
 
 @ARGV>=2 && @ARGV<=3
-   or die "usage: $0 SNAPSHOT.png pass|fail [F8|F6|F4|FA|4KSC|F8SC|F6SC|F4SC|E0|FE|3F|3E|??????]\n";
+   or die "usage: $0 SNAPSHOT.png pass|fail [F8|F6|F4|FA|4KSC|F8SC|F6SC|F4SC|E0|FE|WD|3F|3E|??????]\n";
 my $expect=lc($ARGV[1]);
 $expect eq 'pass' || $expect eq 'fail'
    or die "result must be pass or fail\n";
 my $cart=$ARGV[2] // 'F8';
-$cart =~ /^(?:F[468](?:SC)?|FA|4KSC|E0|FE|3F|3E|\?{6})$/
-   or die "cart type must be F8/F6/F4/FA/4KSC, F8SC/F6SC/F4SC, E0, FE, 3F, 3E, or ??????\n";
+$cart =~ /^(?:F[468](?:SC)?|FA|4KSC|E0|FE|WD|3F|3E|\?{6})$/
+   or die "cart type must be F8/F6/F4/FA/4KSC, F8SC/F6SC/F4SC, E0, FE, WD, 3F, 3E, or ??????\n";
 
 my($width,$height,$rgb_at)=decode_png_rgb($ARGV[0]);
 my @center=$rgb_at->(int($width/2),int($height/2));
@@ -202,6 +202,11 @@ my %small=(
    S=>[qw(00111100 01100110 01100000 00111100 00000110 00000110 01100110 00111100)],
    C=>[qw(00111100 01100110 01100000 01100000 01100000 01100000 01100110 00111100)],
    E=>[qw(01111110 01100000 01100000 01111100 01100000 01100000 01100000 01111110)],
+   P=>[qw(01111100 01100110 01100110 01111100 01100000 01100000 01100000 01100000)],
+   I=>[qw(01111110 00011000 00011000 00011000 00011000 00011000 00011000 01111110)],
+   L=>[qw(01100000 01100000 01100000 01100000 01100000 01100000 01100000 01111110)],
+   W=>[qw(01100110 01100110 01100110 01100110 01101110 01111110 01111110 01100110)],
+   D=>[qw(01111100 01100110 01100110 01100110 01100110 01100110 01100110 01111100)],
    0=>[qw(00111100 01100110 01100110 01100110 01100110 01100110 01100110 00111100)],
    '?'=>[qw(00111100 01100110 00000110 00001100 00011000 00000000 00011000 00011000)],
 );
@@ -281,7 +286,7 @@ sub grade_line {
    return ($minx,$miny,$maxx,$maxy,$xs,$ys);
 }
 
-my $result_text=$expect eq 'pass' ? ' pass ' : ' FAIL ';
+my $result_text=$expect eq 'pass' ? ($cart eq 'WD' ? ' PASS ' : ' pass ') : ' FAIL ';
 my $cart_text;
 if ($cart eq '??????') {
    $cart_text='??????';
@@ -295,9 +300,12 @@ else {
 length($result_text)==6 && length($cart_text)==6
    or die "internal diagnostic text width error\n";
 
-my $big_expected=expected_bitmap($result_text,\%big,16);
+my $result_font=$cart eq 'WD' ? \%small : \%big;
+my $result_pitch=$cart eq 'WD' ? 8 : 16;
+my $result_kind=$cart eq 'WD' ? 'compact' : 'big';
+my $result_expected=expected_bitmap($result_text,$result_font,$result_pitch);
 my $small_expected=expected_bitmap($cart_text,\%small,8);
-my @ub=grade_line("big result '$result_text'",\@upper,$big_expected);
+my @ub=grade_line("$result_kind result '$result_text'",\@upper,$result_expected);
 my @lb=grade_line("cart type '$cart_text'",\@lower,$small_expected);
 $ub[1] < $lb[1] or die "cart type is not below result word\n";
 

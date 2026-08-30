@@ -136,8 +136,8 @@ for my $spec (@components) {
 }
 
 my $frame=read_file(File::Spec->catfile($repo,qw(libraries vcs frame_ntsc.c26)));
-$frame =~ /inline\s+void\s+vcs_ntsc_component_handoff\s*\(void\)\s*\{\s*asm\s+bit\.z\s+CXM0P;\s*\}/s
-   or die "component handoff is not the measured single three-cycle BIT.z CXM0P bridge\n";
+$frame =~ /inline\s+void\s+vcs_ntsc_component_handoff\s*\(void\)\s*\{\s*asm\s+bit\.z\s+\$00;\s*\}/s
+   or die "component handoff is not the measured single three-cycle mapper-safe BIT.z \$00 bridge\n";
 
 my $doc=read_file(File::Spec->catfile($repo,qw(libraries vcs renderers COMPONENT_CONVERSION.md)));
 for my $required (

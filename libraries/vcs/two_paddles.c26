@@ -283,7 +283,7 @@ require inline void TEMPLATE_dump(void) {
    asm @still_active:;
    asm lda #$02;
    asm sta VBLANK;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm nop;
    asm nop;
    asm @done:;

@@ -391,7 +391,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta HMP0,x;
    asm sta WSYNC;
    asm ldx #3;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_missile1_divide_loop:;
@@ -405,7 +405,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta HMP0,x;
    asm sta WSYNC;
    asm ldx #2;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_missile0_divide_loop:;
@@ -419,7 +419,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta HMP0,x;
    asm sta WSYNC;
    asm ldx #1;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_player1_divide_loop:;
@@ -433,7 +433,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta HMP0,x;
    asm sta WSYNC;
    asm ldx #0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_player0_divide_loop:;
@@ -513,8 +513,8 @@ require inline void TEMPLATE_draw(void) {
    // The first visible line is the P0 half of the normal two-line pipeline.
    // Do the non-display work before the playfield writes so the left and right
    // bytes reach the TIA at the same phases used by the steady-state loop.
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
+   asm bit.z $00;
+   asm bit.z $00;
    asm nop;
    asm lda.ax TEMPLATE_playfield,x;
    asm sta PF1;
@@ -524,7 +524,7 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_player0_y;
    asm cpy.z TEMPLATE_object_masks + 11;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm nop;
    asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
@@ -540,7 +540,7 @@ require inline void TEMPLATE_draw(void) {
    // common horizontal-blank entry.  Seven pad cycles replace the redundant
    // early ENAM0 materialization without changing the raster phase.
    asm lsr.zx TEMPLATE_object_masks + 2,x;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm nop;
    asm dec.z TEMPLATE_object_masks + 43;
    asm jmp @continuerenderer;
@@ -794,7 +794,7 @@ require inline void TEMPLATE_draw(void) {
    // The final reflected pair uses the same 48/55 physical phases as the
    // body.  WSYNC absorbs the four cycles removed from the old late schedule.
    asm sty.a PF2;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm sta.a PF1;
    asm sta WSYNC;
 
@@ -1141,7 +1141,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta HMP0,x;
    asm sta WSYNC;
    asm ldx #3;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_missile1_divide_loop:;
@@ -1155,7 +1155,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta HMP0,x;
    asm sta WSYNC;
    asm ldx #2;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_missile0_divide_loop:;
@@ -1226,7 +1226,7 @@ require inline void TEMPLATE_draw(void) {
    asm tya;
    asm and #$0f;
    asm tax;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_player0_position_loop:;
    asm dex;
    asm bne.same @TEMPLATE_player0_position_loop;
@@ -1281,13 +1281,13 @@ require inline void TEMPLATE_draw(void) {
    // End the visible setup line with the playfield still cleared. Priming
    // only PF1/PF2 here would expose a malformed half-initialized row.
    asm sta WSYNC;
-   asm bit.z CXM0P;
+   asm bit.z $00;
 
    // The first visible line is the P0 half of the normal two-line pipeline.
    // Do the non-display work before the playfield writes so the left and right
    // bytes reach the TIA at the same phases used by the steady-state loop.
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
+   asm bit.z $00;
+   asm bit.z $00;
    asm nop;
    asm lda.ax TEMPLATE_playfield,x;
    asm sta PF1;
@@ -1297,7 +1297,7 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_player0_y;
    asm cpy.z TEMPLATE_object_masks + 11;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm nop;
    asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
@@ -1313,7 +1313,7 @@ require inline void TEMPLATE_draw(void) {
    // common horizontal-blank entry.  Seven pad cycles replace the redundant
    // early ENAM0 materialization without changing the raster phase.
    asm lsr.zx TEMPLATE_object_masks + 2,x;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm nop;
    asm dec.z TEMPLATE_object_masks + 35;
    asm jmp @continuerenderer;
@@ -1562,7 +1562,7 @@ require inline void TEMPLATE_draw(void) {
    // The final reflected pair uses the same 48/55 physical phases as the
    // body. WSYNC absorbs the four cycles removed from the old late schedule.
    asm sty.a PF2;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm sta.a PF1;
    asm sta WSYNC;
 
@@ -1900,7 +1900,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta HMP0,x;
    asm sta WSYNC;
    asm ldx #3;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_missile1_divide_loop:;
@@ -1914,7 +1914,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta HMP0,x;
    asm sta WSYNC;
    asm ldx #2;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_missile0_divide_loop:;
@@ -1985,7 +1985,7 @@ require inline void TEMPLATE_draw(void) {
    asm tya;
    asm and #$0f;
    asm tax;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_player0_position_loop:;
    asm dex;
    asm bne.same @TEMPLATE_player0_position_loop;
@@ -2040,13 +2040,13 @@ require inline void TEMPLATE_draw(void) {
    // End the visible setup line with the playfield still cleared. Priming
    // only PF1/PF2 here would expose a malformed half-initialized row.
    asm sta WSYNC;
-   asm bit.z CXM0P;
+   asm bit.z $00;
 
    // The first visible line is the P0 half of the normal two-line pipeline.
    // Do the non-display work before the playfield writes so the left and right
    // bytes reach the TIA at the same phases used by the steady-state loop.
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
+   asm bit.z $00;
+   asm bit.z $00;
    asm nop;
    asm lda.ax TEMPLATE_playfield,x;
    asm sta PF1;
@@ -2056,7 +2056,7 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_player0_y;
    asm cpy.z TEMPLATE_object_masks + 11;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm nop;
    asm lda.ax TEMPLATE_playfield+2,x;
    asm sta PF2;
@@ -2072,7 +2072,7 @@ require inline void TEMPLATE_draw(void) {
    // common horizontal-blank entry.  Seven pad cycles replace the redundant
    // early ENAM0 materialization without changing the raster phase.
    asm lsr.zx TEMPLATE_object_masks + 2,x;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm nop;
    asm dec.z TEMPLATE_object_masks + 35;
    asm jmp @continuerenderer;
@@ -2321,7 +2321,7 @@ require inline void TEMPLATE_draw(void) {
    // The final reflected pair uses the same 48/55 physical phases as the
    // body. WSYNC absorbs the four cycles removed from the old late schedule.
    asm sty.a PF2;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm sta.a PF1;
    asm sta WSYNC;
 

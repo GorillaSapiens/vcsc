@@ -188,6 +188,8 @@ install-data:
 	install -m 0644 libraries/vcs/vcs_8k_uasw.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_uasw.c26
 	install -m 0644 libraries/vcs/vcs_8k_0fa0.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_0fa0.c26
 	install -m 0644 libraries/vcs/vcs_8k_e0.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_e0.c26
+	install -m 0644 libraries/vcs/vcs_8k_fe.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_fe.c26
+	install -m 0644 libraries/vcs/vcs_8k_wd.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_wd.c26
 	install -m 0644 libraries/vcs/vcs_8k_3f.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3f.c26
 	install -m 0644 libraries/vcs/vcs_8k_3e.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3e.c26
 	install -m 0644 libraries/vcs/vcs_16k_3f.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_16k_3f.c26
@@ -210,6 +212,8 @@ install-data:
 	install -m 0644 libraries/vcs/vcs_8k_uasw.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_uasw.cfg
 	install -m 0644 libraries/vcs/vcs_8k_0fa0.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_0fa0.cfg
 	install -m 0644 libraries/vcs/vcs_8k_e0.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_e0.cfg
+	install -m 0644 libraries/vcs/vcs_8k_fe.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_fe.cfg
+	install -m 0644 libraries/vcs/vcs_8k_wd.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_wd.cfg
 	install -m 0644 libraries/vcs/vcs_8k_3f.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3f.cfg
 	install -m 0644 libraries/vcs/vcs_8k_3e.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3e.cfg
 	install -m 0644 libraries/vcs/vcs_16k_3f.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_16k_3f.cfg
@@ -357,6 +361,8 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_uasw.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_0fa0.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_e0.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_fe.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_wd.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3f.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3e.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_3f.c26
@@ -379,6 +385,8 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_uasw.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_0fa0.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_e0.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_fe.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_wd.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3f.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3e.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_3f.cfg
@@ -613,7 +621,7 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" "$$stage_vcs/vcs_2k.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" -o "$(INSTALLCHECK_STAGING)/blank_screen_2k.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/blank_screen_2k.bin"` -eq 2048; \
-	for profile in vcs.cfg vcs_2k.c26 vcs_2k_cv.c26 vcs_4k.c26 vcs_4k_sc.c26 vcs_8k_f8.c26 vcs_8k_0840.c26 vcs_8k_ua.c26 vcs_8k_uasw.c26 vcs_8k_0fa0.c26 vcs_8k_e0.c26 vcs_8k_3f.c26 vcs_8k_3e.c26 vcs_16k_3f.c26 vcs_16k_3e.c26 vcs_12k_fa.c26 vcs_16k_f6.c26 vcs_16k_jane.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26 vcs_omni_32k.c26 fa_ram_plus.c26 commavid.c26; do test -f "$$stage_vcs/$$profile"; done; \
+	for profile in vcs.cfg vcs_2k.c26 vcs_2k_cv.c26 vcs_4k.c26 vcs_4k_sc.c26 vcs_8k_f8.c26 vcs_8k_0840.c26 vcs_8k_ua.c26 vcs_8k_uasw.c26 vcs_8k_0fa0.c26 vcs_8k_e0.c26 vcs_8k_fe.c26 vcs_8k_wd.c26 vcs_8k_3f.c26 vcs_8k_3e.c26 vcs_16k_3f.c26 vcs_16k_3e.c26 vcs_12k_fa.c26 vcs_16k_f6.c26 vcs_16k_jane.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26 vcs_omni_32k.c26 fa_ram_plus.c26 commavid.c26; do test -f "$$stage_vcs/$$profile"; done; \
 	test -f "$$stage_vcs/vcs_8k_f8.cfg"; \
 	test -f "$$stage_vcs/vcs_12k_fa.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" \
@@ -626,6 +634,7 @@ installcheck: tools
 	test -f "$$stage_vcs/vcs_8k_uasw.cfg"; \
 	test -f "$$stage_vcs/vcs_8k_0fa0.cfg"; \
 	test -f "$$stage_vcs/vcs_8k_e0.cfg"; \
+	test -f "$$stage_vcs/vcs_8k_fe.cfg"; test -f "$$stage_vcs/vcs_8k_wd.cfg"; \
 	test -f "$$stage_vcs/vcs_8k_3f.cfg"; test -f "$$stage_vcs/vcs_8k_3e.cfg"; \
 	test -f "$$stage_vcs/vcs_16k_3f.cfg"; test -f "$$stage_vcs/vcs_16k_3e.cfg"; \
 	test -f "$$stage_vcs/tia_mirror_40.c26"; \
@@ -1120,6 +1129,8 @@ stella-bank-test: tools
 	  "$(CURDIR)" "$(STELLA_BANK_TEST_TMP)/fe" --stella
 	VCSC_STELLA="$(STELLA)" perl test/vcs_3f_3e.pl \
 	  "$(CURDIR)" "$(STELLA_BANK_TEST_TMP)/3f3e" --stella
+	VCSC_STELLA="$(STELLA)" perl test/vcs_wd.pl \
+	  "$(CURDIR)" "$(STELLA_BANK_TEST_TMP)/wd" --stella
 	rm -rf $(STELLA_BANK_TEST_TMP)
 
 stella-renderer-bank-test: tools

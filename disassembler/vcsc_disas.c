@@ -6476,6 +6476,7 @@ static int mapper_tail_signature_matches(const uint8_t *rom, size_t size,
    case MAP_F4: return memcmp(p, "F4\0\0", 4u) == 0 ||
                        memcmp(p, "F4SC", 4u) == 0;
    case MAP_FA: return memcmp(p, "FA\0\0", 4u) == 0;
+   case MAP_WD: return memcmp(p, "WD\0\0", 4u) == 0;
    case MAP_JANE: return memcmp(p, "JANE", 4u) == 0;
    case MAP_E7: return memcmp(p, "E7\0\0", 4u) == 0;
    case MAP_3E: return memcmp(p, "3E\0\0", 4u) == 0;
@@ -6506,6 +6507,7 @@ static int mapper_has_precise_selector_edges(mapper_t mapper)
    case MAP_E7:
    case MAP_3E:
    case MAP_FE:
+   case MAP_WD:
       return 1;
    default:
       return 0;
@@ -6640,12 +6642,10 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                 * uncatalogued/homebrew images that use different code idioms. */
                family_evidence = h[i].detector_signature;
             else if (h[i].mapper == MAP_WD)
-               /* Stella identifies corrected 8K WD images with the distinctive
-                * LDA $39; JMP byte signature.  Without it, WD's segmented
-                * mapping can make unrelated UA/F8 code look artificially
-                * coherent, so keep unsignatured WD available only via
-                * explicit --mapper wd. */
-               family_evidence = h[i].detector_signature;
+               /* Stella identifies corrected external 8K WD images with the
+                * distinctive LDA $39; JMP byte signature. VCSC-generated WD
+                * images additionally carry explicit WD profile metadata. */
+               family_evidence = h[i].detector_signature || h[i].explicit_signature;
             else if (h[i].mapper == MAP_FE)
                /* FE's instruction-level JSR model can make unrelated 8K ROMs
                 * appear coherent because ordinary JSR target high bytes also
@@ -6671,7 +6671,8 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                            (h[i].mapper == MAP_E7 && h[i].e7_specific_refs != 0) ||
                            (h[i].mapper == MAP_3E && h[i].detector_signature) ||
                            (h[i].mapper == MAP_FC && h[i].detector_signature &&
-                            h[i].hotspots != 0));
+                            h[i].hotspots != 0) ||
+                           (h[i].mapper == MAP_WD && h[i].explicit_signature));
          }
       }
       free_analysis(&probe);

@@ -339,7 +339,7 @@ require inline void TEMPLATE_vblank(void) {
    // divide-by-fifteen RESP/HMxx sequence proven by player_color_192.
    asm sta WSYNC;
    asm ldx #4;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_ball_divide_loop:;
@@ -353,7 +353,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta HMP0,x;
    asm sta WSYNC;
    asm ldx #3;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_missile1_divide_loop:;
@@ -367,7 +367,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta HMP0,x;
    asm sta WSYNC;
    asm ldx #2;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_missile0_divide_loop:;
@@ -381,7 +381,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta HMP0,x;
    asm sta WSYNC;
    asm ldx #1;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_player1_divide_loop:;
@@ -395,7 +395,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta HMP0,x;
    asm sta WSYNC;
    asm ldx #0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_player0_divide_loop:;
@@ -459,8 +459,8 @@ require inline void TEMPLATE_draw(void) {
    // Row zero enters at the scheduler's cycle-3 handoff.  The first visible
    // P0 half is timed to place the first cached pair at cycle 75; every normal
    // pair thereafter is exactly 152 cycles.
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
+   asm bit.z $00;
+   asm bit.z $00;
    asm nop;
    asm lda.a TEMPLATE_row_cache + 0;
    asm sta PF1;
@@ -470,7 +470,7 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_object_masks + 0;
    asm cpy.z TEMPLATE_player0_height;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm nop;
    asm lda.a TEMPLATE_row_cache + 2;
    asm sta PF2;
@@ -482,7 +482,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_first_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_first_p0_ready:;
    asm sta GRP0;
    asm nop;
@@ -547,7 +547,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_A_u1_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_u1_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 4;
@@ -609,7 +609,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_A_u2_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_u2_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 4;
@@ -671,7 +671,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_A_u3_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_u3_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 4;
@@ -733,7 +733,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_A_u4_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_u4_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 4;
@@ -795,7 +795,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_A_u5_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_u5_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 4;
@@ -857,7 +857,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_A_u6_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_u6_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 4;
@@ -898,7 +898,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda #0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_u7_p1_ready:;
    asm sta GRP1;
    asm lda.zx TEMPLATE_object_masks + 3,x;
@@ -949,7 +949,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lsr.z TEMPLATE_row_cache + 11;
    asm nop;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm ldy.z TEMPLATE_object_masks + 1;
    asm dey;
    asm sty.z TEMPLATE_object_masks + 1;
@@ -968,7 +968,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda #0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_boundary_p1_ready:;
    // GRP1 lands at cycle 2 of the first B-row line, transferring the delayed
    // Ball bit0 staged above.  M0 intentionally remains on old-row bit7 until
@@ -998,12 +998,12 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_A_firstB_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_firstB_p0_ready:;
    asm sta GRP0;
    asm inx;
    asm nop;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    // B pair 1: fixed 152-cycle cached pair.
    asm @TEMPLATE_B_u1:;
    asm lda.ay TEMPLATE_player0_colors,y;
@@ -1061,7 +1061,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_B_u1_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_u1_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 11;
@@ -1123,7 +1123,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_B_u2_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_u2_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 11;
@@ -1185,7 +1185,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_B_u3_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_u3_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 11;
@@ -1247,7 +1247,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_B_u4_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_u4_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 11;
@@ -1309,7 +1309,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_B_u5_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_u5_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 11;
@@ -1371,7 +1371,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_B_u6_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_u6_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 11;
@@ -1412,7 +1412,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda #0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_u7_p1_ready:;
    asm sta GRP1;
    asm lda.zx TEMPLATE_object_masks + 3,x;
@@ -1480,7 +1480,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda #0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_boundary_p1_ready:;
    asm sta GRP1;
    asm lda.z TEMPLATE_row_cache + 5;
@@ -1507,7 +1507,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_B_firstA_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_firstA_p0_ready:;
    asm sta GRP0;
    asm inx;
@@ -1517,10 +1517,10 @@ require inline void TEMPLATE_draw(void) {
    // Row 11 is terminal.  Its packed M0 bit7 is already active; keep the old
    // row's reflected PF through the final line and close it with WSYNC.
    asm @TEMPLATE_terminal_boundary:;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
    asm lda.z TEMPLATE_row_cache + 9;
    asm sta PF2;
    asm lda.z TEMPLATE_row_cache + 10;

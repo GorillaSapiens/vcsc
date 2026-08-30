@@ -63,6 +63,15 @@ placement, and only lowers a cross-bank JSR directly when its caller is
 `main`; cross-bank data, branches, jumps, and nested calls are rejected rather
 than pretending FE has a generic trampoline corridor.
 
+WD/Wickstead Design uses eight physical 1K chunks and eight complete four-segment
+arrangements. Power-on arrangement 0 is `0,0,1,3`; reads of TIA `$30-$3F` select
+arrangements 0-7 only after the hardware delay, while writes to those addresses
+remain ordinary TIA writes. WD also owns 64 bytes of split RAM: reads
+`$1000-$103F`, writes `$1040-$107F`. The corrected public 8192-byte `WD` layout
+is distinct from the historical 8195-byte `WDSW` preservation dump, although
+both instantiate the same mapper behavior. Public WD C26 code uses the `$40-$7F`
+TIA mirror so ordinary collision/input reads cannot become selectors.
+
 Classic 3F and 3E reserve the low TIA write page for mapper control. Public
 profiles therefore bind ordinary TIA accesses through the equivalent `$40-$7F`
 mirror; 3E mapper selection itself remains literal `$3E`/`$3F`. Do not depend
@@ -98,7 +107,7 @@ only the final file bank. Short signatures are padded with ASCII NUL, never spac
 or underscore. Current signatures include:
 
     4KSC  F8\0\0  F8SC  F6\0\0  F6SC  F4\0\0  F4SC  FA\0\0
-    CV\0\0  OMNI  JANE  0840  UA\0\0  UASW  0FA0  E0\0\0  FE\0\0  3F\0\0  3E\0\0
+    CV\0\0  OMNI  JANE  0840  UA\0\0  UASW  0FA0  E0\0\0  FE\0\0  WD\0\0  3F\0\0  3E\0\0
 
 The bytes are metadata; real hardware switches because the hotspot address is
 accessed, not because of the stored byte value.
@@ -110,13 +119,6 @@ Open work
         Do not schedule this unless the user explicitly reopens it. If reopened,
         evaluate each hardware contract separately rather than hiding new
         mechanisms behind the existing hotspot model.
-
-[ ] 43. Backfill a WD public diagnostic cartridge.
-
-        * Add the WD four-segment arrangement and 64-byte split RAM as first-class
-          output support, preserving known dump-order distinctions.
-        * Exercise multiple selector arrangements and RAM with simulator/Stella
-          plus exact disassembler coverage.
 
 [ ] 44. Backfill a DPC public diagnostic cartridge.
 

@@ -293,7 +293,7 @@ require inline void TEMPLATE_draw(void) {
    asm tya;
    asm and #$0f;
    asm tax;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_left_position_loop:;
    asm dex;
    asm bne.same @TEMPLATE_left_position_loop;
@@ -324,19 +324,19 @@ require inline void TEMPLATE_draw(void) {
    // eight harmless three-cycle BITs fill the other 24 cycles. RESP1 therefore
    // lands on the identical cycle regardless of paddle threshold state.
    TEMPLATE_paddle_latch23_fixed();
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
 #else
    asm tya;
    asm and #$0f;
    asm tax;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_right_position_loop:;
    asm dex;
    asm bne.same @TEMPLATE_right_position_loop;
@@ -393,9 +393,9 @@ require inline void TEMPLATE_draw(void) {
    // Final row: keep the ones byte in A, preserve the established cycle-47
    // P0 clear and cycle-53 P1 tens write, then update P1 at cycle 58 before
    // copy 3 starts.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm sty GRP0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm stx GRP1;
    asm nop;
    asm sta GRP1;
@@ -404,7 +404,7 @@ require inline void TEMPLATE_draw(void) {
 #else
    // Keep the right ones byte in A. A three-cycle BIT plus an indexed-free
    // Y load preserves the established P0/P1 write phases.
-   asm bit.z CXM0P;
+   asm bit.z $00;
 #if TEMPLATE_glyph_rows == 2
    asm ldy.z TEMPLATE_left_hundreds_rows + 0;
 #elif TEMPLATE_glyph_rows == 3
@@ -445,7 +445,7 @@ require inline void TEMPLATE_draw(void) {
 
 #if TEMPLATE_glyph_rows >= 2
    // Glyph row 2.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.iy (TEMPLATE_pointers + 2),y;
    asm sta.z TEMPLATE_scratch;
    asm lda.iy (TEMPLATE_pointers + 4),y;
@@ -463,9 +463,9 @@ require inline void TEMPLATE_draw(void) {
    // Final row: keep the ones byte in A, preserve the established cycle-47
    // P0 clear and cycle-53 P1 tens write, then update P1 at cycle 58 before
    // copy 3 starts.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm sty GRP0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm stx GRP1;
    asm nop;
    asm sta GRP1;
@@ -474,7 +474,7 @@ require inline void TEMPLATE_draw(void) {
 #else
    // Keep the right ones byte in A. A three-cycle BIT plus an indexed-free
    // Y load preserves the established P0/P1 write phases.
-   asm bit.z CXM0P;
+   asm bit.z $00;
 #if TEMPLATE_glyph_rows == 3
    asm ldy.z TEMPLATE_left_hundreds_rows + 0;
 #elif TEMPLATE_glyph_rows == 4
@@ -511,7 +511,7 @@ require inline void TEMPLATE_draw(void) {
 
 #if TEMPLATE_glyph_rows >= 3
    // Glyph row 3.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.iy (TEMPLATE_pointers + 2),y;
    asm sta.z TEMPLATE_scratch;
    asm lda.iy (TEMPLATE_pointers + 4),y;
@@ -529,9 +529,9 @@ require inline void TEMPLATE_draw(void) {
    // Final row: keep the ones byte in A, preserve the established cycle-47
    // P0 clear and cycle-53 P1 tens write, then update P1 at cycle 58 before
    // copy 3 starts.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm sty GRP0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm stx GRP1;
    asm nop;
    asm sta GRP1;
@@ -540,7 +540,7 @@ require inline void TEMPLATE_draw(void) {
 #else
    // Keep the right ones byte in A. A three-cycle BIT plus an indexed-free
    // Y load preserves the established P0/P1 write phases.
-   asm bit.z CXM0P;
+   asm bit.z $00;
 #if TEMPLATE_glyph_rows == 4
    asm ldy.z TEMPLATE_left_hundreds_rows + 0;
 #elif TEMPLATE_glyph_rows == 5
@@ -573,7 +573,7 @@ require inline void TEMPLATE_draw(void) {
 
 #if TEMPLATE_glyph_rows >= 4
    // Glyph row 4.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.iy (TEMPLATE_pointers + 2),y;
    asm sta.z TEMPLATE_scratch;
    asm lda.iy (TEMPLATE_pointers + 4),y;
@@ -591,9 +591,9 @@ require inline void TEMPLATE_draw(void) {
    // Final row: keep the ones byte in A, preserve the established cycle-47
    // P0 clear and cycle-53 P1 tens write, then update P1 at cycle 58 before
    // copy 3 starts.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm sty GRP0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm stx GRP1;
    asm nop;
    asm sta GRP1;
@@ -602,7 +602,7 @@ require inline void TEMPLATE_draw(void) {
 #else
    // Keep the right ones byte in A. A three-cycle BIT plus an indexed-free
    // Y load preserves the established P0/P1 write phases.
-   asm bit.z CXM0P;
+   asm bit.z $00;
 #if TEMPLATE_glyph_rows == 5
    asm ldy.z TEMPLATE_left_hundreds_rows + 0;
 #elif TEMPLATE_glyph_rows == 6
@@ -631,7 +631,7 @@ require inline void TEMPLATE_draw(void) {
 
 #if TEMPLATE_glyph_rows >= 5
    // Glyph row 5.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.iy (TEMPLATE_pointers + 2),y;
    asm sta.z TEMPLATE_scratch;
    asm lda.iy (TEMPLATE_pointers + 4),y;
@@ -649,9 +649,9 @@ require inline void TEMPLATE_draw(void) {
    // Final row: keep the ones byte in A, preserve the established cycle-47
    // P0 clear and cycle-53 P1 tens write, then update P1 at cycle 58 before
    // copy 3 starts.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm sty GRP0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm stx GRP1;
    asm nop;
    asm sta GRP1;
@@ -660,7 +660,7 @@ require inline void TEMPLATE_draw(void) {
 #else
    // Keep the right ones byte in A. A three-cycle BIT plus an indexed-free
    // Y load preserves the established P0/P1 write phases.
-   asm bit.z CXM0P;
+   asm bit.z $00;
 #if TEMPLATE_glyph_rows == 6
    asm ldy.z TEMPLATE_left_hundreds_rows + 0;
 #elif TEMPLATE_glyph_rows == 7
@@ -685,7 +685,7 @@ require inline void TEMPLATE_draw(void) {
 
 #if TEMPLATE_glyph_rows >= 6
    // Glyph row 6.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.iy (TEMPLATE_pointers + 2),y;
    asm sta.z TEMPLATE_scratch;
    asm lda.iy (TEMPLATE_pointers + 4),y;
@@ -703,9 +703,9 @@ require inline void TEMPLATE_draw(void) {
    // Final row: keep the ones byte in A, preserve the established cycle-47
    // P0 clear and cycle-53 P1 tens write, then update P1 at cycle 58 before
    // copy 3 starts.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm sty GRP0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm stx GRP1;
    asm nop;
    asm sta GRP1;
@@ -714,7 +714,7 @@ require inline void TEMPLATE_draw(void) {
 #else
    // Keep the right ones byte in A. A three-cycle BIT plus an indexed-free
    // Y load preserves the established P0/P1 write phases.
-   asm bit.z CXM0P;
+   asm bit.z $00;
 #if TEMPLATE_glyph_rows == 7
    asm ldy.z TEMPLATE_left_hundreds_rows + 0;
 #elif TEMPLATE_glyph_rows == 8
@@ -735,7 +735,7 @@ require inline void TEMPLATE_draw(void) {
 
 #if TEMPLATE_glyph_rows >= 7
    // Glyph row 7.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.iy (TEMPLATE_pointers + 2),y;
    asm sta.z TEMPLATE_scratch;
    asm lda.iy (TEMPLATE_pointers + 4),y;
@@ -753,9 +753,9 @@ require inline void TEMPLATE_draw(void) {
    // Final row: keep the ones byte in A, preserve the established cycle-47
    // P0 clear and cycle-53 P1 tens write, then update P1 at cycle 58 before
    // copy 3 starts.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm sty GRP0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm stx GRP1;
    asm nop;
    asm sta GRP1;
@@ -764,7 +764,7 @@ require inline void TEMPLATE_draw(void) {
 #else
    // Keep the right ones byte in A. A three-cycle BIT plus an indexed-free
    // Y load preserves the established P0/P1 write phases.
-   asm bit.z CXM0P;
+   asm bit.z $00;
 #if TEMPLATE_glyph_rows == 8
    asm ldy.z TEMPLATE_left_hundreds_rows + 0;
 #endif
@@ -781,7 +781,7 @@ require inline void TEMPLATE_draw(void) {
 
 #if TEMPLATE_glyph_rows >= 8
    // Glyph row 8.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.iy (TEMPLATE_pointers + 2),y;
    asm sta.z TEMPLATE_scratch;
    asm lda.iy (TEMPLATE_pointers + 4),y;
@@ -799,9 +799,9 @@ require inline void TEMPLATE_draw(void) {
    // Final row: keep the ones byte in A, preserve the established cycle-47
    // P0 clear and cycle-53 P1 tens write, then update P1 at cycle 58 before
    // copy 3 starts.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm sty GRP0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm stx GRP1;
    asm nop;
    asm sta GRP1;

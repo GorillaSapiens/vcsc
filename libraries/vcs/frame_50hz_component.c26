@@ -30,7 +30,7 @@ inline void TEMPLATE_wait_visible_tail_scanlines(uint8_t scanlines) {
    asm dey;
    asm bne.same @return_delay;
    asm nop;
-   asm bit.z CXM0P;
+   asm bit.z $00;
 }
 
 inline void TEMPLATE_wait_component_scanlines(uint8_t scanlines) {
@@ -47,11 +47,11 @@ inline void TEMPLATE_wait_component_scanlines(uint8_t scanlines) {
    asm nop;
    asm nop;
    asm nop;
-   asm bit.z CXM0P;
+   asm bit.z $00;
 }
 
 inline void TEMPLATE_component_handoff(void) {
-   asm bit.z CXM0P;
+   asm bit.z $00;
 }
 
 // A full-height cycle-counted visible component returns at cycle zero of the
@@ -71,12 +71,12 @@ inline void TEMPLATE_vsync(void) {
    // BIT delay plus compiler literal reload places both VSYNC stores at cycle 8,
    // exactly 228 CPU cycles apart.
    WSYNC := 2;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    VSYNC := 2;
    WSYNC := 0;
    WSYNC := 0;
    WSYNC := 0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    VSYNC := 0;
 }
 
@@ -121,7 +121,7 @@ static void TEMPLATE_finish_deadline(void) {
 inline void TEMPLATE_begin_vblank(void) {
    // Keep the exact pulse exact; restore the historical callback phase only
    // after VSYNC is low (3 + 5*2 = 13 cycles).
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm nop;
    asm nop;
    asm nop;

@@ -49,7 +49,7 @@ inline void vcs_ntsc_wait_visible_tail_scanlines(uint8_t scanlines) {
    // Keep this return phase independent of whether compiler-owned byte locals
    // use zero-page or absolute addressing.
    asm nop;
-   asm bit.z CXM0P;
+   asm bit.z $00;
 }
 
 // Draw a blank visible gap and enter the following component at the same
@@ -66,7 +66,7 @@ inline void vcs_ntsc_wait_component_scanlines(uint8_t scanlines) {
    // Compact uint8_t lowering leaves the final WSYNC loop 19 cycles earlier
    // than the historical generic lowering used when this helper was first
    // calibrated.  Make that phase compensation explicit here: the 56-cycle
-   // delay loop, three NOPs, and harmless three-cycle collision-register read
+   // delay loop, three NOPs, and mapper-safe three-cycle base-TIA read
    // complete a 65-cycle tail. The third NOP compensates for allowing the
    // assembler to relax compiler-owned byte locals into zero page, preserving
    // the documented cycle-3 component entry.
@@ -79,7 +79,7 @@ inline void vcs_ntsc_wait_component_scanlines(uint8_t scanlines) {
    // Keep this return phase independent of whether compiler-owned byte locals
    // use zero-page or absolute addressing.
    asm nop;
-   asm bit.z CXM0P;
+   asm bit.z $00;
 }
 
 // The scheduler enters the first visible component at the measured cycle-3
@@ -87,7 +87,7 @@ inline void vcs_ntsc_wait_component_scanlines(uint8_t scanlines) {
 // its final WSYNC. Insert this bridge between adjacent visible components so
 // every component sees the same entry phase without spending another line.
 inline void vcs_ntsc_component_handoff(void) {
-   asm bit.z CXM0P;
+   asm bit.z $00;
 }
 
 // Generate an exact three-scanline NTSC vertical-sync pulse.  First align to
@@ -96,17 +96,18 @@ inline void vcs_ntsc_component_handoff(void) {
 // two VSYNC assignments symmetric also makes the pulse width independent of
 // the caller's entry phase and compiler addressing-mode relaxation.
 inline void vcs_ntsc_vsync(void) {
-   // The leading WSYNC fixes the scanline phase.  The dead-flags BIT read is a
+   // The leading WSYNC fixes the scanline phase.  The dead-flags BIT read uses raw TIA $00 rather than the canonical
+   // CXM0P=$30 alias, because $30-$3F are WD read selectors. It remains a
    // side-effect-free three-cycle delay; compiler literal reload then places
    // the VSYNC assertion at the historical cycle-8 phase. Repeat that delay
    // before clearing VSYNC so the two edges stay exactly 228 cycles apart.
    WSYNC := 2;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    VSYNC := 2;
    WSYNC := 0;
    WSYNC := 0;
    WSYNC := 0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    VSYNC := 0;
 }
 
@@ -212,7 +213,7 @@ inline void vcs_ntsc_begin_vblank(void) {
    // Exact VSYNC now clears at cycle 8 instead of the historical padded clear
    // at cycle 21. Keep those thirteen compensation cycles out of the asserted
    // pulse: restore the old callback entry phase only after VSYNC is low.
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm nop;
    asm nop;
    asm nop;

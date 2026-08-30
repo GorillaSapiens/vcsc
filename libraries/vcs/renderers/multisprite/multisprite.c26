@@ -557,7 +557,7 @@ require inline void TEMPLATE_draw(void) {
 #endif
    asm @TEMPLATE_RendererLoopa:;
 #if TEMPLATE_lines == 192 || TEMPLATE_lines == 228
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm nop;
    asm nop;
 #else

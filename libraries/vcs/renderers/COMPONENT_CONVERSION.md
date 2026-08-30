@@ -101,7 +101,7 @@ not inferred from a count of source statements. The common contract is:
 - every maintained `draw()` owns only complete scanlines and performs its own
   terminal WSYNC;
 - every `draw()` returns at physical cycle 0 of the following line;
-- `vcs_ntsc_component_handoff()` is the single three-cycle `BIT.z CXM0P`
+- `vcs_ntsc_component_handoff()` is the single three-cycle `BIT.z $00`
   bridge, so a composable successor begins at cycle 3 of that same return line;
 - the 192-line profiles set `SUCCESSOR_ON_RETURN_LINE` to zero because they
   already consume the complete standard visible field. Their cycle-zero return

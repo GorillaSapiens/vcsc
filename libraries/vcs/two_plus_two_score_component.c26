@@ -163,7 +163,7 @@ require inline void TEMPLATE_draw(void) {
    asm tya;
    asm and #$0f;
    asm tax;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_left_position_loop:;
    asm dex;
    asm bne.same @TEMPLATE_left_position_loop;
@@ -176,7 +176,7 @@ require inline void TEMPLATE_draw(void) {
    asm tya;
    asm and #$0f;
    asm tax;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_right_position_loop:;
    asm dex;
    asm bne.same @TEMPLATE_right_position_loop;
@@ -227,19 +227,19 @@ require inline void TEMPLATE_draw(void) {
    asm lda.iy (TEMPLATE_pointers + 4),y;
    asm ora.iy (TEMPLATE_pointers + 6),y;
    asm sta GRP1;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
    asm lda #0;
    asm sta GRP0;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
    asm sta GRP1;
    asm sta WSYNC;
 }

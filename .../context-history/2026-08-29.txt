@@ -207,3 +207,79 @@ length. The preceding complete 334-case e2e run had 333 passes and only this
 regression timing out at the old 45-second limit; after raising the limit, that
 remaining case passes through the normal runner. The earlier 502/502 compile
 phase remains green; the timeout metadata change does not affect compilation.
+2026-08-29 18:26:09 PDT, complete FE/SCABS public bankswitching support
+Completed bankswitching roadmap Item 42. Added public vcs_8k_fe.c26/vcs_8k_fe.cfg
+and examples/09_bankswitching/14_fe. FE uses its real delayed $01FE bus-latch
+contract rather than an invented hotspot: any mirrored $01FE access arms the
+selector, and the following bus cycle's data chooses the physical bank. With
+SP=$FF this permits the released-cart top-level JSR/RTS idiom: JSR's low return
+byte push hits $01FE, the following target-high fetch selects bank 1, RTS later
+reads $01FE, and the following caller-high stack byte restores bank 0.
+
+The compiler already communicates the selected mapper generically through C26
+cartridge/topology metadata. vcsc-ld reconstructs that topology from O26
+metadata and applies the FE-only lowering/restrictions only when the cartridge
+signature/topology identifies FE. Function ownership comes independently from
+assembler-preserved .proc layout names, so the FE linker rule can require a
+cross-bank JSR relocation to be owned by main without imposing that rule on
+other mappers.
+
+Automatic FE ROM stays in startup bank 0; bank 1 requires explicit placement.
+The linker permits only direct cross-bank JSRs owned by main and rejects nested
+cross-bank calls plus cross-bank JMP, branch, and ROM-data references. This is
+currently a conservative structural rule, not an instruction-level proof that
+SP=$FF at every such JSR; the startup/simple-call convention supplies that
+precondition. The FE diagnostic deliberately uses the simple startup because
+stack-heavy generic startup can itself touch $01FE. The big-wide score component
+therefore gained an initial_color parameter whose default remains $0E; the FE
+example requests zero/BSS startup and sets its color explicitly afterward.
+
+vcsc-sim models the one-cycle-delayed selector and test/vcs_fe.pl contains a
+poisoned fixture that fails if $01FE switches immediately. FE disassembly is
+high-confidence and byte-exact round-trip. Stella 7.0 renders and grades the
+public PASS/FE diagnostic successfully. Recursive example builds and the general
+C26 cartridge-profile regression include FE.
+
+Validation: all 502 compile-phase tests pass. A complete parallel e2e run first
+reported 331/335: two genuine integration-contract failures (FE recursive
+example profile selection and the parameterized big-wide initializer
+fingerprint) were fixed and pass; the remaining two were the known long
+diagnostic regressions timing out only under eight-way contention and both pass
+standalone. Dedicated FE simulator and Stella tests, C26-profile coverage,
+assembly allowlist, source-tree hygiene, and exact big-wide raster regression
+all pass. Bankswitching Item 43 WD is now the next open mapper diagnostic; Item
+44 DPC follows, while Item 38 remains explicitly deferred.
+2026-08-29 20:43:38 PDT, complete WD public bankswitching support
+Completed bankswitching roadmap Item 43. Added public vcs_8k_wd.c26/vcs_8k_wd.cfg
+and examples/09_bankswitching/15_wd for the corrected 8192-byte Wickstead
+Design format. WD uses eight physical 1K chunks and eight complete four-segment
+arrangements; power-on arrangement 0 is 0,0,1,3. Reads of TIA $30-$3F select
+arrangements 0-7 after the hardware delay, while writes to those addresses do
+not switch. The mapper also provides 64 bytes of split cartridge RAM at
+$1000-$103F read / $1040-$107F write. The historical 8195-byte WDSW dump
+remains input/disassembler compatibility, not a VCSC output format.
+
+The linker validates WD's segmented physical topology rather than pretending it
+is an F8-style whole-window mapper. vcsc-sim models arrangement state, delayed
+selector visibility, write-does-not-switch behavior, and split RAM. The
+poisoned test/vcs_wd.pl fixture fails if selector visibility occurs too early;
+the public cartridge also exercises arrangements 0, 1, and 3, physical chunks
+0/1/2/4/7, both RAM boundaries, and exact disassembly/reassembly. Stella 7.0
+renders and grades the green PASS/WD diagnostic successfully.
+
+Stella certification exposed an important low-page collision: the ordinary TIA
+symbol CXM0P is raw $30, which is WD selector 0. Public WD therefore binds
+ordinary TIA registers through the equivalent $40-$7F mirror, as 3F/3E
+already do for mapper-owned low-page controls. Scheduler/dead-flag three-cycle
+BIT delays that do not need a TIA value now use raw $00 instead of CXM0P;
+source/fingerprint regressions pin that mapper-safe form. WD is also included in
+recursive example/profile tests and the top-level stella-bank-test target.
+
+Validation: all 502 compile-phase tests pass. The broad e2e run reported
+327/336 after an accidental duplicate runner caused contention; its four real
+contract/branding failures were corrected and pass, and the five tests that
+only timed out under contention all pass standalone (diagnostic cartridge,
+diagnostic paddle sweep, enhanced asymmetric multisprite, and recursive example
+shards 3 and 5). Thus all 336 e2e cases are accounted for green. Assembly
+allowlist, branding, source-tree hygiene, and history-format checks are green.
+Bankswitching Item 44 DPC is next; Item 38 remains explicitly deferred.

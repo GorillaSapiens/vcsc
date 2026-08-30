@@ -92,8 +92,8 @@ for my $branch (
 my $absolute_pf_loads=()=$module =~ /asm\s+(?:lda|ldy)\.ax\s+TEMPLATE_playfield(?:\s*[+]\s*[123])?,x;/g;
 $absolute_pf_loads==30
    or die "component has $absolute_pf_loads forced-absolute playfield loads, expected 30\n";
-require_re($module,qr/asm bit\.z CXM0P;/,
-   'official three-cycle delay no longer has an explicit zero-page mode');
+require_re($module,qr/asm bit\.z \$00;/,
+   'official three-cycle delay is not the mapper-safe explicit zero-page TIA read');
 $module !~ /asm sta[.]z TEMPLATE_missile[01]_y;/
    or die "all-five 181 unexpectedly mutates public missile Y state during rendering\n";
 require_re($module,qr/TEMPLATE_player0_color.*TEMPLATE_player1_color/s,

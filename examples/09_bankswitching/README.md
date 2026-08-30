@@ -26,7 +26,7 @@ The public VCSC cartridge profiles also stamp the final physical bank with a
 four-byte mapper signature at logical addresses `$xFF8-$xFFB` (eight bytes before that bank ends). Short mapper names are
 ASCII-NUL padded: `F8\0\0`, `F6\0\0`, `F4\0\0`, `FA\0\0`, and
 `CV\0\0`; the complete four-byte names are `4KSC`, `F8SC`, `F6SC`, `F4SC`,
-`OMNI`, `JANE`, `0840`, `UA\0\0`, `UASW`, `0FA0`, `E0\0\0`, `FE\0\0`, `3F\0\0`, and `3E\0\0`. Only the final bank in file order contains the signature. Selector-hotspot addresses are valid storage
+`OMNI`, `JANE`, `0840`, `UA\0\0`, `UASW`, `0FA0`, `E0\0\0`, `FE\0\0`, `WD\0\0`, `3F\0\0`, and `3E\0\0`. Only the final bank in file order contains the signature. Selector-hotspot addresses are valid storage
 for these bytes because hardware switching is caused by accessing the address,
 not by the byte stored there. Where the final file bank also owns the vector
 page, the final two signature bytes replace only the unused 6507 NMI vector and
@@ -117,3 +117,10 @@ stack state, and renders large PASS/FAIL with small `FE`. Its display deliberate
 uses BSS-only/simple startup so generic initialization cannot touch `$01FE` via
 temporary stack traffic. `make play` forces Stella's `FE` mapper.
 
+`15_wd/` is the Wickstead Design diagnostic for the corrected 8K image layout.
+It verifies power-on arrangement 0, multiple `$30-$3F` read-selected four-segment
+arrangements, delayed selector visibility, write-without-switch behavior, and both
+ends of the 64-byte `$1000/$1040` split RAM device. Ordinary TIA I/O uses the
+`$40-$7F` mirror so collision/input reads cannot accidentally select an
+arrangement. The cartridge executes from several physical 1K chunks, renders
+large PASS/FAIL with small `WD`, and `make play` forces Stella's `WD` mapper.

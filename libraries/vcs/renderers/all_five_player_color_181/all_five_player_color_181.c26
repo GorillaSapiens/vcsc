@@ -345,7 +345,7 @@ require inline void TEMPLATE_vblank(void) {
    // visible component handoff because an optional score owns those registers.
    asm sta WSYNC;
    asm ldx #4;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_ball_divide_loop:;
@@ -359,7 +359,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta HMP0,x;
    asm sta WSYNC;
    asm ldx #3;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_missile1_divide_loop:;
@@ -373,7 +373,7 @@ require inline void TEMPLATE_vblank(void) {
    asm sta HMP0,x;
    asm sta WSYNC;
    asm ldx #2;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm lda.zx TEMPLATE_object_x,x;
    asm sec;
    asm @TEMPLATE_missile0_divide_loop:;
@@ -548,13 +548,13 @@ require inline void TEMPLATE_draw(void) {
    // Keep the setup tail blank; the first cached gameplay line installs the
    // playfield before the visible beam reaches it.
    asm sta WSYNC;
-   asm bit.z CXM0P;
+   asm bit.z $00;
 
    // Row zero enters in cache B at the scheduler's cycle-3 handoff.  The first visible
    // P0 half is timed to place the first cached pair at cycle 75; every normal
    // pair thereafter is exactly 152 cycles.
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
+   asm bit.z $00;
+   asm bit.z $00;
    asm nop;
    asm lda.a TEMPLATE_row_cache + 7;
    asm sta PF1;
@@ -564,7 +564,7 @@ require inline void TEMPLATE_draw(void) {
    asm dey;
    asm sty.z TEMPLATE_object_masks + 0;
    asm cpy.z TEMPLATE_player0_height;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm nop;
    asm lda.a TEMPLATE_row_cache + 9;
    asm sta PF2;
@@ -576,7 +576,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_first_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_first_p0_ready:;
    asm sta GRP0;
    asm ldx #0;
@@ -651,7 +651,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_A_c_u1_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_c_u1_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 4;
@@ -716,7 +716,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_A_c_loop_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_c_loop_p0_ready:;
    asm sta GRP0;
    // Taken and final tails are both seven cycles:
@@ -785,7 +785,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_A_c_u4_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_c_u4_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 4;
@@ -848,7 +848,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_A_c_u5_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_c_u5_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 4;
@@ -917,7 +917,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_A_c_u6_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_c_u6_p0_ready:;
    asm sta GRP0;
    // The dead Ball-shift tail is exactly one seven-cycle PF3 prefetch.
@@ -959,7 +959,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda #0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_c_u7_p1_ready:;
    asm sta GRP1;
    asm lda.zx TEMPLATE_object_masks + 3,x;
@@ -1001,7 +1001,7 @@ require inline void TEMPLATE_draw(void) {
    asm sta PF2;
    asm lsr.z TEMPLATE_row_cache + 11;
    asm nop;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm ldy.z TEMPLATE_object_masks + 1;
    asm dey;
    asm sty.z TEMPLATE_object_masks + 1;
@@ -1020,7 +1020,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda #0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_c_boundary_p1_ready:;
    asm sta GRP1;
    asm lda.z TEMPLATE_row_cache + 12;
@@ -1047,12 +1047,12 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_A_c_boundary_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_A_c_boundary_p0_ready:;
    asm sta GRP0;
    asm inx;
    asm txs;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    // Fall through into B pair 1.
 
    // B pair 1: current PF2 was prefetched by the preceding A pair 6. Use
@@ -1114,7 +1114,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_B_c_u1_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_c_u1_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 11;
@@ -1179,7 +1179,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_B_c_loop_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_c_loop_p0_ready:;
    asm sta GRP0;
    // Taken and final tails are both seven cycles:
@@ -1248,7 +1248,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_B_c_u4_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_c_u4_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 11;
@@ -1311,7 +1311,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_B_c_u5_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_c_u5_p0_ready:;
    asm sta GRP0;
    asm lsr.z TEMPLATE_row_cache + 11;
@@ -1380,7 +1380,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_B_c_u6_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_c_u6_p0_ready:;
    asm sta GRP0;
    // The dead Ball-shift tail is exactly one seven-cycle PF3 prefetch.
@@ -1422,7 +1422,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda #0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_c_u7_p1_ready:;
    asm sta GRP1;
    asm lda.zx TEMPLATE_object_masks + 3,x;
@@ -1483,7 +1483,7 @@ require inline void TEMPLATE_draw(void) {
    asm lda.ay TEMPLATE_player1_colors,y;
    asm sta COLUP1;
    asm lda #0;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_c_boundary_p1_ready:;
    asm sta GRP1;
    asm lda.z TEMPLATE_row_cache + 5;
@@ -1510,7 +1510,7 @@ require inline void TEMPLATE_draw(void) {
    asm @TEMPLATE_B_c_boundary_p0_zero:;
    asm lda #0;
    asm tay;
-   asm bit.z CXM0P;
+   asm bit.z $00;
    asm @TEMPLATE_B_c_boundary_p0_ready:;
    asm sta GRP0;
    asm inx;
@@ -1525,9 +1525,9 @@ require inline void TEMPLATE_draw(void) {
    // exact terminal entry phase without growing the old padding footprint.
    asm nop;
    asm nop;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
-   asm bit.z CXM0P;
+   asm bit.z $00;
+   asm bit.z $00;
+   asm bit.z $00;
    asm lda.z TEMPLATE_row_cache + 9;
    asm sta PF2;
    asm lda.a TEMPLATE_row_cache + 10;
