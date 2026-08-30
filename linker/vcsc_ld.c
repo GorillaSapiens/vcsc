@@ -597,7 +597,9 @@ static int topology_metadata_has_prefix(const char *name)
        strncmp(name, CARTRIDGE_TOPOLOGY_META_PREFIX_V1,
                sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX_V1) - 1) == 0 ||
        strncmp(name, BANK_TOPOLOGY_META_PREFIX,
-               sizeof(BANK_TOPOLOGY_META_PREFIX) - 1) == 0);
+               sizeof(BANK_TOPOLOGY_META_PREFIX) - 1) == 0 ||
+       strncmp(name, BANK_TOPOLOGY_META_PREFIX_V1,
+               sizeof(BANK_TOPOLOGY_META_PREFIX_V1) - 1) == 0);
 }
 
 static int mem_region_metadata_has_prefix(const char *name)
@@ -609,8 +611,11 @@ static int mem_region_metadata_has_prefix(const char *name)
 
 static int mem_declaration_metadata_has_prefix(const char *name)
 {
-   return name && strncmp(name, MEM_DECL_META_PREFIX,
-                          sizeof(MEM_DECL_META_PREFIX) - 1) == 0;
+   return name &&
+      (strncmp(name, MEM_DECL_META_PREFIX,
+               sizeof(MEM_DECL_META_PREFIX) - 1) == 0 ||
+       strncmp(name, MEM_DECL_META_PREFIX_V1,
+               sizeof(MEM_DECL_META_PREFIX_V1) - 1) == 0);
 }
 
 //! @brief Return whether immutable ROM-replication metadata has its reserved prefix.
@@ -1010,32 +1015,57 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
 {
    const char *p;
    const char *mark;
+   const char *suffix;
    size_t name_len;
    unsigned int read_start, write_start, size, split, priority, read_hazard = 0;
+   unsigned int data_only = 0;
    char type_code;
    int consumed = 0;
+   int version;
 
-   if (!symbol || !out || strncmp(symbol, MEM_DECL_META_PREFIX,
-                                  sizeof(MEM_DECL_META_PREFIX) - 1))
+   if (!symbol || !out)
       return 0;
-   p = symbol + sizeof(MEM_DECL_META_PREFIX) - 1;
+   if (strncmp(symbol, MEM_DECL_META_PREFIX,
+               sizeof(MEM_DECL_META_PREFIX) - 1) == 0) {
+      version = 2;
+      p = symbol + sizeof(MEM_DECL_META_PREFIX) - 1;
+   }
+   else if (strncmp(symbol, MEM_DECL_META_PREFIX_V1,
+                    sizeof(MEM_DECL_META_PREFIX_V1) - 1) == 0) {
+      version = 1;
+      p = symbol + sizeof(MEM_DECL_META_PREFIX_V1) - 1;
+   }
+   else
+      return 0;
    mark = strstr(p, "$R");
    if (!mark || mark == p)
       return -1;
    name_len = (size_t)(mark - p);
    if (name_len >= sizeof(out->name))
       return -1;
-   if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X%n",
-              &read_start, &write_start, &size, &split, &type_code,
-              &priority, &read_hazard, &consumed) != 7) {
-      read_hazard = 0;
-      consumed = 0;
-      if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X%n",
+   if (version == 2) {
+      if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X$D%1X$B%n",
                  &read_start, &write_start, &size, &split, &type_code,
-                 &priority, &consumed) != 6)
+                 &priority, &read_hazard, &data_only, &consumed) != 8)
+         return -1;
+      suffix = strstr(mark + consumed, "$Q");
+      if (!suffix)
          return -1;
    }
-   if (split > 1u || read_hazard > 1u ||
+   else {
+      if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X%n",
+                 &read_start, &write_start, &size, &split, &type_code,
+                 &priority, &read_hazard, &consumed) != 7) {
+         read_hazard = 0;
+         consumed = 0;
+         if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X%n",
+                    &read_start, &write_start, &size, &split, &type_code,
+                    &priority, &consumed) != 6)
+            return -1;
+      }
+      suffix = mark + consumed;
+   }
+   if (split > 1u || read_hazard > 1u || data_only > 1u ||
        (type_code != 'W' && type_code != 'O'))
       return -1;
 
@@ -1052,7 +1082,17 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    out->priority = (int32_t)priority;
    out->compiler_declared = 1;
    out->define_yes = 1;
-   if (!parse_topology_source_suffix(mark + consumed, out->declaration,
+   if (version == 2) {
+      size_t bank_len = (size_t)(suffix - (mark + consumed));
+      if ((data_only && bank_len == 0) || (!data_only && bank_len != 0) ||
+          bank_len >= sizeof(out->data_bank_name))
+         return -1;
+      if (bank_len) {
+         memcpy(out->data_bank_name, mark + consumed, bank_len);
+         out->data_bank_name[bank_len] = '\0';
+      }
+   }
+   if (!parse_topology_source_suffix(suffix, out->declaration,
                                      sizeof(out->declaration)))
       return -1;
    return 1;
@@ -1067,6 +1107,7 @@ static int mem_declaration_equal(const memory_region_t *a,
           a->read_hazard == b->read_hazard &&
           a->size == b->size &&
           str_ieq(a->type, b->type) &&
+          !strcmp(a->data_bank_name, b->data_bank_name) &&
           a->priority == b->priority;
 }
 
@@ -1128,21 +1169,40 @@ static int parse_bank_topology_metadata(const char *symbol, topology_bank_t *out
    const char *p;
    const char *mark;
    size_t name_len;
-   unsigned int iz, fi, io, ls, cs, ms, sp, sa, su;
+   unsigned int iz, fi, io, ls, cs, ms, sp, sa, su, data_only = 0;
    int consumed = 0;
-   if (!symbol || !out || strncmp(symbol, BANK_TOPOLOGY_META_PREFIX,
-                                  sizeof(BANK_TOPOLOGY_META_PREFIX) - 1))
+   int version;
+   if (!symbol || !out)
       return 0;
-   p = symbol + sizeof(BANK_TOPOLOGY_META_PREFIX) - 1;
+   if (strncmp(symbol, BANK_TOPOLOGY_META_PREFIX,
+               sizeof(BANK_TOPOLOGY_META_PREFIX) - 1) == 0) {
+      version = 2;
+      p = symbol + sizeof(BANK_TOPOLOGY_META_PREFIX) - 1;
+   }
+   else if (strncmp(symbol, BANK_TOPOLOGY_META_PREFIX_V1,
+                    sizeof(BANK_TOPOLOGY_META_PREFIX_V1) - 1) == 0) {
+      version = 1;
+      p = symbol + sizeof(BANK_TOPOLOGY_META_PREFIX_V1) - 1;
+   }
+   else
+      return 0;
    mark = strstr(p, "$I");
    if (!mark || mark == p)
       return -1;
    name_len = (size_t)(mark - p);
    if (name_len >= sizeof(out->name))
       return -1;
-   if (sscanf(mark, "$I%4X$F%4X$O%4X$L%4X$C%4X$M%4X$P%1X$S%4X$U%1X%n",
-              &iz, &fi, &io, &ls, &cs, &ms, &sp, &sa, &su, &consumed) != 9 ||
-       sp > 1u || su > 1u)
+   if (version == 2) {
+      if (sscanf(mark, "$I%4X$F%4X$O%4X$L%4X$C%4X$M%4X$P%1X$S%4X$U%1X$D%1X%n",
+                 &iz, &fi, &io, &ls, &cs, &ms, &sp, &sa, &su,
+                 &data_only, &consumed) != 10)
+         return -1;
+   }
+   else if (sscanf(mark, "$I%4X$F%4X$O%4X$L%4X$C%4X$M%4X$P%1X$S%4X$U%1X%n",
+                   &iz, &fi, &io, &ls, &cs, &ms, &sp, &sa, &su,
+                   &consumed) != 9)
+      return -1;
+   if (sp > 1u || su > 1u || data_only > 1u)
       return -1;
    memset(out, 0, sizeof(*out));
    if (!parse_topology_source_suffix(mark + consumed, out->declaration,
@@ -1159,6 +1219,7 @@ static int parse_bank_topology_metadata(const char *symbol, topology_bank_t *out
    out->has_selector = (int)sp;
    out->select_access = (uint16_t)sa;
    out->startup = (int)su;
+   out->data_only = (int)data_only;
    return 1;
 }
 
@@ -1186,7 +1247,8 @@ static int topology_bank_equal(const topology_bank_t *a, const topology_bank_t *
           a->map_size == b->map_size &&
           a->has_selector == b->has_selector &&
           a->select_access == b->select_access &&
-          a->startup == b->startup;
+          a->startup == b->startup &&
+          a->data_only == b->data_only;
 }
 
 //! @brief Merge selected objects' C26 cartridge/bank declarations.
@@ -1365,6 +1427,30 @@ static void infer_c26_mem_output_ownership(linker_config_t *cfg)
       mem->bank_name[0] = '\0';
       mem->output_bank_name[0] = '\0';
       mem->output_mode = MEM_OUTPUT_SHARED;
+      if (mem->data_bank_name[0]) {
+         for (j = 0; j < cfg->topology_bank_count; ++j) {
+            if (!strcmp(cfg->topology_banks[j].name, mem->data_bank_name)) {
+               owner = &cfg->topology_banks[j];
+               matches++;
+            }
+         }
+         if (matches != 1 || !owner || !owner->data_only) {
+            fprintf(stderr,
+                    "vcsc-ld: data-only mem region '%s' names unknown or CPU-mapped data bank '%s'\n",
+                    mem->name, mem->data_bank_name);
+            exit(1);
+         }
+         if (mem->size > owner->image_size) {
+            fprintf(stderr,
+                    "vcsc-ld: data-only mem region '%s' size $%04X exceeds bank '%s' image size $%04X\n",
+                    mem->name, mem->size, owner->name, owner->image_size);
+            exit(1);
+         }
+         snprintf(mem->output_bank_name, sizeof(mem->output_bank_name), "%s",
+                  owner->name);
+         mem->output_mode = MEM_OUTPUT_DATA_ONLY;
+         continue;
+      }
       mem_end = (uint32_t)mem->start + mem->size;
       for (j = 0; j < cfg->topology_bank_count; ++j) {
          const topology_bank_t *bank = &cfg->topology_banks[j];
@@ -1403,7 +1489,7 @@ static void infer_c26_mem_output_ownership(linker_config_t *cfg)
 
 static int memory_region_is_zeropage_range(const memory_region_t *mem)
 {
-   return mem && !mem->has_write_start &&
+   return mem && !mem->data_bank_name[0] && !mem->has_write_start &&
           (uint32_t)mem->start + mem->size <= 0x100u;
 }
 
@@ -1431,6 +1517,8 @@ static const memory_region_t *select_default_declared_memory(const linker_config
    for (i = 0; i < cfg->mem_count; ++i) {
       const memory_region_t *mem = &cfg->mem[i];
       if (!mem->compiler_declared || !str_ieq(mem->type, type))
+         continue;
+      if (mem->output_mode == MEM_OUTPUT_DATA_ONLY || mem->data_bank_name[0])
          continue;
       if (zeropage_only && !memory_region_is_zeropage_range(mem))
          continue;
@@ -1515,8 +1603,10 @@ static void synthesize_c26_segment_rules(linker_config_t *cfg)
       if (!mem->compiler_declared)
          continue;
       if (str_ieq(mem->type, "ro")) {
-         snprintf(name, sizeof(name), "CODE.%s", mem->name);
-         synthesize_segment_rule(cfg, name, mem->name, NULL, "ro");
+         if (mem->output_mode != MEM_OUTPUT_DATA_ONLY) {
+            snprintf(name, sizeof(name), "CODE.%s", mem->name);
+            synthesize_segment_rule(cfg, name, mem->name, NULL, "ro");
+         }
          snprintf(name, sizeof(name), "RODATA.%s", mem->name);
          synthesize_segment_rule(cfg, name, mem->name, NULL, "ro");
       }
@@ -1626,11 +1716,13 @@ static void apply_c26_topology_to_linker_config(linker_config_t *cfg)
       cfg->has_vector_bridge_offset = 1;
    }
 
-   /* Keep one logical placement record for every C26 output region, including
-      selector-free direct mappings.  cartridge_banked remains the separate
-      statement that accesses crossing these records require mapper switching. */
+   /* Keep one logical placement record for every CPU-mapped C26 output region,
+      including selector-free direct mappings. Data-only file banks are emitted
+      separately and deliberately have no 6502 placement record. */
    for (i = 0; i < cfg->topology_bank_count; ++i) {
       const topology_bank_t *top = &cfg->topology_banks[i];
+      if (top->data_only)
+         continue;
       cartridge_bank_t *bank = append_cartridge_bank(cfg);
       snprintf(bank->name, sizeof(bank->name), "%s", top->name);
       bank->start = (uint16_t)(top->link_start - top->image_offset);
@@ -1674,6 +1766,80 @@ static int c26_topology_is_fe(const linker_config_t *cfg)
    return (cart->present_mask & 0x80u) &&
           cart->signature[0] == 'F' && cart->signature[1] == 'E' &&
           cart->signature[2] == 0 && cart->signature[3] == 0;
+}
+
+//! @brief Return whether the C26 topology is the classic Pitfall II DPC image.
+static int c26_topology_is_dpc(const linker_config_t *cfg)
+{
+   const topology_cartridge_t *cart;
+   if (!cfg || cfg->topology_bank_count != 4u)
+      return 0;
+   cart = &cfg->topology_cartridge;
+   return (cart->present_mask & 0x80u) &&
+          cart->signature[0] == 'D' && cart->signature[1] == 'P' &&
+          cart->signature[2] == 'C' && cart->signature[3] == 0;
+}
+
+//! @brief Return one physical topology unit by dense file index.
+static const topology_bank_t *c26_topology_bank_by_file_index(const linker_config_t *cfg,
+                                                              size_t file_index)
+{
+   size_t i;
+   if (!cfg)
+      return NULL;
+   for (i = 0; i < cfg->topology_bank_count; ++i)
+      if (cfg->topology_banks[i].file_index == file_index)
+         return &cfg->topology_banks[i];
+   return NULL;
+}
+
+//! @brief Validate F8 program ROM plus 2K display and 255-byte DPC data banks.
+static void validate_c26_dpc_topology(const linker_config_t *cfg)
+{
+   const topology_bank_t *program0 = c26_topology_bank_by_file_index(cfg, 0u);
+   const topology_bank_t *program1 = c26_topology_bank_by_file_index(cfg, 1u);
+   const topology_bank_t *display = c26_topology_bank_by_file_index(cfg, 2u);
+   const topology_bank_t *poly = c26_topology_bank_by_file_index(cfg, 3u);
+   const topology_bank_t *program[2] = { program0, program1 };
+   size_t i;
+
+   if (!program0 || !program1 || !display || !poly) {
+      fprintf(stderr, "vcsc-ld: DPC topology requires dense file banks 0-3\n");
+      exit(1);
+   }
+   for (i = 0; i < 2u; ++i) {
+      const topology_bank_t *bank = program[i];
+      uint16_t expected_link = (uint16_t)(i == 0u ? 0xd080u : 0xf080u);
+      uint16_t expected_selector = (uint16_t)(0x1ff8u + i);
+      if (bank->data_only || bank->image_size != 0x1000u ||
+          bank->image_offset != 0x0080u || bank->link_start != expected_link ||
+          bank->cpu_start != 0xf080u || bank->map_size != 0x0f80u ||
+          !bank->has_selector || bank->select_access != expected_selector) {
+         fprintf(stderr,
+                 "vcsc-ld: DPC program file bank %zu must be an F8 4K image with hidden $80 register prefix and selector $%04X\n",
+                 i, expected_selector);
+         exit(1);
+      }
+      if ((i == 1u) != (bank->startup != 0)) {
+         fprintf(stderr,
+                 "vcsc-ld: DPC startup/home marker must be on program file bank 1\n");
+         exit(1);
+      }
+   }
+   if (!display->data_only || display->image_size != 0x0800u ||
+       display->image_offset || display->link_start || display->cpu_start ||
+       display->map_size || display->has_selector || display->startup) {
+      fprintf(stderr,
+              "vcsc-ld: DPC file bank 2 must be one unmapped 2K $data_only display-data bank\n");
+      exit(1);
+   }
+   if (!poly->data_only || poly->image_size != 0x00ffu ||
+       poly->image_offset || poly->link_start || poly->cpu_start ||
+       poly->map_size || poly->has_selector || poly->startup) {
+      fprintf(stderr,
+              "vcsc-ld: DPC file bank 3 must be one unmapped 255-byte $data_only RNG/poly bank\n");
+      exit(1);
+   }
 }
 
 //! @brief Return whether the C26 topology is classic Tigervision 3F or 3E.
@@ -1902,10 +2068,12 @@ static void validate_c26_topology(linker_config_t *cfg)
    size_t i, j;
    size_t selector_count = 0;
    size_t startup_count = 0;
+   size_t mapped_bank_count = 0;
    const unsigned int complete_generated_mask = 0x7fu;
    int e0_profile;
    int wd_profile;
    int fe_profile;
+   int dpc_profile;
    int threef_family;
 
    if (cfg->topology_bank_count == 0) {
@@ -1922,6 +2090,7 @@ static void validate_c26_topology(linker_config_t *cfg)
    e0_profile = c26_topology_is_e0(cfg);
    wd_profile = c26_topology_is_wd(cfg);
    fe_profile = c26_topology_is_fe(cfg);
+   dpc_profile = c26_topology_is_dpc(cfg);
    threef_family = c26_topology_is_3f_family(cfg);
 
    for (i = 0; i < cfg->topology_bank_count; ++i) {
@@ -1929,11 +2098,27 @@ static void validate_c26_topology(linker_config_t *cfg)
       uint32_t link_end = (uint32_t)bank->link_start + bank->map_size;
       uint32_t cpu_end = (uint32_t)bank->cpu_start + bank->map_size;
       uint32_t image_end = (uint32_t)bank->image_offset + bank->map_size;
-      if (!bank->image_size || !bank->map_size || image_end > bank->image_size ||
-          link_end > 0x10000u || cpu_end > 0x10000u) {
-         fprintf(stderr, "vcsc-ld: bank '%s' has a mapped range outside its image or 6502 address space\n",
-                 bank->name);
+      if (!bank->image_size) {
+         fprintf(stderr, "vcsc-ld: bank '%s' has zero image size\n", bank->name);
          exit(1);
+      }
+      if (bank->data_only) {
+         if (bank->image_offset || bank->link_start || bank->cpu_start ||
+             bank->map_size || bank->has_selector || bank->startup) {
+            fprintf(stderr,
+                    "vcsc-ld: data-only bank '%s' must not declare mapping, selector, or startup state\n",
+                    bank->name);
+            exit(1);
+         }
+      }
+      else {
+         mapped_bank_count++;
+         if (!bank->map_size || image_end > bank->image_size ||
+             link_end > 0x10000u || cpu_end > 0x10000u) {
+            fprintf(stderr, "vcsc-ld: bank '%s' has a mapped range outside its image or 6502 address space\n",
+                    bank->name);
+            exit(1);
+         }
       }
       if (bank->file_index >= cfg->topology_bank_count) {
          fprintf(stderr, "vcsc-ld: bank '%s' file index %u is outside dense range 0-%zu\n",
@@ -1941,8 +2126,8 @@ static void validate_c26_topology(linker_config_t *cfg)
                  cfg->topology_bank_count - 1u);
          exit(1);
       }
-      selector_count += bank->has_selector ? 1u : 0u;
-      startup_count += bank->startup ? 1u : 0u;
+      selector_count += (!bank->data_only && bank->has_selector) ? 1u : 0u;
+      startup_count += (!bank->data_only && bank->startup) ? 1u : 0u;
       if (bank->has_selector && bank->select_access > 0x1fffu) {
          fprintf(stderr, "vcsc-ld: bank '%s' selector $%04X is outside the 6507 $0000-$1FFF bus\n",
                  bank->name, bank->select_access);
@@ -1955,6 +2140,8 @@ static void validate_c26_topology(linker_config_t *cfg)
                     bank->name, other->name, (unsigned)bank->file_index);
             exit(1);
          }
+         if (bank->data_only || other->data_only)
+            continue;
          if (ranges_overlap_u32(bank->link_start, bank->map_size,
                                 other->link_start, other->map_size)) {
             fprintf(stderr, "vcsc-ld: bank link mappings '%s' and '%s' overlap\n",
@@ -1983,10 +2170,12 @@ static void validate_c26_topology(linker_config_t *cfg)
       validate_c26_wd_topology(cfg);
    if (fe_profile)
       validate_c26_fe_topology(cfg);
+   if (dpc_profile)
+      validate_c26_dpc_topology(cfg);
    if (threef_family)
       validate_c26_3f_family_topology(cfg);
 
-   if (selector_count && selector_count != cfg->topology_bank_count) {
+   if (selector_count && selector_count != mapped_bank_count) {
       fprintf(stderr, "vcsc-ld: mixed direct and selector-controlled banks require a future window/device model\n");
       exit(1);
    }
@@ -2002,6 +2191,8 @@ static void validate_c26_topology(linker_config_t *cfg)
       }
       for (i = 0; i < cfg->topology_bank_count; ++i) {
          const topology_bank_t *bank = &cfg->topology_banks[i];
+         if (bank->data_only)
+            continue;
          if (bank->image_size != 0x1000u ||
              bank->image_offset > 0x0200u ||
              bank->map_size != (uint16_t)(0x1000u - bank->image_offset) ||
@@ -2013,13 +2204,22 @@ static void validate_c26_topology(linker_config_t *cfg)
             exit(1);
          }
       }
-      for (i = 1; i < cfg->topology_bank_count; ++i) {
-         const topology_bank_t *a = &cfg->topology_banks[0];
-         const topology_bank_t *b = &cfg->topology_banks[i];
+      {
+         const topology_bank_t *a = NULL;
+         for (i = 0; i < cfg->topology_bank_count; ++i)
+            if (!cfg->topology_banks[i].data_only) {
+               a = &cfg->topology_banks[i];
+               break;
+            }
+         for (i = 0; a && i < cfg->topology_bank_count; ++i) {
+            const topology_bank_t *b = &cfg->topology_banks[i];
+            if (b == a || b->data_only)
+               continue;
          if (a->image_size != b->image_size || a->image_offset != b->image_offset ||
              a->cpu_start != b->cpu_start || a->map_size != b->map_size) {
             fprintf(stderr, "vcsc-ld: selector-controlled banks must share one full-window image/mapping shape\n");
             exit(1);
+         }
          }
       }
    }
@@ -2031,11 +2231,12 @@ static void validate_c26_topology(linker_config_t *cfg)
    if (cfg->topology_cartridge.present_mask & 0x80u) {
       const topology_bank_t *last = NULL;
       for (i = 0; i < cfg->topology_bank_count; ++i)
-         if (cfg->topology_banks[i].file_index == cfg->topology_bank_count - 1u)
+         if (!cfg->topology_banks[i].data_only &&
+             (!last || cfg->topology_banks[i].file_index > last->file_index))
             last = &cfg->topology_banks[i];
       if (!last || last->image_size < 8u) {
          fprintf(stderr,
-                 "vcsc-ld: cartridge signature requires at least eight bytes in the final physical bank\n");
+                 "vcsc-ld: cartridge signature requires at least eight bytes in the final CPU-mapped physical bank\n");
          exit(1);
       }
    }
@@ -2085,6 +2286,8 @@ static void validate_c26_topology(linker_config_t *cfg)
             continue;
          for (j = 0; j < cfg->topology_bank_count; ++j) {
             const topology_bank_t *bank = &cfg->topology_banks[j];
+            if (bank->data_only)
+               continue;
             if (ro[i] + rz[i] > bank->image_size) {
                fprintf(stderr, "vcsc-ld: generated cartridge range exceeds bank '%s' image size\n",
                        bank->name);
@@ -9105,6 +9308,72 @@ static void apply_segment_relocs(const input_set_t *in,
 }
 
 //! @brief Compute all and update linker layout and image writer state once prerequisite pass data is available.
+//! @brief Reject CPU/link-time address references to file-domain-only data.
+static void validate_data_only_relocation_segment(input_set_t *in,
+                                                  object_file_t *obj,
+                                                  o26_segment_t *seg,
+                                                  const linker_config_t *cfg)
+{
+   size_t i;
+   for (i = 0; i < seg->reloc_count; ++i) {
+      const reloc_t *r = &seg->relocs[i];
+      uint16_t current_word;
+      uint16_t delta = 0;
+      const char *target_name = NULL;
+      object_layout_t *target;
+      const memory_region_t *mem;
+
+      if (r->offset >= seg->length)
+         continue;
+      switch (r->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) {
+         case O26_RTYPE_WORD:
+            if (r->offset + 1 >= seg->length)
+               continue;
+            current_word = (uint16_t)(seg->data[r->offset] |
+                                      (seg->data[r->offset + 1] << 8));
+            break;
+         case O26_RTYPE_LOW:
+            current_word = (uint16_t)(seg->data[r->offset] |
+                                      ((r->has_aux_low ? r->aux_low : 0) << 8));
+            break;
+         case O26_RTYPE_HIGH:
+            current_word = (uint16_t)((r->has_aux_low ? r->aux_low : 0) |
+                                      (seg->data[r->offset] << 8));
+            break;
+         default:
+            continue;
+      }
+      target = read_hazard_reloc_target(in, obj, r, current_word,
+                                        &delta, &target_name);
+      (void)delta;
+      if (!target)
+         continue;
+      mem = bank_placement_layout_memory(cfg, target);
+      if (!mem || mem->output_mode != MEM_OUTPUT_DATA_ONLY)
+         continue;
+      fprintf(stderr,
+              "vcsc-ld: relocation in %s targets data-only object '%s' in bank '%s'; data-only banks have no 6507 address\n",
+              obj->origin, target_name ? target_name : target->name,
+              mem->output_bank_name[0] ? mem->output_bank_name : mem->data_bank_name);
+      exit(1);
+   }
+}
+
+//! @brief Reject any ordinary relocation that would manufacture a CPU address for data-only storage.
+static void validate_data_only_relocations(input_set_t *in,
+                                           const linker_config_t *cfg)
+{
+   size_t i;
+   if (!in || !cfg)
+      return;
+   for (i = 0; i < in->object_count; ++i) {
+      validate_data_only_relocation_segment(in, &in->objects[i],
+                                            &in->objects[i].text, cfg);
+      validate_data_only_relocation_segment(in, &in->objects[i],
+                                            &in->objects[i].data, cfg);
+   }
+}
+
 static void resolve_all(input_set_t *in, layout_t *layout,
                         const linker_config_t *cfg)
 {
@@ -9297,10 +9566,14 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
       size_t j;
       for (j = 0; j < obj->layout_count; ++j) {
          const object_layout_t *lay = &obj->layouts[j];
+         const memory_region_t *load_memory;
          const uint8_t *src;
          size_t image_len;
 
          if (lay->size == 0)
+            continue;
+         load_memory = bank_placement_layout_memory(cfg, lay);
+         if (load_memory && load_memory->output_mode == MEM_OUTPUT_DATA_ONLY)
             continue;
          if (lay->image_segid == O26_SEG_TEXT) {
             image_len = obj->text.length;
@@ -9571,8 +9844,22 @@ static int topology_signature_byte(const linker_config_t *cfg, size_t file_index
                                    uint32_t image_size, uint32_t offset, uint8_t *byte)
 {
    uint32_t signature_offset;
+   size_t i;
+   size_t signature_file_index = 0;
+   int found = 0;
    if (!cfg || !byte || !(cfg->topology_cartridge.present_mask & 0x80u) ||
-       file_index + 1u != cfg->topology_bank_count || image_size < 8u)
+       image_size < 8u)
+      return 0;
+   for (i = 0; i < cfg->topology_bank_count; ++i) {
+      const topology_bank_t *bank = &cfg->topology_banks[i];
+      if (bank->data_only)
+         continue;
+      if (!found || bank->file_index > signature_file_index) {
+         signature_file_index = bank->file_index;
+         found = 1;
+      }
+   }
+   if (!found || file_index != signature_file_index)
       return 0;
    signature_offset = image_size - 8u;
    if (offset < signature_offset || offset > signature_offset + 3u)
@@ -9582,7 +9869,113 @@ static int topology_signature_byte(const linker_config_t *cfg, size_t file_index
 }
 
 //! @brief Write a flat binary in unbanked address-span or banked physical order.
+//! @brief Return packed source bytes for one placed object layout.
+static const uint8_t *layout_image_source(const object_file_t *obj,
+                                          const object_layout_t *lay,
+                                          const char *who)
+{
+   size_t image_len;
+   if (!obj || !lay)
+      return NULL;
+   if (lay->image_segid == O26_SEG_TEXT) {
+      image_len = obj->text.length;
+      if ((uint32_t)lay->image_base + lay->size > image_len) {
+         fprintf(stderr, "vcsc-ld: text image layout %s exceeds packed image in %s\n",
+                 lay->name, who ? who : obj->origin);
+         exit(1);
+      }
+      return obj->text.data + lay->image_base;
+   }
+   if (lay->image_segid == O26_SEG_DATA) {
+      image_len = obj->data.length;
+      if ((uint32_t)lay->image_base + lay->size > image_len) {
+         fprintf(stderr, "vcsc-ld: data image layout %s exceeds packed image in %s\n",
+                 lay->name, who ? who : obj->origin);
+         exit(1);
+      }
+      return obj->data.data + lay->image_base;
+   }
+   return NULL;
+}
+
+//! @brief Emit one bank whose bytes exist only in the cartridge file domain.
+static void write_data_only_bank(FILE *fp, const char *path,
+                                 const linker_config_t *cfg,
+                                 const input_set_t *in,
+                                 const topology_bank_t *bank)
+{
+   uint8_t *bytes;
+   uint8_t *occupied;
+   size_t i, j;
+
+   bytes = (uint8_t *)xmalloc(bank->image_size);
+   occupied = (uint8_t *)calloc(bank->image_size, 1u);
+   if (!occupied) {
+      fprintf(stderr, "vcsc-ld: out of memory building data-only bank '%s'\n",
+              bank->name);
+      exit(1);
+   }
+   memset(bytes, cfg->topology_cartridge.fill_value, bank->image_size);
+
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->layout_count; ++j) {
+         const object_layout_t *lay = &obj->layouts[j];
+         const memory_region_t *mem;
+         const uint8_t *src;
+         uint32_t offset;
+         size_t k;
+
+         if (!lay->size)
+            continue;
+         mem = bank_placement_layout_memory(cfg, lay);
+         if (!mem || mem->output_mode != MEM_OUTPUT_DATA_ONLY ||
+             strcmp(mem->output_bank_name, bank->name))
+            continue;
+         if (!strncmp(lay->name, "CODE.", 5) ||
+             !strncmp(lay->name, "STARTUP", 7)) {
+            fprintf(stderr,
+                    "vcsc-ld: executable layout '%s' from %s cannot be placed in data-only bank '%s'\n",
+                    lay->name, obj->origin, bank->name);
+            exit(1);
+         }
+         if (lay->load_addr < mem->start) {
+            fprintf(stderr,
+                    "vcsc-ld: data-only layout '%s' starts before mem region '%s'\n",
+                    lay->name, mem->name);
+            exit(1);
+         }
+         offset = (uint32_t)lay->load_addr - mem->start;
+         if (offset + lay->size > mem->size || offset + lay->size > bank->image_size) {
+            fprintf(stderr,
+                    "vcsc-ld: data-only layout '%s' exceeds bank '%s'\n",
+                    lay->name, bank->name);
+            exit(1);
+         }
+         src = layout_image_source(obj, lay, obj->origin);
+         if (!src)
+            continue;
+         for (k = 0; k < lay->size; ++k) {
+            if (occupied[offset + k]) {
+               fprintf(stderr,
+                       "vcsc-ld: data-only layouts overlap at bank '%s' offset $%04X\n",
+                       bank->name, (unsigned)(offset + k));
+               exit(1);
+            }
+            bytes[offset + k] = src[k];
+            occupied[offset + k] = 1;
+         }
+      }
+   }
+
+   for (i = 0; i < bank->image_size; ++i)
+      write_binary_byte(fp, path, bytes[i]);
+   free(bytes);
+   free(occupied);
+}
+
 static void write_flat_binary(const char *path, const linker_config_t *cfg,
+                              const input_set_t *in,
                               const uint8_t *image, const uint8_t *used)
 {
    FILE *fp;
@@ -9607,6 +10000,10 @@ static void write_flat_binary(const char *path, const linker_config_t *cfg,
       for (i = 0; i < cfg->topology_bank_count; ++i) {
          const topology_bank_t *bank = order[i];
          uint32_t offset;
+         if (bank->data_only) {
+            write_data_only_bank(fp, path, cfg, in, bank);
+            continue;
+         }
          for (offset = 0; offset < bank->image_size; ++offset) {
             uint8_t byte = cfg->topology_cartridge.fill_value;
             if (offset >= bank->image_offset &&
@@ -9616,7 +10013,8 @@ static void write_flat_binary(const char *path, const linker_config_t *cfg,
                if (used[logical])
                   byte = image[logical];
             }
-            (void)topology_signature_byte(cfg, i, bank->image_size, offset, &byte);
+            (void)topology_signature_byte(cfg, bank->file_index,
+                                          bank->image_size, offset, &byte);
             write_binary_byte(fp, path, byte);
          }
       }
@@ -9847,9 +10245,54 @@ static uint32_t memory_region_used_bytes(const memory_region_t *mem, const uint8
    return count;
 }
 
+//! @brief Count occupied bytes inside one file-domain data-only MEMORY region.
+static uint32_t data_only_memory_region_used_bytes(const linker_config_t *cfg,
+                                                   const memory_region_t *mem,
+                                                   const input_set_t *in)
+{
+   uint8_t *occupied;
+   uint32_t count = 0;
+   size_t i, j;
+
+   if (!cfg || !mem || !in || !mem->size)
+      return 0;
+   occupied = (uint8_t *)calloc(mem->size, 1u);
+   if (!occupied) {
+      fprintf(stderr, "vcsc-ld: out of memory measuring data-only region '%s'\n",
+              mem->name);
+      exit(1);
+   }
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->layout_count; ++j) {
+         const object_layout_t *lay = &obj->layouts[j];
+         const memory_region_t *owner;
+         uint32_t offset;
+         uint32_t k;
+
+         if (!lay->size)
+            continue;
+         owner = bank_placement_layout_memory(cfg, lay);
+         if (owner != mem || lay->load_addr < mem->start)
+            continue;
+         offset = (uint32_t)lay->load_addr - mem->start;
+         if (offset >= mem->size)
+            continue;
+         for (k = 0; k < lay->size && offset + k < mem->size; ++k)
+            occupied[offset + k] = 1;
+      }
+   }
+   for (i = 0; i < mem->size; ++i)
+      if (occupied[i])
+         count++;
+   free(occupied);
+   return count;
+}
+
 //! @brief Write cartridge-ROM usage lines to the selected stream.
 static void write_cartridge_rom_usage(FILE *fp, const linker_config_t *cfg,
-                                      const uint8_t *used, const char *indent)
+                                      const input_set_t *in, const uint8_t *used,
+                                      const char *indent)
 {
    size_t i;
 
@@ -9862,7 +10305,9 @@ static void write_cartridge_rom_usage(FILE *fp, const linker_config_t *cfg,
 
       if (!memory_region_is_cartridge_rom(cfg, mem))
          continue;
-      used_bytes = memory_region_used_bytes(mem, used);
+      used_bytes = mem->output_mode == MEM_OUTPUT_DATA_ONLY
+                 ? data_only_memory_region_used_bytes(cfg, mem, in)
+                 : memory_region_used_bytes(mem, used);
       free_bytes = (uint32_t)mem->size - used_bytes;
       used_percent = mem->size ? (100.0 * (double)used_bytes / (double)mem->size) : 0.0;
       free_percent = mem->size ? (100.0 - used_percent) : 0.0;
@@ -10215,9 +10660,10 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
                  "  %-12s file-index=%u image-size=$%04X image-offset=$%04X link=$%04X cpu=$%04X map-size=$%04X mode=%s",
                  bank->name, (unsigned)bank->file_index, bank->image_size,
                  bank->image_offset, bank->link_start, bank->cpu_start,
-                 bank->map_size, bank->has_selector ? "selector" :
+                 bank->map_size, bank->data_only ? "data-only" :
+                 (bank->has_selector ? "selector" :
                  (c26_topology_is_fe(cfg) ? "fe-delayed" :
-                  (c26_topology_is_wd(cfg) ? "wd-segmented" : "direct")));
+                  (c26_topology_is_wd(cfg) ? "wd-segmented" : "direct"))));
          if (bank->has_selector)
             fprintf(fp, " select-access=$%04X", bank->select_access);
          if (bank->startup)
@@ -10266,7 +10712,9 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
       }
       if (cfg->mem[i].compiler_declared) {
          const char *mode = cfg->mem[i].output_mode == MEM_OUTPUT_SWITCHED ? "switched" :
-                            cfg->mem[i].output_mode == MEM_OUTPUT_DIRECT ? "direct" : "shared";
+                            cfg->mem[i].output_mode == MEM_OUTPUT_DIRECT ? "direct" :
+                            cfg->mem[i].output_mode == MEM_OUTPUT_DATA_ONLY ? "data-only" :
+                            "shared";
          fprintf(fp, " priority=%" PRId32 " output-bank=%s mode=%s declaration=%s",
                  cfg->mem[i].priority,
                  cfg->mem[i].output_bank_name[0] ? cfg->mem[i].output_bank_name : "<none>",
@@ -10279,7 +10727,7 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    }
 
    fprintf(fp, "\nMEMORY USAGE\n");
-   write_cartridge_rom_usage(fp, cfg, used, "  ");
+   write_cartridge_rom_usage(fp, cfg, in, used, "  ");
    write_ram_usage(fp, cfg, in, layout, "  ");
    write_return_coalescing(fp, cfg, in);
 
@@ -11545,6 +11993,7 @@ int main(int argc, char **argv)
    apply_phase_workspace_metadata(&inputs);
    apply_phase_use_metadata(&inputs);
    layout_objects(&cfg, &inputs, &layout);
+   validate_data_only_relocations(&inputs, &cfg);
    enforce_branch_bank_contracts(&cfg, &inputs);
    enforce_branch_page_contracts(&inputs);
    add_generated_symbols(&layout);
@@ -11556,7 +12005,7 @@ int main(int argc, char **argv)
    used = (uint8_t *)xmalloc(65536);
    build_rom_image(&cfg, &inputs, &layout, image, used);
    if (ends_with(hex_path, ".bin"))
-      write_flat_binary(hex_path, &cfg, image, used);
+      write_flat_binary(hex_path, &cfg, &inputs, image, used);
    else
       write_intel_hex(hex_path, image, used);
    write_map_file(map_output.enabled ? map_output.path : NULL,
@@ -11568,7 +12017,7 @@ int main(int argc, char **argv)
                             &cfg, &inputs, used);
    if (!trial_mode) {
       puts("MEMORY USAGE");
-      write_cartridge_rom_usage(stdout, &cfg, used, "  ");
+      write_cartridge_rom_usage(stdout, &cfg, &inputs, used, "  ");
       write_ram_usage(stdout, &cfg, &inputs, &layout, "  ");
    }
 

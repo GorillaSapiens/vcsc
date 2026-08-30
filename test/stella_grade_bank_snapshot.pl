@@ -109,13 +109,13 @@ sub decode_png_rgb {
 }
 
 @ARGV>=2 && @ARGV<=3
-   or die "usage: $0 SNAPSHOT.png pass|fail [F8|F6|F4|FA|4KSC|F8SC|F6SC|F4SC|E0|FE|WD|3F|3E|??????]\n";
+   or die "usage: $0 SNAPSHOT.png pass|fail [F8|F6|F4|FA|4KSC|F8SC|F6SC|F4SC|E0|FE|WD|3F|3E|DPC|??????]\n";
 my $expect=lc($ARGV[1]);
 $expect eq 'pass' || $expect eq 'fail'
    or die "result must be pass or fail\n";
 my $cart=$ARGV[2] // 'F8';
-$cart =~ /^(?:F[468](?:SC)?|FA|4KSC|E0|FE|WD|3F|3E|\?{6})$/
-   or die "cart type must be F8/F6/F4/FA/4KSC, F8SC/F6SC/F4SC, E0, FE, WD, 3F, 3E, or ??????\n";
+$cart =~ /^(?:F[468](?:SC)?|FA|4KSC|E0|FE|WD|3F|3E|DPC|\?{6})$/
+   or die "cart type must be F8/F6/F4/FA/4KSC, F8SC/F6SC/F4SC, E0, FE, WD, 3F, 3E, DPC, or ??????\n";
 
 my($width,$height,$rgb_at)=decode_png_rgb($ARGV[0]);
 my @center=$rgb_at->(int($width/2),int($height/2));
@@ -281,15 +281,24 @@ sub grade_line {
       }
    }
    my $cx=($minx+$maxx)/2;
-   abs($cx-($width-1)/2) <= 2*$xs
+   my $expected_cx=($width-1)/2;
+   # A three-letter label cannot be symmetrically padded into six 8-pixel
+   # glyph slots.  The DPC diagnostic deliberately uses " DPC  ", whose
+   # visible pixels sit half a glyph left while the six-slot field is centered.
+   $expected_cx -= 4*$xs if $cart eq 'DPC' && $name =~ /^cart type/;
+   abs($cx-$expected_cx) <= 2*$xs
       or die "$name is not horizontally centered: bbox=$minx-$maxx image_width=$width\n";
    return ($minx,$miny,$maxx,$maxy,$xs,$ys);
 }
 
-my $result_text=$expect eq 'pass' ? ($cart eq 'WD' ? ' PASS ' : ' pass ') : ' FAIL ';
+my $compact_result=($cart eq 'WD' || $cart eq 'DPC');
+my $result_text=$expect eq 'pass' ? ($compact_result ? ' PASS ' : ' pass ') : ' FAIL ';
 my $cart_text;
 if ($cart eq '??????') {
    $cart_text='??????';
+}
+elsif ($cart eq 'DPC') {
+   $cart_text=' DPC  ';
 }
 elsif ($cart =~ /SC$/) {
    $cart_text=' '.$cart.' ';
@@ -300,9 +309,9 @@ else {
 length($result_text)==6 && length($cart_text)==6
    or die "internal diagnostic text width error\n";
 
-my $result_font=$cart eq 'WD' ? \%small : \%big;
-my $result_pitch=$cart eq 'WD' ? 8 : 16;
-my $result_kind=$cart eq 'WD' ? 'compact' : 'big';
+my $result_font=$compact_result ? \%small : \%big;
+my $result_pitch=$compact_result ? 8 : 16;
+my $result_kind=$compact_result ? 'compact' : 'big';
 my $result_expected=expected_bitmap($result_text,$result_font,$result_pitch);
 my $small_expected=expected_bitmap($cart_text,\%small,8);
 my @ub=grade_line("$result_kind result '$result_text'",\@upper,$result_expected);

@@ -1275,6 +1275,15 @@ of one bus cycle later. The same test requires high-confidence FE disassembly an
 byte-exact round trip; `make stella-bank-test STELLA=/path/to/stella` additionally
 forces Stella `-bs FE` and grades the public green `pass` / `FE` frame.
 
+`vcs_dpc.pl` certifies DPC as F8 program ROM plus two non-CPU-addressable
+image regions rather than as a size-only mapper guess. It requires the exact
+10,495-byte image, 2K display-data and 255-byte Poly8 `$data_only` placement,
+rejects ordinary CPU references into those regions, executes the public
+diagnostic in `vcsc-sim`, checks the full display checksum/wrap and 255-state RNG
+cycle, and requires high-confidence byte-exact disassembly/reassembly. With
+`--stella` (included by `make stella-bank-test`) it forces Stella `-bs DPC` and
+grades the public green `PASS` / `DPC` frame.
+
 `vcs_bankswitching_diagnostic.pl` also certifies the explicit-binding
 F8SC/F6SC/F4SC profiles. It checks every allocatable bank region begins at
 `$x100` with size `$0E00`, verifies the C26 profiles keep the RAM-port prefix out of ROM,

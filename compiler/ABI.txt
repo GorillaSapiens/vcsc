@@ -384,12 +384,14 @@ Authoritative memory-region metadata
 ------------------------------------
 
 Every complete source-level `mem` declaration emits one reserved absolute
-`.o26` export beginning with `__memdecl$V1$`, whether or not that translation
+`.o26` export beginning with `__memdecl$V2$`, whether or not that translation
 unit currently places an object in the region. The canonical record contains
 the region name, read/ordinary start, write start, physical size, split-address
-bit, read-only/read-write type, signed priority, and declaration source
-location. Numeric values use fixed-width hexadecimal fields. Empty policy-only
-`mem name { };` declarations emit no allocator record.
+bit, read-only/read-write type, signed priority, data-only bit, optional topology
+data-bank name, and declaration source location. Numeric values use fixed-width
+hexadecimal fields. Empty policy-only `mem name { };` declarations emit no
+allocator record. The linker still accepts `__memdecl$V1$` records, which have
+no data-only fields.
 
 The linker merges byte-identical records after archive selection and rejects
 conflicts with both original C26 locations. These records are authoritative for
@@ -410,12 +412,13 @@ The current output-wide record begins with `__cartmeta$V2$` and canonically
 records the presence mask, fill byte, optional offset/size pairs for the
 trampoline, vector bridge, and vectors, plus the four raw cartridge-signature
 bytes. The linker continues to accept legacy `__cartmeta$V1$` records, which
-carry no signature. Each bank record begins with `__bankmeta$V1$` and records
-the bank name, physical image size, physical file index, mapped image offset,
-synthetic link start, CPU-visible start, mapped size, optional selector access
-address, and startup bit. Numeric values are normalized to fixed-width
-hexadecimal fields, so byte-identical declarations from separate translation
-units produce identical exports.
+carry no signature. Each current bank record begins with `__bankmeta$V2$` and
+records the bank name, physical image size, physical file index, mapped image
+offset, synthetic link start, CPU-visible start, mapped size, optional selector
+access address, startup bit, and data-only bit. Numeric values are normalized to
+fixed-width hexadecimal fields, so byte-identical declarations from separate
+translation units produce identical exports. The linker still accepts
+`__bankmeta$V1$`, whose banks are always CPU-mapped.
 
 `bank` and `mem` names occupy separate namespaces. A topology bank name has no
 placement or ABI meaning for source declarations. The linker merges matching

@@ -500,21 +500,37 @@ bank bank0 {
 
 `$signature:TEXT` is an optional 1-4 byte ASCII alphanumeric cartridge signature.
 When present, the linker NUL-pads it to exactly four bytes and writes it at
-the four bytes beginning eight bytes before the end of only the final `$file_index` bank. Public VCS
+the four bytes beginning eight bytes before the end of the last CPU-mapped bank
+in file order. File-domain `$data_only` banks are excluded. Public VCS
 bankswitching profiles use this as their mapper identifier. Profile-owned `mem`
 regions must leave `$xFF8-$xFF9` unavailable to ordinary allocation; the final
 two signature bytes intentionally overlap the otherwise-unused 6507 NMI vector.
 
-`$image_size`, `$file_index`, `$image_offset`, `$link_start`, `$cpu_start`, and
-`$map_size` are required. `$select_access` and bare `$startup` are optional. A
-bank without `$select_access` is directly mapped; a bank with it is
-selector-controlled. `$select_access` is a physical 6507 bus address in
-`$0000-$1FFF`; it need not lie inside the cartridge ROM window. Direct banks do
-not acquire generated switching code. One direct bank may carry `$startup` as
-the linker's startup/home placement marker;
+Ordinary CPU-mapped banks require `$image_size`, `$file_index`,
+`$image_offset`, `$link_start`, `$cpu_start`, and `$map_size`. `$select_access`
+and bare `$startup` are optional. A bank without `$select_access` is directly
+mapped; a bank with it is selector-controlled. `$select_access` is a physical
+6507 bus address in `$0000-$1FFF`; it need not lie inside the cartridge ROM
+window. Direct banks do not acquire generated switching code. One direct bank
+may carry `$startup` as the linker's startup/home placement marker;
 selector-controlled topologies require exactly one startup bank. Mixing direct
-and selector-controlled banks is rejected until a separate window model is
+and selector-controlled CPU banks is rejected until a separate window model is
 defined.
+
+A physical image chunk that is not CPU-addressable instead uses bare
+`$data_only`:
+
+```vcsc
+bank bank2 { $image_size:0x0800 $file_index:2 $data_only };
+mem bank2 { $size:0x0800 $ro $data_bank:bank2 };
+```
+
+A `$data_only` bank has no link start, CPU start, mapped size, selector, or
+startup state. Its matching `$data_bank:NAME` read-only `mem` has no `$start`;
+objects placed there use bank-local file offsets and cannot be referenced as
+6507 addresses. The linker rejects executable layouts and ordinary relocations
+to such objects. This is used by DPC for its 2K display ROM and 255-byte Poly8
+image tail.
 
 `bank` and `mem` have separate namespaces, so both declarations may be named
 `bank1`. Source placement modifiers always refer to `mem bank1`; a `bank bank1`
@@ -543,8 +559,10 @@ mem fast { $start:0x0080 $size:0x0010 $rw };
 fast uint16_t counter;
 ```
 
-An allocatable region must provide `$start`, either `$size` or `$end`, and
-exactly one of `$rw` or `$ro`. Split-address writable storage instead provides
+An ordinary CPU-addressable region must provide `$start`, either `$size` or
+`$end`, and exactly one of `$rw` or `$ro`. A file-domain data-only region instead
+provides `$size`, `$ro`, and `$data_bank:NAME`; it deliberately has no `$start`
+and may contain only data destined for that topology bank. Split-address writable storage instead provides
 `$read_start`, `$write_start`, size/end, and `$rw`. An optional `$read_hazard`
 flag marks the write alias (or `$start` for a single-address region) as a range
 where a CPU *read bus cycle* has side effects; the compiler preserves that fact

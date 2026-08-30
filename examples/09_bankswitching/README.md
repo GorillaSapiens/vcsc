@@ -26,7 +26,7 @@ The public VCSC cartridge profiles also stamp the final physical bank with a
 four-byte mapper signature at logical addresses `$xFF8-$xFFB` (eight bytes before that bank ends). Short mapper names are
 ASCII-NUL padded: `F8\0\0`, `F6\0\0`, `F4\0\0`, `FA\0\0`, and
 `CV\0\0`; the complete four-byte names are `4KSC`, `F8SC`, `F6SC`, `F4SC`,
-`OMNI`, `JANE`, `0840`, `UA\0\0`, `UASW`, `0FA0`, `E0\0\0`, `FE\0\0`, `WD\0\0`, `3F\0\0`, and `3E\0\0`. Only the final bank in file order contains the signature. Selector-hotspot addresses are valid storage
+`OMNI`, `JANE`, `0840`, `UA\0\0`, `UASW`, `0FA0`, `E0\0\0`, `FE\0\0`, `WD\0\0`, `DPC\0`, `3F\0\0`, and `3E\0\0`. Only the final CPU-mapped bank in file order contains the signature; later DPC data-only chunks are excluded. Selector-hotspot addresses are valid storage
 for these bytes because hardware switching is caused by accessing the address,
 not by the byte stored there. Where the final file bank also owns the vector
 page, the final two signature bytes replace only the unused 6507 NMI vector and
@@ -124,3 +124,12 @@ ends of the 64-byte `$1000/$1040` split RAM device. Ordinary TIA I/O uses the
 `$40-$7F` mirror so collision/input reads cannot accidentally select an
 arrangement. The cartridge executes from several physical 1K chunks, renders
 large PASS/FAIL with small `WD`, and `make play` forces Stella's `WD` mapper.
+
+
+`16_dpc/` is the DPC diagnostic. It emits the conventional 10,495-byte image
+as two F8-style program banks plus a 2K display-data bank and 255-byte Poly8
+tail, both declared `$data_only`. The self-test executes the remote F8 program
+bank, reads and checksums every display byte through DPC fetcher 0 including an
+11-bit counter wrap check, then resets and verifies the complete 255-state DPC
+RNG sequence. It renders large PASS/FAIL with small `DPC`; `make play` forces
+Stella's `DPC` mapper.

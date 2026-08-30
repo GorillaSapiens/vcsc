@@ -1,0 +1,35 @@
+2026-08-30 12:58:17 PDT, complete DPC public bankswitching support
+Completed bankswitching roadmap Item 44. Added public vcs_10k_dpc.c26,
+dpc.c26, vcs_10k_dpc.cfg, and examples/09_bankswitching/16_dpc. The output
+model is two ordinary F8-style 4K program chunks followed by a 2048-byte
+display-data chunk and a 255-byte Poly8 chunk, for the conventional 10,495-byte
+image. The two auxiliary chunks are explicit $data_only topology banks backed
+by read-only $data_bank allocator regions; they have no invented 6507 address,
+selector, or startup state, and ordinary CPU relocations into them are rejected.
+The mapper signature remains in the final CPU-mapped program bank rather than
+being misplaced into the later data-only image tail.
+
+vcsc-sim now models the DPC $1000-$107F register window, eight fetcher
+counters/top/bottom/flags, display-data reads with 11-bit wrap, and the
+access-clocked Poly8 RNG/reset behavior used by Stella. The public PASS/FAIL
+cartridge executes both F8 program banks, checksums all 2048 display bytes
+through fetcher 0 plus explicit wrap bytes, then resets and verifies the full
+255-state RNG cycle. The Poly8 image tail is treated as conventional reference
+image data; runtime RNG values come from the hardware model.
+
+The disassembler recognizes the 10,495-byte DPC layout, preserves the auxiliary
+2K/255-byte regions exactly, and round-trips the public cartridge byte-for-byte.
+The recursive example builder now recognizes DPC explicitly, including its
+non-tail signature/vector location. test/vcs_dpc.pl covers image topology,
+linker rejection, simulator behavior, disassembly, and round trip; its optional
+Stella path is part of stella-bank-test. Stella 7.0 with forced -bs DPC renders
+and grades the green PASS/DPC frame successfully.
+
+Validation during closeout: all 502 compile-phase tests passed. The broad e2e
+run passed the first 236/337 cases before the execution ceiling; the remaining
+DPC/linker/example/disassembler cases were run in bounded parallel/standalone
+checks. A recursive example-build failure (DPC initially falling through to the
+default 4K profile) and a new-example branding failure were corrected. The DPC
+focused test, shard 6 recursive build, branding test, and Stella certification
+are green. Item 38 (F0/FA2/FC) remains explicitly deferred, leaving no active
+bankswitching roadmap item.

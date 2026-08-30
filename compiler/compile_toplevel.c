@@ -514,7 +514,7 @@ void compile_function_decl(ASTNode *node) {
 }
 
 #define CARTRIDGE_TOPOLOGY_META_PREFIX "__cartmeta$V2$"
-#define BANK_TOPOLOGY_META_PREFIX "__bankmeta$V1$"
+#define BANK_TOPOLOGY_META_PREFIX "__bankmeta$V2$"
 
 static Set *emitted_topology_metadata;
 
@@ -682,6 +682,7 @@ void compile_bank_decl_stmt(ASTNode *node) {
    bool seen[FIELD_COUNT] = { false };
    unsigned int value[FIELD_COUNT] = { 0 };
    bool startup = false;
+   bool data_only = false;
    char symbol[4096];
    char *source_suffix;
 
@@ -698,6 +699,13 @@ void compile_bank_decl_stmt(ASTNode *node) {
          startup = true;
          continue;
       }
+      if (text && !strcmp(text, "$data_only")) {
+         if (data_only)
+            error_user("[%s:%d.%d] bank '%s' repeats '$data_only'",
+                       node->file, node->line, node->column, name);
+         data_only = true;
+         continue;
+      }
       for (int f = 0; f < FIELD_COUNT; f++) {
          if (topology_parse_numeric_flag(node, text, keys[f], 0xffffu,
                                          &seen[f], &value[f])) {
@@ -709,20 +717,36 @@ void compile_bank_decl_stmt(ASTNode *node) {
          error_user("[%s:%d.%d] bank '%s' has unknown flag '%s'",
                     node->file, node->line, node->column, name, text ? text : "?");
    }
-   for (int f = 0; f < SELECT_A; f++) {
-      if (!seen[f])
-         error_user("[%s:%d.%d] bank '%s' requires '%s:'",
-                    node->file, node->line, node->column, name, keys[f]);
+   if (data_only) {
+      if (!seen[IMAGE_Z] || !seen[FILE_I])
+         error_user("[%s:%d.%d] data-only bank '%s' requires '$image_size:' and '$file_index:'",
+                    node->file, node->line, node->column, name);
+      if (seen[IMAGE_O] && value[IMAGE_O] != 0)
+         error_user("[%s:%d.%d] data-only bank '%s' may only use '$image_offset:0'",
+                    node->file, node->line, node->column, name);
+      if (seen[LINK_S] || seen[CPU_S] || seen[MAP_Z] || seen[SELECT_A] || startup)
+         error_user("[%s:%d.%d] data-only bank '%s' has no CPU/link mapping, selector, or startup role",
+                    node->file, node->line, node->column, name);
+      if (value[IMAGE_Z] == 0)
+         error_user("[%s:%d.%d] data-only bank '%s' image size must be nonzero",
+                    node->file, node->line, node->column, name);
    }
-   if (value[IMAGE_Z] == 0 || value[MAP_Z] == 0)
-      error_user("[%s:%d.%d] bank '%s' image and mapped sizes must be nonzero",
-                 node->file, node->line, node->column, name);
+   else {
+      for (int f = 0; f < SELECT_A; f++) {
+         if (!seen[f])
+            error_user("[%s:%d.%d] bank '%s' requires '%s:'",
+                       node->file, node->line, node->column, name, keys[f]);
+      }
+      if (value[IMAGE_Z] == 0 || value[MAP_Z] == 0)
+         error_user("[%s:%d.%d] bank '%s' image and mapped sizes must be nonzero",
+                    node->file, node->line, node->column, name);
+   }
    source_suffix = topology_source_suffix(node);
    snprintf(symbol, sizeof(symbol),
-            BANK_TOPOLOGY_META_PREFIX "%s$I%04X$F%04X$O%04X$L%04X$C%04X$M%04X$P%d$S%04X$U%d%s",
+            BANK_TOPOLOGY_META_PREFIX "%s$I%04X$F%04X$O%04X$L%04X$C%04X$M%04X$P%d$S%04X$U%d$D%d%s",
             name, value[IMAGE_Z], value[FILE_I], value[IMAGE_O], value[LINK_S],
             value[CPU_S], value[MAP_Z], seen[SELECT_A] ? 1 : 0,
-            value[SELECT_A], startup ? 1 : 0, source_suffix);
+            value[SELECT_A], startup ? 1 : 0, data_only ? 1 : 0, source_suffix);
    free(source_suffix);
    emit_topology_metadata_symbol(symbol);
 }

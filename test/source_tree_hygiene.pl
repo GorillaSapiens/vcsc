@@ -196,7 +196,9 @@ index($bankswitching,'FE/SCABS is also not an F8-style hotspot mapper.')>=0 &&
 index($bankswitching,'WD/Wickstead Design uses eight physical 1K chunks')>=0 &&
 $bankswitching !~ /Backfill a 3F public diagnostic cartridge/ &&
 $bankswitching !~ /Backfill a 3E public diagnostic cartridge/ &&
-$bankswitching =~ /^\[ \] 44\. Backfill a DPC public diagnostic cartridge\./m &&
+$bankswitching !~ /^\[ \] 44\./m &&
+index($bankswitching,'DPC is F8 program banking plus two non-CPU-addressable image regions.')>=0 &&
+index($bankswitching,'`$data_only` banks have file identity and size but no CPU/link address')>=0 &&
 $bankswitching !~ /^\[x\]/m
    or die "bankswitching hot record lost durable identities/open work or exceeded 16 KiB\n";
 -f File::Spec->catfile($test,'assembler_relocatable_zp_relaxation.pl') &&
@@ -206,6 +208,11 @@ $bankswitching !~ /^\[x\]/m
 -f File::Spec->catfile($repo,qw(libraries vcs vcs_8k_fe.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs vcs_8k_fe.cfg)) &&
 -f File::Spec->catfile($repo,qw(examples 09_bankswitching 14_fe fe_diagnostic.c26)) &&
+-f File::Spec->catfile($test,'vcs_dpc.pl') &&
+-f File::Spec->catfile($repo,qw(libraries vcs vcs_10k_dpc.c26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs vcs_10k_dpc.cfg)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs dpc.c26)) &&
+-f File::Spec->catfile($repo,qw(examples 09_bankswitching 16_dpc dpc_diagnostic.c26)) &&
 -f File::Spec->catfile($test,'phase_overlay.pl') &&
 -f File::Spec->catfile($test,'align_language_placement.pl') &&
 -f File::Spec->catfile($test,'vcs_ascii_font_alignment.pl') &&
@@ -257,6 +264,7 @@ my @uncleaned_stella_tmp=grep { index($clean_recipe,'$(' . $_ . ')') < 0 } @stel
 @uncleaned_stella_tmp and die "clean target omits Stella temp variables: @uncleaned_stella_tmp\n";
 index($top_make,'stella-bank-test: tools')>=0 &&
 index($top_make,'--stella')>=0 &&
+index($top_make,'perl test/vcs_dpc.pl')>=0 &&
 index($top_make,'bankswitching_diagnostic_suite.c26')<0 &&
 index($top_make,'--stop-pc=0x$$sim_done')>=0 &&
 index($top_make,'--split-fill=0xA7 --reset-on-pc=0x$$sc_done')>=0 &&

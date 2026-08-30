@@ -233,7 +233,8 @@ Flat output is emitted
 in `$file_index` order with each physical chunk padded to `$image_size` using the
 cartridge fill byte. An optional C26 `$signature:TEXT` is 1-4 ASCII alphanumeric
 bytes; it is NUL-padded to four bytes and emitted eight bytes before the end of
-only the final physical bank. For the usual 4K banks this is `$0FF8-$0FFB`;
+the last CPU-mapped bank in file order; later `$data_only` chunks are not
+modified. For the usual 4K banks this is `$0FF8-$0FFB`;
 for a 2K CV image it is `$07F8-$07FB`. This is raw image metadata, so hotspot addresses are safe
 locations: autodetection reads the file before mapper hardware exists, while on
 hardware the access address, not the stored byte value, causes selection. No
@@ -251,13 +252,22 @@ top-level `main` is accepted. Nested cross-bank calls and cross-bank data, JMP,
 or branch relocations are rejected because the released FE protocol depends on
 the exact `$01FE` stack-bus sequence rather than a generic bridge.
 
-A bank with `$select_access` is selector-controlled. All banks in the current
-selector model must have the same full-window shape, selectors must be unique
-within `$1000-$1fff`, exactly one bank must carry `$startup`, and the cartridge
-must supply bounded, nonoverlapping trampoline, vector-bridge, and vector ranges.
-The current implementation deliberately rejects a mixture of direct and
-selector-controlled banks; independently switched windows require a later
-explicit window/device model.
+A bank with `$select_access` is selector-controlled. CPU-mapped banks in the
+current selector model must have the same full-window shape, selectors must be
+unique within `$1000-$1fff`, exactly one CPU bank must carry `$startup`, and the
+cartridge must supply bounded, nonoverlapping trampoline, vector-bridge, and
+vector ranges. The current implementation deliberately rejects a mixture of
+direct and selector-controlled CPU banks; independently switched windows require
+a later explicit window/device model.
+
+A topology bank may instead carry `$data_only`. Such a bank has physical image
+size and file index but no CPU/link mapping, selector, or startup state. Source
+objects reach it through a read-only `mem` declaration with
+`$data_bank:bankName` and no `$start`. Allocation is in bank-local file-offset
+space, flat output includes the bytes normally, and the map reports
+`mode=data-only`. Executable layouts and ordinary CPU-address relocations to
+these objects are link errors. The DPC profile uses this for its 2K display ROM
+and 255-byte Poly8 tail while retaining two ordinary F8-style program banks.
 
 After lazy archive selection, identical topology declarations merge across
 objects. Conflicting declarations identify both origins. The linker validates

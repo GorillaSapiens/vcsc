@@ -77,6 +77,16 @@ profiles therefore bind ordinary TIA accesses through the equivalent `$40-$7F`
 mirror; 3E mapper selection itself remains literal `$3E`/`$3F`. Do not depend
 on an emulator forwarding non-hotspot low-page writes to the TIA.
 
+DPC is F8 program banking plus two non-CPU-addressable image regions. Physical
+file chunks 0/1 are the ordinary 4K F8 program banks; file chunk 2 is 2048 bytes
+of display data consumed by the DPC fetchers; file chunk 3 is the conventional
+255-byte Poly8 sequence tail. Model the latter two as `$data_only` topology banks
+backed by read-only `$data_bank:bankN` allocator regions, never by invented 6507
+addresses. The runtime register window is `$1000-$107F`, so the program banks map
+only `$1080-$1FFF`. The Poly8 generator is hardware state: resetting the RNG sets
+it to 1 and each DPC access clocks it before the addressed register operation.
+The 255-byte image tail is therefore reference/format data, not CPU-mapped ROM.
+
 Ordinary linker symbols remain 16-bit. Do not invent far pointers for this
 family. Selector-controlled families, segmented-window families, direct islands,
 and coprocessor formats are different hardware models and must not be forced into
@@ -99,15 +109,21 @@ C26 topology/placement rules
   them into one address for RMW or initialization semantics.
 * Mapper hotspots, vector bridges, RAM-port prefixes, signatures, and other
   nonallocatable holes are not ordinary ROM placement space.
+* `$data_only` banks have file identity and size but no CPU/link address, selector,
+  or startup state. Their `$data_bank:NAME` read-only `mem` regions allocate in
+  bank-local file-offset space; code and ordinary 6507 relocations into them are
+  errors.
 
 Mapper signature convention
 ---------------------------
 Public VCSC cartridge profiles reserve four bytes at logical `$xFF8-$xFFB` in
-only the final file bank. Short signatures are padded with ASCII NUL, never space
-or underscore. Current signatures include:
+the final CPU-mapped program bank. This normally is the final file chunk; DPC is
+the exception because its data-only chunks follow the program ROM. Short
+signatures are padded with ASCII NUL, never space or underscore. Current
+signatures include:
 
     4KSC  F8\0\0  F8SC  F6\0\0  F6SC  F4\0\0  F4SC  FA\0\0
-    CV\0\0  OMNI  JANE  0840  UA\0\0  UASW  0FA0  E0\0\0  FE\0\0  WD\0\0  3F\0\0  3E\0\0
+    CV\0\0  OMNI  JANE  0840  UA\0\0  UASW  0FA0  E0\0\0  FE\0\0  WD\0\0  DPC\0  3F\0\0  3E\0\0
 
 The bytes are metadata; real hardware switches because the hotspot address is
 accessed, not because of the stored byte value.
@@ -119,13 +135,6 @@ Open work
         Do not schedule this unless the user explicitly reopens it. If reopened,
         evaluate each hardware contract separately rather than hiding new
         mechanisms behind the existing hotspot model.
-
-[ ] 44. Backfill a DPC public diagnostic cartridge.
-
-        * Add a buildable DPC profile only when a meaningful data-fetcher/register
-          model is available; file size alone is not DPC support.
-        * Exercise real DPC data-ROM/data-fetcher behavior and require
-          simulator/Stella plus exact disassembly/reassembly.
 
 Deferred design questions
 -------------------------

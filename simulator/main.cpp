@@ -67,6 +67,7 @@ struct simulator_config_t {
    int fe_mapper;
    int threef_mapper;
    int threee_mapper;
+   int dpc_mapper;
    size_t startup_bank;
 };
 
@@ -108,6 +109,14 @@ static const uint8_t g_wd_bank_org[8][4] = {
    {0,0,6,7}, {0,1,7,6}, {2,3,4,5}, {6,0,5,1}
 };
 static uint8_t g_3e_ram[32][1024] = {};
+static uint8_t g_dpc_display[2048] = {};
+static uint8_t g_dpc_poly_image[255] = {};
+static uint8_t g_dpc_tops[8] = {};
+static uint8_t g_dpc_bottoms[8] = {};
+static uint16_t g_dpc_counters[8] = {};
+static uint8_t g_dpc_flags[8] = {};
+static uint8_t g_dpc_music_mode[3] = {};
+static uint8_t g_dpc_random = 1;
 static std::vector<std::vector<uint8_t>> g_split_memory;
 
 void trace_regs(void);
@@ -401,13 +410,14 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
       cfg->fe_mapper = str_ieq(cfg->mapper, "FE");
       cfg->threef_mapper = str_ieq(cfg->mapper, "3F");
       cfg->threee_mapper = str_ieq(cfg->mapper, "3E");
+      cfg->dpc_mapper = str_ieq(cfg->mapper, "DPC");
       if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") ||
             str_ieq(cfg->mapper, "F4") || str_ieq(cfg->mapper, "FA") ||
             str_ieq(cfg->mapper, "OMNI") || str_ieq(cfg->mapper, "JANE") ||
             str_ieq(cfg->mapper, "0840") || str_ieq(cfg->mapper, "UA") ||
             str_ieq(cfg->mapper, "UASW") || str_ieq(cfg->mapper, "0FA0") ||
             cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper || cfg->threef_mapper || cfg->threee_mapper ||
-            cfg->superchip_mapper)) {
+            cfg->dpc_mapper || cfg->superchip_mapper)) {
          fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
          exit(1);
       }
@@ -423,6 +433,10 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
          fprintf(stderr, "vcsc-sim: FE requires exactly two physical 4K banks\n");
          exit(1);
       }
+      if (cfg->dpc_mapper && cfg->bank_count != 2u) {
+         fprintf(stderr, "vcsc-sim: DPC requires exactly two physical 4K program banks\n");
+         exit(1);
+      }
       for (size_t i = 0; i < cfg->bank_count; ++i) {
          size_t file_index = 0;
          uint16_t wanted_size = (cfg->e0_mapper || cfg->wd_mapper) ? 0x0400u :
@@ -433,7 +447,7 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
                     (cfg->threef_mapper || cfg->threee_mapper) ? "2K" : "4K");
             exit(1);
          }
-         if ((cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper) && !cfg->banks[i].has_file_index) {
+         if ((cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper || cfg->dpc_mapper) && !cfg->banks[i].has_file_index) {
             fprintf(stderr, "vcsc-sim: %s bank '%s' requires an explicit fileindex\n",
                     cfg->mapper, cfg->banks[i].name);
             exit(1);
@@ -477,6 +491,10 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
       }
       if (cfg->fe_mapper && cfg->banks[cfg->startup_bank].file_index != 0u) {
          fprintf(stderr, "vcsc-sim: FE startup bank must be physical/file bank 0\n");
+         exit(1);
+      }
+      if (cfg->dpc_mapper && cfg->banks[cfg->startup_bank].file_index != 1u) {
+         fprintf(stderr, "vcsc-sim: DPC startup bank must be physical/file bank 1\n");
          exit(1);
       }
       if ((cfg->threef_mapper || cfg->threee_mapper) &&
@@ -911,6 +929,110 @@ static void initialize_split_memory(uint8_t fill) {
    }
 }
 
+static void dpc_clock_random(void) {
+   static const uint8_t feedback[16] = {
+      1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1
+   };
+   uint8_t index = (uint8_t)(((g_dpc_random >> 3) & 0x07u) |
+                             ((g_dpc_random & 0x80u) ? 0x08u : 0x00u));
+   g_dpc_random = (uint8_t)((g_dpc_random << 1) | feedback[index]);
+}
+
+static int dpc_register_address(uint16_t addr) {
+   uint16_t canonical = (uint16_t)(addr & 0x1fffu);
+   return g_cfg_loaded && g_cfg.dpc_mapper &&
+          canonical >= 0x1000u && canonical < 0x1080u;
+}
+
+static int dpc_rng_clocked_access(uint16_t addr) {
+   uint16_t canonical = (uint16_t)(addr & 0x1fffu);
+   return g_cfg_loaded && g_cfg.dpc_mapper &&
+          ((canonical >= 0x1000u && canonical < 0x1080u) ||
+           canonical == 0x1ff8u || canonical == 0x1ff9u);
+}
+
+static uint8_t dpc_read_register(uint16_t addr) {
+   uint16_t address = (uint16_t)(addr & 0x0fffu);
+   uint8_t index = (uint8_t)(address & 0x07u);
+   uint8_t function = (uint8_t)((address >> 3) & 0x07u);
+   uint8_t result = 0;
+
+   if ((g_dpc_counters[index] & 0x00ffu) == g_dpc_tops[index])
+      g_dpc_flags[index] = 0xffu;
+   else if ((g_dpc_counters[index] & 0x00ffu) == g_dpc_bottoms[index])
+      g_dpc_flags[index] = 0x00u;
+
+   switch (function) {
+      case 0x00:
+         if (index < 4u) {
+            result = g_dpc_random;
+         } else {
+            static const uint8_t music_amplitudes[8] = {
+               0x00, 0x04, 0x05, 0x09, 0x06, 0x0a, 0x0b, 0x0f
+            };
+            uint8_t music = 0;
+            if (g_dpc_music_mode[0] && g_dpc_flags[5]) music |= 0x01u;
+            if (g_dpc_music_mode[1] && g_dpc_flags[6]) music |= 0x02u;
+            if (g_dpc_music_mode[2] && g_dpc_flags[7]) music |= 0x04u;
+            result = music_amplitudes[music];
+         }
+         break;
+      case 0x01:
+         result = g_dpc_display[2047u - (g_dpc_counters[index] & 0x07ffu)];
+         break;
+      case 0x02:
+         result = (uint8_t)(g_dpc_display[2047u - (g_dpc_counters[index] & 0x07ffu)] &
+                            g_dpc_flags[index]);
+         break;
+      case 0x07:
+         result = g_dpc_flags[index];
+         break;
+      default:
+         result = 0;
+         break;
+   }
+
+   if (index < 5u || !g_dpc_music_mode[index - 5u])
+      g_dpc_counters[index] = (uint16_t)((g_dpc_counters[index] - 1u) & 0x07ffu);
+   return result;
+}
+
+static void dpc_write_register(uint16_t addr, uint8_t value) {
+   uint16_t address = (uint16_t)(addr & 0x0fffu);
+   if (address < 0x0040u)
+      return;
+   uint8_t index = (uint8_t)(address & 0x07u);
+   uint8_t function = (uint8_t)((address >> 3) & 0x07u);
+
+   switch (function) {
+      case 0x00:
+         g_dpc_tops[index] = value;
+         g_dpc_flags[index] = 0x00u;
+         break;
+      case 0x01:
+         g_dpc_bottoms[index] = value;
+         break;
+      case 0x02:
+         if (index >= 5u && g_dpc_music_mode[index - 5u])
+            g_dpc_counters[index] = (uint16_t)((g_dpc_counters[index] & 0x0700u) |
+                                               g_dpc_tops[index]);
+         else
+            g_dpc_counters[index] = (uint16_t)((g_dpc_counters[index] & 0x0700u) | value);
+         break;
+      case 0x03:
+         g_dpc_counters[index] = (uint16_t)(((uint16_t)(value & 0x07u) << 8) |
+                                            (g_dpc_counters[index] & 0x00ffu));
+         if (index >= 5u)
+            g_dpc_music_mode[index - 5u] = (value & 0x10u) ? 1u : 0u;
+         break;
+      case 0x06:
+         g_dpc_random = 1u;
+         break;
+      default:
+         break;
+   }
+}
+
 static int cartridge_window_address(uint16_t addr) {
    return g_cfg_loaded && g_cfg.cartridge_banked && ((addr & 0x1FFFu) >= 0x1000u);
 }
@@ -1141,7 +1263,14 @@ static void load_raw_binary(const char *filename) {
    size_t expected = 0;
    for (size_t i = 0; i < g_cfg.bank_count; ++i)
       expected += g_cfg.banks[i].size;
-   if (bytes.size() != expected)
+   if (g_cfg.dpc_mapper) {
+      if (bytes.size() != expected + 0x0800u + 0x00ffu)
+         throw std::runtime_error("Raw DPC cartridge must be exactly 10495 bytes");
+      memcpy(g_dpc_display, bytes.data() + expected, sizeof(g_dpc_display));
+      memcpy(g_dpc_poly_image, bytes.data() + expected + sizeof(g_dpc_display),
+             sizeof(g_dpc_poly_image));
+   }
+   else if (bytes.size() != expected)
       throw std::runtime_error("Raw cartridge size does not match banked config");
    for (size_t file_index = 0; file_index < g_cfg.bank_count; ++file_index) {
       size_t bank_index = bank_index_for_file_index(file_index);
@@ -1156,6 +1285,16 @@ void write_cb(uint16_t addr, uint8_t val) {
    uint16_t offset;
    if (trace_ops & TRACE_OP_WRITES)
       printf("write $%02x -> $%04x\n", val, addr);
+
+   /* DPC clocks its LFSR before DPC-register and F8-hotspot accesses, matching
+      Stella's optimized hardware model.  The $1040-$107F register window is
+      cartridge I/O, not writable ROM. */
+   if (dpc_rng_clocked_access(addr))
+      dpc_clock_random();
+   if (dpc_register_address(addr)) {
+      dpc_write_register(addr, val);
+      return;
+   }
 
    /* FE commits any previously armed latch from this cycle's data bus and
       arms again when the current address is $01FE.  Writes can be observed
@@ -1239,7 +1378,13 @@ uint8_t read_cb(uint16_t addr) {
       trace_disasm(gpc);
       exit(1);
    }
-   uint8_t value = peek_mem(addr);
+   uint8_t value;
+   if (dpc_rng_clocked_access(addr))
+      dpc_clock_random();
+   if (dpc_register_address(addr) && (addr & 0x0fffu) < 0x0040u)
+      value = dpc_read_register(addr);
+   else
+      value = peek_mem(addr);
    wd_note_selector_read(addr);
    if (trace_ops & TRACE_OP_READS) {
       if (cartridge_window_address(addr)) {
@@ -1459,6 +1604,14 @@ int main (int argc, char **argv) {
    cpu = new mos6502(read_cb, write_cb, clock_cb);
 
    g_fe_waiting_data = 0;
+   if (g_cfg_loaded && g_cfg.dpc_mapper) {
+      memset(g_dpc_tops, 0, sizeof(g_dpc_tops));
+      memset(g_dpc_bottoms, 0, sizeof(g_dpc_bottoms));
+      memset(g_dpc_counters, 0, sizeof(g_dpc_counters));
+      memset(g_dpc_flags, 0, sizeof(g_dpc_flags));
+      memset(g_dpc_music_mode, 0, sizeof(g_dpc_music_mode));
+      g_dpc_random = 1u;
+   }
    cpu->Reset();
 
    int reset_on_pc_done = 0;

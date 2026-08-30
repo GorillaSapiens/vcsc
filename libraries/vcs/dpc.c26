@@ -1,0 +1,85 @@
+// This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+
+// Atari DPC cartridge register bindings. The DPC occupies $1000-$107F,
+// overlaying the first 128 bytes of the ordinary 4K cartridge window.
+
+uint8_t DPC_RANDOM0 @[0x1000/none];
+uint8_t DPC_RANDOM1 @[0x1001/none];
+uint8_t DPC_RANDOM2 @[0x1002/none];
+uint8_t DPC_RANDOM3 @[0x1003/none];
+uint8_t DPC_MUSIC4 @[0x1004/none];
+uint8_t DPC_MUSIC5 @[0x1005/none];
+uint8_t DPC_MUSIC6 @[0x1006/none];
+uint8_t DPC_MUSIC7 @[0x1007/none];
+
+uint8_t DPC_DISPLAY0 @[0x1008/none];
+uint8_t DPC_DISPLAY1 @[0x1009/none];
+uint8_t DPC_DISPLAY2 @[0x100a/none];
+uint8_t DPC_DISPLAY3 @[0x100b/none];
+uint8_t DPC_DISPLAY4 @[0x100c/none];
+uint8_t DPC_DISPLAY5 @[0x100d/none];
+uint8_t DPC_DISPLAY6 @[0x100e/none];
+uint8_t DPC_DISPLAY7 @[0x100f/none];
+
+uint8_t DPC_DISPLAY_FLAG0 @[0x1010/none];
+uint8_t DPC_DISPLAY_FLAG1 @[0x1011/none];
+uint8_t DPC_DISPLAY_FLAG2 @[0x1012/none];
+uint8_t DPC_DISPLAY_FLAG3 @[0x1013/none];
+uint8_t DPC_DISPLAY_FLAG4 @[0x1014/none];
+uint8_t DPC_DISPLAY_FLAG5 @[0x1015/none];
+uint8_t DPC_DISPLAY_FLAG6 @[0x1016/none];
+uint8_t DPC_DISPLAY_FLAG7 @[0x1017/none];
+
+uint8_t DPC_FLAG0 @[0x1038/none];
+uint8_t DPC_FLAG1 @[0x1039/none];
+uint8_t DPC_FLAG2 @[0x103a/none];
+uint8_t DPC_FLAG3 @[0x103b/none];
+uint8_t DPC_FLAG4 @[0x103c/none];
+uint8_t DPC_FLAG5 @[0x103d/none];
+uint8_t DPC_FLAG6 @[0x103e/none];
+uint8_t DPC_FLAG7 @[0x103f/none];
+
+uint8_t DPC_TOP0 @[none/0x1040];
+uint8_t DPC_TOP1 @[none/0x1041];
+uint8_t DPC_TOP2 @[none/0x1042];
+uint8_t DPC_TOP3 @[none/0x1043];
+uint8_t DPC_TOP4 @[none/0x1044];
+uint8_t DPC_TOP5 @[none/0x1045];
+uint8_t DPC_TOP6 @[none/0x1046];
+uint8_t DPC_TOP7 @[none/0x1047];
+
+uint8_t DPC_BOTTOM0 @[none/0x1048];
+uint8_t DPC_BOTTOM1 @[none/0x1049];
+uint8_t DPC_BOTTOM2 @[none/0x104a];
+uint8_t DPC_BOTTOM3 @[none/0x104b];
+uint8_t DPC_BOTTOM4 @[none/0x104c];
+uint8_t DPC_BOTTOM5 @[none/0x104d];
+uint8_t DPC_BOTTOM6 @[none/0x104e];
+uint8_t DPC_BOTTOM7 @[none/0x104f];
+
+uint8_t DPC_COUNTER_LOW0 @[none/0x1050];
+uint8_t DPC_COUNTER_LOW1 @[none/0x1051];
+uint8_t DPC_COUNTER_LOW2 @[none/0x1052];
+uint8_t DPC_COUNTER_LOW3 @[none/0x1053];
+uint8_t DPC_COUNTER_LOW4 @[none/0x1054];
+uint8_t DPC_COUNTER_LOW5 @[none/0x1055];
+uint8_t DPC_COUNTER_LOW6 @[none/0x1056];
+uint8_t DPC_COUNTER_LOW7 @[none/0x1057];
+
+uint8_t DPC_COUNTER_HIGH0 @[none/0x1058];
+uint8_t DPC_COUNTER_HIGH1 @[none/0x1059];
+uint8_t DPC_COUNTER_HIGH2 @[none/0x105a];
+uint8_t DPC_COUNTER_HIGH3 @[none/0x105b];
+uint8_t DPC_COUNTER_HIGH4 @[none/0x105c];
+uint8_t DPC_COUNTER_HIGH5 @[none/0x105d];
+uint8_t DPC_COUNTER_HIGH6 @[none/0x105e];
+uint8_t DPC_COUNTER_HIGH7 @[none/0x105f];
+
+uint8_t DPC_RANDOM_RESET0 @[none/0x1070];
+uint8_t DPC_RANDOM_RESET1 @[none/0x1071];
+uint8_t DPC_RANDOM_RESET2 @[none/0x1072];
+uint8_t DPC_RANDOM_RESET3 @[none/0x1073];
+uint8_t DPC_RANDOM_RESET4 @[none/0x1074];
+uint8_t DPC_RANDOM_RESET5 @[none/0x1075];
+uint8_t DPC_RANDOM_RESET6 @[none/0x1076];
+uint8_t DPC_RANDOM_RESET7 @[none/0x1077];
