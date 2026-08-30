@@ -59,3 +59,6 @@ Windows binary package could not be built in this container; its staging copy
 is covered by package_addons.pl. A broad e2e run reached 243/338 with zero
 failures before the execution ceiling; a separate remaining-tail run was also
 cut off by the slow disassembler/fuzz cases.
+
+2026-08-30 14:28:58 PDT, fix C26 Vim comment priority
+C26 Vim comments are now defined after ordinary operators so // and /* win Vim same-column syntax priority. Comments contain no nested Todo/spell groups; delimiters and all body text resolve uniformly to the standard Comment highlight, matching S26. Local Vim smoke checks cover line/block/trailing/preprocessor comments, strings containing comment-like text, and division.

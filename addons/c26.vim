@@ -19,10 +19,6 @@ syn case match
 " Comments, strings, and characters
 " ---------------------------------------------------------------------------
 
-syn keyword c26Todo contained TODO FIXME XXX NOTE BUG HACK
-syn region  c26Comment start="/\*" end="\*/" contains=c26Todo,@Spell
-syn match   c26Comment "//.*$" contains=c26Todo,@Spell
-
 syn match   c26Escape contained "\\\%(x\x\{2}\|u\x\{4}\|.\)"
 syn region  c26String start=+"+ skip=+\\\\\|\\"+ end=+"+ contains=c26Escape,@Spell
 syn region  c26Character start=+'+ skip=+\\\\\|\\'+ end=+'+ contains=c26Escape
@@ -136,10 +132,20 @@ syn region vcscAsmString start=+"+ skip=+\\.+ end=+"+ contained
 syn region vcscAsmCharacter start=+'+ skip=+\\.+ end=+'+ contained
 
 " ---------------------------------------------------------------------------
+" Comments
+" ---------------------------------------------------------------------------
+"
+" Define comments after ordinary operators so // and /* win Vim's same-column
+" syntax-priority tie against '/' and '*'.  Keep the whole comment -- markers
+" and body alike -- in one group with no nested Todo or spell highlighting.
+" That makes C26 comments use exactly the same Comment color as S26 comments.
+syn region  c26Comment start="/\*" end="\*/" keepend
+syn match   c26Comment "//.*$"
+
+" ---------------------------------------------------------------------------
 " Highlight links
 " ---------------------------------------------------------------------------
 
-hi def link c26Todo Todo
 hi def link c26Comment Comment
 hi def link c26Escape SpecialChar
 hi def link c26String String
