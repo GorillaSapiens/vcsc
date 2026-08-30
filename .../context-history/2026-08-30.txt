@@ -33,3 +33,29 @@ default 4K profile) and a new-example branding failure were corrected. The DPC
 focused test, shard 6 recursive build, branding test, and Stella certification
 are green. Item 38 (F0/FA2/FC) remains explicitly deferred, leaving no active
 bankswitching roadmap item.
+
+2026-08-30 14:09:01 PDT, wrap large initializer assembly
+The compiler now emits constant initializer bytes in assembler-safe chunks of at
+most 128 bytes per `.byte` directive. Large C26 objects no longer need to be
+split to constrain generated S26 line length. The DPC diagnostic payload was
+collapsed from sixteen 128-byte display objects plus two Poly8 objects into one
+2048-byte display object and one 255-byte Poly8 object. A focused compiler
+regression locks 2048-byte initializer wrapping, and the DPC end-to-end test
+locks byte-exact data-only bank contents and layout.
+Validation: compiler phase 503/503 passed; `test/vcs_dpc.pl` passed with the
+unsplit 2048-byte and 255-byte objects; source-tree hygiene and context-history
+format checks passed.
+
+2026-08-30 14:17:36 PDT, package Vim addons in binary releases
+Added the root-level addons directory to both make linux and make windows
+binary-package staging alongside examples. Added test/package_addons.pl to lock
+both packaging recipes and the three required addon files. addons/README.md now
+starts with the standard VCSC FIGlet banner, fixing vcsc_branding.pl.
+Validation: vcsc_branding.pl, package_addons.pl, and source_tree_hygiene.pl pass
+under the normal e2e runner. An actual make linux completed successfully and its
+archive contains addons/README.md, addons/c26.vim, and addons/s26.vim. The
+available dependency bundle does not contain a MinGW cross-compiler, so the
+Windows binary package could not be built in this container; its staging copy
+is covered by package_addons.pl. A broad e2e run reached 243/338 with zero
+failures before the execution ceiling; a separate remaining-tail run was also
+cut off by the slow disassembler/fuzz cases.

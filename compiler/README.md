@@ -1158,9 +1158,11 @@ operation because shifts and masks differ for signed negative values.
 
 ## Initializers, strings, and xforms
 
-Constant global and static initializers are emitted as bytes. A non-constant
-global or static initializer creates a translation-unit startup function that
-the runtime calls before `main`.
+Constant global and static initializers are emitted as bytes. Generated S26
+`.byte` directives are automatically wrapped at 128 bytes per line, so large
+C26 objects never need to be split merely to satisfy assembler source-line
+limits. A non-constant global or static initializer creates a translation-unit
+startup function that the runtime calls before `main`.
 
 Braced initializers support scalars, arrays, structs, unions, nested aggregates,
 and designated fields. Simple assignment also accepts a braced initializer:

@@ -129,8 +129,8 @@ $map =~ /bank2\s+file-index=2\s+image-size=\$0800.*mode=data-only/ &&
 $map =~ /bank3\s+file-index=3\s+image-size=\$00FF.*mode=data-only/ &&
 $map =~ /bank2\s+used=2048 bytes \(100\.00%\)/ &&
 $map =~ /bank3\s+used=255 bytes \(100\.00%\)/ &&
-$map =~ /RODATA\.bank2\.__vcsc_object\$dpc_display_data_00 load=\$0000 size=\$0080/ &&
-$map =~ /RODATA\.bank3\.__vcsc_object\$dpc_poly_data_01 load=\$0080 size=\$007F/
+$map =~ /RODATA\.bank2\.__vcsc_object\$dpc_display_data load=\$0000 size=\$0800/ &&
+$map =~ /RODATA\.bank3\.__vcsc_object\$dpc_poly_data load=\$0000 size=\$00FF/
    or die "DPC map lost data-only bank layout\n$map";
 my %sym=map { $_=>map_symbol($map,$_) } qw(simulator_done failure display_sum1 display_sum2 actual_rng expected_rng);
 my($out,$err)=require_ok('simulate DPC fetchers and RNG',$sim,'-T',$cfg,

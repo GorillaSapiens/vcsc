@@ -506,6 +506,7 @@ windows:
 	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-disas.exe
 	cp README.md WINDOWS.md LICENSE COPYING $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/
 	cp -a examples $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/examples
+	cp -a addons $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/addons
 	find $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/examples -type f \
 	  \( -name '*.bin' -o -name '*.hex' -o -name '*.o26' \
 	     -o -name '*.map' -o -name '*.sym' -o -name '*.lst' \) -delete
@@ -559,6 +560,7 @@ linux:
 	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-disas
 	cp README.md LINUX.md LICENSE COPYING $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/
 	cp -a examples $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/examples
+	cp -a addons $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/addons
 	find $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/examples -type f \
 	  \( -name '*.bin' -o -name '*.hex' -o -name '*.o26' \
 	     -o -name '*.map' -o -name '*.sym' -o -name '*.lst' \) -delete

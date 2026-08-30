@@ -40,6 +40,12 @@ typedef struct PendingGlobalInit {
 } PendingGlobalInit;
 
 static PendingGlobalInit *pending_global_inits = NULL;
+
+/* Keep generated .byte directives comfortably below assembler/source-reader
+ * line-buffer limits.  This is an output-format detail; C26 source objects do
+ * not need to be split merely to constrain generated S26 line length. */
+#define INITIALIZER_BYTES_PER_ASM_LINE 128
+
 static bool build_initializer_bytes(unsigned char *buf, int buf_size, int base_offset, const ASTNode *init, const ASTNode *type, const ASTNode *declarator, int total_size);
 
 //! @brief Return whether a constant initializer explicitly names a packed-BCD type.
@@ -791,13 +797,27 @@ static bool emit_symbol_address_initializer(EmitSink *es, int size, const ASTNod
    return true;
 }
 
-//! @brief Emit initializer bytes line for compiler initializer lowering diagnostics or output files.
+//! @brief Emit initializer bytes as assembler-safe .byte lines.
 void emit_initializer_bytes_line(EmitSink *es, const unsigned char *bytes, int size) {
-   emit(es, "\t.byte $%02x", bytes[0]);
-   for (int i = 1; i < size; i++) {
-      emit(es, ", $%02x", bytes[i]);
+   int offset = 0;
+
+   if (!es || !bytes || size <= 0) {
+      return;
    }
-   emit(es, "\n");
+
+   while (offset < size) {
+      int count = size - offset;
+      if (count > INITIALIZER_BYTES_PER_ASM_LINE) {
+         count = INITIALIZER_BYTES_PER_ASM_LINE;
+      }
+
+      emit(es, "\t.byte $%02x", bytes[offset]);
+      for (int i = 1; i < count; i++) {
+         emit(es, ", $%02x", bytes[offset + i]);
+      }
+      emit(es, "\n");
+      offset += count;
+   }
 }
 
 //! @brief Emit a file-scope pointer initializer from ordinary array-to-pointer decay.
