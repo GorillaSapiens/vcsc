@@ -51,7 +51,7 @@ for my $parts (
    [qw(libraries vcs F8SC/mapper.c26)],
    [qw(libraries vcs F6SC/mapper.c26)],
    [qw(libraries vcs F4SC/mapper.c26)],
-   [qw(libraries vcs vcs_direct_8k.c26)],
+   [qw(test vcs_direct_8k.c26)],
    [qw(libraries vcs OMNI/mapper.c26)],
    [qw(libraries vcs OMNI/mapper.cfg)],
    [qw(libraries vcs 4K/mapper.cfg)],

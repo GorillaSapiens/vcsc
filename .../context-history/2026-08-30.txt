@@ -311,3 +311,15 @@ profiles and lowercase fa2 namespace. The full compile phase passed 503/503;
 the full e2e run reached 236/342 before the execution ceiling and exposed one
 3F/3E constructed legacy path, which was fixed. Focused mapper regressions pass
 23/23 and all eight example-build shards plus source-tree hygiene pass 9/9.
+
+2026-08-30 22:43:48 PDT, mapper-local bankcall sources
+Moved the synthetic selector-free direct-8K certification profile from the
+public VCS library to test/vcs_direct_8k.c26; it is no longer installed. The
+profile regression adds test/ as an include root only for those two packaging
+checks. F8/F8SC/F6/F6SC/F4/F4SC/FA/DPC now each carry an identical mapper-local
+inline_bankcall.s26. F8 remains the canonical source used to generate the shared
+linker template; vcs_inline_bankcall_source.pl requires every F8-geometry copy
+to remain byte-identical. Updated install/uninstall/installcheck lists, docs,
+hygiene, and package-pruning coverage. Focused bankswitch/profile/hygiene tests
+pass 8/8, direct profile checks pass, and a staged install contains all mapper
+copies while omitting the synthetic direct-8K fixture.

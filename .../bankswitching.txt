@@ -156,9 +156,7 @@ enabled, explicitly bank-pinned cross-bank C calls use the generic path. The com
 `JSR` + inline target bundle (`.banktarget target` in generated S26, physically
 the same two bytes as `.word target`). The linker redirects the JSR to one fixed
 80-byte replicated entry/return block; these calls consume no legacy per-target
-15-byte JSR entries. The maintained block is `libraries/vcs/F8/inline_bankcall.s26`;
-the linker build assembles it into a compact patch template instead of embedding
-6507 opcodes in C. Existing legacy bridge support remains available for mapper
+15-byte JSR entries. F8/F8SC/F6/F6SC/F4/F4SC/FA/DPC each carry an identical mapper-local `inline_bankcall.s26`; the linker builds the shared template from the F8 copy and regressions prevent drift. Existing legacy bridge support remains available for mapper
 families not yet migrated and for lower-level object/S26 inputs.
 
 The entry reads the inline logical target before switching banks, advances the
@@ -190,8 +188,7 @@ ABI. Cross-bank JMPs remain a separate per-target mechanism for now.
 
 Inline-bankcall migration queue -- finish this before adding FC/F0:
 Done: F8/F8SC, F6/F6SC, F4/F4SC, FA, DPC, FA2-24, and FA2-28.
-DPC reuses the 80-byte `libraries/vcs/F8/inline_bankcall.s26` F8 geometry. FA2
-uses `libraries/vcs/FA2/inline_bankcall.s26`: the same ABI plus EOR #7 selector
+F8/F8SC/F6/F6SC/F4/F4SC/FA/DPC each carry the same 80-byte mapper-local `inline_bankcall.s26`; DPC has F8 selector geometry. FA2 uses `libraries/vcs/FA2/inline_bankcall.s26`: the same ABI plus EOR #7 selector
 reversal, 83 bytes / 84 reserved (`generic-jsr=$054`). Both have zero legacy JSR
 entries; the ordered-pair regression covers FA2-24/28 and both DPC directions.
 [ ] JANE -- next; full-window/direct-select, but its four hotspot addresses are irregular.

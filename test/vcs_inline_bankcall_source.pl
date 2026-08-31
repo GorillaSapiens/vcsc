@@ -24,6 +24,7 @@ my $tmp = shift @ARGV // die "usage: $0 REPO TMP\n";
 @ARGV and die "usage: $0 REPO TMP\n";
 
 my $as = File::Spec->catfile($repo, qw(assembler vcsc-as));
+my @generic_mapper_dirs = qw(F8 F8SC F6 F6SC F4 F4SC FA DPC);
 my $src = File::Spec->catfile($repo, qw(libraries vcs F8 inline_bankcall.s26));
 my $fa2_src = File::Spec->catfile($repo, qw(libraries vcs FA2 inline_bankcall.s26));
 my $generator = File::Spec->catfile($repo, qw(linker gen_inline_bankcall_template.pl));
@@ -38,6 +39,12 @@ my $fa2_s26 = read_file($fa2_src);
 
 -f $as or die "missing assembler $as\n";
 -f $src or die "missing maintained trampoline source $src\n";
+for my $mapper (@generic_mapper_dirs) {
+   my $copy = File::Spec->catfile($repo, 'libraries', 'vcs', $mapper, 'inline_bankcall.s26');
+   -f $copy or die "missing mapper-local trampoline source $copy\n";
+   read_file($copy) eq read_file($src)
+      or die "$mapper inline_bankcall.s26 drifted from the shared F8-geometry source\n";
+}
 -f $fa2_src or die "missing maintained FA2 trampoline source $fa2_src\n";
 -f $generator or die "missing template generator $generator\n";
 -f $built or die "missing generated linker template $built\n";
@@ -61,7 +68,8 @@ index($ld, 'vcsc_generic_bankcall_template') >= 0 && index($ld, 'vcsc_fa2_bankca
    or die "linker does not consume both generated trampoline templates\n";
 index($ld, '#define PUT(') < 0
    or die "linker still contains hand-emitted generic trampoline opcodes\n";
-index($top, 'libraries/vcs/F8/inline_bankcall.s26') >= 0 && index($top, 'libraries/vcs/FA2/inline_bankcall.s26') >= 0
+(grep { index($top, "libraries/vcs/$_/inline_bankcall.s26") < 0 } @generic_mapper_dirs) == 0 &&
+index($top, 'libraries/vcs/FA2/inline_bankcall.s26') >= 0
    or die "maintained trampoline sources are not installed\n";
 
 system($^X, $generator, $as, $src, $fresh, 'GENERIC') == 0

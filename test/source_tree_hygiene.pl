@@ -204,7 +204,7 @@ index($bankswitching,'replicated entry/return block')>=0 &&
 index($bankswitching,'unchanged original 16-bit logical return PC')>=0 &&
 index($bankswitching,'consume no legacy per-target')>=0 &&
 index($bankswitching,'Done: F8/F8SC, F6/F6SC, F4/F4SC, FA, DPC, FA2-24, and FA2-28.')>=0 &&
-index($bankswitching,'DPC reuses the 80-byte `libraries/vcs/F8/inline_bankcall.s26` F8 geometry.')>=0 &&
+index($bankswitching,'F8/F8SC/F6/F6SC/F4/F4SC/FA/DPC each carry the same 80-byte mapper-local `inline_bankcall.s26`')>=0 &&
 index($bankswitching,'FA2')>=0 && index($bankswitching,'83 bytes / 84 reserved (`generic-jsr=$054`)')>=0 &&
 index($bankswitching,'JANE -- next; full-window/direct-select, but its four hotspot addresses are irregular.')>=0 &&
 index($bankswitching,'0840 -- then; two-bank selector accesses are read-only and below the cart window.')>=0 &&
@@ -595,8 +595,9 @@ index($fa2_24_profile,'$inline_bankcall')>=0 &&
 index($fa2_28_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&
 index($fa2_28_profile,'$inline_bankcall')>=0 &&
 index($fa2_example_make,'-DVCSC_INLINE_BANKCALL=1')>=0 &&
-index($top_make,'libraries/vcs/FA2/inline_bankcall.s26')>=0
-   or die "DPC/FA2 diagnostics lost inline-target bank-call opt-in or FA2 template packaging\n";
+index($top_make,'libraries/vcs/FA2/inline_bankcall.s26')>=0 &&
+index($top_make,'libraries/vcs/DPC/inline_bankcall.s26')>=0
+   or die "DPC/FA2 diagnostics lost inline-target bank-call opt-in or template packaging\n";
 my @mapper_dirs = qw(0840 0FA0 2K 3E 3F 4K 4KSC CV DPC E0 F4 F4SC F6 F6SC F8 F8SC FA FA2 FE JANE OMNI UA UASW WD);
 for my $mapper (@mapper_dirs) {
    $mapper =~ /^[A-Z0-9]+$/
@@ -616,13 +617,20 @@ for my $legacy (qw(
 !-d File::Spec->catdir($repo,'libraries','vcs','fa2')
    or die "lowercase libraries/vcs/fa2 mapper directory remains\n";
 -f File::Spec->catfile($repo,qw(libraries vcs F8 inline_bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs F8SC inline_bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs F6 inline_bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs F6SC inline_bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs F4 inline_bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs F4SC inline_bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs FA inline_bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs DPC inline_bankcall.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs FA2 inline_bankcall.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs 4KSC ram.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs FA ram.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs CV ram.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs DPC registers.c26))
    or die "mapper-specific support files are not contained by mapper directories\n";
-for my $profile (qw(2K/mapper.c26 CV/mapper.c26 4K/mapper.c26 4KSC/mapper.c26 F8/mapper.c26 0840/mapper.c26 UA/mapper.c26 UASW/mapper.c26 0FA0/mapper.c26 E0/mapper.c26 3F/mapper_8k.c26 3E/mapper_8k.c26 3F/mapper_16k.c26 3E/mapper_16k.c26 FA/mapper.c26 F6/mapper.c26 JANE/mapper.c26 F4/mapper.c26 F8SC/mapper.c26 F6SC/mapper.c26 F4SC/mapper.c26 vcs_direct_8k.c26 OMNI/mapper.c26)) {
+for my $profile (qw(2K/mapper.c26 CV/mapper.c26 4K/mapper.c26 4KSC/mapper.c26 F8/mapper.c26 0840/mapper.c26 UA/mapper.c26 UASW/mapper.c26 0FA0/mapper.c26 E0/mapper.c26 3F/mapper_8k.c26 3E/mapper_8k.c26 3F/mapper_16k.c26 3E/mapper_16k.c26 FA/mapper.c26 F6/mapper.c26 JANE/mapper.c26 F4/mapper.c26 F8SC/mapper.c26 F6SC/mapper.c26 F4SC/mapper.c26 OMNI/mapper.c26)) {
    -f File::Spec->catfile($repo,'libraries','vcs',$profile)
       or die "missing migrated C26 cartridge profile $profile\n";
    index($top_make,"libraries/vcs/$profile")>=0
@@ -723,7 +731,10 @@ index($top_make,'libraries/vcs/4KSC/mapper.cfg')>=0 &&
 -f File::Spec->catfile($test,'vcs_4ksc.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','04_4ksc','4ksc_diagnostic.c26')
    or die "4KSC profile/diagnostic support is missing installation or test coverage\n";
-my $direct_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs_direct_8k.c26'));
+my $direct_profile=slurp(File::Spec->catfile($repo,'test','vcs_direct_8k.c26'));
+!-e File::Spec->catfile($repo,'libraries','vcs','vcs_direct_8k.c26') &&
+index($top_make,'libraries/vcs/vcs_direct_8k.c26')<0
+   or die "synthetic direct-8K profile escaped test-only scope\n";
 my $omni_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','OMNI/mapper.c26'));
 index($direct_profile,'No real hardware currently supports this exact configuration')>=0 &&
 index($omni_profile,'No real hardware currently supports this configuration')>=0 &&
@@ -734,8 +745,7 @@ index($omni_profile,'mem cartram { $start:0x1000 $size:0x1000 $rw }')>=0 &&
 index($top_make,'libraries/vcs/OMNI/mapper.cfg')>=0 &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','05_omni','omni_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','05_omni','README.md')
-   or die "direct/OMNI certification profiles, simulator cfg, diagnostic, or hardware-status comments are incomplete
-";
+   or die "test-only direct/OMNI certification profiles, simulator cfg, diagnostic, or hardware-status comments are incomplete\n";
 -f File::Spec->catfile($repo,'libraries','vcs','vcs.cfg') &&
 index($top_make,'libraries/vcs/vcs.cfg')>=0
    or die "reduced vcs.cfg is missing from installation coverage\n";

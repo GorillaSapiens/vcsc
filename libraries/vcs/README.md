@@ -23,7 +23,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `CV/mapper.c26`, `CV/ram.c26` ... CommaVid CV fixed 2K ROM plus shared 1K split-address cartridge RAM; `CV/mapper.cfg` supplies simulator/compatibility mapping
 - `4K/mapper.c26` ... conventional unbanked 4K topology and allocatable ROM
 - `F8/mapper.c26`, `F6/mapper.c26`, `F4/mapper.c26` ... inspectable selector-controlled C26 profiles with exact output order and generated corridors
-- `F8/inline_bankcall.s26` ... maintained 6507 source for the normal/F8-style fixed inline-target cross-bank JSR/RTS trampoline; DPC reuses this selector geometry
+- `F8/`, `F8SC/`, `F6/`, `F6SC/`, `F4/`, `F4SC/`, `FA/`, and `DPC/` each carry an identical `inline_bankcall.s26` for the normal/F8-style fixed inline-target cross-bank JSR/RTS trampoline; the linker generates the shared template from the F8 copy and regressions require all copies to remain byte-identical
 - `FA2/inline_bankcall.s26` ... FA2-specific maintained trampoline source; same stack/inline-target ABI with reversed selector indexing for `$1FF5-$1FFB`
 - `0840/mapper.c26` ... 0840/EconoBanking two-bank 8K profile with below-cartridge selectors `$0800/$0840`; `0840/mapper.cfg` supplies simulator-only masked selector semantics
 - `UA/mapper.c26`, `UASW/mapper.c26` ... UA Limited 8K alias-decoded profiles; UA maps `$0220`-family accesses to bank 0 and `$0240`-family accesses to bank 1, while UASW swaps that association; their cfg files supply simulator-only masked selector semantics
@@ -37,7 +37,6 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `FA/mapper.c26`, `FA/ram.c26` ... CBS FA/RAM Plus three-bank profile with physical startup bank 2 and shared 256-byte split-address cartridge RAM
 - `FA2/mapper_24k.c26`, `FA2/mapper_28k.c26` ... FA2 six/seven-bank profiles with direct selectors `$1FF5-$1FFA/$1FFB`, physical startup bank 0, and the same shared 256-byte split-address cartridge RAM; matching cfg files support simulation. VCSC emits clean 24K/28K payloads; optional Harmony `$1FF4` persistence and 29K/32K wrapper forms are not part of the core profile.
 - `4KSC/mapper.c26`, `F8SC/mapper.c26`, `F6SC/mapper.c26`, `F4SC/mapper.c26` ... direct/banked Superchip profiles with a reserved physical prefix and shared split-address RAM
-- `vcs_direct_8k.c26` ... generic two-chunk directly mapped packaging profile used to certify selector-free output; no real hardware currently implements this exact mapping
 - `OMNI/mapper.c26` ... OmniCart/OMNI direct-addressing profile: seven directly addressed 4K RO islands plus one 4K RW island at `$1000`; `OMNI/mapper.cfg` gives `vcsc-sim` the matching selector-free logical layout; no real hardware currently implements OMNI
 - `*/mapper*.cfg` ... retained profile descriptions for simulator input and compatibility/differential certification; public builds use the C26 profiles
 - `color_ntsc.c26`, `color_pal.c26`, `color_secam.c26` ... readable standard-specific aliases backed by the compile-time RGB palette matchers

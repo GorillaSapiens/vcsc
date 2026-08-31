@@ -382,7 +382,7 @@ profiles keep 4K physical chunks while mapping ROM from physical offset `$0100`
 and declare the shared split-address RAM separately. FA also keeps complete 4K
 chunks but begins ROM at physical offset `$0200` because its 256-byte write and
 256-byte read RAM ports occupy the first 512 bytes. The selector-free
-`vcs_direct_8k.c26` profile proves that the same topology model also packages
+The test-only `test/vcs_direct_8k.c26` profile proves that the same topology model also packages
 directly mapped output chunks without hotspots or trampolines.
 
 The linker treats three identities as separate: the VCSC logical `BANKn`
@@ -518,8 +518,7 @@ JSR entry. The compiler emits one five-byte bundle at the call site:
 the fixed generic call block; it is not executed. The linker rewrites the JSR
 operand to the source bank's logical mirror of `__bankcall` while leaving the
 inline word as the target's distinct logical address. The normal-selector block is maintained as readable 6507 source in
-`libraries/vcs/F8/inline_bankcall.s26`; DPC reuses it because its two program banks
-have F8 selector geometry. FA2 uses `libraries/vcs/FA2/inline_bankcall.s26`,
+the byte-identical `inline_bankcall.s26` carried by each F8/F8SC/F6/F6SC/F4/F4SC/FA/DPC mapper directory; the linker generates its shared template from `libraries/vcs/F8/inline_bankcall.s26`. DPC uses the same bytes because its two program banks have F8 selector geometry. FA2 uses `libraries/vcs/FA2/inline_bankcall.s26`,
 which adds the reversed selector-index transform required by `$1FF5-$1FFB`. The linker build assembles that file into a
 compact byte/patch template; `vcsc-ld` only supplies `_vcsc_ptr0`, the mapper
 selector base, and the final replicated block address. The normal/DPC block reserves 80 bytes (`generic-jsr=$050`). The FA2-specific

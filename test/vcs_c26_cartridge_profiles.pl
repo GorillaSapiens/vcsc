@@ -38,6 +38,7 @@ my $tmp=shift @ARGV // die "usage: $0 REPO TMP\n";
 make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
+my $testlib=File::Spec->catdir($repo,'test');
 my $generic_cfg=File::Spec->catfile($vcs,'vcs.cfg');
 my $blank=File::Spec->catfile($repo,'examples','01_basic','01_blank_screen','blank_screen.c26');
 
@@ -342,7 +343,7 @@ void main(void) {
 SRC
 my $direct_bin=File::Spec->catfile($tmp,'direct.bin');
 my $direct_map=File::Spec->catfile($tmp,'direct.map');
-require_ok('build direct two-chunk C26 package',$driver,'-I',$vcs,
+require_ok('build direct two-chunk C26 package',$driver,'-I',$vcs,'-I',$testlib,
    '-T',$generic_cfg,'-Map',$direct_map,$direct_src,'-o',$direct_bin);
 -s $direct_bin==8192 or die "direct profile did not emit two physical 4K chunks\n";
 my $direct=read_file($direct_bin);
@@ -375,7 +376,7 @@ write_file($spill_src,
    "   asm \@forever:;\n   asm jmp \@forever;\n}\n");
 my $spill_bin=File::Spec->catfile($tmp,'direct_spill.bin');
 my $spill_map=File::Spec->catfile($tmp,'direct_spill.map');
-require_ok('build automatic direct-region spill',$driver,'-I',$vcs,
+require_ok('build automatic direct-region spill',$driver,'-I',$vcs,'-I',$testlib,
    '-T',$generic_cfg,'-Map',$spill_map,$spill_src,'-o',$spill_bin);
 my $smap=read_file($spill_map);
 $smap =~ /pinned\s+CODE\.__vcsc_function\$main\s+region=bank0/m

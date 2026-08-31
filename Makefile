@@ -175,6 +175,13 @@ install-data:
 	install -m 0644 libraries/vcs/4KSC/ram.c26 $(DESTDIR)$(DATADIR)/vcs/4KSC/ram.c26
 	install -m 0644 libraries/vcs/FA/ram.c26 $(DESTDIR)$(DATADIR)/vcs/FA/ram.c26
 	install -m 0644 libraries/vcs/F8/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F8/inline_bankcall.s26
+	install -m 0644 libraries/vcs/F8SC/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F8SC/inline_bankcall.s26
+	install -m 0644 libraries/vcs/F6/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F6/inline_bankcall.s26
+	install -m 0644 libraries/vcs/F6SC/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F6SC/inline_bankcall.s26
+	install -m 0644 libraries/vcs/F4/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F4/inline_bankcall.s26
+	install -m 0644 libraries/vcs/F4SC/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F4SC/inline_bankcall.s26
+	install -m 0644 libraries/vcs/FA/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/FA/inline_bankcall.s26
+	install -m 0644 libraries/vcs/DPC/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/DPC/inline_bankcall.s26
 	install -m 0644 libraries/vcs/FA2/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/FA2/inline_bankcall.s26
 	install -m 0644 libraries/vcs/CV/ram.c26 $(DESTDIR)$(DATADIR)/vcs/CV/ram.c26
 	install -m 0644 libraries/vcs/DPC/registers.c26 $(DESTDIR)$(DATADIR)/vcs/DPC/registers.c26
@@ -208,7 +215,6 @@ install-data:
 	install -m 0644 libraries/vcs/F8SC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F8SC/mapper.c26
 	install -m 0644 libraries/vcs/F6SC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F6SC/mapper.c26
 	install -m 0644 libraries/vcs/F4SC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F4SC/mapper.c26
-	install -m 0644 libraries/vcs/vcs_direct_8k.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_direct_8k.c26
 	install -m 0644 libraries/vcs/OMNI/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/OMNI/mapper.c26
 	install -m 0644 libraries/vcs/CV/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/CV/mapper.cfg
 	install -m 0644 libraries/vcs/4K/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/4K/mapper.cfg
@@ -357,6 +363,13 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/4KSC/ram.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/ram.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/F8/inline_bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F8SC/inline_bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F6/inline_bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F6SC/inline_bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F4/inline_bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F4SC/inline_bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/inline_bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/inline_bankcall.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/inline_bankcall.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/CV/ram.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/registers.c26
@@ -390,7 +403,6 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/F8SC/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/F6SC/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/F4SC/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_direct_8k.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/OMNI/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/CV/mapper.cfg
 	rm -f $(DESTDIR)$(DATADIR)/vcs/4K/mapper.cfg
@@ -643,7 +655,7 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" "$$stage_vcs/2K/mapper.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" -o "$(INSTALLCHECK_STAGING)/blank_screen_2k.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/blank_screen_2k.bin"` -eq 2048; \
-	for profile in vcs.cfg 2K/mapper.c26 CV/mapper.c26 4K/mapper.c26 4KSC/mapper.c26 F8/mapper.c26 0840/mapper.c26 UA/mapper.c26 UASW/mapper.c26 0FA0/mapper.c26 E0/mapper.c26 FE/mapper.c26 WD/mapper.c26 DPC/mapper.c26 3F/mapper_8k.c26 3E/mapper_8k.c26 3F/mapper_16k.c26 3E/mapper_16k.c26 FA/mapper.c26 FA2/mapper_24k.c26 FA2/mapper_28k.c26 F6/mapper.c26 JANE/mapper.c26 F4/mapper.c26 F8SC/mapper.c26 F6SC/mapper.c26 F4SC/mapper.c26 vcs_direct_8k.c26 OMNI/mapper.c26 FA/ram.c26 F8/inline_bankcall.s26 FA2/inline_bankcall.s26 CV/ram.c26 DPC/registers.c26; do test -f "$$stage_vcs/$$profile"; done; \
+	for profile in vcs.cfg 2K/mapper.c26 CV/mapper.c26 4K/mapper.c26 4KSC/mapper.c26 F8/mapper.c26 0840/mapper.c26 UA/mapper.c26 UASW/mapper.c26 0FA0/mapper.c26 E0/mapper.c26 FE/mapper.c26 WD/mapper.c26 DPC/mapper.c26 3F/mapper_8k.c26 3E/mapper_8k.c26 3F/mapper_16k.c26 3E/mapper_16k.c26 FA/mapper.c26 FA2/mapper_24k.c26 FA2/mapper_28k.c26 F6/mapper.c26 JANE/mapper.c26 F4/mapper.c26 F8SC/mapper.c26 F6SC/mapper.c26 F4SC/mapper.c26 OMNI/mapper.c26 FA/ram.c26 F8/inline_bankcall.s26 F8SC/inline_bankcall.s26 F6/inline_bankcall.s26 F6SC/inline_bankcall.s26 F4/inline_bankcall.s26 F4SC/inline_bankcall.s26 FA/inline_bankcall.s26 DPC/inline_bankcall.s26 FA2/inline_bankcall.s26 CV/ram.c26 DPC/registers.c26; do test -f "$$stage_vcs/$$profile"; done; \
 	test -f "$$stage_vcs/F8/mapper.cfg"; \
 	test -f "$$stage_vcs/FA/mapper.cfg"; test -f "$$stage_vcs/FA2/mapper_24k.cfg"; test -f "$$stage_vcs/FA2/mapper_28k.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" \
