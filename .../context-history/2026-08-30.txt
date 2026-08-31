@@ -257,3 +257,17 @@ Recorded the diagnostic-only inline-asm optimizer wart seen in F864 direct-JMP
 targets: inline TSX/STX currently suppresses size-changing peepholes for the whole
 function, so safe but redundant BNE-near/JMP-false/near:JMP-true sequences may
 remain.  This is an optimizer-locality cleanup, not unfinished bankswitching work.
+
+2026-08-30 20:38:30 PDT, bankcall trampoline moved to S26
+Moved the generic inline-target cross-bank JSR/RTS trampoline out of
+linker/vcsc_ld.c into maintained libraries/vcs/inline_bankcall.s26.  The linker
+build now assembles that source and generates a compact byte/patch template;
+vcsc-ld only patches _vcsc_ptr0, mapper selector base, and the internal JSR
+address when instantiating the replicated block.  The S26 payload remains 79
+bytes with an 80-byte reservation.
+
+F8/F6/F4(+SC) and FA diagnostic binaries are byte-for-byte identical before and
+after the refactor.  Added vcs_inline_bankcall_source.pl to regenerate the build
+template from the maintained S26 source and reject a stale generated header or a
+return to hand-emitted linker opcodes.  The source is installed with the other
+libraries/vcs support files.

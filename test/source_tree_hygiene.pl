@@ -206,7 +206,10 @@ index($bankswitching,'consume no legacy per-target')>=0 &&
 index($bankswitching,'BNE near / JMP false / near: JMP true')>=0 &&
 -f File::Spec->catfile($test,'vcs_bankswitching_inline_call_pages.pl') &&
 index(slurp(File::Spec->catfile($repo,'compiler','compile_call.c')),'.banktarget %s')>=0 &&
-index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'BANK_GENERIC_JSR_SIZE = 0x50')>=0 &&
+-f File::Spec->catfile($repo,qw(libraries vcs inline_bankcall.s26)) &&
+index(slurp(File::Spec->catfile($repo,qw(libraries vcs inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6050')>=0 &&
+index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'BANK_GENERIC_JSR_SIZE = VCSC_GENERIC_BANKCALL_RESERVED_SIZE')>=0 &&
+index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_generic_bankcall_template')>=0 &&
 index($bankswitching,'no ROM bank-identity')>=0 &&
 index($bankswitching,'reverse advance count as call-frame metadata')>=0 &&
 $bankswitching !~ /^\[ \] 42\./m &&

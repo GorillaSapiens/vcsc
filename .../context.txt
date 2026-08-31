@@ -101,7 +101,7 @@ Open workstreams
    is complete for `examples/09_bankswitching/01_f864` and `03_fa_ram_plus`,
    covering F8/F6/F4(+SC) and FA: `$inline_bankcall` (exposed by stock profiles through
    `VCSC_INLINE_BANKCALL`) enables five-byte JSR+target bundles using one
-   fixed 80-byte replicated entry/return block, with no per-target JSR entries.
+   fixed 80-byte replicated entry/return block sourced from `libraries/vcs/inline_bankcall.s26`, with no per-target JSR entries.
    The unchanged stacked logical caller PC identifies the source bank; return
    preserves A:X and RTSes directly to that logical PC. Page-edge and bank-end
    regressions lock carry-correct target/continuation math and indivisible layout

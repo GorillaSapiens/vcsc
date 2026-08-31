@@ -517,10 +517,13 @@ JSR entry. The compiler emits one five-byte bundle at the call site:
 `.banktarget` assembles to the inline `.word final_target` metadata consumed by
 the fixed generic call block; it is not executed. The linker rewrites the JSR
 operand to the source bank's logical mirror of `__bankcall` while leaving the
-inline word as the target's distinct logical address. The current generic block
-is 80 bytes total and is replicated byte-for-byte in every bank before any
-variable direct-JMP entries. The map reports this reservation as
-`generic-jsr=$050`; these calls create no `JSR entry=` records.
+inline word as the target's distinct logical address. The generic block is maintained as readable 6507 source in
+`libraries/vcs/inline_bankcall.s26`. The linker build assembles that file into a
+compact byte/patch template; `vcsc-ld` only supplies `_vcsc_ptr0`, the mapper
+selector base, and the final replicated block address. The block reserves 80
+bytes and is replicated byte-for-byte in every bank before any variable
+direct-JMP entries. The map reports this reservation as `generic-jsr=$050`;
+these calls create no `JSR entry=` records.
 
 `__bankcall` copies the real 16-bit logical JSR return PC from the hardware
 stack to a zero-page pointer, reads the following two target bytes through

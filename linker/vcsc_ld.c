@@ -21,6 +21,7 @@
 #include "vcsc_ld_input.h"
 #include "vcsc_ld_abi.h"
 #include "version.h"
+#include "generic_bankcall_template.h"
 
 /* One identical six-byte BIT/JMP entry for NMI, RESET, and IRQ/BRK. */
 enum {
@@ -33,7 +34,7 @@ enum {
    BANK_TRAMPOLINE_JSR = 2,
    BANK_JMP_ENTRY_SIZE = 8,
    BANK_JSR_ENTRY_SIZE = 15,
-   BANK_GENERIC_JSR_SIZE = 0x50
+   BANK_GENERIC_JSR_SIZE = VCSC_GENERIC_BANKCALL_RESERVED_SIZE
 };
 
 //! @brief Print the linker command-line usage text.
@@ -9689,94 +9690,44 @@ static void encode_bank_jsr_entry(uint8_t *table, size_t offset,
    table[offset + 14u] = (uint8_t)((entry->target_addr >> 8) & 0xFFu);
 }
 
-//! @brief Encode the fixed inline-target cross-bank JSR entry/return block.
+//! @brief Instantiate the maintained S26 inline-target bank-call template.
 static void encode_generic_bank_jsr_block(uint8_t *table,
                                           const linker_config_t *cfg,
                                           uint16_t canonical_base,
                                           uint16_t ptr0)
 {
-   size_t p = 0;
-   size_t r;
-   size_t jsr_operand;
-   size_t no_carry_branch;
+   size_t i;
    uint16_t selector_base = generic_bankcall_selector_base(cfg);
-   uint16_t body_addr;
-#define PUT(v) do { table[p++] = (uint8_t)(v); } while (0)
-#define PUT16(v) do { uint16_t _v=(uint16_t)(v); PUT(_v & 0xffu); PUT(_v >> 8); } while (0)
+   uint16_t switch_addr;
 
    if (ptr0 > 0x00feu) {
       fprintf(stderr, "vcsc-ld: generic bank-call scratch _vcsc_ptr0 must be a two-byte zero-page object, got $%04X\n", ptr0);
       exit(1);
    }
-
-   /* __bankcall.  Copy the real 16-bit logical JSR return PC to ptr0 without
-      adding anything.  (ptr0),Y then performs the page carry for us when the
-      inline target word starts at the next page. */
-   PUT(0xBA);                         /* TSX */
-   PUT(0xBD); PUT16(0x0101);          /* LDA $0101,X: saved return low */
-   PUT(0x85); PUT(ptr0);              /* STA ptr0 */
-   PUT(0xBD); PUT16(0x0102);          /* LDA saved return high */
-   PUT(0x85); PUT((uint8_t)(ptr0+1)); /* STA ptr0+1 */
-   PUT(0xA0); PUT(0x01);              /* LDY #1: first byte after JSR */
-   PUT(0xB1); PUT(ptr0);              /* LDA (ptr0),Y target low */
-   PUT(0x48);                         /* PHA target low */
-   PUT(0xC8);                         /* INY -> second target byte */
-   PUT(0xB1); PUT(ptr0);              /* LDA (ptr0),Y target high */
-   PUT(0x85); PUT((uint8_t)(ptr0+1)); /* target high replaces source pointer high */
-   PUT(0x68);                         /* PLA target low */
-   PUT(0x85); PUT(ptr0);              /* target low replaces source pointer low */
-
-   /* Advance the caller's saved return by two so its eventual RTS resumes
-      after the inline .word.  Propagate the carry into the high byte. */
-   PUT(0xBD); PUT16(0x0101);          /* saved return low */
-   PUT(0x18);                         /* CLC */
-   PUT(0x69); PUT(0x02);              /* +2 */
-   PUT(0x9D); PUT16(0x0101);          /* store saved return low */
-   PUT(0x90); no_carry_branch = p++;  /* BCC no_carry */
-   PUT(0xFE); PUT16(0x0102);          /* INC saved return high */
-   table[no_carry_branch] = 3u;       /* skip the three-byte INC */
-
-   /* A real JSR creates the synthetic return frame more compactly than
-      manually pushing a constant.  The callee's RTS comes back to the code
-      immediately following this JSR, where the generic return path starts. */
-   PUT(0x20); jsr_operand = p; PUT16(0); /* JSR switch_and_jump */
-
-   /* __bankreturn.  Preserve A:X result, inspect the original logical return
-      high byte beneath the saved registers, select that source bank, restore
-      A:X, then RTS directly to the unchanged logical continuation PC. */
-   PUT(0x48);                         /* PHA return A */
-   PUT(0x8A);                         /* TXA */
-   PUT(0x48);                         /* PHA return X */
-   PUT(0xBA);                         /* TSX */
-   PUT(0xBD); PUT16(0x0104);          /* LDA original saved return high */
-   for (r = 0; r < 5u; ++r) PUT(0x4A); /* high >> 5 = selector offset */
-   PUT(0xA8);                         /* TAY */
-   PUT(0xA9); PUT(0x00);              /* selector write value irrelevant */
-   PUT(0x99); PUT16(selector_base);    /* restore source bank */
-   PUT(0x68);                         /* PLA saved X into A */
-   PUT(0xAA);                         /* TAX */
-   PUT(0x68);                         /* PLA saved A */
-   PUT(0x60);                         /* RTS to logical caller continuation */
-
-   /* switch_and_jump.  The target high byte uses the same logical-ORG
-      encoding, so high>>5 directly indexes the mapper's selector run. */
-   body_addr = (uint16_t)(canonical_base + p);
-   table[jsr_operand + 0u] = (uint8_t)(body_addr & 0xffu);
-   table[jsr_operand + 1u] = (uint8_t)(body_addr >> 8);
-   PUT(0xA5); PUT((uint8_t)(ptr0+1)); /* LDA target high */
-   for (r = 0; r < 5u; ++r) PUT(0x4A);
-   PUT(0xA8);                         /* TAY */
-   PUT(0xA9); PUT(0x00);
-   PUT(0x99); PUT16(selector_base);    /* select destination bank */
-   PUT(0x6C); PUT16(ptr0);             /* JMP (ptr0) logical target */
-
-   if (p > BANK_GENERIC_JSR_SIZE) {
-      fprintf(stderr, "vcsc-ld: internal error: generic bank-call block needs %zu bytes but only $%02X are reserved\n",
-              p, BANK_GENERIC_JSR_SIZE);
+   if (VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE > BANK_GENERIC_JSR_SIZE) {
+      fprintf(stderr,
+              "vcsc-ld: internal error: assembled generic bank-call template needs %u bytes but only $%02X are reserved\n",
+              (unsigned)VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE, BANK_GENERIC_JSR_SIZE);
       exit(1);
    }
-#undef PUT16
-#undef PUT
+
+   memcpy(table, vcsc_generic_bankcall_template, VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE);
+
+   for (i = 0; i < VCSC_GENERIC_BANKCALL_PTR_PATCH_COUNT; ++i) {
+      const vcsc_generic_bankcall_ptr_patch_t *patch = &vcsc_generic_bankcall_ptr_patches[i];
+      table[patch->offset] = (uint8_t)(ptr0 + patch->delta);
+   }
+   for (i = 0; i < VCSC_GENERIC_BANKCALL_SELECTOR_PATCH_COUNT; ++i) {
+      uint8_t off = vcsc_generic_bankcall_selector_patches[i];
+      table[off + 0u] = (uint8_t)(selector_base & 0xffu);
+      table[off + 1u] = (uint8_t)(selector_base >> 8);
+   }
+
+   switch_addr = (uint16_t)(canonical_base + VCSC_GENERIC_BANKCALL_SWITCH_OFFSET);
+   table[VCSC_GENERIC_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET + 0u] =
+      (uint8_t)(switch_addr & 0xffu);
+   table[VCSC_GENERIC_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET + 1u] =
+      (uint8_t)(switch_addr >> 8);
 }
 
 //! @brief Handle build init table image logic for linker layout and image writer.

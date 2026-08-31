@@ -173,6 +173,7 @@ install-data:
 	install -m 0644 libraries/vcs/sound_secam.c26 $(DESTDIR)$(DATADIR)/vcs/sound_secam.c26
 	install -m 0644 libraries/vcs/superchip.c26 $(DESTDIR)$(DATADIR)/vcs/superchip.c26
 	install -m 0644 libraries/vcs/fa_ram_plus.c26 $(DESTDIR)$(DATADIR)/vcs/fa_ram_plus.c26
+	install -m 0644 libraries/vcs/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/inline_bankcall.s26
 	install -m 0644 libraries/vcs/commavid.c26 $(DESTDIR)$(DATADIR)/vcs/commavid.c26
 	install -m 0644 libraries/vcs/dpc.c26 $(DESTDIR)$(DATADIR)/vcs/dpc.c26
 	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
@@ -353,6 +354,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_secam.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/superchip.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/fa_ram_plus.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/inline_bankcall.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/commavid.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/dpc.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.c26
@@ -637,7 +639,7 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" "$$stage_vcs/vcs_2k.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" -o "$(INSTALLCHECK_STAGING)/blank_screen_2k.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/blank_screen_2k.bin"` -eq 2048; \
-	for profile in vcs.cfg vcs_2k.c26 vcs_2k_cv.c26 vcs_4k.c26 vcs_4k_sc.c26 vcs_8k_f8.c26 vcs_8k_0840.c26 vcs_8k_ua.c26 vcs_8k_uasw.c26 vcs_8k_0fa0.c26 vcs_8k_e0.c26 vcs_8k_fe.c26 vcs_8k_wd.c26 vcs_10k_dpc.c26 vcs_8k_3f.c26 vcs_8k_3e.c26 vcs_16k_3f.c26 vcs_16k_3e.c26 vcs_12k_fa.c26 vcs_24k_fa2.c26 vcs_28k_fa2.c26 vcs_16k_f6.c26 vcs_16k_jane.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26 vcs_omni_32k.c26 fa_ram_plus.c26 commavid.c26 dpc.c26; do test -f "$$stage_vcs/$$profile"; done; \
+	for profile in vcs.cfg vcs_2k.c26 vcs_2k_cv.c26 vcs_4k.c26 vcs_4k_sc.c26 vcs_8k_f8.c26 vcs_8k_0840.c26 vcs_8k_ua.c26 vcs_8k_uasw.c26 vcs_8k_0fa0.c26 vcs_8k_e0.c26 vcs_8k_fe.c26 vcs_8k_wd.c26 vcs_10k_dpc.c26 vcs_8k_3f.c26 vcs_8k_3e.c26 vcs_16k_3f.c26 vcs_16k_3e.c26 vcs_12k_fa.c26 vcs_24k_fa2.c26 vcs_28k_fa2.c26 vcs_16k_f6.c26 vcs_16k_jane.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26 vcs_omni_32k.c26 fa_ram_plus.c26 inline_bankcall.s26 commavid.c26 dpc.c26; do test -f "$$stage_vcs/$$profile"; done; \
 	test -f "$$stage_vcs/vcs_8k_f8.cfg"; \
 	test -f "$$stage_vcs/vcs_12k_fa.cfg"; test -f "$$stage_vcs/vcs_24k_fa2.cfg"; test -f "$$stage_vcs/vcs_28k_fa2.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" \
