@@ -257,3 +257,26 @@ UA/UASW and 0FA0 before FC/F0.
 - Removed PC-derived bank decoding and the VCSC_INLINE_BANKCALL pilot define. The fixed block is now 69 bytes with 72 reserved ($048), recovering 8 bytes per bank / 16 bytes per 8K image.
 - 0840 tests now lock destination descriptor payloads, the single baked source-descriptor difference between copies, ordered 2x2 calls, nesting, A:X/stack behavior, simulator/disassembler round trip, and zero per-target JSR entries.
 - Validation: 503/503 compile-only passed; e2e 1-236 passed in the broad run and exact remaining 106/106 passed in bounded reruns. UA/UASW is next.
+
+2026-08-31 16:34:43 PDT, migrate UA/UASW descriptor bankcalls
+UA and UASW now consume the public three-byte linked bankcall descriptor ABI end
+to end. Their profiles declare `$inline_bankcall` unconditionally and use selector
+offsets from `$0200` as descriptors: UA bank0/bank1 are `$20/$40`; UASW reverses
+them to `$40/$20`. Destination and return selection use indexed `LDA $0200,Y`;
+each replicated trampoline copy has its source descriptor baked in and carries
+that byte on the hardware stack. The old logical-PC bit decoding is removed.
+
+Both fixed bankcall blocks are 69 bytes with 72 reserved (`$048`), down from the
+80-byte reservation class and recovering 8 bytes per bank / 16 bytes per 8K
+image. The example and broad call-matrix harness no longer need the
+`VCSC_INLINE_BANKCALL` pilot define. Regression coverage locks destination
+payload descriptors, the single baked source-descriptor difference between bank
+copies, read-only selector access, same-bank ordinary JSRs, nested/A:X/stack
+behavior, alias semantics, disassembly round trip, and zero per-target JSR
+entries.
+
+Validation completed with 503/503 compile-only tests and all 342 e2e cases green.
+The monolithic e2e run reached test 245 before the outer execution cap; the
+remaining exact runner list was completed in bounded batches, with the slow
+diagnostic paddle regression run independently. 0FA0 is the next descriptor
+migration target, followed by FC and F0.

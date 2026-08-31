@@ -371,8 +371,9 @@ and byte-exact round trip.
 
 `vcs_ua.pl` certifies both public UA Limited variants. It locks the masked
 `(A & $1260)` alias decoder, ordinary UA `$0220->$0`/`$0240->$1` association,
-UASW's reversed association, bank-0 power-on behavior, read-only generated
-selector bridges, reset recovery from either bank, and explicit `$02A0/$02C0`
+UASW's reversed association, `$20/$40` descriptor payloads and baked source
+descriptors, bank-0 power-on behavior, read-only generated selector bridges,
+reset recovery from either bank, and explicit `$02A0/$02C0`
 read/write alias switching while preserving the underlying low-memory write. It
 also verifies `UA\0\0`/`UASW` signatures, disassembler inference, and byte-exact
 round trips.

@@ -215,16 +215,16 @@ for my $p (@profiles) {
          or die "0840 map does not preserve selector/file order\n";
    }
    if ($name eq 'UA') {
-      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x0220\s+\$startup/s &&
-      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x0240/s
+      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x0220\s+\$bankcall_descriptor:0x20\s+\$startup/s &&
+      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x0240\s+\$bankcall_descriptor:0x40/s
          or die "UA profile does not preserve alias-family selectors/startup bank\n";
       $map =~ /^\s+bank0\s+file-index=0\b.*select-access=\$0220.*startup=yes/m &&
       $map =~ /^\s+bank1\s+file-index=1\b.*select-access=\$0240/m
          or die "UA map does not preserve selector/file order\n";
    }
    if ($name eq 'UASW') {
-      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x0240\s+\$startup/s &&
-      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x0220/s
+      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x0240\s+\$bankcall_descriptor:0x40\s+\$startup/s &&
+      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x0220\s+\$bankcall_descriptor:0x20/s
          or die "UASW profile does not preserve swapped selectors/startup bank\n";
       $map =~ /^\s+bank0\s+file-index=0\b.*select-access=\$0240.*startup=yes/m &&
       $map =~ /^\s+bank1\s+file-index=1\b.*select-access=\$0220/m

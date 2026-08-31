@@ -16,12 +16,11 @@ shared ABI.
 
 The descriptor ABI in this document is the public ABI for `$inline_bankcall`.
 The compiler, assembler, and linker emit the three-byte `.banktarget` field.
-F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, FA2-24/28, JANE, and 0840 are fully
+F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, FA2-24/28, JANE, 0840, UA, and UASW are fully
 migrated: their bank-local trampolines consume the destination descriptor
-directly and carry a baked source descriptor on the hardware stack. UA/UASW
-and 0FA0 remain temporary compatibility implementations: they skip the third
-payload byte but still use their older PC-derived selector logic until
-converted.
+directly and carry a baked source descriptor on the hardware stack. 0FA0
+remains a temporary compatibility implementation: it skips the third payload
+byte but still uses its older PC-derived selector logic until converted.
 
 No new mapper should be designed around the old PC-derived form.
 

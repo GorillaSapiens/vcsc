@@ -220,9 +220,9 @@ index(slurp(File::Spec->catfile($repo,qw(libraries vcs JANE inline_bankcall.s26)
 -f File::Spec->catfile($repo,qw(libraries vcs 0840 inline_bankcall.s26)) &&
 index(slurp(File::Spec->catfile($repo,qw(libraries vcs 0840 inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6048')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs UA inline_bankcall.s26)) &&
-index(slurp(File::Spec->catfile($repo,qw(libraries vcs UA inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6050')>=0 &&
+index(slurp(File::Spec->catfile($repo,qw(libraries vcs UA inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6048')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs UASW inline_bankcall.s26)) &&
-index(slurp(File::Spec->catfile($repo,qw(libraries vcs UASW inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6050')>=0 &&
+index(slurp(File::Spec->catfile($repo,qw(libraries vcs UASW inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6048')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs 0FA0 inline_bankcall.s26)) &&
 index(slurp(File::Spec->catfile($repo,qw(libraries vcs 0FA0 inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6050')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'generic_bankcall_reserved_size')>=0 &&
@@ -234,7 +234,7 @@ index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_ua_bankcall_t
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_uasw_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m0fa0_bankcall_template')>=0 &&
 index($bankswitching,'F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,')>=0 &&
-index($bankswitching,'FA2-24/28, JANE, and 0840 consume it end to end')>=0 &&
+index($bankswitching,'FA2-24/28, JANE, 0840, UA, and UASW consume it end to end')>=0 &&
 index($bankswitching,'[ ] 37. Finish descriptor-ABI conversion of existing inline mappers')>=0 &&
 $bankswitching !~ /^\[ \] 42\./m &&
 $bankswitching !~ /^\[ \] 43\./m &&
@@ -636,11 +636,15 @@ index($m0840_profile,'$bankcall_descriptor:0x00')>=0 &&
 index($m0840_profile,'$bankcall_descriptor:0x40')>=0 &&
 index($m0840_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
 index($top_make,'libraries/vcs/0840/inline_bankcall.s26')>=0 &&
-index($ua_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&
 index($ua_profile,'$inline_bankcall')>=0 &&
-index($uasw_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&
+index($ua_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
+index($ua_profile,'$bankcall_descriptor:0x20')>=0 &&
+index($ua_profile,'$bankcall_descriptor:0x40')>=0 &&
 index($uasw_profile,'$inline_bankcall')>=0 &&
-index($ua_example_make,'-DVCSC_INLINE_BANKCALL=1')>=0 &&
+index($uasw_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
+index($uasw_profile,'$bankcall_descriptor:0x40')>=0 &&
+index($uasw_profile,'$bankcall_descriptor:0x20')>=0 &&
+index($ua_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
 index($top_make,'libraries/vcs/UA/inline_bankcall.s26')>=0 &&
 index($top_make,'libraries/vcs/UASW/inline_bankcall.s26')>=0 &&
 index($m0fa0_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&

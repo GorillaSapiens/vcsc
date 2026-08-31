@@ -82,13 +82,13 @@ my @variants=(
    {
       name=>'ua', mapper=>'UA', profile=>'UA/mapper.c26', cfg=>'UA/mapper.cfg',
       source=>'ua_diagnostic.c26', signature=>"UA\0\0",
-      bank0=>0x0220, bank1=>0x0240, alias0=>0x02A0, alias1=>0x02C0,
+      bank0=>0x0220, bank1=>0x0240, desc0=>0x20, desc1=>0x40, alias0=>0x02A0, alias1=>0x02C0,
       selector_comment=>qr/^; UA selectors: \(A & \$1260\)==\$0220->\$0, ==\$0240->\$1; aliases include \$02A0\/\$02C0; bank 0 powers up$/m,
    },
    {
       name=>'uasw', mapper=>'UASW', profile=>'UASW/mapper.c26', cfg=>'UASW/mapper.cfg',
       source=>'uasw_diagnostic.c26', signature=>'UASW',
-      bank0=>0x0240, bank1=>0x0220, alias0=>0x02C0, alias1=>0x02A0,
+      bank0=>0x0240, bank1=>0x0220, desc0=>0x40, desc1=>0x20, alias0=>0x02C0, alias1=>0x02A0,
       selector_comment=>qr/^; UASW selectors: UA alias decoder with swapped association \(\$0220->\$1, \$0240->\$0\); bank 0 powers up$/m,
    },
 );
@@ -99,11 +99,16 @@ for my $v (@variants) {
    my $source=File::Spec->catfile($example_dir,$v->{source});
    my $pt=read_file($profile);
    my $sig=$v->{mapper} eq 'UA' ? 'UA' : 'UASW';
+   my $select0=sprintf('%04x',$v->{bank0});
+   my $select1=sprintf('%04x',$v->{bank1});
+   my $desc0=sprintf('%02x',$v->{desc0});
+   my $desc1=sprintf('%02x',$v->{desc1});
    $pt =~ /\$signature:\Q$sig\E\b/ &&
-   $pt =~ /\$inline_bankcall/ &&
-   $pt =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x[0-9a-fA-F]+\s+\$startup/s &&
-   $pt =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x[0-9a-fA-F]+/s
-      or die "$v->{mapper} profile topology/startup contract is wrong\n";
+   $pt =~ /cartridge\s*\{\s*\$inline_bankcall/s &&
+   index($pt,'VCSC_INLINE_BANKCALL') < 0 &&
+   $pt =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x\Q$select0\E\s+\$bankcall_descriptor:0x\Q$desc0\E\s+\$startup/s &&
+   $pt =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x\Q$select1\E\s+\$bankcall_descriptor:0x\Q$desc1\E/s
+      or die "$v->{mapper} descriptor profile topology/startup contract is wrong\n";
    my $ct=read_file($cfg);
    $ct =~ /mapper\s*=\s*\Q$v->{mapper}\E/ &&
    $ct =~ /BANK0:.*hotspot\s*=\s*\$[0-9A-Fa-f]+.*fileindex\s*=\s*0.*startup\s*=\s*yes/is &&
@@ -112,7 +117,7 @@ for my $v (@variants) {
 
    my $bin=File::Spec->catfile($tmp,"$v->{name}.bin");
    my $map=File::Spec->catfile($tmp,"$v->{name}.map");
-   require_ok("build $v->{mapper} simulator diagnostic",$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-DSIMULATOR_TEST',
+   require_ok("build $v->{mapper} simulator diagnostic",$driver,'-I',$vcs,'-DSIMULATOR_TEST',
       '-T',$generic,'-Map',$map,$source,'-o',$bin);
    -s $bin==8192 or die "$v->{mapper} output size is not 8K\n";
    my $rom=read_file($bin);
@@ -131,13 +136,30 @@ for my $v (@variants) {
       substr($bridge,$off,4) eq pack('C*',0x0c,$lo,$hi,0x4c)
          or die sprintf("%s vector bridge does not use NOP-read \$%04X; JMP\n",$v->{mapper},$v->{bank0});
    }
-   my $tramp=substr($rom,0x0f00,0x0050) . substr($rom,4096+0x0f00,0x0050);
-   index($tramp,pack('C*',0xB9,0x20,0x02))>=0
-      or die "$v->{mapper} inline bank-call block does not use indexed read selectors from \$0220\n";
-   index($tramp,pack('C*',0x99,0x20,0x02))<0 && index($tramp,pack('C*',0x9D,0x20,0x02))<0
-      or die "$v->{mapper} inline bank-call block writes its below-window selector family\n";
-
    my $lst=$bin; $lst =~ s/\.bin\z/.lst/; $lst=read_file($lst);
+   my @descriptor=($v->{desc0},$v->{desc1});
+   for my $destination (0..1) {
+      my $desc=sprintf('%02x',$descriptor[$destination]);
+      my $count=()=$lst =~ /^\s*\d+\s+[0-9a-f]{4}\s+[0-9a-f]{2}\s+[0-9a-f]{2}\s+\Q$desc\E\s+; \.banktarget call_target\Q$destination\E\b/gmi;
+      $count==1
+         or die "$v->{mapper} destination bank $destination descriptor payload count is $count, expected 1\n";
+   }
+   my @trampoline=map { substr($rom,$_ * 4096 + 0x0f00,0x48) } 0..1;
+   my @source_diff=grep {
+      my $off=$_;
+      ord(substr($trampoline[0],$off,1)) != ord(substr($trampoline[1],$off,1));
+   } 0..0x47;
+   @source_diff==1
+      or die "$v->{mapper} descriptor trampoline copies do not differ at exactly one source-descriptor byte\n";
+   for my $bank (0..1) {
+      ord(substr($trampoline[$bank],$source_diff[0],1))==$descriptor[$bank]
+         or die sprintf("%s bank %d baked source descriptor is not \$%02X\n",$v->{mapper},$bank,$descriptor[$bank]);
+      (()=$trampoline[$bank] =~ /\xB9\x00\x02/sg)>=2 &&
+      index($trampoline[$bank],pack('C*',0x99,0x00,0x02))<0 &&
+      index($trampoline[$bank],pack('C*',0x9D,0x00,0x02))<0
+         or die "$v->{mapper} inline bank-call block does not use read-only descriptor selectors from \$0200\n";
+   }
+
    $lst =~ /\[bank bank0\] \| call_return := call_target0\(\);\n[^\n]*; JSR call_target0[^\n]*\n(?![^\n]*\.banktarget)/ &&
    $lst =~ /\[bank bank0\] \| call_return := call_target1\(\);\n[^\n]*; JSR call_target1[^\n]*\n[^\n]*; \.banktarget call_target1/ &&
    $lst =~ /\[bank bank1\] \| call_return := call_target0\(\);\n[^\n]*; JSR call_target0[^\n]*\n[^\n]*; \.banktarget call_target0/ &&
@@ -148,7 +170,7 @@ for my $v (@variants) {
    $m =~ /^\s+bank0\s+file-index=0\b.*mode=selector\s+select-access=\$[0-9A-Fa-f]{4}\s+startup=yes/m &&
    $m =~ /^\s+bank1\s+file-index=1\b.*mode=selector\s+select-access=\$[0-9A-Fa-f]{4}/m &&
    $m =~ /^TRAMPOLINES$/m &&
-   $m =~ /generic-jsr=\$050\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
+   $m =~ /generic-jsr=\$048\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
    $m !~ /JSR entry=/
       or die "$v->{mapper} map topology/inline-trampoline contract is wrong\n$m";
    my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure call_count nested_count);
@@ -185,7 +207,7 @@ for my $v (@variants) {
       or die "$v->{mapper} alias read/write switching or underlying write-through failed\n";
 
    my $visible=File::Spec->catfile($tmp,"$v->{name}-visible.bin");
-   require_ok("build visible $v->{mapper} PASS/FAIL cartridge",$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,$source,'-o',$visible);
+   require_ok("build visible $v->{mapper} PASS/FAIL cartridge",$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
    my $vrom=read_file($visible);
    length($vrom)==8192 && substr($vrom,4096+0x0ff8,4) eq $v->{signature}
       or die "$v->{mapper} visible diagnostic lost its signature/layout\n";

@@ -9173,17 +9173,21 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
       const topology_bank_t *bank1 = c26_topology_bank_by_file_index(cfg, 1u);
       uint16_t expected0 = ua ? 0x0220u : 0x0240u;
       uint16_t expected1 = ua ? 0x0240u : 0x0220u;
+      uint8_t descriptor0 = ua ? 0x20u : 0x40u;
+      uint8_t descriptor1 = ua ? 0x40u : 0x20u;
       const char *name = ua ? "UA" : "UASW";
       if (!bank0 || !bank1 || bank0->data_only || bank1->data_only ||
           bank0->link_start != 0xf000u || bank1->link_start != 0xd000u ||
           !bank0->has_selector || bank0->select_access != expected0 ||
-          !bank1->has_selector || bank1->select_access != expected1) {
+          !bank0->has_bankcall_descriptor || bank0->bankcall_descriptor != descriptor0 ||
+          !bank1->has_selector || bank1->select_access != expected1 ||
+          !bank1->has_bankcall_descriptor || bank1->bankcall_descriptor != descriptor1) {
          fprintf(stderr,
-                 "vcsc-ld: %s inline-target bank calls require logical bank0 $Fxxx -> $%04X and bank1 $Dxxx -> $%04X\n",
-                 name, expected0, expected1);
+                 "vcsc-ld: %s inline-target bank calls require logical bank0 $Fxxx -> $%04X descriptor $%02X and bank1 $Dxxx -> $%04X descriptor $%02X\n",
+                 name, expected0, descriptor0, expected1, descriptor1);
          exit(1);
       }
-      return 0x0220u;
+      return 0x0200u;
    }
 
    if (m0fa0) {

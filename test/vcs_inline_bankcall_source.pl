@@ -113,14 +113,20 @@ index($m0840_s26, 'adc #3') >= 0 &&
 index($m0840_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
    or die "maintained 0840 trampoline source lacks descriptor read-selector ABI\n";
 index($ua_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
-index($ua_s26, 'eor #$20') >= 0 && index($ua_s26, 'and #$20') >= 0 &&
-index($ua_s26, '__vcsc_generic_bankcall_reserved_end = $6050') >= 0
-   or die "maintained UA trampoline source lacks swapped-PC read-selector transform
+index($ua_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
+index($ua_s26, 'VCSC_BANKCALL_SELECTOR_BASE = $0200') >= 0 &&
+index($ua_s26, 'eor #$20') < 0 && index($ua_s26, 'and #$20') < 0 &&
+index($ua_s26, 'adc #3') >= 0 &&
+index($ua_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
+   or die "maintained UA trampoline source lacks descriptor read-selector ABI
 ";
 index($uasw_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
-index($uasw_s26, 'eor #$20') < 0 && index($uasw_s26, 'and #$20') >= 0 &&
-index($uasw_s26, '__vcsc_generic_bankcall_reserved_end = $6050') >= 0
-   or die "maintained UASW trampoline source lacks direct-PC read-selector transform
+index($uasw_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
+index($uasw_s26, 'VCSC_BANKCALL_SELECTOR_BASE = $0200') >= 0 &&
+index($uasw_s26, 'eor #$20') < 0 && index($uasw_s26, 'and #$20') < 0 &&
+index($uasw_s26, 'adc #3') >= 0 &&
+index($uasw_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
+   or die "maintained UASW trampoline source lacks descriptor read-selector ABI
 ";
 index($m0fa0_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
 index($m0fa0_s26, 'eor #$20') < 0 && index($m0fa0_s26, 'and #$20') >= 0 &&
@@ -208,19 +214,15 @@ $m0840_header =~ /VCSC_M0840_BANKCALL_TEMPLATE_SIZE 0x45u/
 $m0840_header =~ /VCSC_M0840_BANKCALL_RESERVED_SIZE 0x48u/
    or die "0840 descriptor trampoline reservation is no longer 72 bytes\n";
 my $ua_header = read_file($ua_built);
-$ua_header =~ /VCSC_UA_BANKCALL_TEMPLATE_SIZE 0x49u/
-   or die "UA trampoline payload is no longer 73 bytes
-";
-$ua_header =~ /VCSC_UA_BANKCALL_RESERVED_SIZE 0x50u/
-   or die "UA trampoline reservation is no longer 80 bytes
-";
+$ua_header =~ /VCSC_UA_BANKCALL_TEMPLATE_SIZE 0x45u/
+   or die "UA descriptor trampoline payload is no longer 69 bytes\n";
+$ua_header =~ /VCSC_UA_BANKCALL_RESERVED_SIZE 0x48u/
+   or die "UA descriptor trampoline reservation is no longer 72 bytes\n";
 my $uasw_header = read_file($uasw_built);
 $uasw_header =~ /VCSC_UASW_BANKCALL_TEMPLATE_SIZE 0x45u/
-   or die "UASW trampoline payload is no longer 69 bytes
-";
-$uasw_header =~ /VCSC_UASW_BANKCALL_RESERVED_SIZE 0x50u/
-   or die "UASW trampoline reservation is no longer 80 bytes
-";
+   or die "UASW descriptor trampoline payload is no longer 69 bytes\n";
+$uasw_header =~ /VCSC_UASW_BANKCALL_RESERVED_SIZE 0x48u/
+   or die "UASW descriptor trampoline reservation is no longer 72 bytes\n";
 my $m0fa0_header = read_file($m0fa0_built);
 $m0fa0_header =~ /VCSC_M0FA0_BANKCALL_TEMPLATE_SIZE 0x45u/
    or die "0FA0 trampoline payload is no longer 69 bytes

@@ -30,14 +30,15 @@ association reversed:
 ```
 
 Because these selectors overlap console devices below `$1000`, VCSC-generated
-bank transitions use the state-preserving NMOS absolute NOP read rather than a
-store. Reads and writes made by user code to selector aliases still reach the
-underlying console device while also changing the selected ROM bank.
+bank transitions are read-only. Vector bridges use the state-preserving NMOS
+absolute NOP read, while descriptor bank calls use indexed `LDA $0200,Y`. Reads
+and writes made by user code to selector aliases still reach the underlying
+console device while also changing the selected ROM bank.
 
 Both self-tests execute the complete ordered call matrix: `0->0`, `0->1`,
-`1->0`, and `1->1`. The same-bank legs are ordinary JSRs; the cross-bank legs
-currently use the fixed pre-migration inline-target implementation and verify
-return values, restored bank, and hardware-stack balance. The target ABI is
+`1->0`, and `1->1`. The same-bank legs are ordinary JSRs; the cross-bank legs use the descriptor
+ABI with `$20/$40` selector offsets (reversed for UASW) and verify return values,
+restored bank, and hardware-stack balance. The ABI is
 [`../../../BANKSWITCHING.md`](../../../BANKSWITCHING.md). One nested cross-bank call additionally checks that
 independent return frames compose correctly. A large green `pass` with `UA` or
 `UASW` underneath means the selected hardware profile behaved as expected; red
