@@ -188,6 +188,19 @@ an actual indirect JMP; NMOS indirect-JMP page-wrap validation remains independe
 The fixed generic block, not the old 224-byte corridor size, is the durable JSR
 ABI. Cross-bank JMPs remain a separate per-target mechanism for now.
 
+Inline-bankcall migration queue -- finish this before adding FC/F0:
+Done: F8/F8SC, F6/F6SC, F4/F4SC, and FA.
+[ ] DPC -- next; its two program banks have the same selector geometry as F8.
+[ ] FA2 24K/28K -- then; direct contiguous selectors, but opposite selector order.
+[ ] JANE -- then; full-window/direct-select, but its four hotspot addresses are irregular.
+[ ] 0840 -- then; two-bank selector accesses are read-only and below the cart window.
+[ ] UA/UASW -- then together; same two-bank read-hotspot mechanism with swapped mapping.
+[ ] 0FA0 -- last existing migration; same read-hotspot class with its masked aliases.
+Do not force FE, E0, 3F, 3E, WD, OMNI, CV, or 4KSC through this migration:
+their latch/window/direct-memory contracts either need mapper-specific calls or no
+cross-bank call trampoline at all. After the queue is green, implement FC then F0
+using the inline-target ABI from the start rather than creating new legacy debt.
+
 Diagnostic-only optimizer wart: the F864 direct-JMP targets contain tiny inline
 `TSX/STX` stack probes. Current compiler safety policy disables size-changing
 control-flow peepholes for an entire function containing inline asm, so generated

@@ -271,3 +271,15 @@ after the refactor.  Added vcs_inline_bankcall_source.pl to regenerate the build
 template from the maintained S26 source and reject a stale generated header or a
 return to hand-emitted linker opcodes.  The source is installed with the other
 libraries/vcs support files.
+
+
+2026-08-30 20:57:00 PDT, inline-bankcall migration order
+Recorded the remaining migration order after completing F8/F8SC/F6/F6SC/F4/F4SC
+and FA: DPC -> FA2 24K/28K -> JANE -> 0840 -> UA/UASW -> 0FA0. DPC goes first
+because its program-bank selector geometry already matches F8; FA2 is next but
+needs the opposite contiguous-selector direction; JANE needs irregular direct
+hotspot selection; the final 0840/UA/UASW/0FA0 group needs the read-only
+below-cartridge selector form. FE/E0/3F/3E/WD/OMNI/CV/4KSC are explicitly not
+part of this generic full-window migration. Finish these existing migrations
+before implementing new FC then F0 support so those mappers start on the inline
+ABI rather than acquiring legacy per-target JSR debt.

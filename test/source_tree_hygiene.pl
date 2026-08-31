@@ -203,6 +203,12 @@ index($bankswitching,'80-byte')>=0 &&
 index($bankswitching,'replicated entry/return block')>=0 &&
 index($bankswitching,'unchanged original 16-bit logical return PC')>=0 &&
 index($bankswitching,'consume no legacy per-target')>=0 &&
+index($bankswitching,'DPC -- next; its two program banks have the same selector geometry as F8.')>=0 &&
+index($bankswitching,'FA2 24K/28K -- then; direct contiguous selectors, but opposite selector order.')>=0 &&
+index($bankswitching,'JANE -- then; full-window/direct-select, but its four hotspot addresses are irregular.')>=0 &&
+index($bankswitching,'0840 -- then; two-bank selector accesses are read-only and below the cart window.')>=0 &&
+index($bankswitching,'UA/UASW -- then together; same two-bank read-hotspot mechanism with swapped mapping.')>=0 &&
+index($bankswitching,'0FA0 -- last existing migration; same read-hotspot class with its masked aliases.')>=0 &&
 index($bankswitching,'BNE near / JMP false / near: JMP true')>=0 &&
 -f File::Spec->catfile($test,'vcs_bankswitching_inline_call_pages.pl') &&
 index(slurp(File::Spec->catfile($repo,'compiler','compile_call.c')),'.banktarget %s')>=0 &&

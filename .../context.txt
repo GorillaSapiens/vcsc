@@ -106,7 +106,9 @@ Open workstreams
    preserves A:X and RTSes directly to that logical PC. Page-edge and bank-end
    regressions lock carry-correct target/continuation math and indivisible layout
    placement. Legacy bridges remain only for mapper families/lower-level inputs
-   not yet migrated. Remaining mapper order is **FC -> F0**; read the focused
+   not yet migrated. Existing inline-bankcall migration order is **DPC -> FA2 ->
+   JANE -> 0840 -> UA/UASW -> 0FA0**; after that, new mapper order is **FC -> F0**.
+   Read the focused
    file before implementing either.
 
 4. **Disassembler**
