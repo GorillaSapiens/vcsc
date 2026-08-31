@@ -734,10 +734,10 @@ installcheck: tools
 	grep -q "bank0.*hotspot=\$$1FF9.*file=\$$00001000.*startup=yes" "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map"; \
 	grep -q "bank1.*hotspot=\$$1FF8.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -DMAPPER_BANKS=2 -DSIMULATOR_TEST \
+	  -DVCSC_INLINE_BANKCALL=1 -DMAPPER_BANKS=2 -DSIMULATOR_TEST \
 	  -T "$$stage_vcs/vcs.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.map" \
-	  "$$stage_examples/09_bankswitching/01_diagnostic/bankswitching_diagnostic.c26" \
+	  "$$stage_examples/09_bankswitching/01_f864/bankswitching_diagnostic.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"` -eq 8192; \
 	sim_done=`awk '$$2 == "simulator_done" { print substr($$1, 2); exit }' "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.map"`; \
@@ -773,10 +773,10 @@ installcheck: tools
 	test -f "$$stage_vcs/superchip.c26"; \
 	test -f "$$stage_vcs/vcs_8k_f8sc.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -DMAPPER_BANKS=2 -DSUPERCHIP_TEST -DSIMULATOR_TEST \
+	  -DVCSC_INLINE_BANKCALL=1 -DMAPPER_BANKS=2 -DSUPERCHIP_TEST -DSIMULATOR_TEST \
 	  -T "$$stage_vcs/vcs.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map" \
-	  "$$stage_examples/09_bankswitching/01_diagnostic/bankswitching_diagnostic.c26" \
+	  "$$stage_examples/09_bankswitching/01_f864/bankswitching_diagnostic.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin"` -eq 8192; \
 	sc_done=`awk '$$2 == "simulator_done" { print substr($$1, 2); exit }' "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map"`; \

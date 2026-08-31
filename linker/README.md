@@ -506,7 +506,7 @@ begins at `$xxFF`, avoiding the NMOS 6502/6507 indirect-`JMP` page-wrap bug. A
 full corridor is a link error. The map reports reserved, occupied, and total
 replicated bytes plus every generated target entry.
 
-A direct cross-bank C call in the F8/F6/F4 pilot no longer allocates a target-specific
+A direct cross-bank C call in the F8/F6/F4(+SC) and FA inline-target path no longer allocates a target-specific
 JSR entry. The compiler emits one five-byte bundle at the call site:
 
 ```asm
@@ -546,8 +546,8 @@ the linker never splits it across a logical bank boundary. Crossing an ordinary
 `test/vcs_bankswitching_inline_call_pages.pl` pins calls at `$D0FC` and `$D0FD`
 to exercise both forms of page carry, executes them from every F8 startup bank,
 and verifies the exact continuation plus A:X preservation. The public
-`01_diagnostic` now executes every ordered source/destination call pair in one
-F8/F6/F4 image; `test/vcs_bankswitching_call_matrix.pl` remains an independent
+`01_f864` now executes every ordered source/destination call pair in one
+F8/F6/F4 image; the FA RAM Plus diagnostic does the same for its three banks; `test/vcs_bankswitching_call_matrix.pl` remains an independent
 ordered-pair regression.
 
 Cross-bank ROM data and conditional branches remain permanent errors.

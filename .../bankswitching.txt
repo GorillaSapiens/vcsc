@@ -117,12 +117,10 @@ C26 topology/placement rules
   diagnostics must distinguish "every selector was touched" from exhaustive
   ordered source/destination bridge coverage. The durable regression is
   `test/vcs_bankswitching_call_matrix.pl`: one ROM per source bank calls every
-  destination bank so every legal generated JSR/RTS pair is executed. The current
-  JSR implementation is deliberately no longer considered the desired long-term
-  shape: it emits one 15-byte replicated entry per unique source-bank/target
-  function pair, so target diversity consumes the fixed common corridor. Before
-  generalizing that scheme to more mappers, evaluate the compact generic-call
-  designs recorded under Open work.
+  destination bank so every legal generated JSR/RTS pair is executed. The legacy JSR path emits one 15-byte replicated entry per unique source-bank/
+  target-function pair, so target diversity consumes the common corridor. Migrated
+  profiles use the fixed inline-target block instead; keep the legacy path only
+  for mapper families/lower-level inputs not yet migrated.
 * Split-address cartridge RAM keeps distinct read/write aliases. Do not collapse
   them into one address for RMW or initialization semantics.
 * Mapper hotspots, vector bridges, RAM-port prefixes, signatures, and other
@@ -150,8 +148,8 @@ Open work
 ---------
 Generic inline-target cross-bank JSR contract
 ---------------------------------------------
-The F8/F6/F4(+SC) pilot uses the compact generic call path only when the
-cartridge declares `$inline_bankcall`; the stock profiles expose this via
+The F8/F6/F4(+SC) and FA profiles use the compact generic call path only when
+the cartridge declares `$inline_bankcall`; the stock profiles expose this via
 `VCSC_INLINE_BANKCALL`. This opt-in keeps unrelated timing-sensitive cartridges
 on the legacy bridge ABI until they are deliberately migrated. With the flag
 enabled, explicitly bank-pinned cross-bank C calls use the generic path. The compiler emits a five-byte
@@ -176,15 +174,24 @@ indivisible function layout and therefore cannot spill across a bank allocation
 boundary. `test/vcs_bankswitching_inline_call_pages.pl` locks an ordinary bundle,
 both page-edge forms, an exact fit against the end of allocatable bank ROM, and
 rejection one byte later; it also checks exact continuation and A:X preservation.
-The public `examples/09_bankswitching/01_diagnostic` executes every ordered JSR
+The public `examples/09_bankswitching/01_f864` executes every ordered JSR
 and JMP source/destination pair for F8/F6/F4(+SC) from every physical start bank,
-with zero legacy JSR entries. `test/vcs_bankswitching_call_matrix.pl` independently
-executes all ordered pairs and keeps legacy-family coverage separate.
+with zero legacy JSR entries. `03_fa_ram_plus` uses the same mechanism for all
+six ordered FA call pairs while preserving its complete 256-byte RAM test.
+`test/vcs_bankswitching_call_matrix.pl` independently executes all ordered pairs
+and keeps not-yet-migrated families on the legacy path.
 
 `.banktarget` uses a relocation marker combination that cannot be confused with
 an actual indirect JMP; NMOS indirect-JMP page-wrap validation remains independent.
 The fixed generic block, not the old 224-byte corridor size, is the durable JSR
 ABI. Cross-bank JMPs remain a separate per-target mechanism for now.
+
+Diagnostic-only optimizer wart: the F864 direct-JMP targets contain tiny inline
+`TSX/STX` stack probes. Current compiler safety policy disables size-changing
+control-flow peepholes for an entire function containing inline asm, so generated
+boolean code can retain a redundant `BNE near / JMP false / near: JMP true`
+shape. This is safe and is not expected from pure C26 without inline asm; treat
+it as a future optimizer-locality cleanup, not unfinished bankswitching work.
 
 [ ] 38. Complete the remaining mapper tier in this order: **FC, F0**.
 

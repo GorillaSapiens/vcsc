@@ -18,19 +18,18 @@ The source is parameterized so one editable cartridge produces six mapper
 diagnostics—F8, F6, F4, F8SC, F6SC, and F4SC—plus a seventh deliberately
 poisoned F8SC image which renders the known FAIL result. The SC diagnostics also
 certify hostile initial RAM, mixed BSS/DATA startup, bank-switch persistence,
-and reinitialization after console reset without adding more cartridges. Each
-visible mapper diagnostic executes its complete ordered direct-JMP bank matrix
-internally, plus representative JSR/RTS coverage.
+and reinitialization after console reset without adding more cartridges. The `01_f864`
+diagnostic executes both its complete ordered direct-JMP matrix and complete
+ordered C-call matrix internally.
 
-Generated JSR/RTS bridges need a stronger test than merely touching every bank.
+Generated JSR/RTS paths need a stronger test than merely touching every bank.
 `test/vcs_bankswitching_call_matrix.pl` builds one ROM per source bank and makes
-that source call every destination bank, checking the generated bridge metadata,
-return value, hardware-stack balance, and simulator execution. This currently
-covers every ordered JSR pair for F8/F8SC, F6/F6SC, F4/F4SC, FA, both FA2
-profiles, JANE, 0840, UA/UASW, 0FA0, and DPC. Multiple ROMs are intentional:
-for an eight-bank mapper the 56 possible cross-bank JSR entries would require
-840 bytes, which cannot all fit in the normal 224-byte common trampoline
-corridor without distorting the public mapper profile merely for a diagnostic.
+that source call every destination bank, checking metadata, return value,
+hardware-stack balance, and simulator execution. This covers every ordered JSR
+pair for F8/F8SC, F6/F6SC, F4/F4SC, FA, both FA2 profiles, JANE, 0840,
+UA/UASW, 0FA0, and DPC. F8/F6/F4(+SC) and FA now use the fixed generic
+inline-target block; the remaining families intentionally keep their existing
+mapper-specific/legacy paths until migrated.
 
 The public VCSC cartridge profiles also stamp the final physical bank with a
 four-byte mapper signature at logical addresses `$xFF8-$xFFB` (eight bytes before that bank ends). Short mapper names are
@@ -45,10 +44,10 @@ file bank 1 at `$DFF8-$DFFB`, while RESET and IRQ/BRK remain in startup bank 0
 at `$FFFC-$FFFF`.
 
 `03_fa_ram_plus/` is the dedicated CBS FA/RAM Plus diagnostic. It displays
-`pass`/`FAIL`, exercises all three selectors through a representative nested
-cross-bank chain, uses all 256 bytes of cartridge RAM, and verifies startup from
-physical bank 2. The exhaustive FA ordered-call matrix is in the shared
-regression described above.
+`pass`/`FAIL`, uses the generic inline-target call ABI for all six ordered
+source/destination call pairs, uses all 256 bytes of cartridge RAM, and verifies
+startup from physical bank 2. The shared ordered-call regression independently
+repeats the exhaustive FA matrix with hardware-stack checks.
 
 `04_4ksc/` is the direct 4K Superchip diagnostic. It allocates all 128 bytes of
 Superchip RAM, verifies DATA/BSS reset initialization and read/write aliases,

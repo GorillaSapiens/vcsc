@@ -9048,8 +9048,8 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
    size_t i;
    uint16_t base = 0;
    int have_base = 0;
-   if (!cfg || (cfg->bank_count != 2u && cfg->bank_count != 4u && cfg->bank_count != 8u)) {
-      fprintf(stderr, "vcsc-ld: generic inline-target bank calls currently require 2, 4, or 8 selector-controlled banks\n");
+   if (!cfg || (cfg->bank_count != 2u && cfg->bank_count != 3u && cfg->bank_count != 4u && cfg->bank_count != 8u)) {
+      fprintf(stderr, "vcsc-ld: generic inline-target bank calls currently require 2, 3, 4, or 8 selector-controlled banks\n");
       exit(1);
    }
    for (i = 0; i < cfg->bank_count; ++i) {

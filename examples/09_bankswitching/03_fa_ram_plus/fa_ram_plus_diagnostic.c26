@@ -1,10 +1,9 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
 // CBS FA / RAM Plus PASS/FAIL diagnostic.
-// Exercises all three physical bank selectors through a representative nested
-// cross-bank call chain; exhaustive ordered FA JSR/RTS pairs are covered by
-// test/vcs_bankswitching_call_matrix.pl.  Also verifies the physical startup
-// bank-2 reset bridge and proves that all 256
+// Exercises every ordered source/destination cross-bank C call across the
+// three physical banks through the generic JSR + inline-target ABI. Also
+// verifies the physical startup bank-2 reset bridge and proves that all 256
 // bytes of shared FA RAM receive normal BSS/DATA startup treatment and survive
 // bank selection.
 
@@ -23,6 +22,8 @@ cartram uint8_t fa_bss[255];
 
 uint8_t failure;
 uint8_t trace;
+uint8_t current_source;
+uint8_t current_destination;
 uint8_t ram_count;
 uint8_t index;
 
@@ -117,41 +118,76 @@ bank0 void simulator_done(void) {
 }
 #endif
 
-bank0 void bank0_probe(void) {
-   if (fa_data != 0xA5 || fa_bss[0] != 0x11 ||
+bank0 uint16_t bank0_probe(void) {
+   if (current_destination != 0 ||
+       (current_source != 1 && current_source != 2) ||
+       fa_data != 0xA5 || fa_bss[0] != 0x11 ||
        fa_bss[127] != 0x22 || fa_bss[254] != 0x33) {
       failure := 0x30;
    }
    ram_count := ram_count + 1;
-   trace := 3;
+   return 0x5A40`uint16_t;
 }
 
-bank2 void bank2_probe(void) {
-   if (trace != 1 || fa_data != 0xA5 || fa_bss[254] != 0x33) {
-      failure := 0x20;
+bank1 uint16_t bank1_probe(void) {
+   if (current_destination != 1 ||
+       (current_source != 0 && current_source != 2) ||
+       fa_data != 0xA5 || fa_bss[0] != 0x11 ||
+       fa_bss[127] != 0x22 || fa_bss[254] != 0x33) {
+      failure := 0x31;
    }
    ram_count := ram_count + 1;
-   trace := 2;
-   bank0_probe();
-   if (trace != 3 || fa_bss[127] != 0x22) {
-      failure := 0x21;
-   }
+   return 0x5A41`uint16_t;
 }
 
-bank1 void bank1_probe(void) {
-   if (trace != 0 || fa_data != 0xA5 || fa_bss[0] != 0x11) {
-      failure := 0x10;
+bank2 uint16_t bank2_probe(void) {
+   if (current_destination != 2 ||
+       (current_source != 0 && current_source != 1) ||
+       fa_data != 0xA5 || fa_bss[0] != 0x11 ||
+       fa_bss[127] != 0x22 || fa_bss[254] != 0x33) {
+      failure := 0x32;
    }
    ram_count := ram_count + 1;
-   trace := 1;
-   bank2_probe();
-   if (trace != 3 || fa_bss[254] != 0x33) {
-      failure := 0x11;
-   }
-   trace := 4;
+   return 0x5A42`uint16_t;
 }
 
-void main(void) {
+bank0 void bank0_source(void) {
+   current_source := 0;
+
+   current_destination := 1;
+   if (bank1_probe() != 0x5A41`uint16_t) { failure := 0x01; }
+   trace := trace + 1;
+
+   current_destination := 2;
+   if (bank2_probe() != 0x5A42`uint16_t) { failure := 0x02; }
+   trace := trace + 2;
+}
+
+bank1 void bank1_source(void) {
+   current_source := 1;
+
+   current_destination := 0;
+   if (bank0_probe() != 0x5A40`uint16_t) { failure := 0x11; }
+   trace := trace + 4;
+
+   current_destination := 2;
+   if (bank2_probe() != 0x5A42`uint16_t) { failure := 0x12; }
+   trace := trace + 8;
+}
+
+bank2 void bank2_source(void) {
+   current_source := 2;
+
+   current_destination := 0;
+   if (bank0_probe() != 0x5A40`uint16_t) { failure := 0x21; }
+   trace := trace + 16;
+
+   current_destination := 1;
+   if (bank1_probe() != 0x5A41`uint16_t) { failure := 0x22; }
+   trace := trace + 32;
+}
+
+bank0 void main(void) {
    // The startup bridge must have selected physical bank 2 before reaching here.
    if (fa_data != 0x5A) {
       failure := 0x01;
@@ -170,12 +206,17 @@ void main(void) {
    fa_bss[254] := 0x33;
    ram_count := 0;
    trace := 0;
+   current_source := 0;
+   current_destination := 0;
 
-   // Nested call chain: physical 2 -> 1 -> 0 -> 2, followed by generated
-   // return stubs 2 -> 0 -> 1 -> 2. This exercises all three FA selectors.
-   bank1_probe();
+   // Exercise all six ordered cross-bank pairs: 0->1, 0->2, 1->0, 1->2,
+   // 2->0, and 2->1. The source1/source2 calls also prove the generic return
+   // path can restore bank0 around a source routine that performs more calls.
+   bank0_source();
+   bank1_source();
+   bank2_source();
 
-   if (trace != 4 || ram_count != 3 || fa_data != 0xA5 ||
+   if (trace != 63 || ram_count != 6 || fa_data != 0xA5 ||
        fa_bss[0] != 0x11 || fa_bss[127] != 0x22 || fa_bss[254] != 0x33) {
       failure := 0x03;
    }

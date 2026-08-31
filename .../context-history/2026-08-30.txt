@@ -240,3 +240,20 @@ block; the previously failing controller timing sequence and representative
 paddle thresholds 0, 95, and 255 are back at 262-line NTSC frames.  C26 source
 itself does not support `#define`, so the opt-in is supplied with the driver's
 existing `-D` mechanism rather than inventing a new source preprocessor feature.
+
+2026-08-30 19:59:10 PDT, F864 rename and FA inline bankcalls
+Renamed examples/09_bankswitching/01_diagnostic to 01_f864 and updated all live
+build, installcheck, test, documentation, allowlist, and hygiene references.  The
+F8/F8SC/F6/F6SC/F4/F4SC inline-target pilot is complete under that name.
+
+Extended the same explicit `VCSC_INLINE_BANKCALL` / `$inline_bankcall` ABI to
+03_fa_ram_plus only.  FA now accepts the three-bank selector geometry, uses the
+fixed 80-byte generic JSR/return block with zero legacy per-target JSR entries,
+and its public diagnostic executes all six ordered cross-bank call pairs while
+checking 16-bit A:X returns and the 256-byte cartridge RAM sentinels.  Other
+mapper families remain unmigrated for later work.
+
+Recorded the diagnostic-only inline-asm optimizer wart seen in F864 direct-JMP
+targets: inline TSX/STX currently suppresses size-changing peepholes for the whole
+function, so safe but redundant BNE-near/JMP-false/near:JMP-true sequences may
+remain.  This is an optimizer-locality cleanup, not unfinished bankswitching work.

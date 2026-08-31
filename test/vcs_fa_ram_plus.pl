@@ -65,7 +65,7 @@ my $generic=File::Spec->catfile($vcs,'vcs.cfg');
 my $bin=File::Spec->catfile($tmp,'fa.bin');
 my $map=File::Spec->catfile($tmp,'fa.map');
 
-require_ok('build FA simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
+require_ok('build FA simulator diagnostic',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-DSIMULATOR_TEST',
    '-T',$generic,'-Map',$map,$source,'-o',$bin);
 -s $bin==12288 or die "FA output size is not 12288 bytes\n";
 my $rom=read_file($bin);
@@ -82,10 +82,9 @@ $m =~ /^\s+cartram\s+read_start=\$F100 write_start=\$F000 size=\$0100 type=rw sh
    or die "FA RAM split-address map is missing\n$m";
 $m =~ /used=256 bytes \(100\.00%\).*free=0 bytes/m
    or die "FA diagnostic does not allocate all 256 cartridge-RAM bytes\n$m";
-$m =~ /hotspot=\$1FF8 destination=bank0 hotspot=\$1FFA/m &&
-$m =~ /hotspot=\$1FF9 destination=bank2 hotspot=\$1FF8/m &&
-$m =~ /hotspot=\$1FFA destination=bank1 hotspot=\$1FF9/m
-   or die "FA diagnostic did not generate the expected three-selector call chain\n$m";
+$m =~ /generic-jsr=\$050\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
+$m !~ /JSR entry=/
+   or die "FA diagnostic did not use only the fixed generic JSR block\n$m";
 
 # Every physical bank carries the same reset bridge and the real RESET/IRQ
 # vectors.  The final bank deliberately replaces the unused NMI-vector bytes
@@ -107,8 +106,8 @@ for my $start (0..2) {
    $err eq '' or die "FA simulator wrote stderr from bank $start:\n$err";
    my $mem=parse_hex_dump($out);
    $mem->[$sym{failure}]==0 or die sprintf("FA self-test failed from bank %d: failure=$%02X\n",$start,$mem->[$sym{failure}]);
-   $mem->[$sym{trace}]==4 && $mem->[$sym{ram_count}]==3
-      or die "FA cross-bank trace/counter failed from bank $start\n";
+   $mem->[$sym{trace}]==63 && $mem->[$sym{ram_count}]==6
+      or die "FA exhaustive cross-bank trace/counter failed from bank $start\n";
    $mem->[$sym{fa_data}]==0xA5 or die "FA DATA byte did not persist from bank $start\n";
    $mem->[$sym{fa_bss}+0]==0x11 &&
    $mem->[$sym{fa_bss}+127]==0x22 &&
@@ -150,7 +149,7 @@ $brc!=0 && !$bsig
 # The normal visible cartridge must retain stable NTSC frame timing according to
 # the disassembler's bounded dynamic TIA/RIOT probe.
 my $visible=File::Spec->catfile($tmp,'fa-visible.bin');
-require_ok('build visible FA PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
+require_ok('build visible FA PASS/FAIL cartridge',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,$source,'-o',$visible);
 my($s26,$derr)=require_ok('probe visible FA cartridge',$disas,'-o','-',$visible);
 $derr eq '' or die "vcsc-disas wrote stderr for FA visible cartridge:\n$derr";
 $s26 =~ /^; video: NTSC \(dynamic stable frame measurement: 264 raw line intervals\) \(high confidence\)$/m

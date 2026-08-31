@@ -766,7 +766,7 @@ out of the image and reports, resolves the selected member at its logical
 BANK1 call bridge with the archive-member origin intact.
 
 `vcs_bankswitching_diagnostic.pl` builds one F8, one F6, and one F4 image
-from `examples/09_bankswitching/01_diagnostic/bankswitching_diagnostic.c26`. The diagnostic composes
+from `examples/09_bankswitching/01_f864/bankswitching_diagnostic.c26`. The diagnostic composes
 a 19-line Big-wide result word with an 11-line centered cart-type line. The test
 locks both 12-byte six-pointer workspaces and the page-contained checked-in
 generated 128-byte Big and 64-byte default ASCII subset tables. Each image executes its complete ordered

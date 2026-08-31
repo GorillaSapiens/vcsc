@@ -319,10 +319,10 @@ my $tmp=shift @ARGV // die "usage: $0 REPO TMP [--stella]\n";
 my $stella_mode=@ARGV && $ARGV[0] eq '--stella' ? shift(@ARGV) : '';
 @ARGV and die "usage: $0 REPO TMP [--stella]\n";
 make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
-my $source=File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','bankswitching_diagnostic.c26');
+my $source=File::Spec->catfile($repo,'examples','09_bankswitching','01_f864','bankswitching_diagnostic.c26');
 my $source_text=read_file($source);
-my $status_font=read_file(File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','status_font.c26'));
-my $cart_type_font=read_file(File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','cart_type_font.c26'));
+my $status_font=read_file(File::Spec->catfile($repo,'examples','09_bankswitching','01_f864','status_font.c26'));
+my $cart_type_font=read_file(File::Spec->catfile($repo,'examples','09_bankswitching','01_f864','cart_type_font.c26'));
 $source_text =~ /cartram\s+uint8_t\s+diagnostic_superchip_bss_head\s*;/ &&
 $source_text =~ /cartram\s+uint8_t\s+diagnostic_superchip_data_head\s*:=\s*0x5A\s*;/ &&
 $source_text =~ /cartram\s+uint8_t\s+diagnostic_superchip_count\s*;/ &&

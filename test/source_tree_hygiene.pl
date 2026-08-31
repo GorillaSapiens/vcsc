@@ -203,6 +203,7 @@ index($bankswitching,'80-byte')>=0 &&
 index($bankswitching,'replicated entry/return block')>=0 &&
 index($bankswitching,'unchanged original 16-bit logical return PC')>=0 &&
 index($bankswitching,'consume no legacy per-target')>=0 &&
+index($bankswitching,'BNE near / JMP false / near: JMP true')>=0 &&
 -f File::Spec->catfile($test,'vcs_bankswitching_inline_call_pages.pl') &&
 index(slurp(File::Spec->catfile($repo,'compiler','compile_call.c')),'.banktarget %s')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'BANK_GENERIC_JSR_SIZE = 0x50')>=0 &&
@@ -273,7 +274,7 @@ $bankswitching !~ /^\[x\]/m
 !-e File::Spec->catfile($test,'stella_snapshot_keys.py') &&
 !-e File::Spec->catfile($test,'stella_grade_bank_snapshot.py') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','bankswitching_diagnostic_suite.c26') &&
--f File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','bankswitching_diagnostic.c26') &&
+-f File::Spec->catfile($repo,'examples','09_bankswitching','01_f864','bankswitching_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','02_standard_renderer','banked_standard_renderer.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','02_standard_renderer','README.md')
    or die "bank-aware archive/simulator/Stella diagnostics are incomplete\n";
@@ -557,11 +558,17 @@ index($big_wide_make,'-eq 2048')>=0 &&
 -f File::Spec->catfile($test,'vcs_six_glyph_big_wide_raster.cpp')
    or die "big 8x16 wide score family, example, or tests are incomplete
 ";
-my $bank_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','Makefile'));
+my $bank_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','01_f864','Makefile'));
 index($bank_example_make,'-DVCS_NO_DEFAULT_ROM')<0 &&
 index($bank_example_make,'$(VCS_DIR)/vcs.cfg')>=0 &&
 index($bank_example_make,'$(VCS_DIR)/vcs_8k_f8.cfg')<0
    or die "public bank diagnostics must build from C26 topology through reduced vcs.cfg\n";
+my $fa_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs_12k_fa.c26'));
+my $fa_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','03_fa_ram_plus','Makefile'));
+index($fa_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&
+index($fa_profile,'$inline_bankcall')>=0 &&
+index($fa_example_make,'-DVCSC_INLINE_BANKCALL=1')>=0
+   or die "FA RAM Plus diagnostic lost generic inline-target bank-call opt-in\n";
 for my $profile (qw(vcs_2k.c26 vcs_2k_cv.c26 vcs_4k.c26 vcs_4k_sc.c26 vcs_8k_f8.c26 vcs_8k_0840.c26 vcs_8k_ua.c26 vcs_8k_uasw.c26 vcs_8k_0fa0.c26 vcs_8k_e0.c26 vcs_8k_3f.c26 vcs_8k_3e.c26 vcs_16k_3f.c26 vcs_16k_3e.c26 vcs_12k_fa.c26 vcs_16k_f6.c26 vcs_16k_jane.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26 vcs_omni_32k.c26)) {
    -f File::Spec->catfile($repo,'libraries','vcs',$profile)
       or die "missing migrated C26 cartridge profile $profile\n";
@@ -973,7 +980,7 @@ index($superchip_header,'$size:0x0080')>=0
    or die "superchip.c26 lost the allocatable split-memory region\n";
 index($superchip_header,'superchip_ram')<0
    or die "superchip.c26 must not publish a whole-window alias\n";
-my $superchip_diagnostic=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','01_diagnostic','bankswitching_diagnostic.c26'));
+my $superchip_diagnostic=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','01_f864','bankswitching_diagnostic.c26'));
 index($superchip_diagnostic,'cartram uint8_t diagnostic_superchip_bss_head;')>=0 &&
 index($superchip_diagnostic,'cartram uint8_t diagnostic_superchip_data_head := 0x5A;')>=0 &&
 index($superchip_diagnostic,'cartram uint8_t diagnostic_superchip_bss[124];')>=0 &&

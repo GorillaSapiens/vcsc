@@ -77,7 +77,7 @@ Files:
 - `../../examples/06_all_five_181/` ... official-opcode ten-cartridge centered/left/right/two-plus-two/poison matrix using `all_five (lines:=181)`
 - `../../examples/07_player_color_181_unofficial/` ... matched unofficial-opcode ten-cartridge player-color matrix, built explicitly with `-Wa,--illegals`
 - `../../examples/08_all_five_181_unofficial/` ... matched unofficial-opcode ten-cartridge all-five matrix, built explicitly with `-Wa,--illegals`
-- `../../examples/09_bankswitching/` ... F8/F6/F4/SC transition diagnostics plus the dedicated CBS FA/RAM Plus visible PASS/FAIL diagnostic
+- `../../examples/09_bankswitching/` ... F8/F6/F4/SC complete transition diagnostics plus the CBS FA/RAM Plus complete ordered-call PASS/FAIL diagnostic
 - `../../examples/10_faithful_legacy_multisprite/` ... fixed faithful P0-plus-five-P1 multisprite reference cartridge used to anchor roadmap item 28
 - `../../examples/14_multisprite/` ... modern parameterized multisprite examples: full-height 192-line interaction plus 181-line interactive score-above and score-below compositions, all with horizontal/vertical P0/P1..P5 movement
 - `../../examples/15_all_five_player_color_192/` ... full-height interactive combined all-five/per-row-player-color diagnostic

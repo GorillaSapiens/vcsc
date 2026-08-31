@@ -30,7 +30,7 @@ my $repo=abs_path(shift @ARGV // die "usage: $0 REPO TMP\n");
 my $tmp=shift @ARGV // die "usage: $0 REPO TMP\n";
 @ARGV and die "usage: $0 REPO TMP\n";
 
-my $src=File::Spec->catdir($repo,'examples','09_bankswitching','01_diagnostic');
+my $src=File::Spec->catdir($repo,'examples','09_bankswitching','01_f864');
 my $work=File::Spec->catdir($tmp,'bankswitching-example');
 make_path($work);
 for my $name (qw(Makefile bankswitching_diagnostic.c26 status_font.c26 cart_type_font.c26)) {

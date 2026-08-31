@@ -16,7 +16,7 @@ TARGET := fa_ram_plus_diagnostic.bin
 all: $(TARGET)
 
 $(TARGET): $(SOURCE)
-	$(VCSC) -I $(VCS_DIR) -T $(VCS_DIR)/vcs.cfg \
+	$(VCSC) -I $(VCS_DIR) -DVCSC_INLINE_BANKCALL=1 -T $(VCS_DIR)/vcs.cfg \
 		-Map fa_ram_plus_diagnostic.map $(SOURCE) -o $@
 
 $(TARGET): $(COMMITTED_FONT_SUBSETS)

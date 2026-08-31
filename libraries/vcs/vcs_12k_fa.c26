@@ -14,6 +14,9 @@ include "fa_ram_plus.c26"
 
 cartridge {
    $fill:0xff $signature:FA
+#ifdef VCSC_INLINE_BANKCALL
+   $inline_bankcall
+#endif
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012
    $vectors_offset:0x0ffa $vectors_size:0x0006
