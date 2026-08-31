@@ -25,7 +25,8 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `F8/mapper.c26`, `F6/mapper.c26`, `F4/mapper.c26` ... inspectable selector-controlled C26 profiles with exact output order and generated corridors
 - `F8/`, `F8SC/`, `F6/`, `F6SC/`, `F4/`, `F4SC/`, `FA/`, and `DPC/` each carry an identical `inline_bankcall.s26` for the normal/F8-style fixed inline-target cross-bank JSR/RTS trampoline; the linker generates the shared template from the F8 copy and regressions require all copies to remain byte-identical
 - `FA2/inline_bankcall.s26` ... FA2-specific maintained trampoline source; same stack/inline-target ABI with reversed selector indexing for `$1FF5-$1FFB`
-- `JANE/inline_bankcall.s26` ... JANE-specific maintained trampoline source; the same inline-target ABI with an arithmetic logical-bank-to-selector transform for irregular `$1FF1/$1FF0/$1FF8/$1FF9` selection
+- `JANE/inline_bankcall.s26` ... JANE-specific maintained trampoline source; the same inline-target ABI with an arithmetic logical-bank-to-selector transform for irregular `$1FF0/$1FF1/$1FF8/$1FF9` selection
+- `0840/inline_bankcall.s26` ... 0840-specific maintained trampoline source; derives `$0800/$0840` from the logical PC and switches with an indexed read rather than a ROM-window store
 - `0840/mapper.c26` ... 0840/EconoBanking two-bank 8K profile with below-cartridge selectors `$0800/$0840`; `0840/mapper.cfg` supplies simulator-only masked selector semantics
 - `UA/mapper.c26`, `UASW/mapper.c26` ... UA Limited 8K alias-decoded profiles; UA maps `$0220`-family accesses to bank 0 and `$0240`-family accesses to bank 1, while UASW swaps that association; their cfg files supply simulator-only masked selector semantics
 - `0FA0/mapper.c26` ... Brazilian Fotomania 0FA0 two-bank 8K profile; `(A & $16E0)==$06A0/$06C0` selects physical bank 0/1, physical bank 1 powers up, and `0FA0/mapper.cfg` supplies simulator metadata

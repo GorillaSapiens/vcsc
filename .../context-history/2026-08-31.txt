@@ -1,0 +1,15 @@
+2026-08-31 00:18:30 PDT, migrate 0840 inline bankcall
+Migrated 0840 to the inline-target bankcall ABI with a mapper-specific fixed
+block. Logical bank identity comes from the linked PC high byte; the trampoline
+maps it to Y=$00/$40 and performs LDA $0800,Y so bank selection uses the
+mapper's required read hotspot. The payload is 75 bytes with an 80-byte
+reservation (generic-jsr=$050) and emits zero legacy per-target JSR entries.
+
+Reworked examples/09_bankswitching/08_0840 into a complete 2x2 ordered call
+matrix: source banks 0/1 each call destination banks 0/1, checking return values
+and hardware-stack balance, with an additional nested cross-bank call. Compiler,
+linker template generation, disassembler signature handling, install packaging,
+example smoke builds, docs, and regressions were updated. The dedicated 0840
+regression, exhaustive bank-call matrix, inline-template test, assembly
+allowlist, source hygiene, and example-build shard 3/8 pass. Next migration is
+UA/UASW, then 0FA0.

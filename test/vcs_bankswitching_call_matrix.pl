@@ -142,7 +142,7 @@ for my $profile (@profiles) {
       print {$fh} generated_source($include, $banks, $source, $startup);
       close($fh) or die "could not close $src: $!\n";
 
-      my $uses_inline = $name =~ /^(?:F8|F8SC|F6|F6SC|F4|F4SC|FA|FA2-24|FA2-28|JANE|DPC)$/;
+      my $uses_inline = $name =~ /^(?:F8|F8SC|F6|F6SC|F4|F4SC|FA|FA2-24|FA2-28|JANE|0840|DPC)$/;
       my @pilot_define = $uses_inline ? ('-DVCSC_INLINE_BANKCALL=1') : ();
       require_ok("build $name ordered-call source bank $source",
                  $driver, '-I', $vcs, @pilot_define, '-T', $generic_cfg, '-Map', $map_path,

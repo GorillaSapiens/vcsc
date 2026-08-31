@@ -6690,7 +6690,8 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                            (h[i].mapper == MAP_3E && h[i].detector_signature) ||
                            (h[i].mapper == MAP_FC && h[i].detector_signature &&
                             h[i].hotspots != 0) ||
-                           (h[i].mapper == MAP_WD && h[i].explicit_signature));
+                           (h[i].mapper == MAP_WD && h[i].explicit_signature) ||
+                           (h[i].mapper == MAP_0840 && h[i].explicit_signature));
          }
       }
       free_analysis(&probe);
@@ -6855,7 +6856,9 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                            h[i].three_specific_switches != 0u ||
                            (h[i].mapper == MAP_E7 && h[i].e7_specific_refs != 0) ||
                            (h[i].mapper == MAP_3E && h[i].threee_ram_select_refs != 0);
-            if (h[i].viable && !specific) h[i].viable = 0;
+            if (h[i].viable && !specific &&
+                !(h[i].mapper == MAP_0840 && h[i].explicit_signature))
+               h[i].viable = 0;
          }
       }
    }

@@ -68,11 +68,23 @@ $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
 $mk =~ /^\s*stella\s+-bs\s+0840\s+\$\(TARGET\)\s*$/m
    or die "0840 play target must force Stella -bs 0840\n";
 my $pt=read_file($profile);
+$pt =~ /#ifdef VCSC_INLINE_BANKCALL\s+\$inline_bankcall\s+#endif/s &&
 $pt =~ /\$signature:0840\b/ &&
 $pt =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x0800\s+\$startup/s &&
 $pt =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x0840/s &&
 $pt =~ /\$vector_bridge_offset:0x0fe0\s+\$vector_bridge_size:0x0012/
    or die "0840 profile topology/startup contract is wrong\n";
+my $src_text=read_file($source);
+for my $source_bank (0..1) {
+   $src_text =~ /bank\Q$source_bank\E\s+void\s+source_entry\Q$source_bank\E\s*\(void\)\s*\{(.*?)^\}/ms
+      or die "0840 diagnostic lacks source_entry$source_bank\n";
+   my $body=$1;
+   for my $dest (0..1) {
+      $body =~ /call_target\Q$dest\E\s*\(\)/
+         or die "0840 diagnostic source $source_bank does not call destination $dest\n";
+   }
+}
+
 my $ct=read_file($cfg);
 $ct =~ /mapper\s*=\s*0840/ &&
 $ct =~ /BANK0:.*hotspot\s*=\s*\$0800.*fileindex\s*=\s*0.*startup\s*=\s*yes/is &&
@@ -81,7 +93,7 @@ $ct =~ /BANK1:.*hotspot\s*=\s*\$0840.*fileindex\s*=\s*1/is
 
 my $bin=File::Spec->catfile($tmp,'0840.bin');
 my $map=File::Spec->catfile($tmp,'0840.map');
-require_ok('build 0840 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
+require_ok('build 0840 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-DVCSC_INLINE_BANKCALL=1',
    '-T',$generic,'-Map',$map,$source,'-o',$bin);
 -s $bin==8192 or die "0840 output size is not 8K\n";
 my $rom=read_file($bin);
@@ -99,21 +111,26 @@ for my $off (0,6,12) {
    substr($bridge,$off,4) eq pack('C*',0x0c,0x00,0x08,0x4c)
       or die "0840 vector bridge does not use NOP-read \$0800; JMP\n";
 }
-# Generated cross-bank transfer entries must not write mirrored TIA space.
-my $tramp=substr($rom,0x0f00,0x00e0);
-index($tramp,pack('C*',0x0c,0x40,0x08))>=0 &&
-index($tramp,pack('C*',0x0c,0x00,0x08))>=0 &&
-index($tramp,pack('C*',0x8d,0x40,0x08))<0 &&
-index($tramp,pack('C*',0x8d,0x00,0x08))<0
-   or die "0840 trampolines do not use read-only below-window selector accesses\n";
+# The fixed inline call block is byte-identical in both banks and performs
+# indexed reads from $0800,Y.  Y is derived as $00/$40 from the logical PC, so
+# the two selector families are reached without any write to console space.
+my $inline0=substr($rom,0x0f00,0x0050);
+my $inline1=substr($rom,4096+0x0f00,0x0050);
+$inline0 eq $inline1 &&
+(()=$inline0 =~ /\xB9\x00\x08/sg)>=2 &&
+index($inline0,pack('C*',0x8d,0x00,0x08))<0 &&
+index($inline0,pack('C*',0x8d,0x40,0x08))<0
+   or die "0840 inline bank-call block does not use read-only indexed selectors\n";
 
 my $m=read_file($map);
 $m =~ /^\s+bank0\s+file-index=0\b.*mode=selector\s+select-access=\$0800\s+startup=yes/m &&
 $m =~ /^\s+bank1\s+file-index=1\b.*mode=selector\s+select-access=\$0840/m &&
 $m =~ /vector-bridge=\$0FE0\s+size=\$0012/ &&
-$m =~ /^TRAMPOLINES$/m
+$m =~ /^TRAMPOLINES$/m &&
+$m =~ /generic-jsr=\$050\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
+$m !~ /JSR entry=/
    or die "0840 map topology/trampoline contract is wrong\n$m";
-my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure trace call_count);
+my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure call_count nested_count);
 for my $start (0..1) {
    my($out,$err)=require_ok("simulate 0840 from physical bank $start",$sim,'-T',$cfg,
       "--start-bank=$start",sprintf('--stop-pc=0x%04X',$sym{simulator_done}),
@@ -122,8 +139,8 @@ for my $start (0..1) {
    my $mem=parse_hex_dump($out);
    $mem->[$sym{failure}]==0
       or die sprintf("0840 self-test from bank %d failed: failure=\$%02X\n",$start,$mem->[$sym{failure}]);
-   $mem->[$sym{trace}]==3 && $mem->[$sym{call_count}]==2
-      or die "0840 nested selector/return trace failed from physical bank $start\n";
+   $mem->[$sym{call_count}]==4 && $mem->[$sym{nested_count}]==1
+      or die "0840 ordered call matrix/nested return check failed from physical bank $start\n";
 }
 
 # Explicitly certify write-trigger semantics.  A write to $0840 both selects
@@ -143,7 +160,7 @@ $wmem->[0x0080]==0x5A && $wmem->[0x0840]==0x5A
    or die "0840 write did not both switch bank and reach underlying memory\n";
 
 my $visible=File::Spec->catfile($tmp,'0840-visible.bin');
-require_ok('build visible 0840 PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
+require_ok('build visible 0840 PASS/FAIL cartridge',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,$source,'-o',$visible);
 my $vrom=read_file($visible);
 length($vrom)==8192 && substr($vrom,4096+0x0ff8,4) eq '0840' &&
 (()=$vrom =~ /\x0c\x00\x08\x4c/sg)>=2

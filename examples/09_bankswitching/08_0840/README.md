@@ -16,10 +16,14 @@ selectors live below the cartridge `$1000-$1FFF` ROM window and overlap mirrored
 console address space, so VCSC's generated selector stubs use the NMOS absolute
 NOP read rather than a store.
 
-The self-test starts in physical bank 0, calls into bank 1, calls back into bank
-0, and then returns through both generated bank-restoration paths.  A large
-green `pass` with `0840` underneath means both selectors and the nested return
-path succeeded; red `FAIL` means the test detected a mismatch.
+The self-test executes the complete ordered call matrix: bank 0 calls targets
+in banks 0 and 1, then bank 1 calls targets in banks 0 and 1.  Every call checks
+the returned value and hardware-stack balance.  The 0-to-0 case also makes a
+nested cross-bank call so return-bank restoration is exercised compositionally.
+All cross-bank calls use the fixed inline-target ABI; there are no legacy
+per-target JSR bridges.  A large green `pass` with `0840` underneath means all
+four ordered calls and the nested return succeeded; red `FAIL` means the test
+detected a mismatch.
 
 VCSC also writes its `0840` mapper signature at `$FFF8-$FFFB` in the final
 physical file bank.  The repeated linker-generated `NOP $0800; JMP ...` reset

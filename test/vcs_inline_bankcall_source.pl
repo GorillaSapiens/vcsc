@@ -28,18 +28,22 @@ my @generic_mapper_dirs = qw(F8 F8SC F6 F6SC F4 F4SC FA DPC);
 my $src = File::Spec->catfile($repo, qw(libraries vcs F8 inline_bankcall.s26));
 my $fa2_src = File::Spec->catfile($repo, qw(libraries vcs FA2 inline_bankcall.s26));
 my $jane_src = File::Spec->catfile($repo, qw(libraries vcs JANE inline_bankcall.s26));
+my $m0840_src = File::Spec->catfile($repo, qw(libraries vcs 0840 inline_bankcall.s26));
 my $generator = File::Spec->catfile($repo, qw(linker gen_inline_bankcall_template.pl));
 my $built = File::Spec->catfile($repo, qw(linker generic_bankcall_template.h));
 my $fa2_built = File::Spec->catfile($repo, qw(linker fa2_bankcall_template.h));
 my $jane_built = File::Spec->catfile($repo, qw(linker jane_bankcall_template.h));
+my $m0840_built = File::Spec->catfile($repo, qw(linker m0840_bankcall_template.h));
 my $fresh = File::Spec->catfile($tmp, 'generic_bankcall_template.h');
 my $fa2_fresh = File::Spec->catfile($tmp, 'fa2_bankcall_template.h');
 my $jane_fresh = File::Spec->catfile($tmp, 'jane_bankcall_template.h');
+my $m0840_fresh = File::Spec->catfile($tmp, 'm0840_bankcall_template.h');
 my $ld = read_file(File::Spec->catfile($repo, qw(linker vcsc_ld.c)));
 my $top = read_file(File::Spec->catfile($repo, 'Makefile'));
 my $s26 = read_file($src);
 my $fa2_s26 = read_file($fa2_src);
 my $jane_s26 = read_file($jane_src);
+my $m0840_s26 = read_file($m0840_src);
 
 -f $as or die "missing assembler $as\n";
 -f $src or die "missing maintained trampoline source $src\n";
@@ -51,10 +55,12 @@ for my $mapper (@generic_mapper_dirs) {
 }
 -f $fa2_src or die "missing maintained FA2 trampoline source $fa2_src\n";
 -f $jane_src or die "missing maintained JANE trampoline source $jane_src\n";
+-f $m0840_src or die "missing maintained 0840 trampoline source $m0840_src\n";
 -f $generator or die "missing template generator $generator\n";
 -f $built or die "missing generated linker template $built\n";
 -f $fa2_built or die "missing generated FA2 linker template $fa2_built\n";
 -f $jane_built or die "missing generated JANE linker template $jane_built\n";
+-f $m0840_built or die "missing generated 0840 linker template $m0840_built\n";
 
 for my $label (qw(
    __vcsc_generic_bankcall_begin
@@ -75,15 +81,21 @@ index($jane_s26, 'eor #7') >= 0 && index($jane_s26, 'cmp #2') >= 0 &&
 index($jane_s26, 'eor #1') < 0 && index($jane_s26, '__vcsc_generic_bankcall_reserved_end = $6060') >= 0
    or die "maintained JANE trampoline source lacks simplified 0/1/8/9 selector transform
 ";
+index($m0840_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
+index($m0840_s26, 'eor #$20') >= 0 && index($m0840_s26, 'and #$20') >= 0 &&
+index($m0840_s26, '__vcsc_generic_bankcall_reserved_end = $6050') >= 0
+   or die "maintained 0840 trampoline source lacks read-selector transform
+";
 index($ld, 'vcsc_generic_bankcall_template') >= 0 && index($ld, 'vcsc_fa2_bankcall_template') >= 0 &&
-index($ld, 'vcsc_jane_bankcall_template') >= 0
+index($ld, 'vcsc_jane_bankcall_template') >= 0 && index($ld, 'vcsc_m0840_bankcall_template') >= 0
    or die "linker does not consume all generated trampoline templates
 ";
 index($ld, '#define PUT(') < 0
    or die "linker still contains hand-emitted generic trampoline opcodes\n";
 (grep { index($top, "libraries/vcs/$_/inline_bankcall.s26") < 0 } @generic_mapper_dirs) == 0 &&
 index($top, 'libraries/vcs/FA2/inline_bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/JANE/inline_bankcall.s26') >= 0
+index($top, 'libraries/vcs/JANE/inline_bankcall.s26') >= 0 &&
+index($top, 'libraries/vcs/0840/inline_bankcall.s26') >= 0
    or die "maintained trampoline sources are not installed
 ";
 
@@ -95,6 +107,9 @@ system($^X, $generator, $as, $fa2_src, $fa2_fresh, 'FA2') == 0
 system($^X, $generator, $as, $jane_src, $jane_fresh, 'JANE') == 0
    or die "could not regenerate JANE inline bank-call template
 ";
+system($^X, $generator, $as, $m0840_src, $m0840_fresh, 'M0840') == 0
+   or die "could not regenerate 0840 inline bank-call template
+";
 read_file($fresh) eq read_file($built)
    or die "built generic bank-call template is stale relative to F8/inline_bankcall.s26\n";
 read_file($fa2_fresh) eq read_file($fa2_built)
@@ -102,6 +117,9 @@ read_file($fa2_fresh) eq read_file($fa2_built)
 ";
 read_file($jane_fresh) eq read_file($jane_built)
    or die "built JANE bank-call template is stale relative to JANE/inline_bankcall.s26
+";
+read_file($m0840_fresh) eq read_file($m0840_built)
+   or die "built 0840 bank-call template is stale relative to 0840/inline_bankcall.s26
 ";
 
 my $header = read_file($built);
@@ -121,6 +139,13 @@ $jane_header =~ /VCSC_JANE_BANKCALL_TEMPLATE_SIZE 0x5Fu/
 ";
 $jane_header =~ /VCSC_JANE_BANKCALL_RESERVED_SIZE 0x60u/
    or die "JANE trampoline reservation is no longer 96 bytes
+";
+my $m0840_header = read_file($m0840_built);
+$m0840_header =~ /VCSC_M0840_BANKCALL_TEMPLATE_SIZE 0x4Bu/
+   or die "0840 trampoline payload is no longer 75 bytes
+";
+$m0840_header =~ /VCSC_M0840_BANKCALL_RESERVED_SIZE 0x50u/
+   or die "0840 trampoline reservation is no longer 80 bytes
 ";
 
 print "inline bank-call source template passed\n";
