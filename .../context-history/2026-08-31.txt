@@ -124,3 +124,14 @@ payloads. This locks the diagonal same-bank legs to ordinary JSRs while every
 off-diagonal leg uses the descriptor ABI. Source-tree hygiene also rejects any
 return of the removed linker/legacy_inline_bankcall.s26 compatibility source.
 All eight recursively discovered example-build shards pass.
+
+2026-08-31 10:32:51 PDT, normalize DPC diagnostic display
+The DPC public diagnostic now uses the same visible PASS/FAIL presentation as
+01_f864: the 8x16 Big-font lowercase pass / uppercase FAIL renderer, compact
+mapper-name renderer immediately below it, and the identical centered
+81+19+11+81 visible-field layout. DPC now checks in deterministic
+status_font.c26 and cart_type_font.c26 subsets regenerated from big_ascii.c26
+and default_ascii.c26; the old one-off diagnostic_font.c26 was removed.
+Focused DPC validation, generated-font regeneration, example-build shard 6/8,
+assembly allowlist, branding, and source-tree hygiene pass. vcs_dpc.pl locks the
+common presentation contract so it cannot silently drift again.

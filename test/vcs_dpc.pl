@@ -104,6 +104,19 @@ $ct =~ /mapper\s*=\s*DPC/ && (()=$ct =~ /size\s*=\s*\$1000/g)==2
 my $mk=read_file(File::Spec->catfile($example_dir,'Makefile'));
 $mk =~ /^play:\s*\$\(TARGET\)\s*$/m && $mk =~ /^\s*stella\s+-bs\s+DPC\s+\$\(TARGET\)\s*$/m
    or die "DPC play target must force Stella -bs DPC\n";
+my $visible_src=read_file($source);
+my $status_font=read_file(File::Spec->catfile($example_dir,'status_font.c26'));
+my $cart_font=read_file(File::Spec->catfile($example_dir,'cart_type_font.c26'));
+$visible_src =~ /instantiate "six_glyph_big_wide_component\.c26" as status_result/ &&
+$visible_src =~ /instantiate "six_glyph_component\.c26" as cart_type \(compact_font:=0\)/ &&
+$visible_src =~ /include "status_font\.c26"/ &&
+$visible_src =~ /include "cart_type_font\.c26"/ &&
+$visible_src =~ /vcs_ntsc_wait_component_scanlines\(81\).*?status_result_draw\(\).*?vcs_ntsc_component_handoff\(\).*?cart_type_draw\(\).*?vcs_ntsc_wait_visible_tail_scanlines\(81\)/s &&
+$status_font =~ /Source font: big_ascii\.c26/ &&
+$status_font =~ /Characters: " pasFAIL"/ &&
+$cart_font =~ /Source font: default_ascii\.c26/ &&
+$cart_font =~ /Characters: " DPC"/
+   or die "DPC visible diagnostic no longer matches the common bankswitching PASS/FAIL presentation\n";
 
 my $bin=File::Spec->catfile($tmp,'dpc.bin');
 my $map_path=File::Spec->catfile($tmp,'dpc.map');

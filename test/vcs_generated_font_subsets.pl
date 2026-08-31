@@ -88,6 +88,7 @@ my @cases=(
    [qw(11_e0 e0_diagnostic.c26)],
    [qw(12_3f 3f_diagnostic.c26)],
    [qw(13_3e 3e_diagnostic.c26)],
+   [qw(16_dpc dpc_diagnostic.c26)],
 );
 
 for my $case (@cases) {
