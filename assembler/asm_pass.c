@@ -1630,7 +1630,7 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
                break;
             }
 
-            if (!strcmp(stmt->u.dir->name, ".word")) {
+            if (!strcmp(stmt->u.dir->name, ".word") || !strcmp(stmt->u.dir->name, ".banktarget")) {
                int count = 0;
                const expr_list_node_t *node;
 
@@ -2355,7 +2355,7 @@ static int directive_emit_pass2(asm_context_t *ctx,
       return 0;
    }
 
-   if (!strcmp(dir->name, ".word")) {
+   if (!strcmp(dir->name, ".word") || !strcmp(dir->name, ".banktarget")) {
       for (node = dir->exprs; node; node = node->next) {
          if (eval_or_report(ctx, node->expr, &ctx->symbols, stmt->scope, stmt->file, logical_pc, &value, stmt))
             return -1;

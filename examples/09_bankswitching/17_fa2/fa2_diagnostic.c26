@@ -1,0 +1,189 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// FA2 PASS/FAIL diagnostic.
+// Exercises all seven direct 4K bank selectors through a representative nested
+// cross-bank call chain and proves that all 256 bytes of FA2 cartridge RAM
+// survive every transition in that chain.  Exhaustive ordered JSR/RTS bank-pair
+// coverage for both 24K and 28K FA2 is in
+// test/vcs_bankswitching_call_matrix.pl.
+
+include "vcs_28k_fa2.c26"
+
+#ifndef SIMULATOR_TEST
+include "frame_ntsc.c26"
+include "fonts/default_decimal.c26"
+instantiate "six_glyph_big_wide_component.c26" as status_result
+instantiate "six_glyph_component.c26" as cart_type (compact_font:=0)
+#endif
+
+// Occupy the complete 256-byte FA2 RAM device: one initialized byte plus 255 BSS.
+cartram uint8_t fa2_data := 0x5A;
+cartram uint8_t fa2_bss[255];
+
+uint8_t failure;
+uint8_t trace;
+uint8_t ram_count;
+uint8_t index;
+
+#ifndef SIMULATOR_TEST
+include "status_font.c26"
+include "cart_type_font.c26"
+
+inline void load_pass(void) {
+   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+0;
+   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+1;
+   asm lda #<{status_glyphs + 16};  asm sta status_result_pointers+2;
+   asm lda #>{status_glyphs + 16};  asm sta status_result_pointers+3;
+   asm lda #<{status_glyphs + 32};  asm sta status_result_pointers+4;
+   asm lda #>{status_glyphs + 32};  asm sta status_result_pointers+5;
+   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+6;
+   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+7;
+   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+8;
+   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+9;
+   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+10;
+   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+11;
+}
+
+inline void load_fail(void) {
+   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+0;
+   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+1;
+   asm lda #<{status_glyphs + 64};   asm sta status_result_pointers+2;
+   asm lda #>{status_glyphs + 64};   asm sta status_result_pointers+3;
+   asm lda #<{status_glyphs + 80};   asm sta status_result_pointers+4;
+   asm lda #>{status_glyphs + 80};   asm sta status_result_pointers+5;
+   asm lda #<{status_glyphs + 96};   asm sta status_result_pointers+6;
+   asm lda #>{status_glyphs + 96};   asm sta status_result_pointers+7;
+   asm lda #<{status_glyphs + 112};  asm sta status_result_pointers+8;
+   asm lda #>{status_glyphs + 112};  asm sta status_result_pointers+9;
+   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+10;
+   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+11;
+}
+
+inline void load_fa2_type(void) {
+   // blank / F / A / 2 / blank / blank
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+0;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+1;
+   asm lda #<{cart_type_glyphs + 8};  asm sta cart_type_pointers+2;
+   asm lda #>{cart_type_glyphs + 8};  asm sta cart_type_pointers+3;
+   asm lda #<{cart_type_glyphs + 16}; asm sta cart_type_pointers+4;
+   asm lda #>{cart_type_glyphs + 16}; asm sta cart_type_pointers+5;
+   asm lda #<{cart_type_glyphs + 24}; asm sta cart_type_pointers+6;
+   asm lda #>{cart_type_glyphs + 24}; asm sta cart_type_pointers+7;
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+8;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+9;
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+10;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+11;
+}
+
+bank0 void draw_result(void) {
+   status_result_score := 0;
+   cart_type_score := 0;
+   status_result_init();
+   cart_type_init();
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      status_result_vblank();
+      cart_type_vblank();
+      if (failure) { load_fail(); } else { load_pass(); }
+      load_fa2_type();
+      status_result_color := 0x0E;
+      COLUBK := failure ? 0x20 : 0xC4;
+      COLUP0 := 0x0E;
+      COLUP1 := 0x0E;
+      PF0 := 0; PF1 := 0; PF2 := 0; GRP0 := 0; GRP1 := 0;
+      ENAM0 := 0; ENAM1 := 0; ENABL := 0; CTRLPF := 0;
+      vcs_ntsc_end_vblank();
+      vcs_ntsc_wait_component_scanlines(81);
+      status_result_draw();
+      vcs_ntsc_component_handoff();
+      cart_type_draw();
+      vcs_ntsc_wait_visible_tail_scanlines(81);
+      vcs_ntsc_begin_overscan();
+      status_result_overscan();
+      cart_type_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}
+#endif
+
+#ifdef SIMULATOR_TEST
+bank0 void simulator_done(void) { while (1) { } }
+#endif
+
+bank0 void bank0_probe(void) {
+   if (trace != 6 || fa2_data != 0xA5 || fa2_bss[0] != 0x11 ||
+       fa2_bss[127] != 0x22 || fa2_bss[254] != 0x33) { failure := 0x70; }
+   ram_count := ram_count + 1;
+   trace := 7;
+}
+
+bank6 void bank6_probe(void) {
+   if (trace != 5 || fa2_data != 0xA5 || fa2_bss[254] != 0x33) { failure := 0x60; }
+   ram_count := ram_count + 1; trace := 6; bank0_probe();
+   if (trace != 7 || fa2_bss[127] != 0x22) { failure := 0x61; }
+}
+
+bank5 void bank5_probe(void) {
+   if (trace != 4 || fa2_bss[0] != 0x11) { failure := 0x50; }
+   ram_count := ram_count + 1; trace := 5; bank6_probe();
+   if (trace != 7 || fa2_data != 0xA5) { failure := 0x51; }
+}
+
+bank4 void bank4_probe(void) {
+   if (trace != 3 || fa2_bss[127] != 0x22) { failure := 0x40; }
+   ram_count := ram_count + 1; trace := 4; bank5_probe();
+   if (trace != 7 || fa2_bss[254] != 0x33) { failure := 0x41; }
+}
+
+bank3 void bank3_probe(void) {
+   if (trace != 2 || fa2_data != 0xA5) { failure := 0x30; }
+   ram_count := ram_count + 1; trace := 3; bank4_probe();
+   if (trace != 7 || fa2_bss[0] != 0x11) { failure := 0x31; }
+}
+
+bank2 void bank2_probe(void) {
+   if (trace != 1 || fa2_bss[254] != 0x33) { failure := 0x20; }
+   ram_count := ram_count + 1; trace := 2; bank3_probe();
+   if (trace != 7 || fa2_bss[127] != 0x22) { failure := 0x21; }
+}
+
+bank1 void bank1_probe(void) {
+   if (trace != 0 || fa2_data != 0xA5 || fa2_bss[0] != 0x11) { failure := 0x10; }
+   ram_count := ram_count + 1; trace := 1; bank2_probe();
+   if (trace != 7 || fa2_bss[254] != 0x33) { failure := 0x11; }
+   trace := 8;
+}
+
+void main(void) {
+   // FA2 powers up in physical bank 0; the reset bridge must preserve that.
+   if (fa2_data != 0x5A) { failure := 0x01; }
+   index := 0;
+   while (index != 255) {
+      if (fa2_bss[index] != 0) { failure := 0x02; }
+      index := index + 1;
+   }
+
+   fa2_data := 0xA5;
+   fa2_bss[0] := 0x11;
+   fa2_bss[127] := 0x22;
+   fa2_bss[254] := 0x33;
+   ram_count := 0;
+   trace := 0;
+
+   // Nested call chain: 0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 0, then
+   // generated return trampolines unwind 0 -> 6 -> 5 -> 4 -> 3 -> 2 -> 1 -> 0.
+   // This exercises every FA2 bank selector on entry and return.
+   bank1_probe();
+
+   if (trace != 8 || ram_count != 7 || fa2_data != 0xA5 ||
+       fa2_bss[0] != 0x11 || fa2_bss[127] != 0x22 || fa2_bss[254] != 0x33) {
+      failure := 0x03;
+   }
+
+#ifdef SIMULATOR_TEST
+   asm jmp simulator_done;
+#else
+   draw_result();
+#endif
+}

@@ -19,6 +19,7 @@ constexpr int kMapF8 = VCSC_VIDEO_MAP_F8;
 constexpr int kMapF6 = VCSC_VIDEO_MAP_F6;
 constexpr int kMapF4 = VCSC_VIDEO_MAP_F4;
 constexpr int kMapFA = VCSC_VIDEO_MAP_FA;
+constexpr int kMapFA2 = VCSC_VIDEO_MAP_FA2;
 constexpr int kMapDPC = VCSC_VIDEO_MAP_DPC;
 constexpr int kMapJANE = VCSC_VIDEO_MAP_JANE;
 constexpr int kMap0840 = VCSC_VIDEO_MAP_0840;
@@ -121,6 +122,9 @@ private:
       else if (mapper_ == kMapFA && bus >= 0x1ff8u && bus <= 0x1ffau) {
          next = static_cast<size_t>(bus - 0x1ff8u); hit = true;
       }
+      else if (mapper_ == kMapFA2 && bus >= 0x1ff5u && bus <= 0x1ffbu) {
+         next = static_cast<size_t>(bus - 0x1ff5u); hit = true;
+      }
       else if (mapper_ == kMapJANE) {
          if (bus == 0x1ff0u) { next = 0u; hit = true; }
          else if (bus == 0x1ff1u) { next = 1u; hit = true; }
@@ -180,7 +184,7 @@ private:
    uint8_t cart_read(uint16_t bus)
    {
       if (mapper_ == kMapDPC) return 0; /* DPC register semantics are not probed. */
-      if (mapper_ == kMapFA) {
+      if (mapper_ == kMapFA || mapper_ == kMapFA2) {
          if (bus >= 0x1100u && bus <= 0x11ffu)
             return cart_ram_[bus & 0xffu];
          if (bus >= 0x1000u && bus <= 0x10ffu) return 0;
@@ -211,7 +215,7 @@ private:
 
    void cart_write(uint16_t bus, uint8_t value)
    {
-      if (mapper_ == kMapFA && bus >= 0x1000u && bus <= 0x10ffu) {
+      if ((mapper_ == kMapFA || mapper_ == kMapFA2) && bus >= 0x1000u && bus <= 0x10ffu) {
          cart_ram_[bus & 0xffu] = value;
          return;
       }

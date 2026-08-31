@@ -95,6 +95,9 @@ for my $tree (qw(libraries examples)) {
          ($path eq $animated_license || index($path,$animated_root . '/')==0);
       my $rel=File::Spec->abs2rel($path,$repo);
       next if $rel =~ /(?:^|\/)(?:wrk)(?:\/|$)/;
+      # Editor swap/recovery files are transient workspace state, not editable
+      # cartridge sources.  Do not demand a source-license notice from them.
+      next if basename($path) =~ /^\..*\.sw[pon]\z/;
       # Linker/Stella sidecars produced beside public example ROMs are build
       # products, not editable example sources.  In particular, ordinary example
       # builds leave a same-stem .cfg behind until `make clean`; hygiene must be
@@ -134,6 +137,7 @@ find({no_chdir=>1,wanted=>sub { push @animated_files,$File::Find::name if -f $_ 
 for my $path (sort @animated_files) {
    next if $path eq $animated_license;
    my $rel=File::Spec->abs2rel($path,$repo);
+   next if basename($path) =~ /^\..*\.sw[pon]\z/;
    next if $rel =~ /\.(?:bin|hex|map|sym|lst|o26|l26)\z/;
    basename($path) !~ /(?:license|copying|copyright)/i
       or die "unexpected second license file remains in animated example: $rel\n";
@@ -189,7 +193,17 @@ length($bankswitching) <= 16 * 1024 &&
 index($bankswitching,'Never use bare "bank 0" without saying which identity is meant.')>=0 &&
 index($bankswitching,'file_index(BANKn) = bank_count - 1 - n')>=0 &&
 index($bankswitching,'Public VCSC cartridge profiles reserve four bytes')>=0 &&
-$bankswitching =~ /^\[ \] 38\. Reconsider the next tier: F0, FA2, and FC\. \*\*DEFERRED\.\*\*/m &&
+$bankswitching =~ /^\[ \] 38\. Complete the remaining mapper tier in this order: \*\*FC, F0\*\*\./m &&
+index($bankswitching,'FA2 extends the FA split-RAM model to six or seven directly selected 4K ROM')>=0 &&
+index($bankswitching,'[ ] 38b. FC -- do this next.')>=0 &&
+index($bankswitching,'[ ] 38c. F0 -- do this after FC.')>=0 &&
+index($bankswitching,'bank through the $1FF0 hotspot instead of directly selecting an')>=0 &&
+index($bankswitching,'Replace that representation with the chosen five-byte')>=0 &&
+index($bankswitching,'JSR __bankcall')>=0 &&
+index($bankswitching,'.word target')>=0 &&
+index($bankswitching,'caller continuation PC is again exposed on the hardware stack')>=0 &&
+index($bankswitching,'no ROM bank-identity')>=0 &&
+index($bankswitching,'reverse advance count as call-frame metadata')>=0 &&
 $bankswitching !~ /^\[ \] 42\./m &&
 $bankswitching !~ /^\[ \] 43\./m &&
 index($bankswitching,'FE/SCABS is also not an F8-style hotspot mapper.')>=0 &&
@@ -198,6 +212,9 @@ $bankswitching !~ /Backfill a 3F public diagnostic cartridge/ &&
 $bankswitching !~ /Backfill a 3E public diagnostic cartridge/ &&
 $bankswitching !~ /^\[ \] 44\./m &&
 index($bankswitching,'DPC is F8 program banking plus two non-CPU-addressable image regions.')>=0 &&
+-f File::Spec->catfile($repo,qw(libraries vcs vcs_24k_fa2.c26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs vcs_28k_fa2.c26)) &&
+-f File::Spec->catfile($test,'vcs_fa2.pl') &&
 index($bankswitching,'`$data_only` banks have file identity and size but no CPU/link address')>=0 &&
 $bankswitching !~ /^\[x\]/m
    or die "bankswitching hot record lost durable identities/open work or exceeded 16 KiB\n";

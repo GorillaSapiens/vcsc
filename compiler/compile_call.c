@@ -20,6 +20,7 @@
 #include "compile_lvalue.h"
 #include "compile_function_registry.h"
 #include "compile_support.h"
+#include "compile_toplevel.h"
 #include "compile_stmt.h"
 #include "compile_type.h"
 #include "integer.h"
@@ -30,6 +31,20 @@
 static const ASTNode *inline_expansion_stack[INLINE_EXPANSION_MAX_DEPTH];
 static int inline_expansion_depth = 0;
 static int inline_expansion_counter = 0;
+
+
+//! @brief Return whether this direct call should use the inline-target bank-call bundle.
+static bool direct_call_uses_inline_bank_bundle(const ASTNode *fn) {
+   const char *caller_region;
+   const char *callee_region;
+
+   if (!fn || !current_call_graph_function ||
+       !compile_cartridge_supports_inline_bankcall())
+      return false;
+   caller_region = function_single_code_region_name(current_call_graph_function);
+   callee_region = function_single_code_region_name(fn);
+   return caller_region && callee_region && strcmp(caller_region, callee_region) != 0;
+}
 
 static bool validate_specialized_ref_argument(ASTNode *expr, Context *ctx,
                                               const ASTNode *parameter,
@@ -393,6 +408,7 @@ static void emit_direct_argument_copy(const DirectCallArgStage *item,
 }
 
 //! @brief Validate a specialized ref actual without materializing its address slot.
+
 static bool validate_specialized_ref_argument(ASTNode *expr, Context *ctx,
                                               const ASTNode *parameter,
                                               int parameter_index) {
@@ -615,7 +631,19 @@ static bool compile_direct_symbol_call(Context *ctx, ContextEntry *dst,
       record_activation_lifetime_edge(current_activation_graph_function, fn);
    }
    remember_symbol_import(callee_sym);
-   emit(&es_code, "    jsr %s\n", callee_sym);
+   if (direct_call_uses_inline_bank_bundle(fn)) {
+      /* Keep the ordinary JSR relocation pointed at the callee so call-graph and
+         source/destination bank analysis retain their existing meaning.  The
+         linker rewrites that operand to the fixed generic entry; .banktarget
+         marks the following logical target word as call metadata rather than a
+         forbidden cross-bank data reference. */
+      emit(&es_code, "    jsr %s\n", callee_sym);
+      emit(&es_code, "    .banktarget %s\n", callee_sym);
+      remember_symbol_import_mode("_vcsc_ptr0", true);
+   }
+   else {
+      emit(&es_code, "    jsr %s\n", callee_sym);
+   }
 
    if (dst && ret_size > 0) {
       emit_copy_symbol_to_scratch_convert(dst->offset, dst->size, dst->type,

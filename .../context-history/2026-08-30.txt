@@ -62,3 +62,142 @@ cut off by the slow disassembler/fuzz cases.
 
 2026-08-30 14:28:58 PDT, fix C26 Vim comment priority
 C26 Vim comments are now defined after ordinary operators so // and /* win Vim same-column syntax priority. Comments contain no nested Todo/spell groups; delimiters and all body text resolve uniformly to the standard Comment highlight, matching S26. Local Vim smoke checks cover line/block/trailing/preprocessor comments, strings containing comment-like text, and division.
+
+2026-08-30 15:02:00 PDT, reopen and reorder remaining mapper tier
+The user reopened bankswitching Item 38 for a future chat and fixed the order as
+FA2, FC, then F0. FA2 is first because explicit ROM-bank selection plus 256 bytes
+of cartridge RAM is materially useful for new VCSC programs; core mapper support
+should not be blocked on optional Harmony persistence behavior. FC remains a
+separate hardware-contract task. F0 is last because its 64K capacity is selected
+by sequential $1FF0 bank advancement, making it useful chiefly for compatibility
+and stateful-mapper coverage rather than as an especially attractive target for
+new compiler-generated cross-bank code. The hot bankswitching roadmap and context
+now say to start with FA2 when that workstream resumes.
+
+2026-08-30 15:29:33 PDT, clarify FC and F0 mapper plans
+The remaining mapper order stays FA2, FC, then F0. FC is no longer considered
+a concerning/stateful mapper: current Stella FC uses staged direct selection,
+with target-bank bits written through $1FF8/$1FF9 and an access to $1FFC
+committing the switch, so a normal replicated cross-bank transition corridor
+should be straightforward. Do not alter existing mapper implementations merely
+to generalize FC. For F0, preserve the increment-only $1FF0 hardware contract
+and reserve a unique bank-ID byte at the same CPU address in every bank. A
+replicated F0 trampoline can advance until the ID matches the destination bank;
+the return corridor can similarly advance until the original/source bank ID is
+seen before its final RTS. The ID/search mechanism is specifically an F0 design,
+not a retrofit for existing direct-selector mappers.
+
+2026-08-30 15:34:04 PDT, simplify planned F0 trampoline
+Superseded the proposed per-bank identity byte. For compiler/linker-generated
+F0 cross-bank transitions the linker already knows both source and target banks,
+so it can compute the exact sequential-bank advance count at link time. Entry
+uses `(target - source) mod 16` accesses to $1FF0; the return corridor uses
+`(source - target) mod 16` accesses before its final RTS. The repeated accesses
+may be unrolled or implemented as a small counter loop inside the byte-identical
+replicated corridor, whichever is smaller/timing-appropriate. Manual code that
+changes F0 banks behind the compiler's back owns its mapper state. Existing
+mapper implementations remain unchanged.
+
+2026-08-30 16:18:00 PDT, complete FA2 bankswitching support
+Completed bankswitching Item 38a. Added native 24K six-bank and 28K seven-bank
+FA2 C26 profiles plus simulator cfgs. Physical/file bank 0 powers up; direct
+selectors $1FF5-$1FFA and optional $1FFB select banks 0-6. FA2 reuses the FA
+256-byte split-RAM contract (write $1000-$10FF, read $1100-$11FF), leaving the
+first $200 bytes of each 4K bank nonallocatable. VCSC deliberately emits clean
+24K/28K payloads; optional Harmony $1FF4 flash persistence and 29K/32K wrapper
+forms remain outside the core profile.
+
+Added examples/09_bankswitching/17_fa2. Its seven-bank PASS/FAIL diagnostic fills
+all 256 bytes of cart RAM, verifies BSS/DATA initialization and sentinels, then
+runs a nested 0->1->2->3->4->5->6->0 call chain and generated return path.
+vcsc-sim passes the diagnostic from every possible initial physical bank. The
+24K regression independently exercises all six selectors and the nested return
+path from every possible initial bank. The disassembler recognizes both native
+sizes, models selectors/RAM/hidden prefixes and bank-0 power-up, and round-trips
+both byte-exactly. Stella 7.0 forced to -bs FA2 renders and grades the green
+PASS/FA2 frame.
+
+Validation: the complete 503-test unit phase passes; test/vcs_fa2.pl,
+test/vcs_c26_cartridge_profiles.pl, generic_target_bundle_pruned.pl,
+vcsc_branding.pl, source_tree_hygiene.pl, context_history_format.pl, and recursive
+example-build shard 8/8 pass. The FA2 Stella snapshot certification passes. A
+focused staged-install smoke builds both installed profiles at exactly 24576 and
+28672 bytes. A prior full installcheck exceeded the execution ceiling late in
+unrelated renderer smokes. Remaining bankswitching order is FC then F0.
+
+2026-08-30 16:25:10 PDT, FA2 cleanup regressions
+Pinned the new FA2 diagnostic's 37 reviewed inline-assembly source lines in
+`test/fixtures/example_assembly_allowlist.tsv` and updated the runner's expected
+allowlist count from 44 to 45.  `source_tree_hygiene.pl` now excludes Vim
+`.swp/.swo/.swn` recovery files from cartridge-source CC0 notice checks; an
+explicit reproduction with `.fa2_diagnostic.c26.swp` verifies the editor temp
+file no longer causes a false license failure.  The exact two reported tests and
+`vcs_fa2.pl` pass through `test/test.pl`.
+2026-08-30 16:43:49 PDT, exhaustive bank-call matrix
+Audited bankswitching diagnostics for generated cross-bank JSR/RTS coverage.
+Touching every selector or walking a nested bank tour is not sufficient to
+exercise every ordered source/destination bridge pair. Added
+`test/vcs_bankswitching_call_matrix.pl`, which builds one ROM per source bank
+and has that source call every destination bank, checking generated bridge map
+metadata, return values, hardware-stack balance, and vcsc-sim execution. The
+current selector-controlled profiles cover 240 ordered cross-bank JSR pairs:
+F8/F8SC, F6/F6SC, F4/F4SC, FA, FA2 24K/28K, JANE, 0840, UA/UASW, 0FA0, and
+DPC. Multiple ROMs are required because all 56 F4 ordered pairs would consume
+840 bytes of 15-byte JSR entries, exceeding the normal 224-byte trampoline
+corridor. Updated diagnostic documentation to distinguish representative visible
+chains from exhaustive regression coverage. DPC's two-bank visible diagnostic
+now calls in both directions in one nested path.
+Validation for the ordered-call audit: the focused 12-test bank suite passes,
+including the new exhaustive matrix plus F8/F6/F4 visible diagnostics, FA, JANE,
+DPC, FA2, 0840, UA/UASW, and 0FA0. A second 9-test specialized/profile suite
+passes F8/F6/F4 profile checks, cartridge-profile contracts, E0, 3F/3E, FE, WD,
+OMNI, and recursive bankswitching example builds. DPC's visible diagnostic map
+is now explicitly required to contain both bank0->bank1 and bank1->bank0 JSR
+bridges.
+
+2026-08-30 17:17:50 PDT, cross-bank JSR redesign candidates
+The existing ordinary selector-controlled cross-bank JSR scheme is now explicit
+design debt: each unique `(source bank, target function)` owns a 15-byte entry in
+the byte-identical common corridor. The call site is compact, but target diversity
+consumes replicated corridor capacity; the target word is already stored inline
+inside each generated entry.
+
+Recorded two replacement candidates in `bankswitching.txt` without implementing
+either yet. Candidate A loads the target's 16-bit logical address into A:X then
+calls one generic source-bank trampoline; the logical address encodes both target
+bank and offset, giving a roughly seven-byte call site and fixed trampoline cost.
+Candidate B emits `JSR __bankcall_from_SOURCE` immediately followed by `.word foo`.
+Since NMOS 6502 JSR pushes the address of its own final operand byte, the trampoline
+can inspect the stacked return address while the source bank is still selected,
+read the next two bytes as the target logical address, add two to the stacked return
+address so the final RTS skips the inline word, then use the normal synthetic-return
+source-restore mechanism before switching and indirect-JMPing to the target. This
+reduces the call site to five bytes and removes per-target corridor entries, at the
+cost of extra trampoline cycles/code, stack-return manipulation, scratch pointer
+state, and debugger/disassembler awareness of inline data. Preserve nested calls,
+hardware-stack accounting, ordinary callee RTS, A:X return values, and exhaustive
+ordered-pair coverage whichever design wins. Cross-bank JMP density is a separate
+question. Mapper order remains FC then F0.
+
+2026-08-30 17:35:12 PDT, choose inline-word bank calls
+Selected the five-byte `JSR __bankcall` + inline `.word target` representation as
+VCSC's planned replacement for per-target 15-byte cross-bank JSR bridges. The
+seven-byte A:X-target form remains rejected rationale only.
+
+Corrected the return-side model: the 6507 keeps a 16-bit PC even though only 13
+address lines reach the cartridge, so the original stacked logical caller PC
+already encodes the source bank through VCSC's distinct bank ORGs. A generic
+`__bankreturn` should peek that unchanged PC, select its bank, preserve A:X, and
+RTS directly to it; do not rewrite it to `$Fxxx` or any invented physical PC.
+For F0, entry can compute the forward increment count from source/target and carry
+the reverse count as per-call stack metadata beneath the synthetic return, avoiding
+both a ROM identity byte and runtime bank discovery.
+
+2026-08-30 17:42:01 PDT, bankcall page-carry contract
+The chosen inline-word cross-bank JSR design now explicitly requires full 16-bit
+carry propagation when deriving the inline target and adjusting the stacked JSR
+return PC. A generated JSR plus its inline `.word target` is one atomic five-byte
+placement bundle: it may cross a 256-byte page but may not cross a logical 4K bank
+boundary. Planned executable regressions cover an inline word split at a page edge,
+a JSR ending at `$xxFF`, stacked-PC `+2` carry, logical-bank-end placement, nesting,
+exact target/return PCs, restored bank, stack depth, and preserved A:X returns.

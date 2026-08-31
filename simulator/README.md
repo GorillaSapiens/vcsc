@@ -78,7 +78,7 @@ profiles.
 For an unbanked image, `type=ro` MEMORY ranges reject guest writes.  For a
 banked image, the simulator additionally:
 
-- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, `JANE`, `0840`, `UA`, `UASW`, `0FA0`, `E0`, `FE`, `DPC`, `3F`, or `3E` (plus the SC variants);
+- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, Harmony `FA2`, `JANE`, `0840`, `UA`, `UASW`, `0FA0`, `E0`, `FE`, `DPC`, `3F`, or `3E` (plus the SC variants);
 - loads each physical `.bin` chunk into the logical range named by its BANKS
   entry (4K for the conventional banked profiles and FE, 1K for E0);
 - maps every CPU cartridge-window fetch through the currently selected physical
@@ -220,6 +220,8 @@ unbanked sizes are rejected rather than guessed.
 
 OMNI direct-multi support
 -------------------------
+`vcs_24k_fa2.cfg` and `vcs_28k_fa2.cfg` model FA2 as six/seven directly selected 4K banks at `$1FF5-$1FFA/$1FFB` with 256 bytes of split-address cartridge RAM (write `$1000-$10FF`, read `$1100-$11FF`) and bank 0 at power-up. Harmony `$1FF4` persistence is intentionally outside the core simulator contract.
+
 `vcs_omni_32k.cfg` describes the planned OmniCart PHM direct-addressing model.
 The simulator loads its eight 4K file chunks directly at logical `$1000`,
 `$3000`, `$5000`, `$7000`, `$9000`, `$B000`, `$D000`, and `$F000`. OMNI has no

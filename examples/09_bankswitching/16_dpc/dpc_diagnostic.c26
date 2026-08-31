@@ -2,8 +2,9 @@
 
 // DPC PASS/FAIL diagnostic. DPC is F8 program banking plus a 2K display-data
 // ROM and a conventional 255-byte Poly8 tail. The runtime test exercises both
-// F8 program banks, checks every display byte through a DPC data fetcher, and
-// checks all 255 states produced by the DPC RNG after reset.
+// F8 program banks in both ordered call directions, checks every display byte
+// through a DPC data fetcher, and checks all 255 states produced by the DPC RNG
+// after reset.
 include "vcs_10k_dpc.c26"
 
 #ifndef SIMULATOR_TEST
@@ -26,7 +27,14 @@ bank0 const uint8_t dpc_feedback[16] := {
    1,0,0,1,0,1,1,0,0,1,1,0,1,0,0,1
 };
 
-bank1 uint8_t bank1_probe(void) { return 0xD1; }
+bank0 uint8_t bank0_probe(void) { return 0xD0; }
+
+bank1 uint8_t bank1_probe(void) {
+   // One nested reverse call makes the two-bank DPC program-ROM diagnostic
+   // exercise both ordered generated JSR/RTS pairs in this single cartridge.
+   if (bank0_probe() != 0xD0) { return 0xE1; }
+   return 0xD1;
+}
 
 inline void advance_expected_rng(void) {
    feedback_index := (expected_rng >> 3) & 7;

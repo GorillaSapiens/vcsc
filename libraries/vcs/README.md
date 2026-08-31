@@ -31,6 +31,7 @@ Files:
 - `vcs_8k_3e.c26`, `vcs_16k_3e.c26` ... classic 3E ROM/RAM extension of the same 2K-window family, with 32 1K RAM banks and simulator cfgs for both public sizes
 - `vcs_16k_jane.c26` ... JANE four-bank 16K profile preserving physical selectors `$1FF0/$1FF1/$1FF8/$1FF9` and hardware startup in physical bank 1; `vcs_16k_jane.cfg` supplies simulator-only physical-file mapping
 - `vcs_12k_fa.c26`, `fa_ram_plus.c26` ... CBS FA/RAM Plus three-bank profile with physical startup bank 2 and shared 256-byte split-address cartridge RAM
+- `vcs_24k_fa2.c26`, `vcs_28k_fa2.c26` ... FA2 six/seven-bank profiles with direct selectors `$1FF5-$1FFA/$1FFB`, physical startup bank 0, and the same shared 256-byte split-address cartridge RAM; matching cfg files support simulation. VCSC emits clean 24K/28K payloads; optional Harmony `$1FF4` persistence and 29K/32K wrapper forms are not part of the core profile.
 - `vcs_4k_sc.c26`, `vcs_8k_f8sc.c26`, `vcs_16k_f6sc.c26`, `vcs_32k_f4sc.c26` ... direct/banked Superchip profiles with a reserved physical prefix and shared split-address RAM
 - `vcs_direct_8k.c26` ... generic two-chunk directly mapped packaging profile used to certify selector-free output; no real hardware currently implements this exact mapping
 - `vcs_omni_32k.c26` ... OmniCart/OMNI direct-addressing profile: seven directly addressed 4K RO islands plus one 4K RW island at `$1000`; `vcs_omni_32k.cfg` gives `vcsc-sim` the matching selector-free logical layout; no real hardware currently implements OMNI

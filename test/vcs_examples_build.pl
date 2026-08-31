@@ -71,6 +71,7 @@ sub profile_from_source {
    return 'f4' if $text =~ /^\s*include\s+"vcs_32k_f4\.c26"\s*$/m;
    return 'f4sc' if $text =~ /^\s*include\s+"vcs_32k_f4sc\.c26"\s*$/m;
    return 'fa' if $text =~ /^\s*include\s+"vcs_12k_fa\.c26"\s*$/m;
+   return 'fa2' if $text =~ /^\s*include\s+"vcs_28k_fa2\.c26"\s*$/m;
    return 'omni' if $text =~ /^\s*include\s+"vcs_omni_32k\.c26"\s*$/m;
    return 'jane' if $text =~ /^\s*include\s+"vcs_16k_jane\.c26"\s*$/m;
    return '4k';
@@ -147,7 +148,7 @@ for my $entry (@examples) {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
    } elsif ($profile eq 'f8') {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs_8k_f8.cfg');
-   } elsif ($profile eq 'cv' || $profile eq '4ksc' || $profile eq 'f8sc' || $profile eq 'f6' || $profile eq 'f6sc' || $profile eq 'f4' || $profile eq 'f4sc' || $profile eq 'fa' || $profile eq 'omni' || $profile eq 'jane' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq 'fe' || $profile eq 'wd' || $profile eq '3f' || $profile eq '3e' || $profile eq 'dpc') {
+   } elsif ($profile eq 'cv' || $profile eq '4ksc' || $profile eq 'f8sc' || $profile eq 'f6' || $profile eq 'f6sc' || $profile eq 'f4' || $profile eq 'f4sc' || $profile eq 'fa' || $profile eq 'fa2' || $profile eq 'omni' || $profile eq 'jane' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq 'fe' || $profile eq 'wd' || $profile eq '3f' || $profile eq '3e' || $profile eq 'dpc') {
       # C26 owns the 4KSC/F8SC/FA cartridge and cartridge-RAM topology; the generic cfg
       # only reserves the RIOT hardware stack, matching the public Makefiles.
       push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
@@ -206,6 +207,7 @@ for my $entry (@examples) {
       : ($profile eq 'f8' || $profile eq 'f8sc' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq 'fe' || $profile eq 'wd' || $profile eq '3f' || $profile eq '3e') ? 8192
       : $profile eq 'dpc' ? 10495
       : $profile eq 'fa' ? 12288
+      : $profile eq 'fa2' ? 28672
       : ($profile eq 'f6' || $profile eq 'f6sc' || $profile eq 'jane') ? 16384
       : ($profile eq 'f4' || $profile eq 'f4sc' || $profile eq 'omni') ? 32768
       : 4096;
@@ -213,7 +215,7 @@ for my $entry (@examples) {
       or die "$dir produced ".length($rom)." bytes, expected $expected_size\n";
    my %known_signature=map { $_=>1 } (
       "4KSC", "F8\0\0", "F8SC", "F6\0\0", "F6SC",
-      "F4\0\0", "F4SC", "FA\0\0", "CV\0\0", "OMNI", "JANE", "0840", "UA\0\0", "UASW", "0FA0", "E0\0\0", "FE\0\0", "WD\0\0", "3F\0\0", "3E\0\0", "DPC\0",
+      "F4\0\0", "F4SC", "FA\0\0", "FA2\0", "CV\0\0", "OMNI", "JANE", "0840", "UA\0\0", "UASW", "0FA0", "E0\0\0", "FE\0\0", "WD\0\0", "3F\0\0", "3E\0\0", "DPC\0",
    );
    # Most profiles keep signature/vectors at the physical image tail. DPC
    # appends non-CPU-addressable display/poly data after its two F8 program

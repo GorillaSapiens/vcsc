@@ -109,13 +109,13 @@ sub decode_png_rgb {
 }
 
 @ARGV>=2 && @ARGV<=3
-   or die "usage: $0 SNAPSHOT.png pass|fail [F8|F6|F4|FA|4KSC|F8SC|F6SC|F4SC|E0|FE|WD|3F|3E|DPC|??????]\n";
+   or die "usage: $0 SNAPSHOT.png pass|fail [F8|F6|F4|FA|FA2|4KSC|F8SC|F6SC|F4SC|E0|FE|WD|3F|3E|DPC|??????]\n";
 my $expect=lc($ARGV[1]);
 $expect eq 'pass' || $expect eq 'fail'
    or die "result must be pass or fail\n";
 my $cart=$ARGV[2] // 'F8';
-$cart =~ /^(?:F[468](?:SC)?|FA|4KSC|E0|FE|WD|3F|3E|DPC|\?{6})$/
-   or die "cart type must be F8/F6/F4/FA/4KSC, F8SC/F6SC/F4SC, E0, FE, WD, 3F, 3E, DPC, or ??????\n";
+$cart =~ /^(?:F[468](?:SC)?|FA|FA2|4KSC|E0|FE|WD|3F|3E|DPC|\?{6})$/
+   or die "cart type must be F8/F6/F4/FA/FA2/4KSC, F8SC/F6SC/F4SC, E0, FE, WD, 3F, 3E, DPC, or ??????\n";
 
 my($width,$height,$rgb_at)=decode_png_rgb($ARGV[0]);
 my @center=$rgb_at->(int($width/2),int($height/2));
@@ -208,6 +208,7 @@ my %small=(
    W=>[qw(01100110 01100110 01100110 01100110 01101110 01111110 01111110 01100110)],
    D=>[qw(01111100 01100110 01100110 01100110 01100110 01100110 01100110 01111100)],
    0=>[qw(00111100 01100110 01100110 01100110 01100110 01100110 01100110 00111100)],
+   2=>[qw(00111100 01000110 00000110 00000110 00111100 01100000 01100000 01111110)],
    '?'=>[qw(00111100 01100110 00000110 00001100 00011000 00000000 00011000 00011000)],
 );
 
@@ -283,9 +284,10 @@ sub grade_line {
    my $cx=($minx+$maxx)/2;
    my $expected_cx=($width-1)/2;
    # A three-letter label cannot be symmetrically padded into six 8-pixel
-   # glyph slots.  The DPC diagnostic deliberately uses " DPC  ", whose
-   # visible pixels sit half a glyph left while the six-slot field is centered.
-   $expected_cx -= 4*$xs if $cart eq 'DPC' && $name =~ /^cart type/;
+   # glyph slots. Three-letter labels deliberately use one leading and two
+   # trailing blank slots, so their visible pixels sit half a glyph left while
+   # the six-slot field itself remains centered.
+   $expected_cx -= 4*$xs if ($cart eq 'DPC' || $cart eq 'FA2') && $name =~ /^cart type/;
    abs($cx-$expected_cx) <= 2*$xs
       or die "$name is not horizontally centered: bbox=$minx-$maxx image_width=$width\n";
    return ($minx,$miny,$maxx,$maxy,$xs,$ys);
@@ -299,6 +301,9 @@ if ($cart eq '??????') {
 }
 elsif ($cart eq 'DPC') {
    $cart_text=' DPC  ';
+}
+elsif ($cart eq 'FA2') {
+   $cart_text=' FA2  ';
 }
 elsif ($cart =~ /SC$/) {
    $cart_text=' '.$cart.' ';

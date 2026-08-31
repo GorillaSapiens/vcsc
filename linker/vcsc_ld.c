@@ -32,7 +32,8 @@ enum {
    BANK_TRAMPOLINE_JMP = 1,
    BANK_TRAMPOLINE_JSR = 2,
    BANK_JMP_ENTRY_SIZE = 8,
-   BANK_JSR_ENTRY_SIZE = 15
+   BANK_JSR_ENTRY_SIZE = 15,
+   BANK_GENERIC_JSR_SIZE = 0x50
 };
 
 //! @brief Print the linker command-line usage text.
@@ -1842,6 +1843,55 @@ static void validate_c26_dpc_topology(const linker_config_t *cfg)
    }
 }
 
+//! @brief Return whether the C26 topology is Harmony FA2.
+static int c26_topology_is_fa2(const linker_config_t *cfg)
+{
+   const topology_cartridge_t *cart;
+   if (!cfg || (cfg->topology_bank_count != 6u && cfg->topology_bank_count != 7u))
+      return 0;
+   cart = &cfg->topology_cartridge;
+   return (cart->present_mask & 0x80u) &&
+          cart->signature[0] == 'F' && cart->signature[1] == 'A' &&
+          cart->signature[2] == '2' && cart->signature[3] == 0;
+}
+
+//! @brief Validate the six/seven-bank Harmony FA2 topology.
+static void validate_c26_fa2_topology(const linker_config_t *cfg)
+{
+   size_t i;
+   size_t startup_count = 0;
+   for (i = 0; i < cfg->topology_bank_count; ++i) {
+      const topology_bank_t *bank = c26_topology_bank_by_file_index(cfg, i);
+      uint16_t expected_link = (uint16_t)(0xf200u - (uint16_t)(i * 0x2000u));
+      uint16_t expected_selector = (uint16_t)(0x1ff5u + i);
+      if (!bank) {
+         fprintf(stderr, "vcsc-ld: FA2 topology requires dense file banks 0-%zu\n",
+                 cfg->topology_bank_count - 1u);
+         exit(1);
+      }
+      if (bank->data_only || bank->image_size != 0x1000u ||
+          bank->image_offset != 0x0200u || bank->link_start != expected_link ||
+          bank->cpu_start != 0xf200u || bank->map_size != 0x0e00u ||
+          !bank->has_selector || bank->select_access != expected_selector) {
+         fprintf(stderr,
+                 "vcsc-ld: FA2 physical/file bank %zu must be a 4K image with hidden $200 RAM-port prefix, logical start $%04X, and selector $%04X\n",
+                 i, expected_link, expected_selector);
+         exit(1);
+      }
+      if (bank->startup) {
+         startup_count++;
+         if (i != 0u) {
+            fprintf(stderr, "vcsc-ld: FA2 startup/home marker must be on physical/file bank 0\n");
+            exit(1);
+         }
+      }
+   }
+   if (startup_count != 1u) {
+      fprintf(stderr, "vcsc-ld: FA2 topology requires physical/file bank 0 as the single startup/home bank\n");
+      exit(1);
+   }
+}
+
 //! @brief Return whether the C26 topology is classic Tigervision 3F or 3E.
 static int c26_topology_is_3f_family(const linker_config_t *cfg)
 {
@@ -2074,6 +2124,7 @@ static void validate_c26_topology(linker_config_t *cfg)
    int wd_profile;
    int fe_profile;
    int dpc_profile;
+   int fa2_profile;
    int threef_family;
 
    if (cfg->topology_bank_count == 0) {
@@ -2091,6 +2142,7 @@ static void validate_c26_topology(linker_config_t *cfg)
    wd_profile = c26_topology_is_wd(cfg);
    fe_profile = c26_topology_is_fe(cfg);
    dpc_profile = c26_topology_is_dpc(cfg);
+   fa2_profile = c26_topology_is_fa2(cfg);
    threef_family = c26_topology_is_3f_family(cfg);
 
    for (i = 0; i < cfg->topology_bank_count; ++i) {
@@ -2172,6 +2224,8 @@ static void validate_c26_topology(linker_config_t *cfg)
       validate_c26_fe_topology(cfg);
    if (dpc_profile)
       validate_c26_dpc_topology(cfg);
+   if (fa2_profile)
+      validate_c26_fa2_topology(cfg);
    if (threef_family)
       validate_c26_3f_family_topology(cfg);
 
@@ -7459,6 +7513,13 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
             target_item = bank_placement_find_item(items, item_count, target.layout);
             control = reloc->type & O26_RTYPE_CONTROL_MASK;
 
+            /* .banktarget is metadata consumed by the paired direct JSR; it is
+               intentionally a far logical word and must not create a hard
+               same-bank placement edge of its own. */
+            if ((reloc->type & O26_RTYPE_BANK_TARGET) &&
+                control == O26_RTYPE_CONTROL_NONE)
+               continue;
+
             if (cfg->cartridge_banked &&
                 (control == O26_RTYPE_CONTROL_JSR ||
                  control == O26_RTYPE_CONTROL_JMP) &&
@@ -8948,6 +9009,118 @@ static const char *relocation_width_name(uint8_t type)
    }
 }
 
+//! @brief Return whether a relocation is the inline logical target word for a generic bank call.
+static int relocation_is_bank_target(const reloc_t *r)
+{
+   return r && (r->type & O26_RTYPE_BANK_TARGET) &&
+          (r->type & O26_RTYPE_CONTROL_MASK) == O26_RTYPE_CONTROL_NONE;
+}
+
+//! @brief Return the segment containing one relocation image id.
+static const o26_segment_t *object_image_segment(const object_file_t *obj, uint8_t image_segid)
+{
+   if (!obj) return NULL;
+   if (image_segid == O26_SEG_TEXT) return &obj->text;
+   if (image_segid == O26_SEG_DATA) return &obj->data;
+   return NULL;
+}
+
+//! @brief Return whether a direct JSR relocation owns the immediately following .banktarget word.
+static int jsr_has_inline_bank_target(const object_file_t *obj, uint8_t image_segid,
+                                      const reloc_t *jsr)
+{
+   const o26_segment_t *seg = object_image_segment(obj, image_segid);
+   size_t i;
+   if (!seg || !jsr || (jsr->type & O26_RTYPE_CONTROL_MASK) != O26_RTYPE_CONTROL_JSR)
+      return 0;
+   for (i = 0; i < seg->reloc_count; ++i) {
+      const reloc_t *r = &seg->relocs[i];
+      if (relocation_is_bank_target(r) && r->offset == jsr->offset + 2u &&
+          r->segid == jsr->segid && r->undef_index == jsr->undef_index &&
+          r->has_layout_index == jsr->has_layout_index &&
+          (!r->has_layout_index || r->layout_index == jsr->layout_index))
+         return 1;
+   }
+   return 0;
+}
+
+//! @brief Validate selector geometry and return the base indexed by logical PC high bits.
+static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
+{
+   size_t i;
+   uint16_t base = 0;
+   int have_base = 0;
+   if (!cfg || (cfg->bank_count != 2u && cfg->bank_count != 4u && cfg->bank_count != 8u)) {
+      fprintf(stderr, "vcsc-ld: generic inline-target bank calls currently require 2, 4, or 8 selector-controlled banks\n");
+      exit(1);
+   }
+   for (i = 0; i < cfg->bank_count; ++i) {
+      uint8_t logical_index;
+      uint16_t candidate;
+      if (!cfg->banks[i].hotspot) {
+         fprintf(stderr, "vcsc-ld: generic inline-target bank calls require a selector on every bank\n");
+         exit(1);
+      }
+      /* The pilot profiles deliberately use distinct logical ORGs whose top
+         three PC bits encode the selector offset directly: Fxxx=>7,
+         Dxxx=>6, ..., 1xxx=>0.  The 6507 drops those high address bits on
+         the external bus, but JSR/RTS preserve them on the hardware stack. */
+      logical_index = (uint8_t)((cfg->banks[i].start >> 13) & 7u);
+      if (cfg->banks[i].hotspot < logical_index) {
+         fprintf(stderr, "vcsc-ld: generic inline-target bank-call selector geometry underflows for bank '%s'\n",
+                 cfg->banks[i].name);
+         exit(1);
+      }
+      candidate = (uint16_t)(cfg->banks[i].hotspot - logical_index);
+      if (!have_base) {
+         base = candidate;
+         have_base = 1;
+      }
+      else if (candidate != base) {
+         fprintf(stderr,
+                 "vcsc-ld: generic inline-target bank calls require selectors addressable as one base plus logical-PC bits\n");
+         exit(1);
+      }
+   }
+   if (!have_base || (uint32_t)base + 7u > 0x1fffu) {
+      fprintf(stderr, "vcsc-ld: generic inline-target bank-call selector base is invalid\n");
+      exit(1);
+   }
+   return base;
+}
+
+//! @brief Reserve the fixed generic bank-call block before variable JMP/legacy entries are allocated.
+static void prepare_generic_bankcall_corridor(const linker_config_t *cfg,
+                                               const input_set_t *in,
+                                               layout_t *layout)
+{
+   size_t i, j;
+   int found = 0;
+   if (!cfg || !in || !layout || !cfg->cartridge_banked)
+      return;
+   for (i = 0; i < in->object_count && !found; ++i) {
+      const o26_segment_t *segments[2] = { &in->objects[i].text, &in->objects[i].data };
+      for (j = 0; j < 2u && !found; ++j) {
+         size_t r;
+         for (r = 0; r < segments[j]->reloc_count; ++r) {
+            if (relocation_is_bank_target(&segments[j]->relocs[r])) {
+               found = 1;
+               break;
+            }
+         }
+      }
+   }
+   if (!found) return;
+   (void)generic_bankcall_selector_base(cfg);
+   if (BANK_GENERIC_JSR_SIZE > cfg->trampoline_size) {
+      fprintf(stderr, "vcsc-ld: generic inline-target bank-call block needs $%02X bytes but trampoline corridor has only $%03X\n",
+              BANK_GENERIC_JSR_SIZE, cfg->trampoline_size);
+      exit(1);
+   }
+   layout->bank_generic_jsr_used = 1;
+   layout->bank_trampoline_used = BANK_GENERIC_JSR_SIZE;
+}
+
 //! @brief Return the encoded byte size for one generated bank trampoline entry.
 static uint16_t bank_trampoline_entry_size(uint8_t kind)
 {
@@ -9160,6 +9333,19 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
       exit(1);
    }
 
+   if (relocation_is_bank_target(r)) {
+      /* The two inline bytes are deliberately a logical far target.  They are
+         consumed by __bankcall while the source bank is still mapped and are
+         not an ordinary CPU data reference. */
+      if (!final_bank || final_bank == source_bank) {
+         fprintf(stderr,
+                 "vcsc-ld: inline .banktarget in %s at $%04X does not resolve to a different destination bank\n",
+                 obj->origin, source_address);
+         exit(1);
+      }
+      return target->address;
+   }
+
    if (control == O26_RTYPE_CONTROL_JSR) {
       bank_trampoline_entry_t *entry;
       uint32_t address;
@@ -9176,6 +9362,18 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
                  "vcsc-ld: direct cross-bank JSR relocation in %s is not a 16-bit operand\n",
                  obj->origin);
          exit(1);
+      }
+      if (jsr_has_inline_bank_target(obj, image_segid, r)) {
+         if (!layout->bank_generic_jsr_used) {
+            fprintf(stderr, "vcsc-ld: internal error: inline bank target reached without reserved generic bank-call block\n");
+            exit(1);
+         }
+         address = (uint32_t)source_bank->start + cfg->trampoline_offset;
+         if (address > 0xFFFFu) {
+            fprintf(stderr, "vcsc-ld: generated generic JSR trampoline address overflow\n");
+            exit(1);
+         }
+         return (uint16_t)address;
       }
       entry = find_or_add_bank_trampoline_entry(layout, cfg, target,
                                                 source_bank, final_bank,
@@ -9283,7 +9481,8 @@ static void apply_segment_relocs(const input_set_t *in,
       resolved_address = rewrite_banked_relocation(cfg, obj, image_segid, r,
                                                    &target, layout);
 
-      if ((r->type & O26_RTYPE_INDIRECT_JMP) && (resolved_address & 0xffu) == 0xffu) {
+      if ((r->type & O26_RTYPE_INDIRECT_JMP) && !relocation_is_bank_target(r) &&
+          (resolved_address & 0xffu) == 0xffu) {
          fprintf(stderr,
                  "vcsc-ld: indirect JMP vector at $%04X in %s triggers the NMOS 6502/6507 page-wrap bug\n",
                  resolved_address, who);
@@ -9492,6 +9691,96 @@ static void encode_bank_jsr_entry(uint8_t *table, size_t offset,
    table[offset + 14u] = (uint8_t)((entry->target_addr >> 8) & 0xFFu);
 }
 
+//! @brief Encode the fixed inline-target cross-bank JSR entry/return block.
+static void encode_generic_bank_jsr_block(uint8_t *table,
+                                          const linker_config_t *cfg,
+                                          uint16_t canonical_base,
+                                          uint16_t ptr0)
+{
+   size_t p = 0;
+   size_t r;
+   size_t jsr_operand;
+   size_t no_carry_branch;
+   uint16_t selector_base = generic_bankcall_selector_base(cfg);
+   uint16_t body_addr;
+#define PUT(v) do { table[p++] = (uint8_t)(v); } while (0)
+#define PUT16(v) do { uint16_t _v=(uint16_t)(v); PUT(_v & 0xffu); PUT(_v >> 8); } while (0)
+
+   if (ptr0 > 0x00feu) {
+      fprintf(stderr, "vcsc-ld: generic bank-call scratch _vcsc_ptr0 must be a two-byte zero-page object, got $%04X\n", ptr0);
+      exit(1);
+   }
+
+   /* __bankcall.  Copy the real 16-bit logical JSR return PC to ptr0 without
+      adding anything.  (ptr0),Y then performs the page carry for us when the
+      inline target word starts at the next page. */
+   PUT(0xBA);                         /* TSX */
+   PUT(0xBD); PUT16(0x0101);          /* LDA $0101,X: saved return low */
+   PUT(0x85); PUT(ptr0);              /* STA ptr0 */
+   PUT(0xBD); PUT16(0x0102);          /* LDA saved return high */
+   PUT(0x85); PUT((uint8_t)(ptr0+1)); /* STA ptr0+1 */
+   PUT(0xA0); PUT(0x01);              /* LDY #1: first byte after JSR */
+   PUT(0xB1); PUT(ptr0);              /* LDA (ptr0),Y target low */
+   PUT(0x48);                         /* PHA target low */
+   PUT(0xC8);                         /* INY -> second target byte */
+   PUT(0xB1); PUT(ptr0);              /* LDA (ptr0),Y target high */
+   PUT(0x85); PUT((uint8_t)(ptr0+1)); /* target high replaces source pointer high */
+   PUT(0x68);                         /* PLA target low */
+   PUT(0x85); PUT(ptr0);              /* target low replaces source pointer low */
+
+   /* Advance the caller's saved return by two so its eventual RTS resumes
+      after the inline .word.  Propagate the carry into the high byte. */
+   PUT(0xBD); PUT16(0x0101);          /* saved return low */
+   PUT(0x18);                         /* CLC */
+   PUT(0x69); PUT(0x02);              /* +2 */
+   PUT(0x9D); PUT16(0x0101);          /* store saved return low */
+   PUT(0x90); no_carry_branch = p++;  /* BCC no_carry */
+   PUT(0xFE); PUT16(0x0102);          /* INC saved return high */
+   table[no_carry_branch] = 3u;       /* skip the three-byte INC */
+
+   /* A real JSR creates the synthetic return frame more compactly than
+      manually pushing a constant.  The callee's RTS comes back to the code
+      immediately following this JSR, where the generic return path starts. */
+   PUT(0x20); jsr_operand = p; PUT16(0); /* JSR switch_and_jump */
+
+   /* __bankreturn.  Preserve A:X result, inspect the original logical return
+      high byte beneath the saved registers, select that source bank, restore
+      A:X, then RTS directly to the unchanged logical continuation PC. */
+   PUT(0x48);                         /* PHA return A */
+   PUT(0x8A);                         /* TXA */
+   PUT(0x48);                         /* PHA return X */
+   PUT(0xBA);                         /* TSX */
+   PUT(0xBD); PUT16(0x0104);          /* LDA original saved return high */
+   for (r = 0; r < 5u; ++r) PUT(0x4A); /* high >> 5 = selector offset */
+   PUT(0xA8);                         /* TAY */
+   PUT(0xA9); PUT(0x00);              /* selector write value irrelevant */
+   PUT(0x99); PUT16(selector_base);    /* restore source bank */
+   PUT(0x68);                         /* PLA saved X into A */
+   PUT(0xAA);                         /* TAX */
+   PUT(0x68);                         /* PLA saved A */
+   PUT(0x60);                         /* RTS to logical caller continuation */
+
+   /* switch_and_jump.  The target high byte uses the same logical-ORG
+      encoding, so high>>5 directly indexes the mapper's selector run. */
+   body_addr = (uint16_t)(canonical_base + p);
+   table[jsr_operand + 0u] = (uint8_t)(body_addr & 0xffu);
+   table[jsr_operand + 1u] = (uint8_t)(body_addr >> 8);
+   PUT(0xA5); PUT((uint8_t)(ptr0+1)); /* LDA target high */
+   for (r = 0; r < 5u; ++r) PUT(0x4A);
+   PUT(0xA8);                         /* TAY */
+   PUT(0xA9); PUT(0x00);
+   PUT(0x99); PUT16(selector_base);    /* select destination bank */
+   PUT(0x6C); PUT16(ptr0);             /* JMP (ptr0) logical target */
+
+   if (p > BANK_GENERIC_JSR_SIZE) {
+      fprintf(stderr, "vcsc-ld: internal error: generic bank-call block needs %zu bytes but only $%02X are reserved\n",
+              p, BANK_GENERIC_JSR_SIZE);
+      exit(1);
+   }
+#undef PUT16
+#undef PUT
+}
+
 //! @brief Handle build init table image logic for linker layout and image writer.
 static void build_init_table_image(const input_set_t *in, const layout_t *layout, uint8_t *table)
 {
@@ -9656,6 +9945,11 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
          size_t j;
          trampoline = (uint8_t *)xmalloc(layout->bank_trampoline_used);
          memset(trampoline, cfg->cartridge_fill_value, layout->bank_trampoline_used);
+         if (layout->bank_generic_jsr_used) {
+            uint16_t ptr0 = lookup_global_addr(layout, "_vcsc_ptr0");
+            uint16_t canonical_base = (uint16_t)(startup->start + cfg->trampoline_offset);
+            encode_generic_bank_jsr_block(trampoline, cfg, canonical_base, ptr0);
+         }
          for (j = 0; j < layout->bank_trampoline_entry_count; ++j) {
             const bank_trampoline_entry_t *entry = &layout->bank_trampoline_entries[j];
             uint16_t pointer_offset = bank_trampoline_pointer_offset(entry->kind);
@@ -10840,10 +11134,11 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
          fprintf(fp, "\nTRAMPOLINES\n");
          fprintf(fp,
                  "  common-offset=$%03X reserved=$%03X used=$%03X replicated=$%08" PRIX32
-                 " target-passing=inline entries=%zu jmp=%zu jsr=%zu jmp-size=$%02X jsr-size=$%02X\n",
+                 " target-passing=inline generic-jsr=$%03X entries=%zu jmp=%zu jsr=%zu jmp-size=$%02X jsr-size=$%02X\n",
                  cfg->trampoline_offset, cfg->trampoline_size,
                  layout->bank_trampoline_used,
                  (uint32_t)layout->bank_trampoline_used * (uint32_t)cfg->bank_count,
+                 layout->bank_generic_jsr_used ? BANK_GENERIC_JSR_SIZE : 0u,
                  layout->bank_trampoline_entry_count, jmp_count, jsr_count,
                  BANK_JMP_ENTRY_SIZE, BANK_JSR_ENTRY_SIZE);
          for (i = 0; i < layout->bank_trampoline_entry_count; ++i) {
@@ -11997,6 +12292,7 @@ int main(int argc, char **argv)
    enforce_branch_bank_contracts(&cfg, &inputs);
    enforce_branch_page_contracts(&inputs);
    add_generated_symbols(&layout);
+   prepare_generic_bankcall_corridor(&cfg, &inputs, &layout);
    resolve_all(&inputs, &layout, &cfg);
    validate_linked_read_hazards(&cfg, &inputs);
    enforce_declaration_use_contracts(&inputs);

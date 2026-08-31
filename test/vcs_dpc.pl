@@ -132,6 +132,9 @@ $map =~ /bank3\s+used=255 bytes \(100\.00%\)/ &&
 $map =~ /RODATA\.bank2\.__vcsc_object\$dpc_display_data load=\$0000 size=\$0800/ &&
 $map =~ /RODATA\.bank3\.__vcsc_object\$dpc_poly_data load=\$0000 size=\$00FF/
    or die "DPC map lost data-only bank layout\n$map";
+$map =~ /JSR entry=.*source=bank0 hotspot=\$1FF9 destination=bank1 hotspot=\$1FF8/i &&
+$map =~ /JSR entry=.*source=bank1 hotspot=\$1FF8 destination=bank0 hotspot=\$1FF9/i
+   or die "DPC visible self-test no longer generates both ordered program-bank JSR bridges\n$map";
 my %sym=map { $_=>map_symbol($map,$_) } qw(simulator_done failure display_sum1 display_sum2 actual_rng expected_rng);
 my($out,$err)=require_ok('simulate DPC fetchers and RNG',$sim,'-T',$cfg,
    sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);

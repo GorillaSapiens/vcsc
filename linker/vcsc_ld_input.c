@@ -826,8 +826,24 @@ static void collect_needed_symbols(const input_set_t *in, char ***out, size_t *c
    add_unique_string(&needed, &needed_count, "__irqbrk");
 
    for (i = 0; i < in->object_count; ++i) {
-      for (j = 0; j < in->objects[i].undef_count; ++j)
-         add_unique_string(&needed, &needed_count, in->objects[i].undefs[j]);
+      const object_file_t *obj = &in->objects[i];
+      const o26_segment_t *segments[2] = { &obj->text, &obj->data };
+      int needs_bankcall_scratch = 0;
+      for (j = 0; j < obj->undef_count; ++j)
+         add_unique_string(&needed, &needed_count, obj->undefs[j]);
+      for (j = 0; j < 2u && !needs_bankcall_scratch; ++j) {
+         size_t r;
+         for (r = 0; r < segments[j]->reloc_count; ++r) {
+            uint8_t type = segments[j]->relocs[r].type;
+            if ((type & O26_RTYPE_BANK_TARGET) &&
+                (type & O26_RTYPE_CONTROL_MASK) == O26_RTYPE_CONTROL_NONE) {
+               needs_bankcall_scratch = 1;
+               break;
+            }
+         }
+      }
+      if (needs_bankcall_scratch)
+         add_unique_string(&needed, &needed_count, "_vcsc_ptr0");
    }
 
    *out = needed;

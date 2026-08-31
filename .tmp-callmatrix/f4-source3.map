@@ -1,0 +1,251 @@
+C26 CARTRIDGE TOPOLOGY
+  output-size=$00008000 fill=$FF trampoline=$0F00 size=$00E0 vector-bridge=$0FE0 size=$0012 vectors=$0FFA size=$0006 signature="F4\0\0" declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:13.3 source=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  bank7        file-index=0 image-size=$1000 image-offset=$0000 link=$1000 cpu=$F000 map-size=$1000 mode=selector select-access=$1FF4 declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:61.3 source=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  bank6        file-index=1 image-size=$1000 image-offset=$0000 link=$3000 cpu=$F000 map-size=$1000 mode=selector select-access=$1FF5 declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:55.3 source=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  bank5        file-index=2 image-size=$1000 image-offset=$0000 link=$5000 cpu=$F000 map-size=$1000 mode=selector select-access=$1FF6 declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:49.3 source=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  bank4        file-index=3 image-size=$1000 image-offset=$0000 link=$7000 cpu=$F000 map-size=$1000 mode=selector select-access=$1FF7 declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:43.3 source=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  bank3        file-index=4 image-size=$1000 image-offset=$0000 link=$9000 cpu=$F000 map-size=$1000 mode=selector select-access=$1FF8 declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:37.3 source=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  bank2        file-index=5 image-size=$1000 image-offset=$0000 link=$B000 cpu=$F000 map-size=$1000 mode=selector select-access=$1FF9 declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:31.3 source=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  bank1        file-index=6 image-size=$1000 image-offset=$0000 link=$D000 cpu=$F000 map-size=$1000 mode=selector select-access=$1FFA declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:25.3 source=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  bank0        file-index=7 image-size=$1000 image-offset=$0000 link=$F000 cpu=$F000 map-size=$1000 mode=selector select-access=$1FFB startup=yes declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:19.3 source=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+
+CARTRIDGE
+  mapper=C26 output-size=$00008000 fill=$FF trampoline=$F00 size=$0E0 vectorbridge=$FE0 size=$12
+
+BANKS
+  bank7      start=$1000 size=$1000 hotspot=$1FF4 file=$00000000
+  bank6      start=$3000 size=$1000 hotspot=$1FF5 file=$00001000
+  bank5      start=$5000 size=$1000 hotspot=$1FF6 file=$00002000
+  bank4      start=$7000 size=$1000 hotspot=$1FF7 file=$00003000
+  bank3      start=$9000 size=$1000 hotspot=$1FF8 file=$00004000
+  bank2      start=$B000 size=$1000 hotspot=$1FF9 file=$00005000
+  bank1      start=$D000 size=$1000 hotspot=$1FFA file=$00006000
+  bank0      start=$F000 size=$1000 hotspot=$1FFB file=$00007000 startup=yes
+
+MEMORY
+  ram        start=$0080 size=$0078 type=rw priority=2 output-bank=<none> mode=shared declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs.c26:27.61
+  bank7      start=$1000 size=$0F00 type=ro priority=0 output-bank=bank7 mode=switched declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:70.46
+  bank6      start=$3000 size=$0F00 type=ro priority=0 output-bank=bank6 mode=switched declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:69.46
+  bank5      start=$5000 size=$0F00 type=ro priority=0 output-bank=bank5 mode=switched declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:68.46
+  bank4      start=$7000 size=$0F00 type=ro priority=0 output-bank=bank4 mode=switched declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:67.46
+  bank3      start=$9000 size=$0F00 type=ro priority=0 output-bank=bank3 mode=switched declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:66.46
+  bank2      start=$B000 size=$0F00 type=ro priority=0 output-bank=bank2 mode=switched declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:65.46
+  bank1      start=$D000 size=$0F00 type=ro priority=0 output-bank=bank1 mode=switched declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:64.46
+  bank0      start=$F000 size=$0F00 type=ro priority=2 output-bank=bank0 mode=switched declaration=/mnt/data/vcsc_bankaudit/libraries/vcs/vcs_32k_f4.c26:63.58
+
+MEMORY USAGE
+  bank7      used=16 bytes (0.42%) free=3824 bytes (99.58%)
+  bank6      used=16 bytes (0.42%) free=3824 bytes (99.58%)
+  bank5      used=16 bytes (0.42%) free=3824 bytes (99.58%)
+  bank4      used=16 bytes (0.42%) free=3824 bytes (99.58%)
+  bank3      used=418 bytes (10.89%) free=3422 bytes (89.11%)
+  bank2      used=16 bytes (0.42%) free=3824 bytes (99.58%)
+  bank1      used=16 bytes (0.42%) free=3824 bytes (99.58%)
+  bank0      used=61 bytes (1.59%) free=3779 bytes (98.41%)
+  ram        used=16 bytes (12.50%) free=112 bytes (87.50%) objects=8 bytes hardware-stack=8 bytes
+
+BANK PLACEMENT
+  mode=optimized
+  component=0 assignment=pinned bank=bank0 bytes=$001C cut-weight=$0000
+     pinned    CODE                         region=bank0        size=$001C object=/mnt/data/vcsc_bankaudit/libraries/runtime/libvcsc.l26(vcsc-rt1-simple.o26)
+  component=1 assignment=pinned bank=bank0 bytes=$0010 cut-weight=$000F
+     pinned    CODE.bank0.__vcsc_function$matrix_probe0 region=bank0        size=$0010 object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  component=2 assignment=pinned bank=bank1 bytes=$0010 cut-weight=$000F
+     pinned    CODE.bank1.__vcsc_function$matrix_probe1 region=bank1        size=$0010 object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  component=3 assignment=pinned bank=bank2 bytes=$0010 cut-weight=$000F
+     pinned    CODE.bank2.__vcsc_function$matrix_probe2 region=bank2        size=$0010 object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  component=4 assignment=pinned bank=bank3 bytes=$0010 cut-weight=$0000
+     pinned    CODE.bank3.__vcsc_function$matrix_probe3 region=bank3        size=$0010 object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  component=5 assignment=pinned bank=bank4 bytes=$0010 cut-weight=$000F
+     pinned    CODE.bank4.__vcsc_function$matrix_probe4 region=bank4        size=$0010 object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  component=6 assignment=pinned bank=bank5 bytes=$0010 cut-weight=$000F
+     pinned    CODE.bank5.__vcsc_function$matrix_probe5 region=bank5        size=$0010 object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  component=7 assignment=pinned bank=bank6 bytes=$0010 cut-weight=$000F
+     pinned    CODE.bank6.__vcsc_function$matrix_probe6 region=bank6        size=$0010 object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  component=8 assignment=pinned bank=bank7 bytes=$0010 cut-weight=$000F
+     pinned    CODE.bank7.__vcsc_function$matrix_probe7 region=bank7        size=$0010 object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  component=9 assignment=pinned bank=bank3 bytes=$0192 cut-weight=$0078
+     pinned    CODE.bank3.__vcsc_function$matrix_source region=bank3        size=$0192 object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  component=10 assignment=pinned bank=bank0 bytes=$0004 cut-weight=$0000
+     pinned    CODE.bank0.__vcsc_function$matrix_done region=bank0        size=$0004 object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  component=11 assignment=pinned bank=bank0 bytes=$000D cut-weight=$000F
+     pinned    CODE.bank0.__vcsc_function$main region=bank0        size=$000D object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+
+TRAMPOLINES
+  common-offset=$F00 reserved=$0E0 used=$078 replicated=$000003C0 target-passing=inline entries=8 jmp=0 jsr=8 jmp-size=$08 jsr-size=$0F
+  JSR entry=0 offset=$F00 target=$F01C CODE.bank0.__vcsc_function$matrix_probe0 source=bank3 hotspot=$1FF8 destination=bank0 hotspot=$1FFB replicated-bytes=$00000078
+  JSR entry=1 offset=$F0F target=$D000 CODE.bank1.__vcsc_function$matrix_probe1 source=bank3 hotspot=$1FF8 destination=bank1 hotspot=$1FFA replicated-bytes=$00000078
+  JSR entry=2 offset=$F1E target=$B000 CODE.bank2.__vcsc_function$matrix_probe2 source=bank3 hotspot=$1FF8 destination=bank2 hotspot=$1FF9 replicated-bytes=$00000078
+  JSR entry=3 offset=$F2D target=$7000 CODE.bank4.__vcsc_function$matrix_probe4 source=bank3 hotspot=$1FF8 destination=bank4 hotspot=$1FF7 replicated-bytes=$00000078
+  JSR entry=4 offset=$F3C target=$5000 CODE.bank5.__vcsc_function$matrix_probe5 source=bank3 hotspot=$1FF8 destination=bank5 hotspot=$1FF6 replicated-bytes=$00000078
+  JSR entry=5 offset=$F4B target=$3000 CODE.bank6.__vcsc_function$matrix_probe6 source=bank3 hotspot=$1FF8 destination=bank6 hotspot=$1FF5 replicated-bytes=$00000078
+  JSR entry=6 offset=$F5A target=$1000 CODE.bank7.__vcsc_function$matrix_probe7 source=bank3 hotspot=$1FF8 destination=bank7 hotspot=$1FF4 replicated-bytes=$00000078
+  JSR entry=7 offset=$F69 target=$9013 CODE.bank3.__vcsc_function$matrix_source source=bank0 hotspot=$1FFB destination=bank3 hotspot=$1FF8 replicated-bytes=$00000078
+
+OBJECTS
+  /mnt/data/vcsc_bankaudit/libraries/runtime/libvcsc.l26(vcsc-rt1-simple.o26)
+     __default__      load=$F000 size=$0000 page=preferred
+     CODE             load=$F000 size=$001C page=preferred bank=bank0 region=bank0 placement=pinned component=0
+  /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+     __default__      load=$F01C size=$0000 page=preferred
+     ZEROPAGE         run=$0080 size=$0000 page=preferred
+     ZEROPAGE.__vcsc_activation$matrix_probe0 run=$0086 size=$0001 page=preferred
+     ZEROPAGE.__vcsc_activation$matrix_probe1 run=$0086 size=$0001 page=preferred
+     ZEROPAGE.__vcsc_activation$matrix_probe2 run=$0086 size=$0001 page=preferred
+     ZEROPAGE.__vcsc_activation$matrix_probe3 run=$0086 size=$0001 page=preferred
+     ZEROPAGE.__vcsc_activation$matrix_probe4 run=$0086 size=$0001 page=preferred
+     ZEROPAGE.__vcsc_activation$matrix_probe5 run=$0086 size=$0001 page=preferred
+     ZEROPAGE.__vcsc_activation$matrix_probe6 run=$0086 size=$0001 page=preferred
+     ZEROPAGE.__vcsc_activation$matrix_probe7 run=$0086 size=$0001 page=preferred
+     BSS              run=$0080 size=$0000 page=preferred
+     BSS.__vcsc_object$matrix_failure run=$0080 size=$0001 page=preferred phase=unscoped
+     BSS.__vcsc_object$matrix_count run=$0081 size=$0001 page=preferred phase=unscoped
+     BSS.__vcsc_object$matrix_sp_before run=$0082 size=$0001 page=preferred phase=unscoped
+     BSS.__vcsc_object$matrix_sp_after run=$0083 size=$0001 page=preferred phase=unscoped
+     BSS.__vcsc_activation$matrix_probe0 run=$0087 size=$0001 page=preferred
+     BSS.__vcsc_activation$matrix_probe1 run=$0087 size=$0001 page=preferred
+     BSS.__vcsc_activation$matrix_probe2 run=$0087 size=$0001 page=preferred
+     BSS.__vcsc_activation$matrix_probe3 run=$0087 size=$0001 page=preferred
+     BSS.__vcsc_activation$matrix_probe4 run=$0087 size=$0001 page=preferred
+     BSS.__vcsc_activation$matrix_probe5 run=$0087 size=$0001 page=preferred
+     BSS.__vcsc_activation$matrix_probe6 run=$0087 size=$0001 page=preferred
+     BSS.__vcsc_activation$matrix_probe7 run=$0087 size=$0001 page=preferred
+     BSS.__vcsc_activation$matrix_source run=$0084 size=$0002 page=preferred
+     DATA             load=$F03D run=$0084 size=$0000 load-page=preferred run-page=preferred
+     RODATA           load=$F01C size=$0000 page=preferred
+     CODE             load=$F01C size=$0000 page=preferred
+     CODE.bank0       load=$F01C size=$0000 page=preferred
+     CODE.bank0.__vcsc_function$matrix_probe0 load=$F01C size=$0010 page=preferred bank=bank0 region=bank0 placement=pinned component=1
+     CODE.bank1       load=$D000 size=$0000 page=preferred
+     CODE.bank1.__vcsc_function$matrix_probe1 load=$D000 size=$0010 page=preferred bank=bank1 region=bank1 placement=pinned component=2
+     CODE.bank2       load=$B000 size=$0000 page=preferred
+     CODE.bank2.__vcsc_function$matrix_probe2 load=$B000 size=$0010 page=preferred bank=bank2 region=bank2 placement=pinned component=3
+     CODE.bank3       load=$9000 size=$0000 page=preferred
+     CODE.bank3.__vcsc_function$matrix_probe3 load=$9000 size=$0010 page=preferred bank=bank3 region=bank3 placement=pinned component=4
+     CODE.bank4       load=$7000 size=$0000 page=preferred
+     CODE.bank4.__vcsc_function$matrix_probe4 load=$7000 size=$0010 page=preferred bank=bank4 region=bank4 placement=pinned component=5
+     CODE.bank5       load=$5000 size=$0000 page=preferred
+     CODE.bank5.__vcsc_function$matrix_probe5 load=$5000 size=$0010 page=preferred bank=bank5 region=bank5 placement=pinned component=6
+     CODE.bank6       load=$3000 size=$0000 page=preferred
+     CODE.bank6.__vcsc_function$matrix_probe6 load=$3000 size=$0010 page=preferred bank=bank6 region=bank6 placement=pinned component=7
+     CODE.bank7       load=$1000 size=$0000 page=preferred
+     CODE.bank7.__vcsc_function$matrix_probe7 load=$1000 size=$0010 page=preferred bank=bank7 region=bank7 placement=pinned component=8
+     CODE.bank3.__vcsc_function$matrix_source load=$9013 size=$0192 page=crossing bank=bank3 region=bank3 placement=pinned component=9
+     CODE.bank0.__vcsc_function$matrix_done load=$F02C size=$0004 page=preferred bank=bank0 region=bank0 placement=pinned component=10
+     CODE.bank0.__vcsc_function$main load=$F030 size=$000D page=preferred bank=bank0 region=bank0 placement=pinned component=11
+
+BRANCHES
+  /mnt/data/vcsc_bankaudit/libraries/runtime/libvcsc.l26(vcsc-rt1-simple.o26)
+     $F00C -> $F009 BPL opcode=$10 taken-page=same policy=same
+     $F013 -> $F010 BPL opcode=$10 taken-page=same policy=same
+  /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+     $9029 -> $902F BNE opcode=$D0 taken-page=same policy=flex
+     $902D -> $9031 BNE opcode=$D0 taken-page=same policy=flex
+     $9031 -> $9037 BNE opcode=$D0 taken-page=same policy=flex
+     $903E -> $9043 BNE opcode=$D0 taken-page=same policy=flex
+     $9059 -> $905F BNE opcode=$D0 taken-page=same policy=flex
+     $905D -> $9061 BNE opcode=$D0 taken-page=same policy=flex
+     $9061 -> $9067 BNE opcode=$D0 taken-page=same policy=flex
+     $906E -> $9073 BNE opcode=$D0 taken-page=same policy=flex
+     $9089 -> $908F BNE opcode=$D0 taken-page=same policy=flex
+     $908D -> $9091 BNE opcode=$D0 taken-page=same policy=flex
+     $9091 -> $9097 BNE opcode=$D0 taken-page=same policy=flex
+     $909E -> $90A3 BNE opcode=$D0 taken-page=same policy=flex
+     $90B9 -> $90BF BNE opcode=$D0 taken-page=same policy=flex
+     $90BD -> $90C1 BNE opcode=$D0 taken-page=same policy=flex
+     $90C1 -> $90C7 BNE opcode=$D0 taken-page=same policy=flex
+     $90CE -> $90D3 BNE opcode=$D0 taken-page=same policy=flex
+     $90E9 -> $90EF BNE opcode=$D0 taken-page=same policy=flex
+     $90ED -> $90F1 BNE opcode=$D0 taken-page=same policy=flex
+     $90F1 -> $90F7 BNE opcode=$D0 taken-page=same policy=flex
+     $90FE -> $9103 BNE opcode=$D0 taken-page=same policy=flex
+     $9119 -> $911F BNE opcode=$D0 taken-page=same policy=flex
+     $911D -> $9121 BNE opcode=$D0 taken-page=same policy=flex
+     $9121 -> $9127 BNE opcode=$D0 taken-page=same policy=flex
+     $912E -> $9133 BNE opcode=$D0 taken-page=same policy=flex
+     $9149 -> $914F BNE opcode=$D0 taken-page=same policy=flex
+     $914D -> $9151 BNE opcode=$D0 taken-page=same policy=flex
+     $9151 -> $9157 BNE opcode=$D0 taken-page=same policy=flex
+     $915E -> $9163 BNE opcode=$D0 taken-page=same policy=flex
+     $9179 -> $917F BNE opcode=$D0 taken-page=same policy=flex
+     $917D -> $9181 BNE opcode=$D0 taken-page=same policy=flex
+     $9181 -> $9187 BNE opcode=$D0 taken-page=same policy=flex
+     $918E -> $9193 BNE opcode=$D0 taken-page=same policy=flex
+     $919B -> $91A0 BNE opcode=$D0 taken-page=same policy=flex
+
+INDEXED RANGES
+
+STARTUP INITIALIZATION
+  policy=compact-riot-clear
+  ZERO BSS.__vcsc_object$matrix_failure                 read=$0080 write=$0080 size=$0001
+  ZERO BSS.__vcsc_object$matrix_count                   read=$0081 write=$0081 size=$0001
+  ZERO BSS.__vcsc_object$matrix_sp_before               read=$0082 write=$0082 size=$0001
+  ZERO BSS.__vcsc_object$matrix_sp_after                read=$0083 write=$0083 size=$0001
+  ZERO BSS.__vcsc_activation$matrix_probe0              read=$0087 write=$0087 size=$0001
+  ZERO BSS.__vcsc_activation$matrix_probe1              read=$0087 write=$0087 size=$0001
+  ZERO BSS.__vcsc_activation$matrix_probe2              read=$0087 write=$0087 size=$0001
+  ZERO BSS.__vcsc_activation$matrix_probe3              read=$0087 write=$0087 size=$0001
+  ZERO BSS.__vcsc_activation$matrix_probe4              read=$0087 write=$0087 size=$0001
+  ZERO BSS.__vcsc_activation$matrix_probe5              read=$0087 write=$0087 size=$0001
+  ZERO BSS.__vcsc_activation$matrix_probe6              read=$0087 write=$0087 size=$0001
+  ZERO BSS.__vcsc_activation$matrix_probe7              read=$0087 write=$0087 size=$0001
+  ZERO BSS.__vcsc_activation$matrix_source              read=$0084 write=$0084 size=$0002
+
+TABLES
+  (not generated for compact startup)
+  __stack_start $0088
+  __stack_top   $00F7
+
+CALL STACK
+  region=ram depth=2 bytes=$0008 physical=$00F8-$00FF extra=$0000 weighted-depth=4 bank-extra-slots=2
+
+CALL GRAPH
+  EDGE main -> matrix_source slots=2 reason=compiled-direct-call object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26 bank-bridge=yes
+  EDGE matrix_source -> matrix_probe7 slots=2 reason=compiled-direct-call object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26 bank-bridge=yes
+  EDGE matrix_source -> matrix_probe6 slots=2 reason=compiled-direct-call object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26 bank-bridge=yes
+  EDGE matrix_source -> matrix_probe5 slots=2 reason=compiled-direct-call object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26 bank-bridge=yes
+  EDGE matrix_source -> matrix_probe4 slots=2 reason=compiled-direct-call object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26 bank-bridge=yes
+  EDGE matrix_source -> matrix_probe3 slots=1 reason=compiled-direct-call object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  EDGE matrix_source -> matrix_probe2 slots=2 reason=compiled-direct-call object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26 bank-bridge=yes
+  EDGE matrix_source -> matrix_probe1 slots=2 reason=compiled-direct-call object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26 bank-bridge=yes
+  EDGE matrix_source -> matrix_probe0 slots=2 reason=compiled-direct-call object=/tmp/vcsc.CP4Je4/f4-source3.000001.o26 bank-bridge=yes
+  DEEPEST weighted-depth=4 path=main -> matrix_source -> matrix_probe0
+  TOTAL source-bytes=$0008 hidden-bytes=$0000 total-bytes=$0008
+
+SYMBOLS
+  $F000  __vcsc_startup_simple  /mnt/data/vcsc_bankaudit/libraries/runtime/libvcsc.l26(vcsc-rt1-simple.o26)
+  $F01B  __weak___irqbrk       /mnt/data/vcsc_bankaudit/libraries/runtime/libvcsc.l26(vcsc-rt1-simple.o26)
+  $F01B  __weak___nmi          /mnt/data/vcsc_bankaudit/libraries/runtime/libvcsc.l26(vcsc-rt1-simple.o26)
+  $F000  __reset               /mnt/data/vcsc_bankaudit/libraries/runtime/libvcsc.l26(vcsc-rt1-simple.o26)
+  $F030  main                  /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $F02C  matrix_done           /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $9013  matrix_source         /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $0086  matrix_probe7$__return  /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $1000  matrix_probe7         /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $0086  matrix_probe6$__return  /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $3000  matrix_probe6         /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $0086  matrix_probe5$__return  /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $5000  matrix_probe5         /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $0086  matrix_probe4$__return  /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $7000  matrix_probe4         /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $0086  matrix_probe3$__return  /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $9000  matrix_probe3         /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $0086  matrix_probe2$__return  /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $B000  matrix_probe2         /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $0086  matrix_probe1$__return  /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $D000  matrix_probe1         /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $0086  matrix_probe0$__return  /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $F01C  matrix_probe0         /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $0083  matrix_sp_after       /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $0082  matrix_sp_before      /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $0081  matrix_count          /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $0080  matrix_failure        /tmp/vcsc.CP4Je4/f4-source3.000001.o26
+  $0088  __stack_start         <linker>
+  $00F7  __stack_top           <linker>
+  $0002  __call_stack_depth    <linker>
+  $0004  __call_stack_weighted_depth  <linker>
+  $0002  __call_stack_bank_extra_slots  <linker>
+  $0000  __call_stack_extra    <linker>
+  $0008  __call_stack_size     <linker>
+  $00F8  __call_stack_start    <linker>
+  $00FF  __call_stack_top      <linker>

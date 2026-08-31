@@ -87,7 +87,7 @@ position from runtime 6507 addresses:
 ```
 
 The disassembler currently recognizes unbanked 1K/2K/4K, the F8/F6/F4 family
-(with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, CommaVid CV, Parker Brothers E0, M-Network E7, Tigervision 3F/3E, JANE, 0840/EconoBanking, UA/UASW, 0FA0/Fotomania, DPC,
+(with Superchip evidence reported as 4KSC/F8SC/F6SC/F4SC), CBS RAM Plus / FA, Harmony FA2, CommaVid CV, Parker Brothers E0, M-Network E7, Tigervision 3F/3E, JANE, 0840/EconoBanking, UA/UASW, 0FA0/Fotomania, DPC,
 Wickstead Design / WD/WDSW, Amiga Power Play / FC, and Starpath/Arcadia Supercharger / AR. Standard DPC
 images are recognized by their distinctive 10240- or 10495-byte layout: two
 4K F8-style program banks followed by 2K of DPC data ROM, with the 10495-byte
@@ -264,6 +264,8 @@ supports Stella's 4096-byte CV preservation form: the final 2K are the actual RO
 the first 1K seeds cartridge RAM, and the intervening 1K is preserved storage.
 A byte-identical doubled 2K CV dump is handled by the same 4K storage path. Both
 forms are emitted so the complete original input round-trips byte-for-byte.
+FA2 is the Harmony extension of the same split-RAM idea. VCSC supports clean native 24K (six-bank) and 28K (seven-bank) payloads: `$1FF5-$1FFA` and optional `$1FFB` directly select 4K banks, bank 0 powers up, and the 256-byte RAM ports remain write `$1000-$10FF` / read `$1100-$11FF`. `--mapper fa2` accepts those native payload sizes. The optional Harmony `$1FF4` flash-persistence service and 29K/32K wrapper forms are not part of the core VCSC FA2 output contract.
+
 
 JANE is a 16K four-bank layout with selectors `$1FF0`, `$1FF1`, `$1FF8`, and
 `$1FF9` selecting physical/file banks 0, 1, 2, and 3. Physical bank 1 is the
@@ -498,7 +500,7 @@ replacement for recursive static analysis. The execution state includes exact
 PC/A/X/Y/SP/P, the complete 128-byte RIOT RAM with stack-page aliases, RIOT timer and
 TIA WSYNC CPU-side behavior, cartridge banking/RAM, and deterministic console/input
 states. The concrete bus now covers every currently supported non-coprocessor mapper:
-unbanked 1K/2K/4K, F8/F6/F4/FA (and supported Superchip overlays), CV, WD/WDSW, FC,
+unbanked 1K/2K/4K, F8/F6/F4/FA/FA2 (and supported Superchip overlays), CV, WD/WDSW, FC,
 E0, E7, 3F, 3E, FE, JANE, 0840, UA/UASW, and 0FA0. DPC remains intentionally static
 until its data-fetcher/register behavior is modeled faithfully; an unsupported
 concrete model simply leaves static analysis authoritative.
@@ -508,7 +510,7 @@ but still missing from the static graph are then added as entry evidence. This o
 is intentional: injecting every sampled PC with an unknown abstract state would destroy
 useful static register/pointer facts at joins. Concrete execution is also gated on a
 trusted mapper identity: unbanked topology, an explicit `--mapper`, or distinctive
-family evidence. Weak size-default F8/F6/F4/FA guesses do not qualify.
+family evidence. Weak size-default F8/F6/F4/FA guesses do not qualify; native 24K/28K FA2 sizes are unambiguous in the supported set.
 
 H1 adds stack/interrupt-aware abstract flow. SP is part of abstract state; provable
 RIOT-RAM/stack aliases are carried through pushes/pops, JSR/RTS, and memory writes.
@@ -593,7 +595,7 @@ software that does not use RIOT frame timers.
 When established code writes VSYNC, `vcsc-disas` also runs a bounded dynamic
 frame probe using the same MOS 6502 core as `vcsc-sim`. The probe models the
 6507 address mirror, RIOT RAM/timers, TIA VSYNC/WSYNC stalls, neutral controller
-inputs, the supported F8/F6/F4/FA bank hotspots, and Superchip/FA RAM windows.
+inputs, the supported F8/F6/F4/FA/FA2 bank hotspots, and Superchip/FA/FA2 RAM windows.
 Several consecutive VSYNC rises must settle to a stable frame period before the
 dynamic result is accepted. The reported measurement is in **raw 76-cycle line
 intervals**, not Stella display scanlines: for example, VCSC's calibrated frame
@@ -696,7 +698,7 @@ original bytes.
 
 ## Current limits
 
-Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/CV/E0/E7/3F/3E/FE/JANE/0840/UA/UASW/0FA0/DPC/WD/WDSW/FC is deliberately conservative.
+Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/FA2/CV/E0/E7/3F/3E/FE/JANE/0840/UA/UASW/0FA0/DPC/WD/WDSW/FC is deliberately conservative.
 GL, CM, DPC+, CDF/CDFJ/CDFJ+ and other coprocessor cartridges need separate mapper models rather than being mislabeled as supported families.
 Unsupported layouts that yield no executable instructions fail explicitly rather
 than producing a misleading 100%-data source file.

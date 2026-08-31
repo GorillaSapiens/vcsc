@@ -60,6 +60,7 @@ my @profiles=(
    ['JANE', 'vcs_16k_jane.c26', undef,               4, 1, 0, 16384],
    ['F4',   'vcs_32k_f4.c26',   'vcs_32k_f4.cfg',   8, 1, 0, 32768],
    ['FA',   'vcs_12k_fa.c26',    'vcs_12k_fa.cfg',    3, 1, 0, 12288],
+   ['FA2',  'vcs_28k_fa2.c26',   undef,                7, 1, 0, 28672],
    ['F8SC', 'vcs_8k_f8sc.c26',  'vcs_8k_f8sc.cfg',  2, 1, 1,  8192],
    ['F6SC', 'vcs_16k_f6sc.c26', 'vcs_16k_f6sc.cfg', 4, 1, 1, 16384],
    ['F4SC', 'vcs_32k_f4sc.c26', 'vcs_32k_f4sc.cfg', 8, 1, 1, 32768],
@@ -119,7 +120,7 @@ for my $p (@profiles) {
    -s $generic_bin==$output_size
       or die "$name C26 profile emitted ".(-s $generic_bin)." bytes, expected $output_size\n";
 
-   if ($name =~ /^(?:CV|4KSC|F8|0840|UA|UASW|0FA0|E0|FE|WD|3F|3E|F6|JANE|F4|FA|F8SC|F6SC|F4SC|OMNI)$/) {
+   if ($name =~ /^(?:CV|4KSC|F8|0840|UA|UASW|0FA0|E0|FE|WD|3F|3E|F6|JANE|F4|FA|FA2|F8SC|F6SC|F4SC|OMNI)$/) {
       my $rom=read_file($generic_bin);
       my $want=$name . ("\0" x (4-length($name)));
       substr($rom,-8,4) eq $want
@@ -157,7 +158,7 @@ for my $p (@profiles) {
       or die "$name map does not report C26 topology\n";
    $map =~ /output-size=\$[0-9A-F]{8}/
       or die "$name map does not report topology output size\n";
-   my @file_order = $name =~ /^(?:E0|WD)$/ ? (0..7) : $name =~ /^(?:3F|3E)$/ ? (0..$banks-1) : $name eq 'JANE' ? (1,0,2,3) : $name =~ /^(?:0840|UA|UASW|FE)$/ ? (0,1) : reverse(0..$banks-1);
+   my @file_order = $name =~ /^(?:E0|WD)$/ ? (0..7) : $name =~ /^(?:3F|3E|FA2)$/ ? (0..$banks-1) : $name eq 'JANE' ? (1,0,2,3) : $name =~ /^(?:0840|UA|UASW|FE)$/ ? (0,1) : reverse(0..$banks-1);
    for my $logical (0..$banks-1) {
       my $file_index=$file_order[$logical];
       $map =~ /^\s+bank\Q$logical\E\s+file-index=\Q$file_index\E\b/m
@@ -287,6 +288,19 @@ for my $p (@profiles) {
       $text =~ /bank\s+bank2\s*\{.*?\$file_index:2.*?\$select_access:0x1ff8/s &&
       $text =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$select_access:0x1ff9/s
          or die "JANE profile does not preserve its physical bank order/selectors/startup bank\n";
+   }
+   if ($name eq 'FA2') {
+      $text =~ /include\s+"fa_ram_plus\.c26"/ &&
+      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$image_offset:0x0200.*?\$select_access:0x1ff5\s+\$startup/s &&
+      $text =~ /bank\s+bank6\s*\{.*?\$file_index:6.*?\$select_access:0x1ffb/s
+         or die "FA2 profile does not encode six/seven-bank RAM-port topology\n";
+      $map =~ /^\s+cartram\s+read_start=\$F100 write_start=\$F000 size=\$0100 type=rw shared=yes\b/m
+         or die "FA2 map does not retain split-address cartridge RAM\n";
+      my $rom=read_file($generic_bin);
+      for my $file_bank (0..6) {
+         substr($rom,$file_bank*4096,512) eq ("\xFF" x 512)
+            or die "FA2 file bank $file_bank does not retain the reserved RAM-port prefix\n";
+      }
    }
    if ($name eq 'FA') {
       $text =~ /include\s+"fa_ram_plus\.c26"/ &&

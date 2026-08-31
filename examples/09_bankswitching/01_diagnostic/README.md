@@ -19,13 +19,18 @@ selects a mapper only:
 ```
 
 Each cartridge internally runs the complete ordered source-bank to
-destination-bank direct-JMP matrix: 4 transitions for F8, 16 for F6, and 64 for
-F4. Every source bank also performs a same-bank JSR/RTS check. BANK0 adds a
-nested BANK0-to-BANK1 call and return, so cross-bank call restoration and
-hardware-stack balance remain covered without consuming the common trampoline
-corridor with a separate JSR bridge for every ordered pair.
+destination-bank matrix twice: 4+4 transitions for F8, 16+16 for F6, and 64+64
+for F4. The first pass uses ordinary C calls. Same-bank calls remain ordinary
+`JSR`/`RTS`; every cross-bank call is emitted as the five-byte
+`JSR __bankcall` plus inline logical `.word target` bundle and uses one fixed
+80-byte generic call/return block shared by every target. The second pass uses
+the existing direct-JMP trampolines. BANK0 also performs one nested
+BANK0-to-BANK1 call.
 
-Every transition records and validates its source, destination, signature, and
+Every call checks its target signature, exact hardware-stack balance, restored
+source bank, and the target's returned value. The diagnostic therefore proves
+every ordered source/destination call and JMP pair rather than merely touching
+each selector once. Every transition records and validates its source, destination, signature, and
 hardware-stack state in RIOT RAM. The Superchip builds own the complete 128-byte RAM as mixed BSS and DATA.
 They verify reset-time clearing/copying through the write window, both alias
 directions, and persistence through the whole matrix. After displaying a result

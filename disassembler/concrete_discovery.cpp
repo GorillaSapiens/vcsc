@@ -23,6 +23,7 @@ constexpr int kMapF8 = VCSC_VIDEO_MAP_F8;
 constexpr int kMapF6 = VCSC_VIDEO_MAP_F6;
 constexpr int kMapF4 = VCSC_VIDEO_MAP_F4;
 constexpr int kMapFA = VCSC_VIDEO_MAP_FA;
+constexpr int kMapFA2 = VCSC_VIDEO_MAP_FA2;
 constexpr int kMapDPC = VCSC_VIDEO_MAP_DPC;
 constexpr int kMapWD = VCSC_VIDEO_MAP_WD;
 constexpr int kMapWDSW = VCSC_VIDEO_MAP_WDSW;
@@ -364,6 +365,9 @@ private:
       else if (mapper_ == kMapFA && bus >= 0x1ff8u && bus <= 0x1ffau) {
          next = static_cast<size_t>(bus - 0x1ff8u); hit = true;
       }
+      else if (mapper_ == kMapFA2 && bus >= 0x1ff5u && bus <= 0x1ffbu) {
+         next = static_cast<size_t>(bus - 0x1ff5u); hit = true;
+      }
       else if (mapper_ == kMapJANE) {
          if (bus == 0x1ff0u) { next = 0u; hit = true; }
          else if (bus == 0x1ff1u) { next = 1u; hit = true; }
@@ -541,7 +545,7 @@ private:
 
       /* FA and Superchip hide their RAM aliases rather than exposing the ROM
        * bytes underneath them to the CPU. */
-      if (mapper_ == kMapFA && bus < 0x1200u) return false;
+      if ((mapper_ == kMapFA || mapper_ == kMapFA2) && bus < 0x1200u) return false;
       if (superchip_ && bus < 0x1100u) return false;
 
       const size_t off = static_cast<size_t>(bus & 0x0fffu);
@@ -551,7 +555,7 @@ private:
 
    uint8_t cart_peek(uint16_t bus) const
    {
-      if (mapper_ == kMapFA) {
+      if (mapper_ == kMapFA || mapper_ == kMapFA2) {
          if (bus >= 0x1100u && bus <= 0x11ffu) return cart_ram_[bus & 0xffu];
          if (bus >= 0x1000u && bus <= 0x10ffu) return 0u;
       }
@@ -700,7 +704,7 @@ private:
 
    void cart_write(uint16_t bus, uint8_t value)
    {
-      if (mapper_ == kMapFA && bus >= 0x1000u && bus <= 0x10ffu) {
+      if ((mapper_ == kMapFA || mapper_ == kMapFA2) && bus >= 0x1000u && bus <= 0x10ffu) {
          cart_ram_[bus & 0xffu] = value;
       }
       else if (superchip_ && bus >= 0x1000u && bus <= 0x107fu) {
@@ -1003,6 +1007,7 @@ extern "C" int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
    case kMapF6:
    case kMapF4:
    case kMapFA:
+   case kMapFA2:
    case kMapWD:
    case kMapWDSW:
    case kMapFC:

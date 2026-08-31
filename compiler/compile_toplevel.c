@@ -616,6 +616,18 @@ static char *topology_source_suffix(const ASTNode *node) {
    return suffix;
 }
 
+static char compiled_cartridge_signature[5];
+
+//! @brief Return whether the current profile uses the first generic inline-target bank-call pilot.
+bool compile_cartridge_supports_inline_bankcall(void) {
+   return !strcmp(compiled_cartridge_signature, "F8") ||
+          !strcmp(compiled_cartridge_signature, "F8SC") ||
+          !strcmp(compiled_cartridge_signature, "F6") ||
+          !strcmp(compiled_cartridge_signature, "F6SC") ||
+          !strcmp(compiled_cartridge_signature, "F4") ||
+          !strcmp(compiled_cartridge_signature, "F4SC");
+}
+
 //! @brief Lower one output-wide cartridge declaration to linker-visible metadata.
 void compile_cartridge_decl_stmt(ASTNode *node) {
    const ASTNode *flags = node && node->count ? node->children[0] : NULL;
@@ -650,6 +662,13 @@ void compile_cartridge_decl_stmt(ASTNode *node) {
          error_user("[%s:%d.%d] cartridge declaration has unknown flag '%s'",
                     node->file, node->line, node->column, text ? text : "?");
    }
+   if (seen[SIGNATURE]) {
+      size_t siglen = 0;
+      while (siglen < 4u && signature[siglen]) siglen++;
+      memcpy(compiled_cartridge_signature, signature, siglen);
+      compiled_cartridge_signature[siglen] = '\0';
+   }
+
    if (!seen[FILL])
       error_user("[%s:%d.%d] cartridge declaration requires '$fill:'",
                  node->file, node->line, node->column);

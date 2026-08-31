@@ -1,8 +1,10 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
 // Atari JANE PASS/FAIL diagnostic.
-// Exercises physical banks 1 -> 0 -> 2 -> 3 -> 1 through nested calls and
-// therefore every JANE selector in both outbound and generated return paths.
+// Exercises physical banks 1 -> 0 -> 2 -> 3 -> 1 through a representative
+// nested call chain, touching every JANE selector in outbound and generated
+// return paths.  Exhaustive ordered JSR/RTS bank pairs are covered by
+// test/vcs_bankswitching_call_matrix.pl.
 include "vcs_16k_jane.c26"
 
 #ifndef SIMULATOR_TEST

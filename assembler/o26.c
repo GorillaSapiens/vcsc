@@ -31,6 +31,7 @@ asm_segment_t *segment_find(asm_context_t *ctx, const char *name);
 #define O26_RTYPE_WORD 0x80
 #define O26_RTYPE_AUX  0x10
 #define O26_RTYPE_INDIRECT_JMP 0x08
+#define O26_RTYPE_BANK_TARGET  0x08 /* control=NONE only; inline cross-bank call target */
 #define O26_RTYPE_LAYOUT 0x04
 #define O26_RTYPE_CONTROL_MASK 0x03
 #define O26_RTYPE_CONTROL_NONE 0x00
@@ -300,7 +301,7 @@ static int stmt_emits_load_image_bytes(const stmt_t *stmt)
          return 1;
 
       case STMT_DIR:
-         return !strcmp(stmt->u.dir->name, ".byte") || !strcmp(stmt->u.dir->name, ".word") ||
+         return !strcmp(stmt->u.dir->name, ".byte") || !strcmp(stmt->u.dir->name, ".word") || !strcmp(stmt->u.dir->name, ".banktarget") ||
                 !strcmp(stmt->u.dir->name, ".text") || !strcmp(stmt->u.dir->name, ".ascii") ||
                 !strcmp(stmt->u.dir->name, ".asciiz");
 
@@ -1548,13 +1549,22 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
             return 1;
          }
 
-         if (!strcmp(stmt->u.dir->name, ".word")) {
+         if (!strcmp(stmt->u.dir->name, ".word") || !strcmp(stmt->u.dir->name, ".banktarget")) {
+            unsigned char extra = !strcmp(stmt->u.dir->name, ".banktarget") ? O26_RTYPE_BANK_TARGET : 0;
+            if (extra && (!stmt->u.dir->exprs || stmt->u.dir->exprs->next)) {
+               writer_error(wr->ctx, stmt, ".banktarget expects exactly one relocatable target");
+               return 0;
+            }
             for (node = stmt->u.dir->exprs; node; node = node->next) {
                reloc_expr_info_t info;
                if (!analyze_expr(wr, stmt, node->expr, off, &info))
                   return 0;
+               if (extra && !info.is_reloc) {
+                  writer_error(wr->ctx, stmt, ".banktarget requires a relocatable target symbol");
+                  return 0;
+               }
                if (!buf_write_word(buf, off, (unsigned short)(info.value & 0xFFFF)) ||
-                   !maybe_add_expr_reloc(wr, stmt, buf, off, &info, 2, 0)) {
+                   !maybe_add_expr_reloc(wr, stmt, buf, off, &info, 2, extra)) {
                   writer_error(wr->ctx, stmt, "failed to write o26 data");
                   return 0;
                }
@@ -1879,7 +1889,7 @@ static long listing_stmt_byte_count(o26_writer_t *wr, const stmt_t *stmt)
          count++;
       return count;
    }
-   if (!strcmp(stmt->u.dir->name, ".word")) {
+   if (!strcmp(stmt->u.dir->name, ".word") || !strcmp(stmt->u.dir->name, ".banktarget")) {
       for (node = stmt->u.dir->exprs; node; node = node->next)
          count += 2;
       return count;

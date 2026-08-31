@@ -1,0 +1,294 @@
+------- VCSC linked image listing
+------- Human source listing; addresses and bytes are final after relocation.
+------- RAM symbols retain DASM constant rows for Stella compatibility.
+    1 0086          00 86 matrix_probe3$__return =
+    2 0086          00 86 matrix_probe2$__return =
+    3 0086          00 86 matrix_probe1$__return =
+    4 0086          00 86 matrix_probe0$__return =
+    5 0083          00 83 matrix_sp_after =
+    6 0082          00 82 matrix_sp_before =
+    7 0081          00 81 matrix_count =
+    8 0080          00 80 matrix_failure =
+    9 0088          00 88 __stack_start =
+   10 00f7          00 f7 __stack_top =
+   11 0002          00 02 __call_stack_depth =
+   12 0004          00 04 __call_stack_weighted_depth =
+   13 0002          00 02 __call_stack_bank_extra_slots =
+   14 0000          00 00 __call_stack_extra =
+   15 0008          00 08 __call_stack_size =
+   16 00f8          00 f8 __call_stack_start =
+   17 00ff          00 ff __call_stack_top =
+------- Source-correlated linked statements
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:12 [bank bank3] | bank3 uint8_t matrix_probe3(void) { matrix_count := matrix_count + 1; return 0x83; }
+   18 9000 a5 81                   ; LDA matrix_count
+   19 9002 18                      ; CLC
+   20 9003 69 01                   ; ADC #1
+   21 9005 85 81                   ; STA matrix_count
+   22 9007 a9 83                   ; LDA #131
+   23 9009 85 87                   ; STA __vcsc_scratch_3
+   24 900b a5 87                   ; LDA __vcsc_scratch_3
+   25 900d 85 86                   ; STA matrix_probe3$__return
+; <compiler-generated> [bank bank3]
+   26 900f 60                      ; RTS
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:11 [bank bank2] | bank2 uint8_t matrix_probe2(void) { matrix_count := matrix_count + 1; return 0x82; }
+   27 b000 a5 81                   ; LDA matrix_count
+   28 b002 18                      ; CLC
+   29 b003 69 01                   ; ADC #1
+   30 b005 85 81                   ; STA matrix_count
+   31 b007 a9 82                   ; LDA #130
+   32 b009 85 87                   ; STA __vcsc_scratch_2
+   33 b00b a5 87                   ; LDA __vcsc_scratch_2
+   34 b00d 85 86                   ; STA matrix_probe2$__return
+; <compiler-generated> [bank bank2]
+   35 b00f 60                      ; RTS
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:10 [bank bank1] | bank1 uint8_t matrix_probe1(void) { matrix_count := matrix_count + 1; return 0x81; }
+   36 d000 a5 81                   ; LDA matrix_count
+   37 d002 18                      ; CLC
+   38 d003 69 01                   ; ADC #1
+   39 d005 85 81                   ; STA matrix_count
+   40 d007 a9 81                   ; LDA #129
+   41 d009 85 87                   ; STA __vcsc_scratch_1
+   42 d00b a5 87                   ; LDA __vcsc_scratch_1
+   43 d00d 85 86                   ; STA matrix_probe1$__return
+; <compiler-generated> [bank bank1]
+   44 d00f 60                      ; RTS
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:15 [bank bank1] | matrix_count := 0;
+   45 d010 a9 00                   ; LDA #0
+   46 d012 85 81                   ; STA matrix_count
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:16 [bank bank1] | asm tsx; asm stx matrix_sp_before;
+   47 d014 ba                      ; TSX
+   48 d015 86 82                   ; STX matrix_sp_before
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:18 [bank bank1] | asm tsx; asm stx matrix_sp_after;
+   49 d017 20 00 df                ; JSR matrix_probe0  => $DF00
+   50 d01a a5 86                   ; LDA matrix_probe0$__return
+   51 d01c 85 84                   ; STA __vcsc_scratch_4
+   52 d01e a9 80                   ; LDA #128
+   53 d020 85 85                   ; STA (__vcsc_scratch_4 + 1)
+   54 d022 a5 84                   ; LDA __vcsc_scratch_4
+   55 d024 c5 85                   ; CMP (__vcsc_scratch_4 + 1)
+   56 d026 d0 04                   ; BNE @cmp_false_3
+   57 d028 a9 01                   ; LDA #1
+   58 d02a d0 02                   ; BNE @cmp_done_4
+   59 d02c a9 00                   ; LDA #0
+   60 d02e d0 04                   ; BNE @if_false_0
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:17 [bank bank1] | if (matrix_probe0() != 0x80) { matrix_failure := 0x01; }
+   61 d030 a9 01                   ; LDA #1
+   62 d032 85 80                   ; STA matrix_failure
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:18 [bank bank1] | asm tsx; asm stx matrix_sp_after;
+   63 d034 ba                      ; TSX
+   64 d035 86 83                   ; STX matrix_sp_after
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:20 [bank bank1] | asm tsx; asm stx matrix_sp_before;
+   65 d037 a5 83                   ; LDA matrix_sp_after
+   66 d039 c5 82                   ; CMP matrix_sp_before
+   67 d03b d0 03                   ; BNE @u8_ne_true_7
+   68 d03d 4c 44 d0                ; JMP @if_false_5  => $D044
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:19 [bank bank1] | if (matrix_sp_after != matrix_sp_before) { matrix_failure := 0x40; }
+   69 d040 a9 40                   ; LDA #64
+   70 d042 85 80                   ; STA matrix_failure
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:20 [bank bank1] | asm tsx; asm stx matrix_sp_before;
+   71 d044 ba                      ; TSX
+   72 d045 86 82                   ; STX matrix_sp_before
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:22 [bank bank1] | asm tsx; asm stx matrix_sp_after;
+   73 d047 20 00 d0                ; JSR matrix_probe1  => $D000
+   74 d04a a5 86                   ; LDA matrix_probe1$__return
+   75 d04c 85 84                   ; STA __vcsc_scratch_4
+   76 d04e a9 81                   ; LDA #129
+   77 d050 85 85                   ; STA (__vcsc_scratch_4 + 1)
+   78 d052 a5 84                   ; LDA __vcsc_scratch_4
+   79 d054 c5 85                   ; CMP (__vcsc_scratch_4 + 1)
+   80 d056 d0 04                   ; BNE @cmp_false_11
+   81 d058 a9 01                   ; LDA #1
+   82 d05a d0 02                   ; BNE @cmp_done_12
+   83 d05c a9 00                   ; LDA #0
+   84 d05e d0 04                   ; BNE @if_false_8
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:21 [bank bank1] | if (matrix_probe1() != 0x81) { matrix_failure := 0x02; }
+   85 d060 a9 02                   ; LDA #2
+   86 d062 85 80                   ; STA matrix_failure
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:22 [bank bank1] | asm tsx; asm stx matrix_sp_after;
+   87 d064 ba                      ; TSX
+   88 d065 86 83                   ; STX matrix_sp_after
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:24 [bank bank1] | asm tsx; asm stx matrix_sp_before;
+   89 d067 a5 83                   ; LDA matrix_sp_after
+   90 d069 c5 82                   ; CMP matrix_sp_before
+   91 d06b d0 03                   ; BNE @u8_ne_true_15
+   92 d06d 4c 74 d0                ; JMP @if_false_13  => $D074
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:23 [bank bank1] | if (matrix_sp_after != matrix_sp_before) { matrix_failure := 0x41; }
+   93 d070 a9 41                   ; LDA #65
+   94 d072 85 80                   ; STA matrix_failure
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:24 [bank bank1] | asm tsx; asm stx matrix_sp_before;
+   95 d074 ba                      ; TSX
+   96 d075 86 82                   ; STX matrix_sp_before
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:26 [bank bank1] | asm tsx; asm stx matrix_sp_after;
+   97 d077 20 0f df                ; JSR matrix_probe2  => $DF0F
+   98 d07a a5 86                   ; LDA matrix_probe2$__return
+   99 d07c 85 84                   ; STA __vcsc_scratch_4
+  100 d07e a9 82                   ; LDA #130
+  101 d080 85 85                   ; STA (__vcsc_scratch_4 + 1)
+  102 d082 a5 84                   ; LDA __vcsc_scratch_4
+  103 d084 c5 85                   ; CMP (__vcsc_scratch_4 + 1)
+  104 d086 d0 04                   ; BNE @cmp_false_19
+  105 d088 a9 01                   ; LDA #1
+  106 d08a d0 02                   ; BNE @cmp_done_20
+  107 d08c a9 00                   ; LDA #0
+  108 d08e d0 04                   ; BNE @if_false_16
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:25 [bank bank1] | if (matrix_probe2() != 0x82) { matrix_failure := 0x03; }
+  109 d090 a9 03                   ; LDA #3
+  110 d092 85 80                   ; STA matrix_failure
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:26 [bank bank1] | asm tsx; asm stx matrix_sp_after;
+  111 d094 ba                      ; TSX
+  112 d095 86 83                   ; STX matrix_sp_after
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:28 [bank bank1] | asm tsx; asm stx matrix_sp_before;
+  113 d097 a5 83                   ; LDA matrix_sp_after
+  114 d099 c5 82                   ; CMP matrix_sp_before
+  115 d09b d0 03                   ; BNE @u8_ne_true_23
+  116 d09d 4c a4 d0                ; JMP @if_false_21  => $D0A4
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:27 [bank bank1] | if (matrix_sp_after != matrix_sp_before) { matrix_failure := 0x42; }
+  117 d0a0 a9 42                   ; LDA #66
+  118 d0a2 85 80                   ; STA matrix_failure
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:28 [bank bank1] | asm tsx; asm stx matrix_sp_before;
+  119 d0a4 ba                      ; TSX
+  120 d0a5 86 82                   ; STX matrix_sp_before
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:30 [bank bank1] | asm tsx; asm stx matrix_sp_after;
+  121 d0a7 20 1e df                ; JSR matrix_probe3  => $DF1E
+  122 d0aa a5 86                   ; LDA matrix_probe3$__return
+  123 d0ac 85 84                   ; STA __vcsc_scratch_4
+  124 d0ae a9 83                   ; LDA #131
+  125 d0b0 85 85                   ; STA (__vcsc_scratch_4 + 1)
+  126 d0b2 a5 84                   ; LDA __vcsc_scratch_4
+  127 d0b4 c5 85                   ; CMP (__vcsc_scratch_4 + 1)
+  128 d0b6 d0 04                   ; BNE @cmp_false_27
+  129 d0b8 a9 01                   ; LDA #1
+  130 d0ba d0 02                   ; BNE @cmp_done_28
+  131 d0bc a9 00                   ; LDA #0
+  132 d0be d0 04                   ; BNE @if_false_24
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:29 [bank bank1] | if (matrix_probe3() != 0x83) { matrix_failure := 0x04; }
+  133 d0c0 a9 04                   ; LDA #4
+  134 d0c2 85 80                   ; STA matrix_failure
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:30 [bank bank1] | asm tsx; asm stx matrix_sp_after;
+  135 d0c4 ba                      ; TSX
+  136 d0c5 86 83                   ; STX matrix_sp_after
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:32 [bank bank1] | if (matrix_count != 4) { matrix_failure := 0x7E; }
+  137 d0c7 a5 83                   ; LDA matrix_sp_after
+  138 d0c9 c5 82                   ; CMP matrix_sp_before
+  139 d0cb d0 03                   ; BNE @u8_ne_true_31
+  140 d0cd 4c d4 d0                ; JMP @if_false_29  => $D0D4
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:31 [bank bank1] | if (matrix_sp_after != matrix_sp_before) { matrix_failure := 0x43; }
+  141 d0d0 a9 43                   ; LDA #67
+  142 d0d2 85 80                   ; STA matrix_failure
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:33 [bank bank1] | }
+  143 d0d4 a5 81                   ; LDA matrix_count
+  144 d0d6 c9 04                   ; CMP #4
+  145 d0d8 d0 03                   ; BNE @u8_ne_true_34
+  146 d0da 4c e1 d0                ; JMP @if_false_32  => $D0E1
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:32 [bank bank1] | if (matrix_count != 4) { matrix_failure := 0x7E; }
+  147 d0dd a9 7e                   ; LDA #126
+  148 d0df 85 80                   ; STA matrix_failure
+; <compiler-generated> [bank bank1]
+  149 d0e1 60                      ; RTS
+; wrk/vcsc-rt1-simple.s26:25 [bank bank0] | sei
+  150 f000 78                      ; SEI
+; wrk/vcsc-rt1-simple.s26:26 [bank bank0] | cld
+  151 f001 d8                      ; CLD
+; wrk/vcsc-rt1-simple.s26:27 [bank bank0] | ldx #$ff
+  152 f002 a2 ff                   ; LDX #255
+; wrk/vcsc-rt1-simple.s26:28 [bank bank0] | txs
+  153 f004 9a                      ; TXS
+; wrk/vcsc-rt1-simple.s26:30 [bank bank0] | lda #0
+  154 f005 a9 00                   ; LDA #0
+; wrk/vcsc-rt1-simple.s26:31 [bank bank0] | ldx #$7f
+  155 f007 a2 7f                   ; LDX #127
+; wrk/vcsc-rt1-simple.s26:33 [bank bank0] | sta $80,x
+  156 f009 95 80                   ; STA 128,X
+; wrk/vcsc-rt1-simple.s26:34 [bank bank0] | dex
+  157 f00b ca                      ; DEX
+; wrk/vcsc-rt1-simple.s26:35 [bank bank0] | bpl.same @clear_ram
+  158 f00c 10 fb                   ; BPL.same @clear_ram
+; wrk/vcsc-rt1-simple.s26:37 [bank bank0] | ldx #$2c
+  159 f00e a2 2c                   ; LDX #44
+; wrk/vcsc-rt1-simple.s26:39 [bank bank0] | sta $00,x
+  160 f010 95 00                   ; STA 0,X
+; wrk/vcsc-rt1-simple.s26:40 [bank bank0] | dex
+  161 f012 ca                      ; DEX
+; wrk/vcsc-rt1-simple.s26:41 [bank bank0] | bpl.same @clear_tia
+  162 f013 10 fb                   ; BPL.same @clear_tia
+; wrk/vcsc-rt1-simple.s26:43 [bank bank0] | ldx #$ff
+  163 f015 a2 ff                   ; LDX #255
+; wrk/vcsc-rt1-simple.s26:44 [bank bank0] | txs
+  164 f017 9a                      ; TXS
+; wrk/vcsc-rt1-simple.s26:45 [bank bank0] | jmp main
+  165 f018 4c 30 f0                ; JMP main  => $F030
+; wrk/vcsc-rt1-simple.s26:49 [bank bank0] | rti
+  166 f01b 40                      ; RTI
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:9 [bank bank0] | bank0 uint8_t matrix_probe0(void) { matrix_count := matrix_count + 1; return 0x80; }
+  167 f01c a5 81                   ; LDA matrix_count
+  168 f01e 18                      ; CLC
+  169 f01f 69 01                   ; ADC #1
+  170 f021 85 81                   ; STA matrix_count
+  171 f023 a9 80                   ; LDA #128
+  172 f025 85 87                   ; STA __vcsc_scratch_0
+  173 f027 a5 87                   ; LDA __vcsc_scratch_0
+  174 f029 85 86                   ; STA matrix_probe0$__return
+; <compiler-generated> [bank bank0]
+  175 f02b 60                      ; RTS
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:35 [bank bank0] | bank0 void matrix_done(void) { while (1) { } }
+  176 f02c 4c 2c f0                ; JMP @while_start_35  => $F02C
+; <compiler-generated> [bank bank0]
+  177 f02f 60                      ; RTS
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:38 [bank bank0] | matrix_failure := 0;
+  178 f030 a9 00                   ; LDA #0
+  179 f032 85 80                   ; STA matrix_failure
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:39 [bank bank0] | matrix_source();
+  180 f034 20 2d ff                ; JSR matrix_source  => $FF2D
+; /mnt/data/vcsc_bankaudit/.tmp-callmatrix/f6-source1.c26:40 [bank bank0] | asm jmp matrix_done;
+  181 f037 4c 2c f0                ; JMP matrix_done  => $F02C
+; <compiler-generated> [bank bank0]
+  182 f03a 6c fc ff                ; JMP (65532)  => $FFFC
+------- Unattributed/linker-generated linked bytes
+  183 9f00 20 07 ff 8d f8 1f 60 8d ; <linker-generated/unattributed>
+  184 9f08 f9 1f 6c 0d ff 1c f0 20 ; <linker-generated/unattributed>
+  185 9f10 16 ff 8d f8 1f 60 8d f7 ; <linker-generated/unattributed>
+  186 9f18 1f 6c 1c ff 00 b0 20 25 ; <linker-generated/unattributed>
+  187 9f20 ff 8d f8 1f 60 8d f6 1f ; <linker-generated/unattributed>
+  188 9f28 6c 2b ff 00 90 20 34 ff ; <linker-generated/unattributed>
+  189 9f30 8d f9 1f 60 8d f8 1f 6c ; <linker-generated/unattributed>
+  190 9f38 3a ff 10 d0             ; <linker-generated/unattributed>
+  191 9fe0 2c f9 1f 4c 1b f0 2c f9 ; <linker-generated/unattributed>
+  192 9fe8 1f 4c 00 f0 2c f9 1f 4c ; <linker-generated/unattributed>
+  193 9ff0 1b f0                   ; <linker-generated/unattributed>
+  194 9ffa e0 ff e6 ff ec ff       ; <linker-generated/unattributed>
+  195 bf00 20 07 ff 8d f8 1f 60 8d ; <linker-generated/unattributed>
+  196 bf08 f9 1f 6c 0d ff 1c f0 20 ; <linker-generated/unattributed>
+  197 bf10 16 ff 8d f8 1f 60 8d f7 ; <linker-generated/unattributed>
+  198 bf18 1f 6c 1c ff 00 b0 20 25 ; <linker-generated/unattributed>
+  199 bf20 ff 8d f8 1f 60 8d f6 1f ; <linker-generated/unattributed>
+  200 bf28 6c 2b ff 00 90 20 34 ff ; <linker-generated/unattributed>
+  201 bf30 8d f9 1f 60 8d f8 1f 6c ; <linker-generated/unattributed>
+  202 bf38 3a ff 10 d0             ; <linker-generated/unattributed>
+  203 bfe0 2c f9 1f 4c 1b f0 2c f9 ; <linker-generated/unattributed>
+  204 bfe8 1f 4c 00 f0 2c f9 1f 4c ; <linker-generated/unattributed>
+  205 bff0 1b f0                   ; <linker-generated/unattributed>
+  206 bffa e0 ff e6 ff ec ff       ; <linker-generated/unattributed>
+  207 df00 20 07 ff 8d f8 1f 60 8d ; <linker-generated/unattributed>
+  208 df08 f9 1f 6c 0d ff 1c f0 20 ; <linker-generated/unattributed>
+  209 df10 16 ff 8d f8 1f 60 8d f7 ; <linker-generated/unattributed>
+  210 df18 1f 6c 1c ff 00 b0 20 25 ; <linker-generated/unattributed>
+  211 df20 ff 8d f8 1f 60 8d f6 1f ; <linker-generated/unattributed>
+  212 df28 6c 2b ff 00 90 20 34 ff ; <linker-generated/unattributed>
+  213 df30 8d f9 1f 60 8d f8 1f 6c ; <linker-generated/unattributed>
+  214 df38 3a ff 10 d0             ; <linker-generated/unattributed>
+  215 dfe0 2c f9 1f 4c 1b f0 2c f9 ; <linker-generated/unattributed>
+  216 dfe8 1f 4c 00 f0 2c f9 1f 4c ; <linker-generated/unattributed>
+  217 dff0 1b f0                   ; <linker-generated/unattributed>
+  218 dffa e0 ff e6 ff ec ff       ; <linker-generated/unattributed>
+  219 ff00 20 07 ff 8d f8 1f 60 8d ; <linker-generated/unattributed>
+  220 ff08 f9 1f 6c 0d ff 1c f0 20 ; <linker-generated/unattributed>
+  221 ff10 16 ff 8d f8 1f 60 8d f7 ; <linker-generated/unattributed>
+  222 ff18 1f 6c 1c ff 00 b0 20 25 ; <linker-generated/unattributed>
+  223 ff20 ff 8d f8 1f 60 8d f6 1f ; <linker-generated/unattributed>
+  224 ff28 6c 2b ff 00 90 20 34 ff ; <linker-generated/unattributed>
+  225 ff30 8d f9 1f 60 8d f8 1f 6c ; <linker-generated/unattributed>
+  226 ff38 3a ff 10 d0             ; <linker-generated/unattributed>
+  227 ffe0 2c f9 1f 4c 1b f0 2c f9 ; <linker-generated/unattributed>
+  228 ffe8 1f 4c 00 f0 2c f9 1f 4c ; <linker-generated/unattributed>
+  229 fff0 1b f0                   ; <linker-generated/unattributed>
+  230 fffa e0 ff e6 ff ec ff       ; <linker-generated/unattributed>

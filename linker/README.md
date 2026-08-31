@@ -366,8 +366,8 @@ mem bank0 { $start:0xf000 $size:0x0f00 $ro $priority:2 };
 mem bank1 { $start:0xd000 $size:0x0f00 $ro };
 ```
 
-The installed `vcs_4k.c26`, `vcs_8k_f8.c26`, `vcs_12k_fa.c26`, `vcs_16k_f6.c26`,
-`vcs_32k_f4.c26`, and matching RAM/Superchip files are the certified public
+The installed `vcs_4k.c26`, `vcs_8k_f8.c26`, `vcs_12k_fa.c26`, `vcs_24k_fa2.c26`,
+`vcs_28k_fa2.c26`, `vcs_16k_f6.c26`, `vcs_32k_f4.c26`, and matching RAM/Superchip files are the certified public
 profiles. `vcs.c26` describes the common machine only; the driver implicitly
 adds `vcs_4k.c26` when no explicit `-T` profile selection is made. Public
 banked builds pass the reduced `vcs.cfg` for operational policy and add one C26
@@ -500,36 +500,55 @@ performs the required bus read while preserving A/X/Y and processor flags, so a
 mapper transition does not also write a mirrored TIA/RIOT register.
 
 Entries are deduplicated by final target address and destination hotspot. Each
-call site receives its source bank's logical mirror of the common entry offset.
+jump site receives its source bank's logical mirror of the common entry offset.
 The allocator inserts a fill byte when necessary so the inline pointer never
 begins at `$xxFF`, avoiding the NMOS 6502/6507 indirect-`JMP` page-wrap bug. A
 full corridor is a link error. The map reports reserved, occupied, and total
 replicated bytes plus every generated target entry.
 
-A proven direct cross-bank `JSR` is redirected to a fifteen-byte source-aware
-entry in the same common table:
+A direct cross-bank C call in the F8/F6/F4 pilot no longer allocates a target-specific
+JSR entry. The compiler emits one five-byte bundle at the call site:
 
 ```asm
-    JSR body
-return_to_source:
-    STA source_hotspot
-    RTS
-body:
-    STA destination_hotspot
-    JMP (inline_target_pointer)
-inline_target:
-    .word final_target
+    JSR __bankcall
+    .banktarget final_target    ; two-byte logical address in the object file
 ```
 
-The call-site JSR leaves the caller's real return address on the hardware stack.
-The entry's internal JSR creates the synthetic return address without changing
-A, X, Y, or processor flags. The destination function's RTS reaches the
-byte-identical `return_to_source` stub, whose hotspot store restores the caller's
-bank while preserving A and flags; its RTS then consumes the original call-site
-return address. Internal JSR and indirect-pointer operands use BANK0's logical
-mirror of the common table, so the encoded bytes are identical in every bank.
-JSR entries are deduplicated by source hotspot, destination hotspot, and final
-target. Nested cross-bank calls naturally restore banks in LIFO order.
+`.banktarget` assembles to the inline `.word final_target` metadata consumed by
+the fixed generic call block; it is not executed. The linker rewrites the JSR
+operand to the source bank's logical mirror of `__bankcall` while leaving the
+inline word as the target's distinct logical address. The current generic block
+is 80 bytes total and is replicated byte-for-byte in every bank before any
+variable direct-JMP entries. The map reports this reservation as
+`generic-jsr=$050`; these calls create no `JSR entry=` records.
+
+`__bankcall` copies the real 16-bit logical JSR return PC from the hardware
+stack to a zero-page pointer, reads the following two target bytes through
+`(ptr),Y` **before** switching banks, and advances the saved return PC by two.
+The saved-PC adjustment is full 16-bit arithmetic with explicit carry
+propagation. `(ptr),Y` supplies the corresponding page carry while reading an
+inline word which crosses `$xxFF/$xx+1 00`. A small internal `JSR` creates the
+synthetic return frame; the switch body derives the destination selector from
+the target logical high byte, selects that bank, and jumps through the saved
+target pointer.
+
+After the callee's ordinary `RTS`, the generic return path preserves A:X, peeks
+the original caller's logical return high byte from the stack, derives and
+selects the source bank, restores A:X, and performs the final `RTS` directly to
+the unchanged logical continuation PC. No source-bank ID byte and no rewritten
+return address are required: the 6507's 16-bit PC and hardware stack retain the
+distinct linker ORG even though the cartridge bus sees mirrored low address
+bits. Nested cross-bank calls therefore compose naturally in LIFO order.
+
+The five-byte `JSR` + inline-target sequence belongs to one function layout, so
+the linker never splits it across a logical bank boundary. Crossing an ordinary
+256-byte page is legal and intentionally tested.
+`test/vcs_bankswitching_inline_call_pages.pl` pins calls at `$D0FC` and `$D0FD`
+to exercise both forms of page carry, executes them from every F8 startup bank,
+and verifies the exact continuation plus A:X preservation. The public
+`01_diagnostic` now executes every ordered source/destination call pair in one
+F8/F6/F4 image; `test/vcs_bankswitching_call_matrix.pl` remains an independent
+ordered-pair regression.
 
 Cross-bank ROM data and conditional branches remain permanent errors.
 Diagnostics identify the input object, source layout/address/bank, target

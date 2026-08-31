@@ -19,8 +19,18 @@ diagnostics—F8, F6, F4, F8SC, F6SC, and F4SC—plus a seventh deliberately
 poisoned F8SC image which renders the known FAIL result. The SC diagnostics also
 certify hostile initial RAM, mixed BSS/DATA startup, bank-switch persistence,
 and reinitialization after console reset without adding more cartridges. Each
-mapper diagnostic executes its complete ordered direct bank-transition matrix
-internally.
+visible mapper diagnostic executes its complete ordered direct-JMP bank matrix
+internally, plus representative JSR/RTS coverage.
+
+Generated JSR/RTS bridges need a stronger test than merely touching every bank.
+`test/vcs_bankswitching_call_matrix.pl` builds one ROM per source bank and makes
+that source call every destination bank, checking the generated bridge metadata,
+return value, hardware-stack balance, and simulator execution. This currently
+covers every ordered JSR pair for F8/F8SC, F6/F6SC, F4/F4SC, FA, both FA2
+profiles, JANE, 0840, UA/UASW, 0FA0, and DPC. Multiple ROMs are intentional:
+for an eight-bank mapper the 56 possible cross-bank JSR entries would require
+840 bytes, which cannot all fit in the normal 224-byte common trampoline
+corridor without distorting the public mapper profile merely for a diagnostic.
 
 The public VCSC cartridge profiles also stamp the final physical bank with a
 four-byte mapper signature at logical addresses `$xFF8-$xFFB` (eight bytes before that bank ends). Short mapper names are
@@ -35,8 +45,10 @@ file bank 1 at `$DFF8-$DFFB`, while RESET and IRQ/BRK remain in startup bank 0
 at `$FFFC-$FFFF`.
 
 `03_fa_ram_plus/` is the dedicated CBS FA/RAM Plus diagnostic. It displays
-`pass`/`FAIL`, exercises all three selectors through nested cross-bank calls,
-uses all 256 bytes of cartridge RAM, and verifies startup from physical bank 2.
+`pass`/`FAIL`, exercises all three selectors through a representative nested
+cross-bank chain, uses all 256 bytes of cartridge RAM, and verifies startup from
+physical bank 2. The exhaustive FA ordered-call matrix is in the shared
+regression described above.
 
 `04_4ksc/` is the direct 4K Superchip diagnostic. It allocates all 128 bytes of
 Superchip RAM, verifies DATA/BSS reset initialization and read/write aliases,
@@ -57,9 +69,10 @@ and displays `CV` below `pass`/`FAIL`. The generated image includes the
 `07_jane/` is the 16K JANE diagnostic. It preserves physical file-bank order
 0/1/2/3 for selectors `$1FF0/$1FF1/$1FF8/$1FF9`, while hardware startup is
 physical bank 1. The self-test begins correctly from every possible selected
-bank, crosses all four selectors through nested calls/returns, and displays
-`JANE` below `pass`/`FAIL`. The image also carries Stella's `LDA $FFF1; RTS`
-autodetection byte pattern as inert data.
+bank and crosses all four selectors through a representative nested call/return
+chain; the shared regression separately covers every ordered JSR pair. It
+displays `JANE` below `pass`/`FAIL`. The image also carries Stella's
+`LDA $FFF1; RTS` autodetection byte pattern as inert data.
 
 `08_0840/` is the 8K 0840/EconoBanking diagnostic. Physical bank 0 powers up;
 reads or writes in the decoded `$0800` family select bank 0 and the `$0840`
@@ -128,8 +141,13 @@ large PASS/FAIL with small `WD`, and `make play` forces Stella's `WD` mapper.
 
 `16_dpc/` is the DPC diagnostic. It emits the conventional 10,495-byte image
 as two F8-style program banks plus a 2K display-data bank and 255-byte Poly8
-tail, both declared `$data_only`. The self-test executes the remote F8 program
-bank, reads and checksums every display byte through DPC fetcher 0 including an
-11-bit counter wrap check, then resets and verifies the complete 255-state DPC
-RNG sequence. It renders large PASS/FAIL with small `DPC`; `make play` forces
-Stella's `DPC` mapper.
+tail, both declared `$data_only`. The self-test executes both ordered calls
+between the two F8-style program banks, reads and checksums every display byte
+through DPC fetcher 0 including an 11-bit counter wrap check, then resets and
+verifies the complete 255-state DPC RNG sequence. It renders large PASS/FAIL
+with small `DPC`; `make play` forces Stella's `DPC` mapper.
+
+- `17_fa2` — FA2 28K seven-bank + 256-byte cartridge-RAM PASS/FAIL diagnostic.
+  The visible cartridge uses a representative seven-bank nested chain; the shared
+  ordered-call regression exhaustively covers every source/destination pair for
+  both the six-bank and seven-bank FA2 profiles.

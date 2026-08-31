@@ -104,8 +104,8 @@ sub check_matrix_dump {
       or die "$mapper did not execute the final logical source bank\n";
    $mem->[$sym->{current_source}]==$banks && $mem->[$sym->{current_destination}]==0
       or die "$mapper matrix indices did not reach the terminal state\n";
-   $mem->[$sym->{call_count}]==$banks
-      or die "$mapper same-bank call count is wrong\n";
+   $mem->[$sym->{call_count}]==$banks*$banks
+      or die "$mapper complete ordered call-matrix count is wrong\n";
    $mem->[$sym->{transition_count}]==$banks*$banks
       or die "$mapper did not execute the complete ordered direct-JMP matrix\n";
    $mem->[$sym->{nested_count}]==1
@@ -165,6 +165,10 @@ sub run_simulator_matrix {
          }
       }
       my $map=read_file($map_path);
+      $map =~ /^\s*common-offset=\$F00\s+reserved=\$0E0\s+used=\$[0-9A-F]+\b.*\btarget-passing=inline\s+generic-jsr=\$050\b.*\bjsr=0\b/m
+         or die "$mapper diagnostic did not use the fixed 80-byte generic inline-target JSR block\n$map";
+      $map !~ /^\s+JSR entry=/m
+         or die "$mapper diagnostic still contains a per-target legacy JSR trampoline\n$map";
       if ($sc) {
          $map =~ /^\s*cartram\s+used=128 bytes\b.*\bobjects=128 bytes\b/m
             or die "$mapper diagnostic does not own the complete Superchip region\n$map";

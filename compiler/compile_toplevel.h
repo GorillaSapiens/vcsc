@@ -2,6 +2,8 @@
 //! @brief Declares top-level declaration lowering for the VCSC compiler.
 //! @ingroup compiler
 
+#include <stdbool.h>
+
 #ifndef _INCLUDE_COMPILE_TOPLEVEL_H_
 #define _INCLUDE_COMPILE_TOPLEVEL_H_
 
@@ -9,6 +11,8 @@
 
 void compile_cartridge_decl_stmt(ASTNode *node);
 void compile_bank_decl_stmt(ASTNode *node);
+//! Return whether the current cartridge profile opts into the generic inline-target bank-call pilot.
+bool compile_cartridge_supports_inline_bankcall(void);
 void compile_mem_decl_stmt(ASTNode *node);
 void compile_type_decl_stmt(ASTNode *node);
 void compile_typedef_decl_stmt(ASTNode *node);

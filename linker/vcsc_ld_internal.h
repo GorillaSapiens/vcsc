@@ -26,6 +26,7 @@
 #define O26_RTYPE_WORD 0x80
 #define O26_RTYPE_AUX  0x10
 #define O26_RTYPE_INDIRECT_JMP 0x08
+#define O26_RTYPE_BANK_TARGET  0x08 /* control=NONE only; inline cross-bank call target */
 #define O26_RTYPE_LAYOUT 0x04
 #define O26_RTYPE_CONTROL_MASK 0x03
 #define O26_RTYPE_CONTROL_NONE 0x00
@@ -451,6 +452,7 @@ typedef struct {
    bank_trampoline_entry_t *bank_trampoline_entries;
    size_t bank_trampoline_entry_count;
    uint16_t bank_trampoline_used;
+   int bank_generic_jsr_used;
    int call_stack_enabled;
    uint16_t call_stack_depth;
    uint16_t call_stack_weighted_depth;

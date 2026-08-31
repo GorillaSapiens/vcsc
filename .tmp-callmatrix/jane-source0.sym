@@ -1,0 +1,30 @@
+--- Symbol List (sorted by symbol)
+__call_stack_bank_extra_slots    0001
+__call_stack_depth               0002
+__call_stack_extra               0000
+__call_stack_size                0006
+__call_stack_start               00fa
+__call_stack_top                 00ff
+__call_stack_weighted_depth      0003
+__reset                          f000
+__stack_start                    0088
+__stack_top                      00f9
+__vcsc_startup_simple            f000
+__weak___irqbrk                  f01b
+__weak___nmi                     f01b
+main                             f102
+matrix_count                     0081
+matrix_done                      f0fe
+matrix_failure                   0080
+matrix_probe0                    f01c
+matrix_probe0$__return           0086
+matrix_probe1                    d000
+matrix_probe1$__return           0086
+matrix_probe2                    b000
+matrix_probe2$__return           0086
+matrix_probe3                    9000
+matrix_probe3$__return           0086
+matrix_source                    f02c
+matrix_sp_after                  0083
+matrix_sp_before                 0082
+--- End of Symbol List.

@@ -62,11 +62,13 @@ typedef enum {
    MAP_UASW = VCSC_VIDEO_MAP_UASW,
    MAP_0FA0 = VCSC_VIDEO_MAP_0FA0,
    MAP_FE = VCSC_VIDEO_MAP_FE,
-   MAP_AR = VCSC_VIDEO_MAP_AR
+   MAP_AR = VCSC_VIDEO_MAP_AR,
+   MAP_FA2 = VCSC_VIDEO_MAP_FA2
 } mapper_t;
 
 _Static_assert((int)MAP_FA == (int)VCSC_VIDEO_MAP_FA, "dynamic-probe mapper IDs drifted");
 _Static_assert((int)MAP_0FA0 == (int)VCSC_VIDEO_MAP_0FA0, "dynamic-probe mapper IDs drifted");
+_Static_assert((int)MAP_FA2 == (int)VCSC_VIDEO_MAP_FA2, "dynamic-probe mapper IDs drifted");
 
 typedef enum {
    FLOW_NEXT,
@@ -521,6 +523,7 @@ static int parse_mapper_name(const char *s, mapper_t *mapper, int *superchip)
    else if (strcmp(s, "f6sc") == 0) { *mapper = MAP_F6; *superchip = 1; }
    else if (strcmp(s, "f4sc") == 0) { *mapper = MAP_F4; *superchip = 1; }
    else if (strcmp(s, "fa") == 0) *mapper = MAP_FA;
+   else if (strcmp(s, "fa2") == 0) *mapper = MAP_FA2;
    else if (strcmp(s, "dpc") == 0) *mapper = MAP_DPC;
    else if (strcmp(s, "wd") == 0) *mapper = MAP_WD;
    else if (strcmp(s, "wdsw") == 0) *mapper = MAP_WDSW;
@@ -939,6 +942,8 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
    case MAP_F6: *bank_size = 4096u; *bank_count = 4u; return rom_size == 16384u;
    case MAP_F4: *bank_size = 4096u; *bank_count = 8u; return rom_size == 32768u;
    case MAP_FA: *bank_size = 4096u; *bank_count = 3u; return rom_size == 12288u;
+   case MAP_FA2: *bank_size = 4096u; *bank_count = rom_size / 4096u;
+      return rom_size == 24576u || rom_size == 28672u;
    case MAP_DPC: *bank_size = 4096u; *bank_count = 2u;
       return rom_size == 10240u || rom_size == 10495u;
    case MAP_WD: *bank_size = 1024u; *bank_count = 8u; return rom_size == 8192u;
@@ -1240,6 +1245,7 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
       if (mapper == MAP_RAW) mapper = is_probably_fc(rom, size) ? MAP_FC : MAP_F8;
       break;
    case 12288u: mapper = is_probably_e7(rom, size) ? MAP_E7 : MAP_FA; break;
+   case 24576u: case 28672u: mapper = MAP_FA2; break;
    case 16384u: mapper = is_probably_e7(rom, size) ? MAP_E7 :
                          (is_probably_fc(rom, size) ? MAP_FC :
                          (is_probably_3e(rom, size) ? MAP_3E :
@@ -1275,6 +1281,7 @@ static const char *mapper_name(mapper_t mapper)
    case MAP_F6: return "F6";
    case MAP_F4: return "F4";
    case MAP_FA: return "FA";
+   case MAP_FA2: return "FA2";
    case MAP_DPC: return "DPC";
    case MAP_WD: return "WD";
    case MAP_WDSW: return "WDSW";
@@ -2171,6 +2178,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
    }
    /* CBS RAM Plus (FA) hardware powers up in physical bank 2. */
    if (a->mapper == MAP_FA) a->reset_bank = 2u;
+   if (a->mapper == MAP_FA2) a->reset_bank = 0u;
    if (a->mapper == MAP_JANE) a->reset_bank = 1u;
    if (a->mapper == MAP_0840) a->reset_bank = 0u;
    if (a->mapper == MAP_UA || a->mapper == MAP_UASW) a->reset_bank = 0u;
@@ -2639,6 +2647,9 @@ static int selector_bank(mapper_t mapper, uint16_t address, size_t *bank)
    case MAP_FA:
       if (bus >= 0x1ff8u && bus <= 0x1ffau) { *bank = bus - 0x1ff8u; return 1; }
       break;
+   case MAP_FA2:
+      if (bus >= 0x1ff5u && bus <= 0x1ffbu) { *bank = bus - 0x1ff5u; return 1; }
+      break;
    case MAP_JANE:
       if (bus == 0x1ff0u) { *bank = 0u; return 1; }
       if (bus == 0x1ff1u) { *bank = 1u; return 1; }
@@ -2968,6 +2979,7 @@ static int native_split_ram_layout(const analysis_t *a, split_ram_layout_t *ram)
 {
    switch (a->mapper) {
    case MAP_FA:
+   case MAP_FA2:
       ram->write_start = 0x1000u;
       ram->read_start = 0x1100u;
       ram->size = 0x0100u;
@@ -3001,13 +3013,13 @@ static int split_ram_port_contains(const split_ram_layout_t *ram,
 static int fa_ram_address(const analysis_t *a, uint16_t address)
 {
    split_ram_layout_t ram;
-   return a->mapper == MAP_FA && native_split_ram_layout(a, &ram) &&
+   return (a->mapper == MAP_FA || a->mapper == MAP_FA2) && native_split_ram_layout(a, &ram) &&
           split_ram_port_contains(&ram, address);
 }
 
 static size_t rom_hidden_prefix(const analysis_t *a)
 {
-   if (a->mapper == MAP_FA) return 0x200u;
+   if (a->mapper == MAP_FA || a->mapper == MAP_FA2) return 0x200u;
    if (superchip_active(a)) return 0x100u;
    return 0u;
 }
@@ -3695,7 +3707,7 @@ static int prove_brk_irq_rti_return(const analysis_t *a, size_t bank,
    if (bank >= a->bank_count) return 0;
    switch (a->mapper) {
    case MAP_1K: case MAP_2K: case MAP_4K:
-   case MAP_F8: case MAP_F6: case MAP_F4: case MAP_FA:
+   case MAP_F8: case MAP_F6: case MAP_F4: case MAP_FA: case MAP_FA2:
    case MAP_DPC: case MAP_CV:
       break;
    default:
@@ -6332,6 +6344,7 @@ static int concrete_mapper_trusted(const analysis_t *a)
    case MAP_F6:
    case MAP_F4:
    case MAP_FA:
+   case MAP_FA2:
       return mapper_tail_signature_matches(a->rom, a->rom_size, a->mapper);
    case MAP_CV:
    case MAP_WD:
@@ -6442,6 +6455,9 @@ static size_t mapper_candidates_for_size(size_t size, mapper_t *out,
    case 16384u:
       ADD_MAPPER(MAP_F6); ADD_MAPPER(MAP_JANE); ADD_MAPPER(MAP_E7); ADD_MAPPER(MAP_3E); ADD_MAPPER(MAP_3F); ADD_MAPPER(MAP_FC);
       break;
+   case 24576u: case 28672u:
+      ADD_MAPPER(MAP_FA2);
+      break;
    case 32768u:
       ADD_MAPPER(MAP_F4); ADD_MAPPER(MAP_3E); ADD_MAPPER(MAP_3F); ADD_MAPPER(MAP_FC);
       break;
@@ -6476,6 +6492,7 @@ static int mapper_tail_signature_matches(const uint8_t *rom, size_t size,
    case MAP_F4: return memcmp(p, "F4\0\0", 4u) == 0 ||
                        memcmp(p, "F4SC", 4u) == 0;
    case MAP_FA: return memcmp(p, "FA\0\0", 4u) == 0;
+   case MAP_FA2: return memcmp(p, "FA2\0", 4u) == 0;
    case MAP_WD: return memcmp(p, "WD\0\0", 4u) == 0;
    case MAP_JANE: return memcmp(p, "JANE", 4u) == 0;
    case MAP_E7: return memcmp(p, "E7\0\0", 4u) == 0;
@@ -6501,6 +6518,7 @@ static int mapper_has_precise_selector_edges(mapper_t mapper)
    case MAP_F6:
    case MAP_F4:
    case MAP_FA:
+   case MAP_FA2:
    case MAP_FC:
    case MAP_JANE:
    case MAP_E0:
@@ -9038,7 +9056,7 @@ static void emit_usage_summary(FILE *fp, const analysis_t *a)
          if (r & ROLE_OVERLAP) ++overlap;
          if (r & ROLE_POSSIBLE) ++possible;
          if (r & ROLE_VECTOR) ++vectors;
-         if (a->mapper == MAP_FA && off < 0x200u) ++fa_hidden;
+         if ((a->mapper == MAP_FA || a->mapper == MAP_FA2) && off < 0x200u) ++fa_hidden;
          else if (superchip_active(a) && off < 0x100u) ++sc_hidden;
          else if (!sx &&
                   !(r & (ROLE_CODE_BYTE | ROLE_DATA_READ | ROLE_POSSIBLE | ROLE_VECTOR)))
@@ -9112,7 +9130,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                      "%d SC write%s, %d SC RMW conflict%s, %d SC read%s, %u SC paired offset%s, %d native split-RAM RMW conflict%s)\n",
                  mname,
                  a->mapper == MAP_RAW ? "unknown" :
-                    (a->mapper == MAP_DPC || a->mapper == MAP_FA || mapper_is_wd_family(a->mapper) || a->mapper == MAP_E0 ||
+                    (a->mapper == MAP_DPC || a->mapper == MAP_FA || a->mapper == MAP_FA2 || mapper_is_wd_family(a->mapper) || a->mapper == MAP_E0 ||
                      (a->mapper == MAP_E7 && is_probably_e7(a->rom, a->rom_size)) ||
                      (a->mapper == MAP_3E && is_probably_3e(a->rom, a->rom_size)) ||
                      (a->mapper == MAP_FE && is_probably_fe(a->rom, a->rom_size)) ||
@@ -9175,6 +9193,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
       fprintf(fp, "; reset/power-on bank: %zu (%s)\n", a->reset_bank,
               a->reset_bank_overridden ? "override" :
               (a->mapper == MAP_FA ? "FA hardware default" :
+               (a->mapper == MAP_FA2 ? "FA2 hardware bank 0" :
                (a->mapper == MAP_JANE ? "JANE hardware default" :
                (a->mapper == MAP_0840 ? "0840 hardware default" :
                ((a->mapper == MAP_UA || a->mapper == MAP_UASW) ? "UA hardware default" :
@@ -9185,7 +9204,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                   (a->mapper == MAP_3F ? "3F fixed final-2K vector bank; lower bank 0 at power-on" :
                    (a->mapper == MAP_FE ? "FE deterministic bank 0" :
                     (a->mapper == MAP_FC ? "FC hardware bank 0; pending target 0" :
-                  (mapper_is_wd_family(a->mapper) ? "WD configuration-0 vector bank" : "heuristic")))))))))))));
+                  (mapper_is_wd_family(a->mapper) ? "WD configuration-0 vector bank" : "heuristic"))))))))))))));
       for (i = 0; i < a->bank_count; ++i) {
          const bank_t *b = &a->banks[i];
          if (b->origin_overridden)
@@ -9199,6 +9218,8 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
       }
       if (a->mapper == MAP_FA)
          fprintf(fp, "; FA cartridge RAM: write $1000-$10FF, read $1100-$11FF; bank 2 powers up\n");
+      if (a->mapper == MAP_FA2)
+         fprintf(fp, "; FA2 cartridge RAM: write $1000-$10FF, read $1100-$11FF; $1FF5-$1FFA/$1FFB select six/seven 4K banks; bank 0 powers up; Harmony $1FF4 persistence is not modeled\n");
       if (a->mapper == MAP_CV)
          fprintf(fp, "; CV cartridge RAM: read $1000-$13FF, write $1400-$17FF (1024 bytes)\n");
       if (a->mapper == MAP_3E)

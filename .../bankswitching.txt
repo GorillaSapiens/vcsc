@@ -77,6 +77,15 @@ profiles therefore bind ordinary TIA accesses through the equivalent `$40-$7F`
 mirror; 3E mapper selection itself remains literal `$3E`/`$3F`. Do not depend
 on an emulator forwarding non-hotspot low-page writes to the TIA.
 
+FA2 extends the FA split-RAM model to six or seven directly selected 4K ROM
+banks. Public VCSC profiles are clean 24K and 28K payloads: physical/file bank 0
+is the startup bank, `$1FF5-$1FFA` select banks 0-5, optional `$1FFB` selects bank
+6, and the first `$200` bytes of every selected bank are hidden by the 256-byte
+cartridge-RAM ports (write `$1000-$10FF`, read `$1100-$11FF`). VCSC emits the
+native 24K/28K payload rather than Harmony's 29K/32K wrapper forms. Harmony
+`$1FF4` flash persistence is optional external behavior and is not part of the
+core compiler/linker/simulator contract.
+
 DPC is F8 program banking plus two non-CPU-addressable image regions. Physical
 file chunks 0/1 are the ordinary 4K F8 program banks; file chunk 2 is 2048 bytes
 of display data consumed by the DPC fetchers; file chunk 3 is the conventional
@@ -104,7 +113,16 @@ C26 topology/placement rules
 * Selector-free direct regions are ordinary 16-bit address spaces and do not
   require generated bank-switch trampolines.
 * Selector-controlled cross-bank calls/jumps use generated transitions; preserve
-  hardware-return-depth accounting and branch/page timing constraints.
+  hardware-return-depth accounting and branch/page timing constraints. Mapper
+  diagnostics must distinguish "every selector was touched" from exhaustive
+  ordered source/destination bridge coverage. The durable regression is
+  `test/vcs_bankswitching_call_matrix.pl`: one ROM per source bank calls every
+  destination bank so every legal generated JSR/RTS pair is executed. The current
+  JSR implementation is deliberately no longer considered the desired long-term
+  shape: it emits one 15-byte replicated entry per unique source-bank/target
+  function pair, so target diversity consumes the fixed common corridor. Before
+  generalizing that scheme to more mappers, evaluate the compact generic-call
+  designs recorded under Open work.
 * Split-address cartridge RAM keeps distinct read/write aliases. Do not collapse
   them into one address for RMW or initialization semantics.
 * Mapper hotspots, vector bridges, RAM-port prefixes, signatures, and other
@@ -123,18 +141,130 @@ signatures are padded with ASCII NUL, never space or underscore. Current
 signatures include:
 
     4KSC  F8\0\0  F8SC  F6\0\0  F6SC  F4\0\0  F4SC  FA\0\0
-    CV\0\0  OMNI  JANE  0840  UA\0\0  UASW  0FA0  E0\0\0  FE\0\0  WD\0\0  DPC\0  3F\0\0  3E\0\0
+    CV\0\0  OMNI  JANE  0840  UA\0\0  UASW  0FA0  E0\0\0  FE\0\0  WD\0\0  DPC\0  FA2\0  3F\0\0  3E\0\0
 
 The bytes are metadata; real hardware switches because the hotspot address is
 accessed, not because of the stored byte value.
 
 Open work
 ---------
-[ ] 38. Reconsider the next tier: F0, FA2, and FC. **DEFERRED.**
+[ ] Shared cross-bank JSR redesign -- pilot is implemented in
+    `examples/09_bankswitching/01_diagnostic` for F8/F6/F4(+SC), but integration
+    is unfinished. Compiler emits `JSR` + `.banktarget`; assembler preserves the
+    inline-target relocation; linker uses an 80-byte fixed generic call/return block.
+    The public diagnostic executes every ordered JSR and JMP bank pair and passes
+    in `vcsc-sim` from every physical start bank; `test/vcs_bankswitching_inline_call_pages.pl`
+    covers JSR-at-page-end and inline-word page crossing with A:X preservation.
+    Next: finish docs/allowlist/hygiene, lock atomic five-byte bank-end placement,
+    run focused regressions, then remove/fold the legacy per-target fallback before FC/F0.
 
-        Do not schedule this unless the user explicitly reopens it. If reopened,
-        evaluate each hardware contract separately rather than hiding new
-        mechanisms behind the existing hotspot model.
+    The current implementation being replaced is design debt: each distinct `(source bank, target
+    function)` JSR owns a 15-byte entry in the byte-identical common corridor. The
+    three-byte call site is compact, but target diversity consumes replicated
+    corridor capacity. Replace that representation with the chosen five-byte
+    inline-target form:
+
+        JSR __bankcall
+        .word target
+
+    `target` is the ordinary 16-bit logical linker address; distinct bank ORGs encode
+    bank identity. JSR's stacked logical return PC likewise identifies the source bank.
+
+    Entry sequence, conceptually:
+
+      1. Peek at the stacked JSR return PC.
+      2. Read the two bytes immediately following it as the inline logical target.
+         These bytes must be consumed before switching away from the source bank.
+      3. Add two to the stacked original return PC so the eventual final RTS resumes
+         after the inline word rather than executing it.
+      4. Derive/select the destination bank from the target's logical address, push a
+         synthetic return to the byte-identical generic `__bankreturn`, and JMP
+         indirectly to the target.
+
+    The callee remains ordinary code and ends with a normal RTS. That RTS consumes
+    only the synthetic return and enters `__bankreturn`. At that point the original
+    caller continuation PC is again exposed on the hardware stack. Its unchanged
+    16-bit logical value identifies the source bank directly. `__bankreturn` peeks
+    at that value, selects the corresponding source bank, restores any saved A:X
+    return value, and performs the final RTS. **Do not rewrite the stacked PC to
+    `$Fxxx` or any other supposedly physical address.** The 6507's PC is 16-bit even
+    though only 13 address lines reach the cartridge; once the correct bank is
+    selected, RTS to the original logical address is exactly what VCSC wants.
+
+    All stack/inline-address arithmetic is genuinely 16-bit. Page crossing is legal:
+    if JSR leaves `$xxFF` on the stack, target bytes at `$(xx+1)00/01` and the saved
+    continuation adjustment must propagate carry correctly. Treat the generated JSR
+    plus inline word as one atomic five-byte placement bundle: it may cross a 256-byte
+    page, but must never cross a logical 4K bank boundary; move/pad the whole bundle
+    when necessary rather than spilling the target word into another bank.
+
+    Preserve nested calls, hardware-stack accounting, A:X return values, source
+    provenance, and exhaustive ordered source/destination coverage. Add executable
+    page-edge regressions with a bundle wholly inside a page, an inline word split
+    across `$xxFF/$xx+1 00`, a JSR ending at `$xxFF`, carry out of the stacked-PC `+2`,
+    and placement at the logical-bank end. Verify exact target/return PCs, restored
+    bank, stack depth, and A:X values. Entry/return helpers may use fixed scratch RAM,
+    but stack inspection must save/restore A:X before clobbering either. Debug,
+    disassembly, and listings must treat the two inline bytes as data, not code.
+
+    Rejected alternate: passing target in A:X costs seven bytes/call versus five and
+    adds no information beyond inline target + stacked logical return PC.
+
+    Do not retain the 224-byte corridor merely because the old per-target scheme
+    needed it; size the final replicated machinery from the fixed generic entry and
+    return paths. Cross-bank JMPs are a separate question and need not be redesigned
+    just to fix JSR density.
+
+[ ] 38. Complete the remaining mapper tier in this order: **FC, F0**.
+
+        FA2 is complete. Keep treating each remaining mapper as its own hardware
+        contract rather than forcing new mechanisms into an F8-shaped abstraction.
+
+        [ ] 38b. FC -- do this next.
+
+            FC is now considered straightforward rather than risky. Current
+            Stella FC is a staged direct selector, not an F0-style incrementing
+            mapper: write the low target-bank bits at $1FF8, write the upper
+            target-bank bits at $1FF9, then access $1FFC to commit the selection.
+            Because the target bank is explicitly chosen before the commit, a
+            normal replicated cross-bank transition corridor should be simple.
+            Preserve FC's exact image topology, simulator/disassembler round
+            trip, and a Stella-visible diagnostic; do not change existing mapper
+            implementations merely to generalize the FC mechanism.
+
+        [ ] 38c. F0 -- do this after FC.
+
+            F0 is mechanically simple but less attractive for new VCSC code:
+            its 16 x 4K / 64K capacity is selected by repeatedly advancing the
+            bank through the $1FF0 hotspot instead of directly selecting an
+            arbitrary bank. Basic profile/linker/simulator/disassembler support
+            and a diagnostic are worthwhile for compatibility and for exercising
+            a stateful/incremental mapper.
+
+            Use the shared inline-target JSR design above; no ROM bank-identity
+            byte is needed. At entry, the stacked logical caller PC identifies the
+            source bank and the inline logical target identifies the destination,
+            so the trampoline computes `(target - source) mod 16` and advances
+            through $1FF0 exactly that many times before entering the callee.
+
+            F0 cannot directly select the source bank on return, so preserve the
+            reverse advance count as call-frame metadata rather than rediscovering
+            mapper state. A simple implementation may push the one-byte count
+            `(source - target) mod 16` beneath the synthetic `__bankreturn` address;
+            nested calls then naturally carry independent reverse counts in LIFO
+            order. After the callee's RTS consumes the synthetic return,
+            `__bankreturn` recovers that count, advances $1FF0 exactly that many
+            times, preserves/restores A:X, and performs the final RTS to the
+            unchanged original logical caller PC. Account for the extra F0 frame
+            byte explicitly if this implementation is chosen.
+
+            The repeated hotspot accesses may be unrolled or driven by a small
+            counter loop; choose the smaller/timing-appropriate form when
+            implementing it. All code executed across a bank change must remain
+            byte-identical at the same CPU addresses in every bank. Manual code
+            that changes F0 banks behind the compiler's back is responsible for
+            preserving its own mapper state. Do not alter existing mapper
+            implementations for this F0-specific mechanism.
 
 Deferred design questions
 -------------------------

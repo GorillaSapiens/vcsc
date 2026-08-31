@@ -413,6 +413,7 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
       cfg->dpc_mapper = str_ieq(cfg->mapper, "DPC");
       if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") ||
             str_ieq(cfg->mapper, "F4") || str_ieq(cfg->mapper, "FA") ||
+            str_ieq(cfg->mapper, "FA2") ||
             str_ieq(cfg->mapper, "OMNI") || str_ieq(cfg->mapper, "JANE") ||
             str_ieq(cfg->mapper, "0840") || str_ieq(cfg->mapper, "UA") ||
             str_ieq(cfg->mapper, "UASW") || str_ieq(cfg->mapper, "0FA0") ||
@@ -447,7 +448,7 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
                     (cfg->threef_mapper || cfg->threee_mapper) ? "2K" : "4K");
             exit(1);
          }
-         if ((cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper || cfg->dpc_mapper) && !cfg->banks[i].has_file_index) {
+         if ((cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper || cfg->dpc_mapper || str_ieq(cfg->mapper, "FA2")) && !cfg->banks[i].has_file_index) {
             fprintf(stderr, "vcsc-sim: %s bank '%s' requires an explicit fileindex\n",
                     cfg->mapper, cfg->banks[i].name);
             exit(1);

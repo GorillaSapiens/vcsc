@@ -1,8 +1,10 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
 // CBS FA / RAM Plus PASS/FAIL diagnostic.
-// Exercises all three physical bank selectors through nested cross-bank calls,
-// verifies the physical startup bank-2 reset bridge, and proves that all 256
+// Exercises all three physical bank selectors through a representative nested
+// cross-bank call chain; exhaustive ordered FA JSR/RTS pairs are covered by
+// test/vcs_bankswitching_call_matrix.pl.  Also verifies the physical startup
+// bank-2 reset bridge and proves that all 256
 // bytes of shared FA RAM receive normal BSS/DATA startup treatment and survive
 // bank selection.
 
