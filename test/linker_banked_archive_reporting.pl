@@ -40,7 +40,7 @@ make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
 my $as=File::Spec->catfile($repo,'assembler','vcsc-as');
 my $ar=File::Spec->catfile($repo,'archiver','vcsc-ar');
 my $ld=File::Spec->catfile($repo,'linker','vcsc-ld');
-my $cfg=File::Spec->catfile($repo,'libraries','vcs','vcs_8k_f8.cfg');
+my $cfg=File::Spec->catfile($repo,'libraries','vcs','F8/mapper.cfg');
 
 my $root_s=File::Spec->catfile($tmp,'root.s26');
 my $remote_s=File::Spec->catfile($tmp,'remote.s26');

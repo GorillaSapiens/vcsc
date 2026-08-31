@@ -24,8 +24,8 @@ my $tmp = shift @ARGV // die "usage: $0 REPO TMP\n";
 @ARGV and die "usage: $0 REPO TMP\n";
 
 my $as = File::Spec->catfile($repo, qw(assembler vcsc-as));
-my $src = File::Spec->catfile($repo, qw(libraries vcs inline_bankcall.s26));
-my $fa2_src = File::Spec->catfile($repo, qw(libraries vcs fa2 inline_bankcall.s26));
+my $src = File::Spec->catfile($repo, qw(libraries vcs F8 inline_bankcall.s26));
+my $fa2_src = File::Spec->catfile($repo, qw(libraries vcs FA2 inline_bankcall.s26));
 my $generator = File::Spec->catfile($repo, qw(linker gen_inline_bankcall_template.pl));
 my $built = File::Spec->catfile($repo, qw(linker generic_bankcall_template.h));
 my $fa2_built = File::Spec->catfile($repo, qw(linker fa2_bankcall_template.h));
@@ -61,7 +61,7 @@ index($ld, 'vcsc_generic_bankcall_template') >= 0 && index($ld, 'vcsc_fa2_bankca
    or die "linker does not consume both generated trampoline templates\n";
 index($ld, '#define PUT(') < 0
    or die "linker still contains hand-emitted generic trampoline opcodes\n";
-index($top, 'libraries/vcs/inline_bankcall.s26') >= 0 && index($top, 'libraries/vcs/fa2/inline_bankcall.s26') >= 0
+index($top, 'libraries/vcs/F8/inline_bankcall.s26') >= 0 && index($top, 'libraries/vcs/FA2/inline_bankcall.s26') >= 0
    or die "maintained trampoline sources are not installed\n";
 
 system($^X, $generator, $as, $src, $fresh, 'GENERIC') == 0
@@ -69,9 +69,9 @@ system($^X, $generator, $as, $src, $fresh, 'GENERIC') == 0
 system($^X, $generator, $as, $fa2_src, $fa2_fresh, 'FA2') == 0
    or die "could not regenerate FA2 inline bank-call template\n";
 read_file($fresh) eq read_file($built)
-   or die "built generic bank-call template is stale relative to inline_bankcall.s26\n";
+   or die "built generic bank-call template is stale relative to F8/inline_bankcall.s26\n";
 read_file($fa2_fresh) eq read_file($fa2_built)
-   or die "built FA2 bank-call template is stale relative to fa2/inline_bankcall.s26\n";
+   or die "built FA2 bank-call template is stale relative to FA2/inline_bankcall.s26\n";
 
 my $header = read_file($built);
 $header =~ /VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE 0x4Fu/

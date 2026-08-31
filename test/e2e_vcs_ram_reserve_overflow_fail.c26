@@ -1,5 +1,5 @@
 // vcsc-cc1 -I ../libraries/vcs
-// linkcfg: ../libraries/vcs/vcs_4k.cfg
+// linkcfg: ../libraries/vcs/4K/mapper.cfg
 // expectlinkfail
 // expectlinkerr: ram overflow while placing BSS
 

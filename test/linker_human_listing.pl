@@ -69,7 +69,7 @@ $lst =~ /\Q$s26\E:6[^\n]*\| sta \$0280\n\s*\d+\s+f002\s+8d\s+80\s+02\s+[^\n]*;\s
 my $c26=File::Spec->catfile($tmp,'human_sc.c26');
 my $scbin=File::Spec->catfile($tmp,'human_sc.bin');
 write_file($c26, <<'C26');
-include "vcs_8k_f8sc.c26"
+include "F8SC/mapper.c26"
 cartram uint8_t sc[6];
 uint8_t sink;
 void main(void) {

@@ -5,7 +5,7 @@ VCS_DIR ?= ../../../libraries/vcs
 
 all: drive.bin
 
-drive.bin: drive.c26 $(VCS_DIR)/driving_controller.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/color_ntsc.c26 $(VCS_DIR)/fonts/big_hex.c26 $(VCS_DIR)/vcs_4k.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26 $(VCS_DIR)/vcs.cfg
+drive.bin: drive.c26 $(VCS_DIR)/driving_controller.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/color_ntsc.c26 $(VCS_DIR)/fonts/big_hex.c26 $(VCS_DIR)/4K/mapper.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26 $(VCS_DIR)/vcs.cfg
 	$(VCSC) -I $(VCS_DIR) -I . -T $(VCS_DIR)/vcs.cfg -Map drive.map drive.c26 -o $@
 
 clean:

@@ -16,7 +16,7 @@ Stella remains the independent authority for Atari mapper and TIA behavior.
 
 ```sh
 ./vcsc-sim [options] program.hex
-./vcsc-sim -T libraries/vcs/vcs_8k_f8.cfg program.bin
+./vcsc-sim -T libraries/vcs/F8/mapper.cfg program.bin
 ```
 
 Supported forms include:
@@ -25,10 +25,10 @@ Supported forms include:
 ./vcsc-sim program.hex
 ./vcsc-sim program.hex 0x0c
 ./vcsc-sim --trace=0x20 program.hex -T linker/cfg/sim.cfg
-./vcsc-sim -T libraries/vcs/vcs_16k_f6.cfg --start-bank=0 game.bin
-./vcsc-sim -T libraries/vcs/vcs_32k_f4.cfg \
+./vcsc-sim -T libraries/vcs/F6/mapper.cfg --start-bank=0 game.bin
+./vcsc-sim -T libraries/vcs/F4/mapper.cfg \
   --start-bank=7 --stop-pc=0xF234 --dump-on-stop game.bin
-./vcsc-sim -T libraries/vcs/vcs_8k_f8sc.cfg --split-fill=0xA7 \
+./vcsc-sim -T libraries/vcs/F8SC/mapper.cfg --split-fill=0xA7 \
   --reset-on-pc=0xF234 --stop-pc=0xF234 --dump-on-stop game.bin
 ```
 
@@ -214,15 +214,15 @@ jsr $ffff
 This exits with status 0.
 
 Raw unbanked 2K and 4K images are placed in the conventional cartridge window
-when a non-banked cfg is supplied. This lets `vcs_4k_sc.cfg` provide the split
+when a non-banked cfg is supplied. This lets `4KSC/mapper.cfg` provide the split
 Superchip RAM aliases while the 4K ROM remains a direct cartridge. Other raw
 unbanked sizes are rejected rather than guessed.
 
 OMNI direct-multi support
 -------------------------
-`vcs_24k_fa2.cfg` and `vcs_28k_fa2.cfg` model FA2 as six/seven directly selected 4K banks at `$1FF5-$1FFA/$1FFB` with 256 bytes of split-address cartridge RAM (write `$1000-$10FF`, read `$1100-$11FF`) and bank 0 at power-up. Harmony `$1FF4` persistence is intentionally outside the core simulator contract.
+`FA2/mapper_24k.cfg` and `FA2/mapper_28k.cfg` model FA2 as six/seven directly selected 4K banks at `$1FF5-$1FFA/$1FFB` with 256 bytes of split-address cartridge RAM (write `$1000-$10FF`, read `$1100-$11FF`) and bank 0 at power-up. Harmony `$1FF4` persistence is intentionally outside the core simulator contract.
 
-`vcs_omni_32k.cfg` describes the planned OmniCart PHM direct-addressing model.
+`OMNI/mapper.cfg` describes the planned OmniCart PHM direct-addressing model.
 The simulator loads its eight 4K file chunks directly at logical `$1000`,
 `$3000`, `$5000`, `$7000`, `$9000`, `$B000`, `$D000`, and `$F000`. OMNI has no
 selected-bank state or selector hotspots; the BANKS entries in this cfg are
@@ -241,7 +241,7 @@ simulator reports a directional-access error if generated code uses the wrong
 alias. `--dump-on-stop` mirrors the final bytes into both declared windows so
 the two aliases can be inspected directly.
 
-With `vcs_4k_sc.cfg` and the F8SC/F6SC/F4SC cfg files, the ordinary `cartram` entry therefore models
+With `4KSC/mapper.cfg` and the F8SC/F6SC/F4SC cfg files, the ordinary `cartram` entry therefore models
 the shared 128-byte cartridge RAM without a compiler-specific name hook. The
 mapper still provides the real cartridge mirroring: writes to the physical
 `$1000-$107F` port update the storage and reads from `$1080-$10FF` return it

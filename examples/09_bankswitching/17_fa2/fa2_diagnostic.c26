@@ -7,7 +7,7 @@
 // coverage for both 24K and 28K FA2 is in
 // test/vcs_bankswitching_call_matrix.pl.
 
-include "vcs_28k_fa2.c26"
+include "FA2/mapper_28k.c26"
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"

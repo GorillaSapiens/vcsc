@@ -110,21 +110,21 @@ my $sim = File::Spec->catfile($repo, 'simulator', 'vcsc-sim');
 my $generic_cfg = File::Spec->catfile($vcs, 'vcs.cfg');
 
 my @profiles = (
-   [ 'F8',    'vcs_8k_f8.c26',    'vcs_8k_f8.cfg',    [0x1ff9,0x1ff8] ],
-   [ 'F8SC',  'vcs_8k_f8sc.c26',  'vcs_8k_f8sc.cfg',  [0x1ff9,0x1ff8] ],
-   [ 'F6',    'vcs_16k_f6.c26',   'vcs_16k_f6.cfg',   [0x1ff9,0x1ff8,0x1ff7,0x1ff6] ],
-   [ 'F6SC',  'vcs_16k_f6sc.c26', 'vcs_16k_f6sc.cfg', [0x1ff9,0x1ff8,0x1ff7,0x1ff6] ],
-   [ 'F4',    'vcs_32k_f4.c26',   'vcs_32k_f4.cfg',   [0x1ffb,0x1ffa,0x1ff9,0x1ff8,0x1ff7,0x1ff6,0x1ff5,0x1ff4] ],
-   [ 'F4SC',  'vcs_32k_f4sc.c26', 'vcs_32k_f4sc.cfg', [0x1ffb,0x1ffa,0x1ff9,0x1ff8,0x1ff7,0x1ff6,0x1ff5,0x1ff4] ],
-   [ 'FA',    'vcs_12k_fa.c26',   'vcs_12k_fa.cfg',   [0x1ffa,0x1ff9,0x1ff8] ],
-   [ 'FA2-24','vcs_24k_fa2.c26',  'vcs_24k_fa2.cfg',  [0x1ff5,0x1ff6,0x1ff7,0x1ff8,0x1ff9,0x1ffa] ],
-   [ 'FA2-28','vcs_28k_fa2.c26',  'vcs_28k_fa2.cfg',  [0x1ff5,0x1ff6,0x1ff7,0x1ff8,0x1ff9,0x1ffa,0x1ffb] ],
-   [ 'JANE',  'vcs_16k_jane.c26', 'vcs_16k_jane.cfg', [0x1ff1,0x1ff0,0x1ff8,0x1ff9] ],
-   [ '0840',  'vcs_8k_0840.c26',  'vcs_8k_0840.cfg',  [0x0800,0x0840] ],
-   [ 'UA',    'vcs_8k_ua.c26',    'vcs_8k_ua.cfg',    [0x0220,0x0240] ],
-   [ 'UASW',  'vcs_8k_uasw.c26',  'vcs_8k_uasw.cfg',  [0x0240,0x0220] ],
-   [ '0FA0',  'vcs_8k_0fa0.c26',  'vcs_8k_0fa0.cfg',  [0x0fc0,0x0fa0] ],
-   [ 'DPC',   'vcs_10k_dpc.c26',  'vcs_10k_dpc.cfg',  [0x1ff9,0x1ff8] ],
+   [ 'F8',    'F8/mapper.c26',    'F8/mapper.cfg',    [0x1ff9,0x1ff8] ],
+   [ 'F8SC',  'F8SC/mapper.c26',  'F8SC/mapper.cfg',  [0x1ff9,0x1ff8] ],
+   [ 'F6',    'F6/mapper.c26',   'F6/mapper.cfg',   [0x1ff9,0x1ff8,0x1ff7,0x1ff6] ],
+   [ 'F6SC',  'F6SC/mapper.c26', 'F6SC/mapper.cfg', [0x1ff9,0x1ff8,0x1ff7,0x1ff6] ],
+   [ 'F4',    'F4/mapper.c26',   'F4/mapper.cfg',   [0x1ffb,0x1ffa,0x1ff9,0x1ff8,0x1ff7,0x1ff6,0x1ff5,0x1ff4] ],
+   [ 'F4SC',  'F4SC/mapper.c26', 'F4SC/mapper.cfg', [0x1ffb,0x1ffa,0x1ff9,0x1ff8,0x1ff7,0x1ff6,0x1ff5,0x1ff4] ],
+   [ 'FA',    'FA/mapper.c26',   'FA/mapper.cfg',   [0x1ffa,0x1ff9,0x1ff8] ],
+   [ 'FA2-24','FA2/mapper_24k.c26',  'FA2/mapper_24k.cfg',  [0x1ff5,0x1ff6,0x1ff7,0x1ff8,0x1ff9,0x1ffa] ],
+   [ 'FA2-28','FA2/mapper_28k.c26',  'FA2/mapper_28k.cfg',  [0x1ff5,0x1ff6,0x1ff7,0x1ff8,0x1ff9,0x1ffa,0x1ffb] ],
+   [ 'JANE',  'JANE/mapper.c26', 'JANE/mapper.cfg', [0x1ff1,0x1ff0,0x1ff8,0x1ff9] ],
+   [ '0840',  '0840/mapper.c26',  '0840/mapper.cfg',  [0x0800,0x0840] ],
+   [ 'UA',    'UA/mapper.c26',    'UA/mapper.cfg',    [0x0220,0x0240] ],
+   [ 'UASW',  'UASW/mapper.c26',  'UASW/mapper.cfg',  [0x0240,0x0220] ],
+   [ '0FA0',  '0FA0/mapper.c26',  '0FA0/mapper.cfg',  [0x0fc0,0x0fa0] ],
+   [ 'DPC',   'DPC/mapper.c26',  'DPC/mapper.cfg',  [0x1ff9,0x1ff8] ],
 );
 
 my $pair_count = 0;

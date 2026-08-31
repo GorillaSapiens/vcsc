@@ -84,8 +84,8 @@ my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $generic=File::Spec->catfile($vcs,'vcs.cfg');
-my $cfg=File::Spec->catfile($vcs,'vcs_10k_dpc.cfg');
-my $profile=File::Spec->catfile($vcs,'vcs_10k_dpc.c26');
+my $cfg=File::Spec->catfile($vcs,'DPC/mapper.cfg');
+my $profile=File::Spec->catfile($vcs,'DPC/mapper.c26');
 my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','16_dpc');
 my $source=File::Spec->catfile($example_dir,'dpc_diagnostic.c26');
 
@@ -150,7 +150,7 @@ $mem->[$sym{expected_rng}]==1 && $mem->[$sym{actual_rng}]==1
 
 my $bad=File::Spec->catfile($tmp,'bad-data-ref.c26');
 write_file($bad,<<'SRC');
-include "vcs_10k_dpc.c26"
+include "DPC/mapper.c26"
 bank2 const uint8_t hidden[1] := {0x5A};
 void main(void) { uint8_t x; x := hidden[0]; if (x) { asm nop; } while (1) { } }
 SRC

@@ -1,6 +1,6 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
-include "vcs_8k_f8.c26"
+include "F8/mapper.c26"
 include "frame_pal.c26"
 
 alias VIDEO_BACKGROUND_COLOR __builtin_pal_rgb(0x24, 0x28, 0xb0)

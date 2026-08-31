@@ -270,7 +270,7 @@ selector-hotspot and generated-vector-corridor reservation in every bank, exact
 8K output, VCSC BANK1 as physical/file chunk 0 and VCSC BANK0 as chunk 1,
 F8 `$1FF8` selecting the first chunk and `$1FF9` selecting the BANK0/home chunk,
 replicated bridge/vector bytes, map file offsets, and byte-for-byte preservation
-of a stock `vcs_4k.cfg` fixture.
+of a stock `4K/mapper.cfg` fixture.
 
 `cartridge_bank_metadata_codegen_test.c26` locks the exact versioned
 compiler metadata for output-wide cartridge properties, direct and selector-
@@ -339,19 +339,19 @@ call chain and locks the ordinary depth, weighted hardware-return depth, extra
 bridge slots, two-byte-per-active-cross-bank-edge RAM reservation, generated
 symbols, and source/destination bridge reporting.
 
-`vcs_f8_profile.pl` certifies the installed `vcs_8k_f8.c26` profile through
+`vcs_f8_profile.pl` certifies the installed `F8/mapper.c26` profile through
 the reduced `vcs.cfg`. It compiles the private F8 source diagnostic, locks
 BANK1-first/BANK0-last file order, `$1FF8/$1FF9` selector identities, hard and
 automatic placement, cross-bank JMP and nested JSR bridges, byte-identical common
 corridors, vectors, map output, and exact 8192-byte output. A small opcode model
 starts from each possible initially selected file chunk and proves the reset
 bridge reaches BANK0 and nested calls restore banks and hardware-stack returns
-correctly. Differential coverage retains the legacy `vcs_8k_f8.cfg` only as a
+correctly. Differential coverage retains the legacy `F8/mapper.cfg` only as a
 compatibility oracle. `make installcheck` repeats the source build with the
 staged installed C26 profile.
 
-`vcs_f6_f4_profiles.pl` certifies the installed `vcs_16k_f6.c26` and
-`vcs_32k_f4.c26` profiles through the same C26-topology implementation. It
+`vcs_f6_f4_profiles.pl` certifies the installed `F6/mapper.c26` and
+`F4/mapper.c26` profiles through the same C26-topology implementation. It
 places a nested call-chain function in every logical bank, starts execution from
 every possible initially selected physical chunk, exercises every selector on
 the outward and return paths, locks BANK3..BANK0 and BANK7..BANK0 file order,
@@ -361,7 +361,7 @@ vector/hotspot overlap, balanced stack restoration, map identities, and exact
 and compatibility checks. `make installcheck` also builds staged diagnostics
 through both installed C26 profiles.
 
-`vcs_jane.pl` certifies the public `vcs_16k_jane.c26` profile and its explicit
+`vcs_jane.pl` certifies the public `JANE/mapper.c26` profile and its explicit
 `fileindex` simulator mapping. It locks selectors `$1FF0/$1FF1/$1FF8/$1FF9`,
 physical startup bank 1, the earlier `$FEE0` vector-bridge corridor required to
 avoid JANE's `$FFF0/$FFF1` hotspots, reset recovery from every initially

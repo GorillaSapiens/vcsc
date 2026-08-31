@@ -3,7 +3,7 @@
 // Parker Brothers E0 PASS/FAIL diagnostic. Exercises the power-on mapping,
 // all eight physical 1K banks, all three independently selectable windows,
 // then leaves a stable green PASS / E0 display (dark-red FAIL on error).
-include "vcs_8k_e0.c26"
+include "E0/mapper.c26"
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"

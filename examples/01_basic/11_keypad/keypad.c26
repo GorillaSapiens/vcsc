@@ -4,7 +4,7 @@
 // keypad drives P1. Each side displays the first currently held key using a
 // custom 8x10 subset trimmed from the Big font; no key is an empty rectangle.
 
-include "vcs_4k.c26"
+include "4K/mapper.c26"
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
 

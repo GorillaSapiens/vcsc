@@ -4,7 +4,7 @@
 // Exercises both below-window selectors through nested calls and generated
 // return-bank restoration.  The linker-generated reset bridge also supplies
 // Stella's established repeated NOP $0800; JMP autodetection pattern.
-include "vcs_8k_0840.c26"
+include "0840/mapper.c26"
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"

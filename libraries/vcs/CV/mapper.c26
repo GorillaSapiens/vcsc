@@ -1,7 +1,7 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
 include "vcs.c26"
-include "commavid.c26"
+include "CV/ram.c26"
 
 // CommaVid CV: fixed 2K ROM at $F800-$FFFF plus 1K split-address cartridge
 // RAM. Reads from $F000-$F3FF and writes to $F400-$F7FF access the same RAM.

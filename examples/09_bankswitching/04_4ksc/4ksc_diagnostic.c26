@@ -5,7 +5,7 @@
 // startup treatment through the split write/read aliases, and leaves a stable
 // green PASS / 4KSC display (dark-red FAIL on error).
 
-include "vcs_4k_sc.c26"
+include "4KSC/mapper.c26"
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"

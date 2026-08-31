@@ -1,7 +1,7 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
 include "vcs.c26"
-include "superchip.c26"
+include "4KSC/ram.c26"
 
 // VCSC cartridge profile. Hardware topology and allocatable bytes are C26 metadata.
 // Names are labels only; addresses and selector properties define behavior.

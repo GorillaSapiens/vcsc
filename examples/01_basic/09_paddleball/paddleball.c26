@@ -1,6 +1,6 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
-include "vcs_4k.c26"
+include "4K/mapper.c26"
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
 include "sound_ntsc.c26"

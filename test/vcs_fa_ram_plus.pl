@@ -60,7 +60,7 @@ $source_text =~ /instantiate "six_glyph_component\.c26" as cart_type/ &&
 $source_text =~ /blank \/ blank \/ F \/ A \/ blank \/ blank/ &&
 $source_text =~ /cart_type_draw\(\)/
    or die "FA visible diagnostic lost its centered FA mapper line\n";
-my $cfg=File::Spec->catfile($vcs,'vcs_12k_fa.cfg');
+my $cfg=File::Spec->catfile($vcs,'FA/mapper.cfg');
 my $generic=File::Spec->catfile($vcs,'vcs.cfg');
 my $bin=File::Spec->catfile($tmp,'fa.bin');
 my $map=File::Spec->catfile($tmp,'fa.map');
@@ -119,7 +119,7 @@ for my $start (0..2) {
 # FA banks expose only $x200-$xEFF to ordinary ROM allocation. Diagnose both
 # capacity overflow and an explicit attempt to create ROM inside the RAM ports.
 my $overflow=File::Spec->catfile($tmp,'overflow.c26');
-write_file($overflow,qq{include "vcs_12k_fa.c26"
+write_file($overflow,qq{include "FA/mapper.c26"
 bank0 const uint8_t too_big[3400] := { 0 };
 void main(void) { while (1) { } }
 });
@@ -128,7 +128,7 @@ $orc!=0 && !$osig && $oerr =~ /(?:overflow|does not fit|capacity|placement)/i
    or die "FA bank overflow did not fail clearly\nstdout:\n$oout\nstderr:\n$oerr";
 
 my $overlay=File::Spec->catfile($tmp,'overlay.c26');
-write_file($overlay,qq{include "vcs_12k_fa.c26"
+write_file($overlay,qq{include "FA/mapper.c26"
 mem hidden_rom { \$start:0xF180 \$size:0x0010 \$ro };
 hidden_rom const uint8_t illegal := 0x42;
 void main(void) { while (1) { } }
@@ -138,7 +138,7 @@ $rrc!=0 && !$rsig && $rerr =~ /outside every mapped ROM window/i
    or die "FA RAM-overlay ROM placement did not fail clearly\nstdout:\n$rout\nstderr:\n$rerr";
 
 my $badbank=File::Spec->catfile($tmp,'badbank.c26');
-write_file($badbank,qq{include "vcs_12k_fa.c26"
+write_file($badbank,qq{include "FA/mapper.c26"
 bank3 const uint8_t illegal := 0x42;
 void main(void) { while (1) { } }
 });

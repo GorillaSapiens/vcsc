@@ -62,7 +62,7 @@ $tmp=abs_path($tmp) // die "resolve temp directory\n";
 
 my $as=File::Spec->catfile($repo,'assembler','vcsc-as');
 my $ld=File::Spec->catfile($repo,'linker','vcsc-ld');
-my $cfg=File::Spec->catfile($repo,'libraries','vcs','vcs_4k.cfg');
+my $cfg=File::Spec->catfile($repo,'libraries','vcs','4K/mapper.cfg');
 my $runtime=File::Spec->catfile($repo,'libraries','runtime','libvcsc.l26');
 my $src=File::Spec->catfile($tmp,'relax.s26');
 my $obj=File::Spec->catfile($tmp,'relax.o26');

@@ -7,7 +7,7 @@
 // bytes of shared FA RAM receive normal BSS/DATA startup treatment and survive
 // bank selection.
 
-include "vcs_12k_fa.c26"
+include "FA/mapper.c26"
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"

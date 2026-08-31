@@ -8,15 +8,15 @@ use File::Spec;
 my ($repo) = @ARGV;
 die "missing repository path\n" if !defined $repo;
 
-my $path = File::Spec->catfile($repo, 'libraries', 'vcs', 'vcs_4k.cfg');
+my $path = File::Spec->catfile($repo, 'libraries', 'vcs', '4K/mapper.cfg');
 open(my $fh, '<', $path) or die "could not open $path: $!\n";
 local $/;
 my $cfg = <$fh>;
 close($fh);
 
 $cfg !~ /\bCPUSTACK\b/
-   or die "vcs_4k.cfg must not model mirrored RIOT stack RAM as a separate CPUSTACK region\n";
+   or die "4K/mapper.cfg must not model mirrored RIOT stack RAM as a separate CPUSTACK region\n";
 $cfg =~ /RAM:\s+start\s*=\s*\$0080,\s*size\s*=\s*\$0080[^;]*callstack\s*=\s*callgraph/
-   or die "vcs_4k.cfg must declare all RIOT RAM and request call-graph stack sizing\n";
+   or die "4K/mapper.cfg must declare all RIOT RAM and request call-graph stack sizing\n";
 
 exit 0;

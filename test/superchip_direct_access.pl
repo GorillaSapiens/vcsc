@@ -83,7 +83,7 @@ my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $generic=File::Spec->catfile($vcs,'vcs.cfg');
-my $cfg=File::Spec->catfile($vcs,'vcs_4k_sc.cfg');
+my $cfg=File::Spec->catfile($vcs,'4KSC/mapper.cfg');
 
 # First use one ordinary C26 array to occupy all 128 physical SC bytes. This
 # catches bad base aliases, bad runtime indexing, boundary errors, adjacent-byte
@@ -93,7 +93,7 @@ my $arena_bin=File::Spec->catfile($tmp,'superchip_arena.bin');
 my $arena_map_path=File::Spec->catfile($tmp,'superchip_arena.map');
 my $arena_sym_path=File::Spec->catfile($tmp,'superchip_arena.sym');
 write_file($arena_source, <<'C26');
-include "vcs_4k_sc.c26"
+include "4KSC/mapper.c26"
 
 cartram uint8_t sc[128];
 uint8_t failure;
@@ -194,7 +194,7 @@ my $access_bin=File::Spec->catfile($tmp,'superchip_access.bin');
 my $access_map_path=File::Spec->catfile($tmp,'superchip_access.map');
 my $access_sym_path=File::Spec->catfile($tmp,'superchip_access.sym');
 write_file($access_source, <<'C26');
-include "vcs_4k_sc.c26"
+include "4KSC/mapper.c26"
 
 cartram uint8_t scalar;
 cartram uint8_t src[8];

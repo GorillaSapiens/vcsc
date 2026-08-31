@@ -61,7 +61,7 @@ $tmp = abs_path($tmp) // die "could not resolve temp dir\n";
 
 my $vcsc = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $include = File::Spec->catfile($repo, 'test');
-my $stock_cfg = File::Spec->catfile($repo, 'libraries', 'vcs', 'vcs_4k.cfg');
+my $stock_cfg = File::Spec->catfile($repo, 'libraries', 'vcs', '4K/mapper.cfg');
 my $src = File::Spec->catfile($tmp, 'banked.c26');
 my $cfg = File::Spec->catfile($tmp, 'banked.cfg');
 my $bin = File::Spec->catfile($tmp, 'banked.bin');
@@ -254,6 +254,6 @@ require_ok('unbanked compatibility link', $vcsc, '-I', $include,
 my $unbanked = slurp($unbanked_bin);
 length($unbanked) == 4096 or die "stock 4K output size changed\n";
 sha256_hex($unbanked) eq 'b98d91231f1a5447df93bc8bcf15a14306bce9ffa7199b84fb673ef59e5dc5d7'
-   or die "stock vcs_4k.cfg output changed byte-for-byte\n";
+   or die "stock 4K/mapper.cfg output changed byte-for-byte\n";
 
 print "banked image model enforced\n";

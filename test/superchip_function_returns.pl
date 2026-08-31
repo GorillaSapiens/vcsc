@@ -65,7 +65,7 @@ sub parse_dump {
 
 my $source = <<'SOURCE';
 include "vcs.c26"
-include "superchip.c26"
+include "4KSC/ram.c26"
 
 mem bank0 { $start:0xF100 $size:0x0E00 $ro };
 mem bank1 { $start:0xD100 $size:0x0E00 $ro };
@@ -138,9 +138,9 @@ my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $sim = File::Spec->catfile($repo, 'simulator', 'vcsc-sim');
 my $vcs = File::Spec->catdir($repo, 'libraries', 'vcs');
 my @profiles = (
-   ['F8SC', 2, 'vcs_8k_f8sc.cfg'],
-   ['F6SC', 4, 'vcs_16k_f6sc.cfg'],
-   ['F4SC', 8, 'vcs_32k_f4sc.cfg'],
+   ['F8SC', 2, 'F8SC/mapper.cfg'],
+   ['F6SC', 4, 'F6SC/mapper.cfg'],
+   ['F4SC', 8, 'F4SC/mapper.cfg'],
 );
 
 for my $profile (@profiles) {
@@ -203,7 +203,7 @@ for my $profile (@profiles) {
 # Thirty-three simultaneously live four-byte result objects need 132 bytes,
 # which must overflow the 128-byte Superchip region deterministically.
 my $overflow_src = File::Spec->catfile($tmp, 'superchip_return_overflow.c26');
-my $overflow_text = "include \"vcs.c26\"\ninclude \"superchip.c26\"\n";
+my $overflow_text = "include \"vcs.c26\"\ninclude \"4KSC/ram.c26\"\n";
 $overflow_text .= "cartram uint32_t f32(void) { return 1; }\n";
 for my $i (reverse 0 .. 31) {
    my $next = $i + 1;
@@ -213,7 +213,7 @@ $overflow_text .= "void main(void) { uint32_t v := f0(); while (true) {} }\n";
 write_file($overflow_src, $overflow_text);
 for my $attempt (1 .. 2) {
    my ($rc, $sig, $out, $err) = run_capture(
-      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg'),
+      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'F8SC/mapper.cfg'),
       $overflow_src, '-o', File::Spec->catfile($tmp, "return_overflow_$attempt.bin"));
    $rc != 0 && !$sig
       or die "Superchip return overflow attempt $attempt unexpectedly linked\n$out\n$err";

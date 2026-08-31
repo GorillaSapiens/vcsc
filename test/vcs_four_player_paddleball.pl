@@ -40,7 +40,7 @@ $c =~ /TEMPLATE_score_advance_pair/ && $c =~ /TEMPLATE_score_account_a/
 $t =~ /parameter port := 0/ && $t =~ /TEMPLATE_position0/ && $t =~ /TEMPLATE_position1/ && $t =~ /TEMPLATE_button0/ && $t =~ /TEMPLATE_button1/
    or die "two-paddle subset API regressed\n";
 
-$p =~ /include "vcs_4k\.c26"/ && $p =~ /instantiate "four_paddles\.c26" as paddles/ or die "four-player example lost 4K\/four-paddle composition\n";
+$p =~ /include "4K\/mapper\.c26"/ && $p =~ /instantiate "four_paddles\.c26" as paddles/ or die "four-player example lost 4K\/four-paddle composition\n";
 $p =~ /inline void score_paddle_sample0\(void\) \{ paddles_score_sample0\(\); \}/ &&
 $p =~ /inline void score_paddle_sample1\(void\) \{ paddles_score_sample1\(\); \}/ &&
 $p =~ /inline void score_paddle_latch23_fixed\(void\) \{ paddles_score_latch23_fixed\(\); \}/ &&

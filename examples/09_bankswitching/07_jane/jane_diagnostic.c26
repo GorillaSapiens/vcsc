@@ -5,7 +5,7 @@
 // nested call chain, touching every JANE selector in outbound and generated
 // return paths.  Exhaustive ordered JSR/RTS bank pairs are covered by
 // test/vcs_bankswitching_call_matrix.pl.
-include "vcs_16k_jane.c26"
+include "JANE/mapper.c26"
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"

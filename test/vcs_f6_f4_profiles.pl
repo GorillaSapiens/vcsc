@@ -51,8 +51,8 @@ sub map_symbol_addr {
 }
 sub mapper_info {
    my ($mapper) = @_;
-   return (4, 0x1FF6, 'vcs_16k_f6.cfg') if $mapper eq 'F6';
-   return (8, 0x1FF4, 'vcs_32k_f4.cfg') if $mapper eq 'F4';
+   return (4, 0x1FF6, 'F6/mapper.cfg') if $mapper eq 'F6';
+   return (8, 0x1FF4, 'F4/mapper.cfg') if $mapper eq 'F4';
    die "unknown mapper $mapper\n";
 }
 sub bank_start {

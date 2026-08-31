@@ -142,6 +142,7 @@ install-examples:
 
 install-data:
 	install -d $(DESTDIR)$(DATADIR)/vcs
+	install -d $(DESTDIR)$(DATADIR)/vcs/0840 $(DESTDIR)$(DATADIR)/vcs/0FA0 $(DESTDIR)$(DATADIR)/vcs/2K $(DESTDIR)$(DATADIR)/vcs/3E $(DESTDIR)$(DATADIR)/vcs/3F $(DESTDIR)$(DATADIR)/vcs/4K $(DESTDIR)$(DATADIR)/vcs/4KSC $(DESTDIR)$(DATADIR)/vcs/CV $(DESTDIR)$(DATADIR)/vcs/DPC $(DESTDIR)$(DATADIR)/vcs/E0 $(DESTDIR)$(DATADIR)/vcs/F4 $(DESTDIR)$(DATADIR)/vcs/F4SC $(DESTDIR)$(DATADIR)/vcs/F6 $(DESTDIR)$(DATADIR)/vcs/F6SC $(DESTDIR)$(DATADIR)/vcs/F8 $(DESTDIR)$(DATADIR)/vcs/F8SC $(DESTDIR)$(DATADIR)/vcs/FA $(DESTDIR)$(DATADIR)/vcs/FA2 $(DESTDIR)$(DATADIR)/vcs/FE $(DESTDIR)$(DATADIR)/vcs/JANE $(DESTDIR)$(DATADIR)/vcs/OMNI $(DESTDIR)$(DATADIR)/vcs/UA $(DESTDIR)$(DATADIR)/vcs/UASW $(DESTDIR)$(DATADIR)/vcs/WD
 	install -m 0644 libraries/LICENSE.txt $(DESTDIR)$(DATADIR)/vcs/LICENSE.txt
 	install -m 0644 libraries/vcs/README.md $(DESTDIR)$(DATADIR)/vcs/README.md
 	install -m 0644 libraries/vcs/LEGACY_RENDERER_CONVERSION.md $(DESTDIR)$(DATADIR)/vcs/LEGACY_RENDERER_CONVERSION.md
@@ -171,71 +172,70 @@ install-data:
 	install -m 0644 libraries/vcs/sound_50hz.c26 $(DESTDIR)$(DATADIR)/vcs/sound_50hz.c26
 	install -m 0644 libraries/vcs/sound_pal.c26 $(DESTDIR)$(DATADIR)/vcs/sound_pal.c26
 	install -m 0644 libraries/vcs/sound_secam.c26 $(DESTDIR)$(DATADIR)/vcs/sound_secam.c26
-	install -m 0644 libraries/vcs/superchip.c26 $(DESTDIR)$(DATADIR)/vcs/superchip.c26
-	install -m 0644 libraries/vcs/fa_ram_plus.c26 $(DESTDIR)$(DATADIR)/vcs/fa_ram_plus.c26
-	install -m 0644 libraries/vcs/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/inline_bankcall.s26
-	install -d $(DESTDIR)$(DATADIR)/vcs/fa2
-	install -m 0644 libraries/vcs/fa2/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/fa2/inline_bankcall.s26
-	install -m 0644 libraries/vcs/commavid.c26 $(DESTDIR)$(DATADIR)/vcs/commavid.c26
-	install -m 0644 libraries/vcs/dpc.c26 $(DESTDIR)$(DATADIR)/vcs/dpc.c26
+	install -m 0644 libraries/vcs/4KSC/ram.c26 $(DESTDIR)$(DATADIR)/vcs/4KSC/ram.c26
+	install -m 0644 libraries/vcs/FA/ram.c26 $(DESTDIR)$(DATADIR)/vcs/FA/ram.c26
+	install -m 0644 libraries/vcs/F8/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F8/inline_bankcall.s26
+	install -m 0644 libraries/vcs/FA2/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/FA2/inline_bankcall.s26
+	install -m 0644 libraries/vcs/CV/ram.c26 $(DESTDIR)$(DATADIR)/vcs/CV/ram.c26
+	install -m 0644 libraries/vcs/DPC/registers.c26 $(DESTDIR)$(DATADIR)/vcs/DPC/registers.c26
 	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	install -m 0644 libraries/vcs/tia_mirror_40.c26 $(DESTDIR)$(DATADIR)/vcs/tia_mirror_40.c26
 	install -m 0644 libraries/vcs/vcs.c26 $(DESTDIR)$(DATADIR)/vcs/vcs.c26
 	install -m 0644 libraries/vcs/vcs.cfg $(DESTDIR)$(DATADIR)/vcs/vcs.cfg
-	install -m 0644 libraries/vcs/vcs_2k.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_2k.c26
-	install -m 0644 libraries/vcs/vcs_2k_cv.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_2k_cv.c26
-	install -m 0644 libraries/vcs/vcs_4k.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_4k.c26
-	install -m 0644 libraries/vcs/vcs_4k_sc.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_4k_sc.c26
-	install -m 0644 libraries/vcs/vcs_8k_f8.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8.c26
-	install -m 0644 libraries/vcs/vcs_8k_0840.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_0840.c26
-	install -m 0644 libraries/vcs/vcs_8k_ua.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_ua.c26
-	install -m 0644 libraries/vcs/vcs_8k_uasw.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_uasw.c26
-	install -m 0644 libraries/vcs/vcs_8k_0fa0.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_0fa0.c26
-	install -m 0644 libraries/vcs/vcs_8k_e0.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_e0.c26
-	install -m 0644 libraries/vcs/vcs_8k_fe.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_fe.c26
-	install -m 0644 libraries/vcs/vcs_8k_wd.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_wd.c26
-	install -m 0644 libraries/vcs/vcs_10k_dpc.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_10k_dpc.c26
-	install -m 0644 libraries/vcs/vcs_8k_3f.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3f.c26
-	install -m 0644 libraries/vcs/vcs_8k_3e.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3e.c26
-	install -m 0644 libraries/vcs/vcs_16k_3f.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_16k_3f.c26
-	install -m 0644 libraries/vcs/vcs_16k_3e.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_16k_3e.c26
-	install -m 0644 libraries/vcs/vcs_12k_fa.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_12k_fa.c26
-	install -m 0644 libraries/vcs/vcs_24k_fa2.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_24k_fa2.c26
-	install -m 0644 libraries/vcs/vcs_28k_fa2.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_28k_fa2.c26
-	install -m 0644 libraries/vcs/vcs_16k_f6.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6.c26
-	install -m 0644 libraries/vcs/vcs_16k_jane.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_16k_jane.c26
-	install -m 0644 libraries/vcs/vcs_32k_f4.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4.c26
-	install -m 0644 libraries/vcs/vcs_8k_f8sc.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8sc.c26
-	install -m 0644 libraries/vcs/vcs_16k_f6sc.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6sc.c26
-	install -m 0644 libraries/vcs/vcs_32k_f4sc.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4sc.c26
+	install -m 0644 libraries/vcs/2K/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/2K/mapper.c26
+	install -m 0644 libraries/vcs/CV/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/CV/mapper.c26
+	install -m 0644 libraries/vcs/4K/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/4K/mapper.c26
+	install -m 0644 libraries/vcs/4KSC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/4KSC/mapper.c26
+	install -m 0644 libraries/vcs/F8/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F8/mapper.c26
+	install -m 0644 libraries/vcs/0840/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/0840/mapper.c26
+	install -m 0644 libraries/vcs/UA/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/UA/mapper.c26
+	install -m 0644 libraries/vcs/UASW/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/UASW/mapper.c26
+	install -m 0644 libraries/vcs/0FA0/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/0FA0/mapper.c26
+	install -m 0644 libraries/vcs/E0/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/E0/mapper.c26
+	install -m 0644 libraries/vcs/FE/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/FE/mapper.c26
+	install -m 0644 libraries/vcs/WD/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/WD/mapper.c26
+	install -m 0644 libraries/vcs/DPC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/DPC/mapper.c26
+	install -m 0644 libraries/vcs/3F/mapper_8k.c26 $(DESTDIR)$(DATADIR)/vcs/3F/mapper_8k.c26
+	install -m 0644 libraries/vcs/3E/mapper_8k.c26 $(DESTDIR)$(DATADIR)/vcs/3E/mapper_8k.c26
+	install -m 0644 libraries/vcs/3F/mapper_16k.c26 $(DESTDIR)$(DATADIR)/vcs/3F/mapper_16k.c26
+	install -m 0644 libraries/vcs/3E/mapper_16k.c26 $(DESTDIR)$(DATADIR)/vcs/3E/mapper_16k.c26
+	install -m 0644 libraries/vcs/FA/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/FA/mapper.c26
+	install -m 0644 libraries/vcs/FA2/mapper_24k.c26 $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_24k.c26
+	install -m 0644 libraries/vcs/FA2/mapper_28k.c26 $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_28k.c26
+	install -m 0644 libraries/vcs/F6/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F6/mapper.c26
+	install -m 0644 libraries/vcs/JANE/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/JANE/mapper.c26
+	install -m 0644 libraries/vcs/F4/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F4/mapper.c26
+	install -m 0644 libraries/vcs/F8SC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F8SC/mapper.c26
+	install -m 0644 libraries/vcs/F6SC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F6SC/mapper.c26
+	install -m 0644 libraries/vcs/F4SC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F4SC/mapper.c26
 	install -m 0644 libraries/vcs/vcs_direct_8k.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_direct_8k.c26
-	install -m 0644 libraries/vcs/vcs_omni_32k.c26 $(DESTDIR)$(DATADIR)/vcs/vcs_omni_32k.c26
-	install -m 0644 libraries/vcs/vcs_2k_cv.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_2k_cv.cfg
-	install -m 0644 libraries/vcs/vcs_4k.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
-	install -m 0644 libraries/vcs/vcs_4k_sc.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_4k_sc.cfg
-	install -m 0644 libraries/vcs/vcs_8k_f8.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8.cfg
-	install -m 0644 libraries/vcs/vcs_8k_0840.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_0840.cfg
-	install -m 0644 libraries/vcs/vcs_8k_ua.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_ua.cfg
-	install -m 0644 libraries/vcs/vcs_8k_uasw.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_uasw.cfg
-	install -m 0644 libraries/vcs/vcs_8k_0fa0.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_0fa0.cfg
-	install -m 0644 libraries/vcs/vcs_8k_e0.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_e0.cfg
-	install -m 0644 libraries/vcs/vcs_8k_fe.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_fe.cfg
-	install -m 0644 libraries/vcs/vcs_8k_wd.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_wd.cfg
-	install -m 0644 libraries/vcs/vcs_10k_dpc.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_10k_dpc.cfg
-	install -m 0644 libraries/vcs/vcs_8k_3f.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3f.cfg
-	install -m 0644 libraries/vcs/vcs_8k_3e.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3e.cfg
-	install -m 0644 libraries/vcs/vcs_16k_3f.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_16k_3f.cfg
-	install -m 0644 libraries/vcs/vcs_16k_3e.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_16k_3e.cfg
-	install -m 0644 libraries/vcs/vcs_12k_fa.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_12k_fa.cfg
-	install -m 0644 libraries/vcs/vcs_24k_fa2.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_24k_fa2.cfg
-	install -m 0644 libraries/vcs/vcs_28k_fa2.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_28k_fa2.cfg
-	install -m 0644 libraries/vcs/vcs_16k_f6.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6.cfg
-	install -m 0644 libraries/vcs/vcs_16k_jane.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_16k_jane.cfg
-	install -m 0644 libraries/vcs/vcs_32k_f4.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4.cfg
-	install -m 0644 libraries/vcs/vcs_8k_f8sc.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8sc.cfg
-	install -m 0644 libraries/vcs/vcs_16k_f6sc.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6sc.cfg
-	install -m 0644 libraries/vcs/vcs_32k_f4sc.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4sc.cfg
-	install -m 0644 libraries/vcs/vcs_omni_32k.cfg $(DESTDIR)$(DATADIR)/vcs/vcs_omni_32k.cfg
+	install -m 0644 libraries/vcs/OMNI/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/OMNI/mapper.c26
+	install -m 0644 libraries/vcs/CV/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/CV/mapper.cfg
+	install -m 0644 libraries/vcs/4K/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/4K/mapper.cfg
+	install -m 0644 libraries/vcs/4KSC/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/4KSC/mapper.cfg
+	install -m 0644 libraries/vcs/F8/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/F8/mapper.cfg
+	install -m 0644 libraries/vcs/0840/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/0840/mapper.cfg
+	install -m 0644 libraries/vcs/UA/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/UA/mapper.cfg
+	install -m 0644 libraries/vcs/UASW/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/UASW/mapper.cfg
+	install -m 0644 libraries/vcs/0FA0/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/0FA0/mapper.cfg
+	install -m 0644 libraries/vcs/E0/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/E0/mapper.cfg
+	install -m 0644 libraries/vcs/FE/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/FE/mapper.cfg
+	install -m 0644 libraries/vcs/WD/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/WD/mapper.cfg
+	install -m 0644 libraries/vcs/DPC/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/DPC/mapper.cfg
+	install -m 0644 libraries/vcs/3F/mapper_8k.cfg $(DESTDIR)$(DATADIR)/vcs/3F/mapper_8k.cfg
+	install -m 0644 libraries/vcs/3E/mapper_8k.cfg $(DESTDIR)$(DATADIR)/vcs/3E/mapper_8k.cfg
+	install -m 0644 libraries/vcs/3F/mapper_16k.cfg $(DESTDIR)$(DATADIR)/vcs/3F/mapper_16k.cfg
+	install -m 0644 libraries/vcs/3E/mapper_16k.cfg $(DESTDIR)$(DATADIR)/vcs/3E/mapper_16k.cfg
+	install -m 0644 libraries/vcs/FA/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/FA/mapper.cfg
+	install -m 0644 libraries/vcs/FA2/mapper_24k.cfg $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_24k.cfg
+	install -m 0644 libraries/vcs/FA2/mapper_28k.cfg $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_28k.cfg
+	install -m 0644 libraries/vcs/F6/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/F6/mapper.cfg
+	install -m 0644 libraries/vcs/JANE/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/JANE/mapper.cfg
+	install -m 0644 libraries/vcs/F4/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/F4/mapper.cfg
+	install -m 0644 libraries/vcs/F8SC/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/F8SC/mapper.cfg
+	install -m 0644 libraries/vcs/F6SC/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/F6SC/mapper.cfg
+	install -m 0644 libraries/vcs/F4SC/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/F4SC/mapper.cfg
+	install -m 0644 libraries/vcs/OMNI/mapper.cfg $(DESTDIR)$(DATADIR)/vcs/OMNI/mapper.cfg
 	install -d $(DESTDIR)$(DATADIR)/vcs/renderers
 	install -m 0644 libraries/vcs/renderers/COMPONENT_CONVERSION.md \
 	  $(DESTDIR)$(DATADIR)/vcs/renderers/COMPONENT_CONVERSION.md
@@ -354,71 +354,71 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_50hz.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_pal.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_secam.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/superchip.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/fa_ram_plus.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/inline_bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/fa2/inline_bankcall.s26
-	-rmdir $(DESTDIR)$(DATADIR)/vcs/fa2 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/commavid.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/dpc.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/4KSC/ram.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/ram.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F8/inline_bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/inline_bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/CV/ram.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/registers.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia_mirror_40.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_2k.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_2k_cv.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k_sc.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_0840.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_ua.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_uasw.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_0fa0.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_e0.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_fe.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_wd.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_10k_dpc.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3f.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3e.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_3f.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_3e.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_12k_fa.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_24k_fa2.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_28k_fa2.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_jane.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8sc.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6sc.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4sc.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/2K/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/CV/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/4K/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/4KSC/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F8/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/0840/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/UA/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/UASW/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/0FA0/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/E0/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/FE/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/WD/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/3F/mapper_8k.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/mapper_8k.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/3F/mapper_16k.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/mapper_16k.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_24k.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_28k.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F6/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/JANE/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F4/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F8SC/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F6SC/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F4SC/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_direct_8k.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_omni_32k.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_2k_cv.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_4k_sc.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_0840.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_ua.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_uasw.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_0fa0.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_e0.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_fe.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_wd.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_10k_dpc.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3f.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_3e.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_3f.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_3e.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_12k_fa.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_24k_fa2.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_28k_fa2.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_jane.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_8k_f8sc.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_16k_f6sc.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_32k_f4sc.cfg
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs_omni_32k.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/OMNI/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/CV/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/4K/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/4KSC/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F8/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/0840/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/UA/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/UASW/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/0FA0/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/E0/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/FE/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/WD/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/3F/mapper_8k.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/mapper_8k.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/3F/mapper_16k.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/mapper_16k.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_24k.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_28k.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F6/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/JANE/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F4/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F8SC/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F6SC/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F4SC/mapper.cfg
+	rm -f $(DESTDIR)$(DATADIR)/vcs/OMNI/mapper.cfg
+	rmdir $(DESTDIR)$(DATADIR)/vcs/0840 $(DESTDIR)$(DATADIR)/vcs/0FA0 $(DESTDIR)$(DATADIR)/vcs/2K $(DESTDIR)$(DATADIR)/vcs/3E $(DESTDIR)$(DATADIR)/vcs/3F $(DESTDIR)$(DATADIR)/vcs/4K $(DESTDIR)$(DATADIR)/vcs/4KSC $(DESTDIR)$(DATADIR)/vcs/CV $(DESTDIR)$(DATADIR)/vcs/DPC $(DESTDIR)$(DATADIR)/vcs/E0 $(DESTDIR)$(DATADIR)/vcs/F4 $(DESTDIR)$(DATADIR)/vcs/F4SC $(DESTDIR)$(DATADIR)/vcs/F6 $(DESTDIR)$(DATADIR)/vcs/F6SC $(DESTDIR)$(DATADIR)/vcs/F8 $(DESTDIR)$(DATADIR)/vcs/F8SC $(DESTDIR)$(DATADIR)/vcs/FA $(DESTDIR)$(DATADIR)/vcs/FA2 $(DESTDIR)$(DATADIR)/vcs/FE $(DESTDIR)$(DATADIR)/vcs/JANE $(DESTDIR)$(DATADIR)/vcs/OMNI $(DESTDIR)$(DATADIR)/vcs/UA $(DESTDIR)$(DATADIR)/vcs/UASW $(DESTDIR)$(DATADIR)/vcs/WD 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/COMPONENT_CONVERSION.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26
@@ -641,29 +641,29 @@ installcheck: tools
 	test -s "$(INSTALLCHECK_STAGING)/blank_screen.roundtrip.hex"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_headers_smoke_test.c26" -o "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" "$$stage_vcs/vcs_2k.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" -o "$(INSTALLCHECK_STAGING)/blank_screen_2k.bin"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" "$$stage_vcs/2K/mapper.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" -o "$(INSTALLCHECK_STAGING)/blank_screen_2k.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/blank_screen_2k.bin"` -eq 2048; \
-	for profile in vcs.cfg vcs_2k.c26 vcs_2k_cv.c26 vcs_4k.c26 vcs_4k_sc.c26 vcs_8k_f8.c26 vcs_8k_0840.c26 vcs_8k_ua.c26 vcs_8k_uasw.c26 vcs_8k_0fa0.c26 vcs_8k_e0.c26 vcs_8k_fe.c26 vcs_8k_wd.c26 vcs_10k_dpc.c26 vcs_8k_3f.c26 vcs_8k_3e.c26 vcs_16k_3f.c26 vcs_16k_3e.c26 vcs_12k_fa.c26 vcs_24k_fa2.c26 vcs_28k_fa2.c26 vcs_16k_f6.c26 vcs_16k_jane.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26 vcs_omni_32k.c26 fa_ram_plus.c26 inline_bankcall.s26 fa2/inline_bankcall.s26 commavid.c26 dpc.c26; do test -f "$$stage_vcs/$$profile"; done; \
-	test -f "$$stage_vcs/vcs_8k_f8.cfg"; \
-	test -f "$$stage_vcs/vcs_12k_fa.cfg"; test -f "$$stage_vcs/vcs_24k_fa2.cfg"; test -f "$$stage_vcs/vcs_28k_fa2.cfg"; \
+	for profile in vcs.cfg 2K/mapper.c26 CV/mapper.c26 4K/mapper.c26 4KSC/mapper.c26 F8/mapper.c26 0840/mapper.c26 UA/mapper.c26 UASW/mapper.c26 0FA0/mapper.c26 E0/mapper.c26 FE/mapper.c26 WD/mapper.c26 DPC/mapper.c26 3F/mapper_8k.c26 3E/mapper_8k.c26 3F/mapper_16k.c26 3E/mapper_16k.c26 FA/mapper.c26 FA2/mapper_24k.c26 FA2/mapper_28k.c26 F6/mapper.c26 JANE/mapper.c26 F4/mapper.c26 F8SC/mapper.c26 F6SC/mapper.c26 F4SC/mapper.c26 vcs_direct_8k.c26 OMNI/mapper.c26 FA/ram.c26 F8/inline_bankcall.s26 FA2/inline_bankcall.s26 CV/ram.c26 DPC/registers.c26; do test -f "$$stage_vcs/$$profile"; done; \
+	test -f "$$stage_vcs/F8/mapper.cfg"; \
+	test -f "$$stage_vcs/FA/mapper.cfg"; test -f "$$stage_vcs/FA2/mapper_24k.cfg"; test -f "$$stage_vcs/FA2/mapper_28k.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" \
-	  "$$stage_vcs/vcs_12k_fa.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" \
+	  "$$stage_vcs/FA/mapper.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/fa_blank.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/fa_blank.bin"` -eq 12288; \
-	test -f "$$stage_vcs/vcs_2k_cv.cfg"; \
-	test -f "$$stage_vcs/vcs_8k_0840.cfg"; \
-	test -f "$$stage_vcs/vcs_8k_ua.cfg"; \
-	test -f "$$stage_vcs/vcs_8k_uasw.cfg"; \
-	test -f "$$stage_vcs/vcs_8k_0fa0.cfg"; \
-	test -f "$$stage_vcs/vcs_8k_e0.cfg"; \
-	test -f "$$stage_vcs/vcs_8k_fe.cfg"; test -f "$$stage_vcs/vcs_8k_wd.cfg"; \
-	test -f "$$stage_vcs/vcs_10k_dpc.cfg"; test -f "$$stage_vcs/dpc.c26"; \
+	test -f "$$stage_vcs/CV/mapper.cfg"; \
+	test -f "$$stage_vcs/0840/mapper.cfg"; \
+	test -f "$$stage_vcs/UA/mapper.cfg"; \
+	test -f "$$stage_vcs/UASW/mapper.cfg"; \
+	test -f "$$stage_vcs/0FA0/mapper.cfg"; \
+	test -f "$$stage_vcs/E0/mapper.cfg"; \
+	test -f "$$stage_vcs/FE/mapper.cfg"; test -f "$$stage_vcs/WD/mapper.cfg"; \
+	test -f "$$stage_vcs/DPC/mapper.cfg"; test -f "$$stage_vcs/DPC/registers.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" -DSIMULATOR_TEST \
 	  "$$stage_examples/09_bankswitching/16_dpc/dpc_diagnostic.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/dpc_diagnostic.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/dpc_diagnostic.bin"` -eq 10495; \
-	test -f "$$stage_vcs/vcs_8k_3f.cfg"; test -f "$$stage_vcs/vcs_8k_3e.cfg"; \
-	test -f "$$stage_vcs/vcs_16k_3f.cfg"; test -f "$$stage_vcs/vcs_16k_3e.cfg"; \
+	test -f "$$stage_vcs/3F/mapper_8k.cfg"; test -f "$$stage_vcs/3E/mapper_8k.cfg"; \
+	test -f "$$stage_vcs/3F/mapper_16k.cfg"; test -f "$$stage_vcs/3E/mapper_16k.cfg"; \
 	test -f "$$stage_vcs/tia_mirror_40.c26"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" \
 	  "$$stage_examples/09_bankswitching/08_0840/econobanking_diagnostic.c26" \
@@ -714,7 +714,7 @@ installcheck: tools
 	"$$stage_bin/vcsc-disas" -o "$(INSTALLCHECK_STAGING)/3e_diagnostic.s26" \
 	  "$(INSTALLCHECK_STAGING)/3e_diagnostic.bin"; \
 	grep -q '^; mapper: 3E ' "$(INSTALLCHECK_STAGING)/3e_diagnostic.s26"; \
-	test -f "$$stage_vcs/vcs_16k_jane.cfg"; \
+	test -f "$$stage_vcs/JANE/mapper.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" \
 	  "$$stage_examples/09_bankswitching/07_jane/jane_diagnostic.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/jane_diagnostic.bin"; \
@@ -722,18 +722,18 @@ installcheck: tools
 	"$$stage_bin/vcsc-disas" -o "$(INSTALLCHECK_STAGING)/jane_diagnostic.s26" \
 	  "$(INSTALLCHECK_STAGING)/jane_diagnostic.bin"; \
 	grep -q '^; mapper: JANE ' "$(INSTALLCHECK_STAGING)/jane_diagnostic.s26"; \
-	test -f "$$stage_vcs/vcs_4k_sc.cfg"; \
-	test -f "$$stage_vcs/vcs_omni_32k.cfg"; \
+	test -f "$$stage_vcs/4KSC/mapper.cfg"; \
+	test -f "$$stage_vcs/OMNI/mapper.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" \
-	  "$$stage_vcs/vcs_4k_sc.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" \
+	  "$$stage_vcs/4KSC/mapper.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/4ksc_blank.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/4ksc_blank.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$(CURDIR)/test" \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/test" \
 	  -DMACHINE_6502_NO_DEFAULT_ZEROPAGE -DMACHINE_6502_NO_DEFAULT_CPUSTACK \
 	  -DMACHINE_6502_NO_DEFAULT_RAM -DMACHINE_6502_NO_DEFAULT_ROM \
 	  -T "$$stage_vcs/vcs.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map" \
-	  "$$stage_vcs/vcs_8k_f8.c26" \
+	  "$$stage_vcs/F8/mapper.c26" \
 	  "$(CURDIR)/test/fixtures/bankswitching/f8_profile_diagnostic.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.bin"` -eq 8192; \
@@ -748,36 +748,36 @@ installcheck: tools
 	test `wc -c < "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"` -eq 8192; \
 	sim_done=`awk '$$2 == "simulator_done" { print substr($$1, 2); exit }' "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.map"`; \
 	test -n "$$sim_done"; \
-	"$$stage_bin/vcsc-sim" -T "$$stage_vcs/vcs_8k_f8.cfg" --start-bank=0 \
+	"$$stage_bin/vcsc-sim" -T "$$stage_vcs/F8/mapper.cfg" --start-bank=0 \
 	  --stop-pc=0x$$sim_done "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"; \
-	"$$stage_bin/vcsc-sim" -T "$$stage_vcs/vcs_8k_f8.cfg" --start-bank=1 \
+	"$$stage_bin/vcsc-sim" -T "$$stage_vcs/F8/mapper.cfg" --start-bank=1 \
 	  --stop-pc=0x$$sim_done "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"; \
-	test -f "$$stage_vcs/vcs_16k_f6.cfg"; \
-	"$$stage_bin/vcsc" -I "$(CURDIR)/test" \
+	test -f "$$stage_vcs/F6/mapper.cfg"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/test" \
 	  -DMACHINE_6502_NO_DEFAULT_ZEROPAGE -DMACHINE_6502_NO_DEFAULT_CPUSTACK \
 	  -DMACHINE_6502_NO_DEFAULT_RAM -DMACHINE_6502_NO_DEFAULT_ROM \
 	  -T "$$stage_vcs/vcs.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.map" \
-	  "$$stage_vcs/vcs_16k_f6.c26" \
+	  "$$stage_vcs/F6/mapper.c26" \
 	  "$(CURDIR)/test/fixtures/bankswitching/f8_profile_diagnostic.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.bin"` -eq 16384; \
 	grep -q "bank3.*hotspot=\$$1FF6.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.map"; \
 	grep -q "bank0.*hotspot=\$$1FF9.*file=\$$00003000.*startup=yes" "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.map"; \
-	test -f "$$stage_vcs/vcs_32k_f4.cfg"; \
-	"$$stage_bin/vcsc" -I "$(CURDIR)/test" \
+	test -f "$$stage_vcs/F4/mapper.cfg"; \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/test" \
 	  -DMACHINE_6502_NO_DEFAULT_ZEROPAGE -DMACHINE_6502_NO_DEFAULT_CPUSTACK \
 	  -DMACHINE_6502_NO_DEFAULT_RAM -DMACHINE_6502_NO_DEFAULT_ROM \
 	  -T "$$stage_vcs/vcs.cfg" \
 	  -Map "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.map" \
-	  "$$stage_vcs/vcs_32k_f4.c26" \
+	  "$$stage_vcs/F4/mapper.c26" \
 	  "$(CURDIR)/test/fixtures/bankswitching/f8_profile_diagnostic.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.bin"` -eq 32768; \
 	grep -q "bank7.*hotspot=\$$1FF4.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.map"; \
 	grep -q "bank0.*hotspot=\$$1FFB.*file=\$$00007000.*startup=yes" "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.map"; \
-	test -f "$$stage_vcs/superchip.c26"; \
-	test -f "$$stage_vcs/vcs_8k_f8sc.cfg"; \
+	test -f "$$stage_vcs/4KSC/ram.c26"; \
+	test -f "$$stage_vcs/F8SC/mapper.cfg"; \
 	"$$stage_bin/vcsc" -I "$$stage_vcs" \
 	  -DVCSC_INLINE_BANKCALL=1 -DMAPPER_BANKS=2 -DSUPERCHIP_TEST -DSIMULATOR_TEST \
 	  -T "$$stage_vcs/vcs.cfg" \
@@ -791,7 +791,7 @@ installcheck: tools
 	grep -q "policy=every-reset bss=zero data=copy-through-write-alias" "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map"; \
 	"$$stage_bin/vcsc-sim" --help | grep -q -- "--reset-on-pc=ADDR"; \
 	"$$stage_bin/vcsc-sim" --help | grep -q -- "--split-fill=BYTE"; \
-	"$$stage_bin/vcsc-sim" -T "$$stage_vcs/vcs_8k_f8sc.cfg" --start-bank=0 \
+	"$$stage_bin/vcsc-sim" -T "$$stage_vcs/F8SC/mapper.cfg" --start-bank=0 \
 	  --split-fill=0xA7 --reset-on-pc=0x$$sc_done --stop-pc=0x$$sc_done \
 	  --dump-on-stop "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin" \
 	  > "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.dump"; \

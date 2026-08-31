@@ -61,7 +61,7 @@ sub parse_dump {
 
 my $source = <<'SOURCE';
 include "vcs.c26"
-include "superchip.c26"
+include "4KSC/ram.c26"
 
 mem bank0 { $start:0xF100 $size:0x0E00 $ro };
 mem bank1 { $start:0xD100 $size:0x0E00 $ro };
@@ -112,9 +112,9 @@ my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $sim = File::Spec->catfile($repo, 'simulator', 'vcsc-sim');
 my $vcs = File::Spec->catdir($repo, 'libraries', 'vcs');
 my @profiles = (
-   ['F8SC', 2, 'vcs_8k_f8sc.cfg'],
-   ['F6SC', 4, 'vcs_16k_f6sc.cfg'],
-   ['F4SC', 8, 'vcs_32k_f4sc.cfg'],
+   ['F8SC', 2, 'F8SC/mapper.cfg'],
+   ['F6SC', 4, 'F6SC/mapper.cfg'],
+   ['F4SC', 8, 'F4SC/mapper.cfg'],
 );
 
 for my $profile (@profiles) {
@@ -163,7 +163,7 @@ for my $profile (@profiles) {
 my $overflow_src = File::Spec->catfile($tmp, 'superchip_local_overflow.c26');
 write_file($overflow_src, <<'OVERFLOW');
 include "vcs.c26"
-include "superchip.c26"
+include "4KSC/ram.c26"
 void main(void) {
    cartram uint8_t fits[128];
    cartram uint8_t spill;
@@ -172,7 +172,7 @@ void main(void) {
 OVERFLOW
 for my $attempt (1 .. 2) {
    my ($rc, $sig, $out, $err) = run_capture(
-      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg'),
+      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'F8SC/mapper.cfg'),
       $overflow_src, '-o', File::Spec->catfile($tmp, "superchip_local_overflow_$attempt.bin"));
    $rc != 0 && !$sig or die "Superchip local overflow attempt $attempt unexpectedly linked\n$out\n$err";
    $err =~ /cartram overflow while placing activation overlay from <call graph> in cartram/

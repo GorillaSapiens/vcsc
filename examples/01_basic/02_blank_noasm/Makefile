@@ -6,7 +6,7 @@ VCS_DIR ?= $(ROOT)/libraries/vcs
 
 all: blank_noasm.bin
 
-blank_noasm.bin: blank_noasm.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26 $(VCS_DIR)/vcs_4k.cfg
+blank_noasm.bin: blank_noasm.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26 $(VCS_DIR)/4K/mapper.cfg
 	$(VCSC) -I $(VCS_DIR) -Map blank_noasm.map blank_noasm.c26 -o $@
 	@test `wc -c < $@` -eq 4096
 

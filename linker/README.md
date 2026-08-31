@@ -366,10 +366,10 @@ mem bank0 { $start:0xf000 $size:0x0f00 $ro $priority:2 };
 mem bank1 { $start:0xd000 $size:0x0f00 $ro };
 ```
 
-The installed `vcs_4k.c26`, `vcs_8k_f8.c26`, `vcs_12k_fa.c26`, `vcs_24k_fa2.c26`,
-`vcs_28k_fa2.c26`, `vcs_16k_f6.c26`, `vcs_32k_f4.c26`, and matching RAM/Superchip files are the certified public
+The installed `4K/mapper.c26`, `F8/mapper.c26`, `FA/mapper.c26`, `FA2/mapper_24k.c26`,
+`FA2/mapper_28k.c26`, `F6/mapper.c26`, `F4/mapper.c26`, and matching RAM/Superchip files are the certified public
 profiles. `vcs.c26` describes the common machine only; the driver implicitly
-adds `vcs_4k.c26` when no explicit `-T` profile selection is made. Public
+adds `4K/mapper.c26` when no explicit `-T` profile selection is made. Public
 banked builds pass the reduced `vcs.cfg` for operational policy and add one C26
 profile as a normal configuration input or source include. The old full profile
 cfg files remain accepted for compatibility, differential certification, and
@@ -518,8 +518,8 @@ JSR entry. The compiler emits one five-byte bundle at the call site:
 the fixed generic call block; it is not executed. The linker rewrites the JSR
 operand to the source bank's logical mirror of `__bankcall` while leaving the
 inline word as the target's distinct logical address. The normal-selector block is maintained as readable 6507 source in
-`libraries/vcs/inline_bankcall.s26`; DPC reuses it because its two program banks
-have F8 selector geometry. FA2 uses `libraries/vcs/fa2/inline_bankcall.s26`,
+`libraries/vcs/F8/inline_bankcall.s26`; DPC reuses it because its two program banks
+have F8 selector geometry. FA2 uses `libraries/vcs/FA2/inline_bankcall.s26`,
 which adds the reversed selector-index transform required by `$1FF5-$1FFB`. The linker build assembles that file into a
 compact byte/patch template; `vcsc-ld` only supplies `_vcsc_ptr0`, the mapper
 selector base, and the final replicated block address. The normal/DPC block reserves 80 bytes (`generic-jsr=$050`). The FA2-specific

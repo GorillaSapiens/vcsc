@@ -136,7 +136,7 @@ my $minimal_bin = File::Spec->catfile($tmp, 'minimal_f8sc.bin');
 my $minimal_map = File::Spec->catfile($tmp, 'minimal_f8sc.map');
 write_file($f8sc_src, <<'SRC');
 include "vcs.c26"
-include "superchip.c26"
+include "4KSC/ram.c26"
 mem bank0 { $start:0xf100 $size:0x0e00 $ro $priority:2 };
 mem bank1 { $start:0xd100 $size:0x0e00 $ro };
 cartridge {
@@ -184,7 +184,7 @@ index($minimal_image, "\xA9\x5A\x8D\x00\xF0\xAD\x80\xF0") >= 0
 
 # The current full cfg may repeat stale allocator facts, but C26 overrides
 # them. Synthesized routing must produce the same cartridge bytes.
-my $full_cfg = File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg');
+my $full_cfg = File::Spec->catfile($vcs, 'F8SC/mapper.cfg');
 my $full_bin = File::Spec->catfile($tmp, 'full_f8sc.bin');
 require_ok('full cfg differential F8SC link', $vcsc, '-I', $vcs,
            '-DVCS_NO_DEFAULT_ROM', '-T', $full_cfg,

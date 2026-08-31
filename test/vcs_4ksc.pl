@@ -57,9 +57,9 @@ my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $source=File::Spec->catfile($repo,'examples','09_bankswitching','04_4ksc','4ksc_diagnostic.c26');
-my $cfg=File::Spec->catfile($vcs,'vcs_4k_sc.cfg');
+my $cfg=File::Spec->catfile($vcs,'4KSC/mapper.cfg');
 my $generic=File::Spec->catfile($vcs,'vcs.cfg');
-my $profile=File::Spec->catfile($vcs,'vcs_4k_sc.c26');
+my $profile=File::Spec->catfile($vcs,'4KSC/mapper.c26');
 my $bin=File::Spec->catfile($tmp,'4ksc.bin');
 my $map=File::Spec->catfile($tmp,'4ksc.map');
 
@@ -101,7 +101,7 @@ $mem->[$sym{sc_bss}+126]==0x33
 
 # Ordinary ROM may not be placed inside the Superchip port prefix.
 my $overlay=File::Spec->catfile($tmp,'overlay.c26');
-write_file($overlay,qq{include "vcs_4k_sc.c26"\nmem hidden_rom { \$start:0xF080 \$size:0x0010 \$ro };\nhidden_rom const uint8_t illegal := 0x42;\nvoid main(void) { while (1) { } }\n});
+write_file($overlay,qq{include "4KSC/mapper.c26"\nmem hidden_rom { \$start:0xF080 \$size:0x0010 \$ro };\nhidden_rom const uint8_t illegal := 0x42;\nvoid main(void) { while (1) { } }\n});
 my($rrc,$rsig,$rout,$rerr)=run_capture($driver,'-I',$vcs,'-T',$generic,$overlay,'-o',File::Spec->catfile($tmp,'overlay.bin'));
 $rrc!=0 && !$rsig && $rerr =~ /outside every mapped ROM window/i
    or die "4KSC RAM-overlay ROM placement did not fail clearly\nstdout:\n$rout\nstderr:\n$rerr";

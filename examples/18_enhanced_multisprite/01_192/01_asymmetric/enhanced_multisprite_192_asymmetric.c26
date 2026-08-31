@@ -2,7 +2,7 @@
 
 // Asymmetric-PF P0/P1 six-sprite multiplexer, using the maintained multisprite
 // scene data and Select/joystick/Reset controls.
-include "vcs_4k.c26"
+include "4K/mapper.c26"
 
 // The build selects VCS_NTSC_EXTENDED_VBLANK because top-edge sprites are
 // pre-positioned during VBLANK.  frame_ntsc.c26 moves timer budget from this

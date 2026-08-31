@@ -80,7 +80,7 @@ $tmp = abs_path($tmp);
 my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $sim = File::Spec->catfile($repo, 'simulator', 'vcsc-sim');
 my $vcs = File::Spec->catdir($repo, 'libraries', 'vcs');
-my $cfg = File::Spec->catfile($vcs, 'vcs_16k_f6.cfg');
+my $cfg = File::Spec->catfile($vcs, 'F6/mapper.cfg');
 
 my $good_src = File::Spec->catfile($tmp, 'function_fallback.c26');
 my $good_bin = File::Spec->catfile($tmp, 'function_fallback.bin');

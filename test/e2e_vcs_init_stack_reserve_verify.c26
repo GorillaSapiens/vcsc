@@ -1,5 +1,5 @@
 // vcsc-cc1 -I ../libraries/vcs
-// linkcfg: ../libraries/vcs/vcs_4k.cfg
+// linkcfg: ../libraries/vcs/4K/mapper.cfg
 // expectmap: ram        start=$0080 size=$007C type=rw
 // expectmap: __stack_top   $00FB
 // expectmap: region=ram depth=0 bytes=$0004 physical=$00FC-$00FF

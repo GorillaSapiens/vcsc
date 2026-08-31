@@ -63,7 +63,7 @@ for my $case (
 ) {
    my($component,$name,$setup)=@$case;
    my $base=join("\n",
-      'include "vcs_4k.c26"',
+      'include "4K/mapper.c26"',
       'include "fonts/default_decimal.c26"',
       qq{instantiate "$component" as $name%s},
       qq{void main(void) { ${name}_init(); $setup ${name}_vblank(); ${name}_draw(); ${name}_overscan(); while (1) { } }},
@@ -85,7 +85,7 @@ for my $case (
 my$two_src=File::Spec->catfile($tmp,'score-two-paddles.c26');
 my$two_bin=File::Spec->catfile($tmp,'score-two-paddles.bin');
 write_file($two_src,<<'C26');
-include "vcs_4k.c26"
+include "4K/mapper.c26"
 include "fonts/default_decimal.c26"
 instantiate "two_paddles.c26" as paddles
 inline void score_paddle_sample0(void) { paddles_score_sample0(); }
@@ -105,7 +105,7 @@ build($driver,$vcs,$two_src,$two_bin);
 my$four_src=File::Spec->catfile($tmp,'score-four-paddles.c26');
 my$four_bin=File::Spec->catfile($tmp,'score-four-paddles.bin');
 write_file($four_src,<<'C26');
-include "vcs_4k.c26"
+include "4K/mapper.c26"
 include "fonts/default_decimal.c26"
 instantiate "four_paddles.c26" as paddles
 inline void score_paddle_sample0(void) { paddles_score_sample0(); }
@@ -126,7 +126,7 @@ build($driver,$vcs,$four_src,$four_bin);
 my$six_src=File::Spec->catfile($tmp,'six-two-paddles.c26');
 my$six_bin=File::Spec->catfile($tmp,'six-two-paddles.bin');
 write_file($six_src,<<'C26');
-include "vcs_4k.c26"
+include "4K/mapper.c26"
 include "fonts/default_decimal.c26"
 instantiate "two_paddles.c26" as paddles
 inline void text_paddle_sample0(void) { asm ldx #0; paddles_score_sample0(); }

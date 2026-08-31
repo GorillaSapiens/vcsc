@@ -78,8 +78,8 @@ my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $generic=File::Spec->catfile($vcs,'vcs.cfg');
-my $cfg=File::Spec->catfile($vcs,'vcs_8k_fe.cfg');
-my $profile=File::Spec->catfile($vcs,'vcs_8k_fe.c26');
+my $cfg=File::Spec->catfile($vcs,'FE/mapper.cfg');
+my $profile=File::Spec->catfile($vcs,'FE/mapper.c26');
 my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','14_fe');
 my $source=File::Spec->catfile($example_dir,'fe_diagnostic.c26');
 my $example_make=File::Spec->catfile($example_dir,'Makefile');
@@ -148,7 +148,7 @@ $rmem->[0x0081]==0x55 && $rmem->[0x0080]==0xAA
 # guaranteed to address $01FE. Reject it instead of generating accidental FE.
 my $bad=File::Spec->catfile($tmp,'nested_fe.c26');
 write_file($bad,<<'SRC');
-include "vcs_8k_fe.c26"
+include "FE/mapper.c26"
 bank1 uint8_t target(void) { return 0x5a; }
 bank0 uint8_t helper(void) { return target(); }
 void main(void) { uint8_t x; x := helper(); while (1) { } }

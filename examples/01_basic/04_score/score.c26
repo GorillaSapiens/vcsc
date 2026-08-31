@@ -4,7 +4,7 @@
 // The application owns frame scheduling and score cadence; the instantiated
 // component owns only its score state, glyph pointers, and timed draw pipeline.
 
-include "vcs_2k.c26"
+include "2K/mapper.c26"
 include "frame_ntsc.c26"
 include "fonts/default_decimal.c26"
 

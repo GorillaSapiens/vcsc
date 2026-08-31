@@ -7,7 +7,7 @@
 // font with make_pair_font.pl --five and displayed by the existing six-glyph
 // renderer in its five-row full-pointer mode.
 
-include "vcs_32k_f4sc.c26"
+include "F4SC/mapper.c26"
 include "frame_ntsc.c26"
 include "frame_pal.c26"
 include "frame_secam.c26"

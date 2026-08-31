@@ -33,7 +33,7 @@ my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $round=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $src=File::Spec->catfile($repo,'examples','09_bankswitching','17_fa2','fa2_diagnostic.c26');
-my $cfg=File::Spec->catfile($vcs,'vcs_28k_fa2.cfg');
+my $cfg=File::Spec->catfile($vcs,'FA2/mapper_28k.cfg');
 my $generic=File::Spec->catfile($vcs,'vcs.cfg');
 my $bin=File::Spec->catfile($tmp,'fa2.bin');
 my $map=File::Spec->catfile($tmp,'fa2.map');
@@ -69,7 +69,7 @@ for my $b (0..6) {
 my $six_src=File::Spec->catfile($tmp,'fa2-24k-smoke.c26');
 open my $sf,'>',$six_src or die "write $six_src: $!\n";
 print {$sf} <<'C26';
-include "vcs_24k_fa2.c26"
+include "FA2/mapper_24k.c26"
 
 uint8_t six_failure;
 uint8_t six_trace;
@@ -145,7 +145,7 @@ $six_m =~ /generic-jsr=\$054\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ && $six_m !~ /JSR
    or die "FA2 24K diagnostic did not use only the mapper-specific inline bank-call block\n$six_m";
 substr($six_rom,5*4096+0xff8,4) eq "FA2\0" or die "FA2 24K signature missing from final file bank\n";
 my %sa=map { $_=>sym($six_m,$_) } qw(six_done six_failure six_trace);
-my $six_cfg=File::Spec->catfile($vcs,'vcs_24k_fa2.cfg');
+my $six_cfg=File::Spec->catfile($vcs,'FA2/mapper_24k.cfg');
 for my $b (0..5) {
    my($out,$err)=ok("simulate six-bank FA2 from bank $b",$sim,'-T',$six_cfg,"--start-bank=$b",sprintf('--stop-pc=0x%04X',$sa{six_done}),'--dump-on-stop',$six);
    $err eq '' or die "FA2 24K simulator stderr from bank $b:\n$err";

@@ -30,5 +30,5 @@ No released Atari cartridge or emulator currently implements OmniCart PHM's
 recovered upper address bits, so there is intentionally no `make play` target.
 `make` builds the 32K diagnostic for toolchain inspection and future OmniCart
 hardware. VCSC's automated regression suite executes the same self-test through
-`vcsc-sim` using `vcs_omni_32k.cfg`, which models the direct logical layout but
+`vcsc-sim` using `OMNI/mapper.cfg`, which models the direct logical layout but
 no mapper state because OMNI has none.

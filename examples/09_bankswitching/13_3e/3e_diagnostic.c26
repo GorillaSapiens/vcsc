@@ -2,7 +2,7 @@
 
 // Tigervision 3E PASS/FAIL diagnostic. The self-test runs from the fixed final
 // 2K while selecting lower-window ROM banks, and exercises banked RAM.
-include "vcs_8k_3e.c26"
+include "3E/mapper_8k.c26"
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"

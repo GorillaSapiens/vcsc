@@ -2,7 +2,7 @@
 
 // Activision/SCABS FE PASS/FAIL diagnostic. This deliberately uses the
 // released-cart direct-JSR switch and automatic RTS return-bank restoration.
-include "vcs_8k_fe.c26"
+include "FE/mapper.c26"
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"

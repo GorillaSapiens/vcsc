@@ -4,7 +4,7 @@
 // physical ROM chunks. Reads from TIA $30-$3F request one of eight complete
 // arrangements after the hardware delay; 64 bytes of cartridge RAM use split
 // read/write aliases at $1000/$1040.
-include "vcs_8k_wd.c26"
+include "WD/mapper.c26"
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"

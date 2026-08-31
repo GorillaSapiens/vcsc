@@ -1,7 +1,7 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
 include "vcs.c26"
-include "dpc.c26"
+include "DPC/registers.c26"
 
 // Atari DPC cartridge profile.  The first two 4K image chunks are the normal
 // F8 program banks.  They expose only $1080-$1FFF because the DPC register

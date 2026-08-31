@@ -69,12 +69,12 @@ sub terminate_child {
 
 sub profiles {
    return (
-      [F8=>2=>'vcs_8k_f8.cfg'=>'vcs_8k_f8.c26'=>0],
-      [F6=>4=>'vcs_16k_f6.cfg'=>'vcs_16k_f6.c26'=>0],
-      [F4=>8=>'vcs_32k_f4.cfg'=>'vcs_32k_f4.c26'=>0],
-      [F8SC=>2=>'vcs_8k_f8sc.cfg'=>'vcs_8k_f8sc.c26'=>1],
-      [F6SC=>4=>'vcs_16k_f6sc.cfg'=>'vcs_16k_f6sc.c26'=>1],
-      [F4SC=>8=>'vcs_32k_f4sc.cfg'=>'vcs_32k_f4sc.c26'=>1],
+      [F8=>2=>'F8/mapper.cfg'=>'F8/mapper.c26'=>0],
+      [F6=>4=>'F6/mapper.cfg'=>'F6/mapper.c26'=>0],
+      [F4=>8=>'F4/mapper.cfg'=>'F4/mapper.c26'=>0],
+      [F8SC=>2=>'F8SC/mapper.cfg'=>'F8SC/mapper.c26'=>1],
+      [F6SC=>4=>'F6SC/mapper.cfg'=>'F6SC/mapper.c26'=>1],
+      [F4SC=>8=>'F4SC/mapper.cfg'=>'F4SC/mapper.c26'=>1],
    );
 }
 
@@ -152,7 +152,7 @@ sub run_simulator_matrix {
       if ($sc) {
          $profile_text =~ /\$image_offset:0x0100/ &&
          $profile_text =~ /\$cpu_start:0xf100/ &&
-         $profile_text =~ /include\s+"superchip\.c26"/
+         $profile_text =~ /include\s+"4KSC\/ram\.c26"/
             or die "$profile_name does not describe the Superchip ROM/RAM split\n";
       }
 
@@ -306,7 +306,7 @@ sub run_stella_certification {
       }
    }
    if ($selected->('poisoned_failure')) {
-      my $profile=[F8SC=>2=>'vcs_8k_f8sc.cfg'=>'vcs_8k_f8sc.c26'=>1];
+      my $profile=[F8SC=>2=>'F8SC/mapper.cfg'=>'F8SC/mapper.c26'=>1];
       my($rom)=build_matrix_rom($driver,$vcs,$source,$stella_tmp,$profile,0,1);
       $run_one->(label=>'poisoned_failure',mapper=>'F8SC',start=>0,reset=>1,
                  rom=>$rom,result=>'fail',cart=>'??????');

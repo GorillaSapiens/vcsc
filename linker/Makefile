@@ -15,10 +15,10 @@ DEPS = $(OBJS:.o=.d)
 DOXYGEN ?= doxygen
 PERL ?= perl
 VCSC_AS ?= $(if $(ASM),$(ASM),../assembler/vcsc-as)
-BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/inline_bankcall.s26
+BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/F8/inline_bankcall.s26
 BANKCALL_TEMPLATE_GENERATOR = gen_inline_bankcall_template.pl
 BANKCALL_TEMPLATE_HEADER = generic_bankcall_template.h
-FA2_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/fa2/inline_bankcall.s26
+FA2_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/FA2/inline_bankcall.s26
 FA2_BANKCALL_TEMPLATE_HEADER = fa2_bankcall_template.h
 
 all: version.h $(TARGET)

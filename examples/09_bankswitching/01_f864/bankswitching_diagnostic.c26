@@ -19,21 +19,21 @@ MAPPER_BANKS_must_be_2_4_or_8
 
 #ifdef SUPERCHIP_TEST
 #if MAPPER_BANKS == 2
-include "vcs_8k_f8sc.c26"
+include "F8SC/mapper.c26"
 #elif MAPPER_BANKS == 4
-include "vcs_16k_f6sc.c26"
+include "F6SC/mapper.c26"
 #elif MAPPER_BANKS == 8
-include "vcs_32k_f4sc.c26"
+include "F4SC/mapper.c26"
 #else
 MAPPER_BANKS_must_be_2_4_or_8
 #endif
 #else
 #if MAPPER_BANKS == 2
-include "vcs_8k_f8.c26"
+include "F8/mapper.c26"
 #elif MAPPER_BANKS == 4
-include "vcs_16k_f6.c26"
+include "F6/mapper.c26"
 #elif MAPPER_BANKS == 8
-include "vcs_32k_f4.c26"
+include "F4/mapper.c26"
 #else
 MAPPER_BANKS_must_be_2_4_or_8
 #endif

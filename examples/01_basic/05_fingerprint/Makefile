@@ -6,7 +6,7 @@ VCS_DIR ?= $(ROOT)/libraries/vcs
 
 all: fingerprint.bin
 
-fingerprint.bin: fingerprint.c26 $(VCS_DIR)/fonts/big_hex.c26 $(VCS_DIR)/fonts/logo_font.c26 $(VCS_DIR)/six_glyph_big_wide_component.c26 $(VCS_DIR)/six_glyph_left_component.c26 $(VCS_DIR)/six_glyph_right_component.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26 $(VCS_DIR)/vcs_4k.cfg
+fingerprint.bin: fingerprint.c26 $(VCS_DIR)/fonts/big_hex.c26 $(VCS_DIR)/fonts/logo_font.c26 $(VCS_DIR)/six_glyph_big_wide_component.c26 $(VCS_DIR)/six_glyph_left_component.c26 $(VCS_DIR)/six_glyph_right_component.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26 $(VCS_DIR)/4K/mapper.cfg
 	$(VCSC) -I $(VCS_DIR) -Wa,--illegals -Map fingerprint.map fingerprint.c26 -o $@
 	@test `wc -c < $@` -eq 4096
 

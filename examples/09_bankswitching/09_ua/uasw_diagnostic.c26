@@ -1,5 +1,5 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
-include "vcs_8k_uasw.c26"
+include "UASW/mapper.c26"
 const uint8_t uasw_diagnostic := 1;
 #ifndef SIMULATOR_TEST
 include "ua_status_font.c26"

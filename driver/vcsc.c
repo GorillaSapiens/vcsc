@@ -628,7 +628,7 @@ static void resolve_tool_paths(const char *self_path,
    build_repo_tree_path(runtime_repo, sizeof(runtime_repo), self_path, "libraries/runtime", "libvcsc.l26");
    build_repo_tree_path(runtime_inc_repo, sizeof(runtime_inc_repo), self_path, "libraries/runtime", "vcsc-runtime.inc");
    build_repo_tree_path(vcs_cfg_repo, sizeof(vcs_cfg_repo), self_path, "libraries/vcs", "vcs.cfg");
-   build_repo_tree_path(vcs_profile_repo, sizeof(vcs_profile_repo), self_path, "libraries/vcs", "vcs_4k.c26");
+   build_repo_tree_path(vcs_profile_repo, sizeof(vcs_profile_repo), self_path, "libraries/vcs", "4K/mapper.c26");
 
    if (path_is_accessible(cc_repo, X_OK) &&
        path_is_accessible(as_repo, X_OK) &&
@@ -657,7 +657,7 @@ static void resolve_tool_paths(const char *self_path,
    build_installed_prefix_path(runtime_inst, sizeof(runtime_inst), self_path, "lib", "libvcsc.l26");
    build_installed_prefix_path(runtime_inc_inst, sizeof(runtime_inc_inst), self_path, "include", "vcsc-runtime.inc");
    build_installed_prefix_path(vcs_cfg_inst, sizeof(vcs_cfg_inst), self_path, "share/vcs", "vcs.cfg");
-   build_installed_prefix_path(vcs_profile_inst, sizeof(vcs_profile_inst), self_path, "share/vcs", "vcs_4k.c26");
+   build_installed_prefix_path(vcs_profile_inst, sizeof(vcs_profile_inst), self_path, "share/vcs", "4K/mapper.c26");
 
    if (path_is_accessible(cc_inst, X_OK) &&
        path_is_accessible(as_inst, X_OK) &&

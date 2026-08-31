@@ -60,7 +60,7 @@ $tmp = abs_path($tmp) // die "could not resolve temp dir\n";
 
 my $vcsc = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $include = File::Spec->catfile($repo, 'test');
-my $f8_cfg = File::Spec->catfile($repo, 'libraries', 'vcs', 'vcs_8k_f8.cfg');
+my $f8_cfg = File::Spec->catfile($repo, 'libraries', 'vcs', 'F8/mapper.cfg');
 
 my $direct_cfg = File::Spec->catfile($tmp, 'direct.cfg');
 write_file($direct_cfg, <<'CFG');

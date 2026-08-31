@@ -60,13 +60,13 @@ my $tmp = shift @ARGV // die "usage: $0 REPO TMP\n";
 make_path($tmp);
 $tmp = abs_path($tmp) // die "could not resolve temp dir\n";
 
-my $cfg = File::Spec->catfile($repo, 'libraries', 'vcs', 'vcs_8k_f8.cfg');
+my $cfg = File::Spec->catfile($repo, 'libraries', 'vcs', 'F8/mapper.cfg');
 my $fixture = File::Spec->catfile($repo, 'test', 'fixtures', 'bankswitching',
                                   'f8_profile_diagnostic.c26');
 my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $as = File::Spec->catfile($repo, 'assembler', 'vcsc-as');
 my $ld = File::Spec->catfile($repo, 'linker', 'vcsc-ld');
--f $cfg or die "public vcs_8k_f8.cfg is missing\n";
+-f $cfg or die "public F8/mapper.cfg is missing\n";
 -f $fixture or die "F8 profile diagnostic fixture is missing\n";
 
 my $cfg_text = slurp($cfg);

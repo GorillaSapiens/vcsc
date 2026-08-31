@@ -2,5 +2,5 @@
 # phase: e2e
 # expectstdout: -T
 # expectstdout: libraries/vcs/vcs.cfg
-# expectstdout: libraries/vcs/vcs_4k.c26
+# expectstdout: libraries/vcs/4K/mapper.c26
 # forbidstderr: no linker script/config supplied

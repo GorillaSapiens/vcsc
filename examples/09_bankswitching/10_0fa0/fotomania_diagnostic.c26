@@ -3,7 +3,7 @@
 // Brazilian Fotomania 0FA0 PASS/FAIL diagnostic. Exercises the masked
 // below-window selector families through nested calls and generated return-bank
 // restoration. Physical/file bank 1 is the hardware startup bank.
-include "vcs_8k_0fa0.c26"
+include "0FA0/mapper.c26"
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"

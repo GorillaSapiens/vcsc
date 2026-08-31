@@ -1,9 +1,9 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
 include "vcs.c26"
-include "fa_ram_plus.c26"
+include "FA/ram.c26"
 
-// Harmony FA2: 6 physical 4K ROM banks selected directly by $1FF5-$1FFA.
+// Harmony FA2: 7 physical 4K ROM banks selected directly by $1FF5-$1FFB.
 // Physical/file bank 0 powers up. VCSC keeps logical bank0 as the startup/home
 // bank and assigns physical/file indices in the same order as logical banks.
 // The $x000-$x0FF write port and $x100-$x1FF read port hide the first $200
@@ -57,9 +57,16 @@ bank bank5 {
    $select_access:0x1ffa
 };
 
+bank bank6 {
+   $image_size:0x1000 $file_index:6 $image_offset:0x0200
+   $link_start:0x3200 $cpu_start:0xf200 $map_size:0x0e00
+   $select_access:0x1ffb
+};
+
 mem bank0 { $start:0xf200 $size:0x0d00 $ro $priority:2 };
 mem bank1 { $start:0xd200 $size:0x0d00 $ro };
 mem bank2 { $start:0xb200 $size:0x0d00 $ro };
 mem bank3 { $start:0x9200 $size:0x0d00 $ro };
 mem bank4 { $start:0x7200 $size:0x0d00 $ro };
 mem bank5 { $start:0x5200 $size:0x0d00 $ro };
+mem bank6 { $start:0x3200 $size:0x0d00 $ro };

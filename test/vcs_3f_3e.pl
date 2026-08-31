@@ -86,10 +86,10 @@ for my $c (@cases) {
    my $m=$c->{mapper}; my $lc=lc($m);
    my $source=File::Spec->catfile($repo,'examples','09_bankswitching',$c->{dir},$c->{source});
    my $make=File::Spec->catfile($repo,'examples','09_bankswitching',$c->{dir},'Makefile');
-   my $profile=File::Spec->catfile($vcs,"vcs_8k_${lc}.c26");
-   my $profile16=File::Spec->catfile($vcs,"vcs_16k_${lc}.c26");
-   my $cfg=File::Spec->catfile($vcs,"vcs_8k_${lc}.cfg");
-   my $cfg16=File::Spec->catfile($vcs,"vcs_16k_${lc}.cfg");
+   my $profile=File::Spec->catfile($vcs,$m,'mapper_8k.c26');
+   my $profile16=File::Spec->catfile($vcs,$m,'mapper_16k.c26');
+   my $cfg=File::Spec->catfile($vcs,$m,'mapper_8k.cfg');
+   my $cfg16=File::Spec->catfile($vcs,$m,'mapper_16k.cfg');
    for ($source,$make,$profile,$profile16,$cfg,$cfg16) { -f $_ or die "$m support file missing: $_\n"; }
 
    my $pt=read_file($profile); my $p16=read_file($profile16); my $ct=read_file($cfg);
@@ -183,7 +183,7 @@ for my $c (@cases) {
    # Prove the second public size really emits eight 2K physical chunks.
    my $blank=File::Spec->catfile($tmp,"$lc-16.c26");
    open(my $bf,'>',$blank) or die $!;
-   print $bf qq{include "vcs_16k_${lc}.c26"\nbank7 void main(void) { while (1) { } }\n}; close($bf);
+   print $bf qq{include "$m/mapper_16k.c26"\nbank7 void main(void) { while (1) { } }\n}; close($bf);
    my $bin16=File::Spec->catfile($tmp,"$lc-16.bin");
    require_ok("build 16K $m profile",$driver,'-I',$vcs,'-T',$generic,$blank,'-o',$bin16);
    -s $bin16==16384 or die "$m 16K profile emitted the wrong size\n";

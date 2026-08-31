@@ -356,14 +356,14 @@ for my $spec (['NTSC',0,264],['PAL',1,314],['SECAM',2,314]) {
 # reset-on-pc preserves RAM, so the first pass plants a candidate signature;
 # the second reset must capture it, clear it, and publish the result in F4SC RAM.
 my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
-my $f4sc_cfg=File::Spec->catfile($vcs,'vcs_32k_f4sc.cfg');
+my $f4sc_cfg=File::Spec->catfile($vcs,'F4SC/mapper.cfg');
 for my $probe ([ea=>0xea,1],[not_ea=>0x00,0]) {
    my($tag,$tail,$want)=@$probe;
    my $probe_src=File::Spec->catfile($tmp,"diagnostic-boot-$tag.c26");
    my $probe_bin=File::Spec->catfile($tmp,"diagnostic-boot-$tag.bin");
    my $probe_map=File::Spec->catfile($tmp,"diagnostic-boot-$tag.map");
    open(my $pf,'>',$probe_src) or die "write $probe_src: $!\n";
-   print {$pf} qq{include "vcs_32k_f4sc.c26"\ncartram uint8_t diagnostic_boot_7800;\ncartram uint8_t boot_probe_result;\nvoid boot_probe_stop(void) { while (1) { } }\nvoid main(void) {\n   if (diagnostic_boot_7800) { boot_probe_result := 0xaa; asm jmp boot_probe_stop; }\n   boot_probe_result := 0x11;\n   asm lda #\$6c; asm sta \$e0;\n   asm lda #\$fc; asm sta \$e1;\n   asm lda #\$ff; asm sta \$e2;\n   asm lda #\$@{[sprintf('%02x',$tail)]}; asm sta \$e3;\n   asm jmp boot_probe_stop;\n}\n};
+   print {$pf} qq{include "F4SC/mapper.c26"\ncartram uint8_t diagnostic_boot_7800;\ncartram uint8_t boot_probe_result;\nvoid boot_probe_stop(void) { while (1) { } }\nvoid main(void) {\n   if (diagnostic_boot_7800) { boot_probe_result := 0xaa; asm jmp boot_probe_stop; }\n   boot_probe_result := 0x11;\n   asm lda #\$6c; asm sta \$e0;\n   asm lda #\$fc; asm sta \$e1;\n   asm lda #\$ff; asm sta \$e2;\n   asm lda #\$@{[sprintf('%02x',$tail)]}; asm sta \$e3;\n   asm jmp boot_probe_stop;\n}\n};
    close($pf);
    require_ok("build 7800 boot $tag probe",$driver,'-I',$vcs,'-I',$example,'-T',$generic,
       '-Map',$probe_map,$probe_src,$boot,'-o',$probe_bin);

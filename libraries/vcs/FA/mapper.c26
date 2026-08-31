@@ -1,7 +1,7 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
 include "vcs.c26"
-include "fa_ram_plus.c26"
+include "FA/ram.c26"
 
 // CBS FA / RAM Plus: three physical 4K banks selected by $1FF8-$1FFA.
 // Hardware powers up in physical bank 2. VCSC keeps bank0 as the logical

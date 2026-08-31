@@ -149,7 +149,7 @@ vcsc -I libraries/vcs \
 ```
 
 An explicit build may equivalently pass `-T libraries/vcs/vcs.cfg` and
-`libraries/vcs/vcs_4k.c26`. The retained `vcs_standard_4k_ntsc.cfg` is only a
+`libraries/vcs/4K/mapper.c26`. The retained `vcs_standard_4k_ntsc.cfg` is only a
 deprecated compatibility filename for old commands; it contains no renderer-
 specific placement or stack facts.
 

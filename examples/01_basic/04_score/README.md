@@ -90,4 +90,4 @@ Build after building the toolchain:
 make
 ```
 
-The result is `score.bin`, an exact 2048-byte unbanked cartridge linked with the `vcs_2k.c26` profile and mapped at `$F800-$FFFF`.
+The result is `score.bin`, an exact 2048-byte unbanked cartridge linked with the `2K/mapper.c26` profile and mapped at `$F800-$FFFF`.

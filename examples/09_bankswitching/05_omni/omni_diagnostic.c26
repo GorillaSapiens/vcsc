@@ -5,7 +5,7 @@
 // cartridge RAM, ordinary cross-island JSR/RTS and data reads, and leaves a
 // stable green PASS / OMNI display (dark-red FAIL on error).
 
-include "vcs_omni_32k.c26"
+include "OMNI/mapper.c26"
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"

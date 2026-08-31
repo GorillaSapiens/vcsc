@@ -1,4 +1,4 @@
-/* Generated from libraries/vcs/fa2/inline_bankcall.s26.  Do not edit. */
+/* Generated from libraries/vcs/FA2/inline_bankcall.s26.  Do not edit. */
 #define VCSC_FA2_BANKCALL_TEMPLATE_SIZE 0x53u
 #define VCSC_FA2_BANKCALL_RESERVED_SIZE 0x54u
 #define VCSC_FA2_BANKCALL_SWITCH_OFFSET 0x41u

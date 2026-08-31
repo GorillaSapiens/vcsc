@@ -73,14 +73,14 @@ $tmp = abs_path($tmp);
 my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $sim = File::Spec->catfile($repo, 'simulator', 'vcsc-sim');
 my $vcs = File::Spec->catdir($repo, 'libraries', 'vcs');
-my $cfg = File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg');
+my $cfg = File::Spec->catfile($vcs, 'F8SC/mapper.cfg');
 my $src = File::Spec->catfile($tmp, 'replicated.c26');
 my $bin = File::Spec->catfile($tmp, 'replicated.bin');
 my $map_path = File::Spec->catfile($tmp, 'replicated.map');
 
 write_file($src, <<'SRC');
 include "vcs.c26"
-include "superchip.c26"
+include "4KSC/ram.c26"
 mem bank0 { $start:0xF100 $size:0x0E00 $ro };
 mem bank1 { $start:0xD100 $size:0x0E00 $ro };
 

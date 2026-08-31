@@ -81,7 +81,7 @@ my$map=read_file($mapfile);
 # Port 1 must instantiate from the same public component API even though the
 # game uses port 0.
 my$port1=File::Spec->catfile($tmp,'port1.c26');open(my$f,'>:raw',$port1)or die$!;
-print{$f} "include \"vcs_4k.c26\"\ninstantiate \"two_paddles.c26\" as p (port:=1)\nvoid main(void) { p_init(); p_vblank(); p_sample0(); p_sample1(); p_advance_pair(); p_account_gap(1); p_overscan(); p_dump(); }\n";close$f;
+print{$f} "include \"4K/mapper.c26\"\ninstantiate \"two_paddles.c26\" as p (port:=1)\nvoid main(void) { p_init(); p_vblank(); p_sample0(); p_sample1(); p_advance_pair(); p_account_gap(1); p_overscan(); p_dump(); }\n";close$f;
 my$port1bin=File::Spec->catfile($tmp,'port1.bin');
 ($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,$port1,'-o',$port1bin);$rc==0&&!$sig or die"port-1 paddle API build failed\n$out$err";
 

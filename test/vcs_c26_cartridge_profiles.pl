@@ -42,29 +42,29 @@ my $generic_cfg=File::Spec->catfile($vcs,'vcs.cfg');
 my $blank=File::Spec->catfile($repo,'examples','01_basic','01_blank_screen','blank_screen.c26');
 
 my @profiles=(
-   ['2K',   'vcs_2k.c26',       undef,              1, 0, 0,  2048],
-   ['CV',   'vcs_2k_cv.c26',    'vcs_2k_cv.cfg',    1, 0, 0,  2048],
-   ['4K',   'vcs_4k.c26',       'vcs_4k.cfg',       1, 0, 0,  4096],
-   ['4KSC', 'vcs_4k_sc.c26',    undef,              1, 0, 1,  4096],
-   ['F8',   'vcs_8k_f8.c26',    'vcs_8k_f8.cfg',    2, 1, 0,  8192],
-   ['0840', 'vcs_8k_0840.c26',  undef,               2, 1, 0,  8192],
-   ['UA',   'vcs_8k_ua.c26',    undef,               2, 1, 0,  8192],
-   ['UASW', 'vcs_8k_uasw.c26',  undef,               2, 1, 0,  8192],
-   ['0FA0', 'vcs_8k_0fa0.c26',  undef,               2, 1, 0,  8192],
-   ['E0',   'vcs_8k_e0.c26',    undef,              8, 0, 0,  8192],
-   ['FE',   'vcs_8k_fe.c26',    undef,    2, 0, 0,  8192],
-   ['WD',   'vcs_8k_wd.c26',    undef,    8, 0, 0,  8192],
-   ['3F',   'vcs_8k_3f.c26',    undef,    4, 0, 0,  8192],
-   ['3E',   'vcs_8k_3e.c26',    undef,    4, 0, 0,  8192],
-   ['F6',   'vcs_16k_f6.c26',   'vcs_16k_f6.cfg',   4, 1, 0, 16384],
-   ['JANE', 'vcs_16k_jane.c26', undef,               4, 1, 0, 16384],
-   ['F4',   'vcs_32k_f4.c26',   'vcs_32k_f4.cfg',   8, 1, 0, 32768],
-   ['FA',   'vcs_12k_fa.c26',    'vcs_12k_fa.cfg',    3, 1, 0, 12288],
-   ['FA2',  'vcs_28k_fa2.c26',   undef,                7, 1, 0, 28672],
-   ['F8SC', 'vcs_8k_f8sc.c26',  'vcs_8k_f8sc.cfg',  2, 1, 1,  8192],
-   ['F6SC', 'vcs_16k_f6sc.c26', 'vcs_16k_f6sc.cfg', 4, 1, 1, 16384],
-   ['F4SC', 'vcs_32k_f4sc.c26', 'vcs_32k_f4sc.cfg', 8, 1, 1, 32768],
-   ['OMNI', 'vcs_omni_32k.c26', undef,              8, 0, 0, 32768],
+   ['2K',   '2K/mapper.c26',       undef,              1, 0, 0,  2048],
+   ['CV',   'CV/mapper.c26',    'CV/mapper.cfg',    1, 0, 0,  2048],
+   ['4K',   '4K/mapper.c26',       '4K/mapper.cfg',       1, 0, 0,  4096],
+   ['4KSC', '4KSC/mapper.c26',    undef,              1, 0, 1,  4096],
+   ['F8',   'F8/mapper.c26',    'F8/mapper.cfg',    2, 1, 0,  8192],
+   ['0840', '0840/mapper.c26',  undef,               2, 1, 0,  8192],
+   ['UA',   'UA/mapper.c26',    undef,               2, 1, 0,  8192],
+   ['UASW', 'UASW/mapper.c26',  undef,               2, 1, 0,  8192],
+   ['0FA0', '0FA0/mapper.c26',  undef,               2, 1, 0,  8192],
+   ['E0',   'E0/mapper.c26',    undef,              8, 0, 0,  8192],
+   ['FE',   'FE/mapper.c26',    undef,    2, 0, 0,  8192],
+   ['WD',   'WD/mapper.c26',    undef,    8, 0, 0,  8192],
+   ['3F',   '3F/mapper_8k.c26',    undef,    4, 0, 0,  8192],
+   ['3E',   '3E/mapper_8k.c26',    undef,    4, 0, 0,  8192],
+   ['F6',   'F6/mapper.c26',   'F6/mapper.cfg',   4, 1, 0, 16384],
+   ['JANE', 'JANE/mapper.c26', undef,               4, 1, 0, 16384],
+   ['F4',   'F4/mapper.c26',   'F4/mapper.cfg',   8, 1, 0, 32768],
+   ['FA',   'FA/mapper.c26',    'FA/mapper.cfg',    3, 1, 0, 12288],
+   ['FA2',  'FA2/mapper_28k.c26',   undef,                7, 1, 0, 28672],
+   ['F8SC', 'F8SC/mapper.c26',  'F8SC/mapper.cfg',  2, 1, 1,  8192],
+   ['F6SC', 'F6SC/mapper.c26', 'F6SC/mapper.cfg', 4, 1, 1, 16384],
+   ['F4SC', 'F4SC/mapper.c26', 'F4SC/mapper.cfg', 8, 1, 1, 32768],
+   ['OMNI', 'OMNI/mapper.c26', undef,              8, 0, 0, 32768],
 );
 
 -f $generic_cfg or die "generic VCS compatibility cfg is missing\n";
@@ -87,7 +87,7 @@ for my $p (@profiles) {
    $selectors==($selector ? $banks : 0)
       or die "$profile_name selector count is wrong\n";
    if ($sc) {
-      $text =~ /include\s+"superchip\.c26"/ &&
+      $text =~ /include\s+"4KSC\/ram\.c26"/ &&
       $text =~ /\$image_offset:0x0100/ &&
       $text =~ /\$cpu_start:0xf100/
          or die "$profile_name does not encode the Superchip prefix and shared RAM profile\n";
@@ -99,7 +99,7 @@ for my $p (@profiles) {
             or die "$profile_name banked SC ROM size is wrong\n";
       }
    } else {
-      $text !~ /include\s+"superchip\.c26"/
+      $text !~ /include\s+"4KSC\/ram\.c26"/
          or die "$profile_name unexpectedly includes Superchip memory\n";
    }
 
@@ -187,7 +187,7 @@ for my $p (@profiles) {
       }
    }
    if ($name eq 'CV') {
-      $text =~ /include\s+"commavid\.c26"/ &&
+      $text =~ /include\s+"CV\/ram\.c26"/ &&
       $text =~ /\$image_size:0x0800/ &&
       $text =~ /\$cpu_start:0xf800/
          or die "CV profile does not encode the fixed 2K ROM shape\n";
@@ -290,7 +290,7 @@ for my $p (@profiles) {
          or die "JANE profile does not preserve its physical bank order/selectors/startup bank\n";
    }
    if ($name eq 'FA2') {
-      $text =~ /include\s+"fa_ram_plus\.c26"/ &&
+      $text =~ /include\s+"FA\/ram\.c26"/ &&
       $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$image_offset:0x0200.*?\$select_access:0x1ff5\s+\$startup/s &&
       $text =~ /bank\s+bank6\s*\{.*?\$file_index:6.*?\$select_access:0x1ffb/s
          or die "FA2 profile does not encode six/seven-bank RAM-port topology\n";
@@ -303,7 +303,7 @@ for my $p (@profiles) {
       }
    }
    if ($name eq 'FA') {
-      $text =~ /include\s+"fa_ram_plus\.c26"/ &&
+      $text =~ /include\s+"FA\/ram\.c26"/ &&
       $text =~ /\$image_offset:0x0200/ &&
       $text =~ /\$cpu_start:0xf200/ &&
       $text =~ /\$size:0x0d00/
@@ -323,7 +323,7 @@ my $default_bin=File::Spec->catfile($tmp,'default.bin');
 my $explicit_bin=File::Spec->catfile($tmp,'explicit4k.bin');
 require_ok('build implicit default 4K profile',$driver,'-I',$vcs,$blank,'-o',$default_bin);
 require_ok('build explicit default 4K profile',$driver,'-I',$vcs,
-   '-T',$generic_cfg,File::Spec->catfile($vcs,'vcs_4k.c26'),$blank,'-o',$explicit_bin);
+   '-T',$generic_cfg,File::Spec->catfile($vcs,'4K/mapper.c26'),$blank,'-o',$explicit_bin);
 read_file($default_bin) eq read_file($explicit_bin)
    or die "implicit and explicit 4K C26 profile builds differ\n";
 

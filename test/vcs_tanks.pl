@@ -46,7 +46,7 @@ $s =~ /TANKS_FIRE_SOUND_FRAMES := 4/ && $s =~ /TANKS_HIT_SOUND_FRAMES := 24/ &&
 $s =~ /AUDC1 := MUSIC_CONTROL_LOW_BASS/ && $s =~ /AUDF1 := TANKS_ENGINE_FREQ/ &&
 $s =~ /AUDV1 := TANKS_ENGINE_VOLUME/ && $s =~ /TANKS_ENGINE_VOLUME := 2/
    or die "Tanks lost fire\/hit effects or low-volume engine growl\n";
-$s =~ /include "vcs_8k_f8sc\.c26"/ && $s =~ /cartram uint8_t tanks_barrier_pf2\[86\]/ &&
+$s =~ /include "F8SC\/mapper\.c26"/ && $s =~ /cartram uint8_t tanks_barrier_pf2\[86\]/ &&
 $s !~ /\bbank[0-9]+\b/ &&
 $s =~ /tanks_barrier_masks\[8\].*?0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80/s &&
 $s =~ /asm lda\.ax tanks_barrier_pf2,x/ && $s =~ /asm sta PF2/ &&

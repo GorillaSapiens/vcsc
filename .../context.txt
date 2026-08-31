@@ -97,11 +97,14 @@ Open workstreams
 
 3. **Bankswitching**
    `.../bankswitching.txt` contains the durable cartridge model plus unfinished
-   mapper work. Inline-target JSR is complete for F8/F6/F4(+SC), FA, DPC,
+   mapper work. Public mapper support lives under uppercase Stella-named
+   `libraries/vcs/<MAPPER>/` directories (for example `F8SC/mapper.c26`);
+   mapper-specific C26/CFG/S26 helpers stay inside that namespace.
+   Inline-target JSR is complete for F8/F6/F4(+SC), FA, DPC,
    and FA2. `$inline_bankcall` / `VCSC_INLINE_BANKCALL` emits five-byte
    JSR+target bundles with no per-target JSR entries. F8-style selectors (also
-   DPC) use the maintained 80-byte `libraries/vcs/inline_bankcall.s26`; FA2 uses
-   its 84-byte `libraries/vcs/fa2/inline_bankcall.s26` because selector order is
+   DPC) use the maintained 80-byte `libraries/vcs/F8/inline_bankcall.s26`; FA2 uses
+   its 84-byte `libraries/vcs/FA2/inline_bankcall.s26` because selector order is
    reversed. Stacked logical PCs identify return banks; page/bank-edge tests lock
    carry-correct behavior. Next migration: **JANE -> 0840 -> UA/UASW -> 0FA0**;
    then new mapper work is **FC -> F0**. Read the focused file first.
@@ -189,7 +192,7 @@ normal runner after raising only its timeout to 90 seconds. Coverage remains all
 
 Bankswitching Items 42 FE/SCABS and 43 WD are complete. FE's public topology,
 delayed `$01FE` model, direct top-level JSR/RTS idiom, and Stella diagnostic
-remain covered by `test/vcs_fe.pl`. WD now has public `vcs_8k_wd` topology/cfg,
+remain covered by `test/vcs_fe.pl`. WD now has public `WD/mapper.c26` topology/cfg,
 linker validation, delayed arrangement selection in `vcsc-sim`, 64-byte split
 RAM, exact disassembly, and a Stella-visible PASS/WD diagnostic covered by
 `test/vcs_wd.pl`. WD ordinary TIA I/O is bound through `$40-$7F`, and frame

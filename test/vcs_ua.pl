@@ -69,13 +69,13 @@ $mk =~ /^\s*stella\s+-bs\s+UASW\s+uasw_diagnostic\.bin\s*$/m
 
 my @variants=(
    {
-      name=>'ua', mapper=>'UA', profile=>'vcs_8k_ua.c26', cfg=>'vcs_8k_ua.cfg',
+      name=>'ua', mapper=>'UA', profile=>'UA/mapper.c26', cfg=>'UA/mapper.cfg',
       source=>'ua_diagnostic.c26', signature=>"UA\0\0",
       bank0=>0x0220, bank1=>0x0240, alias0=>0x02A0, alias1=>0x02C0,
       selector_comment=>qr/^; UA selectors: \(A & \$1260\)==\$0220->\$0, ==\$0240->\$1; aliases include \$02A0\/\$02C0; bank 0 powers up$/m,
    },
    {
-      name=>'uasw', mapper=>'UASW', profile=>'vcs_8k_uasw.c26', cfg=>'vcs_8k_uasw.cfg',
+      name=>'uasw', mapper=>'UASW', profile=>'UASW/mapper.c26', cfg=>'UASW/mapper.cfg',
       source=>'uasw_diagnostic.c26', signature=>'UASW',
       bank0=>0x0240, bank1=>0x0220, alias0=>0x02C0, alias1=>0x02A0,
       selector_comment=>qr/^; UASW selectors: UA alias decoder with swapped association \(\$0220->\$1, \$0240->\$0\); bank 0 powers up$/m,

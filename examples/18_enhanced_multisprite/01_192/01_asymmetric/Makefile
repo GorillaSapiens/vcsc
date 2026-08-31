@@ -12,7 +12,7 @@ STARTUP := enhanced_multisprite_192_asymmetric_startup.s26
 all: $(TARGET)
 
 $(TARGET): $(SOURCE) $(STARTUP) $(COMMON) \
-           $(VCS_DIR)/vcs_4k.c26 \
+           $(VCS_DIR)/4K/mapper.c26 \
            $(VCS_DIR)/vcs.c26 \
            $(VCS_DIR)/frame_ntsc.c26 \
            $(VCS_DIR)/color_ntsc.c26 \

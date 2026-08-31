@@ -4,7 +4,7 @@
 // hexadecimal P0/P1 glyph, counterclockwise decrements it, and the fire button
 // changes that side from white to red only while held.
 
-include "vcs_4k.c26"
+include "4K/mapper.c26"
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
 include "fonts/big_hex.c26"

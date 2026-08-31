@@ -55,7 +55,7 @@ $tmp=abs_path($tmp) // die "could not resolve tmp\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $simcfg=File::Spec->catfile($vcs,'vcs_8k_f8.cfg');
+my $simcfg=File::Spec->catfile($vcs,'F8/mapper.cfg');
 
 for my $case (
    [within_page=>0xD0F0, 'five-byte call bundle remains within one page'],

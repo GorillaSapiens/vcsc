@@ -5,7 +5,7 @@
 // F8 program banks in both ordered call directions, checks every display byte
 // through a DPC data fetcher, and checks all 255 states produced by the DPC RNG
 // after reset.
-include "vcs_10k_dpc.c26"
+include "DPC/mapper.c26"
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"

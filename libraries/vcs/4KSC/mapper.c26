@@ -1,7 +1,7 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
 include "vcs.c26"
-include "superchip.c26"
+include "4KSC/ram.c26"
 
 // Atari 2600 4KSC: one directly mapped 4K physical ROM plus the standard
 // shared 128-byte Superchip RAM. The $F000-$F07F write port and

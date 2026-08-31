@@ -51,29 +51,29 @@ my @examples;
 sub profile_from_source {
    my($source)=@_;
    my $text=read_file($source);
-   return '2k' if $text =~ /^\s*include\s+"vcs_2k\.c26"\s*$/m;
-   return 'cv' if $text =~ /^\s*include\s+"vcs_2k_cv\.c26"\s*$/m;
-   return '4ksc' if $text =~ /^\s*include\s+"vcs_4k_sc\.c26"\s*$/m;
-   return 'f8' if $text =~ /^\s*include\s+"vcs_8k_f8\.c26"\s*$/m;
-   return '0840' if $text =~ /^\s*include\s+"vcs_8k_0840\.c26"\s*$/m;
-   return 'ua' if $text =~ /^\s*include\s+"vcs_8k_ua\.c26"\s*$/m;
-   return 'uasw' if $text =~ /^\s*include\s+"vcs_8k_uasw\.c26"\s*$/m;
-   return '0fa0' if $text =~ /^\s*include\s+"vcs_8k_0fa0\.c26"\s*$/m;
-   return 'e0' if $text =~ /^\s*include\s+"vcs_8k_e0\.c26"\s*$/m;
-   return 'fe' if $text =~ /^\s*include\s+"vcs_8k_fe\.c26"\s*$/m;
-   return 'wd' if $text =~ /^\s*include\s+"vcs_8k_wd\.c26"\s*$/m;
-   return '3f' if $text =~ /^\s*include\s+"vcs_8k_3f\.c26"\s*$/m;
-   return '3e' if $text =~ /^\s*include\s+"vcs_8k_3e\.c26"\s*$/m;
-   return 'dpc' if $text =~ /^\s*include\s+"vcs_10k_dpc\.c26"\s*$/m;
-   return 'f8sc' if $text =~ /^\s*include\s+"vcs_8k_f8sc\.c26"\s*$/m;
-   return 'f6' if $text =~ /^\s*include\s+"vcs_16k_f6\.c26"\s*$/m;
-   return 'f6sc' if $text =~ /^\s*include\s+"vcs_16k_f6sc\.c26"\s*$/m;
-   return 'f4' if $text =~ /^\s*include\s+"vcs_32k_f4\.c26"\s*$/m;
-   return 'f4sc' if $text =~ /^\s*include\s+"vcs_32k_f4sc\.c26"\s*$/m;
-   return 'fa' if $text =~ /^\s*include\s+"vcs_12k_fa\.c26"\s*$/m;
-   return 'fa2' if $text =~ /^\s*include\s+"vcs_28k_fa2\.c26"\s*$/m;
-   return 'omni' if $text =~ /^\s*include\s+"vcs_omni_32k\.c26"\s*$/m;
-   return 'jane' if $text =~ /^\s*include\s+"vcs_16k_jane\.c26"\s*$/m;
+   return '2k' if $text =~ /^\s*include\s+"2K\/mapper\.c26"\s*$/m;
+   return 'cv' if $text =~ /^\s*include\s+"CV\/mapper\.c26"\s*$/m;
+   return '4ksc' if $text =~ /^\s*include\s+"4KSC\/mapper\.c26"\s*$/m;
+   return 'f8' if $text =~ /^\s*include\s+"F8\/mapper\.c26"\s*$/m;
+   return '0840' if $text =~ /^\s*include\s+"0840\/mapper\.c26"\s*$/m;
+   return 'ua' if $text =~ /^\s*include\s+"UA\/mapper\.c26"\s*$/m;
+   return 'uasw' if $text =~ /^\s*include\s+"UASW\/mapper\.c26"\s*$/m;
+   return '0fa0' if $text =~ /^\s*include\s+"0FA0\/mapper\.c26"\s*$/m;
+   return 'e0' if $text =~ /^\s*include\s+"E0\/mapper\.c26"\s*$/m;
+   return 'fe' if $text =~ /^\s*include\s+"FE\/mapper\.c26"\s*$/m;
+   return 'wd' if $text =~ /^\s*include\s+"WD\/mapper\.c26"\s*$/m;
+   return '3f' if $text =~ /^\s*include\s+"3F\/mapper_8k\.c26"\s*$/m;
+   return '3e' if $text =~ /^\s*include\s+"3E\/mapper_8k\.c26"\s*$/m;
+   return 'dpc' if $text =~ /^\s*include\s+"DPC\/mapper\.c26"\s*$/m;
+   return 'f8sc' if $text =~ /^\s*include\s+"F8SC\/mapper\.c26"\s*$/m;
+   return 'f6' if $text =~ /^\s*include\s+"F6\/mapper\.c26"\s*$/m;
+   return 'f6sc' if $text =~ /^\s*include\s+"F6SC\/mapper\.c26"\s*$/m;
+   return 'f4' if $text =~ /^\s*include\s+"F4\/mapper\.c26"\s*$/m;
+   return 'f4sc' if $text =~ /^\s*include\s+"F4SC\/mapper\.c26"\s*$/m;
+   return 'fa' if $text =~ /^\s*include\s+"FA\/mapper\.c26"\s*$/m;
+   return 'fa2' if $text =~ /^\s*include\s+"FA2\/mapper_28k\.c26"\s*$/m;
+   return 'omni' if $text =~ /^\s*include\s+"OMNI\/mapper\.c26"\s*$/m;
+   return 'jane' if $text =~ /^\s*include\s+"JANE\/mapper\.c26"\s*$/m;
    return '4k';
 }
 my @example_sources;
@@ -148,7 +148,7 @@ for my $entry (@examples) {
    } elsif ($profile eq '2k') {
       push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
    } elsif ($profile eq 'f8') {
-      push @extra,'-T',File::Spec->catfile($vcs,'vcs_8k_f8.cfg');
+      push @extra,'-T',File::Spec->catfile($vcs,'F8/mapper.cfg');
    } elsif ($profile eq 'cv' || $profile eq '4ksc' || $profile eq 'f8sc' || $profile eq 'f6' || $profile eq 'f6sc' || $profile eq 'f4' || $profile eq 'f4sc' || $profile eq 'fa' || $profile eq 'fa2' || $profile eq 'omni' || $profile eq 'jane' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq 'fe' || $profile eq 'wd' || $profile eq '3f' || $profile eq '3e' || $profile eq 'dpc') {
       # C26 owns the 4KSC/F8SC/FA cartridge and cartridge-RAM topology; the generic cfg
       # only reserves the RIOT hardware stack, matching the public Makefiles.

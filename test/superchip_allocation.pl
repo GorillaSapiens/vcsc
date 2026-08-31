@@ -68,7 +68,7 @@ sub source_for_profile {
    my @seed = map { sprintf('0x%02x', 0x10 + $_) } 0 .. 15;
    my $src = <<'HEAD';
 include "vcs.c26"
-include "superchip.c26"
+include "4KSC/ram.c26"
 
 HEAD
    for my $bank (0 .. $banks - 1) {
@@ -130,9 +130,9 @@ my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $sim = File::Spec->catfile($repo, 'simulator', 'vcsc-sim');
 my $vcs = File::Spec->catdir($repo, 'libraries', 'vcs');
 my @profiles = (
-   ['F8SC', 2, 'vcs_8k_f8sc.cfg'],
-   ['F6SC', 4, 'vcs_16k_f6sc.cfg'],
-   ['F4SC', 8, 'vcs_32k_f4sc.cfg'],
+   ['F8SC', 2, 'F8SC/mapper.cfg'],
+   ['F6SC', 4, 'F6SC/mapper.cfg'],
+   ['F4SC', 8, 'F4SC/mapper.cfg'],
 );
 
 for my $profile (@profiles) {
@@ -207,11 +207,11 @@ for my $profile (@profiles) {
 my $probe_src = File::Spec->catfile($tmp, 'split_cfg_probe.c26');
 write_file($probe_src, <<'PROBE');
 include "vcs.c26"
-include "superchip.c26"
+include "4KSC/ram.c26"
 cartram uint8_t probe;
 void main(void) { probe := 1; while (1) {} }
 PROBE
-my $base_cfg = read_file(File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg'));
+my $base_cfg = read_file(File::Spec->catfile($vcs, 'F8SC/mapper.cfg'));
 my @mismatches = (
    ['read_start', sub { my $x = shift; $x =~ s/(cartram:\s+(?:start|read_start)\s*=\s*)\$F080/$1\$F081/i or die "cannot mutate read_start\n"; return $x; }],
    ['write_start', sub { my $x = shift; $x =~ s/(cartram:.*?write_start\s*=\s*)\$F000/$1\$F001/i or die "cannot mutate write_start\n"; return $x; }],
@@ -220,7 +220,7 @@ my @mismatches = (
 );
 my $probe_baseline = File::Spec->catfile($tmp, 'split_baseline.bin');
 my ($base_rc, $base_sig, $base_out, $base_err) = run_capture(
-   $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg'),
+   $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'F8SC/mapper.cfg'),
    $probe_src, '-o', $probe_baseline);
 $base_rc == 0 && !$base_sig
    or die "authoritative Superchip baseline failed\n$base_out\n$base_err";
@@ -242,14 +242,14 @@ for my $case (@mismatches) {
 my $overflow_src = File::Spec->catfile($tmp, 'split_overflow.c26');
 write_file($overflow_src, <<'OVERFLOW');
 include "vcs.c26"
-include "superchip.c26"
+include "4KSC/ram.c26"
 cartram uint8_t fits[128];
 cartram uint8_t spill;
 void main(void) { while (1) {} }
 OVERFLOW
 for my $attempt (1 .. 2) {
    my ($rc, $sig, $out, $err) = run_capture(
-      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'vcs_8k_f8sc.cfg'),
+      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'F8SC/mapper.cfg'),
       $overflow_src, '-o', File::Spec->catfile($tmp, "split_overflow_$attempt.bin"));
    $rc != 0 && !$sig or die "Superchip overflow attempt $attempt unexpectedly linked\n$out\n$err";
    $err =~ /cartram overflow while placing BSS\.cartram\.__vcsc_object\$spill\b.*\bin cartram\b/s

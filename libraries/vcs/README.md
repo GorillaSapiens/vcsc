@@ -13,31 +13,33 @@ This directory contains target support files for the Atari 2600 / VCS.
 
 Files:
 
+Cartridge profiles live under mapper-named subdirectories. Directory names use Stella mapper names in uppercase and avoid punctuation so source can select a profile with an include such as `include "F8SC/mapper.c26"`. Mappers with more than one supported image size use size-qualified mapper filenames.
+
 - `vcs.c26` ... VCS machine definition with types, memory regions, and hardware includes
 - `tia.c26` ... TIA hardware register bindings
 - `riot.c26` ... RIOT I/O and timer register bindings plus RIOT RAM region names
 - `vcs.cfg` ... reduced operational linker policy shared by C26 cartridge profiles
-- `vcs_2k.c26` ... conventional unbanked 2K topology mapped at `$F800-$FFFF`
-- `vcs_2k_cv.c26`, `commavid.c26` ... CommaVid CV fixed 2K ROM plus shared 1K split-address cartridge RAM; `vcs_2k_cv.cfg` supplies simulator/compatibility mapping
-- `vcs_4k.c26` ... conventional unbanked 4K topology and allocatable ROM
-- `vcs_8k_f8.c26`, `vcs_16k_f6.c26`, `vcs_32k_f4.c26` ... inspectable selector-controlled C26 profiles with exact output order and generated corridors
-- `inline_bankcall.s26` ... maintained 6507 source for the normal/F8-style fixed inline-target cross-bank JSR/RTS trampoline; DPC reuses this selector geometry
-- `fa2/inline_bankcall.s26` ... FA2-specific maintained trampoline source; same stack/inline-target ABI with reversed selector indexing for `$1FF5-$1FFB`
-- `vcs_8k_0840.c26` ... 0840/EconoBanking two-bank 8K profile with below-cartridge selectors `$0800/$0840`; `vcs_8k_0840.cfg` supplies simulator-only masked selector semantics
-- `vcs_8k_ua.c26`, `vcs_8k_uasw.c26` ... UA Limited 8K alias-decoded profiles; UA maps `$0220`-family accesses to bank 0 and `$0240`-family accesses to bank 1, while UASW swaps that association; their cfg files supply simulator-only masked selector semantics
-- `vcs_8k_0fa0.c26` ... Brazilian Fotomania 0FA0 two-bank 8K profile; `(A & $16E0)==$06A0/$06C0` selects physical bank 0/1, physical bank 1 powers up, and `vcs_8k_0fa0.cfg` supplies simulator metadata
-- `vcs_8k_e0.c26` ... Parker Brothers E0 eight-by-1K segmented profile; three independent selectable 1K windows plus fixed physical bank 7, with `vcs_8k_e0.cfg` supplying simulator mapping
-- `vcs_8k_fe.c26` ... FE/SCABS two-bank 8K profile; physical bank 0 starts at `$F000`, physical bank 1 maps at `$D000`, and mirrored `$01FE` arms the one-cycle-delayed data-bus bank latch; `vcs_8k_fe.cfg` supplies simulator metadata
-- `vcs_10k_dpc.c26` ... DPC profile: two F8-style 4K program banks plus a 2K `$data_only` display bank and 255-byte `$data_only` Poly8 bank; `dpc.c26` exposes the register window and `vcs_10k_dpc.cfg` supplies simulator metadata
-- `vcs_8k_3f.c26`, `vcs_16k_3f.c26` ... classic 3F selectable-lower-2K/fixed-final-2K profiles; they automatically bind ordinary TIA accesses through the `$40-$7F` mirror while `$00-$3F` remains available to the mapper
-- `vcs_8k_3e.c26`, `vcs_16k_3e.c26` ... classic 3E ROM/RAM extension of the same 2K-window family, with 32 1K RAM banks and simulator cfgs for both public sizes
-- `vcs_16k_jane.c26` ... JANE four-bank 16K profile preserving physical selectors `$1FF0/$1FF1/$1FF8/$1FF9` and hardware startup in physical bank 1; `vcs_16k_jane.cfg` supplies simulator-only physical-file mapping
-- `vcs_12k_fa.c26`, `fa_ram_plus.c26` ... CBS FA/RAM Plus three-bank profile with physical startup bank 2 and shared 256-byte split-address cartridge RAM
-- `vcs_24k_fa2.c26`, `vcs_28k_fa2.c26` ... FA2 six/seven-bank profiles with direct selectors `$1FF5-$1FFA/$1FFB`, physical startup bank 0, and the same shared 256-byte split-address cartridge RAM; matching cfg files support simulation. VCSC emits clean 24K/28K payloads; optional Harmony `$1FF4` persistence and 29K/32K wrapper forms are not part of the core profile.
-- `vcs_4k_sc.c26`, `vcs_8k_f8sc.c26`, `vcs_16k_f6sc.c26`, `vcs_32k_f4sc.c26` ... direct/banked Superchip profiles with a reserved physical prefix and shared split-address RAM
+- `2K/mapper.c26` ... conventional unbanked 2K topology mapped at `$F800-$FFFF`
+- `CV/mapper.c26`, `CV/ram.c26` ... CommaVid CV fixed 2K ROM plus shared 1K split-address cartridge RAM; `CV/mapper.cfg` supplies simulator/compatibility mapping
+- `4K/mapper.c26` ... conventional unbanked 4K topology and allocatable ROM
+- `F8/mapper.c26`, `F6/mapper.c26`, `F4/mapper.c26` ... inspectable selector-controlled C26 profiles with exact output order and generated corridors
+- `F8/inline_bankcall.s26` ... maintained 6507 source for the normal/F8-style fixed inline-target cross-bank JSR/RTS trampoline; DPC reuses this selector geometry
+- `FA2/inline_bankcall.s26` ... FA2-specific maintained trampoline source; same stack/inline-target ABI with reversed selector indexing for `$1FF5-$1FFB`
+- `0840/mapper.c26` ... 0840/EconoBanking two-bank 8K profile with below-cartridge selectors `$0800/$0840`; `0840/mapper.cfg` supplies simulator-only masked selector semantics
+- `UA/mapper.c26`, `UASW/mapper.c26` ... UA Limited 8K alias-decoded profiles; UA maps `$0220`-family accesses to bank 0 and `$0240`-family accesses to bank 1, while UASW swaps that association; their cfg files supply simulator-only masked selector semantics
+- `0FA0/mapper.c26` ... Brazilian Fotomania 0FA0 two-bank 8K profile; `(A & $16E0)==$06A0/$06C0` selects physical bank 0/1, physical bank 1 powers up, and `0FA0/mapper.cfg` supplies simulator metadata
+- `E0/mapper.c26` ... Parker Brothers E0 eight-by-1K segmented profile; three independent selectable 1K windows plus fixed physical bank 7, with `E0/mapper.cfg` supplying simulator mapping
+- `FE/mapper.c26` ... FE/SCABS two-bank 8K profile; physical bank 0 starts at `$F000`, physical bank 1 maps at `$D000`, and mirrored `$01FE` arms the one-cycle-delayed data-bus bank latch; `FE/mapper.cfg` supplies simulator metadata
+- `DPC/mapper.c26` ... DPC profile: two F8-style 4K program banks plus a 2K `$data_only` display bank and 255-byte `$data_only` Poly8 bank; `DPC/registers.c26` exposes the register window and `DPC/mapper.cfg` supplies simulator metadata
+- `3F/mapper_8k.c26`, `3F/mapper_16k.c26` ... classic 3F selectable-lower-2K/fixed-final-2K profiles; they automatically bind ordinary TIA accesses through the `$40-$7F` mirror while `$00-$3F` remains available to the mapper
+- `3E/mapper_8k.c26`, `3E/mapper_16k.c26` ... classic 3E ROM/RAM extension of the same 2K-window family, with 32 1K RAM banks and simulator cfgs for both public sizes
+- `JANE/mapper.c26` ... JANE four-bank 16K profile preserving physical selectors `$1FF0/$1FF1/$1FF8/$1FF9` and hardware startup in physical bank 1; `JANE/mapper.cfg` supplies simulator-only physical-file mapping
+- `FA/mapper.c26`, `FA/ram.c26` ... CBS FA/RAM Plus three-bank profile with physical startup bank 2 and shared 256-byte split-address cartridge RAM
+- `FA2/mapper_24k.c26`, `FA2/mapper_28k.c26` ... FA2 six/seven-bank profiles with direct selectors `$1FF5-$1FFA/$1FFB`, physical startup bank 0, and the same shared 256-byte split-address cartridge RAM; matching cfg files support simulation. VCSC emits clean 24K/28K payloads; optional Harmony `$1FF4` persistence and 29K/32K wrapper forms are not part of the core profile.
+- `4KSC/mapper.c26`, `F8SC/mapper.c26`, `F6SC/mapper.c26`, `F4SC/mapper.c26` ... direct/banked Superchip profiles with a reserved physical prefix and shared split-address RAM
 - `vcs_direct_8k.c26` ... generic two-chunk directly mapped packaging profile used to certify selector-free output; no real hardware currently implements this exact mapping
-- `vcs_omni_32k.c26` ... OmniCart/OMNI direct-addressing profile: seven directly addressed 4K RO islands plus one 4K RW island at `$1000`; `vcs_omni_32k.cfg` gives `vcsc-sim` the matching selector-free logical layout; no real hardware currently implements OMNI
-- `vcs_*.cfg` ... retained legacy profile descriptions for simulator input and compatibility/differential certification; public builds use the C26 profiles
+- `OMNI/mapper.c26` ... OmniCart/OMNI direct-addressing profile: seven directly addressed 4K RO islands plus one 4K RW island at `$1000`; `OMNI/mapper.cfg` gives `vcsc-sim` the matching selector-free logical layout; no real hardware currently implements OMNI
+- `*/mapper*.cfg` ... retained profile descriptions for simulator input and compatibility/differential certification; public builds use the C26 profiles
 - `color_ntsc.c26`, `color_pal.c26`, `color_secam.c26` ... readable standard-specific aliases backed by the compile-time RGB palette matchers
 - `frame_ntsc.c26` ... shared NTSC phase constants, scanline waiting, VSYNC, and scheduler-owned VBLANK/overscan deadlines
 - `frame_pal.c26`, `frame_secam.c26` ... distinct PAL50/SECAM50 public front ends over the shared measured 312-line `frame_50hz_component.c26` scheduler core
@@ -523,18 +525,18 @@ profile as a configuration-only input:
 
 ```sh
 vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
-  libraries/vcs/vcs_8k_f8.c26 source.c26 -o game-f8.bin
+  libraries/vcs/F8/mapper.c26 source.c26 -o game-f8.bin
 vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
-  libraries/vcs/vcs_16k_f6.c26 source.c26 -o game-f6.bin
+  libraries/vcs/F6/mapper.c26 source.c26 -o game-f6.bin
 vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
-  libraries/vcs/vcs_32k_f4.c26 source.c26 -o game-f4.bin
+  libraries/vcs/F4/mapper.c26 source.c26 -o game-f4.bin
 ```
 
 When source uses `bank0`, `bank1`, or another named placement modifier, include
 the profile instead of merely passing it as a separate input:
 
 ```vcsc
-include "vcs_8k_f8.c26"
+include "F8/mapper.c26"
 
 bank1 void remote_code(void) {
    // ...
@@ -603,7 +605,7 @@ Unmarked functions and const objects are placed automatically.  Hard source
 pins use named memory modifiers matching the profile:
 
 ```vcsc
-include "vcs_8k_f8.c26"
+include "F8/mapper.c26"
 
 bank1 void remote_code(void) {
    // ...
@@ -640,11 +642,11 @@ Notes:
 - `vcs.c26` is the easiest entry point for a VCS target. It defines the machine types and memory regions, then includes `tia.c26` and `riot.c26`.
 - Compiled BCD arithmetic scopes decimal mode to the actual `ADC`/`SBC` chain and executes `CLD` afterward. Inline assembly that executes `SED` remains responsible for clearing decimal mode itself.
 - `tia.c26` and `riot.c26` can also be included separately if you already have your own base machine definition.
-- `vcs_2k.c26` describes a 2048-byte cartridge linked at `$F800-$FFFF`, with vectors in its final six bytes; select it explicitly through reduced `vcs.cfg`.
-- `vcs_4k.c26` describes the standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`; the driver compiles it automatically when no `-T` is supplied.
-- The 4KSC, F8/F6/F4, 0840, UA/UASW, 0FA0, E0, FE, WD, DPC, 3F/3E, JANE, FA/RAM Plus, banked SC, and OMNI `.c26` profiles are installed beside `vcs.cfg` and emit exact 4K, 8K, 12K, 16K, and 32K images. Profile-specific cfg files remain installed where needed for compatibility and simulator selection; `vcs_omni_32k.cfg` is simulator-only direct logical placement metadata, not a switched-mapper linker profile.
+- `2K/mapper.c26` describes a 2048-byte cartridge linked at `$F800-$FFFF`, with vectors in its final six bytes; select it explicitly through reduced `vcs.cfg`.
+- `4K/mapper.c26` describes the standard 4K cartridge mapped at `$F000-$FFFF` with vectors at `$FFFA-$FFFF`; the driver compiles it automatically when no `-T` is supplied.
+- The 4KSC, F8/F6/F4, 0840, UA/UASW, 0FA0, E0, FE, WD, DPC, 3F/3E, JANE, FA/RAM Plus, banked SC, and OMNI `.c26` profiles are installed beside `vcs.cfg` and emit exact 4K, 8K, 12K, 16K, and 32K images. Profile-specific cfg files remain installed where needed for compatibility and simulator selection; `OMNI/mapper.cfg` is simulator-only direct logical placement metadata, not a switched-mapper linker profile.
 - Those public mapper profiles stamp only the final physical file chunk at logical `$xFF8-$xFFB` with `4KSC`, `F8\0\0`, `F8SC`, `F6\0\0`, `F6SC`, `F4\0\0`, `F4SC`, `FA\0\0`, `CV\0\0`, `OMNI`, `JANE`, `0840`, `UA\0\0`, `UASW`, `0FA0`, `E0\0\0`, `FE\0\0`, `WD\0\0`, `DPC\0`, `3F\0\0`, or `3E\0\0`. The NUL padding prevents a short mapper name from resembling a plausible NMI-vector address, and the trailing `SC` in `4KSC` also satisfies Stella's 4KSC autodetection convention.
-- `vcsc` discovers `vcs.cfg` and `vcs_4k.c26` in the source tree or installed `share/vcs` directory and uses both by default. Pass `-T vcs.cfg` plus another C26 profile to select a different cartridge layout.
+- `vcsc` discovers `vcs.cfg` and `4K/mapper.c26` in the source tree or installed `share/vcs` directory and uses both by default. Pass `-T vcs.cfg` plus another C26 profile to select a different cartridge layout.
 - The 128 physical RIOT RAM bytes are not double-counted. `vcs.c26` declares the full `$80-$FF` block and reduced `vcs.cfg` asks `vcsc-ld` to reserve the top bytes dynamically from the whole-program source call graph before placing ordinary storage. The page-1 addresses `$0180-$01FF` are mirrors of `$80-$FF`, not separate RAM.
 - Current stack sizing accounts automatically for source-level JSR return addresses; ordinary generated calls push no compiler state. Assembly components use `.callstackextra` object metadata for calls, pushes, or stack-pointer use hidden from the source call graph. C26 renderer templates emit the same assembler directive through inline assembly, including an explicit zero when an audited hidden JSR fits entirely inside the source-call reserve. `player_color_192` now flattens its two single-use mask-preparation wrappers and declares `.callstackextra 0`; the standard and multi-object renderers still declare their measured four supplementary bytes for deeper/repeated helper chains. The standard renderer also exports its assembly-initiated overscan-hook edge. Component code and score-table layouts carry startup-region, page-alignment, private-route, `.pagecontain`, and `.indexrange` facts in the object instead of renderer-specific cfg products. Arbitrary inline-assembly stack use must still be declared explicitly.
 - Example 04 uses one balanced `PHP`/`PLA` pair per probe to read P and verifies that the linked map leaves the byte immediately below the call-stack reserve unused.
@@ -671,8 +673,8 @@ cartram uint8_t state[32];
 
 ### CommaVid CV profile and allocatable RAM
 
-The public `vcs_2k_cv.c26` profile emits one fixed 2K ROM image mapped at
-`$F800-$FFFF`. `commavid.c26` exposes the common `cartram` qualifier as a
+The public `CV/mapper.c26` profile emits one fixed 2K ROM image mapped at
+`$F800-$FFFF`. `CV/ram.c26` exposes the common `cartram` qualifier as a
 1024-byte split-address device: reads use `$F000-$F3FF` and writes use
 `$F400-$F7FF`. There are no selector hotspots or bank-switch states.
 
@@ -686,7 +688,7 @@ the same per-object split-alias copy/zero machinery as Superchip and FA.
 
 ### 0840 / EconoBanking profile
 
-The public `vcs_8k_0840.c26` profile emits two 4K physical banks in file order.
+The public `0840/mapper.c26` profile emits two 4K physical banks in file order.
 Physical bank 0 is the startup/home bank and the canonical selector `$0800`
 selects it; `$0840` selects physical bank 1. Hardware decoding aliases these
 selectors below the cartridge window, so they are bus triggers rather than ROM
@@ -694,14 +696,14 @@ locations. VCSC therefore does not reserve corresponding `$F800/$F840` bytes.
 
 Generated vector bridges and cross-bank stubs use undocumented NMOS absolute NOP
 opcode `$0C` for below-window selector reads. That access preserves registers and
-flags and avoids a write to the mirrored console device. `vcs_8k_0840.cfg` is
+flags and avoids a write to the mirrored console device. `0840/mapper.cfg` is
 simulator-only metadata; `vcsc-sim` models the decoded selector families on both
 reads and writes while allowing the underlying low-memory operation to occur.
 The final physical bank carries the `0840` signature at `$FFF8-$FFFB`.
 
 ### UA / UASW profiles
 
-The public `vcs_8k_ua.c26` and `vcs_8k_uasw.c26` profiles emit two 4K physical
+The public `UA/mapper.c26` and `UASW/mapper.c26` profiles emit two 4K physical
 banks in file order 0/1, with physical bank 0 selected at power-on. UA decodes
 `(A & $1260)==$0220` as bank 0 and `==$0240` as bank 1; UASW uses the same
 alias families with the association reversed. Thus shifted aliases such as
@@ -712,13 +714,13 @@ bridges and cross-bank stubs use undocumented NMOS absolute NOP `$0C` reads,
 preserving registers and flags without writing the mirrored console device. The
 selector side effect does not swallow the underlying low-address transaction:
 reads sample the console byte and writes still reach the console-side model.
-`vcs_8k_ua.cfg` and `vcs_8k_uasw.cfg` provide the matching masked decoder and
+`UA/mapper.cfg` and `UASW/mapper.cfg` provide the matching masked decoder and
 selector-to-file-bank association to `vcsc-sim`. The final bank carries
 `UA\0\0` or `UASW` at `$FFF8-$FFFB`.
 
 ### 0FA0 / Fotomania profile
 
-The public `vcs_8k_0fa0.c26` profile emits two 4K physical banks. Physical/file
+The public `0FA0/mapper.c26` profile emits two 4K physical banks. Physical/file
 bank 1 is the hardware startup bank, so VCSC logical `bank0` is emitted as file
 index 1 and selected through canonical alias `$0FC0`; logical `bank1` is file
 index 0 and selected through `$0FA0`.
@@ -735,7 +737,7 @@ The final physical bank carries the `0FA0` signature at `$FFF8-$FFFB`.
 
 ### Classic 3F and 3E profiles
 
-The public `vcs_8k_3f.c26` / `vcs_16k_3f.c26` profiles expose a selectable lower
+The public `3F/mapper_8k.c26` / `3F/mapper_16k.c26` profiles expose a selectable lower
 2K window at `$1000-$17FF` and a fixed final physical 2K at `$1800-$1FFF`. A
 write in the low TIA page selects the lower 3F ROM bank from the written value.
 Because classic 3F owns those low-page writes, the profile selects
@@ -752,7 +754,7 @@ carries `3F\0\0` or `3E\0\0` metadata and owns RESET/vectors.
 
 ### E0 profile
 
-The public `vcs_8k_e0.c26` profile emits eight physical 1K chunks in file order
+The public `E0/mapper.c26` profile emits eight physical 1K chunks in file order
 0 through 7. E0 exposes three independently selected windows: `$1000-$13FF`
 uses selectors `$1FE0-$1FE7`, `$1400-$17FF` uses `$1FE8-$1FEF`, and
 `$1800-$1BFF` uses `$1FF0-$1FF7`. `$1C00-$1FFF` is always physical bank 7.
@@ -764,7 +766,7 @@ bank has one `$select_access`. Instead each physical chunk receives one unique
 6507-mirrored link alias for a canonical compilation window; explicit source
 that changes E0 mappings performs the corresponding selector access before
 calling or reading code/data in that window. The linker validates the eight 1K
-shape, the aliases, and fixed startup bank 7. `vcs_8k_e0.cfg` supplies the
+shape, the aliases, and fixed startup bank 7. `E0/mapper.cfg` supplies the
 runtime segmented mapping to `vcsc-sim`.
 
 The final physical bank carries `E0\0\0` at `$FFF8-$FFFB`; RESET and IRQ/BRK
@@ -772,7 +774,7 @@ remain in fixed bank 7 at `$FFFC-$FFFF`.
 
 ### DPC profile
 
-The public `vcs_10k_dpc.c26` profile emits the conventional 10,495-byte DPC
+The public `DPC/mapper.c26` profile emits the conventional 10,495-byte DPC
 image as four logical chunks. `bank0` and `bank1` are ordinary F8-style 4K
 program ROM selected by `$1FF9/$1FF8`; because `$1000-$107F` is DPC register
 space, only physical offset `$0080-$0FFF` is CPU-visible program ROM. `bank2` is
@@ -781,7 +783,7 @@ a 2048-byte `$data_only` display-ROM chunk and `bank3` is the conventional
 `$data_bank` and have no CPU address, so ordinary code, pointers, or relocations
 cannot read them directly.
 
-`dpc.c26` declares the DPC register bindings. The diagnostic reads all 2K of
+`DPC/registers.c26` declares the DPC register bindings. The diagnostic reads all 2K of
 display ROM through a hardware data fetcher, verifies an order-sensitive
 checksum and counter wrap, resets the RNG, and checks the complete 255-state
 LFSR cycle. The `DPC\0` signature remains in the last CPU-mapped program bank;
@@ -789,12 +791,12 @@ the later data-only chunks are left byte-exact.
 
 ### FE / SCABS profile
 
-The public `vcs_8k_fe.c26` profile emits two physical 4K chunks in released-cart
+The public `FE/mapper.c26` profile emits two physical 4K chunks in released-cart
 order: physical/file bank 0 is the `$F000-$FFFF` startup view and physical/file
 bank 1 is the `$D000-$DFFF` alternate view. There is no address-select hotspot.
 An access to mirrored `$01FE` arms a latch, and the following bus cycle's data
 selects the physical bank: values with an E/F high nybble select bank 0 and C/D
-select bank 1. `vcs_8k_fe.cfg` gives `vcsc-sim` the matching delayed-bus model.
+select bank 1. `FE/mapper.cfg` gives `vcsc-sim` the matching delayed-bus model.
 
 With the 6507 stack pointer at `$FF`, a top-level `JSR $Dxxx` naturally writes
 the low return byte to `$01FE`; the following target-high fetch selects bank 1.
@@ -813,7 +815,7 @@ sets display state afterward. The final physical bank carries `FE\0\0` at
 
 ### WD / Wickstead Design profile
 
-The public `vcs_8k_wd.c26` profile emits the corrected 8192-byte WD image as
+The public `WD/mapper.c26` profile emits the corrected 8192-byte WD image as
 eight physical 1K chunks in file order 0 through 7. WD maps four 1K segments at
 `$1000-$13FF`, `$1400-$17FF`, `$1800-$1BFF`, and `$1C00-$1FFF`; reads of
 TIA `$30-$3F` select one of eight complete segment arrangements. The new
@@ -829,12 +831,12 @@ at `$30-$3F`, the profile binds ordinary TIA I/O through the equivalent
 which is not a WD selector. VCSC does not synthesize generic WD cross-arrangement
 trampolines: explicitly banked code/data must only execute after program code has
 selected an arrangement that maps that physical chunk into its canonical CPU
-segment. `vcs_8k_wd.cfg` gives `vcsc-sim` the matching arrangement/RAM model.
+segment. `WD/mapper.cfg` gives `vcsc-sim` the matching arrangement/RAM model.
 The final physical chunk carries `WD\0\0` in its reserved tail.
 
 ### JANE profile
 
-The public `vcs_16k_jane.c26` profile emits four complete 4K physical banks in
+The public `JANE/mapper.c26` profile emits four complete 4K physical banks in
 hardware file order. Accesses to `$1FF0`, `$1FF1`, `$1FF8`, and `$1FF9` select
 physical/file banks 0, 1, 2, and 3 respectively. JANE powers up in physical bank
 1; VCSC therefore keeps its conventional logical `bank0` as the startup/home
@@ -848,12 +850,12 @@ common call trampoline remains at `$FF00-$FFDF`. The final file bank carries the
 `JANE` signature at `$FFF8-$FFFB`; bytes stored at `$FFF8/$FFF9` are harmless
 because the address access, not the stored byte, performs selection.
 
-`vcs_16k_jane.cfg` is simulator-only metadata that records the explicit physical
+`JANE/mapper.cfg` is simulator-only metadata that records the explicit physical
 `fileindex` for each logical bank. Public linking is driven by the C26 topology.
 
 ### FA / RAM Plus profile and allocatable RAM
 
-The public `vcs_12k_fa.c26` profile emits three complete 4K physical banks.
+The public `FA/mapper.c26` profile emits three complete 4K physical banks.
 File chunks 0/1/2 are selected by `$1FF8/$1FF9/$1FFA`; hardware power-on bank
 2 is VCSC `bank0`, the startup/home bank and final file chunk. FA cartridge RAM
 hides the first `$200` bytes of every selected bank: writes use `$F000-$F0FF`,
@@ -861,7 +863,7 @@ reads use `$F100-$F1FF`, and ordinary ROM begins at `$F200`. With the common
 trampoline/vector corridor reserved at `$xF00-$xFFF`, each bank has 3328 bytes
 of ordinary allocatable ROM.
 
-`fa_ram_plus.c26` declares the shared device as:
+`FA/ram.c26` declares the shared device as:
 
 ```c
 mem cartram { $read_start:0xF100 $write_start:0xF000 $size:0x0100 $rw };
@@ -873,8 +875,8 @@ bank changes preserve the 256 physical RAM bytes.
 
 ### Superchip profiles and allocatable RAM
 
-The public `vcs_4k_sc.c26`, `vcs_8k_f8sc.c26`, `vcs_16k_f6sc.c26`, and
-`vcs_32k_f4sc.c26` profiles reserve
+The public `4KSC/mapper.c26`, `F8SC/mapper.c26`, `F6SC/mapper.c26`, and
+`F4SC/mapper.c26` profiles reserve
 the first 256 bytes of each physical 4K chunk for the shared 128-byte Superchip
 RAM ports. 4KSC is a single direct chunk with ordinary ROM at `$F100-$FFFF`;
 F8SC/F6SC/F4SC retain their ordinary selector order and begin each selected ROM
@@ -885,7 +887,7 @@ allocated DATA initializer through `$F000-$F07F` on every reset. Mapper switches
 preserve the shared physical bytes; reset intentionally reinitializes them.
 Unallocated bytes have no compiler/runtime lifecycle guarantee.
 
-The SC profiles include `superchip.c26`, whose hardware-specific window definition
+The SC profiles include `4KSC/ram.c26`, whose hardware-specific window definition
 exposes the common `cartram` named region:
 
 ```c

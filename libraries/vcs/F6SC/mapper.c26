@@ -1,7 +1,7 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
 include "vcs.c26"
-include "superchip.c26"
+include "4KSC/ram.c26"
 
 // VCSC cartridge profile. Hardware topology and allocatable bytes are C26 metadata.
 // Names are labels only; addresses and selector properties define behavior.
@@ -10,23 +10,37 @@ cartridge {
 #ifdef VCSC_INLINE_BANKCALL
    $inline_bankcall
 #endif
-   $fill:0xff $signature:F8SC
+   $fill:0xff $signature:F6SC
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012
    $vectors_offset:0x0ffa $vectors_size:0x0006
 };
 
 bank bank0 {
-   $image_size:0x1000 $file_index:1 $image_offset:0x0100
+   $image_size:0x1000 $file_index:3 $image_offset:0x0100
    $link_start:0xf100 $cpu_start:0xf100 $map_size:0x0f00
    $select_access:0x1ff9 $startup
 };
 
 bank bank1 {
-   $image_size:0x1000 $file_index:0 $image_offset:0x0100
+   $image_size:0x1000 $file_index:2 $image_offset:0x0100
    $link_start:0xd100 $cpu_start:0xf100 $map_size:0x0f00
    $select_access:0x1ff8
 };
 
+bank bank2 {
+   $image_size:0x1000 $file_index:1 $image_offset:0x0100
+   $link_start:0xb100 $cpu_start:0xf100 $map_size:0x0f00
+   $select_access:0x1ff7
+};
+
+bank bank3 {
+   $image_size:0x1000 $file_index:0 $image_offset:0x0100
+   $link_start:0x9100 $cpu_start:0xf100 $map_size:0x0f00
+   $select_access:0x1ff6
+};
+
 mem bank0 { $start:0xf100 $size:0x0e00 $ro $priority:2 };
 mem bank1 { $start:0xd100 $size:0x0e00 $ro };
+mem bank2 { $start:0xb100 $size:0x0e00 $ro };
+mem bank3 { $start:0x9100 $size:0x0e00 $ro };

@@ -54,8 +54,8 @@ my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $cfg=File::Spec->catfile($vcs,'vcs.cfg');
-my $profile=File::Spec->catfile($vcs,'vcs_omni_32k.c26');
-my $sim_cfg=File::Spec->catfile($vcs,'vcs_omni_32k.cfg');
+my $profile=File::Spec->catfile($vcs,'OMNI/mapper.c26');
+my $sim_cfg=File::Spec->catfile($vcs,'OMNI/mapper.cfg');
 my $diagnostic=File::Spec->catfile($repo,'examples','09_bankswitching','05_omni','omni_diagnostic.c26');
 
 my $profile_text=read_file($profile);
@@ -70,7 +70,7 @@ $profile_text =~ /mem\s+cartram\s*\{\s*\$start:0x1000\s+\$size:0x1000\s+\$rw\s*\
 
 my $src=File::Spec->catfile($tmp,'omni.c26');
 write_file($src,<<'SRC');
-include "vcs_omni_32k.c26"
+include "OMNI/mapper.c26"
 bank6 const uint8_t marker := 0x42;
 bank6 uint8_t helper(void) { return marker; }
 cartram uint8_t ram_value := 0x5a;
@@ -131,7 +131,7 @@ index($rom,"\xAD\x00\x30")>=0
 # The public diagnostic certifies the complete OMNI contract under the simulator's
 # direct logical-address model. No selector or bank state is involved.
 my $diag_text=read_file($diagnostic);
-$diag_text =~ /include "vcs_omni_32k\.c26"/ &&
+$diag_text =~ /include "OMNI\/mapper\.c26"/ &&
 $diag_text =~ /cartram uint8_t omni_bss\[4095\]/ &&
 $diag_text =~ /load_omni_type\(\)/ &&
 $diag_text =~ /blank \/ O \/ M \/ N \/ I \/ blank/

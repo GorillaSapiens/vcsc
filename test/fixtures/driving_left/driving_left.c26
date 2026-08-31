@@ -1,6 +1,6 @@
 // This fixture is covered under CC0-1.0. See test/LICENSE.txt.
 
-include "vcs_2k.c26"
+include "2K/mapper.c26"
 include "frame_ntsc.c26"
 instantiate "driving_controller.c26" as drive (port:=0)
 

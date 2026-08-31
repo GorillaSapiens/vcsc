@@ -3,7 +3,7 @@
 // Widely spaced six-digit score display built from the reusable lifecycle component.
 // The six 8-pixel glyph origins are X=36,52,68,84,100,116.
 
-include "vcs_2k.c26"
+include "2K/mapper.c26"
 include "frame_ntsc.c26"
 include "fonts/default_decimal.c26"
 

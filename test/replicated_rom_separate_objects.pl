@@ -24,7 +24,7 @@ my $tmp=shift @ARGV//die "usage: $0 REPO TMP\n"; @ARGV and die "usage: $0 REPO T
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $cfg=File::Spec->catfile($vcs,'vcs_8k_f8sc.cfg');
+my $cfg=File::Spec->catfile($vcs,'F8SC/mapper.cfg');
 my $defs=File::Spec->catfile($tmp,'defs.c26');
 my $caller=File::Spec->catfile($tmp,'caller.c26');
 my $bin=File::Spec->catfile($tmp,'separate.bin');
@@ -32,7 +32,7 @@ my $map_path=File::Spec->catfile($tmp,'separate.map');
 
 write_file($defs, <<'SRC');
 include "vcs.c26"
-include "superchip.c26"
+include "4KSC/ram.c26"
 mem bank0 { $start:0xF100 $size:0x0E00 $ro };
 mem bank1 { $start:0xD100 $size:0x0E00 $ro };
 bank0 bank1 const uint8_t shared_table[2] := { 0x12, 0x34 };
@@ -42,7 +42,7 @@ bank1 bank0 cartram uint8_t shared_function(uint8_t index) {
 SRC
 write_file($caller, <<'SRC');
 include "vcs.c26"
-include "superchip.c26"
+include "4KSC/ram.c26"
 mem bank0 { $start:0xF100 $size:0x0E00 $ro };
 mem bank1 { $start:0xD100 $size:0x0E00 $ro };
 extern bank1 bank0 const uint8_t shared_table[2];
