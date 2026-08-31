@@ -158,6 +158,18 @@ struct RawLineMemoryOracle {
    std::vector<RawLineMemoryRule> rules;
 };
 
+// Verify that a TIA register is written at the same CPU-cycle phases on one
+// selected frame-relative scanline. This catches horizontal renderer jitter
+// that a frame-length-only oracle cannot see.
+struct StableTiaWritePhase {
+   uint16_t address = 0;
+   uint64_t line = 0;
+   bool reference[kCyclesPerScanline] = {};
+   bool current[kCyclesPerScanline] = {};
+   bool have_reference = false;
+   size_t checked_frames = 0;
+};
+
 struct SweepZpWrite {
    uint16_t address;
    uint8_t minimum;
@@ -183,6 +195,7 @@ std::vector<ReadMemorySequence> read_memory_sequences;
 std::vector<ExpectedMemory> expected_memory;
 std::vector<ExpectedMemoryEqualRange> expected_memory_equal_ranges;
 RawLineMemoryOracle raw_line_memory_oracle;
+std::vector<StableTiaWritePhase> stable_tia_write_phases;
 std::vector<uint64_t> frame_expected_raw_cycles;
 bool released_inputs = false;
 bool paddle_inputs = false;
@@ -456,6 +469,32 @@ void verify_asymmetric_previous_frame() {
    }
 }
 
+void verify_stable_tia_write_phase_previous_frame() {
+   for (StableTiaWritePhase &rule : stable_tia_write_phases) {
+      if (vsync_assertions.size() >= 3) {
+         if (!rule.have_reference) {
+            for (unsigned phase = 0; phase < kCyclesPerScanline; ++phase)
+               rule.reference[phase] = rule.current[phase];
+            rule.have_reference = true;
+         }
+         else {
+            for (unsigned phase = 0; phase < kCyclesPerScanline; ++phase) {
+               if (rule.reference[phase] == rule.current[phase]) continue;
+               std::fprintf(stderr,
+                  "vcs_frame_timing: TIA $%02x write phases jittered on line %llu at frame %zu (phase %u)\n",
+                  static_cast<unsigned>(rule.address),
+                  static_cast<unsigned long long>(rule.line),
+                  vsync_assertions.size(), phase);
+               std::exit(1);
+            }
+         }
+         ++rule.checked_frames;
+      }
+      for (unsigned phase = 0; phase < kCyclesPerScanline; ++phase)
+         rule.current[phase] = false;
+   }
+}
+
 void apply_writes() {
    for (const WriteEvent &event : writes) {
       // 3F owns writes in $00-$3F.  Treat classic 3E the same way here so
@@ -466,6 +505,15 @@ void apply_writes() {
          (!three_mapper() || event.address >= 0x0040u);
       const uint16_t tia_address = tia_write
          ? static_cast<uint16_t>(event.address & 0x003fu) : event.address;
+      if (tia_write && !vsync_assertions.empty()) {
+         const uint64_t frame_line =
+            (virtual_cycles - vsync_assertions.back()) / kCyclesPerScanline;
+         const unsigned phase = static_cast<unsigned>(virtual_cycles % kCyclesPerScanline);
+         for (StableTiaWritePhase &rule : stable_tia_write_phases) {
+            if (rule.address == tia_address && rule.line == frame_line)
+               rule.current[phase] = true;
+         }
+      }
       if (asymmetric_visibility.enabled && tia_write) {
          if (tia_address == kColup0 || tia_address == kColup1) {
             const unsigned lane = tia_address == kColup1 ? 1u : 0u;
@@ -536,6 +584,7 @@ void apply_writes() {
             vsync_deassertions.push_back(virtual_cycles);
          }
          if (next && !vsync_asserted) {
+            verify_stable_tia_write_phase_previous_frame();
             verify_asymmetric_previous_frame();
             asymmetric_visibility.seen_mask = 0;
             for (unsigned id = 0; id < 6; ++id) {
@@ -659,13 +708,14 @@ void apply_writes() {
 int main(int argc, char **argv) {
    if (argc < 3) {
       std::fprintf(stderr,
-         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--raw-lines-by-memory ADDR VALUE:LINES[,VALUE:LINES...]] [--randomize-zp ADDR COUNT MODULUS SEED]... [--randomize-zp-held ADDR COUNT MODULUS SEED FRAMES]... [--dump-zp ADDR COUNT]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--frame-sequence ADDR VALUE[,VALUE...]]... [--read-sequence ADDR VALUE[,VALUE...]]... [--released-inputs] [--paddle-lines L0,L1,L2,L3] [--expect-memory ADDR VALUE]... [--expect-memory-equal ADDR COUNT]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--verify-asymmetric-glyphs GRAPHICS_ADDR MASK] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--require-stable-first-visible-line MASK] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
+         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--minimum-checked-frames N] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--raw-lines-by-memory ADDR VALUE:LINES[,VALUE:LINES...]] [--randomize-zp ADDR COUNT MODULUS SEED]... [--randomize-zp-held ADDR COUNT MODULUS SEED FRAMES]... [--dump-zp ADDR COUNT]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--frame-sequence ADDR VALUE[,VALUE...]]... [--read-sequence ADDR VALUE[,VALUE...]]... [--released-inputs] [--paddle-lines L0,L1,L2,L3] [--require-stable-tia-write-phase ADDR LINE]... [--expect-memory ADDR VALUE]... [--expect-memory-equal ADDR COUNT]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--verify-asymmetric-glyphs GRAPHICS_ADDR MASK] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--require-stable-first-visible-line MASK] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
          argv[0]);
       return 2;
    }
 
    bool require_audio = true;
    bool require_audio_start_sync = false;
+   size_t minimum_checked_frames_override = 0;
    bool require_audio_retune_muted = false;
    bool require_dual_resp = false;
    bool require_adjacent_resp = false;
@@ -673,6 +723,17 @@ int main(int argc, char **argv) {
    for (int i = 3; i < argc; ++i) {
       if (std::strcmp(argv[i], "--no-audio") == 0) {
          require_audio = false;
+      }
+      else if (std::strcmp(argv[i], "--minimum-checked-frames") == 0) {
+         if (++i >= argc) {
+            fail("--minimum-checked-frames requires a value");
+         }
+         char *parse_end = nullptr;
+         const unsigned long minimum = std::strtoul(argv[i], &parse_end, 10);
+         if (!parse_end || *parse_end != '\0' || minimum < 1) {
+            fail("bad --minimum-checked-frames value");
+         }
+         minimum_checked_frames_override = static_cast<size_t>(minimum);
       }
       else if (std::strcmp(argv[i], "--audio-start-synced") == 0) {
          require_audio_start_sync = true;
@@ -923,6 +984,21 @@ int main(int argc, char **argv) {
          }
          paddle_inputs = true;
       }
+      else if (std::strcmp(argv[i], "--require-stable-tia-write-phase") == 0) {
+         if (i + 2 >= argc) fail("--require-stable-tia-write-phase requires ADDR LINE");
+         char *address_end = nullptr;
+         const unsigned long address = std::strtoul(argv[++i], &address_end, 0);
+         if (!address_end || *address_end != '\0' || address > 0x3f)
+            fail("bad --require-stable-tia-write-phase address");
+         char *line_end = nullptr;
+         const unsigned long line = std::strtoul(argv[++i], &line_end, 0);
+         if (!line_end || *line_end != '\0' || line > 10000)
+            fail("bad --require-stable-tia-write-phase line");
+         StableTiaWritePhase rule;
+         rule.address = static_cast<uint16_t>(address);
+         rule.line = static_cast<uint64_t>(line);
+         stable_tia_write_phases.push_back(rule);
+      }
       else if (std::strcmp(argv[i], "--expect-memory") == 0) {
          if (i + 2 >= argc) {
             fail("--expect-memory requires ADDR VALUE");
@@ -1162,9 +1238,15 @@ int main(int argc, char **argv) {
       ++checked;
    }
 
-   const size_t minimum_checked_frames = require_audio ? 1000 : 40;
+   const size_t minimum_checked_frames = minimum_checked_frames_override != 0
+      ? minimum_checked_frames_override
+      : (require_audio ? 1000 : 40);
    if (checked < minimum_checked_frames) {
       fail("not enough complete frames were checked");
+   }
+   for (const StableTiaWritePhase &rule : stable_tia_write_phases) {
+      if (rule.checked_frames < 2)
+         fail("stable TIA write-phase rule did not observe enough complete frames");
    }
    if (require_audio &&
        (audv0_writes < 64 || !saw_audv0_zero || !saw_audv0_nonzero)) {

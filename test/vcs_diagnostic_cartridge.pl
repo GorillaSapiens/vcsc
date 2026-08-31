@@ -202,9 +202,9 @@ $src =~ /bank4 void diagnostic_driving_vblank\(void\).*?diagnostic_left_drive_be
    or die "diagnostic driving mode lost its once-per-frame VBLANK sample\n";
 $src !~ /diagnostic_driving_overscan/
    or die "diagnostic driving mode must not sample again in overscan\n";
-$src =~ /instantiate "four_paddles\.c26" as diagnostic_paddles.*?diagnostic_text_paddle_sample0.*?diagnostic_paddles_score_commit_latched0\(\).*?diagnostic_text_paddle_sample1.*?diagnostic_paddles_score_commit_latched1\(\).*?instantiate "six_glyph_component\.c26" as diagnostic_text .*?paddle_samples:=2/s &&
+$src =~ /instantiate "four_paddles\.c26" as diagnostic_paddles.*?diagnostic_text_paddle_sample0.*?diagnostic_paddles_score_commit_latched0\(\).*?diagnostic_text_paddle_sample1.*?asm bit\.z CXM0P;.*?asm nop;.*?asm nop;.*?asm nop;.*?instantiate "six_glyph_component\.c26" as diagnostic_text .*?paddle_samples:=2/s &&
 $src =~ /asm lda #6;\s*diagnostic_paddles_score_account_a\(\);/s &&
-$src =~ /bank1 void diagnostic_draw_text_row\(void\).*?diagnostic_paddles_score_latch0123_fixed\(\);\s*WSYNC := _;.*?diagnostic_text_draw\(\);/s &&
+$src =~ /bank1 void diagnostic_draw_text_row\(void\).*?diagnostic_paddles_score_latch0123_fixed\(\);\s*diagnostic_paddles_score_commit_latched1\(\);\s*WSYNC := _;.*?diagnostic_text_draw\(\);/s &&
 $src =~ /diagnostic_paddles_score_commit_latched2\(\);.*?diagnostic_paddles_score_commit_latched3\(\);/s &&
 $src =~ /diagnostic_paddles_score_commit_latched2\(\); WSYNC := _;\s*diagnostic_paddles_score_commit_latched3\(\); WSYNC := _;\s*diagnostic_paddles_advance_pair\(\);/s &&
 $src !~ /diagnostic_paddles_sample[0-3]\(\); WSYNC := _;/
@@ -260,9 +260,12 @@ for my $frame ([$paddle_frame,'paddle'],[$keypad_frame,'keypad'],[$driving_frame
 $src =~ /bank0 const uint8_t diagnostic_audio0\[64\].*?6,6,6,6/s &&
 $src =~ /bank0 const uint8_t diagnostic_audio1\[64\].*?6,6,6,6/s &&
 $src =~ /bank0 void diagnostic_audio_tick\(void\).*?asm ldx diagnostic_audio_phase;.*?asm lda diagnostic_audio0,x;.*?asm sta AUDV0;.*?asm lda diagnostic_audio1,x;.*?asm sta AUDV1;.*?asm sta diagnostic_audio_phase;/s &&
+$src =~ /inline void diagnostic_mute_audio\(void\).*?AUDV0 := 0;\s*AUDV1 := 0;/s &&
+$src =~ /diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_JOYSTICK\) \{\s*diagnostic_mute_audio\(\);\s*\}/s &&
 $src =~ /cartram uint8_t diagnostic_tia_top_mask;/ && $src =~ /cartram uint8_t diagnostic_tia_bottom_mask;/ &&
 $src =~ /AUDC0 := 4; AUDC1 := 4;.*?AUDF0 := 10; AUDF1 := 4;/s
-   or die "diagnostic dual-channel audio cadence or cartridge-RAM TIA state is incomplete\n";
+   or die "diagnostic dual-channel audio cadence or controller-exit mute is incomplete\n";
+
 my $boot_text=read_file($boot);
 $boot_text =~ /lda \$80,x.*?cmp #\$6c.*?lda \$81,x.*?cmp #\$fc.*?lda \$82,x.*?cmp #\$ff.*?lda \$83,x.*?cmp #\$ea.*?cpx #\$7d/s &&
 $boot_text =~ /\@clear_riot:.*?sta \$80,x.*?\@clear_superchip:.*?sta \$f000,x.*?\@clear_tia:.*?sta \$00,x.*?tya.*?sta \$f000/s
@@ -346,6 +349,15 @@ require_ok('held SELECT advances one controller only',$timing,$input_bin,'55','-
    '--expect-memory',sprintf('0x%04x',$controller_mode),'1',
    '--expect-memory',sprintf('0x%04x',$tv_mode),'0');
 
+# Leave joystick while the first AUDV0=6 burst is still active. Non-joystick
+# renderers do not run the audio cadence, so both channels must be explicitly
+# muted on the SELECT edge rather than inheriting the last joystick volume.
+my $controller_sound_cut=switch_sequence(72,0xfd,2);
+require_ok('leaving joystick silences both audio channels',$timing,$input_bin,'55','--no-audio',
+   '--raw-lines','264','--released-inputs','--frame-sequence','0x282',$controller_sound_cut,
+   '--expect-memory',sprintf('0x%04x',$controller_mode),'1',
+   '--expect-memory','0x19','0','--expect-memory','0x1a','0');
+
 my $controller_cycle=switch_sequence(120,0xfd,6,24,42,60);
 require_ok('SELECT cycles all controller modes',$timing,$input_bin,'90','--no-audio',
    '--raw-lines','264','--released-inputs','--frame-sequence','0x282',$controller_cycle,
@@ -370,17 +382,30 @@ require_ok('RESET+SELECT cycles NTSC PAL SECAM',$timing,$input_bin,'90','--no-au
 # phase for the left/right pair, then advance through the real clockwise
 # sequence 3 -> 1 -> 0 -> 2 -> 3 on successive frames. This reproduces the
 # moving-wheel decoder paths that made the old multi-sample diagnostic unstable.
-for my $spec (['NTSC',0,264],['PAL',1,314],['SECAM',2,314]) {
-   my($name,$tv,$raw)=@$spec;
-   my $tag=lc($name);
-   my $bin=File::Spec->catfile($tmp,"diagnostic-$tag-sweep.bin");
-   my $map=File::Spec->catfile($tmp,"diagnostic-$tag-sweep.map");
-   require_ok("build $name diagnostic sweep",$driver,'-I',$vcs,'-I',$example,'-T',$generic,
-      '-Wa,--illegals','-DDIAGNOSTIC_TEST_SWEEP=1',"-DDIAGNOSTIC_TEST_TV=$tv",'-Map',$map,$source,$boot,'-o',$bin);
-   -s $bin==32768 or die "diagnostic is not a 32K F4SC image\n";
-   my($out,$err)=require_ok("$name moving driving timing",$timing,$bin,'130','--no-audio',
-      '--raw-lines',"$raw",'--released-inputs','--read-sequence','0x280',
-      '0x33,0x33,0x11,0x11,0x00,0x00,0x22,0x22');
+#
+# Use the already-built ordinary cartridge rather than compiling three synthetic
+# DIAGNOSTIC_TEST_SWEEP variants.  Enter PAL/SECAM through the real RESET+SELECT
+# control path and cycle all four controllers through real SELECT edges.  This
+# is both stronger (it covers the production transition path) and keeps this
+# regression comfortably inside its declared 120-second timeout.
+for my $spec (
+   ['NTSC',0, [[6,0xfd],[24,0xfd],[42,0xfd],[60,0xfd]]],
+   ['PAL',  1, [[6,0xfc],[24,0xfd],[42,0xfd],[60,0xfd],[78,0xfd]]],
+   ['SECAM',2, [[6,0xfc],[24,0xfc],[42,0xfd],[60,0xfd],[78,0xfd],[96,0xfd]]]
+) {
+   my($name,$tv,$pulses)=@$spec;
+   my @switches=(0xff) x 170;
+   for my $pulse (@$pulses) {
+      my($start,$down)=@$pulse;
+      for my $i ($start..$start+7) { $switches[$i]=$down; }
+   }
+   my $switches=join(',',map { sprintf('0x%02x',$_) } @switches);
+   my($out,$err)=require_ok("$name moving driving timing",$timing,$input_bin,'150','--no-audio',
+      '--released-inputs','--frame-sequence','0x282',$switches,
+      '--raw-lines-by-memory',sprintf('0x%04x',$frame_tv_mode),'0:264,1:314,2:314',
+      '--read-sequence','0x280','0x33,0x33,0x11,0x11,0x00,0x00,0x22,0x22',
+      '--expect-memory',sprintf('0x%04x',$tv_mode),"$tv",
+      '--expect-memory',sprintf('0x%04x',$controller_mode),'0');
    $out =~ /^vcs_frame_timing ok:/
       or die "unexpected $name moving-driving timing result:\n$out";
    $err eq '' or die "$name moving-driving timing wrote stderr:\n$err";

@@ -207,51 +207,73 @@ inline void TEMPLATE_score_latch0123_fixed(void) {
    asm sta.z TEMPLATE_score_latch_time;
 }
 
-// A latched-channel commit is at most 19 cycles, preserves X/Y, and clobbers
-// A/flags.  Testing active&latch makes stale/high snapshots harmless after a
-// channel has already completed.
+// A latched-channel commit is fixed at 20 cycles, preserves X/Y, and clobbers
+// A/flags.  The low path is deliberately padded to the same cost as completion:
+// this keeps every following WSYNC at one phase when a long paddle measurement
+// crosses from one frame into the next.  PHA/PLA restore the non-negative probe
+// value before the deterministic BPL and leave stack depth unchanged.
 inline void TEMPLATE_score_commit_latched0(void) {
    asm lda.z TEMPLATE_active0;
    asm and.z TEMPLATE_score_latch0;
-   asm bpl.same @not_ready;
+   asm bmi.same @complete;
+   asm pha;
+   asm pla;
+   asm nop;
+   asm bpl.same @done;
+   asm @complete:;
    asm lda.z TEMPLATE_score_latch_time;
    asm sta.z TEMPLATE_position0;
    asm lda #0;
    asm sta.z TEMPLATE_active0;
-   asm @not_ready:;
+   asm @done:;
 }
 
 inline void TEMPLATE_score_commit_latched1(void) {
    asm lda.z TEMPLATE_active1;
    asm and.z TEMPLATE_score_latch1;
-   asm bpl.same @not_ready;
+   asm bmi.same @complete;
+   asm pha;
+   asm pla;
+   asm nop;
+   asm bpl.same @done;
+   asm @complete:;
    asm lda.z TEMPLATE_score_latch_time;
    asm sta.z TEMPLATE_position1;
    asm lda #0;
    asm sta.z TEMPLATE_active1;
-   asm @not_ready:;
+   asm @done:;
 }
 
 inline void TEMPLATE_score_commit_latched2(void) {
    asm lda.z TEMPLATE_active2;
    asm and.z TEMPLATE_score_latch2;
-   asm bpl.same @not_ready;
+   asm bmi.same @complete;
+   asm pha;
+   asm pla;
+   asm nop;
+   asm bpl.same @done;
+   asm @complete:;
    asm lda.z TEMPLATE_score_latch_time;
    asm sta.z TEMPLATE_position2;
    asm lda #0;
    asm sta.z TEMPLATE_active2;
-   asm @not_ready:;
+   asm @done:;
 }
 
 inline void TEMPLATE_score_commit_latched3(void) {
    asm lda.z TEMPLATE_active3;
    asm and.z TEMPLATE_score_latch3;
-   asm bpl.same @not_ready;
+   asm bmi.same @complete;
+   asm pha;
+   asm pla;
+   asm nop;
+   asm bpl.same @done;
+   asm @complete:;
    asm lda.z TEMPLATE_score_latch_time;
    asm sta.z TEMPLATE_position3;
    asm lda #0;
    asm sta.z TEMPLATE_active3;
-   asm @not_ready:;
+   asm @done:;
 }
 
 // Fixed 24-cycle score probe for the right-port pair. It records active&INPT
@@ -320,8 +342,10 @@ inline void TEMPLATE_advance_pair(void) {
 // Four scanlines. Snapshot all four channels together on the first line, then
 // commit one channel per line from that shared timestamp. This gives every
 // channel exactly the same physical sampling phase instead of merely assigning
-// staggered probes the same numeric bucket. After the fourth commit, advance
-// by two two-scanline raw units so wall-clock scaling remains unchanged.
+// staggered probes the same numeric bucket.  The cycle-balanced commits also
+// keep every WSYNC write at one fixed phase whether the channel is still low or
+// completes on this sample. After the fourth commit, advance by two two-scanline
+// raw units so wall-clock scaling remains unchanged.
 static inline void TEMPLATE_sample_blank_cycle(void) {
    TEMPLATE_score_latch0123_fixed();
    TEMPLATE_score_commit_latched0();
@@ -337,20 +361,40 @@ static inline void TEMPLATE_sample_blank_cycle(void) {
 }
 
 require inline void TEMPLATE_vblank(void) {
-   if (TEMPLATE_dumped) {
-      TEMPLATE_elapsed := 0;
-      TEMPLATE_active0 := 0x80;
-      TEMPLATE_active1 := 0x80;
-      TEMPLATE_active2 := 0x80;
-      TEMPLATE_active3 := 0x80;
-      TEMPLATE_complete := 0;
-      TEMPLATE_dumped := 0;
-      TEMPLATE_score_latch0 := 0;
-      TEMPLATE_score_latch1 := 0;
-      TEMPLATE_score_latch2 := 0;
-      TEMPLATE_score_latch3 := 0;
-      TEMPLATE_score_latch_time := 0;
-   }
+   // A high-resistance measurement can span frames.  In that case dumped
+   // alternates between 0 (keep charging) and 1 (start a fresh measurement),
+   // so an ordinary if() would put the first blank sampler at two different
+   // CPU phases.  Balance the reset/no-reset paths at exactly 52 cycles and
+   // leave X=0/A=0 on both paths before entering the fixed four-line sampler.
+   // This prevents the >one-frame paddle range from moving a VBLANK WSYNC by
+   // a scanline even though the measurement lifecycle itself still alternates.
+   asm lda.z TEMPLATE_dumped;
+   asm beq.same @still_charging;
+   asm lda #0;
+   asm sta.z TEMPLATE_elapsed;
+   asm lda #$80;
+   asm sta.z TEMPLATE_active0;
+   asm sta.z TEMPLATE_active1;
+   asm sta.z TEMPLATE_active2;
+   asm sta.z TEMPLATE_active3;
+   asm lda #0;
+   asm sta.z TEMPLATE_complete;
+   asm sta.z TEMPLATE_dumped;
+   asm sta.z TEMPLATE_score_latch0;
+   asm sta.z TEMPLATE_score_latch1;
+   asm sta.z TEMPLATE_score_latch2;
+   asm sta.z TEMPLATE_score_latch3;
+   asm sta.z TEMPLATE_score_latch_time;
+   asm ldx #0;
+   asm bpl.same @reset_done;
+   asm @still_charging:;
+   asm ldx #8;
+   asm @reset_delay:;
+   asm dex;
+   asm bne.same @reset_delay;
+   asm bit.z $00;
+   asm nop;
+   asm @reset_done:;
 
    for (uint8_t i := TEMPLATE_VBLANK_CYCLES; i; i--) {
       TEMPLATE_sample_blank_cycle();
@@ -400,10 +444,12 @@ require void TEMPLATE_account_gap(uint8_t pairs) {
 }
 
 require inline void TEMPLATE_overscan(void) {
-   if (TEMPLATE_active0 || TEMPLATE_active1 || TEMPLATE_active2 || TEMPLATE_active3) {
-      for (uint8_t i := TEMPLATE_OVERSCAN_CYCLES; i; i--) {
-         TEMPLATE_sample_blank_cycle();
-      }
+   // Always consume the same four-line overscan sampler.  Once every channel
+   // has completed the latches are harmless and elapsed is unobservable until
+   // the next reset, while skipping these WSYNCs would make multi-frame paddle
+   // measurements alternate between two overscan schedules.
+   for (uint8_t i := TEMPLATE_OVERSCAN_CYCLES; i; i--) {
+      TEMPLATE_sample_blank_cycle();
    }
 
    if (TEMPLATE_elapsed == TEMPLATE_RAW_TIMEOUT) {

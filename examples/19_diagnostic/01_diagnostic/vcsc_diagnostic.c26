@@ -22,17 +22,24 @@ include "diagnostic_fingerprint_font.c26"
 include "fonts/logo_font.c26"
 
 // The paddle reader comes first so the text renderer can bind its optional
-// compile-time score-sampling slots directly to the analog acquisition state.
+// score-sampling slots to the diagnostic's simultaneous four-channel latch.
 instantiate "four_paddles.c26" as diagnostic_paddles
-// Each row's alignment line takes one fixed-phase snapshot of INPT0..INPT3.
-// The six-glyph setup commits channels 0/1 in its two bounded score slots;
-// channels 2/3 are committed in the following row's preparation lines.  All
-// four therefore observe the same physical instant and the same timestamp.
+// Channel 0's completion slot is already after every visible write on its setup
+// line. Channel 1 used to run a variable-cost commit *before* the first visible
+// GRP0 write, moving that write at exact thresholds. Commit channel 1 on the
+// preceding blank alignment line instead, and leave a fixed nine-cycle
+// placeholder in the renderer so its historical geometry is unchanged. The
+// shared four-paddle commit helpers are now cycle-balanced as well, so a
+// multi-frame measurement cannot move a following WSYNC. Channels 2/3 remain
+// committed on following blank preparation lines.
 inline void diagnostic_text_paddle_sample0(void) {
    diagnostic_paddles_score_commit_latched0();
 }
 inline void diagnostic_text_paddle_sample1(void) {
-   diagnostic_paddles_score_commit_latched1();
+   asm bit.z CXM0P;
+   asm nop;
+   asm nop;
+   asm nop;
 }
 
 // The ordinary score lifecycle needs a score_font symbol while preparing its
@@ -202,9 +209,14 @@ bank1 void diagnostic_prepare_row(uint8_t offset) {
 // one alignment line plus the renderer's eight scanlines.
 bank1 void diagnostic_draw_text_row(void) {
    // prepare_row() ended with WSYNC, so entry reaches this alignment scanline
-   // at a fixed early phase. Capture all four paddle comparators together;
-   // commits may occur later because the shared latch_time preserves the event.
+   // at a fixed early phase. Capture all four paddle comparators together and
+   // commit channel 1 here, while the beam is blank. The worst-case 19-cycle
+   // commit still fits before WSYNC. Channel 0 is committed in the renderer's
+   // safe post-visible-write slot; channels 2/3 are committed on later blank
+   // preparation lines. Thus no data-dependent paddle path precedes a visible
+   // GRP write.
    diagnostic_paddles_score_latch0123_fixed();
+   diagnostic_paddles_score_commit_latched1();
    WSYNC := _;
    asm bit.z CXM0P;
    diagnostic_text_draw();
@@ -613,17 +625,6 @@ bank1 void diagnostic_component_init(void) {
 // Controller-family lifecycle wrappers deliberately live away from the UI
 // bank.  This keeps heavy reusable controller code together and limits the
 // F4SC cross-bank surface to a handful of stable entry points.
-bank1 void diagnostic_paddle_vblank(void) {
-   if (diagnostic_controller_needs_init) {
-      diagnostic_paddles_init();
-      diagnostic_controller_needs_init := 0;
-   }
-   diagnostic_paddles_vblank();
-   // Keep the public four-paddle advance hook exercised and account the first
-   // two scanlines of the fixed post-sampler VBLANK remainder here.
-   diagnostic_paddles_advance_pair();
-}
-
 bank1 void diagnostic_paddle_overscan(void) {
    // Constant-gap finish for the portions of the raster not covered by the
    // text renderer's integrated paddle probes. Each prepared text row already
@@ -665,10 +666,6 @@ bank1 void diagnostic_paddle_overscan(void) {
    asm sta.z diagnostic_paddles_elapsed;
 
    diagnostic_paddles_overscan();
-}
-
-bank1 void diagnostic_paddle_dump(void) {
-   diagnostic_paddles_dump();
 }
 
 bank3 void diagnostic_keypad_vblank(void) {
@@ -1048,6 +1045,11 @@ bank7 void diagnostic_update_numeric_detail1(void) {
    asm sta diagnostic_detail1_row+5;
 }
 
+inline void diagnostic_mute_audio(void) {
+   AUDV0 := 0;
+   AUDV1 := 0;
+}
+
 bank0 void diagnostic_update_controls_impl(void) {
 #ifndef DIAGNOSTIC_TEST_SWEEP
    if (SWCHB & 0x02) {
@@ -1063,6 +1065,13 @@ bank0 void diagnostic_update_controls_impl(void) {
       diagnostic_controller_needs_init := 1;
       diagnostic_ui_dirty := diagnostic_ui_dirty | 1;
    } else {
+      // Audio belongs to joystick mode.  A SELECT edge that leaves joystick
+      // must silence both TIA channels immediately; otherwise a nonzero volume
+      // written by the last joystick frame persists forever in paddle/keypad/
+      // driving modes, which intentionally do not run the audio cadence.
+      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_JOYSTICK) {
+         diagnostic_mute_audio();
+      }
       if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING) {
          diagnostic_controller_mode := DIAGNOSTIC_CONTROLLER_JOYSTICK;
       } else {
@@ -1076,6 +1085,9 @@ bank0 void diagnostic_update_controls_impl(void) {
    diagnostic_test_frames := diagnostic_test_frames + 1;
    if (diagnostic_test_frames == 16) {
       diagnostic_test_frames := 0;
+      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_JOYSTICK) {
+         diagnostic_mute_audio();
+      }
       diagnostic_controller_mode := (diagnostic_controller_mode + 1) & 3;
       diagnostic_controller_needs_init := 1;
       diagnostic_ui_dirty := diagnostic_ui_dirty | 2;

@@ -70,11 +70,66 @@ sub build_paddle_diag {
 }
 
 my($ntsc,$position0)=build_paddle_diag('ntsc',0);
+
+# Exhaustively check every equal NTSC threshold. These ordinary cases are a
+# value oracle, so they use a short run with an explicit checked-frame floor;
+# the historically timing-sensitive boundary and high-end phase cases retain
+# full 45-frame soaks below. Keeping this loop serial avoids nested worker pools
+# when the outer repository test runner is already using --jobs N.
 for my $threshold (0..255) {
    my $lines=join(',',($threshold) x 4);
-   require_ok("NTSC equal paddle threshold $threshold",$timing,$ntsc,'45','--no-audio',
+   require_ok("NTSC equal paddle threshold $threshold",$timing,$ntsc,'12','--no-audio',
+      '--minimum-checked-frames','9','--raw-lines','264','--released-inputs',
+      '--paddle-lines',$lines,
+      '--expect-memory-equal',sprintf('0x%04x',$position0),'4');
+}
+
+# Keep a long soak on the old completion-phase boundary even though the full
+# 0..255 sweep above uses the shorter multi-frame window.
+for my $threshold (227,228,229) {
+   my $lines=join(',',($threshold) x 4);
+   require_ok("NTSC long equal paddle threshold $threshold",$timing,$ntsc,'45','--no-audio',
       '--raw-lines','264','--released-inputs','--paddle-lines',$lines,
       '--expect-memory-equal',sprintf('0x%04x',$position0),'4');
+}
+
+
+# The field failure first appears just above the displayed ~57 boundary, when a
+# measurement can remain active into the next frame.  The old code alternated
+# the phase of VBLANK/visible/overscan WSYNC writes depending on whether a
+# channel completed, producing a stable frame count but a visibly jittering
+# raster.  Exercise each paddle independently at threshold 270 (displayed 61)
+# and pin the lifecycle-owned WSYNC phases on representative raster lines.
+# The final scheduler-owned overscan alignment line is intentionally omitted:
+# its phase is absorbed by the following fixed WSYNC before the next VSYNC.
+for my $channel (0..3) {
+   my @thresholds=(100,100,100,100);
+   $thresholds[$channel]=270;
+   require_ok("NTSC paddle $channel above-57 raster phase stability",$timing,$ntsc,'12','--no-audio',
+      '--minimum-checked-frames','9','--raw-lines','264','--released-inputs',
+      '--paddle-lines',join(',',@thresholds),
+      '--require-stable-tia-write-phase','0x02','4',
+      '--require-stable-tia-write-phase','0x02','5',
+      '--require-stable-tia-write-phase','0x02','59',
+      '--require-stable-tia-write-phase','0x02','123',
+      '--require-stable-tia-write-phase','0x02','234',
+      '--expect-memory',sprintf('0x%04x',$position0+$channel),'61');
+}
+
+# A real high-resistance paddle can remain below threshold for much longer than
+# 255 scanlines. At about 380 scanlines the diagnostic's two-scanline elapsed
+# scale reports 95. Before this regression, channel 1 completed inside the
+# visible six-glyph setup and moved a GRP0 write by ten CPU cycles on alternating
+# measurement frames even though total frame length remained 262. Exercise all
+# four channels independently and require the visible GRP0 phase set to stay
+# identical from frame to frame.
+for my $channel (0..3) {
+   my @thresholds=(100,100,100,100);
+   $thresholds[$channel]=380;
+   require_ok("NTSC paddle $channel high-end 95 phase stability",$timing,$ntsc,'45','--no-audio',
+      '--raw-lines','264','--released-inputs','--paddle-lines',join(',',@thresholds),
+      '--require-stable-tia-write-phase','0x1b','125',
+      '--expect-memory',sprintf('0x%04x',$position0+$channel),'95');
 }
 
 for my $spec (['pal',1,314],['secam',2,314]) {

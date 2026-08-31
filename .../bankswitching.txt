@@ -187,9 +187,11 @@ only where they are consumed safely before a switch.
 Field-diagnostic timing fallout from F4SC descriptor conversion is resolved.
 The diagnostic now has bank-local joystick, paddle, keypad, and driving frame
 paths and bank-local deadline pollers; only joystick retains TIA/switch/collision
-work. Paddle uses an aligned four-INPT snapshot with one timestamp, fixing the
-single-threshold left/right phase split without retiming the generic sampler.
-NTSC/PAL/SECAM moving-input timing and the exhaustive NTSC paddle oracle pass.
+work. Leaving joystick clears AUDV0/AUDV1. Paddle uses an aligned four-INPT
+snapshot with one timestamp; channel-1 completion is committed on a blank
+alignment line so multi-frame high-resistance completion cannot shift visible
+GRP0 timing. NTSC 0..255 thresholds, independent displayed-95 high-end cases,
+and NTSC/PAL/SECAM moving-input timing pass.
 
 Diagnostic optimizer wart: F864 direct-JMP targets use inline `TSX/STX`, so the
 current whole-function asm safety rule can leave generated

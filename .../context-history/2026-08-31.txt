@@ -160,3 +160,76 @@ NTSC equal-paddle thresholds pass, including 228, with representative
 probes pass. Structural regression coverage now locks the four renderer banks,
 same-bank deadline pollers, and absence of joystick-only work from the other
 three paths. Resume descriptor migration at JANE/0840/UA/UASW/0FA0.
+
+2026-08-31 14:03:57 PDT, stabilize high paddles and mute audio
+Leaving joystick now explicitly clears AUDV0 and AUDV1 on both normal SELECT
+mode changes and the synthetic sweep transition, preventing a diagnostic tone
+from remaining latched when the joystick renderer stops running.
+
+The prior 0..255 paddle oracle measured whole scanlines and therefore missed a
+real high-resistance paddle displaying 95, which completes after about 380
+scanlines and can span frames. Tracing that case found paddle-1 completion moved
+the first visible GRP0 write by 10 CPU cycles. Channel 1 now commits its shared-
+timestamp snapshot on the blank row-alignment line; its score-renderer hook is a
+fixed nine-cycle placeholder. Channel 0 retains its safe post-visible-write slot
+and channels 2/3 commit in blank preparation.
+
+The timing harness gained --require-stable-tia-write-phase so regressions can
+lock visible TIA write phase as well as frame length. All 256 NTSC equal-threshold
+cases pass, including 228; each paddle independently reaches displayed 95 with
+stable GRP0 phase; representative PAL/SECAM thresholds and all three moving-input
+TV sweeps pass. The cartridge regression also leaves joystick during an audible
+burst and requires both audio volumes to be zero.
+
+2026-08-31 14:30:32 PDT, finish paddle regression runtime
+Finished the diagnostic paddle-test runtime cleanup without reducing threshold
+coverage. `vcs_frame_timing` now accepts an explicit
+`--minimum-checked-frames N`; its default remains 1000 frames with audio and 40
+without audio. The exhaustive 0..255 diagnostic value oracle requests 12 VSYNC
+assertions / 9 checked frames, while the 227/228/229 completion boundary and all
+four displayed-95 visible-write-phase cases retain their original 45-frame
+soaks. The 256 ordinary probes are serialized because the shortened sweep takes
+about 2.3 seconds and nested worker pools are counterproductive under the outer
+`test.pl --jobs N` runner. The focused paddle regression passes through the
+normal project runner inside its 90-second budget. The final broad checkpoint,
+`make test TEST_JOBS=8`, passes all 342 tests; under that contention the
+diagnostic cartridge took 89.14 seconds and the paddle regression 74.53 seconds,
+inside their 120- and 90-second budgets respectively.
+
+2026-08-31 14:57:01 PDT, fix multi-frame paddle raster jitter
+The earlier displayed-95 GRP0 fix was incomplete. Real hardware testing showed
+jitter beginning around displayed paddle value 57 even though the diagnostic
+still held the correct total frame length. Timing-harness tracing reproduced it
+as state-dependent WSYNC phase once an RC measurement remained active across a
+frame boundary.
+
+The four-paddle lifecycle is now cycle-balanced where it can precede a WSYNC.
+Each latched snapshot commit takes a fixed 20 cycles whether the channel
+completes or remains active. The VBLANK reset-versus-continue paths both take 52
+cycles, so the first blank sampler starts at one phase on fresh and carried
+measurements. The four-line overscan sampler always runs; completed channels make
+its latches harmless rather than shortening the raster schedule. The diagnostic
+also removed two unused paddle lifecycle wrappers, recovering bank-1 space.
+
+Regression coverage now drives each paddle independently to threshold 270,
+which reports 61 (the first representable value above the observed ~57
+boundary), and requires stable WSYNC phases on representative VBLANK, visible,
+and overscan lines. The exhaustive 0..255 value oracle still runs every NTSC
+threshold, 227/228/229 retain 45-frame soaks, and the displayed-95 GRP0 phase
+checks remain. The shortened ordinary sweep uses the timing harness's explicit
+minimum-checked-frame override while its default 40-frame no-audio floor is
+unchanged. Focused score/four-player paddle tests and real diagnostic audio,
+controller, and TV transitions pass.
+
+2026-08-31 15:25:11 PDT, finish diagnostic validation
+The post-jitter diagnostic state is fully validated. The cartridge regression no
+longer recompiles three synthetic DIAGNOSTIC_TEST_SWEEP images just to exercise
+NTSC/PAL/SECAM moving-driving timing. It reuses the ordinary input-driven F4SC
+image, enters PAL/SECAM through real RESET+SELECT edges, and cycles all four
+controllers through real SELECT edges while applying the moving SWCHA sequence.
+This strengthens transition coverage and reduces that regression to about 11.5
+seconds in the development container.
+
+The full compile-only suite passed. The 342-test e2e suite was completed across
+the broad run plus exact runner-selected tail batches after the outer execution
+cap interrupted display at test 236; every e2e case passed.

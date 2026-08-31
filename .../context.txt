@@ -112,11 +112,16 @@ Open workstreams
    The F4SC descriptor timing regression in the field controller diagnostic is
    resolved architecturally. The cartridge now has bank-local joystick, paddle,
    keypad, and driving frame paths; only joystick carries TIA/switch/collision
-   work. Each controller owns its deadline poller. Paddle analog acquisition uses
-   one aligned four-input snapshot with a shared timestamp, eliminating the old
-   left/right threshold-phase split without retiming the generic sampler. NTSC,
-   PAL, and SECAM controller/input sweeps are stable; the diagnostic cartridge
-   and exhaustive paddle-sampling contracts are restored.
+   work. Each controller owns its deadline poller. Leaving joystick explicitly
+   clears AUDV0/AUDV1 so an in-flight diagnostic tone cannot stick. Four-paddle
+   acquisition snapshots INPT0-INPT3 together, uses fixed-cycle snapshot commits,
+   balances the VBLANK reset/continue lifecycle, and always consumes the blank
+   overscan sampler. This is required once a high-resistance measurement spans
+   frames: the old lifecycle alternated WSYNC phase and visibly jittered from
+   about displayed 57 upward even though frame length remained correct. The
+   regression now exercises each paddle independently at displayed 61 and locks
+   VBLANK/visible/overscan WSYNC phase, in addition to the 0..255 value oracle,
+   227/228/229 long soaks, displayed-95 check, and PAL/SECAM points.
 
    **Immediate code step:** resume descriptor migration with JANE, 0840,
    UA/UASW, 0FA0, FC, and F0.
@@ -153,6 +158,14 @@ correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 
 Last validation state
 ---------------------
+Current post-jitter-fix validation is complete. Focused coverage passes exhaustive
+NTSC diagnostic paddle values 0..255, 45-frame 227/228/229 soaks, independent
+displayed-61 WSYNC-phase checks on all four paddles, independent displayed-95
+checks, representative PAL/SECAM paddle points, four-player Paddleball,
+score-integrated paddle sampling, joystick-exit audio mute, controller cycling,
+and TV-standard cycling. The complete compile-only suite and all 342 e2e tests
+pass on this source state.
+
 Main-roadmap Items 46-48 are complete. Item 47 is locked by
 `test/superchip_direct_access.pl`: under 4KSC it fills all 128 Superchip bytes,
 checks hostile-fill BSS clearing, DATA copying, first/middle/last boundaries,
@@ -174,9 +187,13 @@ threshold interval 18..37. Paddleball, four-player Paddleball, and the field
 diagnostic all use the score-sampling path. For four-channel diagnostic work,
 `four_paddles.c26` also provides a fixed 30-cycle INPT0..INPT3 snapshot plus
 per-channel commit helpers. The diagnostic snapshots all four channels at the
-same row-alignment phase and commits them later from one shared timestamp;
-`test/vcs_diagnostic_paddle_sampling.pl` exhaustively checks equal NTSC
-thresholds 0..255 plus representative PAL/SECAM points.
+same row-alignment phase and commits them later from one shared timestamp.
+Channel 0 keeps its safe score-renderer commit slot; channel 1 commits on the
+preceding blank alignment line and its in-renderer hook is fixed-cycle, so a
+late multi-frame completion cannot move visible GRP0 timing. Channels 2/3 commit
+in blank preparation. `test/vcs_diagnostic_paddle_sampling.pl` exhaustively
+checks equal NTSC thresholds 0..255, independent displayed-95 high-end cases
+with stable TIA write phases, and representative PAL/SECAM points.
 
 C26 `$read_hazard` and cfg
 `read_hazard = yes` mark mapper ranges where CPU read bus cycles have side
@@ -194,13 +211,12 @@ rather than the destructive `$F05D`. The final map keeps DETAIL1 at read `$F0CB`
 / write `$F04B`, and the structural regression proves the five indexed lookups
 cannot dummy-read `$F000-$F07F`.
 
-The diagnostic range follow-up is certified against the existing 502/502
-compile-phase baseline. A complete 334-case e2e run produced 333 passes with
-only the new exhaustive diagnostic paddle sweep hitting its original 45-second
-test budget under parallel contention; that same regression passes through the
-normal runner after raising only its timeout to 90 seconds. Coverage remains all
-256 NTSC thresholds plus representative PAL/SECAM points. The optional Stella
-7.0 diagnostic oracle remains part of the prior certified state.
+The diagnostic paddle regression keeps exhaustive NTSC value coverage for all
+256 thresholds, full 45-frame soaks on the historically sensitive 227/228/229
+boundary and displayed-95 visible-write-phase cases, and representative
+PAL/SECAM points. Ordinary exhaustive value probes use a test-specific checked-
+frame floor while the shared timing harness retains its 40-frame default. The
+optional Stella 7.0 diagnostic oracle remains part of the prior certified state.
 
 Bankswitching Items 42 FE/SCABS and 43 WD are complete. FE's public topology,
 delayed `$01FE` model, direct top-level JSR/RTS idiom, and Stella diagnostic
@@ -217,11 +233,6 @@ exact disassembly/reassembly, and a Stella-visible PASS/DPC frame.
 
 Immediate TODO
 --------------
-Fix the field controller diagnostic regression before resuming roadmap work.
-Starting from this archive, split its frame path by controller type: joystick,
-paddle, keypad, and driving. Keep TIA/switch/collision testing/display only in
-the joystick path; keep paddle acquisition bank-local and do not redesign the
-shared paddle sampler merely to absorb descriptor-bankcall timing. The current
-known failures are `test/vcs_diagnostic_cartridge.pl` and
-`test/vcs_diagnostic_paddle_sampling.pl`, both observed after the F4SC descriptor
-ABI migration. Once those are green, main-roadmap priority returns to Item 49.
+Resume descriptor-ABI migration with JANE, 0840, UA/UASW, and 0FA0, then FC/F0.
+The field controller diagnostic regression and its follow-up audio/high-paddle
+timing failures are resolved and covered by focused regression contracts.

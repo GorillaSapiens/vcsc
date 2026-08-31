@@ -282,8 +282,12 @@ data-dependent branch. A score renderer can therefore place it inside a
 calibrated horizontal-position delay without moving RESP timing. For diagnostics
 that require directly comparable channels, `score_latch0123_fixed()` captures
 all four comparator bits plus one timestamp in 30 fixed cycles; the four
-`score_commit_latchedN()` helpers may then consume that snapshot in later slack
-without changing the measured phase. The public four-player Paddleball example
+`score_commit_latchedN()` helpers consume that snapshot in a fixed 20 cycles
+each, preserving X/Y and keeping a following WSYNC at one phase whether the
+channel completes or remains active. The VBLANK reset/continue paths are likewise
+cycle-balanced, and the four-line overscan sampler always runs, so measurements
+that span frames cannot alternate the blank-raster schedule. The public
+four-player Paddleball example
 uses the 2/3 contract; the field diagnostic uses the simultaneous four-channel
 form.
 
