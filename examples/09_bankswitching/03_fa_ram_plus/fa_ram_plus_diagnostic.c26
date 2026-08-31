@@ -21,7 +21,7 @@ cartram uint8_t fa_data := 0x5A;
 cartram uint8_t fa_bss[255];
 
 uint8_t failure;
-uint8_t trace;
+uint16_t trace;
 uint8_t current_source;
 uint8_t current_destination;
 uint8_t ram_count;
@@ -120,7 +120,7 @@ bank0 void simulator_done(void) {
 
 bank0 uint16_t bank0_probe(void) {
    if (current_destination != 0 ||
-       (current_source != 1 && current_source != 2) ||
+       (current_source != 0 && current_source != 1 && current_source != 2) ||
        fa_data != 0xA5 || fa_bss[0] != 0x11 ||
        fa_bss[127] != 0x22 || fa_bss[254] != 0x33) {
       failure := 0x30;
@@ -131,7 +131,7 @@ bank0 uint16_t bank0_probe(void) {
 
 bank1 uint16_t bank1_probe(void) {
    if (current_destination != 1 ||
-       (current_source != 0 && current_source != 2) ||
+       (current_source != 0 && current_source != 1 && current_source != 2) ||
        fa_data != 0xA5 || fa_bss[0] != 0x11 ||
        fa_bss[127] != 0x22 || fa_bss[254] != 0x33) {
       failure := 0x31;
@@ -142,7 +142,7 @@ bank1 uint16_t bank1_probe(void) {
 
 bank2 uint16_t bank2_probe(void) {
    if (current_destination != 2 ||
-       (current_source != 0 && current_source != 1) ||
+       (current_source != 0 && current_source != 1 && current_source != 2) ||
        fa_data != 0xA5 || fa_bss[0] != 0x11 ||
        fa_bss[127] != 0x22 || fa_bss[254] != 0x33) {
       failure := 0x32;
@@ -154,37 +154,49 @@ bank2 uint16_t bank2_probe(void) {
 bank0 void bank0_source(void) {
    current_source := 0;
 
+   current_destination := 0;
+   if (bank0_probe() != 0x5A40`uint16_t) { failure := 0x00; }
+   trace := trace + 1;
+
    current_destination := 1;
    if (bank1_probe() != 0x5A41`uint16_t) { failure := 0x01; }
-   trace := trace + 1;
+   trace := trace + 2;
 
    current_destination := 2;
    if (bank2_probe() != 0x5A42`uint16_t) { failure := 0x02; }
-   trace := trace + 2;
+   trace := trace + 4;
 }
 
 bank1 void bank1_source(void) {
    current_source := 1;
 
    current_destination := 0;
-   if (bank0_probe() != 0x5A40`uint16_t) { failure := 0x11; }
-   trace := trace + 4;
+   if (bank0_probe() != 0x5A40`uint16_t) { failure := 0x10; }
+   trace := trace + 8;
+
+   current_destination := 1;
+   if (bank1_probe() != 0x5A41`uint16_t) { failure := 0x11; }
+   trace := trace + 16;
 
    current_destination := 2;
    if (bank2_probe() != 0x5A42`uint16_t) { failure := 0x12; }
-   trace := trace + 8;
+   trace := trace + 32;
 }
 
 bank2 void bank2_source(void) {
    current_source := 2;
 
    current_destination := 0;
-   if (bank0_probe() != 0x5A40`uint16_t) { failure := 0x21; }
-   trace := trace + 16;
+   if (bank0_probe() != 0x5A40`uint16_t) { failure := 0x20; }
+   trace := trace + 64;
 
    current_destination := 1;
-   if (bank1_probe() != 0x5A41`uint16_t) { failure := 0x22; }
-   trace := trace + 32;
+   if (bank1_probe() != 0x5A41`uint16_t) { failure := 0x21; }
+   trace := trace + 128;
+
+   current_destination := 2;
+   if (bank2_probe() != 0x5A42`uint16_t) { failure := 0x22; }
+   trace := trace + 256;
 }
 
 bank0 void main(void) {
@@ -209,14 +221,15 @@ bank0 void main(void) {
    current_source := 0;
    current_destination := 0;
 
-   // Exercise all six ordered cross-bank pairs: 0->1, 0->2, 1->0, 1->2,
-   // 2->0, and 2->1. The source1/source2 calls also prove the generic return
-   // path can restore bank0 around a source routine that performs more calls.
+   // Exercise the complete 3x3 ordered source/destination matrix. Same-bank
+   // legs are ordinary JSRs; the other six legs use the descriptor bankcall ABI.
+   // The source1/source2 calls also prove the return path restores bank0 around
+   // a source routine that performs multiple calls.
    bank0_source();
    bank1_source();
    bank2_source();
 
-   if (trace != 63 || ram_count != 6 || fa_data != 0xA5 ||
+   if (trace != 511`uint16_t || ram_count != 9 || fa_data != 0xA5 ||
        fa_bss[0] != 0x11 || fa_bss[127] != 0x22 || fa_bss[254] != 0x33) {
       failure := 0x03;
    }

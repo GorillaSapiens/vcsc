@@ -15,11 +15,11 @@ JMP bridges, reset from arbitrary initially selected banks, RIOT-RAM signatures,
 and hardware-stack balance.
 
 The public ABI for selector-controlled cross-bank C calls is
-[`../../BANKSWITCHING.md`](../../BANKSWITCHING.md). F8/F8SC/F6/F6SC/F4/F4SC
-exercise the six-byte destination-descriptor ABI now. Other inline mapper
-diagnostics temporarily use compatibility trampolines that skip the third byte
-until their mapper-specific conversion, without weakening their ordered call
-matrices.
+[`../../BANKSWITCHING.md`](../../BANKSWITCHING.md). F8/F8SC/F6/F6SC/F4/F4SC,
+FA, and DPC exercise the six-byte destination-descriptor ABI now. Other inline
+mapper diagnostics temporarily use compatibility trampolines that skip the third
+byte until their mapper-specific conversion, without weakening their ordered
+call matrices.
 
 The source is parameterized so one editable cartridge produces six mapper
 diagnostics—F8, F6, F4, F8SC, F6SC, and F4SC—plus a seventh deliberately
@@ -36,9 +36,10 @@ hardware-stack balance, and simulator execution. This covers every ordered JSR
 pair for F8/F8SC, F6/F6SC, F4/F4SC, FA, both FA2 profiles, JANE, 0840,
 UA/UASW, 0FA0, and DPC. F8/F6/F4(+SC), FA, both FA2 profiles, JANE, 0840,
 UA/UASW, 0FA0, and DPC use fixed inline-target blocks with zero legacy
-per-target JSR bridges. F8/F6/F4(+SC) are descriptor-aware; FA, FA2, JANE,
-0840, UA/UASW, 0FA0, and DPC are transitional until their trampolines consume
-the destination descriptor directly. Same-bank calls remain ordinary JSRs.
+per-target JSR bridges. F8/F6/F4(+SC), FA, and DPC are descriptor-aware;
+FA2, JANE, 0840, UA/UASW, and 0FA0 are transitional until their trampolines
+consume the destination descriptor directly. Same-bank calls remain ordinary
+JSRs.
 
 The public VCSC cartridge profiles also stamp the final physical bank with a
 four-byte mapper signature at logical addresses `$xFF8-$xFFB` (eight bytes before that bank ends). Short mapper names are
@@ -53,10 +54,11 @@ file bank 1 at `$DFF8-$DFFB`, while RESET and IRQ/BRK remain in startup bank 0
 at `$FFFC-$FFFF`.
 
 `03_fa_ram_plus/` is the dedicated CBS FA/RAM Plus diagnostic. It displays
-`pass`/`FAIL`, uses the current fixed inline-target implementation for all six
-ordered source/destination call pairs, uses all 256 bytes of cartridge RAM, and verifies
-startup from physical bank 2. The shared ordered-call regression independently
-repeats the exhaustive FA matrix with hardware-stack checks.
+`pass`/`FAIL`, uses the descriptor ABI for the complete 3x3 ordered call
+matrix, uses all 256 bytes of cartridge RAM, and verifies startup from physical
+bank 2. Same-bank matrix legs remain ordinary JSRs; the other six carry
+`.banktarget`. The shared ordered-call regression independently repeats the
+exhaustive FA matrix with hardware-stack checks.
 
 `04_4ksc/` is the direct 4K Superchip diagnostic. It allocates all 128 bytes of
 Superchip RAM, verifies DATA/BSS reset initialization and read/write aliases,
@@ -149,10 +151,10 @@ large PASS/FAIL with small `WD`, and `make play` forces Stella's `WD` mapper.
 
 `16_dpc/` is the DPC diagnostic. It emits the conventional 10,495-byte image
 as two F8-style program banks plus a 2K display-data bank and 255-byte Poly8
-tail, both declared `$data_only`. The self-test executes both ordered calls
-between the two F8-style program banks, reads and checksums every display byte
-through DPC fetcher 0 including an 11-bit counter wrap check, then resets and
-verifies the complete 255-state DPC RNG sequence. It renders large PASS/FAIL
+tail, both declared `$data_only`. The self-test executes the complete 2x2
+ordered program-bank call matrix plus a nested cross-bank return, reads and
+checksums every display byte through DPC fetcher 0 including an 11-bit counter
+wrap check, then resets and verifies the complete 255-state DPC RNG sequence. It renders large PASS/FAIL
 with small `DPC`; `make play` forces Stella's `DPC` mapper.
 
 - `17_fa2` — FA2 28K seven-bank + 256-byte cartridge-RAM PASS/FAIL diagnostic.

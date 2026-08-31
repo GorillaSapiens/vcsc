@@ -77,3 +77,15 @@ for transitional mapper compatibility; the F864 public example builds all six
 normal profiles plus the poisoned F8SC diagnostic successfully. The branding
 failure introduced with BANKSWITCHING.md was fixed by adding the required VCSC
 FIGlet banner.
+
+2026-08-31 09:34:45 PDT, migrate FA and DPC descriptor ABI
+FA and DPC moved from the transitional PC-derived bankcall block to the public
+three-byte destination-descriptor ABI. Their program-bank descriptors are the
+selector low bytes: FA bank0/1/2 = FA/F9/F8 and DPC bank0/1 = F9/F8. Both now
+use the 69-byte / 72-reserved common descriptor trampoline with baked source
+descriptors and zero legacy per-target entries. FA's public diagnostic now runs
+the complete 3x3 ordered call matrix; DPC runs the complete 2x2 matrix plus a
+nested cross-bank return. Same-bank matrix legs remain ordinary JSRs.
+The pre-descriptor compatibility source moved to linker/legacy_inline_bankcall.s26
+so lower-level legacy inputs remain supported without making FA the legacy
+source authority.

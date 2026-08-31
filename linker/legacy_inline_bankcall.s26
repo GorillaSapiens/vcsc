@@ -1,0 +1,111 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+;
+; Generic inline-target cross-bank JSR/RTS trampoline.
+;
+; This is the maintained source for the fixed trampoline block used by the
+; $inline_bankcall ABI.  linker/gen_inline_bankcall_template.pl assembles this
+; file at build time and emits the compact byte/patch template compiled into
+; vcsc-ld.  The linker then patches only the runtime-selected zero-page scratch
+; address, mapper selector base, and the internal JSR target before replicating
+; the block into each bank.
+;
+; The source is assembled at an arbitrary template origin ($6000).  The logical
+; bank origins used by the linked cartridge are unrelated to that build-time
+; origin.
+
+.ifndef VCSC_BANKCALL_PTR0
+VCSC_BANKCALL_PTR0 = $0080
+.endif
+.ifndef VCSC_BANKCALL_SELECTOR_BASE
+VCSC_BANKCALL_SELECTOR_BASE = $1F20
+.endif
+
+.segmentdef "CODE", $6000, $0100
+.segment "CODE"
+
+.export __vcsc_generic_bankcall_begin
+.export __vcsc_generic_bankreturn
+.export __vcsc_generic_bankcall_switch_and_jump
+.export __vcsc_generic_bankcall_end
+.export __vcsc_generic_bankcall_reserved_end
+
+; __bankcall
+;
+; The caller emitted:
+;
+;     JSR __bankcall
+;     .word logical_target
+;
+; JSR left the real 16-bit logical return PC on the hardware stack.  Copy that
+; PC into ptr0, read the following inline target before leaving the source bank,
+; and advance the saved return PC by three so the final RTS skips the inline target and descriptor.
+; (ptr0),Y performs ordinary 16-bit page carry when the inline payload straddles a
+; page boundary.
+__vcsc_generic_bankcall_begin:
+    tsx
+    lda $0101,x
+    sta VCSC_BANKCALL_PTR0
+    lda $0102,x
+    sta VCSC_BANKCALL_PTR0 + 1
+    ldy #1
+    lda (VCSC_BANKCALL_PTR0),y
+    pha
+    iny
+    lda (VCSC_BANKCALL_PTR0),y
+    sta VCSC_BANKCALL_PTR0 + 1
+    pla
+    sta VCSC_BANKCALL_PTR0
+
+    lda $0101,x
+    clc
+    adc #3
+    sta $0101,x
+    bcc.same @return_adjusted
+    inc $0102,x
+@return_adjusted:
+
+    ; This JSR creates the synthetic return frame.  The remote callee's RTS
+    ; lands immediately below in __vcsc_generic_bankreturn.
+    jsr __vcsc_generic_bankcall_switch_and_jump
+
+; __bankreturn
+;
+; Preserve the A:X result.  The original caller return PC is now below those
+; saved registers on the stack, and its high three bits encode the source-bank
+; selector offset because each VCSC logical bank has a distinct ORG.
+__vcsc_generic_bankreturn:
+    pha
+    txa
+    pha
+    tsx
+    lda $0104,x
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    tay
+    lda #0
+    sta VCSC_BANKCALL_SELECTOR_BASE,y
+    pla
+    tax
+    pla
+    rts
+
+; Select the target bank from the inline logical target's high bits, then jump
+; through ptr0.  The 6507 drops the logical high address bits externally while
+; the CPU itself retains them in PC/JSR/RTS state.
+__vcsc_generic_bankcall_switch_and_jump:
+    lda VCSC_BANKCALL_PTR0 + 1
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    tay
+    lda #0
+    sta VCSC_BANKCALL_SELECTOR_BASE,y
+    jmp (VCSC_BANKCALL_PTR0)
+
+__vcsc_generic_bankcall_end:
+__vcsc_generic_bankcall_reserved_end = $6050

@@ -168,15 +168,15 @@ cross-bank call. The inline payload grows from two to three bytes, so stacked-PC
 continuation adjustment must be carry-correct by +3 and page/bank-edge tests must
 move accordingly.
 
-Implementation checkpoint: the compiler/assembler/linker now use the six-byte
-descriptor ABI and `__bankmeta$V3`. F8/F8SC/F6/F6SC/F4/F4SC consume it end to
-end: descriptors are the selector-hotspot low byte, each bank copy has its source
-descriptor patched in, the fixed block is 69 bytes with 72 reserved (`$048`),
-and no bank identity is decoded from PCs. FA/DPC, FA2-24/28, JANE, 0840, UA,
-UASW, and 0FA0 still use transitional mapper-local blocks that skip the third
-payload byte and retain their old PC-derived selector logic. They still consume
-no legacy per-target JSR entries. FA/DPC and the read-hotspot blocks reserve 80
-bytes; FA2 reserves 84, JANE 96, and 0FA0 is 69/80 (`$050`).
+Implementation checkpoint: the compiler/assembler/linker use the six-byte
+descriptor ABI and `__bankmeta$V3`. F8/F8SC/F6/F6SC/F4/F4SC, FA, and DPC consume
+it end to end: descriptors are selector-hotspot low bytes, each bank copy has its
+source descriptor patched in, the fixed block is 69 bytes with 72 reserved
+(`$048`), and no bank identity is decoded from PCs. FA2-24/28, JANE, 0840, UA,
+UASW, and 0FA0 remain transitional mapper-local blocks that skip the third
+payload byte and retain their old PC-derived selector logic; they still consume
+no legacy per-target JSR entries. The read-hotspot blocks reserve 80 bytes; FA2
+reserves 84, JANE 96, and 0FA0 is 69/80 (`$050`).
 
 Migration acceptance for each remaining transitional mapper: consume the
 destination descriptor directly; bake and push the source descriptor; restore
@@ -190,7 +190,7 @@ current whole-function asm safety rule can leave generated
 `BNE near / JMP false / near: JMP true`. Pure C26 should not normally see it;
 this is future optimizer-locality cleanup, not bankswitching work.
 
-[ ] 37. Finish descriptor-ABI conversion of existing inline mappers: FA/DPC,
+[ ] 37. Finish descriptor-ABI conversion of existing inline mappers:
         FA2-24/28, JANE, 0840, UA/UASW, and 0FA0. Do this before FC/F0.
 
 [ ] 38. Complete the remaining mapper tier in this order: **FC, F0**.

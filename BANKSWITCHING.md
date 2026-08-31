@@ -16,11 +16,11 @@ shared ABI.
 
 The descriptor ABI in this document is the public ABI for `$inline_bankcall`.
 The compiler, assembler, and linker emit the three-byte `.banktarget` field.
-F8/F8SC/F6/F6SC/F4/F4SC are the first mapper family fully migrated: their
-bank-local trampolines consume the destination descriptor directly and carry a
-baked source descriptor on the hardware stack. Other previously migrated inline
-mappers are temporarily compatibility implementations: they skip the third
-payload byte but still use their older PC-derived selector logic until converted.
+F8/F8SC/F6/F6SC/F4/F4SC, FA, and DPC are fully migrated: their bank-local
+trampolines consume the destination descriptor directly and carry a baked source
+descriptor on the hardware stack. Other previously migrated inline mappers are
+temporarily compatibility implementations: they skip the third payload byte but
+still use their older PC-derived selector logic until converted.
 
 No new mapper should be designed around the old PC-derived form.
 
@@ -130,9 +130,9 @@ identify the mapper state needed to enter and later restore each participating
 compiled-code bank under VCSC's supported topology.
 
 For each participating bank, the mapper profile must provide a one-byte
-bank-call descriptor. The exact profile syntax used to declare that byte is part
-of the pending implementation migration; the ABI requirement is the value, not
-a particular parser spelling.
+bank-call descriptor using `$bankcall_descriptor:<byte>`. The ABI requirement is
+the mapper-defined value; generic linker code carries it without interpreting its
+meaning.
 
 The mapper-specific `inline_bankcall.s26` owns the interpretation of the byte.
 Examples of useful descriptor choices include:

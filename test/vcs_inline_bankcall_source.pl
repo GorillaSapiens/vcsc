@@ -24,10 +24,10 @@ my $tmp = shift @ARGV // die "usage: $0 REPO TMP\n";
 @ARGV and die "usage: $0 REPO TMP\n";
 
 my $as = File::Spec->catfile($repo, qw(assembler vcsc-as));
-my @generic_mapper_dirs = qw(F8 F8SC F6 F6SC F4 F4SC);
-my @legacy_mapper_dirs = qw(FA DPC);
+my @generic_mapper_dirs = qw(F8 F8SC F6 F6SC F4 F4SC FA DPC);
+my @legacy_mapper_dirs = ();
 my $src = File::Spec->catfile($repo, qw(libraries vcs F8 inline_bankcall.s26));
-my $legacy_src = File::Spec->catfile($repo, qw(libraries vcs FA inline_bankcall.s26));
+my $legacy_src = File::Spec->catfile($repo, qw(linker legacy_inline_bankcall.s26));
 my $fa2_src = File::Spec->catfile($repo, qw(libraries vcs FA2 inline_bankcall.s26));
 my $jane_src = File::Spec->catfile($repo, qw(libraries vcs JANE inline_bankcall.s26));
 my $m0840_src = File::Spec->catfile($repo, qw(libraries vcs 0840 inline_bankcall.s26));
@@ -109,7 +109,7 @@ index($s26, 'adc #3') >= 0 &&
 index($s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
    or die "maintained F-family descriptor trampoline lacks selector/source-descriptor ABI\n";
 index($legacy_s26, 'adc #3') >= 0 && index($legacy_s26, '__vcsc_generic_bankcall_reserved_end = $6050') >= 0
-   or die "transitional FA/DPC trampoline did not skip the new descriptor byte\n";
+   or die "legacy fallback trampoline did not skip the new descriptor byte\n";
 index($fa2_s26, 'eor #7') >= 0 && index($fa2_s26, 'sta VCSC_BANKCALL_SELECTOR_BASE,y') >= 0
    or die "maintained FA2 trampoline source lacks reversed selector transform
 ";
@@ -181,7 +181,7 @@ system($^X, $generator, $as, $m0fa0_src, $m0fa0_fresh, 'M0FA0') == 0
 read_file($fresh) eq read_file($built)
    or die "built generic bank-call template is stale relative to F8/inline_bankcall.s26\n";
 read_file($legacy_fresh) eq read_file($legacy_built)
-   or die "built legacy bank-call template is stale relative to FA/inline_bankcall.s26\n";
+   or die "built legacy bank-call template is stale relative to linker/legacy_inline_bankcall.s26\n";
 read_file($fa2_fresh) eq read_file($fa2_built)
    or die "built FA2 bank-call template is stale relative to FA2/inline_bankcall.s26
 ";

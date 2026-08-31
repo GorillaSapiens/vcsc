@@ -93,6 +93,8 @@ my $pt=read_file($profile);
 (()=$pt =~ /\bbank\s+bank\d+\s*\{/g)==4 &&
 $pt =~ /bank\s+bank2\s*\{.*?\$image_size:0x0800.*?\$file_index:2.*?\$data_only/s &&
 $pt =~ /bank\s+bank3\s*\{.*?\$image_size:0x00ff.*?\$file_index:3.*?\$data_only/s &&
+$pt =~ /bank\s+bank0\s*\{.*?\$select_access:0x1ff9\s+\$bankcall_descriptor:0xf9.*?\$startup/s &&
+$pt =~ /bank\s+bank1\s*\{.*?\$select_access:0x1ff8\s+\$bankcall_descriptor:0xf8/s &&
 $pt =~ /mem\s+bank2\s*\{.*?\$size:0x0800.*?\$ro.*?\$data_bank:bank2/s &&
 $pt =~ /mem\s+bank3\s*\{.*?\$size:0x00ff.*?\$ro.*?\$data_bank:bank3/s
    or die "DPC C26 profile lost its F8 + 2K/255-byte data-only topology\n";
@@ -132,21 +134,36 @@ $map =~ /bank3\s+used=255 bytes \(100\.00%\)/ &&
 $map =~ /RODATA\.bank2\.__vcsc_object\$dpc_display_data load=\$0000 size=\$0800/ &&
 $map =~ /RODATA\.bank3\.__vcsc_object\$dpc_poly_data load=\$0000 size=\$00FF/
    or die "DPC map lost data-only bank layout\n$map";
-$map =~ /generic-jsr=\$050\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
+$map =~ /generic-jsr=\$048\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
 $map !~ /JSR entry=/ &&
-$map =~ /EDGE main -> bank1_probe .*bank-bridge=yes/ &&
-$map =~ /EDGE bank1_probe -> bank0_probe .*bank-bridge=yes/
-   or die "DPC visible self-test no longer uses the fixed inline bank-call block for both ordered program-bank calls\n$map";
-my %sym=map { $_=>map_symbol($map,$_) } qw(simulator_done failure display_sum1 display_sum2 actual_rng expected_rng);
-my($out,$err)=require_ok('simulate DPC fetchers and RNG',$sim,'-T',$cfg,
-   sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);
-$err eq '' or die "DPC simulator wrote stderr:\n$err";
-my $mem=parse_hex_dump($out);
-$mem->[$sym{failure}]==0 or die sprintf("DPC self-test failed: failure=\$%02X\n",$mem->[$sym{failure}]);
-$mem->[$sym{display_sum1}]==0xA0 && $mem->[$sym{display_sum2}]==0x90
-   or die "DPC simulator did not traverse the full display-data bank\n";
-$mem->[$sym{expected_rng}]==1 && $mem->[$sym{actual_rng}]==1
-   or die "DPC simulator did not complete the 255-state RNG cycle\n";
+$map =~ /EDGE bank0_source -> bank1_probe .*bank-bridge=yes/ &&
+$map =~ /EDGE bank1_source -> bank0_probe .*bank-bridge=yes/
+   or die "DPC visible self-test no longer uses the fixed descriptor bank-call block for both cross-bank matrix legs\n$map";
+my $lst=$bin; $lst =~ s/\.bin\z/.lst/; $lst=read_file($lst);
+my %dpc_descriptor = (bank0_probe => 0xF9, bank1_probe => 0xF8);
+for my $probe (qw(bank0_probe bank1_probe)) {
+   my $jsr_count = () = $lst =~ /; JSR \Q$probe\E\b/g;
+   my $target_count = () = $lst =~ /; \.banktarget \Q$probe\E\b/g;
+   my $desc = sprintf('%02x',$dpc_descriptor{$probe});
+   my $descriptor_count = () = $lst =~ /^\s*\d+\s+[0-9a-f]{4}\s+[0-9a-f]{2}\s+[0-9a-f]{2}\s+\Q$desc\E\s+; \.banktarget \Q$probe\E\b/gmi;
+   $jsr_count == 2 && $target_count == 1 && $descriptor_count == 1
+      or die "DPC matrix call shape for $probe is wrong: JSR=$jsr_count banktarget=$target_count descriptor=$descriptor_count\n";
+}
+
+my %sym=map { $_=>map_symbol($map,$_) } qw(simulator_done failure display_sum1 display_sum2 actual_rng expected_rng call_count nested_count);
+for my $start (0..1) {
+   my($out,$err)=require_ok("simulate DPC fetchers and RNG from physical bank $start",$sim,'-T',$cfg,
+      "--start-bank=$start",sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);
+   $err eq '' or die "DPC simulator start bank $start wrote stderr:\n$err";
+   my $mem=parse_hex_dump($out);
+   $mem->[$sym{failure}]==0 or die sprintf("DPC self-test from bank %d failed: failure=\$%02X\n",$start,$mem->[$sym{failure}]);
+   $mem->[$sym{call_count}]==4 && $mem->[$sym{nested_count}]==1
+      or die "DPC complete ordered call matrix/nested return failed from physical bank $start\n";
+   $mem->[$sym{display_sum1}]==0xA0 && $mem->[$sym{display_sum2}]==0x90
+      or die "DPC simulator did not traverse the full display-data bank from physical bank $start\n";
+   $mem->[$sym{expected_rng}]==1 && $mem->[$sym{actual_rng}]==1
+      or die "DPC simulator did not complete the 255-state RNG cycle from physical bank $start\n";
+}
 
 my $bad=File::Spec->catfile($tmp,'bad-data-ref.c26');
 write_file($bad,<<'SRC');

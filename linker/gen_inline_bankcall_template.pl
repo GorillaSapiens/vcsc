@@ -13,6 +13,7 @@ my $var_prefix = lc($prefix);
 $var_prefix = "vcsc_${var_prefix}_bankcall";
 my $display_src = $src;
 $display_src =~ s{^.*?(libraries/)}{$1};
+$display_src =~ s{^.*?(linker/)}{$1};
 my $tmp = tempdir(CLEANUP => 1);
 
 sub parse_ihex {

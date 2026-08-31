@@ -101,10 +101,10 @@ Open workstreams
    `.../bankswitching.txt` keeps only durable mapper facts and unfinished work.
    Mapper support lives under uppercase Stella-named `libraries/vcs/<MAPPER>/`
    directories, with mapper-specific C26/CFG/S26 helpers inside that namespace.
-   The toolchain now emits the six-byte descriptor call ABI. F8/F6/F4(+SC)
-   consume it end to end with selector-low-byte descriptors and a 69/72-byte
-   (`$048`) fixed block; same-bank calls remain ordinary JSRs and cross-bank calls
-   use zero legacy entries. FA/DPC, FA2, JANE, 0840, UA/UASW, and 0FA0 are
+   The toolchain now emits the six-byte descriptor call ABI. F8/F6/F4(+SC), FA,
+   and DPC consume it end to end with selector-low-byte descriptors and a 69/72-
+   byte (`$048`) fixed block; same-bank calls remain ordinary JSRs and cross-bank
+   calls use zero legacy entries. FA2, JANE, 0840, UA/UASW, and 0FA0 are
    transitional: their three-byte payload is emitted but their old trampolines
    still skip the descriptor and decode bank identity from PCs. **Next code
    step:** convert those existing mapper blocks to `BANKSWITCHING.md`, then FC/F0.

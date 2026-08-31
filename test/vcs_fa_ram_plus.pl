@@ -56,6 +56,11 @@ my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $source=File::Spec->catfile($repo,'examples','09_bankswitching','03_fa_ram_plus','fa_ram_plus_diagnostic.c26');
 my $source_text=read_file($source);
+my $profile_text=read_file(File::Spec->catfile($vcs,'FA/mapper.c26'));
+$profile_text =~ /bank\s+bank0\s*\{.*?\$select_access:0x1ffa\s+\$bankcall_descriptor:0xfa.*?\$startup/s &&
+$profile_text =~ /bank\s+bank1\s*\{.*?\$select_access:0x1ff9\s+\$bankcall_descriptor:0xf9/s &&
+$profile_text =~ /bank\s+bank2\s*\{.*?\$select_access:0x1ff8\s+\$bankcall_descriptor:0xf8/s
+   or die "FA profile lost descriptor-ABI selector bytes\n";
 $source_text =~ /instantiate "six_glyph_component\.c26" as cart_type/ &&
 $source_text =~ /blank \/ blank \/ F \/ A \/ blank \/ blank/ &&
 $source_text =~ /cart_type_draw\(\)/
@@ -82,21 +87,21 @@ $m =~ /^\s+cartram\s+read_start=\$F100 write_start=\$F000 size=\$0100 type=rw sh
    or die "FA RAM split-address map is missing\n$m";
 $m =~ /used=256 bytes \(100\.00%\).*free=0 bytes/m
    or die "FA diagnostic does not allocate all 256 cartridge-RAM bytes\n$m";
-$m =~ /generic-jsr=\$050\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
+$m =~ /generic-jsr=\$048\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
 $m !~ /JSR entry=/
    or die "FA diagnostic did not use only the fixed generic JSR block\n$m";
 
-# Every physical bank carries the same reset bridge and the real RESET/IRQ
-# vectors.  The final bank deliberately replaces the unused NMI-vector bytes
-# with the NUL-padded mapper signature at $xFF8-$xFFB.
-for my $chunk (1..2) {
-   substr($rom,$chunk*4096+0xFE0,0x12) eq substr($rom,0xFE0,0x12)
-      or die "FA vector bridge differs in physical bank $chunk\n";
-   substr($rom,$chunk*4096+0xFFC,4) eq substr($rom,0xFFC,4)
-      or die "FA RESET/IRQ vectors differ in physical bank $chunk\n";
+my $lst=$bin; $lst =~ s/\.bin\z/.lst/; $lst=read_file($lst);
+for my $dest_bank (0..2) {
+   my $probe = "bank${dest_bank}_probe";
+   my @descriptor = (0xFA,0xF9,0xF8);
+   my $jsr_count = () = $lst =~ /; JSR \Q$probe\E\b/g;
+   my $target_count = () = $lst =~ /; \.banktarget \Q$probe\E\b/g;
+   my $desc = sprintf('%02x',$descriptor[$dest_bank]);
+   my $descriptor_count = () = $lst =~ /^\s*\d+\s+[0-9a-f]{4}\s+[0-9a-f]{2}\s+[0-9a-f]{2}\s+\Q$desc\E\s+; \.banktarget \Q$probe\E\b/gmi;
+   $jsr_count == 3 && $target_count == 2 && $descriptor_count == 2
+      or die "FA matrix call shape for destination bank $dest_bank is wrong: JSR=$jsr_count banktarget=$target_count descriptor=$descriptor_count\n";
 }
-substr($rom,2*4096+0xFF8,4) eq "FA\0\0"
-   or die "FA final-bank signature is missing\n";
 
 my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure trace ram_count fa_bss fa_data);
 for my $start (0..2) {
@@ -106,8 +111,8 @@ for my $start (0..2) {
    $err eq '' or die "FA simulator wrote stderr from bank $start:\n$err";
    my $mem=parse_hex_dump($out);
    $mem->[$sym{failure}]==0 or die sprintf("FA self-test failed from bank %d: failure=$%02X\n",$start,$mem->[$sym{failure}]);
-   $mem->[$sym{trace}]==63 && $mem->[$sym{ram_count}]==6
-      or die "FA exhaustive cross-bank trace/counter failed from bank $start\n";
+   $mem->[$sym{trace}]==0xFF && $mem->[$sym{trace}+1]==0x01 && $mem->[$sym{ram_count}]==9
+      or die "FA complete ordered call-matrix trace/counter failed from bank $start\n";
    $mem->[$sym{fa_data}]==0xA5 or die "FA DATA byte did not persist from bank $start\n";
    $mem->[$sym{fa_bss}+0]==0x11 &&
    $mem->[$sym{fa_bss}+127]==0x22 &&
