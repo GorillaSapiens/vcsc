@@ -58,6 +58,7 @@ my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $simcfg=File::Spec->catfile($vcs,'vcs_8k_f8.cfg');
 
 for my $case (
+   [within_page=>0xD0F0, 'five-byte call bundle remains within one page'],
    [word_cross=>0xD0FC, 'inline target word straddles page boundary'],
    [jsr_end=>0xD0FD, 'JSR ends at page boundary and inline word starts next page'],
 ) {
@@ -70,6 +71,7 @@ for my $case (
    my $source=sprintf <<'SRC', $edge_start;
 include "vcs.c26"
 cartridge {
+   $inline_bankcall
    $fill:0xff $signature:F8
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012
@@ -139,6 +141,63 @@ SRC
          or die sprintf("%s failed after page-crossing call from start bank %d: A=%02X X=%02X done=%02X\n",
                         $name,$start_bank,$mem->[$a],$mem->[$x],$mem->[$done]);
    }
+}
+
+# The generated JSR + inline word is part of one function layout.  Pin a
+# six-byte function (five-byte call bundle plus RTS) exactly against the end of
+# allocatable bank1 ROM, then prove moving it one byte later is rejected rather
+# than spilling any part into the replicated trampoline corridor / next bank.
+{
+   my $good=File::Spec->catfile($tmp,'bank_end_good.c26');
+   my $bad=File::Spec->catfile($tmp,'bank_end_bad.c26');
+   my $map_path=File::Spec->catfile($tmp,'bank_end_good.map');
+   my $bin=File::Spec->catfile($tmp,'bank_end_good.bin');
+   my $template=<<'SRC';
+include "vcs.c26"
+cartridge {
+   $inline_bankcall
+   $fill:0xff $signature:F8
+   $trampoline_offset:0x0f00 $trampoline_size:0x00e0
+   $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012
+   $vectors_offset:0x0ffa $vectors_size:0x0006
+};
+bank bank0 {
+   $image_size:0x1000 $file_index:1 $image_offset:0
+   $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
+   $select_access:0x1ff9 $startup
+};
+bank bank1 {
+   $image_size:0x1000 $file_index:0 $image_offset:0
+   $link_start:0xd000 $cpu_start:0xf000 $map_size:0x1000
+   $select_access:0x1ff8
+};
+mem bank0 { $start:0xf000 $size:0x0f00 $ro $priority:2 };
+EDGE_DECL
+bank0 void target(void) { }
+edge void crossing(void) { target(); }
+bank0 void stop(void) { while (1) { } }
+bank0 void main(void) { crossing(); asm jmp stop; }
+SRC
+   my $good_source=$template;
+   $good_source =~ s/EDGE_DECL/mem edge { \$start:0xdefa \$size:0x0006 \$ro \$priority:3 };/;
+   write_file($good,$good_source);
+   require_ok('link bank-end exact fit',$driver,'-I',$vcs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),
+              '-Map',$map_path,$good,'-o',$bin);
+   my $map=read_file($map_path);
+   map_symbol($map,'crossing')==0xDEFA
+      or die "bank-end exact-fit call function did not remain at DEFA\n";
+   $map =~ /CODE\.edge\.__vcsc_function\$crossing\s+load=\$DEFA\s+size=\$0006/
+      or die "bank-end exact-fit function was not one indivisible six-byte layout\n$map";
+
+   my $bad_source=$template;
+   $bad_source =~ s/EDGE_DECL/mem edge { \$start:0xdefb \$size:0x0005 \$ro \$priority:3 };/;
+   write_file($bad,$bad_source);
+   my($rc,$sig,$out,$err)=run_capture($driver,'-I',$vcs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),
+                                     $bad,'-o',File::Spec->catfile($tmp,'bank_end_bad.bin'));
+   $rc!=0 && !$sig
+      or die "bank-end overflow unexpectedly linked; call bundle may have spilled across its layout\n";
+   $err =~ /cannot satisfy final page\/alignment capacity/
+      or die "bank-end overflow failed for an unexpected reason:\n$err";
 }
 
 print "inline bank-call page crossings passed\n";

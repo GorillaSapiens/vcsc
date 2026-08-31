@@ -97,32 +97,17 @@ Open workstreams
 
 3. **Bankswitching**
    `.../bankswitching.txt` contains the durable cartridge model plus unfinished
-   mapper diagnostics. FA2 is complete with native 24K/six-bank and 28K/seven-bank
-   profiles, shared 256-byte split cartridge RAM, simulator/disassembler support,
-   exact round trip, and a Stella-visible diagnostic. Ordinary selector-controlled
-   mappers now have exhaustive ordered JSR/RTS source/destination regression
-   coverage via one ROM per source bank. The current 15-byte replicated JSR entry
-   per `(source bank, target function)` is design debt. The replacement design is
-   chosen: emit `JSR __bankcall` followed by inline `.word target` (five-byte call
-   site). The generic entry reads/skips that word through the stacked logical JSR
-   return PC before switching banks. On return, the unchanged original logical PC
-   exposed on the stack already identifies the source bank because banks use distinct
-   ORGs; the generic return path selects that bank and RTSes to the logical PC without
-   rewriting it. All stacked-PC/inline-target arithmetic is 16-bit/carry-correct;
-   the five-byte JSR+word bundle may cross pages but never a logical bank boundary.
-   A working pilot now exists in `examples/09_bankswitching/01_diagnostic` for
-   F8/F6/F4(+SC): compiler `.banktarget`, assembler relocation, and an 80-byte
-   generic linker call/return block. The diagnostic runs every ordered JSR/JMP pair
-   from every starting bank; page-edge regressions cover carry and A:X preservation.
-   Integration is unfinished: finish docs/allowlist/hygiene, lock atomic bank-end
-   placement, run focused tests, then retire/fold the legacy per-target fallback.
-   Preserve A:X returns and nested-call stack behavior. The earlier seven-byte
-   A:X-target proposal is rejected rationale only. Remaining mapper order
-   is **FC -> F0**. FC is a staged direct selector
-   ($1FF8/$1FF9 target setup, $1FFC commit). F0 uses the same inline-target call;
-   entry computes the forward $1FF0 count from stacked source PC plus inline target,
-   while return carries a per-call reverse count (for example one stack byte) so no
-   ROM identity byte or runtime bank search is needed.
+   mapper work. FA2 is complete. The generic inline-target cross-bank JSR pilot
+   is complete as an opt-in pilot for `examples/09_bankswitching/01_diagnostic`
+   and F8/F6/F4(+SC): `$inline_bankcall` (exposed by stock profiles through
+   `VCSC_INLINE_BANKCALL`) enables five-byte JSR+target bundles using one
+   fixed 80-byte replicated entry/return block, with no per-target JSR entries.
+   The unchanged stacked logical caller PC identifies the source bank; return
+   preserves A:X and RTSes directly to that logical PC. Page-edge and bank-end
+   regressions lock carry-correct target/continuation math and indivisible layout
+   placement. Legacy bridges remain only for mapper families/lower-level inputs
+   not yet migrated. Remaining mapper order is **FC -> F0**; read the focused
+   file before implementing either.
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished

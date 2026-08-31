@@ -84,7 +84,7 @@ sub build_matrix_rom {
    my $stem=lc($mapper).'_matrix';
    my $bin=File::Spec->catfile($tmp,"$stem.bin");
    my $map_path=File::Spec->catfile($tmp,"$stem.map");
-   my @defs=("-DMAPPER_BANKS=$banks");
+   my @defs=("-DVCSC_INLINE_BANKCALL=1", "-DMAPPER_BANKS=$banks");
    push @defs,'-DSUPERCHIP_TEST' if $sc;
    push @defs,'-DSIMULATOR_TEST' if $simulator;
    push @defs,'-DPOISONED_RESULT' if $poisoned;
@@ -366,7 +366,7 @@ $source_text =~ /#ifdef\s+POISONED_RESULT\s+failure\s*:=\s*1/s
    my $bin=File::Spec->catfile($tmp,'visual_contract.bin');
    my $map_path=File::Spec->catfile($tmp,'visual_contract.map');
    require_ok('build visible diagnostic storage contract',
-      $driver,'-I',$vcs,'-DMAPPER_BANKS=2','-T',File::Spec->catfile($vcs,'vcs.cfg'),
+      $driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-DMAPPER_BANKS=2','-T',File::Spec->catfile($vcs,'vcs.cfg'),
       '-Map',$map_path,$source,'-o',$bin);
    my $map=read_file($map_path);
    $map =~ /BSS\.__vcsc_object\x24status_result_pointers\s+run=\$[0-9A-Fa-f]{4}\s+size=\$000C\b/

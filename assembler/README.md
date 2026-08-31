@@ -511,6 +511,16 @@ The low-byte and high-byte unary operators bind like other unary operators:
 
 Forward references are accepted in expressions that can be resolved by later assembler passes, such as instruction operands, `.byte`, `.word`, and ordinary immutable equates.  Layout-control expressions for `.if`, `.elif`, `.repeat`, `.org`, `.rorg`, `.align`, and `.res` must resolve when the assembler needs them to determine layout or active source.
 
+### Inline bank-call target metadata
+
+`.banktarget expression` emits the same two little-endian bytes as `.word` but
+marks the relocation as the inline logical target belonging to the immediately
+preceding compiler-generated cross-bank `JSR`. It is linker protocol metadata,
+not a general control-flow directive. The expression must be one relocatable
+symbol. The linker consumes the word while the caller bank is still mapped and
+rewrites the paired JSR to the fixed generic bank-call entry. Ordinary `.word`
+and indirect `JMP` relocations remain distinct.
+
 ### Diagnostic directives
 
 `.echo "message"` writes the decoded message to standard error during assembly.  It does not emit bytes and does not make assembly fail.

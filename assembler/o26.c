@@ -31,7 +31,7 @@ asm_segment_t *segment_find(asm_context_t *ctx, const char *name);
 #define O26_RTYPE_WORD 0x80
 #define O26_RTYPE_AUX  0x10
 #define O26_RTYPE_INDIRECT_JMP 0x08
-#define O26_RTYPE_BANK_TARGET  0x08 /* control=NONE only; inline cross-bank call target */
+#define O26_RTYPE_BANK_TARGET  0x09 /* impossible indirect-JSR marker; inline cross-bank call target */
 #define O26_RTYPE_LAYOUT 0x04
 #define O26_RTYPE_CONTROL_MASK 0x03
 #define O26_RTYPE_CONTROL_NONE 0x00

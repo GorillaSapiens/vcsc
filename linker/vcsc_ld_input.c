@@ -835,8 +835,7 @@ static void collect_needed_symbols(const input_set_t *in, char ***out, size_t *c
          size_t r;
          for (r = 0; r < segments[j]->reloc_count; ++r) {
             uint8_t type = segments[j]->relocs[r].type;
-            if ((type & O26_RTYPE_BANK_TARGET) &&
-                (type & O26_RTYPE_CONTROL_MASK) == O26_RTYPE_CONTROL_NONE) {
+            if (O26_RTYPE_IS_BANK_TARGET(type)) {
                needs_bankcall_scratch = 1;
                break;
             }

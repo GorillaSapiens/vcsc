@@ -201,3 +201,42 @@ placement bundle: it may cross a 256-byte page but may not cross a logical 4K ba
 boundary. Planned executable regressions cover an inline word split at a page edge,
 a JSR ending at `$xxFF`, stacked-PC `+2` carry, logical-bank-end placement, nesting,
 exact target/return PCs, restored bank, stack depth, and preserved A:X returns.
+
+2026-08-30 18:47:20 PDT, finish generic F8/F6/F4 bank calls
+Completed the inline-target cross-bank JSR pilot used by
+examples/09_bankswitching/01_diagnostic. Explicit pinned F8/F6/F4(+SC) calls
+now use one fixed 80-byte replicated generic call/return block and five-byte
+JSR + inline-target call sites, with zero legacy per-target JSR entries in the
+public exhaustive diagnostic and synthetic ordered-pair matrix. The diagnostic
+executes every ordered JSR and JMP source/destination pair from every physical
+start bank and verifies 16-bit return values, bank restoration, nesting, and
+hardware-stack balance.
+
+Extended test/vcs_bankswitching_inline_call_pages.pl with an ordinary within-page
+case, both page-edge forms, an exact six-byte call-function fit at the end of
+allocatable bank ROM, and rejection one byte later. This locks carry-correct
+inline target fetch / saved-PC +2 arithmetic and proves the call bundle stays in
+one indivisible function layout. Compiler, assembler, ABI, linker, and Vim S26
+documentation were updated for .banktarget and the generic call ABI.
+
+Fixed a pilot integration bug where the original .banktarget relocation marker
+collided with the existing indirect-JMP flag. .banktarget now uses the otherwise
+impossible indirect-JSR marker combination; actual indirect JMP relocations again
+retain NMOS page-wrap validation and no longer spuriously reserve the generic bank
+call block. This restored 0840 and 0FA0 diagnostics as well.
+
+2026-08-30 19:00:40 PDT, scope generic bankcall pilot explicitly
+The first generic inline-target ABI is now an explicit cartridge-profile opt-in
+rather than an automatic consequence of an F8/F6/F4 signature.  A cartridge
+uses `$inline_bankcall`; the stock F8/F6/F4(+SC) profiles expose that through the
+driver define `VCSC_INLINE_BANKCALL`.  The public 09_bankswitching/01_diagnostic
+Makefile and its focused regressions pass that define, while unrelated programs
+stay on the legacy per-target bridge ABI until deliberately migrated.
+
+This opt-in was added after the broad e2e run showed that silently migrating the
+large timing-sensitive diagnostic cartridge changed its frame timing.  With the
+opt-in boundary in place its map again contains legacy JSR entries and no generic
+block; the previously failing controller timing sequence and representative
+paddle thresholds 0, 95, and 255 are back at 262-line NTSC frames.  C26 source
+itself does not support `#define`, so the opt-in is supplied with the driver's
+existing `-D` mechanism rather than inventing a new source preprocessor feature.

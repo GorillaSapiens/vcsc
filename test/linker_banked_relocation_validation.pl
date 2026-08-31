@@ -199,7 +199,7 @@ require_ok('cross-bank JSR trampoline generation',
 my $jsr_image = slurp($cross_jsr_bin);
 my $jsr_map = slurp($cross_jsr_map);
 length($jsr_image) == 8192 or die "cross-JSR image was not 8K\n";
-$jsr_map =~ /common-offset=\$F00 reserved=\$0E0 used=\$01E replicated=\$0000003C target-passing=inline entries=2 jmp=0 jsr=2 jmp-size=\$08 jsr-size=\$0F/
+$jsr_map =~ /common-offset=\$F00 reserved=\$0E0 used=\$01E replicated=\$0000003C target-passing=inline generic-jsr=\$000 entries=2 jmp=0 jsr=2 jmp-size=\$08 jsr-size=\$0F/
    or die "map omitted common JSR table accounting\n$jsr_map";
 my $jsr_bank1_table = substr($jsr_image, 0x0F00, 0x1E);
 my $jsr_bank0_table = substr($jsr_image, 0x1F00, 0x1E);
@@ -368,7 +368,7 @@ require_ok('cross-bank JMP trampoline generation',
 my $jmp_image = slurp($cross_jmp_bin);
 my $jmp_map = slurp($cross_jmp_map);
 length($jmp_image) == 8192 or die "cross-JMP image was not 8K\n";
-$jmp_map =~ /common-offset=\$F00 reserved=\$0E0 used=\$010 replicated=\$00000020 target-passing=inline entries=2 jmp=2 jsr=0 jmp-size=\$08 jsr-size=\$0F/
+$jmp_map =~ /common-offset=\$F00 reserved=\$0E0 used=\$010 replicated=\$00000020 target-passing=inline generic-jsr=\$000 entries=2 jmp=2 jsr=0 jmp-size=\$08 jsr-size=\$0F/
    or die "map omitted common JMP table accounting or deduplication\n$jmp_map";
 my $bank1_table = substr($jmp_image, 0x0F00, 0x10);
 my $bank0_table = substr($jmp_image, 0x1F00, 0x10);

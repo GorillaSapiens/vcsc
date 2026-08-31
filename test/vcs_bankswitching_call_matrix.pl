@@ -142,20 +142,33 @@ for my $profile (@profiles) {
       print {$fh} generated_source($include, $banks, $source);
       close($fh) or die "could not close $src: $!\n";
 
+      my $uses_inline = $name =~ /^(?:F8|F8SC|F6|F6SC|F4|F4SC)$/;
+      my @pilot_define = $uses_inline ? ('-DVCSC_INLINE_BANKCALL=1') : ();
       require_ok("build $name ordered-call source bank $source",
-                 $driver, '-I', $vcs, '-T', $generic_cfg, '-Map', $map_path,
+                 $driver, '-I', $vcs, @pilot_define, '-T', $generic_cfg, '-Map', $map_path,
                  $src, '-o', $bin);
       my $map = slurp($map_path);
-      my $expected_jsr = ($banks - 1) + ($source == 0 ? 0 : 1);
-      $map =~ /entries=\d+\s+jmp=\d+\s+jsr=\Q$expected_jsr\E\b/
-         or die "$name source bank $source generated unexpected JSR bridge count (wanted $expected_jsr)\n$map";
+      if ($uses_inline) {
+         $map =~ /generic-jsr=\$050\b.*\bentries=0\s+jmp=0\s+jsr=0\b/
+            or die "$name source bank $source did not use only the fixed generic JSR block\n$map";
+         $map !~ /JSR entry=/
+            or die "$name source bank $source still emitted legacy per-target JSR entries\n$map";
+      }
+      else {
+         my $expected_jsr = ($banks - 1) + ($source == 0 ? 0 : 1);
+         $map =~ /entries=\d+\s+jmp=\d+\s+jsr=\Q$expected_jsr\E\b/
+            or die "$name source bank $source generated unexpected JSR bridge count (wanted $expected_jsr)\n$map";
+         for my $dest (0 .. $banks - 1) {
+            next if $dest == $source;
+            my $src_hot = sprintf('%04X', $hotspots->[$source]);
+            my $dst_hot = sprintf('%04X', $hotspots->[$dest]);
+            $map =~ /JSR entry=.*source=BANK\Q$source\E hotspot=\$\Q$src_hot\E destination=BANK\Q$dest\E hotspot=\$\Q$dst_hot\E/im
+               or die "$name missing generated ordered JSR bridge BANK$source -> BANK$dest\n$map";
+         }
+      }
 
       for my $dest (0 .. $banks - 1) {
          next if $dest == $source;
-         my $src_hot = sprintf('%04X', $hotspots->[$source]);
-         my $dst_hot = sprintf('%04X', $hotspots->[$dest]);
-         $map =~ /JSR entry=.*source=BANK\Q$source\E hotspot=\$\Q$src_hot\E destination=BANK\Q$dest\E hotspot=\$\Q$dst_hot\E/im
-            or die "$name missing generated ordered JSR bridge BANK$source -> BANK$dest\n$map";
          $pair_count++;
       }
 

@@ -35,7 +35,7 @@ syn match s26Label "^\s*\zs[A-Za-z_@?][A-Za-z0-9_@?$]*\ze\s*:"
 " Known directives get normal directive coloring.  The generic statement-start
 " match also colors future/extension directives without confusing opcode
 " suffixes such as .same or .z.
-syn match s26Directive "\.\%(align\|ascii\|asciiz\|byte\|callstackextra\|def\|endif\|endproc\|export\|exportzp\|global\|if\|import\|importzp\|include\|org\|proc\|res\|segment\|segmentalign\|segmentdef\|segmentprivate\|segmentregion\|set\|text\|weak\|word\|zpexport\|zpimport\)\>"
+syn match s26Directive "\.\%(align\|ascii\|asciiz\|banktarget\|byte\|callstackextra\|def\|endif\|endproc\|export\|exportzp\|global\|if\|import\|importzp\|include\|org\|proc\|res\|segment\|segmentalign\|segmentdef\|segmentprivate\|segmentregion\|set\|text\|weak\|word\|zpexport\|zpimport\)\>"
 syn match s26Directive "^\s*\%([A-Za-z_@?][A-Za-z0-9_@?$]*\s*:\s*\)\?\zs\.[A-Za-z_][A-Za-z0-9_]*\>"
 
 syn match s26Assignment "?=\|="

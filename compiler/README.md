@@ -659,6 +659,21 @@ expansions have no independently placeable linker layout. For numbered bank
 regions, `main` may be unmarked or use `bank0`; explicitly placing it in `bank1`
 or another nonzero numbered bank is rejected.
 
+
+For F8/F6/F4 profiles, the compact generic cross-bank form is currently gated
+by the cartridge `$inline_bankcall` flag. The stock profiles expose that pilot
+through `VCSC_INLINE_BANKCALL`; code that does not define the macro retains the
+legacy per-target bridge ABI. With the opt-in enabled, a direct call between two
+explicitly different bank regions is lowered to the compact generic cross-bank
+form. Generated S26 is
+conceptually `JSR __bankcall` followed by an inline `.word target`; the compiler
+spells the word as `.banktarget target` so the assembler can preserve the
+linker-only relocation marker. The linked call site is five bytes regardless of
+how many different functions are called across banks. One fixed replicated
+entry/return block replaces per-target JSR bridge entries. Page crossings inside
+the five-byte bundle are valid; normal function-layout placement keeps the
+bundle from being split across a bank allocation boundary.
+
 A constant object may use one named read-only region:
 
 ```vcsc

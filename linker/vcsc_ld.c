@@ -7516,8 +7516,7 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
             /* .banktarget is metadata consumed by the paired direct JSR; it is
                intentionally a far logical word and must not create a hard
                same-bank placement edge of its own. */
-            if ((reloc->type & O26_RTYPE_BANK_TARGET) &&
-                control == O26_RTYPE_CONTROL_NONE)
+            if (O26_RTYPE_IS_BANK_TARGET(reloc->type))
                continue;
 
             if (cfg->cartridge_banked &&
@@ -9012,8 +9011,7 @@ static const char *relocation_width_name(uint8_t type)
 //! @brief Return whether a relocation is the inline logical target word for a generic bank call.
 static int relocation_is_bank_target(const reloc_t *r)
 {
-   return r && (r->type & O26_RTYPE_BANK_TARGET) &&
-          (r->type & O26_RTYPE_CONTROL_MASK) == O26_RTYPE_CONTROL_NONE;
+   return r && O26_RTYPE_IS_BANK_TARGET(r->type);
 }
 
 //! @brief Return the segment containing one relocation image id.

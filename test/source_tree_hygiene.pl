@@ -198,10 +198,14 @@ index($bankswitching,'FA2 extends the FA split-RAM model to six or seven directl
 index($bankswitching,'[ ] 38b. FC -- do this next.')>=0 &&
 index($bankswitching,'[ ] 38c. F0 -- do this after FC.')>=0 &&
 index($bankswitching,'bank through the $1FF0 hotspot instead of directly selecting an')>=0 &&
-index($bankswitching,'Replace that representation with the chosen five-byte')>=0 &&
-index($bankswitching,'JSR __bankcall')>=0 &&
-index($bankswitching,'.word target')>=0 &&
-index($bankswitching,'caller continuation PC is again exposed on the hardware stack')>=0 &&
+index($bankswitching,'Generic inline-target cross-bank JSR contract')>=0 &&
+index($bankswitching,'80-byte')>=0 &&
+index($bankswitching,'replicated entry/return block')>=0 &&
+index($bankswitching,'unchanged original 16-bit logical return PC')>=0 &&
+index($bankswitching,'consume no legacy per-target')>=0 &&
+-f File::Spec->catfile($test,'vcs_bankswitching_inline_call_pages.pl') &&
+index(slurp(File::Spec->catfile($repo,'compiler','compile_call.c')),'.banktarget %s')>=0 &&
+index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'BANK_GENERIC_JSR_SIZE = 0x50')>=0 &&
 index($bankswitching,'no ROM bank-identity')>=0 &&
 index($bankswitching,'reverse advance count as call-frame metadata')>=0 &&
 $bankswitching !~ /^\[ \] 42\./m &&

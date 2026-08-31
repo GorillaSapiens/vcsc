@@ -16,6 +16,7 @@
 MAPPER_BANKS_must_be_2_4_or_8
 #endif
 
+
 #ifdef SUPERCHIP_TEST
 #if MAPPER_BANKS == 2
 include "vcs_8k_f8sc.c26"

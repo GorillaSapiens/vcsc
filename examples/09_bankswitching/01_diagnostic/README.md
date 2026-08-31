@@ -18,6 +18,10 @@ selects a mapper only:
   -Map f4.map bankswitching_diagnostic.c26 -o f4.bin
 ```
 
+This example defines `VCSC_INLINE_BANKCALL` before including the stock mapper
+profile, so it is the public pilot for the generic call ABI; unrelated
+F8/F6/F4 programs keep the legacy bridge timing unless they opt in too.
+
 Each cartridge internally runs the complete ordered source-bank to
 destination-bank matrix twice: 4+4 transitions for F8, 16+16 for F6, and 64+64
 for F4. The first pass uses ordinary C calls. Same-bank calls remain ordinary

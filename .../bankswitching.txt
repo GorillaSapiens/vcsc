@@ -148,72 +148,43 @@ accessed, not because of the stored byte value.
 
 Open work
 ---------
-[ ] Shared cross-bank JSR redesign -- pilot is implemented in
-    `examples/09_bankswitching/01_diagnostic` for F8/F6/F4(+SC), but integration
-    is unfinished. Compiler emits `JSR` + `.banktarget`; assembler preserves the
-    inline-target relocation; linker uses an 80-byte fixed generic call/return block.
-    The public diagnostic executes every ordered JSR and JMP bank pair and passes
-    in `vcsc-sim` from every physical start bank; `test/vcs_bankswitching_inline_call_pages.pl`
-    covers JSR-at-page-end and inline-word page crossing with A:X preservation.
-    Next: finish docs/allowlist/hygiene, lock atomic five-byte bank-end placement,
-    run focused regressions, then remove/fold the legacy per-target fallback before FC/F0.
+Generic inline-target cross-bank JSR contract
+---------------------------------------------
+The F8/F6/F4(+SC) pilot uses the compact generic call path only when the
+cartridge declares `$inline_bankcall`; the stock profiles expose this via
+`VCSC_INLINE_BANKCALL`. This opt-in keeps unrelated timing-sensitive cartridges
+on the legacy bridge ABI until they are deliberately migrated. With the flag
+enabled, explicitly bank-pinned cross-bank C calls use the generic path. The compiler emits a five-byte
+`JSR` + inline target bundle (`.banktarget target` in generated S26, physically
+the same two bytes as `.word target`). The linker redirects the JSR to one fixed
+80-byte replicated entry/return block; these calls consume no legacy per-target
+15-byte JSR entries. Existing legacy bridge support remains available for mapper
+families not yet migrated and for lower-level object/S26 inputs.
 
-    The current implementation being replaced is design debt: each distinct `(source bank, target
-    function)` JSR owns a 15-byte entry in the byte-identical common corridor. The
-    three-byte call site is compact, but target diversity consumes replicated
-    corridor capacity. Replace that representation with the chosen five-byte
-    inline-target form:
+The entry reads the inline logical target before switching banks, advances the
+original stacked JSR return PC by two with full 16-bit carry propagation, and
+uses an internal JSR to create the synthetic return. The callee ends with normal
+RTS. The generic return preserves A:X, derives the source selector from the
+unchanged original 16-bit logical return PC, restores that bank, and RTSes
+directly to the logical continuation; do not rewrite the saved PC to `$Fxxx`.
+Distinct logical ORGs encode bank identity even though the cartridge bus mirrors
+the high address bits. Nested calls therefore compose naturally in LIFO order.
 
-        JSR __bankcall
-        .word target
+A call bundle may cross an ordinary 256-byte page. `(ptr),Y` target fetches and
+stacked-PC adjustment are carry-correct. The five-byte bundle remains inside one
+indivisible function layout and therefore cannot spill across a bank allocation
+boundary. `test/vcs_bankswitching_inline_call_pages.pl` locks an ordinary bundle,
+both page-edge forms, an exact fit against the end of allocatable bank ROM, and
+rejection one byte later; it also checks exact continuation and A:X preservation.
+The public `examples/09_bankswitching/01_diagnostic` executes every ordered JSR
+and JMP source/destination pair for F8/F6/F4(+SC) from every physical start bank,
+with zero legacy JSR entries. `test/vcs_bankswitching_call_matrix.pl` independently
+executes all ordered pairs and keeps legacy-family coverage separate.
 
-    `target` is the ordinary 16-bit logical linker address; distinct bank ORGs encode
-    bank identity. JSR's stacked logical return PC likewise identifies the source bank.
-
-    Entry sequence, conceptually:
-
-      1. Peek at the stacked JSR return PC.
-      2. Read the two bytes immediately following it as the inline logical target.
-         These bytes must be consumed before switching away from the source bank.
-      3. Add two to the stacked original return PC so the eventual final RTS resumes
-         after the inline word rather than executing it.
-      4. Derive/select the destination bank from the target's logical address, push a
-         synthetic return to the byte-identical generic `__bankreturn`, and JMP
-         indirectly to the target.
-
-    The callee remains ordinary code and ends with a normal RTS. That RTS consumes
-    only the synthetic return and enters `__bankreturn`. At that point the original
-    caller continuation PC is again exposed on the hardware stack. Its unchanged
-    16-bit logical value identifies the source bank directly. `__bankreturn` peeks
-    at that value, selects the corresponding source bank, restores any saved A:X
-    return value, and performs the final RTS. **Do not rewrite the stacked PC to
-    `$Fxxx` or any other supposedly physical address.** The 6507's PC is 16-bit even
-    though only 13 address lines reach the cartridge; once the correct bank is
-    selected, RTS to the original logical address is exactly what VCSC wants.
-
-    All stack/inline-address arithmetic is genuinely 16-bit. Page crossing is legal:
-    if JSR leaves `$xxFF` on the stack, target bytes at `$(xx+1)00/01` and the saved
-    continuation adjustment must propagate carry correctly. Treat the generated JSR
-    plus inline word as one atomic five-byte placement bundle: it may cross a 256-byte
-    page, but must never cross a logical 4K bank boundary; move/pad the whole bundle
-    when necessary rather than spilling the target word into another bank.
-
-    Preserve nested calls, hardware-stack accounting, A:X return values, source
-    provenance, and exhaustive ordered source/destination coverage. Add executable
-    page-edge regressions with a bundle wholly inside a page, an inline word split
-    across `$xxFF/$xx+1 00`, a JSR ending at `$xxFF`, carry out of the stacked-PC `+2`,
-    and placement at the logical-bank end. Verify exact target/return PCs, restored
-    bank, stack depth, and A:X values. Entry/return helpers may use fixed scratch RAM,
-    but stack inspection must save/restore A:X before clobbering either. Debug,
-    disassembly, and listings must treat the two inline bytes as data, not code.
-
-    Rejected alternate: passing target in A:X costs seven bytes/call versus five and
-    adds no information beyond inline target + stacked logical return PC.
-
-    Do not retain the 224-byte corridor merely because the old per-target scheme
-    needed it; size the final replicated machinery from the fixed generic entry and
-    return paths. Cross-bank JMPs are a separate question and need not be redesigned
-    just to fix JSR density.
+`.banktarget` uses a relocation marker combination that cannot be confused with
+an actual indirect JMP; NMOS indirect-JMP page-wrap validation remains independent.
+The fixed generic block, not the old 224-byte corridor size, is the durable JSR
+ABI. Cross-bank JMPs remain a separate per-target mechanism for now.
 
 [ ] 38. Complete the remaining mapper tier in this order: **FC, F0**.
 
