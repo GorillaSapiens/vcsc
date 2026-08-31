@@ -1,0 +1,84 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+;
+; UASW inline-target cross-bank JSR/RTS trampoline.
+;
+; UASW uses UA hardware with the selector association reversed: $0240 selects
+; logical/physical bank 0 and $0220 selects bank 1.  VCSC logical bank0 is
+; linked at $F000 and bank1 at $D000, so bit 5 of the logical PC high byte is
+; already the selector offset: Y=$20 for bank0 and Y=$00 for bank1.  Masking
+; that bit and reading $0220,Y performs the non-destructive UASW selector read.
+;
+; This is the maintained source for UASW's fixed $inline_bankcall block.
+; linker/gen_inline_bankcall_template.pl assembles it at build time; vcsc-ld
+; patches only the runtime-selected zero-page scratch address, selector base,
+; and internal JSR target before replicating the block into both banks.
+
+.ifndef VCSC_BANKCALL_PTR0
+VCSC_BANKCALL_PTR0 = $0080
+.endif
+.ifndef VCSC_BANKCALL_SELECTOR_BASE
+VCSC_BANKCALL_SELECTOR_BASE = $0220
+.endif
+
+.segmentdef "CODE", $6000, $0100
+.segment "CODE"
+
+.export __vcsc_generic_bankcall_begin
+.export __vcsc_generic_bankreturn
+.export __vcsc_generic_bankcall_switch_and_jump
+.export __vcsc_generic_bankcall_end
+.export __vcsc_generic_bankcall_reserved_end
+
+__vcsc_generic_bankcall_begin:
+    tsx
+    lda $0101,x
+    sta VCSC_BANKCALL_PTR0
+    lda $0102,x
+    sta VCSC_BANKCALL_PTR0 + 1
+    ldy #1
+    lda (VCSC_BANKCALL_PTR0),y
+    pha
+    iny
+    lda (VCSC_BANKCALL_PTR0),y
+    sta VCSC_BANKCALL_PTR0 + 1
+    pla
+    sta VCSC_BANKCALL_PTR0
+
+    lda $0101,x
+    clc
+    adc #2
+    sta $0101,x
+    bcc.same @return_adjusted
+    inc $0102,x
+@return_adjusted:
+
+    jsr __vcsc_generic_bankcall_switch_and_jump
+
+; Preserve A:X, derive the source bank from the original logical return PC,
+; perform the below-window selector read, then restore A:X and return.
+__vcsc_generic_bankreturn:
+    pha
+    txa
+    pha
+    tsx
+    lda $0104,x
+    and #$20
+    tay
+    lda VCSC_BANKCALL_SELECTOR_BASE,y
+    pla
+    tax
+    pla
+    rts
+
+; Derive the destination selector from the inline target logical address, read
+; that selector, then jump through ptr0.  This fixed block is replicated at the
+; same CPU addresses in both banks, so execution remains valid across the read.
+__vcsc_generic_bankcall_switch_and_jump:
+    lda VCSC_BANKCALL_PTR0 + 1
+    and #$20
+    tay
+    lda VCSC_BANKCALL_SELECTOR_BASE,y
+    jmp (VCSC_BANKCALL_PTR0)
+
+__vcsc_generic_bankcall_end:
+__vcsc_generic_bankcall_reserved_end = $6050

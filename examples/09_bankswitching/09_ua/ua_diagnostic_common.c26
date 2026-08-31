@@ -10,8 +10,15 @@ instantiate "six_glyph_component.c26" as cart_type (compact_font:=0)
 #endif
 
 uint8_t failure;
-uint8_t trace;
 uint8_t call_count;
+uint8_t nested_count;
+uint8_t current_source;
+uint8_t current_destination;
+uint8_t source_seen;
+uint8_t signature;
+uint8_t stack_before;
+uint8_t stack_after;
+uint16_t call_return;
 
 #ifndef SIMULATOR_TEST
 inline void load_pass(void) {
@@ -112,31 +119,104 @@ bank0 void draw_result(void) {
 bank0 void simulator_done(void) { while (1) { } }
 #endif
 
-bank0 void bank0_probe(void) {
-   if (trace != 1) { failure := 0x20; }
-   call_count := call_count + 1;
-   trace := 2;
+bank1 void nested_leaf1(void) {
+   nested_count := nested_count + 1;
+   signature := 0xA1;
 }
 
-bank1 void bank1_probe(void) {
-   if (trace != 0) { failure := 0x10; }
+bank0 uint16_t call_target0(void) {
+   if (current_destination != 0 || source_seen != current_source) {
+      failure := 0xD0;
+   }
+   // Keep one nested cross-bank call so the public diagnostic also checks that
+   // independent inline return frames compose correctly.
+   if (current_source == 0 && current_destination == 0) {
+      nested_leaf1();
+   }
+   signature := 0x40;
    call_count := call_count + 1;
-   trace := 1;
-   bank0_probe();
-   if (trace != 2) { failure := 0x11; }
-   trace := 3;
+   return 0x5A40`uint16_t;
+}
+
+bank1 uint16_t call_target1(void) {
+   if (current_destination != 1 || source_seen != current_source) {
+      failure := 0xD1;
+   }
+   signature := 0x41;
+   call_count := call_count + 1;
+   return 0x5A41`uint16_t;
+}
+
+bank0 void source_entry0(void) {
+   if (current_source != 0) { failure := 0xB0; }
+   source_seen := 0;
+
+   // Same-bank 0->0 is an ordinary JSR; only the 0->1 call needs the mapper
+   // inline-target bankcall path.
+   current_destination := 0;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target0();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A40`uint16_t || signature != 0x40 || stack_before != stack_after) {
+      failure := 0xC0;
+   }
+
+   current_destination := 1;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target1();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A41`uint16_t || signature != 0x41 || stack_before != stack_after) {
+      failure := 0xC0;
+   }
+}
+
+bank1 void source_entry1(void) {
+   if (current_source != 1) { failure := 0xB1; }
+   source_seen := 1;
+
+   current_destination := 0;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target0();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A40`uint16_t || signature != 0x40 || stack_before != stack_after) {
+      failure := 0xC1;
+   }
+
+   // Same-bank 1->1 is an ordinary JSR.
+   current_destination := 1;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target1();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A41`uint16_t || signature != 0x41 || stack_before != stack_after) {
+      failure := 0xC1;
+   }
+}
+
+// Keep the sequencer in the startup bank so all source-to-target relationships
+// are known at compile time.  Same-bank calls remain ordinary JSRs; cross-bank
+// calls use the inline-target ABI and allocate no legacy target bridges.
+bank0 void run_call_matrix(void) {
+   current_source := 0;
+   source_entry0();
+   current_source := 1;
+   source_entry1();
 }
 
 void main(void) {
    failure := 0;
-   trace := 0;
    call_count := 0;
+   nested_count := 0;
+   current_source := 0;
+   current_destination := 0;
+   source_seen := 0xff;
+   signature := 0;
 
-   // Physical bank 0 powers up. Generated cross-bank calls use this profile's
-   // canonical UA selector association; UASW reverses the $0220/$0240 bank
-   // association without changing file order or the power-on bank.
-   bank1_probe();
-   if (trace != 3 || call_count != 2) { failure := 0x01; }
+   run_call_matrix();
+   if (call_count != 4 || nested_count != 1) { failure := 0x01; }
 #ifdef SIMULATOR_TEST
    asm jmp simulator_done;
 #else

@@ -506,7 +506,7 @@ begins at `$xxFF`, avoiding the NMOS 6502/6507 indirect-`JMP` page-wrap bug. A
 full corridor is a link error. The map reports reserved, occupied, and total
 replicated bytes plus every generated target entry.
 
-A direct cross-bank C call in the F8/F6/F4(+SC), FA, DPC, FA2, JANE, and 0840 inline-target paths no longer allocates a target-specific
+A direct cross-bank C call in the F8/F6/F4(+SC), FA, DPC, FA2, JANE, 0840, UA, and UASW inline-target paths no longer allocates a target-specific
 JSR entry. The compiler emits one five-byte bundle at the call site:
 
 ```asm
@@ -526,13 +526,17 @@ mapping banks 0/1 directly to offsets 0/1 and banks 2/3 to offsets 8/9.
 0840 uses `libraries/vcs/0840/inline_bankcall.s26`; because its selectors are
 below the cartridge window, it derives Y=`$00/$40` from the logical PC high
 byte and performs `LDA $0800,Y` so switching is a read bus cycle rather than a
-write into mirrored console space.
+write into mirrored console space. UA and UASW similarly use mapper-local
+`inline_bankcall.s26` sources and indexed reads from `$0220`: UA transforms the
+logical-PC bank bit to offsets `$00/$20`, while UASW's swapped association uses
+that bank bit directly.
 The linker build assembles these files into compact byte/patch templates;
 `vcsc-ld` supplies `_vcsc_ptr0`, the mapper selector base, and the final
 replicated block address. The normal/DPC block reserves 80 bytes
 (`generic-jsr=$050`), FA2 is 83 bytes with 84 reserved (`generic-jsr=$054`),
-JANE is 95 bytes with 96 reserved (`generic-jsr=$060`), and 0840 is 75 bytes
-with 80 reserved (`generic-jsr=$050`). Each is replicated
+JANE is 95 bytes with 96 reserved (`generic-jsr=$060`), 0840 is 75 bytes,
+UA is 73 bytes, and UASW is 69 bytes; each of those read-hotspot blocks reserves
+80 bytes (`generic-jsr=$050`). Each is replicated
 byte-for-byte in every CPU-mapped program bank before any variable direct-JMP
 entries;
 these calls create no `JSR entry=` records.

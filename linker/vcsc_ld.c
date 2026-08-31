@@ -25,6 +25,8 @@
 #include "fa2_bankcall_template.h"
 #include "jane_bankcall_template.h"
 #include "m0840_bankcall_template.h"
+#include "ua_bankcall_template.h"
+#include "uasw_bankcall_template.h"
 
 /* One identical six-byte BIT/JMP entry for NMI, RESET, and IRQ/BRK. */
 enum {
@@ -1856,6 +1858,30 @@ static int c26_topology_is_0840(const linker_config_t *cfg)
    return (cart->present_mask & 0x80u) &&
           cart->signature[0] == '0' && cart->signature[1] == '8' &&
           cart->signature[2] == '4' && cart->signature[3] == '0';
+}
+
+//! @brief Return whether the C26 topology is UA Limited.
+static int c26_topology_is_ua(const linker_config_t *cfg)
+{
+   const topology_cartridge_t *cart;
+   if (!cfg || cfg->topology_bank_count != 2u)
+      return 0;
+   cart = &cfg->topology_cartridge;
+   return (cart->present_mask & 0x80u) &&
+          cart->signature[0] == 'U' && cart->signature[1] == 'A' &&
+          cart->signature[2] == 0 && cart->signature[3] == 0;
+}
+
+//! @brief Return whether the C26 topology is UA Limited with swapped bank association.
+static int c26_topology_is_uasw(const linker_config_t *cfg)
+{
+   const topology_cartridge_t *cart;
+   if (!cfg || cfg->topology_bank_count != 2u)
+      return 0;
+   cart = &cfg->topology_cartridge;
+   return (cart->present_mask & 0x80u) &&
+          cart->signature[0] == 'U' && cart->signature[1] == 'A' &&
+          cart->signature[2] == 'S' && cart->signature[3] == 'W';
 }
 
 //! @brief Return whether the C26 topology is Atari JANE.
@@ -9078,6 +9104,8 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
    int fa2 = c26_topology_is_fa2(cfg);
    int jane = c26_topology_is_jane(cfg);
    int m0840 = c26_topology_is_0840(cfg);
+   int ua = c26_topology_is_ua(cfg);
+   int uasw = c26_topology_is_uasw(cfg);
 
    if (!cfg) {
       fprintf(stderr, "vcsc-ld: generic inline-target bank calls require a banked cartridge profile\n");
@@ -9096,6 +9124,24 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
          exit(1);
       }
       return 0x0800u;
+   }
+
+   if (ua || uasw) {
+      const topology_bank_t *bank0 = c26_topology_bank_by_file_index(cfg, 0u);
+      const topology_bank_t *bank1 = c26_topology_bank_by_file_index(cfg, 1u);
+      uint16_t expected0 = ua ? 0x0220u : 0x0240u;
+      uint16_t expected1 = ua ? 0x0240u : 0x0220u;
+      const char *name = ua ? "UA" : "UASW";
+      if (!bank0 || !bank1 || bank0->data_only || bank1->data_only ||
+          bank0->link_start != 0xf000u || bank1->link_start != 0xd000u ||
+          !bank0->has_selector || bank0->select_access != expected0 ||
+          !bank1->has_selector || bank1->select_access != expected1) {
+         fprintf(stderr,
+                 "vcsc-ld: %s inline-target bank calls require logical bank0 $Fxxx -> $%04X and bank1 $Dxxx -> $%04X\n",
+                 name, expected0, expected1);
+         exit(1);
+      }
+      return 0x0220u;
    }
 
    if (jane) {
@@ -9185,6 +9231,10 @@ static uint16_t generic_bankcall_reserved_size(const linker_config_t *cfg)
       return VCSC_JANE_BANKCALL_RESERVED_SIZE;
    if (c26_topology_is_0840(cfg))
       return VCSC_M0840_BANKCALL_RESERVED_SIZE;
+   if (c26_topology_is_ua(cfg))
+      return VCSC_UA_BANKCALL_RESERVED_SIZE;
+   if (c26_topology_is_uasw(cfg))
+      return VCSC_UASW_BANKCALL_RESERVED_SIZE;
    return c26_topology_is_fa2(cfg) ? VCSC_FA2_BANKCALL_RESERVED_SIZE
                                    : VCSC_GENERIC_BANKCALL_RESERVED_SIZE;
 }
@@ -9856,6 +9906,32 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
          VCSC_M0840_BANKCALL_SELECTOR_PATCH_COUNT,
          VCSC_M0840_BANKCALL_SWITCH_OFFSET,
          VCSC_M0840_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
+         selector_base, canonical_base, ptr0);
+   }
+   else if (c26_topology_is_ua(cfg)) {
+      instantiate_bankcall_template(table,
+         vcsc_ua_bankcall_template,
+         VCSC_UA_BANKCALL_TEMPLATE_SIZE,
+         VCSC_UA_BANKCALL_RESERVED_SIZE,
+         vcsc_ua_bankcall_ptr_patches,
+         VCSC_UA_BANKCALL_PTR_PATCH_COUNT,
+         vcsc_ua_bankcall_selector_patches,
+         VCSC_UA_BANKCALL_SELECTOR_PATCH_COUNT,
+         VCSC_UA_BANKCALL_SWITCH_OFFSET,
+         VCSC_UA_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
+         selector_base, canonical_base, ptr0);
+   }
+   else if (c26_topology_is_uasw(cfg)) {
+      instantiate_bankcall_template(table,
+         vcsc_uasw_bankcall_template,
+         VCSC_UASW_BANKCALL_TEMPLATE_SIZE,
+         VCSC_UASW_BANKCALL_RESERVED_SIZE,
+         vcsc_uasw_bankcall_ptr_patches,
+         VCSC_UASW_BANKCALL_PTR_PATCH_COUNT,
+         vcsc_uasw_bankcall_selector_patches,
+         VCSC_UASW_BANKCALL_SELECTOR_PATCH_COUNT,
+         VCSC_UASW_BANKCALL_SWITCH_OFFSET,
+         VCSC_UASW_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
          selector_base, canonical_base, ptr0);
    }
    else if (c26_topology_is_jane(cfg)) {

@@ -13,3 +13,18 @@ example smoke builds, docs, and regressions were updated. The dedicated 0840
 regression, exhaustive bank-call matrix, inline-template test, assembly
 allowlist, source hygiene, and example-build shard 3/8 pass. Next migration is
 UA/UASW, then 0FA0.
+
+2026-08-31 00:39:04 PDT, migrate UA and UASW inline calls
+Migrated UA and UASW to mapper-local inline-target bankcall blocks. Both use
+indexed read selection from base $0220. UA maps the logical-PC bank bit through
+EOR #$20 / AND #$20 for $0220/$0240; UASW's reversed selector association uses
+AND #$20 directly. UA payload is 73 bytes and UASW 69 bytes; both reserve 80
+bytes (generic-jsr=$050) and emit zero legacy per-target JSR entries.
+
+Reworked the shared public UA/UASW diagnostic to execute all four ordered bank
+pairs. Same-bank 0->0 and 1->1 remain ordinary JSRs; cross-bank 0->1 and 1->0
+use the five-byte inline-target bundle. Every pair checks 16-bit return value and
+hardware-stack balance, plus one nested cross-bank composition case. The focused
+UA/UASW regression, independent exhaustive matrix, inline-template regeneration,
+assembly allowlist, source hygiene, and example-build shards 6/8 and 7/8 pass.
+Next existing migration is 0FA0.

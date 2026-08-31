@@ -59,8 +59,19 @@ my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $generic=File::Spec->catfile($vcs,'vcs.cfg');
 my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','09_ua');
 my $example_make=File::Spec->catfile($example_dir,'Makefile');
+my $common_source=File::Spec->catfile($example_dir,'ua_diagnostic_common.c26');
 
 my $mk=read_file($example_make);
+my $common=read_file($common_source);
+for my $src_bank (0..1) {
+   $common =~ /bank$src_bank\s+void\s+source_entry$src_bank\s*\(void\)\s*\{(.*?)\n\}/s
+      or die "UA/UASW diagnostic is missing source_entry$src_bank\n";
+   my $body=$1;
+   for my $dst_bank (0..1) {
+      $body =~ /call_target$dst_bank\s*\(\)/
+         or die "UA/UASW diagnostic source_entry$src_bank does not call target $dst_bank\n";
+   }
+}
 $mk =~ /^play-ua:\s*ua_diagnostic\.bin\s*$/m &&
 $mk =~ /^\s*stella\s+-bs\s+UA\s+ua_diagnostic\.bin\s*$/m &&
 $mk =~ /^play-uasw:\s*uasw_diagnostic\.bin\s*$/m &&
@@ -89,6 +100,7 @@ for my $v (@variants) {
    my $pt=read_file($profile);
    my $sig=$v->{mapper} eq 'UA' ? 'UA' : 'UASW';
    $pt =~ /\$signature:\Q$sig\E\b/ &&
+   $pt =~ /\$inline_bankcall/ &&
    $pt =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x[0-9a-fA-F]+\s+\$startup/s &&
    $pt =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x[0-9a-fA-F]+/s
       or die "$v->{mapper} profile topology/startup contract is wrong\n";
@@ -100,7 +112,7 @@ for my $v (@variants) {
 
    my $bin=File::Spec->catfile($tmp,"$v->{name}.bin");
    my $map=File::Spec->catfile($tmp,"$v->{name}.map");
-   require_ok("build $v->{mapper} simulator diagnostic",$driver,'-I',$vcs,'-DSIMULATOR_TEST',
+   require_ok("build $v->{mapper} simulator diagnostic",$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-DSIMULATOR_TEST',
       '-T',$generic,'-Map',$map,$source,'-o',$bin);
    -s $bin==8192 or die "$v->{mapper} output size is not 8K\n";
    my $rom=read_file($bin);
@@ -119,21 +131,27 @@ for my $v (@variants) {
       substr($bridge,$off,4) eq pack('C*',0x0c,$lo,$hi,0x4c)
          or die sprintf("%s vector bridge does not use NOP-read \$%04X; JMP\n",$v->{mapper},$v->{bank0});
    }
-   my $tramp=substr($rom,0x0f00,0x00e0) . substr($rom,4096+0x0f00,0x00e0);
-   for my $sel ($v->{bank0},$v->{bank1}) {
-      my($lo,$hi)=($sel&0xff,($sel>>8)&0xff);
-      index($tramp,pack('C*',0x0c,$lo,$hi))>=0
-         or die sprintf("%s trampolines never read selector \$%04X\n",$v->{mapper},$sel);
-      index($tramp,pack('C*',0x8d,$lo,$hi))<0
-         or die sprintf("%s trampolines write below-window selector \$%04X\n",$v->{mapper},$sel);
-   }
+   my $tramp=substr($rom,0x0f00,0x0050) . substr($rom,4096+0x0f00,0x0050);
+   index($tramp,pack('C*',0xB9,0x20,0x02))>=0
+      or die "$v->{mapper} inline bank-call block does not use indexed read selectors from \$0220\n";
+   index($tramp,pack('C*',0x99,0x20,0x02))<0 && index($tramp,pack('C*',0x9D,0x20,0x02))<0
+      or die "$v->{mapper} inline bank-call block writes its below-window selector family\n";
+
+   my $lst=$bin; $lst =~ s/\.bin\z/.lst/; $lst=read_file($lst);
+   $lst =~ /\[bank bank0\] \| call_return := call_target0\(\);\n[^\n]*; JSR call_target0[^\n]*\n(?![^\n]*\.banktarget)/ &&
+   $lst =~ /\[bank bank0\] \| call_return := call_target1\(\);\n[^\n]*; JSR call_target1[^\n]*\n[^\n]*; \.banktarget call_target1/ &&
+   $lst =~ /\[bank bank1\] \| call_return := call_target0\(\);\n[^\n]*; JSR call_target0[^\n]*\n[^\n]*; \.banktarget call_target0/ &&
+   $lst =~ /\[bank bank1\] \| call_return := call_target1\(\);\n[^\n]*; JSR call_target1[^\n]*\n(?![^\n]*\.banktarget)/
+      or die "$v->{mapper} diagnostic did not keep same-bank calls as ordinary JSRs and cross-bank calls as inline bundles\n";
 
    my $m=read_file($map);
    $m =~ /^\s+bank0\s+file-index=0\b.*mode=selector\s+select-access=\$[0-9A-Fa-f]{4}\s+startup=yes/m &&
    $m =~ /^\s+bank1\s+file-index=1\b.*mode=selector\s+select-access=\$[0-9A-Fa-f]{4}/m &&
-   $m =~ /^TRAMPOLINES$/m
-      or die "$v->{mapper} map topology/trampoline contract is wrong\n$m";
-   my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure trace call_count);
+   $m =~ /^TRAMPOLINES$/m &&
+   $m =~ /generic-jsr=\$050\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
+   $m !~ /JSR entry=/
+      or die "$v->{mapper} map topology/inline-trampoline contract is wrong\n$m";
+   my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure call_count nested_count);
    for my $start (0..1) {
       my($out,$err)=require_ok("simulate $v->{mapper} from physical bank $start",$sim,'-T',$cfg,
          "--start-bank=$start",sprintf('--stop-pc=0x%04X',$sym{simulator_done}),
@@ -142,8 +160,8 @@ for my $v (@variants) {
       my $mem=parse_hex_dump($out);
       $mem->[$sym{failure}]==0
          or die sprintf("%s self-test from bank %d failed: failure=\$%02X\n",$v->{mapper},$start,$mem->[$sym{failure}]);
-      $mem->[$sym{trace}]==3 && $mem->[$sym{call_count}]==2
-         or die "$v->{mapper} nested selector/return trace failed from physical bank $start\n";
+      $mem->[$sym{call_count}]==4 && $mem->[$sym{nested_count}]==1
+         or die "$v->{mapper} full ordered call matrix/nested return failed from physical bank $start\n";
    }
 
    # Alias certification: write through the alias that selects bank 1, then in
@@ -167,7 +185,7 @@ for my $v (@variants) {
       or die "$v->{mapper} alias read/write switching or underlying write-through failed\n";
 
    my $visible=File::Spec->catfile($tmp,"$v->{name}-visible.bin");
-   require_ok("build visible $v->{mapper} PASS/FAIL cartridge",$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
+   require_ok("build visible $v->{mapper} PASS/FAIL cartridge",$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,$source,'-o',$visible);
    my $vrom=read_file($visible);
    length($vrom)==8192 && substr($vrom,4096+0x0ff8,4) eq $v->{signature}
       or die "$v->{mapper} visible diagnostic lost its signature/layout\n";

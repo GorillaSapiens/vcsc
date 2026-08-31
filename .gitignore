@@ -7,3 +7,4 @@ sieve.lst
 sieve.map
 sieve.sym
 test-times.tsv
+*_bankcall_template.h

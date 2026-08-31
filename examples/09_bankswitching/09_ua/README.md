@@ -34,9 +34,13 @@ bank transitions use the state-preserving NMOS absolute NOP read rather than a
 store. Reads and writes made by user code to selector aliases still reach the
 underlying console device while also changing the selected ROM bank.
 
-Both self-tests use nested cross-bank calls and generated return-bank restoration.
-A large green `pass` with `UA` or `UASW` underneath means the selected hardware
-profile behaved as expected; red `FAIL` indicates a mismatch.
+Both self-tests execute the complete ordered call matrix: `0->0`, `0->1`,
+`1->0`, and `1->1`. The same-bank legs are ordinary JSRs; the cross-bank legs
+use the fixed inline-target bankcall and verify return values, restored bank,
+and hardware-stack balance. One nested cross-bank call additionally checks that
+independent return frames compose correctly. A large green `pass` with `UA` or
+`UASW` underneath means the selected hardware profile behaved as expected; red
+`FAIL` indicates a mismatch.
 
 VCSC writes `UA\0\0` or `UASW` at `$FFF8-$FFFB` in the final physical file
 bank. Current Stella can infer historical UA images from characteristic access

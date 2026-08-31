@@ -27,6 +27,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `FA2/inline_bankcall.s26` ... FA2-specific maintained trampoline source; same stack/inline-target ABI with reversed selector indexing for `$1FF5-$1FFB`
 - `JANE/inline_bankcall.s26` ... JANE-specific maintained trampoline source; the same inline-target ABI with an arithmetic logical-bank-to-selector transform for irregular `$1FF0/$1FF1/$1FF8/$1FF9` selection
 - `0840/inline_bankcall.s26` ... 0840-specific maintained trampoline source; derives `$0800/$0840` from the logical PC and switches with an indexed read rather than a ROM-window store
+- `UA/inline_bankcall.s26`, `UASW/inline_bankcall.s26` ... mapper-local read-hotspot trampolines using indexed reads from `$0220`; UA inverts the logical-PC bank bit while UASW uses it directly because the selector association is swapped
 - `0840/mapper.c26` ... 0840/EconoBanking two-bank 8K profile with below-cartridge selectors `$0800/$0840`; `0840/mapper.cfg` supplies simulator-only masked selector semantics
 - `UA/mapper.c26`, `UASW/mapper.c26` ... UA Limited 8K alias-decoded profiles; UA maps `$0220`-family accesses to bank 0 and `$0240`-family accesses to bank 1, while UASW swaps that association; their cfg files supply simulator-only masked selector semantics
 - `0FA0/mapper.c26` ... Brazilian Fotomania 0FA0 two-bank 8K profile; `(A & $16E0)==$06A0/$06C0` selects physical bank 0/1, physical bank 1 powers up, and `0FA0/mapper.cfg` supplies simulator metadata
@@ -711,9 +712,13 @@ alias families with the association reversed. Thus shifted aliases such as
 `$02A0/$02C0` are selector accesses too.
 
 Because these selectors live below the cartridge window, generated vector
-bridges and cross-bank stubs use undocumented NMOS absolute NOP `$0C` reads,
-preserving registers and flags without writing the mirrored console device. The
-selector side effect does not swallow the underlying low-address transaction:
+bridges and legacy cross-bank stubs use undocumented NMOS absolute NOP `$0C`
+reads, preserving registers and flags without writing the mirrored console
+device. With `VCSC_INLINE_BANKCALL`, direct cross-bank C calls instead use the
+fixed mapper-local inline-target blocks: UA derives selector offset `$00/$20`
+with `EOR #$20; AND #$20`, while UASW needs only `AND #$20`; both switch with
+`LDA $0220,Y`. Same-bank calls remain ordinary JSRs. The selector side effect
+does not swallow the underlying low-address transaction:
 reads sample the console byte and writes still reach the console-side model.
 `UA/mapper.cfg` and `UASW/mapper.cfg` provide the matching masked decoder and
 selector-to-file-bank association to `vcsc-sim`. The final bank carries

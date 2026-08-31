@@ -148,7 +148,7 @@ Open work
 ---------
 Generic inline-target cross-bank JSR contract
 ---------------------------------------------
-The F8/F6/F4(+SC), FA, DPC, FA2, JANE, and 0840 profiles use the compact generic call path only when
+The F8/F6/F4(+SC), FA, DPC, FA2, JANE, 0840, UA, and UASW profiles use the compact generic call path only when
 the cartridge declares `$inline_bankcall`; the stock profiles expose this via
 `VCSC_INLINE_BANKCALL`. Unmigrated profiles remain on the legacy bridge ABI. Explicitly bank-pinned
 cross-bank C calls emit a five-byte `JSR` + `.banktarget target` bundle. The
@@ -184,13 +184,15 @@ The fixed generic block, not the old 224-byte corridor size, is the durable JSR
 ABI. Cross-bank JMPs remain a separate per-target mechanism for now.
 
 Inline-bankcall migration queue -- finish this before adding FC/F0:
-Done: F8/F8SC, F6/F6SC, F4/F4SC, FA, DPC, FA2-24/28, JANE, and 0840.
+Done: F8/F8SC, F6/F6SC, F4/F4SC, FA, DPC, FA2-24/28, JANE, 0840, UA, and UASW.
 F8-family/FA/DPC use the shared 80-byte geometry. FA2 is 83/84 bytes
 (`generic-jsr=$054`); JANE is 95/96 (`$060`) with bank1 startup and selectors
 0,1,8,9. 0840 is 75/80 (`$050`): PC bank identity becomes Y=$00/$40 and
-`LDA $0800,Y` performs the read-only selector access. Migrated profiles have
-zero legacy JSR entries; public diagnostics use complete ordered call matrices.
-[ ] UA/UASW -- next, together; same two-bank read-hotspot mechanism with swapped mapping.
+`LDA $0800,Y` performs the read-only selector access. UA is 73/80 and UASW is
+69/80 (`$050`): both use indexed reads from `$0220`, with UA inverting the PC
+bank bit and UASW using it directly. Migrated profiles have zero legacy JSR
+entries; public diagnostics use complete ordered call matrices, with same-bank
+legs remaining ordinary JSRs.
 [ ] 0FA0 -- last existing migration; same read-hotspot class with its masked aliases.
 Do not force FE, E0, 3F, 3E, WD, OMNI, CV, or 4KSC through this migration:
 their latch/window/direct-memory contracts either need mapper-specific calls or no
