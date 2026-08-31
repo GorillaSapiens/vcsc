@@ -149,7 +149,7 @@ for my $profile (@profiles) {
                  $src, '-o', $bin);
       my $map = slurp($map_path);
       if ($uses_inline) {
-         my $generic_size = $name eq 'JANE' ? '060' : $name =~ /^FA2-/ ? '054' : '050';
+         my $generic_size = $name =~ /^F(?:8|6|4)(?:SC)?$/ ? '048' : $name eq 'JANE' ? '060' : $name =~ /^FA2-/ ? '054' : '050';
          $map =~ /generic-jsr=\$\Q$generic_size\E\b.*\bentries=0\s+jmp=0\s+jsr=0\b/
             or die "$name source bank $source did not use only the fixed generic JSR block\n$map";
          $map !~ /JSR entry=/

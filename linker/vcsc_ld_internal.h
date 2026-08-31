@@ -65,7 +65,8 @@
 #define CARTRIDGE_TOPOLOGY_META_PREFIX_V1 "__cartmeta$V1$"
 #define CARTRIDGE_TOPOLOGY_META_PREFIX "__cartmeta$V2$"
 #define BANK_TOPOLOGY_META_PREFIX_V1 "__bankmeta$V1$"
-#define BANK_TOPOLOGY_META_PREFIX "__bankmeta$V2$"
+#define BANK_TOPOLOGY_META_PREFIX_V2 "__bankmeta$V2$"
+#define BANK_TOPOLOGY_META_PREFIX "__bankmeta$V3$"
 #define COMPONENT_CONSTRAINT_META_PREFIX "__componentmeta$V1$"
 
 #define MAX_NAME 128
@@ -121,6 +122,8 @@ typedef struct {
    uint16_t start;
    uint16_t size;
    uint16_t hotspot;
+   int has_bankcall_descriptor;
+   uint8_t bankcall_descriptor;
    int startup;
 } cartridge_bank_t;
 
@@ -135,6 +138,8 @@ typedef struct {
    uint16_t map_size;
    int has_selector;
    uint16_t select_access;
+   int has_bankcall_descriptor;
+   uint8_t bankcall_descriptor;
    int startup;
    int data_only;
    char source[MAX_PATH];

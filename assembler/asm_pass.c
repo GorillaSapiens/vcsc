@@ -1633,10 +1633,11 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
             if (!strcmp(stmt->u.dir->name, ".word") || !strcmp(stmt->u.dir->name, ".banktarget")) {
                int count = 0;
                const expr_list_node_t *node;
+               int width = !strcmp(stmt->u.dir->name, ".banktarget") ? 3 : 2;
 
                for (node = stmt->u.dir->exprs; node; node = node->next)
                   count++;
-               segment_advance(ctx, seg, stmt, count * 2);
+               segment_advance(ctx, seg, stmt, count * width);
                break;
             }
 
@@ -2356,6 +2357,7 @@ static int directive_emit_pass2(asm_context_t *ctx,
    }
 
    if (!strcmp(dir->name, ".word") || !strcmp(dir->name, ".banktarget")) {
+      int is_banktarget = !strcmp(dir->name, ".banktarget");
       for (node = dir->exprs; node; node = node->next) {
          if (eval_or_report(ctx, node->expr, &ctx->symbols, stmt->scope, stmt->file, logical_pc, &value, stmt))
             return -1;
@@ -2367,6 +2369,14 @@ static int directive_emit_pass2(asm_context_t *ctx,
          }
          pc += 2;
          logical_pc += 2;
+         if (is_banktarget) {
+            if (!emit_byte(ctx, pc, 0, stmt))
+               return -1;
+            if (rec_count < (int)sizeof(rec))
+               rec[rec_count++] = 0;
+            pc++;
+            logical_pc++;
+         }
       }
       if (ctx->listing)
          listing_write_record(ctx->listing, stmt, start_pc, rec, rec_count);

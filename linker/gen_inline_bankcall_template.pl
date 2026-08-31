@@ -62,12 +62,13 @@ sub parse_map {
 }
 
 sub assemble {
-   my ($tag, $ptr0, $selector) = @_;
+   my ($tag, $ptr0, $selector, $source_descriptor) = @_;
    my $hex = "$tmp/$tag.hex";
    my $map = "$tmp/$tag.map";
    my @cmd = ($as,
       '-DVCSC_BANKCALL_PTR0=' . $ptr0,
       '-DVCSC_BANKCALL_SELECTOR_BASE=' . $selector,
+      '-DVCSC_BANKCALL_SOURCE_DESCRIPTOR=' . $source_descriptor,
       "--hex=$hex", "--map=$map", $src);
    system(@cmd) == 0 or die "$0: assembler failed: @cmd\n";
    return (parse_ihex($hex), parse_map($map));
@@ -75,9 +76,11 @@ sub assemble {
 
 my $base_ptr = 0x80;
 my $base_selector = 0x1F20;
-my ($base_bytes, $symbols) = assemble('base', $base_ptr, $base_selector);
-my ($ptr_bytes) = assemble('ptr', 0x90, $base_selector);
-my ($selector_bytes) = assemble('selector', $base_ptr, 0x2E37);
+my $base_source_descriptor = 0xF9;
+my ($base_bytes, $symbols) = assemble('base', $base_ptr, $base_selector, $base_source_descriptor);
+my ($ptr_bytes) = assemble('ptr', 0x90, $base_selector, $base_source_descriptor);
+my ($selector_bytes) = assemble('selector', $base_ptr, 0x2E37, $base_source_descriptor);
+my ($source_bytes) = assemble('source', $base_ptr, $base_selector, 0xE3);
 
 for my $name (qw(
    __vcsc_generic_bankcall_begin
@@ -140,7 +143,19 @@ while (@selector_diff) {
       or die "$0: selector-base baseline bytes do not match placeholder\n";
    push @selector_patch, $lo;
 }
-@selector_patch or die "$0: template has no selector-base patches\n";
+
+
+
+my @source_patch;
+for my $i (0 .. $#bytes) {
+   my $addr = $begin + $i;
+   my $a = $base_bytes->{$addr};
+   my $b = $source_bytes->{$addr};
+   next if !defined($b) || $a == $b;
+   $a == $base_source_descriptor && $b == 0xE3
+      or die sprintf("%s: unexpected source-descriptor-sensitive byte at +\$%02X: \$%02X -> \$%02X\n", $0, $i, $a, $b);
+   push @source_patch, $i;
+}
 
 $bytes[$jsr_operand - 1] == 0x20
    or die sprintf("%s: expected JSR opcode before internal operand at +\$%02X\n", $0, $jsr_operand);
@@ -171,4 +186,8 @@ printf {$ofh} "#define %s_PTR_PATCH_COUNT %uu\n", $macro, scalar @ptr_patch;
 printf {$ofh} "static const uint8_t %s_selector_patches[] = {\n   ", $var_prefix;
 print {$ofh} join(', ', map { sprintf('0x%02Xu', $_) } @selector_patch), "\n};\n";
 printf {$ofh} "#define %s_SELECTOR_PATCH_COUNT %uu\n", $macro, scalar @selector_patch;
+printf {$ofh} "static const uint8_t %s_source_descriptor_patches[] = {\n   ", $var_prefix;
+print {$ofh} @source_patch ? join(', ', map { sprintf('0x%02Xu', $_) } @source_patch) : '0x00u';
+print {$ofh} "\n};\n";
+printf {$ofh} "#define %s_SOURCE_DESCRIPTOR_PATCH_COUNT %uu\n", $macro, scalar @source_patch;
 close $ofh or die "$0: could not close $out: $!\n";

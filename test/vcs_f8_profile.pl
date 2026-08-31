@@ -71,9 +71,9 @@ my $ld = File::Spec->catfile($repo, 'linker', 'vcsc-ld');
 
 my $cfg_text = slurp($cfg);
 $cfg_text =~ /mapper\s*=\s*F8/ or die "F8 profile does not select mapper F8\n";
-$cfg_text =~ /BANK0:\s*start\s*=\s*\$F000,\s*size\s*=\s*\$1000,\s*hotspot\s*=\s*\$1FF9,\s*startup\s*=\s*yes/s
+$cfg_text =~ /BANK0:\s*start\s*=\s*\$F000,\s*size\s*=\s*\$1000,\s*hotspot\s*=\s*\$1FF9,\s*bankcall\s*=\s*\$F9,\s*startup\s*=\s*yes/s
    or die "F8 profile BANK0/home declaration is wrong\n";
-$cfg_text =~ /BANK1:\s*start\s*=\s*\$D000,\s*size\s*=\s*\$1000,\s*hotspot\s*=\s*\$1FF8,\s*startup\s*=\s*no/s
+$cfg_text =~ /BANK1:\s*start\s*=\s*\$D000,\s*size\s*=\s*\$1000,\s*hotspot\s*=\s*\$1FF8,\s*bankcall\s*=\s*\$F8,\s*startup\s*=\s*no/s
    or die "F8 profile BANK1/file-chunk-0 declaration is wrong\n";
 $cfg_text =~ /bank0:\s*start\s*=\s*\$F000,\s*size\s*=\s*\$0F00,\s*type\s*=\s*ro/s &&
 $cfg_text =~ /bank1:\s*start\s*=\s*\$D000,\s*size\s*=\s*\$0F00,\s*type\s*=\s*ro/s

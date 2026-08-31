@@ -523,13 +523,13 @@ logical continuation PC. Same-bank calls remain ordinary JSRs. This removes the
 old requirement that either source or destination bank be recoverable from a
 16-bit PC and allows multiple banks to share one CPU link window.
 
-The current linker sources and mapper-local `inline_bankcall.s26` files still
-implement the previous five-byte, PC-derived form. Their current reservations
-remain useful only as an implementation checkpoint during migration: the shared
-F8-family/DPC geometry is an 80-byte block, FA2 reserves 84 bytes, JANE 96 bytes,
-and 0840/UA/UASW/0FA0 reserve 80 bytes; 0FA0 is 69/80 (`$050`) in that old form.
-The descriptor conversion is expected to simplify several of those blocks.
-Migrated calls must continue to consume no legacy per-target JSR entries.
+The linker emits the descriptor ABI now. F8/F8SC/F6/F6SC/F4/F4SC use a
+69-byte descriptor-aware block with 72 bytes reserved (`generic-jsr=$048`); each
+bank copy has its own patched source descriptor. FA/DPC, FA2, JANE, 0840,
+UA/UASW, and 0FA0 remain transitional: their call sites already carry the third
+byte, but their mapper-local trampolines still skip it and use the previous
+PC-derived selector logic. They continue to consume no legacy per-target JSR
+entries while being migrated one family at a time.
 
 Call-bundle page carry, indivisible placement, A:X preservation, nested LIFO
 returns, hardware-stack accounting, and ordered source/destination diagnostics

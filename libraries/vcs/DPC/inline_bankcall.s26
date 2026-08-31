@@ -38,8 +38,8 @@ VCSC_BANKCALL_SELECTOR_BASE = $1F20
 ;
 ; JSR left the real 16-bit logical return PC on the hardware stack.  Copy that
 ; PC into ptr0, read the following inline target before leaving the source bank,
-; and advance the saved return PC by two so the final RTS skips the inline word.
-; (ptr0),Y performs ordinary 16-bit page carry when the inline word straddles a
+; and advance the saved return PC by three so the final RTS skips the inline target and descriptor.
+; (ptr0),Y performs ordinary 16-bit page carry when the inline payload straddles a
 ; page boundary.
 __vcsc_generic_bankcall_begin:
     tsx
@@ -58,7 +58,7 @@ __vcsc_generic_bankcall_begin:
 
     lda $0101,x
     clc
-    adc #2
+    adc #3
     sta $0101,x
     bcc.same @return_adjusted
     inc $0102,x

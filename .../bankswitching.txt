@@ -168,29 +168,30 @@ cross-bank call. The inline payload grows from two to three bytes, so stacked-PC
 continuation adjustment must be carry-correct by +3 and page/bank-edge tests must
 move accordingly.
 
-Current implementation checkpoint -- code is still on the superseded five-byte
-PC-derived ABI and must be migrated next, before FC/F0. Existing migrated
-profiles are F8/F8SC, F6/F6SC, F4/F4SC, FA, DPC, FA2-24/28, JANE, 0840, UA,
-UASW, and 0FA0. They consume no legacy per-target JSR entries. The old shared
-F8-family/FA/DPC geometry is an 80-byte block; FA2 reserves 84, JANE 96, and the
-read-hotspot blocks reserve 80; 0FA0 is 69/80 (`$050`). These sizes are
-measurements of the implementation being replaced, not ABI constants. The
-public diagnostics already use complete ordered call matrices, with same-bank
-legs remaining ordinary JSRs.
+Implementation checkpoint: the compiler/assembler/linker now use the six-byte
+descriptor ABI and `__bankmeta$V3`. F8/F8SC/F6/F6SC/F4/F4SC consume it end to
+end: descriptors are the selector-hotspot low byte, each bank copy has its source
+descriptor patched in, the fixed block is 69 bytes with 72 reserved (`$048`),
+and no bank identity is decoded from PCs. FA/DPC, FA2-24/28, JANE, 0840, UA,
+UASW, and 0FA0 still use transitional mapper-local blocks that skip the third
+payload byte and retain their old PC-derived selector logic. They still consume
+no legacy per-target JSR entries. FA/DPC and the read-hotspot blocks reserve 80
+bytes; FA2 reserves 84, JANE 96, and 0FA0 is 69/80 (`$050`).
 
-Migration acceptance: add per-bank descriptor metadata; make `.banktarget`
-reserve/resolve target+descriptor; bake the source descriptor into each
-trampoline instance; push it below the synthetic return; consume it directly in
-the return half; stop all PC-to-bank decoding; update stack accounting and the
-page/bank-edge regression; keep A:X preservation, nested LIFO behavior, and zero
-legacy JSR entries. Descriptor-specific bytes may differ between bank copies
-only where they are consumed safely before a switch; instruction bytes fetched
-across a mapping change must still agree at the same CPU address.
+Migration acceptance for each remaining transitional mapper: consume the
+destination descriptor directly; bake and push the source descriptor; restore
+from that byte on return; remove PC-to-bank decoding; preserve A:X, nested LIFO
+behavior, same-bank ordinary JSRs, complete ordered call-matrix coverage, and
+zero legacy JSR entries. Descriptor-specific bytes may differ between bank
+copies only where they are consumed safely before a switch.
 
 Diagnostic optimizer wart: F864 direct-JMP targets use inline `TSX/STX`, so the
 current whole-function asm safety rule can leave generated
 `BNE near / JMP false / near: JMP true`. Pure C26 should not normally see it;
 this is future optimizer-locality cleanup, not bankswitching work.
+
+[ ] 37. Finish descriptor-ABI conversion of existing inline mappers: FA/DPC,
+        FA2-24/28, JANE, 0840, UA/UASW, and 0FA0. Do this before FC/F0.
 
 [ ] 38. Complete the remaining mapper tier in this order: **FC, F0**.
 
@@ -218,12 +219,8 @@ this is future optimizer-locality cleanup, not bankswitching work.
             and a diagnostic are worthwhile for compatibility and for exercising
             a stateful/incremental mapper.
 
-            Use the public descriptor ABI from `BANKSWITCHING.md`. The prior
-            design's `no ROM bank-identity` assumption and `reverse advance count as call-frame metadata`
-            plan are superseded by the descriptor ABI; those phrases remain here
-            temporarily because the existing hygiene regression still recognizes
-            the pre-migration checkpoint. For F0 the descriptor can simply be the
-            bank ID 0..15. The caller trampoline's
+            Use the public descriptor ABI from `BANKSWITCHING.md`. For F0 the
+            descriptor can simply be the bank ID 0..15. The caller trampoline's
             baked source ID and inline destination ID determine the forward
             `(target-source) mod 16` count. The source ID is pushed as normal ABI
             call-frame metadata. On return, the destination bank's trampoline copy

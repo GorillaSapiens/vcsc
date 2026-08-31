@@ -14,11 +14,12 @@ examples.  They deliberately exercise generated cross-bank JSR/RTS and direct
 JMP bridges, reset from arbitrary initially selected banks, RIOT-RAM signatures,
 and hardware-stack balance.
 
-The public target ABI for selector-controlled cross-bank C calls is
-[`../../BANKSWITCHING.md`](../../BANKSWITCHING.md). At this documentation
-checkpoint the example sources and toolchain still exercise the superseded
-five-byte, PC-derived implementation; the next code migration will convert them
-to the destination-descriptor ABI without weakening their ordered call matrices.
+The public ABI for selector-controlled cross-bank C calls is
+[`../../BANKSWITCHING.md`](../../BANKSWITCHING.md). F8/F8SC/F6/F6SC/F4/F4SC
+exercise the six-byte destination-descriptor ABI now. Other inline mapper
+diagnostics temporarily use compatibility trampolines that skip the third byte
+until their mapper-specific conversion, without weakening their ordered call
+matrices.
 
 The source is parameterized so one editable cartridge produces six mapper
 diagnostics—F8, F6, F4, F8SC, F6SC, and F4SC—plus a seventh deliberately
@@ -34,9 +35,10 @@ that source call every destination bank, checking metadata, return value,
 hardware-stack balance, and simulator execution. This covers every ordered JSR
 pair for F8/F8SC, F6/F6SC, F4/F4SC, FA, both FA2 profiles, JANE, 0840,
 UA/UASW, 0FA0, and DPC. F8/F6/F4(+SC), FA, both FA2 profiles, JANE, 0840,
-UA/UASW, 0FA0, and DPC currently use the pre-migration fixed inline-target
-blocks; same-bank calls remain ordinary JSRs and the diagnostics allocate no
-legacy per-target JSR bridges.
+UA/UASW, 0FA0, and DPC use fixed inline-target blocks with zero legacy
+per-target JSR bridges. F8/F6/F4(+SC) are descriptor-aware; FA, FA2, JANE,
+0840, UA/UASW, 0FA0, and DPC are transitional until their trampolines consume
+the destination descriptor directly. Same-bank calls remain ordinary JSRs.
 
 The public VCSC cartridge profiles also stamp the final physical bank with a
 four-byte mapper signature at logical addresses `$xFF8-$xFFB` (eight bytes before that bank ends). Short mapper names are

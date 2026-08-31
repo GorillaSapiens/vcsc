@@ -24,8 +24,10 @@ my $tmp = shift @ARGV // die "usage: $0 REPO TMP\n";
 @ARGV and die "usage: $0 REPO TMP\n";
 
 my $as = File::Spec->catfile($repo, qw(assembler vcsc-as));
-my @generic_mapper_dirs = qw(F8 F8SC F6 F6SC F4 F4SC FA DPC);
+my @generic_mapper_dirs = qw(F8 F8SC F6 F6SC F4 F4SC);
+my @legacy_mapper_dirs = qw(FA DPC);
 my $src = File::Spec->catfile($repo, qw(libraries vcs F8 inline_bankcall.s26));
+my $legacy_src = File::Spec->catfile($repo, qw(libraries vcs FA inline_bankcall.s26));
 my $fa2_src = File::Spec->catfile($repo, qw(libraries vcs FA2 inline_bankcall.s26));
 my $jane_src = File::Spec->catfile($repo, qw(libraries vcs JANE inline_bankcall.s26));
 my $m0840_src = File::Spec->catfile($repo, qw(libraries vcs 0840 inline_bankcall.s26));
@@ -34,6 +36,7 @@ my $uasw_src = File::Spec->catfile($repo, qw(libraries vcs UASW inline_bankcall.
 my $m0fa0_src = File::Spec->catfile($repo, qw(libraries vcs 0FA0 inline_bankcall.s26));
 my $generator = File::Spec->catfile($repo, qw(linker gen_inline_bankcall_template.pl));
 my $built = File::Spec->catfile($repo, qw(linker generic_bankcall_template.h));
+my $legacy_built = File::Spec->catfile($repo, qw(linker legacy_bankcall_template.h));
 my $fa2_built = File::Spec->catfile($repo, qw(linker fa2_bankcall_template.h));
 my $jane_built = File::Spec->catfile($repo, qw(linker jane_bankcall_template.h));
 my $m0840_built = File::Spec->catfile($repo, qw(linker m0840_bankcall_template.h));
@@ -41,6 +44,7 @@ my $ua_built = File::Spec->catfile($repo, qw(linker ua_bankcall_template.h));
 my $uasw_built = File::Spec->catfile($repo, qw(linker uasw_bankcall_template.h));
 my $m0fa0_built = File::Spec->catfile($repo, qw(linker m0fa0_bankcall_template.h));
 my $fresh = File::Spec->catfile($tmp, 'generic_bankcall_template.h');
+my $legacy_fresh = File::Spec->catfile($tmp, 'legacy_bankcall_template.h');
 my $fa2_fresh = File::Spec->catfile($tmp, 'fa2_bankcall_template.h');
 my $jane_fresh = File::Spec->catfile($tmp, 'jane_bankcall_template.h');
 my $m0840_fresh = File::Spec->catfile($tmp, 'm0840_bankcall_template.h');
@@ -50,6 +54,7 @@ my $m0fa0_fresh = File::Spec->catfile($tmp, 'm0fa0_bankcall_template.h');
 my $ld = read_file(File::Spec->catfile($repo, qw(linker vcsc_ld.c)));
 my $top = read_file(File::Spec->catfile($repo, 'Makefile'));
 my $s26 = read_file($src);
+my $legacy_s26 = read_file($legacy_src);
 my $fa2_s26 = read_file($fa2_src);
 my $jane_s26 = read_file($jane_src);
 my $m0840_s26 = read_file($m0840_src);
@@ -65,6 +70,13 @@ for my $mapper (@generic_mapper_dirs) {
    read_file($copy) eq read_file($src)
       or die "$mapper inline_bankcall.s26 drifted from the shared F8-geometry source\n";
 }
+for my $mapper (@legacy_mapper_dirs) {
+   my $copy = File::Spec->catfile($repo, 'libraries', 'vcs', $mapper, 'inline_bankcall.s26');
+   -f $copy or die "missing mapper-local legacy trampoline source $copy\n";
+   read_file($copy) eq read_file($legacy_src)
+      or die "$mapper inline_bankcall.s26 drifted from the transitional legacy source\n";
+}
+-f $legacy_src or die "missing maintained legacy trampoline source $legacy_src\n";
 -f $fa2_src or die "missing maintained FA2 trampoline source $fa2_src\n";
 -f $jane_src or die "missing maintained JANE trampoline source $jane_src\n";
 -f $m0840_src or die "missing maintained 0840 trampoline source $m0840_src\n";
@@ -73,6 +85,7 @@ for my $mapper (@generic_mapper_dirs) {
 -f $m0fa0_src or die "missing maintained 0FA0 trampoline source $m0fa0_src\n";
 -f $generator or die "missing template generator $generator\n";
 -f $built or die "missing generated linker template $built\n";
+-f $legacy_built or die "missing generated legacy linker template $legacy_built\n";
 -f $fa2_built or die "missing generated FA2 linker template $fa2_built\n";
 -f $jane_built or die "missing generated JANE linker template $jane_built\n";
 -f $m0840_built or die "missing generated 0840 linker template $m0840_built\n";
@@ -90,8 +103,13 @@ for my $label (qw(
 }
 index($s26, 'jsr __vcsc_generic_bankcall_switch_and_jump') >= 0
    or die "maintained trampoline source lacks internal JSR\n";
-index($s26, 'sta VCSC_BANKCALL_SELECTOR_BASE,y') >= 0
-   or die "maintained trampoline source lacks selector patch points\n";
+index($s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
+index($s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
+index($s26, 'adc #3') >= 0 &&
+index($s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
+   or die "maintained F-family descriptor trampoline lacks selector/source-descriptor ABI\n";
+index($legacy_s26, 'adc #3') >= 0 && index($legacy_s26, '__vcsc_generic_bankcall_reserved_end = $6050') >= 0
+   or die "transitional FA/DPC trampoline did not skip the new descriptor byte\n";
 index($fa2_s26, 'eor #7') >= 0 && index($fa2_s26, 'sta VCSC_BANKCALL_SELECTOR_BASE,y') >= 0
    or die "maintained FA2 trampoline source lacks reversed selector transform
 ";
@@ -120,7 +138,7 @@ index($m0fa0_s26, 'VCSC_BANKCALL_SELECTOR_BASE = $0FA0') >= 0 &&
 index($m0fa0_s26, '__vcsc_generic_bankcall_reserved_end = $6050') >= 0
    or die "maintained 0FA0 trampoline source lacks direct-PC masked-read selector transform
 ";
-index($ld, 'vcsc_generic_bankcall_template') >= 0 && index($ld, 'vcsc_fa2_bankcall_template') >= 0 &&
+index($ld, 'vcsc_generic_bankcall_template') >= 0 && index($ld, 'vcsc_legacy_bankcall_template') >= 0 && index($ld, 'vcsc_fa2_bankcall_template') >= 0 &&
 index($ld, 'vcsc_jane_bankcall_template') >= 0 && index($ld, 'vcsc_m0840_bankcall_template') >= 0 &&
 index($ld, 'vcsc_ua_bankcall_template') >= 0 && index($ld, 'vcsc_uasw_bankcall_template') >= 0 &&
 index($ld, 'vcsc_m0fa0_bankcall_template') >= 0
@@ -128,7 +146,7 @@ index($ld, 'vcsc_m0fa0_bankcall_template') >= 0
 ";
 index($ld, '#define PUT(') < 0
    or die "linker still contains hand-emitted generic trampoline opcodes\n";
-(grep { index($top, "libraries/vcs/$_/inline_bankcall.s26") < 0 } @generic_mapper_dirs) == 0 &&
+(grep { index($top, "libraries/vcs/$_/inline_bankcall.s26") < 0 } (@generic_mapper_dirs,@legacy_mapper_dirs)) == 0 &&
 index($top, 'libraries/vcs/FA2/inline_bankcall.s26') >= 0 &&
 index($top, 'libraries/vcs/JANE/inline_bankcall.s26') >= 0 &&
 index($top, 'libraries/vcs/0840/inline_bankcall.s26') >= 0 &&
@@ -140,6 +158,8 @@ index($top, 'libraries/vcs/0FA0/inline_bankcall.s26') >= 0
 
 system($^X, $generator, $as, $src, $fresh, 'GENERIC') == 0
    or die "could not regenerate inline bank-call template\n";
+system($^X, $generator, $as, $legacy_src, $legacy_fresh, 'LEGACY') == 0
+   or die "could not regenerate legacy inline bank-call template\n";
 system($^X, $generator, $as, $fa2_src, $fa2_fresh, 'FA2') == 0
    or die "could not regenerate FA2 inline bank-call template
 ";
@@ -160,6 +180,8 @@ system($^X, $generator, $as, $m0fa0_src, $m0fa0_fresh, 'M0FA0') == 0
 ";
 read_file($fresh) eq read_file($built)
    or die "built generic bank-call template is stale relative to F8/inline_bankcall.s26\n";
+read_file($legacy_fresh) eq read_file($legacy_built)
+   or die "built legacy bank-call template is stale relative to FA/inline_bankcall.s26\n";
 read_file($fa2_fresh) eq read_file($fa2_built)
    or die "built FA2 bank-call template is stale relative to FA2/inline_bankcall.s26
 ";
@@ -180,10 +202,10 @@ read_file($m0fa0_fresh) eq read_file($m0fa0_built)
 ";
 
 my $header = read_file($built);
-$header =~ /VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE 0x4Fu/
-   or die "generic trampoline payload is no longer 79 bytes\n";
-$header =~ /VCSC_GENERIC_BANKCALL_RESERVED_SIZE 0x50u/
-   or die "generic trampoline reservation is no longer 80 bytes\n";
+$header =~ /VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE 0x45u/
+   or die "generic descriptor trampoline payload is no longer 69 bytes\n";
+$header =~ /VCSC_GENERIC_BANKCALL_RESERVED_SIZE 0x48u/
+   or die "generic descriptor trampoline reservation is no longer 72 bytes\n";
 my $fa2_header = read_file($fa2_built);
 $fa2_header =~ /VCSC_FA2_BANKCALL_TEMPLATE_SIZE 0x53u/
    or die "FA2 trampoline payload is no longer 83 bytes\n";

@@ -43,3 +43,37 @@ compiler, linker, tests, mapper profiles, and inline_bankcall.s26 sources still
 implement the superseded five-byte PC-derived ABI and must be migrated next,
 before FC/F0. Updated public component docs to point at BANKSWITCHING.md and
 corrected context.txt's stale pre-0FA0 next-step summary.
+
+2026-08-31 09:17:33 PDT, migrate F8/F6/F4 descriptor bankcall ABI
+Implemented the public six-byte descriptor bankcall ABI in the toolchain and
+converted F8/F8SC/F6/F6SC/F4/F4SC end to end. `.banktarget` now occupies three
+bytes (16-bit target plus linker-supplied destination descriptor), bank topology
+metadata is `__bankmeta$V3` with an optional one-byte bankcall descriptor, and
+the linker retains V1/V2 compatibility. Descriptor-aware stack accounting adds
+one hardware-stack byte per active cross-bank call.
+
+For the F family the descriptor is the selector hotspot low byte. Each replicated
+fixed block has its source descriptor patched into one immediate operand, pushes
+that byte before the synthetic JSR, switches the destination with indexed access
+through `$1F00`, and on return pops the source descriptor and restores that bank
+before the final RTS. No source/destination bank identity is decoded from a PC.
+The maintained block is 69 bytes with 72 bytes reserved (`generic-jsr=$048`),
+down from the old 79/80 implementation. Linked F8 bank copies differ in exactly
+one fixed-block byte (`$F8` versus `$F9`). Same-bank calls remain ordinary JSRs.
+
+The other existing inline mappers remain intentionally transitional this
+checkpoint: FA/DPC, FA2, JANE, 0840, UA/UASW, and 0FA0 accept the new three-byte
+payload but their old mapper-local blocks skip the descriptor and retain their
+PC-derived selector logic. The independent ordered-pair matrix proves those
+compatibility paths still work. Public docs and hot state now identify their
+conversion as the next bankswitching work before FC/F0.
+
+Regression coverage now locks the destination descriptor byte, the one-byte
+source-descriptor difference between replicated F8 blocks, +3 return-PC carry
+across pages, seven-byte call-function bank-edge indivisibility, full F8/F6/F4
+ordered call matrices, A:X preservation, nested calls, stack balance, and zero
+legacy JSR entries. Focused e2e sets pass 8/8 for the new ABI/F family and 7/7
+for transitional mapper compatibility; the F864 public example builds all six
+normal profiles plus the poisoned F8SC diagnostic successfully. The branding
+failure introduced with BANKSWITCHING.md was fixed by adding the required VCSC
+FIGlet banner.

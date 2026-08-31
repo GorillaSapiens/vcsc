@@ -253,7 +253,7 @@ for my $mapper (qw(F6 F4)) {
       my $start = bank_start($bank);
       my $hotspot = hotspot_for_bank($count, $first_hotspot, $bank);
       my $startup = $bank == 0 ? 'yes' : 'no';
-      $cfg_text =~ /BANK\Q$bank\E:\s*start\s*=\s*\$\Q@{[sprintf('%04X',$start)]}\E,\s*size\s*=\s*\$1000,\s*hotspot\s*=\s*\$\Q@{[sprintf('%04X',$hotspot)]}\E,\s*startup\s*=\s*\Q$startup\E/s
+      $cfg_text =~ /BANK\Q$bank\E:\s*start\s*=\s*\$\Q@{[sprintf('%04X',$start)]}\E,\s*size\s*=\s*\$1000,\s*hotspot\s*=\s*\$\Q@{[sprintf('%04X',$hotspot)]}\E,\s*bankcall\s*=\s*\$\Q@{[sprintf('%02X',$hotspot & 0xff)]}\E,\s*startup\s*=\s*\Q$startup\E/s
          or die "$cfg_name BANK$bank declaration is wrong\n";
       $cfg_text =~ /bank\Q$bank\E:\s*start\s*=\s*\$\Q@{[sprintf('%04X',$start)]}\E,\s*size\s*=\s*\$0F00,\s*type\s*=\s*ro/s
          or die "$cfg_name bank$bank allocation span is wrong\n";

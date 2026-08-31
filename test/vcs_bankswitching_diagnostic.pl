@@ -165,8 +165,8 @@ sub run_simulator_matrix {
          }
       }
       my $map=read_file($map_path);
-      $map =~ /^\s*common-offset=\$F00\s+reserved=\$0E0\s+used=\$[0-9A-F]+\b.*\btarget-passing=inline\s+generic-jsr=\$050\b.*\bjsr=0\b/m
-         or die "$mapper diagnostic did not use the fixed 80-byte generic inline-target JSR block\n$map";
+      $map =~ /^\s*common-offset=\$F00\s+reserved=\$0E0\s+used=\$[0-9A-F]+\b.*\btarget-passing=inline\s+generic-jsr=\$048\b.*\bjsr=0\b/m
+         or die "$mapper diagnostic did not use the fixed 72-byte descriptor-ABI generic inline-target JSR block\n$map";
       $map !~ /^\s+JSR entry=/m
          or die "$mapper diagnostic still contains a per-target legacy JSR trampoline\n$map";
       if ($sc) {

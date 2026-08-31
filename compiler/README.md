@@ -668,9 +668,9 @@ JSR, a 16-bit target CPU address, and one mapper-defined destination descriptor
 byte. The caller bank's source descriptor is baked into its trampoline instance
 rather than inferred from the return PC.
 
-This source snapshot still emits the previous five-byte, PC-derived form; the
-implementation migration to the descriptor ABI is the next bankswitching code
-step.
+The compiler/assembler/linker now emit the descriptor field. F8/F6/F4(+SC)
+consume it end-to-end; older inline mapper trampolines remain transitional until
+they are migrated.
 
 A constant object may use one named read-only region:
 

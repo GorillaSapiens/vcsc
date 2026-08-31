@@ -514,7 +514,7 @@ void compile_function_decl(ASTNode *node) {
 }
 
 #define CARTRIDGE_TOPOLOGY_META_PREFIX "__cartmeta$V2$"
-#define BANK_TOPOLOGY_META_PREFIX "__bankmeta$V2$"
+#define BANK_TOPOLOGY_META_PREFIX "__bankmeta$V3$"
 
 static Set *emitted_topology_metadata;
 
@@ -710,10 +710,10 @@ void compile_cartridge_decl_stmt(ASTNode *node) {
 void compile_bank_decl_stmt(ASTNode *node) {
    const char *name = node && node->count > 0 ? node->children[0]->strval : NULL;
    const ASTNode *flags = node && node->count > 1 ? node->children[1] : NULL;
-   enum { IMAGE_Z, FILE_I, IMAGE_O, LINK_S, CPU_S, MAP_Z, SELECT_A, FIELD_COUNT };
+   enum { IMAGE_Z, FILE_I, IMAGE_O, LINK_S, CPU_S, MAP_Z, SELECT_A, BANKCALL_D, FIELD_COUNT };
    static const char *keys[FIELD_COUNT] = {
       "$image_size", "$file_index", "$image_offset", "$link_start",
-      "$cpu_start", "$map_size", "$select_access"
+      "$cpu_start", "$map_size", "$select_access", "$bankcall_descriptor"
    };
    bool seen[FIELD_COUNT] = { false };
    unsigned int value[FIELD_COUNT] = { 0 };
@@ -743,7 +743,8 @@ void compile_bank_decl_stmt(ASTNode *node) {
          continue;
       }
       for (int f = 0; f < FIELD_COUNT; f++) {
-         if (topology_parse_numeric_flag(node, text, keys[f], 0xffffu,
+         unsigned long maximum = f == BANKCALL_D ? 0xffu : 0xffffu;
+         if (topology_parse_numeric_flag(node, text, keys[f], maximum,
                                          &seen[f], &value[f])) {
             matched = true;
             break;
@@ -760,7 +761,7 @@ void compile_bank_decl_stmt(ASTNode *node) {
       if (seen[IMAGE_O] && value[IMAGE_O] != 0)
          error_user("[%s:%d.%d] data-only bank '%s' may only use '$image_offset:0'",
                     node->file, node->line, node->column, name);
-      if (seen[LINK_S] || seen[CPU_S] || seen[MAP_Z] || seen[SELECT_A] || startup)
+      if (seen[LINK_S] || seen[CPU_S] || seen[MAP_Z] || seen[SELECT_A] || seen[BANKCALL_D] || startup)
          error_user("[%s:%d.%d] data-only bank '%s' has no CPU/link mapping, selector, or startup role",
                     node->file, node->line, node->column, name);
       if (value[IMAGE_Z] == 0)
@@ -773,16 +774,20 @@ void compile_bank_decl_stmt(ASTNode *node) {
             error_user("[%s:%d.%d] bank '%s' requires '%s:'",
                        node->file, node->line, node->column, name, keys[f]);
       }
+      if (seen[BANKCALL_D] && !seen[SELECT_A])
+         error_user("[%s:%d.%d] bank '%s' cannot use '$bankcall_descriptor:' without '$select_access:'",
+                    node->file, node->line, node->column, name);
       if (value[IMAGE_Z] == 0 || value[MAP_Z] == 0)
          error_user("[%s:%d.%d] bank '%s' image and mapped sizes must be nonzero",
                     node->file, node->line, node->column, name);
    }
    source_suffix = topology_source_suffix(node);
    snprintf(symbol, sizeof(symbol),
-            BANK_TOPOLOGY_META_PREFIX "%s$I%04X$F%04X$O%04X$L%04X$C%04X$M%04X$P%d$S%04X$U%d$D%d%s",
+            BANK_TOPOLOGY_META_PREFIX "%s$I%04X$F%04X$O%04X$L%04X$C%04X$M%04X$P%d$S%04X$U%d$D%d$K%d$B%02X%s",
             name, value[IMAGE_Z], value[FILE_I], value[IMAGE_O], value[LINK_S],
             value[CPU_S], value[MAP_Z], seen[SELECT_A] ? 1 : 0,
-            value[SELECT_A], startup ? 1 : 0, data_only ? 1 : 0, source_suffix);
+            value[SELECT_A], startup ? 1 : 0, data_only ? 1 : 0,
+            seen[BANKCALL_D] ? 1 : 0, value[BANKCALL_D], source_suffix);
    free(source_suffix);
    emit_topology_metadata_symbol(symbol);
 }

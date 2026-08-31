@@ -1550,7 +1550,8 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
          }
 
          if (!strcmp(stmt->u.dir->name, ".word") || !strcmp(stmt->u.dir->name, ".banktarget")) {
-            unsigned char extra = !strcmp(stmt->u.dir->name, ".banktarget") ? O26_RTYPE_BANK_TARGET : 0;
+            int is_banktarget = !strcmp(stmt->u.dir->name, ".banktarget");
+            unsigned char extra = is_banktarget ? O26_RTYPE_BANK_TARGET : 0;
             if (extra && (!stmt->u.dir->exprs || stmt->u.dir->exprs->next)) {
                writer_error(wr->ctx, stmt, ".banktarget expects exactly one relocatable target");
                return 0;
@@ -1569,6 +1570,13 @@ static int write_segment_stmt(o26_writer_t *wr, const stmt_t *stmt)
                   return 0;
                }
                off += 2;
+               if (is_banktarget) {
+                  if (!buf_write_byte(buf, off, 0)) {
+                     writer_error(wr->ctx, stmt, "failed to reserve .banktarget descriptor byte");
+                     return 0;
+                  }
+                  off++;
+               }
             }
             return 1;
          }
@@ -1891,7 +1899,7 @@ static long listing_stmt_byte_count(o26_writer_t *wr, const stmt_t *stmt)
    }
    if (!strcmp(stmt->u.dir->name, ".word") || !strcmp(stmt->u.dir->name, ".banktarget")) {
       for (node = stmt->u.dir->exprs; node; node = node->next)
-         count += 2;
+         count += !strcmp(stmt->u.dir->name, ".banktarget") ? 3 : 2;
       return count;
    }
    if (!strcmp(stmt->u.dir->name, ".text") || !strcmp(stmt->u.dir->name, ".ascii") || !strcmp(stmt->u.dir->name, ".asciiz")) {

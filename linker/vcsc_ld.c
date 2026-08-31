@@ -22,12 +22,15 @@
 #include "vcsc_ld_abi.h"
 #include "version.h"
 #include "generic_bankcall_template.h"
+#include "legacy_bankcall_template.h"
 #include "fa2_bankcall_template.h"
 #include "jane_bankcall_template.h"
 #include "m0840_bankcall_template.h"
 #include "ua_bankcall_template.h"
 #include "uasw_bankcall_template.h"
 #include "m0fa0_bankcall_template.h"
+
+static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg);
 
 /* One identical six-byte BIT/JMP entry for NMI, RESET, and IRQ/BRK. */
 enum {
@@ -605,6 +608,8 @@ static int topology_metadata_has_prefix(const char *name)
                sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX_V1) - 1) == 0 ||
        strncmp(name, BANK_TOPOLOGY_META_PREFIX,
                sizeof(BANK_TOPOLOGY_META_PREFIX) - 1) == 0 ||
+       strncmp(name, BANK_TOPOLOGY_META_PREFIX_V2,
+               sizeof(BANK_TOPOLOGY_META_PREFIX_V2) - 1) == 0 ||
        strncmp(name, BANK_TOPOLOGY_META_PREFIX_V1,
                sizeof(BANK_TOPOLOGY_META_PREFIX_V1) - 1) == 0);
 }
@@ -1176,15 +1181,20 @@ static int parse_bank_topology_metadata(const char *symbol, topology_bank_t *out
    const char *p;
    const char *mark;
    size_t name_len;
-   unsigned int iz, fi, io, ls, cs, ms, sp, sa, su, data_only = 0;
+   unsigned int iz, fi, io, ls, cs, ms, sp, sa, su, data_only = 0, has_bankcall = 0, bankcall = 0;
    int consumed = 0;
    int version;
    if (!symbol || !out)
       return 0;
    if (strncmp(symbol, BANK_TOPOLOGY_META_PREFIX,
                sizeof(BANK_TOPOLOGY_META_PREFIX) - 1) == 0) {
-      version = 2;
+      version = 3;
       p = symbol + sizeof(BANK_TOPOLOGY_META_PREFIX) - 1;
+   }
+   else if (strncmp(symbol, BANK_TOPOLOGY_META_PREFIX_V2,
+                    sizeof(BANK_TOPOLOGY_META_PREFIX_V2) - 1) == 0) {
+      version = 2;
+      p = symbol + sizeof(BANK_TOPOLOGY_META_PREFIX_V2) - 1;
    }
    else if (strncmp(symbol, BANK_TOPOLOGY_META_PREFIX_V1,
                     sizeof(BANK_TOPOLOGY_META_PREFIX_V1) - 1) == 0) {
@@ -1199,7 +1209,13 @@ static int parse_bank_topology_metadata(const char *symbol, topology_bank_t *out
    name_len = (size_t)(mark - p);
    if (name_len >= sizeof(out->name))
       return -1;
-   if (version == 2) {
+   if (version == 3) {
+      if (sscanf(mark, "$I%4X$F%4X$O%4X$L%4X$C%4X$M%4X$P%1X$S%4X$U%1X$D%1X$K%1X$B%2X%n",
+                 &iz, &fi, &io, &ls, &cs, &ms, &sp, &sa, &su,
+                 &data_only, &has_bankcall, &bankcall, &consumed) != 12)
+         return -1;
+   }
+   else if (version == 2) {
       if (sscanf(mark, "$I%4X$F%4X$O%4X$L%4X$C%4X$M%4X$P%1X$S%4X$U%1X$D%1X%n",
                  &iz, &fi, &io, &ls, &cs, &ms, &sp, &sa, &su,
                  &data_only, &consumed) != 10)
@@ -1209,7 +1225,7 @@ static int parse_bank_topology_metadata(const char *symbol, topology_bank_t *out
                    &iz, &fi, &io, &ls, &cs, &ms, &sp, &sa, &su,
                    &consumed) != 9)
       return -1;
-   if (sp > 1u || su > 1u || data_only > 1u)
+   if (sp > 1u || su > 1u || data_only > 1u || has_bankcall > 1u || bankcall > 0xffu)
       return -1;
    memset(out, 0, sizeof(*out));
    if (!parse_topology_source_suffix(mark + consumed, out->declaration,
@@ -1225,6 +1241,8 @@ static int parse_bank_topology_metadata(const char *symbol, topology_bank_t *out
    out->map_size = (uint16_t)ms;
    out->has_selector = (int)sp;
    out->select_access = (uint16_t)sa;
+   out->has_bankcall_descriptor = (int)has_bankcall;
+   out->bankcall_descriptor = (uint8_t)bankcall;
    out->startup = (int)su;
    out->data_only = (int)data_only;
    return 1;
@@ -1254,6 +1272,8 @@ static int topology_bank_equal(const topology_bank_t *a, const topology_bank_t *
           a->map_size == b->map_size &&
           a->has_selector == b->has_selector &&
           a->select_access == b->select_access &&
+          a->has_bankcall_descriptor == b->has_bankcall_descriptor &&
+          a->bankcall_descriptor == b->bankcall_descriptor &&
           a->startup == b->startup &&
           a->data_only == b->data_only;
 }
@@ -1735,6 +1755,8 @@ static void apply_c26_topology_to_linker_config(linker_config_t *cfg)
       bank->start = (uint16_t)(top->link_start - top->image_offset);
       bank->size = top->image_size;
       bank->hotspot = top->has_selector ? top->select_access : 0;
+      bank->has_bankcall_descriptor = top->has_bankcall_descriptor;
+      bank->bankcall_descriptor = top->bankcall_descriptor;
       bank->startup = top->startup;
    }
 }
@@ -2990,6 +3012,9 @@ static void parse_bank_property(cartridge_bank_t *bank,
       bank->size = parse_u16_property("bank size", value, 1, 0xFFFFu);
    } else if (str_ieq(key, "hotspot")) {
       bank->hotspot = parse_u16_property("bank hotspot", value, 0, 0xFFFFu);
+   } else if (str_ieq(key, "bankcall")) {
+      bank->bankcall_descriptor = (uint8_t)parse_u16_property("bank bankcall descriptor", value, 0, 0x00FFu);
+      bank->has_bankcall_descriptor = 1;
    } else if (str_ieq(key, "startup")) {
       bank->startup = parse_yes_no("bank startup", value);
    } else {
@@ -4551,7 +4576,8 @@ static void reserve_call_stack_from_call_graph(linker_config_t *cfg,
       the actual startup roots: main contributes no entry slot because startup
       tail-jumps to it, while a runtime initializer contributes its real JSR.
       A cross-bank edge contributes one additional two-byte return address for
-      the JSR inside the common trampoline entry. The stock startup also
+      the JSR inside the common trampoline entry. Descriptor-ABI bank calls also
+      carry one source-selector byte per active cross-bank edge. The stock startup also
       preserves its two-byte init-table cursor while an init function runs.
       Full generic startup also has a real two-byte transient stack requirement
       during table-driven initialization. callstack_extra reserves a configuration-declared
@@ -4560,6 +4586,8 @@ static void reserve_call_stack_from_call_graph(linker_config_t *cfg,
    if (weighted_depth < depth)
       weighted_depth = depth;
    bytes = (uint32_t)weighted_depth * 2u;
+   if (bankcall_descriptor_abi_enabled(cfg) && weighted_depth > depth)
+      bytes += (uint32_t)(weighted_depth - depth);
    /* Full startup has a real two-byte transient hardware-stack requirement
       while copying/zeroing through generic pointers.  This replaces the old
       accidental coverage supplied by main's impossible JSR return slot. */
@@ -9108,6 +9136,21 @@ static int jsr_has_inline_bank_target(const object_file_t *obj, uint8_t image_se
    return 0;
 }
 
+//! @brief Return whether every selector-controlled bank supplies the descriptor ABI byte.
+static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg)
+{
+   size_t i;
+   int saw_selector = 0;
+   if (!cfg) return 0;
+   for (i = 0; i < cfg->bank_count; ++i) {
+      const cartridge_bank_t *bank = &cfg->banks[i];
+      if (!bank->hotspot) continue;
+      saw_selector = 1;
+      if (!bank->has_bankcall_descriptor) return 0;
+   }
+   return saw_selector;
+}
+
 //! @brief Validate inline-bankcall selector geometry and return the indexed selector base.
 static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
 {
@@ -9204,6 +9247,23 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
       return 0x1ff0u;
    }
 
+   /* Mapper-specific geometries must be recognized before this common
+      descriptor form. A descriptor is mapper-owned; it is not inherently an
+      F8-family hotspot byte. The common full-window family deliberately uses
+      the selector low byte, making selection base+descriptor with base $1F00. */
+   if (bankcall_descriptor_abi_enabled(cfg)) {
+      for (i = 0; i < cfg->bank_count; ++i) {
+         const cartridge_bank_t *bank = &cfg->banks[i];
+         uint16_t expected = (uint16_t)(0x1f00u + bank->bankcall_descriptor);
+         if (!bank->hotspot || bank->hotspot != expected) {
+            fprintf(stderr, "vcsc-ld: common descriptor bank '%s' descriptor $%02X must select hotspot $%04X\n",
+                    bank->name, bank->bankcall_descriptor, expected);
+            exit(1);
+         }
+      }
+      return 0x1f00u;
+   }
+
    if (fa2) {
       if (cfg->bank_count != 6u && cfg->bank_count != 7u) {
          fprintf(stderr, "vcsc-ld: FA2 inline-target bank calls require six or seven selector-controlled banks\n");
@@ -9266,8 +9326,10 @@ static uint16_t generic_bankcall_reserved_size(const linker_config_t *cfg)
       return VCSC_UASW_BANKCALL_RESERVED_SIZE;
    if (c26_topology_is_0fa0(cfg))
       return VCSC_M0FA0_BANKCALL_RESERVED_SIZE;
-   return c26_topology_is_fa2(cfg) ? VCSC_FA2_BANKCALL_RESERVED_SIZE
-                                   : VCSC_GENERIC_BANKCALL_RESERVED_SIZE;
+   if (c26_topology_is_fa2(cfg))
+      return VCSC_FA2_BANKCALL_RESERVED_SIZE;
+   return bankcall_descriptor_abi_enabled(cfg) ? VCSC_GENERIC_BANKCALL_RESERVED_SIZE
+                                               : VCSC_LEGACY_BANKCALL_RESERVED_SIZE;
 }
 
 //! @brief Reserve the fixed generic bank-call block before variable JMP/legacy entries are allocated.
@@ -9680,6 +9742,20 @@ static void apply_segment_relocs(const input_set_t *in,
             break;
          case O26_RTYPE_WORD:
             patch_u16(seg->data, seg->length, r->offset, resolved_address, who);
+            if (relocation_is_bank_target(r)) {
+               const cartridge_bank_t *dest = cartridge_bank_for_address(cfg, target.owner_address);
+               if (!dest) dest = cartridge_bank_for_address(cfg, target.address);
+               if (r->offset + 2u >= seg->length) {
+                  fprintf(stderr, "vcsc-ld: .banktarget descriptor byte is out of range in %s\n", who);
+                  exit(1);
+               }
+               if (bankcall_descriptor_abi_enabled(cfg) && (!dest || !dest->has_bankcall_descriptor)) {
+                  fprintf(stderr, "vcsc-ld: descriptor-ABI .banktarget in %s has no destination descriptor\n", who);
+                  exit(1);
+               }
+               seg->data[r->offset + 2u] = dest && dest->has_bankcall_descriptor
+                  ? dest->bankcall_descriptor : 0u;
+            }
             break;
          default:
             fprintf(stderr, "vcsc-ld: unsupported relocation type 0x%02x in %s\n", r->type, who);
@@ -9882,6 +9958,9 @@ static void instantiate_bankcall_template(uint8_t *table,
                                           size_t ptr_patch_count,
                                           const uint8_t *selector_patches,
                                           size_t selector_patch_count,
+                                          const uint8_t *source_descriptor_patches,
+                                          size_t source_descriptor_patch_count,
+                                          uint8_t source_descriptor,
                                           uint8_t switch_offset,
                                           uint8_t internal_jsr_operand_offset,
                                           uint16_t selector_base,
@@ -9913,6 +9992,8 @@ static void instantiate_bankcall_template(uint8_t *table,
       table[off + 0u] = (uint8_t)(selector_base & 0xffu);
       table[off + 1u] = (uint8_t)(selector_base >> 8);
    }
+   for (i = 0; i < source_descriptor_patch_count; ++i)
+      table[source_descriptor_patches[i]] = source_descriptor;
 
    switch_addr = (uint16_t)(canonical_base + switch_offset);
    table[internal_jsr_operand_offset + 0u] = (uint8_t)(switch_addr & 0xffu);
@@ -9922,10 +10003,13 @@ static void instantiate_bankcall_template(uint8_t *table,
 //! @brief Instantiate the mapper-appropriate maintained S26 bank-call template.
 static void encode_generic_bank_jsr_block(uint8_t *table,
                                           const linker_config_t *cfg,
+                                          const cartridge_bank_t *source_bank,
                                           uint16_t canonical_base,
                                           uint16_t ptr0)
 {
    uint16_t selector_base = generic_bankcall_selector_base(cfg);
+   uint8_t source_descriptor = source_bank && source_bank->has_bankcall_descriptor
+      ? source_bank->bankcall_descriptor : 0u;
    if (c26_topology_is_0840(cfg)) {
       instantiate_bankcall_template(table,
          vcsc_m0840_bankcall_template,
@@ -9935,6 +10019,9 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
          VCSC_M0840_BANKCALL_PTR_PATCH_COUNT,
          vcsc_m0840_bankcall_selector_patches,
          VCSC_M0840_BANKCALL_SELECTOR_PATCH_COUNT,
+         vcsc_m0840_bankcall_source_descriptor_patches,
+         VCSC_M0840_BANKCALL_SOURCE_DESCRIPTOR_PATCH_COUNT,
+         source_descriptor,
          VCSC_M0840_BANKCALL_SWITCH_OFFSET,
          VCSC_M0840_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
          selector_base, canonical_base, ptr0);
@@ -9948,6 +10035,9 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
          VCSC_UA_BANKCALL_PTR_PATCH_COUNT,
          vcsc_ua_bankcall_selector_patches,
          VCSC_UA_BANKCALL_SELECTOR_PATCH_COUNT,
+         vcsc_ua_bankcall_source_descriptor_patches,
+         VCSC_UA_BANKCALL_SOURCE_DESCRIPTOR_PATCH_COUNT,
+         source_descriptor,
          VCSC_UA_BANKCALL_SWITCH_OFFSET,
          VCSC_UA_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
          selector_base, canonical_base, ptr0);
@@ -9961,6 +10051,9 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
          VCSC_UASW_BANKCALL_PTR_PATCH_COUNT,
          vcsc_uasw_bankcall_selector_patches,
          VCSC_UASW_BANKCALL_SELECTOR_PATCH_COUNT,
+         vcsc_uasw_bankcall_source_descriptor_patches,
+         VCSC_UASW_BANKCALL_SOURCE_DESCRIPTOR_PATCH_COUNT,
+         source_descriptor,
          VCSC_UASW_BANKCALL_SWITCH_OFFSET,
          VCSC_UASW_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
          selector_base, canonical_base, ptr0);
@@ -9974,6 +10067,9 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
          VCSC_M0FA0_BANKCALL_PTR_PATCH_COUNT,
          vcsc_m0fa0_bankcall_selector_patches,
          VCSC_M0FA0_BANKCALL_SELECTOR_PATCH_COUNT,
+         vcsc_m0fa0_bankcall_source_descriptor_patches,
+         VCSC_M0FA0_BANKCALL_SOURCE_DESCRIPTOR_PATCH_COUNT,
+         source_descriptor,
          VCSC_M0FA0_BANKCALL_SWITCH_OFFSET,
          VCSC_M0FA0_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
          selector_base, canonical_base, ptr0);
@@ -9987,6 +10083,9 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
          VCSC_JANE_BANKCALL_PTR_PATCH_COUNT,
          vcsc_jane_bankcall_selector_patches,
          VCSC_JANE_BANKCALL_SELECTOR_PATCH_COUNT,
+         vcsc_jane_bankcall_source_descriptor_patches,
+         VCSC_JANE_BANKCALL_SOURCE_DESCRIPTOR_PATCH_COUNT,
+         source_descriptor,
          VCSC_JANE_BANKCALL_SWITCH_OFFSET,
          VCSC_JANE_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
          selector_base, canonical_base, ptr0);
@@ -10000,22 +10099,34 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
          VCSC_FA2_BANKCALL_PTR_PATCH_COUNT,
          vcsc_fa2_bankcall_selector_patches,
          VCSC_FA2_BANKCALL_SELECTOR_PATCH_COUNT,
+         vcsc_fa2_bankcall_source_descriptor_patches,
+         VCSC_FA2_BANKCALL_SOURCE_DESCRIPTOR_PATCH_COUNT,
+         source_descriptor,
          VCSC_FA2_BANKCALL_SWITCH_OFFSET,
          VCSC_FA2_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
          selector_base, canonical_base, ptr0);
    }
-   else {
+   else if (bankcall_descriptor_abi_enabled(cfg)) {
       instantiate_bankcall_template(table,
          vcsc_generic_bankcall_template,
          VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE,
          VCSC_GENERIC_BANKCALL_RESERVED_SIZE,
-         vcsc_generic_bankcall_ptr_patches,
-         VCSC_GENERIC_BANKCALL_PTR_PATCH_COUNT,
-         vcsc_generic_bankcall_selector_patches,
-         VCSC_GENERIC_BANKCALL_SELECTOR_PATCH_COUNT,
-         VCSC_GENERIC_BANKCALL_SWITCH_OFFSET,
-         VCSC_GENERIC_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
-         selector_base, canonical_base, ptr0);
+         vcsc_generic_bankcall_ptr_patches, VCSC_GENERIC_BANKCALL_PTR_PATCH_COUNT,
+         vcsc_generic_bankcall_selector_patches, VCSC_GENERIC_BANKCALL_SELECTOR_PATCH_COUNT,
+         vcsc_generic_bankcall_source_descriptor_patches, VCSC_GENERIC_BANKCALL_SOURCE_DESCRIPTOR_PATCH_COUNT,
+         source_descriptor, VCSC_GENERIC_BANKCALL_SWITCH_OFFSET,
+         VCSC_GENERIC_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET, selector_base, canonical_base, ptr0);
+   }
+   else {
+      instantiate_bankcall_template(table,
+         vcsc_legacy_bankcall_template,
+         VCSC_LEGACY_BANKCALL_TEMPLATE_SIZE,
+         VCSC_LEGACY_BANKCALL_RESERVED_SIZE,
+         vcsc_legacy_bankcall_ptr_patches, VCSC_LEGACY_BANKCALL_PTR_PATCH_COUNT,
+         vcsc_legacy_bankcall_selector_patches, VCSC_LEGACY_BANKCALL_SELECTOR_PATCH_COUNT,
+         vcsc_legacy_bankcall_source_descriptor_patches, VCSC_LEGACY_BANKCALL_SOURCE_DESCRIPTOR_PATCH_COUNT,
+         0u, VCSC_LEGACY_BANKCALL_SWITCH_OFFSET,
+         VCSC_LEGACY_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET, selector_base, canonical_base, ptr0);
    }
 }
 
@@ -10183,11 +10294,8 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
          size_t j;
          trampoline = (uint8_t *)xmalloc(layout->bank_trampoline_used);
          memset(trampoline, cfg->cartridge_fill_value, layout->bank_trampoline_used);
-         if (layout->bank_generic_jsr_used) {
-            uint16_t ptr0 = lookup_global_addr(layout, "_vcsc_ptr0");
-            uint16_t canonical_base = (uint16_t)(startup->start + cfg->trampoline_offset);
-            encode_generic_bank_jsr_block(trampoline, cfg, canonical_base, ptr0);
-         }
+         /* Generated below per bank because descriptor-ABI trampoline copies
+            carry a bank-local baked source descriptor. */
          for (j = 0; j < layout->bank_trampoline_entry_count; ++j) {
             const bank_trampoline_entry_t *entry = &layout->bank_trampoline_entries[j];
             uint16_t pointer_offset = bank_trampoline_pointer_offset(entry->kind);
@@ -10211,8 +10319,12 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
             }
          }
          for (j = 0; j < cfg->bank_count; ++j) {
-            uint16_t bank_trampoline =
-               (uint16_t)(cfg->banks[j].start + cfg->trampoline_offset);
+            uint16_t bank_trampoline = (uint16_t)(cfg->banks[j].start + cfg->trampoline_offset);
+            if (layout->bank_generic_jsr_used) {
+               uint16_t ptr0 = lookup_global_addr(layout, "_vcsc_ptr0");
+               uint16_t canonical_base = (uint16_t)(startup->start + cfg->trampoline_offset);
+               encode_generic_bank_jsr_block(trampoline, cfg, &cfg->banks[j], canonical_base, ptr0);
+            }
             image_write_generated(image, used, bank_trampoline, trampoline,
                                   layout->bank_trampoline_used,
                                   "common bank trampoline table");

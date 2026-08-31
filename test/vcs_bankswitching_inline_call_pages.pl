@@ -58,7 +58,7 @@ my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $simcfg=File::Spec->catfile($vcs,'F8/mapper.cfg');
 
 for my $case (
-   [within_page=>0xD0F0, 'five-byte call bundle remains within one page'],
+   [within_page=>0xD0F0, 'six-byte call bundle remains within one page'],
    [word_cross=>0xD0FC, 'inline target word straddles page boundary'],
    [jsr_end=>0xD0FD, 'JSR ends at page boundary and inline word starts next page'],
 ) {
@@ -80,12 +80,12 @@ cartridge {
 bank bank0 {
    $image_size:0x1000 $file_index:1 $image_offset:0x0000
    $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
-   $select_access:0x1ff9 $startup
+   $select_access:0x1ff9 $bankcall_descriptor:0xf9 $startup
 };
 bank bank1 {
    $image_size:0x1000 $file_index:0 $image_offset:0x0000
    $link_start:0xd000 $cpu_start:0xf000 $map_size:0x1000
-   $select_access:0x1ff8
+   $select_access:0x1ff8 $bankcall_descriptor:0xf8
 };
 mem bank0 { $start:0xf000 $size:0x0f00 $ro $priority:2 };
 mem edge { $start:0x%04x $size:0x0020 $ro $priority:3 };
@@ -116,7 +116,7 @@ SRC
    require_ok("compile assembly $name",$driver,'-S','-I',$vcs,'-o',$asm,$src);
    my $assembly=read_file($asm);
    $assembly =~ /\.proc\s+crossing\s+jsr\s+target\s+\.banktarget\s+target/s
-      or die "$name does not emit the five-byte inline-target call bundle\n";
+      or die "$name does not emit the six-byte inline-target call bundle\n";
 
    require_ok("link $name",$driver,'-I',$vcs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),
               '-Map',$map_path,$src,'-o',$bin);
@@ -125,8 +125,18 @@ SRC
    my $crossing=map_symbol($map,'crossing');
    $crossing==$edge_start
       or die sprintf("%s call fixture moved from %04X to %04X (%s)\n",$name,$edge_start,$crossing,$why);
-   $map =~ /^\s*common-offset=\$F00\s+reserved=\$0E0\s+used=\$050\b.*\bgeneric-jsr=\$050\b.*\bentries=0\s+jmp=0\s+jsr=0\b/m
+   $map =~ /^\s*common-offset=\$F00\s+reserved=\$0E0\s+used=\$048\b.*\bgeneric-jsr=\$048\b.*\bentries=0\s+jmp=0\s+jsr=0\b/m
       or die "$name did not use only the fixed generic bank-call block\n$map";
+   my $rom=read_file($bin);
+   my $call_file_offset=$crossing-0xD000;
+   ord(substr($rom,$call_file_offset+5,1))==0xF9
+      or die "$name .banktarget did not resolve destination descriptor F9\n";
+   my $tramp_file0=substr($rom,0x0F00,0x48);
+   my $tramp_file1=substr($rom,0x1F00,0x48);
+   my @tramp_diff=grep { substr($tramp_file0,$_,1) ne substr($tramp_file1,$_,1) } 0..0x47;
+   @tramp_diff==1 && ord(substr($tramp_file0,$tramp_diff[0],1))==0xF8 &&
+      ord(substr($tramp_file1,$tramp_diff[0],1))==0xF9
+      or die "$name replicated trampoline copies do not differ only by baked F8/F9 source descriptor\n";
    my $stop=map_symbol($map,'stop');
    my $a=map_symbol($map,'a_after');
    my $x=map_symbol($map,'x_after');
@@ -143,8 +153,8 @@ SRC
    }
 }
 
-# The generated JSR + inline word is part of one function layout.  Pin a
-# six-byte function (five-byte call bundle plus RTS) exactly against the end of
+# The generated JSR + three-byte .banktarget is part of one function layout. Pin a
+# seven-byte function (six-byte call bundle plus RTS) exactly against the end of
 # allocatable bank1 ROM, then prove moving it one byte later is rejected rather
 # than spilling any part into the replicated trampoline corridor / next bank.
 {
@@ -164,12 +174,12 @@ cartridge {
 bank bank0 {
    $image_size:0x1000 $file_index:1 $image_offset:0
    $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
-   $select_access:0x1ff9 $startup
+   $select_access:0x1ff9 $bankcall_descriptor:0xf9 $startup
 };
 bank bank1 {
    $image_size:0x1000 $file_index:0 $image_offset:0
    $link_start:0xd000 $cpu_start:0xf000 $map_size:0x1000
-   $select_access:0x1ff8
+   $select_access:0x1ff8 $bankcall_descriptor:0xf8
 };
 mem bank0 { $start:0xf000 $size:0x0f00 $ro $priority:2 };
 EDGE_DECL
@@ -179,18 +189,18 @@ bank0 void stop(void) { while (1) { } }
 bank0 void main(void) { crossing(); asm jmp stop; }
 SRC
    my $good_source=$template;
-   $good_source =~ s/EDGE_DECL/mem edge { \$start:0xdefa \$size:0x0006 \$ro \$priority:3 };/;
+   $good_source =~ s/EDGE_DECL/mem edge { \$start:0xdef9 \$size:0x0007 \$ro \$priority:3 };/;
    write_file($good,$good_source);
    require_ok('link bank-end exact fit',$driver,'-I',$vcs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),
               '-Map',$map_path,$good,'-o',$bin);
    my $map=read_file($map_path);
-   map_symbol($map,'crossing')==0xDEFA
-      or die "bank-end exact-fit call function did not remain at DEFA\n";
-   $map =~ /CODE\.edge\.__vcsc_function\$crossing\s+load=\$DEFA\s+size=\$0006/
-      or die "bank-end exact-fit function was not one indivisible six-byte layout\n$map";
+   map_symbol($map,'crossing')==0xDEF9
+      or die "bank-end exact-fit call function did not remain at DEF9\n";
+   $map =~ /CODE\.edge\.__vcsc_function\$crossing\s+load=\$DEF9\s+size=\$0007/
+      or die "bank-end exact-fit function was not one indivisible seven-byte layout\n$map";
 
    my $bad_source=$template;
-   $bad_source =~ s/EDGE_DECL/mem edge { \$start:0xdefb \$size:0x0005 \$ro \$priority:3 };/;
+   $bad_source =~ s/EDGE_DECL/mem edge { \$start:0xdefa \$size:0x0006 \$ro \$priority:3 };/;
    write_file($bad,$bad_source);
    my($rc,$sig,$out,$err)=run_capture($driver,'-I',$vcs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),
                                      $bad,'-o',File::Spec->catfile($tmp,'bank_end_bad.bin'));

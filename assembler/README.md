@@ -513,7 +513,7 @@ Forward references are accepted in expressions that can be resolved by later ass
 
 ### Inline bank-call target metadata
 
-`.banktarget expression` emits the same two little-endian bytes as `.word` but
+`.banktarget expression` emits a relocatable 16-bit target followed by one linker-owned destination-descriptor byte. The target word has the same little-endian encoding as `.word`, but
 marks the relocation as the inline logical target belonging to the immediately
 preceding compiler-generated cross-bank `JSR`. It is linker protocol metadata,
 not a general control-flow directive. The expression must be one relocatable

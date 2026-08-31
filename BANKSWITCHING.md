@@ -1,3 +1,10 @@
+```text
+ __   __ ___  ___   ___
+ \ \ / // __|/ __| / __|
+  \ V /| (__ \__ \| (__
+   \_/  \___||___/ \___|
+```
+
 # VCSC Bankswitching ABI
 
 This document defines VCSC's public contract for selector-controlled cartridge
@@ -7,11 +14,13 @@ shared ABI.
 
 ## Status
 
-The descriptor ABI in this document is the **target ABI** for `$inline_bankcall`.
-The source tree is being migrated to it. At this documentation checkpoint the
-compiler/linker and existing `inline_bankcall.s26` files still implement the
-older five-byte, PC-derived inline-target form. They are therefore not yet
-conforming implementations of the descriptor ABI below.
+The descriptor ABI in this document is the public ABI for `$inline_bankcall`.
+The compiler, assembler, and linker emit the three-byte `.banktarget` field.
+F8/F8SC/F6/F6SC/F4/F4SC are the first mapper family fully migrated: their
+bank-local trampolines consume the destination descriptor directly and carry a
+baked source descriptor on the hardware stack. Other previously migrated inline
+mappers are temporarily compatibility implementations: they skip the third
+payload byte but still use their older PC-derived selector logic until converted.
 
 No new mapper should be designed around the old PC-derived form.
 

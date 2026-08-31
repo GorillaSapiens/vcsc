@@ -135,10 +135,10 @@ destination bank identity is inferred from a 16-bit PC. Same-bank calls remain
 ordinary JSRs. The generic return path preserves A:X return values and performs
 the final RTS to the unchanged logical continuation PC.
 
-This source snapshot is in a documentation-first migration: the compiler/linker
-still implement the previous five-byte, PC-derived inline-target form until the
-pending implementation step. `../BANKSWITCHING.md` is authoritative for the new
-ABI.
+The compiler/assembler/linker implement the three-byte `.banktarget` field.
+F8/F6/F4(+SC) currently consume the descriptor end-to-end; older inline mapper
+trampolines remain transitional until converted. `../BANKSWITCHING.md` is the
+authoritative public ABI.
 
 Before an ordinary direct call, arguments are evaluated left-to-right. A
 converted argument is copied directly into its callee-owned parameter as soon
@@ -427,10 +427,12 @@ The current output-wide record begins with `__cartmeta$V2$` and canonically
 records the presence mask, fill byte, optional offset/size pairs for the
 trampoline, vector bridge, and vectors, plus the four raw cartridge-signature
 bytes. The linker continues to accept legacy `__cartmeta$V1$` records, which
-carry no signature. Each current bank record begins with `__bankmeta$V2$` and
+carry no signature. Each current bank record begins with `__bankmeta$V3$` and
 records the bank name, physical image size, physical file index, mapped image
 offset, synthetic link start, CPU-visible start, mapped size, optional selector
-access address, startup bit, and data-only bit. Numeric values are normalized to
+access address, startup bit, data-only bit, and optional one-byte mapper-defined
+bank-call descriptor. `__bankmeta$V2$` remains accepted and carries no bank-call
+descriptor. Numeric values are normalized to
 fixed-width hexadecimal fields, so byte-identical declarations from separate
 translation units produce identical exports. The linker still accepts
 `__bankmeta$V1$`, whose banks are always CPU-mapped.

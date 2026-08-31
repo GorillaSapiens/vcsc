@@ -19,16 +19,16 @@ selects a mapper only:
 ```
 
 This example defines `VCSC_INLINE_BANKCALL` before including the stock mapper
-profile. It is the public call-matrix pilot. The target ABI is documented in
-[`../../../BANKSWITCHING.md`](../../../BANKSWITCHING.md); this source snapshot
-still builds the superseded five-byte implementation pending descriptor migration.
+profile. It is the public call-matrix pilot for the descriptor ABI documented in
+[`../../../BANKSWITCHING.md`](../../../BANKSWITCHING.md).
 
 Each cartridge internally runs the complete ordered source-bank to
 destination-bank matrix twice: 4+4 transitions for F8, 16+16 for F6, and 64+64
 for F4. The first pass uses ordinary C calls. Same-bank calls remain ordinary
-`JSR`/`RTS`; in the current pre-migration implementation every cross-bank call
-uses the five-byte `JSR __bankcall` plus inline logical `.word target` bundle and
-one fixed 80-byte generic call/return block shared by every target. The second pass uses
+`JSR`/`RTS`; every cross-bank call uses the six-byte `JSR __bankcall` plus
+three-byte `.banktarget` bundle (target address + destination descriptor) and one
+fixed 69-byte descriptor-aware block with 72 bytes reserved (`$048`). The source
+descriptor is baked into each bank's replicated block. The second pass uses
 the existing direct-JMP trampolines. BANK0 also performs one nested
 BANK0-to-BANK1 call.
 

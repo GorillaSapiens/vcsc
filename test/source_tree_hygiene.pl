@@ -199,16 +199,16 @@ index($bankswitching,'[ ] 38b. FC -- do this next.')>=0 &&
 index($bankswitching,'[ ] 38c. F0 -- do this after FC.')>=0 &&
 index($bankswitching,'bank through the $1FF0 hotspot instead of directly selecting an')>=0 &&
 index($bankswitching,'Generic inline-target cross-bank JSR contract')>=0 &&
-index($bankswitching,'80-byte')>=0 &&
+index($bankswitching,'fixed block is 69 bytes with 72 reserved (`$048`)')>=0 &&
 index($bankswitching,'fixed mapper-specific replicated entry/return')>=0 &&
 index($bankswitching,'unchanged original 16-bit logical return PC')>=0 &&
-index($bankswitching,'consume no legacy per-target')>=0 &&
+index($bankswitching,'no legacy per-target JSR entries')>=0 &&
 index($bankswitching,'0FA0 is 69/80 (`$050`)')>=0 &&
 index($bankswitching,'BNE near / JMP false / near: JMP true')>=0 &&
 -f File::Spec->catfile($test,'vcs_bankswitching_inline_call_pages.pl') &&
 index(slurp(File::Spec->catfile($repo,'compiler','compile_call.c')),'.banktarget %s')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs F8 inline_bankcall.s26)) &&
-index(slurp(File::Spec->catfile($repo,qw(libraries vcs F8 inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6050')>=0 &&
+index(slurp(File::Spec->catfile($repo,qw(libraries vcs F8 inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6048')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs FA2 inline_bankcall.s26)) &&
 index(slurp(File::Spec->catfile($repo,qw(libraries vcs FA2 inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6054')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs JANE inline_bankcall.s26)) &&
@@ -229,8 +229,8 @@ index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m0840_bankcal
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_ua_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_uasw_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m0fa0_bankcall_template')>=0 &&
-index($bankswitching,'no ROM bank-identity')>=0 &&
-index($bankswitching,'reverse advance count as call-frame metadata')>=0 &&
+index($bankswitching,'F8/F8SC/F6/F6SC/F4/F4SC consume it end to')>=0 &&
+index($bankswitching,'[ ] 37. Finish descriptor-ABI conversion of existing inline mappers')>=0 &&
 $bankswitching !~ /^\[ \] 42\./m &&
 $bankswitching !~ /^\[ \] 43\./m &&
 index($bankswitching,'FE/SCABS is also not an F8-style hotspot mapper.')>=0 &&

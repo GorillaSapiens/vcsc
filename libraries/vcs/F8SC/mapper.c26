@@ -19,13 +19,13 @@ cartridge {
 bank bank0 {
    $image_size:0x1000 $file_index:1 $image_offset:0x0100
    $link_start:0xf100 $cpu_start:0xf100 $map_size:0x0f00
-   $select_access:0x1ff9 $startup
+   $select_access:0x1ff9 $bankcall_descriptor:0xf9 $startup
 };
 
 bank bank1 {
    $image_size:0x1000 $file_index:0 $image_offset:0x0100
    $link_start:0xd100 $cpu_start:0xf100 $map_size:0x0f00
-   $select_access:0x1ff8
+   $select_access:0x1ff8 $bankcall_descriptor:0xf8
 };
 
 mem bank0 { $start:0xf100 $size:0x0e00 $ro $priority:2 };

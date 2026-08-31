@@ -935,6 +935,8 @@ static int object_has_configuration_metadata(const object_file_t *obj)
                   sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX_V1) - 1) == 0 ||
           strncmp(name, BANK_TOPOLOGY_META_PREFIX,
                   sizeof(BANK_TOPOLOGY_META_PREFIX) - 1) == 0 ||
+          strncmp(name, BANK_TOPOLOGY_META_PREFIX_V2,
+                  sizeof(BANK_TOPOLOGY_META_PREFIX_V2) - 1) == 0 ||
           strncmp(name, BANK_TOPOLOGY_META_PREFIX_V1,
                   sizeof(BANK_TOPOLOGY_META_PREFIX_V1) - 1) == 0)
          return 1;

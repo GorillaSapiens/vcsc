@@ -48,7 +48,7 @@ __vcsc_generic_bankcall_begin:
 
     lda $0101,x
     clc
-    adc #2
+    adc #3
     sta $0101,x
     bcc.same @return_adjusted
     inc $0102,x
