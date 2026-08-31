@@ -9158,9 +9158,11 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
       if (!bank0 || !bank1 || bank0->data_only || bank1->data_only ||
           bank0->link_start != 0xf000u || bank1->link_start != 0xd000u ||
           !bank0->has_selector || bank0->select_access != 0x0800u ||
-          !bank1->has_selector || bank1->select_access != 0x0840u) {
+          !bank0->has_bankcall_descriptor || bank0->bankcall_descriptor != 0x00u ||
+          !bank1->has_selector || bank1->select_access != 0x0840u ||
+          !bank1->has_bankcall_descriptor || bank1->bankcall_descriptor != 0x40u) {
          fprintf(stderr,
-                 "vcsc-ld: 0840 inline-target bank calls require logical bank0 $Fxxx -> $0800 and bank1 $Dxxx -> $0840\n");
+                 "vcsc-ld: 0840 inline-target bank calls require logical bank0 $Fxxx -> $0800 descriptor $00 and bank1 $Dxxx -> $0840 descriptor $40\n");
          exit(1);
       }
       return 0x0800u;

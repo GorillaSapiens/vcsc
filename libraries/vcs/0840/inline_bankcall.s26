@@ -1,25 +1,27 @@
 ; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 ;
-; Atari 0840 / EconoBanking inline-target cross-bank JSR/RTS trampoline.
+; Descriptor-ABI cross-bank JSR/RTS trampoline for Atari 0840/EconoBanking.
 ;
-; 0840 selects its two 4K banks through below-cartridge accesses in the $0800
-; family: A6=0 selects physical/logical bank 0 and A6=1 selects bank 1.  The
-; selector access must be a read, not the ROM-window STA used by F8 geometry.
-; VCSC logical bank0 is linked at $F000 and bank1 at $D000, so bit 5 of the
-; logical PC high byte is 1 for bank0 and 0 for bank1.  XORing bit 5, masking it,
-; and shifting left yields Y=$00/$40; LDA $0800,Y then performs the required
-; selector read without any address table or self-modifying code.
+; The caller emits JSR __bankcall followed by a three-byte .banktarget payload:
+; 16-bit target address, then the destination bank-call descriptor. 0840 uses
+; the selector offset from $0800 as the descriptor: $00 for physical/logical
+; bank 0 and $40 for bank 1. Selecting/restoring a bank is therefore an indexed
+; read from $0800. Each replicated trampoline copy has its source-bank
+; descriptor patched into the immediate operand below; no bank identity is
+; inferred from the caller, callee, or return PC.
 ;
-; This is the maintained source for 0840's fixed $inline_bankcall block.
-; linker/gen_inline_bankcall_template.pl assembles it at build time; vcsc-ld
-; patches only the runtime-selected zero-page scratch address, selector base,
-; and internal JSR target before replicating the block into both banks.
+; The selector access must remain a read: $0800/$0840 are below the cartridge
+; window and overlap mirrored console address space. LDA $0800,Y performs the
+; required bus read without writing TIA/RIOT state.
 
 .ifndef VCSC_BANKCALL_PTR0
 VCSC_BANKCALL_PTR0 = $0080
 .endif
 .ifndef VCSC_BANKCALL_SELECTOR_BASE
 VCSC_BANKCALL_SELECTOR_BASE = $0800
+.endif
+.ifndef VCSC_BANKCALL_SOURCE_DESCRIPTOR
+VCSC_BANKCALL_SOURCE_DESCRIPTOR = $00
 .endif
 
 .segmentdef "CODE", $6000, $0100
@@ -32,20 +34,15 @@ VCSC_BANKCALL_SELECTOR_BASE = $0800
 .export __vcsc_generic_bankcall_reserved_end
 
 __vcsc_generic_bankcall_begin:
+    ; JSR stacked the address of its final operand byte. Keep that logical PC
+    ; in ptr0 while all three inline payload bytes are still visible.
     tsx
     lda $0101,x
     sta VCSC_BANKCALL_PTR0
     lda $0102,x
     sta VCSC_BANKCALL_PTR0 + 1
-    ldy #1
-    lda (VCSC_BANKCALL_PTR0),y
-    pha
-    iny
-    lda (VCSC_BANKCALL_PTR0),y
-    sta VCSC_BANKCALL_PTR0 + 1
-    pla
-    sta VCSC_BANKCALL_PTR0
 
+    ; Final RTS must skip target-low, target-high, and destination descriptor.
     lda $0101,x
     clc
     adc #3
@@ -54,38 +51,46 @@ __vcsc_generic_bankcall_begin:
     inc $0102,x
 @return_adjusted:
 
+    ; Read the complete payload before leaving the source bank. X is free once
+    ; the real return PC has been adjusted, so keep target-low there and use
+    ; only one temporary stack byte for target-high. Y retains the destination
+    ; descriptor through the bank switch.
+    ldy #1
+    lda (VCSC_BANKCALL_PTR0),y
+    tax
+    iny
+    lda (VCSC_BANKCALL_PTR0),y
+    pha
+    iny
+    lda (VCSC_BANKCALL_PTR0),y
+    tay
+    pla
+    sta VCSC_BANKCALL_PTR0 + 1
+    stx VCSC_BANKCALL_PTR0
+
+    ; This byte is patched independently in each bank copy. It is call-frame
+    ; metadata, not something inferred from the caller PC.
+    lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR
+    pha
+
+    ; JSR creates the synthetic return consumed by the remote callee's RTS.
     jsr __vcsc_generic_bankcall_switch_and_jump
 
-; Preserve A:X, derive the source bank from the original logical return PC,
-; perform the below-window selector read, then restore A:X and return.
 __vcsc_generic_bankreturn:
-    pha
-    txa
-    pha
-    tsx
-    lda $0104,x
-    eor #$20
-    and #$20
-    asl
+    ; The callee's A:X return value is live. Save it in ptr0, consume the source
+    ; descriptor directly from the stack, restore that bank, then restore A:X.
+    sta VCSC_BANKCALL_PTR0
+    stx VCSC_BANKCALL_PTR0 + 1
+    pla
     tay
     lda VCSC_BANKCALL_SELECTOR_BASE,y
-    pla
-    tax
-    pla
+    lda VCSC_BANKCALL_PTR0
+    ldx VCSC_BANKCALL_PTR0 + 1
     rts
 
-; Derive the destination selector from the inline target logical address, read
-; that selector, then jump through ptr0.  The following instructions are
-; replicated at identical CPU addresses in both banks, so execution continues
-; safely after the selector read changes the mapped physical bank.
 __vcsc_generic_bankcall_switch_and_jump:
-    lda VCSC_BANKCALL_PTR0 + 1
-    eor #$20
-    and #$20
-    asl
-    tay
     lda VCSC_BANKCALL_SELECTOR_BASE,y
     jmp (VCSC_BANKCALL_PTR0)
 
 __vcsc_generic_bankcall_end:
-__vcsc_generic_bankcall_reserved_end = $6050
+__vcsc_generic_bankcall_reserved_end = $6048

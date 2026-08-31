@@ -250,3 +250,10 @@ descriptor byte. JANE no longer needs `-DVCSC_INLINE_BANKCALL=1` in its example,
 install check, or example-build harness. Compile-only passes 503/503 and the full
 e2e file set passes. The next descriptor migration target is 0840, followed by
 UA/UASW and 0FA0 before FC/F0.
+
+2026-08-31 16:12:31 PDT, 0840 descriptor ABI migration
+- Migrated 0840/EconoBanking automatic cross-bank calls to the public three-byte .banktarget descriptor ABI.
+- Bank descriptors are $00/$40 and are consumed directly as Y offsets from $0800 for read-only selection/restoration; source descriptors are baked into each replicated trampoline and carried on the hardware stack.
+- Removed PC-derived bank decoding and the VCSC_INLINE_BANKCALL pilot define. The fixed block is now 69 bytes with 72 reserved ($048), recovering 8 bytes per bank / 16 bytes per 8K image.
+- 0840 tests now lock destination descriptor payloads, the single baked source-descriptor difference between copies, ordered 2x2 calls, nesting, A:X/stack behavior, simulator/disassembler round trip, and zero per-target JSR entries.
+- Validation: 503/503 compile-only passed; e2e 1-236 passed in the broad run and exact remaining 106/106 passed in bounded reruns. UA/UASW is next.

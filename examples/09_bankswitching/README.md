@@ -36,8 +36,8 @@ hardware-stack balance, and simulator execution. This covers every ordered JSR
 pair for F8/F8SC, F6/F6SC, F4/F4SC, FA, both FA2 profiles, JANE, 0840,
 UA/UASW, 0FA0, and DPC. F8/F6/F4(+SC), FA, both FA2 profiles, JANE, 0840,
 UA/UASW, 0FA0, and DPC use fixed inline-target blocks with zero legacy
-per-target JSR bridges. F8/F6/F4(+SC), FA, DPC, both FA2 profiles, and JANE are
-descriptor-aware; 0840, UA/UASW, and 0FA0 still await conversion. Same-bank
+per-target JSR bridges. F8/F6/F4(+SC), FA, DPC, both FA2 profiles, JANE, and 0840 are
+descriptor-aware; UA/UASW and 0FA0 still await conversion. Same-bank
 calls remain ordinary JSRs.
 
 The public VCSC cartridge profiles also stamp the final physical bank with a

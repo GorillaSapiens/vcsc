@@ -23,7 +23,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `CV/mapper.c26`, `CV/ram.c26` ... CommaVid CV fixed 2K ROM plus shared 1K split-address cartridge RAM; `CV/mapper.cfg` supplies simulator/compatibility mapping
 - `4K/mapper.c26` ... conventional unbanked 4K topology and allocatable ROM
 - `F8/mapper.c26`, `F6/mapper.c26`, `F4/mapper.c26` ... inspectable selector-controlled C26 profiles with exact output order and generated corridors
-- `*/inline_bankcall.s26` ... mapper-local maintained sources for selector-controlled automatic cross-bank calls; the public ABI is defined in [`../../BANKSWITCHING.md`](../../BANKSWITCHING.md) and uses mapper-defined one-byte bank-call descriptors rather than inferring bank identity from logical PCs. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, FA2-24/28, and JANE consume that descriptor ABI now; 0840, UA/UASW, and 0FA0 remain to be converted.
+- `*/inline_bankcall.s26` ... mapper-local maintained sources for selector-controlled automatic cross-bank calls; the public ABI is defined in [`../../BANKSWITCHING.md`](../../BANKSWITCHING.md) and uses mapper-defined one-byte bank-call descriptors rather than inferring bank identity from logical PCs. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, FA2-24/28, JANE, and 0840 consume that descriptor ABI now; UA/UASW and 0FA0 remain to be converted.
 - `0840/mapper.c26` ... 0840/EconoBanking two-bank 8K profile with below-cartridge selectors `$0800/$0840`; `0840/mapper.cfg` supplies simulator-only masked selector semantics
 - `UA/mapper.c26`, `UASW/mapper.c26` ... UA Limited 8K alias-decoded profiles; UA maps `$0220`-family accesses to bank 0 and `$0240`-family accesses to bank 1, while UASW swaps that association; their cfg files supply simulator-only masked selector semantics
 - `0FA0/mapper.c26` ... Brazilian Fotomania 0FA0 two-bank 8K profile; `(A & $16E0)==$06A0/$06C0` selects physical bank 0/1, physical bank 1 powers up, and `0FA0/mapper.cfg` supplies simulator metadata
@@ -696,9 +696,12 @@ selects it; `$0840` selects physical bank 1. Hardware decoding aliases these
 selectors below the cartridge window, so they are bus triggers rather than ROM
 locations. VCSC therefore does not reserve corresponding `$F800/$F840` bytes.
 
-Generated vector bridges and cross-bank stubs use undocumented NMOS absolute NOP
-opcode `$0C` for below-window selector reads. That access preserves registers and
-flags and avoids a write to the mirrored console device. `0840/mapper.cfg` is
+Generated vector bridges use undocumented NMOS absolute NOP opcode `$0C` for
+below-window selector reads. The descriptor-aware cross-bank trampoline uses
+`$00/$40` as mapper-owned offsets from `$0800` and performs `LDA $0800,Y` for
+both destination selection and source restoration. Each bank copy carries its
+own baked source descriptor; no bank identity is recovered from a logical PC.
+These read accesses avoid writes to mirrored console devices. `0840/mapper.cfg` is
 simulator-only metadata; `vcsc-sim` models the decoded selector families on both
 reads and writes while allowing the underlying low-memory operation to occur.
 The final physical bank carries the `0840` signature at `$FFF8-$FFFB`.

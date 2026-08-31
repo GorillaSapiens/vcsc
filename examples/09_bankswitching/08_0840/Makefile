@@ -13,7 +13,7 @@ SOURCE := econobanking_diagnostic.c26
 TARGET := econobanking_diagnostic.bin
 all: $(TARGET)
 $(TARGET): $(SOURCE)
-	$(VCSC) -I $(VCS_DIR) -DVCSC_INLINE_BANKCALL=1 -T $(VCS_DIR)/vcs.cfg -Map econobanking_diagnostic.map $(SOURCE) -o $@
+	$(VCSC) -I $(VCS_DIR) -T $(VCS_DIR)/vcs.cfg -Map econobanking_diagnostic.map $(SOURCE) -o $@
 $(TARGET): $(COMMITTED_FONT_SUBSETS)
 
 fonts:

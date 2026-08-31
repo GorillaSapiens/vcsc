@@ -207,8 +207,8 @@ for my $p (@profiles) {
    }
    if ($name eq '0840') {
       $text =~ /\$vector_bridge_offset:0x0fe0\s+\$vector_bridge_size:0x0012/ &&
-      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x0800\s+\$startup/s &&
-      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x0840/s
+      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x0800\s+\$bankcall_descriptor:0x00\s+\$startup/s &&
+      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x0840\s+\$bankcall_descriptor:0x40/s
          or die "0840 profile does not preserve below-window selectors/startup bank\n";
       $map =~ /^\s+bank0\s+file-index=0\b.*select-access=\$0800.*startup=yes/m &&
       $map =~ /^\s+bank1\s+file-index=1\b.*select-access=\$0840/m

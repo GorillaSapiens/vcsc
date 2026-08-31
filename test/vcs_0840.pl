@@ -68,10 +68,11 @@ $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
 $mk =~ /^\s*stella\s+-bs\s+0840\s+\$\(TARGET\)\s*$/m
    or die "0840 play target must force Stella -bs 0840\n";
 my $pt=read_file($profile);
-$pt =~ /#ifdef VCSC_INLINE_BANKCALL\s+\$inline_bankcall\s+#endif/s &&
+$pt =~ /cartridge\s*\{\s*\$inline_bankcall/s &&
+index($pt,'VCSC_INLINE_BANKCALL') < 0 &&
 $pt =~ /\$signature:0840\b/ &&
-$pt =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x0800\s+\$startup/s &&
-$pt =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x0840/s &&
+$pt =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x0800\s+\$bankcall_descriptor:0x00\s+\$startup/s &&
+$pt =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x0840\s+\$bankcall_descriptor:0x40/s &&
 $pt =~ /\$vector_bridge_offset:0x0fe0\s+\$vector_bridge_size:0x0012/
    or die "0840 profile topology/startup contract is wrong\n";
 my $src_text=read_file($source);
@@ -93,7 +94,7 @@ $ct =~ /BANK1:.*hotspot\s*=\s*\$0840.*fileindex\s*=\s*1/is
 
 my $bin=File::Spec->catfile($tmp,'0840.bin');
 my $map=File::Spec->catfile($tmp,'0840.map');
-require_ok('build 0840 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-DVCSC_INLINE_BANKCALL=1',
+require_ok('build 0840 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
    '-T',$generic,'-Map',$map,$source,'-o',$bin);
 -s $bin==8192 or die "0840 output size is not 8K\n";
 my $rom=read_file($bin);
@@ -111,23 +112,39 @@ for my $off (0,6,12) {
    substr($bridge,$off,4) eq pack('C*',0x0c,0x00,0x08,0x4c)
       or die "0840 vector bridge does not use NOP-read \$0800; JMP\n";
 }
-# The fixed inline call block is byte-identical in both banks and performs
-# indexed reads from $0800,Y.  Y is derived as $00/$40 from the logical PC, so
-# the two selector families are reached without any write to console space.
-my $inline0=substr($rom,0x0f00,0x0050);
-my $inline1=substr($rom,4096+0x0f00,0x0050);
-$inline0 eq $inline1 &&
-(()=$inline0 =~ /\xB9\x00\x08/sg)>=2 &&
-index($inline0,pack('C*',0x8d,0x00,0x08))<0 &&
-index($inline0,pack('C*',0x8d,0x40,0x08))<0
-   or die "0840 inline bank-call block does not use read-only indexed selectors\n";
+# The fixed descriptor-aware inline call block performs indexed reads from
+# $0800,Y. The two bank copies may differ only at the baked source descriptor.
+# Destination descriptor bytes come directly from .banktarget payloads.
+my $lst=read_file(File::Spec->catfile($tmp,'0840.lst'));
+my @descriptor=(0x00,0x40);
+for my $destination (0..1) {
+   my $desc=sprintf('%02x',$descriptor[$destination]);
+   my $count=()=$lst =~ /^\s*\d+\s+[0-9a-f]{4}\s+[0-9a-f]{2}\s+[0-9a-f]{2}\s+\Q$desc\E\s+; \.banktarget call_target\Q$destination\E\b/gmi;
+   $count==1
+      or die "0840 destination bank $destination descriptor payload count is $count, expected 1\n";
+}
+my @trampoline=map { substr($rom,$_ * 4096 + 0x0f00,0x48) } 0..1;
+my @source_diff=grep {
+   my $off=$_;
+   ord(substr($trampoline[0],$off,1)) != ord(substr($trampoline[1],$off,1));
+} 0..0x47;
+@source_diff==1
+   or die "0840 descriptor trampoline copies do not differ at exactly one source-descriptor byte\n";
+for my $bank (0..1) {
+   ord(substr($trampoline[$bank],$source_diff[0],1))==$descriptor[$bank]
+      or die sprintf("0840 bank %d baked source descriptor is not $%02X\n",$bank,$descriptor[$bank]);
+   (()=$trampoline[$bank] =~ /\xB9\x00\x08/sg)>=2 &&
+   index($trampoline[$bank],pack('C*',0x8d,0x00,0x08))<0 &&
+   index($trampoline[$bank],pack('C*',0x8d,0x40,0x08))<0
+      or die "0840 inline bank-call block does not use read-only indexed selectors\n";
+}
 
 my $m=read_file($map);
 $m =~ /^\s+bank0\s+file-index=0\b.*mode=selector\s+select-access=\$0800\s+startup=yes/m &&
 $m =~ /^\s+bank1\s+file-index=1\b.*mode=selector\s+select-access=\$0840/m &&
 $m =~ /vector-bridge=\$0FE0\s+size=\$0012/ &&
 $m =~ /^TRAMPOLINES$/m &&
-$m =~ /generic-jsr=\$050\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
+$m =~ /generic-jsr=\$048\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
 $m !~ /JSR entry=/
    or die "0840 map topology/trampoline contract is wrong\n$m";
 my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure call_count nested_count);
@@ -160,7 +177,7 @@ $wmem->[0x0080]==0x5A && $wmem->[0x0840]==0x5A
    or die "0840 write did not both switch bank and reach underlying memory\n";
 
 my $visible=File::Spec->catfile($tmp,'0840-visible.bin');
-require_ok('build visible 0840 PASS/FAIL cartridge',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,$source,'-o',$visible);
+require_ok('build visible 0840 PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
 my $vrom=read_file($visible);
 length($vrom)==8192 && substr($vrom,4096+0x0ff8,4) eq '0840' &&
 (()=$vrom =~ /\x0c\x00\x08\x4c/sg)>=2

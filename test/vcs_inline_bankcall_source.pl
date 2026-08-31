@@ -107,10 +107,11 @@ index($jane_s26, 'adc #3') >= 0 &&
 index($jane_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
    or die "maintained JANE trampoline source lacks descriptor selector/source ABI\n";
 index($m0840_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
-index($m0840_s26, 'eor #$20') >= 0 && index($m0840_s26, 'and #$20') >= 0 &&
-index($m0840_s26, '__vcsc_generic_bankcall_reserved_end = $6050') >= 0
-   or die "maintained 0840 trampoline source lacks read-selector transform
-";
+index($m0840_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
+index($m0840_s26, 'eor #$20') < 0 && index($m0840_s26, 'and #$20') < 0 &&
+index($m0840_s26, 'adc #3') >= 0 &&
+index($m0840_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
+   or die "maintained 0840 trampoline source lacks descriptor read-selector ABI\n";
 index($ua_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
 index($ua_s26, 'eor #$20') >= 0 && index($ua_s26, 'and #$20') >= 0 &&
 index($ua_s26, '__vcsc_generic_bankcall_reserved_end = $6050') >= 0
@@ -202,12 +203,10 @@ $jane_header =~ /VCSC_JANE_BANKCALL_TEMPLATE_SIZE 0x45u/
 $jane_header =~ /VCSC_JANE_BANKCALL_RESERVED_SIZE 0x48u/
    or die "JANE descriptor trampoline reservation is no longer 72 bytes\n";
 my $m0840_header = read_file($m0840_built);
-$m0840_header =~ /VCSC_M0840_BANKCALL_TEMPLATE_SIZE 0x4Bu/
-   or die "0840 trampoline payload is no longer 75 bytes
-";
-$m0840_header =~ /VCSC_M0840_BANKCALL_RESERVED_SIZE 0x50u/
-   or die "0840 trampoline reservation is no longer 80 bytes
-";
+$m0840_header =~ /VCSC_M0840_BANKCALL_TEMPLATE_SIZE 0x45u/
+   or die "0840 descriptor trampoline payload is no longer 69 bytes\n";
+$m0840_header =~ /VCSC_M0840_BANKCALL_RESERVED_SIZE 0x48u/
+   or die "0840 descriptor trampoline reservation is no longer 72 bytes\n";
 my $ua_header = read_file($ua_built);
 $ua_header =~ /VCSC_UA_BANKCALL_TEMPLATE_SIZE 0x49u/
    or die "UA trampoline payload is no longer 73 bytes

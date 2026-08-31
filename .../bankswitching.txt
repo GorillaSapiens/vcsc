@@ -170,10 +170,11 @@ move accordingly.
 
 Implementation checkpoint: the compiler/assembler/linker use the six-byte
 descriptor ABI and `__bankmeta$V3`. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,
-FA2-24/28, and JANE consume it end to end and those migrated profiles declare
-`$inline_bankcall` unconditionally. FA2 uses descriptors `$F5-$FA/$FB` and indexed
-`STA $1F00,Y`; JANE uses `$F0/$F1/$F8/$F9` and indexed `LDA $1F00,Y`. Both fixed
-blocks are 69 bytes with 72 reserved (`$048`). 0840, UA/UASW, and 0FA0 still have
+FA2-24/28, JANE, and 0840 consume it end to end and those migrated profiles
+declare `$inline_bankcall` unconditionally. FA2 uses descriptors `$F5-$FA/$FB`
+and indexed `STA $1F00,Y`; JANE uses `$F0/$F1/$F8/$F9` and indexed
+`LDA $1F00,Y`; 0840 uses `$00/$40` and indexed `LDA $0800,Y`. All three fixed
+blocks are 69 bytes with 72 reserved (`$048`). UA/UASW and 0FA0 still have
 mapper-local PC-derived blocks pending conversion. Only the descriptor ABI is retained for migrated inline mappers. Delete each
 obsolete mapper-specific call path as its last user migrates.
 
@@ -199,7 +200,7 @@ current whole-function asm safety rule can leave generated
 this is future optimizer-locality cleanup, not bankswitching work.
 
 [ ] 37. Finish descriptor-ABI conversion of existing inline mappers:
-        0840, UA/UASW, and 0FA0. Do this before FC/F0.
+        UA/UASW and 0FA0. Do this before FC/F0.
 
 [ ] 38. Complete the remaining mapper tier in this order: **FC, F0**.
 
