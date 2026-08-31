@@ -101,9 +101,9 @@ Open workstreams
    `libraries/vcs/<MAPPER>/` directories (for example `F8SC/mapper.c26`);
    mapper-specific C26/CFG/S26 helpers stay inside that namespace.
    Inline-target JSR is complete for F8/F6/F4(+SC), FA, DPC,
-   and FA2. `$inline_bankcall` / `VCSC_INLINE_BANKCALL` emits five-byte
-   JSR+target bundles with no per-target JSR entries. F8/F8SC/F6/F6SC/F4/F4SC/FA/DPC each carry a byte-identical mapper-local 80-byte `inline_bankcall.s26`; the linker generates the shared F8-geometry template from the F8 copy. FA2 uses its distinct 84-byte `libraries/vcs/FA2/inline_bankcall.s26` because selector order is reversed. Stacked logical PCs identify return banks; page/bank-edge tests lock
-   carry-correct behavior. Next migration: **JANE -> 0840 -> UA/UASW -> 0FA0**;
+   FA2, and JANE. `$inline_bankcall` / `VCSC_INLINE_BANKCALL` emits five-byte
+   JSR+target bundles with no per-target JSR entries. F8/F8SC/F6/F6SC/F4/F4SC/FA/DPC each carry a byte-identical mapper-local 80-byte `inline_bankcall.s26`; the linker generates the shared F8-geometry template from the F8 copy. FA2 uses its distinct 84-byte `libraries/vcs/FA2/inline_bankcall.s26` because selector order is reversed. JANE logical banks now match physical/file banks 0..3, with bank1 marked `$startup`; its distinct 96-byte reserved block maps those indices to `$1FF0/$1FF1/$1FF8/$1FF9`. Stacked logical PCs identify return banks; page/bank-edge tests lock
+   carry-correct behavior. Next migration: **0840 -> UA/UASW -> 0FA0**;
    then new mapper work is **FC -> F0**. Read the focused file first.
 
 4. **Disassembler**

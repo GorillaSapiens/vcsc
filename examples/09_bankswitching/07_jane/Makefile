@@ -8,12 +8,12 @@ BIG_FONT := $(VCS_DIR)/fonts/big_ascii.c26
 SMALL_FONT := $(VCS_DIR)/fonts/default_ascii.c26
 FONT_SUBSET_DIR ?= .
 COMMITTED_FONT_SUBSETS := status_font.c26 cart_type_font.c26
-FONT_SUBSET_FLAGS := --license examples/LICENSE.txt --bank bank0
+FONT_SUBSET_FLAGS := --license examples/LICENSE.txt --bank bank1
 SOURCE := jane_diagnostic.c26
 TARGET := jane_diagnostic.bin
 all: $(TARGET)
 $(TARGET): $(SOURCE)
-	$(VCSC) -I $(VCS_DIR) -T $(VCS_DIR)/vcs.cfg -Map jane_diagnostic.map $(SOURCE) -o $@
+	$(VCSC) -I $(VCS_DIR) -DVCSC_INLINE_BANKCALL=1 -T $(VCS_DIR)/vcs.cfg -Map jane_diagnostic.map $(SOURCE) -o $@
 $(TARGET): $(COMMITTED_FONT_SUBSETS)
 
 fonts:

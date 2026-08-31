@@ -630,7 +630,8 @@ bool compile_cartridge_supports_inline_bankcall(void) {
           !strcmp(compiled_cartridge_signature, "F4SC") ||
           !strcmp(compiled_cartridge_signature, "FA") ||
           !strcmp(compiled_cartridge_signature, "DPC") ||
-          !strcmp(compiled_cartridge_signature, "FA2"));
+          !strcmp(compiled_cartridge_signature, "FA2") ||
+          !strcmp(compiled_cartridge_signature, "JANE"));
 }
 
 //! @brief Lower one output-wide cartridge declaration to linker-visible metadata.

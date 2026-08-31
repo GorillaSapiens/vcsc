@@ -2,4 +2,4 @@
 *.d
 vcsc-ld
 version.h
-generic_bankcall_template.h
+*_bankcall_template.h

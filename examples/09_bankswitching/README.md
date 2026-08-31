@@ -68,9 +68,9 @@ and displays `CV` below `pass`/`FAIL`. The generated image includes the
 `07_jane/` is the 16K JANE diagnostic. It preserves physical file-bank order
 0/1/2/3 for selectors `$1FF0/$1FF1/$1FF8/$1FF9`, while hardware startup is
 physical bank 1. The self-test begins correctly from every possible selected
-bank and crosses all four selectors through a representative nested call/return
-chain; the shared regression separately covers every ordered JSR pair. It
-displays `JANE` below `pass`/`FAIL`. The image also carries Stella's
+bank and executes all 16 ordered source/destination C-call pairs, checking return
+values and hardware-stack balance; one pair contains an additional nested
+cross-bank call. It displays `JANE` below `pass`/`FAIL`. The image also carries Stella's
 `LDA $FFF1; RTS` autodetection byte pattern as inert data.
 
 `08_0840/` is the 8K 0840/EconoBanking diagnostic. Physical bank 0 powers up;

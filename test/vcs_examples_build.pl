@@ -133,6 +133,10 @@ for my $entry (@examples) {
    my $source_text=read_file($source);
    my @extra;
    push @extra,'-Wa,--illegals' if $file eq 'vcsc_diagnostic.c26';
+   # Mapper diagnostics which are specifically exercising the fixed inline
+   # bankcall ABI must be smoke-built with the same public define as their
+   # Makefiles; otherwise this harness silently falls back to legacy bridges.
+   push @extra,'-DVCSC_INLINE_BANKCALL=1' if $file eq 'jane_diagnostic.c26';
    if ($source_text =~ m{renderers/enhanced_multisprite_asymmetric/enhanced_multisprite\.c26}) {
       # The asymmetric renderer owns its playfield rows; common retained-PF-row
       # data is never part of these cartridges.  NTSC's 192-line diagnostic also
@@ -227,7 +231,10 @@ for my $entry (@examples) {
    my($nmi,$reset,$irq)=unpack('v3',substr($rom,$vector_offset,6));
    if ($known_signature{$tail_signature}) {
       for my $v ($reset,$irq) {
-         $v>=0xf000 && $v<=0xffff or die sprintf("%s vector %04X is outside ROM\n",$dir,$v);
+         my $in_rom = $profile eq 'jane'
+            ? ($v>=0xd000 && $v<=0xdfff)
+            : ($v>=0xf000 && $v<=0xffff);
+         $in_rom or die sprintf("%s vector %04X is outside ROM\n",$dir,$v);
       }
    } else {
       for my $v ($nmi,$reset,$irq) {

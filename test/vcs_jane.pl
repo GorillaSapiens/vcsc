@@ -71,14 +71,32 @@ my $src=read_file($source);
 $src =~ /instantiate \"six_glyph_big_wide_component\.c26\" as status_result/ &&
 $src =~ /instantiate \"six_glyph_component\.c26\" as cart_type \(compact_font:=0\)/ &&
 $src =~ /status_result_color\s*:=\s*0x0e/ &&
+$src =~ /^void\s+main\s*\(void\)\s*\{/m &&
+$src !~ /^bank\d+\s+void\s+main\s*\(/m &&
 $src =~ /81 blank \+ 19 result \+ 11 mapper \+ 81 blank = 192 visible lines/
    or die "JANE diagnostic must use the standard big PASS\/FAIL line and small mapper line\n";
+for my $source_bank (0..3) {
+   my $start = index($src, "bank$source_bank void source_entry$source_bank(void)");
+   $start >= 0 or die "JANE diagnostic is missing source_entry$source_bank\n";
+   my $end = $source_bank < 3
+      ? index($src, "bank".($source_bank+1)." void source_entry".($source_bank+1)."(void)", $start+1)
+      : index($src, "void main(void)", $start+1);
+   $end > $start or die "could not bound JANE source_entry$source_bank\n";
+   my $body = substr($src,$start,$end-$start);
+   for my $destination_bank (0..3) {
+      $body =~ /call_target\Q$destination_bank\E\s*\(\s*\)/
+         or die "JANE source bank $source_bank does not call destination bank $destination_bank\n";
+   }
+}
+$src =~ /call_count\s*!=\s*16/ && $src =~ /nested_count\s*!=\s*1/
+   or die "JANE diagnostic does not enforce the complete 4x4 call matrix\n";
 
 my $pt=read_file($profile);
 $pt =~ /\$signature:JANE\b/ &&
+$pt =~ /#ifdef VCSC_INLINE_BANKCALL\s+\$inline_bankcall\s+#endif/s &&
 $pt =~ /\$vector_bridge_offset:0x0ee0\s+\$vector_bridge_size:0x0012/ &&
-$pt =~ /bank\s+bank0\s*\{.*?\$file_index:1.*?\$select_access:0x1ff1\s+\$startup/s &&
-$pt =~ /bank\s+bank1\s*\{.*?\$file_index:0.*?\$select_access:0x1ff0/s &&
+$pt =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x1ff0/s &&
+$pt =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x1ff1\s+\$startup/s &&
 $pt =~ /bank\s+bank2\s*\{.*?\$file_index:2.*?\$select_access:0x1ff8/s &&
 $pt =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$select_access:0x1ff9/s &&
 (()=$pt =~ /\$size:0x0ee0\s+\$ro/g)==4
@@ -86,15 +104,15 @@ $pt =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$select_access:0x1ff9/s &&
 
 my $ct=read_file($cfg);
 $ct =~ /mapper\s*=\s*JANE/ &&
-$ct =~ /BANK0:.*hotspot\s*=\s*\$1FF1.*fileindex\s*=\s*1.*startup\s*=\s*yes/is &&
-$ct =~ /BANK1:.*hotspot\s*=\s*\$1FF0.*fileindex\s*=\s*0/is &&
+$ct =~ /BANK0:.*hotspot\s*=\s*\$1FF0.*fileindex\s*=\s*0.*startup\s*=\s*no/is &&
+$ct =~ /BANK1:.*hotspot\s*=\s*\$1FF1.*fileindex\s*=\s*1.*startup\s*=\s*yes/is &&
 $ct =~ /BANK2:.*hotspot\s*=\s*\$1FF8.*fileindex\s*=\s*2/is &&
 $ct =~ /BANK3:.*hotspot\s*=\s*\$1FF9.*fileindex\s*=\s*3/is
    or die "JANE simulator cfg physical file-index contract is wrong\n";
 
 my $bin=File::Spec->catfile($tmp,'jane.bin');
 my $map=File::Spec->catfile($tmp,'jane.map');
-require_ok('build JANE simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
+require_ok('build JANE simulator diagnostic',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-DSIMULATOR_TEST',
    '-T',$generic,'-Map',$map,$source,'-o',$bin);
 -s $bin==16384 or die "JANE output size is not 16K\n";
 my $rom=read_file($bin);
@@ -108,16 +126,19 @@ index($rom,pack('C*',0xAD,0xF1,0xFF,0x60))>=0
    or die "JANE image lost Stella's LDA \$FFF1; RTS detector signature\n";
 
 my $m=read_file($map);
-my @file_index=(1,0,2,3);
-my @selector=(0x1ff1,0x1ff0,0x1ff8,0x1ff9);
+my @file_index=(0,1,2,3);
+my @selector=(0x1ff0,0x1ff1,0x1ff8,0x1ff9);
 for my $logical (0..3) {
    my $fi=$file_index[$logical];
    my $sel=sprintf('%04X',$selector[$logical]);
    $m =~ /^\s+bank\Q$logical\E\s+file-index=\Q$fi\E\b.*mode=selector\s+select-access=\$\Q$sel\E(?:\s+startup=yes)?/m
       or die "JANE logical bank$logical/file bank/selector mapping is wrong\n$m";
 }
-$m =~ /^\s+bank0\s+file-index=1\b.*startup=yes/m &&
+$m =~ /^\s+bank1\s+file-index=1\b.*startup=yes/m &&
+$m =~ /^\s+bank0\s+file-index=0\b(?!.*startup=yes)/m &&
 $m =~ /vector-bridge=\$0EE0\s+size=\$0012/ &&
+$m =~ /generic-jsr=\$060\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
+$m !~ /JSR entry=/ &&
 $m =~ /^TRAMPOLINES$/m
    or die "JANE startup/vector bridge/trampoline map contract is wrong\n$m";
 my $bridge=substr($rom,0x0ee0,0x12);
@@ -130,7 +151,10 @@ for my $file_bank (1..3) {
       or die "JANE RESET/IRQ vectors differ in file bank $file_bank\n";
 }
 
-my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure trace call_count);
+my $main_addr=map_symbol($m,'main');
+$main_addr >= 0xd000 && $main_addr < 0xdee0
+   or die sprintf("JANE linker did not place unqualified main in startup bank1: main=\$%04X\n",$main_addr);
+my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure signature source_seen current_source current_destination call_count nested_count stack_before stack_after);
 for my $start (0..3) {
    my($out,$err)=require_ok("simulate JANE from physical bank $start",$sim,'-T',$cfg,
       "--start-bank=$start",sprintf('--stop-pc=0x%04X',$sym{simulator_done}),
@@ -139,12 +163,16 @@ for my $start (0..3) {
    my $mem=parse_hex_dump($out);
    $mem->[$sym{failure}]==0
       or die sprintf("JANE self-test from physical bank %d failed: failure=\$%02X\n",$start,$mem->[$sym{failure}]);
-   $mem->[$sym{trace}]==7 && $mem->[$sym{call_count}]==4
-      or die "JANE nested selector/return trace failed from physical bank $start\n";
+   $mem->[$sym{call_count}]==16
+      or die "JANE complete ordered call-matrix count failed from physical bank $start\n";
+   $mem->[$sym{nested_count}]==1 && $mem->[$sym{source_seen}]==3 &&
+   $mem->[$sym{current_source}]==3 && $mem->[$sym{current_destination}]==3 &&
+   $mem->[$sym{signature}]==0x43 && $mem->[$sym{stack_before}]==$mem->[$sym{stack_after}]
+      or die "JANE ordered call-matrix state failed from physical bank $start\n";
 }
 
 my $visible=File::Spec->catfile($tmp,'jane-visible.bin');
-my(undef,$visible_err)=require_ok('build visible JANE PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
+my(undef,$visible_err)=require_ok('build visible JANE PASS/FAIL cartridge',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,$source,'-o',$visible);
 $visible_err !~ /status_result_color|recommended variable/
    or die "visible JANE diagnostic emitted an unused recommendation warning\n$visible_err";
 my $vrom=read_file($visible);

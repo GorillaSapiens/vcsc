@@ -323,3 +323,46 @@ to remain byte-identical. Updated install/uninstall/installcheck lists, docs,
 hygiene, and package-pruning coverage. Focused bankswitch/profile/hygiene tests
 pass 8/8, direct profile checks pass, and a staged install contains all mapper
 copies while omitting the synthetic direct-8K fixture.
+
+2026-08-30 23:09:26 PDT, migrate JANE inline bankcall
+Migrated JANE to the inline-target cross-bank JSR ABI. Added
+libraries/vcs/JANE/inline_bankcall.s26 and wired compiler/linker template
+selection, mapper opt-in, install/package rules, documentation, diagnostics, and
+regressions. JANE derives logical bank 0..3 from the logical PC and maps it to
+its irregular selector offsets {1,0,8,9} from $1FF0 without an internal absolute
+lookup table, keeping the trampoline position-independent under linker
+relocation. The payload is 103 bytes with a 104-byte reservation
+(generic-jsr=$068) and emits zero legacy per-target JSR entries.
+
+The JANE diagnostic now pins main to bank0 so all cross-bank C calls exercise the
+inline lowering. Exhaustive ordered source/destination calls pass from all four
+physical startup banks, and source-tree hygiene, inline-call page stress, the
+bank-call matrix, and vcs_jane.pl pass 4/4. Installed JANE support includes the
+mapper-local trampoline; installcheck explicitly enables VCSC_INLINE_BANKCALL
+for its staged JANE build. The next migration is 0840, followed by UA/UASW and
+0FA0.
+
+2026-08-30 23:19:14 PDT, align JANE logical and physical banks
+Changed JANE so logical banks 0/1/2/3 match physical/file banks 0/1/2/3 and
+logical bank1 carries $startup because hardware powers up in physical bank 1.
+The public diagnostic leaves main unqualified; vcs_jane.pl proves the linker
+places it in bank1 ($D000-$DEDF) from topology metadata rather than a JANE
+special case. Startup-owned diagnostic fonts/rendering data moved to bank1.
+
+With selector offsets now {0,1,8,9}, JANE's inline bankcall no longer needs the
+low-pair EOR #1. Both outbound and return selector transforms use the compare
+carry to add six only for banks 2/3. The payload shrank from 103 to 95 bytes and
+the reservation from 104 to 96 bytes (generic-jsr=$060). Linker validation,
+mapper cfg/profile contracts, exhaustive call-matrix startup placement, docs,
+and source-template regressions were updated. Focused JANE, cartridge-profile,
+inline-page, source-template, call-matrix, and hygiene checks pass.
+
+2026-08-30 23:43:35 PDT, JANE diagnostic full call matrix
+Replaced the JANE diagnostic's representative 1->2->3->0 Hamiltonian call chain
+with a complete 4x4 ordered source/destination C-call matrix. Each bank-local
+source routine calls targets 0..3, checks the 16-bit return value and hardware
+stack balance, and target checks record source/destination identity; the 0->0
+case nests a 0->1 call. Matrix sequencing lives in explicit startup bank1 so all
+cross-bank source/target calls use the inline-target ABI and the final map has
+zero legacy JSR entries. vcs_jane.pl now statically and dynamically locks the
+16-call matrix, and README text describes the stronger cartridge self-test.

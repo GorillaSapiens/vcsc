@@ -12,14 +12,22 @@
 This cartridge certifies the 16K JANE mapper used by the released Tarzan
 prototype dump. Physical banks 0, 1, 2, and 3 are selected by accesses to
 `$1FF0`, `$1FF1`, `$1FF8`, and `$1FF9`; hardware startup is physical bank 1.
-VCSC keeps that startup image as logical `bank0` while preserving physical file
-order in the emitted 16K ROM.
+VCSC logical bank numbers now match those physical/file bank numbers exactly,
+so logical `bank1` is the startup/home bank and unqualified `main` is linked there.
 
-The self-test follows a nested physical-bank path `1 -> 0 -> 2 -> 3 -> 1` and
-then returns through the generated bank-restoration trampolines. A large green `pass`
-with the smaller `JANE` underneath means all four selectors, startup recovery, and the
-nested cross-bank return path succeeded. Red `FAIL` means one of those checks
-failed.
+The self-test executes the complete 4x4 ordered source-bank to destination-bank
+call matrix: every logical/physical bank calls every bank, including itself. Same-bank
+calls use ordinary `JSR`/`RTS`; all 12 cross-bank pairs use JANE's fixed inline-target
+bankcall block. Every pair checks the target signature, 16-bit return value, restored
+source bank, and exact hardware-stack balance. The bank0-to-bank0 case additionally
+nests a bank0-to-bank1 call to prove stacked logical return PCs compose correctly.
+
+A large green `pass` with the smaller `JANE` underneath therefore means all 16
+ordered pairs, all four selectors, startup recovery, and the nested return path
+succeeded. Red `FAIL` means one of those checks failed.
+
+The Makefile enables `VCSC_INLINE_BANKCALL`, so all cross-bank C calls use the fixed
+95-byte JANE block (96 bytes reserved) and allocate no per-target JSR entries.
 
 The image also contains the non-executed byte sequence `AD F1 FF 60`
 (`LDA $FFF1; RTS`) used by current Stella for JANE autodetection, in addition

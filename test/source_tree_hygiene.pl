@@ -200,14 +200,10 @@ index($bankswitching,'[ ] 38c. F0 -- do this after FC.')>=0 &&
 index($bankswitching,'bank through the $1FF0 hotspot instead of directly selecting an')>=0 &&
 index($bankswitching,'Generic inline-target cross-bank JSR contract')>=0 &&
 index($bankswitching,'80-byte')>=0 &&
-index($bankswitching,'replicated entry/return block')>=0 &&
+index($bankswitching,'fixed mapper-specific replicated entry/return')>=0 &&
 index($bankswitching,'unchanged original 16-bit logical return PC')>=0 &&
 index($bankswitching,'consume no legacy per-target')>=0 &&
-index($bankswitching,'Done: F8/F8SC, F6/F6SC, F4/F4SC, FA, DPC, FA2-24, and FA2-28.')>=0 &&
-index($bankswitching,'F8/F8SC/F6/F6SC/F4/F4SC/FA/DPC each carry the same 80-byte mapper-local `inline_bankcall.s26`')>=0 &&
-index($bankswitching,'FA2')>=0 && index($bankswitching,'83 bytes / 84 reserved (`generic-jsr=$054`)')>=0 &&
-index($bankswitching,'JANE -- next; full-window/direct-select, but its four hotspot addresses are irregular.')>=0 &&
-index($bankswitching,'0840 -- then; two-bank selector accesses are read-only and below the cart window.')>=0 &&
+index($bankswitching,'0840 -- next; two-bank selector accesses are read-only and below the cart window.')>=0 &&
 index($bankswitching,'UA/UASW -- then together; same two-bank read-hotspot mechanism with swapped mapping.')>=0 &&
 index($bankswitching,'0FA0 -- last existing migration; same read-hotspot class with its masked aliases.')>=0 &&
 index($bankswitching,'BNE near / JMP false / near: JMP true')>=0 &&
@@ -217,9 +213,12 @@ index(slurp(File::Spec->catfile($repo,'compiler','compile_call.c')),'.banktarget
 index(slurp(File::Spec->catfile($repo,qw(libraries vcs F8 inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6050')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs FA2 inline_bankcall.s26)) &&
 index(slurp(File::Spec->catfile($repo,qw(libraries vcs FA2 inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6054')>=0 &&
+-f File::Spec->catfile($repo,qw(libraries vcs JANE inline_bankcall.s26)) &&
+index(slurp(File::Spec->catfile($repo,qw(libraries vcs JANE inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6060')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'generic_bankcall_reserved_size')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_generic_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_fa2_bankcall_template')>=0 &&
+index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_jane_bankcall_template')>=0 &&
 index($bankswitching,'no ROM bank-identity')>=0 &&
 index($bankswitching,'reverse advance count as call-frame metadata')>=0 &&
 $bankswitching !~ /^\[ \] 42\./m &&
@@ -596,8 +595,9 @@ index($fa2_28_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&
 index($fa2_28_profile,'$inline_bankcall')>=0 &&
 index($fa2_example_make,'-DVCSC_INLINE_BANKCALL=1')>=0 &&
 index($top_make,'libraries/vcs/FA2/inline_bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/DPC/inline_bankcall.s26')>=0
-   or die "DPC/FA2 diagnostics lost inline-target bank-call opt-in or template packaging\n";
+index($top_make,'libraries/vcs/DPC/inline_bankcall.s26')>=0 &&
+index($top_make,'libraries/vcs/JANE/inline_bankcall.s26')>=0
+   or die "DPC/FA2/JANE diagnostics lost inline-target bank-call opt-in or template packaging\n";
 my @mapper_dirs = qw(0840 0FA0 2K 3E 3F 4K 4KSC CV DPC E0 F4 F4SC F6 F6SC F8 F8SC FA FA2 FE JANE OMNI UA UASW WD);
 for my $mapper (@mapper_dirs) {
    $mapper =~ /^[A-Z0-9]+$/
@@ -625,6 +625,7 @@ for my $legacy (qw(
 -f File::Spec->catfile($repo,qw(libraries vcs FA inline_bankcall.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs DPC inline_bankcall.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs FA2 inline_bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs JANE inline_bankcall.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs 4KSC ram.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs FA ram.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs CV ram.c26)) &&
@@ -715,7 +716,9 @@ index($top_make,'test/vcs_3f_3e.pl')>=0
    or die "3F/3E profile/diagnostic support is missing installation or Stella/test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','JANE/mapper.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','JANE/mapper.cfg') &&
+-f File::Spec->catfile($repo,'libraries','vcs','JANE/inline_bankcall.s26') &&
 index($top_make,'libraries/vcs/JANE/mapper.c26')>=0 &&
+index($top_make,'libraries/vcs/JANE/inline_bankcall.s26')>=0 &&
 index($top_make,'libraries/vcs/JANE/mapper.cfg')>=0 &&
 -f File::Spec->catfile($test,'vcs_jane.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','07_jane','jane_diagnostic.c26') &&

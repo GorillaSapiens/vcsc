@@ -63,7 +63,7 @@ sub parse_dump {
 }
 
 sub generated_source {
-   my ($include, $banks, $source) = @_;
+   my ($include, $banks, $source, $startup) = @_;
    my $text = "// Generated exhaustive ordered JSR/RTS bank-pair regression.\n";
    $text .= qq{include "$include"\n\n};
    $text .= "uint8_t matrix_failure;\nuint8_t matrix_count;\nuint8_t matrix_sp_before;\nuint8_t matrix_sp_after;\n\n";
@@ -90,8 +90,8 @@ sub generated_source {
    }
    $text .= sprintf("   if (matrix_count != %d) { matrix_failure := 0x7E; }\n", $banks);
    $text .= "}\n\n";
-   $text .= "bank0 void matrix_done(void) { while (1) { } }\n\n";
-   $text .= "bank0 void main(void) {\n";
+   $text .= sprintf("bank%d void matrix_done(void) { while (1) { } }\n\n", $startup);
+   $text .= sprintf("bank%d void main(void) {\n", $startup);
    $text .= "   matrix_failure := 0;\n";
    $text .= "   matrix_source();\n";
    $text .= "   asm jmp matrix_done;\n";
@@ -110,26 +110,26 @@ my $sim = File::Spec->catfile($repo, 'simulator', 'vcsc-sim');
 my $generic_cfg = File::Spec->catfile($vcs, 'vcs.cfg');
 
 my @profiles = (
-   [ 'F8',    'F8/mapper.c26',    'F8/mapper.cfg',    [0x1ff9,0x1ff8] ],
-   [ 'F8SC',  'F8SC/mapper.c26',  'F8SC/mapper.cfg',  [0x1ff9,0x1ff8] ],
-   [ 'F6',    'F6/mapper.c26',   'F6/mapper.cfg',   [0x1ff9,0x1ff8,0x1ff7,0x1ff6] ],
-   [ 'F6SC',  'F6SC/mapper.c26', 'F6SC/mapper.cfg', [0x1ff9,0x1ff8,0x1ff7,0x1ff6] ],
-   [ 'F4',    'F4/mapper.c26',   'F4/mapper.cfg',   [0x1ffb,0x1ffa,0x1ff9,0x1ff8,0x1ff7,0x1ff6,0x1ff5,0x1ff4] ],
-   [ 'F4SC',  'F4SC/mapper.c26', 'F4SC/mapper.cfg', [0x1ffb,0x1ffa,0x1ff9,0x1ff8,0x1ff7,0x1ff6,0x1ff5,0x1ff4] ],
-   [ 'FA',    'FA/mapper.c26',   'FA/mapper.cfg',   [0x1ffa,0x1ff9,0x1ff8] ],
-   [ 'FA2-24','FA2/mapper_24k.c26',  'FA2/mapper_24k.cfg',  [0x1ff5,0x1ff6,0x1ff7,0x1ff8,0x1ff9,0x1ffa] ],
-   [ 'FA2-28','FA2/mapper_28k.c26',  'FA2/mapper_28k.cfg',  [0x1ff5,0x1ff6,0x1ff7,0x1ff8,0x1ff9,0x1ffa,0x1ffb] ],
-   [ 'JANE',  'JANE/mapper.c26', 'JANE/mapper.cfg', [0x1ff1,0x1ff0,0x1ff8,0x1ff9] ],
-   [ '0840',  '0840/mapper.c26',  '0840/mapper.cfg',  [0x0800,0x0840] ],
-   [ 'UA',    'UA/mapper.c26',    'UA/mapper.cfg',    [0x0220,0x0240] ],
-   [ 'UASW',  'UASW/mapper.c26',  'UASW/mapper.cfg',  [0x0240,0x0220] ],
-   [ '0FA0',  '0FA0/mapper.c26',  '0FA0/mapper.cfg',  [0x0fc0,0x0fa0] ],
-   [ 'DPC',   'DPC/mapper.c26',  'DPC/mapper.cfg',  [0x1ff9,0x1ff8] ],
+   [ 'F8',    'F8/mapper.c26',    'F8/mapper.cfg',    [0x1ff9,0x1ff8], 0 ],
+   [ 'F8SC',  'F8SC/mapper.c26',  'F8SC/mapper.cfg',  [0x1ff9,0x1ff8], 0 ],
+   [ 'F6',    'F6/mapper.c26',   'F6/mapper.cfg',   [0x1ff9,0x1ff8,0x1ff7,0x1ff6], 0 ],
+   [ 'F6SC',  'F6SC/mapper.c26', 'F6SC/mapper.cfg', [0x1ff9,0x1ff8,0x1ff7,0x1ff6], 0 ],
+   [ 'F4',    'F4/mapper.c26',   'F4/mapper.cfg',   [0x1ffb,0x1ffa,0x1ff9,0x1ff8,0x1ff7,0x1ff6,0x1ff5,0x1ff4], 0 ],
+   [ 'F4SC',  'F4SC/mapper.c26', 'F4SC/mapper.cfg', [0x1ffb,0x1ffa,0x1ff9,0x1ff8,0x1ff7,0x1ff6,0x1ff5,0x1ff4], 0 ],
+   [ 'FA',    'FA/mapper.c26',   'FA/mapper.cfg',   [0x1ffa,0x1ff9,0x1ff8], 0 ],
+   [ 'FA2-24','FA2/mapper_24k.c26',  'FA2/mapper_24k.cfg',  [0x1ff5,0x1ff6,0x1ff7,0x1ff8,0x1ff9,0x1ffa], 0 ],
+   [ 'FA2-28','FA2/mapper_28k.c26',  'FA2/mapper_28k.cfg',  [0x1ff5,0x1ff6,0x1ff7,0x1ff8,0x1ff9,0x1ffa,0x1ffb], 0 ],
+   [ 'JANE',  'JANE/mapper.c26', 'JANE/mapper.cfg', [0x1ff0,0x1ff1,0x1ff8,0x1ff9], 1 ],
+   [ '0840',  '0840/mapper.c26',  '0840/mapper.cfg',  [0x0800,0x0840], 0 ],
+   [ 'UA',    'UA/mapper.c26',    'UA/mapper.cfg',    [0x0220,0x0240], 0 ],
+   [ 'UASW',  'UASW/mapper.c26',  'UASW/mapper.cfg',  [0x0240,0x0220], 0 ],
+   [ '0FA0',  '0FA0/mapper.c26',  '0FA0/mapper.cfg',  [0x0fc0,0x0fa0], 0 ],
+   [ 'DPC',   'DPC/mapper.c26',  'DPC/mapper.cfg',  [0x1ff9,0x1ff8], 0 ],
 );
 
 my $pair_count = 0;
 for my $profile (@profiles) {
-   my ($name, $include, $cfg_name, $hotspots) = @$profile;
+   my ($name, $include, $cfg_name, $hotspots, $startup) = @$profile;
    my $banks = scalar(@$hotspots);
    my $cfg = File::Spec->catfile($vcs, $cfg_name);
 
@@ -139,17 +139,17 @@ for my $profile (@profiles) {
       my $bin = File::Spec->catfile($tmp, "$tag-source$source.bin");
       my $map_path = File::Spec->catfile($tmp, "$tag-source$source.map");
       open(my $fh, '>:raw', $src) or die "could not write $src: $!\n";
-      print {$fh} generated_source($include, $banks, $source);
+      print {$fh} generated_source($include, $banks, $source, $startup);
       close($fh) or die "could not close $src: $!\n";
 
-      my $uses_inline = $name =~ /^(?:F8|F8SC|F6|F6SC|F4|F4SC|FA|FA2-24|FA2-28|DPC)$/;
+      my $uses_inline = $name =~ /^(?:F8|F8SC|F6|F6SC|F4|F4SC|FA|FA2-24|FA2-28|JANE|DPC)$/;
       my @pilot_define = $uses_inline ? ('-DVCSC_INLINE_BANKCALL=1') : ();
       require_ok("build $name ordered-call source bank $source",
                  $driver, '-I', $vcs, @pilot_define, '-T', $generic_cfg, '-Map', $map_path,
                  $src, '-o', $bin);
       my $map = slurp($map_path);
       if ($uses_inline) {
-         my $generic_size = $name =~ /^FA2-/ ? '054' : '050';
+         my $generic_size = $name eq 'JANE' ? '060' : $name =~ /^FA2-/ ? '054' : '050';
          $map =~ /generic-jsr=\$\Q$generic_size\E\b.*\bentries=0\s+jmp=0\s+jsr=0\b/
             or die "$name source bank $source did not use only the fixed generic JSR block\n$map";
          $map !~ /JSR entry=/

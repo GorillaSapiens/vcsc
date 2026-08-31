@@ -159,7 +159,7 @@ for my $p (@profiles) {
       or die "$name map does not report C26 topology\n";
    $map =~ /output-size=\$[0-9A-F]{8}/
       or die "$name map does not report topology output size\n";
-   my @file_order = $name =~ /^(?:E0|WD)$/ ? (0..7) : $name =~ /^(?:3F|3E|FA2)$/ ? (0..$banks-1) : $name eq 'JANE' ? (1,0,2,3) : $name =~ /^(?:0840|UA|UASW|FE)$/ ? (0,1) : reverse(0..$banks-1);
+   my @file_order = $name =~ /^(?:E0|WD)$/ ? (0..7) : $name =~ /^(?:3F|3E|FA2|JANE)$/ ? (0..$banks-1) : $name =~ /^(?:0840|UA|UASW|FE)$/ ? (0,1) : reverse(0..$banks-1);
    for my $logical (0..$banks-1) {
       my $file_index=$file_order[$logical];
       $map =~ /^\s+bank\Q$logical\E\s+file-index=\Q$file_index\E\b/m
@@ -194,6 +194,16 @@ for my $p (@profiles) {
          or die "CV profile does not encode the fixed 2K ROM shape\n";
       $map =~ /^\s+cartram\s+read_start=\$F000 write_start=\$F400 size=\$0400 type=rw shared=yes\b/m
          or die "CV map does not retain split-address cartridge RAM\n";
+   }
+   if ($name eq 'JANE') {
+      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x1ff0/s &&
+      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x1ff1\s+\$startup/s &&
+      $text =~ /bank\s+bank2\s*\{.*?\$file_index:2.*?\$select_access:0x1ff8/s &&
+      $text =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$select_access:0x1ff9/s
+         or die "JANE profile does not preserve logical/physical identity and startup bank1\n";
+      $map =~ /^\s+bank0\s+file-index=0\b.*select-access=\$1FF0/m &&
+      $map =~ /^\s+bank1\s+file-index=1\b.*select-access=\$1FF1.*startup=yes/m
+         or die "JANE map does not preserve logical/physical identity and startup bank1\n";
    }
    if ($name eq '0840') {
       $text =~ /\$vector_bridge_offset:0x0fe0\s+\$vector_bridge_size:0x0012/ &&
@@ -284,11 +294,11 @@ for my $p (@profiles) {
 
    if ($name eq 'JANE') {
       $text =~ /\$vector_bridge_offset:0x0ee0\s+\$vector_bridge_size:0x0012/ &&
-      $text =~ /bank\s+bank0\s*\{.*?\$file_index:1.*?\$select_access:0x1ff1\s+\$startup/s &&
-      $text =~ /bank\s+bank1\s*\{.*?\$file_index:0.*?\$select_access:0x1ff0/s &&
+      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x1ff0/s &&
+      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x1ff1\s+\$startup/s &&
       $text =~ /bank\s+bank2\s*\{.*?\$file_index:2.*?\$select_access:0x1ff8/s &&
       $text =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$select_access:0x1ff9/s
-         or die "JANE profile does not preserve its physical bank order/selectors/startup bank\n";
+         or die "JANE profile does not preserve logical/physical identity and startup bank1\n";
    }
    if ($name eq 'FA2') {
       $text =~ /include\s+"FA\/ram\.c26"/ &&

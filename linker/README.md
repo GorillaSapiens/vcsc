@@ -506,7 +506,7 @@ begins at `$xxFF`, avoiding the NMOS 6502/6507 indirect-`JMP` page-wrap bug. A
 full corridor is a link error. The map reports reserved, occupied, and total
 replicated bytes plus every generated target entry.
 
-A direct cross-bank C call in the F8/F6/F4(+SC), FA, DPC, and FA2 inline-target paths no longer allocates a target-specific
+A direct cross-bank C call in the F8/F6/F4(+SC), FA, DPC, FA2, and JANE inline-target paths no longer allocates a target-specific
 JSR entry. The compiler emits one five-byte bundle at the call site:
 
 ```asm
@@ -519,10 +519,15 @@ the fixed generic call block; it is not executed. The linker rewrites the JSR
 operand to the source bank's logical mirror of `__bankcall` while leaving the
 inline word as the target's distinct logical address. The normal-selector block is maintained as readable 6507 source in
 the byte-identical `inline_bankcall.s26` carried by each F8/F8SC/F6/F6SC/F4/F4SC/FA/DPC mapper directory; the linker generates its shared template from `libraries/vcs/F8/inline_bankcall.s26`. DPC uses the same bytes because its two program banks have F8 selector geometry. FA2 uses `libraries/vcs/FA2/inline_bankcall.s26`,
-which adds the reversed selector-index transform required by `$1FF5-$1FFB`. The linker build assembles that file into a
-compact byte/patch template; `vcsc-ld` only supplies `_vcsc_ptr0`, the mapper
-selector base, and the final replicated block address. The normal/DPC block reserves 80 bytes (`generic-jsr=$050`). The FA2-specific
-block is 83 bytes and reserves 84 (`generic-jsr=$054`). Each is replicated
+which adds the reversed selector-index transform required by `$1FF5-$1FFB`.
+JANE uses `libraries/vcs/JANE/inline_bankcall.s26`; logical bank numbers match
+physical/file banks, and its irregular selectors reduce to `STA $1FF0,Y` by
+mapping banks 0/1 directly to offsets 0/1 and banks 2/3 to offsets 8/9.
+The linker build assembles these files into compact byte/patch templates;
+`vcsc-ld` supplies `_vcsc_ptr0`, the mapper selector base, and the final
+replicated block address. The normal/DPC block reserves 80 bytes
+(`generic-jsr=$050`), FA2 is 83 bytes with 84 reserved (`generic-jsr=$054`),
+and JANE is 95 bytes with 96 reserved (`generic-jsr=$060`). Each is replicated
 byte-for-byte in every CPU-mapped program bank before any variable direct-JMP
 entries;
 these calls create no `JSR entry=` records.

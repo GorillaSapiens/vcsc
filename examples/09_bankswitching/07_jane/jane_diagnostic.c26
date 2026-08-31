@@ -1,10 +1,11 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
 // Atari JANE PASS/FAIL diagnostic.
-// Exercises physical banks 1 -> 0 -> 2 -> 3 -> 1 through a representative
-// nested call chain, touching every JANE selector in outbound and generated
-// return paths.  Exhaustive ordered JSR/RTS bank pairs are covered by
-// test/vcs_bankswitching_call_matrix.pl.
+// Exercises the complete 4x4 ordered source/destination C-call matrix. Same-bank
+// calls use ordinary JSR/RTS; each cross-bank call uses JANE's fixed inline-target
+// bankcall block and verifies exact return-bank restoration, return value, and
+// hardware-stack balance. One nested bank0 -> bank1 call proves stacked logical
+// return PCs compose correctly.
 include "JANE/mapper.c26"
 
 #ifndef SIMULATOR_TEST
@@ -15,13 +16,20 @@ instantiate "six_glyph_component.c26" as cart_type (compact_font:=0)
 #endif
 
 uint8_t failure;
-uint8_t trace;
+uint8_t signature;
+uint8_t source_seen;
+uint8_t current_source;
+uint8_t current_destination;
 uint8_t call_count;
+uint16_t call_return;
+uint8_t nested_count;
+uint8_t stack_before;
+uint8_t stack_after;
 
 // Stella's current 16K JANE detector looks for LDA $FFF1; RTS. Keep that exact
 // byte sequence as inert data so the diagnostic autodetects without coupling
 // program control flow to a detector signature.
-bank0 const uint8_t jane_stella_signature[4] := { 0xAD, 0xF1, 0xFF, 0x60 };
+bank1 const uint8_t jane_stella_signature[4] := { 0xAD, 0xF1, 0xFF, 0x60 };
 
 #ifndef SIMULATOR_TEST
 include "status_font.c26"
@@ -74,7 +82,7 @@ inline void load_jane(void) {
    asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+11;
 }
 
-bank0 void draw_result(void) {
+bank1 void draw_result(void) {
    status_result_score := 0;
    cart_type_score := 0;
    status_result_init();
@@ -108,56 +116,255 @@ bank0 void draw_result(void) {
 #endif
 
 #ifdef SIMULATOR_TEST
-bank0 void simulator_done(void) { while (1) { } }
+bank1 void simulator_done(void) { while (1) { } }
 #endif
 
-bank0 void bank0_probe(void) {
-   if (trace != 3) { failure := 0x40; }
-   call_count := call_count + 1;
-   trace := 4;
+bank1 void nested_leaf1(void) {
+   nested_count := nested_count + 1;
+   signature := 0xA1;
 }
 
-bank3 void bank3_probe(void) {
-   if (trace != 2) { failure := 0x30; }
-   call_count := call_count + 1;
-   trace := 3;
-   bank0_probe();
-   if (trace != 4) { failure := 0x31; }
-   trace := 5;
-}
-
-bank2 void bank2_probe(void) {
-   if (trace != 1) { failure := 0x20; }
-   call_count := call_count + 1;
-   trace := 2;
-   bank3_probe();
-   if (trace != 5) { failure := 0x21; }
-   trace := 6;
-}
-
-bank1 void bank1_probe(void) {
-   if (trace != 0) { failure := 0x10; }
-   call_count := call_count + 1;
-   trace := 1;
-   bank2_probe();
-   if (trace != 6) { failure := 0x11; }
-   trace := 7;
-}
-
-void main(void) {
-   // Hardware reset must recover physical bank 1 (logical startup/home bank0).
-   failure := 0;
-   trace := 0;
-   call_count := 0;
-   if (jane_stella_signature[0] != 0xAD || jane_stella_signature[1] != 0xF1 ||
-       jane_stella_signature[2] != 0xFF || jane_stella_signature[3] != 0x60) {
-      failure := 0x01;
+bank0 uint16_t call_target0(void) {
+   if (current_destination != 0 || source_seen != current_source) {
+      failure := 0xD0;
    }
-   bank1_probe();
-   if (trace != 7 || call_count != 4) { failure := 0x02; }
+   // One nested cross-bank call proves that stacked logical return PCs compose.
+   if (current_source == 0 && current_destination == 0) {
+      nested_leaf1();
+   }
+   signature := 0x40;
+   call_count := call_count + 1;
+   return 0x5A40`uint16_t;
+}
+
+bank1 uint16_t call_target1(void) {
+   if (current_destination != 1 || source_seen != current_source) {
+      failure := 0xD1;
+   }
+   signature := 0x41;
+   call_count := call_count + 1;
+   return 0x5A41`uint16_t;
+}
+
+bank2 uint16_t call_target2(void) {
+   if (current_destination != 2 || source_seen != current_source) {
+      failure := 0xD2;
+   }
+   signature := 0x42;
+   call_count := call_count + 1;
+   return 0x5A42`uint16_t;
+}
+
+bank3 uint16_t call_target3(void) {
+   if (current_destination != 3 || source_seen != current_source) {
+      failure := 0xD3;
+   }
+   signature := 0x43;
+   call_count := call_count + 1;
+   return 0x5A43`uint16_t;
+}
+
+bank0 void source_entry0(void) {
+   if (current_source != 0) { failure := 0xB0; }
+   source_seen := 0;
+
+   current_destination := 0;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target0();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A40`uint16_t || signature != 0x40 || stack_before != stack_after) {
+      failure := 0xC0;
+   }
+
+   current_destination := 1;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target1();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A41`uint16_t || signature != 0x41 || stack_before != stack_after) {
+      failure := 0xC0;
+   }
+
+   current_destination := 2;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target2();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A42`uint16_t || signature != 0x42 || stack_before != stack_after) {
+      failure := 0xC0;
+   }
+
+   current_destination := 3;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target3();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A43`uint16_t || signature != 0x43 || stack_before != stack_after) {
+      failure := 0xC0;
+   }
+}
+
+bank1 void source_entry1(void) {
+   if (current_source != 1) { failure := 0xB1; }
+   source_seen := 1;
+
+   current_destination := 0;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target0();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A40`uint16_t || signature != 0x40 || stack_before != stack_after) {
+      failure := 0xC1;
+   }
+
+   current_destination := 1;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target1();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A41`uint16_t || signature != 0x41 || stack_before != stack_after) {
+      failure := 0xC1;
+   }
+
+   current_destination := 2;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target2();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A42`uint16_t || signature != 0x42 || stack_before != stack_after) {
+      failure := 0xC1;
+   }
+
+   current_destination := 3;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target3();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A43`uint16_t || signature != 0x43 || stack_before != stack_after) {
+      failure := 0xC1;
+   }
+}
+
+bank2 void source_entry2(void) {
+   if (current_source != 2) { failure := 0xB2; }
+   source_seen := 2;
+
+   current_destination := 0;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target0();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A40`uint16_t || signature != 0x40 || stack_before != stack_after) {
+      failure := 0xC2;
+   }
+
+   current_destination := 1;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target1();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A41`uint16_t || signature != 0x41 || stack_before != stack_after) {
+      failure := 0xC2;
+   }
+
+   current_destination := 2;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target2();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A42`uint16_t || signature != 0x42 || stack_before != stack_after) {
+      failure := 0xC2;
+   }
+
+   current_destination := 3;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target3();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A43`uint16_t || signature != 0x43 || stack_before != stack_after) {
+      failure := 0xC2;
+   }
+}
+
+bank3 void source_entry3(void) {
+   if (current_source != 3) { failure := 0xB3; }
+   source_seen := 3;
+
+   current_destination := 0;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target0();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A40`uint16_t || signature != 0x40 || stack_before != stack_after) {
+      failure := 0xC3;
+   }
+
+   current_destination := 1;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target1();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A41`uint16_t || signature != 0x41 || stack_before != stack_after) {
+      failure := 0xC3;
+   }
+
+   current_destination := 2;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target2();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A42`uint16_t || signature != 0x42 || stack_before != stack_after) {
+      failure := 0xC3;
+   }
+
+   current_destination := 3;
+   signature := 0;
+   asm tsx; asm stx stack_before;
+   call_return := call_target3();
+   asm tsx; asm stx stack_after;
+   if (call_return != 0x5A43`uint16_t || signature != 0x43 || stack_before != stack_after) {
+      failure := 0xC3;
+   }
+}
+
+bank1 void run_matrix(void) {
+   // Complete ordered source/destination matrix: each bank calls all four banks.
+   // Keep this sequencer explicitly in startup bank1 so calls to bank-pinned
+   // source routines use the inline-target ABI rather than legacy JSR bridges.
+   current_source := 0; source_entry0();
+   current_source := 1; source_entry1();
+   current_source := 2; source_entry2();
+   current_source := 3; source_entry3();
+
+   if (call_count != 16 || nested_count != 1 || source_seen != 3 ||
+       current_destination != 3 || signature != 0x43 || stack_before != stack_after) {
+      failure := 0xFE;
+   }
 #ifdef SIMULATOR_TEST
    asm jmp simulator_done;
 #else
    draw_result();
 #endif
+}
+
+void main(void) {
+   // Hardware reset must recover physical/logical startup bank 1.
+   failure := 0;
+   signature := 0;
+   source_seen := 0xFF;
+   current_source := 0;
+   current_destination := 0;
+   call_count := 0;
+   call_return := 0;
+   nested_count := 0;
+   stack_before := 0;
+   stack_after := 0;
+
+   if (jane_stella_signature[0] != 0xAD || jane_stella_signature[1] != 0xF1 ||
+       jane_stella_signature[2] != 0xFF || jane_stella_signature[3] != 0x60) {
+      failure := 0x01;
+   }
+
+   run_matrix();
 }

@@ -23,6 +23,7 @@
 #include "version.h"
 #include "generic_bankcall_template.h"
 #include "fa2_bankcall_template.h"
+#include "jane_bankcall_template.h"
 
 /* One identical six-byte BIT/JMP entry for NMI, RESET, and IRQ/BRK. */
 enum {
@@ -1842,6 +1843,18 @@ static void validate_c26_dpc_topology(const linker_config_t *cfg)
               "vcsc-ld: DPC file bank 3 must be one unmapped 255-byte $data_only RNG/poly bank\n");
       exit(1);
    }
+}
+
+//! @brief Return whether the C26 topology is Atari JANE.
+static int c26_topology_is_jane(const linker_config_t *cfg)
+{
+   const topology_cartridge_t *cart;
+   if (!cfg || cfg->topology_bank_count != 4u)
+      return 0;
+   cart = &cfg->topology_cartridge;
+   return (cart->present_mask & 0x80u) &&
+          cart->signature[0] == 'J' && cart->signature[1] == 'A' &&
+          cart->signature[2] == 'N' && cart->signature[3] == 'E';
 }
 
 //! @brief Return whether the C26 topology is Harmony FA2.
@@ -9050,10 +9063,42 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
    uint16_t base = 0;
    int have_base = 0;
    int fa2 = c26_topology_is_fa2(cfg);
+   int jane = c26_topology_is_jane(cfg);
 
    if (!cfg) {
       fprintf(stderr, "vcsc-ld: generic inline-target bank calls require a banked cartridge profile\n");
       exit(1);
+   }
+
+   if (jane) {
+      static const uint8_t jane_selector_offsets[4] = { 0u, 1u, 8u, 9u };
+      if (cfg->bank_count != 4u) {
+         fprintf(stderr, "vcsc-ld: JANE inline-target bank calls require four selector-controlled banks\n");
+         exit(1);
+      }
+      for (i = 0; i < cfg->bank_count; ++i) {
+         uint8_t pc_index;
+         uint8_t logical_bank;
+         uint16_t expected;
+         if (!cfg->banks[i].hotspot) {
+            fprintf(stderr, "vcsc-ld: JANE inline-target bank calls require a selector on every bank\n");
+            exit(1);
+         }
+         pc_index = (uint8_t)((cfg->banks[i].start >> 13) & 7u);
+         if (pc_index < 4u || pc_index > 7u) {
+            fprintf(stderr, "vcsc-ld: JANE inline-target bank calls require logical bank ORGs at $9xxx/$Bxxx/$Dxxx/$Fxxx\n");
+            exit(1);
+         }
+         logical_bank = (uint8_t)(7u - pc_index);
+         expected = (uint16_t)(0x1ff0u + jane_selector_offsets[logical_bank]);
+         if (cfg->banks[i].hotspot != expected) {
+            fprintf(stderr,
+                    "vcsc-ld: JANE inline-target bank-call selector for logical bank %u must be $%04X, got $%04X\n",
+                    logical_bank, expected, cfg->banks[i].hotspot);
+            exit(1);
+         }
+      }
+      return 0x1ff0u;
    }
 
    if (fa2) {
@@ -9108,6 +9153,8 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
 //! @brief Return the mapper-specific fixed reservation for the inline bank-call block.
 static uint16_t generic_bankcall_reserved_size(const linker_config_t *cfg)
 {
+   if (c26_topology_is_jane(cfg))
+      return VCSC_JANE_BANKCALL_RESERVED_SIZE;
    return c26_topology_is_fa2(cfg) ? VCSC_FA2_BANKCALL_RESERVED_SIZE
                                    : VCSC_GENERIC_BANKCALL_RESERVED_SIZE;
 }
@@ -9768,7 +9815,20 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
                                           uint16_t ptr0)
 {
    uint16_t selector_base = generic_bankcall_selector_base(cfg);
-   if (c26_topology_is_fa2(cfg)) {
+   if (c26_topology_is_jane(cfg)) {
+      instantiate_bankcall_template(table,
+         vcsc_jane_bankcall_template,
+         VCSC_JANE_BANKCALL_TEMPLATE_SIZE,
+         VCSC_JANE_BANKCALL_RESERVED_SIZE,
+         vcsc_jane_bankcall_ptr_patches,
+         VCSC_JANE_BANKCALL_PTR_PATCH_COUNT,
+         vcsc_jane_bankcall_selector_patches,
+         VCSC_JANE_BANKCALL_SELECTOR_PATCH_COUNT,
+         VCSC_JANE_BANKCALL_SWITCH_OFFSET,
+         VCSC_JANE_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
+         selector_base, canonical_base, ptr0);
+   }
+   else if (c26_topology_is_fa2(cfg)) {
       instantiate_bankcall_template(table,
          vcsc_fa2_bankcall_template,
          VCSC_FA2_BANKCALL_TEMPLATE_SIZE,

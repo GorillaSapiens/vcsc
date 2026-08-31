@@ -5,7 +5,7 @@
 
 alias CART_TYPE_GLYPHS_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 
-bank0 page const uint8_t cart_type_glyphs[40] := {
+bank1 page const uint8_t cart_type_glyphs[40] := {
    // 0x20 space
    CART_TYPE_GLYPHS_GLYPH(
       0b........,
