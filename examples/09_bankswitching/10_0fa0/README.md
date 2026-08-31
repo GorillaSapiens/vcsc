@@ -23,9 +23,11 @@ A4-A0 are don't-care alias bits, so addresses such as `$07A7` and `$0ECF`
 select the same banks. Because these selectors live below the cartridge
 `$1000-$1FFF` ROM window and overlay console devices, legacy generated bank transitions
 use the state-preserving NMOS absolute NOP read rather than a store. The public
-diagnostic enables the fixed inline-target path, which uses indexed reads from
-canonical `$0FA0`: the logical-PC high-byte bank bit supplies the `$00/$20`
-offset for `$0FA0/$0FC0`. Explicit
+diagnostic currently enables the pre-migration fixed inline-target path, which
+uses indexed reads from canonical `$0FA0`: the logical-PC high-byte bank bit
+supplies the `$00/$20` offset for `$0FA0/$0FC0`. The target descriptor ABI instead
+allows the mapper to carry `$A0/$C0` directly; see
+[`../../../BANKSWITCHING.md`](../../../BANKSWITCHING.md). Explicit
 program reads or writes to selector aliases still perform the underlying console
 access while also changing the selected ROM bank.
 

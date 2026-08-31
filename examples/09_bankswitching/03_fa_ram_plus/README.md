@@ -17,9 +17,11 @@ the result identifies the mapper, matching the other public bankswitch diagnosti
 The diagnostic fills the complete 256-byte FA cartridge-RAM allocation, verifies
 BSS/DATA reset initialization, writes sentinels at both ends and the middle of
 RAM, and then executes all six ordered cross-bank C-call pairs among the three physical
-ROM banks. The example opts into the generic five-byte `JSR` + inline-target ABI,
-so those calls share one fixed replicated call/return block and generate no
-per-target JSR bridge entries. The selectors therefore exercise `$1FF8`, `$1FF9`,
+ROM banks. The example currently opts into the superseded five-byte
+`JSR` + inline-target implementation, so those calls share one fixed replicated
+call/return block and generate no per-target JSR bridge entries. The target
+destination-descriptor ABI is documented in
+[`../../../BANKSWITCHING.md`](../../../BANKSWITCHING.md). The selectors therefore exercise `$1FF8`, `$1FF9`,
 and `$1FFA` in both source and destination roles, including return to the hardware
 power-on/startup bank 2. Each target returns a distinct 16-bit A:X value, and RAM
 sentinels must survive every bank transition.

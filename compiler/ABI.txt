@@ -125,18 +125,20 @@ order-insensitive code-region set and result-storage region as separate facts.
 Changing either is an ABI mismatch. Function pointers remain unsupported, so no
 runtime representation for selecting among replicated body addresses is defined.
 
-For the F8/F6/F4(+SC), FA, DPC, FA2, JANE, 0840, UA, UASW, and 0FA0 selector-controlled profiles, the generic inline-target
-bank-call ABI is currently an explicit profile opt-in (`$inline_bankcall`). When
-that opt-in is active, an explicitly placed direct call whose caller and callee
-are in different banks uses the generic inline-target bank-call ABI. The compiler emits a five-byte call bundle: a JSR
-followed by a two-byte logical target word. The linker redirects the JSR to one
-fixed replicated entry/return block. The original 16-bit logical JSR return PC
-on the 6507 hardware stack identifies the source bank; the inline target's
-logical address identifies the destination bank. The generic return path
-preserves A:X return values and performs the final RTS to the unchanged logical
-continuation PC. Address arithmetic is carry-correct across ordinary 256-byte
-pages, and the call bundle remains inside one indivisible function layout so it
-cannot spill across a bank allocation boundary.
+For selector-controlled cartridge profiles, `$inline_bankcall` opts into the
+public cross-bank direct-call ABI defined by `../BANKSWITCHING.md`. The target
+ABI uses a six-byte `JSR` plus three-byte `.banktarget` payload: a 16-bit target
+CPU address followed by one mapper-defined destination descriptor byte. Source
+bank identity is supplied by a descriptor baked into the caller bank's
+trampoline instance and carried on the hardware stack; neither source nor
+destination bank identity is inferred from a 16-bit PC. Same-bank calls remain
+ordinary JSRs. The generic return path preserves A:X return values and performs
+the final RTS to the unchanged logical continuation PC.
+
+This source snapshot is in a documentation-first migration: the compiler/linker
+still implement the previous five-byte, PC-derived inline-target form until the
+pending implementation step. `../BANKSWITCHING.md` is authoritative for the new
+ABI.
 
 Before an ordinary direct call, arguments are evaluated left-to-right. A
 converted argument is copied directly into its callee-owned parameter as soon

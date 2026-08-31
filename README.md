@@ -192,6 +192,8 @@ identify in a hex dump, `4KSC` ends in the `SC` marker used by Stella for 4KSC
 autodetection. See [`libraries/vcs/README.md`](libraries/vcs/README.md) for the
 profile layouts and [`linker/README.md`](linker/README.md) for the generic
 `$signature:TEXT` facility.
+See [`BANKSWITCHING.md`](BANKSWITCHING.md) for the public selector-controlled
+cross-bank call ABI and mapper descriptor contract.
 
 The examples are intentionally editable demonstrations rather than frozen test
 fixtures. They range from small standalone cartridges to interactive renderer

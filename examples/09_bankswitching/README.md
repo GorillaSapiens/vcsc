@@ -14,6 +14,12 @@ examples.  They deliberately exercise generated cross-bank JSR/RTS and direct
 JMP bridges, reset from arbitrary initially selected banks, RIOT-RAM signatures,
 and hardware-stack balance.
 
+The public target ABI for selector-controlled cross-bank C calls is
+[`../../BANKSWITCHING.md`](../../BANKSWITCHING.md). At this documentation
+checkpoint the example sources and toolchain still exercise the superseded
+five-byte, PC-derived implementation; the next code migration will convert them
+to the destination-descriptor ABI without weakening their ordered call matrices.
+
 The source is parameterized so one editable cartridge produces six mapper
 diagnostics—F8, F6, F4, F8SC, F6SC, and F4SC—plus a seventh deliberately
 poisoned F8SC image which renders the known FAIL result. The SC diagnostics also
@@ -28,8 +34,9 @@ that source call every destination bank, checking metadata, return value,
 hardware-stack balance, and simulator execution. This covers every ordered JSR
 pair for F8/F8SC, F6/F6SC, F4/F4SC, FA, both FA2 profiles, JANE, 0840,
 UA/UASW, 0FA0, and DPC. F8/F6/F4(+SC), FA, both FA2 profiles, JANE, 0840,
-UA/UASW, 0FA0, and DPC now use fixed inline-target blocks; same-bank calls remain
-ordinary JSRs and the migrated diagnostics allocate no legacy per-target JSR bridges.
+UA/UASW, 0FA0, and DPC currently use the pre-migration fixed inline-target
+blocks; same-bank calls remain ordinary JSRs and the diagnostics allocate no
+legacy per-target JSR bridges.
 
 The public VCSC cartridge profiles also stamp the final physical bank with a
 four-byte mapper signature at logical addresses `$xFF8-$xFFB` (eight bytes before that bank ends). Short mapper names are
@@ -44,8 +51,8 @@ file bank 1 at `$DFF8-$DFFB`, while RESET and IRQ/BRK remain in startup bank 0
 at `$FFFC-$FFFF`.
 
 `03_fa_ram_plus/` is the dedicated CBS FA/RAM Plus diagnostic. It displays
-`pass`/`FAIL`, uses the generic inline-target call ABI for all six ordered
-source/destination call pairs, uses all 256 bytes of cartridge RAM, and verifies
+`pass`/`FAIL`, uses the current fixed inline-target implementation for all six
+ordered source/destination call pairs, uses all 256 bytes of cartridge RAM, and verifies
 startup from physical bank 2. The shared ordered-call regression independently
 repeats the exhaustive FA matrix with hardware-stack checks.
 

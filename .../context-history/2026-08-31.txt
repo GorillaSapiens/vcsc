@@ -28,3 +28,18 @@ hardware-stack balance, plus one nested cross-bank composition case. The focused
 UA/UASW regression, independent exhaustive matrix, inline-template regeneration,
 assembly allowlist, source hygiene, and example-build shards 6/8 and 7/8 pass.
 Next existing migration is 0FA0.
+
+2026-08-31 08:17:57 PDT, define descriptor bankcall ABI
+Made root BANKSWITCHING.md the public authority for selector-controlled
+cross-bank calls. The target ABI is now JSR plus a three-byte inline field:
+16-bit target CPU address followed by one opaque mapper-defined destination
+descriptor. Each trampoline instance has its source descriptor baked in, pushes
+that byte below the synthetic return, and the return half consumes it directly
+to restore the caller before the final RTS. Same-bank calls remain ordinary
+JSRs; neither source nor destination bank identity may be inferred from PCs.
+
+This was intentionally a documentation/developer-record-only checkpoint. The
+compiler, linker, tests, mapper profiles, and inline_bankcall.s26 sources still
+implement the superseded five-byte PC-derived ABI and must be migrated next,
+before FC/F0. Updated public component docs to point at BANKSWITCHING.md and
+corrected context.txt's stale pre-0FA0 next-step summary.

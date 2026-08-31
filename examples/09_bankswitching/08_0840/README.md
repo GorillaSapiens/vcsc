@@ -20,8 +20,9 @@ The self-test executes the complete ordered call matrix: bank 0 calls targets
 in banks 0 and 1, then bank 1 calls targets in banks 0 and 1.  Every call checks
 the returned value and hardware-stack balance.  The 0-to-0 case also makes a
 nested cross-bank call so return-bank restoration is exercised compositionally.
-All cross-bank calls use the fixed inline-target ABI; there are no legacy
-per-target JSR bridges.  A large green `pass` with `0840` underneath means all
+All cross-bank calls currently use the fixed pre-migration inline-target
+implementation; there are no legacy per-target JSR bridges. The target ABI is
+[`../../../BANKSWITCHING.md`](../../../BANKSWITCHING.md).  A large green `pass` with `0840` underneath means all
 four ordered calls and the nested return succeeded; red `FAIL` means the test
 detected a mismatch.
 

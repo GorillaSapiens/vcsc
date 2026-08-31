@@ -36,8 +36,9 @@ underlying console device while also changing the selected ROM bank.
 
 Both self-tests execute the complete ordered call matrix: `0->0`, `0->1`,
 `1->0`, and `1->1`. The same-bank legs are ordinary JSRs; the cross-bank legs
-use the fixed inline-target bankcall and verify return values, restored bank,
-and hardware-stack balance. One nested cross-bank call additionally checks that
+currently use the fixed pre-migration inline-target implementation and verify
+return values, restored bank, and hardware-stack balance. The target ABI is
+[`../../../BANKSWITCHING.md`](../../../BANKSWITCHING.md). One nested cross-bank call additionally checks that
 independent return frames compose correctly. A large green `pass` with `UA` or
 `UASW` underneath means the selected hardware profile behaved as expected; red
 `FAIL` indicates a mismatch.

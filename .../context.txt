@@ -69,8 +69,9 @@ VCSC is a deliberately constrained Atari VCS/2600 C-like compiler and companion
 `vcsc-ld`, `vcsc-ar`, `vcsc-sim`, and `vcsc-disas`. Source is `.c26`, maintained
 assembly is `.s26`, objects are `.o26`, and archives are `.l26`.
 
-`compiler/ABI.txt` and the maintained public/internal component documentation are
-the authorities for language, ABI, renderer timing, and cartridge contracts.
+`compiler/ABI.txt`, `BANKSWITCHING.md`, and the maintained public/internal
+component documentation are the authorities for language, ABI, renderer timing,
+and cartridge contracts.
 Do not re-copy those specifications into this handoff. Important general rules:
 no software argument/local stack, no indirect calls/function pointers, static
 non-reentrant activation storage, little-endian data, and explicit timing
@@ -96,18 +97,18 @@ Open workstreams
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
-   `.../bankswitching.txt` contains the durable cartridge model plus unfinished
-   mapper work. Public mapper support lives under uppercase Stella-named
-   `libraries/vcs/<MAPPER>/` directories (for example `F8SC/mapper.c26`);
-   mapper-specific C26/CFG/S26 helpers stay inside that namespace.
-   Inline-target JSR is complete for F8/F6/F4(+SC), FA, DPC,
-   FA2, JANE, 0840, UA, and UASW. `$inline_bankcall` / `VCSC_INLINE_BANKCALL` emits five-byte
-   JSR+target bundles with no per-target JSR entries. F8/F8SC/F6/F6SC/F4/F4SC/FA/DPC each carry a byte-identical mapper-local 80-byte `inline_bankcall.s26`; the linker generates the shared F8-geometry template from the F8 copy. FA2 uses its distinct 84-byte `libraries/vcs/FA2/inline_bankcall.s26` because selector order is reversed. JANE logical banks now match physical/file banks 0..3, with bank1 marked `$startup`; its distinct 96-byte reserved block maps those indices to `$1FF0/$1FF1/$1FF8/$1FF9`. 0840 uses a 75-byte read-selector block with an 80-byte reservation. UA/UASW
-   use 73/69-byte read-selector blocks respectively, each reserving 80 bytes;
-   their public diagnostics execute the full 2x2 matrix while same-bank legs
-   remain ordinary JSRs. Stacked logical PCs identify return banks; page/bank-edge tests lock
-   carry-correct behavior. Next migration: **0FA0**;
-   then new mapper work is **FC -> F0**. Read the focused file first.
+   `BANKSWITCHING.md` is the public selector-controlled cross-bank call ABI;
+   `.../bankswitching.txt` keeps only durable mapper facts and unfinished work.
+   Mapper support lives under uppercase Stella-named `libraries/vcs/<MAPPER>/`
+   directories, with mapper-specific C26/CFG/S26 helpers inside that namespace.
+   F8/F6/F4(+SC), FA, DPC, FA2, JANE, 0840, UA/UASW, and 0FA0 currently have the
+   old five-byte inline-target implementation and zero per-target JSR entries.
+   The ABI has now changed to a six-byte call bundle: target word plus one opaque
+   destination descriptor; each bank's trampoline has its source descriptor
+   baked in and carries it on the hardware stack. Bank identity must no longer be
+   inferred from target/return PCs. **Next code step:** migrate all existing
+   `$inline_bankcall` implementations, linker/compiler metadata, stack accounting,
+   and call-matrix/page-edge regressions to `BANKSWITCHING.md` before FC/F0.
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished

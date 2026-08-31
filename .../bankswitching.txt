@@ -148,57 +148,44 @@ Open work
 ---------
 Generic inline-target cross-bank JSR contract
 ---------------------------------------------
-The F8/F6/F4(+SC), FA, DPC, FA2, JANE, 0840, UA, UASW, and 0FA0 profiles use the compact generic call path only when
-the cartridge declares `$inline_bankcall`; the stock profiles expose this via
-`VCSC_INLINE_BANKCALL`. Unmigrated profiles remain on the legacy bridge ABI. Explicitly bank-pinned
-cross-bank C calls emit a five-byte `JSR` + `.banktarget target` bundle. The
-linker redirects the JSR to one fixed mapper-specific replicated entry/return
-block; these calls consume no legacy per-target 15-byte JSR entries. F8/F8SC/F6/F6SC/F4/F4SC/FA/DPC each carry an identical mapper-local `inline_bankcall.s26`; the linker builds the shared template from the F8 copy and regressions prevent drift. Existing legacy bridge support remains available for mapper
-families not yet migrated and for lower-level object/S26 inputs.
+Public ABI authority: `BANKSWITCHING.md`. Do not duplicate the full contract in
+this hot file. The target ABI is a six-byte cross-bank call: JSR plus a
+three-byte `.banktarget` payload containing the 16-bit target CPU address and one
+opaque mapper-defined destination descriptor. Each bank-local fixed mapper-specific replicated entry/return instance has its
+source descriptor baked in, pushes that byte as call-frame metadata before
+switching, and the return half pops it to restore the source before the final
+RTS to the unchanged original 16-bit logical return PC. Same-bank calls remain ordinary JSRs. Neither source
+nor destination bank identity may be inferred from the address once this ABI is
+implemented.
 
-The entry reads the inline logical target before switching banks, advances the
-original stacked JSR return PC by two with full 16-bit carry propagation, and
-uses an internal JSR to create the synthetic return. The callee ends with normal
-RTS. The generic return preserves A:X, derives the source selector from the
-unchanged original 16-bit logical return PC, restores that bank, and RTSes
-directly to the logical continuation; do not rewrite the saved PC to `$Fxxx`.
-Distinct logical ORGs encode bank identity even though the cartridge bus mirrors
-the high address bits. Nested calls therefore compose naturally in LIFO order.
+The descriptor is mapper-owned. Useful values include selector-hotspot low
+bytes, selector write values, indexed-selector offsets, or simple bank IDs. The
+linker carries the destination byte but does not interpret it. One byte must be
+sufficient to select/restore every compiled-code bank participating in
+`$inline_bankcall`; otherwise that mapper needs a different or future wider ABI.
+The source descriptor occupies one extra hardware-stack byte per active
+cross-bank call. The inline payload grows from two to three bytes, so stacked-PC
+continuation adjustment must be carry-correct by +3 and page/bank-edge tests must
+move accordingly.
 
-A call bundle may cross an ordinary 256-byte page. `(ptr),Y` target fetches and
-stacked-PC adjustment are carry-correct. The five-byte bundle remains inside one
-indivisible function layout and therefore cannot spill across a bank allocation
-boundary. `test/vcs_bankswitching_inline_call_pages.pl` locks an ordinary bundle,
-both page-edge forms, an exact fit against the end of allocatable bank ROM, and
-rejection one byte later; it also checks exact continuation and A:X preservation.
-The public `examples/09_bankswitching/01_f864` executes every ordered JSR
-and JMP source/destination pair for F8/F6/F4(+SC) from every physical start bank,
-with zero legacy JSR entries. `03_fa_ram_plus` uses the same mechanism for all
-six ordered FA call pairs while preserving its complete 256-byte RAM test.
-`test/vcs_bankswitching_call_matrix.pl` independently executes all ordered pairs
-and keeps not-yet-migrated families on the legacy path.
+Current implementation checkpoint -- code is still on the superseded five-byte
+PC-derived ABI and must be migrated next, before FC/F0. Existing migrated
+profiles are F8/F8SC, F6/F6SC, F4/F4SC, FA, DPC, FA2-24/28, JANE, 0840, UA,
+UASW, and 0FA0. They consume no legacy per-target JSR entries. The old shared
+F8-family/FA/DPC geometry is an 80-byte block; FA2 reserves 84, JANE 96, and the
+read-hotspot blocks reserve 80; 0FA0 is 69/80 (`$050`). These sizes are
+measurements of the implementation being replaced, not ABI constants. The
+public diagnostics already use complete ordered call matrices, with same-bank
+legs remaining ordinary JSRs.
 
-`.banktarget` uses a relocation marker combination that cannot be confused with
-an actual indirect JMP; NMOS indirect-JMP page-wrap validation remains independent.
-The fixed generic block, not the old 224-byte corridor size, is the durable JSR
-ABI. Cross-bank JMPs remain a separate per-target mechanism for now.
-
-Inline-bankcall migration queue -- finish this before adding FC/F0:
-Done: F8/F8SC, F6/F6SC, F4/F4SC, FA, DPC, FA2-24/28, JANE, 0840, UA, UASW, and 0FA0.
-F8-family/FA/DPC use the shared 80-byte geometry. FA2 is 83/84 bytes
-(`generic-jsr=$054`); JANE is 95/96 (`$060`) with bank1 startup and selectors
-0,1,8,9. 0840 is 75/80 (`$050`): PC bank identity becomes Y=$00/$40 and
-`LDA $0800,Y` performs the read-only selector access. UA is 73/80 and UASW is
-69/80 (`$050`): both use indexed reads from `$0220`, with UA inverting the PC
-bank bit and UASW using it directly. 0FA0 is 69/80 (`$050`): logical `$Dxxx/$Fxxx`
-selects canonical `$0FA0/$0FC0` via the PC high-byte bit directly; the broader
-masked aliases remain mapper behavior rather than trampoline geometry. Migrated
-profiles have zero legacy JSR entries; public diagnostics use complete ordered
-call matrices, with same-bank legs remaining ordinary JSRs.
-Do not force FE, E0, 3F, 3E, WD, OMNI, CV, or 4KSC through this migration:
-their latch/window/direct-memory contracts either need mapper-specific calls or no
-cross-bank call trampoline at all. After the queue is green, implement FC then F0
-using the inline-target ABI from the start rather than creating new legacy debt.
+Migration acceptance: add per-bank descriptor metadata; make `.banktarget`
+reserve/resolve target+descriptor; bake the source descriptor into each
+trampoline instance; push it below the synthetic return; consume it directly in
+the return half; stop all PC-to-bank decoding; update stack accounting and the
+page/bank-edge regression; keep A:X preservation, nested LIFO behavior, and zero
+legacy JSR entries. Descriptor-specific bytes may differ between bank copies
+only where they are consumed safely before a switch; instruction bytes fetched
+across a mapping change must still agree at the same CPU address.
 
 Diagnostic optimizer wart: F864 direct-JMP targets use inline `TSX/STX`, so the
 current whole-function asm safety rule can leave generated
@@ -231,22 +218,18 @@ this is future optimizer-locality cleanup, not bankswitching work.
             and a diagnostic are worthwhile for compatibility and for exercising
             a stateful/incremental mapper.
 
-            Use the shared inline-target JSR design above; no ROM bank-identity
-            byte is needed. At entry, the stacked logical caller PC identifies the
-            source bank and the inline logical target identifies the destination,
-            so the trampoline computes `(target - source) mod 16` and advances
-            through $1FF0 exactly that many times before entering the callee.
-
-            F0 cannot directly select the source bank on return, so preserve the
-            reverse advance count as call-frame metadata rather than rediscovering
-            mapper state. A simple implementation may push the one-byte count
-            `(source - target) mod 16` beneath the synthetic `__bankreturn` address;
-            nested calls then naturally carry independent reverse counts in LIFO
-            order. After the callee's RTS consumes the synthetic return,
-            `__bankreturn` recovers that count, advances $1FF0 exactly that many
-            times, preserves/restores A:X, and performs the final RTS to the
-            unchanged original logical caller PC. Account for the extra F0 frame
-            byte explicitly if this implementation is chosen.
+            Use the public descriptor ABI from `BANKSWITCHING.md`. The prior
+            design's `no ROM bank-identity` assumption and `reverse advance count as call-frame metadata`
+            plan are superseded by the descriptor ABI; those phrases remain here
+            temporarily because the existing hygiene regression still recognizes
+            the pre-migration checkpoint. For F0 the descriptor can simply be the
+            bank ID 0..15. The caller trampoline's
+            baked source ID and inline destination ID determine the forward
+            `(target-source) mod 16` count. The source ID is pushed as normal ABI
+            call-frame metadata. On return, the destination bank's trampoline copy
+            knows its own baked current-bank ID, pops the source ID, computes the
+            reverse count, and advances through $1FF0 before the final RTS. No bank
+            identity comes from a 16-bit PC.
 
             The repeated hotspot accesses may be unrolled or driven by a small
             counter loop; choose the smaller/timing-appropriate form when

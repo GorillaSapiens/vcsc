@@ -506,70 +506,35 @@ begins at `$xxFF`, avoiding the NMOS 6502/6507 indirect-`JMP` page-wrap bug. A
 full corridor is a link error. The map reports reserved, occupied, and total
 replicated bytes plus every generated target entry.
 
-A direct cross-bank C call in the F8/F6/F4(+SC), FA, DPC, FA2, JANE, 0840, UA, UASW, and 0FA0 inline-target paths no longer allocates a target-specific
-JSR entry. The compiler emits one five-byte bundle at the call site:
+The public selector-controlled direct-call ABI is defined in
+[`../BANKSWITCHING.md`](../BANKSWITCHING.md). Its target linked form is:
 
 ```asm
     JSR __bankcall
-    .banktarget final_target    ; two-byte logical address in the object file
+    .banktarget final_target    ; 16-bit CPU target + 1-byte destination descriptor
 ```
 
-`.banktarget` assembles to the inline `.word final_target` metadata consumed by
-the fixed generic call block; it is not executed. The linker rewrites the JSR
-operand to the source bank's logical mirror of `__bankcall` while leaving the
-inline word as the target's distinct logical address. The normal-selector block is maintained as readable 6507 source in
-the byte-identical `inline_bankcall.s26` carried by each F8/F8SC/F6/F6SC/F4/F4SC/FA/DPC mapper directory; the linker generates its shared template from `libraries/vcs/F8/inline_bankcall.s26`. DPC uses the same bytes because its two program banks have F8 selector geometry. FA2 uses `libraries/vcs/FA2/inline_bankcall.s26`,
-which adds the reversed selector-index transform required by `$1FF5-$1FFB`.
-JANE uses `libraries/vcs/JANE/inline_bankcall.s26`; logical bank numbers match
-physical/file banks, and its irregular selectors reduce to `STA $1FF0,Y` by
-mapping banks 0/1 directly to offsets 0/1 and banks 2/3 to offsets 8/9.
-0840 uses `libraries/vcs/0840/inline_bankcall.s26`; because its selectors are
-below the cartridge window, it derives Y=`$00/$40` from the logical PC high
-byte and performs `LDA $0800,Y` so switching is a read bus cycle rather than a
-write into mirrored console space. UA and UASW similarly use mapper-local
-`inline_bankcall.s26` sources and indexed reads from `$0220`: UA transforms the
-logical-PC bank bit to offsets `$00/$20`, while UASW's swapped association uses
-that bank bit directly. 0FA0 uses `libraries/vcs/0FA0/inline_bankcall.s26`; its
-logical `$Dxxx/$Fxxx` identity likewise supplies Y=`$00/$20`, but the indexed
-read is based at canonical selector `$0FA0`, producing `$0FA0/$0FC0`.
-The linker build assembles these files into compact byte/patch templates;
-`vcsc-ld` supplies `_vcsc_ptr0`, the mapper selector base, and the final
-replicated block address. The normal/DPC block reserves 80 bytes
-(`generic-jsr=$050`), FA2 is 83 bytes with 84 reserved (`generic-jsr=$054`),
-JANE is 95 bytes with 96 reserved (`generic-jsr=$060`), 0840 is 75 bytes,
-UA is 73 bytes, and UASW and 0FA0 are 69 bytes; each of those read-hotspot blocks reserves
-80 bytes (`generic-jsr=$050`). Each is replicated
-byte-for-byte in every CPU-mapped program bank before any variable direct-JMP
-entries;
-these calls create no `JSR entry=` records.
+Under that ABI `.banktarget` occupies three bytes. The target address says where
+to enter after selection; the opaque mapper descriptor says which bank/state to
+select. The caller bank's source descriptor is baked into its fixed
+mapper-specific replicated entry/return instance, pushed as call-frame metadata,
+and consumed directly by the return half before the final `RTS` to the unchanged
+logical continuation PC. Same-bank calls remain ordinary JSRs. This removes the
+old requirement that either source or destination bank be recoverable from a
+16-bit PC and allows multiple banks to share one CPU link window.
 
-`__bankcall` copies the real 16-bit logical JSR return PC from the hardware
-stack to a zero-page pointer, reads the following two target bytes through
-`(ptr),Y` **before** switching banks, and advances the saved return PC by two.
-The saved-PC adjustment is full 16-bit arithmetic with explicit carry
-propagation. `(ptr),Y` supplies the corresponding page carry while reading an
-inline word which crosses `$xxFF/$xx+1 00`. A small internal `JSR` creates the
-synthetic return frame; the switch body derives the destination selector from
-the target logical high byte, selects that bank, and jumps through the saved
-target pointer.
+The current linker sources and mapper-local `inline_bankcall.s26` files still
+implement the previous five-byte, PC-derived form. Their current reservations
+remain useful only as an implementation checkpoint during migration: the shared
+F8-family/DPC geometry is an 80-byte block, FA2 reserves 84 bytes, JANE 96 bytes,
+and 0840/UA/UASW/0FA0 reserve 80 bytes; 0FA0 is 69/80 (`$050`) in that old form.
+The descriptor conversion is expected to simplify several of those blocks.
+Migrated calls must continue to consume no legacy per-target JSR entries.
 
-After the callee's ordinary `RTS`, the generic return path preserves A:X, peeks
-the original caller's logical return high byte from the stack, derives and
-selects the source bank, restores A:X, and performs the final `RTS` directly to
-the unchanged logical continuation PC. No source-bank ID byte and no rewritten
-return address are required: the 6507's 16-bit PC and hardware stack retain the
-distinct linker ORG even though the cartridge bus sees mirrored low address
-bits. Nested cross-bank calls therefore compose naturally in LIFO order.
-
-The five-byte `JSR` + inline-target sequence belongs to one function layout, so
-the linker never splits it across a logical bank boundary. Crossing an ordinary
-256-byte page is legal and intentionally tested.
-`test/vcs_bankswitching_inline_call_pages.pl` pins calls at `$D0FC` and `$D0FD`
-to exercise both forms of page carry, executes them from every F8 startup bank,
-and verifies the exact continuation plus A:X preservation. The public
-`01_f864` now executes every ordered source/destination call pair in one
-F8/F6/F4 image; the FA RAM Plus diagnostic does the same for its three banks; `test/vcs_bankswitching_call_matrix.pl` remains an independent
-ordered-pair regression.
+Call-bundle page carry, indivisible placement, A:X preservation, nested LIFO
+returns, hardware-stack accounting, and ordered source/destination diagnostics
+remain required. The descriptor ABI advances the original stacked return PC by
+three inline bytes rather than two.
 
 Cross-bank ROM data and conditional branches remain permanent errors.
 Diagnostics identify the input object, source layout/address/bank, target

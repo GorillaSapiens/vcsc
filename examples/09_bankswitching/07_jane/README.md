@@ -20,14 +20,16 @@ call matrix: every logical/physical bank calls every bank, including itself. Sam
 calls use ordinary `JSR`/`RTS`; all 12 cross-bank pairs use JANE's fixed inline-target
 bankcall block. Every pair checks the target signature, 16-bit return value, restored
 source bank, and exact hardware-stack balance. The bank0-to-bank0 case additionally
-nests a bank0-to-bank1 call to prove stacked logical return PCs compose correctly.
+nests a bank0-to-bank1 call to prove nested cross-bank call frames compose correctly.
 
 A large green `pass` with the smaller `JANE` underneath therefore means all 16
 ordered pairs, all four selectors, startup recovery, and the nested return path
 succeeded. Red `FAIL` means one of those checks failed.
 
-The Makefile enables `VCSC_INLINE_BANKCALL`, so all cross-bank C calls use the fixed
-95-byte JANE block (96 bytes reserved) and allocate no per-target JSR entries.
+The Makefile enables `VCSC_INLINE_BANKCALL`, so this source snapshot uses the
+current 95-byte JANE block (96 bytes reserved) and allocates no per-target JSR
+entries. That block still implements the superseded PC-derived form; the target
+ABI is [`../../../BANKSWITCHING.md`](../../../BANKSWITCHING.md).
 
 The image also contains the non-executed byte sequence `AD F1 FF 60`
 (`LDA $FFF1; RTS`) used by current Stella for JANE autodetection, in addition
