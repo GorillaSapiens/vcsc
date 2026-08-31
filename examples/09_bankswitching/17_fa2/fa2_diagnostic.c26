@@ -155,7 +155,7 @@ bank1 void bank1_probe(void) {
    trace := 8;
 }
 
-void main(void) {
+bank0 void main(void) {
    // FA2 powers up in physical bank 0; the reset bridge must preserve that.
    if (fa2_data != 0x5A) { failure := 0x01; }
    index := 0;

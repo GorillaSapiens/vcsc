@@ -506,7 +506,7 @@ begins at `$xxFF`, avoiding the NMOS 6502/6507 indirect-`JMP` page-wrap bug. A
 full corridor is a link error. The map reports reserved, occupied, and total
 replicated bytes plus every generated target entry.
 
-A direct cross-bank C call in the F8/F6/F4(+SC) and FA inline-target path no longer allocates a target-specific
+A direct cross-bank C call in the F8/F6/F4(+SC), FA, DPC, and FA2 inline-target paths no longer allocates a target-specific
 JSR entry. The compiler emits one five-byte bundle at the call site:
 
 ```asm
@@ -517,12 +517,15 @@ JSR entry. The compiler emits one five-byte bundle at the call site:
 `.banktarget` assembles to the inline `.word final_target` metadata consumed by
 the fixed generic call block; it is not executed. The linker rewrites the JSR
 operand to the source bank's logical mirror of `__bankcall` while leaving the
-inline word as the target's distinct logical address. The generic block is maintained as readable 6507 source in
-`libraries/vcs/inline_bankcall.s26`. The linker build assembles that file into a
+inline word as the target's distinct logical address. The normal-selector block is maintained as readable 6507 source in
+`libraries/vcs/inline_bankcall.s26`; DPC reuses it because its two program banks
+have F8 selector geometry. FA2 uses `libraries/vcs/fa2/inline_bankcall.s26`,
+which adds the reversed selector-index transform required by `$1FF5-$1FFB`. The linker build assembles that file into a
 compact byte/patch template; `vcsc-ld` only supplies `_vcsc_ptr0`, the mapper
-selector base, and the final replicated block address. The block reserves 80
-bytes and is replicated byte-for-byte in every bank before any variable
-direct-JMP entries. The map reports this reservation as `generic-jsr=$050`;
+selector base, and the final replicated block address. The normal/DPC block reserves 80 bytes (`generic-jsr=$050`). The FA2-specific
+block is 83 bytes and reserves 84 (`generic-jsr=$054`). Each is replicated
+byte-for-byte in every CPU-mapped program bank before any variable direct-JMP
+entries;
 these calls create no `JSR entry=` records.
 
 `__bankcall` copies the real 16-bit logical JSR return PC from the hardware

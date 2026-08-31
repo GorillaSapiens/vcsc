@@ -18,6 +18,8 @@ VCSC_AS ?= $(if $(ASM),$(ASM),../assembler/vcsc-as)
 BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/inline_bankcall.s26
 BANKCALL_TEMPLATE_GENERATOR = gen_inline_bankcall_template.pl
 BANKCALL_TEMPLATE_HEADER = generic_bankcall_template.h
+FA2_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/fa2/inline_bankcall.s26
+FA2_BANKCALL_TEMPLATE_HEADER = fa2_bankcall_template.h
 
 all: version.h $(TARGET)
 
@@ -34,9 +36,12 @@ $(TARGET): version.h $(OBJS)
 	$(MAKE) --no-print-directory -C ../assembler vcsc-as
 
 $(BANKCALL_TEMPLATE_HEADER): $(BANKCALL_TEMPLATE_SOURCE) $(BANKCALL_TEMPLATE_GENERATOR) $(VCSC_AS)
-	$(PERL) $(BANKCALL_TEMPLATE_GENERATOR) $(VCSC_AS) $(BANKCALL_TEMPLATE_SOURCE) $@
+	$(PERL) $(BANKCALL_TEMPLATE_GENERATOR) $(VCSC_AS) $(BANKCALL_TEMPLATE_SOURCE) $@ GENERIC
 
-vcsc_ld.o: version.h $(BANKCALL_TEMPLATE_HEADER)
+$(FA2_BANKCALL_TEMPLATE_HEADER): $(FA2_BANKCALL_TEMPLATE_SOURCE) $(BANKCALL_TEMPLATE_GENERATOR) $(VCSC_AS)
+	$(PERL) $(BANKCALL_TEMPLATE_GENERATOR) $(VCSC_AS) $(FA2_BANKCALL_TEMPLATE_SOURCE) $@ FA2
+
+vcsc_ld.o: version.h $(BANKCALL_TEMPLATE_HEADER) $(FA2_BANKCALL_TEMPLATE_HEADER)
 
 %.o: %.c
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
@@ -52,7 +57,7 @@ uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(TARGET)
 
 clean:
-	rm -f vcsc-ld vcsc-ld.exe $(OBJS) $(DEPS) version.h $(BANKCALL_TEMPLATE_HEADER)
+	rm -f vcsc-ld vcsc-ld.exe $(OBJS) $(DEPS) version.h $(BANKCALL_TEMPLATE_HEADER) $(FA2_BANKCALL_TEMPLATE_HEADER)
 
 -include $(DEPS)
 

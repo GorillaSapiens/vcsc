@@ -142,7 +142,7 @@ for my $entry (@examples) {
    }
    if ($file eq 'bankswitching_diagnostic.c26' ||
        $file eq 'banked_standard_renderer.c26') {
-      push @extra,'-DVCSC_INLINE_BANKCALL=1' if $file eq 'bankswitching_diagnostic.c26' || $file eq 'fa_ram_plus_diagnostic.c26';
+      push @extra,'-DVCSC_INLINE_BANKCALL=1' if $file eq 'bankswitching_diagnostic.c26' || $file eq 'fa_ram_plus_diagnostic.c26' || $file eq 'dpc_diagnostic.c26' || $file eq 'fa2_diagnostic.c26';
       push @extra,'-DMAPPER_BANKS=2',
                   '-T',File::Spec->catfile($vcs,'vcs.cfg');
    } elsif ($profile eq '2k') {

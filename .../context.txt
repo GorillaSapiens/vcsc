@@ -97,19 +97,14 @@ Open workstreams
 
 3. **Bankswitching**
    `.../bankswitching.txt` contains the durable cartridge model plus unfinished
-   mapper work. FA2 is complete. The generic inline-target cross-bank JSR path
-   is complete for `examples/09_bankswitching/01_f864` and `03_fa_ram_plus`,
-   covering F8/F6/F4(+SC) and FA: `$inline_bankcall` (exposed by stock profiles through
-   `VCSC_INLINE_BANKCALL`) enables five-byte JSR+target bundles using one
-   fixed 80-byte replicated entry/return block sourced from `libraries/vcs/inline_bankcall.s26`, with no per-target JSR entries.
-   The unchanged stacked logical caller PC identifies the source bank; return
-   preserves A:X and RTSes directly to that logical PC. Page-edge and bank-end
-   regressions lock carry-correct target/continuation math and indivisible layout
-   placement. Legacy bridges remain only for mapper families/lower-level inputs
-   not yet migrated. Existing inline-bankcall migration order is **DPC -> FA2 ->
-   JANE -> 0840 -> UA/UASW -> 0FA0**; after that, new mapper order is **FC -> F0**.
-   Read the focused
-   file before implementing either.
+   mapper work. Inline-target JSR is complete for F8/F6/F4(+SC), FA, DPC,
+   and FA2. `$inline_bankcall` / `VCSC_INLINE_BANKCALL` emits five-byte
+   JSR+target bundles with no per-target JSR entries. F8-style selectors (also
+   DPC) use the maintained 80-byte `libraries/vcs/inline_bankcall.s26`; FA2 uses
+   its 84-byte `libraries/vcs/fa2/inline_bankcall.s26` because selector order is
+   reversed. Stacked logical PCs identify return banks; page/bank-edge tests lock
+   carry-correct behavior. Next migration: **JANE -> 0840 -> UA/UASW -> 0FA0**;
+   then new mapper work is **FC -> F0**. Read the focused file first.
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished

@@ -22,6 +22,7 @@
 #include "vcsc_ld_abi.h"
 #include "version.h"
 #include "generic_bankcall_template.h"
+#include "fa2_bankcall_template.h"
 
 /* One identical six-byte BIT/JMP entry for NMI, RESET, and IRQ/BRK. */
 enum {
@@ -33,8 +34,7 @@ enum {
    BANK_TRAMPOLINE_JMP = 1,
    BANK_TRAMPOLINE_JSR = 2,
    BANK_JMP_ENTRY_SIZE = 8,
-   BANK_JSR_ENTRY_SIZE = 15,
-   BANK_GENERIC_JSR_SIZE = VCSC_GENERIC_BANKCALL_RESERVED_SIZE
+   BANK_JSR_ENTRY_SIZE = 15
 };
 
 //! @brief Print the linker command-line usage text.
@@ -9043,41 +9043,58 @@ static int jsr_has_inline_bank_target(const object_file_t *obj, uint8_t image_se
    return 0;
 }
 
-//! @brief Validate selector geometry and return the base indexed by logical PC high bits.
+//! @brief Validate inline-bankcall selector geometry and return the indexed selector base.
 static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
 {
    size_t i;
    uint16_t base = 0;
    int have_base = 0;
-   if (!cfg || (cfg->bank_count != 2u && cfg->bank_count != 3u && cfg->bank_count != 4u && cfg->bank_count != 8u)) {
-      fprintf(stderr, "vcsc-ld: generic inline-target bank calls currently require 2, 3, 4, or 8 selector-controlled banks\n");
+   int fa2 = c26_topology_is_fa2(cfg);
+
+   if (!cfg) {
+      fprintf(stderr, "vcsc-ld: generic inline-target bank calls require a banked cartridge profile\n");
       exit(1);
    }
+
+   if (fa2) {
+      if (cfg->bank_count != 6u && cfg->bank_count != 7u) {
+         fprintf(stderr, "vcsc-ld: FA2 inline-target bank calls require six or seven selector-controlled banks\n");
+         exit(1);
+      }
+   }
+   else if (cfg->bank_count != 2u && cfg->bank_count != 3u &&
+            cfg->bank_count != 4u && cfg->bank_count != 8u) {
+      fprintf(stderr, "vcsc-ld: generic inline-target bank calls currently require 2, 3, 4, 6, 7, or 8 selector-controlled banks\n");
+      exit(1);
+   }
+
    for (i = 0; i < cfg->bank_count; ++i) {
       uint8_t logical_index;
+      uint8_t selector_index;
       uint16_t candidate;
       if (!cfg->banks[i].hotspot) {
          fprintf(stderr, "vcsc-ld: generic inline-target bank calls require a selector on every bank\n");
          exit(1);
       }
-      /* The pilot profiles deliberately use distinct logical ORGs whose top
-         three PC bits encode the selector offset directly: Fxxx=>7,
-         Dxxx=>6, ..., 1xxx=>0.  The 6507 drops those high address bits on
-         the external bus, but JSR/RTS preserve them on the hardware stack. */
+      /* Distinct logical ORGs preserve the bank identity in the 16-bit PC.
+         The normal template indexes selectors directly with PC[15:13].
+         FA2's selector order is reversed, so its mapper-specific S26 template
+         uses EOR #7 and indexes with 7-PC[15:13]. */
       logical_index = (uint8_t)((cfg->banks[i].start >> 13) & 7u);
-      if (cfg->banks[i].hotspot < logical_index) {
+      selector_index = fa2 ? (uint8_t)(7u - logical_index) : logical_index;
+      if (cfg->banks[i].hotspot < selector_index) {
          fprintf(stderr, "vcsc-ld: generic inline-target bank-call selector geometry underflows for bank '%s'\n",
                  cfg->banks[i].name);
          exit(1);
       }
-      candidate = (uint16_t)(cfg->banks[i].hotspot - logical_index);
+      candidate = (uint16_t)(cfg->banks[i].hotspot - selector_index);
       if (!have_base) {
          base = candidate;
          have_base = 1;
       }
       else if (candidate != base) {
          fprintf(stderr,
-                 "vcsc-ld: generic inline-target bank calls require selectors addressable as one base plus logical-PC bits\n");
+                 "vcsc-ld: generic inline-target bank calls require selectors addressable as one base plus the template's logical-PC index\n");
          exit(1);
       }
    }
@@ -9086,6 +9103,13 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
       exit(1);
    }
    return base;
+}
+
+//! @brief Return the mapper-specific fixed reservation for the inline bank-call block.
+static uint16_t generic_bankcall_reserved_size(const linker_config_t *cfg)
+{
+   return c26_topology_is_fa2(cfg) ? VCSC_FA2_BANKCALL_RESERVED_SIZE
+                                   : VCSC_GENERIC_BANKCALL_RESERVED_SIZE;
 }
 
 //! @brief Reserve the fixed generic bank-call block before variable JMP/legacy entries are allocated.
@@ -9111,13 +9135,14 @@ static void prepare_generic_bankcall_corridor(const linker_config_t *cfg,
    }
    if (!found) return;
    (void)generic_bankcall_selector_base(cfg);
-   if (BANK_GENERIC_JSR_SIZE > cfg->trampoline_size) {
+   layout->bank_generic_jsr_size = generic_bankcall_reserved_size(cfg);
+   if (layout->bank_generic_jsr_size > cfg->trampoline_size) {
       fprintf(stderr, "vcsc-ld: generic inline-target bank-call block needs $%02X bytes but trampoline corridor has only $%03X\n",
-              BANK_GENERIC_JSR_SIZE, cfg->trampoline_size);
+              layout->bank_generic_jsr_size, cfg->trampoline_size);
       exit(1);
    }
    layout->bank_generic_jsr_used = 1;
-   layout->bank_trampoline_used = BANK_GENERIC_JSR_SIZE;
+   layout->bank_trampoline_used = layout->bank_generic_jsr_size;
 }
 
 //! @brief Return the encoded byte size for one generated bank trampoline entry.
@@ -9690,44 +9715,85 @@ static void encode_bank_jsr_entry(uint8_t *table, size_t offset,
    table[offset + 14u] = (uint8_t)((entry->target_addr >> 8) & 0xFFu);
 }
 
-//! @brief Instantiate the maintained S26 inline-target bank-call template.
-static void encode_generic_bank_jsr_block(uint8_t *table,
-                                          const linker_config_t *cfg,
+//! @brief Instantiate one maintained S26 inline-target bank-call template.
+static void instantiate_bankcall_template(uint8_t *table,
+                                          const uint8_t *template_bytes,
+                                          uint16_t template_size,
+                                          uint16_t reserved_size,
+                                          const uint8_t (*ptr_patches)[2],
+                                          size_t ptr_patch_count,
+                                          const uint8_t *selector_patches,
+                                          size_t selector_patch_count,
+                                          uint8_t switch_offset,
+                                          uint8_t internal_jsr_operand_offset,
+                                          uint16_t selector_base,
                                           uint16_t canonical_base,
                                           uint16_t ptr0)
 {
    size_t i;
-   uint16_t selector_base = generic_bankcall_selector_base(cfg);
    uint16_t switch_addr;
 
    if (ptr0 > 0x00feu) {
       fprintf(stderr, "vcsc-ld: generic bank-call scratch _vcsc_ptr0 must be a two-byte zero-page object, got $%04X\n", ptr0);
       exit(1);
    }
-   if (VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE > BANK_GENERIC_JSR_SIZE) {
+   if (template_size > reserved_size) {
       fprintf(stderr,
-              "vcsc-ld: internal error: assembled generic bank-call template needs %u bytes but only $%02X are reserved\n",
-              (unsigned)VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE, BANK_GENERIC_JSR_SIZE);
+              "vcsc-ld: internal error: assembled bank-call template needs %u bytes but only $%02X are reserved\n",
+              (unsigned)template_size, reserved_size);
       exit(1);
    }
 
-   memcpy(table, vcsc_generic_bankcall_template, VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE);
-
-   for (i = 0; i < VCSC_GENERIC_BANKCALL_PTR_PATCH_COUNT; ++i) {
-      const vcsc_generic_bankcall_ptr_patch_t *patch = &vcsc_generic_bankcall_ptr_patches[i];
-      table[patch->offset] = (uint8_t)(ptr0 + patch->delta);
+   memcpy(table, template_bytes, template_size);
+   for (i = 0; i < ptr_patch_count; ++i) {
+      uint8_t off = ptr_patches[i][0];
+      uint8_t delta = ptr_patches[i][1];
+      table[off] = (uint8_t)(ptr0 + delta);
    }
-   for (i = 0; i < VCSC_GENERIC_BANKCALL_SELECTOR_PATCH_COUNT; ++i) {
-      uint8_t off = vcsc_generic_bankcall_selector_patches[i];
+   for (i = 0; i < selector_patch_count; ++i) {
+      uint8_t off = selector_patches[i];
       table[off + 0u] = (uint8_t)(selector_base & 0xffu);
       table[off + 1u] = (uint8_t)(selector_base >> 8);
    }
 
-   switch_addr = (uint16_t)(canonical_base + VCSC_GENERIC_BANKCALL_SWITCH_OFFSET);
-   table[VCSC_GENERIC_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET + 0u] =
-      (uint8_t)(switch_addr & 0xffu);
-   table[VCSC_GENERIC_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET + 1u] =
-      (uint8_t)(switch_addr >> 8);
+   switch_addr = (uint16_t)(canonical_base + switch_offset);
+   table[internal_jsr_operand_offset + 0u] = (uint8_t)(switch_addr & 0xffu);
+   table[internal_jsr_operand_offset + 1u] = (uint8_t)(switch_addr >> 8);
+}
+
+//! @brief Instantiate the mapper-appropriate maintained S26 bank-call template.
+static void encode_generic_bank_jsr_block(uint8_t *table,
+                                          const linker_config_t *cfg,
+                                          uint16_t canonical_base,
+                                          uint16_t ptr0)
+{
+   uint16_t selector_base = generic_bankcall_selector_base(cfg);
+   if (c26_topology_is_fa2(cfg)) {
+      instantiate_bankcall_template(table,
+         vcsc_fa2_bankcall_template,
+         VCSC_FA2_BANKCALL_TEMPLATE_SIZE,
+         VCSC_FA2_BANKCALL_RESERVED_SIZE,
+         vcsc_fa2_bankcall_ptr_patches,
+         VCSC_FA2_BANKCALL_PTR_PATCH_COUNT,
+         vcsc_fa2_bankcall_selector_patches,
+         VCSC_FA2_BANKCALL_SELECTOR_PATCH_COUNT,
+         VCSC_FA2_BANKCALL_SWITCH_OFFSET,
+         VCSC_FA2_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
+         selector_base, canonical_base, ptr0);
+   }
+   else {
+      instantiate_bankcall_template(table,
+         vcsc_generic_bankcall_template,
+         VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE,
+         VCSC_GENERIC_BANKCALL_RESERVED_SIZE,
+         vcsc_generic_bankcall_ptr_patches,
+         VCSC_GENERIC_BANKCALL_PTR_PATCH_COUNT,
+         vcsc_generic_bankcall_selector_patches,
+         VCSC_GENERIC_BANKCALL_SELECTOR_PATCH_COUNT,
+         VCSC_GENERIC_BANKCALL_SWITCH_OFFSET,
+         VCSC_GENERIC_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
+         selector_base, canonical_base, ptr0);
+   }
 }
 
 //! @brief Handle build init table image logic for linker layout and image writer.
@@ -11087,7 +11153,7 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
                  cfg->trampoline_offset, cfg->trampoline_size,
                  layout->bank_trampoline_used,
                  (uint32_t)layout->bank_trampoline_used * (uint32_t)cfg->bank_count,
-                 layout->bank_generic_jsr_used ? BANK_GENERIC_JSR_SIZE : 0u,
+                 layout->bank_generic_jsr_used ? layout->bank_generic_jsr_size : 0u,
                  layout->bank_trampoline_entry_count, jmp_count, jsr_count,
                  BANK_JMP_ENTRY_SIZE, BANK_JSR_ENTRY_SIZE);
          for (i = 0; i < layout->bank_trampoline_entry_count; ++i) {

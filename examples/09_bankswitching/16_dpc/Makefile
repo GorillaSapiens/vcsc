@@ -14,7 +14,7 @@ TARGET := dpc_diagnostic.bin
 all: $(TARGET)
 
 $(TARGET): $(SOURCE) dpc_data.c26 $(COMMITTED_FONT_SUBSETS)
-	$(VCSC) -I $(VCS_DIR) -T $(VCS_DIR)/vcs.cfg -Map dpc_diagnostic.map $(SOURCE) -o $@
+	$(VCSC) -I $(VCS_DIR) -DVCSC_INLINE_BANKCALL=1 -T $(VCS_DIR)/vcs.cfg -Map dpc_diagnostic.map $(SOURCE) -o $@
 
 fonts:
 	$(PERL) $(FONT_SUBSET_TOOL) $(FONT_SUBSET_FLAGS) $(SMALL_FONT) $(FONT_SUBSET_DIR)/diagnostic_font.c26 dpc_glyphs ' PASFAILDPC'

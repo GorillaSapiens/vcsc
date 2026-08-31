@@ -21,7 +21,8 @@ Files:
 - `vcs_2k_cv.c26`, `commavid.c26` ... CommaVid CV fixed 2K ROM plus shared 1K split-address cartridge RAM; `vcs_2k_cv.cfg` supplies simulator/compatibility mapping
 - `vcs_4k.c26` ... conventional unbanked 4K topology and allocatable ROM
 - `vcs_8k_f8.c26`, `vcs_16k_f6.c26`, `vcs_32k_f4.c26` ... inspectable selector-controlled C26 profiles with exact output order and generated corridors
-- `inline_bankcall.s26` ... maintained 6507 source for the fixed generic inline-target cross-bank JSR/RTS trampoline assembled into `vcsc-ld` at build time
+- `inline_bankcall.s26` ... maintained 6507 source for the normal/F8-style fixed inline-target cross-bank JSR/RTS trampoline; DPC reuses this selector geometry
+- `fa2/inline_bankcall.s26` ... FA2-specific maintained trampoline source; same stack/inline-target ABI with reversed selector indexing for `$1FF5-$1FFB`
 - `vcs_8k_0840.c26` ... 0840/EconoBanking two-bank 8K profile with below-cartridge selectors `$0800/$0840`; `vcs_8k_0840.cfg` supplies simulator-only masked selector semantics
 - `vcs_8k_ua.c26`, `vcs_8k_uasw.c26` ... UA Limited 8K alias-decoded profiles; UA maps `$0220`-family accesses to bank 0 and `$0240`-family accesses to bank 1, while UASW swaps that association; their cfg files supply simulator-only masked selector semantics
 - `vcs_8k_0fa0.c26` ... Brazilian Fotomania 0FA0 two-bank 8K profile; `(A & $16E0)==$06A0/$06C0` selects physical bank 0/1, physical bank 1 powers up, and `vcs_8k_0fa0.cfg` supplies simulator metadata

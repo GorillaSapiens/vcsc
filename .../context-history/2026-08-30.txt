@@ -283,3 +283,18 @@ below-cartridge selector form. FE/E0/3F/3E/WD/OMNI/CV/4KSC are explicitly not
 part of this generic full-window migration. Finish these existing migrations
 before implementing new FC then F0 support so those mappers start on the inline
 ABI rather than acquiring legacy per-target JSR debt.
+
+2026-08-30 21:17:27 PDT, migrate DPC and FA2 inline bankcalls
+Migrated DPC and both native FA2 profiles to the compact inline-target cross-bank
+JSR ABI. DPC reuses libraries/vcs/inline_bankcall.s26 because its two program
+banks have F8 selector geometry; its linked generic block remains 79 bytes with
+an 80-byte reservation and emits zero legacy per-target JSR entries.
+
+Added libraries/vcs/fa2/inline_bankcall.s26 as a mapper-specific maintained
+trampoline source. FA2 uses the same stack/inline-target ABI but applies EOR #7
+to reverse VCSC logical-bank order into FA2 physical selector order. Its payload
+is 83 bytes with an 84-byte reservation (`generic-jsr=$054`) and zero legacy JSR
+entries for both 24K/six-bank and 28K/seven-bank forms. The linker template
+generator now supports named template families, and installation/package rules
+include the FA2 source. DPC, FA2-24, and FA2-28 all pass their focused diagnostics
+and the exhaustive ordered-pair bank-call matrix. JANE remains the next migration.

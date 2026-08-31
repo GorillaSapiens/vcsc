@@ -8,6 +8,9 @@ include "dpc.c26"
 // window occupies $1000-$107F.  The final 2K and 255-byte chunks are data-only
 // image regions: DPC display ROM and the conventional RNG/poly sequence tail.
 cartridge {
+#ifdef VCSC_INLINE_BANKCALL
+   $inline_bankcall
+#endif
    $fill:0xff $signature:DPC
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012

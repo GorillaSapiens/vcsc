@@ -38,7 +38,7 @@ my $generic=File::Spec->catfile($vcs,'vcs.cfg');
 my $bin=File::Spec->catfile($tmp,'fa2.bin');
 my $map=File::Spec->catfile($tmp,'fa2.map');
 
-ok('build FA2 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-T',$generic,'-Map',$map,$src,'-o',$bin);
+ok('build FA2 simulator diagnostic',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-DSIMULATOR_TEST','-T',$generic,'-Map',$map,$src,'-o',$bin);
 -s $bin==28672 or die "FA2 28K image size wrong\n";
 my $rom=readf($bin); my $m=readf($map);
 for my $b (0..6) { substr($rom,$b*4096,512) eq ("\xFF" x 512) or die "FA2 bank $b RAM-port prefix exposed\n"; }
@@ -49,6 +49,8 @@ for my $b (0..6) {
 $m =~ /^\s+bank0\s+.*startup=yes/m or die "FA2 bank0 is not startup bank\n";
 $m =~ /^\s+cartram\s+read_start=\$F100 write_start=\$F000 size=\$0100 type=rw shared=yes\b/m or die "FA2 RAM map missing\n";
 $m =~ /cartram\s+used=256 bytes \(100\.00%\).*free=0 bytes/m or die "FA2 diagnostic does not occupy all cart RAM\n";
+$m =~ /generic-jsr=\$054\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ && $m !~ /JSR entry=/
+   or die "FA2 28K diagnostic did not use only the mapper-specific inline bank-call block\n$m";
 substr($rom,6*4096+0xff8,4) eq "FA2\0" or die "FA2 signature missing from final file bank\n";
 
 my %a=map { $_=>sym($m,$_) } qw(simulator_done failure trace ram_count fa2_data fa2_bss);
@@ -119,7 +121,7 @@ bank1 void six_bank1(void) {
    six_trace := 11;
 }
 
-void main(void) {
+bank0 void main(void) {
    six_failure := 0;
    six_trace := 0;
    six_bank1();
@@ -130,7 +132,7 @@ C26
 close $sf or die "close $six_src: $!\n";
 my $six=File::Spec->catfile($tmp,'fa2-24k.bin');
 my $six_map=File::Spec->catfile($tmp,'fa2-24k.map');
-ok('build six-bank FA2',$driver,'-I',$vcs,'-T',$generic,'-Map',$six_map,$six_src,'-o',$six);
+ok('build six-bank FA2',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,'-Map',$six_map,$six_src,'-o',$six);
 -s $six==24576 or die "FA2 24K image size wrong\n";
 my $six_rom=readf($six); my $six_m=readf($six_map);
 for my $b (0..5) {
@@ -139,6 +141,8 @@ for my $b (0..5) {
    $six_m =~ /^\s+bank\Q$b\E\s+file-index=\Q$b\E\b.*select-access=\$$hot/m or die "FA2 24K bank $b selector/file order wrong\n";
 }
 $six_m =~ /^\s+bank0\s+.*startup=yes/m or die "FA2 24K bank0 is not startup bank\n";
+$six_m =~ /generic-jsr=\$054\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ && $six_m !~ /JSR entry=/
+   or die "FA2 24K diagnostic did not use only the mapper-specific inline bank-call block\n$six_m";
 substr($six_rom,5*4096+0xff8,4) eq "FA2\0" or die "FA2 24K signature missing from final file bank\n";
 my %sa=map { $_=>sym($six_m,$_) } qw(six_done six_failure six_trace);
 my $six_cfg=File::Spec->catfile($vcs,'vcs_24k_fa2.cfg');
@@ -157,7 +161,7 @@ my($six_rout,$six_rerr)=ok('round-trip six-bank FA2',$^X,$round,$six_ri,$six_ro)
 $six_rerr eq '' && $six_rout =~ /PASS fa2-24k\.bin/ or die "FA2 24K roundtrip failed\n$six_rout\n$six_rerr";
 
 my $visible=File::Spec->catfile($tmp,'fa2-visible.bin');
-ok('build visible FA2 diagnostic',$driver,'-I',$vcs,'-T',$generic,$src,'-o',$visible);
+ok('build visible FA2 diagnostic',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,$src,'-o',$visible);
 my($s26,$derr)=ok('disassemble FA2 diagnostic',$disas,'-o','-',$visible);
 $derr eq '' or die "FA2 disassembler stderr:\n$derr";
 $s26 =~ /^; mapper: FA2 \(high confidence;/m && $s26 =~ /^; reset\/power-on bank: 0 \(FA2 hardware bank 0\)$/m or die "FA2 disassembler mapper/reset contract missing\n";

@@ -203,9 +203,10 @@ index($bankswitching,'80-byte')>=0 &&
 index($bankswitching,'replicated entry/return block')>=0 &&
 index($bankswitching,'unchanged original 16-bit logical return PC')>=0 &&
 index($bankswitching,'consume no legacy per-target')>=0 &&
-index($bankswitching,'DPC -- next; its two program banks have the same selector geometry as F8.')>=0 &&
-index($bankswitching,'FA2 24K/28K -- then; direct contiguous selectors, but opposite selector order.')>=0 &&
-index($bankswitching,'JANE -- then; full-window/direct-select, but its four hotspot addresses are irregular.')>=0 &&
+index($bankswitching,'Done: F8/F8SC, F6/F6SC, F4/F4SC, FA, DPC, FA2-24, and FA2-28.')>=0 &&
+index($bankswitching,'DPC reuses the 80-byte `libraries/vcs/inline_bankcall.s26` F8 geometry.')>=0 &&
+index($bankswitching,'FA2')>=0 && index($bankswitching,'83 bytes / 84 reserved (`generic-jsr=$054`)')>=0 &&
+index($bankswitching,'JANE -- next; full-window/direct-select, but its four hotspot addresses are irregular.')>=0 &&
 index($bankswitching,'0840 -- then; two-bank selector accesses are read-only and below the cart window.')>=0 &&
 index($bankswitching,'UA/UASW -- then together; same two-bank read-hotspot mechanism with swapped mapping.')>=0 &&
 index($bankswitching,'0FA0 -- last existing migration; same read-hotspot class with its masked aliases.')>=0 &&
@@ -214,8 +215,11 @@ index($bankswitching,'BNE near / JMP false / near: JMP true')>=0 &&
 index(slurp(File::Spec->catfile($repo,'compiler','compile_call.c')),'.banktarget %s')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs inline_bankcall.s26)) &&
 index(slurp(File::Spec->catfile($repo,qw(libraries vcs inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6050')>=0 &&
-index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'BANK_GENERIC_JSR_SIZE = VCSC_GENERIC_BANKCALL_RESERVED_SIZE')>=0 &&
+-f File::Spec->catfile($repo,qw(libraries vcs fa2 inline_bankcall.s26)) &&
+index(slurp(File::Spec->catfile($repo,qw(libraries vcs fa2 inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6054')>=0 &&
+index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'generic_bankcall_reserved_size')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_generic_bankcall_template')>=0 &&
+index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_fa2_bankcall_template')>=0 &&
 index($bankswitching,'no ROM bank-identity')>=0 &&
 index($bankswitching,'reverse advance count as call-frame metadata')>=0 &&
 $bankswitching !~ /^\[ \] 42\./m &&
@@ -578,6 +582,21 @@ index($fa_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&
 index($fa_profile,'$inline_bankcall')>=0 &&
 index($fa_example_make,'-DVCSC_INLINE_BANKCALL=1')>=0
    or die "FA RAM Plus diagnostic lost generic inline-target bank-call opt-in\n";
+my $dpc_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs_10k_dpc.c26'));
+my $dpc_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','16_dpc','Makefile'));
+my $fa2_24_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs_24k_fa2.c26'));
+my $fa2_28_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs_28k_fa2.c26'));
+my $fa2_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','17_fa2','Makefile'));
+index($dpc_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&
+index($dpc_profile,'$inline_bankcall')>=0 &&
+index($dpc_example_make,'-DVCSC_INLINE_BANKCALL=1')>=0 &&
+index($fa2_24_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&
+index($fa2_24_profile,'$inline_bankcall')>=0 &&
+index($fa2_28_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&
+index($fa2_28_profile,'$inline_bankcall')>=0 &&
+index($fa2_example_make,'-DVCSC_INLINE_BANKCALL=1')>=0 &&
+index($top_make,'libraries/vcs/fa2/inline_bankcall.s26')>=0
+   or die "DPC/FA2 diagnostics lost inline-target bank-call opt-in or FA2 template packaging\n";
 for my $profile (qw(vcs_2k.c26 vcs_2k_cv.c26 vcs_4k.c26 vcs_4k_sc.c26 vcs_8k_f8.c26 vcs_8k_0840.c26 vcs_8k_ua.c26 vcs_8k_uasw.c26 vcs_8k_0fa0.c26 vcs_8k_e0.c26 vcs_8k_3f.c26 vcs_8k_3e.c26 vcs_16k_3f.c26 vcs_16k_3e.c26 vcs_12k_fa.c26 vcs_16k_f6.c26 vcs_16k_jane.c26 vcs_32k_f4.c26 vcs_8k_f8sc.c26 vcs_16k_f6sc.c26 vcs_32k_f4sc.c26 vcs_direct_8k.c26 vcs_omni_32k.c26)) {
    -f File::Spec->catfile($repo,'libraries','vcs',$profile)
       or die "missing migrated C26 cartridge profile $profile\n";

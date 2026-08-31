@@ -455,6 +455,7 @@ typedef struct {
    size_t bank_trampoline_entry_count;
    uint16_t bank_trampoline_used;
    int bank_generic_jsr_used;
+   uint16_t bank_generic_jsr_size;
    int call_stack_enabled;
    uint16_t call_stack_depth;
    uint16_t call_stack_weighted_depth;

@@ -142,14 +142,15 @@ for my $profile (@profiles) {
       print {$fh} generated_source($include, $banks, $source);
       close($fh) or die "could not close $src: $!\n";
 
-      my $uses_inline = $name =~ /^(?:F8|F8SC|F6|F6SC|F4|F4SC|FA)$/;
+      my $uses_inline = $name =~ /^(?:F8|F8SC|F6|F6SC|F4|F4SC|FA|FA2-24|FA2-28|DPC)$/;
       my @pilot_define = $uses_inline ? ('-DVCSC_INLINE_BANKCALL=1') : ();
       require_ok("build $name ordered-call source bank $source",
                  $driver, '-I', $vcs, @pilot_define, '-T', $generic_cfg, '-Map', $map_path,
                  $src, '-o', $bin);
       my $map = slurp($map_path);
       if ($uses_inline) {
-         $map =~ /generic-jsr=\$050\b.*\bentries=0\s+jmp=0\s+jsr=0\b/
+         my $generic_size = $name =~ /^FA2-/ ? '054' : '050';
+         $map =~ /generic-jsr=\$\Q$generic_size\E\b.*\bentries=0\s+jmp=0\s+jsr=0\b/
             or die "$name source bank $source did not use only the fixed generic JSR block\n$map";
          $map !~ /JSR entry=/
             or die "$name source bank $source still emitted legacy per-target JSR entries\n$map";

@@ -126,7 +126,7 @@ bank0 void draw_result(void) {
 bank0 void simulator_done(void) { while (1) { } }
 #endif
 
-void main(void) {
+bank0 void main(void) {
    failure := 0;
 
    // Ordinary DPC program ROM uses the normal two-bank F8 mechanism.

@@ -12,6 +12,9 @@ include "fa_ram_plus.c26"
 // intentionally outside this core ROM/RAM profile.
 
 cartridge {
+#ifdef VCSC_INLINE_BANKCALL
+   $inline_bankcall
+#endif
    $fill:0xff $signature:FA2
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012

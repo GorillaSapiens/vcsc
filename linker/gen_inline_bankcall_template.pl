@@ -4,8 +4,15 @@ use strict;
 use warnings;
 use File::Temp qw(tempdir);
 
-@ARGV == 3 or die "usage: $0 vcsc-as inline_bankcall.s26 output.h\n";
-my ($as, $src, $out) = @ARGV;
+@ARGV == 3 || @ARGV == 4 or die "usage: $0 vcsc-as inline_bankcall.s26 output.h [PREFIX]\n";
+my ($as, $src, $out, $prefix) = @ARGV;
+$prefix //= "GENERIC";
+$prefix =~ /^[A-Z][A-Z0-9_]*$/ or die "$0: invalid template prefix '$prefix'\n";
+my $macro = "VCSC_${prefix}_BANKCALL";
+my $var_prefix = lc($prefix);
+$var_prefix = "vcsc_${var_prefix}_bankcall";
+my $display_src = $src;
+$display_src =~ s{^.*?(libraries/)}{$1};
 my $tmp = tempdir(CLEANUP => 1);
 
 sub parse_ihex {
@@ -143,26 +150,25 @@ $assembled_switch == $switch
                   $0, $assembled_switch, $switch);
 
 open my $ofh, '>', $out or die "$0: $out: $!\n";
-print {$ofh} "/* Generated from libraries/vcs/inline_bankcall.s26.  Do not edit. */\n";
-printf {$ofh} "#define VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE 0x%02Xu\n", $size;
-printf {$ofh} "#define VCSC_GENERIC_BANKCALL_RESERVED_SIZE 0x%02Xu\n", $reserved;
-printf {$ofh} "#define VCSC_GENERIC_BANKCALL_SWITCH_OFFSET 0x%02Xu\n", $switch - $begin;
-printf {$ofh} "#define VCSC_GENERIC_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET 0x%02Xu\n", $jsr_operand;
-print {$ofh} "static const uint8_t vcsc_generic_bankcall_template[VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE] = {\n";
+print {$ofh} "/* Generated from $display_src.  Do not edit. */\n";
+printf {$ofh} "#define %s_TEMPLATE_SIZE 0x%02Xu\n", $macro, $size;
+printf {$ofh} "#define %s_RESERVED_SIZE 0x%02Xu\n", $macro, $reserved;
+printf {$ofh} "#define %s_SWITCH_OFFSET 0x%02Xu\n", $macro, $switch - $begin;
+printf {$ofh} "#define %s_INTERNAL_JSR_OPERAND_OFFSET 0x%02Xu\n", $macro, $jsr_operand;
+printf {$ofh} "static const uint8_t %s_template[%s_TEMPLATE_SIZE] = {\n", $var_prefix, $macro;
 for (my $i = 0; $i < @bytes; $i += 12) {
    my $last = $i + 11 < $#bytes ? $i + 11 : $#bytes;
    print {$ofh} "   ", join(', ', map { sprintf('0x%02Xu', $bytes[$_]) } $i .. $last);
    print {$ofh} $last == $#bytes ? "\n" : ",\n";
 }
 print {$ofh} "};\n";
-print {$ofh} "typedef struct { uint8_t offset; uint8_t delta; } vcsc_generic_bankcall_ptr_patch_t;\n";
-print {$ofh} "static const vcsc_generic_bankcall_ptr_patch_t vcsc_generic_bankcall_ptr_patches[] = {\n";
+printf {$ofh} "static const uint8_t %s_ptr_patches[][2] = {\n", $var_prefix;
 for my $patch (@ptr_patch) {
    printf {$ofh} "   { 0x%02Xu, %uu },\n", $patch->[0], $patch->[1];
 }
 print {$ofh} "};\n";
-printf {$ofh} "#define VCSC_GENERIC_BANKCALL_PTR_PATCH_COUNT %uu\n", scalar @ptr_patch;
-print {$ofh} "static const uint8_t vcsc_generic_bankcall_selector_patches[] = {\n   ";
+printf {$ofh} "#define %s_PTR_PATCH_COUNT %uu\n", $macro, scalar @ptr_patch;
+printf {$ofh} "static const uint8_t %s_selector_patches[] = {\n   ", $var_prefix;
 print {$ofh} join(', ', map { sprintf('0x%02Xu', $_) } @selector_patch), "\n};\n";
-printf {$ofh} "#define VCSC_GENERIC_BANKCALL_SELECTOR_PATCH_COUNT %uu\n", scalar @selector_patch;
+printf {$ofh} "#define %s_SELECTOR_PATCH_COUNT %uu\n", $macro, scalar @selector_patch;
 close $ofh or die "$0: could not close $out: $!\n";

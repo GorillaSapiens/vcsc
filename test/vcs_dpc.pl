@@ -105,7 +105,7 @@ $mk =~ /^play:\s*\$\(TARGET\)\s*$/m && $mk =~ /^\s*stella\s+-bs\s+DPC\s+\$\(TARG
 
 my $bin=File::Spec->catfile($tmp,'dpc.bin');
 my $map_path=File::Spec->catfile($tmp,'dpc.map');
-require_ok('build DPC simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
+require_ok('build DPC simulator diagnostic',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-DSIMULATOR_TEST',
    '-T',$generic,'-Map',$map_path,$source,'-o',$bin);
 my $rom=read_file($bin);
 length($rom)==10495 or die "DPC output size is not 10495 bytes\n";
@@ -132,9 +132,11 @@ $map =~ /bank3\s+used=255 bytes \(100\.00%\)/ &&
 $map =~ /RODATA\.bank2\.__vcsc_object\$dpc_display_data load=\$0000 size=\$0800/ &&
 $map =~ /RODATA\.bank3\.__vcsc_object\$dpc_poly_data load=\$0000 size=\$00FF/
    or die "DPC map lost data-only bank layout\n$map";
-$map =~ /JSR entry=.*source=bank0 hotspot=\$1FF9 destination=bank1 hotspot=\$1FF8/i &&
-$map =~ /JSR entry=.*source=bank1 hotspot=\$1FF8 destination=bank0 hotspot=\$1FF9/i
-   or die "DPC visible self-test no longer generates both ordered program-bank JSR bridges\n$map";
+$map =~ /generic-jsr=\$050\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
+$map !~ /JSR entry=/ &&
+$map =~ /EDGE main -> bank1_probe .*bank-bridge=yes/ &&
+$map =~ /EDGE bank1_probe -> bank0_probe .*bank-bridge=yes/
+   or die "DPC visible self-test no longer uses the fixed inline bank-call block for both ordered program-bank calls\n$map";
 my %sym=map { $_=>map_symbol($map,$_) } qw(simulator_done failure display_sum1 display_sum2 actual_rng expected_rng);
 my($out,$err)=require_ok('simulate DPC fetchers and RNG',$sim,'-T',$cfg,
    sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);
@@ -152,13 +154,13 @@ include "vcs_10k_dpc.c26"
 bank2 const uint8_t hidden[1] := {0x5A};
 void main(void) { uint8_t x; x := hidden[0]; if (x) { asm nop; } while (1) { } }
 SRC
-my($bout,$berr)=require_fail('reject CPU reference to data-only object',$driver,'-I',$vcs,'-T',$generic,$bad,'-o',File::Spec->catfile($tmp,'bad.bin'));
+my($bout,$berr)=require_fail('reject CPU reference to data-only object',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,$bad,'-o',File::Spec->catfile($tmp,'bad.bin'));
 ($bout.$berr) =~ /data-only.*no 6507 address/is
    or die "data-only CPU-reference rejection lacked a useful diagnostic\nstdout:\n$bout\nstderr:\n$berr";
 
 my $visible=File::Spec->catfile($tmp,'dpc-visible.bin');
 my $visible_map=File::Spec->catfile($tmp,'dpc-visible.map');
-require_ok('build visible DPC PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,
+require_ok('build visible DPC PASS/FAIL cartridge',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,
    '-Map',$visible_map,$source,'-o',$visible);
 my $vrom=read_file($visible);
 length($vrom)==10495 && substr($vrom,0x2000,0x800) eq $display && substr($vrom,0x2800,0xff) eq $poly
