@@ -65,7 +65,6 @@
 #define CARTRIDGE_TOPOLOGY_META_PREFIX_V1 "__cartmeta$V1$"
 #define CARTRIDGE_TOPOLOGY_META_PREFIX "__cartmeta$V2$"
 #define BANK_TOPOLOGY_META_PREFIX_V1 "__bankmeta$V1$"
-#define BANK_TOPOLOGY_META_PREFIX_V2 "__bankmeta$V2$"
 #define BANK_TOPOLOGY_META_PREFIX "__bankmeta$V3$"
 #define COMPONENT_CONSTRAINT_META_PREFIX "__componentmeta$V1$"
 

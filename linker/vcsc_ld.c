@@ -22,7 +22,6 @@
 #include "vcsc_ld_abi.h"
 #include "version.h"
 #include "generic_bankcall_template.h"
-#include "legacy_bankcall_template.h"
 #include "fa2_bankcall_template.h"
 #include "jane_bankcall_template.h"
 #include "m0840_bankcall_template.h"
@@ -608,8 +607,6 @@ static int topology_metadata_has_prefix(const char *name)
                sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX_V1) - 1) == 0 ||
        strncmp(name, BANK_TOPOLOGY_META_PREFIX,
                sizeof(BANK_TOPOLOGY_META_PREFIX) - 1) == 0 ||
-       strncmp(name, BANK_TOPOLOGY_META_PREFIX_V2,
-               sizeof(BANK_TOPOLOGY_META_PREFIX_V2) - 1) == 0 ||
        strncmp(name, BANK_TOPOLOGY_META_PREFIX_V1,
                sizeof(BANK_TOPOLOGY_META_PREFIX_V1) - 1) == 0);
 }
@@ -1191,11 +1188,6 @@ static int parse_bank_topology_metadata(const char *symbol, topology_bank_t *out
       version = 3;
       p = symbol + sizeof(BANK_TOPOLOGY_META_PREFIX) - 1;
    }
-   else if (strncmp(symbol, BANK_TOPOLOGY_META_PREFIX_V2,
-                    sizeof(BANK_TOPOLOGY_META_PREFIX_V2) - 1) == 0) {
-      version = 2;
-      p = symbol + sizeof(BANK_TOPOLOGY_META_PREFIX_V2) - 1;
-   }
    else if (strncmp(symbol, BANK_TOPOLOGY_META_PREFIX_V1,
                     sizeof(BANK_TOPOLOGY_META_PREFIX_V1) - 1) == 0) {
       version = 1;
@@ -1213,12 +1205,6 @@ static int parse_bank_topology_metadata(const char *symbol, topology_bank_t *out
       if (sscanf(mark, "$I%4X$F%4X$O%4X$L%4X$C%4X$M%4X$P%1X$S%4X$U%1X$D%1X$K%1X$B%2X%n",
                  &iz, &fi, &io, &ls, &cs, &ms, &sp, &sa, &su,
                  &data_only, &has_bankcall, &bankcall, &consumed) != 12)
-         return -1;
-   }
-   else if (version == 2) {
-      if (sscanf(mark, "$I%4X$F%4X$O%4X$L%4X$C%4X$M%4X$P%1X$S%4X$U%1X$D%1X%n",
-                 &iz, &fi, &io, &ls, &cs, &ms, &sp, &sa, &su,
-                 &data_only, &consumed) != 10)
          return -1;
    }
    else if (sscanf(mark, "$I%4X$F%4X$O%4X$L%4X$C%4X$M%4X$P%1X$S%4X$U%1X%n",
@@ -9155,9 +9141,6 @@ static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg)
 static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
 {
    size_t i;
-   uint16_t base = 0;
-   int have_base = 0;
-   int fa2 = c26_topology_is_fa2(cfg);
    int jane = c26_topology_is_jane(cfg);
    int m0840 = c26_topology_is_0840(cfg);
    int ua = c26_topology_is_ua(cfg);
@@ -9264,53 +9247,9 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
       return 0x1f00u;
    }
 
-   if (fa2) {
-      if (cfg->bank_count != 6u && cfg->bank_count != 7u) {
-         fprintf(stderr, "vcsc-ld: FA2 inline-target bank calls require six or seven selector-controlled banks\n");
-         exit(1);
-      }
-   }
-   else if (cfg->bank_count != 2u && cfg->bank_count != 3u &&
-            cfg->bank_count != 4u && cfg->bank_count != 8u) {
-      fprintf(stderr, "vcsc-ld: generic inline-target bank calls currently require 2, 3, 4, 6, 7, or 8 selector-controlled banks\n");
-      exit(1);
-   }
-
-   for (i = 0; i < cfg->bank_count; ++i) {
-      uint8_t logical_index;
-      uint8_t selector_index;
-      uint16_t candidate;
-      if (!cfg->banks[i].hotspot) {
-         fprintf(stderr, "vcsc-ld: generic inline-target bank calls require a selector on every bank\n");
-         exit(1);
-      }
-      /* Distinct logical ORGs preserve the bank identity in the 16-bit PC.
-         The normal template indexes selectors directly with PC[15:13].
-         FA2's selector order is reversed, so its mapper-specific S26 template
-         uses EOR #7 and indexes with 7-PC[15:13]. */
-      logical_index = (uint8_t)((cfg->banks[i].start >> 13) & 7u);
-      selector_index = fa2 ? (uint8_t)(7u - logical_index) : logical_index;
-      if (cfg->banks[i].hotspot < selector_index) {
-         fprintf(stderr, "vcsc-ld: generic inline-target bank-call selector geometry underflows for bank '%s'\n",
-                 cfg->banks[i].name);
-         exit(1);
-      }
-      candidate = (uint16_t)(cfg->banks[i].hotspot - selector_index);
-      if (!have_base) {
-         base = candidate;
-         have_base = 1;
-      }
-      else if (candidate != base) {
-         fprintf(stderr,
-                 "vcsc-ld: generic inline-target bank calls require selectors addressable as one base plus the template's logical-PC index\n");
-         exit(1);
-      }
-   }
-   if (!have_base || (uint32_t)base + 7u > 0x1fffu) {
-      fprintf(stderr, "vcsc-ld: generic inline-target bank-call selector base is invalid\n");
-      exit(1);
-   }
-   return base;
+   fprintf(stderr,
+           "vcsc-ld: inline bank-call profile requires a bankcall descriptor on every selector-controlled bank\n");
+   exit(1);
 }
 
 //! @brief Return the mapper-specific fixed reservation for the inline bank-call block.
@@ -9328,8 +9267,11 @@ static uint16_t generic_bankcall_reserved_size(const linker_config_t *cfg)
       return VCSC_M0FA0_BANKCALL_RESERVED_SIZE;
    if (c26_topology_is_fa2(cfg))
       return VCSC_FA2_BANKCALL_RESERVED_SIZE;
-   return bankcall_descriptor_abi_enabled(cfg) ? VCSC_GENERIC_BANKCALL_RESERVED_SIZE
-                                               : VCSC_LEGACY_BANKCALL_RESERVED_SIZE;
+   if (bankcall_descriptor_abi_enabled(cfg))
+      return VCSC_GENERIC_BANKCALL_RESERVED_SIZE;
+   fprintf(stderr,
+           "vcsc-ld: inline bank-call profile requires destination descriptors; legacy bank-call ABIs are not supported\n");
+   exit(1);
 }
 
 //! @brief Reserve the fixed generic bank-call block before variable JMP/legacy entries are allocated.
@@ -10118,15 +10060,9 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
          VCSC_GENERIC_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET, selector_base, canonical_base, ptr0);
    }
    else {
-      instantiate_bankcall_template(table,
-         vcsc_legacy_bankcall_template,
-         VCSC_LEGACY_BANKCALL_TEMPLATE_SIZE,
-         VCSC_LEGACY_BANKCALL_RESERVED_SIZE,
-         vcsc_legacy_bankcall_ptr_patches, VCSC_LEGACY_BANKCALL_PTR_PATCH_COUNT,
-         vcsc_legacy_bankcall_selector_patches, VCSC_LEGACY_BANKCALL_SELECTOR_PATCH_COUNT,
-         vcsc_legacy_bankcall_source_descriptor_patches, VCSC_LEGACY_BANKCALL_SOURCE_DESCRIPTOR_PATCH_COUNT,
-         0u, VCSC_LEGACY_BANKCALL_SWITCH_OFFSET,
-         VCSC_LEGACY_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET, selector_base, canonical_base, ptr0);
+      fprintf(stderr,
+              "vcsc-ld: internal error: inline bank-call template selected without descriptor ABI support\n");
+      exit(1);
    }
 }
 

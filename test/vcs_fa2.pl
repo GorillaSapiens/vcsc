@@ -33,14 +33,31 @@ my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $round=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $src=File::Spec->catfile($repo,'examples','09_bankswitching','17_fa2','fa2_diagnostic.c26');
+my $diag_source=readf($src);
+for my $source (0..6) {
+   $diag_source =~ /bank\Q$source\E void bank\Q$source\E_source\(void\) \{(.*?)^\}/ms
+      or die "public FA2 diagnostic missing bank${source}_source\n";
+   my $body=$1;
+   for my $destination (0..6) {
+      $body =~ /bank\Q$destination\E_probe\(\)/
+         or die "public FA2 diagnostic source matrix incomplete at $source->$destination\n";
+   }
+}
 my $cfg=File::Spec->catfile($vcs,'FA2/mapper_28k.cfg');
 my $generic=File::Spec->catfile($vcs,'vcs.cfg');
 my $bin=File::Spec->catfile($tmp,'fa2.bin');
 my $map=File::Spec->catfile($tmp,'fa2.map');
 
-ok('build FA2 simulator diagnostic',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-DSIMULATOR_TEST','-T',$generic,'-Map',$map,$src,'-o',$bin);
+ok('build FA2 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-T',$generic,'-Map',$map,$src,'-o',$bin);
 -s $bin==28672 or die "FA2 28K image size wrong\n";
 my $rom=readf($bin); my $m=readf($map);
+my $lst=readf(File::Spec->catfile($tmp,'fa2.lst'));
+for my $destination (0..6) {
+   my $jsr_count = () = $lst =~ /; JSR bank\Q$destination\E_probe\b/g;
+   my $banktarget_count = () = $lst =~ /; \.banktarget bank\Q$destination\E_probe\b/g;
+   $jsr_count == 7 or die "FA2 28K destination bank $destination is not called once from every source bank\n";
+   $banktarget_count == 6 or die "FA2 28K destination bank $destination does not have exactly six cross-bank descriptor calls\n";
+}
 for my $b (0..6) { substr($rom,$b*4096,512) eq ("\xFF" x 512) or die "FA2 bank $b RAM-port prefix exposed\n"; }
 for my $b (0..6) {
    my $hot=sprintf('%04X',0x1ff5+$b);
@@ -49,108 +66,173 @@ for my $b (0..6) {
 $m =~ /^\s+bank0\s+.*startup=yes/m or die "FA2 bank0 is not startup bank\n";
 $m =~ /^\s+cartram\s+read_start=\$F100 write_start=\$F000 size=\$0100 type=rw shared=yes\b/m or die "FA2 RAM map missing\n";
 $m =~ /cartram\s+used=256 bytes \(100\.00%\).*free=0 bytes/m or die "FA2 diagnostic does not occupy all cart RAM\n";
-$m =~ /generic-jsr=\$054\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ && $m !~ /JSR entry=/
+$m =~ /generic-jsr=\$048\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ && $m !~ /JSR entry=/
    or die "FA2 28K diagnostic did not use only the mapper-specific inline bank-call block\n$m";
 substr($rom,6*4096+0xff8,4) eq "FA2\0" or die "FA2 signature missing from final file bank\n";
 
-my %a=map { $_=>sym($m,$_) } qw(simulator_done failure trace ram_count fa2_data fa2_bss);
+my %a=map { $_=>sym($m,$_) } qw(simulator_done failure current_source current_destination call_count fa2_data fa2_bss);
 for my $b (0..6) {
    my($out,$err)=ok("simulate FA2 from bank $b",$sim,'-T',$cfg,"--start-bank=$b",sprintf('--stop-pc=0x%04X',$a{simulator_done}),'--dump-on-stop',$bin);
    $err eq '' or die "FA2 simulator stderr from bank $b:\n$err";
    my $mem=hexmem($out);
-   $mem->[$a{failure}]==0 && $mem->[$a{trace}]==8 && $mem->[$a{ram_count}]==7 or die "FA2 self-test failed from bank $b\n";
+   $mem->[$a{failure}]==0 && $mem->[$a{call_count}]==49 or die "FA2 7x7 call-matrix self-test failed from bank $b\n";
    $mem->[$a{fa2_data}]==0xA5 && $mem->[$a{fa2_bss}]==0x11 && $mem->[$a{fa2_bss}+127]==0x22 && $mem->[$a{fa2_bss}+254]==0x33 or die "FA2 RAM sentinels failed from bank $b\n";
 }
 
-# Six-bank public profile gets its own representative selector/return-path smoke
-# rather than relying on the seven-bank topology being a superset.  The complete
-# ordered six- and seven-bank JSR matrices live in
-# vcs_bankswitching_call_matrix.pl.
+# The six-bank public profile gets its own complete ordered 6x6 matrix rather
+# than relying on the seven-bank topology being a superset.
 my $six_src=File::Spec->catfile($tmp,'fa2-24k-smoke.c26');
 open my $sf,'>',$six_src or die "write $six_src: $!\n";
 print {$sf} <<'C26';
 include "FA2/mapper_24k.c26"
 
 uint8_t six_failure;
-uint8_t six_trace;
+uint8_t six_source;
+uint8_t six_destination;
+uint8_t six_count;
 
 bank0 void six_done(void) { while (1) { } }
 
-bank0 void six_bank0_tail(void) {
-   if (six_trace != 5) { six_failure := 0x60; }
-   six_trace := 6;
+bank0 uint16_t six_probe0(void) {
+   if (six_source > 5 || six_destination != 0) { six_failure := 0x70; }
+   six_count := six_count + 1;
+   return 0x6B40`uint16_t;
 }
 
-bank5 void six_bank5(void) {
-   if (six_trace != 4) { six_failure := 0x50; }
-   six_trace := 5;
-   six_bank0_tail();
-   if (six_trace != 6) { six_failure := 0x51; }
-   six_trace := 7;
+bank1 uint16_t six_probe1(void) {
+   if (six_source > 5 || six_destination != 1) { six_failure := 0x71; }
+   six_count := six_count + 1;
+   return 0x6B41`uint16_t;
 }
 
-bank4 void six_bank4(void) {
-   if (six_trace != 3) { six_failure := 0x40; }
-   six_trace := 4;
-   six_bank5();
-   if (six_trace != 7) { six_failure := 0x41; }
-   six_trace := 8;
+bank2 uint16_t six_probe2(void) {
+   if (six_source > 5 || six_destination != 2) { six_failure := 0x72; }
+   six_count := six_count + 1;
+   return 0x6B42`uint16_t;
 }
 
-bank3 void six_bank3(void) {
-   if (six_trace != 2) { six_failure := 0x30; }
-   six_trace := 3;
-   six_bank4();
-   if (six_trace != 8) { six_failure := 0x31; }
-   six_trace := 9;
+bank3 uint16_t six_probe3(void) {
+   if (six_source > 5 || six_destination != 3) { six_failure := 0x73; }
+   six_count := six_count + 1;
+   return 0x6B43`uint16_t;
 }
 
-bank2 void six_bank2(void) {
-   if (six_trace != 1) { six_failure := 0x20; }
-   six_trace := 2;
-   six_bank3();
-   if (six_trace != 9) { six_failure := 0x21; }
-   six_trace := 10;
+bank4 uint16_t six_probe4(void) {
+   if (six_source > 5 || six_destination != 4) { six_failure := 0x74; }
+   six_count := six_count + 1;
+   return 0x6B44`uint16_t;
 }
 
-bank1 void six_bank1(void) {
-   if (six_trace != 0) { six_failure := 0x10; }
-   six_trace := 1;
-   six_bank2();
-   if (six_trace != 10) { six_failure := 0x11; }
-   six_trace := 11;
+bank5 uint16_t six_probe5(void) {
+   if (six_source > 5 || six_destination != 5) { six_failure := 0x75; }
+   six_count := six_count + 1;
+   return 0x6B45`uint16_t;
+}
+
+bank0 void six_source0(void) {
+   six_source := 0;
+   six_destination := 0; if (six_probe0() != 0x6B40`uint16_t) { six_failure := 0x00; }
+   six_destination := 1; if (six_probe1() != 0x6B41`uint16_t) { six_failure := 0x01; }
+   six_destination := 2; if (six_probe2() != 0x6B42`uint16_t) { six_failure := 0x02; }
+   six_destination := 3; if (six_probe3() != 0x6B43`uint16_t) { six_failure := 0x03; }
+   six_destination := 4; if (six_probe4() != 0x6B44`uint16_t) { six_failure := 0x04; }
+   six_destination := 5; if (six_probe5() != 0x6B45`uint16_t) { six_failure := 0x05; }
+}
+
+bank1 void six_source1(void) {
+   six_source := 1;
+   six_destination := 0; if (six_probe0() != 0x6B40`uint16_t) { six_failure := 0x10; }
+   six_destination := 1; if (six_probe1() != 0x6B41`uint16_t) { six_failure := 0x11; }
+   six_destination := 2; if (six_probe2() != 0x6B42`uint16_t) { six_failure := 0x12; }
+   six_destination := 3; if (six_probe3() != 0x6B43`uint16_t) { six_failure := 0x13; }
+   six_destination := 4; if (six_probe4() != 0x6B44`uint16_t) { six_failure := 0x14; }
+   six_destination := 5; if (six_probe5() != 0x6B45`uint16_t) { six_failure := 0x15; }
+}
+
+bank2 void six_source2(void) {
+   six_source := 2;
+   six_destination := 0; if (six_probe0() != 0x6B40`uint16_t) { six_failure := 0x20; }
+   six_destination := 1; if (six_probe1() != 0x6B41`uint16_t) { six_failure := 0x21; }
+   six_destination := 2; if (six_probe2() != 0x6B42`uint16_t) { six_failure := 0x22; }
+   six_destination := 3; if (six_probe3() != 0x6B43`uint16_t) { six_failure := 0x23; }
+   six_destination := 4; if (six_probe4() != 0x6B44`uint16_t) { six_failure := 0x24; }
+   six_destination := 5; if (six_probe5() != 0x6B45`uint16_t) { six_failure := 0x25; }
+}
+
+bank3 void six_source3(void) {
+   six_source := 3;
+   six_destination := 0; if (six_probe0() != 0x6B40`uint16_t) { six_failure := 0x30; }
+   six_destination := 1; if (six_probe1() != 0x6B41`uint16_t) { six_failure := 0x31; }
+   six_destination := 2; if (six_probe2() != 0x6B42`uint16_t) { six_failure := 0x32; }
+   six_destination := 3; if (six_probe3() != 0x6B43`uint16_t) { six_failure := 0x33; }
+   six_destination := 4; if (six_probe4() != 0x6B44`uint16_t) { six_failure := 0x34; }
+   six_destination := 5; if (six_probe5() != 0x6B45`uint16_t) { six_failure := 0x35; }
+}
+
+bank4 void six_source4(void) {
+   six_source := 4;
+   six_destination := 0; if (six_probe0() != 0x6B40`uint16_t) { six_failure := 0x40; }
+   six_destination := 1; if (six_probe1() != 0x6B41`uint16_t) { six_failure := 0x41; }
+   six_destination := 2; if (six_probe2() != 0x6B42`uint16_t) { six_failure := 0x42; }
+   six_destination := 3; if (six_probe3() != 0x6B43`uint16_t) { six_failure := 0x43; }
+   six_destination := 4; if (six_probe4() != 0x6B44`uint16_t) { six_failure := 0x44; }
+   six_destination := 5; if (six_probe5() != 0x6B45`uint16_t) { six_failure := 0x45; }
+}
+
+bank5 void six_source5(void) {
+   six_source := 5;
+   six_destination := 0; if (six_probe0() != 0x6B40`uint16_t) { six_failure := 0x50; }
+   six_destination := 1; if (six_probe1() != 0x6B41`uint16_t) { six_failure := 0x51; }
+   six_destination := 2; if (six_probe2() != 0x6B42`uint16_t) { six_failure := 0x52; }
+   six_destination := 3; if (six_probe3() != 0x6B43`uint16_t) { six_failure := 0x53; }
+   six_destination := 4; if (six_probe4() != 0x6B44`uint16_t) { six_failure := 0x54; }
+   six_destination := 5; if (six_probe5() != 0x6B45`uint16_t) { six_failure := 0x55; }
 }
 
 bank0 void main(void) {
    six_failure := 0;
-   six_trace := 0;
-   six_bank1();
-   if (six_trace != 11) { six_failure := 0x01; }
+   six_source := 0;
+   six_destination := 0;
+   six_count := 0;
+   six_source0();
+   six_source1();
+   six_source2();
+   six_source3();
+   six_source4();
+   six_source5();
+   if (six_count != 36) { six_failure := 0x01; }
    asm jmp six_done;
 }
 C26
 close $sf or die "close $six_src: $!\n";
 my $six=File::Spec->catfile($tmp,'fa2-24k.bin');
 my $six_map=File::Spec->catfile($tmp,'fa2-24k.map');
-ok('build six-bank FA2',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,'-Map',$six_map,$six_src,'-o',$six);
+ok('build six-bank FA2',$driver,'-I',$vcs,'-T',$generic,'-Map',$six_map,$six_src,'-o',$six);
 -s $six==24576 or die "FA2 24K image size wrong\n";
 my $six_rom=readf($six); my $six_m=readf($six_map);
+my $six_lst=readf(File::Spec->catfile($tmp,'fa2-24k.lst'));
+for my $destination (0..5) {
+   my $jsr_count = () = $six_lst =~ /; JSR six_probe\Q$destination\E\b/g;
+   my $banktarget_count = () = $six_lst =~ /; \.banktarget six_probe\Q$destination\E\b/g;
+   $jsr_count == 6 or die "FA2 24K destination bank $destination is not called once from every source bank\n";
+   $banktarget_count == 5 or die "FA2 24K destination bank $destination does not have exactly five cross-bank descriptor calls\n";
+}
 for my $b (0..5) {
    substr($six_rom,$b*4096,512) eq ("\xFF" x 512) or die "FA2 24K bank $b RAM-port prefix exposed\n";
    my $hot=sprintf('%04X',0x1ff5+$b);
    $six_m =~ /^\s+bank\Q$b\E\s+file-index=\Q$b\E\b.*select-access=\$$hot/m or die "FA2 24K bank $b selector/file order wrong\n";
 }
 $six_m =~ /^\s+bank0\s+.*startup=yes/m or die "FA2 24K bank0 is not startup bank\n";
-$six_m =~ /generic-jsr=\$054\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ && $six_m !~ /JSR entry=/
+$six_m =~ /generic-jsr=\$048\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ && $six_m !~ /JSR entry=/
    or die "FA2 24K diagnostic did not use only the mapper-specific inline bank-call block\n$six_m";
 substr($six_rom,5*4096+0xff8,4) eq "FA2\0" or die "FA2 24K signature missing from final file bank\n";
-my %sa=map { $_=>sym($six_m,$_) } qw(six_done six_failure six_trace);
+my %sa=map { $_=>sym($six_m,$_) } qw(six_done six_failure six_count);
 my $six_cfg=File::Spec->catfile($vcs,'FA2/mapper_24k.cfg');
 for my $b (0..5) {
    my($out,$err)=ok("simulate six-bank FA2 from bank $b",$sim,'-T',$six_cfg,"--start-bank=$b",sprintf('--stop-pc=0x%04X',$sa{six_done}),'--dump-on-stop',$six);
    $err eq '' or die "FA2 24K simulator stderr from bank $b:\n$err";
    my $mem=hexmem($out);
-   $mem->[$sa{six_failure}]==0 && $mem->[$sa{six_trace}]==11 or die "FA2 24K selector/return self-test failed from bank $b\n";
+   $mem->[$sa{six_failure}]==0 && $mem->[$sa{six_count}]==36 or die "FA2 24K 6x6 call-matrix self-test failed from bank $b\n";
 }
 my($six_s26,$six_derr)=ok('disassemble six-bank FA2',$disas,'-o','-',$six);
 $six_derr eq '' or die "FA2 24K disassembler stderr:\n$six_derr";
@@ -161,7 +243,7 @@ my($six_rout,$six_rerr)=ok('round-trip six-bank FA2',$^X,$round,$six_ri,$six_ro)
 $six_rerr eq '' && $six_rout =~ /PASS fa2-24k\.bin/ or die "FA2 24K roundtrip failed\n$six_rout\n$six_rerr";
 
 my $visible=File::Spec->catfile($tmp,'fa2-visible.bin');
-ok('build visible FA2 diagnostic',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,$src,'-o',$visible);
+ok('build visible FA2 diagnostic',$driver,'-I',$vcs,'-T',$generic,$src,'-o',$visible);
 my($s26,$derr)=ok('disassemble FA2 diagnostic',$disas,'-o','-',$visible);
 $derr eq '' or die "FA2 disassembler stderr:\n$derr";
 $s26 =~ /^; mapper: FA2 \(high confidence;/m && $s26 =~ /^; reset\/power-on bank: 0 \(FA2 hardware bank 0\)$/m or die "FA2 disassembler mapper/reset contract missing\n";

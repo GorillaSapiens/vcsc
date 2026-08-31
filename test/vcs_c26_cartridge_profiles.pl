@@ -302,8 +302,8 @@ for my $p (@profiles) {
    }
    if ($name eq 'FA2') {
       $text =~ /include\s+"FA\/ram\.c26"/ &&
-      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$image_offset:0x0200.*?\$select_access:0x1ff5\s+\$startup/s &&
-      $text =~ /bank\s+bank6\s*\{.*?\$file_index:6.*?\$select_access:0x1ffb/s
+      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$image_offset:0x0200.*?\$select_access:0x1ff5\s+\$bankcall_descriptor:0xf5\s+\$startup/s &&
+      $text =~ /bank\s+bank6\s*\{.*?\$file_index:6.*?\$select_access:0x1ffb\s+\$bankcall_descriptor:0xfb/s
          or die "FA2 profile does not encode six/seven-bank RAM-port topology\n";
       $map =~ /^\s+cartram\s+read_start=\$F100 write_start=\$F000 size=\$0100 type=rw shared=yes\b/m
          or die "FA2 map does not retain split-address cartridge RAM\n";

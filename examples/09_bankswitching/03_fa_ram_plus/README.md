@@ -24,5 +24,5 @@ replicated call/return block and generating no per-target JSR bridge entries. FA
 uses selector-low-byte descriptors `$F8`, `$F9`, and `$FA`. Each target returns a
 distinct 16-bit A:X value, and RAM sentinels must survive every bank transition.
 
-Build with `make`; the Makefile enables `VCSC_INLINE_BANKCALL` for this diagnostic.
+Build with `make`; the mapper profile uses the descriptor bank-call ABI directly.
 `make play` launches Stella with `-bs FA`.

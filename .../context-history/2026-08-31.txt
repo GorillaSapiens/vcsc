@@ -89,3 +89,38 @@ nested cross-bank return. Same-bank matrix legs remain ordinary JSRs.
 The pre-descriptor compatibility source moved to linker/legacy_inline_bankcall.s26
 so lower-level legacy inputs remain supported without making FA the legacy
 source authority.
+
+2026-08-31 10:01:47 PDT, convert FA2 descriptor bankcalls
+FA2-24/28 now use the public three-byte destination-descriptor ABI end to end.
+Descriptors are selector low bytes $F5-$FA/$FB; the mapper-local fixed block
+uses STA $1F00,Y for forward selection and restore, with a baked source
+descriptor carried on the hardware stack. The fixed block shrank from 83/84 to
+69/72 bytes. The public 28K diagnostic now executes all 49 ordered bank pairs;
+the 24K regression executes all 36. Removed the unused generic legacy-inline
+template and descriptor-less __bankmeta$V2 compatibility added during the
+unreleased ABI transition; old bank-call forms are not compatibility contracts.
+
+2026-08-31 10:42:00 PDT, make migrated descriptor ABI unconditional
+The unreleased bank-call compatibility scaffolding was removed instead of
+maintained. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, and FA2-24/28 now declare
+$inline_bankcall unconditionally in their mapper profiles; their public examples
+and regressions no longer define VCSC_INLINE_BANKCALL. Omitting a build flag can
+therefore no longer fall back to the per-target bridge path for a migrated
+mapper. The unused generic legacy-inline template and descriptor-less
+__bankmeta$V2 parser support are gone. Pending JANE/0840/UA/UASW/0FA0 retain
+their temporary opt-in only until each is migrated.
+
+FA2's 28K public diagnostic executes the complete 7x7 ordered matrix (49 calls)
+and the 24K regression executes the complete 6x6 matrix (36 calls); diagonal
+legs are ordinary JSRs and off-diagonal legs use the current three-byte
+destination-descriptor payload. All eight recursively discovered example-build
+shards pass with the migrated profiles using the descriptor ABI by default.
+
+2026-08-31 10:43:00 PDT, tighten FA2 descriptor regression
+FA2 validation now inspects the linked listings as well as executing the full
+matrices. Each 28K destination has seven JSR sites and exactly six .banktarget
+payloads; each 24K destination has six JSR sites and exactly five .banktarget
+payloads. This locks the diagonal same-bank legs to ordinary JSRs while every
+off-diagonal leg uses the descriptor ABI. Source-tree hygiene also rejects any
+return of the removed linker/legacy_inline_bankcall.s26 compatibility source.
+All eight recursively discovered example-build shards pass.

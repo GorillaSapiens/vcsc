@@ -6,9 +6,7 @@ include "vcs.c26"
 // Names are labels only; addresses and selector properties define behavior.
 
 cartridge {
-#ifdef VCSC_INLINE_BANKCALL
    $inline_bankcall
-#endif
    $fill:0xff $signature:F6
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012

@@ -202,8 +202,8 @@ index($bankswitching,'Generic inline-target cross-bank JSR contract')>=0 &&
 index($bankswitching,'fixed block is 69 bytes with 72 reserved')>=0 &&
 index($bankswitching,'fixed mapper-specific replicated entry/return')>=0 &&
 index($bankswitching,'unchanged original 16-bit logical return PC')>=0 &&
-index($bankswitching,'no legacy per-target JSR entries')>=0 &&
-index($bankswitching,'0FA0 is 69/80 (`$050`)')>=0 &&
+index($bankswitching,'Only the descriptor ABI is retained for migrated inline mappers.')>=0 &&
+index($bankswitching,'FA2 uses descriptors `$F5-$FA/$FB`')>=0 &&
 index($bankswitching,'BNE near / JMP false / near: JMP true')>=0 &&
 -f File::Spec->catfile($test,'vcs_bankswitching_inline_call_pages.pl') &&
 index(slurp(File::Spec->catfile($repo,'compiler','compile_call.c')),'.banktarget %s')>=0 &&
@@ -214,7 +214,7 @@ slurp(File::Spec->catfile($repo,qw(libraries vcs FA inline_bankcall.s26))) eq sl
 -f File::Spec->catfile($repo,qw(libraries vcs DPC inline_bankcall.s26)) &&
 slurp(File::Spec->catfile($repo,qw(libraries vcs DPC inline_bankcall.s26))) eq slurp(File::Spec->catfile($repo,qw(libraries vcs F8 inline_bankcall.s26))) &&
 -f File::Spec->catfile($repo,qw(libraries vcs FA2 inline_bankcall.s26)) &&
-index(slurp(File::Spec->catfile($repo,qw(libraries vcs FA2 inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6054')>=0 &&
+index(slurp(File::Spec->catfile($repo,qw(libraries vcs FA2 inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6048')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs JANE inline_bankcall.s26)) &&
 index(slurp(File::Spec->catfile($repo,qw(libraries vcs JANE inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6060')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs 0840 inline_bankcall.s26)) &&
@@ -233,7 +233,7 @@ index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m0840_bankcal
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_ua_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_uasw_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m0fa0_bankcall_template')>=0 &&
-index($bankswitching,'F8/F8SC/F6/F6SC/F4/F4SC, FA, and DPC consume')>=0 &&
+index($bankswitching,'F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, and')>=0 &&
 index($bankswitching,'[ ] 37. Finish descriptor-ABI conversion of existing inline mappers')>=0 &&
 $bankswitching !~ /^\[ \] 42\./m &&
 $bankswitching !~ /^\[ \] 43\./m &&
@@ -591,10 +591,10 @@ index($bank_example_make,'$(VCS_DIR)/F8/mapper.cfg')<0
    or die "public bank diagnostics must build from C26 topology through reduced vcs.cfg\n";
 my $fa_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','FA/mapper.c26'));
 my $fa_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','03_fa_ram_plus','Makefile'));
-index($fa_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&
 index($fa_profile,'$inline_bankcall')>=0 &&
-index($fa_example_make,'-DVCSC_INLINE_BANKCALL=1')>=0
-   or die "FA RAM Plus diagnostic lost generic inline-target bank-call opt-in\n";
+index($fa_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
+index($fa_example_make,'-DVCSC_INLINE_BANKCALL=1')<0
+   or die "FA RAM Plus profile must use the descriptor bank-call ABI unconditionally\n";
 my $m0840_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','0840/mapper.c26'));
 my $m0840_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','08_0840','Makefile'));
 my $ua_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','UA/mapper.c26'));
@@ -607,14 +607,16 @@ my $dpc_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitchin
 my $fa2_24_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','FA2/mapper_24k.c26'));
 my $fa2_28_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','FA2/mapper_28k.c26'));
 my $fa2_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','17_fa2','Makefile'));
-index($dpc_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&
 index($dpc_profile,'$inline_bankcall')>=0 &&
-index($dpc_example_make,'-DVCSC_INLINE_BANKCALL=1')>=0 &&
-index($fa2_24_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&
+index($dpc_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
+index($dpc_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
 index($fa2_24_profile,'$inline_bankcall')>=0 &&
-index($fa2_28_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&
+index($fa2_24_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
 index($fa2_28_profile,'$inline_bankcall')>=0 &&
-index($fa2_example_make,'-DVCSC_INLINE_BANKCALL=1')>=0 &&
+index($fa2_28_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
+index($fa2_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
+!-e File::Spec->catfile($repo,'linker','legacy_inline_bankcall.s26') &&
+index($top_make,'legacy_inline_bankcall')<0 &&
 index($top_make,'libraries/vcs/FA2/inline_bankcall.s26')>=0 &&
 index($top_make,'libraries/vcs/DPC/inline_bankcall.s26')>=0 &&
 index($top_make,'libraries/vcs/JANE/inline_bankcall.s26')>=0 &&
@@ -633,7 +635,7 @@ index($m0fa0_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&
 index($m0fa0_profile,'$inline_bankcall')>=0 &&
 index($m0fa0_example_make,'-DVCSC_INLINE_BANKCALL=1')>=0 &&
 index($top_make,'libraries/vcs/0FA0/inline_bankcall.s26')>=0
-   or die "DPC/FA2/JANE/0840/UA/UASW/0FA0 diagnostics lost inline-target bank-call opt-in or template packaging\n";
+   or die "migrated descriptor profiles or pending inline mapper packaging/opt-ins are inconsistent\n";
 my @mapper_dirs = qw(0840 0FA0 2K 3E 3F 4K 4KSC CV DPC E0 F4 F4SC F6 F6SC F8 F8SC FA FA2 FE JANE OMNI UA UASW WD);
 for my $mapper (@mapper_dirs) {
    $mapper =~ /^[A-Z0-9]+$/

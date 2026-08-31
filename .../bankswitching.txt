@@ -169,21 +169,20 @@ continuation adjustment must be carry-correct by +3 and page/bank-edge tests mus
 move accordingly.
 
 Implementation checkpoint: the compiler/assembler/linker use the six-byte
-descriptor ABI and `__bankmeta$V3`. F8/F8SC/F6/F6SC/F4/F4SC, FA, and DPC consume
-it end to end: descriptors are selector-hotspot low bytes, each bank copy has its
-source descriptor patched in, the fixed block is 69 bytes with 72 reserved
-(`$048`), and no bank identity is decoded from PCs. FA2-24/28, JANE, 0840, UA,
-UASW, and 0FA0 remain transitional mapper-local blocks that skip the third
-payload byte and retain their old PC-derived selector logic; they still consume
-no legacy per-target JSR entries. The read-hotspot blocks reserve 80 bytes; FA2
-reserves 84, JANE 96, and 0FA0 is 69/80 (`$050`).
+descriptor ABI and `__bankmeta$V3`. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, and
+FA2-24/28 consume it end to end and those migrated profiles declare
+`$inline_bankcall` unconditionally. FA2 uses descriptors `$F5-$FA/$FB` and indexed
+`STA $1F00,Y`; its fixed block is 69 bytes with 72 reserved (`$048`). JANE,
+0840, UA/UASW, and 0FA0 still have mapper-local PC-derived blocks pending
+conversion. Only the descriptor ABI is retained for migrated inline mappers. Delete each
+obsolete mapper-specific call path as its last user migrates.
 
-Migration acceptance for each remaining transitional mapper: consume the
-destination descriptor directly; bake and push the source descriptor; restore
-from that byte on return; remove PC-to-bank decoding; preserve A:X, nested LIFO
-behavior, same-bank ordinary JSRs, complete ordered call-matrix coverage, and
-zero legacy JSR entries. Descriptor-specific bytes may differ between bank
-copies only where they are consumed safely before a switch.
+Migration acceptance for each remaining mapper: consume the destination
+descriptor directly; bake and push the source descriptor; restore from that byte
+on return; remove PC-to-bank decoding; preserve A:X, nested LIFO behavior,
+same-bank ordinary JSRs, complete ordered call-matrix coverage, and zero
+per-target JSR entries. Descriptor-specific bytes may differ between bank copies
+only where they are consumed safely before a switch.
 
 Diagnostic optimizer wart: F864 direct-JMP targets use inline `TSX/STX`, so the
 current whole-function asm safety rule can leave generated
@@ -191,7 +190,7 @@ current whole-function asm safety rule can leave generated
 this is future optimizer-locality cleanup, not bankswitching work.
 
 [ ] 37. Finish descriptor-ABI conversion of existing inline mappers:
-        FA2-24/28, JANE, 0840, UA/UASW, and 0FA0. Do this before FC/F0.
+        JANE, 0840, UA/UASW, and 0FA0. Do this before FC/F0.
 
 [ ] 38. Complete the remaining mapper tier in this order: **FC, F0**.
 

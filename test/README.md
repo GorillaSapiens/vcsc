@@ -771,9 +771,9 @@ a 19-line Big-wide result word with an 11-line centered cart-type line. The test
 locks both 12-byte six-pointer workspaces and the page-contained checked-in
 generated 128-byte Big and 64-byte default ASCII subset tables. Each image executes its complete ordered
 source-bank to destination-bank matrix internally for both ordinary C calls and
-direct JMPs. Cross-bank calls must use the fixed 80-byte generic inline-target
-block (`JSR __bankcall` plus `.word target`), with no legacy per-target JSR
-entries. The normal `make test` path builds each image from C26 topology and runs it in compatibility-cfg-driven `vcsc-sim` from every
+direct JMPs. Cross-bank calls must use the fixed 72-byte descriptor-ABI inline-target
+block (`JSR __bankcall` plus `.word target` and one destination-descriptor byte),
+with zero per-target JSR entries. The normal `make test` path builds each image from C26 topology and runs it in compatibility-cfg-driven `vcsc-sim` from every
 physical/file startup bank and checks RIOT-RAM signatures, exact matrix counts,
 the nested cross-bank call, hardware-stack balance, and call-result preservation. Superchip runs prefill
 the shared RAM with `$A7`, validate mixed BSS/DATA startup through the write
@@ -785,7 +785,7 @@ across a page and a JSR whose final byte is `$xxFF`. Both cases execute from
 every physical startup bank, require the fixed generic block only, verify the
 exact continuation executes, and prove A:X survives the generic return path.
 The fixtures therefore lock full 16-bit carry handling for both inline-word
-fetch and saved-return-PC `+2` arithmetic.
+fetch and saved-return-PC `+3` arithmetic.
 
 The optional
 authoritative mode is:

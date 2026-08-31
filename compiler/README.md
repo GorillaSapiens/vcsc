@@ -660,7 +660,8 @@ regions, `main` may be unmarked or use `bank0`; explicitly placing it in `bank1`
 or another nonzero numbered bank is rejected.
 
 
-Selector-controlled profiles may opt into `$inline_bankcall`. The public
+Selector-controlled profiles that support automatic cross-bank calls declare
+`$inline_bankcall`. The public
 cross-bank direct-call contract is defined in
 [`../BANKSWITCHING.md`](../BANKSWITCHING.md): same-bank calls remain ordinary
 JSRs, while a cross-bank call uses a six-byte linked bundle consisting of the
@@ -668,9 +669,9 @@ JSR, a 16-bit target CPU address, and one mapper-defined destination descriptor
 byte. The caller bank's source descriptor is baked into its trampoline instance
 rather than inferred from the return PC.
 
-The compiler/assembler/linker now emit the descriptor field. F8/F6/F4(+SC)
-consume it end-to-end; older inline mapper trampolines remain transitional until
-they are migrated.
+The compiler/assembler/linker emit the descriptor field. F8/F6/F4(+SC), FA,
+DPC, and FA2 consume it end-to-end. JANE, 0840, UA/UASW, and 0FA0 remain to be
+migrated.
 
 A constant object may use one named read-only region:
 

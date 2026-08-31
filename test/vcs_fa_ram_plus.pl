@@ -70,7 +70,7 @@ my $generic=File::Spec->catfile($vcs,'vcs.cfg');
 my $bin=File::Spec->catfile($tmp,'fa.bin');
 my $map=File::Spec->catfile($tmp,'fa.map');
 
-require_ok('build FA simulator diagnostic',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-DSIMULATOR_TEST',
+require_ok('build FA simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
    '-T',$generic,'-Map',$map,$source,'-o',$bin);
 -s $bin==12288 or die "FA output size is not 12288 bytes\n";
 my $rom=read_file($bin);
@@ -154,7 +154,7 @@ $brc!=0 && !$bsig
 # The normal visible cartridge must retain stable NTSC frame timing according to
 # the disassembler's bounded dynamic TIA/RIOT probe.
 my $visible=File::Spec->catfile($tmp,'fa-visible.bin');
-require_ok('build visible FA PASS/FAIL cartridge',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,$source,'-o',$visible);
+require_ok('build visible FA PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
 my($s26,$derr)=require_ok('probe visible FA cartridge',$disas,'-o','-',$visible);
 $derr eq '' or die "vcsc-disas wrote stderr for FA visible cartridge:\n$derr";
 $s26 =~ /^; video: NTSC \(dynamic stable frame measurement: 264 raw line intervals\) \(high confidence\)$/m

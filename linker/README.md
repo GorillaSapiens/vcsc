@@ -526,9 +526,9 @@ old requirement that either source or destination bank be recoverable from a
 The linker emits the descriptor ABI now. F8/F8SC/F6/F6SC/F4/F4SC, FA, and
 DPC use the 69-byte descriptor-aware block with 72 bytes reserved
 (`generic-jsr=$048`); each bank copy has its own patched source descriptor. FA2,
-JANE, 0840, UA/UASW, and 0FA0 remain transitional: their call sites already carry
+JANE, 0840, UA/UASW, and 0FA0 remain pending: their call sites already carry
 the third byte, but their mapper-local trampolines still skip it and use the
-previous PC-derived selector logic. They continue to consume no legacy per-target
+previous PC-derived selector logic. They consume no per-target
 JSR entries while being migrated one family at a time.
 
 Call-bundle page carry, indivisible placement, A:X preservation, nested LIFO

@@ -18,8 +18,8 @@ selects a mapper only:
   -Map f4.map bankswitching_diagnostic.c26 -o f4.bin
 ```
 
-This example defines `VCSC_INLINE_BANKCALL` before including the stock mapper
-profile. It is the public call-matrix pilot for the descriptor ABI documented in
+The stock mapper profiles select the descriptor bank-call ABI directly. This
+example is the public call-matrix pilot for the ABI documented in
 [`../../../BANKSWITCHING.md`](../../../BANKSWITCHING.md).
 
 Each cartridge internally runs the complete ordered source-bank to

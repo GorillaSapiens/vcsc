@@ -36,8 +36,8 @@ hardware-stack balance, and simulator execution. This covers every ordered JSR
 pair for F8/F8SC, F6/F6SC, F4/F4SC, FA, both FA2 profiles, JANE, 0840,
 UA/UASW, 0FA0, and DPC. F8/F6/F4(+SC), FA, both FA2 profiles, JANE, 0840,
 UA/UASW, 0FA0, and DPC use fixed inline-target blocks with zero legacy
-per-target JSR bridges. F8/F6/F4(+SC), FA, and DPC are descriptor-aware;
-FA2, JANE, 0840, UA/UASW, and 0FA0 are transitional until their trampolines
+per-target JSR bridges. F8/F6/F4(+SC), FA, DPC, and both FA2 profiles are descriptor-aware;
+JANE, 0840, UA/UASW, and 0FA0 still await conversion so their trampolines
 consume the destination descriptor directly. Same-bank calls remain ordinary
 JSRs.
 
