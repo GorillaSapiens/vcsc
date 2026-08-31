@@ -155,7 +155,9 @@ $src =~ /bank3 void diagnostic_prepare_logo\(void\).*?logo_font\+40/s &&
 $src =~ /bank3 void diagnostic_draw_logo\(void\).*\@diagnostic_logo_draw_loop/s &&
 $src =~ /bank3 void diagnostic_prepare_fingerprint\(void\).*?diagnostic_fingerprint_font/s &&
 $src =~ /bank3 void diagnostic_draw_fingerprint\(void\).*?lda #15;.*\@diagnostic_fingerprint_draw_loop/s &&
-$src =~ /diagnostic_bank3_task\(3\);\s*diagnostic_prepare_row\(DIAGNOSTIC_ROW_TITLE\); diagnostic_draw_text_row\(\);\s*diagnostic_bank3_task\(4\);\s*diagnostic_prepare_row\(DIAGNOSTIC_ROW_TV\);/s &&
+$src =~ /bank1 void diagnostic_draw_title_text\(void\).*?diagnostic_prepare_row\(DIAGNOSTIC_ROW_TITLE\);\s*diagnostic_draw_text_row\(\);/s &&
+$src =~ /bank1 void diagnostic_draw_joystick_text\(void\).*?diagnostic_prepare_row\(DIAGNOSTIC_ROW_TV\); diagnostic_draw_text_row\(\);.*?diagnostic_prepare_row\(DIAGNOSTIC_ROW_CONTROLLER\); diagnostic_draw_text_row\(\);/s &&
+$src =~ /bank2 void diagnostic_joystick_frame\(void\).*?diagnostic_bank3_task\(3\);\s*diagnostic_draw_title_text\(\);\s*diagnostic_bank3_task\(4\);\s*diagnostic_draw_joystick_text\(\);/s &&
 $src =~ /DIAG_PAIR_NUM_26.*?DIAG_PAIR_NUM_78/s
    or die "diagnostic lost canonical logo, Big-font fingerprint, title, or combined host/TV row\n";
 
@@ -238,9 +240,23 @@ $src =~ /DIAGNOSTIC_ROW_COUNT\s*:=\s*9/ && $src =~ /cartram uint8_t diagnostic_r
 $src =~ /cartram uint8_t diagnostic_tia_top_mask;\s*cartram uint8_t diagnostic_tia_bottom_mask;\s*cartram uint8_t diagnostic_tia_current_top;\s*cartram uint8_t diagnostic_tia_current_bottom;\s*cartram uint8_t diagnostic_tia_pass;/s &&
 $src =~ /bank3 void diagnostic_bank3_task\(uint8_t task\).*?diagnostic_prepare_collision_top\(\);.*?diagnostic_draw_collision_row\(\);.*?diagnostic_prepare_collision_bottom\(\);.*?diagnostic_draw_collision_row\(\);/s &&
 $src =~ /bank1 void diagnostic_prepare_detail1_row\(void\).*?diagnostic_detail1_row\+0.*?diagnostic_detail1_row\+5/s &&
-$src =~ /diagnostic_prepare_detail1_row\(\); diagnostic_draw_text_row\(\);\s*diagnostic_bank3_task\(0\);/s &&
+$src =~ /bank1 void diagnostic_draw_joystick_text\(void\).*?diagnostic_prepare_detail1_row\(\); diagnostic_draw_text_row\(\);/s &&
+$src =~ /bank2 void diagnostic_joystick_frame\(void\).*?diagnostic_draw_joystick_text\(\);\s*diagnostic_bank3_task\(0\);\s*diagnostic_draw_tia_panel\(\);/s &&
 $src =~ /asm lda #5;\s*asm sta\.a diagnostic_text_row;.*?\@diagnostic_collision_draw_loop/s
    or die "diagnostic 15-bit collision letter display is incomplete\n";
+
+my($joystick_frame)=$src =~ /(bank2 void diagnostic_joystick_frame\(void\).*?)(?=\nbank1 void diagnostic_paddle_frame\(void\))/s;
+my($paddle_frame)=$src =~ /(bank1 void diagnostic_paddle_frame\(void\).*?)(?=\nbank3 void diagnostic_keypad_frame\(void\))/s;
+my($keypad_frame)=$src =~ /(bank3 void diagnostic_keypad_frame\(void\).*?)(?=\nbank4 void diagnostic_driving_frame\(void\))/s;
+my($driving_frame)=$src =~ /(bank4 void diagnostic_driving_frame\(void\).*?)(?=\nbank0 void main\(void\))/s;
+defined($joystick_frame) && defined($paddle_frame) && defined($keypad_frame) && defined($driving_frame)
+   or die "diagnostic controller-specific renderer split is incomplete\n";
+$joystick_frame =~ /diagnostic_bank3_task\(0\);/ && $joystick_frame =~ /diagnostic_draw_tia_panel\(\);/
+   or die "diagnostic joystick renderer lost its TIA\/collision panel\n";
+for my $frame ([$paddle_frame,'paddle'],[$keypad_frame,'keypad'],[$driving_frame,'driving']) {
+   $frame->[0] !~ /diagnostic_bank3_task\(0\)|diagnostic_draw_tia_panel\(\)|diagnostic_update_switches\(\)/
+      or die "diagnostic $frame->[1] renderer must not carry joystick-only TIA\/switch work\n";
+}
 $src =~ /bank0 const uint8_t diagnostic_audio0\[64\].*?6,6,6,6/s &&
 $src =~ /bank0 const uint8_t diagnostic_audio1\[64\].*?6,6,6,6/s &&
 $src =~ /bank0 void diagnostic_audio_tick\(void\).*?asm ldx diagnostic_audio_phase;.*?asm lda diagnostic_audio0,x;.*?asm sta AUDV0;.*?asm lda diagnostic_audio1,x;.*?asm sta AUDV1;.*?asm sta diagnostic_audio_phase;/s &&
@@ -280,6 +296,24 @@ require_ok('build input-driven diagnostic',$driver,'-I',$vcs,'-I',$example,'-T',
    '-Wa,--illegals','-DDIAGNOSTIC_TEST_TV=0','-Map',$input_map,'-List='.$input_list,$source,$boot,'-o',$input_bin);
 my $input_map_text=read_file($input_map);
 my $input_list_text=read_file($input_list);
+my %renderer_bank=(
+   diagnostic_joystick_frame => [0xB000,0xBFFF],
+   diagnostic_paddle_frame   => [0xD000,0xDFFF],
+   diagnostic_keypad_frame   => [0x9000,0x9FFF],
+   diagnostic_driving_frame  => [0x7000,0x7FFF],
+);
+for my $name (sort keys %renderer_bank) {
+   my $addr=map_symbol_addr($input_map_text,$name);
+   my($lo,$hi)=@{$renderer_bank{$name}};
+   $addr >= $lo && $addr <= $hi
+      or die sprintf("diagnostic %s escaped its controller bank: %04X\n",$name,$addr);
+   (my $deadline=$name)=~s/_frame$/_finish_deadline/;
+   my $deadline_addr=map_symbol_addr($input_map_text,$deadline);
+   $deadline_addr >= $lo && $deadline_addr <= $hi
+      or die sprintf("diagnostic %s deadline poll escaped its controller bank: %04X\n",$name,$deadline_addr);
+}
+$input_map_text !~ /^\s*\$[0-9A-Fa-f]{4}\s+diagnostic_frame\b/m
+   or die "diagnostic monolithic frame renderer unexpectedly returned\n";
 $input_map_text =~ /^\s+ZERO BSS\.cartram\.__vcsc_object\$diagnostic_boot_7800\s+read=\$F080 write=\$F000 size=\$0001 split=yes$/m
    or die "diagnostic_boot_7800 is not the first Superchip byte expected by diagnostic_boot.s26\n";
 my $detail1_addr=map_symbol_addr($input_map_text,'diagnostic_detail1_row');

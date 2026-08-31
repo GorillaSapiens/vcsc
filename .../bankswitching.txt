@@ -184,6 +184,13 @@ same-bank ordinary JSRs, complete ordered call-matrix coverage, and zero
 per-target JSR entries. Descriptor-specific bytes may differ between bank copies
 only where they are consumed safely before a switch.
 
+Field-diagnostic timing fallout from F4SC descriptor conversion is resolved.
+The diagnostic now has bank-local joystick, paddle, keypad, and driving frame
+paths and bank-local deadline pollers; only joystick retains TIA/switch/collision
+work. Paddle uses an aligned four-INPT snapshot with one timestamp, fixing the
+single-threshold left/right phase split without retiming the generic sampler.
+NTSC/PAL/SECAM moving-input timing and the exhaustive NTSC paddle oracle pass.
+
 Diagnostic optimizer wart: F864 direct-JMP targets use inline `TSX/STX`, so the
 current whole-function asm safety rule can leave generated
 `BNE near / JMP false / near: JMP true`. Pure C26 should not normally see it;

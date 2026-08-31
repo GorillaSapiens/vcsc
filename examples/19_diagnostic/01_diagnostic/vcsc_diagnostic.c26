@@ -70,18 +70,27 @@ enum diagnostic_layout {
 
 enum diagnostic_timing {
    DIAGNOSTIC_VISIBLE_USED := 124,
-   DIAGNOSTIC_NTSC_VISIBLE_TAIL := 11,
-   DIAGNOSTIC_NTSC_INIT_TAIL := 11,
-   DIAGNOSTIC_NTSC_PADDLE_TAIL := 10,
-   DIAGNOSTIC_PAL_VISIBLE_TAIL := 47,
-   // PAL's controller-initialization path ends one scanline later in phase
-   // than an ordinary non-paddle frame.  Calibrate that transition explicitly
-   // rather than allowing a single 313-line displayed frame at mode entry.
-   DIAGNOSTIC_PAL_INIT_TAIL := 47,
-   DIAGNOSTIC_PAL_PADDLE_TAIL := 46,
-   DIAGNOSTIC_SECAM_VISIBLE_TAIL := 47,
-   DIAGNOSTIC_SECAM_INIT_TAIL := 47,
-   DIAGNOSTIC_SECAM_PADDLE_TAIL := 45
+   // The four renderers have deliberately different visible work now.  Keep
+   // their tail calibration explicit rather than hiding bankcall cost in one
+   // shared magic number.
+   DIAGNOSTIC_NTSC_JOYSTICK_TAIL := 4,
+   DIAGNOSTIC_NTSC_PADDLE_TAIL := 15,
+   DIAGNOSTIC_NTSC_PADDLE_INIT_TAIL := 17,
+   DIAGNOSTIC_NTSC_KEYPAD_TAIL := 17,
+   DIAGNOSTIC_NTSC_KEYPAD_INIT_TAIL := 17,
+   DIAGNOSTIC_NTSC_DRIVING_TAIL := 14,
+   DIAGNOSTIC_PAL_JOYSTICK_TAIL := 39,
+   DIAGNOSTIC_PAL_PADDLE_TAIL := 50,
+   DIAGNOSTIC_PAL_PADDLE_INIT_TAIL := 52,
+   DIAGNOSTIC_PAL_KEYPAD_TAIL := 51,
+   DIAGNOSTIC_PAL_KEYPAD_INIT_TAIL := 52,
+   DIAGNOSTIC_PAL_DRIVING_TAIL := 49,
+   DIAGNOSTIC_SECAM_JOYSTICK_TAIL := 38,
+   DIAGNOSTIC_SECAM_PADDLE_TAIL := 50,
+   DIAGNOSTIC_SECAM_PADDLE_INIT_TAIL := 52,
+   DIAGNOSTIC_SECAM_KEYPAD_TAIL := 51,
+   DIAGNOSTIC_SECAM_KEYPAD_INIT_TAIL := 52,
+   DIAGNOSTIC_SECAM_DRIVING_TAIL := 49
 };
 
 // Non-beam-critical UI/application state belongs in shared Superchip RAM.
@@ -604,7 +613,7 @@ bank1 void diagnostic_component_init(void) {
 // Controller-family lifecycle wrappers deliberately live away from the UI
 // bank.  This keeps heavy reusable controller code together and limits the
 // F4SC cross-bank surface to a handful of stable entry points.
-bank2 void diagnostic_paddle_vblank(void) {
+bank1 void diagnostic_paddle_vblank(void) {
    if (diagnostic_controller_needs_init) {
       diagnostic_paddles_init();
       diagnostic_controller_needs_init := 0;
@@ -615,7 +624,7 @@ bank2 void diagnostic_paddle_vblank(void) {
    diagnostic_paddles_advance_pair();
 }
 
-bank2 void diagnostic_paddle_overscan(void) {
+bank1 void diagnostic_paddle_overscan(void) {
    // Constant-gap finish for the portions of the raster not covered by the
    // text renderer's integrated paddle probes. Each prepared text row already
    // advances six pairs, so only the remaining fixed span is accounted here.
@@ -628,20 +637,23 @@ bank2 void diagnostic_paddle_overscan(void) {
    asm @midpoint_ok:;
    asm tay;
 
-   asm ldx #0;
-   asm @channel:;
-   asm lda diagnostic_paddles_active0,x;
-   asm beq @next;
-   asm lda INPT0,x;
-   asm bpl @next;
-   asm tya;
-   asm sta diagnostic_paddles_position0,x;
-   asm lda #0;
-   asm sta diagnostic_paddles_active0,x;
-   asm @next:;
-   asm inx;
-   asm cpx #4;
-   asm bne @channel;
+   // Sample all four RC comparators in one early, aligned scanline.  The old
+   // indexed INPT loop could begin late enough that P0/P1 were read on one
+   // scanline and P2/P3 on the next, giving unequal values for identical
+   // paddles at an exact threshold boundary.  Latch the four inputs first,
+   // then commit from one shared midpoint timestamp; commit timing cannot bias
+   // the physical sample.  The alignment WSYNC deliberately establishes one common early-line sampling
+   // phase; the scheduler deadline absorbs it without changing frame length.
+   WSYNC := _;
+   asm lda.z INPT0; asm sta.z diagnostic_paddles_score_latch0;
+   asm lda.z INPT1; asm sta.z diagnostic_paddles_score_latch1;
+   asm lda.z INPT2; asm sta.z diagnostic_paddles_score_latch2;
+   asm lda.z INPT3; asm sta.z diagnostic_paddles_score_latch3;
+   asm sty.z diagnostic_paddles_score_latch_time;
+   diagnostic_paddles_score_commit_latched0();
+   diagnostic_paddles_score_commit_latched1();
+   diagnostic_paddles_score_commit_latched2();
+   diagnostic_paddles_score_commit_latched3();
 
    asm clc;
    asm lda.z diagnostic_paddles_elapsed;
@@ -655,7 +667,7 @@ bank2 void diagnostic_paddle_overscan(void) {
    diagnostic_paddles_overscan();
 }
 
-bank2 void diagnostic_paddle_dump(void) {
+bank1 void diagnostic_paddle_dump(void) {
    diagnostic_paddles_dump();
 }
 
@@ -1477,165 +1489,180 @@ bank0 void diagnostic_bank0_task(uint8_t task) {
    }
 }
 
-// --- Frame owner ---------------------------------------------------------
+// --- Controller-specific frame owners ------------------------------------
+//
+// F4SC descriptor bankcalls are intentionally not used to bounce through one
+// monolithic controller dispatcher inside a blanking deadline.  Each controller
+// owns its frame in the bank that contains its timing-sensitive acquisition:
+// joystick=bank2, paddle=bank1, keypad=bank3, driving=bank4.  Shared text drawing
+// remains in bank1; paddle therefore keeps its score-integrated analog probes
+// bank-local.  Only joystick draws the console-switch and TIA/collision panels.
 
-bank1 void diagnostic_frame(void) {
-   diagnostic_frame_controller_mode := diagnostic_controller_mode;
-   diagnostic_frame_tv_mode := diagnostic_tv_mode;
-   diagnostic_frame_init_only := diagnostic_controller_needs_init;
+// Draw the title row.  It is kept separate because the larger fingerprint row
+// lives in bank3 between the title and the remaining compact text rows.
+bank1 void diagnostic_draw_title_text(void) {
+   diagnostic_prepare_row(DIAGNOSTIC_ROW_TITLE);
+   diagnostic_draw_text_row();
+}
 
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_vsync(); }
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_vsync(); }
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_vsync(); }
-
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_begin_vblank(); }
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_begin_vblank(); }
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_begin_vblank(); }
-
-   diagnostic_text_vblank();
-
-   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_JOYSTICK && diagnostic_frame_init_only) {
-      SWACNT := 0;
-      diagnostic_controller_needs_init := 0;
-   }
-   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE) {
-      if (diagnostic_frame_init_only) {
-         diagnostic_paddles_init();
-         // account_gap() is part of the component's required lifecycle.  Zero
-         // pairs is a true no-op here; regular frames use the constant-gap form
-         // above so the banked call cannot consume the overscan deadline.
-         diagnostic_paddles_account_gap(0);
-         diagnostic_controller_needs_init := 0;
-      } else {
-         diagnostic_paddles_vblank();
-      }
-   }
-   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD) {
-      if (diagnostic_frame_init_only) {
-         diagnostic_left_keypad_init();
-         diagnostic_right_keypad_init();
-         diagnostic_keypad_scan_row := 0;
-         diagnostic_controller_needs_init := 0;
-      }
-   }
-   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING && diagnostic_frame_init_only) {
-      diagnostic_driving_vblank();
-   }
-
-   // Preparing the canonical six-slice logo consumes the same three
-   // scheduler-owned VBLANK lines as the old compact "VCSC" text row.
-   diagnostic_bank3_task(2);
-
-   COLUBK := 0x00;
-   diagnostic_text_color := 0x0e;
-   PF0 := 0; PF1 := 0; PF2 := 0;
-   GRP0 := 0; GRP1 := 0; ENAM0 := 0; ENAM1 := 0; ENABL := 0;
-
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_end_vblank(); }
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_end_vblank(); }
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_end_vblank(); }
-
-
-   // Controller callbacks reach the shared VBLANK deadline on slightly
-   // different scanlines. Move blank visible lines from the tail to the front
-   // so every standard/controller combination starts the diagnostic raster at
-   // one common vertical origin. Every path executes at least one WSYNC here;
-   // diagnostic_draw_text_row() performs the final row-entry WSYNC itself.
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) {
-      // With five-row packed glyphs there is no synthetic blank row above the
-      // first lit glyph row.  Keep a real two-line pre-text gap for every
-      // controller so paddle mode shares the same raster origin as the
-      // digital-controller paths; its post-visible tail is one line shorter
-      // to preserve the 262-line frame contract.
-      WSYNC := _; WSYNC := _;
-   }
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) {
-      WSYNC := _; WSYNC := _; WSYNC := _;
-   }
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) {
-      WSYNC := _; WSYNC := _; WSYNC := _;
-   }
-
-   diagnostic_bank3_task(3);
-   diagnostic_prepare_row(DIAGNOSTIC_ROW_TITLE); diagnostic_draw_text_row();
-   diagnostic_bank3_task(4);
+// Joystick is the full field diagnostic.  The caller owns logo/fingerprint,
+// collision rendering, and the TIA test lane so those operations stay in their
+// natural banks without nested bank switches.
+bank1 void diagnostic_draw_joystick_text(void) {
    diagnostic_prepare_row(DIAGNOSTIC_ROW_TV); diagnostic_draw_text_row();
    diagnostic_prepare_row(DIAGNOSTIC_ROW_CONTROLLER); diagnostic_draw_text_row();
    diagnostic_prepare_row(DIAGNOSTIC_ROW_SWITCH0); diagnostic_draw_text_row();
    diagnostic_prepare_row(DIAGNOSTIC_ROW_SWITCH1); diagnostic_draw_text_row();
    diagnostic_prepare_row(DIAGNOSTIC_ROW_DETAIL0); diagnostic_draw_text_row();
    diagnostic_prepare_detail1_row(); diagnostic_draw_text_row();
-   diagnostic_bank3_task(0);
-   diagnostic_bank0_task(0);
+}
 
-   // Channels 2/3 from the final row still need to consume that row's shared
-   // snapshot.  These are commits only--the analog inputs were sampled at the
-   // same alignment phase as channels 0/1--so the two lines cannot skew the
-   // four readings. Account the two elapsed scanlines afterward as one pair.
-   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && !diagnostic_frame_init_only) {
-      diagnostic_paddles_score_commit_latched2(); WSYNC := _;
-      diagnostic_paddles_score_commit_latched3(); WSYNC := _;
-      diagnostic_paddles_advance_pair();
+// Non-joystick modes deliberately do not display console switches or TIA
+// collision state.  The four compact rows still occupy the old switch slots,
+// but the collision-letter area is blanked without calling the score renderer.
+// That distinction matters in paddle mode: the old collision renderer never
+// sampled INPT0..INPT3, so fake score rows here would add two extra analog
+// snapshots and bias a threshold that lands on their scanline boundary.
+bank1 void diagnostic_draw_controller_text(void) {
+   diagnostic_prepare_row(DIAGNOSTIC_ROW_TV); diagnostic_draw_text_row();
+   diagnostic_prepare_row(DIAGNOSTIC_ROW_CONTROLLER); diagnostic_draw_text_row();
+   diagnostic_prepare_row(0); diagnostic_draw_text_row();
+   diagnostic_prepare_row(0); diagnostic_draw_text_row();
+   diagnostic_prepare_row(DIAGNOSTIC_ROW_DETAIL0); diagnostic_draw_text_row();
+   diagnostic_prepare_detail1_row(); diagnostic_draw_text_row();
+}
+
+// At this call boundary the two compact placeholder rows consumed 26 scanlines
+// including their entry phases. Preserve that measured raster height without
+// invoking the score renderer, matching the old non-score collision area for
+// paddle timing.
+inline void diagnostic_blank_collision_span(void) {
+   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
+   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
+   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
+   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
+   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
+   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
+   WSYNC := _; WSYNC := _;
+}
+
+// The joystick-only TIA lane is replaced by an intentionally blank span in the
+// other controller renderers.  Its exact visible-tail compensation is calibrated
+// below by controller family; analog elapsed accounting is finished in overscan.
+inline void diagnostic_blank_tia_span(void) {
+   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
+   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
+   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
+   WSYNC := _; WSYNC := _; WSYNC := _; WSYNC := _;
+}
+
+// Each controller renderer owns its RIOT deadline poller in the same bank.
+// The generic frame components contain one out-of-line poller apiece; after
+// splitting the diagnostic renderers, allowing the linker to choose a single
+// home for those pollers would reintroduce an F4SC bankcall at every VBLANK
+// and overscan deadline.  These compact copies preserve the scheduler's exact
+// production polling contract while keeping the timing-critical boundary local.
+bank2 void diagnostic_joystick_finish_deadline(void) {
+   asm @wait:
+   asm lda TIMINT
+   asm bmi @timint_overrun
+   asm ldx INTIM
+   asm bmi @done
+   asm bne @wait
+   asm @done:
+   asm rts
+   asm @timint_overrun:
+   asm asl
+}
+
+bank1 void diagnostic_paddle_finish_deadline(void) {
+   asm @wait:
+   asm lda TIMINT
+   asm bmi @timint_overrun
+   asm ldx INTIM
+   asm bmi @done
+   asm bne @wait
+   asm @done:
+   asm rts
+   asm @timint_overrun:
+   asm asl
+}
+
+bank3 void diagnostic_keypad_finish_deadline(void) {
+   asm @wait:
+   asm lda TIMINT
+   asm bmi @timint_overrun
+   asm ldx INTIM
+   asm bmi @done
+   asm bne @wait
+   asm @done:
+   asm rts
+   asm @timint_overrun:
+   asm asl
+}
+
+bank4 void diagnostic_driving_finish_deadline(void) {
+   asm @wait:
+   asm lda TIMINT
+   asm bmi @timint_overrun
+   asm ldx INTIM
+   asm bmi @done
+   asm bne @wait
+   asm @done:
+   asm rts
+   asm @timint_overrun:
+   asm asl
+}
+
+bank2 void diagnostic_joystick_frame(void) {
+   diagnostic_frame_controller_mode := DIAGNOSTIC_CONTROLLER_JOYSTICK;
+   diagnostic_frame_tv_mode := diagnostic_tv_mode;
+   diagnostic_frame_init_only := diagnostic_controller_needs_init;
+
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_vsync(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_vsync(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_vsync(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_begin_vblank(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_begin_vblank(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_begin_vblank(); }
+
+   diagnostic_text_vblank();
+   if (diagnostic_frame_init_only) {
+      SWACNT := 0;
+      diagnostic_controller_needs_init := 0;
    }
+   diagnostic_bank3_task(2);
+   COLUBK := 0x00;
+   diagnostic_text_color := 0x0e;
+   PF0 := 0; PF1 := 0; PF2 := 0;
+   GRP0 := 0; GRP1 := 0; ENAM0 := 0; ENAM1 := 0; ENABL := 0;
+
+   diagnostic_joystick_finish_deadline();
+   asm sta WSYNC
+   asm sta VBLANK
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { WSYNC := _; WSYNC := _; }
+   else { WSYNC := _; WSYNC := _; WSYNC := _; }
+
+   diagnostic_bank3_task(3);
+   diagnostic_draw_title_text();
+   diagnostic_bank3_task(4);
+   diagnostic_draw_joystick_text();
+   diagnostic_bank3_task(0);
+   diagnostic_draw_tia_panel();
 
    if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) {
-      if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE) {
-         if (diagnostic_frame_init_only) {
-            vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_INIT_TAIL);
-         } else {
-            vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_PADDLE_TAIL);
-         }
-      } else {
-         vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_VISIBLE_TAIL);
-      }
+      vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_JOYSTICK_TAIL);
       vcs_ntsc_begin_overscan();
    }
    if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) {
-      if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE) {
-         if (diagnostic_frame_init_only) {
-            vcs_pal_wait_visible_tail_scanlines(DIAGNOSTIC_PAL_INIT_TAIL);
-         } else {
-            vcs_pal_wait_visible_tail_scanlines(DIAGNOSTIC_PAL_PADDLE_TAIL);
-         }
-      } else {
-         vcs_pal_wait_visible_tail_scanlines(DIAGNOSTIC_PAL_VISIBLE_TAIL);
-      }
+      vcs_pal_wait_visible_tail_scanlines(DIAGNOSTIC_PAL_JOYSTICK_TAIL);
       vcs_pal_begin_overscan();
    }
    if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) {
-      if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE) {
-         if (diagnostic_frame_init_only) {
-            vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_INIT_TAIL);
-         } else {
-            vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_PADDLE_TAIL);
-         }
-      } else {
-         // Keep transition frames explicit even though the current SECAM
-         // calibration matches the steady tail.  This is post-visible timing
-         // only and therefore does not move the diagnostic raster.
-         if (diagnostic_frame_init_only &&
-             (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD ||
-              diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING)) {
-            vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_INIT_TAIL);
-         } else {
-            vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_VISIBLE_TAIL);
-         }
-      }
+      vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_JOYSTICK_TAIL);
       vcs_secam_begin_overscan();
    }
 
-   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && !diagnostic_frame_init_only) {
-      diagnostic_paddle_overscan();
-   }
-   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD && !diagnostic_frame_init_only) {
-      diagnostic_bank3_task(1);
-   }
-   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_DRIVING && !diagnostic_frame_init_only) {
-      diagnostic_driving_vblank();
-   }
-   // Input changes are recorded near the end of overscan and become active on
-   // the next frame.  UI construction is deliberately spread across frames so
-   // no controller mode can consume a whole blanking deadline formatting text.
    if (diagnostic_frame_init_only) {
       if (diagnostic_ui_dirty) { diagnostic_update_one_header_row(); }
       diagnostic_ui_phase := 0;
@@ -1645,41 +1672,105 @@ bank1 void diagnostic_frame(void) {
          else { diagnostic_update_switches(); }
          diagnostic_ui_phase := 1;
       } else {
-         if (diagnostic_ui_phase == 1) {
-            if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_JOYSTICK ||
-                diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD) {
-               diagnostic_update_simple_detail(0);
-            } else {
-               diagnostic_update_numeric_detail0();
-            }
-            diagnostic_ui_phase := 2;
-         } else {
-            if (diagnostic_ui_phase == 2) {
-               if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_JOYSTICK ||
-                   diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD) {
-                  diagnostic_update_simple_detail(1);
-               } else {
-                  diagnostic_update_numeric_detail1();
-               }
-               diagnostic_ui_phase := 3;
-            } else {
-               diagnostic_update_switches();
-               diagnostic_ui_phase := 0;
-            }
+         if (diagnostic_ui_phase == 1) { diagnostic_update_simple_detail(0); diagnostic_ui_phase := 2; }
+         else {
+            if (diagnostic_ui_phase == 2) { diagnostic_update_simple_detail(1); diagnostic_ui_phase := 3; }
+            else { diagnostic_update_switches(); diagnostic_ui_phase := 0; }
          }
       }
    }
-   diagnostic_bank0_task(1);
+   diagnostic_update_controls_impl();
+   if (!diagnostic_frame_init_only && !diagnostic_controller_needs_init) { diagnostic_audio_tick(); }
    diagnostic_text_overscan();
 
-   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && diagnostic_frame_init_only) {
-      // Keep the paddle capacitors dumped through the transition frame, then
-      // prime component state before the scheduler's final alignment.  The next
-      // frame's begin_vblank clears VBLANK.7 and starts the first measurement
-      // without paying a one-scanline first-acquisition penalty.
+   diagnostic_joystick_finish_deadline();
+   asm sta WSYNC
+   asm sta WSYNC
+}
+
+bank1 void diagnostic_paddle_frame(void) {
+   diagnostic_frame_controller_mode := DIAGNOSTIC_CONTROLLER_PADDLE;
+   diagnostic_frame_tv_mode := diagnostic_tv_mode;
+   diagnostic_frame_init_only := diagnostic_controller_needs_init;
+
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_vsync(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_vsync(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_vsync(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_begin_vblank(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_begin_vblank(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_begin_vblank(); }
+
+   diagnostic_text_vblank();
+   if (diagnostic_frame_init_only) {
+      diagnostic_paddles_init();
+      diagnostic_paddles_account_gap(0);
+      diagnostic_controller_needs_init := 0;
+   } else {
+      diagnostic_paddles_vblank();
+   }
+   diagnostic_bank3_task(2);
+   COLUBK := 0x00;
+   diagnostic_text_color := 0x0e;
+   PF0 := 0; PF1 := 0; PF2 := 0;
+   GRP0 := 0; GRP1 := 0; ENAM0 := 0; ENAM1 := 0; ENABL := 0;
+
+   diagnostic_paddle_finish_deadline();
+   asm sta WSYNC
+   asm sta VBLANK
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { WSYNC := _; WSYNC := _; }
+   else { WSYNC := _; WSYNC := _; WSYNC := _; }
+
+   diagnostic_bank3_task(3);
+   diagnostic_draw_title_text();
+   diagnostic_bank3_task(4);
+   diagnostic_draw_controller_text();
+   diagnostic_blank_collision_span();
+   diagnostic_blank_tia_span();
+
+   // Channels 2/3 from the final blank text row still consume that row's shared
+   // snapshot.  The analog inputs were captured at the same phase as 0/1.
+   if (!diagnostic_frame_init_only) {
+      diagnostic_paddles_score_commit_latched2(); WSYNC := _;
+      diagnostic_paddles_score_commit_latched3(); WSYNC := _;
+      diagnostic_paddles_advance_pair();
+   }
+
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) {
+      if (diagnostic_frame_init_only) { vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_PADDLE_INIT_TAIL); }
+      else { vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_PADDLE_TAIL); }
+      vcs_ntsc_begin_overscan();
+   }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) {
+      if (diagnostic_frame_init_only) { vcs_pal_wait_visible_tail_scanlines(DIAGNOSTIC_PAL_PADDLE_INIT_TAIL); }
+      else { vcs_pal_wait_visible_tail_scanlines(DIAGNOSTIC_PAL_PADDLE_TAIL); }
+      vcs_pal_begin_overscan();
+   }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) {
+      if (diagnostic_frame_init_only) { vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_PADDLE_INIT_TAIL); }
+      else { vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_PADDLE_TAIL); }
+      vcs_secam_begin_overscan();
+   }
+
+   if (!diagnostic_frame_init_only) { diagnostic_paddle_overscan(); }
+   diagnostic_update_controls_impl();
+   // Do not spend a cross-bank numeric-format call on a paddle row after a
+   // SELECT edge has already chosen the next controller.  Besides being stale,
+   // that work can consume the 50-Hz overscan margin on the transition frame.
+   if (diagnostic_controller_mode == diagnostic_frame_controller_mode) {
+      if (diagnostic_frame_init_only) {
+         if (diagnostic_ui_dirty) { diagnostic_update_one_header_row(); }
+         diagnostic_ui_phase := 0;
+      } else {
+         if (diagnostic_ui_phase == 0) { diagnostic_update_numeric_detail0(); diagnostic_ui_phase := 1; }
+         else { diagnostic_update_numeric_detail1(); diagnostic_ui_phase := 0; }
+      }
+   } else {
+      diagnostic_ui_phase := 0;
+   }
+   diagnostic_text_overscan();
+
+   if (diagnostic_frame_init_only) {
       diagnostic_paddles_elapsed := 0;
-      // Score probes use bit 7 of each active flag, so transition priming must
-      // match the component's normal measurement initialization exactly.
       diagnostic_paddles_active0 := 0x80;
       diagnostic_paddles_active1 := 0x80;
       diagnostic_paddles_active2 := 0x80;
@@ -1694,15 +1785,143 @@ bank1 void diagnostic_frame(void) {
       VBLANK := 0x82;
    }
 
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_end_overscan(); }
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_end_overscan(); }
-   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_end_overscan(); }
+   diagnostic_paddle_finish_deadline();
+   asm sta WSYNC
+   // Keep the cycle-balanced paddle dump inside the two final scheduler
+   // boundaries.  Returning after the second WSYNC gives the banked dispatcher
+   // the same phase on steady and controller-transition frames.
+   if (!diagnostic_frame_init_only) { diagnostic_paddles_dump(); }
+   asm sta WSYNC
+}
 
-   // Paddle dumping is deliberately keyed to the frame-start mode so a SELECT
-   // transition cannot skip cleanup for the measurement that just completed.
-   if (diagnostic_frame_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE && !diagnostic_frame_init_only) {
-      diagnostic_paddles_dump();
+bank3 void diagnostic_keypad_frame(void) {
+   diagnostic_frame_controller_mode := DIAGNOSTIC_CONTROLLER_KEYPAD;
+   diagnostic_frame_tv_mode := diagnostic_tv_mode;
+   diagnostic_frame_init_only := diagnostic_controller_needs_init;
+
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_vsync(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_vsync(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_vsync(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_begin_vblank(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_begin_vblank(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_begin_vblank(); }
+
+   diagnostic_text_vblank();
+   if (diagnostic_frame_init_only) {
+      diagnostic_left_keypad_init();
+      diagnostic_right_keypad_init();
+      diagnostic_keypad_scan_row := 0;
+      diagnostic_controller_needs_init := 0;
    }
+   diagnostic_prepare_logo();
+   COLUBK := 0x00;
+   diagnostic_text_color := 0x0e;
+   PF0 := 0; PF1 := 0; PF2 := 0;
+   GRP0 := 0; GRP1 := 0; ENAM0 := 0; ENAM1 := 0; ENABL := 0;
+
+   diagnostic_keypad_finish_deadline();
+   asm sta WSYNC
+   asm sta VBLANK
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { WSYNC := _; WSYNC := _; }
+   else { WSYNC := _; WSYNC := _; WSYNC := _; }
+
+   diagnostic_draw_logo();
+   diagnostic_draw_title_text();
+   diagnostic_prepare_fingerprint(); diagnostic_draw_fingerprint();
+   diagnostic_draw_controller_text();
+   diagnostic_blank_collision_span();
+   diagnostic_blank_tia_span();
+
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) {
+      if (diagnostic_frame_init_only) { vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_KEYPAD_INIT_TAIL); }
+      else { vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_KEYPAD_TAIL); }
+      vcs_ntsc_begin_overscan();
+   }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) {
+      if (diagnostic_frame_init_only) { vcs_pal_wait_visible_tail_scanlines(DIAGNOSTIC_PAL_KEYPAD_INIT_TAIL); }
+      else { vcs_pal_wait_visible_tail_scanlines(DIAGNOSTIC_PAL_KEYPAD_TAIL); }
+      vcs_pal_begin_overscan();
+   }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) {
+      if (diagnostic_frame_init_only) { vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_KEYPAD_INIT_TAIL); }
+      else { vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_KEYPAD_TAIL); }
+      vcs_secam_begin_overscan();
+   }
+
+   if (!diagnostic_frame_init_only) { diagnostic_keypad_overscan_impl(); }
+   diagnostic_update_controls_impl();
+   // A controller change makes this frame's keypad detail stale.  Detect the
+   // change before formatting it; besides avoiding pointless work, this keeps
+   // the SELECT transition inside the same overscan deadline as the steady
+   // keypad path instead of compensating with a scanline at the boundary.
+   if (diagnostic_controller_mode == diagnostic_frame_controller_mode) {
+      if (diagnostic_frame_init_only) {
+         if (diagnostic_ui_dirty) { diagnostic_update_one_header_row(); }
+         diagnostic_ui_phase := 0;
+      } else {
+         if (diagnostic_ui_phase == 0) { diagnostic_update_simple_detail(0); diagnostic_ui_phase := 1; }
+         else { diagnostic_update_simple_detail(1); diagnostic_ui_phase := 0; }
+      }
+   } else {
+      diagnostic_ui_phase := 0;
+   }
+   diagnostic_text_overscan();
+
+   diagnostic_keypad_finish_deadline();
+   asm sta WSYNC
+   asm sta WSYNC
+}
+
+bank4 void diagnostic_driving_frame(void) {
+   diagnostic_frame_controller_mode := DIAGNOSTIC_CONTROLLER_DRIVING;
+   diagnostic_frame_tv_mode := diagnostic_tv_mode;
+   diagnostic_frame_init_only := diagnostic_controller_needs_init;
+
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_vsync(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_vsync(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_vsync(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_begin_vblank(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_begin_vblank(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_begin_vblank(); }
+
+   diagnostic_text_vblank();
+   diagnostic_driving_vblank();
+   diagnostic_bank3_task(2);
+   COLUBK := 0x00;
+   diagnostic_text_color := 0x0e;
+   PF0 := 0; PF1 := 0; PF2 := 0;
+   GRP0 := 0; GRP1 := 0; ENAM0 := 0; ENAM1 := 0; ENABL := 0;
+
+   diagnostic_driving_finish_deadline();
+   asm sta WSYNC
+   asm sta VBLANK
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { WSYNC := _; WSYNC := _; }
+   else { WSYNC := _; WSYNC := _; WSYNC := _; }
+
+   diagnostic_bank3_task(3);
+   diagnostic_draw_title_text();
+   diagnostic_bank3_task(4);
+   diagnostic_draw_controller_text();
+   diagnostic_blank_collision_span();
+   diagnostic_blank_tia_span();
+
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_NTSC) { vcs_ntsc_wait_visible_tail_scanlines(DIAGNOSTIC_NTSC_DRIVING_TAIL); vcs_ntsc_begin_overscan(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_PAL) { vcs_pal_wait_visible_tail_scanlines(DIAGNOSTIC_PAL_DRIVING_TAIL); vcs_pal_begin_overscan(); }
+   if (diagnostic_frame_tv_mode == DIAGNOSTIC_TV_SECAM) { vcs_secam_wait_visible_tail_scanlines(DIAGNOSTIC_SECAM_DRIVING_TAIL); vcs_secam_begin_overscan(); }
+
+   if (diagnostic_frame_init_only) {
+      if (diagnostic_ui_dirty) { diagnostic_update_one_header_row(); }
+      diagnostic_ui_phase := 0;
+   } else {
+      if (diagnostic_ui_phase == 0) { diagnostic_update_numeric_detail0(); diagnostic_ui_phase := 1; }
+      else { diagnostic_update_numeric_detail1(); diagnostic_ui_phase := 0; }
+   }
+   diagnostic_update_controls_impl();
+   diagnostic_text_overscan();
+
+   diagnostic_driving_finish_deadline();
+   asm sta WSYNC
+   asm sta WSYNC
 }
 
 bank0 void main(void) {
@@ -1762,6 +1981,19 @@ bank0 void main(void) {
    diagnostic_update_one_header_row();
    diagnostic_update_switches();
    while (1) {
-      diagnostic_frame();
+      if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_JOYSTICK) { diagnostic_joystick_frame(); }
+      else {
+         if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE) { diagnostic_paddle_frame(); }
+         else {
+            if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_KEYPAD) { diagnostic_keypad_frame(); }
+            else {
+               diagnostic_driving_frame();
+               // The other dispatch arms return through a three-cycle JMP to
+               // the common loop tail.  Match that phase here so steady and
+               // controller-transition frame boundaries have identical cost.
+               asm bit.z $00;
+            }
+         }
+      }
    }
 }

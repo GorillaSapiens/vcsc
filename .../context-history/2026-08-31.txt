@@ -135,3 +135,28 @@ and default_ascii.c26; the old one-off diagnostic_font.c26 was removed.
 Focused DPC validation, generated-font regeneration, example-build shard 6/8,
 assembly allowlist, branding, and source-tree hygiene pass. vcs_dpc.pl locks the
 common presentation contract so it cannot silently drift again.
+
+2026-08-31 12:22:56 PDT, split diagnostic by controller
+User chose four controller-specific frame/render paths after F4SC descriptor-bankcall timing exposed the field diagnostic. Joystick alone retains TIA/switch/collision testing/display; paddle, keypad, and driving omit it and may use larger fonts. Preserve the existing paddle-sampling contract; fix placement/control flow instead of retiming the shared sampler. No implementation was attempted before the chat-limit handoff.
+
+2026-08-31 13:21:43 PDT, finish controller-specific diagnostic kernels
+Completed the F4SC field-diagnostic timing repair by splitting frame ownership
+into four bank-local controller paths: joystick bank2, paddle bank1, keypad
+bank3, and driving bank4, with bank0 left for control/TIA support. Each path has
+a same-bank deadline poller; paddle/keypad/driving omit joystick-only TIA,
+switch, and collision rendering. Controller dispatch is mutually exclusive and
+processes mode changes before stale controller-specific formatting.
+
+Paddle midpoint acquisition now aligns to WSYNC, snapshots INPT0-INPT3 together,
+and commits all four channels with one timestamp. This removes the threshold-228
+left/right split without changing the generic score sampler. Paddle dump work is
+kept between the final scheduler WSYNC boundaries so bank return phase is fixed.
+Per-standard visible-tail constants were recalibrated for the split paths.
+
+Validation on the final source: real SELECT/RESET controller/TV cycles are stable;
+NTSC, PAL, and SECAM moving-driving sweeps each pass 127 checked frames; all 256
+NTSC equal-paddle thresholds pass, including 228, with representative
+0/16/64/128/255 PAL and SECAM thresholds passing; both 7800 reset-signature
+probes pass. Structural regression coverage now locks the four renderer banks,
+same-bank deadline pollers, and absence of joystick-only work from the other
+three paths. Resume descriptor migration at JANE/0840/UA/UASW/0FA0.

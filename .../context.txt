@@ -108,8 +108,18 @@ Open workstreams
    `$F5-$FA/$FB` hotspot-low descriptors and a 69/72-byte (`$048`) block. JANE,
    0840, UA/UASW, and 0FA0 still have PC-derived mapper-local blocks pending
    conversion. Only the current descriptor ABI is retained for migrated mappers.
-   **Next code step:** convert JANE, then 0840, UA/UASW, and 0FA0,
-   then FC/F0.
+
+   The F4SC descriptor timing regression in the field controller diagnostic is
+   resolved architecturally. The cartridge now has bank-local joystick, paddle,
+   keypad, and driving frame paths; only joystick carries TIA/switch/collision
+   work. Each controller owns its deadline poller. Paddle analog acquisition uses
+   one aligned four-input snapshot with a shared timestamp, eliminating the old
+   left/right threshold-phase split without retiming the generic sampler. NTSC,
+   PAL, and SECAM controller/input sweeps are stable; the diagnostic cartridge
+   and exhaustive paddle-sampling contracts are restored.
+
+   **Immediate code step:** resume descriptor migration with JANE, 0840,
+   UA/UASW, 0FA0, FC, and F0.
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished
@@ -207,6 +217,11 @@ exact disassembly/reassembly, and a Stella-visible PASS/DPC frame.
 
 Immediate TODO
 --------------
-Main-roadmap priority is Item 49: add playfield-color support as an explicit
-renderer capability. Read `.../roadmap.txt` for the acceptance criteria. Items
-46-48 should remain closed unless a regression disproves their contracts.
+Fix the field controller diagnostic regression before resuming roadmap work.
+Starting from this archive, split its frame path by controller type: joystick,
+paddle, keypad, and driving. Keep TIA/switch/collision testing/display only in
+the joystick path; keep paddle acquisition bank-local and do not redesign the
+shared paddle sampler merely to absorb descriptor-bankcall timing. The current
+known failures are `test/vcs_diagnostic_cartridge.pl` and
+`test/vcs_diagnostic_paddle_sampling.pl`, both observed after the F4SC descriptor
+ABI migration. Once those are green, main-roadmap priority returns to Item 49.
