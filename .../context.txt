@@ -102,10 +102,10 @@ Open workstreams
    Mapper support lives under uppercase Stella-named `libraries/vcs/<MAPPER>/`
    directories, with mapper-specific C26/CFG/S26 helpers inside that namespace.
    The toolchain now emits the six-byte descriptor call ABI. F8/F6/F4(+SC), FA,
-   DPC, and FA2-24/28 consume it end to end and declare `$inline_bankcall`
+   DPC, FA2-24/28, and JANE consume it end to end and declare `$inline_bankcall`
    unconditionally; same-bank calls remain ordinary JSRs and cross-bank calls use
-   fixed mapper-local descriptor trampolines. FA2 uses
-   `$F5-$FA/$FB` hotspot-low descriptors and a 69/72-byte (`$048`) block. JANE,
+   fixed mapper-local descriptor trampolines. FA2 uses `$F5-$FA/$FB` hotspot-low
+   descriptors; JANE uses `$F0/$F1/$F8/$F9`. Both use 69/72-byte (`$048`) blocks.
    0840, UA/UASW, and 0FA0 still have PC-derived mapper-local blocks pending
    conversion. Only the current descriptor ABI is retained for migrated mappers.
 
@@ -123,8 +123,8 @@ Open workstreams
    VBLANK/visible/overscan WSYNC phase, in addition to the 0..255 value oracle,
    227/228/229 long soaks, displayed-95 check, and PAL/SECAM points.
 
-   **Immediate code step:** resume descriptor migration with JANE, 0840,
-   UA/UASW, 0FA0, FC, and F0.
+   **Immediate code step:** resume descriptor migration with 0840, UA/UASW,
+   0FA0, FC, and F0.
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished
@@ -233,6 +233,6 @@ exact disassembly/reassembly, and a Stella-visible PASS/DPC frame.
 
 Immediate TODO
 --------------
-Resume descriptor-ABI migration with JANE, 0840, UA/UASW, and 0FA0, then FC/F0.
+Resume descriptor-ABI migration with 0840, UA/UASW, and 0FA0, then FC/F0.
 The field controller diagnostic regression and its follow-up audio/high-paddle
 timing failures are resolved and covered by focused regression contracts.

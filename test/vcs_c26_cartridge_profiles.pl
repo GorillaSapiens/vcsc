@@ -196,10 +196,10 @@ for my $p (@profiles) {
          or die "CV map does not retain split-address cartridge RAM\n";
    }
    if ($name eq 'JANE') {
-      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x1ff0/s &&
-      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x1ff1\s+\$startup/s &&
-      $text =~ /bank\s+bank2\s*\{.*?\$file_index:2.*?\$select_access:0x1ff8/s &&
-      $text =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$select_access:0x1ff9/s
+      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x1ff0\s+\$bankcall_descriptor:0xf0/s &&
+      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x1ff1\s+\$bankcall_descriptor:0xf1\s+\$startup/s &&
+      $text =~ /bank\s+bank2\s*\{.*?\$file_index:2.*?\$select_access:0x1ff8\s+\$bankcall_descriptor:0xf8/s &&
+      $text =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$select_access:0x1ff9\s+\$bankcall_descriptor:0xf9/s
          or die "JANE profile does not preserve logical/physical identity and startup bank1\n";
       $map =~ /^\s+bank0\s+file-index=0\b.*select-access=\$1FF0/m &&
       $map =~ /^\s+bank1\s+file-index=1\b.*select-access=\$1FF1.*startup=yes/m
@@ -294,10 +294,10 @@ for my $p (@profiles) {
 
    if ($name eq 'JANE') {
       $text =~ /\$vector_bridge_offset:0x0ee0\s+\$vector_bridge_size:0x0012/ &&
-      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x1ff0/s &&
-      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x1ff1\s+\$startup/s &&
-      $text =~ /bank\s+bank2\s*\{.*?\$file_index:2.*?\$select_access:0x1ff8/s &&
-      $text =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$select_access:0x1ff9/s
+      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x1ff0\s+\$bankcall_descriptor:0xf0/s &&
+      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x1ff1\s+\$bankcall_descriptor:0xf1\s+\$startup/s &&
+      $text =~ /bank\s+bank2\s*\{.*?\$file_index:2.*?\$select_access:0x1ff8\s+\$bankcall_descriptor:0xf8/s &&
+      $text =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$select_access:0x1ff9\s+\$bankcall_descriptor:0xf9/s
          or die "JANE profile does not preserve logical/physical identity and startup bank1\n";
    }
    if ($name eq 'FA2') {

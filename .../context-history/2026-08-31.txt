@@ -233,3 +233,20 @@ seconds in the development container.
 The full compile-only suite passed. The 342-test e2e suite was completed across
 the broad run plus exact runner-selected tail batches after the outer execution
 cap interrupted display at test 236; every e2e case passed.
+
+2026-08-31 15:50:48 PDT, migrate JANE descriptor bankcalls
+JANE now consumes the public three-byte linked bankcall descriptor ABI end to
+end. Its cartridge profile declares unconditional `$inline_bankcall` plus
+per-bank selector descriptors `$F0/$F1/$F8/$F9`; the replicated trampoline
+uses the payload descriptor directly with `LDA $1F00,Y` for destination and
+return selection instead of recovering logical bank identity from program
+counters. The fixed JANE bankcall block shrinks from the legacy 96-byte class to
+69 bytes with 72 reserved (`$048`).
+
+Regression coverage checks the emitted descriptor bytes, the ordered 4x4
+source/destination call matrix including nested calls and A:X/stack preservation,
+and that the four replicated trampoline copies differ only at the baked source
+descriptor byte. JANE no longer needs `-DVCSC_INLINE_BANKCALL=1` in its example,
+install check, or example-build harness. Compile-only passes 503/503 and the full
+e2e file set passes. The next descriptor migration target is 0840, followed by
+UA/UASW and 0FA0 before FC/F0.

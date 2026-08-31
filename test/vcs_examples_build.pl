@@ -135,7 +135,7 @@ for my $entry (@examples) {
    push @extra,'-Wa,--illegals' if $file eq 'vcsc_diagnostic.c26';
    # Pending mapper diagnostics still use an explicit fixed-inline opt-in until
    # their mapper profiles are migrated to the descriptor ABI.
-   push @extra,'-DVCSC_INLINE_BANKCALL=1' if $file eq 'jane_diagnostic.c26' || $file eq 'econobanking_diagnostic.c26' || $file eq 'ua_diagnostic.c26' || $file eq 'uasw_diagnostic.c26' || $file eq 'fotomania_diagnostic.c26';
+   push @extra,'-DVCSC_INLINE_BANKCALL=1' if $file eq 'econobanking_diagnostic.c26' || $file eq 'ua_diagnostic.c26' || $file eq 'uasw_diagnostic.c26' || $file eq 'fotomania_diagnostic.c26';
    if ($source_text =~ m{renderers/enhanced_multisprite_asymmetric/enhanced_multisprite\.c26}) {
       # The asymmetric renderer owns its playfield rows; common retained-PF-row
       # data is never part of these cartridges.  NTSC's 192-line diagnostic also

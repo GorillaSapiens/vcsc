@@ -9200,34 +9200,25 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
    }
 
    if (jane) {
-      static const uint8_t jane_selector_offsets[4] = { 0u, 1u, 8u, 9u };
+      static const uint16_t jane_link_start[4] = { 0xf000u, 0xd000u, 0xb000u, 0x9000u };
+      static const uint16_t jane_selector[4] = { 0x1ff0u, 0x1ff1u, 0x1ff8u, 0x1ff9u };
       if (cfg->bank_count != 4u) {
          fprintf(stderr, "vcsc-ld: JANE inline-target bank calls require four selector-controlled banks\n");
          exit(1);
       }
-      for (i = 0; i < cfg->bank_count; ++i) {
-         uint8_t pc_index;
-         uint8_t logical_bank;
-         uint16_t expected;
-         if (!cfg->banks[i].hotspot) {
-            fprintf(stderr, "vcsc-ld: JANE inline-target bank calls require a selector on every bank\n");
-            exit(1);
-         }
-         pc_index = (uint8_t)((cfg->banks[i].start >> 13) & 7u);
-         if (pc_index < 4u || pc_index > 7u) {
-            fprintf(stderr, "vcsc-ld: JANE inline-target bank calls require logical bank ORGs at $9xxx/$Bxxx/$Dxxx/$Fxxx\n");
-            exit(1);
-         }
-         logical_bank = (uint8_t)(7u - pc_index);
-         expected = (uint16_t)(0x1ff0u + jane_selector_offsets[logical_bank]);
-         if (cfg->banks[i].hotspot != expected) {
+      for (i = 0; i < 4u; ++i) {
+         const topology_bank_t *bank = c26_topology_bank_by_file_index(cfg, (uint16_t)i);
+         uint8_t descriptor = (uint8_t)(jane_selector[i] & 0xffu);
+         if (!bank || bank->data_only || bank->link_start != jane_link_start[i] ||
+             !bank->has_selector || bank->select_access != jane_selector[i] ||
+             !bank->has_bankcall_descriptor || bank->bankcall_descriptor != descriptor) {
             fprintf(stderr,
-                    "vcsc-ld: JANE inline-target bank-call selector for logical bank %u must be $%04X, got $%04X\n",
-                    logical_bank, expected, cfg->banks[i].hotspot);
+                    "vcsc-ld: JANE file bank %u must map $%04X, select with $%04X, and use bank-call descriptor $%02X\n",
+                    (unsigned)i, jane_link_start[i], jane_selector[i], descriptor);
             exit(1);
          }
       }
-      return 0x1ff0u;
+      return 0x1f00u;
    }
 
    /* Mapper-specific geometries must be recognized before this common

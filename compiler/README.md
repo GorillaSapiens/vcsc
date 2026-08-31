@@ -670,7 +670,7 @@ byte. The caller bank's source descriptor is baked into its trampoline instance
 rather than inferred from the return PC.
 
 The compiler/assembler/linker emit the descriptor field. F8/F6/F4(+SC), FA,
-DPC, and FA2 consume it end-to-end. JANE, 0840, UA/UASW, and 0FA0 remain to be
+DPC, FA2, and JANE consume it end-to-end. 0840, UA/UASW, and 0FA0 remain to be
 migrated.
 
 A constant object may use one named read-only region:

@@ -93,12 +93,13 @@ $src =~ /call_count\s*!=\s*16/ && $src =~ /nested_count\s*!=\s*1/
 
 my $pt=read_file($profile);
 $pt =~ /\$signature:JANE\b/ &&
-$pt =~ /#ifdef VCSC_INLINE_BANKCALL\s+\$inline_bankcall\s+#endif/s &&
+$pt =~ /cartridge\s*\{\s*\$inline_bankcall/s &&
+index($pt,'VCSC_INLINE_BANKCALL') < 0 &&
 $pt =~ /\$vector_bridge_offset:0x0ee0\s+\$vector_bridge_size:0x0012/ &&
-$pt =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x1ff0/s &&
-$pt =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x1ff1\s+\$startup/s &&
-$pt =~ /bank\s+bank2\s*\{.*?\$file_index:2.*?\$select_access:0x1ff8/s &&
-$pt =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$select_access:0x1ff9/s &&
+$pt =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x1ff0\s+\$bankcall_descriptor:0xf0/s &&
+$pt =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x1ff1\s+\$bankcall_descriptor:0xf1\s+\$startup/s &&
+$pt =~ /bank\s+bank2\s*\{.*?\$file_index:2.*?\$select_access:0x1ff8\s+\$bankcall_descriptor:0xf8/s &&
+$pt =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$select_access:0x1ff9\s+\$bankcall_descriptor:0xf9/s &&
 (()=$pt =~ /\$size:0x0ee0\s+\$ro/g)==4
    or die "JANE profile topology/startup/corridor contract is wrong\n";
 
@@ -112,7 +113,7 @@ $ct =~ /BANK3:.*hotspot\s*=\s*\$1FF9.*fileindex\s*=\s*3/is
 
 my $bin=File::Spec->catfile($tmp,'jane.bin');
 my $map=File::Spec->catfile($tmp,'jane.map');
-require_ok('build JANE simulator diagnostic',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-DSIMULATOR_TEST',
+require_ok('build JANE simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
    '-T',$generic,'-Map',$map,$source,'-o',$bin);
 -s $bin==16384 or die "JANE output size is not 16K\n";
 my $rom=read_file($bin);
@@ -137,10 +138,31 @@ for my $logical (0..3) {
 $m =~ /^\s+bank1\s+file-index=1\b.*startup=yes/m &&
 $m =~ /^\s+bank0\s+file-index=0\b(?!.*startup=yes)/m &&
 $m =~ /vector-bridge=\$0EE0\s+size=\$0012/ &&
-$m =~ /generic-jsr=\$060\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
+$m =~ /generic-jsr=\$048\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
 $m !~ /JSR entry=/ &&
 $m =~ /^TRAMPOLINES$/m
    or die "JANE startup/vector bridge/trampoline map contract is wrong\n$m";
+my $lst=read_file(File::Spec->catfile($tmp,'jane.lst'));
+my @descriptor=(0xF0,0xF1,0xF8,0xF9);
+for my $destination (0..3) {
+   my $desc=sprintf('%02x',$descriptor[$destination]);
+   my $count=()=$lst =~ /^\s*\d+\s+[0-9a-f]{4}\s+[0-9a-f]{2}\s+[0-9a-f]{2}\s+\Q$desc\E\s+; \.banktarget call_target\Q$destination\E\b/gmi;
+   $count==3
+      or die "JANE destination bank $destination descriptor payload count is $count, expected 3\n";
+}
+my @trampoline=map { substr($rom,$_ * 4096 + 0x0f00,0x48) } 0..3;
+my @source_diff=grep {
+   my $off=$_;
+   my %seen=map { ord(substr($trampoline[$_],$off,1)) => 1 } 0..3;
+   scalar(keys %seen)>1;
+} 0..0x47;
+@source_diff==1
+   or die "JANE descriptor trampoline copies do not differ at exactly one source-descriptor byte\n";
+for my $bank (0..3) {
+   ord(substr($trampoline[$bank],$source_diff[0],1))==$descriptor[$bank]
+      or die sprintf("JANE bank %d baked source descriptor is not $%02X\n",$bank,$descriptor[$bank]);
+}
+
 my $bridge=substr($rom,0x0ee0,0x12);
 for my $file_bank (1..3) {
    substr($rom,$file_bank*4096+0x0ee0,0x12) eq $bridge
@@ -172,7 +194,7 @@ for my $start (0..3) {
 }
 
 my $visible=File::Spec->catfile($tmp,'jane-visible.bin');
-my(undef,$visible_err)=require_ok('build visible JANE PASS/FAIL cartridge',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,$source,'-o',$visible);
+my(undef,$visible_err)=require_ok('build visible JANE PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
 $visible_err !~ /status_result_color|recommended variable/
    or die "visible JANE diagnostic emitted an unused recommendation warning\n$visible_err";
 my $vrom=read_file($visible);

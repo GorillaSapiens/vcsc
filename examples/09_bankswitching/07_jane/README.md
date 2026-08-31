@@ -26,10 +26,12 @@ A large green `pass` with the smaller `JANE` underneath therefore means all 16
 ordered pairs, all four selectors, startup recovery, and the nested return path
 succeeded. Red `FAIL` means one of those checks failed.
 
-The Makefile enables `VCSC_INLINE_BANKCALL`, so this source snapshot uses the
-current 95-byte JANE block (96 bytes reserved) and allocates no per-target JSR
-entries. That block still implements the superseded PC-derived form; the target
-ABI is [`../../../BANKSWITCHING.md`](../../../BANKSWITCHING.md).
+The profile enables `$inline_bankcall` unconditionally. Cross-bank calls use the
+current three-byte `.banktarget` descriptor ABI with JANE selector-low-byte
+descriptors `$F0/$F1/$F8/$F9`. The fixed descriptor trampoline is 69 bytes with
+72 bytes reserved and allocates no per-target JSR entries; source-bank identity
+is carried explicitly rather than recovered from a return PC. The public ABI is
+[`../../../BANKSWITCHING.md`](../../../BANKSWITCHING.md).
 
 The image also contains the non-executed byte sequence `AD F1 FF 60`
 (`LDA $FFF1; RTS`) used by current Stella for JANE autodetection, in addition

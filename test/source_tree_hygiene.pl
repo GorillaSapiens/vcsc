@@ -199,7 +199,7 @@ index($bankswitching,'[ ] 38b. FC -- do this next.')>=0 &&
 index($bankswitching,'[ ] 38c. F0 -- do this after FC.')>=0 &&
 index($bankswitching,'bank through the $1FF0 hotspot instead of directly selecting an')>=0 &&
 index($bankswitching,'Generic inline-target cross-bank JSR contract')>=0 &&
-index($bankswitching,'fixed block is 69 bytes with 72 reserved')>=0 &&
+index($bankswitching,'69 bytes with 72 reserved')>=0 &&
 index($bankswitching,'fixed mapper-specific replicated entry/return')>=0 &&
 index($bankswitching,'unchanged original 16-bit logical return PC')>=0 &&
 index($bankswitching,'Only the descriptor ABI is retained for migrated inline mappers.')>=0 &&
@@ -216,7 +216,7 @@ slurp(File::Spec->catfile($repo,qw(libraries vcs DPC inline_bankcall.s26))) eq s
 -f File::Spec->catfile($repo,qw(libraries vcs FA2 inline_bankcall.s26)) &&
 index(slurp(File::Spec->catfile($repo,qw(libraries vcs FA2 inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6048')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs JANE inline_bankcall.s26)) &&
-index(slurp(File::Spec->catfile($repo,qw(libraries vcs JANE inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6060')>=0 &&
+index(slurp(File::Spec->catfile($repo,qw(libraries vcs JANE inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6048')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs 0840 inline_bankcall.s26)) &&
 index(slurp(File::Spec->catfile($repo,qw(libraries vcs 0840 inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6050')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs UA inline_bankcall.s26)) &&
@@ -233,7 +233,8 @@ index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m0840_bankcal
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_ua_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_uasw_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m0fa0_bankcall_template')>=0 &&
-index($bankswitching,'F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, and')>=0 &&
+index($bankswitching,'F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,')>=0 &&
+index($bankswitching,'FA2-24/28, and JANE consume it end to end')>=0 &&
 index($bankswitching,'[ ] 37. Finish descriptor-ABI conversion of existing inline mappers')>=0 &&
 $bankswitching !~ /^\[ \] 42\./m &&
 $bankswitching !~ /^\[ \] 43\./m &&
@@ -595,6 +596,8 @@ index($fa_profile,'$inline_bankcall')>=0 &&
 index($fa_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
 index($fa_example_make,'-DVCSC_INLINE_BANKCALL=1')<0
    or die "FA RAM Plus profile must use the descriptor bank-call ABI unconditionally\n";
+my $jane_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','JANE/mapper.c26'));
+my $jane_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','07_jane','Makefile'));
 my $m0840_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','0840/mapper.c26'));
 my $m0840_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','08_0840','Makefile'));
 my $ua_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','UA/mapper.c26'));
@@ -610,6 +613,13 @@ my $fa2_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitchin
 index($dpc_profile,'$inline_bankcall')>=0 &&
 index($dpc_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
 index($dpc_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
+index($jane_profile,'$inline_bankcall')>=0 &&
+index($jane_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
+index($jane_profile,'$bankcall_descriptor:0xf0')>=0 &&
+index($jane_profile,'$bankcall_descriptor:0xf1')>=0 &&
+index($jane_profile,'$bankcall_descriptor:0xf8')>=0 &&
+index($jane_profile,'$bankcall_descriptor:0xf9')>=0 &&
+index($jane_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
 index($fa2_24_profile,'$inline_bankcall')>=0 &&
 index($fa2_24_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
 index($fa2_28_profile,'$inline_bankcall')>=0 &&

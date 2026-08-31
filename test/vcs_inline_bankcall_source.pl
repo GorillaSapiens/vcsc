@@ -100,10 +100,12 @@ index($fa2_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
 index($fa2_s26, 'eor #7') < 0 && index($fa2_s26, 'adc #3') >= 0 &&
 index($fa2_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
    or die "maintained FA2 trampoline source lacks descriptor/store-selector ABI\n";
-index($jane_s26, 'eor #7') >= 0 && index($jane_s26, 'cmp #2') >= 0 &&
-index($jane_s26, 'eor #1') < 0 && index($jane_s26, '__vcsc_generic_bankcall_reserved_end = $6060') >= 0
-   or die "maintained JANE trampoline source lacks simplified 0/1/8/9 selector transform
-";
+index($jane_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
+index($jane_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
+index($jane_s26, 'eor #7') < 0 && index($jane_s26, 'cmp #2') < 0 &&
+index($jane_s26, 'adc #3') >= 0 &&
+index($jane_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
+   or die "maintained JANE trampoline source lacks descriptor selector/source ABI\n";
 index($m0840_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
 index($m0840_s26, 'eor #$20') >= 0 && index($m0840_s26, 'and #$20') >= 0 &&
 index($m0840_s26, '__vcsc_generic_bankcall_reserved_end = $6050') >= 0
@@ -195,12 +197,10 @@ $fa2_header =~ /VCSC_FA2_BANKCALL_TEMPLATE_SIZE 0x45u/
 $fa2_header =~ /VCSC_FA2_BANKCALL_RESERVED_SIZE 0x48u/
    or die "FA2 descriptor trampoline reservation is no longer 72 bytes\n";
 my $jane_header = read_file($jane_built);
-$jane_header =~ /VCSC_JANE_BANKCALL_TEMPLATE_SIZE 0x5Fu/
-   or die "JANE trampoline payload is no longer 95 bytes
-";
-$jane_header =~ /VCSC_JANE_BANKCALL_RESERVED_SIZE 0x60u/
-   or die "JANE trampoline reservation is no longer 96 bytes
-";
+$jane_header =~ /VCSC_JANE_BANKCALL_TEMPLATE_SIZE 0x45u/
+   or die "JANE descriptor trampoline payload is no longer 69 bytes\n";
+$jane_header =~ /VCSC_JANE_BANKCALL_RESERVED_SIZE 0x48u/
+   or die "JANE descriptor trampoline reservation is no longer 72 bytes\n";
 my $m0840_header = read_file($m0840_built);
 $m0840_header =~ /VCSC_M0840_BANKCALL_TEMPLATE_SIZE 0x4Bu/
    or die "0840 trampoline payload is no longer 75 bytes

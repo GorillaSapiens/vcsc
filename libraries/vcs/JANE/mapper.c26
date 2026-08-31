@@ -7,9 +7,7 @@ include "vcs.c26"
 // Hardware powers up in physical bank 1. JANE keeps logical bank numbers equal
 // to physical/file bank numbers, so bank1 is the startup/home bank.
 cartridge {
-#ifdef VCSC_INLINE_BANKCALL
    $inline_bankcall
-#endif
    $fill:0xff $signature:JANE
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0ee0 $vector_bridge_size:0x0012
@@ -19,25 +17,25 @@ cartridge {
 bank bank0 {
    $image_size:0x1000 $file_index:0 $image_offset:0x0000
    $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
-   $select_access:0x1ff0
+   $select_access:0x1ff0 $bankcall_descriptor:0xf0
 };
 
 bank bank1 {
    $image_size:0x1000 $file_index:1 $image_offset:0x0000
    $link_start:0xd000 $cpu_start:0xf000 $map_size:0x1000
-   $select_access:0x1ff1 $startup
+   $select_access:0x1ff1 $bankcall_descriptor:0xf1 $startup
 };
 
 bank bank2 {
    $image_size:0x1000 $file_index:2 $image_offset:0x0000
    $link_start:0xb000 $cpu_start:0xf000 $map_size:0x1000
-   $select_access:0x1ff8
+   $select_access:0x1ff8 $bankcall_descriptor:0xf8
 };
 
 bank bank3 {
    $image_size:0x1000 $file_index:3 $image_offset:0x0000
    $link_start:0x9000 $cpu_start:0xf000 $map_size:0x1000
-   $select_access:0x1ff9
+   $select_access:0x1ff9 $bankcall_descriptor:0xf9
 };
 
 mem bank0 { $start:0xf000 $size:0x0ee0 $ro };

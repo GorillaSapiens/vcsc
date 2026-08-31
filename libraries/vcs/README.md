@@ -23,7 +23,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `CV/mapper.c26`, `CV/ram.c26` ... CommaVid CV fixed 2K ROM plus shared 1K split-address cartridge RAM; `CV/mapper.cfg` supplies simulator/compatibility mapping
 - `4K/mapper.c26` ... conventional unbanked 4K topology and allocatable ROM
 - `F8/mapper.c26`, `F6/mapper.c26`, `F4/mapper.c26` ... inspectable selector-controlled C26 profiles with exact output order and generated corridors
-- `*/inline_bankcall.s26` ... mapper-local maintained sources for selector-controlled automatic cross-bank calls; the public ABI is defined in [`../../BANKSWITCHING.md`](../../BANKSWITCHING.md) and uses mapper-defined one-byte bank-call descriptors rather than inferring bank identity from logical PCs. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, and FA2-24/28 consume that descriptor ABI now; JANE, 0840, UA/UASW, and 0FA0 remain to be converted.
+- `*/inline_bankcall.s26` ... mapper-local maintained sources for selector-controlled automatic cross-bank calls; the public ABI is defined in [`../../BANKSWITCHING.md`](../../BANKSWITCHING.md) and uses mapper-defined one-byte bank-call descriptors rather than inferring bank identity from logical PCs. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, FA2-24/28, and JANE consume that descriptor ABI now; 0840, UA/UASW, and 0FA0 remain to be converted.
 - `0840/mapper.c26` ... 0840/EconoBanking two-bank 8K profile with below-cartridge selectors `$0800/$0840`; `0840/mapper.cfg` supplies simulator-only masked selector semantics
 - `UA/mapper.c26`, `UASW/mapper.c26` ... UA Limited 8K alias-decoded profiles; UA maps `$0220`-family accesses to bank 0 and `$0240`-family accesses to bank 1, while UASW swaps that association; their cfg files supply simulator-only masked selector semantics
 - `0FA0/mapper.c26` ... Brazilian Fotomania 0FA0 two-bank 8K profile; `(A & $16E0)==$06A0/$06C0` selects physical bank 0/1, physical bank 1 powers up, and `0FA0/mapper.cfg` supplies simulator metadata
@@ -862,6 +862,11 @@ bridge lives at `$FEE0-$FEF1` instead of the normal `$FFE0-$FFF1` corridor. The
 common call trampoline remains at `$FF00-$FFDF`. The final file bank carries the
 `JANE` signature at `$FFF8-$FFFB`; bytes stored at `$FFF8/$FFF9` are harmless
 because the address access, not the stored byte, performs selection.
+
+JANE declares `$inline_bankcall` unconditionally. Its bank-call descriptors are
+the selector-hotspot low bytes `$F0/$F1/$F8/$F9`; the 69-byte replicated
+descriptor trampoline uses `LDA $1F00,Y` for both destination selection and
+source restoration, with 72 bytes reserved and no PC-derived bank decoding.
 
 `JANE/mapper.cfg` is simulator-only metadata that records the explicit physical
 `fileindex` for each logical bank. Public linking is driven by the C26 topology.

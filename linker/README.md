@@ -523,13 +523,13 @@ logical continuation PC. Same-bank calls remain ordinary JSRs. This removes the
 old requirement that either source or destination bank be recoverable from a
 16-bit PC and allows multiple banks to share one CPU link window.
 
-The linker emits the descriptor ABI now. F8/F8SC/F6/F6SC/F4/F4SC, FA, and
-DPC use the 69-byte descriptor-aware block with 72 bytes reserved
-(`generic-jsr=$048`); each bank copy has its own patched source descriptor. FA2,
-JANE, 0840, UA/UASW, and 0FA0 remain pending: their call sites already carry
-the third byte, but their mapper-local trampolines still skip it and use the
-previous PC-derived selector logic. They consume no per-target
-JSR entries while being migrated one family at a time.
+The linker emits the descriptor ABI now. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,
+FA2-24/28, and JANE use 69-byte descriptor-aware blocks with 72 bytes reserved
+(`generic-jsr=$048`); each bank copy has its own patched source descriptor.
+0840, UA/UASW, and 0FA0 remain pending: their call sites already carry the third
+byte, but their mapper-local trampolines still skip it and use the previous
+PC-derived selector logic. They consume no per-target JSR entries while being
+migrated one family at a time.
 
 Call-bundle page carry, indivisible placement, A:X preservation, nested LIFO
 returns, hardware-stack accounting, and ordered source/destination diagnostics

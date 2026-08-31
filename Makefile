@@ -737,8 +737,7 @@ installcheck: tools
 	  "$(INSTALLCHECK_STAGING)/3e_diagnostic.bin"; \
 	grep -q '^; mapper: 3E ' "$(INSTALLCHECK_STAGING)/3e_diagnostic.s26"; \
 	test -f "$$stage_vcs/JANE/mapper.cfg"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -DVCSC_INLINE_BANKCALL=1 \
-	  -T "$$stage_vcs/vcs.cfg" \
+	"$$stage_bin/vcsc" -I "$$stage_vcs" -T "$$stage_vcs/vcs.cfg" \
 	  "$$stage_examples/09_bankswitching/07_jane/jane_diagnostic.c26" \
 	  -o "$(INSTALLCHECK_STAGING)/jane_diagnostic.bin"; \
 	test `wc -c < "$(INSTALLCHECK_STAGING)/jane_diagnostic.bin"` -eq 16384; \
