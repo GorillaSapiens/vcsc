@@ -65,10 +65,12 @@ my $example_make=File::Spec->catfile($example_dir,'Makefile');
 
 my $mk=read_file($example_make);
 $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
-$mk =~ /^\s*stella\s+-bs\s+0FA0\s+\$\(TARGET\)\s*$/m
+$mk =~ /^\s*stella\s+-bs\s+0FA0\s+\$\(TARGET\)\s*$/m &&
+index($mk,'-DVCSC_INLINE_BANKCALL=1')>=0
    or die "0FA0 play target must force Stella -bs 0FA0\n";
 my $pt=read_file($profile);
 $pt =~ /\$signature:0FA0\b/ &&
+$pt =~ /\$inline_bankcall/ &&
 $pt =~ /\(A & \$16E0\)==\$06A0/ &&
 $pt =~ /bank\s+bank0\s*\{.*?\$file_index:1.*?\$select_access:0x0fc0\s+\$startup/s &&
 $pt =~ /bank\s+bank1\s*\{.*?\$file_index:0.*?\$select_access:0x0fa0/s
@@ -90,7 +92,7 @@ $simsrc =~ /canonical & 0x16e0u/ && $dissrc =~ /bus & 0x16e0u/
 
 my $bin=File::Spec->catfile($tmp,'0fa0.bin');
 my $map=File::Spec->catfile($tmp,'0fa0.map');
-require_ok('build 0FA0 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
+require_ok('build 0FA0 simulator diagnostic',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-DSIMULATOR_TEST',
    '-T',$generic,'-Map',$map,$source,'-o',$bin);
 -s $bin==8192 or die "0FA0 output size is not 8K\n";
 my $rom=read_file($bin);
@@ -109,22 +111,27 @@ for my $off (0,6,12) {
    substr($bridge,$off,4) eq pack('C*',0x0c,0xc0,0x0f,0x4c)
       or die "0FA0 vector bridge does not use NOP-read \$0FC0; JMP\n";
 }
-my $tramp=substr($rom,0x0f00,0x00e0) . substr($rom,4096+0x0f00,0x00e0);
-for my $sel (0x0fa0,0x0fc0) {
-   my($lo,$hi)=($sel&0xff,($sel>>8)&0xff);
-   index($tramp,pack('C*',0x0c,$lo,$hi))>=0
-      or die sprintf("0FA0 trampolines do not reference selector \$%04X\n",$sel);
-   index($tramp,pack('C*',0x8d,$lo,$hi))<0
-      or die sprintf("0FA0 trampoline writes through selector \$%04X\n",$sel);
-}
+my $tramp=substr($rom,0x0f00,0x0050) . substr($rom,4096+0x0f00,0x0050);
+index($tramp,pack('C*',0xB9,0xA0,0x0F))>=0
+   or die "0FA0 inline bank-call block does not use indexed read selectors from \$0FA0\n";
+index($tramp,pack('C*',0x99,0xA0,0x0F))<0 && index($tramp,pack('C*',0x9D,0xA0,0x0F))<0
+   or die "0FA0 inline bank-call block writes its below-window selector family\n";
 
 my $m=read_file($map);
 $m =~ /^\s+bank0\s+file-index=1\b.*mode=selector\s+select-access=\$0FC0\s+startup=yes/m &&
 $m =~ /^\s+bank1\s+file-index=0\b.*mode=selector\s+select-access=\$0FA0/m &&
 $m =~ /vector-bridge=\$0FE0\s+size=\$0012/ &&
-$m =~ /^TRAMPOLINES$/m
-   or die "0FA0 map topology/trampoline contract is wrong\n$m";
-my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure trace call_count);
+$m =~ /^TRAMPOLINES$/m &&
+$m =~ /generic-jsr=\$050\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
+$m !~ /JSR entry=/
+   or die "0FA0 map topology/inline-trampoline contract is wrong\n$m";
+my $lst=$bin; $lst =~ s/\.bin\z/.lst/; $lst=read_file($lst);
+$lst =~ /\[bank bank0\] \| call_return := call_target0\(\);\n[^\n]*; JSR call_target0[^\n]*\n(?![^\n]*\.banktarget)/ &&
+$lst =~ /\[bank bank0\] \| call_return := call_target1\(\);\n[^\n]*; JSR call_target1[^\n]*\n[^\n]*; \.banktarget call_target1/ &&
+$lst =~ /\[bank bank1\] \| call_return := call_target0\(\);\n[^\n]*; JSR call_target0[^\n]*\n[^\n]*; \.banktarget call_target0/ &&
+$lst =~ /\[bank bank1\] \| call_return := call_target1\(\);\n[^\n]*; JSR call_target1[^\n]*\n(?![^\n]*\.banktarget)/
+   or die "0FA0 diagnostic did not keep same-bank calls as ordinary JSRs and cross-bank calls as inline bundles\n";
+my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure call_count nested_count);
 for my $start (0..1) {
    my($out,$err)=require_ok("simulate 0FA0 from physical bank $start",$sim,'-T',$cfg,
       "--start-bank=$start",sprintf('--stop-pc=0x%04X',$sym{simulator_done}),
@@ -133,8 +140,8 @@ for my $start (0..1) {
    my $mem=parse_hex_dump($out);
    $mem->[$sym{failure}]==0
       or die sprintf("0FA0 self-test from bank %d failed: failure=\$%02X\n",$start,$mem->[$sym{failure}]);
-   $mem->[$sym{trace}]==3 && $mem->[$sym{call_count}]==2
-      or die "0FA0 nested selector/return trace failed from physical bank $start\n";
+   $mem->[$sym{call_count}]==4 && $mem->[$sym{nested_count}]==1
+      or die "0FA0 full ordered call matrix/nested return failed from physical bank $start\n";
 }
 
 # Explicitly certify the mask aliases and underlying low-memory access. Start in
@@ -163,7 +170,7 @@ $amem->[0x07A7]==0x5A && $amem->[0x0ECF]==0xA5
    or die "0FA0 masked read/write aliases did not switch banks and preserve underlying accesses\n";
 
 my $visible=File::Spec->catfile($tmp,'0fa0-visible.bin');
-require_ok('build visible 0FA0 PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
+require_ok('build visible 0FA0 PASS/FAIL cartridge',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,$source,'-o',$visible);
 my $vrom=read_file($visible);
 length($vrom)==8192 && substr($vrom,4096+0x0ff8,4) eq '0FA0' &&
 index($vrom,pack('C*',0x2c,0xc0,0x0f))>=0

@@ -10,6 +10,9 @@ include "vcs.c26"
 // selector accesses overlay console devices, generated transition stubs use
 // state-preserving NMOS absolute NOP reads rather than writes.
 cartridge {
+#ifdef VCSC_INLINE_BANKCALL
+   $inline_bankcall
+#endif
    $fill:0xff $signature:0FA0
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012

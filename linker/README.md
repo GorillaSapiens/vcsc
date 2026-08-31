@@ -494,7 +494,7 @@ bank contains identical entry bytes, which is required because instruction
 fetch continues in the newly selected bank immediately after the hotspot
 access.
 
-Below-window selector trampolines (currently 0840/EconoBanking and UA/UASW) substitute NMOS
+Below-window selector trampolines (0840/EconoBanking, UA/UASW, and 0FA0) substitute NMOS
 absolute NOP-read opcode `$0C` for those selector stores. The undocumented NOP
 performs the required bus read while preserving A/X/Y and processor flags, so a
 mapper transition does not also write a mirrored TIA/RIOT register.
@@ -506,7 +506,7 @@ begins at `$xxFF`, avoiding the NMOS 6502/6507 indirect-`JMP` page-wrap bug. A
 full corridor is a link error. The map reports reserved, occupied, and total
 replicated bytes plus every generated target entry.
 
-A direct cross-bank C call in the F8/F6/F4(+SC), FA, DPC, FA2, JANE, 0840, UA, and UASW inline-target paths no longer allocates a target-specific
+A direct cross-bank C call in the F8/F6/F4(+SC), FA, DPC, FA2, JANE, 0840, UA, UASW, and 0FA0 inline-target paths no longer allocates a target-specific
 JSR entry. The compiler emits one five-byte bundle at the call site:
 
 ```asm
@@ -529,13 +529,15 @@ byte and performs `LDA $0800,Y` so switching is a read bus cycle rather than a
 write into mirrored console space. UA and UASW similarly use mapper-local
 `inline_bankcall.s26` sources and indexed reads from `$0220`: UA transforms the
 logical-PC bank bit to offsets `$00/$20`, while UASW's swapped association uses
-that bank bit directly.
+that bank bit directly. 0FA0 uses `libraries/vcs/0FA0/inline_bankcall.s26`; its
+logical `$Dxxx/$Fxxx` identity likewise supplies Y=`$00/$20`, but the indexed
+read is based at canonical selector `$0FA0`, producing `$0FA0/$0FC0`.
 The linker build assembles these files into compact byte/patch templates;
 `vcsc-ld` supplies `_vcsc_ptr0`, the mapper selector base, and the final
 replicated block address. The normal/DPC block reserves 80 bytes
 (`generic-jsr=$050`), FA2 is 83 bytes with 84 reserved (`generic-jsr=$054`),
 JANE is 95 bytes with 96 reserved (`generic-jsr=$060`), 0840 is 75 bytes,
-UA is 73 bytes, and UASW is 69 bytes; each of those read-hotspot blocks reserves
+UA is 73 bytes, and UASW and 0FA0 are 69 bytes; each of those read-hotspot blocks reserves
 80 bytes (`generic-jsr=$050`). Each is replicated
 byte-for-byte in every CPU-mapped program bank before any variable direct-JMP
 entries;

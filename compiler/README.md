@@ -660,7 +660,7 @@ regions, `main` may be unmarked or use `bank0`; explicitly placing it in `bank1`
 or another nonzero numbered bank is rejected.
 
 
-For F8/F6/F4(+SC), FA, DPC, FA2, JANE, 0840, UA, and UASW profiles, the compact generic cross-bank form is currently gated
+For F8/F6/F4(+SC), FA, DPC, FA2, JANE, 0840, UA, UASW, and 0FA0 profiles, the compact generic cross-bank form is currently gated
 by the cartridge `$inline_bankcall` flag. The stock profiles expose that pilot
 through `VCSC_INLINE_BANKCALL`; code that does not define the macro retains the
 legacy per-target bridge ABI. With the opt-in enabled, a direct call between two

@@ -27,6 +27,7 @@
 #include "m0840_bankcall_template.h"
 #include "ua_bankcall_template.h"
 #include "uasw_bankcall_template.h"
+#include "m0fa0_bankcall_template.h"
 
 /* One identical six-byte BIT/JMP entry for NMI, RESET, and IRQ/BRK. */
 enum {
@@ -1882,6 +1883,18 @@ static int c26_topology_is_uasw(const linker_config_t *cfg)
    return (cart->present_mask & 0x80u) &&
           cart->signature[0] == 'U' && cart->signature[1] == 'A' &&
           cart->signature[2] == 'S' && cart->signature[3] == 'W';
+}
+
+//! @brief Return whether the C26 topology is Brazilian Fotomania 0FA0.
+static int c26_topology_is_0fa0(const linker_config_t *cfg)
+{
+   const topology_cartridge_t *cart;
+   if (!cfg || cfg->topology_bank_count != 2u)
+      return 0;
+   cart = &cfg->topology_cartridge;
+   return (cart->present_mask & 0x80u) &&
+          cart->signature[0] == '0' && cart->signature[1] == 'F' &&
+          cart->signature[2] == 'A' && cart->signature[3] == '0';
 }
 
 //! @brief Return whether the C26 topology is Atari JANE.
@@ -9106,6 +9119,7 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
    int m0840 = c26_topology_is_0840(cfg);
    int ua = c26_topology_is_ua(cfg);
    int uasw = c26_topology_is_uasw(cfg);
+   int m0fa0 = c26_topology_is_0fa0(cfg);
 
    if (!cfg) {
       fprintf(stderr, "vcsc-ld: generic inline-target bank calls require a banked cartridge profile\n");
@@ -9142,6 +9156,21 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
          exit(1);
       }
       return 0x0220u;
+   }
+
+   if (m0fa0) {
+      const topology_bank_t *file0 = c26_topology_bank_by_file_index(cfg, 0u);
+      const topology_bank_t *file1 = c26_topology_bank_by_file_index(cfg, 1u);
+      if (!file0 || !file1 || file0->data_only || file1->data_only ||
+          file0->link_start != 0xd000u || file1->link_start != 0xf000u ||
+          !file0->has_selector || file0->select_access != 0x0fa0u ||
+          !file1->has_selector || file1->select_access != 0x0fc0u ||
+          !file1->startup || file0->startup) {
+         fprintf(stderr,
+                 "vcsc-ld: 0FA0 inline-target bank calls require file bank0/logical bank1 $Dxxx -> $0FA0 and startup file bank1/logical bank0 $Fxxx -> $0FC0\n");
+         exit(1);
+      }
+      return 0x0fa0u;
    }
 
    if (jane) {
@@ -9235,6 +9264,8 @@ static uint16_t generic_bankcall_reserved_size(const linker_config_t *cfg)
       return VCSC_UA_BANKCALL_RESERVED_SIZE;
    if (c26_topology_is_uasw(cfg))
       return VCSC_UASW_BANKCALL_RESERVED_SIZE;
+   if (c26_topology_is_0fa0(cfg))
+      return VCSC_M0FA0_BANKCALL_RESERVED_SIZE;
    return c26_topology_is_fa2(cfg) ? VCSC_FA2_BANKCALL_RESERVED_SIZE
                                    : VCSC_GENERIC_BANKCALL_RESERVED_SIZE;
 }
@@ -9932,6 +9963,19 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
          VCSC_UASW_BANKCALL_SELECTOR_PATCH_COUNT,
          VCSC_UASW_BANKCALL_SWITCH_OFFSET,
          VCSC_UASW_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
+         selector_base, canonical_base, ptr0);
+   }
+   else if (c26_topology_is_0fa0(cfg)) {
+      instantiate_bankcall_template(table,
+         vcsc_m0fa0_bankcall_template,
+         VCSC_M0FA0_BANKCALL_TEMPLATE_SIZE,
+         VCSC_M0FA0_BANKCALL_RESERVED_SIZE,
+         vcsc_m0fa0_bankcall_ptr_patches,
+         VCSC_M0FA0_BANKCALL_PTR_PATCH_COUNT,
+         vcsc_m0fa0_bankcall_selector_patches,
+         VCSC_M0FA0_BANKCALL_SELECTOR_PATCH_COUNT,
+         VCSC_M0FA0_BANKCALL_SWITCH_OFFSET,
+         VCSC_M0FA0_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
          selector_base, canonical_base, ptr0);
    }
    else if (c26_topology_is_jane(cfg)) {

@@ -125,7 +125,7 @@ order-insensitive code-region set and result-storage region as separate facts.
 Changing either is an ABI mismatch. Function pointers remain unsupported, so no
 runtime representation for selecting among replicated body addresses is defined.
 
-For the F8/F6/F4(+SC), FA, DPC, FA2, JANE, 0840, UA, and UASW selector-controlled profiles, the generic inline-target
+For the F8/F6/F4(+SC), FA, DPC, FA2, JANE, 0840, UA, UASW, and 0FA0 selector-controlled profiles, the generic inline-target
 bank-call ABI is currently an explicit profile opt-in (`$inline_bankcall`). When
 that opt-in is active, an explicitly placed direct call whose caller and callee
 are in different banks uses the generic inline-target bank-call ABI. The compiler emits a five-byte call bundle: a JSR

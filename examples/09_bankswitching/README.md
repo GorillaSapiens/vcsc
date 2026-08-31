@@ -27,9 +27,9 @@ Generated JSR/RTS paths need a stronger test than merely touching every bank.
 that source call every destination bank, checking metadata, return value,
 hardware-stack balance, and simulator execution. This covers every ordered JSR
 pair for F8/F8SC, F6/F6SC, F4/F4SC, FA, both FA2 profiles, JANE, 0840,
-UA/UASW, 0FA0, and DPC. F8/F6/F4(+SC) and FA now use the fixed generic
-inline-target block; the remaining families intentionally keep their existing
-mapper-specific/legacy paths until migrated.
+UA/UASW, 0FA0, and DPC. F8/F6/F4(+SC), FA, both FA2 profiles, JANE, 0840,
+UA/UASW, 0FA0, and DPC now use fixed inline-target blocks; same-bank calls remain
+ordinary JSRs and the migrated diagnostics allocate no legacy per-target JSR bridges.
 
 The public VCSC cartridge profiles also stamp the final physical bank with a
 four-byte mapper signature at logical addresses `$xFF8-$xFFB` (eight bytes before that bank ends). Short mapper names are

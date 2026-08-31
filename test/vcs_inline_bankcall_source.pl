@@ -31,6 +31,7 @@ my $jane_src = File::Spec->catfile($repo, qw(libraries vcs JANE inline_bankcall.
 my $m0840_src = File::Spec->catfile($repo, qw(libraries vcs 0840 inline_bankcall.s26));
 my $ua_src = File::Spec->catfile($repo, qw(libraries vcs UA inline_bankcall.s26));
 my $uasw_src = File::Spec->catfile($repo, qw(libraries vcs UASW inline_bankcall.s26));
+my $m0fa0_src = File::Spec->catfile($repo, qw(libraries vcs 0FA0 inline_bankcall.s26));
 my $generator = File::Spec->catfile($repo, qw(linker gen_inline_bankcall_template.pl));
 my $built = File::Spec->catfile($repo, qw(linker generic_bankcall_template.h));
 my $fa2_built = File::Spec->catfile($repo, qw(linker fa2_bankcall_template.h));
@@ -38,12 +39,14 @@ my $jane_built = File::Spec->catfile($repo, qw(linker jane_bankcall_template.h))
 my $m0840_built = File::Spec->catfile($repo, qw(linker m0840_bankcall_template.h));
 my $ua_built = File::Spec->catfile($repo, qw(linker ua_bankcall_template.h));
 my $uasw_built = File::Spec->catfile($repo, qw(linker uasw_bankcall_template.h));
+my $m0fa0_built = File::Spec->catfile($repo, qw(linker m0fa0_bankcall_template.h));
 my $fresh = File::Spec->catfile($tmp, 'generic_bankcall_template.h');
 my $fa2_fresh = File::Spec->catfile($tmp, 'fa2_bankcall_template.h');
 my $jane_fresh = File::Spec->catfile($tmp, 'jane_bankcall_template.h');
 my $m0840_fresh = File::Spec->catfile($tmp, 'm0840_bankcall_template.h');
 my $ua_fresh = File::Spec->catfile($tmp, 'ua_bankcall_template.h');
 my $uasw_fresh = File::Spec->catfile($tmp, 'uasw_bankcall_template.h');
+my $m0fa0_fresh = File::Spec->catfile($tmp, 'm0fa0_bankcall_template.h');
 my $ld = read_file(File::Spec->catfile($repo, qw(linker vcsc_ld.c)));
 my $top = read_file(File::Spec->catfile($repo, 'Makefile'));
 my $s26 = read_file($src);
@@ -52,6 +55,7 @@ my $jane_s26 = read_file($jane_src);
 my $m0840_s26 = read_file($m0840_src);
 my $ua_s26 = read_file($ua_src);
 my $uasw_s26 = read_file($uasw_src);
+my $m0fa0_s26 = read_file($m0fa0_src);
 
 -f $as or die "missing assembler $as\n";
 -f $src or die "missing maintained trampoline source $src\n";
@@ -66,6 +70,7 @@ for my $mapper (@generic_mapper_dirs) {
 -f $m0840_src or die "missing maintained 0840 trampoline source $m0840_src\n";
 -f $ua_src or die "missing maintained UA trampoline source $ua_src\n";
 -f $uasw_src or die "missing maintained UASW trampoline source $uasw_src\n";
+-f $m0fa0_src or die "missing maintained 0FA0 trampoline source $m0fa0_src\n";
 -f $generator or die "missing template generator $generator\n";
 -f $built or die "missing generated linker template $built\n";
 -f $fa2_built or die "missing generated FA2 linker template $fa2_built\n";
@@ -73,6 +78,7 @@ for my $mapper (@generic_mapper_dirs) {
 -f $m0840_built or die "missing generated 0840 linker template $m0840_built\n";
 -f $ua_built or die "missing generated UA linker template $ua_built\n";
 -f $uasw_built or die "missing generated UASW linker template $uasw_built\n";
+-f $m0fa0_built or die "missing generated 0FA0 linker template $m0fa0_built\n";
 
 for my $label (qw(
    __vcsc_generic_bankcall_begin
@@ -108,9 +114,16 @@ index($uasw_s26, 'eor #$20') < 0 && index($uasw_s26, 'and #$20') >= 0 &&
 index($uasw_s26, '__vcsc_generic_bankcall_reserved_end = $6050') >= 0
    or die "maintained UASW trampoline source lacks direct-PC read-selector transform
 ";
+index($m0fa0_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
+index($m0fa0_s26, 'eor #$20') < 0 && index($m0fa0_s26, 'and #$20') >= 0 &&
+index($m0fa0_s26, 'VCSC_BANKCALL_SELECTOR_BASE = $0FA0') >= 0 &&
+index($m0fa0_s26, '__vcsc_generic_bankcall_reserved_end = $6050') >= 0
+   or die "maintained 0FA0 trampoline source lacks direct-PC masked-read selector transform
+";
 index($ld, 'vcsc_generic_bankcall_template') >= 0 && index($ld, 'vcsc_fa2_bankcall_template') >= 0 &&
 index($ld, 'vcsc_jane_bankcall_template') >= 0 && index($ld, 'vcsc_m0840_bankcall_template') >= 0 &&
-index($ld, 'vcsc_ua_bankcall_template') >= 0 && index($ld, 'vcsc_uasw_bankcall_template') >= 0
+index($ld, 'vcsc_ua_bankcall_template') >= 0 && index($ld, 'vcsc_uasw_bankcall_template') >= 0 &&
+index($ld, 'vcsc_m0fa0_bankcall_template') >= 0
    or die "linker does not consume all generated trampoline templates
 ";
 index($ld, '#define PUT(') < 0
@@ -120,7 +133,8 @@ index($top, 'libraries/vcs/FA2/inline_bankcall.s26') >= 0 &&
 index($top, 'libraries/vcs/JANE/inline_bankcall.s26') >= 0 &&
 index($top, 'libraries/vcs/0840/inline_bankcall.s26') >= 0 &&
 index($top, 'libraries/vcs/UA/inline_bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/UASW/inline_bankcall.s26') >= 0
+index($top, 'libraries/vcs/UASW/inline_bankcall.s26') >= 0 &&
+index($top, 'libraries/vcs/0FA0/inline_bankcall.s26') >= 0
    or die "maintained trampoline sources are not installed
 ";
 
@@ -141,6 +155,9 @@ system($^X, $generator, $as, $ua_src, $ua_fresh, 'UA') == 0
 system($^X, $generator, $as, $uasw_src, $uasw_fresh, 'UASW') == 0
    or die "could not regenerate UASW inline bank-call template
 ";
+system($^X, $generator, $as, $m0fa0_src, $m0fa0_fresh, 'M0FA0') == 0
+   or die "could not regenerate 0FA0 inline bank-call template
+";
 read_file($fresh) eq read_file($built)
    or die "built generic bank-call template is stale relative to F8/inline_bankcall.s26\n";
 read_file($fa2_fresh) eq read_file($fa2_built)
@@ -157,6 +174,9 @@ read_file($ua_fresh) eq read_file($ua_built)
 ";
 read_file($uasw_fresh) eq read_file($uasw_built)
    or die "built UASW bank-call template is stale relative to UASW/inline_bankcall.s26
+";
+read_file($m0fa0_fresh) eq read_file($m0fa0_built)
+   or die "built 0FA0 bank-call template is stale relative to 0FA0/inline_bankcall.s26
 ";
 
 my $header = read_file($built);
@@ -197,6 +217,13 @@ $uasw_header =~ /VCSC_UASW_BANKCALL_TEMPLATE_SIZE 0x45u/
 ";
 $uasw_header =~ /VCSC_UASW_BANKCALL_RESERVED_SIZE 0x50u/
    or die "UASW trampoline reservation is no longer 80 bytes
+";
+my $m0fa0_header = read_file($m0fa0_built);
+$m0fa0_header =~ /VCSC_M0FA0_BANKCALL_TEMPLATE_SIZE 0x45u/
+   or die "0FA0 trampoline payload is no longer 69 bytes
+";
+$m0fa0_header =~ /VCSC_M0FA0_BANKCALL_RESERVED_SIZE 0x50u/
+   or die "0FA0 trampoline reservation is no longer 80 bytes
 ";
 
 print "inline bank-call source template passed\n";

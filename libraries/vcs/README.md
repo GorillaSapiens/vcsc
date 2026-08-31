@@ -28,6 +28,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `JANE/inline_bankcall.s26` ... JANE-specific maintained trampoline source; the same inline-target ABI with an arithmetic logical-bank-to-selector transform for irregular `$1FF0/$1FF1/$1FF8/$1FF9` selection
 - `0840/inline_bankcall.s26` ... 0840-specific maintained trampoline source; derives `$0800/$0840` from the logical PC and switches with an indexed read rather than a ROM-window store
 - `UA/inline_bankcall.s26`, `UASW/inline_bankcall.s26` ... mapper-local read-hotspot trampolines using indexed reads from `$0220`; UA inverts the logical-PC bank bit while UASW uses it directly because the selector association is swapped
+- `0FA0/inline_bankcall.s26` ... mapper-local masked-read-hotspot trampoline; logical `$Dxxx/$Fxxx` maps directly to indexed reads of canonical `$0FA0/$0FC0`
 - `0840/mapper.c26` ... 0840/EconoBanking two-bank 8K profile with below-cartridge selectors `$0800/$0840`; `0840/mapper.cfg` supplies simulator-only masked selector semantics
 - `UA/mapper.c26`, `UASW/mapper.c26` ... UA Limited 8K alias-decoded profiles; UA maps `$0220`-family accesses to bank 0 and `$0240`-family accesses to bank 1, while UASW swaps that association; their cfg files supply simulator-only masked selector semantics
 - `0FA0/mapper.c26` ... Brazilian Fotomania 0FA0 two-bank 8K profile; `(A & $16E0)==$06A0/$06C0` selects physical bank 0/1, physical bank 1 powers up, and `0FA0/mapper.cfg` supplies simulator metadata
@@ -736,8 +737,11 @@ address mirroring, `(A & $16E0)==$06A0` selects physical bank 0 and
 `(A & $16E0)==$06C0` selects physical bank 1. A11, A8, and A4-A0 are therefore
 don't-care alias bits. `vcsc-sim` keeps that mask explicit, and reads or writes
 to any matching alias still perform the underlying console-side access before
-the mapper switch. Generated transitions use the same state-preserving NMOS
-absolute-NOP read as the other below-window profiles.
+the mapper switch. Legacy generated transitions use the state-preserving NMOS absolute-NOP read.
+With `VCSC_INLINE_BANKCALL`, direct cross-bank C calls instead use the fixed
+`0FA0/inline_bankcall.s26` block: the logical-PC high-byte bank bit becomes
+Y=`$00/$20`, and `LDA $0FA0,Y` performs the canonical selector read. Same-bank
+calls remain ordinary JSRs.
 
 The final physical bank carries the `0FA0` signature at `$FFF8-$FFFB`.
 

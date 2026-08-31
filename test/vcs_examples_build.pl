@@ -136,7 +136,7 @@ for my $entry (@examples) {
    # Mapper diagnostics which are specifically exercising the fixed inline
    # bankcall ABI must be smoke-built with the same public define as their
    # Makefiles; otherwise this harness silently falls back to legacy bridges.
-   push @extra,'-DVCSC_INLINE_BANKCALL=1' if $file eq 'jane_diagnostic.c26' || $file eq 'econobanking_diagnostic.c26' || $file eq 'ua_diagnostic.c26' || $file eq 'uasw_diagnostic.c26';
+   push @extra,'-DVCSC_INLINE_BANKCALL=1' if $file eq 'jane_diagnostic.c26' || $file eq 'econobanking_diagnostic.c26' || $file eq 'ua_diagnostic.c26' || $file eq 'uasw_diagnostic.c26' || $file eq 'fotomania_diagnostic.c26';
    if ($source_text =~ m{renderers/enhanced_multisprite_asymmetric/enhanced_multisprite\.c26}) {
       # The asymmetric renderer owns its playfield rows; common retained-PF-row
       # data is never part of these cartridges.  NTSC's 192-line diagnostic also
