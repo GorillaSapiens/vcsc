@@ -170,13 +170,13 @@ move accordingly.
 
 Implementation checkpoint: the compiler/assembler/linker use the six-byte
 descriptor ABI and `__bankmeta$V3`. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,
-FA2-24/28, JANE, 0840, UA, and UASW consume it end to end and those migrated
+FA2-24/28, JANE, 0840, UA, UASW, and 0FA0 consume it end to end and those migrated
 profiles declare `$inline_bankcall` unconditionally. FA2 uses descriptors `$F5-$FA/$FB`
 and indexed `STA $1F00,Y`; JANE uses `$F0/$F1/$F8/$F9` and
 indexed `LDA $1F00,Y`; 0840 uses `$00/$40` and indexed `LDA $0800,Y`; UA/UASW
-use `$20/$40` and indexed `LDA $0200,Y`, with UASW reversing the association.
-All fixed blocks are 69 bytes with 72 reserved (`$048`). 0FA0 still has a
-mapper-local PC-derived block pending conversion. Only the descriptor ABI is retained for migrated inline mappers. Delete each
+use `$20/$40` and indexed `LDA $0200,Y`, with UASW reversing the association;
+0FA0 uses `$A0/$C0` and indexed `LDA $0F00,Y`. All fixed blocks are
+69 bytes with 72 reserved (`$048`). Only the descriptor ABI is retained for migrated inline mappers. Delete each
 obsolete mapper-specific call path as its last user migrates.
 
 Migration acceptance for each remaining mapper: consume the destination
@@ -199,9 +199,6 @@ Diagnostic optimizer wart: F864 direct-JMP targets use inline `TSX/STX`, so the
 current whole-function asm safety rule can leave generated
 `BNE near / JMP false / near: JMP true`. Pure C26 should not normally see it;
 this is future optimizer-locality cleanup, not bankswitching work.
-
-[ ] 37. Finish descriptor-ABI conversion of existing inline mappers:
-        0FA0. UA/UASW are complete. Do 0FA0 before FC/F0.
 
 [ ] 38. Complete the remaining mapper tier in this order: **FC, F0**.
 

@@ -66,14 +66,15 @@ my $example_make=File::Spec->catfile($example_dir,'Makefile');
 my $mk=read_file($example_make);
 $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
 $mk =~ /^\s*stella\s+-bs\s+0FA0\s+\$\(TARGET\)\s*$/m &&
-index($mk,'-DVCSC_INLINE_BANKCALL=1')>=0
-   or die "0FA0 play target must force Stella -bs 0FA0\n";
+index($mk,'-DVCSC_INLINE_BANKCALL=1')<0
+   or die "0FA0 play target must force Stella -bs 0FA0 without an inline-bankcall pilot define\n";
 my $pt=read_file($profile);
 $pt =~ /\$signature:0FA0\b/ &&
-$pt =~ /\$inline_bankcall/ &&
+$pt =~ /cartridge\s*\{\s*\$inline_bankcall/s &&
+index($pt,'VCSC_INLINE_BANKCALL') < 0 &&
 $pt =~ /\(A & \$16E0\)==\$06A0/ &&
-$pt =~ /bank\s+bank0\s*\{.*?\$file_index:1.*?\$select_access:0x0fc0\s+\$startup/s &&
-$pt =~ /bank\s+bank1\s*\{.*?\$file_index:0.*?\$select_access:0x0fa0/s
+$pt =~ /bank\s+bank0\s*\{.*?\$file_index:1.*?\$select_access:0x0fc0\s+\$bankcall_descriptor:0xc0\s+\$startup/s &&
+$pt =~ /bank\s+bank1\s*\{.*?\$file_index:0.*?\$select_access:0x0fa0\s+\$bankcall_descriptor:0xa0/s
    or die "0FA0 profile topology/mask/startup contract is wrong\n";
 my $ct=read_file($cfg);
 $ct =~ /mapper\s*=\s*0FA0/ &&
@@ -92,7 +93,7 @@ $simsrc =~ /canonical & 0x16e0u/ && $dissrc =~ /bus & 0x16e0u/
 
 my $bin=File::Spec->catfile($tmp,'0fa0.bin');
 my $map=File::Spec->catfile($tmp,'0fa0.map');
-require_ok('build 0FA0 simulator diagnostic',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-DSIMULATOR_TEST',
+require_ok('build 0FA0 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
    '-T',$generic,'-Map',$map,$source,'-o',$bin);
 -s $bin==8192 or die "0FA0 output size is not 8K\n";
 my $rom=read_file($bin);
@@ -111,21 +112,39 @@ for my $off (0,6,12) {
    substr($bridge,$off,4) eq pack('C*',0x0c,0xc0,0x0f,0x4c)
       or die "0FA0 vector bridge does not use NOP-read \$0FC0; JMP\n";
 }
-my $tramp=substr($rom,0x0f00,0x0050) . substr($rom,4096+0x0f00,0x0050);
-index($tramp,pack('C*',0xB9,0xA0,0x0F))>=0
-   or die "0FA0 inline bank-call block does not use indexed read selectors from \$0FA0\n";
-index($tramp,pack('C*',0x99,0xA0,0x0F))<0 && index($tramp,pack('C*',0x9D,0xA0,0x0F))<0
-   or die "0FA0 inline bank-call block writes its below-window selector family\n";
+my $lst=$bin; $lst =~ s/\.bin\z/.lst/; $lst=read_file($lst);
+my @logical_descriptor=(0xc0,0xa0);
+for my $destination (0..1) {
+   my $desc=sprintf('%02x',$logical_descriptor[$destination]);
+   my $count=()=$lst =~ /^\s*\d+\s+[0-9a-f]{4}\s+[0-9a-f]{2}\s+[0-9a-f]{2}\s+\Q$desc\E\s+; \.banktarget call_target\Q$destination\E\b/gmi;
+   $count==1
+      or die "0FA0 destination bank $destination descriptor payload count is $count, expected 1\n";
+}
+my @trampoline=map { substr($rom,$_ * 4096 + 0x0f00,0x48) } 0..1;
+my @source_diff=grep {
+   my $off=$_;
+   ord(substr($trampoline[0],$off,1)) != ord(substr($trampoline[1],$off,1));
+} 0..0x47;
+@source_diff==1
+   or die "0FA0 descriptor trampoline copies do not differ at exactly one source-descriptor byte\n";
+my @physical_descriptor=(0xa0,0xc0);
+for my $file_bank (0..1) {
+   ord(substr($trampoline[$file_bank],$source_diff[0],1))==$physical_descriptor[$file_bank]
+      or die sprintf("0FA0 file bank %d baked source descriptor is not \$%02X\n",$file_bank,$physical_descriptor[$file_bank]);
+   (()=$trampoline[$file_bank] =~ /\xB9\x00\x0F/sg)>=2 &&
+   index($trampoline[$file_bank],pack('C*',0x99,0x00,0x0F))<0 &&
+   index($trampoline[$file_bank],pack('C*',0x9D,0x00,0x0F))<0
+      or die "0FA0 inline bank-call block does not use read-only descriptor selectors from \$0F00\n";
+}
 
 my $m=read_file($map);
 $m =~ /^\s+bank0\s+file-index=1\b.*mode=selector\s+select-access=\$0FC0\s+startup=yes/m &&
 $m =~ /^\s+bank1\s+file-index=0\b.*mode=selector\s+select-access=\$0FA0/m &&
 $m =~ /vector-bridge=\$0FE0\s+size=\$0012/ &&
 $m =~ /^TRAMPOLINES$/m &&
-$m =~ /generic-jsr=\$050\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
+$m =~ /generic-jsr=\$048\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ &&
 $m !~ /JSR entry=/
    or die "0FA0 map topology/inline-trampoline contract is wrong\n$m";
-my $lst=$bin; $lst =~ s/\.bin\z/.lst/; $lst=read_file($lst);
 $lst =~ /\[bank bank0\] \| call_return := call_target0\(\);\n[^\n]*; JSR call_target0[^\n]*\n(?![^\n]*\.banktarget)/ &&
 $lst =~ /\[bank bank0\] \| call_return := call_target1\(\);\n[^\n]*; JSR call_target1[^\n]*\n[^\n]*; \.banktarget call_target1/ &&
 $lst =~ /\[bank bank1\] \| call_return := call_target0\(\);\n[^\n]*; JSR call_target0[^\n]*\n[^\n]*; \.banktarget call_target0/ &&
@@ -170,7 +189,7 @@ $amem->[0x07A7]==0x5A && $amem->[0x0ECF]==0xA5
    or die "0FA0 masked read/write aliases did not switch banks and preserve underlying accesses\n";
 
 my $visible=File::Spec->catfile($tmp,'0fa0-visible.bin');
-require_ok('build visible 0FA0 PASS/FAIL cartridge',$driver,'-I',$vcs,'-DVCSC_INLINE_BANKCALL=1','-T',$generic,$source,'-o',$visible);
+require_ok('build visible 0FA0 PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
 my $vrom=read_file($visible);
 length($vrom)==8192 && substr($vrom,4096+0x0ff8,4) eq '0FA0' &&
 index($vrom,pack('C*',0x2c,0xc0,0x0f))>=0

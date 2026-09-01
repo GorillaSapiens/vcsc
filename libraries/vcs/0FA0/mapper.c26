@@ -10,9 +10,7 @@ include "vcs.c26"
 // selector accesses overlay console devices, generated transition stubs use
 // state-preserving NMOS absolute NOP reads rather than writes.
 cartridge {
-#ifdef VCSC_INLINE_BANKCALL
    $inline_bankcall
-#endif
    $fill:0xff $signature:0FA0
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012
@@ -24,13 +22,13 @@ cartridge {
 bank bank0 {
    $image_size:0x1000 $file_index:1 $image_offset:0x0000
    $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000
-   $select_access:0x0fc0 $startup
+   $select_access:0x0fc0 $bankcall_descriptor:0xc0 $startup
 };
 
 bank bank1 {
    $image_size:0x1000 $file_index:0 $image_offset:0x0000
    $link_start:0xd000 $cpu_start:0xf000 $map_size:0x1000
-   $select_access:0x0fa0
+   $select_access:0x0fa0 $bankcall_descriptor:0xa0
 };
 
 mem bank0 { $start:0xf000 $size:0x0f00 $ro $priority:2 };

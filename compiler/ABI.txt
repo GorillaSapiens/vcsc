@@ -136,9 +136,8 @@ ordinary JSRs. The generic return path preserves A:X return values and performs
 the final RTS to the unchanged logical continuation PC.
 
 The compiler/assembler/linker implement the three-byte `.banktarget` field.
-F8/F6/F4(+SC), FA, DPC, FA2-24/28, JANE, 0840, and UA/UASW consume the
-descriptor end-to-end. 0FA0 still has a mapper-local PC-derived trampoline
-pending conversion. Experimental earlier bank-call encodings are not accepted
+F8/F6/F4(+SC), FA, DPC, FA2-24/28, JANE, 0840, UA/UASW, and 0FA0
+consume the descriptor end-to-end. Experimental earlier bank-call encodings are not accepted
 as compatibility ABIs. `../BANKSWITCHING.md` is the authoritative public ABI.
 
 Before an ordinary direct call, arguments are evaluated left-to-right. A

@@ -280,3 +280,14 @@ The monolithic e2e run reached test 245 before the outer execution cap; the
 remaining exact runner list was completed in bounded batches, with the slow
 diagnostic paddle regression run independently. 0FA0 is the next descriptor
 migration target, followed by FC and F0.
+
+2026-08-31 17:01:00 PDT, migrate 0FA0 descriptor bank calls
+0FA0 now consumes the public three-byte bank-call payload end to end. Logical
+bank0 uses descriptor $C0 for canonical selector $0FC0; logical bank1 uses $A0
+for $0FA0. The replicated 69-byte/72-reserved trampoline selects and restores
+with indexed reads from base $0F00 and no longer derives bank identity from the
+logical PC. The profile and example no longer need the inline-bankcall pilot
+define. Focused tests lock descriptor bytes, baked source descriptors, ordered
+cross-bank calls, nesting, A:X and stack preservation, simulator behavior,
+disassembly, and exact round trip. The full 503-case compile-only suite and all
+342 e2e cases pass; FC is the next descriptor migration, followed by F0.

@@ -102,13 +102,13 @@ Open workstreams
    Mapper support lives under uppercase Stella-named `libraries/vcs/<MAPPER>/`
    directories, with mapper-specific C26/CFG/S26 helpers inside that namespace.
    The toolchain now emits the six-byte descriptor call ABI. F8/F6/F4(+SC), FA,
-   DPC, FA2-24/28, JANE, and 0840 consume it end to end and declare `$inline_bankcall`
+   DPC, FA2-24/28, JANE, 0840, UA, UASW, and 0FA0 consume it end to end and declare `$inline_bankcall`
    unconditionally; same-bank calls remain ordinary JSRs and cross-bank calls use
    fixed mapper-local descriptor trampolines. FA2 uses `$F5-$FA/$FB` hotspot-low
    descriptors; JANE uses `$F0/$F1/$F8/$F9`; 0840 uses `$00/$40` offsets from
    `$0800`; UA/UASW use `$20/$40` offsets from `$0200`, with UASW reversing the
-   bank association. All use 69/72-byte (`$048`) blocks. 0FA0 still has a
-   PC-derived mapper-local block pending conversion. Only the current descriptor ABI is retained for migrated mappers.
+   bank association; 0FA0 uses `$A0/$C0` offsets from `$0F00`. All use
+   69/72-byte (`$048`) blocks. Only the current descriptor ABI is retained for migrated mappers.
 
    The F4SC descriptor timing regression in the field controller diagnostic is
    resolved architecturally. The cartridge now has bank-local joystick, paddle,
@@ -124,7 +124,7 @@ Open workstreams
    VBLANK/visible/overscan WSYNC phase, in addition to the 0..255 value oracle,
    227/228/229 long soaks, displayed-95 check, and PAL/SECAM points.
 
-   **Immediate code step:** resume descriptor migration with 0FA0, then FC and F0.
+   **Immediate code step:** continue descriptor migration with FC, then F0.
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished
@@ -163,8 +163,11 @@ NTSC diagnostic paddle values 0..255, 45-frame 227/228/229 soaks, independent
 displayed-61 WSYNC-phase checks on all four paddles, independent displayed-95
 checks, representative PAL/SECAM paddle points, four-player Paddleball,
 score-integrated paddle sampling, joystick-exit audio mute, controller cycling,
-and TV-standard cycling. The complete compile-only suite and all 342 e2e tests
-pass on this source state.
+and TV-standard cycling. The 0FA0 descriptor migration is also validated: exact
+`$A0/$C0` descriptors, both ordered cross-bank directions, nested returns,
+trampoline-copy source descriptors, simulator execution, disassembly, and exact
+round trip pass. The complete compile-only suite and all 342 e2e tests pass on
+this source state.
 
 Main-roadmap Items 46-48 are complete. Item 47 is locked by
 `test/superchip_direct_access.pl`: under 4KSC it fills all 128 Superchip bytes,
@@ -233,6 +236,6 @@ exact disassembly/reassembly, and a Stella-visible PASS/DPC frame.
 
 Immediate TODO
 --------------
-Resume descriptor-ABI migration with 0FA0, then FC/F0.
+Resume descriptor-ABI migration with FC, then F0.
 The field controller diagnostic regression and its follow-up audio/high-paddle
 timing failures are resolved and covered by focused regression contracts.

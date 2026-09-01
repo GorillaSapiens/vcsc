@@ -224,7 +224,7 @@ index(slurp(File::Spec->catfile($repo,qw(libraries vcs UA inline_bankcall.s26)))
 -f File::Spec->catfile($repo,qw(libraries vcs UASW inline_bankcall.s26)) &&
 index(slurp(File::Spec->catfile($repo,qw(libraries vcs UASW inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6048')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs 0FA0 inline_bankcall.s26)) &&
-index(slurp(File::Spec->catfile($repo,qw(libraries vcs 0FA0 inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6050')>=0 &&
+index(slurp(File::Spec->catfile($repo,qw(libraries vcs 0FA0 inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6048')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'generic_bankcall_reserved_size')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_generic_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_fa2_bankcall_template')>=0 &&
@@ -234,8 +234,9 @@ index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_ua_bankcall_t
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_uasw_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m0fa0_bankcall_template')>=0 &&
 index($bankswitching,'F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,')>=0 &&
-index($bankswitching,'FA2-24/28, JANE, 0840, UA, and UASW consume it end to end')>=0 &&
-index($bankswitching,'[ ] 37. Finish descriptor-ABI conversion of existing inline mappers')>=0 &&
+index($bankswitching,'FA2-24/28, JANE, 0840, UA, UASW, and 0FA0 consume it end to end')>=0 &&
+index($bankswitching,'[ ] 38. Complete the remaining mapper tier in this order: **FC, F0**')>=0 &&
+$bankswitching !~ /^\[ \] 37\./m &&
 $bankswitching !~ /^\[ \] 42\./m &&
 $bankswitching !~ /^\[ \] 43\./m &&
 index($bankswitching,'FE/SCABS is also not an F8-style hotspot mapper.')>=0 &&
@@ -647,9 +648,11 @@ index($uasw_profile,'$bankcall_descriptor:0x20')>=0 &&
 index($ua_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
 index($top_make,'libraries/vcs/UA/inline_bankcall.s26')>=0 &&
 index($top_make,'libraries/vcs/UASW/inline_bankcall.s26')>=0 &&
-index($m0fa0_profile,'#ifdef VCSC_INLINE_BANKCALL')>=0 &&
 index($m0fa0_profile,'$inline_bankcall')>=0 &&
-index($m0fa0_example_make,'-DVCSC_INLINE_BANKCALL=1')>=0 &&
+index($m0fa0_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
+index($m0fa0_profile,'$bankcall_descriptor:0xc0')>=0 &&
+index($m0fa0_profile,'$bankcall_descriptor:0xa0')>=0 &&
+index($m0fa0_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
 index($top_make,'libraries/vcs/0FA0/inline_bankcall.s26')>=0
    or die "migrated descriptor profiles or pending inline mapper packaging/opt-ins are inconsistent\n";
 my @mapper_dirs = qw(0840 0FA0 2K 3E 3F 4K 4KSC CV DPC E0 F4 F4SC F6 F6SC F8 F8SC FA FA2 FE JANE OMNI UA UASW WD);

@@ -232,8 +232,8 @@ for my $p (@profiles) {
    }
    if ($name eq '0FA0') {
       $text =~ /\$vector_bridge_offset:0x0fe0\s+\$vector_bridge_size:0x0012/ &&
-      $text =~ /bank\s+bank0\s*\{.*?\$file_index:1.*?\$select_access:0x0fc0\s+\$startup/s &&
-      $text =~ /bank\s+bank1\s*\{.*?\$file_index:0.*?\$select_access:0x0fa0/s &&
+      $text =~ /bank\s+bank0\s*\{.*?\$file_index:1.*?\$select_access:0x0fc0\s+\$bankcall_descriptor:0xc0\s+\$startup/s &&
+      $text =~ /bank\s+bank1\s*\{.*?\$file_index:0.*?\$select_access:0x0fa0\s+\$bankcall_descriptor:0xa0/s &&
       $text =~ /\(A & \$16E0\)/
          or die "0FA0 profile does not preserve masked selectors/startup bank\n";
       $map =~ /^\s+bank0\s+file-index=1\b.*select-access=\$0FC0.*startup=yes/m &&

@@ -23,7 +23,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `CV/mapper.c26`, `CV/ram.c26` ... CommaVid CV fixed 2K ROM plus shared 1K split-address cartridge RAM; `CV/mapper.cfg` supplies simulator/compatibility mapping
 - `4K/mapper.c26` ... conventional unbanked 4K topology and allocatable ROM
 - `F8/mapper.c26`, `F6/mapper.c26`, `F4/mapper.c26` ... inspectable selector-controlled C26 profiles with exact output order and generated corridors
-- `*/inline_bankcall.s26` ... mapper-local maintained sources for selector-controlled automatic cross-bank calls; the public ABI is defined in [`../../BANKSWITCHING.md`](../../BANKSWITCHING.md) and uses mapper-defined one-byte bank-call descriptors rather than inferring bank identity from logical PCs. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, FA2-24/28, JANE, 0840, UA, and UASW consume that descriptor ABI now; 0FA0 remains to be converted.
+- `*/inline_bankcall.s26` ... mapper-local maintained sources for selector-controlled automatic cross-bank calls; the public ABI is defined in [`../../BANKSWITCHING.md`](../../BANKSWITCHING.md) and uses mapper-defined one-byte bank-call descriptors rather than inferring bank identity from logical PCs. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, FA2-24/28, JANE, 0840, UA, UASW, and 0FA0 consume that descriptor ABI now.
 - `0840/mapper.c26` ... 0840/EconoBanking two-bank 8K profile with below-cartridge selectors `$0800/$0840`; `0840/mapper.cfg` supplies simulator-only masked selector semantics
 - `UA/mapper.c26`, `UASW/mapper.c26` ... UA Limited 8K alias-decoded profiles; UA maps `$0220`-family accesses to bank 0 and `$0240`-family accesses to bank 1, while UASW swaps that association; their cfg files supply simulator-only masked selector semantics
 - `0FA0/mapper.c26` ... Brazilian Fotomania 0FA0 two-bank 8K profile; `(A & $16E0)==$06A0/$06C0` selects physical bank 0/1, physical bank 1 powers up, and `0FA0/mapper.cfg` supplies simulator metadata
@@ -718,11 +718,10 @@ Because these selectors live below the cartridge window, generated vector
 bridges and legacy cross-bank stubs use undocumented NMOS absolute NOP `$0C`
 reads, preserving registers and flags without writing the mirrored console
 device. The current descriptor bank-call implementation uses fixed
-mapper-local inline-target blocks: UA derives selector offset `$00/$20` with
-`EOR #$20; AND #$20`, while UASW needs only `AND #$20`; both switch with
-`LDA $0220,Y`. That PC-derived math is scheduled to disappear under the public
-descriptor ABI in [`../../BANKSWITCHING.md`](../../BANKSWITCHING.md). Same-bank
-calls remain ordinary JSRs. The selector side effect
+mapper-local inline-target blocks. UA uses descriptors `$20/$40` for `$0220/$0240`;
+UASW uses the same descriptor values with the bank association reversed. Both
+switch and restore directly with `LDA $0200,Y`, with the source descriptor baked
+into each replicated trampoline. Same-bank calls remain ordinary JSRs. The selector side effect
 does not swallow the underlying low-address transaction:
 reads sample the console byte and writes still reach the console-side model.
 `UA/mapper.cfg` and `UASW/mapper.cfg` provide the matching masked decoder and
@@ -741,13 +740,13 @@ address mirroring, `(A & $16E0)==$06A0` selects physical bank 0 and
 `(A & $16E0)==$06C0` selects physical bank 1. A11, A8, and A4-A0 are therefore
 don't-care alias bits. `vcsc-sim` keeps that mask explicit, and reads or writes
 to any matching alias still perform the underlying console-side access before
-the mapper switch. Legacy generated transitions use the state-preserving NMOS absolute-NOP read.
+the mapper switch. Generated transitions use state-preserving reads.
 `0FA0/inline_bankcall.s26` is the mapper-local automatic-call implementation.
-The target descriptor ABI uses `$A0/$C0` as natural mapper-owned destination and
-source descriptor values for the canonical `$0FA0/$0FC0` selector aliases;
-same-bank calls remain ordinary JSRs. The current source still uses the older
-logical-PC-derived `$00/$20` form until the descriptor migration is implemented.
-See [`../../BANKSWITCHING.md`](../../BANKSWITCHING.md).
+The descriptor ABI uses `$A0/$C0` as mapper-owned destination/source descriptors
+for canonical aliases `$0FA0/$0FC0`; selection and restoration are indexed reads
+from selector base `$0F00`. Each replicated trampoline copy carries its baked
+source descriptor, and no bank identity is inferred from logical PCs. Same-bank
+calls remain ordinary JSRs. See [`../../BANKSWITCHING.md`](../../BANKSWITCHING.md).
 
 The final physical bank carries the `0FA0` signature at `$FFF8-$FFFB`.
 

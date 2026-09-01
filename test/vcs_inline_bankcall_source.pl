@@ -129,10 +129,12 @@ index($uasw_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
    or die "maintained UASW trampoline source lacks descriptor read-selector ABI
 ";
 index($m0fa0_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
-index($m0fa0_s26, 'eor #$20') < 0 && index($m0fa0_s26, 'and #$20') >= 0 &&
-index($m0fa0_s26, 'VCSC_BANKCALL_SELECTOR_BASE = $0FA0') >= 0 &&
-index($m0fa0_s26, '__vcsc_generic_bankcall_reserved_end = $6050') >= 0
-   or die "maintained 0FA0 trampoline source lacks direct-PC masked-read selector transform
+index($m0fa0_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
+index($m0fa0_s26, 'VCSC_BANKCALL_SELECTOR_BASE = $0F00') >= 0 &&
+index($m0fa0_s26, 'eor #$20') < 0 && index($m0fa0_s26, 'and #$20') < 0 &&
+index($m0fa0_s26, 'adc #3') >= 0 &&
+index($m0fa0_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
+   or die "maintained 0FA0 trampoline source lacks descriptor read-selector ABI
 ";
 index($ld, 'vcsc_generic_bankcall_template') >= 0 && index($ld, 'vcsc_fa2_bankcall_template') >= 0 &&
 index($ld, 'vcsc_jane_bankcall_template') >= 0 && index($ld, 'vcsc_m0840_bankcall_template') >= 0 &&
@@ -227,8 +229,8 @@ my $m0fa0_header = read_file($m0fa0_built);
 $m0fa0_header =~ /VCSC_M0FA0_BANKCALL_TEMPLATE_SIZE 0x45u/
    or die "0FA0 trampoline payload is no longer 69 bytes
 ";
-$m0fa0_header =~ /VCSC_M0FA0_BANKCALL_RESERVED_SIZE 0x50u/
-   or die "0FA0 trampoline reservation is no longer 80 bytes
+$m0fa0_header =~ /VCSC_M0FA0_BANKCALL_RESERVED_SIZE 0x48u/
+   or die "0FA0 descriptor trampoline reservation is no longer 72 bytes
 ";
 
 print "inline bank-call source template passed\n";

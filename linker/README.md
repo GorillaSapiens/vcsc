@@ -524,14 +524,12 @@ old requirement that either source or destination bank be recoverable from a
 16-bit PC and allows multiple banks to share one CPU link window.
 
 The linker emits the descriptor ABI now. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,
-FA2-24/28, JANE, 0840, UA, and UASW use 69-byte descriptor-aware blocks with
-72 bytes reserved (`generic-jsr=$048`); each bank copy has its own patched
-source descriptor. 0840 descriptors are `$00/$40`, used as indexed offsets from
-selector base `$0800`; UA/UASW use `$20/$40` from selector base `$0200`, with
-UASW reversing the bank association. 0FA0 remains pending: its call sites carry
-the third byte, but its mapper-local trampoline still skips it and uses the
-previous PC-derived selector logic. It consumes no per-target JSR entries while
-being migrated.
+FA2-24/28, JANE, 0840, UA, UASW, and 0FA0 use 69-byte descriptor-aware
+blocks with 72 bytes reserved (`generic-jsr=$048`); each bank copy has its own
+patched source descriptor. 0840 descriptors are `$00/$40`, used as indexed
+offsets from selector base `$0800`; UA/UASW use `$20/$40` from selector base
+`$0200`, with UASW reversing the bank association; 0FA0 uses `$A0/$C0` from
+selector base `$0F00`, corresponding to canonical aliases `$0FA0/$0FC0`.
 
 Call-bundle page carry, indivisible placement, A:X preservation, nested LIFO
 returns, hardware-stack accounting, and ordered source/destination diagnostics

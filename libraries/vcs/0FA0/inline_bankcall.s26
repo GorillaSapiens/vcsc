@@ -1,24 +1,29 @@
 ; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 ;
-; Brazilian Fotomania 0FA0 inline-target cross-bank JSR/RTS trampoline.
+; Descriptor-ABI cross-bank JSR/RTS trampoline for Brazilian Fotomania 0FA0.
 ;
-; 0FA0 uses a masked below-cartridge decoder.  Canonical VCSC aliases are
-; $0FA0 for physical/file bank 0 (logical bank1 at $D000) and $0FC0 for
-; physical/file bank 1 (logical/startup bank0 at $F000).  Bit 5 of the logical
-; PC high byte is therefore already the selector offset: Y=$00 for bank1 and
-; Y=$20 for bank0.  LDA $0FA0,Y performs the non-destructive selector read;
-; the hardware's broader alias mask remains a simulator/disassembler concern.
+; The caller emits JSR __bankcall followed by a three-byte .banktarget payload:
+; 16-bit target address, then the destination bank-call descriptor. 0FA0 uses
+; the low byte of its canonical selector alias as the descriptor: $A0 selects
+; physical/file bank 0 (logical bank1) through $0FA0 and $C0 selects physical/
+; file bank 1 (logical/startup bank0) through $0FC0. Selecting/restoring a bank
+; is therefore an indexed read from $0F00. Each replicated trampoline copy has
+; its source-bank descriptor patched into the immediate operand below; no bank
+; identity is inferred from the caller, callee, or return PC.
 ;
-; This is the maintained source for 0FA0's fixed $inline_bankcall block.
-; linker/gen_inline_bankcall_template.pl assembles it at build time; vcsc-ld
-; patches only the runtime-selected zero-page scratch address, selector base,
-; and internal JSR target before replicating the block into both banks.
+; Selector accesses must remain reads because 0FA0 decodes below-cartridge
+; console addresses. LDA $0F00,Y performs the required non-destructive selector
+; read through the canonical alias family; the broader hardware alias mask is
+; a simulator/disassembler concern.
 
 .ifndef VCSC_BANKCALL_PTR0
 VCSC_BANKCALL_PTR0 = $0080
 .endif
 .ifndef VCSC_BANKCALL_SELECTOR_BASE
-VCSC_BANKCALL_SELECTOR_BASE = $0FA0
+VCSC_BANKCALL_SELECTOR_BASE = $0F00
+.endif
+.ifndef VCSC_BANKCALL_SOURCE_DESCRIPTOR
+VCSC_BANKCALL_SOURCE_DESCRIPTOR = $C0
 .endif
 
 .segmentdef "CODE", $6000, $0100
@@ -36,14 +41,6 @@ __vcsc_generic_bankcall_begin:
     sta VCSC_BANKCALL_PTR0
     lda $0102,x
     sta VCSC_BANKCALL_PTR0 + 1
-    ldy #1
-    lda (VCSC_BANKCALL_PTR0),y
-    pha
-    iny
-    lda (VCSC_BANKCALL_PTR0),y
-    sta VCSC_BANKCALL_PTR0 + 1
-    pla
-    sta VCSC_BANKCALL_PTR0
 
     lda $0101,x
     clc
@@ -53,33 +50,37 @@ __vcsc_generic_bankcall_begin:
     inc $0102,x
 @return_adjusted:
 
+    ldy #1
+    lda (VCSC_BANKCALL_PTR0),y
+    tax
+    iny
+    lda (VCSC_BANKCALL_PTR0),y
+    pha
+    iny
+    lda (VCSC_BANKCALL_PTR0),y
+    tay
+    pla
+    sta VCSC_BANKCALL_PTR0 + 1
+    stx VCSC_BANKCALL_PTR0
+
+    lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR
+    pha
+
     jsr __vcsc_generic_bankcall_switch_and_jump
 
-; Preserve A:X, derive the source bank from the original logical return PC,
-; perform the below-window selector read, then restore A:X and return.
 __vcsc_generic_bankreturn:
-    pha
-    txa
-    pha
-    tsx
-    lda $0104,x
-    and #$20
+    sta VCSC_BANKCALL_PTR0
+    stx VCSC_BANKCALL_PTR0 + 1
+    pla
     tay
     lda VCSC_BANKCALL_SELECTOR_BASE,y
-    pla
-    tax
-    pla
+    lda VCSC_BANKCALL_PTR0
+    ldx VCSC_BANKCALL_PTR0 + 1
     rts
 
-; Derive the destination selector from the inline target logical address, read
-; that selector, then jump through ptr0.  This fixed block is replicated at the
-; same CPU addresses in both banks, so execution remains valid across the read.
 __vcsc_generic_bankcall_switch_and_jump:
-    lda VCSC_BANKCALL_PTR0 + 1
-    and #$20
-    tay
     lda VCSC_BANKCALL_SELECTOR_BASE,y
     jmp (VCSC_BANKCALL_PTR0)
 
 __vcsc_generic_bankcall_end:
-__vcsc_generic_bankcall_reserved_end = $6050
+__vcsc_generic_bankcall_reserved_end = $6048

@@ -9196,13 +9196,15 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
       if (!file0 || !file1 || file0->data_only || file1->data_only ||
           file0->link_start != 0xd000u || file1->link_start != 0xf000u ||
           !file0->has_selector || file0->select_access != 0x0fa0u ||
+          !file0->has_bankcall_descriptor || file0->bankcall_descriptor != 0xa0u ||
           !file1->has_selector || file1->select_access != 0x0fc0u ||
+          !file1->has_bankcall_descriptor || file1->bankcall_descriptor != 0xc0u ||
           !file1->startup || file0->startup) {
          fprintf(stderr,
-                 "vcsc-ld: 0FA0 inline-target bank calls require file bank0/logical bank1 $Dxxx -> $0FA0 and startup file bank1/logical bank0 $Fxxx -> $0FC0\n");
+                 "vcsc-ld: 0FA0 inline-target bank calls require file bank0/logical bank1 $Dxxx -> $0FA0 descriptor $A0 and startup file bank1/logical bank0 $Fxxx -> $0FC0 descriptor $C0\n");
          exit(1);
       }
-      return 0x0fa0u;
+      return 0x0f00u;
    }
 
    if (jane) {
