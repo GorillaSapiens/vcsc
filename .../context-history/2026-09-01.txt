@@ -9,7 +9,7 @@ many mapper, Superchip, replicated-ROM, bankswitch ABI, diagnostic, and e2e
 consumers. Work remains in the F8 profile legacy byte-equality assertion, a few
 renderer/FAITHFUL cfg consumers, hygiene/docs, and the final full-suite pass.
 
-2026-09-01 13:40:45 PDT, linker cfgectomy validation and documentation cleanup
+2026-09-01 13:40:45 PDT, cfgectomy validation and docs cleanup
 Verified the F8 profile regression was already descriptor-aware and passes.
 Updated maintained driver/linker/simulator/library/renderer/example/tool/test
 documentation to remove deleted VCS linker-cfg assumptions while preserving
@@ -21,3 +21,17 @@ green through the first 245/342 cases; additional tail checks passed the
 diagnostic cartridge, DPC, driving, E0, enhanced multisprite, discard-strobe,
 VSYNC, and example-build shards 1-6. The exhaustive/long remaining tail exceeded
 the available execution window, so it is explicitly not recorded as rerun.
+
+2026-09-01 14:05:44 PDT, cfgectomy regression fixes
+Fixed the seven failures reported by the first complete post-cfgectomy e2e run.
+Restored .../instruction.txt to the handoff tree and made .gitignore explicitly
+unignore it so make tar from an unpacked/no-.git tree cannot silently omit it;
+source_tree_hygiene now locks that packaging invariant. Shortened the malformed
+history header. Removed dead cfg parameters from the player-color and banked
+standard-renderer tests. Changed the fingerprint CRC selftest to flat .bin now
+that its included 4K C26 cartridge topology correctly forbids Intel HEX output.
+Made the return-memory test anchor its object-layout extraction in the OBJECTS
+section so the new C26 CARTRIDGE TOPOLOGY source path cannot be mistaken for the
+object header. All seven reported failures pass focused. Broad e2e reruns are
+green through 245/342 and, separately, the tail through example-build shard 6;
+the exhaustive diagnostic paddle test still exceeds this execution window.

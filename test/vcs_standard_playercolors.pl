@@ -36,7 +36,7 @@ sub map_zp {
 }
 sub require_re { my($text,$re,$why)=@_; $text =~ $re or die "$why\n"; }
 sub build_profile {
-   my($driver,$vcs,$cfg,$source,$renderer,$bin,$map)=@_;
+   my($driver,$vcs,$source,$renderer,$bin,$map)=@_;
    my($rc,$sig,$out,$err)=capture(
       $driver,'-I',$vcs,'-Map',$map,$source,$renderer,'-o',$bin);
    $rc==0 && !$sig or die "player-color cartridge build failed\nstdout:\n$out\nstderr:\n$err";
@@ -75,8 +75,8 @@ $rc==0 && !$sig or die "plain player-color renderer assembly failed\n$out$err";
 without_cartridge_usage($out) eq '' && $err eq ''
    or die "plain player-color renderer assembly wrote output\n$out$err";
 
-build_profile($driver,$vcs,$cfg,$static_source,$renderer,$static_bin,$static_map);
-build_profile($driver,$vcs,$cfg,$motion_source,$renderer,$motion_bin,$motion_map);
+build_profile($driver,$vcs,$static_source,$renderer,$static_bin,$static_map);
+build_profile($driver,$vcs,$motion_source,$renderer,$motion_bin,$motion_map);
 my $smap=read_file($static_map);
 my $mmap=read_file($motion_map);
 

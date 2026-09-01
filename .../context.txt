@@ -243,11 +243,17 @@ resolved topology, and `vcsc-sim` consumes `--map` or same-stem maps. The driver
 uses implicit `4K/mapper.c26` only when no explicit cartridge topology or generic
 script is selected. `test/source_tree_hygiene.pl` rejects VCS cfg regressions.
 
-Cfgectomy code, tests, and maintained docs are migrated. Compile-only validation
-is 503/503. E2E validation is green for the first 245/342 tests plus the diagnostic
-cartridge, DPC, driving, E0, enhanced-multisprite, discard-strobe, VSYNC, and
-example-build shards 1-6; the remaining exhaustive/long tail exceeded this tool
-window and has not been claimed as rerun.
+Cfgectomy code, tests, and maintained docs are migrated. The first complete
+post-cfgectomy user run exposed seven stale/packaging regressions; all seven are
+now fixed and pass focused: history formatting, developer-record packaging,
+fingerprint selftest output format, return-memory map anchoring, two stale
+renderer cfg arguments, and branding. `make tar` from an unpacked/no-.git tree
+now preserves `.../instruction.txt`, with hygiene coverage locking that invariant.
+Compile-only validation remains 503/503. Broad e2e reruns are green through the
+first 245/342 tests plus the diagnostic cartridge, DPC, driving, E0,
+enhanced-multisprite, discard-strobe, VSYNC, and example-build shards 1-6; the
+exhaustive diagnostic paddle test still exceeds this tool window, so a fresh
+single uninterrupted 342/342 rerun has not been claimed here.
 
 Immediate TODO
 --------------

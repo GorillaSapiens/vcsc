@@ -143,7 +143,7 @@ $ldmap =~ /MEMORY\s+.*?rom\s+start=\$([0-9A-Fa-f]+)/si
    or die "linker map is missing ROM start\n";
 my $rom_start=hex($1);
 
-$ldmap =~ /\Q$object\E\n(.*?)(?=\n  \S|\nTABLES)/s
+$ldmap =~ /^  \Q$object\E\n((?:     [^\n]*\n)+)/m
    or die "linker map is missing test object layout\n";
 my $layout=$1;
 sub function_load {

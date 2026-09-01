@@ -33,7 +33,7 @@ sub symbol_addr {
    return hex($1);
 }
 sub build_variant {
-   my($driver,$vcs,$cfg,$source,$renderer,$tmp,$name,$defs,$size)=@_;
+   my($driver,$vcs,$source,$renderer,$tmp,$name,$defs,$size)=@_;
    my $bin=File::Spec->catfile($tmp,"$name.bin");
    my $mapfile=File::Spec->catfile($tmp,"$name.map");
    my @cmd=($driver,'-I',$vcs,@$defs,'-Map',$mapfile,$source,$renderer,'-o',$bin);
@@ -76,7 +76,7 @@ my @spec=(
 my %built;
 for my $s (@spec) {
    my($name,$defs,$size,$banks)=@$s;
-   my($bin,$map)=build_variant($driver,$vcs,$cfg,$source,$renderer,$tmp,lc($name),$defs,$size);
+   my($bin,$map)=build_variant($driver,$vcs,$source,$renderer,$tmp,lc($name),$defs,$size);
    $built{$name}={bin=>$bin,map=>$map,banks=>$banks};
 }
 

@@ -170,6 +170,9 @@ for my $rel (sort keys %readme_heading) {
 }
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `instruction.txt`')>=0
    or die ".../README.md does not document instruction.txt\n";
+my $gitignore=slurp(File::Spec->catfile($repo,'.gitignore'));
+index($gitignore,'!.../instruction.txt')>=0
+   or die ".gitignore must preserve .../instruction.txt in make tar handoffs\n";
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `bankswitching.txt`')>=0
    or die ".../README.md does not document bankswitching.txt\n";
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `roadmap.txt`')>=0 &&
