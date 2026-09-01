@@ -13,6 +13,10 @@ C26 cartridge/memory topology from `--map FILE`, or automatically from the
 same-stem linker `.map` sidecar when present. Generic legacy linker cfg input via
 `-T` remains supported as a separate mechanism. The simulator is useful for deterministic linker/runtime diagnostics; Stella remains the independent authority for Atari mapper and TIA behavior.
 
+Mapper selection is not a separate command-line option. C26 builds obtain it
+from the cartridge signature/topology in `--map FILE`; legacy `-T` configs
+obtain it from their `mapper=` property.
+
 ## Command line
 
 ```sh

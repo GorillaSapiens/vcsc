@@ -929,7 +929,11 @@ repeat a low-byte phase while wasting at least one complete page. The search is
 greedy in input order, deterministic, and deliberately bounded rather than an
 unbounded global code-layout optimizer.
 - the config parser is intentionally small, strict, and only covers the documented subset
-- Intel HEX is emitted as sparse logical-address records for unbanked profiles
+- Intel HEX is emitted as sparse logical-address records. C26 cartridge
+  topology does not by itself force binary output: mapped banks already have
+  distinct linker addresses and may be simulated with the accompanying map.
+  Topologies containing `$data_only` file-domain banks require `.bin`, because
+  those bytes deliberately have no 6502 address that Intel HEX could encode.
 - Unbanked flat binary output spans the lowest through highest used address and fills internal gaps with `$FF`; a conventional VCS layout therefore produces exactly 4096 bytes for `$F000-$FFFF`
 - Banked flat binary output concatenates complete 4K bank units from lowest logical address to highest, so BANK0 is last
 

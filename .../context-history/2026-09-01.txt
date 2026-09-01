@@ -35,3 +35,13 @@ section so the new C26 CARTRIDGE TOPOLOGY source path cannot be mistaken for the
 object header. All seven reported failures pass focused. Broad e2e reruns are
 green through 245/342 and, separately, the tail through example-build shard 6;
 the exhaustive diagnostic paddle test still exceeds this execution window.
+2026-09-01 15:15:54 PDT, cfgectomy HEX output correction
+Reversed the accidental fingerprint_selftest.hex -> .bin change and removed the
+generic e2e runner's any-C26-topology -> .bin switch. Narrowed vcsc-ld's output
+restriction: mapped C26 banks, including selector-controlled banks, may be Intel
+HEX at their distinct linker addresses; only $data_only file-domain banks require
+flat .bin because those bytes have no 6502 address. Added direct and selector
+HEX regressions plus a data-only rejection regression. Verified an F8 diagnostic
+links and runs as HEX under vcsc-sim with --map. vcsc-sim has no separate mapper
+CLI argument: C26 mapper identity comes from --map topology/signature; legacy -T
+uses mapper= from the cfg.

@@ -1664,6 +1664,19 @@ static int ranges_overlap_u32(uint32_t a, uint32_t as, uint32_t b, uint32_t bs)
    return as && bs && a < b + bs && b < a + as;
 }
 
+//! @brief Return nonzero when C26 file-only payload has no Intel-HEX address.
+static int c26_topology_requires_flat_binary(const linker_config_t *cfg)
+{
+   size_t i;
+
+   if (!cfg)
+      return 0;
+   for (i = 0; i < cfg->topology_bank_count; ++i)
+      if (cfg->topology_banks[i].data_only)
+         return 1;
+   return 0;
+}
+
 //! @brief Drop legacy cfg bank-only corridors superseded by authoritative C26 topology.
 static void discard_legacy_banked_cfg_regions(linker_config_t *cfg)
 {
@@ -12573,9 +12586,9 @@ int main(int argc, char **argv)
        startup_simple_is_safe(&cfg, &inputs)) {
       reselect_needed_objects_with_preferred_provider(&inputs, "__vcsc_startup_simple");
    }
-   if ((cfg.cartridge_banked || cfg.topology_bank_count) && !ends_with(hex_path, ".bin")) {
+   if (c26_topology_requires_flat_binary(&cfg) && !ends_with(hex_path, ".bin")) {
       fprintf(stderr,
-              "vcsc-ld: cartridge topology requires a flat .bin output\n");
+              "vcsc-ld: data-only cartridge banks require a flat .bin output\n");
       return 1;
    }
    validate_abi_metadata(&inputs);

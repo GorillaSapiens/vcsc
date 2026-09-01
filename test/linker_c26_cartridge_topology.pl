@@ -74,11 +74,17 @@ TOPO
 
 my $direct_src = File::Spec->catfile($tmp, 'direct.c26');
 my $direct_bin = File::Spec->catfile($tmp, 'direct.bin');
+my $direct_hex = File::Spec->catfile($tmp, 'direct.hex');
 my $direct_map = File::Spec->catfile($tmp, 'direct.map');
 write_file($direct_src, qq{include "machine_6502.c26"\nmem rom { \$start:0xf000 \$size:0x0ff8 \$ro \$priority:1 };\nmem bank1 { \$start:0x3000 \$size:0x1000 \$ro };\n$direct_topology\nbank1 const uint8_t marker[4] := {0x11,0x22,0x33,0x44};\nbank1 uint8_t helper(void) { return marker[2]; }\nvoid main(void) { uint8_t x := helper(); while (x) { x := 0; } }\n});
 require_ok('direct topology link', $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ROM',
            '-Map', $direct_map, '--no-sym', '--no-list', '--no-cfg',
            '-o', $direct_bin, $direct_src);
+require_ok('direct topology Intel HEX link', $vcsc, '-I', $include,
+           '-DMACHINE_6502_NO_DEFAULT_ROM', '--no-map', '--no-sym', '--no-list',
+           '--no-cfg', '-o', $direct_hex, $direct_src);
+slurp($direct_hex) =~ /^:[0-9A-Fa-f]{2}(?:3000|F000)00/m
+   or die "direct topology Intel HEX did not preserve logical linker addresses\n";
 my $direct_image = slurp($direct_bin);
 length($direct_image) == 8192
    or die "direct topology output length was " . length($direct_image) . "\n";
@@ -110,6 +116,7 @@ index(substr($direct_image, 0x1000), $call) >= 0
 
 my $f8_src = File::Spec->catfile($tmp, 'f8.c26');
 my $f8_bin = File::Spec->catfile($tmp, 'f8.bin');
+my $f8_hex = File::Spec->catfile($tmp, 'f8.hex');
 my $f8_map = File::Spec->catfile($tmp, 'f8.map');
 write_file($f8_src, <<'SRC');
 include "machine_6502.c26"
@@ -137,6 +144,12 @@ SRC
 require_ok('selector topology link', $vcsc, '-I', $include,
            '-Map', $f8_map, '--no-sym', '--no-list', '--no-cfg',
            '-o', $f8_bin, $f8_src);
+require_ok('selector topology Intel HEX link', $vcsc, '-I', $include,
+           '--no-map', '--no-sym', '--no-list', '--no-cfg',
+           '-o', $f8_hex, $f8_src);
+slurp($f8_hex) =~ /^:[0-9A-Fa-f]{2}D[0-9A-Fa-f]{3}00/m &&
+slurp($f8_hex) =~ /^:[0-9A-Fa-f]{2}F[0-9A-Fa-f]{3}00/m
+   or die "selector topology Intel HEX did not preserve both logical bank ranges\n";
 length(slurp($f8_bin)) == 8192 or die "F8 topology output is not 8K\n";
 my $f8_text = slurp($f8_map);
 $f8_text =~ /bank1.*file-index=0.*mode=selector.*select-access=\$1FF8/s &&
@@ -189,5 +202,22 @@ require_fail('missing selector startup', 'requires exactly one startup bank',
              $vcsc, '-I', $include,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'missing-startup.bin'), $missing_startup);
+
+my $data_only = File::Spec->catfile($tmp, 'data_only.c26');
+write_file($data_only, <<'SRC');
+include "machine_6502.c26"
+mem rom { $start:0xf000 $size:0x0ffa $ro $priority:1 };
+cartridge { $fill:0xff };
+bank rom {
+   $image_size:0x1000 $file_index:0 $image_offset:0
+   $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000 $startup
+};
+bank payload { $image_size:0x0100 $file_index:1 $data_only };
+void main(void) {}
+SRC
+require_fail('data-only topology Intel HEX', 'data-only cartridge banks require a flat .bin output',
+             $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ROM',
+             '--no-map', '--no-sym', '--no-list', '--no-cfg',
+             '-o', File::Spec->catfile($tmp, 'data-only.hex'), $data_only);
 
 print "C26 cartridge topology validated\n";

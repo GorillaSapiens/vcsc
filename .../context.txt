@@ -100,7 +100,9 @@ Open workstreams
    `BANKSWITCHING.md` is the public selector-controlled cross-bank call ABI;
    `.../bankswitching.txt` keeps only durable mapper facts and unfinished work.
    Mapper support lives under uppercase Stella-named `libraries/vcs/<MAPPER>/`
-   directories, with mapper-specific C26/S26 helpers inside that namespace. Mapper/linker `.cfg` profiles under `libraries/vcs` are being removed; C26 topology is authoritative.
+   directories, with mapper-specific C26/S26 helpers inside that namespace.
+   Mapper/linker `.cfg` profiles under `libraries/vcs` are removed; C26 topology
+   is authoritative.
    The toolchain now emits the six-byte descriptor call ABI. F8/F6/F4(+SC), FA,
    DPC, FA2-24/28, JANE, 0840, UA, UASW, and 0FA0 consume it end to end and declare `$inline_bankcall`
    unconditionally; same-bank calls remain ordinary JSRs and cross-bank calls use
@@ -124,7 +126,7 @@ Open workstreams
    VBLANK/visible/overscan WSYNC phase, in addition to the 0..255 value oracle,
    227/228/229 long soaks, displayed-95 check, and PAL/SECAM points.
 
-   **Immediate code step:** finish the active VCS linker-`.cfg` removal described below, then continue descriptor migration with FC, then F0.
+   **Immediate code step:** continue descriptor migration with FC, then F0.
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished
@@ -243,11 +245,15 @@ resolved topology, and `vcsc-sim` consumes `--map` or same-stem maps. The driver
 uses implicit `4K/mapper.c26` only when no explicit cartridge topology or generic
 script is selected. `test/source_tree_hygiene.pl` rejects VCS cfg regressions.
 
-Cfgectomy code, tests, and maintained docs are migrated. The first complete
+Cfgectomy code, tests, and maintained docs are migrated. C26 topology does not
+force `.bin`: Intel HEX remains the sparse linker-address image used by generic
+and simulator tests, including selector-controlled banks when `vcsc-sim` is
+given the linker map. Only file-domain `$data_only` payload currently requires
+flat binary because it has no 6502 address. The first complete
 post-cfgectomy user run exposed seven stale/packaging regressions; all seven are
 now fixed and pass focused: history formatting, developer-record packaging,
-fingerprint selftest output format, return-memory map anchoring, two stale
-renderer cfg arguments, and branding. `make tar` from an unpacked/no-.git tree
+the fingerprint selftest, return-memory map anchoring, two stale renderer cfg
+arguments, and branding. `make tar` from an unpacked/no-.git tree
 now preserves `.../instruction.txt`, with hygiene coverage locking that invariant.
 Compile-only validation remains 503/503. Broad e2e reruns are green through the
 first 245/342 tests plus the diagnostic cartridge, DPC, driving, E0,
