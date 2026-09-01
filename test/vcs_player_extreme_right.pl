@@ -21,7 +21,6 @@ my $tmp=abs_path(shift @ARGV // die "tmp\n");
 die "args\n" if @ARGV;
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
 my $obj=File::Spec->catfile($mos,'mos6502.o');
@@ -33,7 +32,7 @@ die "harness build failed\n$out$err" if $rc || $sig;
 for my $kind (qw(181 192)) {
    my $src=File::Spec->catfile($repo,qw(test fixtures player_color_extreme_right),"checker_${kind}.c26");
    my $bin=File::Spec->catfile($tmp,"checker_${kind}.bin");
-   ($rc,$sig,$out,$err)=run($driver,'-I',$vcs,'-T',$cfg,$src,'-o',$bin);
+   ($rc,$sig,$out,$err)=run($driver,'-I',$vcs,$src,'-o',$bin);
    die "checker $kind build failed\n$out$err" if $rc || $sig;
    ($rc,$sig,$out,$err)=run($exe,$bin,'--players-hblank');
    die "checker $kind timing failed\n$out$err" if $rc || $sig;

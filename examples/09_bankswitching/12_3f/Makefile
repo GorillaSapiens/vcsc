@@ -13,7 +13,7 @@ SOURCE := 3f_diagnostic.c26
 TARGET := 3f_diagnostic.bin
 all: $(TARGET)
 $(TARGET): $(SOURCE)
-	$(VCSC) -I $(VCS_DIR) -T $(VCS_DIR)/vcs.cfg -Map 3f_diagnostic.map $(SOURCE) -o $@
+	$(VCSC) -I $(VCS_DIR) -Map 3f_diagnostic.map $(SOURCE) -o $@
 $(TARGET): $(COMMITTED_FONT_SUBSETS)
 
 fonts:

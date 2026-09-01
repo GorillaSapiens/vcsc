@@ -128,7 +128,7 @@ $s =~ /tanks_motion\[16\].*?0x50,0x52,0x51,0x61,0x01,0x21,0x11,0x12,\s*0x10,0x16
 $s =~ /tanks_move_object\(x, y, direction\)/
    or die "Tanks lost logical-grid 16-way movement support\n";
 
-my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',$dir,'-T',File::Spec->catfile($vcs,'vcs.cfg'),'-Map',$mapfile,$source,'-o',$bin);
+my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',$dir,'-Map',$mapfile,$source,'-o',$bin);
 $rc==0&&!$sig or die "Tanks build failed\n$out$err";
 -s$bin==8192 or die "Tanks ROM is not 8192-byte F8SC\n";
 my$map=read_file($mapfile);

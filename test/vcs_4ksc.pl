@@ -57,8 +57,6 @@ my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $source=File::Spec->catfile($repo,'examples','09_bankswitching','04_4ksc','4ksc_diagnostic.c26');
-my $cfg=File::Spec->catfile($vcs,'4KSC/mapper.cfg');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
 my $profile=File::Spec->catfile($vcs,'4KSC/mapper.c26');
 my $bin=File::Spec->catfile($tmp,'4ksc.bin');
 my $map=File::Spec->catfile($tmp,'4ksc.map');
@@ -69,8 +67,7 @@ $source_text =~ /load_4ksc_type\(\)/ &&
 $source_text =~ /cart_type_draw\(\)/
    or die "4KSC visible diagnostic lost its centered mapper line\n";
 
-require_ok('build 4KSC simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
-   '-T',$generic,'-Map',$map,$source,'-o',$bin);
+require_ok('build 4KSC simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-Map',$map,$source,'-o',$bin);
 -s $bin==4096 or die "4KSC output size is not 4096 bytes\n";
 my $rom=read_file($bin);
 substr($rom,0,256) eq ("\xFF" x 256)
@@ -87,7 +84,7 @@ $m =~ /cartram\s+used=128 bytes \(100\.00%\).*free=0 bytes/m
    or die "4KSC diagnostic does not allocate all 128 Superchip bytes\n$m";
 
 my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure sc_bss sc_data);
-my($out,$err)=require_ok('simulate 4KSC through hostile fill and reset',$sim,'-T',$cfg,
+my($out,$err)=require_ok('simulate 4KSC through hostile fill and reset',$sim,'--map',$map,
    '--split-fill=0xA7',sprintf('--reset-on-pc=0x%04X',$sym{simulator_done}),
    sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);
 $err eq '' or die "4KSC simulator wrote stderr:\n$err";
@@ -102,14 +99,14 @@ $mem->[$sym{sc_bss}+126]==0x33
 # Ordinary ROM may not be placed inside the Superchip port prefix.
 my $overlay=File::Spec->catfile($tmp,'overlay.c26');
 write_file($overlay,qq{include "4KSC/mapper.c26"\nmem hidden_rom { \$start:0xF080 \$size:0x0010 \$ro };\nhidden_rom const uint8_t illegal := 0x42;\nvoid main(void) { while (1) { } }\n});
-my($rrc,$rsig,$rout,$rerr)=run_capture($driver,'-I',$vcs,'-T',$generic,$overlay,'-o',File::Spec->catfile($tmp,'overlay.bin'));
+my($rrc,$rsig,$rout,$rerr)=run_capture($driver,'-I',$vcs,$overlay,'-o',File::Spec->catfile($tmp,'overlay.bin'));
 $rrc!=0 && !$rsig && $rerr =~ /outside every mapped ROM window/i
    or die "4KSC RAM-overlay ROM placement did not fail clearly\nstdout:\n$rout\nstderr:\n$rerr";
 
 # The public visible image must identify as 4KSC, retain stable NTSC timing,
 # and round-trip exactly through the disassembler/assembler pair.
 my $visible=File::Spec->catfile($tmp,'4ksc-visible.bin');
-require_ok('build visible 4KSC PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
+require_ok('build visible 4KSC PASS/FAIL cartridge',$driver,'-I',$vcs,$source,'-o',$visible);
 my($s26,$derr)=require_ok('probe visible 4KSC cartridge',$disas,'-o','-',$visible);
 $derr eq '' or die "vcsc-disas wrote stderr for 4KSC visible cartridge:\n$derr";
 $s26 =~ /^; mapper: 4KSC \(high confidence;/m

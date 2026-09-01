@@ -1,10 +1,6 @@
-include "machine_6502.c26"
+include "F8/mapper.c26"
 
-// These names and spans match libraries/vcs/F8/mapper.cfg.  Unmarked code is
-// automatically placed; named modifiers are hard pins.
-mem ram   { $start:0x0080 $size:0x0080 $rw $priority:2 };
-mem bank0 { $start:0xF000 $size:0x0F00 $ro $priority:2 };
-mem bank1 { $start:0xD000 $size:0x0F00 $ro };
+// Unmarked code is automatically placed; named modifiers are hard pins.
 
 uint8_t result;
 

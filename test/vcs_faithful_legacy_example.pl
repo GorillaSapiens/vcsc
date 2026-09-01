@@ -41,7 +41,6 @@ $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $profile=File::Spec->catdir($vcs,qw(renderers faithful_legacy_playercolors));
-my $cfg=File::Spec->catfile($profile,'faithful_legacy_playercolors.cfg');
 my $source=File::Spec->catfile($repo,qw(examples 02_faithful_legacy_playercolors 01_interactive faithful_legacy_playercolors_interactive.c26));
 my $bin=File::Spec->catfile($tmp,'faithful_legacy_playercolors.bin');
 my $map=File::Spec->catfile($tmp,'faithful_legacy_playercolors.map');
@@ -70,7 +69,7 @@ for my $name (qw(
 }
 
 my($rc,$sig,$out,$err)=capture(
-   $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$map,$source,'-o',$bin);
+   $driver,'-I',$vcs,'-Wa,--illegals','-Map',$map,$source,'-o',$bin);
 $rc==0 && !$sig or die "faithful legacy interactive example build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "faithful legacy interactive example build wrote output\n$out$err";
 length(read_file($bin))==4096 or die "faithful legacy interactive example did not produce a 4096-byte ROM\n";

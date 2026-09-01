@@ -9,7 +9,7 @@ STARTUP := secam_enhanced_multisprite_asymmetric_228_interactive_startup.s26
 all: $(TARGET)
 
 $(TARGET): $(SOURCE) $(STARTUP) ../../multisprite_228_interactive_common.c26
-	$(VCSC) -nostdlib -I $(VCS_DIR) -DMULTISPRITE_NO_RETAINED_PF_ROWS -T $(VCS_DIR)/F8/mapper.cfg $(SOURCE) $(STARTUP) -o $@
+	$(VCSC) -nostdlib -I $(VCS_DIR) -DMULTISPRITE_NO_RETAINED_PF_ROWS $(SOURCE) $(STARTUP) -o $@
 
 play: $(TARGET)
 	stella -format SECAM $(TARGET)

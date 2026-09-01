@@ -21,10 +21,10 @@ my $xvfb=findexe('Xvfb') or die "Xvfb required\n"; my $perl=findexe('perl') or d
 my $keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl)); my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
 my $driver=File::Spec->catfile($repo,qw(driver vcsc)); my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $source=File::Spec->catfile($repo,qw(examples 09_bankswitching 02_standard_renderer banked_standard_renderer.c26));
-my $renderer=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc standard_4k_ntsc_renderer.s26)); my $cfg=File::Spec->catfile($vcs,'vcs.cfg');
+my $renderer=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc standard_4k_ntsc_renderer.s26));
 my @runs=(['4k','4K',['-DUNBANKED_REFERENCE'],undef],['f8','F8',['-DMAPPER_BANKS=2'],1],['f8sc','F8SC',['-DMAPPER_BANKS=2','-DSUPERCHIP_TEST'],1]);
 my %dig; my $display=130+($$%50);
-for my $r(@runs){my($name,$mapper,$defs,$start)=@$r; my$rom=File::Spec->catfile($tmp,"$name.bin"); ok("build $name",$driver,'-I',$vcs,@$defs,'-T',$cfg,$source,$renderer,'-o',$rom);
+for my $r(@runs){my($name,$mapper,$defs,$start)=@$r; my$rom=File::Spec->catfile($tmp,"$name.bin"); ok("build $name",$driver,'-I',$vcs,@$defs,$source,$renderer,'-o',$rom);
    $display++ while -e "/tmp/.X11-unix/X$display"; my$d=":$display"; $display++;
    my$xpid=fork(); defined$xpid or die"fork Xvfb\n"; if(!$xpid){open(STDOUT,'>:raw',"$tmp/$name.xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$d,'-ac','-screen','0','1024x768x24');die$!}
    select undef,undef,undef,.2; local$ENV{DISPLAY}=$d; local$ENV{XAUTHORITY}='/dev/null'; local$ENV{HOME}=$tmp; local$ENV{SDL_AUDIODRIVER}='dummy';

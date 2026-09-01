@@ -56,7 +56,6 @@ my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $profile=File::Spec->catdir($vcs,qw(renderers standard_4k_ntsc));
 my $component=File::Spec->catfile($vcs,qw(renderers all_five all_five.c26));
 my $source=File::Spec->catfile($repo,qw(test fixtures all_five_192 smoke.c26));
-my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $bin=File::Spec->catfile($tmp,'all_five_192.bin');
 my $mapfile=File::Spec->catfile($tmp,'all_five_192.map');
 my $motion_source=File::Spec->catfile($repo,qw(test fixtures all_five_192 motion.c26));
@@ -64,14 +63,14 @@ my $motion_bin=File::Spec->catfile($tmp,'all_five_192_motion.bin');
 my $motion_mapfile=File::Spec->catfile($tmp,'all_five_192_motion.map');
 
 my($rc,$sig,$out,$err)=capture(
-   $driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,$source,'-o',$bin);
+   $driver,'-I',$vcs,'-Map',$mapfile,$source,'-o',$bin);
 $rc==0 && !$sig or die "all-five 192 build failed\n$out$err";
 without_usage($out) eq '' && $err eq ''
    or die "all-five 192 build wrote output\n$out$err";
 -s $bin == 4096 or die "all-five 192 cartridge is not exactly 4096 bytes\n";
 
 ($rc,$sig,$out,$err)=capture(
-   $driver,'-I',$vcs,'-T',$cfg,'-Map',$motion_mapfile,$motion_source,'-o',$motion_bin);
+   $driver,'-I',$vcs,'-Map',$motion_mapfile,$motion_source,'-o',$motion_bin);
 $rc==0 && !$sig or die "all-five 192 motion build failed\n$out$err";
 without_usage($out) eq '' && $err eq ''
    or die "all-five 192 motion build wrote output\n$out$err";
@@ -200,7 +199,7 @@ $edge_text =~ s/game_ball_y := 48;/game_ball_y := 8;/
 my $edge_src=File::Spec->catfile($tmp,'all_five_192_ball_row_edge.c26');
 my $edge_bin=File::Spec->catfile($tmp,'all_five_192_ball_row_edge.bin');
 write_file($edge_src,$edge_text);
-($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,$edge_src,'-o',$edge_bin);
+($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,$edge_src,'-o',$edge_bin);
 $rc==0 && !$sig or die "all-five 192 Ball row-edge build failed
 $out$err";
 without_usage($out) eq '' && $err eq '' or die "all-five 192 Ball row-edge build wrote output
@@ -239,7 +238,7 @@ for my $phase (qw(init vblank draw overscan)) {
    my $badbin=File::Spec->catfile($tmp,"all_five_192_missing_$phase.bin");
    write_file($badsrc,$bad);
    ($rc,$sig,$out,$err)=capture(
-      $driver,'-I',$vcs,'-T',$cfg,$badsrc,'-o',$badbin);
+      $driver,'-I',$vcs,$badsrc,'-o',$badbin);
    $rc!=0 && !$sig or die "missing $phase lifecycle unexpectedly linked\n$out$err";
    ($out.$err) =~ /required function 'game_\Q$phase\E' not used/
       or die "missing $phase produced the wrong diagnostic\n$out$err";

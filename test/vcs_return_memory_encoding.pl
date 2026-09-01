@@ -74,7 +74,6 @@ my $assembler=File::Spec->catfile($repo,'assembler','vcsc-as');
 my $linker=File::Spec->catfile($repo,'linker','vcsc-ld');
 my $vcs_dir=File::Spec->catdir($repo,'libraries','vcs');
 my $runtime_dir=File::Spec->catdir($repo,'libraries','runtime');
-my $cfg=File::Spec->catfile($vcs_dir,'4K/mapper.cfg');
 my $runtime=File::Spec->catfile($runtime_dir,'libvcsc.l26');
 my $source=File::Spec->catfile($tmp,'return_memory.c26');
 my $assembly=File::Spec->catfile($tmp,'return_memory.s26');
@@ -84,7 +83,7 @@ my $link_map=File::Spec->catfile($tmp,'return_memory.map');
 my $binary=File::Spec->catfile($tmp,'return_memory.bin');
 
 write_file($source, <<'SOURCE');
-include "vcs.c26"
+include "4K/mapper.c26"
 
 uint8_t return8(void) {
    return 0xa5`uint8_t;
@@ -126,7 +125,7 @@ require_ok('compiler',$exit,$signal,$stdout,$stderr);
 require_ok('assembler',$exit,$signal,$stdout,$stderr);
 
 ($exit,$signal,$stdout,$stderr)=run_capture(
-   $linker,'-T',$cfg,'-Map',$link_map,'-o',$binary,$object,$runtime,
+   $linker,'-Map',$link_map,'-o',$binary,$object,$runtime,
 );
 require_ok('linker',$exit,$signal,$stdout,$stderr);
 

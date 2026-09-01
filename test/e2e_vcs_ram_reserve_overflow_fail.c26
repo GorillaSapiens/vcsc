@@ -1,9 +1,8 @@
 // vcsc-cc1 -I ../libraries/vcs
-// linkcfg: ../libraries/vcs/4K/mapper.cfg
 // expectlinkfail
 // expectlinkerr: ram overflow while placing BSS
 
-include "vcs.c26"
+include "4K/mapper.c26"
 
 // The linker dynamically reserves the hardware stack from the top of the
 // 128-byte RIOT RAM block. A 128-byte global must fail rather than overlap the

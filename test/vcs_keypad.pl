@@ -61,7 +61,7 @@ $e =~ /right_keypad_read_row\(keypad_scan_row\)/
 
 sub build_rom {
    my($src,$dir,$bin,$map)=@_;
-   my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',$dir,'-T',File::Spec->catfile($vcs,'vcs.cfg'),'-Map',$map,$src,'-o',$bin);
+   my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',$dir,'-Map',$map,$src,'-o',$bin);
    $rc==0&&!$sig or die "keypad build failed for $src\n$out$err";
    $err eq '' or die "keypad build stderr for $src: $err";
 }

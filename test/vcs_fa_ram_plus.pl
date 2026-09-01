@@ -65,13 +65,10 @@ $source_text =~ /instantiate "six_glyph_component\.c26" as cart_type/ &&
 $source_text =~ /blank \/ blank \/ F \/ A \/ blank \/ blank/ &&
 $source_text =~ /cart_type_draw\(\)/
    or die "FA visible diagnostic lost its centered FA mapper line\n";
-my $cfg=File::Spec->catfile($vcs,'FA/mapper.cfg');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
 my $bin=File::Spec->catfile($tmp,'fa.bin');
 my $map=File::Spec->catfile($tmp,'fa.map');
 
-require_ok('build FA simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
-   '-T',$generic,'-Map',$map,$source,'-o',$bin);
+require_ok('build FA simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-Map',$map,$source,'-o',$bin);
 -s $bin==12288 or die "FA output size is not 12288 bytes\n";
 my $rom=read_file($bin);
 my $m=read_file($map);
@@ -105,7 +102,7 @@ for my $dest_bank (0..2) {
 
 my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure trace ram_count fa_bss fa_data);
 for my $start (0..2) {
-   my($out,$err)=require_ok("simulate FA from physical bank $start",$sim,'-T',$cfg,
+   my($out,$err)=require_ok("simulate FA from physical bank $start",$sim,'--map',$map,
       "--start-bank=$start",sprintf('--stop-pc=0x%04X',$sym{simulator_done}),
       '--dump-on-stop',$bin);
    $err eq '' or die "FA simulator wrote stderr from bank $start:\n$err";
@@ -128,7 +125,7 @@ write_file($overflow,qq{include "FA/mapper.c26"
 bank0 const uint8_t too_big[3400] := { 0 };
 void main(void) { while (1) { } }
 });
-my($orc,$osig,$oout,$oerr)=run_capture($driver,'-I',$vcs,'-T',$generic,$overflow,'-o',File::Spec->catfile($tmp,'overflow.bin'));
+my($orc,$osig,$oout,$oerr)=run_capture($driver,'-I',$vcs,$overflow,'-o',File::Spec->catfile($tmp,'overflow.bin'));
 $orc!=0 && !$osig && $oerr =~ /(?:overflow|does not fit|capacity|placement)/i
    or die "FA bank overflow did not fail clearly\nstdout:\n$oout\nstderr:\n$oerr";
 
@@ -138,7 +135,7 @@ mem hidden_rom { \$start:0xF180 \$size:0x0010 \$ro };
 hidden_rom const uint8_t illegal := 0x42;
 void main(void) { while (1) { } }
 });
-my($rrc,$rsig,$rout,$rerr)=run_capture($driver,'-I',$vcs,'-T',$generic,$overlay,'-o',File::Spec->catfile($tmp,'overlay.bin'));
+my($rrc,$rsig,$rout,$rerr)=run_capture($driver,'-I',$vcs,$overlay,'-o',File::Spec->catfile($tmp,'overlay.bin'));
 $rrc!=0 && !$rsig && $rerr =~ /outside every mapped ROM window/i
    or die "FA RAM-overlay ROM placement did not fail clearly\nstdout:\n$rout\nstderr:\n$rerr";
 
@@ -147,14 +144,14 @@ write_file($badbank,qq{include "FA/mapper.c26"
 bank3 const uint8_t illegal := 0x42;
 void main(void) { while (1) { } }
 });
-my($brc,$bsig,$bout,$berr)=run_capture($driver,'-I',$vcs,'-T',$generic,$badbank,'-o',File::Spec->catfile($tmp,'badbank.bin'));
+my($brc,$bsig,$bout,$berr)=run_capture($driver,'-I',$vcs,$badbank,'-o',File::Spec->catfile($tmp,'badbank.bin'));
 $brc!=0 && !$bsig
    or die "FA invalid bank reference unexpectedly succeeded\nstdout:\n$bout\nstderr:\n$berr";
 
 # The normal visible cartridge must retain stable NTSC frame timing according to
 # the disassembler's bounded dynamic TIA/RIOT probe.
 my $visible=File::Spec->catfile($tmp,'fa-visible.bin');
-require_ok('build visible FA PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
+require_ok('build visible FA PASS/FAIL cartridge',$driver,'-I',$vcs,$source,'-o',$visible);
 my($s26,$derr)=require_ok('probe visible FA cartridge',$disas,'-o','-',$visible);
 $derr eq '' or die "vcsc-disas wrote stderr for FA visible cartridge:\n$derr";
 $s26 =~ /^; video: NTSC \(dynamic stable frame measurement: 264 raw line intervals\) \(high confidence\)$/m

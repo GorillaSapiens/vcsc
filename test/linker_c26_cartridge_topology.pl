@@ -60,29 +60,6 @@ $tmp = abs_path($tmp) // die "could not resolve temp dir\n";
 
 my $vcsc = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $include = File::Spec->catfile($repo, 'test');
-my $f8_cfg = File::Spec->catfile($repo, 'libraries', 'vcs', 'F8/mapper.cfg');
-
-my $direct_cfg = File::Spec->catfile($tmp, 'direct.cfg');
-write_file($direct_cfg, <<'CFG');
-MEMORY {
-   RAM:     start=$0080, size=$0080, type=rw, define=yes, callstack=callgraph;
-   bank1:   start=$3000, size=$1000, type=ro, define=yes;
-   ROM:     start=$F000, size=$0FFA, type=ro, define=yes;
-   VECTORS: start=$FFFA, size=$0006, type=ro, define=yes;
-}
-SEGMENTS {
-   ZEROPAGE: load=RAM, type=zp, define=yes;
-   DATA: load=ROM, run=RAM, type=data, define=yes;
-   BSS: load=RAM, type=bss, define=yes;
-   STARTUP: load=ROM, type=ro, define=yes;
-   CODE: load=ROM, type=ro, define=yes;
-   RODATA: load=ROM, type=ro, define=yes;
-   CODE.bank1: load=bank1, type=ro, define=yes;
-   RODATA.bank1: load=bank1, type=ro, define=yes;
-   VECTORS: load=VECTORS, type=ro, start=$FFFA;
-}
-CFG
-
 my $direct_topology = <<'TOPO';
 cartridge { $fill:0xaa $signature:TST };
 bank bank1 {
@@ -99,7 +76,7 @@ my $direct_src = File::Spec->catfile($tmp, 'direct.c26');
 my $direct_bin = File::Spec->catfile($tmp, 'direct.bin');
 my $direct_map = File::Spec->catfile($tmp, 'direct.map');
 write_file($direct_src, qq{include "machine_6502.c26"\nmem rom { \$start:0xf000 \$size:0x0ff8 \$ro \$priority:1 };\nmem bank1 { \$start:0x3000 \$size:0x1000 \$ro };\n$direct_topology\nbank1 const uint8_t marker[4] := {0x11,0x22,0x33,0x44};\nbank1 uint8_t helper(void) { return marker[2]; }\nvoid main(void) { uint8_t x := helper(); while (x) { x := 0; } }\n});
-require_ok('direct topology link', $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $direct_cfg,
+require_ok('direct topology link', $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_ROM',
            '-Map', $direct_map, '--no-sym', '--no-list', '--no-cfg',
            '-o', $direct_bin, $direct_src);
 my $direct_image = slurp($direct_bin);
@@ -157,7 +134,7 @@ bank bank1 {
 bank1 uint8_t helper(void) { return 7; }
 void main(void) { uint8_t x := helper(); while (x) { x := 0; } }
 SRC
-require_ok('selector topology link', $vcsc, '-I', $include, '-T', $f8_cfg,
+require_ok('selector topology link', $vcsc, '-I', $include,
            '-Map', $f8_map, '--no-sym', '--no-list', '--no-cfg',
            '-o', $f8_bin, $f8_src);
 length(slurp($f8_bin)) == 8192 or die "F8 topology output is not 8K\n";
@@ -173,7 +150,7 @@ my $part_b = File::Spec->catfile($tmp, 'part_b.c26');
 write_file($part_a, qq{include "machine_6502.c26"\nmem bank1 { \$start:0x3000 \$size:0x1000 \$ro };\n$direct_topology\nbank1 uint8_t helper(void) { return 3; }\n});
 write_file($part_b, qq{include "machine_6502.c26"\nmem bank1 { \$start:0x3000 \$size:0x1000 \$ro };\n$direct_topology\nbank1 extern uint8_t helper(void);\nvoid main(void) { uint8_t x := helper(); while (x) { x := 0; } }\n});
 require_ok('separate identical topology declarations', $vcsc, '-I', $include,
-           '-T', $direct_cfg, '--no-map', '--no-sym', '--no-list', '--no-cfg',
+           '--no-map', '--no-sym', '--no-list', '--no-cfg',
            '-o', File::Spec->catfile($tmp, 'separate.bin'), $part_a, $part_b);
 
 (my $conflict_text = $direct_topology) =~ s/\$file_index:1/\$file_index:0/;
@@ -181,7 +158,7 @@ my $conflict = File::Spec->catfile($tmp, 'conflict.c26');
 write_file($conflict, qq{include "machine_6502.c26"\nmem bank1 { \$start:0x3000 \$size:0x1000 \$ro };\n$conflict_text\nbank1 extern uint8_t helper(void);\nvoid main(void) { uint8_t x := helper(); while (x) { x := 0; } }\n});
 {
    my ($exit, $sig, $out, $err) = run_capture(
-      $vcsc, '-I', $include, '-T', $direct_cfg,
+      $vcsc, '-I', $include,
       '--no-map', '--no-sym', '--no-list', '--no-cfg',
       '-o', File::Spec->catfile($tmp, 'conflict.bin'), $part_a, $conflict);
    ($exit != 0 || $sig)
@@ -200,7 +177,7 @@ bank two { $image_size:0x1000 $file_index:0 $image_offset:0 $link_start:0xf000 $
 void main(void) {}
 SRC
 require_fail('duplicate file index', 'duplicate file index 0',
-             $vcsc, '-I', $include, '-T', $direct_cfg,
+             $vcsc, '-I', $include,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'duplicate.bin'), $duplicate);
 
@@ -209,7 +186,7 @@ my $missing_text = slurp($f8_src);
 $missing_text =~ s/ \$startup\n/\n/;
 write_file($missing_startup, $missing_text);
 require_fail('missing selector startup', 'requires exactly one startup bank',
-             $vcsc, '-I', $include, '-T', $f8_cfg,
+             $vcsc, '-I', $include,
              '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'missing-startup.bin'), $missing_startup);
 

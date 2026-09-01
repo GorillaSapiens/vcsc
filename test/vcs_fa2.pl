@@ -43,12 +43,10 @@ for my $source (0..6) {
          or die "public FA2 diagnostic source matrix incomplete at $source->$destination\n";
    }
 }
-my $cfg=File::Spec->catfile($vcs,'FA2/mapper_28k.cfg');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
 my $bin=File::Spec->catfile($tmp,'fa2.bin');
 my $map=File::Spec->catfile($tmp,'fa2.map');
 
-ok('build FA2 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-T',$generic,'-Map',$map,$src,'-o',$bin);
+ok('build FA2 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-Map',$map,$src,'-o',$bin);
 -s $bin==28672 or die "FA2 28K image size wrong\n";
 my $rom=readf($bin); my $m=readf($map);
 my $lst=readf(File::Spec->catfile($tmp,'fa2.lst'));
@@ -72,7 +70,7 @@ substr($rom,6*4096+0xff8,4) eq "FA2\0" or die "FA2 signature missing from final 
 
 my %a=map { $_=>sym($m,$_) } qw(simulator_done failure current_source current_destination call_count fa2_data fa2_bss);
 for my $b (0..6) {
-   my($out,$err)=ok("simulate FA2 from bank $b",$sim,'-T',$cfg,"--start-bank=$b",sprintf('--stop-pc=0x%04X',$a{simulator_done}),'--dump-on-stop',$bin);
+   my($out,$err)=ok("simulate FA2 from bank $b",$sim,'--map',$map,"--start-bank=$b",sprintf('--stop-pc=0x%04X',$a{simulator_done}),'--dump-on-stop',$bin);
    $err eq '' or die "FA2 simulator stderr from bank $b:\n$err";
    my $mem=hexmem($out);
    $mem->[$a{failure}]==0 && $mem->[$a{call_count}]==49 or die "FA2 7x7 call-matrix self-test failed from bank $b\n";
@@ -207,7 +205,7 @@ C26
 close $sf or die "close $six_src: $!\n";
 my $six=File::Spec->catfile($tmp,'fa2-24k.bin');
 my $six_map=File::Spec->catfile($tmp,'fa2-24k.map');
-ok('build six-bank FA2',$driver,'-I',$vcs,'-T',$generic,'-Map',$six_map,$six_src,'-o',$six);
+ok('build six-bank FA2',$driver,'-I',$vcs,'-Map',$six_map,$six_src,'-o',$six);
 -s $six==24576 or die "FA2 24K image size wrong\n";
 my $six_rom=readf($six); my $six_m=readf($six_map);
 my $six_lst=readf(File::Spec->catfile($tmp,'fa2-24k.lst'));
@@ -227,9 +225,8 @@ $six_m =~ /generic-jsr=\$048\b.*\bentries=0\s+jmp=0\s+jsr=0\b/ && $six_m !~ /JSR
    or die "FA2 24K diagnostic did not use only the mapper-specific inline bank-call block\n$six_m";
 substr($six_rom,5*4096+0xff8,4) eq "FA2\0" or die "FA2 24K signature missing from final file bank\n";
 my %sa=map { $_=>sym($six_m,$_) } qw(six_done six_failure six_count);
-my $six_cfg=File::Spec->catfile($vcs,'FA2/mapper_24k.cfg');
 for my $b (0..5) {
-   my($out,$err)=ok("simulate six-bank FA2 from bank $b",$sim,'-T',$six_cfg,"--start-bank=$b",sprintf('--stop-pc=0x%04X',$sa{six_done}),'--dump-on-stop',$six);
+   my($out,$err)=ok("simulate six-bank FA2 from bank $b",$sim,'--map',$six_map,"--start-bank=$b",sprintf('--stop-pc=0x%04X',$sa{six_done}),'--dump-on-stop',$six);
    $err eq '' or die "FA2 24K simulator stderr from bank $b:\n$err";
    my $mem=hexmem($out);
    $mem->[$sa{six_failure}]==0 && $mem->[$sa{six_count}]==36 or die "FA2 24K 6x6 call-matrix self-test failed from bank $b\n";
@@ -243,7 +240,7 @@ my($six_rout,$six_rerr)=ok('round-trip six-bank FA2',$^X,$round,$six_ri,$six_ro)
 $six_rerr eq '' && $six_rout =~ /PASS fa2-24k\.bin/ or die "FA2 24K roundtrip failed\n$six_rout\n$six_rerr";
 
 my $visible=File::Spec->catfile($tmp,'fa2-visible.bin');
-ok('build visible FA2 diagnostic',$driver,'-I',$vcs,'-T',$generic,$src,'-o',$visible);
+ok('build visible FA2 diagnostic',$driver,'-I',$vcs,$src,'-o',$visible);
 my($s26,$derr)=ok('disassemble FA2 diagnostic',$disas,'-o','-',$visible);
 $derr eq '' or die "FA2 disassembler stderr:\n$derr";
 $s26 =~ /^; mapper: FA2 \(high confidence;/m && $s26 =~ /^; reset\/power-on bank: 0 \(FA2 hardware bank 0\)$/m or die "FA2 disassembler mapper/reset contract missing\n";

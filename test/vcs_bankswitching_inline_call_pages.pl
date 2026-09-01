@@ -55,7 +55,6 @@ $tmp=abs_path($tmp) // die "could not resolve tmp\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $simcfg=File::Spec->catfile($vcs,'F8/mapper.cfg');
 
 for my $case (
    [within_page=>0xD0F0, 'six-byte call bundle remains within one page'],
@@ -118,8 +117,7 @@ SRC
    $assembly =~ /\.proc\s+crossing\s+jsr\s+target\s+\.banktarget\s+target/s
       or die "$name does not emit the six-byte inline-target call bundle\n";
 
-   require_ok("link $name",$driver,'-I',$vcs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),
-              '-Map',$map_path,$src,'-o',$bin);
+   require_ok("link $name",$driver,'-I',$vcs,'-Map',$map_path,$src,'-o',$bin);
    -s $bin==8192 or die "$name did not emit exact 8K F8 image\n";
    my $map=read_file($map_path);
    my $crossing=map_symbol($map,'crossing');
@@ -143,7 +141,7 @@ SRC
    my $done=map_symbol($map,'done');
 
    for my $start_bank (0,1) {
-      my($out,$err)=require_ok("simulate $name from bank $start_bank",$sim,'-T',$simcfg,
+      my($out,$err)=require_ok("simulate $name from bank $start_bank",$sim,'--map',$map_path,
          "--start-bank=$start_bank",sprintf('--stop-pc=0x%04X',$stop),'--dump-on-stop',$bin);
       $err eq '' or die "$name simulator wrote stderr:\n$err";
       my $mem=parse_dump($out);
@@ -191,8 +189,7 @@ SRC
    my $good_source=$template;
    $good_source =~ s/EDGE_DECL/mem edge { \$start:0xdef9 \$size:0x0007 \$ro \$priority:3 };/;
    write_file($good,$good_source);
-   require_ok('link bank-end exact fit',$driver,'-I',$vcs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),
-              '-Map',$map_path,$good,'-o',$bin);
+   require_ok('link bank-end exact fit',$driver,'-I',$vcs,'-Map',$map_path,$good,'-o',$bin);
    my $map=read_file($map_path);
    map_symbol($map,'crossing')==0xDEF9
       or die "bank-end exact-fit call function did not remain at DEF9\n";
@@ -202,8 +199,7 @@ SRC
    my $bad_source=$template;
    $bad_source =~ s/EDGE_DECL/mem edge { \$start:0xdefa \$size:0x0006 \$ro \$priority:3 };/;
    write_file($bad,$bad_source);
-   my($rc,$sig,$out,$err)=run_capture($driver,'-I',$vcs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),
-                                     $bad,'-o',File::Spec->catfile($tmp,'bank_end_bad.bin'));
+   my($rc,$sig,$out,$err)=run_capture($driver,'-I',$vcs,$bad,'-o',File::Spec->catfile($tmp,'bank_end_bad.bin'));
    $rc!=0 && !$sig
       or die "bank-end overflow unexpectedly linked; call bundle may have spilled across its layout\n";
    $err =~ /cannot satisfy final page\/alignment capacity/

@@ -100,7 +100,7 @@ Open workstreams
    `BANKSWITCHING.md` is the public selector-controlled cross-bank call ABI;
    `.../bankswitching.txt` keeps only durable mapper facts and unfinished work.
    Mapper support lives under uppercase Stella-named `libraries/vcs/<MAPPER>/`
-   directories, with mapper-specific C26/CFG/S26 helpers inside that namespace.
+   directories, with mapper-specific C26/S26 helpers inside that namespace. Mapper/linker `.cfg` profiles under `libraries/vcs` are being removed; C26 topology is authoritative.
    The toolchain now emits the six-byte descriptor call ABI. F8/F6/F4(+SC), FA,
    DPC, FA2-24/28, JANE, 0840, UA, UASW, and 0FA0 consume it end to end and declare `$inline_bankcall`
    unconditionally; same-bank calls remain ordinary JSRs and cross-bank calls use
@@ -124,7 +124,7 @@ Open workstreams
    VBLANK/visible/overscan WSYNC phase, in addition to the 0..255 value oracle,
    227/228/229 long soaks, displayed-95 check, and PAL/SECAM points.
 
-   **Immediate code step:** continue descriptor migration with FC, then F0.
+   **Immediate code step:** finish the active VCS linker-`.cfg` removal described below, then continue descriptor migration with FC, then F0.
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished
@@ -223,9 +223,9 @@ optional Stella 7.0 diagnostic oracle remains part of the prior certified state.
 
 Bankswitching Items 42 FE/SCABS and 43 WD are complete. FE's public topology,
 delayed `$01FE` model, direct top-level JSR/RTS idiom, and Stella diagnostic
-remain covered by `test/vcs_fe.pl`. WD now has public `WD/mapper.c26` topology/cfg,
-linker validation, delayed arrangement selection in `vcsc-sim`, 64-byte split
-RAM, exact disassembly, and a Stella-visible PASS/WD diagnostic covered by
+remain covered by `test/vcs_fe.pl`. WD now has public `WD/mapper.c26` topology/map metadata, linker validation,
+delayed arrangement selection in `vcsc-sim`, 64-byte split RAM, exact
+disassembly, and a Stella-visible PASS/WD diagnostic covered by
 `test/vcs_wd.pl`. WD ordinary TIA I/O is bound through `$40-$7F`, and frame
 dead-flag delays use raw `$00`, avoiding accidental `$30-$3F` selector reads.
 Bankswitching Item 44 DPC is complete. DPC uses two F8-style 4K program banks
@@ -234,8 +234,22 @@ bank. `vcsc-sim` models the DPC register window, fetchers, counter wrap, and
 access-clocked Poly8 RNG; the public diagnostic checks both auxiliary regions,
 exact disassembly/reassembly, and a Stella-visible PASS/DPC frame.
 
+VCS linker-.cfg removal
+-----------------------
+Checked-in VCS linker/simulator `.cfg` profiles are gone from `libraries/vcs`;
+assembler opcode cfgs and generic linker-script cfg support intentionally remain.
+VCS public builds use C26 cartridge/memory topology directly, linker maps carry
+resolved topology, and `vcsc-sim` consumes `--map` or same-stem maps. The driver
+uses implicit `4K/mapper.c26` only when no explicit cartridge topology or generic
+script is selected. `test/source_tree_hygiene.pl` rejects VCS cfg regressions.
+
+Cfgectomy code, tests, and maintained docs are migrated. Compile-only validation
+is 503/503. E2E validation is green for the first 245/342 tests plus the diagnostic
+cartridge, DPC, driving, E0, enhanced-multisprite, discard-strobe, VSYNC, and
+example-build shards 1-6; the remaining exhaustive/long tail exceeded this tool
+window and has not been claimed as rerun.
+
 Immediate TODO
 --------------
-Resume descriptor-ABI migration with FC, then F0.
-The field controller diagnostic regression and its follow-up audio/high-paddle
-timing failures are resolved and covered by focused regression contracts.
+Finish the remaining long e2e tail if a full certification is desired, then resume
+descriptor-ABI migration with FC, followed by F0.

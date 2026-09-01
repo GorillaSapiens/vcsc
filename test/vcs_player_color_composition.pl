@@ -40,7 +40,6 @@ $repo=abs_path($repo) // die "resolve repo\n";
 $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
 my $fixture_dir=File::Spec->catdir($repo,qw(test fixtures player_color_181));
 my %built;
 for my $mode (qw(static motion)) {
@@ -49,7 +48,7 @@ for my $mode (qw(static motion)) {
       my $src=File::Spec->catfile($fixture_dir,"$key.c26");
       my $bin=File::Spec->catfile($tmp,"player_color_$key.bin");
       my $mapfile=File::Spec->catfile($tmp,"player_color_$key.map");
-      my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,$src,'-o',$bin);
+      my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$mapfile,$src,'-o',$bin);
       $rc==0 && !$sig or die "$key build failed\n$out$err";
       without_usage($out) eq '' && $err eq '' or die "$key build wrote output\n$out$err";
       -s $bin == 4096 or die "$key is not a 4K ROM\n";
@@ -82,7 +81,7 @@ for my $mode (qw(static motion)) {
 my $plain_src=File::Spec->catfile($fixture_dir,'smoke.c26');
 my $plain_bin=File::Spec->catfile($tmp,'player_color_gameplay_only.bin');
 my $plain_mapfile=File::Spec->catfile($tmp,'player_color_gameplay_only.map');
-my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$plain_mapfile,$plain_src,'-o',$plain_bin);
+my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$plain_mapfile,$plain_src,'-o',$plain_bin);
 $rc==0 && !$sig or die "gameplay-only build failed\n$out$err";
 my $plain_map=read_file($plain_mapfile);
 $plain_map !~ /(?:score_score|score_offsets|score_pointers|score_row|score_delayed|score_font)/

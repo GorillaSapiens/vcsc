@@ -24,14 +24,13 @@ my$stella=$ENV{VCSC_STELLA}||$ENV{STELLA}||findexe('stella')or die"set STELLA or
 my$xvfb=findexe('Xvfb')or die"Xvfb required\n"; my$perl=findexe('perl')or die"perl required\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc)); my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my$keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl)); my$digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));
-my$cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
 
 my$display=250+($$%20); $display++ while-e"/tmp/.X11-unix/X$display"; my$d=":$display";
 my$xpid=fork(); defined$xpid or die"fork Xvfb\n"; if(!$xpid){open(STDOUT,'>:raw',"$tmp/xvfb.log");open(STDERR,'>&STDOUT');exec($xvfb,$d,'-ac','-screen','0','1024x768x24');die$!}
 select undef,undef,undef,.2; local$ENV{DISPLAY}=$d; local$ENV{XAUTHORITY}='/dev/null'; local$ENV{HOME}=$tmp; local$ENV{SDL_AUDIODRIVER}='dummy';
 
 sub build_rom {
-   my($name,$src)=@_; my$rom=File::Spec->catfile($tmp,"$name.bin"); ok("build $name",$driver,'-I',$vcs,'-T',$cfg,$src,'-o',$rom); return$rom;
+   my($name,$src)=@_; my$rom=File::Spec->catfile($tmp,"$name.bin"); ok("build $name",$driver,'-I',$vcs,$src,'-o',$rom); return$rom;
 }
 sub snapshot_digest {
    my($name,$rom)=@_; my$snap=File::Spec->catdir($tmp,"snap_$name"); my$user=File::Spec->catdir($tmp,"user_$name"); remove_tree($snap,$user); make_path($snap,$user);

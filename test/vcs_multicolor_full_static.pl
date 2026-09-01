@@ -48,7 +48,6 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
 my $source=File::Spec->catfile($repo,qw(examples 03_player_color_192 01_interactive player_color_192_interactive.c26));
 my $bin=File::Spec->catfile($tmp,'multicolor_full_static.bin');
 my $mapfile=File::Spec->catfile($tmp,'multicolor_full_static.map');
@@ -77,7 +76,7 @@ for my $name (qw(
 }
 
 my($rc,$sig,$out,$err)=capture(
-   $driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,$source,'-o',$bin);
+   $driver,'-I',$vcs,'-Map',$mapfile,$source,'-o',$bin);
 $rc==0 && !$sig or die "player_color_192 interactive example build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "player_color_192 interactive example build wrote output\n$out$err";
 length(read_file($bin))==4096 or die "player_color_192 interactive example ROM is not 4096 bytes\n";

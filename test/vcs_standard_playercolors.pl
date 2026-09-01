@@ -38,7 +38,7 @@ sub require_re { my($text,$re,$why)=@_; $text =~ $re or die "$why\n"; }
 sub build_profile {
    my($driver,$vcs,$cfg,$source,$renderer,$bin,$map)=@_;
    my($rc,$sig,$out,$err)=capture(
-      $driver,'-I',$vcs,'-T',$cfg,'-Map',$map,$source,$renderer,'-o',$bin);
+      $driver,'-I',$vcs,'-Map',$map,$source,$renderer,'-o',$bin);
    $rc==0 && !$sig or die "player-color cartridge build failed\nstdout:\n$out\nstderr:\n$err";
    without_cartridge_usage($out) eq '' or die "player-color build wrote unexpected stdout:\n$out";
    $err eq '' or die "player-color build wrote stderr:\n$err";
@@ -54,7 +54,6 @@ my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $profile=File::Spec->catdir($vcs,qw(renderers standard_4k_ntsc_playercolors));
 my $contract=File::Spec->catfile($profile,'standard_4k_ntsc_playercolors.c26');
 my $renderer=File::Spec->catfile($profile,'standard_4k_ntsc_playercolors_renderer.s26');
-my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc_playercolors.cfg');
 my $normalizer=File::Spec->catfile($profile,'normalize.pl');
 my $static_source=File::Spec->catfile($repo,qw(test fixtures vcs_examples 07_playercolor_static golden.c26));
 my $motion_source=File::Spec->catfile($repo,qw(test fixtures vcs_examples 08_playercolor_motion golden.c26));

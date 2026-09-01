@@ -37,7 +37,6 @@ independent color on every physical scanline.
 - `standard_4k_ntsc_playercolors.c26` — source-level state and API contract;
 - `standard_4k_ntsc_playercolors_renderer.s26` — checked-in normalized renderer;
 - `standard_4k_ntsc_playercolors_macros.inc` — assembler macros;
-- `vcs_standard_4k_ntsc_playercolors.cfg` — matching 4K linker layout;
 - `normalize.pl` — deterministic derivation from the maintained legal standard
   profile, guarded by the retained legacy player-color branches.
 
@@ -112,7 +111,6 @@ Build with the matching configuration and renderer:
 
 ```sh
 vcsc -I libraries/vcs \
-  -T libraries/vcs/renderers/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg \
   game.c26 \
   libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_renderer.s26 \
   -o game.bin

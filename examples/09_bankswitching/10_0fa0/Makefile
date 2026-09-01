@@ -13,7 +13,7 @@ SOURCE := fotomania_diagnostic.c26
 TARGET := fotomania_diagnostic.bin
 all: $(TARGET)
 $(TARGET): $(SOURCE)
-	$(VCSC) -I $(VCS_DIR) -T $(VCS_DIR)/vcs.cfg -Map fotomania_diagnostic.map $(SOURCE) -o $@
+	$(VCSC) -I $(VCS_DIR) -Map fotomania_diagnostic.map $(SOURCE) -o $@
 $(TARGET): $(COMMITTED_FONT_SUBSETS)
 
 fonts:

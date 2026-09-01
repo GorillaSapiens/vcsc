@@ -137,9 +137,9 @@ sub scan_profile {
    return ($instructions,undef);
 }
 sub build_profile {
-   my ($driver,$vcs,$profile,$cfg,$source,$renderer,$bin,$map)=@_;
+   my ($driver,$vcs,$profile,$source,$renderer,$bin,$map)=@_;
    my ($rc,$sig,$out,$err)=capture(
-      $driver,'-I',$vcs,'-I',$profile,'-T',$cfg,'-Map',$map,
+      $driver,'-I',$vcs,'-I',$profile,'-Map',$map,
       $source,$renderer,'-o',$bin);
    $rc==0 && !$sig or die "profile build failed\nstdout:\n$out\nstderr:\n$err";
    without_cartridge_usage($out) eq '' or die "profile build wrote stdout:\n$out";
@@ -158,7 +158,6 @@ my $assembler=File::Spec->catfile($repo,'assembler','vcsc-as');
 my $default_cfg=File::Spec->catfile($repo,'assembler','default.cfg');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catdir($vcs,'renderers','standard_4k_ntsc');
-my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $renderer=File::Spec->catfile($profile,'standard_4k_ntsc_renderer.s26');
 my $source=File::Spec->catfile($repo,'test','fixtures','vcs_examples','05_static_renderer','golden.c26');
 my $object=File::Spec->catfile($tmp,'standard_4k_ntsc_renderer.o26');
@@ -185,7 +184,7 @@ $layout{repostable}>=16 or die "reposition table location is invalid\n";
 my $official=official_opcodes($default_cfg);
 my $bin=File::Spec->catfile($tmp,'legal_profile.bin');
 my $map=File::Spec->catfile($tmp,'legal_profile.map');
-build_profile($driver,$vcs,$profile,$cfg,$source,$renderer,$bin,$map);
+build_profile($driver,$vcs,$profile,$source,$renderer,$bin,$map);
 my $rom=read_file($bin);
 length($rom)==4096 or die "legal profile is not a 4096-byte cartridge\n";
 my ($count,$error)=scan_profile($rom,read_file($map),$official,\%layout);
@@ -202,7 +201,7 @@ $replaced==1 or die "could not inject the raw-opcode linked-byte probe\n";
 write_file($bad_renderer,$bad_text);
 my $bad_bin=File::Spec->catfile($tmp,'illegal_profile.bin');
 my $bad_map=File::Spec->catfile($tmp,'illegal_profile.map');
-build_profile($driver,$vcs,$profile,$cfg,$source,$bad_renderer,$bad_bin,$bad_map);
+build_profile($driver,$vcs,$profile,$source,$bad_renderer,$bad_bin,$bad_map);
 my ($bad_count,$bad_error)=scan_profile(read_file($bad_bin),read_file($bad_map),$official,\%layout);
 defined($bad_error) or die "linked-byte gate accepted injected raw op4B\n";
 $bad_error =~ /unofficial opcode \$4B\b/

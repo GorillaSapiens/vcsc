@@ -17,7 +17,7 @@ $(TARGET): $(SOURCE) $(STARTUP) $(COMMON) \
            $(VCS_DIR)/frame_ntsc.c26 \
            $(VCS_DIR)/color_ntsc.c26 \
            $(VCS_DIR)/renderers/enhanced_multisprite_asymmetric/enhanced_multisprite.c26
-	$(VCSC) -nostdlib -I $(VCS_DIR) -DVCS_NTSC_EXTENDED_VBLANK -DMULTISPRITE_NO_RETAINED_PF_ROWS -T $(VCS_DIR)/vcs.cfg $(SOURCE) $(STARTUP) -o $@
+	$(VCSC) -nostdlib -I $(VCS_DIR) -DVCS_NTSC_EXTENDED_VBLANK -DMULTISPRITE_NO_RETAINED_PF_ROWS $(SOURCE) $(STARTUP) -o $@
 	@test `wc -c < $@` -eq 4096
 
 clean:

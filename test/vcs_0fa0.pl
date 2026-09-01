@@ -56,8 +56,6 @@ my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
-my $cfg=File::Spec->catfile($vcs,'0FA0/mapper.cfg');
 my $profile=File::Spec->catfile($vcs,'0FA0/mapper.c26');
 my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','10_0fa0');
 my $source=File::Spec->catfile($example_dir,'fotomania_diagnostic.c26');
@@ -76,12 +74,6 @@ $pt =~ /\(A & \$16E0\)==\$06A0/ &&
 $pt =~ /bank\s+bank0\s*\{.*?\$file_index:1.*?\$select_access:0x0fc0\s+\$bankcall_descriptor:0xc0\s+\$startup/s &&
 $pt =~ /bank\s+bank1\s*\{.*?\$file_index:0.*?\$select_access:0x0fa0\s+\$bankcall_descriptor:0xa0/s
    or die "0FA0 profile topology/mask/startup contract is wrong\n";
-my $ct=read_file($cfg);
-$ct =~ /mapper\s*=\s*0FA0/ &&
-$ct =~ /\(A & \$16E0\)==\$06A0/ &&
-$ct =~ /BANK0:.*hotspot\s*=\s*\$0FC0.*fileindex\s*=\s*1.*startup\s*=\s*yes/is &&
-$ct =~ /BANK1:.*hotspot\s*=\s*\$0FA0.*fileindex\s*=\s*0/is
-   or die "0FA0 simulator cfg contract is wrong\n";
 
 # Pin the actual Stella-compatible mask in both execution engines.  In
 # particular, do not regress to the stale $16A0 prose that has appeared in
@@ -93,8 +85,7 @@ $simsrc =~ /canonical & 0x16e0u/ && $dissrc =~ /bus & 0x16e0u/
 
 my $bin=File::Spec->catfile($tmp,'0fa0.bin');
 my $map=File::Spec->catfile($tmp,'0fa0.map');
-require_ok('build 0FA0 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
-   '-T',$generic,'-Map',$map,$source,'-o',$bin);
+require_ok('build 0FA0 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-Map',$map,$source,'-o',$bin);
 -s $bin==8192 or die "0FA0 output size is not 8K\n";
 my $rom=read_file($bin);
 substr($rom,4096+0x0ff8,4) eq '0FA0'
@@ -152,7 +143,7 @@ $lst =~ /\[bank bank1\] \| call_return := call_target1\(\);\n[^\n]*; JSR call_ta
    or die "0FA0 diagnostic did not keep same-bank calls as ordinary JSRs and cross-bank calls as inline bundles\n";
 my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure call_count nested_count);
 for my $start (0..1) {
-   my($out,$err)=require_ok("simulate 0FA0 from physical bank $start",$sim,'-T',$cfg,
+   my($out,$err)=require_ok("simulate 0FA0 from physical bank $start",$sim,'--map',$map,
       "--start-bank=$start",sprintf('--stop-pc=0x%04X',$sym{simulator_done}),
       '--dump-on-stop',$bin);
    $err eq '' or die "0FA0 simulator start bank $start wrote stderr:\n$err";
@@ -180,7 +171,7 @@ substr($w,4096+0x0010,9)=pack('C*',0xAD,0xCF,0x0E,0x8D,0x81,0x00,0x0C,0xA0,0x0F)
 substr($w,0x0019,8)=pack('C*',0xA9,0x3C,0x8D,0x82,0x00,0x4C,0x1E,0xF0);
 for my $fb (0..1) { substr($w,$fb*4096+0x0ffc,2)=pack('C*',0x00,0xF0); }
 write_file($alias_bin,$w);
-my($aout,$aerr)=require_ok('simulate 0FA0 masked aliases',$sim,'-T',$cfg,
+my($aout,$aerr)=require_ok('simulate 0FA0 masked aliases',$sim,'--map',$map,
    '--start-bank=1','--stop-pc=0xF01E','--dump-on-stop',$alias_bin);
 $aerr eq '' or die "0FA0 alias simulator wrote stderr:\n$aerr";
 my $amem=parse_hex_dump($aout);
@@ -189,7 +180,7 @@ $amem->[0x07A7]==0x5A && $amem->[0x0ECF]==0xA5
    or die "0FA0 masked read/write aliases did not switch banks and preserve underlying accesses\n";
 
 my $visible=File::Spec->catfile($tmp,'0fa0-visible.bin');
-require_ok('build visible 0FA0 PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
+require_ok('build visible 0FA0 PASS/FAIL cartridge',$driver,'-I',$vcs,$source,'-o',$visible);
 my $vrom=read_file($visible);
 length($vrom)==8192 && substr($vrom,4096+0x0ff8,4) eq '0FA0' &&
 index($vrom,pack('C*',0x2c,0xc0,0x0f))>=0

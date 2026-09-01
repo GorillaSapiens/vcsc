@@ -56,7 +56,6 @@ my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
 my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','09_ua');
 my $example_make=File::Spec->catfile($example_dir,'Makefile');
 my $common_source=File::Spec->catfile($example_dir,'ua_diagnostic_common.c26');
@@ -80,13 +79,13 @@ $mk =~ /^\s*stella\s+-bs\s+UASW\s+uasw_diagnostic\.bin\s*$/m
 
 my @variants=(
    {
-      name=>'ua', mapper=>'UA', profile=>'UA/mapper.c26', cfg=>'UA/mapper.cfg',
+      name=>'ua', mapper=>'UA', profile=>'UA/mapper.c26',
       source=>'ua_diagnostic.c26', signature=>"UA\0\0",
       bank0=>0x0220, bank1=>0x0240, desc0=>0x20, desc1=>0x40, alias0=>0x02A0, alias1=>0x02C0,
       selector_comment=>qr/^; UA selectors: \(A & \$1260\)==\$0220->\$0, ==\$0240->\$1; aliases include \$02A0\/\$02C0; bank 0 powers up$/m,
    },
    {
-      name=>'uasw', mapper=>'UASW', profile=>'UASW/mapper.c26', cfg=>'UASW/mapper.cfg',
+      name=>'uasw', mapper=>'UASW', profile=>'UASW/mapper.c26',
       source=>'uasw_diagnostic.c26', signature=>'UASW',
       bank0=>0x0240, bank1=>0x0220, desc0=>0x40, desc1=>0x20, alias0=>0x02C0, alias1=>0x02A0,
       selector_comment=>qr/^; UASW selectors: UA alias decoder with swapped association \(\$0220->\$1, \$0240->\$0\); bank 0 powers up$/m,
@@ -95,7 +94,6 @@ my @variants=(
 
 for my $v (@variants) {
    my $profile=File::Spec->catfile($vcs,$v->{profile});
-   my $cfg=File::Spec->catfile($vcs,$v->{cfg});
    my $source=File::Spec->catfile($example_dir,$v->{source});
    my $pt=read_file($profile);
    my $sig=$v->{mapper} eq 'UA' ? 'UA' : 'UASW';
@@ -109,16 +107,10 @@ for my $v (@variants) {
    $pt =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x\Q$select0\E\s+\$bankcall_descriptor:0x\Q$desc0\E\s+\$startup/s &&
    $pt =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x\Q$select1\E\s+\$bankcall_descriptor:0x\Q$desc1\E/s
       or die "$v->{mapper} descriptor profile topology/startup contract is wrong\n";
-   my $ct=read_file($cfg);
-   $ct =~ /mapper\s*=\s*\Q$v->{mapper}\E/ &&
-   $ct =~ /BANK0:.*hotspot\s*=\s*\$[0-9A-Fa-f]+.*fileindex\s*=\s*0.*startup\s*=\s*yes/is &&
-   $ct =~ /BANK1:.*hotspot\s*=\s*\$[0-9A-Fa-f]+.*fileindex\s*=\s*1/is
-      or die "$v->{mapper} simulator cfg contract is wrong\n";
 
    my $bin=File::Spec->catfile($tmp,"$v->{name}.bin");
    my $map=File::Spec->catfile($tmp,"$v->{name}.map");
-   require_ok("build $v->{mapper} simulator diagnostic",$driver,'-I',$vcs,'-DSIMULATOR_TEST',
-      '-T',$generic,'-Map',$map,$source,'-o',$bin);
+   require_ok("build $v->{mapper} simulator diagnostic",$driver,'-I',$vcs,'-DSIMULATOR_TEST','-Map',$map,$source,'-o',$bin);
    -s $bin==8192 or die "$v->{mapper} output size is not 8K\n";
    my $rom=read_file($bin);
    substr($rom,4096+0x0ff8,4) eq $v->{signature}
@@ -175,7 +167,7 @@ for my $v (@variants) {
       or die "$v->{mapper} map topology/inline-trampoline contract is wrong\n$m";
    my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure call_count nested_count);
    for my $start (0..1) {
-      my($out,$err)=require_ok("simulate $v->{mapper} from physical bank $start",$sim,'-T',$cfg,
+      my($out,$err)=require_ok("simulate $v->{mapper} from physical bank $start",$sim,'--map',$map,
          "--start-bank=$start",sprintf('--stop-pc=0x%04X',$sym{simulator_done}),
          '--dump-on-stop',$bin);
       $err eq '' or die "$v->{mapper} simulator start bank $start wrote stderr:\n$err";
@@ -199,7 +191,7 @@ for my $v (@variants) {
    substr($raw,8,8)=pack('C*',0xA9,0xC0,0x8D,0x82,0x00,0x4C,0x0D,0xF0);
    for my $fb (0..1) { substr($raw,$fb*4096+0x0ffc,2)=pack('C*',0x00,0xF0); }
    write_file($alias_bin,$raw);
-   my($aout,$aerr)=require_ok("simulate $v->{mapper} alias read/write",$sim,'-T',$cfg,
+   my($aout,$aerr)=require_ok("simulate $v->{mapper} alias read/write",$sim,'--map',$map,
       '--start-bank=0','--stop-pc=0xF00D','--dump-on-stop',$alias_bin);
    $aerr eq '' or die "$v->{mapper} alias simulator wrote stderr:\n$aerr";
    my $amem=parse_hex_dump($aout);
@@ -207,7 +199,7 @@ for my $v (@variants) {
       or die "$v->{mapper} alias read/write switching or underlying write-through failed\n";
 
    my $visible=File::Spec->catfile($tmp,"$v->{name}-visible.bin");
-   require_ok("build visible $v->{mapper} PASS/FAIL cartridge",$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
+   require_ok("build visible $v->{mapper} PASS/FAIL cartridge",$driver,'-I',$vcs,$source,'-o',$visible);
    my $vrom=read_file($visible);
    length($vrom)==8192 && substr($vrom,4096+0x0ff8,4) eq $v->{signature}
       or die "$v->{mapper} visible diagnostic lost its signature/layout\n";

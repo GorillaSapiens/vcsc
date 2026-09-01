@@ -1,4 +1,4 @@
 # runner: vcsc-ld -o @TMP@/out.hex @RUNTIME@
 # phase: e2e
 # expectexit: 1
-# expectstderr: no linker script/config supplied; use -T FILE or --script=FILE
+# expectstderr: no linker configuration supplied and inputs contain no C26 memory/cartridge topology

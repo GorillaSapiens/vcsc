@@ -623,6 +623,8 @@ static int mem_declaration_metadata_has_prefix(const char *name)
    return name &&
       (strncmp(name, MEM_DECL_META_PREFIX,
                sizeof(MEM_DECL_META_PREFIX) - 1) == 0 ||
+       strncmp(name, MEM_DECL_META_PREFIX_V2,
+               sizeof(MEM_DECL_META_PREFIX_V2) - 1) == 0 ||
        strncmp(name, MEM_DECL_META_PREFIX_V1,
                sizeof(MEM_DECL_META_PREFIX_V1) - 1) == 0);
 }
@@ -1027,6 +1029,7 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    const char *suffix;
    size_t name_len;
    unsigned int read_start, write_start, size, split, priority, read_hazard = 0;
+   unsigned int stack = 0;
    unsigned int data_only = 0;
    char type_code;
    int consumed = 0;
@@ -1036,8 +1039,13 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
       return 0;
    if (strncmp(symbol, MEM_DECL_META_PREFIX,
                sizeof(MEM_DECL_META_PREFIX) - 1) == 0) {
-      version = 2;
+      version = 3;
       p = symbol + sizeof(MEM_DECL_META_PREFIX) - 1;
+   }
+   else if (strncmp(symbol, MEM_DECL_META_PREFIX_V2,
+                    sizeof(MEM_DECL_META_PREFIX_V2) - 1) == 0) {
+      version = 2;
+      p = symbol + sizeof(MEM_DECL_META_PREFIX_V2) - 1;
    }
    else if (strncmp(symbol, MEM_DECL_META_PREFIX_V1,
                     sizeof(MEM_DECL_META_PREFIX_V1) - 1) == 0) {
@@ -1052,7 +1060,16 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    name_len = (size_t)(mark - p);
    if (name_len >= sizeof(out->name))
       return -1;
-   if (version == 2) {
+   if (version == 3) {
+      if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X$S%1X$D%1X$B%n",
+                 &read_start, &write_start, &size, &split, &type_code,
+                 &priority, &read_hazard, &stack, &data_only, &consumed) != 9)
+         return -1;
+      suffix = strstr(mark + consumed, "$Q");
+      if (!suffix)
+         return -1;
+   }
+   else if (version == 2) {
       if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X$D%1X$B%n",
                  &read_start, &write_start, &size, &split, &type_code,
                  &priority, &read_hazard, &data_only, &consumed) != 8)
@@ -1074,7 +1091,7 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
       }
       suffix = mark + consumed;
    }
-   if (split > 1u || read_hazard > 1u || data_only > 1u ||
+   if (split > 1u || read_hazard > 1u || stack > 1u || data_only > 1u ||
        (type_code != 'W' && type_code != 'O'))
       return -1;
 
@@ -1089,9 +1106,10 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    out->physical_size = (uint16_t)size;
    snprintf(out->type, sizeof(out->type), "%s", type_code == 'W' ? "rw" : "ro");
    out->priority = (int32_t)priority;
+   out->callstack_callgraph = (int)stack;
    out->compiler_declared = 1;
    out->define_yes = 1;
-   if (version == 2) {
+   if (version >= 2) {
       size_t bank_len = (size_t)(suffix - (mark + consumed));
       if ((data_only && bank_len == 0) || (!data_only && bank_len != 0) ||
           bank_len >= sizeof(out->data_bank_name))
@@ -1114,6 +1132,7 @@ static int mem_declaration_equal(const memory_region_t *a,
           a->write_start == b->write_start &&
           a->has_write_start == b->has_write_start &&
           a->read_hazard == b->read_hazard &&
+          a->callstack_callgraph == b->callstack_callgraph &&
           a->size == b->size &&
           str_ieq(a->type, b->type) &&
           !strcmp(a->data_bank_name, b->data_bank_name) &&
@@ -1376,7 +1395,7 @@ static void collect_c26_mem_declarations(linker_config_t *cfg, const input_set_t
             continue;
          }
          if (mem) {
-            int callstack_callgraph = mem->callstack_callgraph;
+            int cfg_callstack_callgraph = mem->callstack_callgraph;
             uint16_t callstack_extra = mem->callstack_extra;
             int cfg_read_hazard = mem->read_hazard;
             char file[MAX_PATH];
@@ -1388,7 +1407,7 @@ static void collect_c26_mem_declarations(linker_config_t *cfg, const input_set_t
             snprintf(bank_name, sizeof(bank_name), "%s", mem->bank_name);
             *mem = decl;
             mem->define_yes = 1;
-            mem->callstack_callgraph = callstack_callgraph;
+            mem->callstack_callgraph = mem->callstack_callgraph || cfg_callstack_callgraph;
             mem->callstack_extra = callstack_extra;
             mem->read_hazard = mem->read_hazard || cfg_read_hazard;
             snprintf(mem->file, sizeof(mem->file), "%s", file);
@@ -3458,6 +3477,13 @@ static void validate_linker_config(linker_config_t *cfg)
    }
 }
 
+//! @brief Initialize an empty linker configuration before cfg/C26 metadata is merged.
+static void init_linker_config(linker_config_t *cfg)
+{
+   memset(cfg, 0, sizeof(*cfg));
+   cfg->cartridge_fill_value = 0xFFu;
+}
+
 //! @brief Parse configuration file into the normalized representation used by linker layout and image writer.
 static void parse_cfg_file(linker_config_t *cfg, const char *path)
 {
@@ -3471,8 +3497,7 @@ static void parse_cfg_file(linker_config_t *cfg, const char *path)
       exit(1);
    }
 
-   memset(cfg, 0, sizeof(*cfg));
-   cfg->cartridge_fill_value = 0xFFu;
+   init_linker_config(cfg);
 
    while (fgets(line, sizeof(line), fp)) {
       char *s = line;
@@ -12524,17 +12549,20 @@ int main(int argc, char **argv)
       return 1;
    }
 
-   if (!cfg_path) {
-      fprintf(stderr,
-         "vcsc-ld: no linker script/config supplied; use -T FILE or --script=FILE\n");
-      return 1;
-   }
-   parse_cfg_file(&cfg, cfg_path);
+   if (cfg_path)
+      parse_cfg_file(&cfg, cfg_path);
+   else
+      init_linker_config(&cfg);
    cfg.bank_placement_mode = bank_placement_mode;
 
    select_needed_objects(&inputs);
    collect_c26_topology(&cfg, &inputs);
    collect_c26_mem_declarations(&cfg, &inputs);
+   if (!cfg_path && cfg.mem_count == 0 && cfg.topology_bank_count == 0) {
+      fprintf(stderr,
+         "vcsc-ld: no linker configuration supplied and inputs contain no C26 memory/cartridge topology\n");
+      return 1;
+   }
    infer_c26_mem_output_ownership(&cfg);
    validate_c26_topology(&cfg);
    apply_c26_topology_to_linker_config(&cfg);

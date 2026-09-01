@@ -31,7 +31,6 @@ $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $profile=File::Spec->catdir($vcs,qw(renderers faithful_legacy_playercolors));
-my $cfg=File::Spec->catfile($profile,'faithful_legacy_playercolors.cfg');
 my $reference_asm=File::Spec->catfile($profile,'faithful_legacy_playercolors_reference.s26');
 my $reference_src=File::Spec->catfile($repo,qw(test fixtures faithful_legacy_playercolors reference_static.c26));
 my $template_src=File::Spec->catfile($repo,qw(test fixtures faithful_legacy_playercolors template_static.c26));
@@ -123,20 +122,21 @@ my $cross_count=()=$template_text =~ /^\s*asm\s+b(?:cc|cs|eq|mi|ne|pl|vc|vs)\.cr
 $cross_count==1 or die "faithful port must require exactly one crossing branch\n";
 $template_text =~ /^\s*asm\s+bmi\.cross\s+\@lastrendererline\s*;/m
    or die "faithful port lost the terminal visible-loop crossing contract\n";
-my $cfg_text=read_file($cfg);
-$cfg_text !~ /RENDERER_CODE\s*:\s*load\s*=\s*ROM[^;]*\balign\s*=\s*\$0100/i
-   or die "faithful port still forces RENDERER_CODE to a 256-byte boundary\n";
+$template_text =~ /^\s*asm\s+\.callstackextra\s+4\s*;/m
+   or die "faithful port lost its four-byte hidden-stack contract\n";
+$reference_text =~ /^\.callstackextra\s+4\s*$/m
+   or die "faithful retained-source audit lost its four-byte hidden-stack contract\n";
 my $zx_count=()=$template_text =~ /asm (?:lda|ldy)\.zx TEMPLATE_playfield[^;]+,x;/g;
 $zx_count==8 or die "faithful port must use eight zero-page-indexed dynamic playfield loads\n";
 
 my($rc,$sig,$out,$err)=capture(
-   $driver,'-I',$vcs,'-I',$profile,'-Wa,--illegals','-T',$cfg,'-Map',$reference_map,
+   $driver,'-I',$vcs,'-I',$profile,'-Wa,--illegals','-Map',$reference_map,
    $reference_src,$reference_asm,'-o',$reference_bin);
 $rc==0 && !$sig or die "faithful reference build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "faithful reference build wrote output\n$out$err";
 
 ($rc,$sig,$out,$err)=capture(
-   $driver,'-I',$vcs,'-Wa,--illegals','-T',$cfg,'-Map',$template_map,
+   $driver,'-I',$vcs,'-Wa,--illegals','-Map',$template_map,
    $template_src,'-o',$template_bin);
 $rc==0 && !$sig or die "faithful template build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "faithful template build wrote output\n$out$err";

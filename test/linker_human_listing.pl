@@ -78,7 +78,7 @@ void main(void) {
    while (1) { }
 }
 C26
-require_ok('compile/link C26',$driver,'-I',$vcs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),'-o',$scbin,$c26);
+require_ok('compile/link C26',$driver,'-I',$vcs,'-o',$scbin,$c26);
 my $sclst=slurp(File::Spec->catfile($tmp,'human_sc.lst'));
 $sclst =~ /\Q$c26\E:5[^\n]*\| sc\[4\] := 0x55;/ or die "C26 store source provenance missing\n$sclst";
 $sclst =~ /\Q$c26\E:6[^\n]*\| sink := sc\[4\];/ or die "C26 load source provenance missing\n$sclst";

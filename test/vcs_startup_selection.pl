@@ -14,7 +14,6 @@ die "usage: $0 repo tmp_root\n" if !defined $repo || !defined $tmp_root;
 
 my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $vcs = File::Spec->catdir($repo, 'libraries', 'vcs');
-my $sc_cfg = File::Spec->catfile($vcs, '4KSC/mapper.cfg');
 my $tmp = tempdir('VCSC_startup_selection_XXXXXX', DIR => $tmp_root, CLEANUP => 1);
 
 sub write_text {
@@ -122,7 +121,7 @@ SOURCE
 require_re($runtime_init->{sym}, qr/^__vcsc_startup_full\s+/m,
            'full startup for runtime initializer');
 
-my $cartram = build_case('cartram', <<'SOURCE', $sc_cfg);
+my $cartram = build_case('cartram', <<'SOURCE');
 include "4KSC/mapper.c26"
 cartram uint8_t persistent;
 void main(void) { }

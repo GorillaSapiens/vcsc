@@ -68,8 +68,6 @@ my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
-my $cfg=File::Spec->catfile($vcs,'E0/mapper.cfg');
 my $profile=File::Spec->catfile($vcs,'E0/mapper.c26');
 my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','11_e0');
 my $source=File::Spec->catfile($example_dir,'e0_diagnostic.c26');
@@ -101,15 +99,10 @@ $pt =~ /bank\s+bank0\s*\{.*?\$cpu_start:0x1000/s &&
 $pt =~ /bank\s+bank1\s*\{.*?\$cpu_start:0x1400/s &&
 $pt =~ /bank\s+bank2\s*\{.*?\$cpu_start:0x1800/s
    or die "E0 C26 profile does not describe the segmented 8x1K topology\n";
-my $ct=read_file($cfg);
-$ct =~ /mapper\s*=\s*E0/ && (()=$ct =~ /size\s*=\s*\$0400/g)==8 &&
-$ct =~ /BANK7:.*fileindex\s*=\s*7.*startup\s*=\s*yes/is
-   or die "E0 simulator cfg does not describe eight 1K banks/fixed bank 7\n";
 
 my $bin=File::Spec->catfile($tmp,'e0.bin');
 my $map_path=File::Spec->catfile($tmp,'e0.map');
-require_ok('build E0 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
-   '-T',$generic,'-Map',$map_path,$source,'-o',$bin);
+require_ok('build E0 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-Map',$map_path,$source,'-o',$bin);
 -s $bin==8192 or die "E0 output size is not 8K\n";
 my $rom=read_file($bin);
 substr($rom,8192-8,4) eq "E0\0\0" or die "E0 signature is missing from physical bank 7\n";
@@ -121,7 +114,7 @@ $map =~ /^\s+bank7\s+file-index=7\b.*cpu=\$1C00.*startup=yes/m && $map !~ /^TRAM
    or die "E0 map lost fixed-bank/direct segmented topology\n";
 for my $i (0..7) { map_symbol($map,"bank${i}_probe"); }
 my %sym=map { $_=>map_symbol($map,$_) } qw(simulator_done failure call_count);
-my($out,$err)=require_ok('simulate E0 power-on/selectors',$sim,'-T',$cfg,
+my($out,$err)=require_ok('simulate E0 power-on/selectors',$sim,'--map',$map_path,
    sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);
 $err eq '' or die "E0 simulator wrote stderr:\n$err";
 my $mem=parse_hex_dump($out);
@@ -130,7 +123,7 @@ $mem->[$sym{call_count}]==12 or die "E0 did not execute all expected physical-ba
 
 my $visible=File::Spec->catfile($tmp,'e0-visible.bin');
 my $visible_map=File::Spec->catfile($tmp,'e0-visible.map');
-require_ok('build visible E0 PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,'-Map',$visible_map,$source,'-o',$visible);
+require_ok('build visible E0 PASS/FAIL cartridge',$driver,'-I',$vcs,'-Map',$visible_map,$source,'-o',$visible);
 my $vmap=read_file($visible_map);
 $vmap =~ /CODE\.bank0\.__vcsc_function\$draw_result.*bank=bank0/s &&
 $vmap =~ /RODATA\.bank1\.__vcsc_object\$status_glyphs.*bank=bank1/s &&

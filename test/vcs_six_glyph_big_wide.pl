@@ -58,7 +58,7 @@ $source =~ /#elif TEMPLATE_glyph_rows == 16\s*\n\s*asm lda #15;.*asm sta\.a TEMP
 $source =~ /asm lda #\$06;\s*asm sta NUSIZ0;\s*asm sta NUSIZ1;/s
    or die "big-wide component lost wide copy geometry\n";
 
-my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),'-Map',$map,$public,'-o',$bin);
+my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$map,$public,'-o',$bin);
 $rc==0 && !$sig or die "big-wide example build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "big-wide example wrote output\n$out$err";
 -s $bin==2048 or die "big-wide public example is not 2048 bytes\n";

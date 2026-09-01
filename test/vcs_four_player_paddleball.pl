@@ -78,7 +78,7 @@ $p =~ /paddles_button0 \|\| paddles_button1/ && $p =~ /paddles_button2 \|\| padd
    or die "four-player team serve buttons changed\n";
 $p !~ /\bbank[0-9]+\b/ or die "four-player example unexpectedly requires bankswitching\n";
 
-my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',File::Spec->catdir($repo,qw(examples 01_basic 10_four_player_paddleball)),'-T',File::Spec->catfile($vcs,'vcs.cfg'),'-Map',$mapfile,$source,'-o',$bin);
+my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',File::Spec->catdir($repo,qw(examples 01_basic 10_four_player_paddleball)),'-Map',$mapfile,$source,'-o',$bin);
 $rc==0&&!$sig or die "four-player Paddleball build failed\n$out$err";
 $err eq '' or die "four-player Paddleball build stderr: $err";
 -s$bin==4096 or die "four-player Paddleball ROM is not 4096 bytes\n";

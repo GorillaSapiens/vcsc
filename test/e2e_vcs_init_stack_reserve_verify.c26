@@ -1,11 +1,10 @@
 // vcsc-cc1 -I ../libraries/vcs
-// linkcfg: ../libraries/vcs/4K/mapper.cfg
 // expectmap: ram        start=$0080 size=$007C type=rw
 // expectmap: __stack_top   $00FB
 // expectmap: region=ram depth=0 bytes=$0004 physical=$00FC-$00FF
 // expectexit: 0
 
-include "vcs.c26"
+include "4K/mapper.c26"
 
 uint8_t twice(uint8_t value) {
    return value + value;

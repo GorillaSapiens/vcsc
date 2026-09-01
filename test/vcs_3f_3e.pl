@@ -68,7 +68,6 @@ my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
 my $timing_source=File::Spec->catfile($repo,'test','vcs_frame_timing.cpp');
 my $timing=File::Spec->catfile($tmp,'vcs_frame_timing_3f_3e');
 my $mos_dir=File::Spec->catdir($repo,'simulator','mos6502');
@@ -88,11 +87,9 @@ for my $c (@cases) {
    my $make=File::Spec->catfile($repo,'examples','09_bankswitching',$c->{dir},'Makefile');
    my $profile=File::Spec->catfile($vcs,$m,'mapper_8k.c26');
    my $profile16=File::Spec->catfile($vcs,$m,'mapper_16k.c26');
-   my $cfg=File::Spec->catfile($vcs,$m,'mapper_8k.cfg');
-   my $cfg16=File::Spec->catfile($vcs,$m,'mapper_16k.cfg');
-   for ($source,$make,$profile,$profile16,$cfg,$cfg16) { -f $_ or die "$m support file missing: $_\n"; }
+   for ($source,$make,$profile,$profile16) { -f $_ or die "$m support file missing: $_\n"; }
 
-   my $pt=read_file($profile); my $p16=read_file($profile16); my $ct=read_file($cfg);
+   my $pt=read_file($profile); my $p16=read_file($profile16);
    (()=$pt =~ /\bbank\s+bank\d+\s*\{/g)==4 && (()=$p16 =~ /\bbank\s+bank\d+\s*\{/g)==8
       or die "$m profiles do not expose certified 8K and 16K 2K-chunk shapes\n";
    $pt =~ /\$signature:\Q$m\E\b/ && $pt !~ /\$select_access:/ &&
@@ -101,8 +98,6 @@ for my $c (@cases) {
    $p16 =~ /\$signature:\Q$m\E\b/ && $p16 !~ /\$select_access:/ &&
    $p16 =~ /bank\s+bank7\s*\{.*?\$file_index:7.*?\$cpu_start:0x1800.*?\$startup/s
       or die "$m 16K profile lost fixed-final-2K topology\n";
-   $ct =~ /mapper\s*=\s*\Q$m\E/ && (()=$ct =~ /size\s*=\s*\$0800/g)==4
-      or die "$m simulator cfg does not describe four 2K physical banks\n";
    $pt =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/ && $p16 =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/
       or die "$m profiles must select the safe TIA \$40-\$7F mirror\n";
 
@@ -127,8 +122,7 @@ for my $c (@cases) {
 
    my $bin=File::Spec->catfile($tmp,"$lc.bin");
    my $map_path=File::Spec->catfile($tmp,"$lc.map");
-   require_ok("build $m simulator diagnostic",$driver,'-I',$vcs,'-DSIMULATOR_TEST',
-      '-T',$generic,'-Map',$map_path,$source,'-o',$bin);
+   require_ok("build $m simulator diagnostic",$driver,'-I',$vcs,'-DSIMULATOR_TEST','-Map',$map_path,$source,'-o',$bin);
    -s $bin==8192 or die "$m diagnostic output size is not 8K\n";
    my $rom=read_file($bin); substr($rom,-8,4) eq "$m\0\0" or die "$m signature missing\n";
    for my $fb (0..2) {
@@ -139,7 +133,7 @@ for my $c (@cases) {
       or die "$m map lost fixed-final/direct segmented topology\n";
    for my $i (0..2) { map_symbol($map,"bank${i}_probe"); }
    my %sym=map { $_=>map_symbol($map,$_) } qw(simulator_done failure call_count);
-   my($out,$err)=require_ok("simulate $m selectors",$sim,'-T',$cfg,
+   my($out,$err)=require_ok("simulate $m selectors",$sim,'--map',$map_path,
       sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);
    $err eq '' or die "$m simulator wrote stderr:\n$err";
    my $mem=parse_hex_dump($out);
@@ -148,7 +142,7 @@ for my $c (@cases) {
 
    my $visible=File::Spec->catfile($tmp,"$lc-visible.bin");
    my $visible_map=File::Spec->catfile($tmp,"$lc-visible.map");
-   require_ok("build visible $m cartridge",$driver,'-I',$vcs,'-T',$generic,'-Map',$visible_map,$source,'-o',$visible);
+   require_ok("build visible $m cartridge",$driver,'-I',$vcs,'-Map',$visible_map,$source,'-o',$visible);
    my $vrom=read_file($visible); length($vrom)==8192 && substr($vrom,-8,4) eq "$m\0\0"
       or die "visible $m diagnostic lost its 8K/signature layout\n";
    my($timing_out,$timing_err)=require_ok("time $m visible frame",$timing,$visible,'50','--no-audio','--raw-lines','264');
@@ -185,7 +179,7 @@ for my $c (@cases) {
    open(my $bf,'>',$blank) or die $!;
    print $bf qq{include "$m/mapper_16k.c26"\nbank7 void main(void) { while (1) { } }\n}; close($bf);
    my $bin16=File::Spec->catfile($tmp,"$lc-16.bin");
-   require_ok("build 16K $m profile",$driver,'-I',$vcs,'-T',$generic,$blank,'-o',$bin16);
+   require_ok("build 16K $m profile",$driver,'-I',$vcs,$blank,'-o',$bin16);
    -s $bin16==16384 or die "$m 16K profile emitted the wrong size\n";
    substr(read_file($bin16),-8,4) eq "$m\0\0" or die "$m 16K signature missing from final bank\n";
 

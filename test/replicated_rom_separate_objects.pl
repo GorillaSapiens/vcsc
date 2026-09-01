@@ -24,27 +24,21 @@ my $tmp=shift @ARGV//die "usage: $0 REPO TMP\n"; @ARGV and die "usage: $0 REPO T
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $cfg=File::Spec->catfile($vcs,'F8SC/mapper.cfg');
+my $profile=File::Spec->catfile($vcs,'F8SC/mapper.c26');
 my $defs=File::Spec->catfile($tmp,'defs.c26');
 my $caller=File::Spec->catfile($tmp,'caller.c26');
 my $bin=File::Spec->catfile($tmp,'separate.bin');
 my $map_path=File::Spec->catfile($tmp,'separate.map');
 
 write_file($defs, <<'SRC');
-include "vcs.c26"
-include "4KSC/ram.c26"
-mem bank0 { $start:0xF100 $size:0x0E00 $ro };
-mem bank1 { $start:0xD100 $size:0x0E00 $ro };
+include "F8SC/mapper.c26"
 bank0 bank1 const uint8_t shared_table[2] := { 0x12, 0x34 };
 bank1 bank0 cartram uint8_t shared_function(uint8_t index) {
    return shared_table[index];
 }
 SRC
 write_file($caller, <<'SRC');
-include "vcs.c26"
-include "4KSC/ram.c26"
-mem bank0 { $start:0xF100 $size:0x0E00 $ro };
-mem bank1 { $start:0xD100 $size:0x0E00 $ro };
+include "F8SC/mapper.c26"
 extern bank1 bank0 const uint8_t shared_table[2];
 bank0 cartram bank1 uint8_t shared_function(uint8_t index);
 bank1 uint8_t bank1_caller(void) {
@@ -57,7 +51,7 @@ void main(void) {
    simulator_done();
 }
 SRC
-require_ok('link separately compiled replicas',$driver,'-I',$vcs,'-DVCS_NO_DEFAULT_ROM','-T',$cfg,'-Map',$map_path,'-o',$bin,$caller,$defs);
+require_ok('link separately compiled replicas',$driver,'-I',$vcs,'-DVCS_NO_DEFAULT_ROM','-Map',$map_path,'-o',$bin,$profile,$caller,$defs);
 my $map=slurp($map_path);
 $map =~ /kind=function symbol=shared_function copies=2/ or die "missing function copies\n$map";
 $map =~ /kind=object symbol=shared_table copies=2/ or die "missing object copies\n$map";
@@ -65,5 +59,5 @@ $map =~ /entries=1 jmp=0 jsr=1/ or die "external local replicas unexpectedly use
 $map !~ /JSR entry=.*__vcsc_function\$shared_function/ or die "external shared_function call did not bind locally\n$map";
 my $done=map_symbol($map,'simulator_done');
 my $result=map_symbol($map,'result');
-for my $bank(0,1){ my($dump,$err)=require_ok("simulate separate image bank $bank",$sim,'-T',$cfg,"--start-bank=$bank",sprintf('--stop-pc=0x%04X',$done),'--dump-on-stop',$bin); $err eq '' or die $err; my $m=parse_dump($dump); $m->[$result]==0x58 or die sprintf("bank %d result %02X expected 58\n",$bank,$m->[$result]); }
+for my $bank(0,1){ my($dump,$err)=require_ok("simulate separate image bank $bank",$sim,'--map',$map_path,"--start-bank=$bank",sprintf('--stop-pc=0x%04X',$done),'--dump-on-stop',$bin); $err eq '' or die $err; my $m=parse_dump($dump); $m->[$result]==0x58 or die sprintf("bank %d result %02X expected 58\n",$bank,$m->[$result]); }
 print "replicated ROM contracts survive separate compilation\n";

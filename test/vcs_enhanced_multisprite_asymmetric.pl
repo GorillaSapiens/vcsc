@@ -111,7 +111,7 @@ $text =~ /TEMPLATE_P1RespAfterLeftPF1:;.*?lda\.ax TEMPLATE_playfield_right,X;\s*
    or die "P1 late-family right-PF2 correction missing\n";
 
 my$bin=File::Spec->catfile($tmp,'enhanced_asymmetric.bin');
-my($rc,$sig,$out,$err)=capture($driver,'-nostdlib','-I',$vcs,'-DVCS_NTSC_EXTENDED_VBLANK','-DMULTISPRITE_NO_RETAINED_PF_ROWS','-T',File::Spec->catfile($vcs,'vcs.cfg'),$example,$startup,'-o',$bin);
+my($rc,$sig,$out,$err)=capture($driver,'-nostdlib','-I',$vcs,'-DVCS_NTSC_EXTENDED_VBLANK','-DMULTISPRITE_NO_RETAINED_PF_ROWS',$example,$startup,'-o',$bin);
 $rc==0 && !$sig or die "asymmetric example build failed\n$out$err";
 $out=without_usage($out); $out eq '' or die "asymmetric example build stdout: $out";
 $err eq '' or die "asymmetric example build stderr: $err";

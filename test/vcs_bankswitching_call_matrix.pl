@@ -107,31 +107,29 @@ make_path($tmp);
 my $vcs = File::Spec->catdir($repo, 'libraries', 'vcs');
 my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $sim = File::Spec->catfile($repo, 'simulator', 'vcsc-sim');
-my $generic_cfg = File::Spec->catfile($vcs, 'vcs.cfg');
 
 my @profiles = (
-   [ 'F8',    'F8/mapper.c26',    'F8/mapper.cfg',    [0x1ff9,0x1ff8], 0 ],
-   [ 'F8SC',  'F8SC/mapper.c26',  'F8SC/mapper.cfg',  [0x1ff9,0x1ff8], 0 ],
-   [ 'F6',    'F6/mapper.c26',   'F6/mapper.cfg',   [0x1ff9,0x1ff8,0x1ff7,0x1ff6], 0 ],
-   [ 'F6SC',  'F6SC/mapper.c26', 'F6SC/mapper.cfg', [0x1ff9,0x1ff8,0x1ff7,0x1ff6], 0 ],
-   [ 'F4',    'F4/mapper.c26',   'F4/mapper.cfg',   [0x1ffb,0x1ffa,0x1ff9,0x1ff8,0x1ff7,0x1ff6,0x1ff5,0x1ff4], 0 ],
-   [ 'F4SC',  'F4SC/mapper.c26', 'F4SC/mapper.cfg', [0x1ffb,0x1ffa,0x1ff9,0x1ff8,0x1ff7,0x1ff6,0x1ff5,0x1ff4], 0 ],
-   [ 'FA',    'FA/mapper.c26',   'FA/mapper.cfg',   [0x1ffa,0x1ff9,0x1ff8], 0 ],
-   [ 'FA2-24','FA2/mapper_24k.c26',  'FA2/mapper_24k.cfg',  [0x1ff5,0x1ff6,0x1ff7,0x1ff8,0x1ff9,0x1ffa], 0 ],
-   [ 'FA2-28','FA2/mapper_28k.c26',  'FA2/mapper_28k.cfg',  [0x1ff5,0x1ff6,0x1ff7,0x1ff8,0x1ff9,0x1ffa,0x1ffb], 0 ],
-   [ 'JANE',  'JANE/mapper.c26', 'JANE/mapper.cfg', [0x1ff0,0x1ff1,0x1ff8,0x1ff9], 1 ],
-   [ '0840',  '0840/mapper.c26',  '0840/mapper.cfg',  [0x0800,0x0840], 0 ],
-   [ 'UA',    'UA/mapper.c26',    'UA/mapper.cfg',    [0x0220,0x0240], 0 ],
-   [ 'UASW',  'UASW/mapper.c26',  'UASW/mapper.cfg',  [0x0240,0x0220], 0 ],
-   [ '0FA0',  '0FA0/mapper.c26',  '0FA0/mapper.cfg',  [0x0fc0,0x0fa0], 0 ],
-   [ 'DPC',   'DPC/mapper.c26',  'DPC/mapper.cfg',  [0x1ff9,0x1ff8], 0 ],
+   [ 'F8',    'F8/mapper.c26',    [0x1ff9,0x1ff8], 0 ],
+   [ 'F8SC',    'F8SC/mapper.c26',    [0x1ff9,0x1ff8], 0 ],
+   [ 'F6',    'F6/mapper.c26',    [0x1ff9,0x1ff8,0x1ff7,0x1ff6], 0 ],
+   [ 'F6SC',    'F6SC/mapper.c26',    [0x1ff9,0x1ff8,0x1ff7,0x1ff6], 0 ],
+   [ 'F4',    'F4/mapper.c26',    [0x1ffb,0x1ffa,0x1ff9,0x1ff8,0x1ff7,0x1ff6,0x1ff5,0x1ff4], 0 ],
+   [ 'F4SC',    'F4SC/mapper.c26',    [0x1ffb,0x1ffa,0x1ff9,0x1ff8,0x1ff7,0x1ff6,0x1ff5,0x1ff4], 0 ],
+   [ 'FA',    'FA/mapper.c26',    [0x1ffa,0x1ff9,0x1ff8], 0 ],
+   [ 'FA2-24','FA2/mapper_24k.c26',  [0x1ff5,0x1ff6,0x1ff7,0x1ff8,0x1ff9,0x1ffa], 0 ],
+   [ 'FA2-28','FA2/mapper_28k.c26',  [0x1ff5,0x1ff6,0x1ff7,0x1ff8,0x1ff9,0x1ffa,0x1ffb], 0 ],
+   [ 'JANE',    'JANE/mapper.c26',    [0x1ff0,0x1ff1,0x1ff8,0x1ff9], 1 ],
+   [ '0840',    '0840/mapper.c26',    [0x0800,0x0840], 0 ],
+   [ 'UA',    'UA/mapper.c26',    [0x0220,0x0240], 0 ],
+   [ 'UASW',    'UASW/mapper.c26',    [0x0240,0x0220], 0 ],
+   [ '0FA0',    '0FA0/mapper.c26',    [0x0fc0,0x0fa0], 0 ],
+   [ 'DPC',    'DPC/mapper.c26',    [0x1ff9,0x1ff8], 0 ],
 );
 
 my $pair_count = 0;
 for my $profile (@profiles) {
-   my ($name, $include, $cfg_name, $hotspots, $startup) = @$profile;
+   my ($name, $include, $hotspots, $startup) = @$profile;
    my $banks = scalar(@$hotspots);
-   my $cfg = File::Spec->catfile($vcs, $cfg_name);
 
    for my $source (0 .. $banks - 1) {
       my $tag = lc($name); $tag =~ s/[^a-z0-9]+/-/g;
@@ -145,7 +143,7 @@ for my $profile (@profiles) {
       my $uses_inline = $name =~ /^(?:F8|F8SC|F6|F6SC|F4|F4SC|FA|FA2-24|FA2-28|JANE|0840|UA|UASW|0FA0|DPC)$/;
       my @pilot_define = ();
       require_ok("build $name ordered-call source bank $source",
-                 $driver, '-I', $vcs, @pilot_define, '-T', $generic_cfg, '-Map', $map_path,
+                 $driver, '-I', $vcs, @pilot_define, '-Map', $map_path,
                  $src, '-o', $bin);
       my $map = slurp($map_path);
       if ($uses_inline) {
@@ -177,7 +175,7 @@ for my $profile (@profiles) {
       my $failure = map_symbol_addr($map, 'matrix_failure');
       my $count = map_symbol_addr($map, 'matrix_count');
       my ($out, $err) = require_ok("simulate $name ordered-call source bank $source",
-                                   $sim, '-T', $cfg,
+                                   $sim, '--map', $map_path,
                                    sprintf('--stop-pc=0x%04X', $done), '--dump-on-stop', $bin);
       $err eq '' or die "$name source bank $source simulator stderr:\n$err";
       my $mem = parse_dump($out);

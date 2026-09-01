@@ -39,8 +39,9 @@ make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
 
 my $as=File::Spec->catfile($repo,'assembler','vcsc-as');
 my $ar=File::Spec->catfile($repo,'archiver','vcsc-ar');
-my $ld=File::Spec->catfile($repo,'linker','vcsc-ld');
-my $cfg=File::Spec->catfile($repo,'libraries','vcs','F8/mapper.cfg');
+my $driver=File::Spec->catfile($repo,'driver','vcsc');
+my $vcs=File::Spec->catdir($repo,'libraries','vcs');
+my $profile=File::Spec->catfile($vcs,'F8','mapper.c26');
 
 my $root_s=File::Spec->catfile($tmp,'root.s26');
 my $remote_s=File::Spec->catfile($tmp,'remote.s26');
@@ -96,8 +97,8 @@ require_ok('assemble root',$as,'-o',$root_o,$root_s);
 require_ok('assemble selected archive member',$as,'-o',$remote_o,$remote_s);
 require_ok('assemble unused archive member',$as,'-o',$unused_o,$unused_s);
 require_ok('create archive',$ar,'rcs',$archive,$remote_o,$unused_o);
-require_ok('link banked archive',$ld,'-T',$cfg,'-Map',$map_path,'-Sym',$sym_path,
-   '-List',$list_path,'-Cfg',$distella,'-o',$bin,$root_o,$archive);
+require_ok('link banked archive',$driver,'-I',$vcs,'-nostdlib','-Map',$map_path,'--sym',$sym_path,
+   '--list',$list_path,'--cfg',$distella,'-o',$bin,$profile,$root_o,$archive);
 
 my $image=read_file($bin);
 my $map=read_file($map_path);
@@ -105,12 +106,12 @@ my $sym=read_file($sym_path);
 my $list=read_file($list_path);
 length($image)==8192 or die "banked archive link did not emit exactly 8192 bytes\n";
 
-$map =~ m{\Q$archive\E\(remote\.o26\).*?CODE\.bank1\.__vcsc_function\$remote\s+load=\$D[0-9A-Fa-f]{3}.*?bank=BANK1.*?region=bank1}s
+$map =~ m{\Q$archive\E\(remote\.o26\).*?CODE\.bank1\.__vcsc_function\$remote\s+load=\$D[0-9A-Fa-f]{3}.*?bank=bank1.*?region=bank1}s
    or die "selected archive member lacks BANK1 placement in map\n$map";
 $map !~ /unused_archive_function|unused\.o26/
    or die "unused archive member was selected or reported\n$map";
 $map =~ /TRAMPOLINES.*?entries=1 jmp=0 jsr=1/s &&
-$map =~ /JSR entry=.*?target=\$D[0-9A-Fa-f]{3}\s+remote\s+source=BANK0.*?destination=BANK1/s
+$map =~ /JSR entry=.*?target=\$D[0-9A-Fa-f]{3}\s+remote\s+source=bank0.*?destination=bank1/s
    or die "map omitted the archive member's cross-bank bridge\n$map";
 $map =~ /^\s*\$D[0-9A-Fa-f]{3}\s+remote\s+\Q$archive\E\(remote\.o26\)/m
    or die "map symbol table omitted archive origin or logical BANK1 address\n$map";

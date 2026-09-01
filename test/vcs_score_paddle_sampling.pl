@@ -20,7 +20,7 @@ sub read_file { my($p)=@_;open(my$f,'<:raw',$p)or die"read $p: $!\n";local$/;my$
 sub write_file { my($p,$d)=@_;open(my$f,'>:raw',$p)or die"write $p: $!\n";print{$f}$d;close$f or die"close $p: $!\n"; }
 sub build {
    my($driver,$vcs,$src,$bin)=@_;
-   my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),$src,'-o',$bin);
+   my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,$src,'-o',$bin);
    $rc==0&&!$sig or die "build failed for $src\n$out$err";
    -s$bin==4096 or die "$src did not produce a 4K ROM\n";
 }

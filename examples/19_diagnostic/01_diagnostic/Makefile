@@ -9,7 +9,7 @@ BOOT := diagnostic_boot.s26
 TARGET := vcsc_diagnostic.bin
 all: $(TARGET)
 $(TARGET): $(SOURCE) $(BOOT) diagnostic_pair_indices.c26 diagnostic_pairs.c26 diagnostic_collision_font.c26 diagnostic_fingerprint_font.c26 diagnostic_support.c26 $(VCS_DIR)/fonts/logo_font.c26
-	$(VCSC) -I $(VCS_DIR) -I . -Wa,--illegals -T $(VCS_DIR)/vcs.cfg -Map vcsc_diagnostic.map $(SOURCE) $(BOOT) -o $@
+	$(VCSC) -I $(VCS_DIR) -I . -Wa,--illegals -Map vcsc_diagnostic.map $(SOURCE) $(BOOT) -o $@
 fonts:
 	@mkdir -p "$(FONT_SUBSET_DIR)"
 	$(PERL) ./make_collision_font.pl "$(VCS_DIR)/fonts/half_ascii.c26" > "$(FONT_SUBSET_DIR)/diagnostic_collision_font.c26"

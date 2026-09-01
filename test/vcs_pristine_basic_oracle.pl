@@ -56,13 +56,12 @@ for my $pair ([qw(missile0height player0color)], [qw(missile0y player0color)],
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $profile=File::Spec->catdir($vcs,qw(renderers faithful_legacy_playercolors));
-my $cfg=File::Spec->catfile($profile,'faithful_legacy_playercolors.cfg');
 my $reference_asm=File::Spec->catfile($profile,'faithful_legacy_playercolors_reference.s26');
 my $reference_src=File::Spec->catfile($repo,qw(test fixtures faithful_legacy_playercolors reference_static.c26));
 my $reference_bin=File::Spec->catfile($tmp,'retained_audit_reference.bin');
 my $reference_map=File::Spec->catfile($tmp,'retained_audit_reference.map');
 my($rc,$sig,$out,$err)=capture(
-   $driver,'-I',$vcs,'-I',$profile,'-Wa,--illegals','-T',$cfg,'-Map',$reference_map,
+   $driver,'-I',$vcs,'-I',$profile,'-Wa,--illegals','-Map',$reference_map,
    $reference_src,$reference_asm,'-o',$reference_bin);
 $rc==0 && !$sig or die "retained audit reference build failed\n$out$err";
 without_usage($out) eq '' && $err eq ''

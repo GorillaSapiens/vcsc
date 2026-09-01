@@ -75,12 +75,12 @@ for my$case(
    ['pal','PAL','player-color',[],qw(17_video_standards pal 02_player_color pal_player_color_228_interactive.c26)],
    ['pal','PAL','all-five-unofficial',['-Wa,--illegals'],qw(17_video_standards pal 03_all_five_unofficial pal_all_five_unofficial_228_interactive.c26)],
    ['pal','PAL','multisprite',['-Wa,--illegals'],qw(17_video_standards pal 04_multisprite pal_multisprite_228_interactive.c26)],
-   ['pal','PAL','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS','-T',File::Spec->catfile($vcs,'F8/mapper.cfg')],qw(17_video_standards pal 05_enhanced_multisprite_asymmetric pal_enhanced_multisprite_asymmetric_228_interactive.c26)],
+   ['pal','PAL','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS'],qw(17_video_standards pal 05_enhanced_multisprite_asymmetric pal_enhanced_multisprite_asymmetric_228_interactive.c26)],
    ['secam','SECAM','all-five',[],qw(17_video_standards secam 01_all_five secam_all_five_228_interactive.c26)],
    ['secam','SECAM','player-color',[],qw(17_video_standards secam 02_player_color secam_player_color_228_interactive.c26)],
    ['secam','SECAM','all-five-unofficial',['-Wa,--illegals'],qw(17_video_standards secam 03_all_five_unofficial secam_all_five_unofficial_228_interactive.c26)],
    ['secam','SECAM','multisprite',['-Wa,--illegals'],qw(17_video_standards secam 04_multisprite secam_multisprite_228_interactive.c26)],
-   ['secam','SECAM','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS','-T',File::Spec->catfile($vcs,'F8/mapper.cfg')],qw(17_video_standards secam 05_enhanced_multisprite_asymmetric secam_enhanced_multisprite_asymmetric_228_interactive.c26)]) {
+   ['secam','SECAM','enhanced-asymmetric',['-nostdlib','-DMULTISPRITE_NO_RETAINED_PF_ROWS'],qw(17_video_standards secam 05_enhanced_multisprite_asymmetric secam_enhanced_multisprite_asymmetric_228_interactive.c26)]) {
    my($standard,$format,$family,$flags,@parts)=@$case;
    my$tag="$standard-$family";
    my$src=File::Spec->catfile($repo,'examples',@parts);

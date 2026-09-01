@@ -14,8 +14,7 @@ selects a mapper only:
 
 ```sh
 ../../../driver/vcsc -I ../../../libraries/vcs \
-  -DMAPPER_BANKS=8 -T ../../../libraries/vcs/vcs.cfg \
-  -Map f4.map bankswitching_diagnostic.c26 -o f4.bin
+  -DMAPPER_BANKS=8 -Map f4.map bankswitching_diagnostic.c26 -o f4.bin
 ```
 
 The stock mapper profiles select the descriptor bank-call ABI directly. This

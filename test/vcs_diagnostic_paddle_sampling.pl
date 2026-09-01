@@ -44,7 +44,6 @@ my $example=File::Spec->catdir($repo,qw(examples 19_diagnostic 01_diagnostic));
 my $source=File::Spec->catfile($example,'vcsc_diagnostic.c26');
 my $boot=File::Spec->catfile($example,'diagnostic_boot.s26');
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
 my $timing_source=File::Spec->catfile($repo,'test','vcs_frame_timing.cpp');
 my $timing=File::Spec->catfile($tmp,'vcs_frame_timing_diagnostic_paddles');
 my $mos_dir=File::Spec->catdir($repo,'simulator','mos6502');
@@ -58,7 +57,7 @@ sub build_paddle_diag {
    my($tag,$tv)=@_;
    my $bin=File::Spec->catfile($tmp,"diagnostic-paddles-$tag.bin");
    my $map_path=File::Spec->catfile($tmp,"diagnostic-paddles-$tag.map");
-   require_ok("build $tag paddle diagnostic",$driver,'-I',$vcs,'-I',$example,'-T',$generic,
+   require_ok("build $tag paddle diagnostic",$driver,'-I',$vcs,'-I',$example,
       '-Wa,--illegals',"-DDIAGNOSTIC_TEST_TV=$tv",'-DDIAGNOSTIC_TEST_CONTROLLER=1',
       '-Map',$map_path,$source,$boot,'-o',$bin);
    my $map=read_file($map_path);

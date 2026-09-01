@@ -64,17 +64,9 @@ sub parse_dump {
 }
 
 sub source_for_profile {
-   my ($banks) = @_;
+   my ($mapper, $banks) = @_;
    my @seed = map { sprintf('0x%02x', 0x10 + $_) } 0 .. 15;
-   my $src = <<'HEAD';
-include "vcs.c26"
-include "4KSC/ram.c26"
-
-HEAD
-   for my $bank (0 .. $banks - 1) {
-      my $start = 0xF100 - $bank * 0x2000;
-      $src .= sprintf("mem bank%d { \$start:0x%04X \$size:0x0E00 \$ro };\n", $bank, $start);
-   }
+   my $src = qq{include "$mapper/mapper.c26"\n\n};
    $src .= <<'GLOBALS';
 
 uint8_t result;
@@ -130,22 +122,21 @@ my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $sim = File::Spec->catfile($repo, 'simulator', 'vcsc-sim');
 my $vcs = File::Spec->catdir($repo, 'libraries', 'vcs');
 my @profiles = (
-   ['F8SC', 2, 'F8SC/mapper.cfg'],
-   ['F6SC', 4, 'F6SC/mapper.cfg'],
-   ['F4SC', 8, 'F4SC/mapper.cfg'],
+   ['F8SC', 2],
+   ['F6SC', 4],
+   ['F4SC', 8],
 );
 
 for my $profile (@profiles) {
-   my ($mapper, $banks, $cfg_name) = @$profile;
+   my ($mapper, $banks) = @$profile;
    my $stem = lc($mapper) . '_allocated';
    my $src = File::Spec->catfile($tmp, "$stem.c26");
    my $bin = File::Spec->catfile($tmp, "$stem.bin");
    my $map_path = File::Spec->catfile($tmp, "$stem.map");
    my $sym_path = File::Spec->catfile($tmp, "$stem.sym");
-   my $cfg = File::Spec->catfile($vcs, $cfg_name);
-   write_file($src, source_for_profile($banks));
+   write_file($src, source_for_profile($mapper, $banks));
    require_ok("build $mapper allocated Superchip test",
-      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', $cfg, '-Map', $map_path, '-Sym', $sym_path,
+      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-Map', $map_path, '-Sym', $sym_path,
       $src, '-o', $bin);
    -s $bin == $banks * 4096
       or die "$mapper output is not exactly " . ($banks * 4096) . " bytes\n";
@@ -181,7 +172,7 @@ for my $profile (@profiles) {
    my $result = parse_symbol($sym, 'result');
    for my $physical_start (0 .. $banks - 1) {
       my ($dump, $err) = require_ok("simulate $mapper from physical bank $physical_start",
-         $sim, '-T', $cfg, "--start-bank=$physical_start", '--split-fill=0xA7',
+         $sim, '--map', $map_path, "--start-bank=$physical_start", '--split-fill=0xA7',
          sprintf('--stop-pc=0x%04X', $done), '--dump-on-stop', $bin);
       $err eq '' or die "$mapper simulator wrote stderr:\n$err";
       my $mem = parse_dump($dump);
@@ -203,53 +194,17 @@ for my $profile (@profiles) {
    }
 }
 
-# The compiler metadata must make cfg disagreement impossible to ignore.
-my $probe_src = File::Spec->catfile($tmp, 'split_cfg_probe.c26');
-write_file($probe_src, <<'PROBE');
-include "vcs.c26"
-include "4KSC/ram.c26"
-cartram uint8_t probe;
-void main(void) { probe := 1; while (1) {} }
-PROBE
-my $base_cfg = read_file(File::Spec->catfile($vcs, 'F8SC/mapper.cfg'));
-my @mismatches = (
-   ['read_start', sub { my $x = shift; $x =~ s/(cartram:\s+(?:start|read_start)\s*=\s*)\$F080/$1\$F081/i or die "cannot mutate read_start\n"; return $x; }],
-   ['write_start', sub { my $x = shift; $x =~ s/(cartram:.*?write_start\s*=\s*)\$F000/$1\$F001/i or die "cannot mutate write_start\n"; return $x; }],
-   ['size', sub { my $x = shift; $x =~ s/(cartram:.*?size\s*=\s*)\$0080/$1\$007F/i or die "cannot mutate size\n"; return $x; }],
-   ['banked', sub { my $x = shift; $x =~ s/(cartram:.*?define\s*=\s*yes)/$1, bank = BANK0/i or die "cannot bank split region\n"; return $x; }],
-);
-my $probe_baseline = File::Spec->catfile($tmp, 'split_baseline.bin');
-my ($base_rc, $base_sig, $base_out, $base_err) = run_capture(
-   $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'F8SC/mapper.cfg'),
-   $probe_src, '-o', $probe_baseline);
-$base_rc == 0 && !$base_sig
-   or die "authoritative Superchip baseline failed\n$base_out\n$base_err";
-my $probe_bytes = read_file($probe_baseline);
-for my $case (@mismatches) {
-   my ($name, $mutate) = @$case;
-   my $cfg = File::Spec->catfile($tmp, "split_$name.cfg");
-   my $bin = File::Spec->catfile($tmp, "split_$name.bin");
-   write_file($cfg, $mutate->($base_cfg));
-   my ($rc, $sig, $out, $err) = run_capture(
-      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', $cfg, $probe_src,
-      '-o', $bin);
-   $rc == 0 && !$sig or die "C26-authoritative split $name link failed\n$out\n$err";
-   read_file($bin) eq $probe_bytes
-      or die "stale cfg split $name changed the authoritative C26 image\n";
-}
-
 # Allocation order and the named object in the overflow diagnostic are stable.
 my $overflow_src = File::Spec->catfile($tmp, 'split_overflow.c26');
 write_file($overflow_src, <<'OVERFLOW');
-include "vcs.c26"
-include "4KSC/ram.c26"
+include "F8SC/mapper.c26"
 cartram uint8_t fits[128];
 cartram uint8_t spill;
 void main(void) { while (1) {} }
 OVERFLOW
 for my $attempt (1 .. 2) {
    my ($rc, $sig, $out, $err) = run_capture(
-      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'F8SC/mapper.cfg'),
+      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM',
       $overflow_src, '-o', File::Spec->catfile($tmp, "split_overflow_$attempt.bin"));
    $rc != 0 && !$sig or die "Superchip overflow attempt $attempt unexpectedly linked\n$out\n$err";
    $err =~ /cartram overflow while placing BSS\.cartram\.__vcsc_object\$spill\b.*\bin cartram\b/s

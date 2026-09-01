@@ -13,7 +13,7 @@ SOURCE := e0_diagnostic.c26
 TARGET := e0_diagnostic.bin
 all: $(TARGET)
 $(TARGET): $(SOURCE)
-	$(VCSC) -I $(VCS_DIR) -T $(VCS_DIR)/vcs.cfg -Map e0_diagnostic.map $(SOURCE) -o $@
+	$(VCSC) -I $(VCS_DIR) -Map e0_diagnostic.map $(SOURCE) -o $@
 $(TARGET): $(COMMITTED_FONT_SUBSETS)
 
 fonts:

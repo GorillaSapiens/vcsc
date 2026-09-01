@@ -60,28 +60,24 @@ my $tmp = shift @ARGV // die "usage: $0 REPO TMP\n";
 make_path($tmp);
 $tmp = abs_path($tmp) // die "could not resolve temp dir\n";
 
-my $cfg = File::Spec->catfile($repo, 'libraries', 'vcs', 'F8/mapper.cfg');
+my $vcs = File::Spec->catdir($repo, 'libraries', 'vcs');
+my $profile = File::Spec->catfile($vcs, 'F8/mapper.c26');
 my $fixture = File::Spec->catfile($repo, 'test', 'fixtures', 'bankswitching',
                                   'f8_profile_diagnostic.c26');
 my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $as = File::Spec->catfile($repo, 'assembler', 'vcsc-as');
-my $ld = File::Spec->catfile($repo, 'linker', 'vcsc-ld');
--f $cfg or die "public F8/mapper.cfg is missing\n";
+-f $profile or die "public F8/mapper.c26 is missing\n";
 -f $fixture or die "F8 profile diagnostic fixture is missing\n";
 
-my $cfg_text = slurp($cfg);
-$cfg_text =~ /mapper\s*=\s*F8/ or die "F8 profile does not select mapper F8\n";
-$cfg_text =~ /BANK0:\s*start\s*=\s*\$F000,\s*size\s*=\s*\$1000,\s*hotspot\s*=\s*\$1FF9,\s*bankcall\s*=\s*\$F9,\s*startup\s*=\s*yes/s
-   or die "F8 profile BANK0/home declaration is wrong\n";
-$cfg_text =~ /BANK1:\s*start\s*=\s*\$D000,\s*size\s*=\s*\$1000,\s*hotspot\s*=\s*\$1FF8,\s*bankcall\s*=\s*\$F8,\s*startup\s*=\s*no/s
-   or die "F8 profile BANK1/file-chunk-0 declaration is wrong\n";
-$cfg_text =~ /bank0:\s*start\s*=\s*\$F000,\s*size\s*=\s*\$0F00,\s*type\s*=\s*ro/s &&
-$cfg_text =~ /bank1:\s*start\s*=\s*\$D000,\s*size\s*=\s*\$0F00,\s*type\s*=\s*ro/s
-   or die "F8 profile ordinary bank allocation spans are wrong\n";
-$cfg_text =~ /trampoline\s*=\s*\$0F00/ &&
-$cfg_text =~ /trampolinesize\s*=\s*\$00E0/ &&
-$cfg_text =~ /vectorbridge\s*=\s*\$0FE0/
-   or die "F8 profile common reserved corridors are wrong\n";
+my $profile_text = slurp($profile);
+$profile_text =~ /\$signature:F8\b/ &&
+$profile_text =~ /bank\s+bank0\s*\{.*?\$file_index:1.*?\$select_access:0x1ff9\s+\$bankcall_descriptor:0xf9\s+\$startup/s &&
+$profile_text =~ /bank\s+bank1\s*\{.*?\$file_index:0.*?\$select_access:0x1ff8\s+\$bankcall_descriptor:0xf8/s &&
+$profile_text =~ /mem\s+bank0\s*\{.*?\$start:0xf000.*?\$size:0x0f00.*?\$ro/s &&
+$profile_text =~ /mem\s+bank1\s*\{.*?\$start:0xd000.*?\$size:0x0f00.*?\$ro/s &&
+$profile_text =~ /\$trampoline_offset:0x0f00\s+\$trampoline_size:0x00e0/ &&
+$profile_text =~ /\$vector_bridge_offset:0x0fe0/
+   or die "F8 C26 profile topology is wrong\n";
 
 # Compile the public source diagnostic through the high-level driver.  This
 # proves hard pins, automatic same-bank data affinity, BANK0 main/startup, both
@@ -89,15 +85,13 @@ $cfg_text =~ /vectorbridge\s*=\s*\$0FE0/
 my $source_bin = File::Spec->catfile($tmp, 'f8-source.bin');
 my $source_map = File::Spec->catfile($tmp, 'f8-source.map');
 require_ok('compile public F8 source diagnostic',
-           $driver, '-I', File::Spec->catdir($repo, 'test'),
-           '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK',
-           '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM',
-           '-T', $cfg, '-Map', $source_map, '-o', $source_bin, $fixture);
+           $driver, '-I', $vcs, '-I', File::Spec->catdir($repo, 'test'),
+           '-Map', $source_map, '-o', $source_bin, $fixture);
 my $source_image = slurp($source_bin);
 my $source_map_text = slurp($source_map);
 length($source_image) == 8192 or die "public F8 source image was not exactly 8192 bytes\n";
-$source_map_text =~ /BANK0\s+start=\$F000 size=\$1000 hotspot=\$1FF9 file=\$00001000 startup=yes/ &&
-$source_map_text =~ /BANK1\s+start=\$D000 size=\$1000 hotspot=\$1FF8 file=\$00000000/
+$source_map_text =~ /bank0\s+start=\$F000 size=\$1000 hotspot=\$1FF9 file=\$00001000 startup=yes/ &&
+$source_map_text =~ /bank1\s+start=\$D000 size=\$1000 hotspot=\$1FF8 file=\$00000000/
    or die "F8 map lost logical-bank/file-order/hotspot identities\n$source_map_text";
 $source_map_text =~ /pinned\s+CODE\.__vcsc_function\$main\s+region=bank0/ &&
 $source_map_text =~ /pinned\s+CODE\.bank0\.__vcsc_function\$home_leaf\s+region=bank0/ &&
@@ -105,21 +99,29 @@ $source_map_text =~ /pinned\s+CODE\.bank1\.__vcsc_function\$remote\s+region=bank
    or die "F8 source pins or main residency are wrong\n$source_map_text";
 $source_map_text =~ /pinned\s+RODATA\.bank1\.__vcsc_object\$bank1_value\s+region=bank1.*\n\s+automatic CODE\.__vcsc_function\$automatic_reader\s+region=bank1/s
    or die "F8 automatic reader did not follow its BANK1 const object\n$source_map_text";
-$source_map_text =~ /entries=5 jmp=1 jsr=4/ &&
-$source_map_text =~ /JMP entry=.*destination=BANK0 hotspot=\$1FF9/ &&
-$source_map_text =~ /JSR entry=.*source=BANK0 hotspot=\$1FF9 destination=BANK1 hotspot=\$1FF8/ &&
-$source_map_text =~ /JSR entry=.*source=BANK1 hotspot=\$1FF8 destination=BANK0 hotspot=\$1FF9/
+$source_map_text =~ /generic-jsr=\$048\b.*entries=4 jmp=1 jsr=3/ &&
+$source_map_text =~ /JMP entry=.*destination=bank0 hotspot=\$1FF9/ &&
+$source_map_text =~ /JSR entry=.*source=bank0 hotspot=\$1FF9 destination=bank1 hotspot=\$1FF8/
    or die "F8 source diagnostic did not generate the expected cross-bank bridges\n$source_map_text";
-substr($source_image, 0x0F00, 0x00E0) eq substr($source_image, 0x1F00, 0x00E0)
-   or die "F8 source trampoline corridor is not byte-identical in both file chunks\n";
+my $tramp0=substr($source_image,0x0F00,0x00E0);
+my $tramp1=substr($source_image,0x1F00,0x00E0);
+my @tramp_diff=grep { substr($tramp0,$_,1) ne substr($tramp1,$_,1) } 0..0x47;
+@tramp_diff==1 or die "F8 descriptor trampolines differ in more than the baked source descriptor\n";
 substr($source_image, 0x0FE0, 0x0012) eq substr($source_image, 0x1FE0, 0x0012)
    or die "F8 source vector bridge is not byte-identical in both file chunks\n";
-substr($source_image, 0x0FFA, 6) eq substr($source_image, 0x1FFA, 6)
-   or die "F8 source vectors are not byte-identical in both file chunks\n";
-unpack('v', substr($source_image, 0x0FFC, 2)) == 0xFFE6
-   or die "F8 reset vector does not target the BANK0-mirror reset bridge\n";
+my $f8_nonfinal_vectors = substr($source_image, 0x0FFA, 6);
+my $f8_final_vectors = substr($source_image, 0x1FFA, 6);
+$f8_nonfinal_vectors eq pack('v3', 0xFFE0, 0xFFE6, 0xFFEC)
+   or die "F8 non-final bank vectors do not use the BANK0-mirror bridge addresses\n";
+substr($f8_final_vectors, 0, 2) eq "\0\0"
+   or die "F8 final-bank NMI bytes were not replaced by the F8 signature tail\n";
+substr($f8_final_vectors, 2, 4) eq substr($f8_nonfinal_vectors, 2, 4)
+   or die "F8 final-bank RESET/IRQ vectors differ from the other bank\n";
+unpack('v', substr($source_image, 0x0FFC, 2)) == 0xFFE6 &&
+unpack('v', substr($source_image, 0x1FFC, 2)) == 0xFFE6
+   or die "F8 reset vector does not target the BANK0-mirror reset bridge in every bank\n";
 
-# Link a tiny assembly diagnostic with the same public cfg and execute the
+# Link a tiny assembly diagnostic with the same public C26 profile and execute the
 # reset path from each possible initially selected bank.  The opcode model is
 # intentionally limited to this fixture; full mapper-aware vcsc-sim support is
 # a later roadmap item.
@@ -174,8 +176,8 @@ write_file($asm_src, <<'ASM');
 .endproc
 ASM
 require_ok('assemble F8 execution diagnostic', $as, '-o', $asm_obj, $asm_src);
-require_ok('link F8 execution diagnostic', $ld, '-T', $cfg, '-Map', $asm_map,
-           '--no-sym', '--no-list', '--no-cfg', '-o', $asm_bin, $asm_obj);
+require_ok('link F8 execution diagnostic', $driver, '-I', $vcs, '-Map', $asm_map,
+           '-o', $asm_bin, $profile, $asm_obj);
 my $image = slurp($asm_bin);
 my $map = slurp($asm_map);
 length($image) == 8192 or die "F8 execution diagnostic was not exactly 8192 bytes\n";

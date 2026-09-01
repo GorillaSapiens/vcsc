@@ -59,7 +59,6 @@ my $example=File::Spec->catdir($repo,'test','fixtures','vcs_examples','05_static
 my $source=File::Spec->catfile($example,'golden.c26');
 my $reference=File::Spec->catfile($example,'reference_stella_7.0.png');
 my $renderer=File::Spec->catfile($profile,'standard_4k_ntsc_renderer.s26');
-my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $bin=File::Spec->catfile($tmp,'static_renderer_test.bin');
 my $mapfile=File::Spec->catfile($tmp,'static_renderer_test.map');
 my $phase_source=File::Spec->catfile($repo,'test','vcs_playfield_phase.cpp');
@@ -70,7 +69,7 @@ my $mos_dir=File::Spec->catdir($repo,'simulator','mos6502');
 my $mos_source=File::Spec->catfile($mos_dir,'mos6502.cpp');
 
 my ($exit,$sig,$out,$err)=run_capture(
-   $driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,
+   $driver,'-I',$vcs,'-Map',$mapfile,
    $source,$renderer,'-o',$bin);
 $exit == 0 && !$sig
    or die "static-renderer build failed: exit=$exit signal=$sig\nstdout:\n$out\nstderr:\n$err";

@@ -84,7 +84,6 @@ my $fingerprint_font=File::Spec->catfile($example,'diagnostic_fingerprint_font.c
 my $subset_helper=File::Spec->catfile($vcs,qw(fonts make_font_subset.pl));
 my $pair_helper=File::Spec->catfile($vcs,qw(fonts make_pair_font.pl));
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
 my $examples_ignore=File::Spec->catfile($repo,'examples','.gitignore');
 
 my $ignore_text=read_file($examples_ignore);
@@ -295,7 +294,7 @@ require_ok('compile diagnostic frame timing','g++','-std=c++17','-Wall','-Wextra
 my $input_bin=File::Spec->catfile($tmp,'diagnostic-input.bin');
 my $input_map=File::Spec->catfile($tmp,'diagnostic-input.map');
 my $input_list=File::Spec->catfile($tmp,'diagnostic-input.lst');
-require_ok('build input-driven diagnostic',$driver,'-I',$vcs,'-I',$example,'-T',$generic,
+require_ok('build input-driven diagnostic',$driver,'-I',$vcs,'-I',$example,
    '-Wa,--illegals','-DDIAGNOSTIC_TEST_TV=0','-Map',$input_map,'-List='.$input_list,$source,$boot,'-o',$input_bin);
 my $input_map_text=read_file($input_map);
 my $input_list_text=read_file($input_list);
@@ -415,7 +414,6 @@ for my $spec (
 # reset-on-pc preserves RAM, so the first pass plants a candidate signature;
 # the second reset must capture it, clear it, and publish the result in F4SC RAM.
 my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
-my $f4sc_cfg=File::Spec->catfile($vcs,'F4SC/mapper.cfg');
 for my $probe ([ea=>0xea,1],[not_ea=>0x00,0]) {
    my($tag,$tail,$want)=@$probe;
    my $probe_src=File::Spec->catfile($tmp,"diagnostic-boot-$tag.c26");
@@ -424,12 +422,12 @@ for my $probe ([ea=>0xea,1],[not_ea=>0x00,0]) {
    open(my $pf,'>',$probe_src) or die "write $probe_src: $!\n";
    print {$pf} qq{include "F4SC/mapper.c26"\ncartram uint8_t diagnostic_boot_7800;\ncartram uint8_t boot_probe_result;\nvoid boot_probe_stop(void) { while (1) { } }\nvoid main(void) {\n   if (diagnostic_boot_7800) { boot_probe_result := 0xaa; asm jmp boot_probe_stop; }\n   boot_probe_result := 0x11;\n   asm lda #\$6c; asm sta \$e0;\n   asm lda #\$fc; asm sta \$e1;\n   asm lda #\$ff; asm sta \$e2;\n   asm lda #\$@{[sprintf('%02x',$tail)]}; asm sta \$e3;\n   asm jmp boot_probe_stop;\n}\n};
    close($pf);
-   require_ok("build 7800 boot $tag probe",$driver,'-I',$vcs,'-I',$example,'-T',$generic,
+   require_ok("build 7800 boot $tag probe",$driver,'-I',$vcs,'-I',$example,
       '-Map',$probe_map,$probe_src,$boot,'-o',$probe_bin);
    my $probe_map_text=read_file($probe_map);
    my $done=map_symbol_addr($probe_map_text,'boot_probe_stop');
    my $result=map_symbol_addr($probe_map_text,'boot_probe_result');
-   my($dump,$simerr)=require_ok("simulate 7800 boot $tag probe",$sim,'-T',$f4sc_cfg,
+   my($dump,$simerr)=require_ok("simulate 7800 boot $tag probe",$sim,'--map',$probe_map,
       sprintf('--reset-on-pc=0x%04x',$done),sprintf('--stop-pc=0x%04x',$done),'--dump-on-stop',$probe_bin);
    $simerr eq '' or die "7800 boot $tag simulator wrote stderr:\n$simerr";
    my $mem=parse_dump($dump);

@@ -33,7 +33,6 @@ $repo=abs_path($repo) // die "resolve repo\n";
 $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
 my $module=File::Spec->catfile($vcs,qw(renderers all_five_unofficial all_five_unofficial.c26));
 my $module_text=read_file($module);
 $module_text =~ /^parameter\s+lines;/m or die "unofficial all-five renderer lacks required lines parameter\n";
@@ -51,7 +50,7 @@ for my $lines (192,181,170) {
       my $bin=File::Spec->catfile($tmp,"all_five_${lines}_${kind}.bin");
       my $mapfile=File::Spec->catfile($tmp,"all_five_${lines}_${kind}.map");
       my @extra=$kind eq 'unofficial' ? ('-Wa,--illegals') : ();
-      my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,@extra,'-Map',$mapfile,$fixture,'-o',$bin);
+      my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,@extra,'-Map',$mapfile,$fixture,'-o',$bin);
       $rc==0 && !$sig or die "$lines $kind build failed\n$out$err";
       $err eq '' or die "$lines $kind build stderr: $err";
       -s $bin==4096 or die "$lines $kind image is not 4K\n";

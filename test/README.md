@@ -294,11 +294,12 @@ covers cross-object declaration conflicts with both C26 locations and ambiguous
 multi-owner containment. The four former `e2e_mem_region_cfg_*_mismatch` cases
 now prove stale or missing cfg allocator entries are ignored in favor of C26.
 
-`vcs_c26_cartridge_profiles.pl` certifies the installed 2K, 4K, F8, F6, F4, F8SC,
-F6SC, and F4SC C26 profile files against the reduced `vcs.cfg`. It verifies
-physical size and file ordering—including the 2048-byte `$F800-$FFFF`
-profile—ordinary versus SC mapped spans, selector and startup metadata, shared Superchip ownership, and byte-for-byte equality with
-the retained legacy cfg profiles. It also proves that the driver's implicit 4K
+`vcs_c26_cartridge_profiles.pl` certifies the installed 2K, 4K, F8, F6, F4,
+F8SC, F6SC, and F4SC C26 profile files as self-contained linker topology. It
+verifies physical size and file ordering—including the 2048-byte
+`$F800-$FFFF` profile—ordinary versus SC mapped spans, selector and startup
+metadata, shared Superchip ownership, and exact profile-driven output. It also
+proves that the driver's implicit 4K
 profile equals an explicit build, that an explicitly supplied installed profile
 resolves sibling includes from its own directory, and that the generic direct
 two-chunk profile uses ordinary absolute cross-chunk calls, deterministic fill,
@@ -339,16 +340,15 @@ call chain and locks the ordinary depth, weighted hardware-return depth, extra
 bridge slots, two-byte-per-active-cross-bank-edge RAM reservation, generated
 symbols, and source/destination bridge reporting.
 
-`vcs_f8_profile.pl` certifies the installed `F8/mapper.c26` profile through
-the reduced `vcs.cfg`. It compiles the private F8 source diagnostic, locks
+`vcs_f8_profile.pl` certifies the installed `F8/mapper.c26` profile without a
+VCS linker cfg. It compiles the private F8 source diagnostic, locks
 BANK1-first/BANK0-last file order, `$1FF8/$1FF9` selector identities, hard and
-automatic placement, cross-bank JMP and nested JSR bridges, byte-identical common
-corridors, vectors, map output, and exact 8192-byte output. A small opcode model
+automatic placement, cross-bank JMP and nested JSR bridges, descriptor-aware replicated corridors,
+vectors, map output, and exact 8192-byte output. A small opcode model
 starts from each possible initially selected file chunk and proves the reset
 bridge reaches BANK0 and nested calls restore banks and hardware-stack returns
-correctly. Differential coverage retains the legacy `F8/mapper.cfg` only as a
-compatibility oracle. `make installcheck` repeats the source build with the
-staged installed C26 profile.
+correctly. `make installcheck` repeats the source build with the staged installed
+C26 profile.
 
 `vcs_f6_f4_profiles.pl` certifies the installed `F6/mapper.c26` and
 `F4/mapper.c26` profiles through the same C26-topology implementation. It

@@ -39,47 +39,15 @@ make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $testlib=File::Spec->catdir($repo,'test');
-my $generic_cfg=File::Spec->catfile($vcs,'vcs.cfg');
 my $blank=File::Spec->catfile($repo,'examples','01_basic','01_blank_screen','blank_screen.c26');
 
 my @profiles=(
-   ['2K',   '2K/mapper.c26',       undef,              1, 0, 0,  2048],
-   ['CV',   'CV/mapper.c26',    'CV/mapper.cfg',    1, 0, 0,  2048],
-   ['4K',   '4K/mapper.c26',       '4K/mapper.cfg',       1, 0, 0,  4096],
-   ['4KSC', '4KSC/mapper.c26',    undef,              1, 0, 1,  4096],
-   ['F8',   'F8/mapper.c26',    'F8/mapper.cfg',    2, 1, 0,  8192],
-   ['0840', '0840/mapper.c26',  undef,               2, 1, 0,  8192],
-   ['UA',   'UA/mapper.c26',    undef,               2, 1, 0,  8192],
-   ['UASW', 'UASW/mapper.c26',  undef,               2, 1, 0,  8192],
-   ['0FA0', '0FA0/mapper.c26',  undef,               2, 1, 0,  8192],
-   ['E0',   'E0/mapper.c26',    undef,              8, 0, 0,  8192],
-   ['FE',   'FE/mapper.c26',    undef,    2, 0, 0,  8192],
-   ['WD',   'WD/mapper.c26',    undef,    8, 0, 0,  8192],
-   ['3F',   '3F/mapper_8k.c26',    undef,    4, 0, 0,  8192],
-   ['3E',   '3E/mapper_8k.c26',    undef,    4, 0, 0,  8192],
-   ['F6',   'F6/mapper.c26',   'F6/mapper.cfg',   4, 1, 0, 16384],
-   ['JANE', 'JANE/mapper.c26', undef,               4, 1, 0, 16384],
-   ['F4',   'F4/mapper.c26',   'F4/mapper.cfg',   8, 1, 0, 32768],
-   ['FA',   'FA/mapper.c26',    'FA/mapper.cfg',    3, 1, 0, 12288],
-   ['FA2',  'FA2/mapper_28k.c26',   undef,                7, 1, 0, 28672],
-   ['F8SC', 'F8SC/mapper.c26',  'F8SC/mapper.cfg',  2, 1, 1,  8192],
-   ['F6SC', 'F6SC/mapper.c26', 'F6SC/mapper.cfg', 4, 1, 1, 16384],
-   ['F4SC', 'F4SC/mapper.c26', 'F4SC/mapper.cfg', 8, 1, 1, 32768],
-   ['OMNI', 'OMNI/mapper.c26', undef,              8, 0, 0, 32768],
-);
-
--f $generic_cfg or die "generic VCS compatibility cfg is missing\n";
-my $cfg_text=read_file($generic_cfg);
-$cfg_text =~ /callstack\s*=\s*callgraph/ && $cfg_text !~ /\b(?:CARTRIDGE|BANKS|SEGMENTS)\s*\{/s
-   or die "vcs.cfg is not the reduced operational compatibility cfg\n";
+   ['2K',   '2K/mapper.c26',                     1, 0, 0,  2048],   ['CV',   'CV/mapper.c26',        1, 0, 0,  2048],   ['4K',   '4K/mapper.c26',              1, 0, 0,  4096],   ['4KSC', '4KSC/mapper.c26',                  1, 0, 1,  4096],   ['F8',   'F8/mapper.c26',        2, 1, 0,  8192],   ['0840', '0840/mapper.c26',                 2, 1, 0,  8192],   ['UA',   'UA/mapper.c26',                   2, 1, 0,  8192],   ['UASW', 'UASW/mapper.c26',                 2, 1, 0,  8192],   ['0FA0', '0FA0/mapper.c26',                 2, 1, 0,  8192],   ['E0',   'E0/mapper.c26',                  8, 0, 0,  8192],   ['FE',   'FE/mapper.c26',        2, 0, 0,  8192],   ['WD',   'WD/mapper.c26',        8, 0, 0,  8192],   ['3F',   '3F/mapper_8k.c26',        4, 0, 0,  8192],   ['3E',   '3E/mapper_8k.c26',        4, 0, 0,  8192],   ['F6',   'F6/mapper.c26',      4, 1, 0, 16384],   ['JANE', 'JANE/mapper.c26',                4, 1, 0, 16384],   ['F4',   'F4/mapper.c26',      8, 1, 0, 32768],   ['FA',   'FA/mapper.c26',        3, 1, 0, 12288],   ['FA2',  'FA2/mapper_28k.c26',                   7, 1, 0, 28672],   ['F8SC', 'F8SC/mapper.c26',    2, 1, 1,  8192],   ['F6SC', 'F6SC/mapper.c26',  4, 1, 1, 16384],   ['F4SC', 'F4SC/mapper.c26',  8, 1, 1, 32768],   ['OMNI', 'OMNI/mapper.c26',               8, 0, 0, 32768],);
 
 for my $p (@profiles) {
-   my($name,$profile_name,$legacy_name,$banks,$selector,$sc,$output_size)=@$p;
+   my($name,$profile_name,$banks,$selector,$sc,$output_size)=@$p;
    my $profile=File::Spec->catfile($vcs,$profile_name);
-   my $legacy=defined($legacy_name) ? File::Spec->catfile($vcs,$legacy_name) : undef;
-   -f $profile or die "$profile_name is missing\n";
-   defined($legacy_name) && !-f $legacy and die "$legacy_name compatibility profile is missing\n";
-   my $text=read_file($profile);
+   -f $profile or die "$profile_name is missing\n";   my $text=read_file($profile);
    $text =~ /include\s+"vcs\.c26"/ && $text =~ /\bcartridge\s*\{/ && $text =~ /\bbank\s+bank0\s*\{/s
       or die "$profile_name is not a complete inspectable C26 cartridge profile\n";
    my $bank_decls=()=$text =~ /\bbank\s+bank\d+\s*\{/g;
@@ -115,8 +83,8 @@ for my $p (@profiles) {
       open(my $fh,'>',$build_source) or die "open $build_source: $!\n";
       print $fh $blank_text; close($fh);
    }
-   require_ok("build $name from C26 topology and reduced cfg",
-      $driver,'-I',$vcs,'-T',$generic_cfg,
+   require_ok("build $name from C26 topology",
+      $driver,'-I',$vcs,
       '-Map',$generic_map,$profile,$build_source,'-o',$generic_bin);
    -s $generic_bin==$output_size
       or die "$name C26 profile emitted ".(-s $generic_bin)." bytes, expected $output_size\n";
@@ -142,16 +110,6 @@ for my $p (@profiles) {
       my @vectors=unpack('v3',substr($rom,-6));
       !grep { $_ < 0xf800 } @vectors
          or die "2K vectors are not linked into the canonical \$F800-\$FFFF mapping\n";
-   }
-
-   if (defined $legacy_name) {
-      my $legacy_bin=File::Spec->catfile($tmp,"$stem.legacy.bin");
-      require_ok("differential build $name with legacy cfg",
-         $driver,'-I',$vcs,'-T',$legacy,
-         $profile,$build_source,'-o',$legacy_bin);
-      read_file($generic_bin) eq read_file($legacy_bin)
-         or die "$name C26 profile and legacy cfg do not emit identical cartridges
-";
    }
 
    my $map=read_file($generic_map);
@@ -329,12 +287,12 @@ for my $p (@profiles) {
    }
 }
 
-# The driver default is now the same explicit 4K C26 profile plus reduced cfg.
+# The driver default is the same explicit 4K C26 profile.
 my $default_bin=File::Spec->catfile($tmp,'default.bin');
 my $explicit_bin=File::Spec->catfile($tmp,'explicit4k.bin');
 require_ok('build implicit default 4K profile',$driver,'-I',$vcs,$blank,'-o',$default_bin);
 require_ok('build explicit default 4K profile',$driver,'-I',$vcs,
-   '-T',$generic_cfg,File::Spec->catfile($vcs,'4K/mapper.c26'),$blank,'-o',$explicit_bin);
+   File::Spec->catfile($vcs,'4K/mapper.c26'),$blank,'-o',$explicit_bin);
 read_file($default_bin) eq read_file($explicit_bin)
    or die "implicit and explicit 4K C26 profile builds differ\n";
 
@@ -354,7 +312,7 @@ SRC
 my $direct_bin=File::Spec->catfile($tmp,'direct.bin');
 my $direct_map=File::Spec->catfile($tmp,'direct.map');
 require_ok('build direct two-chunk C26 package',$driver,'-I',$vcs,'-I',$testlib,
-   '-T',$generic_cfg,'-Map',$direct_map,$direct_src,'-o',$direct_bin);
+   '-Map',$direct_map,$direct_src,'-o',$direct_bin);
 -s $direct_bin==8192 or die "direct profile did not emit two physical 4K chunks\n";
 my $direct=read_file($direct_bin);
 my $dmap=read_file($direct_map);
@@ -387,7 +345,7 @@ write_file($spill_src,
 my $spill_bin=File::Spec->catfile($tmp,'direct_spill.bin');
 my $spill_map=File::Spec->catfile($tmp,'direct_spill.map');
 require_ok('build automatic direct-region spill',$driver,'-I',$vcs,'-I',$testlib,
-   '-T',$generic_cfg,'-Map',$spill_map,$spill_src,'-o',$spill_bin);
+   '-Map',$spill_map,$spill_src,'-o',$spill_bin);
 my $smap=read_file($spill_map);
 $smap =~ /pinned\s+CODE\.__vcsc_function\$main\s+region=bank0/m
    or die "direct automatic placement did not keep main in the startup/home region\n$smap";

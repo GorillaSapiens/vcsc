@@ -41,7 +41,6 @@ $repo=abs_path($repo) // die "resolve repo\n";
 make_path($tmp); $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
 my $fixtures=File::Spec->catdir($repo,qw(test fixtures poison_debug_score));
 my %cases=(
    player_color_181_above => 'poison-above',
@@ -53,7 +52,7 @@ for my $name (sort keys %cases) {
    my $src=File::Spec->catfile($fixtures,"$name.c26");
    my $bin=File::Spec->catfile($tmp,"$name.bin");
    my $mapfile=File::Spec->catfile($tmp,"$name.map");
-   my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,$src,'-o',$bin);
+   my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$mapfile,$src,'-o',$bin);
    $rc==0 && !$sig or die "$name build failed\n$out$err";
    without_usage($out) eq '' && $err eq '' or die "$name build wrote output\n$out$err";
    -s $bin == 4096 or die "$name is not a 4K ROM\n";

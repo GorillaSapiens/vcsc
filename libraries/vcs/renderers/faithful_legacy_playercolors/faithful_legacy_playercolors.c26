@@ -9,7 +9,7 @@
 //
 // Include vcs.c26 first, define RAM-backed INSTANCE_playfield[48], and set
 // the graphics/color pointers before the first draw.  Build cartridges using
-// -Wa,--illegals and the matching faithful_legacy_playercolors.cfg script.
+// -Wa,--illegals; C26 owns the cartridge and stack topology.
 
 enum TEMPLATE_contract {
    TEMPLATE_PLAYFIELD_BYTES := 48,
@@ -87,6 +87,7 @@ uint8_t TEMPLATE_renderer_scratch[2];
 // One call owns the complete retained frame, including overscan, VSYNC,
 // VBLANK, gameplay, the integrated score, and the following VBLANK transition.
 require void TEMPLATE_drawscreen(void) {
+   asm .callstackextra 4;
    asm jmp TEMPLATE_renderer_entry;
    asm .segment "RENDERER_CODE";
    asm VSYNC = $0000;

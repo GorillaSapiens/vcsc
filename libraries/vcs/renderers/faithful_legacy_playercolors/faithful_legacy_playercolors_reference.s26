@@ -14,6 +14,7 @@
 ;   6018f7c83706fca444e5127bf3e122d345e2a6da74f04909de7b870ee3e1e005  legacy-basic-renderers/standard/std_renderer.asm
 ;   9952edf9ef5b13429e0bc6ba3f14459cc4eaed6d31763b2e8643041f62da2518  legacy-basic-renderers/common/score_graphics.asm
 .include "faithful_legacy_playercolors_macros.inc"
+.callstackextra 4
 
 ; Module-owned state imported from standard_4k_ntsc.c26.
 .importzp vcs_standard_object_x

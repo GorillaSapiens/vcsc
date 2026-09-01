@@ -23,8 +23,8 @@ instantiate "renderers/faithful_legacy_playercolors/faithful_legacy_playercolors
 
 The application supplies RAM-backed `legacy_playfield[48]`, page-contained
 graphics and color tables, initializes the instance state, and repeatedly calls
-`legacy_drawscreen()`. Build with `-Wa,--illegals` and
-`faithful_legacy_playercolors.cfg`.
+`legacy_drawscreen()`. Build with `-Wa,--illegals`; the component's object/C26
+metadata carries its placement requirements, so no renderer linker cfg is needed.
 
 Three stock aliasing rules are part of the source contract:
 

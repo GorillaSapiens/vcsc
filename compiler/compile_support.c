@@ -469,7 +469,7 @@ ContextEntry *ctx_lookup(Context *ctx, const char *name) {
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
 #define MEM_REGION_SPLIT_META_PREFIX "__memmeta$V2$"
 
-#define MEM_DECL_META_PREFIX "__memdecl$V2$"
+#define MEM_DECL_META_PREFIX "__memdecl$V3$"
 
 //! @brief Encode one declaration location for linker diagnostics.
 static char *mem_metadata_source_suffix(const ASTNode *node) {
@@ -652,6 +652,7 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
    bool have_end;
    bool split;
    bool read_hazard;
+   bool stack;
    bool has_allocation_flag;
    const char *data_bank;
    int32_t priority;
@@ -672,11 +673,12 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
    type = mem_metadata_type_flag(flags);
    split = have_read_start || have_write_start;
    read_hazard = mem_metadata_has_flag(flags, "$read_hazard");
+   stack = mem_metadata_has_flag(flags, "$stack");
    data_bank = mem_metadata_string_flag(flags, "$data_bank:");
    priority = mem_metadata_priority_flag(flags);
    has_allocation_flag = have_start || have_read_start || have_write_start ||
       have_size || have_end || type != NULL || priority != 0 || read_hazard ||
-      data_bank != NULL;
+      stack || data_bank != NULL;
 
    /* Retain the old ability to declare an empty policy-only mem name. It does
       not describe allocatable bytes and therefore emits no linker region. */
@@ -686,8 +688,8 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
 
    if (data_bank) {
       if (have_start || have_read_start || have_write_start || have_end ||
-          !have_size || !type || strcmp(type, "ro") || split || read_hazard) {
-         error_user("[%s:%d.%d] data-only mem region '%s' must declare $data_bank, $size, and exactly $ro, with no CPU address, $end, split alias, or $read_hazard",
+          !have_size || !type || strcmp(type, "ro") || split || read_hazard || stack) {
+         error_user("[%s:%d.%d] data-only mem region '%s' must declare $data_bank, $size, and exactly $ro, with no CPU address, $end, split alias, $read_hazard, or $stack",
                     mem_decl->file, mem_decl->line, mem_decl->column, name);
       }
       start = 0;
@@ -704,6 +706,10 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
    else if (!have_start || (!have_size && !have_end) || !type ||
             !strcmp(type, "conflict")) {
       error_user("[%s:%d.%d] mem region '%s' must declare $start plus $size or $end and exactly one of $rw/$ro",
+                 mem_decl->file, mem_decl->line, mem_decl->column, name);
+   }
+   if (stack && (split || strcmp(type, "rw"))) {
+      error_user("[%s:%d.%d] mem region '%s' may use $stack only on ordinary $rw storage",
                  mem_decl->file, mem_decl->line, mem_decl->column, name);
    }
    if (have_size && have_end) {
@@ -725,13 +731,14 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
 
    source_suffix = mem_metadata_source_suffix(mem_decl);
    snprintf(symbol, sizeof(symbol),
-            MEM_DECL_META_PREFIX "%s$R%04X$W%04X$Z%04X$X%d$T%c$P%08X$H%d$D%d$B%s%s",
+            MEM_DECL_META_PREFIX "%s$R%04X$W%04X$Z%04X$X%d$T%c$P%08X$H%d$S%d$D%d$B%s%s",
             name, start & 0xffffu,
             (split ? write_start : start) & 0xffffu,
             size & 0xffffu, split ? 1 : 0,
             !strcmp(type, "rw") ? 'W' : 'O',
             (unsigned int)priority, read_hazard ? 1 : 0,
-            data_bank ? 1 : 0, data_bank ? data_bank : "", source_suffix);
+            stack ? 1 : 0, data_bank ? 1 : 0,
+            data_bank ? data_bank : "", source_suffix);
    free(source_suffix);
    emit(&es_export, "%s = 0\n", symbol);
    emit(&es_export, ".export %s\n", symbol);

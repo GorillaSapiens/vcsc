@@ -15,7 +15,7 @@ TARGET := fe_diagnostic.bin
 all: $(TARGET)
 
 $(TARGET): $(SOURCE) $(COMMITTED_FONT_SUBSETS)
-	$(VCSC) -I $(VCS_DIR) -T $(VCS_DIR)/vcs.cfg -Map fe_diagnostic.map $(SOURCE) -o $@
+	$(VCSC) -I $(VCS_DIR) -Map fe_diagnostic.map $(SOURCE) -o $@
 
 fonts:
 	$(PERL) $(FONT_SUBSET_TOOL) $(FONT_SUBSET_FLAGS) $(BIG_FONT) $(FONT_SUBSET_DIR)/status_font.c26 status_glyphs ' pasFAIL'

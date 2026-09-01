@@ -17,7 +17,7 @@ TARGET := cv_diagnostic.bin
 all: $(TARGET)
 
 $(TARGET): $(SOURCE)
-	$(VCSC) -I $(VCS_DIR) -T $(VCS_DIR)/vcs.cfg \
+	$(VCSC) -I $(VCS_DIR) \
 		-Map cv_diagnostic.map $(SOURCE) -o $@
 
 $(TARGET): $(COMMITTED_FONT_SUBSETS)

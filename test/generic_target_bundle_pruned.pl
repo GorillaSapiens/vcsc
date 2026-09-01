@@ -33,14 +33,11 @@ for my $parts (@removed) {
 
 for my $parts (
    [qw(libraries vcs vcs.c26)],
-   [qw(libraries vcs vcs.cfg)],
    [qw(libraries vcs 2K/mapper.c26)],
    [qw(libraries vcs 4K/mapper.c26)],
    [qw(libraries vcs 4KSC/mapper.c26)],
-   [qw(libraries vcs 4KSC/mapper.cfg)],
    [qw(libraries vcs F8/mapper.c26)],
    [qw(libraries vcs E0/mapper.c26)],
-   [qw(libraries vcs E0/mapper.cfg)],
    [qw(libraries vcs FA/mapper.c26)],
    [qw(libraries vcs FA2/mapper_24k.c26)],
    [qw(libraries vcs FA2/mapper_28k.c26)],
@@ -53,15 +50,6 @@ for my $parts (
    [qw(libraries vcs F4SC/mapper.c26)],
    [qw(test vcs_direct_8k.c26)],
    [qw(libraries vcs OMNI/mapper.c26)],
-   [qw(libraries vcs OMNI/mapper.cfg)],
-   [qw(libraries vcs 4K/mapper.cfg)],
-   [qw(libraries vcs F8/mapper.cfg)],
-   [qw(libraries vcs FA/mapper.cfg)],
-   [qw(libraries vcs FA2/mapper_24k.cfg)],
-   [qw(libraries vcs FA2/mapper_28k.cfg)],
-   [qw(libraries vcs F6/mapper.cfg)],
-   [qw(libraries vcs JANE/mapper.cfg)],
-   [qw(libraries vcs F4/mapper.cfg)],
    [qw(libraries vcs legacy-basic-renderers standard std_renderer.asm)],
    [qw(libraries vcs legacy-basic-renderers multisprite multisprite_renderer.asm)],
    [qw(test machine_6502.c26)],
@@ -69,6 +57,16 @@ for my $parts (
    my $path = File::Spec->catfile($repo, @$parts);
    -f $path or die "required VCS/conversion/test material is missing: $path\n";
 }
+
+
+my @vcs_linker_cfg;
+require File::Find;
+File::Find::find(sub {
+   return unless -f $_ && /\.cfg\z/;
+   push @vcs_linker_cfg, $File::Find::name;
+}, File::Spec->catdir($repo, 'libraries', 'vcs'));
+@vcs_linker_cfg and die "obsolete VCS linker cfg files remain: @vcs_linker_cfg
+";
 
 my $runtime_make = slurp(File::Spec->catfile($repo, 'libraries', 'runtime', 'Makefile'));
 $runtime_make !~ /\bmachine_6502\.c26\b/ or die "runtime install still exports the generic machine target\n";

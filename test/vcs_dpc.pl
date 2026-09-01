@@ -83,8 +83,6 @@ my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
-my $cfg=File::Spec->catfile($vcs,'DPC/mapper.cfg');
 my $profile=File::Spec->catfile($vcs,'DPC/mapper.c26');
 my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','16_dpc');
 my $source=File::Spec->catfile($example_dir,'dpc_diagnostic.c26');
@@ -98,9 +96,6 @@ $pt =~ /bank\s+bank1\s*\{.*?\$select_access:0x1ff8\s+\$bankcall_descriptor:0xf8/
 $pt =~ /mem\s+bank2\s*\{.*?\$size:0x0800.*?\$ro.*?\$data_bank:bank2/s &&
 $pt =~ /mem\s+bank3\s*\{.*?\$size:0x00ff.*?\$ro.*?\$data_bank:bank3/s
    or die "DPC C26 profile lost its F8 + 2K/255-byte data-only topology\n";
-my $ct=read_file($cfg);
-$ct =~ /mapper\s*=\s*DPC/ && (()=$ct =~ /size\s*=\s*\$1000/g)==2
-   or die "DPC simulator cfg must expose exactly the two F8 program banks\n";
 my $mk=read_file(File::Spec->catfile($example_dir,'Makefile'));
 $mk =~ /^play:\s*\$\(TARGET\)\s*$/m && $mk =~ /^\s*stella\s+-bs\s+DPC\s+\$\(TARGET\)\s*$/m
    or die "DPC play target must force Stella -bs DPC\n";
@@ -120,8 +115,7 @@ $cart_font =~ /Characters: " DPC"/
 
 my $bin=File::Spec->catfile($tmp,'dpc.bin');
 my $map_path=File::Spec->catfile($tmp,'dpc.map');
-require_ok('build DPC simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
-   '-T',$generic,'-Map',$map_path,$source,'-o',$bin);
+require_ok('build DPC simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-Map',$map_path,$source,'-o',$bin);
 my $rom=read_file($bin);
 length($rom)==10495 or die "DPC output size is not 10495 bytes\n";
 substr($rom,0,0x80) eq ("\xFF" x 0x80) or die "DPC physical bank 0 hidden register prefix is not fill bytes\n";
@@ -165,7 +159,7 @@ for my $probe (qw(bank0_probe bank1_probe)) {
 
 my %sym=map { $_=>map_symbol($map,$_) } qw(simulator_done failure display_sum1 display_sum2 actual_rng expected_rng call_count nested_count);
 for my $start (0..1) {
-   my($out,$err)=require_ok("simulate DPC fetchers and RNG from physical bank $start",$sim,'-T',$cfg,
+   my($out,$err)=require_ok("simulate DPC fetchers and RNG from physical bank $start",$sim,'--map',$map_path,
       "--start-bank=$start",sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);
    $err eq '' or die "DPC simulator start bank $start wrote stderr:\n$err";
    my $mem=parse_hex_dump($out);
@@ -184,13 +178,13 @@ include "DPC/mapper.c26"
 bank2 const uint8_t hidden[1] := {0x5A};
 void main(void) { uint8_t x; x := hidden[0]; if (x) { asm nop; } while (1) { } }
 SRC
-my($bout,$berr)=require_fail('reject CPU reference to data-only object',$driver,'-I',$vcs,'-T',$generic,$bad,'-o',File::Spec->catfile($tmp,'bad.bin'));
+my($bout,$berr)=require_fail('reject CPU reference to data-only object',$driver,'-I',$vcs,$bad,'-o',File::Spec->catfile($tmp,'bad.bin'));
 ($bout.$berr) =~ /data-only.*no 6507 address/is
    or die "data-only CPU-reference rejection lacked a useful diagnostic\nstdout:\n$bout\nstderr:\n$berr";
 
 my $visible=File::Spec->catfile($tmp,'dpc-visible.bin');
 my $visible_map=File::Spec->catfile($tmp,'dpc-visible.map');
-require_ok('build visible DPC PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,
+require_ok('build visible DPC PASS/FAIL cartridge',$driver,'-I',$vcs,
    '-Map',$visible_map,$source,'-o',$visible);
 my $vrom=read_file($visible);
 length($vrom)==10495 && substr($vrom,0x2000,0x800) eq $display && substr($vrom,0x2800,0xff) eq $poly

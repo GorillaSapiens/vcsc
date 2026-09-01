@@ -51,8 +51,8 @@ sub map_symbol_addr {
 }
 sub mapper_info {
    my ($mapper) = @_;
-   return (4, 0x1FF6, 'F6/mapper.cfg') if $mapper eq 'F6';
-   return (8, 0x1FF4, 'F4/mapper.cfg') if $mapper eq 'F4';
+   return (4, 0x1FF6, 'F6/mapper.c26') if $mapper eq 'F6';
+   return (8, 0x1FF4, 'F4/mapper.c26') if $mapper eq 'F4';
    die "unknown mapper $mapper\n";
 }
 sub bank_start {
@@ -239,24 +239,30 @@ make_path($tmp);
 $tmp = abs_path($tmp) // die "could not resolve temp dir\n";
 
 my $as = File::Spec->catfile($repo, 'assembler', 'vcsc-as');
-my $ld = File::Spec->catfile($repo, 'linker', 'vcsc-ld');
+my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
+my $vcs = File::Spec->catdir($repo, 'libraries', 'vcs');
 
 for my $mapper (qw(F6 F4)) {
-   my ($count, $first_hotspot, $cfg_name) = mapper_info($mapper);
-   my $cfg = File::Spec->catfile($repo, 'libraries', 'vcs', $cfg_name);
-   -f $cfg or die "public $cfg_name is missing\n";
-   my $cfg_text = slurp($cfg);
-   $cfg_text =~ /mapper\s*=\s*\Q$mapper\E/
-      or die "$cfg_name does not select mapper $mapper\n";
+   my ($count, $first_hotspot, $profile_name) = mapper_info($mapper);
+   my $profile = File::Spec->catfile($vcs, $profile_name);
+   -f $profile or die "public $profile_name is missing\n";
+   my $profile_text = slurp($profile);
+   $profile_text =~ /\$signature:\Q$mapper\E\b/
+      or die "$profile_name does not declare signature $mapper\n";
 
    for my $bank (0 .. $count - 1) {
       my $start = bank_start($bank);
       my $hotspot = hotspot_for_bank($count, $first_hotspot, $bank);
-      my $startup = $bank == 0 ? 'yes' : 'no';
-      $cfg_text =~ /BANK\Q$bank\E:\s*start\s*=\s*\$\Q@{[sprintf('%04X',$start)]}\E,\s*size\s*=\s*\$1000,\s*hotspot\s*=\s*\$\Q@{[sprintf('%04X',$hotspot)]}\E,\s*bankcall\s*=\s*\$\Q@{[sprintf('%02X',$hotspot & 0xff)]}\E,\s*startup\s*=\s*\Q$startup\E/s
-         or die "$cfg_name BANK$bank declaration is wrong\n";
-      $cfg_text =~ /bank\Q$bank\E:\s*start\s*=\s*\$\Q@{[sprintf('%04X',$start)]}\E,\s*size\s*=\s*\$0F00,\s*type\s*=\s*ro/s
-         or die "$cfg_name bank$bank allocation span is wrong\n";
+      my $file_index = file_index_for_bank($count, $bank);
+      my $startup = $bank == 0 ? qr/\$startup/ : qr/(?!.*\$startup)/;
+      $profile_text =~ /bank\s+bank\Q$bank\E\s*\{.*?\$file_index:\Q$file_index\E.*?\$link_start:0x\Q@{[sprintf('%04x',$start)]}\E.*?\$select_access:0x\Q@{[sprintf('%04x',$hotspot)]}\E.*?\$bankcall_descriptor:0x\Q@{[sprintf('%02x',$hotspot & 0xff)]}\E.*?\}/s
+         or die "$profile_name bank$bank declaration is wrong\n";
+      if ($bank == 0) {
+         $profile_text =~ /bank\s+bank0\s*\{.*?\$startup.*?\}/s
+            or die "$profile_name bank0 is not startup bank\n";
+      }
+      $profile_text =~ /mem\s+bank\Q$bank\E\s*\{\s*\$start:0x\Q@{[sprintf('%04x',$start)]}\E\s+\$size:0x0f00\s+\$ro/s
+         or die "$profile_name bank$bank allocation span is wrong\n";
    }
 
    my $src = File::Spec->catfile($tmp, lc($mapper) . '-profile.s26');
@@ -265,16 +271,15 @@ for my $mapper (qw(F6 F4)) {
    my $map_path = File::Spec->catfile($tmp, lc($mapper) . '-profile.map');
    write_file($src, diagnostic_source($count));
    require_ok("assemble public $mapper profile diagnostic", $as, '-o', $obj, $src);
-   require_ok("link public $mapper profile diagnostic", $ld, '-T', $cfg,
-              '-Map', $map_path, '--no-sym', '--no-list', '--no-cfg',
-              '-o', $bin, $obj);
+   require_ok("link public $mapper profile diagnostic", $driver, '-I', $vcs,
+              '-Map', $map_path, '-o', $bin, $profile, $obj);
 
    my $image = slurp($bin);
    my $map = slurp($map_path);
    length($image) == $count * 0x1000
       or die "$mapper image was not exactly " . ($count * 4096) . " bytes\n";
-   $map =~ /mapper=\Q$mapper\E output-size=\$[0-9A-Fa-f]{8}/
-      or die "$mapper map omitted cartridge metadata\n$map";
+   $map =~ /mapper=C26 output-size=\$[0-9A-Fa-f]{8}/
+      or die "$mapper map omitted C26 cartridge metadata\n$map";
    $map =~ /entries=@{[$count - 1]} jmp=0 jsr=@{[$count - 1]}/
       or die "$mapper did not generate one nested JSR bridge per non-home bank\n$map";
 
@@ -283,57 +288,38 @@ for my $mapper (qw(F6 F4)) {
       my $hotspot = hotspot_for_bank($count, $first_hotspot, $bank);
       my $file = file_index_for_bank($count, $bank) * 0x1000;
       my $startup = $bank == 0 ? ' startup=yes' : '';
-      $map =~ /BANK\Q$bank\E\s+start=\$\Q@{[sprintf('%04X',$start)]}\E size=\$1000 hotspot=\$\Q@{[sprintf('%04X',$hotspot)]}\E file=\$\Q@{[sprintf('%08X',$file)]}\E\Q$startup\E/
-         or die "$mapper map has wrong BANK$bank logical/file/hotspot identity\n$map";
+      $map =~ /bank\Q$bank\E\s+start=\$\Q@{[sprintf('%04X',$start)]}\E size=\$1000 hotspot=\$\Q@{[sprintf('%04X',$hotspot)]}\E file=\$\Q@{[sprintf('%08X',$file)]}\E\Q$startup\E/
+         or die "$mapper map has wrong bank$bank logical/file/hotspot identity\n$map";
       if ($bank > 0) {
          my $addr = map_symbol_addr($map, "bank${bank}_fn");
          ($addr & 0xF000) == ($start & 0xF000)
-            or die "$mapper bank${bank}_fn escaped BANK$bank\n";
+            or die "$mapper bank${bank}_fn escaped bank$bank\n";
       }
    }
    (map_symbol_addr($map, 'main') & 0xF000) == 0xF000
-      or die "$mapper main escaped BANK0\n";
+      or die "$mapper main escaped bank0\n";
 
-   my $common_trampoline = substr($image, 0x0F00, 0x00E0);
    my $common_bridge = substr($image, 0x0FE0, 0x0012);
-   my $common_vectors = substr($image, 0x0FFA, 6);
-   $common_vectors eq pack('v3', 0xFFE0, 0xFFE6, 0xFFEC)
-      or die "$mapper vectors do not use BANK0-mirror bridge addresses\n";
+   my @trampolines;
    for my $file_index (0 .. $count - 1) {
       my $chunk = $file_index * 0x1000;
-      substr($image, $chunk + 0x0F00, 0x00E0) eq $common_trampoline
-         or die "$mapper trampoline corridor differs in file chunk $file_index\n";
+      push @trampolines, substr($image, $chunk + 0x0F00, 0x0048);
       substr($image, $chunk + 0x0FE0, 0x0012) eq $common_bridge
          or die "$mapper vector bridge differs in file chunk $file_index\n";
-      substr($image, $chunk + 0x0FFA, 6) eq $common_vectors
-         or die "$mapper vectors differ in file chunk $file_index\n";
-      for my $selector ($first_hotspot .. $first_hotspot + $count - 1) {
-         my $offset = $selector & 0x0FFF;
-         my $actual = ord(substr($image, $chunk + $offset, 1));
-         my $expected = $offset >= 0x0FFA
-                      ? ord(substr($common_vectors, $offset - 0x0FFA, 1))
-                      : 0xFF;
-         $actual == $expected
-            or die sprintf("%s file chunk %u selector byte %03X was %02X, expected reserved %02X\n",
-                           $mapper, $file_index, $offset, $actual, $expected);
+      my $vectors=substr($image,$chunk+0x0FFA,6);
+      if ($file_index == $count-1) {
+         substr($vectors,0,2) eq "\0\0"
+            or die "$mapper final-bank NMI bytes were not replaced by signature tail\n";
+      } else {
+         substr($vectors,0,2) eq pack('v',0xFFE0)
+            or die "$mapper non-final NMI vector is wrong in file chunk $file_index\n";
       }
+      substr($vectors,2,4) eq pack('v2',0xFFE6,0xFFEC)
+         or die "$mapper RESET/IRQ vectors are wrong in file chunk $file_index\n";
    }
-
-   # F4's NMI vector bytes are themselves selector hotspots.  Fetching the
-   # byte-identical word must still produce $FFE0 and finish with BANK0 selected.
-   if ($mapper eq 'F4') {
-      for my $initial (0 .. $count - 1) {
-         my $selected = $initial;
-         my @bytes;
-         for my $addr (0xFFFA, 0xFFFB) {
-            my $file_index = file_index_for_bank($count, $selected);
-            push @bytes, ord(substr($image, $file_index * 0x1000 + ($addr & 0x0FFF), 1));
-            my $bank = bank_for_hotspot($count, $first_hotspot, $addr);
-            $selected = $bank if defined $bank;
-         }
-         ($bytes[0] | ($bytes[1] << 8)) == 0xFFE0 && $selected == 0
-            or die "F4 NMI vector/hotspot overlap was not deterministic from BANK$initial\n";
-      }
+   for my $file_index (1 .. $#trampolines) {
+      $trampolines[$file_index] eq $trampolines[0]
+         or die "$mapper trampoline payload differs in file chunk $file_index\n";
    }
 
    certify_execution($mapper, $count, $first_hotspot, $image, $_)

@@ -52,11 +52,10 @@ my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
 my $profile=File::Spec->catdir($vcs,qw(renderers standard_4k_ntsc));
 my $source=File::Spec->catfile($repo,qw(test fixtures vcs_examples 06_object_motion golden.c26));
 my $renderer=File::Spec->catfile($profile,'standard_4k_ntsc_renderer.s26');
-my $cfg=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $bin=File::Spec->catfile($tmp,'object_motion_test.bin');
 my $mapfile=File::Spec->catfile($tmp,'object_motion_test.map');
 my($rc,$sig,$out,$err)=capture(
-   $driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,
+   $driver,'-I',$vcs,'-Map',$mapfile,
    $source,$renderer,'-o',$bin);
 $rc==0 && !$sig or die "motion diagnostic build failed\n$out$err";
 without_cartridge_usage($out) eq '' && $err eq '' or die "motion diagnostic build wrote output\n$out$err";

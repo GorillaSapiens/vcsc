@@ -62,9 +62,6 @@ $tmp = abs_path($tmp) // die "could not resolve temp dir\n";
 
 my $vcsc = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $vcs = File::Spec->catdir($repo, 'libraries', 'vcs');
-my $empty_cfg = File::Spec->catfile($tmp, 'empty.cfg');
-write_file($empty_cfg, "");
-
 # No MEMORY or SEGMENTS block is needed. The mem declarations create the
 # allocator regions and ordinary segment routes. Bank names intentionally do
 # not match mem names; containment, not spelling, owns the regions.
@@ -90,7 +87,7 @@ bank1 uint8_t helper(void) { return marker[2]; }
 void main(void) { uint8_t x := helper(); while (x) { x := 0; } }
 SRC
 require_ok('direct authoritative mem link', $vcsc, '-I', $vcs,
-           '-T', $empty_cfg, '-Map', $direct_map,
+           '-Map', $direct_map,
            '--no-sym', '--no-list', '--no-cfg',
            '-o', $direct_bin, $direct_src);
 my $direct_image = slurp($direct_bin);
@@ -114,23 +111,7 @@ my $direct_jsr = "\x20" . chr($helper & 0xff) . chr(($helper >> 8) & 0xff);
 index(substr($direct_image, 0x1000), $direct_jsr) >= 0
    or die "cross-direct-bank call was not an ordinary absolute JSR\n";
 
-# Minimal transitional cfg: it supplies only the legacy mapper mechanics.
-# C26 supplies every allocator region and every ordinary segment route.
-my $minimal_f8sc_cfg = File::Spec->catfile($tmp, 'minimal_f8sc.cfg');
-write_file($minimal_f8sc_cfg, <<'CFG');
-CARTRIDGE {
- mapper=F8SC;
- fillval=$FF;
- trampoline=$0F00;
- trampolinesize=$00E0;
- vectorbridge=$0FE0;
-}
-BANKS {
- CFG_HOME: start=$F000,size=$1000,hotspot=$1FF9,startup=yes;
- CFG_OTHER:start=$D000,size=$1000,hotspot=$1FF8,startup=no;
-}
-CFG
-
+# C26 supplies the complete F8SC selector topology and allocator regions.
 my $f8sc_src = File::Spec->catfile($tmp, 'f8sc.c26');
 my $minimal_bin = File::Spec->catfile($tmp, 'minimal_f8sc.bin');
 my $minimal_map = File::Spec->catfile($tmp, 'minimal_f8sc.map');
@@ -165,7 +146,7 @@ bank1 uint8_t remote(void) { return 7; }
 void main(void) { touch(); uint8_t x := remote(); while (x) { x := 0; } }
 SRC
 require_ok('minimal F8SC authoritative mem link', $vcsc, '-I', $vcs,
-           '-DVCS_NO_DEFAULT_ROM', '-T', $minimal_f8sc_cfg,
+           '-DVCS_NO_DEFAULT_ROM',
            '-Map', $minimal_map, '--no-sym', '--no-list', '--no-cfg',
            '-o', $minimal_bin, $f8sc_src);
 my $minimal_image = slurp($minimal_bin);
@@ -182,16 +163,7 @@ $minimal_text =~ /^TRAMPOLINES$/m && $minimal_text =~ /target=\$D100.*remote/s
 index($minimal_image, "\xA9\x5A\x8D\x00\xF0\xAD\x80\xF0") >= 0
    or die "Superchip access did not use direct write/read aliases\n";
 
-# The current full cfg may repeat stale allocator facts, but C26 overrides
-# them. Synthesized routing must produce the same cartridge bytes.
-my $full_cfg = File::Spec->catfile($vcs, 'F8SC/mapper.cfg');
-my $full_bin = File::Spec->catfile($tmp, 'full_f8sc.bin');
-require_ok('full cfg differential F8SC link', $vcsc, '-I', $vcs,
-           '-DVCS_NO_DEFAULT_ROM', '-T', $full_cfg,
-           '--no-map', '--no-sym', '--no-list', '--no-cfg',
-           '-o', $full_bin, $f8sc_src);
-slurp($full_bin) eq $minimal_image
-   or die "full cfg and C26-synthesized allocator routes emitted different ROM bytes\n";
+# There is no parallel mapper cfg to compare against; the C26 declaration above is authoritative.
 
 # Separate objects must agree on a complete mem declaration, and diagnostics
 # must identify both original C26 locations rather than temporary objects.
@@ -206,7 +178,7 @@ write_file($part_a, qq{include "vcs.c26"\nmem extra { \$start:0x3000 \$size:0x10
 write_file($part_b, qq{include "vcs.c26"\nmem extra { \$start:0x3100 \$size:0x0f00 \$ro };\n$common_topology\nextra extern uint8_t helper(void);\nvoid main(void) { uint8_t x := helper(); while (x) { x := 0; } }\n});
 require_fail_all('conflicting separate mem declarations',
    ["conflicting mem declaration 'extra'", "$part_a:", "$part_b:"],
-   $vcsc, '-I', $vcs, '-T', $empty_cfg,
+   $vcsc, '-I', $vcs,
    '--no-map', '--no-sym', '--no-list', '--no-cfg',
    '-o', File::Spec->catfile($tmp, 'conflict.bin'), $part_a, $part_b);
 
@@ -224,7 +196,7 @@ void main(void) { while (byte) {} }
 SRC
 require_fail_all('ambiguous output-bank ownership',
    ["mem region 'payload'", 'multiple output banks', 'first', 'second'],
-   $vcsc, '-I', $vcs, '-T', $empty_cfg,
+   $vcsc, '-I', $vcs,
    '--no-map', '--no-sym', '--no-list', '--no-cfg',
    '-o', File::Spec->catfile($tmp, 'ambiguous.bin'), $ambiguous);
 

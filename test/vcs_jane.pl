@@ -52,8 +52,6 @@ my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
-my $cfg=File::Spec->catfile($vcs,'JANE/mapper.cfg');
 my $profile=File::Spec->catfile($vcs,'JANE/mapper.c26');
 my $source=File::Spec->catfile($repo,'examples','09_bankswitching','07_jane','jane_diagnostic.c26');
 my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','07_jane');
@@ -103,18 +101,10 @@ $pt =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$select_access:0x1ff9\s+\$bankcall
 (()=$pt =~ /\$size:0x0ee0\s+\$ro/g)==4
    or die "JANE profile topology/startup/corridor contract is wrong\n";
 
-my $ct=read_file($cfg);
-$ct =~ /mapper\s*=\s*JANE/ &&
-$ct =~ /BANK0:.*hotspot\s*=\s*\$1FF0.*fileindex\s*=\s*0.*startup\s*=\s*no/is &&
-$ct =~ /BANK1:.*hotspot\s*=\s*\$1FF1.*fileindex\s*=\s*1.*startup\s*=\s*yes/is &&
-$ct =~ /BANK2:.*hotspot\s*=\s*\$1FF8.*fileindex\s*=\s*2/is &&
-$ct =~ /BANK3:.*hotspot\s*=\s*\$1FF9.*fileindex\s*=\s*3/is
-   or die "JANE simulator cfg physical file-index contract is wrong\n";
 
 my $bin=File::Spec->catfile($tmp,'jane.bin');
 my $map=File::Spec->catfile($tmp,'jane.map');
-require_ok('build JANE simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
-   '-T',$generic,'-Map',$map,$source,'-o',$bin);
+require_ok('build JANE simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-Map',$map,$source,'-o',$bin);
 -s $bin==16384 or die "JANE output size is not 16K\n";
 my $rom=read_file($bin);
 substr($rom,3*4096+0x0ff8,4) eq 'JANE'
@@ -178,7 +168,7 @@ $main_addr >= 0xd000 && $main_addr < 0xdee0
    or die sprintf("JANE linker did not place unqualified main in startup bank1: main=\$%04X\n",$main_addr);
 my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure signature source_seen current_source current_destination call_count nested_count stack_before stack_after);
 for my $start (0..3) {
-   my($out,$err)=require_ok("simulate JANE from physical bank $start",$sim,'-T',$cfg,
+   my($out,$err)=require_ok("simulate JANE from physical bank $start",$sim,'--map',$map,
       "--start-bank=$start",sprintf('--stop-pc=0x%04X',$sym{simulator_done}),
       '--dump-on-stop',$bin);
    $err eq '' or die "JANE simulator start bank $start wrote stderr:\n$err";
@@ -194,7 +184,7 @@ for my $start (0..3) {
 }
 
 my $visible=File::Spec->catfile($tmp,'jane-visible.bin');
-my(undef,$visible_err)=require_ok('build visible JANE PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
+my(undef,$visible_err)=require_ok('build visible JANE PASS/FAIL cartridge',$driver,'-I',$vcs,$source,'-o',$visible);
 $visible_err !~ /status_result_color|recommended variable/
    or die "visible JANE diagnostic emitted an unused recommendation warning\n$visible_err";
 my $vrom=read_file($visible);

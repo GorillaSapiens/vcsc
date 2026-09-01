@@ -61,8 +61,9 @@ make_path($tmp);
 $tmp=abs_path($tmp) // die "resolve temp directory\n";
 
 my $as=File::Spec->catfile($repo,'assembler','vcsc-as');
-my $ld=File::Spec->catfile($repo,'linker','vcsc-ld');
-my $cfg=File::Spec->catfile($repo,'libraries','vcs','4K/mapper.cfg');
+my $driver=File::Spec->catfile($repo,'driver','vcsc');
+my $vcs=File::Spec->catdir($repo,'libraries','vcs');
+my $profile=File::Spec->catfile($vcs,'4K','mapper.c26');
 my $runtime=File::Spec->catfile($repo,'libraries','runtime','libvcsc.l26');
 my $src=File::Spec->catfile($tmp,'relax.s26');
 my $obj=File::Spec->catfile($tmp,'relax.o26');
@@ -110,7 +111,7 @@ glyph:
 ASM
 
 require_ok('assembly',$as,'-o',$obj,$src);
-require_ok('link',$ld,'-T',$cfg,'-Map',$mapfile,'-o',$bin,$obj,$runtime);
+require_ok('link',$driver,'-I',$vcs,'-Map',$mapfile,'-o',$bin,$profile,$obj);
 
 my $map=slurp($mapfile);
 my $main=map_symbol($map,'main');

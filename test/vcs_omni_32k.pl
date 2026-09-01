@@ -53,9 +53,7 @@ make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $cfg=File::Spec->catfile($vcs,'vcs.cfg');
 my $profile=File::Spec->catfile($vcs,'OMNI/mapper.c26');
-my $sim_cfg=File::Spec->catfile($vcs,'OMNI/mapper.cfg');
 my $diagnostic=File::Spec->catfile($repo,'examples','09_bankswitching','05_omni','omni_diagnostic.c26');
 
 my $profile_text=read_file($profile);
@@ -86,7 +84,7 @@ SRC
 
 my $bin=File::Spec->catfile($tmp,'omni.bin');
 my $map=File::Spec->catfile($tmp,'omni.map');
-require_ok('build OMNI direct profile',$driver,'-I',$vcs,'-T',$cfg,'-Map',$map,$src,'-o',$bin);
+require_ok('build OMNI direct profile',$driver,'-I',$vcs,'-Map',$map,$src,'-o',$bin);
 -s $bin==32768 or die "OMNI profile did not emit exactly 32K\n";
 my $rom=read_file($bin);
 my $m=read_file($map);
@@ -136,24 +134,11 @@ $diag_text =~ /cartram uint8_t omni_bss\[4095\]/ &&
 $diag_text =~ /load_omni_type\(\)/ &&
 $diag_text =~ /blank \/ O \/ M \/ N \/ I \/ blank/
    or die "OMNI public diagnostic lost its RAM or visible mapper contract\n";
--f $sim_cfg or die "OMNI simulator cfg is missing\n";
-my $cfg_text=read_file($sim_cfg);
-$cfg_text =~ /mapper\s*=\s*OMNI/ &&
-$cfg_text =~ /^\s*BANK7:\s+start\s*=\s*\$1000,\s*size\s*=\s*\$1000/mi &&
-$cfg_text =~ /^\s*BANK6:\s+start\s*=\s*\$3000,\s*size\s*=\s*\$1000/mi &&
-$cfg_text =~ /^\s*BANK5:\s+start\s*=\s*\$5000,\s*size\s*=\s*\$1000/mi &&
-$cfg_text =~ /^\s*BANK4:\s+start\s*=\s*\$7000,\s*size\s*=\s*\$1000/mi &&
-$cfg_text =~ /^\s*BANK3:\s+start\s*=\s*\$9000,\s*size\s*=\s*\$1000/mi &&
-$cfg_text =~ /^\s*BANK2:\s+start\s*=\s*\$B000,\s*size\s*=\s*\$1000/mi &&
-$cfg_text =~ /^\s*BANK1:\s+start\s*=\s*\$D000,\s*size\s*=\s*\$1000/mi &&
-$cfg_text =~ /^\s*BANK0:\s+start\s*=\s*\$F000,\s*size\s*=\s*\$1000,\s*startup\s*=\s*yes/mi &&
-$cfg_text =~ /^\s*cartram:\s+start\s*=\s*\$1000,\s*size\s*=\s*\$1000,\s*type\s*=\s*rw/mi
-   or die "OMNI simulator cfg does not describe eight direct islands and cartram\n";
 
 my $diag_bin=File::Spec->catfile($tmp,'omni-diagnostic.bin');
 my $diag_map=File::Spec->catfile($tmp,'omni-diagnostic.map');
 require_ok('build OMNI simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
-   '-T',$cfg,'-Map',$diag_map,$diagnostic,'-o',$diag_bin);
+   '-Map',$diag_map,$diagnostic,'-o',$diag_bin);
 -s $diag_bin==32768 or die "OMNI diagnostic output size is not 32K\n";
 my $dm=read_file($diag_map);
 $dm =~ /cartram\s+used=4096 bytes \(100\.00%\).*free=0 bytes/m &&
@@ -164,7 +149,7 @@ for my $name (qw(probe6 probe5 probe4 probe3 probe2 probe1 home_probe)) {
       or die "OMNI diagnostic map is missing $name\n";
 }
 my %sym=map { $_=>map_symbol($dm,$_) } qw(simulator_done failure trace probe_count omni_bss omni_data);
-my($simout,$simerr)=require_ok('simulate OMNI direct diagnostic',$sim,'-T',$sim_cfg,
+my($simout,$simerr)=require_ok('simulate OMNI direct diagnostic',$sim,'--map',$diag_map,
    sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$diag_bin);
 $simerr eq '' or die "OMNI simulator wrote stderr:\n$simerr";
 my $mem=parse_hex_dump($simout);
@@ -178,7 +163,7 @@ $mem->[$sym{omni_bss}+4094]==0x33
    or die "OMNI full cartram initialization/persistence test failed\n";
 
 my $visible=File::Spec->catfile($tmp,'omni-visible.bin');
-require_ok('build visible OMNI PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$cfg,$diagnostic,'-o',$visible);
+require_ok('build visible OMNI PASS/FAIL cartridge',$driver,'-I',$vcs,$diagnostic,'-o',$visible);
 my $vrom=read_file($visible);
 length($vrom)==32768 && substr($vrom,0x7ff8,4) eq 'OMNI'
    or die "visible OMNI diagnostic lost its 32K layout/signature\n";

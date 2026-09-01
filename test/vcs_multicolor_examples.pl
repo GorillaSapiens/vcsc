@@ -24,7 +24,6 @@ my $repo=shift @ARGV // usage(); my $tmp=shift @ARGV // usage(); usage() if @ARG
 $repo=abs_path($repo) // die "resolve repo\n"; make_path($tmp); $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $legacy_cfg=File::Spec->catfile($vcs,qw(renderers faithful_legacy_playercolors faithful_legacy_playercolors.cfg));
 my $color_component=read_file(File::Spec->catfile($vcs,'six_glyph_component.c26'));
 $color_component =~ /parameter\s+mutable_color\s*:=\s*0/
    && $color_component =~ /#if TEMPLATE_mutable_color\s*recommend uint8_t TEMPLATE_color := 0x0e;/s
@@ -35,7 +34,7 @@ my @cases=(
  {
    dir=>'02_faithful_legacy_playercolors/01_interactive',
    stem=>'faithful_legacy_playercolors_interactive', profile=>'legacy', prefix=>'legacy',
-   score=>'legacy_score', color=>'legacy_score_color', extra=>['-Wa,--illegals','-T',$legacy_cfg],
+   score=>'legacy_score', color=>'legacy_score_color', extra=>['-Wa,--illegals'],
  },
  {
    dir=>'03_player_color_192/01_interactive',

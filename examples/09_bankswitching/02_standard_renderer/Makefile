@@ -9,7 +9,7 @@ SOURCE := banked_standard_renderer.c26
 all: f8.bin
 
 f8.bin: $(SOURCE)
-	$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=2 -T $(VCS_DIR)/vcs.cfg -Map f8.map \
+	$(VCSC) -I $(VCS_DIR) -DMAPPER_BANKS=2 -Map f8.map \
 		$(SOURCE) $(RENDERER) -o $@
 
 clean:

@@ -72,8 +72,6 @@ my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
-my $cfg=File::Spec->catfile($vcs,'WD/mapper.cfg');
 my $profile=File::Spec->catfile($vcs,'WD/mapper.c26');
 my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','15_wd');
 my $source=File::Spec->catfile($example_dir,'wd_diagnostic.c26');
@@ -102,16 +100,10 @@ $pt =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$cpu_start:0x1400/s &&
 $pt =~ /bank\s+bank2\s*\{.*?\$file_index:2.*?\$cpu_start:0x1800/s &&
 $pt =~ /mem\s+cartram\s*\{.*?\$read_start:0xf000.*?\$write_start:0xf040.*?\$size:0x0040/s
    or die "WD C26 profile does not describe corrected 8x1K plus split 64-byte RAM topology\n";
-my $ct=read_file($cfg);
-$ct =~ /mapper\s*=\s*WD/ && (()=$ct =~ /size\s*=\s*\$0400/g)==8 &&
-$ct =~ /BANK3:.*fileindex\s*=\s*3.*startup\s*=\s*yes/is &&
-$ct =~ /cartram:.*read_start\s*=\s*\$F000.*write_start\s*=\s*\$F040.*size\s*=\s*\$0040/is
-   or die "WD simulator cfg does not describe eight 1K chunks and split RAM\n";
 
 my $bin=File::Spec->catfile($tmp,'wd.bin');
 my $map_path=File::Spec->catfile($tmp,'wd.map');
-require_ok('build WD simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
-   '-T',$generic,'-Map',$map_path,$source,'-o',$bin);
+require_ok('build WD simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-Map',$map_path,$source,'-o',$bin);
 -s $bin==8192 or die "WD output size is not corrected 8K\n";
 my $rom=read_file($bin);
 substr($rom,8192-8,4) eq "WD\0\0" or die "WD signature is missing from physical chunk 7\n";
@@ -126,7 +118,7 @@ $map =~ /BSS\.cartram\.__vcsc_object\$wd_ram run=\$F000 write=\$F040 size=\$0040
    or die "WD map lost segmented topology or split RAM\n$map";
 for my $i (qw(0 1 2 4 7)) { map_symbol($map,"bank${i}_probe"); }
 my %sym=map { $_=>map_symbol($map,$_) } qw(simulator_done failure call_count wd_ram);
-my($out,$err)=require_ok('simulate WD arrangements and RAM',$sim,'-T',$cfg,
+my($out,$err)=require_ok('simulate WD arrangements and RAM',$sim,'--map',$map_path,
    sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);
 $err eq '' or die "WD simulator wrote stderr:\n$err";
 my $mem=parse_hex_dump($out);
@@ -151,7 +143,7 @@ substr($r,0*1024+0x100,5)=pack('C*',0xA5,0x39,0x4C,0x10,0x1D);
 substr($r,1*1024+0x102,3)=pack('C*',0x4C,0x20,0x1D);
 substr($r,3*1024+0x3fc,2)=pack('C*',0x00,0x1D);
 write_file($delay,$r);
-my($dout,$derr)=require_ok('simulate WD delayed arrangement latch',$sim,'-T',$cfg,
+my($dout,$derr)=require_ok('simulate WD delayed arrangement latch',$sim,'--map',$map_path,
    '--stop-pc=0x1D30','--dump-on-stop',$delay);
 $derr eq '' or die "WD delayed-latch fixture wrote stderr:\n$derr";
 my $dmem=parse_hex_dump($dout);
@@ -160,7 +152,7 @@ $dmem->[0x0080]==0xAA
 
 my $visible=File::Spec->catfile($tmp,'wd-visible.bin');
 my $visible_map=File::Spec->catfile($tmp,'wd-visible.map');
-require_ok('build visible WD PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,
+require_ok('build visible WD PASS/FAIL cartridge',$driver,'-I',$vcs,
    '-Map',$visible_map,$source,'-o',$visible);
 my $vrom=read_file($visible);
 length($vrom)==8192 && substr($vrom,-8,4) eq "WD\0\0"

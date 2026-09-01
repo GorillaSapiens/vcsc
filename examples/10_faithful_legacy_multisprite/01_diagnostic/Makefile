@@ -13,9 +13,8 @@ FIXTURE := faithful_legacy_multisprite_diagnostic_data.s26
 all: $(TARGET)
 
 $(TARGET): $(SOURCE) $(FIXTURE) $(PROFILE)/faithful_legacy_multisprite.c26 \
-           $(PROFILE)/faithful_legacy_multisprite.cfg $(RENDERER) $(STARTUP)
+           $(RENDERER) $(STARTUP)
 	$(VCSC) -nostdlib -I $(VCS_DIR) -Wa,--illegals \
-	  -T $(PROFILE)/faithful_legacy_multisprite.cfg \
 	  -Map $(TARGET:.bin=.map) $(SOURCE) $(FIXTURE) $(RENDERER) $(STARTUP) -o $@
 	@test `wc -c < $@` -eq 4096
 

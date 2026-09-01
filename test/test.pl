@@ -613,10 +613,19 @@ sub ruvcsc_e2e_case {
       }
    }
 
-   my @link_cmd = ($vcsc_ld, '-o', $hex_path, '-Map', $map_path, '-T',
-      defined($meta->{linkcfg})
-         ? File::Spec->catfile($test_root, $meta->{linkcfg})
-         : $generic_link_cfg);
+   my $has_cartridge_topology = 0;
+   for my $input (@compiled_objects, @archives) {
+      if (index(slurp_file($input), '__cartmeta$') >= 0) {
+         $has_cartridge_topology = 1;
+         last;
+      }
+   }
+   $hex_path = File::Spec->catfile($tmp, $has_cartridge_topology ? 'out.bin' : 'out.hex');
+
+   my @link_cmd = ($vcsc_ld, '-o', $hex_path, '-Map', $map_path);
+   if (defined($meta->{linkcfg})) {
+      push @link_cmd, '-T', File::Spec->catfile($test_root, $meta->{linkcfg});
+   }
    push @link_cmd, @compiled_objects, @archives, $runtime;
    my $link_out = File::Spec->catfile($tmp, 'link.out');
    my $link_err = File::Spec->catfile($tmp, 'link.err');

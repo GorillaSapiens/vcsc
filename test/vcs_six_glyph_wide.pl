@@ -103,7 +103,7 @@ $compat_map_text =~ /score_row\s+run=\$[0-9A-Fa-f]+ size=\$0001/
 $compat_map_text !~ /score_offset2\b/
    or die "wide full-pointer compatibility still allocated compact offset storage\n";
 
-($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),'-Map',$public_map,$public,'-o',$public_bin);
+($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$public_map,$public,'-o',$public_bin);
 $rc==0 && !$sig or die "public wide example build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "public wide example wrote output\n$out$err";
 -s $public_bin==2048 or die "public wide example is not 2048 bytes\n";

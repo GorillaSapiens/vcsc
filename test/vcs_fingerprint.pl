@@ -72,7 +72,6 @@ $tmp=abs_path($tmp) // die "could not resolve temp dir\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $cfg=File::Spec->catfile($vcs,'4K/mapper.cfg');
 my $ex=File::Spec->catdir($repo,'test','fixtures','vcs_examples','04_fingerprint');
 my $src=File::Spec->catfile($ex,'golden.c26');
 my $reference=File::Spec->catfile($repo,qw(test fixtures vcs_examples 04_fingerprint reference_stella_7.0.png));
@@ -271,9 +270,9 @@ join("\n",@actual) eq join("\n",@expected)
 
 # Verify CRC VCSC independently of unstable-opcode modeling.
 ($exit,$sig,$out,$err)=run_capture(
-   $driver,'-I',$vcs,'-Wa,--illegals','-D','FINGERPRINT_SELFTEST','-T',$cfg,$src,'-o',$selftest);
+   $driver,'-I',$vcs,'-Wa,--illegals','-D','FINGERPRINT_SELFTEST',$src,'-o',$selftest);
 die "CRC selftest build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
-($exit,$sig,$out,$err)=run_capture($sim,'-T',$cfg,$selftest);
+($exit,$sig,$out,$err)=run_capture($sim,$selftest);
 die "CRC selftest exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 
 ($exit,$sig,$out,$err)=run_capture(

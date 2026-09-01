@@ -47,7 +47,6 @@ $tmp=abs_path($tmp) // die "resolve temporary directory\n";
 
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
 my $dir=File::Spec->catdir($repo,qw(examples 03_player_color_192 02_animated_sprites));
 my $source=File::Spec->catfile($dir,'player_color_192_animated_sprites.c26');
 my $license=File::Spec->catfile($dir,'LICENSE.txt');
@@ -123,7 +122,7 @@ $license_text =~ /explicit exception to `examples\/LICENSE\.txt`/ &&
 $license_text =~ /Quick/ && $license_text =~ /CC BY-NC-SA 4\.0/
    or die "animated example attribution/local license missing\n";
 
-my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$mapfile,$source,'-o',$bin);
+my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$mapfile,$source,'-o',$bin);
 $rc==0 && !$sig or die "animated gallery build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "animated gallery build wrote output\n$out$err";
 -s $bin == 4096 or die "animated gallery ROM is not 4096 bytes\n";

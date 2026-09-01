@@ -598,7 +598,6 @@ static void resolve_tool_paths(const char *self_path,
    char *sim_path, size_t sim_sz,
    char *runtime_path, size_t runtime_sz,
    char *runtime_inc, size_t runtime_inc_sz,
-   char *vcs_cfg_path, size_t vcs_cfg_sz,
    char *vcs_profile_path, size_t vcs_profile_sz)
 {
    char cc_repo[PATH_MAX];
@@ -608,7 +607,6 @@ static void resolve_tool_paths(const char *self_path,
    char sim_repo[PATH_MAX];
    char runtime_repo[PATH_MAX];
    char runtime_inc_repo[PATH_MAX];
-   char vcs_cfg_repo[PATH_MAX];
    char vcs_profile_repo[PATH_MAX];
    char cc_inst[PATH_MAX];
    char as_inst[PATH_MAX];
@@ -617,7 +615,6 @@ static void resolve_tool_paths(const char *self_path,
    char sim_inst[PATH_MAX];
    char runtime_inst[PATH_MAX];
    char runtime_inc_inst[PATH_MAX];
-   char vcs_cfg_inst[PATH_MAX];
    char vcs_profile_inst[PATH_MAX];
 
    build_repo_tree_path(cc_repo, sizeof(cc_repo), self_path, "compiler", "vcsc-cc1");
@@ -627,7 +624,6 @@ static void resolve_tool_paths(const char *self_path,
    build_repo_tree_path(sim_repo, sizeof(sim_repo), self_path, "simulator", "vcsc-sim");
    build_repo_tree_path(runtime_repo, sizeof(runtime_repo), self_path, "libraries/runtime", "libvcsc.l26");
    build_repo_tree_path(runtime_inc_repo, sizeof(runtime_inc_repo), self_path, "libraries/runtime", "vcsc-runtime.inc");
-   build_repo_tree_path(vcs_cfg_repo, sizeof(vcs_cfg_repo), self_path, "libraries/vcs", "vcs.cfg");
    build_repo_tree_path(vcs_profile_repo, sizeof(vcs_profile_repo), self_path, "libraries/vcs", "4K/mapper.c26");
 
    if (path_is_accessible(cc_repo, X_OK) &&
@@ -644,7 +640,6 @@ static void resolve_tool_paths(const char *self_path,
       copy_cstr(sim_path, sim_sz, sim_repo);
       copy_cstr(runtime_path, runtime_sz, runtime_repo);
       path_dirname(runtime_inc_repo, runtime_inc, runtime_inc_sz);
-      copy_cstr(vcs_cfg_path, vcs_cfg_sz, vcs_cfg_repo);
       copy_cstr(vcs_profile_path, vcs_profile_sz, vcs_profile_repo);
       return;
    }
@@ -656,7 +651,6 @@ static void resolve_tool_paths(const char *self_path,
    build_installed_tool_path(sim_inst, sizeof(sim_inst), self_path, "vcsc-sim");
    build_installed_prefix_path(runtime_inst, sizeof(runtime_inst), self_path, "lib", "libvcsc.l26");
    build_installed_prefix_path(runtime_inc_inst, sizeof(runtime_inc_inst), self_path, "include", "vcsc-runtime.inc");
-   build_installed_prefix_path(vcs_cfg_inst, sizeof(vcs_cfg_inst), self_path, "share/vcs", "vcs.cfg");
    build_installed_prefix_path(vcs_profile_inst, sizeof(vcs_profile_inst), self_path, "share/vcs", "4K/mapper.c26");
 
    if (path_is_accessible(cc_inst, X_OK) &&
@@ -673,7 +667,6 @@ static void resolve_tool_paths(const char *self_path,
       copy_cstr(sim_path, sim_sz, sim_inst);
       copy_cstr(runtime_path, runtime_sz, runtime_inst);
       path_dirname(runtime_inc_inst, runtime_inc, runtime_inc_sz);
-      copy_cstr(vcs_cfg_path, vcs_cfg_sz, vcs_cfg_inst);
       copy_cstr(vcs_profile_path, vcs_profile_sz, vcs_profile_inst);
       return;
    }
@@ -1327,27 +1320,61 @@ static const char *find_library(const driver_options_t *opt, const char *name, c
    return NULL;
 }
 
+//! @brief Return whether a binary/text input contains one metadata marker.
+static bool file_contains_literal(const char *path, const char *needle)
+{
+   FILE *fp;
+   size_t needle_len;
+   size_t matched = 0;
+   int ch;
+
+   if (!path || !needle || !*needle)
+      return false;
+   fp = fopen(path, "rb");
+   if (!fp)
+      return false;
+   needle_len = strlen(needle);
+   while ((ch = fgetc(fp)) != EOF) {
+      if ((unsigned char)ch == (unsigned char)needle[matched]) {
+         matched++;
+         if (matched == needle_len) {
+            fclose(fp);
+            return true;
+         }
+      }
+      else {
+         matched = ((unsigned char)ch == (unsigned char)needle[0]) ? 1u : 0u;
+      }
+   }
+   fclose(fp);
+   return false;
+}
+
+//! @brief Return whether command-line objects/archives already provide cartridge topology.
+static bool link_inputs_have_cartridge_topology(const strvec_t *inputs)
+{
+   size_t i;
+   for (i = 0; inputs && i < inputs->count; ++i)
+      if (file_contains_literal(inputs->items[i], "__cartmeta$"))
+         return true;
+   return false;
+}
+
 //! @brief Run the ld stage of the driver tool pipeline.
 static void run_ld(const char *ld_path, const driver_options_t *opt,
-   const strvec_t *link_inputs, const char *default_runtime,
-   const char *default_link_script)
+   const strvec_t *link_inputs, const char *default_runtime)
 {
    strvec_t cmd = {0};
    const char *link_script = opt->link_script;
    size_t i;
 
-   if (!link_script) {
-      if (!path_is_accessible(default_link_script, R_OK))
-         die("could not read default VCS linker config '%s': %s",
-            default_link_script, strerror(errno));
-      link_script = default_link_script;
-   }
-
    strvec_push(&cmd, ld_path);
    strvec_push(&cmd, "-o");
    strvec_push(&cmd, opt->output ? opt->output : "a.hex");
-   strvec_push(&cmd, "-T");
-   strvec_push(&cmd, link_script);
+   if (link_script) {
+      strvec_push(&cmd, "-T");
+      strvec_push(&cmd, link_script);
+   }
    if (opt->no_map)
       strvec_push(&cmd, "--no-map");
    else if (opt->map_path) {
@@ -1389,7 +1416,7 @@ static void run_ld(const char *ld_path, const driver_options_t *opt,
 //! @brief Run one silent speculative link and return its status instead of exiting.
 static int run_trial_ld(const char *ld_path, const driver_options_t *opt,
    const strvec_t *link_inputs, const char *default_runtime,
-   const char *default_link_script, const char *output, const char *map)
+   const char *output, const char *map)
 {
    strvec_t cmd = {0};
    const char *link_script = opt->link_script;
@@ -1397,13 +1424,14 @@ static int run_trial_ld(const char *ld_path, const driver_options_t *opt,
    int rc;
    size_t i;
 
-   if (!link_script) link_script = default_link_script;
    strvec_push(&cmd, ld_path);
    strvec_push(&cmd, "--trial");
    strvec_push(&cmd, "-o");
    strvec_push(&cmd, output);
-   strvec_push(&cmd, "-T");
-   strvec_push(&cmd, link_script);
+   if (link_script) {
+      strvec_push(&cmd, "-T");
+      strvec_push(&cmd, link_script);
+   }
    strvec_push(&cmd, "-Map");
    strvec_push(&cmd, map);
    strvec_push(&cmd, "--no-sym");
@@ -1426,7 +1454,7 @@ static int run_trial_ld(const char *ld_path, const driver_options_t *opt,
 //! @brief Greedily accept only candidates which improve a real final link.
 static void optimize_inline_profitability(const char *cc_path, const char *as_path,
    const char *ld_path, const driver_options_t *opt, const char *runtime_inc,
-   const char *runtime_path, const char *default_link_script,
+   const char *runtime_path,
    strvec_t *link_inputs, inline_tuvec_t *tus, temp_store_t *temps)
 {
    inline_link_metrics_t current;
@@ -1440,7 +1468,7 @@ static void optimize_inline_profitability(const char *cc_path, const char *as_pa
 
    base_hex = temp_store_make_file(temps, "inline_baseline", ".hex");
    base_map = temp_store_make_file(temps, "inline_baseline", ".map");
-   if (run_trial_ld(ld_path, opt, link_inputs, runtime_path, default_link_script,
+   if (run_trial_ld(ld_path, opt, link_inputs, runtime_path,
                     base_hex, base_map) != 0) {
       /* Let the ordinary final link produce the real user diagnostic. */
       return;
@@ -1476,7 +1504,7 @@ static void optimize_inline_profitability(const char *cc_path, const char *as_pa
             trial_hex = temp_store_make_file(temps, "inline_trial", ".hex");
             trial_map = temp_store_make_file(temps, "inline_trial", ".map");
             if (run_trial_ld(ld_path, opt, &trial_inputs, runtime_path,
-                             default_link_script, trial_hex, trial_map) != 0 ||
+                             trial_hex, trial_map) != 0 ||
                 !inline_link_metrics_read_map(trial_map, &trial, error, sizeof(error))) {
                strvec_release(&selected);
                strvec_release(&trial_inputs);
@@ -1522,7 +1550,6 @@ int main(int argc, char **argv)
    char sim_path[PATH_MAX];
    char runtime_path[PATH_MAX];
    char runtime_inc[PATH_MAX];
-   char vcs_cfg_path[PATH_MAX];
    char vcs_profile_path[PATH_MAX];
    strvec_t link_inputs = {0};
    inline_tuvec_t inline_tus = {0};
@@ -1539,7 +1566,6 @@ int main(int argc, char **argv)
       sim_path, sizeof(sim_path),
       runtime_path, sizeof(runtime_path),
       runtime_inc, sizeof(runtime_inc),
-      vcs_cfg_path, sizeof(vcs_cfg_path),
       vcs_profile_path, sizeof(vcs_profile_path));
 
    if (argc == 2 && strcmp(argv[1], "-V") == 0)
@@ -1632,7 +1658,7 @@ int main(int argc, char **argv)
    }
 
    if (!opt.asm_only && !opt.compile_only) {
-      if (!opt.link_script) {
+      if (!opt.link_script && !link_inputs_have_cartridge_topology(&link_inputs)) {
          const char *asm_path;
          const char *obj_path;
          if (!path_is_accessible(vcs_profile_path, R_OK))
@@ -1645,8 +1671,8 @@ int main(int argc, char **argv)
          strvec_push(&link_inputs, obj_path);
       }
       optimize_inline_profitability(cc_path, as_path, ld_path, &opt, runtime_inc,
-         runtime_path, vcs_cfg_path, &link_inputs, &inline_tus, &temps);
-      run_ld(ld_path, &opt, &link_inputs, runtime_path, vcs_cfg_path);
+         runtime_path, &link_inputs, &inline_tus, &temps);
+      run_ld(ld_path, &opt, &link_inputs, runtime_path);
    }
 
    temp_store_cleanup(&temps);

@@ -77,8 +77,6 @@ my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
-my $cfg=File::Spec->catfile($vcs,'FE/mapper.cfg');
 my $profile=File::Spec->catfile($vcs,'FE/mapper.c26');
 my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','14_fe');
 my $source=File::Spec->catfile($example_dir,'fe_diagnostic.c26');
@@ -92,16 +90,10 @@ $pt =~ /\$signature:FE\b/ && $pt !~ /\$select_access:/ &&
 $pt =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$link_start:0xf000.*?\$cpu_start:0xf000.*?\$startup/s &&
 $pt =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$link_start:0xd000.*?\$cpu_start:0xd000/s
    or die "FE C26 profile does not describe the two delayed-latch banks\n";
-my $ct=read_file($cfg);
-$ct =~ /mapper\s*=\s*FE/ && $ct !~ /hotspot\s*=/ &&
-$ct =~ /BANK0:.*start\s*=\s*\$F000.*fileindex\s*=\s*0.*startup\s*=\s*yes/is &&
-$ct =~ /BANK1:.*start\s*=\s*\$D000.*fileindex\s*=\s*1/is
-   or die "FE simulator cfg does not describe deterministic bank 0 plus D-bank 1\n";
 
 my $bin=File::Spec->catfile($tmp,'fe.bin');
 my $map_path=File::Spec->catfile($tmp,'fe.map');
-require_ok('build FE simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
-   '-T',$generic,'-Map',$map_path,$source,'-o',$bin);
+require_ok('build FE simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-Map',$map_path,$source,'-o',$bin);
 -s $bin==8192 or die "FE output size is not 8K\n";
 my $rom=read_file($bin);
 substr($rom,4096+0x0ff8,4) eq "FE\0\0" or die "FE signature is missing from physical bank 1\n";
@@ -118,7 +110,7 @@ my $jsr=pack('C*',0x20,$sym{bank1_probe}&0xff,($sym{bank1_probe}>>8)&0xff);
 my $main_off=$sym{main}-0xF000;
 index(substr($rom,$main_off,0x100),$jsr)>=0
    or die "FE linker did not emit a direct JSR from main into bank 1\n";
-my($out,$err)=require_ok('simulate released FE JSR/RTS idiom',$sim,'-T',$cfg,
+my($out,$err)=require_ok('simulate released FE JSR/RTS idiom',$sim,'--map',$map_path,
    sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);
 $err eq '' or die "FE simulator wrote stderr:\n$err";
 my $mem=parse_hex_dump($out);
@@ -137,7 +129,7 @@ substr($r,4096+0x000,5)=pack('C*',0xA9,0x55,0x85,0x81,0x60);
 substr($r,4096+0x105,1)=pack('C',0xF0); # poison if switching happens one bus cycle too early
 substr($r,0x0ffc,2)=pack('C*',0x00,0xF1);
 write_file($raw,$r);
-my($rout,$rerr)=require_ok('simulate FE one-cycle delayed latch',$sim,'-T',$cfg,
+my($rout,$rerr)=require_ok('simulate FE one-cycle delayed latch',$sim,'--map',$map_path,
    '--stop-pc=0xF10D','--dump-on-stop',$raw);
 $rerr eq '' or die "FE delayed-latch fixture wrote stderr:\n$rerr";
 my $rmem=parse_hex_dump($rout);
@@ -154,13 +146,13 @@ bank0 uint8_t helper(void) { return target(); }
 void main(void) { uint8_t x; x := helper(); while (1) { } }
 SRC
 my $badbin=File::Spec->catfile($tmp,'nested_fe.bin');
-my($bout,$berr)=require_fail('reject nested FE cross-bank JSR',$driver,'-I',$vcs,'-T',$generic,$bad,'-o',$badbin);
+my($bout,$berr)=require_fail('reject nested FE cross-bank JSR',$driver,'-I',$vcs,$bad,'-o',$badbin);
 ($bout.$berr) =~ /FE cross-bank JSR.*main/is
    or die "nested FE rejection did not explain the top-level-main restriction\nstdout:\n$bout\nstderr:\n$berr";
 
 my $visible=File::Spec->catfile($tmp,'fe-visible.bin');
 my $visible_map=File::Spec->catfile($tmp,'fe-visible.map');
-require_ok('build visible FE PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,
+require_ok('build visible FE PASS/FAIL cartridge',$driver,'-I',$vcs,
    '-Map',$visible_map,$source,'-o',$visible);
 my $vrom=read_file($visible);
 length($vrom)==8192 && substr($vrom,4096+0x0ff8,4) eq "FE\0\0"

@@ -52,8 +52,6 @@ my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
-my $cfg=File::Spec->catfile($vcs,'CV/mapper.cfg');
 my $profile=File::Spec->catfile($vcs,'CV/mapper.c26');
 my $device=File::Spec->catfile($vcs,'CV/ram.c26');
 my $source=File::Spec->catfile($repo,'examples','09_bankswitching','06_cv','cv_diagnostic.c26');
@@ -69,8 +67,7 @@ $dt =~ /mem\s+cartram\s*\{\s*\$read_start:0xF000\s+\$write_start:0xF400\s+\$size
 
 my $bin=File::Spec->catfile($tmp,'cv.bin');
 my $map=File::Spec->catfile($tmp,'cv.map');
-require_ok('build CV simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
-   '-T',$generic,'-Map',$map,$source,'-o',$bin);
+require_ok('build CV simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-Map',$map,$source,'-o',$bin);
 -s $bin==2048 or die "CV output size is not 2048 bytes\n";
 my $rom=read_file($bin);
 substr($rom,0x07f8,4) eq "CV\0\0"
@@ -90,7 +87,7 @@ $m =~ /ZERO BSS\.cartram\.__vcsc_object\$cv_bss\s+read=\$F000\s+write=\$F400\s+s
    or die "CV DATA/BSS startup does not use the split aliases\n$m";
 
 my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure cv_bss cv_data);
-my($out,$err)=require_ok('simulate CV with hostile cartridge RAM',$sim,'-T',$cfg,
+my($out,$err)=require_ok('simulate CV with hostile cartridge RAM',$sim,'--map',$map,
    '--split-fill=0xA7',sprintf('--reset-on-pc=0x%04X',$sym{simulator_done}),
    sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);
 $err eq '' or die "CV simulator wrote stderr:\n$err";
@@ -103,7 +100,7 @@ $mem->[$sym{cv_bss}+1022]==0x33
    or die "CV BSS sentinels did not survive split aliases\n";
 
 my $visible=File::Spec->catfile($tmp,'cv-visible.bin');
-require_ok('build visible CV PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
+require_ok('build visible CV PASS/FAIL cartridge',$driver,'-I',$vcs,$source,'-o',$visible);
 my $vrom=read_file($visible);
 length($vrom)==2048 && substr($vrom,0x07f8,4) eq "CV\0\0" &&
 index($vrom,pack('C*',0x99,0x00,0xF4))>=0

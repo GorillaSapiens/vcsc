@@ -37,7 +37,6 @@ $repo=abs_path($repo) // die "resolve repo\n";
 $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
 my $official_dir=File::Spec->catdir($repo,qw(test fixtures all_five_181));
 my $unofficial_dir=File::Spec->catdir($repo,qw(test fixtures all_five_181_unofficial));
 my $unofficial_component=File::Spec->catfile($vcs,qw(renderers all_five_unofficial all_five_unofficial.c26));
@@ -53,7 +52,7 @@ for my $case (@cases) {
       my $bin=File::Spec->catfile($tmp,"${case}_${kind}.bin");
       my $mapfile=File::Spec->catfile($tmp,"${case}_${kind}.map");
       my @extra=$kind eq 'unofficial' ? ('-Wa,--illegals') : ();
-      my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,@extra,
+      my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,@extra,
                                       '-Map',$mapfile,$src,'-o',$bin);
       $rc==0 && !$sig or die "$case $kind build failed\n$out$err";
       $err eq '' or die "$case $kind build stderr: $err";

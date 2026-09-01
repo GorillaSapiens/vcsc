@@ -69,18 +69,18 @@ sub terminate_child {
 
 sub profiles {
    return (
-      [F8=>2=>'F8/mapper.cfg'=>'F8/mapper.c26'=>0],
-      [F6=>4=>'F6/mapper.cfg'=>'F6/mapper.c26'=>0],
-      [F4=>8=>'F4/mapper.cfg'=>'F4/mapper.c26'=>0],
-      [F8SC=>2=>'F8SC/mapper.cfg'=>'F8SC/mapper.c26'=>1],
-      [F6SC=>4=>'F6SC/mapper.cfg'=>'F6SC/mapper.c26'=>1],
-      [F4SC=>8=>'F4SC/mapper.cfg'=>'F4SC/mapper.c26'=>1],
+      [F8=>2=>'F8/mapper.c26'=>0],
+      [F6=>4=>'F6/mapper.c26'=>0],
+      [F4=>8=>'F4/mapper.c26'=>0],
+      [F8SC=>2=>'F8SC/mapper.c26'=>1],
+      [F6SC=>4=>'F6SC/mapper.c26'=>1],
+      [F4SC=>8=>'F4SC/mapper.c26'=>1],
    );
 }
 
 sub build_matrix_rom {
    my($driver,$vcs,$source,$tmp,$profile,$simulator,$poisoned)=@_;
-   my($mapper,$banks,$cfg_name,$profile_name,$sc)=@$profile;
+   my($mapper,$banks,$profile_name,$sc)=@$profile;
    my $stem=lc($mapper).'_matrix';
    my $bin=File::Spec->catfile($tmp,"$stem.bin");
    my $map_path=File::Spec->catfile($tmp,"$stem.map");
@@ -89,8 +89,7 @@ sub build_matrix_rom {
    push @defs,'-DSIMULATOR_TEST' if $simulator;
    push @defs,'-DPOISONED_RESULT' if $poisoned;
    require_ok("build $mapper complete matrix",
-      $driver,'-I',$vcs,@defs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),
-      '-Map',$map_path,$source,'-o',$bin);
+      $driver,'-I',$vcs,@defs,'-Map',$map_path,$source,'-o',$bin);
    -s $bin == $banks*4096
       or die "$mapper did not emit an exact ".($banks*4096)."-byte image\n";
    return ($bin,$map_path);
@@ -138,8 +137,7 @@ sub run_simulator_matrix {
    my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 
    for my $profile (profiles()) {
-      my($mapper,$banks,$cfg_name,$profile_name,$sc)=@$profile;
-      my $cfg=File::Spec->catfile($vcs,$cfg_name);
+      my($mapper,$banks,$profile_name,$sc)=@$profile;
       my $profile_text=read_file(File::Spec->catfile($vcs,$profile_name));
       $profile_text =~ /\$select_access:/
          or die "$profile_name does not declare selector-controlled topology\n";
@@ -199,7 +197,7 @@ sub run_simulator_matrix {
          my @lifecycle=$sc ? ('--split-fill=0xA7',
                                     sprintf('--reset-on-pc=0x%04X',$sym{simulator_done})) : ();
          my($out,$err)=require_ok("simulate $mapper from physical bank $physical_start",
-            $sim,'-T',$cfg,"--start-bank=$physical_start",@lifecycle,
+            $sim,'--map',$map_path,"--start-bank=$physical_start",@lifecycle,
             sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);
          $err eq '' or die "$mapper simulator wrote stderr:\n$err";
          check_matrix_dump($mapper,$banks,\%sym,parse_dump($out),$sc);
@@ -306,7 +304,7 @@ sub run_stella_certification {
       }
    }
    if ($selected->('poisoned_failure')) {
-      my $profile=[F8SC=>2=>'F8SC/mapper.cfg'=>'F8SC/mapper.c26'=>1];
+      my $profile=[F8SC=>2=>'F8SC/mapper.c26'=>1];
       my($rom)=build_matrix_rom($driver,$vcs,$source,$stella_tmp,$profile,0,1);
       $run_one->(label=>'poisoned_failure',mapper=>'F8SC',start=>0,reset=>1,
                  rom=>$rom,result=>'fail',cart=>'??????');
@@ -366,8 +364,7 @@ $source_text =~ /#ifdef\s+POISONED_RESULT\s+failure\s*:=\s*1/s
    my $bin=File::Spec->catfile($tmp,'visual_contract.bin');
    my $map_path=File::Spec->catfile($tmp,'visual_contract.map');
    require_ok('build visible diagnostic storage contract',
-      $driver,'-I',$vcs,'-DMAPPER_BANKS=2','-T',File::Spec->catfile($vcs,'vcs.cfg'),
-      '-Map',$map_path,$source,'-o',$bin);
+      $driver,'-I',$vcs,'-DMAPPER_BANKS=2','-Map',$map_path,$source,'-o',$bin);
    my $map=read_file($map_path);
    $map =~ /BSS\.__vcsc_object\x24status_result_pointers\s+run=\$[0-9A-Fa-f]{4}\s+size=\$000C\b/
       or die "diagnostic Big result does not own six full glyph pointers\n";

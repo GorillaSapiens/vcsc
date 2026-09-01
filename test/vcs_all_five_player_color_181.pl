@@ -24,7 +24,6 @@ my$repo=shift@ARGV // usage(); my$tmp=shift@ARGV // usage(); usage() if@ARGV;
 $repo=abs_path($repo) or die "resolve repo\n"; $tmp=abs_path($tmp) or die "resolve tmp\n";
 my$driver=File::Spec->catfile($repo,qw(driver vcsc));
 my$vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my$cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
 my$component=File::Spec->catfile($vcs,qw(renderers all_five_player_color_181 all_five_player_color_181.c26));
 my$example_root=File::Spec->catdir($repo,qw(examples 16_all_five_player_color_181));
 my@jobs=(
@@ -37,7 +36,7 @@ for my$j(@jobs){
    $source{$n}=read_file($src);
    $bin{$n}=File::Spec->catfile($tmp,"all_five_player_color_181_$n.bin");
    $map{$n}=File::Spec->catfile($tmp,"all_five_player_color_181_$n.map");
-   my($r,$s,$o,$e)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$map{$n},$src,'-o',$bin{$n});
+   my($r,$s,$o,$e)=capture($driver,'-I',$vcs,'-Map',$map{$n},$src,'-o',$bin{$n});
    $r==0&&!$s or die "$n private static fixture build failed\n$o$e";
    without_usage($o) eq ''&&$e eq '' or die "$n private static fixture build wrote output\n$o$e";
    -s$bin{$n}==4096 or die "$n private static fixture is not 4K\n";
@@ -96,7 +95,7 @@ for my$j(@interactive_jobs){
    $interactive_source{$n}=read_file($isrc);
    $interactive_bin{$n}=File::Spec->catfile($tmp,"all_five_player_color_181_${n}_interactive.bin");
    my$imap=File::Spec->catfile($tmp,"all_five_player_color_181_${n}_interactive.map");
-   my($r,$s,$o,$e)=capture($driver,'-I',$vcs,'-T',$cfg,'-Map',$imap,$isrc,'-o',$interactive_bin{$n});
+   my($r,$s,$o,$e)=capture($driver,'-I',$vcs,'-Map',$imap,$isrc,'-o',$interactive_bin{$n});
    $r==0&&!$s or die "$n interactive example build failed\n$o$e";
    without_usage($o) eq ''&&$e eq '' or die "$n interactive example build wrote output\n$o$e";
    -s$interactive_bin{$n}==4096 or die "$n interactive example is not 4K\n";
@@ -218,7 +217,7 @@ $vertical =~ s/(vcs_ntsc_begin_vblank\(\);\s*)/$1      asm inc.z game_player0_y;
 my$vertical_src=File::Spec->catfile($tmp,'afpc181_vertical.c26');
 my$vertical_bin=File::Spec->catfile($tmp,'afpc181_vertical.bin');
 write_file($vertical_src,$vertical);
-($r,$s,$o,$e)=capture($driver,'-I',$vcs,'-T',$cfg,$vertical_src,'-o',$vertical_bin);
+($r,$s,$o,$e)=capture($driver,'-I',$vcs,$vertical_src,'-o',$vertical_bin);
 $r==0&&!$s or die "vertical sweep build failed\n$o$e";
 without_usage($o) eq ''&&$e eq '' or die "vertical sweep build wrote output\n$o$e";
 ($r,$s,$o,$e)=capture($timing,$vertical_bin,'300','--no-audio','--raw-lines','264');
@@ -239,7 +238,7 @@ $horizontal =~ s/(vcs_ntsc_begin_vblank\(\);\s*)/$1      if (game_object_x[0] < 
 my$horizontal_src=File::Spec->catfile($tmp,'afpc181_horizontal.c26');
 my$horizontal_bin=File::Spec->catfile($tmp,'afpc181_horizontal.bin');
 write_file($horizontal_src,$horizontal);
-($r,$s,$o,$e)=capture($driver,'-I',$vcs,'-T',$cfg,$horizontal_src,'-o',$horizontal_bin);
+($r,$s,$o,$e)=capture($driver,'-I',$vcs,$horizontal_src,'-o',$horizontal_bin);
 $r==0&&!$s or die "horizontal sweep build failed\n$o$e";
 without_usage($o) eq ''&&$e eq '' or die "horizontal sweep build wrote output\n$o$e";
 ($r,$s,$o,$e)=capture($timing,$horizontal_bin,'180','--no-audio','--raw-lines','264');
@@ -259,7 +258,7 @@ $cert =~ s/^\s*game_player1_color\s*:=\s*0xc8;\s*\n//m or die "could not remove 
 $cert =~ s/^\s*game_playfield_position\s*:=\s*8;\s*\n//m or die "could not remove certification playfield position\n";
 my$cert_src=File::Spec->catfile($tmp,'afpc181_cert_above.c26'); my$cert_bin=File::Spec->catfile($tmp,'afpc181_cert_above.bin');
 write_file($cert_src,$cert);
-($r,$s,$o,$e)=capture($driver,'-I',$vcs,'-T',$cfg,$cert_src,'-o',$cert_bin);
+($r,$s,$o,$e)=capture($driver,'-I',$vcs,$cert_src,'-o',$cert_bin);
 $r==0&&!$s or die "certification fixture build failed\n$o$e";
 without_usage($o) eq ''&&$e eq '' or die "certification fixture build wrote output\n$o$e";
 my$comp=File::Spec->catfile($tmp,'afpc181_composition');

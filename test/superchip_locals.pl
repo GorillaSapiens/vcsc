@@ -60,11 +60,7 @@ sub parse_dump {
 }
 
 my $source = <<'SOURCE';
-include "vcs.c26"
-include "4KSC/ram.c26"
-
-mem bank0 { $start:0xF100 $size:0x0E00 $ro };
-mem bank1 { $start:0xD100 $size:0x0E00 $ro };
+include "__MAPPER__/mapper.c26"
 
 struct Packed { uint8_t low:4; uint8_t high:4; };
 uint8_t result;
@@ -112,22 +108,23 @@ my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $sim = File::Spec->catfile($repo, 'simulator', 'vcsc-sim');
 my $vcs = File::Spec->catdir($repo, 'libraries', 'vcs');
 my @profiles = (
-   ['F8SC', 2, 'F8SC/mapper.cfg'],
-   ['F6SC', 4, 'F6SC/mapper.cfg'],
-   ['F4SC', 8, 'F4SC/mapper.cfg'],
+   ['F8SC', 2],
+   ['F6SC', 4],
+   ['F4SC', 8],
 );
 
 for my $profile (@profiles) {
-   my ($mapper, $banks, $cfg_name) = @$profile;
+   my ($mapper, $banks) = @$profile;
    my $stem = lc($mapper) . '_locals';
    my $src = File::Spec->catfile($tmp, "$stem.c26");
    my $bin = File::Spec->catfile($tmp, "$stem.bin");
    my $map_path = File::Spec->catfile($tmp, "$stem.map");
    my $sym_path = File::Spec->catfile($tmp, "$stem.sym");
-   my $cfg = File::Spec->catfile($vcs, $cfg_name);
-   write_file($src, $source);
+   my $profile_source = $source;
+   $profile_source =~ s/__MAPPER__/$mapper/g;
+   write_file($src, $profile_source);
    require_ok("build $mapper Superchip-local test",
-      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', $cfg, '-Map', $map_path, '-Sym', $sym_path, $src, '-o', $bin);
+      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-Map', $map_path, '-Sym', $sym_path, $src, '-o', $bin);
    -s $bin == $banks * 4096 or die "$mapper output has wrong size\n";
 
    my $map = read_file($map_path);
@@ -143,7 +140,7 @@ for my $profile (@profiles) {
    my $result = parse_symbol($sym, 'result');
    for my $physical_start (0 .. $banks - 1) {
       my ($dump, $err) = require_ok("simulate $mapper from physical bank $physical_start",
-         $sim, '-T', $cfg, "--start-bank=$physical_start",
+         $sim, '--map', $map_path, "--start-bank=$physical_start",
          sprintf('--stop-pc=0x%04X', $done), '--dump-on-stop', $bin);
       $err eq '' or die "$mapper simulator wrote stderr:\n$err";
       my $mem = parse_dump($dump);
@@ -162,8 +159,7 @@ for my $profile (@profiles) {
 
 my $overflow_src = File::Spec->catfile($tmp, 'superchip_local_overflow.c26');
 write_file($overflow_src, <<'OVERFLOW');
-include "vcs.c26"
-include "4KSC/ram.c26"
+include "F8SC/mapper.c26"
 void main(void) {
    cartram uint8_t fits[128];
    cartram uint8_t spill;
@@ -172,7 +168,7 @@ void main(void) {
 OVERFLOW
 for my $attempt (1 .. 2) {
    my ($rc, $sig, $out, $err) = run_capture(
-      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', File::Spec->catfile($vcs, 'F8SC/mapper.cfg'),
+      $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM',
       $overflow_src, '-o', File::Spec->catfile($tmp, "superchip_local_overflow_$attempt.bin"));
    $rc != 0 && !$sig or die "Superchip local overflow attempt $attempt unexpectedly linked\n$out\n$err";
    $err =~ /cartram overflow while placing activation overlay from <call graph> in cartram/

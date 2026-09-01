@@ -73,16 +73,13 @@ $tmp = abs_path($tmp);
 my $driver = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $sim = File::Spec->catfile($repo, 'simulator', 'vcsc-sim');
 my $vcs = File::Spec->catdir($repo, 'libraries', 'vcs');
-my $cfg = File::Spec->catfile($vcs, 'F8SC/mapper.cfg');
+my $profile = File::Spec->catfile($vcs, 'F8SC/mapper.c26');
 my $src = File::Spec->catfile($tmp, 'replicated.c26');
 my $bin = File::Spec->catfile($tmp, 'replicated.bin');
 my $map_path = File::Spec->catfile($tmp, 'replicated.map');
 
 write_file($src, <<'SRC');
-include "vcs.c26"
-include "4KSC/ram.c26"
-mem bank0 { $start:0xF100 $size:0x0E00 $ro };
-mem bank1 { $start:0xD100 $size:0x0E00 $ro };
+include "F8SC/mapper.c26"
 
 extern bank0 bank1 const uint8_t table[2];
 bank1 bank0 const uint8_t table[2] := { 0x31, 0x42 };
@@ -112,7 +109,7 @@ void main(void) {
 }
 SRC
 
-require_ok('build replicated F8SC image', $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM', '-T', $cfg,
+require_ok('build replicated F8SC image', $driver, '-I', $vcs, '-DVCS_NO_DEFAULT_ROM',
            '-Map', $map_path, '-o', $bin, $src);
 my $map = slurp($map_path);
 my $rom = slurp($bin);
@@ -126,7 +123,7 @@ $map =~ /kind=object symbol=table copies=2 bytes-each=\$0002 physical-total=\$00
 $map =~ /physical-total-all=\$[0-9A-F]{8}/
    or die "map omitted total replicated physical cost\n$map";
 
-$map =~ /kind=object symbol=table.*?region=bank0\s+bank=BANK0\s+load=\$([0-9A-F]{4}).*?region=bank1\s+bank=BANK1\s+load=\$([0-9A-F]{4})/s
+$map =~ /kind=object symbol=table.*?region=bank0\s+bank=bank0\s+load=\$([0-9A-F]{4}).*?region=bank1\s+bank=bank1\s+load=\$([0-9A-F]{4})/s
    or die "map omitted both table copies\n$map";
 my ($table0, $table1) = (hex($1), hex($2));
 (($table0 & 0x0fff) != ($table1 & 0x0fff))
@@ -136,15 +133,15 @@ substr($rom, 4096 + $table0 - 0xF000, 2) eq "\x31\x42"
 substr($rom, $table1 - 0xD000, 2) eq "\x31\x42"
    or die "BANK1 table bytes are wrong\n";
 
-$map =~ /region=bank0\s+bank=BANK0\s+load=\$[0-9A-F]{4}.*layout=CODE\.bank0\.__vcsc_function\$replicated/
+$map =~ /region=bank0\s+bank=bank0\s+load=\$[0-9A-F]{4}.*layout=CODE\.bank0\.__vcsc_function\$replicated/
    or die "map omitted BANK0 replicated function body\n$map";
-$map =~ /region=bank1\s+bank=BANK1\s+load=\$[0-9A-F]{4}.*layout=CODE\.bank1\.__vcsc_function\$replicated/
+$map =~ /region=bank1\s+bank=bank1\s+load=\$[0-9A-F]{4}.*layout=CODE\.bank1\.__vcsc_function\$replicated/
    or die "map omitted BANK1 replicated function body\n$map";
-$map =~ /component=\d+ assignment=automatic bank=BANK[01].*?automatic CODE\.__vcsc_function\$automatic_reader\s+region=bank[01]/s
+$map =~ /component=\d+ assignment=automatic bank=bank[01].*?automatic CODE\.__vcsc_function\$automatic_reader\s+region=bank[01]/s
    or die "unpinned table reader was not placed with a local copy\n$map";
 $map =~ /entries=1 jmp=0 jsr=1/
    or die "local replicated calls should leave exactly one cross-bank call to from_bank1\n$map";
-$map =~ /JSR entry=0 .*CODE\.bank1\.__vcsc_function\$from_bank1 source=BANK0 .*destination=BANK1/
+$map =~ /JSR entry=0 .*CODE\.bank1\.__vcsc_function\$from_bank1 source=bank0 .*destination=bank1/
    or die "unexpected cross-bank trampoline target\n$map";
 $map !~ /JSR entry=.*__vcsc_function\$replicated/
    or die "a call used a trampoline despite a source-bank-local replicated body\n$map";
@@ -155,7 +152,7 @@ my $done = map_symbol($map, 'simulator_done');
 my $result = map_symbol($map, 'result');
 for my $start_bank (0, 1) {
    my ($dump, $err) = require_ok("simulate replicated image from bank $start_bank",
-      $sim, '-T', $cfg, "--start-bank=$start_bank",
+      $sim, '--map', $map_path, "--start-bank=$start_bank",
       sprintf('--stop-pc=0x%04X', $done), '--dump-on-stop', $bin);
    $err eq '' or die "simulator wrote stderr: $err";
    my $mem = parse_dump($dump);

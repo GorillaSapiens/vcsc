@@ -72,7 +72,7 @@ $p =~ /CXCLR := _/ &&
 $p !~ /overlaps_paddle/ && $p !~ /PADDLEBALL_(?:LEFT|RIGHT)_COLLISION_X/
    or die "Paddleball must use TIA M0-Ball and M1-Ball collision latches\n";
 
-my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',File::Spec->catdir($repo,qw(examples 01_basic 09_paddleball)),'-T',File::Spec->catfile($vcs,'vcs.cfg'),'-Map',$mapfile,$source,'-o',$bin);
+my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-I',File::Spec->catdir($repo,qw(examples 01_basic 09_paddleball)),'-Map',$mapfile,$source,'-o',$bin);
 $rc==0&&!$sig or die "Paddleball build failed\n$out$err";
 $err eq '' or die "Paddleball build stderr: $err";
 -s$bin==4096 or die "Paddleball ROM is not 4096 bytes\n";

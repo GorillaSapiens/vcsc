@@ -56,19 +56,14 @@ $tmp = abs_path($tmp) // die "could not resolve temp dir\n";
 
 my $cc1 = File::Spec->catfile($repo, 'compiler', 'vcsc-cc1');
 my $vcsc = File::Spec->catfile($repo, 'driver', 'vcsc');
-my $include = File::Spec->catfile($repo, 'test');
-my $cfg = File::Spec->catfile($repo, 'libraries', 'vcs', 'F8/mapper.cfg');
+my $include = File::Spec->catfile($repo, 'libraries', 'vcs');
 my $src = File::Spec->catfile($tmp, 'directional_ref_cross_bank.c26');
 my $asm = File::Spec->catfile($tmp, 'directional_ref_cross_bank.s26');
 my $bin = File::Spec->catfile($tmp, 'directional_ref_cross_bank.bin');
 my $map = File::Spec->catfile($tmp, 'directional_ref_cross_bank.map');
 
 write_file($src, <<'SRC');
-include "machine_6502.c26"
-
-mem ram { $start:0x0080 $size:0x0080 $rw $priority:2 };
-mem rom { $start:0xF000 $size:0x0F00 $ro $priority:2 };
-mem bank1 { $start:0xD000 $size:0x0F00 $ro };
+include "F8/mapper.c26"
 
 uint8_t input @[0x0280/none];
 uint8_t output @[none/0x0380];
@@ -83,7 +78,7 @@ void main(void) {
 SRC
 
 require_ok('compile cross-bank directional ref source',
-           $cc1, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-o', $asm, $src);
+           $cc1, '-I', $include, '-o', $asm, $src);
 my $asm_text = slurp($asm);
 $asm_text =~ /modeQ3DrefQ28accessQ3DconstQ29/
    or die "const ref capability missing from compiler ABI metadata\n";
@@ -95,12 +90,11 @@ $asm_text =~ /lda #<\{\$0380 \+ 0\}.*?sta\s+remote\$sink\b.*?sta\s+remote\$sink 
    or die "caller did not pass the writable binding address to remote sink\n$asm_text";
 
 require_ok('link cross-bank directional ref cartridge',
-           $vcsc, '-I', $include, '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM', '-T', $cfg, '-Map', $map,
-           '-o', $bin, $src);
+           $vcsc, '-I', $include, '-Map', $map, '-o', $bin, $src);
 length(slurp($bin)) == 8192
    or die "directional-ref F8 cartridge was not 8K\n";
 my $map_text = slurp($map);
-$map_text =~ /JSR entry=.*source=BANK0 hotspot=\$1FF9 destination=BANK1 hotspot=\$1FF8/
+$map_text =~ /JSR entry=.*source=bank0 hotspot=\$1FF9 destination=bank1 hotspot=\$1FF8/
    or die "directional-ref call did not use a BANK0-to-BANK1 JSR bridge\n$map_text";
 $map_text =~ /entries=1 jmp=0 jsr=1/
    or die "directional-ref cross-bank call did not produce exactly one JSR trampoline\n$map_text";

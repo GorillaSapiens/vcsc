@@ -14,6 +14,12 @@ use File::Spec;
 
 my $repo=abs_path($ARGV[0] // File::Spec->catdir(File::Spec->curdir(),'..'));
 my $test=File::Spec->catdir($repo,'test');
+my @vcs_cfg_files;
+find(sub {
+   return unless -f $_ && /\.cfg\z/;
+   push @vcs_cfg_files,$File::Find::name;
+}, File::Spec->catdir($repo,'libraries','vcs'));
+@vcs_cfg_files and die "checked-in VCS .cfg files are forbidden: @vcs_cfg_files\n";
 my $fixtures=File::Spec->catdir($repo,'assembler','tests');
 my @python_test_helpers=glob(File::Spec->catfile($test,'*.py'));
 @python_test_helpers and die "Python test helpers are not permitted: @python_test_helpers\n";
@@ -256,11 +262,11 @@ $bankswitching !~ /^\[x\]/m
 -f File::Spec->catfile($test,'vcs_bankswitching_diagnostic.pl') &&
 -f File::Spec->catfile($test,'vcs_fe.pl') &&
 -f File::Spec->catfile($repo,qw(libraries vcs FE/mapper.c26)) &&
--f File::Spec->catfile($repo,qw(libraries vcs FE/mapper.cfg)) &&
+!-e File::Spec->catfile($repo,qw(libraries vcs FE/mapper.cfg)) &&
 -f File::Spec->catfile($repo,qw(examples 09_bankswitching 14_fe fe_diagnostic.c26)) &&
 -f File::Spec->catfile($test,'vcs_dpc.pl') &&
 -f File::Spec->catfile($repo,qw(libraries vcs DPC/mapper.c26)) &&
--f File::Spec->catfile($repo,qw(libraries vcs DPC/mapper.cfg)) &&
+!-e File::Spec->catfile($repo,qw(libraries vcs DPC/mapper.cfg)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs DPC/registers.c26)) &&
 -f File::Spec->catfile($repo,qw(examples 09_bankswitching 16_dpc dpc_diagnostic.c26)) &&
 -f File::Spec->catfile($test,'phase_overlay.pl') &&
@@ -386,11 +392,6 @@ index($sim_readme,'--split-fill=BYTE')>=0
 index(slurp(File::Spec->catfile($repo,'libraries','vcs','4KSC/ram.c26')),
       'mem cartram { $read_start:0xF080 $write_start:0xF000 $size:0x0080 $rw $read_hazard };')>=0
    or die "automatic Superchip allocation implementation or regression coverage is missing\n";
-for my $cfg_name (qw(F8SC/mapper.cfg F6SC/mapper.cfg F4SC/mapper.cfg)) {
-   my $cfg_body=slurp(File::Spec->catfile($repo,'libraries','vcs',$cfg_name));
-   $cfg_body =~ /cartram:\s+read_start\s*=\s*\$F080,\s*write_start\s*=\s*\$F000,\s*size\s*=\s*\$0080,\s*type\s*=\s*rw/
-      or die "$cfg_name lost the shared split-address Superchip MEMORY region\n";
-}
 my $compiler_readme=slurp(File::Spec->catfile($repo,'compiler','README.md'));
 my $abi_text=slurp(File::Spec->catfile($repo,'compiler','ABI.txt'));
 my $linker_readme=slurp(File::Spec->catfile($repo,'linker','README.md'));
@@ -452,26 +453,6 @@ index($player_color_source,'asm jsr @set_range;')<0 &&
 index($player_color_source,'asm dec.z TEMPLATE_ball_y;')>=0 &&
 index($player_color_source,'asm cmp.z TEMPLATE_ball_y;')>=0
    or die "parameterized player_color lost its official direct-countdown zero-extra-stack contract\n";
-my $standard_compat_cfg=slurp(File::Spec->catfile($repo,'libraries','vcs','renderers','standard_4k_ntsc','vcs_standard_4k_ntsc.cfg'));
-$standard_compat_cfg !~ /callstack_extra|RENDERER_CODE|RENDERER_RODATA/
-   or die "standard renderer compatibility cfg regained component-specific constraints
-";
-my @renderer_cfg_products;
-find(sub {
-   return unless -f $_ && /\.cfg\z/;
-   push @renderer_cfg_products,$File::Find::name;
-}, File::Spec->catdir($repo,'libraries','vcs','renderers'));
-my %allowed_renderer_cfg = map { File::Spec->catfile($repo,split('/',$_)) => 1 } (
-   'libraries/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.cfg',
-   'libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.cfg',
-   'libraries/vcs/renderers/standard_4k_ntsc/vcs_standard_4k_ntsc.cfg',
-   'libraries/vcs/renderers/standard_4k_ntsc_playercolors/vcs_standard_4k_ntsc_playercolors.cfg',
-);
-my @unexpected_renderer_cfg = grep { !$allowed_renderer_cfg{$_} } @renderer_cfg_products;
-my @missing_renderer_cfg = grep { !-f $_ } sort keys %allowed_renderer_cfg;
-!@unexpected_renderer_cfg && !@missing_renderer_cfg
-   or die "new renderer x mapper cfg product is forbidden; unexpected=@unexpected_renderer_cfg missing=@missing_renderer_cfg
-";
 my $vcs_machine=slurp(File::Spec->catfile($repo,'libraries','vcs','vcs.c26'));
 index($vcs_machine,'mem rom')<0
    or die "vcs.c26 must describe the machine only; cartridge ROM belongs to a profile\n";
@@ -487,7 +468,7 @@ my $score_source=slurp(File::Spec->catfile($repo,'examples','01_basic','04_score
 my $score_make=slurp(File::Spec->catfile($repo,'examples','01_basic','04_score','Makefile'));
 my $examples_build=slurp(File::Spec->catfile($test,'vcs_examples_build.pl'));
 index($score_source,'include "2K/mapper.c26"')>=0 &&
-index($score_make,'-T $(VCS_DIR)/vcs.cfg')>=0 &&
+index($score_make,'-T $(VCS_DIR)/vcs.cfg')<0 &&
 index($score_make,'-eq 2048')>=0 &&
 index($examples_build,'sub profile_from_source')>=0 &&
 index($examples_build,q{include\s+"2K\/mapper\.c26"})>=0 &&
@@ -560,7 +541,7 @@ my $wide_source=slurp(File::Spec->catfile($repo,'examples','01_basic','06_wide_s
 my $wide_make=slurp(File::Spec->catfile($repo,'examples','01_basic','06_wide_score','Makefile'));
 index($wide_source,'include "2K/mapper.c26"')>=0 &&
 index($wide_source,'instantiate "six_glyph_wide_component.c26" as score')>=0 &&
-index($wide_make,'-T $(VCS_DIR)/vcs.cfg')>=0 &&
+index($wide_make,'-T $(VCS_DIR)/vcs.cfg')<0 &&
 index($wide_make,'-eq 2048')>=0 &&
 -f File::Spec->catfile($test,'vcs_six_glyph_wide.pl') &&
 -f File::Spec->catfile($test,'vcs_six_glyph_wide_181.pl') &&
@@ -588,9 +569,9 @@ index($big_wide_make,'-eq 2048')>=0 &&
 ";
 my $bank_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','01_f864','Makefile'));
 index($bank_example_make,'-DVCS_NO_DEFAULT_ROM')<0 &&
-index($bank_example_make,'$(VCS_DIR)/vcs.cfg')>=0 &&
+index($bank_example_make,'$(VCS_DIR)/vcs.cfg')<0 &&
 index($bank_example_make,'$(VCS_DIR)/F8/mapper.cfg')<0
-   or die "public bank diagnostics must build from C26 topology through reduced vcs.cfg\n";
+   or die "public bank diagnostics must build from C26 topology without linker cfg input\n";
 my $fa_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','FA/mapper.c26'));
 my $fa_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','03_fa_ram_plus','Makefile'));
 index($fa_profile,'$inline_bankcall')>=0 &&
@@ -700,20 +681,20 @@ for my $profile (qw(2K/mapper.c26 CV/mapper.c26 4K/mapper.c26 4KSC/mapper.c26 F8
 }
 -f File::Spec->catfile($repo,'libraries','vcs','CV/ram.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','CV/mapper.c26') &&
--f File::Spec->catfile($repo,'libraries','vcs','CV/mapper.cfg') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','CV/mapper.cfg') &&
 index($top_make,'libraries/vcs/CV/ram.c26')>=0 &&
 index($top_make,'libraries/vcs/CV/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/CV/mapper.cfg')>=0 &&
+index($top_make,'libraries/vcs/CV/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_cv.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','06_cv','cv_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','06_cv','README.md')
    or die "CV profile/diagnostic support is missing installation or test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','0840/mapper.c26') &&
--f File::Spec->catfile($repo,'libraries','vcs','0840/mapper.cfg') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','0840/mapper.cfg') &&
 -f File::Spec->catfile($repo,'libraries','vcs','0840/inline_bankcall.s26') &&
 index($top_make,'libraries/vcs/0840/mapper.c26')>=0 &&
 index($top_make,'libraries/vcs/0840/inline_bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/0840/mapper.cfg')>=0 &&
+index($top_make,'libraries/vcs/0840/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_0840.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','08_0840','econobanking_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','08_0840','README.md')
@@ -722,14 +703,14 @@ index($top_make,'libraries/vcs/0840/mapper.cfg')>=0 &&
 -f File::Spec->catfile($repo,'libraries','vcs','UASW/mapper.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','UA/inline_bankcall.s26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','UASW/inline_bankcall.s26') &&
--f File::Spec->catfile($repo,'libraries','vcs','UA/mapper.cfg') &&
--f File::Spec->catfile($repo,'libraries','vcs','UASW/mapper.cfg') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','UA/mapper.cfg') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','UASW/mapper.cfg') &&
 index($top_make,'libraries/vcs/UA/mapper.c26')>=0 &&
 index($top_make,'libraries/vcs/UASW/mapper.c26')>=0 &&
 index($top_make,'libraries/vcs/UA/inline_bankcall.s26')>=0 &&
 index($top_make,'libraries/vcs/UASW/inline_bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/UA/mapper.cfg')>=0 &&
-index($top_make,'libraries/vcs/UASW/mapper.cfg')>=0 &&
+index($top_make,'libraries/vcs/UA/mapper.cfg')<0 &&
+index($top_make,'libraries/vcs/UASW/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_ua.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','09_ua','ua_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','09_ua','uasw_diagnostic.c26') &&
@@ -750,19 +731,19 @@ for my $moved (
       or die "narrow helper leaked back into examples/common: $name\n";
 }
 -f File::Spec->catfile($repo,'libraries','vcs','0FA0/mapper.c26') &&
--f File::Spec->catfile($repo,'libraries','vcs','0FA0/mapper.cfg') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','0FA0/mapper.cfg') &&
 -f File::Spec->catfile($repo,'libraries','vcs','0FA0/inline_bankcall.s26') &&
 index($top_make,'libraries/vcs/0FA0/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/0FA0/mapper.cfg')>=0 &&
+index($top_make,'libraries/vcs/0FA0/mapper.cfg')<0 &&
 index($top_make,'libraries/vcs/0FA0/inline_bankcall.s26')>=0 &&
 -f File::Spec->catfile($test,'vcs_0fa0.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','10_0fa0','fotomania_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','10_0fa0','README.md')
    or die "0FA0 profile/diagnostic support is missing installation or test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','E0/mapper.c26') &&
--f File::Spec->catfile($repo,'libraries','vcs','E0/mapper.cfg') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','E0/mapper.cfg') &&
 index($top_make,'libraries/vcs/E0/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/E0/mapper.cfg')>=0 &&
+index($top_make,'libraries/vcs/E0/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_e0.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','11_e0','e0_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','11_e0','README.md') &&
@@ -773,8 +754,8 @@ index($top_make,'test/vcs_e0.pl')>=0
 -f File::Spec->catfile($repo,'libraries','vcs','3E/mapper_8k.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','3F/mapper_16k.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','3E/mapper_16k.c26') &&
--f File::Spec->catfile($repo,'libraries','vcs','3F/mapper_8k.cfg') &&
--f File::Spec->catfile($repo,'libraries','vcs','3E/mapper_8k.cfg') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','3F/mapper_8k.cfg') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','3E/mapper_8k.cfg') &&
 -f File::Spec->catfile($test,'vcs_3f_3e.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','12_3f','3f_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','13_3e','3e_diagnostic.c26') &&
@@ -784,22 +765,22 @@ index($top_make,'libraries/vcs/3E/mapper_16k.c26')>=0 &&
 index($top_make,'test/vcs_3f_3e.pl')>=0
    or die "3F/3E profile/diagnostic support is missing installation or Stella/test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','JANE/mapper.c26') &&
--f File::Spec->catfile($repo,'libraries','vcs','JANE/mapper.cfg') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','JANE/mapper.cfg') &&
 -f File::Spec->catfile($repo,'libraries','vcs','JANE/inline_bankcall.s26') &&
 index($top_make,'libraries/vcs/JANE/mapper.c26')>=0 &&
 index($top_make,'libraries/vcs/JANE/inline_bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/JANE/mapper.cfg')>=0 &&
+index($top_make,'libraries/vcs/JANE/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_jane.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','07_jane','jane_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','07_jane','README.md')
    or die "JANE profile/diagnostic support is missing installation or test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','FA/ram.c26') &&
 index($top_make,'libraries/vcs/FA/ram.c26')>=0 &&
--f File::Spec->catfile($repo,'libraries','vcs','FA/mapper.cfg') &&
-index($top_make,'libraries/vcs/FA/mapper.cfg')>=0
+!-e File::Spec->catfile($repo,'libraries','vcs','FA/mapper.cfg') &&
+index($top_make,'libraries/vcs/FA/mapper.cfg')<0
    or die "FA/RAM Plus profile support is missing installation coverage\n";
--f File::Spec->catfile($repo,'libraries','vcs','4KSC/mapper.cfg') &&
-index($top_make,'libraries/vcs/4KSC/mapper.cfg')>=0 &&
+!-e File::Spec->catfile($repo,'libraries','vcs','4KSC/mapper.cfg') &&
+index($top_make,'libraries/vcs/4KSC/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_4ksc.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','04_4ksc','4ksc_diagnostic.c26')
    or die "4KSC profile/diagnostic support is missing installation or test coverage\n";
@@ -813,14 +794,14 @@ index($omni_profile,'No real hardware currently supports this configuration')>=0
 index($omni_profile,'$signature:OMNI')>=0 &&
 index($omni_profile,'mem cartram { $start:0x1000 $size:0x1000 $rw }')>=0 &&
 -f File::Spec->catfile($test,'vcs_omni_32k.pl') &&
--f File::Spec->catfile($repo,'libraries','vcs','OMNI/mapper.cfg') &&
-index($top_make,'libraries/vcs/OMNI/mapper.cfg')>=0 &&
+!-e File::Spec->catfile($repo,'libraries','vcs','OMNI/mapper.cfg') &&
+index($top_make,'libraries/vcs/OMNI/mapper.cfg')<0 &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','05_omni','omni_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','05_omni','README.md')
-   or die "test-only direct/OMNI certification profiles, simulator cfg, diagnostic, or hardware-status comments are incomplete\n";
--f File::Spec->catfile($repo,'libraries','vcs','vcs.cfg') &&
-index($top_make,'libraries/vcs/vcs.cfg')>=0
-   or die "reduced vcs.cfg is missing from installation coverage\n";
+   or die "test-only direct/OMNI certification profiles, simulator-map diagnostic or hardware-status comments are incomplete\n";
+!-e File::Spec->catfile($repo,'libraries','vcs','vcs.cfg') &&
+index($top_make,'libraries/vcs/vcs.cfg')<0
+   or die "obsolete vcs.cfg unexpectedly remains in installation coverage\n";
 for my $name (qw(missing size start type)) {
    my $body=slurp(File::Spec->catfile($test,"e2e_mem_region_cfg_${name}_mismatch.c26"));
    index($body,'expectlinkfail')<0
@@ -830,12 +811,12 @@ for my $name (qw(missing size start type)) {
    or die "automatic bank-placement regression test is missing\n";
 -f File::Spec->catfile($test,'linker_banked_placement_modes.pl')
    or die "placement-mode optimization regression test is missing\n";
--f File::Spec->catfile($repo,'libraries','vcs','F8/mapper.cfg') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','F8/mapper.cfg') &&
 -f File::Spec->catfile($test,'vcs_f8_profile.pl') &&
 -f File::Spec->catfile($test,'fixtures','bankswitching','f8_profile_diagnostic.c26')
    or die "certified F8 profile or its diagnostics are missing\n";
--f File::Spec->catfile($repo,'libraries','vcs','F6/mapper.cfg') &&
--f File::Spec->catfile($repo,'libraries','vcs','F4/mapper.cfg') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','F6/mapper.cfg') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','F4/mapper.cfg') &&
 -f File::Spec->catfile($test,'vcs_f6_f4_profiles.pl')
    or die "certified F6/F4 profiles or their regression test are missing\n";
 
@@ -1076,34 +1057,20 @@ for my $paths (values %hashes) {
 for my $required (qw(
    libraries/vcs/4KSC/ram.c26
    libraries/vcs/4KSC/mapper.c26
-   libraries/vcs/4KSC/mapper.cfg
    libraries/vcs/F8SC/mapper.c26
    libraries/vcs/F6SC/mapper.c26
    libraries/vcs/UA/mapper.c26
    libraries/vcs/UASW/mapper.c26
-   libraries/vcs/UA/mapper.cfg
-   libraries/vcs/UASW/mapper.cfg
    libraries/vcs/0FA0/mapper.c26
-   libraries/vcs/0FA0/mapper.cfg
    libraries/vcs/0FA0/inline_bankcall.s26
    libraries/vcs/E0/mapper.c26
-   libraries/vcs/E0/mapper.cfg
    libraries/vcs/tia_mirror_40.c26
    libraries/vcs/3F/mapper_8k.c26
    libraries/vcs/3E/mapper_8k.c26
    libraries/vcs/3F/mapper_16k.c26
    libraries/vcs/3E/mapper_16k.c26
-   libraries/vcs/3F/mapper_8k.cfg
-   libraries/vcs/3E/mapper_8k.cfg
-   libraries/vcs/3F/mapper_16k.cfg
-   libraries/vcs/3E/mapper_16k.cfg
    libraries/vcs/JANE/mapper.c26
-   libraries/vcs/JANE/mapper.cfg
    libraries/vcs/F4SC/mapper.c26
-   libraries/vcs/F8SC/mapper.cfg
-   libraries/vcs/F6SC/mapper.cfg
-   libraries/vcs/F4SC/mapper.cfg
-   libraries/vcs/OMNI/mapper.cfg
 )) {
    -f File::Spec->catfile($repo,split('/', $required))
       or die "missing required Superchip file $required\n";
@@ -1149,10 +1116,10 @@ index($snapshot_keys,"'--reset'")>=0 &&
 index($snapshot_keys,"function_keycode('F2')")>=0
    or die "Stella bank diagnostics lost console-reset lifecycle coverage\n";
 index($top_make,'libraries/vcs/4KSC/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/4KSC/mapper.cfg')>=0 &&
+index($top_make,'libraries/vcs/4KSC/mapper.cfg')<0 &&
 index($top_make,'libraries/vcs/F8SC/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/F8SC/mapper.cfg')>=0 &&
+index($top_make,'libraries/vcs/F8SC/mapper.cfg')<0 &&
 index($top_make,'libraries/vcs/4KSC/ram.c26')>=0
-   or die "4KSC/banked Superchip profiles/header are not installed and uninstalled\n";
+   or die "4KSC/banked Superchip profiles/header installation coverage is incomplete\n";
 
 print "source tree hygiene ok\n";

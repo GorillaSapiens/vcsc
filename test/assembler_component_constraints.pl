@@ -50,7 +50,6 @@ $tmp=abs_path($tmp) // die "could not resolve temp dir\n";
 my $as=File::Spec->catfile($repo,'assembler','vcsc-as');
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $cfg=File::Spec->catfile($vcs,'vcs.cfg');
 my $profile=File::Spec->catfile($vcs,'4K/mapper.c26');
 my $valid_s=File::Spec->catfile($tmp,'component_valid.s26');
 my $valid_o=File::Spec->catfile($tmp,'component_valid.o26');
@@ -84,7 +83,7 @@ index($object,'__componentmeta$V1$L$434F4D504F4E454E545F434F4445$407374617274757
    or die "object lacks canonical layout metadata\n";
 
 my ($lexit,$lsig,$lout,$lerr)=run_capture(
-   $driver,'-I',$vcs,'-T',$cfg,'-Map',$map,$profile,$main,$valid_o,'-o',$bin);
+   $driver,'-I',$vcs,'-Map',$map,$profile,$main,$valid_o,'-o',$bin);
 $lexit == 0 && !$lsig or die "valid component link failed\nstdout:\n$lout\nstderr:\n$lerr";
 $lerr eq '' or die "valid component link wrote stderr:\n$lerr";
 -s $bin == 4096 or die "valid component link did not produce a 4K image\n";
@@ -127,7 +126,7 @@ ASM
 my ($mexit,$msig,$mout,$merr)=run_capture($as,'-o',$badmeta_o,$badmeta_s);
 $mexit == 0 && !$msig or die "could not construct malformed metadata object\n$mout$merr";
 require_fail('malformed linker metadata',qr/unknown component metadata record/,
-   $driver,'-I',$vcs,'-T',$cfg,$profile,$main,$badmeta_o,'-o',
+   $driver,'-I',$vcs,$profile,$main,$badmeta_o,'-o',
    File::Spec->catfile($tmp,'bad_component_metadata.bin'));
 
 print "assembler_component_constraints ok\n";

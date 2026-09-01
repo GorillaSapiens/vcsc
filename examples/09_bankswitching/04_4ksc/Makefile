@@ -16,7 +16,7 @@ SOURCE = 4ksc_diagnostic.c26
 all: $(TARGET)
 
 $(TARGET): $(SOURCE)
-	$(VCSC) -I $(VCSLIB) -T $(VCSLIB)/vcs.cfg -Map $(@:.bin=.map) $< -o $@
+	$(VCSC) -I $(VCSLIB) -Map $(@:.bin=.map) $< -o $@
 
 $(TARGET): $(COMMITTED_FONT_SUBSETS)
 

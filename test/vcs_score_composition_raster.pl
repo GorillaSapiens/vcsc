@@ -81,7 +81,6 @@ $tmp=abs_path($tmp) // die "resolve tmp\n";
 
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $cfg=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc vcs_standard_4k_ntsc.cfg));
 my $cxx=$ENV{CXX} || 'c++';
 my $mos=File::Spec->catdir($repo,qw(simulator mos6502));
 my $mos_obj=File::Spec->catfile($mos,'mos6502.o');
@@ -226,7 +225,7 @@ for my $family (@active_families) {
             my $mapfile=File::Spec->catfile($tmp,"$tag.map");
             write_file($src,$source);
             my @extra=$family->{illegals} ? ('-Wa,--illegals') : ();
-            my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,@extra,'-Map',$mapfile,$src,'-o',$bin);
+            my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,@extra,'-Map',$mapfile,$src,'-o',$bin);
             $rc==0 && !$sig or die "$tag build failed\n$out$err";
             without_usage($out) eq '' && $err eq '' or die "$tag build wrote output\n$out$err";
             -s $bin==4096 or die "$tag is not a 4K cartridge\n";
@@ -276,7 +275,7 @@ $checked==$expected_compositions or die "checked $checked static/motion composit
 if ($run_mixed) {
    my $mixed_src=File::Spec->catfile($repo,qw(test fixtures score_composition_matrix mixed_instances.c26));
    my $mixed_bin=File::Spec->catfile($tmp,'score_matrix_mixed_instances.bin');
-   my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',$cfg,$mixed_src,'-o',$mixed_bin);
+   my($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,$mixed_src,'-o',$mixed_bin);
    $rc==0 && !$sig or die "mixed score-instance build failed\n$out$err";
    without_usage($out) eq '' && $err eq '' or die "mixed score-instance build wrote output\n$out$err";
    for my $case (['center',50],['left',80],['right',110],['two-plus-two',140]) {

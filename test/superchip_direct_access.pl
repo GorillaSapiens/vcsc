@@ -82,8 +82,6 @@ make_path($tmp); $tmp=abs_path($tmp) // die "resolve temp\n";
 my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
-my $cfg=File::Spec->catfile($vcs,'4KSC/mapper.cfg');
 
 # First use one ordinary C26 array to occupy all 128 physical SC bytes. This
 # catches bad base aliases, bad runtime indexing, boundary errors, adjacent-byte
@@ -149,7 +147,7 @@ void main(void) {
    simulator_done();
 }
 C26
-require_ok('build exhaustive 4KSC arena', $driver,'-I',$vcs,'-T',$generic,
+require_ok('build exhaustive 4KSC arena', $driver,'-I',$vcs,
    '-Map',$arena_map_path,'-Sym',$arena_sym_path,$arena_source,'-o',$arena_bin);
 -s $arena_bin==4096 or die "4KSC arena output is not 4096 bytes\n";
 my $arena_map=read_file($arena_map_path);
@@ -162,7 +160,7 @@ $arena_map =~ /^\s*ZERO\s+BSS\.cartram\.__vcsc_object\$sc\s+read=\$F080 write=\$
 my $arena_sym=read_file($arena_sym_path);
 my $arena_done=parse_symbol($arena_sym,'simulator_done');
 my $arena_failure=parse_symbol($arena_sym,'failure');
-my($arena_dump,$arena_err)=require_ok('simulate exhaustive 4KSC arena',$sim,'-T',$cfg,
+my($arena_dump,$arena_err)=require_ok('simulate exhaustive 4KSC arena',$sim,'--map',$arena_map_path,
    '--split-fill=0xA7',sprintf('--reset-on-pc=0x%04X',$arena_done),
    sprintf('--stop-pc=0x%04X',$arena_done),'--dump-on-stop',$arena_bin);
 $arena_err eq '' or die "4KSC arena simulator wrote stderr:\n$arena_err";
@@ -240,7 +238,7 @@ void main(void) {
    simulator_done();
 }
 C26
-require_ok('build 4KSC access-pattern test',$driver,'-I',$vcs,'-T',$generic,
+require_ok('build 4KSC access-pattern test',$driver,'-I',$vcs,
    '-Map',$access_map_path,'-Sym',$access_sym_path,$access_source,'-o',$access_bin);
 -s $access_bin==4096 or die "4KSC access-pattern output is not 4096 bytes\n";
 my $access_map=read_file($access_map_path);
@@ -271,7 +269,7 @@ require_pointer_expr('runtime-index src read base',$lst,'(src + 0)',$addr{src});
 require_pointer_expr('runtime-index dst write base',$lst,'((dst - 128) + 0)',$addr{dst}-0x80);
 require_pointer_expr('runtime-index dst read base',$lst,'(dst + 0)',$addr{dst});
 
-my($access_dump,$access_err)=require_ok('simulate 4KSC access-pattern test',$sim,'-T',$cfg,
+my($access_dump,$access_err)=require_ok('simulate 4KSC access-pattern test',$sim,'--map',$access_map_path,
    '--split-fill=0xA7',sprintf('--reset-on-pc=0x%04X',$addr{simulator_done}),
    sprintf('--stop-pc=0x%04X',$addr{simulator_done}),'--dump-on-stop',$access_bin);
 $access_err eq '' or die "4KSC access-pattern simulator wrote stderr:\n$access_err";

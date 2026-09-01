@@ -184,7 +184,7 @@ $out eq "vcs_three_plus_three_score ok: exact 3+3 raster, independent colors, BC
    or die "unexpected three-plus-three oracle output: $out";
 $err eq '' or die "three-plus-three oracle stderr: $err";
 
-($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-T',File::Spec->catfile($vcs,'vcs.cfg'),'-Map',$public_map,$public,'-o',$public_bin);
+($rc,$sig,$out,$err)=capture($driver,'-I',$vcs,'-Map',$public_map,$public,'-o',$public_bin);
 $rc==0 && !$sig or die "public dual-score example build failed\n$out$err";
 without_usage($out) eq '' && $err eq '' or die "public dual-score example wrote output\n$out$err";
 -s $public_bin==2048 or die "public dual-score example is not 2048 bytes\n";

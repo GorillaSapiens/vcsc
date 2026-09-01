@@ -6,8 +6,8 @@ VCS_DIR ?= $(ROOT)/libraries/vcs
 
 all: four_player_paddleball.bin
 
-four_player_paddleball.bin: four_player_paddleball.c26 $(VCS_DIR)/four_paddles.c26 $(VCS_DIR)/fonts/default_decimal.c26 $(VCS_DIR)/three_plus_three_score_component.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/color_ntsc.c26 $(VCS_DIR)/sound_ntsc.c26 $(VCS_DIR)/4K/mapper.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26 $(VCS_DIR)/vcs.cfg
-	$(VCSC) -I $(VCS_DIR) -I . -T $(VCS_DIR)/vcs.cfg -Map four_player_paddleball.map four_player_paddleball.c26 -o $@
+four_player_paddleball.bin: four_player_paddleball.c26 $(VCS_DIR)/four_paddles.c26 $(VCS_DIR)/fonts/default_decimal.c26 $(VCS_DIR)/three_plus_three_score_component.c26 $(VCS_DIR)/frame_ntsc.c26 $(VCS_DIR)/color_ntsc.c26 $(VCS_DIR)/sound_ntsc.c26 $(VCS_DIR)/4K/mapper.c26 $(VCS_DIR)/vcs.c26 $(VCS_DIR)/tia.c26 $(VCS_DIR)/riot.c26
+	$(VCSC) -I $(VCS_DIR) -I . -Map four_player_paddleball.map four_player_paddleball.c26 -o $@
 	@test `wc -c < $@` -eq 4096
 
 clean:

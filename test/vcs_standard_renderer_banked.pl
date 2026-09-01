@@ -36,7 +36,7 @@ sub build_variant {
    my($driver,$vcs,$cfg,$source,$renderer,$tmp,$name,$defs,$size)=@_;
    my $bin=File::Spec->catfile($tmp,"$name.bin");
    my $mapfile=File::Spec->catfile($tmp,"$name.map");
-   my @cmd=($driver,'-I',$vcs,@$defs,'-T',$cfg,'-Map',$mapfile,$source,$renderer,'-o',$bin);
+   my @cmd=($driver,'-I',$vcs,@$defs,'-Map',$mapfile,$source,$renderer,'-o',$bin);
    my($rc,$sig,$out,$err)=capture(@cmd);
    $rc==0 && !$sig or die "$name build failed rc=$rc sig=$sig\n$out$err";
    without_usage($out) eq '' or die "$name build wrote stdout:\n$out";
@@ -62,7 +62,6 @@ $repo=abs_path($repo) // die "resolve repo\n";
 $tmp=abs_path($tmp) // die "resolve tmp\n";
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-my $cfg=File::Spec->catfile($vcs,'vcs.cfg');
 my $example=File::Spec->catdir($repo,qw(examples 09_bankswitching 02_standard_renderer));
 my $source=File::Spec->catfile($example,'banked_standard_renderer.c26');
 my $renderer=File::Spec->catfile($vcs,qw(renderers standard_4k_ntsc standard_4k_ntsc_renderer.s26));

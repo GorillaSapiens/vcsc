@@ -1,6 +1,5 @@
 # runner: vcsc -### -I @REPO@/libraries/vcs @REPO@/examples/01_basic/01_blank_screen/blank_screen.c26 -o @TMP@/blank_screen.bin
 # phase: e2e
-# expectstdout: -T
-# expectstdout: libraries/vcs/vcs.cfg
+# forbidstdout: -T
 # expectstdout: libraries/vcs/4K/mapper.c26
 # forbidstderr: no linker script/config supplied

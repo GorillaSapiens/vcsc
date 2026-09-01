@@ -43,9 +43,7 @@ my $driver=File::Spec->catfile($repo,'driver','vcsc');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 -f $roundtrip or die "missing disassembler round-trip verifier $roundtrip\n";
-my $faithful_cfg=File::Spec->catfile($vcs,qw(renderers faithful_legacy_playercolors faithful_legacy_playercolors.cfg));
 my $faithful_multisprite=File::Spec->catdir($vcs,qw(renderers faithful_legacy_multisprite));
-my $faithful_multisprite_cfg=File::Spec->catfile($faithful_multisprite,'faithful_legacy_multisprite.cfg');
 my $examples_root=File::Spec->catdir($repo,'examples');
 my @examples;
 sub profile_from_source {
@@ -144,22 +142,17 @@ for my $entry (@examples) {
    }
    if ($file eq 'bankswitching_diagnostic.c26' ||
        $file eq 'banked_standard_renderer.c26') {
-      push @extra,'-DMAPPER_BANKS=2',
-                  '-T',File::Spec->catfile($vcs,'vcs.cfg');
-   } elsif ($profile eq '2k') {
-      push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
-   } elsif ($profile eq 'f8') {
-      push @extra,'-T',File::Spec->catfile($vcs,'F8/mapper.cfg');
+      push @extra,'-DMAPPER_BANKS=2';
+   } elsif ($profile eq '2k' || $profile eq 'f8') {
+      # The source-selected C26 mapper owns cartridge topology.
    } elsif ($profile eq 'cv' || $profile eq '4ksc' || $profile eq 'f8sc' || $profile eq 'f6' || $profile eq 'f6sc' || $profile eq 'f4' || $profile eq 'f4sc' || $profile eq 'fa' || $profile eq 'fa2' || $profile eq 'omni' || $profile eq 'jane' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq 'fe' || $profile eq 'wd' || $profile eq '3f' || $profile eq '3e' || $profile eq 'dpc') {
-      # C26 owns the 4KSC/F8SC/FA cartridge and cartridge-RAM topology; the generic cfg
-      # only reserves the RIOT hardware stack, matching the public Makefiles.
-      push @extra,'-T',File::Spec->catfile($vcs,'vcs.cfg');
+      # C26 owns cartridge and cartridge-RAM topology.
    } elsif ($file eq 'fingerprint.c26') {
       push @extra,'-Wa,--illegals';
    } elsif ($file =~ /\Afaithful_legacy_playercolors.*\.c26\z/) {
-      push @extra,'-Wa,--illegals','-T',$faithful_cfg;
+      push @extra,'-Wa,--illegals';
    } elsif ($file eq 'faithful_legacy_multisprite_diagnostic.c26') {
-      push @extra,'-nostdlib','-Wa,--illegals','-T',$faithful_multisprite_cfg;
+      push @extra,'-nostdlib','-Wa,--illegals';
    } elsif ($file =~ /\Amultisprite_.*\.c26\z/ ||
             $source_text =~ /instantiate\s+"renderers\/multisprite\/multisprite\.c26"/) {
       push @extra,'-Wa,--illegals';

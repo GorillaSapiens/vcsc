@@ -1,0 +1,23 @@
+2026-09-01 13:35:52 PDT, linker cfgectomy handoff
+Began removing the parallel VCS mapper/linker cfg universe before FC. Deleted
+all 31 checked-in `.cfg` profiles under `libraries/vcs`; opcode-table cfg files
+and generic linker cfg fixtures intentionally remain. Added C26 `$stack` memory
+metadata, allowed pure C26 topology without `-T`, taught the driver to recognize
+C26 cartridge topology, emitted resolved topology in linker maps, and taught
+`vcsc-sim` to consume/auto-discover those maps with a 256-bank table. Converted
+many mapper, Superchip, replicated-ROM, bankswitch ABI, diagnostic, and e2e
+consumers. Work remains in the F8 profile legacy byte-equality assertion, a few
+renderer/FAITHFUL cfg consumers, hygiene/docs, and the final full-suite pass.
+
+2026-09-01 13:40:45 PDT, linker cfgectomy validation and documentation cleanup
+Verified the F8 profile regression was already descriptor-aware and passes.
+Updated maintained driver/linker/simulator/library/renderer/example/tool/test
+documentation to remove deleted VCS linker-cfg assumptions while preserving
+generic -T linker-script compatibility and assembler opcode cfgs. Confirmed
+source_tree_hygiene recursively rejects every .cfg below libraries/vcs, repaired
+the malformed September 1 history heading, and compacted context.txt below its
+16 KiB ceiling. Full compile-only validation passed 503/503. E2E validation ran
+green through the first 245/342 cases; additional tail checks passed the
+diagnostic cartridge, DPC, driving, E0, enhanced multisprite, discard-strobe,
+VSYNC, and example-build shards 1-6. The exhaustive/long remaining tail exceeded
+the available execution window, so it is explicitly not recorded as rerun.

@@ -61,7 +61,7 @@ $tmp = abs_path($tmp) // die "could not resolve temp dir\n";
 
 my $vcsc = File::Spec->catfile($repo, 'driver', 'vcsc');
 my $include = File::Spec->catfile($repo, 'test');
-my $stock_cfg = File::Spec->catfile($repo, 'libraries', 'vcs', '4K/mapper.cfg');
+my $vcs = File::Spec->catdir($repo, 'libraries', 'vcs');
 my $src = File::Spec->catfile($tmp, 'banked.c26');
 my $cfg = File::Spec->catfile($tmp, 'banked.cfg');
 my $bin = File::Spec->catfile($tmp, 'banked.bin');
@@ -241,19 +241,15 @@ require_fail('ordinary code over vector bridge', 'covers reserved vector bridge 
 my $unbanked_src = File::Spec->catfile($tmp, 'unbanked.c26');
 my $unbanked_bin = File::Spec->catfile($tmp, 'unbanked.bin');
 write_file($unbanked_src, <<'SRC');
-include "machine_6502.c26"
-mem RAM { $start:0x0080 $size:0x0080 $rw $priority:2 };
-mem ROM { $start:0xF000 $size:0x0FFA $ro $priority:1 };
+include "4K/mapper.c26"
 void main(void) { asm nop; }
 SRC
-require_ok('unbanked compatibility link', $vcsc, '-I', $include,
-           '-DMACHINE_6502_NO_DEFAULT_ZEROPAGE', '-DMACHINE_6502_NO_DEFAULT_CPUSTACK',
-           '-DMACHINE_6502_NO_DEFAULT_RAM', '-DMACHINE_6502_NO_DEFAULT_ROM',
-           '-T', $stock_cfg, '--no-map', '--no-sym', '--no-list', '--no-cfg',
+require_ok('unbanked C26-profile link', $vcsc, '-I', $vcs,
+           '--no-map', '--no-sym', '--no-list', '--no-cfg',
            '-o', $unbanked_bin, $unbanked_src);
 my $unbanked = slurp($unbanked_bin);
 length($unbanked) == 4096 or die "stock 4K output size changed\n";
 sha256_hex($unbanked) eq 'b98d91231f1a5447df93bc8bcf15a14306bce9ffa7199b84fb673ef59e5dc5d7'
-   or die "stock 4K/mapper.cfg output changed byte-for-byte\n";
+   or die "stock 4K C26-profile output changed byte-for-byte\n";
 
 print "banked image model enforced\n";

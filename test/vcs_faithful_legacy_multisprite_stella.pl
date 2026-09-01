@@ -29,7 +29,6 @@ my $source=File::Spec->catfile($repo,qw(examples 10_faithful_legacy_multisprite 
 my $fixture=File::Spec->catfile($repo,qw(examples 10_faithful_legacy_multisprite 01_diagnostic faithful_legacy_multisprite_diagnostic_data.s26));
 my $renderer=File::Spec->catfile($profile,'faithful_legacy_multisprite_renderer.s26');
 my $startup=File::Spec->catfile($profile,'faithful_legacy_multisprite_startup.s26');
-my $cfg=File::Spec->catfile($profile,'faithful_legacy_multisprite.cfg');
 my $reference=File::Spec->catfile($repo,qw(test fixtures faithful_legacy_multisprite reference_diagnostic_stella_7.0.png));
 my $keys=File::Spec->catfile($repo,qw(test stella_snapshot_keys.pl));
 my $digest=File::Spec->catfile($repo,qw(test stella_png_rgb_digest.pl));

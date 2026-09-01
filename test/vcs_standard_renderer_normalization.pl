@@ -53,7 +53,6 @@ my $profile=File::Spec->catdir($repo,'libraries','vcs','renderers','standard_4k_
 my $normalizer=File::Spec->catfile($profile,'normalize.pl');
 my $macros=File::Spec->catfile($profile,'standard_4k_ntsc_macros.inc');
 my $renderer=File::Spec->catfile($profile,'standard_4k_ntsc_renderer.s26');
-my $config=File::Spec->catfile($profile,'vcs_standard_4k_ntsc.cfg');
 my $generated=File::Spec->catdir($tmp,'normalized');
 make_path($generated);
 
@@ -77,7 +76,6 @@ for my $name ('standard_4k_ntsc_macros.inc','standard_4k_ntsc_renderer.s26') {
 
 my $macro_text=read_file($macros);
 my $renderer_text=read_file($renderer);
-my $config_text=read_file($config);
 my @macro_defs=($macro_text =~ /^MACRO\s+([A-Za-z_][A-Za-z0-9_]*)\b/mg);
 join(',',@macro_defs) eq 'SLEEP,VERTICAL_SYNC,CLEAN_START,SET_POINTER,RETURN'
    or die "normalized macro set/order is wrong: @macro_defs\n";
@@ -120,8 +118,6 @@ require_re($active,qr/^\s*\.segmentprivate\s+"RENDERER_RODATA"$/m,
    'renderer score-table segment does not carry its private-route contract');
 require_re($active,qr/^\s*\.callstackextra\s+4$/m,
    'renderer object does not carry its hidden-stack contract');
-$config_text !~ /RENDERER_CODE|RENDERER_RODATA|callstack_extra/
-   or die "compatibility cfg regained component-owned constraints\n";
 require_re($active,qr/^\s*lda\s+#37\+128\s*$/m,
    'selected renderer no longer uses the Stella-verified 262-line vblank timer');
 require_re($active,qr/\.align 256\s+\@kerloop:/s,

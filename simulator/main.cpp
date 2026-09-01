@@ -56,8 +56,9 @@ struct cartridge_bank_t {
 struct simulator_config_t {
    memory_region_t mem[64];
    size_t mem_count;
-   cartridge_bank_t banks[8];
+   cartridge_bank_t banks[256];
    size_t bank_count;
+   size_t auxiliary_image_bytes;
    char mapper[16];
    int cartridge_banked;
    int cartridge_direct_multi;
@@ -80,6 +81,7 @@ struct parse_result_t {
 struct simulator_options_t {
    const char *image_path;
    const char *cfg_path;
+   const char *map_path;
    uint16_t trace;
    int trace_set;
    size_t start_bank;
@@ -132,8 +134,9 @@ static void usage(FILE *fp) {
       "  --trace=MASK         Same as -t MASK\n"
       "  -T FILE              Use FILE as simulator linker-style config\n"
       "  --config=FILE        Same as -T FILE\n"
+      "  --map=FILE           Use linker map FILE for C26 cartridge topology\n"
       "  --script=FILE        Same as -T FILE\n"
-      "  --start-bank=N       Begin in physical/file bank N (banked cfg only)\n"
+      "  --start-bank=N       Begin in physical/file bank N (banked topology only)\n"
       "  --stop-pc=ADDR       Exit successfully before executing ADDR\n"
       "  --reset-on-pc=ADDR   Reset once before executing ADDR, preserving RAM\n"
       "  --split-fill=BYTE    Pre-fill split-address memory before CPU reset\n"
@@ -262,7 +265,7 @@ static void parse_bank_property(cartridge_bank_t *bank, const char *key, const c
    }
    else if (str_ieq(key, "fileindex")) {
       n = parse_number(value);
-      if (!n.ok || n.value > 7u) {
+      if (!n.ok || n.value > 255u) {
          fprintf(stderr, "vcsc-sim: bad bank file index '%s'\n", value);
          exit(1);
       }
@@ -279,6 +282,157 @@ static void parse_bank_property(cartridge_bank_t *bank, const char *key, const c
    }
    else if (str_ieq(key, "startup")) {
       bank->startup = str_ieq(trim((char *)value), "yes");
+   }
+}
+
+//! @brief Validate and classify one parsed simulator topology.
+static void finalize_simulator_config(simulator_config_t *cfg) {
+   size_t startup_count = 0;
+   int any_hotspot = 0;
+
+   cfg->cartridge_direct_multi = str_ieq(cfg->mapper, "OMNI");
+   cfg->superchip_mapper = str_ieq(cfg->mapper, "4KSC") ||
+                           str_ieq(cfg->mapper, "F8SC") ||
+                           str_ieq(cfg->mapper, "F6SC") ||
+                           str_ieq(cfg->mapper, "F4SC");
+   cfg->e0_mapper = str_ieq(cfg->mapper, "E0");
+   cfg->wd_mapper = str_ieq(cfg->mapper, "WD");
+   cfg->fe_mapper = str_ieq(cfg->mapper, "FE");
+   cfg->threef_mapper = str_ieq(cfg->mapper, "3F");
+   cfg->threee_mapper = str_ieq(cfg->mapper, "3E");
+   cfg->dpc_mapper = str_ieq(cfg->mapper, "DPC");
+
+   for (size_t i = 0; i < cfg->bank_count; ++i)
+      if (cfg->banks[i].hotspot)
+         any_hotspot = 1;
+   cfg->cartridge_banked = !cfg->cartridge_direct_multi &&
+      (cfg->bank_count > 1u || any_hotspot || cfg->e0_mapper || cfg->wd_mapper ||
+       cfg->fe_mapper || cfg->threef_mapper || cfg->threee_mapper || cfg->dpc_mapper);
+
+   if (cfg->bank_count == 0)
+      return;
+
+   if (cfg->cartridge_banked || cfg->cartridge_direct_multi) {
+      if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") ||
+            str_ieq(cfg->mapper, "F4") || str_ieq(cfg->mapper, "FA") ||
+            str_ieq(cfg->mapper, "FA2") ||
+            str_ieq(cfg->mapper, "OMNI") || str_ieq(cfg->mapper, "JANE") ||
+            str_ieq(cfg->mapper, "0840") || str_ieq(cfg->mapper, "UA") ||
+            str_ieq(cfg->mapper, "UASW") || str_ieq(cfg->mapper, "0FA0") ||
+            cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper ||
+            cfg->threef_mapper || cfg->threee_mapper || cfg->dpc_mapper ||
+            cfg->superchip_mapper)) {
+         fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
+         exit(1);
+      }
+      if (cfg->e0_mapper && cfg->bank_count != 8u) {
+         fprintf(stderr, "vcsc-sim: E0 requires exactly eight physical 1K banks\n");
+         exit(1);
+      }
+      if (cfg->wd_mapper && cfg->bank_count != 8u) {
+         fprintf(stderr, "vcsc-sim: WD requires exactly eight physical 1K banks\n");
+         exit(1);
+      }
+      if (cfg->fe_mapper && cfg->bank_count != 2u) {
+         fprintf(stderr, "vcsc-sim: FE requires exactly two physical 4K banks\n");
+         exit(1);
+      }
+      if (cfg->dpc_mapper && cfg->bank_count != 2u) {
+         fprintf(stderr, "vcsc-sim: DPC requires exactly two physical 4K program banks\n");
+         exit(1);
+      }
+   }
+
+   for (size_t i = 0; i < cfg->bank_count; ++i) {
+      size_t file_index = 0;
+      uint16_t wanted_size = (cfg->e0_mapper || cfg->wd_mapper) ? 0x0400u :
+                             (cfg->threef_mapper || cfg->threee_mapper) ? 0x0800u : 0x1000u;
+      if ((cfg->cartridge_banked || cfg->cartridge_direct_multi) &&
+          !cfg->cartridge_direct_multi && cfg->banks[i].size != wanted_size) {
+         fprintf(stderr, "vcsc-sim: %s bank '%s' is not %s\n",
+                 cfg->mapper, cfg->banks[i].name,
+                 (cfg->e0_mapper || cfg->wd_mapper) ? "1K" :
+                 (cfg->threef_mapper || cfg->threee_mapper) ? "2K" : "4K");
+         exit(1);
+      }
+      if ((cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper || cfg->dpc_mapper ||
+           str_ieq(cfg->mapper, "FA2")) && !cfg->banks[i].has_file_index) {
+         fprintf(stderr, "vcsc-sim: %s bank '%s' requires an explicit fileindex\n",
+                 cfg->mapper, cfg->banks[i].name);
+         exit(1);
+      }
+      if (!cfg->banks[i].has_file_index) {
+         for (size_t j = 0; j < cfg->bank_count; ++j)
+            if (cfg->banks[j].start < cfg->banks[i].start)
+               file_index++;
+         cfg->banks[i].file_index = file_index;
+      }
+      if (cfg->banks[i].startup) {
+         cfg->startup_bank = i;
+         startup_count++;
+      }
+   }
+   for (size_t i = 0; i < cfg->bank_count; ++i) {
+      if (cfg->banks[i].file_index >= cfg->bank_count) {
+         fprintf(stderr, "vcsc-sim: bank '%s' file index %zu is out of range\n",
+                 cfg->banks[i].name, cfg->banks[i].file_index);
+         exit(1);
+      }
+      for (size_t j = i + 1; j < cfg->bank_count; ++j) {
+         if (cfg->banks[i].file_index == cfg->banks[j].file_index) {
+            fprintf(stderr, "vcsc-sim: duplicate physical/file bank index %zu\n",
+                    cfg->banks[i].file_index);
+            exit(1);
+         }
+      }
+   }
+   if ((cfg->cartridge_banked || cfg->cartridge_direct_multi) && startup_count != 1) {
+      fprintf(stderr, "vcsc-sim: multi-region topology must name exactly one startup bank\n");
+      exit(1);
+   }
+   if (cfg->e0_mapper && cfg->banks[cfg->startup_bank].file_index != 7u) {
+      fprintf(stderr, "vcsc-sim: E0 startup bank must be fixed physical/file bank 7\n");
+      exit(1);
+   }
+   if (cfg->wd_mapper && cfg->banks[cfg->startup_bank].file_index != 3u) {
+      fprintf(stderr, "vcsc-sim: WD startup bank must be physical/file bank 3\n");
+      exit(1);
+   }
+   if (cfg->fe_mapper && cfg->banks[cfg->startup_bank].file_index != 0u) {
+      fprintf(stderr, "vcsc-sim: FE startup bank must be physical/file bank 0\n");
+      exit(1);
+   }
+   if (cfg->dpc_mapper && cfg->banks[cfg->startup_bank].file_index != 1u) {
+      fprintf(stderr, "vcsc-sim: DPC startup bank must be physical/file bank 1\n");
+      exit(1);
+   }
+   if ((cfg->threef_mapper || cfg->threee_mapper) &&
+       cfg->banks[cfg->startup_bank].file_index != cfg->bank_count - 1u) {
+      fprintf(stderr, "vcsc-sim: 3F/3E startup bank must be the fixed final physical/file bank\n");
+      exit(1);
+   }
+
+   for (size_t i = 0; i < cfg->mem_count; ++i) {
+      memory_region_t *mem_region = &cfg->mem[i];
+      if (!mem_region->has_write_start)
+         continue;
+      if (!str_ieq(mem_region->type, "rw")) {
+         fprintf(stderr, "vcsc-sim: split-address MEMORY region '%s' is not type=rw\n",
+                 mem_region->name);
+         exit(1);
+      }
+      if (mem_region->bank_name[0]) {
+         fprintf(stderr, "vcsc-sim: split-address MEMORY region '%s' must be shared\n",
+                 mem_region->name);
+         exit(1);
+      }
+      if (mem_region->size == 0 ||
+          (uint32_t)mem_region->start + mem_region->size > 0x10000u ||
+          (uint32_t)mem_region->write_start + mem_region->size > 0x10000u) {
+         fprintf(stderr, "vcsc-sim: split-address MEMORY region '%s' has an invalid window\n",
+                 mem_region->name);
+         exit(1);
+      }
    }
 }
 
@@ -398,138 +552,228 @@ static void parse_cfg_file(simulator_config_t *cfg, const char *path) {
 
    fclose(fp);
 
-   if (cfg->bank_count != 0) {
-      size_t startup_count = 0;
-      cfg->cartridge_direct_multi = str_ieq(cfg->mapper, "OMNI");
-      cfg->cartridge_banked = !cfg->cartridge_direct_multi;
-      cfg->superchip_mapper = str_ieq(cfg->mapper, "F8SC") ||
-                              str_ieq(cfg->mapper, "F6SC") ||
-                              str_ieq(cfg->mapper, "F4SC");
-      cfg->e0_mapper = str_ieq(cfg->mapper, "E0");
-      cfg->wd_mapper = str_ieq(cfg->mapper, "WD");
-      cfg->fe_mapper = str_ieq(cfg->mapper, "FE");
-      cfg->threef_mapper = str_ieq(cfg->mapper, "3F");
-      cfg->threee_mapper = str_ieq(cfg->mapper, "3E");
-      cfg->dpc_mapper = str_ieq(cfg->mapper, "DPC");
-      if (!(str_ieq(cfg->mapper, "F8") || str_ieq(cfg->mapper, "F6") ||
-            str_ieq(cfg->mapper, "F4") || str_ieq(cfg->mapper, "FA") ||
-            str_ieq(cfg->mapper, "FA2") ||
-            str_ieq(cfg->mapper, "OMNI") || str_ieq(cfg->mapper, "JANE") ||
-            str_ieq(cfg->mapper, "0840") || str_ieq(cfg->mapper, "UA") ||
-            str_ieq(cfg->mapper, "UASW") || str_ieq(cfg->mapper, "0FA0") ||
-            cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper || cfg->threef_mapper || cfg->threee_mapper ||
-            cfg->dpc_mapper || cfg->superchip_mapper)) {
-         fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
-         exit(1);
+   finalize_simulator_config(cfg);
+
+}
+
+
+static bool map_token_value(const std::string& line, const char *key, std::string *value) {
+   const std::string needle = std::string(key) + "=";
+   size_t pos = line.find(needle);
+   if (pos == std::string::npos)
+      return false;
+   pos += needle.size();
+   if (pos < line.size() && line[pos] == '"') {
+      const size_t end = line.find('"', pos + 1);
+      if (end == std::string::npos)
+         return false;
+      *value = line.substr(pos + 1, end - pos - 1);
+      return true;
+   }
+   size_t end = pos;
+   while (end < line.size() && !isspace((unsigned char)line[end]))
+      ++end;
+   *value = line.substr(pos, end - pos);
+   return !value->empty();
+}
+
+static bool map_number_value(const std::string& line, const char *key, uint32_t *value) {
+   std::string text;
+   if (!map_token_value(line, key, &text))
+      return false;
+   parse_result_t parsed = parse_number(text.c_str());
+   if (!parsed.ok || parsed.pos != text.size())
+      return false;
+   *value = parsed.value;
+   return true;
+}
+
+static std::string map_first_word(const std::string& line) {
+   size_t start = 0;
+   while (start < line.size() && isspace((unsigned char)line[start]))
+      ++start;
+   size_t end = start;
+   while (end < line.size() && !isspace((unsigned char)line[end]))
+      ++end;
+   return line.substr(start, end - start);
+}
+
+static std::string c26_signature_mapper(const std::string& signature) {
+   std::string mapper;
+   for (size_t i = 0; i < signature.size();) {
+      if (signature[i] == '\\' && i + 1 < signature.size() && signature[i + 1] == '0')
+         break;
+      mapper.push_back(signature[i++]);
+   }
+   return mapper;
+}
+
+//! @brief Parse resolved C26 cartridge/memory topology from a linker map.
+static void parse_c26_map_file(simulator_config_t *cfg, const char *path) {
+   std::ifstream in(path);
+   if (!in) {
+      fprintf(stderr, "vcsc-sim: cannot open map '%s': %s\n", path, strerror(errno));
+      exit(1);
+   }
+
+   memset(cfg, 0, sizeof(*cfg));
+   std::string line;
+   bool in_c26 = false;
+   bool saw_c26 = false;
+   bool in_memory = false;
+   uint32_t output_size = 0;
+   size_t program_image_bytes = 0;
+
+   while (std::getline(in, line)) {
+      if (line == "C26 CARTRIDGE TOPOLOGY") {
+         in_c26 = true;
+         in_memory = false;
+         saw_c26 = true;
+         continue;
       }
-      if (cfg->e0_mapper && cfg->bank_count != 8u) {
-         fprintf(stderr, "vcsc-sim: E0 requires exactly eight physical 1K banks\n");
-         exit(1);
+      if (line == "MEMORY") {
+         in_c26 = false;
+         in_memory = true;
+         continue;
       }
-      if (cfg->wd_mapper && cfg->bank_count != 8u) {
-         fprintf(stderr, "vcsc-sim: WD requires exactly eight physical 1K banks\n");
-         exit(1);
+      if (!line.empty() && !isspace((unsigned char)line[0])) {
+         in_c26 = false;
+         if (line != "MEMORY")
+            in_memory = false;
       }
-      if (cfg->fe_mapper && cfg->bank_count != 2u) {
-         fprintf(stderr, "vcsc-sim: FE requires exactly two physical 4K banks\n");
-         exit(1);
-      }
-      if (cfg->dpc_mapper && cfg->bank_count != 2u) {
-         fprintf(stderr, "vcsc-sim: DPC requires exactly two physical 4K program banks\n");
-         exit(1);
-      }
-      for (size_t i = 0; i < cfg->bank_count; ++i) {
-         size_t file_index = 0;
-         uint16_t wanted_size = (cfg->e0_mapper || cfg->wd_mapper) ? 0x0400u :
-                                (cfg->threef_mapper || cfg->threee_mapper) ? 0x0800u : 0x1000u;
-         if (cfg->banks[i].size != wanted_size) {
-            fprintf(stderr, "vcsc-sim: %s bank '%s' is not %s\n",
-                    cfg->mapper, cfg->banks[i].name, (cfg->e0_mapper || cfg->wd_mapper) ? "1K" :
-                    (cfg->threef_mapper || cfg->threee_mapper) ? "2K" : "4K");
-            exit(1);
-         }
-         if ((cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper || cfg->dpc_mapper || str_ieq(cfg->mapper, "FA2")) && !cfg->banks[i].has_file_index) {
-            fprintf(stderr, "vcsc-sim: %s bank '%s' requires an explicit fileindex\n",
-                    cfg->mapper, cfg->banks[i].name);
-            exit(1);
-         }
-         if (!cfg->banks[i].has_file_index) {
-            for (size_t j = 0; j < cfg->bank_count; ++j)
-               if (cfg->banks[j].start < cfg->banks[i].start)
-                  file_index++;
-            cfg->banks[i].file_index = file_index;
-         }
-         if (cfg->banks[i].startup) {
-            cfg->startup_bank = i;
-            startup_count++;
-         }
-      }
-      for (size_t i = 0; i < cfg->bank_count; ++i) {
-         if (cfg->banks[i].file_index >= cfg->bank_count) {
-            fprintf(stderr, "vcsc-sim: bank '%s' file index %zu is out of range\n",
-                    cfg->banks[i].name, cfg->banks[i].file_index);
-            exit(1);
-         }
-         for (size_t j = i + 1; j < cfg->bank_count; ++j) {
-            if (cfg->banks[i].file_index == cfg->banks[j].file_index) {
-               fprintf(stderr, "vcsc-sim: duplicate physical/file bank index %zu\n",
-                       cfg->banks[i].file_index);
+
+      if (in_c26) {
+         const std::string first = map_first_word(line);
+         if (first.empty())
+            continue;
+         if (first.find("output-size=") == 0) {
+            std::string signature;
+            if (!map_number_value(line, "output-size", &output_size)) {
+               fprintf(stderr, "vcsc-sim: malformed C26 output-size in '%s'\n", path);
                exit(1);
             }
+            if (map_token_value(line, "signature", &signature)) {
+               const std::string mapper = c26_signature_mapper(signature);
+               snprintf(cfg->mapper, sizeof(cfg->mapper), "%s", mapper.c_str());
+            }
+            continue;
          }
+
+         std::string mode;
+         uint32_t image_size = 0;
+         if (!map_token_value(line, "mode", &mode) ||
+             !map_number_value(line, "image-size", &image_size))
+            continue;
+         if (mode == "data-only") {
+            cfg->auxiliary_image_bytes += image_size;
+            continue;
+         }
+         if (cfg->bank_count >= sizeof(cfg->banks) / sizeof(cfg->banks[0])) {
+            fprintf(stderr, "vcsc-sim: too many C26 cartridge banks in '%s'\n", path);
+            exit(1);
+         }
+
+         uint32_t file_index = 0, image_offset = 0, link = 0, hotspot = 0;
+         if (!map_number_value(line, "file-index", &file_index) || file_index > 255u ||
+             !map_number_value(line, "image-offset", &image_offset) ||
+             !map_number_value(line, "link", &link) || link > 0xffffu ||
+             image_size == 0 || image_size > 0xffffu || image_offset > link) {
+            fprintf(stderr, "vcsc-sim: malformed C26 bank topology in '%s': %s\n",
+                    path, line.c_str());
+            exit(1);
+         }
+         cartridge_bank_t *bank = &cfg->banks[cfg->bank_count++];
+         memset(bank, 0, sizeof(*bank));
+         snprintf(bank->name, sizeof(bank->name), "%s", first.c_str());
+         bank->start = (uint16_t)(link - image_offset);
+         bank->size = (uint16_t)image_size;
+         bank->file_index = file_index;
+         bank->has_file_index = 1;
+         if (map_number_value(line, "select-access", &hotspot)) {
+            if (hotspot > 0xffffu) {
+               fprintf(stderr, "vcsc-sim: bad C26 selector in '%s'\n", path);
+               exit(1);
+            }
+            bank->hotspot = (uint16_t)hotspot;
+         }
+         std::string startup;
+         bank->startup = map_token_value(line, "startup", &startup) && startup == "yes";
+         program_image_bytes += image_size;
+         continue;
       }
-      if (startup_count != 1) {
-         fprintf(stderr, "vcsc-sim: multi-region config must name exactly one startup bank\n");
-         exit(1);
-      }
-      if (cfg->e0_mapper && cfg->banks[cfg->startup_bank].file_index != 7u) {
-         fprintf(stderr, "vcsc-sim: E0 startup bank must be fixed physical/file bank 7\n");
-         exit(1);
-      }
-      if (cfg->wd_mapper && cfg->banks[cfg->startup_bank].file_index != 3u) {
-         fprintf(stderr, "vcsc-sim: WD startup bank must be physical/file bank 3\n");
-         exit(1);
-      }
-      if (cfg->fe_mapper && cfg->banks[cfg->startup_bank].file_index != 0u) {
-         fprintf(stderr, "vcsc-sim: FE startup bank must be physical/file bank 0\n");
-         exit(1);
-      }
-      if (cfg->dpc_mapper && cfg->banks[cfg->startup_bank].file_index != 1u) {
-         fprintf(stderr, "vcsc-sim: DPC startup bank must be physical/file bank 1\n");
-         exit(1);
-      }
-      if ((cfg->threef_mapper || cfg->threee_mapper) &&
-          cfg->banks[cfg->startup_bank].file_index != cfg->bank_count - 1u) {
-         fprintf(stderr, "vcsc-sim: 3F/3E startup bank must be the fixed final physical/file bank\n");
-         exit(1);
+
+      if (in_memory) {
+         const std::string first = map_first_word(line);
+         if (first.empty()) {
+            in_memory = false;
+            continue;
+         }
+         std::string type, output_bank;
+         if (!map_token_value(line, "type", &type))
+            continue;
+         const bool split = line.find("write_start=") != std::string::npos;
+         const bool shared = !map_token_value(line, "output-bank", &output_bank) || output_bank == "<none>";
+         if (!split && !shared)
+            continue;
+         if (cfg->mem_count >= sizeof(cfg->mem) / sizeof(cfg->mem[0])) {
+            fprintf(stderr, "vcsc-sim: too many shared MEMORY entries in '%s'\n", path);
+            exit(1);
+         }
+         memory_region_t *mem_region = &cfg->mem[cfg->mem_count++];
+         memset(mem_region, 0, sizeof(*mem_region));
+         snprintf(mem_region->name, sizeof(mem_region->name), "%s", first.c_str());
+         snprintf(mem_region->type, sizeof(mem_region->type), "%s", type.c_str());
+
+         uint32_t n = 0;
+         if (map_number_value(line, "read_start", &n) || map_number_value(line, "start", &n)) {
+            if (n > 0xffffu) {
+               fprintf(stderr, "vcsc-sim: bad map MEMORY start in '%s'\n", path);
+               exit(1);
+            }
+            mem_region->start = (uint16_t)n;
+         }
+         if (map_number_value(line, "write_start", &n)) {
+            if (n > 0xffffu) {
+               fprintf(stderr, "vcsc-sim: bad map MEMORY write_start in '%s'\n", path);
+               exit(1);
+            }
+            mem_region->write_start = (uint16_t)n;
+            mem_region->has_write_start = 1;
+         }
+         if (!map_number_value(line, "size", &n) || n == 0 || n > 0xffffu) {
+            fprintf(stderr, "vcsc-sim: bad map MEMORY size in '%s': %s\n", path, line.c_str());
+            exit(1);
+         }
+         mem_region->size = (uint16_t)n;
       }
    }
 
-   for (size_t i = 0; i < cfg->mem_count; ++i) {
-      memory_region_t *mem_region = &cfg->mem[i];
-      if (!mem_region->has_write_start)
-         continue;
-      if (!str_ieq(mem_region->type, "rw")) {
-         fprintf(stderr,
-                 "vcsc-sim: split-address MEMORY region '%s' is not type=rw\n",
-                 mem_region->name);
-         exit(1);
-      }
-      if (mem_region->bank_name[0]) {
-         fprintf(stderr,
-                 "vcsc-sim: split-address MEMORY region '%s' must be shared\n",
-                 mem_region->name);
-         exit(1);
-      }
-      if (mem_region->size == 0 ||
-          (uint32_t)mem_region->start + mem_region->size > 0x10000u ||
-          (uint32_t)mem_region->write_start + mem_region->size > 0x10000u) {
-         fprintf(stderr,
-                 "vcsc-sim: split-address MEMORY region '%s' has an invalid window\n",
-                 mem_region->name);
-         exit(1);
-      }
+   if (!saw_c26) {
+      fprintf(stderr, "vcsc-sim: map '%s' contains no C26 cartridge topology\n", path);
+      exit(1);
    }
+   if (output_size != 0 && program_image_bytes + cfg->auxiliary_image_bytes != output_size) {
+      fprintf(stderr,
+              "vcsc-sim: C26 map image accounting mismatch in '%s' (%zu + %zu != %u)\n",
+              path, program_image_bytes, cfg->auxiliary_image_bytes, output_size);
+      exit(1);
+   }
+   finalize_simulator_config(cfg);
+}
+
+static bool file_readable(const std::string& path) {
+   std::ifstream in(path);
+   return in.good();
+}
+
+static std::string same_stem_map_path(const char *image_path) {
+   std::string path(image_path);
+   const size_t slash = path.find_last_of("/\\");
+   const size_t dot = path.find_last_of('.');
+   if (dot != std::string::npos && (slash == std::string::npos || dot > slash))
+      path.erase(dot);
+   path += ".map";
+   return path;
 }
 
 static int address_is_read_only(uint16_t addr) {
@@ -641,6 +885,14 @@ static void parse_args(simulator_options_t *opts, int argc, char **argv) {
          const char *value;
          assign_option_value(&value, "", &argi, argc, argv, "--script");
          opts->cfg_path = value;
+      }
+      else if (strncmp(arg, "--map=", 6) == 0) {
+         opts->map_path = arg + 6;
+      }
+      else if (strcmp(arg, "--map") == 0) {
+         const char *value;
+         assign_option_value(&value, "", &argi, argc, argv, "--map");
+         opts->map_path = value;
       }
       else if (strncmp(arg, "--start-bank=", 13) == 0) {
          const char *value = arg + 13;
@@ -759,6 +1011,10 @@ static void parse_args(simulator_options_t *opts, int argc, char **argv) {
 
    if (opts->image_path == nullptr) {
       usage(stderr);
+      exit(1);
+   }
+   if (opts->cfg_path != nullptr && opts->map_path != nullptr) {
+      fprintf(stderr, "vcsc-sim: use either --config/-T or --map, not both\n");
       exit(1);
    }
 }
@@ -1160,7 +1416,8 @@ static int bank_index_for_hotspot(uint16_t addr, size_t *bank_index) {
    }
 
    for (size_t i = 0; i < g_cfg.bank_count; ++i) {
-      if ((g_cfg.banks[i].hotspot & 0x1FFFu) == canonical) {
+      if (g_cfg.banks[i].hotspot != 0 &&
+          (g_cfg.banks[i].hotspot & 0x1FFFu) == canonical) {
          *bank_index = i;
          return 1;
       }
@@ -1536,9 +1793,21 @@ int main (int argc, char **argv) {
       trace_ops = opts.trace;
    }
 
+   std::string discovered_map;
    if (opts.cfg_path != nullptr) {
       parse_cfg_file(&g_cfg, opts.cfg_path);
       g_cfg_loaded = 1;
+   }
+   else if (opts.map_path != nullptr) {
+      parse_c26_map_file(&g_cfg, opts.map_path);
+      g_cfg_loaded = 1;
+   }
+   else if (ends_with(opts.image_path, ".bin")) {
+      discovered_map = same_stem_map_path(opts.image_path);
+      if (file_readable(discovered_map)) {
+         parse_c26_map_file(&g_cfg, discovered_map.c_str());
+         g_cfg_loaded = 1;
+      }
    }
 
    memset(mem, 0xFF, 65536);
@@ -1598,7 +1867,7 @@ int main (int argc, char **argv) {
       }
    }
    else if (opts.start_bank_set) {
-      fprintf(stderr, "vcsc-sim: --start-bank requires a banked config\n");
+      fprintf(stderr, "vcsc-sim: --start-bank requires banked cartridge topology\n");
       return 1;
    }
 

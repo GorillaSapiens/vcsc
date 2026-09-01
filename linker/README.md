@@ -366,14 +366,14 @@ mem bank0 { $start:0xf000 $size:0x0f00 $ro $priority:2 };
 mem bank1 { $start:0xd000 $size:0x0f00 $ro };
 ```
 
-The installed `4K/mapper.c26`, `F8/mapper.c26`, `FA/mapper.c26`, `FA2/mapper_24k.c26`,
-`FA2/mapper_28k.c26`, `F6/mapper.c26`, `F4/mapper.c26`, and matching RAM/Superchip files are the certified public
-profiles. `vcs.c26` describes the common machine only; the driver implicitly
-adds `4K/mapper.c26` when no explicit `-T` profile selection is made. Public
-banked builds pass the reduced `vcs.cfg` for operational policy and add one C26
-profile as a normal configuration input or source include. The old full profile
-cfg files remain accepted for compatibility, differential certification, and
-simulator mapper selection, but no longer define public-build topology.
+The installed `4K/mapper.c26`, `F8/mapper.c26`, `FA/mapper.c26`,
+`FA2/mapper_24k.c26`, `FA2/mapper_28k.c26`, `F6/mapper.c26`, `F4/mapper.c26`, and
+matching RAM/Superchip files are the certified public profiles. `vcs.c26`
+describes the common machine only; the driver implicitly adds `4K/mapper.c26`
+when no explicit `-T` generic script or explicit cartridge profile is supplied.
+For VCS targets the C26 cartridge and memory declarations are sufficient: no
+checked-in VCS linker cfg participates in the public build. Generic `.cfg`
+linker scripts remain supported for non-VCS and compatibility tests.
 
 Each profile names every ordinary allocatable region `bankN`, reserves the
 final generated corridor through the cartridge declaration, and derives bank

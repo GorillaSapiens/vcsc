@@ -26,8 +26,9 @@ It sits above `vcsc-cc1`, `vcsc-as`, and `vcsc-ld` and invokes them in the usual
 - `-v` and `-###` to print the subordinate commands
 
 When linking without `-T`, it compiles the bundled `libraries/vcs/4K/mapper.c26`
-configuration profile and links through the reduced `libraries/vcs/vcs.cfg`.
-An explicit `-T` suppresses that implicit profile. The driver links
+configuration profile.  Its C26 cartridge and memory declarations are sufficient
+for VCS linking; no VCS linker script is required.  An explicit `-T` selects a
+generic linker script and suppresses that implicit VCS profile. The driver links
 `libraries/runtime/libvcsc.l26` unless `-nostdlib` is used.
 Successful links also create same-stem `.map`, `.sym`, `.lst`, and DiStella
 `.cfg` files by default. For linked C26 builds the driver automatically carries
@@ -65,21 +66,18 @@ When run from the built repository tree, it finds:
 - `archiver/vcsc-ar` (only for path reporting via `-print-prog-name=ar`)
 - `simulator/vcsc-sim` (only for path reporting via `-print-prog-name=sim`)
 - `libraries/runtime/libvcsc.l26` for default linking
-- `libraries/vcs/vcs.cfg` for reduced VCS linker operational policy
 - `libraries/vcs/4K/mapper.c26` for the implicit unbanked cartridge topology
 - `libraries/vcs/2K/mapper.c26` for explicit 2048-byte `$F800-$FFFF` builds
 - the installed 4KSC, F8/F6/F4, E0, CBS FA/RAM Plus, and banked Superchip `.c26` cartridge profiles for explicit builds
-- the old profile-specific cfg files only for compatibility and simulator selection
 
 When installed, it expects this layout under the same prefix:
 
 - `bin/vcsc`, `bin/vcsc-cc1`, `bin/vcsc-as`, `bin/vcsc-ld`, `bin/vcsc-ar`, `bin/vcsc-sim`
 - `lib/libvcsc.l26`
 - `include/vcsc-runtime.inc` for the assembler's implicit runtime include path; platform headers such as the VCS bindings are selected explicitly with `-I`
-- `share/vcs/vcs.cfg` plus `share/vcs/4K/mapper.c26` for the default link
+- `share/vcs/4K/mapper.c26` for the default link
 - `share/vcs/2K/mapper.c26` for explicit 2048-byte cartridge builds
 - `share/vcs/F8/mapper.c26`, `E0/mapper.c26`, `FA/mapper.c26`, `F6/mapper.c26`, `F4/mapper.c26`, and their RAM/Superchip companions for explicit cartridge topology
-- retained profile-specific cfg files for compatibility and `vcsc-sim`
 
 So the same binary works both from the source tree and from an installed prefix without extra path flags.
 
@@ -113,16 +111,11 @@ Build and link a program:
 Select an installed/repository cartridge profile explicitly:
 
 ```sh
-./driver/vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
-  libraries/vcs/2K/mapper.c26 compact.c26 -o compact-2k.bin
-./driver/vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
-  libraries/vcs/F8/mapper.c26 banked.c26 -o banked-f8.bin
-./driver/vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
-  libraries/vcs/FA/mapper.c26 banked.c26 -o banked-fa.bin
-./driver/vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
-  libraries/vcs/F6/mapper.c26 banked.c26 -o banked-f6.bin
-./driver/vcsc -I libraries/vcs -T libraries/vcs/vcs.cfg \
-  libraries/vcs/F4/mapper.c26 banked.c26 -o banked-f4.bin
+./driver/vcsc -I libraries/vcs libraries/vcs/2K/mapper.c26 compact.c26 -o compact-2k.bin
+./driver/vcsc -I libraries/vcs libraries/vcs/F8/mapper.c26 banked.c26 -o banked-f8.bin
+./driver/vcsc -I libraries/vcs libraries/vcs/FA/mapper.c26 banked.c26 -o banked-fa.bin
+./driver/vcsc -I libraries/vcs libraries/vcs/F6/mapper.c26 banked.c26 -o banked-f6.bin
+./driver/vcsc -I libraries/vcs libraries/vcs/F4/mapper.c26 banked.c26 -o banked-f4.bin
 ```
 
 Compile only:

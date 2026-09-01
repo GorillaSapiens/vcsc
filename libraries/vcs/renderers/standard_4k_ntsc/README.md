@@ -148,10 +148,9 @@ vcsc -I libraries/vcs \
   -o game.bin
 ```
 
-An explicit build may equivalently pass `-T libraries/vcs/vcs.cfg` and
-`libraries/vcs/4K/mapper.c26`. The retained `vcs_standard_4k_ntsc.cfg` is only a
-deprecated compatibility filename for old commands; it contains no renderer-
-specific placement or stack facts.
+An explicit build may equivalently pass `libraries/vcs/4K/mapper.c26`.  The
+renderer carries its own placement constraints and the C26 profile carries the
+complete VCS cartridge/memory topology; there is no renderer-specific linker cfg.
 
 The module declares the draw entry:
 

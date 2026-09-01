@@ -56,8 +56,6 @@ my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
-my $generic=File::Spec->catfile($vcs,'vcs.cfg');
-my $cfg=File::Spec->catfile($vcs,'0840/mapper.cfg');
 my $profile=File::Spec->catfile($vcs,'0840/mapper.c26');
 my $source=File::Spec->catfile($repo,'examples','09_bankswitching','08_0840','econobanking_diagnostic.c26');
 my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','08_0840');
@@ -86,16 +84,10 @@ for my $source_bank (0..1) {
    }
 }
 
-my $ct=read_file($cfg);
-$ct =~ /mapper\s*=\s*0840/ &&
-$ct =~ /BANK0:.*hotspot\s*=\s*\$0800.*fileindex\s*=\s*0.*startup\s*=\s*yes/is &&
-$ct =~ /BANK1:.*hotspot\s*=\s*\$0840.*fileindex\s*=\s*1/is
-   or die "0840 simulator cfg contract is wrong\n";
 
 my $bin=File::Spec->catfile($tmp,'0840.bin');
 my $map=File::Spec->catfile($tmp,'0840.map');
-require_ok('build 0840 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST',
-   '-T',$generic,'-Map',$map,$source,'-o',$bin);
+require_ok('build 0840 simulator diagnostic',$driver,'-I',$vcs,'-DSIMULATOR_TEST','-Map',$map,$source,'-o',$bin);
 -s $bin==8192 or die "0840 output size is not 8K\n";
 my $rom=read_file($bin);
 substr($rom,4096+0x0ff8,4) eq '0840'
@@ -149,7 +141,7 @@ $m !~ /JSR entry=/
    or die "0840 map topology/trampoline contract is wrong\n$m";
 my %sym=map { $_=>map_symbol($m,$_) } qw(simulator_done failure call_count nested_count);
 for my $start (0..1) {
-   my($out,$err)=require_ok("simulate 0840 from physical bank $start",$sim,'-T',$cfg,
+   my($out,$err)=require_ok("simulate 0840 from physical bank $start",$sim,'--map',$map,
       "--start-bank=$start",sprintf('--stop-pc=0x%04X',$sym{simulator_done}),
       '--dump-on-stop',$bin);
    $err eq '' or die "0840 simulator start bank $start wrote stderr:\n$err";
@@ -169,7 +161,7 @@ substr($w,0,8)=pack('C*',0xA9,0x5A,0x8D,0x40,0x08,0xEA,0xEA,0xEA);
 substr($w,4096+5,9)=pack('C*',0xAD,0x40,0x08,0x8D,0x80,0x00,0x4C,0x0E,0xF0);
 for my $fb (0..1) { substr($w,$fb*4096+0x0ffc,2)=pack('C*',0x00,0xF0); }
 write_file($write_bin,$w);
-my($wout,$werr)=require_ok('simulate 0840 write selector',$sim,'-T',$cfg,
+my($wout,$werr)=require_ok('simulate 0840 write selector',$sim,'--map',$map,
    '--start-bank=0','--stop-pc=0xF00E','--dump-on-stop',$write_bin);
 $werr eq '' or die "0840 write-selector simulator wrote stderr:\n$werr";
 my $wmem=parse_hex_dump($wout);
@@ -177,7 +169,7 @@ $wmem->[0x0080]==0x5A && $wmem->[0x0840]==0x5A
    or die "0840 write did not both switch bank and reach underlying memory\n";
 
 my $visible=File::Spec->catfile($tmp,'0840-visible.bin');
-require_ok('build visible 0840 PASS/FAIL cartridge',$driver,'-I',$vcs,'-T',$generic,$source,'-o',$visible);
+require_ok('build visible 0840 PASS/FAIL cartridge',$driver,'-I',$vcs,$source,'-o',$visible);
 my $vrom=read_file($visible);
 length($vrom)==8192 && substr($vrom,4096+0x0ff8,4) eq '0840' &&
 (()=$vrom =~ /\x0c\x00\x08\x4c/sg)>=2
