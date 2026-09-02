@@ -18,6 +18,22 @@ bank0 uint8_t bank0_probe(void) { call_count := call_count + 1; return 0x30; }
 bank1 uint8_t bank1_probe(void) { call_count := call_count + 1; return 0x31; }
 bank2 uint8_t bank2_probe(void) { call_count := call_count + 1; return 0x32; }
 
+bank3 uint8_t fixed_calls_bank2(void) { return bank2_probe(); }
+
+bank0 uint8_t bank0_calls_bank1(void) {
+   uint8_t result;
+   result := bank1_probe();
+   call_count := call_count + 1;
+   return result;
+}
+
+bank0 uint8_t bank0_calls_fixed(void) {
+   uint8_t result;
+   result := fixed_calls_bank2();
+   call_count := call_count + 1;
+   return result;
+}
+
 #ifndef SIMULATOR_TEST
 include "status_font.c26"
 
@@ -107,16 +123,21 @@ bank3 void simulator_done(void) { while (1) { } }
 bank3 void main(void) {
    failure := 0;
    call_count := 0;
-   // Power-on lower window is physical ROM bank 0.
+   // All cross-region calls below are compiler/linker-managed 3F transitions.
+   // The fixed bank uses descriptor $FF; lower banks use their written bank ID.
    if (bank0_probe() != 0x30) { failure := 0x01; }
-
-   asm lda #1; asm sta $3f;
    if (bank1_probe() != 0x31) { failure := 0x11; }
-   asm lda #2; asm sta $3f;
    if (bank2_probe() != 0x32) { failure := 0x12; }
-   asm lda #0; asm sta $3f;
-   if (bank0_probe() != 0x30) { failure := 0x13; }
-   if (call_count != 4) { failure := 0x7f; }
+
+   // lower bank0 -> lower bank1 must restore bank0 before the wrapper resumes.
+   if (bank0_calls_bank1() != 0x31) { failure := 0x21; }
+
+   // lower bank0 -> fixed -> lower bank2 must restore bank0 before the outer
+   // fixed-bank call eventually returns into bank0.  This is the nesting case
+   // that makes an ordinary lower->fixed JSR unsafe.
+   if (bank0_calls_fixed() != 0x32) { failure := 0x22; }
+
+   if (call_count != 7) { failure := 0x7f; }
 
 #ifdef SIMULATOR_TEST
    asm jmp simulator_done;

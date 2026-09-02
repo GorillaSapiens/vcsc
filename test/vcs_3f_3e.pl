@@ -93,9 +93,10 @@ for my $c (@cases) {
    my $pt=read_file($profile); my $p16=read_file($profile16);
    if ($m eq '3F') {
       $pt =~ /parameter\s+VCS_3F_BANKS\s*;/ &&
+      $pt =~ /cartridge\s*\{.*?\$bankcall.*?\$trampoline_offset:0x0780.*?\$vector_bridge_offset:0x07d0/s &&
       (()=$pt =~ /\bbank\s+bank\d+\s*\{/g)==512 &&
-      $pt =~ /#if\s+VCS_3F_BANKS\s*>\s*4.*?bank\s+bank3\s*\{.*?\$file_index:3.*?\$link_start:0x1000.*?#elif\s+VCS_3F_BANKS\s*==\s*4.*?bank\s+bank3\s*\{.*?\$file_index:3.*?\$cpu_start:0x1800.*?\$startup/s &&
-      $pt =~ /#elif\s+VCS_3F_BANKS\s*==\s*8.*?bank\s+bank7\s*\{.*?\$file_index:7.*?\$cpu_start:0x1800.*?\$startup/s
+      $pt =~ /#if\s+VCS_3F_BANKS\s*>\s*4.*?bank\s+bank3\s*\{.*?\$file_index:3.*?\$link_start:0x1000.*?\$bankcall_descriptor:0x03.*?#elif\s+VCS_3F_BANKS\s*==\s*4.*?bank\s+bank3\s*\{.*?\$file_index:3.*?\$cpu_start:0x1800.*?\$startup.*?\$bankcall_descriptor:0xff/s &&
+      $pt =~ /#elif\s+VCS_3F_BANKS\s*==\s*8.*?bank\s+bank7\s*\{.*?\$file_index:7.*?\$cpu_start:0x1800.*?\$startup.*?\$bankcall_descriptor:0xff/s
          or die "3F parameterized profile lost its canonical selectable/fixed topology ladder\n";
    } else {
       (()=$pt =~ /\bbank\s+bank\d+\s*\{/g)==4 && (()=$p16 =~ /\bbank\s+bank\d+\s*\{/g)==8
@@ -120,9 +121,11 @@ for my $c (@cases) {
    $src =~ /bank3 void draw_result\(void\)/
       or die "$m visible diagnostic lost large PASS\/FAIL plus mapper label\n";
    if ($m eq '3F') {
-      $src =~ /asm lda #1;\s*asm sta \$3f;.*?bank1_probe/s &&
-      $src =~ /asm lda #2;\s*asm sta \$3f;.*?bank2_probe/s
-         or die "3F diagnostic lost value-selected ROM transitions\n";
+      $src !~ /asm sta \$3f/ &&
+      $src =~ /bank0 uint8_t bank0_calls_bank1\(void\).*?bank1_probe/s &&
+      $src =~ /bank0 uint8_t bank0_calls_fixed\(void\).*?fixed_calls_bank2/s &&
+      $src =~ /bank3 uint8_t fixed_calls_bank2\(void\).*?bank2_probe/s
+         or die "3F diagnostic lost automatic fixed/lower nested bank-call coverage\n";
    } else {
       $src =~ /asm lda #0;\s*asm sta \$3e;.*?asm sta \$1400;.*?asm lda \$1000/s &&
       $src =~ /asm lda #1;\s*asm sta \$3e;.*?asm sta \$1400;.*?asm lda \$1000/s &&
@@ -139,8 +142,15 @@ for my $c (@cases) {
       substr($rom,$fb*2048+2040,4) ne "$m\0\0" or die "$m signature duplicated into physical bank $fb\n";
    }
    my $map=read_file($map_path);
-   $map =~ /^\s+bank3\s+file-index=3\b.*cpu=\$1800.*startup=yes/m && $map !~ /^TRAMPOLINES$/m
-      or die "$m map lost fixed-final/direct segmented topology\n";
+   if ($m eq '3F') {
+      $map =~ /^\s+bank3\s+file-index=3\b.*cpu=\$1800.*startup=yes/m &&
+      $map =~ /^TRAMPOLINES$/m &&
+      $map =~ /^\s+common-offset=\$780\s+reserved=\$050\s+used=\$050.*generic-jsr=\$050/m
+         or die "3F map lost fixed-final descriptor-bankcall topology\n";
+   } else {
+      $map =~ /^\s+bank3\s+file-index=3\b.*cpu=\$1800.*startup=yes/m && $map !~ /^TRAMPOLINES$/m
+         or die "$m map lost fixed-final/direct segmented topology\n";
+   }
    for my $i (0..2) { map_symbol($map,"bank${i}_probe"); }
    my %sym=map { $_=>map_symbol($map,$_) } qw(simulator_done failure call_count);
    my($out,$err)=require_ok("simulate $m selectors",$sim,'--map',$map_path,
@@ -148,7 +158,7 @@ for my $c (@cases) {
    $err eq '' or die "$m simulator wrote stderr:\n$err";
    my $mem=parse_hex_dump($out);
    $mem->[$sym{failure}]==0 or die sprintf("$m self-test failed: failure=\$%02X\n",$mem->[$sym{failure}]);
-   $mem->[$sym{call_count}]==4 or die "$m did not execute the expected lower-bank probes\n";
+   $mem->[$sym{call_count}]==($m eq '3F' ? 7 : 4) or die "$m did not execute the expected lower-bank probes\n";
 
    my $visible=File::Spec->catfile($tmp,"$lc-visible.bin");
    my $visible_map=File::Spec->catfile($tmp,"$lc-visible.map");

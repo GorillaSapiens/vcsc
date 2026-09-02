@@ -139,6 +139,9 @@ for my $p (@profiles) {
    } elsif ($name eq 'FE') {
       $map =~ /mode=fe-delayed/ && $map !~ /^TRAMPOLINES$/m
          or die "FE profile did not preserve delayed-latch topology\n";
+   } elsif ($name eq '3F') {
+      $map =~ /mode=direct/ && $map =~ /^TRAMPOLINES$/m && $map =~ /reserved=\$050\b/
+         or die "3F profile did not reserve its fixed/lower descriptor trampoline corridor\n";
    } else {
       $map =~ /mode=direct/ && $map !~ /^TRAMPOLINES$/m
          or die "$name direct profile unexpectedly generated switching machinery\n";
@@ -251,9 +254,19 @@ for my $p (@profiles) {
       $text =~ /bank\s+bank2\s*\{.*?\$file_index:2.*?\$cpu_start:0x1000/s &&
       $text !~ /\$select_access:/
          or die "$name profile does not preserve selectable-lower/fixed-final 2K topology\n";
-      $map =~ /^\s+bank3\s+file-index=3\b.*cpu=\$1800.*startup=yes/m &&
-      $map !~ /^TRAMPOLINES$/m
-         or die "$name map does not preserve fixed final bank/no fake trampolines\n";
+      $map =~ /^\s+bank3\s+file-index=3\b.*cpu=\$1800.*startup=yes/m
+         or die "$name map does not preserve its fixed final bank\n";
+      if ($name eq '3F') {
+         $text =~ /\$bankcall/ &&
+         $text =~ /bank\s+bank0\s*\{.*?\$bankcall_descriptor:0x00/s &&
+         $text =~ /bank\s+bank3\s*\{.*?\$bankcall_descriptor:0xff/s &&
+         $map =~ /^TRAMPOLINES$/m && $map =~ /reserved=\$050\b/
+            or die "3F profile does not preserve the lower-bank/fixed-sentinel descriptor ABI\n";
+      }
+      else {
+         $map !~ /^TRAMPOLINES$/m
+            or die "3E unexpectedly generated 3F-style trampolines\n";
+      }
       $text =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/
          or die "$name profile does not select the safe TIA mirror binding\n";
    }

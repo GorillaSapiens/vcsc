@@ -33,6 +33,7 @@ my $ua_src = File::Spec->catfile($repo, qw(libraries vcs UA bankcall.s26));
 my $uasw_src = File::Spec->catfile($repo, qw(libraries vcs UASW bankcall.s26));
 my $m0fa0_src = File::Spec->catfile($repo, qw(libraries vcs 0FA0 bankcall.s26));
 my $wd_src = File::Spec->catfile($repo, qw(libraries vcs WD bankcall.s26));
+my $m3f_src = File::Spec->catfile($repo, qw(libraries vcs 3F bankcall.s26));
 my $generator = File::Spec->catfile($repo, qw(linker gen_bankcall_template.pl));
 my $built = File::Spec->catfile($repo, qw(linker generic_bankcall_template.h));
 my $fa2_built = File::Spec->catfile($repo, qw(linker fa2_bankcall_template.h));
@@ -42,6 +43,7 @@ my $ua_built = File::Spec->catfile($repo, qw(linker ua_bankcall_template.h));
 my $uasw_built = File::Spec->catfile($repo, qw(linker uasw_bankcall_template.h));
 my $m0fa0_built = File::Spec->catfile($repo, qw(linker m0fa0_bankcall_template.h));
 my $wd_built = File::Spec->catfile($repo, qw(linker wd_bankcall_template.h));
+my $m3f_built = File::Spec->catfile($repo, qw(linker m3f_bankcall_template.h));
 my $fresh = File::Spec->catfile($tmp, 'generic_bankcall_template.h');
 my $fa2_fresh = File::Spec->catfile($tmp, 'fa2_bankcall_template.h');
 my $jane_fresh = File::Spec->catfile($tmp, 'jane_bankcall_template.h');
@@ -50,6 +52,7 @@ my $ua_fresh = File::Spec->catfile($tmp, 'ua_bankcall_template.h');
 my $uasw_fresh = File::Spec->catfile($tmp, 'uasw_bankcall_template.h');
 my $m0fa0_fresh = File::Spec->catfile($tmp, 'm0fa0_bankcall_template.h');
 my $wd_fresh = File::Spec->catfile($tmp, 'wd_bankcall_template.h');
+my $m3f_fresh = File::Spec->catfile($tmp, 'm3f_bankcall_template.h');
 my $ld = read_file(File::Spec->catfile($repo, qw(linker vcsc_ld.c)));
 my $top = read_file(File::Spec->catfile($repo, 'Makefile'));
 my $s26 = read_file($src);
@@ -60,6 +63,7 @@ my $ua_s26 = read_file($ua_src);
 my $uasw_s26 = read_file($uasw_src);
 my $m0fa0_s26 = read_file($m0fa0_src);
 my $wd_s26 = read_file($wd_src);
+my $m3f_s26 = read_file($m3f_src);
 
 -f $as or die "missing assembler $as\n";
 -f $src or die "missing maintained trampoline source $src\n";
@@ -76,6 +80,7 @@ for my $mapper (@generic_mapper_dirs) {
 -f $uasw_src or die "missing maintained UASW trampoline source $uasw_src\n";
 -f $m0fa0_src or die "missing maintained 0FA0 trampoline source $m0fa0_src\n";
 -f $wd_src or die "missing maintained WD trampoline source $wd_src\n";
+-f $m3f_src or die "missing maintained 3F trampoline source $m3f_src\n";
 -f $generator or die "missing template generator $generator\n";
 -f $built or die "missing generated linker template $built\n";
 -f $fa2_built or die "missing generated FA2 linker template $fa2_built\n";
@@ -85,6 +90,7 @@ for my $mapper (@generic_mapper_dirs) {
 -f $uasw_built or die "missing generated UASW linker template $uasw_built\n";
 -f $m0fa0_built or die "missing generated 0FA0 linker template $m0fa0_built\n";
 -f $wd_built or die "missing generated WD linker template $wd_built\n";
+-f $m3f_built or die "missing generated 3F linker template $m3f_built\n";
 
 for my $label (qw(
    __vcsc_generic_bankcall_begin
@@ -149,10 +155,19 @@ index($wd_s26, 'VCSC_BANKCALL_SELECTOR_BASE = $0038') >= 0 &&
 index($wd_s26, 'adc #3') >= 0 &&
 index($wd_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
    or die "maintained WD trampoline source lacks delayed read-selector descriptor ABI\n";
+index($m3f_s26, 'stx $3F') >= 0 &&
+index($m3f_s26, 'cpx #$FF') >= 0 &&
+index($m3f_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
+index($m3f_s26, 'adc #3') >= 0 &&
+index($m3f_s26, '__vcsc_generic_bankcall_reserved_end = $6050') >= 0 &&
+index($m3f_s26, 'software') >= 0 && index($m3f_s26, 'shadow') >= 0 &&
+index($m3f_s26, 'op1C VCSC_BANKCALL_SELECTOR_BASE,x') < 0
+   or die "maintained 3F trampoline source lacks value-selector/fixed-sentinel descriptor ABI\n";
 index($ld, 'vcsc_generic_bankcall_template') >= 0 && index($ld, 'vcsc_fa2_bankcall_template') >= 0 &&
 index($ld, 'vcsc_jane_bankcall_template') >= 0 && index($ld, 'vcsc_m0840_bankcall_template') >= 0 &&
 index($ld, 'vcsc_ua_bankcall_template') >= 0 && index($ld, 'vcsc_uasw_bankcall_template') >= 0 &&
-index($ld, 'vcsc_m0fa0_bankcall_template') >= 0 && index($ld, 'vcsc_wd_bankcall_template') >= 0
+index($ld, 'vcsc_m0fa0_bankcall_template') >= 0 && index($ld, 'vcsc_wd_bankcall_template') >= 0 &&
+index($ld, 'vcsc_m3f_bankcall_template') >= 0
    or die "linker does not consume all generated trampoline templates
 ";
 index($ld, '#define PUT(') < 0
@@ -164,7 +179,8 @@ index($top, 'libraries/vcs/0840/bankcall.s26') >= 0 &&
 index($top, 'libraries/vcs/UA/bankcall.s26') >= 0 &&
 index($top, 'libraries/vcs/UASW/bankcall.s26') >= 0 &&
 index($top, 'libraries/vcs/0FA0/bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/WD/bankcall.s26') >= 0
+index($top, 'libraries/vcs/WD/bankcall.s26') >= 0 &&
+index($top, 'libraries/vcs/3F/bankcall.s26') >= 0
    or die "maintained trampoline sources are not installed
 ";
 
@@ -190,6 +206,8 @@ system($^X, $generator, $as, $m0fa0_src, $m0fa0_fresh, 'M0FA0') == 0
 ";
 system($^X, $generator, $as, $wd_src, $wd_fresh, 'WD') == 0
    or die "could not regenerate WD bank-call template\n";
+system($^X, $generator, $as, $m3f_src, $m3f_fresh, 'M3F') == 0
+   or die "could not regenerate 3F bank-call template\n";
 read_file($fresh) eq read_file($built)
    or die "built generic bank-call template is stale relative to F8/bankcall.s26\n";
 read_file($fa2_fresh) eq read_file($fa2_built)
@@ -212,6 +230,8 @@ read_file($m0fa0_fresh) eq read_file($m0fa0_built)
 ";
 read_file($wd_fresh) eq read_file($wd_built)
    or die "built WD bank-call template is stale relative to WD/bankcall.s26\n";
+read_file($m3f_fresh) eq read_file($m3f_built)
+   or die "built 3F bank-call template is stale relative to 3F/bankcall.s26\n";
 
 my $header = read_file($built);
 $header =~ /VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE 0x44u/
@@ -255,5 +275,12 @@ $wd_header =~ /VCSC_WD_BANKCALL_TEMPLATE_SIZE 0x44u/
    or die "WD descriptor trampoline payload is no longer 68 bytes\n";
 $wd_header =~ /VCSC_WD_BANKCALL_RESERVED_SIZE 0x48u/
    or die "WD descriptor trampoline reservation is no longer 72 bytes\n";
+my $m3f_header = read_file($m3f_built);
+$m3f_header =~ /VCSC_M3F_BANKCALL_TEMPLATE_SIZE 0x4Au/
+   or die "3F descriptor trampoline payload is no longer 74 bytes\n";
+$m3f_header =~ /VCSC_M3F_BANKCALL_RESERVED_SIZE 0x50u/
+   or die "3F descriptor trampoline reservation is no longer 80 bytes\n";
+$m3f_header =~ /VCSC_M3F_BANKCALL_SELECTOR_PATCH_COUNT 0u/
+   or die "3F descriptor trampoline unexpectedly has selector-address patches\n";
 
 print "bank-call source templates passed\n";

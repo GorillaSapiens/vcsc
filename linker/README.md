@@ -449,10 +449,13 @@ corridor may overlap the other or a selector hotspot.
 
 The current vector bridge is eighteen bytes: byte-identical NMI, RESET, and
 IRQ/BRK entries are copied at that physical offset in every bank. Migrated
-selector-controlled mappers own a three-byte `entry.s26` reset-entry fragment.
-The linker assembles that maintained source at build time, copies its raw bytes
-ahead of each vector handler, and verifies that it selects the declared startup
-bank. Current entry hooks use raw NMOS `op0C` (absolute NOP) selector reads, so
+`$bankcall` mappers own a three-byte `entry.s26` reset-entry fragment. The
+linker assembles that maintained source at build time and copies its raw bytes
+ahead of each vector handler. Selector-normalizing hooks are verified against
+the declared startup bank and use raw NMOS `op0C` (absolute NOP) selector
+reads. 3F is the intentional exception: its fixed final 2K is always visible,
+so its three-byte hook is inert NOPs. Thus ordinary reset starts only after any
+required mapper entry action, while
 they preserve registers/flags and do not depend on assembler `--illegal` mode.
 The final six bytes of every bank contain the same vector words, using BANK0's
 logical mirror of those three entries, before

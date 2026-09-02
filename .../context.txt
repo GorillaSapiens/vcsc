@@ -101,19 +101,23 @@ Open workstreams
    `.../bankswitching.txt` owns mapper facts and unfinished work. C26 topology is
    authoritative; VCS mapper/linker cfg profiles are gone.
    The six-byte descriptor call ABI is complete for F8/F6/F4(+SC), FA, DPC,
-   FA2-24/28, JANE, 0840, UA, UASW, 0FA0, and WD. Each owns `bankcall.s26` and
-   three-byte `entry.s26`; profiles declare `$bankcall`. Dynamic read selectors
-   carry the descriptor in X and use raw `op1C` absolute-X NOP reads; fixed entry
-   selectors use raw `op0C` absolute reads. Active bankcall bodies are 68 bytes
-   inside 72-byte reserved blocks. WD exposes two compiler banks backed by hardware
-   states 1/2 while the simulator retains all eight hardware arrangements.
+   FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, and 3F. Each owns `bankcall.s26`
+   and three-byte `entry.s26`; profiles declare `$bankcall`. Dynamic read
+   selectors carry the descriptor in X and use raw `op1C` absolute-X NOP reads;
+   fixed entry selectors use raw `op0C` absolute reads. The common family uses
+   68 active/72 reserved bytes; 3F uses 74 active/80 reserved. WD exposes two
+   compiler banks backed by hardware states 1/2 while the simulator retains all
+   eight hardware arrangements.
    Linker ROM storage is now 256 independent 64K physical planes keyed by topology
    `file_index`; read-only CPU-mapped `mem` can name its owner with `$bank:NAME`.
    Overlapping bank-local CPU addresses therefore no longer alias in BIN output.
    Automatic placement now uses a 256-bit allowed-bank set; a max-size 256-bank
    3F regression reaches bank index 255. Normal relocation/branch/.banktarget
-   ownership is bank-aware, and parameterized 3F selectable banks now share the
-   canonical `$1000-$17FF` CPU window. Item 38a next adds 3F automatic calls.
+   ownership is bank-aware, and parameterized 3F selectable banks share the
+   canonical `$1000-$17FF` CPU window. 3F lower banks use descriptors `$00-$FE`
+   and fixed uses `$FF`; every fixed/lower boundary call uses its trampoline so
+   nested lower->fixed->lower calls restore the original lower caller. Item 38b
+   next designs/migrates 3E's switched RAM state.
 
    The F4SC field diagnostic remains bank-local by controller; only joystick owns
    TIA/switch/collision work. Four-paddle sampling snapshots INPT0-INPT3 together

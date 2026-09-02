@@ -17,7 +17,7 @@ shared ABI.
 The descriptor ABI in this document is the public ABI for `$bankcall`.
 The compiler, assembler, and linker emit the three-byte `.banktarget` field.
 F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, FA2-24/28, JANE, 0840, UA, UASW,
-0FA0, and WD are fully migrated: their bank-local trampolines consume the
+0FA0, WD, and 3F are fully migrated: their bank-local trampolines consume the
 destination descriptor directly and carry a baked source descriptor on the
 hardware stack.
 
@@ -135,12 +135,13 @@ meaning.
 
 The mapper-specific `bankcall.s26` owns the interpretation of the byte.
 
-The mapper-specific `entry.s26` owns reset-entry normalization for migrated
-descriptor-ABI mappers. It is a maintained three-byte selector read that the
-linker replicates ahead of the ordinary vector handler, so reset reaches the
-runtime only after the canonical startup bank/state is visible. These entry
-sources spell the absolute-NOP access as raw `op0C`, avoiding any dependency
-on assembler `--illegal` mode.
+The mapper-specific `entry.s26` owns reset-entry behavior for migrated
+descriptor-ABI mappers. The linker replicates this maintained three-byte hook
+ahead of the ordinary vector handler, so reset reaches the runtime only after
+any required mapper normalization. Read-selected mappers spell the selector
+access as raw `op0C`, avoiding any dependency on assembler `--illegal` mode.
+3F needs no reset normalization because its fixed final 2K is permanently
+visible, so its entry hook is three inert one-byte NOPs.
 
 Examples of useful descriptor choices include:
 
@@ -151,6 +152,11 @@ Examples of useful descriptor choices include:
 - 0FA0: `$A0` or `$C0`, suitable for the canonical selector aliases;
 - WD: `1` or `2`, selecting the two relocation-safe compiler arrangements via
   raw `op1C` absolute-X reads from `$0038` (`$39` / `$3A`);
+- 3F: selectable lower banks use their `$00-$FE` write-selector values; the
+  permanently visible fixed final bank uses `$FF` as a sentinel meaning “do
+  not change the lower window”. Every fixed/lower boundary call still uses the
+  trampoline, so a lower caller is restored even if nested fixed code selects
+  another lower bank; and
 - a write-selected mapper: the exact selector value to write; and
 - F0: the bank ID, allowing the mapper-specific trampoline to compute how many
   `$1FF0` advances are required.

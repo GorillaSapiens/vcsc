@@ -66,13 +66,13 @@ my $hex = File::Spec->catfile($tmp, 'planes.hex');
 
 my $program = <<'SRC';
 include "vcs.c26"
-cartridge { $fill:0xff $signature:3F };
-bank bank0 { $image_size:0x0800 $file_index:0 $image_offset:0 $link_start:0x1000 $cpu_start:0x1000 $map_size:0x0800 };
-bank bank1 { $image_size:0x0800 $file_index:1 $image_offset:0 $link_start:0x1000 $cpu_start:0x1000 $map_size:0x0800 };
-bank bank2 { $image_size:0x0800 $file_index:2 $image_offset:0 $link_start:0xf800 $cpu_start:0x1800 $map_size:0x0800 $startup };
-mem bank0 { $start:0x1000 $size:0x0800 $ro $bank:bank0 };
-mem bank1 { $start:0x1000 $size:0x0800 $ro $bank:bank1 };
-mem bank2 { $start:0xf800 $size:0x07f8 $ro $bank:bank2 $priority:2 };
+cartridge { $bankcall $fill:0xff $signature:3F $trampoline_offset:0x0780 $trampoline_size:0x0050 $vector_bridge_offset:0x07d0 $vector_bridge_size:0x0012 $vectors_offset:0x07fa $vectors_size:0x0006 };
+bank bank0 { $image_size:0x0800 $file_index:0 $image_offset:0 $link_start:0x1000 $cpu_start:0x1000 $map_size:0x0800 $bankcall_descriptor:0x00 };
+bank bank1 { $image_size:0x0800 $file_index:1 $image_offset:0 $link_start:0x1000 $cpu_start:0x1000 $map_size:0x0800 $bankcall_descriptor:0x01 };
+bank bank2 { $image_size:0x0800 $file_index:2 $image_offset:0 $link_start:0x1800 $cpu_start:0x1800 $map_size:0x0800 $bankcall_descriptor:0xff $startup };
+mem bank0 { $start:0x1000 $size:0x0780 $ro $bank:bank0 };
+mem bank1 { $start:0x1000 $size:0x0780 $ro $bank:bank1 };
+mem bank2 { $start:0x1800 $size:0x0780 $ro $bank:bank2 $priority:2 };
 bank0 const uint8_t marker0[4] := { 0x10, 0x11, 0x12, 0x13 };
 bank1 const uint8_t marker1[4] := { 0x20, 0x21, 0x22, 0x23 };
 bank2 void main(void) { while (1) { } }

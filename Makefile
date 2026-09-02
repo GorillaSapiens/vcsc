@@ -199,6 +199,7 @@ install-data:
 	install -m 0644 libraries/vcs/UASW/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/UASW/bankcall.s26
 	install -m 0644 libraries/vcs/0FA0/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/0FA0/bankcall.s26
 	install -m 0644 libraries/vcs/WD/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/WD/bankcall.s26
+	install -m 0644 libraries/vcs/3F/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/3F/bankcall.s26
 	install -m 0644 libraries/vcs/F8/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F8/entry.s26
 	install -m 0644 libraries/vcs/F8SC/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F8SC/entry.s26
 	install -m 0644 libraries/vcs/F6/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F6/entry.s26
@@ -214,6 +215,7 @@ install-data:
 	install -m 0644 libraries/vcs/UASW/entry.s26 $(DESTDIR)$(DATADIR)/vcs/UASW/entry.s26
 	install -m 0644 libraries/vcs/0FA0/entry.s26 $(DESTDIR)$(DATADIR)/vcs/0FA0/entry.s26
 	install -m 0644 libraries/vcs/WD/entry.s26 $(DESTDIR)$(DATADIR)/vcs/WD/entry.s26
+	install -m 0644 libraries/vcs/3F/entry.s26 $(DESTDIR)$(DATADIR)/vcs/3F/entry.s26
 	install -m 0644 libraries/vcs/CV/ram.c26 $(DESTDIR)$(DATADIR)/vcs/CV/ram.c26
 	install -m 0644 libraries/vcs/DPC/registers.c26 $(DESTDIR)$(DATADIR)/vcs/DPC/registers.c26
 	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
@@ -376,6 +378,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/UASW/bankcall.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/0FA0/bankcall.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/WD/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/3F/bankcall.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/F8/entry.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/F8SC/entry.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/F6/entry.s26
@@ -391,6 +394,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/UASW/entry.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/0FA0/entry.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/WD/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/3F/entry.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/CV/ram.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/registers.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.c26

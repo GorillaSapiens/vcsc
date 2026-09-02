@@ -1,0 +1,111 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+;
+; Descriptor-ABI cross-bank JSR/RTS trampoline for Tigervision 3F.
+;
+; Selectable lower-window banks use descriptors $00-$FE, equal to the value
+; written to TIA $3F.  The permanently visible final 2K bank uses descriptor
+; $FF as a sentinel meaning "do not change the lower window".  Every call that
+; crosses between differently placed 3F code regions goes through this block:
+;
+;   lower A -> lower B : select B, call, restore A before returning
+;   lower A -> fixed   : call fixed without switching, restore A on return
+;   fixed   -> lower B : select B, call, return to fixed without restoration
+;
+; This is what makes nested lower->fixed->lower calls safe without a software
+; shadow of the currently selected lower bank.
+
+.ifndef VCSC_BANKCALL_PTR0
+VCSC_BANKCALL_PTR0 = $0080
+.endif
+.ifndef VCSC_BANKCALL_SOURCE_DESCRIPTOR
+VCSC_BANKCALL_SOURCE_DESCRIPTOR = $FF
+.endif
+
+; Kept for the common template generator interface.  3F selects by writing the
+; descriptor VALUE to TIA $3F, so there is no address-plus-descriptor base.
+.ifndef VCSC_BANKCALL_SELECTOR_BASE
+VCSC_BANKCALL_SELECTOR_BASE = $0000
+.endif
+
+; TEMPLATE ASSEMBLY ORIGIN ONLY.
+; $6000 is never executed or presented to the 6507 bus. The template is
+; assembled at this synthetic non-zero-page origin so internal absolute
+; references cannot relax to zero-page encodings; the linker copies the bytes
+; into each physical bank's real trampoline corridor and patches the internal
+; JSR to the permanently visible fixed-bank switch helper.
+.segmentdef "CODE", $6000, $0100
+.segment "CODE"
+
+.export __vcsc_generic_bankcall_begin
+.export __vcsc_generic_bankreturn
+.export __vcsc_generic_bankcall_switch_and_jump
+.export __vcsc_generic_bankcall_end
+.export __vcsc_generic_bankcall_reserved_end
+
+__vcsc_generic_bankcall_begin:
+    ; JSR stacked the address of its final operand byte. Keep that logical PC
+    ; in ptr0 while all three inline payload bytes are still visible.
+    tsx
+    lda $0101,x
+    sta VCSC_BANKCALL_PTR0
+    lda $0102,x
+    sta VCSC_BANKCALL_PTR0 + 1
+
+    ; Final RTS must skip target-low, target-high, and destination descriptor.
+    lda $0101,x
+    clc
+    adc #3
+    sta $0101,x
+    bcc.same @return_adjusted
+    inc $0102,x
+@return_adjusted:
+
+    ; Read the complete payload before any lower-window change.
+    ldy #3
+    lda (VCSC_BANKCALL_PTR0),y
+    tax                         ; destination descriptor
+    dey
+    lda (VCSC_BANKCALL_PTR0),y
+    pha
+    dey
+    lda (VCSC_BANKCALL_PTR0),y
+    sta VCSC_BANKCALL_PTR0
+    pla
+    sta VCSC_BANKCALL_PTR0 + 1
+
+    ; Source descriptor is baked independently in each physical bank copy.
+    ; $FF denotes the fixed bank and therefore means no lower-bank restoration.
+    lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR
+    pha
+
+    ; The linker patches this JSR to the switch helper in the permanently
+    ; visible fixed-bank copy.  For a lower caller the numeric return address
+    ; lands in the identical bankreturn bytes of the selected destination bank.
+    jsr __vcsc_generic_bankcall_switch_and_jump
+
+__vcsc_generic_bankreturn:
+    ; Preserve A:X return value around optional restoration of the source lower
+    ; bank.  Returning to fixed code ($FF source) needs no lower-window change.
+    sta VCSC_BANKCALL_PTR0
+    stx VCSC_BANKCALL_PTR0 + 1
+    pla
+    tax
+    cpx #$FF
+    beq.same @source_fixed
+    stx $3F
+@source_fixed:
+    lda VCSC_BANKCALL_PTR0
+    ldx VCSC_BANKCALL_PTR0 + 1
+    rts
+
+__vcsc_generic_bankcall_switch_and_jump:
+    ; $FF destination means the callee is in the fixed upper 2K and no mapper
+    ; operation is required.  Otherwise write the selected lower-bank number.
+    cpx #$FF
+    beq.same @destination_fixed
+    stx $3F
+@destination_fixed:
+    jmp (VCSC_BANKCALL_PTR0)
+
+__vcsc_generic_bankcall_end:
+__vcsc_generic_bankcall_reserved_end = $6050

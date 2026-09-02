@@ -185,7 +185,8 @@ for my $patch (@ptr_patch) {
 print {$ofh} "};\n";
 printf {$ofh} "#define %s_PTR_PATCH_COUNT %uu\n", $macro, scalar @ptr_patch;
 printf {$ofh} "static const uint8_t %s_selector_patches[] = {\n   ", $var_prefix;
-print {$ofh} join(', ', map { sprintf('0x%02Xu', $_) } @selector_patch), "\n};\n";
+print {$ofh} @selector_patch ? join(', ', map { sprintf('0x%02Xu', $_) } @selector_patch) : '0x00u';
+print {$ofh} "\n};\n";
 printf {$ofh} "#define %s_SELECTOR_PATCH_COUNT %uu\n", $macro, scalar @selector_patch;
 printf {$ofh} "static const uint8_t %s_source_descriptor_patches[] = {\n   ", $var_prefix;
 print {$ofh} @source_patch ? join(', ', map { sprintf('0x%02Xu', $_) } @source_patch) : '0x00u';

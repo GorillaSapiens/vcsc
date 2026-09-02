@@ -29,6 +29,7 @@
 #include "uasw_bankcall_template.h"
 #include "m0fa0_bankcall_template.h"
 #include "wd_bankcall_template.h"
+#include "m3f_bankcall_template.h"
 #include "mapper_entry_templates.h"
 
 static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg);
@@ -1809,6 +1810,18 @@ static void discard_legacy_banked_cfg_regions(linker_config_t *cfg)
    free(removed);
 }
 
+//! @brief Return whether the C26 topology is classic Tigervision 3F.
+static int c26_topology_is_3f(const linker_config_t *cfg)
+{
+   const topology_cartridge_t *cart;
+   if (!cfg || cfg->topology_bank_count < 1u || cfg->topology_bank_count > 256u)
+      return 0;
+   cart = &cfg->topology_cartridge;
+   return (cart->present_mask & 0x80u) &&
+          cart->signature[0] == '3' && cart->signature[1] == 'F' &&
+          cart->signature[2] == 0 && cart->signature[3] == 0;
+}
+
 //! @brief Build the linker's full-window selector machinery from C26 topology.
 static void apply_c26_topology_to_linker_config(linker_config_t *cfg)
 {
@@ -1827,10 +1840,10 @@ static void apply_c26_topology_to_linker_config(linker_config_t *cfg)
    cfg->banks = NULL;
    cfg->bank_count = 0;
    cfg->mapper[0] = '\0';
-   cfg->cartridge_banked = selector_count != 0;
+   cfg->cartridge_banked = selector_count != 0 || c26_topology_is_3f(cfg);
    cfg->cartridge_fill_value = cfg->topology_cartridge.fill_value;
 
-   if (selector_count) {
+   if (cfg->cartridge_banked) {
       snprintf(cfg->mapper, sizeof(cfg->mapper), "%s", "C26");
       cfg->trampoline_offset = cfg->topology_cartridge.trampoline_offset;
       cfg->trampoline_size = cfg->topology_cartridge.trampoline_size;
@@ -3312,40 +3325,78 @@ static void validate_linker_config(linker_config_t *cfg)
       exit(1);
    }
 
-   for (i = 0; i < cfg->bank_count; ++i) {
-      cartridge_bank_t *bank = &cfg->banks[i];
-      uint32_t end = (uint32_t)bank->start + bank->size;
-      if (!bank->name[0] || bank->size != 0x1000u ||
-          (bank->start & 0x0fffu) != 0 || end > 0x10000u) {
-         fprintf(stderr,
-                 "vcsc-ld: BANKS entry '%s' must describe one aligned 4K logical bank\n",
-                 bank->name[0] ? bank->name : "<unnamed>");
-         exit(1);
-      }
-      if (bank->hotspot > 0x1fffu) {
-         fprintf(stderr,
-                 "vcsc-ld: BANKS entry '%s' hotspot $%04X is outside the 6507 $0000-$1FFF bus\n",
-                 bank->name, bank->hotspot);
-         exit(1);
-      }
-      if (bank->startup)
-         startup_count++;
-      for (j = i + 1; j < cfg->bank_count; ++j) {
-         cartridge_bank_t *other = &cfg->banks[j];
-         uint32_t other_end = (uint32_t)other->start + other->size;
-         if (str_ieq(bank->name, other->name)) {
-            fprintf(stderr, "vcsc-ld: duplicate BANKS entry '%s'\n", bank->name);
+   if (c26_topology_is_3f(cfg)) {
+      size_t final_index = cfg->topology_bank_count - 1u;
+      for (i = 0; i < cfg->bank_count; ++i) {
+         cartridge_bank_t *bank = &cfg->banks[i];
+         const topology_bank_t *top = NULL;
+         for (j = 0; j < cfg->topology_bank_count; ++j)
+            if (!strcmp(cfg->topology_banks[j].name, bank->name)) { top = &cfg->topology_banks[j]; break; }
+         if (!top || bank->size != 0x0800u ||
+             (bank->start != 0x1000u && bank->start != 0x1800u)) {
+            fprintf(stderr, "vcsc-ld: 3F bank '%s' must be one canonical 2K lower/fixed window\n",
+                    bank->name);
             exit(1);
          }
-         if (bank->start < other_end && other->start < end) {
-            fprintf(stderr, "vcsc-ld: logical cartridge banks '%s' and '%s' overlap\n",
-                    bank->name, other->name);
+         if (!bank->has_bankcall_descriptor) {
+            fprintf(stderr, "vcsc-ld: 3F bank '%s' lacks a bank-call descriptor\n", bank->name);
             exit(1);
          }
-         if (bank->hotspot == other->hotspot) {
-            fprintf(stderr, "vcsc-ld: duplicate bank hotspot $%04X for '%s' and '%s'\n",
-                    bank->hotspot, bank->name, other->name);
+         if (top->file_index == final_index) {
+            if (bank->start != 0x1800u || bank->bankcall_descriptor != 0xffu || !bank->startup) {
+               fprintf(stderr, "vcsc-ld: 3F final bank '%s' must be fixed $1800 with descriptor $FF and startup\n", bank->name);
+               exit(1);
+            }
+         } else {
+            if (bank->start != 0x1000u || bank->bankcall_descriptor != (uint8_t)top->file_index || bank->startup) {
+               fprintf(stderr, "vcsc-ld: 3F selectable bank '%s' must map $1000 with descriptor equal to file index\n", bank->name);
+               exit(1);
+            }
+         }
+         if (bank->startup) startup_count++;
+         for (j = i + 1; j < cfg->bank_count; ++j) {
+            if (str_ieq(bank->name, cfg->banks[j].name)) {
+               fprintf(stderr, "vcsc-ld: duplicate BANKS entry '%s'\n", bank->name);
+               exit(1);
+            }
+         }
+      }
+   } else {
+      for (i = 0; i < cfg->bank_count; ++i) {
+         cartridge_bank_t *bank = &cfg->banks[i];
+         uint32_t end = (uint32_t)bank->start + bank->size;
+         if (!bank->name[0] || bank->size != 0x1000u ||
+             (bank->start & 0x0fffu) != 0 || end > 0x10000u) {
+            fprintf(stderr,
+                    "vcsc-ld: BANKS entry '%s' must describe one aligned 4K logical bank\n",
+                    bank->name[0] ? bank->name : "<unnamed>");
             exit(1);
+         }
+         if (bank->hotspot > 0x1fffu) {
+            fprintf(stderr,
+                    "vcsc-ld: BANKS entry '%s' hotspot $%04X is outside the 6507 $0000-$1FFF bus\n",
+                    bank->name, bank->hotspot);
+            exit(1);
+         }
+         if (bank->startup)
+            startup_count++;
+         for (j = i + 1; j < cfg->bank_count; ++j) {
+            cartridge_bank_t *other = &cfg->banks[j];
+            uint32_t other_end = (uint32_t)other->start + other->size;
+            if (str_ieq(bank->name, other->name)) {
+               fprintf(stderr, "vcsc-ld: duplicate BANKS entry '%s'\n", bank->name);
+               exit(1);
+            }
+            if (bank->start < other_end && other->start < end) {
+               fprintf(stderr, "vcsc-ld: logical cartridge banks '%s' and '%s' overlap\n",
+                       bank->name, other->name);
+               exit(1);
+            }
+            if (bank->hotspot == other->hotspot) {
+               fprintf(stderr, "vcsc-ld: duplicate bank hotspot $%04X for '%s' and '%s'\n",
+                       bank->hotspot, bank->name, other->name);
+               exit(1);
+            }
          }
       }
    }
@@ -9341,6 +9392,12 @@ static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg)
    size_t i;
    int saw_selector = 0;
    if (!cfg) return 0;
+   if (c26_topology_is_3f(cfg)) {
+      if (cfg->bank_count != cfg->topology_bank_count) return 0;
+      for (i = 0; i < cfg->bank_count; ++i)
+         if (!cfg->banks[i].has_bankcall_descriptor) return 0;
+      return cfg->bank_count != 0;
+   }
    for (i = 0; i < cfg->bank_count; ++i) {
       const cartridge_bank_t *bank = &cfg->banks[i];
       if (!bank->hotspot) continue;
@@ -9360,10 +9417,26 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
    int uasw = c26_topology_is_uasw(cfg);
    int m0fa0 = c26_topology_is_0fa0(cfg);
    int wd = c26_topology_is_wd(cfg);
+   int threef = c26_topology_is_3f(cfg);
 
    if (!cfg) {
       fprintf(stderr, "vcsc-ld: generic inline-target bank calls require a banked cartridge profile\n");
       exit(1);
+   }
+
+   if (threef) {
+      size_t final_index = cfg->topology_bank_count - 1u;
+      for (i = 0; i < cfg->topology_bank_count; ++i) {
+         const topology_bank_t *bank = c26_topology_bank_by_file_index(cfg, (uint16_t)i);
+         uint8_t expected = i == final_index ? 0xffu : (uint8_t)i;
+         if (!bank || bank->data_only || bank->has_selector ||
+             !bank->has_bankcall_descriptor || bank->bankcall_descriptor != expected) {
+            fprintf(stderr,
+                    "vcsc-ld: 3F inline-target calls require selectable descriptors 0..N-2 and fixed-bank descriptor $FF\n");
+            exit(1);
+         }
+      }
+      return 0u; /* 3F writes descriptor values to TIA $3F; no selector base. */
    }
 
    if (wd) {
@@ -9498,6 +9571,8 @@ static uint16_t generic_bankcall_reserved_size(const linker_config_t *cfg)
       return VCSC_FA2_BANKCALL_RESERVED_SIZE;
    if (c26_topology_is_wd(cfg))
       return VCSC_WD_BANKCALL_RESERVED_SIZE;
+   if (c26_topology_is_3f(cfg))
+      return VCSC_M3F_BANKCALL_RESERVED_SIZE;
    if (bankcall_descriptor_abi_enabled(cfg))
       return VCSC_GENERIC_BANKCALL_RESERVED_SIZE;
    fprintf(stderr,
@@ -10247,6 +10322,8 @@ static const uint8_t *mapper_entry_template(const linker_config_t *cfg)
       return vcsc_m0fa0_entry;
    if (SIG4('W','D',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "WD")))
       return vcsc_wd_entry;
+   if (SIG4('3','F',0,0))
+      return vcsc_m3f_entry;
 #undef SIG4
    return NULL;
 }
@@ -10259,8 +10336,13 @@ static void build_mapper_entry(const linker_config_t *cfg,
    const uint8_t *maintained = mapper_entry_template(cfg);
    if (maintained) {
       memcpy(entry, maintained, VCSC_MAPPER_ENTRY_SIZE);
-      if (entry[0] != 0x0Cu ||
-          (uint16_t)(entry[1] | ((uint16_t)entry[2] << 8)) != startup->hotspot) {
+      if (c26_topology_is_3f(cfg)) {
+         if (entry[0] != 0xEAu || entry[1] != 0xEAu || entry[2] != 0xEAu) {
+            fprintf(stderr, "vcsc-ld: maintained 3F mapper entry must be three inert NOP bytes\n");
+            exit(1);
+         }
+      } else if (entry[0] != 0x0Cu ||
+                 (uint16_t)(entry[1] | ((uint16_t)entry[2] << 8)) != startup->hotspot) {
          fprintf(stderr,
                  "vcsc-ld: maintained mapper entry does not select startup bank %s at $%04X\n",
                  startup->name, startup->hotspot);
@@ -10512,6 +10594,22 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
          source_descriptor,
          VCSC_WD_BANKCALL_SWITCH_OFFSET,
          VCSC_WD_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
+         selector_base, canonical_base, ptr0);
+   }
+   else if (c26_topology_is_3f(cfg)) {
+      instantiate_bankcall_template(table,
+         vcsc_m3f_bankcall_template,
+         VCSC_M3F_BANKCALL_TEMPLATE_SIZE,
+         VCSC_M3F_BANKCALL_RESERVED_SIZE,
+         vcsc_m3f_bankcall_ptr_patches,
+         VCSC_M3F_BANKCALL_PTR_PATCH_COUNT,
+         vcsc_m3f_bankcall_selector_patches,
+         VCSC_M3F_BANKCALL_SELECTOR_PATCH_COUNT,
+         vcsc_m3f_bankcall_source_descriptor_patches,
+         VCSC_M3F_BANKCALL_SOURCE_DESCRIPTOR_PATCH_COUNT,
+         source_descriptor,
+         VCSC_M3F_BANKCALL_SWITCH_OFFSET,
+         VCSC_M3F_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
          selector_base, canonical_base, ptr0);
    }
    else if (bankcall_descriptor_abi_enabled(cfg)) {

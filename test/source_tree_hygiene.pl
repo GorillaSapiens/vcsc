@@ -173,6 +173,9 @@ index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `instruction.txt`
 my $gitignore=slurp(File::Spec->catfile($repo,'.gitignore'));
 index($gitignore,'!.../instruction.txt')>=0
    or die ".gitignore must preserve .../instruction.txt in make tar handoffs\n";
+my $runtime_gitignore=slurp(File::Spec->catfile($repo,'libraries','runtime','.gitignore'));
+index($runtime_gitignore,'libvcsc.l26')<0
+   or die "libraries/runtime/.gitignore must preserve libvcsc.l26 in make tar handoffs\n";
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `bankswitching.txt`')>=0
    or die ".../README.md does not document bankswitching.txt\n";
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `roadmap.txt`')>=0 &&
@@ -204,13 +207,13 @@ index($bankswitching,'file_index(BANKn) = bank_count - 1 - n')>=0 &&
 index($bankswitching,'Public VCSC cartridge profiles reserve four bytes')>=0 &&
 $bankswitching =~ /^\[ \] 38\. Complete the remaining automatic-call mapper work\./m &&
 index($bankswitching,'FA2 extends the FA split-RAM model to six or seven directly selected 4K ROM')>=0 &&
-index($bankswitching,'[ ] 38a. Design and migrate 3F automatic calls.')>=0 &&
+index($bankswitching,'3F lower banks use selector-value descriptors `$00-$FE`; fixed uses `$FF`')>=0 &&
 index($bankswitching,'256 independent 64K physical planes')>=0 &&
 index($bankswitching,'256-bit bank set')>=0 &&
 index($bankswitching,'VCS_3F_BANKS > N+1')>=0 &&
 -f File::Spec->catfile($test,'linker_bank_set_256.pl') &&
 -f File::Spec->catfile($repo,qw(libraries vcs 3F mapper.c26)) &&
-index($bankswitching,'[ ] 38b. Migrate 3E after the 3F call-state rule is settled.')>=0 &&
+index($bankswitching,'[ ] 38b. Migrate 3E using the settled 3F ROM-call foundation.')>=0 &&
 index($bankswitching,'[ ] 38c. Implement/migrate FC.')>=0 &&
 index($bankswitching,'[ ] 38d. Implement/migrate F0.')>=0 &&
 index($bankswitching,'[ ] 38e. Design automatic E0 calls.')>=0 &&
@@ -243,6 +246,8 @@ index(slurp(File::Spec->catfile($repo,qw(libraries vcs UASW bankcall.s26))),'__v
 -f File::Spec->catfile($repo,qw(libraries vcs 0FA0 bankcall.s26)) &&
 index(slurp(File::Spec->catfile($repo,qw(libraries vcs 0FA0 bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6048')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs WD bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs 3F bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs 3F entry.s26)) &&
 index(slurp(File::Spec->catfile($repo,qw(libraries vcs WD bankcall.s26))),'VCSC_BANKCALL_SELECTOR_BASE = $0038')>=0 &&
 index(slurp(File::Spec->catfile($repo,qw(libraries vcs WD bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6048')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'generic_bankcall_reserved_size')>=0 &&
@@ -254,8 +259,9 @@ index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_ua_bankcall_t
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_uasw_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m0fa0_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_wd_bankcall_template')>=0 &&
+index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m3f_bankcall_template')>=0 &&
 index($bankswitching,'F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,')>=0 &&
-index($bankswitching,'FA2-24/28, JANE, 0840, UA, UASW, 0FA0, and WD consume it end to end')>=0 &&
+index($bankswitching,'FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, and 3F consume it end to end')>=0 &&
 index($bankswitching,'[ ] 38. Complete the remaining automatic-call mapper work.')>=0 &&
 $bankswitching !~ /^\[ \] 37\./m &&
 $bankswitching !~ /^\[ \] 42\./m &&
@@ -606,6 +612,7 @@ my $m0fa0_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','0FA0/mapper
 my $m0fa0_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','10_0fa0','Makefile'));
 my $wd_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','WD/mapper.c26'));
 my $wd_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','15_wd','Makefile'));
+my $m3f_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','3F/mapper.c26'));
 my $dpc_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','DPC/mapper.c26'));
 my $dpc_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','16_dpc','Makefile'));
 my $fa2_24_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','FA2/mapper_24k.c26'));
@@ -660,7 +667,12 @@ index($wd_profile,'$bankcall_descriptor:0x02')>=0 &&
 index($wd_profile,'$select_access:0x0039')>=0 &&
 index($wd_profile,'$select_access:0x003a')>=0 &&
 index($wd_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
-index($top_make,'libraries/vcs/WD/bankcall.s26')>=0
+index($top_make,'libraries/vcs/WD/bankcall.s26')>=0 &&
+index($m3f_profile,'$bankcall')>=0 &&
+index($m3f_profile,'$bankcall_descriptor:0x00')>=0 &&
+index($m3f_profile,'$bankcall_descriptor:0xff')>=0 &&
+index($top_make,'libraries/vcs/3F/bankcall.s26')>=0 &&
+index($top_make,'libraries/vcs/3F/entry.s26')>=0
    or die "migrated descriptor profiles or pending inline mapper packaging/opt-ins are inconsistent\n";
 my @mapper_dirs = qw(0840 0FA0 2K 3E 3F 4K 4KSC CV DPC E0 F4 F4SC F6 F6SC F8 F8SC FA FA2 FE JANE OMNI UA UASW WD);
 for my $mapper (@mapper_dirs) {
@@ -695,6 +707,8 @@ for my $legacy (qw(
 -f File::Spec->catfile($repo,qw(libraries vcs UASW bankcall.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs 0FA0 bankcall.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs WD bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs 3F bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs 3F entry.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs 4KSC ram.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs FA ram.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs CV ram.c26)) &&
@@ -789,6 +803,8 @@ index($top_make,'test/vcs_e0.pl')>=0
 -f File::Spec->catfile($repo,'examples','09_bankswitching','13_3e','3e_diagnostic.c26') &&
 index($top_make,'libraries/vcs/tia_mirror_40.c26')>=0 &&
 index($top_make,'libraries/vcs/3F/mapper.c26')>=0 &&
+index($top_make,'libraries/vcs/3F/bankcall.s26')>=0 &&
+index($top_make,'libraries/vcs/3F/entry.s26')>=0 &&
 index($top_make,'libraries/vcs/3F/mapper_8k.c26')<0 &&
 index($top_make,'libraries/vcs/3F/mapper_16k.c26')<0 &&
 index($top_make,'libraries/vcs/3E/mapper_16k.c26')>=0 &&

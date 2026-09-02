@@ -1,0 +1,21 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+;
+; Tigervision 3F reset-entry hook.  The final 2K bank containing the vectors is
+; permanently visible, so there is no lower-bank state that must be normalized
+; before ordinary startup.  Keep an explicit three-byte no-op entry so 3F uses
+; the same mapper-owned pre-reset hook mechanism as the other descriptor-ABI
+; mappers without perturbing registers, flags, or mapper state.
+
+; TEMPLATE ASSEMBLY ORIGIN ONLY.
+; $6000 is never executed or presented to the 6507 bus.
+.segmentdef "CODE", $6000, $0010
+.segment "CODE"
+
+.export __vcsc_mapper_entry_begin
+.export __vcsc_mapper_entry_end
+
+__vcsc_mapper_entry_begin:
+    nop
+    nop
+    nop
+__vcsc_mapper_entry_end:

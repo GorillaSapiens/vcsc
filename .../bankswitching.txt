@@ -174,17 +174,21 @@ move accordingly.
 
 Implementation checkpoint: the compiler/assembler/linker use the six-byte
 descriptor ABI and `__bankmeta$V3`. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,
-FA2-24/28, JANE, 0840, UA, UASW, 0FA0, and WD consume it end to end and those
-migrated profiles declare `$bankcall` unconditionally. They own `bankcall.s26` and `entry.s26`; the
-three-byte entry hook runs before the normal vector handler and uses raw `op0C`
-for its fixed selector read, avoiding an assembler `--illegal` dependency. FA2 uses
+FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, and 3F consume it end to end and
+those migrated profiles declare `$bankcall` unconditionally. They own
+`bankcall.s26` and `entry.s26`; selector-normalizing entry hooks run before the
+normal vector handler and use raw `op0C` for fixed selector reads, avoiding an
+assembler `--illegal` dependency. 3F's fixed bank needs no normalization, so its
+entry hook is three inert NOPs. FA2 uses
 descriptors `$F5-$FA/$FB` and raw `op1C $1F00,X`; JANE uses
 `$F0/$F1/$F8/$F9` and raw `op1C $1F00,X`; 0840 uses `$00/$40` and raw
 `op1C $0800,X`; UA/UASW use `$20/$40` and raw `op1C $0200,X`, with UASW
 reversing the association; 0FA0 uses `$A0/$C0` and raw `op1C $0F00,X`; WD
 uses descriptors 1/2 and raw `op1C $0038,X` to choose hardware states 1/2.
-All fixed blocks use 68 active bytes with 72 reserved (`$048`). Only the descriptor ABI
-is retained for migrated inline mappers.
+3F lower banks use selector-value descriptors `$00-$FE`; fixed uses `$FF` as a
+no-switch sentinel and writes lower selectors with `STX $3F`. The common blocks
+use 68 active bytes with 72 reserved (`$048`); 3F uses 74 active bytes with 80
+reserved (`$050`). Only the descriptor ABI is retained for migrated inline mappers.
 
 Migration acceptance for each remaining mapper: consume the destination
 descriptor directly; bake and push the source descriptor; restore from that byte
@@ -221,26 +225,11 @@ this is future optimizer-locality cleanup, not bankswitching work.
         `$1000-$17FF` bank and `== N+1` makes that same bankN the fixed/startup
         `$1800-$1FFF` bank. The maximum 256 x 2K / 512K shape is a regression.
 
-        WD is migrated. FE intentionally keeps its released direct top-level
-        JSR/RTS mechanism. 3F, 3E, E0, FC, and F0 still need automatic-call work.
+        WD and 3F are migrated. FE intentionally keeps its released direct
+        top-level JSR/RTS mechanism. 3E, E0, FC, and F0 still need automatic-call
+        work.
 
-        [ ] 38a. Design and migrate 3F automatic calls.
-
-            The scalable ROM topology is ready. No dynamic lower-bank shadow is
-            required. The fixed `$1800-$1FFF` bank is permanently visible, so
-            fixed->selectable calls may always go through the mapper trampoline:
-            select the destination lower bank, call it, and return directly to
-            fixed code without restoring the previously selected lower bank.
-            Selectable A->fixed and same-bank calls remain ordinary JSRs.
-            Selectable A->selectable B calls select B and must restore the
-            statically known A before the final RTS into `$1000-$17FF`. In
-            nested calls, restoration is therefore determined by where the
-            eventual return PC lives: returning to fixed code needs no lower-bank
-            restoration; returning to selectable code restores that caller's
-            statically known bank. Cross-bank data references must not assume an
-            arbitrary lower bank is selected.
-
-        [ ] 38b. Migrate 3E after the 3F call-state rule is settled.
+        [ ] 38b. Migrate 3E using the settled 3F ROM-call foundation.
 
             3E adds 32 x 1K RAM banks. `$3F` selects lower-window ROM; `$3E`
             replaces that window with selected RAM read/write aliases. RAM

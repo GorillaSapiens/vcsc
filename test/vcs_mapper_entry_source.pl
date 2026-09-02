@@ -29,21 +29,28 @@ my %selector = (
    FA2=>0x1ff5, JANE=>0x1ff1, '0840'=>0x0800, UA=>0x0220,
    UASW=>0x0240, '0FA0'=>0x0fc0, WD=>0x0039,
 );
-my @mapper = qw(F8 F8SC F6 F6SC F4 F4SC FA DPC FA2 JANE 0840 UA UASW 0FA0 WD);
+my @mapper = qw(F8 F8SC F6 F6SC F4 F4SC FA DPC FA2 JANE 0840 UA UASW 0FA0 WD 3F);
 my $top = read_file(File::Spec->catfile($repo, 'Makefile'));
 my @spec;
 for my $mapper (@mapper) {
    my $src = File::Spec->catfile($repo, 'libraries', 'vcs', $mapper, 'entry.s26');
    -f $src or die "missing $mapper mapper entry source\n";
    my $text = read_file($src);
-   my $hex = sprintf('%04X', $selector{$mapper});
-   $text =~ /\bop0C\s+\$$hex\b/i
-      or die "$mapper entry does not use raw op0C on startup selector \$$hex\n";
-   index($text, '--illegal') >= 0
-      or die "$mapper entry does not explain why raw op0C avoids --illegal dependency\n";
+   if ($mapper eq '3F') {
+      my $nop_count = () = $text =~ /^\s*nop\s*$/gmi;
+      $nop_count == 3 && $text !~ /\bop0C\b/i && index($text, 'permanently visible') >= 0
+         or die "3F entry must be the inert three-byte fixed-bank hook\n";
+   }
+   else {
+      my $hex = sprintf('%04X', $selector{$mapper});
+      $text =~ /\bop0C\s+\$$hex\b/i
+         or die "$mapper entry does not use raw op0C on startup selector \$$hex\n";
+      index($text, '--illegal') >= 0
+         or die "$mapper entry does not explain why raw op0C avoids --illegal dependency\n";
+   }
    index($top, "libraries/vcs/$mapper/entry.s26") >= 0
       or die "$mapper entry source is not installed\n";
-   push @spec, (($mapper eq '0840' ? 'M0840' : $mapper eq '0FA0' ? 'M0FA0' : $mapper) . "=$src");
+   push @spec, (($mapper eq '0840' ? 'M0840' : $mapper eq '0FA0' ? 'M0FA0' : $mapper eq '3F' ? 'M3F' : $mapper) . "=$src");
 }
 
 my @old = glob(File::Spec->catfile($repo, 'libraries', 'vcs', '*', 'inline_bankcall.s26'));

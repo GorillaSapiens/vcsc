@@ -32,3 +32,27 @@ Updated the recursive example-build oracle for parameterized 3F. It now detects
 `instantiate "3F/mapper.c26" ... (VCS_3F_BANKS:=N)`, derives ROM size as
 `2048*N`, and accepts fixed-bank vectors in $1800-$1FFF. Shard 2/8 now
 passes with the 8K 3F diagnostic.
+
+2026-09-02 00:45:41 PDT, 3F descriptor automatic-call migration
+Migrated scalable classic 3F to the public six-byte / three-byte-descriptor
+`$bankcall` ABI. Selectable lower banks use descriptors $00-$FE, equal to the
+value written to TIA $3F; the permanently visible fixed final bank uses $FF as a
+no-switch sentinel. All calls crossing the fixed/lower boundary use the 3F
+trampoline. This corrects the earlier note that lower->fixed could always be an
+ordinary JSR: that is not nesting-safe when fixed code subsequently selects a
+different lower bank. Lower A->fixed now restores A on return; fixed->lower B
+selects B and returns to fixed without restoration; lower A->lower B selects B
+and restores A. No software current-bank shadow is required.
+
+Added mapper-owned 3F `bankcall.s26` (74 active / 80 reserved bytes) and inert
+three-NOP `entry.s26`, compiler/linker 3F descriptor support, generated-template
+coverage, and automatic-call use in the public diagnostic. The diagnostic owns
+a lower0->fixed->lower2 nesting case. The exhaustive ordered call-matrix now
+also runs all directed pairs across three selectable lower banks plus fixed.
+Updated mapper/profile/source/hygiene contracts and install/uninstall coverage.
+
+Validation for the 3F migration: exhaustive ordered call matrix passed with all
+12 directed cross-region pairs for the 4-bank 3F fixture; 3F/3E diagnostics,
+maintained bankcall/entry source regeneration, cartridge profiles, 256-bank
+placement, physical-bank planes, source hygiene, history format, and example
+build shard 2/8 pass. Compile-only is 503/503.
