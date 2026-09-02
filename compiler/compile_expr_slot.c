@@ -661,7 +661,7 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             return ok;
          }
          if (entry && entry_is_absolute_ref(entry)) {
-            LValueRef lv = { .name = entry->name, .type = entry->type, .declarator = entry->declarator, .base_type = entry->type, .base_declarator = entry->declarator, .is_static = entry->is_static, .is_zeropage = entry->is_zeropage, .is_global = entry->is_global, .is_ref = entry->is_ref, .is_absolute_ref = entry->is_absolute_ref, .read_expr = entry->read_expr, .write_expr = entry->write_expr, .has_split_alias_delta = entry->has_split_alias_delta, .split_alias_delta = entry->split_alias_delta, .offset = entry->offset, .size = entry->size, .use_site = expr };
+            LValueRef lv = { .name = entry->name, .type = entry->type, .declarator = entry->declarator, .base_type = entry->type, .base_declarator = entry->declarator, .is_static = entry->is_static, .is_zeropage = entry->is_zeropage, .is_global = entry->is_global, .is_ref = entry->is_ref, .is_absolute_ref = entry->is_absolute_ref, .is_swapram = entry->is_swapram, .mem_region_name = entry->mem_region_name, .read_expr = entry->read_expr, .write_expr = entry->write_expr, .has_split_alias_delta = entry->has_split_alias_delta, .split_alias_delta = entry->split_alias_delta, .offset = entry->offset, .size = entry->size, .use_site = expr };
             if (!entry_has_read_address(entry)) {
                error_user("[%s:%d.%d] absolute external binding '%s' is write-only", expr->file, expr->line, expr->column, ident);
             }
@@ -694,6 +694,8 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                .is_global = entry->is_global,
                .is_ref = true,
                .is_absolute_ref = false,
+               .is_swapram = entry->is_swapram,
+               .mem_region_name = entry->mem_region_name,
                .read_expr = entry->read_expr,
                .write_expr = entry->write_expr,
                .pointer_access = entry->pointer_access,
@@ -721,9 +723,42 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                return true;
             }
          }
-         if (entry && !entry->is_static && !entry->is_zeropage) {
+         if (entry && !entry->is_static && !entry->is_zeropage && !entry->is_swapram) {
             emit_copy_scratch_to_scratch_convert(dst->offset, dst->size, dst->type, entry->offset, entry->size, entry->type);
             return true;
+         }
+         if (entry && entry->is_swapram) {
+            LValueRef lv = {
+               .name = entry->name ? entry->name : ident,
+               .type = entry->type,
+               .declarator = entry->declarator,
+               .base_type = entry->type,
+               .base_declarator = entry->declarator,
+               .is_static = entry->is_static,
+               .is_zeropage = entry->is_zeropage,
+               .is_global = entry->is_global,
+               .is_swapram = true,
+               .mem_region_name = entry->mem_region_name,
+               .base_offset = entry->offset,
+               .offset = entry->offset,
+               .size = entry->size,
+               .use_site = expr
+            };
+            if (dst->size == lv.size && dst->type == lv.type) {
+               return emit_copy_lvalue_to_scratch(ctx, dst->offset, &lv, lv.size);
+            }
+            {
+               SlotFixedScratch scratch;
+               slot_fixed_scratch_begin(ctx, lv.size, &scratch);
+               if (!emit_copy_lvalue_to_scratch(ctx, 0, &lv, lv.size)) {
+                  slot_fixed_scratch_abort(ctx, &scratch);
+                  return false;
+               }
+               slot_fixed_scratch_deactivate(ctx, &scratch);
+               emit_slot_fixed_scratch_result(ctx, &scratch, 0, lv.size, lv.type, dst);
+               slot_fixed_scratch_finish(&scratch);
+               return true;
+            }
          }
          if (entry) {
             char sym[256];
@@ -739,6 +774,8 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
                   .is_global = entry->is_global,
                   .is_ref = entry->is_ref,
                   .is_absolute_ref = entry->is_absolute_ref,
+                  .is_swapram = entry->is_swapram,
+                  .mem_region_name = entry->mem_region_name,
                   .read_expr = entry->read_expr,
                   .write_expr = entry->write_expr,
                   .has_split_alias_delta = entry->has_split_alias_delta,
@@ -758,10 +795,39 @@ bool compile_expr_to_slot(ASTNode *expr, Context *ctx, ContextEntry *dst) {
             if (g && g->count >= 3) {
                ContextEntry gentry;
                if (init_context_entry_from_global_decl(&gentry, ident, g) && entry_is_absolute_ref(&gentry)) {
-                  LValueRef lv = { .name = gentry.name, .type = gentry.type, .declarator = gentry.declarator, .base_type = gentry.type, .base_declarator = gentry.declarator, .is_static = gentry.is_static, .is_zeropage = gentry.is_zeropage, .is_global = gentry.is_global, .is_ref = gentry.is_ref, .is_absolute_ref = gentry.is_absolute_ref, .read_expr = gentry.read_expr, .write_expr = gentry.write_expr, .offset = gentry.offset, .size = gentry.size, .use_site = expr };
+                  LValueRef lv = { .name = gentry.name, .type = gentry.type, .declarator = gentry.declarator, .base_type = gentry.type, .base_declarator = gentry.declarator, .is_static = gentry.is_static, .is_zeropage = gentry.is_zeropage, .is_global = gentry.is_global, .is_ref = gentry.is_ref, .is_absolute_ref = gentry.is_absolute_ref, .is_swapram = gentry.is_swapram, .mem_region_name = gentry.mem_region_name, .read_expr = gentry.read_expr, .write_expr = gentry.write_expr, .offset = gentry.offset, .size = gentry.size, .use_site = expr };
                   if (!entry_has_read_address(&gentry)) {
                      error_user("[%s:%d.%d] absolute external binding '%s' is write-only", expr->file, expr->line, expr->column, ident);
                   }
+                  if (dst->size == lv.size && dst->type == lv.type) {
+                     return emit_copy_lvalue_to_scratch(ctx, dst->offset, &lv, lv.size);
+                  }
+                  {
+                     SlotFixedScratch scratch;
+                     slot_fixed_scratch_begin(ctx, lv.size, &scratch);
+                     if (!emit_copy_lvalue_to_scratch(ctx, 0, &lv, lv.size)) {
+                        slot_fixed_scratch_abort(ctx, &scratch);
+                        return false;
+                     }
+                     slot_fixed_scratch_deactivate(ctx, &scratch);
+                     emit_slot_fixed_scratch_result(ctx, &scratch, 0, lv.size, lv.type, dst);
+                     slot_fixed_scratch_finish(&scratch);
+                     return true;
+                  }
+               }
+               else if (gentry.is_swapram) {
+                  LValueRef lv = {
+                     .name = gentry.name,
+                     .type = gentry.type,
+                     .declarator = gentry.declarator,
+                     .base_type = gentry.type,
+                     .base_declarator = gentry.declarator,
+                     .is_global = true,
+                     .is_swapram = true,
+                     .mem_region_name = gentry.mem_region_name,
+                     .size = gentry.size,
+                     .use_site = expr
+                  };
                   if (dst->size == lv.size && dst->type == lv.type) {
                      return emit_copy_lvalue_to_scratch(ctx, dst->offset, &lv, lv.size);
                   }

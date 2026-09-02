@@ -162,6 +162,10 @@ static void expr_fprint_inner(FILE *fp, const expr_t *expr)
             case EXPR_UOP_HI:
                fprintf(fp, ">");
                break;
+
+            case EXPR_UOP_BANK:
+               fprintf(fp, "^");
+               break;
          }
          expr_fprint_inner(fp, expr->u.unary.child);
          fprintf(fp, ")");
@@ -444,6 +448,10 @@ expr_eval_status_t expr_eval(const expr_t *expr,
 
             case EXPR_UOP_HI:
                *value = (left >> 8) & 0xFF;
+               return EXPR_EVAL_OK;
+
+            case EXPR_UOP_BANK:
+               *value = (left >> 16) & 0xFF;
                return EXPR_EVAL_OK;
          }
          return EXPR_EVAL_UNRESOLVED;

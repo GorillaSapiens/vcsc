@@ -808,9 +808,12 @@ index($top_make,'test/vcs_e0.pl')>=0
 !-e File::Spec->catfile($repo,'libraries','vcs','3F/mapper_16k.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','3E/mapper_8k.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','3E/mapper_16k.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','3E/swapram.s26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','3E/README.md') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','3F/mapper_8k.cfg') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','3E/mapper_8k.cfg') &&
 -f File::Spec->catfile($test,'vcs_3f_3e.pl') &&
+-f File::Spec->catfile($test,'vcs_3e_swapram_helpers.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','12_3f','3f_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','13_3e','3e_diagnostic.c26') &&
 index($top_make,'libraries/vcs/tia_mirror_40.c26')>=0 &&
@@ -820,6 +823,8 @@ index($top_make,'libraries/vcs/3F/entry.s26')>=0 &&
 index($top_make,'libraries/vcs/3F/mapper_8k.c26')<0 &&
 index($top_make,'libraries/vcs/3F/mapper_16k.c26')<0 &&
 index($top_make,'libraries/vcs/3E/mapper_16k.c26')>=0 &&
+index($top_make,'libraries/vcs/3E/swapram.s26')>=0 &&
+index($top_make,'libraries/vcs/3E/README.md')>=0 &&
 index($top_make,'test/vcs_3f_3e.pl')>=0
    or die "3F/3E profile/diagnostic support is missing installation or Stella/test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','JANE/mapper.c26') &&
@@ -1129,6 +1134,8 @@ for my $required (qw(
    libraries/vcs/3F/mapper.c26
    libraries/vcs/3E/mapper_8k.c26
    libraries/vcs/3E/mapper_16k.c26
+   libraries/vcs/3E/swapram.s26
+   libraries/vcs/3E/README.md
    libraries/vcs/JANE/mapper.c26
    libraries/vcs/F4SC/mapper.c26
 )) {

@@ -7,7 +7,7 @@ alias VCS_TIA_USE_40_MIRROR 1
 include "vcs.c26"
 
 // Tigervision 3E, certified 8K ROM shape: the same four physical 2K ROM chunks
-// as 3F, plus up to 32 independently selected 1K cartridge-RAM banks.  Writing
+// as 3F, plus up to 256 independently selected 1K cartridge-RAM banks.  Writing
 // a ROM-bank value to TIA $3F maps that 2K ROM chunk into $1000-$17FF; writing
 // a RAM-bank value to TIA $3E instead maps its read alias at $1000-$13FF and
 // write alias at $1400-$17FF.  The final physical 2K ROM remains fixed at
@@ -23,4 +23,4 @@ mem bank0 { $start:0x9000 $size:0x0800 $ro };
 mem bank1 { $start:0xb000 $size:0x0800 $ro };
 mem bank2 { $start:0xd000 $size:0x0800 $ro };
 mem bank3 { $start:0xf800 $size:0x07f8 $ro $priority:2 };
-mem swapram { $size:0x8000 $bank_size:0x0400 $rw $swapram };
+mem swapram { $size:0x40000 $bank_size:0x0400 $rw $swapram };

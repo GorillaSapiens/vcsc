@@ -44,6 +44,8 @@ typedef struct ContextEntry {
    bool is_global;
    bool is_ref;
    bool is_absolute_ref;
+   bool is_swapram;
+   const char *mem_region_name;
    const char *read_expr;
    const char *write_expr;
    bool has_split_alias_delta;
@@ -108,6 +110,8 @@ typedef struct LValueRef {
    bool is_global;
    bool is_ref;
    bool is_absolute_ref;
+   bool is_swapram;
+   const char *mem_region_name;
    const char *read_expr;
    const char *write_expr;
    bool has_split_alias_delta;

@@ -488,7 +488,7 @@ Supported expression operators use C-style precedence and left associativity for
 
 | Level | Operators | Meaning |
 | ----- | --------- | ------- |
-| unary | `+ - ! ~ < >` | positive, negative, logical not, bitwise not, low byte, high byte |
+| unary | `+ - ! ~ < > ^` | positive, negative, logical not, bitwise not, low byte, high byte, third byte (bits 16..23) |
 | multiplicative | `* / %` | multiply, divide, remainder |
 | additive | `+ -` | add, subtract |
 | shift | `<< >>` | left and right shift |
@@ -508,6 +508,10 @@ The low-byte and high-byte unary operators bind like other unary operators:
 .byte <target + 2      ; low byte of target, plus 2
 .byte <{target + 2}    ; low byte of target + 2
 ```
+
+Unary `^` is the corresponding third-byte projection.  It is primarily used by
+linker-owned logical address spaces such as `$swapram`; binary `^` remains the
+ordinary bitwise-XOR operator.
 
 Forward references are accepted in expressions that can be resolved by later assembler passes, such as instruction operands, `.byte`, `.word`, and ordinary immutable equates.  Layout-control expressions for `.if`, `.elif`, `.repeat`, `.org`, `.rorg`, `.align`, and `.res` must resolve when the assembler needs them to determine layout or active source.
 

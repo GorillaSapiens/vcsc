@@ -28,6 +28,7 @@ asm_segment_t *segment_find(asm_context_t *ctx, const char *name);
 
 #define O26_RTYPE_LOW  0x20
 #define O26_RTYPE_HIGH 0x40
+#define O26_RTYPE_BANK (O26_RTYPE_LOW | O26_RTYPE_HIGH)
 #define O26_RTYPE_WORD 0x80
 #define O26_RTYPE_AUX  0x10
 #define O26_RTYPE_INDIRECT_JMP 0x08
@@ -154,6 +155,7 @@ enum {
    RELOC_PART_NONE = 0,
    RELOC_PART_LOW,
    RELOC_PART_HIGH,
+   RELOC_PART_BANK,
    RELOC_PART_WORD
 };
 
@@ -854,15 +856,29 @@ static int analyze_expr(o26_writer_t *wr,
          if (!analyze_expr(wr, stmt, expr->u.unary.child, pc, &inner))
             return 0;
 
-         if (expr->u.unary.op == EXPR_UOP_LO || expr->u.unary.op == EXPR_UOP_HI) {
+         if (expr->u.unary.op == EXPR_UOP_LO || expr->u.unary.op == EXPR_UOP_HI ||
+             expr->u.unary.op == EXPR_UOP_BANK) {
             *out = inner;
             if (expr->u.unary.op == EXPR_UOP_LO) {
                out->value &= 0xFF;
                out->part = RELOC_PART_LOW;
                return 1;
             }
-            out->value = (out->value >> 8) & 0xFF;
-            out->part = RELOC_PART_HIGH;
+            if (expr->u.unary.op == EXPR_UOP_HI) {
+               out->value = (out->value >> 8) & 0xFF;
+               out->part = RELOC_PART_HIGH;
+               return 1;
+            }
+            if (inner.is_reloc) {
+               /* The object format carries only a 16-bit packed source value.
+                  Keep its low byte in the placeholder and high byte in AUX;
+                  the linker replaces the placeholder with final bits 16..23. */
+               out->value = out->reloc_value & 0xFF;
+            }
+            else {
+               out->value = (out->value >> 16) & 0xFF;
+            }
+            out->part = RELOC_PART_BANK;
             return 1;
          }
 
@@ -997,6 +1013,7 @@ static int maybe_add_expr_reloc(o26_writer_t *wr,
    switch (part) {
       case RELOC_PART_LOW:  type = O26_RTYPE_LOW; break;
       case RELOC_PART_HIGH: type = O26_RTYPE_HIGH; break;
+      case RELOC_PART_BANK: type = O26_RTYPE_BANK; break;
       case RELOC_PART_WORD: type = O26_RTYPE_WORD; break;
       default:
          writer_error(wr->ctx, stmt, "unsupported relocation width/part combination");
@@ -1014,7 +1031,9 @@ static int maybe_add_expr_reloc(o26_writer_t *wr,
       type |= O26_RTYPE_AUX;
       if (!add_reloc(buf, offset, type, (unsigned char)info->segid, info->undef_index,
                      info->has_layout_index, info->layout_index, 1,
-                     (unsigned char)((part == RELOC_PART_LOW) ? ((info->reloc_value >> 8) & 0xFF) : (info->reloc_value & 0xFF)))) {
+                     (unsigned char)((part == RELOC_PART_LOW || part == RELOC_PART_BANK)
+                        ? ((info->reloc_value >> 8) & 0xFF)
+                        : (info->reloc_value & 0xFF)))) {
          writer_error(wr->ctx, stmt, "out of memory recording relocation");
          return 0;
       }

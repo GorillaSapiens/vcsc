@@ -23,7 +23,8 @@ typedef enum expr_unary_op {
    EXPR_UOP_LOG_NOT,
    EXPR_UOP_BIT_NOT,
    EXPR_UOP_LO,
-   EXPR_UOP_HI
+   EXPR_UOP_HI,
+   EXPR_UOP_BANK
 } expr_unary_op_t;
 
 typedef enum expr_binary_op {

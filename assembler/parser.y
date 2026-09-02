@@ -457,6 +457,10 @@ unary_expr
      {
         $$ = expr_make_unary(EXPR_UOP_HI, $2);
      }
+   | '^' unary_expr
+     {
+        $$ = expr_make_unary(EXPR_UOP_BANK, $2);
+     }
    ;
 
 primary

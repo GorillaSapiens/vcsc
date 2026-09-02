@@ -616,6 +616,7 @@ static int mem_region_metadata_has_prefix(const char *name)
 {
    return name &&
       (strncmp(name, MEM_REGION_SWAPRAM_META_PREFIX, sizeof(MEM_REGION_SWAPRAM_META_PREFIX) - 1) == 0 ||
+       strncmp(name, MEM_REGION_SWAPRAM_META_PREFIX_V3, sizeof(MEM_REGION_SWAPRAM_META_PREFIX_V3) - 1) == 0 ||
        strncmp(name, MEM_REGION_META_PREFIX, sizeof(MEM_REGION_META_PREFIX) - 1) == 0 ||
        strncmp(name, MEM_REGION_SPLIT_META_PREFIX, sizeof(MEM_REGION_SPLIT_META_PREFIX) - 1) == 0);
 }
@@ -625,6 +626,8 @@ static int mem_declaration_metadata_has_prefix(const char *name)
    return name &&
       (strncmp(name, MEM_DECL_META_PREFIX,
                sizeof(MEM_DECL_META_PREFIX) - 1) == 0 ||
+       strncmp(name, MEM_DECL_META_PREFIX_V5,
+               sizeof(MEM_DECL_META_PREFIX_V5) - 1) == 0 ||
        strncmp(name, MEM_DECL_META_PREFIX_V4,
                sizeof(MEM_DECL_META_PREFIX_V4) - 1) == 0 ||
        strncmp(name, MEM_DECL_META_PREFIX_V3,
@@ -925,10 +928,32 @@ static int parse_hex4(const char *s, uint16_t *out)
    return 1;
 }
 
+//! @brief Parse exactly eight hexadecimal digits from mem-region metadata.
+static int parse_hex8(const char *s, uint32_t *out)
+{
+   uint32_t v = 0;
+   int i;
+
+   if (!s || !out)
+      return 0;
+   for (i = 0; i < 8; ++i) {
+      unsigned char c = (unsigned char)s[i];
+      if (!isxdigit(c))
+         return 0;
+      v <<= 4;
+      if (isdigit(c))
+         v |= (uint32_t)(c - '0');
+      else
+         v |= (uint32_t)(toupper(c) - 'A' + 10);
+   }
+   *out = v;
+   return 1;
+}
+
 //! @brief Decode compiler-emitted mem-region metadata from an exported symbol name.
 static int mem_region_metadata_parse(const char *name, char *region, size_t region_size,
       uint16_t *read_start, uint16_t *write_start, int *has_write_start,
-      uint16_t *size, char *type, size_t type_size,
+      uint32_t *size, char *type, size_t type_size,
       int *swapram, uint16_t *bank_size)
 {
    const char *p;
@@ -940,15 +965,20 @@ static int mem_region_metadata_parse(const char *name, char *region, size_t regi
    size_t type_len;
    int split;
    int is_swapram;
+   int swapram_v4;
 
    if (!mem_region_metadata_has_prefix(name))
       return 0;
 
-   is_swapram = strncmp(name, MEM_REGION_SWAPRAM_META_PREFIX,
+   swapram_v4 = strncmp(name, MEM_REGION_SWAPRAM_META_PREFIX,
                         sizeof(MEM_REGION_SWAPRAM_META_PREFIX) - 1) == 0;
+   is_swapram = swapram_v4 ||
+      strncmp(name, MEM_REGION_SWAPRAM_META_PREFIX_V3,
+              sizeof(MEM_REGION_SWAPRAM_META_PREFIX_V3) - 1) == 0;
    split = strncmp(name, MEM_REGION_SPLIT_META_PREFIX,
                    sizeof(MEM_REGION_SPLIT_META_PREFIX) - 1) == 0;
-   p = name + (is_swapram ? sizeof(MEM_REGION_SWAPRAM_META_PREFIX) - 1
+   p = name + (swapram_v4 ? sizeof(MEM_REGION_SWAPRAM_META_PREFIX) - 1
+                          : is_swapram ? sizeof(MEM_REGION_SWAPRAM_META_PREFIX_V3) - 1
                           : split ? sizeof(MEM_REGION_SPLIT_META_PREFIX) - 1
                                   : sizeof(MEM_REGION_META_PREFIX) - 1);
    if (is_swapram) {
@@ -961,9 +991,18 @@ static int mem_region_metadata_parse(const char *name, char *region, size_t regi
          return 0;
       memcpy(region, p, region_len);
       region[region_len] = '\0';
-      if (!parse_hex4(first_mark + 2, size))
-         return 0;
-      tmark = first_mark + 6;
+      if (swapram_v4) {
+         if (!parse_hex8(first_mark + 2, size))
+            return 0;
+         tmark = first_mark + 10;
+      }
+      else {
+         uint16_t legacy_size;
+         if (!parse_hex4(first_mark + 2, &legacy_size))
+            return 0;
+         *size = legacy_size;
+         tmark = first_mark + 6;
+      }
       if (strncmp(tmark, "$T", 2) != 0)
          return 0;
       ymark = strstr(tmark + 2, "$Y");
@@ -1005,8 +1044,12 @@ static int mem_region_metadata_parse(const char *name, char *region, size_t regi
    }
    if (strncmp(zmark, "$Z", 2) != 0)
       return 0;
-   if (!parse_hex4(zmark + 2, size))
-      return 0;
+   {
+      uint16_t size16;
+      if (!parse_hex4(zmark + 2, &size16))
+         return 0;
+      *size = size16;
+   }
    tmark = zmark + 6;
    if (strncmp(tmark, "$T", 2) != 0)
       return 0;
@@ -1072,7 +1115,8 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    const char *mark;
    const char *suffix;
    size_t name_len;
-   unsigned int read_start, write_start, size, split, priority, read_hazard = 0;
+   unsigned int read_start, write_start, split, priority, read_hazard = 0;
+   uint32_t size = 0;
    unsigned int stack = 0;
    unsigned int swapram = 0;
    unsigned int bank_size = 0;
@@ -1087,8 +1131,13 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
       return 0;
    if (strncmp(symbol, MEM_DECL_META_PREFIX,
                sizeof(MEM_DECL_META_PREFIX) - 1) == 0) {
-      version = 5;
+      version = 6;
       p = symbol + sizeof(MEM_DECL_META_PREFIX) - 1;
+   }
+   else if (strncmp(symbol, MEM_DECL_META_PREFIX_V5,
+                    sizeof(MEM_DECL_META_PREFIX_V5) - 1) == 0) {
+      version = 5;
+      p = symbol + sizeof(MEM_DECL_META_PREFIX_V5) - 1;
    }
    else if (strncmp(symbol, MEM_DECL_META_PREFIX_V4,
                     sizeof(MEM_DECL_META_PREFIX_V4) - 1) == 0) {
@@ -1118,13 +1167,46 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    name_len = (size_t)(mark - p);
    if (name_len >= sizeof(out->name))
       return -1;
-   if (version == 5) {
+   if (version == 6) {
       const char *bank_mark;
-      if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X$S%1X$M%1X$Y%4X$D%1X$B%n",
-                 &read_start, &write_start, &size, &split, &type_code,
+      unsigned int size32;
+      if (sscanf(mark, "$R%4X$W%4X$Z%8X$X%1X$T%c$P%8X$H%1X$S%1X$M%1X$Y%4X$D%1X$B%n",
+                 &read_start, &write_start, &size32, &split, &type_code,
                  &priority, &read_hazard, &stack, &swapram, &bank_size,
                  &data_only, &consumed) != 11)
          return -1;
+      size = size32;
+      bank_mark = strstr(mark + consumed, "$K");
+      suffix = bank_mark ? strstr(bank_mark + 2, "$Q") : NULL;
+      if (!bank_mark || !suffix)
+         return -1;
+      {
+         size_t data_bank_len = (size_t)(bank_mark - (mark + consumed));
+         size_t output_bank_len = (size_t)(suffix - (bank_mark + 2));
+         if ((data_only && data_bank_len == 0) ||
+             (!data_only && data_bank_len != 0) ||
+             data_bank_len >= sizeof(parsed_data_bank) ||
+             output_bank_len >= sizeof(parsed_output_bank))
+            return -1;
+         if (data_bank_len) {
+            memcpy(parsed_data_bank, mark + consumed, data_bank_len);
+            parsed_data_bank[data_bank_len] = '\0';
+         }
+         if (output_bank_len) {
+            memcpy(parsed_output_bank, bank_mark + 2, output_bank_len);
+            parsed_output_bank[output_bank_len] = '\0';
+         }
+      }
+   }
+   else if (version == 5) {
+      const char *bank_mark;
+      unsigned int size16;
+      if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X$S%1X$M%1X$Y%4X$D%1X$B%n",
+                 &read_start, &write_start, &size16, &split, &type_code,
+                 &priority, &read_hazard, &stack, &swapram, &bank_size,
+                 &data_only, &consumed) != 11)
+         return -1;
+      size = size16;
       bank_mark = strstr(mark + consumed, "$K");
       suffix = bank_mark ? strstr(bank_mark + 2, "$Q") : NULL;
       if (!bank_mark || !suffix)
@@ -1149,10 +1231,12 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    }
    else if (version == 4) {
       const char *bank_mark;
+      unsigned int size16;
       if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X$S%1X$D%1X$B%n",
-                 &read_start, &write_start, &size, &split, &type_code,
+                 &read_start, &write_start, &size16, &split, &type_code,
                  &priority, &read_hazard, &stack, &data_only, &consumed) != 9)
          return -1;
+      size = size16;
       bank_mark = strstr(mark + consumed, "$K");
       suffix = bank_mark ? strstr(bank_mark + 2, "$Q") : NULL;
       if (!bank_mark || !suffix)
@@ -1176,34 +1260,40 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
       }
    }
    else if (version == 3) {
+      unsigned int size16;
       if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X$S%1X$D%1X$B%n",
-                 &read_start, &write_start, &size, &split, &type_code,
+                 &read_start, &write_start, &size16, &split, &type_code,
                  &priority, &read_hazard, &stack, &data_only, &consumed) != 9)
          return -1;
+      size = size16;
       suffix = strstr(mark + consumed, "$Q");
       if (!suffix)
          return -1;
    }
    else if (version == 2) {
+      unsigned int size16;
       if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X$D%1X$B%n",
-                 &read_start, &write_start, &size, &split, &type_code,
+                 &read_start, &write_start, &size16, &split, &type_code,
                  &priority, &read_hazard, &data_only, &consumed) != 8)
          return -1;
+      size = size16;
       suffix = strstr(mark + consumed, "$Q");
       if (!suffix)
          return -1;
    }
    else {
+      unsigned int size16;
       if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X%n",
-                 &read_start, &write_start, &size, &split, &type_code,
+                 &read_start, &write_start, &size16, &split, &type_code,
                  &priority, &read_hazard, &consumed) != 7) {
          read_hazard = 0;
          consumed = 0;
          if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X%n",
-                    &read_start, &write_start, &size, &split, &type_code,
+                    &read_start, &write_start, &size16, &split, &type_code,
                     &priority, &consumed) != 6)
             return -1;
       }
+      size = size16;
       suffix = mark + consumed;
    }
    if (split > 1u || read_hazard > 1u || stack > 1u || swapram > 1u || data_only > 1u ||
@@ -1211,6 +1301,8 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
       return -1;
    if ((swapram && (!bank_size || split || type_code != 'W' || read_start || write_start)) ||
        (!swapram && bank_size))
+      return -1;
+   if (swapram && (size % bank_size != 0 || size / bank_size > 256u))
       return -1;
 
    memset(out, 0, sizeof(*out));
@@ -1222,14 +1314,14 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    out->read_hazard = (int)read_hazard;
    out->swapram = (int)swapram;
    out->bank_size = (uint16_t)bank_size;
-   out->size = (uint16_t)size;
-   out->physical_size = (uint16_t)size;
+   out->size = size;
+   out->physical_size = size;
    snprintf(out->type, sizeof(out->type), "%s", type_code == 'W' ? "rw" : "ro");
    out->priority = (int32_t)priority;
    out->callstack_callgraph = (int)stack;
    out->compiler_declared = 1;
    out->define_yes = 1;
-   if (version == 4 || version == 5) {
+   if (version == 4 || version == 5 || version == 6) {
       snprintf(out->data_bank_name, sizeof(out->data_bank_name), "%s", parsed_data_bank);
       snprintf(out->bank_name, sizeof(out->bank_name), "%s", parsed_output_bank);
    }
@@ -2670,7 +2762,7 @@ static void validate_mem_region_metadata(const linker_config_t *cfg, const input
          uint16_t declared_read_start;
          uint16_t declared_write_start;
          int declared_split;
-         uint16_t declared_size;
+         uint32_t declared_size;
          int declared_swapram;
          uint16_t declared_bank_size;
          const memory_region_t *mem;
@@ -2738,8 +2830,8 @@ static void validate_mem_region_metadata(const linker_config_t *cfg, const input
          }
          if (mem->size != declared_size) {
             fprintf(stderr,
-                  "vcsc-ld: mem region '%s' size mismatch in %s: compiler mem declaration says $%04X "
-                  "but linker cfg MEMORY %s has size $%04X. Update the VCSC source mem declaration or the linker cfg so they match.\n",
+                  "vcsc-ld: mem region '%s' size mismatch in %s: compiler mem declaration says $%08" PRIX32 " "
+                  "but linker cfg MEMORY %s has size $%08" PRIX32 ". Update the VCSC source mem declaration or the linker cfg so they match.\n",
                   region, obj->origin, declared_size, mem->name, mem->size);
             exit(1);
          }
@@ -3316,7 +3408,8 @@ static void validate_linker_config(linker_config_t *cfg)
          if (!mem->compiler_declared || !str_ieq(mem->type, "rw") ||
              mem->start != 0 || mem->write_start != 0 || mem->has_write_start ||
              !mem->bank_size || mem->bank_size > mem->size ||
-             (mem->size % mem->bank_size) != 0 || mem->read_hazard ||
+             (mem->size % mem->bank_size) != 0 ||
+             mem->size / mem->bank_size > 256u || mem->read_hazard ||
              mem->callstack_callgraph || mem->bank_name[0] || mem->data_bank_name[0]) {
             fprintf(stderr,
                     "vcsc-ld: swapram MEMORY region '%s' must be compiler-declared logical rw storage with a nonzero bank_size evenly dividing size and no CPU/bank/stack metadata\n",
@@ -3329,7 +3422,7 @@ static void validate_linker_config(linker_config_t *cfg)
                  mem->name, mem->bank_size);
          exit(1);
       }
-      if (end > 0x10000u ||
+      if ((!mem->swapram && end > 0x10000u) ||
           (mem->has_write_start && (uint32_t)mem->write_start + mem->size > 0x10000u)) {
          fprintf(stderr, "vcsc-ld: MEMORY region '%s' read/write aliases extend beyond address space\n",
                  mem->name);
@@ -5222,6 +5315,49 @@ static memory_cursor_t *ensure_cursor(layout_t *layout, const linker_config_t *c
 
 static int range_fits_one_page(uint32_t addr, uint16_t size);
 
+//! @brief Record a final runtime placement, preserving full swapram identity.
+static void set_layout_runtime_address(const linker_config_t *cfg,
+                                       object_layout_t *lay,
+                                       const char *mem_name,
+                                       uint32_t addr)
+{
+   const memory_region_t *mem = find_memory(cfg, mem_name);
+
+   if (!lay || !mem) {
+      fprintf(stderr, "vcsc-ld: internal runtime placement has no layout or MEMORY region\n");
+      exit(1);
+   }
+   lay->is_swapram = 0;
+   lay->swapram_logical = 0;
+   if (mem->swapram) {
+      uint32_t offset;
+      uint32_t bank;
+      if (!mem->bank_size || addr < mem->start || addr >= (uint32_t)mem->start + mem->size) {
+         fprintf(stderr, "vcsc-ld: invalid swapram placement for %s in region '%s'\n",
+                 lay->name, mem->name);
+         exit(1);
+      }
+      offset = addr - mem->start;
+      bank = offset / mem->bank_size;
+      if (bank > 255u) {
+         fprintf(stderr,
+                 "vcsc-ld: swapram placement for %s requires bank %" PRIu32 "; current swapram ABI supports at most 256 banks\n",
+                 lay->name, bank);
+         exit(1);
+      }
+      lay->is_swapram = 1;
+      lay->swapram_logical = offset;
+      lay->run_addr = (uint16_t)(offset % mem->bank_size);
+      return;
+   }
+   if (addr > 0xffffu) {
+      fprintf(stderr, "vcsc-ld: ordinary runtime placement for %s exceeds 16-bit address space\n",
+              lay->name);
+      exit(1);
+   }
+   lay->run_addr = (uint16_t)addr;
+}
+
 //! @brief Return whether branch source and target both belong to one movable layout.
 static int branch_fully_in_layout(const branch_t *branch,
                                   const object_layout_t *lay)
@@ -5435,7 +5571,7 @@ static uint32_t memory_region_next_bank_candidate(const memory_region_t *mem,
 static int cursor_take_hole(memory_cursor_t *cursor, const linker_config_t *cfg,
                             uint16_t size, uint16_t alignment, uint16_t phase,
                             int prefer_whole_page, const object_layout_t *constraints,
-                            uint16_t *addr_out)
+                            uint32_t *addr_out)
 {
    const memory_region_t *mem = cursor ? find_memory(cfg, cursor->name) : NULL;
    size_t i;
@@ -5449,7 +5585,7 @@ static int cursor_take_hole(memory_cursor_t *cursor, const linker_config_t *cfg,
       memory_hole_t hole = cursor->holes[i];
       uint32_t addr = align_up_phase_u32(hole.start, alignment, phase);
 
-      while (addr + size <= hole.end && addr <= 0xffffu) {
+      while (addr + size <= hole.end) {
          if (object_page_constraints_hold(cfg, constraints, addr) &&
              memory_region_object_bank_constraints_hold(mem, addr, size) &&
              (!prefer_whole_page || range_fits_one_page(addr, size)))
@@ -5459,7 +5595,7 @@ static int cursor_take_hole(memory_cursor_t *cursor, const linker_config_t *cfg,
                ? addr + 1u : memory_region_next_bank_candidate(mem, addr),
             alignment, phase);
       }
-      if (addr + size > hole.end || addr > 0xffffu)
+      if (addr + size > hole.end)
          continue;
       if (!found || addr < best_addr) {
          found = 1;
@@ -5484,7 +5620,7 @@ static int cursor_take_hole(memory_cursor_t *cursor, const linker_config_t *cfg,
                  (cursor->hole_count - best_i - 1) * sizeof(*cursor->holes));
          cursor->hole_count--;
       }
-      *addr_out = (uint16_t)best_addr;
+      *addr_out = best_addr;
       return 1;
    }
    return 0;
@@ -5521,13 +5657,13 @@ static int range_fits_one_page(uint32_t addr, uint16_t size)
 }
 
 //! @brief Place one object with required alignment and hard or soft page policy.
-static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t *cfg,
+static uint32_t alloc_from_region_policy(layout_t *layout, const linker_config_t *cfg,
    const char *mem_name, uint16_t size, uint16_t alignment,
    const object_layout_t *constraints, const char *what, const char *origin)
 {
    memory_cursor_t *cursor = ensure_cursor(layout, cfg, mem_name);
    const memory_region_t *mem = find_memory(cfg, mem_name);
-   uint16_t hole_addr;
+   uint32_t hole_addr;
    uint32_t addr;
    uint32_t end;
    int wants_page = size > 0 && size <= 0x0100u;
@@ -5577,13 +5713,18 @@ static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t
               what, origin);
       exit(1);
    }
-   if (end > 0x10000u || end > cursor->end || (str_ieq(mem_name, "ROM") && end > 0xFFFAu)) {
+   if ((!mem || !mem->swapram) && end > 0x10000u) {
       fprintf(stderr, "vcsc-ld: %s overflow while placing %s from %s in %s\n",
               mem_name, what, origin, mem_name);
       exit(1);
    }
-   cursor->cur = (uint16_t)end;
-   return (uint16_t)addr;
+   if (end > cursor->end || (str_ieq(mem_name, "ROM") && end > 0xFFFAu)) {
+      fprintf(stderr, "vcsc-ld: %s overflow while placing %s from %s in %s\n",
+              mem_name, what, origin, mem_name);
+      exit(1);
+   }
+   cursor->cur = end;
+   return addr;
 }
 
 //! @brief Simulate one ROM allocation without emitting diagnostics or terminating.
@@ -5599,7 +5740,7 @@ static int simulate_alloc_from_region_policy(layout_t *layout,
 {
    memory_cursor_t *cursor = ensure_cursor(layout, cfg, mem_name);
    const memory_region_t *mem = find_memory(cfg, mem_name);
-   uint16_t hole_addr;
+   uint32_t hole_addr;
    uint32_t addr;
    uint32_t end;
    int wants_page = size > 0 && size <= 0x0100u;
@@ -5631,11 +5772,13 @@ static int simulate_alloc_from_region_policy(layout_t *layout,
          return 0;
    }
    end = addr + size;
-   if (end > 0x10000u || end > cursor->end ||
+   if ((!mem || !mem->swapram) && end > 0x10000u)
+      return 0;
+   if (end > cursor->end ||
        (str_ieq(mem_name, "ROM") && end > 0xFFFAu))
       return 0;
    cursor_add_hole(cursor, cursor->cur, addr);
-   cursor->cur = (uint16_t)end;
+   cursor->cur = end;
    return 1;
 }
 
@@ -6379,6 +6522,7 @@ static uint16_t replica_reloc_word(const o26_segment_t *segment,
          return (uint16_t)(segment->data[reloc->offset] |
                            (segment->data[reloc->offset + 1] << 8));
       case O26_RTYPE_LOW:
+      case O26_RTYPE_BANK:
          return (uint16_t)(segment->data[reloc->offset] |
                            ((reloc->has_aux_low ? reloc->aux_low : 0) << 8));
       case O26_RTYPE_HIGH:
@@ -6398,6 +6542,7 @@ static void replica_set_reloc_word(o26_segment_t *segment, reloc_t *reloc,
          segment->data[reloc->offset + 1] = (uint8_t)(value >> 8);
          break;
       case O26_RTYPE_LOW:
+      case O26_RTYPE_BANK:
          segment->data[reloc->offset] = (uint8_t)(value & 0xffu);
          reloc->aux_low = (uint8_t)(value >> 8);
          reloc->has_aux_low = 1;
@@ -7139,6 +7284,7 @@ static uint16_t bank_placement_current_word(const o26_segment_t *segment,
                               (segment->data[reloc->offset + 1] << 8));
          break;
       case O26_RTYPE_LOW:
+      case O26_RTYPE_BANK:
          if (reloc->offset < segment->length)
             return (uint16_t)(segment->data[reloc->offset] |
                               ((reloc->has_aux_low ? reloc->aux_low : 0) << 8));
@@ -8562,10 +8708,41 @@ cleanup:
 typedef struct {
    uint16_t address;
    uint16_t owner_address;
+   uint32_t wide_address;
+   uint32_t wide_owner_address;
    uint8_t segid;
    const char *name;
    const object_layout_t *owner_layout;
 } resolved_reloc_target_t;
+
+//! @brief Populate both ordinary and wide addresses for one relocation target.
+static void resolved_target_set_addresses(resolved_reloc_target_t *result,
+                                          uint32_t owner_address,
+                                          uint32_t address)
+{
+   result->owner_address = (uint16_t)owner_address;
+   result->address = (uint16_t)address;
+   result->wide_owner_address = owner_address;
+   result->wide_address = address;
+}
+
+//! @brief Return the logical swapram address corresponding to one layout-relative offset.
+static uint32_t swapram_layout_address(const object_layout_t *lay,
+                                       uint16_t packed_value)
+{
+   uint32_t offset;
+   if (!lay || !lay->is_swapram)
+      return packed_value;
+   if (packed_value < lay->packed_base ||
+       (uint32_t)(packed_value - lay->packed_base) >= lay->size) {
+      fprintf(stderr,
+              "vcsc-ld: swapram relocation value $%04X is outside layout '%s'\n",
+              packed_value, lay->name);
+      exit(1);
+   }
+   offset = (uint32_t)(packed_value - lay->packed_base);
+   return lay->swapram_logical + offset;
+}
 
 //! @brief Report a reference from a bank that lacks a required local replica.
 static void report_missing_local_replica(const object_file_t *obj,
@@ -8628,9 +8805,9 @@ static resolved_reloc_target_t resolve_reloc_target(const input_set_t *in,
       if (group && copy_index >= 0) {
          const object_layout_t *copy =
             &group->obj->layouts[group->layout_indices[copy_index]];
-         result.address = (uint16_t)(copy->load_addr + group->symbol_offset +
-                                     current_word);
-         result.owner_address = (uint16_t)(copy->load_addr + group->symbol_offset);
+         resolved_target_set_addresses(&result,
+            (uint32_t)copy->load_addr + group->symbol_offset,
+            (uint32_t)copy->load_addr + group->symbol_offset + current_word);
          result.segid = O26_SEG_TEXT;
          result.name = group->symbol;
          result.owner_layout = copy;
@@ -8640,8 +8817,14 @@ static resolved_reloc_target_t resolve_reloc_target(const input_set_t *in,
          report_missing_local_replica(obj, source_layout, source_bank, group);
 
       global = lookup_global_symbol(layout, obj->undefs[r->undef_index]);
-      result.address = (uint16_t)(global->addr + current_word);
-      result.owner_address = global->addr;
+      if (global->owner_layout && global->owner_layout->is_swapram) {
+         uint32_t symbol_offset = (uint16_t)(global->addr - global->owner_layout->run_addr);
+         uint32_t owner = global->owner_layout->swapram_logical + symbol_offset;
+         resolved_target_set_addresses(&result, owner, owner + current_word);
+      }
+      else
+         resolved_target_set_addresses(&result, global->addr,
+                                       (uint32_t)global->addr + current_word);
       result.segid = global->segid;
       result.name = obj->undefs[r->undef_index];
       result.owner_layout = global->owner_layout;
@@ -8679,8 +8862,8 @@ static resolved_reloc_target_t resolve_reloc_target(const input_set_t *in,
             exit(1);
          }
          offset = (uint16_t)(current_word - lay->packed_base);
-         result.address = (uint16_t)(copy->load_addr + offset);
-         result.owner_address = copy->load_addr;
+         resolved_target_set_addresses(&result, copy->load_addr,
+                                       (uint32_t)copy->load_addr + offset);
          result.segid = r->segid;
          result.name = group->symbol;
          result.owner_layout = copy;
@@ -8690,9 +8873,14 @@ static resolved_reloc_target_t resolve_reloc_target(const input_set_t *in,
          report_missing_local_replica(obj, source_layout, source_bank, group);
 
       base = (r->segid == O26_SEG_TEXT) ? lay->load_addr : lay->run_addr;
-      result.address = object_runtime_addr_for_layout_value(obj, r->layout_index,
-                                                            r->segid, current_word);
-      result.owner_address = base;
+      if (lay->is_swapram) {
+         uint32_t wide = swapram_layout_address(lay, current_word);
+         resolved_target_set_addresses(&result, lay->swapram_logical, wide);
+      }
+      else
+         resolved_target_set_addresses(&result, base,
+            object_runtime_addr_for_layout_value(obj, r->layout_index,
+                                                 r->segid, current_word));
       result.segid = r->segid;
       result.name = lay->name;
       result.owner_layout = lay;
@@ -8700,8 +8888,7 @@ static resolved_reloc_target_t resolve_reloc_target(const input_set_t *in,
    }
 
    if (r->segid == O26_SEG_ABS) {
-      result.address = current_word;
-      result.owner_address = current_word;
+      resolved_target_set_addresses(&result, current_word, current_word);
       result.segid = O26_SEG_ABS;
       result.name = "<absolute symbol>";
       return result;
@@ -8723,8 +8910,8 @@ static resolved_reloc_target_t resolve_reloc_target(const input_set_t *in,
          const object_layout_t *copy =
             &obj->layouts[group->layout_indices[copy_index]];
          uint16_t offset = (uint16_t)(current_word - result.owner_layout->packed_base);
-         result.address = (uint16_t)(copy->load_addr + offset);
-         result.owner_address = copy->load_addr;
+         resolved_target_set_addresses(&result, copy->load_addr,
+                                       (uint32_t)copy->load_addr + offset);
          result.segid = r->segid;
          result.name = group->symbol;
          result.owner_layout = copy;
@@ -8733,9 +8920,16 @@ static resolved_reloc_target_t resolve_reloc_target(const input_set_t *in,
       if (group && source_bank && !replica_relocation_may_trampoline(group, r))
          report_missing_local_replica(obj, source_layout, source_bank, group);
    }
-   result.owner_address = (r->segid == O26_SEG_TEXT)
-      ? result.owner_layout->load_addr : result.owner_layout->run_addr;
-   result.address = object_runtime_addr_for_value(obj, r->segid, current_word);
+   if (result.owner_layout->is_swapram) {
+      uint32_t wide = swapram_layout_address(result.owner_layout, current_word);
+      resolved_target_set_addresses(&result, result.owner_layout->swapram_logical,
+                                    wide);
+   }
+   else
+      resolved_target_set_addresses(&result,
+         (r->segid == O26_SEG_TEXT) ? result.owner_layout->load_addr
+                                    : result.owner_layout->run_addr,
+         object_runtime_addr_for_value(obj, r->segid, current_word));
    result.segid = r->segid;
    result.name = result.owner_layout->name;
    return result;
@@ -9104,6 +9298,8 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
       for (j = 0; j < obj->layout_count; ++j) {
          obj->layouts[j].load_addr = 0;
          obj->layouts[j].run_addr = 0;
+         obj->layouts[j].swapram_logical = 0;
+         obj->layouts[j].is_swapram = 0;
       }
    }
 
@@ -9138,6 +9334,8 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                                    segment_name_matches_prefix(lay->name, "ZP") ||
                                    segment_name_matches_prefix(lay->name, "ZERO")))
                ? suffix : zp_run_name;
+         if (find_memory(cfg, run_name)->swapram)
+            continue;
          if (phase_candidate_count == phase_candidate_capacity) {
             size_t new_capacity = phase_candidate_capacity ? phase_candidate_capacity * 2 : 16;
             phase_overlay_candidate_t *grown = realloc(phase_candidates,
@@ -9298,8 +9496,9 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                const segment_rule_t *run_rule = find_layout_segment_rule(cfg, lay->name, data);
                uint16_t run_alignment = lay->component_alignment ? lay->component_alignment
                   : (run_rule && run_rule->align ? run_rule->align : 1);
-               lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, run_alignment,
+               uint32_t run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, run_alignment,
                   lay, lay->name, obj->origin);
+               set_layout_runtime_address(cfg, lay, run_name, run_addr);
                if (!find_memory(cfg, run_name)->swapram) {
                   add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr,
                                   memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
@@ -9362,8 +9561,9 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                   const segment_rule_t *run_rule = find_layout_segment_rule(cfg, lay->name, bss);
                   uint16_t run_alignment = lay->component_alignment ? lay->component_alignment
                      : (run_rule && run_rule->align ? run_rule->align : 1);
-                  lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, run_alignment,
+                  uint32_t run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, run_alignment,
                      lay, lay->name, obj->origin);
+                  set_layout_runtime_address(cfg, lay, run_name, run_addr);
                }
                if (!find_memory(cfg, run_name)->swapram &&
                    strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
@@ -9426,8 +9626,9 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                   const segment_rule_t *run_rule = find_layout_segment_rule(cfg, lay->name, zp);
                   uint16_t run_alignment = lay->component_alignment ? lay->component_alignment
                      : (run_rule && run_rule->align ? run_rule->align : 1);
-                  lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, run_alignment,
+                  uint32_t run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, run_alignment,
                      lay, lay->name, obj->origin);
+                  set_layout_runtime_address(cfg, lay, run_name, run_addr);
                }
                if (!find_memory(cfg, run_name)->swapram &&
                    (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT))
@@ -9523,6 +9724,7 @@ static const char *relocation_width_name(uint8_t type)
    switch (type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) {
       case O26_RTYPE_LOW:  return "low-byte";
       case O26_RTYPE_HIGH: return "high-byte";
+      case O26_RTYPE_BANK: return "third-byte";
       case O26_RTYPE_WORD: return "word";
       default:             return "unknown-width";
    }
@@ -9936,6 +10138,12 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
    if (!source_bank)
       return target->address;
 
+   /* swapram symbols carry a linker-owned logical address, not a CPU ROM
+      address.  Their low 16 bits may numerically overlap the cartridge
+      window; never interpret that overlap as a cross-bank ROM reference. */
+   if (target->owner_layout && target->owner_layout->is_swapram)
+      return target->address;
+
    /* A split-address RAM region shares both aliases across every physical ROM
       bank.  Its addresses overlap the cartridge window, so classifying them by
       numeric address alone would falsely turn ordinary RAM accesses into
@@ -10135,6 +10343,7 @@ static void apply_segment_relocs(const input_set_t *in,
             break;
 
          case O26_RTYPE_LOW:
+         case O26_RTYPE_BANK:
             current_word = (uint16_t)(seg->data[r->offset] | ((r->has_aux_low ? r->aux_low : 0) << 8));
             break;
 
@@ -10162,10 +10371,18 @@ static void apply_segment_relocs(const input_set_t *in,
 
       switch (r->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) {
          case O26_RTYPE_LOW:
-            patch_u8(seg->data, seg->length, r->offset, (uint8_t)(resolved_address & 0xFFu), who);
+            patch_u8(seg->data, seg->length, r->offset,
+                     (uint8_t)((target.owner_layout && target.owner_layout->is_swapram
+                        ? target.wide_address : resolved_address) & 0xFFu), who);
             break;
          case O26_RTYPE_HIGH:
-            patch_u8(seg->data, seg->length, r->offset, (uint8_t)((resolved_address >> 8) & 0xFFu), who);
+            patch_u8(seg->data, seg->length, r->offset,
+                     (uint8_t)(((target.owner_layout && target.owner_layout->is_swapram
+                        ? target.wide_address : resolved_address) >> 8) & 0xFFu), who);
+            break;
+         case O26_RTYPE_BANK:
+            patch_u8(seg->data, seg->length, r->offset,
+                     (uint8_t)((target.wide_address >> 16) & 0xFFu), who);
             break;
          case O26_RTYPE_WORD:
             patch_u16(seg->data, seg->length, r->offset, resolved_address, who);
@@ -10220,6 +10437,7 @@ static void validate_data_only_relocation_segment(input_set_t *in,
                                       (seg->data[r->offset + 1] << 8));
             break;
          case O26_RTYPE_LOW:
+         case O26_RTYPE_BANK:
             current_word = (uint16_t)(seg->data[r->offset] |
                                       ((r->has_aux_low ? r->aux_low : 0) << 8));
             break;
@@ -11766,16 +11984,26 @@ static uint32_t memory_region_runtime_used_bytes(const linker_config_t *cfg,
    uint32_t count = 0;
    uint32_t start;
    uint32_t end;
+   uint32_t span;
    size_t i;
 
    if (mem == NULL || in == NULL)
       return 0;
-   occupied = (uint8_t *)xmalloc(65536);
-   memset(occupied, 0, 65536);
-   start = mem->start;
-   end = start + (mem->physical_size ? mem->physical_size : mem->size);
-   if (end > 0x10000u)
-      end = 0x10000u;
+   if (mem->swapram) {
+      start = 0;
+      end = mem->size;
+   }
+   else {
+      start = mem->start;
+      end = start + (mem->physical_size ? mem->physical_size : mem->size);
+      if (end > 0x10000u)
+         end = 0x10000u;
+   }
+   if (end <= start)
+      return 0;
+   span = end - start;
+   occupied = (uint8_t *)xmalloc(span);
+   memset(occupied, 0, span);
    for (i = 0; i < in->object_count; ++i) {
       const object_file_t *obj = &in->objects[i];
       size_t j;
@@ -11792,19 +12020,22 @@ static uint32_t memory_region_runtime_used_bytes(const linker_config_t *cfg,
             runtime_mem = find_runtime_memory_for_layout(cfg, lay);
             if (runtime_mem != mem)
                continue;
+            lay_start = lay->swapram_logical;
          }
-         lay_start = lay->run_addr;
+         else {
+            lay_start = lay->run_addr;
+         }
          lay_end = lay_start + lay->size;
          if (lay_start < start)
             lay_start = start;
          if (lay_end > end)
             lay_end = end;
          for (addr = lay_start; addr < lay_end; ++addr)
-            occupied[addr] = 1;
+            occupied[addr - start] = 1;
       }
    }
-   for (; start < end; ++start) {
-      if (occupied[start])
+   for (i = 0; i < span; ++i) {
+      if (occupied[i])
          count++;
    }
    free(occupied);
@@ -12151,7 +12382,7 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    for (i = 0; i < cfg->mem_count; ++i) {
       if (cfg->mem[i].swapram) {
          fprintf(fp,
-            "  %-10s logical_size=$%04X type=%s swapram=yes bank_size=$%04X banks=%u",
+            "  %-10s logical_size=$%05" PRIX32 " type=%s swapram=yes bank_size=$%04X banks=%u",
             cfg->mem[i].name, cfg->mem[i].size, cfg->mem[i].type,
             cfg->mem[i].bank_size,
             cfg->mem[i].bank_size ? (unsigned)(cfg->mem[i].size / cfg->mem[i].bank_size) : 0u);
@@ -12366,10 +12597,10 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
             if (!runtime_mem)
                runtime_mem = find_runtime_memory_for_range(cfg, lay->run_addr, lay->size);
             if (runtime_mem && runtime_mem->swapram) {
-               uint32_t offset = (uint32_t)lay->run_addr - runtime_mem->start;
+               uint32_t offset = lay->swapram_logical;
                fprintf(fp,
-                       "     %-16s load=$%04X logical=$%04X swapram-bank=%u swapram-offset=$%04X",
-                       lay->name, lay->load_addr, lay->run_addr,
+                       "     %-16s load=$%04X logical=$%05" PRIX32 " swapram-bank=%u swapram-offset=$%04X",
+                       lay->name, lay->load_addr, lay->swapram_logical,
                        runtime_mem->bank_size ? (unsigned)(offset / runtime_mem->bank_size) : 0u,
                        runtime_mem->bank_size ? (unsigned)(offset % runtime_mem->bank_size) : 0u);
             }
@@ -12411,10 +12642,10 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
             if (!runtime_mem)
                runtime_mem = find_runtime_memory_for_range(cfg, lay->run_addr, lay->size);
             if (runtime_mem && runtime_mem->swapram) {
-               uint32_t offset = (uint32_t)lay->run_addr - runtime_mem->start;
+               uint32_t offset = lay->swapram_logical;
                fprintf(fp,
-                       "     %-16s logical=$%04X swapram-bank=%u swapram-offset=$%04X",
-                       lay->name, lay->run_addr,
+                       "     %-16s logical=$%05" PRIX32 " swapram-bank=%u swapram-offset=$%04X",
+                       lay->name, lay->swapram_logical,
                        runtime_mem->bank_size ? (unsigned)(offset / runtime_mem->bank_size) : 0u,
                        runtime_mem->bank_size ? (unsigned)(offset % runtime_mem->bank_size) : 0u);
             }

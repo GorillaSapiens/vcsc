@@ -59,7 +59,7 @@ struct WriteEvent {
 uint8_t memory_image[65536];
 uint8_t cartridge_image[kF4RomSize];
 uint8_t superchip_ram[128];
-uint8_t threee_ram[32][1024];
+uint8_t threee_ram[256][1024];
 size_t cartridge_size = 0;
 enum class CartridgeTimingMapper { Plain, F8, F4SC, ThreeF, ThreeE };
 CartridgeTimingMapper cartridge_mapper = CartridgeTimingMapper::Plain;
@@ -360,7 +360,7 @@ void write_bus(uint16_t address, uint8_t value) {
       threee_ram_selected = false;
    }
    else if (cartridge_mapper == CartridgeTimingMapper::ThreeE && bus == 0x003e) {
-      threee_ram_bank = value & 31u;
+      threee_ram_bank = value;
       threee_ram_selected = true;
    }
    if (cartridge_mapper == CartridgeTimingMapper::ThreeE && threee_ram_selected &&

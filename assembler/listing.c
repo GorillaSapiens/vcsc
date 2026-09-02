@@ -160,7 +160,7 @@ static void listing_render_expr_buf(listing_textbuf_t *buf, const expr_t *expr)
       case EXPR_CHARCONST: listing_textbuf_appendf(buf, "'%d", expr->u.char_value); break;
       case EXPR_PC: listing_textbuf_appendf(buf, "*"); break;
       case EXPR_UNARY: {
-         static const char *const ops[] = { "+", "-", "!", "~", "<", ">" };
+         static const char *const ops[] = { "+", "-", "!", "~", "<", ">", "^" };
          listing_textbuf_appendf(buf, "(%s", ops[expr->u.unary.op]);
          listing_render_expr_buf(buf, expr->u.unary.child);
          listing_textbuf_appendf(buf, ")");

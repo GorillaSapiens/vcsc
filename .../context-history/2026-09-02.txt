@@ -124,3 +124,61 @@ regressions pass; compile-only is 503/503.
 The dedicated .../3e.txt handoff/roadmap is now an intentional developer-only
 record. Updated vcsc_branding.pl to include it in both the exact allowlist and
 the required-record list, fixing the clean source-tree branding regression.
+
+2026-09-02 10:41:57 PDT, 3E swapram lvalue lowering
+Completed the compiler-side 3E swapram access step. ContextEntry/LValueRef now
+carry swapram identity, and ordinary symbol/address fast paths exclude it.
+Non-bitfield 1..4-byte reads and writes, struct members, runtime-indexed arrays,
+compound assignment, increment/decrement, and automatic-local runtime
+initialization dispatch through swapram_read1..4 / swapram_write1..4 instead of
+using the linker's logical placement as a CPU address. Address-of, read/write
+address, pointer decay, ordinary ref, and swapram pointer/ref traversal are
+explicitly rejected because they would require a fat pointer.
+
+The private helper ABI is ptr1=logical swapram address and ptr2=ordinary
+CPU-addressable source/destination buffer. Lvalue suffix calculation may use
+ptr0 transiently, then copies the result to ptr1 because the generic bankcall
+trampoline owns ptr0. Every compiler-emitted swapram helper JSR now has a
+.banktarget annotation so lower-bank callers can use the normal 3E cross-bank
+transport once its bankcall shell is installed. Added swapram_lvalue_lowering.pl
+covering widths 1..4, members, runtime indexing, compound/inc-dec, local runtime
+initialization, no direct CPU access, the private ptr ABI, banktarget annotation,
+and fat-pointer diagnostics. Compile-only validation is 503/503; focused
+swapram metadata, hygiene, branding, and history tests pass.
+
+2026-09-02 11:13:06 PDT, widen 3E swapram to 256K
+Expanded VCSC's 3E swapram model from the earlier 32 x 1K checkpoint to the full
+8-bit-selector space: 256 x 1K = 256K. Swapram mem metadata and linker placement
+now carry 18-bit logical addresses, reject more than 256 banks, report five-digit
+logical addresses/banks accurately, and account usage across the full pool. The
+compiler helper transport is now arg0:ptr1 = 18-bit logical swapram address and
+ptr2 = ordinary CPU buffer; assembler/linker unary ^symbol relocation supplies
+logical address bits 16..23. The 3E simulator preserves all 256 selector values.
+
+Added libraries/vcs/3E/README.md covering ordinary swapram usage, the one-object
+1K-boundary rule, the current per-translation-unit 64K O26 packed-BSS namespace,
+and emulator compatibility. Current Stella 3E implements only 32 x 1K RAM; its
+separate 3EX mapper reaches 256K using 512 x 512-byte banks, so VCSC's 256 x 1K
+extension above bank 31 requires matching hardware/emulator support rather than
+selecting Stella 3EX. Regression coverage now crosses logical $10000 and exercises
+the third-byte relocation.
+
+2026-09-02 11:54:56 PDT, 3E fixed swapram helpers
+Added `libraries/vcs/3E/swapram.s26` with mapper-owned read/write1..4 byte
+movers. The helper derives the full 8-bit RAM selector plus 10-bit in-bank
+offset from the compiler's 18-bit arg0:ptr1 logical address, uses ptr2 as the
+ordinary source/destination buffer, and keeps every instruction that executes
+while RAM is selected in STARTUP/fixed ROM.
+
+The driver now auto-assembles and links the helper only for 3E links that
+reference swapram access symbols; installed builds locate it beside the 3E
+profiles. Added `vcs_3e_swapram_helpers.pl`, which directly exercises widths
+1..4 through the simulator, including RAM bank 255, and asserts the complete
+helper block and all eight entry points are pinned to the startup bank. The
+compiler's `.banktarget` annotations intentionally remain; generated lower-bank
+swapram accesses become executable when the next 3E bankcall-shell step lands.
+
+Added Stella-compatible 3EX as a separate later bankswitching roadmap item.
+3EX will reuse the generic `$swapram` abstraction but requires its own
+512-byte-bank mapper geometry and implementation rather than pretending to be
+extended 3E.

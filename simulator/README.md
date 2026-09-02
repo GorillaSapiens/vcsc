@@ -294,8 +294,8 @@ read path introduced for 0840.
 `mapper=3F` maps the final physical 2K permanently at `$1800-$1FFF` and a
 value-selected ROM bank at `$1000-$17FF`; writes in the low TIA page update the
 lower-bank selection. `mapper=3E` keeps the same fixed-final ROM shape, uses
-exact `$3F` writes to select lower ROM, and exact `$3E` writes to select one of
-32 1K cartridge-RAM banks. In 3E RAM mode reads use `$1000-$13FF` and writes use
+exact `$3F` writes to select lower ROM, and exact `$3E` writes preserve the full
+8-bit value to select one of 256 1K cartridge-RAM banks. In 3E RAM mode reads use `$1000-$13FF` and writes use
 `$1400-$17FF`; returning through `$3F` restores lower-ROM mode.
 
 ### E0 / Parker Brothers

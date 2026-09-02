@@ -23,6 +23,7 @@
 
 #define O26_RTYPE_LOW  0x20
 #define O26_RTYPE_HIGH 0x40
+#define O26_RTYPE_BANK (O26_RTYPE_LOW | O26_RTYPE_HIGH)
 #define O26_RTYPE_WORD 0x80
 #define O26_RTYPE_AUX  0x10
 #define O26_RTYPE_INDIRECT_JMP 0x08
@@ -60,12 +61,14 @@
 #define RETURN_COALESCE_META_PREFIX "__coalescemeta$V1$"
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
 #define MEM_REGION_SPLIT_META_PREFIX "__memmeta$V2$"
-#define MEM_REGION_SWAPRAM_META_PREFIX "__memmeta$V3$"
+#define MEM_REGION_SWAPRAM_META_PREFIX_V3 "__memmeta$V3$"
+#define MEM_REGION_SWAPRAM_META_PREFIX "__memmeta$V4$"
 #define MEM_DECL_META_PREFIX_V1 "__memdecl$V1$"
 #define MEM_DECL_META_PREFIX_V2 "__memdecl$V2$"
 #define MEM_DECL_META_PREFIX_V3 "__memdecl$V3$"
 #define MEM_DECL_META_PREFIX_V4 "__memdecl$V4$"
-#define MEM_DECL_META_PREFIX "__memdecl$V5$"
+#define MEM_DECL_META_PREFIX_V5 "__memdecl$V5$"
+#define MEM_DECL_META_PREFIX "__memdecl$V6$"
 #define CARTRIDGE_TOPOLOGY_META_PREFIX_V1 "__cartmeta$V1$"
 #define CARTRIDGE_TOPOLOGY_META_PREFIX "__cartmeta$V2$"
 #define BANK_TOPOLOGY_META_PREFIX_V1 "__bankmeta$V1$"
@@ -83,8 +86,8 @@ typedef struct {
    int read_hazard;
    int swapram;
    uint16_t bank_size;
-   uint16_t size;
-   uint16_t physical_size;
+   uint32_t size;
+   uint32_t physical_size;
    char type[16];
    int define_yes;
    int callstack_callgraph;
@@ -234,6 +237,8 @@ typedef struct {
    uint8_t component_private;
    uint16_t load_addr;
    uint16_t run_addr;
+   uint32_t swapram_logical;
+   uint8_t is_swapram;
    /* Final full-window cartridge placement chosen before ordinary address
       allocation.  These fields are linker-private; they are not serialized in
       o26 files. */
@@ -403,7 +408,7 @@ typedef struct {
 
 typedef struct {
    char name[MAX_NAME];
-   uint16_t cur;
+   uint32_t cur;
    uint32_t end;
    memory_hole_t *holes;
    size_t hole_count;

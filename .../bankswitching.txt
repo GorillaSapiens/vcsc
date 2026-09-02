@@ -235,8 +235,11 @@ this is future optimizer-locality cleanup, not bankswitching work.
             Active design/acceptance record: `.../3e.txt`. 3E RAM is temporary
             fixed-bank `$swapram`, not generic bankcall state and not `cartram`.
             `$swapram`/`$bank_size` metadata, logical allocation, bank-boundary
-            packing, validation, and map reporting are complete; lvalue access
-            lowering and fixed-bank helpers are next.
+            packing, validation, map reporting, and compiler lvalue lowering are
+            complete. The compiler dispatches 1..4-byte accesses to banktarget-
+            annotated helpers with arg0:ptr1=18-bit logical address and ptr2=ordinary buffer;
+            fixed-bank `swapram.s26` is complete and tested through RAM bank 255; the
+            3F-derived 3E bankcall shell is next.
 
         [ ] 38c. Implement/migrate FC.
 
@@ -256,6 +259,14 @@ this is future optimizer-locality cleanup, not bankswitching work.
             Full state is 9 bits and executing code does not identify the other
             window selections, so the current one-byte baked-source descriptor
             is insufficient for arbitrary state preservation.
+
+        [ ] 38f. Add Stella-compatible 3EX support.
+
+            Treat 3EX as a distinct mapper, not extended 3E: it reaches 256K
+            cartridge RAM with 512-byte RAM-bank geometry. Reuse the generic
+            `$swapram` storage/access abstraction, but give 3EX its own mapper
+            profile, selector/address derivation, simulator/disassembler support,
+            diagnostics, and automatic-call rules as required by its hardware.
 
 Deferred design questions
 -------------------------

@@ -237,6 +237,8 @@ install-data:
 	install -m 0644 libraries/vcs/3F/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/3F/mapper.c26
 	install -m 0644 libraries/vcs/3E/mapper_8k.c26 $(DESTDIR)$(DATADIR)/vcs/3E/mapper_8k.c26
 	install -m 0644 libraries/vcs/3E/mapper_16k.c26 $(DESTDIR)$(DATADIR)/vcs/3E/mapper_16k.c26
+	install -m 0644 libraries/vcs/3E/swapram.s26 $(DESTDIR)$(DATADIR)/vcs/3E/swapram.s26
+	install -m 0644 libraries/vcs/3E/README.md $(DESTDIR)$(DATADIR)/vcs/3E/README.md
 	install -m 0644 libraries/vcs/FA/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/FA/mapper.c26
 	install -m 0644 libraries/vcs/FA2/mapper_24k.c26 $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_24k.c26
 	install -m 0644 libraries/vcs/FA2/mapper_28k.c26 $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_28k.c26
@@ -416,6 +418,8 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/3F/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/mapper_8k.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/mapper_16k.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/swapram.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_24k.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_28k.c26
@@ -626,6 +630,8 @@ installcheck: tools
 	stage_vcs="$(INSTALLCHECK_STAGING)/opt/vcsc/share/vcs"; \
 	stage_examples="$(INSTALLCHECK_STAGING)/opt/vcsc/examples"; \
 	test -f "$$stage_vcs/LICENSE.txt"; \
+	test -f "$$stage_vcs/3E/swapram.s26"; \
+	test -f "$$stage_vcs/3E/README.md"; \
 	test -f "$$stage_examples/README.md"; \
 	test -f "$$stage_examples/01_basic/01_blank_screen/blank_screen.c26"; \
 	grep -q 'VCSC ?= $$(ROOT)/bin/vcsc' "$$stage_examples/01_basic/01_blank_screen/Makefile"; \

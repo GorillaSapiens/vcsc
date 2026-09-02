@@ -34,6 +34,8 @@ void require_lvalue_readable(const LValueRef *lv);
 void require_lvalue_writable(const LValueRef *lv);
 bool emit_load_direct_byte_lvalue_to_a(Context *ctx, const LValueRef *src);
 bool emit_store_a_to_direct_byte_lvalue(Context *ctx, const LValueRef *dst);
+bool emit_swapram_read_to_ptr2(Context *ctx, const LValueRef *src, int size);
+bool emit_swapram_write_from_ptr2(Context *ctx, const LValueRef *dst, int size);
 bool emit_copy_preserved_symbol_to_lvalue(Context *ctx, const LValueRef *dst,
                                           const char *symbol, int size);
 bool emit_copy_lvalue_to_scratch(Context *ctx, int dst_offset, const LValueRef *src, int size);

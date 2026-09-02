@@ -264,9 +264,11 @@ fresh single uninterrupted 343/343 run in this tool window.
 
 Immediate TODO
 --------------
-3F automatic calls are complete. 3E `$swapram` metadata/allocation is complete:
-the logical 32 x 1K pool packs objects within bank boundaries and reports
-bank/offset placement without pretending it has CPU addresses. Next execute the
-remaining `.../3e.txt` work beginning with custom LValueRef read/write lowering,
-then fixed-bank swapram helpers and the 3F-derived ROM-call shell. After 3E,
-migrate FC, F0, and E0; FE intentionally stays special.
+3F automatic calls are complete. 3E `$swapram` metadata/allocation, 1..4-byte
+lvalue lowering, and fixed-bank byte movers are complete. The profile exposes
+256 x 1K = 256K; helper ABI is arg0:ptr1=18-bit logical address, ptr2=ordinary
+buffer. `swapram.s26` auto-links on demand, is pinned wholly to startup/fixed
+ROM, and is simulator-tested through RAM bank 255. Fat-pointer-like address/ref
+uses are rejected; helper JSRs retain `.banktarget`. Next add the 3F-derived 3E
+ROM-call shell so lower-ROM helper calls cross and restore correctly. 3EX is a
+later distinct 512-byte-bank mapper. After 3E migrate FC, F0, E0; FE stays special.

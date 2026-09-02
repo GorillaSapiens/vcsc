@@ -771,6 +771,12 @@ void build_function_context(const ASTNode *node, Context *ctx) {
          entry->size = slot_size;
          entry->declarator = param_decl;
          entry->is_ref = parameter_is_ref(parameter);
+         {
+            const char *memname = find_mem_modifier_name(modifiers);
+            const ASTNode *mem_decl = memname ? get_memname_node(memname) : NULL;
+            entry->is_swapram = mem_decl_is_swapram(mem_decl);
+            entry->mem_region_name = entry->is_swapram ? memname : NULL;
+         }
          entry->object_is_const = !entry->is_ref &&
             declaration_const_applies_to_object(modifiers, param_decl);
          entry->pointer_access = parameter_access_qualifier(parameter);

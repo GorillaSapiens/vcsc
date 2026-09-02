@@ -31,7 +31,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `FE/mapper.c26` ... FE/SCABS two-bank 8K profile; physical bank 0 starts at `$F000`, physical bank 1 maps at `$D000`, and mirrored `$01FE` arms the one-cycle-delayed data-bus bank latch; linked `.map` output supplies simulator metadata
 - `DPC/mapper.c26` ... DPC profile: two F8-style 4K program banks plus a 2K `$data_only` display bank and 255-byte `$data_only` Poly8 bank; `DPC/registers.c26` exposes the register window and linked `.map` output supplies simulator metadata
 - `3F/mapper.c26` ... parameterized classic 3F selectable-lower-2K/fixed-final-2K profile for 1..256 physical 2K chunks; instantiate it with `VCS_3F_BANKS:=N`. All selectable chunks share canonical CPU/link `$1000-$17FF`, the final chunk is fixed at `$1800-$1FFF`, and ordinary TIA accesses use the `$40-$7F` mirror while `$00-$3F` remains available to the mapper
-- `3E/mapper_8k.c26`, `3E/mapper_16k.c26` ... classic 3E ROM/RAM extension of the same 2K-window family, with 32 1K RAM banks and map-driven simulator support for both public sizes
+- `3E/mapper_8k.c26`, `3E/mapper_16k.c26` ... 3E ROM/RAM extension of the same 2K-window family, with a VCSC 256 x 1K swap-RAM pool; see `3E/README.md` for Stella compatibility limits
 - `JANE/mapper.c26` ... JANE four-bank 16K profile preserving physical selectors `$1FF0/$1FF1/$1FF8/$1FF9` and hardware startup in physical bank 1; linked `.map` output supplies simulator physical-file mapping
 - `FA/mapper.c26`, `FA/ram.c26` ... CBS FA/RAM Plus three-bank profile with physical startup bank 2 and shared 256-byte split-address cartridge RAM
 - `FA2/mapper_24k.c26`, `FA2/mapper_28k.c26` ... FA2 six/seven-bank profiles with direct selectors `$1FF5-$1FFA/$1FFB`, physical startup bank 0, and the same shared 256-byte split-address cartridge RAM. Their descriptor ABI uses hotspot low bytes `$F5-$FA/$FB` and `FA2/bankcall.s26` selects with raw `op1C $1F00,X`; linked `.map` output supports simulation. VCSC emits clean 24K/28K payloads; optional Harmony `$1FF4` persistence and 29K/32K wrapper forms are not part of the core profile.
@@ -767,8 +767,8 @@ value. Because classic 3F owns those low-page writes, the profile selects
 `tia_mirror_40.c26`: ordinary TIA reads/writes use the equivalent `$40-$7F`
 mirror automatically instead of accidentally changing ROM banks.
 
-Classic 3E uses the same ROM shape but reserves exact `$3F` for lower-ROM bank
-selection and exact `$3E` for one of 32 1K RAM banks. In RAM mode `$1000-$13FF`
+3E uses the same ROM shape but reserves exact `$3F` for lower-ROM bank
+selection and exact `$3E` for one of 256 1K RAM banks in VCSC's extended 8-bit-selector model. In RAM mode `$1000-$13FF`
 is the read alias and `$1400-$17FF` the write alias. 3E also selects
 `tia_mirror_40.c26` for ordinary TIA accesses. This keeps VSYNC/WSYNC and the
 rest of TIA I/O off the cartridge-owned low write page and works whether an

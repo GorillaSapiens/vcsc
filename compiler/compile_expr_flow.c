@@ -232,7 +232,7 @@ static bool compile_braced_assignment_to_lvalue(ASTNode *node, Context *ctx, con
       int tmp_offset = 0;
       char sym[256];
       FlowFixedScratch scratch;
-      bool dst_symbol = !lv->is_bitfield && !lv->indirect && !lv->needs_runtime_address &&
+      bool dst_symbol = !lv->is_swapram && !lv->is_bitfield && !lv->indirect && !lv->needs_runtime_address &&
                         !lv->is_absolute_ref && (dst->is_static || dst->is_zeropage || dst->is_global) &&
                         entry_symbol_name(ctx, dst, sym, sizeof(sym));
       bool dst_direct_scratch = !lv->is_bitfield && !lv->indirect && !lv->needs_runtime_address &&
@@ -319,7 +319,7 @@ static DirectByteOperand classify_direct_byte_operand_impl(Context *ctx, ASTNode
    if (!(allow_incdec ? resolve_lvalue(ctx, expr, &out.lv)
                        : resolve_ref_argument_lvalue(ctx, expr, &out.lv)) ||
        out.lv.size != 1 || (!allow_signed && type_is_signed_integer(out.lv.type)) ||
-       out.lv.is_bitfield) {
+       out.lv.is_bitfield || out.lv.is_swapram) {
       return out;
    }
    out.valid = true;
@@ -649,6 +649,7 @@ static bool direct_lvalue_base_symbol(Context *ctx, const LValueRef *lv,
    ContextEntry entry;
 
    if (!lv || !lv->name || !symbol || symbol_size == 0 || lv->is_absolute_ref ||
+       lv->is_swapram ||
        (!lv->is_global && !lv->is_static && !lv->is_zeropage)) {
       return false;
    }
@@ -1897,7 +1898,7 @@ static bool compile_direct_scalar_constant_assignment(Context *ctx,
    char symbol[256];
    unsigned char encoded[4] = {0, 0, 0, 0};
 
-   if (!dst || dst->size < 1 || dst->size > 4 || dst->is_bitfield ||
+   if (!dst || dst->is_swapram || dst->size < 1 || dst->size > 4 || dst->is_bitfield ||
        !eval_constant_initializer_expr(rhs, &value) ||
        value.kind != INIT_CONST_INT || !integer_value_fits_type(value.i, dst->type)) {
       return false;
@@ -2278,7 +2279,7 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
       return false;
    }
    increment = !strcmp(op, "pre++") || !strcmp(op, "post++");
-   if (!resolve_lvalue(ctx, expr, &lv) || lv.size != 1 || lv.is_bitfield) {
+   if (!resolve_lvalue(ctx, expr, &lv) || lv.is_swapram || lv.size != 1 || lv.is_bitfield) {
       return false;
    }
    require_lvalue_readable(&lv);
@@ -2377,7 +2378,7 @@ static bool direct_byte_assignment_preserves_a(const LValueRef *dst,
                                                const ASTNode *src_type,
                                                const ASTNode *src_declarator,
                                                ASTNode *rhs) {
-   if (!dst || dst->size != 1 || dst->is_bitfield || dst->indirect ||
+   if (!dst || dst->is_swapram || dst->size != 1 || dst->is_bitfield || dst->indirect ||
        dst->needs_runtime_address || declarator_pointer_depth(dst->declarator) > 0) {
       return false;
    }
@@ -2965,7 +2966,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
       if (compile_direct_byte_lvalue_to_absolute_ref(ctx, &lv, rhs)) {
          return;
       }
-      if (!lv.is_bitfield && !lv.is_absolute_ref && !lv.indirect && !lv.needs_runtime_address && (dst->is_static || dst->is_zeropage || dst->is_global)) {
+      if (!lv.is_swapram && !lv.is_bitfield && !lv.is_absolute_ref && !lv.indirect && !lv.needs_runtime_address && (dst->is_static || dst->is_zeropage || dst->is_global)) {
          char sym[256];
          LValueRef rhs_lv;
          if (!entry_symbol_name(ctx, dst, sym, sizeof(sym))) {
@@ -2992,6 +2993,23 @@ void compile_expr(ASTNode *node, Context *ctx) {
          }
          emit_copy_symbol_to_symbol_convert_offset(sym, lv.offset, dst->size, dst->type,
                                                    scratch_sym, 0, dst->size, dst->type);
+         compiler_scratch_release(&scratch);
+         return;
+      }
+      if (lv.is_swapram) {
+         char scratch_sym[96];
+         CompilerScratchLease scratch;
+         if (!compile_expr_to_fixed_scratch(rhs, ctx, dst->type, dst->declarator,
+                                            dst->size, true, dst->pointer_access,
+                                            scratch_sym, sizeof(scratch_sym), NULL, &scratch)) {
+            error_user("[%s:%d.%d] invalid assignment value", node->file, node->line, node->column);
+            return;
+         }
+         if (!emit_fixed_assignment_value_to_lvalue(ctx, &lv, scratch_sym, dst->size)) {
+            compiler_scratch_release(&scratch);
+            error_user("[%s:%d.%d] invalid swapram assignment target", node->file, node->line, node->column);
+            return;
+         }
          compiler_scratch_release(&scratch);
          return;
       }
@@ -3208,7 +3226,7 @@ void compile_expr(ASTNode *node, Context *ctx) {
        !strcmp(op, "^=") || !strcmp(op, "*=") || !strcmp(op, "/=") || !strcmp(op, "%=") ||
        !strcmp(op, "<<=") || !strcmp(op, ">>=")) {
       char dst_sym[256];
-      bool dst_symbol = !lv.is_bitfield && !lv.indirect && !lv.needs_runtime_address && (dst->is_static || dst->is_zeropage || dst->is_global) && entry_symbol_name(ctx, dst, dst_sym, sizeof(dst_sym));
+      bool dst_symbol = !lv.is_swapram && !lv.is_bitfield && !lv.indirect && !lv.needs_runtime_address && (dst->is_static || dst->is_zeropage || dst->is_global) && entry_symbol_name(ctx, dst, dst_sym, sizeof(dst_sym));
       bool scaled_pointer_assign = dst->declarator && declarator_pointer_depth(dst->declarator) > 0 && (!strcmp(op, "+=") || !strcmp(op, "-="));
       const ASTNode *rhs_type = expr_value_type(rhs, ctx);
       const ASTNode *work_type = NULL;

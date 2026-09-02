@@ -111,7 +111,7 @@ static const uint8_t g_wd_bank_org[8][4] = {
    {0,0,1,3}, {0,1,2,3}, {4,5,6,7}, {7,4,2,3},
    {0,0,6,7}, {0,1,7,6}, {2,3,4,5}, {6,0,5,1}
 };
-static uint8_t g_3e_ram[32][1024] = {};
+static uint8_t g_3e_ram[256][1024] = {};
 static uint8_t g_dpc_display[2048] = {};
 static uint8_t g_dpc_poly_image[255] = {};
 static uint8_t g_dpc_tops[8] = {};
@@ -711,6 +711,9 @@ static void parse_c26_map_file(simulator_config_t *cfg, const char *path) {
          }
          std::string type, output_bank;
          if (!map_token_value(line, "type", &type))
+            continue;
+         std::string swapram;
+         if (map_token_value(line, "swapram", &swapram) && swapram == "yes")
             continue;
          const bool split = line.find("write_start=") != std::string::npos;
          const bool shared = !map_token_value(line, "output-bank", &output_bank) || output_bank == "<none>";
@@ -1598,7 +1601,7 @@ void write_cb(uint16_t addr, uint8_t val) {
          g_3e_ram_selected = 0;
       }
       else if (g_cfg.threee_mapper && canonical == 0x003eu) {
-         g_3e_ram_bank = (uint8_t)(val & 31u);
+         g_3e_ram_bank = val;
          g_3e_ram_selected = 1;
       }
       if (g_cfg.threee_mapper && g_3e_ram_selected &&

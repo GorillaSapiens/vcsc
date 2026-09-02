@@ -1351,13 +1351,35 @@ static bool file_contains_literal(const char *path, const char *needle)
 }
 
 //! @brief Return whether command-line objects/archives already provide cartridge topology.
-static bool link_inputs_have_cartridge_topology(const strvec_t *inputs)
+static bool link_inputs_contain_literal(const strvec_t *inputs, const char *needle)
 {
    size_t i;
    for (i = 0; inputs && i < inputs->count; ++i)
-      if (file_contains_literal(inputs->items[i], "__cartmeta$"))
+      if (file_contains_literal(inputs->items[i], needle))
          return true;
    return false;
+}
+
+//! @brief Return whether command-line objects/archives already provide cartridge topology.
+static bool link_inputs_have_cartridge_topology(const strvec_t *inputs)
+{
+   return link_inputs_contain_literal(inputs, "__cartmeta$");
+}
+
+//! @brief Return whether the selected C26 topology identifies Tigervision 3E.
+static bool link_inputs_have_3e_topology(const strvec_t *inputs)
+{
+   /* __cartmeta V2 stores the four-byte signature as hex after $G.  "3E\0\0"
+      is 33 45 00 00. Keep this driver-side test deliberately narrow: 3EX is a
+      distinct mapper and must not silently receive 3E's 1K swap-RAM helper. */
+   return link_inputs_contain_literal(inputs, "$G33450000$");
+}
+
+//! @brief Return whether generated code references one of the swapram mover entry points.
+static bool link_inputs_need_swapram_helpers(const strvec_t *inputs)
+{
+   return link_inputs_contain_literal(inputs, "swapram_read") ||
+          link_inputs_contain_literal(inputs, "swapram_write");
 }
 
 //! @brief Run the ld stage of the driver tool pipeline.
@@ -1669,6 +1691,22 @@ int main(int argc, char **argv)
          run_cc(cc_path, &opt, runtime_inc, vcs_profile_path, asm_path);
          run_as(as_path, &opt, runtime_inc, asm_path, obj_path);
          strvec_push(&link_inputs, obj_path);
+      }
+      if (link_inputs_have_3e_topology(&link_inputs) &&
+          link_inputs_need_swapram_helpers(&link_inputs) &&
+          !link_inputs_contain_literal(&link_inputs, "__vcsc_3e_swapram_provider")) {
+         char vcs_4k_dir[PATH_MAX];
+         char vcs_root[PATH_MAX];
+         char helper_path[PATH_MAX];
+         const char *helper_obj;
+         path_dirname(vcs_profile_path, vcs_4k_dir, sizeof(vcs_4k_dir));
+         path_dirname(vcs_4k_dir, vcs_root, sizeof(vcs_root));
+         join_path3(helper_path, sizeof(helper_path), vcs_root, "3E", "swapram.s26");
+         if (!path_is_accessible(helper_path, R_OK))
+            die("3E swapram access requires mapper helper '%s'", helper_path);
+         helper_obj = temp_store_make_file(&temps, "3e_swapram", ".o26");
+         run_as(as_path, &opt, runtime_inc, helper_path, helper_obj);
+         strvec_push(&link_inputs, helper_obj);
       }
       optimize_inline_profitability(cc_path, as_path, ld_path, &opt, runtime_inc,
          runtime_path, &link_inputs, &inline_tus, &temps);

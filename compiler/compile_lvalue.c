@@ -113,7 +113,7 @@ bool emit_load_direct_byte_lvalue_to_a(Context *ctx, const LValueRef *src) {
    char expr_buf[256];
    const char *formatted;
 
-   if (!src || src->size != 1 || src->is_bitfield || src->indirect ||
+   if (!src || src->is_swapram || src->size != 1 || src->is_bitfield || src->indirect ||
        src->needs_runtime_address) {
       return false;
    }
@@ -155,7 +155,7 @@ bool emit_store_a_to_direct_byte_lvalue(Context *ctx, const LValueRef *dst) {
    char expr_buf[256];
    const char *formatted;
 
-   if (!dst || dst->size != 1 || dst->is_bitfield || dst->indirect ||
+   if (!dst || dst->is_swapram || dst->size != 1 || dst->is_bitfield || dst->indirect ||
        dst->needs_runtime_address) {
       return false;
    }
@@ -202,6 +202,11 @@ bool emit_copy_preserved_symbol_to_lvalue(Context *ctx, const LValueRef *dst,
    require_lvalue_writable(dst);
    if (dst->is_bitfield) {
       require_lvalue_readable(dst);
+   }
+
+   if (dst->is_swapram) {
+      emit_load_address_to_ptr(2, symbol, 0);
+      return emit_swapram_write_from_ptr2(ctx, dst, size);
    }
 
    if (!dst->is_bitfield && dst->is_absolute_ref && !dst->indirect &&
@@ -1012,6 +1017,23 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
    if (!lv) {
       return false;
    }
+   if (lv->is_swapram &&
+       (mode == LVALUE_ACCESS_ADDRESS || mode == LVALUE_ACCESS_READ_ADDRESS ||
+        mode == LVALUE_ACCESS_WRITE_ADDRESS || mode == LVALUE_ACCESS_REF)) {
+      const ASTNode *site = lv->use_site;
+      error_user("[%s:%d.%d] swapram object '%s' has no ordinary CPU address; address-of, pointer decay, and ref binding are not supported",
+                 site && site->file ? site->file : "<unknown>",
+                 site ? site->line : 0, site ? site->column : 0,
+                 lv->name ? lv->name : "<unnamed>");
+   }
+   if (lv->is_swapram && (lv->is_ref || lv->deref_depth > 0 ||
+                          (lv->indirect && declarator_pointer_depth(lv->base_declarator) > 0))) {
+      const ASTNode *site = lv->use_site;
+      error_user("[%s:%d.%d] pointer/ref access through swapram object '%s' is not supported; load the pointer value into ordinary RAM first",
+                 site && site->file ? site->file : "<unknown>",
+                 site ? site->line : 0, site ? site->column : 0,
+                 lv->name ? lv->name : "<unnamed>");
+   }
    if (mode == LVALUE_ACCESS_READ || mode == LVALUE_ACCESS_READ_ADDRESS) {
       require_lvalue_readable(lv);
    }
@@ -1170,6 +1192,114 @@ bool emit_prepare_lvalue_ptr(Context *ctx, const LValueRef *lv, LValueAccessMode
 
    return emit_prepare_lvalue_ptr_suffixes(ctx, lv->suffixes, &type, &decl,
                                            &pointer_value_already_loaded);
+}
+
+//! @brief Dispatch one scalar-width swapram read through the mapper helper ABI.
+//!
+//! Lvalue suffix lowering naturally computes the low 16 bits of the logical
+//! swapram address in ptr0.  Objects are constrained to one swap bank, so the
+//! third address byte is invariant across every suffix/index within the
+//! object and can be taken from the base symbol.  Generic bankcall trampolines
+//! also use ptr0 internally, so preserve the address before the call.  ptr2
+//! points at the ordinary CPU-addressable destination buffer.  The fixed-bank
+//! helper therefore sees:
+//!
+//!   arg0 = logical swapram address bits 16..23 (only bits 0..1 for 256K)
+//!   ptr1 = logical swapram address bits 0..15
+//!   ptr2 = ordinary destination buffer
+bool emit_swapram_read_to_ptr2(Context *ctx, const LValueRef *src, int size) {
+   char helper[32];
+   char sym[256];
+   ContextEntry base_entry;
+
+   if (!src || !src->is_swapram) {
+      return false;
+   }
+   require_lvalue_readable(src);
+   if (src->is_bitfield || size < 1 || size > 4) {
+      const ASTNode *site = src->use_site;
+      error_user("[%s:%d.%d] swapram access to '%s' must be a non-bitfield 1, 2, 3, or 4 byte value",
+                 site && site->file ? site->file : "<unknown>",
+                 site ? site->line : 0, site ? site->column : 0,
+                 src->name ? src->name : "<unnamed>");
+   }
+   if (!emit_prepare_lvalue_ptr(ctx, src, LVALUE_ACCESS_READ)) {
+      return false;
+   }
+   base_entry = (ContextEntry){ .name = src->name,
+      .type = src->base_type ? src->base_type : src->type,
+      .declarator = src->base_declarator ? src->base_declarator : src->declarator,
+      .is_static = src->is_static, .is_zeropage = src->is_zeropage,
+      .is_global = src->is_global, .is_ref = src->is_ref,
+      .is_absolute_ref = src->is_absolute_ref, .read_expr = src->read_expr,
+      .write_expr = src->write_expr,
+      .offset = src->base_type ? src->base_offset : src->offset,
+      .size = src->base_type ? declarator_storage_size(src->base_type, src->base_declarator)
+                             : src->size };
+   if (!entry_symbol_name(ctx, &base_entry, sym, sizeof(sym))) {
+      return false;
+   }
+   emit(&es_code, "    lda #^{%s + 0}\n", sym);
+   emit(&es_code, "    sta arg0\n");
+   emit(&es_code, "    lda ptr0\n");
+   emit(&es_code, "    sta ptr1\n");
+   emit(&es_code, "    lda ptr0+1\n");
+   emit(&es_code, "    sta ptr1+1\n");
+   snprintf(helper, sizeof(helper), "swapram_read%d", size);
+   remember_symbol_import(helper);
+   emit(&es_code, "    jsr %s\n", helper);
+   emit(&es_code, "    .banktarget %s\n", helper);
+   return true;
+}
+
+//! @brief Dispatch one scalar-width swapram write through the mapper helper ABI.
+//!
+//! ptr2 points at the ordinary CPU-addressable source buffer.  As for reads,
+//! preserve the three-byte logical swapram address across the generic
+//! bankcall transport, which owns ptr0 while entering/leaving the fixed bank.
+bool emit_swapram_write_from_ptr2(Context *ctx, const LValueRef *dst, int size) {
+   char helper[32];
+   char sym[256];
+   ContextEntry base_entry;
+
+   if (!dst || !dst->is_swapram) {
+      return false;
+   }
+   require_lvalue_writable(dst);
+   if (dst->is_bitfield || size < 1 || size > 4) {
+      const ASTNode *site = dst->use_site;
+      error_user("[%s:%d.%d] swapram access to '%s' must be a non-bitfield 1, 2, 3, or 4 byte value",
+                 site && site->file ? site->file : "<unknown>",
+                 site ? site->line : 0, site ? site->column : 0,
+                 dst->name ? dst->name : "<unnamed>");
+   }
+   if (!emit_prepare_lvalue_ptr(ctx, dst, LVALUE_ACCESS_WRITE)) {
+      return false;
+   }
+   base_entry = (ContextEntry){ .name = dst->name,
+      .type = dst->base_type ? dst->base_type : dst->type,
+      .declarator = dst->base_declarator ? dst->base_declarator : dst->declarator,
+      .is_static = dst->is_static, .is_zeropage = dst->is_zeropage,
+      .is_global = dst->is_global, .is_ref = dst->is_ref,
+      .is_absolute_ref = dst->is_absolute_ref, .read_expr = dst->read_expr,
+      .write_expr = dst->write_expr,
+      .offset = dst->base_type ? dst->base_offset : dst->offset,
+      .size = dst->base_type ? declarator_storage_size(dst->base_type, dst->base_declarator)
+                             : dst->size };
+   if (!entry_symbol_name(ctx, &base_entry, sym, sizeof(sym))) {
+      return false;
+   }
+   emit(&es_code, "    lda #^{%s + 0}\n", sym);
+   emit(&es_code, "    sta arg0\n");
+   emit(&es_code, "    lda ptr0\n");
+   emit(&es_code, "    sta ptr1\n");
+   emit(&es_code, "    lda ptr0+1\n");
+   emit(&es_code, "    sta ptr1+1\n");
+   snprintf(helper, sizeof(helper), "swapram_write%d", size);
+   remember_symbol_import(helper);
+   emit(&es_code, "    jsr %s\n", helper);
+   emit(&es_code, "    .banktarget %s\n", helper);
+   return true;
 }
 
 //! @brief Emit copy bitfield lvalue to scratch for compiler lvalue lowering diagnostics or output files.
@@ -1464,6 +1594,10 @@ bool emit_copy_symbol_to_lvalue(Context *ctx, const LValueRef *dst, const char *
    if (copy_size <= 0) {
       return true;
    }
+   if (dst->is_swapram) {
+      emit_load_address_to_ptr(2, symbol, symbol_offset);
+      return emit_swapram_write_from_ptr2(ctx, dst, copy_size);
+   }
    if (dst->is_bitfield) {
       return emit_copy_symbol_to_bitfield_lvalue(ctx, dst, symbol, symbol_offset);
    }
@@ -1510,6 +1644,18 @@ bool emit_copy_lvalue_to_scratch(Context *ctx, int dst_offset, const LValueRef *
    int saved_locals = ctx ? ctx->locals : 0;
    int protected_locals = saved_locals;
 
+   if (src && src->is_swapram) {
+      if (copy_size <= 0) {
+         return true;
+      }
+      if (dst_direct) {
+         emit_load_address_to_ptr(2, compiler_scratch_active_symbol(), dst_offset);
+      }
+      else {
+         emit_prepare_scratch_ptr(2, dst_offset);
+      }
+      return emit_swapram_read_to_ptr2(ctx, src, copy_size);
+   }
    if (src && src->is_bitfield) {
       return emit_copy_bitfield_lvalue_to_scratch(ctx, dst_offset, src, size);
    }
@@ -1584,14 +1730,27 @@ bool emit_copy_lvalue_to_scratch(Context *ctx, int dst_offset, const LValueRef *
 
 //! @brief Emit copy scratch to lvalue for compiler lvalue lowering diagnostics or output files.
 bool emit_copy_scratch_to_lvalue(Context *ctx, const LValueRef *dst, int src_offset, int size) {
-   require_lvalue_writable(dst);
-   if (dst && dst->is_bitfield) {
-      require_lvalue_readable(dst);
-   }
    int copy_size = size < dst->size ? size : dst->size;
    bool src_direct = src_offset >= 0;
    int saved_locals = ctx ? ctx->locals : 0;
    int protected_locals = saved_locals;
+
+   require_lvalue_writable(dst);
+   if (dst && dst->is_swapram) {
+      if (copy_size <= 0) {
+         return true;
+      }
+      if (src_direct) {
+         emit_load_address_to_ptr(2, compiler_scratch_active_symbol(), src_offset);
+      }
+      else {
+         emit_prepare_scratch_ptr(2, src_offset);
+      }
+      return emit_swapram_write_from_ptr2(ctx, dst, copy_size);
+   }
+   if (dst && dst->is_bitfield) {
+      require_lvalue_readable(dst);
+   }
 
    if (dst && dst->is_bitfield) {
       return emit_copy_scratch_to_bitfield_lvalue(ctx, dst, src_offset, size);
@@ -1796,6 +1955,8 @@ static void init_lvalue_from_entry(LValueRef *out, const ContextEntry *entry, co
    out->is_global = entry->is_global;
    out->is_ref = entry->is_ref;
    out->is_absolute_ref = entry->is_absolute_ref;
+   out->is_swapram = entry->is_swapram;
+   out->mem_region_name = entry->mem_region_name;
    out->read_expr = entry->read_expr;
    out->write_expr = entry->write_expr;
    out->has_split_alias_delta = entry->has_split_alias_delta;

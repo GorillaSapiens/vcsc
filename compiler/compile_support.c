@@ -468,9 +468,9 @@ ContextEntry *ctx_lookup(Context *ctx, const char *name) {
 
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
 #define MEM_REGION_SPLIT_META_PREFIX "__memmeta$V2$"
-#define MEM_REGION_SWAPRAM_META_PREFIX "__memmeta$V3$"
+#define MEM_REGION_SWAPRAM_META_PREFIX "__memmeta$V4$"
 
-#define MEM_DECL_META_PREFIX "__memdecl$V5$"
+#define MEM_DECL_META_PREFIX "__memdecl$V6$"
 
 //! @brief Encode one declaration location for linker diagnostics.
 static char *mem_metadata_source_suffix(const ASTNode *node) {
@@ -576,6 +576,39 @@ static bool mem_metadata_parse_u16_flag(const ASTNode *flags, const char *prefix
    return false;
 }
 
+//! @brief Parse an unsigned 32-bit integer flag from a mem declaration flag list.
+static bool mem_metadata_parse_u32_flag(const ASTNode *flags, const char *prefix, uint32_t *out) {
+   size_t prefix_len;
+
+   if (!flags || is_empty(flags) || !prefix || !out) {
+      return false;
+   }
+
+   prefix_len = strlen(prefix);
+   for (int i = 0; i < flags->count; i++) {
+      const char *text;
+      char *end = NULL;
+      unsigned long value;
+
+      if (!flags->children[i] || !flags->children[i]->strval) {
+         continue;
+      }
+      text = flags->children[i]->strval;
+      if (strncmp(text, prefix, prefix_len)) {
+         continue;
+      }
+
+      value = strtoul(text + prefix_len, &end, 0);
+      if (!end || *end != '\0' || value > UINT32_MAX) {
+         return false;
+      }
+      *out = (uint32_t)value;
+      return true;
+   }
+
+   return false;
+}
+
 //! @brief Parse one required-nonempty string-valued mem flag.
 static const char *mem_metadata_string_flag(const ASTNode *flags, const char *prefix) {
    size_t prefix_len;
@@ -644,7 +677,7 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
    unsigned int start = 0;
    unsigned int read_start = 0;
    unsigned int write_start = 0;
-   unsigned int size = 0;
+   uint32_t size = 0;
    unsigned int end = 0;
    bool have_start;
    bool have_read_start;
@@ -673,7 +706,7 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
    have_start = mem_metadata_parse_u16_flag(flags, "$start:", &start);
    have_read_start = mem_metadata_parse_u16_flag(flags, "$read_start:", &read_start);
    have_write_start = mem_metadata_parse_u16_flag(flags, "$write_start:", &write_start);
-   have_size = mem_metadata_parse_u16_flag(flags, "$size:", &size);
+   have_size = mem_metadata_parse_u32_flag(flags, "$size:", &size);
    have_end = mem_metadata_parse_u16_flag(flags, "$end:", &end);
    type = mem_metadata_type_flag(flags);
    split = have_read_start || have_write_start;
@@ -717,6 +750,10 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
          error_user("[%s:%d.%d] swapram mem region '%s' requires nonzero $bank_size that evenly divides $size",
                     mem_decl->file, mem_decl->line, mem_decl->column, name);
       }
+      if (size / bank_size > 256u) {
+         error_user("[%s:%d.%d] swapram mem region '%s' has more than 256 banks; the swapram ABI carries an 8-bit bank selector",
+                    mem_decl->file, mem_decl->line, mem_decl->column, name);
+      }
       start = 0;
       write_start = 0;
    }
@@ -757,7 +794,7 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
       }
       size = end - start;
    }
-   if (!size || size > 0x10000u || (!swapram && start + size > 0x10000u) ||
+   if (!size || (!swapram && size > 0x10000u) || (!swapram && start + size > 0x10000u) ||
        (split && write_start + size > 0x10000u)) {
       error_user("[%s:%d.%d] mem region '%s' is empty or extends outside the 6502 address space",
                  mem_decl->file, mem_decl->line, mem_decl->column, name);
@@ -765,10 +802,10 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
 
    source_suffix = mem_metadata_source_suffix(mem_decl);
    snprintf(symbol, sizeof(symbol),
-            MEM_DECL_META_PREFIX "%s$R%04X$W%04X$Z%04X$X%d$T%c$P%08X$H%d$S%d$M%d$Y%04X$D%d$B%s$K%s%s",
+            MEM_DECL_META_PREFIX "%s$R%04X$W%04X$Z%08X$X%d$T%c$P%08X$H%d$S%d$M%d$Y%04X$D%d$B%s$K%s%s",
             name, start & 0xffffu,
             (split ? write_start : start) & 0xffffu,
-            size & 0xffffu, split ? 1 : 0,
+            (unsigned int)size, split ? 1 : 0,
             !strcmp(type, "rw") ? 'W' : 'O',
             (unsigned int)priority, read_hazard ? 1 : 0,
             stack ? 1 : 0, swapram ? 1 : 0, bank_size & 0xffffu,
@@ -786,7 +823,7 @@ void emit_mem_region_metadata_for_name(const ASTNode *origin, const char *name) 
    unsigned int start = 0;
    unsigned int read_start = 0;
    unsigned int write_start = 0;
-   unsigned int size = 0;
+   uint32_t size = 0;
    unsigned int end = 0;
    bool have_start;
    bool have_read_start;
@@ -822,7 +859,7 @@ void emit_mem_region_metadata_for_name(const ASTNode *origin, const char *name) 
    have_start = mem_metadata_parse_u16_flag(flags, "$start:", &start);
    have_read_start = mem_metadata_parse_u16_flag(flags, "$read_start:", &read_start);
    have_write_start = mem_metadata_parse_u16_flag(flags, "$write_start:", &write_start);
-   have_size = mem_metadata_parse_u16_flag(flags, "$size:", &size);
+   have_size = mem_metadata_parse_u32_flag(flags, "$size:", &size);
    have_end = mem_metadata_parse_u16_flag(flags, "$end:", &end);
    type = mem_metadata_type_flag(flags);
    data_bank = mem_metadata_string_flag(flags, "$data_bank:");
@@ -848,6 +885,13 @@ void emit_mem_region_metadata_for_name(const ASTNode *origin, const char *name) 
       }
       if (!bank_size || bank_size > size || size % bank_size != 0) {
          error_user("[%s:%d.%d] swapram mem region '%s' requires nonzero $bank_size that evenly divides $size",
+               origin ? origin->file : mem_decl->file,
+               origin ? origin->line : mem_decl->line,
+               origin ? origin->column : mem_decl->column,
+               name);
+      }
+      if (size / bank_size > 256u) {
+         error_user("[%s:%d.%d] swapram mem region '%s' has more than 256 banks; the swapram ABI carries an 8-bit bank selector",
                origin ? origin->file : mem_decl->file,
                origin ? origin->line : mem_decl->line,
                origin ? origin->column : mem_decl->column,
@@ -895,15 +939,15 @@ void emit_mem_region_metadata_for_name(const ASTNode *origin, const char *name) 
       size = end - start;
    }
 
-   if (size > 0x10000u || (!swapram && start + size > 0x10000u) ||
+   if ((!swapram && size > 0x10000u) || (!swapram && start + size > 0x10000u) ||
        (split && write_start + size > 0x10000u)) {
       error_user("[%s:%d.%d] mem region '%s' aliases are outside the 6502 address space",
             mem_decl->file, mem_decl->line, mem_decl->column, name);
    }
 
    if (swapram) {
-      snprintf(sym, sizeof(sym), "%s%s$Z%04X$T%s$Y%04X",
-               MEM_REGION_SWAPRAM_META_PREFIX, name, size & 0xFFFFu, type,
+      snprintf(sym, sizeof(sym), "%s%s$Z%08X$T%s$Y%04X",
+               MEM_REGION_SWAPRAM_META_PREFIX, name, (unsigned int)size, type,
                bank_size & 0xFFFFu);
    }
    else if (split) {
@@ -1119,6 +1163,9 @@ bool init_context_entry_from_global_decl(ContextEntry *entry, const char *name, 
       mem_region_set_collect(modifiers, &regions);
       entry->is_zeropage = regions.count == 1 &&
          mem_decl_is_zeropage(get_memname_node(regions.names[0]));
+      entry->is_swapram = regions.count == 1 &&
+         mem_decl_is_swapram(get_memname_node(regions.names[0]));
+      entry->mem_region_name = entry->is_swapram ? regions.names[0] : NULL;
       mem_region_set_release(&regions);
    }
    entry->is_global = true;
@@ -1248,7 +1295,7 @@ static bool absolute_ref_supports_direct_access(const LValueRef *lv) {
 bool lvalue_fixed_symbol_name(Context *ctx, const LValueRef *lv, char *buf, size_t bufsize) {
    ContextEntry entry;
 
-   if (!lv || !lv->name || !buf || bufsize == 0 || lv->is_ref ||
+   if (!lv || !lv->name || !buf || bufsize == 0 || lv->is_ref || lv->is_swapram ||
        lv->is_absolute_ref || lv->is_bitfield || lv->indirect ||
        lv->needs_runtime_address ||
        !(lv->is_static || lv->is_zeropage || lv->is_global)) {
@@ -1266,6 +1313,13 @@ bool lvalue_fixed_symbol_name(Context *ctx, const LValueRef *lv, char *buf, size
 bool emit_copy_lvalue_to_symbol(Context *ctx, const char *symbol, int symbol_offset, const LValueRef *src, int size) {
    int copy_size = size < src->size ? size : src->size;
 
+   if (src && src->is_swapram) {
+      if (copy_size <= 0) {
+         return true;
+      }
+      emit_load_address_to_ptr(2, symbol, symbol_offset);
+      return emit_swapram_read_to_ptr2(ctx, src, copy_size);
+   }
    if (src && src->is_bitfield) {
       return emit_copy_bitfield_lvalue_to_symbol(ctx, symbol, symbol_offset, src, size);
    }

@@ -82,15 +82,15 @@ require_ok('swapram allocation link', $vcsc, '-I', $vcs,
            '-Map', $map, '--no-sym', '--no-list', '--no-cfg',
            '-o', $bin, $src);
 my $text = slurp($map);
-$text =~ /^\s*swapram\s+logical_size=\$8000 type=rw swapram=yes bank_size=\$0400 banks=32\b/m
+$text =~ /^\s*swapram\s+logical_size=\$40000 type=rw swapram=yes bank_size=\$0400 banks=256\b/m
    or die "swapram memory metadata missing from map\n$text";
 $text !~ /^\s*swapram\s+.*\bstart=\$/m
    or die "swapram map incorrectly reports an ordinary CPU start address\n$text";
-$text =~ /^\s*BSS\.swapram\.__vcsc_object\$first logical=\$0000 swapram-bank=0 swapram-offset=\$0000 size=\$0300$/m
+$text =~ /^\s*BSS\.swapram\.__vcsc_object\$first logical=\$00000 swapram-bank=0 swapram-offset=\$0000 size=\$0300$/m
    or die "first object placement was not bank 0 offset 0\n$text";
-$text =~ /^\s*BSS\.swapram\.__vcsc_object\$second logical=\$0400 swapram-bank=1 swapram-offset=\$0000 size=\$0200$/m
+$text =~ /^\s*BSS\.swapram\.__vcsc_object\$second logical=\$00400 swapram-bank=1 swapram-offset=\$0000 size=\$0200$/m
    or die "second object did not skip the unusable tail of bank 0\n$text";
-$text =~ /^\s*BSS\.swapram\.__vcsc_object\$third logical=\$0300 swapram-bank=0 swapram-offset=\$0300 size=\$0004$/m
+$text =~ /^\s*BSS\.swapram\.__vcsc_object\$third logical=\$00300 swapram-bank=0 swapram-offset=\$0300 size=\$0004$/m
    or die "third object did not reuse the remaining bank 0 hole\n$text";
 $text !~ /^(?:COPY|ZERO)\s+.*\.swapram(?:\.|\s)/m
    or die "swapram incorrectly generated ordinary CPU startup initialization records\n$text";
@@ -106,6 +106,40 @@ require_fail('oversized swapram object',
              $vcsc, '-I', $vcs, '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'too_big.bin'), $too_big);
 
+# Prove the allocator and map carry more than 16 logical address bits.  Bank 64
+# starts at logical $10000, which was unreachable with the original 16-bit
+# swapram handle.
+my $wide_bin = File::Spec->catfile($tmp, 'wide.bin');
+my $wide_map = File::Spec->catfile($tmp, 'wide.map');
+my @wide_sources;
+for my $bank (0 .. 64) {
+   my $wide = File::Spec->catfile($tmp, "wide_$bank.c26");
+   my $body = qq{include "3E/mapper_8k.c26"\nswapram uint8_t fill$bank\[1024\];\n};
+   if ($bank == 0) {
+      for my $n (1 .. 64) {
+         $body .= "bank3 void keep$n(void);\n";
+      }
+      $body .= "bank3 void main(void) {\n";
+      for my $n (1 .. 64) {
+         $body .= "   keep$n();\n";
+      }
+      $body .= "   while (1) { }\n}\n";
+   }
+   else {
+      $body .= "bank3 void keep$bank(void) { asm .word fill$bank; asm .byte ^fill$bank; }\n";
+   }
+   write_file($wide, $body);
+   push @wide_sources, $wide;
+}
+require_ok('wide swapram allocation link', $vcsc, '-I', $vcs,
+           '-Map', $wide_map, '--no-sym', '--no-list', '--no-cfg',
+           '-o', $wide_bin, @wide_sources);
+my $wide_text = slurp($wide_map);
+$wide_text =~ /^\s*BSS\.swapram\.__vcsc_object\$fill64 logical=\$10000 swapram-bank=64 swapram-offset=\$0000 size=\$0400(?: phase=unscoped)?$/m
+   or die "swapram allocation did not cross the 64K logical boundary\n$wide_text";
+$wide_text =~ /^\s*swapram\s+used=66560 bytes .* objects=66560 bytes hardware-stack=0 bytes$/m
+   or die "swapram usage accounting did not include all 65K of allocated objects\n$wide_text";
+
 my @invalid = (
    [ 'bank_size_without_swapram',
      'mem bad { $size:0x8000 $bank_size:0x0400 $rw };',
@@ -119,6 +153,9 @@ my @invalid = (
    [ 'swapram_bad_divisor',
      'mem bad { $size:0x8100 $bank_size:0x0400 $rw $swapram };',
      'requires nonzero $bank_size that evenly divides $size' ],
+   [ 'swapram_too_many_banks',
+     'mem bad { $size:0x40400 $bank_size:0x0400 $rw $swapram };',
+     'has more than 256 banks' ],
 );
 for my $case (@invalid) {
    my ($name, $decl, $fragment) = @$case;

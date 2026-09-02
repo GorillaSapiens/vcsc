@@ -105,6 +105,9 @@ static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *
       const ASTNode *type, const ASTNode *declarator,
       PointerAccessQualifier pointer_access, const char *symbol, int size,
       bool allow_direct_u8);
+static bool compile_runtime_initializer_to_lvalue(ASTNode *expression, Context *ctx,
+      const ASTNode *type, const ASTNode *declarator,
+      PointerAccessQualifier pointer_access, const LValueRef *lv, int size);
 static bool compile_expr_to_return_object(ASTNode *expr, Context *ctx, ContextEntry *ret);
 static void compile_if_stmt(ASTNode *node, Context *ctx);
 static void compile_while_stmt(ASTNode *node, Context *ctx);
@@ -1726,6 +1729,57 @@ static bool compile_runtime_initializer_to_symbol(ASTNode *expression, Context *
    return ok;
 }
 
+//! @brief Evaluate one runtime initializer through normal lvalue write semantics.
+//!
+//! This deliberately has no direct-symbol fast path: storage classes such as
+//! swapram are not CPU-addressable even though the linker gives them a logical
+//! placement symbol.  Stage the value in ordinary compiler scratch and let the
+//! lvalue layer decide how the final write is performed.
+static bool compile_runtime_initializer_to_lvalue(ASTNode *expression, Context *ctx,
+      const ASTNode *type, const ASTNode *declarator,
+      PointerAccessQualifier pointer_access, const LValueRef *lv, int size) {
+   StmtFixedScratch scratch;
+   bool ok;
+
+   if (!expression || is_empty(expression) || !ctx || !lv || size <= 0) {
+      return false;
+   }
+
+   stmt_fixed_scratch_prepare(ctx, size, &scratch);
+   stmt_fixed_scratch_activate(ctx, &scratch);
+   if (initializer_is_list(unwrap_expr_node(expression)) ||
+       declarator_array_count(declarator) > 0 || type_is_aggregate(type)) {
+      unsigned char *zeroes = (unsigned char *) calloc(size ? size : 1, sizeof(unsigned char));
+      if (!zeroes) {
+         error_unreachable("out of memory");
+      }
+      emit_store_immediate_to_scratch(0, zeroes, size);
+      free(zeroes);
+      ok = compile_initializer_to_scratch(expression, ctx, type, declarator, 0, size);
+   }
+   else {
+      ContextEntry target = {
+         .name = "$initializer",
+         .type = type,
+         .declarator = declarator,
+         .is_static = false,
+         .is_zeropage = false,
+         .is_global = false,
+         .target_typed = true,
+         .pointer_access = pointer_access,
+         .offset = 0,
+         .size = size
+      };
+      ok = compile_expr_to_slot(expression, ctx, &target);
+   }
+   stmt_fixed_scratch_deactivate(ctx, &scratch);
+   stmt_fixed_scratch_finish(&scratch);
+   if (!ok) {
+      return false;
+   }
+   return emit_copy_symbol_to_lvalue(ctx, lv, scratch.symbol, 0, size);
+}
+
 //! @brief Lower expr to the current function return object from AST/semantic state into generated assembly or linker-visible metadata.
 static bool compile_expr_to_return_object(ASTNode *expr, Context *ctx, ContextEntry *ret) {
    char sym[256];
@@ -1885,6 +1939,8 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
       entry->declarator = declarator;
       entry->is_ref = false;
       entry->is_global = false;
+      entry->is_swapram = false;
+      entry->mem_region_name = NULL;
       entry->object_is_const = declaration_const_applies_to_object(modifiers, declarator);
       entry->pointer_access = declaration_pointer_access(modifiers, declarator);
       entry->size = size;
@@ -1922,6 +1978,8 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
       entry->is_ref = false;
       entry->is_register_x = false;
       entry->is_absolute_ref = true;
+      entry->is_swapram = false;
+      entry->mem_region_name = NULL;
       entry->read_expr = address_spec_read_expr(addrspec);
       entry->write_expr = address_spec_write_expr(addrspec);
       entry->has_split_alias_delta = false;
@@ -1947,8 +2005,12 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
    }
 
    if (entry != NULL) {
+      const char *memname = find_mem_modifier_name(modifiers);
+      const ASTNode *mem_decl = memname ? find_mem_modifier_node(modifiers) : NULL;
       entry->size = size;
       entry->declarator = declarator;
+      entry->is_swapram = mem_decl_is_swapram(mem_decl);
+      entry->mem_region_name = entry->is_swapram ? memname : NULL;
       entry->object_is_const = declaration_const_applies_to_object(modifiers, declarator);
       entry->pointer_access = declaration_pointer_access(modifiers, declarator);
       if (modifiers_imply_split_address(modifiers)) {
@@ -2197,11 +2259,40 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
             emit(sink, "\t.res %d\n", size);
          }
 
-         if (!is_empty(expression) &&
-             !compile_runtime_initializer_to_symbol(expression, ctx, type, declarator,
-                                                   entry->pointer_access, sym, size,
-                                                   !context_local_decl_is_coalesced_return(ctx, node))) {
-            error_user("[%s:%d.%d] invalid initializer for '%s'", node->file, node->line, node->column, name);
+         if (!is_empty(expression)) {
+            bool init_ok;
+            if (entry->is_swapram) {
+               LValueRef lv = {
+                  .name = entry->name,
+                  .type = entry->type,
+                  .declarator = entry->declarator,
+                  .base_type = entry->type,
+                  .base_declarator = entry->declarator,
+                  .is_static = entry->is_static,
+                  .is_zeropage = entry->is_zeropage,
+                  .is_global = entry->is_global,
+                  .is_ref = entry->is_ref,
+                  .is_absolute_ref = entry->is_absolute_ref,
+                  .is_swapram = entry->is_swapram,
+                  .mem_region_name = entry->mem_region_name,
+                  .read_expr = entry->read_expr,
+                  .write_expr = entry->write_expr,
+                  .has_split_alias_delta = entry->has_split_alias_delta,
+                  .split_alias_delta = entry->split_alias_delta,
+                  .offset = entry->offset,
+                  .size = entry->size
+               };
+               init_ok = compile_runtime_initializer_to_lvalue(expression, ctx, type, declarator,
+                                                                entry->pointer_access, &lv, size);
+            }
+            else {
+               init_ok = compile_runtime_initializer_to_symbol(expression, ctx, type, declarator,
+                                                               entry->pointer_access, sym, size,
+                                                               !context_local_decl_is_coalesced_return(ctx, node));
+            }
+            if (!init_ok) {
+               error_user("[%s:%d.%d] invalid initializer for '%s'", node->file, node->line, node->column, name);
+            }
          }
          return;
       }
