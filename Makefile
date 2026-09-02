@@ -74,7 +74,7 @@ tools: clean
 	@$(MAKE) --no-print-directory -C ./driver all
 	@$(MAKE) --no-print-directory -C ./disassembler all
 
-.PHONY: exam
+.PHONY: exam exbs
 
 fonts:
 	@set -e; \
@@ -100,6 +100,16 @@ exam:
 		$(MAKE) -C "$$each" play ; \
 	done
 #	stella test/oracles/pristine_basic_v1.9_playercolors/faithful_legacy_playercolors.bin
+
+exbs:
+	@for each in $$(find examples/*_bankswitching -type f -name Makefile \
+		| sed 's|/Makefile$$||' \
+		| sort); do \
+		echo ==== $$each; \
+		$(MAKE) -C "$$each" clean && \
+		$(MAKE) -C "$$each" && \
+		$(MAKE) -C "$$each" play ; \
+	done
 
 clean:
 	rm -rf $(STELLA_BANK_TEST_TMP) $(STELLA_RENDERER_BANK_TEST_TMP) $(STELLA_WIDE_SCORE_TEST_TMP) $(STELLA_THREE_PLUS_THREE_SCORE_TEST_TMP) $(STELLA_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_192_TEST_TMP) $(STELLA_ALL_FIVE_PLAYER_COLOR_181_TEST_TMP) $(STELLA_FAITHFUL_MULTISPRITE_TEST_TMP) $(STELLA_MULTISPRITE_TEST_TMP) $(STELLA_50HZ_TEST_TMP) $(STELLA_DIAGNOSTIC_TEST_TMP)

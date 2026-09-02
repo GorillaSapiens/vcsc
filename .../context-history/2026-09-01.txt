@@ -104,3 +104,8 @@ The FA visible timing regression also passes unchanged after rebuilding vcsc-dis
 its 264-interval/262-line timing was not altered. Compile-only passed 503/503,
 the focused mapper/linker set passed 18/18, and the final disassembler/version
 tail passed 5/5.
+2026-09-01 21:03:00 PDT, add exbs playback helper
+Applied the user-supplied exbs.patch. Top-level `make exbs` now walks every
+`examples/*_bankswitching` example, cleans/builds it, and invokes its `play`
+target for convenient manual Stella inspection. This is a developer convenience
+target only; it does not change mapper/linker semantics.

@@ -222,7 +222,14 @@ this is future optimizer-locality cleanup, not bankswitching work.
             eight aliases. Classic 3F can select 256 x 2K ROM chunks. Preserve a
             real canonical CPU address for generated code, but carry physical
             bank identity separately in topology/symbol/relocation/map metadata.
-            Prove the design beyond eight banks, including maximum-size topology.
+            This must include bank-aware placed/output bytes: the linker still
+            keeps one 64K image indexed only by logical address, so merely
+            allowing overlapping `$link_start` ranges would make distinct 3F
+            banks alias the same linked bytes. First make ROM ownership explicit
+            and make layout/relocation/output identity use that owner rather than
+            `cartridge_bank_for_address()`, then collapse every selectable 3F
+            bank to canonical `$1000-$17FF`. Prove the design beyond eight banks,
+            including maximum-size topology.
 
         [ ] 38b. Migrate 3E after scalable 3F ROM identity works.
 
