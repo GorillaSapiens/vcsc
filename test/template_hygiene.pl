@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @VCSC_CC1@ @TEST_ROOT@
 # phase: compile
 # expectexit: 0
-# expectstdout: template hygiene tests passed
+# expectstdout: template global-name tests passed
 
 use strict;
 use warnings;
@@ -12,21 +12,6 @@ use File::Temp qw(tempdir);
 my ($cc1, $test_root) = @ARGV;
 die "usage: $0 vcsc-cc1 test_root\n" if !defined $cc1 || !defined $test_root;
 
-my @bad = (
-   [object       => 'uint8_t forgotten;',                         "file-scope object 'forgotten'"],
-   [function     => 'void forgotten(void) {}',                    "file-scope function 'forgotten'"],
-   [typedef      => 'typedef uint8_t forgotten;',                 "file-scope typedef 'forgotten'"],
-   [enum_tag     => 'enum forgotten { TEMPLATE_ok := 0 };',       "file-scope enum tag 'forgotten'"],
-   [enum_constant=> 'enum TEMPLATE_enum { forgotten := 0 };',     "file-scope enum constant 'forgotten'"],
-   [struct_tag   => 'struct forgotten { uint8_t member; };',      "file-scope struct tag 'forgotten'"],
-   [union_tag    => 'union forgotten { uint8_t member; };',       "file-scope union tag 'forgotten'"],
-   [table        => 'uint8_t forgotten[2];',                      "file-scope object 'forgotten'"],
-   [asm_symbol   => 'inline void TEMPLATE_draw(void) {' . "\n" .
-                    '   asm forgotten:' . "\n" .
-                    '   asm nop;' . "\n" .
-                    '}',                                          "source-visible assembler symbol 'forgotten'"],
-);
-
 sub write_file {
    my ($path, $text) = @_;
    open my $fh, '>', $path or die "write $path: $!";
@@ -34,75 +19,47 @@ sub write_file {
    close $fh;
 }
 
-for my $case (@bad) {
-   my ($name, $body, $needle) = @$case;
-   my $tmp = tempdir("VCSC_template_hygiene_${name}_XXXX", TMPDIR => 1, CLEANUP => 1);
+# Instantiation does not require TEMPLATE/TEMPLATE_ names. Ordinary parameter
+# names substitute directly, and ordinary bank/mem names remain visible after
+# the instantiated file. TEMPLATE_ remains the opt-in namespacing tool.
+{
+   my $tmp = tempdir('VCSC_template_plain_names_XXXX', TMPDIR => 1, CLEANUP => 1);
    my $component = File::Spec->catfile($tmp, 'component.c26');
    my $main = File::Spec->catfile($tmp, 'main.c26');
    my $asm = File::Spec->catfile($tmp, 'out.s26');
-   my $err = File::Spec->catfile($tmp, 'err.txt');
-
-   write_file($component, "$body\n");
+   write_file($component, <<'C26');
+parameter banks;
+#if banks == 1
+bank bank0 { $image_size:0x1000 $file_index:0 $image_offset:0 $link_start:0xf000 $cpu_start:0xf000 $map_size:0x1000 $startup };
+mem bank0 { $start:0xf000 $size:0x0ffa $ro $bank:bank0 };
+#endif
+C26
    write_file($main, <<'C26');
 include "machine_6502.c26"
-instantiate "component.c26" as one
-void main(void) {
-}
+instantiate "component.c26" as one (banks:=1)
+bank0 void main(void) {}
 C26
-
    my @cmd = ($cc1, '-quiet', '-I', $test_root, '-I', $tmp, $main, '-o', $asm);
-   my $status = system(join(' ', map { quotemeta($_) } @cmd) . " 2>" . quotemeta($err));
-   $status != 0 or die "$name: unqualified template definition unexpectedly compiled\n";
-   open my $efh, '<', $err or die "read $err: $!";
-   local $/;
-   my $text = <$efh>;
-   close $efh;
-   index($text, 'instantiation hygiene:') >= 0
-      or die "$name: missing template-hygiene diagnostic\n$text";
-   index($text, $needle) >= 0
-      or die "$name: wrong definition-class diagnostic; expected '$needle'\n$text";
-   index($text, "must use 'TEMPLATE' or the 'TEMPLATE_' prefix") >= 0
-      or die "$name: missing required-prefix guidance\n$text";
+   system(@cmd) == 0 or die "ordinary names/parameters in instantiated source were rejected: @cmd\n";
 }
 
 {
-   my $tmp = tempdir('VCSC_template_hygiene_positive_XXXX', TMPDIR => 1, CLEANUP => 1);
-   my $shared = File::Spec->catfile($tmp, 'shared.c26');
+   my $tmp = tempdir('VCSC_template_prefixed_names_XXXX', TMPDIR => 1, CLEANUP => 1);
    my $component = File::Spec->catfile($tmp, 'component.c26');
    my $main = File::Spec->catfile($tmp, 'main.c26');
    my $asm = File::Spec->catfile($tmp, 'out.s26');
-
-   write_file($shared, <<'C26');
-extern uint8_t shared_value;
-typedef uint8_t shared_byte;
-C26
    write_file($component, <<'C26');
-include "shared.c26"
-typedef shared_byte TEMPLATE_byte;
-enum TEMPLATE_enum { TEMPLATE_zero := 0 };
-struct TEMPLATE_struct { uint8_t member; };
-union TEMPLATE_union { uint8_t member; };
-TEMPLATE_byte TEMPLATE_table[2];
-inline void TEMPLATE_draw(void) {
-   uint8_t local;
-   local := shared_value;
-   asm @local:
-   asm TEMPLATE_visible:
-   asm nop
-}
+uint8_t TEMPLATE_value;
+inline void TEMPLATE_touch(void) { TEMPLATE_value := 1; }
 C26
    write_file($main, <<'C26');
 include "machine_6502.c26"
 instantiate "component.c26" as first
 instantiate "component.c26" as second
-uint8_t shared_value;
-void main(void) {
-   first_draw();
-   second_draw();
-}
+void main(void) { first_touch(); second_touch(); }
 C26
    my @cmd = ($cc1, '-quiet', '-I', $test_root, '-I', $tmp, $main, '-o', $asm);
-   system(@cmd) == 0 or die "prefixed definitions or ordinary included shared declarations were rejected: @cmd\n";
+   system(@cmd) == 0 or die "TEMPLATE_ opt-in namespacing stopped working: @cmd\n";
 }
 
-print "template hygiene tests passed\n";
+print "template global-name tests passed\n";

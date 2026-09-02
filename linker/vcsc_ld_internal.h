@@ -379,6 +379,7 @@ typedef struct {
    uint16_t addr;
    uint8_t segid;
    const char *source;
+   const object_layout_t *owner_layout;
 } global_symbol_t;
 
 typedef struct {

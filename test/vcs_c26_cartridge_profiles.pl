@@ -42,7 +42,7 @@ my $testlib=File::Spec->catdir($repo,'test');
 my $blank=File::Spec->catfile($repo,'examples','01_basic','01_blank_screen','blank_screen.c26');
 
 my @profiles=(
-   ['2K',   '2K/mapper.c26',                     1, 0, 0,  2048],   ['CV',   'CV/mapper.c26',        1, 0, 0,  2048],   ['4K',   '4K/mapper.c26',              1, 0, 0,  4096],   ['4KSC', '4KSC/mapper.c26',                  1, 0, 1,  4096],   ['F8',   'F8/mapper.c26',        2, 1, 0,  8192],   ['0840', '0840/mapper.c26',                 2, 1, 0,  8192],   ['UA',   'UA/mapper.c26',                   2, 1, 0,  8192],   ['UASW', 'UASW/mapper.c26',                 2, 1, 0,  8192],   ['0FA0', '0FA0/mapper.c26',                 2, 1, 0,  8192],   ['E0',   'E0/mapper.c26',                  8, 0, 0,  8192],   ['FE',   'FE/mapper.c26',        2, 0, 0,  8192],   ['WD',   'WD/mapper.c26',        2, 1, 0,  8192],   ['3F',   '3F/mapper_8k.c26',        4, 0, 0,  8192],   ['3E',   '3E/mapper_8k.c26',        4, 0, 0,  8192],   ['F6',   'F6/mapper.c26',      4, 1, 0, 16384],   ['JANE', 'JANE/mapper.c26',                4, 1, 0, 16384],   ['F4',   'F4/mapper.c26',      8, 1, 0, 32768],   ['FA',   'FA/mapper.c26',        3, 1, 0, 12288],   ['FA2',  'FA2/mapper_28k.c26',                   7, 1, 0, 28672],   ['F8SC', 'F8SC/mapper.c26',    2, 1, 1,  8192],   ['F6SC', 'F6SC/mapper.c26',  4, 1, 1, 16384],   ['F4SC', 'F4SC/mapper.c26',  8, 1, 1, 32768],   ['OMNI', 'OMNI/mapper.c26',               8, 0, 0, 32768],);
+   ['2K',   '2K/mapper.c26',                     1, 0, 0,  2048],   ['CV',   'CV/mapper.c26',        1, 0, 0,  2048],   ['4K',   '4K/mapper.c26',              1, 0, 0,  4096],   ['4KSC', '4KSC/mapper.c26',                  1, 0, 1,  4096],   ['F8',   'F8/mapper.c26',        2, 1, 0,  8192],   ['0840', '0840/mapper.c26',                 2, 1, 0,  8192],   ['UA',   'UA/mapper.c26',                   2, 1, 0,  8192],   ['UASW', 'UASW/mapper.c26',                 2, 1, 0,  8192],   ['0FA0', '0FA0/mapper.c26',                 2, 1, 0,  8192],   ['E0',   'E0/mapper.c26',                  8, 0, 0,  8192],   ['FE',   'FE/mapper.c26',        2, 0, 0,  8192],   ['WD',   'WD/mapper.c26',        2, 1, 0,  8192],   ['3F',   '3F/mapper.c26',           4, 0, 0,  8192],   ['3E',   '3E/mapper_8k.c26',        4, 0, 0,  8192],   ['F6',   'F6/mapper.c26',      4, 1, 0, 16384],   ['JANE', 'JANE/mapper.c26',                4, 1, 0, 16384],   ['F4',   'F4/mapper.c26',      8, 1, 0, 32768],   ['FA',   'FA/mapper.c26',        3, 1, 0, 12288],   ['FA2',  'FA2/mapper_28k.c26',                   7, 1, 0, 28672],   ['F8SC', 'F8SC/mapper.c26',    2, 1, 1,  8192],   ['F6SC', 'F6SC/mapper.c26',  4, 1, 1, 16384],   ['F4SC', 'F4SC/mapper.c26',  8, 1, 1, 32768],   ['OMNI', 'OMNI/mapper.c26',               8, 0, 0, 32768],);
 
 for my $p (@profiles) {
    my($name,$profile_name,$banks,$selector,$sc,$output_size)=@$p;
@@ -51,7 +51,13 @@ for my $p (@profiles) {
    $text =~ /include\s+"vcs\.c26"/ && $text =~ /\bcartridge\s*\{/ && $text =~ /\bbank\s+bank0\s*\{/s
       or die "$profile_name is not a complete inspectable C26 cartridge profile\n";
    my $bank_decls=()=$text =~ /\bbank\s+bank\d+\s*\{/g;
-   $bank_decls==$banks or die "$profile_name declares $bank_decls banks, expected $banks\n";
+   if ($name eq '3F') {
+      $text =~ /parameter\s+VCS_3F_BANKS\s*;/ && $bank_decls==512 &&
+      $text =~ /#if\s+VCS_3F_BANKS\s*>\s*4.*?bank\s+bank3\s*\{.*?\$link_start:0x1000.*?#elif\s+VCS_3F_BANKS\s*==\s*4.*?bank\s+bank3\s*\{.*?\$link_start:0x1800.*?\$startup/s
+         or die "3F parameterized mapper lost the explicit selectable/fixed bank ladder\n";
+   } else {
+      $bank_decls==$banks or die "$profile_name declares $bank_decls banks, expected $banks\n";
+   }
    my $selectors=()=$text =~ /\$select_access:/g;
    $selectors==($selector ? $banks : 0)
       or die "$profile_name selector count is wrong\n";
@@ -76,16 +82,20 @@ for my $p (@profiles) {
    my $generic_bin=File::Spec->catfile($tmp,"$stem.generic.bin");
    my $generic_map=File::Spec->catfile($tmp,"$stem.generic.map");
    my $build_source=$blank;
-   if ($text =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/) {
+   if ($name eq '3F') {
+      $build_source=File::Spec->catfile($tmp,"blank_screen_${stem}.c26");
+      write_file($build_source, qq{instantiate "3F/mapper.c26" as mapper (VCS_3F_BANKS:=4)\nbank3 void main(void) { while (1) { } }\n});
+   } elsif ($text =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/) {
       $build_source=File::Spec->catfile($tmp,"blank_screen_${stem}.c26");
       my $blank_text=read_file($blank);
       $blank_text =~ s/include\s+"vcs\.c26"/alias VCS_TIA_USE_40_MIRROR 1\ninclude "vcs.c26"/;
       open(my $fh,'>',$build_source) or die "open $build_source: $!\n";
       print $fh $blank_text; close($fh);
    }
+   my @inputs = $name eq '3F' ? ($build_source) : ($profile,$build_source);
    require_ok("build $name from C26 topology",
       $driver,'-I',$vcs,
-      '-Map',$generic_map,$profile,$build_source,'-o',$generic_bin);
+      '-Map',$generic_map,@inputs,'-o',$generic_bin);
    -s $generic_bin==$output_size
       or die "$name C26 profile emitted ".(-s $generic_bin)." bytes, expected $output_size\n";
 

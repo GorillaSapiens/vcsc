@@ -209,61 +209,56 @@ this is future optimizer-locality cleanup, not bankswitching work.
 
 [ ] 38. Complete the remaining automatic-call mapper work.
 
-        WD is now migrated. Do not confuse “a C26 mapper/topology exists” with
-        “the compiler descriptor ABI is complete”: 3F, 3E, E0, FC, and F0 still
-        need automatic-call work. FE intentionally uses its released direct
-        top-level JSR/RTS mechanism instead of the descriptor ABI.
+        Physical-bank/address separation is complete. The linker stores up to
+        256 independent 64K physical planes, automatic placement uses a
+        256-bit bank set, and normal relocations/branches/.banktarget use owning-layout
+        bank identity rather than recovering it from a 16-bit address. Raw
+        address lookup is only a unique-owner fallback for ownerless absolutes.
 
-        [ ] 38a. Finish physical-bank/address separation, then migrate 3F.
+        3F topology is now scalable and parameterized in one public
+        `libraries/vcs/3F/mapper.c26`. Instantiate it with `VCS_3F_BANKS:=N`.
+        For literal bank N, `VCS_3F_BANKS > N+1` makes it a selectable canonical
+        `$1000-$17FF` bank and `== N+1` makes that same bankN the fixed/startup
+        `$1800-$1FFF` bank. The maximum 256 x 2K / 512K shape is a regression.
 
-            The linked image store is now bank-aware: up to 256 physical planes
-            each carry an independent 64K logical-address image, keyed by topology
-            `file_index`. CPU-mapped read-only `mem` may declare `$bank:NAME`; it
-            is required when overlapping link ranges make containment ambiguous.
-            Flat BIN output reads each physical plane separately, while Intel HEX
-            rejects overlapping bank-local bytes. A regression proves two distinct
-            physical banks can contain different bytes at the same `$1000` CPU
-            address without aliasing.
+        WD is migrated. FE intentionally keeps its released direct top-level
+        JSR/RTS mechanism. 3F, 3E, E0, FC, and F0 still need automatic-call work.
 
-            Automatic placement now uses a 256-bit allowed-bank set rather than a
-            64-bit mask. `test/linker_bank_set_256.pl` builds the maximum 256-bank
-            3F shape, pins `main` to bank 255, and proves an automatic helper can
-            also be placed there. The next blocker is remaining address-to-bank
-            inference where layout/symbol ownership is already available. Remove
-            that inference, then collapse every selectable 3F bank to canonical
-            `$1000-$17FF` and prove the design beyond eight banks, including the
-            maximum 256 x 2K topology.
+        [ ] 38a. Design and migrate 3F automatic calls.
 
-        [ ] 38b. Migrate 3E after scalable 3F ROM identity works.
+            The scalable ROM topology is ready. The remaining ABI issue is
+            source state: code executing in the fixed `$1800-$1FFF` bank does
+            not reveal which lower 2K ROM bank is currently selected. Do not
+            pretend the fixed bank has a baked lower-bank source descriptor.
+            Decide how compiled calls from fixed-bank code preserve/restore the
+            dynamic lower selection, while selectable-bank callers retain the
+            simple one-byte destination-bank model.
 
-            3E adds 32 x 1K RAM banks. `$3F` selects ROM in the lower window;
-            `$3E` replaces that window with selected RAM read/write aliases.
-            RAM therefore genuinely swaps in and out of CPU visibility. Design
-            this state explicitly rather than pretending it is ordinary always-
-            live `cartram`.
+        [ ] 38b. Migrate 3E after the 3F call-state rule is settled.
+
+            3E adds 32 x 1K RAM banks. `$3F` selects lower-window ROM; `$3E`
+            replaces that window with selected RAM read/write aliases. RAM
+            genuinely swaps in/out of CPU visibility, so model this mapper state
+            explicitly rather than as always-live `cartram`.
 
         [ ] 38c. Implement/migrate FC.
 
-            Stella FC stages an explicit bank selector: low bits at `$1FF8`,
-            upper bits at `$1FF9`, then `$1FFC` commits. It can be large, so it
-            also depends on physical-bank identity no longer being encoded by a
-            finite set of fake 16-bit mirror addresses.
+            FC stages low selector bits at `$1FF8`, upper bits at `$1FF9`, then
+            `$1FFC` commits. Its large bank count now fits the physical-plane
+            model; design its descriptor transition without cfg-era assumptions.
 
         [ ] 38d. Implement/migrate F0.
 
-            F0 has 16 x 4K banks and advances through `$1FF0`. Descriptor IDs can
-            be 0..15; a replicated trampoline can advance `(target-source) mod
-            16` on call and the reverse distance on return. All transition code
-            must remain byte-identical across switches.
+            F0 has 16 x 4K banks and advances through `$1FF0`. A transition can
+            advance `(target-source) mod 16` on call and reverse on return; all
+            switch-surviving transition bytes must remain identical.
 
         [ ] 38e. Design automatic E0 calls.
 
             E0 has three independently selectable 1K windows plus fixed bank 7.
-            Full mapper state is 9 bits and the executing physical chunk does
-            not uniquely identify the other two window selections, so the
-            current one-byte baked-source descriptor is insufficient for
-            arbitrary state preservation. Do not force E0 into the simple
-            full-window ABI.
+            Full state is 9 bits and executing code does not identify the other
+            window selections, so the current one-byte baked-source descriptor
+            is insufficient for arbitrary state preservation.
 
 Deferred design questions
 -------------------------

@@ -30,7 +30,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `E0/mapper.c26` ... Parker Brothers E0 eight-by-1K segmented profile; three independent selectable 1K windows plus fixed physical bank 7, with linked `.map` output supplying simulator mapping
 - `FE/mapper.c26` ... FE/SCABS two-bank 8K profile; physical bank 0 starts at `$F000`, physical bank 1 maps at `$D000`, and mirrored `$01FE` arms the one-cycle-delayed data-bus bank latch; linked `.map` output supplies simulator metadata
 - `DPC/mapper.c26` ... DPC profile: two F8-style 4K program banks plus a 2K `$data_only` display bank and 255-byte `$data_only` Poly8 bank; `DPC/registers.c26` exposes the register window and linked `.map` output supplies simulator metadata
-- `3F/mapper_8k.c26`, `3F/mapper_16k.c26` ... classic 3F selectable-lower-2K/fixed-final-2K profiles; they automatically bind ordinary TIA accesses through the `$40-$7F` mirror while `$00-$3F` remains available to the mapper
+- `3F/mapper.c26` ... parameterized classic 3F selectable-lower-2K/fixed-final-2K profile for 1..256 physical 2K chunks; instantiate it with `VCS_3F_BANKS:=N`. All selectable chunks share canonical CPU/link `$1000-$17FF`, the final chunk is fixed at `$1800-$1FFF`, and ordinary TIA accesses use the `$40-$7F` mirror while `$00-$3F` remains available to the mapper
 - `3E/mapper_8k.c26`, `3E/mapper_16k.c26` ... classic 3E ROM/RAM extension of the same 2K-window family, with 32 1K RAM banks and map-driven simulator support for both public sizes
 - `JANE/mapper.c26` ... JANE four-bank 16K profile preserving physical selectors `$1FF0/$1FF1/$1FF8/$1FF9` and hardware startup in physical bank 1; linked `.map` output supplies simulator physical-file mapping
 - `FA/mapper.c26`, `FA/ram.c26` ... CBS FA/RAM Plus three-bank profile with physical startup bank 2 and shared 256-byte split-address cartridge RAM
@@ -747,10 +747,23 @@ The final physical bank carries the `0FA0` signature at `$FFF8-$FFFB`.
 
 ### Classic 3F and 3E profiles
 
-The public `3F/mapper_8k.c26` / `3F/mapper_16k.c26` profiles expose a selectable lower
-2K window at `$1000-$17FF` and a fixed final physical 2K at `$1800-$1FFF`. A
-write in the low TIA page selects the lower 3F ROM bank from the written value.
-Because classic 3F owns those low-page writes, the profile selects
+The public `3F/mapper.c26` profile is parameterized by the number of physical
+2K chunks. For example, an 8K cartridge uses:
+
+```vcsc
+instantiate "3F/mapper.c26" as mapper (VCS_3F_BANKS:=4)
+```
+
+Every physical chunk except the last is selectable in the lower 2K window
+`$1000-$17FF`; all of those chunks deliberately use that same canonical CPU
+and link address. The final physical chunk is fixed at `$1800-$1FFF` and owns
+startup/vectors. The mapper source is one explicit `#if/#elif` ladder: for each
+literal `bankN`, `VCS_3F_BANKS > N+1` makes it selectable and
+`VCS_3F_BANKS == N+1` makes it the fixed final bank. This keeps literal bank
+names/file indexes while scaling through 256 physical chunks (512K).
+
+A write in the low TIA page selects the lower 3F ROM bank from the written
+value. Because classic 3F owns those low-page writes, the profile selects
 `tia_mirror_40.c26`: ordinary TIA reads/writes use the equivalent `$40-$7F`
 mirror automatically instead of accidentally changing ROM banks.
 

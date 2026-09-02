@@ -232,9 +232,8 @@ install-data:
 	install -m 0644 libraries/vcs/FE/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/FE/mapper.c26
 	install -m 0644 libraries/vcs/WD/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/WD/mapper.c26
 	install -m 0644 libraries/vcs/DPC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/DPC/mapper.c26
-	install -m 0644 libraries/vcs/3F/mapper_8k.c26 $(DESTDIR)$(DATADIR)/vcs/3F/mapper_8k.c26
+	install -m 0644 libraries/vcs/3F/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/3F/mapper.c26
 	install -m 0644 libraries/vcs/3E/mapper_8k.c26 $(DESTDIR)$(DATADIR)/vcs/3E/mapper_8k.c26
-	install -m 0644 libraries/vcs/3F/mapper_16k.c26 $(DESTDIR)$(DATADIR)/vcs/3F/mapper_16k.c26
 	install -m 0644 libraries/vcs/3E/mapper_16k.c26 $(DESTDIR)$(DATADIR)/vcs/3E/mapper_16k.c26
 	install -m 0644 libraries/vcs/FA/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/FA/mapper.c26
 	install -m 0644 libraries/vcs/FA2/mapper_24k.c26 $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_24k.c26
@@ -410,9 +409,8 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/FE/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/WD/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/3F/mapper_8k.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/3F/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/mapper_8k.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/3F/mapper_16k.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/mapper_16k.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_24k.c26

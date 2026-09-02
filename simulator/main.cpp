@@ -98,6 +98,7 @@ struct simulator_options_t {
 static simulator_config_t g_cfg = {};
 static int g_cfg_loaded = 0;
 static size_t g_selected_bank = 0;
+static std::vector<std::vector<uint8_t>> g_cartridge_rom;
 static size_t g_e0_segment_bank[3] = {0, 0, 0};
 static int g_3e_ram_selected = 0;
 static uint8_t g_3e_ram_bank = 0;
@@ -1457,28 +1458,36 @@ static size_t selected_bank_index_for_address(uint16_t addr) {
    return bank_index_for_file_index(7u);
 }
 
-static uint16_t selected_bank_address(uint16_t addr) {
+static uint16_t selected_bank_offset(uint16_t addr) {
    uint16_t canonical = (uint16_t)(addr & 0x1fffu);
-   size_t bank_index = selected_bank_index_for_address(addr);
-   const cartridge_bank_t *bank = &g_cfg.banks[bank_index];
    if (g_cfg.wd_mapper) {
       uint8_t physical_chunk = wd_physical_chunk_for_address(addr);
       uint16_t window_base = (uint16_t)(0x1000u + ((canonical - 0x1000u) & 0x0c00u));
-      uint16_t chunk_offset = (uint16_t)(((physical_chunk & 3u) << 10) +
-                                         (canonical - window_base));
-      return (uint16_t)(bank->start + chunk_offset);
+      return (uint16_t)(((physical_chunk & 3u) << 10) +
+                        (canonical - window_base));
    }
    if (g_cfg.threef_mapper || g_cfg.threee_mapper) {
       uint16_t window_base = canonical < 0x1800u ? 0x1000u : 0x1800u;
-      return (uint16_t)(bank->start + (canonical - window_base));
+      return (uint16_t)(canonical - window_base);
    }
    if (g_cfg.e0_mapper) {
       uint16_t window_base = canonical < 0x1400u ? 0x1000u :
                              canonical < 0x1800u ? 0x1400u :
                              canonical < 0x1c00u ? 0x1800u : 0x1c00u;
-      return (uint16_t)(bank->start + (canonical - window_base));
+      return (uint16_t)(canonical - window_base);
    }
-   return (uint16_t)(bank->start + (addr & 0x0FFFu));
+   return (uint16_t)(addr & 0x0fffu);
+}
+
+static uint8_t selected_bank_rom_byte(uint16_t addr) {
+   size_t bank_index = selected_bank_index_for_address(addr);
+   uint16_t offset = selected_bank_offset(addr);
+   if (bank_index >= g_cartridge_rom.size() ||
+       offset >= g_cartridge_rom[bank_index].size()) {
+      fprintf(stderr, "vcsc-sim: cartridge ROM lookup outside physical bank at $%04X\n", addr);
+      exit(1);
+   }
+   return g_cartridge_rom[bank_index][offset];
 }
 
 static uint8_t peek_mem(uint16_t addr) {
@@ -1491,7 +1500,7 @@ static uint8_t peek_mem(uint16_t addr) {
    if (split_memory_offset(addr, 0, &region_index, &offset))
       return g_split_memory[region_index][offset];
    if (cartridge_window_address(addr))
-      return mem[selected_bank_address(addr)];
+      return selected_bank_rom_byte(addr);
    return mem[addr];
 }
 
@@ -1541,10 +1550,18 @@ static void load_raw_binary(const char *filename) {
    }
    else if (bytes.size() != expected)
       throw std::runtime_error("Raw cartridge size does not match banked config");
+   g_cartridge_rom.assign(g_cfg.bank_count, std::vector<uint8_t>());
+   size_t file_offset = 0;
    for (size_t file_index = 0; file_index < g_cfg.bank_count; ++file_index) {
       size_t bank_index = bank_index_for_file_index(file_index);
       const cartridge_bank_t *bank = &g_cfg.banks[bank_index];
-      memcpy(mem + bank->start, bytes.data() + file_index * bank->size, bank->size);
+      g_cartridge_rom[bank_index].assign(bytes.begin() + file_offset,
+                                         bytes.begin() + file_offset + bank->size);
+      /* Keep a logical mirror in mem[] for diagnostics that inspect the flat
+         array directly. Runtime cartridge reads come from g_cartridge_rom, so
+         overlapping canonical link windows no longer alias physical banks. */
+      memcpy(mem + bank->start, bytes.data() + file_offset, bank->size);
+      file_offset += bank->size;
    }
 }
 

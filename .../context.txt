@@ -152,12 +152,18 @@ correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 
 Last validation state
 ---------------------
-Current bank-plane checkpoint: compile-only passes 503/503. A discovered physical-
-image regression is fixed: automatically placed layouts now write to their final
-`placement_bank` plane rather than the configured fallback MEMORY owner. Tanks
-again matches the pre-bank-plane ROM byte-for-byte. The reported diagnostic,
-example-shard-7, PAL 50 Hz interactive, and Tanks regressions all pass, and
-`linker_physical_bank_planes.pl` now locks automatic bank1 emission.
+Physical-bank/address separation is complete. The linker stores independent 64K
+planes for up to 256 physical banks, placement uses a 256-bit bank set, and
+normal relocation/branch/.banktarget decisions use owning-layout bank identity.
+Ownerless absolute references may use only an unambiguous address-to-bank
+fallback. Automatic placement writes to the final `placement_bank` plane.
+
+3F now uses one parameterized `libraries/vcs/3F/mapper.c26`: instantiate with
+`VCS_3F_BANKS:=N` for 1..256 physical 2K chunks. Every selectable chunk links
+at canonical `$1000-$17FF`; the final chunk is fixed/startup at `$1800-$1FFF`.
+`vcsc-sim` keeps banked ROM bytes in physical-bank storage so overlapping CPU
+windows do not overwrite one another. Focused 4-, 8-, and 256-bank/512K 3F
+link/simulator tests pass; compile-only validation remains 503/503.
 
 Main-roadmap Items 46-48 are complete. Item 47 is locked by
 `test/superchip_direct_access.pl`: under 4KSC it fills all 128 Superchip bytes,
@@ -252,6 +258,8 @@ fresh single uninterrupted 343/343 run in this tool window.
 
 Immediate TODO
 --------------
-WD descriptor migration is complete. Next address the scalable physical-bank
-identity prerequisite exposed by 3F/3E before FC/F0. Remaining automatic-call
-work is 3F, 3E, FC, F0, and E0; FE intentionally stays special.
+Design and migrate 3F automatic calls. Selectable-bank callers have a static
+one-byte lower-bank descriptor, but code executing in fixed `$1800-$1FFF` does
+not reveal which lower 2K bank is selected; calls from fixed-bank code must
+preserve/restore that dynamic state without pretending it is baked into the
+caller. Then migrate 3E, FC, F0, and E0; FE intentionally stays special.

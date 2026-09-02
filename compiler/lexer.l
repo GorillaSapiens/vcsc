@@ -113,6 +113,7 @@ static char *current_template_instance = NULL;
 static char *current_template_invoke_file = NULL;
 static InstantiationContext *current_instantiation_context = NULL;
 static int expect_instantiation_instance = 0;
+static int expect_instantiation_parameter_name = 0;
 static char *pending_instantiation_arg_names[MAX_INSTANTIATION_ARGUMENTS];
 static char *pending_instantiation_arg_values[MAX_INSTANTIATION_ARGUMENTS];
 static int pending_instantiation_arg_count = 0;
@@ -485,9 +486,11 @@ int lexer_declare_instantiation_parameter(const char *name, const char *default_
 
 static const char *instantiation_parameter_value_for_source(const char *source) {
    InstantiationParameter *param;
-   if (!source || strncmp(source, "TEMPLATE_", 9))
+   const char *name;
+   if (!source || !current_instantiation_context)
       return NULL;
-   param = find_instantiation_parameter(source + 9);
+   name = !strncmp(source, "TEMPLATE_", 9) ? source + 9 : source;
+   param = find_instantiation_parameter(name);
    if (!param)
       return NULL;
    param->used = 1;
@@ -2559,7 +2562,7 @@ CBLOCK    \/\*([^*]|\*+[^*/])*\*+\/
 "instantiate"   { clear_pending_instantiation_arguments(); expect_instantiation_instance = 0; return INSTANTIATE; }
 "mem"           return MEM;
 "page"          return PAGE;
-"parameter"     return PARAMETER;
+"parameter"     { expect_instantiation_parameter_name = 1; return PARAMETER; }
 "recommend"     return RECOMMEND;
 "ref"           return REF;
 "require"       return REQUIRE;
@@ -2659,6 +2662,17 @@ operator(\{\}|==|!=|<=|>=|<<|>>|\+\+|--|[-+|^&<>\*/%~]) {
       lexer_register_token_location(ident, source, yytext);
       free(source);
       collect_optional_instantiation_arguments();
+      return IDENTIFIER;
+   }
+   if (expect_instantiation_parameter_name) {
+      char *source;
+      char *ident;
+      expect_instantiation_parameter_name = 0;
+      source = template_rewrite_identifier_source(yytext);
+      ident = mangle_identifier_utf8_or_die(source);
+      yylval.str = ident;
+      lexer_register_token_location(ident, source, yytext);
+      free(source);
       return IDENTIFIER;
    }
    const char *parameter_value = instantiation_parameter_value_for_source(yytext);

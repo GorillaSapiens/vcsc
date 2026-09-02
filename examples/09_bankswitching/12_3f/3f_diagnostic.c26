@@ -2,7 +2,7 @@
 
 // Tigervision 3F PASS/FAIL diagnostic. The self-test runs from the fixed final
 // 2K while selecting lower-window ROM banks.
-include "3F/mapper_8k.c26"
+instantiate "3F/mapper.c26" as mapper (VCS_3F_BANKS:=4)
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"

@@ -1,0 +1,23 @@
+2026-09-02 00:01:00 PDT, scalable 3F physical-bank topology
+Completed the physical-bank/address separation prerequisite for scalable 3F.
+Normal relocation, branch, and `.banktarget` paths now carry owning-layout bank
+identity; global symbols retain their owner layout; raw address-to-bank lookup is
+only an unambiguous fallback for ownerless absolutes. The linker keeps up to 256
+independent 64K physical ROM planes and automatic placement uses a 256-bit bank
+set.
+
+Replaced the separate 3F 8K/16K profiles with one large parameterized
+`libraries/vcs/3F/mapper.c26`. `VCS_3F_BANKS:=N` selects 1..256 physical 2K
+chunks. The explicit `#if > N+1 / #elif == N+1` ladder makes bankN selectable at
+canonical `$1000-$17FF` while later chunks exist, or makes that same bankN the
+fixed/startup `$1800-$1FFF` final chunk. Four-, eight-, and 256-bank/512K shapes
+are exercised.
+
+Instantiated source may use ordinary file-scope names and raw parameter names;
+`TEMPLATE_` remains optional namespacing. Parameter declaration identifiers are
+protected from substitution so duplicate-parameter diagnostics remain intact.
+`vcsc-sim` now stores banked ROM per physical bank instead of flattening
+overlapping windows into one 64K array. Focused mapper/simulator tests passed
+15/15, focused 3F/linker/profile tests passed 8/8, and compile-only passed
+503/503. Next is the 3F automatic-call state rule for calls originating in the
+fixed upper 2K.

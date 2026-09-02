@@ -74,15 +74,22 @@ and UTF-8 symbol mangling, so ordinary and UTF-8 instance names are both
 supported.
 
 An instantiated component may declare integer-literal configuration parameters
-at file scope:
+at file scope. Parameter names may be used directly; the `TEMPLATE_` spelling
+remains available when the same identifier is also intended to receive the
+instance prefix:
 
 ```vcsc
 parameter lines;
 parameter color := 0x20;
 
-uint8_t TEMPLATE_rows[TEMPLATE_lines];
-uint8_t TEMPLATE_background := TEMPLATE_color;
+uint8_t TEMPLATE_rows[lines];
+uint8_t TEMPLATE_background := color;
 ```
+
+Ordinary file-scope names are also legal in instantiated source. Use
+`TEMPLATE`/`TEMPLATE_` only when per-instance namespacing is desired; multiple
+instances that deliberately define the same ordinary global names collide in
+the normal way.
 
 A `parameter` declaration with no assignment is required. A declaration with
 `:=` supplies a default and is optional. Parameter declarations end with a

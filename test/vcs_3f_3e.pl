@@ -85,19 +85,29 @@ for my $c (@cases) {
    my $m=$c->{mapper}; my $lc=lc($m);
    my $source=File::Spec->catfile($repo,'examples','09_bankswitching',$c->{dir},$c->{source});
    my $make=File::Spec->catfile($repo,'examples','09_bankswitching',$c->{dir},'Makefile');
-   my $profile=File::Spec->catfile($vcs,$m,'mapper_8k.c26');
-   my $profile16=File::Spec->catfile($vcs,$m,'mapper_16k.c26');
-   for ($source,$make,$profile,$profile16) { -f $_ or die "$m support file missing: $_\n"; }
+   my $profile=File::Spec->catfile($vcs,$m,$m eq '3F' ? 'mapper.c26' : 'mapper_8k.c26');
+   my $profile16=File::Spec->catfile($vcs,$m,$m eq '3F' ? 'mapper.c26' : 'mapper_16k.c26');
+   for ($source,$make,$profile) { -f $_ or die "$m support file missing: $_\n"; }
+   -f $profile16 or die "$m support file missing: $profile16\n";
 
    my $pt=read_file($profile); my $p16=read_file($profile16);
-   (()=$pt =~ /\bbank\s+bank\d+\s*\{/g)==4 && (()=$p16 =~ /\bbank\s+bank\d+\s*\{/g)==8
-      or die "$m profiles do not expose certified 8K and 16K 2K-chunk shapes\n";
+   if ($m eq '3F') {
+      $pt =~ /parameter\s+VCS_3F_BANKS\s*;/ &&
+      (()=$pt =~ /\bbank\s+bank\d+\s*\{/g)==512 &&
+      $pt =~ /#if\s+VCS_3F_BANKS\s*>\s*4.*?bank\s+bank3\s*\{.*?\$file_index:3.*?\$link_start:0x1000.*?#elif\s+VCS_3F_BANKS\s*==\s*4.*?bank\s+bank3\s*\{.*?\$file_index:3.*?\$cpu_start:0x1800.*?\$startup/s &&
+      $pt =~ /#elif\s+VCS_3F_BANKS\s*==\s*8.*?bank\s+bank7\s*\{.*?\$file_index:7.*?\$cpu_start:0x1800.*?\$startup/s
+         or die "3F parameterized profile lost its canonical selectable/fixed topology ladder\n";
+   } else {
+      (()=$pt =~ /\bbank\s+bank\d+\s*\{/g)==4 && (()=$p16 =~ /\bbank\s+bank\d+\s*\{/g)==8
+         or die "$m profiles do not expose certified 8K and 16K 2K-chunk shapes\n";
+      $pt =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$cpu_start:0x1800.*?\$startup/s
+         or die "$m 8K profile lost fixed-final-2K topology\n";
+      $p16 =~ /bank\s+bank7\s*\{.*?\$file_index:7.*?\$cpu_start:0x1800.*?\$startup/s
+         or die "$m 16K profile lost fixed-final-2K topology\n";
+   }
    $pt =~ /\$signature:\Q$m\E\b/ && $pt !~ /\$select_access:/ &&
-   $pt =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$cpu_start:0x1800.*?\$startup/s
-      or die "$m 8K profile lost fixed-final-2K topology\n";
-   $p16 =~ /\$signature:\Q$m\E\b/ && $p16 !~ /\$select_access:/ &&
-   $p16 =~ /bank\s+bank7\s*\{.*?\$file_index:7.*?\$cpu_start:0x1800.*?\$startup/s
-      or die "$m 16K profile lost fixed-final-2K topology\n";
+   $p16 =~ /\$signature:\Q$m\E\b/ && $p16 !~ /\$select_access:/
+      or die "$m profile lost signature/direct segmented topology\n";
    $pt =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/ && $p16 =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/
       or die "$m profiles must select the safe TIA \$40-\$7F mirror\n";
 
@@ -177,7 +187,12 @@ for my $c (@cases) {
    # Prove the second public size really emits eight 2K physical chunks.
    my $blank=File::Spec->catfile($tmp,"$lc-16.c26");
    open(my $bf,'>',$blank) or die $!;
-   print $bf qq{include "$m/mapper_16k.c26"\nbank7 void main(void) { while (1) { } }\n}; close($bf);
+   if ($m eq '3F') {
+      print $bf qq{instantiate "3F/mapper.c26" as mapper (VCS_3F_BANKS:=8)\nbank7 void main(void) { while (1) { } }\n};
+   } else {
+      print $bf qq{include "3E/mapper_16k.c26"\nbank7 void main(void) { while (1) { } }\n};
+   }
+   close($bf);
    my $bin16=File::Spec->catfile($tmp,"$lc-16.bin");
    require_ok("build 16K $m profile",$driver,'-I',$vcs,$blank,'-o',$bin16);
    -s $bin16==16384 or die "$m 16K profile emitted the wrong size\n";

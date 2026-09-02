@@ -4727,7 +4727,8 @@ static void reserve_call_stack_from_call_graph(linker_config_t *cfg,
 }
 
 //! @brief Add global to linker layout and image writer state, growing storage or preserving uniqueness as needed.
-static void add_global(layout_t *layout, const char *name, uint16_t addr, uint8_t segid, const char *source)
+static void add_global(layout_t *layout, const char *name, uint16_t addr, uint8_t segid, const char *source,
+                       const object_layout_t *owner_layout)
 {
    size_t i;
    for (i = 0; i < layout->global_count; ++i) {
@@ -4743,6 +4744,7 @@ static void add_global(layout_t *layout, const char *name, uint16_t addr, uint8_
    layout->globals[layout->global_count].addr = addr;
    layout->globals[layout->global_count].segid = segid;
    layout->globals[layout->global_count].source = source;
+   layout->globals[layout->global_count].owner_layout = owner_layout;
    layout->global_count++;
 }
 
@@ -4750,21 +4752,21 @@ static void add_global(layout_t *layout, const char *name, uint16_t addr, uint8_
 static void add_generated_symbols(layout_t *layout)
 {
    if (layout->copy_table_size)
-      add_global(layout, "__copy_table", layout->copy_table_addr, O26_SEG_ABS, "<linker>");
+      add_global(layout, "__copy_table", layout->copy_table_addr, O26_SEG_ABS, "<linker>", NULL);
    if (layout->zero_table_size)
-      add_global(layout, "__zero_table", layout->zero_table_addr, O26_SEG_ABS, "<linker>");
+      add_global(layout, "__zero_table", layout->zero_table_addr, O26_SEG_ABS, "<linker>", NULL);
    if (layout->init_table_size)
-      add_global(layout, "__init_table", layout->init_table_addr, O26_SEG_ABS, "<linker>");
-   add_global(layout, "__stack_start", layout->stack_start, O26_SEG_ABS, "<linker>");
-   add_global(layout, "__stack_top", layout->stack_top, O26_SEG_ABS, "<linker>");
+      add_global(layout, "__init_table", layout->init_table_addr, O26_SEG_ABS, "<linker>", NULL);
+   add_global(layout, "__stack_start", layout->stack_start, O26_SEG_ABS, "<linker>", NULL);
+   add_global(layout, "__stack_top", layout->stack_top, O26_SEG_ABS, "<linker>", NULL);
    if (layout->call_stack_enabled) {
-      add_global(layout, "__call_stack_depth", layout->call_stack_depth, O26_SEG_ABS, "<linker>");
-      add_global(layout, "__call_stack_weighted_depth", layout->call_stack_weighted_depth, O26_SEG_ABS, "<linker>");
-      add_global(layout, "__call_stack_bank_extra_slots", layout->call_stack_bank_extra_slots, O26_SEG_ABS, "<linker>");
-      add_global(layout, "__call_stack_extra", layout->call_stack_extra, O26_SEG_ABS, "<linker>");
-      add_global(layout, "__call_stack_size", layout->call_stack_size, O26_SEG_ABS, "<linker>");
-      add_global(layout, "__call_stack_start", layout->call_stack_start, O26_SEG_ABS, "<linker>");
-      add_global(layout, "__call_stack_top", layout->call_stack_top, O26_SEG_ABS, "<linker>");
+      add_global(layout, "__call_stack_depth", layout->call_stack_depth, O26_SEG_ABS, "<linker>", NULL);
+      add_global(layout, "__call_stack_weighted_depth", layout->call_stack_weighted_depth, O26_SEG_ABS, "<linker>", NULL);
+      add_global(layout, "__call_stack_bank_extra_slots", layout->call_stack_bank_extra_slots, O26_SEG_ABS, "<linker>", NULL);
+      add_global(layout, "__call_stack_extra", layout->call_stack_extra, O26_SEG_ABS, "<linker>", NULL);
+      add_global(layout, "__call_stack_size", layout->call_stack_size, O26_SEG_ABS, "<linker>", NULL);
+      add_global(layout, "__call_stack_start", layout->call_stack_start, O26_SEG_ABS, "<linker>", NULL);
+      add_global(layout, "__call_stack_top", layout->call_stack_top, O26_SEG_ABS, "<linker>", NULL);
    }
 }
 
@@ -5736,10 +5738,11 @@ static uint16_t object_runtime_addr_for_layout_value(const object_file_t *obj,
    return (uint16_t)((int)base + (int)packed_value - (int)lay->packed_base);
 }
 
-//! @brief Find the configured logical cartridge bank containing one address.
-static const cartridge_bank_t *cartridge_bank_for_address(const linker_config_t *cfg,
+//! @brief Find the unique configured cartridge bank containing an otherwise ownerless address.
+static const cartridge_bank_t *unique_cartridge_bank_for_address(const linker_config_t *cfg,
                                                           uint16_t address)
 {
+   const cartridge_bank_t *match = NULL;
    size_t i;
 
    if (!cfg || (!cfg->cartridge_banked && !c26_topology_is_fe(cfg)))
@@ -5747,10 +5750,13 @@ static const cartridge_bank_t *cartridge_bank_for_address(const linker_config_t 
    for (i = 0; i < cfg->bank_count; ++i) {
       const cartridge_bank_t *bank = &cfg->banks[i];
       uint32_t end = (uint32_t)bank->start + bank->size;
-      if (address >= bank->start && (uint32_t)address < end)
-         return bank;
+      if (address < bank->start || (uint32_t)address >= end)
+         continue;
+      if (match && match != bank)
+         return NULL;
+      match = bank;
    }
-   return NULL;
+   return match;
 }
 
 //! @brief Find the movable layout whose serialized bytes contain one relocation.
@@ -6628,6 +6634,26 @@ static const char *bank_placement_memory_owner(const memory_region_t *memory)
    return NULL;
 }
 
+//! @brief Return the physical cartridge bank that owns one placed CPU-mapped layout.
+static const cartridge_bank_t *bank_placement_layout_bank(const linker_config_t *cfg,
+                                                           const object_layout_t *lay)
+{
+   const memory_region_t *memory;
+   const char *owner;
+
+   if (!cfg || !lay || lay->segid != O26_SEG_TEXT)
+      return NULL;
+   if (lay->placement_bank[0])
+      return find_cartridge_bank(cfg, lay->placement_bank);
+   memory = bank_placement_layout_memory(cfg, lay);
+   if (!memory || !str_ieq(memory->type, "ro") ||
+       memory->output_mode == MEM_OUTPUT_SHARED ||
+       memory->output_mode == MEM_OUTPUT_DATA_ONLY)
+      return NULL;
+   owner = bank_placement_memory_owner(memory);
+   return owner && *owner ? find_cartridge_bank(cfg, owner) : NULL;
+}
+
 //! @brief Return the logical placement record owning one ROM MEMORY region.
 static const cartridge_bank_t *bank_placement_memory_bank(const linker_config_t *cfg,
                                                           const memory_region_t *memory)
@@ -6855,7 +6881,7 @@ static bank_placement_target_t bank_placement_reloc_target(const linker_config_t
       result.layout = bank_placement_export_layout(in,
          obj->undefs[reloc->undef_index], &provider, &symbol);
       if (!result.layout && symbol && symbol->segid == O26_SEG_ABS)
-         result.fixed_bank = cartridge_bank_for_address(cfg,
+         result.fixed_bank = unique_cartridge_bank_for_address(cfg,
             (uint16_t)(symbol->value + current_word));
       return result;
    }
@@ -6876,7 +6902,7 @@ static bank_placement_target_t bank_placement_reloc_target(const linker_config_t
       return result;
    }
    if (reloc->segid == O26_SEG_ABS)
-      result.fixed_bank = cartridge_bank_for_address(cfg, current_word);
+      result.fixed_bank = unique_cartridge_bank_for_address(cfg, current_word);
    return result;
 }
 
@@ -8365,7 +8391,7 @@ static resolved_reloc_target_t resolve_reloc_target(const input_set_t *in,
    memset(&result, 0, sizeof(result));
    result.name = "<local relocation>";
    if (source_layout)
-      source_bank = cartridge_bank_for_address(cfg, source_layout->load_addr);
+      source_bank = bank_placement_layout_bank(cfg, source_layout);
 
    if (r->segid == O26_SEG_UNDEF) {
       const global_symbol_t *global;
@@ -8396,6 +8422,7 @@ static resolved_reloc_target_t resolve_reloc_target(const input_set_t *in,
       result.owner_address = global->addr;
       result.segid = global->segid;
       result.name = obj->undefs[r->undef_index];
+      result.owner_layout = global->owner_layout;
       return result;
    }
 
@@ -9235,7 +9262,9 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
             addr = obj->exports[j].value;
          else
             addr = object_runtime_addr_for_value(obj, obj->exports[j].segid, obj->exports[j].value);
-         add_global(layout, obj->exports[j].name, addr, obj->exports[j].segid, obj->origin);
+         add_global(layout, obj->exports[j].name, addr, obj->exports[j].segid, obj->origin,
+                    obj->exports[j].segid == O26_SEG_ABS ? NULL :
+                    find_layout_for_value(obj, obj->exports[j].segid, obj->exports[j].value));
       }
    }
 }
@@ -9652,7 +9681,7 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
    }
    source_address = (uint16_t)(source_layout->load_addr +
       (uint16_t)(r->offset - source_layout->image_base));
-   source_bank = cartridge_bank_for_address(cfg, source_address);
+   source_bank = bank_placement_layout_bank(cfg, source_layout);
    if (!source_bank)
       return target->address;
 
@@ -9663,8 +9692,11 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
    if (relocation_targets_shared_split_memory(cfg, target))
       return target->address;
 
-   owner_bank = cartridge_bank_for_address(cfg, target->owner_address);
-   final_bank = cartridge_bank_for_address(cfg, target->address);
+   owner_bank = target->owner_layout
+      ? bank_placement_layout_bank(cfg, target->owner_layout)
+      : unique_cartridge_bank_for_address(cfg, target->owner_address);
+   final_bank = target->owner_layout
+      ? owner_bank : unique_cartridge_bank_for_address(cfg, target->address);
    if (owner_bank && owner_bank != source_bank)
       different_bank = owner_bank;
    else if (final_bank && final_bank != source_bank)
@@ -9887,8 +9919,11 @@ static void apply_segment_relocs(const input_set_t *in,
          case O26_RTYPE_WORD:
             patch_u16(seg->data, seg->length, r->offset, resolved_address, who);
             if (relocation_is_bank_target(r)) {
-               const cartridge_bank_t *dest = cartridge_bank_for_address(cfg, target.owner_address);
-               if (!dest) dest = cartridge_bank_for_address(cfg, target.address);
+               const cartridge_bank_t *dest = target.owner_layout
+                  ? bank_placement_layout_bank(cfg, target.owner_layout)
+                  : unique_cartridge_bank_for_address(cfg, target.owner_address);
+               if (!dest && !target.owner_layout)
+                  dest = unique_cartridge_bank_for_address(cfg, target.address);
                if (r->offset + 2u >= seg->length) {
                   fprintf(stderr, "vcsc-ld: .banktarget descriptor byte is out of range in %s\n", who);
                   exit(1);
@@ -10752,7 +10787,34 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
    } else {
       uint16_t vector_base = 0xFFFAu;
       uint8_t vectors[6];
-      size_t plane = link_image_plane_for_generated_range(cfg, vector_base, 6u, "vectors");
+      size_t plane;
+      const cartridge_bank_t *startup = NULL;
+      size_t bi;
+
+      /* Direct segmented cartridges can expose the vector bytes through a
+         lower 6507 mirror while still answering CPU vector reads at
+         $FFFA-$FFFF.  When C26 identifies a startup/fixed physical bank,
+         place the bytes at the end of that bank's canonical link window
+         rather than forcing their linker storage to the $FFFA mirror. */
+      if (cfg && cfg->topology_bank_count) {
+         for (bi = 0; bi < cfg->bank_count; ++bi) {
+            if (cfg->banks[bi].startup) {
+               startup = &cfg->banks[bi];
+               break;
+            }
+         }
+      }
+      if (startup) {
+         uint32_t vb = (uint32_t)startup->start + startup->size - 6u;
+         if (vb > 0xFFFFu) {
+            fprintf(stderr, "vcsc-ld: startup bank vector range overflows 16-bit address space\n");
+            exit(1);
+         }
+         vector_base = (uint16_t)vb;
+         plane = link_image_plane_for_bank_name(cfg, startup->name);
+      } else {
+         plane = link_image_plane_for_generated_range(cfg, vector_base, 6u, "vectors");
+      }
       vectors[0] = (uint8_t)(nmi & 0xFFu);
       vectors[1] = (uint8_t)((nmi >> 8) & 0xFFu);
       vectors[2] = (uint8_t)(reset & 0xFFu);
@@ -11157,14 +11219,18 @@ static void enforce_branch_bank_contracts(const linker_config_t *cfg,
 
       for (j = 0; j < obj->branch_count; ++j) {
          const branch_t *branch = &obj->branches[j];
+         const object_layout_t *source_layout =
+            find_layout_for_value(obj, branch->segid, branch->source);
+         const object_layout_t *target_layout =
+            find_layout_for_value(obj, branch->segid, branch->target);
          uint16_t source = object_runtime_addr_for_value(obj, branch->segid,
                                                          branch->source);
          uint16_t target = object_runtime_addr_for_value(obj, branch->segid,
                                                          branch->target);
-         const cartridge_bank_t *source_bank =
-            cartridge_bank_for_address(cfg, source);
-         const cartridge_bank_t *target_bank =
-            cartridge_bank_for_address(cfg, target);
+         const cartridge_bank_t *source_bank = source_layout
+            ? bank_placement_layout_bank(cfg, source_layout) : NULL;
+         const cartridge_bank_t *target_bank = target_layout
+            ? bank_placement_layout_bank(cfg, target_layout) : NULL;
 
          if (source_bank && target_bank && source_bank != target_bank) {
             fprintf(stderr,

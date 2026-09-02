@@ -204,11 +204,13 @@ index($bankswitching,'file_index(BANKn) = bank_count - 1 - n')>=0 &&
 index($bankswitching,'Public VCSC cartridge profiles reserve four bytes')>=0 &&
 $bankswitching =~ /^\[ \] 38\. Complete the remaining automatic-call mapper work\./m &&
 index($bankswitching,'FA2 extends the FA split-RAM model to six or seven directly selected 4K ROM')>=0 &&
-index($bankswitching,'[ ] 38a. Finish physical-bank/address separation, then migrate 3F.')>=0 &&
-index($bankswitching,'256 physical planes')>=0 &&
-index($bankswitching,'256-bit allowed-bank set')>=0 &&
+index($bankswitching,'[ ] 38a. Design and migrate 3F automatic calls.')>=0 &&
+index($bankswitching,'256 independent 64K physical planes')>=0 &&
+index($bankswitching,'256-bit bank set')>=0 &&
+index($bankswitching,'VCS_3F_BANKS > N+1')>=0 &&
 -f File::Spec->catfile($test,'linker_bank_set_256.pl') &&
-index($bankswitching,'[ ] 38b. Migrate 3E after scalable 3F ROM identity works.')>=0 &&
+-f File::Spec->catfile($repo,qw(libraries vcs 3F mapper.c26)) &&
+index($bankswitching,'[ ] 38b. Migrate 3E after the 3F call-state rule is settled.')>=0 &&
 index($bankswitching,'[ ] 38c. Implement/migrate FC.')>=0 &&
 index($bankswitching,'[ ] 38d. Implement/migrate F0.')>=0 &&
 index($bankswitching,'[ ] 38e. Design automatic E0 calls.')>=0 &&
@@ -698,7 +700,7 @@ for my $legacy (qw(
 -f File::Spec->catfile($repo,qw(libraries vcs CV ram.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs DPC registers.c26))
    or die "mapper-specific support files are not contained by mapper directories\n";
-for my $profile (qw(2K/mapper.c26 CV/mapper.c26 4K/mapper.c26 4KSC/mapper.c26 F8/mapper.c26 0840/mapper.c26 UA/mapper.c26 UASW/mapper.c26 0FA0/mapper.c26 E0/mapper.c26 WD/mapper.c26 3F/mapper_8k.c26 3E/mapper_8k.c26 3F/mapper_16k.c26 3E/mapper_16k.c26 FA/mapper.c26 F6/mapper.c26 JANE/mapper.c26 F4/mapper.c26 F8SC/mapper.c26 F6SC/mapper.c26 F4SC/mapper.c26 OMNI/mapper.c26)) {
+for my $profile (qw(2K/mapper.c26 CV/mapper.c26 4K/mapper.c26 4KSC/mapper.c26 F8/mapper.c26 0840/mapper.c26 UA/mapper.c26 UASW/mapper.c26 0FA0/mapper.c26 E0/mapper.c26 WD/mapper.c26 3F/mapper.c26 3E/mapper_8k.c26 3E/mapper_16k.c26 FA/mapper.c26 F6/mapper.c26 JANE/mapper.c26 F4/mapper.c26 F8SC/mapper.c26 F6SC/mapper.c26 F4SC/mapper.c26 OMNI/mapper.c26)) {
    -f File::Spec->catfile($repo,'libraries','vcs',$profile)
       or die "missing migrated C26 cartridge profile $profile\n";
    index($top_make,"libraries/vcs/$profile")>=0
@@ -775,9 +777,10 @@ index($top_make,'libraries/vcs/E0/mapper.cfg')<0 &&
 index($top_make,'test/vcs_e0.pl')>=0
    or die "E0 profile/diagnostic support is missing installation or Stella/test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','tia_mirror_40.c26') &&
--f File::Spec->catfile($repo,'libraries','vcs','3F/mapper_8k.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','3F/mapper.c26') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','3F/mapper_8k.c26') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','3F/mapper_16k.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','3E/mapper_8k.c26') &&
--f File::Spec->catfile($repo,'libraries','vcs','3F/mapper_16k.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','3E/mapper_16k.c26') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','3F/mapper_8k.cfg') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','3E/mapper_8k.cfg') &&
@@ -785,7 +788,9 @@ index($top_make,'test/vcs_e0.pl')>=0
 -f File::Spec->catfile($repo,'examples','09_bankswitching','12_3f','3f_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','13_3e','3e_diagnostic.c26') &&
 index($top_make,'libraries/vcs/tia_mirror_40.c26')>=0 &&
-index($top_make,'libraries/vcs/3F/mapper_16k.c26')>=0 &&
+index($top_make,'libraries/vcs/3F/mapper.c26')>=0 &&
+index($top_make,'libraries/vcs/3F/mapper_8k.c26')<0 &&
+index($top_make,'libraries/vcs/3F/mapper_16k.c26')<0 &&
 index($top_make,'libraries/vcs/3E/mapper_16k.c26')>=0 &&
 index($top_make,'test/vcs_3f_3e.pl')>=0
    or die "3F/3E profile/diagnostic support is missing installation or Stella/test coverage\n";
@@ -1092,9 +1097,8 @@ for my $required (qw(
    libraries/vcs/WD/bankcall.s26
    libraries/vcs/E0/mapper.c26
    libraries/vcs/tia_mirror_40.c26
-   libraries/vcs/3F/mapper_8k.c26
+   libraries/vcs/3F/mapper.c26
    libraries/vcs/3E/mapper_8k.c26
-   libraries/vcs/3F/mapper_16k.c26
    libraries/vcs/3E/mapper_16k.c26
    libraries/vcs/JANE/mapper.c26
    libraries/vcs/F4SC/mapper.c26
