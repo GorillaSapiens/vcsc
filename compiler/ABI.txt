@@ -399,14 +399,14 @@ Authoritative memory-region metadata
 ------------------------------------
 
 Every complete source-level `mem` declaration emits one reserved absolute
-`.o26` export beginning with `__memdecl$V2$`, whether or not that translation
+`.o26` export beginning with `__memdecl$V4$`, whether or not that translation
 unit currently places an object in the region. The canonical record contains
 the region name, read/ordinary start, write start, physical size, split-address
 bit, read-only/read-write type, signed priority, data-only bit, optional topology
-data-bank name, and declaration source location. Numeric values use fixed-width
-hexadecimal fields. Empty policy-only `mem name { };` declarations emit no
-allocator record. The linker still accepts `__memdecl$V1$` records, which have
-no data-only fields.
+data-bank name, optional CPU-mapped output `$bank:NAME` owner, and declaration
+source location. Numeric values use fixed-width hexadecimal fields. Empty
+policy-only `mem name { };` declarations emit no allocator record. The linker
+still accepts V1-V3 records for compatibility.
 
 The linker merges byte-identical records after archive selection and rejects
 conflicts with both original C26 locations. These records are authoritative for

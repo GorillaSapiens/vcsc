@@ -286,7 +286,7 @@ indices, and missing selector startup.
 `linker_c26_mem_authority.pl` links a direct two-chunk cartridge with an empty
 cfg and proves that complete C26 `mem` declarations create allocator regions and
 ordinary segment routes. Deliberately mismatched bank and mem names verify
-ownership comes from synthetic-range containment. Its F8SC half uses a cfg with
+ownership comes from unique link-range containment. Its F8SC half uses a cfg with
 only legacy mapper mechanics, classifies bank ROM as switched and Superchip
 aliases as shared, checks direct `$F000/$F080` accesses plus the real cross-bank
 trampoline, and requires byte-identical output from the current full cfg. It also
@@ -304,6 +304,13 @@ profile equals an explicit build, that an explicitly supplied installed profile
 resolves sibling includes from its own directory, and that the generic direct
 two-chunk profile uses ordinary absolute cross-chunk calls, deterministic fill,
 and no selector or trampoline output.
+
+`linker_physical_bank_planes.pl` proves physical bank identity is independent of
+the 16-bit linker address. Two 2K banks deliberately own different bytes at the
+same `$1000` address through explicit `mem ... $bank:NAME` ownership, and flat
+BIN output retains both byte sequences in their separate file chunks. The test
+also rejects ambiguous ownership when `$bank` is omitted and rejects Intel HEX
+when distinct physical planes overlap in logical address.
 
 `vcs_interactive_sprite_orientation.pl` keeps every maintained interactive
 example visually aligned with the faithful legacy player-color example. It

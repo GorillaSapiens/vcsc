@@ -928,6 +928,8 @@ static int object_has_configuration_metadata(const object_file_t *obj)
    for (i = 0; i < obj->export_count; ++i) {
       const char *name = obj->exports[i].name;
       if (strncmp(name, MEM_DECL_META_PREFIX, sizeof(MEM_DECL_META_PREFIX) - 1) == 0 ||
+          strncmp(name, MEM_DECL_META_PREFIX_V3, sizeof(MEM_DECL_META_PREFIX_V3) - 1) == 0 ||
+          strncmp(name, MEM_DECL_META_PREFIX_V2, sizeof(MEM_DECL_META_PREFIX_V2) - 1) == 0 ||
           strncmp(name, MEM_DECL_META_PREFIX_V1, sizeof(MEM_DECL_META_PREFIX_V1) - 1) == 0 ||
           strncmp(name, CARTRIDGE_TOPOLOGY_META_PREFIX,
                   sizeof(CARTRIDGE_TOPOLOGY_META_PREFIX) - 1) == 0 ||

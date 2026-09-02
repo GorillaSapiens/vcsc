@@ -625,6 +625,8 @@ static int mem_declaration_metadata_has_prefix(const char *name)
    return name &&
       (strncmp(name, MEM_DECL_META_PREFIX,
                sizeof(MEM_DECL_META_PREFIX) - 1) == 0 ||
+       strncmp(name, MEM_DECL_META_PREFIX_V3,
+               sizeof(MEM_DECL_META_PREFIX_V3) - 1) == 0 ||
        strncmp(name, MEM_DECL_META_PREFIX_V2,
                sizeof(MEM_DECL_META_PREFIX_V2) - 1) == 0 ||
        strncmp(name, MEM_DECL_META_PREFIX_V1,
@@ -1034,6 +1036,8 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    unsigned int stack = 0;
    unsigned int data_only = 0;
    char type_code;
+   char parsed_data_bank[MAX_NAME] = {0};
+   char parsed_output_bank[MAX_NAME] = {0};
    int consumed = 0;
    int version;
 
@@ -1041,8 +1045,13 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
       return 0;
    if (strncmp(symbol, MEM_DECL_META_PREFIX,
                sizeof(MEM_DECL_META_PREFIX) - 1) == 0) {
-      version = 3;
+      version = 4;
       p = symbol + sizeof(MEM_DECL_META_PREFIX) - 1;
+   }
+   else if (strncmp(symbol, MEM_DECL_META_PREFIX_V3,
+                    sizeof(MEM_DECL_META_PREFIX_V3) - 1) == 0) {
+      version = 3;
+      p = symbol + sizeof(MEM_DECL_META_PREFIX_V3) - 1;
    }
    else if (strncmp(symbol, MEM_DECL_META_PREFIX_V2,
                     sizeof(MEM_DECL_META_PREFIX_V2) - 1) == 0) {
@@ -1062,7 +1071,35 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    name_len = (size_t)(mark - p);
    if (name_len >= sizeof(out->name))
       return -1;
-   if (version == 3) {
+   if (version == 4) {
+      const char *bank_mark;
+      if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X$S%1X$D%1X$B%n",
+                 &read_start, &write_start, &size, &split, &type_code,
+                 &priority, &read_hazard, &stack, &data_only, &consumed) != 9)
+         return -1;
+      bank_mark = strstr(mark + consumed, "$K");
+      suffix = bank_mark ? strstr(bank_mark + 2, "$Q") : NULL;
+      if (!bank_mark || !suffix)
+         return -1;
+      {
+         size_t data_bank_len = (size_t)(bank_mark - (mark + consumed));
+         size_t output_bank_len = (size_t)(suffix - (bank_mark + 2));
+         if ((data_only && data_bank_len == 0) ||
+             (!data_only && data_bank_len != 0) ||
+             data_bank_len >= sizeof(parsed_data_bank) ||
+             output_bank_len >= sizeof(parsed_output_bank))
+            return -1;
+         if (data_bank_len) {
+            memcpy(parsed_data_bank, mark + consumed, data_bank_len);
+            parsed_data_bank[data_bank_len] = '\0';
+         }
+         if (output_bank_len) {
+            memcpy(parsed_output_bank, bank_mark + 2, output_bank_len);
+            parsed_output_bank[output_bank_len] = '\0';
+         }
+      }
+   }
+   else if (version == 3) {
       if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X$S%1X$D%1X$B%n",
                  &read_start, &write_start, &size, &split, &type_code,
                  &priority, &read_hazard, &stack, &data_only, &consumed) != 9)
@@ -1111,7 +1148,11 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    out->callstack_callgraph = (int)stack;
    out->compiler_declared = 1;
    out->define_yes = 1;
-   if (version >= 2) {
+   if (version == 4) {
+      snprintf(out->data_bank_name, sizeof(out->data_bank_name), "%s", parsed_data_bank);
+      snprintf(out->bank_name, sizeof(out->bank_name), "%s", parsed_output_bank);
+   }
+   if (version == 2 || version == 3) {
       size_t bank_len = (size_t)(suffix - (mark + consumed));
       if ((data_only && bank_len == 0) || (!data_only && bank_len != 0) ||
           bank_len >= sizeof(out->data_bank_name))
@@ -1138,6 +1179,7 @@ static int mem_declaration_equal(const memory_region_t *a,
           a->size == b->size &&
           str_ieq(a->type, b->type) &&
           !strcmp(a->data_bank_name, b->data_bank_name) &&
+          !strcmp(a->bank_name, b->bank_name) &&
           a->priority == b->priority;
 }
 
@@ -1401,19 +1443,27 @@ static void collect_c26_mem_declarations(linker_config_t *cfg, const input_set_t
             uint16_t callstack_extra = mem->callstack_extra;
             int cfg_read_hazard = mem->read_hazard;
             char file[MAX_PATH];
-            char bank_name[MAX_NAME];
+            char cfg_bank_name[MAX_NAME];
             int fill_yes = mem->fill_yes;
             uint8_t fill_value = mem->fill_value;
             int has_fill_value = mem->has_fill_value;
             snprintf(file, sizeof(file), "%s", mem->file);
-            snprintf(bank_name, sizeof(bank_name), "%s", mem->bank_name);
+            snprintf(cfg_bank_name, sizeof(cfg_bank_name), "%s", mem->bank_name);
+            if (decl.bank_name[0] && cfg_bank_name[0] &&
+                strcmp(decl.bank_name, cfg_bank_name) != 0) {
+               fprintf(stderr,
+                       "vcsc-ld: mem declaration '%s' $bank:%s conflicts with cfg bank '%s'\n",
+                       decl.name, decl.bank_name, cfg_bank_name);
+               exit(1);
+            }
             *mem = decl;
             mem->define_yes = 1;
             mem->callstack_callgraph = mem->callstack_callgraph || cfg_callstack_callgraph;
             mem->callstack_extra = callstack_extra;
             mem->read_hazard = mem->read_hazard || cfg_read_hazard;
             snprintf(mem->file, sizeof(mem->file), "%s", file);
-            snprintf(mem->bank_name, sizeof(mem->bank_name), "%s", bank_name);
+            if (!mem->bank_name[0])
+               snprintf(mem->bank_name, sizeof(mem->bank_name), "%s", cfg_bank_name);
             mem->fill_yes = fill_yes;
             mem->fill_value = fill_value;
             mem->has_fill_value = has_fill_value;
@@ -1458,7 +1508,6 @@ static void infer_c26_mem_output_ownership(linker_config_t *cfg)
 
       if (!mem->compiler_declared)
          continue;
-      mem->bank_name[0] = '\0';
       mem->output_bank_name[0] = '\0';
       mem->output_mode = MEM_OUTPUT_SHARED;
       if (mem->data_bank_name[0]) {
@@ -1483,6 +1532,34 @@ static void infer_c26_mem_output_ownership(linker_config_t *cfg)
          snprintf(mem->output_bank_name, sizeof(mem->output_bank_name), "%s",
                   owner->name);
          mem->output_mode = MEM_OUTPUT_DATA_ONLY;
+         continue;
+      }
+      if (mem->bank_name[0]) {
+         for (j = 0; j < cfg->topology_bank_count; ++j) {
+            const topology_bank_t *bank = &cfg->topology_banks[j];
+            uint32_t bank_end = (uint32_t)bank->link_start + bank->map_size;
+            if (strcmp(bank->name, mem->bank_name))
+               continue;
+            if (bank->data_only || mem->start < bank->link_start ||
+                (uint32_t)mem->start + mem->size > bank_end) {
+               fprintf(stderr,
+                       "vcsc-ld: mem region '%s' $bank:%s is not contained by that CPU-mapped bank\n",
+                       mem->name, mem->bank_name);
+               exit(1);
+            }
+            snprintf(mem->output_bank_name, sizeof(mem->output_bank_name), "%s",
+                     bank->name);
+            mem->output_mode = bank->has_selector ? MEM_OUTPUT_SWITCHED
+                                                   : MEM_OUTPUT_DIRECT;
+            owner = bank;
+            break;
+         }
+         if (!owner) {
+            fprintf(stderr,
+                    "vcsc-ld: mem region '%s' names unknown output bank '%s'\n",
+                    mem->name, mem->bank_name);
+            exit(1);
+         }
          continue;
       }
       mem_end = (uint32_t)mem->start + mem->size;
@@ -2004,7 +2081,7 @@ static void validate_c26_fa2_topology(const linker_config_t *cfg)
 static int c26_topology_is_3f_family(const linker_config_t *cfg)
 {
    const topology_cartridge_t *cart;
-   if (!cfg || cfg->topology_bank_count < 3u || cfg->topology_bank_count > 8u)
+   if (!cfg || cfg->topology_bank_count < 3u || cfg->topology_bank_count > 256u)
       return 0;
    cart = &cfg->topology_cartridge;
    if (!(cart->present_mask & 0x80u) || cart->signature[2] != 0 ||
@@ -2308,12 +2385,10 @@ static void validate_c26_topology(linker_config_t *cfg)
          }
          if (bank->data_only || other->data_only)
             continue;
-         if (ranges_overlap_u32(bank->link_start, bank->map_size,
-                                other->link_start, other->map_size)) {
-            fprintf(stderr, "vcsc-ld: bank link mappings '%s' and '%s' overlap\n",
-                    bank->name, other->name);
-            exit(1);
-         }
+         /* Distinct physical banks may intentionally occupy the same 16-bit
+            linker/CPU address window.  Physical identity is carried by the
+            file-index image plane; overlap is only an allocation error within
+            one owned mem region, not between separate cartridge banks. */
          if (!e0_profile && !wd_profile && !fe_profile && !threef_family && !bank->has_selector && !other->has_selector &&
              ranges_overlap_u32(bank->cpu_start, bank->map_size,
                                 other->cpu_start, other->map_size)) {
@@ -9846,8 +9921,151 @@ static void resolve_all(input_set_t *in, layout_t *layout,
    }
 }
 
+#define LINK_IMAGE_BANK_COUNT 256u
+#define LINK_IMAGE_PLANE_SIZE 65536u
+#define LINK_IMAGE_TOTAL_SIZE (LINK_IMAGE_BANK_COUNT * LINK_IMAGE_PLANE_SIZE)
+
+typedef struct {
+   uint8_t *bytes;
+   uint8_t *used;
+   size_t plane_count;
+} link_image_t;
+
+//! @brief Return the flat array offset for one physical-bank/address pair.
+static size_t link_image_offset(size_t bank, uint16_t addr)
+{
+   if (bank >= LINK_IMAGE_BANK_COUNT) {
+      fprintf(stderr, "vcsc-ld: physical bank index %zu exceeds 255\n", bank);
+      exit(1);
+   }
+   return bank * LINK_IMAGE_PLANE_SIZE + addr;
+}
+
+//! @brief Return the physical image plane for one C26 topology bank name.
+static size_t link_image_plane_for_bank_name(const linker_config_t *cfg,
+                                             const char *name)
+{
+   size_t i;
+   if (!cfg || !cfg->topology_bank_count || !name || !*name)
+      return 0;
+   for (i = 0; i < cfg->topology_bank_count; ++i) {
+      const topology_bank_t *bank = &cfg->topology_banks[i];
+      if (!strcmp(bank->name, name)) {
+         if (bank->file_index >= LINK_IMAGE_BANK_COUNT) {
+            fprintf(stderr,
+                    "vcsc-ld: topology bank '%s' file index %u exceeds 255\n",
+                    bank->name, (unsigned)bank->file_index);
+            exit(1);
+         }
+         return bank->file_index;
+      }
+   }
+   fprintf(stderr, "vcsc-ld: no topology bank named '%s' for linked image\n", name);
+   exit(1);
+}
+
+//! @brief Return the physical image plane that owns one placed ROM layout.
+static size_t link_image_plane_for_layout(const linker_config_t *cfg,
+                                          const object_layout_t *lay)
+{
+   const memory_region_t *mem;
+   if (!cfg || !cfg->topology_bank_count || !lay)
+      return 0;
+   mem = bank_placement_layout_memory(cfg, lay);
+   if (mem && mem->output_bank_name[0])
+      return link_image_plane_for_bank_name(cfg, mem->output_bank_name);
+   if (lay->placement_bank[0])
+      return link_image_plane_for_bank_name(cfg, lay->placement_bank);
+   return 0;
+}
+
+//! @brief Return the unique physical bank containing one generated logical range.
+static size_t link_image_plane_for_generated_range(const linker_config_t *cfg,
+                                                   uint16_t addr, size_t len,
+                                                   const char *who)
+{
+   size_t match = 0;
+   size_t matches = 0;
+   size_t i;
+   uint32_t end = (uint32_t)addr + len;
+   if (!cfg || !cfg->topology_bank_count)
+      return 0;
+   for (i = 0; i < cfg->topology_bank_count; ++i) {
+      const topology_bank_t *bank = &cfg->topology_banks[i];
+      uint32_t bank_end;
+      if (bank->data_only)
+         continue;
+      bank_end = (uint32_t)bank->link_start + bank->map_size;
+      if (addr >= bank->link_start && end <= bank_end) {
+         match = bank->file_index;
+         matches++;
+      }
+   }
+   if (matches == 0)
+      return 0;
+   if (matches != 1) {
+      fprintf(stderr,
+              "vcsc-ld: linker-generated %s at $%04X-$%04X has %zu physical-bank owners\n",
+              who, addr, (unsigned)(end ? end - 1u : addr), matches);
+      exit(1);
+   }
+   return match;
+}
+
+//! @brief Return the physical image plane that owns linker-generated DATA tables.
+static size_t link_image_plane_for_generated_data(const linker_config_t *cfg,
+                                                  uint16_t addr, size_t len,
+                                                  const char *who)
+{
+   const segment_rule_t *data;
+   const segment_rule_t *code;
+   const char *memory_name;
+   const memory_region_t *mem;
+
+   if (!cfg || !cfg->topology_bank_count)
+      return 0;
+   data = find_segment_rule(cfg, "DATA");
+   code = find_segment_rule(cfg, "CODE");
+   memory_name = data && data->load_name[0] ? data->load_name
+               : (code && code->load_name[0] ? code->load_name : NULL);
+   mem = memory_name ? find_memory(cfg, memory_name) : NULL;
+   if (mem && mem->output_bank_name[0])
+      return link_image_plane_for_bank_name(cfg, mem->output_bank_name);
+   return link_image_plane_for_generated_range(cfg, addr, len, who);
+}
+
+//! @brief Merge non-overlapping bank planes into a conventional 64K logical view.
+static void link_image_build_logical_view(const link_image_t *image,
+                                          uint8_t *logical_image,
+                                          uint8_t *logical_used,
+                                          int reject_overlap)
+{
+   size_t bank;
+   uint32_t addr;
+   memset(logical_image, 0, LINK_IMAGE_PLANE_SIZE);
+   memset(logical_used, 0, LINK_IMAGE_PLANE_SIZE);
+   for (bank = 0; bank < image->plane_count; ++bank) {
+      for (addr = 0; addr < LINK_IMAGE_PLANE_SIZE; ++addr) {
+         size_t at = bank * LINK_IMAGE_PLANE_SIZE + addr;
+         if (!image->used[at])
+            continue;
+         if (logical_used[addr]) {
+            if (reject_overlap) {
+               fprintf(stderr,
+                       "vcsc-ld: physical banks overlap at logical address $%04X; Intel HEX cannot represent bank-local bytes\n",
+                       (unsigned)addr);
+               exit(1);
+            }
+            continue;
+         }
+         logical_image[addr] = image->bytes[at];
+         logical_used[addr] = 1;
+      }
+   }
+}
+
 //! @brief Handle image write logic for linker layout and image writer.
-static void image_write(uint8_t *image, uint8_t *used, uint16_t addr, const uint8_t *src, size_t len, const char *who)
+static void image_write(link_image_t *image, size_t bank, uint16_t addr, const uint8_t *src, size_t len, const char *who)
 {
    size_t i;
    for (i = 0; i < len; ++i) {
@@ -9856,13 +10074,14 @@ static void image_write(uint8_t *image, uint8_t *used, uint16_t addr, const uint
          fprintf(stderr, "vcsc-ld: image write overflow from %s\n", who);
          exit(1);
       }
-      image[a] = src[i];
-      used[a] = 1;
+      size_t at = link_image_offset(bank, (uint16_t)a);
+      image->bytes[at] = src[i];
+      image->used[at] = 1;
    }
 }
 
 //! @brief Write linker-generated fixed bytes without overwriting placed material.
-static void image_write_generated(uint8_t *image, uint8_t *used, uint16_t addr,
+static void image_write_generated(link_image_t *image, size_t bank, uint16_t addr,
                                   const uint8_t *src, size_t len,
                                   const char *who)
 {
@@ -9873,14 +10092,14 @@ static void image_write_generated(uint8_t *image, uint8_t *used, uint16_t addr,
          fprintf(stderr, "vcsc-ld: image write overflow from %s\n", who);
          exit(1);
       }
-      if (used[a]) {
+      if (image->used[link_image_offset(bank, (uint16_t)a)]) {
          fprintf(stderr,
                  "vcsc-ld: linker-generated %s overlaps placed byte at $%04X\n",
                  who, (unsigned)a);
          exit(1);
       }
    }
-   image_write(image, used, addr, src, len, who);
+   image_write(image, bank, addr, src, len, who);
 }
 
 //! @brief Return the maintained reset-entry template for a built-in mapper.
@@ -10264,7 +10483,7 @@ static void build_zero_table_image(const layout_t *layout, uint8_t *table)
 }
 
 //! @brief Handle build rom image logic for linker layout and image writer.
-static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const layout_t *layout, uint8_t *image, uint8_t *used)
+static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const layout_t *layout, link_image_t *image)
 {
    const memory_region_t *rom = find_memory(cfg, "ROM");
    size_t i;
@@ -10273,8 +10492,8 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
       fprintf(stderr, "vcsc-ld: ROM memory region not found\n");
       exit(1);
    }
-   memset(image, cfg->cartridge_fill_value, 65536);
-   memset(used, 0, 65536);
+   memset(image->bytes, cfg->cartridge_fill_value, image->plane_count * LINK_IMAGE_PLANE_SIZE);
+   memset(image->used, 0, image->plane_count * LINK_IMAGE_PLANE_SIZE);
 
    for (i = 0; i < in->object_count; ++i) {
       const object_file_t *obj = &in->objects[i];
@@ -10309,28 +10528,44 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
          } else {
             continue;
          }
-         image_write(image, used, lay->load_addr, src, lay->size, obj->origin);
+         image_write(image, link_image_plane_for_layout(cfg, lay),
+                     lay->load_addr, src, lay->size, obj->origin);
       }
    }
 
    if (layout->copy_table_size > 0) {
       uint8_t *table = (uint8_t *)xmalloc(layout->copy_table_size);
       build_copy_table_image(layout, table);
-      image_write(image, used, layout->copy_table_addr, table, layout->copy_table_size, "<linker:__copy_table>");
+      image_write(image,
+                  link_image_plane_for_generated_data(cfg, layout->copy_table_addr,
+                                                      layout->copy_table_size,
+                                                      "__copy_table"),
+                  layout->copy_table_addr, table, layout->copy_table_size,
+                  "<linker:__copy_table>");
       free(table);
    }
 
    if (layout->zero_table_size > 0) {
       uint8_t *table = (uint8_t *)xmalloc(layout->zero_table_size);
       build_zero_table_image(layout, table);
-      image_write(image, used, layout->zero_table_addr, table, layout->zero_table_size, "<linker:__zero_table>");
+      image_write(image,
+                  link_image_plane_for_generated_data(cfg, layout->zero_table_addr,
+                                                      layout->zero_table_size,
+                                                      "__zero_table"),
+                  layout->zero_table_addr, table, layout->zero_table_size,
+                  "<linker:__zero_table>");
       free(table);
    }
 
    if (layout->init_table_size > 0) {
       uint8_t *table = (uint8_t *)xmalloc(layout->init_table_size);
       build_init_table_image(in, layout, table);
-      image_write(image, used, layout->init_table_addr, table, layout->init_table_size, "<linker:__init_table>");
+      image_write(image,
+                  link_image_plane_for_generated_data(cfg, layout->init_table_addr,
+                                                      layout->init_table_size,
+                                                      "__init_table"),
+                  layout->init_table_addr, table, layout->init_table_size,
+                  "<linker:__init_table>");
       free(table);
    }
 
@@ -10402,7 +10637,9 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
                uint16_t canonical_base = (uint16_t)(startup->start + cfg->trampoline_offset);
                encode_generic_bank_jsr_block(trampoline, cfg, &cfg->banks[j], canonical_base, ptr0);
             }
-            image_write_generated(image, used, bank_trampoline, trampoline,
+            image_write_generated(image,
+                                  link_image_plane_for_bank_name(cfg, cfg->banks[j].name),
+                                  bank_trampoline, trampoline,
                                   layout->bank_trampoline_used,
                                   "common bank trampoline table");
          }
@@ -10435,22 +10672,23 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
             (uint16_t)(cfg->banks[i].start + cfg->vector_bridge_offset);
          uint16_t bank_vectors =
             (uint16_t)(cfg->banks[i].start + cfg->banks[i].size - 6u);
-         image_write_generated(image, used, bank_bridge, bridge,
+         size_t plane = link_image_plane_for_bank_name(cfg, cfg->banks[i].name);
+         image_write_generated(image, plane, bank_bridge, bridge,
                                sizeof(bridge), "vector bridge");
-         image_write_generated(image, used, bank_vectors, vectors,
+         image_write_generated(image, plane, bank_vectors, vectors,
                                sizeof(vectors), "vectors");
       }
    } else {
       uint16_t vector_base = 0xFFFAu;
-      image[vector_base + 0u] = (uint8_t)(nmi & 0xFFu);
-      image[vector_base + 1u] = (uint8_t)((nmi >> 8) & 0xFFu);
-      image[vector_base + 2u] = (uint8_t)(reset & 0xFFu);
-      image[vector_base + 3u] = (uint8_t)((reset >> 8) & 0xFFu);
-      image[vector_base + 4u] = (uint8_t)(irqbrk & 0xFFu);
-      image[vector_base + 5u] = (uint8_t)((irqbrk >> 8) & 0xFFu);
-      used[vector_base + 0u] = used[vector_base + 1u] =
-         used[vector_base + 2u] = used[vector_base + 3u] =
-         used[vector_base + 4u] = used[vector_base + 5u] = 1;
+      uint8_t vectors[6];
+      size_t plane = link_image_plane_for_generated_range(cfg, vector_base, 6u, "vectors");
+      vectors[0] = (uint8_t)(nmi & 0xFFu);
+      vectors[1] = (uint8_t)((nmi >> 8) & 0xFFu);
+      vectors[2] = (uint8_t)(reset & 0xFFu);
+      vectors[3] = (uint8_t)((reset >> 8) & 0xFFu);
+      vectors[4] = (uint8_t)(irqbrk & 0xFFu);
+      vectors[5] = (uint8_t)((irqbrk >> 8) & 0xFFu);
+      image_write_generated(image, plane, vector_base, vectors, sizeof(vectors), "vectors");
    }
 }
 
@@ -10697,7 +10935,7 @@ static void write_data_only_bank(FILE *fp, const char *path,
 
 static void write_flat_binary(const char *path, const linker_config_t *cfg,
                               const input_set_t *in,
-                              const uint8_t *image, const uint8_t *used)
+                              const link_image_t *image)
 {
    FILE *fp;
    uint32_t addr;
@@ -10731,8 +10969,9 @@ static void write_flat_binary(const char *path, const linker_config_t *cfg,
                 offset < (uint32_t)bank->image_offset + bank->map_size) {
                uint32_t logical = (uint32_t)bank->link_start +
                                   (offset - bank->image_offset);
-               if (used[logical])
-                  byte = image[logical];
+               size_t at = link_image_offset(bank->file_index, (uint16_t)logical);
+               if (image->used[at])
+                  byte = image->bytes[at];
             }
             (void)topology_signature_byte(cfg, bank->file_index,
                                           bank->image_size, offset, &byte);
@@ -10754,7 +10993,8 @@ static void write_flat_binary(const char *path, const linker_config_t *cfg,
          const cartridge_bank_t *bank = order[i];
          uint32_t end = (uint32_t)bank->start + bank->size;
          for (addr = bank->start; addr < end; ++addr) {
-            uint8_t byte = used[addr] ? image[addr] : cfg->cartridge_fill_value;
+            size_t at = link_image_offset(0, (uint16_t)addr);
+            uint8_t byte = image->used[at] ? image->bytes[at] : cfg->cartridge_fill_value;
             write_binary_byte(fp, path, byte);
          }
       }
@@ -10763,9 +11003,9 @@ static void write_flat_binary(const char *path, const linker_config_t *cfg,
       uint32_t first = 0;
       uint32_t last = 65535u;
 
-      while (first < 65536u && !used[first])
+      while (first < 65536u && !image->used[link_image_offset(0, (uint16_t)first)])
          first++;
-      while (last > first && !used[last])
+      while (last > first && !image->used[link_image_offset(0, (uint16_t)last)])
          last--;
       if (first >= 65536u) {
          fprintf(stderr, "vcsc-ld: cannot write empty flat binary '%s'\n", path);
@@ -10774,7 +11014,8 @@ static void write_flat_binary(const char *path, const linker_config_t *cfg,
       }
 
       for (addr = first; addr <= last; ++addr) {
-         uint8_t byte = used[addr] ? image[addr] : 0xFFu;
+         size_t at = link_image_offset(0, (uint16_t)addr);
+         uint8_t byte = image->used[at] ? image->bytes[at] : 0xFFu;
          write_binary_byte(fp, path, byte);
       }
    }
@@ -10946,21 +11187,26 @@ static const memory_region_t *find_runtime_memory_for_range(const linker_config_
 }
 
 //! @brief Count occupied output bytes inside one MEMORY region.
-static uint32_t memory_region_used_bytes(const memory_region_t *mem, const uint8_t *used)
+static uint32_t memory_region_used_bytes(const linker_config_t *cfg,
+                                         const memory_region_t *mem,
+                                         const link_image_t *image)
 {
    uint32_t count = 0;
    uint32_t start;
    uint32_t end;
    uint32_t addr;
 
-   if (mem == NULL || used == NULL)
+   size_t plane;
+   if (mem == NULL || image == NULL)
       return 0;
+   plane = (cfg && cfg->topology_bank_count && mem->output_bank_name[0])
+         ? link_image_plane_for_bank_name(cfg, mem->output_bank_name) : 0;
    start = mem->start;
    end = start + mem->size;
    if (end > 0x10000u)
       end = 0x10000u;
    for (addr = start; addr < end; ++addr) {
-      if (used[addr])
+      if (image->used[link_image_offset(plane, (uint16_t)addr)])
          count++;
    }
    return count;
@@ -11012,7 +11258,7 @@ static uint32_t data_only_memory_region_used_bytes(const linker_config_t *cfg,
 
 //! @brief Write cartridge-ROM usage lines to the selected stream.
 static void write_cartridge_rom_usage(FILE *fp, const linker_config_t *cfg,
-                                      const input_set_t *in, const uint8_t *used,
+                                      const input_set_t *in, const link_image_t *image,
                                       const char *indent)
 {
    size_t i;
@@ -11028,7 +11274,7 @@ static void write_cartridge_rom_usage(FILE *fp, const linker_config_t *cfg,
          continue;
       used_bytes = mem->output_mode == MEM_OUTPUT_DATA_ONLY
                  ? data_only_memory_region_used_bytes(cfg, mem, in)
-                 : memory_region_used_bytes(mem, used);
+                 : memory_region_used_bytes(cfg, mem, image);
       free_bytes = (uint32_t)mem->size - used_bytes;
       used_percent = mem->size ? (100.0 * (double)used_bytes / (double)mem->size) : 0.0;
       free_percent = mem->size ? (100.0 - used_percent) : 0.0;
@@ -11333,7 +11579,7 @@ static void write_call_stack_diagnostics(FILE *fp, const linker_config_t *cfg,
 
 //! @brief Write map file using the on-disk format expected by linker layout and image writer.
 static void write_map_file(const char *path, const linker_config_t *cfg, const input_set_t *in,
-                           const layout_t *layout, const uint8_t *used)
+                           const layout_t *layout, const link_image_t *image)
 {
    FILE *fp;
    size_t i;
@@ -11448,7 +11694,7 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    }
 
    fprintf(fp, "\nMEMORY USAGE\n");
-   write_cartridge_rom_usage(fp, cfg, in, used, "  ");
+   write_cartridge_rom_usage(fp, cfg, in, image, "  ");
    write_ram_usage(fp, cfg, in, layout, "  ");
    write_return_coalescing(fp, cfg, in);
 
@@ -12391,8 +12637,9 @@ int main(int argc, char **argv)
    linker_config_t cfg;
    input_set_t inputs;
    layout_t layout;
-   uint8_t *image;
-   uint8_t *used;
+   link_image_t image;
+   uint8_t *logical_image;
+   uint8_t *logical_used;
    size_t i;
 
    memset(&inputs, 0, sizeof(inputs));
@@ -12727,28 +12974,39 @@ int main(int argc, char **argv)
    validate_linked_read_hazards(&cfg, &inputs);
    enforce_declaration_use_contracts(&inputs);
 
-   image = (uint8_t *)xmalloc(65536);
-   used = (uint8_t *)xmalloc(65536);
-   build_rom_image(&cfg, &inputs, &layout, image, used);
+   image.bytes = (uint8_t *)xmalloc(LINK_IMAGE_TOTAL_SIZE);
+   image.used = (uint8_t *)xmalloc(LINK_IMAGE_TOTAL_SIZE);
+   image.plane_count = cfg.topology_bank_count ? cfg.topology_bank_count : 1u;
+   if (image.plane_count > LINK_IMAGE_BANK_COUNT) {
+      fprintf(stderr, "vcsc-ld: at most 256 physical image banks are supported\n");
+      return 1;
+   }
+   logical_image = (uint8_t *)xmalloc(LINK_IMAGE_PLANE_SIZE);
+   logical_used = (uint8_t *)xmalloc(LINK_IMAGE_PLANE_SIZE);
+   build_rom_image(&cfg, &inputs, &layout, &image);
    if (ends_with(hex_path, ".bin"))
-      write_flat_binary(hex_path, &cfg, &inputs, image, used);
-   else
-      write_intel_hex(hex_path, image, used);
+      write_flat_binary(hex_path, &cfg, &inputs, &image);
+   link_image_build_logical_view(&image, logical_image, logical_used,
+                                 !ends_with(hex_path, ".bin"));
+   if (!ends_with(hex_path, ".bin"))
+      write_intel_hex(hex_path, logical_image, logical_used);
    write_map_file(map_output.enabled ? map_output.path : NULL,
-                  &cfg, &inputs, &layout, used);
+                  &cfg, &inputs, &layout, &image);
    write_stella_symbol_file(sym_output.enabled ? sym_output.path : NULL, &layout);
    write_stella_list_file(list_output.enabled ? list_output.path : NULL,
-                          &inputs, &layout, image, used);
+                          &inputs, &layout, logical_image, logical_used);
    write_stella_config_file(cfg_output.enabled ? cfg_output.path : NULL,
-                            &cfg, &inputs, used);
+                            &cfg, &inputs, logical_used);
    if (!trial_mode) {
       puts("MEMORY USAGE");
-      write_cartridge_rom_usage(stdout, &cfg, &inputs, used, "  ");
+      write_cartridge_rom_usage(stdout, &cfg, &inputs, &image, "  ");
       write_ram_usage(stdout, &cfg, &inputs, &layout, "  ");
    }
 
-   free(image);
-   free(used);
+   free(image.bytes);
+   free(image.used);
+   free(logical_image);
+   free(logical_used);
    free(map_output.owned_default);
    free(sym_output.owned_default);
    free(list_output.owned_default);

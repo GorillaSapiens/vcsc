@@ -560,9 +560,13 @@ fast uint16_t counter;
 ```
 
 An ordinary CPU-addressable region must provide `$start`, either `$size` or
-`$end`, and exactly one of `$rw` or `$ro`. A file-domain data-only region instead
-provides `$size`, `$ro`, and `$data_bank:NAME`; it deliberately has no `$start`
-and may contain only data destined for that topology bank. Split-address writable storage instead provides
+`$end`, and exactly one of `$rw` or `$ro`. A read-only region may additionally
+use `$bank:NAME` to name its physical C26 topology-bank owner. That qualifier is
+required when multiple physical banks intentionally share the same 16-bit link
+range; it keeps physical output identity separate from the CPU address encoded
+in instructions and pointers. A file-domain data-only region instead provides
+`$size`, `$ro`, and `$data_bank:NAME`; it deliberately has no `$start` and may
+contain only data destined for that topology bank. Split-address writable storage instead provides
 `$read_start`, `$write_start`, size/end, and `$rw`. An optional `$read_hazard`
 flag marks the write alias (or `$start` for a single-address region) as a range
 where a CPU *read bus cycle* has side effects; the compiler preserves that fact

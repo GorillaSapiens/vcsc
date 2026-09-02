@@ -469,7 +469,7 @@ ContextEntry *ctx_lookup(Context *ctx, const char *name) {
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
 #define MEM_REGION_SPLIT_META_PREFIX "__memmeta$V2$"
 
-#define MEM_DECL_META_PREFIX "__memdecl$V3$"
+#define MEM_DECL_META_PREFIX "__memdecl$V4$"
 
 //! @brief Encode one declaration location for linker diagnostics.
 static char *mem_metadata_source_suffix(const ASTNode *node) {
@@ -655,9 +655,10 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
    bool stack;
    bool has_allocation_flag;
    const char *data_bank;
+   const char *output_bank;
    int32_t priority;
    char *source_suffix;
-   char symbol[640];
+   char symbol[768];
 
    if (!mem_decl || strcmp(mem_decl->name, "mem_decl_stmt") || mem_decl->count < 2 ||
        !mem_decl->children[0] || !mem_decl->children[0]->strval) {
@@ -675,10 +676,11 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
    read_hazard = mem_metadata_has_flag(flags, "$read_hazard");
    stack = mem_metadata_has_flag(flags, "$stack");
    data_bank = mem_metadata_string_flag(flags, "$data_bank:");
+   output_bank = mem_metadata_string_flag(flags, "$bank:");
    priority = mem_metadata_priority_flag(flags);
    has_allocation_flag = have_start || have_read_start || have_write_start ||
       have_size || have_end || type != NULL || priority != 0 || read_hazard ||
-      stack || data_bank != NULL;
+      stack || data_bank != NULL || output_bank != NULL;
 
    /* Retain the old ability to declare an empty policy-only mem name. It does
       not describe allocatable bytes and therefore emits no linker region. */
@@ -686,6 +688,14 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
       return;
    }
 
+   if (data_bank && output_bank) {
+      error_user("[%s:%d.%d] mem region '%s' may declare $bank or $data_bank, not both",
+                 mem_decl->file, mem_decl->line, mem_decl->column, name);
+   }
+   if (output_bank && (split || !type || strcmp(type, "ro"))) {
+      error_user("[%s:%d.%d] CPU-mapped $bank ownership on mem region '%s' requires ordinary $ro storage",
+                 mem_decl->file, mem_decl->line, mem_decl->column, name);
+   }
    if (data_bank) {
       if (have_start || have_read_start || have_write_start || have_end ||
           !have_size || !type || strcmp(type, "ro") || split || read_hazard || stack) {
@@ -731,14 +741,14 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
 
    source_suffix = mem_metadata_source_suffix(mem_decl);
    snprintf(symbol, sizeof(symbol),
-            MEM_DECL_META_PREFIX "%s$R%04X$W%04X$Z%04X$X%d$T%c$P%08X$H%d$S%d$D%d$B%s%s",
+            MEM_DECL_META_PREFIX "%s$R%04X$W%04X$Z%04X$X%d$T%c$P%08X$H%d$S%d$D%d$B%s$K%s%s",
             name, start & 0xffffu,
             (split ? write_start : start) & 0xffffu,
             size & 0xffffu, split ? 1 : 0,
             !strcmp(type, "rw") ? 'W' : 'O',
             (unsigned int)priority, read_hazard ? 1 : 0,
             stack ? 1 : 0, data_bank ? 1 : 0,
-            data_bank ? data_bank : "", source_suffix);
+            data_bank ? data_bank : "", output_bank ? output_bank : "", source_suffix);
    free(source_suffix);
    emit(&es_export, "%s = 0\n", symbol);
    emit(&es_export, ".export %s\n", symbol);

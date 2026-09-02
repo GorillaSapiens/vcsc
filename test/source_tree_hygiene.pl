@@ -204,7 +204,9 @@ index($bankswitching,'file_index(BANKn) = bank_count - 1 - n')>=0 &&
 index($bankswitching,'Public VCSC cartridge profiles reserve four bytes')>=0 &&
 $bankswitching =~ /^\[ \] 38\. Complete the remaining automatic-call mapper work\./m &&
 index($bankswitching,'FA2 extends the FA split-RAM model to six or seven directly selected 4K ROM')>=0 &&
-index($bankswitching,'[ ] 38a. Make physical bank identity independent of 16-bit link address')>=0 &&
+index($bankswitching,'[ ] 38a. Finish physical-bank/address separation, then migrate 3F.')>=0 &&
+index($bankswitching,'256 physical planes')>=0 &&
+index($bankswitching,'64-bit mask')>=0 &&
 index($bankswitching,'[ ] 38b. Migrate 3E after scalable 3F ROM identity works.')>=0 &&
 index($bankswitching,'[ ] 38c. Implement/migrate FC.')>=0 &&
 index($bankswitching,'[ ] 38d. Implement/migrate F0.')>=0 &&

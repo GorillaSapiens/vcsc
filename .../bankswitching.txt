@@ -214,22 +214,24 @@ this is future optimizer-locality cleanup, not bankswitching work.
         need automatic-call work. FE intentionally uses its released direct
         top-level JSR/RTS mechanism instead of the descriptor ABI.
 
-        [ ] 38a. Make physical bank identity independent of 16-bit link address,
-             then migrate 3F.
+        [ ] 38a. Finish physical-bank/address separation, then migrate 3F.
 
-            Current 3F/3E C26 profiles encode each selectable 2K physical chunk
-            using a different 6507 mirror alias, which fundamentally tops out at
-            eight aliases. Classic 3F can select 256 x 2K ROM chunks. Preserve a
-            real canonical CPU address for generated code, but carry physical
-            bank identity separately in topology/symbol/relocation/map metadata.
-            This must include bank-aware placed/output bytes: the linker still
-            keeps one 64K image indexed only by logical address, so merely
-            allowing overlapping `$link_start` ranges would make distinct 3F
-            banks alias the same linked bytes. First make ROM ownership explicit
-            and make layout/relocation/output identity use that owner rather than
-            `cartridge_bank_for_address()`, then collapse every selectable 3F
-            bank to canonical `$1000-$17FF`. Prove the design beyond eight banks,
-            including maximum-size topology.
+            The linked image store is now bank-aware: up to 256 physical planes
+            each carry an independent 64K logical-address image, keyed by topology
+            `file_index`. CPU-mapped read-only `mem` may declare `$bank:NAME`; it
+            is required when overlapping link ranges make containment ambiguous.
+            Flat BIN output reads each physical plane separately, while Intel HEX
+            rejects overlapping bank-local bytes. A regression proves two distinct
+            physical banks can contain different bytes at the same `$1000` CPU
+            address without aliasing.
+
+            The next blocker is automatic placement: its allowed-bank set is still
+            a 64-bit mask and therefore caps compiler-managed topology at 64 logical
+            banks. Replace that with a 256-bank-capable set, then remove remaining
+            address-to-bank inference where layout/symbol ownership is available.
+            After that collapse every selectable 3F bank to canonical
+            `$1000-$17FF` and prove the design beyond eight banks, including the
+            maximum 256 x 2K topology.
 
         [ ] 38b. Migrate 3E after scalable 3F ROM identity works.
 

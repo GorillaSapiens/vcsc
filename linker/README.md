@@ -269,11 +269,22 @@ space, flat output includes the bytes normally, and the map reports
 these objects are link errors. The DPC profile uses this for its 2K display ROM
 and 255-byte Poly8 tail while retaining two ordinary F8-style program banks.
 
+CPU-mapped cartridge output is stored internally as 256 physical 64K planes.
+The plane is selected by topology `file_index`; the address inside the plane is
+the ordinary 16-bit linker address. Thus two physical banks may both contain
+different bytes at `$1000` without inventing mirror aliases. Flat BIN output
+reads each bank's own plane. Intel HEX remains a single 16-bit logical-address
+format and is rejected when distinct physical planes contain overlapping linked
+bytes.
+
 After lazy archive selection, identical topology declarations merge across
 objects. Conflicting declarations identify both origins. The linker validates
-dense unique file indices, image offsets and mapped bounds, nonoverlapping
-synthetic link mappings, direct CPU mappings, selectors, startup cardinality,
-and generated ranges. The map contains a `C26 CARTRIDGE TOPOLOGY` section with
+dense unique file indices, image offsets and mapped bounds, direct CPU mappings,
+selectors, startup cardinality, and generated ranges. Distinct physical banks
+may intentionally overlap in 16-bit link address; their bytes live in separate
+physical image planes keyed by `file_index`. CPU-mapped `mem` regions use
+`$bank:NAME` when containment alone cannot identify one owner. The map contains a
+`C26 CARTRIDGE TOPOLOGY` section with
 the output size, fill, generated ranges, physical order, mappings, access mode,
 selector, startup status, and defining object.
 
@@ -328,7 +339,7 @@ reads and RMW pre-reads remain hazards.
 Public VCS cartridge topology is described by inspectable C26 profile files.
 For example, the F8 profile declares the output-wide fill policy, two physical
 4K chunks, their selector-controlled CPU mappings, and the allocatable ROM
-inside each synthetic linker range:
+inside each bank's current linker range:
 
 ```c
 cartridge {

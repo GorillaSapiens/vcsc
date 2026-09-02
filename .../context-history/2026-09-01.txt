@@ -109,3 +109,23 @@ Applied the user-supplied exbs.patch. Top-level `make exbs` now walks every
 `examples/*_bankswitching` example, cleans/builds it, and invokes its `play`
 target for convenient manual Stella inspection. This is a developer convenience
 target only; it does not change mapper/linker semantics.
+2026-09-01 21:37:37 PDT, bank-aware physical image planes
+Replaced the linker's single 64K placed-ROM image with 256 independent 64K
+physical-bank planes keyed by C26 topology file_index. Relocations still encode
+ordinary 16-bit CPU addresses; physical ownership determines only which linked
+image plane receives the bytes. Flat BIN output now reads each bank's own plane,
+so distinct physical banks may hold different bytes at the same logical address.
+Intel HEX rejects overlapping bank-local bytes because the format has only one
+16-bit logical address space.
+
+Added optional read-only CPU-mapped mem `$bank:NAME` ownership and bumped mem
+declaration metadata to V4 while retaining V1-V3 input compatibility. Unique
+link-range containment remains sufficient when unambiguous; explicit ownership
+is required for overlapping bank windows. Linker-generated DATA tables prefer
+the DATA load region's physical owner. Added
+`test/linker_physical_bank_planes.pl`, which proves distinct bank-local bytes
+at `$1000`, BIN file-chunk preservation, ambiguous-owner rejection, and HEX
+overlap rejection. Compile-only passes 503/503; the focused linker/mapper set
+passes 17/17, and a broad e2e sweep reached 247/344 with no failures before the
+execution window ended. The next 3F prerequisite is replacing automatic placement's
+64-bit allowed-bank mask so compiler-managed placement can scale to 256 banks.

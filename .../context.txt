@@ -97,37 +97,25 @@ Open workstreams
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
-   `BANKSWITCHING.md` is the public selector-controlled cross-bank call ABI;
-   `.../bankswitching.txt` keeps only durable mapper facts and unfinished work.
-   Mapper support lives under uppercase Stella-named `libraries/vcs/<MAPPER>/`
-   directories, with mapper-specific C26/S26 helpers inside that namespace.
-   Mapper/linker `.cfg` profiles under `libraries/vcs` are removed; C26 topology
-   is authoritative.
-   The toolchain now emits the six-byte descriptor call ABI. F8/F6/F4(+SC), FA,
-   DPC, FA2-24/28, JANE, 0840, UA, UASW, 0FA0, and WD consume it end to end and declare `$bankcall`
-   unconditionally; same-bank calls remain ordinary JSRs and cross-bank calls use
-   fixed mapper-local descriptor trampolines. FA2 uses `$F5-$FA/$FB` hotspot-low
-   descriptors; JANE uses `$F0/$F1/$F8/$F9`; 0840 uses `$00/$40` offsets from
-   `$0800`; UA/UASW use `$20/$40` offsets from `$0200`, with UASW reversing the
-   bank association; 0FA0 uses `$A0/$C0` offsets from `$0F00`; WD uses descriptors
-   1/2 for hardware states 1/2 via raw `op1C $0038,X` reads. All use 68-byte active bank-call bodies inside 72-byte (`$048`) reserved blocks. Dynamic read-selected transitions carry the descriptor in X and use raw `op1C` absolute-X NOP reads; fixed mapper entry hooks use raw `op0C` absolute reads. Only the current descriptor ABI is retained for migrated mappers.
-   Each migrated mapper owns `bankcall.s26` plus a three-byte `entry.s26`. Entry
-   hooks use raw `op0C` absolute-NOP selector reads and are copied by the linker
-   before the ordinary vector handler, so startup first normalizes the mapper state.
+   `BANKSWITCHING.md` is the public cross-bank-call ABI;
+   `.../bankswitching.txt` owns mapper facts and unfinished work. C26 topology is
+   authoritative; VCS mapper/linker cfg profiles are gone.
+   The six-byte descriptor call ABI is complete for F8/F6/F4(+SC), FA, DPC,
+   FA2-24/28, JANE, 0840, UA, UASW, 0FA0, and WD. Each owns `bankcall.s26` and
+   three-byte `entry.s26`; profiles declare `$bankcall`. Dynamic read selectors
+   carry the descriptor in X and use raw `op1C` absolute-X NOP reads; fixed entry
+   selectors use raw `op0C` absolute reads. Active bankcall bodies are 68 bytes
+   inside 72-byte reserved blocks. WD exposes two compiler banks backed by hardware
+   states 1/2 while the simulator retains all eight hardware arrangements.
+   Linker ROM storage is now 256 independent 64K physical planes keyed by topology
+   `file_index`; read-only CPU-mapped `mem` can name its owner with `$bank:NAME`.
+   Overlapping bank-local CPU addresses therefore no longer alias in BIN output.
+   Item 38a next replaces the automatic-placement 64-bit bank mask, then normalizes
+   3F selectable banks to canonical `$1000-$17FF`.
 
-   The F4SC descriptor timing regression in the field controller diagnostic is
-   resolved architecturally. The cartridge now has bank-local joystick, paddle,
-   keypad, and driving frame paths; only joystick carries TIA/switch/collision
-   work. Each controller owns its deadline poller. Leaving joystick explicitly
-   clears AUDV0/AUDV1 so an in-flight diagnostic tone cannot stick. Four-paddle
-   acquisition snapshots INPT0-INPT3 together, uses fixed-cycle snapshot commits,
-   balances the VBLANK reset/continue lifecycle, and always consumes the blank
-   overscan sampler. This is required once a high-resistance measurement spans
-   frames: the old lifecycle alternated WSYNC phase and visibly jittered from
-   about displayed 57 upward even though frame length remained correct. The
-   regression now exercises each paddle independently at displayed 61 and locks
-   VBLANK/visible/overscan WSYNC phase, in addition to the 0..255 value oracle,
-   227/228/229 long soaks, displayed-95 check, and PAL/SECAM points.
+   The F4SC field diagnostic remains bank-local by controller; only joystick owns
+   TIA/switch/collision work. Four-paddle sampling snapshots INPT0-INPT3 together
+   and preserves stable VBLANK/visible/overscan phase across multi-frame reads.
 
 
 4. **Disassembler**
@@ -162,16 +150,10 @@ correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 
 Last validation state
 ---------------------
-Current post-jitter-fix validation is complete. Focused coverage passes exhaustive
-NTSC diagnostic paddle values 0..255, 45-frame 227/228/229 soaks, independent
-displayed-61 WSYNC-phase checks on all four paddles, independent displayed-95
-checks, representative PAL/SECAM paddle points, four-player Paddleball,
-score-integrated paddle sampling, joystick-exit audio mute, controller cycling,
-and TV-standard cycling. The 0FA0 descriptor migration is also validated: exact
-`$A0/$C0` descriptors, both ordered cross-bank directions, nested returns,
-trampoline-copy source descriptors, simulator execution, disassembly, and exact
-round trip pass. The complete compile-only suite and all 342 e2e tests pass on
-this source state.
+Current bank-plane checkpoint: compile-only passes 503/503. Focused physical-bank,
+topology/mem, output/sidecar, placement/relocation, 3F/3E, DPC, FA/FA2, WD,
+bankcall-matrix, and banked-renderer coverage passes 17/17. A broad e2e sweep
+reached 247/344 with no failures before the execution window ended.
 
 Main-roadmap Items 46-48 are complete. Item 47 is locked by
 `test/superchip_direct_access.pl`: under 4KSC it fills all 128 Superchip bytes,
