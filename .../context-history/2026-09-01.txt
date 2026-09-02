@@ -137,3 +137,13 @@ the 256 physical linker image planes. Added linker_bank_set_256.pl, which builds
 a maximum 256-bank / 512 KiB 3F topology, pins main in bank 255, and forces an
 automatic helper into bank 255. Existing placement and physical-plane tests,
 3F/3E diagnostics, source hygiene, and the 503-case compile-only suite pass.
+2026-09-01 22:24:09 PDT, fix bank-plane automatic ownership
+The bank-aware image writer was consulting a layout's configured fallback MEMORY
+region before its final automatic placement bank. Bank1 code therefore landed in
+the startup bank's physical plane while the emitted bank1 chunk remained fill
+bytes. Reversed that precedence: placement_bank is authoritative, with MEMORY
+ownership only a fallback for unplaced layouts. Tanks now reproduces the exact
+pre-bank-plane ROM byte-for-byte. Added automatic-placement coverage to
+linker_physical_bank_planes.pl. The four reported regressions -- diagnostic
+cartridge, example shard 7, PAL 50 Hz interactive, and Tanks -- all pass; the
+compile-only suite remains 503/503.

@@ -152,10 +152,12 @@ correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 
 Last validation state
 ---------------------
-Current bank-plane checkpoint: compile-only passes 503/503. Focused physical-bank,
-topology/mem, output/sidecar, placement/relocation, 3F/3E, DPC, FA/FA2, WD,
-bankcall-matrix, and banked-renderer coverage passes 17/17. A broad e2e sweep
-reached 247/344 with no failures before the execution window ended.
+Current bank-plane checkpoint: compile-only passes 503/503. A discovered physical-
+image regression is fixed: automatically placed layouts now write to their final
+`placement_bank` plane rather than the configured fallback MEMORY owner. Tanks
+again matches the pre-bank-plane ROM byte-for-byte. The reported diagnostic,
+example-shard-7, PAL 50 Hz interactive, and Tanks regressions all pass, and
+`linker_physical_bank_planes.pl` now locks automatic bank1 emission.
 
 Main-roadmap Items 46-48 are complete. Item 47 is locked by
 `test/superchip_direct_access.pl`: under 4KSC it fills all 128 Superchip bytes,

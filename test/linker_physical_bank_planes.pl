@@ -102,4 +102,43 @@ require_fail('overlapping mem without explicit owner',
              $vcsc, '-I', $vcs, '--no-map', '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'ambiguous.bin'), $ambiguous_src);
 
+# Automatic placement is the final physical owner.  A function whose ordinary
+# CODE fallback is bank0 may be pulled into bank1 by a bank-local data edge; the
+# emitted bytes must follow placement_bank rather than the original fallback
+# MEMORY rule.
+my $auto_src = File::Spec->catfile($tmp, 'auto-plane.c26');
+my $auto_bin = File::Spec->catfile($tmp, 'auto-plane.bin');
+my $auto_map = File::Spec->catfile($tmp, 'auto-plane.map');
+write_file($auto_src, <<'AUTO');
+include "F8/mapper.c26"
+
+bank1 const uint8_t bank1_table := 0x42;
+
+uint8_t uses_table(void) {
+   return bank1_table;
+}
+
+void main(void) {
+   _ := uses_table();
+   while (1) { }
+}
+AUTO
+require_ok('automatic bank-plane ownership link', $vcsc, '-I', $vcs,
+           '-Map', $auto_map, '--no-sym', '--no-list', '--no-cfg',
+           '-o', $auto_bin, $auto_src);
+my $auto_map_text = slurp($auto_map);
+$auto_map_text =~ /automatic CODE\.__vcsc_function\$uses_table\s+region=bank1/
+   or die "automatic fixture did not place uses_table in bank1\n$auto_map_text";
+$auto_map_text =~ /^\s*\$([0-9A-Fa-f]{4})\s+uses_table\s+/m
+   or die "automatic fixture map omitted uses_table symbol\n$auto_map_text";
+my $uses_addr = hex($1);
+$uses_addr >= 0xD000 && $uses_addr <= 0xDFFF
+   or die sprintf("automatic fixture uses_table address was %04X, expected bank1\n", $uses_addr);
+my $auto_image = slurp($auto_bin);
+length($auto_image) == 0x2000
+   or die "automatic bank-plane output length was " . length($auto_image) . ", expected 8192\n";
+my $uses_file_offset = $uses_addr - 0xD000; # F8 file-index 0 is bank1.
+substr($auto_image, $uses_file_offset, 1) ne "\xff"
+   or die "automatic bank1 function was written to the fallback bank0 image plane\n";
+
 print "physical bank image planes preserve overlapping bytes\n";

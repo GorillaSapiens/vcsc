@@ -10037,11 +10037,16 @@ static size_t link_image_plane_for_layout(const linker_config_t *cfg,
    const memory_region_t *mem;
    if (!cfg || !cfg->topology_bank_count || !lay)
       return 0;
+   /* Automatic bank placement is the final physical owner.  The configured
+      MEMORY region is only a fallback for layouts that were never assigned a
+      placement bank.  Checking the fallback first writes automatically moved
+      layouts into the startup plane and leaves their real bank full of fill
+      bytes. */
+   if (lay->placement_bank[0])
+      return link_image_plane_for_bank_name(cfg, lay->placement_bank);
    mem = bank_placement_layout_memory(cfg, lay);
    if (mem && mem->output_bank_name[0])
       return link_image_plane_for_bank_name(cfg, mem->output_bank_name);
-   if (lay->placement_bank[0])
-      return link_image_plane_for_bank_name(cfg, lay->placement_bank);
    return 0;
 }
 
