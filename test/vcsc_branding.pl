@@ -65,7 +65,6 @@ for my $parts (
    [qw(libraries runtime vcsc-zp-ptr0.s26)],
    [qw(libraries runtime vcsc-zp-ptr1.s26)],
    [qw(libraries runtime vcsc-zp-ptr2.s26)],
-   [qw(libraries runtime libvcsc.l26)],
    [qw(libraries vcs vcs.c26)],
    [qw(libraries vcs LEGACY_RENDERER_CONVERSION.md)],
    [qw(libraries vcs legacy-basic-renderers standard std_renderer.asm)],

@@ -262,8 +262,8 @@ fresh single uninterrupted 343/343 run in this tool window.
 
 Immediate TODO
 --------------
-Design and migrate 3F automatic calls. No dynamic lower-bank shadow is needed:
-fixed `$1800-$1FFF` code may select/call any lower bank and return directly to
-fixed code without restoring the old lower selection; selectable A->selectable B
-must restore statically known A before returning into `$1000-$17FF`. Then
-migrate 3E, FC, F0, and E0; FE intentionally stays special.
+3F automatic calls are complete using the public six-byte / three-byte-descriptor
+`$bankcall` ABI, including nested lower->fixed->lower restoration without a
+software current-bank shadow. Next migrate 3E, which is the first mapper where
+selecting RAM replaces the lower ROM window and therefore needs an explicit
+ROM/RAM state model. Then migrate FC, F0, and E0; FE intentionally stays special.

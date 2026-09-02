@@ -56,3 +56,14 @@ Validation for the 3F migration: exhaustive ordered call matrix passed with all
 maintained bankcall/entry source regeneration, cartridge profiles, 256-bank
 placement, physical-bank planes, source hygiene, history format, and example
 build shard 2/8 pass. Compile-only is 503/503.
+
+2026-09-02 01:00:00 PDT, runtime hygiene and 3F allowlist
+Restored `libraries/runtime/libvcsc.l26` to generated-artifact status: it is
+ignored again, is not required as a checked-in/retained branding source file,
+and source-tree hygiene now requires the ignore rule. The branding test still
+validates archive/object magic when the normal build has generated the archive.
+
+Updated the reviewed example-assembly allowlist for the completed 3F automatic-
+call migration. The diagnostic intentionally dropped three manual `$3F`
+selector writes, reducing its pinned assembly count from 40 to 37; automatic
+bankcalls now exercise that switching behavior.

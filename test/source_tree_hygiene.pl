@@ -174,8 +174,8 @@ my $gitignore=slurp(File::Spec->catfile($repo,'.gitignore'));
 index($gitignore,'!.../instruction.txt')>=0
    or die ".gitignore must preserve .../instruction.txt in make tar handoffs\n";
 my $runtime_gitignore=slurp(File::Spec->catfile($repo,'libraries','runtime','.gitignore'));
-index($runtime_gitignore,'libvcsc.l26')<0
-   or die "libraries/runtime/.gitignore must preserve libvcsc.l26 in make tar handoffs\n";
+index($runtime_gitignore,'libvcsc.l26')>=0
+   or die "libraries/runtime/.gitignore must ignore generated libvcsc.l26\n";
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `bankswitching.txt`')>=0
    or die ".../README.md does not document bankswitching.txt\n";
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `roadmap.txt`')>=0 &&
