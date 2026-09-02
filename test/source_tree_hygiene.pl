@@ -206,7 +206,8 @@ $bankswitching =~ /^\[ \] 38\. Complete the remaining automatic-call mapper work
 index($bankswitching,'FA2 extends the FA split-RAM model to six or seven directly selected 4K ROM')>=0 &&
 index($bankswitching,'[ ] 38a. Finish physical-bank/address separation, then migrate 3F.')>=0 &&
 index($bankswitching,'256 physical planes')>=0 &&
-index($bankswitching,'64-bit mask')>=0 &&
+index($bankswitching,'256-bit allowed-bank set')>=0 &&
+-f File::Spec->catfile($test,'linker_bank_set_256.pl') &&
 index($bankswitching,'[ ] 38b. Migrate 3E after scalable 3F ROM identity works.')>=0 &&
 index($bankswitching,'[ ] 38c. Implement/migrate FC.')>=0 &&
 index($bankswitching,'[ ] 38d. Implement/migrate F0.')>=0 &&

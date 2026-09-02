@@ -225,11 +225,12 @@ this is future optimizer-locality cleanup, not bankswitching work.
             physical banks can contain different bytes at the same `$1000` CPU
             address without aliasing.
 
-            The next blocker is automatic placement: its allowed-bank set is still
-            a 64-bit mask and therefore caps compiler-managed topology at 64 logical
-            banks. Replace that with a 256-bank-capable set, then remove remaining
-            address-to-bank inference where layout/symbol ownership is available.
-            After that collapse every selectable 3F bank to canonical
+            Automatic placement now uses a 256-bit allowed-bank set rather than a
+            64-bit mask. `test/linker_bank_set_256.pl` builds the maximum 256-bank
+            3F shape, pins `main` to bank 255, and proves an automatic helper can
+            also be placed there. The next blocker is remaining address-to-bank
+            inference where layout/symbol ownership is already available. Remove
+            that inference, then collapse every selectable 3F bank to canonical
             `$1000-$17FF` and prove the design beyond eight banks, including the
             maximum 256 x 2K topology.
 

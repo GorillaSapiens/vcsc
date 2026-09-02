@@ -129,3 +129,11 @@ overlap rejection. Compile-only passes 503/503; the focused linker/mapper set
 passes 17/17, and a broad e2e sweep reached 247/344 with no failures before the
 execution window ended. The next 3F prerequisite is replacing automatic placement's
 64-bit allowed-bank mask so compiler-managed placement can scale to 256 banks.
+2026-09-01 22:13:22 PDT, remove 64-bank placement ceiling
+Automatic placement and replica-locality constraints now use a fixed 256-bit
+bank set instead of one uint64_t mask. All shift-by-bank-index assumptions and
+the 64-bank hard errors are gone; the supported placement-set ceiling matches
+the 256 physical linker image planes. Added linker_bank_set_256.pl, which builds
+a maximum 256-bank / 512 KiB 3F topology, pins main in bank 255, and forces an
+automatic helper into bank 255. Existing placement and physical-plane tests,
+3F/3E diagnostics, source hygiene, and the 503-case compile-only suite pass.

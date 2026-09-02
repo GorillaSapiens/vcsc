@@ -110,8 +110,10 @@ Open workstreams
    Linker ROM storage is now 256 independent 64K physical planes keyed by topology
    `file_index`; read-only CPU-mapped `mem` can name its owner with `$bank:NAME`.
    Overlapping bank-local CPU addresses therefore no longer alias in BIN output.
-   Item 38a next replaces the automatic-placement 64-bit bank mask, then normalizes
-   3F selectable banks to canonical `$1000-$17FF`.
+   Automatic placement now uses a 256-bit allowed-bank set; a max-size 256-bank
+   3F regression reaches bank index 255. Item 38a next removes remaining
+   address-to-bank inference, then normalizes 3F selectable banks to canonical
+   `$1000-$17FF`.
 
    The F4SC field diagnostic remains bank-local by controller; only joystick owns
    TIA/switch/collision work. Four-paddle sampling snapshots INPT0-INPT3 together

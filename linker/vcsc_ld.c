@@ -5984,28 +5984,6 @@ static int replica_copy_index_for_bank(const linker_config_t *cfg,
    return -1;
 }
 
-//! @brief Return the bit mask of banks containing declared copies.
-static uint64_t replica_bank_mask(const linker_config_t *cfg,
-                                  const replica_group_t *group)
-{
-   uint64_t mask = 0;
-   size_t i, j;
-   if (!cfg || !group || cfg->bank_count > 64)
-      return 0;
-   for (i = 0; i < group->copy_count; ++i) {
-      const cartridge_bank_t *bank = replica_copy_bank(cfg, group, i);
-      if (!bank)
-         continue;
-      for (j = 0; j < cfg->bank_count; ++j) {
-         if (&cfg->banks[j] == bank) {
-            mask |= UINT64_C(1) << j;
-            break;
-         }
-      }
-   }
-   return mask;
-}
-
 //! @brief Return the layout index for an exact layout pointer.
 static uint16_t replica_layout_index(const object_file_t *obj,
                                      const object_layout_t *layout)
@@ -6332,6 +6310,8 @@ static void duplicate_replica_branches(input_set_t *in,
    }
 }
 
+#define BANK_PLACEMENT_SET_CAPACITY 256u
+
 //! @brief Parse replication metadata and materialize independent packed copies.
 static void prepare_replicated_rom(const linker_config_t *cfg, input_set_t *in)
 {
@@ -6389,8 +6369,9 @@ static void prepare_replicated_rom(const linker_config_t *cfg, input_set_t *in)
       fprintf(stderr, "vcsc-ld: replicated ROM objects/functions require a banked cartridge profile\n");
       exit(1);
    }
-   if (cfg->bank_count > 64) {
-      fprintf(stderr, "vcsc-ld: replicated ROM placement supports at most 64 logical banks\n");
+   if (cfg->bank_count > BANK_PLACEMENT_SET_CAPACITY) {
+      fprintf(stderr, "vcsc-ld: replicated ROM placement supports at most %u logical banks\n",
+              BANK_PLACEMENT_SET_CAPACITY);
       exit(1);
    }
 
@@ -6467,6 +6448,102 @@ static void prepare_replicated_rom(const linker_config_t *cfg, input_set_t *in)
 }
 
 typedef struct {
+   uint64_t words[4];
+} bank_placement_set_t;
+
+//! @brief Clear every member from one placement-bank set.
+static void bank_placement_set_clear(bank_placement_set_t *set)
+{
+   if (set)
+      memset(set, 0, sizeof(*set));
+}
+
+//! @brief Fill one placement-bank set with indices [0,count).
+static void bank_placement_set_fill(bank_placement_set_t *set, size_t count)
+{
+   size_t i;
+   bank_placement_set_clear(set);
+   if (!set)
+      return;
+   if (count > BANK_PLACEMENT_SET_CAPACITY)
+      count = BANK_PLACEMENT_SET_CAPACITY;
+   for (i = 0; i < count; ++i)
+      set->words[i / 64u] |= UINT64_C(1) << (i % 64u);
+}
+
+//! @brief Add one bank index to a placement-bank set.
+static void bank_placement_set_add(bank_placement_set_t *set, size_t index)
+{
+   if (set && index < BANK_PLACEMENT_SET_CAPACITY)
+      set->words[index / 64u] |= UINT64_C(1) << (index % 64u);
+}
+
+//! @brief Return whether one bank index belongs to a placement-bank set.
+static int bank_placement_set_contains(const bank_placement_set_t *set,
+                                       size_t index)
+{
+   if (!set || index >= BANK_PLACEMENT_SET_CAPACITY)
+      return 0;
+   return (set->words[index / 64u] &
+           (UINT64_C(1) << (index % 64u))) != 0;
+}
+
+//! @brief Restrict one placement-bank set to members present in another set.
+static void bank_placement_set_intersect(bank_placement_set_t *set,
+                                         const bank_placement_set_t *other)
+{
+   size_t i;
+   if (!set || !other)
+      return;
+   for (i = 0; i < sizeof(set->words) / sizeof(set->words[0]); ++i)
+      set->words[i] &= other->words[i];
+}
+
+//! @brief Return whether a placement-bank set contains no members.
+static int bank_placement_set_empty(const bank_placement_set_t *set)
+{
+   size_t i;
+   if (!set)
+      return 1;
+   for (i = 0; i < sizeof(set->words) / sizeof(set->words[0]); ++i) {
+      if (set->words[i])
+         return 0;
+   }
+   return 1;
+}
+
+//! @brief Return the logical placement-bank index for one bank pointer.
+static size_t bank_placement_bank_index(const linker_config_t *cfg,
+                                        const cartridge_bank_t *bank)
+{
+   ptrdiff_t index;
+   if (!cfg || !bank || !cfg->banks)
+      return SIZE_MAX;
+   index = bank - cfg->banks;
+   if (index < 0 || (size_t)index >= cfg->bank_count)
+      return SIZE_MAX;
+   return (size_t)index;
+}
+
+//! @brief Return the set of logical banks containing declared replica copies.
+static bank_placement_set_t replica_bank_set(const linker_config_t *cfg,
+                                             const replica_group_t *group)
+{
+   bank_placement_set_t set;
+   size_t i;
+   bank_placement_set_clear(&set);
+   if (!cfg || !group || cfg->bank_count > BANK_PLACEMENT_SET_CAPACITY)
+      return set;
+   for (i = 0; i < group->copy_count; ++i) {
+      const cartridge_bank_t *bank = replica_copy_bank(cfg, group, i);
+      size_t index = bank_placement_bank_index(cfg, bank);
+      if (index != SIZE_MAX)
+         bank_placement_set_add(&set, index);
+   }
+   return set;
+}
+
+typedef struct {
    object_file_t *obj;
    object_layout_t *layout;
    const memory_region_t *configured_memory;
@@ -6474,7 +6551,7 @@ typedef struct {
    const memory_region_t *pin_memory;
    const cartridge_bank_t *pin_bank;
    size_t stable_order;
-   uint64_t allowed_bank_mask;
+   bank_placement_set_t allowed_banks;
    int parent;
    int rank;
    int directly_pinned;
@@ -6499,7 +6576,7 @@ typedef struct {
    uint32_t cycle_degree;
    uint32_t cut_weight;
    const cartridge_bank_t *bank;
-   uint64_t allowed_bank_mask;
+   bank_placement_set_t allowed_banks;
    int pinned;
    int assigned;
 } bank_placement_component_t;
@@ -7235,20 +7312,6 @@ static int bank_placement_cost_equal(bank_placement_cost_t a,
    return a.weight == b.weight && a.cycles == b.cycles && a.sites == b.sites;
 }
 
-//! @brief Return one bank's bit in a validated at-most-64-bank profile.
-static uint64_t bank_placement_bank_bit(const linker_config_t *cfg,
-                                        const cartridge_bank_t *bank)
-{
-   size_t i;
-   if (!cfg || !bank || cfg->bank_count > 64)
-      return 0;
-   for (i = 0; i < cfg->bank_count; ++i) {
-      if (&cfg->banks[i] == bank)
-         return UINT64_C(1) << i;
-   }
-   return 0;
-}
-
 //! @brief Print the declared region set for a replicated symbol diagnostic.
 static void bank_placement_print_replica_regions(const replica_group_t *group)
 {
@@ -7264,12 +7327,12 @@ static void bank_placement_restrict_to_replica(const linker_config_t *cfg,
                                                bank_placement_item_t *item,
                                                const replica_group_t *group)
 {
-   uint64_t mask;
+   bank_placement_set_t allowed;
    if (!item || !group)
       return;
-   mask = replica_bank_mask(cfg, group);
-   item->allowed_bank_mask &= mask;
-   if (item->allowed_bank_mask == 0) {
+   allowed = replica_bank_set(cfg, group);
+   bank_placement_set_intersect(&item->allowed_banks, &allowed);
+   if (bank_placement_set_empty(&item->allowed_banks)) {
       fprintf(stderr,
               "vcsc-ld: layout %s from %s has no bank in common with replicated %s '%s' declared in regions ",
               item->layout->name, item->obj->origin,
@@ -7457,10 +7520,11 @@ static void bank_placement_assign_component(const linker_config_t *cfg,
                                             size_t *budget_count)
 {
    const memory_region_t *auto_memory = bank_placement_auto_memory(cfg, bank);
-   uint64_t bank_bit = bank_placement_bank_bit(cfg, bank);
+   size_t bank_index = bank_placement_bank_index(cfg, bank);
    size_t i;
 
-   if (!bank_bit || !(component->allowed_bank_mask & bank_bit)) {
+   if (bank_index == SIZE_MAX ||
+       !bank_placement_set_contains(&component->allowed_banks, bank_index)) {
       fprintf(stderr,
               "vcsc-ld: bank %s does not satisfy replicated-data locality for hard component %u\n",
               bank ? bank->name : "<none>", component->id);
@@ -7579,9 +7643,10 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
 
    if (!cfg || cfg->bank_count < 2)
       return;
-   if (cfg->bank_count > 64) {
+   if (cfg->bank_count > BANK_PLACEMENT_SET_CAPACITY) {
       fprintf(stderr,
-              "vcsc-ld: automatic multi-region placement supports at most 64 logical regions\n");
+              "vcsc-ld: automatic multi-region placement supports at most %u logical regions\n",
+              BANK_PLACEMENT_SET_CAPACITY);
       exit(1);
    }
    startup = bank_placement_startup_bank(cfg);
@@ -7627,8 +7692,8 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
          items[item_count].configured_memory = memory;
          items[item_count].configured_bank = bank;
          items[item_count].stable_order = item_count;
-         items[item_count].allowed_bank_mask = cfg->bank_count == 64
-            ? UINT64_MAX : ((UINT64_C(1) << cfg->bank_count) - 1u);
+         bank_placement_set_fill(&items[item_count].allowed_banks,
+                                 cfg->bank_count);
          items[item_count].parent = (int)item_count;
          if (is_main) {
             const memory_region_t *pin_memory;
@@ -7814,12 +7879,13 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
          components[component_count].root = root;
          components[component_count].id = (uint16_t)component_count;
          components[component_count].stable_order = items[i].stable_order;
-         components[component_count].allowed_bank_mask = cfg->bank_count == 64
-            ? UINT64_MAX : ((UINT64_C(1) << cfg->bank_count) - 1u);
+         bank_placement_set_fill(&components[component_count].allowed_banks,
+                                 cfg->bank_count);
          component_count++;
       }
-      components[c].allowed_bank_mask &= items[i].allowed_bank_mask;
-      if (components[c].allowed_bank_mask == 0) {
+      bank_placement_set_intersect(&components[c].allowed_banks,
+                                   &items[i].allowed_banks);
+      if (bank_placement_set_empty(&components[c].allowed_banks)) {
          fprintf(stderr,
                  "vcsc-ld: hard bank-placement component %u has no bank satisfying all replicated-data locality requirements\n",
                  components[c].id);
@@ -7839,8 +7905,9 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
          }
          components[c].bank = items[i].pin_bank;
          components[c].pinned = 1;
-         if (!(components[c].allowed_bank_mask &
-               bank_placement_bank_bit(cfg, items[i].pin_bank))) {
+         if (!bank_placement_set_contains(
+                &components[c].allowed_banks,
+                bank_placement_bank_index(cfg, items[i].pin_bank))) {
             fprintf(stderr,
                     "vcsc-ld: pinned layout %s from %s requires bank %s, which has no local copy for one of its replicated-data references\n",
                     items[i].layout->name, items[i].obj->origin,
@@ -7882,7 +7949,7 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
                  components[i].cycle_degree,
                  components[i].pinned ? "pinned" : "automatic");
          for (k = 0; k < cfg->bank_count; ++k) {
-            if (components[i].allowed_bank_mask & (UINT64_C(1) << k)) {
+            if (bank_placement_set_contains(&components[i].allowed_banks, k)) {
                fprintf(stderr, "%s%s", first_allowed ? "" : ",",
                        cfg->banks[k].name);
                first_allowed = 0;
@@ -7959,13 +8026,12 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
       for (i = 0; i < cfg->bank_count; ++i) {
          const cartridge_bank_t *candidate = &cfg->banks[i];
          const memory_region_t *memory = bank_placement_auto_memory(cfg, candidate);
-         uint64_t bank_bit = UINT64_C(1) << i;
          uint32_t free_bytes = memory
             ? bank_placement_budget_free(&budgets, &budget_count, memory) : 0;
          bank_placement_cost_t cost;
 
          memset(&cost, 0, sizeof(cost));
-         if (!(next->allowed_bank_mask & bank_bit)) {
+         if (!bank_placement_set_contains(&next->allowed_banks, i)) {
             if (explain)
                fprintf(stderr,
                        "     candidate component=%u bank=%s rejected=replica-locality\n",
@@ -8087,7 +8153,7 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
 
                if (candidate == old_bank)
                   continue;
-               if (!(component->allowed_bank_mask & (UINT64_C(1) << i))) {
+               if (!bank_placement_set_contains(&component->allowed_banks, i)) {
                   if (explain)
                      fprintf(stderr,
                              "     local-candidate component=%u bank=%s rejected=replica-locality\n",
