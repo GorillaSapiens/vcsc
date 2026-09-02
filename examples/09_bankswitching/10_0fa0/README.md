@@ -24,7 +24,7 @@ select the same banks. Because these selectors live below the cartridge
 `$1000-$1FFF` ROM window and overlay console devices, legacy generated bank transitions
 use the state-preserving NMOS absolute NOP read rather than a store. The public
 diagnostic currently enables the pre-migration fixed inline-target path, which
-uses indexed reads from canonical `$0FA0`: the logical-PC high-byte bank bit
+uses raw `op1C $0F00,X` reads for canonical `$0FA0/$0FC0` selectors: the logical-PC high-byte bank bit
 supplies the `$00/$20` offset for `$0FA0/$0FC0`. The target descriptor ABI instead
 allows the mapper to carry `$A0/$C0` directly; see
 [`../../../BANKSWITCHING.md`](../../../BANKSWITCHING.md). Explicit

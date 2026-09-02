@@ -47,8 +47,10 @@ sub build_variant {
 sub check_trampoline {
    my($bin,$banks,$source_low,$destination_low,$target)=@_;
    my $bytes=read_file($bin);
-   my @expected=(0x20,0x07,0xff,0x8d,$source_low,0x1f,0x60,
-                 0x8d,$destination_low,0x1f,0x6c,0x0d,0xff,
+   # These are fixed-source/destination legacy renderer bridges, so the mapper
+   # audit uses side-effect-free raw op0C absolute reads rather than STA.
+   my @expected=(0x20,0x07,0xff,0x0c,$source_low,0x1f,0x60,
+                 0x0c,$destination_low,0x1f,0x6c,0x0d,0xff,
                  $target & 0xff,($target >> 8) & 0xff);
    for my $bank (0..$banks-1) {
       my @got=unpack('C15',substr($bytes,$bank*4096+0x0f00,15));

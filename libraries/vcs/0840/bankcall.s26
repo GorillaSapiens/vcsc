@@ -11,7 +11,7 @@
 ; inferred from the caller, callee, or return PC.
 ;
 ; The selector access must remain a read: $0800/$0840 are below the cartridge
-; window and overlap mirrored console address space. LDA $0800,Y performs the
+; window and overlap mirrored console address space. raw op1C $0800,X performs the
 ; required bus read without writing TIA/RIOT state.
 
 .ifndef VCSC_BANKCALL_PTR0
@@ -57,22 +57,20 @@ __vcsc_generic_bankcall_begin:
     inc $0102,x
 @return_adjusted:
 
-    ; Read the complete payload before leaving the source bank. X is free once
-    ; the real return PC has been adjusted, so keep target-low there and use
-    ; only one temporary stack byte for target-high. Y retains the destination
-    ; descriptor through the bank switch.
-    ldy #1
+    ; Read the complete payload before leaving the source bank.  Keep the
+    ; destination descriptor in X, use one temporary stack byte for target-high,
+    ; and read target-low last so ptr0 can then become the remote target pointer.
+    ldy #3
     lda (VCSC_BANKCALL_PTR0),y
     tax
-    iny
+    dey
     lda (VCSC_BANKCALL_PTR0),y
     pha
-    iny
+    dey
     lda (VCSC_BANKCALL_PTR0),y
-    tay
+    sta VCSC_BANKCALL_PTR0
     pla
     sta VCSC_BANKCALL_PTR0 + 1
-    stx VCSC_BANKCALL_PTR0
 
     ; This byte is patched independently in each bank copy. It is call-frame
     ; metadata, not something inferred from the caller PC.
@@ -88,14 +86,18 @@ __vcsc_generic_bankreturn:
     sta VCSC_BANKCALL_PTR0
     stx VCSC_BANKCALL_PTR0 + 1
     pla
-    tay
-    lda VCSC_BANKCALL_SELECTOR_BASE,y
+    tax
+    ; Raw undocumented NMOS NOP abs,X: perform the mapper selector read while
+    ; preserving A and flags.  Descriptor ranges are constrained not to cross
+    ; the selector-base page, avoiding an indexed page-cross dummy access.
+    op1C VCSC_BANKCALL_SELECTOR_BASE,x
     lda VCSC_BANKCALL_PTR0
     ldx VCSC_BANKCALL_PTR0 + 1
     rts
 
 __vcsc_generic_bankcall_switch_and_jump:
-    lda VCSC_BANKCALL_SELECTOR_BASE,y
+    ; Raw undocumented NMOS NOP abs,X: selector read with no A/flag clobber.
+    op1C VCSC_BANKCALL_SELECTOR_BASE,x
     jmp (VCSC_BANKCALL_PTR0)
 
 __vcsc_generic_bankcall_end:

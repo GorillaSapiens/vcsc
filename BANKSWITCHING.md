@@ -150,10 +150,12 @@ Examples of useful descriptor choices include:
   base;
 - 0FA0: `$A0` or `$C0`, suitable for the canonical selector aliases;
 - WD: `1` or `2`, selecting the two relocation-safe compiler arrangements via
-  indexed reads of `$0038,Y` (`$39` / `$3A`);
+  raw `op1C` absolute-X reads from `$0038` (`$39` / `$3A`);
 - a write-selected mapper: the exact selector value to write; and
 - F0: the bank ID, allowing the mapper-specific trampoline to compute how many
   `$1FF0` advances are required.
+
+Dynamic read-selected mappers use raw undocumented `op1C` absolute-X NOP reads, with the descriptor carried in X. This preserves A and flags and avoids an assembler `--illegal` dependency. Mapper profiles must keep every selector-base-plus-descriptor address within one 256-byte page so the indexed access cannot take a page-cross path.
 
 These are mapper choices, not generic ABI encodings. Code outside the mapper's
 bank-call implementation must never assume that a descriptor is a hotspot byte,

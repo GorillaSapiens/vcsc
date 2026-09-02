@@ -263,8 +263,7 @@ accesses. The selector decoder uses the hardware-relevant `$1840` mask, so the
 `$0800` family selects file bank 0 and the `$0840` family selects file bank 1.
 Reads select after sampling the underlying console byte; writes both select the
 bank and continue to the ordinary low-memory model. The bundled MOS6502 core
-models the operand bus read performed by undocumented absolute NOP `$0C`, which
-lets linker-generated state-preserving 0840 bridges execute faithfully.
+models the operand bus reads performed by undocumented absolute NOP `$0C` and the absolute-X NOP family `$1C/$3C/$5C/$7C/$DC/$FC`. This lets mapper entry hooks and descriptor bank-call selectors execute faithfully.
 
 `mapper=UA` and `mapper=UASW` use the UA Limited alias decoder. The simulator
 canonicalizes each low-address access with `address & $1260`: `$0220` selects

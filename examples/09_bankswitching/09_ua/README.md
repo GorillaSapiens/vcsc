@@ -31,7 +31,7 @@ association reversed:
 
 Because these selectors overlap console devices below `$1000`, VCSC-generated
 bank transitions are read-only. Vector bridges use the state-preserving NMOS
-absolute NOP read, while descriptor bank calls use indexed `LDA $0200,Y`. Reads
+absolute NOP read, while descriptor bank calls use raw `op1C $0200,X`. Reads
 and writes made by user code to selector aliases still reach the underlying
 console device while also changing the selected ROM bank.
 

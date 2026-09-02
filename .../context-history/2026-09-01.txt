@@ -91,3 +91,16 @@ LDA because FA2 switches on access. Fixed the legacy generated JSR/JMP tables to
 use side-effect-free `$0C` selector reads and updated their regressions.
 Compile-only is 503/503; focused mapper/bankcall/entry/profile/hygiene tests are
 green.
+2026-09-01 20:35:31 PDT, bankcall selectors use raw op1C
+Changed all 15 migrated descriptor bankcall templates to carry the destination
+selector descriptor in X and use raw undocumented NMOS `op1C base,X` reads for
+both switch and restore, preserving A/flags without requiring assembler
+`--illegal`. Fixed the MOS6502 core so all six undocumented absolute-X NOPs
+perform their real operand bus read; this repairs both vcsc-sim switching and
+the disassembler's concrete discovery. Updated fixed renderer bridge tests for
+the earlier `op0C` read selectors and taught their harness to count read-triggered
+bank switches. The reported `vcs_standard_renderer_banked.pl` failure now passes.
+The FA visible timing regression also passes unchanged after rebuilding vcsc-disas;
+its 264-interval/262-line timing was not altered. Compile-only passed 503/503,
+the focused mapper/linker set passed 18/18, and the final disassembler/version
+tail passed 5/5.

@@ -146,7 +146,7 @@ for my $v (@variants) {
    for my $bank (0..1) {
       ord(substr($trampoline[$bank],$source_diff[0],1))==$descriptor[$bank]
          or die sprintf("%s bank %d baked source descriptor is not \$%02X\n",$v->{mapper},$bank,$descriptor[$bank]);
-      (()=$trampoline[$bank] =~ /\xB9\x00\x02/sg)>=2 &&
+      (()=$trampoline[$bank] =~ /\x1C\x00\x02/sg)>=2 &&
       index($trampoline[$bank],pack('C*',0x99,0x00,0x02))<0 &&
       index($trampoline[$bank],pack('C*',0x9D,0x00,0x02))<0
          or die "$v->{mapper} inline bank-call block does not use read-only descriptor selectors from \$0200\n";

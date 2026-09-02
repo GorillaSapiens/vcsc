@@ -113,7 +113,7 @@ $pt =~ /mem\s+cartram\s*\{.*?\$read_start:0xf000.*?\$write_start:0xf040.*?\$size
 my $inline_text=read_file($inline);
 $inline_text =~ /VCSC_BANKCALL_SELECTOR_BASE = \$0038/ &&
 $inline_text =~ /VCSC_BANKCALL_SOURCE_DESCRIPTOR = \$01/ &&
-(()=$inline_text =~ /lda VCSC_BANKCALL_SELECTOR_BASE,y/g)==2 &&
+(()=$inline_text =~ /op1C VCSC_BANKCALL_SELECTOR_BASE,x/g)==2 &&
 $inline_text =~ /__vcsc_generic_bankcall_reserved_end = \$6048/
    or die "WD descriptor trampoline source does not encode the delayed-selector two-bank ABI\n";
 
@@ -157,7 +157,7 @@ ord(substr($trampoline[0],$source_diff[0],1))==0x01 &&
 ord(substr($trampoline[1],$source_diff[0],1))==0x02
    or die "WD logical-bank source descriptors are not 1 and 2\n";
 for my $copy (@trampoline) {
-   (()=$copy =~ /\xB9\x38\x00/sg)>=2
+   (()=$copy =~ /\x1C\x38\x00/sg)>=2
       or die "WD inline bank-call block does not use read-only indexed selectors from \$0038\n";
 }
 

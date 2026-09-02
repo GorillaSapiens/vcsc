@@ -96,29 +96,30 @@ for my $label (qw(
 }
 index($s26, 'jsr __vcsc_generic_bankcall_switch_and_jump') >= 0
    or die "maintained trampoline source lacks internal JSR\n";
-index($s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
+index($s26, 'op1C VCSC_BANKCALL_SELECTOR_BASE,x') >= 0 &&
+index($s26, 'Raw undocumented NMOS NOP abs,X') >= 0 &&
 index($s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
 index($s26, 'adc #3') >= 0 &&
 index($s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
    or die "maintained F-family descriptor trampoline lacks selector/source-descriptor ABI\n";
-index($fa2_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
+index($fa2_s26, 'op1C VCSC_BANKCALL_SELECTOR_BASE,x') >= 0 &&
 index($fa2_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
 index($fa2_s26, 'eor #7') < 0 && index($fa2_s26, 'adc #3') >= 0 &&
 index($fa2_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
    or die "maintained FA2 trampoline source lacks descriptor/read-selector ABI\n";
-index($jane_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
+index($jane_s26, 'op1C VCSC_BANKCALL_SELECTOR_BASE,x') >= 0 &&
 index($jane_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
 index($jane_s26, 'eor #7') < 0 && index($jane_s26, 'cmp #2') < 0 &&
 index($jane_s26, 'adc #3') >= 0 &&
 index($jane_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
    or die "maintained JANE trampoline source lacks descriptor selector/source ABI\n";
-index($m0840_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
+index($m0840_s26, 'op1C VCSC_BANKCALL_SELECTOR_BASE,x') >= 0 &&
 index($m0840_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
 index($m0840_s26, 'eor #$20') < 0 && index($m0840_s26, 'and #$20') < 0 &&
 index($m0840_s26, 'adc #3') >= 0 &&
 index($m0840_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
    or die "maintained 0840 trampoline source lacks descriptor read-selector ABI\n";
-index($ua_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
+index($ua_s26, 'op1C VCSC_BANKCALL_SELECTOR_BASE,x') >= 0 &&
 index($ua_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
 index($ua_s26, 'VCSC_BANKCALL_SELECTOR_BASE = $0200') >= 0 &&
 index($ua_s26, 'eor #$20') < 0 && index($ua_s26, 'and #$20') < 0 &&
@@ -126,7 +127,7 @@ index($ua_s26, 'adc #3') >= 0 &&
 index($ua_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
    or die "maintained UA trampoline source lacks descriptor read-selector ABI
 ";
-index($uasw_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
+index($uasw_s26, 'op1C VCSC_BANKCALL_SELECTOR_BASE,x') >= 0 &&
 index($uasw_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
 index($uasw_s26, 'VCSC_BANKCALL_SELECTOR_BASE = $0200') >= 0 &&
 index($uasw_s26, 'eor #$20') < 0 && index($uasw_s26, 'and #$20') < 0 &&
@@ -134,7 +135,7 @@ index($uasw_s26, 'adc #3') >= 0 &&
 index($uasw_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
    or die "maintained UASW trampoline source lacks descriptor read-selector ABI
 ";
-index($m0fa0_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
+index($m0fa0_s26, 'op1C VCSC_BANKCALL_SELECTOR_BASE,x') >= 0 &&
 index($m0fa0_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
 index($m0fa0_s26, 'VCSC_BANKCALL_SELECTOR_BASE = $0F00') >= 0 &&
 index($m0fa0_s26, 'eor #$20') < 0 && index($m0fa0_s26, 'and #$20') < 0 &&
@@ -142,7 +143,7 @@ index($m0fa0_s26, 'adc #3') >= 0 &&
 index($m0fa0_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
    or die "maintained 0FA0 trampoline source lacks descriptor read-selector ABI
 ";
-index($wd_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
+index($wd_s26, 'op1C VCSC_BANKCALL_SELECTOR_BASE,x') >= 0 &&
 index($wd_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
 index($wd_s26, 'VCSC_BANKCALL_SELECTOR_BASE = $0038') >= 0 &&
 index($wd_s26, 'adc #3') >= 0 &&
@@ -213,45 +214,45 @@ read_file($wd_fresh) eq read_file($wd_built)
    or die "built WD bank-call template is stale relative to WD/bankcall.s26\n";
 
 my $header = read_file($built);
-$header =~ /VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE 0x45u/
-   or die "generic descriptor trampoline payload is no longer 69 bytes\n";
+$header =~ /VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE 0x44u/
+   or die "generic descriptor trampoline payload is no longer 68 bytes\n";
 $header =~ /VCSC_GENERIC_BANKCALL_RESERVED_SIZE 0x48u/
    or die "generic descriptor trampoline reservation is no longer 72 bytes\n";
 my $fa2_header = read_file($fa2_built);
-$fa2_header =~ /VCSC_FA2_BANKCALL_TEMPLATE_SIZE 0x45u/
-   or die "FA2 descriptor trampoline payload is no longer 69 bytes\n";
+$fa2_header =~ /VCSC_FA2_BANKCALL_TEMPLATE_SIZE 0x44u/
+   or die "FA2 descriptor trampoline payload is no longer 68 bytes\n";
 $fa2_header =~ /VCSC_FA2_BANKCALL_RESERVED_SIZE 0x48u/
    or die "FA2 descriptor trampoline reservation is no longer 72 bytes\n";
 my $jane_header = read_file($jane_built);
-$jane_header =~ /VCSC_JANE_BANKCALL_TEMPLATE_SIZE 0x45u/
-   or die "JANE descriptor trampoline payload is no longer 69 bytes\n";
+$jane_header =~ /VCSC_JANE_BANKCALL_TEMPLATE_SIZE 0x44u/
+   or die "JANE descriptor trampoline payload is no longer 68 bytes\n";
 $jane_header =~ /VCSC_JANE_BANKCALL_RESERVED_SIZE 0x48u/
    or die "JANE descriptor trampoline reservation is no longer 72 bytes\n";
 my $m0840_header = read_file($m0840_built);
-$m0840_header =~ /VCSC_M0840_BANKCALL_TEMPLATE_SIZE 0x45u/
-   or die "0840 descriptor trampoline payload is no longer 69 bytes\n";
+$m0840_header =~ /VCSC_M0840_BANKCALL_TEMPLATE_SIZE 0x44u/
+   or die "0840 descriptor trampoline payload is no longer 68 bytes\n";
 $m0840_header =~ /VCSC_M0840_BANKCALL_RESERVED_SIZE 0x48u/
    or die "0840 descriptor trampoline reservation is no longer 72 bytes\n";
 my $ua_header = read_file($ua_built);
-$ua_header =~ /VCSC_UA_BANKCALL_TEMPLATE_SIZE 0x45u/
-   or die "UA descriptor trampoline payload is no longer 69 bytes\n";
+$ua_header =~ /VCSC_UA_BANKCALL_TEMPLATE_SIZE 0x44u/
+   or die "UA descriptor trampoline payload is no longer 68 bytes\n";
 $ua_header =~ /VCSC_UA_BANKCALL_RESERVED_SIZE 0x48u/
    or die "UA descriptor trampoline reservation is no longer 72 bytes\n";
 my $uasw_header = read_file($uasw_built);
-$uasw_header =~ /VCSC_UASW_BANKCALL_TEMPLATE_SIZE 0x45u/
-   or die "UASW descriptor trampoline payload is no longer 69 bytes\n";
+$uasw_header =~ /VCSC_UASW_BANKCALL_TEMPLATE_SIZE 0x44u/
+   or die "UASW descriptor trampoline payload is no longer 68 bytes\n";
 $uasw_header =~ /VCSC_UASW_BANKCALL_RESERVED_SIZE 0x48u/
    or die "UASW descriptor trampoline reservation is no longer 72 bytes\n";
 my $m0fa0_header = read_file($m0fa0_built);
-$m0fa0_header =~ /VCSC_M0FA0_BANKCALL_TEMPLATE_SIZE 0x45u/
-   or die "0FA0 trampoline payload is no longer 69 bytes
+$m0fa0_header =~ /VCSC_M0FA0_BANKCALL_TEMPLATE_SIZE 0x44u/
+   or die "0FA0 trampoline payload is no longer 68 bytes
 ";
 $m0fa0_header =~ /VCSC_M0FA0_BANKCALL_RESERVED_SIZE 0x48u/
    or die "0FA0 descriptor trampoline reservation is no longer 72 bytes
 ";
 my $wd_header = read_file($wd_built);
-$wd_header =~ /VCSC_WD_BANKCALL_TEMPLATE_SIZE 0x45u/
-   or die "WD descriptor trampoline payload is no longer 69 bytes\n";
+$wd_header =~ /VCSC_WD_BANKCALL_TEMPLATE_SIZE 0x44u/
+   or die "WD descriptor trampoline payload is no longer 68 bytes\n";
 $wd_header =~ /VCSC_WD_BANKCALL_RESERVED_SIZE 0x48u/
    or die "WD descriptor trampoline reservation is no longer 72 bytes\n";
 

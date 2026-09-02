@@ -1350,12 +1350,12 @@ mos6502::mos6502(BusRead r, BusWrite w, ClockCycle c)
 // DC   absolute,X      3       4*
 // FC   absolute,X      3       4*
 
-   MAKE_INSTR(0x1C, NOP, ABX, 4, true);
-   MAKE_INSTR(0x3C, NOP, ABX, 4, true);
-   MAKE_INSTR(0x5C, NOP, ABX, 4, true);
-   MAKE_INSTR(0x7C, NOP, ABX, 4, true);
-   MAKE_INSTR(0xDC, NOP, ABX, 4, true);
-   MAKE_INSTR(0xFC, NOP, ABX, 4, true);
+   MAKE_INSTR(0x1C, NOP_READ, ABX, 4, true);
+   MAKE_INSTR(0x3C, NOP_READ, ABX, 4, true);
+   MAKE_INSTR(0x5C, NOP_READ, ABX, 4, true);
+   MAKE_INSTR(0x7C, NOP_READ, ABX, 4, true);
+   MAKE_INSTR(0xDC, NOP_READ, ABX, 4, true);
+   MAKE_INSTR(0xFC, NOP_READ, ABX, 4, true);
 
 // JAM (KIL, HLT)
 // These instructions freeze the CPU.

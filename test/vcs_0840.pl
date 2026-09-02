@@ -125,7 +125,7 @@ my @source_diff=grep {
 for my $bank (0..1) {
    ord(substr($trampoline[$bank],$source_diff[0],1))==$descriptor[$bank]
       or die sprintf("0840 bank %d baked source descriptor is not $%02X\n",$bank,$descriptor[$bank]);
-   (()=$trampoline[$bank] =~ /\xB9\x00\x08/sg)>=2 &&
+   (()=$trampoline[$bank] =~ /\x1C\x00\x08/sg)>=2 &&
    index($trampoline[$bank],pack('C*',0x8d,0x00,0x08))<0 &&
    index($trampoline[$bank],pack('C*',0x8d,0x40,0x08))<0
       or die "0840 inline bank-call block does not use read-only indexed selectors\n";

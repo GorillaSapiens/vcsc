@@ -28,7 +28,7 @@ succeeded. Red `FAIL` means one of those checks failed.
 
 The profile enables `$bankcall` unconditionally. Cross-bank calls use the
 current three-byte `.banktarget` descriptor ABI with JANE selector-low-byte
-descriptors `$F0/$F1/$F8/$F9`. The fixed descriptor trampoline is 69 bytes with
+descriptors `$F0/$F1/$F8/$F9`. The fixed descriptor trampoline uses 68 active bytes with
 72 bytes reserved and allocates no per-target JSR entries; source-bank identity
 is carried explicitly rather than recovered from a return PC. The public ABI is
 [`../../../BANKSWITCHING.md`](../../../BANKSWITCHING.md).

@@ -178,12 +178,12 @@ FA2-24/28, JANE, 0840, UA, UASW, 0FA0, and WD consume it end to end and those
 migrated profiles declare `$bankcall` unconditionally. They own `bankcall.s26` and `entry.s26`; the
 three-byte entry hook runs before the normal vector handler and uses raw `op0C`
 for its fixed selector read, avoiding an assembler `--illegal` dependency. FA2 uses
-descriptors `$F5-$FA/$FB` and indexed `LDA $1F00,Y`; JANE uses
-`$F0/$F1/$F8/$F9` and indexed `LDA $1F00,Y`; 0840 uses `$00/$40` and indexed
-`LDA $0800,Y`; UA/UASW use `$20/$40` and indexed `LDA $0200,Y`, with UASW
-reversing the association; 0FA0 uses `$A0/$C0` and indexed `LDA $0F00,Y`; WD
-uses descriptors 1/2 and indexed `LDA $0038,Y` to choose hardware states 1/2.
-All fixed blocks are 69 bytes with 72 reserved (`$048`). Only the descriptor ABI
+descriptors `$F5-$FA/$FB` and raw `op1C $1F00,X`; JANE uses
+`$F0/$F1/$F8/$F9` and raw `op1C $1F00,X`; 0840 uses `$00/$40` and raw
+`op1C $0800,X`; UA/UASW use `$20/$40` and raw `op1C $0200,X`, with UASW
+reversing the association; 0FA0 uses `$A0/$C0` and raw `op1C $0F00,X`; WD
+uses descriptors 1/2 and raw `op1C $0038,X` to choose hardware states 1/2.
+All fixed blocks use 68 active bytes with 72 reserved (`$048`). Only the descriptor ABI
 is retained for migrated inline mappers.
 
 Migration acceptance for each remaining mapper: consume the destination

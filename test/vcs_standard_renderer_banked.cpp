@@ -112,6 +112,8 @@ uint8_t read_bus(uint16_t address) {
       if (frame >= 0) {
          ++hotspot_events;
          if (!vblank_asserted) fail("selector read occurred while VBLANK was clear");
+         if (file_bank == bank_count - 2) ++destination_switches;
+         if (file_bank == bank_count - 1) ++source_restores;
       }
    }
    return read_mapped(address);

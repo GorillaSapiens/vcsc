@@ -122,7 +122,7 @@ my @physical_descriptor=(0xa0,0xc0);
 for my $file_bank (0..1) {
    ord(substr($trampoline[$file_bank],$source_diff[0],1))==$physical_descriptor[$file_bank]
       or die sprintf("0FA0 file bank %d baked source descriptor is not \$%02X\n",$file_bank,$physical_descriptor[$file_bank]);
-   (()=$trampoline[$file_bank] =~ /\xB9\x00\x0F/sg)>=2 &&
+   (()=$trampoline[$file_bank] =~ /\x1C\x00\x0F/sg)>=2 &&
    index($trampoline[$file_bank],pack('C*',0x99,0x00,0x0F))<0 &&
    index($trampoline[$file_bank],pack('C*',0x9D,0x00,0x0F))<0
       or die "0FA0 inline bank-call block does not use read-only descriptor selectors from \$0F00\n";
