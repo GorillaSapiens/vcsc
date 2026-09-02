@@ -26,7 +26,7 @@ A large green `pass` with the smaller `JANE` underneath therefore means all 16
 ordered pairs, all four selectors, startup recovery, and the nested return path
 succeeded. Red `FAIL` means one of those checks failed.
 
-The profile enables `$inline_bankcall` unconditionally. Cross-bank calls use the
+The profile enables `$bankcall` unconditionally. Cross-bank calls use the
 current three-byte `.banktarget` descriptor ABI with JANE selector-low-byte
 descriptors `$F0/$F1/$F8/$F9`. The fixed descriptor trampoline is 69 bytes with
 72 bytes reserved and allocates no per-target JSR entries; source-bank identity

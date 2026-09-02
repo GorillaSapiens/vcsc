@@ -19,7 +19,7 @@ startup initialization, writes sentinels across the device, then executes the
 complete 7x7 ordered source/destination call matrix. The seven diagonal calls
 are ordinary same-bank JSRs; the other 42 matrix legs use the descriptor ABI.
 FA2 descriptors are the selector-hotspot low bytes `$F5-$FB`, and
-`libraries/vcs/FA2/inline_bankcall.s26` selects/restores banks with indexed stores
+`libraries/vcs/FA2/bankcall.s26` selects/restores banks with indexed stores
 through `$1F00`. Cartridge RAM must survive all 49 matrix calls. The public ABI
 is documented in [`../../../BANKSWITCHING.md`](../../../BANKSWITCHING.md).
 

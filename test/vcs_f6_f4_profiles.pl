@@ -175,7 +175,7 @@ sub certify_execution {
          $a = $read8->(($pc + 1) & 0xFFFF);
          $pc = ($pc + 2) & 0xFFFF;
       }
-      elsif ($op == 0x2C) { # BIT absolute; the read may select a bank
+      elsif ($op == 0x2C || $op == 0x0C) { # BIT/NMOS NOP absolute; the read may select a bank
          my $addr = $read8->(($pc + 1) & 0xFFFF) |
                     ($read8->(($pc + 2) & 0xFFFF) << 8);
          $read8->($addr);

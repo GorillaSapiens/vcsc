@@ -617,11 +617,11 @@ static char *topology_source_suffix(const ASTNode *node) {
 }
 
 static char compiled_cartridge_signature[5];
-static bool compiled_cartridge_inline_bankcall = false;
+static bool compiled_cartridge_bankcall = false;
 
-//! @brief Return whether the current profile uses the first generic inline-target bank-call pilot.
-bool compile_cartridge_supports_inline_bankcall(void) {
-   return compiled_cartridge_inline_bankcall &&
+//! @brief Return whether the current profile uses the descriptor bank-call ABI.
+bool compile_cartridge_supports_bankcall(void) {
+   return compiled_cartridge_bankcall &&
           (!strcmp(compiled_cartridge_signature, "F8") ||
           !strcmp(compiled_cartridge_signature, "F8SC") ||
           !strcmp(compiled_cartridge_signature, "F6") ||
@@ -658,11 +658,11 @@ void compile_cartridge_decl_stmt(ASTNode *node) {
    for (int i = 0; flags && !is_empty(flags) && i < flags->count; i++) {
       const char *text = flags->children[i]->strval;
       bool matched = false;
-      if (text && !strcmp(text, "$inline_bankcall")) {
-         if (compiled_cartridge_inline_bankcall)
-            error_user("[%s:%d.%d] cartridge declaration repeats '$inline_bankcall'",
+      if (text && !strcmp(text, "$bankcall")) {
+         if (compiled_cartridge_bankcall)
+            error_user("[%s:%d.%d] cartridge declaration repeats '$bankcall'",
                        node->file, node->line, node->column);
-         compiled_cartridge_inline_bankcall = true;
+         compiled_cartridge_bankcall = true;
          continue;
       }
       for (int f = 0; f < SIGNATURE; f++) {

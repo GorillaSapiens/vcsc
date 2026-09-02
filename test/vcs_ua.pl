@@ -102,7 +102,7 @@ for my $v (@variants) {
    my $desc0=sprintf('%02x',$v->{desc0});
    my $desc1=sprintf('%02x',$v->{desc1});
    $pt =~ /\$signature:\Q$sig\E\b/ &&
-   $pt =~ /cartridge\s*\{\s*\$inline_bankcall/s &&
+   $pt =~ /cartridge\s*\{\s*\$bankcall/s &&
    index($pt,'VCSC_INLINE_BANKCALL') < 0 &&
    $pt =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x\Q$select0\E\s+\$bankcall_descriptor:0x\Q$desc0\E\s+\$startup/s &&
    $pt =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$select_access:0x\Q$select1\E\s+\$bankcall_descriptor:0x\Q$desc1\E/s

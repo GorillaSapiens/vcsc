@@ -210,16 +210,16 @@ my $jsr_home_addr = map_symbol_addr($jsr_map, 'home_leaf');
 my $jsr_main_addr = map_symbol_addr($jsr_map, 'main');
 my $jsr_entry0 = pack('C*',
    0x20, 0x07, 0xFF,
-   0x8D, 0xF9, 0x1F,
+   0x0C, 0xF9, 0x1F,
    0x60,
-   0x8D, 0xF8, 0x1F,
+   0x0C, 0xF8, 0x1F,
    0x6C, 0x0D, 0xFF,
    $jsr_remote_addr & 0xFF, $jsr_remote_addr >> 8);
 my $jsr_entry1 = pack('C*',
    0x20, 0x16, 0xFF,
-   0x8D, 0xF8, 0x1F,
+   0x0C, 0xF8, 0x1F,
    0x60,
-   0x8D, 0xF9, 0x1F,
+   0x0C, 0xF9, 0x1F,
    0x6C, 0x1C, 0xFF,
    $jsr_home_addr & 0xFF, $jsr_home_addr >> 8);
 substr($jsr_bank0_table, 0x00, 0x0F) eq $jsr_entry0
@@ -268,7 +268,7 @@ $jsr_map =~ /JSR entry=1 .*source=BANK1 hotspot=\$1FF8 destination=BANK0 hotspot
          $a = $read8->(($pc + 1) & 0xFFFF);
          $pc = ($pc + 2) & 0xFFFF;
       }
-      elsif ($op == 0x8D) { # STA absolute, including mapper hotspots
+      elsif ($op == 0x0C) { # raw NMOS NOP absolute mapper-hotspot read
          my $addr = $read8->(($pc + 1) & 0xFFFF) |
                     ($read8->(($pc + 2) & 0xFFFF) << 8);
          if ($addr == 0x1FF8) {
@@ -277,7 +277,12 @@ $jsr_map =~ /JSR entry=1 .*source=BANK1 hotspot=\$1FF8 destination=BANK0 hotspot
          elsif ($addr == 0x1FF9) {
             $selected = 1;
          }
-         elsif ($addr < 0x100) {
+         $pc = ($pc + 3) & 0xFFFF;
+      }
+      elsif ($op == 0x8D) { # ordinary STA absolute
+         my $addr = $read8->(($pc + 1) & 0xFFFF) |
+                    ($read8->(($pc + 2) & 0xFFFF) << 8);
+         if ($addr < 0x100) {
             $ram[$addr] = $a;
          }
          $pc = ($pc + 3) & 0xFFFF;
@@ -380,11 +385,11 @@ my $main_addr = map_symbol_addr($jmp_map, 'main');
 my $again_addr = map_symbol_addr($jmp_map, 'again');
 my $return_home_addr = map_symbol_addr($jmp_map, 'return_home');
 my $entry0 = pack('C*',
-   0x8D, 0xF8, 0x1F,
+   0x0C, 0xF8, 0x1F,
    0x6C, 0x06, 0xFF,
    $remote_addr & 0xFF, $remote_addr >> 8);
 my $entry1 = pack('C*',
-   0x8D, 0xF9, 0x1F,
+   0x0C, 0xF9, 0x1F,
    0x6C, 0x0E, 0xFF,
    $home_addr & 0xFF, $home_addr >> 8);
 substr($bank0_table, 0x00, 0x08) eq $entry0

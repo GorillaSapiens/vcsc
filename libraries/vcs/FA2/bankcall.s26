@@ -5,7 +5,7 @@
 ; The caller emits JSR __bankcall followed by a three-byte .banktarget payload:
 ; 16-bit target address, then the destination bank-call descriptor.  For FA2
 ; the descriptor is the low byte of the selector hotspot ($F5-$FB), so selecting
-; a bank is an indexed store to $1F00.  Each replicated trampoline copy
+; a bank is an indexed read from $1F00.  Each replicated trampoline copy
 ; has its source-bank descriptor patched into the immediate operand below.
 
 .ifndef VCSC_BANKCALL_PTR0
@@ -83,13 +83,13 @@ __vcsc_generic_bankreturn:
     stx VCSC_BANKCALL_PTR0 + 1
     pla
     tay
-    sta VCSC_BANKCALL_SELECTOR_BASE,y
+    lda VCSC_BANKCALL_SELECTOR_BASE,y
     lda VCSC_BANKCALL_PTR0
     ldx VCSC_BANKCALL_PTR0 + 1
     rts
 
 __vcsc_generic_bankcall_switch_and_jump:
-    sta VCSC_BANKCALL_SELECTOR_BASE,y
+    lda VCSC_BANKCALL_SELECTOR_BASE,y
     jmp (VCSC_BANKCALL_PTR0)
 
 __vcsc_generic_bankcall_end:

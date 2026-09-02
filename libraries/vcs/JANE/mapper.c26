@@ -7,7 +7,7 @@ include "vcs.c26"
 // Hardware powers up in physical bank 1. JANE keeps logical bank numbers equal
 // to physical/file bank numbers, so bank1 is the startup/home bank.
 cartridge {
-   $inline_bankcall
+   $bankcall
    $fill:0xff $signature:JANE
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0ee0 $vector_bridge_size:0x0012

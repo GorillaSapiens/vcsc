@@ -73,7 +73,7 @@ my $disas=File::Spec->catfile($repo,'disassembler','vcsc-disas');
 my $roundtrip=File::Spec->catfile($repo,'disassembler','roundtrip.pl');
 my $vcs=File::Spec->catdir($repo,'libraries','vcs');
 my $profile=File::Spec->catfile($vcs,'WD/mapper.c26');
-my $inline=File::Spec->catfile($vcs,'WD/inline_bankcall.s26');
+my $inline=File::Spec->catfile($vcs,'WD/bankcall.s26');
 my $example_dir=File::Spec->catdir($repo,'examples','09_bankswitching','15_wd');
 my $source=File::Spec->catfile($example_dir,'wd_diagnostic.c26');
 my $example_make=File::Spec->catfile($example_dir,'Makefile');
@@ -103,7 +103,7 @@ $pt =~ /VCSC DELIBERATELY DOES NOT expose those eight hardware arrangements as e
 $pt =~ /VCSC bank0 == WD state 1 == physical chunks 0,1,2,3/ &&
 $pt =~ /VCSC bank1 == WD state 2 == physical chunks 4,5,6,7/ &&
 $pt =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/ &&
-$pt =~ /\$inline_bankcall/ &&
+$pt =~ /\$bankcall/ &&
 (()=$pt =~ /\bbank\s+bank\d+\s*\{/g)==2 &&
 $pt =~ /\$signature:WD\b/ &&
 $pt =~ /bank\s+bank0\s*\{.*?\$image_size:0x1000\s+\$file_index:0\s+\$image_offset:0x0080.*?\$link_start:0xf080\s+\$cpu_start:0xf080\s+\$map_size:0x0f80.*?\$select_access:0x0039\s+\$bankcall_descriptor:0x01\s+\$startup/s &&

@@ -3,3 +3,5 @@
 vcsc-ld
 version.h
 *_bankcall_template.h
+
+mapper_entry_templates.h

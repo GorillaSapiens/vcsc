@@ -1,0 +1,25 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+;
+; Mapper reset-entry hook.  This fragment is replicated with the vector bridge
+; and executes before the ordinary runtime handler so startup begins in the
+; mapper's canonical VCSC home bank/state.
+;
+; op0C is the raw NMOS 6502/6507 absolute-NOP opcode.  The memory-addressed NOP
+; performs the required selector read without changing registers or flags.  Use
+; the raw opcode spelling rather than NOP.abs so assembling this mapper helper
+; never depends on --illegal being enabled.
+
+; TEMPLATE ASSEMBLY ORIGIN ONLY.
+; $6000 is never executed or presented to the 6507 bus.  This source is
+; assembled into three maintained bytes that the linker copies into each
+; mapper reset-entry corridor.  Keeping the synthetic origin outside zero
+; page also prevents accidental zero-page instruction relaxation.
+.segmentdef "CODE", $6000, $0010
+.segment "CODE"
+
+.export __vcsc_mapper_entry_begin
+.export __vcsc_mapper_entry_end
+
+__vcsc_mapper_entry_begin:
+    op0C $0800
+__vcsc_mapper_entry_end:

@@ -166,7 +166,7 @@ The descriptor is mapper-owned. Useful values include selector-hotspot low
 bytes, selector write values, indexed-selector offsets, or simple bank IDs. The
 linker carries the destination byte but does not interpret it. One byte must be
 sufficient to select/restore every compiled-code bank participating in
-`$inline_bankcall`; otherwise that mapper needs a different or future wider ABI.
+`$bankcall`; otherwise that mapper needs a different or future wider ABI.
 The source descriptor occupies one extra hardware-stack byte per active
 cross-bank call. The inline payload grows from two to three bytes, so stacked-PC
 continuation adjustment must be carry-correct by +3 and page/bank-edge tests must
@@ -175,8 +175,10 @@ move accordingly.
 Implementation checkpoint: the compiler/assembler/linker use the six-byte
 descriptor ABI and `__bankmeta$V3`. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,
 FA2-24/28, JANE, 0840, UA, UASW, 0FA0, and WD consume it end to end and those
-migrated profiles declare `$inline_bankcall` unconditionally. FA2 uses
-descriptors `$F5-$FA/$FB` and indexed `STA $1F00,Y`; JANE uses
+migrated profiles declare `$bankcall` unconditionally. They own `bankcall.s26` and `entry.s26`; the
+three-byte entry hook runs before the normal vector handler and uses raw `op0C`
+for its fixed selector read, avoiding an assembler `--illegal` dependency. FA2 uses
+descriptors `$F5-$FA/$FB` and indexed `LDA $1F00,Y`; JANE uses
 `$F0/$F1/$F8/$F9` and indexed `LDA $1F00,Y`; 0840 uses `$00/$40` and indexed
 `LDA $0800,Y`; UA/UASW use `$20/$40` and indexed `LDA $0200,Y`, with UASW
 reversing the association; 0FA0 uses `$A0/$C0` and indexed `LDA $0F00,Y`; WD

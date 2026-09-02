@@ -12,3 +12,4 @@ e2e-times.tsv
 instruction.txt
 !.../instruction.txt
 *_bankcall_template.h
+mapper_entry_templates.h

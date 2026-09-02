@@ -7,7 +7,7 @@ include "4KSC/ram.c26"
 // Names are labels only; addresses and selector properties define behavior.
 
 cartridge {
-   $inline_bankcall
+   $bankcall
    $fill:0xff $signature:F6SC
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012

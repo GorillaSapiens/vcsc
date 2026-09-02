@@ -51,7 +51,7 @@ Options added for banked diagnostics are:
   default for compatibility, but programs must not depend on either value.
 - `--reset-on-pc=ADDR` performs one CPU reset immediately before executing
   `ADDR`, preserving ordinary and split-address RAM. The reset vector is fetched
-  through the currently selected cartridge bank, so the generated reset bridge
+  through the currently selected cartridge bank, so the mapper-entry reset bridge
   and startup initialization run exactly as they do after a console reset. A
   matching `--stop-pc` therefore stops on the second arrival.
 
@@ -105,7 +105,7 @@ VCSC names physical startup bank 1 as logical `bank0`: selectors `$1FF0`,
 Cfgs that omit `fileindex` retain the historical inferred ordering.
 
 `--start-bank` defaults to the cfg entry marked `startup=yes`. Tests explicitly
-run every physical start index to prove the generated reset bridges. Split RAM
+run every physical start index to prove the mapper-entry reset bridges. Split RAM
 persists across mapper hotspot changes and `--reset-on-pc`; only startup code
 changes it after reset. The simulator's initial fill is not a hardware power-on
 contract.

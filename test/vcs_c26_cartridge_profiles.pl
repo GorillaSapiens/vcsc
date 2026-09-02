@@ -222,7 +222,7 @@ for my $p (@profiles) {
    if ($name eq 'WD') {
       $text =~ /VCSC bank0 == WD state 1 == physical chunks 0,1,2,3/ &&
       $text =~ /VCSC bank1 == WD state 2 == physical chunks 4,5,6,7/ &&
-      $text =~ /\$inline_bankcall/ &&
+      $text =~ /\$bankcall/ &&
       $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$image_offset:0x0080.*?\$link_start:0xf080.*?\$cpu_start:0xf080.*?\$select_access:0x0039\s+\$bankcall_descriptor:0x01\s+\$startup/s &&
       $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$image_offset:0x0080.*?\$link_start:0xd080.*?\$cpu_start:0xf080.*?\$select_access:0x003a\s+\$bankcall_descriptor:0x02/s &&
       $text =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/ &&

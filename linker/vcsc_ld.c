@@ -29,10 +29,11 @@
 #include "uasw_bankcall_template.h"
 #include "m0fa0_bankcall_template.h"
 #include "wd_bankcall_template.h"
+#include "mapper_entry_templates.h"
 
 static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg);
 
-/* One identical six-byte BIT/JMP entry for NMI, RESET, and IRQ/BRK. */
+/* One identical six-byte mapper-entry/JMP slot for NMI, RESET, and IRQ/BRK. */
 enum {
    VECTOR_BRIDGE_ENTRY_SIZE = 6,
    VECTOR_BRIDGE_NMI_OFFSET = 0,
@@ -9179,7 +9180,7 @@ static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg)
    return saw_selector;
 }
 
-//! @brief Validate inline-bankcall selector geometry and return the indexed selector base.
+//! @brief Validate bankcall selector geometry and return the indexed selector base.
 static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
 {
    size_t i;
@@ -9306,11 +9307,11 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
    }
 
    fprintf(stderr,
-           "vcsc-ld: inline bank-call profile requires a bankcall descriptor on every selector-controlled bank\n");
+           "vcsc-ld: bank-call profile requires a bankcall descriptor on every selector-controlled bank\n");
    exit(1);
 }
 
-//! @brief Return the mapper-specific fixed reservation for the inline bank-call block.
+//! @brief Return the mapper-specific fixed reservation for the bank-call block.
 static uint16_t generic_bankcall_reserved_size(const linker_config_t *cfg)
 {
    if (c26_topology_is_jane(cfg))
@@ -9330,7 +9331,7 @@ static uint16_t generic_bankcall_reserved_size(const linker_config_t *cfg)
    if (bankcall_descriptor_abi_enabled(cfg))
       return VCSC_GENERIC_BANKCALL_RESERVED_SIZE;
    fprintf(stderr,
-           "vcsc-ld: inline bank-call profile requires destination descriptors; legacy bank-call ABIs are not supported\n");
+           "vcsc-ld: bank-call profile requires destination descriptors; legacy bank-call ABIs are not supported\n");
    exit(1);
 }
 
@@ -9882,26 +9883,90 @@ static void image_write_generated(uint8_t *image, uint8_t *used, uint16_t addr,
    image_write(image, used, addr, src, len, who);
 }
 
-//! @brief Opcode for a state-preserving selector access.
-static uint8_t selector_access_opcode(uint16_t hotspot, int vector_bridge)
+//! @brief Return the maintained reset-entry template for a built-in mapper.
+static const uint8_t *mapper_entry_template(const linker_config_t *cfg)
 {
-   /* ROM-window selectors can consume a store harmlessly.  Below-window
-      selectors overlap console devices, so use the NMOS absolute NOP ($0C):
-      it performs the required read bus cycle without changing registers/flags
-      or writing through to the mirrored TIA/RIOT device. */
-   if ((hotspot & 0x1000u) == 0)
-      return 0x0Cu;
-   return vector_bridge ? 0x2Cu : 0x8Du;
+   const uint8_t *sig = cfg ? cfg->topology_cartridge.signature : NULL;
+   int has_sig = cfg && cfg->topology_bank_count &&
+                 (cfg->topology_cartridge.present_mask & 0x80u);
+
+#define SIG4(a,b,c,d) (has_sig && sig[0] == (a) && sig[1] == (b) && \
+                                  sig[2] == (c) && sig[3] == (d))
+   if (SIG4('F','8',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "F8")))
+      return vcsc_f8_entry;
+   if (SIG4('F','8','S','C') || (!has_sig && cfg && str_ieq(cfg->mapper, "F8SC")))
+      return vcsc_f8sc_entry;
+   if (SIG4('F','6',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "F6")))
+      return vcsc_f6_entry;
+   if (SIG4('F','6','S','C') || (!has_sig && cfg && str_ieq(cfg->mapper, "F6SC")))
+      return vcsc_f6sc_entry;
+   if (SIG4('F','4',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "F4")))
+      return vcsc_f4_entry;
+   if (SIG4('F','4','S','C') || (!has_sig && cfg && str_ieq(cfg->mapper, "F4SC")))
+      return vcsc_f4sc_entry;
+   if (SIG4('F','A',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "FA")))
+      return vcsc_fa_entry;
+   if (SIG4('D','P','C',0) || (!has_sig && cfg && str_ieq(cfg->mapper, "DPC")))
+      return vcsc_dpc_entry;
+   if (SIG4('F','A','2',0) || (!has_sig && cfg && str_ieq(cfg->mapper, "FA2")))
+      return vcsc_fa2_entry;
+   if (SIG4('J','A','N','E') || (!has_sig && cfg && str_ieq(cfg->mapper, "JANE")))
+      return vcsc_jane_entry;
+   if (SIG4('0','8','4','0') || (!has_sig && cfg && str_ieq(cfg->mapper, "0840")))
+      return vcsc_m0840_entry;
+   if (SIG4('U','A',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "UA")))
+      return vcsc_ua_entry;
+   if (SIG4('U','A','S','W') || (!has_sig && cfg && str_ieq(cfg->mapper, "UASW")))
+      return vcsc_uasw_entry;
+   if (SIG4('0','F','A','0') || (!has_sig && cfg && str_ieq(cfg->mapper, "0FA0")))
+      return vcsc_m0fa0_entry;
+   if (SIG4('W','D',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "WD")))
+      return vcsc_wd_entry;
+#undef SIG4
+   return NULL;
 }
 
-//! @brief Encode one selector-access/JMP-handler vector bridge entry.
+//! @brief Build the three-byte mapper entry used before a vector handler.
+static void build_mapper_entry(const linker_config_t *cfg,
+                               const cartridge_bank_t *startup,
+                               uint8_t entry[VCSC_MAPPER_ENTRY_SIZE])
+{
+   const uint8_t *maintained = mapper_entry_template(cfg);
+   if (maintained) {
+      memcpy(entry, maintained, VCSC_MAPPER_ENTRY_SIZE);
+      if (entry[0] != 0x0Cu ||
+          (uint16_t)(entry[1] | ((uint16_t)entry[2] << 8)) != startup->hotspot) {
+         fprintf(stderr,
+                 "vcsc-ld: maintained mapper entry does not select startup bank %s at $%04X\n",
+                 startup->name, startup->hotspot);
+         exit(1);
+      }
+      return;
+   }
+
+   /* Generic selector-controlled profiles still use the declared startup
+      selector directly. $select_access means an address-bus access is the
+      selector event, so a raw NMOS absolute NOP is the least destructive read. */
+   entry[0] = 0x0Cu;
+   entry[1] = (uint8_t)(startup->hotspot & 0xFFu);
+   entry[2] = (uint8_t)((startup->hotspot >> 8) & 0xFFu);
+}
+
+//! @brief Opcode for a state-preserving selector access in legacy stubs.
+static uint8_t selector_access_opcode(void)
+{
+   /* $select_access is an address-bus access trigger.  Raw NMOS opcode $0C is
+      NOP absolute: it performs the required read without changing registers or
+      flags and without writing through below-window console-device aliases. */
+   return 0x0Cu;
+}
+
+//! @brief Encode one mapper-entry/JMP-handler vector bridge slot.
 static void encode_vector_bridge_entry(uint8_t *table, size_t offset,
-                                       uint16_t bank0_hotspot,
+                                       const uint8_t entry[VCSC_MAPPER_ENTRY_SIZE],
                                        uint16_t handler)
 {
-   table[offset + 0u] = selector_access_opcode(bank0_hotspot, 1);
-   table[offset + 1u] = (uint8_t)(bank0_hotspot & 0xFFu);
-   table[offset + 2u] = (uint8_t)((bank0_hotspot >> 8) & 0xFFu);
+   memcpy(table + offset, entry, VCSC_MAPPER_ENTRY_SIZE);
    table[offset + 3u] = 0x4Cu; /* JMP absolute */
    table[offset + 4u] = (uint8_t)(handler & 0xFFu);
    table[offset + 5u] = (uint8_t)((handler >> 8) & 0xFFu);
@@ -9912,7 +9977,7 @@ static void encode_bank_jump_entry(uint8_t *table, size_t offset,
                                    const bank_trampoline_entry_t *entry,
                                    uint16_t canonical_pointer)
 {
-   table[offset + 0u] = selector_access_opcode(entry->destination_hotspot, 0); /* STA in ROM window, NOP-read below it. */
+   table[offset + 0u] = selector_access_opcode(); /* Side-effect-free absolute selector read. */
    table[offset + 1u] = (uint8_t)(entry->destination_hotspot & 0xFFu);
    table[offset + 2u] = (uint8_t)((entry->destination_hotspot >> 8) & 0xFFu);
    table[offset + 3u] = 0x6Cu; /* JMP through the inline target word. */
@@ -9937,11 +10002,11 @@ static void encode_bank_jsr_entry(uint8_t *table, size_t offset,
    table[offset + 0u] = 0x20u; /* JSR absolute to the entry body. */
    table[offset + 1u] = (uint8_t)(body & 0xFFu);
    table[offset + 2u] = (uint8_t)((body >> 8) & 0xFFu);
-   table[offset + 3u] = selector_access_opcode(entry->source_hotspot, 0); /* Restore source bank. */
+   table[offset + 3u] = selector_access_opcode(); /* Restore source bank. */
    table[offset + 4u] = (uint8_t)(entry->source_hotspot & 0xFFu);
    table[offset + 5u] = (uint8_t)((entry->source_hotspot >> 8) & 0xFFu);
    table[offset + 6u] = 0x60u; /* RTS through the original caller return. */
-   table[offset + 7u] = selector_access_opcode(entry->destination_hotspot, 0); /* Select destination bank. */
+   table[offset + 7u] = selector_access_opcode(); /* Select destination bank. */
    table[offset + 8u] = (uint8_t)(entry->destination_hotspot & 0xFFu);
    table[offset + 9u] = (uint8_t)((entry->destination_hotspot >> 8) & 0xFFu);
    table[offset + 10u] = 0x6Cu; /* JMP through the inline target word. */
@@ -10137,7 +10202,7 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
    }
    else {
       fprintf(stderr,
-              "vcsc-ld: internal error: inline bank-call template selected without descriptor ABI support\n");
+              "vcsc-ld: internal error: bank-call template selected without descriptor ABI support\n");
       exit(1);
    }
 }
@@ -10278,7 +10343,7 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
       uint8_t bridge[VECTOR_BRIDGE_SIZE];
       uint8_t vectors[6];
       uint16_t bridge_base;
-      uint16_t bank0_hotspot;
+      uint8_t mapper_entry[VCSC_MAPPER_ENTRY_SIZE];
       uint32_t startup_end;
 
       for (i = 0; i < cfg->bank_count; ++i) {
@@ -10345,19 +10410,19 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
       }
 
       bridge_base = (uint16_t)(startup->start + cfg->vector_bridge_offset);
-      bank0_hotspot = startup->hotspot;
+      build_mapper_entry(cfg, startup, mapper_entry);
       encode_vector_bridge_entry(bridge, VECTOR_BRIDGE_NMI_OFFSET,
-                                 bank0_hotspot, nmi);
+                                 mapper_entry, nmi);
       encode_vector_bridge_entry(bridge, VECTOR_BRIDGE_RESET_OFFSET,
-                                 bank0_hotspot, reset);
+                                 mapper_entry, reset);
       encode_vector_bridge_entry(bridge, VECTOR_BRIDGE_IRQBRK_OFFSET,
-                                 bank0_hotspot, irqbrk);
+                                 mapper_entry, irqbrk);
 
       /* Every bank receives the exact same bridge bytes and vector words. The
-         vectors use BANK0's logical mirror. Whichever physical bank is active
-         therefore fetches the same low-twelve-bit bridge offset, which selects
-         BANK0 before jumping to the ordinary runtime handler. Identical bytes
-         also make F4's NMI-vector/hotspot overlap deterministic. */
+         mapper-owned entry fragment establishes the canonical startup mapping
+         before the normal handler runs; RESET therefore reaches __reset only
+         after mapper entry. NMI/IRQ use the same normalization so a BRK from a
+         non-home bank retains the previous wrong-bank recovery behavior. */
       vectors[0] = (uint8_t)((bridge_base + VECTOR_BRIDGE_NMI_OFFSET) & 0xFFu);
       vectors[1] = (uint8_t)(((bridge_base + VECTOR_BRIDGE_NMI_OFFSET) >> 8) & 0xFFu);
       vectors[2] = (uint8_t)((bridge_base + VECTOR_BRIDGE_RESET_OFFSET) & 0xFFu);

@@ -12,7 +12,7 @@
 void compile_cartridge_decl_stmt(ASTNode *node);
 void compile_bank_decl_stmt(ASTNode *node);
 //! Return whether the current cartridge profile opts into the generic inline-target bank-call pilot.
-bool compile_cartridge_supports_inline_bankcall(void);
+bool compile_cartridge_supports_bankcall(void);
 void compile_mem_decl_stmt(ASTNode *node);
 void compile_type_decl_stmt(ASTNode *node);
 void compile_typedef_decl_stmt(ASTNode *node);

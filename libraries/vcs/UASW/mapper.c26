@@ -8,7 +8,7 @@ include "vcs.c26"
 // selects bank 1.  The same UA alias mask applies: (A & $1260) is $0220 or
 // $0240.  Generated selector stubs use read-only NMOS absolute NOP accesses.
 cartridge {
-   $inline_bankcall
+   $bankcall
    $fill:0xff $signature:UASW
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012

@@ -9,7 +9,7 @@ include "vcs.c26"
 // below the cartridge window, generated selector stubs use read-only NMOS
 // absolute NOP accesses rather than stores into mirrored TIA space.
 cartridge {
-   $inline_bankcall
+   $bankcall
    $fill:0xff $signature:0840
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012

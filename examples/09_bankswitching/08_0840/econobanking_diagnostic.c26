@@ -2,7 +2,7 @@
 
 // Atari 0840 / EconoBanking PASS/FAIL diagnostic.
 // Exercises both below-window selectors through nested calls and generated
-// return-bank restoration.  The linker-generated reset bridge also supplies
+// return-bank restoration.  The mapper-owned entry hook also supplies
 // Stella's established repeated NOP $0800; JMP autodetection pattern.
 include "0840/mapper.c26"
 

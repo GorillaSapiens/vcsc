@@ -104,13 +104,17 @@ Open workstreams
    Mapper/linker `.cfg` profiles under `libraries/vcs` are removed; C26 topology
    is authoritative.
    The toolchain now emits the six-byte descriptor call ABI. F8/F6/F4(+SC), FA,
-   DPC, FA2-24/28, JANE, 0840, UA, UASW, and 0FA0 consume it end to end and declare `$inline_bankcall`
+   DPC, FA2-24/28, JANE, 0840, UA, UASW, 0FA0, and WD consume it end to end and declare `$bankcall`
    unconditionally; same-bank calls remain ordinary JSRs and cross-bank calls use
    fixed mapper-local descriptor trampolines. FA2 uses `$F5-$FA/$FB` hotspot-low
    descriptors; JANE uses `$F0/$F1/$F8/$F9`; 0840 uses `$00/$40` offsets from
    `$0800`; UA/UASW use `$20/$40` offsets from `$0200`, with UASW reversing the
-   bank association; 0FA0 uses `$A0/$C0` offsets from `$0F00`. All use
-   69/72-byte (`$048`) blocks. Only the current descriptor ABI is retained for migrated mappers.
+   bank association; 0FA0 uses `$A0/$C0` offsets from `$0F00`; WD uses descriptors
+   1/2 for hardware states 1/2 via indexed reads from `$0038`. All use 69/72-byte
+   (`$048`) blocks. Only the current descriptor ABI is retained for migrated mappers.
+   Each migrated mapper owns `bankcall.s26` plus a three-byte `entry.s26`. Entry
+   hooks use raw `op0C` absolute-NOP selector reads and are copied by the linker
+   before the ordinary vector handler, so startup first normalizes the mapper state.
 
    The F4SC descriptor timing regression in the field controller diagnostic is
    resolved architecturally. The cartridge now has bank-local joystick, paddle,
@@ -126,7 +130,6 @@ Open workstreams
    VBLANK/visible/overscan WSYNC phase, in addition to the 0..255 value oracle,
    227/228/229 long soaks, displayed-95 check, and PAL/SECAM points.
 
-   **Immediate code step:** continue descriptor migration with FC, then F0.
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished
@@ -258,10 +261,10 @@ the fingerprint selftest, return-memory map anchoring, two stale renderer cfg
 arguments, and branding. `make tar` from an unpacked/no-.git tree
 now preserves `.../instruction.txt`, with hygiene coverage locking that invariant.
 Compile-only validation remains 503/503. Broad e2e reruns are green through the
-first 245/342 tests plus the diagnostic cartridge, DPC, driving, E0,
+first 237/343 tests plus the diagnostic cartridge, DPC, driving, E0,
 enhanced-multisprite, discard-strobe, VSYNC, and example-build shards 1-6; the
 exhaustive diagnostic paddle test still exceeds this tool window, so a fresh
-single uninterrupted 342/342 rerun has not been claimed here.
+single uninterrupted 343/343 rerun has not been claimed here.
 
 Immediate TODO
 --------------

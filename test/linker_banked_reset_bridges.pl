@@ -162,8 +162,8 @@ sub simulate_vector_bridge {
       or die "$mapper vector at \$" . sprintf('%04X', $vector_address) .
              " from BANK$initial_bank produced \$" . sprintf('%04X', $pc) .
              ", expected \$" . sprintf('%04X', $expected_bridge) . "\n";
-   cart_byte($image, $count, $selected, $pc) == 0x2C
-      or die "$mapper bridge did not begin with BIT absolute\n";
+   cart_byte($image, $count, $selected, $pc) == 0x0C
+      or die "$mapper bridge did not begin with raw NMOS NOP absolute\n";
    my $hotspot = cart_byte($image, $count, $selected, $pc + 1) |
                  (cart_byte($image, $count, $selected, $pc + 2) << 8);
    my $new_bank = hotspot_bank($mapper, $hotspot);
@@ -228,11 +228,11 @@ for my $mapper (qw(F8 F6 F4)) {
       or die "$mapper startup handlers or main escaped BANK0\n";
 
    my $expected_bridge = pack('C*',
-      0x2C, $bank0_hotspot & 0xFF, $bank0_hotspot >> 8,
+      0x0C, $bank0_hotspot & 0xFF, $bank0_hotspot >> 8,
       0x4C, $nmi & 0xFF, $nmi >> 8,
-      0x2C, $bank0_hotspot & 0xFF, $bank0_hotspot >> 8,
+      0x0C, $bank0_hotspot & 0xFF, $bank0_hotspot >> 8,
       0x4C, $reset & 0xFF, $reset >> 8,
-      0x2C, $bank0_hotspot & 0xFF, $bank0_hotspot >> 8,
+      0x0C, $bank0_hotspot & 0xFF, $bank0_hotspot >> 8,
       0x4C, $irqbrk & 0xFF, $irqbrk >> 8);
    my $expected_vectors = pack('v3', 0xFFE0, 0xFFE6, 0xFFEC);
 

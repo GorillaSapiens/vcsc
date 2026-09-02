@@ -68,7 +68,7 @@ index($mk,'-DVCSC_INLINE_BANKCALL=1')<0
    or die "0FA0 play target must force Stella -bs 0FA0 without an inline-bankcall pilot define\n";
 my $pt=read_file($profile);
 $pt =~ /\$signature:0FA0\b/ &&
-$pt =~ /cartridge\s*\{\s*\$inline_bankcall/s &&
+$pt =~ /cartridge\s*\{\s*\$bankcall/s &&
 index($pt,'VCSC_INLINE_BANKCALL') < 0 &&
 $pt =~ /\(A & \$16E0\)==\$06A0/ &&
 $pt =~ /bank\s+bank0\s*\{.*?\$file_index:1.*?\$select_access:0x0fc0\s+\$bankcall_descriptor:0xc0\s+\$startup/s &&

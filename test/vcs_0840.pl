@@ -66,7 +66,7 @@ $mk =~ /^play:\s*\$\(TARGET\)\s*$/m &&
 $mk =~ /^\s*stella\s+-bs\s+0840\s+\$\(TARGET\)\s*$/m
    or die "0840 play target must force Stella -bs 0840\n";
 my $pt=read_file($profile);
-$pt =~ /cartridge\s*\{\s*\$inline_bankcall/s &&
+$pt =~ /cartridge\s*\{\s*\$bankcall/s &&
 index($pt,'VCSC_INLINE_BANKCALL') < 0 &&
 $pt =~ /\$signature:0840\b/ &&
 $pt =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x0800\s+\$bankcall_descriptor:0x00\s+\$startup/s &&

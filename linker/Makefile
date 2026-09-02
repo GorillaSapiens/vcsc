@@ -15,23 +15,34 @@ DEPS = $(OBJS:.o=.d)
 DOXYGEN ?= doxygen
 PERL ?= perl
 VCSC_AS ?= $(if $(ASM),$(ASM),../assembler/vcsc-as)
-BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/F8/inline_bankcall.s26
-BANKCALL_TEMPLATE_GENERATOR = gen_inline_bankcall_template.pl
+BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/F8/bankcall.s26
+BANKCALL_TEMPLATE_GENERATOR = gen_bankcall_template.pl
 BANKCALL_TEMPLATE_HEADER = generic_bankcall_template.h
-FA2_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/FA2/inline_bankcall.s26
+FA2_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/FA2/bankcall.s26
 FA2_BANKCALL_TEMPLATE_HEADER = fa2_bankcall_template.h
-JANE_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/JANE/inline_bankcall.s26
+JANE_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/JANE/bankcall.s26
 JANE_BANKCALL_TEMPLATE_HEADER = jane_bankcall_template.h
-M0840_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/0840/inline_bankcall.s26
+M0840_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/0840/bankcall.s26
 M0840_BANKCALL_TEMPLATE_HEADER = m0840_bankcall_template.h
-UA_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/UA/inline_bankcall.s26
+UA_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/UA/bankcall.s26
 UA_BANKCALL_TEMPLATE_HEADER = ua_bankcall_template.h
-UASW_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/UASW/inline_bankcall.s26
+UASW_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/UASW/bankcall.s26
 UASW_BANKCALL_TEMPLATE_HEADER = uasw_bankcall_template.h
-M0FA0_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/0FA0/inline_bankcall.s26
+M0FA0_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/0FA0/bankcall.s26
 M0FA0_BANKCALL_TEMPLATE_HEADER = m0fa0_bankcall_template.h
-WD_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/WD/inline_bankcall.s26
+WD_BANKCALL_TEMPLATE_SOURCE = ../libraries/vcs/WD/bankcall.s26
 WD_BANKCALL_TEMPLATE_HEADER = wd_bankcall_template.h
+ENTRY_TEMPLATE_GENERATOR = gen_entry_templates.pl
+ENTRY_TEMPLATE_HEADER = mapper_entry_templates.h
+ENTRY_TEMPLATE_SOURCES = \
+	../libraries/vcs/F8/entry.s26 ../libraries/vcs/F8SC/entry.s26 \
+	../libraries/vcs/F6/entry.s26 ../libraries/vcs/F6SC/entry.s26 \
+	../libraries/vcs/F4/entry.s26 ../libraries/vcs/F4SC/entry.s26 \
+	../libraries/vcs/FA/entry.s26 ../libraries/vcs/DPC/entry.s26 \
+	../libraries/vcs/FA2/entry.s26 ../libraries/vcs/JANE/entry.s26 \
+	../libraries/vcs/0840/entry.s26 ../libraries/vcs/UA/entry.s26 \
+	../libraries/vcs/UASW/entry.s26 ../libraries/vcs/0FA0/entry.s26 \
+	../libraries/vcs/WD/entry.s26
 
 all: version.h $(TARGET)
 
@@ -72,7 +83,18 @@ $(M0FA0_BANKCALL_TEMPLATE_HEADER): $(M0FA0_BANKCALL_TEMPLATE_SOURCE) $(BANKCALL_
 $(WD_BANKCALL_TEMPLATE_HEADER): $(WD_BANKCALL_TEMPLATE_SOURCE) $(BANKCALL_TEMPLATE_GENERATOR) $(VCSC_AS)
 	$(PERL) $(BANKCALL_TEMPLATE_GENERATOR) $(VCSC_AS) $(WD_BANKCALL_TEMPLATE_SOURCE) $@ WD
 
-vcsc_ld.o: version.h $(BANKCALL_TEMPLATE_HEADER) $(FA2_BANKCALL_TEMPLATE_HEADER) $(JANE_BANKCALL_TEMPLATE_HEADER) $(M0840_BANKCALL_TEMPLATE_HEADER) $(UA_BANKCALL_TEMPLATE_HEADER) $(UASW_BANKCALL_TEMPLATE_HEADER) $(M0FA0_BANKCALL_TEMPLATE_HEADER) $(WD_BANKCALL_TEMPLATE_HEADER)
+$(ENTRY_TEMPLATE_HEADER): $(ENTRY_TEMPLATE_SOURCES) $(ENTRY_TEMPLATE_GENERATOR) $(VCSC_AS)
+	$(PERL) $(ENTRY_TEMPLATE_GENERATOR) $(VCSC_AS) $@ \
+		F8=../libraries/vcs/F8/entry.s26 F8SC=../libraries/vcs/F8SC/entry.s26 \
+		F6=../libraries/vcs/F6/entry.s26 F6SC=../libraries/vcs/F6SC/entry.s26 \
+		F4=../libraries/vcs/F4/entry.s26 F4SC=../libraries/vcs/F4SC/entry.s26 \
+		FA=../libraries/vcs/FA/entry.s26 DPC=../libraries/vcs/DPC/entry.s26 \
+		FA2=../libraries/vcs/FA2/entry.s26 JANE=../libraries/vcs/JANE/entry.s26 \
+		M0840=../libraries/vcs/0840/entry.s26 UA=../libraries/vcs/UA/entry.s26 \
+		UASW=../libraries/vcs/UASW/entry.s26 M0FA0=../libraries/vcs/0FA0/entry.s26 \
+		WD=../libraries/vcs/WD/entry.s26
+
+vcsc_ld.o: version.h $(ENTRY_TEMPLATE_HEADER) $(BANKCALL_TEMPLATE_HEADER) $(FA2_BANKCALL_TEMPLATE_HEADER) $(JANE_BANKCALL_TEMPLATE_HEADER) $(M0840_BANKCALL_TEMPLATE_HEADER) $(UA_BANKCALL_TEMPLATE_HEADER) $(UASW_BANKCALL_TEMPLATE_HEADER) $(M0FA0_BANKCALL_TEMPLATE_HEADER) $(WD_BANKCALL_TEMPLATE_HEADER)
 
 %.o: %.c
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@

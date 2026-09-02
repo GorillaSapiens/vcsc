@@ -91,7 +91,7 @@ $src =~ /call_count\s*!=\s*16/ && $src =~ /nested_count\s*!=\s*1/
 
 my $pt=read_file($profile);
 $pt =~ /\$signature:JANE\b/ &&
-$pt =~ /cartridge\s*\{\s*\$inline_bankcall/s &&
+$pt =~ /cartridge\s*\{\s*\$bankcall/s &&
 index($pt,'VCSC_INLINE_BANKCALL') < 0 &&
 $pt =~ /\$vector_bridge_offset:0x0ee0\s+\$vector_bridge_size:0x0012/ &&
 $pt =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$select_access:0x1ff0\s+\$bankcall_descriptor:0xf0/s &&

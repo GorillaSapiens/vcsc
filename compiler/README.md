@@ -661,7 +661,7 @@ or another nonzero numbered bank is rejected.
 
 
 Selector-controlled profiles that support automatic cross-bank calls declare
-`$inline_bankcall`. The public
+`$bankcall`. The public
 cross-bank direct-call contract is defined in
 [`../BANKSWITCHING.md`](../BANKSWITCHING.md): same-bank calls remain ordinary
 JSRs, while a cross-bank call uses a six-byte linked bundle consisting of the
@@ -670,7 +670,7 @@ byte. The caller bank's source descriptor is baked into its trampoline instance
 rather than inferred from the return PC.
 
 The compiler/assembler/linker emit the descriptor field. F8/F6/F4(+SC), FA,
-DPC, FA2, JANE, 0840, UA/UASW, and 0FA0 consume it end-to-end.
+DPC, FA2, JANE, 0840, UA/UASW, 0FA0, and WD consume it end-to-end.
 
 A constant object may use one named read-only region:
 

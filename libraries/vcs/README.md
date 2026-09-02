@@ -22,7 +22,8 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `CV/mapper.c26`, `CV/ram.c26` ... CommaVid CV fixed 2K ROM plus shared 1K split-address cartridge RAM; linked `.map` output supplies the simulator topology
 - `4K/mapper.c26` ... conventional unbanked 4K topology and allocatable ROM
 - `F8/mapper.c26`, `F6/mapper.c26`, `F4/mapper.c26` ... inspectable selector-controlled C26 profiles with exact output order and generated corridors
-- `*/inline_bankcall.s26` ... mapper-local maintained sources for selector-controlled automatic cross-bank calls; the public ABI is defined in [`../../BANKSWITCHING.md`](../../BANKSWITCHING.md) and uses mapper-defined one-byte bank-call descriptors rather than inferring bank identity from logical PCs. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, FA2-24/28, JANE, 0840, UA, UASW, and 0FA0 consume that descriptor ABI now.
+- `*/bankcall.s26` ... mapper-local maintained sources for selector-controlled automatic cross-bank calls; the public ABI is defined in [`../../BANKSWITCHING.md`](../../BANKSWITCHING.md) and uses mapper-defined one-byte bank-call descriptors rather than inferring bank identity from logical PCs. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, FA2-24/28, JANE, 0840, UA, UASW, 0FA0, and WD consume that descriptor ABI now.
+- `*/entry.s26` ... mapper-local three-byte reset-entry sources for the migrated descriptor-ABI mappers; each uses raw `op0C` absolute-NOP syntax to perform the startup selector read without depending on `--illegal`, and the linker replicates the maintained bytes ahead of the ordinary vector handler.
 - `0840/mapper.c26` ... 0840/EconoBanking two-bank 8K profile with below-cartridge selectors `$0800/$0840`; linked `.map` output carries the masked selector semantics for `vcsc-sim`
 - `UA/mapper.c26`, `UASW/mapper.c26` ... UA Limited 8K alias-decoded profiles; UA maps `$0220`-family accesses to bank 0 and `$0240`-family accesses to bank 1, while UASW swaps that association; linked `.map` output carries the masked selector semantics for `vcsc-sim`
 - `0FA0/mapper.c26` ... Brazilian Fotomania 0FA0 two-bank 8K profile; `(A & $16E0)==$06A0/$06C0` selects physical bank 0/1, physical bank 1 powers up, and linked `.map` output supplies simulator metadata
@@ -33,7 +34,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `3E/mapper_8k.c26`, `3E/mapper_16k.c26` ... classic 3E ROM/RAM extension of the same 2K-window family, with 32 1K RAM banks and map-driven simulator support for both public sizes
 - `JANE/mapper.c26` ... JANE four-bank 16K profile preserving physical selectors `$1FF0/$1FF1/$1FF8/$1FF9` and hardware startup in physical bank 1; linked `.map` output supplies simulator physical-file mapping
 - `FA/mapper.c26`, `FA/ram.c26` ... CBS FA/RAM Plus three-bank profile with physical startup bank 2 and shared 256-byte split-address cartridge RAM
-- `FA2/mapper_24k.c26`, `FA2/mapper_28k.c26` ... FA2 six/seven-bank profiles with direct selectors `$1FF5-$1FFA/$1FFB`, physical startup bank 0, and the same shared 256-byte split-address cartridge RAM. Their descriptor ABI uses hotspot low bytes `$F5-$FA/$FB` and `FA2/inline_bankcall.s26` selects with `STA $1F00,Y`; linked `.map` output supports simulation. VCSC emits clean 24K/28K payloads; optional Harmony `$1FF4` persistence and 29K/32K wrapper forms are not part of the core profile.
+- `FA2/mapper_24k.c26`, `FA2/mapper_28k.c26` ... FA2 six/seven-bank profiles with direct selectors `$1FF5-$1FFA/$1FFB`, physical startup bank 0, and the same shared 256-byte split-address cartridge RAM. Their descriptor ABI uses hotspot low bytes `$F5-$FA/$FB` and `FA2/bankcall.s26` selects with `LDA $1F00,Y`; linked `.map` output supports simulation. VCSC emits clean 24K/28K payloads; optional Harmony `$1FF4` persistence and 29K/32K wrapper forms are not part of the core profile.
 - `4KSC/mapper.c26`, `F8SC/mapper.c26`, `F6SC/mapper.c26`, `F4SC/mapper.c26` ... direct/banked Superchip profiles with a reserved physical prefix and shared split-address RAM
 - `OMNI/mapper.c26` ... OmniCart/OMNI direct-addressing profile: seven directly addressed 4K RO islands plus one 4K RW island at `$1000`; linked `.map` output gives `vcsc-sim` the matching selector-free logical layout; no real hardware currently implements OMNI
 - `color_ntsc.c26`, `color_pal.c26`, `color_secam.c26` ... readable standard-specific aliases backed by the compile-time RGB palette matchers
@@ -691,8 +692,8 @@ selects it; `$0840` selects physical bank 1. Hardware decoding aliases these
 selectors below the cartridge window, so they are bus triggers rather than ROM
 locations. VCSC therefore does not reserve corresponding `$F800/$F840` bytes.
 
-Generated vector bridges use undocumented NMOS absolute NOP opcode `$0C` for
-below-window selector reads. The descriptor-aware cross-bank trampoline uses
+The mapper-owned `0840/entry.s26` reset hook uses raw NMOS `op0C` for
+the startup selector read; the raw spelling avoids any `--illegal` dependency. The descriptor-aware cross-bank trampoline uses
 `$00/$40` as mapper-owned offsets from `$0800` and performs `LDA $0800,Y` for
 both destination selection and source restoration. Each bank copy carries its
 own baked source descriptor; no bank identity is recovered from a logical PC.
@@ -736,7 +737,7 @@ address mirroring, `(A & $16E0)==$06A0` selects physical bank 0 and
 don't-care alias bits. `vcsc-sim` keeps that mask explicit, and reads or writes
 to any matching alias still perform the underlying console-side access before
 the mapper switch. Generated transitions use state-preserving reads.
-`0FA0/inline_bankcall.s26` is the mapper-local automatic-call implementation.
+`0FA0/bankcall.s26` is the mapper-local automatic-call implementation.
 The descriptor ABI uses `$A0/$C0` as mapper-owned destination/source descriptors
 for canonical aliases `$0FA0/$0FC0`; selection and restoration are indexed reads
 from selector base `$0F00`. Each replicated trampoline copy carries its baked
@@ -847,9 +848,9 @@ other six hardware arrangements are still modeled by `vcsc-sim` and may be used
 by deliberately hand-written assembly, but they are outside the compiler ABI.
 
 WD powers on in hardware state 0 (`0,0,1,3`). Its top segment is physical chunk
-3, which is also logical bank0's top segment. The replicated reset bridge reads
-`$39`, waits naturally through the delayed selector instruction, and then enters
-normal startup with complete logical bank0/state1 mapping established.
+3, which is also logical bank0's top segment. The mapper-owned `WD/entry.s26` hook reads `$39` with raw `op0C`, waits
+naturally through the delayed selector instruction, and then enters normal startup
+with complete logical bank0/state1 mapping established.
 
 WD also exposes 64 bytes of always-live split-address cartridge RAM: reads use
 `$1000-$103F` and writes use `$1040-$107F`. Those ports hide the first `$80`
@@ -874,7 +875,7 @@ common call trampoline remains at `$FF00-$FFDF`. The final file bank carries the
 `JANE` signature at `$FFF8-$FFFB`; bytes stored at `$FFF8/$FFF9` are harmless
 because the address access, not the stored byte, performs selection.
 
-JANE declares `$inline_bankcall` unconditionally. Its bank-call descriptors are
+JANE declares `$bankcall` unconditionally. Its bank-call descriptors are
 the selector-hotspot low bytes `$F0/$F1/$F8/$F9`; the 69-byte replicated
 descriptor trampoline uses `LDA $1F00,Y` for both destination selection and
 source restoration, with 72 bytes reserved and no PC-derived bank decoding.

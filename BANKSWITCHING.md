@@ -14,7 +14,7 @@ shared ABI.
 
 ## Status
 
-The descriptor ABI in this document is the public ABI for `$inline_bankcall`.
+The descriptor ABI in this document is the public ABI for `$bankcall`.
 The compiler, assembler, and linker emit the three-byte `.banktarget` field.
 F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, FA2-24/28, JANE, 0840, UA, UASW,
 0FA0, and WD are fully migrated: their bank-local trampolines consume the
@@ -34,7 +34,7 @@ The bank-call ABI therefore never infers source or destination bank identity
 from a target address or return PC.
 
 The linker already knows the placement bank of both caller and callee. Each bank
-participating in `$inline_bankcall` also has a one-byte **bank-call descriptor**.
+participating in `$bankcall` also has a one-byte **bank-call descriptor**.
 That descriptor is opaque outside the mapper-specific bank-call implementation.
 It may be, for example:
 
@@ -124,7 +124,7 @@ by each active cross-bank call, in addition to the synthetic return machinery.
 
 ## Mapper contract
 
-A mapper may opt into `$inline_bankcall` only when one byte is sufficient to
+A mapper may opt into `$bankcall` only when one byte is sufficient to
 identify the mapper state needed to enter and later restore each participating
 compiled-code bank under VCSC's supported topology.
 
@@ -133,7 +133,15 @@ bank-call descriptor using `$bankcall_descriptor:<byte>`. The ABI requirement is
 the mapper-defined value; generic linker code carries it without interpreting its
 meaning.
 
-The mapper-specific `inline_bankcall.s26` owns the interpretation of the byte.
+The mapper-specific `bankcall.s26` owns the interpretation of the byte.
+
+The mapper-specific `entry.s26` owns reset-entry normalization for migrated
+descriptor-ABI mappers. It is a maintained three-byte selector read that the
+linker replicates ahead of the ordinary vector handler, so reset reaches the
+runtime only after the canonical startup bank/state is visible. These entry
+sources spell the absolute-NOP access as raw `op0C`, avoiding any dependency
+on assembler `--illegal` mode.
+
 Examples of useful descriptor choices include:
 
 - F8/F6/F4, FA, FA2, DPC and JANE: selector-hotspot low byte;

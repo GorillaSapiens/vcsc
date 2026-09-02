@@ -437,11 +437,14 @@ corridor must fit wholly below the final six vector bytes, and neither generated
 corridor may overlap the other or a selector hotspot.
 
 The current vector bridge is eighteen bytes: byte-identical NMI, RESET, and
-IRQ/BRK entries are copied at that physical offset in every bank. For ordinary
-cartridge-window selectors each entry is `BIT BANK0_HOTSPOT; JMP handler`. For
-below-window selectors the access is undocumented NMOS `NOP absolute` (`$0C`)
-instead, preserving registers/flags without writing the mirrored console device. The final six bytes of every bank contain the
-same vector words, using BANK0's logical mirror of those three entries, before
+IRQ/BRK entries are copied at that physical offset in every bank. Migrated
+selector-controlled mappers own a three-byte `entry.s26` reset-entry fragment.
+The linker assembles that maintained source at build time, copies its raw bytes
+ahead of each vector handler, and verifies that it selects the declared startup
+bank. Current entry hooks use raw NMOS `op0C` (absolute NOP) selector reads, so
+they preserve registers/flags and do not depend on assembler `--illegal` mode.
+The final six bytes of every bank contain the same vector words, using BANK0's
+logical mirror of those three entries, before
 optional cartridge metadata is applied. This makes RESET and IRQ/BRK
 deterministic from every initially selected bank. When a cartridge signature is
 present, its final two bytes replace `$xFFA/$xFFB` only in the final physical

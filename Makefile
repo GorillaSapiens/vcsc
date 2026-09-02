@@ -174,21 +174,36 @@ install-data:
 	install -m 0644 libraries/vcs/sound_secam.c26 $(DESTDIR)$(DATADIR)/vcs/sound_secam.c26
 	install -m 0644 libraries/vcs/4KSC/ram.c26 $(DESTDIR)$(DATADIR)/vcs/4KSC/ram.c26
 	install -m 0644 libraries/vcs/FA/ram.c26 $(DESTDIR)$(DATADIR)/vcs/FA/ram.c26
-	install -m 0644 libraries/vcs/F8/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F8/inline_bankcall.s26
-	install -m 0644 libraries/vcs/F8SC/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F8SC/inline_bankcall.s26
-	install -m 0644 libraries/vcs/F6/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F6/inline_bankcall.s26
-	install -m 0644 libraries/vcs/F6SC/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F6SC/inline_bankcall.s26
-	install -m 0644 libraries/vcs/F4/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F4/inline_bankcall.s26
-	install -m 0644 libraries/vcs/F4SC/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F4SC/inline_bankcall.s26
-	install -m 0644 libraries/vcs/FA/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/FA/inline_bankcall.s26
-	install -m 0644 libraries/vcs/DPC/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/DPC/inline_bankcall.s26
-	install -m 0644 libraries/vcs/FA2/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/FA2/inline_bankcall.s26
-	install -m 0644 libraries/vcs/JANE/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/JANE/inline_bankcall.s26
-	install -m 0644 libraries/vcs/0840/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/0840/inline_bankcall.s26
-	install -m 0644 libraries/vcs/UA/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/UA/inline_bankcall.s26
-	install -m 0644 libraries/vcs/UASW/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/UASW/inline_bankcall.s26
-	install -m 0644 libraries/vcs/0FA0/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/0FA0/inline_bankcall.s26
-	install -m 0644 libraries/vcs/WD/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/WD/inline_bankcall.s26
+	install -m 0644 libraries/vcs/F8/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F8/bankcall.s26
+	install -m 0644 libraries/vcs/F8SC/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F8SC/bankcall.s26
+	install -m 0644 libraries/vcs/F6/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F6/bankcall.s26
+	install -m 0644 libraries/vcs/F6SC/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F6SC/bankcall.s26
+	install -m 0644 libraries/vcs/F4/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F4/bankcall.s26
+	install -m 0644 libraries/vcs/F4SC/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F4SC/bankcall.s26
+	install -m 0644 libraries/vcs/FA/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/FA/bankcall.s26
+	install -m 0644 libraries/vcs/DPC/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/DPC/bankcall.s26
+	install -m 0644 libraries/vcs/FA2/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/FA2/bankcall.s26
+	install -m 0644 libraries/vcs/JANE/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/JANE/bankcall.s26
+	install -m 0644 libraries/vcs/0840/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/0840/bankcall.s26
+	install -m 0644 libraries/vcs/UA/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/UA/bankcall.s26
+	install -m 0644 libraries/vcs/UASW/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/UASW/bankcall.s26
+	install -m 0644 libraries/vcs/0FA0/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/0FA0/bankcall.s26
+	install -m 0644 libraries/vcs/WD/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/WD/bankcall.s26
+	install -m 0644 libraries/vcs/F8/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F8/entry.s26
+	install -m 0644 libraries/vcs/F8SC/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F8SC/entry.s26
+	install -m 0644 libraries/vcs/F6/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F6/entry.s26
+	install -m 0644 libraries/vcs/F6SC/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F6SC/entry.s26
+	install -m 0644 libraries/vcs/F4/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F4/entry.s26
+	install -m 0644 libraries/vcs/F4SC/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F4SC/entry.s26
+	install -m 0644 libraries/vcs/FA/entry.s26 $(DESTDIR)$(DATADIR)/vcs/FA/entry.s26
+	install -m 0644 libraries/vcs/DPC/entry.s26 $(DESTDIR)$(DATADIR)/vcs/DPC/entry.s26
+	install -m 0644 libraries/vcs/FA2/entry.s26 $(DESTDIR)$(DATADIR)/vcs/FA2/entry.s26
+	install -m 0644 libraries/vcs/JANE/entry.s26 $(DESTDIR)$(DATADIR)/vcs/JANE/entry.s26
+	install -m 0644 libraries/vcs/0840/entry.s26 $(DESTDIR)$(DATADIR)/vcs/0840/entry.s26
+	install -m 0644 libraries/vcs/UA/entry.s26 $(DESTDIR)$(DATADIR)/vcs/UA/entry.s26
+	install -m 0644 libraries/vcs/UASW/entry.s26 $(DESTDIR)$(DATADIR)/vcs/UASW/entry.s26
+	install -m 0644 libraries/vcs/0FA0/entry.s26 $(DESTDIR)$(DATADIR)/vcs/0FA0/entry.s26
+	install -m 0644 libraries/vcs/WD/entry.s26 $(DESTDIR)$(DATADIR)/vcs/WD/entry.s26
 	install -m 0644 libraries/vcs/CV/ram.c26 $(DESTDIR)$(DATADIR)/vcs/CV/ram.c26
 	install -m 0644 libraries/vcs/DPC/registers.c26 $(DESTDIR)$(DATADIR)/vcs/DPC/registers.c26
 	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
@@ -337,21 +352,36 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_secam.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/4KSC/ram.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/ram.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F8/inline_bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F8SC/inline_bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F6/inline_bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F6SC/inline_bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F4/inline_bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F4SC/inline_bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/inline_bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/inline_bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/inline_bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/JANE/inline_bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/0840/inline_bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/UA/inline_bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/UASW/inline_bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/0FA0/inline_bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/WD/inline_bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F8/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F8SC/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F6/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F6SC/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F4/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F4SC/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/JANE/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/0840/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/UA/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/UASW/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/0FA0/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/WD/bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F8/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F8SC/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F6/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F6SC/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F4/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F4SC/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/JANE/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/0840/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/UA/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/UASW/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/0FA0/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/WD/entry.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/CV/ram.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/registers.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.c26

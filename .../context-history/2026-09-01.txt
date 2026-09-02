@@ -78,3 +78,16 @@ regenerated the stale OMNI M subset and the UA/WD W subsets from
 inline-bankcall source generation, WD diagnostic, source hygiene, and assembly
 allowlist pass. A broad e2e checkpoint reached 224/342 with no failures before
 the available execution window ended.
+2026-09-01 20:11:42 PDT, mapper entry hooks and bankcall rename
+Renamed the public cartridge opt-in from `$inline_bankcall` to `$bankcall`
+and renamed all 15 maintained `inline_bankcall.s26` files to `bankcall.s26`.
+Added mapper-owned three-byte `entry.s26` hooks for those same migrated
+mappers. Entry sources use raw NMOS `op0C` absolute-NOP reads so reset-state
+normalization preserves registers/flags and does not require assembler
+`--illegal`; the linker now copies those maintained bytes ahead of each vector
+handler instead of choosing BIT/STA reset selectors itself. Audited selector
+accesses and changed FA2's descriptor transition from indexed STA to indexed
+LDA because FA2 switches on access. Fixed the legacy generated JSR/JMP tables to
+use side-effect-free `$0C` selector reads and updated their regressions.
+Compile-only is 503/503; focused mapper/bankcall/entry/profile/hygiene tests are
+green.

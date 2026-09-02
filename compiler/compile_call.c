@@ -39,7 +39,7 @@ static bool direct_call_uses_inline_bank_bundle(const ASTNode *fn) {
    const char *callee_region;
 
    if (!fn || !current_call_graph_function ||
-       !compile_cartridge_supports_inline_bankcall())
+       !compile_cartridge_supports_bankcall())
       return false;
    caller_region = function_single_code_region_name(current_call_graph_function);
    callee_region = function_single_code_region_name(fn);

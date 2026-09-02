@@ -217,7 +217,7 @@ for my $initial (0, 1) {
          $a = $read8->(($pc + 1) & 0xFFFF);
          $pc = ($pc + 2) & 0xFFFF;
       }
-      elsif ($op == 0x2C) { # BIT absolute; mapper hotspot access
+      elsif ($op == 0x2C || $op == 0x0C) { # BIT/NMOS NOP absolute; mapper hotspot read
          my $addr = $read8->(($pc + 1) & 0xFFFF) |
                     ($read8->(($pc + 2) & 0xFFFF) << 8);
          $selected = 0 if $addr == 0x1FF8;

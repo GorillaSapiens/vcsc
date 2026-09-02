@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use File::Temp qw(tempdir);
 
-@ARGV == 3 || @ARGV == 4 or die "usage: $0 vcsc-as F8/inline_bankcall.s26 output.h [PREFIX]\n";
+@ARGV == 3 || @ARGV == 4 or die "usage: $0 vcsc-as F8/bankcall.s26 output.h [PREFIX]\n";
 my ($as, $src, $out, $prefix) = @ARGV;
 $prefix //= "GENERIC";
 $prefix =~ /^[A-Z][A-Z0-9_]*$/ or die "$0: invalid template prefix '$prefix'\n";

@@ -70,7 +70,7 @@ for my $case (
    my $source=sprintf <<'SRC', $edge_start;
 include "vcs.c26"
 cartridge {
-   $inline_bankcall
+   $bankcall
    $fill:0xff $signature:F8
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012
@@ -163,7 +163,7 @@ SRC
    my $template=<<'SRC';
 include "vcs.c26"
 cartridge {
-   $inline_bankcall
+   $bankcall
    $fill:0xff $signature:F8
    $trampoline_offset:0x0f00 $trampoline_size:0x00e0
    $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012

@@ -2,7 +2,7 @@
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
 # timeout: 45
-# expectstdout: inline bank-call source template passed
+# expectstdout: bank-call source templates passed
 # expectexit: 0
 
 use strict;
@@ -25,15 +25,15 @@ my $tmp = shift @ARGV // die "usage: $0 REPO TMP\n";
 
 my $as = File::Spec->catfile($repo, qw(assembler vcsc-as));
 my @generic_mapper_dirs = qw(F8 F8SC F6 F6SC F4 F4SC FA DPC);
-my $src = File::Spec->catfile($repo, qw(libraries vcs F8 inline_bankcall.s26));
-my $fa2_src = File::Spec->catfile($repo, qw(libraries vcs FA2 inline_bankcall.s26));
-my $jane_src = File::Spec->catfile($repo, qw(libraries vcs JANE inline_bankcall.s26));
-my $m0840_src = File::Spec->catfile($repo, qw(libraries vcs 0840 inline_bankcall.s26));
-my $ua_src = File::Spec->catfile($repo, qw(libraries vcs UA inline_bankcall.s26));
-my $uasw_src = File::Spec->catfile($repo, qw(libraries vcs UASW inline_bankcall.s26));
-my $m0fa0_src = File::Spec->catfile($repo, qw(libraries vcs 0FA0 inline_bankcall.s26));
-my $wd_src = File::Spec->catfile($repo, qw(libraries vcs WD inline_bankcall.s26));
-my $generator = File::Spec->catfile($repo, qw(linker gen_inline_bankcall_template.pl));
+my $src = File::Spec->catfile($repo, qw(libraries vcs F8 bankcall.s26));
+my $fa2_src = File::Spec->catfile($repo, qw(libraries vcs FA2 bankcall.s26));
+my $jane_src = File::Spec->catfile($repo, qw(libraries vcs JANE bankcall.s26));
+my $m0840_src = File::Spec->catfile($repo, qw(libraries vcs 0840 bankcall.s26));
+my $ua_src = File::Spec->catfile($repo, qw(libraries vcs UA bankcall.s26));
+my $uasw_src = File::Spec->catfile($repo, qw(libraries vcs UASW bankcall.s26));
+my $m0fa0_src = File::Spec->catfile($repo, qw(libraries vcs 0FA0 bankcall.s26));
+my $wd_src = File::Spec->catfile($repo, qw(libraries vcs WD bankcall.s26));
+my $generator = File::Spec->catfile($repo, qw(linker gen_bankcall_template.pl));
 my $built = File::Spec->catfile($repo, qw(linker generic_bankcall_template.h));
 my $fa2_built = File::Spec->catfile($repo, qw(linker fa2_bankcall_template.h));
 my $jane_built = File::Spec->catfile($repo, qw(linker jane_bankcall_template.h));
@@ -64,10 +64,10 @@ my $wd_s26 = read_file($wd_src);
 -f $as or die "missing assembler $as\n";
 -f $src or die "missing maintained trampoline source $src\n";
 for my $mapper (@generic_mapper_dirs) {
-   my $copy = File::Spec->catfile($repo, 'libraries', 'vcs', $mapper, 'inline_bankcall.s26');
+   my $copy = File::Spec->catfile($repo, 'libraries', 'vcs', $mapper, 'bankcall.s26');
    -f $copy or die "missing mapper-local trampoline source $copy\n";
    read_file($copy) eq read_file($src)
-      or die "$mapper inline_bankcall.s26 drifted from the shared F8-geometry source\n";
+      or die "$mapper bankcall.s26 drifted from the shared F8-geometry source\n";
 }
 -f $fa2_src or die "missing maintained FA2 trampoline source $fa2_src\n";
 -f $jane_src or die "missing maintained JANE trampoline source $jane_src\n";
@@ -101,11 +101,11 @@ index($s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
 index($s26, 'adc #3') >= 0 &&
 index($s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
    or die "maintained F-family descriptor trampoline lacks selector/source-descriptor ABI\n";
-index($fa2_s26, 'sta VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
+index($fa2_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
 index($fa2_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
 index($fa2_s26, 'eor #7') < 0 && index($fa2_s26, 'adc #3') >= 0 &&
 index($fa2_s26, '__vcsc_generic_bankcall_reserved_end = $6048') >= 0
-   or die "maintained FA2 trampoline source lacks descriptor/store-selector ABI\n";
+   or die "maintained FA2 trampoline source lacks descriptor/read-selector ABI\n";
 index($jane_s26, 'lda VCSC_BANKCALL_SELECTOR_BASE,y') >= 0 &&
 index($jane_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
 index($jane_s26, 'eor #7') < 0 && index($jane_s26, 'cmp #2') < 0 &&
@@ -156,61 +156,61 @@ index($ld, 'vcsc_m0fa0_bankcall_template') >= 0 && index($ld, 'vcsc_wd_bankcall_
 ";
 index($ld, '#define PUT(') < 0
    or die "linker still contains hand-emitted generic trampoline opcodes\n";
-(grep { index($top, "libraries/vcs/$_/inline_bankcall.s26") < 0 } @generic_mapper_dirs) == 0 &&
-index($top, 'libraries/vcs/FA2/inline_bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/JANE/inline_bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/0840/inline_bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/UA/inline_bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/UASW/inline_bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/0FA0/inline_bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/WD/inline_bankcall.s26') >= 0
+(grep { index($top, "libraries/vcs/$_/bankcall.s26") < 0 } @generic_mapper_dirs) == 0 &&
+index($top, 'libraries/vcs/FA2/bankcall.s26') >= 0 &&
+index($top, 'libraries/vcs/JANE/bankcall.s26') >= 0 &&
+index($top, 'libraries/vcs/0840/bankcall.s26') >= 0 &&
+index($top, 'libraries/vcs/UA/bankcall.s26') >= 0 &&
+index($top, 'libraries/vcs/UASW/bankcall.s26') >= 0 &&
+index($top, 'libraries/vcs/0FA0/bankcall.s26') >= 0 &&
+index($top, 'libraries/vcs/WD/bankcall.s26') >= 0
    or die "maintained trampoline sources are not installed
 ";
 
 system($^X, $generator, $as, $src, $fresh, 'GENERIC') == 0
-   or die "could not regenerate inline bank-call template\n";
+   or die "could not regenerate bank-call template\n";
 system($^X, $generator, $as, $fa2_src, $fa2_fresh, 'FA2') == 0
-   or die "could not regenerate FA2 inline bank-call template
+   or die "could not regenerate FA2 bank-call template
 ";
 system($^X, $generator, $as, $jane_src, $jane_fresh, 'JANE') == 0
-   or die "could not regenerate JANE inline bank-call template
+   or die "could not regenerate JANE bank-call template
 ";
 system($^X, $generator, $as, $m0840_src, $m0840_fresh, 'M0840') == 0
-   or die "could not regenerate 0840 inline bank-call template
+   or die "could not regenerate 0840 bank-call template
 ";
 system($^X, $generator, $as, $ua_src, $ua_fresh, 'UA') == 0
-   or die "could not regenerate UA inline bank-call template
+   or die "could not regenerate UA bank-call template
 ";
 system($^X, $generator, $as, $uasw_src, $uasw_fresh, 'UASW') == 0
-   or die "could not regenerate UASW inline bank-call template
+   or die "could not regenerate UASW bank-call template
 ";
 system($^X, $generator, $as, $m0fa0_src, $m0fa0_fresh, 'M0FA0') == 0
-   or die "could not regenerate 0FA0 inline bank-call template
+   or die "could not regenerate 0FA0 bank-call template
 ";
 system($^X, $generator, $as, $wd_src, $wd_fresh, 'WD') == 0
-   or die "could not regenerate WD inline bank-call template\n";
+   or die "could not regenerate WD bank-call template\n";
 read_file($fresh) eq read_file($built)
-   or die "built generic bank-call template is stale relative to F8/inline_bankcall.s26\n";
+   or die "built generic bank-call template is stale relative to F8/bankcall.s26\n";
 read_file($fa2_fresh) eq read_file($fa2_built)
-   or die "built FA2 bank-call template is stale relative to FA2/inline_bankcall.s26
+   or die "built FA2 bank-call template is stale relative to FA2/bankcall.s26
 ";
 read_file($jane_fresh) eq read_file($jane_built)
-   or die "built JANE bank-call template is stale relative to JANE/inline_bankcall.s26
+   or die "built JANE bank-call template is stale relative to JANE/bankcall.s26
 ";
 read_file($m0840_fresh) eq read_file($m0840_built)
-   or die "built 0840 bank-call template is stale relative to 0840/inline_bankcall.s26
+   or die "built 0840 bank-call template is stale relative to 0840/bankcall.s26
 ";
 read_file($ua_fresh) eq read_file($ua_built)
-   or die "built UA bank-call template is stale relative to UA/inline_bankcall.s26
+   or die "built UA bank-call template is stale relative to UA/bankcall.s26
 ";
 read_file($uasw_fresh) eq read_file($uasw_built)
-   or die "built UASW bank-call template is stale relative to UASW/inline_bankcall.s26
+   or die "built UASW bank-call template is stale relative to UASW/bankcall.s26
 ";
 read_file($m0fa0_fresh) eq read_file($m0fa0_built)
-   or die "built 0FA0 bank-call template is stale relative to 0FA0/inline_bankcall.s26
+   or die "built 0FA0 bank-call template is stale relative to 0FA0/bankcall.s26
 ";
 read_file($wd_fresh) eq read_file($wd_built)
-   or die "built WD bank-call template is stale relative to WD/inline_bankcall.s26\n";
+   or die "built WD bank-call template is stale relative to WD/bankcall.s26\n";
 
 my $header = read_file($built);
 $header =~ /VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE 0x45u/
@@ -255,4 +255,4 @@ $wd_header =~ /VCSC_WD_BANKCALL_TEMPLATE_SIZE 0x45u/
 $wd_header =~ /VCSC_WD_BANKCALL_RESERVED_SIZE 0x48u/
    or die "WD descriptor trampoline reservation is no longer 72 bytes\n";
 
-print "inline bank-call source template passed\n";
+print "bank-call source templates passed\n";
