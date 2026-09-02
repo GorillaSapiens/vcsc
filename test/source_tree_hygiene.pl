@@ -178,6 +178,8 @@ index($runtime_gitignore,'libvcsc.l26')>=0
    or die "libraries/runtime/.gitignore must ignore generated libvcsc.l26\n";
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `bankswitching.txt`')>=0
    or die ".../README.md does not document bankswitching.txt\n";
+index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `3e.txt`')>=0
+   or die ".../README.md does not document 3e.txt\n";
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `roadmap.txt`')>=0 &&
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `context-history/`')>=0
    or die ".../README.md does not document the compact-context split\n";
@@ -201,6 +203,16 @@ my $sim_core_ignore=slurp(File::Spec->catfile($repo,'simulator','mos6502','.giti
 $sim_core_ignore =~ /^\*\.o\s*$/m && $sim_core_ignore =~ /^\*\.d\s*$/m
    or die "simulator/mos6502/.gitignore must ignore *.o and *.d\n";
 my $bankswitching=slurp(File::Spec->catfile($repo,'...','bankswitching.txt'));
+my $threee=slurp(File::Spec->catfile($repo,'...','3e.txt'));
+index($threee,'3E SWAPRAM MIGRATION')>=0 &&
+index($threee,'RAM-bank state is never encoded in the generic bankcall descriptor.')>=0 &&
+index($threee,'$swapram')>=0 && index($threee,'$bank_size')>=0 &&
+index($threee,'libraries/vcs/3E/swapram.s26')>=0 &&
+index($threee,'swapram_read1')>=0 && index($threee,'swapram_write4')>=0 &&
+index($threee,'one allocated object must fit wholly inside one')>=0 &&
+index($threee,'ordinary 16-bit CPU pointer cannot represent')>=0 &&
+$threee !~ /^\[x\]/m
+   or die "3E hot record lost swapram design/unfinished-work contract\n";
 length($bankswitching) <= 16 * 1024 &&
 index($bankswitching,'Never use bare "bank 0" without saying which identity is meant.')>=0 &&
 index($bankswitching,'file_index(BANKn) = bank_count - 1 - n')>=0 &&
@@ -893,6 +905,7 @@ my %hot_limits=(
    'context.txt' => 16*1024,
    'roadmap.txt' => 12*1024,
    'bankswitching.txt' => 16*1024,
+   '3e.txt' => 12*1024,
    'superchip_dummy_read_hazard.txt' => 12*1024,
    'disassembler.txt' => 16*1024,
    'enhanced_asymmetric.txt' => 20*1024,

@@ -60,10 +60,12 @@
 #define RETURN_COALESCE_META_PREFIX "__coalescemeta$V1$"
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
 #define MEM_REGION_SPLIT_META_PREFIX "__memmeta$V2$"
+#define MEM_REGION_SWAPRAM_META_PREFIX "__memmeta$V3$"
 #define MEM_DECL_META_PREFIX_V1 "__memdecl$V1$"
 #define MEM_DECL_META_PREFIX_V2 "__memdecl$V2$"
 #define MEM_DECL_META_PREFIX_V3 "__memdecl$V3$"
-#define MEM_DECL_META_PREFIX "__memdecl$V4$"
+#define MEM_DECL_META_PREFIX_V4 "__memdecl$V4$"
+#define MEM_DECL_META_PREFIX "__memdecl$V5$"
 #define CARTRIDGE_TOPOLOGY_META_PREFIX_V1 "__cartmeta$V1$"
 #define CARTRIDGE_TOPOLOGY_META_PREFIX "__cartmeta$V2$"
 #define BANK_TOPOLOGY_META_PREFIX_V1 "__bankmeta$V1$"
@@ -79,6 +81,8 @@ typedef struct {
    uint16_t write_start;
    int has_write_start;
    int read_hazard;
+   int swapram;
+   uint16_t bank_size;
    uint16_t size;
    uint16_t physical_size;
    char type[16];

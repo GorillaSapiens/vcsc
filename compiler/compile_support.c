@@ -468,8 +468,9 @@ ContextEntry *ctx_lookup(Context *ctx, const char *name) {
 
 #define MEM_REGION_META_PREFIX "__memmeta$V1$"
 #define MEM_REGION_SPLIT_META_PREFIX "__memmeta$V2$"
+#define MEM_REGION_SWAPRAM_META_PREFIX "__memmeta$V3$"
 
-#define MEM_DECL_META_PREFIX "__memdecl$V4$"
+#define MEM_DECL_META_PREFIX "__memdecl$V5$"
 
 //! @brief Encode one declaration location for linker diagnostics.
 static char *mem_metadata_source_suffix(const ASTNode *node) {
@@ -653,6 +654,9 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
    bool split;
    bool read_hazard;
    bool stack;
+   bool swapram;
+   unsigned int bank_size = 0;
+   bool have_bank_size;
    bool has_allocation_flag;
    const char *data_bank;
    const char *output_bank;
@@ -675,12 +679,14 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
    split = have_read_start || have_write_start;
    read_hazard = mem_metadata_has_flag(flags, "$read_hazard");
    stack = mem_metadata_has_flag(flags, "$stack");
+   swapram = mem_metadata_has_flag(flags, "$swapram");
+   have_bank_size = mem_metadata_parse_u16_flag(flags, "$bank_size:", &bank_size);
    data_bank = mem_metadata_string_flag(flags, "$data_bank:");
    output_bank = mem_metadata_string_flag(flags, "$bank:");
    priority = mem_metadata_priority_flag(flags);
    has_allocation_flag = have_start || have_read_start || have_write_start ||
       have_size || have_end || type != NULL || priority != 0 || read_hazard ||
-      stack || data_bank != NULL || output_bank != NULL;
+      stack || swapram || have_bank_size || data_bank != NULL || output_bank != NULL;
 
    /* Retain the old ability to declare an empty policy-only mem name. It does
       not describe allocatable bytes and therefore emits no linker region. */
@@ -696,7 +702,25 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
       error_user("[%s:%d.%d] CPU-mapped $bank ownership on mem region '%s' requires ordinary $ro storage",
                  mem_decl->file, mem_decl->line, mem_decl->column, name);
    }
-   if (data_bank) {
+   if (have_bank_size && !swapram) {
+      error_user("[%s:%d.%d] mem region '%s' may use $bank_size only with $swapram",
+                 mem_decl->file, mem_decl->line, mem_decl->column, name);
+   }
+   if (swapram) {
+      if (have_start || have_read_start || have_write_start || have_end ||
+          !have_size || !have_bank_size || !type || strcmp(type, "rw") ||
+          read_hazard || stack || data_bank || output_bank) {
+         error_user("[%s:%d.%d] swapram mem region '%s' must declare $size, $bank_size, exactly $rw, and $swapram, with no CPU address, $end, split alias, $read_hazard, $stack, $bank, or $data_bank",
+                    mem_decl->file, mem_decl->line, mem_decl->column, name);
+      }
+      if (!bank_size || bank_size > size || size % bank_size != 0) {
+         error_user("[%s:%d.%d] swapram mem region '%s' requires nonzero $bank_size that evenly divides $size",
+                    mem_decl->file, mem_decl->line, mem_decl->column, name);
+      }
+      start = 0;
+      write_start = 0;
+   }
+   else if (data_bank) {
       if (have_start || have_read_start || have_write_start || have_end ||
           !have_size || !type || strcmp(type, "ro") || split || read_hazard || stack) {
          error_user("[%s:%d.%d] data-only mem region '%s' must declare $data_bank, $size, and exactly $ro, with no CPU address, $end, split alias, $read_hazard, or $stack",
@@ -718,7 +742,7 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
       error_user("[%s:%d.%d] mem region '%s' must declare $start plus $size or $end and exactly one of $rw/$ro",
                  mem_decl->file, mem_decl->line, mem_decl->column, name);
    }
-   if (stack && (split || strcmp(type, "rw"))) {
+   if (stack && (split || swapram || strcmp(type, "rw"))) {
       error_user("[%s:%d.%d] mem region '%s' may use $stack only on ordinary $rw storage",
                  mem_decl->file, mem_decl->line, mem_decl->column, name);
    }
@@ -733,7 +757,7 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
       }
       size = end - start;
    }
-   if (!size || size > 0x10000u || start + size > 0x10000u ||
+   if (!size || size > 0x10000u || (!swapram && start + size > 0x10000u) ||
        (split && write_start + size > 0x10000u)) {
       error_user("[%s:%d.%d] mem region '%s' is empty or extends outside the 6502 address space",
                  mem_decl->file, mem_decl->line, mem_decl->column, name);
@@ -741,13 +765,14 @@ void emit_mem_declaration_metadata(const ASTNode *mem_decl) {
 
    source_suffix = mem_metadata_source_suffix(mem_decl);
    snprintf(symbol, sizeof(symbol),
-            MEM_DECL_META_PREFIX "%s$R%04X$W%04X$Z%04X$X%d$T%c$P%08X$H%d$S%d$D%d$B%s$K%s%s",
+            MEM_DECL_META_PREFIX "%s$R%04X$W%04X$Z%04X$X%d$T%c$P%08X$H%d$S%d$M%d$Y%04X$D%d$B%s$K%s%s",
             name, start & 0xffffu,
             (split ? write_start : start) & 0xffffu,
             size & 0xffffu, split ? 1 : 0,
             !strcmp(type, "rw") ? 'W' : 'O',
             (unsigned int)priority, read_hazard ? 1 : 0,
-            stack ? 1 : 0, data_bank ? 1 : 0,
+            stack ? 1 : 0, swapram ? 1 : 0, bank_size & 0xffffu,
+            data_bank ? 1 : 0,
             data_bank ? data_bank : "", output_bank ? output_bank : "", source_suffix);
    free(source_suffix);
    emit(&es_export, "%s = 0\n", symbol);
@@ -771,6 +796,9 @@ void emit_mem_region_metadata_for_name(const ASTNode *origin, const char *name) 
    bool split;
    const char *type;
    const char *data_bank;
+   bool swapram;
+   unsigned int bank_size = 0;
+   bool have_bank_size;
    char sym[320];
 
    if (!name) {
@@ -798,9 +826,37 @@ void emit_mem_region_metadata_for_name(const ASTNode *origin, const char *name) 
    have_end = mem_metadata_parse_u16_flag(flags, "$end:", &end);
    type = mem_metadata_type_flag(flags);
    data_bank = mem_metadata_string_flag(flags, "$data_bank:");
+   swapram = mem_metadata_has_flag(flags, "$swapram");
+   have_bank_size = mem_metadata_parse_u16_flag(flags, "$bank_size:", &bank_size);
    split = have_read_start || have_write_start;
 
-   if (data_bank) {
+   if (have_bank_size && !swapram) {
+      error_user("[%s:%d.%d] mem region '%s' may use $bank_size only with $swapram",
+            origin ? origin->file : mem_decl->file,
+            origin ? origin->line : mem_decl->line,
+            origin ? origin->column : mem_decl->column,
+            name);
+   }
+   if (swapram) {
+      if (have_start || have_read_start || have_write_start || have_end ||
+          !have_size || !have_bank_size || !type || strcmp(type, "rw") || split) {
+         error_user("[%s:%d.%d] swapram mem region '%s' must declare $size, $bank_size, exactly $rw, and $swapram, with no CPU address, $end, or split alias",
+               origin ? origin->file : mem_decl->file,
+               origin ? origin->line : mem_decl->line,
+               origin ? origin->column : mem_decl->column,
+               name);
+      }
+      if (!bank_size || bank_size > size || size % bank_size != 0) {
+         error_user("[%s:%d.%d] swapram mem region '%s' requires nonzero $bank_size that evenly divides $size",
+               origin ? origin->file : mem_decl->file,
+               origin ? origin->line : mem_decl->line,
+               origin ? origin->column : mem_decl->column,
+               name);
+      }
+      start = 0;
+      write_start = 0;
+   }
+   else if (data_bank) {
       if (have_start || have_read_start || have_write_start || have_end ||
           !have_size || !type || strcmp(type, "ro") || split) {
          error_user("[%s:%d.%d] data-only mem region '%s' must declare $data_bank, $size, and exactly $ro, with no CPU address, $end, or split alias",
@@ -839,13 +895,18 @@ void emit_mem_region_metadata_for_name(const ASTNode *origin, const char *name) 
       size = end - start;
    }
 
-   if (size > 0x10000u || start + size > 0x10000u ||
+   if (size > 0x10000u || (!swapram && start + size > 0x10000u) ||
        (split && write_start + size > 0x10000u)) {
       error_user("[%s:%d.%d] mem region '%s' aliases are outside the 6502 address space",
             mem_decl->file, mem_decl->line, mem_decl->column, name);
    }
 
-   if (split) {
+   if (swapram) {
+      snprintf(sym, sizeof(sym), "%s%s$Z%04X$T%s$Y%04X",
+               MEM_REGION_SWAPRAM_META_PREFIX, name, size & 0xFFFFu, type,
+               bank_size & 0xFFFFu);
+   }
+   else if (split) {
       snprintf(sym, sizeof(sym), "%s%s$R%04X$W%04X$Z%04X$T%s",
                MEM_REGION_SPLIT_META_PREFIX, name, read_start & 0xFFFFu,
                write_start & 0xFFFFu, size & 0xFFFFu, type);
@@ -857,7 +918,7 @@ void emit_mem_region_metadata_for_name(const ASTNode *origin, const char *name) 
    emit(&es_export, "%s = 0\n", sym);
    emit(&es_export, ".export %s\n", sym);
    if (!strcmp(type, "rw")) {
-      const char *addrsize = (!split && start + size <= 0x100u) ? "zp" : "absolute";
+      const char *addrsize = (!swapram && !split && start + size <= 0x100u) ? "zp" : "absolute";
       /* Named writable storage owns its own address-size contract.  Do not let
          the default DATA/BSS zero-page contract leak into a cartridge-RAM
          region such as OMNI $1000-$1FFF or a split-address mapper window. */

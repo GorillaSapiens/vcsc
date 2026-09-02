@@ -253,7 +253,7 @@ void validate_absolute_binding_memory_regions(const linker_config_t *cfg,
          const memory_region_t *mem = &cfg->mem[j];
          uint32_t read_start;
          uint32_t write_start;
-         if (mem->data_bank_name[0])
+         if (mem->data_bank_name[0] || mem->swapram)
             continue;
          read_start = mem->start;
          write_start = mem->has_write_start ? mem->write_start : mem->start;

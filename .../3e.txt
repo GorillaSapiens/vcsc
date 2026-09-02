@@ -1,0 +1,202 @@
+3E SWAPRAM MIGRATION
+====================
+
+Purpose / status
+----------------
+This is the focused active record for bankswitching roadmap Item 38b. Read it
+only while 3E is the current workstream. `.../bankswitching.txt` remains the
+mapper-wide ABI/topology record; this file owns the 3E-specific swap-RAM design
+and unfinished acceptance criteria.
+
+Hardware model and central invariant
+------------------------------------
+Classic Tigervision 3E keeps the 3F ROM shape: one final 2K ROM bank is always
+visible at `$1800-$1FFF`, while exact writes to TIA `$3F` select a 2K ROM bank
+into `$1000-$17FF`. 3E additionally has 32 x 1K cartridge-RAM banks. An exact
+write to `$3E` selects one RAM bank and replaces the lower ROM window: reads use
+`$1000-$13FF`, writes use the split alias `$1400-$17FF`.
+
+Because selecting RAM removes executable lower ROM, code can access selected
+RAM only while executing from the permanently visible fixed `$1800-$1FFF` bank.
+That makes RAM a temporary data window, not another general bankcall state.
+
+Durable rule:
+
+    3E ROM calls use the settled 3F descriptor model unchanged.
+    Lower ROM descriptors are their `$3F` selector values; fixed ROM is `$FF`.
+    RAM-bank state is never encoded in the generic bankcall descriptor.
+
+A lower-ROM access to swap RAM reaches fixed code through the ordinary 3E
+cross-bank-call path. The source ROM descriptor is already saved by bankcall.
+The fixed helper selects RAM, performs the access, and returns; the existing
+bankreturn then writes the saved source descriptor to `$3F` before resuming the
+lower caller. No software current-bank shadow is needed.
+
+A fixed-bank caller may call the same helper directly. In that case it is safe
+for the helper to leave RAM selected: fixed code remains executable, and any
+later fixed->lower bankcall explicitly selects its lower-ROM destination before
+jumping. The helper therefore does not need to discover or restore a previous
+lower-window state.
+
+Source-language abstraction: `$swapram`
+----------------------------------------
+3E RAM should look like ordinary variables, but its unusual backing store must
+be declared by memory metadata rather than hard-coded into source expressions.
+Add a `mem { ... }` property `$swapram` and a bank-size property. The intended
+3E profile shape is conceptually:
+
+    mem swapram {
+       $size:0x8000
+       $bank_size:0x0400
+       $rw
+       $swapram
+    };
+
+The region name is not magic; `$swapram` is the semantic property. Naming the
+stock 3E region `swapram` simply gives applications a natural existing C26 named
+memory qualifier:
+
+    swapram uint8_t flags;
+    swapram int16_t velocity;
+    swapram bcd24_t score;
+    swapram uint32_t counter;
+
+Bank/offset bookkeeping and mapper read/write calls are private. Ordinary lvalue
+syntax is the interface:
+
+    uint8_t f := flags;
+    velocity := v;
+    counter += 1;
+    ++score;
+
+Extend the existing split/read-write lvalue abstraction: a `$swapram` object has
+custom access semantics rather than a directly preparable CPU address. Loads,
+stores, compound operations, indexing/members, and initialization must use that
+path or receive an explicit diagnostic; none may fall back to ordinary addressing.
+
+A swapram read has the object's normal declared value type with the storage
+qualifier removed. There is no special source-level return type. VCSC target
+integers are little-endian; `int`, `uint`, and `bcd` scalar types exist at 1, 2,
+3, and 4 bytes. The mapper layer only moves bytes; normal language typing stays
+in the compiler.
+
+Address-taking is different. An ordinary 16-bit CPU pointer cannot represent a
+3E RAM bank plus offset, so initial 3E support must reject ordinary address-of,
+implicit pointer decay, ordinary `ref`, and other address-producing uses of a
+`$swapram` object. Do not invent fat pointers for Item 38b.
+
+Allocation model
+----------------
+Treat the 32 RAM banks as one logical 32K writable allocator pool partitioned
+into 1K physical banks. Placement determines two internal facts for every
+object: RAM bank 0..31 and offset 0..1023. The programmer does not see either.
+The compiler/linker may use private relocation metadata equivalent to
+`bankof(object)` and `offsetof(object)`, but no public language operators are
+required merely to implement 3E.
+
+The metadata/allocation layer is implemented. `$swapram` requires `$size`, a
+nonzero `$bank_size` that evenly divides it, and exactly `$rw`; ordinary CPU
+`$start`/split-address metadata is forbidden. The stock 3E profiles declare a
+logical 32K region with 1K banks. The linker packs objects within physical bank
+boundaries, may reuse holes left in earlier banks, rejects an object larger than
+one bank, and reports each object's logical offset, swapram bank, and in-bank
+offset in the map. `$swapram` is excluded from ordinary writable-memory default
+selection and from CPU-address overlap checks.
+
+For current support, one allocated object must fit wholly inside one 1K RAM bank. Revisit cross-bank
+objects only for a concrete future need. Ordinary startup COPY/ZERO records are
+intentionally not emitted for swapram yet: DATA/BSS initialization must use the
+same fixed-bank access machinery as runtime lvalue accesses and belongs to the
+later access/helper work, not fake CPU addresses into the logical allocator.
+
+Mapper assembly
+---------------
+Add `libraries/vcs/3E/swapram.s26`. The file location already supplies the mapper
+namespace, so do not prefix labels with `3e_`. It should provide byte-counted
+internal entry points:
+
+    swapram_read1
+    swapram_read2
+    swapram_read3
+    swapram_read4
+
+    swapram_write1
+    swapram_write2
+    swapram_write3
+    swapram_write4
+
+These routines are fixed-bank machinery and MUST all be placed in the mapper's
+`$startup` bank. This is a hard placement requirement, not merely a preference:
+a helper must remain executable after it writes `$3E` and replaces the lower ROM
+window with RAM. No `swapram_read1..4` or `swapram_write1..4` code, tail, literal
+continuation, or required local helper may be allocated in a switchable lower ROM
+bank. A read selects the RAM bank with `$3E` and reads 1..4 bytes through
+`$1000-$13FF`; a write selects the RAM bank and writes through `$1400-$17FF`.
+They do not attach signed/unsigned/BCD meaning to the bytes and do not need a
+block-copy API. RIOT RAM is only 128 bytes and the
+useful abstraction here is access to objects living in many 1K cartridge-RAM
+pages, not bulk transfer into a tiny staging buffer.
+
+The exact private compiler<->`swapram.s26` argument/result/scratch convention is
+an implementation decision still to make. Keep it mapper-internal and avoid
+exposing bank/offset bookkeeping in application source.
+
+ROM-call migration
+------------------
+Use the settled 3F mechanism as the 3E ROM-call foundation:
+
+* Add 3E-owned `bankcall.s26` and variable-length `entry.s26`; zero-length entry
+  is expected because the final bank is permanently visible.
+* Lower ROM banks use `$3F` selector-value descriptors; the fixed bank uses the
+  `$FF` no-switch sentinel exactly as 3F.
+* Preserve lower->lower, lower->fixed, fixed->lower, nested LIFO behavior, A:X,
+  and the six-byte inline-target ABI without a software current-bank shadow.
+* Parameterize the public 3E ROM topology from the scalable 3F layout rather
+  than keeping 8K/16K as the only hard-coded shapes. Preserve the 32 x 1K
+  swap-RAM pool independently of ROM-bank count.
+* Ordinary TIA access must continue using the `$40-$7F` mirror because `$3E` and
+  `$3F` are mapper controls.
+
+Unfinished implementation / acceptance
+--------------------------------------
+[ ] Extend `LValueRef`/read-write lowering so every supported direct object
+    access dispatches through swapram access rather than ordinary address prep.
+    Reject address-producing/pointer/ref uses that would require a fat pointer.
+
+[ ] Add `libraries/vcs/3E/swapram.s26` with read/write widths 1, 2, 3, and 4,
+    force every swapram routine and required local helper into the `$startup`
+    bank, and settle the smallest practical private argument/result ABI.
+
+[ ] Add 3E `bankcall.s26`/`entry.s26`, `$bankcall` topology metadata, and scalable
+    ROM-bank topology using the 3F descriptor rules.
+
+[ ] Regression-test 1/2/3/4-byte int/uint/bcd reads and writes, lower-bank and
+    fixed-bank callers, arrays/runtime indexing, DATA/BSS/runtime initialization,
+    compound assignment, increment/decrement, and bank-boundary allocation. Add
+    a map/symbol placement assertion proving every swapram entry point and any
+    code it executes while RAM is selected resides in the `$startup` bank.
+
+[ ] Prove the critical restoration sequence from several lower banks:
+
+        lower ROM N -> fixed swapram helper -> RAM bank R -> access
+                    -> bankreturn -> `$3F` selects ROM N -> caller resumes
+
+    Also prove fixed -> swapram -> lower ROM calls work when the swapram helper
+    leaves RAM selected before the later bankcall selects its destination.
+
+[ ] Extend the ordered source/destination call-matrix regression to 3E and update
+    the public 3E diagnostic so it exercises compiler-generated swapram accesses,
+    not merely raw hand-written `$3E` selector traffic.
+
+[ ] Keep the existing simulator's 32 x 1K split read/write RAM behavior as the
+    hardware oracle; add failures for wrong alias direction or lost RAM-bank
+    contents as needed.
+
+Immediate next step
+-------------------
+Extend `LValueRef`/read-write lowering for `$swapram` objects. Reads and writes
+must dispatch through custom swapram access instead of ordinary CPU-address
+preparation, while address-producing/pointer/ref uses get explicit diagnostics.
+Keep DATA/BSS startup initialization deferred until `swapram.s26` supplies the
+fixed-bank byte-move path rather than manufacturing unsafe logical-address
+COPY/ZERO records.

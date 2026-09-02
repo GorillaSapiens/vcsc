@@ -84,3 +84,38 @@ mistake: vcsc_branding.pl now performs l26/o26 binary-magic checks only when a
 built linker/runtime archive pair exists. A clean unpacked source tar, where
 both generated artifacts are intentionally absent, still receives all source
 branding/documentation checks and now passes.
+
+2026-09-02 09:39:28 PDT, define 3E swapram abstraction
+3E RAM is compiler-managed `$swapram` storage, not `cartram` and not generic
+bankcall state. Only fixed-bank code can execute while the RAM window is mapped.
+Lower callers rely on the existing 3F-style bankreturn source descriptor to
+restore their ROM bank; fixed callers may leave RAM selected until a later lower
+call selects ROM. The user writes ordinary lvalue expressions against a named
+`$swapram` mem region; the compiler/linker own RAM-bank and offset placement.
+Initial objects stay wholly within one 1K RAM bank. Mapper byte-move machinery
+lives in `libraries/vcs/3E/swapram.s26` as read/write1..4 entry points with no
+redundant 3e_ prefix. The active implementation roadmap is `.../3e.txt`.
+
+- 3E swapram placement invariant: `libraries/vcs/3E/swapram.s26` entry points and any code executed while RAM is selected must be forced into the mapper `$startup`/fixed bank. Add a map/symbol regression for this.
+
+2026-09-02 09:55:03 PDT, 3E swapram metadata and allocation
+Completed the first 3E swapram migration step. C26 `mem` declarations now
+support `$swapram` plus `$bank_size`; swapram is logical writable storage with
+no CPU start/read/write address. Validation requires an evenly divisible bank
+size and rejects CPU-address, split-alias, stack, hazard, and bank-placement
+metadata that would misdescribe the storage.
+
+The linker carries the new metadata across objects, excludes swapram from
+ordinary writable-memory selection and CPU-address overlap logic, and allocates
+objects wholly within physical swap-RAM bank boundaries. It can skip an
+unusable bank tail and later reuse a fitting hole; objects larger than one bank
+are rejected. Maps report logical offset, swapram bank, and in-bank offset. The
+stock 3E 8K/16K profiles now declare the 32 x 1K swapram pool.
+
+Ordinary startup COPY/ZERO records are deliberately suppressed for swapram
+until fixed-bank access helpers exist; emitting them against logical allocator
+addresses would target unrelated 6507 hardware. Added
+`swapram_metadata_allocation.pl` covering valid metadata, allocation/hole reuse,
+map reporting, oversized-object rejection, invalid declarations, and absence of
+unsafe startup records. Focused 3F/3E diagnostics and authoritative-C26-memory
+regressions pass; compile-only is 503/503.

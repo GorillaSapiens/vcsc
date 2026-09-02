@@ -51,8 +51,13 @@ Read it when that side quest is the current task.
 
 ### `bankswitching.txt`
 
-Durable cartridge/bank identity rules plus unfinished bankswitching work. It is
-the sole internal bankswitching design record; do not create a duplicate.
+Durable cartridge/bank identity rules plus mapper-wide unfinished bankswitching
+work. Mapper-specific focused records may be split out while active.
+
+### `3e.txt`
+
+Focused active record for Item 38b: 3E ROM-call migration and the `$swapram`
+storage/access design. Read it only while 3E is the current workstream.
 
 ### `superchip_dummy_read_hazard.txt`
 

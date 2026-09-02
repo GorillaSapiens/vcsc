@@ -615,7 +615,8 @@ static int topology_metadata_has_prefix(const char *name)
 static int mem_region_metadata_has_prefix(const char *name)
 {
    return name &&
-      (strncmp(name, MEM_REGION_META_PREFIX, sizeof(MEM_REGION_META_PREFIX) - 1) == 0 ||
+      (strncmp(name, MEM_REGION_SWAPRAM_META_PREFIX, sizeof(MEM_REGION_SWAPRAM_META_PREFIX) - 1) == 0 ||
+       strncmp(name, MEM_REGION_META_PREFIX, sizeof(MEM_REGION_META_PREFIX) - 1) == 0 ||
        strncmp(name, MEM_REGION_SPLIT_META_PREFIX, sizeof(MEM_REGION_SPLIT_META_PREFIX) - 1) == 0);
 }
 
@@ -624,6 +625,8 @@ static int mem_declaration_metadata_has_prefix(const char *name)
    return name &&
       (strncmp(name, MEM_DECL_META_PREFIX,
                sizeof(MEM_DECL_META_PREFIX) - 1) == 0 ||
+       strncmp(name, MEM_DECL_META_PREFIX_V4,
+               sizeof(MEM_DECL_META_PREFIX_V4) - 1) == 0 ||
        strncmp(name, MEM_DECL_META_PREFIX_V3,
                sizeof(MEM_DECL_META_PREFIX_V3) - 1) == 0 ||
        strncmp(name, MEM_DECL_META_PREFIX_V2,
@@ -925,7 +928,8 @@ static int parse_hex4(const char *s, uint16_t *out)
 //! @brief Decode compiler-emitted mem-region metadata from an exported symbol name.
 static int mem_region_metadata_parse(const char *name, char *region, size_t region_size,
       uint16_t *read_start, uint16_t *write_start, int *has_write_start,
-      uint16_t *size, char *type, size_t type_size)
+      uint16_t *size, char *type, size_t type_size,
+      int *swapram, uint16_t *bank_size)
 {
    const char *p;
    const char *first_mark;
@@ -935,14 +939,49 @@ static int mem_region_metadata_parse(const char *name, char *region, size_t regi
    size_t region_len;
    size_t type_len;
    int split;
+   int is_swapram;
 
    if (!mem_region_metadata_has_prefix(name))
       return 0;
 
+   is_swapram = strncmp(name, MEM_REGION_SWAPRAM_META_PREFIX,
+                        sizeof(MEM_REGION_SWAPRAM_META_PREFIX) - 1) == 0;
    split = strncmp(name, MEM_REGION_SPLIT_META_PREFIX,
                    sizeof(MEM_REGION_SPLIT_META_PREFIX) - 1) == 0;
-   p = name + (split ? sizeof(MEM_REGION_SPLIT_META_PREFIX) - 1
-                     : sizeof(MEM_REGION_META_PREFIX) - 1);
+   p = name + (is_swapram ? sizeof(MEM_REGION_SWAPRAM_META_PREFIX) - 1
+                          : split ? sizeof(MEM_REGION_SPLIT_META_PREFIX) - 1
+                                  : sizeof(MEM_REGION_META_PREFIX) - 1);
+   if (is_swapram) {
+      const char *ymark;
+      first_mark = strstr(p, "$Z");
+      if (!first_mark || first_mark == p)
+         return 0;
+      region_len = (size_t)(first_mark - p);
+      if (region_len >= region_size)
+         return 0;
+      memcpy(region, p, region_len);
+      region[region_len] = '\0';
+      if (!parse_hex4(first_mark + 2, size))
+         return 0;
+      tmark = first_mark + 6;
+      if (strncmp(tmark, "$T", 2) != 0)
+         return 0;
+      ymark = strstr(tmark + 2, "$Y");
+      if (!ymark)
+         return 0;
+      type_len = (size_t)(ymark - (tmark + 2));
+      if (type_len == 0 || type_len >= type_size)
+         return 0;
+      memcpy(type, tmark + 2, type_len);
+      type[type_len] = '\0';
+      if (!parse_hex4(ymark + 2, bank_size) || ymark[6] != '\0')
+         return 0;
+      *read_start = 0;
+      *write_start = 0;
+      *has_write_start = 0;
+      *swapram = 1;
+      return 1;
+   }
    first_mark = strstr(p, split ? "$R" : "$S");
    if (!first_mark || first_mark == p)
       return 0;
@@ -976,6 +1015,8 @@ static int mem_region_metadata_parse(const char *name, char *region, size_t regi
       return 0;
    memcpy(type, tmark + 2, type_len + 1);
    *has_write_start = split;
+   *swapram = 0;
+   *bank_size = 0;
    return 1;
 }
 
@@ -1033,6 +1074,8 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    size_t name_len;
    unsigned int read_start, write_start, size, split, priority, read_hazard = 0;
    unsigned int stack = 0;
+   unsigned int swapram = 0;
+   unsigned int bank_size = 0;
    unsigned int data_only = 0;
    char type_code;
    char parsed_data_bank[MAX_NAME] = {0};
@@ -1044,8 +1087,13 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
       return 0;
    if (strncmp(symbol, MEM_DECL_META_PREFIX,
                sizeof(MEM_DECL_META_PREFIX) - 1) == 0) {
-      version = 4;
+      version = 5;
       p = symbol + sizeof(MEM_DECL_META_PREFIX) - 1;
+   }
+   else if (strncmp(symbol, MEM_DECL_META_PREFIX_V4,
+                    sizeof(MEM_DECL_META_PREFIX_V4) - 1) == 0) {
+      version = 4;
+      p = symbol + sizeof(MEM_DECL_META_PREFIX_V4) - 1;
    }
    else if (strncmp(symbol, MEM_DECL_META_PREFIX_V3,
                     sizeof(MEM_DECL_META_PREFIX_V3) - 1) == 0) {
@@ -1070,7 +1118,36 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    name_len = (size_t)(mark - p);
    if (name_len >= sizeof(out->name))
       return -1;
-   if (version == 4) {
+   if (version == 5) {
+      const char *bank_mark;
+      if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X$S%1X$M%1X$Y%4X$D%1X$B%n",
+                 &read_start, &write_start, &size, &split, &type_code,
+                 &priority, &read_hazard, &stack, &swapram, &bank_size,
+                 &data_only, &consumed) != 11)
+         return -1;
+      bank_mark = strstr(mark + consumed, "$K");
+      suffix = bank_mark ? strstr(bank_mark + 2, "$Q") : NULL;
+      if (!bank_mark || !suffix)
+         return -1;
+      {
+         size_t data_bank_len = (size_t)(bank_mark - (mark + consumed));
+         size_t output_bank_len = (size_t)(suffix - (bank_mark + 2));
+         if ((data_only && data_bank_len == 0) ||
+             (!data_only && data_bank_len != 0) ||
+             data_bank_len >= sizeof(parsed_data_bank) ||
+             output_bank_len >= sizeof(parsed_output_bank))
+            return -1;
+         if (data_bank_len) {
+            memcpy(parsed_data_bank, mark + consumed, data_bank_len);
+            parsed_data_bank[data_bank_len] = '\0';
+         }
+         if (output_bank_len) {
+            memcpy(parsed_output_bank, bank_mark + 2, output_bank_len);
+            parsed_output_bank[output_bank_len] = '\0';
+         }
+      }
+   }
+   else if (version == 4) {
       const char *bank_mark;
       if (sscanf(mark, "$R%4X$W%4X$Z%4X$X%1X$T%c$P%8X$H%1X$S%1X$D%1X$B%n",
                  &read_start, &write_start, &size, &split, &type_code,
@@ -1129,8 +1206,11 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
       }
       suffix = mark + consumed;
    }
-   if (split > 1u || read_hazard > 1u || stack > 1u || data_only > 1u ||
+   if (split > 1u || read_hazard > 1u || stack > 1u || swapram > 1u || data_only > 1u ||
        (type_code != 'W' && type_code != 'O'))
+      return -1;
+   if ((swapram && (!bank_size || split || type_code != 'W' || read_start || write_start)) ||
+       (!swapram && bank_size))
       return -1;
 
    memset(out, 0, sizeof(*out));
@@ -1140,6 +1220,8 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    out->write_start = (uint16_t)write_start;
    out->has_write_start = (int)split;
    out->read_hazard = (int)read_hazard;
+   out->swapram = (int)swapram;
+   out->bank_size = (uint16_t)bank_size;
    out->size = (uint16_t)size;
    out->physical_size = (uint16_t)size;
    snprintf(out->type, sizeof(out->type), "%s", type_code == 'W' ? "rw" : "ro");
@@ -1147,7 +1229,7 @@ static int parse_mem_declaration_metadata(const char *symbol, memory_region_t *o
    out->callstack_callgraph = (int)stack;
    out->compiler_declared = 1;
    out->define_yes = 1;
-   if (version == 4) {
+   if (version == 4 || version == 5) {
       snprintf(out->data_bank_name, sizeof(out->data_bank_name), "%s", parsed_data_bank);
       snprintf(out->bank_name, sizeof(out->bank_name), "%s", parsed_output_bank);
    }
@@ -1174,6 +1256,8 @@ static int mem_declaration_equal(const memory_region_t *a,
           a->write_start == b->write_start &&
           a->has_write_start == b->has_write_start &&
           a->read_hazard == b->read_hazard &&
+          a->swapram == b->swapram &&
+          a->bank_size == b->bank_size &&
           a->callstack_callgraph == b->callstack_callgraph &&
           a->size == b->size &&
           str_ieq(a->type, b->type) &&
@@ -1599,7 +1683,7 @@ static void infer_c26_mem_output_ownership(linker_config_t *cfg)
 
 static int memory_region_is_zeropage_range(const memory_region_t *mem)
 {
-   return mem && !mem->data_bank_name[0] && !mem->has_write_start &&
+   return mem && !mem->swapram && !mem->data_bank_name[0] && !mem->has_write_start &&
           (uint32_t)mem->start + mem->size <= 0x100u;
 }
 
@@ -1627,6 +1711,8 @@ static const memory_region_t *select_default_declared_memory(const linker_config
    for (i = 0; i < cfg->mem_count; ++i) {
       const memory_region_t *mem = &cfg->mem[i];
       if (!mem->compiler_declared || !str_ieq(mem->type, type))
+         continue;
+      if (mem->swapram)
          continue;
       if (mem->output_mode == MEM_OUTPUT_DATA_ONLY || mem->data_bank_name[0])
          continue;
@@ -2585,6 +2671,8 @@ static void validate_mem_region_metadata(const linker_config_t *cfg, const input
          uint16_t declared_write_start;
          int declared_split;
          uint16_t declared_size;
+         int declared_swapram;
+         uint16_t declared_bank_size;
          const memory_region_t *mem;
 
          if (!mem_region_metadata_has_prefix(sym))
@@ -2592,7 +2680,8 @@ static void validate_mem_region_metadata(const linker_config_t *cfg, const input
          if (!mem_region_metadata_parse(sym, region, sizeof(region),
                                         &declared_read_start, &declared_write_start,
                                         &declared_split, &declared_size,
-                                        type, sizeof(type))) {
+                                        type, sizeof(type),
+                                        &declared_swapram, &declared_bank_size)) {
             fprintf(stderr, "vcsc-ld: malformed mem-region metadata symbol '%s' in %s\n",
                   sym, obj->origin);
             exit(1);
@@ -2607,7 +2696,22 @@ static void validate_mem_region_metadata(const linker_config_t *cfg, const input
             exit(1);
          }
 
-         if (mem->start != declared_read_start) {
+         if (mem->swapram != declared_swapram) {
+            fprintf(stderr,
+                  "vcsc-ld: mem region '%s' swapram mismatch in %s: compiler use says %s but declaration says %s\n",
+                  region, obj->origin, declared_swapram ? "swapram" : "ordinary",
+                  mem->swapram ? "swapram" : "ordinary");
+            exit(1);
+         }
+         if (declared_swapram) {
+            if (mem->bank_size != declared_bank_size) {
+               fprintf(stderr,
+                     "vcsc-ld: mem region '%s' bank_size mismatch in %s: compiler use says $%04X but declaration says $%04X\n",
+                     region, obj->origin, declared_bank_size, mem->bank_size);
+               exit(1);
+            }
+         }
+         else if (mem->start != declared_read_start) {
             if (declared_split) {
                fprintf(stderr,
                      "vcsc-ld: mem region '%s' read_start mismatch in %s: compiler mem declaration says $%04X "
@@ -2622,8 +2726,8 @@ static void validate_mem_region_metadata(const linker_config_t *cfg, const input
             }
             exit(1);
          }
-         if (declared_split != mem->has_write_start ||
-             (declared_split && mem->write_start != declared_write_start)) {
+         if (!declared_swapram && (declared_split != mem->has_write_start ||
+             (declared_split && mem->write_start != declared_write_start))) {
             fprintf(stderr,
                   "vcsc-ld: mem region '%s' write-alias mismatch in %s: compiler mem declaration says %s$%04X "
                   "but linker cfg MEMORY %s says %s$%04X. Update the VCSC source mem declaration or linker cfg so both aliases match.\n",
@@ -3206,6 +3310,23 @@ static void validate_linker_config(linker_config_t *cfg)
       if (!mem->name[0] || mem->size == 0) {
          fprintf(stderr, "vcsc-ld: incomplete MEMORY entry '%s' start=$%04X size=$%04X type='%s'\n",
                  mem->name[0] ? mem->name : "<unnamed>", mem->start, mem->size, mem->type);
+         exit(1);
+      }
+      if (mem->swapram) {
+         if (!mem->compiler_declared || !str_ieq(mem->type, "rw") ||
+             mem->start != 0 || mem->write_start != 0 || mem->has_write_start ||
+             !mem->bank_size || mem->bank_size > mem->size ||
+             (mem->size % mem->bank_size) != 0 || mem->read_hazard ||
+             mem->callstack_callgraph || mem->bank_name[0] || mem->data_bank_name[0]) {
+            fprintf(stderr,
+                    "vcsc-ld: swapram MEMORY region '%s' must be compiler-declared logical rw storage with a nonzero bank_size evenly dividing size and no CPU/bank/stack metadata\n",
+                    mem->name);
+            exit(1);
+         }
+      }
+      else if (mem->bank_size) {
+         fprintf(stderr, "vcsc-ld: ordinary MEMORY region '%s' unexpectedly has bank_size=$%04X\n",
+                 mem->name, mem->bank_size);
          exit(1);
       }
       if (end > 0x10000u ||
@@ -5279,12 +5400,44 @@ static int object_page_constraints_hold(const linker_config_t *cfg,
    return 1;
 }
 
+//! @brief Return whether one object fits wholly inside one physical swapram bank.
+static int memory_region_object_bank_constraints_hold(const memory_region_t *mem,
+                                                      uint32_t addr,
+                                                      uint16_t size)
+{
+   uint32_t offset;
+
+   if (!mem || !mem->swapram || size == 0)
+      return 1;
+   if (!mem->bank_size || size > mem->bank_size || addr < mem->start)
+      return 0;
+   offset = addr - mem->start;
+   if (offset + size > mem->size)
+      return 0;
+   return (offset % mem->bank_size) + size <= mem->bank_size;
+}
+
+//! @brief Advance a failed swapram candidate directly to the next bank boundary.
+static uint32_t memory_region_next_bank_candidate(const memory_region_t *mem,
+                                                  uint32_t addr)
+{
+   uint32_t offset;
+   uint32_t next;
+
+   if (!mem || !mem->swapram || !mem->bank_size || addr < mem->start)
+      return addr + 1u;
+   offset = addr - mem->start;
+   next = mem->start + ((offset / mem->bank_size) + 1u) * mem->bank_size;
+   return next > addr ? next : addr + 1u;
+}
+
 //! @brief Consume the earliest hole satisfying alignment and page constraints.
 static int cursor_take_hole(memory_cursor_t *cursor, const linker_config_t *cfg,
                             uint16_t size, uint16_t alignment, uint16_t phase,
                             int prefer_whole_page, const object_layout_t *constraints,
                             uint16_t *addr_out)
 {
+   const memory_region_t *mem = cursor ? find_memory(cfg, cursor->name) : NULL;
    size_t i;
    size_t best_i = 0;
    uint32_t best_addr = 0;
@@ -5298,9 +5451,13 @@ static int cursor_take_hole(memory_cursor_t *cursor, const linker_config_t *cfg,
 
       while (addr + size <= hole.end && addr <= 0xffffu) {
          if (object_page_constraints_hold(cfg, constraints, addr) &&
+             memory_region_object_bank_constraints_hold(mem, addr, size) &&
              (!prefer_whole_page || range_fits_one_page(addr, size)))
             break;
-         addr = align_up_phase_u32(addr + 1u, alignment, phase);
+         addr = align_up_phase_u32(
+            memory_region_object_bank_constraints_hold(mem, addr, size)
+               ? addr + 1u : memory_region_next_bank_candidate(mem, addr),
+            alignment, phase);
       }
       if (addr + size > hole.end || addr > 0xffffu)
          continue;
@@ -5369,6 +5526,7 @@ static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t
    const object_layout_t *constraints, const char *what, const char *origin)
 {
    memory_cursor_t *cursor = ensure_cursor(layout, cfg, mem_name);
+   const memory_region_t *mem = find_memory(cfg, mem_name);
    uint16_t hole_addr;
    uint32_t addr;
    uint32_t end;
@@ -5382,6 +5540,12 @@ static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t
 
    if (size == 0)
       return cursor->cur;
+   if (mem && mem->swapram && size > mem->bank_size) {
+      fprintf(stderr,
+              "vcsc-ld: swapram object %s from %s is $%04X bytes; region '%s' bank_size is only $%04X\n",
+              what, origin, size, mem->name, mem->bank_size);
+      exit(1);
+   }
    if (hard_page && size > 0x0100u) {
       fprintf(stderr, "vcsc-ld: hard page containment impossible for %s from %s: size $%04X exceeds 256 bytes\n",
               what, origin, size);
@@ -5392,8 +5556,11 @@ static uint16_t alloc_from_region_policy(layout_t *layout, const linker_config_t
       return hole_addr;
 
    addr = align_up_phase_u32(cursor->cur, alignment, phase);
-   while (!object_page_constraints_hold(cfg, constraints, addr)) {
-      addr = align_up_phase_u32(addr + 1u, alignment, phase);
+   while (!object_page_constraints_hold(cfg, constraints, addr) ||
+          !memory_region_object_bank_constraints_hold(mem, addr, size)) {
+      uint32_t next = memory_region_object_bank_constraints_hold(mem, addr, size)
+         ? addr + 1u : memory_region_next_bank_candidate(mem, addr);
+      addr = align_up_phase_u32(next, alignment, phase);
       if (constraints && constraints->segid == O26_SEG_ZP && addr >= 0x0100u) {
          fprintf(stderr,
                  "vcsc-ld: zero-page object %s from %s cannot cross $00FF/$0000; use separate one-byte objects only for intentional wrap semantics\n",
@@ -5431,6 +5598,7 @@ static int simulate_alloc_from_region_policy(layout_t *layout,
    uint16_t alignment, const object_layout_t *constraints)
 {
    memory_cursor_t *cursor = ensure_cursor(layout, cfg, mem_name);
+   const memory_region_t *mem = find_memory(cfg, mem_name);
    uint16_t hole_addr;
    uint32_t addr;
    uint32_t end;
@@ -5444,6 +5612,8 @@ static int simulate_alloc_from_region_policy(layout_t *layout,
 
    if (size == 0)
       return 1;
+   if (mem && mem->swapram && size > mem->bank_size)
+      return 0;
    if (hard_page && size > 0x0100u)
       return 0;
    if ((wants_page || has_hard_constraint) &&
@@ -5452,8 +5622,11 @@ static int simulate_alloc_from_region_policy(layout_t *layout,
       return 1;
 
    addr = align_up_phase_u32(cursor->cur, alignment, phase);
-   while (!object_page_constraints_hold(cfg, constraints, addr)) {
-      addr = align_up_phase_u32(addr + 1u, alignment, phase);
+   while (!object_page_constraints_hold(cfg, constraints, addr) ||
+          !memory_region_object_bank_constraints_hold(mem, addr, size)) {
+      uint32_t next = memory_region_object_bank_constraints_hold(mem, addr, size)
+         ? addr + 1u : memory_region_next_bank_candidate(mem, addr);
+      addr = align_up_phase_u32(next, alignment, phase);
       if (constraints && constraints->segid == O26_SEG_ZP && addr >= 0x0100u)
          return 0;
    }
@@ -9127,9 +9300,11 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                   : (run_rule && run_rule->align ? run_rule->align : 1);
                lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, run_alignment,
                   lay, lay->name, obj->origin);
-               add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr,
-                               memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
-                               lay->size);
+               if (!find_memory(cfg, run_name)->swapram) {
+                  add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr,
+                                  memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
+                                  lay->size);
+               }
                break;
             }
 
@@ -9190,7 +9365,8 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                   lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, run_alignment,
                      lay, lay->name, obj->origin);
                }
-               if (strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
+               if (!find_memory(cfg, run_name)->swapram &&
+                   strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
                   add_zero_record(layout, lay->name, lay->run_addr,
                                   memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
                                   lay->size);
@@ -9253,11 +9429,13 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                   lay->run_addr = alloc_from_region_policy(layout, cfg, run_name, lay->size, run_alignment,
                      lay, lay->name, obj->origin);
                }
-               if (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)
+               if (!find_memory(cfg, run_name)->swapram &&
+                   (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT))
                   add_copy_record(layout, lay->name, lay->load_addr, lay->run_addr,
                                   memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
                                   lay->size);
-               else if (strstr(lay->name, ".__vcsc_object$") != NULL &&
+               else if (!find_memory(cfg, run_name)->swapram &&
+                        strstr(lay->name, ".__vcsc_object$") != NULL &&
                         strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
                   add_zero_record(layout, lay->name, lay->run_addr,
                                   memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
@@ -11459,6 +11637,29 @@ static const memory_region_t *find_runtime_memory_for_range(const linker_config_
    return NULL;
 }
 
+//! @brief Resolve the runtime MEMORY region selected by one ordinary data layout rule.
+static const memory_region_t *find_runtime_memory_for_layout(const linker_config_t *cfg,
+                                                             const object_layout_t *lay)
+{
+   const segment_rule_t *fallback;
+   const segment_rule_t *rule;
+   const char *run_name;
+
+   if (!cfg || !lay)
+      return NULL;
+   if (lay->segid == O26_SEG_DATA)
+      fallback = find_segment_rule(cfg, "DATA");
+   else if (lay->segid == O26_SEG_BSS)
+      fallback = find_segment_rule(cfg, "BSS");
+   else if (lay->segid == O26_SEG_ZP)
+      fallback = find_segment_rule(cfg, "ZEROPAGE");
+   else
+      return NULL;
+   rule = find_layout_segment_rule(cfg, lay->name, fallback);
+   run_name = rule_run_region_name(rule ? rule : fallback);
+   return run_name && *run_name ? find_memory(cfg, run_name) : NULL;
+}
+
 //! @brief Count occupied output bytes inside one MEMORY region.
 static uint32_t memory_region_used_bytes(const linker_config_t *cfg,
                                          const memory_region_t *mem,
@@ -11557,7 +11758,8 @@ static void write_cartridge_rom_usage(FILE *fp, const linker_config_t *cfg,
 }
 
 //! @brief Count unique runtime object bytes in one writable-RAM region.
-static uint32_t memory_region_runtime_used_bytes(const memory_region_t *mem,
+static uint32_t memory_region_runtime_used_bytes(const linker_config_t *cfg,
+                                                 const memory_region_t *mem,
                                                  const input_set_t *in)
 {
    uint8_t *occupied;
@@ -11579,12 +11781,18 @@ static uint32_t memory_region_runtime_used_bytes(const memory_region_t *mem,
       size_t j;
       for (j = 0; j < obj->layout_count; ++j) {
          const object_layout_t *lay = &obj->layouts[j];
+         const memory_region_t *runtime_mem;
          uint32_t lay_start;
          uint32_t lay_end;
          uint32_t addr;
          if (lay->segid != O26_SEG_DATA && lay->segid != O26_SEG_BSS &&
              lay->segid != O26_SEG_ZP)
             continue;
+         if (mem->swapram) {
+            runtime_mem = find_runtime_memory_for_layout(cfg, lay);
+            if (runtime_mem != mem)
+               continue;
+         }
          lay_start = lay->run_addr;
          lay_end = lay_start + lay->size;
          if (lay_start < start)
@@ -11621,7 +11829,7 @@ static void write_ram_usage(FILE *fp, const linker_config_t *cfg,
 
       if (!memory_region_is_writable_ram(mem))
          continue;
-      object_bytes = memory_region_runtime_used_bytes(mem, in);
+      object_bytes = memory_region_runtime_used_bytes(cfg, mem, in);
       if (layout->call_stack_enabled && !strcmp(cfg->call_stack_region, mem->name))
          stack_bytes = layout->call_stack_size;
       total_bytes = mem->physical_size ? mem->physical_size : mem->size + stack_bytes;
@@ -11941,7 +12149,14 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
 
    fprintf(fp, "MEMORY\n");
    for (i = 0; i < cfg->mem_count; ++i) {
-      if (cfg->mem[i].has_write_start) {
+      if (cfg->mem[i].swapram) {
+         fprintf(fp,
+            "  %-10s logical_size=$%04X type=%s swapram=yes bank_size=$%04X banks=%u",
+            cfg->mem[i].name, cfg->mem[i].size, cfg->mem[i].type,
+            cfg->mem[i].bank_size,
+            cfg->mem[i].bank_size ? (unsigned)(cfg->mem[i].size / cfg->mem[i].bank_size) : 0u);
+      }
+      else if (cfg->mem[i].has_write_start) {
          fprintf(fp, "  %-10s read_start=$%04X write_start=$%04X size=$%04X type=%s shared=yes",
             cfg->mem[i].name, cfg->mem[i].start, cfg->mem[i].write_start,
             cfg->mem[i].size, cfg->mem[i].type);
@@ -12147,18 +12362,33 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
             fputc('\n', fp);
          }
          else if (lay->segid == O26_SEG_DATA) {
-            const memory_region_t *runtime_mem =
-               find_runtime_memory_for_range(cfg, lay->run_addr, lay->size);
-            fprintf(fp, "     %-16s load=$%04X run=$%04X",
-                    lay->name, lay->load_addr, lay->run_addr);
-            if (runtime_mem && runtime_mem->has_write_start)
+            const memory_region_t *runtime_mem = find_runtime_memory_for_layout(cfg, lay);
+            if (!runtime_mem)
+               runtime_mem = find_runtime_memory_for_range(cfg, lay->run_addr, lay->size);
+            if (runtime_mem && runtime_mem->swapram) {
+               uint32_t offset = (uint32_t)lay->run_addr - runtime_mem->start;
+               fprintf(fp,
+                       "     %-16s load=$%04X logical=$%04X swapram-bank=%u swapram-offset=$%04X",
+                       lay->name, lay->load_addr, lay->run_addr,
+                       runtime_mem->bank_size ? (unsigned)(offset / runtime_mem->bank_size) : 0u,
+                       runtime_mem->bank_size ? (unsigned)(offset % runtime_mem->bank_size) : 0u);
+            }
+            else {
+               fprintf(fp, "     %-16s load=$%04X run=$%04X",
+                       lay->name, lay->load_addr, lay->run_addr);
+            }
+            if (runtime_mem && !runtime_mem->swapram && runtime_mem->has_write_start)
                fprintf(fp, " write=$%04X",
                        memory_runtime_write_address(cfg, runtime_mem->name,
                                                     lay->run_addr, lay->size));
-            fprintf(fp, " size=$%04X load-page=%s run-page=%s",
-                    lay->size, page_placement_name(lay->load_addr, lay->size, 0),
-                    page_placement_name(lay->run_addr, lay->size,
-                       (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0));
+            if (runtime_mem && runtime_mem->swapram)
+               fprintf(fp, " size=$%04X load-page=%s",
+                       lay->size, page_placement_name(lay->load_addr, lay->size, 0));
+            else
+               fprintf(fp, " size=$%04X load-page=%s run-page=%s",
+                       lay->size, page_placement_name(lay->load_addr, lay->size, 0),
+                       page_placement_name(lay->run_addr, lay->size,
+                          (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0));
             if (lay->component_memory[0])
                fprintf(fp, " component-region=%s", lay->component_memory);
             if (lay->component_alignment) {
@@ -12177,16 +12407,30 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
             fputc('\n', fp);
          }
          else {
-            const memory_region_t *runtime_mem =
-               find_runtime_memory_for_range(cfg, lay->run_addr, lay->size);
-            fprintf(fp, "     %-16s run=$%04X", lay->name, lay->run_addr);
-            if (runtime_mem && runtime_mem->has_write_start)
+            const memory_region_t *runtime_mem = find_runtime_memory_for_layout(cfg, lay);
+            if (!runtime_mem)
+               runtime_mem = find_runtime_memory_for_range(cfg, lay->run_addr, lay->size);
+            if (runtime_mem && runtime_mem->swapram) {
+               uint32_t offset = (uint32_t)lay->run_addr - runtime_mem->start;
+               fprintf(fp,
+                       "     %-16s logical=$%04X swapram-bank=%u swapram-offset=$%04X",
+                       lay->name, lay->run_addr,
+                       runtime_mem->bank_size ? (unsigned)(offset / runtime_mem->bank_size) : 0u,
+                       runtime_mem->bank_size ? (unsigned)(offset % runtime_mem->bank_size) : 0u);
+            }
+            else {
+               fprintf(fp, "     %-16s run=$%04X", lay->name, lay->run_addr);
+            }
+            if (runtime_mem && !runtime_mem->swapram && runtime_mem->has_write_start)
                fprintf(fp, " write=$%04X",
                        memory_runtime_write_address(cfg, runtime_mem->name,
                                                     lay->run_addr, lay->size));
-            fprintf(fp, " size=$%04X page=%s", lay->size,
-                    page_placement_name(lay->run_addr, lay->size,
-                       (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0));
+            if (runtime_mem && runtime_mem->swapram)
+               fprintf(fp, " size=$%04X", lay->size);
+            else
+               fprintf(fp, " size=$%04X page=%s", lay->size,
+                       page_placement_name(lay->run_addr, lay->size,
+                          (lay->flags & O26_LAYOUT_PAGE_CONTAINED) != 0));
             if (lay->component_memory[0])
                fprintf(fp, " component-region=%s", lay->component_memory);
             if (lay->component_alignment) {

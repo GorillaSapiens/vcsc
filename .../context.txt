@@ -119,7 +119,7 @@ Open workstreams
    canonical `$1000-$17FF` CPU window. 3F lower banks use descriptors `$00-$FE`
    and fixed uses `$FF`; every fixed/lower boundary call uses its trampoline so
    nested lower->fixed->lower calls restore the original lower caller. Item 38b
-   next designs/migrates 3E's switched RAM state.
+   is active in `.../3e.txt`: 3E RAM is fixed-bank `$swapram`, not bankcall state.
 
    The F4SC field diagnostic remains bank-local by controller; only joystick owns
    TIA/switch/collision work. Four-paddle sampling snapshots INPT0-INPT3 together
@@ -264,8 +264,9 @@ fresh single uninterrupted 343/343 run in this tool window.
 
 Immediate TODO
 --------------
-3F automatic calls are complete using the public six-byte / three-byte-descriptor
-`$bankcall` ABI, including nested lower->fixed->lower restoration without a
-software current-bank shadow. Next migrate 3E, which is the first mapper where
-selecting RAM replaces the lower ROM window and therefore needs an explicit
-ROM/RAM state model. Then migrate FC, F0, and E0; FE intentionally stays special.
+3F automatic calls are complete. 3E `$swapram` metadata/allocation is complete:
+the logical 32 x 1K pool packs objects within bank boundaries and reports
+bank/offset placement without pretending it has CPU addresses. Next execute the
+remaining `.../3e.txt` work beginning with custom LValueRef read/write lowering,
+then fixed-bank swapram helpers and the 3F-derived ROM-call shell. After 3E,
+migrate FC, F0, and E0; FE intentionally stays special.

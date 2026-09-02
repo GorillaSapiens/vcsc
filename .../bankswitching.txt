@@ -232,10 +232,11 @@ this is future optimizer-locality cleanup, not bankswitching work.
 
         [ ] 38b. Migrate 3E using the settled 3F ROM-call foundation.
 
-            3E adds 32 x 1K RAM banks. `$3F` selects lower-window ROM; `$3E`
-            replaces that window with selected RAM read/write aliases. RAM
-            genuinely swaps in/out of CPU visibility, so model this mapper state
-            explicitly rather than as always-live `cartram`.
+            Active design/acceptance record: `.../3e.txt`. 3E RAM is temporary
+            fixed-bank `$swapram`, not generic bankcall state and not `cartram`.
+            `$swapram`/`$bank_size` metadata, logical allocation, bank-boundary
+            packing, validation, and map reporting are complete; lvalue access
+            lowering and fixed-bank helpers are next.
 
         [ ] 38c. Implement/migrate FC.
 

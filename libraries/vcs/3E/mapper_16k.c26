@@ -30,3 +30,4 @@ mem bank4 { $start:0x9000 $size:0x0800 $ro };
 mem bank5 { $start:0xb000 $size:0x0800 $ro };
 mem bank6 { $start:0xd000 $size:0x0800 $ro };
 mem bank7 { $start:0xf800 $size:0x07f8 $ro $priority:2 };
+mem swapram { $size:0x8000 $bank_size:0x0400 $rw $swapram };

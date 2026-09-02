@@ -367,7 +367,7 @@ static bool default_writable_storage_is_zeropage(const ASTNode *program) {
          continue;
       }
       flags = node->children[1];
-      if (!mem_flags_contain(flags, "$rw")) {
+      if (!mem_flags_contain(flags, "$rw") || mem_decl_is_swapram(node)) {
          continue;
       }
       priority = mem_decl_priority(node);

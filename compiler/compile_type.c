@@ -1725,6 +1725,45 @@ bool mem_decl_is_writable(const ASTNode *mem_decl) {
    return false;
 }
 
+//! @brief Return whether one named mem declaration describes bank-swapped storage.
+bool mem_decl_is_swapram(const ASTNode *mem_decl) {
+   const ASTNode *flags;
+
+   if (!mem_decl || strcmp(mem_decl->name, "mem_decl_stmt") || mem_decl->count < 2) {
+      return false;
+   }
+   flags = mem_decl->children[1];
+   if (!flags || is_empty(flags)) {
+      return false;
+   }
+   for (int i = 0; i < flags->count; i++) {
+      const char *text = (flags->children[i] && flags->children[i]->strval)
+         ? flags->children[i]->strval : NULL;
+      if (text && !strcmp(text, "$swapram")) {
+         return true;
+      }
+   }
+   return false;
+}
+
+//! @brief Return one swapram declaration's physical bank size.
+bool mem_decl_swapram_bank_size(const ASTNode *mem_decl, unsigned int *bank_size) {
+   const ASTNode *flags;
+   unsigned long long value = 0;
+
+   if (!mem_decl_is_swapram(mem_decl) || mem_decl->count < 2) {
+      return false;
+   }
+   flags = mem_decl->children[1];
+   if (!parse_flag_u64(flags, "$bank_size:", &value) || value == 0 || value > 0xFFFFull) {
+      return false;
+   }
+   if (bank_size) {
+      *bank_size = (unsigned int)value;
+   }
+   return true;
+}
+
 //! @brief Return the read/write alias starts for one split-address mem declaration.
 bool mem_decl_split_addresses(const ASTNode *mem_decl, unsigned int *read_start, unsigned int *write_start) {
    const ASTNode *flags;
