@@ -119,3 +119,8 @@ addresses would target unrelated 6507 hardware. Added
 map reporting, oversized-object rejection, invalid declarations, and absence of
 unsafe startup records. Focused 3F/3E diagnostics and authoritative-C26-memory
 regressions pass; compile-only is 503/503.
+
+2026-09-02 10:16:25 PDT, recognize 3E focused context in branding test
+The dedicated .../3e.txt handoff/roadmap is now an intentional developer-only
+record. Updated vcsc_branding.pl to include it in both the exact allowlist and
+the required-record list, fixing the clean source-tree branding regression.
