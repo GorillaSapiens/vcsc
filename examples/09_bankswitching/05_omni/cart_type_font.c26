@@ -30,14 +30,14 @@ page const uint8_t cart_type_glyphs[40] := {
    ),
    // 0x4D M
    CART_TYPE_GLYPHS_GLYPH(
-      0b.XX..XX.,
-      0b.XXXXXX.,
-      0b.XXXXXX.,
-      0b.XX.XXX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.
+      0bXX...XX.,
+      0bXXX.XXX.,
+      0bXXXXXXX.,
+      0bXX.X.XX.,
+      0bXX...XX.,
+      0bXX...XX.,
+      0bXX...XX.,
+      0bXX...XX.
    ),
    // 0x4E N
    CART_TYPE_GLYPHS_GLYPH(

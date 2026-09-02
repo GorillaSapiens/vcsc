@@ -24,6 +24,12 @@ VCSC_BANKCALL_SELECTOR_BASE = $0800
 VCSC_BANKCALL_SOURCE_DESCRIPTOR = $00
 .endif
 
+; TEMPLATE ASSEMBLY ORIGIN ONLY.
+; $6000 is never executed or presented to the 6507 bus. The template is
+; assembled at this synthetic non-zero-page origin so internal absolute
+; references cannot relax to zero-page encodings; the linker copies the bytes
+; into the mapper's real replicated trampoline corridor and patches the
+; relocatable absolute operand(s) to their runtime addresses.
 .segmentdef "CODE", $6000, $0100
 .segment "CODE"
 

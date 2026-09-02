@@ -65,3 +65,16 @@ assembly-allowlist regressions pass. The WD simulator still exercises non-ABI
 hardware state 3 independently, confirming the two compiler banks did not
 remove support for the other six hardware arrangements.
 
+2026-09-01 17:43:00 PDT, inline-template comments and WM font patch
+Added an explicit assembly-only-origin warning immediately above `$6000` in all
+15 `libraries/vcs/*/inline_bankcall.s26` templates: the synthetic non-zero-page
+origin is never presented to the 6507 bus and exists to prevent accidental
+zero-page relaxation before linker relocation. Applied the user-supplied
+WM.patch, including the new seven-pixel default M/W glyphs and `*.swp` ignore.
+Updated the font contract with tightly scoped exact M/W full-width shapes rather
+than weakening side-margin checks globally. Ran top-level `make fonts`, which
+regenerated the stale OMNI M subset and the UA/WD W subsets from
+`default_ascii.c26`. Font contracts, generated subsets, ASCII alignment/catalog,
+inline-bankcall source generation, WD diagnostic, source hygiene, and assembly
+allowlist pass. A broad e2e checkpoint reached 224/342 with no failures before
+the available execution window ended.

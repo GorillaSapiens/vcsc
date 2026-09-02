@@ -146,6 +146,21 @@ for my $family (@families) {
       } @reference;
    } 0..7;
 
+   # The default M and W deliberately use column 0 to gain a seventh pixel of
+   # width.  Keep that design choice explicit and tightly scoped: every other
+   # glyph still obeys the standard subset-derived side margins, and M/W must
+   # match the canonical full-width shapes below exactly.
+   my %full_width_default=(
+      M => [qw(XX...XX. XXX.XXX. XXXXXXX. XX.X.XX. XX...XX. XX...XX. XX...XX. XX...XX.)],
+      W => [qw(XX...XX. XX...XX. XX...XX. XX...XX. XX.X.XX. XXXXXXX. XXX.XXX. XX...XX.)],
+   );
+   if ($base eq 'default') {
+      for my $char (sort keys %full_width_default) {
+         key($ascii->[ord($char)-0x20]) eq join('/',@{$full_width_default{$char}})
+            or die "default ASCII $char lost its canonical full-width shape\n";
+      }
+   }
+
    for my $index (0..$#$ascii) {
       my $glyph=$ascii->[$index];
       my $char=chr(0x20+$index);
@@ -154,6 +169,7 @@ for my $family (@families) {
             or die "$ascii_path glyph '$char' violates blank row $row\n";
       }
       for my $column (@empty_columns) {
+         next if $base eq 'default' && exists $full_width_default{$char} && $column == 0;
          !grep { substr($_,$column,1) ne '.' } @$glyph
             or die "$ascii_path glyph '$char' violates blank column $column\n";
       }
