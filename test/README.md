@@ -324,8 +324,8 @@ frame-table convention.
 
 `linker_banked_reset_bridges.pl` builds structural F8, F6, and F4 cartridges,
 then models NMI, RESET, and IRQ/BRK vector fetch and bridge execution from every
-possible initially selected bank. It locks the common eighteen-byte
-mapper-owned three-byte `entry.s26` selector-read plus `JMP handler` slots,
+possible initially selected bank. For the F8/F6/F4 profiles it locks the resulting eighteen-byte bridge
+(three-byte mapper-owned `entry.s26` plus `JMP handler` per slot),
 identical BANK0-mirror vector words,
 exact 8K/16K/32K image sizes, handler/`main` residency in VCSC BANK0, the
 complete logical-bank/file-index/hotspot relationship for all three mappers,

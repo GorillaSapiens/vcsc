@@ -33,14 +33,12 @@
 #include "mapper_entry_templates.h"
 
 static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg);
+static size_t mapper_entry_size_for_config(const linker_config_t *cfg);
+static size_t vector_bridge_entry_size_for_config(const linker_config_t *cfg);
+static size_t vector_bridge_size_for_config(const linker_config_t *cfg);
 
-/* One identical six-byte mapper-entry/JMP slot for NMI, RESET, and IRQ/BRK. */
+/* Mapper-entry bytes are variable length; each vector slot appends JMP abs. */
 enum {
-   VECTOR_BRIDGE_ENTRY_SIZE = 6,
-   VECTOR_BRIDGE_NMI_OFFSET = 0,
-   VECTOR_BRIDGE_RESET_OFFSET = VECTOR_BRIDGE_ENTRY_SIZE,
-   VECTOR_BRIDGE_IRQBRK_OFFSET = 2 * VECTOR_BRIDGE_ENTRY_SIZE,
-   VECTOR_BRIDGE_SIZE = 3 * VECTOR_BRIDGE_ENTRY_SIZE,
    BANK_TRAMPOLINE_JMP = 1,
    BANK_TRAMPOLINE_JSR = 2,
    BANK_JMP_ENTRY_SIZE = 8,
@@ -3309,19 +3307,19 @@ static void validate_linker_config(linker_config_t *cfg)
       exit(1);
    }
    if ((uint32_t)cfg->trampoline_offset + cfg->trampoline_size > cfg->vector_bridge_offset &&
-       (uint32_t)cfg->vector_bridge_offset + VECTOR_BRIDGE_SIZE > cfg->trampoline_offset) {
+       (uint32_t)cfg->vector_bridge_offset + vector_bridge_size_for_config(cfg) > cfg->trampoline_offset) {
       fprintf(stderr,
               "vcsc-ld: CARTRIDGE trampoline $%03X-$%03X overlaps vectorbridge $%03X-$%03X\n",
               cfg->trampoline_offset,
               (uint16_t)(cfg->trampoline_offset + cfg->trampoline_size - 1u),
               cfg->vector_bridge_offset,
-              (uint16_t)(cfg->vector_bridge_offset + VECTOR_BRIDGE_SIZE - 1u));
+              (uint16_t)(cfg->vector_bridge_offset + vector_bridge_size_for_config(cfg) - 1u));
       exit(1);
    }
-   if ((uint32_t)cfg->vector_bridge_offset + VECTOR_BRIDGE_SIZE > 0x0FFAu) {
+   if ((uint32_t)cfg->vector_bridge_offset + vector_bridge_size_for_config(cfg) > 0x0FFAu) {
       fprintf(stderr,
-              "vcsc-ld: CARTRIDGE vectorbridge $%03X plus %u bytes overlaps the per-bank vectors\n",
-              cfg->vector_bridge_offset, VECTOR_BRIDGE_SIZE);
+              "vcsc-ld: CARTRIDGE vectorbridge $%03X plus %zu bytes overlaps the per-bank vectors\n",
+              cfg->vector_bridge_offset, vector_bridge_size_for_config(cfg));
       exit(1);
    }
 
@@ -3497,7 +3495,7 @@ static void validate_linker_config(linker_config_t *cfg)
          continue;
       selector_offset = (uint16_t)(cfg->banks[i].hotspot & 0x0FFFu);
       if (selector_offset >= cfg->vector_bridge_offset &&
-          selector_offset < (uint16_t)(cfg->vector_bridge_offset + VECTOR_BRIDGE_SIZE)) {
+          selector_offset < (uint16_t)(cfg->vector_bridge_offset + vector_bridge_size_for_config(cfg))) {
          fprintf(stderr,
                  "vcsc-ld: CARTRIDGE vectorbridge $%03X overlaps %s selector hotspot $%04X\n",
                  cfg->vector_bridge_offset, cfg->banks[i].name,
@@ -3592,7 +3590,7 @@ static void validate_linker_config(linker_config_t *cfg)
          uint16_t logical_bridge =
             (uint16_t)(bank->start + cfg->vector_bridge_offset);
          uint32_t logical_bridge_end =
-            (uint32_t)logical_bridge + VECTOR_BRIDGE_SIZE;
+            (uint32_t)logical_bridge + vector_bridge_size_for_config(cfg);
          if (mem->start < logical_trampoline_end && logical_trampoline < mem_end) {
             fprintf(stderr,
                     "vcsc-ld: segment '%s' region '%s' covers reserved trampoline $%04X-$%04X in %s\n",
@@ -10283,80 +10281,106 @@ static void image_write_generated(link_image_t *image, size_t bank, uint16_t add
    image_write(image, bank, addr, src, len, who);
 }
 
-//! @brief Return the maintained reset-entry template for a built-in mapper.
-static const uint8_t *mapper_entry_template(const linker_config_t *cfg)
+//! @brief Return the maintained reset-entry template and byte count for a built-in mapper.
+static const uint8_t *mapper_entry_template(const linker_config_t *cfg, size_t *size)
 {
    const uint8_t *sig = cfg ? cfg->topology_cartridge.signature : NULL;
    int has_sig = cfg && cfg->topology_bank_count &&
                  (cfg->topology_cartridge.present_mask & 0x80u);
 
+   if (size)
+      *size = 0;
+
 #define SIG4(a,b,c,d) (has_sig && sig[0] == (a) && sig[1] == (b) && \
                                   sig[2] == (c) && sig[3] == (d))
+#define ENTRY(name) do { if (size) *size = vcsc_##name##_entry_size; return vcsc_##name##_entry; } while (0)
    if (SIG4('F','8',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "F8")))
-      return vcsc_f8_entry;
+      ENTRY(f8);
    if (SIG4('F','8','S','C') || (!has_sig && cfg && str_ieq(cfg->mapper, "F8SC")))
-      return vcsc_f8sc_entry;
+      ENTRY(f8sc);
    if (SIG4('F','6',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "F6")))
-      return vcsc_f6_entry;
+      ENTRY(f6);
    if (SIG4('F','6','S','C') || (!has_sig && cfg && str_ieq(cfg->mapper, "F6SC")))
-      return vcsc_f6sc_entry;
+      ENTRY(f6sc);
    if (SIG4('F','4',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "F4")))
-      return vcsc_f4_entry;
+      ENTRY(f4);
    if (SIG4('F','4','S','C') || (!has_sig && cfg && str_ieq(cfg->mapper, "F4SC")))
-      return vcsc_f4sc_entry;
+      ENTRY(f4sc);
    if (SIG4('F','A',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "FA")))
-      return vcsc_fa_entry;
+      ENTRY(fa);
    if (SIG4('D','P','C',0) || (!has_sig && cfg && str_ieq(cfg->mapper, "DPC")))
-      return vcsc_dpc_entry;
+      ENTRY(dpc);
    if (SIG4('F','A','2',0) || (!has_sig && cfg && str_ieq(cfg->mapper, "FA2")))
-      return vcsc_fa2_entry;
+      ENTRY(fa2);
    if (SIG4('J','A','N','E') || (!has_sig && cfg && str_ieq(cfg->mapper, "JANE")))
-      return vcsc_jane_entry;
+      ENTRY(jane);
    if (SIG4('0','8','4','0') || (!has_sig && cfg && str_ieq(cfg->mapper, "0840")))
-      return vcsc_m0840_entry;
+      ENTRY(m0840);
    if (SIG4('U','A',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "UA")))
-      return vcsc_ua_entry;
+      ENTRY(ua);
    if (SIG4('U','A','S','W') || (!has_sig && cfg && str_ieq(cfg->mapper, "UASW")))
-      return vcsc_uasw_entry;
+      ENTRY(uasw);
    if (SIG4('0','F','A','0') || (!has_sig && cfg && str_ieq(cfg->mapper, "0FA0")))
-      return vcsc_m0fa0_entry;
+      ENTRY(m0fa0);
    if (SIG4('W','D',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "WD")))
-      return vcsc_wd_entry;
+      ENTRY(wd);
    if (SIG4('3','F',0,0))
-      return vcsc_m3f_entry;
+      ENTRY(m3f);
+#undef ENTRY
 #undef SIG4
    return NULL;
 }
 
-//! @brief Build the three-byte mapper entry used before a vector handler.
-static void build_mapper_entry(const linker_config_t *cfg,
-                               const cartridge_bank_t *startup,
-                               uint8_t entry[VCSC_MAPPER_ENTRY_SIZE])
+//! @brief Return the mapper-entry byte count used before each vector handler.
+static size_t mapper_entry_size_for_config(const linker_config_t *cfg)
 {
-   const uint8_t *maintained = mapper_entry_template(cfg);
+   size_t size = 0;
+   if (mapper_entry_template(cfg, &size))
+      return size;
+   /* Generic selector-controlled profiles still synthesize one op0C abs read. */
+   return 3u;
+}
+
+//! @brief Return one variable mapper-entry plus JMP-absolute vector slot size.
+static size_t vector_bridge_entry_size_for_config(const linker_config_t *cfg)
+{
+   return mapper_entry_size_for_config(cfg) + 3u;
+}
+
+//! @brief Return the complete NMI/RESET/IRQ bridge size for this mapper.
+static size_t vector_bridge_size_for_config(const linker_config_t *cfg)
+{
+   return 3u * vector_bridge_entry_size_for_config(cfg);
+}
+
+//! @brief Build the mapper entry used before a vector handler; zero bytes are valid.
+static size_t build_mapper_entry(const linker_config_t *cfg,
+                                 const cartridge_bank_t *startup,
+                                 uint8_t *entry, size_t capacity)
+{
+   size_t size = 0;
+   const uint8_t *maintained = mapper_entry_template(cfg, &size);
    if (maintained) {
-      memcpy(entry, maintained, VCSC_MAPPER_ENTRY_SIZE);
-      if (c26_topology_is_3f(cfg)) {
-         if (entry[0] != 0xEAu || entry[1] != 0xEAu || entry[2] != 0xEAu) {
-            fprintf(stderr, "vcsc-ld: maintained 3F mapper entry must be three inert NOP bytes\n");
-            exit(1);
-         }
-      } else if (entry[0] != 0x0Cu ||
-                 (uint16_t)(entry[1] | ((uint16_t)entry[2] << 8)) != startup->hotspot) {
-         fprintf(stderr,
-                 "vcsc-ld: maintained mapper entry does not select startup bank %s at $%04X\n",
-                 startup->name, startup->hotspot);
+      if (size > capacity) {
+         fprintf(stderr, "vcsc-ld: maintained mapper entry is too large (%zu bytes)\n", size);
          exit(1);
       }
-      return;
+      if (size)
+         memcpy(entry, maintained, size);
+      return size;
    }
 
+   if (capacity < 3u) {
+      fprintf(stderr, "vcsc-ld: mapper entry buffer is too small\n");
+      exit(1);
+   }
    /* Generic selector-controlled profiles still use the declared startup
       selector directly. $select_access means an address-bus access is the
       selector event, so a raw NMOS absolute NOP is the least destructive read. */
    entry[0] = 0x0Cu;
    entry[1] = (uint8_t)(startup->hotspot & 0xFFu);
    entry[2] = (uint8_t)((startup->hotspot >> 8) & 0xFFu);
+   return 3u;
 }
 
 //! @brief Opcode for a state-preserving selector access in legacy stubs.
@@ -10370,13 +10394,14 @@ static uint8_t selector_access_opcode(void)
 
 //! @brief Encode one mapper-entry/JMP-handler vector bridge slot.
 static void encode_vector_bridge_entry(uint8_t *table, size_t offset,
-                                       const uint8_t entry[VCSC_MAPPER_ENTRY_SIZE],
+                                       const uint8_t *entry, size_t entry_size,
                                        uint16_t handler)
 {
-   memcpy(table + offset, entry, VCSC_MAPPER_ENTRY_SIZE);
-   table[offset + 3u] = 0x4Cu; /* JMP absolute */
-   table[offset + 4u] = (uint8_t)(handler & 0xFFu);
-   table[offset + 5u] = (uint8_t)((handler >> 8) & 0xFFu);
+   if (entry_size)
+      memcpy(table + offset, entry, entry_size);
+   table[offset + entry_size + 0u] = 0x4Cu; /* JMP absolute */
+   table[offset + entry_size + 1u] = (uint8_t)(handler & 0xFFu);
+   table[offset + entry_size + 2u] = (uint8_t)((handler >> 8) & 0xFFu);
 }
 
 //! @brief Encode one state-preserving inline-pointer JMP entry for the common table.
@@ -10779,10 +10804,18 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
 
    if (cfg->cartridge_banked) {
       const cartridge_bank_t *startup = NULL;
-      uint8_t bridge[VECTOR_BRIDGE_SIZE];
+      size_t mapper_entry_size = mapper_entry_size_for_config(cfg);
+      size_t bridge_entry_size = vector_bridge_entry_size_for_config(cfg);
+      size_t bridge_size = vector_bridge_size_for_config(cfg);
+      size_t nmi_offset = 0u;
+      size_t reset_offset = bridge_entry_size;
+      size_t irqbrk_offset = 2u * bridge_entry_size;
+      uint8_t *bridge = (uint8_t *)xmalloc(bridge_size);
+      uint8_t mapper_entry_dummy = 0;
+      uint8_t *mapper_entry = mapper_entry_size
+         ? (uint8_t *)xmalloc(mapper_entry_size) : &mapper_entry_dummy;
       uint8_t vectors[6];
       uint16_t bridge_base;
-      uint8_t mapper_entry[VCSC_MAPPER_ENTRY_SIZE];
       uint32_t startup_end;
 
       for (i = 0; i < cfg->bank_count; ++i) {
@@ -10851,25 +10884,27 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
       }
 
       bridge_base = (uint16_t)(startup->start + cfg->vector_bridge_offset);
-      build_mapper_entry(cfg, startup, mapper_entry);
-      encode_vector_bridge_entry(bridge, VECTOR_BRIDGE_NMI_OFFSET,
-                                 mapper_entry, nmi);
-      encode_vector_bridge_entry(bridge, VECTOR_BRIDGE_RESET_OFFSET,
-                                 mapper_entry, reset);
-      encode_vector_bridge_entry(bridge, VECTOR_BRIDGE_IRQBRK_OFFSET,
-                                 mapper_entry, irqbrk);
+      if (build_mapper_entry(cfg, startup, mapper_entry, mapper_entry_size) != mapper_entry_size) {
+         fprintf(stderr, "vcsc-ld: mapper entry size changed during bridge generation\n");
+         exit(1);
+      }
+      encode_vector_bridge_entry(bridge, nmi_offset,
+                                 mapper_entry, mapper_entry_size, nmi);
+      encode_vector_bridge_entry(bridge, reset_offset,
+                                 mapper_entry, mapper_entry_size, reset);
+      encode_vector_bridge_entry(bridge, irqbrk_offset,
+                                 mapper_entry, mapper_entry_size, irqbrk);
 
-      /* Every bank receives the exact same bridge bytes and vector words. The
-         mapper-owned entry fragment establishes the canonical startup mapping
-         before the normal handler runs; RESET therefore reaches __reset only
-         after mapper entry. NMI/IRQ use the same normalization so a BRK from a
-         non-home bank retains the previous wrong-bank recovery behavior. */
-      vectors[0] = (uint8_t)((bridge_base + VECTOR_BRIDGE_NMI_OFFSET) & 0xFFu);
-      vectors[1] = (uint8_t)(((bridge_base + VECTOR_BRIDGE_NMI_OFFSET) >> 8) & 0xFFu);
-      vectors[2] = (uint8_t)((bridge_base + VECTOR_BRIDGE_RESET_OFFSET) & 0xFFu);
-      vectors[3] = (uint8_t)(((bridge_base + VECTOR_BRIDGE_RESET_OFFSET) >> 8) & 0xFFu);
-      vectors[4] = (uint8_t)((bridge_base + VECTOR_BRIDGE_IRQBRK_OFFSET) & 0xFFu);
-      vectors[5] = (uint8_t)(((bridge_base + VECTOR_BRIDGE_IRQBRK_OFFSET) >> 8) & 0xFFu);
+      /* Every bank receives the exact same bridge bytes and vector words. A
+         mapper-owned entry fragment may normalize mapper state before the normal
+         handler, or may be empty when the vector bank is already always visible.
+         NMI/RESET/IRQ all use the same mapper-specific entry length. */
+      vectors[0] = (uint8_t)((bridge_base + nmi_offset) & 0xFFu);
+      vectors[1] = (uint8_t)(((bridge_base + nmi_offset) >> 8) & 0xFFu);
+      vectors[2] = (uint8_t)((bridge_base + reset_offset) & 0xFFu);
+      vectors[3] = (uint8_t)(((bridge_base + reset_offset) >> 8) & 0xFFu);
+      vectors[4] = (uint8_t)((bridge_base + irqbrk_offset) & 0xFFu);
+      vectors[5] = (uint8_t)(((bridge_base + irqbrk_offset) >> 8) & 0xFFu);
 
       for (i = 0; i < cfg->bank_count; ++i) {
          uint16_t bank_bridge =
@@ -10878,10 +10913,13 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
             (uint16_t)(cfg->banks[i].start + cfg->banks[i].size - 6u);
          size_t plane = link_image_plane_for_bank_name(cfg, cfg->banks[i].name);
          image_write_generated(image, plane, bank_bridge, bridge,
-                               sizeof(bridge), "vector bridge");
+                               bridge_size, "vector bridge");
          image_write_generated(image, plane, bank_vectors, vectors,
                                sizeof(vectors), "vectors");
       }
+      if (mapper_entry_size)
+         free(mapper_entry);
+      free(bridge);
    } else {
       uint16_t vector_base = 0xFFFAu;
       uint8_t vectors[6];
@@ -11885,10 +11923,10 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
       fprintf(fp,
               "  mapper=%s output-size=$%08" PRIX32
               " fill=$%02X trampoline=$%03X size=$%03X"
-              " vectorbridge=$%03X size=$%02X\n",
+              " vectorbridge=$%03X size=$%02zX\n",
               cfg->mapper, output_size, cfg->cartridge_fill_value,
               cfg->trampoline_offset, cfg->trampoline_size,
-              cfg->vector_bridge_offset, VECTOR_BRIDGE_SIZE);
+              cfg->vector_bridge_offset, vector_bridge_size_for_config(cfg));
       fprintf(fp, "\nBANKS\n");
       for (i = 0; i < cfg->bank_count; ++i) {
          const cartridge_bank_t *bank = &cfg->banks[i];

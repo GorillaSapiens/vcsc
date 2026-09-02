@@ -67,3 +67,20 @@ Updated the reviewed example-assembly allowlist for the completed 3F automatic-
 call migration. The diagnostic intentionally dropped three manual `$3F`
 selector writes, reducing its pinned assembly count from 40 to 37; automatic
 bankcalls now exercise that switching behavior.
+
+2026-09-02 08:01:44 PDT, variable mapper entry size
+Changed the mapper reset-entry mechanism from a fixed three-byte contract to a
+maintained variable-length byte sequence. Zero bytes are valid. 3F now has an
+empty entry fragment instead of three inert NOPs, so its NMI/RESET/IRQ vector
+bridge is 9 bytes (three bare JMP-absolute slots) rather than 18. Existing
+selector-normalizing mappers remain three-byte raw op0C reads. The generated
+entry header carries an independent size for each mapper, linker bridge sizing
+and offsets are mapper-specific, and maintained entry contents are no longer
+hard-coded/decoded by the linker.
+
+2026-09-02 08:03:35 PDT, source-tar branding check
+Fixed the branding regression left by the earlier generated-runtime packaging
+mistake: vcsc_branding.pl now performs l26/o26 binary-magic checks only when a
+built linker/runtime archive pair exists. A clean unpacked source tar, where
+both generated artifacts are intentionally absent, still receives all source
+branding/documentation checks and now passes.

@@ -176,10 +176,11 @@ Implementation checkpoint: the compiler/assembler/linker use the six-byte
 descriptor ABI and `__bankmeta$V3`. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,
 FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, and 3F consume it end to end and
 those migrated profiles declare `$bankcall` unconditionally. They own
-`bankcall.s26` and `entry.s26`; selector-normalizing entry hooks run before the
-normal vector handler and use raw `op0C` for fixed selector reads, avoiding an
-assembler `--illegal` dependency. 3F's fixed bank needs no normalization, so its
-entry hook is three inert NOPs. FA2 uses
+`bankcall.s26` and variable-length `entry.s26`; maintained entry bytes run before
+the normal vector handler. Selector-normalizing hooks use raw `op0C` for fixed
+selector reads, avoiding an assembler `--illegal` dependency. Zero-length entry
+fragments are valid; 3F uses one because its fixed bank is permanently visible.
+FA2 uses
 descriptors `$F5-$FA/$FB` and raw `op1C $1F00,X`; JANE uses
 `$F0/$F1/$F8/$F9` and raw `op1C $1F00,X`; 0840 uses `$00/$40` and raw
 `op1C $0800,X`; UA/UASW use `$20/$40` and raw `op1C $0200,X`, with UASW

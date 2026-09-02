@@ -447,18 +447,17 @@ corridor and `vectorbridge` corridor are reserved the same way. The trampoline
 corridor must fit wholly below the final six vector bytes, and neither generated
 corridor may overlap the other or a selector hotspot.
 
-The current vector bridge is eighteen bytes: byte-identical NMI, RESET, and
-IRQ/BRK entries are copied at that physical offset in every bank. Migrated
-`$bankcall` mappers own a three-byte `entry.s26` reset-entry fragment. The
-linker assembles that maintained source at build time and copies its raw bytes
-ahead of each vector handler. Selector-normalizing hooks are verified against
-the declared startup bank and use raw NMOS `op0C` (absolute NOP) selector
-reads. 3F is the intentional exception: its fixed final 2K is always visible,
-so its three-byte hook is inert NOPs. Thus ordinary reset starts only after any
-required mapper entry action, while
-they preserve registers/flags and do not depend on assembler `--illegal` mode.
-The final six bytes of every bank contain the same vector words, using BANK0's
-logical mirror of those three entries, before
+The vector bridge contains three mapper-specific slots for NMI, RESET, and
+IRQ/BRK. Each slot is the mapper's variable-length `entry.s26` byte sequence
+followed by a three-byte absolute `JMP` to the normal handler, so the total
+bridge size is `3 * (entry_size + 3)`. The linker assembles maintained entry
+sources at build time and copies their raw bytes verbatim. Current selector-
+normalizing entries use raw NMOS `op0C` (absolute NOP) reads, preserving
+registers/flags without depending on assembler `--illegal` mode. A zero-length
+entry is valid: 3F uses one because its fixed final 2K is permanently visible,
+so its bridge is only nine bytes (three bare `JMP` slots). The final six bytes
+of every bank contain the same vector words, using the startup bank's logical
+mirror of those three slots, before
 optional cartridge metadata is applied. This makes RESET and IRQ/BRK
 deterministic from every initially selected bank. When a cartridge signature is
 present, its final two bytes replace `$xFFA/$xFFB` only in the final physical

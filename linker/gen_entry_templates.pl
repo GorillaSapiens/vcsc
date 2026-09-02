@@ -65,7 +65,7 @@ for my $item (@spec) {
    my $begin = $symbols->{__vcsc_mapper_entry_begin};
    my $end = $symbols->{__vcsc_mapper_entry_end};
    my $size = $end - $begin;
-   $size == 3 or die "$0: $src mapper entry must currently be exactly 3 bytes, got $size\n";
+   $size >= 0 or die "$0: $src mapper entry has negative size $size\n";
    my @bytes;
    for my $addr ($begin .. $end - 1) {
       exists $bytes->{$addr} or die sprintf("%s: %s missing byte at \$%04X\n", $0, $src, $addr);
@@ -78,12 +78,17 @@ for my $item (@spec) {
 
 open my $fh, '>', $out or die "$0: $out: $!\n";
 print {$fh} "/* Generated mapper reset-entry bytes. Do not edit. */\n";
-print {$fh} "#define VCSC_MAPPER_ENTRY_SIZE 3u\n";
 for my $e (@entry) {
    my ($name, $src, $bytes) = @$e;
    my $var = lc($name);
    printf {$fh} "/* %s */\n", $src;
-   printf {$fh} "static const uint8_t vcsc_%s_entry[VCSC_MAPPER_ENTRY_SIZE] = { %s };\n",
-      $var, join(', ', map { sprintf('0x%02Xu', $_) } @$bytes);
+   if (@$bytes) {
+      printf {$fh} "static const uint8_t vcsc_%s_entry[] = { %s };\n",
+         $var, join(', ', map { sprintf('0x%02Xu', $_) } @$bytes);
+   } else {
+      printf {$fh} "static const uint8_t vcsc_%s_entry[1] = { 0 };\n", $var;
+   }
+   printf {$fh} "static const size_t vcsc_%s_entry_size = %uu;\n",
+      $var, scalar(@$bytes);
 }
 close $fh or die "$0: close $out: $!\n";

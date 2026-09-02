@@ -37,9 +37,10 @@ for my $mapper (@mapper) {
    -f $src or die "missing $mapper mapper entry source\n";
    my $text = read_file($src);
    if ($mapper eq '3F') {
-      my $nop_count = () = $text =~ /^\s*nop\s*$/gmi;
-      $nop_count == 3 && $text !~ /\bop0C\b/i && index($text, 'permanently visible') >= 0
-         or die "3F entry must be the inert three-byte fixed-bank hook\n";
+      $text =~ /__vcsc_mapper_entry_begin:\s*__vcsc_mapper_entry_end:/s &&
+      $text !~ /^\s*(?:nop|op[0-9a-f]{2})\b/gmi &&
+      index($text, 'empty fragment') >= 0
+         or die "3F entry must be an empty fixed-bank hook\n";
    }
    else {
       my $hex = sprintf('%04X', $selector{$mapper});
@@ -80,11 +81,17 @@ system($^X, $gen, $as, $fresh, @spec) == 0
 -f $built or die "missing generated linker mapper entry template header\n";
 read_file($fresh) eq read_file($built)
    or die "built mapper entry template header is stale\n";
+my $generated = read_file($fresh);
+$generated =~ /vcsc_m3f_entry_size = 0u;/ &&
+$generated =~ /vcsc_f8_entry_size = 3u;/ &&
+index($generated, 'VCSC_MAPPER_ENTRY_SIZE') < 0
+   or die "generated mapper entry header is not variable-length\n";
 
 my $ld = read_file(File::Spec->catfile($repo, qw(linker vcsc_ld.c)));
-index($ld, 'build_mapper_entry(cfg, startup, mapper_entry);') >= 0 &&
-index($ld, 'memcpy(table + offset, entry, VCSC_MAPPER_ENTRY_SIZE);') >= 0 &&
-index($ld, 'return 0x0Cu;') >= 0
+index($ld, 'mapper_entry_size_for_config(cfg)') >= 0 &&
+index($ld, 'encode_vector_bridge_entry(bridge, nmi_offset,') >= 0 &&
+index($ld, 'if (entry_size)') >= 0 &&
+index($ld, 'return 3u;') >= 0
    or die "linker does not consume mapper entry templates before vector handlers\n";
 
 print "mapper entry sources passed\n";

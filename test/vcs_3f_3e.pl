@@ -144,9 +144,10 @@ for my $c (@cases) {
    my $map=read_file($map_path);
    if ($m eq '3F') {
       $map =~ /^\s+bank3\s+file-index=3\b.*cpu=\$1800.*startup=yes/m &&
+      $map =~ /^\s+mapper=C26\s+output-size=\$00002000.*vectorbridge=\$7D0\s+size=\$09/m &&
       $map =~ /^TRAMPOLINES$/m &&
       $map =~ /^\s+common-offset=\$780\s+reserved=\$050\s+used=\$050.*generic-jsr=\$050/m
-         or die "3F map lost fixed-final descriptor-bankcall topology\n";
+         or die "3F map lost fixed-final descriptor-bankcall/zero-entry topology\n";
    } else {
       $map =~ /^\s+bank3\s+file-index=3\b.*cpu=\$1800.*startup=yes/m && $map !~ /^TRAMPOLINES$/m
          or die "$m map lost fixed-final/direct segmented topology\n";

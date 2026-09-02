@@ -102,9 +102,11 @@ Open workstreams
    authoritative; VCS mapper/linker cfg profiles are gone.
    The six-byte descriptor call ABI is complete for F8/F6/F4(+SC), FA, DPC,
    FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, and 3F. Each owns `bankcall.s26`
-   and three-byte `entry.s26`; profiles declare `$bankcall`. Dynamic read
-   selectors carry the descriptor in X and use raw `op1C` absolute-X NOP reads;
-   fixed entry selectors use raw `op0C` absolute reads. The common family uses
+   and variable-length `entry.s26`; profiles declare `$bankcall`. Entry fragments
+   may be empty: 3F uses zero bytes because its fixed vector bank is always
+   visible, while selector-normalizing entries use raw `op0C` absolute reads.
+   Dynamic read selectors carry the descriptor in X and use raw `op1C` absolute-X
+   NOP reads. The common family uses
    68 active/72 reserved bytes; 3F uses 74 active/80 reserved. WD exposes two
    compiler banks backed by hardware states 1/2 while the simulator retains all
    eight hardware arrangements.

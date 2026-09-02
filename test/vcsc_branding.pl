@@ -219,46 +219,50 @@ $root_readme =~ /mos6502.*?MIT License/is
    or die "top-level README does not identify mos6502 as MIT-licensed\n";
 
 my $archive = File::Spec->catfile($repo, qw(libraries runtime libvcsc.l26));
-open(my $afh, '<:raw', $archive) or die "could not open $archive: $!\n";
-read($afh, my $magic, 7) == 7 or die "could not read archive magic\n";
-$magic eq "VCSL26\x01" or die "archive uses wrong magic\n";
-read($afh, my $member_header, 6) == 6 or die "could not read first archive member header\n";
-my ($name_len, $member_size) = unpack('vV', $member_header);
-$name_len > 0 or die "first archive member has an empty name\n";
-$member_size >= 5 or die "first archive member is too short for o26 magic\n";
-read($afh, my $member_name, $name_len) == $name_len or die "could not read first archive member name\n";
-read($afh, my $object_magic, 5) == 5 or die "could not read first archive member object magic\n";
-read($afh, my $object_tail, $member_size - 5) == $member_size - 5
-   or die "could not read first archive member payload\n";
-close($afh);
-$member_name =~ /\.o26$/ or die "archive member does not use .o26: $member_name\n";
-$object_magic eq "\x01\x00o26" or die "archive member uses wrong object magic\n";
-
-my $tmp = tempdir(CLEANUP => 1);
 my $linker = File::Spec->catfile($repo, qw(linker vcsc-ld));
-my $cfg = File::Spec->catfile($repo, qw(test generic_6502.cfg));
-my $bad_object = $object_magic . $object_tail;
-substr($bad_object, 2, 3) = pack('C*', 111, 54, 53);
-my $bad_object_path = File::Spec->catfile($tmp, 'wrong-magic.o26');
-write_raw($bad_object_path, $bad_object);
-my $bad_object_out = File::Spec->catfile($tmp, 'wrong-object.out');
-my $bad_object_err = File::Spec->catfile($tmp, 'wrong-object.err');
-run_quiet($bad_object_out, $bad_object_err,
-   $linker, '-T', $cfg, '-o', File::Spec->catfile($tmp, 'wrong-object.hex'), $bad_object_path) != 0
-   or die "linker accepted a pre-o26 object magic\n";
-index(slurp($bad_object_err), 'not an o26 file') >= 0
-   or die "linker gave the wrong diagnostic for a pre-o26 object magic\n";
-
-my $bad_archive = slurp($archive);
-substr($bad_archive, 0, 7) = pack('C*', 86, 67, 83, 67, 65, 82, 1);
-my $bad_archive_path = File::Spec->catfile($tmp, 'wrong-magic.l26');
-write_raw($bad_archive_path, $bad_archive);
-my $bad_archive_out = File::Spec->catfile($tmp, 'wrong-archive.out');
-my $bad_archive_err = File::Spec->catfile($tmp, 'wrong-archive.err');
-run_quiet($bad_archive_out, $bad_archive_err,
-   $linker, '-T', $cfg, '-o', File::Spec->catfile($tmp, 'wrong-archive.hex'), $bad_archive_path) != 0
-   or die "linker accepted a pre-l26 archive magic\n";
-index(slurp($bad_archive_err), 'not an l26 archive') >= 0
-   or die "linker gave the wrong diagnostic for a pre-l26 archive magic\n";
+if (-e $archive || -x $linker) {
+   -f $archive && -x $linker
+      or die "built branding artifact set is incomplete: need both $archive and $linker\n";
+   open(my $afh, '<:raw', $archive) or die "could not open $archive: $!\n";
+   read($afh, my $magic, 7) == 7 or die "could not read archive magic\n";
+   $magic eq "VCSL26\x01" or die "archive uses wrong magic\n";
+   read($afh, my $member_header, 6) == 6 or die "could not read first archive member header\n";
+   my ($name_len, $member_size) = unpack('vV', $member_header);
+   $name_len > 0 or die "first archive member has an empty name\n";
+   $member_size >= 5 or die "first archive member is too short for o26 magic\n";
+   read($afh, my $member_name, $name_len) == $name_len or die "could not read first archive member name\n";
+   read($afh, my $object_magic, 5) == 5 or die "could not read first archive member object magic\n";
+   read($afh, my $object_tail, $member_size - 5) == $member_size - 5
+      or die "could not read first archive member payload\n";
+   close($afh);
+   $member_name =~ /\.o26$/ or die "archive member does not use .o26: $member_name\n";
+   $object_magic eq "\x01\x00o26" or die "archive member uses wrong object magic\n";
+   
+   my $tmp = tempdir(CLEANUP => 1);
+   my $cfg = File::Spec->catfile($repo, qw(test generic_6502.cfg));
+   my $bad_object = $object_magic . $object_tail;
+   substr($bad_object, 2, 3) = pack('C*', 111, 54, 53);
+   my $bad_object_path = File::Spec->catfile($tmp, 'wrong-magic.o26');
+   write_raw($bad_object_path, $bad_object);
+   my $bad_object_out = File::Spec->catfile($tmp, 'wrong-object.out');
+   my $bad_object_err = File::Spec->catfile($tmp, 'wrong-object.err');
+   run_quiet($bad_object_out, $bad_object_err,
+      $linker, '-T', $cfg, '-o', File::Spec->catfile($tmp, 'wrong-object.hex'), $bad_object_path) != 0
+      or die "linker accepted a pre-o26 object magic\n";
+   index(slurp($bad_object_err), 'not an o26 file') >= 0
+      or die "linker gave the wrong diagnostic for a pre-o26 object magic\n";
+   
+   my $bad_archive = slurp($archive);
+   substr($bad_archive, 0, 7) = pack('C*', 86, 67, 83, 67, 65, 82, 1);
+   my $bad_archive_path = File::Spec->catfile($tmp, 'wrong-magic.l26');
+   write_raw($bad_archive_path, $bad_archive);
+   my $bad_archive_out = File::Spec->catfile($tmp, 'wrong-archive.out');
+   my $bad_archive_err = File::Spec->catfile($tmp, 'wrong-archive.err');
+   run_quiet($bad_archive_out, $bad_archive_err,
+      $linker, '-T', $cfg, '-o', File::Spec->catfile($tmp, 'wrong-archive.hex'), $bad_archive_path) != 0
+      or die "linker accepted a pre-l26 archive magic\n";
+   index(slurp($bad_archive_err), 'not an l26 archive') >= 0
+      or die "linker gave the wrong diagnostic for a pre-l26 archive magic\n";
+}
 
 print "VCSC hard rename and documentation branding ok\n";
