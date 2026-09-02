@@ -226,13 +226,19 @@ this is future optimizer-locality cleanup, not bankswitching work.
 
         [ ] 38a. Design and migrate 3F automatic calls.
 
-            The scalable ROM topology is ready. The remaining ABI issue is
-            source state: code executing in the fixed `$1800-$1FFF` bank does
-            not reveal which lower 2K ROM bank is currently selected. Do not
-            pretend the fixed bank has a baked lower-bank source descriptor.
-            Decide how compiled calls from fixed-bank code preserve/restore the
-            dynamic lower selection, while selectable-bank callers retain the
-            simple one-byte destination-bank model.
+            The scalable ROM topology is ready. No dynamic lower-bank shadow is
+            required. The fixed `$1800-$1FFF` bank is permanently visible, so
+            fixed->selectable calls may always go through the mapper trampoline:
+            select the destination lower bank, call it, and return directly to
+            fixed code without restoring the previously selected lower bank.
+            Selectable A->fixed and same-bank calls remain ordinary JSRs.
+            Selectable A->selectable B calls select B and must restore the
+            statically known A before the final RTS into `$1000-$17FF`. In
+            nested calls, restoration is therefore determined by where the
+            eventual return PC lives: returning to fixed code needs no lower-bank
+            restoration; returning to selectable code restores that caller's
+            statically known bank. Cross-bank data references must not assume an
+            arbitrary lower bank is selected.
 
         [ ] 38b. Migrate 3E after the 3F call-state rule is settled.
 

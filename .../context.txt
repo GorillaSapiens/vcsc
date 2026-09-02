@@ -111,9 +111,9 @@ Open workstreams
    `file_index`; read-only CPU-mapped `mem` can name its owner with `$bank:NAME`.
    Overlapping bank-local CPU addresses therefore no longer alias in BIN output.
    Automatic placement now uses a 256-bit allowed-bank set; a max-size 256-bank
-   3F regression reaches bank index 255. Item 38a next removes remaining
-   address-to-bank inference, then normalizes 3F selectable banks to canonical
-   `$1000-$17FF`.
+   3F regression reaches bank index 255. Normal relocation/branch/.banktarget
+   ownership is bank-aware, and parameterized 3F selectable banks now share the
+   canonical `$1000-$17FF` CPU window. Item 38a next adds 3F automatic calls.
 
    The F4SC field diagnostic remains bank-local by controller; only joystick owns
    TIA/switch/collision work. Four-paddle sampling snapshots INPT0-INPT3 together
@@ -258,8 +258,8 @@ fresh single uninterrupted 343/343 run in this tool window.
 
 Immediate TODO
 --------------
-Design and migrate 3F automatic calls. Selectable-bank callers have a static
-one-byte lower-bank descriptor, but code executing in fixed `$1800-$1FFF` does
-not reveal which lower 2K bank is selected; calls from fixed-bank code must
-preserve/restore that dynamic state without pretending it is baked into the
-caller. Then migrate 3E, FC, F0, and E0; FE intentionally stays special.
+Design and migrate 3F automatic calls. No dynamic lower-bank shadow is needed:
+fixed `$1800-$1FFF` code may select/call any lower bank and return directly to
+fixed code without restoring the old lower selection; selectable A->selectable B
+must restore statically known A before returning into `$1000-$17FF`. Then
+migrate 3E, FC, F0, and E0; FE intentionally stays special.

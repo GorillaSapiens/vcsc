@@ -21,3 +21,14 @@ overlapping windows into one 64K array. Focused mapper/simulator tests passed
 15/15, focused 3F/linker/profile tests passed 8/8, and compile-only passed
 503/503. Next is the 3F automatic-call state rule for calls originating in the
 fixed upper 2K.
+
+2026-09-02 00:18:28 PDT, 3F fixed-bank call rule and example oracle
+Recorded the 3F automatic-call rule: fixed $1800-$1FFF code may select and call
+any lower bank and return directly to fixed code without restoring the prior
+lower selection; selectable A->selectable B must restore statically known A
+before returning into $1000-$17FF. No dynamic lower-bank shadow is required.
+
+Updated the recursive example-build oracle for parameterized 3F. It now detects
+`instantiate "3F/mapper.c26" ... (VCS_3F_BANKS:=N)`, derives ROM size as
+`2048*N`, and accepts fixed-bank vectors in $1800-$1FFF. Shard 2/8 now
+passes with the 8K 3F diagnostic.
