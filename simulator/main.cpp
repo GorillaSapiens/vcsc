@@ -329,8 +329,8 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
          fprintf(stderr, "vcsc-sim: E0 requires exactly eight physical 1K banks\n");
          exit(1);
       }
-      if (cfg->wd_mapper && cfg->bank_count != 8u) {
-         fprintf(stderr, "vcsc-sim: WD requires exactly eight physical 1K banks\n");
+      if (cfg->wd_mapper && cfg->bank_count != 2u) {
+         fprintf(stderr, "vcsc-sim: WD C26 topology requires two logical 4K banks (hardware states 1 and 2)\n");
          exit(1);
       }
       if (cfg->fe_mapper && cfg->bank_count != 2u) {
@@ -345,13 +345,13 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
 
    for (size_t i = 0; i < cfg->bank_count; ++i) {
       size_t file_index = 0;
-      uint16_t wanted_size = (cfg->e0_mapper || cfg->wd_mapper) ? 0x0400u :
+      uint16_t wanted_size = cfg->e0_mapper ? 0x0400u :
                              (cfg->threef_mapper || cfg->threee_mapper) ? 0x0800u : 0x1000u;
       if ((cfg->cartridge_banked || cfg->cartridge_direct_multi) &&
           !cfg->cartridge_direct_multi && cfg->banks[i].size != wanted_size) {
          fprintf(stderr, "vcsc-sim: %s bank '%s' is not %s\n",
                  cfg->mapper, cfg->banks[i].name,
-                 (cfg->e0_mapper || cfg->wd_mapper) ? "1K" :
+                 cfg->e0_mapper ? "1K" :
                  (cfg->threef_mapper || cfg->threee_mapper) ? "2K" : "4K");
          exit(1);
       }
@@ -394,8 +394,8 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
       fprintf(stderr, "vcsc-sim: E0 startup bank must be fixed physical/file bank 7\n");
       exit(1);
    }
-   if (cfg->wd_mapper && cfg->banks[cfg->startup_bank].file_index != 3u) {
-      fprintf(stderr, "vcsc-sim: WD startup bank must be physical/file bank 3\n");
+   if (cfg->wd_mapper && cfg->banks[cfg->startup_bank].file_index != 0u) {
+      fprintf(stderr, "vcsc-sim: WD startup bank must be logical/file bank 0 (hardware state 1)\n");
       exit(1);
    }
    if (cfg->fe_mapper && cfg->banks[cfg->startup_bank].file_index != 0u) {
@@ -1425,13 +1425,21 @@ static int bank_index_for_hotspot(uint16_t addr, size_t *bank_index) {
    return 0;
 }
 
+static uint8_t wd_physical_chunk_for_address(uint16_t addr) {
+   uint16_t canonical = (uint16_t)(addr & 0x1fffu);
+   size_t segment;
+   if (canonical < 0x1000u)
+      return 3u;
+   segment = (size_t)((canonical - 0x1000u) >> 10);
+   if (segment > 3u) segment = 3u;
+   return g_wd_bank_org[g_wd_config & 7u][segment];
+}
+
 static size_t selected_bank_index_for_address(uint16_t addr) {
    uint16_t canonical = (uint16_t)(addr & 0x1fffu);
    if (g_cfg.wd_mapper) {
-      if (canonical < 0x1000u) return g_cfg.startup_bank;
-      size_t segment = (size_t)((canonical - 0x1000u) >> 10);
-      if (segment > 3u) segment = 3u;
-      return bank_index_for_file_index(g_wd_bank_org[g_wd_config & 7u][segment]);
+      uint8_t physical_chunk = wd_physical_chunk_for_address(addr);
+      return bank_index_for_file_index((size_t)(physical_chunk >> 2));
    }
    if (g_cfg.threef_mapper || g_cfg.threee_mapper) {
       if (canonical >= 0x1800u)
@@ -1454,8 +1462,11 @@ static uint16_t selected_bank_address(uint16_t addr) {
    size_t bank_index = selected_bank_index_for_address(addr);
    const cartridge_bank_t *bank = &g_cfg.banks[bank_index];
    if (g_cfg.wd_mapper) {
+      uint8_t physical_chunk = wd_physical_chunk_for_address(addr);
       uint16_t window_base = (uint16_t)(0x1000u + ((canonical - 0x1000u) & 0x0c00u));
-      return (uint16_t)(bank->start + (canonical - window_base));
+      uint16_t chunk_offset = (uint16_t)(((physical_chunk & 3u) << 10) +
+                                         (canonical - window_base));
+      return (uint16_t)(bank->start + chunk_offset);
    }
    if (g_cfg.threef_mapper || g_cfg.threee_mapper) {
       uint16_t window_base = canonical < 0x1800u ? 0x1000u : 0x1800u;

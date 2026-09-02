@@ -569,7 +569,7 @@ UASW     BANK0 $F000 via $0240     BANK1 $D000 via $0220    alias-decoded    UAS
 0FA0     BANK1 $D000 via $0FA0     BANK0 $F000 via $0FC0    mask $16E0      0FA0
 E0       physical 0 (1K)           physical 7 fixed $1C00    $1FE0-$1FF7     E0\0\0
 FE       physical 0 $F000         physical 1 $D000          delayed $01FE     FE\0\0
-WD       physical 0 (1K)           physical 7 (1K)           reads $30-$3F    WD\0\0
+WD       bank0/state1 0,1,2,3     bank1/state2 4,5,6,7     reads $39/$3A   WD\0\0
 DPC      F8 file bank 0           F8 file bank 1           $1FF8-$1FF9     DPC\0
 F6       BANK3 $9000 via $1FF6     BANK0 $F000 via $1FF9    $1FF6-$1FF9     F6\0\0
 F4       BANK7 $1000 via $1FF4     BANK0 $F000 via $1FFB    $1FF4-$1FFB     F4\0\0
@@ -583,9 +583,9 @@ bytes, mapper metadata, and vectors. E0 instead uses 1K physical chunks; banks
 0-6 expose their full 1K, while fixed bank 7 reserves `$FFE0-$FFFF` for E0
 selectors, mapper metadata, and vectors as described below. FE uses complete 4K
 physical chunks but has no generated trampoline or vector-bridge corridor; its
-`$01FE` control access is on the stack bus rather than in cartridge ROM. WD uses
-eight 1K physical chunks plus split cartridge RAM and delayed TIA-read
-arrangement selection. DPC uses two 4K program chunks whose first `$80` bytes
+`$01FE` control access is on the stack bus rather than in cartridge ROM. WD physically uses eight 1K chunks, but its compiler ABI groups them into two
+relocation-safe logical 4K banks: hardware state 1 (`0,1,2,3`) and state 2
+(`4,5,6,7`). It also has split cartridge RAM and delayed TIA-read selection. DPC uses two 4K program chunks whose first `$80` bytes
 are hidden by the register window, followed by 2K and 255-byte file-domain
 `$data_only` chunks. The final CPU-mapped bank stores the profile's four-byte mapper signature at `$xFF8-$xFFB`; shorter
 names are ASCII-NUL padded. Those locations may overlap cartridge-window
@@ -825,24 +825,38 @@ sets display state afterward. The final physical bank carries `FE\0\0` at
 
 ### WD / Wickstead Design profile
 
-The public `WD/mapper.c26` profile emits the corrected 8192-byte WD image as
-eight physical 1K chunks in file order 0 through 7. WD maps four 1K segments at
-`$1000-$13FF`, `$1400-$17FF`, `$1800-$1BFF`, and `$1C00-$1FFF`; reads of
-TIA `$30-$3F` select one of eight complete segment arrangements. The new
-arrangement becomes visible only after the selector read has aged beyond the
-hardware delay, so VCSC models selection as a delayed read side effect rather
-than an ordinary hotspot bank change. Power-on arrangement 0 maps physical
-chunks `0,0,1,3`, making physical/file chunk 3 the startup/vector chunk.
+The public `WD/mapper.c26` profile emits the corrected 8192-byte WD image, but
+it deliberately exposes only **two compiler banks**. WD hardware has eight 1K
+physical chunks and eight four-segment arrangements; ordinary 6502 code is not
+position independent, so treating every physical chunk/arrangement as a freely
+relocatable compiler bank would be wrong. VCSC instead uses the two complementary
+arrangements that keep every chunk at one canonical CPU address:
 
-WD also exposes 64 bytes of split-address cartridge RAM: reads use
-`$1000-$103F` and writes use `$1040-$107F`. Because the mapper owns TIA reads
-at `$30-$3F`, the profile binds ordinary TIA I/O through the equivalent
-`$40-$7F` mirror; deliberate three-cycle dead-flag delays use raw TIA `$00`,
-which is not a WD selector. VCSC does not synthesize generic WD cross-arrangement
-trampolines: explicitly banked code/data must only execute after program code has
-selected an arrangement that maps that physical chunk into its canonical CPU
-segment. The linked `.map` sidecar gives `vcsc-sim` the matching arrangement/RAM model.
-The final physical chunk carries `WD\0\0` in its reserved tail.
+```text
+logical bank0 = WD state 1 = physical chunks 0,1,2,3
+logical bank1 = WD state 2 = physical chunks 4,5,6,7
+```
+
+Reads of `$39` and `$3A` select those hardware states. The profile therefore
+uses opaque bank-call descriptors 1 and 2 with indexed reads from `$0038`, and
+participates in the same six-byte `.banktarget` descriptor ABI as the other
+migrated selector mappers. WD applies selector reads after its hardware delay;
+the fixed bank-call corridor is byte-identical at the same offsets in both
+logical banks, so execution remains valid across that delayed transition. The
+other six hardware arrangements are still modeled by `vcsc-sim` and may be used
+by deliberately hand-written assembly, but they are outside the compiler ABI.
+
+WD powers on in hardware state 0 (`0,0,1,3`). Its top segment is physical chunk
+3, which is also logical bank0's top segment. The replicated reset bridge reads
+`$39`, waits naturally through the delayed selector instruction, and then enters
+normal startup with complete logical bank0/state1 mapping established.
+
+WD also exposes 64 bytes of always-live split-address cartridge RAM: reads use
+`$1000-$103F` and writes use `$1040-$107F`. Those ports hide the first `$80`
+bytes of the segment-0 ROM chunk, so both logical 4K banks reserve that prefix.
+Because the mapper owns TIA reads at `$30-$3F`, ordinary TIA I/O uses the
+equivalent `$40-$7F` mirror. The final physical chunk carries `WD\0\0` in its
+reserved tail.
 
 ### JANE profile
 

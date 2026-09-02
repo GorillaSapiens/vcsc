@@ -17,7 +17,7 @@ shared ABI.
 The descriptor ABI in this document is the public ABI for `$inline_bankcall`.
 The compiler, assembler, and linker emit the three-byte `.banktarget` field.
 F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, FA2-24/28, JANE, 0840, UA, UASW,
-and 0FA0 are fully migrated: their bank-local trampolines consume the
+0FA0, and WD are fully migrated: their bank-local trampolines consume the
 destination descriptor directly and carry a baked source descriptor on the
 hardware stack.
 
@@ -141,6 +141,8 @@ Examples of useful descriptor choices include:
 - UA/UASW: `$20` or `$40`, suitable as an offset from the mapper's selector
   base;
 - 0FA0: `$A0` or `$C0`, suitable for the canonical selector aliases;
+- WD: `1` or `2`, selecting the two relocation-safe compiler arrangements via
+  indexed reads of `$0038,Y` (`$39` / `$3A`);
 - a write-selected mapper: the exact selector value to write; and
 - F0: the bank ID, allowing the mapper-specific trampoline to compute how many
   `$1FF0` advances are required.

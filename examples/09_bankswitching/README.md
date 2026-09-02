@@ -140,13 +140,14 @@ uses BSS-only/simple startup so generic initialization cannot touch `$01FE` via
 temporary stack traffic. `make play` forces Stella's `FE` mapper.
 
 `15_wd/` is the Wickstead Design diagnostic for the corrected 8K image layout.
-It verifies power-on arrangement 0, multiple `$30-$3F` read-selected four-segment
-arrangements, delayed selector visibility, write-without-switch behavior, and both
-ends of the 64-byte `$1000/$1040` split RAM device. Ordinary TIA I/O uses the
-`$40-$7F` mirror so collision/input reads cannot accidentally select an
-arrangement. The cartridge executes from several physical 1K chunks, renders
-large PASS/FAIL with small `WD`, and `make play` forces Stella's `WD` mapper.
-
+The compiler profile deliberately treats hardware state 1 (`0,1,2,3`) as logical
+bank0 and state 2 (`4,5,6,7`) as logical bank1, so all executable 1K chunks keep
+canonical addresses. The self-test exercises automatic descriptor calls in both
+directions including a nested return, verifies the delayed selector latch and
+always-live 64-byte `$1000/$1040` split RAM, and retains raw simulator coverage
+for a non-ABI hardware arrangement. Ordinary TIA I/O uses the `$40-$7F` mirror.
+The visible cartridge renders big/wide PASS/FAIL with small `WD`; `make play`
+forces Stella's `WD` mapper.
 
 `16_dpc/` is the DPC diagnostic. It emits the conventional 10,495-byte image
 as two F8-style program banks plus a 2K display-data bank and 255-byte Poly8

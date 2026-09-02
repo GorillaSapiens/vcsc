@@ -6,44 +6,77 @@
 alias VCS_TIA_USE_40_MIRROR 1
 include "vcs.c26"
 
-// Wickstead Design / Pursuit of the Pink Panther: eight physical 1K ROM
-// chunks arranged four at a time in the $1000-$1FFF cartridge window. Reads
-// from TIA $30-$3F select one of eight complete four-segment arrangements;
-// hardware applies the new arrangement only after the selector read has aged
-// by at least three CPU cycles. Power-on arrangement 0 is 0,0,1,3, so physical
-// chunk 3 supplies RESET/vectors in the top $1C00-$1FFF segment.
+// Wickstead Design / Pursuit of the Pink Panther physically contains eight
+// 1K ROM chunks and can arrange four of them at a time in $1000-$1FFF. The
+// hardware exposes these eight arrangements (left to right = the four 1K CPU
+// windows at $1000, $1400, $1800, $1C00):
 //
-// WD also owns 64 bytes of split-address RAM: reads $1000-$103F, writes
-// $1040-$107F. The ROM bytes under that window are hidden whenever a physical
-// chunk occupies segment 0.
+//      state 0:  0 0 1 3       power-on state
+//      state 1:  0 1 2 3
+//      state 2:  4 5 6 7
+//      state 3:  7 4 2 3
+//      state 4:  0 0 6 7
+//      state 5:  0 1 7 6
+//      state 6:  2 3 4 5
+//      state 7:  6 0 5 1
 //
-// These synthetic link addresses preserve each bank's chosen 6507 CPU-window
-// alias while keeping all eight physical chunks distinct to the linker. VCSC
-// does not synthesize WD arrangement transitions; explicitly banked code/data
-// must be reached only after the program has selected an arrangement that maps
-// the target physical chunk into its canonical CPU segment.
-cartridge { $fill:0xff $signature:WD };
+// VCSC DELIBERATELY DOES NOT expose those eight hardware arrangements as eight
+// compiler banks. Ordinary 6502 code is not position independent: a chunk
+// linked for $1C00 contains absolute JSR/JMP/data operands for $1C00, and moving
+// the same bytes to $1400 does not relocate those operands. Trying to model the
+// hardware table literally therefore gives the compiler "banks" that are not
+// generally executable in most of their hardware positions.
+//
+// Instead VCSC uses the two complementary, relocation-safe arrangements as its
+// complete compiler ABI:
+//
+//      VCSC bank0 == WD state 1 == physical chunks 0,1,2,3
+//      VCSC bank1 == WD state 2 == physical chunks 4,5,6,7
+//
+// Each physical chunk consequently has exactly one compiler/link address. The
+// first 4K of the output image is bank0 and the second 4K is bank1. Reads of
+// TIA $39 select WD state 1; reads of $3A select WD state 2. The descriptor ABI
+// uses opaque descriptors 1 and 2, so the replicated bank-call corridor reads
+// $0038,Y to select/restore the corresponding logical bank. WD's delayed latch
+// is safe because every instruction that can execute across the transition is
+// byte-identical at the same CPU address in both logical banks.
+//
+// The other six WD arrangements remain real hardware behavior and may still be
+// exercised deliberately by handwritten assembly or diagnostics. Such code is
+// outside the C26 cross-bank-call ABI and is responsible for restoring state 1
+// or 2 before returning to ordinary compiler-generated banked code.
+//
+// Power-on WD state 0 already maps physical chunk 3 into $1C00-$1FFF, so the
+// reset vector reaches bank0's replicated vector bridge. That bridge performs a
+// non-destructive selector read of $39 and, after the hardware delay, jumps into
+// the normal bank0 startup code with the complete state-1 mapping established.
+//
+// WD also owns 64 bytes of always-live split-address RAM: reads $1000-$103F,
+// writes $1040-$107F. Those ports hide the first $80 bytes of whichever physical
+// chunk occupies segment 0, so both compiler banks reserve offsets $000-$07F.
+cartridge {
+   $inline_bankcall
+   $fill:0xff $signature:WD
+   $trampoline_offset:0x0f00 $trampoline_size:0x00e0
+   $vector_bridge_offset:0x0fe0 $vector_bridge_size:0x0012
+   $vectors_offset:0x0ffa $vectors_size:0x0006
+};
 
-bank bank0 { $image_size:0x0400 $file_index:0 $image_offset:0 $link_start:0x1000 $cpu_start:0x1000 $map_size:0x0400 };
-bank bank1 { $image_size:0x0400 $file_index:1 $image_offset:0 $link_start:0x3400 $cpu_start:0x1400 $map_size:0x0400 };
-bank bank2 { $image_size:0x0400 $file_index:2 $image_offset:0 $link_start:0x5800 $cpu_start:0x1800 $map_size:0x0400 };
-bank bank3 { $image_size:0x0400 $file_index:3 $image_offset:0 $link_start:0xfc00 $cpu_start:0x1c00 $map_size:0x0400 $startup };
-bank bank4 { $image_size:0x0400 $file_index:4 $image_offset:0 $link_start:0x7400 $cpu_start:0x1400 $map_size:0x0400 };
-bank bank5 { $image_size:0x0400 $file_index:5 $image_offset:0 $link_start:0x9c00 $cpu_start:0x1c00 $map_size:0x0400 };
-bank bank6 { $image_size:0x0400 $file_index:6 $image_offset:0 $link_start:0xb800 $cpu_start:0x1800 $map_size:0x0400 };
-bank bank7 { $image_size:0x0400 $file_index:7 $image_offset:0 $link_start:0xd000 $cpu_start:0x1000 $map_size:0x0400 };
+bank bank0 {
+   $image_size:0x1000 $file_index:0 $image_offset:0x0080
+   $link_start:0xf080 $cpu_start:0xf080 $map_size:0x0f80
+   $select_access:0x0039 $bankcall_descriptor:0x01 $startup
+};
 
-// Segment-0 canonical banks lose their first $80 bytes to the RAM aliases.
-mem bank0 { $start:0x1080 $size:0x0380 $ro };
-mem bank1 { $start:0x3400 $size:0x0400 $ro };
-mem bank2 { $start:0x5800 $size:0x0400 $ro };
-// Physical chunk 3 owns the reset vectors at offsets $3FA-$3FF.
-mem bank3 { $start:0xfc00 $size:0x03fa $ro $priority:2 };
-mem bank4 { $start:0x7400 $size:0x0400 $ro };
-mem bank5 { $start:0x9c00 $size:0x0400 $ro };
-mem bank6 { $start:0xb800 $size:0x0400 $ro };
-// Physical chunk 7 is the final file chunk, so reserve its final eight bytes
-// for the VCSC profile signature. Its canonical segment-0 prefix is RAM-hidden.
-mem bank7 { $start:0xd080 $size:0x0378 $ro };
+bank bank1 {
+   $image_size:0x1000 $file_index:1 $image_offset:0x0080
+   $link_start:0xd080 $cpu_start:0xf080 $map_size:0x0f80
+   $select_access:0x003a $bankcall_descriptor:0x02
+};
+
+// $000-$07F of each logical 4K image is hidden whenever that bank is selected:
+// the CPU sees the WD RAM read/write ports there instead of ROM.
+mem bank0 { $start:0xf080 $size:0x0e80 $ro $priority:2 };
+mem bank1 { $start:0xd080 $size:0x0e80 $ro };
 
 mem cartram { $read_start:0xf000 $write_start:0xf040 $size:0x0040 $rw $read_hazard };

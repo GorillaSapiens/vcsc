@@ -223,13 +223,15 @@ PAL/SECAM points. Ordinary exhaustive value probes use a test-specific checked-
 frame floor while the shared timing harness retains its 40-frame default. The
 optional Stella 7.0 diagnostic oracle remains part of the prior certified state.
 
-Bankswitching Items 42 FE/SCABS and 43 WD are complete. FE's public topology,
-delayed `$01FE` model, direct top-level JSR/RTS idiom, and Stella diagnostic
-remain covered by `test/vcs_fe.pl`. WD now has public `WD/mapper.c26` topology/map metadata, linker validation,
-delayed arrangement selection in `vcsc-sim`, 64-byte split RAM, exact
-disassembly, and a Stella-visible PASS/WD diagnostic covered by
-`test/vcs_wd.pl`. WD ordinary TIA I/O is bound through `$40-$7F`, and frame
-dead-flag delays use raw `$00`, avoiding accidental `$30-$3F` selector reads.
+Bankswitching Items 42 FE/SCABS and 43 WD are complete. FE keeps its released
+direct top-level JSR/RTS mechanism. WD now deliberately exposes only two
+relocation-safe compiler banks: logical bank0 = hardware state 1 (`0,1,2,3`)
+selected by read `$39`/descriptor 1, and logical bank1 = state 2 (`4,5,6,7`)
+selected by `$3A`/descriptor 2. The compiler emits the six-byte `.banktarget`
+ABI, the linker uses a replicated 72-byte WD trampoline with zero per-target
+entries, and `vcsc-sim` still models all eight hardware arrangements plus the
+always-live 64-byte split RAM. The visible diagnostic uses big/wide PASS/FAIL
+and small `WD`. Ordinary TIA I/O remains on `$40-$7F`.
 Bankswitching Item 44 DPC is complete. DPC uses two F8-style 4K program banks
 followed by a 2K display-data `$data_only` bank and a 255-byte Poly8 `$data_only`
 bank. `vcsc-sim` models the DPC register window, fetchers, counter wrap, and
@@ -263,5 +265,6 @@ single uninterrupted 342/342 rerun has not been claimed here.
 
 Immediate TODO
 --------------
-Finish the remaining long e2e tail if a full certification is desired, then resume
-descriptor-ABI migration with FC, followed by F0.
+WD descriptor migration is complete. Next address the scalable physical-bank
+identity prerequisite exposed by 3F/3E before FC/F0. Remaining automatic-call
+work is 3F, 3E, FC, F0, and E0; FE intentionally stays special.

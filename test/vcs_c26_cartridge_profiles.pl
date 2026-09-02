@@ -42,7 +42,7 @@ my $testlib=File::Spec->catdir($repo,'test');
 my $blank=File::Spec->catfile($repo,'examples','01_basic','01_blank_screen','blank_screen.c26');
 
 my @profiles=(
-   ['2K',   '2K/mapper.c26',                     1, 0, 0,  2048],   ['CV',   'CV/mapper.c26',        1, 0, 0,  2048],   ['4K',   '4K/mapper.c26',              1, 0, 0,  4096],   ['4KSC', '4KSC/mapper.c26',                  1, 0, 1,  4096],   ['F8',   'F8/mapper.c26',        2, 1, 0,  8192],   ['0840', '0840/mapper.c26',                 2, 1, 0,  8192],   ['UA',   'UA/mapper.c26',                   2, 1, 0,  8192],   ['UASW', 'UASW/mapper.c26',                 2, 1, 0,  8192],   ['0FA0', '0FA0/mapper.c26',                 2, 1, 0,  8192],   ['E0',   'E0/mapper.c26',                  8, 0, 0,  8192],   ['FE',   'FE/mapper.c26',        2, 0, 0,  8192],   ['WD',   'WD/mapper.c26',        8, 0, 0,  8192],   ['3F',   '3F/mapper_8k.c26',        4, 0, 0,  8192],   ['3E',   '3E/mapper_8k.c26',        4, 0, 0,  8192],   ['F6',   'F6/mapper.c26',      4, 1, 0, 16384],   ['JANE', 'JANE/mapper.c26',                4, 1, 0, 16384],   ['F4',   'F4/mapper.c26',      8, 1, 0, 32768],   ['FA',   'FA/mapper.c26',        3, 1, 0, 12288],   ['FA2',  'FA2/mapper_28k.c26',                   7, 1, 0, 28672],   ['F8SC', 'F8SC/mapper.c26',    2, 1, 1,  8192],   ['F6SC', 'F6SC/mapper.c26',  4, 1, 1, 16384],   ['F4SC', 'F4SC/mapper.c26',  8, 1, 1, 32768],   ['OMNI', 'OMNI/mapper.c26',               8, 0, 0, 32768],);
+   ['2K',   '2K/mapper.c26',                     1, 0, 0,  2048],   ['CV',   'CV/mapper.c26',        1, 0, 0,  2048],   ['4K',   '4K/mapper.c26',              1, 0, 0,  4096],   ['4KSC', '4KSC/mapper.c26',                  1, 0, 1,  4096],   ['F8',   'F8/mapper.c26',        2, 1, 0,  8192],   ['0840', '0840/mapper.c26',                 2, 1, 0,  8192],   ['UA',   'UA/mapper.c26',                   2, 1, 0,  8192],   ['UASW', 'UASW/mapper.c26',                 2, 1, 0,  8192],   ['0FA0', '0FA0/mapper.c26',                 2, 1, 0,  8192],   ['E0',   'E0/mapper.c26',                  8, 0, 0,  8192],   ['FE',   'FE/mapper.c26',        2, 0, 0,  8192],   ['WD',   'WD/mapper.c26',        2, 1, 0,  8192],   ['3F',   '3F/mapper_8k.c26',        4, 0, 0,  8192],   ['3E',   '3E/mapper_8k.c26',        4, 0, 0,  8192],   ['F6',   'F6/mapper.c26',      4, 1, 0, 16384],   ['JANE', 'JANE/mapper.c26',                4, 1, 0, 16384],   ['F4',   'F4/mapper.c26',      8, 1, 0, 32768],   ['FA',   'FA/mapper.c26',        3, 1, 0, 12288],   ['FA2',  'FA2/mapper_28k.c26',                   7, 1, 0, 28672],   ['F8SC', 'F8SC/mapper.c26',    2, 1, 1,  8192],   ['F6SC', 'F6SC/mapper.c26',  4, 1, 1, 16384],   ['F4SC', 'F4SC/mapper.c26',  8, 1, 1, 32768],   ['OMNI', 'OMNI/mapper.c26',               8, 0, 0, 32768],);
 
 for my $p (@profiles) {
    my($name,$profile_name,$banks,$selector,$sc,$output_size)=@$p;
@@ -117,7 +117,7 @@ for my $p (@profiles) {
       or die "$name map does not report C26 topology\n";
    $map =~ /output-size=\$[0-9A-F]{8}/
       or die "$name map does not report topology output size\n";
-   my @file_order = $name =~ /^(?:E0|WD)$/ ? (0..7) : $name =~ /^(?:3F|3E|FA2|JANE)$/ ? (0..$banks-1) : $name =~ /^(?:0840|UA|UASW|FE)$/ ? (0,1) : reverse(0..$banks-1);
+   my @file_order = $name =~ /^E0$/ ? (0..7) : $name =~ /^(?:3F|3E|FA2|JANE)$/ ? (0..$banks-1) : $name =~ /^(?:0840|UA|UASW|FE|WD)$/ ? (0,1) : reverse(0..$banks-1);
    for my $logical (0..$banks-1) {
       my $file_index=$file_order[$logical];
       $map =~ /^\s+bank\Q$logical\E\s+file-index=\Q$file_index\E\b/m
@@ -129,9 +129,6 @@ for my $p (@profiles) {
    } elsif ($name eq 'FE') {
       $map =~ /mode=fe-delayed/ && $map !~ /^TRAMPOLINES$/m
          or die "FE profile did not preserve delayed-latch topology\n";
-   } elsif ($name eq 'WD') {
-      $map =~ /mode=wd-segmented/ && $map !~ /^TRAMPOLINES$/m
-         or die "WD profile did not preserve segmented arrangement topology\n";
    } else {
       $map =~ /mode=direct/ && $map !~ /^TRAMPOLINES$/m
          or die "$name direct profile unexpectedly generated switching machinery\n";
@@ -223,17 +220,18 @@ for my $p (@profiles) {
    }
 
    if ($name eq 'WD') {
-      $text =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$link_start:0xfc00.*?\$cpu_start:0x1c00.*?\$startup/s &&
-      $text =~ /bank\s+bank7\s*\{.*?\$file_index:7.*?\$link_start:0xd000.*?\$cpu_start:0x1000/s &&
-      $text !~ /\$select_access:/ &&
+      $text =~ /VCSC bank0 == WD state 1 == physical chunks 0,1,2,3/ &&
+      $text =~ /VCSC bank1 == WD state 2 == physical chunks 4,5,6,7/ &&
+      $text =~ /\$inline_bankcall/ &&
+      $text =~ /bank\s+bank0\s*\{.*?\$file_index:0.*?\$image_offset:0x0080.*?\$link_start:0xf080.*?\$cpu_start:0xf080.*?\$select_access:0x0039\s+\$bankcall_descriptor:0x01\s+\$startup/s &&
+      $text =~ /bank\s+bank1\s*\{.*?\$file_index:1.*?\$image_offset:0x0080.*?\$link_start:0xd080.*?\$cpu_start:0xf080.*?\$select_access:0x003a\s+\$bankcall_descriptor:0x02/s &&
       $text =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/ &&
       $text =~ /mem\s+cartram\s*\{.*?\$read_start:0xf000.*?\$write_start:0xf040.*?\$size:0x0040/s
-         or die "WD profile does not preserve corrected 8x1K arrangement plus 64-byte split RAM topology\n";
-      $map =~ /^\s+bank3\s+file-index=3\b.*cpu=\$1C00.*mode=wd-segmented.*startup=yes/m &&
-      $map =~ /^\s+bank7\s+file-index=7\b.*cpu=\$1000.*mode=wd-segmented/m &&
-      $map =~ /^\s+cartram\s+read_start=\$F000 write_start=\$F040 size=\$0040 type=rw shared=yes\b/m &&
-      $map !~ /^TRAMPOLINES$/m
-         or die "WD map does not preserve corrected chunk order, startup mapping, or split RAM\n";
+         or die "WD profile does not preserve the two-logical-bank state-1/state-2 ABI plus 64-byte split RAM\n";
+      $map =~ /^\s+bank0\s+file-index=0\b.*link=\$F080.*cpu=\$F080.*mode=selector.*select-access=\$0039.*startup=yes/m &&
+      $map =~ /^\s+bank1\s+file-index=1\b.*link=\$D080.*cpu=\$F080.*mode=selector.*select-access=\$003A/m &&
+      $map =~ /^\s+cartram\s+read_start=\$F000 write_start=\$F040 size=\$0040 type=rw shared=yes\b/m
+         or die "WD map does not preserve the two logical banks or always-live split RAM\n";
    }
 
    if ($name =~ /^(?:3F|3E)$/) {

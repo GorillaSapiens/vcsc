@@ -188,6 +188,7 @@ install-data:
 	install -m 0644 libraries/vcs/UA/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/UA/inline_bankcall.s26
 	install -m 0644 libraries/vcs/UASW/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/UASW/inline_bankcall.s26
 	install -m 0644 libraries/vcs/0FA0/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/0FA0/inline_bankcall.s26
+	install -m 0644 libraries/vcs/WD/inline_bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/WD/inline_bankcall.s26
 	install -m 0644 libraries/vcs/CV/ram.c26 $(DESTDIR)$(DATADIR)/vcs/CV/ram.c26
 	install -m 0644 libraries/vcs/DPC/registers.c26 $(DESTDIR)$(DATADIR)/vcs/DPC/registers.c26
 	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
@@ -350,6 +351,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/UA/inline_bankcall.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/UASW/inline_bankcall.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/0FA0/inline_bankcall.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/WD/inline_bankcall.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/CV/ram.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/registers.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.c26

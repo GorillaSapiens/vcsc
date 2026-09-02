@@ -45,3 +45,23 @@ HEX regressions plus a data-only rejection regression. Verified an F8 diagnostic
 links and runs as HEX under vcsc-sim with --map. vcsc-sim has no separate mapper
 CLI argument: C26 mapper identity comes from --map topology/signature; legacy -T
 uses mapper= from the cfg.
+2026-09-01 16:46:11 PDT, WD two-logical-bank descriptor migration
+Reframed WD's eight physical 1K chunks as two compiler-visible logical 4K
+banks: state 1 (0,1,2,3) is bank0 and state 2 (4,5,6,7) is bank1. Added a
+large mapper comment documenting why the other arrangements are not generally
+safe for relocated 6502 code. Added WD descriptors 1/2, indexed read selectors
+at $0038,Y, a replicated 72-byte inline bank-call block, automatic placement,
+and compiler .banktarget lowering. The simulator map now stores two logical
+banks while its WD hardware model still exposes all eight arrangements and the
+always-live 64-byte split RAM. Reworked the WD diagnostic around automatic
+nested bank calls and changed its visible result to the standard big/wide
+PASS/FAIL renderer plus a small WD label. Focused WD/profile/template/hygiene
+regressions pass.
+2026-09-01 16:49:49 PDT, WD migration validation checkpoint
+Completed WD descriptor-migration validation. Compile-only remains 503/503; all
+eight editable-example shards pass, covering 103/103 compile/link/round-trip
+examples. Focused WD, C26 profile, inline-template, source-hygiene, history, and
+assembly-allowlist regressions pass. The WD simulator still exercises non-ABI
+hardware state 3 independently, confirming the two compiler banks did not
+remove support for the other six hardware arrangements.
+

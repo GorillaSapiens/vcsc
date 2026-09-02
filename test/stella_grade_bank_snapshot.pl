@@ -293,7 +293,7 @@ sub grade_line {
    return ($minx,$miny,$maxx,$maxy,$xs,$ys);
 }
 
-my $compact_result=($cart eq 'WD' || $cart eq 'DPC');
+my $compact_result=($cart eq 'DPC');
 my $result_text=$expect eq 'pass' ? ($compact_result ? ' PASS ' : ' pass ') : ' FAIL ';
 my $cart_text;
 if ($cart eq '??????') {

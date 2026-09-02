@@ -63,14 +63,18 @@ placement, and only lowers a cross-bank JSR directly when its caller is
 `main`; cross-bank data, branches, jumps, and nested calls are rejected rather
 than pretending FE has a generic trampoline corridor.
 
-WD/Wickstead Design uses eight physical 1K chunks and eight complete four-segment
-arrangements. Power-on arrangement 0 is `0,0,1,3`; reads of TIA `$30-$3F` select
-arrangements 0-7 only after the hardware delay, while writes to those addresses
-remain ordinary TIA writes. WD also owns 64 bytes of split RAM: reads
-`$1000-$103F`, writes `$1040-$107F`. The corrected public 8192-byte `WD` layout
-is distinct from the historical 8195-byte `WDSW` preservation dump, although
-both instantiate the same mapper behavior. Public WD C26 code uses the `$40-$7F`
-TIA mirror so ordinary collision/input reads cannot become selectors.
+WD/Wickstead Design physically uses eight 1K chunks and eight complete
+four-segment arrangements. Power-on state 0 is `0,0,1,3`; reads of TIA
+`$30-$3F` select states 0-7 only after the hardware delay. Ordinary 6502 code is
+not position independent, so the compiler ABI deliberately exposes only the two
+complementary relocation-safe arrangements: logical bank0 is state 1
+`0,1,2,3`, selected by read `$39`/descriptor 1; logical bank1 is state 2
+`4,5,6,7`, selected by read `$3A`/descriptor 2. The other six states remain
+real simulator/hardware behavior for deliberate assembly but are outside the
+compiler ABI. WD owns 64 bytes of always-live split RAM: reads `$1000-$103F`,
+writes `$1040-$107F`; both logical banks reserve the hidden first `$80` bytes.
+The corrected public 8192-byte `WD` image remains distinct from historical
+8195-byte `WDSW`. Public WD C26 code uses the `$40-$7F` TIA mirror.
 
 Classic 3F and 3E reserve the low TIA write page for mapper control. Public
 profiles therefore bind ordinary TIA accesses through the equivalent `$40-$7F`
@@ -170,14 +174,15 @@ move accordingly.
 
 Implementation checkpoint: the compiler/assembler/linker use the six-byte
 descriptor ABI and `__bankmeta$V3`. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,
-FA2-24/28, JANE, 0840, UA, UASW, and 0FA0 consume it end to end and those migrated
-profiles declare `$inline_bankcall` unconditionally. FA2 uses descriptors `$F5-$FA/$FB`
-and indexed `STA $1F00,Y`; JANE uses `$F0/$F1/$F8/$F9` and
-indexed `LDA $1F00,Y`; 0840 uses `$00/$40` and indexed `LDA $0800,Y`; UA/UASW
-use `$20/$40` and indexed `LDA $0200,Y`, with UASW reversing the association;
-0FA0 uses `$A0/$C0` and indexed `LDA $0F00,Y`. All fixed blocks are
-69 bytes with 72 reserved (`$048`). Only the descriptor ABI is retained for migrated inline mappers. Delete each
-obsolete mapper-specific call path as its last user migrates.
+FA2-24/28, JANE, 0840, UA, UASW, 0FA0, and WD consume it end to end and those
+migrated profiles declare `$inline_bankcall` unconditionally. FA2 uses
+descriptors `$F5-$FA/$FB` and indexed `STA $1F00,Y`; JANE uses
+`$F0/$F1/$F8/$F9` and indexed `LDA $1F00,Y`; 0840 uses `$00/$40` and indexed
+`LDA $0800,Y`; UA/UASW use `$20/$40` and indexed `LDA $0200,Y`, with UASW
+reversing the association; 0FA0 uses `$A0/$C0` and indexed `LDA $0F00,Y`; WD
+uses descriptors 1/2 and indexed `LDA $0038,Y` to choose hardware states 1/2.
+All fixed blocks are 69 bytes with 72 reserved (`$048`). Only the descriptor ABI
+is retained for migrated inline mappers.
 
 Migration acceptance for each remaining mapper: consume the destination
 descriptor directly; bake and push the source descriptor; restore from that byte
@@ -200,48 +205,53 @@ current whole-function asm safety rule can leave generated
 `BNE near / JMP false / near: JMP true`. Pure C26 should not normally see it;
 this is future optimizer-locality cleanup, not bankswitching work.
 
-[ ] 38. Complete the remaining mapper tier in this order: **FC, F0**.
+[ ] 38. Complete the remaining automatic-call mapper work.
 
-        FA2 is complete. Keep treating each remaining mapper as its own hardware
-        contract rather than forcing new mechanisms into an F8-shaped abstraction.
+        WD is now migrated. Do not confuse “a C26 mapper/topology exists” with
+        “the compiler descriptor ABI is complete”: 3F, 3E, E0, FC, and F0 still
+        need automatic-call work. FE intentionally uses its released direct
+        top-level JSR/RTS mechanism instead of the descriptor ABI.
 
-        [ ] 38b. FC -- do this next.
+        [ ] 38a. Make physical bank identity independent of 16-bit link address,
+             then migrate 3F.
 
-            FC is now considered straightforward rather than risky. Current
-            Stella FC is a staged direct selector, not an F0-style incrementing
-            mapper: write the low target-bank bits at $1FF8, write the upper
-            target-bank bits at $1FF9, then access $1FFC to commit the selection.
-            Because the target bank is explicitly chosen before the commit, a
-            normal replicated cross-bank transition corridor should be simple.
-            Preserve FC's exact image topology, simulator/disassembler round
-            trip, and a Stella-visible diagnostic; do not change existing mapper
-            implementations merely to generalize the FC mechanism.
+            Current 3F/3E C26 profiles encode each selectable 2K physical chunk
+            using a different 6507 mirror alias, which fundamentally tops out at
+            eight aliases. Classic 3F can select 256 x 2K ROM chunks. Preserve a
+            real canonical CPU address for generated code, but carry physical
+            bank identity separately in topology/symbol/relocation/map metadata.
+            Prove the design beyond eight banks, including maximum-size topology.
 
-        [ ] 38c. F0 -- do this after FC.
+        [ ] 38b. Migrate 3E after scalable 3F ROM identity works.
 
-            F0 is mechanically simple but less attractive for new VCSC code:
-            its 16 x 4K / 64K capacity is selected by repeatedly advancing the
-            bank through the $1FF0 hotspot instead of directly selecting an
-            arbitrary bank. Basic profile/linker/simulator/disassembler support
-            and a diagnostic are worthwhile for compatibility and for exercising
-            a stateful/incremental mapper.
+            3E adds 32 x 1K RAM banks. `$3F` selects ROM in the lower window;
+            `$3E` replaces that window with selected RAM read/write aliases.
+            RAM therefore genuinely swaps in and out of CPU visibility. Design
+            this state explicitly rather than pretending it is ordinary always-
+            live `cartram`.
 
-            Use the public descriptor ABI from `BANKSWITCHING.md`. For F0 the
-            descriptor can simply be the bank ID 0..15. The caller trampoline's
-            baked source ID and inline destination ID determine the forward
-            `(target-source) mod 16` count. The source ID is pushed as normal ABI
-            call-frame metadata. On return, the destination bank's trampoline copy
-            knows its own baked current-bank ID, pops the source ID, computes the
-            reverse count, and advances through $1FF0 before the final RTS. No bank
-            identity comes from a 16-bit PC.
+        [ ] 38c. Implement/migrate FC.
 
-            The repeated hotspot accesses may be unrolled or driven by a small
-            counter loop; choose the smaller/timing-appropriate form when
-            implementing it. All code executed across a bank change must remain
-            byte-identical at the same CPU addresses in every bank. Manual code
-            that changes F0 banks behind the compiler's back is responsible for
-            preserving its own mapper state. Do not alter existing mapper
-            implementations for this F0-specific mechanism.
+            Stella FC stages an explicit bank selector: low bits at `$1FF8`,
+            upper bits at `$1FF9`, then `$1FFC` commits. It can be large, so it
+            also depends on physical-bank identity no longer being encoded by a
+            finite set of fake 16-bit mirror addresses.
+
+        [ ] 38d. Implement/migrate F0.
+
+            F0 has 16 x 4K banks and advances through `$1FF0`. Descriptor IDs can
+            be 0..15; a replicated trampoline can advance `(target-source) mod
+            16` on call and the reverse distance on return. All transition code
+            must remain byte-identical across switches.
+
+        [ ] 38e. Design automatic E0 calls.
+
+            E0 has three independently selectable 1K windows plus fixed bank 7.
+            Full mapper state is 9 bits and the executing physical chunk does
+            not uniquely identify the other two window selections, so the
+            current one-byte baked-source descriptor is insufficient for
+            arbitrary state preservation. Do not force E0 into the simple
+            full-window ABI.
 
 Deferred design questions
 -------------------------

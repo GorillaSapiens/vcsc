@@ -1,0 +1,83 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+;
+; Descriptor-ABI cross-bank JSR/RTS trampoline for WD's two logical banks.
+;
+; VCSC maps WD state 1 (chunks 0,1,2,3) as logical bank0 and state 2
+; (chunks 4,5,6,7) as logical bank1. The opaque descriptors are therefore 1
+; and 2. Indexed reads from $0038 select $39 or $3A respectively. WD applies a
+; selector read only after its hardware delay; every byte that can execute
+; across that delay lives at the same offset in both replicated trampolines.
+;
+; The caller emits JSR __bankcall followed by a three-byte .banktarget payload:
+; 16-bit target address, then the destination descriptor. Each trampoline copy
+; has its own source descriptor patched below. No bank identity is inferred
+; from the caller, callee, or return PC.
+
+.ifndef VCSC_BANKCALL_PTR0
+VCSC_BANKCALL_PTR0 = $0080
+.endif
+.ifndef VCSC_BANKCALL_SELECTOR_BASE
+VCSC_BANKCALL_SELECTOR_BASE = $0038
+.endif
+.ifndef VCSC_BANKCALL_SOURCE_DESCRIPTOR
+VCSC_BANKCALL_SOURCE_DESCRIPTOR = $01
+.endif
+
+.segmentdef "CODE", $6000, $0100
+.segment "CODE"
+
+.export __vcsc_generic_bankcall_begin
+.export __vcsc_generic_bankreturn
+.export __vcsc_generic_bankcall_switch_and_jump
+.export __vcsc_generic_bankcall_end
+.export __vcsc_generic_bankcall_reserved_end
+
+__vcsc_generic_bankcall_begin:
+    tsx
+    lda $0101,x
+    sta VCSC_BANKCALL_PTR0
+    lda $0102,x
+    sta VCSC_BANKCALL_PTR0 + 1
+
+    lda $0101,x
+    clc
+    adc #3
+    sta $0101,x
+    bcc.same @return_adjusted
+    inc $0102,x
+@return_adjusted:
+
+    ldy #1
+    lda (VCSC_BANKCALL_PTR0),y
+    tax
+    iny
+    lda (VCSC_BANKCALL_PTR0),y
+    pha
+    iny
+    lda (VCSC_BANKCALL_PTR0),y
+    tay
+    pla
+    sta VCSC_BANKCALL_PTR0 + 1
+    stx VCSC_BANKCALL_PTR0
+
+    lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR
+    pha
+
+    jsr __vcsc_generic_bankcall_switch_and_jump
+
+__vcsc_generic_bankreturn:
+    sta VCSC_BANKCALL_PTR0
+    stx VCSC_BANKCALL_PTR0 + 1
+    pla
+    tay
+    lda VCSC_BANKCALL_SELECTOR_BASE,y
+    lda VCSC_BANKCALL_PTR0
+    ldx VCSC_BANKCALL_PTR0 + 1
+    rts
+
+__vcsc_generic_bankcall_switch_and_jump:
+    lda VCSC_BANKCALL_SELECTOR_BASE,y
+    jmp (VCSC_BANKCALL_PTR0)
+
+__vcsc_generic_bankcall_end:
+__vcsc_generic_bankcall_reserved_end = $6048

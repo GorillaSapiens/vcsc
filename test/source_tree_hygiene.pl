@@ -202,17 +202,20 @@ length($bankswitching) <= 16 * 1024 &&
 index($bankswitching,'Never use bare "bank 0" without saying which identity is meant.')>=0 &&
 index($bankswitching,'file_index(BANKn) = bank_count - 1 - n')>=0 &&
 index($bankswitching,'Public VCSC cartridge profiles reserve four bytes')>=0 &&
-$bankswitching =~ /^\[ \] 38\. Complete the remaining mapper tier in this order: \*\*FC, F0\*\*\./m &&
+$bankswitching =~ /^\[ \] 38\. Complete the remaining automatic-call mapper work\./m &&
 index($bankswitching,'FA2 extends the FA split-RAM model to six or seven directly selected 4K ROM')>=0 &&
-index($bankswitching,'[ ] 38b. FC -- do this next.')>=0 &&
-index($bankswitching,'[ ] 38c. F0 -- do this after FC.')>=0 &&
-index($bankswitching,'bank through the $1FF0 hotspot instead of directly selecting an')>=0 &&
+index($bankswitching,'[ ] 38a. Make physical bank identity independent of 16-bit link address')>=0 &&
+index($bankswitching,'[ ] 38b. Migrate 3E after scalable 3F ROM identity works.')>=0 &&
+index($bankswitching,'[ ] 38c. Implement/migrate FC.')>=0 &&
+index($bankswitching,'[ ] 38d. Implement/migrate F0.')>=0 &&
+index($bankswitching,'[ ] 38e. Design automatic E0 calls.')>=0 &&
+index($bankswitching,'advances through `$1FF0`')>=0 &&
 index($bankswitching,'Generic inline-target cross-bank JSR contract')>=0 &&
 index($bankswitching,'69 bytes with 72 reserved')>=0 &&
 index($bankswitching,'fixed mapper-specific replicated entry/return')>=0 &&
 index($bankswitching,'unchanged original 16-bit logical return PC')>=0 &&
-index($bankswitching,'Only the descriptor ABI is retained for migrated inline mappers.')>=0 &&
-index($bankswitching,'FA2 uses descriptors `$F5-$FA/$FB`')>=0 &&
+index($bankswitching,'Only the descriptor ABI')>=0 &&
+index($bankswitching,'descriptors `$F5-$FA/$FB`')>=0 &&
 index($bankswitching,'BNE near / JMP false / near: JMP true')>=0 &&
 -f File::Spec->catfile($test,'vcs_bankswitching_inline_call_pages.pl') &&
 index(slurp(File::Spec->catfile($repo,'compiler','compile_call.c')),'.banktarget %s')>=0 &&
@@ -234,6 +237,9 @@ index(slurp(File::Spec->catfile($repo,qw(libraries vcs UA inline_bankcall.s26)))
 index(slurp(File::Spec->catfile($repo,qw(libraries vcs UASW inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6048')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs 0FA0 inline_bankcall.s26)) &&
 index(slurp(File::Spec->catfile($repo,qw(libraries vcs 0FA0 inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6048')>=0 &&
+-f File::Spec->catfile($repo,qw(libraries vcs WD inline_bankcall.s26)) &&
+index(slurp(File::Spec->catfile($repo,qw(libraries vcs WD inline_bankcall.s26))),'VCSC_BANKCALL_SELECTOR_BASE = $0038')>=0 &&
+index(slurp(File::Spec->catfile($repo,qw(libraries vcs WD inline_bankcall.s26))),'__vcsc_generic_bankcall_reserved_end = $6048')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'generic_bankcall_reserved_size')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_generic_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_fa2_bankcall_template')>=0 &&
@@ -242,14 +248,17 @@ index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m0840_bankcal
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_ua_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_uasw_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m0fa0_bankcall_template')>=0 &&
+index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_wd_bankcall_template')>=0 &&
 index($bankswitching,'F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,')>=0 &&
-index($bankswitching,'FA2-24/28, JANE, 0840, UA, UASW, and 0FA0 consume it end to end')>=0 &&
-index($bankswitching,'[ ] 38. Complete the remaining mapper tier in this order: **FC, F0**')>=0 &&
+index($bankswitching,'FA2-24/28, JANE, 0840, UA, UASW, 0FA0, and WD consume it end to end')>=0 &&
+index($bankswitching,'[ ] 38. Complete the remaining automatic-call mapper work.')>=0 &&
 $bankswitching !~ /^\[ \] 37\./m &&
 $bankswitching !~ /^\[ \] 42\./m &&
 $bankswitching !~ /^\[ \] 43\./m &&
 index($bankswitching,'FE/SCABS is also not an F8-style hotspot mapper.')>=0 &&
-index($bankswitching,'WD/Wickstead Design uses eight physical 1K chunks')>=0 &&
+index($bankswitching,'WD/Wickstead Design physically uses eight 1K chunks')>=0 &&
+index($bankswitching,'logical bank0 is state 1')>=0 &&
+index($bankswitching,'logical bank1 is state 2')>=0 &&
 $bankswitching !~ /Backfill a 3F public diagnostic cartridge/ &&
 $bankswitching !~ /Backfill a 3E public diagnostic cartridge/ &&
 $bankswitching !~ /^\[ \] 44\./m &&
@@ -590,6 +599,8 @@ my $uasw_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','UASW/mapper.
 my $ua_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','09_ua','Makefile'));
 my $m0fa0_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','0FA0/mapper.c26'));
 my $m0fa0_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','10_0fa0','Makefile'));
+my $wd_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','WD/mapper.c26'));
+my $wd_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','15_wd','Makefile'));
 my $dpc_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','DPC/mapper.c26'));
 my $dpc_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','16_dpc','Makefile'));
 my $fa2_24_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','FA2/mapper_24k.c26'));
@@ -637,7 +648,14 @@ index($m0fa0_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
 index($m0fa0_profile,'$bankcall_descriptor:0xc0')>=0 &&
 index($m0fa0_profile,'$bankcall_descriptor:0xa0')>=0 &&
 index($m0fa0_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
-index($top_make,'libraries/vcs/0FA0/inline_bankcall.s26')>=0
+index($top_make,'libraries/vcs/0FA0/inline_bankcall.s26')>=0 &&
+index($wd_profile,'$inline_bankcall')>=0 &&
+index($wd_profile,'$bankcall_descriptor:0x01')>=0 &&
+index($wd_profile,'$bankcall_descriptor:0x02')>=0 &&
+index($wd_profile,'$select_access:0x0039')>=0 &&
+index($wd_profile,'$select_access:0x003a')>=0 &&
+index($wd_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
+index($top_make,'libraries/vcs/WD/inline_bankcall.s26')>=0
    or die "migrated descriptor profiles or pending inline mapper packaging/opt-ins are inconsistent\n";
 my @mapper_dirs = qw(0840 0FA0 2K 3E 3F 4K 4KSC CV DPC E0 F4 F4SC F6 F6SC F8 F8SC FA FA2 FE JANE OMNI UA UASW WD);
 for my $mapper (@mapper_dirs) {
@@ -671,12 +689,13 @@ for my $legacy (qw(
 -f File::Spec->catfile($repo,qw(libraries vcs UA inline_bankcall.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs UASW inline_bankcall.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs 0FA0 inline_bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs WD inline_bankcall.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs 4KSC ram.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs FA ram.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs CV ram.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs DPC registers.c26))
    or die "mapper-specific support files are not contained by mapper directories\n";
-for my $profile (qw(2K/mapper.c26 CV/mapper.c26 4K/mapper.c26 4KSC/mapper.c26 F8/mapper.c26 0840/mapper.c26 UA/mapper.c26 UASW/mapper.c26 0FA0/mapper.c26 E0/mapper.c26 3F/mapper_8k.c26 3E/mapper_8k.c26 3F/mapper_16k.c26 3E/mapper_16k.c26 FA/mapper.c26 F6/mapper.c26 JANE/mapper.c26 F4/mapper.c26 F8SC/mapper.c26 F6SC/mapper.c26 F4SC/mapper.c26 OMNI/mapper.c26)) {
+for my $profile (qw(2K/mapper.c26 CV/mapper.c26 4K/mapper.c26 4KSC/mapper.c26 F8/mapper.c26 0840/mapper.c26 UA/mapper.c26 UASW/mapper.c26 0FA0/mapper.c26 E0/mapper.c26 WD/mapper.c26 3F/mapper_8k.c26 3E/mapper_8k.c26 3F/mapper_16k.c26 3E/mapper_16k.c26 FA/mapper.c26 F6/mapper.c26 JANE/mapper.c26 F4/mapper.c26 F8SC/mapper.c26 F6SC/mapper.c26 F4SC/mapper.c26 OMNI/mapper.c26)) {
    -f File::Spec->catfile($repo,'libraries','vcs',$profile)
       or die "missing migrated C26 cartridge profile $profile\n";
    index($top_make,"libraries/vcs/$profile")>=0
@@ -1066,6 +1085,8 @@ for my $required (qw(
    libraries/vcs/UASW/mapper.c26
    libraries/vcs/0FA0/mapper.c26
    libraries/vcs/0FA0/inline_bankcall.s26
+   libraries/vcs/WD/mapper.c26
+   libraries/vcs/WD/inline_bankcall.s26
    libraries/vcs/E0/mapper.c26
    libraries/vcs/tia_mirror_40.c26
    libraries/vcs/3F/mapper_8k.c26

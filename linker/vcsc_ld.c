@@ -28,6 +28,7 @@
 #include "ua_bankcall_template.h"
 #include "uasw_bankcall_template.h"
 #include "m0fa0_bankcall_template.h"
+#include "wd_bankcall_template.h"
 
 static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg);
 
@@ -1795,7 +1796,7 @@ static int c26_topology_is_e0(const linker_config_t *cfg)
 static int c26_topology_is_wd(const linker_config_t *cfg)
 {
    const topology_cartridge_t *cart;
-   if (!cfg || cfg->topology_bank_count != 8u)
+   if (!cfg || cfg->topology_bank_count != 2u)
       return 0;
    cart = &cfg->topology_cartridge;
    return (cart->present_mask & 0x80u) &&
@@ -2126,48 +2127,54 @@ static void validate_c26_e0_topology(const linker_config_t *cfg)
    }
 }
 
-//! @brief Validate the segmented 8x1K Wickstead Design output profile.
+//! @brief Validate WD's two complementary 4K logical-bank compiler profile.
 static void validate_c26_wd_topology(const linker_config_t *cfg)
 {
+   const topology_bank_t *bank0 = c26_topology_bank_by_file_index(cfg, 0u);
+   const topology_bank_t *bank1 = c26_topology_bank_by_file_index(cfg, 1u);
    size_t i;
    size_t startup_count = 0;
+
+   if (!bank0 || !bank1) {
+      fprintf(stderr,
+              "vcsc-ld: WD topology requires logical file banks 0 and 1\n");
+      exit(1);
+   }
+
    for (i = 0; i < cfg->topology_bank_count; ++i) {
       const topology_bank_t *bank = &cfg->topology_banks[i];
-      uint16_t canonical_link = (uint16_t)(bank->link_start & 0x1fffu);
-      if (bank->image_size != 0x0400u || bank->image_offset != 0u ||
-          bank->map_size != 0x0400u) {
+      uint16_t expected_link = bank->file_index == 0u ? 0xf080u : 0xd080u;
+      uint16_t expected_selector = bank->file_index == 0u ? 0x0039u : 0x003au;
+      uint8_t expected_descriptor = bank->file_index == 0u ? 0x01u : 0x02u;
+
+      if (bank->image_size != 0x1000u || bank->image_offset != 0x0080u ||
+          bank->map_size != 0x0f80u || bank->link_start != expected_link ||
+          bank->cpu_start != 0xf080u) {
          fprintf(stderr,
-                 "vcsc-ld: WD bank '%s' must be one fully mapped 1K physical chunk\n",
-                 bank->name);
+                 "vcsc-ld: WD logical bank '%s' must reserve its $80 RAM-port prefix and map the remaining image at logical $%04X\n",
+                 bank->name, expected_link);
          exit(1);
       }
-      if (bank->has_selector) {
+      if (!bank->has_selector || bank->select_access != expected_selector ||
+          !bank->has_bankcall_descriptor || bank->bankcall_descriptor != expected_descriptor) {
          fprintf(stderr,
-                 "vcsc-ld: WD bank '%s' must not use one-bank $select_access metadata; WD selects complete four-segment arrangements from TIA $30-$3F reads\n",
-                 bank->name);
-         exit(1);
-      }
-      if (canonical_link != (uint16_t)(bank->cpu_start & 0x1fffu) ||
-          (bank->cpu_start != 0x1000u && bank->cpu_start != 0x1400u &&
-           bank->cpu_start != 0x1800u && bank->cpu_start != 0x1c00u)) {
-         fprintf(stderr,
-                 "vcsc-ld: WD bank '%s' link address $%04X must alias one 1K CPU segment at $1000/$1400/$1800/$1C00\n",
-                 bank->name, bank->link_start);
+                 "vcsc-ld: WD logical bank '%s' must select hardware state %u with read $%04X and descriptor $%02X\n",
+                 bank->name, (unsigned)(bank->file_index + 1u),
+                 expected_selector, expected_descriptor);
          exit(1);
       }
       if (bank->startup) {
          startup_count++;
-         if (bank->file_index != 3u || bank->cpu_start != 0x1c00u ||
-             bank->link_start != 0xfc00u) {
+         if (bank->file_index != 0u) {
             fprintf(stderr,
-                    "vcsc-ld: WD startup/home bank must be physical/file chunk 3 at logical $FC00 / CPU $1C00\n");
+                    "vcsc-ld: WD logical bank0/state-1 must be the single startup bank\n");
             exit(1);
          }
       }
    }
    if (startup_count != 1u) {
       fprintf(stderr,
-              "vcsc-ld: WD topology requires physical/file chunk 3 as the single startup/home bank\n");
+              "vcsc-ld: WD topology requires logical bank0/state-1 as the single startup bank\n");
       exit(1);
    }
 }
@@ -7492,7 +7499,6 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
    size_t budget_count = 0;
    const cartridge_bank_t *startup;
    int fe_profile;
-   int wd_profile;
    size_t i, j;
 
    if (!cfg || cfg->bank_count < 2)
@@ -7504,7 +7510,6 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
    }
    startup = bank_placement_startup_bank(cfg);
    fe_profile = c26_topology_is_fe(cfg);
-   wd_profile = c26_topology_is_wd(cfg);
    if (!startup) {
       fprintf(stderr,
               "vcsc-ld: automatic multi-region placement requires one startup/home bank\n");
@@ -7581,16 +7586,15 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
             bank_placement_pin_item(&items[item_count], pin_bank,
                                     pin_memory, 1);
          }
-         else if (fe_profile || wd_profile) {
+         else if (fe_profile) {
             const memory_region_t *pin_memory = bank_placement_auto_memory(cfg, startup);
             if (!pin_memory) {
                fprintf(stderr,
-                       "vcsc-ld: %s startup bank '%s' has no ordinary allocatable ROM MEMORY region\n",
-                       wd_profile ? "WD" : "FE", startup->name);
+                       "vcsc-ld: FE startup bank '%s' has no ordinary allocatable ROM MEMORY region\n",
+                       startup->name);
                exit(1);
             }
-            /* FE requires reviewed direct-JSR transitions and WD requires an
-               explicitly selected four-segment arrangement. Keep unqualified
+            /* FE requires reviewed direct-JSR transitions. Keep unqualified
                material in the startup/home chunk; only explicit bank placement
                may create mapper-dependent references. */
             bank_placement_pin_item(&items[item_count], startup, pin_memory, 1);
@@ -9184,10 +9188,27 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
    int ua = c26_topology_is_ua(cfg);
    int uasw = c26_topology_is_uasw(cfg);
    int m0fa0 = c26_topology_is_0fa0(cfg);
+   int wd = c26_topology_is_wd(cfg);
 
    if (!cfg) {
       fprintf(stderr, "vcsc-ld: generic inline-target bank calls require a banked cartridge profile\n");
       exit(1);
+   }
+
+   if (wd) {
+      const topology_bank_t *bank0 = c26_topology_bank_by_file_index(cfg, 0u);
+      const topology_bank_t *bank1 = c26_topology_bank_by_file_index(cfg, 1u);
+      if (!bank0 || !bank1 || bank0->data_only || bank1->data_only ||
+          bank0->link_start != 0xf080u || bank1->link_start != 0xd080u ||
+          !bank0->has_selector || bank0->select_access != 0x0039u ||
+          !bank0->has_bankcall_descriptor || bank0->bankcall_descriptor != 0x01u ||
+          !bank1->has_selector || bank1->select_access != 0x003au ||
+          !bank1->has_bankcall_descriptor || bank1->bankcall_descriptor != 0x02u) {
+         fprintf(stderr,
+                 "vcsc-ld: WD inline-target calls require bank0/state-1 $Fxxx -> read $0039 descriptor $01 and bank1/state-2 $Dxxx -> read $003A descriptor $02\n");
+         exit(1);
+      }
+      return 0x0038u;
    }
 
    if (m0840) {
@@ -9304,6 +9325,8 @@ static uint16_t generic_bankcall_reserved_size(const linker_config_t *cfg)
       return VCSC_M0FA0_BANKCALL_RESERVED_SIZE;
    if (c26_topology_is_fa2(cfg))
       return VCSC_FA2_BANKCALL_RESERVED_SIZE;
+   if (c26_topology_is_wd(cfg))
+      return VCSC_WD_BANKCALL_RESERVED_SIZE;
    if (bankcall_descriptor_abi_enabled(cfg))
       return VCSC_GENERIC_BANKCALL_RESERVED_SIZE;
    fprintf(stderr,
@@ -10083,6 +10106,22 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
          source_descriptor,
          VCSC_FA2_BANKCALL_SWITCH_OFFSET,
          VCSC_FA2_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
+         selector_base, canonical_base, ptr0);
+   }
+   else if (c26_topology_is_wd(cfg)) {
+      instantiate_bankcall_template(table,
+         vcsc_wd_bankcall_template,
+         VCSC_WD_BANKCALL_TEMPLATE_SIZE,
+         VCSC_WD_BANKCALL_RESERVED_SIZE,
+         vcsc_wd_bankcall_ptr_patches,
+         VCSC_WD_BANKCALL_PTR_PATCH_COUNT,
+         vcsc_wd_bankcall_selector_patches,
+         VCSC_WD_BANKCALL_SELECTOR_PATCH_COUNT,
+         vcsc_wd_bankcall_source_descriptor_patches,
+         VCSC_WD_BANKCALL_SOURCE_DESCRIPTOR_PATCH_COUNT,
+         source_descriptor,
+         VCSC_WD_BANKCALL_SWITCH_OFFSET,
+         VCSC_WD_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
          selector_base, canonical_base, ptr0);
    }
    else if (bankcall_descriptor_abi_enabled(cfg)) {
