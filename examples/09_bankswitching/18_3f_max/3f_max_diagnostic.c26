@@ -7,7 +7,8 @@ instantiate "3F/mapper.c26" as mapper (VCS_3F_BANKS:=256)
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"
-instantiate "six_glyph_component.c26" as status_result (compact_font:=0, external_pointers:=1)
+include "fonts/default_decimal.c26"
+instantiate "six_glyph_big_wide_component.c26" as status_result
 instantiate "six_glyph_component.c26" as cart_type (compact_font:=0, external_pointers:=1)
 #endif
 
@@ -33,14 +34,14 @@ include "status_font.c26"
 inline void load_pass(void) {
    asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+0;
    asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+1;
-   asm lda #<{status_glyphs + 8};  asm sta status_result_pointers+2;
-   asm lda #>{status_glyphs + 8};  asm sta status_result_pointers+3;
-   asm lda #<{status_glyphs + 16};  asm sta status_result_pointers+4;
-   asm lda #>{status_glyphs + 16};  asm sta status_result_pointers+5;
-   asm lda #<{status_glyphs + 24};  asm sta status_result_pointers+6;
-   asm lda #>{status_glyphs + 24};  asm sta status_result_pointers+7;
-   asm lda #<{status_glyphs + 24};  asm sta status_result_pointers+8;
-   asm lda #>{status_glyphs + 24};  asm sta status_result_pointers+9;
+   asm lda #<{status_glyphs + 16};  asm sta status_result_pointers+2;
+   asm lda #>{status_glyphs + 16};  asm sta status_result_pointers+3;
+   asm lda #<{status_glyphs + 32};  asm sta status_result_pointers+4;
+   asm lda #>{status_glyphs + 32};  asm sta status_result_pointers+5;
+   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+6;
+   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+7;
+   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+8;
+   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+9;
    asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+10;
    asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+11;
 }
@@ -48,14 +49,14 @@ inline void load_pass(void) {
 inline void load_fail(void) {
    asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+0;
    asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+1;
-   asm lda #<{status_glyphs + 32};   asm sta status_result_pointers+2;
-   asm lda #>{status_glyphs + 32};   asm sta status_result_pointers+3;
-   asm lda #<{status_glyphs + 40};   asm sta status_result_pointers+4;
-   asm lda #>{status_glyphs + 40};   asm sta status_result_pointers+5;
-   asm lda #<{status_glyphs + 48};   asm sta status_result_pointers+6;
-   asm lda #>{status_glyphs + 48};   asm sta status_result_pointers+7;
-   asm lda #<{status_glyphs + 56};  asm sta status_result_pointers+8;
-   asm lda #>{status_glyphs + 56};  asm sta status_result_pointers+9;
+   asm lda #<{status_glyphs + 64};   asm sta status_result_pointers+2;
+   asm lda #>{status_glyphs + 64};   asm sta status_result_pointers+3;
+   asm lda #<{status_glyphs + 80};   asm sta status_result_pointers+4;
+   asm lda #>{status_glyphs + 80};   asm sta status_result_pointers+5;
+   asm lda #<{status_glyphs + 96};   asm sta status_result_pointers+6;
+   asm lda #>{status_glyphs + 96};   asm sta status_result_pointers+7;
+   asm lda #<{status_glyphs + 112};  asm sta status_result_pointers+8;
+   asm lda #>{status_glyphs + 112};  asm sta status_result_pointers+9;
    asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+10;
    asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+11;
 }
@@ -79,6 +80,7 @@ inline void load_mapper_type(void) {
 }
 
 bank255 void draw_result(void) {
+   status_result_score := 0;
    status_result_init();
    cart_type_init();
    while (1) {
@@ -88,16 +90,17 @@ bank255 void draw_result(void) {
       cart_type_vblank();
       if (failure) { load_fail(); } else { load_pass(); }
       load_mapper_type();
+      status_result_color := 0x0E;
       COLUBK := failure ? 0x20 : 0xC4;
       COLUP0 := 0x0E; COLUP1 := 0x0E;
       PF0 := 0; PF1 := 0; PF2 := 0; GRP0 := 0; GRP1 := 0;
       ENAM0 := 0; ENAM1 := 0; ENABL := 0; CTRLPF := 0;
       vcs_ntsc_end_vblank();
-      vcs_ntsc_wait_component_scanlines(85);
+      vcs_ntsc_wait_component_scanlines(81);
       status_result_draw();
       vcs_ntsc_component_handoff();
       cart_type_draw();
-      vcs_ntsc_wait_visible_tail_scanlines(85);
+      vcs_ntsc_wait_visible_tail_scanlines(81);
       vcs_ntsc_begin_overscan();
       status_result_overscan();
       cart_type_overscan();

@@ -57,3 +57,14 @@ Validation: both formerly failing example shards pass, the dedicated 512K 3F max
 regression passes all 65,535 target calls and 262-line timing, source-tree hygiene
 passes, and a broad make test reached 230/352 with no failures before the bounded
 execution window ended.
+
+2026-09-03 11:18:31 PDT, normalize 3F max diagnostic display
+Changed `examples/09_bankswitching/18_3f_max` to use the same visible PASS/FAIL
+presentation as the ordinary bankswitching diagnostics: `big_ascii.c26` through
+`six_glyph_big_wide_component.c26`, with the 16-byte glyph offsets and the
+standard 81 blank + 19 status + 11 mapper + 81 blank = 192 visible-line layout.
+The second line remains the small exact `3F max` label. Extended the dedicated
+3F-max regression to lock the big-wide renderer, big font source, and standard
+spacing. Validation: generated-font contracts, assembly allowlist, source-tree
+hygiene, example build shards 1/8 and 8/8, and the dedicated 512K torture all
+pass; the torture still executes 65,535 target calls and produces 262-line NTSC.

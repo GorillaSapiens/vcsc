@@ -52,18 +52,27 @@ my $dir=File::Spec->catdir($repo,qw(examples 09_bankswitching 18_3f_max));
 my $source=File::Spec->catfile($dir,'3f_max_diagnostic.c26');
 my $status_font=File::Spec->catfile($dir,'status_font.c26');
 my $cart_font=File::Spec->catfile($dir,'cart_type_font.c26');
+my $makefile=File::Spec->catfile($dir,'Makefile');
 my $driver=File::Spec->catfile($repo,qw(driver vcsc));
 my $sim=File::Spec->catfile($repo,qw(simulator vcsc-sim));
 my $vcs=File::Spec->catdir($repo,qw(libraries vcs));
-for ($source,$status_font,$cart_font,$driver,$sim) { -e $_ or die "missing 3F max support file $_\n"; }
+for ($source,$status_font,$cart_font,$makefile,$driver,$sim) { -e $_ or die "missing 3F max support file $_\n"; }
 
 my $src=read_file($source);
 $src =~ /VCS_3F_BANKS\s*:=\s*256/ or die "3F max source lost 256-bank profile\n";
 $src =~ /\/\/\s*"3F max"/ or die "3F max source lost exact second-line label\n";
 $src =~ /load_pass\(void\).*?status_glyphs/s && $src =~ /load_fail\(void\).*?status_glyphs/s
    or die "3F max source lost PASS\/FAIL pointer selection\n";
+$src =~ /instantiate\s+"six_glyph_big_wide_component\.c26"\s+as\s+status_result/
+   or die "3F max PASS/FAIL display no longer uses the standard big-wide renderer\n";
+$src =~ /vcs_ntsc_wait_component_scanlines\(81\).*?status_result_draw\(\).*?cart_type_draw\(\).*?vcs_ntsc_wait_visible_tail_scanlines\(81\)/s
+   or die "3F max PASS/FAIL display no longer uses standard bankswitching spacing\n";
 read_file($cart_font) =~ /Characters:\s*"3F max"/ or die "3F max font no longer encodes exact second line\n";
-read_file($status_font) =~ /Characters:\s*" pasFAIL"/ or die "3F max status font lost pass\/FAIL glyph set\n";
+my $status_text=read_file($status_font);
+$status_text =~ /Characters:\s*" pasFAIL"/ or die "3F max status font lost pass\/FAIL glyph set\n";
+$status_text =~ /Source font:\s*big_ascii\.c26/ or die "3F max PASS/FAIL display no longer uses the standard big font\n";
+read_file($makefile) =~ /^BIG_FONT\s*:=.*\/big_ascii\.c26\s*$/m
+   or die "3F max font regeneration no longer selects big_ascii.c26\n";
 
 my @torture=sort glob(File::Spec->catfile($dir,'3f_max_torture_*.s26'));
 @torture==9 or die "expected eight lower-bank torture objects plus fixed scheduler\n";

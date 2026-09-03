@@ -26,8 +26,9 @@ After every cross-bank return, bank-specific code verifies that the original
 source bank was restored. The diagnostic also checks 6507 hardware-stack balance
 for lower-bank sweeps and fixed-bank calls.
 
-After the torture completes, the cartridge displays `pass` or `FAIL` on the
-first line and exactly `3F max` on the second line. A failure is sticky and
+After the torture completes, the cartridge uses the standard bankswitching
+diagnostic display: big wide `pass` or `FAIL` on the first line and exactly
+`3F max` in the small six-glyph font on the second line. A failure is sticky and
 indicates a wrong target, wrong source restoration, stack imbalance, or incorrect
 final call count.
 
