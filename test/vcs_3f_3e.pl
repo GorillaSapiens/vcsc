@@ -112,7 +112,7 @@ for my $c (@cases) {
    my $src=read_file($source);
    $src =~ /instantiate "six_glyph_big_wide_component\.c26" as status_result/ &&
    $src =~ /instantiate "six_glyph_component\.c26" as cart_type \(compact_font:=0\)/ &&
-   $src =~ /bank3 void draw_result\(void\)/
+   $src =~ ($m eq '3E' ? qr/bank2 void draw_result\(void\)/ : qr/bank3 void draw_result\(void\)/)
       or die "$m visible diagnostic lost large PASS\/FAIL plus mapper label\n";
    if ($m eq '3F') {
       $src !~ /asm sta \$3f/ &&
@@ -121,11 +121,11 @@ for my $c (@cases) {
       $src =~ /bank3 uint8_t fixed_calls_bank2\(void\).*?bank2_probe/s
          or die "3F diagnostic lost automatic fixed/lower nested bank-call coverage\n";
    } else {
-      $src =~ /bank3 void raw_ram_probe\(void\).*?asm lda #0;\s*asm sta \$3e;.*?asm sta \$1400;.*?asm lda \$1000/s &&
-      $src =~ /bank3 void raw_ram_probe\(void\).*?asm lda #1;\s*asm sta \$3e;.*?asm sta \$1400;.*?asm lda \$1000/s &&
-      $src =~ /raw_ram_probe\(\);.*?bank2_probe/s &&
-      $src !~ /asm sta \$3f/
-         or die "3E diagnostic lost fixed-bank RAM coverage or automatic ROM-bankcall restore\n";
+      $src =~ /swapram\s+uint8_t\s+ram_bank0\[1024\]/ &&
+      $src =~ /bank0 void swapram_probe\(void\).*?swapram\s+uint8_t\s+ram_bank1\s*;.*?ram_bank0\[0\] := 0x5a;.*?ram_bank1 := 0xa5;.*?ram_bank0\[0\] != 0x5a/s &&
+      $src =~ /swapram_probe\(\);.*?bank2_probe/s &&
+      $src !~ /asm sta \$3e|asm sta \$3f|asm sta \$1400|asm lda \$1000/
+         or die "3E diagnostic lost compiler-generated swapram coverage or automatic ROM-bankcall restore\n";
    }
 
    my $bin=File::Spec->catfile($tmp,"$lc.bin");
@@ -145,6 +145,12 @@ for my $c (@cases) {
    $map =~ /^\s+common-offset=\$780\s+reserved=\$\Q$trampoline_size\E\s+used=\$\Q$trampoline_size\E.*generic-jsr=\$\Q$trampoline_size\E/m
       or die "$m map lost fixed-final descriptor-bankcall/zero-entry topology\n";
    for my $i (0..2) { map_symbol($map,"bank${i}_probe"); }
+   if ($m eq '3E') {
+      $map =~ /^\s*BSS\.swapram\.__vcsc_object\$ram_bank0\s+logical=\$00000\s+swapram-bank=0\s+swapram-offset=\$0000\s+size=\$0400\b/m &&
+      $map =~ /^\s*BSS\.swapram\.__vcsc_activation\$swapram_probe\s+logical=\$00400\s+swapram-bank=1\s+swapram-offset=\$0000\s+size=\$0001\b/m
+         or die "3E public diagnostic no longer forces its compiler-managed RAM probes into distinct swapram banks
+$map";
+   }
    my %sym=map { $_=>map_symbol($map,$_) } qw(simulator_done failure call_count);
    my($out,$err)=require_ok("simulate $m selectors",$sim,'--map',$map_path,
       sprintf('--stop-pc=0x%04X',$sym{simulator_done}),'--dump-on-stop',$bin);

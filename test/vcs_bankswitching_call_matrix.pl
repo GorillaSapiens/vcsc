@@ -125,6 +125,7 @@ my @profiles = (
    [ '0FA0',    '0FA0/mapper.c26',    [0x0fc0,0x0fa0], 0 ],
    [ 'DPC',    'DPC/mapper.c26',    [0x1ff9,0x1ff8], 0 ],
    [ '3F',     'instantiate "3F/mapper.c26" as mapper (VCS_3F_BANKS:=4)', [0x00,0x01,0x02,0xff], 3 ],
+   [ '3E',     'instantiate "3E/mapper.c26" as mapper (VCS_3E_BANKS:=4)', [0x00,0x01,0x02,0xff], 3 ],
 );
 
 my $pair_count = 0;
@@ -141,14 +142,14 @@ for my $profile (@profiles) {
       print {$fh} generated_source($include, $banks, $source, $startup);
       close($fh) or die "could not close $src: $!\n";
 
-      my $uses_inline = $name =~ /^(?:F8|F8SC|F6|F6SC|F4|F4SC|FA|FA2-24|FA2-28|JANE|0840|UA|UASW|0FA0|DPC|3F)$/;
+      my $uses_inline = $name =~ /^(?:F8|F8SC|F6|F6SC|F4|F4SC|FA|FA2-24|FA2-28|JANE|0840|UA|UASW|0FA0|DPC|3F|3E)$/;
       my @pilot_define = ();
       require_ok("build $name ordered-call source bank $source",
                  $driver, '-I', $vcs, @pilot_define, '-Map', $map_path,
                  $src, '-o', $bin);
       my $map = slurp($map_path);
       if ($uses_inline) {
-         my $generic_size = $name eq '3F' ? '050' : '048';
+         my $generic_size = $name eq '3E' ? '058' : $name eq '3F' ? '050' : '048';
          $map =~ /generic-jsr=\$\Q$generic_size\E\b.*\bentries=0\s+jmp=0\s+jsr=0\b/
             or die "$name source bank $source did not use only the fixed generic JSR block\n$map";
          $map !~ /JSR entry=/
@@ -187,5 +188,5 @@ for my $profile (@profiles) {
    }
 }
 
-$pair_count == 252 or die "ordered call pair accounting changed: got $pair_count expected 252\n";
+$pair_count == 264 or die "ordered call pair accounting changed: got $pair_count expected 264\n";
 print "exhaustive bankswitch JSR matrix passed\n";

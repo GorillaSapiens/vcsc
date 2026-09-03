@@ -212,9 +212,8 @@ index($threee,'swapram_read1')>=0 && index($threee,'swapram_write4')>=0 &&
 index($threee,'swapram_zero')>=0 &&
 index($threee,'one allocated object must fit wholly inside one')>=0 &&
 index($threee,'ordinary 16-bit CPU pointer cannot represent')>=0 &&
-index($threee,'Extend the ordered source/destination call-matrix regression to 3E')>=0 &&
 index($threee,"Keep the simulator's split read/write RAM behavior as the hardware oracle")>=0 &&
-(() = $threee =~ /^\[ \]/mg) == 2
+(() = $threee =~ /^\[ \]/mg) == 1
    or die "3E hot record lost swapram design/unfinished-work contract\n";
 length($bankswitching) <= 16 * 1024 &&
 index($bankswitching,'Never use bare "bank 0" without saying which identity is meant.')>=0 &&

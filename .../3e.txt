@@ -150,10 +150,6 @@ Use the settled 3F mechanism as the 3E ROM-call foundation:
 
 Unfinished implementation / acceptance
 --------------------------------------
-[ ] Extend the ordered source/destination call-matrix regression to 3E and update
-    the public 3E diagnostic so it exercises compiler-generated swapram accesses,
-    not merely raw hand-written `$3E` selector traffic.
-
 [ ] Keep the simulator's split read/write RAM behavior as the hardware oracle,
     now with all 256 selector values preserved; add failures for wrong alias
     direction, selector truncation, or lost RAM-bank contents as needed. Public
@@ -161,6 +157,6 @@ Unfinished implementation / acceptance
 
 Immediate next step
 -------------------
-Extend the ordered source/destination call-matrix regression to 3E, then update
-the public 3E diagnostic to use compiler-generated swapram lvalue accesses rather
-than raw hand-written `$3E` selector traffic.
+Close out the simulator hardware oracle: keep split 3E RAM read/write aliases and
+all 256 selector values covered, and add/retain explicit failures for wrong alias
+direction, selector truncation, and lost RAM-bank contents.

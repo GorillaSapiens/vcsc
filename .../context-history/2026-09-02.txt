@@ -242,3 +242,18 @@ then automatically calls lower bank 3; that call must replace RAM with ROM befor
 execution. Runtime failure/call counters and map bank-placement assertions lock the
 sequence. Source-tree hygiene now requires the regression. No runtime code change
 was needed.
+
+2026-09-02 23:23:58 PDT, 3E call matrix and swapram diagnostic
+Extended test/vcs_bankswitching_call_matrix.pl to the 4-bank
+parameterized 3E profile, raising exhaustive cross-bank pair accounting
+from 252 to 264 while retaining same-source coverage and the 3E $058
+generic descriptor block. Reworked examples/09_bankswitching/13_3e so
+application code no longer writes $3E/$3F or raw split RAM aliases: a
+full 1K file-scope swapram object occupies RAM bank 0 and a one-byte
+automatic swapram activation occupies bank 1, with compiler-generated
+lvalue reads/writes checking independence and persistence. The swapram
+probe runs in lower ROM bank0, so its accesses exercise lower->fixed
+helper->lower restoration before returning to fixed main. To make room
+for the fixed swapram helper in the visible 8K diagnostic, the endless
+display loop and generated glyph subsets moved together to bank2; exact
+262-line timing remains covered by vcs_3f_3e.pl.

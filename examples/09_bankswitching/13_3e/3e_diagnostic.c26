@@ -14,6 +14,10 @@ instantiate "six_glyph_component.c26" as cart_type (compact_font:=0)
 uint8_t failure;
 uint8_t call_count;
 
+// Occupy one complete physical swapram page. The probe's automatic swapram
+// activation therefore has to live in a different 1K RAM bank.
+swapram uint8_t ram_bank0[1024];
+
 bank0 uint8_t bank0_probe(void) { call_count := call_count + 1; return 0x30; }
 bank1 uint8_t bank1_probe(void) { call_count := call_count + 1; return 0x31; }
 bank2 uint8_t bank2_probe(void) { call_count := call_count + 1; return 0x32; }
@@ -69,7 +73,7 @@ inline void load_mapper_type(void) {
    asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+11;
 }
 
-bank3 void draw_result(void) {
+bank2 void draw_result(void) {
    status_result_score := 0;
    cart_type_score := 0;
    status_result_init();
@@ -100,24 +104,19 @@ bank3 void draw_result(void) {
 }
 #endif
 
-bank3 void raw_ram_probe(void) {
-   // RAM bank 0: high half is write port, low half is read port.
-   asm lda #0; asm sta $3e;
-   asm lda #$5a; asm sta $1400;
-   asm lda $1000; asm cmp #$5a; asm beq @ram0_ok;
-   failure := 0x20;
-   asm @ram0_ok:;
+bank0 void swapram_probe(void) {
+   // This automatic byte cannot share ram_bank0's full 1K page.
+   swapram uint8_t ram_bank1;
 
-   // RAM bank 1 must be independent and bank 0 must retain its value.
-   asm lda #1; asm sta $3e;
-   asm lda #$a5; asm sta $1400;
-   asm lda $1000; asm cmp #$a5; asm beq @ram1_ok;
-   failure := 0x21;
-   asm @ram1_ok:;
-   asm lda #0; asm sta $3e;
-   asm lda $1000; asm cmp #$5a; asm beq @ram0_persist;
-   failure := 0x22;
-   asm @ram0_persist:;
+   // These ordinary lvalue accesses are compiler-managed 3E swapram.
+   ram_bank0[0] := 0x5a;
+   if (ram_bank0[0] != 0x5a) { failure := 0x20; }
+
+   ram_bank1 := 0xa5;
+   if (ram_bank1 != 0xa5) { failure := 0x21; }
+
+   // Switching through the second object must not disturb the first bank.
+   if (ram_bank0[0] != 0x5a) { failure := 0x22; }
 }
 
 #ifdef SIMULATOR_TEST
@@ -132,7 +131,7 @@ bank3 void main(void) {
 
    if (bank1_probe() != 0x31) { failure := 0x11; }
 
-   raw_ram_probe();
+   swapram_probe();
 
    // A following automatic bankcall must switch back to ROM mode.
    if (bank2_probe() != 0x32) { failure := 0x30; }

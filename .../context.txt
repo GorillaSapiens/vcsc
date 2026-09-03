@@ -264,13 +264,8 @@ fresh single uninterrupted 343/343 run in this tool window.
 
 Immediate TODO
 --------------
-3F automatic calls are complete. 3E `$swapram` metadata/allocation, 1..4-byte
-lvalue lowering, fixed-bank byte movers, and the 3F-derived ROM-call shell are
-complete. `3E/mapper.c26` is parameterized by `VCS_3E_BANKS`; lower ROM uses
-descriptors 0..N-2, fixed uses `$FF`, entry is empty, and the bankcall corridor
-is `$058`. Swapram exposes 256 x 1K = 256K; helper ABI is arg0:ptr1=18-bit logical
-address and ptr2=ordinary buffer. Width/type/index/init/boundary acceptance passes
-through RAM bank 255. Lower banks 0/1/2/4 restore correctly after fixed swapram
-helpers, and fixed->swapram->lower works with RAM still mapped before the call.
-Next extend the ordered 3E call matrix and public diagnostic. 3EX is a later
-distinct 512-byte-bank mapper. After 3E migrate FC, F0, E0; FE stays special.
+3F automatic calls are complete. 3E has parameterized ROM calls, 256 x 1K
+`$swapram`, 1..4-byte lvalues/helpers/init, restoration coverage, and the ordered
+call matrix. The public diagnostic uses compiler-generated accesses across two
+RAM banks with no raw application `$3E`/`$3F` writes. Only the simulator hardware-
+oracle closeout remains. 3EX is later; after 3E migrate FC, F0, E0; FE stays special.

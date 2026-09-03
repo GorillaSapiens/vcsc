@@ -34,11 +34,9 @@ Generated JSR/RTS paths need a stronger test than merely touching every bank.
 that source call every destination bank, checking metadata, return value,
 hardware-stack balance, and simulator execution. This covers every ordered JSR
 pair for F8/F8SC, F6/F6SC, F4/F4SC, FA, both FA2 profiles, JANE, 0840,
-UA/UASW, 0FA0, and DPC. F8/F6/F4(+SC), FA, both FA2 profiles, JANE, 0840,
-UA/UASW, 0FA0, and DPC use fixed inline-target blocks with zero legacy
-per-target JSR bridges. F8/F6/F4(+SC), FA, DPC, both FA2 profiles, JANE, 0840, UA/UASW, and
-0FA0 are descriptor-aware. Same-bank
-calls remain ordinary JSRs.
+UA/UASW, 0FA0, DPC, 3F, and 3E. These migrated mappers use fixed
+inline-target blocks with zero legacy per-target JSR bridges; 3F and 3E use
+selector-value descriptors for lower banks and `$FF` for their fixed final bank.
 
 The public VCSC cartridge profiles also stamp the final physical bank with a
 four-byte mapper signature at logical addresses `$xFF8-$xFFB` (eight bytes before that bank ends). Short mapper names are
@@ -125,9 +123,10 @@ plus the fixed final 2K, forces Stella's 3F mapper, and renders large PASS/FAIL
 with small `3F`. The profile transparently uses the `$40-$7F` TIA mirror so
 ordinary display writes do not become 3F bank-select writes.
 
-`13_3e/` is the classic 3E diagnostic. It exercises lower-ROM switching, two
-1K RAM banks, read/write aliases, RAM persistence, ROM restoration, and the
-fixed final 2K, then renders large PASS/FAIL with small `3E`.
+`13_3e/` is the classic 3E diagnostic. It exercises lower-ROM switching and
+compiler-generated `swapram` lvalue accesses across two distinct 1K RAM banks,
+checks RAM persistence and ROM restoration, and never writes `$3E`/`$3F`
+directly in application code. It then renders large PASS/FAIL with small `3E`.
 
 `14_fe/` is the released two-bank FE/SCABS diagnostic. Physical/file bank 0 is
 the `$F000-$FFFF` startup view and physical/file bank 1 is the `$D000-$DFFF`

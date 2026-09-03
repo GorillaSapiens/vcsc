@@ -8,7 +8,7 @@ BIG_FONT := $(VCS_DIR)/fonts/big_ascii.c26
 SMALL_FONT := $(VCS_DIR)/fonts/default_ascii.c26
 FONT_SUBSET_DIR ?= .
 COMMITTED_FONT_SUBSETS := status_font.c26 cart_type_font.c26
-FONT_SUBSET_FLAGS := --license examples/LICENSE.txt --bank bank3
+FONT_SUBSET_FLAGS := --license examples/LICENSE.txt --bank bank2
 SOURCE := 3e_diagnostic.c26
 TARGET := 3e_diagnostic.bin
 all: $(TARGET)
