@@ -9,3 +9,17 @@ alias. No simulator runtime change was needed; the existing model already met
 the hardware contract. Compacted `.../3e.txt` to a durable closeout, advanced
 the active bankswitching roadmap to FC, and replaced hygiene's dependency on
 obsolete unfinished 3E prose with the executable oracle regression.
+
+2026-09-03 07:56:28 PDT, reopen maximum-size 3F/3E stress certification
+Audited the post-migration 3F/3E regressions before starting FC. Existing tests
+prove the 256-bank/512K topology endpoints, a four-bank ordered call matrix, all
+256 VCSC 3E RAM selectors, and helper access through bank 255/offset $3FC, but
+they do not execute a maximum-size ROM call matrix or consume/verify the entire
+RAM capacity. Reopened bankswitching Item 38c to require one maximum-size 3F and
+one maximum-size 3E torture cartridge: all 255 selectable lower banks execute
+the full 255 x 255 ordered matrix, with the fixed/startup bank also exercised in
+both directions. Added separate 3E RAM torture requirements: compiler-managed
+fill/verify of current Stella's 32 x 1K / 32K RAM model and VCSC's extended 256 x
+1K / 256K model. FC moved to 38d and is explicitly capped at 256 x 4K / 1 MiB
+for VCSC automatic calls; F0/E0 follow, and Stella-compatible 3EX remains a
+distinct later mapper as Item 38g.

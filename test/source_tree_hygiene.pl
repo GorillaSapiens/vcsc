@@ -222,9 +222,15 @@ index($bankswitching,'VCS_3F_BANKS > N+1')>=0 &&
 -f File::Spec->catfile($test,'linker_bank_set_256.pl') &&
 -f File::Spec->catfile($repo,qw(libraries vcs 3F mapper.c26)) &&
 -f File::Spec->catfile($test,'vcs_3e_simulator_oracle.pl') &&
-index($bankswitching,'[ ] 38c. Implement/migrate FC.')>=0 &&
-index($bankswitching,'[ ] 38d. Implement/migrate F0.')>=0 &&
-index($bankswitching,'[ ] 38e. Design automatic E0 calls.')>=0 &&
+index($bankswitching,'[ ] 38c. Stress-certify maximum-size 3F and 3E.')>=0 &&
+index($bankswitching,'full 255 x 255')>=0 &&
+index($bankswitching,'Stella-compatible 32 x 1K / 32K RAM')>=0 &&
+index($bankswitching,'256 x 1K / 256K RAM')>=0 &&
+index($bankswitching,'[ ] 38d. Implement/migrate FC.')>=0 &&
+index($bankswitching,'256 physical 4K')>=0 &&
+index($bankswitching,'[ ] 38e. Implement/migrate F0.')>=0 &&
+index($bankswitching,'[ ] 38f. Design automatic E0 calls.')>=0 &&
+index($bankswitching,'[ ] 38g. Add Stella-compatible 3EX support.')>=0 &&
 index($bankswitching,'advances through `$1FF0`')>=0 &&
 index($bankswitching,'Generic inline-target cross-bank JSR contract')>=0 &&
 index($bankswitching,'68 active bytes with 72 reserved')>=0 &&

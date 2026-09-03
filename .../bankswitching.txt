@@ -226,38 +226,51 @@ this is future optimizer-locality cleanup, not bankswitching work.
         `$1000-$17FF` bank and `== N+1` makes that same bankN the fixed/startup
         `$1800-$1FFF` bank. The maximum 256 x 2K / 512K shape is a regression.
 
-        WD, 3F, and 3E are migrated. FE intentionally keeps its released direct
-        top-level JSR/RTS mechanism. 3E uses parameterized ROM topology plus
-        compiler-managed 256 x 1K `$swapram`; ordered calls, restoration, public
-        diagnostics, and the simulator hardware oracle are regression-tested.
-        E0, FC, and F0 still need automatic-call work.
+        WD, 3F, and 3E have their core migrations; FE intentionally keeps its
+        released direct top-level JSR/RTS mechanism. Before calling 3F/3E fully
+        certified, add the maximum-size torture coverage below.
 
-        [ ] 38c. Implement/migrate FC.
+        [ ] 38c. Stress-certify maximum-size 3F and 3E.
 
-            FC stages low selector bits at `$1FF8`, upper bits at `$1FF9`, then
-            `$1FFC` commits. Its large bank count now fits the physical-plane
-            model; design its descriptor transition without cfg-era assumptions.
+            Existing tests build 256-bank/512K endpoints but the ordered-call
+            matrix uses only four banks. Add one executable maximum-size cartridge
+            per mapper: all 255 selectable lower banks execute the full 255 x 255
+            ordered matrix; exercise the fixed/startup bank explicitly in both
+            directions too, with stack balance and physical-target verification.
+            Prefer one cartridge over 255 separate 512K images. Stella 3F
+            supports 512K; Stella 3E allows 256 ROM banks (240 recommended).
 
-        [ ] 38d. Implement/migrate F0.
+            Add 3E whole-RAM torture too. The current oracle touches one byte per
+            VCSC RAM bank and helper coverage reaches bank 255/$3FC, but neither
+            verifies full capacity. Using compiler-managed `$swapram`, fill/read
+            every byte of Stella-compatible 32 x 1K / 32K RAM and separately VCSC
+            256 x 1K / 256K RAM. Keep the 1K object-boundary rule; split the 256K
+            fixture across translation units because O26 BSS is 16-bit per TU.
+
+        [ ] 38d. Implement/migrate FC.
+
+            FC stages selector bits at `$1FF8/$1FF9`; `$1FFC` commits. Support
+            1..256 physical 4K banks (up to 1 MiB), matching the one-byte bankcall
+            descriptor even though the hardware protocol can encode more.
+
+        [ ] 38e. Implement/migrate F0.
 
             F0 has 16 x 4K banks and advances through `$1FF0`. A transition can
             advance `(target-source) mod 16` on call and reverse on return; all
             switch-surviving transition bytes must remain identical.
 
-        [ ] 38e. Design automatic E0 calls.
+        [ ] 38f. Design automatic E0 calls.
 
             E0 has three independently selectable 1K windows plus fixed bank 7.
             Full state is 9 bits and executing code does not identify the other
             window selections, so the current one-byte baked-source descriptor
             is insufficient for arbitrary state preservation.
 
-        [ ] 38f. Add Stella-compatible 3EX support.
+        [ ] 38g. Add Stella-compatible 3EX support.
 
-            Treat 3EX as a distinct mapper, not extended 3E: it reaches 256K
-            cartridge RAM with 512-byte RAM-bank geometry. Reuse the generic
-            `$swapram` storage/access abstraction, but give 3EX its own mapper
-            profile, selector/address derivation, simulator/disassembler support,
-            diagnostics, and automatic-call rules as required by its hardware.
+            3EX is distinct from 3E: 256K RAM with 512-byte RAM-bank geometry.
+            Reuse `$swapram`, but give 3EX its own profile, selector/address
+            derivation, simulator/disassembler support, diagnostics, and call rules.
 
 Deferred design questions
 -------------------------

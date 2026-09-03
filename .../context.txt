@@ -265,6 +265,11 @@ fresh single uninterrupted 343/343 run in this tool window.
 
 Immediate TODO
 --------------
-3E automatic calls and `$swapram` are complete, including the full 256-selector
-simulator hardware oracle. Next bankswitching work is FC, then F0 and E0; 3EX is
+3F/3E core automatic-call and `$swapram` work is complete, but maximum-size
+stress certification is reopened before FC: build executable 256-bank/512K 3F
+and 3E torture cartridges with the full 255 x 255 selectable-lower-bank ordered
+call matrix plus explicit fixed-bank calls in both directions. Add whole-capacity
+3E RAM torture: Stella-compatible 32 x 1K / 32K and VCSC extended 256 x 1K /
+256K, using compiler-managed `$swapram` and verifying every byte. Then migrate FC
+with a deliberate VCSC limit of 256 x 4K / 1 MiB, followed by F0 and E0. 3EX is
 a later distinct mapper and FE stays special.
