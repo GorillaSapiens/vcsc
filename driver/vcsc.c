@@ -1379,7 +1379,8 @@ static bool link_inputs_have_3e_topology(const strvec_t *inputs)
 static bool link_inputs_need_swapram_helpers(const strvec_t *inputs)
 {
    return link_inputs_contain_literal(inputs, "swapram_read") ||
-          link_inputs_contain_literal(inputs, "swapram_write");
+          link_inputs_contain_literal(inputs, "swapram_write") ||
+          link_inputs_contain_literal(inputs, "swapram_zero");
 }
 
 //! @brief Run the ld stage of the driver tool pipeline.

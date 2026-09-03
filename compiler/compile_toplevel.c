@@ -1292,6 +1292,8 @@ void compile_global_decl_item(ASTNode *node) {
    bool is_zeropage = global_object_single_region_is_zeropage(modifiers);
    bool is_readonly_mem = global_object_regions_are_readonly(modifiers);
    bool is_split_mem = global_object_single_region_is_split(modifiers);
+   bool is_swapram = region_count == 1 && primary_region &&
+      mem_decl_is_swapram(get_memname_node(primary_region));
    bool is_ref = has_modifier(modifiers, "ref");
    bool is_page = has_modifier(modifiers, "page");
    unsigned int object_alignment = 0;
@@ -1411,6 +1413,10 @@ void compile_global_decl_item(ASTNode *node) {
          emit(&es_bss, "\t.res %d\n", size);
          restore_object_segment(&es_bss, segbuf);
       }
+      if (is_swapram) {
+         remember_pending_global_init(name, symname, type, declarator, NULL,
+                                      size, false, false, true, NULL, NULL);
+      }
       return;
    }
 
@@ -1450,6 +1456,27 @@ void compile_global_decl_item(ASTNode *node) {
             emit(&es_bss, "\t.res %d\n", size);
             restore_object_segment(&es_bss, segbuf);
          }
+         if (is_swapram) {
+            remember_pending_global_init(name, symbuf, type, declarator, NULL,
+                                         size, false, false, true, NULL, NULL);
+         }
+         return;
+      }
+
+      /* Swapram has no startup-visible CPU address.  Even a link-time constant
+         initializer must be applied through the mapper helper after reset, so
+         reserve writable storage and lower the initializer through the normal
+         runtime initializer path instead of emitting an ordinary DATA copy. */
+      if (is_swapram) {
+         char segbuf[256];
+         build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "BSS");
+         emit_data_object_segment(&es_bss, segbuf, symname, is_page, object_alignment, size);
+         emit(&es_bss, "%s:\n", symname);
+         emit(&es_bss, "\t.res %d\n", size);
+         restore_object_segment(&es_bss, segbuf);
+         remember_pending_global_init(name, symbuf, type, declarator,
+                                      uexpr ? uexpr : expression, size,
+                                      false, false, true, NULL, NULL);
          return;
       }
 
@@ -1517,13 +1544,13 @@ void compile_global_decl_item(ASTNode *node) {
                               node->file, node->line, node->column, name);
          }
          remember_pending_global_init(name, symbuf, type, declarator,
-                                      uexpr ? uexpr : expression, size, false, true,
+                                      uexpr ? uexpr : expression, size, false, true, false,
                                       split_entry.read_expr, split_entry.write_expr);
       }
       else {
          remember_pending_global_init(name, symbuf, type, declarator,
                                       uexpr ? uexpr : expression, size, is_zeropage,
-                                      false, NULL, NULL);
+                                      false, false, NULL, NULL);
       }
    }
 }

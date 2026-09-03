@@ -268,8 +268,9 @@ Immediate TODO
 lvalue lowering, fixed-bank byte movers, and the 3F-derived ROM-call shell are
 complete. `3E/mapper.c26` is parameterized by `VCS_3E_BANKS`; lower ROM uses
 descriptors 0..N-2, fixed uses `$FF`, entry is empty, and the bankcall corridor
-is `$050`. Swapram exposes 256 x 1K = 256K; helper ABI is arg0:ptr1=18-bit
-logical address, ptr2=ordinary buffer, and movers are startup-pinned/tested
-through RAM bank 255. Next broaden swapram type/caller/index/init/compound
-coverage, then prove lower-bank restoration and the ordered call matrix. 3EX is
+is `$058`. Swapram exposes 256 x 1K = 256K; helper ABI is arg0:ptr1=18-bit
+logical address, ptr2=ordinary buffer, and fixed-bank helpers are tested through
+RAM bank 255. Full int/uint/bcd width, caller, indexing, compound, local/static,
+DATA/BSS/runtime-init, 1K zero-fill, and boundary acceptance now passes. Next
+prove lower-bank restoration and the ordered call matrix. 3EX is
 a later distinct 512-byte-bank mapper. After 3E migrate FC, F0, E0; FE stays special.

@@ -99,6 +99,24 @@ __vcsc_generic_bankreturn:
     rts
 
 __vcsc_generic_bankcall_switch_and_jump:
+    ; This helper itself is always the fixed-bank copy.  The JSR that reached
+    ; it was emitted by a replicated trampoline, so its stacked return points
+    ; at that source copy's bankreturn: $17xx for a lower source or $1Fxx for
+    ; the fixed source.  Force bit 3 of the stacked high byte so every callee
+    ; returns through the permanently visible fixed-bank bankreturn.  This is
+    ; essential when a fixed callee temporarily maps 3E RAM over $1000-$17FF.
+    ; X still carries the destination descriptor.  Preserve it in Y while
+    ; TSX borrows X to index the hardware stack, then restore it before the
+    ; mapper select.  Y is dead after the inline payload has been decoded.
+    txa
+    tay
+    tsx
+    lda $0102,x
+    ora #$08
+    sta $0102,x
+    tya
+    tax
+
     ; $FF destination means the callee is in the fixed upper 2K and no mapper
     ; operation is required.  Otherwise write the selected lower-bank number.
     cpx #$FF
@@ -108,4 +126,4 @@ __vcsc_generic_bankcall_switch_and_jump:
     jmp (VCSC_BANKCALL_PTR0)
 
 __vcsc_generic_bankcall_end:
-__vcsc_generic_bankcall_reserved_end = $6050
+__vcsc_generic_bankcall_reserved_end = $6058

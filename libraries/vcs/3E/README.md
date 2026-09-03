@@ -33,8 +33,10 @@ bank0 void update(void) {
 
 The programmer does not choose a RAM bank or maintain a current-bank variable.
 The linker places each `swapram` object and the compiler routes each 1-, 2-, 3-,
-or 4-byte load/store through the mapper helper code.  Signed, unsigned, and BCD
+or 4-byte load/store through the mapper helper code. Signed, unsigned, and BCD
 objects retain their normal language types; the mapper helper only moves bytes.
+File-scope/static zero initialization is also automatic. Large zeroed objects use
+a private startup helper rather than expanding into hundreds of scalar writes.
 
 ## ROM banks and automatic calls
 
@@ -106,6 +108,10 @@ swapram_read2   swapram_write2
 swapram_read3   swapram_write3
 swapram_read4   swapram_write4
 ```
+
+`swapram_zero` is an additional **private startup-only** helper used to implement
+zero-initialized swapram objects efficiently. It is not a programmer-facing
+block RAM API.
 
 All code executed while RAM is selected must remain in the `$startup`/fixed
 bank.  Lower-ROM callers reach these helpers through the ordinary 3E bank-call

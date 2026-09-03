@@ -209,9 +209,11 @@ index($threee,'RAM-bank state is never encoded in the generic bankcall descripto
 index($threee,'$swapram')>=0 && index($threee,'$bank_size')>=0 &&
 index($threee,'libraries/vcs/3E/swapram.s26')>=0 &&
 index($threee,'swapram_read1')>=0 && index($threee,'swapram_write4')>=0 &&
+index($threee,'swapram_zero')>=0 &&
 index($threee,'one allocated object must fit wholly inside one')>=0 &&
 index($threee,'ordinary 16-bit CPU pointer cannot represent')>=0 &&
-$threee !~ /^\[x\]/m
+index($threee,'[x] Regression-test 1/2/3/4-byte int/uint/bcd reads and writes')>=0 &&
+(() = $threee =~ /^\[ \]/mg) == 3
    or die "3E hot record lost swapram design/unfinished-work contract\n";
 length($bankswitching) <= 16 * 1024 &&
 index($bankswitching,'Never use bare "bank 0" without saying which identity is meant.')>=0 &&
@@ -825,6 +827,7 @@ index($top_make,'test/vcs_e0.pl')>=0
 !-e File::Spec->catfile($repo,'libraries','vcs','3E/mapper_8k.cfg') &&
 -f File::Spec->catfile($test,'vcs_3f_3e.pl') &&
 -f File::Spec->catfile($test,'vcs_3e_swapram_helpers.pl') &&
+-f File::Spec->catfile($test,'vcs_3e_swapram_acceptance.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','12_3f','3f_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','13_3e','3e_diagnostic.c26') &&
 index($top_make,'libraries/vcs/tia_mirror_40.c26')>=0 &&

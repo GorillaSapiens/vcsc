@@ -26,6 +26,7 @@
 .export swapram_write2
 .export swapram_write3
 .export swapram_write4
+.export swapram_zero
 
 .segment "STARTUP"
 
@@ -106,4 +107,42 @@ swapram_write_common:
     sta (ptr1),y
     dey
     bpl @write_loop
+    rts
+
+; Private startup-only zero-fill primitive used for static/BSS initialization.
+; ABI differs from the byte movers only in ptr2: here ptr2 is a 16-bit byte
+; count (1..1024), not an ordinary RAM buffer pointer.  The object allocator
+; guarantees the range stays within one 1K swap-RAM bank.
+swapram_zero:
+    ; Derive/select the 8-bit RAM bank and rebuild ptr1 as the write alias.
+    lda ptr1+1
+    and #$03
+    pha
+    lda arg0
+    lsr
+    ror ptr1+1
+    lsr
+    ror ptr1+1
+    lda ptr1+1
+    sta $3E
+    pla
+    ora #$14
+    sta ptr1+1
+
+    ldy #0
+@zero_loop:
+    lda #0
+    sta (ptr1),y
+    inc ptr1
+    bne.same @zero_ptr_ok
+    inc ptr1+1
+@zero_ptr_ok:
+    lda ptr2
+    bne.same @zero_dec_low
+    dec ptr2+1
+@zero_dec_low:
+    dec ptr2
+    lda ptr2
+    ora ptr2+1
+    bne @zero_loop
     rts

@@ -2312,11 +2312,30 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
          }
          emit(sink, "%s:\n", sym);
          emit(sink, "\t.res %d\n", size);
+         if (entry->is_swapram) {
+            remember_pending_global_init(name, sym, type, declarator, NULL,
+                                         size, false, false, true, NULL, NULL);
+         }
          return;
       }
 
       {
          EmitSink init_es = EMIT_INIT;
+
+         /* Static swapram has no startup-visible CPU address.  Reserve the
+            storage as BSS and perform its one-time initialization through the
+            mapper helper from the translation-unit init function. */
+         if (entry->is_swapram) {
+            char segbuf[256];
+            build_named_storage_segment(segbuf, sizeof(segbuf), modifiers, "BSS");
+            sink = &es_bss;
+            emit(sink, ".segment \"%s\"\n", segbuf);
+            emit(sink, "%s:\n", sym);
+            emit(sink, "\t.res %d\n", size);
+            remember_pending_global_init(name, sym, type, declarator, expression,
+                                         size, false, false, true, NULL, NULL);
+            return;
+         }
 
          if (emit_global_initializer(&init_es, type, declarator, expression, size)) {
             if (entry->is_zeropage) {
@@ -2354,12 +2373,12 @@ static void compile_local_decl_item(ASTNode *node, Context *ctx) {
             emit(sink, "\t.res %d\n", size);
             if (modifiers_imply_split_address(modifiers)) {
                remember_pending_global_init(name, sym, type, declarator, expression,
-                                            size, false, true,
+                                            size, false, true, false,
                                             entry->read_expr, entry->write_expr);
             }
             else {
                remember_pending_global_init(name, sym, type, declarator, expression,
-                                            size, entry->is_zeropage, false,
+                                            size, entry->is_zeropage, false, false,
                                             NULL, NULL);
             }
          }

@@ -106,36 +106,45 @@ require_fail('oversized swapram object',
              $vcsc, '-I', $vcs, '--no-sym', '--no-list', '--no-cfg',
              '-o', File::Spec->catfile($tmp, 'too_big.bin'), $too_big);
 
-# Prove the allocator and map carry more than 16 logical address bits.  Bank 64
-# starts at logical $10000, which was unreachable with the original 16-bit
-# swapram handle.
+# Prove the allocator and map carry more than 16 logical address bits.  This is
+# deliberately a linker/allocation fixture, so define the 65K of storage in
+# assembly rather than asking the C startup initializer to zero 65 separate
+# objects.  Keep each definition in its own object because the O26 packed BSS
+# namespace remains 16-bit per translation unit/object.  Bank 64 starts at
+# logical $10000, which was unreachable with the original 16-bit swapram handle.
 my $wide_bin = File::Spec->catfile($tmp, 'wide.bin');
 my $wide_map = File::Spec->catfile($tmp, 'wide.map');
-my @wide_sources;
+my $wide_c = File::Spec->catfile($tmp, 'wide_main.c26');
+my $wide_keep = File::Spec->catfile($tmp, 'wide_keep.s26');
+my @wide_sources = ($wide_c);
+write_file($wide_c, <<'SRC');
+instantiate "3E/mapper.c26" as mapper (VCS_3E_BANKS:=4)
+bank0 void wide_keepalive(void);
+bank3 void main(void) { wide_keepalive(); while (1) { } }
+SRC
 for my $bank (0 .. 64) {
-   my $wide = File::Spec->catfile($tmp, "wide_$bank.c26");
-   my $body = qq{instantiate "3E/mapper.c26" as mapper (VCS_3E_BANKS:=4)\nswapram uint8_t fill$bank\[1024\];\n};
-   if ($bank == 0) {
-      for my $n (1 .. 64) {
-         $body .= "extern swapram uint8_t fill$n\[1024\];\n";
-      }
-      $body .= "bank3 void main(void) {\n";
-      for my $n (1 .. 64) {
-         $body .= "   asm .word fill$n; asm .byte ^fill$n;\n";
-      }
-      $body .= "   while (1) { }\n}\n";
-   }
-   write_file($wide, $body);
-   push @wide_sources, $wide;
+   my $wide_s = File::Spec->catfile($tmp, "wide_$bank.s26");
+   write_file($wide_s, qq{.export fill$bank\n.segment "BSS.swapram.__vcsc_object\$fill$bank"\nfill$bank:\n    .res 1024\n});
+   push @wide_sources, $wide_s;
 }
+my $keep_asm = ".export wide_keepalive\n";
+for my $bank (0 .. 64) { $keep_asm .= ".import fill$bank\n"; }
+$keep_asm .= ".segment \"CODE.bank0.__vcsc_function\$wide_keepalive\"\nwide_keepalive:\n    rts\n";
+for my $bank (0 .. 64) {
+   $keep_asm .= "    .word fill$bank\n    .byte ^fill$bank\n";
+}
+write_file($wide_keep, $keep_asm);
+push @wide_sources, $wide_keep;
 require_ok('wide swapram allocation link', $vcsc, '-I', $vcs,
            '-Map', $wide_map, '--no-sym', '--no-list', '--no-cfg',
            '-o', $wide_bin, @wide_sources);
 my $wide_text = slurp($wide_map);
-$wide_text =~ /^\s*BSS\.swapram\.__vcsc_object\$fill64 logical=\$10000 swapram-bank=64 swapram-offset=\$0000 size=\$0400(?: phase=unscoped)?$/m
+$wide_text =~ /^\s*BSS\.swapram\.__vcsc_object\$fill64 logical=\$10000 swapram-bank=64 swapram-offset=\$0000 size=\$0400$/m
    or die "swapram allocation did not cross the 64K logical boundary\n$wide_text";
 $wide_text =~ /^\s*swapram\s+used=66560 bytes .* objects=66560 bytes hardware-stack=0 bytes$/m
    or die "swapram usage accounting did not include all 65K of allocated objects\n$wide_text";
+$wide_text =~ /^\s*\$[0-9A-Fa-f]{4}\s+wide_keepalive\b/m
+   or die "wide swapram keepalive code was discarded\n$wide_text";
 
 my @invalid = (
    [ 'bank_size_without_swapram',

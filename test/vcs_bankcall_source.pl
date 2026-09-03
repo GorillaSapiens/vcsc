@@ -173,7 +173,8 @@ index($m3e_s26, 'stx $3F') >= 0 &&
 index($m3e_s26, 'cpx #$FF') >= 0 &&
 index($m3e_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
 index($m3e_s26, 'adc #3') >= 0 &&
-index($m3e_s26, '__vcsc_generic_bankcall_reserved_end = $6050') >= 0 &&
+index($m3e_s26, '__vcsc_generic_bankcall_reserved_end = $6058') >= 0 &&
+index($m3e_s26, 'txa') >= 0 && index($m3e_s26, 'tay') >= 0 &&
 index($m3e_s26, 'software') >= 0 && index($m3e_s26, 'shadow') >= 0 &&
 index($m3e_s26, 'op1C VCSC_BANKCALL_SELECTOR_BASE,x') < 0
    or die "maintained 3E trampoline source lacks value-selector/fixed-sentinel descriptor ABI\n";
@@ -302,10 +303,10 @@ $m3f_header =~ /VCSC_M3F_BANKCALL_RESERVED_SIZE 0x50u/
 $m3f_header =~ /VCSC_M3F_BANKCALL_SELECTOR_PATCH_COUNT 0u/
    or die "3F descriptor trampoline unexpectedly has selector-address patches\n";
 my $m3e_header = read_file($m3e_built);
-$m3e_header =~ /VCSC_M3E_BANKCALL_TEMPLATE_SIZE 0x4Au/
-   or die "3E descriptor trampoline payload is no longer 74 bytes\n";
-$m3e_header =~ /VCSC_M3E_BANKCALL_RESERVED_SIZE 0x50u/
-   or die "3E descriptor trampoline reservation is no longer 80 bytes\n";
+$m3e_header =~ /VCSC_M3E_BANKCALL_TEMPLATE_SIZE 0x57u/
+   or die "3E descriptor trampoline payload is no longer 87 bytes\n";
+$m3e_header =~ /VCSC_M3E_BANKCALL_RESERVED_SIZE 0x58u/
+   or die "3E descriptor trampoline reservation is no longer 88 bytes\n";
 $m3e_header =~ /VCSC_M3E_BANKCALL_SELECTOR_PATCH_COUNT 0u/
    or die "3E descriptor trampoline unexpectedly has selector-address patches\n";
 

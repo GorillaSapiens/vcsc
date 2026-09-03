@@ -9173,6 +9173,29 @@ static void layout_activation_segments(const linker_config_t *cfg, input_set_t *
       uint16_t block_start;
       int changed;
       size_t pass;
+      const memory_region_t *activation_mem = find_memory(cfg, regions[i]);
+
+      /* Swapram has no 16-bit CPU address and cannot participate in the
+         ordinary activation-overlay address arithmetic.  Allocate each
+         function activation piece as a real swapram object instead.  This
+         preserves the 18-bit logical identity/bank-boundary rules and avoids
+         generating ordinary startup ZERO records against a fake CPU address.
+         The 256K pool is intentionally ample; reclaiming swapram activation
+         slots through call-graph overlaying can be added later if worthwhile. */
+      if (activation_mem && activation_mem->swapram) {
+         for (j = 0; j < piece_count; ++j) {
+            activation_piece_t *piece = &pieces[j];
+            uint32_t addr;
+            if (piece->region != (int)i)
+               continue;
+            addr = alloc_from_region_policy(layout, cfg, regions[i],
+               piece->layout->size,
+               piece->layout->component_alignment ? piece->layout->component_alignment : 1,
+               piece->layout, piece->layout->name, piece->obj->origin);
+            set_layout_runtime_address(cfg, piece->layout, regions[i], addr);
+         }
+         continue;
+      }
 
       /* Weighted DAG relaxation: a callee begins after every live caller's
          region-local activation. Siblings therefore share the same bytes. */
@@ -10177,10 +10200,47 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
       different_bank = owner_bank;
    else if (final_bank && final_bank != source_bank)
       different_bank = final_bank;
-   if (!different_bank)
-      return target->address;
 
    control = r->type & O26_RTYPE_CONTROL_MASK;
+
+   /* A JSR followed by .banktarget is a six-byte bankcall instruction, even
+      when source and destination happen to resolve to the same ROM bank.
+      The generic entry advances the stacked return address past the three-byte
+      inline target.  Rewriting a same-bank instance to a plain direct JSR
+      would return into that payload and execute it as opcodes. */
+   if (control == O26_RTYPE_CONTROL_JSR &&
+       jsr_has_inline_bank_target(obj, image_segid, r)) {
+      uint32_t address;
+      if (!final_bank) {
+         fprintf(stderr,
+                 "vcsc-ld: inline-target JSR in %s layout '%s' at $%04X (%s) targets '%s' at $%04X, which does not resolve inside a cartridge bank\n",
+                 obj->origin, source_layout->name, source_address, source_bank->name,
+                 target->name, target->address);
+         exit(1);
+      }
+      if ((r->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) !=
+          O26_RTYPE_WORD) {
+         fprintf(stderr,
+                 "vcsc-ld: inline-target JSR relocation in %s is not a 16-bit operand\n",
+                 obj->origin);
+         exit(1);
+      }
+      if (!layout->bank_generic_jsr_used) {
+         fprintf(stderr,
+                 "vcsc-ld: internal error: inline bank target reached without reserved generic bank-call block\n");
+         exit(1);
+      }
+      address = (uint32_t)source_bank->start + cfg->trampoline_offset;
+      if (address > 0xFFFFu) {
+         fprintf(stderr,
+                 "vcsc-ld: generated generic JSR trampoline address overflow\n");
+         exit(1);
+      }
+      return (uint16_t)address;
+   }
+
+   if (!different_bank)
+      return target->address;
 
    if (c26_topology_is_fe(cfg)) {
       if (control == O26_RTYPE_CONTROL_JSR) {
@@ -10258,18 +10318,6 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
                  "vcsc-ld: direct cross-bank JSR relocation in %s is not a 16-bit operand\n",
                  obj->origin);
          exit(1);
-      }
-      if (jsr_has_inline_bank_target(obj, image_segid, r)) {
-         if (!layout->bank_generic_jsr_used) {
-            fprintf(stderr, "vcsc-ld: internal error: inline bank target reached without reserved generic bank-call block\n");
-            exit(1);
-         }
-         address = (uint32_t)source_bank->start + cfg->trampoline_offset;
-         if (address > 0xFFFFu) {
-            fprintf(stderr, "vcsc-ld: generated generic JSR trampoline address overflow\n");
-            exit(1);
-         }
-         return (uint16_t)address;
       }
       entry = find_or_add_bank_trampoline_entry(layout, cfg, target,
                                                 source_bank, final_bank,

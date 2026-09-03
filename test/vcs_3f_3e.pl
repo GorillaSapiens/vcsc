@@ -90,8 +90,9 @@ for my $c (@cases) {
 
    my $pt=read_file($profile);
    my $param="VCS_${m}_BANKS";
+   my $bridge_offset = $m eq '3E' ? '0x07d8' : '0x07d0';
    $pt =~ /parameter\s+\Q$param\E\s*;/ &&
-   $pt =~ /cartridge\s*\{.*?\$bankcall.*?\$trampoline_offset:0x0780.*?\$vector_bridge_offset:0x07d0/s &&
+   $pt =~ /cartridge\s*\{.*?\$bankcall.*?\$trampoline_offset:0x0780.*?\$vector_bridge_offset:\Q$bridge_offset\E/s &&
    (()=$pt =~ /\bbank\s+bank\d+\s*\{/g)==512 &&
    $pt =~ /#if\s+\Q$param\E\s*>\s*4.*?bank\s+bank3\s*\{.*?\$file_index:3.*?\$link_start:0x1000.*?\$bankcall_descriptor:0x03.*?#elif\s+\Q$param\E\s*==\s*4.*?bank\s+bank3\s*\{.*?\$file_index:3.*?\$cpu_start:0x1800.*?\$startup.*?\$bankcall_descriptor:0xff/s &&
    $pt =~ /#elif\s+\Q$param\E\s*==\s*8.*?bank\s+bank7\s*\{.*?\$file_index:7.*?\$cpu_start:0x1800.*?\$startup.*?\$bankcall_descriptor:0xff/s
@@ -136,10 +137,12 @@ for my $c (@cases) {
       substr($rom,$fb*2048+2040,4) ne "$m\0\0" or die "$m signature duplicated into physical bank $fb\n";
    }
    my $map=read_file($map_path);
+   my $bridge_map = $m eq '3E' ? '7D8' : '7D0';
+   my $trampoline_size = $m eq '3E' ? '058' : '050';
    $map =~ /^\s+bank3\s+file-index=3\b.*cpu=\$1800.*startup=yes/m &&
-   $map =~ /^\s+mapper=C26\s+output-size=\$00002000.*vectorbridge=\$7D0\s+size=\$09/m &&
+   $map =~ /^\s+mapper=C26\s+output-size=\$00002000.*vectorbridge=\$\Q$bridge_map\E\s+size=\$09/m &&
    $map =~ /^TRAMPOLINES$/m &&
-   $map =~ /^\s+common-offset=\$780\s+reserved=\$050\s+used=\$050.*generic-jsr=\$050/m
+   $map =~ /^\s+common-offset=\$780\s+reserved=\$\Q$trampoline_size\E\s+used=\$\Q$trampoline_size\E.*generic-jsr=\$\Q$trampoline_size\E/m
       or die "$m map lost fixed-final descriptor-bankcall/zero-entry topology\n";
    for my $i (0..2) { map_symbol($map,"bank${i}_probe"); }
    my %sym=map { $_=>map_symbol($map,$_) } qw(simulator_done failure call_count);

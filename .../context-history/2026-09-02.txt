@@ -209,3 +209,25 @@ still regenerated its comparison header with the pre-3E mapper set. Updated the
 regression to include 3E, require its entry fragment to be empty like 3F, use
 the M3E generated name, and assert vcsc_m3e_entry_size=0. The previously failing
 mapper-entry source regression now passes against a freshly regenerated header.
+
+2026-09-02 21:08:47 PDT, complete 3E swapram acceptance matrix
+Completed the broad 3E swapram acceptance step. Added `vcs_3e_swapram_acceptance.pl`
+covering 1/2/3/4-byte signed, unsigned, and BCD objects from lower and fixed ROM
+callers; runtime indexing; compound/inc-dec operations; automatic-local swapram;
+constant, zero, runtime-expression, and static-local initialization; and helper
+startup-bank placement. The matrix exposed and fixed three integration defects:
+automatic-local swapram had fallen through the ordinary activation-overlay path;
+lower->fixed bankreturn could resume through the RAM-mapped lower window; and a
+`.banktarget` call resolving to the same physical bank could incorrectly use a
+plain JSR and return into the inline payload. The 3E descriptor corridor is now
+$0058.
+
+Global/static swapram initialization now runs through the mapper helpers instead
+of impossible ordinary DATA/BSS CPU copies. Added private fixed-bank
+`swapram_zero` startup machinery so a zeroed object up to the 1K object/bank limit
+is cleared with one compact helper call rather than hundreds of scalar writes; a
+1K BSS object is covered by the acceptance regression. Kept the >64K allocation
+regression focused on linker placement by defining its 65 x 1K objects in separate
+assembly objects, preserving the documented per-object O26 64K packed namespace
+without manufacturing 65 startup initializer functions. Existing swapram helper,
+lvalue, metadata, and 3F/3E diagnostics remain green.

@@ -106,8 +106,10 @@ with `3e_`. It exports byte-counted internal entry points:
 
 All routines, tails, and local helpers they execute while RAM is selected are
 forced into mapper `$startup`/fixed ROM. Reads select via `$3E` and use
-`$1000-$13FF`; writes use `$1400-$17FF`. They move raw bytes only; no block-copy
-API is needed. The driver auto-assembles/links this helper object only for 3E
+`$1000-$13FF`; writes use `$1400-$17FF`. They move raw bytes only; no public
+block-copy API is needed. A private `swapram_zero` startup helper zeroes one
+linker-placed object (up to one 1K bank) without generating hundreds of scalar
+writes; it exists only to implement C zero-initialization efficiently. The driver auto-assembles/links this helper object only for 3E
 links that reference swapram access entry points; installed toolchains locate it
 next to the installed 3E profiles. A focused simulator regression exercises all
 four widths, including RAM bank 255, and asserts the whole helper block is pinned
@@ -148,11 +150,12 @@ Use the settled 3F mechanism as the 3E ROM-call foundation:
 
 Unfinished implementation / acceptance
 --------------------------------------
-[ ] Regression-test 1/2/3/4-byte int/uint/bcd reads and writes, lower-bank and
+[x] Regression-test 1/2/3/4-byte int/uint/bcd reads and writes, lower-bank and
     fixed-bank callers, arrays/runtime indexing, DATA/BSS/runtime initialization,
-    compound assignment, increment/decrement, and bank-boundary allocation. Add
-    a map/symbol placement assertion proving every swapram entry point and any
-    code it executes while RAM is selected resides in the `$startup` bank.
+    compound assignment, increment/decrement, and bank-boundary allocation. The
+    acceptance matrix also covers automatic-local swapram, 1K zero-initialized
+    BSS via the private fixed-bank `swapram_zero` helper, and map placement of
+    every helper executed while RAM is selected.
 
 [ ] Prove the critical restoration sequence from several lower banks:
 
@@ -173,8 +176,7 @@ Unfinished implementation / acceptance
 
 Immediate next step
 -------------------
-Expand swapram acceptance across the full 1/2/3/4-byte int/uint/bcd surface,
-lower- and fixed-bank callers, runtime indexing, initialization, compound
-operations, and bank-boundary placement. Keep the map/symbol assertion that the
-byte movers and every instruction executed while RAM is selected remain in the
-startup/fixed bank.
+Prove the critical restoration sequence from several lower banks, including
+lower ROM N -> fixed swapram helper -> RAM R -> return/restored ROM N, plus the
+fixed -> swapram -> lower-ROM case where a later bankcall must replace the RAM
+window with its ROM destination before executing there.

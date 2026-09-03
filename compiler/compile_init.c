@@ -35,6 +35,7 @@ typedef struct PendingGlobalInit {
    int size;
    bool is_zeropage;
    bool is_absolute_ref;
+   bool is_swapram;
    const char *read_expr;
    const char *write_expr;
 } PendingGlobalInit;
@@ -935,7 +936,7 @@ void emit_sink_append(EmitSink *dst, const EmitSink *src) {
 }
 
 //! @brief Add pending global init to compiler initializer lowering state, growing storage or preserving uniqueness as needed.
-void remember_pending_global_init(const char *name, const char *symbol, const ASTNode *type, const ASTNode *declarator, ASTNode *expression, int size, bool is_zeropage, bool is_absolute_ref, const char *read_expr, const char *write_expr) {
+void remember_pending_global_init(const char *name, const char *symbol, const ASTNode *type, const ASTNode *declarator, ASTNode *expression, int size, bool is_zeropage, bool is_absolute_ref, bool is_swapram, const char *read_expr, const char *write_expr) {
    PendingGlobalInit *items;
    PendingGlobalInit *entry;
 
@@ -955,11 +956,15 @@ void remember_pending_global_init(const char *name, const char *symbol, const AS
    entry->size = size;
    entry->is_zeropage = is_zeropage;
    entry->is_absolute_ref = is_absolute_ref;
+   entry->is_swapram = is_swapram;
    entry->read_expr = read_expr ? strdup(read_expr) : NULL;
    entry->write_expr = write_expr ? strdup(write_expr) : NULL;
 
-   if (size > pending_global_init_max_size) {
-      pending_global_init_max_size = size;
+   {
+      int scratch_need = (!expression && is_swapram) ? 1 : size;
+      if (scratch_need > pending_global_init_max_size) {
+         pending_global_init_max_size = scratch_need;
+      }
    }
 }
 
@@ -987,6 +992,40 @@ static const char *runtime_global_init_symbol(void) {
       runtime_global_init_symbol_ready = true;
    }
    return runtime_global_init_symbol_buf;
+}
+
+//! @brief Copy staged initializer bytes into one linker-placed swapram symbol.
+static void emit_copy_scratch_to_swapram_symbol(const char *symbol, int src_offset, int size) {
+   int done = 0;
+   while (done < size) {
+      int chunk = size - done;
+      char helper[32];
+      if (chunk > 4) chunk = 4;
+      emit_load_address_to_ptr(2, compiler_scratch_active_symbol(), src_offset + done);
+      emit_load_address_to_ptr(1, symbol, done);
+      emit(&es_code, "    lda #^{%s + %d}\n", symbol, done);
+      emit(&es_code, "    sta arg0\n");
+      snprintf(helper, sizeof(helper), "swapram_write%d", chunk);
+      remember_symbol_import(helper);
+      emit(&es_code, "    jsr %s\n", helper);
+      emit(&es_code, "    .banktarget %s\n", helper);
+      done += chunk;
+   }
+}
+
+//! @brief Zero one linker-placed swapram object without staging its bytes in RIOT RAM.
+static void emit_zero_swapram_symbol(const char *symbol, int size) {
+   if (!symbol || size <= 0) return;
+   emit_load_address_to_ptr(1, symbol, 0);
+   emit(&es_code, "    lda #^{%s + 0}\n", symbol);
+   emit(&es_code, "    sta arg0\n");
+   emit(&es_code, "    lda #<%d\n", size);
+   emit(&es_code, "    sta ptr2\n");
+   emit(&es_code, "    lda #>%d\n", size);
+   emit(&es_code, "    sta ptr2+1\n");
+   remember_symbol_import("swapram_zero");
+   emit(&es_code, "    jsr swapram_zero\n");
+   emit(&es_code, "    .banktarget swapram_zero\n");
 }
 
 //! @brief Emit runtime global init function for compiler initializer lowering diagnostics or output files.
@@ -1022,13 +1061,23 @@ void emit_runtime_global_init_function(void) {
       PendingGlobalInit *entry = &pending_global_inits[i];
 
       if (entry->size > 0) {
-         emit_fill_scratch_bytes(0, 0, entry->size, 0x00);
+         emit_fill_scratch_bytes(0, 0, (!entry->expression && entry->is_swapram) ? 1 : entry->size, 0x00);
       }
-      if (!compile_initializer_to_scratch(entry->expression, &ctx, entry->type, entry->declarator, 0, entry->size)) {
+      if (entry->expression &&
+          !compile_initializer_to_scratch(entry->expression, &ctx, entry->type, entry->declarator, 0, entry->size)) {
          error_user("[%s:%d.%d] invalid runtime global initializer for '%s'",
                entry->expression->file, entry->expression->line, entry->expression->column, entry->name);
       }
-      if (entry->is_absolute_ref) {
+      if (entry->is_swapram) {
+         if (!entry->symbol) {
+            error_unreachable("missing runtime swapram initializer symbol for '%s'", entry->name);
+         }
+         if (entry->expression)
+            emit_copy_scratch_to_swapram_symbol(entry->symbol, 0, entry->size);
+         else
+            emit_zero_swapram_symbol(entry->symbol, entry->size);
+      }
+      else if (entry->is_absolute_ref) {
          LValueRef lv = { .name = entry->name, .type = entry->type, .declarator = entry->declarator, .base_type = entry->type, .base_declarator = entry->declarator, .is_static = false, .is_zeropage = false, .is_global = true, .is_ref = true, .is_absolute_ref = true, .read_expr = entry->read_expr, .write_expr = entry->write_expr, .offset = 0, .size = entry->size };
          if (!emit_copy_scratch_to_lvalue(&ctx, &lv, 0, entry->size)) {
             error_user("[%s:%d.%d] could not store runtime initializer for absolute external binding '%s'",

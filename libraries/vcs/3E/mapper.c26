@@ -22,8 +22,8 @@ include "vcs.c26"
 cartridge {
    $bankcall
    $fill:0xff $signature:3E
-   $trampoline_offset:0x0780 $trampoline_size:0x0050
-   $vector_bridge_offset:0x07d0 $vector_bridge_size:0x0012
+   $trampoline_offset:0x0780 $trampoline_size:0x0058
+   $vector_bridge_offset:0x07d8 $vector_bridge_size:0x0012
    $vectors_offset:0x07fa $vectors_size:0x0006
 };
 

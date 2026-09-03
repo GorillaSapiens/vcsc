@@ -27,7 +27,7 @@ bool emit_global_initializer(EmitSink *sink, const ASTNode *type, const ASTNode 
 void emit_sink_append(EmitSink *dst, const EmitSink *src);
 void remember_pending_global_init(const char *name, const char *symbol, const ASTNode *type, const ASTNode *declarator,
                                   ASTNode *expression, int size, bool is_zeropage, bool is_absolute_ref,
-                                  const char *read_expr, const char *write_expr);
+                                  bool is_swapram, const char *read_expr, const char *write_expr);
 void emit_runtime_global_init_function(void);
 bool compile_initializer_to_scratch(const ASTNode *init, Context *ctx, const ASTNode *type, const ASTNode *declarator,
                                int base_offset, int total_size);

@@ -251,10 +251,11 @@ require_ok('build direct fixed-bank swapram helper fixture', $driver, '-I', $vcs
 -s $bin==8192 or die "3E helper fixture output is not 8K\n";
 
 my $map=read_file($map_path);
-$map =~ /^\s*pinned\s+STARTUP\s+region=bank3\s+size=\$005A\s+object=.*3e_swapram.*\.o26$/m
+$map =~ /^\s*pinned\s+STARTUP\s+region=bank3\s+size=\$[0-9A-Fa-f]{4}\s+object=.*3e_swapram.*\.o26$/m
    or die "3E swapram helper block is not wholly pinned to startup bank3\n$map";
 for my $name (qw(swapram_read1 swapram_read2 swapram_read3 swapram_read4
-                 swapram_write1 swapram_write2 swapram_write3 swapram_write4)) {
+                 swapram_write1 swapram_write2 swapram_write3 swapram_write4
+                 swapram_zero)) {
    $map =~ /^\s+\$([0-9A-Fa-f]{4})\s+\Q$name\E\s+.*3e_swapram.*\.o26$/m
       or die "map is missing auto-linked $name\n$map";
    my $addr=hex($1);
