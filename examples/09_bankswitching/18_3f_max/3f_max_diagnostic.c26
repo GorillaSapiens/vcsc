@@ -8,7 +8,7 @@ instantiate "3F/mapper.c26" as mapper (VCS_3F_BANKS:=256)
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"
 include "fonts/default_decimal.c26"
-instantiate "six_glyph_big_wide_component.c26" as status_result
+instantiate "six_glyph_big_wide_component.c26" as status_result (external_pointers:=1)
 instantiate "six_glyph_component.c26" as cart_type (compact_font:=0, external_pointers:=1)
 #endif
 
@@ -18,6 +18,15 @@ uint8_t expected_source;
 uint8_t expected_dest;
 uint8_t source_sp;
 uint8_t fixed_sp;
+uint8_t torture_done;
+uint8_t torture_batch;
+uint8_t step_remaining;
+uint8_t spinner_index;
+#ifndef SIMULATOR_TEST
+uint8_t spinner_frame;
+#else
+uint16_t status_result_pointers[6];
+#endif
 
 // Runtime-patched copies of the normal 3-byte inline bankcall ABI. Keeping
 // these seven-byte call sites in RIOT RAM lets every 2K source bank execute a
@@ -26,44 +35,18 @@ uint8_t lower_stub[7];
 uint8_t lower_fixed_stub[7];
 uint8_t fixed_stub[7];
 
+bank255 extern void init_3f_max_torture(void);
+bank255 extern void step_3f_max_torture(void);
 bank255 extern void run_3f_max_torture(void);
 
 #ifndef SIMULATOR_TEST
-include "status_font.c26"
-
-inline void load_pass(void) {
-   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+0;
-   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+1;
-   asm lda #<{status_glyphs + 16};  asm sta status_result_pointers+2;
-   asm lda #>{status_glyphs + 16};  asm sta status_result_pointers+3;
-   asm lda #<{status_glyphs + 32};  asm sta status_result_pointers+4;
-   asm lda #>{status_glyphs + 32};  asm sta status_result_pointers+5;
-   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+6;
-   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+7;
-   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+8;
-   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+9;
-   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+10;
-   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+11;
-}
-
-inline void load_fail(void) {
-   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+0;
-   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+1;
-   asm lda #<{status_glyphs + 64};   asm sta status_result_pointers+2;
-   asm lda #>{status_glyphs + 64};   asm sta status_result_pointers+3;
-   asm lda #<{status_glyphs + 80};   asm sta status_result_pointers+4;
-   asm lda #>{status_glyphs + 80};   asm sta status_result_pointers+5;
-   asm lda #<{status_glyphs + 96};   asm sta status_result_pointers+6;
-   asm lda #>{status_glyphs + 96};   asm sta status_result_pointers+7;
-   asm lda #<{status_glyphs + 112};  asm sta status_result_pointers+8;
-   asm lda #>{status_glyphs + 112};  asm sta status_result_pointers+9;
-   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+10;
-   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+11;
-}
+bank253 extern void load_wait(void);
+bank254 extern void load_pass(void);
+bank254 extern void load_fail(void);
 
 include "cart_type_font.c26"
 
-inline void load_mapper_type(void) {
+bank255 void load_mapper_type(void) {
    // "3F max"
    asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+0;
    asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+1;
@@ -79,10 +62,55 @@ inline void load_mapper_type(void) {
    asm lda #>{cart_type_glyphs + 40}; asm sta cart_type_pointers+11;
 }
 
-bank255 void draw_result(void) {
-   status_result_score := 0;
+bank255 void draw_wait(void) {
    status_result_init();
    cart_type_init();
+   spinner_frame := 0;
+   spinner_index := 0;
+
+   while (!torture_done) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      status_result_vblank();
+      cart_type_vblank();
+
+      // Keep the torture work inside scheduler-owned blank time.  The lower
+      // matrix is resumable, so no batch is allowed to steal visible lines.
+      torture_batch := 10;
+      step_3f_max_torture();
+
+      load_wait();
+      load_mapper_type();
+      status_result_color := 0x0E;
+      COLUBK := 0x84; // Same blue as 01_basic/01_blank_screen.
+      COLUP0 := 0x0E; COLUP1 := 0x0E;
+      PF0 := 0; PF1 := 0; PF2 := 0; GRP0 := 0; GRP1 := 0;
+      ENAM0 := 0; ENAM1 := 0; ENABL := 0; CTRLPF := 0;
+      vcs_ntsc_end_vblank();
+
+      vcs_ntsc_wait_component_scanlines(81);
+      status_result_draw();
+      vcs_ntsc_component_handoff();
+      cart_type_draw();
+      vcs_ntsc_wait_visible_tail_scanlines(81);
+
+      vcs_ntsc_begin_overscan();
+      torture_batch := 8;
+      step_3f_max_torture();
+
+      spinner_frame++;
+      if (spinner_frame == 15) {
+         spinner_frame := 0;
+         spinner_index++;
+         if (spinner_index == 4) { spinner_index := 0; }
+      }
+      status_result_overscan();
+      cart_type_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}
+
+bank255 void draw_result(void) {
    while (1) {
       vcs_ntsc_vsync();
       vcs_ntsc_begin_vblank();
@@ -114,12 +142,12 @@ bank255 void simulator_done(void) { while (1) { } }
 #endif
 
 bank255 void main(void) {
-   failure := 0;
-   torture_count := 0;
-   run_3f_max_torture();
 #ifdef SIMULATOR_TEST
+   run_3f_max_torture();
    asm jmp simulator_done;
 #else
+   init_3f_max_torture();
+   draw_wait();
    draw_result();
 #endif
 }

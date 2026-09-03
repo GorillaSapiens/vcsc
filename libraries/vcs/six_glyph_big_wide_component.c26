@@ -30,6 +30,15 @@ parameter glyph_rows := 16;
 // Override to zero for targets that require BSS-only startup; the default keeps
 // the historical mutable color and generated output unchanged.
 parameter initial_color := 0x0e;
+// Set to one when the application owns all six glyph pointers. This mirrors
+// six_glyph_component.c26 and suppresses the packed-BCD pointer preparation.
+parameter external_pointers := 0;
+
+#if TEMPLATE_external_pointers
+alias TEMPLATE_VBLANK_MAX_CYCLES_VALUE 0
+#else
+alias TEMPLATE_VBLANK_MAX_CYCLES_VALUE 260
+#endif
 
 #if TEMPLATE_glyph_rows == 1
 alias TEMPLATE_VISIBLE_SCANLINES_VALUE 4
@@ -77,7 +86,7 @@ enum TEMPLATE_contract {
    TEMPLATE_DRAW_TERMINAL_WSYNC := 1,
    TEMPLATE_DRAW_HMOVE_COUNT := 1,
    TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE := 1,
-   TEMPLATE_VBLANK_MAX_CYCLES := 260,
+   TEMPLATE_VBLANK_MAX_CYCLES := TEMPLATE_VBLANK_MAX_CYCLES_VALUE,
    TEMPLATE_OVERSCAN_MAX_CYCLES := 0,
    TEMPLATE_GLYPH_ORIGIN_0 := 36,
    TEMPLATE_GLYPH_ORIGIN_1 := 52,
@@ -90,13 +99,15 @@ enum TEMPLATE_contract {
    TEMPLATE_GLYPH_ORIGIN_PITCH := 16
 };
 
+#if !TEMPLATE_external_pointers
 recommend bcd24_t TEMPLATE_score := 0;
+#endif
 uint16_t TEMPLATE_pointers[6];
 uint8_t TEMPLATE_row;
 uint8_t TEMPLATE_delayed;
 recommend uint8_t TEMPLATE_color := TEMPLATE_initial_color;
 
-#if TEMPLATE_glyph_rows != 16
+#if !TEMPLATE_external_pointers && TEMPLATE_glyph_rows != 16
 // Non-native-height score fonts are tightly packed: digit N starts at
 // N*glyph_rows. Native-height instantiations omit this table and retain their
 // established pointer-generation code byte-for-byte.
@@ -114,6 +125,7 @@ const uint8_t TEMPLATE_glyph_offsets[10] := {
 };
 #endif
 
+#if !TEMPLATE_external_pointers
 static inline void TEMPLATE_prepare_pointers(void) {
    // Build six complete pointers in human digit order. A big glyph occupies
    // sixteen bytes, so the high packed-BCD nibble is already digit*16 and the
@@ -226,13 +238,18 @@ static inline void TEMPLATE_prepare_pointers(void) {
    asm adc #0;
    asm sta TEMPLATE_pointers+11;
 }
+#endif
 
 require inline void TEMPLATE_init(void) {
+#if !TEMPLATE_external_pointers
    TEMPLATE_prepare_pointers();
+#endif
 }
 
 require inline void TEMPLATE_vblank(void) {
+#if !TEMPLATE_external_pointers
    TEMPLATE_prepare_pointers();
+#endif
 }
 
 require inline void TEMPLATE_draw(void) {

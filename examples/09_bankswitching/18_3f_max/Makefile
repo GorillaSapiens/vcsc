@@ -7,8 +7,11 @@ FONT_SUBSET_TOOL := $(VCS_DIR)/fonts/make_font_subset.pl
 BIG_FONT := $(VCS_DIR)/fonts/big_ascii.c26
 SMALL_FONT := $(VCS_DIR)/fonts/default_ascii.c26
 FONT_SUBSET_DIR ?= .
-COMMITTED_FONT_SUBSETS := status_font.c26 cart_type_font.c26
-FONT_SUBSET_FLAGS := --license examples/LICENSE.txt --bank bank255
+COMMITTED_FONT_SUBSETS := status_font.c26 wait_font.c26 cart_type_font.c26
+COMMON_FONT_FLAGS := --license examples/LICENSE.txt --no-page
+STATUS_FONT_FLAGS := $(COMMON_FONT_FLAGS) --bank bank254
+WAIT_FONT_FLAGS := $(COMMON_FONT_FLAGS) --bank bank253
+CART_FONT_FLAGS := $(COMMON_FONT_FLAGS) --bank bank255
 SOURCE := 3f_max_diagnostic.c26
 TORTURE := $(sort $(wildcard 3f_max_torture_*.s26))
 TARGET := 3f_max_diagnostic.bin
@@ -19,8 +22,10 @@ $(TARGET): $(SOURCE) $(TORTURE) $(COMMITTED_FONT_SUBSETS)
 	$(VCSC) -I $(VCS_DIR) -Map 3f_max_diagnostic.map $(SOURCE) $(TORTURE) -o $@
 
 fonts:
-	$(PERL) $(FONT_SUBSET_TOOL) $(FONT_SUBSET_FLAGS) $(BIG_FONT) $(FONT_SUBSET_DIR)/status_font.c26 status_glyphs ' pasFAIL'
-	$(PERL) $(FONT_SUBSET_TOOL) $(FONT_SUBSET_FLAGS) $(SMALL_FONT) $(FONT_SUBSET_DIR)/cart_type_font.c26 cart_type_glyphs '3F max'
+	$(PERL) $(FONT_SUBSET_TOOL) $(STATUS_FONT_FLAGS) $(BIG_FONT) $(FONT_SUBSET_DIR)/status_font.c26 status_glyphs ' pasFAIL'
+	$(PERL) $(FONT_SUBSET_TOOL) $(WAIT_FONT_FLAGS) $(BIG_FONT) $(FONT_SUBSET_DIR)/wait_font.c26 wait_glyphs ' wait/-\|'
+	$(PERL) $(FONT_SUBSET_TOOL) $(CART_FONT_FLAGS) $(SMALL_FONT) $(FONT_SUBSET_DIR)/cart_type_font.c26 cart_type_glyphs '3F max'
+	$(PERL) ./make_torture.pl
 
 torture:
 	$(PERL) ./make_torture.pl

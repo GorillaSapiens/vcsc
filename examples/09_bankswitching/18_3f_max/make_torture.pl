@@ -6,6 +6,7 @@ use FindBin qw($Bin);
 
 my $lower_banks = 255;
 my $banks_per_object = 32; # O26 CODE offsets are 16-bit; 32 x 2K fits exactly.
+my (@wait_font_bytes, @status_font_bytes);
 
 sub generated_header {
    my ($fh, $detail) = @_;
@@ -24,8 +25,6 @@ sub emit_bank {
    printf {$fh} "bank%d_source:\n", $bank;
    print  {$fh} "    tsx\n";
    print  {$fh} "    stx source_sp\n";
-   print  {$fh} "    lda #0\n";
-   print  {$fh} "    sta expected_dest\n";
    printf {$fh} "bank%d_dest_loop:\n", $bank;
    print  {$fh} "    lda expected_dest\n";
    printf {$fh} "    cmp #\$%02X\n", $bank;
@@ -50,8 +49,12 @@ sub emit_bank {
    print  {$fh} "    inc expected_dest\n";
    print  {$fh} "    lda expected_dest\n";
    print  {$fh} "    cmp #\$FF\n";
+   printf {$fh} "    beq.same bank%d_source_done\n", $bank;
+   print  {$fh} "    dec step_remaining\n";
    printf {$fh} "    bne.same bank%d_dest_loop\n", $bank;
+   printf {$fh} "    jmp bank%d_step_done\n", $bank;
 
+   printf {$fh} "bank%d_source_done:\n", $bank;
    print  {$fh} "    jsr lower_fixed_stub\n";
    printf {$fh} "    lda #\$%02X\n", $bank;
    print  {$fh} "    cmp expected_source\n";
@@ -60,6 +63,7 @@ sub emit_bank {
    print  {$fh} "    sta failure\n";
    printf {$fh} "bank%d_fixed_restored:\n", $bank;
 
+   printf {$fh} "bank%d_step_done:\n", $bank;
    print  {$fh} "    tsx\n";
    print  {$fh} "    cpx source_sp\n";
    printf {$fh} "    beq.same bank%d_source_stack_ok\n", $bank;
@@ -69,8 +73,8 @@ sub emit_bank {
    print  {$fh} "    rts\n";
 
    # Every target is at the same CPU address. The segment starts at $1000 and
-   # this alignment pins the target to $1060 in every lower physical bank.
-   print  {$fh} "    .align 32\n";
+   # this alignment pins the target to $1100 in every lower physical bank.
+   print  {$fh} "    .align 256\n";
    printf {$fh} "bank%d_target:\n", $bank;
    print  {$fh} "    lda expected_dest\n";
    printf {$fh} "    cmp #\$%02X\n", $bank;
@@ -88,8 +92,140 @@ sub emit_bank {
       printf {$fh} "bank%d_link_root:\n", $bank;
       print {$fh} "    rts\n";
    }
+
+   if ($bank == 253) {
+      print {$fh} "    .align 256\nwait_glyphs:\n";
+      emit_bytes($fh, \@wait_font_bytes);
+      print {$fh} <<'WAIT_LOADER';
+load_wait:
+    lda #<{wait_glyphs + 16}
+    sta status_result_pointers+0
+    lda #>{wait_glyphs + 16}
+    sta status_result_pointers+1
+    lda #<{wait_glyphs + 32}
+    sta status_result_pointers+2
+    lda #>{wait_glyphs + 32}
+    sta status_result_pointers+3
+    lda #<{wait_glyphs + 48}
+    sta status_result_pointers+4
+    lda #>{wait_glyphs + 48}
+    sta status_result_pointers+5
+    lda #<{wait_glyphs + 64}
+    sta status_result_pointers+6
+    lda #>{wait_glyphs + 64}
+    sta status_result_pointers+7
+    lda #<wait_glyphs
+    sta status_result_pointers+8
+    lda #>wait_glyphs
+    sta status_result_pointers+9
+    lda spinner_index
+    asl
+    asl
+    asl
+    asl
+    clc
+    adc #<{wait_glyphs + 80}
+    sta status_result_pointers+10
+    lda #>{wait_glyphs + 80}
+    adc #0
+    sta status_result_pointers+11
+    rts
+WAIT_LOADER
+   } elsif ($bank == 254) {
+      print {$fh} "    .align 256\nstatus_glyphs:\n";
+      emit_bytes($fh, \@status_font_bytes);
+      print {$fh} <<'STATUS_LOADERS';
+load_pass:
+    lda #<{status_glyphs + 16}
+    sta status_result_pointers+0
+    lda #>{status_glyphs + 16}
+    sta status_result_pointers+1
+    lda #<{status_glyphs + 32}
+    sta status_result_pointers+2
+    lda #>{status_glyphs + 32}
+    sta status_result_pointers+3
+    lda #<{status_glyphs + 48}
+    sta status_result_pointers+4
+    lda #>{status_glyphs + 48}
+    sta status_result_pointers+5
+    lda #<{status_glyphs + 48}
+    sta status_result_pointers+6
+    lda #>{status_glyphs + 48}
+    sta status_result_pointers+7
+    lda #<status_glyphs
+    sta status_result_pointers+8
+    lda #>status_glyphs
+    sta status_result_pointers+9
+    lda #<status_glyphs
+    sta status_result_pointers+10
+    lda #>status_glyphs
+    sta status_result_pointers+11
+    rts
+
+load_fail:
+    lda #<status_glyphs
+    sta status_result_pointers+0
+    lda #>status_glyphs
+    sta status_result_pointers+1
+    lda #<{status_glyphs + 64}
+    sta status_result_pointers+2
+    lda #>{status_glyphs + 64}
+    sta status_result_pointers+3
+    lda #<{status_glyphs + 80}
+    sta status_result_pointers+4
+    lda #>{status_glyphs + 80}
+    sta status_result_pointers+5
+    lda #<{status_glyphs + 96}
+    sta status_result_pointers+6
+    lda #>{status_glyphs + 96}
+    sta status_result_pointers+7
+    lda #<{status_glyphs + 112}
+    sta status_result_pointers+8
+    lda #>{status_glyphs + 112}
+    sta status_result_pointers+9
+    lda #<status_glyphs
+    sta status_result_pointers+10
+    lda #>status_glyphs
+    sta status_result_pointers+11
+    rts
+STATUS_LOADERS
+   }
    print {$fh} "\n";
 }
+
+sub read_subset_bytes {
+   my ($path, $expected_bytes) = @_;
+   open my $fh, '<', $path or die "$0: cannot read $path: $!\n";
+   my @rows;
+   while (my $line = <$fh>) {
+      push @rows, $1 if $line =~ /0b([.X01]{8})/;
+   }
+   close $fh;
+   @rows % 16 == 0 or die "$0: $path does not contain 16-row glyphs\n";
+   my @bytes;
+   while (@rows) {
+      my @glyph = splice @rows, 0, 16;
+      for my $row (reverse @glyph) {
+         $row =~ tr/.X/01/;
+         push @bytes, oct("0b$row");
+      }
+   }
+   @bytes == $expected_bytes
+      or die "$0: $path contains " . scalar(@bytes) . " bytes; expected $expected_bytes\n";
+   return @bytes;
+}
+
+sub emit_bytes {
+   my ($fh, $bytes) = @_;
+   for (my $i = 0; $i < @$bytes; $i += 16) {
+      my $last = $i + 15;
+      $last = $#$bytes if $last > $#$bytes;
+      print {$fh} "    .byte ", join(', ', map { sprintf '$%02X', $_ } @$bytes[$i .. $last]), "\n";
+   }
+}
+
+@wait_font_bytes = read_subset_bytes("$Bin/wait_font.c26", 144);
+@status_font_bytes = read_subset_bytes("$Bin/status_font.c26", 128);
 
 # Split lower banks into independent assembler objects because an O26 object's
 # packed CODE namespace uses 16-bit offsets. This is an object-format concern,
@@ -101,10 +237,14 @@ for (my $first = 0; $first < $lower_banks; $first += $banks_per_object) {
    my $path = sprintf "%s/3f_max_torture_%02d.s26", $Bin, $chunk++;
    open my $fh, '>', $path or die "$0: cannot write $path: $!\n";
    generated_header($fh, "This object contains lower banks $first through $last.");
-   print {$fh} ".import failure, torture_count, expected_source, expected_dest, source_sp\n";
+   print {$fh} ".import failure, torture_count, expected_source, expected_dest, source_sp, step_remaining\n";
    print {$fh} ".import lower_stub, lower_fixed_stub\n";
+   if ($first <= 254 && $last >= 253) {
+      print {$fh} ".import status_result_pointers, spinner_index\n";
+      print {$fh} ".export load_wait, load_pass, load_fail\n";
+   }
    if ($first == 0) {
-      print {$fh} ".export bank0_source, bank0_target, bank0_link_root\n";
+      print {$fh} ".export bank0_link_root\n";
    } else {
       printf {$fh} ".export bank%d_link_root\n", $first;
    }
@@ -117,11 +257,13 @@ my $fixed_path = "$Bin/3f_max_torture_fixed.s26";
 open my $fixed, '>', $fixed_path or die "$0: cannot write $fixed_path: $!\n";
 generated_header($fixed, "This object contains the fixed-bank scheduler.");
 print {$fixed} ".import failure, torture_count, expected_source, expected_dest, fixed_sp\n";
+print {$fixed} ".import torture_done, torture_batch, step_remaining\n";
 print {$fixed} ".import lower_stub, lower_fixed_stub, fixed_stub\n";
 for (my $first = 0; $first < $lower_banks; $first += $banks_per_object) {
    printf {$fixed} ".import bank%d_link_root\n", $first;
 }
-print {$fixed} ".importzp _vcsc_ptr0\n.export run_3f_max_torture\n\n.segment \"CODE.bank255\"\n\n";
+print {$fixed} ".importzp _vcsc_ptr0\n";
+print {$fixed} ".export init_3f_max_torture, step_3f_max_torture, run_3f_max_torture\n\n.segment \"CODE.bank255\"\n\n";
 
 print {$fixed} <<'FIXED';
 
@@ -132,11 +274,14 @@ fixed_probe:
 fixed_probe_count_ok:
     rts
 
-run_3f_max_torture:
+init_3f_max_torture:
     lda #0
     sta failure
     sta torture_count
     sta torture_count+1
+    sta expected_source
+    sta expected_dest
+    sta torture_done
 
     ; Force the generic bankcall scratch object into the link so every replicated
     ; trampoline is patched to the actual _vcsc_ptr0 address.
@@ -149,9 +294,9 @@ run_3f_max_torture:
     sta lower_stub+1
     lda #>$1780
     sta lower_stub+2
-    lda #<$1060
+    lda #<$1100
     sta lower_stub+3
-    lda #>$1060
+    lda #>$1100
     sta lower_stub+4
     lda #0
     sta lower_stub+5
@@ -174,49 +319,75 @@ run_3f_max_torture:
     lda #$60
     sta lower_fixed_stub+6
 
-    ; fixed_stub uses the fixed bank's trampoline and targets common lower $1060.
+    ; fixed_stub uses the fixed bank's trampoline and targets common lower $1100.
     lda #$20
     sta fixed_stub
     lda #<$1f80
     sta fixed_stub+1
     lda #>$1f80
     sta fixed_stub+2
-    lda #<$1060
+    lda #<$1100
     sta fixed_stub+3
-    lda #>$1060
+    lda #>$1100
     sta fixed_stub+4
     lda #0
     sta fixed_stub+5
     lda #$60
     sta fixed_stub+6
+    rts
 
-    ; Run every selectable physical bank as a source. The return address for
-    ; this direct JSR is permanently visible in fixed $1800-$1FFF.
-    lda #0
-    sta expected_source
-fixed_source_loop:
+; Execute at most torture_batch target calls, then return to the frame loop.
+; Lower-bank state lives in expected_source/expected_dest.  $ff source means
+; the lower-bank matrix is complete and the fixed->lower sweep is in progress.
+step_3f_max_torture:
+    lda torture_done
+    bne.same step_return
+
+    lda expected_source
+    cmp #$ff
+    beq.same fixed_phase
+
+    lda torture_batch
+    sta step_remaining
     lda expected_source
     sta $3f
     jsr $1000
-    inc expected_source
-    lda expected_source
+    lda expected_dest
     cmp #$ff
-    bne.same fixed_source_loop
-
-    ; Explicitly exercise fixed/startup -> every lower bank through the generic
-    ; descriptor trampoline as well.
-    tsx
-    stx fixed_sp
+    bne.same step_return
     lda #0
     sta expected_dest
+    inc expected_source
+step_return:
+    rts
+
+fixed_phase:
+    tsx
+    stx fixed_sp
+    lda torture_batch
+    sta step_remaining
 fixed_dest_loop:
     lda expected_dest
+    cmp #$ff
+    beq.same fixed_done
     sta fixed_stub+5
     jsr fixed_stub
     inc expected_dest
     lda expected_dest
     cmp #$ff
+    beq.same fixed_done
+    dec step_remaining
     bne.same fixed_dest_loop
+
+fixed_step_return:
+    tsx
+    cpx fixed_sp
+    beq.same step_return
+    lda #$05
+    sta failure
+    rts
+
+fixed_done:
     tsx
     cpx fixed_sp
     beq.same fixed_stack_ok
@@ -237,6 +408,19 @@ count_lo_ok:
     lda #$07
     sta failure
 count_hi_ok:
+    lda #1
+    sta torture_done
+    rts
+
+; Fast path used by the simulator regression: same state machine, maximum batch.
+run_3f_max_torture:
+    jsr init_3f_max_torture
+    lda #$ff
+    sta torture_batch
+run_torture_loop:
+    jsr step_3f_max_torture
+    lda torture_done
+    beq.same run_torture_loop
     rts
 FIXED
 

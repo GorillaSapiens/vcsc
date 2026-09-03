@@ -6,6 +6,7 @@
 ; the full 255 x 255 ordered matrix fits in one 512K cartridge.
 
 .import failure, torture_count, expected_source, expected_dest, fixed_sp
+.import torture_done, torture_batch, step_remaining
 .import lower_stub, lower_fixed_stub, fixed_stub
 .import bank0_link_root
 .import bank32_link_root
@@ -16,7 +17,7 @@
 .import bank192_link_root
 .import bank224_link_root
 .importzp _vcsc_ptr0
-.export run_3f_max_torture
+.export init_3f_max_torture, step_3f_max_torture, run_3f_max_torture
 
 .segment "CODE.bank255"
 
@@ -28,11 +29,14 @@ fixed_probe:
 fixed_probe_count_ok:
     rts
 
-run_3f_max_torture:
+init_3f_max_torture:
     lda #0
     sta failure
     sta torture_count
     sta torture_count+1
+    sta expected_source
+    sta expected_dest
+    sta torture_done
 
     ; Force the generic bankcall scratch object into the link so every replicated
     ; trampoline is patched to the actual _vcsc_ptr0 address.
@@ -45,9 +49,9 @@ run_3f_max_torture:
     sta lower_stub+1
     lda #>$1780
     sta lower_stub+2
-    lda #<$1060
+    lda #<$1100
     sta lower_stub+3
-    lda #>$1060
+    lda #>$1100
     sta lower_stub+4
     lda #0
     sta lower_stub+5
@@ -70,49 +74,75 @@ run_3f_max_torture:
     lda #$60
     sta lower_fixed_stub+6
 
-    ; fixed_stub uses the fixed bank's trampoline and targets common lower $1060.
+    ; fixed_stub uses the fixed bank's trampoline and targets common lower $1100.
     lda #$20
     sta fixed_stub
     lda #<$1f80
     sta fixed_stub+1
     lda #>$1f80
     sta fixed_stub+2
-    lda #<$1060
+    lda #<$1100
     sta fixed_stub+3
-    lda #>$1060
+    lda #>$1100
     sta fixed_stub+4
     lda #0
     sta fixed_stub+5
     lda #$60
     sta fixed_stub+6
+    rts
 
-    ; Run every selectable physical bank as a source. The return address for
-    ; this direct JSR is permanently visible in fixed $1800-$1FFF.
-    lda #0
-    sta expected_source
-fixed_source_loop:
+; Execute at most torture_batch target calls, then return to the frame loop.
+; Lower-bank state lives in expected_source/expected_dest.  $ff source means
+; the lower-bank matrix is complete and the fixed->lower sweep is in progress.
+step_3f_max_torture:
+    lda torture_done
+    bne.same step_return
+
+    lda expected_source
+    cmp #$ff
+    beq.same fixed_phase
+
+    lda torture_batch
+    sta step_remaining
     lda expected_source
     sta $3f
     jsr $1000
-    inc expected_source
-    lda expected_source
+    lda expected_dest
     cmp #$ff
-    bne.same fixed_source_loop
-
-    ; Explicitly exercise fixed/startup -> every lower bank through the generic
-    ; descriptor trampoline as well.
-    tsx
-    stx fixed_sp
+    bne.same step_return
     lda #0
     sta expected_dest
+    inc expected_source
+step_return:
+    rts
+
+fixed_phase:
+    tsx
+    stx fixed_sp
+    lda torture_batch
+    sta step_remaining
 fixed_dest_loop:
     lda expected_dest
+    cmp #$ff
+    beq.same fixed_done
     sta fixed_stub+5
     jsr fixed_stub
     inc expected_dest
     lda expected_dest
     cmp #$ff
+    beq.same fixed_done
+    dec step_remaining
     bne.same fixed_dest_loop
+
+fixed_step_return:
+    tsx
+    cpx fixed_sp
+    beq.same step_return
+    lda #$05
+    sta failure
+    rts
+
+fixed_done:
     tsx
     cpx fixed_sp
     beq.same fixed_stack_ok
@@ -133,6 +163,19 @@ count_lo_ok:
     lda #$07
     sta failure
 count_hi_ok:
+    lda #1
+    sta torture_done
+    rts
+
+; Fast path used by the simulator regression: same state machine, maximum batch.
+run_3f_max_torture:
+    jsr init_3f_max_torture
+    lda #$ff
+    sta torture_batch
+run_torture_loop:
+    jsr step_3f_max_torture
+    lda torture_done
+    beq.same run_torture_loop
     rts
 
 torture_object_roots:

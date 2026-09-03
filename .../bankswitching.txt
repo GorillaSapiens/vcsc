@@ -235,7 +235,8 @@ this is future optimizer-locality cleanup, not bankswitching work.
             Maximum 3F is now executable coverage: `18_3f_max` builds one 256 x
             2K / 512K cartridge and runs the full 255 x 255 lower-bank ordered calls,
             plus lower<->fixed calls, stack checks, and physical-target/source
-            restoration verification before displaying `pass`/`FAIL` and `3F max`.
+            restoration verification while rendering a stable blue `wait` spinner,
+            then displays `pass`/`FAIL` and `3F max`.
 
             Remaining: build the equivalent maximum-ROM 3E torture cartridge and
             add 3E whole-RAM torture. Using compiler-managed `$swapram`, fill/read

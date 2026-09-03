@@ -78,3 +78,42 @@ canonical full-width exceptions while every other default glyph retains the
 normal blank-column contract. Validation: font contracts, generated subsets,
 ASCII alignment, score glyph rows, the 3F-max diagnostic, and example build
 shards 1/8 and 8/8 pass.
+
+2026-09-03 12:05:11 PDT, add stable 3F max WAIT spinner during torture
+Made the 512K `18_3f_max` torture scheduler resumable so the cartridge keeps a
+normal NTSC frame visible while the 65,535-call matrix executes. Each frame runs
+bounded batches only during blank time (10 target calls in VBLANK and 8 in
+overscan), leaving all 192 visible lines to the display. The waiting screen uses
+the same `$84` blue background produced by `01_basic/01_blank_screen`, shows big
+wide `wait ` plus a `/ - \\ |` spinner that advances every 15 frames / 250 ms,
+and retains the small `3F max` second line; completion transitions to the normal
+PASS/FAIL display.
+
+Added `external_pointers` support to `six_glyph_big_wide_component.c26`, matching
+the ordinary six-glyph component so the diagnostic can own its status pointers
+without carrying unused packed-BCD setup. To preserve the torture ABI's common
+lower-bank `$1000` source and `$1100` target addresses, `make_torture.pl` embeds
+the generated WAIT and PASS/FAIL big-font bytes plus their pointer loaders inside
+physical banks 253 and 254 rather than linking separate pinned C26 objects there.
+The generic example smoke test now recognizes generated font-subset C26 files as
+data fragments even when consumed by a generator instead of `include`.
+Validation: the dedicated 3F-max regression executes all 65,535 calls with
+failure=0; 3,800 consecutive WAIT/result frames are exactly 262 scanlines;
+big-wide/score/font regressions, example-build shards 1/8 and 8/8, source-tree
+hygiene, and context-history format pass.
+
+2026-09-03 12:10:21 PDT, finalize 3F max spinner regression
+Updated the assembly allowlist for the resumable 3F-max diagnostic after moving
+WAIT/PASS pointer setup into generated bank payloads: the entry source now has
+13 reviewed asm statements with its new digest. Refreshed the hot 3F status text
+to mention the stable blue wait spinner before the final PASS/FAIL screen.
+Focused validation passes the assembly allowlist, full 512K/65,535-call 3F-max
+runtime and 3,800-frame timing regression, font contracts/subsets, example build
+shards 1/8 and 8/8, source-tree hygiene, and history-format checks.
+
+2026-09-03 12:12:14 PDT, broad spinner handoff checkpoint
+A broad make test with eight workers reached 208/352 with zero failures before
+the tool execution cap stopped it. All focused tests for the changed code had
+already passed, including the complete 65,535-call 3F-max run, 3,800 consecutive
+262-line frames, font contracts/subsets, assembly allowlist, example shards 1/8
+and 8/8, source-tree hygiene, and context-history format.

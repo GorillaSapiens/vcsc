@@ -268,7 +268,8 @@ Immediate TODO
 3F/3E core automatic-call and `$swapram` work is complete. Maximum-size 3F
 stress is now covered by `examples/09_bankswitching/18_3f_max`: one 256-bank /
 512K image executes the full 255 x 255 lower-bank ordered matrix plus both
-directions through fixed/startup and then displays `pass`/`FAIL` with `3F max`.
+directions through fixed/startup while rendering a stable blue `wait` spinner,
+then displays `pass`/`FAIL` with `3F max`.
 Before FC, build the equivalent maximum-ROM 3E torture and whole-capacity 3E RAM
 torture: Stella-compatible 32 x 1K / 32K and VCSC extended 256 x 1K / 256K,
 using compiler-managed `$swapram` and verifying every byte. Then migrate FC with

@@ -5,7 +5,7 @@
 ; Cross-bank calls execute a tiny inline descriptor stub from RIOT RAM so
 ; the full 255 x 255 ordered matrix fits in one 512K cartridge.
 
-.import failure, torture_count, expected_source, expected_dest, source_sp
+.import failure, torture_count, expected_source, expected_dest, source_sp, step_remaining
 .import lower_stub, lower_fixed_stub
 .export bank160_link_root
 
@@ -14,8 +14,6 @@
 bank160_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank160_dest_loop:
     lda expected_dest
     cmp #$A0
@@ -35,7 +33,11 @@ bank160_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank160_source_done
+    dec step_remaining
     bne.same bank160_dest_loop
+    jmp bank160_step_done
+bank160_source_done:
     jsr lower_fixed_stub
     lda #$A0
     cmp expected_source
@@ -43,6 +45,7 @@ bank160_restored:
     lda #$03
     sta failure
 bank160_fixed_restored:
+bank160_step_done:
     tsx
     cpx source_sp
     beq.same bank160_source_stack_ok
@@ -50,7 +53,7 @@ bank160_fixed_restored:
     sta failure
 bank160_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank160_target:
     lda expected_dest
     cmp #$A0
@@ -71,8 +74,6 @@ bank160_link_root:
 bank161_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank161_dest_loop:
     lda expected_dest
     cmp #$A1
@@ -92,7 +93,11 @@ bank161_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank161_source_done
+    dec step_remaining
     bne.same bank161_dest_loop
+    jmp bank161_step_done
+bank161_source_done:
     jsr lower_fixed_stub
     lda #$A1
     cmp expected_source
@@ -100,6 +105,7 @@ bank161_restored:
     lda #$03
     sta failure
 bank161_fixed_restored:
+bank161_step_done:
     tsx
     cpx source_sp
     beq.same bank161_source_stack_ok
@@ -107,7 +113,7 @@ bank161_fixed_restored:
     sta failure
 bank161_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank161_target:
     lda expected_dest
     cmp #$A1
@@ -126,8 +132,6 @@ bank161_target_count_ok:
 bank162_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank162_dest_loop:
     lda expected_dest
     cmp #$A2
@@ -147,7 +151,11 @@ bank162_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank162_source_done
+    dec step_remaining
     bne.same bank162_dest_loop
+    jmp bank162_step_done
+bank162_source_done:
     jsr lower_fixed_stub
     lda #$A2
     cmp expected_source
@@ -155,6 +163,7 @@ bank162_restored:
     lda #$03
     sta failure
 bank162_fixed_restored:
+bank162_step_done:
     tsx
     cpx source_sp
     beq.same bank162_source_stack_ok
@@ -162,7 +171,7 @@ bank162_fixed_restored:
     sta failure
 bank162_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank162_target:
     lda expected_dest
     cmp #$A2
@@ -181,8 +190,6 @@ bank162_target_count_ok:
 bank163_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank163_dest_loop:
     lda expected_dest
     cmp #$A3
@@ -202,7 +209,11 @@ bank163_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank163_source_done
+    dec step_remaining
     bne.same bank163_dest_loop
+    jmp bank163_step_done
+bank163_source_done:
     jsr lower_fixed_stub
     lda #$A3
     cmp expected_source
@@ -210,6 +221,7 @@ bank163_restored:
     lda #$03
     sta failure
 bank163_fixed_restored:
+bank163_step_done:
     tsx
     cpx source_sp
     beq.same bank163_source_stack_ok
@@ -217,7 +229,7 @@ bank163_fixed_restored:
     sta failure
 bank163_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank163_target:
     lda expected_dest
     cmp #$A3
@@ -236,8 +248,6 @@ bank163_target_count_ok:
 bank164_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank164_dest_loop:
     lda expected_dest
     cmp #$A4
@@ -257,7 +267,11 @@ bank164_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank164_source_done
+    dec step_remaining
     bne.same bank164_dest_loop
+    jmp bank164_step_done
+bank164_source_done:
     jsr lower_fixed_stub
     lda #$A4
     cmp expected_source
@@ -265,6 +279,7 @@ bank164_restored:
     lda #$03
     sta failure
 bank164_fixed_restored:
+bank164_step_done:
     tsx
     cpx source_sp
     beq.same bank164_source_stack_ok
@@ -272,7 +287,7 @@ bank164_fixed_restored:
     sta failure
 bank164_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank164_target:
     lda expected_dest
     cmp #$A4
@@ -291,8 +306,6 @@ bank164_target_count_ok:
 bank165_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank165_dest_loop:
     lda expected_dest
     cmp #$A5
@@ -312,7 +325,11 @@ bank165_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank165_source_done
+    dec step_remaining
     bne.same bank165_dest_loop
+    jmp bank165_step_done
+bank165_source_done:
     jsr lower_fixed_stub
     lda #$A5
     cmp expected_source
@@ -320,6 +337,7 @@ bank165_restored:
     lda #$03
     sta failure
 bank165_fixed_restored:
+bank165_step_done:
     tsx
     cpx source_sp
     beq.same bank165_source_stack_ok
@@ -327,7 +345,7 @@ bank165_fixed_restored:
     sta failure
 bank165_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank165_target:
     lda expected_dest
     cmp #$A5
@@ -346,8 +364,6 @@ bank165_target_count_ok:
 bank166_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank166_dest_loop:
     lda expected_dest
     cmp #$A6
@@ -367,7 +383,11 @@ bank166_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank166_source_done
+    dec step_remaining
     bne.same bank166_dest_loop
+    jmp bank166_step_done
+bank166_source_done:
     jsr lower_fixed_stub
     lda #$A6
     cmp expected_source
@@ -375,6 +395,7 @@ bank166_restored:
     lda #$03
     sta failure
 bank166_fixed_restored:
+bank166_step_done:
     tsx
     cpx source_sp
     beq.same bank166_source_stack_ok
@@ -382,7 +403,7 @@ bank166_fixed_restored:
     sta failure
 bank166_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank166_target:
     lda expected_dest
     cmp #$A6
@@ -401,8 +422,6 @@ bank166_target_count_ok:
 bank167_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank167_dest_loop:
     lda expected_dest
     cmp #$A7
@@ -422,7 +441,11 @@ bank167_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank167_source_done
+    dec step_remaining
     bne.same bank167_dest_loop
+    jmp bank167_step_done
+bank167_source_done:
     jsr lower_fixed_stub
     lda #$A7
     cmp expected_source
@@ -430,6 +453,7 @@ bank167_restored:
     lda #$03
     sta failure
 bank167_fixed_restored:
+bank167_step_done:
     tsx
     cpx source_sp
     beq.same bank167_source_stack_ok
@@ -437,7 +461,7 @@ bank167_fixed_restored:
     sta failure
 bank167_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank167_target:
     lda expected_dest
     cmp #$A7
@@ -456,8 +480,6 @@ bank167_target_count_ok:
 bank168_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank168_dest_loop:
     lda expected_dest
     cmp #$A8
@@ -477,7 +499,11 @@ bank168_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank168_source_done
+    dec step_remaining
     bne.same bank168_dest_loop
+    jmp bank168_step_done
+bank168_source_done:
     jsr lower_fixed_stub
     lda #$A8
     cmp expected_source
@@ -485,6 +511,7 @@ bank168_restored:
     lda #$03
     sta failure
 bank168_fixed_restored:
+bank168_step_done:
     tsx
     cpx source_sp
     beq.same bank168_source_stack_ok
@@ -492,7 +519,7 @@ bank168_fixed_restored:
     sta failure
 bank168_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank168_target:
     lda expected_dest
     cmp #$A8
@@ -511,8 +538,6 @@ bank168_target_count_ok:
 bank169_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank169_dest_loop:
     lda expected_dest
     cmp #$A9
@@ -532,7 +557,11 @@ bank169_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank169_source_done
+    dec step_remaining
     bne.same bank169_dest_loop
+    jmp bank169_step_done
+bank169_source_done:
     jsr lower_fixed_stub
     lda #$A9
     cmp expected_source
@@ -540,6 +569,7 @@ bank169_restored:
     lda #$03
     sta failure
 bank169_fixed_restored:
+bank169_step_done:
     tsx
     cpx source_sp
     beq.same bank169_source_stack_ok
@@ -547,7 +577,7 @@ bank169_fixed_restored:
     sta failure
 bank169_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank169_target:
     lda expected_dest
     cmp #$A9
@@ -566,8 +596,6 @@ bank169_target_count_ok:
 bank170_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank170_dest_loop:
     lda expected_dest
     cmp #$AA
@@ -587,7 +615,11 @@ bank170_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank170_source_done
+    dec step_remaining
     bne.same bank170_dest_loop
+    jmp bank170_step_done
+bank170_source_done:
     jsr lower_fixed_stub
     lda #$AA
     cmp expected_source
@@ -595,6 +627,7 @@ bank170_restored:
     lda #$03
     sta failure
 bank170_fixed_restored:
+bank170_step_done:
     tsx
     cpx source_sp
     beq.same bank170_source_stack_ok
@@ -602,7 +635,7 @@ bank170_fixed_restored:
     sta failure
 bank170_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank170_target:
     lda expected_dest
     cmp #$AA
@@ -621,8 +654,6 @@ bank170_target_count_ok:
 bank171_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank171_dest_loop:
     lda expected_dest
     cmp #$AB
@@ -642,7 +673,11 @@ bank171_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank171_source_done
+    dec step_remaining
     bne.same bank171_dest_loop
+    jmp bank171_step_done
+bank171_source_done:
     jsr lower_fixed_stub
     lda #$AB
     cmp expected_source
@@ -650,6 +685,7 @@ bank171_restored:
     lda #$03
     sta failure
 bank171_fixed_restored:
+bank171_step_done:
     tsx
     cpx source_sp
     beq.same bank171_source_stack_ok
@@ -657,7 +693,7 @@ bank171_fixed_restored:
     sta failure
 bank171_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank171_target:
     lda expected_dest
     cmp #$AB
@@ -676,8 +712,6 @@ bank171_target_count_ok:
 bank172_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank172_dest_loop:
     lda expected_dest
     cmp #$AC
@@ -697,7 +731,11 @@ bank172_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank172_source_done
+    dec step_remaining
     bne.same bank172_dest_loop
+    jmp bank172_step_done
+bank172_source_done:
     jsr lower_fixed_stub
     lda #$AC
     cmp expected_source
@@ -705,6 +743,7 @@ bank172_restored:
     lda #$03
     sta failure
 bank172_fixed_restored:
+bank172_step_done:
     tsx
     cpx source_sp
     beq.same bank172_source_stack_ok
@@ -712,7 +751,7 @@ bank172_fixed_restored:
     sta failure
 bank172_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank172_target:
     lda expected_dest
     cmp #$AC
@@ -731,8 +770,6 @@ bank172_target_count_ok:
 bank173_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank173_dest_loop:
     lda expected_dest
     cmp #$AD
@@ -752,7 +789,11 @@ bank173_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank173_source_done
+    dec step_remaining
     bne.same bank173_dest_loop
+    jmp bank173_step_done
+bank173_source_done:
     jsr lower_fixed_stub
     lda #$AD
     cmp expected_source
@@ -760,6 +801,7 @@ bank173_restored:
     lda #$03
     sta failure
 bank173_fixed_restored:
+bank173_step_done:
     tsx
     cpx source_sp
     beq.same bank173_source_stack_ok
@@ -767,7 +809,7 @@ bank173_fixed_restored:
     sta failure
 bank173_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank173_target:
     lda expected_dest
     cmp #$AD
@@ -786,8 +828,6 @@ bank173_target_count_ok:
 bank174_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank174_dest_loop:
     lda expected_dest
     cmp #$AE
@@ -807,7 +847,11 @@ bank174_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank174_source_done
+    dec step_remaining
     bne.same bank174_dest_loop
+    jmp bank174_step_done
+bank174_source_done:
     jsr lower_fixed_stub
     lda #$AE
     cmp expected_source
@@ -815,6 +859,7 @@ bank174_restored:
     lda #$03
     sta failure
 bank174_fixed_restored:
+bank174_step_done:
     tsx
     cpx source_sp
     beq.same bank174_source_stack_ok
@@ -822,7 +867,7 @@ bank174_fixed_restored:
     sta failure
 bank174_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank174_target:
     lda expected_dest
     cmp #$AE
@@ -841,8 +886,6 @@ bank174_target_count_ok:
 bank175_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank175_dest_loop:
     lda expected_dest
     cmp #$AF
@@ -862,7 +905,11 @@ bank175_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank175_source_done
+    dec step_remaining
     bne.same bank175_dest_loop
+    jmp bank175_step_done
+bank175_source_done:
     jsr lower_fixed_stub
     lda #$AF
     cmp expected_source
@@ -870,6 +917,7 @@ bank175_restored:
     lda #$03
     sta failure
 bank175_fixed_restored:
+bank175_step_done:
     tsx
     cpx source_sp
     beq.same bank175_source_stack_ok
@@ -877,7 +925,7 @@ bank175_fixed_restored:
     sta failure
 bank175_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank175_target:
     lda expected_dest
     cmp #$AF
@@ -896,8 +944,6 @@ bank175_target_count_ok:
 bank176_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank176_dest_loop:
     lda expected_dest
     cmp #$B0
@@ -917,7 +963,11 @@ bank176_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank176_source_done
+    dec step_remaining
     bne.same bank176_dest_loop
+    jmp bank176_step_done
+bank176_source_done:
     jsr lower_fixed_stub
     lda #$B0
     cmp expected_source
@@ -925,6 +975,7 @@ bank176_restored:
     lda #$03
     sta failure
 bank176_fixed_restored:
+bank176_step_done:
     tsx
     cpx source_sp
     beq.same bank176_source_stack_ok
@@ -932,7 +983,7 @@ bank176_fixed_restored:
     sta failure
 bank176_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank176_target:
     lda expected_dest
     cmp #$B0
@@ -951,8 +1002,6 @@ bank176_target_count_ok:
 bank177_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank177_dest_loop:
     lda expected_dest
     cmp #$B1
@@ -972,7 +1021,11 @@ bank177_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank177_source_done
+    dec step_remaining
     bne.same bank177_dest_loop
+    jmp bank177_step_done
+bank177_source_done:
     jsr lower_fixed_stub
     lda #$B1
     cmp expected_source
@@ -980,6 +1033,7 @@ bank177_restored:
     lda #$03
     sta failure
 bank177_fixed_restored:
+bank177_step_done:
     tsx
     cpx source_sp
     beq.same bank177_source_stack_ok
@@ -987,7 +1041,7 @@ bank177_fixed_restored:
     sta failure
 bank177_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank177_target:
     lda expected_dest
     cmp #$B1
@@ -1006,8 +1060,6 @@ bank177_target_count_ok:
 bank178_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank178_dest_loop:
     lda expected_dest
     cmp #$B2
@@ -1027,7 +1079,11 @@ bank178_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank178_source_done
+    dec step_remaining
     bne.same bank178_dest_loop
+    jmp bank178_step_done
+bank178_source_done:
     jsr lower_fixed_stub
     lda #$B2
     cmp expected_source
@@ -1035,6 +1091,7 @@ bank178_restored:
     lda #$03
     sta failure
 bank178_fixed_restored:
+bank178_step_done:
     tsx
     cpx source_sp
     beq.same bank178_source_stack_ok
@@ -1042,7 +1099,7 @@ bank178_fixed_restored:
     sta failure
 bank178_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank178_target:
     lda expected_dest
     cmp #$B2
@@ -1061,8 +1118,6 @@ bank178_target_count_ok:
 bank179_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank179_dest_loop:
     lda expected_dest
     cmp #$B3
@@ -1082,7 +1137,11 @@ bank179_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank179_source_done
+    dec step_remaining
     bne.same bank179_dest_loop
+    jmp bank179_step_done
+bank179_source_done:
     jsr lower_fixed_stub
     lda #$B3
     cmp expected_source
@@ -1090,6 +1149,7 @@ bank179_restored:
     lda #$03
     sta failure
 bank179_fixed_restored:
+bank179_step_done:
     tsx
     cpx source_sp
     beq.same bank179_source_stack_ok
@@ -1097,7 +1157,7 @@ bank179_fixed_restored:
     sta failure
 bank179_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank179_target:
     lda expected_dest
     cmp #$B3
@@ -1116,8 +1176,6 @@ bank179_target_count_ok:
 bank180_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank180_dest_loop:
     lda expected_dest
     cmp #$B4
@@ -1137,7 +1195,11 @@ bank180_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank180_source_done
+    dec step_remaining
     bne.same bank180_dest_loop
+    jmp bank180_step_done
+bank180_source_done:
     jsr lower_fixed_stub
     lda #$B4
     cmp expected_source
@@ -1145,6 +1207,7 @@ bank180_restored:
     lda #$03
     sta failure
 bank180_fixed_restored:
+bank180_step_done:
     tsx
     cpx source_sp
     beq.same bank180_source_stack_ok
@@ -1152,7 +1215,7 @@ bank180_fixed_restored:
     sta failure
 bank180_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank180_target:
     lda expected_dest
     cmp #$B4
@@ -1171,8 +1234,6 @@ bank180_target_count_ok:
 bank181_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank181_dest_loop:
     lda expected_dest
     cmp #$B5
@@ -1192,7 +1253,11 @@ bank181_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank181_source_done
+    dec step_remaining
     bne.same bank181_dest_loop
+    jmp bank181_step_done
+bank181_source_done:
     jsr lower_fixed_stub
     lda #$B5
     cmp expected_source
@@ -1200,6 +1265,7 @@ bank181_restored:
     lda #$03
     sta failure
 bank181_fixed_restored:
+bank181_step_done:
     tsx
     cpx source_sp
     beq.same bank181_source_stack_ok
@@ -1207,7 +1273,7 @@ bank181_fixed_restored:
     sta failure
 bank181_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank181_target:
     lda expected_dest
     cmp #$B5
@@ -1226,8 +1292,6 @@ bank181_target_count_ok:
 bank182_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank182_dest_loop:
     lda expected_dest
     cmp #$B6
@@ -1247,7 +1311,11 @@ bank182_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank182_source_done
+    dec step_remaining
     bne.same bank182_dest_loop
+    jmp bank182_step_done
+bank182_source_done:
     jsr lower_fixed_stub
     lda #$B6
     cmp expected_source
@@ -1255,6 +1323,7 @@ bank182_restored:
     lda #$03
     sta failure
 bank182_fixed_restored:
+bank182_step_done:
     tsx
     cpx source_sp
     beq.same bank182_source_stack_ok
@@ -1262,7 +1331,7 @@ bank182_fixed_restored:
     sta failure
 bank182_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank182_target:
     lda expected_dest
     cmp #$B6
@@ -1281,8 +1350,6 @@ bank182_target_count_ok:
 bank183_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank183_dest_loop:
     lda expected_dest
     cmp #$B7
@@ -1302,7 +1369,11 @@ bank183_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank183_source_done
+    dec step_remaining
     bne.same bank183_dest_loop
+    jmp bank183_step_done
+bank183_source_done:
     jsr lower_fixed_stub
     lda #$B7
     cmp expected_source
@@ -1310,6 +1381,7 @@ bank183_restored:
     lda #$03
     sta failure
 bank183_fixed_restored:
+bank183_step_done:
     tsx
     cpx source_sp
     beq.same bank183_source_stack_ok
@@ -1317,7 +1389,7 @@ bank183_fixed_restored:
     sta failure
 bank183_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank183_target:
     lda expected_dest
     cmp #$B7
@@ -1336,8 +1408,6 @@ bank183_target_count_ok:
 bank184_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank184_dest_loop:
     lda expected_dest
     cmp #$B8
@@ -1357,7 +1427,11 @@ bank184_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank184_source_done
+    dec step_remaining
     bne.same bank184_dest_loop
+    jmp bank184_step_done
+bank184_source_done:
     jsr lower_fixed_stub
     lda #$B8
     cmp expected_source
@@ -1365,6 +1439,7 @@ bank184_restored:
     lda #$03
     sta failure
 bank184_fixed_restored:
+bank184_step_done:
     tsx
     cpx source_sp
     beq.same bank184_source_stack_ok
@@ -1372,7 +1447,7 @@ bank184_fixed_restored:
     sta failure
 bank184_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank184_target:
     lda expected_dest
     cmp #$B8
@@ -1391,8 +1466,6 @@ bank184_target_count_ok:
 bank185_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank185_dest_loop:
     lda expected_dest
     cmp #$B9
@@ -1412,7 +1485,11 @@ bank185_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank185_source_done
+    dec step_remaining
     bne.same bank185_dest_loop
+    jmp bank185_step_done
+bank185_source_done:
     jsr lower_fixed_stub
     lda #$B9
     cmp expected_source
@@ -1420,6 +1497,7 @@ bank185_restored:
     lda #$03
     sta failure
 bank185_fixed_restored:
+bank185_step_done:
     tsx
     cpx source_sp
     beq.same bank185_source_stack_ok
@@ -1427,7 +1505,7 @@ bank185_fixed_restored:
     sta failure
 bank185_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank185_target:
     lda expected_dest
     cmp #$B9
@@ -1446,8 +1524,6 @@ bank185_target_count_ok:
 bank186_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank186_dest_loop:
     lda expected_dest
     cmp #$BA
@@ -1467,7 +1543,11 @@ bank186_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank186_source_done
+    dec step_remaining
     bne.same bank186_dest_loop
+    jmp bank186_step_done
+bank186_source_done:
     jsr lower_fixed_stub
     lda #$BA
     cmp expected_source
@@ -1475,6 +1555,7 @@ bank186_restored:
     lda #$03
     sta failure
 bank186_fixed_restored:
+bank186_step_done:
     tsx
     cpx source_sp
     beq.same bank186_source_stack_ok
@@ -1482,7 +1563,7 @@ bank186_fixed_restored:
     sta failure
 bank186_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank186_target:
     lda expected_dest
     cmp #$BA
@@ -1501,8 +1582,6 @@ bank186_target_count_ok:
 bank187_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank187_dest_loop:
     lda expected_dest
     cmp #$BB
@@ -1522,7 +1601,11 @@ bank187_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank187_source_done
+    dec step_remaining
     bne.same bank187_dest_loop
+    jmp bank187_step_done
+bank187_source_done:
     jsr lower_fixed_stub
     lda #$BB
     cmp expected_source
@@ -1530,6 +1613,7 @@ bank187_restored:
     lda #$03
     sta failure
 bank187_fixed_restored:
+bank187_step_done:
     tsx
     cpx source_sp
     beq.same bank187_source_stack_ok
@@ -1537,7 +1621,7 @@ bank187_fixed_restored:
     sta failure
 bank187_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank187_target:
     lda expected_dest
     cmp #$BB
@@ -1556,8 +1640,6 @@ bank187_target_count_ok:
 bank188_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank188_dest_loop:
     lda expected_dest
     cmp #$BC
@@ -1577,7 +1659,11 @@ bank188_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank188_source_done
+    dec step_remaining
     bne.same bank188_dest_loop
+    jmp bank188_step_done
+bank188_source_done:
     jsr lower_fixed_stub
     lda #$BC
     cmp expected_source
@@ -1585,6 +1671,7 @@ bank188_restored:
     lda #$03
     sta failure
 bank188_fixed_restored:
+bank188_step_done:
     tsx
     cpx source_sp
     beq.same bank188_source_stack_ok
@@ -1592,7 +1679,7 @@ bank188_fixed_restored:
     sta failure
 bank188_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank188_target:
     lda expected_dest
     cmp #$BC
@@ -1611,8 +1698,6 @@ bank188_target_count_ok:
 bank189_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank189_dest_loop:
     lda expected_dest
     cmp #$BD
@@ -1632,7 +1717,11 @@ bank189_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank189_source_done
+    dec step_remaining
     bne.same bank189_dest_loop
+    jmp bank189_step_done
+bank189_source_done:
     jsr lower_fixed_stub
     lda #$BD
     cmp expected_source
@@ -1640,6 +1729,7 @@ bank189_restored:
     lda #$03
     sta failure
 bank189_fixed_restored:
+bank189_step_done:
     tsx
     cpx source_sp
     beq.same bank189_source_stack_ok
@@ -1647,7 +1737,7 @@ bank189_fixed_restored:
     sta failure
 bank189_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank189_target:
     lda expected_dest
     cmp #$BD
@@ -1666,8 +1756,6 @@ bank189_target_count_ok:
 bank190_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank190_dest_loop:
     lda expected_dest
     cmp #$BE
@@ -1687,7 +1775,11 @@ bank190_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank190_source_done
+    dec step_remaining
     bne.same bank190_dest_loop
+    jmp bank190_step_done
+bank190_source_done:
     jsr lower_fixed_stub
     lda #$BE
     cmp expected_source
@@ -1695,6 +1787,7 @@ bank190_restored:
     lda #$03
     sta failure
 bank190_fixed_restored:
+bank190_step_done:
     tsx
     cpx source_sp
     beq.same bank190_source_stack_ok
@@ -1702,7 +1795,7 @@ bank190_fixed_restored:
     sta failure
 bank190_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank190_target:
     lda expected_dest
     cmp #$BE
@@ -1721,8 +1814,6 @@ bank190_target_count_ok:
 bank191_source:
     tsx
     stx source_sp
-    lda #0
-    sta expected_dest
 bank191_dest_loop:
     lda expected_dest
     cmp #$BF
@@ -1742,7 +1833,11 @@ bank191_restored:
     inc expected_dest
     lda expected_dest
     cmp #$FF
+    beq.same bank191_source_done
+    dec step_remaining
     bne.same bank191_dest_loop
+    jmp bank191_step_done
+bank191_source_done:
     jsr lower_fixed_stub
     lda #$BF
     cmp expected_source
@@ -1750,6 +1845,7 @@ bank191_restored:
     lda #$03
     sta failure
 bank191_fixed_restored:
+bank191_step_done:
     tsx
     cpx source_sp
     beq.same bank191_source_stack_ok
@@ -1757,7 +1853,7 @@ bank191_fixed_restored:
     sta failure
 bank191_source_stack_ok:
     rts
-    .align 32
+    .align 256
 bank191_target:
     lda expected_dest
     cmp #$BF
