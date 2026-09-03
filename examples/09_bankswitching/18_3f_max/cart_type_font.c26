@@ -44,11 +44,11 @@ bank255 page const uint8_t cart_type_glyphs[48] := {
       0b........,
       0b........,
       0b.XX.XX..,
-      0b.XXXXXX.,
-      0b.XX.XXX.,
-      0b.XX.XXX.,
-      0b.XX..XX.,
-      0b.XX..XX.
+      0bXXXXXXX.,
+      0bXX.X.XX.,
+      0bXX.X.XX.,
+      0bXX...XX.,
+      0bXX...XX.
    ),
    // 0x61 a
    CART_TYPE_GLYPHS_GLYPH(

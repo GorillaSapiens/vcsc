@@ -146,13 +146,15 @@ for my $family (@families) {
       } @reference;
    } 0..7;
 
-   # The default M and W deliberately use column 0 to gain a seventh pixel of
-   # width.  Keep that design choice explicit and tightly scoped: every other
-   # glyph still obeys the standard subset-derived side margins, and M/W must
-   # match the canonical full-width shapes below exactly.
+   # The default M/W and m/w deliberately use column 0 to gain a seventh pixel
+   # of width.  Keep that design choice explicit and tightly scoped: every
+   # other glyph still obeys the standard subset-derived side margins, and
+   # these four glyphs must match the canonical full-width shapes below exactly.
    my %full_width_default=(
       M => [qw(XX...XX. XXX.XXX. XXXXXXX. XX.X.XX. XX...XX. XX...XX. XX...XX. XX...XX.)],
       W => [qw(XX...XX. XX...XX. XX...XX. XX...XX. XX.X.XX. XXXXXXX. XXX.XXX. XX...XX.)],
+      m => [qw(........ ........ .XX.XX.. XXXXXXX. XX.X.XX. XX.X.XX. XX...XX. XX...XX.)],
+      w => [qw(........ ........ XX...XX. XX...XX. XX.X.XX. XX.X.XX. XXXXXXX. .XX.XX..)],
    );
    if ($base eq 'default') {
       for my $char (sort keys %full_width_default) {

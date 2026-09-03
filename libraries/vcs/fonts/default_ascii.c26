@@ -934,11 +934,11 @@ align(256) const uint8_t score_font[760] := {
       0b........,
       0b........,
       0b.XX.XX..,
-      0b.XXXXXX.,
-      0b.XX.XXX.,
-      0b.XX.XXX.,
-      0b.XX..XX.,
-      0b.XX..XX.
+      0bXXXXXXX.,
+      0bXX.X.XX.,
+      0bXX.X.XX.,
+      0bXX...XX.,
+      0bXX...XX.
    ),
 
    // 0x6E n
@@ -1053,11 +1053,11 @@ align(256) const uint8_t score_font[760] := {
    VCS_FONT_GLYPH(
       0b........,
       0b........,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX.XXX.,
-      0b.XX.XXX.,
-      0b.XXXXXX.,
+      0bXX...XX.,
+      0bXX...XX.,
+      0bXX.X.XX.,
+      0bXX.X.XX.,
+      0bXXXXXXX.,
       0b.XX.XX..
    ),
 

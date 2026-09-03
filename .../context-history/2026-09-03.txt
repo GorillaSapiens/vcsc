@@ -68,3 +68,13 @@ The second line remains the small exact `3F max` label. Extended the dedicated
 spacing. Validation: generated-font contracts, assembly allowlist, source-tree
 hygiene, example build shards 1/8 and 8/8, and the dedicated 512K torture all
 pass; the torture still executes 65,535 target calls and produces 262-line NTSC.
+
+2026-09-03 11:24:01 PDT, widen lowercase default m and w glyphs
+Applied the supplied default-font redesign for lowercase `m` and `w`. Both now
+use column 0 to gain the same seven-pixel full width already used by uppercase
+`M` and `W`; regenerated all library and example font subsets with top-level
+`make fonts`. Extended `vcs_font_contracts.pl` narrowly so lowercase m/w are
+canonical full-width exceptions while every other default glyph retains the
+normal blank-column contract. Validation: font contracts, generated subsets,
+ASCII alignment, score glyph rows, the 3F-max diagnostic, and example build
+shards 1/8 and 8/8 pass.
