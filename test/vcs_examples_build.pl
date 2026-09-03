@@ -87,10 +87,6 @@ find({
       return unless -f $_ && /\.c26\z/;
       my $source=$File::Find::name;
       return if $source =~ m{[\/]examples[\/]common[\/]};
-      # The 512K 3F torture cartridge requires nine generated assembly objects
-      # and executes a dedicated 65,535-call regression; it is not a standalone
-      # one-source editable-example smoke input.
-      return if $source =~ m{[\/]09_bankswitching[\/]18_3f_max[\/]3f_max_diagnostic\.c26\z};
       push @example_sources,$source;
    },
 },$examples_root);
@@ -115,6 +111,11 @@ for my $source (@example_sources) {
 for my $source (@example_sources) {
    my $absolute=abs_path($source);
    next if defined($absolute) && $included_fragment{$absolute};
+   # The 512K 3F torture cartridge requires nine generated assembly objects
+   # and executes a dedicated 65,535-call regression; it is not a standalone
+   # one-source editable-example smoke input.  Keep it in the discovery pass
+   # above so its include-only C26 font fragments are not mistaken for entry points.
+   next if $source =~ m{[\/]09_bankswitching[\/]18_3f_max[\/]3f_max_diagnostic\.c26\z};
    my($vol,$dir,$file)=File::Spec->splitpath($source);
    my $rel=File::Spec->abs2rel($dir,$examples_root);
    push @examples,[$rel,$file];

@@ -41,3 +41,19 @@ NTSC frame. Widened the frame-timing harness to signed 3F/3E 2K-bank images up t
 example smoke test intentionally skips this generated nine-object cartridge,
 and the dedicated regression owns its 512K build, full runtime torture, and
 frame timing. Maximum-size 3E ROM/RAM torture remains Item 38c.
+
+2026-09-03 10:19:31 PDT, fix 3F max smoke-test discovery
+The generic recursive example smoke test now retains the dedicated 512K 3F max
+entry source during include-fragment discovery, then excludes that entry point
+from one-source builds.  This keeps status_font.c26 and cart_type_font.c26
+classified as include-only fragments instead of compiling them standalone before
+bank255 exists, which caused the shard 1/8 and 8/8 parser failures.
+
+The supplied 17:05 archive had also omitted the new 18_3f_max directory and its
+dedicated regression because those files were untracked when make tar used the
+real Git index.  Recovered only those omissions from the immediately preceding
+16:59 handoff after verifying every shared source file was byte-identical.
+Validation: both formerly failing example shards pass, the dedicated 512K 3F max
+regression passes all 65,535 target calls and 262-line timing, source-tree hygiene
+passes, and a broad make test reached 230/352 with no failures before the bounded
+execution window ended.
