@@ -1,162 +1,60 @@
-3E SWAPRAM MIGRATION
-====================
+3E SWAPRAM CLOSEOUT
+===================
 
 Status
 ------
-Focused record for bankswitching Item 38b; mapper-wide rules remain in
-`.../bankswitching.txt`.
+Bankswitching Item 38b is complete. This file is now a compact durable closeout;
+completed development narrative lives in `.../context-history/`, while executable
+regressions own the detailed contracts.
 
-Hardware model and central invariant
-------------------------------------
-Classic Tigervision 3E keeps the 3F ROM shape: one final 2K ROM bank is always
-visible at `$1800-$1FFF`, while exact writes to TIA `$3F` select a 2K ROM bank
-into `$1000-$17FF`. An exact write to `$3E` selects a 1K RAM bank and replaces
-the lower ROM window: reads use `$1000-$13FF`, writes use the split alias
-`$1400-$17FF`. VCSC deliberately supports the full 8-bit selector range,
-256 x 1K = 256K RAM. Current Stella `3E` is limited to 32 x 1K = 32K; Stella's
-separate `3EX` mapper reaches 256K with different 512-byte RAM-bank geometry.
+Hardware / ABI invariants
+-------------------------
+Tigervision 3E keeps one final 2K ROM bank permanently visible at
+`$1800-$1FFF`. Exact writes to TIA `$3F` select a 2K ROM bank into
+`$1000-$17FF`. Exact writes to `$3E` select cartridge RAM: reads use
+`$1000-$13FF`, writes use the split alias `$1400-$17FF`.
 
-Because selecting RAM removes executable lower ROM, code can access selected
-RAM only while executing from the permanently visible fixed `$1800-$1FFF` bank.
-That makes RAM a temporary data window, not another general bankcall state.
+VCSC deliberately supports the full 8-bit `$3E` selector range: 256 x 1K =
+256K RAM. Current Stella `3E` models only 32 x 1K; Stella `3EX` is a separate
+mapper with 512-byte RAM-bank geometry and is tracked separately.
 
-Durable rule:
+Because RAM replaces executable lower ROM, selected RAM is temporary fixed-bank
+data state, not generic bankcall state. 3E ROM calls therefore use the settled
+3F descriptor model: lower-bank descriptors are their `$3F` selector values and
+the fixed bank is `$FF`. RAM-bank state is never encoded in the generic bankcall
+descriptor.
 
-    3E ROM calls use the settled 3F descriptor model unchanged.
-    Lower ROM descriptors are their `$3F` selector values; fixed ROM is `$FF`.
-    RAM-bank state is never encoded in the generic bankcall descriptor.
-
-A lower-ROM access to swap RAM reaches fixed code through the ordinary 3E
-cross-bank-call path. The source ROM descriptor is already saved by bankcall.
-The fixed helper selects RAM, performs the access, and returns; the existing
-bankreturn then writes the saved source descriptor to `$3F` before resuming the
-lower caller. No software current-bank shadow is needed.
-
-A fixed-bank caller may call the same helper directly. In that case it is safe
-for the helper to leave RAM selected: fixed code remains executable, and any
-later fixed->lower bankcall explicitly selects its lower-ROM destination before
-jumping. The helper therefore does not need to discover or restore a previous
-lower-window state.
-
-Source-language abstraction: `$swapram`
-----------------------------------------
-3E RAM should look like ordinary variables, but its unusual backing store must
-be declared by memory metadata rather than hard-coded into source expressions.
-Add a `mem { ... }` property `$swapram` and a bank-size property. The intended
-3E profile shape is conceptually:
-
-    mem swapram {
-       $size:0x40000
-       $bank_size:0x0400
-       $rw
-       $swapram
-    };
-
-The region name is not magic; `$swapram` is the semantic property. The stock
-region is named `swapram`, so applications can simply declare:
-
-    swapram uint8_t flags;
-    swapram uint32_t counter;
-
-Bank/offset bookkeeping is private; ordinary lvalue syntax is the interface:
-
-    uint8_t f := flags;
-    counter += 1;
-    ++flags;
-
-Extend the existing split/read-write lvalue abstraction: a `$swapram` object has
-custom access semantics rather than a directly preparable CPU address. Loads,
-stores, compound operations, indexing/members, and initialization must use that
-path or receive an explicit diagnostic; none may fall back to ordinary addressing.
-
-Compiler lvalue lowering is implemented for non-bitfield 1..4-byte accesses,
-including members, runtime indexing, compound/inc-dec, and local runtime
-initializers. Direct-address fast paths exclude swapram. Address/ref/decay uses
-that need a fat pointer and swapram bitfields receive explicit diagnostics.
-Reads retain the declared type; helpers move raw bytes. An ordinary 16-bit CPU pointer cannot represent swapram; do not invent fat pointers.
-
-Allocation model
-----------------
-Treat the 256 RAM banks as one logical 256K writable pool partitioned into 1K
-banks. Placement privately determines bank 0..255 and offset 0..1023. The
-linker carries the logical address as an 18-bit value; an ordinary 16-bit CPU
-address is never used as the identity of swapram storage.
-
-Metadata requires `$size`, an evenly-dividing nonzero `$bank_size`, exactly
-`$rw`, and no CPU address aliases. The linker packs/reuses holes within bank
-boundaries, reports logical/bank/in-bank placement, and excludes swapram from CPU
-memory selection/overlap checks. For current support, one allocated object must fit wholly inside one 1K RAM bank. Logical addresses never masquerade as CPU
-addresses; startup COPY/ZERO is suppressed.
-
-Mapper assembly
----------------
-`libraries/vcs/3E/swapram.s26` now provides the mapper-owned byte movers. The
-file location already supplies the mapper namespace, so labels are not prefixed
-with `3e_`. It exports byte-counted internal entry points:
-
-    swapram_read1
-    swapram_read2
-    swapram_read3
-    swapram_read4
-
-    swapram_write1
-    swapram_write2
-    swapram_write3
-    swapram_write4
-
-All routines, tails, and local helpers they execute while RAM is selected are
-forced into mapper `$startup`/fixed ROM. Reads select via `$3E` and use
-`$1000-$13FF`; writes use `$1400-$17FF`. They move raw bytes only; no public
-block-copy API is needed. A private `swapram_zero` startup helper zeroes one
-linker-placed object (up to one 1K bank) without generating hundreds of scalar
-writes; it exists only to implement C zero-initialization efficiently. The driver auto-assembles/links this helper object only for 3E
-links that reference swapram access entry points; installed toolchains locate it
-next to the installed 3E profiles. A focused simulator regression exercises all
-four widths, including RAM bank 255, and asserts the whole helper block is pinned
-to the startup bank.
-
-The private compiler<->`swapram.s26` transport convention is settled:
-
-    arg0 = logical swapram address bits 16..23 (only bits 0..1 are used)
-    ptr1 = logical swapram address bits 0..15
-    ptr2 = ordinary CPU-addressable source/destination buffer
-
-The physical mapper address remains exactly an 8-bit RAM bank plus 10-bit
-in-bank offset. The three-byte logical transport is only a compact linker/compiler
-representation; `swapram.s26` derives the `$3E` selector and 10-bit offset from
-it. Lvalue suffix lowering may use ptr0 temporarily while computing the low 16
-bits, then copies them to ptr1; the linker's unary `^symbol` relocation supplies
-the stable upper byte for the containing object in arg0. This is deliberate:
-the generic bankcall trampoline owns/clobbers ptr0 while crossing banks. Every
-compiler-emitted helper JSR carries `.banktarget`, so a lower-ROM caller can use
-the ordinary 3E bankcall route into the fixed helper once the 3E bankcall shell
-is installed. Keep this convention mapper-internal; application source never
-sees bank/offset bookkeeping.
-
-ROM-call migration
+`$swapram` storage
 ------------------
-Use the settled 3F mechanism as the 3E ROM-call foundation:
+The stock 3E mapper exposes a 256K memory region marked `$swapram` with
+`$bank_size:0x0400`. Source uses ordinary lvalue syntax; the compiler performs
+mapper-specific access lowering. An ordinary 16-bit CPU pointer cannot represent
+swapram, and one allocated object must fit wholly inside one 1K physical RAM bank.
 
-* Add 3E-owned `bankcall.s26` and variable-length `entry.s26`; zero-length entry
-  is expected because the final bank is permanently visible.
-* Lower ROM banks use `$3F` selector-value descriptors; the fixed bank uses the
-  `$FF` no-switch sentinel exactly as 3F.
-* Preserve lower->lower, lower->fixed, fixed->lower, nested LIFO behavior, A:X,
-  and the six-byte inline-target ABI without a software current-bank shadow.
-* Parameterize 3E ROM topology from scalable 3F while preserving the independent
-  256 x 1K swap-RAM pool.
-* Ordinary TIA access must continue using the `$40-$7F` mirror because `$3E` and
-  `$3F` are mapper controls.
+`libraries/vcs/3E/swapram.s26` supplies fixed/startup-bank byte movers
+`swapram_read1..4` and `swapram_write1..4`, plus private `swapram_zero` startup
+machinery. The private compiler/helper transport is an 18-bit logical swapram
+address plus an ordinary CPU buffer pointer; the helper derives the physical
+8-bit RAM bank and 10-bit in-bank offset.
 
-Unfinished implementation / acceptance
---------------------------------------
-[ ] Keep the simulator's split read/write RAM behavior as the hardware oracle,
-    now with all 256 selector values preserved; add failures for wrong alias
-    direction, selector truncation, or lost RAM-bank contents as needed. Public
-    `libraries/vcs/3E/README.md` documents Stella's narrower `3E` limit.
+ROM topology
+------------
+`libraries/vcs/3E/mapper.c26` is parameterized by `VCS_3E_BANKS` and supports
+3..256 physical 2K ROM banks. `bankcall.s26` / empty `entry.s26` use the generic
+six-byte inline-target ABI with a `$058` reserved/active descriptor corridor.
+Lower/fixed calls, nested restoration, same-bank `.banktarget` calls, and
+swapram accesses from lower ROM are regression-tested.
 
-Immediate next step
--------------------
-Close out the simulator hardware oracle: keep split 3E RAM read/write aliases and
-all 256 selector values covered, and add/retain explicit failures for wrong alias
-direction, selector truncation, and lost RAM-bank contents.
+Primary executable contracts
+----------------------------
+* `test/vcs_3e_swapram_acceptance.pl` -- scalar widths/types, indexing,
+  compound operations, locals/statics, initialization, and helper placement.
+* `test/vcs_3e_swapram_restore.pl` -- lower->fixed swapram->lower restoration and
+  fixed RAM-mapped state followed by an automatic lower-ROM call.
+* `test/vcs_3e_swapram_helpers.pl` -- mapper helper behavior through RAM bank 255.
+* `test/vcs_bankswitching_call_matrix.pl` -- ordered 3E ROM-call matrix.
+* `test/vcs_3f_3e.pl` -- public visible/simulator diagnostics and disassembly.
+* `test/vcs_3e_simulator_oracle.pl` -- split alias direction, all 256 RAM selector
+  values without truncation, RAM/ROM mode transitions, and RAM-bank persistence.
+
+Public usage and Stella compatibility notes live in `libraries/vcs/3E/README.md`.

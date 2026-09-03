@@ -204,17 +204,11 @@ $sim_core_ignore =~ /^\*\.o\s*$/m && $sim_core_ignore =~ /^\*\.d\s*$/m
    or die "simulator/mos6502/.gitignore must ignore *.o and *.d\n";
 my $bankswitching=slurp(File::Spec->catfile($repo,'...','bankswitching.txt'));
 my $threee=slurp(File::Spec->catfile($repo,'...','3e.txt'));
-index($threee,'3E SWAPRAM MIGRATION')>=0 &&
-index($threee,'RAM-bank state is never encoded in the generic bankcall descriptor.')>=0 &&
-index($threee,'$swapram')>=0 && index($threee,'$bank_size')>=0 &&
-index($threee,'libraries/vcs/3E/swapram.s26')>=0 &&
-index($threee,'swapram_read1')>=0 && index($threee,'swapram_write4')>=0 &&
-index($threee,'swapram_zero')>=0 &&
-index($threee,'one allocated object must fit wholly inside one')>=0 &&
-index($threee,'ordinary 16-bit CPU pointer cannot represent')>=0 &&
-index($threee,"Keep the simulator's split read/write RAM behavior as the hardware oracle")>=0 &&
-(() = $threee =~ /^\[ \]/mg) == 1
-   or die "3E hot record lost swapram design/unfinished-work contract\n";
+index($threee,'3E SWAPRAM CLOSEOUT')>=0 &&
+length($threee) <= 12 * 1024 &&
+(() = $threee =~ /^\[ \]/mg) == 0 &&
+-f File::Spec->catfile($test,'vcs_3e_simulator_oracle.pl')
+   or die "3E closeout/oracle contract is missing\n";
 length($bankswitching) <= 16 * 1024 &&
 index($bankswitching,'Never use bare "bank 0" without saying which identity is meant.')>=0 &&
 index($bankswitching,'file_index(BANKn) = bank_count - 1 - n')>=0 &&
@@ -227,7 +221,7 @@ index($bankswitching,'256-bit bank set')>=0 &&
 index($bankswitching,'VCS_3F_BANKS > N+1')>=0 &&
 -f File::Spec->catfile($test,'linker_bank_set_256.pl') &&
 -f File::Spec->catfile($repo,qw(libraries vcs 3F mapper.c26)) &&
-index($bankswitching,'[ ] 38b. Migrate 3E using the settled 3F ROM-call foundation.')>=0 &&
+-f File::Spec->catfile($test,'vcs_3e_simulator_oracle.pl') &&
 index($bankswitching,'[ ] 38c. Implement/migrate FC.')>=0 &&
 index($bankswitching,'[ ] 38d. Implement/migrate F0.')>=0 &&
 index($bankswitching,'[ ] 38e. Design automatic E0 calls.')>=0 &&

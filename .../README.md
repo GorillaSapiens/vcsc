@@ -56,8 +56,8 @@ work. Mapper-specific focused records may be split out while active.
 
 ### `3e.txt`
 
-Focused active record for Item 38b: 3E ROM-call migration and the `$swapram`
-storage/access design. Read it only while 3E is the current workstream.
+Compact closeout for completed Item 38b: 3E ROM-call and `$swapram` invariants,
+primary regressions, and Stella compatibility pointer.
 
 ### `superchip_dummy_read_hazard.txt`
 

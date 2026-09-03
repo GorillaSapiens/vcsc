@@ -1,0 +1,11 @@
+2026-09-03 00:47:00 PDT, close out 3E simulator hardware oracle
+Completed bankswitching Item 38b with `test/vcs_3e_simulator_oracle.pl`. The
+fixed-bank fixture writes each selector value 0..255 to its own RAM bank through
+the `$1400` write alias, leaves RAM mode via `$3F`, then reselects all 256 banks
+and reads through `$1000`; this fails on selector truncation, bank aliasing, or
+lost RAM contents. Separate negative fixtures require `vcsc-sim` to hard-error
+on reads from the `$1400-$17FF` write alias and writes to the `$1000-$13FF` read
+alias. No simulator runtime change was needed; the existing model already met
+the hardware contract. Compacted `.../3e.txt` to a durable closeout, advanced
+the active bankswitching roadmap to FC, and replaced hygiene's dependency on
+obsolete unfinished 3E prose with the executable oracle regression.

@@ -118,8 +118,9 @@ Open workstreams
    ownership is bank-aware, and parameterized 3F selectable banks share the
    canonical `$1000-$17FF` CPU window. 3F lower banks use descriptors `$00-$FE`
    and fixed uses `$FF`; every fixed/lower boundary call uses its trampoline so
-   nested lower->fixed->lower calls restore the original lower caller. Item 38b
-   is active in `.../3e.txt`: 3E RAM is fixed-bank `$swapram`, not bankcall state.
+   nested lower->fixed->lower calls restore the original lower caller. 3E is
+   complete: parameterized ROM calls plus compiler-managed 256 x 1K `$swapram`
+   are covered through the simulator hardware oracle.
 
    The F4SC field diagnostic remains bank-local by controller; only joystick owns
    TIA/switch/collision work. Four-paddle sampling snapshots INPT0-INPT3 together
@@ -264,8 +265,6 @@ fresh single uninterrupted 343/343 run in this tool window.
 
 Immediate TODO
 --------------
-3F automatic calls are complete. 3E has parameterized ROM calls, 256 x 1K
-`$swapram`, 1..4-byte lvalues/helpers/init, restoration coverage, and the ordered
-call matrix. The public diagnostic uses compiler-generated accesses across two
-RAM banks with no raw application `$3E`/`$3F` writes. Only the simulator hardware-
-oracle closeout remains. 3EX is later; after 3E migrate FC, F0, E0; FE stays special.
+3E automatic calls and `$swapram` are complete, including the full 256-selector
+simulator hardware oracle. Next bankswitching work is FC, then F0 and E0; 3EX is
+a later distinct mapper and FE stays special.
