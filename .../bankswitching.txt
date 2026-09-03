@@ -232,17 +232,13 @@ this is future optimizer-locality cleanup, not bankswitching work.
 
         [ ] 38c. Stress-certify maximum-size 3F and 3E.
 
-            Existing tests build 256-bank/512K endpoints but the ordered-call
-            matrix uses only four banks. Add one executable maximum-size cartridge
-            per mapper: all 255 selectable lower banks execute the full 255 x 255
-            ordered matrix; exercise the fixed/startup bank explicitly in both
-            directions too, with stack balance and physical-target verification.
-            Prefer one cartridge over 255 separate 512K images. Stella 3F
-            supports 512K; Stella 3E allows 256 ROM banks (240 recommended).
+            Maximum 3F is now executable coverage: `18_3f_max` builds one 256 x
+            2K / 512K cartridge and runs the full 255 x 255 lower-bank ordered calls,
+            plus lower<->fixed calls, stack checks, and physical-target/source
+            restoration verification before displaying `pass`/`FAIL` and `3F max`.
 
-            Add 3E whole-RAM torture too. The current oracle touches one byte per
-            VCSC RAM bank and helper coverage reaches bank 255/$3FC, but neither
-            verifies full capacity. Using compiler-managed `$swapram`, fill/read
+            Remaining: build the equivalent maximum-ROM 3E torture cartridge and
+            add 3E whole-RAM torture. Using compiler-managed `$swapram`, fill/read
             every byte of Stella-compatible 32 x 1K / 32K RAM and separately VCSC
             256 x 1K / 256K RAM. Keep the 1K object-boundary rule; split the 256K
             fixture across translation units because O26 BSS is 16-bit per TU.

@@ -160,3 +160,9 @@ with small `DPC`; `make play` forces Stella's `DPC` mapper.
   The visible cartridge uses a representative seven-bank nested chain; the shared
   ordered-call regression exhaustively covers every source/destination pair for
   both the six-bank and seven-bank FA2 profiles.
+
+`18_3f_max/` is the maximum-size 3F torture diagnostic: 256 physical 2K banks
+(512K total). It executes the complete 255 x 255 ordered matrix among the
+selectable lower banks, exercises lower<->fixed calls in both directions, checks
+physical-target identity, source restoration, and stack balance, then displays
+`pass`/`FAIL` with exactly `3F max` on the second line.

@@ -13,3 +13,4 @@
 !17_video_standards/secam/05_enhanced_multisprite_asymmetric/secam_enhanced_multisprite_asymmetric_228_interactive_startup.s26
 !19_diagnostic/01_diagnostic/diagnostic_boot.s26
 *.sym
+!09_bankswitching/18_3f_max/3f_max_torture_*.s26

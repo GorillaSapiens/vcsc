@@ -1,0 +1,122 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Maximum-size Tigervision 3F PASS/FAIL diagnostic: 256 x 2K = 512K.
+// Generated 3f_max_torture_*.s26 assembly executes every ordered pair among
+// the 255 selectable lower ROM banks, plus lower<->fixed coverage.
+instantiate "3F/mapper.c26" as mapper (VCS_3F_BANKS:=256)
+
+#ifndef SIMULATOR_TEST
+include "frame_ntsc.c26"
+instantiate "six_glyph_component.c26" as status_result (compact_font:=0, external_pointers:=1)
+instantiate "six_glyph_component.c26" as cart_type (compact_font:=0, external_pointers:=1)
+#endif
+
+uint8_t failure;
+uint16_t torture_count;
+uint8_t expected_source;
+uint8_t expected_dest;
+uint8_t source_sp;
+uint8_t fixed_sp;
+
+// Runtime-patched copies of the normal 3-byte inline bankcall ABI. Keeping
+// these seven-byte call sites in RIOT RAM lets every 2K source bank execute a
+// 255-destination sweep without carrying 255 literal call sites.
+uint8_t lower_stub[7];
+uint8_t lower_fixed_stub[7];
+uint8_t fixed_stub[7];
+
+bank255 extern void run_3f_max_torture(void);
+
+#ifndef SIMULATOR_TEST
+include "status_font.c26"
+
+inline void load_pass(void) {
+   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+0;
+   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+1;
+   asm lda #<{status_glyphs + 8};  asm sta status_result_pointers+2;
+   asm lda #>{status_glyphs + 8};  asm sta status_result_pointers+3;
+   asm lda #<{status_glyphs + 16};  asm sta status_result_pointers+4;
+   asm lda #>{status_glyphs + 16};  asm sta status_result_pointers+5;
+   asm lda #<{status_glyphs + 24};  asm sta status_result_pointers+6;
+   asm lda #>{status_glyphs + 24};  asm sta status_result_pointers+7;
+   asm lda #<{status_glyphs + 24};  asm sta status_result_pointers+8;
+   asm lda #>{status_glyphs + 24};  asm sta status_result_pointers+9;
+   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+10;
+   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+11;
+}
+
+inline void load_fail(void) {
+   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+0;
+   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+1;
+   asm lda #<{status_glyphs + 32};   asm sta status_result_pointers+2;
+   asm lda #>{status_glyphs + 32};   asm sta status_result_pointers+3;
+   asm lda #<{status_glyphs + 40};   asm sta status_result_pointers+4;
+   asm lda #>{status_glyphs + 40};   asm sta status_result_pointers+5;
+   asm lda #<{status_glyphs + 48};   asm sta status_result_pointers+6;
+   asm lda #>{status_glyphs + 48};   asm sta status_result_pointers+7;
+   asm lda #<{status_glyphs + 56};  asm sta status_result_pointers+8;
+   asm lda #>{status_glyphs + 56};  asm sta status_result_pointers+9;
+   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+10;
+   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+11;
+}
+
+include "cart_type_font.c26"
+
+inline void load_mapper_type(void) {
+   // "3F max"
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+0;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+1;
+   asm lda #<{cart_type_glyphs + 8};  asm sta cart_type_pointers+2;
+   asm lda #>{cart_type_glyphs + 8};  asm sta cart_type_pointers+3;
+   asm lda #<{cart_type_glyphs + 16}; asm sta cart_type_pointers+4;
+   asm lda #>{cart_type_glyphs + 16}; asm sta cart_type_pointers+5;
+   asm lda #<{cart_type_glyphs + 24}; asm sta cart_type_pointers+6;
+   asm lda #>{cart_type_glyphs + 24}; asm sta cart_type_pointers+7;
+   asm lda #<{cart_type_glyphs + 32}; asm sta cart_type_pointers+8;
+   asm lda #>{cart_type_glyphs + 32}; asm sta cart_type_pointers+9;
+   asm lda #<{cart_type_glyphs + 40}; asm sta cart_type_pointers+10;
+   asm lda #>{cart_type_glyphs + 40}; asm sta cart_type_pointers+11;
+}
+
+bank255 void draw_result(void) {
+   status_result_init();
+   cart_type_init();
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      status_result_vblank();
+      cart_type_vblank();
+      if (failure) { load_fail(); } else { load_pass(); }
+      load_mapper_type();
+      COLUBK := failure ? 0x20 : 0xC4;
+      COLUP0 := 0x0E; COLUP1 := 0x0E;
+      PF0 := 0; PF1 := 0; PF2 := 0; GRP0 := 0; GRP1 := 0;
+      ENAM0 := 0; ENAM1 := 0; ENABL := 0; CTRLPF := 0;
+      vcs_ntsc_end_vblank();
+      vcs_ntsc_wait_component_scanlines(85);
+      status_result_draw();
+      vcs_ntsc_component_handoff();
+      cart_type_draw();
+      vcs_ntsc_wait_visible_tail_scanlines(85);
+      vcs_ntsc_begin_overscan();
+      status_result_overscan();
+      cart_type_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}
+#endif
+
+#ifdef SIMULATOR_TEST
+bank255 void simulator_done(void) { while (1) { } }
+#endif
+
+bank255 void main(void) {
+   failure := 0;
+   torture_count := 0;
+   run_3f_max_torture();
+#ifdef SIMULATOR_TEST
+   asm jmp simulator_done;
+#else
+   draw_result();
+#endif
+}

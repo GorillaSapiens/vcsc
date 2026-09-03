@@ -23,3 +23,21 @@ fill/verify of current Stella's 32 x 1K / 32K RAM model and VCSC's extended 256 
 1K / 256K model. FC moved to 38d and is explicitly capped at 256 x 4K / 1 MiB
 for VCSC automatic calls; F0/E0 follow, and Stella-compatible 3EX remains a
 distinct later mapper as Item 38g.
+
+2026-09-03 09:26:53 PDT, add maximum-size 3F torture diagnostic
+Added `examples/09_bankswitching/18_3f_max`, a single 256 x 2K / 512K 3F
+PASS/FAIL cartridge. Eight generated lower-bank assembly objects cover physical
+banks 0..254 and a fixed-bank scheduler drives every ordered lower-bank pair:
+255 x 255 = 65,025 calls. Same-bank pairs use direct JSR; cross-bank pairs use a
+seven-byte runtime-patched inline descriptor call stub in RIOT RAM, so every
+source bank can sweep all 255 destinations without 255 literal call sites. The
+scheduler also exercises every lower bank -> fixed call and every fixed -> lower
+call, for 65,535 counted target calls total, with bank-local target/source
+identity checks and hardware-stack balance checks. The visible fixed-bank kernel
+displays `pass`/`FAIL` and exactly `3F max` on line two in a measured 262-line
+NTSC frame. Widened the frame-timing harness to signed 3F/3E 2K-bank images up to
+512K and made its 3F/3E selector model preserve the full bank byte rather than
+`value & 3`. Added `test/vcs_3f_max_diagnostic.pl`; the generic one-source
+example smoke test intentionally skips this generated nine-object cartridge,
+and the dedicated regression owns its 512K build, full runtime torture, and
+frame timing. Maximum-size 3E ROM/RAM torture remains Item 38c.

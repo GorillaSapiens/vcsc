@@ -87,6 +87,10 @@ find({
       return unless -f $_ && /\.c26\z/;
       my $source=$File::Find::name;
       return if $source =~ m{[\/]examples[\/]common[\/]};
+      # The 512K 3F torture cartridge requires nine generated assembly objects
+      # and executes a dedicated 65,535-call regression; it is not a standalone
+      # one-source editable-example smoke input.
+      return if $source =~ m{[\/]09_bankswitching[\/]18_3f_max[\/]3f_max_diagnostic\.c26\z};
       push @example_sources,$source;
    },
 },$examples_root);
