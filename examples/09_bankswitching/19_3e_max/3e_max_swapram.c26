@@ -1,0 +1,495 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+//
+// Compiler-lowered swapram accessors for the maximum-size 3E diagnostic.
+// There is exactly one 1K swapram object per Stella RAM bank.  The 8-bit
+// runtime offset selects within one of four constant 256-byte quarters,
+// keeping compiler scratch small while every tested byte remains an ordinary
+// C26 swapram lvalue lowered through the mapper-owned helper ABI.
+instantiate "3E/mapper.c26" as mapper (VCS_3E_BANKS:=256)
+
+extern uint8_t ram_phase;
+extern uint8_t ram_page;
+extern uint8_t ram_offset;
+extern uint8_t ram_value;
+
+extern swapram uint8_t ram_00[1024];
+extern swapram uint8_t ram_01[1024];
+extern swapram uint8_t ram_02[1024];
+extern swapram uint8_t ram_03[1024];
+extern swapram uint8_t ram_04[1024];
+extern swapram uint8_t ram_05[1024];
+extern swapram uint8_t ram_06[1024];
+extern swapram uint8_t ram_07[1024];
+extern swapram uint8_t ram_08[1024];
+extern swapram uint8_t ram_09[1024];
+extern swapram uint8_t ram_10[1024];
+extern swapram uint8_t ram_11[1024];
+extern swapram uint8_t ram_12[1024];
+extern swapram uint8_t ram_13[1024];
+extern swapram uint8_t ram_14[1024];
+extern swapram uint8_t ram_15[1024];
+extern swapram uint8_t ram_16[1024];
+extern swapram uint8_t ram_17[1024];
+extern swapram uint8_t ram_18[1024];
+extern swapram uint8_t ram_19[1024];
+extern swapram uint8_t ram_20[1024];
+extern swapram uint8_t ram_21[1024];
+extern swapram uint8_t ram_22[1024];
+extern swapram uint8_t ram_23[1024];
+extern swapram uint8_t ram_24[1024];
+extern swapram uint8_t ram_25[1024];
+extern swapram uint8_t ram_26[1024];
+extern swapram uint8_t ram_27[1024];
+extern swapram uint8_t ram_28[1024];
+extern swapram uint8_t ram_29[1024];
+extern swapram uint8_t ram_30[1024];
+extern swapram uint8_t ram_31[1024];
+
+bank0 void ram_access_00(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_00[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_00[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_00[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_00[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_00[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_00[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_00[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_00[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank1 void ram_access_01(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_01[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_01[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_01[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_01[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_01[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_01[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_01[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_01[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank2 void ram_access_02(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_02[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_02[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_02[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_02[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_02[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_02[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_02[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_02[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank3 void ram_access_03(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_03[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_03[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_03[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_03[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_03[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_03[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_03[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_03[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank4 void ram_access_04(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_04[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_04[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_04[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_04[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_04[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_04[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_04[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_04[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank5 void ram_access_05(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_05[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_05[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_05[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_05[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_05[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_05[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_05[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_05[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank6 void ram_access_06(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_06[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_06[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_06[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_06[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_06[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_06[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_06[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_06[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank7 void ram_access_07(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_07[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_07[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_07[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_07[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_07[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_07[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_07[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_07[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank8 void ram_access_08(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_08[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_08[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_08[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_08[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_08[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_08[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_08[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_08[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank9 void ram_access_09(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_09[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_09[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_09[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_09[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_09[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_09[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_09[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_09[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank10 void ram_access_10(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_10[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_10[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_10[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_10[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_10[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_10[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_10[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_10[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank11 void ram_access_11(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_11[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_11[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_11[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_11[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_11[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_11[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_11[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_11[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank12 void ram_access_12(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_12[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_12[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_12[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_12[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_12[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_12[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_12[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_12[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank13 void ram_access_13(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_13[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_13[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_13[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_13[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_13[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_13[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_13[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_13[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank14 void ram_access_14(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_14[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_14[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_14[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_14[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_14[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_14[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_14[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_14[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank15 void ram_access_15(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_15[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_15[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_15[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_15[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_15[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_15[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_15[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_15[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank16 void ram_access_16(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_16[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_16[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_16[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_16[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_16[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_16[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_16[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_16[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank17 void ram_access_17(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_17[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_17[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_17[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_17[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_17[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_17[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_17[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_17[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank18 void ram_access_18(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_18[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_18[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_18[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_18[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_18[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_18[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_18[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_18[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank19 void ram_access_19(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_19[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_19[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_19[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_19[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_19[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_19[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_19[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_19[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank20 void ram_access_20(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_20[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_20[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_20[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_20[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_20[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_20[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_20[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_20[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank21 void ram_access_21(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_21[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_21[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_21[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_21[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_21[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_21[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_21[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_21[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank22 void ram_access_22(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_22[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_22[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_22[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_22[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_22[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_22[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_22[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_22[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank23 void ram_access_23(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_23[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_23[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_23[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_23[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_23[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_23[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_23[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_23[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank24 void ram_access_24(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_24[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_24[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_24[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_24[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_24[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_24[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_24[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_24[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank25 void ram_access_25(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_25[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_25[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_25[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_25[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_25[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_25[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_25[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_25[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank26 void ram_access_26(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_26[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_26[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_26[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_26[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_26[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_26[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_26[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_26[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank27 void ram_access_27(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_27[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_27[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_27[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_27[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_27[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_27[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_27[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_27[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank28 void ram_access_28(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_28[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_28[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_28[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_28[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_28[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_28[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_28[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_28[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank29 void ram_access_29(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_29[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_29[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_29[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_29[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_29[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_29[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_29[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_29[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank30 void ram_access_30(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_30[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_30[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_30[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_30[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_30[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_30[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_30[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_30[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+
+bank31 void ram_access_31(void) {
+   if (ram_phase == 1) {
+      if (ram_page == 0) { ram_31[ram_offset] := ram_value; }
+      else { if (ram_page == 1) { ram_31[(uint16_t)ram_offset + 256] := ram_value; }
+      else { if (ram_page == 2) { ram_31[(uint16_t)ram_offset + 512] := ram_value; }
+      else { ram_31[(uint16_t)ram_offset + 768] := ram_value; } } }
+   } else {
+      if (ram_page == 0) { ram_value := ram_31[ram_offset]; }
+      else { if (ram_page == 1) { ram_value := ram_31[(uint16_t)ram_offset + 256]; }
+      else { if (ram_page == 2) { ram_value := ram_31[(uint16_t)ram_offset + 512]; }
+      else { ram_value := ram_31[(uint16_t)ram_offset + 768]; } } }
+   }
+}
+

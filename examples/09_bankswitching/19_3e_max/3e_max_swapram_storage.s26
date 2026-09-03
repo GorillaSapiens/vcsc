@@ -1,0 +1,163 @@
+; This file is covered under CC0-1.0. See examples/LICENSE.txt.
+; Backing storage for 19_3e_max compiler-managed swapram lvalues.
+; Exactly 32 x 1K objects occupy Stella's complete classic-3E RAM capacity.
+.export ram_00
+.segment "BSS.swapram.__vcsc_object$ram_00"
+ram_00:
+    .res 1024
+
+.export ram_01
+.segment "BSS.swapram.__vcsc_object$ram_01"
+ram_01:
+    .res 1024
+
+.export ram_02
+.segment "BSS.swapram.__vcsc_object$ram_02"
+ram_02:
+    .res 1024
+
+.export ram_03
+.segment "BSS.swapram.__vcsc_object$ram_03"
+ram_03:
+    .res 1024
+
+.export ram_04
+.segment "BSS.swapram.__vcsc_object$ram_04"
+ram_04:
+    .res 1024
+
+.export ram_05
+.segment "BSS.swapram.__vcsc_object$ram_05"
+ram_05:
+    .res 1024
+
+.export ram_06
+.segment "BSS.swapram.__vcsc_object$ram_06"
+ram_06:
+    .res 1024
+
+.export ram_07
+.segment "BSS.swapram.__vcsc_object$ram_07"
+ram_07:
+    .res 1024
+
+.export ram_08
+.segment "BSS.swapram.__vcsc_object$ram_08"
+ram_08:
+    .res 1024
+
+.export ram_09
+.segment "BSS.swapram.__vcsc_object$ram_09"
+ram_09:
+    .res 1024
+
+.export ram_10
+.segment "BSS.swapram.__vcsc_object$ram_10"
+ram_10:
+    .res 1024
+
+.export ram_11
+.segment "BSS.swapram.__vcsc_object$ram_11"
+ram_11:
+    .res 1024
+
+.export ram_12
+.segment "BSS.swapram.__vcsc_object$ram_12"
+ram_12:
+    .res 1024
+
+.export ram_13
+.segment "BSS.swapram.__vcsc_object$ram_13"
+ram_13:
+    .res 1024
+
+.export ram_14
+.segment "BSS.swapram.__vcsc_object$ram_14"
+ram_14:
+    .res 1024
+
+.export ram_15
+.segment "BSS.swapram.__vcsc_object$ram_15"
+ram_15:
+    .res 1024
+
+.export ram_16
+.segment "BSS.swapram.__vcsc_object$ram_16"
+ram_16:
+    .res 1024
+
+.export ram_17
+.segment "BSS.swapram.__vcsc_object$ram_17"
+ram_17:
+    .res 1024
+
+.export ram_18
+.segment "BSS.swapram.__vcsc_object$ram_18"
+ram_18:
+    .res 1024
+
+.export ram_19
+.segment "BSS.swapram.__vcsc_object$ram_19"
+ram_19:
+    .res 1024
+
+.export ram_20
+.segment "BSS.swapram.__vcsc_object$ram_20"
+ram_20:
+    .res 1024
+
+.export ram_21
+.segment "BSS.swapram.__vcsc_object$ram_21"
+ram_21:
+    .res 1024
+
+.export ram_22
+.segment "BSS.swapram.__vcsc_object$ram_22"
+ram_22:
+    .res 1024
+
+.export ram_23
+.segment "BSS.swapram.__vcsc_object$ram_23"
+ram_23:
+    .res 1024
+
+.export ram_24
+.segment "BSS.swapram.__vcsc_object$ram_24"
+ram_24:
+    .res 1024
+
+.export ram_25
+.segment "BSS.swapram.__vcsc_object$ram_25"
+ram_25:
+    .res 1024
+
+.export ram_26
+.segment "BSS.swapram.__vcsc_object$ram_26"
+ram_26:
+    .res 1024
+
+.export ram_27
+.segment "BSS.swapram.__vcsc_object$ram_27"
+ram_27:
+    .res 1024
+
+.export ram_28
+.segment "BSS.swapram.__vcsc_object$ram_28"
+ram_28:
+    .res 1024
+
+.export ram_29
+.segment "BSS.swapram.__vcsc_object$ram_29"
+ram_29:
+    .res 1024
+
+.export ram_30
+.segment "BSS.swapram.__vcsc_object$ram_30"
+ram_30:
+    .res 1024
+
+.export ram_31
+.segment "BSS.swapram.__vcsc_object$ram_31"
+ram_31:
+    .res 1024
+

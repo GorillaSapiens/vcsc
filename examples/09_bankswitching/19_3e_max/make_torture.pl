@@ -34,8 +34,9 @@ sub generated_header {
 
 sub emit_bank {
    my ($fh, $bank, $link_root) = @_;
-   printf {$fh} ".segmentalign \"CODE.bank%d\", 2048\n", $bank;
+   printf {$fh} ".segmentalign \"CODE.bank%d\", %d\n", $bank, ($bank < $ram_banks) ? 256 : 2048;
    printf {$fh} ".segment \"CODE.bank%d\"\n", $bank;
+   printf {$fh} ".export bank%d_source, bank%d_target\n", $bank, $bank if $bank < $ram_banks;
    printf {$fh} "bank%d_source:\n", $bank;
    print  {$fh} "    tsx\n";
    print  {$fh} "    stx source_sp\n";
@@ -43,8 +44,8 @@ sub emit_bank {
    print  {$fh} "    lda expected_dest\n";
    printf {$fh} "    cmp #\$%02X\n", $bank;
    printf {$fh} "    beq.same bank%d_same\n", $bank;
-   print  {$fh} "    sta lower_stub+5\n";
-   print  {$fh} "    jsr lower_stub\n";
+   print  {$fh} "    sta bankcall_stub+5\n";
+   print  {$fh} "    jsr bankcall_stub\n";
    printf {$fh} "    jmp bank%d_after\n", $bank;
    printf {$fh} "bank%d_same:\n", $bank;
    printf {$fh} "    jsr bank%d_target\n", $bank;
@@ -69,7 +70,17 @@ sub emit_bank {
    printf {$fh} "    jmp bank%d_step_done\n", $bank;
 
    printf {$fh} "bank%d_source_done:\n", $bank;
-   print  {$fh} "    jsr lower_fixed_stub\n";
+   print  {$fh} "    lda ram_lfsr\n";
+   print  {$fh} "    sta bankcall_stub+3\n";
+   print  {$fh} "    lda ram_lfsr+1\n";
+   print  {$fh} "    sta bankcall_stub+4\n";
+   print  {$fh} "    lda #\$ff\n";
+   print  {$fh} "    sta bankcall_stub+5\n";
+   print  {$fh} "    jsr bankcall_stub\n";
+   print  {$fh} "    lda #<\$1100\n";
+   print  {$fh} "    sta bankcall_stub+3\n";
+   print  {$fh} "    lda #>\$1100\n";
+   print  {$fh} "    sta bankcall_stub+4\n";
    printf {$fh} "    lda #\$%02X\n", $bank;
    print  {$fh} "    cmp expected_source\n";
    printf {$fh} "    beq.same bank%d_fixed_restored\n", $bank;
@@ -105,6 +116,130 @@ sub emit_bank {
    if ($link_root) {
       printf {$fh} "bank%d_link_root:\n", $bank;
       print {$fh} "    rts\n";
+   }
+
+   if ($bank < $ram_banks) {
+      print {$fh} "    .align 256\n";
+      printf {$fh} ".export bank%d_ram_entry\n", $bank;
+      printf {$fh} "bank%d_ram_entry:\n", $bank;
+      printf {$fh} "    jsr ram_access_%02d\n", $bank;
+      print {$fh} "    rts\n";
+   }
+
+   if ($bank == 31) {
+      print {$fh} <<'RAM_SCHEDULER';
+
+; Run bounded compiler-managed swapram work from lower ROM bank 31.  Each byte
+; calls the fixed ram_compiler_access dispatcher through the normal 3E bankcall
+; ABI; that dispatcher in turn enters the selected bank's $1200 C26 wrapper.
+step_3e_max_ram:
+    lda ram_phase
+    cmp #1
+    beq.same ram_write_phase
+    jmp ram_verify_phase
+
+ram_write_phase:
+    lda ram_bank
+    cmp #32
+    beq.same ram_write_done
+    lda torture_batch
+    sta step_remaining
+ram_write_loop:
+    lda ram_lfsr
+    sta ram_value
+    jsr ram_compiler_access
+    .banktarget ram_compiler_access
+    jsr lfsr_next
+    jsr ram_walk_advance
+    bcs.same ram_step_return
+    dec step_remaining
+    bne.same ram_write_loop
+ram_step_return:
+    rts
+
+ram_write_done:
+    lda #2
+    sta ram_phase
+    jsr ram_walk_reset
+    rts
+
+ram_verify_phase:
+    lda ram_bank
+    cmp #32
+    beq.same ram_verify_done
+    lda torture_batch
+    sta step_remaining
+ram_verify_loop:
+    jsr ram_compiler_access
+    .banktarget ram_compiler_access
+    lda ram_value
+    cmp ram_lfsr
+    beq.same ram_verify_ok
+    lda failure
+    bne.same ram_verify_ok
+    lda ram_bank
+    ora #$80
+    sta failure
+ram_verify_ok:
+    jsr lfsr_next
+    jsr ram_walk_advance
+    bcs.same ram_step_return
+    dec step_remaining
+    bne.same ram_verify_loop
+    rts
+
+ram_verify_done:
+    lda #3
+    sta ram_phase
+    lda #1
+    sta torture_done
+    rts
+
+ram_walk_reset:
+    lda #0
+    sta ram_bank
+    sta ram_page
+    sta ram_offset
+    lda #$e1
+    sta ram_lfsr
+    lda #$ac
+    sta ram_lfsr+1
+    rts
+
+; Advance one byte in a 1K compiler-managed swapram object. Carry set means an
+; object/bank boundary was reached; the next frame slice starts the next object.
+ram_walk_advance:
+    inc ram_offset
+    bne.same ram_walk_same_bank
+    inc ram_page
+    lda ram_page
+    cmp #4
+    bne.same ram_walk_same_bank
+    lda #0
+    sta ram_page
+    inc ram_bank
+    sec
+    rts
+ram_walk_same_bank:
+    clc
+    rts
+
+; 16-bit maximal Galois LFSR, right shift, polynomial
+; x^16 + x^14 + x^13 + x^11 + 1 (tap mask $B400), seed $ACE1.
+lfsr_next:
+    lda ram_lfsr+1
+    lsr
+    sta ram_lfsr+1
+    lda ram_lfsr
+    ror
+    sta ram_lfsr
+    bcc.same lfsr_done
+    lda ram_lfsr+1
+    eor #$b4
+    sta ram_lfsr+1
+lfsr_done:
+    rts
+RAM_SCHEDULER
    }
 
    if ($bank == 251) {
@@ -158,53 +293,23 @@ init_3e_max_torture:
     ; trampoline is patched to the actual _vcsc_ptr0 address.
     lda _vcsc_ptr0
 
-    ; lower_stub = JSR $1780 / .word $1100 / .byte destination / RTS
+    ; One shared runtime stub serves lower->lower, lower->fixed, and later
+    ; fixed->lower calls.  Source-bank code temporarily patches target/dest for
+    ; its fixed probe and restores $1100 before returning.
     lda #$20
-    sta lower_stub
+    sta bankcall_stub
     lda #<$1780
-    sta lower_stub+1
+    sta bankcall_stub+1
     lda #>$1780
-    sta lower_stub+2
+    sta bankcall_stub+2
     lda #<$1100
-    sta lower_stub+3
+    sta bankcall_stub+3
     lda #>$1100
-    sta lower_stub+4
+    sta bankcall_stub+4
     lda #0
-    sta lower_stub+5
+    sta bankcall_stub+5
     lda #$60
-    sta lower_stub+6
-
-    ; lower_fixed_stub uses the lower bank's trampoline but targets fixed ROM.
-    lda #$20
-    sta lower_fixed_stub
-    lda #<$1780
-    sta lower_fixed_stub+1
-    lda #>$1780
-    sta lower_fixed_stub+2
-    ; fixed-bank finalizer patches target bytes 3/4 after this call returns.
-    lda #0
-    sta lower_fixed_stub+3
-    sta lower_fixed_stub+4
-    lda #$ff
-    sta lower_fixed_stub+5
-    lda #$60
-    sta lower_fixed_stub+6
-
-    ; fixed_stub uses the fixed bank's trampoline and targets common lower $1100.
-    lda #$20
-    sta fixed_stub
-    lda #<$1f80
-    sta fixed_stub+1
-    lda #>$1f80
-    sta fixed_stub+2
-    lda #<$1100
-    sta fixed_stub+3
-    lda #>$1100
-    sta fixed_stub+4
-    lda #0
-    sta fixed_stub+5
-    lda #$60
-    sta fixed_stub+6
+    sta bankcall_stub+6
     rts
 
 ; Unreachable link roots keep the first seven generated lower-bank objects live.
@@ -374,7 +479,13 @@ for (my $first = 0; $first < $lower_banks; $first += $banks_per_object) {
    open my $fh, '>', $path or die "$0: cannot write $path: $!\n";
    generated_header($fh, "This object contains lower banks $first through $last.");
    print {$fh} ".import failure, torture_count, expected_source, expected_dest, source_sp, step_remaining\n";
-   print {$fh} ".import lower_stub, lower_fixed_stub\n";
+   print {$fh} ".import torture_done, torture_batch, ram_phase, ram_bank, ram_page, ram_offset, ram_value\n";
+   print {$fh} ".import bankcall_stub, ram_lfsr\n";
+   if ($first == 0) {
+      for my $bank (0 .. $ram_banks - 1) {
+         printf {$fh} ".import ram_access_%02d\n", $bank;
+      }
+   }
    if ($first <= 254 && $last >= 253) {
       print {$fh} ".import status_result_pointers, spinner_index\n";
       print {$fh} ".export load_wait, load_pass, load_fail\n";
@@ -385,7 +496,6 @@ for (my $first = 0; $first < $lower_banks; $first += $banks_per_object) {
    }
    if ($first <= 252 && $last >= 252) {
       print {$fh} ".import ram_phase, torture_done\n";
-      print {$fh} ".import fixed_stub\n";
       for (my $root = 0; $root < 224; $root += $banks_per_object) {
          printf {$fh} ".import bank%d_link_root\n", $root;
       }
@@ -393,7 +503,8 @@ for (my $first = 0; $first < $lower_banks; $first += $banks_per_object) {
       print {$fh} ".export init_3e_max_torture\n";
    }
    if ($first == 0) {
-      print {$fh} ".export bank0_link_root\n";
+      print {$fh} ".import ram_compiler_access\n";
+      print {$fh} ".export bank0_link_root, step_3e_max_ram, ram_walk_reset\n";
    } else {
       printf {$fh} ".export bank%d_link_root\n", $first;
    }
@@ -404,16 +515,17 @@ for (my $first = 0; $first < $lower_banks; $first += $banks_per_object) {
 
 my $fixed_path = "$Bin/3e_max_torture_fixed.s26";
 open my $fixed, '>', $fixed_path or die "$0: cannot write $fixed_path: $!\n";
-generated_header($fixed, "This object contains the fixed-bank ROM/RAM scheduler.");
+generated_header($fixed, "This object contains the fixed-bank ROM scheduler and compiler-swapram driver.");
 print {$fixed} ".import failure, torture_count, expected_source, expected_dest, fixed_sp\n";
 print {$fixed} ".import torture_done, torture_batch, step_remaining\n";
-print {$fixed} ".import ram_phase, ram_bank, ram_page, ram_offset, ram_lfsr\n";
-print {$fixed} ".import lower_stub, lower_fixed_stub, fixed_stub\n";
-print {$fixed} ".importzp _vcsc_ptr0\n";
-print {$fixed} ".export fixed_probe, finish_3e_max_init, step_3e_max_torture\n\n.segment \"CODE.bank255\"\n\n";
+print {$fixed} ".import ram_phase, ram_bank, ram_page, ram_offset, ram_value, ram_lfsr\n";
+print {$fixed} ".import bankcall_stub\n";
+print {$fixed} ".import step_3e_max_ram, ram_walk_reset\n";
+print {$fixed} ".export fixed_probe, finish_3e_max_init, step_3e_max_torture, ram_compiler_access\n\n.segment \"CODE.bank255\"\n\n";
 
 print {$fixed} <<'FIXED';
 
+.segment "CODE.bank255.fixed_probe"
 fixed_probe:
     inc torture_count
     bne.same fixed_probe_count_ok
@@ -421,23 +533,30 @@ fixed_probe:
 fixed_probe_count_ok:
     rts
 
+; The lower banks cannot directly relocate against a fixed-bank symbol without
+; coupling their placement.  Cache the fixed probe address in ram_lfsr while
+; the ROM phase runs; ram_walk_reset replaces it with $ACE1 before RAM testing.
+.segment "CODE.bank255.finish_init"
 finish_3e_max_init:
     lda #<fixed_probe
-    sta lower_fixed_stub+3
+    sta ram_lfsr
     lda #>fixed_probe
-    sta lower_fixed_stub+4
+    sta ram_lfsr+1
     rts
 
-; Execute bounded ROM calls or RAM byte probes, then return to the frame loop.
-; ram_phase=0 runs the complete ROM matrix; 1 fills all 32K RAM; 2 verifies it.
+; Execute bounded work, then return to the frame loop.  The complete ROM
+; matrix stays in fixed ROM.  RAM work lives in lower bank31 so the fixed 2K
+; retains room for the compiler-selected 3E swapram helper.
+.segment "CODE.bank255.rom_scheduler"
 step_3e_max_torture:
     lda torture_done
     bne.same step_return
     lda ram_phase
     beq.same rom_phase
-    cmp #1
-    beq ram_write_phase
-    jmp ram_verify_phase
+    jsr step_3e_max_ram
+    .banktarget step_3e_max_ram
+step_return:
+    rts
 
 rom_phase:
     lda expected_source
@@ -455,10 +574,18 @@ rom_phase:
     lda #0
     sta expected_dest
     inc expected_source
-step_return:
     rts
 
 fixed_phase:
+    ; The lower-bank matrix is complete. Reuse the one RAM stub from fixed ROM.
+    lda #<$1f80
+    sta bankcall_stub+1
+    lda #>$1f80
+    sta bankcall_stub+2
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     tsx
     stx fixed_sp
     lda torture_batch
@@ -467,8 +594,8 @@ fixed_dest_loop:
     lda expected_dest
     cmp #$ff
     beq.same fixed_done
-    sta fixed_stub+5
-    jsr fixed_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     inc expected_dest
     lda expected_dest
     cmp #$ff
@@ -508,131 +635,29 @@ count_hi_ok:
     lda #1
     sta ram_phase
     jsr ram_walk_reset
+    .banktarget ram_walk_reset
     rts
 
-; Stella's 3E mapper exposes 32 independent 1K RAM banks.  Fill every byte
-; through the $1400-$17FF write alias using one continuous maximal 16-bit LFSR
-; stream, so equal offsets in different banks intentionally receive different
-; data.  We then reset the LFSR and walk the $1000-$13FF read alias in the same
-; order.  Any mirrored/aliased RAM bank therefore fails verification.
-ram_write_phase:
+; Fixed-ROM bridge used by bank31's RAM scheduler.  This dynamic call starts
+; from the fixed trampoline copy, selects the RAM object's matching lower ROM
+; bank, and enters its $1200 wrapper.  That wrapper calls C26 ram_access_N(),
+; whose ordinary swapram lvalue is compiler-lowered through swapram_read1 or
+; swapram_write1 in this same fixed bank.
+.segment "CODE.bank255.ram_dispatch"
+ram_compiler_access:
+    lda #<$1200
+    sta bankcall_stub+3
+    lda #>$1200
+    sta bankcall_stub+4
     lda ram_bank
-    cmp #32
-    beq.same ram_write_done
-    sta $3e
-    lda #0
-    sta _vcsc_ptr0
-    lda ram_page
-    clc
-    adc #$14
-    sta _vcsc_ptr0+1
-    lda torture_batch
-    sta step_remaining
-ram_write_loop:
-    ldy ram_offset
-    lda ram_lfsr
-    sta (_vcsc_ptr0),y
-    jsr lfsr_next
-    jsr ram_walk_advance
-    bcc.same ram_write_same_bank
-    rts
-ram_write_same_bank:
-    dec step_remaining
-    bne.same ram_write_loop
+    sta bankcall_stub+5
+    lda #<$1f80
+    sta bankcall_stub+1
+    lda #>$1f80
+    sta bankcall_stub+2
+    jsr bankcall_stub
     rts
 
-ram_write_done:
-    lda #2
-    sta ram_phase
-    jsr ram_walk_reset
-    rts
-
-ram_verify_phase:
-    lda ram_bank
-    cmp #32
-    beq.same ram_verify_done
-    sta $3e
-    lda #0
-    sta _vcsc_ptr0
-    lda ram_page
-    clc
-    adc #$10
-    sta _vcsc_ptr0+1
-    lda torture_batch
-    sta step_remaining
-ram_verify_loop:
-    ldy ram_offset
-    lda (_vcsc_ptr0),y
-    cmp ram_lfsr
-    beq.same ram_verify_ok
-    lda failure
-    bne.same ram_verify_ok
-    lda ram_bank
-    ora #$80
-    sta failure
-ram_verify_ok:
-    jsr lfsr_next
-    jsr ram_walk_advance
-    bcc.same ram_verify_same_bank
-    rts
-ram_verify_same_bank:
-    dec step_remaining
-    bne.same ram_verify_loop
-    rts
-
-ram_verify_done:
-    lda #3
-    sta ram_phase
-    lda #1
-    sta torture_done
-    rts
-
-ram_walk_reset:
-    lda #0
-    sta ram_bank
-    sta ram_page
-    sta ram_offset
-    lda #$e1
-    sta ram_lfsr
-    lda #$ac
-    sta ram_lfsr+1
-    rts
-
-; Advance one byte in the current 1K RAM bank.  Carry set means a bank boundary
-; was reached; return to the frame scheduler so the next blank-time slice can
-; explicitly select the next RAM bank before touching it.
-ram_walk_advance:
-    inc ram_offset
-    bne.same ram_walk_same_bank
-    inc ram_page
-    inc _vcsc_ptr0+1
-    lda ram_page
-    cmp #4
-    bne.same ram_walk_same_bank
-    lda #0
-    sta ram_page
-    inc ram_bank
-    sec
-    rts
-ram_walk_same_bank:
-    clc
-    rts
-
-; 16-bit maximal Galois LFSR, right shift, polynomial
-; x^16 + x^14 + x^13 + x^11 + 1 (tap mask $B400), seed $ACE1.
-lfsr_next:
-    lda ram_lfsr+1
-    lsr
-    sta ram_lfsr+1
-    lda ram_lfsr
-    ror
-    sta ram_lfsr
-    bcc.same lfsr_done
-    lda ram_lfsr+1
-    eor #$b4
-    sta ram_lfsr+1
-lfsr_done:
-    rts
 FIXED
 
 close $fixed or die "$0: close $fixed_path: $!\n";

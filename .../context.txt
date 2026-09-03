@@ -267,9 +267,9 @@ Immediate TODO
 --------------
 3F/3E core automatic-call and `$swapram` work is complete. Maximum-size 3F
 stress is covered by `18_3f_max`. Stella-compatible maximum 3E is now covered
-by `19_3e_max`: 512K ROM runs the same complete ordered call matrix, then all
-32 x 1K / 32K Stella 3E RAM is filled and reread with one continuous maximal
-16-bit LFSR while a stable blue `wait` spinner remains on screen.
+by `19_3e_max`: 512K ROM runs the same complete ordered call matrix, then 32
+compiler-managed 1K `$swapram` objects fill and reread all 32K with one continuous
+maximal 16-bit LFSR while a stable blue `wait` spinner remains on screen.
 Before FC, add the separate VCSC-extended 256 x 1K / 256K 3E `$swapram` torture
 and verify every byte across multiple translation units. Then migrate FC with a
 deliberate VCSC limit of 256 x 4K / 1 MiB, followed by F0 and E0. 3EX is a later

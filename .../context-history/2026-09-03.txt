@@ -147,3 +147,37 @@ RAM verify, and WAIT->PASS transition with every live frame exactly 262 lines.
 Added test/vcs_3e_max_diagnostic.pl and source/build/hygiene/asm-allowlist hooks.
 The remaining Item 38c work is the separate VCSC-extended 256K 3E swapram
 capacity torture across multiple translation units.
+
+2026-09-03 14:35:26 PDT, fix 3E max compiler swapram and timing
+Reworked `examples/09_bankswitching/19_3e_max` after the first Stella run
+showed both FAIL and 262/263-line frames. The 32K RAM phase no longer uses raw
+mapper RAM reads/writes. It now exposes exactly 32 one-kilobyte `$swapram`
+objects and performs every byte write/read as an ordinary C26 `$swapram` lvalue,
+so the compiler selects `swapram_write1`/`swapram_read1`; the generated ROM
+scheduler only handles bank dispatch, LFSR state, and bounded work slicing.
+One continuous `$ACE1`/`$B400` maximal 16-bit LFSR still spans all 32 banks, so
+mirrored or aliased banks cannot pass from repeating per-bank data.
+
+The compiler-managed path is materially slower than the raw mapper shortcut.
+Measured RAM work was reduced to two bytes in VBLANK and two in overscan, and
+result-pointer/color setup stays inside the final overscan deadline. Replaced
+the old 6,500-frame partial timing check with a 22,000-assertion run that covers
+the complete ROM matrix, RAM fill, RAM verify, WAIT-to-result transition, and
+final result. All 21,997 checked frames are exactly 262 lines. The same timing
+harness now checks final RAM-state bytes directly: failure=0, call count=$FFFF,
+RAM phase=3, bank/page/offset=32/0/0, and LFSR=$5F32. This avoids a second huge
+simulator-only cartridge build while proving the normal displayed cartridge
+actually completes successfully.
+
+Extended `test/vcs_3e_max_diagnostic.pl` to lock the 32 compiler-visible 1K
+objects, their 0..31 swapram bank allocation, linked read/write helper presence,
+full LFSR endpoint, and the complete frame/memory oracle. The generic example
+smoke test treats the companion `3e_max_swapram.c26` translation unit as part of
+the dedicated multi-input cartridge rather than a standalone example.
+
+2026-09-03 14:44:00 PDT, package 3E max swapram storage
+Added an examples/.gitignore exception for
+`19_3e_max/3e_max_swapram_storage.s26`. The top-level `make tar` temporary-git
+path honors `examples/*.s26`; without the exception the compiler-managed 32K
+swapram backing source was silently omitted even though the working-tree
+regression passed.

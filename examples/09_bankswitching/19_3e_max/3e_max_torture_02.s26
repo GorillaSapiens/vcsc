@@ -6,7 +6,8 @@
 ; the full 255 x 255 ordered matrix fits in one 512K cartridge.
 
 .import failure, torture_count, expected_source, expected_dest, source_sp, step_remaining
-.import lower_stub, lower_fixed_stub
+.import torture_done, torture_batch, ram_phase, ram_bank, ram_page, ram_offset, ram_value
+.import bankcall_stub, ram_lfsr
 .export bank64_link_root
 
 .segmentalign "CODE.bank64", 2048
@@ -18,8 +19,8 @@ bank64_dest_loop:
     lda expected_dest
     cmp #$40
     beq.same bank64_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank64_after
 bank64_same:
     jsr bank64_target
@@ -38,7 +39,17 @@ bank64_restored:
     bne.same bank64_dest_loop
     jmp bank64_step_done
 bank64_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$40
     cmp expected_source
     beq.same bank64_fixed_restored
@@ -78,8 +89,8 @@ bank65_dest_loop:
     lda expected_dest
     cmp #$41
     beq.same bank65_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank65_after
 bank65_same:
     jsr bank65_target
@@ -98,7 +109,17 @@ bank65_restored:
     bne.same bank65_dest_loop
     jmp bank65_step_done
 bank65_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$41
     cmp expected_source
     beq.same bank65_fixed_restored
@@ -136,8 +157,8 @@ bank66_dest_loop:
     lda expected_dest
     cmp #$42
     beq.same bank66_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank66_after
 bank66_same:
     jsr bank66_target
@@ -156,7 +177,17 @@ bank66_restored:
     bne.same bank66_dest_loop
     jmp bank66_step_done
 bank66_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$42
     cmp expected_source
     beq.same bank66_fixed_restored
@@ -194,8 +225,8 @@ bank67_dest_loop:
     lda expected_dest
     cmp #$43
     beq.same bank67_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank67_after
 bank67_same:
     jsr bank67_target
@@ -214,7 +245,17 @@ bank67_restored:
     bne.same bank67_dest_loop
     jmp bank67_step_done
 bank67_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$43
     cmp expected_source
     beq.same bank67_fixed_restored
@@ -252,8 +293,8 @@ bank68_dest_loop:
     lda expected_dest
     cmp #$44
     beq.same bank68_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank68_after
 bank68_same:
     jsr bank68_target
@@ -272,7 +313,17 @@ bank68_restored:
     bne.same bank68_dest_loop
     jmp bank68_step_done
 bank68_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$44
     cmp expected_source
     beq.same bank68_fixed_restored
@@ -310,8 +361,8 @@ bank69_dest_loop:
     lda expected_dest
     cmp #$45
     beq.same bank69_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank69_after
 bank69_same:
     jsr bank69_target
@@ -330,7 +381,17 @@ bank69_restored:
     bne.same bank69_dest_loop
     jmp bank69_step_done
 bank69_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$45
     cmp expected_source
     beq.same bank69_fixed_restored
@@ -368,8 +429,8 @@ bank70_dest_loop:
     lda expected_dest
     cmp #$46
     beq.same bank70_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank70_after
 bank70_same:
     jsr bank70_target
@@ -388,7 +449,17 @@ bank70_restored:
     bne.same bank70_dest_loop
     jmp bank70_step_done
 bank70_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$46
     cmp expected_source
     beq.same bank70_fixed_restored
@@ -426,8 +497,8 @@ bank71_dest_loop:
     lda expected_dest
     cmp #$47
     beq.same bank71_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank71_after
 bank71_same:
     jsr bank71_target
@@ -446,7 +517,17 @@ bank71_restored:
     bne.same bank71_dest_loop
     jmp bank71_step_done
 bank71_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$47
     cmp expected_source
     beq.same bank71_fixed_restored
@@ -484,8 +565,8 @@ bank72_dest_loop:
     lda expected_dest
     cmp #$48
     beq.same bank72_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank72_after
 bank72_same:
     jsr bank72_target
@@ -504,7 +585,17 @@ bank72_restored:
     bne.same bank72_dest_loop
     jmp bank72_step_done
 bank72_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$48
     cmp expected_source
     beq.same bank72_fixed_restored
@@ -542,8 +633,8 @@ bank73_dest_loop:
     lda expected_dest
     cmp #$49
     beq.same bank73_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank73_after
 bank73_same:
     jsr bank73_target
@@ -562,7 +653,17 @@ bank73_restored:
     bne.same bank73_dest_loop
     jmp bank73_step_done
 bank73_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$49
     cmp expected_source
     beq.same bank73_fixed_restored
@@ -600,8 +701,8 @@ bank74_dest_loop:
     lda expected_dest
     cmp #$4A
     beq.same bank74_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank74_after
 bank74_same:
     jsr bank74_target
@@ -620,7 +721,17 @@ bank74_restored:
     bne.same bank74_dest_loop
     jmp bank74_step_done
 bank74_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$4A
     cmp expected_source
     beq.same bank74_fixed_restored
@@ -658,8 +769,8 @@ bank75_dest_loop:
     lda expected_dest
     cmp #$4B
     beq.same bank75_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank75_after
 bank75_same:
     jsr bank75_target
@@ -678,7 +789,17 @@ bank75_restored:
     bne.same bank75_dest_loop
     jmp bank75_step_done
 bank75_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$4B
     cmp expected_source
     beq.same bank75_fixed_restored
@@ -716,8 +837,8 @@ bank76_dest_loop:
     lda expected_dest
     cmp #$4C
     beq.same bank76_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank76_after
 bank76_same:
     jsr bank76_target
@@ -736,7 +857,17 @@ bank76_restored:
     bne.same bank76_dest_loop
     jmp bank76_step_done
 bank76_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$4C
     cmp expected_source
     beq.same bank76_fixed_restored
@@ -774,8 +905,8 @@ bank77_dest_loop:
     lda expected_dest
     cmp #$4D
     beq.same bank77_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank77_after
 bank77_same:
     jsr bank77_target
@@ -794,7 +925,17 @@ bank77_restored:
     bne.same bank77_dest_loop
     jmp bank77_step_done
 bank77_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$4D
     cmp expected_source
     beq.same bank77_fixed_restored
@@ -832,8 +973,8 @@ bank78_dest_loop:
     lda expected_dest
     cmp #$4E
     beq.same bank78_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank78_after
 bank78_same:
     jsr bank78_target
@@ -852,7 +993,17 @@ bank78_restored:
     bne.same bank78_dest_loop
     jmp bank78_step_done
 bank78_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$4E
     cmp expected_source
     beq.same bank78_fixed_restored
@@ -890,8 +1041,8 @@ bank79_dest_loop:
     lda expected_dest
     cmp #$4F
     beq.same bank79_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank79_after
 bank79_same:
     jsr bank79_target
@@ -910,7 +1061,17 @@ bank79_restored:
     bne.same bank79_dest_loop
     jmp bank79_step_done
 bank79_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$4F
     cmp expected_source
     beq.same bank79_fixed_restored
@@ -948,8 +1109,8 @@ bank80_dest_loop:
     lda expected_dest
     cmp #$50
     beq.same bank80_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank80_after
 bank80_same:
     jsr bank80_target
@@ -968,7 +1129,17 @@ bank80_restored:
     bne.same bank80_dest_loop
     jmp bank80_step_done
 bank80_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$50
     cmp expected_source
     beq.same bank80_fixed_restored
@@ -1006,8 +1177,8 @@ bank81_dest_loop:
     lda expected_dest
     cmp #$51
     beq.same bank81_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank81_after
 bank81_same:
     jsr bank81_target
@@ -1026,7 +1197,17 @@ bank81_restored:
     bne.same bank81_dest_loop
     jmp bank81_step_done
 bank81_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$51
     cmp expected_source
     beq.same bank81_fixed_restored
@@ -1064,8 +1245,8 @@ bank82_dest_loop:
     lda expected_dest
     cmp #$52
     beq.same bank82_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank82_after
 bank82_same:
     jsr bank82_target
@@ -1084,7 +1265,17 @@ bank82_restored:
     bne.same bank82_dest_loop
     jmp bank82_step_done
 bank82_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$52
     cmp expected_source
     beq.same bank82_fixed_restored
@@ -1122,8 +1313,8 @@ bank83_dest_loop:
     lda expected_dest
     cmp #$53
     beq.same bank83_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank83_after
 bank83_same:
     jsr bank83_target
@@ -1142,7 +1333,17 @@ bank83_restored:
     bne.same bank83_dest_loop
     jmp bank83_step_done
 bank83_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$53
     cmp expected_source
     beq.same bank83_fixed_restored
@@ -1180,8 +1381,8 @@ bank84_dest_loop:
     lda expected_dest
     cmp #$54
     beq.same bank84_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank84_after
 bank84_same:
     jsr bank84_target
@@ -1200,7 +1401,17 @@ bank84_restored:
     bne.same bank84_dest_loop
     jmp bank84_step_done
 bank84_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$54
     cmp expected_source
     beq.same bank84_fixed_restored
@@ -1238,8 +1449,8 @@ bank85_dest_loop:
     lda expected_dest
     cmp #$55
     beq.same bank85_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank85_after
 bank85_same:
     jsr bank85_target
@@ -1258,7 +1469,17 @@ bank85_restored:
     bne.same bank85_dest_loop
     jmp bank85_step_done
 bank85_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$55
     cmp expected_source
     beq.same bank85_fixed_restored
@@ -1296,8 +1517,8 @@ bank86_dest_loop:
     lda expected_dest
     cmp #$56
     beq.same bank86_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank86_after
 bank86_same:
     jsr bank86_target
@@ -1316,7 +1537,17 @@ bank86_restored:
     bne.same bank86_dest_loop
     jmp bank86_step_done
 bank86_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$56
     cmp expected_source
     beq.same bank86_fixed_restored
@@ -1354,8 +1585,8 @@ bank87_dest_loop:
     lda expected_dest
     cmp #$57
     beq.same bank87_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank87_after
 bank87_same:
     jsr bank87_target
@@ -1374,7 +1605,17 @@ bank87_restored:
     bne.same bank87_dest_loop
     jmp bank87_step_done
 bank87_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$57
     cmp expected_source
     beq.same bank87_fixed_restored
@@ -1412,8 +1653,8 @@ bank88_dest_loop:
     lda expected_dest
     cmp #$58
     beq.same bank88_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank88_after
 bank88_same:
     jsr bank88_target
@@ -1432,7 +1673,17 @@ bank88_restored:
     bne.same bank88_dest_loop
     jmp bank88_step_done
 bank88_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$58
     cmp expected_source
     beq.same bank88_fixed_restored
@@ -1470,8 +1721,8 @@ bank89_dest_loop:
     lda expected_dest
     cmp #$59
     beq.same bank89_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank89_after
 bank89_same:
     jsr bank89_target
@@ -1490,7 +1741,17 @@ bank89_restored:
     bne.same bank89_dest_loop
     jmp bank89_step_done
 bank89_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$59
     cmp expected_source
     beq.same bank89_fixed_restored
@@ -1528,8 +1789,8 @@ bank90_dest_loop:
     lda expected_dest
     cmp #$5A
     beq.same bank90_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank90_after
 bank90_same:
     jsr bank90_target
@@ -1548,7 +1809,17 @@ bank90_restored:
     bne.same bank90_dest_loop
     jmp bank90_step_done
 bank90_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$5A
     cmp expected_source
     beq.same bank90_fixed_restored
@@ -1586,8 +1857,8 @@ bank91_dest_loop:
     lda expected_dest
     cmp #$5B
     beq.same bank91_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank91_after
 bank91_same:
     jsr bank91_target
@@ -1606,7 +1877,17 @@ bank91_restored:
     bne.same bank91_dest_loop
     jmp bank91_step_done
 bank91_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$5B
     cmp expected_source
     beq.same bank91_fixed_restored
@@ -1644,8 +1925,8 @@ bank92_dest_loop:
     lda expected_dest
     cmp #$5C
     beq.same bank92_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank92_after
 bank92_same:
     jsr bank92_target
@@ -1664,7 +1945,17 @@ bank92_restored:
     bne.same bank92_dest_loop
     jmp bank92_step_done
 bank92_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$5C
     cmp expected_source
     beq.same bank92_fixed_restored
@@ -1702,8 +1993,8 @@ bank93_dest_loop:
     lda expected_dest
     cmp #$5D
     beq.same bank93_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank93_after
 bank93_same:
     jsr bank93_target
@@ -1722,7 +2013,17 @@ bank93_restored:
     bne.same bank93_dest_loop
     jmp bank93_step_done
 bank93_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$5D
     cmp expected_source
     beq.same bank93_fixed_restored
@@ -1760,8 +2061,8 @@ bank94_dest_loop:
     lda expected_dest
     cmp #$5E
     beq.same bank94_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank94_after
 bank94_same:
     jsr bank94_target
@@ -1780,7 +2081,17 @@ bank94_restored:
     bne.same bank94_dest_loop
     jmp bank94_step_done
 bank94_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$5E
     cmp expected_source
     beq.same bank94_fixed_restored
@@ -1818,8 +2129,8 @@ bank95_dest_loop:
     lda expected_dest
     cmp #$5F
     beq.same bank95_same
-    sta lower_stub+5
-    jsr lower_stub
+    sta bankcall_stub+5
+    jsr bankcall_stub
     jmp bank95_after
 bank95_same:
     jsr bank95_target
@@ -1838,7 +2149,17 @@ bank95_restored:
     bne.same bank95_dest_loop
     jmp bank95_step_done
 bank95_source_done:
-    jsr lower_fixed_stub
+    lda ram_lfsr
+    sta bankcall_stub+3
+    lda ram_lfsr+1
+    sta bankcall_stub+4
+    lda #$ff
+    sta bankcall_stub+5
+    jsr bankcall_stub
+    lda #<$1100
+    sta bankcall_stub+3
+    lda #>$1100
+    sta bankcall_stub+4
     lda #$5F
     cmp expected_source
     beq.same bank95_fixed_restored
