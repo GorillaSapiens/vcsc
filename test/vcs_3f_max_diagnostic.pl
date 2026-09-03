@@ -88,6 +88,8 @@ my $generator_text=read_file($generator);
 $generator_text =~ /segmentalign.*CODE\.bank%d.*2048/ &&
 $generator_text =~ /wait_glyphs/ && $generator_text =~ /status_glyphs/
    or die "3F max generator lost fixed lower-bank layout or embedded status fonts\n";
+$generator_text =~ /load_pass:\s*lda #<status_glyphs\s*sta status_result_pointers\+0.*?lda #<\{status_glyphs \+ 16\}\s*sta status_result_pointers\+2.*?lda #<\{status_glyphs \+ 32\}\s*sta status_result_pointers\+4.*?lda #<\{status_glyphs \+ 48\}\s*sta status_result_pointers\+6.*?lda #<\{status_glyphs \+ 48\}\s*sta status_result_pointers\+8.*?lda #<status_glyphs\s*sta status_result_pointers\+10/s
+   or die "3F max PASS loader no longer centers pass as blank/p/a/s/s/blank\n";
 read_file($makefile) =~ /^BIG_FONT\s*:=.*\/big_ascii\.c26\s*$/m
    or die "3F max font regeneration no longer selects big_ascii.c26\n";
 

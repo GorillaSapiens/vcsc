@@ -117,3 +117,13 @@ the tool execution cap stopped it. All focused tests for the changed code had
 already passed, including the complete 65,535-call 3F-max run, 3,800 consecutive
 262-line frames, font contracts/subsets, assembly allowlist, example shards 1/8
 and 8/8, source-tree hygiene, and context-history format.
+
+2026-09-03 12:28:03 PDT, center final 3F max PASS display
+Corrected the generated bank254 PASS pointer loader in 18_3f_max from
+p/a/s/s/blank/blank to the standard bankswitching blank/p/a/s/s/blank layout,
+so the completed PASS word is centered by the big-wide six-glyph renderer.
+The WAIT + spinner layout is unchanged. Extended vcs_3f_max_diagnostic.pl to
+lock the centered PASS pointer pattern. Validation: the dedicated 512K torture
+still executes all 65,535 calls with failure=0 and the 3,800-frame WAIT/result
+timing run remains exactly 262 NTSC scanlines; example-build shards 1/8 and 8/8,
+source-tree hygiene, and context-history format also pass.

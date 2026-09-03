@@ -136,25 +136,25 @@ WAIT_LOADER
       emit_bytes($fh, \@status_font_bytes);
       print {$fh} <<'STATUS_LOADERS';
 load_pass:
-    lda #<{status_glyphs + 16}
+    lda #<status_glyphs
     sta status_result_pointers+0
-    lda #>{status_glyphs + 16}
+    lda #>status_glyphs
     sta status_result_pointers+1
-    lda #<{status_glyphs + 32}
+    lda #<{status_glyphs + 16}
     sta status_result_pointers+2
-    lda #>{status_glyphs + 32}
+    lda #>{status_glyphs + 16}
     sta status_result_pointers+3
-    lda #<{status_glyphs + 48}
+    lda #<{status_glyphs + 32}
     sta status_result_pointers+4
-    lda #>{status_glyphs + 48}
+    lda #>{status_glyphs + 32}
     sta status_result_pointers+5
     lda #<{status_glyphs + 48}
     sta status_result_pointers+6
     lda #>{status_glyphs + 48}
     sta status_result_pointers+7
-    lda #<status_glyphs
+    lda #<{status_glyphs + 48}
     sta status_result_pointers+8
-    lda #>status_glyphs
+    lda #>{status_glyphs + 48}
     sta status_result_pointers+9
     lda #<status_glyphs
     sta status_result_pointers+10
