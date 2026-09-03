@@ -150,21 +150,6 @@ Use the settled 3F mechanism as the 3E ROM-call foundation:
 
 Unfinished implementation / acceptance
 --------------------------------------
-[x] Regression-test 1/2/3/4-byte int/uint/bcd reads and writes, lower-bank and
-    fixed-bank callers, arrays/runtime indexing, DATA/BSS/runtime initialization,
-    compound assignment, increment/decrement, and bank-boundary allocation. The
-    acceptance matrix also covers automatic-local swapram, 1K zero-initialized
-    BSS via the private fixed-bank `swapram_zero` helper, and map placement of
-    every helper executed while RAM is selected.
-
-[ ] Prove the critical restoration sequence from several lower banks:
-
-        lower ROM N -> fixed swapram helper -> RAM bank R -> access
-                    -> bankreturn -> `$3F` selects ROM N -> caller resumes
-
-    Also prove fixed -> swapram -> lower ROM calls work when the swapram helper
-    leaves RAM selected before the later bankcall selects its destination.
-
 [ ] Extend the ordered source/destination call-matrix regression to 3E and update
     the public 3E diagnostic so it exercises compiler-generated swapram accesses,
     not merely raw hand-written `$3E` selector traffic.
@@ -176,7 +161,6 @@ Unfinished implementation / acceptance
 
 Immediate next step
 -------------------
-Prove the critical restoration sequence from several lower banks, including
-lower ROM N -> fixed swapram helper -> RAM R -> return/restored ROM N, plus the
-fixed -> swapram -> lower-ROM case where a later bankcall must replace the RAM
-window with its ROM destination before executing there.
+Extend the ordered source/destination call-matrix regression to 3E, then update
+the public 3E diagnostic to use compiler-generated swapram lvalue accesses rather
+than raw hand-written `$3E` selector traffic.

@@ -227,9 +227,9 @@ this is future optimizer-locality cleanup, not bankswitching work.
         `$1800-$1FFF` bank. The maximum 256 x 2K / 512K shape is a regression.
 
         WD, 3F, and the 3E ROM-call shell are migrated. FE intentionally keeps
-        its released direct top-level JSR/RTS mechanism. 3E still has swapram
-        acceptance/restoration/call-matrix work; E0, FC, and F0 still need
-        automatic-call work.
+        its released direct top-level JSR/RTS mechanism. 3E still has ordered
+        call-matrix/diagnostic and simulator-oracle closeout work; E0, FC, and F0
+        still need automatic-call work.
 
         [ ] 38b. Migrate 3E using the settled 3F ROM-call foundation.
 
@@ -237,8 +237,9 @@ this is future optimizer-locality cleanup, not bankswitching work.
             `$swapram`, not bankcall state. Metadata, lvalue lowering, and
             `swapram.s26` work through RAM bank 255. The ROM-call shell uses one
             parameterized mapper, descriptors 0..N-2 / fixed `$FF`, empty entry,
-            and the `$050` corridor. Remaining: swapram breadth, restoration,
-            and call-matrix acceptance.
+            and the `$058` corridor. Scalar/index/init breadth and lower-bank restoration
+            are regression-tested. Remaining: ordered call-matrix/diagnostic and
+            simulator-oracle closeout.
 
         [ ] 38c. Implement/migrate FC.
 

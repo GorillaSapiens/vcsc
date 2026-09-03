@@ -231,3 +231,14 @@ regression focused on linker placement by defining its 65 x 1K objects in separa
 assembly objects, preserving the documented per-object O26 64K packed namespace
 without manufacturing 65 startup initializer functions. Existing swapram helper,
 lvalue, metadata, and 3F/3E diagnostics remain green.
+
+2026-09-02 21:52:59 PDT, prove 3E swapram restoration
+Added `test/vcs_3e_swapram_restore.pl`. A 6-bank fixture runs ordinary swapram
+write/read accesses from lower ROM banks 0, 1, 2, and 4, then continues executing
+bank-local `$1000` code and returns unique values, proving bankreturn restores the
+original lower descriptor after each fixed helper maps RAM. The fixed-bank path
+writes the sole swapram byte, reads `$1000` directly to prove RAM remains mapped,
+then automatically calls lower bank 3; that call must replace RAM with ROM before
+execution. Runtime failure/call counters and map bank-placement assertions lock the
+sequence. Source-tree hygiene now requires the regression. No runtime code change
+was needed.
