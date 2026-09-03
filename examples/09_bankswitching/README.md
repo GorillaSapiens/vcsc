@@ -166,3 +166,11 @@ with small `DPC`; `make play` forces Stella's `DPC` mapper.
 selectable lower banks, exercises lower<->fixed calls in both directions, checks
 physical-target identity, source restoration, and stack balance, then displays
 `pass`/`FAIL` with exactly `3F max` on the second line.
+
+
+`19_3e_max/` is the Stella-compatible maximum-size 3E torture diagnostic:
+256 physical 2K ROM banks (512K) plus all 32 x 1K / 32K of Stella 3E RAM. It
+runs the same exhaustive 255 x 255 lower-ROM call matrix as `3F max`, then
+fills and verifies every RAM byte with one continuous maximal 16-bit LFSR
+stream so different RAM banks cannot pass through aliasing. A stable blue
+`wait` spinner is shown throughout, followed by `pass`/`FAIL` and `3E max`.

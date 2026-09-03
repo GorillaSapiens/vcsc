@@ -3,12 +3,12 @@
 
 Status
 ------
-Bankswitching Item 38b's core migration is complete. Maximum-size stress
-certification has been reopened as Item 38c in `.../bankswitching.txt`: the
-existing tests prove endpoint topology and selector behavior, but do not yet run
-the full 255 x 255 selectable-ROM call matrix or fill/verify the complete 3E RAM
-capacity. This file remains a compact durable core-design closeout; unfinished
-stress work lives in the main bankswitching roadmap.
+Bankswitching Item 38b's core migration is complete. Item 38c now has the full
+255 x 255 selectable-ROM call matrix and Stella-compatible 32K RAM capacity
+covered by `19_3e_max`. The remaining stress item is VCSC's extended 256K 3E
+RAM through compiler-managed `$swapram`; that unfinished work stays in
+`.../bankswitching.txt`. This file remains the compact durable core-design
+closeout.
 
 Hardware / ABI invariants
 -------------------------

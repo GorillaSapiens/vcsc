@@ -238,11 +238,16 @@ this is future optimizer-locality cleanup, not bankswitching work.
             restoration verification while rendering a stable blue `wait` spinner,
             then displays `pass`/`FAIL` and `3F max`.
 
-            Remaining: build the equivalent maximum-ROM 3E torture cartridge and
-            add 3E whole-RAM torture. Using compiler-managed `$swapram`, fill/read
-            every byte of Stella-compatible 32 x 1K / 32K RAM and separately VCSC
-            256 x 1K / 256K RAM. Keep the 1K object-boundary rule; split the 256K
-            fixture across translation units because O26 BSS is 16-bit per TU.
+            Maximum Stella-compatible 3E is now executable coverage in
+            `19_3e_max`: 256 x 2K / 512K ROM runs the complete ordered call
+            matrix, then fixed-bank hardware-level RAM torture fills and verifies
+            every byte of Stella-compatible 32 x 1K / 32K RAM with one continuous
+            maximal 16-bit LFSR stream while preserving the stable WAIT spinner.
+
+            Remaining: stress VCSC's extended 256 x 1K / 256K RAM
+            through compiler-managed `$swapram`. Keep the 1K object-boundary rule
+            and split that 256K fixture across translation units because O26 BSS
+            is 16-bit per TU.
 
         [ ] 38d. Implement/migrate FC.
 

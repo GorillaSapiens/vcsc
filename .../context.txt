@@ -266,12 +266,11 @@ fresh single uninterrupted 343/343 run in this tool window.
 Immediate TODO
 --------------
 3F/3E core automatic-call and `$swapram` work is complete. Maximum-size 3F
-stress is now covered by `examples/09_bankswitching/18_3f_max`: one 256-bank /
-512K image executes the full 255 x 255 lower-bank ordered matrix plus both
-directions through fixed/startup while rendering a stable blue `wait` spinner,
-then displays `pass`/`FAIL` with `3F max`.
-Before FC, build the equivalent maximum-ROM 3E torture and whole-capacity 3E RAM
-torture: Stella-compatible 32 x 1K / 32K and VCSC extended 256 x 1K / 256K,
-using compiler-managed `$swapram` and verifying every byte. Then migrate FC with
-a deliberate VCSC limit of 256 x 4K / 1 MiB, followed by F0 and E0. 3EX is a
-later distinct mapper and FE stays special.
+stress is covered by `18_3f_max`. Stella-compatible maximum 3E is now covered
+by `19_3e_max`: 512K ROM runs the same complete ordered call matrix, then all
+32 x 1K / 32K Stella 3E RAM is filled and reread with one continuous maximal
+16-bit LFSR while a stable blue `wait` spinner remains on screen.
+Before FC, add the separate VCSC-extended 256 x 1K / 256K 3E `$swapram` torture
+and verify every byte across multiple translation units. Then migrate FC with a
+deliberate VCSC limit of 256 x 4K / 1 MiB, followed by F0 and E0. 3EX is a later
+distinct mapper and FE stays special.

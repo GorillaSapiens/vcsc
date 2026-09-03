@@ -119,6 +119,8 @@ for my $source (@example_sources) {
    # and executes a dedicated 65,535-call regression; it is not a standalone
    # one-source editable-example smoke input.
    next if $source =~ m{[\/]09_bankswitching[\/]18_3f_max[\/]3f_max_diagnostic\.c26\z};
+   # The maximum 3E cartridge likewise links nine generated torture objects.
+   next if $source =~ m{[\/]09_bankswitching[\/]19_3e_max[\/]3e_max_diagnostic\.c26\z};
    my($vol,$dir,$file)=File::Spec->splitpath($source);
    my $rel=File::Spec->abs2rel($dir,$examples_root);
    push @examples,[$rel,$file];

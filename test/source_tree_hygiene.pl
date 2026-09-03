@@ -226,6 +226,10 @@ index($bankswitching,'VCS_3F_BANKS > N+1')>=0 &&
 -f File::Spec->catfile($repo,qw(examples 09_bankswitching 18_3f_max 3f_max_diagnostic.c26)) &&
 -f File::Spec->catfile($repo,qw(examples 09_bankswitching 18_3f_max make_torture.pl)) &&
 index(slurp(File::Spec->catfile($repo,qw(examples .gitignore))),'!09_bankswitching/18_3f_max/3f_max_torture_*.s26')>=0 &&
+-f File::Spec->catfile($test,'vcs_3e_max_diagnostic.pl') &&
+-f File::Spec->catfile($repo,qw(examples 09_bankswitching 19_3e_max 3e_max_diagnostic.c26)) &&
+-f File::Spec->catfile($repo,qw(examples 09_bankswitching 19_3e_max make_torture.pl)) &&
+index(slurp(File::Spec->catfile($repo,qw(examples .gitignore))),'!09_bankswitching/19_3e_max/3e_max_torture_*.s26')>=0 &&
 index($bankswitching,'[ ] 38c. Stress-certify maximum-size 3F and 3E.')>=0 &&
 index($bankswitching,'full 255 x 255')>=0 &&
 index($bankswitching,'Stella-compatible 32 x 1K / 32K RAM')>=0 &&

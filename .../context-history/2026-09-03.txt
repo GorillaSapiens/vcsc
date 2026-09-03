@@ -127,3 +127,23 @@ lock the centered PASS pointer pattern. Validation: the dedicated 512K torture
 still executes all 65,535 calls with failure=0 and the 3,800-frame WAIT/result
 timing run remains exactly 262 NTSC scanlines; example-build shards 1/8 and 8/8,
 source-tree hygiene, and context-history format also pass.
+
+2026-09-03 13:03:37 PDT, add Stella-compatible 3E max torture
+Added examples/09_bankswitching/19_3e_max as the 512K-ROM / 32K-RAM Stella
+3E stress cartridge. It retains the complete 255x255 lower-ROM ordered call
+matrix plus lower<->fixed coverage and adds a fixed-bank full-RAM fill/verify
+pass over all 32 x 1K banks. RAM data is one continuous maximal 16-bit Galois
+LFSR stream (x^16+x^14+x^13+x^11+1, mask $B400, seed $ACE1); the generator
+verifies the 65,535-state period before emitting assembly. Readback resets the
+LFSR and checks every byte, so mirrored or aliased RAM banks cannot pass merely
+by sharing a repeated per-bank pattern.
+
+The cartridge keeps the 3F-max blue WAIT/spinner UI. ROM work uses 10/8
+VBLANK/overscan batches; RAM uses measured-safe 20/12-byte batches. The small
+3E max font is embedded in lower bank 251 and selected on one deliberate blank
+handoff scanline; one-time stub setup lives in bank 252; WAIT/PASS/FAIL data
+remain in banks 253/254. A 6,500-frame timing soak crosses ROM torture, RAM fill,
+RAM verify, and WAIT->PASS transition with every live frame exactly 262 lines.
+Added test/vcs_3e_max_diagnostic.pl and source/build/hygiene/asm-allowlist hooks.
+The remaining Item 38c work is the separate VCSC-extended 256K 3E swapram
+capacity torture across multiple translation units.
