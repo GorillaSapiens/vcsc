@@ -2,7 +2,7 @@
 
 // Tigervision 3E PASS/FAIL diagnostic. The self-test runs from the fixed final
 // 2K while selecting lower-window ROM banks, and exercises banked RAM.
-include "3E/mapper_8k.c26"
+instantiate "3E/mapper.c26" as mapper (VCS_3E_BANKS:=4)
 
 #ifndef SIMULATOR_TEST
 include "frame_ntsc.c26"
@@ -100,19 +100,7 @@ bank3 void draw_result(void) {
 }
 #endif
 
-#ifdef SIMULATOR_TEST
-bank3 void simulator_done(void) { while (1) { } }
-#endif
-
-bank3 void main(void) {
-   failure := 0;
-   call_count := 0;
-   // Power-on lower window is physical ROM bank 0.
-   if (bank0_probe() != 0x30) { failure := 0x01; }
-
-   asm lda #1; asm sta $3f;
-   if (bank1_probe() != 0x31) { failure := 0x11; }
-
+bank3 void raw_ram_probe(void) {
    // RAM bank 0: high half is write port, low half is read port.
    asm lda #0; asm sta $3e;
    asm lda #$5a; asm sta $1400;
@@ -130,11 +118,24 @@ bank3 void main(void) {
    asm lda $1000; asm cmp #$5a; asm beq @ram0_persist;
    failure := 0x22;
    asm @ram0_persist:;
+}
 
-   // Restore ROM mode and prove ordinary lower-window execution resumes.
-   asm lda #2; asm sta $3f;
+#ifdef SIMULATOR_TEST
+bank3 void simulator_done(void) { while (1) { } }
+#endif
+
+bank3 void main(void) {
+   failure := 0;
+   call_count := 0;
+   // Power-on lower window is physical ROM bank 0.
+   if (bank0_probe() != 0x30) { failure := 0x01; }
+
+   if (bank1_probe() != 0x31) { failure := 0x11; }
+
+   raw_ram_probe();
+
+   // A following automatic bankcall must switch back to ROM mode.
    if (bank2_probe() != 0x32) { failure := 0x30; }
-   asm lda #0; asm sta $3f;
    if (bank0_probe() != 0x30) { failure := 0x31; }
    if (call_count != 4) { failure := 0x7f; }
 

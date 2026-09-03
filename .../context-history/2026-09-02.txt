@@ -182,3 +182,30 @@ Added Stella-compatible 3EX as a separate later bankswitching roadmap item.
 3EX will reuse the generic `$swapram` abstraction but requires its own
 512-byte-bank mapper geometry and implementation rather than pretending to be
 extended 3E.
+
+2026-09-02 19:23:50 PDT, 3E descriptor bankcall shell
+Completed the 3E ROM-call shell using the settled 3F descriptor ABI. Replaced
+the old fixed 8K/16K mapper profiles with parameterized 3E/mapper.c26 using
+VCS_3E_BANKS=3..256, canonical 2K lower-ROM chunks at $1000, a permanently
+visible final chunk at $1800, descriptors 0..N-2 for lower banks, and $FF for
+the fixed bank. Added 3E/bankcall.s26 plus zero-length 3E/entry.s26 and wired
+the linker/template generator for the same $0780/$0050 descriptor corridor as
+3F. Compiler-generated 3E cross-bank calls now retain .banktarget annotations
+and use the automatic bankcall path; no C source needs manual $3F writes.
+
+The 3E visible diagnostic now keeps raw $3E RAM selection in a compact fixed
+helper and exercises automatic fixed/lower ROM calls. Updated cartridge-profile,
+source-template, source-hygiene, example-build, assembly-allowlist, swapram, and
+install contracts for the parameterized profile. Added an explicit maximum-ROM
+regression that builds VCS_3E_BANKS:=256 as a 512K image and verifies bank254 is
+the final selectable lower bank while bank255 is the fixed startup bank. The
+independent swapram pool remains 256 x 1K. Focused 3F/3E simulator and visible
+frame/round-trip diagnostics pass.
+
+2026-09-02 20:10:38 PDT, fix 3E mapper-entry regression contract
+After adding the zero-length 3E mapper entry hook, linker/Makefile correctly
+regenerated mapper_entry_templates.h with M3E, but vcs_mapper_entry_source.pl
+still regenerated its comparison header with the pre-3E mapper set. Updated the
+regression to include 3E, require its entry fragment to be empty like 3F, use
+the M3E generated name, and assert vcsc_m3e_entry_size=0. The previously failing
+mapper-entry source regression now passes against a freshly regenerated header.

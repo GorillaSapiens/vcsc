@@ -496,7 +496,8 @@ bool compile_cartridge_supports_bankcall(void) {
           !strcmp(compiled_cartridge_signature, "UASW") ||
           !strcmp(compiled_cartridge_signature, "0FA0") ||
           !strcmp(compiled_cartridge_signature, "WD") ||
-          !strcmp(compiled_cartridge_signature, "3F"));
+          !strcmp(compiled_cartridge_signature, "3F") ||
+          !strcmp(compiled_cartridge_signature, "3E"));
 }
 
 //! @brief Lower one output-wide cartridge declaration to linker-visible metadata.
@@ -636,7 +637,8 @@ void compile_bank_decl_stmt(ASTNode *node) {
                        node->file, node->line, node->column, name, keys[f]);
       }
       if (seen[BANKCALL_D] && !seen[SELECT_A] &&
-          strcmp(compiled_cartridge_signature, "3F"))
+          strcmp(compiled_cartridge_signature, "3F") &&
+          strcmp(compiled_cartridge_signature, "3E"))
          error_user("[%s:%d.%d] bank '%s' cannot use '$bankcall_descriptor:' without '$select_access:'",
                     node->file, node->line, node->column, name);
       if (value[IMAGE_Z] == 0 || value[MAP_Z] == 0)

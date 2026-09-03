@@ -19,7 +19,7 @@ RAM must execute from the fixed/startup bank.  VCSC hides that mechanism behind
 `$swapram` storage.  Application code declares and uses ordinary objects:
 
 ```c
-include "3E/mapper_8k.c26"
+instantiate "3E/mapper.c26" as mapper (VCS_3E_BANKS:=4)
 
 swapram uint16_t score;
 swapram uint8_t history[64];
@@ -35,6 +35,21 @@ The programmer does not choose a RAM bank or maintain a current-bank variable.
 The linker places each `swapram` object and the compiler routes each 1-, 2-, 3-,
 or 4-byte load/store through the mapper helper code.  Signed, unsigned, and BCD
 objects retain their normal language types; the mapper helper only moves bytes.
+
+## ROM banks and automatic calls
+
+`VCS_3E_BANKS` is the number of physical 2K ROM chunks, from 3 through 256.
+Every chunk except the final one is selectable in the lower `$1000-$17FF`
+window; the final chunk is permanently visible at `$1800-$1FFF` and owns
+startup/vectors.  For example, 16K ROM uses `VCS_3E_BANKS:=8`.
+
+VCSC uses the same descriptor bank-call contract as 3F: lower ROM descriptors
+are the values written to `$3F`, while the fixed bank uses `$FF` as the
+no-switch sentinel.  Ordinary C26 calls across these ROM regions are automatic;
+application code does not write `$3F` around function calls.  Same-bank calls
+remain ordinary `JSR`s.  The mapper-owned trampoline lives in `3E/bankcall.s26`,
+and `3E/entry.s26` is intentionally empty because the fixed final bank is always
+visible at reset.
 
 ## Capacity and placement
 

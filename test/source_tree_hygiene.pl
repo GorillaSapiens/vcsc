@@ -273,7 +273,7 @@ index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m0fa0_bankcal
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_wd_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m3f_bankcall_template')>=0 &&
 index($bankswitching,'F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,')>=0 &&
-index($bankswitching,'FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, and 3F consume it end to end')>=0 &&
+index($bankswitching,'FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, 3F, and 3E consume it end to end')>=0 &&
 index($bankswitching,'[ ] 38. Complete the remaining automatic-call mapper work.')>=0 &&
 $bankswitching !~ /^\[ \] 37\./m &&
 $bankswitching !~ /^\[ \] 42\./m &&
@@ -514,7 +514,7 @@ index($examples_build,q{include\s+"UASW\/mapper\.c26"})>=0 &&
 index($examples_build,q{include\s+"0FA0\/mapper\.c26"})>=0 &&
 index($examples_build,q{include\s+"E0\/mapper\.c26"})>=0 &&
 index($examples_build,q{instantiate\s+"3F\/mapper\.c26"})>=0 &&
-index($examples_build,q{include\s+"3E\/mapper_8k\.c26"})>=0 &&
+index($examples_build,q{instantiate\s+"3E\/mapper\.c26"})>=0 &&
 index($examples_build,q{$profile eq '2k'})>=0 &&
 index($examples_build,q{$profile eq 'f8'})>=0 &&
 index($examples_build,q{$profile eq '0840'})>=0 &&
@@ -625,6 +625,7 @@ my $m0fa0_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitch
 my $wd_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','WD/mapper.c26'));
 my $wd_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','15_wd','Makefile'));
 my $m3f_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','3F/mapper.c26'));
+my $m3e_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','3E/mapper.c26'));
 my $dpc_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','DPC/mapper.c26'));
 my $dpc_example_make=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','16_dpc','Makefile'));
 my $fa2_24_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','FA2/mapper_24k.c26'));
@@ -684,7 +685,14 @@ index($m3f_profile,'$bankcall')>=0 &&
 index($m3f_profile,'$bankcall_descriptor:0x00')>=0 &&
 index($m3f_profile,'$bankcall_descriptor:0xff')>=0 &&
 index($top_make,'libraries/vcs/3F/bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/3F/entry.s26')>=0
+index($top_make,'libraries/vcs/3F/entry.s26')>=0 &&
+index($m3e_profile,'$bankcall')>=0 &&
+index($m3e_profile,'$bankcall_descriptor:0x00')>=0 &&
+index($m3e_profile,'$bankcall_descriptor:0xff')>=0 &&
+index($m3e_profile,'$size:0x40000')>=0 &&
+index($m3e_profile,'$bank_size:0x0400')>=0 &&
+index($top_make,'libraries/vcs/3E/bankcall.s26')>=0 &&
+index($top_make,'libraries/vcs/3E/entry.s26')>=0
    or die "migrated descriptor profiles or pending inline mapper packaging/opt-ins are inconsistent\n";
 my @mapper_dirs = qw(0840 0FA0 2K 3E 3F 4K 4KSC CV DPC E0 F4 F4SC F6 F6SC F8 F8SC FA FA2 FE JANE OMNI UA UASW WD);
 for my $mapper (@mapper_dirs) {
@@ -726,7 +734,7 @@ for my $legacy (qw(
 -f File::Spec->catfile($repo,qw(libraries vcs CV ram.c26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs DPC registers.c26))
    or die "mapper-specific support files are not contained by mapper directories\n";
-for my $profile (qw(2K/mapper.c26 CV/mapper.c26 4K/mapper.c26 4KSC/mapper.c26 F8/mapper.c26 0840/mapper.c26 UA/mapper.c26 UASW/mapper.c26 0FA0/mapper.c26 E0/mapper.c26 WD/mapper.c26 3F/mapper.c26 3E/mapper_8k.c26 3E/mapper_16k.c26 FA/mapper.c26 F6/mapper.c26 JANE/mapper.c26 F4/mapper.c26 F8SC/mapper.c26 F6SC/mapper.c26 F4SC/mapper.c26 OMNI/mapper.c26)) {
+for my $profile (qw(2K/mapper.c26 CV/mapper.c26 4K/mapper.c26 4KSC/mapper.c26 F8/mapper.c26 0840/mapper.c26 UA/mapper.c26 UASW/mapper.c26 0FA0/mapper.c26 E0/mapper.c26 WD/mapper.c26 3F/mapper.c26 3E/mapper.c26 FA/mapper.c26 F6/mapper.c26 JANE/mapper.c26 F4/mapper.c26 F8SC/mapper.c26 F6SC/mapper.c26 F4SC/mapper.c26 OMNI/mapper.c26)) {
    -f File::Spec->catfile($repo,'libraries','vcs',$profile)
       or die "missing migrated C26 cartridge profile $profile\n";
    index($top_make,"libraries/vcs/$profile")>=0
@@ -806,8 +814,11 @@ index($top_make,'test/vcs_e0.pl')>=0
 -f File::Spec->catfile($repo,'libraries','vcs','3F/mapper.c26') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','3F/mapper_8k.c26') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','3F/mapper_16k.c26') &&
--f File::Spec->catfile($repo,'libraries','vcs','3E/mapper_8k.c26') &&
--f File::Spec->catfile($repo,'libraries','vcs','3E/mapper_16k.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','3E/mapper.c26') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','3E/mapper_8k.c26') &&
+!-e File::Spec->catfile($repo,'libraries','vcs','3E/mapper_16k.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','3E/bankcall.s26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','3E/entry.s26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','3E/swapram.s26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','3E/README.md') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','3F/mapper_8k.cfg') &&
@@ -822,7 +833,11 @@ index($top_make,'libraries/vcs/3F/bankcall.s26')>=0 &&
 index($top_make,'libraries/vcs/3F/entry.s26')>=0 &&
 index($top_make,'libraries/vcs/3F/mapper_8k.c26')<0 &&
 index($top_make,'libraries/vcs/3F/mapper_16k.c26')<0 &&
-index($top_make,'libraries/vcs/3E/mapper_16k.c26')>=0 &&
+index($top_make,'libraries/vcs/3E/mapper.c26')>=0 &&
+index($top_make,'libraries/vcs/3E/mapper_8k.c26')<0 &&
+index($top_make,'libraries/vcs/3E/mapper_16k.c26')<0 &&
+index($top_make,'libraries/vcs/3E/bankcall.s26')>=0 &&
+index($top_make,'libraries/vcs/3E/entry.s26')>=0 &&
 index($top_make,'libraries/vcs/3E/swapram.s26')>=0 &&
 index($top_make,'libraries/vcs/3E/README.md')>=0 &&
 index($top_make,'test/vcs_3f_3e.pl')>=0
@@ -1132,8 +1147,9 @@ for my $required (qw(
    libraries/vcs/E0/mapper.c26
    libraries/vcs/tia_mirror_40.c26
    libraries/vcs/3F/mapper.c26
-   libraries/vcs/3E/mapper_8k.c26
-   libraries/vcs/3E/mapper_16k.c26
+   libraries/vcs/3E/mapper.c26
+   libraries/vcs/3E/bankcall.s26
+   libraries/vcs/3E/entry.s26
    libraries/vcs/3E/swapram.s26
    libraries/vcs/3E/README.md
    libraries/vcs/JANE/mapper.c26

@@ -42,7 +42,7 @@ my $testlib=File::Spec->catdir($repo,'test');
 my $blank=File::Spec->catfile($repo,'examples','01_basic','01_blank_screen','blank_screen.c26');
 
 my @profiles=(
-   ['2K',   '2K/mapper.c26',                     1, 0, 0,  2048],   ['CV',   'CV/mapper.c26',        1, 0, 0,  2048],   ['4K',   '4K/mapper.c26',              1, 0, 0,  4096],   ['4KSC', '4KSC/mapper.c26',                  1, 0, 1,  4096],   ['F8',   'F8/mapper.c26',        2, 1, 0,  8192],   ['0840', '0840/mapper.c26',                 2, 1, 0,  8192],   ['UA',   'UA/mapper.c26',                   2, 1, 0,  8192],   ['UASW', 'UASW/mapper.c26',                 2, 1, 0,  8192],   ['0FA0', '0FA0/mapper.c26',                 2, 1, 0,  8192],   ['E0',   'E0/mapper.c26',                  8, 0, 0,  8192],   ['FE',   'FE/mapper.c26',        2, 0, 0,  8192],   ['WD',   'WD/mapper.c26',        2, 1, 0,  8192],   ['3F',   '3F/mapper.c26',           4, 0, 0,  8192],   ['3E',   '3E/mapper_8k.c26',        4, 0, 0,  8192],   ['F6',   'F6/mapper.c26',      4, 1, 0, 16384],   ['JANE', 'JANE/mapper.c26',                4, 1, 0, 16384],   ['F4',   'F4/mapper.c26',      8, 1, 0, 32768],   ['FA',   'FA/mapper.c26',        3, 1, 0, 12288],   ['FA2',  'FA2/mapper_28k.c26',                   7, 1, 0, 28672],   ['F8SC', 'F8SC/mapper.c26',    2, 1, 1,  8192],   ['F6SC', 'F6SC/mapper.c26',  4, 1, 1, 16384],   ['F4SC', 'F4SC/mapper.c26',  8, 1, 1, 32768],   ['OMNI', 'OMNI/mapper.c26',               8, 0, 0, 32768],);
+   ['2K',   '2K/mapper.c26',                     1, 0, 0,  2048],   ['CV',   'CV/mapper.c26',        1, 0, 0,  2048],   ['4K',   '4K/mapper.c26',              1, 0, 0,  4096],   ['4KSC', '4KSC/mapper.c26',                  1, 0, 1,  4096],   ['F8',   'F8/mapper.c26',        2, 1, 0,  8192],   ['0840', '0840/mapper.c26',                 2, 1, 0,  8192],   ['UA',   'UA/mapper.c26',                   2, 1, 0,  8192],   ['UASW', 'UASW/mapper.c26',                 2, 1, 0,  8192],   ['0FA0', '0FA0/mapper.c26',                 2, 1, 0,  8192],   ['E0',   'E0/mapper.c26',                  8, 0, 0,  8192],   ['FE',   'FE/mapper.c26',        2, 0, 0,  8192],   ['WD',   'WD/mapper.c26',        2, 1, 0,  8192],   ['3F',   '3F/mapper.c26',           4, 0, 0,  8192],   ['3E',   '3E/mapper.c26',           4, 0, 0,  8192],   ['F6',   'F6/mapper.c26',      4, 1, 0, 16384],   ['JANE', 'JANE/mapper.c26',                4, 1, 0, 16384],   ['F4',   'F4/mapper.c26',      8, 1, 0, 32768],   ['FA',   'FA/mapper.c26',        3, 1, 0, 12288],   ['FA2',  'FA2/mapper_28k.c26',                   7, 1, 0, 28672],   ['F8SC', 'F8SC/mapper.c26',    2, 1, 1,  8192],   ['F6SC', 'F6SC/mapper.c26',  4, 1, 1, 16384],   ['F4SC', 'F4SC/mapper.c26',  8, 1, 1, 32768],   ['OMNI', 'OMNI/mapper.c26',               8, 0, 0, 32768],);
 
 for my $p (@profiles) {
    my($name,$profile_name,$banks,$selector,$sc,$output_size)=@$p;
@@ -51,10 +51,15 @@ for my $p (@profiles) {
    $text =~ /include\s+"vcs\.c26"/ && $text =~ /\bcartridge\s*\{/ && $text =~ /\bbank\s+bank0\s*\{/s
       or die "$profile_name is not a complete inspectable C26 cartridge profile\n";
    my $bank_decls=()=$text =~ /\bbank\s+bank\d+\s*\{/g;
-   if ($name eq '3F') {
-      $text =~ /parameter\s+VCS_3F_BANKS\s*;/ && $bank_decls==512 &&
-      $text =~ /#if\s+VCS_3F_BANKS\s*>\s*4.*?bank\s+bank3\s*\{.*?\$link_start:0x1000.*?#elif\s+VCS_3F_BANKS\s*==\s*4.*?bank\s+bank3\s*\{.*?\$link_start:0x1800.*?\$startup/s
-         or die "3F parameterized mapper lost the explicit selectable/fixed bank ladder\n";
+   if ($name eq '3F' || $name eq '3E') {
+      my $param = $name eq '3F' ? 'VCS_3F_BANKS' : 'VCS_3E_BANKS';
+      $text =~ /parameter\s+\Q$param\E\s*;/ && $bank_decls==512 &&
+      $text =~ /#if\s+\Q$param\E\s*>\s*4.*?bank\s+bank3\s*\{.*?\$link_start:0x1000.*?#elif\s+\Q$param\E\s*==\s*4.*?bank\s+bank3\s*\{.*?\$link_start:0x1800.*?\$startup/s
+         or die "$name parameterized mapper lost the explicit selectable/fixed bank ladder\n";
+      if ($name eq '3E') {
+         $text =~ /mem\s+swapram\s*\{.*?\$size:0x40000.*?\$bank_size:0x0400.*?\$swapram/s
+            or die "3E parameterized mapper lost the 256K swapram pool\n";
+      }
    } else {
       $bank_decls==$banks or die "$profile_name declares $bank_decls banks, expected $banks\n";
    }
@@ -82,9 +87,10 @@ for my $p (@profiles) {
    my $generic_bin=File::Spec->catfile($tmp,"$stem.generic.bin");
    my $generic_map=File::Spec->catfile($tmp,"$stem.generic.map");
    my $build_source=$blank;
-   if ($name eq '3F') {
+   if ($name eq '3F' || $name eq '3E') {
       $build_source=File::Spec->catfile($tmp,"blank_screen_${stem}.c26");
-      write_file($build_source, qq{instantiate "3F/mapper.c26" as mapper (VCS_3F_BANKS:=4)\nbank3 void main(void) { while (1) { } }\n});
+      my $param = $name eq '3F' ? 'VCS_3F_BANKS' : 'VCS_3E_BANKS';
+      write_file($build_source, qq{instantiate "$name/mapper.c26" as mapper ($param:=4)\nbank3 void main(void) { while (1) { } }\n});
    } elsif ($text =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/) {
       $build_source=File::Spec->catfile($tmp,"blank_screen_${stem}.c26");
       my $blank_text=read_file($blank);
@@ -92,7 +98,7 @@ for my $p (@profiles) {
       open(my $fh,'>',$build_source) or die "open $build_source: $!\n";
       print $fh $blank_text; close($fh);
    }
-   my @inputs = $name eq '3F' ? ($build_source) : ($profile,$build_source);
+   my @inputs = ($name eq '3F' || $name eq '3E') ? ($build_source) : ($profile,$build_source);
    require_ok("build $name from C26 topology",
       $driver,'-I',$vcs,
       '-Map',$generic_map,@inputs,'-o',$generic_bin);
@@ -139,9 +145,9 @@ for my $p (@profiles) {
    } elsif ($name eq 'FE') {
       $map =~ /mode=fe-delayed/ && $map !~ /^TRAMPOLINES$/m
          or die "FE profile did not preserve delayed-latch topology\n";
-   } elsif ($name eq '3F') {
+   } elsif ($name eq '3F' || $name eq '3E') {
       $map =~ /mode=direct/ && $map =~ /^TRAMPOLINES$/m && $map =~ /reserved=\$050\b/
-         or die "3F profile did not reserve its fixed/lower descriptor trampoline corridor\n";
+         or die "$name profile did not reserve its fixed/lower descriptor trampoline corridor\n";
    } else {
       $map =~ /mode=direct/ && $map !~ /^TRAMPOLINES$/m
          or die "$name direct profile unexpectedly generated switching machinery\n";
@@ -256,17 +262,11 @@ for my $p (@profiles) {
          or die "$name profile does not preserve selectable-lower/fixed-final 2K topology\n";
       $map =~ /^\s+bank3\s+file-index=3\b.*cpu=\$1800.*startup=yes/m
          or die "$name map does not preserve its fixed final bank\n";
-      if ($name eq '3F') {
-         $text =~ /\$bankcall/ &&
-         $text =~ /bank\s+bank0\s*\{.*?\$bankcall_descriptor:0x00/s &&
-         $text =~ /bank\s+bank3\s*\{.*?\$bankcall_descriptor:0xff/s &&
-         $map =~ /^TRAMPOLINES$/m && $map =~ /reserved=\$050\b/
-            or die "3F profile does not preserve the lower-bank/fixed-sentinel descriptor ABI\n";
-      }
-      else {
-         $map !~ /^TRAMPOLINES$/m
-            or die "3E unexpectedly generated 3F-style trampolines\n";
-      }
+      $text =~ /\$bankcall/ &&
+      $text =~ /bank\s+bank0\s*\{.*?\$bankcall_descriptor:0x00/s &&
+      $text =~ /bank\s+bank3\s*\{.*?\$bankcall_descriptor:0xff/s &&
+      $map =~ /^TRAMPOLINES$/m && $map =~ /reserved=\$050\b/
+         or die "$name profile does not preserve the lower-bank/fixed-sentinel descriptor ABI\n";
       $text =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/
          or die "$name profile does not select the safe TIA mirror binding\n";
    }

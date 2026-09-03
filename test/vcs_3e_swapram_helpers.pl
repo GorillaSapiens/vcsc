@@ -62,7 +62,7 @@ my $map_path=File::Spec->catfile($tmp,'swapram_helpers.map');
 my $sym_path=File::Spec->catfile($tmp,'swapram_helpers.sym');
 
 write_file($profile, <<'C26');
-include "3E/mapper_8k.c26"
+instantiate "3E/mapper.c26" as mapper (VCS_3E_BANKS:=4)
 C26
 
 write_file($main, <<'ASM');
@@ -258,7 +258,7 @@ for my $name (qw(swapram_read1 swapram_read2 swapram_read3 swapram_read4
    $map =~ /^\s+\$([0-9A-Fa-f]{4})\s+\Q$name\E\s+.*3e_swapram.*\.o26$/m
       or die "map is missing auto-linked $name\n$map";
    my $addr=hex($1);
-   $addr>=0xF800 && $addr<=0xFFFF
+   $addr>=0x1800 && $addr<=0x1FFF
       or die sprintf("%s landed outside fixed/startup ROM at $%04X\n",$name,$addr);
 }
 

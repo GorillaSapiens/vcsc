@@ -85,32 +85,25 @@ for my $c (@cases) {
    my $m=$c->{mapper}; my $lc=lc($m);
    my $source=File::Spec->catfile($repo,'examples','09_bankswitching',$c->{dir},$c->{source});
    my $make=File::Spec->catfile($repo,'examples','09_bankswitching',$c->{dir},'Makefile');
-   my $profile=File::Spec->catfile($vcs,$m,$m eq '3F' ? 'mapper.c26' : 'mapper_8k.c26');
-   my $profile16=File::Spec->catfile($vcs,$m,$m eq '3F' ? 'mapper.c26' : 'mapper_16k.c26');
+   my $profile=File::Spec->catfile($vcs,$m,'mapper.c26');
    for ($source,$make,$profile) { -f $_ or die "$m support file missing: $_\n"; }
-   -f $profile16 or die "$m support file missing: $profile16\n";
 
-   my $pt=read_file($profile); my $p16=read_file($profile16);
-   if ($m eq '3F') {
-      $pt =~ /parameter\s+VCS_3F_BANKS\s*;/ &&
-      $pt =~ /cartridge\s*\{.*?\$bankcall.*?\$trampoline_offset:0x0780.*?\$vector_bridge_offset:0x07d0/s &&
-      (()=$pt =~ /\bbank\s+bank\d+\s*\{/g)==512 &&
-      $pt =~ /#if\s+VCS_3F_BANKS\s*>\s*4.*?bank\s+bank3\s*\{.*?\$file_index:3.*?\$link_start:0x1000.*?\$bankcall_descriptor:0x03.*?#elif\s+VCS_3F_BANKS\s*==\s*4.*?bank\s+bank3\s*\{.*?\$file_index:3.*?\$cpu_start:0x1800.*?\$startup.*?\$bankcall_descriptor:0xff/s &&
-      $pt =~ /#elif\s+VCS_3F_BANKS\s*==\s*8.*?bank\s+bank7\s*\{.*?\$file_index:7.*?\$cpu_start:0x1800.*?\$startup.*?\$bankcall_descriptor:0xff/s
-         or die "3F parameterized profile lost its canonical selectable/fixed topology ladder\n";
-   } else {
-      (()=$pt =~ /\bbank\s+bank\d+\s*\{/g)==4 && (()=$p16 =~ /\bbank\s+bank\d+\s*\{/g)==8
-         or die "$m profiles do not expose certified 8K and 16K 2K-chunk shapes\n";
-      $pt =~ /bank\s+bank3\s*\{.*?\$file_index:3.*?\$cpu_start:0x1800.*?\$startup/s
-         or die "$m 8K profile lost fixed-final-2K topology\n";
-      $p16 =~ /bank\s+bank7\s*\{.*?\$file_index:7.*?\$cpu_start:0x1800.*?\$startup/s
-         or die "$m 16K profile lost fixed-final-2K topology\n";
-   }
-   $pt =~ /\$signature:\Q$m\E\b/ && $pt !~ /\$select_access:/ &&
-   $p16 =~ /\$signature:\Q$m\E\b/ && $p16 !~ /\$select_access:/
+   my $pt=read_file($profile);
+   my $param="VCS_${m}_BANKS";
+   $pt =~ /parameter\s+\Q$param\E\s*;/ &&
+   $pt =~ /cartridge\s*\{.*?\$bankcall.*?\$trampoline_offset:0x0780.*?\$vector_bridge_offset:0x07d0/s &&
+   (()=$pt =~ /\bbank\s+bank\d+\s*\{/g)==512 &&
+   $pt =~ /#if\s+\Q$param\E\s*>\s*4.*?bank\s+bank3\s*\{.*?\$file_index:3.*?\$link_start:0x1000.*?\$bankcall_descriptor:0x03.*?#elif\s+\Q$param\E\s*==\s*4.*?bank\s+bank3\s*\{.*?\$file_index:3.*?\$cpu_start:0x1800.*?\$startup.*?\$bankcall_descriptor:0xff/s &&
+   $pt =~ /#elif\s+\Q$param\E\s*==\s*8.*?bank\s+bank7\s*\{.*?\$file_index:7.*?\$cpu_start:0x1800.*?\$startup.*?\$bankcall_descriptor:0xff/s
+      or die "$m parameterized profile lost its canonical selectable/fixed topology ladder\n";
+   $pt =~ /\$signature:\Q$m\E\b/ && $pt !~ /\$select_access:/
       or die "$m profile lost signature/direct segmented topology\n";
-   $pt =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/ && $p16 =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/
-      or die "$m profiles must select the safe TIA \$40-\$7F mirror\n";
+   $pt =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/
+      or die "$m profile must select the safe TIA \$40-\$7F mirror\n";
+   if ($m eq '3E') {
+      $pt =~ /mem\s+swapram\s*\{.*?\$size:0x40000.*?\$bank_size:0x0400.*?\$rw.*?\$swapram.*?\}/s
+         or die "3E parameterized profile lost independent 256K swapram pool\n";
+   }
 
    my $mk=read_file($make);
    $mk =~ /^play:\s*\$\(TARGET\)\s*$/m && $mk =~ /^\s*stella\s+-bs\s+\Q$m\E\s+\$\(TARGET\)\s*$/m
@@ -127,10 +120,11 @@ for my $c (@cases) {
       $src =~ /bank3 uint8_t fixed_calls_bank2\(void\).*?bank2_probe/s
          or die "3F diagnostic lost automatic fixed/lower nested bank-call coverage\n";
    } else {
-      $src =~ /asm lda #0;\s*asm sta \$3e;.*?asm sta \$1400;.*?asm lda \$1000/s &&
-      $src =~ /asm lda #1;\s*asm sta \$3e;.*?asm sta \$1400;.*?asm lda \$1000/s &&
-      $src =~ /asm lda #2;\s*asm sta \$3f;.*?bank2_probe/s
-         or die "3E diagnostic lost ROM/RAM/ROM and split RAM-port coverage\n";
+      $src =~ /bank3 void raw_ram_probe\(void\).*?asm lda #0;\s*asm sta \$3e;.*?asm sta \$1400;.*?asm lda \$1000/s &&
+      $src =~ /bank3 void raw_ram_probe\(void\).*?asm lda #1;\s*asm sta \$3e;.*?asm sta \$1400;.*?asm lda \$1000/s &&
+      $src =~ /raw_ram_probe\(\);.*?bank2_probe/s &&
+      $src !~ /asm sta \$3f/
+         or die "3E diagnostic lost fixed-bank RAM coverage or automatic ROM-bankcall restore\n";
    }
 
    my $bin=File::Spec->catfile($tmp,"$lc.bin");
@@ -142,16 +136,11 @@ for my $c (@cases) {
       substr($rom,$fb*2048+2040,4) ne "$m\0\0" or die "$m signature duplicated into physical bank $fb\n";
    }
    my $map=read_file($map_path);
-   if ($m eq '3F') {
-      $map =~ /^\s+bank3\s+file-index=3\b.*cpu=\$1800.*startup=yes/m &&
-      $map =~ /^\s+mapper=C26\s+output-size=\$00002000.*vectorbridge=\$7D0\s+size=\$09/m &&
-      $map =~ /^TRAMPOLINES$/m &&
-      $map =~ /^\s+common-offset=\$780\s+reserved=\$050\s+used=\$050.*generic-jsr=\$050/m
-         or die "3F map lost fixed-final descriptor-bankcall/zero-entry topology\n";
-   } else {
-      $map =~ /^\s+bank3\s+file-index=3\b.*cpu=\$1800.*startup=yes/m && $map !~ /^TRAMPOLINES$/m
-         or die "$m map lost fixed-final/direct segmented topology\n";
-   }
+   $map =~ /^\s+bank3\s+file-index=3\b.*cpu=\$1800.*startup=yes/m &&
+   $map =~ /^\s+mapper=C26\s+output-size=\$00002000.*vectorbridge=\$7D0\s+size=\$09/m &&
+   $map =~ /^TRAMPOLINES$/m &&
+   $map =~ /^\s+common-offset=\$780\s+reserved=\$050\s+used=\$050.*generic-jsr=\$050/m
+      or die "$m map lost fixed-final descriptor-bankcall/zero-entry topology\n";
    for my $i (0..2) { map_symbol($map,"bank${i}_probe"); }
    my %sym=map { $_=>map_symbol($map,$_) } qw(simulator_done failure call_count);
    my($out,$err)=require_ok("simulate $m selectors",$sim,'--map',$map_path,
@@ -201,13 +190,29 @@ for my $c (@cases) {
    if ($m eq '3F') {
       print $bf qq{instantiate "3F/mapper.c26" as mapper (VCS_3F_BANKS:=8)\nbank7 void main(void) { while (1) { } }\n};
    } else {
-      print $bf qq{include "3E/mapper_16k.c26"\nbank7 void main(void) { while (1) { } }\n};
+      print $bf qq{instantiate "3E/mapper.c26" as mapper (VCS_3E_BANKS:=8)\nbank7 void main(void) { while (1) { } }\n};
    }
    close($bf);
    my $bin16=File::Spec->catfile($tmp,"$lc-16.bin");
    require_ok("build 16K $m profile",$driver,'-I',$vcs,$blank,'-o',$bin16);
    -s $bin16==16384 or die "$m 16K profile emitted the wrong size\n";
    substr(read_file($bin16),-8,4) eq "$m\0\0" or die "$m 16K signature missing from final bank\n";
+
+   if ($m eq '3E') {
+      my $maxsrc=File::Spec->catfile($tmp,'3e-256.c26');
+      open(my $mf,'>',$maxsrc) or die $!;
+      print $mf qq{instantiate "3E/mapper.c26" as mapper (VCS_3E_BANKS:=256)\nbank255 void main(void) { while (1) { } }\n};
+      close($mf);
+      my $maxbin=File::Spec->catfile($tmp,'3e-256.bin');
+      my $maxmap=File::Spec->catfile($tmp,'3e-256.map');
+      require_ok('build maximum 512K 3E ROM profile',$driver,'-I',$vcs,'-Map',$maxmap,$maxsrc,'-o',$maxbin);
+      -s $maxbin==256*2048 or die "3E 256-bank profile emitted the wrong size\n";
+      substr(read_file($maxbin),-8,4) eq "3E\0\0" or die "3E 256-bank signature missing from final bank\n";
+      my $mm=read_file($maxmap);
+      $mm =~ /^\s+bank254\s+file-index=254\b.*cpu=\$1000/m &&
+      $mm =~ /^\s+bank255\s+file-index=255\b.*cpu=\$1800.*startup=yes/m
+         or die "3E 256-bank profile lost canonical final-bank topology\n";
+   }
 
    $c->{visible}=$visible;
 }

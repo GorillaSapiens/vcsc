@@ -67,7 +67,7 @@ my $src = File::Spec->catfile($tmp, 'swapram_access.c26');
 my $asm = File::Spec->catfile($tmp, 'swapram_access.s26');
 
 write_file($src, <<'SRC');
-include "3E/mapper_8k.c26"
+instantiate "3E/mapper.c26" as mapper (VCS_3E_BANKS:=4)
 
 struct Pair {
    uint8_t byte;
@@ -160,7 +160,7 @@ for my $case (@bad) {
    my ($name, $body) = @$case;
    my $bad_src = File::Spec->catfile($tmp, "swapram_${name}.c26");
    my $bad_asm = File::Spec->catfile($tmp, "swapram_${name}.s26");
-   write_file($bad_src, qq{include "3E/mapper_8k.c26"\nswapram uint8_t value;\nswapram uint8_t values[8];\n$body\n});
+   write_file($bad_src, qq{instantiate "3E/mapper.c26" as mapper (VCS_3E_BANKS:=4)\nswapram uint8_t value;\nswapram uint8_t values[8];\n$body\n});
    require_fail($name,
                 "swapram object",
                 $cc1, '-I', $vcs, '-o', $bad_asm, $bad_src);

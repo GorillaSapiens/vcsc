@@ -29,18 +29,18 @@ my %selector = (
    FA2=>0x1ff5, JANE=>0x1ff1, '0840'=>0x0800, UA=>0x0220,
    UASW=>0x0240, '0FA0'=>0x0fc0, WD=>0x0039,
 );
-my @mapper = qw(F8 F8SC F6 F6SC F4 F4SC FA DPC FA2 JANE 0840 UA UASW 0FA0 WD 3F);
+my @mapper = qw(F8 F8SC F6 F6SC F4 F4SC FA DPC FA2 JANE 0840 UA UASW 0FA0 WD 3F 3E);
 my $top = read_file(File::Spec->catfile($repo, 'Makefile'));
 my @spec;
 for my $mapper (@mapper) {
    my $src = File::Spec->catfile($repo, 'libraries', 'vcs', $mapper, 'entry.s26');
    -f $src or die "missing $mapper mapper entry source\n";
    my $text = read_file($src);
-   if ($mapper eq '3F') {
+   if ($mapper eq '3F' || $mapper eq '3E') {
       $text =~ /__vcsc_mapper_entry_begin:\s*__vcsc_mapper_entry_end:/s &&
       $text !~ /^\s*(?:nop|op[0-9a-f]{2})\b/gmi &&
       index($text, 'empty fragment') >= 0
-         or die "3F entry must be an empty fixed-bank hook\n";
+         or die "$mapper entry must be an empty fixed-bank hook\n";
    }
    else {
       my $hex = sprintf('%04X', $selector{$mapper});
@@ -51,7 +51,7 @@ for my $mapper (@mapper) {
    }
    index($top, "libraries/vcs/$mapper/entry.s26") >= 0
       or die "$mapper entry source is not installed\n";
-   push @spec, (($mapper eq '0840' ? 'M0840' : $mapper eq '0FA0' ? 'M0FA0' : $mapper eq '3F' ? 'M3F' : $mapper) . "=$src");
+   push @spec, (($mapper eq '0840' ? 'M0840' : $mapper eq '0FA0' ? 'M0FA0' : $mapper eq '3F' ? 'M3F' : $mapper eq '3E' ? 'M3E' : $mapper) . "=$src");
 }
 
 my @old = glob(File::Spec->catfile($repo, 'libraries', 'vcs', '*', 'inline_bankcall.s26'));
@@ -83,6 +83,7 @@ read_file($fresh) eq read_file($built)
    or die "built mapper entry template header is stale\n";
 my $generated = read_file($fresh);
 $generated =~ /vcsc_m3f_entry_size = 0u;/ &&
+$generated =~ /vcsc_m3e_entry_size = 0u;/ &&
 $generated =~ /vcsc_f8_entry_size = 3u;/ &&
 index($generated, 'VCSC_MAPPER_ENTRY_SIZE') < 0
    or die "generated mapper entry header is not variable-length\n";

@@ -148,9 +148,6 @@ Use the settled 3F mechanism as the 3E ROM-call foundation:
 
 Unfinished implementation / acceptance
 --------------------------------------
-[ ] Add 3E `bankcall.s26`/`entry.s26`, `$bankcall` topology metadata, and scalable
-    ROM-bank topology using the 3F descriptor rules.
-
 [ ] Regression-test 1/2/3/4-byte int/uint/bcd reads and writes, lower-bank and
     fixed-bank callers, arrays/runtime indexing, DATA/BSS/runtime initialization,
     compound assignment, increment/decrement, and bank-boundary allocation. Add
@@ -176,8 +173,8 @@ Unfinished implementation / acceptance
 
 Immediate next step
 -------------------
-Add 3E `bankcall.s26`/`entry.s26`, `$bankcall` topology metadata, and scalable
-ROM-bank topology using the settled 3F descriptor rules. This is also what makes
-the compiler-generated `.banktarget` annotations around swapram helper calls
-executable for lower-bank callers. The direct fixed-bank helper regression
-intentionally tests the byte movers independently until that ROM-call shell lands.
+Expand swapram acceptance across the full 1/2/3/4-byte int/uint/bcd surface,
+lower- and fixed-bank callers, runtime indexing, initialization, compound
+operations, and bank-boundary placement. Keep the map/symbol assertion that the
+byte movers and every instruction executed while RAM is selected remain in the
+startup/fixed bank.

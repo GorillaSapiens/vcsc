@@ -23,9 +23,10 @@ sub read_file {
 sub without_cartridge_usage {
    my($out)=@_; $out =~ s/\AMEMORY USAGE\n(?:  [^\n]+\n)+//; return $out;
 }
-sub threef_bank_count_from_source {
+sub tigervision_bank_count_from_source {
    my($text)=@_;
    return $1 + 0 if $text =~ /^\s*instantiate\s+"3F\/mapper\.c26"\s+as\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^\n]*\bVCS_3F_BANKS\s*:=\s*([0-9]+)[^\n]*\)\s*$/m;
+   return $1 + 0 if $text =~ /^\s*instantiate\s+"3E\/mapper\.c26"\s+as\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^\n]*\bVCS_3E_BANKS\s*:=\s*([0-9]+)[^\n]*\)\s*$/m;
    return undef;
 }
 
@@ -66,7 +67,7 @@ sub profile_from_source {
    return 'fe' if $text =~ /^\s*include\s+"FE\/mapper\.c26"\s*$/m;
    return 'wd' if $text =~ /^\s*include\s+"WD\/mapper\.c26"\s*$/m;
    return '3f' if $text =~ /^\s*instantiate\s+"3F\/mapper\.c26"\s+as\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^\n]*\bVCS_3F_BANKS\s*:=\s*[0-9]+[^\n]*\)\s*$/m;
-   return '3e' if $text =~ /^\s*include\s+"3E\/mapper_8k\.c26"\s*$/m;
+   return '3e' if $text =~ /^\s*instantiate\s+"3E\/mapper\.c26"\s+as\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^\n]*\bVCS_3E_BANKS\s*:=\s*[0-9]+[^\n]*\)\s*$/m;
    return 'dpc' if $text =~ /^\s*include\s+"DPC\/mapper\.c26"\s*$/m;
    return 'f8sc' if $text =~ /^\s*include\s+"F8SC\/mapper\.c26"\s*$/m;
    return 'f6' if $text =~ /^\s*include\s+"F6\/mapper\.c26"\s*$/m;
@@ -201,12 +202,12 @@ for my $entry (@examples) {
    without_cartridge_usage($out) eq '' or die "$dir wrote unexpected stdout:\n$out";
    $err eq '' or die "$dir wrote stderr:\n$err";
    my $rom=read_file($bin);
-   my $threef_banks=threef_bank_count_from_source($source_text);
+   my $tigervision_banks=tigervision_bank_count_from_source($source_text);
    my $expected_size = ($file eq 'bankswitching_diagnostic.c26' ||
                         $file eq 'banked_standard_renderer.c26') ? 8192
-      : defined($threef_banks) ? 2048 * $threef_banks
+      : defined($tigervision_banks) ? 2048 * $tigervision_banks
       : ($profile eq '2k' || $profile eq 'cv') ? 2048
-      : ($profile eq 'f8' || $profile eq 'f8sc' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq 'fe' || $profile eq 'wd' || $profile eq '3e') ? 8192
+      : ($profile eq 'f8' || $profile eq 'f8sc' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq 'fe' || $profile eq 'wd') ? 8192
       : $profile eq 'dpc' ? 10495
       : $profile eq 'fa' ? 12288
       : $profile eq 'fa2' ? 28672
@@ -230,7 +231,7 @@ for my $entry (@examples) {
       for my $v ($reset,$irq) {
          my $in_rom = $profile eq 'jane'
             ? ($v>=0xd000 && $v<=0xdfff)
-            : $profile eq '3f'
+            : ($profile eq '3f' || $profile eq '3e')
             ? ($v>=0x1800 && $v<=0x1fff)
             : ($v>=0xf000 && $v<=0xffff);
          $in_rom or die sprintf("%s vector %04X is outside ROM\n",$dir,$v);

@@ -69,7 +69,7 @@ my $src = File::Spec->catfile($tmp, 'swapram.c26');
 my $bin = File::Spec->catfile($tmp, 'swapram.bin');
 my $map = File::Spec->catfile($tmp, 'swapram.map');
 write_file($src, <<'SRC');
-include "3E/mapper_8k.c26"
+instantiate "3E/mapper.c26" as mapper (VCS_3E_BANKS:=4)
 
 swapram uint8_t first[768];
 swapram uint8_t second[512];
@@ -97,7 +97,7 @@ $text !~ /^(?:COPY|ZERO)\s+.*\.swapram(?:\.|\s)/m
 
 my $too_big = File::Spec->catfile($tmp, 'too_big.c26');
 write_file($too_big, <<'SRC');
-include "3E/mapper_8k.c26"
+instantiate "3E/mapper.c26" as mapper (VCS_3E_BANKS:=4)
 swapram uint8_t huge[1025];
 bank3 void main(void) { while (1) { } }
 SRC
@@ -114,19 +114,16 @@ my $wide_map = File::Spec->catfile($tmp, 'wide.map');
 my @wide_sources;
 for my $bank (0 .. 64) {
    my $wide = File::Spec->catfile($tmp, "wide_$bank.c26");
-   my $body = qq{include "3E/mapper_8k.c26"\nswapram uint8_t fill$bank\[1024\];\n};
+   my $body = qq{instantiate "3E/mapper.c26" as mapper (VCS_3E_BANKS:=4)\nswapram uint8_t fill$bank\[1024\];\n};
    if ($bank == 0) {
       for my $n (1 .. 64) {
-         $body .= "bank3 void keep$n(void);\n";
+         $body .= "extern swapram uint8_t fill$n\[1024\];\n";
       }
       $body .= "bank3 void main(void) {\n";
       for my $n (1 .. 64) {
-         $body .= "   keep$n();\n";
+         $body .= "   asm .word fill$n; asm .byte ^fill$n;\n";
       }
       $body .= "   while (1) { }\n}\n";
-   }
-   else {
-      $body .= "bank3 void keep$bank(void) { asm .word fill$bank; asm .byte ^fill$bank; }\n";
    }
    write_file($wide, $body);
    push @wide_sources, $wide;

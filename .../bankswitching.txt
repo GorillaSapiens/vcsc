@@ -174,12 +174,12 @@ move accordingly.
 
 Implementation checkpoint: the compiler/assembler/linker use the six-byte
 descriptor ABI and `__bankmeta$V3`. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,
-FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, and 3F consume it end to end and
+FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, 3F, and 3E consume it end to end and
 those migrated profiles declare `$bankcall` unconditionally. They own
 `bankcall.s26` and variable-length `entry.s26`; maintained entry bytes run before
 the normal vector handler. Selector-normalizing hooks use raw `op0C` for fixed
 selector reads, avoiding an assembler `--illegal` dependency. Zero-length entry
-fragments are valid; 3F uses one because its fixed bank is permanently visible.
+fragments are valid; 3F and 3E use one because their fixed bank is permanently visible.
 FA2 uses
 descriptors `$F5-$FA/$FB` and raw `op1C $1F00,X`; JANE uses
 `$F0/$F1/$F8/$F9` and raw `op1C $1F00,X`; 0840 uses `$00/$40` and raw
@@ -226,20 +226,19 @@ this is future optimizer-locality cleanup, not bankswitching work.
         `$1000-$17FF` bank and `== N+1` makes that same bankN the fixed/startup
         `$1800-$1FFF` bank. The maximum 256 x 2K / 512K shape is a regression.
 
-        WD and 3F are migrated. FE intentionally keeps its released direct
-        top-level JSR/RTS mechanism. 3E, E0, FC, and F0 still need automatic-call
-        work.
+        WD, 3F, and the 3E ROM-call shell are migrated. FE intentionally keeps
+        its released direct top-level JSR/RTS mechanism. 3E still has swapram
+        acceptance/restoration/call-matrix work; E0, FC, and F0 still need
+        automatic-call work.
 
         [ ] 38b. Migrate 3E using the settled 3F ROM-call foundation.
 
-            Active design/acceptance record: `.../3e.txt`. 3E RAM is temporary
-            fixed-bank `$swapram`, not generic bankcall state and not `cartram`.
-            `$swapram`/`$bank_size` metadata, logical allocation, bank-boundary
-            packing, validation, map reporting, and compiler lvalue lowering are
-            complete. The compiler dispatches 1..4-byte accesses to banktarget-
-            annotated helpers with arg0:ptr1=18-bit logical address and ptr2=ordinary buffer;
-            fixed-bank `swapram.s26` is complete and tested through RAM bank 255; the
-            3F-derived 3E bankcall shell is next.
+            Active record: `.../3e.txt`. 3E RAM is temporary fixed-bank
+            `$swapram`, not bankcall state. Metadata, lvalue lowering, and
+            `swapram.s26` work through RAM bank 255. The ROM-call shell uses one
+            parameterized mapper, descriptors 0..N-2 / fixed `$FF`, empty entry,
+            and the `$050` corridor. Remaining: swapram breadth, restoration,
+            and call-matrix acceptance.
 
         [ ] 38c. Implement/migrate FC.
 
