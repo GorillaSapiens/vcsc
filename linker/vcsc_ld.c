@@ -42,11 +42,11 @@ static size_t mapper_entry_size_for_config(const linker_config_t *cfg);
 static size_t vector_bridge_entry_size_for_config(const linker_config_t *cfg);
 static size_t vector_bridge_size_for_config(const linker_config_t *cfg);
 
-/* Mapper-entry bytes are variable length; each vector slot appends JMP abs. */
+/* Mapper-entry bytes are variable length; each vector slot appends JMP abs.
+   Ordinary cross-bank JMPs are deliberately unsupported.  The only
+   mapper-changing one-way jump is the reset/vector bridge, whose entry.s26
+   fragment first normalizes mapper state and then falls through to JMP abs. */
 enum {
-   BANK_TRAMPOLINE_JMP = 1,
-   BANK_TRAMPOLINE_JSR = 2,
-   BANK_JMP_ENTRY_SIZE = 8,
    BANK_JSR_ENTRY_SIZE = 15
 };
 
@@ -8518,9 +8518,11 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
    if (item_count == 0)
       goto cleanup;
 
-   /* Classify symbolic relocations before addresses exist.  Data/branch edges
-      are hard same-bank constraints; direct JSR/JMP edges are weighted soft
-      preferences because the common trampoline table can implement them. */
+   /* Classify symbolic relocations before addresses exist.  Data, branch, and
+      direct JMP edges are hard same-bank constraints.  Direct JSR edges remain
+      weighted soft preferences because the legacy common trampoline table can
+      implement them.  Mapper-changing one-way JMPs are reserved exclusively
+      for the reset/vector bridge and are never synthesized from user code. */
    for (i = 0; i < in->object_count; ++i) {
       object_file_t *obj = &in->objects[i];
       o26_segment_t *segments[2] = { &obj->text, &obj->data };
@@ -8554,17 +8556,15 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
                continue;
 
             if (cfg->cartridge_banked &&
-                (control == O26_RTYPE_CONTROL_JSR ||
-                 control == O26_RTYPE_CONTROL_JMP) &&
+                control == O26_RTYPE_CONTROL_JSR &&
                 !(reloc->type & O26_RTYPE_INDIRECT_JMP)) {
                /* A replicated function is a soft preference only.  Runtime
                   relocation selects a source-bank-local copy when present and
                   otherwise uses the primary copy through a trampoline. */
                bank_placement_add_edge(&edges, &edge_count,
                   source_item, target_item,
-                  control == O26_RTYPE_CONTROL_JSR ? BANK_JSR_ENTRY_SIZE
-                                                   : BANK_JMP_ENTRY_SIZE,
-                  control == O26_RTYPE_CONTROL_JSR ? 25u : 6u,
+                  BANK_JSR_ENTRY_SIZE,
+                  25u,
                   control);
                continue;
             }
@@ -8606,7 +8606,17 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
                   ? items[source_item].pin_bank : NULL;
                const cartridge_bank_t *target_fixed = items[target_item].directly_pinned
                   ? items[target_item].pin_bank : NULL;
-               if (!(source_fixed && target_fixed &&
+               if (control == O26_RTYPE_CONTROL_JMP &&
+                   source_fixed && target_fixed && source_fixed != target_fixed) {
+                  fprintf(stderr,
+                          "vcsc-ld: cross-bank JMP from layout '%s' in %s to layout '%s' in %s is unsupported; ordinary JMP targets must remain in the same bank (mapper-changing one-way JMP is reserved for reset/startup)\n",
+                          source_layout->name, source_fixed->name,
+                          target.layout ? target.layout->name : "<target>",
+                          target_fixed->name);
+                  exit(1);
+               }
+               if (control == O26_RTYPE_CONTROL_JMP ||
+                   !(source_fixed && target_fixed &&
                      c26_e0_bank_directly_visible(cfg, source_fixed, target_fixed)))
                   bank_placement_union(items, source_item, target_item);
             }
@@ -8618,15 +8628,17 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
                const cartridge_bank_t *target_fixed = items[target_item].directly_pinned
                   ? items[target_item].pin_bank : NULL;
                if (source_bank &&
-                   !(target_fixed &&
-                     c26_e0_bank_directly_visible(cfg, source_bank, target_fixed)))
+                   (control == O26_RTYPE_CONTROL_JMP ||
+                    !(target_fixed &&
+                      c26_e0_bank_directly_visible(cfg, source_bank, target_fixed))))
                   bank_placement_pin_item(&items[target_item], source_bank,
                                           NULL, 1);
             }
             else if (source_item >= 0 && target.fixed_bank) {
                const cartridge_bank_t *source_fixed = items[source_item].directly_pinned
                   ? items[source_item].pin_bank : items[source_item].configured_bank;
-               if (!c26_e0_bank_directly_visible(cfg, source_fixed, target.fixed_bank))
+               if (control == O26_RTYPE_CONTROL_JMP ||
+                   !c26_e0_bank_directly_visible(cfg, source_fixed, target.fixed_bank))
                   bank_placement_pin_item(&items[source_item], target.fixed_bank,
                                           NULL, 1);
             }
@@ -10449,7 +10461,7 @@ static uint16_t generic_bankcall_reserved_size(const linker_config_t *cfg)
    exit(1);
 }
 
-//! @brief Reserve the fixed generic bank-call block before variable JMP/legacy entries are allocated.
+//! @brief Reserve the fixed generic bank-call block before legacy direct-JSR entries are allocated.
 static void prepare_generic_bankcall_corridor(const linker_config_t *cfg,
                                                const input_set_t *in,
                                                layout_t *layout)
@@ -10482,61 +10494,41 @@ static void prepare_generic_bankcall_corridor(const linker_config_t *cfg,
    layout->bank_trampoline_used = layout->bank_generic_jsr_size;
 }
 
-//! @brief Return the encoded byte size for one generated bank trampoline entry.
-static uint16_t bank_trampoline_entry_size(uint8_t kind)
-{
-   return kind == BANK_TRAMPOLINE_JSR ? BANK_JSR_ENTRY_SIZE : BANK_JMP_ENTRY_SIZE;
-}
-
-//! @brief Return the inline indirect-target word offset within one entry.
-static uint16_t bank_trampoline_pointer_offset(uint8_t kind)
-{
-   return kind == BANK_TRAMPOLINE_JSR ? 13u : 6u;
-}
-
-//! @brief Find or append one deduplicated direct cross-bank transfer entry.
-static bank_trampoline_entry_t *find_or_add_bank_trampoline_entry(
+//! @brief Find or append one deduplicated legacy direct cross-bank JSR entry.
+static bank_trampoline_entry_t *find_or_add_bank_jsr_trampoline_entry(
                                                        layout_t *layout,
                                                        const linker_config_t *cfg,
                                                        const resolved_reloc_target_t *target,
                                                        const cartridge_bank_t *source_bank,
-                                                       const cartridge_bank_t *destination_bank,
-                                                       uint8_t kind)
+                                                       const cartridge_bank_t *destination_bank)
 {
    size_t i;
    bank_trampoline_entry_t *entry;
    uint16_t next_offset;
-   uint16_t entry_size;
-   uint16_t pointer_offset;
    uint32_t next_end;
 
    for (i = 0; i < layout->bank_trampoline_entry_count; ++i) {
       entry = &layout->bank_trampoline_entries[i];
-      if (entry->kind == kind &&
-          entry->target_addr == target->address &&
+      if (entry->target_addr == target->address &&
           entry->destination_hotspot == destination_bank->hotspot &&
-          (kind != BANK_TRAMPOLINE_JSR ||
-           entry->source_hotspot == source_bank->hotspot))
+          entry->source_hotspot == source_bank->hotspot)
          return entry;
    }
 
-   entry_size = bank_trampoline_entry_size(kind);
-   pointer_offset = bank_trampoline_pointer_offset(kind);
    next_offset = layout->bank_trampoline_used;
    /* The inline target word is read by NMOS JMP (absolute).  Insert one fill
       byte when the word would begin at page offset $FF. */
-   if (((cfg->trampoline_offset + next_offset + pointer_offset) & 0x00FFu) == 0x00FFu)
+   if (((cfg->trampoline_offset + next_offset + 13u) & 0x00FFu) == 0x00FFu)
       next_offset++;
-   next_end = (uint32_t)next_offset + entry_size;
+   next_end = (uint32_t)next_offset + BANK_JSR_ENTRY_SIZE;
    if (next_end > cfg->trampoline_size) {
       fprintf(stderr,
-              "vcsc-ld: common trampoline corridor $%03X-$%03X is exhausted while adding %s target '%s' at $%04X (%s); %zu entries already consume $%03X bytes and this entry needs %u bytes\n",
+              "vcsc-ld: common trampoline corridor $%03X-$%03X is exhausted while adding JSR target '%s' at $%04X (%s); %zu entries already consume $%03X bytes and this entry needs %u bytes\n",
               cfg->trampoline_offset,
               (uint16_t)(cfg->trampoline_offset + cfg->trampoline_size - 1u),
-              kind == BANK_TRAMPOLINE_JSR ? "JSR" : "JMP",
               target->name, target->address, destination_bank->name,
               layout->bank_trampoline_entry_count,
-              layout->bank_trampoline_used, entry_size);
+              layout->bank_trampoline_used, BANK_JSR_ENTRY_SIZE);
       exit(1);
    }
 
@@ -10545,7 +10537,6 @@ static bank_trampoline_entry_t *find_or_add_bank_trampoline_entry(
       (layout->bank_trampoline_entry_count + 1) * sizeof(*layout->bank_trampoline_entries));
    entry = &layout->bank_trampoline_entries[layout->bank_trampoline_entry_count++];
    memset(entry, 0, sizeof(*entry));
-   entry->kind = kind;
    entry->target_addr = target->address;
    entry->table_offset = next_offset;
    entry->source_hotspot = source_bank ? source_bank->hotspot : 0;
@@ -10690,7 +10681,7 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
       return (uint16_t)address;
    }
 
-   if (different_bank &&
+   if (different_bank && control != O26_RTYPE_CONTROL_JMP &&
        c26_e0_bank_directly_visible(cfg, source_bank, different_bank))
       return target->address;
 
@@ -10774,9 +10765,8 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
                  obj->origin);
          exit(1);
       }
-      entry = find_or_add_bank_trampoline_entry(layout, cfg, target,
-                                                source_bank, final_bank,
-                                                BANK_TRAMPOLINE_JSR);
+      entry = find_or_add_bank_jsr_trampoline_entry(layout, cfg, target,
+                                                    source_bank, final_bank);
       address = (uint32_t)source_bank->start + cfg->trampoline_offset +
                 entry->table_offset;
       if (address > 0xFFFFu) {
@@ -10786,32 +10776,11 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
       return (uint16_t)address;
    }
    if (control == O26_RTYPE_CONTROL_JMP) {
-      bank_trampoline_entry_t *entry;
-      uint32_t address;
-      if (!final_bank || final_bank == source_bank) {
-         fprintf(stderr,
-                 "vcsc-ld: cross-bank JMP in %s layout '%s' at $%04X (%s) targets '%s' at $%04X, which does not resolve inside the destination bank\n",
-                 obj->origin, source_layout->name, source_address, source_bank->name,
-                 target->name, target->address);
-         exit(1);
-      }
-      if ((r->type & (O26_RTYPE_LOW | O26_RTYPE_HIGH | O26_RTYPE_WORD)) !=
-          O26_RTYPE_WORD) {
-         fprintf(stderr,
-                 "vcsc-ld: direct cross-bank JMP relocation in %s is not a 16-bit operand\n",
-                 obj->origin);
-         exit(1);
-      }
-      entry = find_or_add_bank_trampoline_entry(layout, cfg, target,
-                                                source_bank, final_bank,
-                                                BANK_TRAMPOLINE_JMP);
-      address = (uint32_t)source_bank->start + cfg->trampoline_offset +
-                entry->table_offset;
-      if (address > 0xFFFFu) {
-         fprintf(stderr, "vcsc-ld: generated JMP trampoline address overflow\n");
-         exit(1);
-      }
-      return (uint16_t)address;
+      fprintf(stderr,
+              "vcsc-ld: cross-bank JMP in %s layout '%s' at $%04X (%s) targets '%s' at $%04X (%s); ordinary cross-bank JMPs are unsupported, use a function call or keep the target in the same bank (mapper-changing one-way JMP is reserved for reset/startup)\n",
+              obj->origin, source_layout->name, source_address, source_bank->name,
+              target->name, target->address, different_bank->name);
+      exit(1);
    }
    if (control == O26_RTYPE_CONTROL_BRANCH) {
       fprintf(stderr,
@@ -11330,21 +11299,6 @@ static void encode_vector_bridge_entry(uint8_t *table, size_t offset,
    table[offset + entry_size + 2u] = (uint8_t)((handler >> 8) & 0xFFu);
 }
 
-//! @brief Encode one state-preserving inline-pointer JMP entry for the common table.
-static void encode_bank_jump_entry(uint8_t *table, size_t offset,
-                                   const bank_trampoline_entry_t *entry,
-                                   uint16_t canonical_pointer)
-{
-   table[offset + 0u] = selector_access_opcode(); /* Side-effect-free absolute selector read. */
-   table[offset + 1u] = (uint8_t)(entry->destination_hotspot & 0xFFu);
-   table[offset + 2u] = (uint8_t)((entry->destination_hotspot >> 8) & 0xFFu);
-   table[offset + 3u] = 0x6Cu; /* JMP through the inline target word. */
-   table[offset + 4u] = (uint8_t)(canonical_pointer & 0xFFu);
-   table[offset + 5u] = (uint8_t)((canonical_pointer >> 8) & 0xFFu);
-   table[offset + 6u] = (uint8_t)(entry->target_addr & 0xFFu);
-   table[offset + 7u] = (uint8_t)((entry->target_addr >> 8) & 0xFFu);
-}
-
 //! @brief Encode one state-preserving JSR-to-indirect-JMP entry.
 static void encode_bank_jsr_entry(uint8_t *table, size_t offset,
                                   const bank_trampoline_entry_t *entry,
@@ -11853,25 +11807,18 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
             carry a bank-local baked source descriptor. */
          for (j = 0; j < layout->bank_trampoline_entry_count; ++j) {
             const bank_trampoline_entry_t *entry = &layout->bank_trampoline_entries[j];
-            uint16_t pointer_offset = bank_trampoline_pointer_offset(entry->kind);
             uint16_t canonical_entry = (uint16_t)(startup->start +
                cfg->trampoline_offset + entry->table_offset);
             uint16_t canonical_pointer = (uint16_t)(startup->start +
-               cfg->trampoline_offset + entry->table_offset + pointer_offset);
+               cfg->trampoline_offset + entry->table_offset + 13u);
             if ((canonical_pointer & 0x00FFu) == 0x00FFu) {
                fprintf(stderr,
                        "vcsc-ld: generated inline JMP target pointer at $%04X triggers the NMOS page-wrap bug\n",
                        canonical_pointer);
                exit(1);
             }
-            if (entry->kind == BANK_TRAMPOLINE_JSR) {
-               encode_bank_jsr_entry(trampoline, entry->table_offset, entry,
-                                     canonical_entry, canonical_pointer);
-            }
-            else {
-               encode_bank_jump_entry(trampoline, entry->table_offset, entry,
-                                      canonical_pointer);
-            }
+            encode_bank_jsr_entry(trampoline, entry->table_offset, entry,
+                                  canonical_entry, canonical_pointer);
          }
          for (j = 0; j < cfg->bank_count; ++j) {
             uint16_t bank_trampoline = (uint16_t)(cfg->banks[j].start + cfg->trampoline_offset);
@@ -13159,44 +13106,26 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
       }
 
       if (cfg->cartridge_banked) {
-         size_t jmp_count = 0;
-         size_t jsr_count = 0;
-         for (i = 0; i < layout->bank_trampoline_entry_count; ++i) {
-            if (layout->bank_trampoline_entries[i].kind == BANK_TRAMPOLINE_JSR)
-               jsr_count++;
-            else
-               jmp_count++;
-         }
          fprintf(fp, "\nTRAMPOLINES\n");
          fprintf(fp,
                  "  common-offset=$%03X reserved=$%03X used=$%03X replicated=$%08" PRIX32
-                 " target-passing=inline generic-jsr=$%03X entries=%zu jmp=%zu jsr=%zu jmp-size=$%02X jsr-size=$%02X\n",
+                 " target-passing=inline generic-jsr=$%03X entries=%zu jmp=0 jsr=%zu jmp-size=$00 jsr-size=$%02X\n",
                  cfg->trampoline_offset, cfg->trampoline_size,
                  layout->bank_trampoline_used,
                  (uint32_t)layout->bank_trampoline_used * (uint32_t)cfg->bank_count,
                  layout->bank_generic_jsr_used ? layout->bank_generic_jsr_size : 0u,
-                 layout->bank_trampoline_entry_count, jmp_count, jsr_count,
-                 BANK_JMP_ENTRY_SIZE, BANK_JSR_ENTRY_SIZE);
+                 layout->bank_trampoline_entry_count,
+                 layout->bank_trampoline_entry_count,
+                 BANK_JSR_ENTRY_SIZE);
          for (i = 0; i < layout->bank_trampoline_entry_count; ++i) {
             const bank_trampoline_entry_t *entry = &layout->bank_trampoline_entries[i];
-            uint16_t entry_size = bank_trampoline_entry_size(entry->kind);
-            if (entry->kind == BANK_TRAMPOLINE_JSR) {
-               fprintf(fp,
-                       "  JSR entry=%zu offset=$%03X target=$%04X %-20s source=%s hotspot=$%04X destination=%s hotspot=$%04X replicated-bytes=$%08" PRIX32 "\n",
-                       i, (uint16_t)(cfg->trampoline_offset + entry->table_offset),
-                       entry->target_addr, entry->target_name,
-                       entry->source_bank, entry->source_hotspot,
-                       entry->destination_bank, entry->destination_hotspot,
-                       (uint32_t)entry_size * (uint32_t)cfg->bank_count);
-            }
-            else {
-               fprintf(fp,
-                       "  JMP entry=%zu offset=$%03X target=$%04X %-20s destination=%s hotspot=$%04X replicated-bytes=$%08" PRIX32 "\n",
-                       i, (uint16_t)(cfg->trampoline_offset + entry->table_offset),
-                       entry->target_addr, entry->target_name,
-                       entry->destination_bank, entry->destination_hotspot,
-                       (uint32_t)entry_size * (uint32_t)cfg->bank_count);
-            }
+            fprintf(fp,
+                    "  JSR entry=%zu offset=$%03X target=$%04X %-20s source=%s hotspot=$%04X destination=%s hotspot=$%04X replicated-bytes=$%08" PRIX32 "\n",
+                    i, (uint16_t)(cfg->trampoline_offset + entry->table_offset),
+                    entry->target_addr, entry->target_name,
+                    entry->source_bank, entry->source_hotspot,
+                    entry->destination_bank, entry->destination_hotspot,
+                    (uint32_t)BANK_JSR_ENTRY_SIZE * (uint32_t)cfg->bank_count);
          }
       }
    }

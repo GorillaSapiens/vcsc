@@ -116,8 +116,12 @@ C26 topology/placement rules
   CODE/RODATA only where topology and timing constraints permit it.
 * Selector-free direct regions are ordinary 16-bit address spaces and do not
   require generated bank-switch trampolines.
-* Selector-controlled cross-bank calls/jumps use generated transitions; preserve
-  hardware-return-depth accounting and branch/page timing constraints. Mapper
+* Selector-controlled cross-bank calls use generated transitions; preserve
+  hardware-return-depth accounting and branch/page timing constraints. Ordinary
+  direct `JMP` is a hard same-bank constraint and never gets a mapper trampoline.
+  The only mapper-changing one-way JMP is the replicated reset/vector bridge:
+  mapper `entry.s26` normalizes startup state, then the bridge JMPs to the normal
+  handler. Mapper
   diagnostics must distinguish "every selector was touched" from exhaustive
   ordered source/destination bridge coverage. The durable regression is
   `test/vcs_bankswitching_call_matrix.pl`: one ROM per source bank calls every
@@ -215,11 +219,6 @@ snapshot with one timestamp; channel-1 completion is committed on a blank
 alignment line so multi-frame high-resistance completion cannot shift visible
 GRP0 timing. NTSC 0..255 thresholds, independent displayed-95 high-end cases,
 and NTSC/PAL/SECAM moving-input timing pass.
-
-Diagnostic optimizer wart: F864 direct-JMP targets use inline `TSX/STX`, so the
-current whole-function asm safety rule can leave generated
-`BNE near / JMP false / near: JMP true`. Pure C26 should not normally see it;
-this is future optimizer-locality cleanup, not bankswitching work.
 
 Automatic-call mapper migration is complete.
 

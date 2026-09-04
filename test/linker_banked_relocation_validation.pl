@@ -199,7 +199,7 @@ require_ok('cross-bank JSR trampoline generation',
 my $jsr_image = slurp($cross_jsr_bin);
 my $jsr_map = slurp($cross_jsr_map);
 length($jsr_image) == 8192 or die "cross-JSR image was not 8K\n";
-$jsr_map =~ /common-offset=\$F00 reserved=\$0E0 used=\$01E replicated=\$0000003C target-passing=inline generic-jsr=\$000 entries=2 jmp=0 jsr=2 jmp-size=\$08 jsr-size=\$0F/
+$jsr_map =~ /common-offset=\$F00 reserved=\$0E0 used=\$01E replicated=\$0000003C target-passing=inline generic-jsr=\$000 entries=2 jmp=0 jsr=2 jmp-size=\$00 jsr-size=\$0F/
    or die "map omitted common JSR table accounting\n$jsr_map";
 my $jsr_bank1_table = substr($jsr_image, 0x0F00, 0x1E);
 my $jsr_bank0_table = substr($jsr_image, 0x1F00, 0x1E);
@@ -343,77 +343,36 @@ $jsr_wrap_map_text =~ /JSR entry=0 offset=\$EF3/
 
 my $cross_jmp = assemble_case('cross_jmp', $preamble . <<'ASM');
 .export remote
-.export again
-.export return_home
-.export home_target
 .proc main
    JMP remote
-.endproc
-.segment "CODE.bank0"
-.proc again
-   JMP remote
-.endproc
-.proc home_target
-   RTS
 .endproc
 .segment "CODE.bank1"
 .proc remote
    RTS
 .endproc
-.proc return_home
+ASM
+require_fail('cross-bank JMP rejected', 'ordinary JMP targets must remain in the same bank',
+             $ld, '-T', $cfg, '--no-map', '--no-sym', '--no-list', '--no-cfg',
+             '-o', File::Spec->catfile($tmp, 'cross_jmp.bin'), $cross_jmp);
+
+my $same_jmp = assemble_case('same_jmp', $preamble . <<'ASM');
+.export home_target
+.proc main
    JMP home_target
 .endproc
+.proc home_target
+   RTS
+.endproc
 ASM
-my $cross_jmp_bin = File::Spec->catfile($tmp, 'cross_jmp.bin');
-my $cross_jmp_map = File::Spec->catfile($tmp, 'cross_jmp.map');
-require_ok('cross-bank JMP trampoline generation',
-           $ld, '-T', $cfg, '-Map', $cross_jmp_map,
-           '--no-sym', '--no-list', '--no-cfg',
-           '-o', $cross_jmp_bin, $cross_jmp);
-my $jmp_image = slurp($cross_jmp_bin);
-my $jmp_map = slurp($cross_jmp_map);
-length($jmp_image) == 8192 or die "cross-JMP image was not 8K\n";
-$jmp_map =~ /common-offset=\$F00 reserved=\$0E0 used=\$010 replicated=\$00000020 target-passing=inline generic-jsr=\$000 entries=2 jmp=2 jsr=0 jmp-size=\$08 jsr-size=\$0F/
-   or die "map omitted common JMP table accounting or deduplication\n$jmp_map";
-my $bank1_table = substr($jmp_image, 0x0F00, 0x10);
-my $bank0_table = substr($jmp_image, 0x1F00, 0x10);
-$bank1_table eq $bank0_table
-   or die "common JMP table was not byte-identical in both banks\n";
-my $remote_addr = map_symbol_addr($jmp_map, 'remote');
-my $home_addr = map_symbol_addr($jmp_map, 'home_target');
-my $main_addr = map_symbol_addr($jmp_map, 'main');
-my $again_addr = map_symbol_addr($jmp_map, 'again');
-my $return_home_addr = map_symbol_addr($jmp_map, 'return_home');
-my $entry0 = pack('C*',
-   0x0C, 0xF8, 0x1F,
-   0x6C, 0x06, 0xFF,
-   $remote_addr & 0xFF, $remote_addr >> 8);
-my $entry1 = pack('C*',
-   0x0C, 0xF9, 0x1F,
-   0x6C, 0x0E, 0xFF,
-   $home_addr & 0xFF, $home_addr >> 8);
-substr($bank0_table, 0x00, 0x08) eq $entry0
-   or die "BANK0-to-BANK1 JMP entry bytes are wrong\n";
-substr($bank0_table, 0x08, 0x08) eq $entry1
-   or die "BANK1-to-BANK0 JMP entry bytes are wrong\n";
-substr($jmp_image, image_offset_for_addr($main_addr), 3) eq pack('Cv', 0x4C, 0xFF00)
-   or die "main JMP was not redirected to BANK0's first table mirror\n";
-substr($jmp_image, image_offset_for_addr($again_addr), 3) eq pack('Cv', 0x4C, 0xFF00)
-   or die "equivalent JMP target did not reuse the first table entry\n";
-substr($jmp_image, image_offset_for_addr($return_home_addr), 3) eq pack('Cv', 0x4C, 0xDF08)
-   or die "BANK1 JMP was not redirected to BANK1's second table mirror\n";
-$jmp_map =~ /JMP entry=0 .*target=\$[0-9A-Fa-f]{4} .*destination=BANK1 hotspot=\$1FF8/
-   or die "map omitted BANK1 JMP entry details\n$jmp_map";
-$jmp_map =~ /JMP entry=1 .*target=\$[0-9A-Fa-f]{4} .*destination=BANK0 hotspot=\$1FF9/
-   or die "map omitted BANK0 JMP entry details\n$jmp_map";
+require_ok('same-bank JMP remains direct', link_command('same_jmp', $same_jmp));
 
 my $tiny_cfg = File::Spec->catfile($tmp, 'tiny-trampoline.cfg');
 my $tiny_text = slurp($cfg);
-$tiny_text =~ s/trampolinesize = \$00E0/trampolinesize = \$0008/;
+$tiny_text =~ s/trampolinesize = \$00E0/trampolinesize = \$000F/;
 write_file($tiny_cfg, $tiny_text);
-require_fail('common JMP corridor exhaustion', 'common trampoline corridor',
+require_fail('common JSR corridor exhaustion', 'common trampoline corridor',
              $ld, '-T', $tiny_cfg, '--no-map', '--no-sym', '--no-list', '--no-cfg',
-             '-o', File::Spec->catfile($tmp, 'tiny-trampoline.bin'), $cross_jmp);
+             '-o', File::Spec->catfile($tmp, 'tiny-trampoline.bin'), $cross_jsr);
 
 my $cross_branch = assemble_case('cross_branch', $preamble . <<'ASM');
 .export remote

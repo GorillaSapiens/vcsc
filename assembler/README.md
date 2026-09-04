@@ -870,10 +870,11 @@ identifies the final vector address for the linker's NMOS `$xxFF` hazard check.
 The two low relocation-type bits preserve direct control-transfer intent:
 ordinary data/address relocation, direct `JSR`, direct absolute `JMP`, or the
 absolute `JMP` emitted while relaxing a conditional branch. The numeric
-relocation arithmetic is unchanged. The bank-aware linker now uses direct
-`JMP` intent to generate a common replicated cross-bank trampoline entry, keeps
-direct `JSR` distinct for the pending return-stub implementation, and rejects
-ROM-data and conditional-branch crossings. Ordinary two-byte relative branches
+relocation arithmetic is unchanged. The bank-aware linker uses direct `JMP`
+intent as a hard same-bank constraint; it does not synthesize mapper-changing
+JMP trampolines for application code. Direct `JSR` remains distinct for banked
+call lowering, while ROM-data and conditional-branch crossings are rejected.
+Ordinary two-byte relative branches
 continue to live in the `B26` branch table; the relaxed long form carries both
 its local inverse-branch record and conditional-branch intent on the generated
 absolute target relocation.

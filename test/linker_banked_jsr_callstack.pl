@@ -129,7 +129,7 @@ $map_text =~ /^\s*\$0004\s+__call_stack_weighted_depth\b/m
    or die "weighted hardware-return depth symbol is wrong\n$map_text";
 $map_text =~ /^\s*\$0002\s+__call_stack_bank_extra_slots\b/m
    or die "bank bridge stack-slot symbol is wrong\n$map_text";
-$map_text =~ /entries=2 jmp=0 jsr=2 jmp-size=\$08 jsr-size=\$0F/
+$map_text =~ /entries=2 jmp=0 jsr=2 jmp-size=\$00 jsr-size=\$0F/
    or die "source-level cross-bank calls did not generate two JSR entries\n$map_text";
 $map_text =~ /JSR entry=.*source=BANK0 hotspot=\$1FF9 destination=BANK1 hotspot=\$1FF8/
    or die "map omitted BANK0-to-BANK1 source call\n$map_text";

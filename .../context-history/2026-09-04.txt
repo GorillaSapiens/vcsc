@@ -92,3 +92,23 @@ and 356/356 e2e tests with eight workers; staged `make installcheck` also passes
 The planned automatic-call mapper migration is complete. FE remains intentionally
 special, and the separate Stella 3EX >64K RAM-write defect remains tracked in
 .../3ex.txt.
+
+2026-09-04 12:11:08 PDT, remove general cross-bank JMP support
+Removed the legacy generic mapper-changing direct-JMP trampoline from the
+linker. Ordinary direct JMP relocations are now a hard same-bank constraint;
+explicit pinned cross-bank JMP targets fail with a dedicated diagnostic and
+automatically placed JMP source/target code is co-located. The old replicated
+8-byte JMP-entry encoder/allocation path is gone. Mapper-changing one-way JMP
+is now reserved solely for reset/startup: each bank's replicated vector bridge
+runs that mapper's maintained `entry.s26` normalization bytes when necessary,
+then performs the ordinary absolute JMP to the reset handler. Per-bank reset
+bridge and mapper-entry regeneration tests certify that startup behavior.
+
+Reworked the F8/F6/F4(+SC) diagnostic to use only the normal bankcall ABI for
+its complete ordered call matrix. The diagnostic-only inline cross-bank JMP
+phase, jump_target0..7 helpers, and their BNE/JMP/JMP optimizer wart are gone.
+Linker relocation tests now require cross-bank JMP rejection and retain a
+same-bank JMP acceptance case. Documentation and hygiene contracts state that
+application JMP is bank-local while cross-bank C26 control flow is call/return.
+Validation passes 503/503 compile-only and 356/356 e2e tests with eight workers;
+`make installcheck` also passes.

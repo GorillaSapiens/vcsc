@@ -3,8 +3,8 @@
 // F8/F6/F4 bank-transition diagnostic example.
 //
 // One visible build exercises the complete ordered source/destination matrix
-// twice: first through ordinary C calls (same-bank JSR/RTS or the generic
-// cross-bank JSR + inline-target path), then through direct cross-bank JMPs.
+// through ordinary C calls (same-bank JSR/RTS or the generic cross-bank JSR +
+// inline-target path). General cross-bank JMPs are intentionally unsupported.
 // The call matrix checks exact return-bank restoration and hardware-stack
 // balance for every ordered pair; one nested call additionally proves that
 // stacked logical return PCs compose correctly.  RIOT-RAM signatures and
@@ -68,7 +68,6 @@ uint8_t current_source;
 uint8_t current_destination;
 uint8_t call_count;
 uint16_t call_return;
-uint8_t transition_count;
 uint8_t nested_count;
 uint8_t status_color;
 uint8_t stack_before;
@@ -337,24 +336,6 @@ bank0 uint16_t call_target0(void) {
    return 0x5A40`uint16_t;
 }
 
-bank0 void jump_target0(void) {
-#ifdef SUPERCHIP_TEST
-   if (diagnostic_superchip_data_head != 0x5A || diagnostic_superchip_data_tail != 0xA5) {
-      failure := 0xD0;
-   }
-   diagnostic_superchip_count := diagnostic_superchip_count + 1;
-#endif
-   asm tsx;
-   asm stx stack_after;
-   if (current_destination != 0 || source_seen != current_source ||
-       stack_before != stack_after) {
-      failure := 0xE0;
-   }
-   signature := 0x80;
-   transition_count := transition_count + 1;
-   status_color := 0x82;
-   asm jmp advance_transition;
-}
 
 #if MAPPER_BANKS > 1
 bank1 uint16_t call_target1(void) {
@@ -369,24 +350,6 @@ bank1 uint16_t call_target1(void) {
    return 0x5A41`uint16_t;
 }
 
-bank1 void jump_target1(void) {
-#ifdef SUPERCHIP_TEST
-   if (diagnostic_superchip_data_head != 0x5A || diagnostic_superchip_data_tail != 0xA5) {
-      failure := 0xD1;
-   }
-   diagnostic_superchip_count := diagnostic_superchip_count + 1;
-#endif
-   asm tsx;
-   asm stx stack_after;
-   if (current_destination != 1 || source_seen != current_source ||
-       stack_before != stack_after) {
-      failure := 0xE1;
-   }
-   signature := 0x81;
-   transition_count := transition_count + 1;
-   status_color := 0x86;
-   asm jmp advance_transition;
-}
 
 #endif
 
@@ -403,24 +366,6 @@ bank2 uint16_t call_target2(void) {
    return 0x5A42`uint16_t;
 }
 
-bank2 void jump_target2(void) {
-#ifdef SUPERCHIP_TEST
-   if (diagnostic_superchip_data_head != 0x5A || diagnostic_superchip_data_tail != 0xA5) {
-      failure := 0xD2;
-   }
-   diagnostic_superchip_count := diagnostic_superchip_count + 1;
-#endif
-   asm tsx;
-   asm stx stack_after;
-   if (current_destination != 2 || source_seen != current_source ||
-       stack_before != stack_after) {
-      failure := 0xE2;
-   }
-   signature := 0x82;
-   transition_count := transition_count + 1;
-   status_color := 0x8A;
-   asm jmp advance_transition;
-}
 
 bank3 uint16_t call_target3(void) {
 #ifdef SUPERCHIP_TEST
@@ -434,24 +379,6 @@ bank3 uint16_t call_target3(void) {
    return 0x5A43`uint16_t;
 }
 
-bank3 void jump_target3(void) {
-#ifdef SUPERCHIP_TEST
-   if (diagnostic_superchip_data_head != 0x5A || diagnostic_superchip_data_tail != 0xA5) {
-      failure := 0xD3;
-   }
-   diagnostic_superchip_count := diagnostic_superchip_count + 1;
-#endif
-   asm tsx;
-   asm stx stack_after;
-   if (current_destination != 3 || source_seen != current_source ||
-       stack_before != stack_after) {
-      failure := 0xE3;
-   }
-   signature := 0x83;
-   transition_count := transition_count + 1;
-   status_color := 0x8E;
-   asm jmp advance_transition;
-}
 
 #endif
 
@@ -468,24 +395,6 @@ bank4 uint16_t call_target4(void) {
    return 0x5A44`uint16_t;
 }
 
-bank4 void jump_target4(void) {
-#ifdef SUPERCHIP_TEST
-   if (diagnostic_superchip_data_head != 0x5A || diagnostic_superchip_data_tail != 0xA5) {
-      failure := 0xD4;
-   }
-   diagnostic_superchip_count := diagnostic_superchip_count + 1;
-#endif
-   asm tsx;
-   asm stx stack_after;
-   if (current_destination != 4 || source_seen != current_source ||
-       stack_before != stack_after) {
-      failure := 0xE4;
-   }
-   signature := 0x84;
-   transition_count := transition_count + 1;
-   status_color := 0x92;
-   asm jmp advance_transition;
-}
 
 bank5 uint16_t call_target5(void) {
 #ifdef SUPERCHIP_TEST
@@ -499,24 +408,6 @@ bank5 uint16_t call_target5(void) {
    return 0x5A45`uint16_t;
 }
 
-bank5 void jump_target5(void) {
-#ifdef SUPERCHIP_TEST
-   if (diagnostic_superchip_data_head != 0x5A || diagnostic_superchip_data_tail != 0xA5) {
-      failure := 0xD5;
-   }
-   diagnostic_superchip_count := diagnostic_superchip_count + 1;
-#endif
-   asm tsx;
-   asm stx stack_after;
-   if (current_destination != 5 || source_seen != current_source ||
-       stack_before != stack_after) {
-      failure := 0xE5;
-   }
-   signature := 0x85;
-   transition_count := transition_count + 1;
-   status_color := 0x96;
-   asm jmp advance_transition;
-}
 
 bank6 uint16_t call_target6(void) {
 #ifdef SUPERCHIP_TEST
@@ -530,24 +421,6 @@ bank6 uint16_t call_target6(void) {
    return 0x5A46`uint16_t;
 }
 
-bank6 void jump_target6(void) {
-#ifdef SUPERCHIP_TEST
-   if (diagnostic_superchip_data_head != 0x5A || diagnostic_superchip_data_tail != 0xA5) {
-      failure := 0xD6;
-   }
-   diagnostic_superchip_count := diagnostic_superchip_count + 1;
-#endif
-   asm tsx;
-   asm stx stack_after;
-   if (current_destination != 6 || source_seen != current_source ||
-       stack_before != stack_after) {
-      failure := 0xE6;
-   }
-   signature := 0x86;
-   transition_count := transition_count + 1;
-   status_color := 0x9A;
-   asm jmp advance_transition;
-}
 
 bank7 uint16_t call_target7(void) {
 #ifdef SUPERCHIP_TEST
@@ -561,24 +434,6 @@ bank7 uint16_t call_target7(void) {
    return 0x5A47`uint16_t;
 }
 
-bank7 void jump_target7(void) {
-#ifdef SUPERCHIP_TEST
-   if (diagnostic_superchip_data_head != 0x5A || diagnostic_superchip_data_tail != 0xA5) {
-      failure := 0xD7;
-   }
-   diagnostic_superchip_count := diagnostic_superchip_count + 1;
-#endif
-   asm tsx;
-   asm stx stack_after;
-   if (current_destination != 7 || source_seen != current_source ||
-       stack_before != stack_after) {
-      failure := 0xE7;
-   }
-   signature := 0x87;
-   transition_count := transition_count + 1;
-   status_color := 0x9E;
-   asm jmp advance_transition;
-}
 
 #endif
 
@@ -612,16 +467,15 @@ bank0 void poison_superchip_before_result(void) {
 
 bank0 void finish_all(void) {
    if (call_count != MAPPER_BANKS * MAPPER_BANKS ||
-       transition_count != MAPPER_BANKS * MAPPER_BANKS ||
        nested_count != 1 ||
        source_seen != MAPPER_BANKS - 1 ||
-       signature != 0x80 + MAPPER_BANKS - 1 ||
+       signature != 0x40 + MAPPER_BANKS - 1 ||
        stack_before != stack_after) {
       failure := 0xFE;
    }
 #ifdef SUPERCHIP_TEST
    if (diagnostic_superchip_data_head != 0x5A || diagnostic_superchip_data_tail != 0xA5 ||
-       diagnostic_superchip_count != 2 * MAPPER_BANKS * MAPPER_BANKS + 1) {
+       diagnostic_superchip_count != MAPPER_BANKS * MAPPER_BANKS + 1) {
       failure := 0xFD;
    }
 #endif
@@ -640,51 +494,38 @@ bank0 void finish_all(void) {
 
 bank0 void dispatch_source(void) {
    if (current_source == 0) {
-      asm jmp source_entry0;
+      source_entry0();
    }
 #if MAPPER_BANKS > 1
    if (current_source == 1) {
-      asm jmp source_entry1;
+      source_entry1();
    }
 #endif
 #if MAPPER_BANKS > 2
    if (current_source == 2) {
-      asm jmp source_entry2;
+      source_entry2();
    }
    if (current_source == 3) {
-      asm jmp source_entry3;
+      source_entry3();
    }
 #endif
 #if MAPPER_BANKS > 4
    if (current_source == 4) {
-      asm jmp source_entry4;
+      source_entry4();
    }
    if (current_source == 5) {
-      asm jmp source_entry5;
+      source_entry5();
    }
    if (current_source == 6) {
-      asm jmp source_entry6;
+      source_entry6();
    }
    if (current_source == 7) {
-      asm jmp source_entry7;
+      source_entry7();
    }
 #endif
-   failure := 0xFC;
-   asm jmp finish_all;
 }
 
-bank0 void advance_transition(void) {
-   current_destination := current_destination + 1;
-   if (current_destination < MAPPER_BANKS) {
-      asm jmp dispatch_source;
-   }
-   current_destination := 0;
-   current_source := current_source + 1;
-   if (current_source < MAPPER_BANKS) {
-      asm jmp dispatch_source;
-   }
-   asm jmp finish_all;
-}
+
 
 bank0 void source_entry0(void) {
    if (current_source != 0) {
@@ -754,42 +595,8 @@ bank0 void source_entry0(void) {
        stack_before != stack_after) {
       failure := 0xC0;
    }
-   signature := 0;
-   asm tsx;
-   asm stx stack_before;
-   if (current_destination == 0) {
-      asm jmp jump_target0;
-   }
-#if MAPPER_BANKS > 1
-   if (current_destination == 1) {
-      asm jmp jump_target1;
-   }
-#endif
-#if MAPPER_BANKS > 2
-   if (current_destination == 2) {
-      asm jmp jump_target2;
-   }
-   if (current_destination == 3) {
-      asm jmp jump_target3;
-   }
-#endif
-#if MAPPER_BANKS > 4
-   if (current_destination == 4) {
-      asm jmp jump_target4;
-   }
-   if (current_destination == 5) {
-      asm jmp jump_target5;
-   }
-   if (current_destination == 6) {
-      asm jmp jump_target6;
-   }
-   if (current_destination == 7) {
-      asm jmp jump_target7;
-   }
-#endif
-   failure := 0xFB;
-   asm jmp finish_all;
 }
+
 
 
 #if MAPPER_BANKS > 1
@@ -861,42 +668,8 @@ bank1 void source_entry1(void) {
        stack_before != stack_after) {
       failure := 0xC1;
    }
-   signature := 0;
-   asm tsx;
-   asm stx stack_before;
-   if (current_destination == 0) {
-      asm jmp jump_target0;
-   }
-#if MAPPER_BANKS > 1
-   if (current_destination == 1) {
-      asm jmp jump_target1;
-   }
-#endif
-#if MAPPER_BANKS > 2
-   if (current_destination == 2) {
-      asm jmp jump_target2;
-   }
-   if (current_destination == 3) {
-      asm jmp jump_target3;
-   }
-#endif
-#if MAPPER_BANKS > 4
-   if (current_destination == 4) {
-      asm jmp jump_target4;
-   }
-   if (current_destination == 5) {
-      asm jmp jump_target5;
-   }
-   if (current_destination == 6) {
-      asm jmp jump_target6;
-   }
-   if (current_destination == 7) {
-      asm jmp jump_target7;
-   }
-#endif
-   failure := 0xFB;
-   asm jmp finish_all;
 }
+
 #endif
 
 
@@ -969,42 +742,8 @@ bank2 void source_entry2(void) {
        stack_before != stack_after) {
       failure := 0xC2;
    }
-   signature := 0;
-   asm tsx;
-   asm stx stack_before;
-   if (current_destination == 0) {
-      asm jmp jump_target0;
-   }
-#if MAPPER_BANKS > 1
-   if (current_destination == 1) {
-      asm jmp jump_target1;
-   }
-#endif
-#if MAPPER_BANKS > 2
-   if (current_destination == 2) {
-      asm jmp jump_target2;
-   }
-   if (current_destination == 3) {
-      asm jmp jump_target3;
-   }
-#endif
-#if MAPPER_BANKS > 4
-   if (current_destination == 4) {
-      asm jmp jump_target4;
-   }
-   if (current_destination == 5) {
-      asm jmp jump_target5;
-   }
-   if (current_destination == 6) {
-      asm jmp jump_target6;
-   }
-   if (current_destination == 7) {
-      asm jmp jump_target7;
-   }
-#endif
-   failure := 0xFB;
-   asm jmp finish_all;
 }
+
 
 bank3 void source_entry3(void) {
    if (current_source != 3) {
@@ -1074,42 +813,8 @@ bank3 void source_entry3(void) {
        stack_before != stack_after) {
       failure := 0xC3;
    }
-   signature := 0;
-   asm tsx;
-   asm stx stack_before;
-   if (current_destination == 0) {
-      asm jmp jump_target0;
-   }
-#if MAPPER_BANKS > 1
-   if (current_destination == 1) {
-      asm jmp jump_target1;
-   }
-#endif
-#if MAPPER_BANKS > 2
-   if (current_destination == 2) {
-      asm jmp jump_target2;
-   }
-   if (current_destination == 3) {
-      asm jmp jump_target3;
-   }
-#endif
-#if MAPPER_BANKS > 4
-   if (current_destination == 4) {
-      asm jmp jump_target4;
-   }
-   if (current_destination == 5) {
-      asm jmp jump_target5;
-   }
-   if (current_destination == 6) {
-      asm jmp jump_target6;
-   }
-   if (current_destination == 7) {
-      asm jmp jump_target7;
-   }
-#endif
-   failure := 0xFB;
-   asm jmp finish_all;
 }
+
 #endif
 
 
@@ -1182,42 +887,8 @@ bank4 void source_entry4(void) {
        stack_before != stack_after) {
       failure := 0xC4;
    }
-   signature := 0;
-   asm tsx;
-   asm stx stack_before;
-   if (current_destination == 0) {
-      asm jmp jump_target0;
-   }
-#if MAPPER_BANKS > 1
-   if (current_destination == 1) {
-      asm jmp jump_target1;
-   }
-#endif
-#if MAPPER_BANKS > 2
-   if (current_destination == 2) {
-      asm jmp jump_target2;
-   }
-   if (current_destination == 3) {
-      asm jmp jump_target3;
-   }
-#endif
-#if MAPPER_BANKS > 4
-   if (current_destination == 4) {
-      asm jmp jump_target4;
-   }
-   if (current_destination == 5) {
-      asm jmp jump_target5;
-   }
-   if (current_destination == 6) {
-      asm jmp jump_target6;
-   }
-   if (current_destination == 7) {
-      asm jmp jump_target7;
-   }
-#endif
-   failure := 0xFB;
-   asm jmp finish_all;
 }
+
 
 bank5 void source_entry5(void) {
    if (current_source != 5) {
@@ -1287,42 +958,8 @@ bank5 void source_entry5(void) {
        stack_before != stack_after) {
       failure := 0xC5;
    }
-   signature := 0;
-   asm tsx;
-   asm stx stack_before;
-   if (current_destination == 0) {
-      asm jmp jump_target0;
-   }
-#if MAPPER_BANKS > 1
-   if (current_destination == 1) {
-      asm jmp jump_target1;
-   }
-#endif
-#if MAPPER_BANKS > 2
-   if (current_destination == 2) {
-      asm jmp jump_target2;
-   }
-   if (current_destination == 3) {
-      asm jmp jump_target3;
-   }
-#endif
-#if MAPPER_BANKS > 4
-   if (current_destination == 4) {
-      asm jmp jump_target4;
-   }
-   if (current_destination == 5) {
-      asm jmp jump_target5;
-   }
-   if (current_destination == 6) {
-      asm jmp jump_target6;
-   }
-   if (current_destination == 7) {
-      asm jmp jump_target7;
-   }
-#endif
-   failure := 0xFB;
-   asm jmp finish_all;
 }
+
 
 bank6 void source_entry6(void) {
    if (current_source != 6) {
@@ -1392,42 +1029,8 @@ bank6 void source_entry6(void) {
        stack_before != stack_after) {
       failure := 0xC6;
    }
-   signature := 0;
-   asm tsx;
-   asm stx stack_before;
-   if (current_destination == 0) {
-      asm jmp jump_target0;
-   }
-#if MAPPER_BANKS > 1
-   if (current_destination == 1) {
-      asm jmp jump_target1;
-   }
-#endif
-#if MAPPER_BANKS > 2
-   if (current_destination == 2) {
-      asm jmp jump_target2;
-   }
-   if (current_destination == 3) {
-      asm jmp jump_target3;
-   }
-#endif
-#if MAPPER_BANKS > 4
-   if (current_destination == 4) {
-      asm jmp jump_target4;
-   }
-   if (current_destination == 5) {
-      asm jmp jump_target5;
-   }
-   if (current_destination == 6) {
-      asm jmp jump_target6;
-   }
-   if (current_destination == 7) {
-      asm jmp jump_target7;
-   }
-#endif
-   failure := 0xFB;
-   asm jmp finish_all;
 }
+
 
 bank7 void source_entry7(void) {
    if (current_source != 7) {
@@ -1497,42 +1100,8 @@ bank7 void source_entry7(void) {
        stack_before != stack_after) {
       failure := 0xC7;
    }
-   signature := 0;
-   asm tsx;
-   asm stx stack_before;
-   if (current_destination == 0) {
-      asm jmp jump_target0;
-   }
-#if MAPPER_BANKS > 1
-   if (current_destination == 1) {
-      asm jmp jump_target1;
-   }
-#endif
-#if MAPPER_BANKS > 2
-   if (current_destination == 2) {
-      asm jmp jump_target2;
-   }
-   if (current_destination == 3) {
-      asm jmp jump_target3;
-   }
-#endif
-#if MAPPER_BANKS > 4
-   if (current_destination == 4) {
-      asm jmp jump_target4;
-   }
-   if (current_destination == 5) {
-      asm jmp jump_target5;
-   }
-   if (current_destination == 6) {
-      asm jmp jump_target6;
-   }
-   if (current_destination == 7) {
-      asm jmp jump_target7;
-   }
-#endif
-   failure := 0xFB;
-   asm jmp finish_all;
 }
+
 #endif
 
 void main(void) {
@@ -1561,8 +1130,17 @@ void main(void) {
    current_destination := 0;
    call_count := 0;
    call_return := 0;
-   transition_count := 0;
    nested_count := 0;
    status_color := 0x84;
-   asm jmp dispatch_source;
+   while (current_source < MAPPER_BANKS) {
+      current_destination := 0;
+      while (current_destination < MAPPER_BANKS) {
+         dispatch_source();
+         current_destination := current_destination + 1;
+      }
+      current_source := current_source + 1;
+   }
+   current_destination := 0;
+   finish_all();
 }
+

@@ -333,13 +333,14 @@ F4's NMI-vector/selector overlap, and diagnostics for missing or
 selector-overlapping bridge corridors.
 
 `linker_banked_relocation_validation.pl` covers bank-aware relocation validation
-and generated control-transfer bridges. It proves that same-bank code/data and
-shared RAM references remain legal; that o26 retains distinct direct `JSR`,
-direct `JMP`, and relaxed conditional-branch intent; and that the linker rejects
-cross-bank relative and long branches, ROM loads, address constants, pointer
+and generated call bridges. It proves that same-bank code/data and shared RAM
+references remain legal; that o26 retains distinct direct `JSR`, direct `JMP`,
+and relaxed conditional-branch intent; that ordinary direct JMP is a hard
+same-bank constraint; and that the linker rejects explicitly pinned cross-bank
+JMPs, cross-bank relative/long branches, ROM loads, address constants, pointer
 words, low/high-byte relocations, and indirect-`JMP` vectors. It also checks
-source-bank mirror patching, deduplication, exact byte-identical eight-byte JMP
-and fifteen-byte JSR entries, inline targets, map accounting, corridor
+source-bank mirror patching, JSR-entry deduplication, exact byte-identical
+fifteen-byte legacy JSR entries, inline targets, map accounting, corridor
 exhaustion, register-preserving nested BANK0 -> BANK1 -> BANK0 calls, LIFO bank
 restoration, and balanced hardware-stack returns.
 
@@ -351,7 +352,7 @@ symbols, and source/destination bridge reporting.
 `vcs_f8_profile.pl` certifies the installed `F8/mapper.c26` profile without a
 VCS linker cfg. It compiles the private F8 source diagnostic, locks
 BANK1-first/BANK0-last file order, `$1FF8/$1FF9` selector identities, hard and
-automatic placement, cross-bank JMP and nested JSR bridges, descriptor-aware replicated corridors,
+automatic placement, call-only cross-bank bridges, descriptor-aware replicated corridors,
 vectors, map output, and exact 8192-byte output. A small opcode model
 starts from each possible initially selected file chunk and proves the reset
 bridge reaches BANK0 and nested calls restore banks and hardware-stack returns
@@ -779,8 +780,8 @@ from `examples/09_bankswitching/01_f864/bankswitching_diagnostic.c26`. The diagn
 a 19-line Big-wide result word with an 11-line centered cart-type line. The test
 locks both 12-byte six-pointer workspaces and the page-contained checked-in
 generated 128-byte Big and 64-byte default ASCII subset tables. Each image executes its complete ordered
-source-bank to destination-bank matrix internally for both ordinary C calls and
-direct JMPs. Cross-bank calls must use the fixed 72-byte descriptor-ABI inline-target
+source-bank to destination-bank call matrix internally. Cross-bank calls must
+use the fixed 72-byte descriptor-ABI inline-target
 block (`JSR __bankcall` plus `.word target` and one destination-descriptor byte),
 with zero per-target JSR entries. The normal `make test` path builds each image from C26 topology and runs it in compatibility-cfg-driven `vcsc-sim` from every
 physical/file startup bank and checks RIOT-RAM signatures, exact matrix counts,
@@ -979,8 +980,8 @@ directory, deletion ledgers, top-level notes, and software-stack snapshot must
 remain absent. The same test also requires exactly one `bankswitching.txt` in
 the repository, at `.../bankswitching.txt`. `source_tree_hygiene.pl` locks the
 bankswitching plan's descending logical-bank convention, lowest-address-first
-file order, early per-bank reset work, completed byte-identical direct-`JMP` and JSR-to-indirect-JMP
-trampoline table with weighted call-stack accounting, `main`-in-BANK0
+file order, mapper-specific reset-entry/vector bridges, call-only cross-bank
+trampolines with weighted call-stack accounting, `main`-in-BANK0
 constrained automatic placement, `$x100` Superchip ROM boundary, and the
 required automatic Superchip-variable allocation roadmap item.
 

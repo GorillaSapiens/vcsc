@@ -611,10 +611,10 @@ bank1 void remote_code(void) {
 
 Plain `void main(void)` needs no bank qualifier. The linker pins it, startup,
 and required runtime material to the profile's unique `startup=yes` bank (BANK0
-for the conventional profiles shown here; physical bank 7 for E0). Direct
-cross-bank `JSR` and `JMP` are rewritten through the replicated common table
-where that profile supplies one. Ordinary cross-bank ROM data references remain
-errors.
+for the conventional profiles shown here; physical bank 7 for E0). Cross-bank
+calls use the mapper's bankcall ABI. Ordinary direct `JMP` is required to stay
+within one bank; the linker does not synthesize mapper-changing JMP trampolines
+for application code. Cross-bank ROM data references remain errors.
 
 Immutable code and data that must be directly available in several banks can be
 replicated explicitly:

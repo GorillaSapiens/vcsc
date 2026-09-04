@@ -99,10 +99,10 @@ $source_map_text =~ /pinned\s+CODE\.bank1\.__vcsc_function\$remote\s+region=bank
    or die "F8 source pins or main residency are wrong\n$source_map_text";
 $source_map_text =~ /pinned\s+RODATA\.bank1\.__vcsc_object\$bank1_value\s+region=bank1.*\n\s+automatic CODE\.__vcsc_function\$automatic_reader\s+region=bank1/s
    or die "F8 automatic reader did not follow its BANK1 const object\n$source_map_text";
-$source_map_text =~ /generic-jsr=\$048\b.*entries=4 jmp=1 jsr=3/ &&
-$source_map_text =~ /JMP entry=.*destination=bank0 hotspot=\$1FF9/ &&
+$source_map_text =~ /generic-jsr=\$048\b.*entries=3 jmp=0 jsr=3 jmp-size=\$00/ &&
+$source_map_text !~ /JMP entry=/ &&
 $source_map_text =~ /JSR entry=.*source=bank0 hotspot=\$1FF9 destination=bank1 hotspot=\$1FF8/
-   or die "F8 source diagnostic did not generate the expected cross-bank bridges\n$source_map_text";
+   or die "F8 source diagnostic did not generate the expected call-only cross-bank bridges\n$source_map_text";
 my $tramp0=substr($source_image,0x0F00,0x00E0);
 my $tramp1=substr($source_image,0x1F00,0x00E0);
 my @tramp_diff=grep { substr($tramp0,$_,1) ne substr($tramp1,$_,1) } 0..0x47;
@@ -136,7 +136,6 @@ write_file($asm_src, <<'ASM');
 .export main
 .export home_leaf
 .export remote
-.export remote_jump
 .segment "CODE"
 .proc __reset
    JSR main
@@ -160,18 +159,12 @@ write_file($asm_src, <<'ASM');
    LDA #$33
    RTS
 .endproc
-.proc again
-   JMP remote_jump
-.endproc
 .segment "CODE.bank1"
 .proc remote
    STA.a $0081
    LDA #$22
    JSR home_leaf
    STA.a $0082
-   RTS
-.endproc
-.proc remote_jump
    RTS
 .endproc
 ASM
@@ -181,7 +174,7 @@ require_ok('link F8 execution diagnostic', $driver, '-I', $vcs, '-Map', $asm_map
 my $image = slurp($asm_bin);
 my $map = slurp($asm_map);
 length($image) == 8192 or die "F8 execution diagnostic was not exactly 8192 bytes\n";
-$map =~ /entries=3 jmp=1 jsr=2/ or die "F8 execution diagnostic bridge counts are wrong\n$map";
+$map =~ /entries=2 jmp=0 jsr=2 jmp-size=\$00/ or die "F8 execution diagnostic bridge counts are wrong\n$map";
 my $reset_addr = map_symbol_addr($map, '__reset');
 my $main_addr = map_symbol_addr($map, 'main');
 $reset_addr >= 0xF000 && $main_addr >= 0xF000

@@ -27,11 +27,11 @@ bank1 void remote(void) {
    home_leaf();
 }
 
-// This is a tail call.  The direct cross-bank JMP is rewritten through the
-// common byte-identical trampoline table and home_tail's RTS returns through
-// the JSR that entered remote_jump.
-bank1 void remote_jump(void) {
-   asm jmp home_tail;
+// Ordinary C26 cross-bank control flow is a call.  General mapper-changing
+// JMPs are deliberately unsupported; reset/startup owns the only one-way
+// mapper transition.
+bank1 void remote_return(void) {
+   home_tail();
 }
 
 // The object reference is a hard same-bank constraint, so this unpinned
@@ -44,5 +44,5 @@ void main(void) {
    result := 0;
    remote();
    result := result + automatic_reader();
-   remote_jump();
+   remote_return();
 }

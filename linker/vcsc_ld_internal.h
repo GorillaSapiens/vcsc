@@ -429,9 +429,8 @@ typedef struct {
    uint16_t size;
 } zero_record_t;
 
-//! One deduplicated direct cross-bank control-transfer entry in the common table.
+//! One deduplicated legacy direct cross-bank JSR entry in the common table.
 typedef struct {
-   uint8_t kind;
    uint16_t target_addr;
    uint16_t table_offset;
    uint16_t source_hotspot;

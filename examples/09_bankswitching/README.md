@@ -10,9 +10,10 @@
 # Bank-switching diagnostics
 
 This group contains mapper-level diagnostic cartridges rather than gameplay
-examples.  They deliberately exercise generated cross-bank JSR/RTS and direct
-JMP bridges, reset from arbitrary initially selected banks, RIOT-RAM signatures,
-and hardware-stack balance.
+examples.  They deliberately exercise generated cross-bank JSR/RTS calls,
+reset from arbitrary initially selected banks, RIOT-RAM signatures, and
+hardware-stack balance. Ordinary application JMPs remain bank-local; only the
+reset/vector bridge may perform a mapper-changing one-way transfer.
 
 The public ABI for selector-controlled cross-bank C calls is
 [`../../BANKSWITCHING.md`](../../BANKSWITCHING.md). F8/F8SC/F6/F6SC/F4/F4SC,
@@ -26,8 +27,7 @@ diagnostics—F8, F6, F4, F8SC, F6SC, and F4SC—plus a seventh deliberately
 poisoned F8SC image which renders the known FAIL result. The SC diagnostics also
 certify hostile initial RAM, mixed BSS/DATA startup, bank-switch persistence,
 and reinitialization after console reset without adding more cartridges. The `01_f864`
-diagnostic executes both its complete ordered direct-JMP matrix and complete
-ordered C-call matrix internally.
+diagnostic executes its complete ordered C-call matrix internally.
 
 Generated JSR/RTS paths need a stronger test than merely touching every bank.
 `test/vcs_bankswitching_call_matrix.pl` builds one ROM per source bank and makes

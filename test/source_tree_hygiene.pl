@@ -264,7 +264,13 @@ index($bankswitching,'mapper-specific replicated entry/return')>=0 &&
 index($bankswitching,'unchanged original 16-bit logical return PC')>=0 &&
 index($bankswitching,'Only the descriptor ABI')>=0 &&
 index($bankswitching,'descriptors `$F5-$FA/$FB`')>=0 &&
-index($bankswitching,'BNE near / JMP false / near: JMP true')>=0 &&
+index($bankswitching,'direct `JMP` is a hard same-bank constraint')>=0 &&
+index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),
+      'ordinary cross-bank JMPs are unsupported')>=0 &&
+index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),
+      'encode_bank_jump_entry')<0 &&
+index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),
+      'BANK_JMP_ENTRY_SIZE')<0 &&
 -f File::Spec->catfile($test,'vcs_bankswitching_inline_call_pages.pl') &&
 index(slurp(File::Spec->catfile($repo,'compiler','compile_call.c')),'.banktarget %s')>=0 &&
 -f File::Spec->catfile($repo,qw(libraries vcs F8 bankcall.s26)) &&

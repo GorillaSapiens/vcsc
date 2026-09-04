@@ -22,19 +22,19 @@ example is the public call-matrix pilot for the ABI documented in
 [`../../../BANKSWITCHING.md`](../../../BANKSWITCHING.md).
 
 Each cartridge internally runs the complete ordered source-bank to
-destination-bank matrix twice: 4+4 transitions for F8, 16+16 for F6, and 64+64
-for F4. The first pass uses ordinary C calls. Same-bank calls remain ordinary
+destination-bank call matrix: 4 calls for F8, 16 for F6, and 64 for F4.
+Same-bank calls remain ordinary
 `JSR`/`RTS`; every cross-bank call uses the six-byte `JSR __bankcall` plus
 three-byte `.banktarget` bundle (target address + destination descriptor) and one
 fixed 69-byte descriptor-aware block with 72 bytes reserved (`$048`). The source
-descriptor is baked into each bank's replicated block. The second pass uses
-the existing direct-JMP trampolines. BANK0 also performs one nested
-BANK0-to-BANK1 call.
+descriptor is baked into each bank's replicated block. BANK0 also performs one
+nested BANK0-to-BANK1 call. Ordinary cross-bank JMPs are intentionally unsupported;
+startup/reset uses the mapper-entry/vector bridge instead.
 
 Every call checks its target signature, exact hardware-stack balance, restored
 source bank, and the target's returned value. The diagnostic therefore proves
-every ordered source/destination call and JMP pair rather than merely touching
-each selector once. Every transition records and validates its source, destination, signature, and
+every ordered source/destination call rather than merely touching each selector
+once. Every transition records and validates its source, destination, signature, and
 hardware-stack state in RIOT RAM. The Superchip builds own the complete 128-byte RAM as mixed BSS and DATA.
 They verify reset-time clearing/copying through the write window, both alias
 directions, and persistence through the whole matrix. After displaying a result

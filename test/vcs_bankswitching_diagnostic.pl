@@ -105,14 +105,12 @@ sub check_matrix_dump {
       or die "$mapper matrix indices did not reach the terminal state\n";
    $mem->[$sym->{call_count}]==$banks*$banks
       or die "$mapper complete ordered call-matrix count is wrong\n";
-   $mem->[$sym->{transition_count}]==$banks*$banks
-      or die "$mapper did not execute the complete ordered direct-JMP matrix\n";
    $mem->[$sym->{nested_count}]==1
       or die "$mapper nested cross-bank call count is wrong\n";
-   $mem->[$sym->{signature}]==0x80+$banks-1
+   $mem->[$sym->{signature}]==0x40+$banks-1
       or die "$mapper final destination signature is wrong\n";
    $mem->[$sym->{stack_before}]==$mem->[$sym->{stack_after}]
-      or die "$mapper direct-JMP path changed the hardware stack\n";
+      or die "$mapper cross-bank call path did not restore the hardware stack\n";
    if ($sc) {
       $mem->[$sym->{sc_bss_head}]==0xC3 &&
       $mem->[$sym->{sc_data_head}]==0x3C &&
@@ -185,7 +183,7 @@ sub run_simulator_matrix {
       }
       my %sym=map { $_ => map_symbol($map,$_) }
          qw(simulator_done failure signature source_seen current_source current_destination
-            call_count transition_count nested_count stack_before stack_after);
+            call_count nested_count stack_before stack_after);
       if ($sc) {
          $sym{sc_bss_head}=map_symbol($map,'diagnostic_superchip_bss_head');
          $sym{sc_data_head}=map_symbol($map,'diagnostic_superchip_data_head');
