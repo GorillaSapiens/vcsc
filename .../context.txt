@@ -28,8 +28,8 @@ small limits enforced by `test/source_tree_hygiene.pl`.
 * Keep acceptance criteria only for unfinished work.
 * Prefer executable regressions and maintained source documentation as durable
   truth instead of duplicating their details here.
-* A completed focused roadmap may remain as a short durable closeout/tombstone,
-  but not as a work diary.
+* When a focused roadmap has no unfinished work, move it out of hot state into
+  `.../context-history/`; do not keep a closeout/tombstone beside active records.
 
 History-entry policy
 --------------------
@@ -128,12 +128,6 @@ Open workstreams
    programs select the compact startup. Const/readonly objects and pointer
    initializers that require backing objects retain their required storage
    semantics. Regression tests own the detailed placement/footprint expectations.
-
-Completed focused work
-----------------------
-`.../ram_optimization.txt`, `.../inline_roadmap.txt`, and
-`.../video_standard_roadmap.txt` are intentionally short durable closeouts.
-Their completed development narratives were moved to `context-history/`.
 
 Human-readable linked listings
 ------------------------------

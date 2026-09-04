@@ -1,0 +1,68 @@
+2026-09-04 12:31:00 PDT, archive closed 3E record
+
+    | 3E SWAPRAM CLOSEOUT
+    | ===================
+    | 
+    | Status
+    | ------
+    | Bankswitching Item 38b's core migration is complete. Item 38c has the full
+    | 255 x 255 selectable-ROM call matrix and Stella-compatible 32K RAM capacity
+    | covered by `19_3e_max`. The separate pre-FC extended-3E 256K capacity-torture
+    | milestone was retired after `20_3ex_max` certified the same full compiler/linker
+    | 256 x 1K `$swapram` capacity under Stella-compatible 3EX; focused 3E helper and
+    | simulator tests still cover selector values through 255. This file remains the
+    | compact durable core-design closeout.
+    | 
+    | Hardware / ABI invariants
+    | -------------------------
+    | Tigervision 3E keeps one final 2K ROM bank permanently visible at
+    | `$1800-$1FFF`. Exact writes to TIA `$3F` select a 2K ROM bank into
+    | `$1000-$17FF`. Exact writes to `$3E` select cartridge RAM: reads use
+    | `$1000-$13FF`, writes use the split alias `$1400-$17FF`.
+    | 
+    | VCSC deliberately supports the full 8-bit `$3E` selector range: 256 x 1K =
+    | 256K RAM. Current Stella `3E` models only 32 x 1K. Stella `3EX` is a separate
+    | mapper but implements the full 256 x 1K / 256K RAM shape; its image metadata and
+    | detection contract are what make it distinct. The old 512-byte-bank description
+    | was Stella development discussion, not the implemented mapper.
+    | 
+    | Because RAM replaces executable lower ROM, selected RAM is temporary fixed-bank
+    | data state, not generic bankcall state. 3E ROM calls therefore use the settled
+    | 3F descriptor model: lower-bank descriptors are their `$3F` selector values and
+    | the fixed bank is `$FF`. RAM-bank state is never encoded in the generic bankcall
+    | descriptor.
+    | 
+    | `$swapram` storage
+    | ------------------
+    | The stock 3E mapper exposes a 256K memory region marked `$swapram` with
+    | `$bank_size:0x0400`. Source uses ordinary lvalue syntax; the compiler performs
+    | mapper-specific access lowering. An ordinary 16-bit CPU pointer cannot represent
+    | swapram, and one allocated object must fit wholly inside one 1K physical RAM bank.
+    | 
+    | `libraries/vcs/3E/swapram.s26` supplies fixed/startup-bank byte movers
+    | `swapram_read1..4` and `swapram_write1..4`, plus private `swapram_zero` startup
+    | machinery. The private compiler/helper transport is an 18-bit logical swapram
+    | address plus an ordinary CPU buffer pointer; the helper derives the physical
+    | 8-bit RAM bank and 10-bit in-bank offset.
+    | 
+    | ROM topology
+    | ------------
+    | `libraries/vcs/3E/mapper.c26` is parameterized by `VCS_3E_BANKS` and supports
+    | 3..256 physical 2K ROM banks. `bankcall.s26` / empty `entry.s26` use the generic
+    | six-byte inline-target ABI with a `$058` reserved/active descriptor corridor.
+    | Lower/fixed calls, nested restoration, same-bank `.banktarget` calls, and
+    | swapram accesses from lower ROM are regression-tested.
+    | 
+    | Primary executable contracts
+    | ----------------------------
+    | * `test/vcs_3e_swapram_acceptance.pl` -- scalar widths/types, indexing,
+    |   compound operations, locals/statics, initialization, and helper placement.
+    | * `test/vcs_3e_swapram_restore.pl` -- lower->fixed swapram->lower restoration and
+    |   fixed RAM-mapped state followed by an automatic lower-ROM call.
+    | * `test/vcs_3e_swapram_helpers.pl` -- mapper helper behavior through RAM bank 255.
+    | * `test/vcs_bankswitching_call_matrix.pl` -- ordered 3E ROM-call matrix.
+    | * `test/vcs_3f_3e.pl` -- public visible/simulator diagnostics and disassembly.
+    | * `test/vcs_3e_simulator_oracle.pl` -- split alias direction, all 256 RAM selector
+    |   values without truncation, RAM/ROM mode transitions, and RAM-bank persistence.
+    | 
+    | Public usage and Stella compatibility notes live in `libraries/vcs/3E/README.md`.

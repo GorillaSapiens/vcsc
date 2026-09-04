@@ -54,43 +54,16 @@ Read it when that side quest is the current task.
 Durable cartridge/bank identity rules plus mapper-wide unfinished bankswitching
 work. Mapper-specific focused records may be split out while active.
 
-### `3e.txt`
-
-Compact closeout for completed Item 38b: 3E ROM-call and `$swapram` invariants,
-primary regressions, and Stella compatibility pointer.
-
 ### `3ex.txt`
 
 Compact active handoff for 3EX's current Stella compatibility state: detector
 marker contract, confirmed >64K banked-RAM write alias, evidence, and upstream
 acceptance criterion.
 
-### `superchip_dummy_read_hazard.txt`
-
-Focused active record for the linker-level NMOS 6502 dummy/ghost-read hazard
-exposed by the Superchip diagnostic corruption. It contains the exact reproduced
-addresses, ruled-out theories, mapper hazard model, placement policy, acceptance
-criteria, and immediate next step for main-roadmap Item 46.
-
 ### `disassembler.txt`
 
 Durable exact-round-trip disassembler contract plus unfinished mapper/analysis
 work.
-
-### `ram_optimization.txt`
-
-Short durable closeout for the completed RIOT-RAM optimization workstream.
-Authoritative current accounting lives in executable fixtures/tests, not here.
-
-### `inline_roadmap.txt`
-
-Short durable closeout for specialization/inlining policy. Open new optimizer
-work as a new concrete roadmap item rather than reviving its old diary.
-
-### `video_standard_roadmap.txt`
-
-Short durable closeout for PAL/SECAM work and the few video-standard invariants
-future changes must preserve.
 
 ### `instruction.txt`
 
@@ -104,10 +77,11 @@ it is intentional project state, not generated residue.
 
 ### `context-history/`
 
-Cold chronological archive: one file per local work date, `YYYY-MM-DD.txt`.
-Ordinary handoffs must not read this directory wholesale. Search or open only the
-date needed to recover an older decision, regression, measurement, or discarded
-approach.
+Cold archive. Daily work history lives in local-date files named `YYYY-MM-DD.txt`;
+completed focused records may be moved here under their former basename once they
+have no unfinished work. Ordinary handoffs must not read this directory wholesale.
+Search or open only the specific date or archived focused record needed to recover
+an older decision, regression, measurement, or discarded approach.
 
 Each entry begins with:
 

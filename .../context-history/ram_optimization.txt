@@ -1,0 +1,30 @@
+2026-09-04 12:31:02 PDT, archive RAM optimization record
+
+    | VCSC RIOT-RAM OPTIMIZATION -- DURABLE CLOSEOUT
+    | ==============================================
+    | 
+    | Status
+    | ------
+    | No unfinished items. The completed work diary and old measurements are archived
+    | in `.../context-history/`; the full pre-cleanup roadmap is in 2026-08-22.
+    | 
+    | Durable decisions
+    | -----------------
+    | * RIOT activation/scratch storage is linker-overlayable by proven lifetimes;
+    |   hardware-stack ownership is measured from the visible call graph rather than a
+    |   blanket fixed reserve.
+    | * The maintained general renderer families remain the retained architecture.
+    |   Do not add separate P0/P1-only 192/181 profiles without a concrete program that
+    |   demonstrates a real need for another timing/API surface.
+    | * Ordinary application assembly is not accepted merely to save RAM/ROM. The
+    |   authoritative assembly inventory is `test/fixtures/example_assembly_allowlist.tsv`
+    |   and `test/example_assembly_allowlist.pl`; compiler-limitation debt is currently
+    |   expected to be zero.
+    | * Authoritative current RAM accounting is executable data, not prose:
+    |   `test/fixtures/vcs_animated_gallery_ram_accounting/golden.json` and its focused
+    |   regressions own the ledger.
+    | * Generated example `.cfg` sidecars are build products; maintained library/profile
+    |   `.cfg` files remain source and license-audited.
+    | 
+    | Reopen only for a concrete regression or new measured program, not to chase old
+    | historical byte counts from this file.

@@ -112,3 +112,11 @@ same-bank JMP acceptance case. Documentation and hygiene contracts state that
 application JMP is bank-local while cross-bank C26 control flow is call/return.
 Validation passes 503/503 compile-only and 356/356 e2e tests with eight workers;
 `make installcheck` also passes.
+
+2026-09-04 12:31:05 PDT, archive closed focused records
+Moved the completed 3E, Superchip dummy-read hazard, RIOT-RAM optimization,
+specialization/inlining, and PAL/SECAM focused records out of hot `.../` state
+into `.../context-history/` under their former basenames. Updated the developer
+record index and hygiene/branding contracts so only unfinished workstreams are
+required in hot state. The active records are roadmap, bankswitching, 3EX,
+disassembler, and enhanced asymmetric multisprite.

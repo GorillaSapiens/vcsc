@@ -1,0 +1,38 @@
+2026-09-04 12:31:01 PDT, archive Superchip hazard record
+
+    |  __   __ ___  ___   ___
+    |  \ \ / // __|/ __| / __|
+    |   \ V /| (__ \__ \| (__
+    |    \_/  \___||___/ \___|
+    | 
+    | SUPERCHIP DUMMY-READ HAZARD
+    | ===========================
+    | 
+    | Status
+    | ------
+    | Closed as main-roadmap Item 46 on 2026-08-28. Detailed reproduction, discarded
+    | hypotheses, implementation notes, and validation are in that day's context
+    | history. Executable coverage lives in `test/linker_dummy_read_hazards.pl` and
+    | `test/vcs_diagnostic_cartridge.pl`; the optional independent raster oracle is
+    | `test/vcs_diagnostic_cartridge_stella.pl`.
+    | 
+    | Durable contract
+    | ----------------
+    | Mapper storage may declare a CPU-read side-effect range with C26 `$read_hazard`
+    | or cfg `read_hazard = yes`. For split-address RAM this is the write alias.
+    | `vcsc-ld` checks statically knowable NMOS 6502 bus reads from final linked code,
+    | including all 256 opcode bytes, unofficial encodings, and handwritten assembly. Movable referenced
+    | objects receive placement constraints; a fixed unsafe instruction is a hard
+    | source-correlated link error. Runtime-computed indirect effective addresses and
+    | return targets are not statically knowable and are not guessed.
+    | 
+    | The stock Superchip, FA/RAM Plus, and CommaVid RAM declarations mark their write
+    | ports hazardous. The diagnostic DETAIL1 row is back in Superchip RAM, and its
+    | original wrapped absolute,Y reposition lookup is retained; the linker relocates
+    | the referenced table so its page-cross dummy reads cannot enter `$F000-$F07F`.
+    | 
+    | Next work
+    | ---------
+    | Do not reopen this as active design unless a regression disproves the contract.
+    | Item 47 subsequently locked ordinary Superchip RAM accesses; the main roadmap
+    | now continues with Item 49.

@@ -178,8 +178,6 @@ index($runtime_gitignore,'libvcsc.l26')>=0
    or die "libraries/runtime/.gitignore must ignore generated libvcsc.l26\n";
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `bankswitching.txt`')>=0
    or die ".../README.md does not document bankswitching.txt\n";
-index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `3e.txt`')>=0
-   or die ".../README.md does not document 3e.txt\n";
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `3ex.txt`')>=0
    or die ".../README.md does not document 3ex.txt\n";
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `roadmap.txt`')>=0 &&
@@ -205,12 +203,6 @@ my $sim_core_ignore=slurp(File::Spec->catfile($repo,'simulator','mos6502','.giti
 $sim_core_ignore =~ /^\*\.o\s*$/m && $sim_core_ignore =~ /^\*\.d\s*$/m
    or die "simulator/mos6502/.gitignore must ignore *.o and *.d\n";
 my $bankswitching=slurp(File::Spec->catfile($repo,'...','bankswitching.txt'));
-my $threee=slurp(File::Spec->catfile($repo,'...','3e.txt'));
-index($threee,'3E SWAPRAM CLOSEOUT')>=0 &&
-length($threee) <= 12 * 1024 &&
-(() = $threee =~ /^\[ \]/mg) == 0 &&
--f File::Spec->catfile($test,'vcs_3e_simulator_oracle.pl')
-   or die "3E closeout/oracle contract is missing\n";
 length($bankswitching) <= 16 * 1024 &&
 index($bankswitching,'Never use bare "bank 0" without saying which identity is meant.')>=0 &&
 index($bankswitching,'file_index(BANKn) = bank_count - 1 - n')>=0 &&
@@ -963,20 +955,14 @@ index($component_guide,'Retirement of these working profiles is not a completion
    or die "component guide restored retirement as a roadmap gate\n";
 my $context=slurp(File::Spec->catfile($repo,'...','context.txt'));
 my $roadmap=slurp(File::Spec->catfile($repo,'...','roadmap.txt'));
-my $ram_roadmap=slurp(File::Spec->catfile($repo,'...','ram_optimization.txt'));
 my %hot_limits=(
    'README.md' => 8*1024,
    'context.txt' => 16*1024,
    'roadmap.txt' => 12*1024,
    'bankswitching.txt' => 16*1024,
-   '3e.txt' => 12*1024,
    '3ex.txt' => 12*1024,
-   'superchip_dummy_read_hazard.txt' => 12*1024,
    'disassembler.txt' => 16*1024,
    'enhanced_asymmetric.txt' => 20*1024,
-   'ram_optimization.txt' => 8*1024,
-   'inline_roadmap.txt' => 8*1024,
-   'video_standard_roadmap.txt' => 8*1024,
    'instruction.txt' => 8*1024,
 );
 my $hot_total=0;
@@ -998,16 +984,6 @@ index($context,'Immediate TODO')>=0
 $context !~ /^\s*\[x\]/m
    or die "compact context contains completed checklist history\n";
 
-my $sc_dummy_hazard=slurp(File::Spec->catfile($repo,'...','superchip_dummy_read_hazard.txt'));
-index($sc_dummy_hazard,'SUPERCHIP DUMMY-READ HAZARD')>=0 &&
-index($sc_dummy_hazard,'Closed as main-roadmap Item 46')>=0 &&
-index($sc_dummy_hazard,'`$read_hazard`')>=0 &&
-index($sc_dummy_hazard,'all 256 opcode')>=0 &&
-index($sc_dummy_hazard,'Runtime-computed indirect effective addresses')>=0 &&
-index($sc_dummy_hazard,'Item 47')>=0 &&
-index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `superchip_dummy_read_hazard.txt`')>=0
-   or die "Superchip dummy-read closeout lost durable contract or README index\n";
-
 my ($next_roadmap_item)=$roadmap =~ /^Current next action: Item (\d+)\b/m;
 my @open_roadmap_items=$roadmap =~ /^\[ \] (\d+)\./mg;
 defined($next_roadmap_item) &&
@@ -1016,12 +992,6 @@ $next_roadmap_item == $open_roadmap_items[0] &&
 $roadmap !~ /^\s*\[x\]/mi
    or die "main roadmap must contain only unfinished current work\n";
 
-index($ram_roadmap,'No unfinished items.')>=0 &&
-index($ram_roadmap,'test/fixtures/vcs_animated_gallery_ram_accounting/golden.json')>=0 &&
-$ram_roadmap !~ /^\s*\[x\]/m &&
--f File::Spec->catfile($repo,qw(test fixtures vcs_animated_gallery_ram_accounting golden.json))
-   or die "RAM closeout lost durable accounting authority or regained completed checklist history\n";
-
 $context !~ /^Change log$/m
    or die "compact context regained an embedded chronological changelog\n";
 my @context_history=sort glob(File::Spec->catfile($repo,'...','context-history','*.txt'));
@@ -1029,18 +999,21 @@ my @context_history=sort glob(File::Spec->catfile($repo,'...','context-history',
    or die "context-history contains no daily files\n";
 for my $history_path (@context_history) {
    my $name=basename($history_path);
-   $name =~ /\A(\d{4}-\d{2}-\d{2})\.txt\z/
-      or die "invalid context-history filename $name\n";
-   my $date=$1;
    my $body=slurp($history_path);
    $body !~ /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [A-Z]{3,4}\s*$/m
       or die "$name contains a timestamp-only history header; add a short standalone description on the same line\n";
    my @timestamps=($body =~ /^(\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2} [A-Z]{3,4}, /mg);
    @timestamps
       or die "$name contains no timestamped history entries\n";
-   for my $entry_date (@timestamps) {
-      $entry_date eq $date
-         or die "$name contains an entry dated $entry_date\n";
+   if ($name =~ /\A(\d{4}-\d{2}-\d{2})\.txt\z/) {
+      my $date=$1;
+      for my $entry_date (@timestamps) {
+         $entry_date eq $date
+            or die "$name contains an entry dated $entry_date\n";
+      }
+   } else {
+      $name =~ /\A[a-z0-9][a-z0-9_]*\.txt\z/
+         or die "invalid archived focused-record filename $name\n";
    }
 }
 
