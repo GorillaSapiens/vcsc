@@ -94,7 +94,7 @@ for my $case (@cases) {
    $text =~ /^include "color_ntsc\.c26"$/m or die "$dir lacks named NTSC colors\n";
    $text =~ /^include "playfield\.c26"$/m or die "$dir lacks visual playfield rows\n";
    $behavior_text =~ /0b[.X]{8}(?![.X])/ or die "$dir lacks visual sprite glyphs\n";
-   $behavior_text =~ /asm jmp \(\$fffc\);/ or die "$dir RESET does not jump through the reset vector\n";
+   $behavior_text =~ /hard_reset\(\);/ or die "$dir RESET does not use the shared hard_reset helper\n";
    $behavior_text =~ /update_object_selection\(\)/ && $behavior_text =~ /move_selected_object\(\)/
       or die "$dir lacks interactive object selection and motion\n";
    $behavior_text =~ /SWCHA/ && $behavior_text =~ /SWCHB/ or die "$dir lacks joystick or console-switch input\n";

@@ -16,8 +16,9 @@ sub read_file {
    local $/; my $text=<$fh>; close($fh); return $text // '';
 }
 sub initializer {
-   my($text,$name)=@_;
-   $text =~ /\b\Q$name\E\s*\[8\]\s*:=\s*\{(.*?)\};/s
+   my($text,$name,$size)=@_;
+   $size //= 8;
+   $text =~ /\b\Q$name\E\s*\[$size\]\s*:=\s*\{(.*?)\};/s
       or die "missing $name initializer\n";
    return $1;
 }
@@ -69,8 +70,13 @@ my @definitions=(
 for my $parts (@definitions) {
    my $path=File::Spec->catfile($repo,@$parts);
    my $text=read_file($path);
-   same(args(initializer($text,'p0_graphics'),'game_SPRITE_GLYPH'),\@p0_reverse,"$path P0");
-   same(args(initializer($text,'p1_graphics'),'game_SPRITE_GLYPH'),\@p1_reverse,"$path P1");
+   if ($text =~ /\bp0_animation\s*\[32\]/) {
+      same(args(initializer($text,'p0_animation',32),'game_SPRITE_GLYPH'),\@p0_reverse,"$path P0 frame 0");
+      same(args(initializer($text,'p1_animation',32),'game_SPRITE_GLYPH'),\@p1_reverse,"$path P1 frame 0");
+   } else {
+      same(args(initializer($text,'p0_graphics'),'game_SPRITE_GLYPH'),\@p0_reverse,"$path P0");
+      same(args(initializer($text,'p1_graphics'),'game_SPRITE_GLYPH'),\@p1_reverse,"$path P1");
+   }
    next if $path =~ /all_five/;
    if ($path =~ /player_color_192_interactive/) {
       same(plain_values(initializer($text,'game_player0_colors')),$p0c,"$path P0 colors");
@@ -94,6 +100,7 @@ for my $path (@leaves) {
    next if $path eq $faithful_path;
    my $text=read_file($path);
    my $covered=$text =~ /\bp0_graphics\s*\[8\]/ ||
+               $text =~ /\bp0_animation\s*\[32\]/ ||
                $text =~ /include\s+"\.\.\/\.\.\/\.\.\/common\/(?:player_color|all_five)_181_interactive_common\.c26|multisprite_interactive_common\.c26"/ ||
                $text =~ /include\s+"\.\.\/\.\.\/all_five_player_color_181_interactive_common\.c26"/;
    $covered or die "$path does not use a normalized interactive sprite definition\n";

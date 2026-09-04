@@ -252,6 +252,21 @@ including the exhaustive paddle soak and maximum 3F/3E/3EX diagnostics.
 
 Immediate TODO
 --------------
+Interactive sprite-animation tuning is intentionally isolated to
+`examples/05_all_five_192/01_interactive`. P0 and P1 each have four 8x8 bitmap
+frames; frame zero preserves the old static glyph and each frame is selected by
+`((x ^ y) & 3)`. Its console Reset test is expressed entirely in C26 as
+`if (!(SWCHB & 0x01)) hard_reset();`. `libraries/vcs/vcs.c26` includes
+`6507.c26`, whose inline `hard_reset()` contains the CPU-specific
+`asm jmp ($fffc);`. All 15 copies of the former five-statement Reset idiom now use this C26 test
+plus `hard_reset()` and are gone from the example ASM allowlist. The two shared
+181-line fragments make this affect 59 cartridges; all 59 old/new ROM pairs
+are byte-for-byte identical. The compact hand-written
+`examples/16_all_five_player_color_181/all_five_player_color_181_interactive_common.c26`
+still has a different integrated ASM Reset path and was left alone.
+Tune the six new animation poses first; only after the artwork is approved
+should the animation mechanism be propagated to the other interactive examples.
+
 Automatic-call mapper migration is complete, including constrained-state E0.
 FE remains intentionally special. `.../3ex.txt` still tracks the upstream Stella
 >64K RAM-write defect; do not weaken the 256K 3EX diagnostic to accommodate it.

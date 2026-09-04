@@ -65,7 +65,7 @@ for my $case (@cases) {
       $text =~ /game_MISSILE0_X/ && $text =~ /game_MISSILE1_X/ &&
       $text =~ /game_missile0_y/ && $text =~ /game_missile1_y/
          or die "$dir does not initialize and move both missiles\n";
-      $text =~ /asm jmp \(\$fffc\);/ or die "$dir RESET does not jump through the reset vector\n";
+      $text =~ /hard_reset\(\);/ or die "$dir RESET does not use the shared hard_reset helper\n";
    } elsif ($case->{dual3}) {
       $text =~ /include "\.\.\/\.\.\/three_plus_three_controls\.c26"/
          or die "$dir does not use the shared three-plus-three score controls

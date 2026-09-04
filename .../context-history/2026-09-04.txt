@@ -120,3 +120,22 @@ into `.../context-history/` under their former basenames. Updated the developer
 record index and hygiene/branding contracts so only unfinished workstreams are
 required in hot state. The active records are roadmap, bankswitching, 3EX,
 disassembler, and enhanced asymmetric multisprite.
+
+2026-09-04 12:55:00 PDT, prototype interactive sprite animation
+Started the requested interactive-example sprite animation in only
+`examples/05_all_five_192/01_interactive` so the artwork can be tuned before a
+repo-wide conversion. Replaced the two static 8-byte P0/P1 bitmap tables in that
+leaf with four-frame 32-byte tables. Frame zero remains byte-for-byte the old
+alien/radish artwork; the three additional frames make small antenna/leg and
+leaf/tuft pose changes. The frame pointer is recomputed after joystick movement
+in overscan using exactly `((x ^ y) & 3)`, independently for P0 and P1, so a
+one-pixel move immediately advances to the position-selected pose without any
+animation timer or persistent animation state.
+
+The interactive-sprite-orientation regression now accepts a 32-byte animated
+sprite table and still requires its frame zero to match the faithful legacy
+orientation. The example builds as a 4096-byte cartridge with 2126 bytes of ROM
+used and 85 bytes of RAM used. Focused orientation, assembly-allowlist, and
+all-five interactive-example regressions pass. The remaining task is visual
+artwork tuning; do not propagate the mechanism to other interactive examples
+until those six new poses are approved.

@@ -35,7 +35,7 @@
          "current_reason" : "direct-byte-lowering-needs-no-expression-scratch",
          "expansions" : [
             "__inline$9$next_pair",
-            "__inline$11$next_pair"
+            "__inline$12$next_pair"
          ],
          "function" : "next_pair",
          "generated_execution" : "sequential",

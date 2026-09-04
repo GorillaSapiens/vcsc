@@ -16,6 +16,7 @@ Files:
 Cartridge profiles live under mapper-named subdirectories. Directory names use Stella mapper names in uppercase and avoid punctuation so source can select a profile with an include such as `include "F8SC/mapper.c26"`. Mappers with more than one supported image size use size-qualified mapper filenames.
 
 - `vcs.c26` ... VCS machine definition with types, memory regions, and hardware includes
+- `6507.c26` ... MOS 6507 CPU helpers included by `vcs.c26`; `hard_reset()` inlines an indirect jump through the cartridge RESET vector at `$FFFC`
 - `tia.c26` ... TIA hardware register bindings
 - `riot.c26` ... RIOT I/O and timer register bindings plus RIOT RAM region names
 - `2K/mapper.c26` ... conventional unbanked 2K topology mapped at `$F800-$FFFF`
