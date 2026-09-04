@@ -807,6 +807,14 @@ int main(int argc, char **argv)
          (void)asm_select_reloc_phases(&ctx);
    }
 
+   /* Relaxation starts conservatively, so intermediate passes can temporarily
+      exceed a segment that fits exactly after short/zero-page relaxation.
+      Diagnose segment overflow only from one final stable layout pass. */
+   if (ctx.error_count == 0) {
+      ctx.segment_overflow_warnings = 1;
+      (void)asm_pass1(&ctx, 0);
+   }
+
    if (!opt.want_o26)
       asm_pass2(&ctx);
 

@@ -69,6 +69,7 @@ struct simulator_config_t {
    int threef_mapper;
    int threee_mapper;
    int fc_mapper;
+   int f0_mapper;
    int dpc_mapper;
    size_t startup_bank;
 };
@@ -304,6 +305,7 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
    cfg->threef_mapper = str_ieq(cfg->mapper, "3F");
    cfg->threee_mapper = str_ieq(cfg->mapper, "3E") || str_ieq(cfg->mapper, "3EX");
    cfg->fc_mapper = str_ieq(cfg->mapper, "FC");
+   cfg->f0_mapper = str_ieq(cfg->mapper, "F0");
    cfg->dpc_mapper = str_ieq(cfg->mapper, "DPC");
 
    for (size_t i = 0; i < cfg->bank_count; ++i)
@@ -311,7 +313,7 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
          any_hotspot = 1;
    cfg->cartridge_banked = !cfg->cartridge_direct_multi &&
       (cfg->bank_count > 1u || any_hotspot || cfg->e0_mapper || cfg->wd_mapper ||
-       cfg->fe_mapper || cfg->threef_mapper || cfg->threee_mapper || cfg->fc_mapper || cfg->dpc_mapper);
+       cfg->fe_mapper || cfg->threef_mapper || cfg->threee_mapper || cfg->fc_mapper || cfg->f0_mapper || cfg->dpc_mapper);
 
    if (cfg->bank_count == 0)
       return;
@@ -324,7 +326,7 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
             str_ieq(cfg->mapper, "0840") || str_ieq(cfg->mapper, "UA") ||
             str_ieq(cfg->mapper, "UASW") || str_ieq(cfg->mapper, "0FA0") ||
             cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper ||
-            cfg->threef_mapper || cfg->threee_mapper || cfg->fc_mapper || cfg->dpc_mapper ||
+            cfg->threef_mapper || cfg->threee_mapper || cfg->fc_mapper || cfg->f0_mapper || cfg->dpc_mapper ||
             cfg->superchip_mapper)) {
          fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
          exit(1);
@@ -345,6 +347,10 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
          fprintf(stderr, "vcsc-sim: DPC requires exactly two physical 4K program banks\n");
          exit(1);
       }
+      if (cfg->f0_mapper && cfg->bank_count != 16u) {
+         fprintf(stderr, "vcsc-sim: F0 requires exactly sixteen physical 4K banks\n");
+         exit(1);
+      }
    }
 
    for (size_t i = 0; i < cfg->bank_count; ++i) {
@@ -359,7 +365,7 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
                  (cfg->threef_mapper || cfg->threee_mapper) ? "2K" : "4K");
          exit(1);
       }
-      if ((cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper || cfg->fc_mapper || cfg->dpc_mapper ||
+      if ((cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper || cfg->fc_mapper || cfg->f0_mapper || cfg->dpc_mapper ||
            str_ieq(cfg->mapper, "FA2")) && !cfg->banks[i].has_file_index) {
          fprintf(stderr, "vcsc-sim: %s bank '%s' requires an explicit fileindex\n",
                  cfg->mapper, cfg->banks[i].name);
@@ -417,6 +423,10 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
    }
    if (cfg->fc_mapper && cfg->banks[cfg->startup_bank].file_index != 0u) {
       fprintf(stderr, "vcsc-sim: FC startup bank must be physical/file bank 0\n");
+      exit(1);
+   }
+   if (cfg->f0_mapper && cfg->banks[cfg->startup_bank].file_index != 15u) {
+      fprintf(stderr, "vcsc-sim: F0 startup bank must be physical/file bank 15\n");
       exit(1);
    }
 
@@ -1317,6 +1327,14 @@ static size_t fe_bank_from_data(uint8_t value) {
    return (size_t)(((value >> 5) ^ 0x07u) & 1u);
 }
 
+//! @brief Advance Dynacom/Megaboy F0 to the next physical bank modulo 16.
+static void f0_advance_bank(void) {
+   if (!g_cfg_loaded || !g_cfg.f0_mapper)
+      return;
+   size_t file_bank = g_cfg.banks[g_selected_bank].file_index;
+   g_selected_bank = bank_index_for_file_index((file_bank + 1u) & 0x0fu);
+}
+
 static void fe_observe_access(uint16_t addr, uint8_t value) {
    if (!g_cfg_loaded || !g_cfg.fe_mapper)
       return;
@@ -1618,6 +1636,10 @@ void write_cb(uint16_t addr, uint8_t val) {
             return;
          }
       }
+      if (g_cfg.f0_mapper && canonical == 0x1ff0u) {
+         f0_advance_bank();
+         return;
+      }
       if (g_cfg.threef_mapper && canonical <= 0x003fu) {
          g_selected_bank = bank_index_for_file_index((size_t)val % g_cfg.bank_count);
       }
@@ -1714,6 +1736,11 @@ uint8_t read_cb(uint16_t addr) {
    }
    if (bank_index_for_hotspot(addr, &selected))
       g_selected_bank = selected;
+   /* F0 returns the byte from the old bank on this bus cycle, then advances
+      the 4K mapping.  In particular, opcode/data fetches through $FFF0 have
+      the same side effect as an explicit read of $1FF0. */
+   if (g_cfg.f0_mapper && (addr & 0x1fffu) == 0x1ff0u)
+      f0_advance_bank();
    /* FE must see the value returned by the old mapping on this bus cycle; the
       selected bank changes only after that value has been sampled. */
    fe_observe_access(addr, value);
@@ -1913,6 +1940,18 @@ int main (int argc, char **argv) {
             g_fc_pending = 0u;
          }
       }
+      else if (g_cfg.f0_mapper) {
+         if (opts.start_bank_set) {
+            if (opts.start_bank >= 16u) {
+               fprintf(stderr, "vcsc-sim: F0 start bank %zu is outside 0..15\n",
+                       opts.start_bank);
+               return 1;
+            }
+            g_selected_bank = bank_index_for_file_index(opts.start_bank);
+         } else {
+            g_selected_bank = bank_index_for_file_index(15u);
+         }
+      }
       else if (g_cfg.threef_mapper || g_cfg.threee_mapper) {
          g_3e_ram_selected = 0;
          if (opts.start_bank_set) {
@@ -1972,6 +2011,8 @@ int main (int argc, char **argv) {
             g_selected_bank = bank_index_for_file_index(0u);
             g_fc_pending = 0u;
          }
+         if (g_cfg_loaded && g_cfg.f0_mapper)
+            g_selected_bank = bank_index_for_file_index(15u);
          cpu->Reset();
          reset_on_pc_done = 1;
          continue;

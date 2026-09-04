@@ -73,6 +73,7 @@ typedef struct asm_context {
    listing_writer_t *listing;
    int error_count;
    int object_mode_o26;
+   int segment_overflow_warnings;
    import_name_t *imports;
    weak_name_t *weaks;
    segment_addrsize_t *segment_addrsizes;

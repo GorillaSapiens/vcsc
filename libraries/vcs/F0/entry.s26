@@ -1,0 +1,11 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+;
+; F0 powers up in physical/file bank 15.  There is no absolute selector that
+; can normalize an unknown mapper state, so hardware startup is the contract
+; and this maintained entry is an empty fragment by design.
+.segmentdef "CODE", $6000, $0010
+.segment "CODE"
+.export __vcsc_mapper_entry_begin
+.export __vcsc_mapper_entry_end
+__vcsc_mapper_entry_begin:
+__vcsc_mapper_entry_end:

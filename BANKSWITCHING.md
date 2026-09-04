@@ -17,7 +17,7 @@ shared ABI.
 The descriptor ABI in this document is the public ABI for `$bankcall`.
 The compiler, assembler, and linker emit the three-byte `.banktarget` field.
 F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, FA2-24/28, JANE, 0840, UA, UASW,
-0FA0, WD, 3F, 3E, 3EX, and FC are fully migrated: their bank-local trampolines consume the
+0FA0, WD, 3F, 3E, 3EX, FC, and F0 are fully migrated: their bank-local trampolines consume the
 destination descriptor directly and carry a baked source descriptor on the
 hardware stack.
 
@@ -137,7 +137,7 @@ The mapper-specific `bankcall.s26` owns the interpretation of the byte.
 
 The mapper-specific `entry.s26` owns reset-entry normalization for migrated
 descriptor-ABI mappers. The fragment is variable length and may be empty when
-hardware already guarantees the startup mapping, as with 3F/3E/3EX/FC. When selector
+hardware already guarantees the startup mapping, as with 3F/3E/3EX/FC/F0. When selector
 normalization is required, the linker replicates the maintained entry bytes ahead
 of the ordinary vector handler so reset reaches the runtime only after the
 canonical startup bank/state is visible. Selector-read entries spell the
@@ -158,8 +158,9 @@ Examples of useful descriptor choices include:
 - FC: physical bank number `$00-$FF`; the mapper stages `descriptor & 3` at
   `$1FF8`, `descriptor >> 2` at `$1FF9`, then accesses `$1FFC` to commit;
 - a write-selected mapper: the exact selector value to write; and
-- F0: the bank ID, allowing the mapper-specific trampoline to compute how many
-  `$1FF0` advances are required.
+- F0: physical bank ID `$00-$0F`; the mapper-specific trampoline computes
+  `(destination-source)&15` `$1FF0` advances on call and the inverse advance on
+  return. Hardware powers up in physical bank 15.
 
 Dynamic read-selected mappers use raw undocumented `op1C` absolute-X NOP reads, with the descriptor carried in X. This preserves A and flags and avoids an assembler `--illegal` dependency. Mapper profiles must keep every selector-base-plus-descriptor address within one 256-byte page so the indexed access cannot take a page-cross path.
 
@@ -172,6 +173,11 @@ target bank. The source descriptor pushed by the caller identifies the bank to
 restore. The bank-return code executes in the destination bank's trampoline
 copy, whose own baked descriptor identifies the current bank, so the mapper can
 compute the reverse transition without inferring anything from the return PC.
+
+F0 reserves 96 bytes (`$060`) at `$FF00-$FF5F` in every bank for this
+replicated transition. Ordinary code is capped below `$FEE0` so no allocated
+function can execute through CPU `$FFF0`, whose cartridge bus address `$1FF0`
+would itself advance the mapper.
 
 If a mapper needs more state than one descriptor byte can represent, it does not
 fit this ABI as written. It must use a mapper-specific calling contract or a

@@ -264,14 +264,13 @@ the fingerprint selftest, return-memory map anchoring, two stale renderer cfg
 arguments, and branding. `make tar` from an unpacked/no-.git tree
 now preserves `.../instruction.txt`, with hygiene coverage locking that invariant.
 The post-cfgectomy and mapper changes now pass the complete loaded regression
-suite: 503/503 compile-only tests and 355/355 e2e tests with eight workers,
+suite: 503/503 compile-only tests and 356/356 e2e tests with eight workers,
 including the exhaustive paddle soak and maximum 3F/3E/3EX diagnostics.
 
 Immediate TODO
 --------------
-FC automatic calls are complete through descriptor `$FF` in a full 256 x 4K /
-1 MiB image. The normal `21_fc` diagnostic owns the complete 8 x 8 ordered call
-matrix, A:X return preservation, nested restoration, disassembler recognition,
-and 262-line NTSC timing. Next migrate F0, followed by E0 design. FE stays
-special. The separate `.../3ex.txt` still tracks the upstream Stella >64K 3EX
+FC is complete through descriptor `$FF` in a 256 x 4K / 1 MiB image. F0 is
+complete: 16 x 4K, startup bank 15, descriptors 0..15, modulo-16 `$1FF0`
+advance/restore, and hotspot-safe tail. `22_f0` owns all 256 ordered
+call pairs, A:X preservation, disassembly, and 262-line NTSC timing. Next design E0 calls. FE stays special. The separate `.../3ex.txt` still tracks the upstream Stella >64K 3EX
 RAM-write defect; do not weaken the 256K 3EX diagnostic to accommodate it.

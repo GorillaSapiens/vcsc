@@ -28,6 +28,7 @@ constexpr int kMapDPC = VCSC_VIDEO_MAP_DPC;
 constexpr int kMapWD = VCSC_VIDEO_MAP_WD;
 constexpr int kMapWDSW = VCSC_VIDEO_MAP_WDSW;
 constexpr int kMapFC = VCSC_VIDEO_MAP_FC;
+constexpr int kMapF0 = VCSC_VIDEO_MAP_F0;
 constexpr int kMapE0 = VCSC_VIDEO_MAP_E0;
 constexpr int kMapE7 = VCSC_VIDEO_MAP_E7;
 constexpr int kMap3F = VCSC_VIDEO_MAP_3F;
@@ -696,6 +697,8 @@ private:
       }
 
       if (mapper_ == kMapFC) fc_commit_if_needed(bus);
+      else if (mapper_ == kMapF0 && bus == 0x1ff0u && bank_count_ == 16u)
+         bank_ = (bank_ + 1u) & 0x0fu;
       else if (mapper_ == kMapE0) e0_select(bus);
       else if (mapper_ == kMapE7) e7_select(bus);
       fe_observe_access(bus, value);
@@ -731,6 +734,8 @@ private:
          fc_write_selector(bus, value);
          fc_commit_if_needed(bus);
       }
+      else if (mapper_ == kMapF0 && bus == 0x1ff0u && bank_count_ == 16u)
+         bank_ = (bank_ + 1u) & 0x0fu;
       else if (mapper_ == kMapE0) e0_select(bus);
       else if (mapper_ == kMapE7) e7_select(bus);
       fe_observe_access(bus, value);
@@ -1011,6 +1016,7 @@ extern "C" int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
    case kMapWD:
    case kMapWDSW:
    case kMapFC:
+   case kMapF0:
    case kMapE0:
    case kMapE7:
    case kMap3F:

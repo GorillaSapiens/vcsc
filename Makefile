@@ -152,7 +152,7 @@ install-examples:
 
 install-data:
 	install -d $(DESTDIR)$(DATADIR)/vcs
-	install -d $(DESTDIR)$(DATADIR)/vcs/0840 $(DESTDIR)$(DATADIR)/vcs/0FA0 $(DESTDIR)$(DATADIR)/vcs/2K $(DESTDIR)$(DATADIR)/vcs/3E $(DESTDIR)$(DATADIR)/vcs/3EX $(DESTDIR)$(DATADIR)/vcs/3F $(DESTDIR)$(DATADIR)/vcs/FC $(DESTDIR)$(DATADIR)/vcs/4K $(DESTDIR)$(DATADIR)/vcs/4KSC $(DESTDIR)$(DATADIR)/vcs/CV $(DESTDIR)$(DATADIR)/vcs/DPC $(DESTDIR)$(DATADIR)/vcs/E0 $(DESTDIR)$(DATADIR)/vcs/F4 $(DESTDIR)$(DATADIR)/vcs/F4SC $(DESTDIR)$(DATADIR)/vcs/F6 $(DESTDIR)$(DATADIR)/vcs/F6SC $(DESTDIR)$(DATADIR)/vcs/F8 $(DESTDIR)$(DATADIR)/vcs/F8SC $(DESTDIR)$(DATADIR)/vcs/FA $(DESTDIR)$(DATADIR)/vcs/FA2 $(DESTDIR)$(DATADIR)/vcs/FE $(DESTDIR)$(DATADIR)/vcs/JANE $(DESTDIR)$(DATADIR)/vcs/OMNI $(DESTDIR)$(DATADIR)/vcs/UA $(DESTDIR)$(DATADIR)/vcs/UASW $(DESTDIR)$(DATADIR)/vcs/WD
+	install -d $(DESTDIR)$(DATADIR)/vcs/0840 $(DESTDIR)$(DATADIR)/vcs/0FA0 $(DESTDIR)$(DATADIR)/vcs/2K $(DESTDIR)$(DATADIR)/vcs/3E $(DESTDIR)$(DATADIR)/vcs/3EX $(DESTDIR)$(DATADIR)/vcs/3F $(DESTDIR)$(DATADIR)/vcs/FC $(DESTDIR)$(DATADIR)/vcs/F0 $(DESTDIR)$(DATADIR)/vcs/4K $(DESTDIR)$(DATADIR)/vcs/4KSC $(DESTDIR)$(DATADIR)/vcs/CV $(DESTDIR)$(DATADIR)/vcs/DPC $(DESTDIR)$(DATADIR)/vcs/E0 $(DESTDIR)$(DATADIR)/vcs/F4 $(DESTDIR)$(DATADIR)/vcs/F4SC $(DESTDIR)$(DATADIR)/vcs/F6 $(DESTDIR)$(DATADIR)/vcs/F6SC $(DESTDIR)$(DATADIR)/vcs/F8 $(DESTDIR)$(DATADIR)/vcs/F8SC $(DESTDIR)$(DATADIR)/vcs/FA $(DESTDIR)$(DATADIR)/vcs/FA2 $(DESTDIR)$(DATADIR)/vcs/FE $(DESTDIR)$(DATADIR)/vcs/JANE $(DESTDIR)$(DATADIR)/vcs/OMNI $(DESTDIR)$(DATADIR)/vcs/UA $(DESTDIR)$(DATADIR)/vcs/UASW $(DESTDIR)$(DATADIR)/vcs/WD
 	install -m 0644 libraries/LICENSE.txt $(DESTDIR)$(DATADIR)/vcs/LICENSE.txt
 	install -m 0644 libraries/vcs/README.md $(DESTDIR)$(DATADIR)/vcs/README.md
 	install -m 0644 libraries/vcs/LEGACY_RENDERER_CONVERSION.md $(DESTDIR)$(DATADIR)/vcs/LEGACY_RENDERER_CONVERSION.md
@@ -203,6 +203,7 @@ install-data:
 	install -m 0644 libraries/vcs/3E/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/3E/bankcall.s26
 	install -m 0644 libraries/vcs/3EX/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/3EX/bankcall.s26
 	install -m 0644 libraries/vcs/FC/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/FC/bankcall.s26
+	install -m 0644 libraries/vcs/F0/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F0/bankcall.s26
 	install -m 0644 libraries/vcs/F8/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F8/entry.s26
 	install -m 0644 libraries/vcs/F8SC/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F8SC/entry.s26
 	install -m 0644 libraries/vcs/F6/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F6/entry.s26
@@ -222,6 +223,7 @@ install-data:
 	install -m 0644 libraries/vcs/3E/entry.s26 $(DESTDIR)$(DATADIR)/vcs/3E/entry.s26
 	install -m 0644 libraries/vcs/3EX/entry.s26 $(DESTDIR)$(DATADIR)/vcs/3EX/entry.s26
 	install -m 0644 libraries/vcs/FC/entry.s26 $(DESTDIR)$(DATADIR)/vcs/FC/entry.s26
+	install -m 0644 libraries/vcs/F0/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F0/entry.s26
 	install -m 0644 libraries/vcs/CV/ram.c26 $(DESTDIR)$(DATADIR)/vcs/CV/ram.c26
 	install -m 0644 libraries/vcs/DPC/registers.c26 $(DESTDIR)$(DATADIR)/vcs/DPC/registers.c26
 	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
@@ -249,6 +251,8 @@ install-data:
 	install -m 0644 libraries/vcs/3EX/README.md $(DESTDIR)$(DATADIR)/vcs/3EX/README.md
 	install -m 0644 libraries/vcs/FC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/FC/mapper.c26
 	install -m 0644 libraries/vcs/FC/README.md $(DESTDIR)$(DATADIR)/vcs/FC/README.md
+	install -m 0644 libraries/vcs/F0/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F0/mapper.c26
+	install -m 0644 libraries/vcs/F0/README.md $(DESTDIR)$(DATADIR)/vcs/F0/README.md
 	install -m 0644 libraries/vcs/FA/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/FA/mapper.c26
 	install -m 0644 libraries/vcs/FA2/mapper_24k.c26 $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_24k.c26
 	install -m 0644 libraries/vcs/FA2/mapper_28k.c26 $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_28k.c26
@@ -435,6 +439,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/3EX/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/FC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/FC/README.md $(DESTDIR)$(DATADIR)/vcs/FC/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/FC/entry.s26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/F0/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F0/README.md $(DESTDIR)$(DATADIR)/vcs/F0/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F0/entry.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/3EX/swapram.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/3EX/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/mapper.c26
@@ -447,7 +452,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/F6SC/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/F4SC/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/OMNI/mapper.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/0840 $(DESTDIR)$(DATADIR)/vcs/0FA0 $(DESTDIR)$(DATADIR)/vcs/2K $(DESTDIR)$(DATADIR)/vcs/3E $(DESTDIR)$(DATADIR)/vcs/3EX $(DESTDIR)$(DATADIR)/vcs/3F $(DESTDIR)$(DATADIR)/vcs/FC $(DESTDIR)$(DATADIR)/vcs/4K $(DESTDIR)$(DATADIR)/vcs/4KSC $(DESTDIR)$(DATADIR)/vcs/CV $(DESTDIR)$(DATADIR)/vcs/DPC $(DESTDIR)$(DATADIR)/vcs/E0 $(DESTDIR)$(DATADIR)/vcs/F4 $(DESTDIR)$(DATADIR)/vcs/F4SC $(DESTDIR)$(DATADIR)/vcs/F6 $(DESTDIR)$(DATADIR)/vcs/F6SC $(DESTDIR)$(DATADIR)/vcs/F8 $(DESTDIR)$(DATADIR)/vcs/F8SC $(DESTDIR)$(DATADIR)/vcs/FA $(DESTDIR)$(DATADIR)/vcs/FA2 $(DESTDIR)$(DATADIR)/vcs/FE $(DESTDIR)$(DATADIR)/vcs/JANE $(DESTDIR)$(DATADIR)/vcs/OMNI $(DESTDIR)$(DATADIR)/vcs/UA $(DESTDIR)$(DATADIR)/vcs/UASW $(DESTDIR)$(DATADIR)/vcs/WD 2>/dev/null || true
+	rmdir $(DESTDIR)$(DATADIR)/vcs/0840 $(DESTDIR)$(DATADIR)/vcs/0FA0 $(DESTDIR)$(DATADIR)/vcs/2K $(DESTDIR)$(DATADIR)/vcs/3E $(DESTDIR)$(DATADIR)/vcs/3EX $(DESTDIR)$(DATADIR)/vcs/3F $(DESTDIR)$(DATADIR)/vcs/FC $(DESTDIR)$(DATADIR)/vcs/F0 $(DESTDIR)$(DATADIR)/vcs/4K $(DESTDIR)$(DATADIR)/vcs/4KSC $(DESTDIR)$(DATADIR)/vcs/CV $(DESTDIR)$(DATADIR)/vcs/DPC $(DESTDIR)$(DATADIR)/vcs/E0 $(DESTDIR)$(DATADIR)/vcs/F4 $(DESTDIR)$(DATADIR)/vcs/F4SC $(DESTDIR)$(DATADIR)/vcs/F6 $(DESTDIR)$(DATADIR)/vcs/F6SC $(DESTDIR)$(DATADIR)/vcs/F8 $(DESTDIR)$(DATADIR)/vcs/F8SC $(DESTDIR)$(DATADIR)/vcs/FA $(DESTDIR)$(DATADIR)/vcs/FA2 $(DESTDIR)$(DATADIR)/vcs/FE $(DESTDIR)$(DATADIR)/vcs/JANE $(DESTDIR)$(DATADIR)/vcs/OMNI $(DESTDIR)$(DATADIR)/vcs/UA $(DESTDIR)$(DATADIR)/vcs/UASW $(DESTDIR)$(DATADIR)/vcs/WD 2>/dev/null || true
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/COMPONENT_CONVERSION.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/README.md
 	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26
@@ -654,6 +659,7 @@ installcheck: tools
 	test -f "$$stage_vcs/3E/README.md"; \
 	test -f "$$stage_vcs/3EX/mapper.c26"; \
 	test -f "$$stage_vcs/FC/mapper.c26"; test -f "$$stage_vcs/FC/bankcall.s26"; test -f "$$stage_vcs/FC/entry.s26"; \
+	test -f "$$stage_vcs/F0/mapper.c26"; test -f "$$stage_vcs/F0/bankcall.s26"; test -f "$$stage_vcs/F0/entry.s26"; test -f "$$stage_vcs/F0/README.md"; \
 	test -f "$$stage_vcs/3EX/bankcall.s26"; \
 	test -f "$$stage_vcs/3EX/entry.s26"; \
 	test -f "$$stage_vcs/3EX/swapram.s26"; \

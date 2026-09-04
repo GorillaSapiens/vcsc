@@ -83,7 +83,7 @@ profiles.
 For an unbanked image, `type=ro` MEMORY ranges reject guest writes.  For a
 banked image, the simulator additionally:
 
-- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, Harmony `FA2`, `JANE`, `0840`, `UA`, `UASW`, `0FA0`, `E0`, `FE`, `DPC`, `3F`, `3E`, `3EX`, or `FC` (plus the SC variants);
+- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, Harmony `FA2`, `JANE`, `0840`, `UA`, `UASW`, `0FA0`, `E0`, `FE`, `DPC`, `3F`, `3E`, `3EX`, `FC`, or `F0` (plus the SC variants);
 - loads each physical `.bin` chunk into the logical range named by its BANKS
   entry (4K for the conventional banked profiles and FE, 1K for E0);
 - maps every CPU cartridge-window fetch through the currently selected physical
@@ -296,6 +296,15 @@ read path introduced for 0840.
 access to `$1FFC` commits the pending selector. VCSC intentionally caps the
 profile at 256 banks so the physical bank number is exactly the one-byte
 `$bankcall` descriptor. Reset starts in physical bank 0.
+
+### F0 / Dynacom Megaboy
+
+`mapper=F0` is exactly sixteen physical 4K banks at `$F000-$FFFF`. Hardware
+powers up in physical bank 15. Every read or write of cartridge bus address
+`$1FF0` advances the selected bank to `(bank+1)&15`; the value returned by a
+read comes from the old bank before the mapping advances. VCSC automatic calls
+use physical bank IDs 0..15 as descriptors, advance the forward modulo-16
+distance on call, and advance the inverse distance on return.
 
 ### 3F / 3E
 

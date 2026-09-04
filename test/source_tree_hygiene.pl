@@ -244,11 +244,19 @@ index(slurp(File::Spec->catfile($repo,qw(examples .gitignore))),'!09_bankswitchi
 -f File::Spec->catfile($repo,qw(libraries vcs FC entry.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs FC README.md)) &&
 -f File::Spec->catfile($repo,qw(examples 09_bankswitching 21_fc fc_diagnostic.c26)) &&
+-f File::Spec->catfile($test,'vcs_f0.pl') &&
+-f File::Spec->catfile($repo,qw(libraries vcs F0 mapper.c26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs F0 bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs F0 entry.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs F0 README.md)) &&
+-f File::Spec->catfile($repo,qw(examples 09_bankswitching 22_f0 f0_diagnostic.c26)) &&
 index($bankswitching,'FC descriptors are')>=0 &&
 index($bankswitching,'reserves 112 bytes (`$070`)')>=0 &&
-index($bankswitching,'[ ] 38e. Implement/migrate F0.')>=0 &&
+index($bankswitching,'F0 uses physical bank IDs `$00-$0F`')>=0 &&
+index($bankswitching,'F0 reserves 96 bytes (`$060`)')>=0 &&
+index($bankswitching,'F0 is migrated.')>=0 &&
 index($bankswitching,'[ ] 38f. Design automatic E0 calls.')>=0 &&
-index($bankswitching,'advances through `$1FF0`')>=0 &&
+$bankswitching !~ /\[ \] 38e\. Implement\/migrate F0\./ &&
 index($bankswitching,'Generic inline-target cross-bank JSR contract')>=0 &&
 index($bankswitching,'68 active bytes with 72 reserved')>=0 &&
 index($bankswitching,'fixed mapper-specific replicated entry/return')>=0 &&
@@ -292,8 +300,9 @@ index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m0fa0_bankcal
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_wd_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m3f_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_fc_bankcall_template')>=0 &&
+index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_f0_bankcall_template')>=0 &&
 index($bankswitching,'F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,')>=0 &&
-index($bankswitching,'FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, 3F, 3E, and FC consume it end to end')>=0 &&
+index($bankswitching,'FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, 3F, 3E, FC, and F0 consume it end to end')>=0 &&
 index($bankswitching,'[ ] 38. Complete the remaining automatic-call mapper work.')>=0 &&
 $bankswitching !~ /^\[ \] 37\./m &&
 $bankswitching !~ /^\[ \] 42\./m &&

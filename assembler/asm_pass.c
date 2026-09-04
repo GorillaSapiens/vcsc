@@ -1011,7 +1011,7 @@ static void segment_advance(asm_context_t *ctx, asm_segment_t *seg, const stmt_t
    if (seg->rorg_active)
       seg->rorg_pc += amount;
 
-   if (seg->size >= 0 && seg->pc > seg->size && !seg->overflow_warned) {
+   if (ctx->segment_overflow_warnings && seg->size >= 0 && seg->pc > seg->size && !seg->overflow_warned) {
       asm_warning(stmt,
                   "segment '%s' overflowed: used $%lX bytes, declared size $%lX",
                   seg->name, seg->pc, seg->size);
@@ -1184,6 +1184,7 @@ void asm_context_init(asm_context_t *ctx, program_ir_t *prog, listing_writer_t *
    ctx->listing = listing;
    ctx->error_count = 0;
    ctx->object_mode_o26 = object_mode_o26;
+   ctx->segment_overflow_warnings = 0;
    ctx->imports = NULL;
    ctx->weaks = NULL;
    ctx->segment_addrsizes = NULL;
@@ -1576,7 +1577,7 @@ int asm_pass1(asm_context_t *ctx, int pass_index)
                }
 
                seg->pc = new_pc;
-               if (seg->size >= 0 && seg->pc > seg->size && !seg->overflow_warned) {
+               if (ctx->segment_overflow_warnings && seg->size >= 0 && seg->pc > seg->size && !seg->overflow_warned) {
                   asm_warning(stmt,
                               "segment '%s' overflowed: used $%lX bytes, declared size $%lX",
                               seg->name, seg->pc, seg->size);

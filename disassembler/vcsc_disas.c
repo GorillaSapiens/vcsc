@@ -63,7 +63,8 @@ typedef enum {
    MAP_0FA0 = VCSC_VIDEO_MAP_0FA0,
    MAP_FE = VCSC_VIDEO_MAP_FE,
    MAP_AR = VCSC_VIDEO_MAP_AR,
-   MAP_FA2 = VCSC_VIDEO_MAP_FA2
+   MAP_FA2 = VCSC_VIDEO_MAP_FA2,
+   MAP_F0 = VCSC_VIDEO_MAP_F0
 } mapper_t;
 
 _Static_assert((int)MAP_FA == (int)VCSC_VIDEO_MAP_FA, "dynamic-probe mapper IDs drifted");
@@ -528,6 +529,7 @@ static int parse_mapper_name(const char *s, mapper_t *mapper, int *superchip)
    else if (strcmp(s, "wd") == 0) *mapper = MAP_WD;
    else if (strcmp(s, "wdsw") == 0) *mapper = MAP_WDSW;
    else if (strcmp(s, "fc") == 0) *mapper = MAP_FC;
+   else if (strcmp(s, "f0") == 0) *mapper = MAP_F0;
    else if (strcmp(s, "e0") == 0) *mapper = MAP_E0;
    else if (strcmp(s, "e7") == 0) *mapper = MAP_E7;
    else if (strcmp(s, "3f") == 0) *mapper = MAP_3F;
@@ -578,7 +580,7 @@ static void usage(const char *argv0)
       "options:\n"
       "   -i, --input <file>       compatibility alias for positional input\n"
       "   -o, --output <file>      write generated VCSC assembly (.s26)\n"
-      "       --mapper <name>      force 1k|2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|wdsw|fc|e0|e7|3e|3f|cv|jane|0840|ua|uasw|0fa0|fe|ar\n"
+      "       --mapper <name>      force 1k|2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|wdsw|fc|f0|e0|e7|3e|3f|cv|jane|0840|ua|uasw|0fa0|fe|ar\n"
       "       --reset-bank <n>     force power-on/reset physical bank\n"
       "       --origin <b:addr>    force logical origin for a bank (repeatable)\n"
       "       --entry <b:addr>     add executable entry point (repeatable)\n"
@@ -951,6 +953,7 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
    case MAP_FC: *bank_size = 4096u; *bank_count = rom_size / 4096u;
       return rom_size >= 4096u && rom_size <= 1048576u &&
              (rom_size % 4096u) == 0u && *bank_count <= 256u;
+   case MAP_F0: *bank_size = 4096u; *bank_count = 16u; return rom_size == 65536u;
    case MAP_E0: *bank_size = 1024u; *bank_count = 8u; return rom_size == 8192u;
    case MAP_E7: *bank_size = 2048u; *bank_count = rom_size / 2048u;
       return rom_size == 8192u || rom_size == 12288u || rom_size == 16384u;
@@ -1188,6 +1191,12 @@ static int is_probably_fc(const uint8_t *rom, size_t size)
    return 0;
 }
 
+static int is_probably_f0(const uint8_t *rom, size_t size)
+{
+   if (size != 65536u) return 0;
+   return memcmp(rom + size - 8u, "F0\0\0", 4u) == 0;
+}
+
 static int is_probably_fe(const uint8_t *rom, size_t size)
 {
    static const uint8_t signatures[][5] = {
@@ -1260,6 +1269,10 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
                          (is_probably_fc(rom, size) ? MAP_FC : MAP_F4)); break;
    case 10240u: case 10495u: mapper = MAP_DPC; break;
    case 8195u: mapper = MAP_WDSW; break;
+   case 65536u: mapper = is_probably_f0(rom, size) ? MAP_F0 :
+                         (is_probably_3e(rom, size) ? MAP_3E :
+                         (is_probably_3f(rom, size) ? MAP_3F :
+                         (is_probably_fc(rom, size) ? MAP_FC : MAP_RAW))); break;
    default: mapper = is_probably_3e(rom, size) ? MAP_3E :
                     (is_probably_3f(rom, size) ? MAP_3F :
                     (is_probably_fc(rom, size) ? MAP_FC : MAP_RAW)); break;
@@ -1292,6 +1305,7 @@ static const char *mapper_name(mapper_t mapper)
    case MAP_WD: return "WD";
    case MAP_WDSW: return "WDSW";
    case MAP_FC: return "FC";
+   case MAP_F0: return "F0";
    case MAP_E0: return "E0";
    case MAP_E7: return "E7";
    case MAP_3F: return "3F";
@@ -2024,6 +2038,13 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
          b->origin_score = 100;
          b->reset_vector_evidence = i == 0u;
       }
+      else if (a->mapper == MAP_F0) {
+         /* Dynacom/Megaboy F0 always maps one complete 4K bank at
+          * $F000-$FFFF and powers up in physical bank 15. */
+         b->origin = 0xf000u;
+         b->origin_score = 100;
+         b->reset_vector_evidence = i == 15u;
+      }
       else if (a->mapper == MAP_E0) {
          /* Physical bank 7 is permanently mapped into the top 1K and owns
           * all hardware vectors. Other 1K banks may appear in any of the
@@ -2065,6 +2086,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
       }
       b->vector_tail_enabled = !mapper_is_wd_family(a->mapper) && a->mapper != MAP_E0 &&
                                (a->mapper != MAP_FC || i == 0u) &&
+                               (a->mapper != MAP_F0 || i == 15u) &&
                                (a->mapper != MAP_E7 || i + 1u == a->bank_count) &&
                                (a->mapper != MAP_FE || i == 0u) &&
                                (!mapper_is_three_family(a->mapper) ||
@@ -2104,6 +2126,13 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
       a->reset_bank = 0u;
       a->banks[0].vector_tail_enabled = 1u;
       a->banks[0].reset_vector_evidence = 1;
+      return 1;
+   }
+
+   if (a->mapper == MAP_F0) {
+      a->reset_bank = 15u;
+      a->banks[15].vector_tail_enabled = 1u;
+      a->banks[15].reset_vector_evidence = 1;
       return 1;
    }
 
@@ -2761,6 +2790,27 @@ static int instruction_selector_bank(const analysis_t *a,
    if (!(opcode_memory_access(opcode) & (ACCESS_READ | ACCESS_WRITE))) return 0;
    if (!resolve_effective_address(state, mode, operand, &effective)) return 0;
    return selector_bank(a->mapper, effective, bank);
+}
+
+/* F0 is unlike the ordinary hotspot mappers: $1FF0 does not select a named
+ * bank, it advances from the currently visible physical bank.  The value from
+ * a read comes from the old bank and only the following CPU cycle sees the
+ * incremented mapping. */
+static int f0_instruction_transition(const analysis_t *a,
+                                     const abstract_state_t *state,
+                                     uint8_t opcode, address_mode_t mode,
+                                     uint16_t operand, size_t current_bank,
+                                     size_t *next_bank)
+{
+   uint16_t effective;
+   if (a->mapper != MAP_F0 || current_bank >= 16u ||
+       instruction_flow(opcode) != FLOW_NEXT ||
+       !(opcode_memory_access(opcode) & (ACCESS_READ | ACCESS_WRITE)) ||
+       !resolve_effective_address(state, mode, operand, &effective) ||
+       (effective & 0x1fffu) != 0x1ff0u)
+      return 0;
+   *next_bank = (current_bank + 1u) & 0x0fu;
+   return 1;
 }
 
 static int threef_store_value(const abstract_state_t *state, uint8_t opcode,
@@ -3906,8 +3956,10 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t bi,
       if (ctx->counted && threef_explicit_ref) ++ctx->mapper_switches;
    }
    else if (flow == FLOW_NEXT &&
-            instruction_selector_bank(a, input_state, opcode, mode, operand,
-                                      &successor_bank) &&
+            ((f0_instruction_transition(a, input_state, opcode, mode, operand,
+                                        bi, &successor_bank)) ||
+             instruction_selector_bank(a, input_state, opcode, mode, operand,
+                                       &successor_bank)) &&
             successor_bank < a->bank_count) {
       switched = 1;
       if (ctx->counted) ++ctx->mapper_switches;
@@ -4608,8 +4660,10 @@ static int speculative_linear_jam_end(const analysis_t *a, size_t bi,
          }
          else {
             size_t successor_bank = bi;
-            if (instruction_selector_bank(a, &state, opcode, mode, operand,
-                                          &successor_bank) &&
+            if ((f0_instruction_transition(a, &state, opcode, mode, operand,
+                                            bi, &successor_bank) ||
+                 instruction_selector_bank(a, &state, opcode, mode, operand,
+                                           &successor_bank)) &&
                 successor_bank != bi)
                return 0;
             state = next;
@@ -5742,8 +5796,10 @@ drain_work:
 
       /* Any statically resolved memory access to a mapper selector changes
        * which physical bank supplies the following opcode fetch. */
-      if (instruction_selector_bank(a, &input_state, opcode, mode, operand,
-                                    &successor_bank) &&
+      if ((f0_instruction_transition(a, &input_state, opcode, mode, operand,
+                                     item.bank, &successor_bank) ||
+           instruction_selector_bank(a, &input_state, opcode, mode, operand,
+                                     &successor_bank)) &&
           successor_bank < a->bank_count) {
          switched = 1;
          ++a->hotspot_refs;
@@ -6356,6 +6412,7 @@ static int concrete_mapper_trusted(const analysis_t *a)
    case MAP_WD:
    case MAP_WDSW:
    case MAP_FC:
+   case MAP_F0:
    case MAP_E0:
    case MAP_E7:
    case MAP_3F:
@@ -6467,6 +6524,9 @@ static size_t mapper_candidates_for_size(size_t size, mapper_t *out,
    case 32768u:
       ADD_MAPPER(MAP_F4); ADD_MAPPER(MAP_3E); ADD_MAPPER(MAP_3F); ADD_MAPPER(MAP_FC);
       break;
+   case 65536u:
+      ADD_MAPPER(MAP_F0); ADD_MAPPER(MAP_3E); ADD_MAPPER(MAP_3F); ADD_MAPPER(MAP_FC);
+      break;
    case 10240u: case 10495u:
       ADD_MAPPER(MAP_DPC);
       break;
@@ -6508,6 +6568,7 @@ static int mapper_tail_signature_matches(const uint8_t *rom, size_t size,
    case MAP_UA: return memcmp(p, "UA\0\0", 4u) == 0;
    case MAP_UASW: return memcmp(p, "UASW", 4u) == 0;
    case MAP_0FA0: return memcmp(p, "0FA0", 4u) == 0;
+   case MAP_F0: return memcmp(p, "F0\0\0", 4u) == 0;
    default: return 0;
    }
 }
@@ -6526,6 +6587,7 @@ static int mapper_has_precise_selector_edges(mapper_t mapper)
    case MAP_FA:
    case MAP_FA2:
    case MAP_FC:
+   case MAP_F0:
    case MAP_JANE:
    case MAP_E0:
    case MAP_E7:
@@ -6600,7 +6662,8 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
          (candidates[i] == MAP_UA || candidates[i] == MAP_UASW) ?
             infer_ua_variant(rom, size) != MAP_RAW :
          candidates[i] == MAP_WD ? is_probably_wd(rom, size) :
-         candidates[i] == MAP_FC ? is_probably_fc(rom, size) : 0;
+         candidates[i] == MAP_FC ? is_probably_fc(rom, size) :
+         candidates[i] == MAP_F0 ? is_probably_f0(rom, size) : 0;
       h[i].explicit_signature =
          mapper_tail_signature_matches(rom, size, candidates[i]);
       ++*tested_out;
@@ -6659,7 +6722,7 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                family_evidence = h[i].detector_signature ||
                                  h[i].explicit_signature ||
                                  h[i].switch_avoided_halts != 0u;
-            else if (h[i].mapper == MAP_FC)
+            else if (h[i].mapper == MAP_FC || h[i].mapper == MAP_F0)
                /* FC shares $1FF8/$1FF9 addresses with ordinary F-series carts;
                 * require Stella's established staged-selector signatures for
                 * automatic classification.  --mapper fc remains available for
@@ -6761,7 +6824,7 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
    {
       int have_identified_fc = 0;
       for (i = 0; i < n; ++i)
-         if (h[i].viable && h[i].mapper == MAP_FC && h[i].detector_signature)
+         if (h[i].viable && (h[i].mapper == MAP_FC || h[i].mapper == MAP_F0) && h[i].detector_signature)
             have_identified_fc = 1;
       if (have_identified_fc) {
          for (i = 0; i < n; ++i)
@@ -9144,6 +9207,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                      (a->mapper == MAP_3E && is_probably_3e(a->rom, a->rom_size)) ||
                      (a->mapper == MAP_FE && is_probably_fe(a->rom, a->rom_size)) ||
                      (a->mapper == MAP_FC && is_probably_fc(a->rom, a->rom_size)) ||
+                     (a->mapper == MAP_F0 && is_probably_f0(a->rom, a->rom_size)) ||
                      a->mapper == MAP_CV || a->mapper == MAP_JANE || a->mapper == MAP_0840 || a->mapper == MAP_UA || a->mapper == MAP_UASW || a->mapper == MAP_0FA0 || a->mapper == MAP_AR ? "high" :
                      ((a->hotspot_refs || superchip_active(a)) ? "high" : "medium")),
                  a->hotspot_refs, a->hotspot_refs == 1 ? "" : "es",
@@ -9213,7 +9277,8 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                   (a->mapper == MAP_3F ? "3F fixed final-2K vector bank; lower bank 0 at power-on" :
                    (a->mapper == MAP_FE ? "FE deterministic bank 0" :
                     (a->mapper == MAP_FC ? "FC hardware bank 0; pending target 0" :
-                  (mapper_is_wd_family(a->mapper) ? "WD configuration-0 vector bank" : "heuristic"))))))))))))));
+                     (a->mapper == MAP_F0 ? "F0 hardware bank 15" :
+                  (mapper_is_wd_family(a->mapper) ? "WD configuration-0 vector bank" : "heuristic")))))))))))))));
       for (i = 0; i < a->bank_count; ++i) {
          const bank_t *b = &a->banks[i];
          if (b->origin_overridden)
@@ -9258,6 +9323,9 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
       }
       if (a->mapper == MAP_FC) {
          fprintf(fp, "; FC switching: write low selector to $1FF8, write high selector to $1FF9, then access $1FFC to commit; code remains in the old bank until commit; bank 0 and pending target 0 power up\n");
+      }
+      if (a->mapper == MAP_F0) {
+         fprintf(fp, "; F0 switching: every read or write of $1FF0 advances physical bank (bank+1)&15; physical bank 15 powers up\n");
       }
       if (a->mapper == MAP_FE) {
          fprintf(fp, "; FE/SCABS switching: stack access to $01FE arms a one-cycle delayed bank latch; released two-bank JSR idiom uses the following target-high data byte (E/F -> bank 0, C/D -> bank 1); deterministic reset bank is 0\n");

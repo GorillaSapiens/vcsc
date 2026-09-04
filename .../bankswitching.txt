@@ -174,12 +174,12 @@ move accordingly.
 
 Implementation checkpoint: the compiler/assembler/linker use the six-byte
 descriptor ABI and `__bankmeta$V3`. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,
-FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, 3F, 3E, and FC consume it end to end and
+FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, 3F, 3E, FC, and F0 consume it end to end and
 those migrated profiles declare `$bankcall` unconditionally. They own
 `bankcall.s26` and variable-length `entry.s26`; maintained entry bytes run before
 the normal vector handler. Selector-normalizing hooks use raw `op0C` for fixed
 selector reads, avoiding an assembler `--illegal` dependency. Zero-length entry
-fragments are valid; 3F, 3E, and FC use one where hardware already guarantees the startup mapping.
+fragments are valid; 3F, 3E, FC, and F0 use one where hardware already guarantees the startup mapping.
 FA2 uses
 descriptors `$F5-$FA/$FB` and raw `op1C $1F00,X`; JANE uses
 `$F0/$F1/$F8/$F9` and raw `op1C $1F00,X`; 0840 uses `$00/$40` and raw
@@ -189,9 +189,14 @@ uses descriptors 1/2 and raw `op1C $0038,X` to choose hardware states 1/2.
 3F lower banks use selector-value descriptors `$00-$FE`; fixed uses `$FF` as a
 no-switch sentinel and writes lower selectors with `STX $3F`. FC descriptors are
 physical bank IDs `$00-$FF`; the trampoline stages low bits at `$1FF8`, high bits
-at `$1FF9`, and commits via `$1FFC`. The common blocks use 68 active bytes with 72 reserved (`$048`); 3F uses 74 active bytes with 80 reserved (`$050`); FC
-reserves 112 bytes (`$070`). Only the descriptor ABI is retained for migrated
-inline mappers.
+at `$1FF9`, and commits via `$1FFC`. F0 uses physical bank IDs `$00-$0F`;
+its replicated trampoline advances `$1FF0` `(destination-source)&15` times and
+uses the inverse modulo-16 distance on return. F0 powers up in physical bank 15,
+and its code allocation stops below `$FFF0` so ordinary code cannot trip the
+hotspot by instruction fetch. The common blocks use 68 active bytes with 72 reserved
+(`$048`); 3F uses 74 active bytes with 80 reserved (`$050`); FC reserves 112 bytes (`$070`);
+F0 reserves 96 bytes (`$060`). Only the descriptor ABI is retained for
+migrated inline mappers.
 
 Migration acceptance for each remaining mapper: consume the destination
 descriptor directly; bake and push the source descriptor; restore from that byte
@@ -232,11 +237,13 @@ this is future optimizer-locality cleanup, not bankswitching work.
         its released direct top-level JSR/RTS mechanism. Maximum 3F/3E/3EX
         coverage is executable regression coverage rather than size-only linking.
 
-        [ ] 38e. Implement/migrate F0.
-
-            F0 has 16 x 4K banks and advances through `$1FF0`. A transition can
-            advance `(target-source) mod 16` on call and reverse on return; all
-            switch-surviving transition bytes must remain identical.
+        F0 is migrated. It uses exactly 16 x 4K physical banks, hardware
+        startup bank 15, physical-bank descriptors 0..15, and a 96-byte
+        replicated transition that advances `$1FF0` by the forward modulo-16
+        distance on call and the inverse distance on return. The maintained
+        `22_f0` diagnostic owns all 256 ordered source/destination pairs, A:X
+        return preservation, simulator/disassembler coverage, and 262-line NTSC
+        timing. Ordinary linked code is kept below the `$FFF0` fetch hotspot.
 
         [ ] 38f. Design automatic E0 calls.
 

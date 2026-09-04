@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 # runner: perl @FILE@ @REPO@ @TMP@
 # phase: e2e
+# timeout: 90
 # expectstdout: vcs_enhanced_multisprite_asymmetric ok: stable full-PF 192-line raster, held-layout dense-X stress, 12-phase edge coverage, continuous X sweep, combined X/Y stress
 # expectexit: 0
 

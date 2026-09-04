@@ -157,7 +157,7 @@ slurp($det_a) eq slurp($det_b) or die "vcsc-disas output is nondeterministic\n";
 # Sizes adjacent to supported layouts are malformed/truncated cartridge dumps.
 # They must fail cleanly without signals or stale output artifacts.
 my @bad_sizes=(1,17,257,2047,2049,4095,4097,8191,8193,10494,10496,
-               12287,12289,16383,16385,32767,32769,65536);
+               12287,12289,16383,16385,32767,32769,65535,65537);
 my $state=0x160826;
 sub fuzz_byte {
    $state=(1103515245*$state+12345)&0x7fffffff;
@@ -174,7 +174,7 @@ for my $size (@bad_sizes) {
 # A structurally supported size is still not a successful disassembly when no
 # instruction exists.  Pin this for every currently size-selected mapper class,
 # including the WDSW bad-dump and DPC layouts.
-for my $size (2048,4096,8192,8195,10495,12288,16384,32768) {
+for my $size (2048,4096,8192,8195,10495,12288,16384,32768,65536) {
    my $path=File::Spec->catfile($tmp,"all-kil-$size.bin");
    my $out=File::Spec->catfile($tmp,"all-kil-$size.s26");
    write_raw($path,chr(0x02)x$size);

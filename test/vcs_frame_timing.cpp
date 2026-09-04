@@ -63,7 +63,7 @@ uint8_t cartridge_image[kMaxRomSize];
 uint8_t superchip_ram[128];
 uint8_t threee_ram[256][1024];
 size_t cartridge_size = 0;
-enum class CartridgeTimingMapper { Plain, F8, F4SC, ThreeF, ThreeE, FC };
+enum class CartridgeTimingMapper { Plain, F8, F4SC, ThreeF, ThreeE, FC, F0 };
 CartridgeTimingMapper cartridge_mapper = CartridgeTimingMapper::Plain;
 unsigned selected_f8_chunk = 1;
 unsigned selected_f4_chunk = 7;
@@ -73,6 +73,7 @@ unsigned three_fixed_chunk = 3;
 unsigned fc_bank_count = 1;
 unsigned selected_fc_bank = 0;
 unsigned pending_fc_bank = 0;
+unsigned selected_f0_bank = 15;
 bool threee_ram_selected = false;
 unsigned threee_ram_bank = 0;
 
@@ -129,6 +130,14 @@ uint8_t read_fc_cartridge(uint16_t address) {
    if (bus == 0x1ffcu)
       selected_fc_bank = pending_fc_bank % fc_bank_count;
    return cartridge_image[selected_fc_bank * kBankSize + (bus - 0x1000u)];
+}
+
+uint8_t read_f0_cartridge(uint16_t address) {
+   const uint16_t bus = address & 0x1fffu;
+   const uint8_t value = cartridge_image[selected_f0_bank * kBankSize + (bus - 0x1000u)];
+   if (bus == 0x1ff0u)
+      selected_f0_bank = (selected_f0_bank + 1u) & 0x0fu;
+   return value;
 }
 uint64_t virtual_cycles = 0;
 std::vector<WriteEvent> writes;
@@ -345,6 +354,8 @@ uint8_t read_bus(uint16_t address) {
       return read_three_cartridge(address);
    if (cartridge_mapper == CartridgeTimingMapper::FC && (address & 0x1000))
       return read_fc_cartridge(address);
+   if (cartridge_mapper == CartridgeTimingMapper::F0 && (address & 0x1000))
+      return read_f0_cartridge(address);
    if (cartridge_mapper == CartridgeTimingMapper::F8 && (address & 0x1000)) {
       const uint16_t offset = address & 0x0fff;
       if (offset >= 0x0080 && offset <= 0x00ff) {
@@ -381,6 +392,9 @@ uint8_t read_bus(uint16_t address) {
 void write_bus(uint16_t address, uint8_t value) {
    maybe_select_banked(address);
    const uint16_t bus = address & 0x1fff;
+   if (cartridge_mapper == CartridgeTimingMapper::F0 && bus == 0x1ff0u) {
+      selected_f0_bank = (selected_f0_bank + 1u) & 0x0fu;
+   }
    if (cartridge_mapper == CartridgeTimingMapper::FC && bus == 0x1ff8u) {
       pending_fc_bank = static_cast<unsigned>(value & 0x03u);
    }
@@ -417,6 +431,7 @@ void write_bus(uint16_t address, uint8_t value) {
    }
    else if (!(three_mapper() && (address & 0x1000)) &&
             !(cartridge_mapper == CartridgeTimingMapper::FC && (address & 0x1000)) &&
+            !(cartridge_mapper == CartridgeTimingMapper::F0 && (address & 0x1000)) &&
             !(cartridge_mapper == CartridgeTimingMapper::F8 && (address & 0x1000)) &&
             !(cartridge_mapper == CartridgeTimingMapper::F4SC && (address & 0x1000)) &&
             address < kRomBase) {
@@ -1191,7 +1206,7 @@ int main(int argc, char **argv) {
         rom_size != static_cast<std::streamoff>(kF4RomSize) &&
         (rom_size < static_cast<std::streamoff>(kF8RomSize) ||
          (rom_size % 0x0800) != 0))) {
-      fail("unsupported ROM size (expected 4K/8K/32K, signed 3F/3E/3EX, or signed FC image up to 1MiB)");
+      fail("unsupported ROM size (expected 4K/8K/32K, signed 3F/3E/3EX, signed FC, or signed F0)");
    }
    cartridge_size = static_cast<size_t>(rom_size);
    rom.seekg(0, std::ios::beg);
@@ -1207,6 +1222,11 @@ int main(int argc, char **argv) {
       fc_bank_count = static_cast<unsigned>(cartridge_size / kBankSize);
       selected_fc_bank = 0;
       pending_fc_bank = 0;
+   }
+   else if (cartridge_size == 16u * kBankSize &&
+            std::memcmp(signature, "F0\0\0", 4) == 0) {
+      cartridge_mapper = CartridgeTimingMapper::F0;
+      selected_f0_bank = 15u;
    }
    else if (cartridge_size <= kMaxThreeRomSize &&
             (cartridge_size % 0x0800u) == 0u && has_3ex_detector_markers()) {
@@ -1249,7 +1269,7 @@ int main(int argc, char **argv) {
       std::memcpy(memory_image + kRomBase, cartridge_image, kBankSize);
    }
    else {
-      fail("nonstandard banked ROM lacks a 3F/3E/3EX/FC signature");
+      fail("nonstandard banked ROM lacks a 3F/3E/3EX/FC/F0 signature");
    }
 
    if (released_inputs) {

@@ -26,3 +26,30 @@ Validation completed with 503/503 compile-only tests and 355/355 e2e tests with
 eight workers.  The complete staged make installcheck also passes.  FC roadmap
 work is complete; F0 is next, followed by E0 design.  The separate Stella 3EX
 RAM-write defect remains tracked in .../3ex.txt.
+
+2026-09-04 09:07:18 PDT, implement and certify F0 automatic bankcalls
+Added the F0 mapper as exactly 16 physical 4K banks / 64K with hardware startup
+in physical bank 15.  F0 descriptors are physical bank IDs 0..15.  The replicated
+96-byte transition advances $1FF0 by the forward modulo-16 distance to the
+callee and by the inverse distance on return, so nested calls restore source
+banks without a runtime mapper-state byte.  The linker keeps ordinary code below
+$FFF0 because fetching that address itself advances F0.  Compiler, linker,
+simulator, disassembler, generated bankcall source, staged install data, public
+documentation, and the independent frame-timing oracle all understand F0.
+
+Added public example 09_bankswitching/22_f0 and test/vcs_f0.pl.  The maintained
+diagnostic executes all 16 x 16 = 256 ordered source/destination calls, checks
+nested restoration and a 16-bit A:X return, starts naturally in hardware bank
+15, round-trips byte-for-byte through vcsc-disas, and holds 262-line NTSC frames.
+The assembler now suppresses transient segment-overflow warnings during
+relaxation and diagnoses overflow only from a stable final layout, allowing an
+exactly-full 64K F0 roundtrip without false stderr while preserving real overflow
+warnings.  Disassembler hardening now treats 64K as a valid F0 container size,
+uses 65535/65537 as malformed neighbors, and still rejects a structurally valid
+64K image containing no instructions.
+
+Validation completed with 503/503 compile-only tests and 356/356 e2e tests with
+eight workers.  The staged make installcheck passes.  Loaded-run timeout budgets
+were raised only for the exhaustive asymmetric-multisprite oracle and example
+build shard 1; their behavioral coverage is unchanged.  F0 roadmap work is
+complete; E0 automatic-call design is next.
