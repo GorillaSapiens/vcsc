@@ -20,6 +20,30 @@ sub slurp {
    local $/; my $d=<$fh>; close($fh) or die "close $path: $!\n";
    return defined($d)?$d:'';
 }
+sub generated_subset_runtime_bytes {
+   my ($path)=@_;
+   my $text=slurp($path);
+   my @rows=($text =~ /0b([.X01]{8})/g);
+   @rows % 8 == 0 or die "$path contains incomplete 8-row glyphs\n";
+   my @bytes;
+   while (@rows) {
+      my @glyph=splice @rows,0,8;
+      for my $row (reverse @glyph) {
+         $row =~ tr/.X/01/;
+         push @bytes,oct("0b$row");
+      }
+   }
+   return @bytes;
+}
+sub torture_cart_type_bytes {
+   my ($path)=@_;
+   my $text=slurp($path);
+   $text =~ /cart_type_glyphs:\n((?:\s*\.byte[^\n]*\n)+)load_mapper_type:/s
+      or die "$path has no generated cart_type_glyphs block\n";
+   my @bytes=($1 =~ /\$([0-9A-Fa-f]{2})/g);
+   return map { hex($_) } @bytes;
+}
+
 sub run_capture {
    my (@cmd)=@_;
    my $err=gensym;
@@ -174,6 +198,32 @@ for my $case (@cases) {
    die "19_diagnostic ordinary make dry-run failed: $dry_err" if $dry_exit || $dry_sig;
    index($dry_out,'/definitely/missing/perl') < 0
       or die "19_diagnostic ordinary build unexpectedly requires Perl\n";
+}
+
+# The maximum 3E/3EX diagnostics embed the generated small-font mapper label
+# into generated torture assembly.  `make fonts` regenerates the font subset
+# first and then make_torture.pl copies those runtime-order bytes into bank251.
+# Keep that second generated layer synchronized too; otherwise a font change
+# leaves a dirty tree after the first top-level `make fonts`.
+for my $case (
+   ['19_3e_max','cart_type_font.c26','3e_max_torture_07.s26'],
+   ['20_3ex_max','cart_type_font.c26','3ex_max_torture_07.s26'],
+) {
+   my ($dir,$font_file,$torture_file)=@$case;
+   my $base=File::Spec->catdir($repo,'examples','09_bankswitching',$dir);
+   my @font=generated_subset_runtime_bytes(File::Spec->catfile($base,$font_file));
+   my @embedded=torture_cart_type_bytes(File::Spec->catfile($base,$torture_file));
+   @font == 48 or die "$dir/$font_file has " . scalar(@font) . " runtime bytes; expected 48\n";
+   @embedded == 48 or die "$dir/$torture_file embeds " . scalar(@embedded) . " cart-type bytes; expected 48\n";
+   join(',',@font) eq join(',',@embedded)
+      or die "$dir/$torture_file has stale embedded cart-type glyphs; run top-level make fonts\n";
+
+   my $mk=slurp(File::Spec->catfile($base,'Makefile'));
+   $mk =~ /^fonts:\n((?:\t[^\n]*\n)+)/m
+      or die "$dir has no fonts target\n";
+   my $rule=$1;
+   index($rule,$font_file) >= 0 && index($rule,'make_torture.pl') >= 0
+      or die "$dir fonts target must regenerate $font_file before its torture payload\n";
 }
 
 # Directly lock the canonical slashed zero into one mapper subset. All other

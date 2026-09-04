@@ -190,3 +190,13 @@ Changed the Default ASCII '+' to be vertically symmetric in its 8-row cell:
 one blank row, two center-stem rows, two full-width crossbar rows, two stem
 rows, and one blank row. Bit 7 remains clear and the glyph stays in the 7-pixel
 field. Regenerated font outputs; no derived subset changed.
+2026-09-04 15:50:00 PDT, synchronize generated max-cart font payloads
+Kept the intentional Default-font regeneration in the maximum 3E/3EX torture
+sources. Their bank251 `cart_type_glyphs` blocks are a second generated layer:
+the example `fonts` target first regenerates `cart_type_font.c26`, then
+`make_torture.pl` copies the runtime-order bytes into `*_max_torture_07.s26`.
+The previous handoff incorrectly reverted only those embedded copies, so the
+first user `make fonts` dirtied the tree. Added coverage to
+`vcs_generated_font_subsets.pl` that compares all 48 generated runtime bytes
+against each embedded torture block and also locks the generator ordering in the
+two example Makefiles.
