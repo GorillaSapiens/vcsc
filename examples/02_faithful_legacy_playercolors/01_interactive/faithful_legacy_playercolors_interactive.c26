@@ -28,7 +28,9 @@ uint8_t legacy_playfield[48] := {
    VCS_PLAYFIELD_ROW(0b................................)
 };
 
-page const uint8_t p0g[8] := {
+// Four-frame versions of the two standard interactive-example sprites.
+// Frame zero is the original artwork; the frame is selected from X/Y.
+page const uint8_t p0_animation[32] := {
    legacy_SPRITE_GLYPH(
       0b.XX..XX.,
       0b..XXXX..,
@@ -38,10 +40,40 @@ page const uint8_t p0g[8] := {
       0bX.XXXX.X,
       0bX.X..X.X,
       0b.X....X.
+   ),
+   legacy_SPRITE_GLYPH(
+      0bX..XX..X,
+      0b.X.XX.X.,
+      0b.XXXXXX.,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0bX.XXXX.X,
+      0b.X.XX.X.,
+      0b..X..X..
+   ),
+   legacy_SPRITE_GLYPH(
+      0bX......X,
+      0b.X.XX.X.,
+      0b.XXXXXX.,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0bX.XXXX.X,
+      0bX.X..X.X,
+      0b.X....X.
+   ),
+   legacy_SPRITE_GLYPH(
+      0b..X..X..,
+      0b..XXXX..,
+      0b.XXXXXX.,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0bX.XXXX.X,
+      0b.X.XX.X.,
+      0bX......X
    )
 };
 
-page const uint8_t p1g[8] := {
+page const uint8_t p1_animation[32] := {
    legacy_SPRITE_GLYPH(
       0b..XXXX..,
       0b.XX..XX.,
@@ -51,6 +83,36 @@ page const uint8_t p1g[8] := {
       0b..X..X..,
       0b.X.XX.X.,
       0bX.X..X.X
+   ),
+   legacy_SPRITE_GLYPH(
+      0b..XXXX..,
+      0b.XX..XX.,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b.X....X.,
+      0b..XXXX..,
+      0b.X.X.X..
+   ),
+   legacy_SPRITE_GLYPH(
+      0b..XXXX..,
+      0b.XX..XX.,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0bX......X,
+      0b.X.XX.X.,
+      0b..X..X..
+   ),
+   legacy_SPRITE_GLYPH(
+      0b..XXXX..,
+      0b.XX..XX.,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b.X....X.,
+      0b..XXXX..,
+      0b..X.X.X.
    )
 };
 
@@ -89,6 +151,14 @@ alias SELECTED_OBJECT_COUNT 3
 
 uint8_t selected_object := SELECTED_PLAYER0;
 uint8_t select_switch_ready := 1;
+inline void update_player_animation(void) {
+   legacy_player0_graphics := p0_animation;
+   legacy_player0_graphics += ((legacy_PLAYER0_X ^ legacy_player0_y) & 0x03) << 3;
+
+   legacy_player1_graphics := p1_animation;
+   legacy_player1_graphics += ((legacy_PLAYER1_X ^ legacy_player1_y) & 0x03) << 3;
+}
+
 inline void update_object_selection(void) {
    if (SWCHB & 0x02) {
       select_switch_ready := 1;
@@ -169,6 +239,7 @@ inline void update_controls(void) {
    }
    update_object_selection();
    move_selected_object();
+   update_player_animation();
    update_score_controls();
 }
 
@@ -189,8 +260,7 @@ void main(void) {
    legacy_player1_y := 42;
    legacy_ball_y := 45;
 
-   legacy_player0_graphics := p0g;
-   legacy_player1_graphics := p1g;
+   update_player_animation();
    legacy_player0_height := 7;
    legacy_player1_height := 7;
    legacy_ball_height := 3;

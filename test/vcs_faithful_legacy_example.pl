@@ -58,6 +58,14 @@ my @pfrows=$text =~ /VCS_PLAYFIELD_ROW\s*\(/g;
 @pfrows==12 or die "faithful legacy interactive example has ".scalar(@pfrows)." playfield rows, expected 12\n";
 my @visual=$text =~ /0b[.X]{8}(?![.X])/g;
 @visual>=16 or die "faithful legacy interactive example lacks sixteen visual sprite rows\n";
+my($p0_x)=$text =~ /legacy_PLAYER0_X\s*:=\s*(\d+)\s*;/;
+my($p1_x)=$text =~ /legacy_PLAYER1_X\s*:=\s*(\d+)\s*;/;
+my($p0_y)=$text =~ /legacy_player0_y\s*:=\s*(\d+)\s*;/;
+my($p1_y)=$text =~ /legacy_player1_y\s*:=\s*(\d+)\s*;/;
+defined($p0_x) && defined($p1_x) && defined($p0_y) && defined($p1_y)
+   or die "faithful legacy interactive example initial sprite positions are not literal\n";
+my $p0_frame=(int($p0_x) ^ int($p0_y)) & 3;
+my $p1_frame=(int($p1_x) ^ int($p1_y)) & 3;
 for my $name (qw(
    VCS_NTSC_GRAY_92 VCS_NTSC_GOLDENROD VCS_NTSC_SANDY_BROWN
    VCS_NTSC_LIGHT_CORAL VCS_NTSC_ORCHID VCS_NTSC_VIOLET
@@ -85,7 +93,7 @@ my $harness=File::Spec->catfile($tmp,'vcs_faithful_legacy_example_compare');
 $rc==0 && !$sig or die "oracle comparator build failed\n$out$err";
 $out eq '' && $err eq '' or die "oracle comparator build wrote output\n$out$err";
 
-($rc,$sig,$out,$err)=capture($harness,$bin,'264','--alien-sprites');
+($rc,$sig,$out,$err)=capture($harness,$bin,'264',"--alien-sprites=$p0_frame,$p1_frame");
 $rc==0 && !$sig or die "faithful legacy interactive example faithful sprite/frame check failed\n$out$err";
 $out eq "vcs_faithful_legacy_compare sprite oracle ok: 8 P0 rows, 8 P1 rows, exact row colors\n"
    or die "unexpected faithful sprite/frame output: $out";

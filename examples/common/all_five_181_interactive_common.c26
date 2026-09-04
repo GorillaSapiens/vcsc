@@ -21,7 +21,9 @@ page const uint8_t game_playfield[44] := {
 // These source rows are intentionally bottom-to-top. The maintained renderers
 // reverse macro arguments for highest-index-to-zero traversal, so this makes
 // the displayed sprites match the faithful legacy interactive example.
-page const uint8_t p0_graphics[8] := {
+// Four-frame versions of the two standard interactive-example sprites.
+// Frame zero is the original artwork; the frame is selected from X/Y.
+page const uint8_t p0_animation[32] := {
    game_SPRITE_GLYPH(
       0b.X....X.,
       0bX.X..X.X,
@@ -31,14 +33,74 @@ page const uint8_t p0_graphics[8] := {
       0b.XXXXXX.,
       0b..XXXX..,
       0b.XX..XX.
+   ),
+   game_SPRITE_GLYPH(
+      0b..X..X..,
+      0b.X.XX.X.,
+      0bX.XXXX.X,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0b.XXXXXX.,
+      0b.X.XX.X.,
+      0bX..XX..X
+   ),
+   game_SPRITE_GLYPH(
+      0b.X....X.,
+      0bX.X..X.X,
+      0bX.XXXX.X,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0b.XXXXXX.,
+      0b.X.XX.X.,
+      0bX......X
+   ),
+   game_SPRITE_GLYPH(
+      0bX......X,
+      0b.X.XX.X.,
+      0bX.XXXX.X,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0b.XXXXXX.,
+      0b..XXXX..,
+      0b..X..X..
    )
 };
 
-page const uint8_t p1_graphics[8] := {
+page const uint8_t p1_animation[32] := {
    game_SPRITE_GLYPH(
       0bX.X..X.X,
       0b.X.XX.X.,
       0b..X..X..,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b.XX..XX.,
+      0b..XXXX..
+   ),
+   game_SPRITE_GLYPH(
+      0b.X.X.X..,
+      0b..XXXX..,
+      0b.X....X.,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b.XX..XX.,
+      0b..XXXX..
+   ),
+   game_SPRITE_GLYPH(
+      0b..X..X..,
+      0b.X.XX.X.,
+      0bX......X,
+      0bXXXXXXXX,
+      0bXX.XX.XX,
+      0bXXXXXXXX,
+      0b.XX..XX.,
+      0b..XXXX..
+   ),
+   game_SPRITE_GLYPH(
+      0b..X.X.X.,
+      0b..XXXX..,
+      0b.X....X.,
       0bXXXXXXXX,
       0bXX.XX.XX,
       0bXXXXXXXX,
@@ -64,6 +126,14 @@ void configure_game_frame(void) {
    CTRLPF := 0x21;
 }
 
+inline void update_player_animation(void) {
+   game_player0_graphics := p0_animation;
+   game_player0_graphics += ((game_PLAYER0_X ^ game_player0_y) & 0x03) << 3;
+
+   game_player1_graphics := p1_animation;
+   game_player1_graphics += ((game_PLAYER1_X ^ game_player1_y) & 0x03) << 3;
+}
+
 void initialize_scene(void) {
    VBLANK := 2;
    game_PLAYER0_X := 20;
@@ -78,8 +148,7 @@ void initialize_scene(void) {
    game_missile0_y := 34;
    game_missile1_y := 62;
    game_ball_y := 48;
-   game_player0_graphics := p0_graphics;
-   game_player1_graphics := p1_graphics;
+   update_player_animation();
    game_player0_height := 7;
    game_player1_height := 7;
    game_missile0_height := 5;
@@ -154,6 +223,7 @@ inline void update_controls(void) {
    }
    update_object_selection();
    move_selected_object();
+   update_player_animation();
    update_score_controls();
 }
 

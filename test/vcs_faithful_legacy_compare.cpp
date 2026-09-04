@@ -193,7 +193,7 @@ TraceMachine *TraceMachine::active_ = nullptr;
 } // namespace
 
 
-void validate_sprite_oracle(const std::vector<Event> &events, bool alien_sprites) {
+void validate_sprite_oracle(const std::vector<Event> &events, int alien_p0_frame, int alien_p1_frame) {
    struct RowWrite { uint64_t line; uint8_t value; };
    std::vector<RowWrite> p0_rows;
    std::vector<RowWrite> p1_rows;
@@ -204,10 +204,25 @@ void validate_sprite_oracle(const std::vector<Event> &events, bool alien_sprites
    }
    const uint8_t legacy_p0[] = {0x3c,0x66,0x66,0x66,0x7e,0x66,0x66,0x3c};
    const uint8_t legacy_p1[] = {0x7c,0x66,0x66,0x66,0x7c,0x66,0x66,0x7c};
-   const uint8_t alien_p0[] = {0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x3c,0x66};
-   const uint8_t alien_p1[] = {0xa5,0x5a,0x24,0xff,0xdb,0xff,0x66,0x3c};
-   const uint8_t *expected_p0 = alien_sprites ? alien_p0 : legacy_p0;
-   const uint8_t *expected_p1 = alien_sprites ? alien_p1 : legacy_p1;
+   const uint8_t alien_p0[4][8] = {
+      {0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x3c,0x66},
+      {0x24,0x5a,0xbd,0xff,0xdb,0x7e,0x5a,0x99},
+      {0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x5a,0x81},
+      {0x81,0x5a,0xbd,0xff,0xdb,0x7e,0x3c,0x24}
+   };
+   const uint8_t alien_p1[4][8] = {
+      {0xa5,0x5a,0x24,0xff,0xdb,0xff,0x66,0x3c},
+      {0x54,0x3c,0x42,0xff,0xdb,0xff,0x66,0x3c},
+      {0x24,0x5a,0x81,0xff,0xdb,0xff,0x66,0x3c},
+      {0x2a,0x3c,0x42,0xff,0xdb,0xff,0x66,0x3c}
+   };
+   const bool alien_sprites = alien_p0_frame >= 0 && alien_p1_frame >= 0;
+   if (alien_sprites && (alien_p0_frame > 3 || alien_p1_frame > 3)) {
+      std::fprintf(stderr, "vcs_faithful_legacy_compare: alien sprite frame is outside 0..3\n");
+      std::exit(1);
+   }
+   const uint8_t *expected_p0 = alien_sprites ? alien_p0[alien_p0_frame] : legacy_p0;
+   const uint8_t *expected_p1 = alien_sprites ? alien_p1[alien_p1_frame] : legacy_p1;
    if (p0_rows.size() != 8 || p1_rows.size() != 8) {
       std::fprintf(stderr,
          "vcs_faithful_legacy_compare: sprite row counts are P0=%zu P1=%zu; expected 8 each\n",
@@ -383,22 +398,34 @@ uint64_t parse_raw_lines(const char *text) {
 int main(int argc, char **argv) {
    if (argc == 4 &&
        (std::strcmp(argv[3], "--sprites") == 0 ||
-        std::strcmp(argv[3], "--alien-sprites") == 0 ||
+        std::strncmp(argv[3], "--alien-sprites=", 16) == 0 ||
         std::strcmp(argv[3], "--multisprite") == 0)) {
       TraceMachine machine(argv[1]);
       const std::vector<Event> events =
          machine.run(parse_raw_lines(argv[2]), "oracle");
-      if (std::strcmp(argv[3], "--multisprite") == 0)
+      if (std::strcmp(argv[3], "--multisprite") == 0) {
          validate_multisprite_oracle(events);
-      else
-         validate_sprite_oracle(events,
-            std::strcmp(argv[3], "--alien-sprites") == 0);
+      }
+      else if (std::strncmp(argv[3], "--alien-sprites=", 16) == 0) {
+         unsigned p0_frame = 0, p1_frame = 0;
+         char tail = 0;
+         if (std::sscanf(argv[3] + 16, "%u,%u%c", &p0_frame, &p1_frame, &tail) != 2 ||
+             p0_frame > 3 || p1_frame > 3) {
+            std::fprintf(stderr,
+               "vcs_faithful_legacy_compare: bad alien sprite frames '%s'\n", argv[3] + 16);
+            return 2;
+         }
+         validate_sprite_oracle(events, static_cast<int>(p0_frame), static_cast<int>(p1_frame));
+      }
+      else {
+         validate_sprite_oracle(events, -1, -1);
+      }
       return 0;
    }
    if (argc != 5) {
       std::fprintf(stderr,
          "usage: %s OLD.bin NEW.bin OLD_RAW_LINES NEW_RAW_LINES\n"
-         "       %s ROM.bin RAW_LINES --sprites|--alien-sprites|--multisprite\n", argv[0], argv[0]);
+         "       %s ROM.bin RAW_LINES --sprites|--alien-sprites=P0,P1|--multisprite\n", argv[0], argv[0]);
       return 2;
    }
    TraceMachine old_machine(argv[1]);

@@ -139,3 +139,30 @@ used and 85 bytes of RAM used. Focused orientation, assembly-allowlist, and
 all-five interactive-example regressions pass. The remaining task is visual
 artwork tuning; do not propagate the mechanism to other interactive examples
 until those six new poses are approved.
+
+2026-09-04 14:16:47 PDT, propagate interactive sprite animation
+Propagated the tuned four-frame P0 alien and P1 radish artwork from
+`examples/05_all_five_192/01_interactive` through every applicable standard
+interactive renderer family. Fifteen maintained source bodies now own the
+32-byte animation tables; shared 181-line common sources cover their wrapper
+families without duplicating artwork. Every animated source chooses its 8-byte
+frame with exactly `((x ^ y) & 3) << 3`, recomputed after movement. The faithful
+legacy renderer stores each frame with reversed source-row order to preserve its
+existing displayed orientation. Multisprite examples use different artwork and
+were intentionally untouched.
+
+The two `examples/16_all_five_player_color_181` interactive cartridges remain
+the sole standard alien/radish exception. Their maintained unbanked 4K build is
+already 4051/4090 bytes, leaving 39 bytes; the additional six bitmap frames alone
+need 48 bytes before selection code. A direct propagation therefore overflows
+ROM. The special common source was restored unchanged rather than silently
+banking the cartridges or weakening their 4K contract. Animating that pair now
+requires a deliberate size-optimization/compression pass.
+
+Extended `test/vcs_interactive_sprite_orientation.pl` to lock all four frames,
+the exact XOR selector, faithful row orientation, and the 15 maintained animated
+source bodies. All 56 interactive cartridge directories build successfully.
+Focused regressions for sprite orientation, all-five interaction, PAL/SECAM 50Hz
+interaction, multicolor examples, animated-gallery RAM accounting, combined
+181-line 4K sizing, public score controls, assembly allowlist, source hygiene,
+context history, and branding pass.

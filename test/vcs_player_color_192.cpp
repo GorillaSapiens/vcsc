@@ -68,6 +68,7 @@ bool timer_active=false;
 uint64_t timer_start=0;
 uint16_t timer_divisor=1;
 uint8_t timer_loaded=0;
+uint8_t x_address=0;
 std::array<uint8_t,3> y_address{};
 std::array<uint8_t,3> expected_y{};
 
@@ -285,14 +286,34 @@ uint8_t expected_display_value(const std::vector<uint8_t> &values,int first,int 
    if (line<first || line>=first+static_cast<int>(values.size()*2)) return 0;
    return values[static_cast<size_t>((line-first)/2)];
 }
+const std::array<std::array<uint8_t,8>,4> kAlienP0{{
+   {{0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x3c,0x66}},
+   {{0x24,0x5a,0xbd,0xff,0xdb,0x7e,0x5a,0x99}},
+   {{0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x5a,0x81}},
+   {{0x81,0x5a,0xbd,0xff,0xdb,0x7e,0x3c,0x24}}
+}};
+const std::array<std::array<uint8_t,8>,4> kAlienP1{{
+   {{0xa5,0x5a,0x24,0xff,0xdb,0xff,0x66,0x3c}},
+   {{0x54,0x3c,0x42,0xff,0xdb,0xff,0x66,0x3c}},
+   {{0x24,0x5a,0x81,0xff,0xdb,0xff,0x66,0x3c}},
+   {{0x2a,0x3c,0x42,0xff,0xdb,0xff,0x66,0x3c}}
+}};
+std::vector<uint8_t> selected_alien_sprite(bool player1) {
+   const size_t player=player1 ? 1 : 0;
+   const uint8_t x=memory_image[static_cast<uint8_t>(x_address+player)];
+   const uint8_t y=memory_image[y_address[player]];
+   const size_t frame_index=static_cast<size_t>((x^y)&3);
+   const auto &frame_bytes=player1 ? kAlienP1[frame_index] : kAlienP0[frame_index];
+   return std::vector<uint8_t>(frame_bytes.begin(),frame_bytes.end());
+}
 void verify_object_pixel_raster(const std::string &mode) {
    if (frame_writes.empty()) fail("missing object pixel trace");
    const bool alien_sprites=mode=="static-alien";
    const std::vector<uint8_t> p0=alien_sprites
-      ? std::vector<uint8_t>{{0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x3c,0x66}}
+      ? selected_alien_sprite(false)
       : std::vector<uint8_t>{{0x7e,0xc3,0xd3,0xcb,0xc7,0xc3,0xc3,0x7e}};
    const std::vector<uint8_t> p1=alien_sprites
-      ? std::vector<uint8_t>{{0xa5,0x5a,0x24,0xff,0xdb,0xff,0x66,0x3c}}
+      ? selected_alien_sprite(true)
       : std::vector<uint8_t>{{0xfe,0xc3,0xc3,0xfe,0xc3,0xc3,0xc3,0xfe}};
    const bool terminal=mode=="terminal";
    const int p0_first=terminal ? 204 : 166;
@@ -392,6 +413,7 @@ int main(int argc,char **argv) {
    if (mode!="static" && mode!="static-alien" && mode!="terminal" &&
        mode!="ball-top" && mode!="ball-row-edge")
       fail("mode must be static, static-alien, terminal, ball-top, or ball-row-edge");
+   x_address=parse_zp(argv[3]);
    y_address={{parse_zp(argv[4]),parse_zp(argv[5]),parse_zp(argv[6])}};
    expected_y=mode=="terminal" ? std::array<uint8_t,3>{{89,89,89}} :
               mode=="ball-top" ? std::array<uint8_t,3>{{70,42,0}} :
@@ -430,10 +452,10 @@ int main(int argc,char **argv) {
 
    const bool alien_sprites=mode=="static-alien";
    const std::vector<uint8_t> p0=alien_sprites
-      ? std::vector<uint8_t>{{0x42,0xa5,0xbd,0xff,0xdb,0x7e,0x3c,0x66}}
+      ? selected_alien_sprite(false)
       : std::vector<uint8_t>{{0x7e,0xc3,0xd3,0xcb,0xc7,0xc3,0xc3,0x7e}};
    const std::vector<uint8_t> p1=alien_sprites
-      ? std::vector<uint8_t>{{0xa5,0x5a,0x24,0xff,0xdb,0xff,0x66,0x3c}}
+      ? selected_alien_sprite(true)
       : std::vector<uint8_t>{{0xfe,0xc3,0xc3,0xfe,0xc3,0xc3,0xc3,0xfe}};
    if (mode=="terminal") {
       expect_nonzero_lines(kGrp0,{202,204,206,208,210,212,214,216},p0,"terminal P0");

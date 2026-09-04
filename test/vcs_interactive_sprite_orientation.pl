@@ -32,6 +32,27 @@ sub args {
    @v==8 or die "$macro has ".scalar(@v)." rows, expected 8\n";
    return \@v;
 }
+sub frames {
+   my($block,$macro)=@_;
+   my @frames;
+   while ($block =~ /\b\Q$macro\E\s*\((.*?)\)/sg) {
+      my @v=split /,/, $1;
+      for (@v) { s{//.*$}{}mg; s/\s+//g; }
+      @v=grep { length } @v;
+      @v==8 or die "$macro has ".scalar(@v)." rows, expected 8\n";
+      push @frames,\@v;
+   }
+   @frames or die "missing $macro invocation\n";
+   return \@frames;
+}
+sub same_frames {
+   my($got,$want,$label)=@_;
+   @$got==@$want or die "$label frame count changed\n";
+   for my $i (0..$#$want) {
+      same($got->[$i],$want->[$i],"$label frame $i");
+   }
+}
+
 sub plain_values {
    my($block)=@_;
    my @v=split /,/, $block;
@@ -49,14 +70,19 @@ sub same {
 my $repo=abs_path(shift @ARGV // die "usage: $0 REPO\n");
 my $faithful_path=File::Spec->catfile($repo,qw(examples 02_faithful_legacy_playercolors 01_interactive faithful_legacy_playercolors_interactive.c26));
 my $faithful=read_file($faithful_path);
-my $p0=args(initializer($faithful,'p0g'),'legacy_SPRITE_GLYPH');
-my $p1=args(initializer($faithful,'p1g'),'legacy_SPRITE_GLYPH');
+my $p0_frames=frames(initializer($faithful,'p0_animation',32),'legacy_SPRITE_GLYPH');
+my $p1_frames=frames(initializer($faithful,'p1_animation',32),'legacy_SPRITE_GLYPH');
+@$p0_frames==4 && @$p1_frames==4 or die "faithful legacy animation must have four frames per player\n";
+my @p0_reverse_frames=map { [reverse @$_] } @$p0_frames;
+my @p1_reverse_frames=map { [reverse @$_] } @$p1_frames;
 my $p0c=args(initializer($faithful,'p0c'),'legacy_SPRITE_ROWS');
 my $p1c=args(initializer($faithful,'p1c'),'legacy_SPRITE_ROWS');
-my @p0_reverse=reverse @$p0;
-my @p1_reverse=reverse @$p1;
 my @p0c_reverse=reverse @$p0c;
 my @p1c_reverse=reverse @$p1c;
+$faithful =~ /legacy_player0_graphics\s*\+=\s*\(\(legacy_PLAYER0_X\s*\^\s*legacy_player0_y\)\s*&\s*0x03\)\s*<<\s*3/
+   or die "faithful legacy P0 animation selector changed\n";
+$faithful =~ /legacy_player1_graphics\s*\+=\s*\(\(legacy_PLAYER1_X\s*\^\s*legacy_player1_y\)\s*&\s*0x03\)\s*<<\s*3/
+   or die "faithful legacy P1 animation selector changed\n";
 
 my @definitions=(
    [qw(examples 03_player_color_192 01_interactive player_color_192_interactive.c26)],
@@ -71,11 +97,15 @@ for my $parts (@definitions) {
    my $path=File::Spec->catfile($repo,@$parts);
    my $text=read_file($path);
    if ($text =~ /\bp0_animation\s*\[32\]/) {
-      same(args(initializer($text,'p0_animation',32),'game_SPRITE_GLYPH'),\@p0_reverse,"$path P0 frame 0");
-      same(args(initializer($text,'p1_animation',32),'game_SPRITE_GLYPH'),\@p1_reverse,"$path P1 frame 0");
+      same_frames(frames(initializer($text,'p0_animation',32),'game_SPRITE_GLYPH'),\@p0_reverse_frames,"$path P0");
+      same_frames(frames(initializer($text,'p1_animation',32),'game_SPRITE_GLYPH'),\@p1_reverse_frames,"$path P1");
+      $text =~ /game_player0_graphics\s*\+=\s*\(\(game_PLAYER0_X\s*\^\s*game_player0_y\)\s*&\s*0x03\)\s*<<\s*3/
+         or die "$path P0 animation selector changed\n";
+      $text =~ /game_player1_graphics\s*\+=\s*\(\(game_PLAYER1_X\s*\^\s*game_player1_y\)\s*&\s*0x03\)\s*<<\s*3/
+         or die "$path P1 animation selector changed\n";
    } else {
-      same(args(initializer($text,'p0_graphics'),'game_SPRITE_GLYPH'),\@p0_reverse,"$path P0");
-      same(args(initializer($text,'p1_graphics'),'game_SPRITE_GLYPH'),\@p1_reverse,"$path P1");
+      same(args(initializer($text,'p0_graphics'),'game_SPRITE_GLYPH'),$p0_reverse_frames[0],"$path P0");
+      same(args(initializer($text,'p1_graphics'),'game_SPRITE_GLYPH'),$p1_reverse_frames[0],"$path P1");
    }
    next if $path =~ /all_five/;
    if ($path =~ /player_color_192_interactive/) {
@@ -85,6 +115,26 @@ for my $parts (@definitions) {
       same(args(initializer($text,'game_player0_colors'),'game_SPRITE_GLYPH'),\@p0c_reverse,"$path P0 colors");
       same(args(initializer($text,'game_player1_colors'),'game_SPRITE_GLYPH'),\@p1c_reverse,"$path P1 colors");
    }
+}
+
+my @animation_sources;
+find(sub {
+   return unless -f $_ && /\.c26\z/;
+   my $path=$File::Find::name;
+   my $text=read_file($path);
+   push @animation_sources,$path if $text =~ /\bp0_animation\s*\[32\]/;
+},File::Spec->catdir($repo,'examples'));
+@animation_sources==15
+   or die "expected 15 standard interactive animation source bodies, found ".scalar(@animation_sources)."\n";
+for my $path (@animation_sources) {
+   next if $path eq $faithful_path;
+   my $text=read_file($path);
+   same_frames(frames(initializer($text,'p0_animation',32),'game_SPRITE_GLYPH'),\@p0_reverse_frames,"$path P0");
+   same_frames(frames(initializer($text,'p1_animation',32),'game_SPRITE_GLYPH'),\@p1_reverse_frames,"$path P1");
+   $text =~ /game_player0_graphics\s*\+=\s*\(\(game_PLAYER0_X\s*\^\s*game_player0_y\)\s*&\s*0x03\)\s*<<\s*3/
+      or die "$path P0 animation selector changed\n";
+   $text =~ /game_player1_graphics\s*\+=\s*\(\(game_PLAYER1_X\s*\^\s*game_player1_y\)\s*&\s*0x03\)\s*<<\s*3/
+      or die "$path P1 animation selector changed\n";
 }
 
 my @leaves;

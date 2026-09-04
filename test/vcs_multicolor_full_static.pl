@@ -106,8 +106,21 @@ my $display_exe=File::Spec->catfile($tmp,'multicolor_full_static_display');
    $cxx,'-std=c++17','-O2','-DILLEGAL_OPCODES','-I',$mos,$display_src,@mos_input,'-o',$display_exe);
 $rc==0 && !$sig or die "player_color_192 interactive example display harness build failed\n$out$err";
 $out eq '' && $err eq '' or die "player_color_192 interactive example display harness build wrote output\n$out$err";
-my @display_symbols=map { map_symbol($map,$_) }
-   qw(game_playfield p0_graphics p1_graphics game_player0_colors game_player1_colors);
+my($p0_x)=$text =~ /game_PLAYER0_X\s*:=\s*(\d+)\s*;/;
+my($p1_x)=$text =~ /game_PLAYER1_X\s*:=\s*(\d+)\s*;/;
+my($p0_y)=$text =~ /game_player0_y\s*:=\s*(\d+)\s*;/;
+my($p1_y)=$text =~ /game_player1_y\s*:=\s*(\d+)\s*;/;
+defined($p0_x) && defined($p1_x) && defined($p0_y) && defined($p1_y)
+   or die "player_color_192 interactive example initial sprite positions are not literal\n";
+my $p0_frame=(int($p0_x) ^ int($p0_y)) & 3;
+my $p1_frame=(int($p1_x) ^ int($p1_y)) & 3;
+my @display_symbols=(
+   map_symbol($map,'game_playfield'),
+   sprintf('0x%04x',hex(map_symbol($map,'p0_animation'))+$p0_frame*8),
+   sprintf('0x%04x',hex(map_symbol($map,'p1_animation'))+$p1_frame*8),
+   map_symbol($map,'game_player0_colors'),
+   map_symbol($map,'game_player1_colors'),
+);
 ($rc,$sig,$out,$err)=capture($display_exe,$bin,'full-direct',@display_symbols);
 $rc==0 && !$sig or die "player_color_192 interactive example display raster failed\n$out$err";
 $out eq "vcs_multicolor_display_raster full-direct ok: exact PF rows, glyph bytes/colors, Ball, and score ownership\n"

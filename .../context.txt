@@ -252,21 +252,22 @@ including the exhaustive paddle soak and maximum 3F/3E/3EX diagnostics.
 
 Immediate TODO
 --------------
-Interactive sprite-animation tuning is intentionally isolated to
-`examples/05_all_five_192/01_interactive`. P0 and P1 each have four 8x8 bitmap
-frames; frame zero preserves the old static glyph and each frame is selected by
-`((x ^ y) & 3)`. Its console Reset test is expressed entirely in C26 as
-`if (!(SWCHB & 0x01)) hard_reset();`. `libraries/vcs/vcs.c26` includes
-`6507.c26`, whose inline `hard_reset()` contains the CPU-specific
-`asm jmp ($fffc);`. All 15 copies of the former five-statement Reset idiom now use this C26 test
-plus `hard_reset()` and are gone from the example ASM allowlist. The two shared
-181-line fragments make this affect 59 cartridges; all 59 old/new ROM pairs
-are byte-for-byte identical. The compact hand-written
-`examples/16_all_five_player_color_181/all_five_player_color_181_interactive_common.c26`
-still has a different integrated ASM Reset path and was left alone.
-Tune the six new animation poses first; only after the artwork is approved
-should the animation mechanism be propagated to the other interactive examples.
+The tuned four-frame alien/radish animation is now propagated through every
+standard interactive renderer family that has room for it. Fifteen maintained
+source bodies own the animation tables (including the two shared 181-line
+fragments), and each selects the current 8-byte frame with exactly
+`((x ^ y) & 3)`. Faithful-legacy frames are stored in that renderer's reversed
+row convention so their displayed orientation remains identical. Multisprite
+interactive examples use different artwork and are not part of this contract.
 
-Automatic-call mapper migration is complete, including constrained-state E0.
-FE remains intentionally special. `.../3ex.txt` still tracks the upstream Stella
->64K RAM-write defect; do not weaken the 256K 3EX diagnostic to accommodate it.
+The only standard alien/radish exception is the two unbanked 4K cartridges in
+`examples/16_all_five_player_color_181/`. Their common source remains static:
+the existing build uses 4051/4090 bytes (39 free), while adding the six extra
+8-byte frames costs 48 bytes before any selector code. Do not silently bank or
+relax that maintained 4K contract. If full animation there is desired, the next
+step is a deliberate ROM-size optimization/compression pass for that special
+combined renderer.
+
+Console Reset tests remain asm-free at example call sites via
+`if (!(SWCHB & 0x01)) hard_reset();`; `libraries/vcs/6507.c26` owns the single
+CPU-specific indirect reset-vector jump.
