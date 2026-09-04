@@ -229,3 +229,13 @@ preprocessor defines, so the chosen mapper is visible in the same translation
 unit as its `bankN` modifiers. Installcheck now compiles only that fixture for
 all three profiles. Focused F8/F6/F4 profile regressions and source-tree hygiene
 pass, and the complete staged `make installcheck` succeeds.
+
+2026-09-03 23:07:50 PDT, record Stella 3EX RAM alias
+VCSC's adjacent 3EX detector markers were corrected to separated markers so
+Stella independently sees both signatures and autodetects 3EX.  Actual Stella
+then exposed a separate emulator defect: CartridgeEnhanced's
+ramAddressSegmentOffset() returns uInt16, truncating 3EX banked-RAM offsets above
+64K on the poke path while direct read-page mapping retains the full uInt32
+offset.  Observed bank 224 write offset 0x38000 aliases to bank 32 at 0x8000;
+the 3EX max diagnostic therefore correctly remains FAIL on current Stella.
+Added .../3ex.txt with the exact durable state and upstream acceptance criterion.

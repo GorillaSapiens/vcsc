@@ -89,6 +89,19 @@ require_ok_logged('build 3EX max diagnostic',
 my $rom=read_file($bin);
 my $marker_count=()=$rom =~ /3EX/g;
 $marker_count==2 or die "3EX max ROM contains $marker_count detector markers, expected exactly 2\n";
+# Mirror Stella's CartDetector::searchForBytes stride exactly: after a match it
+# skips the signature bytes and the for-loop then advances one more byte.
+# Adjacent 3EX3EX therefore counts as only one hit in Stella.
+my $stella_marker_hits=0;
+for (my $i=0; $i < length($rom)-3; ++$i) {
+   if (substr($rom,$i,3) eq '3EX') {
+      ++$stella_marker_hits;
+      last if $stella_marker_hits==2;
+      $i += 3;
+   }
+}
+$stella_marker_hits==2
+   or die "3EX max detector markers are not independently visible to Stella\n";
 ord(substr($rom,-6,1))==0xff or die "3EX max size-6 RAM-bank-count metadata is not 255\n";
 
 my $map=read_file($map_path);

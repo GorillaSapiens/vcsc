@@ -16,7 +16,7 @@ This is the Stella-compatible maximum-size Tigervision 3EX PASS/FAIL diagnostic:
 - 256 independently selected 1K RAM banks = 256K RAM. RAM reads use
   `$1000-$13FF`; writes use `$1400-$17FF`; `$3E` selects the RAM bank.
 - ROM byte `size-6` contains `$FF`, Stella's `RAM bank count - 1` metadata.
-- Two `3EX` detector strings are embedded in the fixed final bank.
+- Two Stella-detectable `3EX` strings are embedded in the fixed final bank, separated so Stella's detector counts both hits.
 
 The ROM self-test executes every ordered source/destination pair among the 255
 selectable lower banks: 255 x 255 = 65,025 calls. Same-bank pairs use direct

@@ -59,6 +59,12 @@ work. Mapper-specific focused records may be split out while active.
 Compact closeout for completed Item 38b: 3E ROM-call and `$swapram` invariants,
 primary regressions, and Stella compatibility pointer.
 
+### `3ex.txt`
+
+Compact active handoff for 3EX's current Stella compatibility state: detector
+marker contract, confirmed >64K banked-RAM write alias, evidence, and upstream
+acceptance criterion.
+
 ### `superchip_dummy_read_hazard.txt`
 
 Focused active record for the linker-level NMOS 6502 dummy/ghost-read hazard

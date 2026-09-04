@@ -38,3 +38,5 @@ Current next action: Item 49, add playfield-color support to renderers.
         * Stay inside a documented RAM/ROM/frame budget.
         * Add deterministic emulator-backed tests for scrolling, collision,
           animation, and completion/reset behavior.
+
+have TJ fix stella 3EX

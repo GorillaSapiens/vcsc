@@ -11543,7 +11543,7 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
       }
 
       if (c26_topology_is_3ex(cfg)) {
-         static const uint8_t marker[6] = { '3', 'E', 'X', '3', 'E', 'X' };
+         static const uint8_t marker[7] = { '3', 'E', 'X', 0, '3', 'E', 'X' };
          uint32_t marker_addr32 = (uint32_t)startup->start +
             cfg->vector_bridge_offset + bridge_size;
          uint32_t vector_addr32 = (uint32_t)startup->start + startup->size - 6u;

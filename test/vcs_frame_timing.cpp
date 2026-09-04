@@ -94,10 +94,15 @@ bool three_mapper() {
 }
 
 bool has_3ex_detector_markers() {
+   // Match Stella 7.0 CartDetector::searchForBytes, including its extra
+   // one-byte advance after each matched signature.
    unsigned count = 0;
-   for (size_t i = 0; i + 3u <= cartridge_size; ++i) {
-      if (std::memcmp(cartridge_image + i, "3EX", 3) == 0 && ++count >= 2u)
-         return true;
+   for (size_t i = 0; i < cartridge_size - 3u; ++i) {
+      if (std::memcmp(cartridge_image + i, "3EX", 3) == 0) {
+         if (++count >= 2u)
+            return true;
+         i += 3u;
+      }
    }
    return false;
 }

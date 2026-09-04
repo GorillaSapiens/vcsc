@@ -22,9 +22,10 @@ range as **256 x 1K = 256K**.
 That `size-6` byte overlaps VCSC's ordinary tail-signature location and the
 unused NMI vector low byte.  The linker writes Stella's RAM-count metadata
 there instead of the topology signature's third byte.  Stella's 3EX detector
-requires two ASCII `3EX` strings anywhere in the image; VCSC writes the six
-detector bytes into the otherwise unused gap immediately after the vector
-bridge in the startup/final ROM bank.
+requires two ASCII `3EX` strings anywhere in the image.  Its detector skips
+one additional byte after each match, so adjacent `3EX3EX` is *not* two hits;
+VCSC writes two `3EX` markers with one separator byte into the otherwise
+unused gap immediately after the vector bridge in the startup/final ROM bank.
 
 The compiler-visible swapram region is 256K with a 1K bank size.  Accesses are
 lowered through `swapram_read1`/`swapram_write1` helpers that execute from the

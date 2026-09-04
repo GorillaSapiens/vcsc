@@ -180,6 +180,8 @@ index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `bankswitching.tx
    or die ".../README.md does not document bankswitching.txt\n";
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `3e.txt`')>=0
    or die ".../README.md does not document 3e.txt\n";
+index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `3ex.txt`')>=0
+   or die ".../README.md does not document 3ex.txt\n";
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `roadmap.txt`')>=0 &&
 index(slurp(File::Spec->catfile($repo,'...','README.md')),'### `context-history/`')>=0
    or die ".../README.md does not document the compact-context split\n";
@@ -939,6 +941,7 @@ my %hot_limits=(
    'roadmap.txt' => 12*1024,
    'bankswitching.txt' => 16*1024,
    '3e.txt' => 12*1024,
+   '3ex.txt' => 12*1024,
    'superchip_dummy_read_hazard.txt' => 12*1024,
    'disassembler.txt' => 16*1024,
    'enhanced_asymmetric.txt' => 20*1024,

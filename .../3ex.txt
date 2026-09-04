@@ -1,0 +1,55 @@
+3EX / STELLA HANDOFF
+=====================
+
+Status
+------
+VCSC's 3EX implementation and maximal internal oracle are complete enough to
+exercise the intended 512K ROM / 256 x 1K = 256K RAM shape, but stock Stella
+7.0 and current Stella master do not yet execute the full RAM torture correctly.
+Do not weaken `20_3ex_max` to accommodate Stella.  The current remaining 3EX
+work is an upstream Stella bug.
+
+VCSC detector correction
+------------------------
+The first VCSC 3EX image emitted adjacent `3EX3EX`.  Stella's detector advances
+one additional byte after a successful three-byte match, so the second adjacent
+marker is skipped and the image was autodetected as ordinary 3E.  VCSC now
+emits two `3EX` markers separated by one byte in the unused startup/final-bank
+vector-bridge gap.  Stella then autodetects the 512K image as `3EX*`.
+
+The maximal regression mirrors Stella's detector stride instead of merely
+counting `3EX` substrings, and `size-6` remains `$FF` for 256 RAM banks.
+
+Confirmed Stella RAM bug
+------------------------
+After the detector correction, actual Stella still ends `3EX max` in FAIL.
+The ROM call torture completes (`torture_count=$FFFF`); the first reported
+failure is RAM verification (`failure=$80`) at logical test bank 0/index 0.
+The expected byte is `$E1`, but Stella returns `$5C`.
+
+The root cause is in Stella `CartridgeEnhanced`: `bank()` keeps mapped RAM
+segment offsets as 32-bit values and its direct read-page mapping therefore
+reaches the full 256K RAM array, but `ramAddressSegmentOffset()` returns
+`uInt16`.  `peek()`/`poke()`/`patch()` use that helper for banked RAM.  For 3EX,
+its calculated RAM offset may exceed `$FFFF`, so the helper truncates the upper
+bits on the write path.  Writes therefore alias modulo 64K even though reads
+can still address the full selected RAM bank.
+
+Concrete observed alias: the VCSC link places one tested object in physical RAM
+bank 32 and a later object in physical RAM bank 224.  Stella computes bank 224's
+RAM write offset as `$38000`; the `uInt16` helper truncates that to `$8000`, so
+the later bank-224 write overwrites bank 32.  The later object's first test byte
+is `$5C`, exactly the unexpected value subsequently read from bank 32.
+
+Likely Stella fix / acceptance
+------------------------------
+Widen `CartridgeEnhanced::ramAddressSegmentOffset()` and its cast/result to at
+least `uInt32` (or `size_t`) so banked RAM offsets above 64K survive.  Audit all
+call sites for matching index width.  After that change, run VCSC
+`examples/09_bankswitching/20_3ex_max/3ex_max_diagnostic.bin` in Stella with
+normal autodetection; it should reach PASS while retaining the complete 256K
+fill/readback torture.
+
+Do not reduce 3EX max to 64K, mask the selector, or accept the alias as VCSC
+behavior.  The purpose of this diagnostic is specifically to certify all
+256 independently selected 1K RAM banks.
