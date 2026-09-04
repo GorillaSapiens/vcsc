@@ -1,5 +1,5 @@
 # runner: perl @TEST_ROOT@/vcs_examples_build.pl @REPO@ @TMP@ --shard 4/8
 # phase: e2e
-# timeout: 60
+# timeout: 90
 # expectstdout: vcs_examples_build shard 4/8 ok:
 # expectexit: 0

@@ -76,24 +76,24 @@ binding of a `swapram` object.  Normal lvalue operations are the interface.
 ## Emulator and cartridge compatibility
 
 The original/common 3E convention is substantially more conservative than the
-full 8-bit selector permits.  Current Stella documents and implements its `3E`
-mapper as **32 banks x 1K = 32K RAM**.  Stella also has a distinct `3EX` mapper
-with 256K RAM, but that mapper organizes the RAM as **512 banks x 512 bytes**;
-it is not the same geometry as VCSC's straightforward 256 x 1K extension of
-3E.
+full 8-bit selector permits. Current Stella documents and implements its `3E`
+mapper as **32 banks x 1K = 32K RAM**. Stella also has a distinct `3EX` mapper
+with **256 banks x 1K = 256K RAM**. The older 512-byte-bank wording came from a
+Stella development discussion and does not describe the implemented 3EX mapper.
 
 Consequently:
 
 * A VCSC 3E program using only RAM banks 0-31 is compatible with Stella's `3E`
   RAM limit (subject, of course, to the rest of the cartridge behaving as 3E).
 * A VCSC 3E program using RAM banks 32-255 requires hardware/emulation that
-  decodes the full 8-bit `$3E` value as a 1K-bank selector.  Stella's `3E`
+  decodes the full 8-bit `$3E` value as a 1K-bank selector. Stella's `3E`
   mapper does not currently do that.
-* Do **not** select Stella's `3EX` type merely because a VCSC map uses more than
-  32K.  Its 512-byte bank geometry is different.
+* For Stella-compatible 256K RAM, use VCSC's dedicated `3EX` profile rather
+  than relabeling a 3E image. 3EX carries its own ROM metadata/detector contract
+  even though its implemented RAM selector geometry is the same 256 x 1K shape.
 
-If Stella compatibility matters, inspect the VCSC map and keep every reported
-`swapram-bank` at 31 or below.
+If Stella 3E compatibility matters, inspect the VCSC map and keep every reported
+`swapram-bank` at 31 or below. For larger Stella-compatible RAM, build as 3EX.
 
 ## Implementation boundary
 

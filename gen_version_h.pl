@@ -60,6 +60,7 @@ my $output = shift(@ARGV) // 'version.h';
 die usage() if @ARGV;
 
 my $version;
+my $no_git_epoch;
 if (have_git_head()) {
    my $epoch = git_line('show', '-s', '--format=%ct', 'HEAD');
    my $stamp = ($epoch =~ /^\d+$/)
@@ -83,8 +84,8 @@ else {
    # ordinary make invocations.  Reuse the existing header's mtime as the
    # build stamp so the FORCE check remains cheap and stable until clean removes
    # version.h or the tree is built in Git again.
-   my $epoch = -f $output ? (stat($output))[9] : time;
-   my $stamp = strftime('%Y-%m-%d %H:%M:%SZ', gmtime($epoch));
+   $no_git_epoch = -f $output ? (stat($output))[9] : time;
+   my $stamp = strftime('%Y-%m-%d %H:%M:%SZ', gmtime($no_git_epoch));
    $version = "$stamp nogit " . no_git_identity() . " clean";
 }
 
@@ -106,3 +107,12 @@ if (-f $output) {
 open(my $out, '>', $output) or die "could not write $output: $!\n";
 print $out $contents;
 close($out) or die "could not close $output: $!\n";
+
+# For no-Git archives the header mtime is the durable build timestamp used by
+# the next FORCE regeneration.  A write that crosses a wall-clock second must
+# not advance that mtime and therefore manufacture a different VERSION on the
+# immediately following unchanged invocation.
+if (defined($no_git_epoch)) {
+   utime($no_git_epoch, $no_git_epoch, $output) == 1
+      or die "could not preserve no-git version timestamp on $output: $!\n";
+}

@@ -181,3 +181,51 @@ Added an examples/.gitignore exception for
 path honors `examples/*.s26`; without the exception the compiler-managed 32K
 swapram backing source was silently omitted even though the working-tree
 regression passed.
+
+2026-09-03 21:32:35 PDT, finish Stella-compatible 3EX max
+Finished the dedicated Stella-compatible 3EX path at its maximum supported
+shape: 256 x 2K / 512K ROM and 256 x 1K / 256K RAM. Stella's implemented RAM
+geometry is 1K per bank; the earlier 512-byte wording described discarded
+future discussion and is removed from the hot roadmap. The fixed bank uses the
+`$FF` bankcall descriptor/no-switch sentinel, lower ROM banks use `$00-$FE`,
+RAM selects through `$3E`, ROM through `$3F`, and the linker emits Stella's
+RAM-count-minus-one byte at `size-6` plus exactly two `3EX` detector strings.
+
+Added `20_3ex_max`, split across translation units and built in parallel. Its
+512K image runs the full 65,535-call ROM matrix and compiler-managed fill and
+readback of every byte in all 256 RAM banks with one continuous maximal LFSR.
+The regression redirects only a copy's RESET vector to a linked fast test entry
+for the complete torture; a separate 3,997-frame run locks displayed execution
+to 262 NTSC lines. Fixed the 3EX bank-return path for calls made while RAM masks
+the lower ROM window, and integrated mapper entry generation, install/package,
+branding, source hygiene, font generation, assembly allowlisting, and simulator
+timing support.
+
+The max link exposed a generic linker bug: duplicate bank-placement ZERO/BSS
+estimators counted `$swapram` BSS as CPU startup-zero records, falsely rejecting
+the fixed `vcsc-rt0` component. The estimators now exclude swapram consistently
+with real layout. The separate pre-FC extended-3E 256K capacity-torture milestone is retired;
+VCSC's extended 3E selector range remains supported and focused through bank 255.
+
+2026-09-03 21:32:36 PDT, stabilize loaded regression suite
+Fixed no-Git version generation so the first generated `version.h` keeps an
+mtime equal to the UTC timestamp embedded in `VERSION`; crossing a one-second
+boundary while writing the header no longer changes an otherwise clean no-Git
+version on the next probe. Raised only wall-clock allowances for the exhaustive
+paddle soak, eight example-build shards, and 3EX-max torture to accommodate
+measured eight-worker CPU contention; test behavior and coverage are unchanged.
+Validation completed with 503/503 compile-only tests and 354/354 e2e tests.
+
+2026-09-03 21:39:43 PDT, repair installed F864 profile smoke
+The final `make installcheck` exposed a cfgectomy-era packaging regression that
+was not part of the ordinary test path. `f8_profile_diagnostic.c26` had become
+self-contained by including `F8/mapper.c26`, while installcheck still supplied
+F8/F6/F4 mapper sources as separate translation units. The F6/F4 smokes
+therefore linked their selected topology together with an unintended F8 topology
+and failed on conflicting bank declarations.
+
+Made the shared fixture select F8 by default and F6/F4 through explicit
+preprocessor defines, so the chosen mapper is visible in the same translation
+unit as its `bankN` modifiers. Installcheck now compiles only that fixture for
+all three profiles. Focused F8/F6/F4 profile regressions and source-tree hygiene
+pass, and the complete staged `make installcheck` succeeds.

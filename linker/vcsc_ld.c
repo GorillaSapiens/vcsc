@@ -7787,6 +7787,104 @@ static int activation_segment_parse(const char *name,
                                     char *region, size_t region_size,
                                     const char **owner_out);
 
+//! @brief Estimate startup copy/zero table records before writable layout addresses exist.
+//!
+//! Bank placement needs to reserve cartridge ROM for the startup tables before
+//! layout_objects() assigns final writable addresses.  Keep that pre-layout
+//! estimate in one place so the byte-budget reservation and the branch-aware
+//! placement trial cannot silently disagree about what will become a startup
+//! record.  In particular, swapram BSS is initialized through mapper helpers
+//! and must never consume an ordinary CPU-address ZERO-table entry.
+static void estimate_startup_table_records(const linker_config_t *cfg,
+                                           const input_set_t *in,
+                                           size_t *copy_count_out,
+                                           size_t *zero_count_out)
+{
+   size_t copy_count = 0;
+   size_t zero_count = 0;
+   char (*activation_zero_regions)[MAX_NAME] = NULL;
+   size_t activation_zero_region_count = 0;
+   const segment_rule_t *bss = find_segment_rule(cfg, "BSS");
+   const segment_rule_t *zp = find_segment_rule(cfg, "ZEROPAGE");
+   const char *bss_run_name = rule_run_region_name(bss);
+   const char *zp_run_name = rule_run_region_name(zp);
+   size_t i, j;
+
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->layout_count; ++j) {
+         const object_layout_t *lay = &obj->layouts[j];
+         char activation_region[MAX_NAME];
+         char suffix_storage[MAX_NAME];
+         const char *suffix;
+         const char *run_name = NULL;
+         const memory_region_t *run_memory = NULL;
+
+         if (lay->segid == O26_SEG_DATA ||
+             (lay->segid == O26_SEG_ZP &&
+              (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)))
+            copy_count++;
+
+         if (lay->segid != O26_SEG_BSS &&
+             !(lay->segid == O26_SEG_ZP &&
+               lay->image_segid != O26_SEG_DATA && lay->image_segid != O26_SEG_TEXT &&
+               strstr(lay->name, ".__vcsc_object$") != NULL))
+            continue;
+
+         if (strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") != NULL)
+            continue;
+
+         if (activation_segment_parse(lay->name, activation_region,
+                                      sizeof(activation_region), NULL)) {
+            const segment_rule_t *fallback = find_segment_rule(
+               cfg, lay->segid == O26_SEG_ZP ? "ZEROPAGE" : "BSS");
+            run_name = activation_region[0]
+               ? activation_region : rule_run_region_name(fallback);
+            run_memory = run_name && *run_name ? find_memory(cfg, run_name) : NULL;
+            if (run_memory && !run_memory->swapram) {
+               size_t k;
+               for (k = 0; k < activation_zero_region_count; ++k)
+                  if (str_ieq(activation_zero_regions[k], run_name))
+                     break;
+               if (k == activation_zero_region_count) {
+                  activation_zero_regions = (char (*)[MAX_NAME])xrealloc(
+                     activation_zero_regions,
+                     (activation_zero_region_count + 1) *
+                        sizeof(*activation_zero_regions));
+                  memset(activation_zero_regions[activation_zero_region_count],
+                         0, MAX_NAME);
+                  snprintf(activation_zero_regions[activation_zero_region_count],
+                           MAX_NAME, "%s", run_name);
+                  activation_zero_region_count++;
+               }
+            }
+            continue;
+         }
+
+         suffix = segment_name_suffix(lay->name, suffix_storage,
+                                      sizeof(suffix_storage));
+         if (lay->segid == O26_SEG_BSS)
+            run_name = (suffix && segment_name_matches_prefix(lay->name, "BSS"))
+               ? suffix : bss_run_name;
+         else
+            run_name = (suffix && (segment_name_matches_prefix(lay->name, "ZEROPAGE") ||
+                                   segment_name_matches_prefix(lay->name, "ZP") ||
+                                   segment_name_matches_prefix(lay->name, "ZERO")))
+               ? suffix : zp_run_name;
+         run_memory = run_name && *run_name ? find_memory(cfg, run_name) : NULL;
+         if (run_memory && !run_memory->swapram)
+            zero_count++;
+      }
+   }
+
+   zero_count += activation_zero_region_count;
+   free(activation_zero_regions);
+   if (copy_count_out)
+      *copy_count_out = copy_count;
+   if (zero_count_out)
+      *zero_count_out = zero_count;
+}
+
 //! @brief Reserve fixed ROM data images and generated startup tables before auto packing.
 static void bank_placement_reserve_fixed_rom(const linker_config_t *cfg,
                                              const input_set_t *in,
@@ -7796,8 +7894,6 @@ static void bank_placement_reserve_fixed_rom(const linker_config_t *cfg,
    size_t i, j;
    size_t copy_count = 0;
    size_t zero_count = 0;
-   char (*activation_zero_regions)[MAX_NAME] = NULL;
-   size_t activation_zero_region_count = 0;
    const segment_rule_t *data_rule = find_segment_rule(cfg, "DATA");
    const memory_region_t *table_memory = data_rule && data_rule->load_name[0]
       ? find_memory(cfg, data_rule->load_name) : NULL;
@@ -7812,54 +7908,9 @@ static void bank_placement_reserve_fixed_rom(const linker_config_t *cfg,
             bank_placement_consume(budgets, budget_count, memory, lay->size,
                                    lay->name, obj->origin);
          }
-         if (lay->segid == O26_SEG_DATA ||
-             (lay->segid == O26_SEG_ZP &&
-              (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)))
-            copy_count++;
-         if (lay->segid == O26_SEG_BSS ||
-             (lay->segid == O26_SEG_ZP &&
-              lay->image_segid != O26_SEG_DATA && lay->image_segid != O26_SEG_TEXT &&
-              strstr(lay->name, ".__vcsc_object$") != NULL)) {
-            char activation_region[MAX_NAME];
-            const char *owner = NULL;
-            if (activation_segment_parse(lay->name, activation_region,
-                                         sizeof(activation_region), &owner)) {
-               const segment_rule_t *fallback = find_segment_rule(
-                  cfg, lay->segid == O26_SEG_ZP ? "ZEROPAGE" : "BSS");
-               const char *run_name = activation_region[0]
-                  ? activation_region : rule_run_region_name(fallback);
-               const memory_region_t *run_memory = run_name && *run_name
-                  ? find_memory(cfg, run_name) : NULL;
-               size_t k;
-
-               /* Activation pieces are overlaid by callgraph depth later.
-                  The physical overlay needs one startup ZERO record per
-                  ordinary runtime MEMORY region, not one record per source
-                  function.  Keep bank-placement's fixed-ROM reservation in
-                  lockstep with layout_activation_segments(). */
-               if (run_memory && !run_memory->swapram) {
-                  for (k = 0; k < activation_zero_region_count; ++k)
-                     if (str_ieq(activation_zero_regions[k], run_name))
-                        break;
-                  if (k == activation_zero_region_count) {
-                     activation_zero_regions = (char (*)[MAX_NAME])xrealloc(
-                        activation_zero_regions,
-                        (activation_zero_region_count + 1) *
-                           sizeof(*activation_zero_regions));
-                     memset(activation_zero_regions[activation_zero_region_count],
-                            0, MAX_NAME);
-                     snprintf(activation_zero_regions[activation_zero_region_count],
-                              MAX_NAME, "%s", run_name);
-                     activation_zero_region_count++;
-                  }
-               }
-            }
-            else if (strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
-               zero_count++;
-         }
       }
    }
-   zero_count += activation_zero_region_count;
+   estimate_startup_table_records(cfg, in, &copy_count, &zero_count);
    if (table_memory && !selected_objects_have_export(in, "__vcsc_startup_simple")) {
       uint32_t table_bytes = (uint32_t)(copy_count + 1u) * 6u +
                              (uint32_t)(zero_count + 1u) * 4u +
@@ -7867,7 +7918,6 @@ static void bank_placement_reserve_fixed_rom(const linker_config_t *cfg,
       bank_placement_consume(budgets, budget_count, table_memory, table_bytes,
                              "linker startup tables", "<linker>");
    }
-   free(activation_zero_regions);
 }
 
 //! @brief Return the hypothetical ROM MEMORY for one layout during a placement trial.
@@ -7964,19 +8014,9 @@ static int bank_placement_trial_fits(const linker_config_t *cfg,
          }
       }
 
-      for (j = 0; j < obj->layout_count; ++j) {
-         const object_layout_t *lay = &obj->layouts[j];
-         if (lay->segid == O26_SEG_DATA ||
-             (lay->segid == O26_SEG_ZP &&
-              (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)))
-            copy_count++;
-         if (lay->segid == O26_SEG_BSS ||
-             (lay->segid == O26_SEG_ZP &&
-              lay->image_segid != O26_SEG_DATA && lay->image_segid != O26_SEG_TEXT &&
-              strstr(lay->name, ".__vcsc_object$") != NULL))
-            zero_count++;
-      }
    }
+
+   estimate_startup_table_records(cfg, in, &copy_count, &zero_count);
 
    if (ok && !simulate_alloc_from_region_policy(&sim, cfg, data_load_name,
        (uint16_t)((copy_count + 1u) * 6u), 1, NULL))
@@ -11500,6 +11540,22 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
                                bridge_size, "vector bridge");
          image_write_generated(image, plane, bank_vectors, vectors,
                                sizeof(vectors), "vectors");
+      }
+
+      if (c26_topology_is_3ex(cfg)) {
+         static const uint8_t marker[6] = { '3', 'E', 'X', '3', 'E', 'X' };
+         uint32_t marker_addr32 = (uint32_t)startup->start +
+            cfg->vector_bridge_offset + bridge_size;
+         uint32_t vector_addr32 = (uint32_t)startup->start + startup->size - 6u;
+         size_t plane = link_image_plane_for_bank_name(cfg, startup->name);
+         if (marker_addr32 + sizeof(marker) > vector_addr32 ||
+             marker_addr32 + sizeof(marker) > 0x10000u) {
+            fprintf(stderr,
+                    "vcsc-ld: 3EX vector-bridge layout has no room for detector markers\n");
+            exit(1);
+         }
+         image_write_generated(image, plane, (uint16_t)marker_addr32, marker,
+                               sizeof(marker), "3EX detector markers");
       }
       if (mapper_entry_size)
          free(mapper_entry);

@@ -169,8 +169,10 @@ fallback. Automatic placement writes to the final `placement_bank` plane.
 `VCS_3F_BANKS:=N` for 1..256 physical 2K chunks. Every selectable chunk links
 at canonical `$1000-$17FF`; the final chunk is fixed/startup at `$1800-$1FFF`.
 `vcsc-sim` keeps banked ROM bytes in physical-bank storage so overlapping CPU
-windows do not overwrite one another. Focused 4-, 8-, and 256-bank/512K 3F
-link/simulator tests pass; compile-only validation remains 503/503.
+windows do not overwrite one another. Maximum 3F and Stella-compatible maximum
+3E/3EX are executable regressions. 3EX is 256 x 2K / 512K ROM plus 256 x 1K /
+256K `$swapram`; the obsolete 512-byte RAM-bank description was only a Stella
+development discussion. Validation is 503/503 compile-only and 354/354 e2e.
 
 Main-roadmap Items 46-48 are complete. Item 47 is locked by
 `test/superchip_direct_access.pl`: under 4KSC it fills all 128 Superchip bytes,
@@ -258,19 +260,17 @@ now fixed and pass focused: history formatting, developer-record packaging,
 the fingerprint selftest, return-memory map anchoring, two stale renderer cfg
 arguments, and branding. `make tar` from an unpacked/no-.git tree
 now preserves `.../instruction.txt`, with hygiene coverage locking that invariant.
-Compile-only validation is 503/503. Current op1C/entry work is green through the
-first 246/343 e2e tests; the focused mapper/linker set is 18/18 and the final
-disassembler/version tail is 5/5. The exhaustive paddle soak still prevents a
-fresh single uninterrupted 343/343 run in this tool window.
+The post-cfgectomy and mapper changes now pass the complete loaded regression
+suite: 503/503 compile-only tests and 354/354 e2e tests with eight workers,
+including the exhaustive paddle soak and maximum 3F/3E/3EX diagnostics.
 
 Immediate TODO
 --------------
-3F/3E core automatic-call and `$swapram` work is complete. Maximum-size 3F
-stress is covered by `18_3f_max`. Stella-compatible maximum 3E is now covered
-by `19_3e_max`: 512K ROM runs the same complete ordered call matrix, then 32
-compiler-managed 1K `$swapram` objects fill and reread all 32K with one continuous
-maximal 16-bit LFSR while a stable blue `wait` spinner remains on screen.
-Before FC, add the separate VCSC-extended 256 x 1K / 256K 3E `$swapram` torture
-and verify every byte across multiple translation units. Then migrate FC with a
-deliberate VCSC limit of 256 x 4K / 1 MiB, followed by F0 and E0. 3EX is a later
-distinct mapper and FE stays special.
+3F, 3E, and Stella-compatible 3EX automatic-call/`$swapram` work is certified at
+maximum size. `18_3f_max` covers 512K 3F; `19_3e_max` covers 512K ROM plus all
+32K Stella 3E RAM; `20_3ex_max` covers 512K ROM plus all 256 x 1K / 256K 3EX
+RAM across multiple translation units, including the complete 65,535-call ROM
+matrix and a separate 262-line display soak. This retires the separate pre-FC
+extended-3E 256K capacity-torture milestone; VCSC's extended 3E selector range
+remains supported and focused through bank 255. Next migrate FC with a deliberate
+VCSC limit of 256 x 4K / 1 MiB, followed by F0 and E0. FE stays special.

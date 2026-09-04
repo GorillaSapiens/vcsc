@@ -93,6 +93,15 @@ bool three_mapper() {
           cartridge_mapper == CartridgeTimingMapper::ThreeE;
 }
 
+bool has_3ex_detector_markers() {
+   unsigned count = 0;
+   for (size_t i = 0; i + 3u <= cartridge_size; ++i) {
+      if (std::memcmp(cartridge_image + i, "3EX", 3) == 0 && ++count >= 2u)
+         return true;
+   }
+   return false;
+}
+
 uint8_t read_three_cartridge(uint16_t address) {
    const uint16_t bus = address & 0x1fff;
    if (bus >= 0x1800) {
@@ -711,7 +720,7 @@ void apply_writes() {
 int main(int argc, char **argv) {
    if (argc < 3) {
       std::fprintf(stderr,
-         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--minimum-checked-frames N] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--raw-lines-by-memory ADDR VALUE:LINES[,VALUE:LINES...]] [--randomize-zp ADDR COUNT MODULUS SEED]... [--randomize-zp-held ADDR COUNT MODULUS SEED FRAMES]... [--dump-zp ADDR COUNT]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--frame-sequence ADDR VALUE[,VALUE...]]... [--read-sequence ADDR VALUE[,VALUE...]]... [--released-inputs] [--paddle-lines L0,L1,L2,L3] [--require-stable-tia-write-phase ADDR LINE]... [--expect-memory ADDR VALUE]... [--expect-memory-equal ADDR COUNT]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--verify-asymmetric-glyphs GRAPHICS_ADDR MASK] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--require-stable-first-visible-line MASK] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
+         "usage: %s ROM.bin VSYNC_ASSERTIONS [--no-audio] [--stop-pc ADDR] [--minimum-checked-frames N] [--audio-start-synced] [--audio-retune-muted] [--raw-lines N] [--raw-lines-by-memory ADDR VALUE:LINES[,VALUE:LINES...]] [--randomize-zp ADDR COUNT MODULUS SEED]... [--randomize-zp-held ADDR COUNT MODULUS SEED FRAMES]... [--dump-zp ADDR COUNT]... [--sweep-zp ADDR MIN MAX]... [--set-zp ADDR VALUE]... [--frame-sequence ADDR VALUE[,VALUE...]]... [--read-sequence ADDR VALUE[,VALUE...]]... [--released-inputs] [--paddle-lines L0,L1,L2,L3] [--require-stable-tia-write-phase ADDR LINE]... [--expect-memory ADDR VALUE]... [--expect-memory-equal ADDR COUNT]... [--verify-asymmetric-visibility Y_ADDR COLOR_ADDR DRAW_ADDR COUNT_ADDR] [--verify-asymmetric-glyphs GRAPHICS_ADDR MASK] [--require-visible-mask MASK] [--require-visible-spread MASK MAX] [--require-stable-first-visible-line MASK] [--expect-resp-phases CSV] [--require-resp-phases CSV] [--require-dual-resp] [--require-adjacent-resp]\n",
          argv[0]);
       return 2;
    }
@@ -722,10 +731,21 @@ int main(int argc, char **argv) {
    bool require_audio_retune_muted = false;
    bool require_dual_resp = false;
    bool require_adjacent_resp = false;
+   bool stop_pc_enabled = false;
+   uint16_t stop_pc = 0;
    uint64_t expected_raw_lines = kDefaultVsyncIntervalScanlines;
    for (int i = 3; i < argc; ++i) {
       if (std::strcmp(argv[i], "--no-audio") == 0) {
          require_audio = false;
+      }
+      else if (std::strcmp(argv[i], "--stop-pc") == 0) {
+         if (++i >= argc) fail("--stop-pc requires an address");
+         char *parse_end = nullptr;
+         const unsigned long address = std::strtoul(argv[i], &parse_end, 0);
+         if (!parse_end || *parse_end != '\0' || address > 0xffff)
+            fail("bad --stop-pc address");
+         stop_pc_enabled = true;
+         stop_pc = static_cast<uint16_t>(address);
       }
       else if (std::strcmp(argv[i], "--minimum-checked-frames") == 0) {
          if (++i >= argc) {
@@ -1139,7 +1159,7 @@ int main(int argc, char **argv) {
         rom_size != static_cast<std::streamoff>(kF4RomSize) &&
         (rom_size < static_cast<std::streamoff>(kF8RomSize) ||
          (rom_size % 0x0800) != 0))) {
-      fail("unsupported ROM size (expected 4K/8K/32K or signed 3F/3E 2K-bank image up to 512K)");
+      fail("unsupported ROM size (expected 4K/8K/32K or signed 3F/3E/3EX 2K-bank image up to 512K)");
    }
    cartridge_size = static_cast<size_t>(rom_size);
    rom.seekg(0, std::ios::beg);
@@ -1148,8 +1168,15 @@ int main(int argc, char **argv) {
       fail("could not read complete ROM");
    }
    const uint8_t *signature = cartridge_image + cartridge_size - 8u;
-   if ((cartridge_size % 0x0800u) == 0u &&
-       std::memcmp(signature, "3F\0\0", 4) == 0) {
+   if ((cartridge_size % 0x0800u) == 0u && has_3ex_detector_markers()) {
+      cartridge_mapper = CartridgeTimingMapper::ThreeE;
+      three_bank_count = static_cast<unsigned>(cartridge_size / 0x0800u);
+      three_fixed_chunk = three_bank_count - 1u;
+      selected_three_chunk = 0;
+      threee_ram_selected = false;
+   }
+   else if ((cartridge_size % 0x0800u) == 0u &&
+            std::memcmp(signature, "3F\0\0", 4) == 0) {
       cartridge_mapper = CartridgeTimingMapper::ThreeF;
       three_bank_count = static_cast<unsigned>(cartridge_size / 0x0800u);
       three_fixed_chunk = three_bank_count - 1u;
@@ -1179,7 +1206,7 @@ int main(int argc, char **argv) {
       std::memcpy(memory_image + kRomBase, cartridge_image, kBankSize);
    }
    else {
-      fail("nonstandard 2K-bank ROM lacks a 3F/3E signature");
+      fail("nonstandard 2K-bank ROM lacks a 3F/3E/3EX signature");
    }
 
    if (released_inputs) {
@@ -1192,15 +1219,35 @@ int main(int argc, char **argv) {
    uint64_t cpu_cycles = 0;
    constexpr uint64_t kInstructionLimit = 100000000;
 
-   for (uint64_t instructions = 0;
+   bool stopped_at_pc = stop_pc_enabled && cpu.GetPC() == stop_pc;
+   uint64_t instructions = 0;
+   for (;
         instructions < kInstructionLimit &&
-        vsync_assertions.size() < static_cast<size_t>(requested);
+        !stopped_at_pc &&
+        (stop_pc_enabled || vsync_assertions.size() < static_cast<size_t>(requested));
         ++instructions) {
       writes.clear();
       const uint64_t before = cpu_cycles;
       cpu.Run(1, cpu_cycles, mos6502::INST_COUNT);
       virtual_cycles += cpu_cycles - before;
       apply_writes();
+      stopped_at_pc = stop_pc_enabled && cpu.GetPC() == stop_pc;
+   }
+
+   if (stop_pc_enabled) {
+      if (!stopped_at_pc) fail("instruction limit reached before stop PC");
+      for (const ExpectedMemory &expect : expected_memory) {
+         const uint8_t actual = peek_memory(expect.address);
+         if (actual != expect.value) {
+            std::fprintf(stderr,
+               "vcs_frame_timing: memory $%04x expected $%02x, got $%02x\n",
+               expect.address, expect.value, actual);
+            return 1;
+         }
+      }
+      std::printf("vcs_frame_timing stop ok: pc=$%04x after %llu instructions\n",
+         stop_pc, static_cast<unsigned long long>(instructions));
+      return 0;
    }
 
    if (vsync_assertions.size() < static_cast<size_t>(requested)) {

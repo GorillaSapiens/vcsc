@@ -523,8 +523,8 @@ open my $fixed, '>', $fixed_path or die "$0: cannot write $fixed_path: $!\n";
 generated_header($fixed, "This object contains the fixed-bank ROM scheduler.");
 print {$fixed} ".import failure, torture_count, expected_source, expected_dest, fixed_sp\n";
 print {$fixed} ".import torture_done, torture_batch, step_remaining, ram_phase, ram_lfsr, bankcall_stub\n";
-print {$fixed} ".import step_3ex_max_ram, ram_walk_reset\n";
-print {$fixed} ".export fixed_probe, finish_3ex_max_init, step_3ex_max_torture\n\n.segment \"CODE.bank255\"\n\n";
+print {$fixed} ".import step_3ex_max_ram, ram_walk_reset, init_3ex_max_torture\n";
+print {$fixed} ".export fixed_probe, finish_3ex_max_init, step_3ex_max_torture, __vcsc_3ex_max_fast_entry, __vcsc_3ex_max_fast_done\n\n.segment \"CODE.bank255\"\n\n";
 print {$fixed} <<'FIXED';
 .segment "CODE.bank255.fixed_probe"
 fixed_probe:
@@ -533,6 +533,23 @@ fixed_probe:
     inc torture_count+1
 fixed_probe_count_ok:
     rts
+
+; Regression-only fast entry.  The visible diagnostic deliberately throttles
+; torture work to VBLANK/overscan; tests can patch only the reset vector to
+; enter here and execute the exact same ROM/RAM scheduler without frame pacing.
+.segment "CODE.bank255.fast_test"
+__vcsc_3ex_max_fast_entry:
+    jsr init_3ex_max_torture
+    .banktarget init_3ex_max_torture
+    jsr finish_3ex_max_init
+fast_test_loop:
+    lda #$ff
+    sta torture_batch
+    jsr step_3ex_max_torture
+    lda torture_done
+    beq.same fast_test_loop
+__vcsc_3ex_max_fast_done:
+    jmp __vcsc_3ex_max_fast_done
 
 .segment "CODE.bank255.finish_init"
 finish_3ex_max_init:

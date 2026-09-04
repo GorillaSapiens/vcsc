@@ -17,7 +17,7 @@ shared ABI.
 The descriptor ABI in this document is the public ABI for `$bankcall`.
 The compiler, assembler, and linker emit the three-byte `.banktarget` field.
 F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC, FA2-24/28, JANE, 0840, UA, UASW,
-0FA0, WD, 3F, and 3E are fully migrated: their bank-local trampolines consume the
+0FA0, WD, 3F, 3E, and 3EX are fully migrated: their bank-local trampolines consume the
 destination descriptor directly and carry a baked source descriptor on the
 hardware stack.
 
@@ -137,7 +137,7 @@ The mapper-specific `bankcall.s26` owns the interpretation of the byte.
 
 The mapper-specific `entry.s26` owns reset-entry normalization for migrated
 descriptor-ABI mappers. The fragment is variable length and may be empty when
-hardware already guarantees the startup mapping, as with 3F/3E. When selector
+hardware already guarantees the startup mapping, as with 3F/3E/3EX. When selector
 normalization is required, the linker replicates the maintained entry bytes ahead
 of the ordinary vector handler so reset reaches the runtime only after the
 canonical startup bank/state is visible. Selector-read entries spell the
@@ -153,6 +153,8 @@ Examples of useful descriptor choices include:
 - 0FA0: `$A0` or `$C0`, suitable for the canonical selector aliases;
 - WD: `1` or `2`, selecting the two relocation-safe compiler arrangements via
   raw `op1C` absolute-X reads from `$0038` (`$39` / `$3A`);
+- 3EX: lower selectable ROM bank number `$00-$FE`; `$FF` identifies the fixed
+  final bank and is handled as the no-switch sentinel by the mapper trampoline;
 - a write-selected mapper: the exact selector value to write; and
 - F0: the bank ID, allowing the mapper-specific trampoline to compute how many
   `$1FF0` advances are required.

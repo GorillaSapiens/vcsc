@@ -5,7 +5,7 @@
 ; Selectable lower-window banks use descriptors $00-$FE, equal to the value
 ; written to TIA $3F.  The permanently visible final 2K bank uses descriptor
 ; $FF as a sentinel meaning "do not change the lower window".  Every call that
-; crosses between differently placed 3E code regions goes through this block:
+; crosses between differently placed 3EX code regions goes through this block:
 ;
 ;   lower A -> lower B : select B, call, restore A before returning
 ;   lower A -> fixed   : call fixed without switching, restore A on return
@@ -125,11 +125,5 @@ __vcsc_generic_bankcall_switch_and_jump:
 @destination_fixed:
     jmp (VCSC_BANKCALL_PTR0)
 
-; Stella 7.0 detects 3EX by finding at least two ASCII "3EX" strings
-; anywhere in the ROM.  Keep both copies in unreachable trampoline data;
-; do not entangle mapper detection with reset-entry executable code.
-__vcsc_3ex_detector_markers:
-    .byte $33, $45, $58, $33, $45, $58
-
 __vcsc_generic_bankcall_end:
-__vcsc_generic_bankcall_reserved_end = $6060
+__vcsc_generic_bankcall_reserved_end = $6058

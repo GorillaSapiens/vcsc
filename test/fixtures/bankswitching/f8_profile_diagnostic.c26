@@ -1,4 +1,12 @@
+#ifdef VCSC_PROFILE_F6
+include "F6/mapper.c26"
+#else
+#ifdef VCSC_PROFILE_F4
+include "F4/mapper.c26"
+#else
 include "F8/mapper.c26"
+#endif
+#endif
 
 // Unmarked code is automatically placed; named modifiers are hard pins.
 

@@ -3,12 +3,13 @@
 
 Status
 ------
-Bankswitching Item 38b's core migration is complete. Item 38c now has the full
+Bankswitching Item 38b's core migration is complete. Item 38c has the full
 255 x 255 selectable-ROM call matrix and Stella-compatible 32K RAM capacity
-covered by `19_3e_max`. The remaining stress item is VCSC's extended 256K 3E
-RAM through compiler-managed `$swapram`; that unfinished work stays in
-`.../bankswitching.txt`. This file remains the compact durable core-design
-closeout.
+covered by `19_3e_max`. The separate pre-FC extended-3E 256K capacity-torture
+milestone was retired after `20_3ex_max` certified the same full compiler/linker
+256 x 1K `$swapram` capacity under Stella-compatible 3EX; focused 3E helper and
+simulator tests still cover selector values through 255. This file remains the
+compact durable core-design closeout.
 
 Hardware / ABI invariants
 -------------------------
@@ -18,8 +19,10 @@ Tigervision 3E keeps one final 2K ROM bank permanently visible at
 `$1000-$13FF`, writes use the split alias `$1400-$17FF`.
 
 VCSC deliberately supports the full 8-bit `$3E` selector range: 256 x 1K =
-256K RAM. Current Stella `3E` models only 32 x 1K; Stella `3EX` is a separate
-mapper with 512-byte RAM-bank geometry and is tracked separately.
+256K RAM. Current Stella `3E` models only 32 x 1K. Stella `3EX` is a separate
+mapper but implements the full 256 x 1K / 256K RAM shape; its image metadata and
+detection contract are what make it distinct. The old 512-byte-bank description
+was Stella development discussion, not the implemented mapper.
 
 Because RAM replaces executable lower ROM, selected RAM is temporary fixed-bank
 data state, not generic bankcall state. 3E ROM calls therefore use the settled
