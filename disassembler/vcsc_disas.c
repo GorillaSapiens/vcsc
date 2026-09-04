@@ -949,8 +949,8 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
    case MAP_WD: *bank_size = 1024u; *bank_count = 8u; return rom_size == 8192u;
    case MAP_WDSW: *bank_size = 1024u; *bank_count = 8u; return rom_size == 8195u;
    case MAP_FC: *bank_size = 4096u; *bank_count = rom_size / 4096u;
-      return rom_size == 4096u || rom_size == 8192u ||
-             rom_size == 16384u || rom_size == 32768u;
+      return rom_size >= 4096u && rom_size <= 1048576u &&
+             (rom_size % 4096u) == 0u && *bank_count <= 256u;
    case MAP_E0: *bank_size = 1024u; *bank_count = 8u; return rom_size == 8192u;
    case MAP_E7: *bank_size = 2048u; *bank_count = rom_size / 2048u;
       return rom_size == 8192u || rom_size == 12288u || rom_size == 16384u;
@@ -1172,11 +1172,16 @@ static int is_probably_fc(const uint8_t *rom, size_t size)
       { 0x8Cu, 0xF9u, 0xFFu, 0xADu, 0xFCu, 0xFFu }  /* 3-D Havoc: STY $FFF9; LDA $FFFC */
    };
    size_t i;
+   if (size < 4096u || size > 1048576u || (size % 4096u) != 0u)
+      return 0;
+   /* VCSC writes its explicit profile signature at $FFF8-$FFFB of the final
+    * physical bank.  This safely identifies parameterized FC images beyond
+    * the handful of sizes covered by Stella's historical byte signatures. */
+   if (memcmp(rom + size - 8u, "FC\0\0", 4u) == 0)
+      return 1;
    if (size != 4096u && size != 8192u && size != 16384u && size != 32768u)
       return 0;
-   /* Match Stella's FC detector exactly.  These byte sequences are much more
-    * discriminating than treating ordinary $1FF8/$1FF9 traffic as FC because
-    * F8/F6/F4 use the same neighborhood for immediate bank selection. */
+   /* Match Stella's FC detector for legacy conventional-size images. */
    for (i = 0; i < sizeof(signatures) / sizeof(signatures[0]); ++i)
       if (count_signature(rom, size, signatures[i], sizeof(signatures[i])))
          return 1;
@@ -1256,7 +1261,8 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
    case 10240u: case 10495u: mapper = MAP_DPC; break;
    case 8195u: mapper = MAP_WDSW; break;
    default: mapper = is_probably_3e(rom, size) ? MAP_3E :
-                    (is_probably_3f(rom, size) ? MAP_3F : MAP_RAW); break;
+                    (is_probably_3f(rom, size) ? MAP_3F :
+                    (is_probably_fc(rom, size) ? MAP_FC : MAP_RAW)); break;
    }
    if (mapper == MAP_2K && is_doubled_2k_dump(rom, size)) {
       *bank_size = 2048u;

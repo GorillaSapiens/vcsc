@@ -238,8 +238,14 @@ index(slurp(File::Spec->catfile($repo,qw(examples .gitignore))),'!09_bankswitchi
 -f File::Spec->catfile($repo,qw(libraries vcs 3EX bankcall.s26)) &&
 -f File::Spec->catfile($repo,qw(libraries vcs 3EX README.md)) &&
 -f File::Spec->catfile($repo,qw(examples 09_bankswitching 20_3ex_max make_torture.pl)) &&
-index($bankswitching,'[ ] 38d. Implement/migrate FC.')>=0 &&
-index($bankswitching,'256 physical 4K')>=0 &&
+-f File::Spec->catfile($test,'vcs_fc.pl') &&
+-f File::Spec->catfile($repo,qw(libraries vcs FC mapper.c26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs FC bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs FC entry.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs FC README.md)) &&
+-f File::Spec->catfile($repo,qw(examples 09_bankswitching 21_fc fc_diagnostic.c26)) &&
+index($bankswitching,'FC descriptors are')>=0 &&
+index($bankswitching,'reserves 112 bytes (`$070`)')>=0 &&
 index($bankswitching,'[ ] 38e. Implement/migrate F0.')>=0 &&
 index($bankswitching,'[ ] 38f. Design automatic E0 calls.')>=0 &&
 index($bankswitching,'advances through `$1FF0`')>=0 &&
@@ -285,8 +291,9 @@ index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_uasw_bankcall
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m0fa0_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_wd_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m3f_bankcall_template')>=0 &&
+index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_fc_bankcall_template')>=0 &&
 index($bankswitching,'F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,')>=0 &&
-index($bankswitching,'FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, 3F, and 3E consume it end to end')>=0 &&
+index($bankswitching,'FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, 3F, 3E, and FC consume it end to end')>=0 &&
 index($bankswitching,'[ ] 38. Complete the remaining automatic-call mapper work.')>=0 &&
 $bankswitching !~ /^\[ \] 37\./m &&
 $bankswitching !~ /^\[ \] 42\./m &&

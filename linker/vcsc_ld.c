@@ -32,6 +32,7 @@
 #include "m3f_bankcall_template.h"
 #include "m3e_bankcall_template.h"
 #include "m3ex_bankcall_template.h"
+#include "fc_bankcall_template.h"
 #include "mapper_entry_templates.h"
 
 static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg);
@@ -2024,6 +2025,18 @@ static int c26_topology_is_3ex(const linker_config_t *cfg)
           cart->signature[2] == 'X' && cart->signature[3] == 0;
 }
 
+//! @brief Return whether the C26 topology is Amiga Power Play FC.
+static int c26_topology_is_fc(const linker_config_t *cfg)
+{
+   const topology_cartridge_t *cart;
+   if (!cfg || cfg->topology_bank_count < 1u || cfg->topology_bank_count > 256u)
+      return 0;
+   cart = &cfg->topology_cartridge;
+   return (cart->present_mask & 0x80u) &&
+          cart->signature[0] == 'F' && cart->signature[1] == 'C' &&
+          cart->signature[2] == 0 && cart->signature[3] == 0;
+}
+
 //! @brief Build the linker's full-window selector machinery from C26 topology.
 static void apply_c26_topology_to_linker_config(linker_config_t *cfg)
 {
@@ -2042,7 +2055,7 @@ static void apply_c26_topology_to_linker_config(linker_config_t *cfg)
    cfg->banks = NULL;
    cfg->bank_count = 0;
    cfg->mapper[0] = '\0';
-   cfg->cartridge_banked = selector_count != 0 || c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg) || c26_topology_is_3ex(cfg);
+   cfg->cartridge_banked = selector_count != 0 || c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg) || c26_topology_is_3ex(cfg) || c26_topology_is_fc(cfg);
    cfg->cartridge_fill_value = cfg->topology_cartridge.fill_value;
 
    if (cfg->cartridge_banked) {
@@ -2367,6 +2380,45 @@ static void validate_c26_3f_family_topology(const linker_config_t *cfg)
    }
 }
 
+//! @brief Validate Amiga Power Play FC's staged full-window topology.
+static void validate_c26_fc_topology(const linker_config_t *cfg)
+{
+   size_t i;
+   size_t startup_count = 0;
+   for (i = 0; i < cfg->topology_bank_count; ++i) {
+      const topology_bank_t *bank = &cfg->topology_banks[i];
+      if (bank->data_only || bank->image_size != 0x1000u ||
+          bank->image_offset != 0 || bank->link_start != 0xf000u ||
+          bank->cpu_start != 0xf000u || bank->map_size != 0x1000u ||
+          bank->has_selector) {
+         fprintf(stderr,
+                 "vcsc-ld: FC bank '%s' must be one selector-free canonical $F000-$FFFF 4K physical bank\n",
+                 bank->name);
+         exit(1);
+      }
+      if (!bank->has_bankcall_descriptor ||
+          bank->bankcall_descriptor != (uint8_t)bank->file_index) {
+         fprintf(stderr,
+                 "vcsc-ld: FC bank '%s' descriptor must equal its physical/file bank index\n",
+                 bank->name);
+         exit(1);
+      }
+      if (bank->startup) {
+         startup_count++;
+         if (bank->file_index != 0u) {
+            fprintf(stderr,
+                    "vcsc-ld: FC startup/home marker must be on physical/file bank 0\n");
+            exit(1);
+         }
+      }
+   }
+   if (startup_count != 1u) {
+      fprintf(stderr,
+              "vcsc-ld: FC topology requires physical/file bank 0 as the single startup/home bank\n");
+      exit(1);
+   }
+}
+
 //! @brief Validate the segmented 8x1K Parker Brothers E0 output profile.
 static void validate_c26_e0_topology(const linker_config_t *cfg)
 {
@@ -2536,6 +2588,7 @@ static void validate_c26_topology(linker_config_t *cfg)
    int dpc_profile;
    int fa2_profile;
    int threef_family;
+   int fc_profile;
 
    if (cfg->topology_bank_count == 0) {
       if (cfg->topology_cartridge.present) {
@@ -2554,6 +2607,7 @@ static void validate_c26_topology(linker_config_t *cfg)
    dpc_profile = c26_topology_is_dpc(cfg);
    fa2_profile = c26_topology_is_fa2(cfg);
    threef_family = c26_topology_is_3f_family(cfg);
+   fc_profile = c26_topology_is_fc(cfg);
 
    for (i = 0; i < cfg->topology_bank_count; ++i) {
       topology_bank_t *bank = &cfg->topology_banks[i];
@@ -2608,7 +2662,7 @@ static void validate_c26_topology(linker_config_t *cfg)
             linker/CPU address window.  Physical identity is carried by the
             file-index image plane; overlap is only an allocation error within
             one owned mem region, not between separate cartridge banks. */
-         if (!e0_profile && !wd_profile && !fe_profile && !threef_family && !bank->has_selector && !other->has_selector &&
+         if (!e0_profile && !wd_profile && !fe_profile && !threef_family && !fc_profile && !bank->has_selector && !other->has_selector &&
              ranges_overlap_u32(bank->cpu_start, bank->map_size,
                                 other->cpu_start, other->map_size)) {
             fprintf(stderr, "vcsc-ld: directly mapped CPU ranges '%s' and '%s' overlap\n",
@@ -2636,6 +2690,8 @@ static void validate_c26_topology(linker_config_t *cfg)
       validate_c26_fa2_topology(cfg);
    if (threef_family)
       validate_c26_3f_family_topology(cfg);
+   if (fc_profile)
+      validate_c26_fc_topology(cfg);
 
    if (selector_count && selector_count != mapped_bank_count) {
       fprintf(stderr, "vcsc-ld: mixed direct and selector-controlled banks require a future window/device model\n");
@@ -3567,7 +3623,30 @@ static void validate_linker_config(linker_config_t *cfg)
       exit(1);
    }
 
-   if (c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg) || c26_topology_is_3ex(cfg)) {
+   if (c26_topology_is_fc(cfg)) {
+      for (i = 0; i < cfg->bank_count; ++i) {
+         cartridge_bank_t *bank = &cfg->banks[i];
+         if (bank->startup) startup_count++;
+         const topology_bank_t *top = NULL;
+         for (j = 0; j < cfg->topology_bank_count; ++j)
+            if (!strcmp(cfg->topology_banks[j].name, bank->name)) { top = &cfg->topology_banks[j]; break; }
+         if (!top || bank->size != 0x1000u || bank->start != 0xf000u ||
+             bank->hotspot != 0u || !bank->has_bankcall_descriptor ||
+             bank->bankcall_descriptor != (uint8_t)top->file_index ||
+             bank->startup != (top->file_index == 0u)) {
+            fprintf(stderr,
+                    "vcsc-ld: FC bank '%s' must map $F000 with descriptor=file index and startup only on bank 0\n",
+                    bank->name);
+            exit(1);
+         }
+         for (j = i + 1; j < cfg->bank_count; ++j) {
+            if (str_ieq(bank->name, cfg->banks[j].name)) {
+               fprintf(stderr, "vcsc-ld: duplicate BANKS entry '%s'\n", bank->name);
+               exit(1);
+            }
+         }
+      }
+   } else if (c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg) || c26_topology_is_3ex(cfg)) {
       size_t final_index = cfg->topology_bank_count - 1u;
       for (i = 0; i < cfg->bank_count; ++i) {
          cartridge_bank_t *bank = &cfg->banks[i];
@@ -9930,7 +10009,7 @@ static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg)
    size_t i;
    int saw_selector = 0;
    if (!cfg) return 0;
-   if (c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg) || c26_topology_is_3ex(cfg)) {
+   if (c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg) || c26_topology_is_3ex(cfg) || c26_topology_is_fc(cfg)) {
       if (cfg->bank_count != cfg->topology_bank_count) return 0;
       for (i = 0; i < cfg->bank_count; ++i)
          if (!cfg->banks[i].has_bankcall_descriptor) return 0;
@@ -9958,10 +10037,25 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
    int threef = c26_topology_is_3f(cfg);
    int threee = c26_topology_is_3e(cfg);
    int threeex = c26_topology_is_3ex(cfg);
+   int fc = c26_topology_is_fc(cfg);
 
    if (!cfg) {
       fprintf(stderr, "vcsc-ld: generic inline-target bank calls require a banked cartridge profile\n");
       exit(1);
+   }
+
+   if (fc) {
+      for (i = 0; i < cfg->topology_bank_count; ++i) {
+         const topology_bank_t *bank = c26_topology_bank_by_file_index(cfg, (uint16_t)i);
+         if (!bank || bank->data_only || bank->has_selector ||
+             !bank->has_bankcall_descriptor ||
+             bank->bankcall_descriptor != (uint8_t)i) {
+            fprintf(stderr,
+                    "vcsc-ld: FC inline-target calls require descriptor equal to physical/file bank index 0..N-1\n");
+            exit(1);
+         }
+      }
+      return 0u; /* FC stages descriptor bits explicitly; no indexed selector base. */
    }
 
    if (threef || threee || threeex) {
@@ -10118,6 +10212,8 @@ static uint16_t generic_bankcall_reserved_size(const linker_config_t *cfg)
       return VCSC_M3E_BANKCALL_RESERVED_SIZE;
    if (c26_topology_is_3ex(cfg))
       return VCSC_M3EX_BANKCALL_RESERVED_SIZE;
+   if (c26_topology_is_fc(cfg))
+      return VCSC_FC_BANKCALL_RESERVED_SIZE;
    if (bankcall_descriptor_abi_enabled(cfg))
       return VCSC_GENERIC_BANKCALL_RESERVED_SIZE;
    fprintf(stderr,
@@ -10918,6 +11014,8 @@ static const uint8_t *mapper_entry_template(const linker_config_t *cfg, size_t *
       ENTRY(m3e);
    if (SIG4('3','E','X',0))
       ENTRY(m3ex);
+   if (SIG4('F','C',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "FC")))
+      ENTRY(fc);
 #undef ENTRY
 #undef SIG4
    return NULL;
@@ -11259,6 +11357,22 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
          source_descriptor,
          VCSC_M3EX_BANKCALL_SWITCH_OFFSET,
          VCSC_M3EX_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
+         selector_base, canonical_base, ptr0);
+   }
+   else if (c26_topology_is_fc(cfg)) {
+      instantiate_bankcall_template(table,
+         vcsc_fc_bankcall_template,
+         VCSC_FC_BANKCALL_TEMPLATE_SIZE,
+         VCSC_FC_BANKCALL_RESERVED_SIZE,
+         vcsc_fc_bankcall_ptr_patches,
+         VCSC_FC_BANKCALL_PTR_PATCH_COUNT,
+         vcsc_fc_bankcall_selector_patches,
+         VCSC_FC_BANKCALL_SELECTOR_PATCH_COUNT,
+         vcsc_fc_bankcall_source_descriptor_patches,
+         VCSC_FC_BANKCALL_SOURCE_DESCRIPTOR_PATCH_COUNT,
+         source_descriptor,
+         VCSC_FC_BANKCALL_SWITCH_OFFSET,
+         VCSC_FC_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
          selector_base, canonical_base, ptr0);
    }
    else if (bankcall_descriptor_abi_enabled(cfg)) {

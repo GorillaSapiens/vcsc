@@ -83,7 +83,7 @@ profiles.
 For an unbanked image, `type=ro` MEMORY ranges reject guest writes.  For a
 banked image, the simulator additionally:
 
-- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, Harmony `FA2`, `JANE`, `0840`, `UA`, `UASW`, `0FA0`, `E0`, `FE`, `DPC`, `3F`, or `3E` (plus the SC variants);
+- accepts `mapper=F8`, `F6`, `F4`, CBS `FA`, Harmony `FA2`, `JANE`, `0840`, `UA`, `UASW`, `0FA0`, `E0`, `FE`, `DPC`, `3F`, `3E`, `3EX`, or `FC` (plus the SC variants);
 - loads each physical `.bin` chunk into the logical range named by its BANKS
   entry (4K for the conventional banked profiles and FE, 1K for E0);
 - maps every CPU cartridge-window fetch through the currently selected physical
@@ -288,6 +288,14 @@ A11, A8, or A4-A0 behave identically. Reads and writes below the cartridge windo
 still reach the underlying console-side memory model before the bank-switch side
 effect. Generated cross-bank transitions use the state-preserving absolute-NOP
 read path introduced for 0840.
+
+### FC / Amiga Power Play
+
+`mapper=FC` maps one of 1..256 physical 4K banks at `$F000-$FFFF`. Writes to
+`$1FF8` stage selector bits 0..1, writes to `$1FF9` stage bits 2..7, and an
+access to `$1FFC` commits the pending selector. VCSC intentionally caps the
+profile at 256 banks so the physical bank number is exactly the one-byte
+`$bankcall` descriptor. Reset starts in physical bank 0.
 
 ### 3F / 3E
 

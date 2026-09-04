@@ -20,7 +20,8 @@ constexpr uint16_t kRomBase = 0xF000;
 constexpr size_t kBankSize = 4096;
 constexpr size_t kF8RomSize = 8192;
 constexpr size_t kF4RomSize = 32768;
-constexpr size_t kMaxRomSize = 512u * 1024u;
+constexpr size_t kMaxThreeRomSize = 512u * 1024u;
+constexpr size_t kMaxRomSize = 1024u * 1024u;
 constexpr uint64_t kCyclesPerScanline = 76;
 constexpr uint64_t kExpectedDisplayedScanlines = 262;
 // This deliberately minimal harness does not model Stella's full TIA frame
@@ -62,13 +63,16 @@ uint8_t cartridge_image[kMaxRomSize];
 uint8_t superchip_ram[128];
 uint8_t threee_ram[256][1024];
 size_t cartridge_size = 0;
-enum class CartridgeTimingMapper { Plain, F8, F4SC, ThreeF, ThreeE };
+enum class CartridgeTimingMapper { Plain, F8, F4SC, ThreeF, ThreeE, FC };
 CartridgeTimingMapper cartridge_mapper = CartridgeTimingMapper::Plain;
 unsigned selected_f8_chunk = 1;
 unsigned selected_f4_chunk = 7;
 unsigned selected_three_chunk = 0;
 unsigned three_bank_count = 4;
 unsigned three_fixed_chunk = 3;
+unsigned fc_bank_count = 1;
+unsigned selected_fc_bank = 0;
+unsigned pending_fc_bank = 0;
 bool threee_ram_selected = false;
 unsigned threee_ram_bank = 0;
 
@@ -118,6 +122,13 @@ uint8_t read_three_cartridge(uint16_t address) {
       return 0xff;
    }
    return cartridge_image[selected_three_chunk * 0x0800u + (bus - 0x1000u)];
+}
+
+uint8_t read_fc_cartridge(uint16_t address) {
+   const uint16_t bus = address & 0x1fff;
+   if (bus == 0x1ffcu)
+      selected_fc_bank = pending_fc_bank % fc_bank_count;
+   return cartridge_image[selected_fc_bank * kBankSize + (bus - 0x1000u)];
 }
 uint64_t virtual_cycles = 0;
 std::vector<WriteEvent> writes;
@@ -332,6 +343,8 @@ uint8_t read_bus(uint16_t address) {
    maybe_select_banked(address);
    if (three_mapper() && (address & 0x1000))
       return read_three_cartridge(address);
+   if (cartridge_mapper == CartridgeTimingMapper::FC && (address & 0x1000))
+      return read_fc_cartridge(address);
    if (cartridge_mapper == CartridgeTimingMapper::F8 && (address & 0x1000)) {
       const uint16_t offset = address & 0x0fff;
       if (offset >= 0x0080 && offset <= 0x00ff) {
@@ -368,7 +381,20 @@ uint8_t read_bus(uint16_t address) {
 void write_bus(uint16_t address, uint8_t value) {
    maybe_select_banked(address);
    const uint16_t bus = address & 0x1fff;
-   if (cartridge_mapper == CartridgeTimingMapper::ThreeF && bus <= 0x003f) {
+   if (cartridge_mapper == CartridgeTimingMapper::FC && bus == 0x1ff8u) {
+      pending_fc_bank = static_cast<unsigned>(value & 0x03u);
+   }
+   else if (cartridge_mapper == CartridgeTimingMapper::FC && bus == 0x1ff9u) {
+      const unsigned high = static_cast<unsigned>(value) << 2u;
+      if (high < fc_bank_count)
+         pending_fc_bank = (pending_fc_bank + high) % fc_bank_count;
+      else
+         pending_fc_bank = static_cast<unsigned>(value) % fc_bank_count;
+   }
+   else if (cartridge_mapper == CartridgeTimingMapper::FC && bus == 0x1ffcu) {
+      selected_fc_bank = pending_fc_bank % fc_bank_count;
+   }
+   else if (cartridge_mapper == CartridgeTimingMapper::ThreeF && bus <= 0x003f) {
       selected_three_chunk = static_cast<unsigned>(value) % three_bank_count;
       threee_ram_selected = false;
    }
@@ -390,6 +416,7 @@ void write_bus(uint16_t address, uint8_t value) {
       superchip_ram[address & 0x7f] = value;
    }
    else if (!(three_mapper() && (address & 0x1000)) &&
+            !(cartridge_mapper == CartridgeTimingMapper::FC && (address & 0x1000)) &&
             !(cartridge_mapper == CartridgeTimingMapper::F8 && (address & 0x1000)) &&
             !(cartridge_mapper == CartridgeTimingMapper::F4SC && (address & 0x1000)) &&
             address < kRomBase) {
@@ -1164,7 +1191,7 @@ int main(int argc, char **argv) {
         rom_size != static_cast<std::streamoff>(kF4RomSize) &&
         (rom_size < static_cast<std::streamoff>(kF8RomSize) ||
          (rom_size % 0x0800) != 0))) {
-      fail("unsupported ROM size (expected 4K/8K/32K or signed 3F/3E/3EX 2K-bank image up to 512K)");
+      fail("unsupported ROM size (expected 4K/8K/32K, signed 3F/3E/3EX, or signed FC image up to 1MiB)");
    }
    cartridge_size = static_cast<size_t>(rom_size);
    rom.seekg(0, std::ios::beg);
@@ -1173,21 +1200,32 @@ int main(int argc, char **argv) {
       fail("could not read complete ROM");
    }
    const uint8_t *signature = cartridge_image + cartridge_size - 8u;
-   if ((cartridge_size % 0x0800u) == 0u && has_3ex_detector_markers()) {
+   if ((cartridge_size % kBankSize) == 0u &&
+       cartridge_size <= 256u * kBankSize &&
+       std::memcmp(signature, "FC\0\0", 4) == 0) {
+      cartridge_mapper = CartridgeTimingMapper::FC;
+      fc_bank_count = static_cast<unsigned>(cartridge_size / kBankSize);
+      selected_fc_bank = 0;
+      pending_fc_bank = 0;
+   }
+   else if (cartridge_size <= kMaxThreeRomSize &&
+            (cartridge_size % 0x0800u) == 0u && has_3ex_detector_markers()) {
       cartridge_mapper = CartridgeTimingMapper::ThreeE;
       three_bank_count = static_cast<unsigned>(cartridge_size / 0x0800u);
       three_fixed_chunk = three_bank_count - 1u;
       selected_three_chunk = 0;
       threee_ram_selected = false;
    }
-   else if ((cartridge_size % 0x0800u) == 0u &&
+   else if (cartridge_size <= kMaxThreeRomSize &&
+            (cartridge_size % 0x0800u) == 0u &&
             std::memcmp(signature, "3F\0\0", 4) == 0) {
       cartridge_mapper = CartridgeTimingMapper::ThreeF;
       three_bank_count = static_cast<unsigned>(cartridge_size / 0x0800u);
       three_fixed_chunk = three_bank_count - 1u;
       selected_three_chunk = 0;
    }
-   else if ((cartridge_size % 0x0800u) == 0u &&
+   else if (cartridge_size <= kMaxThreeRomSize &&
+            (cartridge_size % 0x0800u) == 0u &&
             std::memcmp(signature, "3E\0\0", 4) == 0) {
       cartridge_mapper = CartridgeTimingMapper::ThreeE;
       three_bank_count = static_cast<unsigned>(cartridge_size / 0x0800u);
@@ -1211,7 +1249,7 @@ int main(int argc, char **argv) {
       std::memcpy(memory_image + kRomBase, cartridge_image, kBankSize);
    }
    else {
-      fail("nonstandard 2K-bank ROM lacks a 3F/3E/3EX signature");
+      fail("nonstandard banked ROM lacks a 3F/3E/3EX/FC signature");
    }
 
    if (released_inputs) {

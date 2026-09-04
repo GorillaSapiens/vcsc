@@ -143,7 +143,7 @@ signatures are padded with ASCII NUL, never space or underscore. Current
 signatures include:
 
     4KSC  F8\0\0  F8SC  F6\0\0  F6SC  F4\0\0  F4SC  FA\0\0
-    CV\0\0  OMNI  JANE  0840  UA\0\0  UASW  0FA0  E0\0\0  FE\0\0  WD\0\0  DPC\0  FA2\0  3F\0\0  3E\0\0
+    CV\0\0  OMNI  JANE  0840  UA\0\0  UASW  0FA0  E0\0\0  FE\0\0  WD\0\0  DPC\0  FA2\0  3F\0\0  3E\0\0  FC\0\0
 
 The bytes are metadata; real hardware switches because the hotspot address is
 accessed, not because of the stored byte value.
@@ -174,12 +174,12 @@ move accordingly.
 
 Implementation checkpoint: the compiler/assembler/linker use the six-byte
 descriptor ABI and `__bankmeta$V3`. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,
-FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, 3F, and 3E consume it end to end and
+FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, 3F, 3E, and FC consume it end to end and
 those migrated profiles declare `$bankcall` unconditionally. They own
 `bankcall.s26` and variable-length `entry.s26`; maintained entry bytes run before
 the normal vector handler. Selector-normalizing hooks use raw `op0C` for fixed
 selector reads, avoiding an assembler `--illegal` dependency. Zero-length entry
-fragments are valid; 3F and 3E use one because their fixed bank is permanently visible.
+fragments are valid; 3F, 3E, and FC use one where hardware already guarantees the startup mapping.
 FA2 uses
 descriptors `$F5-$FA/$FB` and raw `op1C $1F00,X`; JANE uses
 `$F0/$F1/$F8/$F9` and raw `op1C $1F00,X`; 0840 uses `$00/$40` and raw
@@ -187,9 +187,11 @@ descriptors `$F5-$FA/$FB` and raw `op1C $1F00,X`; JANE uses
 reversing the association; 0FA0 uses `$A0/$C0` and raw `op1C $0F00,X`; WD
 uses descriptors 1/2 and raw `op1C $0038,X` to choose hardware states 1/2.
 3F lower banks use selector-value descriptors `$00-$FE`; fixed uses `$FF` as a
-no-switch sentinel and writes lower selectors with `STX $3F`. The common blocks
-use 68 active bytes with 72 reserved (`$048`); 3F uses 74 active bytes with 80
-reserved (`$050`). Only the descriptor ABI is retained for migrated inline mappers.
+no-switch sentinel and writes lower selectors with `STX $3F`. FC descriptors are
+physical bank IDs `$00-$FF`; the trampoline stages low bits at `$1FF8`, high bits
+at `$1FF9`, and commits via `$1FFC`. The common blocks use 68 active bytes with 72 reserved (`$048`); 3F uses 74 active bytes with 80 reserved (`$050`); FC
+reserves 112 bytes (`$070`). Only the descriptor ABI is retained for migrated
+inline mappers.
 
 Migration acceptance for each remaining mapper: consume the destination
 descriptor directly; bake and push the source descriptor; restore from that byte
@@ -226,15 +228,9 @@ this is future optimizer-locality cleanup, not bankswitching work.
         `$1000-$17FF` bank and `== N+1` makes that same bankN the fixed/startup
         `$1800-$1FFF` bank. The maximum 256 x 2K / 512K shape is a regression.
 
-        WD, 3F, 3E, and 3EX have their core migrations; FE intentionally keeps
+        WD, 3F, 3E, 3EX, and FC have their core migrations; FE intentionally keeps
         its released direct top-level JSR/RTS mechanism. Maximum 3F/3E/3EX
         coverage is executable regression coverage rather than size-only linking.
-
-        [ ] 38d. Implement/migrate FC.
-
-            FC stages selector bits at `$1FF8/$1FF9`; `$1FFC` commits. Support
-            1..256 physical 4K banks (up to 1 MiB), matching the one-byte bankcall
-            descriptor even though the hardware protocol can encode more.
 
         [ ] 38e. Implement/migrate F0.
 

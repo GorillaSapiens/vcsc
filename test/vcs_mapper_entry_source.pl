@@ -29,14 +29,14 @@ my %selector = (
    FA2=>0x1ff5, JANE=>0x1ff1, '0840'=>0x0800, UA=>0x0220,
    UASW=>0x0240, '0FA0'=>0x0fc0, WD=>0x0039,
 );
-my @mapper = qw(F8 F8SC F6 F6SC F4 F4SC FA DPC FA2 JANE 0840 UA UASW 0FA0 WD 3F 3E 3EX);
+my @mapper = qw(F8 F8SC F6 F6SC F4 F4SC FA DPC FA2 JANE 0840 UA UASW 0FA0 WD 3F 3E 3EX FC);
 my $top = read_file(File::Spec->catfile($repo, 'Makefile'));
 my @spec;
 for my $mapper (@mapper) {
    my $src = File::Spec->catfile($repo, 'libraries', 'vcs', $mapper, 'entry.s26');
    -f $src or die "missing $mapper mapper entry source\n";
    my $text = read_file($src);
-   if ($mapper eq '3F' || $mapper eq '3E' || $mapper eq '3EX') {
+   if ($mapper eq '3F' || $mapper eq '3E' || $mapper eq '3EX' || $mapper eq 'FC') {
       $text =~ /__vcsc_mapper_entry_begin:\s*__vcsc_mapper_entry_end:/s &&
       $text !~ /^\s*(?:nop|op[0-9a-f]{2})\b/gmi &&
       index($text, 'empty fragment') >= 0
@@ -85,6 +85,7 @@ my $generated = read_file($fresh);
 $generated =~ /vcsc_m3f_entry_size = 0u;/ &&
 $generated =~ /vcsc_m3e_entry_size = 0u;/ &&
 $generated =~ /vcsc_m3ex_entry_size = 0u;/ &&
+$generated =~ /vcsc_fc_entry_size = 0u;/ &&
 $generated =~ /vcsc_f8_entry_size = 3u;/ &&
 index($generated, 'VCSC_MAPPER_ENTRY_SIZE') < 0
    or die "generated mapper entry header is not variable-length\n";

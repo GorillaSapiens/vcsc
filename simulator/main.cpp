@@ -68,6 +68,7 @@ struct simulator_config_t {
    int fe_mapper;
    int threef_mapper;
    int threee_mapper;
+   int fc_mapper;
    int dpc_mapper;
    size_t startup_bank;
 };
@@ -102,6 +103,7 @@ static std::vector<std::vector<uint8_t>> g_cartridge_rom;
 static size_t g_e0_segment_bank[3] = {0, 0, 0};
 static int g_3e_ram_selected = 0;
 static uint8_t g_3e_ram_bank = 0;
+static uint8_t g_fc_pending = 0;
 static int g_fe_waiting_data = 0;
 static uint8_t g_wd_config = 0;
 static int g_wd_pending = 0;
@@ -301,6 +303,7 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
    cfg->fe_mapper = str_ieq(cfg->mapper, "FE");
    cfg->threef_mapper = str_ieq(cfg->mapper, "3F");
    cfg->threee_mapper = str_ieq(cfg->mapper, "3E") || str_ieq(cfg->mapper, "3EX");
+   cfg->fc_mapper = str_ieq(cfg->mapper, "FC");
    cfg->dpc_mapper = str_ieq(cfg->mapper, "DPC");
 
    for (size_t i = 0; i < cfg->bank_count; ++i)
@@ -308,7 +311,7 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
          any_hotspot = 1;
    cfg->cartridge_banked = !cfg->cartridge_direct_multi &&
       (cfg->bank_count > 1u || any_hotspot || cfg->e0_mapper || cfg->wd_mapper ||
-       cfg->fe_mapper || cfg->threef_mapper || cfg->threee_mapper || cfg->dpc_mapper);
+       cfg->fe_mapper || cfg->threef_mapper || cfg->threee_mapper || cfg->fc_mapper || cfg->dpc_mapper);
 
    if (cfg->bank_count == 0)
       return;
@@ -321,7 +324,7 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
             str_ieq(cfg->mapper, "0840") || str_ieq(cfg->mapper, "UA") ||
             str_ieq(cfg->mapper, "UASW") || str_ieq(cfg->mapper, "0FA0") ||
             cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper ||
-            cfg->threef_mapper || cfg->threee_mapper || cfg->dpc_mapper ||
+            cfg->threef_mapper || cfg->threee_mapper || cfg->fc_mapper || cfg->dpc_mapper ||
             cfg->superchip_mapper)) {
          fprintf(stderr, "vcsc-sim: unsupported mapper '%s'\n", cfg->mapper);
          exit(1);
@@ -356,7 +359,7 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
                  (cfg->threef_mapper || cfg->threee_mapper) ? "2K" : "4K");
          exit(1);
       }
-      if ((cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper || cfg->dpc_mapper ||
+      if ((cfg->e0_mapper || cfg->wd_mapper || cfg->fe_mapper || cfg->fc_mapper || cfg->dpc_mapper ||
            str_ieq(cfg->mapper, "FA2")) && !cfg->banks[i].has_file_index) {
          fprintf(stderr, "vcsc-sim: %s bank '%s' requires an explicit fileindex\n",
                  cfg->mapper, cfg->banks[i].name);
@@ -410,6 +413,10 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
    if ((cfg->threef_mapper || cfg->threee_mapper) &&
        cfg->banks[cfg->startup_bank].file_index != cfg->bank_count - 1u) {
       fprintf(stderr, "vcsc-sim: 3F/3E/3EX startup bank must be the fixed final physical/file bank\n");
+      exit(1);
+   }
+   if (cfg->fc_mapper && cfg->banks[cfg->startup_bank].file_index != 0u) {
+      fprintf(stderr, "vcsc-sim: FC startup bank must be physical/file bank 0\n");
       exit(1);
    }
 
@@ -1593,6 +1600,24 @@ void write_cb(uint16_t addr, uint8_t val) {
 
    {
       uint16_t canonical = (uint16_t)(addr & 0x1fffu);
+      if (g_cfg.fc_mapper) {
+         if (canonical == 0x1ff8u) {
+            g_fc_pending = (uint8_t)(val & 0x03u);
+            return;
+         }
+         if (canonical == 0x1ff9u) {
+            size_t high = (size_t)val << 2;
+            if (high < g_cfg.bank_count)
+               g_fc_pending = (uint8_t)(((size_t)g_fc_pending + high) % g_cfg.bank_count);
+            else
+               g_fc_pending = (uint8_t)((size_t)val % g_cfg.bank_count);
+            return;
+         }
+         if (canonical == 0x1ffcu) {
+            g_selected_bank = bank_index_for_file_index((size_t)g_fc_pending % g_cfg.bank_count);
+            return;
+         }
+      }
       if (g_cfg.threef_mapper && canonical <= 0x003fu) {
          g_selected_bank = bank_index_for_file_index((size_t)val % g_cfg.bank_count);
       }
@@ -1652,6 +1677,8 @@ uint8_t read_cb(uint16_t addr) {
    uint16_t read_offset;
    {
       uint16_t canonical = (uint16_t)(addr & 0x1fffu);
+      if (g_cfg.fc_mapper && canonical == 0x1ffcu)
+         g_selected_bank = bank_index_for_file_index((size_t)g_fc_pending % g_cfg.bank_count);
       if (g_cfg.threee_mapper && g_3e_ram_selected &&
           canonical >= 0x1400u && canonical < 0x1800u) {
          fprintf(stderr, "vcsc-sim: read from 3E RAM write alias at $%04X\n", addr);
@@ -1872,6 +1899,20 @@ int main (int argc, char **argv) {
          g_e0_segment_bank[2] = bank_index_for_file_index(6u);
          g_selected_bank = g_cfg.startup_bank;
       }
+      else if (g_cfg.fc_mapper) {
+         if (opts.start_bank_set) {
+            if (opts.start_bank >= g_cfg.bank_count) {
+               fprintf(stderr, "vcsc-sim: start bank %zu is outside 0..%zu\n",
+                       opts.start_bank, g_cfg.bank_count - 1);
+               return 1;
+            }
+            g_selected_bank = bank_index_for_file_index(opts.start_bank);
+            g_fc_pending = (uint8_t)opts.start_bank;
+         } else {
+            g_selected_bank = bank_index_for_file_index(0u);
+            g_fc_pending = 0u;
+         }
+      }
       else if (g_cfg.threef_mapper || g_cfg.threee_mapper) {
          g_3e_ram_selected = 0;
          if (opts.start_bank_set) {
@@ -1926,6 +1967,10 @@ int main (int argc, char **argv) {
          if (g_cfg_loaded && g_cfg.wd_mapper) {
             g_wd_config = 0u;
             g_wd_pending = 0;
+         }
+         if (g_cfg_loaded && g_cfg.fc_mapper) {
+            g_selected_bank = bank_index_for_file_index(0u);
+            g_fc_pending = 0u;
          }
          cpu->Reset();
          reset_on_pc_done = 1;

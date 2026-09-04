@@ -1,0 +1,218 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+// Amiga Power Play FC PASS/FAIL diagnostic. Eight banks exercise every
+// ordered source/destination call pair, including same-bank direct JSRs.
+instantiate "FC/mapper.c26" as mapper (VCS_FC_BANKS:=8)
+
+#ifndef SIMULATOR_TEST
+include "frame_ntsc.c26"
+include "fonts/default_decimal.c26"
+instantiate "six_glyph_big_wide_component.c26" as status_result
+instantiate "six_glyph_component.c26" as cart_type (compact_font:=0)
+#endif
+
+uint8_t failure;
+uint8_t call_count;
+
+bank0 uint8_t probe0(void) { call_count := call_count + 1; return 0x40; }
+bank1 uint8_t probe1(void) { call_count := call_count + 1; return 0x41; }
+bank2 uint8_t probe2(void) { call_count := call_count + 1; return 0x42; }
+bank3 uint8_t probe3(void) { call_count := call_count + 1; return 0x43; }
+bank4 uint8_t probe4(void) { call_count := call_count + 1; return 0x44; }
+bank5 uint8_t probe5(void) { call_count := call_count + 1; return 0x45; }
+bank6 uint8_t probe6(void) { call_count := call_count + 1; return 0x46; }
+bank7 uint8_t probe7(void) { call_count := call_count + 1; return 0x47; }
+bank7 uint16_t wide_probe(void) { return 0xbeef; }
+
+bank0 void source0(void) {
+   if (probe0() != 0x40) { failure := 0x10; }
+   if (probe1() != 0x41) { failure := 0x10; }
+   if (probe2() != 0x42) { failure := 0x10; }
+   if (probe3() != 0x43) { failure := 0x10; }
+   if (probe4() != 0x44) { failure := 0x10; }
+   if (probe5() != 0x45) { failure := 0x10; }
+   if (probe6() != 0x46) { failure := 0x10; }
+   if (probe7() != 0x47) { failure := 0x10; }
+}
+
+bank1 void source1(void) {
+   if (probe0() != 0x40) { failure := 0x11; }
+   if (probe1() != 0x41) { failure := 0x11; }
+   if (probe2() != 0x42) { failure := 0x11; }
+   if (probe3() != 0x43) { failure := 0x11; }
+   if (probe4() != 0x44) { failure := 0x11; }
+   if (probe5() != 0x45) { failure := 0x11; }
+   if (probe6() != 0x46) { failure := 0x11; }
+   if (probe7() != 0x47) { failure := 0x11; }
+}
+
+bank2 void source2(void) {
+   if (probe0() != 0x40) { failure := 0x12; }
+   if (probe1() != 0x41) { failure := 0x12; }
+   if (probe2() != 0x42) { failure := 0x12; }
+   if (probe3() != 0x43) { failure := 0x12; }
+   if (probe4() != 0x44) { failure := 0x12; }
+   if (probe5() != 0x45) { failure := 0x12; }
+   if (probe6() != 0x46) { failure := 0x12; }
+   if (probe7() != 0x47) { failure := 0x12; }
+}
+
+bank3 void source3(void) {
+   if (probe0() != 0x40) { failure := 0x13; }
+   if (probe1() != 0x41) { failure := 0x13; }
+   if (probe2() != 0x42) { failure := 0x13; }
+   if (probe3() != 0x43) { failure := 0x13; }
+   if (probe4() != 0x44) { failure := 0x13; }
+   if (probe5() != 0x45) { failure := 0x13; }
+   if (probe6() != 0x46) { failure := 0x13; }
+   if (probe7() != 0x47) { failure := 0x13; }
+}
+
+bank4 void source4(void) {
+   if (probe0() != 0x40) { failure := 0x14; }
+   if (probe1() != 0x41) { failure := 0x14; }
+   if (probe2() != 0x42) { failure := 0x14; }
+   if (probe3() != 0x43) { failure := 0x14; }
+   if (probe4() != 0x44) { failure := 0x14; }
+   if (probe5() != 0x45) { failure := 0x14; }
+   if (probe6() != 0x46) { failure := 0x14; }
+   if (probe7() != 0x47) { failure := 0x14; }
+}
+
+bank5 void source5(void) {
+   if (probe0() != 0x40) { failure := 0x15; }
+   if (probe1() != 0x41) { failure := 0x15; }
+   if (probe2() != 0x42) { failure := 0x15; }
+   if (probe3() != 0x43) { failure := 0x15; }
+   if (probe4() != 0x44) { failure := 0x15; }
+   if (probe5() != 0x45) { failure := 0x15; }
+   if (probe6() != 0x46) { failure := 0x15; }
+   if (probe7() != 0x47) { failure := 0x15; }
+}
+
+bank6 void source6(void) {
+   if (probe0() != 0x40) { failure := 0x16; }
+   if (probe1() != 0x41) { failure := 0x16; }
+   if (probe2() != 0x42) { failure := 0x16; }
+   if (probe3() != 0x43) { failure := 0x16; }
+   if (probe4() != 0x44) { failure := 0x16; }
+   if (probe5() != 0x45) { failure := 0x16; }
+   if (probe6() != 0x46) { failure := 0x16; }
+   if (probe7() != 0x47) { failure := 0x16; }
+}
+
+bank7 void source7(void) {
+   if (probe0() != 0x40) { failure := 0x17; }
+   if (probe1() != 0x41) { failure := 0x17; }
+   if (probe2() != 0x42) { failure := 0x17; }
+   if (probe3() != 0x43) { failure := 0x17; }
+   if (probe4() != 0x44) { failure := 0x17; }
+   if (probe5() != 0x45) { failure := 0x17; }
+   if (probe6() != 0x46) { failure := 0x17; }
+   if (probe7() != 0x47) { failure := 0x17; }
+}
+
+#ifndef SIMULATOR_TEST
+include "status_font.c26"
+
+inline void load_pass(void) {
+   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+0;
+   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+1;
+   asm lda #<{status_glyphs + 16};  asm sta status_result_pointers+2;
+   asm lda #>{status_glyphs + 16};  asm sta status_result_pointers+3;
+   asm lda #<{status_glyphs + 32};  asm sta status_result_pointers+4;
+   asm lda #>{status_glyphs + 32};  asm sta status_result_pointers+5;
+   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+6;
+   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+7;
+   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+8;
+   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+9;
+   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+10;
+   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+11;
+}
+
+inline void load_fail(void) {
+   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+0;
+   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+1;
+   asm lda #<{status_glyphs + 64};   asm sta status_result_pointers+2;
+   asm lda #>{status_glyphs + 64};   asm sta status_result_pointers+3;
+   asm lda #<{status_glyphs + 80};   asm sta status_result_pointers+4;
+   asm lda #>{status_glyphs + 80};   asm sta status_result_pointers+5;
+   asm lda #<{status_glyphs + 96};   asm sta status_result_pointers+6;
+   asm lda #>{status_glyphs + 96};   asm sta status_result_pointers+7;
+   asm lda #<{status_glyphs + 112};  asm sta status_result_pointers+8;
+   asm lda #>{status_glyphs + 112};  asm sta status_result_pointers+9;
+   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+10;
+   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+11;
+}
+
+include "cart_type_font.c26"
+
+inline void load_mapper_type(void) {
+   // "  FC  "
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+0;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+1;
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+2;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+3;
+   asm lda #<{cart_type_glyphs + 8};  asm sta cart_type_pointers+4;
+   asm lda #>{cart_type_glyphs + 8};  asm sta cart_type_pointers+5;
+   asm lda #<{cart_type_glyphs + 16}; asm sta cart_type_pointers+6;
+   asm lda #>{cart_type_glyphs + 16}; asm sta cart_type_pointers+7;
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+8;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+9;
+   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+10;
+   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+11;
+}
+
+bank0 void draw_result(void) {
+   status_result_score := 0;
+   cart_type_score := 0;
+   status_result_init();
+   cart_type_init();
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      status_result_vblank();
+      cart_type_vblank();
+      if (failure) { load_fail(); } else { load_pass(); }
+      load_mapper_type();
+      status_result_color := 0x0E;
+      COLUBK := failure ? 0x20 : 0xC4;
+      COLUP0 := 0x0E; COLUP1 := 0x0E;
+      PF0 := 0; PF1 := 0; PF2 := 0; GRP0 := 0; GRP1 := 0;
+      ENAM0 := 0; ENAM1 := 0; ENABL := 0; CTRLPF := 0;
+      vcs_ntsc_end_vblank();
+      vcs_ntsc_wait_component_scanlines(81);
+      status_result_draw();
+      vcs_ntsc_component_handoff();
+      cart_type_draw();
+      vcs_ntsc_wait_visible_tail_scanlines(81);
+      vcs_ntsc_begin_overscan();
+      status_result_overscan();
+      cart_type_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}
+#endif
+
+#ifdef SIMULATOR_TEST
+bank0 void simulator_done(void) { while (1) { } }
+#endif
+
+bank0 void main(void) {
+   failure := 0;
+   call_count := 0;
+   source0();
+   source1();
+   source2();
+   source3();
+   source4();
+   source5();
+   source6();
+   source7();
+   if (call_count != 64) { failure := 0x7f; }
+   if (wide_probe() != 0xbeef) { failure := 0x7e; }
+#ifdef SIMULATOR_TEST
+   asm jmp simulator_done;
+#else
+   draw_result();
+#endif
+}

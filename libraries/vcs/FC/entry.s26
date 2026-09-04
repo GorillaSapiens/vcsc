@@ -1,0 +1,10 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+;
+; FC powers up in physical bank 0 with pending selector 0.  No reset-entry
+; normalization is required, so this is an empty fragment by design.
+.segmentdef "CODE", $6000, $0010
+.segment "CODE"
+.export __vcsc_mapper_entry_begin
+.export __vcsc_mapper_entry_end
+__vcsc_mapper_entry_begin:
+__vcsc_mapper_entry_end:

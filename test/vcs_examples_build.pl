@@ -28,6 +28,7 @@ sub tigervision_bank_count_from_source {
    return $1 + 0 if $text =~ /^\s*instantiate\s+"3F\/mapper\.c26"\s+as\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^\n]*\bVCS_3F_BANKS\s*:=\s*([0-9]+)[^\n]*\)\s*$/m;
    return $1 + 0 if $text =~ /^\s*instantiate\s+"3E\/mapper\.c26"\s+as\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^\n]*\bVCS_3E_BANKS\s*:=\s*([0-9]+)[^\n]*\)\s*$/m;
    return $1 + 0 if $text =~ /^\s*instantiate\s+"3EX\/mapper\.c26"\s+as\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^\n]*\bVCS_3EX_BANKS\s*:=\s*([0-9]+)[^\n]*\)\s*$/m;
+   return -($1 + 0) if $text =~ /^\s*instantiate\s+"FC\/mapper\.c26"\s+as\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^\n]*\bVCS_FC_BANKS\s*:=\s*([0-9]+)[^\n]*\)\s*$/m;
    return undef;
 }
 
@@ -70,6 +71,7 @@ sub profile_from_source {
    return '3f' if $text =~ /^\s*instantiate\s+"3F\/mapper\.c26"\s+as\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^\n]*\bVCS_3F_BANKS\s*:=\s*[0-9]+[^\n]*\)\s*$/m;
    return '3e' if $text =~ /^\s*instantiate\s+"3E\/mapper\.c26"\s+as\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^\n]*\bVCS_3E_BANKS\s*:=\s*[0-9]+[^\n]*\)\s*$/m;
    return '3ex' if $text =~ /^\s*instantiate\s+"3EX\/mapper\.c26"\s+as\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^\n]*\bVCS_3EX_BANKS\s*:=\s*[0-9]+[^\n]*\)\s*$/m;
+   return 'fc' if $text =~ /^\s*instantiate\s+"FC\/mapper\.c26"\s+as\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^\n]*\bVCS_FC_BANKS\s*:=\s*[0-9]+[^\n]*\)\s*$/m;
    return 'dpc' if $text =~ /^\s*include\s+"DPC\/mapper\.c26"\s*$/m;
    return 'f8sc' if $text =~ /^\s*include\s+"F8SC\/mapper\.c26"\s*$/m;
    return 'f6' if $text =~ /^\s*include\s+"F6\/mapper\.c26"\s*$/m;
@@ -223,7 +225,7 @@ for my $entry (@examples) {
    my $tigervision_banks=tigervision_bank_count_from_source($source_text);
    my $expected_size = ($file eq 'bankswitching_diagnostic.c26' ||
                         $file eq 'banked_standard_renderer.c26') ? 8192
-      : defined($tigervision_banks) ? 2048 * $tigervision_banks
+      : defined($tigervision_banks) ? ($tigervision_banks < 0 ? 4096 * -$tigervision_banks : 2048 * $tigervision_banks)
       : ($profile eq '2k' || $profile eq 'cv') ? 2048
       : ($profile eq 'f8' || $profile eq 'f8sc' || $profile eq '0840' || $profile eq 'ua' || $profile eq 'uasw' || $profile eq '0fa0' || $profile eq 'e0' || $profile eq 'fe' || $profile eq 'wd') ? 8192
       : $profile eq 'dpc' ? 10495
@@ -236,7 +238,7 @@ for my $entry (@examples) {
       or die "$dir produced ".length($rom)." bytes, expected $expected_size\n";
    my %known_signature=map { $_=>1 } (
       "4KSC", "F8\0\0", "F8SC", "F6\0\0", "F6SC",
-      "F4\0\0", "F4SC", "FA\0\0", "FA2\0", "CV\0\0", "OMNI", "JANE", "0840", "UA\0\0", "UASW", "0FA0", "E0\0\0", "FE\0\0", "WD\0\0", "3F\0\0", "3E\0\0", "DPC\0",
+      "F4\0\0", "F4SC", "FA\0\0", "FA2\0", "CV\0\0", "OMNI", "JANE", "0840", "UA\0\0", "UASW", "0FA0", "E0\0\0", "FE\0\0", "WD\0\0", "3F\0\0", "3E\0\0", "FC\0\0", "DPC\0",
    );
    # Most profiles keep signature/vectors at the physical image tail. DPC
    # appends non-CPU-addressable display/poly data after its two F8 program

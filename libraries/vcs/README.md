@@ -871,6 +871,22 @@ Because the mapper owns TIA reads at `$30-$3F`, ordinary TIA I/O uses the
 equivalent `$40-$7F` mirror. The final physical chunk carries `WD\0\0` in its
 reserved tail.
 
+### FC / Amiga Power Play profile
+
+`FC/mapper.c26` is parameterized by `VCS_FC_BANKS` from 1 through 256,
+providing 4K through 1 MiB of ROM. Every physical bank deliberately occupies
+the same canonical `$F000-$FFFF` CPU/link window, with physical bank 0 owning
+reset. Writes to `$1FF8` stage the low two selector bits, writes to `$1FF9`
+stage the remaining bits, and a read or write of `$1FFC` commits the pending
+bank.
+
+FC participates in the three-byte inline bank-call descriptor ABI. The
+descriptor is exactly the physical bank index. Each replicated trampoline
+stages and commits the destination descriptor before the remote call, then
+stages and commits its baked source descriptor before returning. This supports
+nested calls and the full 0..255 descriptor range without PC decoding or
+per-target trampoline entries.
+
 ### JANE profile
 
 The public `JANE/mapper.c26` profile emits four complete 4K physical banks in

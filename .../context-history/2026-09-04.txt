@@ -1,0 +1,28 @@
+2026-09-04 07:38:41 PDT, implement FC automatic bankcalls
+Added one parameterized FC mapper for 1..256 physical 4K banks, covering 4K
+through 1 MiB cartridges.  FC descriptors are physical/file bank numbers;
+bankcalls stage descriptor bits through $1FF8 and $1FF9 and commit through
+$1FFC.  Bank 0 is the hardware startup bank, so FC needs no entry code.  The
+compiler, linker, simulator, disassembler, generated bankcall source, install
+rules, public mapper documentation, and independent frame-timing oracle now
+understand FC.
+
+Added public example 09_bankswitching/21_fc.  Its maintained diagnostic executes
+the complete ordered 8 x 8 bankcall matrix, nested restoration, and a 16-bit
+A:X return check while preserving 262-line NTSC frames.  test/vcs_fc.pl also
+builds a 256-bank 1 MiB edge cartridge and executes descriptor $FF, including a
+nested bank255 -> bank127 -> bank255 -> bank0 return path.  The disassembler
+autodetects the generated FC cartridge and reports the staged selector protocol.
+
+2026-09-04 07:38:42 PDT, integrate and certify FC
+Updated generic example-size validation so parameterized FC images use 4K per
+bank rather than the 2K-per-bank 3F/3E/3EX rule.  Updated the forced-mapper
+disassembler negative fixture because 12K is now a valid three-bank FC size;
+the negative case now uses a non-4K-multiple image.  FC source, entry, bankcall,
+example, branding, allowlist, hygiene, and staged-install contracts are locked
+by tests.
+
+Validation completed with 503/503 compile-only tests and 355/355 e2e tests with
+eight workers.  The complete staged make installcheck also passes.  FC roadmap
+work is complete; F0 is next, followed by E0 design.  The separate Stella 3EX
+RAM-write defect remains tracked in .../3ex.txt.

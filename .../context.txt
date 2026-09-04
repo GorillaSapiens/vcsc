@@ -101,7 +101,7 @@ Open workstreams
    `.../bankswitching.txt` owns mapper facts and unfinished work. C26 topology is
    authoritative; VCS mapper/linker cfg profiles are gone.
    The six-byte descriptor call ABI is complete for F8/F6/F4(+SC), FA, DPC,
-   FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, and 3F. Each owns `bankcall.s26`
+   FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, 3F, 3E, 3EX, and FC. Each owns `bankcall.s26`
    and variable-length `entry.s26`; profiles declare `$bankcall`. Entry fragments
    may be empty: 3F uses zero bytes because its fixed vector bank is always
    visible, while selector-normalizing entries use raw `op0C` absolute reads.
@@ -172,7 +172,10 @@ at canonical `$1000-$17FF`; the final chunk is fixed/startup at `$1800-$1FFF`.
 windows do not overwrite one another. Maximum 3F and Stella-compatible maximum
 3E/3EX are executable regressions. 3EX is 256 x 2K / 512K ROM plus 256 x 1K /
 256K `$swapram`; the obsolete 512-byte RAM-bank description was only a Stella
-development discussion. Validation is 503/503 compile-only and 354/354 e2e.
+development discussion. FC is parameterized for 1..256 x 4K physical banks
+(up to 1 MiB), uses physical bank IDs as descriptors, and stages selectors via
+`$1FF8/$1FF9` before `$1FFC` commit. Its regression owns an 8x8 ordered call
+matrix plus executable descriptor `$FF` coverage in a full 1 MiB image.
 
 Main-roadmap Items 46-48 are complete. Item 47 is locked by
 `test/superchip_direct_access.pl`: under 4KSC it fills all 128 Superchip bytes,
@@ -261,16 +264,14 @@ the fingerprint selftest, return-memory map anchoring, two stale renderer cfg
 arguments, and branding. `make tar` from an unpacked/no-.git tree
 now preserves `.../instruction.txt`, with hygiene coverage locking that invariant.
 The post-cfgectomy and mapper changes now pass the complete loaded regression
-suite: 503/503 compile-only tests and 354/354 e2e tests with eight workers,
+suite: 503/503 compile-only tests and 355/355 e2e tests with eight workers,
 including the exhaustive paddle soak and maximum 3F/3E/3EX diagnostics.
 
 Immediate TODO
 --------------
-3F, 3E, and Stella-compatible 3EX automatic-call/`$swapram` work is certified at
-maximum size. `18_3f_max` covers 512K 3F; `19_3e_max` covers 512K ROM plus all
-32K Stella 3E RAM; `20_3ex_max` covers 512K ROM plus all 256 x 1K / 256K 3EX
-RAM across multiple translation units, including the complete 65,535-call ROM
-matrix and a separate 262-line display soak. This retires the separate pre-FC
-extended-3E 256K capacity-torture milestone; VCSC's extended 3E selector range
-remains supported and focused through bank 255. Next migrate FC with a deliberate
-VCSC limit of 256 x 4K / 1 MiB, followed by F0 and E0. FE stays special.
+FC automatic calls are complete through descriptor `$FF` in a full 256 x 4K /
+1 MiB image. The normal `21_fc` diagnostic owns the complete 8 x 8 ordered call
+matrix, A:X return preservation, nested restoration, disassembler recognition,
+and 262-line NTSC timing. Next migrate F0, followed by E0 design. FE stays
+special. The separate `.../3ex.txt` still tracks the upstream Stella >64K 3EX
+RAM-write defect; do not weaken the 256K 3EX diagnostic to accommodate it.

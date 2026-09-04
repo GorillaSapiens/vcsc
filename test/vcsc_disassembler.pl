@@ -2754,10 +2754,10 @@ my $bad_1k_layout = `$disas --mapper 1k "@{[File::Spec->catfile($in, 'plain2k.bi
 die "2K image unexpectedly accepted as forced 1K\n" if $? == 0;
 require_re($bad_1k_layout, qr/incompatible with 2048-byte input/,
    'forced 1K rejects non-1K layout');
-my $bad_fc_layout = `$disas --mapper fc "@{[File::Spec->catfile($in, 'fa.bin')]}" 2>&1`;
-die "12K image unexpectedly accepted as forced FC\n" if $? == 0;
-require_re($bad_fc_layout, qr/incompatible with 12288-byte input/,
-   'forced FC rejects unsupported 12K layout');
+my $bad_fc_layout = `$disas --mapper fc "@{[File::Spec->catfile($in, 'dpc.bin')]}" 2>&1`;
+die "10495-byte image unexpectedly accepted as forced FC\n" if $? == 0;
+require_re($bad_fc_layout, qr/incompatible with 10495-byte input/,
+   'forced FC rejects non-4K-multiple layout');
 my $bad_wd_layout = `$disas --mapper wd "@{[File::Spec->catfile($in, 'wdsw_bad_dump.bin')]}" 2>&1`;
 die "8195-byte WDSW layout unexpectedly accepted as forced WD\n" if $? == 0;
 require_re($bad_wd_layout, qr/incompatible with 8195-byte input/, 'forced WD rejects WDSW layout');
