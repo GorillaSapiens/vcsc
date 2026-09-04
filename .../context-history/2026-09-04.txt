@@ -185,3 +185,8 @@ check. Focused font/catalog/score/diagnostic regressions pass; the full e2e run
 reached 225/356 with no failures before the execution ceiling, and the 3F-max
 diagnostic also passes. The slow 3E/3EX maximum diagnostics did not finish in
 the available tool window and were not observed failing.
+2026-09-04 15:40:36 PDT, center default plus glyph
+Changed the Default ASCII '+' to be vertically symmetric in its 8-row cell:
+one blank row, two center-stem rows, two full-width crossbar rows, two stem
+rows, and one blank row. Bit 7 remains clear and the glyph stays in the 7-pixel
+field. Regenerated font outputs; no derived subset changed.
