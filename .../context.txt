@@ -269,8 +269,9 @@ including the exhaustive paddle soak and maximum 3F/3E/3EX diagnostics.
 
 Immediate TODO
 --------------
-FC is complete through descriptor `$FF` in a 256 x 4K / 1 MiB image. F0 is
-complete: 16 x 4K, startup bank 15, descriptors 0..15, modulo-16 `$1FF0`
-advance/restore, and hotspot-safe tail. `22_f0` owns all 256 ordered
-call pairs, A:X preservation, disassembly, and 262-line NTSC timing. Next design E0 calls. FE stays special. The separate `.../3ex.txt` still tracks the upstream Stella >64K 3EX
-RAM-write defect; do not weaken the 256K 3EX diagnostic to accommodate it.
+Next implement E0 automatic calls using only `[0,1,6,7]`, `[2,3,6,7]`, and
+`[4,5,6,7]`. Banks 6/7 stay at `$1800/$1C00`; the `$1000/$1400` pair switches
+together, power-on `[4,5,6,7]` is the startup state, and arbitrary E0 window
+combinations are outside the automatic-call ABI. FE stays special.
+`.../3ex.txt` still tracks the upstream Stella >64K RAM-write defect; do not
+weaken the 256K 3EX diagnostic to accommodate it.
