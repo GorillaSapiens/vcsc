@@ -8,21 +8,21 @@ alias CART_TYPE_GLYPHS_GLYPH(a,b,c,d,e,f,g,h) h,g,f,e,d,c,b,a
 bank255 const uint8_t cart_type_glyphs[48] := {
    // 0x33 3
    CART_TYPE_GLYPHS_GLYPH(
-      0b..XXXX..,
-      0b.X...XX.,
-      0b.....XX.,
-      0b...XXX..,
-      0b.....XX.,
-      0b.....XX.,
-      0b.X...XX.,
-      0b..XXXX..
+      0b..XXXXX.,
+      0b.X....XX,
+      0b......XX,
+      0b...XXXX.,
+      0b......XX,
+      0b......XX,
+      0b.X....XX,
+      0b..XXXXX.
    ),
    // 0x46 F
    CART_TYPE_GLYPHS_GLYPH(
+      0b.XXXXXXX,
+      0b.XX.....,
+      0b.XX.....,
       0b.XXXXXX.,
-      0b.XX.....,
-      0b.XX.....,
-      0b.XXXXX..,
       0b.XX.....,
       0b.XX.....,
       0b.XX.....,
@@ -43,33 +43,33 @@ bank255 const uint8_t cart_type_glyphs[48] := {
    CART_TYPE_GLYPHS_GLYPH(
       0b........,
       0b........,
-      0b.XX.XX..,
-      0bXXXXXXX.,
-      0bXX.X.XX.,
-      0bXX.X.XX.,
-      0bXX...XX.,
-      0bXX...XX.
+      0b..XX.XX.,
+      0b.XXXXXXX,
+      0b.XX.X.XX,
+      0b.XX.X.XX,
+      0b.XX...XX,
+      0b.XX...XX
    ),
    // 0x61 a
    CART_TYPE_GLYPHS_GLYPH(
       0b........,
       0b........,
-      0b..XXX...,
-      0b....XX..,
       0b..XXXX..,
-      0b.XX.XX..,
-      0b.XXXXX..,
-      0b..XX.XX.
+      0b.....XX.,
+      0b..XXXXX.,
+      0b.XX..XX.,
+      0b.XXXXXX.,
+      0b..XX..XX
    ),
    // 0x78 x
    CART_TYPE_GLYPHS_GLYPH(
       0b........,
       0b........,
-      0b.XX..XX.,
-      0b..XXXX..,
-      0b...XX...,
-      0b..XXXX..,
-      0b.XX..XX.,
-      0b.XX..XX.
+      0b.XX...XX,
+      0b..XXXXX.,
+      0b...XXX..,
+      0b..XXXXX.,
+      0b.XX...XX,
+      0b.XX...XX
    )
 };

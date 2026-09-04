@@ -166,3 +166,22 @@ Focused regressions for sprite orientation, all-five interaction, PAL/SECAM 50Hz
 interaction, multicolor examples, animated-gallery RAM accounting, combined
 181-line 4K sizing, public score controls, assembly allowlist, source hygiene,
 context history, and branding pass.
+
+2026-09-04 15:25:21 PDT, widen Default font to a seven-pixel field
+Reworked `libraries/vcs/fonts/default_ascii.c26` so the Default family uses a
+right-justified seven-pixel coordinate field in bits 6..0 and never sets bit 7.
+Former six-column broad glyphs were widened symmetrically to seven columns; the
+existing seven-column M/W/m/w forms were shifted right one bit; intrinsically
+narrow punctuation remains 3 or 5 pixels wide and is centered in the seven-bit
+field. The slashed zero was preserved in widened form. `make fonts` regenerated
+the Default decimal/hex/lhex modules and every checked-in example subset derived
+from Default ASCII.
+
+Updated the font contract to enforce clear MSBs, seven-column broad glyphs,
+centered narrow glyphs, and the widened slashed zero. Updated the independent
+six-glyph, wide-six-glyph, score-matrix, and three-plus-three raster oracles to
+the new canonical Default digit bytes, plus the generated-subset slashed-zero
+check. Focused font/catalog/score/diagnostic regressions pass; the full e2e run
+reached 225/356 with no failures before the execution ceiling, and the 3F-max
+diagnostic also passes. The slow 3E/3EX maximum diagnostics did not finish in
+the available tool window and were not observed failing.

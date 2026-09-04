@@ -19,24 +19,24 @@ bank0 const uint8_t cart_type_glyphs[24] := {
    ),
    // 0x57 W
    CART_TYPE_GLYPHS_GLYPH(
-      0bXX...XX.,
-      0bXX...XX.,
-      0bXX...XX.,
-      0bXX...XX.,
-      0bXX.X.XX.,
-      0bXXXXXXX.,
-      0bXXX.XXX.,
-      0bXX...XX.
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XX.X.XX,
+      0b.XXXXXXX,
+      0b.XXX.XXX,
+      0b.XX...XX
    ),
    // 0x44 D
    CART_TYPE_GLYPHS_GLYPH(
-      0b.XXXXX..,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XXXXX..
+      0b.XXXXXX.,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XXXXXX.
    )
 };

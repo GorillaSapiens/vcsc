@@ -179,7 +179,7 @@ for my $case (@cases) {
 # Directly lock the canonical slashed zero into one mapper subset. All other
 # copies are protected by the deterministic regeneration comparisons above.
 my $eco=slurp(File::Spec->catfile($repo,'examples','09_bankswitching','08_0840','cart_type_font.c26'));
-$eco =~ m{// 0x30 0\s+\w+\(\s*0b\.\.XXXX\.\.}s
+$eco =~ m{// 0x30 0\s+\w+\(\s*0b\.\.XXXXX\.}s
    or die "EconoBanking generated subset does not contain the canonical slashed zero\n";
 
 print "vcs_generated_font_subsets ok\n";

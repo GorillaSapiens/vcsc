@@ -19,46 +19,46 @@ bank1 page const uint8_t cart_type_glyphs[40] := {
    ),
    // 0x4A J
    CART_TYPE_GLYPHS_GLYPH(
-      0b...XXXX.,
-      0b.....XX.,
-      0b.....XX.,
-      0b.....XX.,
-      0b.....XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b..XXXX..
+      0b...XXXXX,
+      0b......XX,
+      0b......XX,
+      0b......XX,
+      0b......XX,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b..XXXXX.
    ),
    // 0x41 A
    CART_TYPE_GLYPHS_GLYPH(
-      0b..XXXX..,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XXXXXX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.
+      0b..XXXXX.,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XXXXXXX,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XX...XX
    ),
    // 0x4E N
    CART_TYPE_GLYPHS_GLYPH(
-      0b.XX..XX.,
-      0b.XXX.XX.,
-      0b.XXX.XX.,
-      0b.XXXXXX.,
-      0b.XX.XXX.,
-      0b.XX.XXX.,
-      0b.XX..XX.,
-      0b.XX..XX.
+      0b.XX...XX,
+      0b.XXX..XX,
+      0b.XXX..XX,
+      0b.XXXXXXX,
+      0b.XX..XXX,
+      0b.XX..XXX,
+      0b.XX...XX,
+      0b.XX...XX
    ),
    // 0x45 E
    CART_TYPE_GLYPHS_GLYPH(
+      0b.XXXXXXX,
+      0b.XX.....,
+      0b.XX.....,
       0b.XXXXXX.,
       0b.XX.....,
       0b.XX.....,
-      0b.XXXXX..,
       0b.XX.....,
-      0b.XX.....,
-      0b.XX.....,
-      0b.XXXXXX.
+      0b.XXXXXXX
    )
 };

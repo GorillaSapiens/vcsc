@@ -111,11 +111,42 @@ for my $family (@families) {
 
    if ($base eq 'default') {
       my @slashed_zero=(
-         '..XXXX..', '.XX..XX.', '.XX.XXX.', '.XX.XXX.',
-         '.XXX.XX.', '.XXX.XX.', '.XX..XX.', '..XXXX..',
+         '..XXXXX.', '.XX...XX', '.XX..XXX', '.XX..XXX',
+         '.XXX..XX', '.XXX..XX', '.XX...XX', '..XXXXX.',
       );
       key($ascii->[ord('0')-0x20]) eq join('/',@slashed_zero)
          or die "default ASCII zero lost its slash\n";
+
+      # The Default family is a right-justified seven-pixel font: bit 7 is
+      # always clear.  Broad printable forms fill all seven columns; narrow
+      # punctuation is centered in the same bits 6..0 coordinate system.
+      for my $index (0..$#$ascii) {
+         my $char=chr(0x20+$index);
+         !grep { substr($_,0,1) ne '.' } @{$ascii->[$index]}
+            or die "default ASCII glyph '$char' sets the MSB\n";
+      }
+      my %narrow_width=(
+         '!' => 3, '"' => 5, "'" => 3, '(' => 5, ')' => 5,
+         ',' => 3, '.' => 3, ':' => 3, ';' => 3, '<' => 5,
+         '>' => 5, '[' => 5, ']' => 5, '`' => 5, 'i' => 5,
+         'j' => 5, 'l' => 5, '{' => 5, '|' => 3, '}' => 5,
+      );
+      for my $index (0..$#$ascii) {
+         my $char=chr(0x20+$index);
+         next if $char eq ' ';
+         my @columns=grep {
+            my $column=$_;
+            grep { substr($_,$column,1) ne '.' } @{$ascii->[$index]};
+         } 0..7;
+         my $width=$columns[-1]-$columns[0]+1;
+         my $expected=exists $narrow_width{$char} ? $narrow_width{$char} : 7;
+         $width==$expected
+            or die "default ASCII glyph '$char' has width $width, expected $expected\n";
+         if (exists $narrow_width{$char}) {
+            $columns[0]+$columns[-1]==8
+               or die "default ASCII glyph '$char' is not centered in bits 6..0\n";
+         }
+      }
    }
 
    for my $digit (0..9) {
@@ -146,23 +177,6 @@ for my $family (@families) {
       } @reference;
    } 0..7;
 
-   # The default M/W and m/w deliberately use column 0 to gain a seventh pixel
-   # of width.  Keep that design choice explicit and tightly scoped: every
-   # other glyph still obeys the standard subset-derived side margins, and
-   # these four glyphs must match the canonical full-width shapes below exactly.
-   my %full_width_default=(
-      M => [qw(XX...XX. XXX.XXX. XXXXXXX. XX.X.XX. XX...XX. XX...XX. XX...XX. XX...XX.)],
-      W => [qw(XX...XX. XX...XX. XX...XX. XX...XX. XX.X.XX. XXXXXXX. XXX.XXX. XX...XX.)],
-      m => [qw(........ ........ .XX.XX.. XXXXXXX. XX.X.XX. XX.X.XX. XX...XX. XX...XX.)],
-      w => [qw(........ ........ XX...XX. XX...XX. XX.X.XX. XX.X.XX. XXXXXXX. .XX.XX..)],
-   );
-   if ($base eq 'default') {
-      for my $char (sort keys %full_width_default) {
-         key($ascii->[ord($char)-0x20]) eq join('/',@{$full_width_default{$char}})
-            or die "default ASCII $char lost its canonical full-width shape\n";
-      }
-   }
-
    for my $index (0..$#$ascii) {
       my $glyph=$ascii->[$index];
       my $char=chr(0x20+$index);
@@ -171,7 +185,6 @@ for my $family (@families) {
             or die "$ascii_path glyph '$char' violates blank row $row\n";
       }
       for my $column (@empty_columns) {
-         next if $base eq 'default' && exists $full_width_default{$char} && $column == 0;
          !grep { substr($_,$column,1) ne '.' } @$glyph
             or die "$ascii_path glyph '$char' violates blank column $column\n";
       }

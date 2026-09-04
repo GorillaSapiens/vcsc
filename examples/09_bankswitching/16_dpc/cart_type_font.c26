@@ -19,21 +19,21 @@ bank0 page const uint8_t status_small_glyphs[32] := {
    ),
    // 0x44 D
    STATUS_SMALL_GLYPHS_GLYPH(
-      0b.XXXXX..,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XXXXX..
+      0b.XXXXXX.,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XXXXXX.
    ),
    // 0x50 P
    STATUS_SMALL_GLYPHS_GLYPH(
-      0b.XXXXX..,
-      0b.XX..XX.,
-      0b.XX..XX.,
-      0b.XXXXX..,
+      0b.XXXXXX.,
+      0b.XX...XX,
+      0b.XX...XX,
+      0b.XXXXXX.,
       0b.XX.....,
       0b.XX.....,
       0b.XX.....,
@@ -41,13 +41,13 @@ bank0 page const uint8_t status_small_glyphs[32] := {
    ),
    // 0x43 C
    STATUS_SMALL_GLYPHS_GLYPH(
-      0b..XXXX..,
-      0b.XX..XX.,
+      0b..XXXXX.,
+      0b.XX...XX,
       0b.XX.....,
       0b.XX.....,
       0b.XX.....,
       0b.XX.....,
-      0b.XX..XX.,
-      0b..XXXX..
+      0b.XX...XX,
+      0b..XXXXX.
    )
 };

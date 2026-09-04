@@ -41,7 +41,7 @@ page. This matters for cycle-sensitive `(pointer),Y` glyph reads.
 
 | Family | Decimal module | Hexadecimal module | Notes |
 |---|---|---|---|
-| Default | `default_decimal.c26` | `default_hex.c26` | Original standard score digits; slashed zero |
+| Default | `default_decimal.c26` | `default_hex.c26` | Seven-pixel right-justified glyph field; slashed zero |
 | 21st Century | `21st_century_decimal.c26` | `21st_century_hex.c26` | Thin geometric strokes |
 | Alarm Clock | `alarm_clock_decimal.c26` | `alarm_clock_hex.c26` | Broken seven-segment appearance |
 | Handwritten | `handwritten_decimal.c26` | `handwritten_hex.c26` | Slanted hand-drawn digits |
@@ -50,6 +50,8 @@ page. This matters for cycle-sensitive `(pointer),Y` glyph reads.
 | Whimsey | `whimsey_decimal.c26` | `whimsey_hex.c26` | Heavy playful strokes; upstream spelling retained |
 | Tiny | `tiny_decimal.c26` | `tiny_hex.c26` | Compact 3x5 forms inside an 8x8 cell |
 | Wonk | `wonk_decimal.c26` | `wonk_hex.c26` | Irregular hand-built display style |
+
+The Default family uses a seven-pixel-wide field in bits 6..0 of each byte; bit 7 is always clear. Broad glyphs occupy all seven columns, while intrinsically narrow punctuation is centered within that field.
 
 The `*_ascii.c26` modules are the source of truth for every conventional font
 family. From the repository root, `make fonts` regenerates every library
