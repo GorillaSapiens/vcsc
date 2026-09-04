@@ -1375,6 +1375,14 @@ static bool link_inputs_have_3e_topology(const strvec_t *inputs)
    return link_inputs_contain_literal(inputs, "$G33450000$");
 }
 
+//! @brief Return whether the selected C26 topology identifies Stella 7.0 3EX.
+static bool link_inputs_have_3ex_topology(const strvec_t *inputs)
+{
+   /* Topology metadata retains literal "3EX\0" even though the emitted ROM
+      tail uses byte size-6 for Stella's RAM-bank-count metadata. */
+   return link_inputs_contain_literal(inputs, "$G33455800$");
+}
+
 //! @brief Return whether generated code references one of the swapram mover entry points.
 static bool link_inputs_need_swapram_helpers(const strvec_t *inputs)
 {
@@ -1693,21 +1701,27 @@ int main(int argc, char **argv)
          run_as(as_path, &opt, runtime_inc, asm_path, obj_path);
          strvec_push(&link_inputs, obj_path);
       }
-      if (link_inputs_have_3e_topology(&link_inputs) &&
-          link_inputs_need_swapram_helpers(&link_inputs) &&
-          !link_inputs_contain_literal(&link_inputs, "__vcsc_3e_swapram_provider")) {
-         char vcs_4k_dir[PATH_MAX];
-         char vcs_root[PATH_MAX];
-         char helper_path[PATH_MAX];
-         const char *helper_obj;
-         path_dirname(vcs_profile_path, vcs_4k_dir, sizeof(vcs_4k_dir));
-         path_dirname(vcs_4k_dir, vcs_root, sizeof(vcs_root));
-         join_path3(helper_path, sizeof(helper_path), vcs_root, "3E", "swapram.s26");
-         if (!path_is_accessible(helper_path, R_OK))
-            die("3E swapram access requires mapper helper '%s'", helper_path);
-         helper_obj = temp_store_make_file(&temps, "3e_swapram", ".o26");
-         run_as(as_path, &opt, runtime_inc, helper_path, helper_obj);
-         strvec_push(&link_inputs, helper_obj);
+      {
+         bool threee = link_inputs_have_3e_topology(&link_inputs);
+         bool threeex = link_inputs_have_3ex_topology(&link_inputs);
+         if ((threee || threeex) && link_inputs_need_swapram_helpers(&link_inputs)) {
+            const char *provider = threeex ? "__vcsc_3ex_swapram_provider" : "__vcsc_3e_swapram_provider";
+            if (!link_inputs_contain_literal(&link_inputs, provider)) {
+               char vcs_4k_dir[PATH_MAX];
+               char vcs_root[PATH_MAX];
+               char helper_path[PATH_MAX];
+               const char *helper_obj;
+               const char *mapper = threeex ? "3EX" : "3E";
+               path_dirname(vcs_profile_path, vcs_4k_dir, sizeof(vcs_4k_dir));
+               path_dirname(vcs_4k_dir, vcs_root, sizeof(vcs_root));
+               join_path3(helper_path, sizeof(helper_path), vcs_root, mapper, "swapram.s26");
+               if (!path_is_accessible(helper_path, R_OK))
+                  die("%s swapram access requires mapper helper '%s'", mapper, helper_path);
+               helper_obj = temp_store_make_file(&temps, threeex ? "3ex_swapram" : "3e_swapram", ".o26");
+               run_as(as_path, &opt, runtime_inc, helper_path, helper_obj);
+               strvec_push(&link_inputs, helper_obj);
+            }
+         }
       }
       optimize_inline_profitability(cc_path, as_path, ld_path, &opt, runtime_inc,
          runtime_path, &link_inputs, &inline_tus, &temps);

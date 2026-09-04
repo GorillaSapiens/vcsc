@@ -1,0 +1,16 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+;
+; Tigervision 3EX needs no reset-entry mapper normalization.  Its final 2K bank
+; containing the vectors is permanently visible.  The generic mapper-entry
+; mechanism permits an empty fragment, so begin and end deliberately coincide.
+
+; TEMPLATE ASSEMBLY ORIGIN ONLY.
+; $6000 is never executed or presented to the 6507 bus.
+.segmentdef "CODE", $6000, $0010
+.segment "CODE"
+
+.export __vcsc_mapper_entry_begin
+.export __vcsc_mapper_entry_end
+
+__vcsc_mapper_entry_begin:
+__vcsc_mapper_entry_end:

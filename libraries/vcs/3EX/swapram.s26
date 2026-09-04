@@ -1,0 +1,148 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+;
+; Fixed-bank byte movers for 3EX swap RAM.
+;
+; Compiler/private ABI:
+;   arg0 = logical swapram address bits 16..23
+;   ptr1 = logical swapram address bits 0..15
+;   ptr2 = ordinary CPU-addressable source/destination buffer
+;
+; The logical address is bank*1024 + offset.  Writing the derived 8-bit bank
+; selector to TIA $3E replaces the lower ROM window with that RAM bank. Reads
+; use $1000-$13FF; writes use the split alias $1400-$17FF.  Every instruction
+; here executes from STARTUP/fixed ROM so replacing the lower window is safe.
+;
+; ptr1 and arg0 are scratch after entry.  ptr2 remains the ordinary buffer.
+
+.include "vcsc-runtime.inc"
+.importzp _vcsc_arg0, _vcsc_ptr1, _vcsc_ptr2
+
+.export __vcsc_3ex_swapram_provider
+.export swapram_read1
+.export swapram_read2
+.export swapram_read3
+.export swapram_read4
+.export swapram_write1
+.export swapram_write2
+.export swapram_write3
+.export swapram_write4
+.export swapram_zero
+
+.segment "STARTUP"
+
+__vcsc_3ex_swapram_provider:
+swapram_read1:
+    ldy #1
+    bne swapram_read_common
+swapram_read2:
+    ldy #2
+    bne swapram_read_common
+swapram_read3:
+    ldy #3
+    bne swapram_read_common
+swapram_read4:
+    ldy #4
+
+swapram_read_common:
+    ; Save offset bits 8..9, then shift the 18-bit logical address right by
+    ; ten.  Two RORs inject arg0 bits 0..1 into ptr1+1 bits 7..6, yielding the
+    ; exact 8-bit RAM-bank selector without a software bank shadow.
+    lda ptr1+1
+    and #$03
+    pha
+    lda arg0
+    lsr
+    ror ptr1+1
+    lsr
+    ror ptr1+1
+    lda ptr1+1
+    sta $3E
+
+    ; Rebuild ptr1 as the CPU-visible read alias $1000 + in-bank offset.
+    pla
+    ora #$10
+    sta ptr1+1
+
+    dey
+@read_loop:
+    lda (ptr1),y
+    sta (ptr2),y
+    dey
+    bpl @read_loop
+    rts
+
+swapram_write1:
+    ldy #1
+    bne swapram_write_common
+swapram_write2:
+    ldy #2
+    bne swapram_write_common
+swapram_write3:
+    ldy #3
+    bne swapram_write_common
+swapram_write4:
+    ldy #4
+
+swapram_write_common:
+    ; Derive and select the same 8-bit RAM bank as the read path.
+    lda ptr1+1
+    and #$03
+    pha
+    lda arg0
+    lsr
+    ror ptr1+1
+    lsr
+    ror ptr1+1
+    lda ptr1+1
+    sta $3E
+
+    ; Rebuild ptr1 as the CPU-visible write alias $1400 + in-bank offset.
+    pla
+    ora #$14
+    sta ptr1+1
+
+    dey
+@write_loop:
+    lda (ptr2),y
+    sta (ptr1),y
+    dey
+    bpl @write_loop
+    rts
+
+; Private startup-only zero-fill primitive used for static/BSS initialization.
+; ABI differs from the byte movers only in ptr2: here ptr2 is a 16-bit byte
+; count (1..1024), not an ordinary RAM buffer pointer.  The object allocator
+; guarantees the range stays within one 1K swap-RAM bank.
+swapram_zero:
+    ; Derive/select the 8-bit RAM bank and rebuild ptr1 as the write alias.
+    lda ptr1+1
+    and #$03
+    pha
+    lda arg0
+    lsr
+    ror ptr1+1
+    lsr
+    ror ptr1+1
+    lda ptr1+1
+    sta $3E
+    pla
+    ora #$14
+    sta ptr1+1
+
+    ldy #0
+@zero_loop:
+    lda #0
+    sta (ptr1),y
+    inc ptr1
+    bne.same @zero_ptr_ok
+    inc ptr1+1
+@zero_ptr_ok:
+    lda ptr2
+    bne.same @zero_dec_low
+    dec ptr2+1
+@zero_dec_low:
+    dec ptr2
+    lda ptr2
+    ora ptr2+1
+    bne @zero_loop
+    rts

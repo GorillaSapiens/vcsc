@@ -31,6 +31,7 @@
 #include "wd_bankcall_template.h"
 #include "m3f_bankcall_template.h"
 #include "m3e_bankcall_template.h"
+#include "m3ex_bankcall_template.h"
 #include "mapper_entry_templates.h"
 
 static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg);
@@ -2011,6 +2012,18 @@ static int c26_topology_is_3e(const linker_config_t *cfg)
           cart->signature[2] == 0 && cart->signature[3] == 0;
 }
 
+//! @brief Return whether the C26 topology is Stella 7.0 Tigervision 3EX.
+static int c26_topology_is_3ex(const linker_config_t *cfg)
+{
+   const topology_cartridge_t *cart;
+   if (!cfg || cfg->topology_bank_count < 1u || cfg->topology_bank_count > 256u)
+      return 0;
+   cart = &cfg->topology_cartridge;
+   return (cart->present_mask & 0x80u) &&
+          cart->signature[0] == '3' && cart->signature[1] == 'E' &&
+          cart->signature[2] == 'X' && cart->signature[3] == 0;
+}
+
 //! @brief Build the linker's full-window selector machinery from C26 topology.
 static void apply_c26_topology_to_linker_config(linker_config_t *cfg)
 {
@@ -2029,7 +2042,7 @@ static void apply_c26_topology_to_linker_config(linker_config_t *cfg)
    cfg->banks = NULL;
    cfg->bank_count = 0;
    cfg->mapper[0] = '\0';
-   cfg->cartridge_banked = selector_count != 0 || c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg);
+   cfg->cartridge_banked = selector_count != 0 || c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg) || c26_topology_is_3ex(cfg);
    cfg->cartridge_fill_value = cfg->topology_cartridge.fill_value;
 
    if (cfg->cartridge_banked) {
@@ -2279,18 +2292,22 @@ static void validate_c26_fa2_topology(const linker_config_t *cfg)
    }
 }
 
-//! @brief Return whether the C26 topology is classic Tigervision 3F or 3E.
+//! @brief Return whether the C26 topology uses the Tigervision 2K-window geometry.
 static int c26_topology_is_3f_family(const linker_config_t *cfg)
 {
    const topology_cartridge_t *cart;
    if (!cfg || cfg->topology_bank_count < 3u || cfg->topology_bank_count > 256u)
       return 0;
    cart = &cfg->topology_cartridge;
-   if (!(cart->present_mask & 0x80u) || cart->signature[2] != 0 ||
+   if (!(cart->present_mask & 0x80u) || cart->signature[0] != '3' ||
        cart->signature[3] != 0)
       return 0;
-   return cart->signature[0] == '3' &&
-          (cart->signature[1] == 'F' || cart->signature[1] == 'E');
+   if (cart->signature[1] == 'F' && cart->signature[2] == 0)
+      return 1;
+   if (cart->signature[1] == 'E' &&
+       (cart->signature[2] == 0 || cart->signature[2] == 'X'))
+      return 1;
+   return 0;
 }
 
 //! @brief Validate classic Tigervision lower-2K/fixed-final-2K topology.
@@ -2306,19 +2323,19 @@ static void validate_c26_3f_family_topology(const linker_config_t *cfg)
       if (bank->image_size != 0x0800u || bank->image_offset != 0 ||
           bank->map_size != 0x0800u) {
          fprintf(stderr,
-                 "vcsc-ld: 3F/3E bank '%s' must be one fully mapped 2K physical chunk\n",
+                 "vcsc-ld: 3F/3E/3EX bank '%s' must be one fully mapped 2K physical chunk\n",
                  bank->name);
          exit(1);
       }
       if (bank->has_selector) {
          fprintf(stderr,
-                 "vcsc-ld: 3F/3E bank '%s' must not use address-only $select_access metadata; selection is value-written TIA state\n",
+                 "vcsc-ld: 3F/3E/3EX bank '%s' must not use address-only $select_access metadata; selection is value-written TIA state\n",
                  bank->name);
          exit(1);
       }
       if (canonical_link != (uint16_t)(bank->cpu_start & 0x1fffu)) {
          fprintf(stderr,
-                 "vcsc-ld: 3F/3E bank '%s' link address $%04X is not a 6507 alias of CPU window $%04X\n",
+                 "vcsc-ld: 3F/3E/3EX bank '%s' link address $%04X is not a 6507 alias of CPU window $%04X\n",
                  bank->name, bank->link_start, bank->cpu_start);
          exit(1);
       }
@@ -2330,7 +2347,7 @@ static void validate_c26_3f_family_topology(const linker_config_t *cfg)
          }
       } else if (bank->cpu_start != 0x1000u) {
          fprintf(stderr,
-                 "vcsc-ld: 3F/3E selectable bank '%s' must use lower $1000-$17FF CPU window\n",
+                 "vcsc-ld: 3F/3E/3EX selectable bank '%s' must use lower $1000-$17FF CPU window\n",
                  bank->name);
          exit(1);
       }
@@ -3550,7 +3567,7 @@ static void validate_linker_config(linker_config_t *cfg)
       exit(1);
    }
 
-   if (c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg)) {
+   if (c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg) || c26_topology_is_3ex(cfg)) {
       size_t final_index = cfg->topology_bank_count - 1u;
       for (i = 0; i < cfg->bank_count; ++i) {
          cartridge_bank_t *bank = &cfg->banks[i];
@@ -3559,22 +3576,22 @@ static void validate_linker_config(linker_config_t *cfg)
             if (!strcmp(cfg->topology_banks[j].name, bank->name)) { top = &cfg->topology_banks[j]; break; }
          if (!top || bank->size != 0x0800u ||
              (bank->start != 0x1000u && bank->start != 0x1800u)) {
-            fprintf(stderr, "vcsc-ld: 3F/3E bank '%s' must be one canonical 2K lower/fixed window\n",
+            fprintf(stderr, "vcsc-ld: 3F/3E/3EX bank '%s' must be one canonical 2K lower/fixed window\n",
                     bank->name);
             exit(1);
          }
          if (!bank->has_bankcall_descriptor) {
-            fprintf(stderr, "vcsc-ld: 3F/3E bank '%s' lacks a bank-call descriptor\n", bank->name);
+            fprintf(stderr, "vcsc-ld: 3F/3E/3EX bank '%s' lacks a bank-call descriptor\n", bank->name);
             exit(1);
          }
          if (top->file_index == final_index) {
             if (bank->start != 0x1800u || bank->bankcall_descriptor != 0xffu || !bank->startup) {
-               fprintf(stderr, "vcsc-ld: 3F/3E final bank '%s' must be fixed $1800 with descriptor $FF and startup\n", bank->name);
+               fprintf(stderr, "vcsc-ld: 3F/3E/3EX final bank '%s' must be fixed $1800 with descriptor $FF and startup\n", bank->name);
                exit(1);
             }
          } else {
             if (bank->start != 0x1000u || bank->bankcall_descriptor != (uint8_t)top->file_index || bank->startup) {
-               fprintf(stderr, "vcsc-ld: 3F/3E selectable bank '%s' must map $1000 with descriptor equal to file index\n", bank->name);
+               fprintf(stderr, "vcsc-ld: 3F/3E/3EX selectable bank '%s' must map $1000 with descriptor equal to file index\n", bank->name);
                exit(1);
             }
          }
@@ -6024,8 +6041,22 @@ static void add_copy_record(layout_t *layout, const char *name, uint16_t load_ad
 static void add_zero_record(layout_t *layout, const char *name,
                             uint16_t read_addr, uint16_t write_addr, uint16_t size)
 {
+   size_t i;
    if (size == 0)
       return;
+
+   /* Callgraph activation storage is deliberately overlaid when sibling
+      functions cannot be live simultaneously.  Those object layouts can
+      therefore describe the exact same physical BSS range many times.  The
+      startup zero table operates on physical write ranges, not source-object
+      identities, so emitting duplicate records only wastes ROM and startup
+      time. */
+   for (i = 0; i < layout->zero_record_count; ++i) {
+      const zero_record_t *rec = &layout->zero_records[i];
+      if (rec->write_addr == write_addr && rec->size == size)
+         return;
+   }
+
    layout->zero_records = (zero_record_t *)xrealloc(layout->zero_records,
       (layout->zero_record_count + 1) * sizeof(*layout->zero_records));
    layout->zero_records[layout->zero_record_count].name = xstrdup(name ? name : "BSS");
@@ -7750,6 +7781,12 @@ static void bank_placement_restrict_to_replica(const linker_config_t *cfg,
    }
 }
 
+#define ACTIVATION_SEGMENT_MARKER ".__vcsc_activation$"
+
+static int activation_segment_parse(const char *name,
+                                    char *region, size_t region_size,
+                                    const char **owner_out);
+
 //! @brief Reserve fixed ROM data images and generated startup tables before auto packing.
 static void bank_placement_reserve_fixed_rom(const linker_config_t *cfg,
                                              const input_set_t *in,
@@ -7759,6 +7796,8 @@ static void bank_placement_reserve_fixed_rom(const linker_config_t *cfg,
    size_t i, j;
    size_t copy_count = 0;
    size_t zero_count = 0;
+   char (*activation_zero_regions)[MAX_NAME] = NULL;
+   size_t activation_zero_region_count = 0;
    const segment_rule_t *data_rule = find_segment_rule(cfg, "DATA");
    const memory_region_t *table_memory = data_rule && data_rule->load_name[0]
       ? find_memory(cfg, data_rule->load_name) : NULL;
@@ -7780,10 +7819,47 @@ static void bank_placement_reserve_fixed_rom(const linker_config_t *cfg,
          if (lay->segid == O26_SEG_BSS ||
              (lay->segid == O26_SEG_ZP &&
               lay->image_segid != O26_SEG_DATA && lay->image_segid != O26_SEG_TEXT &&
-              strstr(lay->name, ".__vcsc_object$") != NULL))
-            zero_count++;
+              strstr(lay->name, ".__vcsc_object$") != NULL)) {
+            char activation_region[MAX_NAME];
+            const char *owner = NULL;
+            if (activation_segment_parse(lay->name, activation_region,
+                                         sizeof(activation_region), &owner)) {
+               const segment_rule_t *fallback = find_segment_rule(
+                  cfg, lay->segid == O26_SEG_ZP ? "ZEROPAGE" : "BSS");
+               const char *run_name = activation_region[0]
+                  ? activation_region : rule_run_region_name(fallback);
+               const memory_region_t *run_memory = run_name && *run_name
+                  ? find_memory(cfg, run_name) : NULL;
+               size_t k;
+
+               /* Activation pieces are overlaid by callgraph depth later.
+                  The physical overlay needs one startup ZERO record per
+                  ordinary runtime MEMORY region, not one record per source
+                  function.  Keep bank-placement's fixed-ROM reservation in
+                  lockstep with layout_activation_segments(). */
+               if (run_memory && !run_memory->swapram) {
+                  for (k = 0; k < activation_zero_region_count; ++k)
+                     if (str_ieq(activation_zero_regions[k], run_name))
+                        break;
+                  if (k == activation_zero_region_count) {
+                     activation_zero_regions = (char (*)[MAX_NAME])xrealloc(
+                        activation_zero_regions,
+                        (activation_zero_region_count + 1) *
+                           sizeof(*activation_zero_regions));
+                     memset(activation_zero_regions[activation_zero_region_count],
+                            0, MAX_NAME);
+                     snprintf(activation_zero_regions[activation_zero_region_count],
+                              MAX_NAME, "%s", run_name);
+                     activation_zero_region_count++;
+                  }
+               }
+            }
+            else if (strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
+               zero_count++;
+         }
       }
    }
+   zero_count += activation_zero_region_count;
    if (table_memory && !selected_objects_have_export(in, "__vcsc_startup_simple")) {
       uint32_t table_bytes = (uint32_t)(copy_count + 1u) * 6u +
                              (uint32_t)(zero_count + 1u) * 4u +
@@ -7791,6 +7867,7 @@ static void bank_placement_reserve_fixed_rom(const linker_config_t *cfg,
       bank_placement_consume(budgets, budget_count, table_memory, table_bytes,
                              "linker startup tables", "<linker>");
    }
+   free(activation_zero_regions);
 }
 
 //! @brief Return the hypothetical ROM MEMORY for one layout during a placement trial.
@@ -8948,8 +9025,6 @@ static resolved_reloc_target_t resolve_reloc_target(const input_set_t *in,
    return result;
 }
 
-#define ACTIVATION_SEGMENT_MARKER ".__vcsc_activation$"
-
 typedef struct activation_piece_t {
    object_file_t *obj;
    object_layout_t *layout;
@@ -9232,28 +9307,37 @@ static void layout_activation_segments(const linker_config_t *cfg, input_set_t *
       block_start = alloc_from_region_policy(layout, cfg, regions[i], (uint16_t)extent,
                                       1, NULL, "activation overlay", "<call graph>");
 
-      for (j = 0; j < piece_count; ++j) {
-         activation_piece_t *piece = &pieces[j];
-         uint32_t addr;
-         if (piece->region != (int)i)
-            continue;
-         addr = (uint32_t)block_start +
-                bases[i * node_count + (size_t)piece->node] +
-                piece->intra_offset;
-         if (addr > 0xFFFFu) {
-            fprintf(stderr, "vcsc-ld: activation address overflow for %s\n",
-                    piece->layout->name);
-            exit(1);
+      {
+         int region_needs_zero = 0;
+         for (j = 0; j < piece_count; ++j) {
+            activation_piece_t *piece = &pieces[j];
+            uint32_t addr;
+            if (piece->region != (int)i)
+               continue;
+            addr = (uint32_t)block_start +
+                   bases[i * node_count + (size_t)piece->node] +
+                   piece->intra_offset;
+            if (addr > 0xFFFFu) {
+               fprintf(stderr, "vcsc-ld: activation address overflow for %s\n",
+                       piece->layout->name);
+               exit(1);
+            }
+            piece->layout->load_addr = 0;
+            piece->layout->run_addr = (uint16_t)addr;
+            if (piece->needs_zero)
+               region_needs_zero = 1;
          }
-         piece->layout->load_addr = 0;
-         piece->layout->run_addr = (uint16_t)addr;
-         if (piece->needs_zero)
-            add_zero_record(layout, piece->layout->name,
-                            piece->layout->run_addr,
+
+         /* All pieces in this block are compiler activation storage and the
+            callgraph allocator deliberately overlays siblings.  Startup only
+            needs to clear the physical overlay extent once; source-function
+            identity is irrelevant and per-piece records scale catastrophically
+            for generated mapper accessors. */
+         if (region_needs_zero && extent != 0u)
+            add_zero_record(layout, "activation overlay", block_start,
                             memory_runtime_write_address(cfg, regions[i],
-                                                         piece->layout->run_addr,
-                                                         piece->layout->size),
-                            piece->layout->size);
+                                                         block_start, (uint16_t)extent),
+                            (uint16_t)extent);
       }
    }
 
@@ -9806,7 +9890,7 @@ static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg)
    size_t i;
    int saw_selector = 0;
    if (!cfg) return 0;
-   if (c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg)) {
+   if (c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg) || c26_topology_is_3ex(cfg)) {
       if (cfg->bank_count != cfg->topology_bank_count) return 0;
       for (i = 0; i < cfg->bank_count; ++i)
          if (!cfg->banks[i].has_bankcall_descriptor) return 0;
@@ -9833,14 +9917,15 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
    int wd = c26_topology_is_wd(cfg);
    int threef = c26_topology_is_3f(cfg);
    int threee = c26_topology_is_3e(cfg);
+   int threeex = c26_topology_is_3ex(cfg);
 
    if (!cfg) {
       fprintf(stderr, "vcsc-ld: generic inline-target bank calls require a banked cartridge profile\n");
       exit(1);
    }
 
-   if (threef || threee) {
-      const char *name = threef ? "3F" : "3E";
+   if (threef || threee || threeex) {
+      const char *name = threef ? "3F" : (threee ? "3E" : "3EX");
       size_t final_index = cfg->topology_bank_count - 1u;
       for (i = 0; i < cfg->topology_bank_count; ++i) {
          const topology_bank_t *bank = c26_topology_bank_by_file_index(cfg, (uint16_t)i);
@@ -9852,7 +9937,7 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
             exit(1);
          }
       }
-      return 0u; /* 3F/3E ROM writes descriptor values to TIA $3F; no selector base. */
+      return 0u; /* 3F/3E/3EX ROM writes descriptor values to TIA $3F; no selector base. */
    }
 
    if (wd) {
@@ -9991,6 +10076,8 @@ static uint16_t generic_bankcall_reserved_size(const linker_config_t *cfg)
       return VCSC_M3F_BANKCALL_RESERVED_SIZE;
    if (c26_topology_is_3e(cfg))
       return VCSC_M3E_BANKCALL_RESERVED_SIZE;
+   if (c26_topology_is_3ex(cfg))
+      return VCSC_M3EX_BANKCALL_RESERVED_SIZE;
    if (bankcall_descriptor_abi_enabled(cfg))
       return VCSC_GENERIC_BANKCALL_RESERVED_SIZE;
    fprintf(stderr,
@@ -10789,6 +10876,8 @@ static const uint8_t *mapper_entry_template(const linker_config_t *cfg, size_t *
       ENTRY(m3f);
    if (SIG4('3','E',0,0))
       ENTRY(m3e);
+   if (SIG4('3','E','X',0))
+      ENTRY(m3ex);
 #undef ENTRY
 #undef SIG4
    return NULL;
@@ -11114,6 +11203,22 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
          source_descriptor,
          VCSC_M3E_BANKCALL_SWITCH_OFFSET,
          VCSC_M3E_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
+         selector_base, canonical_base, ptr0);
+   }
+   else if (c26_topology_is_3ex(cfg)) {
+      instantiate_bankcall_template(table,
+         vcsc_m3ex_bankcall_template,
+         VCSC_M3EX_BANKCALL_TEMPLATE_SIZE,
+         VCSC_M3EX_BANKCALL_RESERVED_SIZE,
+         vcsc_m3ex_bankcall_ptr_patches,
+         VCSC_M3EX_BANKCALL_PTR_PATCH_COUNT,
+         vcsc_m3ex_bankcall_selector_patches,
+         VCSC_M3EX_BANKCALL_SELECTOR_PATCH_COUNT,
+         vcsc_m3ex_bankcall_source_descriptor_patches,
+         VCSC_M3EX_BANKCALL_SOURCE_DESCRIPTOR_PATCH_COUNT,
+         source_descriptor,
+         VCSC_M3EX_BANKCALL_SWITCH_OFFSET,
+         VCSC_M3EX_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
          selector_base, canonical_base, ptr0);
    }
    else if (bankcall_descriptor_abi_enabled(cfg)) {
@@ -11571,6 +11676,21 @@ static int topology_signature_byte(const linker_config_t *cfg, size_t file_index
    signature_offset = image_size - 8u;
    if (offset < signature_offset || offset > signature_offset + 3u)
       return 0;
+   if (c26_topology_is_3ex(cfg) && offset == image_size - 6u) {
+      const memory_region_t *ram = find_memory(cfg, "swapram");
+      uint32_t banks;
+      if (!ram || !ram->swapram || !ram->bank_size || ram->size % ram->bank_size != 0u) {
+         fprintf(stderr, "vcsc-ld: 3EX requires a valid banked swapram region for Stella RAM-count metadata\n");
+         exit(1);
+      }
+      banks = ram->size / ram->bank_size;
+      if (banks < 1u || banks > 256u) {
+         fprintf(stderr, "vcsc-ld: 3EX swapram bank count %" PRIu32 " is outside Stella 7.0 range 1..256\n", banks);
+         exit(1);
+      }
+      *byte = (uint8_t)(banks - 1u);
+      return 1;
+   }
    *byte = cfg->topology_cartridge.signature[offset - signature_offset];
    return 1;
 }

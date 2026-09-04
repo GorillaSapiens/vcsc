@@ -1,0 +1,162 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Maximum-size Stella-7.0-compatible Tigervision 3EX diagnostic: 512K ROM + 256K RAM.
+// Generated 3ex_max_torture_*.s26 assembly executes every ordered pair among
+// the 255 selectable lower ROM banks, plus lower<->fixed coverage, then fills
+// and verifies all 256 x 1K Stella 7.0 3EX RAM banks through compiler-lowered
+// $swapram lvalues.
+instantiate "3EX/mapper.c26" as mapper (VCS_3EX_BANKS:=256)
+
+#ifndef SIMULATOR_TEST
+include "frame_ntsc.c26"
+instantiate "six_glyph_big_wide_component.c26" as status_result (external_pointers:=1)
+instantiate "six_glyph_component.c26" as cart_type (compact_font:=0, external_pointers:=1)
+#endif
+
+uint8_t failure;
+uint16_t torture_count;
+uint8_t expected_source;
+uint8_t expected_dest;
+uint8_t source_sp;
+uint8_t fixed_sp;
+uint8_t torture_done;
+uint8_t torture_batch;
+uint8_t step_remaining;
+uint8_t ram_phase;
+uint8_t ram_bank;
+uint16_t ram_index;
+uint8_t ram_failure_bank;
+uint8_t ram_value;
+uint16_t ram_lfsr;
+uint8_t spinner_index;
+#ifndef SIMULATOR_TEST
+uint8_t spinner_frame;
+#else
+uint16_t status_result_pointers[6];
+uint16_t cart_type_pointers[6];
+#endif
+
+// Runtime-patched copies of the normal 3-byte inline bankcall ABI. Keeping
+// these seven-byte call sites in RIOT RAM lets every 2K source bank execute a
+// 255-destination sweep without carrying 255 literal call sites.
+uint8_t bankcall_stub[7];
+
+bank252 extern void init_3ex_max_torture(void);
+bank255 extern void finish_3ex_max_init(void);
+bank255 extern void step_3ex_max_torture(void);
+
+#ifndef SIMULATOR_TEST
+bank253 extern void load_wait(void);
+bank254 extern void load_pass(void);
+bank254 extern void load_fail(void);
+bank251 extern void load_mapper_type(void); // "3EX max"
+
+
+bank255 void draw_3ex_max_visible(void) {
+   vcs_ntsc_end_vblank();
+   vcs_ntsc_wait_component_scanlines(80);
+   status_result_draw();
+   // Big status glyphs live in bank253/254; the small label lives in bank251.
+   // Select it, spend one blank line to regain cycle zero, then use the
+   // standard three-cycle component handoff.  80+19+1+11+81 = 192 lines.
+   asm lda #$fb;
+   asm sta $3f;
+   WSYNC := _;
+   vcs_ntsc_component_handoff();
+   cart_type_draw();
+   vcs_ntsc_wait_visible_tail_scanlines(81);
+   vcs_ntsc_begin_overscan();
+}
+
+bank255 void draw_wait(void) {
+   status_result_init();
+   cart_type_init();
+   spinner_frame := 0;
+   spinner_index := 0;
+   load_mapper_type();
+   status_result_color := 0x0E;
+   COLUBK := 0x84; // Same blue as 01_basic/01_blank_screen.
+   COLUP0 := 0x0E; COLUP1 := 0x0E;
+   PF0 := 0; PF1 := 0; PF2 := 0; GRP0 := 0; GRP1 := 0;
+   ENAM0 := 0; ENAM1 := 0; ENABL := 0; CTRLPF := 0;
+
+   while (!torture_done) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      status_result_vblank();
+      cart_type_vblank();
+
+      // Keep the torture work inside scheduler-owned blank time.  The lower
+      // matrix is resumable, so no batch is allowed to steal visible lines.
+      if (ram_phase) { torture_batch := 4; } else { torture_batch := 10; }
+      step_3ex_max_torture();
+
+      load_wait();
+      draw_3ex_max_visible();
+      if (ram_phase) { torture_batch := 3; } else { torture_batch := 8; }
+      step_3ex_max_torture();
+
+      if (torture_done) {
+         // Prepare the result while the overscan deadline is still active.
+         // Doing this after draw_wait() returned would lengthen the one
+         // WAIT->PASS/FAIL transition frame.
+         if (failure) { load_fail(); } else { load_pass(); }
+         status_result_color := 0x0E;
+         COLUBK := failure ? 0x20 : 0xC4;
+         COLUP0 := 0x0E; COLUP1 := 0x0E;
+         PF0 := 0; PF1 := 0; PF2 := 0; GRP0 := 0; GRP1 := 0;
+         ENAM0 := 0; ENAM1 := 0; ENABL := 0; CTRLPF := 0;
+      } else {
+         spinner_frame++;
+         if (spinner_frame == 15) {
+            spinner_frame := 0;
+            spinner_index++;
+            if (spinner_index == 4) { spinner_index := 0; }
+         }
+      }
+      status_result_overscan();
+      cart_type_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}
+
+bank255 void draw_result(void) {
+   // draw_wait() prepared the final pointers/colors before ending its last
+   // overscan interval, so entering this loop cannot stretch the transition.
+   while (1) {
+      vcs_ntsc_vsync();
+      vcs_ntsc_begin_vblank();
+      status_result_vblank();
+      cart_type_vblank();
+      // The previous frame leaves lower bank251 selected for the small label.
+      // PASS/FAIL pointers are invariant, so just reselect their bank here.
+      asm lda #$fe;
+      asm sta $3f;
+      draw_3ex_max_visible();
+      status_result_overscan();
+      cart_type_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}
+#endif
+
+#ifdef SIMULATOR_TEST
+bank255 void simulator_done(void) { while (1) { } }
+#endif
+
+bank255 void main(void) {
+#ifdef SIMULATOR_TEST
+   init_3ex_max_torture();
+   finish_3ex_max_init();
+   while (!torture_done) {
+      torture_batch := 255;
+      step_3ex_max_torture();
+   }
+   asm jmp simulator_done;
+#else
+   init_3ex_max_torture();
+   finish_3ex_max_init();
+   draw_wait();
+   draw_result();
+#endif
+}

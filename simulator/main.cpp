@@ -300,7 +300,7 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
    cfg->wd_mapper = str_ieq(cfg->mapper, "WD");
    cfg->fe_mapper = str_ieq(cfg->mapper, "FE");
    cfg->threef_mapper = str_ieq(cfg->mapper, "3F");
-   cfg->threee_mapper = str_ieq(cfg->mapper, "3E");
+   cfg->threee_mapper = str_ieq(cfg->mapper, "3E") || str_ieq(cfg->mapper, "3EX");
    cfg->dpc_mapper = str_ieq(cfg->mapper, "DPC");
 
    for (size_t i = 0; i < cfg->bank_count; ++i)
@@ -409,7 +409,7 @@ static void finalize_simulator_config(simulator_config_t *cfg) {
    }
    if ((cfg->threef_mapper || cfg->threee_mapper) &&
        cfg->banks[cfg->startup_bank].file_index != cfg->bank_count - 1u) {
-      fprintf(stderr, "vcsc-sim: 3F/3E startup bank must be the fixed final physical/file bank\n");
+      fprintf(stderr, "vcsc-sim: 3F/3E/3EX startup bank must be the fixed final physical/file bank\n");
       exit(1);
    }
 
