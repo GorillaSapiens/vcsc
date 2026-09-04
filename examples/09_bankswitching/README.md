@@ -105,11 +105,11 @@ A4-A0 acting as aliases. VCSC uses `$0FA0/$0FC0` as canonical selector accesses,
 and the focused regression also proves noncanonical read/write aliases. The
 cartridge displays `0FA0` below the large `pass`/`FAIL` result.
 
-`11_e0/` is the Parker Brothers E0 diagnostic. It verifies the 4/5/6/7 power-on
-mapping, all three independently selectable 1K windows, fixed physical bank 7,
-and actual execution from all eight physical chunks. Its deliberately tiny
-fixed-bank display uses green for PASS and red for FAIL; `make play` forces
-Stella's `E0` mapper.
+`11_e0/` is the Parker Brothers E0 automatic-call diagnostic. VCSC constrains
+E0 to `[0,1,6,7]`, `[2,3,6,7]`, and reset state `[4,5,6,7]`, with banks 6/7
+resident. The cartridge executes all 64 ordered physical-bank calls, nested
+cross-state calls from resident banks, state restoration, and a 16-bit return;
+`make play` forces Stella's `E0` mapper.
 
 ## Banked standard renderer
 

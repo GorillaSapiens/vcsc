@@ -255,6 +255,8 @@ for my $entry (@examples) {
             ? ($v>=0xd000 && $v<=0xdfff)
             : ($profile eq '3f' || $profile eq '3e')
             ? ($v>=0x1800 && $v<=0x1fff)
+            : $profile eq 'e0'
+            ? ($v>=0x1c00 && $v<=0x1fff)
             : ($v>=0xf000 && $v<=0xffff);
          $in_rom or die sprintf("%s vector %04X is outside ROM\n",$dir,$v);
       }

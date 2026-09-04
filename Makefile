@@ -204,6 +204,7 @@ install-data:
 	install -m 0644 libraries/vcs/3EX/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/3EX/bankcall.s26
 	install -m 0644 libraries/vcs/FC/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/FC/bankcall.s26
 	install -m 0644 libraries/vcs/F0/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F0/bankcall.s26
+	install -m 0644 libraries/vcs/E0/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/E0/bankcall.s26
 	install -m 0644 libraries/vcs/F8/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F8/entry.s26
 	install -m 0644 libraries/vcs/F8SC/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F8SC/entry.s26
 	install -m 0644 libraries/vcs/F6/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F6/entry.s26
@@ -224,6 +225,7 @@ install-data:
 	install -m 0644 libraries/vcs/3EX/entry.s26 $(DESTDIR)$(DATADIR)/vcs/3EX/entry.s26
 	install -m 0644 libraries/vcs/FC/entry.s26 $(DESTDIR)$(DATADIR)/vcs/FC/entry.s26
 	install -m 0644 libraries/vcs/F0/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F0/entry.s26
+	install -m 0644 libraries/vcs/E0/entry.s26 $(DESTDIR)$(DATADIR)/vcs/E0/entry.s26
 	install -m 0644 libraries/vcs/CV/ram.c26 $(DESTDIR)$(DATADIR)/vcs/CV/ram.c26
 	install -m 0644 libraries/vcs/DPC/registers.c26 $(DESTDIR)$(DATADIR)/vcs/DPC/registers.c26
 	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
@@ -239,6 +241,7 @@ install-data:
 	install -m 0644 libraries/vcs/UASW/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/UASW/mapper.c26
 	install -m 0644 libraries/vcs/0FA0/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/0FA0/mapper.c26
 	install -m 0644 libraries/vcs/E0/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/E0/mapper.c26
+	install -m 0644 libraries/vcs/E0/README.md $(DESTDIR)$(DATADIR)/vcs/E0/README.md
 	install -m 0644 libraries/vcs/FE/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/FE/mapper.c26
 	install -m 0644 libraries/vcs/WD/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/WD/mapper.c26
 	install -m 0644 libraries/vcs/DPC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/DPC/mapper.c26
@@ -429,7 +432,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/UA/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/UASW/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/0FA0/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/E0/mapper.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/E0/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/E0/README.md $(DESTDIR)$(DATADIR)/vcs/E0/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/E0/entry.s26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/FE/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/WD/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/mapper.c26
@@ -660,6 +663,7 @@ installcheck: tools
 	test -f "$$stage_vcs/3EX/mapper.c26"; \
 	test -f "$$stage_vcs/FC/mapper.c26"; test -f "$$stage_vcs/FC/bankcall.s26"; test -f "$$stage_vcs/FC/entry.s26"; \
 	test -f "$$stage_vcs/F0/mapper.c26"; test -f "$$stage_vcs/F0/bankcall.s26"; test -f "$$stage_vcs/F0/entry.s26"; test -f "$$stage_vcs/F0/README.md"; \
+	test -f "$$stage_vcs/E0/mapper.c26"; test -f "$$stage_vcs/E0/bankcall.s26"; test -f "$$stage_vcs/E0/entry.s26"; test -f "$$stage_vcs/E0/README.md"; \
 	test -f "$$stage_vcs/3EX/bankcall.s26"; \
 	test -f "$$stage_vcs/3EX/entry.s26"; \
 	test -f "$$stage_vcs/3EX/swapram.s26"; \

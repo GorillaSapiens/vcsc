@@ -1,8 +1,8 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
-
-// Parker Brothers E0 PASS/FAIL diagnostic. Exercises the power-on mapping,
-// all eight physical 1K banks, all three independently selectable windows,
-// then leaves a stable green PASS / E0 display (dark-red FAIL on error).
+// Parker Brothers E0 PASS/FAIL diagnostic for VCSC's constrained three-state ABI.
+// Every physical bank calls every physical bank. Resident banks 6/7 are also
+// entered from non-startup states and make nested cross-state calls, proving
+// the dynamic three-state shadow restores the correct lower bank pair.
 include "E0/mapper.c26"
 
 #ifndef SIMULATOR_TEST
@@ -13,16 +13,75 @@ instantiate "six_glyph_component.c26" as cart_type (compact_font:=0)
 #endif
 
 uint8_t failure;
-uint8_t call_count;
+uint8_t hits0;
+uint8_t hits1;
+uint8_t hits2;
+uint8_t hits3;
+uint8_t hits4;
+uint8_t hits5;
+uint8_t hits6;
+uint8_t hits7;
 
-bank0 uint8_t bank0_probe(void) { call_count := call_count + 1; return 0x10; }
-bank1 uint8_t bank1_probe(void) { call_count := call_count + 1; return 0x21; }
-bank2 uint8_t bank2_probe(void) { call_count := call_count + 1; return 0x32; }
-bank3 uint8_t bank3_probe(void) { call_count := call_count + 1; return 0x43; }
-bank4 uint8_t bank4_probe(void) { call_count := call_count + 1; return 0x54; }
-bank5 uint8_t bank5_probe(void) { call_count := call_count + 1; return 0x65; }
-bank6 uint8_t bank6_probe(void) { call_count := call_count + 1; return 0x76; }
-bank7 uint8_t bank7_probe(void) { call_count := call_count + 1; return 0x87; }
+bank0 void probe0(void) { hits0 := hits0 + 1; }
+bank1 void probe1(void) { hits1 := hits1 + 1; }
+bank2 void probe2(void) { hits2 := hits2 + 1; }
+bank3 void probe3(void) { hits3 := hits3 + 1; }
+bank4 void probe4(void) { hits4 := hits4 + 1; }
+bank5 void probe5(void) { hits5 := hits5 + 1; }
+bank6 void probe6(void) { hits6 := hits6 + 1; }
+bank7 void probe7(void) { hits7 := hits7 + 1; }
+
+bank4 uint16_t wide_probe(void) { return 0xbeef; }
+
+// Called while state 0 is active. Bank 6 is resident; its nested state-1
+// call must restore [0,1,6,7] before the following bank-1 probe.
+bank6 void resident_from_state0(void) { probe2(); probe1(); }
+
+// Called while state 1 is active. Fixed bank 7 is resident; its nested
+// state-2 call must restore [2,3,6,7] before the following bank-3 probe.
+bank7 void resident_from_state1(void) { probe4(); probe3(); }
+
+bank0 void source0(void) {
+   probe0(); probe1(); probe2(); probe3();
+   probe4(); probe5(); probe6(); probe7();
+   resident_from_state0();
+}
+
+bank1 void source1(void) {
+   probe0(); probe1(); probe2(); probe3();
+   probe4(); probe5(); probe6(); probe7();
+}
+
+bank2 void source2(void) {
+   probe0(); probe1(); probe2(); probe3();
+   probe4(); probe5(); probe6(); probe7();
+   resident_from_state1();
+}
+
+bank3 void source3(void) {
+   probe0(); probe1(); probe2(); probe3();
+   probe4(); probe5(); probe6(); probe7();
+}
+
+bank4 void source4(void) {
+   probe0(); probe1(); probe2(); probe3();
+   probe4(); probe5(); probe6(); probe7();
+}
+
+bank5 void source5(void) {
+   probe0(); probe1(); probe2(); probe3();
+   probe4(); probe5(); probe6(); probe7();
+}
+
+bank6 void source6(void) {
+   probe0(); probe1(); probe2(); probe3();
+   probe4(); probe5(); probe6(); probe7();
+}
+
+bank7 void source7(void) {
+   probe0(); probe1(); probe2(); probe3();
+   probe4(); probe5(); probe6(); probe7();
+}
 
 #ifndef SIMULATOR_TEST
 include "status_font.c26"
@@ -60,7 +119,6 @@ inline void load_fail(void) {
 }
 
 inline void load_e0_type(void) {
-   // "  E0  "
    asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+0;
    asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+1;
    asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+2;
@@ -75,19 +133,19 @@ inline void load_e0_type(void) {
    asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+11;
 }
 
-bank2 void component_init(void) {
+bank6 void component_init(void) {
    status_result_score := 0;
    cart_type_score := 0;
    status_result_init();
    cart_type_init();
 }
 
-bank2 void component_vblank(void) {
+bank6 void component_vblank(void) {
    status_result_vblank();
    cart_type_vblank();
 }
 
-bank0 void draw_result(void) {
+bank4 void draw_result(void) {
    component_init();
    while (1) {
       vcs_ntsc_vsync();
@@ -102,7 +160,6 @@ bank0 void draw_result(void) {
       PF0 := 0; PF1 := 0; PF2 := 0; GRP0 := 0; GRP1 := 0;
       ENAM0 := 0; ENAM1 := 0; ENABL := 0; CTRLPF := 0;
       vcs_ntsc_end_vblank();
-      // 81 blank + 19 result + 11 mapper line + 81 blank = 192 visible.
       vcs_ntsc_wait_component_scanlines(81);
       status_result_draw();
       vcs_ntsc_component_handoff();
@@ -122,48 +179,27 @@ bank7 void simulator_done(void) { while (1) { } }
 
 bank7 void main(void) {
    failure := 0;
-   call_count := 0;
-
-   // E0 power-on defaults are physical banks 4, 5, 6 in the three windows.
-   if (bank4_probe() != 0x54) { failure := 0x01; }
-   if (bank5_probe() != 0x65) { failure := 0x02; }
-   if (bank6_probe() != 0x76) { failure := 0x03; }
-   if (bank7_probe() != 0x87) { failure := 0x04; }
-
-   // Window $1000-$13FF: select physical banks 0, 3, then 4.
-   asm lda $1fe0;
-   if (bank0_probe() != 0x10) { failure := 0x10; }
-   asm lda $1fe3;
-   if (bank3_probe() != 0x43) { failure := 0x13; }
-   asm lda $1fe4;
-   if (bank4_probe() != 0x54) { failure := 0x14; }
-
-   // Window $1400-$17FF: select physical banks 1 and 5.
-   asm lda $1fe9;
-   if (bank1_probe() != 0x21) { failure := 0x21; }
-   asm lda $1fed;
-   if (bank5_probe() != 0x65) { failure := 0x25; }
-
-   // Window $1800-$1BFF: select physical banks 2 and 6.
-   asm lda $1ff2;
-   if (bank2_probe() != 0x32) { failure := 0x32; }
-   asm lda $1ff6;
-   if (bank6_probe() != 0x76) { failure := 0x36; }
-
-   // The fixed top 1K must still be bank 7 after all three windows changed.
-   if (bank7_probe() != 0x87) { failure := 0x47; }
-   if (call_count != 12) { failure := 0x7f; }
-
+   source0();
+   source1();
+   source2();
+   source3();
+   source4();
+   source5();
+   source6();
+   source7();
+   if (hits0 != 8) { failure := 0x78; }
+   if (hits1 != 9) { failure := 0x79; }
+   if (hits2 != 9) { failure := 0x7a; }
+   if (hits3 != 9) { failure := 0x7b; }
+   if (hits4 != 9) { failure := 0x7c; }
+   if (hits5 != 8) { failure := 0x75; }
+   if (hits6 != 8) { failure := 0x76; }
+   if (hits7 != 8) { failure := 0x77; }
+   if (wide_probe() != 0xbeef) { failure := 0x7e; }
+   if (_vcsc_e0_state != 2) { failure := 0x7d; }
 #ifdef SIMULATOR_TEST
    asm jmp simulator_done;
 #else
-   // Freeze all three selectable windows for the display. E0 does not have
-   // implicit whole-window call switching: bank 0 owns renderer code in
-   // $1000-$13FF, bank 1 owns glyph data in $1400-$17FF, and bank 2 owns
-   // component lifecycle helpers in $1800-$1BFF.
-   asm lda $1fe0;
-   asm lda $1fe9;
-   asm lda $1ff2;
    draw_result();
 #endif
 }

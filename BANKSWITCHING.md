@@ -160,7 +160,9 @@ Examples of useful descriptor choices include:
 - a write-selected mapper: the exact selector value to write; and
 - F0: physical bank ID `$00-$0F`; the mapper-specific trampoline computes
   `(destination-source)&15` `$1FF0` advances on call and the inverse advance on
-  return. Hardware powers up in physical bank 15.
+  return. Hardware powers up in physical bank 15;
+- E0: canonical state `0`, `1`, or `2` for banks 0/1, 2/3, or 4/5 respectively;
+  resident banks 6/7 use `$FF` and preserve the current canonical state.
 
 Dynamic read-selected mappers use raw undocumented `op1C` absolute-X NOP reads, with the descriptor carried in X. This preserves A and flags and avoids an assembler `--illegal` dependency. Mapper profiles must keep every selector-base-plus-descriptor address within one 256-byte page so the indexed access cannot take a page-cross path.
 
@@ -178,6 +180,19 @@ F0 reserves 96 bytes (`$060`) at `$FF00-$FF5F` in every bank for this
 replicated transition. Ordinary code is capped below `$FEE0` so no allocated
 function can execute through CPU `$FFF0`, whose cartridge bus address `$1FF0`
 would itself advance the mapper.
+
+E0 deliberately exposes only three relocation-safe mapper states: `[0,1,6,7]`,
+`[2,3,6,7]`, and `[4,5,6,7]`. Banks 0/2/4 have canonical origin `$1000`, banks
+1/3/5 `$1400`, bank 6 `$1800`, and fixed bank 7 `$1C00`. Cross-state calls
+switch the lower pair together. Because resident bank 6 or 7 may itself make a
+nested cross-state call, E0 keeps one RIOT-RAM byte containing only canonical
+state 0/1/2; the trampoline pushes/restores that byte instead of inferring state
+from the resident bank identity. Descriptor `$FF` means resident/preserve state.
+Hardware reset already supplies state 2, so the mapper entry fragment is empty.
+Arbitrary handwritten E0 selector combinations are outside this automatic-call
+ABI unless they restore a canonical state and synchronize the state byte. E0
+reserves 112 bytes (`$070`) of replicated transition corridor per physical 1K
+bank.
 
 If a mapper needs more state than one descriptor byte can represent, it does not
 fit this ABI as written. It must use a mapper-specific calling contract or a

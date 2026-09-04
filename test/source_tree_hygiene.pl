@@ -215,12 +215,9 @@ length($bankswitching) <= 16 * 1024 &&
 index($bankswitching,'Never use bare "bank 0" without saying which identity is meant.')>=0 &&
 index($bankswitching,'file_index(BANKn) = bank_count - 1 - n')>=0 &&
 index($bankswitching,'Public VCSC cartridge profiles reserve four bytes')>=0 &&
-$bankswitching =~ /^\[ \] 38\. Complete the remaining automatic-call mapper work\./m &&
+$bankswitching !~ /^\[ \]/m &&
 index($bankswitching,'FA2 extends the FA split-RAM model to six or seven directly selected 4K ROM')>=0 &&
 index($bankswitching,'3F lower banks use selector-value descriptors `$00-$FE`; fixed uses `$FF`')>=0 &&
-index($bankswitching,'256 independent 64K physical planes')>=0 &&
-index($bankswitching,'256-bit bank set')>=0 &&
-index($bankswitching,'VCS_3F_BANKS > N+1')>=0 &&
 -f File::Spec->catfile($test,'linker_bank_set_256.pl') &&
 -f File::Spec->catfile($repo,qw(libraries vcs 3F mapper.c26)) &&
 -f File::Spec->catfile($test,'vcs_3e_simulator_oracle.pl') &&
@@ -254,12 +251,16 @@ index($bankswitching,'FC descriptors are')>=0 &&
 index($bankswitching,'reserves 112 bytes (`$070`)')>=0 &&
 index($bankswitching,'F0 uses physical bank IDs `$00-$0F`')>=0 &&
 index($bankswitching,'F0 reserves 96 bytes (`$060`)')>=0 &&
-index($bankswitching,'F0 is migrated.')>=0 &&
-index($bankswitching,'[ ] 38f. Design automatic E0 calls.')>=0 &&
+index($bankswitching,'Automatic-call mapper migration is complete.')>=0 &&
+-f File::Spec->catfile($repo,qw(libraries vcs E0 mapper.c26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs E0 bankcall.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs E0 entry.s26)) &&
+-f File::Spec->catfile($repo,qw(libraries vcs E0 README.md)) &&
+-f File::Spec->catfile($test,'vcs_e0.pl') &&
 $bankswitching !~ /\[ \] 38e\. Implement\/migrate F0\./ &&
 index($bankswitching,'Generic inline-target cross-bank JSR contract')>=0 &&
 index($bankswitching,'68 active bytes with 72 reserved')>=0 &&
-index($bankswitching,'fixed mapper-specific replicated entry/return')>=0 &&
+index($bankswitching,'mapper-specific replicated entry/return')>=0 &&
 index($bankswitching,'unchanged original 16-bit logical return PC')>=0 &&
 index($bankswitching,'Only the descriptor ABI')>=0 &&
 index($bankswitching,'descriptors `$F5-$FA/$FB`')>=0 &&
@@ -302,8 +303,8 @@ index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_m3f_bankcall_
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_fc_bankcall_template')>=0 &&
 index(slurp(File::Spec->catfile($repo,'linker','vcsc_ld.c')),'vcsc_f0_bankcall_template')>=0 &&
 index($bankswitching,'F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,')>=0 &&
-index($bankswitching,'FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, 3F, 3E, FC, and F0 consume it end to end')>=0 &&
-index($bankswitching,'[ ] 38. Complete the remaining automatic-call mapper work.')>=0 &&
+index($bankswitching,'FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, 3F, 3E, FC, F0, and E0 consume it end to end')>=0 &&
+index($bankswitching,'Automatic-call mapper migration is complete.')>=0 &&
 $bankswitching !~ /^\[ \] 37\./m &&
 $bankswitching !~ /^\[ \] 42\./m &&
 $bankswitching !~ /^\[ \] 43\./m &&
@@ -723,7 +724,7 @@ index($m3e_profile,'$bank_size:0x0400')>=0 &&
 index($top_make,'libraries/vcs/3E/bankcall.s26')>=0 &&
 index($top_make,'libraries/vcs/3E/entry.s26')>=0
    or die "migrated descriptor profiles or pending inline mapper packaging/opt-ins are inconsistent\n";
-my @mapper_dirs = qw(0840 0FA0 2K 3E 3F 4K 4KSC CV DPC E0 F4 F4SC F6 F6SC F8 F8SC FA FA2 FE JANE OMNI UA UASW WD);
+my @mapper_dirs = qw(0840 0FA0 2K 3E 3EX 3F 4K 4KSC CV DPC E0 F0 F4 F4SC F6 F6SC F8 F8SC FA FA2 FC FE JANE OMNI UA UASW WD);
 for my $mapper (@mapper_dirs) {
    $mapper =~ /^[A-Z0-9]+$/
       or die "mapper directory '$mapper' must use an uppercase Stella-style alphanumeric name\n";
@@ -831,8 +832,14 @@ index($top_make,'libraries/vcs/0FA0/bankcall.s26')>=0 &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','10_0fa0','README.md')
    or die "0FA0 profile/diagnostic support is missing installation or test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','E0/mapper.c26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','E0/bankcall.s26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','E0/entry.s26') &&
+-f File::Spec->catfile($repo,'libraries','vcs','E0/README.md') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','E0/mapper.cfg') &&
 index($top_make,'libraries/vcs/E0/mapper.c26')>=0 &&
+index($top_make,'libraries/vcs/E0/bankcall.s26')>=0 &&
+index($top_make,'libraries/vcs/E0/entry.s26')>=0 &&
+index($top_make,'libraries/vcs/E0/README.md')>=0 &&
 index($top_make,'libraries/vcs/E0/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_e0.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','11_e0','e0_diagnostic.c26') &&

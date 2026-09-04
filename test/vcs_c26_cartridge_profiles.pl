@@ -91,6 +91,9 @@ for my $p (@profiles) {
       $build_source=File::Spec->catfile($tmp,"blank_screen_${stem}.c26");
       my $param = $name eq '3F' ? 'VCS_3F_BANKS' : 'VCS_3E_BANKS';
       write_file($build_source, qq{instantiate "$name/mapper.c26" as mapper ($param:=4)\nbank3 void main(void) { while (1) { } }\n});
+   } elsif ($name eq 'E0') {
+      $build_source=File::Spec->catfile($tmp,"blank_screen_e0.c26");
+      write_file($build_source, qq{include "E0/mapper.c26"\nbank7 void main(void) { while (1) { } }\n});
    } elsif ($text =~ /alias\s+VCS_TIA_USE_40_MIRROR\s+1/) {
       $build_source=File::Spec->catfile($tmp,"blank_screen_${stem}.c26");
       my $blank_text=read_file($blank);
@@ -98,7 +101,7 @@ for my $p (@profiles) {
       open(my $fh,'>',$build_source) or die "open $build_source: $!\n";
       print $fh $blank_text; close($fh);
    }
-   my @inputs = ($name eq '3F' || $name eq '3E') ? ($build_source) : ($profile,$build_source);
+   my @inputs = ($name eq '3F' || $name eq '3E' || $name eq 'E0') ? ($build_source) : ($profile,$build_source);
    require_ok("build $name from C26 topology",
       $driver,'-I',$vcs,
       '-Map',$generic_map,@inputs,'-o',$generic_bin);
@@ -149,6 +152,9 @@ for my $p (@profiles) {
       my $reserved = $name eq '3E' ? '058' : '050';
       $map =~ /mode=direct/ && $map =~ /^TRAMPOLINES$/m && $map =~ /reserved=\$$reserved\b/
          or die "$name profile did not reserve its fixed/lower descriptor trampoline corridor\n";
+   } elsif ($name eq 'E0') {
+      $map =~ /mode=direct/ && $map =~ /^TRAMPOLINES$/m && $map =~ /reserved=\$070\b/
+         or die "E0 profile did not reserve its constrained-state automatic-call corridor\n";
    } else {
       $map =~ /mode=direct/ && $map !~ /^TRAMPOLINES$/m
          or die "$name direct profile unexpectedly generated switching machinery\n";
@@ -217,15 +223,22 @@ for my $p (@profiles) {
    }
 
    if ($name eq 'E0') {
-      $text =~ /bank\s+bank7\s*\{.*?\$file_index:7.*?\$cpu_start:0x1c00.*?\$startup/s &&
-      $text =~ /bank\s+bank0\s*\{.*?\$cpu_start:0x1000/s &&
-      $text =~ /bank\s+bank1\s*\{.*?\$cpu_start:0x1400/s &&
-      $text =~ /bank\s+bank2\s*\{.*?\$cpu_start:0x1800/s &&
+      $text =~ /\$bankcall/ &&
+      $text =~ /bank\s+bank0\s*\{.*?\$cpu_start:0x1000.*?\$bankcall_descriptor:0x00/s &&
+      $text =~ /bank\s+bank1\s*\{.*?\$cpu_start:0x1400.*?\$bankcall_descriptor:0x00/s &&
+      $text =~ /bank\s+bank2\s*\{.*?\$cpu_start:0x1000.*?\$bankcall_descriptor:0x01/s &&
+      $text =~ /bank\s+bank3\s*\{.*?\$cpu_start:0x1400.*?\$bankcall_descriptor:0x01/s &&
+      $text =~ /bank\s+bank4\s*\{.*?\$cpu_start:0x1000.*?\$bankcall_descriptor:0x02/s &&
+      $text =~ /bank\s+bank5\s*\{.*?\$cpu_start:0x1400.*?\$bankcall_descriptor:0x02/s &&
+      $text =~ /bank\s+bank6\s*\{.*?\$cpu_start:0x1800.*?\$bankcall_descriptor:0xff/s &&
+      $text =~ /bank\s+bank7\s*\{.*?\$file_index:7.*?\$cpu_start:0x1c00.*?\$bankcall_descriptor:0xff.*?\$startup/s &&
+      $text =~ /uint8_t\s+_vcsc_e0_state\s*:=\s*2/ &&
       $text !~ /\$select_access:/
-         or die "E0 profile does not preserve segmented 8x1K topology/fixed bank 7\n";
+         or die "E0 profile does not preserve constrained three-state 8x1K topology\n";
       $map =~ /^\s+bank7\s+file-index=7\b.*cpu=\$1C00.*startup=yes/m &&
-      $map !~ /^TRAMPOLINES$/m
-         or die "E0 map does not preserve fixed top bank/no fake whole-window trampolines\n";
+      $map =~ /^TRAMPOLINES$/m &&
+      $map =~ /^\s+common-offset=\$370\b.*reserved=\$070/m
+         or die "E0 map does not preserve fixed top bank/replicated automatic-call corridor\n";
    }
 
    if ($name eq 'FE') {

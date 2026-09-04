@@ -269,9 +269,6 @@ including the exhaustive paddle soak and maximum 3F/3E/3EX diagnostics.
 
 Immediate TODO
 --------------
-Next implement E0 automatic calls using only `[0,1,6,7]`, `[2,3,6,7]`, and
-`[4,5,6,7]`. Banks 6/7 stay at `$1800/$1C00`; the `$1000/$1400` pair switches
-together, power-on `[4,5,6,7]` is the startup state, and arbitrary E0 window
-combinations are outside the automatic-call ABI. FE stays special.
-`.../3ex.txt` still tracks the upstream Stella >64K RAM-write defect; do not
-weaken the 256K 3EX diagnostic to accommodate it.
+Automatic-call mapper migration is complete, including constrained-state E0.
+FE remains intentionally special. `.../3ex.txt` still tracks the upstream Stella
+>64K RAM-write defect; do not weaken the 256K 3EX diagnostic to accommodate it.

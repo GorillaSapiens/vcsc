@@ -27,7 +27,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `0840/mapper.c26` ... 0840/EconoBanking two-bank 8K profile with below-cartridge selectors `$0800/$0840`; linked `.map` output carries the masked selector semantics for `vcsc-sim`
 - `UA/mapper.c26`, `UASW/mapper.c26` ... UA Limited 8K alias-decoded profiles; UA maps `$0220`-family accesses to bank 0 and `$0240`-family accesses to bank 1, while UASW swaps that association; linked `.map` output carries the masked selector semantics for `vcsc-sim`
 - `0FA0/mapper.c26` ... Brazilian Fotomania 0FA0 two-bank 8K profile; `(A & $16E0)==$06A0/$06C0` selects physical bank 0/1, physical bank 1 powers up, and linked `.map` output supplies simulator metadata
-- `E0/mapper.c26` ... Parker Brothers E0 eight-by-1K segmented profile; three independent selectable 1K windows plus fixed physical bank 7, with linked `.map` output supplying simulator mapping
+- `E0/mapper.c26` ... Parker Brothers E0 eight-by-1K profile constrained to relocation-safe states `[0,1,6,7]`, `[2,3,6,7]`, and `[4,5,6,7]`; banks 6/7 remain resident and automatic calls switch/restore the lower pair
 - `FE/mapper.c26` ... FE/SCABS two-bank 8K profile; physical bank 0 starts at `$F000`, physical bank 1 maps at `$D000`, and mirrored `$01FE` arms the one-cycle-delayed data-bus bank latch; linked `.map` output supplies simulator metadata
 - `DPC/mapper.c26` ... DPC profile: two F8-style 4K program banks plus a 2K `$data_only` display bank and 255-byte `$data_only` Poly8 bank; `DPC/registers.c26` exposes the register window and linked `.map` output supplies simulator metadata
 - `3F/mapper.c26` ... parameterized classic 3F selectable-lower-2K/fixed-final-2K profile for 1..256 physical 2K chunks; instantiate it with `VCS_3F_BANKS:=N`. All selectable chunks share canonical CPU/link `$1000-$17FF`, the final chunk is fixed at `$1800-$1FFF`, and ordinary TIA accesses use the `$40-$7F` mirror while `$00-$3F` remains available to the mapper
@@ -580,8 +580,7 @@ For the conventional selector-hotspot 4K physical-bank profiles in that table
 (excluding E0, FE, WD, and DPC), each bank allocates ordinary ROM only through `$xEFF`.
 `$xF00-$xFDF` is the byte-identical trampoline table, `$xFE0-$xFF1` is the
 byte-identical vector bridge, and the remaining tail contains reserved selector
-bytes, mapper metadata, and vectors. E0 instead uses 1K physical chunks; banks
-0-6 expose their full 1K, while fixed bank 7 reserves `$FFE0-$FFFF` for E0
+bytes, mapper metadata, and vectors. E0 instead uses 1K physical chunks with a replicated automatic-call corridor; each bank reserves its configured bridge/trampoline/vector tail for E0
 selectors, mapper metadata, and vectors as described below. FE uses complete 4K
 physical chunks but has no generated trampoline or vector-bridge corridor; its
 `$01FE` control access is on the stack bus rather than in cartridge ROM. WD physically uses eight 1K chunks, but its compiler ABI groups them into two
@@ -778,22 +777,33 @@ carries `3F\0\0` or `3E\0\0` metadata and owns RESET/vectors.
 ### E0 profile
 
 The public `E0/mapper.c26` profile emits eight physical 1K chunks in file order
-0 through 7. E0 exposes three independently selected windows: `$1000-$13FF`
-uses selectors `$1FE0-$1FE7`, `$1400-$17FF` uses `$1FE8-$1FEF`, and
-`$1800-$1BFF` uses `$1FF0-$1FF7`. `$1C00-$1FFF` is always physical bank 7.
-Power-on selects physical banks 4, 5, 6, and 7 respectively.
+0 through 7.  E0 hardware can independently select any bank into each of the
+three lower 1K windows, but VCSC intentionally constrains compiled code to three
+relocation-safe states:
 
-Unlike whole-window F8/F6/F4 switching, one physical E0 bank can be selected into
-more than one CPU window. The C26 profile therefore does not pretend that each
-bank has one `$select_access`. Instead each physical chunk receives one unique
-6507-mirrored link alias for a canonical compilation window; explicit source
-that changes E0 mappings performs the corresponding selector access before
-calling or reading code/data in that window. The linker validates the eight 1K
-shape, the aliases, and fixed startup bank 7. The linked `.map` sidecar supplies
-the runtime segmented mapping to `vcsc-sim`.
+```text
+state 0  [0,1,6,7]
+state 1  [2,3,6,7]
+state 2  [4,5,6,7]   hardware reset state
+```
 
-The final physical bank carries `E0\0\0` at `$FFF8-$FFFB`; RESET and IRQ/BRK
-remain in fixed bank 7 at `$FFFC-$FFFF`.
+Banks 0/2/4 are always linked at `$1000`, banks 1/3/5 at `$1400`, bank 6 at
+`$1800`, and fixed bank 7 at `$1C00`.  Absolute JSR/JMP and data references
+therefore retain one stable CPU address.  Cross-state automatic calls select
+both lower windows together; calls within the active pair or to resident banks
+6/7 do not change E0 hardware state.
+
+Bank-call descriptors 0, 1, and 2 name the three canonical pair states. Banks
+6/7 use descriptor `$FF`, meaning resident/preserve-current-state. Because code
+in resident bank 6 or 7 can make nested calls, one RIOT-RAM byte
+`_vcsc_e0_state` tracks only the current canonical state ID. It initializes to
+2, matching hardware reset `[4,5,6,7]`. Arbitrary E0 window arrangements and
+manual selector changes are outside the automatic-call ABI unless handwritten
+code restores a canonical state and synchronizes the state byte.
+
+The generated transition corridor is replicated at offset `$0370` and reserves
+112 bytes in each physical bank. The final physical bank carries `E0\0\0` at
+`$FFF8-$FFFB`; RESET and IRQ/BRK remain in fixed bank 7 at `$FFFC-$FFFF`.
 
 ### DPC profile
 

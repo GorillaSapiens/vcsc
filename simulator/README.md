@@ -327,6 +327,13 @@ normal cartridge bus transaction order. Because E0 has three simultaneous bank
 states, `--start-bank` is rejected for this mapper rather than pretending one
 scalar start bank can describe it.
 
+VCSC-generated E0 code intentionally uses only `[0,1,6,7]`, `[2,3,6,7]`, and
+`[4,5,6,7]`: banks 6/7 stay resident, while the first two windows switch as a
+pair. The automatic-call trampoline keeps a one-byte canonical-state shadow so
+nested calls originating in resident banks can restore the lower pair. The
+simulator still models arbitrary hardware selector accesses; noncanonical states
+are simply outside the compiler's automatic-call ABI.
+
 ### DPC
 
 `mapper=DPC` accepts the conventional 10,495-byte image: two 4K F8-style

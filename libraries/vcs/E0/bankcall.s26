@@ -1,0 +1,118 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+;
+; Descriptor-ABI cross-bank JSR/RTS trampoline for Parker Brothers E0.
+;
+; VCSC deliberately supports only three relocation-safe E0 states:
+;   descriptor 0: [0,1,6,7]
+;   descriptor 1: [2,3,6,7]
+;   descriptor 2: [4,5,6,7]
+; Banks 6 and 7 are resident in every state and use destination descriptor $FF,
+; meaning "leave the current pair state unchanged".  Because code in resident
+; banks can itself make nested cross-state calls, the current three-state ID is
+; kept in one linker-allocated RIOT RAM byte, _vcsc_e0_state.  Manual selector
+; accesses that do not keep that byte synchronized are outside the automatic
+; bank-call ABI.
+;
+; VCSC_BANKCALL_SELECTOR_BASE is repurposed by the linker for this E0 template:
+; it is the absolute address of _vcsc_e0_state, not a selector base.  The actual
+; E0 selector addresses are fixed below.  Pair transitions always select both
+; $1000 and $1400 windows; the $1800 window remains bank 6 and $1C00 remains
+; fixed bank 7.
+
+.ifndef VCSC_BANKCALL_PTR0
+VCSC_BANKCALL_PTR0 = $0080
+.endif
+.ifndef VCSC_BANKCALL_SELECTOR_BASE
+VCSC_BANKCALL_SELECTOR_BASE = $0082
+.endif
+.ifndef VCSC_BANKCALL_SOURCE_DESCRIPTOR
+VCSC_BANKCALL_SOURCE_DESCRIPTOR = $02
+.endif
+
+; TEMPLATE ASSEMBLY ORIGIN ONLY.
+.segmentdef "CODE", $6000, $0100
+.segment "CODE"
+
+.export __vcsc_generic_bankcall_begin
+.export __vcsc_generic_bankreturn
+.export __vcsc_generic_bankcall_switch_and_jump
+.export __vcsc_generic_bankcall_end
+.export __vcsc_generic_bankcall_reserved_end
+
+__vcsc_generic_bankcall_begin:
+    tsx
+    lda $0101,x
+    sta VCSC_BANKCALL_PTR0
+    lda $0102,x
+    sta VCSC_BANKCALL_PTR0 + 1
+
+    ; Skip target-low, target-high, and destination descriptor on final RTS.
+    lda $0101,x
+    clc
+    adc #3
+    sta $0101,x
+    bcc.same @return_adjusted
+    inc $0102,x
+@return_adjusted:
+
+    ; Consume the inline target while the caller's pair state is still mapped.
+    ldy #3
+    lda (VCSC_BANKCALL_PTR0),y
+    tax
+    dey
+    lda (VCSC_BANKCALL_PTR0),y
+    pha
+    dey
+    lda (VCSC_BANKCALL_PTR0),y
+    sta VCSC_BANKCALL_PTR0
+    pla
+    sta VCSC_BANKCALL_PTR0 + 1
+
+    ; Save the dynamic source state.  This matters for resident banks 6/7,
+    ; whose physical identity does not reveal which lower pair is mapped.
+    lda VCSC_BANKCALL_SELECTOR_BASE
+    pha
+    jsr __vcsc_generic_bankcall_switch_and_jump
+
+__vcsc_generic_bankreturn:
+    ; Preserve public A:X while restoring the source pair state.
+    sta VCSC_BANKCALL_PTR0
+    stx VCSC_BANKCALL_PTR0 + 1
+    pla
+    tax
+    txa
+    cmp VCSC_BANKCALL_SELECTOR_BASE
+    beq.same @return_state_ready
+    sta VCSC_BANKCALL_SELECTOR_BASE
+    asl
+    tax
+    ; Raw NMOS NOP abs,X reads perform the E0 selector accesses without
+    ; changing A/flags.  X is 0/2/4 for window 0, then 1/3/5 for window 1.
+    op1C $1FE0,x
+    inx
+    op1C $1FE8,x
+@return_state_ready:
+    lda VCSC_BANKCALL_PTR0
+    ldx VCSC_BANKCALL_PTR0 + 1
+    rts
+
+__vcsc_generic_bankcall_switch_and_jump:
+    ; $FF is the resident-bank sentinel: banks 6/7 are already mapped and the
+    ; current lower-pair state must be preserved.  State-identical calls also
+    ; require no mapper access.
+    cpx #$ff
+    beq.same @call_state_ready
+    txa
+    cmp VCSC_BANKCALL_SELECTOR_BASE
+    beq.same @call_state_ready
+    sta VCSC_BANKCALL_SELECTOR_BASE
+    asl
+    tax
+    op1C $1FE0,x
+    inx
+    op1C $1FE8,x
+@call_state_ready:
+    jmp (VCSC_BANKCALL_PTR0)
+
+__vcsc_generic_bankcall_end:
+__vcsc_generic_bankcall_reserved_end = $6070

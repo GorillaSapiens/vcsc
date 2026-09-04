@@ -1,0 +1,11 @@
+; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
+;
+; E0 hardware powers up in [4,5,6,7], exactly VCSC state 2.  The maintained
+; mapper entry is therefore an empty fragment.  The C26 profile initializes the separate
+; _vcsc_e0_state RAM byte to 2 through normal startup data initialization.
+.segmentdef "CODE", $6000, $0010
+.segment "CODE"
+.export __vcsc_mapper_entry_begin
+.export __vcsc_mapper_entry_end
+__vcsc_mapper_entry_begin:
+__vcsc_mapper_entry_end:

@@ -34,6 +34,7 @@
 #include "m3ex_bankcall_template.h"
 #include "fc_bankcall_template.h"
 #include "f0_bankcall_template.h"
+#include "e0_bankcall_template.h"
 #include "mapper_entry_templates.h"
 
 static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg);
@@ -2050,6 +2051,8 @@ static int c26_topology_is_f0(const linker_config_t *cfg)
           cart->signature[2] == 0 && cart->signature[3] == 0;
 }
 
+static int c26_topology_is_e0(const linker_config_t *cfg);
+
 //! @brief Build the linker's full-window selector machinery from C26 topology.
 static void apply_c26_topology_to_linker_config(linker_config_t *cfg)
 {
@@ -2068,7 +2071,7 @@ static void apply_c26_topology_to_linker_config(linker_config_t *cfg)
    cfg->banks = NULL;
    cfg->bank_count = 0;
    cfg->mapper[0] = '\0';
-   cfg->cartridge_banked = selector_count != 0 || c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg) || c26_topology_is_3ex(cfg) || c26_topology_is_fc(cfg) || c26_topology_is_f0(cfg);
+   cfg->cartridge_banked = selector_count != 0 || c26_topology_is_e0(cfg) || c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg) || c26_topology_is_3ex(cfg) || c26_topology_is_fc(cfg) || c26_topology_is_f0(cfg);
    cfg->cartridge_fill_value = cfg->topology_cartridge.fill_value;
 
    if (cfg->cartridge_banked) {
@@ -2109,6 +2112,41 @@ static int c26_topology_is_e0(const linker_config_t *cfg)
    return (cart->present_mask & 0x80u) &&
           cart->signature[0] == 'E' && cart->signature[1] == '0' &&
           cart->signature[2] == 0 && cart->signature[3] == 0;
+}
+
+//! @brief Return one E0 physical/file index for a linker cartridge-bank record.
+static int c26_e0_bank_file_index(const linker_config_t *cfg,
+                                  const cartridge_bank_t *bank)
+{
+   size_t i;
+   if (!c26_topology_is_e0(cfg) || !bank)
+      return -1;
+   for (i = 0; i < cfg->topology_bank_count; ++i) {
+      const topology_bank_t *top = &cfg->topology_banks[i];
+      if (!top->data_only && strcmp(top->name, bank->name) == 0)
+         return top->file_index < 8u ? (int)top->file_index : -1;
+   }
+   return -1;
+}
+
+//! @brief Return whether an E0 target bank is guaranteed visible from source.
+//!
+//! VCSC deliberately exposes only [0,1,6,7], [2,3,6,7], and [4,5,6,7].
+//! A lower-pair source therefore sees its partner and resident banks 6/7.
+//! Resident code can always see only 6/7 without knowing the dynamic pair.
+static int c26_e0_bank_directly_visible(const linker_config_t *cfg,
+                                        const cartridge_bank_t *source,
+                                        const cartridge_bank_t *target)
+{
+   int s = c26_e0_bank_file_index(cfg, source);
+   int t = c26_e0_bank_file_index(cfg, target);
+   if (s < 0 || t < 0)
+      return 0;
+   if (t >= 6)
+      return 1;
+   if (s >= 6)
+      return 0;
+   return (s >> 1) == (t >> 1);
 }
 
 //! @brief Return whether the C26 topology is Wickstead Design WD.
@@ -2477,52 +2515,52 @@ static void validate_c26_f0_topology(const linker_config_t *cfg)
    }
 }
 
-//! @brief Validate the segmented 8x1K Parker Brothers E0 output profile.
+//! @brief Validate VCSC's constrained three-state Parker Brothers E0 profile.
 static void validate_c26_e0_topology(const linker_config_t *cfg)
 {
+   static const uint16_t expected_start[8] = {
+      0x1000u, 0x1400u, 0x1000u, 0x1400u,
+      0x1000u, 0x1400u, 0x1800u, 0x1c00u
+   };
+   static const uint8_t expected_descriptor[8] = {
+      0x00u, 0x00u, 0x01u, 0x01u,
+      0x02u, 0x02u, 0xffu, 0xffu
+   };
    size_t i;
    size_t startup_count = 0;
-   for (i = 0; i < cfg->topology_bank_count; ++i) {
-      const topology_bank_t *bank = &cfg->topology_banks[i];
-      uint16_t canonical_link = (uint16_t)(bank->link_start & 0x1fffu);
-      if (bank->image_size != 0x0400u || bank->image_offset != 0 ||
-          bank->map_size != 0x0400u) {
+
+   for (i = 0; i < 8u; ++i) {
+      const topology_bank_t *bank = c26_topology_bank_by_file_index(cfg, i);
+      if (!bank) {
+         fprintf(stderr, "vcsc-ld: E0 topology requires dense physical/file banks 0-7\n");
+         exit(1);
+      }
+      if (bank->data_only || bank->image_size != 0x0400u ||
+          bank->image_offset != 0u || bank->map_size != 0x0400u ||
+          bank->link_start != expected_start[i] || bank->cpu_start != expected_start[i]) {
          fprintf(stderr,
-                 "vcsc-ld: E0 bank '%s' must be one fully mapped 1K physical chunk\n",
-                 bank->name);
+                 "vcsc-ld: E0 physical bank %zu must be a canonical 1K window at $%04X\n",
+                 i, expected_start[i]);
          exit(1);
       }
       if (bank->has_selector) {
          fprintf(stderr,
-                 "vcsc-ld: E0 bank '%s' must not use one-bank $select_access metadata; E0 selectors are segment-specific\n",
+                 "vcsc-ld: E0 bank '%s' must not use one-bank $select_access metadata; pair selectors are mapper-owned\n",
                  bank->name);
          exit(1);
       }
-      if (canonical_link != (uint16_t)(bank->cpu_start & 0x1fffu)) {
+      if (!bank->has_bankcall_descriptor ||
+          bank->bankcall_descriptor != expected_descriptor[i]) {
          fprintf(stderr,
-                 "vcsc-ld: E0 bank '%s' link address $%04X is not a 6507 alias of CPU window $%04X\n",
-                 bank->name, bank->link_start, bank->cpu_start);
-         exit(1);
-      }
-      if (bank->file_index == 7u) {
-         if (bank->cpu_start != 0x1c00u) {
-            fprintf(stderr,
-                    "vcsc-ld: E0 physical bank 7 must use the fixed $1C00-$1FFF CPU window\n");
-            exit(1);
-         }
-      } else if (bank->cpu_start != 0x1000u &&
-                 bank->cpu_start != 0x1400u &&
-                 bank->cpu_start != 0x1800u) {
-         fprintf(stderr,
-                 "vcsc-ld: E0 switchable bank '%s' must choose $1000, $1400, or $1800 as its canonical compile window\n",
-                 bank->name);
+                 "vcsc-ld: E0 physical bank %zu requires bank-call descriptor $%02X\n",
+                 i, expected_descriptor[i]);
          exit(1);
       }
       if (bank->startup) {
          startup_count++;
-         if (bank->file_index != 7u) {
+         if (i != 7u) {
             fprintf(stderr,
-                    "vcsc-ld: E0 startup/home marker must be on fixed physical bank 7\n");
+                    "vcsc-ld: E0 fixed physical bank 7 must be the single startup/home bank\n");
             exit(1);
          }
       }
@@ -2530,6 +2568,15 @@ static void validate_c26_e0_topology(const linker_config_t *cfg)
    if (startup_count != 1u) {
       fprintf(stderr,
               "vcsc-ld: E0 topology requires fixed physical bank 7 as the single startup/home bank\n");
+      exit(1);
+   }
+
+   if (cfg->topology_cartridge.trampoline_offset != 0x0370u ||
+       cfg->topology_cartridge.trampoline_size < VCSC_E0_BANKCALL_RESERVED_SIZE ||
+       cfg->topology_cartridge.vector_bridge_offset != 0x0360u ||
+       cfg->topology_cartridge.vectors_offset != 0x03fau) {
+      fprintf(stderr,
+              "vcsc-ld: E0 automatic-call profile requires the maintained 1K bankcall/vector layout\n");
       exit(1);
    }
 }
@@ -3685,7 +3732,39 @@ static void validate_linker_config(linker_config_t *cfg)
       exit(1);
    }
 
-   if (c26_topology_is_fc(cfg)) {
+   if (c26_topology_is_e0(cfg)) {
+      static const uint16_t expected_start[8] = {
+         0x1000u, 0x1400u, 0x1000u, 0x1400u,
+         0x1000u, 0x1400u, 0x1800u, 0x1c00u
+      };
+      static const uint8_t expected_descriptor[8] = {
+         0x00u, 0x00u, 0x01u, 0x01u,
+         0x02u, 0x02u, 0xffu, 0xffu
+      };
+      for (i = 0; i < cfg->bank_count; ++i) {
+         cartridge_bank_t *bank = &cfg->banks[i];
+         const topology_bank_t *top = NULL;
+         for (j = 0; j < cfg->topology_bank_count; ++j)
+            if (!strcmp(cfg->topology_banks[j].name, bank->name)) { top = &cfg->topology_banks[j]; break; }
+         if (!top || top->file_index >= 8u || bank->size != 0x0400u ||
+             bank->start != expected_start[top->file_index] || bank->hotspot != 0u ||
+             !bank->has_bankcall_descriptor ||
+             bank->bankcall_descriptor != expected_descriptor[top->file_index] ||
+             bank->startup != (top->file_index == 7u)) {
+            fprintf(stderr,
+                    "vcsc-ld: E0 bank '%s' violates the canonical three-state [0,1]/[2,3]/[4,5] plus resident 6/7 mapping\n",
+                    bank->name);
+            exit(1);
+         }
+         if (bank->startup) startup_count++;
+         for (j = i + 1; j < cfg->bank_count; ++j) {
+            if (str_ieq(bank->name, cfg->banks[j].name)) {
+               fprintf(stderr, "vcsc-ld: duplicate BANKS entry '%s'\n", bank->name);
+               exit(1);
+            }
+         }
+      }
+   } else if (c26_topology_is_fc(cfg)) {
       for (i = 0; i < cfg->bank_count; ++i) {
          cartridge_bank_t *bank = &cfg->banks[i];
          if (bank->startup) startup_count++;
@@ -8523,20 +8602,33 @@ static void assign_automatic_bank_placements(const linker_config_t *cfg,
             }
 
             if (source_item >= 0 && target_item >= 0) {
-               bank_placement_union(items, source_item, target_item);
+               const cartridge_bank_t *source_fixed = items[source_item].directly_pinned
+                  ? items[source_item].pin_bank : NULL;
+               const cartridge_bank_t *target_fixed = items[target_item].directly_pinned
+                  ? items[target_item].pin_bank : NULL;
+               if (!(source_fixed && target_fixed &&
+                     c26_e0_bank_directly_visible(cfg, source_fixed, target_fixed)))
+                  bank_placement_union(items, source_item, target_item);
             }
             else if (target_item >= 0) {
                const memory_region_t *source_memory =
                   bank_placement_layout_memory(cfg, source_layout);
                const cartridge_bank_t *source_bank =
                   bank_placement_memory_bank(cfg, source_memory);
-               if (source_bank)
+               const cartridge_bank_t *target_fixed = items[target_item].directly_pinned
+                  ? items[target_item].pin_bank : NULL;
+               if (source_bank &&
+                   !(target_fixed &&
+                     c26_e0_bank_directly_visible(cfg, source_bank, target_fixed)))
                   bank_placement_pin_item(&items[target_item], source_bank,
                                           NULL, 1);
             }
             else if (source_item >= 0 && target.fixed_bank) {
-               bank_placement_pin_item(&items[source_item], target.fixed_bank,
-                                       NULL, 1);
+               const cartridge_bank_t *source_fixed = items[source_item].directly_pinned
+                  ? items[source_item].pin_bank : items[source_item].configured_bank;
+               if (!c26_e0_bank_directly_visible(cfg, source_fixed, target.fixed_bank))
+                  bank_placement_pin_item(&items[source_item], target.fixed_bank,
+                                          NULL, 1);
             }
          }
       }
@@ -10098,7 +10190,7 @@ static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg)
    size_t i;
    int saw_selector = 0;
    if (!cfg) return 0;
-   if (c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg) || c26_topology_is_3ex(cfg) || c26_topology_is_fc(cfg) || c26_topology_is_f0(cfg)) {
+   if (c26_topology_is_e0(cfg) || c26_topology_is_3f(cfg) || c26_topology_is_3e(cfg) || c26_topology_is_3ex(cfg) || c26_topology_is_fc(cfg) || c26_topology_is_f0(cfg)) {
       if (cfg->bank_count != cfg->topology_bank_count) return 0;
       for (i = 0; i < cfg->bank_count; ++i)
          if (!cfg->banks[i].has_bankcall_descriptor) return 0;
@@ -10123,6 +10215,7 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
    int uasw = c26_topology_is_uasw(cfg);
    int m0fa0 = c26_topology_is_0fa0(cfg);
    int wd = c26_topology_is_wd(cfg);
+   int e0 = c26_topology_is_e0(cfg);
    int threef = c26_topology_is_3f(cfg);
    int threee = c26_topology_is_3e(cfg);
    int threeex = c26_topology_is_3ex(cfg);
@@ -10132,6 +10225,29 @@ static uint16_t generic_bankcall_selector_base(const linker_config_t *cfg)
    if (!cfg) {
       fprintf(stderr, "vcsc-ld: generic inline-target bank calls require a banked cartridge profile\n");
       exit(1);
+   }
+
+   if (e0) {
+      static const uint16_t expected_start[8] = {
+         0x1000u, 0x1400u, 0x1000u, 0x1400u,
+         0x1000u, 0x1400u, 0x1800u, 0x1c00u
+      };
+      static const uint8_t expected_descriptor[8] = {
+         0x00u, 0x00u, 0x01u, 0x01u,
+         0x02u, 0x02u, 0xffu, 0xffu
+      };
+      for (i = 0; i < 8u; ++i) {
+         const topology_bank_t *bank = c26_topology_bank_by_file_index(cfg, i);
+         if (!bank || bank->data_only || bank->has_selector ||
+             bank->link_start != expected_start[i] || bank->cpu_start != expected_start[i] ||
+             !bank->has_bankcall_descriptor ||
+             bank->bankcall_descriptor != expected_descriptor[i]) {
+            fprintf(stderr,
+                    "vcsc-ld: E0 inline-target calls require canonical [0,1,6,7]/[2,3,6,7]/[4,5,6,7] states and descriptors 0/1/2 with $FF for resident banks 6/7\n");
+            exit(1);
+         }
+      }
+      return 0u; /* E0 template uses this patch slot for _vcsc_e0_state at final encoding. */
    }
 
    if (fc) {
@@ -10320,6 +10436,8 @@ static uint16_t generic_bankcall_reserved_size(const linker_config_t *cfg)
       return VCSC_M3E_BANKCALL_RESERVED_SIZE;
    if (c26_topology_is_3ex(cfg))
       return VCSC_M3EX_BANKCALL_RESERVED_SIZE;
+   if (c26_topology_is_e0(cfg))
+      return VCSC_E0_BANKCALL_RESERVED_SIZE;
    if (c26_topology_is_fc(cfg))
       return VCSC_FC_BANKCALL_RESERVED_SIZE;
    if (c26_topology_is_f0(cfg))
@@ -10571,6 +10689,10 @@ static uint16_t rewrite_banked_relocation(const linker_config_t *cfg,
       }
       return (uint16_t)address;
    }
+
+   if (different_bank &&
+       c26_e0_bank_directly_visible(cfg, source_bank, different_bank))
+      return target->address;
 
    if (!different_bank)
       return target->address;
@@ -11128,6 +11250,8 @@ static const uint8_t *mapper_entry_template(const linker_config_t *cfg, size_t *
       ENTRY(fc);
    if (SIG4('F','0',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "F0")))
       ENTRY(f0);
+   if (SIG4('E','0',0,0) || (!has_sig && cfg && str_ieq(cfg->mapper, "E0")))
+      ENTRY(e0);
 #undef ENTRY
 #undef SIG4
    return NULL;
@@ -11306,9 +11430,9 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
                                           const linker_config_t *cfg,
                                           const cartridge_bank_t *source_bank,
                                           uint16_t canonical_base,
-                                          uint16_t ptr0)
+                                          uint16_t ptr0,
+                                          uint16_t selector_base)
 {
-   uint16_t selector_base = generic_bankcall_selector_base(cfg);
    uint8_t source_descriptor = source_bank && source_bank->has_bankcall_descriptor
       ? source_bank->bankcall_descriptor : 0u;
    if (c26_topology_is_0840(cfg)) {
@@ -11469,6 +11593,22 @@ static void encode_generic_bank_jsr_block(uint8_t *table,
          source_descriptor,
          VCSC_M3EX_BANKCALL_SWITCH_OFFSET,
          VCSC_M3EX_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
+         selector_base, canonical_base, ptr0);
+   }
+   else if (c26_topology_is_e0(cfg)) {
+      instantiate_bankcall_template(table,
+         vcsc_e0_bankcall_template,
+         VCSC_E0_BANKCALL_TEMPLATE_SIZE,
+         VCSC_E0_BANKCALL_RESERVED_SIZE,
+         vcsc_e0_bankcall_ptr_patches,
+         VCSC_E0_BANKCALL_PTR_PATCH_COUNT,
+         vcsc_e0_bankcall_selector_patches,
+         VCSC_E0_BANKCALL_SELECTOR_PATCH_COUNT,
+         vcsc_e0_bankcall_source_descriptor_patches,
+         VCSC_E0_BANKCALL_SOURCE_DESCRIPTOR_PATCH_COUNT,
+         source_descriptor,
+         VCSC_E0_BANKCALL_SWITCH_OFFSET,
+         VCSC_E0_BANKCALL_INTERNAL_JSR_OPERAND_OFFSET,
          selector_base, canonical_base, ptr0);
    }
    else if (c26_topology_is_fc(cfg)) {
@@ -11738,7 +11878,10 @@ static void build_rom_image(const linker_config_t *cfg, input_set_t *in, const l
             if (layout->bank_generic_jsr_used) {
                uint16_t ptr0 = lookup_global_addr(layout, "_vcsc_ptr0");
                uint16_t canonical_base = (uint16_t)(startup->start + cfg->trampoline_offset);
-               encode_generic_bank_jsr_block(trampoline, cfg, &cfg->banks[j], canonical_base, ptr0);
+               uint16_t selector_base = c26_topology_is_e0(cfg)
+                  ? lookup_global_addr(layout, "_vcsc_e0_state")
+                  : generic_bankcall_selector_base(cfg);
+               encode_generic_bank_jsr_block(trampoline, cfg, &cfg->banks[j], canonical_base, ptr0, selector_base);
             }
             image_write_generated(image,
                                   link_image_plane_for_bank_name(cfg, cfg->banks[j].name),

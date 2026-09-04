@@ -37,6 +37,7 @@ my $m3f_src = File::Spec->catfile($repo, qw(libraries vcs 3F bankcall.s26));
 my $m3e_src = File::Spec->catfile($repo, qw(libraries vcs 3E bankcall.s26));
 my $fc_src = File::Spec->catfile($repo, qw(libraries vcs FC bankcall.s26));
 my $f0_src = File::Spec->catfile($repo, qw(libraries vcs F0 bankcall.s26));
+my $e0_src = File::Spec->catfile($repo, qw(libraries vcs E0 bankcall.s26));
 my $generator = File::Spec->catfile($repo, qw(linker gen_bankcall_template.pl));
 my $built = File::Spec->catfile($repo, qw(linker generic_bankcall_template.h));
 my $fa2_built = File::Spec->catfile($repo, qw(linker fa2_bankcall_template.h));
@@ -50,6 +51,7 @@ my $m3f_built = File::Spec->catfile($repo, qw(linker m3f_bankcall_template.h));
 my $m3e_built = File::Spec->catfile($repo, qw(linker m3e_bankcall_template.h));
 my $fc_built = File::Spec->catfile($repo, qw(linker fc_bankcall_template.h));
 my $f0_built = File::Spec->catfile($repo, qw(linker f0_bankcall_template.h));
+my $e0_built = File::Spec->catfile($repo, qw(linker e0_bankcall_template.h));
 my $fresh = File::Spec->catfile($tmp, 'generic_bankcall_template.h');
 my $fa2_fresh = File::Spec->catfile($tmp, 'fa2_bankcall_template.h');
 my $jane_fresh = File::Spec->catfile($tmp, 'jane_bankcall_template.h');
@@ -62,6 +64,7 @@ my $m3f_fresh = File::Spec->catfile($tmp, 'm3f_bankcall_template.h');
 my $m3e_fresh = File::Spec->catfile($tmp, 'm3e_bankcall_template.h');
 my $fc_fresh = File::Spec->catfile($tmp, 'fc_bankcall_template.h');
 my $f0_fresh = File::Spec->catfile($tmp, 'f0_bankcall_template.h');
+my $e0_fresh = File::Spec->catfile($tmp, 'e0_bankcall_template.h');
 my $ld = read_file(File::Spec->catfile($repo, qw(linker vcsc_ld.c)));
 my $top = read_file(File::Spec->catfile($repo, 'Makefile'));
 my $s26 = read_file($src);
@@ -76,6 +79,7 @@ my $m3f_s26 = read_file($m3f_src);
 my $m3e_s26 = read_file($m3e_src);
 my $fc_s26 = read_file($fc_src);
 my $f0_s26 = read_file($f0_src);
+my $e0_s26 = read_file($e0_src);
 
 -f $as or die "missing assembler $as\n";
 -f $src or die "missing maintained trampoline source $src\n";
@@ -96,6 +100,7 @@ for my $mapper (@generic_mapper_dirs) {
 -f $m3e_src or die "missing maintained 3E trampoline source $m3e_src\n";
 -f $fc_src or die "missing maintained FC trampoline source $fc_src\n";
 -f $f0_src or die "missing maintained F0 trampoline source $f0_src\n";
+-f $e0_src or die "missing maintained E0 trampoline source $e0_src\n";
 -f $generator or die "missing template generator $generator\n";
 -f $built or die "missing generated linker template $built\n";
 -f $fa2_built or die "missing generated FA2 linker template $fa2_built\n";
@@ -109,6 +114,7 @@ for my $mapper (@generic_mapper_dirs) {
 -f $m3e_built or die "missing generated 3E linker template $m3e_built\n";
 -f $fc_built or die "missing generated FC linker template $fc_built\n";
 -f $f0_built or die "missing generated F0 linker template $f0_built\n";
+-f $e0_built or die "missing generated E0 linker template $e0_built\n";
 
 for my $label (qw(
    __vcsc_generic_bankcall_begin
@@ -204,12 +210,20 @@ index($f0_s26, 'lda #VCSC_BANKCALL_SOURCE_DESCRIPTOR') >= 0 &&
 index($f0_s26, 'adc #3') >= 0 &&
 index($f0_s26, '__vcsc_generic_bankcall_reserved_end = $6060') >= 0
    or die "maintained F0 trampoline source lacks incremental modulo-16 descriptor ABI\n";
+index($e0_s26, 'cpx #$ff') >= 0 &&
+index($e0_s26, 'op1C $1FE0,x') >= 0 &&
+index($e0_s26, 'op1C $1FE8,x') >= 0 &&
+index($e0_s26, 'cmp VCSC_BANKCALL_SELECTOR_BASE') >= 0 &&
+index($e0_s26, 'adc #3') >= 0 &&
+index($e0_s26, '__vcsc_generic_bankcall_reserved_end = $6070') >= 0
+   or die "maintained E0 trampoline source lacks constrained dynamic-state descriptor ABI\n";
 index($ld, 'vcsc_generic_bankcall_template') >= 0 && index($ld, 'vcsc_fa2_bankcall_template') >= 0 &&
 index($ld, 'vcsc_jane_bankcall_template') >= 0 && index($ld, 'vcsc_m0840_bankcall_template') >= 0 &&
 index($ld, 'vcsc_ua_bankcall_template') >= 0 && index($ld, 'vcsc_uasw_bankcall_template') >= 0 &&
 index($ld, 'vcsc_m0fa0_bankcall_template') >= 0 && index($ld, 'vcsc_wd_bankcall_template') >= 0 &&
 index($ld, 'vcsc_m3f_bankcall_template') >= 0 && index($ld, 'vcsc_m3e_bankcall_template') >= 0 &&
-index($ld, 'vcsc_fc_bankcall_template') >= 0 && index($ld, 'vcsc_f0_bankcall_template') >= 0
+index($ld, 'vcsc_fc_bankcall_template') >= 0 && index($ld, 'vcsc_f0_bankcall_template') >= 0 &&
+index($ld, 'vcsc_e0_bankcall_template') >= 0
    or die "linker does not consume all generated trampoline templates
 ";
 index($ld, '#define PUT(') < 0
@@ -225,7 +239,8 @@ index($top, 'libraries/vcs/WD/bankcall.s26') >= 0 &&
 index($top, 'libraries/vcs/3F/bankcall.s26') >= 0 &&
 index($top, 'libraries/vcs/3E/bankcall.s26') >= 0 &&
 index($top, 'libraries/vcs/FC/bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/F0/bankcall.s26') >= 0
+index($top, 'libraries/vcs/F0/bankcall.s26') >= 0 &&
+index($top, 'libraries/vcs/E0/bankcall.s26') >= 0
    or die "maintained trampoline sources are not installed
 ";
 
@@ -259,6 +274,8 @@ system($^X, $generator, $as, $fc_src, $fc_fresh, 'FC') == 0
    or die "could not regenerate FC bank-call template\n";
 system($^X, $generator, $as, $f0_src, $f0_fresh, 'F0') == 0
    or die "could not regenerate F0 bank-call template\n";
+system($^X, $generator, $as, $e0_src, $e0_fresh, 'E0') == 0
+   or die "could not regenerate E0 bank-call template\n";
 read_file($fresh) eq read_file($built)
    or die "built generic bank-call template is stale relative to F8/bankcall.s26\n";
 read_file($fa2_fresh) eq read_file($fa2_built)
@@ -289,6 +306,8 @@ read_file($fc_fresh) eq read_file($fc_built)
    or die "built FC bank-call template is stale relative to FC/bankcall.s26\n";
 read_file($f0_fresh) eq read_file($f0_built)
    or die "built F0 bank-call template is stale relative to F0/bankcall.s26\n";
+read_file($e0_fresh) eq read_file($e0_built)
+   or die "built E0 bank-call template is stale relative to E0/bankcall.s26\n";
 
 my $header = read_file($built);
 $header =~ /VCSC_GENERIC_BANKCALL_TEMPLATE_SIZE 0x44u/
@@ -360,5 +379,14 @@ $f0_header =~ /VCSC_F0_BANKCALL_RESERVED_SIZE 0x60u/
    or die "F0 descriptor trampoline reservation is no longer 96 bytes\n";
 $f0_header =~ /VCSC_F0_BANKCALL_SELECTOR_PATCH_COUNT 0u/
    or die "F0 descriptor trampoline unexpectedly has indexed selector-address patches\n";
+my $e0_header = read_file($e0_built);
+$e0_header =~ /VCSC_E0_BANKCALL_TEMPLATE_SIZE 0x67u/
+   or die "E0 descriptor trampoline payload is no longer 103 bytes\n";
+$e0_header =~ /VCSC_E0_BANKCALL_RESERVED_SIZE 0x70u/
+   or die "E0 descriptor trampoline reservation is no longer 112 bytes\n";
+$e0_header =~ /VCSC_E0_BANKCALL_SELECTOR_PATCH_COUNT 5u/
+   or die "E0 descriptor trampoline lost dynamic state-address patches\n";
+$e0_header =~ /VCSC_E0_BANKCALL_SOURCE_DESCRIPTOR_PATCH_COUNT 0u/
+   or die "E0 dynamic-state trampoline unexpectedly bakes physical source descriptors\n";
 
 print "bank-call source templates passed\n";

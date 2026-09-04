@@ -63,3 +63,32 @@ the previous pair on return; calls within a pair or to banks 6/7 need no mapper
 transition.  Hardware startup [4,5,6,7] already supplies the desired bank-6
 mapping.  Arbitrary E0 window combinations remain available only to deliberate
 assembly outside the automatic-call ABI, analogous to WD's constrained states.
+
+2026-09-04 10:59:28 PDT, implement constrained-state E0 bankcalls
+Implemented E0 automatic bankcalls using only canonical states [0,1,6,7],
+[2,3,6,7], and [4,5,6,7]. Banks 0/2/4 retain canonical origin $1000,
+banks 1/3/5 $1400, resident bank 6 $1800, and fixed bank 7 $1C00. Descriptors
+0/1/2 select the three lower pairs; resident banks 6/7 use $FF. One RIOT-RAM
+byte `_vcsc_e0_state` tracks only the canonical state so nested calls made from
+resident banks can switch another pair and still restore their caller. Hardware
+reset already supplies state 2, so E0 entry code is empty. Arbitrary E0 selector
+arrangements remain outside the automatic-call ABI.
+
+The E0 trampoline reserves 112 bytes per physical 1K bank and its generated
+source uses dynamic state save/restore rather than a baked source descriptor.
+The linker now permits direct ROM references only between banks guaranteed
+simultaneous in one canonical E0 state and rejects cross-state ROM data
+references. vcsc-sim, the independent frame-timing oracle, vcsc-disas, profile
+inspection, generated-template/install contracts, and the public E0 diagnostic
+all understand the constrained model. The diagnostic executes all 8 x 8 ordered
+physical-bank calls, resident-bank nested restoration, a 16-bit A:X return,
+262-line NTSC timing, E0 autodetection, and exact disassembly roundtrip.
+
+Generic profile/example tests were updated for the new E0 topology: the profile
+fixture supplies its own E0 mapper/main, the assembly allowlist reflects the new
+37-statement display block, and example vector validation accepts E0's fixed
+$1C00-$1FFF vector window. Validation completed with 503/503 compile-only tests
+and 356/356 e2e tests with eight workers; staged `make installcheck` also passes.
+The planned automatic-call mapper migration is complete. FE remains intentionally
+special, and the separate Stella 3EX >64K RAM-write defect remains tracked in
+.../3ex.txt.

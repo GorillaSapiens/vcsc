@@ -148,17 +148,19 @@ signatures include:
 The bytes are metadata; real hardware switches because the hotspot address is
 accessed, not because of the stored byte value.
 
-Open work
----------
+Descriptor ABI contract
+-----------------------
 Generic inline-target cross-bank JSR contract
 ---------------------------------------------
 Public ABI authority: `BANKSWITCHING.md`. Do not duplicate the full contract in
 this hot file. The target ABI is a six-byte cross-bank call: JSR plus a
 three-byte `.banktarget` payload containing the 16-bit target CPU address and one
-opaque mapper-defined destination descriptor. Each bank-local fixed mapper-specific replicated entry/return instance has its
-source descriptor baked in, pushes that byte as call-frame metadata before
-switching, and the return half pops it to restore the source before the final
-RTS to the unchanged original 16-bit logical return PC. Same-bank calls remain ordinary JSRs. Neither source
+opaque mapper-defined destination descriptor. Each mapper-specific replicated entry/return saves the one-byte source state
+needed for restoration. Most mappers bake it into each bank copy; E0 instead
+pushes its dynamic canonical state byte because resident banks 6/7 do not reveal
+which lower pair is selected. The return half restores that byte/state before
+the final RTS to the unchanged original 16-bit logical return PC. Same-bank
+calls remain ordinary JSRs. Neither source
 nor destination bank identity may be inferred from the address once this ABI is
 implemented.
 
@@ -174,12 +176,12 @@ move accordingly.
 
 Implementation checkpoint: the compiler/assembler/linker use the six-byte
 descriptor ABI and `__bankmeta$V3`. F8/F8SC/F6/F6SC/F4/F4SC, FA, DPC,
-FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, 3F, 3E, FC, and F0 consume it end to end and
+FA2-24/28, JANE, 0840, UA, UASW, 0FA0, WD, 3F, 3E, FC, F0, and E0 consume it end to end and
 those migrated profiles declare `$bankcall` unconditionally. They own
 `bankcall.s26` and variable-length `entry.s26`; maintained entry bytes run before
 the normal vector handler. Selector-normalizing hooks use raw `op0C` for fixed
 selector reads, avoiding an assembler `--illegal` dependency. Zero-length entry
-fragments are valid; 3F, 3E, FC, and F0 use one where hardware already guarantees the startup mapping.
+fragments are valid; 3F, 3E, FC, F0, and E0 use one where hardware already guarantees the startup mapping.
 FA2 uses
 descriptors `$F5-$FA/$FB` and raw `op1C $1F00,X`; JANE uses
 `$F0/$F1/$F8/$F9` and raw `op1C $1F00,X`; 0840 uses `$00/$40` and raw
@@ -219,49 +221,19 @@ current whole-function asm safety rule can leave generated
 `BNE near / JMP false / near: JMP true`. Pure C26 should not normally see it;
 this is future optimizer-locality cleanup, not bankswitching work.
 
-[ ] 38. Complete the remaining automatic-call mapper work.
+Automatic-call mapper migration is complete.
 
-        Physical-bank/address separation is complete. The linker stores up to
-        256 independent 64K physical planes, automatic placement uses a
-        256-bit bank set, and normal relocations/branches/.banktarget use owning-layout
-        bank identity rather than recovering it from a 16-bit address. Raw
-        address lookup is only a unique-owner fallback for ownerless absolutes.
-
-        3F topology is now scalable and parameterized in one public
-        `libraries/vcs/3F/mapper.c26`. Instantiate it with `VCS_3F_BANKS:=N`.
-        For literal bank N, `VCS_3F_BANKS > N+1` makes it a selectable canonical
-        `$1000-$17FF` bank and `== N+1` makes that same bankN the fixed/startup
-        `$1800-$1FFF` bank. The maximum 256 x 2K / 512K shape is a regression.
-
-        WD, 3F, 3E, 3EX, and FC have their core migrations; FE intentionally keeps
-        its released direct top-level JSR/RTS mechanism. Maximum 3F/3E/3EX
-        coverage is executable regression coverage rather than size-only linking.
-        F0 is migrated.
-
-        [ ] 38f. Design automatic E0 calls.
-
-            Do not expose E0's full 9-bit/512-state hardware flexibility to
-            compiled C26.  VCSC supports only three relocation-safe states:
-
-                [0,1,6,7]
-                [2,3,6,7]
-                [4,5,6,7]
-
-            Thus banks 0/2/4 are permanently linked at `$1000`, banks 1/3/5
-            at `$1400`, bank 6 at `$1800`, and fixed bank 7 at `$1C00`.  Bank 6
-            remains selected in `$1800-$1BFF`; hardware power-on `[4,5,6,7]`
-            already establishes the desired startup mapping.  Automatic
-            cross-state calls switch the `$1000/$1400` pair together and
-            restore the caller's pair state on return.  Calls within one pair,
-            and calls to always-resident banks 6/7, need no mapper transition.
-            Arbitrary user-created E0 window combinations are outside the
-            automatic-call ABI.  This is intentionally analogous to WD: expose
-            only the small set of absolute-address-safe states useful to linked
-            code, because JSR/JMP/absolute/indexed operands cannot move with a
-            freely remapped 1K bank.  One byte is therefore sufficient to
-            describe the supported mapper state; choose the exact descriptor
-            encoding while implementing the trampoline.
-
+E0 compiler topology is deliberately constrained to three canonical states:
+`[0,1,6,7]`, `[2,3,6,7]`, and `[4,5,6,7]`. Banks 0/2/4 are linked at `$1000`,
+banks 1/3/5 at `$1400`, bank 6 at `$1800`, and fixed bank 7 at `$1C00`.
+Descriptors 0/1/2 select the lower pair; resident banks 6/7 use `$FF`. One RIOT
+RAM byte tracks only the canonical state so nested calls made by resident code
+can restore the caller's lower pair. Hardware startup `[4,5,6,7]` is already
+state 2, so E0 entry code is empty. Arbitrary E0 window arrangements are outside
+the automatic-call ABI. The maintained diagnostic covers all 8x8 ordered calls,
+resident-bank nested restoration, A:X preservation, legal same-state ROM data
+references, rejection of cross-state ROM data, timing, autodetection, and exact
+disassembly roundtrip.
 
 Deferred design questions
 -------------------------

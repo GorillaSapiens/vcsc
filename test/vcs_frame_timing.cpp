@@ -63,7 +63,7 @@ uint8_t cartridge_image[kMaxRomSize];
 uint8_t superchip_ram[128];
 uint8_t threee_ram[256][1024];
 size_t cartridge_size = 0;
-enum class CartridgeTimingMapper { Plain, F8, F4SC, ThreeF, ThreeE, FC, F0 };
+enum class CartridgeTimingMapper { Plain, F8, F4SC, ThreeF, ThreeE, FC, F0, E0 };
 CartridgeTimingMapper cartridge_mapper = CartridgeTimingMapper::Plain;
 unsigned selected_f8_chunk = 1;
 unsigned selected_f4_chunk = 7;
@@ -74,6 +74,7 @@ unsigned fc_bank_count = 1;
 unsigned selected_fc_bank = 0;
 unsigned pending_fc_bank = 0;
 unsigned selected_f0_bank = 15;
+unsigned selected_e0_bank[3] = {4u, 5u, 6u};
 bool threee_ram_selected = false;
 unsigned threee_ram_bank = 0;
 
@@ -90,6 +91,11 @@ void maybe_select_banked(uint16_t address) {
    else if (cartridge_mapper == CartridgeTimingMapper::F4SC &&
             bus >= 0x1ff4 && bus <= 0x1ffb) {
       selected_f4_chunk = static_cast<unsigned>(bus - 0x1ff4);
+   }
+   else if (cartridge_mapper == CartridgeTimingMapper::E0 &&
+            bus >= 0x1fe0u && bus <= 0x1ff7u) {
+      const unsigned segment = static_cast<unsigned>((bus - 0x1fe0u) >> 3);
+      if (segment < 3u) selected_e0_bank[segment] = static_cast<unsigned>(bus & 7u);
    }
 }
 
@@ -138,6 +144,13 @@ uint8_t read_f0_cartridge(uint16_t address) {
    if (bus == 0x1ff0u)
       selected_f0_bank = (selected_f0_bank + 1u) & 0x0fu;
    return value;
+}
+
+uint8_t read_e0_cartridge(uint16_t address) {
+   const uint16_t bus = address & 0x1fffu;
+   const unsigned segment = static_cast<unsigned>((bus - 0x1000u) >> 10);
+   const unsigned bank = segment < 3u ? selected_e0_bank[segment] : 7u;
+   return cartridge_image[bank * 0x0400u + (bus & 0x03ffu)];
 }
 uint64_t virtual_cycles = 0;
 std::vector<WriteEvent> writes;
@@ -356,6 +369,8 @@ uint8_t read_bus(uint16_t address) {
       return read_fc_cartridge(address);
    if (cartridge_mapper == CartridgeTimingMapper::F0 && (address & 0x1000))
       return read_f0_cartridge(address);
+   if (cartridge_mapper == CartridgeTimingMapper::E0 && (address & 0x1000))
+      return read_e0_cartridge(address);
    if (cartridge_mapper == CartridgeTimingMapper::F8 && (address & 0x1000)) {
       const uint16_t offset = address & 0x0fff;
       if (offset >= 0x0080 && offset <= 0x00ff) {
@@ -432,6 +447,7 @@ void write_bus(uint16_t address, uint8_t value) {
    else if (!(three_mapper() && (address & 0x1000)) &&
             !(cartridge_mapper == CartridgeTimingMapper::FC && (address & 0x1000)) &&
             !(cartridge_mapper == CartridgeTimingMapper::F0 && (address & 0x1000)) &&
+            !(cartridge_mapper == CartridgeTimingMapper::E0 && (address & 0x1000)) &&
             !(cartridge_mapper == CartridgeTimingMapper::F8 && (address & 0x1000)) &&
             !(cartridge_mapper == CartridgeTimingMapper::F4SC && (address & 0x1000)) &&
             address < kRomBase) {
@@ -1206,7 +1222,7 @@ int main(int argc, char **argv) {
         rom_size != static_cast<std::streamoff>(kF4RomSize) &&
         (rom_size < static_cast<std::streamoff>(kF8RomSize) ||
          (rom_size % 0x0800) != 0))) {
-      fail("unsupported ROM size (expected 4K/8K/32K, signed 3F/3E/3EX, signed FC, or signed F0)");
+      fail("unsupported ROM size (expected 4K/8K/32K, signed 3F/3E/3EX/FC/F0/E0)");
    }
    cartridge_size = static_cast<size_t>(rom_size);
    rom.seekg(0, std::ios::beg);
@@ -1215,7 +1231,14 @@ int main(int argc, char **argv) {
       fail("could not read complete ROM");
    }
    const uint8_t *signature = cartridge_image + cartridge_size - 8u;
-   if ((cartridge_size % kBankSize) == 0u &&
+   if (cartridge_size == kF8RomSize &&
+       std::memcmp(signature, "E0\0\0", 4) == 0) {
+      cartridge_mapper = CartridgeTimingMapper::E0;
+      selected_e0_bank[0] = 4u;
+      selected_e0_bank[1] = 5u;
+      selected_e0_bank[2] = 6u;
+   }
+   else if ((cartridge_size % kBankSize) == 0u &&
        cartridge_size <= 256u * kBankSize &&
        std::memcmp(signature, "FC\0\0", 4) == 0) {
       cartridge_mapper = CartridgeTimingMapper::FC;
@@ -1269,7 +1292,7 @@ int main(int argc, char **argv) {
       std::memcpy(memory_image + kRomBase, cartridge_image, kBankSize);
    }
    else {
-      fail("nonstandard banked ROM lacks a 3F/3E/3EX/FC/F0 signature");
+      fail("nonstandard banked ROM lacks a 3F/3E/3EX/FC/F0/E0 signature");
    }
 
    if (released_inputs) {

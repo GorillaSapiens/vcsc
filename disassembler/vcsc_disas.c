@@ -1027,6 +1027,8 @@ static int is_probably_e0(const uint8_t *rom, size_t size)
       { 0x8Du, 0xE0u, 0x5Fu }, /* STA $5FE0 */
       { 0x8Du, 0xE9u, 0xFFu }, /* STA $FFE9 */
       { 0x0Cu, 0xE0u, 0x1Fu }, /* NOP $1FE0 */
+      { 0x1Cu, 0xE0u, 0x1Fu }, /* NOP $1FE0,X (VCSC pair switch) */
+      { 0x1Cu, 0xE8u, 0x1Fu }, /* NOP $1FE8,X (VCSC pair switch) */
       { 0xADu, 0xE0u, 0x1Fu }, /* LDA $1FE0 */
       { 0xADu, 0xE9u, 0xFFu }, /* LDA $FFE9 */
       { 0xADu, 0xEDu, 0xFFu }, /* LDA $FFED */
@@ -6561,6 +6563,7 @@ static int mapper_tail_signature_matches(const uint8_t *rom, size_t size,
    case MAP_FA2: return memcmp(p, "FA2\0", 4u) == 0;
    case MAP_WD: return memcmp(p, "WD\0\0", 4u) == 0;
    case MAP_JANE: return memcmp(p, "JANE", 4u) == 0;
+   case MAP_E0: return memcmp(p, "E0\0\0", 4u) == 0;
    case MAP_E7: return memcmp(p, "E7\0\0", 4u) == 0;
    case MAP_3E: return memcmp(p, "3E\0\0", 4u) == 0;
    case MAP_3F: return memcmp(p, "3F\0\0", 4u) == 0;
@@ -6760,6 +6763,7 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                            (h[i].mapper == MAP_FC && h[i].detector_signature &&
                             h[i].hotspots != 0) ||
                            (h[i].mapper == MAP_WD && h[i].explicit_signature) ||
+                           (h[i].mapper == MAP_E0 && h[i].explicit_signature) ||
                            (h[i].mapper == MAP_0840 && h[i].explicit_signature));
          }
       }
@@ -6897,7 +6901,8 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
             have_switch_save = 1;
       if (have_switch_save) {
          for (i = 0; i < n; ++i)
-            if (h[i].viable && h[i].switch_avoided_halts == 0u)
+            if (h[i].viable && h[i].switch_avoided_halts == 0u &&
+                !h[i].explicit_signature)
                h[i].viable = 0;
       }
    }
@@ -6925,8 +6930,7 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                            h[i].three_specific_switches != 0u ||
                            (h[i].mapper == MAP_E7 && h[i].e7_specific_refs != 0) ||
                            (h[i].mapper == MAP_3E && h[i].threee_ram_select_refs != 0);
-            if (h[i].viable && !specific &&
-                !(h[i].mapper == MAP_0840 && h[i].explicit_signature))
+            if (h[i].viable && !specific && !h[i].explicit_signature)
                h[i].viable = 0;
          }
       }
