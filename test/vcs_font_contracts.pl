@@ -111,8 +111,8 @@ for my $family (@families) {
 
    if ($base eq 'default') {
       my @slashed_zero=(
-         '..XXXXX.', '.XX...XX', '.XX..XXX', '.XX..XXX',
-         '.XXX..XX', '.XXX..XX', '.XX...XX', '..XXXXX.',
+         '..XXXXX.', '.XX...XX', '.XX..XXX', '.XX.XXXX',
+         '.XXXX.XX', '.XXX..XX', '.XX...XX', '..XXXXX.',
       );
       key($ascii->[ord('0')-0x20]) eq join('/',@slashed_zero)
          or die "default ASCII zero lost its slash\n";

@@ -14,12 +14,12 @@ page const uint8_t message_font[48] := {
    // glyph 0, columns 0..7
    VCS_FONT_GLYPH(
       0b.XXXXX..,
-      0bX....XX.,
+      0bXX...XX.,
       0b.....XX.,
       0b..XXXX..,
       0b.....XX.,
       0b.....XX.,
-      0bX....XX.,
+      0bXX...XX.,
       0b.XXXXX..
    ),
 
@@ -51,9 +51,9 @@ page const uint8_t message_font[48] := {
    VCS_FONT_GLYPH(
       0b........,
       0b........,
+      0b........,
       0b..XX.XX.,
       0b.XXXXXXX,
-      0b.XX.X.XX,
       0b.XX.X.XX,
       0b.XX...XX,
       0b.XX...XX
@@ -75,11 +75,11 @@ page const uint8_t message_font[48] := {
    VCS_FONT_GLYPH(
       0b........,
       0b........,
+      0b........,
       0b.XX...XX,
-      0b..XXXXX.,
+      0b..XX.XX.,
       0b...XXX..,
-      0b..XXXXX.,
-      0b.XX...XX,
+      0b..XX.XX.,
       0b.XX...XX
    )
 

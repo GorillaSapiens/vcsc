@@ -19,14 +19,14 @@ page const uint8_t cart_type_glyphs[40] := {
    ),
    // 0x4F O
    CART_TYPE_GLYPHS_GLYPH(
-      0b.XXXXXXX,
+      0b..XXXXX.,
       0b.XX...XX,
       0b.XX...XX,
       0b.XX...XX,
       0b.XX...XX,
       0b.XX...XX,
       0b.XX...XX,
-      0b.XXXXXXX
+      0b..XXXXX.
    ),
    // 0x4D M
    CART_TYPE_GLYPHS_GLYPH(
@@ -43,9 +43,9 @@ page const uint8_t cart_type_glyphs[40] := {
    CART_TYPE_GLYPHS_GLYPH(
       0b.XX...XX,
       0b.XXX..XX,
-      0b.XXX..XX,
+      0b.XXXX.XX,
       0b.XXXXXXX,
-      0b.XX..XXX,
+      0b.XX.XXXX,
       0b.XX..XXX,
       0b.XX...XX,
       0b.XX...XX

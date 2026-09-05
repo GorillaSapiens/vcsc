@@ -32,8 +32,8 @@ bank0 page const uint8_t status_small_glyphs[64] := {
    STATUS_SMALL_GLYPHS_GLYPH(
       0b.....XX.,
       0b...XXXX.,
-      0b..X..XX.,
-      0b.X...XX.,
+      0b..XX.XX.,
+      0b.XX..XX.,
       0b.X...XX.,
       0b.XXXXXXX,
       0b.....XX.,
@@ -42,7 +42,7 @@ bank0 page const uint8_t status_small_glyphs[64] := {
    // 0x36 6
    STATUS_SMALL_GLYPHS_GLYPH(
       0b..XXXXX.,
-      0b.XX....X,
+      0b.XX...XX,
       0b.XX.....,
       0b.XXXXXX.,
       0b.XX...XX,

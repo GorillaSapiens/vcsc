@@ -11,17 +11,17 @@ page const uint8_t score_font[128] := {
       0b..XXXXX.,
       0b.XX...XX,
       0b.XX..XXX,
-      0b.XX..XXX,
-      0b.XXX..XX,
+      0b.XX.XXXX,
+      0b.XXXX.XX,
       0b.XXX..XX,
       0b.XX...XX,
       0b..XXXXX.
    ),
    // 0x31 1
    VCS_FONT_GLYPH(
-      0b.....X..,
       0b...XXX..,
       0b..XXXX..,
+      0b.XXXXX..,
       0b...XXX..,
       0b...XXX..,
       0b...XXX..,
@@ -31,7 +31,7 @@ page const uint8_t score_font[128] := {
    // 0x32 2
    VCS_FONT_GLYPH(
       0b..XXXXX.,
-      0b.X....XX,
+      0b.XX...XX,
       0b......XX,
       0b......XX,
       0b..XXXXX.,
@@ -42,20 +42,20 @@ page const uint8_t score_font[128] := {
    // 0x33 3
    VCS_FONT_GLYPH(
       0b..XXXXX.,
-      0b.X....XX,
+      0b.XX...XX,
       0b......XX,
       0b...XXXX.,
       0b......XX,
       0b......XX,
-      0b.X....XX,
+      0b.XX...XX,
       0b..XXXXX.
    ),
    // 0x34 4
    VCS_FONT_GLYPH(
       0b.....XX.,
       0b...XXXX.,
-      0b..X..XX.,
-      0b.X...XX.,
+      0b..XX.XX.,
+      0b.XX..XX.,
       0b.X...XX.,
       0b.XXXXXXX,
       0b.....XX.,
@@ -69,13 +69,13 @@ page const uint8_t score_font[128] := {
       0b..XXXXX.,
       0b......XX,
       0b......XX,
-      0b.X....XX,
+      0b.XX...XX,
       0b..XXXXX.
    ),
    // 0x36 6
    VCS_FONT_GLYPH(
       0b..XXXXX.,
-      0b.XX....X,
+      0b.XX...XX,
       0b.XX.....,
       0b.XXXXXX.,
       0b.XX...XX,
@@ -86,7 +86,7 @@ page const uint8_t score_font[128] := {
    // 0x37 7
    VCS_FONT_GLYPH(
       0b..XXXXXX,
-      0b.X.....X,
+      0b.XX....X,
       0b......XX,
       0b.....XX.,
       0b...XXX..,
@@ -113,7 +113,7 @@ page const uint8_t score_font[128] := {
       0b.XX...XX,
       0b..XXXXXX,
       0b......XX,
-      0b.X....XX,
+      0b.XX...XX,
       0b..XXXXX.
    ),
    // 0x61 a
@@ -131,8 +131,8 @@ page const uint8_t score_font[128] := {
    VCS_FONT_GLYPH(
       0b.XX.....,
       0b.XX.....,
+      0b.XX.....,
       0b.XXXXXX.,
-      0b.XX...XX,
       0b.XX...XX,
       0b.XX...XX,
       0b.XX...XX,
@@ -142,9 +142,9 @@ page const uint8_t score_font[128] := {
    VCS_FONT_GLYPH(
       0b........,
       0b........,
+      0b........,
       0b..XXXXX.,
       0b.XX...XX,
-      0b.XX.....,
       0b.XX.....,
       0b.XX...XX,
       0b..XXXXX.
@@ -153,8 +153,8 @@ page const uint8_t score_font[128] := {
    VCS_FONT_GLYPH(
       0b......XX,
       0b......XX,
+      0b......XX,
       0b..XXXXXX,
-      0b.XX...XX,
       0b.XX...XX,
       0b.XX...XX,
       0b.XX...XX,
@@ -173,10 +173,10 @@ page const uint8_t score_font[128] := {
    ),
    // 0x66 f
    VCS_FONT_GLYPH(
-      0b.....XXX,
+      0b....XXXX,
       0b...XXX..,
       0b...XXX..,
-      0b.XXXXXX.,
+      0b.XXXXXXX,
       0b...XXX..,
       0b...XXX..,
       0b...XXX..,

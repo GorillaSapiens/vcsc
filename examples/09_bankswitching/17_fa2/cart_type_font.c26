@@ -42,7 +42,7 @@ bank0 page const uint8_t cart_type_glyphs[32] := {
    // 0x32 2
    CART_TYPE_GLYPHS_GLYPH(
       0b..XXXXX.,
-      0b.X....XX,
+      0b.XX...XX,
       0b......XX,
       0b......XX,
       0b..XXXXX.,

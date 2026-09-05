@@ -35,8 +35,8 @@ page const uint8_t cart_type_glyphs[24] := {
       0b.XX...XX,
       0b.XX...XX,
       0b.XX...XX,
-      0b..XXXXX.,
-      0b..XXXXX.,
-      0b...XXX..
+      0b..XX.XX.,
+      0b...XXX..,
+      0b....X...
    )
 };

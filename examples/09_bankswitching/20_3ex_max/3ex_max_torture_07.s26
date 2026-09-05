@@ -4492,9 +4492,9 @@ ram251_bank251_ram_entry_w_continue:
 
     .align 256
 cart_type_glyphs:
-    .byte $7C, $86, $06, $06, $3C, $06, $86, $7C, $FE, $C0, $C0, $C0, $FC, $C0, $C0, $FE
-    .byte $C6, $C6, $7C, $38, $38, $7C, $C6, $C6, $63, $63, $6B, $6B, $7F, $36, $00, $00
-    .byte $33, $7E, $66, $3E, $06, $3C, $00, $00, $63, $63, $3E, $1C, $3E, $63, $00, $00
+    .byte $7C, $C6, $06, $06, $3C, $06, $C6, $7C, $FE, $C0, $C0, $C0, $FC, $C0, $C0, $FE
+    .byte $C6, $C6, $7C, $38, $38, $7C, $C6, $C6, $63, $63, $6B, $7F, $36, $00, $00, $00
+    .byte $33, $7E, $66, $3E, $06, $3C, $00, $00, $63, $36, $1C, $36, $63, $00, $00, $00
 load_mapper_type:
     lda #<{cart_type_glyphs + 0}
     sta cart_type_pointers+0

@@ -21,8 +21,8 @@ page const uint8_t cart_type_glyphs[40] := {
    CART_TYPE_GLYPHS_GLYPH(
       0b.....XX.,
       0b...XXXX.,
-      0b..X..XX.,
-      0b.X...XX.,
+      0b..XX.XX.,
+      0b.XX..XX.,
       0b.X...XX.,
       0b.XXXXXXX,
       0b.....XX.,

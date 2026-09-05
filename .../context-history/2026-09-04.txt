@@ -200,3 +200,18 @@ first user `make fonts` dirtied the tree. Added coverage to
 `vcs_generated_font_subsets.pl` that compares all 48 generated runtime bytes
 against each embedded torture block and also locks the generator ordering in the
 two example Makefiles.
+
+2026-09-04 17:36:00 PDT, regenerate patched Default font
+Applied the supplied font patch state (all 28 hunks were already present in
+`default_ascii.c26`), ran top-level `make fonts`, and kept every derived change,
+including the maximum 3E/3EX embedded mapper-label glyph blocks. Updated the
+independent Default-font raster/oracle tables and the exact slashed-zero contract
+to match the patched glyphs. A second `make fonts` is byte-idempotent.
+
+Validation: compile-only is 503/503 passing. Of 356 e2e tests, 346 completed and
+all 346 pass. The ten wrappers that exceed this container's execution window are
+`vcs_3ex_max_diagnostic.pl`, `vcs_diagnostic_paddle_sampling.pl`, and the eight
+`vcs_examples_build_*of8.test` shards. All 104 ordinary example Makefiles were
+clean-built successfully in parallel; the official 3E-max diagnostic passes;
+the 512K 3EX image clean-builds and its post-build oracle passes the full 256K
+RAM walk and all 65535 ROM calls. No observed test failure remains.
