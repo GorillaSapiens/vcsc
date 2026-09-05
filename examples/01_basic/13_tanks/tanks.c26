@@ -593,6 +593,20 @@ inline void tanks_update_controls(void) {
    }
 }
 
+void tanks_validate_player_bounds(void) {
+   if (tank0_x < TANKS_PLAYER_MIN_X || tank0_x > TANKS_PLAYER_MAX_X ||
+       tank0_y < TANKS_PLAYER_MIN_Y || tank0_y > TANKS_PLAYER_MAX_Y) {
+      tank0_x := tank0_prev_x;
+      tank0_y := tank0_prev_y;
+   }
+
+   if (tank1_x < TANKS_PLAYER_MIN_X || tank1_x > TANKS_PLAYER_MAX_X ||
+       tank1_y < TANKS_PLAYER_MIN_Y || tank1_y > TANKS_PLAYER_MAX_Y) {
+      tank1_x := tank1_prev_x;
+      tank1_y := tank1_prev_y;
+   }
+}
+
 inline void tanks_update_player_collisions(void) {
    if (CXPPMM & 0x80) {
       tank0_x := tank0_prev_x;
@@ -794,6 +808,7 @@ void tanks_update_overscan(void) {
       tanks_validate_missile1();
    }
    tanks_update_controls();
+   tanks_validate_player_bounds();
    tanks_update_spin0();
    tanks_update_spin1();
    _ := tanks_random();
@@ -1107,6 +1122,8 @@ void main(void) {
       PF0 := 0xff;
       PF1 := 0xff;
       PF2 := 0xff;
+      GRP0 := 0;
+      GRP1 := 0;
       WSYNC := _;
       WSYNC := _;
       WSYNC := _;

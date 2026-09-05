@@ -38,3 +38,26 @@ footprint is 3936/4090 ROM and 121/128 RIOT RAM. The assembly allowlist entry is
 e2e run again passed through test 225 before the max-mapper tail exceeded the
 execution window; isolated 3E maximum passes, while isolated 3EX maximum itself
 exceeded the available execution window.
+
+2026-09-05 09:28:40 PDT, close Tanks arena edges
+Made the arena coordinate limits authoritative for ordinary driving instead of
+trusting TIA player/playfield collision bits to provide containment. A new C26
+`tanks_validate_player_bounds()` runs immediately after controls and rolls either
+player back to its saved legal coordinate when X leaves 4..148 or Y leaves
+4..78. This fixes tanks driving through the top wall (and locks all four edges)
+without changing knockback semantics; knockback still wraps into the legal range
+and may temporarily ignore obstacle collision through `tank_pf_escape`.
+
+Cleared GRP0/GRP1 during the bottom-wall setup after the full-playfield PF writes
+and before the first bottom-wall WSYNC. Ordering the clears after PF0/PF1/PF2
+preserves the established full-wall write deadline while removing stale tank
+pixels from the four bottom-border scanlines.
+
+`test/vcs_tanks.cpp` now drives both players outward at top/bottom and left/right
+bounds and requires immediate rollback, and it verifies GRP0/GRP1 are zero by the
+first WSYNC after the side-wall-to-bottom-wall transition. `test/vcs_tanks.pl`
+pins both source contracts. Focused Tanks, assembly-allowlist, source-tree hygiene,
+and context-history tests pass. The updated 4K image uses 4046/4090 ROM and
+121/128 RIOT RAM (44 ROM bytes and 7 RAM bytes free). A broad 356-test e2e run
+again passed tests 1..225 before the execution window expired in the same
+maximum-mapper-heavy tail; no failure was reported.

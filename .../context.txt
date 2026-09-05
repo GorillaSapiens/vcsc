@@ -253,21 +253,20 @@ including the exhaustive paddle soak and maximum 3F/3E/3EX diagnostics.
 Immediate TODO
 --------------
 The plain-4K `examples/01_basic/13_tanks/` correctness pass now links at
-3936/4090 ROM and 121/128 RIOT RAM. The source-readability contract remains
+4046/4090 ROM and 121/128 RIOT RAM. The source-readability contract remains
 executable: one statement per source line and one canonical sprite byte per
-visual-binary line. Player horizontal positioning now uses one public X
-coordinate for P0/P1, score handoff restores direction-dependent REFP state,
-the west descriptor is corrected, missile RESP/HMOVE is calibrated to the
-maintained renderer with the TIA missile-origin compensation, missile hits are
-consumed before overscan movement, and escaped projectiles are killed before
-the next VBLANK. `test/vcs_tanks.cpp` now sweeps all 16 rendered headings,
-coarse-boundary player positions, all 16 missile trajectories, and projectile
-wrap bounds in addition to the prior collision/gameplay cases. Focused Tanks,
-assembly-allowlist, and source-tree-hygiene tests pass. A broad e2e rerun passed
-through test 225; isolated 3E maximum diagnostic also passes, while the unrelated
-3EX maximum diagnostic exceeded the execution window.
+visual-binary line. Player horizontal positioning uses one public X coordinate,
+score handoff restores direction-dependent REFP state, all 16 headings and
+missile trajectories are regression-covered, projectile escape is bounded, and
+ordinary tank driving is explicitly confined to X=4..148 / Y=4..78 rather than
+relying on sprite/playfield collision pixels for arena containment. GRP0/GRP1
+are cleared before the first bottom-wall WSYNC so stale tank pixels cannot leak
+into the bottom border. Focused Tanks, assembly-allowlist, source-tree-hygiene,
+and context-history tests pass. A broad e2e rerun passed tests 1..225 before the
+same unrelated maximum-mapper-heavy tail exceeded the execution window.
 
 Do not resurrect the RIOT-RAM sprite cache or the discarded `$xxDD`/main-phase
 theory. The next Tanks task is source cleanup: ordinary overscan game logic,
 especially `tanks_move_object()` and `tanks_process_knockback()`, should be C26
-where possible while preserving these behavior locks and staying below 4K.
+where possible while preserving these behavior locks and staying below 4K. Only
+44 ROM bytes are currently free, so recover space before or while doing that.

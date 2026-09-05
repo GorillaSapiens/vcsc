@@ -30,10 +30,10 @@ constexpr uint16_t kIntim=0x0284, kTimint=0x0285;
 constexpr uint16_t kTim1t=0x0294, kTim8t=0x0295, kTim64t=0x0296, kT1024t=0x0297;
 
 constexpr uint8_t kStartX0=24, kStartX1=128, kStartY=45;
-constexpr uint8_t kDirNne=1, kDirNe=2, kDirEne=3, kDirE=4, kDirSw=10, kDirW=12;
+constexpr uint8_t kDirN=0, kDirNne=1, kDirNe=2, kDirEne=3, kDirE=4, kDirS=8, kDirSw=10, kDirW=12;
 constexpr uint8_t kSoundFire=1, kSoundHit=2;
 
-enum class Scenario { Neutral, Turn, Move, Move16, Missile45, MissileDirections, MissileBounds, HeadingSweep, PositionSweep, FireWall, HitP1, HitP0, HitBarrier, HitWallWrap, PlayerWall, PlayerPlayer, Reset, ExtremeTiming };
+enum class Scenario { Neutral, Turn, Move, Move16, Missile45, MissileDirections, MissileBounds, HeadingSweep, PositionSweep, FireWall, HitP1, HitP0, HitBarrier, HitWallWrap, PlayerWall, PlayerBounds, PlayerPlayer, Reset, ExtremeTiming };
 
 constexpr std::array<uint8_t,16> kPositionSweepX={
    4,5,14,15,16,29,30,44,59,74,89,104,119,134,147,148
@@ -113,6 +113,7 @@ public:
    uint8_t arena_hmp1(int frame) const { return arena_hmp1_[static_cast<size_t>(frame)]; }
    uint8_t resp0_cycle(int frame) const { return resp0_cycle_[static_cast<size_t>(frame)]; }
    uint8_t resp1_cycle(int frame) const { return resp1_cycle_[static_cast<size_t>(frame)]; }
+   bool bottom_wall_players_cleared() const { return bottom_wall_seen_ && bottom_wall_players_cleared_; }
 
 private:
    struct Pending { uint16_t address; uint8_t value; };
@@ -133,6 +134,7 @@ private:
    bool arena_started_=false;
    uint64_t max_nonzero_grp0_cycle_=0, max_nonzero_grp1_cycle_=0;
    uint64_t max_full_pf0_cycle_=0, max_side_pf0_cycle_=0;
+   bool bottom_wall_pending_=false, bottom_wall_seen_=false, bottom_wall_players_cleared_=true;
    std::array<uint8_t,320> arena_refp0_{},arena_refp1_{},arena_xor0_{},arena_xor1_{};
    std::array<uint8_t,320> arena_hmp0_{},arena_hmp1_{},resp0_cycle_{},resp1_cycle_{};
 
@@ -178,6 +180,8 @@ private:
       } else if(scenario_==Scenario::PlayerWall) {
          if(frame_==1) v=static_cast<uint8_t>(v & ~0x10u & ~0x02u);
          if(frame_==3) v=static_cast<uint8_t>(v & ~0x20u & ~0x01u); // back away after rollback
+      } else if(scenario_==Scenario::PlayerBounds) {
+         if(frame_==1 || frame_==3) v=static_cast<uint8_t>(v & ~0x10u & ~0x01u); // both drive outward
       } else if(scenario_==Scenario::PlayerPlayer) {
          if(frame_==1) v=static_cast<uint8_t>(v & ~0x10u & ~0x01u); // drive toward each other
          if(frame_==3) v=static_cast<uint8_t>(v & ~0x20u & ~0x02u); // back away after rollback
@@ -260,6 +264,25 @@ private:
       set_byte("tank0_prev_x",60); set_byte("tank1_prev_x",100);
       set_byte("tank0_prev_y",60); set_byte("tank1_prev_y",60);
       set_byte("tank0_direction",kDirNe); set_byte("tank1_direction",kDirSw);
+   }
+
+   void inject_player_bounds_state() {
+      if(scenario_!=Scenario::PlayerBounds) return;
+      if(frame_==1) {
+         set_byte("tank0_x",80); set_byte("tank1_x",100);
+         set_byte("tank0_y",4); set_byte("tank1_y",78);
+         set_byte("tank0_prev_x",80); set_byte("tank1_prev_x",100);
+         set_byte("tank0_prev_y",4); set_byte("tank1_prev_y",78);
+         set_byte("tank0_direction",kDirN); set_byte("tank1_direction",kDirS);
+         set_byte("tanks_move_phase",0);
+      } else if(frame_==3) {
+         set_byte("tank0_x",4); set_byte("tank1_x",148);
+         set_byte("tank0_y",kStartY); set_byte("tank1_y",kStartY);
+         set_byte("tank0_prev_x",4); set_byte("tank1_prev_x",148);
+         set_byte("tank0_prev_y",kStartY); set_byte("tank1_prev_y",kStartY);
+         set_byte("tank0_direction",kDirW); set_byte("tank1_direction",kDirE);
+         set_byte("tanks_move_phase",0);
+      }
    }
 
    void inject_player_player_state() {
@@ -390,6 +413,7 @@ private:
       arena_started_=false;
       inject_move16_state();
       inject_missile45_state();
+      inject_player_bounds_state();
       inject_player_player_state();
       inject_hit_barrier_state();
       inject_hit_wall_wrap_state();
@@ -406,6 +430,7 @@ private:
    void apply_pending() {
       for(const auto&w:pending_) {
          const uint16_t a=canonical(w.address);
+         const uint8_t old=a<0x1000 ? memory_[a] : 0;
          if(a<0x1000) memory_[a]=w.value;
          if(arena_started_) {
             const uint64_t phase=virtual_cycles_%kCyclesPerLine;
@@ -413,6 +438,7 @@ private:
             if(a==kGrp1 && w.value && phase>max_nonzero_grp1_cycle_) max_nonzero_grp1_cycle_=phase;
             if(a==kPf0 && w.value==0xff && phase>max_full_pf0_cycle_) max_full_pf0_cycle_=phase;
             if(a==kPf0 && w.value==0x10 && phase>max_side_pf0_cycle_) max_side_pf0_cycle_=phase;
+            if(a==kPf0 && old==0x10 && w.value==0xff) bottom_wall_pending_=true;
          }
          if(a==kResp0) resp0_cycle_[static_cast<size_t>(frame_)]=static_cast<uint8_t>(virtual_cycles_%kCyclesPerLine);
          if(a==kResp1) resp1_cycle_[static_cast<size_t>(frame_)]=static_cast<uint8_t>(virtual_cycles_%kCyclesPerLine);
@@ -429,6 +455,11 @@ private:
             if(a==kEnam1 && (w.value&2)) beam_m1_[static_cast<size_t>(frame_)]=true;
          }
          if(a==kWsync) {
+            if(bottom_wall_pending_) {
+               bottom_wall_seen_=true;
+               if(memory_[kGrp0] || memory_[kGrp1]) bottom_wall_players_cleared_=false;
+               bottom_wall_pending_=false;
+            }
             const uint64_t within=virtual_cycles_%kCyclesPerLine;
             virtual_cycles_ += within ? kCyclesPerLine-within : kCyclesPerLine;
          } else if(a==kVsync) {
@@ -458,6 +489,8 @@ void require_raster_write_deadlines(const Machine& m) {
    if(m.max_full_pf0_cycle()>12)
       fail("full-wall PF0 transition is too late in the scanline (%llu cycles)",
            static_cast<unsigned long long>(m.max_full_pf0_cycle()));
+   if(!m.bottom_wall_players_cleared())
+      fail("GRP0/GRP1 were not cleared before drawing the bottom arena wall");
 }
 
 void require_barriers(const Snapshot& s) {
@@ -742,6 +775,16 @@ void require_player_wall(const std::vector<Snapshot>& s) {
       fail("tank could not immediately back away after player-playfield rollback");
 }
 
+void require_player_bounds(const std::vector<Snapshot>& s) {
+   if(s.size()<6) fail("too few player-bounds snapshots");
+   if(s[0].y0!=4 || s[0].y1!=78 || s[1].y0!=4 || s[1].y1!=78)
+      fail("tank movement escaped through the top or bottom arena wall");
+   if(s[2].x0!=4 || s[2].x1!=148 || s[3].x0!=4 || s[3].x1!=148)
+      fail("tank movement escaped through the left or right arena wall");
+   if(s[1].py0!=4 || s[1].py1!=78 || s[3].px0!=4 || s[3].px1!=148)
+      fail("arena-bound rollback did not preserve the last legal player position");
+}
+
 void require_player_player(const std::vector<Snapshot>& s) {
    if(s.size()<6) fail("too few player-player snapshots");
    if(s[0].x0!=70 || s[0].x1!=78) fail("player-player setup did not start at adjacent legal positions");
@@ -783,7 +826,7 @@ int main(int argc,char **argv) {
 
    for(const auto scenario : {Scenario::Neutral,Scenario::Turn,Scenario::Move,Scenario::Move16,Scenario::Missile45,
                               Scenario::MissileDirections,Scenario::MissileBounds,Scenario::HeadingSweep,Scenario::PositionSweep,Scenario::FireWall,
-                              Scenario::HitP1,Scenario::HitP0,Scenario::HitBarrier,Scenario::HitWallWrap,Scenario::PlayerWall,Scenario::PlayerPlayer,Scenario::Reset,
+                              Scenario::HitP1,Scenario::HitP0,Scenario::HitBarrier,Scenario::HitWallWrap,Scenario::PlayerWall,Scenario::PlayerBounds,Scenario::PlayerPlayer,Scenario::Reset,
                               Scenario::ExtremeTiming}) {
       Machine m(argv[1],a,scenario);
       const int frames=scenario==Scenario::MissileDirections?272:
@@ -808,6 +851,7 @@ int main(int argc,char **argv) {
       else if(scenario==Scenario::HitBarrier) require_hit_barrier(m.snapshots());
       else if(scenario==Scenario::HitWallWrap) require_hit_wall_wrap(m.snapshots());
       else if(scenario==Scenario::PlayerWall) require_player_wall(m.snapshots());
+      else if(scenario==Scenario::PlayerBounds) require_player_bounds(m.snapshots());
       else if(scenario==Scenario::PlayerPlayer) require_player_player(m.snapshots());
       else if(scenario==Scenario::Reset) require_reset(m.snapshots());
    }

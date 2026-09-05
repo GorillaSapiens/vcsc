@@ -88,6 +88,9 @@ $s =~ /tanks_knockback_delta\[16\].*?0,23,32,23,0,23,32,23.*?16,11,0,11,16,11,0,
 $s =~ /adc #145|sbc #145/ && $s =~ /adc #75|sbc #75/
    or die "Tanks lost TIA collisions or ~32-pixel wall-wrapping knockback\n";
 
+$s =~ /void tanks_validate_player_bounds\(void\).*?tank0_x < TANKS_PLAYER_MIN_X.*?tank0_y > TANKS_PLAYER_MAX_Y.*?tank1_x < TANKS_PLAYER_MIN_X.*?tank1_y > TANKS_PLAYER_MAX_Y/s
+   or die "Tanks lost explicit player arena bounds\n";
+
 $s =~ /controls & 0x40/ && $s =~ /controls & 0x80/ && $s =~ /controls & 0x04/ && $s =~ /controls & 0x08/ &&
 $s =~ /controls & 0x10/ && $s =~ /controls & 0x20/ && $s =~ /controls & 0x01/ && $s =~ /controls & 0x02/ &&
 $s =~ /INPT4 & 0x80/ && $s =~ /INPT5 & 0x80/
@@ -100,7 +103,7 @@ $s =~ /void tanks_position_missiles\(void\).*?asm sta WSYNC;\s*asm nop;\s*asm ld
    or die "Tanks lost calibrated public-X missile RESP/HMOVE positioning\n";
 $s =~ /void tanks_position_players_after_score\(void\).*?tanks_pnext \+ 1.*?tanks_pnext \+ 0.*?sta REFP0.*?sta REFP1/s &&
 $s =~ /asm sta GRP0;\s*asm sty GRP1/ && $s =~ /asm cpx #2;.*?asm lda #\$10;\s*asm sta PF0/s &&
-$s =~ /PF0 := 0xff;\s*PF1 := 0xff;\s*PF2 := 0xff;\s*WSYNC := _;\s*WSYNC := _;\s*WSYNC := _;\s*WSYNC := _;/ &&
+$s =~ /tanks_draw\(\);\s*PF0 := 0xff;\s*PF1 := 0xff;\s*PF2 := 0xff;\s*GRP0 := 0;\s*GRP1 := 0;\s*WSYNC := _;\s*WSYNC := _;\s*WSYNC := _;\s*WSYNC := _;/ &&
 $s =~ /PF0 := 0;\s*PF1 := 0;\s*PF2 := 0;\s*ENAM0 := 0;\s*ENAM1 := 0;\s*WSYNC := _;\s*WSYNC := _;/
    or die "Tanks lost fixed score handoff or 192-line arena geometry\n";
 
