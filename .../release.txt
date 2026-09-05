@@ -1,6 +1,9 @@
 Quick notes for humans on how to do a release:
 
-git tag 2026-08-12-third-base
-git push origin 2026-08-12-third-base
+git tag <tagname>
+git push origin <tagname>
+
+git tag -d <tagname>
+git push origin --delete <tagname>
 
 https://chatgpt.com/c/6a809b47-3548-83ea-8129-3464530d87ae

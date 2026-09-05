@@ -166,6 +166,7 @@ install-data:
 	install -m 0644 libraries/vcs/frame_secam.c26 $(DESTDIR)$(DATADIR)/vcs/frame_secam.c26
 	install -m 0644 libraries/vcs/playfield.c26 $(DESTDIR)$(DATADIR)/vcs/playfield.c26
 	install -m 0644 libraries/vcs/riot.c26 $(DESTDIR)$(DATADIR)/vcs/riot.c26
+	install -m 0644 libraries/vcs/6507.c26 $(DESTDIR)$(DATADIR)/vcs/6507.c26
 	install -m 0644 libraries/vcs/six_glyph_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_component.c26
 	install -m 0644 libraries/vcs/six_glyph_wide_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_wide_component.c26
 	install -m 0644 libraries/vcs/six_glyph_big_wide_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_big_wide_component.c26
@@ -422,6 +423,7 @@ uninstall-data:
 	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/registers.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/tia_mirror_40.c26
+	rm -f $(DESTDIR)$(DATADIR)/vcs/6507.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/2K/mapper.c26
 	rm -f $(DESTDIR)$(DATADIR)/vcs/CV/mapper.c26
@@ -655,6 +657,7 @@ installcheck: tools
 	stage_vcs="$(INSTALLCHECK_STAGING)/opt/vcsc/share/vcs"; \
 	stage_examples="$(INSTALLCHECK_STAGING)/opt/vcsc/examples"; \
 	test -f "$$stage_vcs/LICENSE.txt"; \
+	test -f "$$stage_vcs/6507.c26"; \
 	test -f "$$stage_vcs/3E/mapper.c26"; \
 	test -f "$$stage_vcs/3E/bankcall.s26"; \
 	test -f "$$stage_vcs/3E/entry.s26"; \

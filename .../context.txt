@@ -271,3 +271,4 @@ combined renderer.
 Console Reset tests remain asm-free at example call sites via
 `if (!(SWCHB & 0x01)) hard_reset();`; `libraries/vcs/6507.c26` owns the single
 CPU-specific indirect reset-vector jump.
+Packaging installs `6507.c26` beside `vcs.c26`; Linux package smoke verifies this dependency.
