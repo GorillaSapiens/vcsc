@@ -252,23 +252,8 @@ including the exhaustive paddle soak and maximum 3F/3E/3EX diagnostics.
 
 Immediate TODO
 --------------
-The tuned four-frame alien/radish animation is now propagated through every
-standard interactive renderer family that has room for it. Fifteen maintained
-source bodies own the animation tables (including the two shared 181-line
-fragments), and each selects the current 8-byte frame with exactly
-`((x ^ y) & 3)`. Faithful-legacy frames are stored in that renderer's reversed
-row convention so their displayed orientation remains identical. Multisprite
-interactive examples use different artwork and are not part of this contract.
-
-The only standard alien/radish exception is the two unbanked 4K cartridges in
-`examples/16_all_five_player_color_181/`. Their common source remains static:
-the existing build uses 4051/4090 bytes (39 free), while adding the six extra
-8-byte frames costs 48 bytes before any selector code. Do not silently bank or
-relax that maintained 4K contract. If full animation there is desired, the next
-step is a deliberate ROM-size optimization/compression pass for that special
-combined renderer.
-
-Console Reset tests remain asm-free at example call sites via
-`if (!(SWCHB & 0x01)) hard_reset();`; `libraries/vcs/6507.c26` owns the single
-CPU-specific indirect reset-vector jump.
-Packaging installs `6507.c26` beside `vcs.c26`; Linux package smoke verifies this dependency.
+The plain-4K `examples/01_basic/13_tanks/` work is complete at 3800/4090 ROM
+and 116/128 RIOT RAM. Its source-readability contract is now executable: one
+statement per source line and one canonical sprite byte per visual-binary line.
+Do not resurrect the RIOT-RAM sprite cache or the discarded `$xxDD`/main-phase
+theory. Return to main-roadmap Item 49 unless the user asks for more Tanks work.

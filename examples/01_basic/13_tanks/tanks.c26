@@ -1,6 +1,6 @@
 // This file is covered under CC0-1.0. See examples/LICENSE.txt.
 
-include "F8SC/mapper.c26"
+include "4K/mapper.c26"
 include "frame_ntsc.c26"
 include "color_ntsc.c26"
 include "sound_ntsc.c26"
@@ -29,24 +29,10 @@ enum tanks_constants {
    TANKS_DIR_WNW := 13,
    TANKS_DIR_NW := 14,
    TANKS_DIR_NNW := 15,
-
-   // Hit knockback remains an eight-octant geometry search. The 16-way missile
-   // heading is rounded to the nearest octant before this bounded search.
-   TANKS_KNOCK_N := 0,
-   TANKS_KNOCK_NE := 1,
-   TANKS_KNOCK_E := 2,
-   TANKS_KNOCK_SE := 3,
-   TANKS_KNOCK_S := 4,
-   TANKS_KNOCK_SW := 5,
-   TANKS_KNOCK_W := 6,
-   TANKS_KNOCK_NW := 7,
-
    TANKS_PLAYER_MIN_X := 4,
    TANKS_PLAYER_MAX_X := 148,
    TANKS_PLAYER_MIN_Y := 4,
    TANKS_PLAYER_MAX_Y := 78,
-   TANKS_PLAYER_X_SPAN := 145,
-   TANKS_PLAYER_Y_SPAN := 75,
    TANKS_LEFT_START_X := 24,
    TANKS_RIGHT_START_X := 128,
    TANKS_START_Y := 45,
@@ -58,22 +44,13 @@ enum tanks_constants {
    TANKS_SOUND_FIRE := 1,
    TANKS_SOUND_HIT := 2,
    TANKS_ENGINE_FREQ := 10,
-   TANKS_ENGINE_VOLUME := 2,
-   TANKS_KNOCKBACK_X_CARDINAL := 32,
-   TANKS_KNOCKBACK_X_DIAGONAL := 23,
-   // Arena Y is measured in doubled scanline rows. 16 rows = 32 visible pixels;
-   // 11 doubled rows with 23 horizontal pixels gives a ~31.8-pixel diagonal.
-   TANKS_KNOCKBACK_Y_CARDINAL := 16,
-   TANKS_KNOCKBACK_Y_DIAGONAL := 11
+   TANKS_ENGINE_VOLUME := 2
 };
 
-// Sixteen 8x8 tank silhouettes, ordered clockwise in 22.5-degree steps.
-// N, NNE, and NE are the canonical source drawings. The other headings are
-// exact rotations/reflections of those three templates. The renderer doubles
-// every source row vertically, so each displayed tank is 8 pixels wide by
-// 16 scanlines high.
-page const uint8_t tanks_graphics[128] := {
-   // N -- canonical cardinal silhouette.
+// Only the 0..90 degree quadrant is stored. The remaining eleven headings are
+// synthesized by horizontal TIA reflection and/or reversing the source rows.
+page const uint8_t tanks_graphics[40] := {
+   // N
    0b........,
    0b...X....,
    0b...X....,
@@ -83,7 +60,7 @@ page const uint8_t tanks_graphics[128] := {
    0bXX...XX.,
    0bXX...XX.,
 
-   // NNE -- canonical middle silhouette.
+   // NNE
    0b..X..X..,
    0b.XX..X..,
    0b.XXXX..X,
@@ -93,7 +70,7 @@ page const uint8_t tanks_graphics[128] := {
    0b....XXX.,
    0b.....X..,
 
-   // NE -- canonical diagonal; the entire hull is canted upper-right.
+   // NE
    0b...XX..X,
    0b..XXX.X.,
    0b.XXXXX..,
@@ -103,7 +80,7 @@ page const uint8_t tanks_graphics[128] := {
    0b...XXX..,
    0b...XX...,
 
-   // ENE -- horizontal mirror of NNE, rotated 90 degrees clockwise.
+   // ENE
    0b...XXX..,
    0b.XXXX...,
    0bXXXXX.XX,
@@ -113,7 +90,7 @@ page const uint8_t tanks_graphics[128] := {
    0b..XXXXX.,
    0b...XX...,
 
-   // E -- N rotated 90 degrees clockwise.
+   // E
    0bXXXXX...,
    0bXXXXX...,
    0b..XX....,
@@ -121,356 +98,145 @@ page const uint8_t tanks_graphics[128] := {
    0b..XX....,
    0bXXXXX...,
    0bXXXXX...,
-   0b........,
-
-   // ESE -- NNE rotated 90 degrees clockwise.
-   0b...XX...,
-   0b..XXXXX.,
-   0b...XXXXX,
-   0b...XXX..,
-   0b.XXXXX..,
-   0bXXXXX.XX,
-   0b.XXXX...,
-   0b...XXX..,
-
-   // SE -- NE rotated 90 degrees clockwise.
-   0b...XX...,
-   0b...XXX..,
-   0b....XXX.,
-   0bXX.XXXXX,
-   0bXXXXXXXX,
-   0b.XXXXX..,
-   0b..XXX.X.,
-   0b...XX..X,
-
-   // SSE -- mirrored NNE rotated 180 degrees clockwise.
-   0b.....X..,
-   0b....XXX.,
-   0b.X..XXX.,
-   0bXXXXXXXX,
-   0bXXXXXXXX,
-   0b.XXXX..X,
-   0b.XX..X..,
-   0b..X..X..,
-
-   // S -- N rotated 180 degrees.
-   0b.XX...XX,
-   0b.XX...XX,
-   0b.XXXXXXX,
-   0b.XXXXXXX,
-   0b.XX.X.XX,
-   0b....X...,
-   0b....X...,
-   0b........,
-
-   // SSW -- NNE rotated 180 degrees clockwise.
-   0b..X.....,
-   0b.XXX....,
-   0b.XXX..X.,
-   0bXXXXXXXX,
-   0bXXXXXXXX,
-   0bX..XXXX.,
-   0b..X..XX.,
-   0b..X..X..,
-
-   // SW -- NE rotated 180 degrees.
-   0b...XX...,
-   0b..XXX...,
-   0b.XXX....,
-   0bXXXXX.XX,
-   0bXXXXXXXX,
-   0b..XXXXX.,
-   0b.X.XXX..,
-   0bX..XX...,
-
-   // WSW -- mirrored NNE rotated 270 degrees clockwise.
-   0b...XX...,
-   0b.XXXXX..,
-   0bXXXXX...,
-   0b..XXX...,
-   0b..XXXXX.,
-   0bXX.XXXXX,
-   0b...XXXX.,
-   0b..XXX...,
-
-   // W -- N rotated 270 degrees clockwise.
-   0b........,
-   0b...XXXXX,
-   0b...XXXXX,
-   0b....XX..,
-   0b.XXXXX..,
-   0b....XX..,
-   0b...XXXXX,
-   0b...XXXXX,
-
-   // WNW -- NNE rotated 270 degrees clockwise.
-   0b..XXX...,
-   0b...XXXX.,
-   0bXX.XXXXX,
-   0b..XXXXX.,
-   0b..XXX...,
-   0bXXXXX...,
-   0b.XXXXX..,
-   0b...XX...,
-
-   // NW -- NE rotated 270 degrees clockwise.
-   0bX..XX...,
-   0b.X.XXX..,
-   0b..XXXXX.,
-   0bXXXXXXXX,
-   0bXXXXX.XX,
-   0b.XXX....,
-   0b..XXX...,
-   0b...XX...,
-
-   // NNW -- horizontal mirror of NNE.
-   0b..X..X..,
-   0b..X..XX.,
-   0bX..XXXX.,
-   0bXXXXXXXX,
-   0bXXXXXXXX,
-   0b.XXX..X.,
-   0b.XXX....,
-   0b..X.....,
+   0b........
 };
 
-// Tank graphics and movement share the same logical coordinate grid.  A true
-// diagonal therefore changes X and Y together; do not compensate movement for
-// the renderer doubling each source row, because that would make a projectile
-// visibly diverge from the direction of the doubled tank glyph itself.  The
-// halfway headings use this deterministic 7-of-16 minor-axis cadence, close to
-// tan(22.5 degrees), without fractional coordinate state.
+// Low six bits are XORed with the visible row number.  Bits 3..5 select
+// one of the five canonical 8-byte sprites; low bits are either 0 or 7, so
+// XOR 7 walks that sprite backward.  Bit 7 requests horizontal TIA reflection.
+page const uint8_t tanks_graphics_descriptor[16] := {
+   0x00,0x08,0x10,0x18,0x20,0x1f,0x17,0x0f,
+   0x07,0x8f,0x97,0x9f,0xa7,0x98,0x90,0x88
+};
+
+// Halfway headings use a deterministic minor-axis cadence close to tan(22.5).
 page const uint8_t tanks_angle_steps[16] := {
    0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,0
 };
 
-// Packed movement components for the 16 headings. Low nibble is X, high nibble
-// is Y. Codes 1/2 are positive always/minor-axis steps; codes 5/6 are their
-// negative counterparts. Tanks and missiles both use this exact table.
+// Low nibble is X, high nibble Y. 1/2 are positive major/minor; 5/6 negative.
 page const uint8_t tanks_motion[16] := {
    0x50,0x52,0x51,0x61,0x01,0x21,0x11,0x12,
    0x10,0x16,0x15,0x25,0x05,0x65,0x55,0x56
 };
 
-// VBLANK horizontal fine-motion table for M0/M1. Indexes 1..15 correspond to
-// the negative remainder left by the divide-by-fifteen coarse-position loop.
 page const uint8_t tanks_reposition_table[16] := {
    0x80,0x70,0x60,0x50,0x40,0x30,0x20,0x10,
    0x00,0xf0,0xe0,0xd0,0xc0,0xb0,0xa0,0x90
 };
 
-// Packed visible-handoff positioning table copied from the maintained player
-// renderer. The high nibble is HMxx and the low nibble is the bounded
-// five-cycle coarse-loop count. Precomputing these controls during VBLANK keeps
-// the post-score P0/P1 handoff at a fixed three scanlines for every legal X.
-page const uint8_t tanks_player_position_table[160] := {
-   0x41,0x31,0x21,0x11,0x01,0xf1,0xe1,0xd1,0xc1,0xb1,0xa1,0x91,0x81,0x62,0x52,0x42,
-   0x32,0x22,0x12,0x02,0xf2,0xe2,0xd2,0xc2,0xb2,0xa2,0x92,0x82,0x63,0x53,0x43,0x33,
-   0x23,0x13,0x03,0xf3,0xe3,0xd3,0xc3,0xb3,0xa3,0x93,0x83,0x64,0x54,0x44,0x34,0x24,
-   0x14,0x04,0xf4,0xe4,0xd4,0xc4,0xb4,0xa4,0x94,0x84,0x65,0x55,0x45,0x35,0x25,0x15,
-   0x05,0xf5,0xe5,0xd5,0xc5,0xb5,0xa5,0x95,0x85,0x66,0x56,0x46,0x36,0x26,0x16,0x06,
-   0xf6,0xe6,0xd6,0xc6,0xb6,0xa6,0x96,0x86,0x67,0x57,0x47,0x37,0x27,0x17,0x07,0xf7,
-   0xe7,0xd7,0xc7,0xb7,0xa7,0x97,0x87,0x68,0x58,0x48,0x38,0x28,0x18,0x08,0xf8,0xe8,
-   0xd8,0xc8,0xb8,0xa8,0x98,0x88,0x69,0x59,0x49,0x39,0x29,0x19,0x09,0xf9,0xe9,0xd9,
-   0xc9,0xb9,0xa9,0x99,0x89,0x6a,0x5a,0x4a,0x3a,0x2a,0x1a,0x0a,0xfa,0xea,0xda,0xca,
-   0xba,0xaa,0x9a,0x8a,0x6b,0x5b,0x4b,0x3b,0x2b,0x1b,0x0b,0xfb,0xeb,0xdb,0xcb,0xbb
+page const uint8_t tanks_barrier_masks[8] := { 0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80 };
+page const uint8_t tanks_knockback_offsets[8] := { 0,1,7,0,1,7,2,6 };
+const uint8_t tanks_knockback_delta[16] := {
+   0,23,32,23,0,23,32,23,  // X magnitude: N,NE,E,SE,S,SW,W,NW
+   16,11,0,11,16,11,0,11   // Y magnitude in doubled arena rows
 };
 
-// Each random barrier is one PF2 bit, so it is four color clocks wide and
-// extends vertically for many scanlines. CTRLPF reflection mirrors it into the
-// opposite half of the arena.
-page const uint8_t tanks_barrier_masks[8] := {
-   0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80
-};
+// Moving objects share indexed storage: tanks 0/1, missiles 2/3.
+uint8_t tanks_x[4];
+uint8_t tanks_y[4];
+uint8_t tanks_direction[4];
+alias tank0_x tanks_x[0]
+alias tank1_x tanks_x[1]
+alias missile0_x tanks_x[2]
+alias missile1_x tanks_x[3]
+alias tank0_y tanks_y[0]
+alias tank1_y tanks_y[1]
+alias missile0_y tanks_y[2]
+alias missile1_y tanks_y[3]
+alias tank0_direction tanks_direction[0]
+alias tank1_direction tanks_direction[1]
+alias missile0_direction tanks_direction[2]
+alias missile1_direction tanks_direction[3]
 
-// Random hit knockback samples only the half-plane away from the shooter.
-// Straight and +/-45-degree headings are deliberately more common than the two
-// perpendicular headings.  Hit displacement ignores playfield geometry and
-// wraps through the arena edges, so these are flavor choices rather than
-// wall-avoidance fallbacks.
-page const uint8_t tanks_knockback_offsets[8] := {
-   0,1,7,0,1,7,2,6
-};
+uint8_t tank_turn_countdown[2];
+uint8_t tank_fire_ready[2];
+uint8_t tank_prev_x[2];
+uint8_t tank_prev_y[2];
+uint8_t tank_spin_frames[2];
+uint8_t tank_pf_escape[2];
+uint8_t tank_knockback_pending[2];
+uint8_t tank_knockback_index[2];
+alias tank0_turn_countdown tank_turn_countdown[0]
+alias tank1_turn_countdown tank_turn_countdown[1]
+alias tank0_fire_ready tank_fire_ready[0]
+alias tank1_fire_ready tank_fire_ready[1]
+alias tank0_prev_x tank_prev_x[0]
+alias tank1_prev_x tank_prev_x[1]
+alias tank0_prev_y tank_prev_y[0]
+alias tank1_prev_y tank_prev_y[1]
+alias tank0_spin_frames tank_spin_frames[0]
+alias tank1_spin_frames tank_spin_frames[1]
+alias tank0_pf_escape tank_pf_escape[0]
+alias tank1_pf_escape tank_pf_escape[1]
+alias tank0_knockback_pending tank_knockback_pending[0]
+alias tank1_knockback_pending tank_knockback_pending[1]
+alias tank0_knockback_index tank_knockback_index[0]
+alias tank1_knockback_index tank_knockback_index[1]
 
-uint8_t tank0_x := TANKS_LEFT_START_X;
-uint8_t tank1_x := TANKS_RIGHT_START_X;
-uint8_t tank0_y := TANKS_START_Y;
-uint8_t tank1_y := TANKS_START_Y;
-uint8_t tank0_direction := TANKS_DIR_E;
-uint8_t tank1_direction := TANKS_DIR_W;
-uint8_t *tank0_graphics := tanks_graphics + 32;
-uint8_t *tank1_graphics := tanks_graphics + 96;
-cartram uint8_t tank0_turn_countdown := 0;
-cartram uint8_t tank1_turn_countdown := 0;
-uint8_t tank0_fire_ready := 1;
-uint8_t tank1_fire_ready := 1;
-uint8_t tank0_prev_x := TANKS_LEFT_START_X;
-uint8_t tank1_prev_x := TANKS_RIGHT_START_X;
-uint8_t tank0_prev_y := TANKS_START_Y;
-uint8_t tank1_prev_y := TANKS_START_Y;
-uint8_t tank0_spin_frames := 0;
-uint8_t tank1_spin_frames := 0;
-uint8_t tanks_move_phase := 0;
-uint8_t tanks_rng := 0x5d;
-uint8_t tanks_sound_frames := 0;
-uint8_t tanks_sound_kind := TANKS_SOUND_OFF;
+uint8_t tanks_misc[10];
+alias tanks_move_phase tanks_misc[0]
+alias tanks_rng tanks_misc[1]
+alias tanks_sound_frames tanks_misc[2]
+alias tanks_sound_kind tanks_misc[3]
+alias tanks_barrier_event_index tanks_misc[4]
+alias missile0_active tanks_misc[5]
+alias missile1_active tanks_misc[6]
+alias tanks_motion_work tanks_misc[7]
 
-// Mapper-owned cartridge RAM backs the 86-pair PF2 schedule used by the top-wall/interior
-// kernel. The visible kernel therefore performs one constant-time indexed load
-// per pair instead of taking variable barrier-event branches. Entries 0..1 are
-// the full-width top wall; the remaining entries are zero except for generated
-// vertical barriers. The bottom wall is drawn separately after this schedule.
-cartram uint8_t tanks_barrier_pf2[86];
+// Three tall barriers are six ordered PF2 events: start/end for each wall.
+uint8_t tanks_barrier_event_row[7];
+uint8_t tanks_barrier_event_pf2[6];
 
-// Persistent cartridge-RAM scratch for hit knockback.  The game is deliberately
-// non-reentrant, so these bytes can replace nested RIOT-RAM activation locals.
-cartram uint8_t tanks_knock_direction;
-cartram uint8_t tanks_knock_amount;
-cartram uint8_t tanks_knock_x;
-cartram uint8_t tanks_knock_y;
-cartram uint8_t tanks_motion_work;
-cartram uint8_t tank0_knockback_pending;
-cartram uint8_t tank1_knockback_pending;
-cartram uint8_t tank0_knockback_index;
-cartram uint8_t tank1_knockback_index;
-// Knockback is allowed to deposit a tank inside playfield geometry. While this
-// latch is set, playfield collision rollback is suppressed until one complete
-// visible frame reports no player/playfield overlap, allowing the player to
-// drive out of a wall or barrier instead of becoming permanently trapped.
-cartram uint8_t tank0_pf_escape;
-cartram uint8_t tank1_pf_escape;
-
-uint8_t tanks_player_position_control[2];
-
-uint8_t missile0_x := 27;
-uint8_t missile1_x := 131;
-uint8_t missile0_y := 45;
-uint8_t missile1_y := 45;
-uint8_t missile0_direction := TANKS_DIR_E;
-uint8_t missile1_direction := TANKS_DIR_W;
-uint8_t missile0_active := 0;
-uint8_t missile1_active := 0;
-
-// Beam-time scratch prepared one doubled scanline row ahead. Keeping the TIA
-// writes at the very start of each half-pair lets objects reach the 4-pixel
-// side walls without a left-edge graphics/enable race.
-uint8_t tanks_p0_next := 0;
-uint8_t tanks_p1_next := 0;
-uint8_t tanks_m0_next := 0;
-uint8_t tanks_m1_next := 0;
+// Per-player row-index XOR prepared in VBLANK.  No expanded sprite cache:
+// the visible renderer reads the five canonical ROM sprites directly.
+uint8_t tanks_graphics_index_xor[2];
+uint8_t tanks_pnext[2];
+uint8_t tanks_mnext[2];
+alias tanks_p0_next tanks_pnext[0]
+alias tanks_p1_next tanks_pnext[1]
+alias tanks_m0_next tanks_mnext[0]
+alias tanks_m1_next tanks_mnext[1]
 
 uint8_t tanks_random(void) {
-   // Ordinary game-state LFSR; no beam-facing timing depends on its exact
-   // instruction sequence.
-   if (tanks_rng & 1) { tanks_rng := (tanks_rng >> 1) ^ 0xb4; }
-   else { tanks_rng >>= 1; }
-   if (!tanks_rng) { tanks_rng := 0x5d; }
+   asm lda.z tanks_misc + 1;
+   asm lsr;
+   asm bcc.same @no_eor;
+   asm eor #$b4;
+   asm @no_eor:;
+   asm bne.same @nonzero;
+   asm lda #$5d;
+   asm @nonzero:;
+   asm sta.z tanks_misc + 1;
    return tanks_rng;
 }
 
 inline void tanks_generate_barriers(void) {
-   uint8_t i := 0;
-   uint8_t r;
-   uint8_t start;
-   uint8_t end;
+   uint8_t r := tanks_random() & 3;
    uint8_t mask;
+   if (r == 3) {
+      r := 1;
+   }
 
-   while (i < 86) { tanks_barrier_pf2[i] := 0; i++; }
-   tanks_barrier_pf2[0] := 0xff;
-   tanks_barrier_pf2[1] := 0xff;
-
-   // Three 28-scanline vertical barriers keep independent pseudo-random X
-   // positions, but share one small vertical offset.  Independent Y jitter
-   // made it impossible to guarantee comfortable passages everywhere at once.
-   // Starts 12/36/60 plus a shared 0..2-pair offset leave at least ten clear
-   // doubled rows (20 visible scanlines) in all four passages: above the first
-   // barrier, between each pair of barriers, and below the last barrier.
-   r := tanks_random() & 3;
-   if (r == 3) { r := 1; }
-
-   start := 12 + r;
-   end := start + 14;
+   tanks_barrier_event_row[0] := 12 + r;
+   tanks_barrier_event_row[1] := 26 + r;
    mask := tanks_random();
-   mask := tanks_barrier_masks[(mask >> 3) & 7];
-   i := start;
-   while (i < end) { tanks_barrier_pf2[i] := mask; i++; }
+   tanks_barrier_event_pf2[0] := tanks_barrier_masks[(mask >> 3) & 7];
+   tanks_barrier_event_pf2[1] := 0;
 
-   start := 36 + r;
-   end := start + 14;
+   tanks_barrier_event_row[2] := 36 + r;
+   tanks_barrier_event_row[3] := 50 + r;
    mask := tanks_random();
-   mask := tanks_barrier_masks[(mask >> 3) & 7];
-   i := start;
-   while (i < end) { tanks_barrier_pf2[i] := mask; i++; }
+   tanks_barrier_event_pf2[2] := tanks_barrier_masks[(mask >> 3) & 7];
+   tanks_barrier_event_pf2[3] := 0;
 
-   start := 60 + r;
-   end := start + 14;
+   tanks_barrier_event_row[4] := 60 + r;
+   tanks_barrier_event_row[5] := 74 + r;
    mask := tanks_random();
-   mask := tanks_barrier_masks[(mask >> 3) & 7];
-   i := start;
-   while (i < end) { tanks_barrier_pf2[i] := mask; i++; }
+   tanks_barrier_event_pf2[4] := tanks_barrier_masks[(mask >> 3) & 7];
+   tanks_barrier_event_pf2[5] := 0;
+   tanks_barrier_event_row[6] := 0xff;
 }
-
-void tanks_apply_knockback(uint8_t *x, uint8_t *y, uint8_t direction) {
-   // X is one visible pixel per unit, while arena Y is one doubled scanline row
-   // per unit. Cardinal moves are therefore 32 X units or 16 Y rows; diagonal
-   // moves use 23 X units and 11 Y rows, about 31.8 visible pixels overall.
-   // Unlike ordinary driving, hit displacement deliberately ignores both the
-   // outer walls and interior PF barriers. Crossing an outer wall wraps the
-   // complete tank footprint to the opposite side of the arena.
-   tanks_knock_x := *x;
-   tanks_knock_y := *y;
-   tanks_knock_amount := TANKS_KNOCKBACK_X_CARDINAL;
-   if (direction & 1) { tanks_knock_amount := TANKS_KNOCKBACK_X_DIAGONAL; }
-
-   if (direction >= TANKS_KNOCK_NE) {
-      if (direction <= TANKS_KNOCK_SE) {
-         tanks_knock_x += tanks_knock_amount;
-         if (tanks_knock_x > TANKS_PLAYER_MAX_X) {
-            tanks_knock_x -= TANKS_PLAYER_X_SPAN;
-         }
-      }
-      else {
-         if (direction >= TANKS_KNOCK_SW) {
-            if (tanks_knock_x < TANKS_PLAYER_MIN_X + tanks_knock_amount) {
-               tanks_knock_x += TANKS_PLAYER_X_SPAN;
-            }
-            tanks_knock_x -= tanks_knock_amount;
-         }
-      }
-   }
-
-   tanks_knock_amount := TANKS_KNOCKBACK_Y_CARDINAL;
-   if (direction & 1) { tanks_knock_amount := TANKS_KNOCKBACK_Y_DIAGONAL; }
-
-   if (direction <= TANKS_KNOCK_NE) {
-      if (tanks_knock_y < TANKS_PLAYER_MIN_Y + tanks_knock_amount) {
-         tanks_knock_y += TANKS_PLAYER_Y_SPAN;
-      }
-      tanks_knock_y -= tanks_knock_amount;
-   }
-   else {
-      if (direction == TANKS_KNOCK_NW) {
-         if (tanks_knock_y < TANKS_PLAYER_MIN_Y + tanks_knock_amount) {
-            tanks_knock_y += TANKS_PLAYER_Y_SPAN;
-         }
-         tanks_knock_y -= tanks_knock_amount;
-      }
-      else {
-         if (direction >= TANKS_KNOCK_SE) {
-            if (direction <= TANKS_KNOCK_SW) {
-               tanks_knock_y += tanks_knock_amount;
-               if (tanks_knock_y > TANKS_PLAYER_MAX_Y) {
-                  tanks_knock_y -= TANKS_PLAYER_Y_SPAN;
-               }
-            }
-         }
-      }
-   }
-
-   *x := tanks_knock_x;
-   *y := tanks_knock_y;
-}
-
 
 void tanks_sound_stop(void) {
    tanks_sound_frames := 0;
@@ -481,13 +247,16 @@ void tanks_sound_stop(void) {
 void tanks_sound_tick(void) {
    if (tanks_sound_frames) {
       tanks_sound_frames--;
-      if (!tanks_sound_frames) { tanks_sound_stop(); }
+      if (!tanks_sound_frames) {
+         tanks_sound_stop();
+      }
    }
 }
 
 void tanks_sound_fire(void) {
-   // A short, dry high-frequency noise burst. Do not cut off a hit explosion.
-   if (tanks_sound_kind == TANKS_SOUND_HIT) { return; }
+   if (tanks_sound_kind == TANKS_SOUND_HIT) {
+      return;
+   }
    AUDV0 := MUSIC_VOLUME_OFF;
    AUDC0 := MUSIC_CONTROL_NOISE;
    AUDF0 := 4;
@@ -497,7 +266,6 @@ void tanks_sound_fire(void) {
 }
 
 void tanks_sound_hit(void) {
-   // A much longer, lower noise burst accompanies the rapid hit spin.
    AUDV0 := MUSIC_VOLUME_OFF;
    AUDC0 := MUSIC_CONTROL_NOISE;
    AUDF0 := 20;
@@ -507,17 +275,8 @@ void tanks_sound_hit(void) {
 }
 
 inline void tanks_update_engine(uint8_t controls) {
-   // Channel 1 is reserved for the quiet engine bed. Keep it running while
-   // either player is commanding forward/reverse motion; the quarter-rate
-   // position update must not make the audio sputter three frames out of four.
    if (!tank0_spin_frames) {
-      if (!(controls & 0x10)) {
-         AUDC1 := MUSIC_CONTROL_LOW_BASS;
-         AUDF1 := TANKS_ENGINE_FREQ;
-         AUDV1 := TANKS_ENGINE_VOLUME;
-         return;
-      }
-      if (!(controls & 0x20)) {
+      if ((controls & 0x30) != 0x30) {
          AUDC1 := MUSIC_CONTROL_LOW_BASS;
          AUDF1 := TANKS_ENGINE_FREQ;
          AUDV1 := TANKS_ENGINE_VOLUME;
@@ -525,13 +284,7 @@ inline void tanks_update_engine(uint8_t controls) {
       }
    }
    if (!tank1_spin_frames) {
-      if (!(controls & 0x01)) {
-         AUDC1 := MUSIC_CONTROL_LOW_BASS;
-         AUDF1 := TANKS_ENGINE_FREQ;
-         AUDV1 := TANKS_ENGINE_VOLUME;
-         return;
-      }
-      if (!(controls & 0x02)) {
+      if ((controls & 0x03) != 0x03) {
          AUDC1 := MUSIC_CONTROL_LOW_BASS;
          AUDF1 := TANKS_ENGINE_FREQ;
          AUDV1 := TANKS_ENGINE_VOLUME;
@@ -546,27 +299,27 @@ inline void tanks_reset_positions(void) {
    tank1_x := TANKS_RIGHT_START_X;
    tank0_y := TANKS_START_Y;
    tank1_y := TANKS_START_Y;
+   tank0_direction := TANKS_DIR_E;
+   tank1_direction := TANKS_DIR_W;
    tank0_prev_x := tank0_x;
    tank1_prev_x := tank1_x;
    tank0_prev_y := tank0_y;
    tank1_prev_y := tank1_y;
-   tank0_direction := TANKS_DIR_E;
-   tank1_direction := TANKS_DIR_W;
    tank0_turn_countdown := 0;
    tank1_turn_countdown := 0;
    tank0_fire_ready := 1;
    tank1_fire_ready := 1;
    tank0_spin_frames := 0;
    tank1_spin_frames := 0;
-   tank0_knockback_pending := 0;
-   tank1_knockback_pending := 0;
-   tank0_knockback_index := 0;
-   tank1_knockback_index := 0;
    tank0_pf_escape := 0;
    tank1_pf_escape := 0;
+   tank0_knockback_pending := 0;
+   tank1_knockback_pending := 0;
    tanks_move_phase := 0;
    missile0_active := 0;
    missile1_active := 0;
+   missile0_y := 0;
+   missile1_y := 0;
 }
 
 void tanks_reset_game(void) {
@@ -578,54 +331,65 @@ void tanks_reset_game(void) {
    tanks_reset_positions();
 }
 
-void tanks_move_object(uint8_t *x, uint8_t *y, uint8_t direction) {
-   tanks_motion_work := tanks_motion[direction];
+// Compact shared 16-way mover. object 0/1=tanks, 2/3=missiles.
+void tanks_move_object(uint8_t object, uint8_t direction) {
+   asm ldx tanks_move_object$object;
+   asm ldy tanks_move_object$direction;
+   asm lda tanks_motion,y;
+   asm sta.z tanks_misc + 7;
 
-   // X is either a full step or the 7/16 minor-axis cadence for the
-   // near-vertical headings. Preserve the packed Y nibble while suppressing
-   // a skipped X.
-   if ((tanks_motion_work & 0x0f) == 2 || (tanks_motion_work & 0x0f) == 6) {
-      if (!tanks_angle_steps[*y & 15]) { tanks_motion_work &= 0xf0; }
-   }
-   if (tanks_motion_work & 0x0f) {
-      if ((tanks_motion_work & 0x0f) <= 4) { (*x)++; }
-      else { (*x)--; }
-   }
+   asm and #$0f;
+   asm beq.same @x_done;
+   asm tay;
+   asm and #$02;
+   asm beq.same @x_step;
+   asm lda.zx tanks_y,x;
+   asm and #$0f;
+   asm tay;
+   asm lda tanks_angle_steps,y;
+   asm beq.same @x_done;
+   asm lda.z tanks_misc + 7;
+   asm and #$0f;
+   asm tay;
+   asm @x_step:;
+   asm tya;
+   asm and #$04;
+   asm bne.same @x_negative;
+   asm inc.zx tanks_x,x;
+   asm jmp @x_done;
+   asm @x_negative:;
+   asm dec.zx tanks_x,x;
+   asm @x_done:;
 
-   tanks_motion_work >>= 4;
-
-   // Y is either a full step or the same 7/16 minor-axis cadence for the
-   // near-horizontal headings. True diagonals therefore change X and Y on
-   // every move, exactly matching the logical slope of the diagonal glyphs.
-   if (tanks_motion_work == 2 || tanks_motion_work == 6) {
-      if (!tanks_angle_steps[*x & 15]) { tanks_motion_work := 0; }
-   }
-   if (tanks_motion_work) {
-      if (tanks_motion_work <= 4) { (*y)++; }
-      else { (*y)--; }
-   }
-}
-
-void tanks_move_player(uint8_t *x, uint8_t *y, uint8_t direction, uint8_t reverse) {
-   // Reverse is the same heading rotated 180 degrees.
-   if (reverse) {
-      direction += 8;
-      direction &= 15;
-   }
-
-   tanks_move_object(x, y, direction);
-
-   // Clamp the complete 8x8 source footprint inside the arena. The common
-   // mover remains branch-light and missiles retain their historical unbounded
-   // coordinates until TIA collision latches stop them.
-   if (*x < TANKS_PLAYER_MIN_X) { *x := TANKS_PLAYER_MIN_X; }
-   else { if (*x > TANKS_PLAYER_MAX_X) { *x := TANKS_PLAYER_MAX_X; } }
-   if (*y < TANKS_PLAYER_MIN_Y) { *y := TANKS_PLAYER_MIN_Y; }
-   else { if (*y > TANKS_PLAYER_MAX_Y) { *y := TANKS_PLAYER_MAX_Y; } }
-}
-
-void tanks_move_missile(uint8_t *x, uint8_t *y, uint8_t direction) {
-   tanks_move_object(x, y, direction);
+   asm lda.z tanks_misc + 7;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm beq.same @done;
+   asm tay;
+   asm and #$02;
+   asm beq.same @y_step;
+   asm lda.zx tanks_x,x;
+   asm and #$0f;
+   asm tay;
+   asm lda tanks_angle_steps,y;
+   asm beq.same @done;
+   asm lda.z tanks_misc + 7;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm lsr;
+   asm tay;
+   asm @y_step:;
+   asm tya;
+   asm and #$04;
+   asm bne.same @y_negative;
+   asm inc.zx tanks_y,x;
+   asm rts;
+   asm @y_negative:;
+   asm dec.zx tanks_y,x;
+   asm @done:;
 }
 
 inline void tanks_launch0(void) {
@@ -646,14 +410,20 @@ inline void tanks_launch1(void) {
 
 inline void tanks_update_turn0(uint8_t controls) {
    if (!(controls & 0x40)) {
-      if (tank0_turn_countdown) { tank0_turn_countdown--; return; }
+      if (tank0_turn_countdown) {
+         tank0_turn_countdown--;
+         return;
+      }
       tank0_direction--;
       tank0_direction &= 15;
       tank0_turn_countdown := TANKS_TURN_REPEAT;
       return;
    }
    if (!(controls & 0x80)) {
-      if (tank0_turn_countdown) { tank0_turn_countdown--; return; }
+      if (tank0_turn_countdown) {
+         tank0_turn_countdown--;
+         return;
+      }
       tank0_direction++;
       tank0_direction &= 15;
       tank0_turn_countdown := TANKS_TURN_REPEAT;
@@ -664,14 +434,20 @@ inline void tanks_update_turn0(uint8_t controls) {
 
 inline void tanks_update_turn1(uint8_t controls) {
    if (!(controls & 0x04)) {
-      if (tank1_turn_countdown) { tank1_turn_countdown--; return; }
+      if (tank1_turn_countdown) {
+         tank1_turn_countdown--;
+         return;
+      }
       tank1_direction--;
       tank1_direction &= 15;
       tank1_turn_countdown := TANKS_TURN_REPEAT;
       return;
    }
    if (!(controls & 0x08)) {
-      if (tank1_turn_countdown) { tank1_turn_countdown--; return; }
+      if (tank1_turn_countdown) {
+         tank1_turn_countdown--;
+         return;
+      }
       tank1_direction++;
       tank1_direction &= 15;
       tank1_turn_countdown := TANKS_TURN_REPEAT;
@@ -681,79 +457,101 @@ inline void tanks_update_turn1(uint8_t controls) {
 }
 
 inline void tanks_update_spin0(void) {
-   if (!tank0_spin_frames) { return; }
+   if (!tank0_spin_frames) {
+      return;
+   }
    tank0_direction++;
    tank0_direction &= 15;
    tank0_spin_frames--;
-   if (!tank0_spin_frames) { tank0_direction := tanks_random() & 15; }
+   if (!tank0_spin_frames) {
+      tank0_direction := tanks_random() & 15;
+   }
 }
 
 inline void tanks_update_spin1(void) {
-   if (!tank1_spin_frames) { return; }
+   if (!tank1_spin_frames) {
+      return;
+   }
    tank1_direction++;
    tank1_direction &= 15;
    tank1_spin_frames--;
-   if (!tank1_spin_frames) { tank1_direction := tanks_random() & 15; }
+   if (!tank1_spin_frames) {
+      tank1_direction := tanks_random() & 15;
+   }
 }
 
 inline void tanks_update_controls(void) {
    uint8_t controls := SWCHA;
-
    tanks_update_engine(controls);
-
    tank0_prev_x := tank0_x;
    tank0_prev_y := tank0_y;
    tank1_prev_x := tank1_x;
    tank1_prev_y := tank1_y;
-
-   if (!tank0_spin_frames) { tanks_update_turn0(controls); }
-   if (!tank1_spin_frames) { tanks_update_turn1(controls); }
-
-   // Translation now runs once every four frames: half the speed of the
-   // previous revision and one quarter of the original one-pixel-per-frame
-   // prototype.
+   if (!tank0_spin_frames) {
+      tanks_update_turn0(controls);
+   }
+   if (!tank1_spin_frames) {
+      tanks_update_turn1(controls);
+   }
    if (!tanks_move_phase) {
       if (!tank0_spin_frames) {
-         if (!(controls & 0x10)) { tanks_move_player(&tank0_x, &tank0_y, tank0_direction, 0); }
-         else { if (!(controls & 0x20)) { tanks_move_player(&tank0_x, &tank0_y, tank0_direction, 1); } }
+         if (!(controls & 0x10)) {
+            tanks_move_object(0, tank0_direction);
+         }
+         else {
+            if (!(controls & 0x20)) {
+               tanks_move_object(0, (tank0_direction + 8) & 15);
+            }
+         }
       }
       if (!tank1_spin_frames) {
-         if (!(controls & 0x01)) { tanks_move_player(&tank1_x, &tank1_y, tank1_direction, 0); }
-         else { if (!(controls & 0x02)) { tanks_move_player(&tank1_x, &tank1_y, tank1_direction, 1); } }
+         if (!(controls & 0x01)) {
+            tanks_move_object(1, tank1_direction);
+         }
+         else {
+            if (!(controls & 0x02)) {
+               tanks_move_object(1, (tank1_direction + 8) & 15);
+            }
+         }
       }
    }
    tanks_move_phase++;
    tanks_move_phase &= 3;
-
-   if (tank0_spin_frames) { tank0_fire_ready := (INPT4 & 0x80) != 0; }
+   if (tank0_spin_frames) {
+      tank0_fire_ready := (INPT4 & 0x80) != 0;
+   }
    else {
-      if (INPT4 & 0x80) { tank0_fire_ready := 1; }
+      if (INPT4 & 0x80) {
+         tank0_fire_ready := 1;
+      }
       else {
          if (tank0_fire_ready) {
             tank0_fire_ready := 0;
-            if (!missile0_active) { tanks_launch0(); }
+            if (!missile0_active) {
+               tanks_launch0();
+            }
          }
       }
    }
-
-   if (tank1_spin_frames) { tank1_fire_ready := (INPT5 & 0x80) != 0; }
+   if (tank1_spin_frames) {
+      tank1_fire_ready := (INPT5 & 0x80) != 0;
+   }
    else {
-      if (INPT5 & 0x80) { tank1_fire_ready := 1; }
+      if (INPT5 & 0x80) {
+         tank1_fire_ready := 1;
+      }
       else {
          if (tank1_fire_ready) {
             tank1_fire_ready := 0;
-            if (!missile1_active) { tanks_launch1(); }
+            if (!missile1_active) {
+               tanks_launch1();
+            }
          }
       }
    }
 }
 
 inline void tanks_update_player_collisions(void) {
-   // Consume player collision latches immediately after the arena, before the
-   // next controls update overwrites tank*_prev_*.  A player/playfield or
-   // player/player overlap means the preceding movement was illegal, so undo
-   // it to the last legal coordinates.  Roll both tanks back on P0/P1 contact
-   // so simultaneous movement cannot let them tunnel through each other.
    if (CXPPMM & 0x80) {
       tank0_x := tank0_prev_x;
       tank0_y := tank0_prev_y;
@@ -761,27 +559,31 @@ inline void tanks_update_player_collisions(void) {
       tank1_y := tank1_prev_y;
       return;
    }
-   // A hit may intentionally leave a tank overlapping playfield geometry. In
-   // that case suppress rollback until the tank has escaped and one clean frame
-   // proves it is no longer touching the playfield. Ordinary movement still
-   // treats the playfield as solid once the escape latch clears.
    if (CXP0FB & 0x80) {
-      if (!tank0_pf_escape) { tank0_x := tank0_prev_x; tank0_y := tank0_prev_y; }
+      if (!tank0_pf_escape) {
+         tank0_x := tank0_prev_x;
+         tank0_y := tank0_prev_y;
+      }
    }
-   else { tank0_pf_escape := 0; }
+   else {
+      tank0_pf_escape := 0;
+   }
    if (CXP1FB & 0x80) {
-      if (!tank1_pf_escape) { tank1_x := tank1_prev_x; tank1_y := tank1_prev_y; }
+      if (!tank1_pf_escape) {
+         tank1_x := tank1_prev_x;
+         tank1_y := tank1_prev_y;
+      }
    }
-   else { tank1_pf_escape := 0; }
+   else {
+      tank1_pf_escape := 0;
+   }
 }
 
 inline void tanks_update_collisions(void) {
-   // Bit 7 of CXM0P/CXM1P is M0-P1/M1-P0; bit 7 of CXM0FB/CXM1FB is
-   // missile-playfield. A hit scores immediately, starts the victim spinning,
-   // and gives the longer explosion sound priority over a firing burst.
    if (missile0_active) {
       if (CXM0P & 0x80) {
          missile0_active := 0;
+         missile0_y := 0;
          score_left_score++;
          tank1_knockback_pending := (((missile0_direction + 1) >> 1) & 7) + 1;
          tank1_knockback_index := tanks_random() & 7;
@@ -789,12 +591,16 @@ inline void tanks_update_collisions(void) {
          tanks_sound_hit();
       }
       else {
-         if (CXM0FB & 0x80) { missile0_active := 0; }
+         if (CXM0FB & 0x80) {
+            missile0_active := 0;
+            missile0_y := 0;
+         }
       }
    }
    if (missile1_active) {
       if (CXM1P & 0x80) {
          missile1_active := 0;
+         missile1_y := 0;
          score_right_score++;
          tank0_knockback_pending := (((missile1_direction + 1) >> 1) & 7) + 1;
          tank0_knockback_index := tanks_random() & 7;
@@ -802,53 +608,121 @@ inline void tanks_update_collisions(void) {
          tanks_sound_hit();
       }
       else {
-         if (CXM1FB & 0x80) { missile1_active := 0; }
+         if (CXM1FB & 0x80) {
+            missile1_active := 0;
+            missile1_y := 0;
+         }
       }
    }
 }
 
 void tanks_update_vblank(void) {
-   // Missile collision latches survive from the preceding arena until CXCLR.
-   // Keep score/hit/audio work here so simultaneous missile hits remain within
-   // the 37-line VBLANK deadline. Player/playfield rollback happens earlier,
-   // immediately after the arena, before controls can overwrite its undo state.
    tanks_sound_tick();
-   if (SWCHB & 1) { tanks_update_collisions(); }
+   if (SWCHB & 1) {
+      tanks_update_collisions();
+   }
 }
 
 void tanks_process_knockback(void) {
-   // Run as a separate top-level overscan call so its activation storage does
-   // not stack on top of tanks_update_overscan's frame. First consume the
-   // just-finished arena's player collisions while tank*_prev_* is still valid.
    tanks_update_player_collisions();
 
-   // Hit displacement is deliberately unlike ordinary movement: playfield
-   // walls and barriers do not block it. One pseudo-random away-side heading
-   // is applied immediately, wrapping through an outer wall to the opposite
-   // side when necessary. This prevents wall-pinning from becoming a dominant
-   // combat tactic.
-   if (tank0_knockback_pending) {
-      tanks_knock_direction := tank0_knockback_pending - 1;
-      tanks_knock_direction += tanks_knockback_offsets[tank0_knockback_index];
-      tanks_knock_direction &= 7;
-      tanks_apply_knockback(&tank0_x, &tank0_y, tanks_knock_direction);
-      tank0_pf_escape := 1;
-      tank0_prev_x := tank0_x;
-      tank0_prev_y := tank0_y;
-      tank0_knockback_pending := 0;
-      return;
-   }
+   // X selects the struck tank.  Convert the pending away-side octant plus
+   // its pseudo-random spread into one of the eight knockback directions.
+   asm ldx #0;
+   asm lda.zx tank_knockback_pending,x;
+   asm bne.flex @have_hit;
+   asm inx;
+   asm lda.zx tank_knockback_pending,x;
+   asm beq.flex @done;
+   asm @have_hit:;
+   asm sec;
+   asm sbc #1;
+   asm sta.z tanks_misc + 7;
+   asm lda.zx tank_knockback_index,x;
+   asm tay;
+   asm lda tanks_knockback_offsets,y;
+   asm clc;
+   asm adc.z tanks_misc + 7;
+   asm and #7;
+   asm tay;
 
-   if (tank1_knockback_pending) {
-      tanks_knock_direction := tank1_knockback_pending - 1;
-      tanks_knock_direction += tanks_knockback_offsets[tank1_knockback_index];
-      tanks_knock_direction &= 7;
-      tanks_apply_knockback(&tank1_x, &tank1_y, tanks_knock_direction);
-      tank1_pf_escape := 1;
-      tank1_prev_x := tank1_x;
-      tank1_prev_y := tank1_y;
-      tank1_knockback_pending := 0;
-   }
+   // X displacement: + for NE/E/SE, - for SW/W/NW.  Wrap the complete
+   // top-left tank coordinate through the legal 4..148 arena span.
+   asm lda tanks_knockback_delta,y;
+   asm beq.flex @x_done;
+   asm sta.z tanks_misc + 7;
+   asm cpy #4;
+   asm bcs.flex @x_negative;
+   asm lda.zx tanks_x,x;
+   asm clc;
+   asm adc.z tanks_misc + 7;
+   asm cmp #149;
+   asm bcc.flex @x_store;
+   asm sec;
+   asm sbc #145;
+   asm jmp @x_store;
+   asm @x_negative:;
+   asm lda.zx tanks_x,x;
+   asm sec;
+   asm sbc.z tanks_misc + 7;
+   asm bcc.flex @x_wrap;
+   asm cmp #4;
+   asm bcs.flex @x_store;
+   asm @x_wrap:;
+   asm clc;
+   asm adc #145;
+   asm @x_store:;
+   asm sta.zx tanks_x,x;
+   asm @x_done:;
+
+   // Y displacement: - for NW/N/NE, + for SE/S/SW.  Arena Y is a doubled
+   // scanline coordinate, so 16 cardinal / 11 diagonal rows are ~32 pixels.
+   asm tya;
+   asm clc;
+   asm adc #8;
+   asm tay;
+   asm lda tanks_knockback_delta,y;
+   asm beq.flex @y_done;
+   asm sta.z tanks_misc + 7;
+   asm tya;
+   asm sec;
+   asm sbc #8;
+   asm tay;
+   asm cpy #3;
+   asm bcc.flex @y_negative;
+   asm cpy #6;
+   asm bcs.flex @y_negative;
+   asm lda.zx tanks_y,x;
+   asm clc;
+   asm adc.z tanks_misc + 7;
+   asm cmp #79;
+   asm bcc.flex @y_store;
+   asm sec;
+   asm sbc #75;
+   asm jmp @y_store;
+   asm @y_negative:;
+   asm lda.zx tanks_y,x;
+   asm sec;
+   asm sbc.z tanks_misc + 7;
+   asm bcc.flex @y_wrap;
+   asm cmp #4;
+   asm bcs.flex @y_store;
+   asm @y_wrap:;
+   asm clc;
+   asm adc #75;
+   asm @y_store:;
+   asm sta.zx tanks_y,x;
+   asm @y_done:;
+
+   asm lda #1;
+   asm sta.zx tank_pf_escape,x;
+   asm lda.zx tanks_x,x;
+   asm sta.zx tank_prev_x,x;
+   asm lda.zx tanks_y,x;
+   asm sta.zx tank_prev_y,x;
+   asm lda #0;
+   asm sta.zx tank_knockback_pending,x;
+   asm @done:;
 }
 
 void tanks_update_overscan(void) {
@@ -856,126 +730,125 @@ void tanks_update_overscan(void) {
       tanks_reset_game();
       return;
    }
-
-   // Advance only missiles that were already active when overscan began. Do
-   // this before controls so a newly fired two-pixel missile gets one centered
-   // visible frame before moving. The cycle-calibrated missile positioner lands
-   // five pixels left of its stored X, so launch stores tank_x+8 to render at
-   // physical tank_x+3..+4.
-   if (missile0_active) { tanks_move_missile(&missile0_x, &missile0_y, missile0_direction); }
-   if (missile1_active) { tanks_move_missile(&missile1_x, &missile1_y, missile1_direction); }
-
-   // Controls see the spin latch before the spin is advanced. On the final
-   // spin frame this keeps player input from immediately changing the random
-   // heading selected at the end of the hit animation.
+   if (missile0_active) {
+      tanks_move_object(2, missile0_direction);
+   }
+   if (missile1_active) {
+      tanks_move_object(3, missile1_direction);
+   }
    tanks_update_controls();
    tanks_update_spin0();
    tanks_update_spin1();
-
-   // Continuously decorrelate future Reset layouts and post-hit headings from
-   // startup. This is deterministic for tests but player timing supplies entropy
-   // in a real game.
    _ := tanks_random();
 }
 
-// Position M0/M1 during timer-owned VBLANK. The score component deliberately
-// preserves their RESP positions and clears HMM0/HMM1 before its own HMOVE.
 inline void tanks_position_missiles(void) {
    asm lda #0;
    asm sta ENAM0;
    asm sta ENAM1;
    asm sta HMM0;
    asm sta HMM1;
-
+   // Save each subtract-by-15 residual and defer the fine-motion lookup to the
+   // third line.  RESP timing is unchanged, while even X=157 stays <76 cycles.
+   // tanks_mnext[] is free scratch here; tanks_prepare_frame() clears it next.
    asm sta WSYNC;
-   asm ldx #2;
-   asm bit.z CXM0P;
-   // This compact RESP/HMOVE sequence is cycle-calibrated and renders M0/M1
-   // five Atari pixels left of its stored X value. Launch code compensates by
-   // storing tank_x+8, which renders the two-pixel missile at tank_x+3..+4.
-   asm lda.z missile0_x;
+   asm lda.z tanks_x + 2;
    asm sec;
    asm @m0_divide:;
    asm sbc #15;
    asm bcs.same @m0_divide;
    asm nop;
    asm nop;
-   asm sta RESP0,x;
-   asm tay;
-   asm lda tanks_reposition_table + 16 - 256,y;
-   asm sta HMP0,x;
-
+   asm sta RESM0;
+   asm sta.z tanks_mnext + 0;
    asm sta WSYNC;
-   asm ldx #3;
-   asm bit.z CXM0P;
-   asm lda.z missile1_x;
+   asm lda.z tanks_x + 3;
    asm sec;
    asm @m1_divide:;
    asm sbc #15;
    asm bcs.same @m1_divide;
    asm nop;
    asm nop;
-   asm sta RESP0,x;
-   asm tay;
-   asm lda tanks_reposition_table + 16 - 256,y;
-   asm sta HMP0,x;
-
+   asm sta RESM1;
+   asm sta.z tanks_mnext + 1;
    asm sta WSYNC;
+   asm ldy.z tanks_mnext + 0;
+   asm lda tanks_reposition_table + 16 - 256,y;
+   asm sta HMM0;
+   asm ldy.z tanks_mnext + 1;
+   asm lda tanks_reposition_table + 16 - 256,y;
+   asm sta HMM1;
    asm sta HMOVE;
 }
 
+// Select the two canonical ROM sprites for this frame.  The descriptor already
+// contains the base-row XOR; REFP supplies the independent horizontal mirror.
 inline void tanks_prepare_graphics(void) {
-   // Direction-to-glyph selection is ordinary VBLANK pointer arithmetic; the
-   // indirect graphics fetch in tanks_draw() is the beam-critical part.
-   tank0_graphics := tanks_graphics;
-   tank0_graphics += tank0_direction << 3;
-   tank1_graphics := tanks_graphics;
-   tank1_graphics += tank1_direction << 3;
+   asm ldx.z tanks_direction + 0;
+   asm lda tanks_graphics_descriptor,x;
+   asm tay;
+   asm and #$3f;
+   asm sta.z tanks_graphics_index_xor + 0;
+   asm tya;
+   asm bpl.same @p0_no_reflect;
+   asm lda #8;
+   asm bne.same @p0_reflect_ready;
+   asm @p0_no_reflect:;
+   asm lda #0;
+   asm @p0_reflect_ready:;
+   asm sta REFP0;
+
+   asm ldx.z tanks_direction + 1;
+   asm lda tanks_graphics_descriptor,x;
+   asm tay;
+   asm and #$3f;
+   asm sta.z tanks_graphics_index_xor + 1;
+   asm tya;
+   asm bpl.same @p1_no_reflect;
+   asm lda #8;
+   asm bne.same @p1_reflect_ready;
+   asm @p1_no_reflect:;
+   asm lda #0;
+   asm @p1_reflect_ready:;
+   asm sta REFP1;
 }
 
-inline void tanks_prepare_player_positions(void) {
-   // Prepare the packed fixed-time position controls in ordinary VCSC before
-   // the visible three-line score handoff consumes them.
-   tanks_player_position_control[0] := tanks_player_position_table[tank0_x];
-   tanks_player_position_control[1] := tanks_player_position_table[tank1_x];
-}
-
-// The score owns P0/P1 positioning, so restore the two gameplay players in
-// three visible setup lines immediately after score_draw(). The score has
-// already zeroed HMM0/HMM1, hence this HMOVE cannot drag either missile.
+// Restore P1, P0, then HMOVE in exactly three visible lines after the score.
 inline void tanks_position_players_after_score(void) {
-   // Visible handoff line 1: bounded P1 coarse loop.
-   asm ldy.z tanks_player_position_control + 1;
-   asm sty HMP1;
-   asm tya;
-   asm and #$0f;
-   asm tax;
-   asm @p1_position_loop:;
-   asm dex;
-   asm bne.same @p1_position_loop;
+   // As with missiles, defer fine-motion lookup until the third handoff line.
+   // This preserves RESP timing but removes the right-edge WSYNC cliff.
+   asm lda.z tanks_x + 1;
+   asm sec;
+   asm @p1_divide:;
+   asm sbc #15;
+   asm bcs.same @p1_divide;
+   asm nop;
+   asm nop;
    asm sta RESP1;
+   asm sta.z tanks_mnext + 0;
    asm sta WSYNC;
-
-   // Visible handoff line 2: matching bounded P0 coarse loop.
-   asm ldy.z tanks_player_position_control;
-   asm sty HMP0;
-   asm tya;
-   asm and #$0f;
-   asm tax;
-   asm bit.z CXM0P;
-   asm @p0_position_loop:;
-   asm dex;
-   asm bne.same @p0_position_loop;
+   asm lda.z tanks_x + 0;
+   asm sec;
+   asm @p0_divide:;
+   asm sbc #15;
+   asm bcs.same @p0_divide;
+   asm nop;
+   asm nop;
    asm sta RESP0;
+   asm sta.z tanks_mnext + 1;
    asm sta WSYNC;
-
-   // Visible handoff line 3: apply fine motion and restore gameplay ownership.
+   asm ldy.z tanks_mnext + 0;
+   asm lda tanks_reposition_table + 16 - 256,y;
+   asm sta HMP1;
+   asm ldy.z tanks_mnext + 1;
+   asm lda tanks_reposition_table + 16 - 256,y;
+   asm sta HMP0;
    asm sta HMOVE;
    asm lda #0;
+   asm sta.z tanks_mnext + 0;
+   asm sta.z tanks_mnext + 1;
    asm sta GRP0;
    asm sta GRP1;
-   asm sta REFP0;
-   asm sta REFP1;
    asm sta VDELP0;
    asm sta VDELP1;
    asm lda #$10;
@@ -991,126 +864,110 @@ inline void tanks_prepare_frame(void) {
    tanks_p1_next := 0;
    tanks_m0_next := 0;
    tanks_m1_next := 0;
+   tanks_barrier_event_index := 0;
 }
 
-// 172-line paired arena following the 11-line score and three player-reposition
-// lines. Pairs 0..1 are the four-scanline top wall; pairs 2..85 carry side
-// walls and pseudo-random PF2 barriers. The four-scanline bottom wall is drawn
-// separately after this kernel so PF0/PF1/PF2 can all be established during
-// horizontal blank instead of changing partway across its first scanline.
-// Player source rows remain doubled vertically.
+// 172-line paired arena. The four-line bottom wall and two blank lines follow.
 inline void tanks_draw(void) {
-   asm ldx #0;                // displayed pair index; next pair after INX
-
-   // Pair 0 starts with the full top-wall playfield and VBLANK-cleared object
-   // staging. Its first half-line is guaranteed blank, so enter line B after it.
-   asm lda.z tanks_p0_next;
+   asm ldx #0;
+   asm lda.z tanks_pnext + 0;
    asm sta GRP0;
-   asm lda.z tanks_p1_next;
+   asm lda.z tanks_pnext + 1;
    asm sta GRP1;
    asm inx;
    asm sta WSYNC;
    asm jmp @line_b;
 
-   // Line B computes the next doubled player row and projectile enables.  The
-   // extra jump back here occurs at the beginning of line B, where there is
-   // ample cycle budget.  Before WSYNC we preload P1 into Y and P0 into A so
-   // the following line A can publish both player bytes in its first 6 cycles.
+   // A jumps here, so line B pays the three-cycle loop branch.  P1's staging
+   // byte is cleared on A while A is already zero, keeping B below 76 cycles.
    asm @line_b:;
    asm txa;
    asm sec;
-   asm sbc.z tank1_y;
+   asm sbc.z tanks_y + 1;
    asm cmp #8;
-   asm bcs.same @p1_next_zero;
+   asm bcs.same @p1_ready;
+   asm eor.z tanks_graphics_index_xor + 1;
    asm tay;
-   asm lda.iy (tank1_graphics),y;
-   asm sta.z tanks_p1_next;
-   asm jmp @p1_next_ready;
-   asm @p1_next_zero:;
-   asm lda #0;
-   asm sta.z tanks_p1_next;
-   asm @p1_next_ready:;
-
-   asm lda.z missile0_active;
-   asm beq.same @m0_next_ready;
-   asm cpx.z missile0_y;
-   asm bne.same @m0_next_ready;
+   asm lda tanks_graphics,y;
+   asm sta.z tanks_pnext + 1;
+   asm @p1_ready:;
+   // M0 is prepared here for the immediately following A line.  Barrier rows
+   // carry a 0xff sentinel at index 6, so no bounds check is needed.
+   asm cpx.z tanks_y + 2;
+   asm bne.same @m0_ready;
    asm lda #2;
-   asm sta.z tanks_m0_next;
-   asm @m0_next_ready:;
-
-   asm lda.z missile1_active;
-   asm beq.same @m1_next_ready;
-   asm cpx.z missile1_y;
-   asm bne.same @m1_next_ready;
-   asm lda #2;
-   asm sta.z tanks_m1_next;
-   asm @m1_next_ready:;
-
-   asm ldy.z tanks_p1_next;
-   asm lda.z tanks_p0_next;
+   asm sta.z tanks_mnext + 0;
+   asm @m0_ready:;
+   asm ldy.z tanks_misc + 4;
+   asm txa;
+   asm cmp.ay tanks_barrier_event_row,y;
+   asm bne.same @barrier_ready;
+   asm lda.ay tanks_barrier_event_pf2,y;
+   asm sta PF2;
+   asm iny;
+   asm sty.z tanks_misc + 4;
+   asm @barrier_ready:;
+   asm ldy.z tanks_pnext + 1;
+   asm lda.z tanks_pnext + 0;
    asm cpx #86;
    asm beq.same @done;
    asm sta WSYNC;
 
+   // Line B falls through here, so the player graphics publish immediately.
    asm @line_a:;
-   // Publish player graphics before any other per-pair work.  This is the
-   // critical anti-tear contract: GRP0 and GRP1 are complete by cycles 3 and 6
-   // respectively, well before the visible portion of the scanline begins.
    asm sta GRP0;
    asm sty GRP1;
-
-   // Pair 2 is the first line below the four-line top wall. Switch to the
-   // four-pixel side-wall playfield while still in horizontal blank. PF2 is
-   // then replaced below by the constant-time barrier schedule.
    asm cpx #2;
-   asm bne.same @not_side_start;
+   asm bne.same @normal_line_a;
+   // Legal missiles cannot occupy this early row.  Skip next-row missile
+   // preparation on the already-busy side-wall transition line.
    asm lda #$10;
    asm sta PF0;
    asm lda #0;
    asm sta PF1;
    asm sta PF2;
-   asm @not_side_start:;
-
-   // Publish projectile enables while still early enough for left-edge shots.
-   asm lda.z tanks_m0_next;
+   asm lda.z tanks_mnext + 0;
    asm sta ENAM0;
-   asm lda.z tanks_m1_next;
+   asm lda.z tanks_mnext + 1;
    asm sta ENAM1;
-
-   // The staged enables have now been published. Clear their next-pair slots
-   // on line A, which has the spare cycles; doing this on line B would make the
-   // simultaneous P1+M0+M1 path overrun 76 cycles.
    asm lda #0;
-   asm sta.z tanks_m0_next;
-   asm sta.z tanks_m1_next;
-
-   // PF2 begins well to the right of PF0/PF1, so this constant-time load has
-   // ample beam margin even after the early player/missile publications.
-   asm lda.ax tanks_barrier_pf2,x;
-   asm sta PF2;
-
+   asm sta.z tanks_mnext + 0;
+   asm sta.z tanks_mnext + 1;
+   asm sta.z tanks_pnext + 0;
+   asm sta.z tanks_pnext + 1;
    asm inx;
+   asm jmp @missiles_ready;
+   asm @normal_line_a:;
+   asm lda.z tanks_mnext + 0;
+   asm sta ENAM0;
+   asm lda.z tanks_mnext + 1;
+   asm sta ENAM1;
+   asm lda #0;
+   asm sta.z tanks_mnext + 0;
+   asm sta.z tanks_mnext + 1;
+   asm sta.z tanks_pnext + 0;
+   asm sta.z tanks_pnext + 1;
+   asm inx;
+   asm cpx.z tanks_y + 3;
+   asm bne.same @m1_ready;
+   asm lda #2;
+   asm sta.z tanks_mnext + 1;
+   asm @m1_ready:;
+   asm @missiles_ready:;
    asm txa;
    asm sec;
-   asm sbc.z tank0_y;
+   asm sbc.z tanks_y + 0;
    asm cmp #8;
-   asm bcs.same @p0_next_zero;
+   asm bcs.same @p0_ready;
+   asm eor.z tanks_graphics_index_xor + 0;
    asm tay;
-   asm lda.iy (tank0_graphics),y;
-   asm sta.z tanks_p0_next;
-   asm jmp @p0_next_ready;
-   asm @p0_next_zero:;
-   asm lda #0;
-   asm sta.z tanks_p0_next;
-   asm @p0_next_ready:;
-
+   asm lda tanks_graphics,y;
+   asm sta.z tanks_pnext + 0;
+   asm @p0_ready:;
    asm sta WSYNC;
    asm jmp @line_b;
 
    asm @done:;
-   // Finish pair 85 line B and return at the start of the first bottom-wall
-   // scanline. main() can therefore set the full playfield entirely in HBLANK.
    asm sta WSYNC;
 }
 
@@ -1128,10 +985,6 @@ void main(void) {
    ENAM0 := 0;
    ENAM1 := 0;
    ENABL := 0;
-   // Do not rely on power-on TIA state: Stella developer-mode randomization
-   // can leave a missile locked to its player until RESMPx is explicitly
-   // cleared. A locked M0 makes the first P0 shot active but invisible, so
-   // subsequent fire presses are correctly (but confusingly) suppressed.
    RESMP0 := 0;
    RESMP1 := 0;
    REFP0 := 0;
@@ -1143,23 +996,17 @@ void main(void) {
    CTRLPF := 0x01;
    AUDV0 := MUSIC_VOLUME_OFF;
    AUDV1 := MUSIC_VOLUME_OFF;
-
    score_left_color := TANKS_BLUE;
    score_right_color := TANKS_RED;
    score_init();
    tanks_reset_game();
    tanks_position_missiles();
-
    while (1) {
       vcs_ntsc_vsync();
-
       vcs_ntsc_begin_vblank();
-      // Collision latches still describe the preceding arena until CXCLR below.
-      // Consume hit/score/audio work here, then prepare the beam-facing state.
       tanks_update_vblank();
       tanks_position_missiles();
       tanks_prepare_graphics();
-      tanks_prepare_player_positions();
       tanks_prepare_frame();
       score_vblank();
       PF0 := 0;
@@ -1168,23 +1015,14 @@ void main(void) {
       ENAM0 := 0;
       ENAM1 := 0;
       vcs_ntsc_end_vblank();
-
       score_draw();
       vcs_ntsc_component_handoff();
       tanks_position_players_after_score();
-
-      // From this point until the next frame's VBLANK all collision latches
-      // describe only the gameplay arena, never the score or setup lines.
       CXCLR := _;
       PF0 := 0xff;
       PF1 := 0xff;
       PF2 := 0xff;
       tanks_draw();
-
-      // tanks_draw() returns at the start of the first bottom-wall scanline.
-      // Establish the full playfield during HBLANK, then hold it for exactly
-      // four scanlines.  This avoids the left-edge seam caused by changing
-      // PF0/PF1 after the beam had already entered visible time.
       PF0 := 0xff;
       PF1 := 0xff;
       PF2 := 0xff;
@@ -1192,9 +1030,6 @@ void main(void) {
       WSYNC := _;
       WSYNC := _;
       WSYNC := _;
-
-      // Score (11) + handoff (3) + paired arena (172) + bottom wall (4) leaves
-      // two visible lines. Blank them to preserve the 192-line visible field.
       PF0 := 0;
       PF1 := 0;
       PF2 := 0;
@@ -1202,7 +1037,6 @@ void main(void) {
       ENAM1 := 0;
       WSYNC := _;
       WSYNC := _;
-
       vcs_ntsc_begin_overscan();
       tanks_process_knockback();
       tanks_update_overscan();

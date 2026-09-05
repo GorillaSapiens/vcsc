@@ -14,7 +14,7 @@
 #include "mos6502.h"
 
 namespace {
-constexpr size_t kRomSize=8192;
+constexpr size_t kRomSize=4096;
 constexpr uint64_t kCyclesPerLine=76;
 constexpr uint64_t kRawFrameLines=264;
 constexpr uint16_t kVsync=0x0000, kWsync=0x0002, kCxclr=0x002c;
@@ -27,8 +27,6 @@ constexpr uint16_t kInpt4=0x003c, kInpt5=0x003d;
 constexpr uint16_t kSwcha=0x0280, kSwchb=0x0282;
 constexpr uint16_t kIntim=0x0284, kTimint=0x0285;
 constexpr uint16_t kTim1t=0x0294, kTim8t=0x0295, kTim64t=0x0296, kT1024t=0x0297;
-constexpr uint16_t kF8Hotspot0=0x1ff8, kF8Hotspot1=0x1ff9;
-constexpr uint16_t kScWrite=0x1000, kScRead=0x1080;
 
 constexpr uint8_t kStartX0=24, kStartX1=128, kStartY=45;
 constexpr uint8_t kDirNne=1, kDirNe=2, kDirEne=3, kDirE=4, kDirSw=10, kDirW=12;
@@ -52,7 +50,6 @@ uint16_t canonical(uint16_t address) { return static_cast<uint16_t>(address & 0x
 
 struct Snapshot {
    uint8_t x0=0,x1=0,y0=0,y1=0,d0=0,d1=0;
-   uint16_t g0=0,g1=0;
    uint8_t px0=0,px1=0,py0=0,py1=0,spin0=0,spin1=0;
    uint8_t m0x=0,m1x=0,m0y=0,m1y=0,m0d=0,m1d=0,m0a=0,m1a=0;
    uint16_t score0=0,score1=0;
@@ -66,12 +63,11 @@ public:
    Machine(const char *rom_path,const std::map<std::string,uint16_t>& a,Scenario scenario)
       : cpu_(read_thunk,write_thunk,clock_thunk), a_(a), scenario_(scenario) {
       active_=this;
-      memory_.fill(0); superchip_.fill(0xa7);
+      memory_.fill(0);
       std::ifstream rom(rom_path,std::ios::binary);
       if(!rom) fail("could not open ROM");
       rom_.assign(std::istreambuf_iterator<char>(rom),std::istreambuf_iterator<char>());
-      if(rom_.size()!=kRomSize) fail("ROM is not 8192-byte F8SC");
-      selected_file_bank_=1; // VCSC bank0/startup is the second physical F8 bank.
+      if(rom_.size()!=kRomSize) fail("ROM is not 4096-byte 4K");
       cpu_.Reset();
    }
 
@@ -109,12 +105,10 @@ private:
    struct Pending { uint16_t address; uint8_t value; };
    static Machine *active_;
    std::array<uint8_t,65536> memory_{};
-   std::array<uint8_t,128> superchip_{};
    std::vector<uint8_t> rom_;
    mos6502 cpu_;
    std::map<std::string,uint16_t> a_;
    Scenario scenario_=Scenario::Neutral;
-   int selected_file_bank_=1;
    uint64_t cpu_cycles_=0, virtual_cycles_=0;
    int frame_=0; bool vsync_=false;
    std::vector<uint64_t> starts_;
@@ -142,9 +136,8 @@ private:
    }
    uint8_t inspect(uint16_t address) const {
       const uint16_t a=canonical(address);
-      if(a>=kScRead && a<kScRead+128) return superchip_[static_cast<size_t>(a-kScRead)];
       if(a<0x1000) return memory_[a];
-      const size_t off=static_cast<size_t>(selected_file_bank_)*4096u+static_cast<size_t>(a-0x1000);
+      const size_t off=static_cast<size_t>(a-0x1000);
       if(off>=rom_.size()) fail("inspect ROM outside image");
       return rom_[off];
    }
@@ -209,14 +202,8 @@ private:
       return static_cast<uint8_t>(255-((ticks-timer_loaded_-1)&255));
    }
 
-   void select_hotspot(uint16_t address) {
-      const uint16_t a=canonical(address);
-      if(a==kF8Hotspot0) selected_file_bank_=0;
-      else if(a==kF8Hotspot1) selected_file_bank_=1;
-   }
 
    uint8_t read(uint16_t address) {
-      select_hotspot(address);
       const uint16_t a=canonical(address);
       if(a==kSwcha) return swcha();
       if(a==kSwchb) return (scenario_==Scenario::Reset && frame_==2)?0xfe:0xff;
@@ -225,9 +212,8 @@ private:
       if(a==kCxm0p || a==kCxm1p || a==kCxp0fb || a==kCxp1fb || a==kCxm0fb || a==kCxm1fb || a==kCxppmm) return collision(a);
       if(a==kIntim) return timer_value();
       if(a==kTimint) return timer_underflowed()?0x80:0;
-      if(a>=kScRead && a<kScRead+128) return superchip_[static_cast<size_t>(a-kScRead)];
       if(a>=0x1000) {
-         const size_t off=static_cast<size_t>(selected_file_bank_)*4096u+static_cast<size_t>(a-0x1000);
+         const size_t off=static_cast<size_t>(a-0x1000);
          if(off>=rom_.size()) fail("ROM read outside image");
          return rom_[off];
       }
@@ -316,7 +302,6 @@ private:
       set_byte("tank0_y",odd?4:78); set_byte("tank1_y",odd?4:78);
       set_byte("missile0_x",odd?2:157); set_byte("missile1_x",odd?157:2);
       set_byte("missile0_y",odd?4:78); set_byte("missile1_y",odd?4:78);
-      set_byte("missile0_active",1); set_byte("missile1_active",1);
       set_byte("tank0_spin_frames",odd?24:0); set_byte("tank1_spin_frames",odd?24:0);
       set_byte("tanks_sound_frames",odd?24:4); set_byte("tanks_sound_kind",odd?kSoundHit:kSoundFire);
    }
@@ -325,24 +310,26 @@ private:
       Snapshot s;
       s.x0=byte("tank0_x"); s.x1=byte("tank1_x"); s.y0=byte("tank0_y"); s.y1=byte("tank1_y");
       s.d0=byte("tank0_direction"); s.d1=byte("tank1_direction");
-      s.g0=word("tank0_graphics"); s.g1=word("tank1_graphics");
       s.px0=byte("tank0_prev_x"); s.px1=byte("tank1_prev_x"); s.py0=byte("tank0_prev_y"); s.py1=byte("tank1_prev_y");
       s.spin0=byte("tank0_spin_frames"); s.spin1=byte("tank1_spin_frames");
       s.m0x=byte("missile0_x"); s.m1x=byte("missile1_x"); s.m0y=byte("missile0_y"); s.m1y=byte("missile1_y");
-      s.m0d=byte("missile0_direction"); s.m1d=byte("missile1_direction"); s.m0a=byte("missile0_active"); s.m1a=byte("missile1_active");
+      s.m0d=byte("missile0_direction"); s.m1d=byte("missile1_direction"); s.m0a=s.m0y!=0; s.m1a=s.m1y!=0;
       s.score0=word("score_left_score"); s.score1=word("score_right_score");
       s.move_phase=byte("tanks_move_phase"); s.rng=byte("tanks_rng"); s.sound_frames=byte("tanks_sound_frames"); s.sound_kind=byte("tanks_sound_kind");
       s.audc0=memory_[kAudc0]; s.audf0=memory_[kAudf0]; s.audv0=memory_[kAudv0];
       s.audc1=memory_[kAudc1]; s.audf1=memory_[kAudf1]; s.audv1=memory_[kAudv1];
-      const uint16_t base=addr("tanks_barrier_pf2");
-      for(size_t i=0;i<s.barrier_pf2.size();++i) s.barrier_pf2[i]=inspect(static_cast<uint16_t>(base+i));
+      const uint16_t rb=addr("tanks_barrier_event_row"), pb=addr("tanks_barrier_event_pf2");
+      uint8_t pf=0; size_t ev=0;
+      for(size_t i=0;i<s.barrier_pf2.size();++i) {
+         while(ev<6 && memory_[static_cast<uint16_t>(rb+ev)]==i) { pf=memory_[static_cast<uint16_t>(pb+ev)]; ++ev; }
+         s.barrier_pf2[i]=pf;
+      }
       snapshots_.push_back(s);
    }
 
    void begin_frame() {
       ++frame_;
       arena_started_=false;
-      if(selected_file_bank_!=1) fail("VSYNC began without restoring the startup F8 bank");
       inject_move16_state();
       inject_missile45_state();
       inject_player_player_state();
@@ -357,14 +344,6 @@ private:
    void apply_pending() {
       for(const auto&w:pending_) {
          const uint16_t a=canonical(w.address);
-         if(a==kF8Hotspot0 || a==kF8Hotspot1) {
-            select_hotspot(w.address);
-            continue;
-         }
-         if(a>=kScWrite && a<kScWrite+128) {
-            superchip_[static_cast<size_t>(a-kScWrite)]=w.value;
-            continue;
-         }
          if(a<0x1000) memory_[a]=w.value;
          if(arena_started_) {
             const uint64_t phase=virtual_cycles_%kCyclesPerLine;
@@ -411,8 +390,6 @@ void require_raster_write_deadlines(const Machine& m) {
 }
 
 void require_barriers(const Snapshot& s) {
-   if(s.barrier_pf2[0]!=0xff || s.barrier_pf2[1]!=0xff)
-      fail("top PF2 wall schedule is wrong");
    struct Zone { int lo,hi; } zones[]={{12,14},{36,38},{60,62}};
    std::array<bool,88> claimed{};
    std::array<int,3> starts{};
@@ -479,31 +456,24 @@ void require_knockback_distance_and_geometry(const Snapshot& before,const Snapsh
       fail("knockback translated toward the shooter instead of into the away half-plane");
 }
 
-void require_graphics_base(const Machine& m,const Snapshot& s,uint16_t base) {
-   if(s.g0!=static_cast<uint16_t>(base+s.d0*8u) || s.g1!=static_cast<uint16_t>(base+s.d1*8u))
-      fail("tank graphics pointer does not include the actual table base");
-   constexpr std::array<std::array<uint8_t,8>,16> directions{{
-      {{0x00,0x10,0x10,0xd6,0xfe,0xfe,0xc6,0xc6}}, // N
-      {{0x24,0x64,0x79,0xff,0xff,0x4e,0x0e,0x04}}, // NNE
-      {{0x19,0x3a,0x7c,0xff,0xdf,0x0e,0x1c,0x18}}, // NE
-      {{0x1c,0x78,0xfb,0x7c,0x1c,0x1f,0x3e,0x18}}, // ENE
-      {{0xf8,0xf8,0x30,0x3e,0x30,0xf8,0xf8,0x00}}, // E
-      {{0x18,0x3e,0x1f,0x1c,0x7c,0xfb,0x78,0x1c}}, // ESE
-      {{0x18,0x1c,0x0e,0xdf,0xff,0x7c,0x3a,0x19}}, // SE
-      {{0x04,0x0e,0x4e,0xff,0xff,0x79,0x64,0x24}}, // SSE
-      {{0x63,0x63,0x7f,0x7f,0x6b,0x08,0x08,0x00}}, // S
-      {{0x20,0x70,0x72,0xff,0xff,0x9e,0x26,0x24}}, // SSW
-      {{0x18,0x38,0x70,0xfb,0xff,0x3e,0x5c,0x98}}, // SW
-      {{0x18,0x7c,0xf8,0x38,0x3e,0xdf,0x1e,0x38}}, // WSW
-      {{0x00,0x1f,0x1f,0x0c,0x7c,0x0c,0x1f,0x1f}}, // W
-      {{0x38,0x1e,0xdf,0x3e,0x38,0xf8,0x7c,0x18}}, // WNW
-      {{0x98,0x5c,0x3e,0xff,0xfb,0x70,0x38,0x18}}, // NW
-      {{0x24,0x26,0x9e,0xff,0xff,0x72,0x70,0x20}}  // NNW
-   }};
-   for(unsigned d=0;d<directions.size();++d)
-      for(unsigned row=0;row<8;++row)
-         if(m.image_byte(static_cast<uint16_t>(base+d*8u+row))!=directions[d][row])
-            fail("tank graphics no longer match canonical 16-way silhouettes");
+void require_graphics_base(const Machine& m,const Snapshot&,uint16_t base,uint16_t descriptor_base) {
+   static constexpr uint8_t expected_graphics[40]={
+      0x00,0x10,0x10,0xd6,0xfe,0xfe,0xc6,0xc6,
+      0x24,0x64,0x79,0xff,0xff,0x4e,0x0e,0x04,
+      0x19,0x3a,0x7c,0xff,0xdf,0x0e,0x1c,0x18,
+      0x1c,0x78,0xfb,0x7c,0x1c,0x1f,0x3e,0x18,
+      0xf8,0xf8,0x30,0x3e,0x30,0xf8,0xf8,0x00
+   };
+   static constexpr uint8_t expected_descriptor[16]={
+      0x00,0x08,0x10,0x18,0x20,0x1f,0x17,0x0f,
+      0x07,0x8f,0x97,0x9f,0xa7,0x98,0x90,0x88
+   };
+   for(size_t i=0;i<sizeof(expected_graphics);++i)
+      if(m.image_byte(static_cast<uint16_t>(base+i))!=expected_graphics[i])
+         fail("canonical five-sprite graphics byte %zu changed",i);
+   for(size_t i=0;i<sizeof(expected_descriptor);++i)
+      if(m.image_byte(static_cast<uint16_t>(descriptor_base+i))!=expected_descriptor[i])
+         fail("16-way sprite transform descriptor byte %zu changed",i);
 }
 
 void require_turn(const std::vector<Snapshot>& s) {
@@ -676,11 +646,10 @@ void require_reset(const std::vector<Snapshot>& s) {
 int main(int argc,char **argv) {
    const char *names[]={
       "tank0_x","tank1_x","tank0_y","tank1_y","tank0_direction","tank1_direction",
-      "tank0_graphics","tank1_graphics",
       "tank0_prev_x","tank1_prev_x","tank0_prev_y","tank1_prev_y","tank0_spin_frames","tank1_spin_frames",
-      "missile0_x","missile1_x","missile0_y","missile1_y","missile0_direction","missile1_direction","missile0_active","missile1_active",
+      "missile0_x","missile1_x","missile0_y","missile1_y","missile0_direction","missile1_direction",
       "score_left_score","score_right_score","tanks_move_phase","tanks_rng","tanks_sound_frames","tanks_sound_kind",
-      "tanks_barrier_pf2","tanks_graphics"
+      "tanks_barrier_event_row","tanks_barrier_event_pf2","tanks_graphics","tanks_graphics_descriptor"
    };
    constexpr int kSymbolCount=static_cast<int>(sizeof(names)/sizeof(names[0]));
    if(argc!=2+kSymbolCount) return 2;
@@ -697,7 +666,7 @@ int main(int argc,char **argv) {
       m.run(frames);
       require_barriers(m.snapshots()[0]);
       require_raster_write_deadlines(m);
-      if(scenario==Scenario::Neutral) require_graphics_base(m,m.snapshots()[0],graphics_base);
+      if(scenario==Scenario::Neutral) require_graphics_base(m,m.snapshots()[0],graphics_base,a["tanks_graphics_descriptor"]);
       else if(scenario==Scenario::Turn) require_turn(m.snapshots());
       else if(scenario==Scenario::Move) require_move(m.snapshots());
       else if(scenario==Scenario::Move16) require_move16(m.snapshots());

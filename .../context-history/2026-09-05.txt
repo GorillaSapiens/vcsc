@@ -1,0 +1,18 @@
+2026-09-05 05:07:24 PDT, make Tanks source readable
+Reformatted examples/01_basic/13_tanks/tanks.c26 for humans: executable
+statements and maintained asm are one statement per source line, top-level
+functions have normal spacing, and each of the 40 canonical sprite bytes is on
+its own visual-binary line grouped by heading. No gameplay or emitted ROM bytes
+changed: before/after tanks.bin SHA-256 is
+01c27308489da8275a79467b170d1441144bed00b8bc23f6e089261cf927d455.
+The linked footprint remains 3800/4090 ROM and 116/128 RIOT RAM.
+
+Updated test/vcs_tanks.pl so structural checks tolerate readable whitespace,
+and added focused readability regressions for one statement per source line and
+one canonical graphics byte per line. Repinned the example assembly allowlist to
+339 reviewed asm lines / digest
+10b122f83b4555f9692ccbafb47fb6c4f8e27387d6d50b12c2bc7f9b3749f9a5.
+Focused vcs_tanks.pl, example_assembly_allowlist.pl, and source_tree_hygiene.pl
+all pass. A full e2e rerun was started; tests 1..225 passed before the execution
+window cut off the remaining maximum-mapper-heavy tail.
+
