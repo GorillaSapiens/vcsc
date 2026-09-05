@@ -33,6 +33,8 @@ enum tanks_constants {
    TANKS_PLAYER_MAX_X := 148,
    TANKS_PLAYER_MIN_Y := 4,
    TANKS_PLAYER_MAX_Y := 78,
+   TANKS_MISSILE_MAX_X := 159,
+   TANKS_MISSILE_MAX_Y := 85,
    TANKS_LEFT_START_X := 24,
    TANKS_RIGHT_START_X := 128,
    TANKS_START_Y := 45,
@@ -106,7 +108,7 @@ page const uint8_t tanks_graphics[40] := {
 // XOR 7 walks that sprite backward.  Bit 7 requests horizontal TIA reflection.
 page const uint8_t tanks_graphics_descriptor[16] := {
    0x00,0x08,0x10,0x18,0x20,0x1f,0x17,0x0f,
-   0x07,0x8f,0x97,0x9f,0xa7,0x98,0x90,0x88
+   0x07,0x8f,0x97,0x9f,0xa0,0x98,0x90,0x88
 };
 
 // Halfway headings use a deterministic minor-axis cadence close to tan(22.5).
@@ -294,6 +296,43 @@ inline void tanks_update_engine(uint8_t controls) {
    AUDV1 := MUSIC_VOLUME_OFF;
 }
 
+// Convert a public player X coordinate into the packed control consumed by
+// the cycle-calibrated post-score RESP/HMOVE positioner.  This arithmetic is
+// deliberately close to the beam machinery: the high nibble is HMPx fine
+// motion and the low nibble is the five-cycle coarse-loop count.
+void tanks_compute_player_position(uint8_t x) {
+   asm lda tanks_compute_player_position$x;
+   asm ldy #1;
+   asm @coarse:;
+   asm cmp #15;
+   asm bcc.same @remainder;
+   asm sbc #15;
+   asm iny;
+   asm bne.same @coarse;
+   asm @remainder:;
+   asm cmp #13;
+   asm bcc.same @fine;
+   asm iny;
+   asm clc;
+   asm adc #1;
+   asm @fine:;
+   asm tax;
+   asm tya;
+   asm and #$0f;
+   asm sta.z tanks_misc + 7;
+   asm txa;
+   asm eor #$ff;
+   asm clc;
+   asm adc #5;
+   asm and #$0f;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm ora.z tanks_misc + 7;
+   asm sta.z tanks_misc + 7;
+}
+
 inline void tanks_reset_positions(void) {
    tank0_x := TANKS_LEFT_START_X;
    tank1_x := TANKS_RIGHT_START_X;
@@ -318,6 +357,8 @@ inline void tanks_reset_positions(void) {
    tanks_move_phase := 0;
    missile0_active := 0;
    missile1_active := 0;
+   missile0_x := 0;
+   missile1_x := 0;
    missile0_y := 0;
    missile1_y := 0;
 }
@@ -393,7 +434,8 @@ void tanks_move_object(uint8_t object, uint8_t direction) {
 }
 
 inline void tanks_launch0(void) {
-   missile0_x := tank0_x + 8;
+   // A two-pixel missile starts centered in the eight-pixel tank.
+   missile0_x := tank0_x + 3;
    missile0_y := tank0_y + 3;
    missile0_direction := tank0_direction;
    missile0_active := 1;
@@ -401,7 +443,7 @@ inline void tanks_launch0(void) {
 }
 
 inline void tanks_launch1(void) {
-   missile1_x := tank1_x + 8;
+   missile1_x := tank1_x + 3;
    missile1_y := tank1_y + 3;
    missile1_direction := tank1_direction;
    missile1_active := 1;
@@ -618,9 +660,6 @@ inline void tanks_update_collisions(void) {
 
 void tanks_update_vblank(void) {
    tanks_sound_tick();
-   if (SWCHB & 1) {
-      tanks_update_collisions();
-   }
 }
 
 void tanks_process_knockback(void) {
@@ -725,6 +764,22 @@ void tanks_process_knockback(void) {
    asm @done:;
 }
 
+inline void tanks_validate_missile0(void) {
+   if (missile0_x > TANKS_MISSILE_MAX_X || missile0_y > TANKS_MISSILE_MAX_Y) {
+      missile0_active := 0;
+      missile0_x := 0;
+      missile0_y := 0;
+   }
+}
+
+inline void tanks_validate_missile1(void) {
+   if (missile1_x > TANKS_MISSILE_MAX_X || missile1_y > TANKS_MISSILE_MAX_Y) {
+      missile1_active := 0;
+      missile1_x := 0;
+      missile1_y := 0;
+   }
+}
+
 void tanks_update_overscan(void) {
    if (!(SWCHB & 1)) {
       tanks_reset_game();
@@ -732,9 +787,11 @@ void tanks_update_overscan(void) {
    }
    if (missile0_active) {
       tanks_move_object(2, missile0_direction);
+      tanks_validate_missile0();
    }
    if (missile1_active) {
       tanks_move_object(3, missile1_direction);
+      tanks_validate_missile1();
    }
    tanks_update_controls();
    tanks_update_spin0();
@@ -748,11 +805,16 @@ inline void tanks_position_missiles(void) {
    asm sta ENAM1;
    asm sta HMM0;
    asm sta HMM1;
-   // Save each subtract-by-15 residual and defer the fine-motion lookup to the
-   // third line.  RESP timing is unchanged, while even X=157 stays <76 cycles.
-   // tanks_mnext[] is free scratch here; tanks_prepare_frame() clears it next.
+
+   // Match the maintained all-five renderer's M0/M1 RESP phase, then cancel
+   // the TIA missile-vs-player four-pixel origin bias so tanks_x[] uses one
+   // public coordinate system for every moving object. NOP+LDA+CLC+ADC is
+   // nine cycles, exactly matching the old BIT+BIT+LDA preamble.
    asm sta WSYNC;
+   asm nop;
    asm lda.z tanks_x + 2;
+   asm clc;
+   asm adc #4;
    asm sec;
    asm @m0_divide:;
    asm sbc #15;
@@ -760,9 +822,15 @@ inline void tanks_position_missiles(void) {
    asm nop;
    asm nop;
    asm sta RESM0;
-   asm sta.z tanks_mnext + 0;
+   asm tay;
+   asm lda tanks_reposition_table + 16 - 256,y;
+   asm sta HMM0;
+
    asm sta WSYNC;
+   asm nop;
    asm lda.z tanks_x + 3;
+   asm clc;
+   asm adc #4;
    asm sec;
    asm @m1_divide:;
    asm sbc #15;
@@ -770,14 +838,13 @@ inline void tanks_position_missiles(void) {
    asm nop;
    asm nop;
    asm sta RESM1;
-   asm sta.z tanks_mnext + 1;
-   asm sta WSYNC;
-   asm ldy.z tanks_mnext + 0;
-   asm lda tanks_reposition_table + 16 - 256,y;
-   asm sta HMM0;
-   asm ldy.z tanks_mnext + 1;
+   asm tay;
    asm lda tanks_reposition_table + 16 - 256,y;
    asm sta HMM1;
+
+   // HMOVE must be strobed at the beginning of the following scanline. A late
+   // HMOVE changes the coarse/fine relationship and produces 15-pixel jumps.
+   asm sta WSYNC;
    asm sta HMOVE;
 }
 
@@ -796,7 +863,7 @@ inline void tanks_prepare_graphics(void) {
    asm @p0_no_reflect:;
    asm lda #0;
    asm @p0_reflect_ready:;
-   asm sta REFP0;
+   asm sta.z tanks_mnext + 0;
 
    asm ldx.z tanks_direction + 1;
    asm lda tanks_graphics_descriptor,x;
@@ -810,43 +877,39 @@ inline void tanks_prepare_graphics(void) {
    asm @p1_no_reflect:;
    asm lda #0;
    asm @p1_reflect_ready:;
-   asm sta REFP1;
+   asm sta.z tanks_mnext + 1;
 }
 
 // Restore P1, P0, then HMOVE in exactly three visible lines after the score.
 inline void tanks_position_players_after_score(void) {
-   // As with missiles, defer fine-motion lookup until the third handoff line.
-   // This preserves RESP timing but removes the right-edge WSYNC cliff.
-   asm lda.z tanks_x + 1;
-   asm sec;
-   asm @p1_divide:;
-   asm sbc #15;
-   asm bcs.same @p1_divide;
-   asm nop;
-   asm nop;
+   // The score owns P0/P1 while it draws. Restore P1 and P0 on two matched
+   // coarse-position lines using controls prepared during the previous
+   // overscan, then apply both fine-motion values together on line three.
+   asm ldy.z tanks_pnext + 1;
+   asm sty HMP1;
+   asm tya;
+   asm and #$0f;
+   asm tax;
+   asm @p1_position_loop:;
+   asm dex;
+   asm bne.same @p1_position_loop;
    asm sta RESP1;
-   asm sta.z tanks_mnext + 0;
    asm sta WSYNC;
-   asm lda.z tanks_x + 0;
-   asm sec;
-   asm @p0_divide:;
-   asm sbc #15;
-   asm bcs.same @p0_divide;
-   asm nop;
-   asm nop;
+
+   asm ldy.z tanks_pnext + 0;
+   asm sty HMP0;
+   asm tya;
+   asm and #$0f;
+   asm tax;
+   asm bit.z $00;
+   asm @p0_position_loop:;
+   asm dex;
+   asm bne.same @p0_position_loop;
    asm sta RESP0;
-   asm sta.z tanks_mnext + 1;
    asm sta WSYNC;
-   asm ldy.z tanks_mnext + 0;
-   asm lda tanks_reposition_table + 16 - 256,y;
-   asm sta HMP1;
-   asm ldy.z tanks_mnext + 1;
-   asm lda tanks_reposition_table + 16 - 256,y;
-   asm sta HMP0;
+
    asm sta HMOVE;
    asm lda #0;
-   asm sta.z tanks_mnext + 0;
-   asm sta.z tanks_mnext + 1;
    asm sta GRP0;
    asm sta GRP1;
    asm sta VDELP0;
@@ -854,16 +917,34 @@ inline void tanks_position_players_after_score(void) {
    asm lda #$10;
    asm sta NUSIZ0;
    asm sta NUSIZ1;
+
+   // score_draw() clears REFP0/REFP1. Restore the direction-dependent
+   // reflections prepared in VBLANK before the first tank row is visible.
+   asm lda.z tanks_mnext + 0;
+   asm sta REFP0;
+   asm lda.z tanks_mnext + 1;
+   asm sta REFP1;
+   asm lda #0;
+   asm sta.z tanks_pnext + 0;
+   asm sta.z tanks_pnext + 1;
+   asm sta.z tanks_mnext + 0;
+   asm sta.z tanks_mnext + 1;
+
    COLUP0 := TANKS_BLUE;
    COLUP1 := TANKS_RED;
    asm sta WSYNC;
 }
 
 inline void tanks_prepare_frame(void) {
-   tanks_p0_next := 0;
-   tanks_p1_next := 0;
-   tanks_m0_next := 0;
-   tanks_m1_next := 0;
+   tanks_compute_player_position(tank0_x);
+   tanks_p0_next := tanks_motion_work;
+   tanks_compute_player_position(tank1_x);
+   tanks_p1_next := tanks_motion_work;
+
+   // The missile HMOVE completed during VBLANK positioning. Clear its fine
+   // motion now so the later score-handoff HMOVE moves only P0/P1.
+   HMM0 := 0;
+   HMM1 := 0;
    tanks_barrier_event_index := 0;
 }
 
@@ -1038,6 +1119,7 @@ void main(void) {
       WSYNC := _;
       WSYNC := _;
       vcs_ntsc_begin_overscan();
+      tanks_update_collisions();
       tanks_process_knockback();
       tanks_update_overscan();
       score_overscan();

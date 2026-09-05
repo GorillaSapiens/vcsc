@@ -16,3 +16,25 @@ Focused vcs_tanks.pl, example_assembly_allowlist.pl, and source_tree_hygiene.pl
 all pass. A full e2e rerun was started; tests 1..225 passed before the execution
 window cut off the remaining maximum-mapper-heavy tail.
 
+
+2026-09-05 06:25:00 PDT, Tanks correctness pass
+Fixed several independent gameplay/rendering bugs in the plain-4K Tanks example.
+The post-score player positioner now gives P0/P1 one public horizontal coordinate
+system; score REFP clearing no longer mirrors west-side headings back east; the
+due-west descriptor is 0xa0. Missile RESP/HMOVE timing now matches the maintained
+all-five positioning phase with a +4 public-coordinate compensation for the TIA
+missile/player origin difference. Missile collisions are consumed in the same
+overscan before motion, and bounds validation kills wrapped projectiles before
+the following VBLANK. Launch coordinates use the center of the 8-pixel tank.
+
+Expanded `test/vcs_tanks.cpp` to cover all 16 rendered headings/reflections,
+P0/P1 equal-X positioning across coarse boundaries, all 16 missile motion
+vectors, and horizontal/vertical projectile wrap. `test/vcs_tanks.pl` also pins
+the calibrated missile RESP/HMOVE source contract. The focused Tanks oracle,
+assembly allowlist, source-tree hygiene, and context-history format pass. Current
+footprint is 3936/4090 ROM and 121/128 RIOT RAM. The assembly allowlist entry is
+375 reviewed lines / digest
+4156941751aa31fe570e80c7bf799959f8bec42871707da9e0deee53f71a743a. A broad
+e2e run again passed through test 225 before the max-mapper tail exceeded the
+execution window; isolated 3E maximum passes, while isolated 3EX maximum itself
+exceeded the available execution window.

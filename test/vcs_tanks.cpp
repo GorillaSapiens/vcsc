@@ -18,7 +18,8 @@ constexpr size_t kRomSize=4096;
 constexpr uint64_t kCyclesPerLine=76;
 constexpr uint64_t kRawFrameLines=264;
 constexpr uint16_t kVsync=0x0000, kWsync=0x0002, kCxclr=0x002c;
-constexpr uint16_t kPf0=0x000d;
+constexpr uint16_t kRefp0=0x000b, kRefp1=0x000c, kPf0=0x000d;
+constexpr uint16_t kResp0=0x0010, kResp1=0x0011, kHmp0=0x0020, kHmp1=0x0021;
 constexpr uint16_t kAudc0=0x0015, kAudc1=0x0016, kAudf0=0x0017, kAudf1=0x0018, kAudv0=0x0019, kAudv1=0x001a;
 constexpr uint16_t kGrp0=0x001b, kGrp1=0x001c, kEnam0=0x001d, kEnam1=0x001e;
 constexpr uint16_t kCxm0p=0x0030, kCxm1p=0x0031, kCxp0fb=0x0032, kCxp1fb=0x0033;
@@ -32,7 +33,11 @@ constexpr uint8_t kStartX0=24, kStartX1=128, kStartY=45;
 constexpr uint8_t kDirNne=1, kDirNe=2, kDirEne=3, kDirE=4, kDirSw=10, kDirW=12;
 constexpr uint8_t kSoundFire=1, kSoundHit=2;
 
-enum class Scenario { Neutral, Turn, Move, Move16, Missile45, FireWall, HitP1, HitP0, HitBarrier, HitWallWrap, PlayerWall, PlayerPlayer, Reset, ExtremeTiming };
+enum class Scenario { Neutral, Turn, Move, Move16, Missile45, MissileDirections, MissileBounds, HeadingSweep, PositionSweep, FireWall, HitP1, HitP0, HitBarrier, HitWallWrap, PlayerWall, PlayerPlayer, Reset, ExtremeTiming };
+
+constexpr std::array<uint8_t,16> kPositionSweepX={
+   4,5,14,15,16,29,30,44,59,74,89,104,119,134,147,148
+};
 
 [[noreturn]] void fail(const char *fmt,...) {
    std::fprintf(stderr,"vcs_tanks: ");
@@ -100,6 +105,14 @@ public:
    uint64_t max_nonzero_grp1_cycle() const { return max_nonzero_grp1_cycle_; }
    uint64_t max_full_pf0_cycle() const { return max_full_pf0_cycle_; }
    uint64_t max_side_pf0_cycle() const { return max_side_pf0_cycle_; }
+   uint8_t arena_refp0(int frame) const { return arena_refp0_[static_cast<size_t>(frame)]; }
+   uint8_t arena_refp1(int frame) const { return arena_refp1_[static_cast<size_t>(frame)]; }
+   uint8_t arena_xor0(int frame) const { return arena_xor0_[static_cast<size_t>(frame)]; }
+   uint8_t arena_xor1(int frame) const { return arena_xor1_[static_cast<size_t>(frame)]; }
+   uint8_t arena_hmp0(int frame) const { return arena_hmp0_[static_cast<size_t>(frame)]; }
+   uint8_t arena_hmp1(int frame) const { return arena_hmp1_[static_cast<size_t>(frame)]; }
+   uint8_t resp0_cycle(int frame) const { return resp0_cycle_[static_cast<size_t>(frame)]; }
+   uint8_t resp1_cycle(int frame) const { return resp1_cycle_[static_cast<size_t>(frame)]; }
 
 private:
    struct Pending { uint16_t address; uint8_t value; };
@@ -120,6 +133,8 @@ private:
    bool arena_started_=false;
    uint64_t max_nonzero_grp0_cycle_=0, max_nonzero_grp1_cycle_=0;
    uint64_t max_full_pf0_cycle_=0, max_side_pf0_cycle_=0;
+   std::array<uint8_t,320> arena_refp0_{},arena_refp1_{},arena_xor0_{},arena_xor1_{};
+   std::array<uint8_t,320> arena_hmp0_{},arena_hmp1_{},resp0_cycle_{},resp1_cycle_{};
 
    static uint8_t read_thunk(uint16_t a) { return active_->read(a); }
    static void write_thunk(uint16_t a,uint8_t v) { active_->write(a,v); }
@@ -306,6 +321,47 @@ private:
       set_byte("tanks_sound_frames",odd?24:4); set_byte("tanks_sound_kind",odd?kSoundHit:kSoundFire);
    }
 
+   void inject_heading_sweep_state() {
+      if(scenario_!=Scenario::HeadingSweep || frame_<1 || frame_>16) return;
+      const uint8_t direction=static_cast<uint8_t>(frame_-1);
+      set_byte("tank0_direction",direction);
+      set_byte("tank1_direction",direction);
+   }
+
+   void inject_position_sweep_state() {
+      if(scenario_!=Scenario::PositionSweep || frame_<1 || frame_>16) return;
+      const uint8_t x=kPositionSweepX[static_cast<size_t>(frame_-1)];
+      set_byte("tank0_x",x); set_byte("tank1_x",x);
+      set_byte("tank0_prev_x",x); set_byte("tank1_prev_x",x);
+      set_byte("tank0_direction",kDirE); set_byte("tank1_direction",kDirE);
+   }
+
+   void inject_missile_directions_state() {
+      if(scenario_!=Scenario::MissileDirections || frame_<1) return;
+      const int offset=frame_-1;
+      if(offset%17) return;
+      const int direction=offset/17;
+      if(direction<0 || direction>15) return;
+      set_byte("missile0_x",80); set_byte("missile0_y",45);
+      set_byte("missile0_direction",static_cast<uint8_t>(direction));
+      memory_[static_cast<uint16_t>(addr("tanks_move_phase")+5)]=1;
+   }
+
+   void inject_missile_bounds_state() {
+      if(scenario_!=Scenario::MissileBounds) return;
+      if(frame_==1) {
+         set_byte("missile0_x",159); set_byte("missile0_y",45); set_byte("missile0_direction",kDirE);
+         set_byte("missile1_x",0); set_byte("missile1_y",45); set_byte("missile1_direction",kDirW);
+         memory_[static_cast<uint16_t>(addr("tanks_move_phase")+5)]=1;
+         memory_[static_cast<uint16_t>(addr("tanks_move_phase")+6)]=1;
+      } else if(frame_==3) {
+         set_byte("missile0_x",80); set_byte("missile0_y",85); set_byte("missile0_direction",8);
+         set_byte("missile1_x",80); set_byte("missile1_y",0); set_byte("missile1_direction",0);
+         memory_[static_cast<uint16_t>(addr("tanks_move_phase")+5)]=1;
+         memory_[static_cast<uint16_t>(addr("tanks_move_phase")+6)]=1;
+      }
+   }
+
    void snapshot() {
       Snapshot s;
       s.x0=byte("tank0_x"); s.x1=byte("tank1_x"); s.y0=byte("tank0_y"); s.y1=byte("tank1_y");
@@ -313,7 +369,9 @@ private:
       s.px0=byte("tank0_prev_x"); s.px1=byte("tank1_prev_x"); s.py0=byte("tank0_prev_y"); s.py1=byte("tank1_prev_y");
       s.spin0=byte("tank0_spin_frames"); s.spin1=byte("tank1_spin_frames");
       s.m0x=byte("missile0_x"); s.m1x=byte("missile1_x"); s.m0y=byte("missile0_y"); s.m1y=byte("missile1_y");
-      s.m0d=byte("missile0_direction"); s.m1d=byte("missile1_direction"); s.m0a=s.m0y!=0; s.m1a=s.m1y!=0;
+      s.m0d=byte("missile0_direction"); s.m1d=byte("missile1_direction");
+      s.m0a=memory_[static_cast<uint16_t>(addr("tanks_move_phase")+5)];
+      s.m1a=memory_[static_cast<uint16_t>(addr("tanks_move_phase")+6)];
       s.score0=word("score_left_score"); s.score1=word("score_right_score");
       s.move_phase=byte("tanks_move_phase"); s.rng=byte("tanks_rng"); s.sound_frames=byte("tanks_sound_frames"); s.sound_kind=byte("tanks_sound_kind");
       s.audc0=memory_[kAudc0]; s.audf0=memory_[kAudf0]; s.audv0=memory_[kAudv0];
@@ -336,6 +394,10 @@ private:
       inject_hit_barrier_state();
       inject_hit_wall_wrap_state();
       inject_extreme_state();
+      inject_heading_sweep_state();
+      inject_position_sweep_state();
+      inject_missile_directions_state();
+      inject_missile_bounds_state();
       if((scenario_==Scenario::PlayerWall || scenario_==Scenario::PlayerPlayer) && frame_==3) set_byte("tanks_move_phase",0);
       starts_.push_back(virtual_cycles_);
       snapshot();
@@ -352,7 +414,16 @@ private:
             if(a==kPf0 && w.value==0xff && phase>max_full_pf0_cycle_) max_full_pf0_cycle_=phase;
             if(a==kPf0 && w.value==0x10 && phase>max_side_pf0_cycle_) max_side_pf0_cycle_=phase;
          }
-         if(a==kCxclr) arena_started_=true;
+         if(a==kResp0) resp0_cycle_[static_cast<size_t>(frame_)]=static_cast<uint8_t>(virtual_cycles_%kCyclesPerLine);
+         if(a==kResp1) resp1_cycle_[static_cast<size_t>(frame_)]=static_cast<uint8_t>(virtual_cycles_%kCyclesPerLine);
+         if(a==kCxclr) {
+            arena_started_=true;
+            const size_t f=static_cast<size_t>(frame_);
+            arena_refp0_[f]=memory_[kRefp0]; arena_refp1_[f]=memory_[kRefp1];
+            arena_hmp0_[f]=memory_[kHmp0]; arena_hmp1_[f]=memory_[kHmp1];
+            const uint16_t xb=addr("tanks_graphics_index_xor");
+            arena_xor0_[f]=memory_[xb]; arena_xor1_[f]=memory_[static_cast<uint16_t>(xb+1)];
+         }
          if(frame_>=0 && frame_<static_cast<int>(beam_m0_.size())) {
             if(a==kEnam0 && (w.value&2)) beam_m0_[static_cast<size_t>(frame_)]=true;
             if(a==kEnam1 && (w.value&2)) beam_m1_[static_cast<size_t>(frame_)]=true;
@@ -466,7 +537,7 @@ void require_graphics_base(const Machine& m,const Snapshot&,uint16_t base,uint16
    };
    static constexpr uint8_t expected_descriptor[16]={
       0x00,0x08,0x10,0x18,0x20,0x1f,0x17,0x0f,
-      0x07,0x8f,0x97,0x9f,0xa7,0x98,0x90,0x88
+      0x07,0x8f,0x97,0x9f,0xa0,0x98,0x90,0x88
    };
    for(size_t i=0;i<sizeof(expected_graphics);++i)
       if(m.image_byte(static_cast<uint16_t>(base+i))!=expected_graphics[i])
@@ -529,15 +600,68 @@ void require_missile45(const std::vector<Snapshot>& s) {
 }
 
 
+void require_heading_sweep(const Machine& m) {
+   static constexpr uint8_t descriptor[16]={
+      0x00,0x08,0x10,0x18,0x20,0x1f,0x17,0x0f,
+      0x07,0x8f,0x97,0x9f,0xa0,0x98,0x90,0x88
+   };
+   for(int direction=0;direction<16;++direction) {
+      const int frame=direction+1;
+      const uint8_t expected_xor=static_cast<uint8_t>(descriptor[direction]&0x3f);
+      const uint8_t expected_reflect=(descriptor[direction]&0x80)?8:0;
+      if(m.arena_xor0(frame)!=expected_xor || m.arena_xor1(frame)!=expected_xor)
+         fail("heading %d selected the wrong canonical sprite rows",direction);
+      if(m.arena_refp0(frame)!=expected_reflect || m.arena_refp1(frame)!=expected_reflect)
+         fail("heading %d lost its post-score REFP reflection",direction);
+   }
+}
+
+void require_position_sweep(const Machine& m) {
+   for(int frame=1;frame<=16;++frame) {
+      if(m.resp0_cycle(frame)!=m.resp1_cycle(frame))
+         fail("equal public X=%u reaches RESP0/RESP1 at different beam phases (%u/%u)",
+              kPositionSweepX[static_cast<size_t>(frame-1)],m.resp0_cycle(frame),m.resp1_cycle(frame));
+      if(m.arena_hmp0(frame)!=m.arena_hmp1(frame))
+         fail("equal public X=%u produces different HMP0/HMP1 fine motion",
+              kPositionSweepX[static_cast<size_t>(frame-1)]);
+   }
+}
+
+void require_missile_directions(const std::vector<Snapshot>& s) {
+   static constexpr int dx[16]={0,7,16,16,16,16,16,7,0,-7,-16,-16,-16,-16,-16,-7};
+   static constexpr int dy[16]={-16,-16,-16,-7,0,7,16,16,16,16,16,7,0,-7,-16,-16};
+   if(s.size()<272) fail("too few all-heading missile snapshots");
+   for(int direction=0;direction<16;++direction) {
+      const size_t first=static_cast<size_t>(17*direction);
+      const size_t last=first+16;
+      if(!s[first].m0a || s[first].m0x!=80 || s[first].m0y!=45 || s[first].m0d!=direction)
+         fail("missile heading %d setup failed",direction);
+      if(!s[last].m0a || static_cast<int>(s[last].m0x)!=80+dx[direction] || static_cast<int>(s[last].m0y)!=45+dy[direction])
+         fail("missile heading %d trajectory is wrong: got (%u,%u), expected (%d,%d)",
+              direction,s[last].m0x,s[last].m0y,80+dx[direction],45+dy[direction]);
+   }
+}
+
+void require_missile_bounds(const std::vector<Snapshot>& s) {
+   if(s.size()<4) fail("too few missile-bound snapshots");
+   if(!s[0].m0a || !s[0].m1a || s[0].m0x!=159 || s[0].m1x!=0)
+      fail("horizontal missile-bound setup failed");
+   if(s[1].m0a || s[1].m1a || s[1].m0x || s[1].m1x || s[1].m0y || s[1].m1y)
+      fail("horizontal missile escape survived into the next VBLANK");
+   if(!s[2].m0a || !s[2].m1a || s[2].m0y!=85 || s[2].m1y!=0)
+      fail("vertical missile-bound setup failed");
+   if(s[3].m0a || s[3].m1a || s[3].m0x || s[3].m1x || s[3].m0y || s[3].m1y)
+      fail("vertical missile escape survived into the next VBLANK");
+}
+
 void require_fire_wall(const Machine& m,const std::vector<Snapshot>& s) {
    if(s.size()<7) fail("too few fire snapshots");
    if(!s[1].m0a || !s[1].m1a || s[1].m0d!=kDirE || s[1].m1d!=kDirW)
       fail("fire did not launch both missiles with tank headings");
-   // The cycle-calibrated RESM positioner renders five pixels left of its
-   // stored coordinate. Stored tank_x+8 therefore renders at tank_x+3..+4.
-   if(s[1].m0x!=static_cast<uint8_t>(s[1].x0+8) ||
-      s[1].m1x!=static_cast<uint8_t>(s[1].x1+8))
-      fail("new missile did not use the calibrated center launch coordinate");
+   // A two-pixel missile is centered on the eight-pixel tank at public X+3.
+   if(s[1].m0x!=static_cast<uint8_t>(s[1].x0+3) ||
+      s[1].m1x!=static_cast<uint8_t>(s[1].x1+3))
+      fail("new missile did not use the centered public-coordinate launch point");
    if(s[1].sound_kind!=kSoundFire || s[1].sound_frames!=4 || s[1].audc0!=8 || s[1].audf0!=4 || s[1].audv0!=8)
       fail("firing did not start the short noise effect");
    if(!m.missile_enabled(0,2) || !m.missile_enabled(1,2))
@@ -649,7 +773,7 @@ int main(int argc,char **argv) {
       "tank0_prev_x","tank1_prev_x","tank0_prev_y","tank1_prev_y","tank0_spin_frames","tank1_spin_frames",
       "missile0_x","missile1_x","missile0_y","missile1_y","missile0_direction","missile1_direction",
       "score_left_score","score_right_score","tanks_move_phase","tanks_rng","tanks_sound_frames","tanks_sound_kind",
-      "tanks_barrier_event_row","tanks_barrier_event_pf2","tanks_graphics","tanks_graphics_descriptor"
+      "tanks_barrier_event_row","tanks_barrier_event_pf2","tanks_graphics","tanks_graphics_descriptor","tanks_graphics_index_xor"
    };
    constexpr int kSymbolCount=static_cast<int>(sizeof(names)/sizeof(names[0]));
    if(argc!=2+kSymbolCount) return 2;
@@ -657,12 +781,15 @@ int main(int argc,char **argv) {
    for(int i=0;i<kSymbolCount;++i) a[names[i]]=parse_addr(argv[i+2]);
    const uint16_t graphics_base=a["tanks_graphics"];
 
-   for(const auto scenario : {Scenario::Neutral,Scenario::Turn,Scenario::Move,Scenario::Move16,Scenario::Missile45,Scenario::FireWall,
+   for(const auto scenario : {Scenario::Neutral,Scenario::Turn,Scenario::Move,Scenario::Move16,Scenario::Missile45,
+                              Scenario::MissileDirections,Scenario::MissileBounds,Scenario::HeadingSweep,Scenario::PositionSweep,Scenario::FireWall,
                               Scenario::HitP1,Scenario::HitP0,Scenario::HitBarrier,Scenario::HitWallWrap,Scenario::PlayerWall,Scenario::PlayerPlayer,Scenario::Reset,
                               Scenario::ExtremeTiming}) {
       Machine m(argv[1],a,scenario);
-      const int frames=(scenario==Scenario::HitP1 || scenario==Scenario::HitP0 || scenario==Scenario::HitBarrier || scenario==Scenario::Turn)?30:
-                       (scenario==Scenario::Move16?24:16);
+      const int frames=scenario==Scenario::MissileDirections?272:
+                       ((scenario==Scenario::HeadingSweep || scenario==Scenario::PositionSweep)?17:
+                        ((scenario==Scenario::HitP1 || scenario==Scenario::HitP0 || scenario==Scenario::HitBarrier || scenario==Scenario::Turn)?30:
+                         (scenario==Scenario::Move16?24:16)));
       m.run(frames);
       require_barriers(m.snapshots()[0]);
       require_raster_write_deadlines(m);
@@ -671,6 +798,10 @@ int main(int argc,char **argv) {
       else if(scenario==Scenario::Move) require_move(m.snapshots());
       else if(scenario==Scenario::Move16) require_move16(m.snapshots());
       else if(scenario==Scenario::Missile45) require_missile45(m.snapshots());
+      else if(scenario==Scenario::MissileDirections) require_missile_directions(m.snapshots());
+      else if(scenario==Scenario::MissileBounds) require_missile_bounds(m.snapshots());
+      else if(scenario==Scenario::HeadingSweep) require_heading_sweep(m);
+      else if(scenario==Scenario::PositionSweep) require_position_sweep(m);
       else if(scenario==Scenario::FireWall) require_fire_wall(m,m.snapshots());
       else if(scenario==Scenario::HitP1) require_hit_p1(m.snapshots());
       else if(scenario==Scenario::HitP0) require_hit_p0(m.snapshots());

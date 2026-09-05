@@ -252,8 +252,22 @@ including the exhaustive paddle soak and maximum 3F/3E/3EX diagnostics.
 
 Immediate TODO
 --------------
-The plain-4K `examples/01_basic/13_tanks/` work is complete at 3800/4090 ROM
-and 116/128 RIOT RAM. Its source-readability contract is now executable: one
-statement per source line and one canonical sprite byte per visual-binary line.
+The plain-4K `examples/01_basic/13_tanks/` correctness pass now links at
+3936/4090 ROM and 121/128 RIOT RAM. The source-readability contract remains
+executable: one statement per source line and one canonical sprite byte per
+visual-binary line. Player horizontal positioning now uses one public X
+coordinate for P0/P1, score handoff restores direction-dependent REFP state,
+the west descriptor is corrected, missile RESP/HMOVE is calibrated to the
+maintained renderer with the TIA missile-origin compensation, missile hits are
+consumed before overscan movement, and escaped projectiles are killed before
+the next VBLANK. `test/vcs_tanks.cpp` now sweeps all 16 rendered headings,
+coarse-boundary player positions, all 16 missile trajectories, and projectile
+wrap bounds in addition to the prior collision/gameplay cases. Focused Tanks,
+assembly-allowlist, and source-tree-hygiene tests pass. A broad e2e rerun passed
+through test 225; isolated 3E maximum diagnostic also passes, while the unrelated
+3EX maximum diagnostic exceeded the execution window.
+
 Do not resurrect the RIOT-RAM sprite cache or the discarded `$xxDD`/main-phase
-theory. Return to main-roadmap Item 49 unless the user asks for more Tanks work.
+theory. The next Tanks task is source cleanup: ordinary overscan game logic,
+especially `tanks_move_object()` and `tanks_process_knockback()`, should be C26
+where possible while preserving these behavior locks and staying below 4K.

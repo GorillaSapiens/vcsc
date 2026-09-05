@@ -52,7 +52,7 @@ my @graphics_lines=grep { /0b[.X]{8}/ } split /\n/,$graphics_block;
 @graphics_lines==40 && !grep { !/^\s*0b[.X]{8},?\s*$/ } @graphics_lines
    or die "Tanks canonical graphics must stay one visual byte per line\n";
 $s !~ /\btanks_bitmap\b/ or die "Tanks must not expand canonical sprites into a RIOT-RAM bitmap cache\n";
-$s =~ /tanks_graphics_descriptor\[16\].*?0x00,0x08,0x10,0x18,0x20,0x1f,0x17,0x0f,\s*0x07,0x8f,0x97,0x9f,0xa7,0x98,0x90,0x88/s &&
+$s =~ /tanks_graphics_descriptor\[16\].*?0x00,0x08,0x10,0x18,0x20,0x1f,0x17,0x0f,\s*0x07,0x8f,0x97,0x9f,0xa0,0x98,0x90,0x88/s &&
 $s =~ /tanks_graphics_index_xor\[2\]/ &&
 $s =~ /eor\.z tanks_graphics_index_xor \+ 0.*?lda tanks_graphics,y/s &&
 $s =~ /eor\.z tanks_graphics_index_xor \+ 1.*?lda tanks_graphics,y/s &&
@@ -92,10 +92,13 @@ $s =~ /controls & 0x40/ && $s =~ /controls & 0x80/ && $s =~ /controls & 0x04/ &&
 $s =~ /controls & 0x10/ && $s =~ /controls & 0x20/ && $s =~ /controls & 0x01/ && $s =~ /controls & 0x02/ &&
 $s =~ /INPT4 & 0x80/ && $s =~ /INPT5 & 0x80/
    or die "Tanks lost two-joystick direction\/fire mapping\n";
-$s =~ /missile0_x := tank0_x \+ 8/ && $s =~ /missile1_x := tank1_x \+ 8/ &&
-$s =~ /void tanks_position_missiles\(void\).*?tanks_mnext \+ 0.*?tanks_mnext \+ 1/s
-   or die "Tanks lost centered missile launch or bounded three-line positioning\n";
-$s =~ /void tanks_position_players_after_score\(void\).*?tanks_mnext \+ 0.*?tanks_mnext \+ 1/s &&
+$s =~ /missile0_x := tank0_x \+ 3/ && $s =~ /missile1_x := tank1_x \+ 3/ &&
+$s =~ /TANKS_MISSILE_MAX_X := 159/ && $s =~ /TANKS_MISSILE_MAX_Y := 85/ &&
+$s =~ /tanks_update_collisions\(\);.*?tanks_process_knockback\(\);.*?tanks_update_overscan\(\);/s
+   or die "Tanks lost centered missile launch, bounds, or same-frame collision processing\n";
+$s =~ /void tanks_position_missiles\(void\).*?asm sta WSYNC;\s*asm nop;\s*asm lda\.z tanks_x \+ 2;\s*asm clc;\s*asm adc #4;.*?asm sta RESM0;.*?asm sta WSYNC;\s*asm nop;\s*asm lda\.z tanks_x \+ 3;\s*asm clc;\s*asm adc #4;.*?asm sta RESM1;.*?asm sta WSYNC;\s*asm sta HMOVE;/s
+   or die "Tanks lost calibrated public-X missile RESP/HMOVE positioning\n";
+$s =~ /void tanks_position_players_after_score\(void\).*?tanks_pnext \+ 1.*?tanks_pnext \+ 0.*?sta REFP0.*?sta REFP1/s &&
 $s =~ /asm sta GRP0;\s*asm sty GRP1/ && $s =~ /asm cpx #2;.*?asm lda #\$10;\s*asm sta PF0/s &&
 $s =~ /PF0 := 0xff;\s*PF1 := 0xff;\s*PF2 := 0xff;\s*WSYNC := _;\s*WSYNC := _;\s*WSYNC := _;\s*WSYNC := _;/ &&
 $s =~ /PF0 := 0;\s*PF1 := 0;\s*PF2 := 0;\s*ENAM0 := 0;\s*ENAM1 := 0;\s*WSYNC := _;\s*WSYNC := _;/
@@ -121,8 +124,8 @@ my$py=symbol_addr($map,'tank_prev_y'); @a{qw(tank0_prev_y tank1_prev_y)}=($py,$p
 my$sp=symbol_addr($map,'tank_spin_frames'); @a{qw(tank0_spin_frames tank1_spin_frames)}=($sp,$sp+1);
 $a{score_left_score}=symbol_addr($map,'score_left_score'); $a{score_right_score}=symbol_addr($map,'score_right_score');
 my$misc=symbol_addr($map,'tanks_misc'); @a{qw(tanks_move_phase tanks_rng tanks_sound_frames tanks_sound_kind)}=($misc,$misc+1,$misc+2,$misc+3);
-for my$n(qw(tanks_barrier_event_row tanks_barrier_event_pf2 tanks_graphics tanks_graphics_descriptor)){ $a{$n}=symbol_addr($map,$n); }
-my@symbols=qw(tank0_x tank1_x tank0_y tank1_y tank0_direction tank1_direction tank0_prev_x tank1_prev_x tank0_prev_y tank1_prev_y tank0_spin_frames tank1_spin_frames missile0_x missile1_x missile0_y missile1_y missile0_direction missile1_direction score_left_score score_right_score tanks_move_phase tanks_rng tanks_sound_frames tanks_sound_kind tanks_barrier_event_row tanks_barrier_event_pf2 tanks_graphics tanks_graphics_descriptor);
+for my$n(qw(tanks_barrier_event_row tanks_barrier_event_pf2 tanks_graphics tanks_graphics_descriptor tanks_graphics_index_xor)){ $a{$n}=symbol_addr($map,$n); }
+my@symbols=qw(tank0_x tank1_x tank0_y tank1_y tank0_direction tank1_direction tank0_prev_x tank1_prev_x tank0_prev_y tank1_prev_y tank0_spin_frames tank1_spin_frames missile0_x missile1_x missile0_y missile1_y missile0_direction missile1_direction score_left_score score_right_score tanks_move_phase tanks_rng tanks_sound_frames tanks_sound_kind tanks_barrier_event_row tanks_barrier_event_pf2 tanks_graphics tanks_graphics_descriptor tanks_graphics_index_xor);
 my@addr=map{sprintf('0x%04x',$a{$_})}@symbols;
 ($rc,$sig,$out,$err)=capture($oracle,$bin,@addr);$rc==0&&!$sig or die"Tanks oracle run failed\n$out$err";
 $out eq "vcs_tanks ok: stable early raster writes, visible missiles, 16-way tanks, 3+3 score, engine/fire/hit audio, wall-wrapping knockback, barriers, spin, TIA collisions\n" or die"unexpected Tanks oracle output: $out";
