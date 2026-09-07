@@ -60,6 +60,22 @@ close $fh;
 index($text, '$(ROOT)/bin/vcsc.exe') >= 0 or die "Windows example driver rewrite missing\n";
 index($text, '$(ROOT)/libraries/vcs') >= 0 or die "installed example lost shared source/install VCS library path\n";
 index($text, '$(ROOT)/driver/vcsc') < 0 or die "source-tree driver path survived example install\n";
+
+for my $rel (
+    [qw(01_basic 13_tanks Makefile)],
+    [qw(01_basic 11_keypad Makefile)],
+    [qw(01_basic 12_drive Makefile)],
+) {
+    my $direct = File::Spec->catfile($examples, @$rel);
+    open my $dfh, '<', $direct or die "$direct: $!\n";
+    local $/;
+    my $body = <$dfh> // '';
+    close $dfh;
+    index($body, '../../../bin/vcsc.exe') >= 0
+        or die "direct-relative Windows example driver rewrite missing in $direct\n";
+    $body !~ m{(?:^|/)driver/vcsc(?:\.exe)?(?:\s|$)}m
+        or die "source-tree driver path survived direct-relative example install in $direct\n";
+}
 helper('uninstall', $examples, 'examples');
 -d $examples and die "example tree survived uninstall\n";
 

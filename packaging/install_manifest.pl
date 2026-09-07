@@ -114,7 +114,10 @@ sub clean_examples {
         local $/;
         my $text = <$in>;
         close $in;
-        $text =~ s{\$\(ROOT\)/driver/vcsc}{\$(ROOT)/bin/$vcsc_name}g;
+        # Release/install examples may spell the source-tree compiler path either
+        # through $(ROOT) or directly with ../../../driver/vcsc.  Preserve the
+        # relative prefix and replace only the source-tree driver component.
+        $text =~ s{driver/vcsc(?:\.exe)?}{bin/$vcsc_name}g;
         open my $out, '>', $p or die "$p: $!\n";
         print {$out} $text;
         close $out or die "$p: $!\n";
@@ -203,7 +206,8 @@ for my $e (@entries) {
                 local $/;
                 my $text = <$in>;
                 close $in;
-                die "manifest verification: source-tree driver path survived in $p\n" if $text =~ /\$\(ROOT\)\/driver\/vcsc/;
+                die "manifest verification: source-tree driver path survived in $p\n"
+                    if $text =~ m{(?:^|/)driver/vcsc(?:\.exe)?(?:\s|$)}m;
             }
         }
     }

@@ -139,3 +139,27 @@ manifest verification and its relocatable installed smoke using
 through the common staging/manifest path rather than a complete cross build.
 The broad e2e run reached 229/362 before the execution window; its sole observed
 failure was the now-fixed stale `pkgroot` hygiene residue.
+
+2026-09-07 11:09:22 PDT, fix release example compiler-path rewrite
+-------------------------------
+Fixed a Linux/Windows release packaging regression in example Makefiles. The
+shared manifest helper only rewrote the source-tree compiler spelling
+`$(ROOT)/driver/vcsc`; five examples used direct relative spellings such as
+`../../../driver/vcsc` or `../../../../driver/vcsc`, so those paths survived
+inside binary release archives. The manifest verifier repeated the same narrow
+assumption and therefore certified the broken staged examples.
+
+`packaging/install_manifest.pl` now rewrites the canonical `driver/vcsc`
+component regardless of whether the Makefile reaches it through `$(ROOT)` or
+explicit `../` components, preserving the relative prefix and platform
+`vcsc[.exe]` name. Verification now rejects any surviving source-tree
+`/driver/vcsc[.exe]` path. `test/install_manifest.pl` explicitly checks the
+direct-relative Tanks/keypad/drive Makefiles in addition to the `$(ROOT)`
+form. `make installcheck` and `make linux` now build Tanks through its staged
+Makefile so release/install testing exercises this path rather than only
+invoking the packaged compiler directly.
+
+Validation: `test/install_manifest.pl` and `make installcheck` pass. A fresh
+static `make linux` archive was generated, unpacked into a new temporary tree,
+and plain `make` from `vcsc/examples/01_basic/13_tanks` invoked
+`../../../bin/vcsc` and produced a 4096-byte `tanks.bin`.
