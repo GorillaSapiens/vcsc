@@ -50,7 +50,7 @@ for my $mapper (@mapper) {
          or die "$mapper entry does not explain why raw op0C avoids --illegal dependency\n";
    }
    my $install_source = "libraries/vcs/$mapper/entry.s26";
-   $install_manifest =~ /^data\tfile\t[^\t]+\t\Q$install_source\E\t/m
+   $install_manifest =~ /^libraries\tfile\t[^\t]+\t\Q$install_source\E\t/m
       or die "$mapper entry source is not installed by the data manifest\n";
    push @spec, (($mapper eq '0840' ? 'M0840' : $mapper eq '0FA0' ? 'M0FA0' : $mapper eq '3F' ? 'M3F' : $mapper eq '3E' ? 'M3E' : $mapper eq '3EX' ? 'M3EX' : $mapper) . "=$src");
 }

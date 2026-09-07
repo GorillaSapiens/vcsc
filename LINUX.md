@@ -26,11 +26,11 @@ The archive contains one `vcsc` directory with:
 
 ```text
 vcsc/
-  bin/       statically linked Linux command-line tools
-  lib/       VCSC runtime archive
-  include/   runtime include files
-  share/     assembler configuration and Atari 2600 support files
-  examples/  editable example cartridges
+  bin/        statically linked Linux command-line tools
+  cfg/        assembler opcode configuration
+  libraries/  VCS support library and runtime, matching the source tree
+  examples/   editable example cartridges
+  addons/     editor/tool integration files
 ```
 
 ## Using the unpacked package
@@ -42,7 +42,7 @@ directory; no installation or PATH change is required:
 tar -xzf vcsc.linux.YYYYMMDD_HHMMSS.tar.gz
 cd vcsc
 ./bin/vcsc -V
-./bin/vcsc -I share/vcs examples/01_basic/01_blank_screen/blank_screen.c26 -o blank_screen.bin
+./bin/vcsc -I libraries/vcs examples/01_basic/01_blank_screen/blank_screen.c26 -o blank_screen.bin
 ./bin/vcsc-disas blank_screen.bin
 ```
 
@@ -50,8 +50,8 @@ The driver locates `vcsc-cc1`, `vcsc-as`, `vcsc-ld`, the runtime archive, and
 the installed support tree relative to `bin/vcsc`, so the whole directory may
 be moved after unpacking.
 
-The packaged example Makefiles are rewritten to use `bin/vcsc` and `share/vcs`
-inside the package tree, so a Linux user with GNU make can build the examples
+The packaged example Makefiles are rewritten to use `bin/vcsc`; their existing
+`libraries/vcs` path works unchanged inside the package tree, so a Linux user with GNU make can build the examples
 without a VCSC installation.
 
 ## Building the package

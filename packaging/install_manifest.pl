@@ -115,7 +115,6 @@ sub clean_examples {
         my $text = <$in>;
         close $in;
         $text =~ s{\$\(ROOT\)/driver/vcsc}{\$(ROOT)/bin/$vcsc_name}g;
-        $text =~ s{\$\(ROOT\)/libraries/vcs}{\$(ROOT)/share/vcs}g;
         open my $out, '>', $p or die "$p: $!\n";
         print {$out} $text;
         close $out or die "$p: $!\n";
@@ -205,16 +204,17 @@ for my $e (@entries) {
                 my $text = <$in>;
                 close $in;
                 die "manifest verification: source-tree driver path survived in $p\n" if $text =~ /\$\(ROOT\)\/driver\/vcsc/;
-                die "manifest verification: source-tree VCS library path survived in $p\n" if $text =~ /\$\(ROOT\)\/libraries\/vcs/;
             }
         }
     }
 }
 
-if ($wanted{data}) {
-    my @expected = sort map { substr($_->{dest}, 4) } grep { $_->{scope} eq 'data' && $_->{dest} =~ m{\Avcs/} } @entries;
-    my @actual = rel_files(File::Spec->catdir($dest_root, 'vcs'));
-    assert_same_list('data:vcs', \@expected, \@actual);
+if ($wanted{libraries}) {
+    my $prefix = 'libraries/vcs/';
+    my @expected = sort map { substr($_->{dest}, length($prefix)) }
+        grep { $_->{scope} eq 'libraries' && index($_->{dest}, $prefix) == 0 } @entries;
+    my @actual = rel_files(File::Spec->catdir($dest_root, 'libraries', 'vcs'));
+    assert_same_list('libraries:vcs', \@expected, \@actual);
 }
 
 exit 0;

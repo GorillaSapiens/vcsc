@@ -8,9 +8,7 @@ REPO_ASM = ../../assembler/vcsc-as
 REPO_AR = ../../archiver/vcsc-ar
 
 DESTDIR ?=
-LIBDIR ?= /opt/vcsc/lib
-INCLUDEDIR ?= /opt/vcsc/include
-DATADIR ?= /opt/vcsc/share
+RUNTIMEDIR ?= /opt/vcsc/libraries/runtime
 INSTALL ?= install
 INSTALL_DATA ?= $(INSTALL) -m 0644
 DOXYGEN ?= doxygen
@@ -37,25 +35,11 @@ docs:
 	$(MAKE) --no-print-directory -C ../.. docs
 
 install: all
-	$(INSTALL) -d $(DESTDIR)$(LIBDIR)
-	$(INSTALL) -d $(DESTDIR)$(INCLUDEDIR)
-	$(INSTALL) -d $(DESTDIR)$(DATADIR)/runtime
-	$(INSTALL_DATA) libvcsc.l26 $(DESTDIR)$(LIBDIR)/libvcsc.l26
-	$(INSTALL_DATA) vcsc-runtime.inc $(DESTDIR)$(INCLUDEDIR)/vcsc-runtime.inc
-	$(INSTALL_DATA) vcsc-rt0.s26 $(DESTDIR)$(DATADIR)/runtime/vcsc-rt0.s26
-	$(INSTALL_DATA) vcsc-rt1-simple.s26 $(DESTDIR)$(DATADIR)/runtime/vcsc-rt1-simple.s26
-	$(INSTALL_DATA) $(ZP_SOURCES) $(DESTDIR)$(DATADIR)/runtime/
-	$(INSTALL_DATA) README.md $(DESTDIR)$(DATADIR)/runtime/README.md
-	$(INSTALL_DATA) ../LICENSE.txt $(DESTDIR)$(DATADIR)/runtime/LICENSE.txt
+	$(INSTALL) -d $(DESTDIR)$(RUNTIMEDIR)
+	$(INSTALL_DATA) libvcsc.l26 vcsc-runtime.inc vcsc-rt0.s26 vcsc-rt1-simple.s26 $(ZP_SOURCES) README.md $(DESTDIR)$(RUNTIMEDIR)/
 
 uninstall:
-	rm -f $(DESTDIR)$(LIBDIR)/libvcsc.l26
-	rm -f $(DESTDIR)$(INCLUDEDIR)/vcsc-runtime.inc
-	rm -f $(DESTDIR)$(DATADIR)/runtime/vcsc-rt0.s26
-	rm -f $(DESTDIR)$(DATADIR)/runtime/vcsc-rt1-simple.s26
-	rm -f $(addprefix $(DESTDIR)$(DATADIR)/runtime/,$(ZP_SOURCES))
-	rm -f $(DESTDIR)$(DATADIR)/runtime/README.md
-	rm -f $(DESTDIR)$(DATADIR)/runtime/LICENSE.txt
+	rm -f $(addprefix $(DESTDIR)$(RUNTIMEDIR)/,libvcsc.l26 vcsc-runtime.inc vcsc-rt0.s26 vcsc-rt1-simple.s26 $(ZP_SOURCES) README.md)
 
 clean:
 	rm -f libvcsc.l26

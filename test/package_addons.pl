@@ -30,6 +30,24 @@ for my $platform (qw(windows linux)) {
    $make =~ /^\Q$platform\E:.*?\$\(MAKE\).*?stage-release-payload.*?RELEASE_PLATFORM=\Q$platform\E\b/sm
       or die "$platform packaging does not use shared manifest release staging\n";
 }
+$make =~ /stage-release-payload:.*?--scope libraries.*?--dest-root "\$\(RELEASE_STAGING\)\/\$\(RELEASE_PACKAGE_DIR\)"/s
+   or die "shared release staging does not verify the package-root libraries tree\n";
+for my $pair (
+   ['windows', 'WINDOWS_PACKAGE_DIR'],
+   ['linux', 'LINUX_PACKAGE_DIR'],
+) {
+   my ($platform, $var) = @$pair;
+   my ($recipe) = $make =~ /^\Q$platform\E:\n(.*?)(?=^[A-Za-z0-9_.-]+:|\z)/ms;
+   defined $recipe or die "could not isolate $platform package recipe\n";
+   index($recipe, qq{PREFIX="/\$($var)"}) >= 0
+      or die "$platform packaging does not install under its package root\n";
+   index($recipe, qq{CFGDIR="/\$($var)/cfg"}) >= 0
+      or die "$platform packaging does not use top-level cfg\n";
+   $recipe !~ /(?:LIBDIR|INCLUDEDIR|DATADIR)=/
+      or die "$platform packaging still manufactures lib/include/share install roots\n";
+}
+$make =~ /^package:.*?rm -rf \$\(PACKAGE_STAGING\).*?tar .*?\n\trm -rf \$\(PACKAGE_STAGING\)/sm
+   or die "generic package target does not clean its staging tree\n";
 
 for my $rel (qw(addons/README.md addons/c26.vim addons/s26.vim)) {
    -f File::Spec->catfile($repo, split('/', $rel))

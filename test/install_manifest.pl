@@ -38,12 +38,14 @@ sub helper {
         @scope_args, '--source-root', $repo, '--dest-root', $root);
 }
 
-my $data = File::Spec->catdir($tmp, 'data');
-helper('install', $data, 'data');
-helper('verify', $data, 'data');
--f File::Spec->catfile($data, qw(vcs F8 mapper.c26)) or die "F8 mapper missing from data manifest install\n";
-helper('uninstall', $data, 'data');
--d File::Spec->catdir($data, 'vcs') and die "empty vcs data tree survived uninstall\n";
+my $libs = File::Spec->catdir($tmp, 'root');
+helper('install', $libs, 'libraries');
+helper('verify', $libs, 'libraries');
+-f File::Spec->catfile($libs, qw(libraries vcs F8 mapper.c26)) or die "F8 mapper missing from libraries manifest install\n";
+-f File::Spec->catfile($libs, qw(libraries runtime libvcsc.l26)) or die "runtime archive missing from libraries manifest install\n";
+-f File::Spec->catfile($libs, qw(libraries runtime vcsc-runtime.inc)) or die "runtime include missing from libraries manifest install\n";
+helper('uninstall', $libs, 'libraries');
+-d File::Spec->catdir($libs, 'libraries') and die "empty libraries tree survived uninstall\n";
 
 my $examples = File::Spec->catdir($tmp, 'examples');
 run_ok($^X, $helper, 'install', '--manifest', $manifest, '--scope', 'examples',
@@ -56,7 +58,7 @@ local $/;
 my $text = <$fh>;
 close $fh;
 index($text, '$(ROOT)/bin/vcsc.exe') >= 0 or die "Windows example driver rewrite missing\n";
-index($text, '$(ROOT)/share/vcs') >= 0 or die "example VCS library rewrite missing\n";
+index($text, '$(ROOT)/libraries/vcs') >= 0 or die "installed example lost shared source/install VCS library path\n";
 index($text, '$(ROOT)/driver/vcsc') < 0 or die "source-tree driver path survived example install\n";
 helper('uninstall', $examples, 'examples');
 -d $examples and die "example tree survived uninstall\n";

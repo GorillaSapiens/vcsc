@@ -399,15 +399,17 @@ index($top_make,'RELEASE_PLATFORM=windows')>=0 &&
 index($top_make,'RELEASE_PLATFORM=linux')>=0 &&
 index($install_manifest,"package-windows\tfile\t0644\tpackaging/vcsc.cmd\tvcsc.cmd")>=0 &&
 index($install_manifest,"package-linux\tfile\t0644\tLINUX.md\tLINUX.md")>=0 &&
+index($install_manifest,"libraries\tfile\t0644\tlibraries/runtime/libvcsc.l26\tlibraries/runtime/libvcsc.l26")>=0 &&
+index($install_manifest,"libraries\tfile\t0644\tlibraries/runtime/vcsc-runtime.inc\tlibraries/runtime/vcsc-runtime.inc")>=0 &&
 index($top_make,'sieve: tools')<0 &&
 -f File::Spec->catfile($test,'sieve.pl') &&
 -f File::Spec->catfile($test,'install_manifest.pl') &&
-index($install_manifest,"data\tfile\t0644\tlibraries/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26\tvcs/renderers/all_five_player_color_192/all_five_player_color_192.c26")>=0 &&
-index($install_manifest,"data\tfile\t0644\tlibraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26\tvcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26")>=0 &&
-index($install_manifest,"data\tfile\t0644\tlibraries/vcs/renderers/multisprite/multisprite.c26\tvcs/renderers/multisprite/multisprite.c26")>=0 &&
-index($install_manifest,"data\tfile\t0644\tlibraries/vcs/6507.c26\tvcs/6507.c26")>=0 &&
-index($install_manifest,"data\tfile\t0644\tlibraries/vcs/six_glyph_wide_component.c26\tvcs/six_glyph_wide_component.c26")>=0 &&
-index($install_manifest,"data\tfile\t0644\tlibraries/vcs/six_glyph_big_wide_component.c26\tvcs/six_glyph_big_wide_component.c26")>=0 &&
+index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26\tlibraries/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26")>=0 &&
+index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26\tlibraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26")>=0 &&
+index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/renderers/multisprite/multisprite.c26\tlibraries/vcs/renderers/multisprite/multisprite.c26")>=0 &&
+index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/6507.c26\tlibraries/vcs/6507.c26")>=0 &&
+index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/six_glyph_wide_component.c26\tlibraries/vcs/six_glyph_wide_component.c26")>=0 &&
+index($install_manifest,"libraries\tfile\t0644\tlibraries/vcs/six_glyph_big_wide_component.c26\tlibraries/vcs/six_glyph_big_wide_component.c26")>=0 &&
 -f File::Spec->catfile($repo,'examples','14_multisprite','01_192','01_interactive','multisprite_192_interactive.c26') &&
 -f File::Spec->catfile($repo,'examples','15_all_five_player_color_192','01_interactive','all_five_player_color_192_interactive.c26')
    or die "top-level installed simulator/Stella and manifest coverage is incomplete\n";

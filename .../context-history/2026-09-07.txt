@@ -108,3 +108,34 @@ Validation: all three formerly failing tests pass individually;
 source-tree hygiene pass. A full `make linux` release build also passes static
 link checks, shared manifest data/example/package verification, and the installed
 blank-screen smoke, confirming the tests were stale rather than the payload.
+
+2026-09-07 10:45:23 PDT, mirror source libraries in install layout
+-------------------------------
+Reworked installed and binary-release trees to mirror the source hierarchy
+instead of scattering VCSC-owned files across conventional Unix `share`,
+`include`, and `lib` buckets. The package root is now `bin/`, `cfg/`,
+`libraries/`, `examples/`, and `addons/`; `libraries/vcs` and
+`libraries/runtime` retain those exact source-tree-relative paths. Runtime
+`libvcsc.l26`, `vcsc-runtime.inc`, startup/zero-page S26 sources, runtime docs,
+and the VCS public library are all manifest-owned under `libraries/`.
+
+Updated the driver to discover installed runtime/profile material through the
+same `libraries/runtime` and `libraries/vcs` paths it uses in a source tree.
+Assembler installed cfg discovery now uses top-level `cfg`. Installed example
+Makefiles retain `$(ROOT)/libraries/vcs`; staging only rewrites the driver path
+to `$(ROOT)/bin/vcsc[.exe]`. Top-level install/uninstall, generic package, Linux
+release, and Windows release staging all consume the shared manifest/root layout;
+tests reject resurrection of the old `share`, `include`, or `lib` destinations.
+Safe `rmdir` cleanup removes an otherwise-empty installed prefix on uninstall.
+
+A broad e2e run exposed that generic `make package` left its `pkgroot/` staging
+tree behind, which then polluted source-tree hygiene. The package recipe now
+removes that staging directory after archive creation, and the package regression
+locks the cleanup. Validation after the layout change: compile-only 525/525;
+focused manifest, mapper bankcall/entry, package, history, hygiene, and
+`make installcheck` pass. An actual static `make linux` release passes shared
+manifest verification and its relocatable installed smoke using
+`libraries/vcs`. MinGW is unavailable in this container, so Windows is verified
+through the common staging/manifest path rather than a complete cross build.
+The broad e2e run reached 229/362 before the execution window; its sole observed
+failure was the now-fixed stale `pkgroot` hygiene residue.

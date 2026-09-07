@@ -231,7 +231,7 @@ index($ld, '#define PUT(') < 0
 my @installed_bankcall_mappers = (@generic_mapper_dirs, qw(FA2 JANE 0840 UA UASW 0FA0 WD 3F 3E FC F0 E0));
 for my $mapper (@installed_bankcall_mappers) {
    my $source = "libraries/vcs/$mapper/bankcall.s26";
-   $install_manifest =~ /^data\tfile\t[^\t]+\t\Q$source\E\t/m
+   $install_manifest =~ /^libraries\tfile\t[^\t]+\t\Q$source\E\t/m
       or die "$mapper maintained trampoline source is not installed by the data manifest\n";
 }
 

@@ -19,7 +19,7 @@ TARGET = vcsc-as$(EXEEXT)
 
 BINDIR ?= /opt/vcsc/bin
 DESTDIR ?=
-CFGDIR ?= /opt/vcsc/share/cfg
+CFGDIR ?= /opt/vcsc/cfg
 INSTALL ?= install
 INSTALL_PROGRAM ?= $(INSTALL) -m 0755
 DOXYGEN ?= doxygen

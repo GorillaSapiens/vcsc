@@ -72,7 +72,7 @@ static void usage(const char *argv0)
       "   -V, --version           show version information\n"
       "\n"
       "notes:\n"
-      "   bundled default.cfg is always loaded from the source tree or installed share/cfg\n"
+      "   bundled default.cfg is always loaded from the source tree or installed cfg\n"
       "   if no primary output is selected, relocatable o26 output is written to a.o26\n"
       "   use --o26 without a filename to derive the output name with suffix .o26\n"
       "\n"
@@ -347,17 +347,14 @@ static int file_exists(const char *path)
 static char *find_installed_cfg_from_bin_dir(const char *bin_dir, const char *cfg_name)
 {
    char *prefix;
-   char *share;
    char *cfgdir;
    char *path;
 
    prefix = dirname_copy(bin_dir);
-   share = join_path2(prefix, "share");
-   cfgdir = join_path2(share, "cfg");
+   cfgdir = join_path2(prefix, "cfg");
    path = join_path2(cfgdir, cfg_name);
 
    free(prefix);
-   free(share);
    free(cfgdir);
 
    if (file_exists(path))

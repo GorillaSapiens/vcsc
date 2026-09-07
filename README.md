@@ -222,8 +222,8 @@ make windows
 The installed tree contains the command-line tools, runtime library, assembler
 configuration, Atari 2600 support files, and editable examples under
 `$(PREFIX)/examples` (normally `/opt/vcsc/examples`). The installed example
-Makefiles are rewritten to use the installed `bin/vcsc` and `share/vcs` tree.
-The driver locates sibling tools and shared data relative to the common
+Makefiles are rewritten only to use the installed `bin/vcsc`; their existing `libraries/vcs` path is valid in both the source and installed trees.
+The driver locates sibling tools and the `libraries/` tree relative to the common
 installation prefix, while still supporting in-tree development builds.
 `make package` includes the same installed examples in its `/opt/vcsc` image.
 

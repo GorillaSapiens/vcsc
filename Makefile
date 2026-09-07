@@ -1,10 +1,7 @@
 PREFIX ?= /opt/vcsc
 DESTDIR ?=
 BINDIR ?= $(PREFIX)/bin
-LIBDIR ?= $(PREFIX)/lib
-INCLUDEDIR ?= $(PREFIX)/include
-DATADIR ?= $(PREFIX)/share
-CFGDIR ?= $(DATADIR)/cfg
+CFGDIR ?= $(PREFIX)/cfg
 EXAMPLESDIR ?= $(PREFIX)/examples
 PACKAGE_PREFIX ?= /opt/vcsc
 PACKAGE_STAGING ?= $(CURDIR)/pkgroot
@@ -140,8 +137,7 @@ install-core:
 	@$(MAKE) --no-print-directory -C ./driver install DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./disassembler install DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)" EXEEXT="$(EXEEXT)"
 	install -d $(DESTDIR)$(BINDIR)
-	@$(MAKE) --no-print-directory -C ./libraries/runtime install DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" INCLUDEDIR="$(INCLUDEDIR)" DATADIR="$(DATADIR)"
-	@$(MAKE) --no-print-directory install-data DESTDIR="$(DESTDIR)" DATADIR="$(DATADIR)"
+	@$(MAKE) --no-print-directory install-libraries DESTDIR="$(DESTDIR)" PREFIX="$(PREFIX)"
 
 install-examples:
 	$(PERL) packaging/install_manifest.pl install \
@@ -149,15 +145,16 @@ install-examples:
 	  --source-root "$(CURDIR)" --dest-root "$(DESTDIR)$(EXAMPLESDIR)" \
 	  --vcsc-name "vcsc$(EXEEXT)"
 
-install-data:
+install-libraries:
 	$(PERL) packaging/install_manifest.pl install \
-	  --manifest packaging/install.manifest --scope data \
-	  --source-root "$(CURDIR)" --dest-root "$(DESTDIR)$(DATADIR)"
+	  --manifest packaging/install.manifest --scope libraries \
+	  --source-root "$(CURDIR)" --dest-root "$(DESTDIR)$(PREFIX)"
+
+install-data: install-libraries
 
 uninstall:
 	@$(MAKE) --no-print-directory uninstall-examples DESTDIR="$(DESTDIR)" EXAMPLESDIR="$(EXAMPLESDIR)"
-	@$(MAKE) --no-print-directory uninstall-data DESTDIR="$(DESTDIR)" DATADIR="$(DATADIR)"
-	@$(MAKE) --no-print-directory -C ./libraries/runtime uninstall DESTDIR="$(DESTDIR)" LIBDIR="$(LIBDIR)" INCLUDEDIR="$(INCLUDEDIR)" DATADIR="$(DATADIR)"
+	@$(MAKE) --no-print-directory uninstall-libraries DESTDIR="$(DESTDIR)" PREFIX="$(PREFIX)"
 	@$(MAKE) --no-print-directory -C ./driver uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./disassembler uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./simulator uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
@@ -165,22 +162,26 @@ uninstall:
 	@$(MAKE) --no-print-directory -C ./archiver uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./linker uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)"
 	@$(MAKE) --no-print-directory -C ./assembler uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)" CFGDIR="$(CFGDIR)"
+	@rmdir "$(DESTDIR)$(CFGDIR)" "$(DESTDIR)$(BINDIR)" "$(DESTDIR)$(PREFIX)" 2>/dev/null || true
 
 uninstall-examples:
 	$(PERL) packaging/install_manifest.pl uninstall \
 	  --manifest packaging/install.manifest --scope examples \
 	  --source-root "$(CURDIR)" --dest-root "$(DESTDIR)$(EXAMPLESDIR)"
 
-uninstall-data:
+uninstall-libraries:
 	$(PERL) packaging/install_manifest.pl uninstall \
-	  --manifest packaging/install.manifest --scope data \
-	  --source-root "$(CURDIR)" --dest-root "$(DESTDIR)$(DATADIR)"
+	  --manifest packaging/install.manifest --scope libraries \
+	  --source-root "$(CURDIR)" --dest-root "$(DESTDIR)$(PREFIX)"
+
+uninstall-data: uninstall-libraries
 
 package: tools
 	rm -rf $(PACKAGE_STAGING)
-	$(MAKE) --no-print-directory install-core DESTDIR="$(PACKAGE_STAGING)" PREFIX="$(PACKAGE_PREFIX)" BINDIR="$(PACKAGE_PREFIX)/bin" LIBDIR="$(PACKAGE_PREFIX)/lib" INCLUDEDIR="$(PACKAGE_PREFIX)/include" DATADIR="$(PACKAGE_PREFIX)/share" CFGDIR="$(PACKAGE_PREFIX)/share/cfg"
+	$(MAKE) --no-print-directory install-core DESTDIR="$(PACKAGE_STAGING)" PREFIX="$(PACKAGE_PREFIX)" BINDIR="$(PACKAGE_PREFIX)/bin" CFGDIR="$(PACKAGE_PREFIX)/cfg"
 	$(MAKE) --no-print-directory install-examples DESTDIR="$(PACKAGE_STAGING)" PREFIX="$(PACKAGE_PREFIX)" EXAMPLESDIR="$(PACKAGE_PREFIX)/examples"
 	tar -C $(PACKAGE_STAGING) -czf ./vcsc.install.`date -u "+%Y%m%d_%H%M%S"`.tar.gz .
+	rm -rf $(PACKAGE_STAGING)
 
 stage-release-payload:
 	@test -n "$(RELEASE_STAGING)" -a -n "$(RELEASE_PACKAGE_DIR)" -a -n "$(RELEASE_PLATFORM)" || \
@@ -191,8 +192,8 @@ stage-release-payload:
 	  --manifest packaging/install.manifest --scope package-common --scope package-$(RELEASE_PLATFORM) \
 	  --source-root "$(CURDIR)" --dest-root "$(RELEASE_STAGING)/$(RELEASE_PACKAGE_DIR)"
 	$(PERL) packaging/install_manifest.pl verify \
-	  --manifest packaging/install.manifest --scope data \
-	  --source-root "$(CURDIR)" --dest-root "$(RELEASE_STAGING)/$(RELEASE_PACKAGE_DIR)/share"
+	  --manifest packaging/install.manifest --scope libraries \
+	  --source-root "$(CURDIR)" --dest-root "$(RELEASE_STAGING)/$(RELEASE_PACKAGE_DIR)"
 	$(PERL) packaging/install_manifest.pl verify \
 	  --manifest packaging/install.manifest --scope examples \
 	  --source-root "$(CURDIR)" --dest-root "$(RELEASE_STAGING)/$(RELEASE_PACKAGE_DIR)/examples" \
@@ -224,10 +225,8 @@ windows:
 	$(MAKE) --no-print-directory install-core \
 	  CC="$(WINDOWS_CC)" CXX="$(WINDOWS_CXX)" EXEEXT=.exe LDFLAGS="$(WINDOWS_LDFLAGS)" \
 	  ASM="$(WINDOWS_HOST_TOOLS)/vcsc-as" VCSC_AR="$(WINDOWS_HOST_TOOLS)/vcsc-ar" \
-	  DESTDIR="$(WINDOWS_STAGING)" \
-	  BINDIR="/$(WINDOWS_PACKAGE_DIR)/bin" LIBDIR="/$(WINDOWS_PACKAGE_DIR)/lib" \
-	  INCLUDEDIR="/$(WINDOWS_PACKAGE_DIR)/include" DATADIR="/$(WINDOWS_PACKAGE_DIR)/share" \
-	  CFGDIR="/$(WINDOWS_PACKAGE_DIR)/share/cfg"
+	  DESTDIR="$(WINDOWS_STAGING)" PREFIX="/$(WINDOWS_PACKAGE_DIR)" \
+	  BINDIR="/$(WINDOWS_PACKAGE_DIR)/bin" CFGDIR="/$(WINDOWS_PACKAGE_DIR)/cfg"
 	$(WINDOWS_STRIP) \
 	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc.exe \
 	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-cc1.exe \
@@ -273,10 +272,8 @@ linux:
 	  CC="$(LINUX_CC)" CXX="$(LINUX_CXX)" EXEEXT= LDFLAGS="$(LINUX_LDFLAGS)"
 	$(MAKE) --no-print-directory install-core \
 	  CC="$(LINUX_CC)" CXX="$(LINUX_CXX)" EXEEXT= LDFLAGS="$(LINUX_LDFLAGS)" \
-	  DESTDIR="$(LINUX_STAGING)" \
-	  BINDIR="/$(LINUX_PACKAGE_DIR)/bin" LIBDIR="/$(LINUX_PACKAGE_DIR)/lib" \
-	  INCLUDEDIR="/$(LINUX_PACKAGE_DIR)/include" DATADIR="/$(LINUX_PACKAGE_DIR)/share" \
-	  CFGDIR="/$(LINUX_PACKAGE_DIR)/share/cfg"
+	  DESTDIR="$(LINUX_STAGING)" PREFIX="/$(LINUX_PACKAGE_DIR)" \
+	  BINDIR="/$(LINUX_PACKAGE_DIR)/bin" CFGDIR="/$(LINUX_PACKAGE_DIR)/cfg"
 	$(LINUX_STRIP) \
 	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc \
 	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-cc1 \
@@ -307,7 +304,7 @@ linux:
 	"$$package/bin/vcsc" -V >/dev/null; \
 	"$$package/bin/vcsc-disas" -V >/dev/null; \
 	cd "$$package"; \
-	./bin/vcsc -I share/vcs examples/01_basic/01_blank_screen/blank_screen.c26 -o linux-package-smoke.bin; \
+	./bin/vcsc -I libraries/vcs examples/01_basic/01_blank_screen/blank_screen.c26 -o linux-package-smoke.bin; \
 	test `wc -c < linux-package-smoke.bin` -eq 4096; \
 	rm -f linux-package-smoke.bin linux-package-smoke.hex linux-package-smoke.map \
 	  linux-package-smoke.sym linux-package-smoke.lst linux-package-smoke.cfg
@@ -323,11 +320,11 @@ linux:
 
 installcheck: tools
 	rm -rf $(INSTALLCHECK_STAGING)
-	$(MAKE) --no-print-directory install-core DESTDIR="$(INSTALLCHECK_STAGING)" PREFIX="/opt/vcsc" BINDIR="/opt/vcsc/bin" LIBDIR="/opt/vcsc/lib" INCLUDEDIR="/opt/vcsc/include" DATADIR="/opt/vcsc/share" CFGDIR="/opt/vcsc/share/cfg"
+	$(MAKE) --no-print-directory install-core DESTDIR="$(INSTALLCHECK_STAGING)" PREFIX="/opt/vcsc" BINDIR="/opt/vcsc/bin" CFGDIR="/opt/vcsc/cfg"
 	$(MAKE) --no-print-directory install-examples DESTDIR="$(INSTALLCHECK_STAGING)" PREFIX="/opt/vcsc" EXAMPLESDIR="/opt/vcsc/examples"
 	$(PERL) packaging/install_manifest.pl verify \
-	  --manifest packaging/install.manifest --scope data \
-	  --source-root "$(CURDIR)" --dest-root "$(INSTALLCHECK_STAGING)/opt/vcsc/share"
+	  --manifest packaging/install.manifest --scope libraries \
+	  --source-root "$(CURDIR)" --dest-root "$(INSTALLCHECK_STAGING)/opt/vcsc"
 	$(PERL) packaging/install_manifest.pl verify \
 	  --manifest packaging/install.manifest --scope examples \
 	  --source-root "$(CURDIR)" --dest-root "$(INSTALLCHECK_STAGING)/opt/vcsc/examples" \
@@ -335,6 +332,10 @@ installcheck: tools
 	@set -e; \
 	stage="$(INSTALLCHECK_STAGING)/opt/vcsc"; \
 	for exe in vcsc vcsc-cc1 vcsc-as vcsc-ld vcsc-ar vcsc-sim vcsc-disas; do test -x "$$stage/bin/$$exe"; done; \
+	test -f "$$stage/cfg/default.cfg"; test -f "$$stage/cfg/illegals.cfg"; \
+	test -f "$$stage/libraries/runtime/libvcsc.l26"; test -f "$$stage/libraries/runtime/vcsc-runtime.inc"; \
+	test -f "$$stage/libraries/vcs/4K/mapper.c26"; \
+	test ! -e "$$stage/share"; test ! -e "$$stage/include"; test ! -e "$$stage/lib"; \
 	"$$stage/bin/vcsc" -V >/dev/null; \
 	"$$stage/bin/vcsc-disas" -V >/dev/null; \
 	$(MAKE) --no-print-directory -C "$$stage/examples/01_basic/01_blank_screen" clean all; \
@@ -457,4 +458,4 @@ stella-multisprite-test: tools
 	rm -rf $(STELLA_MULTISPRITE_TEST_TMP)
 
 
-.PHONY: all tools rebuild fonts install stage-release-payload install-core install-examples install-data uninstall uninstall-examples uninstall-data package windows installcheck tarball unit e2e test stella-50hz-test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-three-plus-three-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-faithful-multisprite-test stella-multisprite-test stella-diagnostic-test docs
+.PHONY: all tools rebuild fonts install stage-release-payload install-core install-examples install-libraries install-data uninstall uninstall-examples uninstall-libraries uninstall-data package windows installcheck tarball unit e2e test stella-50hz-test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-three-plus-three-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-faithful-multisprite-test stella-multisprite-test stella-diagnostic-test docs

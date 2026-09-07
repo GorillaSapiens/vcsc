@@ -316,7 +316,7 @@ This means `.include` and macros are **source-level features**, not parser-level
 
 `vcsc-as` loads its opcode table from config files:
 
-- `default.cfg` is always loaded automatically from the source-tree assembler directory or installed `share/cfg` directory
+- `default.cfg` is always loaded automatically from the source-tree assembler directory or installed `cfg` directory
 - `default.cfg` contains the official 6502 mnemonics plus `opXX` placeholder entries for otherwise unnamed opcode bytes, so raw opcode validation has metadata for all 256 byte values
 - `--illegals` additionally loads `illegals.cfg`, which adds friendly names for the unofficial opcode subset that fits the rich-opcode table model, accepts `ASR` as an alias for `ALR` and `SBX` as an alias for `AXS`, and includes one representative name for each duplicate unofficial `NOP` addressing family plus representative `KIL`, `JAM`, and `HLT` halt spellings
 - `--opcode-cfg <file>` loads one or more extra opcode tables

@@ -129,6 +129,18 @@ Open workstreams
    initializers that require backing objects retain their required storage
    semantics. Regression tests own the detailed placement/footprint expectations.
 
+Installed/release layout
+------------------------
+Installed and binary-release trees deliberately preserve the source library
+hierarchy under the package prefix: `libraries/vcs` and `libraries/runtime`.
+Assembler configuration files live in top-level `cfg`, tools in `bin`, and
+examples/addons retain their corresponding top-level names. Do not recreate the
+historical `share/`, `include/`, or `lib/` buckets. `packaging/install.manifest`
+owns the installed libraries and release payload. Installed example Makefiles
+retain `$(ROOT)/libraries/vcs`; only their driver path is rewritten to
+`$(ROOT)/bin/vcsc[.exe]`. Driver/runtime/profile lookup uses the same
+`libraries/...` relative paths in source and installed trees.
+
 Human-readable linked listings
 ------------------------------
 Final `.lst` sidecars now preserve C26/S26 source provenance through compile,

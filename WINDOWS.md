@@ -32,11 +32,11 @@ The zip contains one `vcsc` directory with:
 ```text
 vcsc/
   vcsc.cmd
-  bin/       Windows command-line tools
-  lib/       VCSC runtime archive
-  include/   runtime include files
-  share/     assembler configuration and Atari 2600 support files
-  examples/  editable example cartridges
+  bin/        Windows command-line tools
+  cfg/        assembler opcode configuration
+  libraries/  VCS support library and runtime, matching the source tree
+  examples/   editable example cartridges
+  addons/     editor/tool integration files
 ```
 
 The executables are linked so they do not require MinGW `libgcc`, `libstdc++`,
@@ -52,14 +52,14 @@ a PATH change.
 For example, in `cmd.exe`:
 
 ```bat
-vcsc.cmd -I share\vcs examples\01_basic\01_blank_screen\blank_screen.c26 -o blank_screen.bin
+vcsc.cmd -I libraries\vcs examples\01_basic\01_blank_screen\blank_screen.c26 -o blank_screen.bin
 bin\vcsc-disas.exe blank_screen.bin
 ```
 
 In PowerShell:
 
 ```powershell
-.\vcsc.cmd -I .\share\vcs .\examples\01_basic\01_blank_screen\blank_screen.c26 -o blank_screen.bin
+.\vcsc.cmd -I .\libraries\vcs .\examples\01_basic\01_blank_screen\blank_screen.c26 -o blank_screen.bin
 .\bin\vcsc-disas.exe blank_screen.bin
 ```
 
@@ -67,8 +67,8 @@ The driver locates `vcsc-cc1.exe`, `vcsc-as.exe`, `vcsc-ld.exe`, the runtime
 archive, and the installed support tree relative to `bin\vcsc.exe`, so the
 whole directory may be moved after unpacking.
 
-The packaged example Makefiles are rewritten to use `bin/vcsc.exe` and
-`share/vcs` from the package tree. They still use the Unix-oriented commands in
+The packaged example Makefiles are rewritten to use `bin/vcsc.exe`; their
+`libraries/vcs` path is unchanged from the source tree. They still use the Unix-oriented commands in
 the repository Makefiles (`rm`, `test`, `wc`, and GNU make syntax), so use them
 under an environment such as MSYS2. Native Windows users do not need make to
 invoke `vcsc.cmd` directly as shown above.

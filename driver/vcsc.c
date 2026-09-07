@@ -649,9 +649,9 @@ static void resolve_tool_paths(const char *self_path,
    build_installed_tool_path(ld_inst, sizeof(ld_inst), self_path, "vcsc-ld");
    build_installed_tool_path(ar_inst, sizeof(ar_inst), self_path, "vcsc-ar");
    build_installed_tool_path(sim_inst, sizeof(sim_inst), self_path, "vcsc-sim");
-   build_installed_prefix_path(runtime_inst, sizeof(runtime_inst), self_path, "lib", "libvcsc.l26");
-   build_installed_prefix_path(runtime_inc_inst, sizeof(runtime_inc_inst), self_path, "include", "vcsc-runtime.inc");
-   build_installed_prefix_path(vcs_profile_inst, sizeof(vcs_profile_inst), self_path, "share/vcs", "4K/mapper.c26");
+   build_installed_prefix_path(runtime_inst, sizeof(runtime_inst), self_path, "libraries/runtime", "libvcsc.l26");
+   build_installed_prefix_path(runtime_inc_inst, sizeof(runtime_inc_inst), self_path, "libraries/runtime", "vcsc-runtime.inc");
+   build_installed_prefix_path(vcs_profile_inst, sizeof(vcs_profile_inst), self_path, "libraries/vcs", "4K/mapper.c26");
 
    if (path_is_accessible(cc_inst, X_OK) &&
        path_is_accessible(as_inst, X_OK) &&

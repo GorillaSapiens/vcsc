@@ -73,13 +73,13 @@ When run from the built repository tree, it finds:
 When installed, it expects this layout under the same prefix:
 
 - `bin/vcsc`, `bin/vcsc-cc1`, `bin/vcsc-as`, `bin/vcsc-ld`, `bin/vcsc-ar`, `bin/vcsc-sim`
-- `lib/libvcsc.l26`
-- `include/vcsc-runtime.inc` for the assembler's implicit runtime include path; platform headers such as the VCS bindings are selected explicitly with `-I`
-- `share/vcs/4K/mapper.c26` for the default link
-- `share/vcs/2K/mapper.c26` for explicit 2048-byte cartridge builds
-- `share/vcs/F8/mapper.c26`, `E0/mapper.c26`, `FA/mapper.c26`, `F6/mapper.c26`, `F4/mapper.c26`, and their RAM/Superchip companions for explicit cartridge topology
+- `libraries/runtime/libvcsc.l26`
+- `libraries/runtime/vcsc-runtime.inc` for the assembler's implicit runtime include path; platform headers such as the VCS bindings are selected explicitly with `-I`
+- `libraries/vcs/4K/mapper.c26` for the default link
+- `libraries/vcs/2K/mapper.c26` for explicit 2048-byte cartridge builds
+- `libraries/vcs/F8/mapper.c26`, `E0/mapper.c26`, `FA/mapper.c26`, `F6/mapper.c26`, `F4/mapper.c26`, and their RAM/Superchip companions for explicit cartridge topology
 
-So the same binary works both from the source tree and from an installed prefix without extra path flags.
+The installed `libraries/` paths deliberately match the source-tree paths, so the same binary works in both layouts without extra path translation.
 
 ## Input kinds
 
