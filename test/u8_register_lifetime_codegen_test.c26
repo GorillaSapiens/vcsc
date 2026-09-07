@@ -1,0 +1,50 @@
+// vcsc-cc1 -I .
+// expectasmordered: ldy #$03
+// expectasmordered: lda remainder
+// expectasmordered: @u8_reglife_loop_
+// expectasmordered: cmp #$11
+// expectasmordered: bcc @u8_reglife_loop_end_
+// expectasmordered: sbc #$11
+// expectasmordered: iny
+// expectasmordered: bcs @u8_reglife_loop_
+// expectasmordered: @u8_reglife_loop_end_
+// expectasmordered: cmp #$09
+// expectasmordered: bcc @u8_reglife_if_end_
+// expectasmordered: iny
+// expectasmordered: adc #$00
+// expectasmordered: eor #$ff
+// expectasmordered: clc
+// expectasmordered: adc #$07
+// expectasmordered: and #$0f
+// expectasmordered: asl
+// expectasmordered: asl
+// expectasmordered: asl
+// expectasmordered: asl
+// expectasmordered: sta remainder
+// expectasmordered: sty quanta
+// forbidasm: inc quanta
+// forbidasm: inc remainder
+// forbidasm: sbc remainder
+// forbidasm: jmp @u8_reglife_loop_
+// forbidasm: __vcsc_scratch_
+include "machine_6502.c26"
+
+uint8_t remainder;
+uint8_t quanta;
+uint8_t sink;
+
+void main(void) {
+   quanta := 3;
+   while (remainder >= 17) {
+      remainder -= 17;
+      quanta++;
+   }
+   if (remainder >= 9) {
+      quanta++;
+      remainder++;
+   }
+   remainder := 6 - remainder;
+   remainder &= 0x0f;
+   remainder <<= 4;
+   sink := quanta;
+}

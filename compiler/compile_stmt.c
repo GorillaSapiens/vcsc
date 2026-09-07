@@ -971,6 +971,413 @@ static int compile_direct_u8_scalar_statement_chain(ASTNode *list, int start,
    return end - start;
 }
 
+
+//! @brief Return whether one ++/-- statement targets the exact direct byte reference.
+static bool stmt_direct_u8_incdec_matches_ref(Context *ctx, ASTNode *stmt,
+                                              const LValueRef *ref,
+                                              bool *increment_out,
+                                              LValueRef *resolved_out) {
+   ASTNode *u = (ASTNode *)unwrap_expr_node(stmt);
+   LValueRef lv;
+   bool increment = false;
+   bool pre = false;
+
+   if (!ctx || !u || !ref ||
+       !classify_incdec_lvalue_expr(u, &increment, &pre) ||
+       !resolve_lvalue(ctx, u, &lv) || !lv.name || !ref->name ||
+       strcmp(lv.name, ref->name) || lv.offset != ref->offset ||
+       lv.base_offset != ref->base_offset || lv.size != 1 || ref->size != 1 ||
+       lv.is_bitfield || ref->is_bitfield || lv.indirect || ref->indirect ||
+       lv.needs_runtime_address || ref->needs_runtime_address ||
+       lv.is_absolute_ref || ref->is_absolute_ref ||
+       declarator_pointer_depth(lv.declarator) != 0 ||
+       declarator_pointer_depth(ref->declarator) != 0 ||
+       type_is_signed_integer(lv.type) || type_is_signed_integer(ref->type) ||
+       type_is_bcd_integer(lv.type) || type_is_bcd_integer(ref->type)) {
+      return false;
+   }
+   (void)pre; /* The statement value is discarded. */
+   if (increment_out) *increment_out = increment;
+   if (resolved_out) *resolved_out = lv;
+   return true;
+}
+
+//! @brief Emit STY to one direct byte symbol selected by normal lvalue resolution.
+static void stmt_emit_store_y_to_direct_byte(const char *symbol, int offset) {
+   char expr_buf[256];
+   const char *formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+
+   if (offset == 0) emit(&es_code, "    sty %s\n", formatted);
+   else emit(&es_code, "    sty %s + %d\n", formatted, offset);
+}
+
+//! @brief Classify one `state := constant - state` byte update.
+static bool stmt_classify_live_a_constant_minus_self(Context *ctx, ASTNode *stmt,
+                                                       const LValueRef *state,
+                                                       unsigned char *constant_out,
+                                                       LValueRef *dst_out,
+                                                       LValueRef *src_out) {
+   ASTNode *rhs;
+   long long constant;
+   LValueRef dst;
+   LValueRef src;
+   const char *op;
+
+   if (!ctx || !stmt || !state || strcmp(stmt->name, "assign_expr") || stmt->count != 3 ||
+       !(op = stmt->children[0] ? stmt->children[0]->strval : NULL) || strcmp(op, ":=") ||
+       !stmt_direct_u8_lvalue_matches_ref(ctx, stmt->children[1], state, &dst)) {
+      return false;
+   }
+   rhs = (ASTNode *)unwrap_expr_node(stmt->children[2]);
+   if (!rhs || strcmp(rhs->name, "-") || rhs->count != 2 ||
+       !expr_is_integer_constant_expr(rhs->children[0], &constant) ||
+       constant < 0 || constant > 255 ||
+       !stmt_direct_u8_lvalue_matches_ref(ctx, rhs->children[1], state, &src)) {
+      return false;
+   }
+   if (constant_out) *constant_out = (unsigned char)constant;
+   if (dst_out) *dst_out = dst;
+   if (src_out) *src_out = src;
+   return true;
+}
+
+//! @brief Classify a direct live-A byte compound update with an immediate RHS.
+static bool stmt_classify_live_a_immediate_compound(Context *ctx, ASTNode *stmt,
+                                                     const LValueRef *state,
+                                                     LValueRef *dst_out,
+                                                     const char **op_out) {
+   const char *op;
+   long long constant;
+   LValueRef dst;
+
+   if (!ctx || !stmt || !state || strcmp(stmt->name, "assign_expr") || stmt->count != 3 ||
+       !(op = stmt->children[0] ? stmt->children[0]->strval : NULL) ||
+       (strcmp(op, "+=") && strcmp(op, "-=") && strcmp(op, "&=") &&
+        strcmp(op, "|=") && strcmp(op, "^=") && strcmp(op, "<<=") &&
+        strcmp(op, ">>=")) ||
+       !stmt_direct_u8_lvalue_matches_ref(ctx, stmt->children[1], state, &dst) ||
+       !expr_is_integer_constant_expr(stmt->children[2], &constant) ||
+       constant < 0 || constant > 255 ||
+       ((!strcmp(op, "<<=") || !strcmp(op, ">>=")) && constant >= 8)) {
+      return false;
+   }
+   if (dst_out) *dst_out = dst;
+   if (op_out) *op_out = op;
+   return true;
+}
+
+//! @brief Keep two direct byte values in A/Y across a repeated-subtraction region.
+//!
+//! This is a small register-lifetime allocator for a common byte-normalization
+//! shape, not a source-name peephole.  It recognizes an immediate-initialized
+//! byte accumulator, a `while (state >= k) { state -= k; accumulator++; }`
+//! loop, an optional same-state threshold `if`, and subsequent immediate
+//! arithmetic on `state`.  The state remains in A and the accumulator in Y;
+//! both are written back once at the first unsupported statement.  Every
+//! accepted nested operation is chosen specifically because it preserves the
+//! other live register, and the loop backedge uses the carry proven by CMP/SBC.
+static int compile_direct_u8_register_lifetime_chain(ASTNode *list, int start,
+                                                      Context *ctx) {
+   ASTNode *init;
+   ASTNode *while_stmt;
+   ASTNode *cond;
+   ASTNode *body;
+   ASTNode *first;
+   ASTNode *op_node;
+   const char *init_op;
+   LValueRef counter;
+   LValueRef state;
+   LValueRef update_state;
+   char counter_symbol[256];
+   char state_symbol[256];
+   long long init_value;
+   long long condition_value;
+   long long update_value;
+   int index;
+   int state_updates = 0;
+   const char *loop_label = NULL;
+   const char *loop_end_label = NULL;
+
+   if (!list || !ctx || start < 0 || start + 1 >= list->count) return 0;
+   init = list->children[start];
+   while_stmt = list->children[start + 1];
+   if (!init || strcmp(init->name, "assign_expr") || init->count != 3 ||
+       !(init_op = init->children[0] ? init->children[0]->strval : NULL) ||
+       strcmp(init_op, ":=") ||
+       !stmt_direct_u8_scalar_symbol(ctx, init->children[1], &counter,
+                                    counter_symbol, sizeof(counter_symbol)) ||
+       counter.object_is_const ||
+       !expr_is_integer_constant_expr(init->children[2], &init_value) ||
+       init_value < 0 || init_value > 255 ||
+       !while_stmt || strcmp(while_stmt->name, "while_stmt") || while_stmt->count < 2) {
+      return 0;
+   }
+
+   cond = (ASTNode *)unwrap_expr_node(while_stmt->children[0]);
+   body = while_stmt->children[1];
+   if (!cond || strcmp(cond->name, ">=") || cond->count != 2 ||
+       !expr_is_integer_constant_expr(cond->children[1], &condition_value) ||
+       condition_value <= 0 || condition_value > 255 ||
+       !stmt_direct_u8_scalar_symbol(ctx, cond->children[0], &state,
+                                    state_symbol, sizeof(state_symbol)) ||
+       state.object_is_const ||
+       (state.name && counter.name && !strcmp(state.name, counter.name) &&
+        state.offset == counter.offset && state.base_offset == counter.base_offset) ||
+       !body || strcmp(body->name, "statement_list") || body->count < 2) {
+      return 0;
+   }
+
+   first = body->children[0];
+   if (!first || strcmp(first->name, "assign_expr") || first->count != 3 ||
+       !(op_node = first->children[0]) || !op_node->strval || strcmp(op_node->strval, "-=") ||
+       !stmt_direct_u8_lvalue_matches_ref(ctx, first->children[1], &state, &update_state) ||
+       !expr_is_integer_constant_expr(first->children[2], &update_value) ||
+       update_value != condition_value) {
+      return 0;
+   }
+   for (int i = 1; i < body->count; ++i) {
+      if (!stmt_direct_u8_incdec_matches_ref(ctx, body->children[i], &counter, NULL, NULL)) {
+         return 0;
+      }
+   }
+
+   /* Require at least one following state update.  Without it there is no
+      cross-statement A lifetime to justify taking over this region. */
+   index = start + 2;
+   if (index < list->count && list->children[index] &&
+       !strcmp(list->children[index]->name, "if_stmt")) {
+      ASTNode *if_stmt = list->children[index];
+      ASTNode *if_cond = (ASTNode *)unwrap_expr_node(if_stmt->children[0]);
+      ASTNode *if_body = if_stmt->children[1];
+      long long threshold;
+      bool seen_state_increment = false;
+      bool if_ok = if_stmt->count >= 2 &&
+                   (if_stmt->count < 3 || !if_stmt->children[2] || is_empty(if_stmt->children[2])) &&
+                   if_cond && !strcmp(if_cond->name, ">=") && if_cond->count == 2 &&
+                   stmt_direct_u8_lvalue_matches_ref(ctx, if_cond->children[0], &state, NULL) &&
+                   expr_is_integer_constant_expr(if_cond->children[1], &threshold) &&
+                   threshold >= 0 && threshold <= 255 &&
+                   if_body && !strcmp(if_body->name, "statement_list") && if_body->count > 0;
+
+      if (if_ok) {
+         for (int i = 0; i < if_body->count; ++i) {
+            bool increment = false;
+            if (stmt_direct_u8_incdec_matches_ref(ctx, if_body->children[i], &counter,
+                                                  NULL, NULL)) {
+               continue;
+            }
+            if (!seen_state_increment &&
+                stmt_direct_u8_incdec_matches_ref(ctx, if_body->children[i], &state,
+                                                  &increment, NULL) && increment) {
+               seen_state_increment = true;
+               continue;
+            }
+            if_ok = false;
+            break;
+         }
+      }
+      if (if_ok) index++;
+   }
+
+   {
+      int probe = index;
+      while (probe < list->count) {
+         unsigned char c;
+         LValueRef dst;
+         LValueRef src;
+         const char *op;
+         if (stmt_classify_live_a_constant_minus_self(ctx, list->children[probe], &state,
+                                                       &c, &dst, &src) ||
+             stmt_classify_live_a_immediate_compound(ctx, list->children[probe], &state,
+                                                      &dst, &op)) {
+            state_updates++;
+            probe++;
+            continue;
+         }
+         break;
+      }
+      if (state_updates == 0) return 0;
+   }
+
+   loop_label = next_label("u8_reglife_loop");
+   loop_end_label = next_label("u8_reglife_loop_end");
+   if (!loop_label || !loop_end_label) {
+      free((void *)loop_label);
+      free((void *)loop_end_label);
+      return 0;
+   }
+
+   /* The caller already emitted the source marker for the initializer. */
+   {
+      LValueRef init_counter;
+      if (!stmt_direct_u8_lvalue_matches_ref(ctx, init->children[1], &counter, &init_counter)) {
+         error_unreachable("prevalidated register-lifetime initializer lost its lvalue");
+      }
+      require_lvalue_writable(&init_counter);
+      emit_lvalue_semantic_use(ctx, &init_counter, "write");
+      emit(&es_code, "    ldy #$%02x\n", (unsigned int)init_value);
+   }
+
+   emit_statement_source_marker(while_stmt);
+   {
+      LValueRef cond_state;
+      if (!stmt_direct_u8_lvalue_matches_ref(ctx, cond->children[0], &state, &cond_state)) {
+         error_unreachable("prevalidated register-lifetime loop condition lost its lvalue");
+      }
+      require_lvalue_readable(&cond_state);
+      emit_lvalue_semantic_use(ctx, &cond_state, "read");
+      if (!emit_load_direct_byte_lvalue_to_a(ctx, &cond_state)) {
+         error_unreachable("prevalidated register-lifetime state became non-direct");
+      }
+   }
+   emit(&es_code, "%s:\n", loop_label);
+   emit(&es_code, "    cmp #$%02x\n", (unsigned int)condition_value);
+   emit(&es_code, "    bcc %s\n", loop_end_label);
+
+   emit_statement_source_marker(first);
+   {
+      LValueRef exact_state;
+      if (!stmt_direct_u8_lvalue_matches_ref(ctx, first->children[1], &state, &exact_state)) {
+         error_unreachable("prevalidated register-lifetime subtraction lost its lvalue");
+      }
+      require_lvalue_readable(&exact_state);
+      require_lvalue_writable(&exact_state);
+      emit_lvalue_semantic_use(ctx, &exact_state, "read");
+      emit_lvalue_semantic_use(ctx, &exact_state, "write");
+   }
+   /* CMP proved A >= k, so carry is set and remains set after SBC. */
+   emit(&es_code, "    sbc #$%02x\n", (unsigned int)condition_value);
+   for (int i = 1; i < body->count; ++i) {
+      bool increment = false;
+      LValueRef exact_counter;
+      emit_statement_source_marker(body->children[i]);
+      if (!stmt_direct_u8_incdec_matches_ref(ctx, body->children[i], &counter,
+                                            &increment, &exact_counter)) {
+         error_unreachable("prevalidated register-lifetime loop counter changed shape");
+      }
+      require_lvalue_readable(&exact_counter);
+      require_lvalue_writable(&exact_counter);
+      emit_lvalue_semantic_use(ctx, &exact_counter, "read");
+      emit_lvalue_semantic_use(ctx, &exact_counter, "write");
+      emit(&es_code, increment ? "    iny\n" : "    dey\n");
+   }
+   emit(&es_code, "    bcs %s\n", loop_label);
+   emit(&es_code, "%s:\n", loop_end_label);
+
+   index = start + 2;
+   if (index < list->count && list->children[index] &&
+       !strcmp(list->children[index]->name, "if_stmt")) {
+      ASTNode *if_stmt = list->children[index];
+      ASTNode *if_cond = (ASTNode *)unwrap_expr_node(if_stmt->children[0]);
+      ASTNode *if_body = if_stmt->children[1];
+      long long threshold;
+      bool if_matches = if_stmt->count >= 2 &&
+                        (if_stmt->count < 3 || !if_stmt->children[2] || is_empty(if_stmt->children[2])) &&
+                        if_cond && !strcmp(if_cond->name, ">=") && if_cond->count == 2 &&
+                        stmt_direct_u8_lvalue_matches_ref(ctx, if_cond->children[0], &state, NULL) &&
+                        expr_is_integer_constant_expr(if_cond->children[1], &threshold) &&
+                        threshold >= 0 && threshold <= 255 &&
+                        if_body && !strcmp(if_body->name, "statement_list") && if_body->count > 0;
+      if (if_matches) {
+         const char *if_end = next_label("u8_reglife_if_end");
+         bool state_incremented = false;
+         if (!if_end) error_unreachable("register-lifetime if label allocation failed");
+         emit_statement_source_marker(if_stmt);
+         {
+            LValueRef exact_state;
+            if (!stmt_direct_u8_lvalue_matches_ref(ctx, if_cond->children[0], &state,
+                                                   &exact_state)) {
+               error_unreachable("prevalidated register-lifetime if condition changed shape");
+            }
+            require_lvalue_readable(&exact_state);
+            emit_lvalue_semantic_use(ctx, &exact_state, "read");
+         }
+         emit(&es_code, "    cmp #$%02x\n", (unsigned int)threshold);
+         emit(&es_code, "    bcc %s\n", if_end);
+         for (int i = 0; i < if_body->count; ++i) {
+            bool increment = false;
+            LValueRef exact;
+            emit_statement_source_marker(if_body->children[i]);
+            if (stmt_direct_u8_incdec_matches_ref(ctx, if_body->children[i], &counter,
+                                                  &increment, &exact)) {
+               require_lvalue_readable(&exact);
+               require_lvalue_writable(&exact);
+               emit_lvalue_semantic_use(ctx, &exact, "read");
+               emit_lvalue_semantic_use(ctx, &exact, "write");
+               emit(&es_code, increment ? "    iny\n" : "    dey\n");
+               continue;
+            }
+            if (!state_incremented &&
+                stmt_direct_u8_incdec_matches_ref(ctx, if_body->children[i], &state,
+                                                  &increment, &exact) && increment) {
+               require_lvalue_readable(&exact);
+               require_lvalue_writable(&exact);
+               emit_lvalue_semantic_use(ctx, &exact, "read");
+               emit_lvalue_semantic_use(ctx, &exact, "write");
+               /* No prior accepted operation changes carry, so CMP's C=1 is
+                  exactly the +1 required by this discarded byte increment. */
+               emit(&es_code, "    adc #$00\n");
+               state_incremented = true;
+               continue;
+            }
+            error_unreachable("prevalidated register-lifetime if body changed shape");
+         }
+         emit(&es_code, "%s:\n", if_end);
+         free((void *)if_end);
+         index++;
+      }
+   }
+
+   for (;;) {
+      ASTNode *stmt;
+      unsigned char constant;
+      LValueRef dst;
+      LValueRef src;
+      const char *op;
+      if (index >= list->count) break;
+      stmt = list->children[index];
+      if (stmt_classify_live_a_constant_minus_self(ctx, stmt, &state,
+                                                    &constant, &dst, &src)) {
+         emit_statement_source_marker(stmt);
+         require_lvalue_readable(&src);
+         require_lvalue_writable(&dst);
+         emit_lvalue_semantic_use(ctx, &src, "read");
+         emit_lvalue_semantic_use(ctx, &dst, "write");
+         /* C - A == ~A + C + 1, modulo one byte. */
+         emit(&es_code, "    eor #$ff\n");
+         emit(&es_code, "    clc\n");
+         emit(&es_code, "    adc #$%02x\n", (unsigned int)((constant + 1u) & 0xffu));
+         index++;
+         continue;
+      }
+      if (stmt_classify_live_a_immediate_compound(ctx, stmt, &state, &dst, &op)) {
+         emit_statement_source_marker(stmt);
+         require_lvalue_readable(&dst);
+         require_lvalue_writable(&dst);
+         emit_lvalue_semantic_use(ctx, &dst, "read");
+         emit_lvalue_semantic_use(ctx, &dst, "write");
+         if (!stmt_emit_u8_compound_to_live_a(ctx, &dst, op, stmt->children[2])) {
+            error_unreachable("prevalidated register-lifetime compound became invalid");
+         }
+         index++;
+         continue;
+      }
+      break;
+   }
+
+   /* Materialize both source-language objects once before generic lowering
+      resumes.  Their semantic writes were already attributed to the exact
+      source statements above; these stores are only register spill code. */
+   if (!emit_store_a_to_direct_byte_lvalue(ctx, &state)) {
+      error_unreachable("prevalidated register-lifetime state spill became invalid");
+   }
+   stmt_emit_store_y_to_direct_byte(counter_symbol, counter.offset);
+
+   free((void *)loop_label);
+   free((void *)loop_end_label);
+   return index - start;
+}
+
 //! @brief Recognize `if (!x) x := constant` for one ordinary direct byte.
 static bool classify_direct_u8_zero_replacement_if(ASTNode *node, Context *ctx,
                                                     const LValueRef *state,
@@ -3934,6 +4341,12 @@ static void compile_statement_list_range(ASTNode *node, Context *ctx, int start_
       int direct_u8_chain_count = 0;
 
       emit_statement_source_marker(stmt);
+
+      direct_u8_chain_count = compile_direct_u8_register_lifetime_chain(node, i, ctx);
+      if (direct_u8_chain_count > 0) {
+         i += direct_u8_chain_count - 1;
+         continue;
+      }
 
       direct_u8_chain_count = compile_direct_u8_scalar_statement_chain(node, i, ctx);
       if (direct_u8_chain_count > 0) {
