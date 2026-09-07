@@ -429,6 +429,24 @@ underscores, and width overflow after normalization.
 constant-expression divisors, reversed multiplication, width overflow/truncation,
 and the absence of general multiply/divide helpers or decimal-mode entry.
 
+
+`vcs_scalar_operator_cartesian.pl` is the systematic scalar operator matrix. It
+runs every scalar value/mutation operator that is uniformly meaningful for a
+stock scalar variable across `int8_t`/`uint8_t` through `int32_t`/`uint32_t`
+and `bcd8_t` through `bcd32_t`, in both ordinary RAM and split `cartram`.
+The legal side is runtime checked (896 type/storage/operator cells), including
+assignment-expression values, same-type casts, `sizeof`, unary operators,
+arithmetic, bitwise/shift where legal, comparisons, logical operators, all
+compound assignments, prefix/postfix increment/decrement, conditional, and
+comma. The BCD rejection side adds 144 compile-fail cells for unary minus and
+complement, bitwise/shift operations and compounds, and unsupported variable
+`*`/`/`/`%` forms and compounds. Its generic simulator topology uses the real
+Superchip aliases (`$F080` reads, `$F000` writes), and map checks prove every
+`cartram` operand is split while every RAM operand is ordinary memory. Pointer,
+member/index, call, and other operators whose domain is not a scalar value are
+covered by their dedicated pointer/aggregate tests rather than being forced into
+this Cartesian product.
+
 `discard_store_codegen_test.c26`, `discard_store_register_transparent_codegen_test.c26`,
 `discard_store_chain_codegen_test.c26`, and `discard_result_codegen_test.c26` cover the dedicated lone-underscore
 discard token. They lock direct `WSYNC := _` lowering to a bare `STA`, prove that

@@ -1,4 +1,4 @@
-BCD RAM/cartram mutation matrix
+2026-09-07 08:37:29 PDT, BCD RAM/cartram mutation matrix
 -------------------------------
 Added `test/vcs_bcd_ram_cartram_operators.pl` with static fixture
 `test/fixtures/vcs_bcd_ram_cartram_operators.c26`. The F4SC simulator test
@@ -12,3 +12,35 @@ the four RAM operands are ordinary RAM. One storage/type pair is pinned per
 F4SC bank to keep the fully explicit matrix comfortably within ROM capacity.
 Validation: 525/525 compile-only, 13/13 BCD-focused e2e, and
 `source_tree_hygiene.pl` pass.
+
+2026-09-07 08:55:31 PDT, add scalar operator Cartesian coverage
+Fixed the malformed first entry in today's history file by restoring the required
+timestamped entry header; `context_history_format.pl` and `source_tree_hygiene.pl`
+now accept the file.
+
+Added `test/vcs_scalar_operator_cartesian.pl` plus
+`test/scalar_operator_cartesian.cfg`. The generated e2e matrix covers every
+scalar value/mutation operator that is uniformly meaningful for the 12 stock
+scalar types (`int8_t`/`uint8_t` through `int32_t`/`uint32_t`, plus `bcd8_t`
+through `bcd32_t`) in both ordinary RAM and split `cartram`. The legal side has
+896 runtime-checked type/storage/operator cells: assignment expression, same-type
+cast, `sizeof`, unary operators, arithmetic, ordinary-integer bitwise/shift,
+comparisons, logical operators, all applicable compound assignments,
+prefix/postfix increment/decrement, conditional, and comma. BCD multiply,
+divide, and remainder cells use their supported constant forms, including both
+multiplication operand orders.
+
+The same test adds 144 explicit compile-fail cells for every BCD width in both
+RAM and `cartram`: unary minus/complement, bitwise/shift operators and compounds,
+and unsupported variable `*`, `/`, `%`, `*=`, `/=`, `%=`. Total Cartesian
+coverage is 1040 cells. The generic simulator topology uses the real Superchip
+split aliases (`$F080` read / `$F000` write); map assertions prove all cart
+operands are split and all RAM operands are ordinary. Pointer/member/index/call
+operators remain in their dedicated tests because they are not operators over a
+scalar value domain. Documented unary `+` as a supported packed-BCD operation.
+
+Validation: the new Cartesian test and the existing F4SC BCD RAM/cartram mutation
+matrix both pass; compile-only is 525/525; history-format and source-tree hygiene
+pass. A broad e2e run was clean through 227/360 before the known VCS-heavy tail
+exceeded the local execution window. No compiler/linker production code changed
+in this task.

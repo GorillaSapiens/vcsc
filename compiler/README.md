@@ -369,8 +369,8 @@ not change conversion: `42`, `0x2a`, `052`, and `0b101010` all become packed
 BCD `$42` in a `bcd8_t` destination.
 
 Supported BCD operations are assignment, same-representation widening or
-truncation, `+`, `-`, `+=`, `-=`, prefix/postfix `++` and `--`, comparisons,
-truth tests, logical operators, and `switch` comparison. Several constant
+truncation, unary `+`, `+`, `-`, `+=`, `-=`, prefix/postfix `++` and `--`,
+comparisons, truth tests, logical operators, and `switch` comparison. Several constant
 multiply/divide/remainder forms also lower inline:
 
 - multiplication, division, and remainder by a positive constant expression
