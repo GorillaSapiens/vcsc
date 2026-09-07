@@ -235,3 +235,24 @@ multisprite and wide-score emulator-backed raster checks. Compile-only remains
 tail exceeds this container window; a separate VCS-tail run is clean through
 its first 33 ordinary cases, including the three reported failures encountered
 in that range.
+
+2026-09-07 16:08:33 PDT, replace compact score asm with shared C26
+----------------------------------------------------------
+Removed `examples/14_multisprite/fixed_six_digit_controls_compact.c26` and its
+102 ordinary inline-asm statements. Both public 181-line multisprite score
+examples now use the same readable `examples/common/fixed_six_digit_controls.c26`
+as the other six-digit examples; their Makefiles depend on that shared source.
+The public-score regression explicitly rejects resurrection of the obsolete
+compact duplicate, and the example asm allowlist drops it.
+
+To preserve the old 101-byte RAM footprint, the direct packed-BCD array compound
+lowering now computes a three-byte element offset as `2*index + index` directly
+from an addressable byte index instead of parking the index in runtime `arg0`.
+`bcd_indexed_array_compound_codegen_test.c26` requires the direct load/ASL/ADC
+shape and forbids `arg0`. The multisprite score profiles are 3650/4090 ROM and
+101/128 RAM, leaving 440 ROM bytes free; runtime score-control and raster tests
+pass. Wide six-glyph examples also legitimately shrink 2891->2887 ROM and
+53->52 RAM from the same improvement. Compile-only is 526/526, all 13 BCD e2e
+tests pass, affected public-score/profile tests pass, and a broad e2e run is
+clean through 229/363 before the usual VCS-heavy tail exceeds the execution
+window. Main-roadmap Item 55 is next.

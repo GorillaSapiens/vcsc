@@ -68,18 +68,20 @@ for my $family (@families) {
    }
 }
 $six_public==24 or die "found $six_public shared six-digit control examples, expected 24\n";
+!-e File::Spec->catfile($repo,qw(examples 14_multisprite fixed_six_digit_controls_compact.c26))
+   or die "obsolete multisprite compact score-control duplicate returned\n";
 
-# The two 181-line multisprite score compositions use a compact packed-BCD
-# implementation so they do not pull unnecessary generic runtime workspace.
+# The two 181-line multisprite score compositions now use the same readable
+# C26 packed-BCD controls as the other public six-digit examples.
 for my $parts (
    [qw(14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26)],
    [qw(14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26)],
 ) {
    my $path=File::Spec->catfile($repo,'examples',@$parts);
    my $text=read_file($path);
-   $text =~ /include "\.\.\/\.\.\/fixed_six_digit_controls_compact\.c26"/ &&
+   $text =~ /include "\.\.\/\.\.\/\.\.\/common\/fixed_six_digit_controls\.c26"/ &&
    $text =~ /update_score_controls\(\);/
-      or die "$path does not use the compact right-joystick score controls\n";
+      or die "$path does not use the shared C26 right-joystick score controls\n";
    ++$six_public;
 }
 

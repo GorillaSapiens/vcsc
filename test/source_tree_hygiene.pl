@@ -814,7 +814,6 @@ index($install_manifest,'libraries/vcs/UASW/mapper.cfg')<0 &&
 for my $moved (
    [qw(09_bankswitching 09_ua ua_diagnostic_common.c26)],
    [qw(16_all_five_player_color_181 all_five_player_color_181_interactive_common.c26)],
-   [qw(14_multisprite fixed_six_digit_controls_compact.c26)],
    [qw(06_all_five_181 three_plus_three_controls.c26)],
    [qw(17_video_standards multisprite_228_interactive_common.c26)],
 ) {

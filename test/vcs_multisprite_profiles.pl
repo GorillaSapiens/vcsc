@@ -110,8 +110,8 @@ $score_component =~ /parameter\s+mutable_color\s*:=\s*0/
 
 my @examples=(
    ['192',qw(examples 14_multisprite 01_192 01_interactive multisprite_192_interactive.c26),2621,84,78,6],
-   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3603,101,95,6],
-   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3603,101,95,6],
+   ['181-score-above',qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26),3650,101,95,6],
+   ['181-score-below',qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26),3650,101,95,6],
 );
 my %bins;
 my %maps;
@@ -187,8 +187,8 @@ for my $mode (qw(181-score-above 181-score-below)) {
       ? qw(examples 14_multisprite 02_181_score_above 01_interactive multisprite_181_score_above_interactive.c26)
       : qw(examples 14_multisprite 03_181_score_below 01_interactive multisprite_181_score_below_interactive.c26);
    my $itext=read_file(File::Spec->catfile($repo,@parts));
-   $itext =~ /include "\.\.\/\.\.\/fixed_six_digit_controls_compact\.c26"/
-      or die "$mode interactive score lost compact shared right-joystick controls\n";
+   $itext =~ /include "\.\.\/\.\.\/\.\.\/common\/fixed_six_digit_controls\.c26"/
+      or die "$mode interactive score lost shared C26 right-joystick controls\n";
    $itext =~ /update_multisprite_controls\(\);\s*update_score_controls\(\);/s
       or die "$mode interactive score controls are not updated during overscan\n";
 }

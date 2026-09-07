@@ -7,10 +7,11 @@ VCSC ?= $(ROOT)/driver/vcsc
 TARGET := multisprite_181_score_above_interactive.bin
 SOURCE := multisprite_181_score_above_interactive.c26
 COMMON := $(ROOT)/examples/common/multisprite_interactive_common.c26
+SCORE_CONTROLS := $(ROOT)/examples/common/fixed_six_digit_controls.c26
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCE) $(COMMON) ../../fixed_six_digit_controls_compact.c26 \
+$(TARGET): $(SOURCE) $(COMMON) $(SCORE_CONTROLS) \
            $(VCS_DIR)/vcs.c26 \
            $(VCS_DIR)/frame_ntsc.c26 \
            $(VCS_DIR)/color_ntsc.c26 \

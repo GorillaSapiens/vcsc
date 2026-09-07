@@ -2764,10 +2764,26 @@ static bool compile_direct_bcd_array_compound(Context *ctx, const LValueRef *dst
       emit(&es_code, "    asl\n");
    }
    else if (size == 3) {
-      emit(&es_code, "    sta arg0\n");
-      emit(&es_code, "    asl\n");
-      emit(&es_code, "    clc\n");
-      emit(&es_code, "    adc arg0\n");
+      DirectByteOperand index_operand;
+
+      /* For a directly addressable byte index, form 3*index as 2*index+index
+         straight from the original storage.  The old lowering parked index in
+         runtime arg0 solely to recover it after ASL; that cost one persistent
+         zero-page byte even though the source value is still directly readable. */
+      if (classify_direct_u8_value_operand(ctx, index, &index_operand) &&
+          direct_byte_operand_is_alu_memory(&index_operand)) {
+         emit(&es_code, "    asl\n");
+         emit(&es_code, "    clc\n");
+         if (!emit_alu_direct_byte_operand(ctx, "adc", &index_operand)) {
+            return false;
+         }
+      }
+      else {
+         emit(&es_code, "    sta arg0\n");
+         emit(&es_code, "    asl\n");
+         emit(&es_code, "    clc\n");
+         emit(&es_code, "    adc arg0\n");
+      }
    }
    else if (size == 4) {
       emit(&es_code, "    asl\n    asl\n");

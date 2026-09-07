@@ -1,7 +1,7 @@
 // vcsc-cc1 -I .
-// expectasmordered: sta arg0
+// expectasmordered: lda digit
 // expectasmordered: asl
-// expectasmordered: adc arg0
+// expectasmordered: adc digit
 // expectasmordered: tay
 // expectasmordered: sed
 // expectasmordered: adc weights,y
@@ -10,6 +10,7 @@
 // expectasmordered: sed
 // expectasmordered: sbc weights,y
 // expectasmordered: cld
+// forbidasm: arg0
 // forbidasm: _mul8
 // forbidasm: __vcsc_scratch_
 include "machine_6502.c26"
