@@ -1,0 +1,53 @@
+// vcsc-cc1 -I .
+// expectasmordered: ldx selected
+// expectasmordered: lda xpos,x
+// expectasmordered: dec xpos,x
+// expectasmordered: bmi @if_false_
+// expectasmordered: inc xpos,x
+// expectasmordered: inc ypos,x
+// expectasmordered: rts
+// expectasmordered: dec ypos,x
+// forbidcountasm: ldx selected|1
+// forbidasm: motion$object
+// forbidasm: and #$80
+// forbidasm: __vcsc_scratch_
+
+include "machine_6502.c26"
+
+uint8_t SWCHA@[none/0x0280];
+uint8_t selected;
+uint8_t xpos[6];
+uint8_t ypos[6];
+
+void motion(void) {
+   uint8_t object := selected;
+
+   if (!(SWCHA & 0x40)) {
+      if (xpos[object]) {
+         xpos[object]--;
+      }
+   }
+   else {
+      if (!(SWCHA & 0x80)) {
+         if (xpos[object] < 159) {
+            xpos[object]++;
+         }
+      }
+   }
+
+   if (!(SWCHA & 0x10)) {
+      if (ypos[object] < 95) {
+         ypos[object]++;
+      }
+      return;
+   }
+   if (!(SWCHA & 0x20)) {
+      if (ypos[object]) {
+         ypos[object]--;
+      }
+   }
+}
+
+void main(void) {
+   motion();
+}

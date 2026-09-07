@@ -181,3 +181,32 @@ CV, JANE, 0840, UA/UASW, 0FA0, 3F/3E, FE, WD, DPC, FA2, FC, and F0. The 3F max
 diagnostic also passes its 512K / 65,535-call torture run. Compiler compile-only
 validation remains 525/525. The next main-roadmap item is enhanced-asymmetric
 initialization and joystick-motion conversion to C26.
+
+2026-09-07 15:28:14 PDT, convert asymmetric controls to C26
+-------------------------------
+Completed main-roadmap Item 53. The public 192-line enhanced-asymmetric example
+now implements scene initialization and joystick motion in ordinary C26; its
+C26 source contains no inline asm. The visible renderer and custom startup
+assembly are unchanged.
+
+Added a narrow general byte-index lifetime optimization: an initialized unsigned
+byte local may remain register-only in X when every subsequent use is proven to
+be an array index and the statement tail cannot clobber X. Direct byte
+initializers can load X without an A/TAX detour, and direct truth tests of
+`byte & 0x80` use the 6502 N flag instead of emitting `AND #$80`. Ordinary
+out-of-line void `return;` lowers directly to RTS because VCSC functions have
+no dynamic epilogue; inline returns retain their convergence label. The
+register-only local analysis explicitly rejects bare-value uses after broad
+e2e testing exposed unresolved suppressed-local symbols in memory-authority and
+inline-IR tests.
+
+The converted example remains an unbanked 4K cartridge at 3996/4090 ROM and
+115/128 RAM. `update_asymmetric_motion()` remains exactly the former 61-byte
+size; the readable ascending initialization loop is 59 bytes versus the former
+57-byte descending asm. The full asymmetric renderer/timing harness passes its
+stable-raster, dense-X, phase-edge, continuous-X, and combined X/Y stress.
+`test/register_local_x_tail_codegen_test.c26` locks the generic codegen, the
+example assembly allowlist dropped this source, and the asymmetric regression
+rejects any inline asm returning to the public C26 source. Compile-only is
+526/526; the two unrelated e2e regressions found during development pass after
+the index-only safety restriction. The main roadmap now starts with Item 54.

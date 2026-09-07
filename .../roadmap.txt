@@ -18,12 +18,7 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 53, convert enhanced-asymmetric initialization and joystick motion to C26.
-
-[ ] 53. Convert enhanced-asymmetric initialization and joystick motion to C26.
-
-        * Remove ordinary initialization/motion asm outside the visible renderer.
-        * Preserve renderer timing contracts and current cartridge footprint.
+Current next action: Item 54, revisit compact six-digit score controls using current C26/BCD codegen.
 
 [ ] 54. Revisit compact six-digit score controls using current C26/BCD codegen.
 

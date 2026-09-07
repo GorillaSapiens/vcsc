@@ -32,6 +32,9 @@ my$example_dir=File::Spec->catdir($repo,qw(examples 18_enhanced_multisprite 01_1
 my$example=File::Spec->catfile($example_dir,'enhanced_multisprite_192_asymmetric.c26');
 my$startup=File::Spec->catfile($example_dir,'enhanced_multisprite_192_asymmetric_startup.s26');
 my$text=read_file($renderer);
+my$example_text=read_file($example);
+$example_text !~ /\basm\b/
+   or die "public asymmetric example regained inline asm\n";
 
 $text =~ /TEMPLATE_HARDWARE_LANES\s*:=\s*2/ or die "asymmetric renderer lost two-lane contract\n";
 $text =~ /parameter lines;/ or die "asymmetric renderer lost lines parameter\n";

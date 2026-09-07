@@ -2408,9 +2408,11 @@ static bool counted_loop_x_safe_discard_store(ASTNode *stmt, Context *ctx,
 }
 
 //! @brief Verify a small counted-loop body cannot clobber its X-backed counter.
-static bool counted_loop_x_safe_body(ASTNode *body, Context *ctx, const char *counter) {
+static bool counted_loop_x_safe_body_range(ASTNode *body, Context *ctx,
+                                               const char *counter, int start) {
    if (!body || strcmp(body->name, "statement_list")) return false;
-   for (int i = 0; i < body->count; ++i) {
+   if (start < 0) start = 0;
+   for (int i = start; i < body->count; ++i) {
       ASTNode *stmt = body->children[i];
       ASTNode *target;
       ASTNode *rhs;
@@ -2419,11 +2421,15 @@ static bool counted_loop_x_safe_body(ASTNode *body, Context *ctx, const char *co
                    !strcmp(stmt->name, "continue_stmt"))) {
          continue;
       }
+      if (stmt && !strcmp(stmt->name, "return_stmt") &&
+          (stmt->count == 0 || !stmt->children[0] || is_empty(stmt->children[0]))) {
+         continue;
+      }
       if (stmt && !strcmp(stmt->name, "if_stmt") && stmt->count >= 2) {
          bool c_ok = counted_loop_x_safe_byte_expr(stmt->children[0], ctx, counter);
-         bool t_ok = c_ok && counted_loop_x_safe_body(stmt->children[1], ctx, counter);
+         bool t_ok = c_ok && counted_loop_x_safe_body_range(stmt->children[1], ctx, counter, 0);
          bool e_ok = t_ok && (stmt->count < 3 || !stmt->children[2] || is_empty(stmt->children[2]) ||
-                              counted_loop_x_safe_body(stmt->children[2], ctx, counter));
+                              counted_loop_x_safe_body_range(stmt->children[2], ctx, counter, 0));
          if (c_ok && t_ok && e_ok) continue;
          return false;
       }
@@ -2462,6 +2468,10 @@ static bool counted_loop_x_safe_body(ASTNode *body, Context *ctx, const char *co
       }
    }
    return true;
+}
+
+static bool counted_loop_x_safe_body(ASTNode *body, Context *ctx, const char *counter) {
+   return counted_loop_x_safe_body_range(body, ctx, counter, 0);
 }
 
 //! @brief Return the bare object name operated on by one ++/-- expression.
@@ -3924,7 +3934,14 @@ static void compile_return_stmt(ASTNode *node, Context *ctx) {
    const char *return_label = (ctx && ctx->return_label) ? ctx->return_label : "@fini";
 
    if (!expr || is_empty(expr)) {
-      emit(&es_code, "    jmp %s\n", return_label);
+      /* Out-of-line functions have no dynamic epilogue: @fini is literally
+         RTS (main is the reset tail).  Inline expansions use a distinct
+         convergence label and therefore retain the jump. */
+      if (ctx && ctx->return_label && !strcmp(ctx->return_label, "@fini") &&
+          ctx->name && strcmp(ctx->name, "main"))
+         emit(&es_code, "    rts\n");
+      else
+         emit(&es_code, "    jmp %s\n", return_label);
       return;
    }
 
@@ -4326,6 +4343,109 @@ static void compile_asm_stmt(ASTNode *node, Context *ctx) {
 
 
 //! @brief Lower a suffix of one statement list.
+static void compile_statement_list_range(ASTNode *node, Context *ctx, int start_index);
+
+//! @brief Require every use of a register-only local to be an array index.
+//!
+//! The counted-loop safety checker also permits the live X variable as an
+//! ordinary byte expression.  That is useful for loops, but this tail-local
+//! allocation intentionally has a narrower contract: X is the address index
+//! and no storage symbol is emitted.  Reject bare value uses so later generic
+//! expression paths can never name the suppressed local slot.
+static bool register_x_local_uses_are_indexes(ASTNode *node, const char *name,
+                                               bool index_context) {
+   const char *bare;
+   if (!node || !name) return true;
+
+   bare = expr_bare_identifier_name((ASTNode *)unwrap_expr_node(node));
+   if (bare && !strcmp(bare, name)) return index_context;
+   if (node->kind == AST_IDENTIFIER && node->strval && !strcmp(node->strval, name))
+      return index_context;
+
+   if (!strcmp(node->name, "[") && node->count >= 2) {
+      if (node->children[0] && !register_x_local_uses_are_indexes(node->children[0], name, false))
+         return false;
+      return !node->children[1] ||
+             register_x_local_uses_are_indexes(node->children[1], name, true);
+   }
+   for (int i = 0; i < node->count; ++i) {
+      if (node->children[i] &&
+          !register_x_local_uses_are_indexes(node->children[i], name, index_context))
+         return false;
+   }
+   return true;
+}
+
+static bool register_x_local_tail_uses_are_indexes(ASTNode *node, const char *name, int start) {
+   if (!node || strcmp(node->name, "statement_list")) return false;
+   for (int i = start; i < node->count; ++i) {
+      if (node->children[i] &&
+          !register_x_local_uses_are_indexes(node->children[i], name, false))
+         return false;
+   }
+   return true;
+}
+
+//! @brief Keep one initialized byte local in X for a proven-safe statement tail.
+//!
+//! This is the non-loop counterpart to the counted-loop X allocator.  It is
+//! intentionally narrow: one ordinary unsigned-byte local declaration, one
+//! side-effect-safe byte initializer, and a remaining statement tail already
+//! proven not to clobber X.  The source local keeps normal lexical semantics but
+//! needs no activation storage when every use can consume the live X value.
+static int compile_register_x_local_tail(ASTNode *node, int start, Context *ctx) {
+   ASTNode *stmt;
+   ASTNode *list;
+   ASTNode *item;
+   ASTNode *modifiers;
+   ASTNode *type;
+   ASTNode *declarator;
+   ASTNode *initializer;
+   const char *name;
+   ContextEntry *entry;
+   bool saved_register_x_active;
+   bool saved_entry_register_x;
+
+   if (!node || !ctx || ctx->register_x_active || start < 0 || start >= node->count)
+      return 0;
+   stmt = node->children[start];
+   if (!stmt || strcmp(stmt->name, "defdecl_stmt") || stmt->count < 1 ||
+       !(list = stmt->children[0]) || list->count != 1 ||
+       !(item = list->children[0]) || item->count < 4 || !is_empty(item->children[0]))
+      return 0;
+
+   modifiers = item->children[0];
+   type = item->children[1];
+   declarator = (ASTNode *)stmt_decl_node_declarator(item);
+   initializer = item->children[item->count - 1];
+   name = declarator_name(declarator);
+   if (!name || !is_empty(modifiers) || is_empty(initializer) ||
+       type_size_from_node(type) != 1 || type_is_signed_integer(type) ||
+       type_is_bcd_integer(type) || declarator_pointer_depth(declarator) != 0 ||
+       !counted_loop_x_safe_byte_expr(initializer, ctx, NULL) ||
+       !counted_loop_x_safe_body_range(node, ctx, name, start + 1) ||
+       !register_x_local_tail_uses_are_indexes(node, name, start + 1))
+      return 0;
+
+   entry = ctx_lookup(ctx, name);
+   if (!entry || entry->size != 1 || entry->is_global || entry->is_absolute_ref ||
+       entry->is_ref || entry->is_swapram)
+      return 0;
+
+   if (!compile_direct_u8_expr_to_index_register(ctx, initializer, 'x'))
+      return 0;
+
+   saved_register_x_active = ctx->register_x_active;
+   saved_entry_register_x = entry->is_register_x;
+   entry->is_register_x = true;
+   ctx->register_x_active = true;
+   compile_statement_list_range(node, ctx, start + 1);
+   entry->is_register_x = saved_entry_register_x;
+   ctx->register_x_active = saved_register_x_active;
+   return node->count - start;
+}
+
+//! @brief Lower a suffix of one statement list.
 static void compile_statement_list_range(ASTNode *node, Context *ctx, int start_index) {
    if (!node || is_empty(node)) {
       return;
@@ -4341,6 +4461,12 @@ static void compile_statement_list_range(ASTNode *node, Context *ctx, int start_
       int direct_u8_chain_count = 0;
 
       emit_statement_source_marker(stmt);
+
+      direct_u8_chain_count = compile_register_x_local_tail(node, i, ctx);
+      if (direct_u8_chain_count > 0) {
+         i += direct_u8_chain_count - 1;
+         continue;
+      }
 
       direct_u8_chain_count = compile_direct_u8_register_lifetime_chain(node, i, ctx);
       if (direct_u8_chain_count > 0) {

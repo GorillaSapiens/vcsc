@@ -11,6 +11,7 @@
 bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *false_label);
 bool direct_u8_expr_range(Context *ctx, ASTNode *expr, int *min_out, int *max_out);
 bool compile_direct_u8_expr_to_a(Context *ctx, ASTNode *expr);
+bool compile_direct_u8_expr_to_index_register(Context *ctx, ASTNode *expr, char reg);
 bool compile_direct_u8_array_incdec_conditional(Context *ctx, ASTNode *cond,
                                                    ASTNode *then_stmt, ASTNode *else_stmt);
 bool compile_direct_u8_update_if_adjust(ASTNode *update_stmt, ASTNode *if_stmt, Context *ctx);

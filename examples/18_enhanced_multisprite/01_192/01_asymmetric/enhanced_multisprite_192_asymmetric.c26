@@ -68,21 +68,13 @@ void initialize_enhanced_scene(void) {
    COLUPF := VCS_NTSC_GOLDENROD;
    CTRLPF := 0;
 
-   // Initialize the five parallel six-sprite arrays in one compact loop.
-   asm ldx #5;
-   asm @asymmetric_init_loop:;
-   asm lda.ax asymmetric_initial_x,X;
-   asm sta.zx game_x,X;
-   asm lda.ax asymmetric_initial_y,X;
-   asm sta.zx game_y,X;
-   asm lda #9;
-   asm sta.zx game_height,X;
-   asm lda #0;
-   asm sta.zx game_nusiz,X;
-   asm lda.ax asymmetric_initial_color,X;
-   asm sta.zx game_color,X;
-   asm dex;
-   asm bpl.same @asymmetric_init_loop;
+   for (uint8_t i := 0; i < 6; i++) {
+      game_x[i] := asymmetric_initial_x[i];
+      game_y[i] := asymmetric_initial_y[i];
+      game_height[i] := 9;
+      game_nusiz[i] := 0;
+      game_color[i] := asymmetric_initial_color[i];
+   }
 
    selected_object := SELECTED_PLAYER0;
    select_switch_ready := 1;
@@ -95,41 +87,33 @@ void update_asymmetric_selection(void) {
    update_multisprite_selection();
 }
 void update_asymmetric_motion(void) {
-   asm ldx.z selected_object;
+   uint8_t object := selected_object;
 
    // Horizontal: left wins if both impossible directions are asserted.
-   asm lda SWCHA;
-   asm and #$40;
-   asm bne.same @asymmetric_check_right;
-   asm lda.zx game_x,X;
-   asm beq.same @asymmetric_vertical;
-   asm dec.zx game_x,X;
-   asm jmp @asymmetric_vertical;
-   asm @asymmetric_check_right:;
-   asm lda SWCHA;
-   asm bmi.same @asymmetric_vertical;
-   asm lda.zx game_x,X;
-   asm cmp #159;
-   asm bcs.same @asymmetric_vertical;
-   asm inc.zx game_x,X;
+   if (!(SWCHA & 0x40)) {
+      if (game_x[object]) {
+         game_x[object]--;
+      }
+   }
+   else {
+      if (!(SWCHA & 0x80)) {
+         if (game_x[object] < 159) {
+            game_x[object]++;
+         }
+      }
+   }
 
-   asm @asymmetric_vertical:;
-   asm lda SWCHA;
-   asm and #$10;
-   asm bne.same @asymmetric_check_down;
-   asm lda.zx game_y,X;
-   asm cmp #95;
-   asm bcs.same @asymmetric_motion_done;
-   asm inc.zx game_y,X;
-   asm rts;
-   asm @asymmetric_check_down:;
-   asm lda SWCHA;
-   asm and #$20;
-   asm bne.same @asymmetric_motion_done;
-   asm lda.zx game_y,X;
-   asm beq.same @asymmetric_motion_done;
-   asm dec.zx game_y,X;
-   asm @asymmetric_motion_done:;
+   if (!(SWCHA & 0x10)) {
+      if (game_y[object] < 95) {
+         game_y[object]++;
+      }
+      return;
+   }
+   if (!(SWCHA & 0x20)) {
+      if (game_y[object]) {
+         game_y[object]--;
+      }
+   }
 }
 
 void run_asymmetric_frame(void) {

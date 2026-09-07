@@ -1010,8 +1010,8 @@ static bool direct_lvalue_is_page_base(const LValueRef *lv) {
 }
 
 //! @brief Evaluate one supported byte expression directly into X or Y when possible.
-static bool compile_direct_u8_expr_to_index_register(Context *ctx, ASTNode *expr,
-                                                      char reg) {
+bool compile_direct_u8_expr_to_index_register(Context *ctx, ASTNode *expr,
+                                               char reg) {
    DirectByteOperand op;
    char expr_buf[256];
    const char *formatted = NULL;
@@ -1944,6 +1944,13 @@ static bool compile_direct_u8_test_branch_false(ASTNode *expr, Context *ctx,
 
    if (!emit_load_direct_byte_operand(ctx, &operand)) {
       return false;
+   }
+   /* A truth test of bit 7 can branch directly on N.  Besides being two
+      bytes smaller than AND #$80 + BEQ/BNE, this is exactly the natural
+      6502 lowering of byte & 0x80 and preserves all source semantics. */
+   if (mask == 0x80) {
+      emit(&es_code, invert ? "    bmi %s\n" : "    bpl %s\n", false_label);
+      return true;
    }
    if (mask != 0xff) {
       emit(&es_code, "    and #$%02x\n", (unsigned int) mask);
