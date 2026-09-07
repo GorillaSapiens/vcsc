@@ -88,7 +88,7 @@ die "score compile wrote output\n$out$err" if $out ne '' || $err ne '';
 die "pre-template score build exited $exit signal $sig\nstdout:\n$out\nstderr:\n$err" if $exit || $sig;
 die "pre-template score build wrote output\n$out$err" if without_cartridge_usage($out) ne '' || $err ne '';
 
-for my $spec ([$bin,0xf000],[$oldbin,0xf056]) {
+for my $spec ([$bin,0xf000],[$oldbin,0xf000]) {
    my($rompath,$expected_reset)=@$spec;
    my $rom=read_file($rompath);
    length($rom)==4096 or die "$rompath is not 4096 bytes\n";

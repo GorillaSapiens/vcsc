@@ -1,0 +1,5 @@
+# runner: perl @TEST_ROOT@/test.pl --jobs 2 @TEST_ROOT@/fixtures/runner_forbidcountasm_pass.c26 @TEST_ROOT@/fixtures/runner_forbidcountasm_fail.c26
+# timeout: 120
+# expectexit: 1
+# expectstdout: Summary: 1 passed, 1 failed, 2 total
+# expectstdout: assembly fragment occurs 1 times, maximum 0: lda count_probe

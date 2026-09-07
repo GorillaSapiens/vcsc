@@ -18,14 +18,7 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 51, enforce parsed `forbidcountasm:` directives.
-
-[ ] 51. Enforce parsed `forbidcountasm:` directives in the test harness.
-
-        * Make the existing directive actually fail when forbidden asm remains.
-        * Audit and repair stale expectations such as
-          `page_pointer_offset_reuse_codegen_test`; do not weaken the directive.
-        * Add harness self-coverage proving both pass and fail behavior.
+Current next action: Item 52, add playfield-color renderer support.
 
 [ ] 52. Add playfield-color support as an explicit renderer capability.
 

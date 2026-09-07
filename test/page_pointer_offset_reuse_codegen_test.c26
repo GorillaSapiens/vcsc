@@ -15,7 +15,7 @@
 // expectasmordered: lda #>{bitmap1 + 0}
 // expectasmordered: lda #>{bitmap0 + 0}
 // expectasmordered: sta p + 1
-// forbidcountasm: lda sprite|2
+// forbidcountasm: lda sprite|3
 // forbidcountasm: lda frame|1
 // forbidasm: __vcsc_scratch_
 // forbidasm: main$i

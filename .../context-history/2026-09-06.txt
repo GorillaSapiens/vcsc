@@ -35,3 +35,27 @@ Completed main-roadmap Item 50. Branch-aware code placement now treats ROM/image
 Added `test/linker_flex_compactness.pl`, a reduced exact-fit 241-byte ROM case. Under the old policy a 128-byte `.flex` layout moved from `$2094` to `$20FE` solely to avoid one taken-page crossing, fragmenting the region enough that the final startup table could not be placed. The fixed linker keeps the layout at `$2094`, accepts the permitted crossing, packs the following 101-byte layout at `$2114`, and uses all 241 bytes exactly. Updated `linker_branch_metadata.pl` because its old expectation explicitly required the now-rejected one-byte growth for a flexible timing win. Public linker documentation now states the compactness-first score order.
 
 Focused validation passes for the new regression, branch metadata/annotations, soft page preference, hard page containment/indexed ranges, function page placement, and both optimized/simple bank-placement paths. Main-roadmap Item 51 (`forbidcountasm:` enforcement) is now next.
+
+2026-09-06 21:32:32 PDT, repair compact-linker stale guards
+-----------------------------------------------------------
+The compact `.flex` placement policy exposed two exact-address expectations that
+were artifacts of the former padding-first layout rather than semantic
+contracts. `vcs_omni_32k.pl` now requires explicitly placed `main` to remain in
+bank0 without requiring offset $000; its bank-placement record still proves the
+pin. `vcs_six_digit_score.pl` now expects the legacy pre-template reset vector at
+its compact $F000 placement instead of the old padded $F056. Both tests retain
+their functional simulator/timing checks and pass with `linker_flex_compactness`.
+
+2026-09-06 21:32:33 PDT, enforce forbidcountasm directives
+----------------------------------------------------------
+`test/test.pl` now parses `forbidcountasm: PATTERN|MAX`, rejects malformed
+spellings, strips semantic-use metadata before counting just like other assembly
+expectations, counts literal non-overlapping occurrences, and fails when the
+count exceeds MAX. Added `runner_forbidcountasm_smoke.test` plus pass/fail
+fixtures so the directive cannot silently become decorative again. The stale
+`page_pointer_offset_reuse_codegen_test` ceiling is now the real accepted three
+`lda sprite` loads; the frame and shift/XOR ceilings remain unchanged. Documented
+the directive in `test/README.md` and removed completed Item 51 from the hot
+roadmap. Compile-only validation is 525/525; focused compactness, OMNI,
+six-digit-score, and harness tests pass. The broad e2e rerun reached 227/358
+clean before the environment execution window hit the slow VCS-heavy tail.

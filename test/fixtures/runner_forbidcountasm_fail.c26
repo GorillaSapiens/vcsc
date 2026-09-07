@@ -1,0 +1,9 @@
+// vcsc-cc1 -I .
+// forbidcountasm: lda count_probe|0
+include "machine_6502.c26"
+
+uint8_t count_probe;
+
+void main(void) {
+   asm lda count_probe;
+}

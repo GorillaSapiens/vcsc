@@ -147,6 +147,7 @@ sub parse_directives {
       expectasm => [],
       expectasmordered => [],
       forbidasm => [],
+      forbidcountasm => [],
       expecterr => [],
       forbiderr => [],
       expectsim => [],
@@ -187,6 +188,13 @@ sub parse_directives {
       }
       elsif ($body =~ /^forbidasm:\s*(.*?)\s*$/) {
          push @{$meta{forbidasm}}, $1;
+      }
+      elsif ($body =~ /^forbidcountasm:\s*(.*?)\|([0-9]+)\s*$/) {
+         length($1) or die "[$FAIL] $path :: forbidcountasm pattern must not be empty\n";
+         push @{$meta{forbidcountasm}}, [$1, int($2)];
+      }
+      elsif ($body =~ /^forbidcountasm:/) {
+         die "[$FAIL] $path :: malformed forbidcountasm directive; expected PATTERN|MAX\n";
       }
       elsif ($body =~ /^expecterr:\s*(.*?)\s*$/) {
          push @{$meta{expecterr}}, $1;
@@ -413,6 +421,25 @@ sub require_absent_substrings_result {
    return undef;
 }
 
+sub require_max_substring_counts_result {
+   my ($haystack, $entries, $label) = @_;
+   for my $entry (@$entries) {
+      my ($needle, $maximum) = @$entry;
+      my $count = 0;
+      my $start = 0;
+      while (1) {
+         my $pos = index($haystack, $needle, $start);
+         last if $pos < 0;
+         $count++;
+         $start = $pos + length($needle);
+      }
+      if ($count > $maximum) {
+         return "$label fragment occurs $count times, maximum $maximum: $needle";
+      }
+   }
+   return undef;
+}
+
 sub check_exact_result {
    my ($got, $want, $label) = @_;
    return undef if !defined $want;
@@ -487,7 +514,7 @@ sub run_compile_case {
       return fail_result("compiler exit code $exit_code\n" . join(' ', @cmd) . "\n" . slurp_file($errfile));
    }
 
-   if (@{$meta->{expectasm}} || @{$meta->{expectasmordered}} || @{$meta->{forbidasm}}) {
+   if (@{$meta->{expectasm}} || @{$meta->{expectasmordered}} || @{$meta->{forbidasm}} || @{$meta->{forbidcountasm}}) {
       my $asm = slurp_file($outfile);
       # Semantic-use metadata deliberately contains source paths and symbol names
       # that are not executable/data code. Keep ordinary code-generation
@@ -500,6 +527,8 @@ sub run_compile_case {
       $err = require_ordered_substrings_result($asm, $meta->{expectasmordered}, 'assembly');
       return fail_result($err) if defined $err;
       $err = require_absent_substrings_result($asm, $meta->{forbidasm}, 'assembly');
+      return fail_result($err) if defined $err;
+      $err = require_max_substring_counts_result($asm, $meta->{forbidcountasm}, 'assembly');
       return fail_result($err) if defined $err;
    }
 

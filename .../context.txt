@@ -90,8 +90,8 @@ Open workstreams
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
-   work begins with Item 51, `forbidcountasm:` enforcement, followed by
-   playfield-color renderer support and the side-scroller/platform example.
+   work begins with Item 52, playfield-color renderer support, followed by
+   the side-scroller/platform example.
    Completed placement/compiler cleanup is owned by executable regressions and
    dated history rather than this hot file.
    Active workstream: `.../roadmap.txt`.
@@ -160,7 +160,4 @@ General compiler/codegen work from this cleanup is regression-locked in `test/`:
 
 The user subsequently completed the full 356-test e2e suite and found three regressions: one semantic-use metadata provenance bug plus two stale exact-ROM guards. All three are now fixed in focused tests. The direct-byte statement-chain optimizer now emits read/write metadata from each statement's own lvalue/source location rather than reusing the first statement's location. The all-five public example is legitimately 3570 bytes (520 free), and the animated gallery is legitimately 3238 bytes (852 free); the latter four-byte reduction is the expected scalar-chain removal of one `STA`/`LDA` pair in `main`. Compile-only validation is now 525/525 after the register-lifetime addition. A local post-fix e2e rerun passed 1-225/356, and resumed tail validation passed 30 more non-maximal VCS e2e cases before the slow VCS-heavy remainder exceeded the execution window; an uninterrupted 356/356 rerun remains desirable.
 
-Unfinished findings to preserve:
-* The test harness parses `forbidcountasm:` directives but still does not enforce them. Enabling enforcement exposes at least one stale existing expectation (`page_pointer_offset_reuse_codegen_test`); this is the next main-roadmap item.
-
-Tanks cleanup is closed at the legitimate beam-asm boundary. The main roadmap now leads with Item 51 `forbidcountasm:` enforcement. An uninterrupted full 356-test e2e rerun is still desirable; local validation has passed the first 225 tests plus 30 additional post-`vcs_0fa0` non-maximal VCS e2e cases before execution-window limits. Preserve Tanks readability: one statement per line and one graphics byte per line. Do not resurrect the RIOT-RAM sprite cache or `$xxDD`/main-phase theory.
+Tanks cleanup is closed at the legitimate beam-asm boundary. `forbidcountasm:` is enforced by the compile-test harness as a literal `PATTERN|MAX` occurrence ceiling and has runner self-coverage; `page_pointer_offset_reuse_codegen_test` now locks the accepted three `lda sprite` occurrences. The compact `.flex` linker policy remains regression-locked. Two exact-address guards exposed by that policy were stale rather than semantic: OMNI now checks that explicitly pinned `main` stays in bank0 without requiring offset $000, and the pre-template six-digit score accepts its now-compact $F000 reset placement while retaining emulator timing/entry verification. Compile-only validation is 525/525. A broad e2e rerun is clean through 227/358 before the environment window hits the maximal VCS-heavy tail; focused OMNI, six-digit-score, compactness, and forbidcountasm tests all pass. The main roadmap now leads with Item 52 playfield-color renderer support. Preserve Tanks readability: one statement per line and one graphics byte per line. Do not resurrect the RIOT-RAM sprite cache or `$xxDD`/main-phase theory.

@@ -99,7 +99,7 @@ for my $bank (0..7) {
 $m =~ /^\s+cartram\s+start=\$1000\s+size=\$1000\s+type=rw\b.*mode=direct/m &&
 $m =~ /^\s+bank0\s+start=\$F000\s+size=\$0FF8\s+type=ro\s+priority=2\b.*mode=direct/m
    or die "OMNI RO/RW memory layout is wrong\n";
-$m =~ /^\s+\$F000\s+main\b/m &&
+$m =~ /^\s+\$F[0-9A-Fa-f]{3}\s+main\b/m &&
 $m =~ /^\s+\$3001\s+helper\b/m &&
 $m =~ /^\s+\$3000\s+marker\b/m &&
 $m =~ /^\s+\$1000\s+scratch\b/m &&

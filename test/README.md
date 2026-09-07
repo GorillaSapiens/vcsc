@@ -201,6 +201,7 @@ Most `.c26` tests use the first header line to describe the compile command, for
 Useful expectations include:
 
 - `expectasm:` / `expectasmordered:` / `forbidasm:` ... search the emitted assembly
+- `forbidcountasm: PATTERN|MAX` ... require a literal assembly fragment to occur at most `MAX` times
 - `expecterr:` / `forbiderr:` ... search compiler stderr
 - `expectfail` ... compilation should fail
 - `expectexit:` ... run the full e2e pipeline and require a simulator exit code
