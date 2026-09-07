@@ -89,10 +89,12 @@ my $asm_text=read_file($asm);
 my @counts=($asm_text =~ /\bldx #\$([0-9a-fA-F]{2})\s+\@for_start_\d+:\s+sta\s+\$02\s+\@for_step_\d+:\s+dex\s+bne \@for_start_\d+/sg);
 @counts == 1 && join(',',map { lc($_) } @counts) eq 'c0'
    or die "blank_noasm visible countdown did not lower to the expected X loop\n";
-$asm_text =~ /lda #\$2a\s+sta\s+\$0296.*?lda\s+\$0285\s+and #\$80\s+beq/s
-   or die "blank_noasm VBLANK timer did not lower to TIM64T/TIMINT polling\n";
-$asm_text =~ /lda #\$22\s+sta\s+\$0296.*?lda\s+\$0285\s+and #\$80\s+beq/s
-   or die "blank_noasm overscan timer did not lower to TIM64T/TIMINT polling\n";
+$asm_text =~ /lda #\$2a\s+sta\s+\$0296.*?lda\s+\$0285\s+bpl/s
+   or die "blank_noasm VBLANK timer did not lower to direct TIM64T/TIMINT bit-7 polling\n";
+$asm_text =~ /lda #\$22\s+sta\s+\$0296.*?lda\s+\$0285\s+bpl/s
+   or die "blank_noasm overscan timer did not lower to direct TIM64T/TIMINT bit-7 polling\n";
+$asm_text !~ /lda\s+\$0285\s+and #\$80/
+   or die "blank_noasm timer polling regressed to redundant AND #\$80\n";
 $asm_text !~ /\bmain\$i\b/
    or die "blank_noasm materialized the X-backed loop index in RAM\n";
 

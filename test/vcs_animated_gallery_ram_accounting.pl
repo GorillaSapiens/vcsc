@@ -78,8 +78,8 @@ index($asm,'__phaseworkspace$V1$game_workspace')>=0
 $map =~ /rom\s+used=(\d+) bytes .*free=(\d+) bytes/
    or die "animated-gallery map is missing ROM usage\n";
 my($current_rom_bytes,$current_rom_free_bytes)=(0+$1,0+$2);
-$current_rom_bytes==3238 && $current_rom_free_bytes==852
-   or die "3238-byte current animated-gallery ROM result changed\n";
+$current_rom_bytes==3236 && $current_rom_free_bytes==854
+   or die "3236-byte current animated-gallery ROM result changed\n";
 $map =~ /ram\s+used=51 bytes .*free=77 bytes .*objects=47 bytes hardware-stack=4 bytes/
    or die "51-byte post-startup-rewrite RAM result changed\n";
 $map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$00E8/m

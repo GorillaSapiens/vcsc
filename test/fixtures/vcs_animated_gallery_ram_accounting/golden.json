@@ -150,7 +150,7 @@
          "free_ram_bytes" : 77,
          "object_bytes" : 47,
          "ram_bytes" : 51,
-         "rom_bytes" : 3238,
+         "rom_bytes" : 3236,
          "stack_bytes" : 4
       },
       "object_schedule_bytes_after" : 0,
@@ -720,7 +720,7 @@
          "activation_bytes" : 0,
          "free_ram_bytes" : 77,
          "ram_bytes" : 51,
-         "rom_bytes" : 3238,
+         "rom_bytes" : 3236,
          "stack_bytes" : 4
       },
       "decision" : "retain-general-p0-p1-ball-renderer",
@@ -732,7 +732,7 @@
          "activation_bytes" : -20,
          "free_ram_bytes" : 77,
          "ram_bytes" : -77,
-         "rom_bytes" : -755,
+         "rom_bytes" : -757,
          "stack_bytes" : -4
       },
       "useful_game_state_margin" : true
@@ -757,8 +757,8 @@
       "hardware_stack_bytes" : 4,
       "object_bytes" : 47,
       "ram_bytes" : 51,
-      "rom_bytes" : 3238,
-      "rom_free_bytes" : 852,
+      "rom_bytes" : 3236,
+      "rom_free_bytes" : 854,
       "subcategory_bytes" : {
          "gallery_control" : 4,
          "mutable_row_colors" : 16,

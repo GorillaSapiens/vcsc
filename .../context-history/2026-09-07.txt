@@ -210,3 +210,28 @@ example assembly allowlist dropped this source, and the asymmetric regression
 rejects any inline asm returning to the public C26 source. Compile-only is
 526/526; the two unrelated e2e regressions found during development pass after
 the index-only safety restriction. The main roadmap now starts with Item 54.
+
+2026-09-07 15:45:57 PDT, lock direct bit-7 truth lowering
+-------------------------------
+The full 363-test user run after the enhanced-asymmetric C26 conversion exposed
+five stale code-shape/footprint guards: all-five player color 192, animated
+gallery RAM accounting, blank_noasm, multisprite profiles, and wide six-glyph
+181. Assembly comparison against the pre-conversion tarball showed the same
+single generic improvement in every case: direct truth tests of `byte & 0x80`
+now use the load's N flag (`BMI`/`BPL`) instead of emitting a redundant
+`AND #$80` before the branch. Runtime semantics and raster/timing contracts are
+unchanged.
+
+Updated the exact ROM baselines by two bytes where that lowering occurs:
+all-five player color 192 is 3568 bytes; animated gallery is 3236 bytes with
+854 free; multisprite 192 is 2621 bytes and both 181 score profiles are 3603
+bytes; wide six-glyph 181 is 2891 bytes. Updated the animated-gallery JSON
+accounting delta accordingly. `vcs_blank_noasm.pl` now positively requires the
+direct `TIMINT` N-flag polling and rejects reintroduction of `AND #$80`.
+
+All five originally reported tests pass individually, including the full
+multisprite and wide-score emulator-backed raster checks. Compile-only remains
+526/526. A broad e2e rerun is clean through 229/363 before the maximal VCS-heavy
+tail exceeds this container window; a separate VCS-tail run is clean through
+its first 33 ordinary cases, including the three reported failures encountered
+in that range.
