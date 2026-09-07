@@ -1,0 +1,27 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda  state
+// expectasmordered: and #$0f
+// expectasmordered: ora mask
+// expectasmordered: sta  state
+// expectasmordered: lda  bytes + 7
+// expectasmordered: and #$0f
+// expectasmordered: ora mask
+// expectasmordered: sta  bytes + 7
+// forbidasm: __vcsc_scratch_
+// forbidasm: ptr0
+// forbidasm: ldy
+
+include "machine_6502.c26"
+
+uint8_t state;
+uint8_t mask;
+uint8_t bytes[8];
+alias packed bytes[7]
+
+void main(void) {
+   state &= 0x0f;
+   state |= mask;
+
+   packed &= 0x0f;
+   packed |= mask;
+}

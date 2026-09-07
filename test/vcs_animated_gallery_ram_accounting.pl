@@ -75,8 +75,11 @@ index($asm,'__phaseworkspace$V1$__vcsc_scratch_0')<0
    or die "fixed VSYNC unexpectedly materialized phase-scoped compiler scratch\n";
 index($asm,'__phaseworkspace$V1$game_workspace')>=0
    or die "direct-countdown renderer workspace lacks explicit phase-workspace ownership metadata\n";
-$map =~ /rom\s+used=3242 bytes .*free=848 bytes/
-   or die "3242-byte absolute-alignment animated-gallery ROM result changed\n";
+$map =~ /rom\s+used=(\d+) bytes .*free=(\d+) bytes/
+   or die "animated-gallery map is missing ROM usage\n";
+my($current_rom_bytes,$current_rom_free_bytes)=(0+$1,0+$2);
+$current_rom_bytes==3238 && $current_rom_free_bytes==852
+   or die "3238-byte current animated-gallery ROM result changed\n";
 $map =~ /ram\s+used=51 bytes .*free=77 bytes .*objects=47 bytes hardware-stack=4 bytes/
    or die "51-byte post-startup-rewrite RAM result changed\n";
 $map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$00E8/m
@@ -240,7 +243,7 @@ my $report={
    schema=>16,
    program=>'examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26',
    totals=>{
-      rom_bytes=>3244, rom_free_bytes=>846,
+      rom_bytes=>$current_rom_bytes, rom_free_bytes=>$current_rom_free_bytes,
       ram_bytes=>51, free_ram_bytes=>77, object_bytes=>47, hardware_stack_bytes=>4,
       category_bytes=>\%category_totals, subcategory_bytes=>\%subcategory_totals,
    },
@@ -316,8 +319,8 @@ my $report={
       ball_capability_retained=>JSON::PP::true,
       gallery_ball_height=>0,
       baseline=>{rom_bytes=>3993, ram_bytes=>128, activation_bytes=>20, stack_bytes=>8, free_ram_bytes=>0},
-      current=>{rom_bytes=>3242, ram_bytes=>51, activation_bytes=>0, stack_bytes=>4, free_ram_bytes=>77},
-      total_delta=>{rom_bytes=>-756, ram_bytes=>-77, activation_bytes=>-20, stack_bytes=>-4, free_ram_bytes=>77},
+      current=>{rom_bytes=>$current_rom_bytes, ram_bytes=>51, activation_bytes=>0, stack_bytes=>4, free_ram_bytes=>77},
+      total_delta=>{rom_bytes=>$current_rom_bytes - 3993, ram_bytes=>-77, activation_bytes=>-20, stack_bytes=>-4, free_ram_bytes=>77},
       free_ram_percent=>60.15625,
       useful_game_state_margin=>JSON::PP::true,
       decision=>'retain-general-p0-p1-ball-renderer',
@@ -378,7 +381,7 @@ my $report={
       renderer_module_bytes_before=>69, renderer_module_bytes_after=>23,
       gallery_before=>{rom_bytes=>3545, ram_bytes=>102, free_ram_bytes=>26, object_bytes=>98, stack_bytes=>4},
       gallery_after_renderer_fix=>{rom_bytes=>3292, ram_bytes=>56, free_ram_bytes=>72, object_bytes=>52, stack_bytes=>4},
-      gallery_current=>{rom_bytes=>3242, ram_bytes=>51, free_ram_bytes=>77, object_bytes=>47, stack_bytes=>4},
+      gallery_current=>{rom_bytes=>$current_rom_bytes, ram_bytes=>51, free_ram_bytes=>77, object_bytes=>47, stack_bytes=>4},
       postcloseout_runtime_main_delta=>{rom_bytes=>81, ram_bytes=>-5, free_ram_bytes=>5, object_bytes=>-5},
       absolute_alignment_link_delta=>{rom_bytes=>-133, ram_bytes=>0},
       frame_scheduler_262_rom_cost=>4,

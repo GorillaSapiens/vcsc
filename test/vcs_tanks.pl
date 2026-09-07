@@ -59,6 +59,24 @@ $s =~ /eor\.z tanks_graphics_index_xor \+ 1.*?lda tanks_graphics,y/s &&
 $s =~ /sta REFP0/ && $s =~ /sta REFP1/
    or die "Tanks lost five-sprite REFP\/forward-backward 16-heading synthesis\n";
 
+my($prepare_graphics_block)=$s =~ /inline void tanks_prepare_graphics\(void\) \{(.*?)\n\}/s;
+defined $prepare_graphics_block && $prepare_graphics_block !~ /\basm\b/ &&
+$prepare_graphics_block =~ /uint8_t descriptor;/ &&
+$prepare_graphics_block =~ /uint8_t tank := 0;.*?tank < 2;.*?tank\+\+/s &&
+$prepare_graphics_block =~ /descriptor := tanks_graphics_descriptor\[tanks_direction\[tank\]\]/ &&
+$prepare_graphics_block =~ /tanks_graphics_index_xor\[tank\] := descriptor & 0x3f/ &&
+$prepare_graphics_block =~ /tanks_mnext\[tank\] := \(descriptor >> 4\) & 8/
+   or die "Tanks graphics preparation must remain readable C26\n";
+
+my($player_position_block)=$s =~ /void tanks_compute_player_position\(uint8_t x\) \{(.*?)\n\}/s;
+defined $player_position_block && $player_position_block !~ /\basm\b/ &&
+$player_position_block =~ /tanks_motion_work := 1/ &&
+$player_position_block =~ /while \(x >= 15\).*?x -= 15;.*?tanks_motion_work\+\+;/s &&
+$player_position_block =~ /if \(x >= 13\).*?tanks_motion_work\+\+;.*?x\+\+;/s &&
+$player_position_block =~ /x := 4 - x;.*?x &= 0x0f;.*?x <<= 4;/s &&
+$player_position_block =~ /tanks_motion_work &= 0x0f;.*?tanks_motion_work \|= x;/s
+   or die "Tanks player position-control arithmetic must remain readable C26\n";
+
 $s =~ /TANKS_DIR_NNE := 1/ && $s =~ /TANKS_DIR_NNW := 15/ &&
 $s =~ /tank0_direction &= 15/ && $s =~ /tank1_direction &= 15/ &&
 $s =~ /tanks_motion\[16\].*?0x50,0x52,0x51,0x61,0x01,0x21,0x11,0x12,\s*0x10,0x16,0x15,0x25,0x05,0x65,0x55,0x56/s &&
@@ -83,10 +101,10 @@ $s =~ /AUDV1 := TANKS_ENGINE_VOLUME/ && $s =~ /TANKS_ENGINE_VOLUME := 2/
 $s =~ /CXM0P & 0x80/ && $s =~ /CXM1P & 0x80/ &&
 $s =~ /CXM0FB & 0x80/ && $s =~ /CXM1FB & 0x80/ &&
 $s =~ /CXP0FB & 0x80/ && $s =~ /CXP1FB & 0x80/ && $s =~ /CXPPMM & 0x80/ && $s =~ /CXCLR := _/ &&
-$s =~ /tank_pf_escape\[2\]/ && $s =~ /tanks_process_knockback\(void\).*?tanks_update_player_collisions\(\);/s &&
-$s =~ /tanks_knockback_delta\[16\].*?0,23,32,23,0,23,32,23.*?16,11,0,11,16,11,0,11/s &&
-$s =~ /adc #145|sbc #145/ && $s =~ /adc #75|sbc #75/
-   or die "Tanks lost TIA collisions or ~32-pixel wall-wrapping knockback\n";
+$s =~ /tank_pf_escape\[2\]/ &&
+$s =~ /void tanks_process_knockback\(void\).*?tanks_update_player_collisions\(\);.*?for \(\s*uint8_t tank := 0;\s*tank < 2;\s*tank\+\+\s*\).*?tank_knockback_pending\[tank\].*?tanks_knockback_offsets\[tank_knockback_index\[tank\]\].*?tanks_knockback_delta\[direction\].*?tanks_x\[tank\] \+= delta;.*?tanks_x\[tank\] -= 145;.*?tanks_x\[tank\] -= delta;.*?tanks_x\[tank\] \+= 145;.*?tanks_knockback_delta\[direction \+ 8\].*?tanks_y\[tank\] \+= delta;.*?tanks_y\[tank\] -= 75;.*?tanks_y\[tank\] -= delta;.*?tanks_y\[tank\] \+= 75;.*?tank_pf_escape\[tank\] := 1;.*?tank_knockback_pending\[tank\] := 0;/s &&
+$s =~ /tanks_knockback_delta\[16\].*?0,23,32,23,0,23,32,23.*?16,11,0,11,16,11,0,11/s
+   or die "Tanks lost TIA collisions or ~32-pixel wall-wrapping C26 knockback\n";
 
 $s =~ /void tanks_validate_player_bounds\(void\).*?tank0_x < TANKS_PLAYER_MIN_X.*?tank0_y > TANKS_PLAYER_MAX_Y.*?tank1_x < TANKS_PLAYER_MIN_X.*?tank1_y > TANKS_PLAYER_MAX_Y/s
    or die "Tanks lost explicit player arena bounds\n";

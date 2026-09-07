@@ -1,0 +1,25 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda value,x
+// expectasmordered: sec
+// expectasmordered: sbc #$04
+// expectasmordered: cmp #$91
+// expectasmordered: bcc @if_false_
+// expectasmordered: lda #$01
+// expectasmordered: sta hit,x
+// forbidasm: @or_rhs_
+// forbidasm: @or_end_
+// forbidasm: main$i
+// forbidasm: ptr0
+
+include "machine_6502.c26"
+
+uint8_t value[2];
+uint8_t hit[2];
+
+void main(void) {
+   for (uint8_t i := 0; i < 2; i++) {
+      if (value[i] < 4 || value[i] > 148) {
+         hit[i] := 1;
+      }
+   }
+}

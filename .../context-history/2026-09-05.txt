@@ -61,3 +61,72 @@ and context-history tests pass. The updated 4K image uses 4046/4090 ROM and
 121/128 RIOT RAM (44 ROM bytes and 7 RAM bytes free). A broad 356-test e2e run
 again passed tests 1..225 before the execution window expired in the same
 maximum-mapper-heavy tail; no failure was reported.
+
+2026-09-05 10:43:00 PDT, incremental C26 bloat autopsy
+Started the Tanks asm-to-C26 cleanup by translating only `tanks_move_object()`
+and measuring the generated 6502 after each compiler change. The first naive
+translation looked much larger, but the algorithm itself was not the cause.
+General compiler/codegen gaps accounted for the waste: runtime-indexed byte
+truth tests fell through generic scratch/pointer lowering; direct byte-array
+`++`/`--` missed indexed INC/DEC; direct scalar indexes were needlessly loaded
+through A before TAX/TAY; direct RAM array reads preferred Y even though the
+6502 has compact zero-page,X LDA and no zero-page,Y LDA; matching indexed
+INC/DEC arms reloaded the same runtime index; and `!A || B` used an avoidable
+branch/JMP bridge. Counted loops now mark X as live so the new direct-array fast
+paths do not clobber an X-backed induction variable.
+
+Added/updated focused compile regressions for runtime-indexed byte truth tests,
+indexed byte updates/conditional updates, and compact table lookup inside
+X-backed counted loops. The full compile-only suite is now 504/504 passing.
+`tanks_move_object()` is now ordinary readable C26 and links at exactly $56
+bytes (86 bytes), the same size as the handwritten asm block it replaced. The
+whole cartridge therefore remains 4046/4090 ROM and 121/128 RAM. The deliberate
+asm reduction repins Tanks to 320 reviewed asm statements / digest
+57b2aef4fddf8c3e5a6e5f296dffcf4fe1f75db1812ebccd592d3904490015ca.
+
+Unfinished discovery: `tanks_random()` is the next small specimen. A clean C26
+LFSR spelling measured 22 bytes versus the current 18-byte asm. The shift/XOR
+portion already lowers well; the remaining waste is a redundant reload after
+storing the newly computed RNG byte before immediately testing it for zero. The
+compiler still has the value in A with valid Z/N flags at that point, but loses
+that value/condition-code fact across the statement boundary. Do not add a
+Tanks/LFSR-specific peephole. Find the smallest general value/flags-lifetime or
+store-then-condition optimization, regression-test it, then remeasure and only
+then replace `tanks_random()` in the example. `tanks_process_knockback()` remains
+handwritten asm and should be attacked afterward with the same small-step
+measure/explain/fix/retest method.
+
+
+
+2026-09-05 10:43:00 PDT, continue Tanks C26 bloat autopsy
+Finished the `tanks_random()` specimen without a Tanks-specific peephole. The
+clean C26 implementation now links at the same 18 bytes as the former asm. The
+compiler recognizes the general shift/XOR carry idiom and, when immediately
+followed by `if (!x) x := constant`, keeps the candidate byte and N/Z in A,
+delays the ordinary-memory store, substitutes the fallback only on zero, and
+stores once at the join. Focused regressions cover both the zero-replacement
+shape and reuse of N/Z after a proven direct-byte store.
+
+Began dissecting the first small `tanks_process_knockback()` slice rather than
+translating the whole routine. Added general direct-byte lowering for
+`array[index] := constant`, same-index `dst[index] := src[index]`, and direct
+`LDA array,X` when a small counted loop already owns X. Added focused codegen
+regressions and expanded the X-backed counted-loop safety analysis to admit
+nested `if`/`break` and simple byte operations without materializing the loop
+counter.
+
+Unfinished findings: the natural two-element knockback loop is still rejected
+from the X-backed path when its body contains valued `direction--`; the safety
+classifier passes the ++/-- lvalue AST to target analysis in a form it does not
+resolve. Also, `for (uint8_t i := 0; i < 2; i++)` can segfault the compiler when
+it falls off the register-counted-loop path, while `i += 1` works. Finally,
+`forbidcountasm:` directives exist in the test vocabulary but are not enforced;
+enabling them immediately exposes an unrelated stale expectation in
+`page_pointer_offset_reuse_codegen_test`, so that was not mixed into this Tanks
+change. Temporary SAFE-debug `fprintf` instrumentation was removed before
+handoff. Removing `tanks_random()` asm reduced the reviewed Tanks allowlist from
+320 to 311 statements; it is deliberately repinned at digest
+15afb44bb436db62c22366cf3a0845466197c46dcf893ad91f1354d6afa4c15a.
+`tanks_process_knockback()` remains asm pending the next measured slice. The
+handoff compile-only suite is 509/509 passing; focused Tanks, assembly allowlist,
+source-tree hygiene, and context-history format checks are 4/4 passing.

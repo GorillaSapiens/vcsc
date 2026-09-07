@@ -1,0 +1,43 @@
+// vcsc-cc1 -I .
+// expectasmordered: ldx #$00
+// expectasmordered: lda value,x
+// expectasmordered: clc
+// expectasmordered: adc delta
+// expectasmordered: cmp #$95
+// expectasmordered: bcc @u8_update_adjust_done_
+// expectasmordered: sec
+// expectasmordered: sbc #$91
+// expectasmordered: @u8_update_adjust_done_
+// expectasmordered: sta value,x
+// expectasmordered: lda value,x
+// expectasmordered: sec
+// expectasmordered: sbc delta
+// expectasmordered: cmp #$04
+// expectasmordered: bcc @u8_update_adjust_do_
+// expectasmordered: cmp #$95
+// expectasmordered: bcc @u8_update_adjust_done_
+// expectasmordered: @u8_update_adjust_do_
+// expectasmordered: clc
+// expectasmordered: adc #$91
+// expectasmordered: @u8_update_adjust_done_
+// expectasmordered: sta value,x
+// forbidasm: ptr0
+// forbidasm: main$i
+
+include "machine_6502.c26"
+
+uint8_t value[2];
+uint8_t delta;
+
+void main(void) {
+   for (uint8_t i := 0; i < 2; i++) {
+      value[i] += delta;
+      if (value[i] > 148) {
+         value[i] -= 145;
+      }
+      value[i] -= delta;
+      if (value[i] < 4 || value[i] > 148) {
+         value[i] += 145;
+      }
+   }
+}

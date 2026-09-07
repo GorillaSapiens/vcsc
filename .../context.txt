@@ -142,131 +142,24 @@ correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 
 Last validation state
 ---------------------
-Physical-bank/address separation is complete. The linker stores independent 64K
-planes for up to 256 physical banks, placement uses a 256-bit bank set, and
-normal relocation/branch/.banktarget decisions use owning-layout bank identity.
-Ownerless absolute references may use only an unambiguous address-to-bank
-fallback. Automatic placement writes to the final `placement_bank` plane.
+The previously completed bankswitching/cfgectomy/linker work is regression-locked
+and had a clean loaded baseline of 503/503 compile-only and 356/356 e2e tests.
+Detailed completed implementation facts live in the focused hot files, public
+documentation, executable regressions, and dated history rather than here.
 
-3F now uses one parameterized `libraries/vcs/3F/mapper.c26`: instantiate with
-`VCS_3F_BANKS:=N` for 1..256 physical 2K chunks. Every selectable chunk links
-at canonical `$1000-$17FF`; the final chunk is fixed/startup at `$1800-$1FFF`.
-`vcsc-sim` keeps banked ROM bytes in physical-bank storage so overlapping CPU
-windows do not overwrite one another. Maximum 3F and Stella-compatible maximum
-3E/3EX are executable regressions. 3EX is 256 x 2K / 512K ROM plus 256 x 1K /
-256K `$swapram`; the obsolete 512-byte RAM-bank description was only a Stella
-development discussion. FC is parameterized for 1..256 x 4K physical banks
-(up to 1 MiB), uses physical bank IDs as descriptors, and stages selectors via
-`$1FF8/$1FF9` before `$1FFC` commit. Its regression owns an 8x8 ordered call
-matrix plus executable descriptor `$FF` coverage in a full 1 MiB image.
-
-Main-roadmap Items 46-48 are complete. Item 47 is locked by
-`test/superchip_direct_access.pl`: under 4KSC it fills all 128 Superchip bytes,
-checks hostile-fill BSS clearing, DATA copying, first/middle/last boundaries,
-constant and runtime-index loads/stores, array copy, and read-modify-write, and
-asserts final linked operands/pointer bases use `$F080-$F0FF` for reads and
-`$F000-$F07F` for writes. The equivalent F8SC/F6SC/F4SC reruns were intentionally
-not duplicated because those profiles use the same Superchip RAM contract.
-
-Item 48 adds compile-time paddle slots to the centered three-plus-three and
-six-glyph score renderers. Disabled sampling retains the existing renderer
-path; `test/vcs_score_paddle_sampling.pl` additionally proves the default and
-explicit `paddle_samples:=0` builds are byte-identical. Two- and four-paddle
-components expose 17-cycle worst-case score probes; four-channel
-three-plus-three mode uses a fixed 24-cycle latch for channels 2/3 so threshold
-state cannot move RESP1. Paddle-enabled three-plus-three builds defer HMBL
-cleanup to line 2 after RESP0 so a channel-0 threshold completion cannot push
-line 1 past WSYNC; `test/vcs_paddleball.cpp` sweeps the formerly failing raw
-threshold interval 18..37. Paddleball, four-player Paddleball, and the field
-diagnostic all use the score-sampling path. For four-channel diagnostic work,
-`four_paddles.c26` also provides a fixed 30-cycle INPT0..INPT3 snapshot plus
-per-channel commit helpers. The diagnostic snapshots all four channels at the
-same row-alignment phase and commits them later from one shared timestamp.
-Channel 0 keeps its safe score-renderer commit slot; channel 1 commits on the
-preceding blank alignment line and its in-renderer hook is fixed-cycle, so a
-late multi-frame completion cannot move visible GRP0 timing. Channels 2/3 commit
-in blank preparation. `test/vcs_diagnostic_paddle_sampling.pl` exhaustively
-checks equal NTSC thresholds 0..255, independent displayed-95 high-end cases
-with stable TIA write phases, and representative PAL/SECAM points.
-
-C26 `$read_hazard` and cfg
-`read_hazard = yes` mark mapper ranges where CPU read bus cycles have side
-effects; stock Superchip, FA/RAM Plus, and CommaVid write aliases are marked.
-`vcsc-ld` models statically knowable NMOS 6502 reads/dummy reads from final
-linked instruction bytes for all 256 opcode values, including unofficial raw
-`opXX` handwritten assembly. Movable referenced layouts receive safe-placement
-constraints; fixed unsafe instructions hard-error with source/assembly
-provenance. Runtime-computed indirect effective addresses remain unknowable.
-
-The diagnostic DETAIL1 row is restored to Superchip RAM. Its original wrapped
-absolute,Y reposition-table lookup remains timing-identical; the linker places
-`diagnostic_reposition_table` at `$F1F0`, so the wrapped operand is `$F100`
-rather than the destructive `$F05D`. The final map keeps DETAIL1 at read `$F0CB`
-/ write `$F04B`, and the structural regression proves the five indexed lookups
-cannot dummy-read `$F000-$F07F`.
-
-The diagnostic paddle regression keeps exhaustive NTSC value coverage for all
-256 thresholds, full 45-frame soaks on the historically sensitive 227/228/229
-boundary and displayed-95 visible-write-phase cases, and representative
-PAL/SECAM points. Ordinary exhaustive value probes use a test-specific checked-
-frame floor while the shared timing harness retains its 40-frame default. The
-optional Stella 7.0 diagnostic oracle remains part of the prior certified state.
-
-Bankswitching Items 42 FE/SCABS and 43 WD are complete. FE keeps its released
-direct top-level JSR/RTS mechanism. WD now deliberately exposes only two
-relocation-safe compiler banks: logical bank0 = hardware state 1 (`0,1,2,3`)
-selected by read `$39`/descriptor 1, and logical bank1 = state 2 (`4,5,6,7`)
-selected by `$3A`/descriptor 2. The compiler emits the six-byte `.banktarget`
-ABI, the linker uses a replicated 72-byte WD trampoline with zero per-target
-entries, and `vcsc-sim` still models all eight hardware arrangements plus the
-always-live 64-byte split RAM. The visible diagnostic uses big/wide PASS/FAIL
-and small `WD`. Ordinary TIA I/O remains on `$40-$7F`.
-Bankswitching Item 44 DPC is complete. DPC uses two F8-style 4K program banks
-followed by a 2K display-data `$data_only` bank and a 255-byte Poly8 `$data_only`
-bank. `vcsc-sim` models the DPC register window, fetchers, counter wrap, and
-access-clocked Poly8 RNG; the public diagnostic checks both auxiliary regions,
-exact disassembly/reassembly, and a Stella-visible PASS/DPC frame.
-
-VCS linker-.cfg removal
------------------------
-Checked-in VCS linker/simulator `.cfg` profiles are gone from `libraries/vcs`;
-assembler opcode cfgs and generic linker-script cfg support intentionally remain.
-VCS public builds use C26 cartridge/memory topology directly, linker maps carry
-resolved topology, and `vcsc-sim` consumes `--map` or same-stem maps. The driver
-uses implicit `4K/mapper.c26` only when no explicit cartridge topology or generic
-script is selected. `test/source_tree_hygiene.pl` rejects VCS cfg regressions.
-
-Cfgectomy code, tests, and maintained docs are migrated. C26 topology does not
-force `.bin`: Intel HEX remains the sparse linker-address image used by generic
-and simulator tests, including selector-controlled banks when `vcsc-sim` is
-given the linker map. Only file-domain `$data_only` payload currently requires
-flat binary because it has no 6502 address. The first complete
-post-cfgectomy user run exposed seven stale/packaging regressions; all seven are
-now fixed and pass focused: history formatting, developer-record packaging,
-the fingerprint selftest, return-memory map anchoring, two stale renderer cfg
-arguments, and branding. `make tar` from an unpacked/no-.git tree
-now preserves `.../instruction.txt`, with hygiene coverage locking that invariant.
-The post-cfgectomy and mapper changes now pass the complete loaded regression
-suite: 503/503 compile-only tests and 356/356 e2e tests with eight workers,
-including the exhaustive paddle soak and maximum 3F/3E/3EX diagnostics.
+Current Tanks work is intentionally narrower: preserve the verified renderer/gameplay behavior while using Tanks as a compiler-codegen microscope for removing non-beam handwritten asm without abandoning the plain 4K target. The current real build is 4031/4090 ROM and 120/128 RAM (59 ROM bytes, 8 RAM bytes free). `test/vcs_tanks.pl` locks coordinate, heading/reflection, missile, arena-bound, and bottom-wall GRP behavior.
 
 Immediate TODO
 --------------
-The plain-4K `examples/01_basic/13_tanks/` correctness pass now links at
-4046/4090 ROM and 121/128 RIOT RAM. The source-readability contract remains
-executable: one statement per source line and one canonical sprite byte per
-visual-binary line. Player horizontal positioning uses one public X coordinate,
-score handoff restores direction-dependent REFP state, all 16 headings and
-missile trajectories are regression-covered, projectile escape is bounded, and
-ordinary tank driving is explicitly confined to X=4..148 / Y=4..78 rather than
-relying on sprite/playfield collision pixels for arena containment. GRP0/GRP1
-are cleared before the first bottom-wall WSYNC so stale tank pixels cannot leak
-into the bottom border. Focused Tanks, assembly-allowlist, source-tree-hygiene,
-and context-history tests pass. A broad e2e rerun passed tests 1..225 before the
-same unrelated maximum-mapper-heavy tail exceeded the execution window.
+The incremental asm-to-C26 cleanup has now converted all ordinary game logic and position-control arithmetic. `tanks_move_object()` is C26 at exactly the old asm size ($56/86 bytes); `tanks_random()` is C26 at exactly 18 bytes; `tanks_process_knockback()` is C26 after general indexed-X/range/update codegen work; `tanks_prepare_graphics()` is C26 and is 11 ROM bytes smaller than the former asm; `tanks_compute_player_position()` is readable C26 at $33/51 bytes versus $2c/44 bytes asm. Explicit Tanks asm is now 167 reviewed statements, confined to the actual beam/cycle-sensitive `tanks_position_missiles()`, `tanks_position_players_after_score()`, and `tanks_draw()` paths. Do not force those remaining hardware-timing routines into C26 merely to reach zero asm.
 
-Do not resurrect the RIOT-RAM sprite cache or the discarded `$xxDD`/main-phase
-theory. The next Tanks task is source cleanup: ordinary overscan game logic,
-especially `tanks_move_object()` and `tanks_process_knockback()`, should be C26
-where possible while preserving these behavior locks and staying below 4K. Only
-44 ROM bytes are currently free, so recover space before or while doing that.
+General compiler/codegen work from this cleanup is regression-locked in `test/`: runtime-indexed byte stores/copies/compound updates, direct array,X use for X-backed counted-loop induction variables, safe nested `if`/`break` counted-loop analysis, idiomatic postfix `i++` counted-loop recognition, byte immediate/logical comparisons in X-backed loops, compact byte range tests, live A/N/Z reuse across adjacent assignment/condition and arithmetic statements, direct byte constant-minus and scalar compound ALU forms, update-then-range-adjust folding, and `while (u8 >= constant) { u8 -= constant; ... }` reuse of live A/carry. The valued prefix/postfix ++/-- side-effect case is explicitly excluded from unsafe N/Z reuse after a broad e2e regression exposed it. Full compiler compile-only validation is 524/524 passing at this checkpoint.
+
+The user subsequently completed the full 356-test e2e suite and found three regressions: one semantic-use metadata provenance bug plus two stale exact-ROM guards. All three are now fixed in focused tests. The direct-byte statement-chain optimizer now emits read/write metadata from each statement's own lvalue/source location rather than reusing the first statement's location. The all-five public example is legitimately 3570 bytes (520 free), and the animated gallery is legitimately 3238 bytes (852 free); the latter four-byte reduction is the expected scalar-chain removal of one `STA`/`LDA` pair in `main`. Compile-only validation is 524/524. A local post-fix e2e rerun again passed 1-225/356 before the slow VCS-heavy tail exceeded the execution window, so a final uninterrupted 356/356 rerun remains the immediate validation step.
+
+Unfinished findings to preserve:
+* Near-full 4K placement can fail even when total bytes nominally fit because the linker currently scores flexible-branch page-crossing quality ahead of ROM growth. During the C knockback experiment it chose an 86-byte hole before `tanks_update_overscan()` and another 23-byte hole before `main()`, leaving no contiguous 96-byte hole for `__zero_table`. `.flex` permits either page behavior; whether the linker should burn large ROM holes to avoid flexible crossings is a separate general linker-policy question. Do not hide that with a Tanks special case.
+* The test harness parses `forbidcountasm:` directives but still does not enforce them. Enabling enforcement exposes at least one stale existing expectation (`page_pointer_offset_reuse_codegen_test`); keep that infrastructure cleanup separate unless intentionally taking it on.
+* `tanks_compute_player_position()` still costs 7 ROM bytes more in C26 than its old register-crafted asm because C26 materializes language values that the asm kept live in A/Y. It now fits comfortably enough; further improvement would be register lifetime/allocation work, not a Tanks-specific peephole.
+
+The immediate next step after handoff is an uninterrupted full 356-test e2e rerun to confirm the three broad-suite fixes, then decide whether to stop the Tanks C26 cleanup at the legitimate beam-asm boundary or pursue a separate general compiler/linker optimization. Preserve readability: one statement per line and one graphics byte per line. Do not resurrect the RIOT-RAM sprite cache or `$xxDD`/main-phase theory.

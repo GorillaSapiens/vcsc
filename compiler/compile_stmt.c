@@ -731,13 +731,302 @@ static bool stmt_same_direct_u8_lvalue(Context *ctx, ASTNode *a, ASTNode *b,
    return true;
 }
 
+//! @brief Return whether one direct byte lvalue denotes an already-resolved byte.
+static bool stmt_direct_u8_lvalue_matches_ref(Context *ctx, ASTNode *expr,
+                                              const LValueRef *ref,
+                                              LValueRef *resolved_out) {
+   LValueRef lv;
+   ASTNode *u = (ASTNode *)unwrap_expr_node(expr);
+
+   /* These statement-pair optimizations need a side-effect-free storage read.
+      A valued postfix/prefix ++/-- is represented as an lvalue too, but merely
+      resolving that lvalue and reusing prior N/Z would silently drop its update. */
+   if (u && classify_incdec_lvalue_expr(u, NULL, NULL)) {
+      return false;
+   }
+   if (!ctx || !ref || !resolve_lvalue(ctx, expr, &lv) || !lv.name || !ref->name ||
+       strcmp(lv.name, ref->name) || lv.offset != ref->offset ||
+       lv.base_offset != ref->base_offset || lv.size != 1 || ref->size != 1 ||
+       lv.is_bitfield || ref->is_bitfield || lv.indirect || ref->indirect ||
+       lv.needs_runtime_address || ref->needs_runtime_address ||
+       lv.is_absolute_ref || ref->is_absolute_ref ||
+       lv.is_global != ref->is_global || lv.is_static != ref->is_static ||
+       lv.is_zeropage != ref->is_zeropage ||
+       declarator_pointer_depth(lv.declarator) != 0 ||
+       declarator_pointer_depth(ref->declarator) != 0 ||
+       type_is_signed_integer(lv.type) || type_is_signed_integer(ref->type) ||
+       type_is_bcd_integer(lv.type) || type_is_bcd_integer(ref->type)) {
+      return false;
+   }
+   if (resolved_out) *resolved_out = lv;
+   return true;
+}
+
+//! @brief Resolve one ordinary directly-addressed unsigned-byte scalar and its symbol.
+static bool stmt_direct_u8_scalar_symbol(Context *ctx, ASTNode *expr,
+                                         LValueRef *lv_out,
+                                         char *symbol, size_t symbol_size) {
+   LValueRef lv;
+   ContextEntry entry;
+   ASTNode *value = (ASTNode *)unwrap_expr_node(expr);
+
+   if (!ctx || !value || !symbol || symbol_size == 0 ||
+       !resolve_lvalue(ctx, value, &lv) || !lv.name || lv.size != 1 ||
+       lv.is_bitfield || lv.indirect || lv.needs_runtime_address ||
+       lv.is_absolute_ref || lv.is_ref || lv.is_swapram ||
+       declarator_pointer_depth(lv.declarator) != 0 ||
+       type_is_signed_integer(lv.type) || type_is_bcd_integer(lv.type)) {
+      return false;
+   }
+
+   entry = (ContextEntry){ .name = lv.name, .type = lv.type,
+      .declarator = lv.declarator, .is_static = lv.is_static,
+      .is_zeropage = lv.is_zeropage, .is_global = lv.is_global,
+      .offset = lv.offset, .size = lv.size };
+   if (!entry_symbol_name(ctx, &entry, symbol, symbol_size)) {
+      return false;
+   }
+   if (lv_out) *lv_out = lv;
+   return true;
+}
+
+//! @brief Emit one direct-byte compound operator using the current A value as lhs.
+static bool stmt_emit_u8_compound_to_live_a(Context *ctx, const LValueRef *dst,
+                                             const char *op, ASTNode *rhs) {
+   long long constant;
+
+   if (!ctx || !dst || !op || !rhs) return false;
+   if (expr_is_integer_constant_expr(rhs, &constant) && constant >= 0 && constant <= 255) {
+      unsigned int value = (unsigned int)constant;
+      if (!strcmp(op, "+=")) {
+         emit(&es_code, "    clc\n    adc #$%02x\n", value);
+         return true;
+      }
+      if (!strcmp(op, "-=")) {
+         emit(&es_code, "    sec\n    sbc #$%02x\n", value);
+         return true;
+      }
+      if (!strcmp(op, "&=")) {
+         emit(&es_code, "    and #$%02x\n", value);
+         return true;
+      }
+      if (!strcmp(op, "|=")) {
+         emit(&es_code, "    ora #$%02x\n", value);
+         return true;
+      }
+      if (!strcmp(op, "^=")) {
+         emit(&es_code, "    eor #$%02x\n", value);
+         return true;
+      }
+      if (!strcmp(op, "<<=") || !strcmp(op, ">>=")) {
+         if (value >= 8) return false;
+         for (unsigned int i = 0; i < value; ++i) {
+            emit(&es_code, !strcmp(op, "<<=") ? "    asl\n" : "    lsr\n");
+         }
+         return true;
+      }
+      return false;
+   }
+
+   if (!strcmp(op, "+=") || !strcmp(op, "-=") || !strcmp(op, "&=") ||
+       !strcmp(op, "|=") || !strcmp(op, "^=")) {
+      LValueRef src;
+      char src_symbol[256];
+      char src_buf[256];
+      const char *src_fmt;
+
+      if (!stmt_direct_u8_scalar_symbol(ctx, rhs, &src, src_symbol, sizeof(src_symbol)) ||
+          !src.name || !dst->name ||
+          (!strcmp(src.name, dst->name) && src.offset == dst->offset &&
+           src.base_offset == dst->base_offset)) {
+         return false;
+      }
+      src_fmt = assembler_address_expr(src_symbol, src_buf, sizeof(src_buf));
+      require_lvalue_readable(&src);
+      emit_lvalue_semantic_use(ctx, &src, "read");
+      if (!strcmp(op, "+=")) emit(&es_code, "    clc\n");
+      else if (!strcmp(op, "-=")) emit(&es_code, "    sec\n");
+      if (src.offset == 0) {
+         emit(&es_code, !strcmp(op, "+=") ? "    adc %s\n" :
+                        !strcmp(op, "-=") ? "    sbc %s\n" :
+                        !strcmp(op, "&=") ? "    and %s\n" :
+                        !strcmp(op, "|=") ? "    ora %s\n" : "    eor %s\n",
+              src_fmt);
+      }
+      else {
+         emit(&es_code, !strcmp(op, "+=") ? "    adc %s + %d\n" :
+                        !strcmp(op, "-=") ? "    sbc %s + %d\n" :
+                        !strcmp(op, "&=") ? "    and %s + %d\n" :
+                        !strcmp(op, "|=") ? "    ora %s + %d\n" : "    eor %s + %d\n",
+              src_fmt, src.offset);
+      }
+      return true;
+   }
+
+   return false;
+}
+
+//! @brief Keep adjacent simple byte assignments/compound updates in A until the join.
+//!
+//! This is the scalar analogue of the existing cross-statement range/update
+//! lowering: ordinary non-aliased byte storage has no reason to be written and
+//! immediately reloaded between side-effect-free arithmetic statements.  The
+//! chain is deliberately restricted to direct scalar storage and constant or
+//! other direct-scalar RHS operands, so no call, pointer, hardware register, or
+//! runtime-address side effect can observe the delayed store.
+static int compile_direct_u8_scalar_statement_chain(ASTNode *list, int start,
+                                                     Context *ctx) {
+   ASTNode *first;
+   const char *first_op;
+   LValueRef dst;
+   char dst_symbol[256];
+   char dst_buf[256];
+   const char *dst_fmt;
+   int end;
+
+   if (!list || !ctx || start < 0 || start >= list->count) return 0;
+   first = list->children[start];
+   if (!first || strcmp(first->name, "assign_expr") || first->count != 3 ||
+       !(first_op = first->children[0] ? first->children[0]->strval : NULL) ||
+       !stmt_direct_u8_scalar_symbol(ctx, first->children[1], &dst,
+                                    dst_symbol, sizeof(dst_symbol)) ||
+       dst.object_is_const) {
+      return 0;
+   }
+
+   /* Require at least one following update before taking over the statement;
+      the ordinary single-statement lowering is already optimal by itself. */
+   end = start + 1;
+   while (end < list->count) {
+      ASTNode *stmt = list->children[end];
+      const char *op;
+      LValueRef same;
+      if (!stmt || strcmp(stmt->name, "assign_expr") || stmt->count != 3 ||
+          !(op = stmt->children[0] ? stmt->children[0]->strval : NULL) ||
+          (strcmp(op, "+=") && strcmp(op, "-=") && strcmp(op, "&=") &&
+           strcmp(op, "|=") && strcmp(op, "^=") && strcmp(op, "<<=") &&
+           strcmp(op, ">>=")) ||
+          !stmt_direct_u8_lvalue_matches_ref(ctx, stmt->children[1], &dst, &same)) {
+         break;
+      }
+      /* Prove the RHS form before emitting anything. */
+      {
+         long long c;
+         LValueRef src;
+         char src_symbol[256];
+         bool rhs_ok = expr_is_integer_constant_expr(stmt->children[2], &c) &&
+                       c >= 0 && c <= 255;
+         if (!rhs_ok && strcmp(op, "<<=") && strcmp(op, ">>=")) {
+            rhs_ok = stmt_direct_u8_scalar_symbol(ctx, stmt->children[2], &src,
+                                                  src_symbol, sizeof(src_symbol)) &&
+                     (strcmp(src.name, dst.name) || src.offset != dst.offset ||
+                      src.base_offset != dst.base_offset);
+         }
+         if (!rhs_ok) break;
+      }
+      end++;
+   }
+   if (end <= start + 1) return 0;
+
+   dst_fmt = assembler_address_expr(dst_symbol, dst_buf, sizeof(dst_buf));
+   require_lvalue_writable(&dst);
+   if (!strcmp(first_op, ":=")) {
+      if (!compile_direct_u8_expr_to_a(ctx, first->children[2])) return 0;
+   }
+   else if (!strcmp(first_op, "+=") || !strcmp(first_op, "-=") ||
+            !strcmp(first_op, "&=") || !strcmp(first_op, "|=") ||
+            !strcmp(first_op, "^=") || !strcmp(first_op, "<<=") ||
+            !strcmp(first_op, ">>=")) {
+      require_lvalue_readable(&dst);
+      emit_lvalue_semantic_use(ctx, &dst, "read");
+      emit_load_a_from_expr_address(dst_fmt, dst.offset);
+      if (!stmt_emit_u8_compound_to_live_a(ctx, &dst, first_op, first->children[2])) {
+         return 0;
+      }
+   }
+   else {
+      return 0;
+   }
+   emit_lvalue_semantic_use(ctx, &dst, "write");
+
+   for (int i = start + 1; i < end; ++i) {
+      ASTNode *stmt = list->children[i];
+      const char *op = stmt->children[0]->strval;
+      LValueRef statement_dst;
+
+      if (!stmt_direct_u8_lvalue_matches_ref(ctx, stmt->children[1], &dst,
+                                             &statement_dst)) {
+         error_unreachable("prevalidated direct byte statement chain lost its lvalue");
+      }
+      emit_statement_source_marker(stmt);
+      emit_lvalue_semantic_use(ctx, &statement_dst, "read");
+      emit_lvalue_semantic_use(ctx, &statement_dst, "write");
+      if (!stmt_emit_u8_compound_to_live_a(ctx, &statement_dst, op,
+                                           stmt->children[2])) {
+         error_unreachable("prevalidated direct byte statement chain became invalid");
+      }
+   }
+
+   emit_store_a_to_expr_address(dst_fmt, dst.offset);
+   return end - start;
+}
+
+//! @brief Recognize `if (!x) x := constant` for one ordinary direct byte.
+static bool classify_direct_u8_zero_replacement_if(ASTNode *node, Context *ctx,
+                                                    const LValueRef *state,
+                                                    unsigned char *replacement_out,
+                                                    LValueRef *condition_out,
+                                                    LValueRef *destination_out,
+                                                    ASTNode **assignment_out) {
+   ASTNode *cond;
+   ASTNode *then_stmt;
+   ASTNode *value_expr;
+   LValueRef cond_lv;
+   LValueRef dst_lv;
+   InitConstValue value = {0};
+   unsigned char encoded = 0;
+   const char *op;
+
+   if (!node || !ctx || !state || strcmp(node->name, "if_stmt") || node->count < 2 ||
+       (node->count > 2 && node->children[2] && !is_empty(node->children[2]))) {
+      return false;
+   }
+   cond = (ASTNode *)unwrap_expr_node(node->children[0]);
+   if (!cond || cond->count != 1 || strcmp(cond->name, "!") ||
+       !stmt_direct_u8_lvalue_matches_ref(ctx, cond->children[0], state, &cond_lv)) {
+      return false;
+   }
+
+   then_stmt = single_branch_statement(node->children[1]);
+   if (!then_stmt || strcmp(then_stmt->name, "assign_expr") || then_stmt->count != 3 ||
+       !(op = then_stmt->children[0] ? then_stmt->children[0]->strval : NULL) ||
+       strcmp(op, ":=") ||
+       !stmt_direct_u8_lvalue_matches_ref(ctx, then_stmt->children[1], state, &dst_lv)) {
+      return false;
+   }
+   value_expr = then_stmt->children[2];
+   if (!eval_constant_initializer_expr(value_expr, &value) || value.kind != INIT_CONST_INT ||
+       !integer_value_fits_type(value.i, dst_lv.type) ||
+       !encode_integer_initializer_value(value.i, &encoded, 1, dst_lv.type)) {
+      return false;
+   }
+
+   if (replacement_out) *replacement_out = encoded;
+   if (condition_out) *condition_out = cond_lv;
+   if (destination_out) *destination_out = dst_lv;
+   if (assignment_out) *assignment_out = then_stmt;
+   return true;
+}
+
 //! @brief Lower `if (x & 1) x := (x >> 1) ^ k; else x >>= 1` via LSR carry.
 //!
 //! This is a general flag-preserving byte idiom: the carry produced by LSR is
 //! exactly the original bit-zero condition, so re-reading and re-testing the
 //! source byte is unnecessary.  It is useful for CRC/LFSR-style state machines
 //! without teaching the compiler anything about a particular polynomial.
-static bool compile_u8_shift_xor_carry_if(ASTNode *node, Context *ctx) {
+static bool compile_u8_shift_xor_carry_if(ASTNode *node, ASTNode *next_stmt, Context *ctx,
+                                                LValueRef *stored_state_out,
+                                                bool *consumed_next_out) {
    ASTNode *cond;
    ASTNode *cond_value = NULL;
    ASTNode *then_stmt;
@@ -752,12 +1041,19 @@ static bool compile_u8_shift_xor_carry_if(ASTNode *node, Context *ctx) {
    char expr_buf[256];
    const char *formatted;
    const char *skip_xor;
+   const char *zero_keep = NULL;
    const char *then_op;
    const char *else_op;
    long long bit = -1;
    long long shift = -1;
    long long xor_value = -1;
+   bool sink_zero_replacement = false;
+   unsigned char zero_replacement = 0;
+   LValueRef zero_condition = {0};
+   LValueRef zero_destination = {0};
+   ASTNode *zero_assignment = NULL;
 
+   if (consumed_next_out) *consumed_next_out = false;
    if (!node || !ctx || strcmp(node->name, "if_stmt") || node->count < 3 ||
        !node->children[2] || is_empty(node->children[2])) {
       return false;
@@ -830,8 +1126,19 @@ static bool compile_u8_shift_xor_carry_if(ASTNode *node, Context *ctx) {
       .offset = state.offset, .size = state.size };
    if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) return false;
    formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+   sink_zero_replacement = next_stmt &&
+      classify_direct_u8_zero_replacement_if(next_stmt, ctx, &state,
+                                             &zero_replacement, &zero_condition,
+                                             &zero_destination, &zero_assignment);
    skip_xor = next_label("u8_shift_xor_skip");
-   if (!skip_xor) return false;
+   if (sink_zero_replacement) {
+      zero_keep = next_label("u8_zero_keep");
+   }
+   if (!skip_xor || (sink_zero_replacement && !zero_keep)) {
+      free((void *)skip_xor);
+      free((void *)zero_keep);
+      return false;
+   }
 
    emit_lvalue_semantic_use(ctx, &state, "read");
    emit_lvalue_semantic_use(ctx, &state, "write");
@@ -840,8 +1147,148 @@ static bool compile_u8_shift_xor_carry_if(ASTNode *node, Context *ctx) {
    emit(&es_code, "    bcc %s\n", skip_xor);
    emit(&es_code, "    eor #$%02x\n", (unsigned int)xor_value);
    emit(&es_code, "%s:\n", skip_xor);
-   emit_store_a_to_expr_address(formatted, state.offset);
+   if (sink_zero_replacement) {
+      /* The candidate value is still in A and N/Z.  Delay the ordinary-memory
+         store across the zero fallback, then write exactly once at the join. */
+      emit_statement_source_marker(next_stmt);
+      emit_lvalue_semantic_use(ctx, &zero_condition, "read");
+      emit(&es_code, "    bne %s\n", zero_keep);
+      emit_statement_source_marker(zero_assignment);
+      emit_lvalue_semantic_use(ctx, &zero_destination, "write");
+      emit(&es_code, "    lda #$%02x\n", (unsigned int)zero_replacement);
+      emit(&es_code, "%s:\n", zero_keep);
+      emit_store_a_to_expr_address(formatted, state.offset);
+      if (consumed_next_out) *consumed_next_out = true;
+   }
+   else {
+      emit_store_a_to_expr_address(formatted, state.offset);
+   }
+   if (stored_state_out) *stored_state_out = state;
    free((void *)skip_xor);
+   free((void *)zero_keep);
+   return true;
+}
+
+//! @brief Reuse N/Z after an immediately preceding direct-byte store in a simple if.
+//!
+//! 6502 STA leaves N/Z unchanged.  When the previous lowering proves that A and
+//! N/Z still describe the exact byte just stored, `if (x)` / `if (!x)` does not
+//! need to reload x merely to recreate those flags.  Keep this at statement
+//! level so absolute/indirect/aliased objects never enter the optimization.
+//! @brief Lower `byte := expr; if (byte)` while reusing the store's live N/Z flags.
+//!
+//! The ordinary direct-byte expression path computes the assigned value in A,
+//! and STA does not alter N/Z.  When the immediately following condition tests
+//! that exact byte for zero/nonzero, do not throw those flags away and reload
+//! the byte.  Restrict this to plain direct unsigned-byte storage so indexed,
+//! aliased, indirect, absolute, and packed-BCD lvalues keep their established
+//! lowering.
+static bool compile_direct_u8_assignment_for_stored_nz(ASTNode *node, ASTNode *next_stmt,
+                                                         Context *ctx,
+                                                         LValueRef *stored_out) {
+   const char *op;
+   ASTNode *cond;
+   ASTNode *value;
+   LValueRef dst;
+   LValueRef cond_lv;
+   ContextEntry entry;
+   char symbol[256];
+   char expr_buf[256];
+   const char *formatted;
+
+   if (!node || !next_stmt || !ctx || strcmp(node->name, "assign_expr") ||
+       node->count != 3 || !(op = node->children[0] ? node->children[0]->strval : NULL) ||
+       strcmp(op, ":=") || strcmp(next_stmt->name, "if_stmt") || next_stmt->count < 2 ||
+       !resolve_lvalue(ctx, node->children[1], &dst) || !dst.name || dst.size != 1 ||
+       dst.is_bitfield || dst.indirect || dst.needs_runtime_address || dst.is_absolute_ref ||
+       declarator_pointer_depth(dst.declarator) != 0 || type_is_signed_integer(dst.type) ||
+       type_is_bcd_integer(dst.type)) {
+      return false;
+   }
+
+   cond = (ASTNode *)unwrap_expr_node(next_stmt->children[0]);
+   if (!cond) return false;
+   value = cond;
+   if (cond->count == 1 && !strcmp(cond->name, "!")) {
+      value = (ASTNode *)unwrap_expr_node(cond->children[0]);
+   }
+   if (!stmt_direct_u8_lvalue_matches_ref(ctx, value, &dst, &cond_lv)) {
+      return false;
+   }
+
+   /* compile_direct_u8_expr_to_a() first proves that the whole RHS is supported,
+      so a false return emits nothing and the normal assignment path remains safe. */
+   if (!compile_direct_u8_expr_to_a(ctx, node->children[2])) {
+      return false;
+   }
+
+   entry = (ContextEntry){ .name = dst.name, .type = dst.type,
+      .declarator = dst.declarator, .is_static = dst.is_static,
+      .is_zeropage = dst.is_zeropage, .is_global = dst.is_global,
+      .offset = dst.offset, .size = dst.size };
+   if (!entry_symbol_name(ctx, &entry, symbol, sizeof(symbol))) {
+      return false;
+   }
+   formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+   emit_lvalue_semantic_use(ctx, &dst, "write");
+   emit_store_a_to_expr_address(formatted, dst.offset);
+   if (stored_out) *stored_out = dst;
+   return true;
+}
+
+static bool compile_direct_u8_if_from_stored_nz(ASTNode *node, Context *ctx,
+                                                 const LValueRef *stored) {
+   ASTNode *cond;
+   ASTNode *value;
+   ASTNode *then_block;
+   ASTNode *else_block;
+   LValueRef cond_lv;
+   const char *false_label;
+   const char *end_label;
+   bool inverted = false;
+
+   if (!node || !ctx || !stored || strcmp(node->name, "if_stmt") || node->count < 2 ||
+       ctx->pointer_low_range_known) {
+      return false;
+   }
+
+   cond = (ASTNode *)unwrap_expr_node(node->children[0]);
+   if (!cond) return false;
+   value = cond;
+   if (cond->count == 1 && !strcmp(cond->name, "!")) {
+      value = (ASTNode *)unwrap_expr_node(cond->children[0]);
+      inverted = true;
+   }
+   if (!stmt_direct_u8_lvalue_matches_ref(ctx, value, stored, &cond_lv)) {
+      return false;
+   }
+
+   false_label = next_label("stored_u8_if_false");
+   end_label = next_label("stored_u8_if_end");
+   if (!false_label || !end_label) {
+      free((void *)false_label);
+      free((void *)end_label);
+      return false;
+   }
+
+   emit_statement_source_marker(node);
+   emit_lvalue_semantic_use(ctx, &cond_lv, "read");
+   emit(&es_code, inverted ? "    bne %s\n" : "    beq %s\n", false_label);
+
+   then_block = node->children[1];
+   else_block = (node->count > 2) ? node->children[2] : NULL;
+   compile_statement_list(then_block, ctx);
+   if (else_block && !is_empty(else_block)) {
+      emit(&es_code, "    jmp %s\n", end_label);
+   }
+   emit(&es_code, "%s:\n", false_label);
+   if (else_block && !is_empty(else_block)) {
+      compile_statement_list(else_block, ctx);
+      emit(&es_code, "%s:\n", end_label);
+   }
+
+   free((void *)false_label);
+   free((void *)end_label);
    return true;
 }
 
@@ -1166,6 +1613,16 @@ static void compile_if_stmt(ASTNode *node, Context *ctx) {
    }
    if (compile_compact_pointer_u8_conditional_update(node, ctx)) return;
 
+   if (node && node->count > 2 && node->children[2] && !is_empty(node->children[2])) {
+      ASTNode *then_stmt = single_branch_statement(node->children[1]);
+      ASTNode *else_stmt = single_branch_statement(node->children[2]);
+      if (then_stmt && else_stmt &&
+          compile_direct_u8_array_incdec_conditional(ctx, node->children[0],
+                                                     then_stmt, else_stmt)) {
+         return;
+      }
+   }
+
    const char *false_label = next_label("if_false");
    const char *end_label = next_label("if_end");
    ASTNode *cond = node->children[0];
@@ -1232,6 +1689,70 @@ static void compile_if_stmt(ASTNode *node, Context *ctx) {
    free((void *) end_label);
 }
 
+static void compile_statement_list_range(ASTNode *node, Context *ctx, int start_index);
+
+//! @brief Fuse a direct-byte `while (x >= k) { x -= k; ... }` compare/subtract pair.
+//!
+//! CMP already leaves A holding x and carry set on the loop-entering path.  For
+//! ordinary direct unsigned-byte storage, reloading x and issuing SEC before the
+//! immediately following subtraction is redundant.  Keep this deliberately
+//! narrow: the subtraction must be the first body statement, target the exact
+//! condition byte, and use the exact same nonzero byte constant.
+static bool compile_u8_while_ge_subtract_first(ASTNode *cond, ASTNode *body,
+                                                Context *ctx,
+                                                const char *end_label) {
+   ASTNode *cmp = (ASTNode *)unwrap_expr_node(cond);
+   ASTNode *first;
+   ASTNode *op_node;
+   LValueRef state;
+   LValueRef update_state;
+   char state_symbol[256];
+   long long condition_value;
+   long long update_value;
+
+   if (!cmp || strcmp(cmp->name, ">=") || cmp->count != 2 ||
+       !body || strcmp(body->name, "statement_list") || body->count < 1 ||
+       !expr_is_integer_constant_expr(cmp->children[1], &condition_value) ||
+       condition_value <= 0 || condition_value > 255 ||
+       !stmt_direct_u8_scalar_symbol(ctx, cmp->children[0], &state,
+                                    state_symbol, sizeof(state_symbol)) ||
+       state.object_is_const) {
+      return false;
+   }
+
+   first = body->children[0];
+   if (!first || strcmp(first->name, "assign_expr") || first->count != 3 ||
+       !(op_node = first->children[0]) || !op_node->strval ||
+       strcmp(op_node->strval, "-=") ||
+       !stmt_direct_u8_lvalue_matches_ref(ctx, first->children[1], &state,
+                                         &update_state) ||
+       !expr_is_integer_constant_expr(first->children[2], &update_value) ||
+       update_value != condition_value) {
+      return false;
+   }
+
+   require_lvalue_readable(&state);
+   require_lvalue_writable(&update_state);
+   emit_lvalue_semantic_use(ctx, &state, "read");
+   if (!emit_load_direct_byte_lvalue_to_a(ctx, &state)) return false;
+   emit(&es_code, "    cmp #$%02x\n", (unsigned int)condition_value);
+   emit(&es_code, "    bcc %s\n", end_label);
+
+   emit_statement_source_marker(first);
+   emit_lvalue_semantic_use(ctx, &update_state, "read");
+   emit_lvalue_semantic_use(ctx, &update_state, "write");
+   /* CMP proved A >= k, so carry is already set here. */
+   emit(&es_code, "    sbc #$%02x\n", (unsigned int)condition_value);
+   if (!emit_store_a_to_direct_byte_lvalue(ctx, &update_state)) {
+      error_unreachable("prevalidated direct byte while/subtract target became invalid");
+   }
+
+   if (body->count > 1) {
+      compile_statement_list_range(body, ctx, 1);
+   }
+   return true;
+}
+
 //! @brief Lower while stmt from AST/semantic state into generated assembly or linker-visible metadata.
 static void compile_while_stmt(ASTNode *node, Context *ctx) {
    const char *named_loop = pending_loop_label_name;
@@ -1262,17 +1783,23 @@ static void compile_while_stmt(ASTNode *node, Context *ctx) {
       push_named_loop_labels(named_loop, end_label, start_label);
    }
    emit(&es_code, "%s:\n", start_label);
-   if (!bound_condition && !compile_condition_branch_false(cond, ctx, end_label)) {
-      error_user("[%s:%d.%d] invalid while condition", node->file, node->line, node->column);
-      pop_loop_labels();
-      if (named_loop) {
-         pop_named_loop_labels();
+   bool fused_u8_ge_subtract = false;
+   if (!bound_condition) {
+      fused_u8_ge_subtract = compile_u8_while_ge_subtract_first(cond, body, ctx, end_label);
+      if (!fused_u8_ge_subtract && !compile_condition_branch_false(cond, ctx, end_label)) {
+         error_user("[%s:%d.%d] invalid while condition", node->file, node->line, node->column);
+         pop_loop_labels();
+         if (named_loop) {
+            pop_named_loop_labels();
+         }
+         free((void *) start_label);
+         free((void *) end_label);
+         return;
       }
-      free((void *) start_label);
-      free((void *) end_label);
-      return;
    }
-   compile_statement_list(body, ctx);
+   if (!fused_u8_ge_subtract) {
+      compile_statement_list(body, ctx);
+   }
    emit(&es_code, "    jmp %s\n", start_label);
    emit(&es_code, "%s:\n", end_label);
    pop_loop_labels();
@@ -1295,14 +1822,46 @@ static bool counted_loop_u8_constant(ASTNode *expr, int *out) {
    return true;
 }
 
+//! @brief Return whether one byte array element is addressed by the counted-loop X index.
+static bool counted_loop_x_direct_array_operand(ASTNode *expr, Context *ctx,
+                                                const char *counter) {
+   ASTNode *u = (ASTNode *)unwrap_expr_node(expr);
+   ASTNode *suffix;
+   ASTNode *index;
+   LValueRef lv;
+   const char *name;
+
+   if (!u || strcmp(u->name, "lvalue") || u->count < 2 ||
+       !(suffix = u->children[1]) || strcmp(suffix->name, "[") || suffix->count < 2 ||
+       !is_empty(suffix->children[0])) {
+      return false;
+   }
+   index = (ASTNode *)unwrap_expr_node(suffix->children[1]);
+   name = expr_bare_identifier_name(index);
+   if (!name || !counter || strcmp(name, counter) ||
+       !resolve_ref_argument_lvalue(ctx, u, &lv) || lv.size != 1 || lv.is_bitfield ||
+       lv.is_absolute_ref || lv.is_ref || lv.is_swapram ||
+       type_is_signed_integer(lv.type) || type_is_bcd_integer(lv.type) ||
+       declarator_array_count(lv.base_declarator) <= 0 ||
+       declarator_first_element_size(lv.base_type, lv.base_declarator) != 1 ||
+       (!lv.is_global && !lv.is_static && !lv.is_zeropage)) {
+      return false;
+   }
+   return true;
+}
+
 //! @brief Return whether one expression shape stays in the compact A/Y byte path.
-static bool counted_loop_x_safe_byte_expr(ASTNode *expr, Context *ctx) {
+static bool counted_loop_x_safe_byte_expr(ASTNode *expr, Context *ctx, const char *counter) {
    const ASTNode *type;
    const ASTNode *decl;
    int constant;
 
    expr = (ASTNode *)unwrap_expr_node(expr);
    if (!expr) return false;
+   if (counter) {
+      const char *name = expr_bare_identifier_name(expr);
+      if (name && !strcmp(name, counter)) return true;
+   }
    if (counted_loop_u8_constant(expr, &constant)) return true;
    type = expr_value_type(expr, ctx);
    decl = expr_value_declarator(expr, ctx);
@@ -1316,7 +1875,7 @@ static bool counted_loop_x_safe_byte_expr(ASTNode *expr, Context *ctx) {
       if (expr->count < 2 || is_empty(expr->children[1])) return true;
       if (strcmp(expr->children[1]->name, "[") || expr->children[1]->count < 2)
          return false;
-      return counted_loop_x_safe_byte_expr(expr->children[1]->children[1], ctx);
+      return counted_loop_x_safe_byte_expr(expr->children[1]->children[1], ctx, counter);
    }
    if (expr->count == 2 && (!strcmp(expr->name, "&") || !strcmp(expr->name, "|") ||
                             !strcmp(expr->name, "^") || !strcmp(expr->name, "+") ||
@@ -1325,15 +1884,42 @@ static bool counted_loop_x_safe_byte_expr(ASTNode *expr, Context *ctx) {
       int right_constant;
       bool lc = counted_loop_u8_constant(expr->children[0], &left_constant);
       bool rc = counted_loop_u8_constant(expr->children[1], &right_constant);
-      if (!strcmp(expr->name, "-") && !rc) return false;
-      if (rc) return counted_loop_x_safe_byte_expr(expr->children[0], ctx);
+      if (rc) return counted_loop_x_safe_byte_expr(expr->children[0], ctx, counter);
       if (lc && strcmp(expr->name, "-"))
-         return counted_loop_x_safe_byte_expr(expr->children[1], ctx);
+         return counted_loop_x_safe_byte_expr(expr->children[1], ctx, counter);
+      /* A direct byte array element indexed by the live loop counter is a real
+         6502 ALU memory operand (foo,X).  Permit a second safe byte expression
+         to remain in A around that operand instead of forcing the loop index
+         back into RAM. */
+      if (counted_loop_x_direct_array_operand(expr->children[1], ctx, counter) &&
+          counted_loop_x_safe_byte_expr(expr->children[0], ctx, counter)) {
+         return true;
+      }
+      if (strcmp(expr->name, "-") &&
+          counted_loop_x_direct_array_operand(expr->children[0], ctx, counter) &&
+          counted_loop_x_safe_byte_expr(expr->children[1], ctx, counter)) {
+         return true;
+      }
       return false;
+   }
+   if (expr->count == 1 && !strcmp(expr->name, "!")) {
+      return counted_loop_x_safe_byte_expr(expr->children[0], ctx, counter);
+   }
+   if (expr->count == 2 && (!strcmp(expr->name, "&&") || !strcmp(expr->name, "||"))) {
+      return counted_loop_x_safe_byte_expr(expr->children[0], ctx, counter) &&
+             counted_loop_x_safe_byte_expr(expr->children[1], ctx, counter);
+   }
+   if (expr->count == 2 && (!strcmp(expr->name, "==") || !strcmp(expr->name, "!=") ||
+                            !strcmp(expr->name, "<") || !strcmp(expr->name, ">") ||
+                            !strcmp(expr->name, "<=") || !strcmp(expr->name, ">=")) &&
+       counted_loop_u8_constant(expr->children[1], &constant)) {
+      /* Direct unsigned-byte comparisons against an immediate use only A/P;
+         an array[counter] lhs continues to use the live X index. */
+      return counted_loop_x_safe_byte_expr(expr->children[0], ctx, counter);
    }
    if (expr->count == 2 && (!strcmp(expr->name, "<<") || !strcmp(expr->name, ">>")) &&
        counted_loop_u8_constant(expr->children[1], &constant) && constant < 8) {
-      return counted_loop_x_safe_byte_expr(expr->children[0], ctx);
+      return counted_loop_x_safe_byte_expr(expr->children[0], ctx, counter);
    }
    return false;
 }
@@ -1345,13 +1931,22 @@ static bool counted_loop_x_safe_target(ASTNode *target, Context *ctx, const char
    ASTNode *index;
    LValueRef lv;
    const char *name;
+   bool incdec = classify_incdec_lvalue_expr(u, NULL, NULL);
    int delta = 0;
 
    name = expr_bare_identifier_name(u);
+   if (!name && incdec && u && !strcmp(u->name, "lvalue") && u->count >= 3 &&
+       u->children[1] && is_empty(u->children[1])) {
+      ASTNode *base = u->children[0];
+      if (base && !strcmp(base->name, "lvalue_base") && base->count == 1 &&
+          base->children[0] && base->children[0]->kind == AST_IDENTIFIER) {
+         name = base->children[0]->strval;
+      }
+   }
    if (name) {
       if (counter && !strcmp(name, counter)) return false;
-      if (!resolve_ref_argument_lvalue(ctx, u, &lv) || lv.size != 1 ||
-          lv.is_bitfield || lv.indirect || lv.needs_runtime_address ||
+      if (!(incdec ? resolve_lvalue(ctx, u, &lv) : resolve_ref_argument_lvalue(ctx, u, &lv)) ||
+          lv.size != 1 || lv.is_bitfield || lv.indirect || lv.needs_runtime_address ||
           type_is_signed_integer(lv.type) || type_is_bcd_integer(lv.type)) {
          return false;
       }
@@ -1374,8 +1969,8 @@ static bool counted_loop_x_safe_target(ASTNode *target, Context *ctx, const char
       delta = value;
    }
    (void)delta;
-   return resolve_ref_argument_lvalue(ctx, u, &lv) && lv.size == 1 &&
-          !lv.is_bitfield && !lv.is_absolute_ref &&
+   return (incdec ? resolve_lvalue(ctx, u, &lv) : resolve_ref_argument_lvalue(ctx, u, &lv)) &&
+          lv.size == 1 && !lv.is_bitfield && !lv.is_absolute_ref &&
           declarator_array_count(lv.base_declarator) > 0 &&
           declarator_first_element_size(lv.base_type, lv.base_declarator) == 1 &&
           !type_is_signed_integer(lv.type) && !type_is_bcd_integer(lv.type);
@@ -1413,14 +2008,49 @@ static bool counted_loop_x_safe_body(ASTNode *body, Context *ctx, const char *co
       ASTNode *target;
       ASTNode *rhs;
       if (counted_loop_x_safe_discard_store(stmt, ctx, counter)) continue;
+      if (stmt && (!strcmp(stmt->name, "break_stmt") ||
+                   !strcmp(stmt->name, "continue_stmt"))) {
+         continue;
+      }
+      if (stmt && !strcmp(stmt->name, "if_stmt") && stmt->count >= 2) {
+         bool c_ok = counted_loop_x_safe_byte_expr(stmt->children[0], ctx, counter);
+         bool t_ok = c_ok && counted_loop_x_safe_body(stmt->children[1], ctx, counter);
+         bool e_ok = t_ok && (stmt->count < 3 || !stmt->children[2] || is_empty(stmt->children[2]) ||
+                              counted_loop_x_safe_body(stmt->children[2], ctx, counter));
+         if (c_ok && t_ok && e_ok) continue;
+         return false;
+      }
+      {
+         bool inc = false;
+         bool pre = false;
+         ASTNode *incdec = (ASTNode *)unwrap_expr_node(stmt);
+         if (incdec && classify_incdec_lvalue_expr(incdec, &inc, &pre)) {
+            (void)inc;
+            (void)pre;
+            if (!counted_loop_x_safe_target(incdec, ctx, counter)) {
+               return false;
+            }
+            continue;
+         }
+      }
       if (!stmt || strcmp(stmt->name, "assign_expr") || stmt->count != 3 ||
-          !stmt->children[0] || strcmp(stmt->children[0]->strval, ":=")) {
+          !stmt->children[0]) {
          return false;
       }
       target = stmt->children[1];
       rhs = stmt->children[2];
       if (!counted_loop_x_safe_target(target, ctx, counter) ||
-          !counted_loop_x_safe_byte_expr(rhs, ctx)) {
+          !counted_loop_x_safe_byte_expr(rhs, ctx, counter)) {
+         return false;
+      }
+      if (strcmp(stmt->children[0]->strval, ":=") &&
+          strcmp(stmt->children[0]->strval, "+=") &&
+          strcmp(stmt->children[0]->strval, "-=") &&
+          strcmp(stmt->children[0]->strval, "&=") &&
+          strcmp(stmt->children[0]->strval, "|=") &&
+          strcmp(stmt->children[0]->strval, "^=") &&
+          strcmp(stmt->children[0]->strval, "<<=") &&
+          strcmp(stmt->children[0]->strval, ">>=")) {
          return false;
       }
    }
@@ -1494,15 +2124,31 @@ static bool classify_register_counted_for(ASTNode *node, Context *ctx,
    ustep = (ASTNode *)unwrap_expr_node(step);
    ucond = (ASTNode *)unwrap_expr_node(cond);
 
-   /* Existing ascending form. */
+   /* Existing ascending form, including idiomatic discarded i++/++i. */
    if (ucond && ucond->count == 2 && !strcmp(ucond->name, "<") &&
        (cond_name = expr_bare_identifier_name(ucond->children[0])) != NULL &&
-       !strcmp(cond_name, name) && counted_loop_u8_constant(ucond->children[1], &limit) &&
-       ustep && ustep->count == 3 && ustep->children[0] &&
-       !strcmp(ustep->children[0]->strval, "+=") &&
-       (step_name = expr_bare_identifier_name(ustep->children[1])) != NULL &&
-       !strcmp(step_name, name) && counted_loop_u8_constant(ustep->children[2], &step_value) &&
-       step_value > 0) {
+       !strcmp(cond_name, name) && counted_loop_u8_constant(ucond->children[1], &limit)) {
+      bool inc = false;
+      bool pre = false;
+      bool ascending_step = false;
+
+      if (ustep && !strcmp(ustep->name, "assign_expr") && ustep->count == 3 &&
+          ustep->children[0] && ustep->children[0]->strval &&
+          !strcmp(ustep->children[0]->strval, "+=") &&
+          (step_name = expr_bare_identifier_name(ustep->children[1])) != NULL &&
+          !strcmp(step_name, name) && counted_loop_u8_constant(ustep->children[2], &step_value) &&
+          step_value > 0) {
+         ascending_step = true;
+      }
+      else if (ustep && classify_incdec_lvalue_expr(ustep, &inc, &pre) && inc &&
+               (step_name = counted_loop_incdec_name(ustep)) != NULL &&
+               !strcmp(step_name, name)) {
+         (void)pre; /* Prefix/postfix value is discarded by the for-step clause. */
+         step_value = 1;
+         ascending_step = true;
+      }
+
+      if (!ascending_step) return false;
       decrement = false;
    }
    else {
@@ -1594,7 +2240,10 @@ static void compile_for_stmt(ASTNode *node, Context *ctx) {
       int initial = 0, limit = 0, increment = 0;
       if (classify_register_counted_for(node, ctx, &register_entry,
                                         &initial, &limit, &increment)) {
+         bool saved_register_x_active = ctx->register_x_active;
+         bool saved_entry_register_x = register_entry->is_register_x;
          register_entry->is_register_x = true;
+         ctx->register_x_active = true;
          push_loop_labels(end_label, step_label);
          if (named_loop) push_named_loop_labels(named_loop, end_label, step_label);
          emit(&es_code, "    ldx #$%02x\n", (unsigned int)initial);
@@ -1622,6 +2271,8 @@ static void compile_for_stmt(ASTNode *node, Context *ctx) {
          emit(&es_code, "%s:\n", end_label);
          pop_loop_labels();
          if (named_loop) pop_named_loop_labels();
+         register_entry->is_register_x = saved_entry_register_x;
+         ctx->register_x_active = saved_register_x_active;
          free((void *) start_label);
          free((void *) step_label);
          free((void *) end_label);
@@ -3267,19 +3918,28 @@ static void compile_asm_stmt(ASTNode *node, Context *ctx) {
 }
 
 
-//! @brief Lower statement list from AST/semantic state into generated assembly or linker-visible metadata.
-void compile_statement_list(ASTNode *node, Context *ctx) {
+//! @brief Lower a suffix of one statement list.
+static void compile_statement_list_range(ASTNode *node, Context *ctx, int start_index) {
    if (!node || is_empty(node)) {
       return;
    }
+   if (start_index < 0) start_index = 0;
+   if (start_index >= node->count) return;
 
-   for (int i = 0; i < node->count; i++) {
+   for (int i = start_index; i < node->count; i++) {
       ASTNode *stmt = node->children[i];
       const char *page_selector_target = NULL;
       bool page_selector_sequence = false;
       int reused_pointer_skip = 0;
+      int direct_u8_chain_count = 0;
 
       emit_statement_source_marker(stmt);
+
+      direct_u8_chain_count = compile_direct_u8_scalar_statement_chain(node, i, ctx);
+      if (direct_u8_chain_count > 0) {
+         i += direct_u8_chain_count - 1;
+         continue;
+      }
 
       if (ctx && i + 1 < node->count &&
           compile_compact_array_pointer_base_update(stmt, node->children[i + 1], ctx)) {
@@ -3313,56 +3973,79 @@ void compile_statement_list(ASTNode *node, Context *ctx) {
           compile_compact_page_pointer_selector(stmt, ctx, page_selector_target)) {
          /* The compact selector installs only the proven page high byte. */
       }
-      else if (compile_u8_shift_xor_carry_if(stmt, ctx)) {
-         /* The carry from LSR is the original bit-zero condition. */
-      }
-      else if (!strcmp(stmt->name, "return_stmt")) {
-         compile_return_stmt(stmt, ctx);
-      }
-      else if (!strcmp(stmt->name, "expr") || !strcmp(stmt->name, "assign_expr")) {
-         compile_expr(stmt, ctx);
-      }
-      else if (!strcmp(stmt->name, "defdecl_stmt")) {
-         ASTNode *list = stmt->children[0];
-         for (int j = 0; j < list->count; j++) {
-            compile_local_decl_item(list->children[j], ctx);
-         }
-      }
-      else if (!strcmp(stmt->name, "if_stmt")) {
-         compile_if_stmt(stmt, ctx);
-      }
-      else if (!strcmp(stmt->name, "while_stmt")) {
-         compile_while_stmt(stmt, ctx);
-      }
-      else if (!strcmp(stmt->name, "for_stmt")) {
-         compile_for_stmt(stmt, ctx);
-      }
-      else if (!strcmp(stmt->name, "break_stmt")) {
-         compile_break_stmt(stmt, ctx);
-      }
-      else if (!strcmp(stmt->name, "continue_stmt")) {
-         compile_continue_stmt(stmt, ctx);
-      }
-      else if (!strcmp(stmt->name, "do_stmt")) {
-         compile_do_stmt(stmt, ctx);
-      }
-      else if (!strcmp(stmt->name, "label_stmt")) {
-         compile_label_stmt(stmt, ctx);
-      }
-      else if (!strcmp(stmt->name, "goto_stmt")) {
-         compile_goto_stmt(stmt, ctx);
-      }
-      else if (!strcmp(stmt->name, "switch_stmt")) {
-         compile_switch_stmt(stmt, ctx);
-      }
-      else if (!strcmp(stmt->name, "asm_stmt")) {
-         compile_asm_stmt(stmt, ctx);
-      }
-      else if (!strcmp(stmt->name, "statement_list")) {
-         compile_statement_list(stmt, ctx);
-      }
       else {
-         compile_expr(stmt, ctx);
+         LValueRef stored_u8 = {0};
+         bool consumed_shift_next = false;
+         ASTNode *next_stmt = (i + 1 < node->count) ? node->children[i + 1] : NULL;
+         if (next_stmt && compile_direct_u8_update_if_adjust(stmt, next_stmt, ctx)) {
+            i++;
+         }
+         else if (next_stmt &&
+             compile_direct_u8_assignment_for_stored_nz(stmt, next_stmt, ctx, &stored_u8) &&
+             compile_direct_u8_if_from_stored_nz(next_stmt, ctx, &stored_u8)) {
+            i++;
+         }
+         else if (compile_u8_shift_xor_carry_if(stmt, next_stmt, ctx, &stored_u8,
+                                                &consumed_shift_next)) {
+            /* The carry from LSR is the original bit-zero condition.  STA does
+               not disturb its final N/Z result, so the immediately following
+               truth test may consume those flags directly. */
+            if (consumed_shift_next) {
+               i++;
+            }
+            else if (next_stmt &&
+                     compile_direct_u8_if_from_stored_nz(next_stmt, ctx, &stored_u8)) {
+               i++;
+            }
+         }
+         else if (!strcmp(stmt->name, "return_stmt")) {
+            compile_return_stmt(stmt, ctx);
+         }
+         else if (!strcmp(stmt->name, "expr") || !strcmp(stmt->name, "assign_expr")) {
+            compile_expr(stmt, ctx);
+         }
+         else if (!strcmp(stmt->name, "defdecl_stmt")) {
+            ASTNode *list = stmt->children[0];
+            for (int j = 0; j < list->count; j++) {
+               compile_local_decl_item(list->children[j], ctx);
+            }
+         }
+         else if (!strcmp(stmt->name, "if_stmt")) {
+            compile_if_stmt(stmt, ctx);
+         }
+         else if (!strcmp(stmt->name, "while_stmt")) {
+            compile_while_stmt(stmt, ctx);
+         }
+         else if (!strcmp(stmt->name, "for_stmt")) {
+            compile_for_stmt(stmt, ctx);
+         }
+         else if (!strcmp(stmt->name, "break_stmt")) {
+            compile_break_stmt(stmt, ctx);
+         }
+         else if (!strcmp(stmt->name, "continue_stmt")) {
+            compile_continue_stmt(stmt, ctx);
+         }
+         else if (!strcmp(stmt->name, "do_stmt")) {
+            compile_do_stmt(stmt, ctx);
+         }
+         else if (!strcmp(stmt->name, "label_stmt")) {
+            compile_label_stmt(stmt, ctx);
+         }
+         else if (!strcmp(stmt->name, "goto_stmt")) {
+            compile_goto_stmt(stmt, ctx);
+         }
+         else if (!strcmp(stmt->name, "switch_stmt")) {
+            compile_switch_stmt(stmt, ctx);
+         }
+         else if (!strcmp(stmt->name, "asm_stmt")) {
+            compile_asm_stmt(stmt, ctx);
+         }
+         else if (!strcmp(stmt->name, "statement_list")) {
+            compile_statement_list(stmt, ctx);
+         }
+         else {
+            compile_expr(stmt, ctx);
+         }
       }
 
       if (page_selector_sequence && ctx) {
@@ -3375,3 +4058,7 @@ void compile_statement_list(ASTNode *node, Context *ctx) {
    }
 }
 
+//! @brief Lower statement list from AST/semantic state into generated assembly or linker-visible metadata.
+void compile_statement_list(ASTNode *node, Context *ctx) {
+   compile_statement_list_range(node, ctx, 0);
+}

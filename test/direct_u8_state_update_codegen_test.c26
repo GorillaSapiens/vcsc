@@ -1,21 +1,13 @@
 // vcsc-cc1 -I .
-// expectasmordered: lda state
+// expectasmordered: lda  state
 // expectasmordered: clc
 // expectasmordered: adc #$02
-// expectasmordered: sta state
-// expectasmordered: lda state
 // expectasmordered: sec
 // expectasmordered: sbc #$03
-// expectasmordered: sta state
-// expectasmordered: lda state
 // expectasmordered: and #$0f
-// expectasmordered: sta state
-// expectasmordered: lda state
 // expectasmordered: ora #$80
-// expectasmordered: sta state
-// expectasmordered: lda state
 // expectasmordered: eor #$55
-// expectasmordered: sta state
+// expectasmordered: sta  state
 // expectasmordered: inc state
 // expectasmordered: dec state
 // expectasmordered: lda state

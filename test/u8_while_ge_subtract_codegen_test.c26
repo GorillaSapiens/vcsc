@@ -1,0 +1,24 @@
+// vcsc-cc1 -I .
+// expectasmordered: @while_start_
+// expectasmordered: lda value
+// expectasmordered: cmp #$0f
+// expectasmordered: bcc @while_end_
+// expectasmordered: sbc #$0f
+// expectasmordered: sta value
+// expectasmordered: inc count
+// expectasmordered: jmp @while_start_
+// forbidasm: sec
+// forbidasm: __vcsc_scratch_
+// forbidasm: ptr0
+
+include "machine_6502.c26"
+
+uint8_t value;
+uint8_t count;
+
+void main(void) {
+   while (value >= 15) {
+      value -= 15;
+      count++;
+   }
+}

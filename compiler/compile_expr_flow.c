@@ -275,6 +275,7 @@ typedef struct DirectByteOperand {
    bool direct_memory;
    bool local_scratch;
    bool register_x;
+   bool indexed_x;
    bool symbol_backed;
    char expr[256];
    int offset;
@@ -402,6 +403,15 @@ static bool emit_load_direct_byte_operand_impl(Context *ctx,
       emit(&es_code, "    txa\n");
       return true;
    }
+   if (op->indexed_x) {
+      char expr_buf[256];
+      const char *formatted = assembler_address_expr(op->expr, expr_buf, sizeof(expr_buf));
+      if (op->offset == 0)
+         emit(&es_code, "    lda %s,x\n", formatted);
+      else
+         emit(&es_code, "    lda %s + %d,x\n", formatted, op->offset);
+      return true;
+   }
    if (op->direct_memory) {
       if (op->symbol_backed) {
          char expr_buf[256];
@@ -470,6 +480,13 @@ static bool classify_direct_u8_cast_operand(Context *ctx, ASTNode *expr,
    return true;
 }
 
+static ASTNode *direct_single_subscript_expr(ASTNode *expr);
+static bool direct_lvalue_base_symbol(Context *ctx, const LValueRef *lv,
+                                      char *symbol, size_t symbol_size);
+static bool direct_register_x_index(Context *ctx, ASTNode *expr, int *delta);
+static bool classify_direct_u8_indexed_x_operand(Context *ctx, ASTNode *expr,
+                                                  DirectByteOperand *out);
+
 //! @brief Classify one expression that can serve as a direct byte ALU operand.
 static bool classify_direct_u8_value_operand(Context *ctx, ASTNode *expr,
                                              DirectByteOperand *out) {
@@ -480,13 +497,17 @@ static bool classify_direct_u8_value_operand(Context *ctx, ASTNode *expr,
       if (out) *out = op;
       return true;
    }
+   if (classify_direct_u8_indexed_x_operand(ctx, expr, &op)) {
+      if (out) *out = op;
+      return true;
+   }
    return classify_direct_u8_cast_operand(ctx, expr, out);
 }
 
 //! @brief Return whether one classified byte can be used as a 6502 memory ALU operand.
 static bool direct_byte_operand_is_alu_memory(const DirectByteOperand *op) {
    return op && op->valid && !op->register_x &&
-          (op->direct_memory || op->local_scratch);
+          (op->direct_memory || op->local_scratch || op->indexed_x);
 }
 
 //! @brief Apply one 6502 memory ALU operation to A from a direct byte operand.
@@ -499,6 +520,12 @@ static bool emit_alu_direct_byte_operand(Context *ctx, const char *mnemonic,
       return false;
    }
    emit_lvalue_semantic_use(ctx, &op->lv, "read");
+   if (op->indexed_x) {
+      formatted = assembler_address_expr(op->expr, expr_buf, sizeof(expr_buf));
+      if (op->offset == 0) emit(&es_code, "    %s %s,x\n", mnemonic, formatted);
+      else emit(&es_code, "    %s %s + %d,x\n", mnemonic, formatted, op->offset);
+      return true;
+   }
    if (op->direct_memory) {
       formatted = assembler_address_expr(op->expr, expr_buf, sizeof(expr_buf));
       if (op->offset == 0) emit(&es_code, "    %s %s\n", mnemonic, formatted);
@@ -522,6 +549,14 @@ static bool emit_store_a_to_direct_byte_operand(const DirectByteOperand *op) {
    }
    if (op->register_x) {
       emit(&es_code, "    tax\n");
+      return true;
+   }
+   if (op->indexed_x) {
+      formatted = assembler_address_expr(op->expr, expr_buf, sizeof(expr_buf));
+      if (op->offset == 0)
+         emit(&es_code, "    sta %s,x\n", formatted);
+      else
+         emit(&es_code, "    sta %s + %d,x\n", formatted, op->offset);
       return true;
    }
    if (op->direct_memory) {
@@ -664,6 +699,35 @@ static bool direct_lvalue_base_symbol(Context *ctx, const LValueRef *lv,
    return entry_symbol_name(ctx, &entry, symbol, symbol_size);
 }
 
+//! @brief Classify a direct byte-array element addressed by the live X loop index.
+static bool classify_direct_u8_indexed_x_operand(Context *ctx, ASTNode *expr,
+                                                  DirectByteOperand *out) {
+   DirectByteOperand op;
+   LValueRef lv;
+   ASTNode *idx = direct_single_subscript_expr(expr);
+   char symbol[256];
+   int delta = 0;
+
+   memset(&op, 0, sizeof(op));
+   if (!idx || !direct_register_x_index(ctx, idx, &delta) ||
+       !resolve_ref_argument_lvalue(ctx, expr, &lv) || lv.size != 1 ||
+       lv.is_bitfield || lv.is_absolute_ref || lv.is_ref || lv.is_swapram ||
+       type_is_signed_integer(lv.type) || type_is_bcd_integer(lv.type) ||
+       declarator_array_count(lv.base_declarator) <= 0 ||
+       declarator_first_element_size(lv.base_type, lv.base_declarator) != 1 ||
+       !direct_lvalue_base_symbol(ctx, &lv, symbol, sizeof(symbol))) {
+      return false;
+   }
+   op.lv = lv;
+   op.valid = true;
+   op.indexed_x = true;
+   op.symbol_backed = true;
+   op.offset = lv.base_offset + delta;
+   snprintf(op.expr, sizeof(op.expr), "%s", symbol);
+   if (out) *out = op;
+   return true;
+}
+
 //! @brief Return whether an expression can be evaluated directly into A as uint8_t.
 static bool direct_u8_expr_supported(Context *ctx, ASTNode *expr) {
    DirectByteOperand op;
@@ -791,7 +855,12 @@ static bool direct_u8_expr_supported(Context *ctx, ASTNode *expr) {
       if (right_const) {
          return direct_u8_expr_supported(ctx, expr->children[0]);
       }
-      if (left_const && strcmp(expr->name, "-")) {
+      if (left_const && !strcmp(expr->name, "-")) {
+         DirectByteOperand rhs_op;
+         return classify_direct_u8_value_operand(ctx, expr->children[1], &rhs_op) &&
+                direct_byte_operand_is_alu_memory(&rhs_op);
+      }
+      if (left_const) {
          return direct_u8_expr_supported(ctx, expr->children[1]);
       }
       {
@@ -940,6 +1009,54 @@ static bool direct_lvalue_is_page_base(const LValueRef *lv) {
    return size == 256;
 }
 
+//! @brief Evaluate one supported byte expression directly into X or Y when possible.
+static bool compile_direct_u8_expr_to_index_register(Context *ctx, ASTNode *expr,
+                                                      char reg) {
+   DirectByteOperand op;
+   char expr_buf[256];
+   const char *formatted = NULL;
+   const char *mnemonic = reg == 'x' ? "ldx" : "ldy";
+
+   expr = (ASTNode *) unwrap_expr_node(expr);
+   if (!expr || (reg != 'x' && reg != 'y')) {
+      return false;
+   }
+
+   op = classify_direct_byte_operand(ctx, expr, false);
+   if (direct_byte_operand_is_plain_uint8(&op)) {
+      if (op.register_x) {
+         if (reg == 'x') {
+            return true;
+         }
+         emit(&es_code, "    txa\n    tay\n");
+         return true;
+      }
+      if (op.direct_memory) {
+         formatted = assembler_address_expr(op.expr, expr_buf, sizeof(expr_buf));
+      }
+      else if (op.local_scratch) {
+         formatted = assembler_address_expr(compiler_scratch_active_symbol(),
+                                             expr_buf, sizeof(expr_buf));
+      }
+      if (formatted) {
+         emit_lvalue_semantic_use(ctx, &op.lv, "read");
+         if (op.offset == 0)
+            emit(&es_code, "    %s %s\n", mnemonic, formatted);
+         else
+            emit(&es_code, "    %s %s + %d\n", mnemonic, formatted, op.offset);
+         return true;
+      }
+   }
+
+   if (!compile_direct_u8_expr_to_a(ctx, expr)) {
+      return false;
+   }
+   emit(&es_code, reg == 'x' ? "    tax\n" : "    tay\n");
+   return true;
+}
+
+static bool direct_register_x_index(Context *ctx, ASTNode *expr, int *delta);
+
 //! @brief Evaluate one supported unsigned-byte expression directly into A.
 bool compile_direct_u8_expr_to_a(Context *ctx, ASTNode *expr) {
    DirectByteOperand op;
@@ -988,23 +1105,30 @@ bool compile_direct_u8_expr_to_a(Context *ctx, ASTNode *expr) {
             emit(&es_code, "    ldy #%d\n", (int)(index_value & 0xff));
          }
          else {
-            if (!compile_direct_u8_expr_to_a(ctx, idx)) {
+            if (!compile_direct_u8_expr_to_index_register(ctx, idx, 'y')) {
                return false;
             }
-            emit(&es_code, "    tay\n");
          }
          emit(&es_code, "    lda (%s),y\n", formatted);
          return true;
       }
       if (declarator_array_count(lv.base_declarator) > 0 && !lv.is_ref) {
-         if (!compile_direct_u8_expr_to_a(ctx, idx)) {
+         /* Preserve an unrelated X-backed counted-loop counter by using Y,
+            but when the subscript IS that counter, use X directly.  Copying X
+            through A into Y for `array[i]` only wastes bytes and cycles. */
+         char reg = 'x';
+         if (ctx && ctx->register_x_active &&
+             !direct_register_x_index(ctx, idx, NULL)) {
+            reg = 'y';
+         }
+         if (!compile_direct_u8_expr_to_index_register(ctx, idx, reg)) {
             return false;
          }
-         emit(&es_code, "    tay\n");
          if (lv.base_offset == 0)
-            emit(&es_code, "    lda %s,y\n", formatted);
+            emit(&es_code, reg == 'x' ? "    lda %s,x\n" : "    lda %s,y\n", formatted);
          else
-            emit(&es_code, "    lda %s + %d,y\n", formatted, lv.base_offset);
+            emit(&es_code, reg == 'x' ? "    lda %s + %d,x\n" : "    lda %s + %d,y\n",
+                 formatted, lv.base_offset);
          return true;
       }
    }
@@ -1054,7 +1178,13 @@ bool compile_direct_u8_expr_to_a(Context *ctx, ASTNode *expr) {
          }
       }
       if (constant_first && !strcmp(expr->name, "-")) {
-         return false;
+         DirectByteOperand rhs_op;
+         if (!classify_direct_u8_value_operand(ctx, value_expr, &rhs_op) ||
+             !direct_byte_operand_is_alu_memory(&rhs_op)) {
+            return false;
+         }
+         emit(&es_code, "    lda #$%02x\n    sec\n", (unsigned int) constant);
+         return emit_alu_direct_byte_operand(ctx, "sbc", &rhs_op);
       }
       if (!compile_direct_u8_expr_to_a(ctx, value_expr)) {
          return false;
@@ -1200,6 +1330,8 @@ static bool compile_direct_u16_array_address_assignment(Context *ctx, ASTNode *t
 }
 
 //! @brief Lower a byte-array store without constructing a runtime lvalue pointer.
+static bool same_direct_u8_scalar_index(Context *ctx, ASTNode *a, ASTNode *b);
+
 static bool compile_direct_u8_array_assignment(Context *ctx, ASTNode *target,
                                                ASTNode *rhs) {
    LValueRef dst;
@@ -1230,6 +1362,54 @@ static bool compile_direct_u8_array_assignment(Context *ctx, ASTNode *target,
       }
    }
 
+   /* A literal RHS cannot clobber an index register.  Load the runtime index
+      first and then the literal, rather than parking the literal in arg0 while
+      evaluating the index. */
+   {
+      unsigned char value;
+      if (eval_direct_byte_constant(rhs, dst.type, &value)) {
+         if (!compile_direct_u8_expr_to_index_register(ctx, index, 'x')) return false;
+         emit(&es_code, "    lda #$%02x\n", (unsigned int)value);
+         emit_lvalue_semantic_use(ctx, &dst, "write");
+         if (dst.base_offset == 0)
+            emit(&es_code, "    sta %s,x\n", formatted);
+         else
+            emit(&es_code, "    sta %s + %d,x\n", formatted, dst.base_offset);
+         return true;
+      }
+   }
+
+   /* `dst[i] := src[i]` needs only one index load.  The generic path used X
+      for the read, saved A in arg0, then loaded the identical index into Y for
+      the write. */
+   {
+      ASTNode *src_index = direct_single_subscript_expr(rhs);
+      LValueRef src;
+      char src_symbol[256];
+      char src_buf[256];
+      const char *src_formatted;
+      if (src_index && same_direct_u8_scalar_index(ctx, index, src_index) &&
+          resolve_ref_argument_lvalue(ctx, rhs, &src) && src.size == 1 &&
+          !src.is_bitfield && !src.is_absolute_ref && !src.is_ref &&
+          !src.object_is_const && declarator_array_count(src.base_declarator) > 0 &&
+          declarator_first_element_size(src.base_type, src.base_declarator) == 1 &&
+          direct_lvalue_base_symbol(ctx, &src, src_symbol, sizeof(src_symbol)) &&
+          compile_direct_u8_expr_to_index_register(ctx, index, 'x')) {
+         src_formatted = assembler_address_expr(src_symbol, src_buf, sizeof(src_buf));
+         emit_lvalue_semantic_use(ctx, &src, "read");
+         if (src.base_offset == 0)
+            emit(&es_code, "    lda %s,x\n", src_formatted);
+         else
+            emit(&es_code, "    lda %s + %d,x\n", src_formatted, src.base_offset);
+         emit_lvalue_semantic_use(ctx, &dst, "write");
+         if (dst.base_offset == 0)
+            emit(&es_code, "    sta %s,x\n", formatted);
+         else
+            emit(&es_code, "    sta %s + %d,x\n", formatted, dst.base_offset);
+         return true;
+      }
+   }
+
    if (direct_register_x_index(ctx, index, &x_delta) && x_delta <= 1) {
       if (!compile_direct_u8_expr_to_a(ctx, rhs)) {
          return false;
@@ -1251,16 +1431,213 @@ static bool compile_direct_u8_array_assignment(Context *ctx, ASTNode *target,
       return false;
    }
    emit(&es_code, "    sta arg0\n");
-   if (!compile_direct_u8_expr_to_a(ctx, index)) {
+   if (!compile_direct_u8_expr_to_index_register(ctx, index, 'y')) {
       return false;
    }
-   emit(&es_code, "    tay\n");
    emit(&es_code, "    lda arg0\n");
    emit_lvalue_semantic_use(ctx, &dst, "write");
    if (dst.base_offset == 0)
       emit(&es_code, "    sta %s,y\n", formatted);
    else
       emit(&es_code, "    sta %s + %d,y\n", formatted, dst.base_offset);
+   return true;
+}
+
+//! @brief Lower a discarded direct byte-array ++/-- without a runtime pointer.
+static bool compile_direct_u8_array_incdec(Context *ctx, ASTNode *target, bool increment) {
+   LValueRef dst;
+   ASTNode *index;
+   char symbol[256];
+   char expr_buf[256];
+   const char *formatted;
+
+   if (!(index = direct_single_subscript_expr(target)) ||
+       !resolve_lvalue(ctx, target, &dst) || dst.size != 1 ||
+       dst.is_bitfield || dst.is_absolute_ref || dst.is_ref || dst.object_is_const ||
+       type_is_signed_integer(dst.type) || type_is_bcd_integer(dst.type) ||
+       declarator_array_count(dst.base_declarator) <= 0 ||
+       declarator_first_element_size(dst.base_type, dst.base_declarator) != 1 ||
+       !direct_lvalue_base_symbol(ctx, &dst, symbol, sizeof(symbol)) ||
+       !direct_u8_expr_supported(ctx, index)) {
+      return false;
+   }
+
+   formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+   require_lvalue_readable(&dst);
+   require_lvalue_writable(&dst);
+   emit_lvalue_semantic_use(ctx, &dst, "read");
+   emit_lvalue_semantic_use(ctx, &dst, "write");
+
+   {
+      long long index_value;
+      if (expr_is_integer_constant_expr(index, &index_value) && index_value >= 0) {
+         int offset = dst.base_offset + (int)index_value;
+         if (offset == 0)
+            emit(&es_code, increment ? "    inc %s\n" : "    dec %s\n", formatted);
+         else
+            emit(&es_code, increment ? "    inc %s + %d\n" : "    dec %s + %d\n",
+                 formatted, offset);
+         return true;
+      }
+   }
+
+   if (!compile_direct_u8_expr_to_index_register(ctx, index, 'x')) {
+      return false;
+   }
+   if (dst.base_offset == 0)
+      emit(&es_code, increment ? "    inc %s,x\n" : "    dec %s,x\n", formatted);
+   else
+      emit(&es_code, increment ? "    inc %s + %d,x\n" : "    dec %s + %d,x\n",
+           formatted, dst.base_offset);
+   return true;
+}
+
+//! @brief Describe one discarded direct byte-array ++/-- statement.
+static bool classify_direct_u8_array_incdec_stmt(Context *ctx, ASTNode *stmt,
+                                                  LValueRef *dst_out,
+                                                  ASTNode **index_out,
+                                                  bool *increment_out,
+                                                  char *symbol,
+                                                  size_t symbol_size) {
+   ASTNode *expr = (ASTNode *)unwrap_expr_node(stmt);
+   ASTNode *index;
+   LValueRef dst;
+   const char *op;
+
+   if (!expr || strcmp(expr->name, "lvalue") || expr->count < 3 ||
+       !expr->children[2] || expr->children[2]->kind != AST_IDENTIFIER ||
+       !(op = expr->children[2]->strval) ||
+       (strcmp(op, "pre++") && strcmp(op, "post++") &&
+        strcmp(op, "pre--") && strcmp(op, "post--")) ||
+       !(index = direct_single_subscript_expr(expr)) ||
+       !resolve_lvalue(ctx, expr, &dst) || dst.size != 1 ||
+       dst.is_bitfield || dst.is_absolute_ref || dst.is_ref || dst.object_is_const ||
+       type_is_signed_integer(dst.type) || type_is_bcd_integer(dst.type) ||
+       declarator_array_count(dst.base_declarator) <= 0 ||
+       declarator_first_element_size(dst.base_type, dst.base_declarator) != 1 ||
+       !direct_lvalue_base_symbol(ctx, &dst, symbol, symbol_size) ||
+       !direct_u8_expr_supported(ctx, index)) {
+      return false;
+   }
+
+   if (dst_out) *dst_out = dst;
+   if (index_out) *index_out = index;
+   if (increment_out) {
+      *increment_out = !strcmp(op, "pre++") || !strcmp(op, "post++");
+   }
+   return true;
+}
+
+//! @brief Return whether two side-effect-free direct scalar byte indexes are identical.
+static bool same_direct_u8_scalar_index(Context *ctx, ASTNode *a, ASTNode *b) {
+   DirectByteOperand ao;
+   DirectByteOperand bo;
+   long long av;
+   long long bv;
+
+   a = (ASTNode *)unwrap_expr_node(a);
+   b = (ASTNode *)unwrap_expr_node(b);
+   if (!a || !b) return false;
+   if (expr_is_integer_constant_expr(a, &av) && expr_is_integer_constant_expr(b, &bv)) {
+      return av == bv;
+   }
+
+   ao = classify_direct_byte_operand(ctx, a, false);
+   bo = classify_direct_byte_operand(ctx, b, false);
+   if (!direct_byte_operand_is_plain_uint8(&ao) ||
+       !direct_byte_operand_is_plain_uint8(&bo) ||
+       ao.register_x || bo.register_x ||
+       ao.lv.is_absolute_ref || bo.lv.is_absolute_ref) {
+      return false;
+   }
+   if (ao.direct_memory != bo.direct_memory || ao.local_scratch != bo.local_scratch ||
+       ao.offset != bo.offset) {
+      return false;
+   }
+   if (ao.direct_memory) return !strcmp(ao.expr, bo.expr);
+   if (ao.local_scratch) return ao.offset == bo.offset;
+   return false;
+}
+
+//! @brief Lower `if (c) a[i]++/--; else a[i]++/--` with one shared X-index load.
+//!
+//! The generic lowering quite reasonably compiles each arm independently, but
+//! on 6502 that duplicates the LDX needed by indexed INC/DEC.  For a pure byte
+//! condition and the same side-effect-free scalar index in both arms, loading X
+//! before evaluating the condition is semantics-preserving and saves one LDX.
+bool compile_direct_u8_array_incdec_conditional(Context *ctx, ASTNode *cond,
+                                                 ASTNode *then_stmt,
+                                                 ASTNode *else_stmt) {
+   LValueRef then_dst;
+   LValueRef else_dst;
+   ASTNode *then_index = NULL;
+   ASTNode *else_index = NULL;
+   bool then_increment = false;
+   bool else_increment = false;
+   char then_symbol[256];
+   char else_symbol[256];
+   char expr_buf[256];
+   const char *formatted;
+   const char *false_label = NULL;
+   const char *end_label = NULL;
+
+   if (!ctx || ctx->register_x_active || !cond || !then_stmt || !else_stmt ||
+       !direct_u8_expr_supported(ctx, cond) ||
+       !classify_direct_u8_array_incdec_stmt(ctx, then_stmt, &then_dst, &then_index,
+                                             &then_increment, then_symbol,
+                                             sizeof(then_symbol)) ||
+       !classify_direct_u8_array_incdec_stmt(ctx, else_stmt, &else_dst, &else_index,
+                                             &else_increment, else_symbol,
+                                             sizeof(else_symbol)) ||
+       strcmp(then_symbol, else_symbol) ||
+       then_dst.base_offset != else_dst.base_offset ||
+       !same_direct_u8_scalar_index(ctx, then_index, else_index)) {
+      return false;
+   }
+
+   /* A constant index has no duplicated register load to save; leave it to the
+      ordinary lowering so this optimization stays narrowly about runtime X. */
+   {
+      long long index_value;
+      if (expr_is_integer_constant_expr(then_index, &index_value)) return false;
+   }
+
+   false_label = next_label("u8_indexed_if_false");
+   end_label = next_label("u8_indexed_if_end");
+   if (!false_label || !end_label) {
+      free((void *)false_label);
+      free((void *)end_label);
+      return false;
+   }
+
+   if (!compile_direct_u8_expr_to_index_register(ctx, then_index, 'x') ||
+       !compile_condition_branch_false(cond, ctx, false_label)) {
+      free((void *)false_label);
+      free((void *)end_label);
+      return false;
+   }
+
+   formatted = assembler_address_expr(then_symbol, expr_buf, sizeof(expr_buf));
+   require_lvalue_readable(&then_dst);
+   require_lvalue_writable(&then_dst);
+   emit_lvalue_semantic_use(ctx, &then_dst, "read");
+   emit_lvalue_semantic_use(ctx, &then_dst, "write");
+   if (then_dst.base_offset == 0)
+      emit(&es_code, then_increment ? "    inc %s,x\n" : "    dec %s,x\n", formatted);
+   else
+      emit(&es_code, then_increment ? "    inc %s + %d,x\n" : "    dec %s + %d,x\n",
+           formatted, then_dst.base_offset);
+   emit(&es_code, "    jmp %s\n", end_label);
+   emit(&es_code, "%s:\n", false_label);
+   if (else_dst.base_offset == 0)
+      emit(&es_code, else_increment ? "    inc %s,x\n" : "    dec %s,x\n", formatted);
+   else
+      emit(&es_code, else_increment ? "    inc %s + %d,x\n" : "    dec %s + %d,x\n",
+           formatted, else_dst.base_offset);
+   emit(&es_code, "%s:\n", end_label);
+
+   free((void *)false_label);
+   free((void *)end_label);
    return true;
 }
 
@@ -1294,6 +1671,14 @@ static bool compile_direct_u8_array_constant_update(Context *ctx, ASTNode *targe
          int offset = dst.base_offset + (int)index_value;
          emit_lvalue_semantic_use(ctx, &dst, "read");
          emit_lvalue_semantic_use(ctx, &dst, "write");
+         if (value == 1) {
+            if (offset == 0)
+               emit(&es_code, !strcmp(op, "+=") ? "    inc %s\n" : "    dec %s\n", formatted);
+            else
+               emit(&es_code, !strcmp(op, "+=") ? "    inc %s + %d\n" : "    dec %s + %d\n",
+                    formatted, offset);
+            return true;
+         }
          emit_load_a_from_expr_address(formatted, offset);
          if (value != 0) {
             emit(&es_code, !strcmp(op, "+=") ? "    clc\n    adc #$%02x\n" :
@@ -1304,12 +1689,42 @@ static bool compile_direct_u8_array_constant_update(Context *ctx, ASTNode *targe
          return true;
       }
    }
-   if (!compile_direct_u8_expr_to_a(ctx, index)) {
-      return false;
-   }
-   emit(&es_code, "    tay\n");
    emit_lvalue_semantic_use(ctx, &dst, "read");
    emit_lvalue_semantic_use(ctx, &dst, "write");
+   if (value == 1) {
+      if (!compile_direct_u8_expr_to_index_register(ctx, index, 'x')) {
+         return false;
+      }
+      if (dst.base_offset == 0)
+         emit(&es_code, !strcmp(op, "+=") ? "    inc %s,x\n" : "    dec %s,x\n", formatted);
+      else
+         emit(&es_code, !strcmp(op, "+=") ? "    inc %s + %d,x\n" : "    dec %s + %d,x\n",
+              formatted, dst.base_offset);
+      return true;
+   }
+   {
+      int x_delta = 0;
+      if (direct_register_x_index(ctx, index, &x_delta)) {
+         int offset = dst.base_offset + x_delta;
+         if (offset == 0)
+            emit(&es_code, "    lda %s,x\n", formatted);
+         else
+            emit(&es_code, "    lda %s + %d,x\n", formatted, offset);
+         if (value != 0) {
+            emit(&es_code, !strcmp(op, "+=") ? "    clc\n    adc #$%02x\n" :
+                                               "    sec\n    sbc #$%02x\n",
+                 (unsigned int)value);
+         }
+         if (offset == 0)
+            emit(&es_code, "    sta %s,x\n", formatted);
+         else
+            emit(&es_code, "    sta %s + %d,x\n", formatted, offset);
+         return true;
+      }
+   }
+   if (!compile_direct_u8_expr_to_index_register(ctx, index, 'y')) {
+      return false;
+   }
    if (dst.base_offset == 0)
       emit(&es_code, "    lda %s,y\n", formatted);
    else
@@ -1502,7 +1917,15 @@ static bool compile_direct_u8_test_branch_false(ASTNode *expr, Context *ctx,
          constant_expr = expr->children[0];
       }
       else {
-         return false;
+         /* A runtime-indexed byte expression is not a DirectByteOperand because
+            it has no fixed address, but the direct expression lowerer can still
+            keep it entirely in A/Y.  Let that path handle the complete test
+            instead of falling through to generic pointer/scratch lowering. */
+         if (!compile_direct_u8_expr_to_a(ctx, expr)) {
+            return false;
+         }
+         emit(&es_code, invert ? "    bne %s\n" : "    beq %s\n", false_label);
+         return true;
       }
       if (!eval_direct_byte_constant(constant_expr, operand.lv.type, &mask)) {
          return false;
@@ -1511,7 +1934,11 @@ static bool compile_direct_u8_test_branch_false(ASTNode *expr, Context *ctx,
    else {
       operand = classify_direct_byte_operand(ctx, expr, false);
       if (!direct_byte_operand_is_plain_uint8(&operand)) {
-         return false;
+         if (!compile_direct_u8_expr_to_a(ctx, expr)) {
+            return false;
+         }
+         emit(&es_code, invert ? "    bne %s\n" : "    beq %s\n", false_label);
+         return true;
       }
    }
 
@@ -1569,6 +1996,7 @@ static bool compile_direct_u8_compare_branch_false(ASTNode *expr, Context *ctx,
    bool rhs_immediate = false;
    InitConstValue rhs_constant = {0};
    unsigned char rhs_encoded = 0;
+   unsigned char compare_encoded = 0;
 
    if (!expr || expr->count != 2) {
       return false;
@@ -1615,7 +2043,12 @@ static bool compile_direct_u8_compare_branch_false(ASTNode *expr, Context *ctx,
       else if (!emit_load_direct_byte_operand(ctx, &lhs)) {
          return false;
       }
-      emit(&es_code, "    cmp #$%02x\n", (unsigned int) rhs_encoded);
+      compare_encoded = rhs_encoded;
+      if (ctx && ctx->register_x_active &&
+          (!strcmp(op, ">") || !strcmp(op, "<=")) && rhs_encoded < 0xff) {
+         compare_encoded = (unsigned char)(rhs_encoded + 1);
+      }
+      emit(&es_code, "    cmp #$%02x\n", (unsigned int) compare_encoded);
    }
    else {
       if (lhs_direct_expr) {
@@ -1634,6 +2067,24 @@ static bool compile_direct_u8_compare_branch_false(ASTNode *expr, Context *ctx,
           !emit_cmp_direct_byte_operand(ctx, &rhs)) {
          return false;
       }
+   }
+
+   /* A register-backed counted loop is already a compact-code contract.  For
+      immediate byte comparisons, branch directly to the false destination.
+      Normalize >C and <=C through C+1 so they also need only one branch. */
+   if (rhs_immediate && ctx && ctx->register_x_active) {
+      if (!strcmp(op, "==")) emit(&es_code, "    bne %s\n", false_label);
+      else if (!strcmp(op, "!=")) emit(&es_code, "    beq %s\n", false_label);
+      else if (!strcmp(op, "<")) emit(&es_code, "    bcs %s\n", false_label);
+      else if (!strcmp(op, ">=")) emit(&es_code, "    bcc %s\n", false_label);
+      else if (!strcmp(op, ">")) {
+         if (rhs_encoded == 0xff) emit(&es_code, "    jmp %s\n", false_label);
+         else emit(&es_code, "    bcc %s\n", false_label);
+      }
+      else { /* <= */
+         if (rhs_encoded != 0xff) emit(&es_code, "    bcs %s\n", false_label);
+      }
+      return true;
    }
 
    /* Preserve the established control-flow shape for ordinary comparisons.
@@ -1726,6 +2177,277 @@ static bool compile_truthy_expr_branch_false(ASTNode *expr, Context *ctx,
    return true;
 }
 
+//! @brief Return whether two compact byte operands name the same storage byte.
+static bool direct_byte_operand_same_storage(const DirectByteOperand *a,
+                                             const DirectByteOperand *b) {
+   if (!a || !b || !a->valid || !b->valid ||
+       a->register_x != b->register_x || a->indexed_x != b->indexed_x ||
+       a->direct_memory != b->direct_memory || a->local_scratch != b->local_scratch ||
+       a->offset != b->offset) {
+      return false;
+   }
+   if (a->register_x) return true;
+   if (a->indexed_x || a->direct_memory) return !strcmp(a->expr, b->expr);
+   if (a->local_scratch) return a->offset == b->offset;
+   return false;
+}
+
+//! @brief Lower `value < low || value > high` as one unsigned range test.
+//!
+//! Subtracting the lower bound modulo 256 maps the inclusive legal interval
+//! low..high to 0..(high-low). Values below low wrap high, so one comparison
+//! catches both ends. This keeps readable source from expanding into two loads,
+//! two compares, and the generic short-circuit jump bridge.
+static bool compile_direct_u8_outside_range_branch_false(ASTNode *expr, Context *ctx,
+                                                          const char *false_label) {
+   ASTNode *left;
+   ASTNode *right;
+   DirectByteOperand lhs;
+   DirectByteOperand rhs;
+   InitConstValue low = {0};
+   InitConstValue high = {0};
+   unsigned int span;
+
+   if (!expr || expr->count != 2 || strcmp(expr->name, "||")) return false;
+   left = (ASTNode *)unwrap_expr_node(expr->children[0]);
+   right = (ASTNode *)unwrap_expr_node(expr->children[1]);
+   if (!left || !right || left->count != 2 || right->count != 2 ||
+       strcmp(left->name, "<") || strcmp(right->name, ">") ||
+       !eval_constant_initializer_expr(left->children[1], &low) ||
+       !eval_constant_initializer_expr(right->children[1], &high) ||
+       low.kind != INIT_CONST_INT || high.kind != INIT_CONST_INT ||
+       low.i < 0 || low.i > 255 || high.i < 0 || high.i > 255 || low.i > high.i ||
+       high.i - low.i >= 255 ||
+       !classify_direct_u8_value_operand(ctx, left->children[0], &lhs) ||
+       !classify_direct_u8_value_operand(ctx, right->children[0], &rhs) ||
+       !direct_byte_operand_same_storage(&lhs, &rhs)) {
+      return false;
+   }
+
+   span = (unsigned int)(high.i - low.i + 1);
+   if (!emit_load_direct_byte_operand(ctx, &lhs)) return false;
+   if (low.i != 0) {
+      emit(&es_code, "    sec\n");
+      emit(&es_code, "    sbc #$%02x\n", (unsigned int)low.i);
+   }
+   emit(&es_code, "    cmp #$%02x\n", span);
+   emit(&es_code, "    bcc %s\n", false_label);
+   return true;
+}
+
+
+//! @brief Return the sole executable statement in one simple branch block.
+static ASTNode *flow_single_branch_statement(ASTNode *block) {
+   while (block && !strcmp(block->name, "statement_list")) {
+      if (block->count != 1) return NULL;
+      block = block->children[0];
+   }
+   return block;
+}
+
+//! @brief Emit source provenance for a statement consumed by a cross-statement lowering.
+static void flow_emit_statement_source_marker(const ASTNode *node) {
+   if (!listing_provenance_enabled() || !node || !node->file || node->line <= 0) return;
+   emit(&es_code, "    ;@@SOURCE %d %s\n", node->line, node->file);
+}
+
+//! @brief Classify one writable direct unsigned-byte lvalue, including array[X].
+static bool classify_direct_u8_writable_operand(Context *ctx, ASTNode *expr,
+                                                 DirectByteOperand *out) {
+   DirectByteOperand op = classify_direct_byte_operand(ctx, expr, false);
+
+   if (!direct_byte_operand_is_plain_uint8(&op) || op.lv.object_is_const ||
+       op.lv.is_absolute_ref) {
+      if (!classify_direct_u8_indexed_x_operand(ctx, expr, &op) ||
+          !direct_byte_operand_is_plain_uint8(&op) || op.lv.object_is_const) {
+         return false;
+      }
+   }
+   if (!op.register_x && !op.direct_memory && !op.local_scratch && !op.indexed_x) {
+      return false;
+   }
+   if (out) *out = op;
+   return true;
+}
+
+//! @brief Classify a same-lvalue byte comparison against one immediate.
+static bool classify_direct_u8_same_compare(Context *ctx, ASTNode *expr,
+                                            const DirectByteOperand *dst,
+                                            const char *cmp,
+                                            unsigned int *value_out) {
+   DirectByteOperand lhs;
+   unsigned char value;
+
+   expr = (ASTNode *)unwrap_expr_node(expr);
+   if (!expr || expr->count != 2 || strcmp(expr->name, cmp) ||
+       !classify_direct_u8_value_operand(ctx, expr->children[0], &lhs) ||
+       !direct_byte_operand_same_storage(dst, &lhs) ||
+       !eval_direct_byte_constant(expr->children[1], dst->lv.type, &value)) {
+      return false;
+   }
+   if (value_out) *value_out = value;
+   return true;
+}
+
+//! @brief Recognize `dst < low || dst > high` for the same direct byte.
+static bool classify_direct_u8_same_outside_range(Context *ctx, ASTNode *expr,
+                                                  const DirectByteOperand *dst,
+                                                  unsigned int *low_out,
+                                                  unsigned int *high_out) {
+   ASTNode *left;
+   ASTNode *right;
+   unsigned int low;
+   unsigned int high;
+
+   expr = (ASTNode *)unwrap_expr_node(expr);
+   if (!expr || expr->count != 2 || strcmp(expr->name, "||")) return false;
+   left = (ASTNode *)unwrap_expr_node(expr->children[0]);
+   right = (ASTNode *)unwrap_expr_node(expr->children[1]);
+   if (!classify_direct_u8_same_compare(ctx, left, dst, "<", &low) ||
+       !classify_direct_u8_same_compare(ctx, right, dst, ">", &high) ||
+       low > high) {
+      return false;
+   }
+   if (low_out) *low_out = low;
+   if (high_out) *high_out = high;
+   return true;
+}
+
+//! @brief Emit one direct byte +=/-= into A without storing the intermediate result.
+static bool emit_direct_u8_update_to_a(Context *ctx, const DirectByteOperand *dst,
+                                       const char *op, ASTNode *rhs) {
+   DirectByteOperand src;
+   unsigned char value;
+
+   if (!dst || !op || (strcmp(op, "+=") && strcmp(op, "-=")) ||
+       !emit_load_direct_byte_operand(ctx, dst)) {
+      return false;
+   }
+   emit(&es_code, !strcmp(op, "+=") ? "    clc\n" : "    sec\n");
+   if (eval_direct_byte_constant(rhs, dst->lv.type, &value)) {
+      emit(&es_code, !strcmp(op, "+=") ? "    adc #$%02x\n" : "    sbc #$%02x\n",
+           (unsigned int)value);
+      return true;
+   }
+   if (!classify_direct_u8_value_operand(ctx, rhs, &src) ||
+       !direct_byte_operand_is_alu_memory(&src)) {
+      return false;
+   }
+   return emit_alu_direct_byte_operand(ctx, !strcmp(op, "+=") ? "adc" : "sbc", &src);
+}
+
+//! @brief Fold `byte +=/-= rhs; if (byte range-test) byte -=/+= constant`.
+//!
+//! The ordinary lowering stores the intermediate byte, reloads it for the test,
+//! and reloads it again for the correction.  On 6502 the updated byte is already
+//! in A and CMP preserves it, so keep the candidate live and perform one final
+//! store.  This is a general modulo/range-correction idiom; it is not tied to
+//! Tanks or to any particular constants.
+bool compile_direct_u8_update_if_adjust(ASTNode *update_stmt, ASTNode *if_stmt,
+                                        Context *ctx) {
+   const char *update_op;
+   const char *adjust_op;
+   ASTNode *then_stmt;
+   DirectByteOperand dst;
+   DirectByteOperand adjust_dst;
+   unsigned char adjust_value;
+   unsigned int threshold;
+   unsigned int low;
+   unsigned int high;
+   const char *skip_adjust = NULL;
+   const char *do_adjust = NULL;
+   bool simple_gt = false;
+   bool outside_range = false;
+
+   if (!update_stmt || !if_stmt || !ctx || strcmp(update_stmt->name, "assign_expr") ||
+       update_stmt->count != 3 ||
+       !(update_op = update_stmt->children[0] ? update_stmt->children[0]->strval : NULL) ||
+       (strcmp(update_op, "+=") && strcmp(update_op, "-=")) ||
+       strcmp(if_stmt->name, "if_stmt") || if_stmt->count < 2 ||
+       (if_stmt->count > 2 && if_stmt->children[2] && !is_empty(if_stmt->children[2])) ||
+       !classify_direct_u8_writable_operand(ctx, update_stmt->children[1], &dst)) {
+      return false;
+   }
+
+   then_stmt = flow_single_branch_statement(if_stmt->children[1]);
+   if (!then_stmt || strcmp(then_stmt->name, "assign_expr") || then_stmt->count != 3 ||
+       !(adjust_op = then_stmt->children[0] ? then_stmt->children[0]->strval : NULL) ||
+       (strcmp(adjust_op, "+=") && strcmp(adjust_op, "-=")) ||
+       !strcmp(update_op, adjust_op) ||
+       !classify_direct_u8_writable_operand(ctx, then_stmt->children[1], &adjust_dst) ||
+       !direct_byte_operand_same_storage(&dst, &adjust_dst) ||
+       !eval_direct_byte_constant(then_stmt->children[2], dst.lv.type, &adjust_value)) {
+      return false;
+   }
+
+   simple_gt = classify_direct_u8_same_compare(ctx, if_stmt->children[0], &dst,
+                                               ">", &threshold);
+   outside_range = classify_direct_u8_same_outside_range(ctx, if_stmt->children[0], &dst,
+                                                         &low, &high);
+   if (!simple_gt && !outside_range) return false;
+   if (simple_gt && threshold == 255u) return false;
+   if (outside_range && high == 255u) return false;
+
+   /* Prove the complete shape before emitting anything. */
+   {
+      DirectByteOperand rhs_mem;
+      unsigned char rhs_const;
+      if (!eval_direct_byte_constant(update_stmt->children[2], dst.lv.type, &rhs_const) &&
+          (!classify_direct_u8_value_operand(ctx, update_stmt->children[2], &rhs_mem) ||
+           !direct_byte_operand_is_alu_memory(&rhs_mem))) {
+         return false;
+      }
+   }
+
+   skip_adjust = next_label("u8_update_adjust_done");
+   if (outside_range) do_adjust = next_label("u8_update_adjust_do");
+   if (!skip_adjust || (outside_range && !do_adjust)) {
+      free((void *)skip_adjust);
+      free((void *)do_adjust);
+      return false;
+   }
+
+   require_lvalue_readable(&dst.lv);
+   require_lvalue_writable(&dst.lv);
+   if (!emit_direct_u8_update_to_a(ctx, &dst, update_op, update_stmt->children[2])) {
+      free((void *)skip_adjust);
+      free((void *)do_adjust);
+      return false;
+   }
+   emit_lvalue_semantic_use(ctx, &dst.lv, "write");
+
+   flow_emit_statement_source_marker(if_stmt);
+   emit_lvalue_semantic_use(ctx, &dst.lv, "read");
+   if (simple_gt) {
+      emit(&es_code, "    cmp #$%02x\n", threshold + 1u);
+      emit(&es_code, "    bcc %s\n", skip_adjust);
+   }
+   else {
+      emit(&es_code, "    cmp #$%02x\n", low);
+      emit(&es_code, "    bcc %s\n", do_adjust);
+      emit(&es_code, "    cmp #$%02x\n", high + 1u);
+      emit(&es_code, "    bcc %s\n", skip_adjust);
+      emit(&es_code, "%s:\n", do_adjust);
+   }
+
+   flow_emit_statement_source_marker(then_stmt);
+   emit_lvalue_semantic_use(ctx, &dst.lv, "read");
+   emit_lvalue_semantic_use(ctx, &dst.lv, "write");
+   emit(&es_code, !strcmp(adjust_op, "+=") ? "    clc\n" : "    sec\n");
+   emit(&es_code, !strcmp(adjust_op, "+=") ? "    adc #$%02x\n" : "    sbc #$%02x\n",
+        (unsigned int)adjust_value);
+   emit(&es_code, "%s:\n", skip_adjust);
+   if (!emit_store_a_to_direct_byte_operand(&dst)) {
+      free((void *)skip_adjust);
+      free((void *)do_adjust);
+      return false;
+   }
+
+   free((void *)skip_adjust);
+   free((void *)do_adjust);
+   return true;
+}
+
 //! @brief Lower condition branch false from AST/semantic state into generated assembly or linker-visible metadata.
 bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *false_label) {
    expr = (ASTNode *) unwrap_expr_node(expr);
@@ -1763,11 +2485,36 @@ bool compile_condition_branch_false(ASTNode *expr, Context *ctx, const char *fal
       return compile_condition_branch_false(expr->children[1], ctx, false_label);
    }
 
+   if (expr->count == 2 && !strcmp(expr->name, "||") &&
+       compile_direct_u8_outside_range_branch_false(expr, ctx, false_label)) {
+      return true;
+   }
+
    if (expr->count == 2 && !strcmp(expr->name, "||")) {
-      const char *rhs_label = next_label("or_rhs");
+      ASTNode *lhs = (ASTNode *) unwrap_expr_node(expr->children[0]);
+      const char *rhs_label = NULL;
       const char *end_label = next_label("or_end");
-      if (!rhs_label || !end_label) {
-         free((void *) rhs_label);
+      if (!end_label) {
+         return false;
+      }
+
+      /* !A || B is false only when A is true and B is false.  Branching to
+         the OR end when A is false avoids the generic branch-plus-JMP bridge
+         and is both smaller and closer to how this expression is written by
+         hand on a 6502. */
+      if (lhs && lhs->count == 1 && !strcmp(lhs->name, "!")) {
+         if (!compile_condition_branch_false(lhs->children[0], ctx, end_label) ||
+             !compile_condition_branch_false(expr->children[1], ctx, false_label)) {
+            free((void *) end_label);
+            return false;
+         }
+         emit(&es_code, "%s:\n", end_label);
+         free((void *) end_label);
+         return true;
+      }
+
+      rhs_label = next_label("or_rhs");
+      if (!rhs_label) {
          free((void *) end_label);
          return false;
       }
@@ -2137,6 +2884,135 @@ static bool compile_direct_u8_constant_update(Context *ctx, ASTNode *target,
    return emit_store_a_to_direct_byte_operand(&dst);
 }
 
+//! @brief Lower a direct unsigned-byte scalar compound update from another direct byte.
+static bool compile_direct_u8_scalar_update(Context *ctx, ASTNode *target,
+                                             const char *op, ASTNode *rhs) {
+   DirectByteOperand dst;
+   DirectByteOperand src;
+   const char *alu;
+
+   if (!op || (strcmp(op, "+=") && strcmp(op, "-=") && strcmp(op, "&=") &&
+               strcmp(op, "|=") && strcmp(op, "^="))) {
+      return false;
+   }
+   dst = classify_direct_byte_operand(ctx, target, false);
+   if (!direct_byte_operand_is_plain_uint8(&dst) || dst.lv.object_is_const ||
+       dst.lv.is_absolute_ref || !classify_direct_u8_value_operand(ctx, rhs, &src) ||
+       !direct_byte_operand_is_alu_memory(&src)) {
+      return false;
+   }
+
+   require_lvalue_readable(&dst.lv);
+   require_lvalue_writable(&dst.lv);
+   if (!emit_load_direct_byte_operand(ctx, &dst)) {
+      return false;
+   }
+   if (!strcmp(op, "+=")) {
+      emit(&es_code, "    clc\n");
+      alu = "adc";
+   }
+   else if (!strcmp(op, "-=")) {
+      emit(&es_code, "    sec\n");
+      alu = "sbc";
+   }
+   else if (!strcmp(op, "&=")) alu = "and";
+   else if (!strcmp(op, "|=")) alu = "ora";
+   else alu = "eor";
+   if (!emit_alu_direct_byte_operand(ctx, alu, &src)) {
+      return false;
+   }
+   emit_lvalue_semantic_use(ctx, &dst.lv, "write");
+   return emit_store_a_to_direct_byte_operand(&dst);
+}
+
+//! @brief Lower one X-indexed direct byte-array +=/-= from a direct byte value.
+static bool compile_direct_u8_array_scalar_update(Context *ctx, ASTNode *target,
+                                                  const char *op, ASTNode *rhs) {
+   DirectByteOperand dst;
+   DirectByteOperand src;
+
+   if (!op || (strcmp(op, "+=") && strcmp(op, "-=")) ||
+       !classify_direct_u8_indexed_x_operand(ctx, target, &dst) ||
+       !direct_byte_operand_is_plain_uint8(&dst) || dst.lv.object_is_const ||
+       !classify_direct_u8_value_operand(ctx, rhs, &src) ||
+       !direct_byte_operand_is_alu_memory(&src)) {
+      return false;
+   }
+
+   require_lvalue_readable(&dst.lv);
+   require_lvalue_writable(&dst.lv);
+   if (!emit_load_direct_byte_operand(ctx, &dst)) {
+      return false;
+   }
+   emit(&es_code, !strcmp(op, "+=") ? "    clc\n" : "    sec\n");
+   if (!emit_alu_direct_byte_operand(ctx, !strcmp(op, "+=") ? "adc" : "sbc", &src)) {
+      return false;
+   }
+   emit_lvalue_semantic_use(ctx, &dst.lv, "write");
+   return emit_store_a_to_direct_byte_operand(&dst);
+}
+
+//! @brief Lower scalar-byte +=/-= from one runtime-indexed direct byte array.
+static bool compile_direct_u8_scalar_array_update(Context *ctx, ASTNode *target,
+                                                  const char *op, ASTNode *rhs) {
+   DirectByteOperand dst;
+   LValueRef src;
+   ASTNode *index;
+   char symbol[256];
+   char expr_buf[256];
+   const char *formatted;
+   char reg;
+
+   if (!op || (strcmp(op, "+=") && strcmp(op, "-=")) ||
+       !(index = direct_single_subscript_expr(rhs))) {
+      return false;
+   }
+   dst = classify_direct_byte_operand(ctx, target, false);
+   if (!direct_byte_operand_is_plain_uint8(&dst) || dst.lv.is_absolute_ref ||
+       !resolve_ref_argument_lvalue(ctx, rhs, &src) || src.size != 1 ||
+       src.is_bitfield || src.is_absolute_ref || src.is_ref ||
+       declarator_array_count(src.base_declarator) <= 0 ||
+       declarator_first_element_size(src.base_type, src.base_declarator) != 1 ||
+       type_is_signed_integer(src.type) || type_is_bcd_integer(src.type) ||
+       !direct_lvalue_base_symbol(ctx, &src, symbol, sizeof(symbol)) ||
+       !direct_u8_expr_supported(ctx, index)) {
+      return false;
+   }
+
+   /* Keep an active X-backed loop counter intact when the table uses another
+      runtime index.  If the table index is the counter itself, X is already
+      exactly the register we want. */
+   reg = 'x';
+   if (ctx && ctx->register_x_active &&
+       !direct_register_x_index(ctx, index, NULL)) {
+      reg = 'y';
+   }
+   if (!compile_direct_u8_expr_to_index_register(ctx, index, reg)) {
+      return false;
+   }
+   if (!emit_load_direct_byte_operand_impl(ctx, &dst, false)) {
+      return false;
+   }
+   formatted = assembler_address_expr(symbol, expr_buf, sizeof(expr_buf));
+   emit_lvalue_semantic_use(ctx, &dst.lv, "read");
+   emit_lvalue_semantic_use(ctx, &dst.lv, "write");
+   emit_lvalue_semantic_use(ctx, &src, "read");
+   emit(&es_code, !strcmp(op, "+=") ? "    clc\n" : "    sec\n");
+   if (src.base_offset == 0) {
+      emit(&es_code, reg == 'x' ?
+           (!strcmp(op, "+=") ? "    adc %s,x\n" : "    sbc %s,x\n") :
+           (!strcmp(op, "+=") ? "    adc %s,y\n" : "    sbc %s,y\n"),
+           formatted);
+   }
+   else {
+      emit(&es_code, reg == 'x' ?
+           (!strcmp(op, "+=") ? "    adc %s + %d,x\n" : "    sbc %s + %d,x\n") :
+           (!strcmp(op, "+=") ? "    adc %s + %d,y\n" : "    sbc %s + %d,y\n"),
+           formatted, src.base_offset);
+   }
+   return emit_store_a_to_direct_byte_operand(&dst);
+}
+
 //! @brief Lower dst := byte-lvalue (+|-) constant without generic expression scratch.
 static bool compile_direct_u8_copy_constant_assignment(Context *ctx,
                                                        ASTNode *target,
@@ -2279,6 +3155,9 @@ static bool compile_discarded_byte_incdec(Context *ctx, ASTNode *expr) {
       return false;
    }
    increment = !strcmp(op, "pre++") || !strcmp(op, "post++");
+   if (compile_direct_u8_array_incdec(ctx, expr, increment)) {
+      return true;
+   }
    if (!resolve_lvalue(ctx, expr, &lv) || lv.is_swapram || lv.size != 1 || lv.is_bitfield) {
       return false;
    }
@@ -2937,13 +3816,17 @@ void compile_expr(ASTNode *node, Context *ctx) {
       if (compile_direct_u16_array_address_assignment(ctx, node->children[1], rhs)) {
          return;
       }
-      /* An X-backed counted-loop subscript has no materialized local object.
-         Give that one form to the direct byte-array path before generic
-         constant-lvalue lowering; ordinary array constants keep their older,
-         often smaller direct-address lowering below. */
+      /* A runtime-indexed direct byte array must reach the compact indexed
+         assignment path before scalar-constant lowering.  The latter can write
+         any lvalue through ptr0, but doing that for `array[index] := constant`
+         turns a two-instruction 6502 store into generic pointer arithmetic.
+         Constant subscripts still keep the older direct-address path below. */
       {
          ASTNode *direct_index = direct_single_subscript_expr(node->children[1]);
-         if (direct_index && direct_register_x_index(ctx, direct_index, NULL) &&
+         long long direct_index_value = 0;
+         bool constant_index = direct_index &&
+            expr_is_integer_constant_expr(direct_index, &direct_index_value);
+         if (direct_index && !constant_index &&
              compile_direct_u8_array_assignment(ctx, node->children[1], rhs)) {
             return;
          }
@@ -3052,7 +3935,16 @@ void compile_expr(ASTNode *node, Context *ctx) {
    if (compile_direct_u8_array_constant_update(ctx, node->children[1], op, rhs)) {
       return;
    }
+   if (compile_direct_u8_array_scalar_update(ctx, node->children[1], op, rhs)) {
+      return;
+   }
+   if (compile_direct_u8_scalar_update(ctx, node->children[1], op, rhs)) {
+      return;
+   }
    if (compile_direct_u8_constant_update(ctx, node->children[1], op, rhs)) {
+      return;
+   }
+   if (compile_direct_u8_scalar_array_update(ctx, node->children[1], op, rhs)) {
       return;
    }
    if (compile_direct_pointer_u8_update(ctx, node->children[1], op, rhs)) {

@@ -1,14 +1,23 @@
 // vcsc-cc1 -I .
-// expectasmordered: lda xs,y
+// expectasmordered: lda xs,x
 // expectasmordered: cmp #$00
-// expectasmordered: lda xs,y
-// expectasmordered: sbc #$01
-// expectasmordered: sta xs,y
-// expectasmordered: lda xs,y
+// expectasmordered: ldx index
+// expectasmordered: dec xs,x
+// expectasmordered: lda xs,x
 // expectasmordered: cmp #$9f
-// expectasmordered: lda xs,y
-// expectasmordered: adc #$01
-// expectasmordered: sta xs,y
+// expectasmordered: ldx index
+// expectasmordered: inc xs,x
+// expectasmordered: ldx index
+// expectasmordered: inc xs,x
+// expectasmordered: ldx index
+// expectasmordered: dec xs,x
+// expectasmordered: ldx conditional_step$which
+// expectasmordered: lda conditional_step$reverse
+// expectasmordered: and #$01
+// expectasmordered: beq @u8_indexed_if_false_
+// expectasmordered: dec xs,x
+// expectasmordered: jmp @u8_indexed_if_end_
+// expectasmordered: inc xs,x
 // forbidasm: __vcsc_scratch_
 // forbidasm: sta ptr0
 include "machine_6502.c26"
@@ -22,5 +31,16 @@ void main(void) {
    }
    if (xs[index] < 159) {
       xs[index] += 1;
+   }
+   xs[index]++;
+   xs[index]--;
+}
+
+void conditional_step(uint8_t which, uint8_t reverse) {
+   if (reverse & 1) {
+      xs[which]--;
+   }
+   else {
+      xs[which]++;
    }
 }

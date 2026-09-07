@@ -1,0 +1,16 @@
+// vcsc-cc1 -I .
+// expectasmordered: ldx index
+// expectasmordered: lda source,x
+// expectasmordered: sta destination,x
+// forbidasm: arg0
+// forbidasm: ldy index
+
+include "machine_6502.c26"
+
+uint8_t source[8];
+uint8_t destination[8];
+uint8_t index;
+
+void main(void) {
+   destination[index] := source[index];
+}

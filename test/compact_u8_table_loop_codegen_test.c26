@@ -20,9 +20,8 @@
 // expectasmordered: clc
 // expectasmordered: adc p + 0
 // expectasmordered: sta p + 0
-// expectasmordered: lda sprite
-// expectasmordered: tay
-// expectasmordered: lda transition,y
+// expectasmordered: ldx sprite
+// expectasmordered: lda transition,x
 // expectasmordered: sta sprite
 // expectasmordered: ldx #$00
 // expectasmordered: @for_start_

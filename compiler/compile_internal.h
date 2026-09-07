@@ -75,6 +75,9 @@ typedef struct Context {
    int locals_high_water;
    int params;
    Set *vars;
+   /* True only while lowering a counted loop whose source induction variable
+      lives in X.  Other expression fast paths must preserve X in that scope. */
+   bool register_x_active;
    const char *break_label;
    const char *continue_label;
    const char *return_label;

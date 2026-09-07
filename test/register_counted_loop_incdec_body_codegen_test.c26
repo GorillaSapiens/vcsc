@@ -1,0 +1,24 @@
+// vcsc-cc1 -I .
+// expectasmordered: ldx #$00
+// expectasmordered: @for_start_
+// expectasmordered: lda pending,x
+// expectasmordered: beq @if_false_
+// expectasmordered: dec value
+// expectasmordered: jmp @for_end_
+// forbidasm: main$i
+// forbidasm: txa
+// forbidasm: tay
+
+include "machine_6502.c26"
+
+uint8_t pending[2];
+uint8_t value;
+
+void main(void) {
+   for (uint8_t i := 0; i < 2; i += 1) {
+      if (pending[i]) {
+         value--;
+         break;
+      }
+   }
+}

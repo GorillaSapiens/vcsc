@@ -1,0 +1,30 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda index
+// expectasmordered: and #$0f
+// expectasmordered: tax
+// expectasmordered: lda table,x
+// expectasmordered: beq
+// expectasmordered: lda gate
+// expectasmordered: and #$02
+// expectasmordered: beq @or_end_
+// expectasmordered: ldx index
+// expectasmordered: lda table,x
+// forbidasm: __vcsc_scratch_
+// forbidasm: sta ptr0
+include "machine_6502.c26"
+
+page const uint8_t table[16] := {
+   0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1
+};
+uint8_t index;
+uint8_t gate;
+uint8_t hit;
+
+void main(void) {
+   if (table[index & 15]) {
+      hit := 1;
+   }
+   if (!(gate & 2) || table[index]) {
+      hit := 2;
+   }
+}

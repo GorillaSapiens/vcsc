@@ -1,0 +1,13 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda accum
+// expectasmordered: ora value
+// expectasmordered: sta accum
+// forbidasm: __vcsc_scratch_
+include "machine_6502.c26"
+
+uint8_t accum;
+uint8_t value;
+
+void main(void) {
+   accum |= value;
+}

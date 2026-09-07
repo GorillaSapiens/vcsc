@@ -1,0 +1,31 @@
+// vcsc-cc1 -I .
+// expectasmordered: ldx #$00
+// expectasmordered: lda pending,x
+// expectasmordered: lda knock_index,x
+// expectasmordered: tay
+// expectasmordered: lda offsets,y
+// expectasmordered: clc
+// expectasmordered: adc pending,x
+// expectasmordered: sec
+// expectasmordered: sbc #$01
+// expectasmordered: and #$07
+// expectasmordered: sta direction
+// forbidasm: main$tank
+// forbidasm: ptr0
+// forbidasm: __vcsc_scratch_
+
+include "machine_6502.c26"
+
+uint8_t pending[2];
+uint8_t knock_index[2];
+const uint8_t offsets[8] := { 0, 1, 2, 3, 4, 5, 6, 7 };
+uint8_t direction;
+
+void main(void) {
+   for (uint8_t tank := 0; tank < 2; tank++) {
+      if (pending[tank]) {
+         direction := (offsets[knock_index[tank]] + pending[tank] - 1) & 7;
+         break;
+      }
+   }
+}

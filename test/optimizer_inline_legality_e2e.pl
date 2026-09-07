@@ -45,7 +45,7 @@ static void page_target(void) {
 page static void page_caller(void) {
    page_target();
    asm jmp @after_padding;
-   asm .res 190;
+   asm .res 224;
    asm @after_padding:;
 }
 

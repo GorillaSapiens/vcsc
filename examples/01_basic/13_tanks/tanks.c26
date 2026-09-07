@@ -176,7 +176,7 @@ alias tank1_knockback_pending tank_knockback_pending[1]
 alias tank0_knockback_index tank_knockback_index[0]
 alias tank1_knockback_index tank_knockback_index[1]
 
-uint8_t tanks_misc[10];
+uint8_t tanks_misc[8];
 alias tanks_move_phase tanks_misc[0]
 alias tanks_rng tanks_misc[1]
 alias tanks_sound_frames tanks_misc[2]
@@ -201,15 +201,17 @@ alias tanks_m0_next tanks_mnext[0]
 alias tanks_m1_next tanks_mnext[1]
 
 uint8_t tanks_random(void) {
-   asm lda.z tanks_misc + 1;
-   asm lsr;
-   asm bcc.same @no_eor;
-   asm eor #$b4;
-   asm @no_eor:;
-   asm bne.same @nonzero;
-   asm lda #$5d;
-   asm @nonzero:;
-   asm sta.z tanks_misc + 1;
+   if (tanks_rng & 1) {
+      tanks_rng := (tanks_rng >> 1) ^ 0xb4;
+   }
+   else {
+      tanks_rng >>= 1;
+   }
+
+   if (!tanks_rng) {
+      tanks_rng := 0x5d;
+   }
+
    return tanks_rng;
 }
 
@@ -301,36 +303,23 @@ inline void tanks_update_engine(uint8_t controls) {
 // deliberately close to the beam machinery: the high nibble is HMPx fine
 // motion and the low nibble is the five-cycle coarse-loop count.
 void tanks_compute_player_position(uint8_t x) {
-   asm lda tanks_compute_player_position$x;
-   asm ldy #1;
-   asm @coarse:;
-   asm cmp #15;
-   asm bcc.same @remainder;
-   asm sbc #15;
-   asm iny;
-   asm bne.same @coarse;
-   asm @remainder:;
-   asm cmp #13;
-   asm bcc.same @fine;
-   asm iny;
-   asm clc;
-   asm adc #1;
-   asm @fine:;
-   asm tax;
-   asm tya;
-   asm and #$0f;
-   asm sta.z tanks_misc + 7;
-   asm txa;
-   asm eor #$ff;
-   asm clc;
-   asm adc #5;
-   asm and #$0f;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm asl;
-   asm ora.z tanks_misc + 7;
-   asm sta.z tanks_misc + 7;
+   tanks_motion_work := 1;
+
+   while (x >= 15) {
+      x -= 15;
+      tanks_motion_work++;
+   }
+
+   if (x >= 13) {
+      tanks_motion_work++;
+      x++;
+   }
+
+   x := 4 - x;
+   x &= 0x0f;
+   x <<= 4;
+   tanks_motion_work &= 0x0f;
+   tanks_motion_work |= x;
 }
 
 inline void tanks_reset_positions(void) {
@@ -374,63 +363,29 @@ void tanks_reset_game(void) {
 
 // Compact shared 16-way mover. object 0/1=tanks, 2/3=missiles.
 void tanks_move_object(uint8_t object, uint8_t direction) {
-   asm ldx tanks_move_object$object;
-   asm ldy tanks_move_object$direction;
-   asm lda tanks_motion,y;
-   asm sta.z tanks_misc + 7;
+   tanks_motion_work := tanks_motion[direction];
 
-   asm and #$0f;
-   asm beq.same @x_done;
-   asm tay;
-   asm and #$02;
-   asm beq.same @x_step;
-   asm lda.zx tanks_y,x;
-   asm and #$0f;
-   asm tay;
-   asm lda tanks_angle_steps,y;
-   asm beq.same @x_done;
-   asm lda.z tanks_misc + 7;
-   asm and #$0f;
-   asm tay;
-   asm @x_step:;
-   asm tya;
-   asm and #$04;
-   asm bne.same @x_negative;
-   asm inc.zx tanks_x,x;
-   asm jmp @x_done;
-   asm @x_negative:;
-   asm dec.zx tanks_x,x;
-   asm @x_done:;
+   if (tanks_motion_work & 0x0f) {
+      if (!(tanks_motion_work & 0x02) || tanks_angle_steps[tanks_y[object] & 0x0f]) {
+         if (tanks_motion_work & 0x04) {
+            tanks_x[object]--;
+         }
+         else {
+            tanks_x[object]++;
+         }
+      }
+   }
 
-   asm lda.z tanks_misc + 7;
-   asm lsr;
-   asm lsr;
-   asm lsr;
-   asm lsr;
-   asm beq.same @done;
-   asm tay;
-   asm and #$02;
-   asm beq.same @y_step;
-   asm lda.zx tanks_x,x;
-   asm and #$0f;
-   asm tay;
-   asm lda tanks_angle_steps,y;
-   asm beq.same @done;
-   asm lda.z tanks_misc + 7;
-   asm lsr;
-   asm lsr;
-   asm lsr;
-   asm lsr;
-   asm tay;
-   asm @y_step:;
-   asm tya;
-   asm and #$04;
-   asm bne.same @y_negative;
-   asm inc.zx tanks_y,x;
-   asm rts;
-   asm @y_negative:;
-   asm dec.zx tanks_y,x;
-   asm @done:;
+   if (tanks_motion_work & 0xf0) {
+      if (!(tanks_motion_work & 0x20) || tanks_angle_steps[tanks_x[object] & 0x0f]) {
+         if (tanks_motion_work & 0x40) {
+            tanks_y[object]--;
+         }
+         else {
+            tanks_y[object]++;
+         }
+      }
+   }
 }
 
 inline void tanks_launch0(void) {
@@ -677,105 +632,61 @@ void tanks_update_vblank(void) {
 }
 
 void tanks_process_knockback(void) {
+   uint8_t direction;
+   uint8_t delta;
+
    tanks_update_player_collisions();
 
-   // X selects the struck tank.  Convert the pending away-side octant plus
-   // its pseudo-random spread into one of the eight knockback directions.
-   asm ldx #0;
-   asm lda.zx tank_knockback_pending,x;
-   asm bne.flex @have_hit;
-   asm inx;
-   asm lda.zx tank_knockback_pending,x;
-   asm beq.flex @done;
-   asm @have_hit:;
-   asm sec;
-   asm sbc #1;
-   asm sta.z tanks_misc + 7;
-   asm lda.zx tank_knockback_index,x;
-   asm tay;
-   asm lda tanks_knockback_offsets,y;
-   asm clc;
-   asm adc.z tanks_misc + 7;
-   asm and #7;
-   asm tay;
+   for (
+      uint8_t tank := 0;
+      tank < 2;
+      tank++
+   ) {
+      if (tank_knockback_pending[tank]) {
+         direction := (tanks_knockback_offsets[tank_knockback_index[tank]] +
+                       tank_knockback_pending[tank] - 1) & 7;
 
-   // X displacement: + for NE/E/SE, - for SW/W/NW.  Wrap the complete
-   // top-left tank coordinate through the legal 4..148 arena span.
-   asm lda tanks_knockback_delta,y;
-   asm beq.flex @x_done;
-   asm sta.z tanks_misc + 7;
-   asm cpy #4;
-   asm bcs.flex @x_negative;
-   asm lda.zx tanks_x,x;
-   asm clc;
-   asm adc.z tanks_misc + 7;
-   asm cmp #149;
-   asm bcc.flex @x_store;
-   asm sec;
-   asm sbc #145;
-   asm jmp @x_store;
-   asm @x_negative:;
-   asm lda.zx tanks_x,x;
-   asm sec;
-   asm sbc.z tanks_misc + 7;
-   asm bcc.flex @x_wrap;
-   asm cmp #4;
-   asm bcs.flex @x_store;
-   asm @x_wrap:;
-   asm clc;
-   asm adc #145;
-   asm @x_store:;
-   asm sta.zx tanks_x,x;
-   asm @x_done:;
+         delta := tanks_knockback_delta[direction];
+         if (delta) {
+            if (direction < 4) {
+               tanks_x[tank] += delta;
+               if (tanks_x[tank] > TANKS_PLAYER_MAX_X) {
+                  tanks_x[tank] -= 145;
+               }
+            }
+            else {
+               tanks_x[tank] -= delta;
+               if (tanks_x[tank] < TANKS_PLAYER_MIN_X ||
+                   tanks_x[tank] > TANKS_PLAYER_MAX_X) {
+                  tanks_x[tank] += 145;
+               }
+            }
+         }
 
-   // Y displacement: - for NW/N/NE, + for SE/S/SW.  Arena Y is a doubled
-   // scanline coordinate, so 16 cardinal / 11 diagonal rows are ~32 pixels.
-   asm tya;
-   asm clc;
-   asm adc #8;
-   asm tay;
-   asm lda tanks_knockback_delta,y;
-   asm beq.flex @y_done;
-   asm sta.z tanks_misc + 7;
-   asm tya;
-   asm sec;
-   asm sbc #8;
-   asm tay;
-   asm cpy #3;
-   asm bcc.flex @y_negative;
-   asm cpy #6;
-   asm bcs.flex @y_negative;
-   asm lda.zx tanks_y,x;
-   asm clc;
-   asm adc.z tanks_misc + 7;
-   asm cmp #79;
-   asm bcc.flex @y_store;
-   asm sec;
-   asm sbc #75;
-   asm jmp @y_store;
-   asm @y_negative:;
-   asm lda.zx tanks_y,x;
-   asm sec;
-   asm sbc.z tanks_misc + 7;
-   asm bcc.flex @y_wrap;
-   asm cmp #4;
-   asm bcs.flex @y_store;
-   asm @y_wrap:;
-   asm clc;
-   asm adc #75;
-   asm @y_store:;
-   asm sta.zx tanks_y,x;
-   asm @y_done:;
+         delta := tanks_knockback_delta[direction + 8];
+         if (delta) {
+            if (direction >= 3 && direction < 6) {
+               tanks_y[tank] += delta;
+               if (tanks_y[tank] > TANKS_PLAYER_MAX_Y) {
+                  tanks_y[tank] -= 75;
+               }
+            }
+            else {
+               tanks_y[tank] -= delta;
+               if (tanks_y[tank] < TANKS_PLAYER_MIN_Y ||
+                   tanks_y[tank] > TANKS_PLAYER_MAX_Y) {
+                  tanks_y[tank] += 75;
+               }
+            }
+         }
 
-   asm lda #1;
-   asm sta.zx tank_pf_escape,x;
-   asm lda.zx tanks_x,x;
-   asm sta.zx tank_prev_x,x;
-   asm lda.zx tanks_y,x;
-   asm sta.zx tank_prev_y,x;
-   asm lda #0;
-   asm sta.zx tank_knockback_pending,x;
-   asm @done:;
+         tank_pf_escape[tank] := 1;
+         tank_prev_x[tank] := tanks_x[tank];
+         tank_prev_y[tank] := tanks_y[tank];
+         tank_knockback_pending[tank] := 0;
+         break;
+      }
+   }
 }
 
 inline void tanks_validate_missile0(void) {
@@ -866,33 +777,17 @@ inline void tanks_position_missiles(void) {
 // Select the two canonical ROM sprites for this frame.  The descriptor already
 // contains the base-row XOR; REFP supplies the independent horizontal mirror.
 inline void tanks_prepare_graphics(void) {
-   asm ldx.z tanks_direction + 0;
-   asm lda tanks_graphics_descriptor,x;
-   asm tay;
-   asm and #$3f;
-   asm sta.z tanks_graphics_index_xor + 0;
-   asm tya;
-   asm bpl.same @p0_no_reflect;
-   asm lda #8;
-   asm bne.same @p0_reflect_ready;
-   asm @p0_no_reflect:;
-   asm lda #0;
-   asm @p0_reflect_ready:;
-   asm sta.z tanks_mnext + 0;
+   uint8_t descriptor;
 
-   asm ldx.z tanks_direction + 1;
-   asm lda tanks_graphics_descriptor,x;
-   asm tay;
-   asm and #$3f;
-   asm sta.z tanks_graphics_index_xor + 1;
-   asm tya;
-   asm bpl.same @p1_no_reflect;
-   asm lda #8;
-   asm bne.same @p1_reflect_ready;
-   asm @p1_no_reflect:;
-   asm lda #0;
-   asm @p1_reflect_ready:;
-   asm sta.z tanks_mnext + 1;
+   for (
+      uint8_t tank := 0;
+      tank < 2;
+      tank++
+   ) {
+      descriptor := tanks_graphics_descriptor[tanks_direction[tank]];
+      tanks_graphics_index_xor[tank] := descriptor & 0x3f;
+      tanks_mnext[tank] := (descriptor >> 4) & 8;
+   }
 }
 
 // Restore P1, P0, then HMOVE in exactly three visible lines after the score.

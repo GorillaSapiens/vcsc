@@ -1,0 +1,14 @@
+// vcsc-cc1 -I .
+// expectasmordered: lda #$04
+// expectasmordered: sec
+// expectasmordered: sbc source
+// expectasmordered: sta result
+// forbidasm: __vcsc_scratch_
+include "machine_6502.c26"
+
+uint8_t source;
+uint8_t result;
+
+void main(void) {
+   result := 4 - source;
+}

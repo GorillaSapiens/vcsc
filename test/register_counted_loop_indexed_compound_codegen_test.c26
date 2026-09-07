@@ -1,0 +1,22 @@
+// vcsc-cc1 -I .
+// expectasmordered: ldx #$00
+// expectasmordered: lda value,x
+// expectasmordered: clc
+// expectasmordered: adc delta
+// expectasmordered: sta value,x
+// expectasmordered: inx
+// expectasmordered: cpx #$02
+// forbidasm: main$i
+// forbidasm: ptr0
+// forbidasm: __vcsc_scratch_
+
+include "machine_6502.c26"
+
+uint8_t value[2];
+uint8_t delta;
+
+void main(void) {
+   for (uint8_t i := 0; i < 2; i++) {
+      value[i] += delta;
+   }
+}

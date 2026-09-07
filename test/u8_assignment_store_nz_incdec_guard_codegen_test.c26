@@ -1,0 +1,13 @@
+// vcsc-cc1 -I .
+// expectasm: inc value
+include "machine_6502.c26"
+
+uint8_t value;
+uint8_t hit;
+
+void main(void) {
+   value := 1;
+   if (!value++) {
+      hit := 1;
+   }
+}
