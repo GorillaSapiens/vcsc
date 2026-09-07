@@ -83,165 +83,63 @@ include "status_font.c26"
 include "cart_type_font.c26"
 
 inline void load_status_pass(void) {
-   asm lda #<{status_big_glyphs + 0};
-   asm sta status_result_pointers+0;
-   asm lda #>{status_big_glyphs + 0};
-   asm sta status_result_pointers+1;
-   asm lda #<{status_big_glyphs + 16};
-   asm sta status_result_pointers+2;
-   asm lda #>{status_big_glyphs + 16};
-   asm sta status_result_pointers+3;
-   asm lda #<{status_big_glyphs + 32};
-   asm sta status_result_pointers+4;
-   asm lda #>{status_big_glyphs + 32};
-   asm sta status_result_pointers+5;
-   asm lda #<{status_big_glyphs + 48};
-   asm sta status_result_pointers+6;
-   asm lda #>{status_big_glyphs + 48};
-   asm sta status_result_pointers+7;
-   asm lda #<{status_big_glyphs + 48};
-   asm sta status_result_pointers+8;
-   asm lda #>{status_big_glyphs + 48};
-   asm sta status_result_pointers+9;
-   asm lda #<{status_big_glyphs + 0};
-   asm sta status_result_pointers+10;
-   asm lda #>{status_big_glyphs + 0};
-   asm sta status_result_pointers+11;
+   status_result_pointers[0] := (uint16_t)&status_big_glyphs[0];
+   status_result_pointers[1] := (uint16_t)&status_big_glyphs[16];
+   status_result_pointers[2] := (uint16_t)&status_big_glyphs[32];
+   status_result_pointers[3] := (uint16_t)&status_big_glyphs[48];
+   status_result_pointers[4] := (uint16_t)&status_big_glyphs[48];
+   status_result_pointers[5] := (uint16_t)&status_big_glyphs[0];
    status_result_color := 0x0e;
 }
 
 inline void load_status_fail(void) {
-   asm lda #<{status_big_glyphs + 0};
-   asm sta status_result_pointers+0;
-   asm lda #>{status_big_glyphs + 0};
-   asm sta status_result_pointers+1;
-   asm lda #<{status_big_glyphs + 64};
-   asm sta status_result_pointers+2;
-   asm lda #>{status_big_glyphs + 64};
-   asm sta status_result_pointers+3;
-   asm lda #<{status_big_glyphs + 80};
-   asm sta status_result_pointers+4;
-   asm lda #>{status_big_glyphs + 80};
-   asm sta status_result_pointers+5;
-   asm lda #<{status_big_glyphs + 96};
-   asm sta status_result_pointers+6;
-   asm lda #>{status_big_glyphs + 96};
-   asm sta status_result_pointers+7;
-   asm lda #<{status_big_glyphs + 112};
-   asm sta status_result_pointers+8;
-   asm lda #>{status_big_glyphs + 112};
-   asm sta status_result_pointers+9;
-   asm lda #<{status_big_glyphs + 0};
-   asm sta status_result_pointers+10;
-   asm lda #>{status_big_glyphs + 0};
-   asm sta status_result_pointers+11;
+   status_result_pointers[0] := (uint16_t)&status_big_glyphs[0];
+   status_result_pointers[1] := (uint16_t)&status_big_glyphs[64];
+   status_result_pointers[2] := (uint16_t)&status_big_glyphs[80];
+   status_result_pointers[3] := (uint16_t)&status_big_glyphs[96];
+   status_result_pointers[4] := (uint16_t)&status_big_glyphs[112];
+   status_result_pointers[5] := (uint16_t)&status_big_glyphs[0];
    status_result_color := 0x0e;
 }
 
 inline void load_cart_type(void) {
 #ifdef POISONED_RESULT
    // The poison diagnostic deliberately withholds its mapper identity.
-   asm lda #<{status_small_glyphs + 56};
-   asm sta cart_type_pointers+0;
-   asm lda #>{status_small_glyphs + 56};
-   asm sta cart_type_pointers+1;
-   asm lda #<{status_small_glyphs + 56};
-   asm sta cart_type_pointers+2;
-   asm lda #>{status_small_glyphs + 56};
-   asm sta cart_type_pointers+3;
-   asm lda #<{status_small_glyphs + 56};
-   asm sta cart_type_pointers+4;
-   asm lda #>{status_small_glyphs + 56};
-   asm sta cart_type_pointers+5;
-   asm lda #<{status_small_glyphs + 56};
-   asm sta cart_type_pointers+6;
-   asm lda #>{status_small_glyphs + 56};
-   asm sta cart_type_pointers+7;
-   asm lda #<{status_small_glyphs + 56};
-   asm sta cart_type_pointers+8;
-   asm lda #>{status_small_glyphs + 56};
-   asm sta cart_type_pointers+9;
-   asm lda #<{status_small_glyphs + 56};
-   asm sta cart_type_pointers+10;
-   asm lda #>{status_small_glyphs + 56};
-   asm sta cart_type_pointers+11;
+   cart_type_pointers[0] := (uint16_t)&status_small_glyphs[56];
+   cart_type_pointers[1] := (uint16_t)&status_small_glyphs[56];
+   cart_type_pointers[2] := (uint16_t)&status_small_glyphs[56];
+   cart_type_pointers[3] := (uint16_t)&status_small_glyphs[56];
+   cart_type_pointers[4] := (uint16_t)&status_small_glyphs[56];
+   cart_type_pointers[5] := (uint16_t)&status_small_glyphs[56];
 #else
 #ifdef SUPERCHIP_TEST
    // blank / F / mapper-digit / S / C / blank
-   asm lda #<{status_small_glyphs + 0};
-   asm sta cart_type_pointers+0;
-   asm lda #>{status_small_glyphs + 0};
-   asm sta cart_type_pointers+1;
-   asm lda #<{status_small_glyphs + 8};
-   asm sta cart_type_pointers+2;
-   asm lda #>{status_small_glyphs + 8};
-   asm sta cart_type_pointers+3;
+   cart_type_pointers[0] := (uint16_t)&status_small_glyphs[0];
+   cart_type_pointers[1] := (uint16_t)&status_small_glyphs[8];
 #if MAPPER_BANKS == 2
-   asm lda #<{status_small_glyphs + 32};
-   asm sta cart_type_pointers+4;
-   asm lda #>{status_small_glyphs + 32};
-   asm sta cart_type_pointers+5;
+   cart_type_pointers[2] := (uint16_t)&status_small_glyphs[32];
 #elif MAPPER_BANKS == 4
-   asm lda #<{status_small_glyphs + 24};
-   asm sta cart_type_pointers+4;
-   asm lda #>{status_small_glyphs + 24};
-   asm sta cart_type_pointers+5;
+   cart_type_pointers[2] := (uint16_t)&status_small_glyphs[24];
 #elif MAPPER_BANKS == 8
-   asm lda #<{status_small_glyphs + 16};
-   asm sta cart_type_pointers+4;
-   asm lda #>{status_small_glyphs + 16};
-   asm sta cart_type_pointers+5;
+   cart_type_pointers[2] := (uint16_t)&status_small_glyphs[16];
 #endif
-   asm lda #<{status_small_glyphs + 40};
-   asm sta cart_type_pointers+6;
-   asm lda #>{status_small_glyphs + 40};
-   asm sta cart_type_pointers+7;
-   asm lda #<{status_small_glyphs + 48};
-   asm sta cart_type_pointers+8;
-   asm lda #>{status_small_glyphs + 48};
-   asm sta cart_type_pointers+9;
-   asm lda #<{status_small_glyphs + 0};
-   asm sta cart_type_pointers+10;
-   asm lda #>{status_small_glyphs + 0};
-   asm sta cart_type_pointers+11;
+   cart_type_pointers[3] := (uint16_t)&status_small_glyphs[40];
+   cart_type_pointers[4] := (uint16_t)&status_small_glyphs[48];
+   cart_type_pointers[5] := (uint16_t)&status_small_glyphs[0];
 #else
    // blank / blank / F / mapper-digit / blank / blank
-   asm lda #<{status_small_glyphs + 0};
-   asm sta cart_type_pointers+0;
-   asm lda #>{status_small_glyphs + 0};
-   asm sta cart_type_pointers+1;
-   asm lda #<{status_small_glyphs + 0};
-   asm sta cart_type_pointers+2;
-   asm lda #>{status_small_glyphs + 0};
-   asm sta cart_type_pointers+3;
-   asm lda #<{status_small_glyphs + 8};
-   asm sta cart_type_pointers+4;
-   asm lda #>{status_small_glyphs + 8};
-   asm sta cart_type_pointers+5;
+   cart_type_pointers[0] := (uint16_t)&status_small_glyphs[0];
+   cart_type_pointers[1] := (uint16_t)&status_small_glyphs[0];
+   cart_type_pointers[2] := (uint16_t)&status_small_glyphs[8];
 #if MAPPER_BANKS == 2
-   asm lda #<{status_small_glyphs + 32};
-   asm sta cart_type_pointers+6;
-   asm lda #>{status_small_glyphs + 32};
-   asm sta cart_type_pointers+7;
+   cart_type_pointers[3] := (uint16_t)&status_small_glyphs[32];
 #elif MAPPER_BANKS == 4
-   asm lda #<{status_small_glyphs + 24};
-   asm sta cart_type_pointers+6;
-   asm lda #>{status_small_glyphs + 24};
-   asm sta cart_type_pointers+7;
+   cart_type_pointers[3] := (uint16_t)&status_small_glyphs[24];
 #elif MAPPER_BANKS == 8
-   asm lda #<{status_small_glyphs + 16};
-   asm sta cart_type_pointers+6;
-   asm lda #>{status_small_glyphs + 16};
-   asm sta cart_type_pointers+7;
+   cart_type_pointers[3] := (uint16_t)&status_small_glyphs[16];
 #endif
-   asm lda #<{status_small_glyphs + 0};
-   asm sta cart_type_pointers+8;
-   asm lda #>{status_small_glyphs + 0};
-   asm sta cart_type_pointers+9;
-   asm lda #<{status_small_glyphs + 0};
-   asm sta cart_type_pointers+10;
-   asm lda #>{status_small_glyphs + 0};
-   asm sta cart_type_pointers+11;
+   cart_type_pointers[4] := (uint16_t)&status_small_glyphs[0];
+   cart_type_pointers[5] := (uint16_t)&status_small_glyphs[0];
 #endif
 #endif
 }

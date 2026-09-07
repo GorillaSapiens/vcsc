@@ -163,3 +163,21 @@ Validation: `test/install_manifest.pl` and `make installcheck` pass. A fresh
 static `make linux` archive was generated, unpacked into a new temporary tree,
 and plain `make` from `vcsc/examples/01_basic/13_tanks` invoked
 `../../../bin/vcsc` and produced a 4096-byte `tanks.bin`.
+
+2026-09-07 14:48:31 PDT, remove bankswitch glyph-pointer asm
+-------------------------------
+Promoted the five non-beam example-asm cleanup tasks to the head of the main
+roadmap and completed the first one. Across 19 bankswitch diagnostic C26
+sources, replaced 352 low/high-byte glyph-pointer constructions (1,408 inline
+asm statements) with typed C26 `uint16_t` pointer assignments. Intentional
+stack-state probes, selector writes, detector idioms, and simulator stop jumps
+remain assembly.
+
+Added `test/vcs_bankswitch_glyph_pointer_c26.pl` to reject any future inline asm
+that touches the diagnostic glyph-pointer tables and updated the reviewed
+example-assembly allowlist to describe only the remaining intentional asm.
+Focused ordinary mapper diagnostics pass across F8/F6/F4(+SC), FA, 4KSC, OMNI,
+CV, JANE, 0840, UA/UASW, 0FA0, 3F/3E, FE, WD, DPC, FA2, FC, and F0. The 3F max
+diagnostic also passes its 512K / 65,535-call torture run. Compiler compile-only
+validation remains 525/525. The next main-roadmap item is enhanced-asymmetric
+initialization and joystick-motion conversion to C26.

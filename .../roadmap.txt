@@ -18,9 +18,35 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 52, add playfield-color renderer support.
+Current next action: Item 53, convert enhanced-asymmetric initialization and joystick motion to C26.
 
-[ ] 52. Add playfield-color support as an explicit renderer capability.
+[ ] 53. Convert enhanced-asymmetric initialization and joystick motion to C26.
+
+        * Remove ordinary initialization/motion asm outside the visible renderer.
+        * Preserve renderer timing contracts and current cartridge footprint.
+
+[ ] 54. Revisit compact six-digit score controls using current C26/BCD codegen.
+
+        * Replace ordinary control/score asm when the C26 form can preserve the
+          public example's 4K budget.
+        * Treat any remaining size gap as a general codegen problem, not an
+          example-specific exception.
+
+[ ] 55. Convert all-five interactive control logic to C26.
+
+        * Replace non-beam RESET/SELECT/joystick/color/score-control asm while
+          preserving the unbanked 4K target.
+        * Fix general codegen shortcomings rather than embedding size hacks in
+          the example.
+
+[ ] 56. Convert ordinary diagnostic UI/CRC/audio work to C26.
+
+        * Audit and convert non-beam routines such as numeric formatting, CRC24,
+          row initialization/update, and audio tick where timing permits.
+        * Keep intentional CPU probes, hardware-state tests, and beam/deadline
+          code in asm.
+
+[ ] 57. Add playfield-color support as an explicit renderer capability.
 
         * Define whether colors are global, per logical row, or both.
         * Schedule every COLUPF write against the beam.
@@ -29,7 +55,7 @@ Current next action: Item 52, add playfield-color renderer support.
         * Add static, motion, transition, installation, and pixel/color-oracle
           coverage for every supported profile.
 
-[ ] 53. Add a public side-scroller/platform example.
+[ ] 58. Add a public side-scroller/platform example.
 
         * Demonstrate animated player sprites, horizontal world scrolling,
           platform/playfield collision, jumping/gravity, and camera/world-state

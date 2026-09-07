@@ -339,12 +339,14 @@ $source_text =~ /include\s+"cart_type_font\.c26"/ &&
 $status_font =~ /bank0\s+page\s+const\s+uint8_t\s+status_big_glyphs\s*\[128\]/ &&
 $cart_type_font =~ /bank0\s+page\s+const\s+uint8_t\s+status_small_glyphs\s*\[64\]/
    or die "diagnostic generated ASCII subset tables are not page-contained\n";
-$source_text =~ /load_status_pass.*status_big_glyphs\s*\+\s*16.*status_big_glyphs\s*\+\s*32.*status_big_glyphs\s*\+\s*48.*status_big_glyphs\s*\+\s*48/s
+$source_text =~ /load_status_pass.*status_big_glyphs\s*\[\s*16\s*\].*status_big_glyphs\s*\[\s*32\s*\].*status_big_glyphs\s*\[\s*48\s*\].*status_big_glyphs\s*\[\s*48\s*\]/s
    or die "diagnostic pass pointer order is not blank\/p\/a\/s\/s\/blank\n";
-$source_text =~ /load_status_fail.*status_big_glyphs\s*\+\s*64.*status_big_glyphs\s*\+\s*80.*status_big_glyphs\s*\+\s*96.*status_big_glyphs\s*\+\s*112/s
+$source_text =~ /load_status_fail.*status_big_glyphs\s*\[\s*64\s*\].*status_big_glyphs\s*\[\s*80\s*\].*status_big_glyphs\s*\[\s*96\s*\].*status_big_glyphs\s*\[\s*112\s*\]/s
    or die "diagnostic FAIL pointer order is not blank\/F\/A\/I\/L\/blank\n";
-$source_text =~ /#ifdef\s+POISONED_RESULT.*status_small_glyphs\s*\+\s*56/s
+$source_text =~ /#ifdef\s+POISONED_RESULT.*status_small_glyphs\s*\[\s*56\s*\]/s
    or die "diagnostic poison cart type is not six question marks\n";
+$source_text !~ /asm\s+lda\s+#(?:<|>)\{?(?:status_(?:big|small)_glyphs|cart_type_glyphs)/
+   or die "diagnostic glyph-pointer setup still uses inline asm\n";
 $source_text =~ /vcs_ntsc_wait_component_scanlines\s*\(\s*81\s*\).*status_result_draw\s*\(\s*\).*vcs_ntsc_component_handoff\s*\(\s*\).*cart_type_draw\s*\(\s*\).*vcs_ntsc_wait_visible_tail_scanlines\s*\(\s*81\s*\)/s
    or die "diagnostic two-line display is not centered in the 192-line visible field\n";
 $source_text =~ /status_result_color\s*:=\s*0x0e/ &&

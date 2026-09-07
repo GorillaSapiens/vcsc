@@ -341,51 +341,33 @@ bank15 void source15(void) {
 include "status_font.c26"
 
 inline void load_pass(void) {
-   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+0;
-   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+1;
-   asm lda #<{status_glyphs + 16};  asm sta status_result_pointers+2;
-   asm lda #>{status_glyphs + 16};  asm sta status_result_pointers+3;
-   asm lda #<{status_glyphs + 32};  asm sta status_result_pointers+4;
-   asm lda #>{status_glyphs + 32};  asm sta status_result_pointers+5;
-   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+6;
-   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+7;
-   asm lda #<{status_glyphs + 48};  asm sta status_result_pointers+8;
-   asm lda #>{status_glyphs + 48};  asm sta status_result_pointers+9;
-   asm lda #<{status_glyphs + 0};   asm sta status_result_pointers+10;
-   asm lda #>{status_glyphs + 0};   asm sta status_result_pointers+11;
+   status_result_pointers[0] := (uint16_t)&status_glyphs[0];
+   status_result_pointers[1] := (uint16_t)&status_glyphs[16];
+   status_result_pointers[2] := (uint16_t)&status_glyphs[32];
+   status_result_pointers[3] := (uint16_t)&status_glyphs[48];
+   status_result_pointers[4] := (uint16_t)&status_glyphs[48];
+   status_result_pointers[5] := (uint16_t)&status_glyphs[0];
 }
 
 inline void load_fail(void) {
-   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+0;
-   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+1;
-   asm lda #<{status_glyphs + 64};   asm sta status_result_pointers+2;
-   asm lda #>{status_glyphs + 64};   asm sta status_result_pointers+3;
-   asm lda #<{status_glyphs + 80};   asm sta status_result_pointers+4;
-   asm lda #>{status_glyphs + 80};   asm sta status_result_pointers+5;
-   asm lda #<{status_glyphs + 96};   asm sta status_result_pointers+6;
-   asm lda #>{status_glyphs + 96};   asm sta status_result_pointers+7;
-   asm lda #<{status_glyphs + 112};  asm sta status_result_pointers+8;
-   asm lda #>{status_glyphs + 112};  asm sta status_result_pointers+9;
-   asm lda #<{status_glyphs + 0};    asm sta status_result_pointers+10;
-   asm lda #>{status_glyphs + 0};    asm sta status_result_pointers+11;
+   status_result_pointers[0] := (uint16_t)&status_glyphs[0];
+   status_result_pointers[1] := (uint16_t)&status_glyphs[64];
+   status_result_pointers[2] := (uint16_t)&status_glyphs[80];
+   status_result_pointers[3] := (uint16_t)&status_glyphs[96];
+   status_result_pointers[4] := (uint16_t)&status_glyphs[112];
+   status_result_pointers[5] := (uint16_t)&status_glyphs[0];
 }
 
 include "cart_type_font.c26"
 
 inline void load_mapper_type(void) {
    // "  F0  "
-   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+0;
-   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+1;
-   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+2;
-   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+3;
-   asm lda #<{cart_type_glyphs + 8};  asm sta cart_type_pointers+4;
-   asm lda #>{cart_type_glyphs + 8};  asm sta cart_type_pointers+5;
-   asm lda #<{cart_type_glyphs + 16}; asm sta cart_type_pointers+6;
-   asm lda #>{cart_type_glyphs + 16}; asm sta cart_type_pointers+7;
-   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+8;
-   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+9;
-   asm lda #<{cart_type_glyphs + 0};  asm sta cart_type_pointers+10;
-   asm lda #>{cart_type_glyphs + 0};  asm sta cart_type_pointers+11;
+   cart_type_pointers[0] := (uint16_t)&cart_type_glyphs[0];
+   cart_type_pointers[1] := (uint16_t)&cart_type_glyphs[0];
+   cart_type_pointers[2] := (uint16_t)&cart_type_glyphs[8];
+   cart_type_pointers[3] := (uint16_t)&cart_type_glyphs[16];
+   cart_type_pointers[4] := (uint16_t)&cart_type_glyphs[0];
+   cart_type_pointers[5] := (uint16_t)&cart_type_glyphs[0];
 }
 
 bank15 void draw_result(void) {
