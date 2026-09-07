@@ -64,7 +64,7 @@ archiver/vcsc-ar:
 disassembler/vcsc-disas:
 	@$(MAKE) --no-print-directory -C ./disassembler vcsc-disas$(EXEEXT)
 
-tools: clean
+tools:
 	@$(MAKE) --no-print-directory -C ./assembler all
 	@$(MAKE) --no-print-directory -C ./linker all
 	@$(MAKE) --no-print-directory -C ./archiver all
@@ -73,6 +73,8 @@ tools: clean
 	@$(MAKE) --no-print-directory -C ./simulator all
 	@$(MAKE) --no-print-directory -C ./driver all
 	@$(MAKE) --no-print-directory -C ./disassembler all
+
+rebuild: clean tools
 
 .PHONY: exam exbs
 
@@ -142,198 +144,15 @@ install-core:
 	@$(MAKE) --no-print-directory install-data DESTDIR="$(DESTDIR)" DATADIR="$(DATADIR)"
 
 install-examples:
-	install -d $(DESTDIR)$(EXAMPLESDIR)
-	cp -a examples/. $(DESTDIR)$(EXAMPLESDIR)/
-	find $(DESTDIR)$(EXAMPLESDIR) -type f \
-	  \( -name '*.bin' -o -name '*.hex' -o -name '*.o26' \
-	     -o -name '*.map' -o -name '*.sym' -o -name '*.lst' \) -delete
-	find $(DESTDIR)$(EXAMPLESDIR) -type f -name Makefile -exec \
-	  sed -i 's|$$(ROOT)/driver/vcsc|$$(ROOT)/bin/vcsc|g; s|$$(ROOT)/libraries/vcs|$$(ROOT)/share/vcs|g' {} +
+	$(PERL) packaging/install_manifest.pl install \
+	  --manifest packaging/install.manifest --scope examples \
+	  --source-root "$(CURDIR)" --dest-root "$(DESTDIR)$(EXAMPLESDIR)" \
+	  --vcsc-name "vcsc$(EXEEXT)"
 
 install-data:
-	install -d $(DESTDIR)$(DATADIR)/vcs
-	install -d $(DESTDIR)$(DATADIR)/vcs/0840 $(DESTDIR)$(DATADIR)/vcs/0FA0 $(DESTDIR)$(DATADIR)/vcs/2K $(DESTDIR)$(DATADIR)/vcs/3E $(DESTDIR)$(DATADIR)/vcs/3EX $(DESTDIR)$(DATADIR)/vcs/3F $(DESTDIR)$(DATADIR)/vcs/FC $(DESTDIR)$(DATADIR)/vcs/F0 $(DESTDIR)$(DATADIR)/vcs/4K $(DESTDIR)$(DATADIR)/vcs/4KSC $(DESTDIR)$(DATADIR)/vcs/CV $(DESTDIR)$(DATADIR)/vcs/DPC $(DESTDIR)$(DATADIR)/vcs/E0 $(DESTDIR)$(DATADIR)/vcs/F4 $(DESTDIR)$(DATADIR)/vcs/F4SC $(DESTDIR)$(DATADIR)/vcs/F6 $(DESTDIR)$(DATADIR)/vcs/F6SC $(DESTDIR)$(DATADIR)/vcs/F8 $(DESTDIR)$(DATADIR)/vcs/F8SC $(DESTDIR)$(DATADIR)/vcs/FA $(DESTDIR)$(DATADIR)/vcs/FA2 $(DESTDIR)$(DATADIR)/vcs/FE $(DESTDIR)$(DATADIR)/vcs/JANE $(DESTDIR)$(DATADIR)/vcs/OMNI $(DESTDIR)$(DATADIR)/vcs/UA $(DESTDIR)$(DATADIR)/vcs/UASW $(DESTDIR)$(DATADIR)/vcs/WD
-	install -m 0644 libraries/LICENSE.txt $(DESTDIR)$(DATADIR)/vcs/LICENSE.txt
-	install -m 0644 libraries/vcs/README.md $(DESTDIR)$(DATADIR)/vcs/README.md
-	install -m 0644 libraries/vcs/LEGACY_RENDERER_CONVERSION.md $(DESTDIR)$(DATADIR)/vcs/LEGACY_RENDERER_CONVERSION.md
-	install -m 0644 libraries/vcs/VIDEO_STANDARDS.md $(DESTDIR)$(DATADIR)/vcs/VIDEO_STANDARDS.md
-	install -m 0644 libraries/vcs/color_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/color_ntsc.c26
-	install -m 0644 libraries/vcs/color_pal.c26 $(DESTDIR)$(DATADIR)/vcs/color_pal.c26
-	install -m 0644 libraries/vcs/color_secam.c26 $(DESTDIR)$(DATADIR)/vcs/color_secam.c26
-	install -m 0644 libraries/vcs/frame_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/frame_ntsc.c26
-	install -m 0644 libraries/vcs/frame_50hz_component.c26 $(DESTDIR)$(DATADIR)/vcs/frame_50hz_component.c26
-	install -m 0644 libraries/vcs/frame_pal.c26 $(DESTDIR)$(DATADIR)/vcs/frame_pal.c26
-	install -m 0644 libraries/vcs/frame_secam.c26 $(DESTDIR)$(DATADIR)/vcs/frame_secam.c26
-	install -m 0644 libraries/vcs/playfield.c26 $(DESTDIR)$(DATADIR)/vcs/playfield.c26
-	install -m 0644 libraries/vcs/riot.c26 $(DESTDIR)$(DATADIR)/vcs/riot.c26
-	install -m 0644 libraries/vcs/6507.c26 $(DESTDIR)$(DATADIR)/vcs/6507.c26
-	install -m 0644 libraries/vcs/six_glyph_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_component.c26
-	install -m 0644 libraries/vcs/six_glyph_wide_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_wide_component.c26
-	install -m 0644 libraries/vcs/six_glyph_big_wide_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_big_wide_component.c26
-	install -m 0644 libraries/vcs/six_glyph_left_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_left_component.c26
-	install -m 0644 libraries/vcs/six_glyph_right_component.c26 $(DESTDIR)$(DATADIR)/vcs/six_glyph_right_component.c26
-	install -m 0644 libraries/vcs/three_plus_three_score_component.c26 $(DESTDIR)$(DATADIR)/vcs/three_plus_three_score_component.c26
-	install -m 0644 libraries/vcs/two_paddles.c26 $(DESTDIR)$(DATADIR)/vcs/two_paddles.c26
-	install -m 0644 libraries/vcs/four_paddles.c26 $(DESTDIR)$(DATADIR)/vcs/four_paddles.c26
-	install -m 0644 libraries/vcs/keypad_controller.c26 $(DESTDIR)$(DATADIR)/vcs/keypad_controller.c26
-	install -m 0644 libraries/vcs/driving_controller.c26 $(DESTDIR)$(DATADIR)/vcs/driving_controller.c26
-	install -m 0644 libraries/vcs/two_plus_two_score_component.c26 $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_component.c26
-	install -m 0644 libraries/vcs/two_plus_two_score_support.c26 $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_support.c26
-	install -m 0644 libraries/vcs/sound_ntsc.c26 $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
-	install -m 0644 libraries/vcs/sound_50hz.c26 $(DESTDIR)$(DATADIR)/vcs/sound_50hz.c26
-	install -m 0644 libraries/vcs/sound_pal.c26 $(DESTDIR)$(DATADIR)/vcs/sound_pal.c26
-	install -m 0644 libraries/vcs/sound_secam.c26 $(DESTDIR)$(DATADIR)/vcs/sound_secam.c26
-	install -m 0644 libraries/vcs/4KSC/ram.c26 $(DESTDIR)$(DATADIR)/vcs/4KSC/ram.c26
-	install -m 0644 libraries/vcs/FA/ram.c26 $(DESTDIR)$(DATADIR)/vcs/FA/ram.c26
-	install -m 0644 libraries/vcs/F8/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F8/bankcall.s26
-	install -m 0644 libraries/vcs/F8SC/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F8SC/bankcall.s26
-	install -m 0644 libraries/vcs/F6/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F6/bankcall.s26
-	install -m 0644 libraries/vcs/F6SC/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F6SC/bankcall.s26
-	install -m 0644 libraries/vcs/F4/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F4/bankcall.s26
-	install -m 0644 libraries/vcs/F4SC/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F4SC/bankcall.s26
-	install -m 0644 libraries/vcs/FA/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/FA/bankcall.s26
-	install -m 0644 libraries/vcs/DPC/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/DPC/bankcall.s26
-	install -m 0644 libraries/vcs/FA2/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/FA2/bankcall.s26
-	install -m 0644 libraries/vcs/JANE/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/JANE/bankcall.s26
-	install -m 0644 libraries/vcs/0840/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/0840/bankcall.s26
-	install -m 0644 libraries/vcs/UA/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/UA/bankcall.s26
-	install -m 0644 libraries/vcs/UASW/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/UASW/bankcall.s26
-	install -m 0644 libraries/vcs/0FA0/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/0FA0/bankcall.s26
-	install -m 0644 libraries/vcs/WD/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/WD/bankcall.s26
-	install -m 0644 libraries/vcs/3F/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/3F/bankcall.s26
-	install -m 0644 libraries/vcs/3E/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/3E/bankcall.s26
-	install -m 0644 libraries/vcs/3EX/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/3EX/bankcall.s26
-	install -m 0644 libraries/vcs/FC/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/FC/bankcall.s26
-	install -m 0644 libraries/vcs/F0/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F0/bankcall.s26
-	install -m 0644 libraries/vcs/E0/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/E0/bankcall.s26
-	install -m 0644 libraries/vcs/F8/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F8/entry.s26
-	install -m 0644 libraries/vcs/F8SC/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F8SC/entry.s26
-	install -m 0644 libraries/vcs/F6/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F6/entry.s26
-	install -m 0644 libraries/vcs/F6SC/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F6SC/entry.s26
-	install -m 0644 libraries/vcs/F4/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F4/entry.s26
-	install -m 0644 libraries/vcs/F4SC/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F4SC/entry.s26
-	install -m 0644 libraries/vcs/FA/entry.s26 $(DESTDIR)$(DATADIR)/vcs/FA/entry.s26
-	install -m 0644 libraries/vcs/DPC/entry.s26 $(DESTDIR)$(DATADIR)/vcs/DPC/entry.s26
-	install -m 0644 libraries/vcs/FA2/entry.s26 $(DESTDIR)$(DATADIR)/vcs/FA2/entry.s26
-	install -m 0644 libraries/vcs/JANE/entry.s26 $(DESTDIR)$(DATADIR)/vcs/JANE/entry.s26
-	install -m 0644 libraries/vcs/0840/entry.s26 $(DESTDIR)$(DATADIR)/vcs/0840/entry.s26
-	install -m 0644 libraries/vcs/UA/entry.s26 $(DESTDIR)$(DATADIR)/vcs/UA/entry.s26
-	install -m 0644 libraries/vcs/UASW/entry.s26 $(DESTDIR)$(DATADIR)/vcs/UASW/entry.s26
-	install -m 0644 libraries/vcs/0FA0/entry.s26 $(DESTDIR)$(DATADIR)/vcs/0FA0/entry.s26
-	install -m 0644 libraries/vcs/WD/entry.s26 $(DESTDIR)$(DATADIR)/vcs/WD/entry.s26
-	install -m 0644 libraries/vcs/3F/entry.s26 $(DESTDIR)$(DATADIR)/vcs/3F/entry.s26
-	install -m 0644 libraries/vcs/3E/entry.s26 $(DESTDIR)$(DATADIR)/vcs/3E/entry.s26
-	install -m 0644 libraries/vcs/3EX/entry.s26 $(DESTDIR)$(DATADIR)/vcs/3EX/entry.s26
-	install -m 0644 libraries/vcs/FC/entry.s26 $(DESTDIR)$(DATADIR)/vcs/FC/entry.s26
-	install -m 0644 libraries/vcs/F0/entry.s26 $(DESTDIR)$(DATADIR)/vcs/F0/entry.s26
-	install -m 0644 libraries/vcs/E0/entry.s26 $(DESTDIR)$(DATADIR)/vcs/E0/entry.s26
-	install -m 0644 libraries/vcs/CV/ram.c26 $(DESTDIR)$(DATADIR)/vcs/CV/ram.c26
-	install -m 0644 libraries/vcs/DPC/registers.c26 $(DESTDIR)$(DATADIR)/vcs/DPC/registers.c26
-	install -m 0644 libraries/vcs/tia.c26 $(DESTDIR)$(DATADIR)/vcs/tia.c26
-	install -m 0644 libraries/vcs/tia_mirror_40.c26 $(DESTDIR)$(DATADIR)/vcs/tia_mirror_40.c26
-	install -m 0644 libraries/vcs/vcs.c26 $(DESTDIR)$(DATADIR)/vcs/vcs.c26
-	install -m 0644 libraries/vcs/2K/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/2K/mapper.c26
-	install -m 0644 libraries/vcs/CV/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/CV/mapper.c26
-	install -m 0644 libraries/vcs/4K/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/4K/mapper.c26
-	install -m 0644 libraries/vcs/4KSC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/4KSC/mapper.c26
-	install -m 0644 libraries/vcs/F8/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F8/mapper.c26
-	install -m 0644 libraries/vcs/0840/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/0840/mapper.c26
-	install -m 0644 libraries/vcs/UA/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/UA/mapper.c26
-	install -m 0644 libraries/vcs/UASW/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/UASW/mapper.c26
-	install -m 0644 libraries/vcs/0FA0/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/0FA0/mapper.c26
-	install -m 0644 libraries/vcs/E0/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/E0/mapper.c26
-	install -m 0644 libraries/vcs/E0/README.md $(DESTDIR)$(DATADIR)/vcs/E0/README.md
-	install -m 0644 libraries/vcs/FE/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/FE/mapper.c26
-	install -m 0644 libraries/vcs/WD/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/WD/mapper.c26
-	install -m 0644 libraries/vcs/DPC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/DPC/mapper.c26
-	install -m 0644 libraries/vcs/3F/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/3F/mapper.c26
-	install -m 0644 libraries/vcs/3E/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/3E/mapper.c26
-	install -m 0644 libraries/vcs/3E/swapram.s26 $(DESTDIR)$(DATADIR)/vcs/3E/swapram.s26
-	install -m 0644 libraries/vcs/3E/README.md $(DESTDIR)$(DATADIR)/vcs/3E/README.md
-	install -m 0644 libraries/vcs/3EX/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/3EX/mapper.c26
-	install -m 0644 libraries/vcs/3EX/swapram.s26 $(DESTDIR)$(DATADIR)/vcs/3EX/swapram.s26
-	install -m 0644 libraries/vcs/3EX/README.md $(DESTDIR)$(DATADIR)/vcs/3EX/README.md
-	install -m 0644 libraries/vcs/FC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/FC/mapper.c26
-	install -m 0644 libraries/vcs/FC/README.md $(DESTDIR)$(DATADIR)/vcs/FC/README.md
-	install -m 0644 libraries/vcs/F0/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F0/mapper.c26
-	install -m 0644 libraries/vcs/F0/README.md $(DESTDIR)$(DATADIR)/vcs/F0/README.md
-	install -m 0644 libraries/vcs/FA/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/FA/mapper.c26
-	install -m 0644 libraries/vcs/FA2/mapper_24k.c26 $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_24k.c26
-	install -m 0644 libraries/vcs/FA2/mapper_28k.c26 $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_28k.c26
-	install -m 0644 libraries/vcs/F6/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F6/mapper.c26
-	install -m 0644 libraries/vcs/JANE/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/JANE/mapper.c26
-	install -m 0644 libraries/vcs/F4/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F4/mapper.c26
-	install -m 0644 libraries/vcs/F8SC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F8SC/mapper.c26
-	install -m 0644 libraries/vcs/F6SC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F6SC/mapper.c26
-	install -m 0644 libraries/vcs/F4SC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F4SC/mapper.c26
-	install -m 0644 libraries/vcs/OMNI/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/OMNI/mapper.c26
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers
-	install -m 0644 libraries/vcs/renderers/COMPONENT_CONVERSION.md \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/COMPONENT_CONVERSION.md
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors
-	install -m 0644 libraries/vcs/renderers/faithful_legacy_playercolors/README.md \
-	  libraries/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26 \
-	  libraries/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_macros.inc \
-	  libraries/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26 \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite
-	install -m 0644 libraries/vcs/renderers/faithful_legacy_multisprite/README.md \
-	  libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.c26 \
-	  libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_macros.inc \
-	  libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26 \
-	  libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_startup.s26 \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/multisprite
-	install -m 0644 libraries/vcs/renderers/multisprite/README.md \
-	  libraries/vcs/renderers/multisprite/multisprite.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/multisprite/
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/all_five
-	install -m 0644 libraries/vcs/renderers/all_five/README.md \
-	  libraries/vcs/renderers/all_five/all_five.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/all_five/
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_181
-	install -m 0644 libraries/vcs/renderers/all_five_player_color_181/README.md \
-	  libraries/vcs/renderers/all_five_player_color_181/all_five_player_color_181.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_181/
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_192
-	install -m 0644 libraries/vcs/renderers/all_five_player_color_192/README.md \
-	  libraries/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_192/
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_unofficial
-	install -m 0644 libraries/vcs/renderers/all_five_unofficial/README.md \
-	  libraries/vcs/renderers/all_five_unofficial/all_five_unofficial.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_unofficial/
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/player_color
-	install -m 0644 libraries/vcs/renderers/player_color/README.md \
-	  libraries/vcs/renderers/player_color/player_color.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/player_color/
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181_unofficial
-	install -m 0644 libraries/vcs/renderers/player_color_181_unofficial/README.md \
-	  libraries/vcs/renderers/player_color_181_unofficial/player_color_181_unofficial.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181_unofficial/
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/poison_debug_score
-	install -m 0644 libraries/vcs/renderers/poison_debug_score/README.md \
-	  libraries/vcs/renderers/poison_debug_score/poison_debug_score.c26 \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/poison_debug_score/
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc
-	install -m 0644 libraries/vcs/renderers/standard_4k_ntsc/README.md \
-	  libraries/vcs/renderers/standard_4k_ntsc/DCP_LEGALIZATION.md \
-	  libraries/vcs/renderers/standard_4k_ntsc/UNOFFICIAL_OPCODES.md \
-	  libraries/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc.c26 \
-	  libraries/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26 \
-	  libraries/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_macros.inc \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc/
-	install -d $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors
-	install -m 0644 libraries/vcs/renderers/standard_4k_ntsc_playercolors/README.md \
-	  libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26 \
-	  libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_renderer.s26 \
-	  libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc \
-	  $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors/
-	install -d $(DESTDIR)$(DATADIR)/vcs/fonts
-	install -m 0644 libraries/vcs/fonts/README.md libraries/vcs/fonts/*.c26 $(DESTDIR)$(DATADIR)/vcs/fonts/
-	install -d $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers
-	install -m 0644 libraries/vcs/legacy-basic-renderers/OMITTED-UPSTREAM-ARTIFACTS.txt $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers/OMITTED-UPSTREAM-ARTIFACTS.txt
-	install -m 0644 libraries/vcs/legacy-basic-renderers/README.md $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers/README.md
+	$(PERL) packaging/install_manifest.pl install \
+	  --manifest packaging/install.manifest --scope data \
+	  --source-root "$(CURDIR)" --dest-root "$(DESTDIR)$(DATADIR)"
 
 uninstall:
 	@$(MAKE) --no-print-directory uninstall-examples DESTDIR="$(DESTDIR)" EXAMPLESDIR="$(EXAMPLESDIR)"
@@ -348,176 +167,39 @@ uninstall:
 	@$(MAKE) --no-print-directory -C ./assembler uninstall DESTDIR="$(DESTDIR)" BINDIR="$(BINDIR)" CFGDIR="$(CFGDIR)"
 
 uninstall-examples:
-	rm -rf $(DESTDIR)$(EXAMPLESDIR)
+	$(PERL) packaging/install_manifest.pl uninstall \
+	  --manifest packaging/install.manifest --scope examples \
+	  --source-root "$(CURDIR)" --dest-root "$(DESTDIR)$(EXAMPLESDIR)"
 
 uninstall-data:
-	rm -f $(DESTDIR)$(DATADIR)/vcs/LICENSE.txt
-	rm -f $(DESTDIR)$(DATADIR)/vcs/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/LEGACY_RENDERER_CONVERSION.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/VIDEO_STANDARDS.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/color_ntsc.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/color_pal.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/color_secam.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/frame_ntsc.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/frame_50hz_component.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/frame_pal.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/frame_secam.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/playfield.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/riot.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_component.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_color_component.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_wide_component.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_big_wide_component.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_left_component.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_right_component.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/three_plus_three_score_component.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/two_paddles.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/four_paddles.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/keypad_controller.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/driving_controller.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_component.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/two_plus_two_score_support.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_ntsc.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_50hz.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_pal.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/sound_secam.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/4KSC/ram.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/ram.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F8/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F8SC/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F6/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F6SC/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F4/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F4SC/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/JANE/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/0840/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/UA/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/UASW/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/0FA0/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/WD/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/3F/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/3EX/bankcall.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F8/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F8SC/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F6/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F6SC/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F4/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F4SC/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/JANE/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/0840/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/UA/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/UASW/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/0FA0/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/WD/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/3F/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/3EX/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/CV/ram.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/registers.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/tia.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/tia_mirror_40.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/6507.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/vcs.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/2K/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/CV/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/4K/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/4KSC/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F8/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/0840/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/UA/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/UASW/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/0FA0/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/E0/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/E0/README.md $(DESTDIR)$(DATADIR)/vcs/E0/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/E0/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/FE/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/WD/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/DPC/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/3F/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/swapram.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/3E/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/3EX/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/FC/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/FC/README.md $(DESTDIR)$(DATADIR)/vcs/FC/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/FC/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F0/mapper.c26 $(DESTDIR)$(DATADIR)/vcs/F0/README.md $(DESTDIR)$(DATADIR)/vcs/F0/bankcall.s26 $(DESTDIR)$(DATADIR)/vcs/F0/entry.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/3EX/swapram.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/3EX/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/FA/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_24k.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/FA2/mapper_28k.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F6/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/JANE/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F4/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F8SC/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F6SC/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/F4SC/mapper.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/OMNI/mapper.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/0840 $(DESTDIR)$(DATADIR)/vcs/0FA0 $(DESTDIR)$(DATADIR)/vcs/2K $(DESTDIR)$(DATADIR)/vcs/3E $(DESTDIR)$(DATADIR)/vcs/3EX $(DESTDIR)$(DATADIR)/vcs/3F $(DESTDIR)$(DATADIR)/vcs/FC $(DESTDIR)$(DATADIR)/vcs/F0 $(DESTDIR)$(DATADIR)/vcs/4K $(DESTDIR)$(DATADIR)/vcs/4KSC $(DESTDIR)$(DATADIR)/vcs/CV $(DESTDIR)$(DATADIR)/vcs/DPC $(DESTDIR)$(DATADIR)/vcs/E0 $(DESTDIR)$(DATADIR)/vcs/F4 $(DESTDIR)$(DATADIR)/vcs/F4SC $(DESTDIR)$(DATADIR)/vcs/F6 $(DESTDIR)$(DATADIR)/vcs/F6SC $(DESTDIR)$(DATADIR)/vcs/F8 $(DESTDIR)$(DATADIR)/vcs/F8SC $(DESTDIR)$(DATADIR)/vcs/FA $(DESTDIR)$(DATADIR)/vcs/FA2 $(DESTDIR)$(DATADIR)/vcs/FE $(DESTDIR)$(DATADIR)/vcs/JANE $(DESTDIR)$(DATADIR)/vcs/OMNI $(DESTDIR)$(DATADIR)/vcs/UA $(DESTDIR)$(DATADIR)/vcs/UASW $(DESTDIR)$(DATADIR)/vcs/WD 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/COMPONENT_CONVERSION.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_macros.inc
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_playercolors 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_macros.inc
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_startup.s26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/multisprite/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/multisprite/multisprite.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/multisprite 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five/all_five.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_181/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_181/all_five_player_color_181.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_181 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_192/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_192 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_unofficial/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_unofficial/all_five_unofficial.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_unofficial 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color/player_color.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/player_color 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181_unofficial/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181_unofficial/player_color_181_unofficial.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/player_color_181_unofficial 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/poison_debug_score/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/poison_debug_score/poison_debug_score.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/poison_debug_score 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc/DCP_LEGALIZATION.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc/UNOFFICIAL_OPCODES.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_macros.inc
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_renderer.s26
-	rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers/standard_4k_ntsc_playercolors 2>/dev/null || true
-	rmdir $(DESTDIR)$(DATADIR)/vcs/renderers 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/fonts/README.md
-	rm -f $(DESTDIR)$(DATADIR)/vcs/fonts/*.c26
-	rmdir $(DESTDIR)$(DATADIR)/vcs/fonts 2>/dev/null || true
-	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers/OMITTED-UPSTREAM-ARTIFACTS.txt
-	rm -f $(DESTDIR)$(DATADIR)/vcs/legacy-basic-renderers/README.md
+	$(PERL) packaging/install_manifest.pl uninstall \
+	  --manifest packaging/install.manifest --scope data \
+	  --source-root "$(CURDIR)" --dest-root "$(DESTDIR)$(DATADIR)"
 
 package: tools
 	rm -rf $(PACKAGE_STAGING)
 	$(MAKE) --no-print-directory install-core DESTDIR="$(PACKAGE_STAGING)" PREFIX="$(PACKAGE_PREFIX)" BINDIR="$(PACKAGE_PREFIX)/bin" LIBDIR="$(PACKAGE_PREFIX)/lib" INCLUDEDIR="$(PACKAGE_PREFIX)/include" DATADIR="$(PACKAGE_PREFIX)/share" CFGDIR="$(PACKAGE_PREFIX)/share/cfg"
 	$(MAKE) --no-print-directory install-examples DESTDIR="$(PACKAGE_STAGING)" PREFIX="$(PACKAGE_PREFIX)" EXAMPLESDIR="$(PACKAGE_PREFIX)/examples"
 	tar -C $(PACKAGE_STAGING) -czf ./vcsc.install.`date -u "+%Y%m%d_%H%M%S"`.tar.gz .
+
+stage-release-payload:
+	@test -n "$(RELEASE_STAGING)" -a -n "$(RELEASE_PACKAGE_DIR)" -a -n "$(RELEASE_PLATFORM)" || \
+	  { echo "stage-release-payload requires RELEASE_STAGING, RELEASE_PACKAGE_DIR, and RELEASE_PLATFORM" >&2; exit 1; }
+	$(MAKE) --no-print-directory install-examples \
+	  DESTDIR="$(RELEASE_STAGING)" EXAMPLESDIR="/$(RELEASE_PACKAGE_DIR)/examples" EXEEXT="$(RELEASE_EXEEXT)"
+	$(PERL) packaging/install_manifest.pl install \
+	  --manifest packaging/install.manifest --scope package-common --scope package-$(RELEASE_PLATFORM) \
+	  --source-root "$(CURDIR)" --dest-root "$(RELEASE_STAGING)/$(RELEASE_PACKAGE_DIR)"
+	$(PERL) packaging/install_manifest.pl verify \
+	  --manifest packaging/install.manifest --scope data \
+	  --source-root "$(CURDIR)" --dest-root "$(RELEASE_STAGING)/$(RELEASE_PACKAGE_DIR)/share"
+	$(PERL) packaging/install_manifest.pl verify \
+	  --manifest packaging/install.manifest --scope examples \
+	  --source-root "$(CURDIR)" --dest-root "$(RELEASE_STAGING)/$(RELEASE_PACKAGE_DIR)/examples" \
+	  --vcsc-name "vcsc$(RELEASE_EXEEXT)"
+	$(PERL) packaging/install_manifest.pl verify \
+	  --manifest packaging/install.manifest --scope package-common --scope package-$(RELEASE_PLATFORM) \
+	  --source-root "$(CURDIR)" --dest-root "$(RELEASE_STAGING)/$(RELEASE_PACKAGE_DIR)"
 
 windows:
 	@command -v "$(WINDOWS_HOST_CC)" >/dev/null || { echo "missing native C compiler: $(WINDOWS_HOST_CC)" >&2; exit 1; }
@@ -535,6 +217,7 @@ windows:
 	cp assembler/vcsc-as $(WINDOWS_HOST_TOOLS)/vcsc-as
 	cp assembler/default.cfg assembler/illegals.cfg $(WINDOWS_HOST_TOOLS)/
 	cp archiver/vcsc-ar $(WINDOWS_HOST_TOOLS)/vcsc-ar
+	$(MAKE) --no-print-directory clean
 	$(MAKE) --no-print-directory tools \
 	  CC="$(WINDOWS_CC)" CXX="$(WINDOWS_CXX)" EXEEXT=.exe LDFLAGS="$(WINDOWS_LDFLAGS)" \
 	  ASM="$(WINDOWS_HOST_TOOLS)/vcsc-as" VCSC_AR="$(WINDOWS_HOST_TOOLS)/vcsc-ar"
@@ -553,15 +236,9 @@ windows:
 	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-ar.exe \
 	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-sim.exe \
 	  $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/vcsc-disas.exe
-	cp README.md WINDOWS.md LICENSE COPYING $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/
-	cp -a examples $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/examples
-	cp -a addons $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/addons
-	find $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/examples -type f \
-	  \( -name '*.bin' -o -name '*.hex' -o -name '*.o26' \
-	     -o -name '*.map' -o -name '*.sym' -o -name '*.lst' \) -delete
-	find $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/examples -type f -name Makefile -exec \
-	  sed -i 's|$$(ROOT)/driver/vcsc|$$(ROOT)/bin/vcsc.exe|g; s|$$(ROOT)/libraries/vcs|$$(ROOT)/share/vcs|g' {} +
-	printf '%s\r\n' '@echo off' '"%~dp0bin\vcsc.exe" %*' > $(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/vcsc.cmd
+	$(MAKE) --no-print-directory stage-release-payload \
+	  RELEASE_STAGING="$(WINDOWS_STAGING)" RELEASE_PACKAGE_DIR="$(WINDOWS_PACKAGE_DIR)" \
+	  RELEASE_PLATFORM=windows RELEASE_EXEEXT=.exe
 	@set -e; \
 	for exe in vcsc.exe vcsc-cc1.exe vcsc-as.exe vcsc-ld.exe vcsc-ar.exe vcsc-sim.exe vcsc-disas.exe; do \
 	  path="$(WINDOWS_STAGING)/$(WINDOWS_PACKAGE_DIR)/bin/$$exe"; \
@@ -591,6 +268,7 @@ linux:
 	@command -v bison >/dev/null || { echo "missing build tool: bison" >&2; exit 1; }
 	@command -v flex >/dev/null || { echo "missing build tool: flex" >&2; exit 1; }
 	rm -rf $(LINUX_STAGING)
+	$(MAKE) --no-print-directory clean
 	$(MAKE) --no-print-directory tools \
 	  CC="$(LINUX_CC)" CXX="$(LINUX_CXX)" EXEEXT= LDFLAGS="$(LINUX_LDFLAGS)"
 	$(MAKE) --no-print-directory install-core \
@@ -607,14 +285,9 @@ linux:
 	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-ar \
 	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-sim \
 	  $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/vcsc-disas
-	cp README.md LINUX.md LICENSE COPYING $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/
-	cp -a examples $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/examples
-	cp -a addons $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/addons
-	find $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/examples -type f \
-	  \( -name '*.bin' -o -name '*.hex' -o -name '*.o26' \
-	     -o -name '*.map' -o -name '*.sym' -o -name '*.lst' \) -delete
-	find $(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/examples -type f -name Makefile -exec \
-	  sed -i 's|$$(ROOT)/driver/vcsc|$$(ROOT)/bin/vcsc|g; s|$$(ROOT)/libraries/vcs|$$(ROOT)/share/vcs|g' {} +
+	$(MAKE) --no-print-directory stage-release-payload \
+	  RELEASE_STAGING="$(LINUX_STAGING)" RELEASE_PACKAGE_DIR="$(LINUX_PACKAGE_DIR)" \
+	  RELEASE_PLATFORM=linux RELEASE_EXEEXT=
 	@set -e; \
 	for exe in vcsc vcsc-cc1 vcsc-as vcsc-ld vcsc-ar vcsc-sim vcsc-disas; do \
 	  path="$(LINUX_STAGING)/$(LINUX_PACKAGE_DIR)/bin/$$exe"; \
@@ -652,457 +325,22 @@ installcheck: tools
 	rm -rf $(INSTALLCHECK_STAGING)
 	$(MAKE) --no-print-directory install-core DESTDIR="$(INSTALLCHECK_STAGING)" PREFIX="/opt/vcsc" BINDIR="/opt/vcsc/bin" LIBDIR="/opt/vcsc/lib" INCLUDEDIR="/opt/vcsc/include" DATADIR="/opt/vcsc/share" CFGDIR="/opt/vcsc/share/cfg"
 	$(MAKE) --no-print-directory install-examples DESTDIR="$(INSTALLCHECK_STAGING)" PREFIX="/opt/vcsc" EXAMPLESDIR="/opt/vcsc/examples"
-	set -e; \
-	stage_bin="$(INSTALLCHECK_STAGING)/opt/vcsc/bin"; \
-	stage_vcs="$(INSTALLCHECK_STAGING)/opt/vcsc/share/vcs"; \
-	stage_examples="$(INSTALLCHECK_STAGING)/opt/vcsc/examples"; \
-	test -f "$$stage_vcs/LICENSE.txt"; \
-	test -f "$$stage_vcs/6507.c26"; \
-	test -f "$$stage_vcs/3E/mapper.c26"; \
-	test -f "$$stage_vcs/3E/bankcall.s26"; \
-	test -f "$$stage_vcs/3E/entry.s26"; \
-	test -f "$$stage_vcs/3E/swapram.s26"; \
-	test -f "$$stage_vcs/3E/README.md"; \
-	test -f "$$stage_vcs/3EX/mapper.c26"; \
-	test -f "$$stage_vcs/FC/mapper.c26"; test -f "$$stage_vcs/FC/bankcall.s26"; test -f "$$stage_vcs/FC/entry.s26"; \
-	test -f "$$stage_vcs/F0/mapper.c26"; test -f "$$stage_vcs/F0/bankcall.s26"; test -f "$$stage_vcs/F0/entry.s26"; test -f "$$stage_vcs/F0/README.md"; \
-	test -f "$$stage_vcs/E0/mapper.c26"; test -f "$$stage_vcs/E0/bankcall.s26"; test -f "$$stage_vcs/E0/entry.s26"; test -f "$$stage_vcs/E0/README.md"; \
-	test -f "$$stage_vcs/3EX/bankcall.s26"; \
-	test -f "$$stage_vcs/3EX/entry.s26"; \
-	test -f "$$stage_vcs/3EX/swapram.s26"; \
-	test -f "$$stage_vcs/3EX/README.md"; \
-	test -f "$$stage_examples/README.md"; \
-	test -f "$$stage_examples/01_basic/01_blank_screen/blank_screen.c26"; \
-	grep -q 'VCSC ?= $$(ROOT)/bin/vcsc' "$$stage_examples/01_basic/01_blank_screen/Makefile"; \
-	grep -q 'VCS_DIR ?= $$(ROOT)/share/vcs' "$$stage_examples/01_basic/01_blank_screen/Makefile"; \
-	$(MAKE) --no-print-directory -C "$$stage_examples/01_basic/01_blank_screen" clean all; \
-	test `wc -c < "$$stage_examples/01_basic/01_blank_screen/blank_screen.bin"` -eq 4096; \
-	$(MAKE) --no-print-directory -C "$$stage_examples/01_basic/01_blank_screen" clean; \
-	"$$stage_bin/vcsc" -print-prog-name=cc1 >/dev/null; \
-	"$$stage_bin/vcsc" -print-prog-name=as >/dev/null; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" -o "$(INSTALLCHECK_STAGING)/blank_screen.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/blank_screen.bin"` -eq 4096; \
-	test -x "$$stage_bin/vcsc-disas"; \
-	"$$stage_bin/vcsc-disas" -o "$(INSTALLCHECK_STAGING)/blank_screen.s26" "$(INSTALLCHECK_STAGING)/blank_screen.bin"; \
-	test -s "$(INSTALLCHECK_STAGING)/blank_screen.s26"; \
-	grep -q '^; mapper:' "$(INSTALLCHECK_STAGING)/blank_screen.s26"; \
-	"$$stage_bin/vcsc-as" --hex="$(INSTALLCHECK_STAGING)/blank_screen.roundtrip.hex" "$(INSTALLCHECK_STAGING)/blank_screen.s26"; \
-	test -s "$(INSTALLCHECK_STAGING)/blank_screen.roundtrip.hex"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_headers_smoke_test.c26" -o "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/vcs_headers_smoke.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$$stage_vcs/2K/mapper.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" -o "$(INSTALLCHECK_STAGING)/blank_screen_2k.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/blank_screen_2k.bin"` -eq 2048; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$$stage_vcs/FA/mapper.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/fa_blank.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/fa_blank.bin"` -eq 12288; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -DSIMULATOR_TEST \
-	  "$$stage_examples/09_bankswitching/16_dpc/dpc_diagnostic.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/dpc_diagnostic.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/dpc_diagnostic.bin"` -eq 10495; \
-	test -f "$$stage_vcs/tia_mirror_40.c26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$$stage_examples/09_bankswitching/08_0840/econobanking_diagnostic.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/econobanking_diagnostic.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/econobanking_diagnostic.bin"` -eq 8192; \
-	"$$stage_bin/vcsc-disas" -o "$(INSTALLCHECK_STAGING)/econobanking_diagnostic.s26" \
-	  "$(INSTALLCHECK_STAGING)/econobanking_diagnostic.bin"; \
-	grep -q '^; mapper: 0840 ' "$(INSTALLCHECK_STAGING)/econobanking_diagnostic.s26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$$stage_examples/09_bankswitching/09_ua/ua_diagnostic.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/ua_diagnostic.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/ua_diagnostic.bin"` -eq 8192; \
-	"$$stage_bin/vcsc-disas" -o "$(INSTALLCHECK_STAGING)/ua_diagnostic.s26" \
-	  "$(INSTALLCHECK_STAGING)/ua_diagnostic.bin"; \
-	grep -q '^; mapper: UA ' "$(INSTALLCHECK_STAGING)/ua_diagnostic.s26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$$stage_examples/09_bankswitching/09_ua/uasw_diagnostic.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/uasw_diagnostic.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/uasw_diagnostic.bin"` -eq 8192; \
-	"$$stage_bin/vcsc-disas" -o "$(INSTALLCHECK_STAGING)/uasw_diagnostic.s26" \
-	  "$(INSTALLCHECK_STAGING)/uasw_diagnostic.bin"; \
-	grep -q '^; mapper: UASW ' "$(INSTALLCHECK_STAGING)/uasw_diagnostic.s26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -DVCSC_INLINE_BANKCALL=1 \
-	  "$$stage_examples/09_bankswitching/10_0fa0/fotomania_diagnostic.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/fotomania_diagnostic.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/fotomania_diagnostic.bin"` -eq 8192; \
-	"$$stage_bin/vcsc-disas" -o "$(INSTALLCHECK_STAGING)/fotomania_diagnostic.s26" \
-	  "$(INSTALLCHECK_STAGING)/fotomania_diagnostic.bin"; \
-	grep -q '^; mapper: 0FA0 ' "$(INSTALLCHECK_STAGING)/fotomania_diagnostic.s26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$$stage_examples/09_bankswitching/11_e0/e0_diagnostic.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/e0_diagnostic.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/e0_diagnostic.bin"` -eq 8192; \
-	"$$stage_bin/vcsc-disas" -o "$(INSTALLCHECK_STAGING)/e0_diagnostic.s26" \
-	  "$(INSTALLCHECK_STAGING)/e0_diagnostic.bin"; \
-	grep -q '^; mapper: E0 ' "$(INSTALLCHECK_STAGING)/e0_diagnostic.s26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$$stage_examples/09_bankswitching/12_3f/3f_diagnostic.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/3f_diagnostic.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/3f_diagnostic.bin"` -eq 8192; \
-	"$$stage_bin/vcsc-disas" -o "$(INSTALLCHECK_STAGING)/3f_diagnostic.s26" \
-	  "$(INSTALLCHECK_STAGING)/3f_diagnostic.bin"; \
-	grep -q '^; mapper: 3F ' "$(INSTALLCHECK_STAGING)/3f_diagnostic.s26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$$stage_examples/09_bankswitching/13_3e/3e_diagnostic.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/3e_diagnostic.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/3e_diagnostic.bin"` -eq 8192; \
-	"$$stage_bin/vcsc-disas" -o "$(INSTALLCHECK_STAGING)/3e_diagnostic.s26" \
-	  "$(INSTALLCHECK_STAGING)/3e_diagnostic.bin"; \
-	grep -q '^; mapper: 3E ' "$(INSTALLCHECK_STAGING)/3e_diagnostic.s26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$$stage_examples/09_bankswitching/07_jane/jane_diagnostic.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/jane_diagnostic.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/jane_diagnostic.bin"` -eq 16384; \
-	"$$stage_bin/vcsc-disas" -o "$(INSTALLCHECK_STAGING)/jane_diagnostic.s26" \
-	  "$(INSTALLCHECK_STAGING)/jane_diagnostic.bin"; \
-	grep -q '^; mapper: JANE ' "$(INSTALLCHECK_STAGING)/jane_diagnostic.s26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$$stage_vcs/4KSC/mapper.c26" "$(CURDIR)/examples/01_basic/01_blank_screen/blank_screen.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/4ksc_blank.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/4ksc_blank.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/test" \
-	  -DMACHINE_6502_NO_DEFAULT_ZEROPAGE -DMACHINE_6502_NO_DEFAULT_CPUSTACK \
-	  -DMACHINE_6502_NO_DEFAULT_RAM -DMACHINE_6502_NO_DEFAULT_ROM \
-	  -Map "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map" \
-	  "$(CURDIR)/test/fixtures/bankswitching/f8_profile_diagnostic.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.bin"` -eq 8192; \
-	grep -q "bank0.*hotspot=\$$1FF9.*file=\$$00001000.*startup=yes" "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map"; \
-	grep -q "bank1.*hotspot=\$$1FF8.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f8_profile_diagnostic.map"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -DMAPPER_BANKS=2 -DSIMULATOR_TEST \
-	  -Map "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.map" \
-	  "$$stage_examples/09_bankswitching/01_f864/bankswitching_diagnostic.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"` -eq 8192; \
-	sim_done=`awk '$$2 == "simulator_done" { print substr($$1, 2); exit }' "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.map"`; \
-	test -n "$$sim_done"; \
-	"$$stage_bin/vcsc-sim" --start-bank=0 \
-	  --stop-pc=0x$$sim_done "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"; \
-	"$$stage_bin/vcsc-sim" --start-bank=1 \
-	  --stop-pc=0x$$sim_done "$(INSTALLCHECK_STAGING)/f8_bank_diagnostic.bin"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/test" \
-	  -DMACHINE_6502_NO_DEFAULT_ZEROPAGE -DMACHINE_6502_NO_DEFAULT_CPUSTACK \
-	  -DMACHINE_6502_NO_DEFAULT_RAM -DMACHINE_6502_NO_DEFAULT_ROM \
-	  -DVCSC_PROFILE_F6=1 \
-	  -Map "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.map" \
-	  "$(CURDIR)/test/fixtures/bankswitching/f8_profile_diagnostic.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.bin"` -eq 16384; \
-	grep -q "bank3.*hotspot=\$$1FF6.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.map"; \
-	grep -q "bank0.*hotspot=\$$1FF9.*file=\$$00003000.*startup=yes" "$(INSTALLCHECK_STAGING)/f6_profile_diagnostic.map"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/test" \
-	  -DMACHINE_6502_NO_DEFAULT_ZEROPAGE -DMACHINE_6502_NO_DEFAULT_CPUSTACK \
-	  -DMACHINE_6502_NO_DEFAULT_RAM -DMACHINE_6502_NO_DEFAULT_ROM \
-	  -DVCSC_PROFILE_F4=1 \
-	  -Map "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.map" \
-	  "$(CURDIR)/test/fixtures/bankswitching/f8_profile_diagnostic.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.bin"` -eq 32768; \
-	grep -q "bank7.*hotspot=\$$1FF4.*file=\$$00000000" "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.map"; \
-	grep -q "bank0.*hotspot=\$$1FFB.*file=\$$00007000.*startup=yes" "$(INSTALLCHECK_STAGING)/f4_profile_diagnostic.map"; \
-	test -f "$$stage_vcs/4KSC/ram.c26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  -DMAPPER_BANKS=2 -DSUPERCHIP_TEST -DSIMULATOR_TEST \
-	  -Map "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map" \
-	  "$$stage_examples/09_bankswitching/01_f864/bankswitching_diagnostic.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin"` -eq 8192; \
-	sc_done=`awk '$$2 == "simulator_done" { print substr($$1, 2); exit }' "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map"`; \
-	sc_failure=`awk '$$2 == "failure" { print substr($$1, 2); exit }' "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map"`; \
-	test -n "$$sc_done"; test -n "$$sc_failure"; \
-	grep -q "policy=every-reset bss=zero data=copy-through-write-alias" "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.map"; \
-	"$$stage_bin/vcsc-sim" --help | grep -q -- "--reset-on-pc=ADDR"; \
-	"$$stage_bin/vcsc-sim" --help | grep -q -- "--split-fill=BYTE"; \
-	"$$stage_bin/vcsc-sim" --start-bank=0 \
-	  --split-fill=0xA7 --reset-on-pc=0x$$sc_done --stop-pc=0x$$sc_done \
-	  --dump-on-stop "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.bin" \
-	  > "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.dump"; \
-	perl -e '$$w=hex(shift); while (<>) { next unless /^:([0-9A-Fa-f]{2})([0-9A-Fa-f]{4})00([0-9A-Fa-f]*)/; ($$n,$$a,$$d)=(hex($$1),hex($$2),$$3); if ($$w >= $$a && $$w < $$a+$$n) { exit(hex(substr($$d,2*($$w-$$a),2)) == 0 ? 0 : 1); } } exit 2' \
-	  "$$sc_failure" "$(INSTALLCHECK_STAGING)/f8sc_bank_diagnostic.dump"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/04_score" \
-	  "$(CURDIR)/examples/01_basic/04_score/score.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/score.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/score.bin"` -eq 2048; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/06_wide_score" \
-	  "$(CURDIR)/examples/01_basic/06_wide_score/wide_score.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/wide_score.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/wide_score.bin"` -eq 2048; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/07_big_wide_score" \
-	  "$(CURDIR)/examples/01_basic/07_big_wide_score/big_wide_score.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/big_wide_score.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/big_wide_score.bin"` -eq 2048; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/08_dual_score" \
-	  "$(CURDIR)/examples/01_basic/08_dual_score/dual_score.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/dual_score.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/dual_score.bin"` -eq 2048; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/09_paddleball" \
-	  "$(CURDIR)/examples/01_basic/09_paddleball/paddleball.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/paddleball.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/paddleball.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/10_four_player_paddleball" \
-	  "$(CURDIR)/examples/01_basic/10_four_player_paddleball/four_player_paddleball.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/four_player_paddleball.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/four_player_paddleball.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/11_keypad" \
-	  "$(CURDIR)/examples/01_basic/11_keypad/keypad.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/keypad.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/keypad.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/12_drive" \
-	  "$(CURDIR)/examples/01_basic/12_drive/drive.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/drive.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/drive.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -I "$(CURDIR)/examples/01_basic/13_tanks" \
-	  "$(CURDIR)/examples/01_basic/13_tanks/tanks.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/tanks.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/tanks.bin"` -eq 8192; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	  "$(CURDIR)/examples/01_basic/05_fingerprint/fingerprint.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/fingerprint.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/fingerprint.bin"` -eq 4096; \
-	test -f "$$stage_vcs/color_ntsc.c26"; \
-	test -f "$$stage_vcs/color_pal.c26"; \
-	test -f "$$stage_vcs/color_secam.c26"; \
-	test -f "$$stage_vcs/frame_ntsc.c26"; \
-	test -f "$$stage_vcs/frame_50hz_component.c26"; \
-	test -f "$$stage_vcs/frame_pal.c26"; \
-	test -f "$$stage_vcs/frame_secam.c26"; \
-	test -f "$$stage_vcs/VIDEO_STANDARDS.md"; \
-	test -f "$$stage_vcs/sound_50hz.c26"; \
-	test -f "$$stage_vcs/sound_pal.c26"; \
-	test -f "$$stage_vcs/sound_secam.c26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_color_pal_compile_test.c26" -o "$(INSTALLCHECK_STAGING)/pal_color.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/pal_color.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_color_secam_compile_test.c26" -o "$(INSTALLCHECK_STAGING)/secam_color.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/secam_color.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_frame_pal_compile_test.c26" -o "$(INSTALLCHECK_STAGING)/pal_frame.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/pal_frame.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_frame_secam_compile_test.c26" -o "$(INSTALLCHECK_STAGING)/secam_frame.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/secam_frame.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_sound_50hz_compile_test.c26" -o "$(INSTALLCHECK_STAGING)/pal_sound.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/pal_sound.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/test/vcs_sound_secam_compile_test.c26" -o "$(INSTALLCHECK_STAGING)/secam_sound.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/secam_sound.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/17_video_standards/pal/01_all_five/pal_all_five_228_interactive.c26" -o "$(INSTALLCHECK_STAGING)/pal_all_five.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/pal_all_five.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" "$(CURDIR)/examples/17_video_standards/secam/01_all_five/secam_all_five_228_interactive.c26" -o "$(INSTALLCHECK_STAGING)/secam_all_five.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/secam_all_five.bin"` -eq 4096; \
-	test -f "$$stage_vcs/six_glyph_component.c26"; \
-	test ! -e "$$stage_vcs/six_glyph_color_component.c26"; \
-	test -f "$$stage_vcs/six_glyph_wide_component.c26"; \
-	test -f "$$stage_vcs/six_glyph_big_wide_component.c26"; \
-	test -f "$$stage_vcs/six_glyph_left_component.c26"; \
-	test -f "$$stage_vcs/six_glyph_right_component.c26"; \
-	test -f "$$stage_vcs/three_plus_three_score_component.c26"; \
-	test -f "$$stage_vcs/two_paddles.c26"; \
-	test -f "$$stage_vcs/four_paddles.c26"; \
-	test -f "$$stage_vcs/keypad_controller.c26"; \
-	test -f "$$stage_vcs/driving_controller.c26"; \
-	test -f "$$stage_vcs/two_plus_two_score_component.c26"; \
-	test -f "$$stage_vcs/two_plus_two_score_support.c26"; \
-	test ! -e "$$stage_vcs/six_glyph_display.c26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/test/fixtures/six_glyph_component/two_instances.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/six_glyph_component.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/six_glyph_component.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/test/fixtures/vcs_examples/05_wide_score/golden.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/six_glyph_wide_component.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/six_glyph_wide_component.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/test/fixtures/six_glyph_component/two_instances_reversed.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/six_glyph_component_reversed.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/six_glyph_component_reversed.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/test/fixtures/two_plus_two_score/two_instances_motion.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/two_plus_two_score.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/two_plus_two_score.bin"` -eq 4096; \
-	test -f "$$stage_vcs/playfield.c26"; \
-	test -f "$$stage_vcs/sound_ntsc.c26"; \
-	test -f "$$stage_vcs/renderers/COMPONENT_CONVERSION.md"; \
-	test -f "$$stage_vcs/renderers/faithful_legacy_playercolors/README.md"; \
-	test -f "$$stage_vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors.c26"; \
-	test -f "$$stage_vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_macros.inc"; \
-	test -f "$$stage_vcs/renderers/faithful_legacy_playercolors/faithful_legacy_playercolors_reference.s26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/examples/03_player_color_192/01_interactive/player_color_192_interactive.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/player_color_192_interactive.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_192_interactive.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/examples/03_player_color_192/02_animated_sprites/player_color_192_animated_sprites.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/player_color_192_animated_sprites.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_192_animated_sprites.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	  "$(CURDIR)/examples/02_faithful_legacy_playercolors/01_interactive/faithful_legacy_playercolors_interactive.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/faithful_legacy_playercolors_interactive.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/faithful_legacy_playercolors_interactive.bin"` -eq 4096; \
-	test -f "$$stage_vcs/renderers/faithful_legacy_multisprite/README.md"; \
-	test -f "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite.c26"; \
-	test -f "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_macros.inc"; \
-	test -f "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26"; \
-	test -f "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_startup.s26"; \
-	"$$stage_bin/vcsc" -nostdlib -I "$$stage_vcs" -Wa,--illegals \
-	  "$(CURDIR)/examples/10_faithful_legacy_multisprite/01_diagnostic/faithful_legacy_multisprite_diagnostic.c26" \
-	  "$(CURDIR)/examples/10_faithful_legacy_multisprite/01_diagnostic/faithful_legacy_multisprite_diagnostic_data.s26" \
-	  "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26" \
-	  "$$stage_vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_startup.s26" \
-	  -o "$(INSTALLCHECK_STAGING)/faithful_legacy_multisprite_diagnostic.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/faithful_legacy_multisprite_diagnostic.bin"` -eq 4096; \
-	test -f "$$stage_vcs/renderers/multisprite/README.md"; \
-	test -f "$$stage_vcs/renderers/multisprite/multisprite.c26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	  "$(CURDIR)/examples/14_multisprite/01_192/01_interactive/multisprite_192_interactive.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/multisprite_192.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/multisprite_192.bin"` -eq 4096; \
-	for example in \
-	  02_181_score_above/01_interactive/multisprite_181_score_above_interactive.c26 \
-	  03_181_score_below/01_interactive/multisprite_181_score_below_interactive.c26; do \
-	  "$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	    "$(CURDIR)/examples/14_multisprite/$$example" \
-	    -o "$(INSTALLCHECK_STAGING)/multisprite_181_$$(basename "$$example" .c26).bin"; \
-	done; \
-	test -f "$$stage_vcs/renderers/all_five/README.md"; \
-	test -f "$$stage_vcs/renderers/all_five/all_five.c26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/test/fixtures/all_five_181/smoke.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/all_five_181.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_181.bin"` -eq 4096; \
-	for fixture in static_score_above static_score_below motion_score_above motion_score_below; do \
-	  "$$stage_bin/vcsc" -I "$$stage_vcs" \
-	    "$(CURDIR)/test/fixtures/all_five_181/$$fixture.c26" \
-	    -o "$(INSTALLCHECK_STAGING)/$$fixture.bin"; \
-	  test `wc -c < "$(INSTALLCHECK_STAGING)/$$fixture.bin"` -eq 4096; \
-	done; \
-	test -f "$$stage_vcs/renderers/all_five_unofficial/README.md"; \
-	test -f "$$stage_vcs/renderers/all_five_unofficial/all_five_unofficial.c26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	  "$(CURDIR)/test/fixtures/all_five_181_unofficial/smoke.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/all_five_181_unofficial.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_181_unofficial.bin"` -eq 4096; \
-	for lines in 192 170; do \
-	  "$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	    "$(CURDIR)/test/fixtures/all_five_$${lines}_unofficial/smoke.c26" \
-	    -o "$(INSTALLCHECK_STAGING)/all_five_$${lines}_unofficial.bin"; \
-	  test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_$${lines}_unofficial.bin"` -eq 4096; \
-	done; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/test/fixtures/all_five_192/smoke.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/all_five_192.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_192.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/test/fixtures/all_five_170/smoke.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/all_five_170.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_170.bin"` -eq 4096; \
-	test -f "$$stage_vcs/renderers/all_five_player_color_181/README.md"; \
-	test -f "$$stage_vcs/renderers/all_five_player_color_181/all_five_player_color_181.c26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/examples/16_all_five_player_color_181/01_score_above/01_interactive/all_five_player_color_181_score_above_interactive.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/all_five_player_color_181_score_above_interactive.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_player_color_181_score_above_interactive.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/examples/16_all_five_player_color_181/02_score_below/01_interactive/all_five_player_color_181_score_below_interactive.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/all_five_player_color_181_score_below_interactive.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_player_color_181_score_below_interactive.bin"` -eq 4096; \
-	test -f "$$stage_vcs/renderers/all_five_player_color_192/README.md"; \
-	test -f "$$stage_vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/test/fixtures/all_five_player_color_192/smoke.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/all_five_player_color_192.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_player_color_192.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/examples/15_all_five_player_color_192/01_interactive/all_five_player_color_192_interactive.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/all_five_player_color_192_interactive.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/all_five_player_color_192_interactive.bin"` -eq 4096; \
-	test -f "$$stage_vcs/renderers/player_color/README.md"; \
-	test -f "$$stage_vcs/renderers/player_color/player_color.c26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/test/fixtures/player_color_181/smoke.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/player_color_181.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_181.bin"` -eq 4096; \
-	test -f "$$stage_vcs/renderers/player_color_181_unofficial/README.md"; \
-	test -f "$$stage_vcs/renderers/player_color_181_unofficial/player_color_181_unofficial.c26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -Wa,--illegals \
-	  "$(CURDIR)/test/fixtures/player_color_181_unofficial/smoke.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/player_color_181_unofficial.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_181_unofficial.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/test/fixtures/player_color_192/smoke.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/player_color_192.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_192.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/test/fixtures/player_color_170/smoke.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/player_color_170.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_170.bin"` -eq 4096; \
-	test -f "$$stage_vcs/renderers/poison_debug_score/README.md"; \
-	test -f "$$stage_vcs/renderers/poison_debug_score/poison_debug_score.c26"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/test/fixtures/poison_debug_score/standalone.c26" \
-	  -o "$(INSTALLCHECK_STAGING)/poison_debug_score.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/poison_debug_score.bin"` -eq 4096; \
-	for fixture in static_score_above static_score_below motion_score_above motion_score_below; do \
-	  "$$stage_bin/vcsc" -I "$$stage_vcs" \
-	    "$(CURDIR)/test/fixtures/player_color_181/$$fixture.c26" \
-	    -o "$(INSTALLCHECK_STAGING)/player_color_$$fixture.bin"; \
-	  test `wc -c < "$(INSTALLCHECK_STAGING)/player_color_$$fixture.bin"` -eq 4096; \
-	done; \
-	test -f "$$stage_vcs/renderers/standard_4k_ntsc/README.md"; \
-	test -f "$$stage_vcs/renderers/standard_4k_ntsc/DCP_LEGALIZATION.md"; \
-	test -f "$$stage_vcs/renderers/standard_4k_ntsc/UNOFFICIAL_OPCODES.md"; \
-	test -f "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc.c26"; \
-	test -f "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26"; \
-	test -f "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_macros.inc"; \
-	test -f "$$stage_vcs/renderers/standard_4k_ntsc_playercolors/README.md"; \
-	test -f "$$stage_vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26"; \
-	test -f "$$stage_vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_renderer.s26"; \
-	test -f "$$stage_vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc"; \
-	"$$stage_bin/vcsc-as" \
-	  -I "$$stage_vcs/renderers/standard_4k_ntsc" \
-	  --map="$(INSTALLCHECK_STAGING)/standard_4k_ntsc_renderer.map" \
-	  -o "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_renderer.o26" \
-	  "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_renderer.o26"` -gt 0; \
-	grep -aFq '__componentmeta$$V1$$S$$4' "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_renderer.o26"; \
-	grep -aFq '__componentmeta$$V1$$L$$52454E44455245525F434F4445$$4073746172747570$$256$$1' "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_renderer.o26"; \
-	test "$$(head -c 6 "$(INSTALLCHECK_STAGING)/standard_4k_ntsc_renderer.o26" | od -An -tx1 | tr -d ' \n')" = "01006f323602"; \
-	if "$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/test/vcs_standard_renderer_contract_smoke.c26" \
-	  "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26" \
-	  -o "$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.bin" \
-	  >"$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.stdout" \
-	  2>"$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.stderr"; then \
-	  echo "mutable standard-renderer playfield unexpectedly linked" >&2; exit 1; \
-	fi; \
-	test ! -s "$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.stdout"; \
-	grep -q "ram overflow" "$(INSTALLCHECK_STAGING)/standard_renderer_contract_smoke.stderr"; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" \
-	  "$(CURDIR)/test/vcs_standard_renderer_contract_rom_smoke.c26" \
-	  "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26" \
-	  -o "$(INSTALLCHECK_STAGING)/standard_renderer_contract_rom_smoke.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_renderer_contract_rom_smoke.bin"` -eq 4096; \
-	"$$stage_bin/vcsc" -I "$$stage_vcs" -DMAPPER_BANKS=2 \
-	  -Map "$(INSTALLCHECK_STAGING)/standard_renderer_banked_f8.map" \
-	  "$(CURDIR)/examples/09_bankswitching/02_standard_renderer/banked_standard_renderer.c26" \
-	  "$$stage_vcs/renderers/standard_4k_ntsc/standard_4k_ntsc_renderer.s26" \
-	  -o "$(INSTALLCHECK_STAGING)/standard_renderer_banked_f8.bin"; \
-	test `wc -c < "$(INSTALLCHECK_STAGING)/standard_renderer_banked_f8.bin"` -eq 8192; \
-	grep -q 'vcs_standard_overscan_hook source=bank0.*destination=bank1' "$(INSTALLCHECK_STAGING)/standard_renderer_banked_f8.map"; \
-	grep -q 'RENDERER_CODE.*bank=bank0.*component-region=@startup' "$(INSTALLCHECK_STAGING)/standard_renderer_banked_f8.map"; \
-	for src in $$(find \
-	  "$(CURDIR)/examples/04_player_color_181" \
-	  "$(CURDIR)/examples/06_all_five_181" \
-	  "$(CURDIR)/examples/07_player_color_181_unofficial" \
-	  "$(CURDIR)/examples/08_all_five_181_unofficial" \
-	  "$(CURDIR)/examples/11_all_five_170" \
-	  "$(CURDIR)/examples/12_all_five_170_unofficial" \
-	  "$(CURDIR)/examples/13_player_color_170" \
-	  -path '*/01_interactive/*.c26' -type f | sort); do \
-	  leaf=$$(dirname "$$src"); stem=$$(basename "$$src" .c26); extra=; \
-	  case "$$src" in *_unofficial/*) extra='-Wa,--illegals' ;; esac; \
-	  "$$stage_bin/vcsc" -I "$$stage_vcs" -I "$$leaf" $$extra \
-	    "$$src" -o "$(INSTALLCHECK_STAGING)/$$stem.bin"; \
-	  test `wc -c < "$(INSTALLCHECK_STAGING)/$$stem.bin"` -eq 4096; \
-	done
+	$(PERL) packaging/install_manifest.pl verify \
+	  --manifest packaging/install.manifest --scope data \
+	  --source-root "$(CURDIR)" --dest-root "$(INSTALLCHECK_STAGING)/opt/vcsc/share"
+	$(PERL) packaging/install_manifest.pl verify \
+	  --manifest packaging/install.manifest --scope examples \
+	  --source-root "$(CURDIR)" --dest-root "$(INSTALLCHECK_STAGING)/opt/vcsc/examples" \
+	  --vcsc-name vcsc
+	@set -e; \
+	stage="$(INSTALLCHECK_STAGING)/opt/vcsc"; \
+	for exe in vcsc vcsc-cc1 vcsc-as vcsc-ld vcsc-ar vcsc-sim vcsc-disas; do test -x "$$stage/bin/$$exe"; done; \
+	"$$stage/bin/vcsc" -V >/dev/null; \
+	"$$stage/bin/vcsc-disas" -V >/dev/null; \
+	$(MAKE) --no-print-directory -C "$$stage/examples/01_basic/01_blank_screen" clean all; \
+	test `wc -c < "$$stage/examples/01_basic/01_blank_screen/blank_screen.bin"` -eq 4096; \
+	$(MAKE) --no-print-directory -C "$$stage/examples/09_bankswitching/01_f864" clean f8.bin; \
+	test `wc -c < "$$stage/examples/09_bankswitching/01_f864/f8.bin"` -eq 8192
 	rm -rf $(INSTALLCHECK_STAGING)
 
 tar:
@@ -1127,9 +365,7 @@ patch:
 unit: tools
 	@$(MAKE) --no-print-directory -C ./test unit TEST_JOBS=$(TEST_JOBS) TEST_TIMINGS="$(TEST_TIMINGS)"
 
-sieve: tools
-	./driver/vcsc -I test -T test/generic_6502.cfg test/sieve.c26 -o sieve.hex
-	simulator/vcsc-sim sieve.hex | head
+
 
 e2e: tools
 	@$(MAKE) --no-print-directory -C ./test e2e TEST_JOBS=$(TEST_JOBS) TEST_TIMINGS="$(TEST_TIMINGS)"
@@ -1221,4 +457,4 @@ stella-multisprite-test: tools
 	rm -rf $(STELLA_MULTISPRITE_TEST_TMP)
 
 
-.PHONY: all tools fonts install install-core install-examples install-data uninstall uninstall-examples uninstall-data package windows installcheck tarball unit sieve e2e test stella-50hz-test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-three-plus-three-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-faithful-multisprite-test stella-multisprite-test stella-diagnostic-test docs
+.PHONY: all tools rebuild fonts install stage-release-payload install-core install-examples install-data uninstall uninstall-examples uninstall-data package windows installcheck tarball unit e2e test stella-50hz-test stella-bank-test stella-renderer-bank-test stella-wide-score-test stella-three-plus-three-score-test stella-player-color-192-test stella-all-five-player-color-192-test stella-all-five-player-color-181-test stella-faithful-multisprite-test stella-multisprite-test stella-diagnostic-test docs

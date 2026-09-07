@@ -79,8 +79,8 @@ make test          # complete unified test suite
 make unit          # compile-only tests
 make e2e           # linked/simulated and generic tests
 make fonts         # regenerate all library/example font subsets from *_ascii.c26
-make sieve         # quick driver smoke build
-make installcheck  # staged installed-toolchain validation
+make installcheck  # staged manifest validation + representative installed-toolchain smokes
+make rebuild       # explicit clean rebuild; ordinary targets are incremental
 make linux         # build a self-contained native Linux tar.gz with examples
 make windows       # cross-build a self-contained 64-bit Windows zip with examples
 make stella-bank-test STELLA=stella  # authoritative F8/F6/F4 mapper matrix
@@ -91,6 +91,11 @@ make stella-enhanced-multisprite-test STELLA=stella  # symmetric P0/P1 multispri
 make docs          # Doxygen output under doxygen/
 make clean
 ```
+
+Installation and release payloads are owned by `packaging/install.manifest`.
+`make install`, `make uninstall`, `make package`, `make linux`, and
+`make windows` all consume that manifest rather than maintaining separate file
+lists.  The historical sieve smoke is now an ordinary `make e2e` test.
 
 ## Quick start
 

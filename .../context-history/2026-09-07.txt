@@ -44,3 +44,67 @@ matrix both pass; compile-only is 525/525; history-format and source-tree hygien
 pass. A broad e2e run was clean through 227/360 before the known VCS-heavy tail
 exceeded the local execution window. No compiler/linker production code changed
 in this task.
+
+2026-09-07 09:50:00 PDT, install/release manifest cleanup
+-------------------------------
+Removed the historical forced-clean behavior from the ordinary `tools` target;
+`make tools` is incremental again, and an explicit `rebuild: clean tools` target
+provides the old pristine-rebuild behavior when wanted. Release targets retain
+an explicit clean before rebuilding with platform-specific compiler/link flags,
+so native and cross/static objects cannot be mixed accidentally.
+
+Added `packaging/install.manifest` and `packaging/install_manifest.pl` as the
+single ownership description for the public VCS data tree, installed examples,
+and Linux/Windows release extras. The data scope exactly reproduces the prior
+198-file public VCS payload. The helper supports install, uninstall, and verify;
+example staging also removes build products and rewrites source-tree Makefiles
+to use the installed `bin/vcsc[.exe]` and `share/vcs` paths. Windows `vcsc.cmd`
+is now a manifest-owned source file rather than an independently fabricated
+release artifact.
+
+`make install`/`uninstall` now consume the manifest for data/examples instead of
+hundreds of handwritten file operations. `make windows` and `make linux` both
+call the shared `stage-release-payload` target, which stages examples and the
+platform/common package scopes and verifies data, examples, and package extras
+against the same manifest before archive creation. Platform targets retain only
+the genuinely platform-specific compilation, stripping/static-link checks, and
+archive format logic.
+
+Removed the old top-level `sieve` target and added `test/sieve.pl`, which compiles
+and simulates the existing sieve program and checks the first ten primes. Added
+`test/install_manifest.pl` to exercise data/example/package install, verification,
+uninstall, Windows `.exe` Makefile rewriting, package scope separation, and the
+CRLF Windows launcher. Reduced `installcheck` from a second large hand-maintained
+test suite to exact manifest verification, installed-tool smoke checks, and
+representative installed 4K/F8 example builds.
+
+Validation: `test/install_manifest.pl`, `test/sieve.pl`, history format, source
+hygiene, and `make installcheck` pass; compile-only is 525/525. An actual
+`make linux` completes through the shared manifest staging/verification path,
+produces a statically linked release archive, and passes its installed blank-screen
+smoke (17.80 s in this container). The Windows manifest staging path is exercised
+with `RELEASE_PLATFORM=windows` and `.exe` rewriting and passes; a full Windows
+cross build cannot be run here because the MinGW cross compiler is not installed.
+Earlier timing in this tree measured an immediate second `make tools` at about
+0.17 s instead of a complete rebuild, staged install about 0.59 s, uninstall
+about 0.10 s, and the reduced installcheck about 1.2 s once tools are built.
+
+2026-09-07 10:06:14 PDT, fix stale manifest-refactor packaging tests
+-------------------------------
+Fixed three e2e regressions left by the install/release manifest cleanup. The
+release/install payload itself was already correct; the tests were still
+asserting the deleted handwritten Makefile copy/install lines.
+
+`test/package_addons.pl` now verifies that `addons` is owned by the
+`package-common` manifest scope, that shared `stage-release-payload` consumes
+that scope, and that both Linux and Windows package targets use the shared
+staging path. `test/vcs_bankcall_source.pl` and
+`test/vcs_mapper_entry_source.pl` now verify maintained mapper `bankcall.s26`
+and `entry.s26` sources against `packaging/install.manifest` instead of looking
+for their old literal install lines in the top-level Makefile.
+
+Validation: all three formerly failing tests pass individually;
+`test/install_manifest.pl`, `make installcheck`, context-history format, and
+source-tree hygiene pass. A full `make linux` release build also passes static
+link checks, shared manifest data/example/package verification, and the installed
+blank-screen smoke, confirming the tests were stale rather than the payload.

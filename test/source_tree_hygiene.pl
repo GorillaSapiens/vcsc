@@ -381,35 +381,36 @@ my($clean_recipe)=$top_make =~ /^clean:\n((?:\t.*\n)+)/m;
 defined($clean_recipe) or die "top-level Makefile has no parseable clean recipe\n";
 my @uncleaned_stella_tmp=grep { index($clean_recipe,'$(' . $_ . ')') < 0 } @stella_tmp_vars;
 @uncleaned_stella_tmp and die "clean target omits Stella temp variables: @uncleaned_stella_tmp\n";
+my $install_manifest=slurp(File::Spec->catfile($repo,'packaging','install.manifest'));
 index($top_make,'stella-bank-test: tools')>=0 &&
 index($top_make,'--stella')>=0 &&
 index($top_make,'perl test/vcs_dpc.pl')>=0 &&
 index($top_make,'bankswitching_diagnostic_suite.c26')<0 &&
-index($top_make,'--stop-pc=0x$$sim_done')>=0 &&
-index($top_make,'--split-fill=0xA7 --reset-on-pc=0x$$sc_done')>=0 &&
-index($top_make,'policy=every-reset bss=zero data=copy-through-write-alias')>=0 &&
 index($top_make,'stella-renderer-bank-test: tools')>=0 &&
-index($top_make,'standard_renderer_banked_f8.map')>=0 &&
 index($top_make,'stella-wide-score-test: tools')>=0 &&
 index($top_make,'stella-player-color-192-test: tools')>=0 &&
 index($top_make,'stella-all-five-player-color-192-test: tools')>=0 &&
-index($top_make,'libraries/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26')>=0 &&
-index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26')>=0 &&
 index($top_make,'stella-faithful-multisprite-test: tools')>=0 &&
 index($top_make,'stella-multisprite-test: tools')>=0 &&
-index($top_make,'libraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26')>=0 &&
-index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26')>=0 &&
-index($top_make,'libraries/vcs/renderers/multisprite/multisprite.c26')>=0 &&
-index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/renderers/multisprite/multisprite.c26')>=0 &&
-index($top_make,'examples/14_multisprite/01_192/01_interactive/multisprite_192_interactive.c26')>=0 &&
-index($top_make,'examples/15_all_five_player_color_192/01_interactive/all_five_player_color_192_interactive.c26')>=0 &&
-index($top_make,'install -m 0644 libraries/vcs/6507.c26')>=0 &&
-index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/6507.c26')>=0 &&
-index($top_make,'install -m 0644 libraries/vcs/six_glyph_wide_component.c26')>=0 &&
-index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_wide_component.c26')>=0 &&
-index($top_make,'install -m 0644 libraries/vcs/six_glyph_big_wide_component.c26')>=0 &&
-index($top_make,'rm -f $(DESTDIR)$(DATADIR)/vcs/six_glyph_big_wide_component.c26')>=0
-   or die "top-level installed simulator/Stella and wide-score coverage is incomplete\n";
+index($top_make,'packaging/install_manifest.pl install')>=0 &&
+index($top_make,'stage-release-payload:')>=0 &&
+index($top_make,'--scope package-common --scope package-$(RELEASE_PLATFORM)')>=0 &&
+index($top_make,'RELEASE_PLATFORM=windows')>=0 &&
+index($top_make,'RELEASE_PLATFORM=linux')>=0 &&
+index($install_manifest,"package-windows\tfile\t0644\tpackaging/vcsc.cmd\tvcsc.cmd")>=0 &&
+index($install_manifest,"package-linux\tfile\t0644\tLINUX.md\tLINUX.md")>=0 &&
+index($top_make,'sieve: tools')<0 &&
+-f File::Spec->catfile($test,'sieve.pl') &&
+-f File::Spec->catfile($test,'install_manifest.pl') &&
+index($install_manifest,"data\tfile\t0644\tlibraries/vcs/renderers/all_five_player_color_192/all_five_player_color_192.c26\tvcs/renderers/all_five_player_color_192/all_five_player_color_192.c26")>=0 &&
+index($install_manifest,"data\tfile\t0644\tlibraries/vcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26\tvcs/renderers/faithful_legacy_multisprite/faithful_legacy_multisprite_renderer.s26")>=0 &&
+index($install_manifest,"data\tfile\t0644\tlibraries/vcs/renderers/multisprite/multisprite.c26\tvcs/renderers/multisprite/multisprite.c26")>=0 &&
+index($install_manifest,"data\tfile\t0644\tlibraries/vcs/6507.c26\tvcs/6507.c26")>=0 &&
+index($install_manifest,"data\tfile\t0644\tlibraries/vcs/six_glyph_wide_component.c26\tvcs/six_glyph_wide_component.c26")>=0 &&
+index($install_manifest,"data\tfile\t0644\tlibraries/vcs/six_glyph_big_wide_component.c26\tvcs/six_glyph_big_wide_component.c26")>=0 &&
+-f File::Spec->catfile($repo,'examples','14_multisprite','01_192','01_interactive','multisprite_192_interactive.c26') &&
+-f File::Spec->catfile($repo,'examples','15_all_five_player_color_192','01_interactive','all_five_player_color_192_interactive.c26')
+   or die "top-level installed simulator/Stella and manifest coverage is incomplete\n";
 my $sim_readme=slurp(File::Spec->catfile($repo,'simulator','README.md'));
 index($sim_readme,'--start-bank=N')>=0 &&
 index($sim_readme,'mapper=F8')>=0 &&
@@ -570,8 +571,8 @@ index($top_make,'bin/vcsc-disas.exe')>=0 &&
 index($top_make,'bin/vcsc-disas')>=0 &&
 index($top_make,'vcsc-disas.exe; do')>=0 &&
 index($top_make,'vcsc-sim vcsc-disas; do')>=0 &&
-index($top_make,'"$$stage_bin/vcsc-disas"')>=0 &&
-index($top_make,'blank_screen.roundtrip.hex')>=0
+index($top_make,'for exe in vcsc vcsc-cc1 vcsc-as vcsc-ld vcsc-ar vcsc-sim vcsc-disas; do test -x "$$stage/bin/$$exe"; done')>=0 &&
+index($top_make,'"$$stage/bin/vcsc-disas" -V')>=0
    or die "vcsc-disas install/Linux/Windows package integration is incomplete
 ";
 
@@ -678,15 +679,15 @@ index($fa2_28_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
 index($fa2_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
 !-e File::Spec->catfile($repo,'linker','legacy_bankcall.s26') &&
 index($top_make,'legacy_inline_bankcall')<0 &&
-index($top_make,'libraries/vcs/FA2/bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/DPC/bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/JANE/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/FA2/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/DPC/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/JANE/bankcall.s26')>=0 &&
 index($m0840_profile,'$bankcall')>=0 &&
 index($m0840_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
 index($m0840_profile,'$bankcall_descriptor:0x00')>=0 &&
 index($m0840_profile,'$bankcall_descriptor:0x40')>=0 &&
 index($m0840_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
-index($top_make,'libraries/vcs/0840/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/0840/bankcall.s26')>=0 &&
 index($ua_profile,'$bankcall')>=0 &&
 index($ua_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
 index($ua_profile,'$bankcall_descriptor:0x20')>=0 &&
@@ -696,33 +697,33 @@ index($uasw_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
 index($uasw_profile,'$bankcall_descriptor:0x40')>=0 &&
 index($uasw_profile,'$bankcall_descriptor:0x20')>=0 &&
 index($ua_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
-index($top_make,'libraries/vcs/UA/bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/UASW/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/UA/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/UASW/bankcall.s26')>=0 &&
 index($m0fa0_profile,'$bankcall')>=0 &&
 index($m0fa0_profile,'#ifdef VCSC_INLINE_BANKCALL')<0 &&
 index($m0fa0_profile,'$bankcall_descriptor:0xc0')>=0 &&
 index($m0fa0_profile,'$bankcall_descriptor:0xa0')>=0 &&
 index($m0fa0_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
-index($top_make,'libraries/vcs/0FA0/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/0FA0/bankcall.s26')>=0 &&
 index($wd_profile,'$bankcall')>=0 &&
 index($wd_profile,'$bankcall_descriptor:0x01')>=0 &&
 index($wd_profile,'$bankcall_descriptor:0x02')>=0 &&
 index($wd_profile,'$select_access:0x0039')>=0 &&
 index($wd_profile,'$select_access:0x003a')>=0 &&
 index($wd_example_make,'-DVCSC_INLINE_BANKCALL=1')<0 &&
-index($top_make,'libraries/vcs/WD/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/WD/bankcall.s26')>=0 &&
 index($m3f_profile,'$bankcall')>=0 &&
 index($m3f_profile,'$bankcall_descriptor:0x00')>=0 &&
 index($m3f_profile,'$bankcall_descriptor:0xff')>=0 &&
-index($top_make,'libraries/vcs/3F/bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/3F/entry.s26')>=0 &&
+index($install_manifest,'libraries/vcs/3F/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/3F/entry.s26')>=0 &&
 index($m3e_profile,'$bankcall')>=0 &&
 index($m3e_profile,'$bankcall_descriptor:0x00')>=0 &&
 index($m3e_profile,'$bankcall_descriptor:0xff')>=0 &&
 index($m3e_profile,'$size:0x40000')>=0 &&
 index($m3e_profile,'$bank_size:0x0400')>=0 &&
-index($top_make,'libraries/vcs/3E/bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/3E/entry.s26')>=0
+index($install_manifest,'libraries/vcs/3E/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/3E/entry.s26')>=0
    or die "migrated descriptor profiles or pending inline mapper packaging/opt-ins are inconsistent\n";
 my @mapper_dirs = qw(0840 0FA0 2K 3E 3EX 3F 4K 4KSC CV DPC E0 F0 F4 F4SC F6 F6SC F8 F8SC FA FA2 FC FE JANE OMNI UA UASW WD);
 for my $mapper (@mapper_dirs) {
@@ -767,15 +768,15 @@ for my $legacy (qw(
 for my $profile (qw(2K/mapper.c26 CV/mapper.c26 4K/mapper.c26 4KSC/mapper.c26 F8/mapper.c26 0840/mapper.c26 UA/mapper.c26 UASW/mapper.c26 0FA0/mapper.c26 E0/mapper.c26 WD/mapper.c26 3F/mapper.c26 3E/mapper.c26 FA/mapper.c26 F6/mapper.c26 JANE/mapper.c26 F4/mapper.c26 F8SC/mapper.c26 F6SC/mapper.c26 F4SC/mapper.c26 OMNI/mapper.c26)) {
    -f File::Spec->catfile($repo,'libraries','vcs',$profile)
       or die "missing migrated C26 cartridge profile $profile\n";
-   index($top_make,"libraries/vcs/$profile")>=0
-      or die "$profile is not installed/uninstalled by the top-level Makefile\n";
+   index($install_manifest,"libraries/vcs/$profile")>=0
+      or die "$profile is not owned by packaging/install.manifest\n";
 }
 -f File::Spec->catfile($repo,'libraries','vcs','CV/ram.c26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','CV/mapper.c26') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','CV/mapper.cfg') &&
-index($top_make,'libraries/vcs/CV/ram.c26')>=0 &&
-index($top_make,'libraries/vcs/CV/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/CV/mapper.cfg')<0 &&
+index($install_manifest,'libraries/vcs/CV/ram.c26')>=0 &&
+index($install_manifest,'libraries/vcs/CV/mapper.c26')>=0 &&
+index($install_manifest,'libraries/vcs/CV/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_cv.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','06_cv','cv_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','06_cv','README.md')
@@ -783,9 +784,9 @@ index($top_make,'libraries/vcs/CV/mapper.cfg')<0 &&
 -f File::Spec->catfile($repo,'libraries','vcs','0840/mapper.c26') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','0840/mapper.cfg') &&
 -f File::Spec->catfile($repo,'libraries','vcs','0840/bankcall.s26') &&
-index($top_make,'libraries/vcs/0840/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/0840/bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/0840/mapper.cfg')<0 &&
+index($install_manifest,'libraries/vcs/0840/mapper.c26')>=0 &&
+index($install_manifest,'libraries/vcs/0840/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/0840/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_0840.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','08_0840','econobanking_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','08_0840','README.md')
@@ -796,12 +797,12 @@ index($top_make,'libraries/vcs/0840/mapper.cfg')<0 &&
 -f File::Spec->catfile($repo,'libraries','vcs','UASW/bankcall.s26') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','UA/mapper.cfg') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','UASW/mapper.cfg') &&
-index($top_make,'libraries/vcs/UA/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/UASW/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/UA/bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/UASW/bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/UA/mapper.cfg')<0 &&
-index($top_make,'libraries/vcs/UASW/mapper.cfg')<0 &&
+index($install_manifest,'libraries/vcs/UA/mapper.c26')>=0 &&
+index($install_manifest,'libraries/vcs/UASW/mapper.c26')>=0 &&
+index($install_manifest,'libraries/vcs/UA/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/UASW/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/UA/mapper.cfg')<0 &&
+index($install_manifest,'libraries/vcs/UASW/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_ua.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','09_ua','ua_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','09_ua','uasw_diagnostic.c26') &&
@@ -824,9 +825,9 @@ for my $moved (
 -f File::Spec->catfile($repo,'libraries','vcs','0FA0/mapper.c26') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','0FA0/mapper.cfg') &&
 -f File::Spec->catfile($repo,'libraries','vcs','0FA0/bankcall.s26') &&
-index($top_make,'libraries/vcs/0FA0/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/0FA0/mapper.cfg')<0 &&
-index($top_make,'libraries/vcs/0FA0/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/0FA0/mapper.c26')>=0 &&
+index($install_manifest,'libraries/vcs/0FA0/mapper.cfg')<0 &&
+index($install_manifest,'libraries/vcs/0FA0/bankcall.s26')>=0 &&
 -f File::Spec->catfile($test,'vcs_0fa0.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','10_0fa0','fotomania_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','10_0fa0','README.md')
@@ -836,11 +837,11 @@ index($top_make,'libraries/vcs/0FA0/bankcall.s26')>=0 &&
 -f File::Spec->catfile($repo,'libraries','vcs','E0/entry.s26') &&
 -f File::Spec->catfile($repo,'libraries','vcs','E0/README.md') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','E0/mapper.cfg') &&
-index($top_make,'libraries/vcs/E0/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/E0/bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/E0/entry.s26')>=0 &&
-index($top_make,'libraries/vcs/E0/README.md')>=0 &&
-index($top_make,'libraries/vcs/E0/mapper.cfg')<0 &&
+index($install_manifest,'libraries/vcs/E0/mapper.c26')>=0 &&
+index($install_manifest,'libraries/vcs/E0/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/E0/entry.s26')>=0 &&
+index($install_manifest,'libraries/vcs/E0/README.md')>=0 &&
+index($install_manifest,'libraries/vcs/E0/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_e0.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','11_e0','e0_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','11_e0','README.md') &&
@@ -865,44 +866,44 @@ index($top_make,'test/vcs_e0.pl')>=0
 -f File::Spec->catfile($test,'vcs_3e_swapram_restore.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','12_3f','3f_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','13_3e','3e_diagnostic.c26') &&
-index($top_make,'libraries/vcs/tia_mirror_40.c26')>=0 &&
-index($top_make,'libraries/vcs/3F/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/3F/bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/3F/entry.s26')>=0 &&
-index($top_make,'libraries/vcs/3F/mapper_8k.c26')<0 &&
-index($top_make,'libraries/vcs/3F/mapper_16k.c26')<0 &&
-index($top_make,'libraries/vcs/3E/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/3E/mapper_8k.c26')<0 &&
-index($top_make,'libraries/vcs/3E/mapper_16k.c26')<0 &&
-index($top_make,'libraries/vcs/3E/bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/3E/entry.s26')>=0 &&
-index($top_make,'libraries/vcs/3E/swapram.s26')>=0 &&
-index($top_make,'libraries/vcs/3E/README.md')>=0 &&
+index($install_manifest,'libraries/vcs/tia_mirror_40.c26')>=0 &&
+index($install_manifest,'libraries/vcs/3F/mapper.c26')>=0 &&
+index($install_manifest,'libraries/vcs/3F/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/3F/entry.s26')>=0 &&
+index($install_manifest,'libraries/vcs/3F/mapper_8k.c26')<0 &&
+index($install_manifest,'libraries/vcs/3F/mapper_16k.c26')<0 &&
+index($install_manifest,'libraries/vcs/3E/mapper.c26')>=0 &&
+index($install_manifest,'libraries/vcs/3E/mapper_8k.c26')<0 &&
+index($install_manifest,'libraries/vcs/3E/mapper_16k.c26')<0 &&
+index($install_manifest,'libraries/vcs/3E/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/3E/entry.s26')>=0 &&
+index($install_manifest,'libraries/vcs/3E/swapram.s26')>=0 &&
+index($install_manifest,'libraries/vcs/3E/README.md')>=0 &&
 index($top_make,'test/vcs_3f_3e.pl')>=0
    or die "3F/3E profile/diagnostic support is missing installation or Stella/test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','JANE/mapper.c26') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','JANE/mapper.cfg') &&
 -f File::Spec->catfile($repo,'libraries','vcs','JANE/bankcall.s26') &&
-index($top_make,'libraries/vcs/JANE/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/JANE/bankcall.s26')>=0 &&
-index($top_make,'libraries/vcs/JANE/mapper.cfg')<0 &&
+index($install_manifest,'libraries/vcs/JANE/mapper.c26')>=0 &&
+index($install_manifest,'libraries/vcs/JANE/bankcall.s26')>=0 &&
+index($install_manifest,'libraries/vcs/JANE/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_jane.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','07_jane','jane_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','07_jane','README.md')
    or die "JANE profile/diagnostic support is missing installation or test coverage\n";
 -f File::Spec->catfile($repo,'libraries','vcs','FA/ram.c26') &&
-index($top_make,'libraries/vcs/FA/ram.c26')>=0 &&
+index($install_manifest,'libraries/vcs/FA/ram.c26')>=0 &&
 !-e File::Spec->catfile($repo,'libraries','vcs','FA/mapper.cfg') &&
-index($top_make,'libraries/vcs/FA/mapper.cfg')<0
+index($install_manifest,'libraries/vcs/FA/mapper.cfg')<0
    or die "FA/RAM Plus profile support is missing installation coverage\n";
 !-e File::Spec->catfile($repo,'libraries','vcs','4KSC/mapper.cfg') &&
-index($top_make,'libraries/vcs/4KSC/mapper.cfg')<0 &&
+index($install_manifest,'libraries/vcs/4KSC/mapper.cfg')<0 &&
 -f File::Spec->catfile($test,'vcs_4ksc.pl') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','04_4ksc','4ksc_diagnostic.c26')
    or die "4KSC profile/diagnostic support is missing installation or test coverage\n";
 my $direct_profile=slurp(File::Spec->catfile($repo,'test','vcs_direct_8k.c26'));
 !-e File::Spec->catfile($repo,'libraries','vcs','vcs_direct_8k.c26') &&
-index($top_make,'libraries/vcs/vcs_direct_8k.c26')<0
+index($install_manifest,'libraries/vcs/vcs_direct_8k.c26')<0
    or die "synthetic direct-8K profile escaped test-only scope\n";
 my $omni_profile=slurp(File::Spec->catfile($repo,'libraries','vcs','OMNI/mapper.c26'));
 index($direct_profile,'No real hardware currently supports this exact configuration')>=0 &&
@@ -911,12 +912,12 @@ index($omni_profile,'$signature:OMNI')>=0 &&
 index($omni_profile,'mem cartram { $start:0x1000 $size:0x1000 $rw }')>=0 &&
 -f File::Spec->catfile($test,'vcs_omni_32k.pl') &&
 !-e File::Spec->catfile($repo,'libraries','vcs','OMNI/mapper.cfg') &&
-index($top_make,'libraries/vcs/OMNI/mapper.cfg')<0 &&
+index($install_manifest,'libraries/vcs/OMNI/mapper.cfg')<0 &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','05_omni','omni_diagnostic.c26') &&
 -f File::Spec->catfile($repo,'examples','09_bankswitching','05_omni','README.md')
    or die "test-only direct/OMNI certification profiles, simulator-map diagnostic or hardware-status comments are incomplete\n";
 !-e File::Spec->catfile($repo,'libraries','vcs','vcs.cfg') &&
-index($top_make,'libraries/vcs/vcs.cfg')<0
+index($install_manifest,'libraries/vcs/vcs.cfg')<0
    or die "obsolete vcs.cfg unexpectedly remains in installation coverage\n";
 for my $name (qw(missing size start type)) {
    my $body=slurp(File::Spec->catfile($test,"e2e_mem_region_cfg_${name}_mismatch.c26"));
@@ -1218,11 +1219,11 @@ my $snapshot_keys=slurp(File::Spec->catfile($test,'stella_snapshot_keys.pl'));
 index($snapshot_keys,"'--reset'")>=0 &&
 index($snapshot_keys,"function_keycode('F2')")>=0
    or die "Stella bank diagnostics lost console-reset lifecycle coverage\n";
-index($top_make,'libraries/vcs/4KSC/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/4KSC/mapper.cfg')<0 &&
-index($top_make,'libraries/vcs/F8SC/mapper.c26')>=0 &&
-index($top_make,'libraries/vcs/F8SC/mapper.cfg')<0 &&
-index($top_make,'libraries/vcs/4KSC/ram.c26')>=0
+index($install_manifest,'libraries/vcs/4KSC/mapper.c26')>=0 &&
+index($install_manifest,'libraries/vcs/4KSC/mapper.cfg')<0 &&
+index($install_manifest,'libraries/vcs/F8SC/mapper.c26')>=0 &&
+index($install_manifest,'libraries/vcs/F8SC/mapper.cfg')<0 &&
+index($install_manifest,'libraries/vcs/4KSC/ram.c26')>=0
    or die "4KSC/banked Superchip profiles/header installation coverage is incomplete\n";
 
 print "source tree hygiene ok\n";

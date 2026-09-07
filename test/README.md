@@ -357,8 +357,8 @@ automatic placement, call-only cross-bank bridges, descriptor-aware replicated c
 vectors, map output, and exact 8192-byte output. A small opcode model
 starts from each possible initially selected file chunk and proves the reset
 bridge reaches BANK0 and nested calls restore banks and hardware-stack returns
-correctly. `make installcheck` repeats the source build with the staged installed
-C26 profile.
+correctly. Installed-tree integration is covered separately by the installation
+manifest regression plus `make installcheck` representative staged smokes.
 
 `vcs_f6_f4_profiles.pl` certifies the installed `F6/mapper.c26` and
 `F4/mapper.c26` profiles through the same C26-topology implementation. It
@@ -368,8 +368,9 @@ the outward and return paths, locks BANK3..BANK0 and BANK7..BANK0 file order,
 reserved hotspot bytes, byte-identical trampoline/vector corridors, F4's NMI
 vector/hotspot overlap, balanced stack restoration, map identities, and exact
 16384/32768-byte output. Retained cfg profiles are used only for differential
-and compatibility checks. `make installcheck` also builds staged diagnostics
-through both installed C26 profiles.
+and compatibility checks. The installation manifest regression proves those
+public profiles are shipped; the source-tree mapper tests remain the exhaustive
+behavioral authority.
 
 `vcs_jane.pl` certifies the public `JANE/mapper.c26` profile and its explicit
 `fileindex` simulator mapping. It locks selectors `$1FF0/$1FF1/$1FF8/$1FF9`,
@@ -1331,9 +1332,10 @@ verifies exact images, map-reported startup records, hostile initial RAM, both
 aliases, bank-switch persistence, poison-before-result, and reinitialization on
 a reset which preserves RAM externally. `stella-bank-test` independently runs
 the same SC lifecycle from every forced and randomized physical startup bank.
-`VCSC_STELLA_FILTER` limits focused Stella reruns. Staged `make installcheck`
-uses the installed compiler, profile, diagnostic source, and simulator options
-to prove the same second-arrival reset lifecycle and a zero final failure byte.
+`VCSC_STELLA_FILTER` limits focused Stella reruns. The installation manifest
+regression proves the Superchip profiles and examples are shipped; the source
+E2E/Stella tests remain the exhaustive lifecycle authority, while
+`make installcheck` runs representative staged 4K and F8 integration smokes.
 
 `vcs_standard_renderer_banked.pl` composes the maintained standard all-five
 renderer with 4K, F8, F6, F4, and F8SC C26 profiles.  It locks bank-local hard

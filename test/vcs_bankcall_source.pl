@@ -66,7 +66,7 @@ my $fc_fresh = File::Spec->catfile($tmp, 'fc_bankcall_template.h');
 my $f0_fresh = File::Spec->catfile($tmp, 'f0_bankcall_template.h');
 my $e0_fresh = File::Spec->catfile($tmp, 'e0_bankcall_template.h');
 my $ld = read_file(File::Spec->catfile($repo, qw(linker vcsc_ld.c)));
-my $top = read_file(File::Spec->catfile($repo, 'Makefile'));
+my $install_manifest = read_file(File::Spec->catfile($repo, qw(packaging install.manifest)));
 my $s26 = read_file($src);
 my $fa2_s26 = read_file($fa2_src);
 my $jane_s26 = read_file($jane_src);
@@ -228,21 +228,12 @@ index($ld, 'vcsc_e0_bankcall_template') >= 0
 ";
 index($ld, '#define PUT(') < 0
    or die "linker still contains hand-emitted generic trampoline opcodes\n";
-(grep { index($top, "libraries/vcs/$_/bankcall.s26") < 0 } @generic_mapper_dirs) == 0 &&
-index($top, 'libraries/vcs/FA2/bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/JANE/bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/0840/bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/UA/bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/UASW/bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/0FA0/bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/WD/bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/3F/bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/3E/bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/FC/bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/F0/bankcall.s26') >= 0 &&
-index($top, 'libraries/vcs/E0/bankcall.s26') >= 0
-   or die "maintained trampoline sources are not installed
-";
+my @installed_bankcall_mappers = (@generic_mapper_dirs, qw(FA2 JANE 0840 UA UASW 0FA0 WD 3F 3E FC F0 E0));
+for my $mapper (@installed_bankcall_mappers) {
+   my $source = "libraries/vcs/$mapper/bankcall.s26";
+   $install_manifest =~ /^data\tfile\t[^\t]+\t\Q$source\E\t/m
+      or die "$mapper maintained trampoline source is not installed by the data manifest\n";
+}
 
 system($^X, $generator, $as, $src, $fresh, 'GENERIC') == 0
    or die "could not regenerate bank-call template\n";

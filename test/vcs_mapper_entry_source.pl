@@ -30,7 +30,7 @@ my %selector = (
    UASW=>0x0240, '0FA0'=>0x0fc0, WD=>0x0039,
 );
 my @mapper = qw(F8 F8SC F6 F6SC F4 F4SC FA DPC FA2 JANE 0840 UA UASW 0FA0 WD 3F 3E 3EX FC F0 E0);
-my $top = read_file(File::Spec->catfile($repo, 'Makefile'));
+my $install_manifest = read_file(File::Spec->catfile($repo, qw(packaging install.manifest)));
 my @spec;
 for my $mapper (@mapper) {
    my $src = File::Spec->catfile($repo, 'libraries', 'vcs', $mapper, 'entry.s26');
@@ -49,8 +49,9 @@ for my $mapper (@mapper) {
       index($text, '--illegal') >= 0
          or die "$mapper entry does not explain why raw op0C avoids --illegal dependency\n";
    }
-   index($top, "libraries/vcs/$mapper/entry.s26") >= 0
-      or die "$mapper entry source is not installed\n";
+   my $install_source = "libraries/vcs/$mapper/entry.s26";
+   $install_manifest =~ /^data\tfile\t[^\t]+\t\Q$install_source\E\t/m
+      or die "$mapper entry source is not installed by the data manifest\n";
    push @spec, (($mapper eq '0840' ? 'M0840' : $mapper eq '0FA0' ? 'M0FA0' : $mapper eq '3F' ? 'M3F' : $mapper eq '3E' ? 'M3E' : $mapper eq '3EX' ? 'M3EX' : $mapper) . "=$src");
 }
 
