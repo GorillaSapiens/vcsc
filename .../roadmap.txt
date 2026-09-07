@@ -18,16 +18,7 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 50, make near-full-ROM `.flex` placement prefer compactness.
-
-[ ] 50. Make near-full-ROM placement prefer compactness over optional `.flex`
-        page-crossing quality when the latter would fragment usable ROM.
-
-        * Treat `.flex` as permission for either page behavior, not a reason to
-          burn large holes that can make an otherwise-fitting image fail.
-        * Add a reduced linker regression reproducing the observed 4K
-          fragmentation failure without depending on Tanks.
-        * Preserve stricter `.same` / `.cross` contracts.
+Current next action: Item 51, enforce parsed `forbidcountasm:` directives.
 
 [ ] 51. Enforce parsed `forbidcountasm:` directives in the test harness.
 

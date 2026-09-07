@@ -90,10 +90,10 @@ Open workstreams
 
 2. **Main roadmap**
    `.../roadmap.txt` contains only unfinished main items. Default main-roadmap
-   work begins with Item 49, playfield-color renderer support. Items 46-48 are
-   complete; executable regressions own the linker dummy-read hazard, ordinary
-   Superchip `cartram` read/write contracts, and score-integrated paddle
-   sampling. Item 50 follows.
+   work begins with Item 51, `forbidcountasm:` enforcement, followed by
+   playfield-color renderer support and the side-scroller/platform example.
+   Completed placement/compiler cleanup is owned by executable regressions and
+   dated history rather than this hot file.
    Active workstream: `.../roadmap.txt`.
 
 3. **Bankswitching**
@@ -142,10 +142,13 @@ correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 
 Last validation state
 ---------------------
-The previously completed bankswitching/cfgectomy/linker work is regression-locked
-and had a clean loaded baseline of 503/503 compile-only and 356/356 e2e tests.
-Detailed completed implementation facts live in the focused hot files, public
-documentation, executable regressions, and dated history rather than here.
+The previously completed bankswitching/cfgectomy/linker work is regression-locked.
+Current local validation has 525/525 compile-only tests, all 26 `linker_*.pl`
+e2e tests, `source_tree_hygiene.pl`, and `vcs_tanks.pl` passing. The older loaded
+baseline had a clean 356/356 full e2e run; an uninterrupted post-cleanup 356/356
+rerun remains desirable. Detailed completed implementation facts live in the
+focused hot files, public documentation, executable regressions, and dated
+history rather than here.
 
 Current Tanks cleanup is complete at the legitimate beam-asm boundary while preserving the plain 4K target. The current real build is 4024/4090 ROM and 120/128 RAM (66 ROM bytes, 8 RAM bytes free). `test/vcs_tanks.pl` locks coordinate, heading/reflection, missile, arena-bound, and bottom-wall GRP behavior.
 
@@ -158,7 +161,6 @@ General compiler/codegen work from this cleanup is regression-locked in `test/`:
 The user subsequently completed the full 356-test e2e suite and found three regressions: one semantic-use metadata provenance bug plus two stale exact-ROM guards. All three are now fixed in focused tests. The direct-byte statement-chain optimizer now emits read/write metadata from each statement's own lvalue/source location rather than reusing the first statement's location. The all-five public example is legitimately 3570 bytes (520 free), and the animated gallery is legitimately 3238 bytes (852 free); the latter four-byte reduction is the expected scalar-chain removal of one `STA`/`LDA` pair in `main`. Compile-only validation is now 525/525 after the register-lifetime addition. A local post-fix e2e rerun passed 1-225/356, and resumed tail validation passed 30 more non-maximal VCS e2e cases before the slow VCS-heavy remainder exceeded the execution window; an uninterrupted 356/356 rerun remains desirable.
 
 Unfinished findings to preserve:
-* Near-full 4K placement can fail even when total bytes nominally fit because the linker currently scores flexible-branch page-crossing quality ahead of ROM growth. During the C knockback experiment it chose an 86-byte hole before `tanks_update_overscan()` and another 23-byte hole before `main()`, leaving no contiguous 96-byte hole for `__zero_table`. `.flex` permits either page behavior; whether the linker should burn large ROM holes to avoid flexible crossings is a separate general linker-policy question. Do not hide that with a Tanks special case.
-* The test harness parses `forbidcountasm:` directives but still does not enforce them. Enabling enforcement exposes at least one stale existing expectation (`page_pointer_offset_reuse_codegen_test`); keep that infrastructure cleanup separate unless intentionally taking it on.
+* The test harness parses `forbidcountasm:` directives but still does not enforce them. Enabling enforcement exposes at least one stale existing expectation (`page_pointer_offset_reuse_codegen_test`); this is the next main-roadmap item.
 
-Tanks cleanup is closed at the legitimate beam-asm boundary. The main roadmap now leads with Item 50, the general near-full-ROM `.flex` placement policy fix, followed by Item 51 `forbidcountasm:` enforcement. An uninterrupted full 356-test e2e rerun is still desirable; local validation has passed the first 225 tests plus 30 additional post-`vcs_0fa0` non-maximal VCS e2e cases before execution-window limits. Preserve Tanks readability: one statement per line and one graphics byte per line. Do not resurrect the RIOT-RAM sprite cache or `$xxDD`/main-phase theory.
+Tanks cleanup is closed at the legitimate beam-asm boundary. The main roadmap now leads with Item 51 `forbidcountasm:` enforcement. An uninterrupted full 356-test e2e rerun is still desirable; local validation has passed the first 225 tests plus 30 additional post-`vcs_0fa0` non-maximal VCS e2e cases before execution-window limits. Preserve Tanks readability: one statement per line and one graphics byte per line. Do not resurrect the RIOT-RAM sprite cache or `$xxDD`/main-phase theory.

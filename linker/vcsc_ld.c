@@ -5725,6 +5725,27 @@ static size_t layout_branch_crossings_at(const object_file_t *obj,
    return crossings;
 }
 
+//! @brief Return whether one branch-placement score is more compact/better.
+//!
+//! ROM growth is authoritative. Flexible branch timing is only a tie-breaker
+//! among equally compact candidates; `.same` and `.cross` have already been
+//! rejected as hard constraints before this score is consulted.
+static int branch_placement_score_precedes(uint32_t growth, size_t crossings,
+                                           int page_penalty, uint32_t addr,
+                                           uint32_t best_growth,
+                                           size_t best_crossings,
+                                           int best_page_penalty,
+                                           uint32_t best_addr)
+{
+   if (growth != best_growth)
+      return growth < best_growth;
+   if (crossings != best_crossings)
+      return crossings < best_crossings;
+   if (page_penalty != best_page_penalty)
+      return page_penalty < best_page_penalty;
+   return addr < best_addr;
+}
+
 //! @brief Return whether one layout contains any retained relative-branch source.
 static int layout_has_branches(const object_file_t *obj,
                                const object_layout_t *lay)
@@ -6101,12 +6122,9 @@ static int simulate_alloc_code_branch_aware(layout_t *layout,
          break; \
       crossings__ = layout_branch_crossings_at(obj, lay, (uint16_t)candidate_value__); \
       page_penalty__ = range_fits_one_page(candidate_value__, lay->size) ? 0 : 1; \
-      if (!found || crossings__ < best_crossings || \
-          (crossings__ == best_crossings && growth_value__ < best_growth) || \
-          (crossings__ == best_crossings && growth_value__ == best_growth && \
-           page_penalty__ < best_page_penalty) || \
-          (crossings__ == best_crossings && growth_value__ == best_growth && \
-           page_penalty__ == best_page_penalty && candidate_value__ < best_addr)) { \
+      if (!found || branch_placement_score_precedes( \
+             growth_value__, crossings__, page_penalty__, candidate_value__, \
+             best_growth, best_crossings, best_page_penalty, best_addr)) { \
          found = 1; \
          best_crossings = crossings__; \
          best_growth = growth_value__; \
@@ -6201,12 +6219,9 @@ static uint16_t alloc_code_branch_aware(layout_t *layout, const linker_config_t 
       crossings__ = layout_branch_crossings_at(obj, lay, (uint16_t)candidate_value__); \
       int page_penalty__ = range_fits_one_page(candidate_value__, lay->size) ? 0 : 1; \
       uint32_t growth_value__ = (growth_); \
-      if (!found || crossings__ < best_crossings || \
-          (crossings__ == best_crossings && growth_value__ < best_growth) || \
-          (crossings__ == best_crossings && growth_value__ == best_growth && \
-           page_penalty__ < best_page_penalty) || \
-          (crossings__ == best_crossings && growth_value__ == best_growth && \
-           page_penalty__ == best_page_penalty && candidate_value__ < best_addr)) { \
+      if (!found || branch_placement_score_precedes( \
+             growth_value__, crossings__, page_penalty__, candidate_value__, \
+             best_growth, best_crossings, best_page_penalty, best_addr)) { \
          found = 1; \
          best_crossings = crossings__; \
          best_growth = growth_value__; \

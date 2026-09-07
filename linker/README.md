@@ -917,8 +917,11 @@ instruction, matching the NMOS 6502/6507 extra-cycle rule.
 For each code layout containing retained branches, the linker exhaustively
 scores every aligned start in existing holes plus one bounded 256-byte sweep at
 the region high-water mark. It first rejects candidates that violate `.same`
-or `.cross`, then minimizes crossings among `flex` branches, followed by image
-growth, page status, and address. Hard annotations must have source and target
+or `.cross`, then minimizes image growth, followed by crossings among `flex`
+branches, page status, and address. A flexible branch never causes the linker to
+grow the occupied ROM extent merely to save the optional taken-page cycle; that
+timing preference is only a tie-breaker among equally compact placements. Hard
+annotations must have source and target
 inside the same movable layout; otherwise the linker rejects them because it
 cannot guarantee their relationship while placing that layout. Existing-hole
 choices are zero-growth local moves; farther starts are not useful because they

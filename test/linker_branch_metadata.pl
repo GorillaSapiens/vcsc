@@ -70,14 +70,14 @@ CFG
 require_ok('assemble',$as,'-o',$obj,$src);
 require_ok('link',$ld,'-T',$cfg,'-Map',$map,'-o',$bin,$obj);
 my $m=slurp($map);
-$m =~ /\Q$obj\E\n\s+\$20FE -> \$2103 BNE opcode=\$D0 taken-page=same policy=flex\n\s+\$2109 -> \$210D BNE opcode=\$D0 taken-page=same policy=flex/s
-  or die "map did not preserve local branch metadata or branch-aware placement\n$m";
+$m =~ /\Q$obj\E\n\s+\$20FD -> \$2102 BNE opcode=\$D0 taken-page=crossing policy=flex\n\s+\$2108 -> \$210C BNE opcode=\$D0 taken-page=same policy=flex/s
+  or die "map did not preserve local branch metadata or compact branch-aware placement\n$m";
 
-# Task 20l searches one bounded low-byte cycle. Moving this 261-byte unit by
-# one byte eliminates the only taken page crossing; farther equivalent phases
-# would grow the image unnecessarily.
-$m =~ /CODE\s+load=\$20F9\s+size=\$0105\s+page=crossing/
-  or die "branch-aware placement did not choose the smallest zero-crossing move\n$m";
+# Flexible branch timing is a tie-breaker only after compactness. Moving this
+# 261-byte unit by one byte would eliminate the crossing, but must not grow the
+# image solely for an optional one-cycle preference.
+$m =~ /CODE\s+load=\$20F8\s+size=\$0105\s+page=crossing/
+  or die "branch-aware placement grew the image for a flexible branch\n$m";
 my $bytes=slurp($bin);
 length($bytes)>0x12 or die "linked image was unexpectedly short\n";
 ord(substr($bytes,5,1))==0xD0 && ord(substr($bytes,6,1))==0x03
