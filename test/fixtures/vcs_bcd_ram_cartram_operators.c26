@@ -1,0 +1,216 @@
+// Explicit packed-BCD mutation matrix for ordinary Atari RAM and F4SC cartram.
+// Every bcd*_t width exercises +=, -=, postfix ++, prefix ++, postfix --,
+// and prefix --. The ++/-- checks verify both the stored value and expression
+// result. One storage/type pair lives in each bank so the test stays explicit
+// without trading coverage for a smaller cartridge.
+
+include "F4SC/mapper.c26"
+
+uint8_t failure;
+
+bcd8_t ram8;
+bcd16_t ram16;
+bcd24_t ram24;
+bcd32_t ram32;
+
+cartram bcd8_t cart8;
+cartram bcd16_t cart16;
+cartram bcd24_t cart24;
+cartram bcd32_t cart32;
+
+bcd8_t old8;
+bcd16_t old16;
+bcd24_t old24;
+bcd32_t old32;
+
+bank0 void simulator_done(void) {
+   while (1) { }
+}
+
+bank0 void test_ram8(void) {
+   ram8 := 95;
+   ram8 += 7;
+   if (ram8 != 2) { failure := 1; return; }
+   ram8 := 3;
+   ram8 -= 5;
+   if (ram8 != 98) { failure := 2; return; }
+   ram8 := 99;
+   old8 := ram8++;
+   if (old8 != 99 || ram8 != 0) { failure := 3; return; }
+   ram8 := 98;
+   old8 := ++ram8;
+   if (old8 != 99 || ram8 != 99) { failure := 4; return; }
+   ram8 := 0;
+   old8 := ram8--;
+   if (old8 != 0 || ram8 != 99) { failure := 5; return; }
+   ram8 := 1;
+   old8 := --ram8;
+   if (old8 != 0 || ram8 != 0) { failure := 6; return; }
+}
+
+bank1 void test_ram16(void) {
+   ram16 := 9995;
+   ram16 += 7;
+   if (ram16 != 2) { failure := 7; return; }
+   ram16 := 3;
+   ram16 -= 5;
+   if (ram16 != 9998) { failure := 8; return; }
+   ram16 := 9999;
+   old16 := ram16++;
+   if (old16 != 9999 || ram16 != 0) { failure := 9; return; }
+   ram16 := 9998;
+   old16 := ++ram16;
+   if (old16 != 9999 || ram16 != 9999) { failure := 10; return; }
+   ram16 := 0;
+   old16 := ram16--;
+   if (old16 != 0 || ram16 != 9999) { failure := 11; return; }
+   ram16 := 1;
+   old16 := --ram16;
+   if (old16 != 0 || ram16 != 0) { failure := 12; return; }
+}
+
+bank2 void test_ram24(void) {
+   ram24 := 999995;
+   ram24 += 7;
+   if (ram24 != 2) { failure := 13; return; }
+   ram24 := 3;
+   ram24 -= 5;
+   if (ram24 != 999998) { failure := 14; return; }
+   ram24 := 999999;
+   old24 := ram24++;
+   if (old24 != 999999 || ram24 != 0) { failure := 15; return; }
+   ram24 := 999998;
+   old24 := ++ram24;
+   if (old24 != 999999 || ram24 != 999999) { failure := 16; return; }
+   ram24 := 0;
+   old24 := ram24--;
+   if (old24 != 0 || ram24 != 999999) { failure := 17; return; }
+   ram24 := 1;
+   old24 := --ram24;
+   if (old24 != 0 || ram24 != 0) { failure := 18; return; }
+}
+
+bank3 void test_ram32(void) {
+   ram32 := 99999995;
+   ram32 += 7;
+   if (ram32 != 2) { failure := 19; return; }
+   ram32 := 3;
+   ram32 -= 5;
+   if (ram32 != 99999998) { failure := 20; return; }
+   ram32 := 99999999;
+   old32 := ram32++;
+   if (old32 != 99999999 || ram32 != 0) { failure := 21; return; }
+   ram32 := 99999998;
+   old32 := ++ram32;
+   if (old32 != 99999999 || ram32 != 99999999) { failure := 22; return; }
+   ram32 := 0;
+   old32 := ram32--;
+   if (old32 != 0 || ram32 != 99999999) { failure := 23; return; }
+   ram32 := 1;
+   old32 := --ram32;
+   if (old32 != 0 || ram32 != 0) { failure := 24; return; }
+}
+
+bank4 void test_cart8(void) {
+   cart8 := 95;
+   cart8 += 7;
+   if (cart8 != 2) { failure := 25; return; }
+   cart8 := 3;
+   cart8 -= 5;
+   if (cart8 != 98) { failure := 26; return; }
+   cart8 := 99;
+   old8 := cart8++;
+   if (old8 != 99 || cart8 != 0) { failure := 27; return; }
+   cart8 := 98;
+   old8 := ++cart8;
+   if (old8 != 99 || cart8 != 99) { failure := 28; return; }
+   cart8 := 0;
+   old8 := cart8--;
+   if (old8 != 0 || cart8 != 99) { failure := 29; return; }
+   cart8 := 1;
+   old8 := --cart8;
+   if (old8 != 0 || cart8 != 0) { failure := 30; return; }
+}
+
+bank5 void test_cart16(void) {
+   cart16 := 9995;
+   cart16 += 7;
+   if (cart16 != 2) { failure := 31; return; }
+   cart16 := 3;
+   cart16 -= 5;
+   if (cart16 != 9998) { failure := 32; return; }
+   cart16 := 9999;
+   old16 := cart16++;
+   if (old16 != 9999 || cart16 != 0) { failure := 33; return; }
+   cart16 := 9998;
+   old16 := ++cart16;
+   if (old16 != 9999 || cart16 != 9999) { failure := 34; return; }
+   cart16 := 0;
+   old16 := cart16--;
+   if (old16 != 0 || cart16 != 9999) { failure := 35; return; }
+   cart16 := 1;
+   old16 := --cart16;
+   if (old16 != 0 || cart16 != 0) { failure := 36; return; }
+}
+
+bank6 void test_cart24(void) {
+   cart24 := 999995;
+   cart24 += 7;
+   if (cart24 != 2) { failure := 37; return; }
+   cart24 := 3;
+   cart24 -= 5;
+   if (cart24 != 999998) { failure := 38; return; }
+   cart24 := 999999;
+   old24 := cart24++;
+   if (old24 != 999999 || cart24 != 0) { failure := 39; return; }
+   cart24 := 999998;
+   old24 := ++cart24;
+   if (old24 != 999999 || cart24 != 999999) { failure := 40; return; }
+   cart24 := 0;
+   old24 := cart24--;
+   if (old24 != 0 || cart24 != 999999) { failure := 41; return; }
+   cart24 := 1;
+   old24 := --cart24;
+   if (old24 != 0 || cart24 != 0) { failure := 42; return; }
+}
+
+bank7 void test_cart32(void) {
+   cart32 := 99999995;
+   cart32 += 7;
+   if (cart32 != 2) { failure := 43; return; }
+   cart32 := 3;
+   cart32 -= 5;
+   if (cart32 != 99999998) { failure := 44; return; }
+   cart32 := 99999999;
+   old32 := cart32++;
+   if (old32 != 99999999 || cart32 != 0) { failure := 45; return; }
+   cart32 := 99999998;
+   old32 := ++cart32;
+   if (old32 != 99999999 || cart32 != 99999999) { failure := 46; return; }
+   cart32 := 0;
+   old32 := cart32--;
+   if (old32 != 0 || cart32 != 99999999) { failure := 47; return; }
+   cart32 := 1;
+   old32 := --cart32;
+   if (old32 != 0 || cart32 != 0) { failure := 48; return; }
+}
+
+bank0 void main(void) {
+   failure := 0;
+   test_ram8();
+   if (failure) { asm jmp simulator_done; }
+   test_ram16();
+   if (failure) { asm jmp simulator_done; }
+   test_ram24();
+   if (failure) { asm jmp simulator_done; }
+   test_ram32();
+   if (failure) { asm jmp simulator_done; }
+   test_cart8();
+   if (failure) { asm jmp simulator_done; }
+   test_cart16();
+   if (failure) { asm jmp simulator_done; }
+   test_cart24();
+   if (failure) { asm jmp simulator_done; }
+   test_cart32();
+   asm jmp simulator_done;
+}

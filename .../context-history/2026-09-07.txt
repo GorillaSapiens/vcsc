@@ -1,0 +1,14 @@
+BCD RAM/cartram mutation matrix
+-------------------------------
+Added `test/vcs_bcd_ram_cartram_operators.pl` with static fixture
+`test/fixtures/vcs_bcd_ram_cartram_operators.c26`. The F4SC simulator test
+explicitly covers bcd8_t/bcd16_t/bcd24_t/bcd32_t in both ordinary Atari RAM
+and split-address Superchip `cartram`, with runtime value checks for `+=`,
+`-=`, postfix `++`, prefix `++`, postfix `--`, and prefix `--` (48 operator
+cases total). Prefix/postfix checks validate both the expression result and the
+stored lvalue. The wrapper also structurally verifies all 48 forms are present
+and checks the linker map proves the four cart operands are split `cartram` and
+the four RAM operands are ordinary RAM. One storage/type pair is pinned per
+F4SC bank to keep the fully explicit matrix comfortably within ROM capacity.
+Validation: 525/525 compile-only, 13/13 BCD-focused e2e, and
+`source_tree_hygiene.pl` pass.
