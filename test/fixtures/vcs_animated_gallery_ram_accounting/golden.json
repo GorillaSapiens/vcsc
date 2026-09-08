@@ -150,7 +150,7 @@
          "free_ram_bytes" : 77,
          "object_bytes" : 47,
          "ram_bytes" : 51,
-         "rom_bytes" : 3236,
+         "rom_bytes" : 3079,
          "stack_bytes" : 4
       },
       "object_schedule_bytes_after" : 0,
@@ -250,7 +250,7 @@
          },
          {
             "bytes" : 2,
-            "reason" : "full-startup-transient-stack"
+            "reason" : "table-copy-startup-transient-stack"
          }
       ],
       "hidden_extra" : 0,
@@ -264,13 +264,13 @@
       "weighted_depth" : 1
    },
    "hardware_stack_reduction" : {
-      "floor" : "with stock full startup tail-entering main, one real main-to-helper source return plus the full startup transient stack requirement conservatively require four hardware-stack bytes",
+      "floor" : "with the DATA startup tail-entering main, one real main-to-helper source return plus the table-copy startup transient stack requirement conservatively require four hardware-stack bytes",
       "free_ram_bytes" : 26,
       "hidden_stack_bytes" : 2,
       "previous_free_ram_bytes" : 22,
       "previous_ram_bytes" : 106,
       "previous_stack_bytes" : 8,
-      "proof" : "the remaining source path has one real main-to-helper return slot; stock full startup also requires a real two-byte transient PHA/PLA stack slot, while explicit .callstackextra remains zero",
+      "proof" : "the remaining source path has one real main-to-helper return slot; the selected DATA startup also requires a real two-byte transient PHA/PLA stack slot, while explicit .callstackextra remains zero",
       "ram_bytes" : 102,
       "ram_saved_bytes" : 4,
       "rom_bytes" : 3545,
@@ -720,7 +720,7 @@
          "activation_bytes" : 0,
          "free_ram_bytes" : 77,
          "ram_bytes" : 51,
-         "rom_bytes" : 3236,
+         "rom_bytes" : 3079,
          "stack_bytes" : 4
       },
       "decision" : "retain-general-p0-p1-ball-renderer",
@@ -732,7 +732,7 @@
          "activation_bytes" : -20,
          "free_ram_bytes" : 77,
          "ram_bytes" : -77,
-         "rom_bytes" : -757,
+         "rom_bytes" : -914,
          "stack_bytes" : -4
       },
       "useful_game_state_margin" : true
@@ -757,8 +757,8 @@
       "hardware_stack_bytes" : 4,
       "object_bytes" : 47,
       "ram_bytes" : 51,
-      "rom_bytes" : 3236,
-      "rom_free_bytes" : 854,
+      "rom_bytes" : 3079,
+      "rom_free_bytes" : 1011,
       "subcategory_bytes" : {
          "gallery_control" : 4,
          "mutable_row_colors" : 16,

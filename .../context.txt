@@ -129,6 +129,21 @@ Open workstreams
    initializers that require backing objects retain their required storage
    semantics. Regression tests own the detailed placement/footprint expectations.
 
+Startup selection
+-----------------
+Stock VCS startup is deliberately three-way. `vcsc-rt1-simple.s26` is the
+smallest path for ordinary RIOT BSS with no DATA/runtime initializer work; it
+retains the historical blanket RIOT+TIA clear. `vcsc-rt1-data.s26` is selected
+for initialized DATA and/or runtime initializers when every startup-zeroed object
+can be satisfied by a blanket RIOT clear and no `noinit` object exists; it uses
+copy/init tables but has no generic ZERO-table walker and remains TIA-neutral,
+preserving the previous full-startup behavior of initialized-data carts.
+`vcsc-rt0.s26` is the full table-driven path used whenever `noinit` exists or
+startup-zeroed BSS lives in split/non-RIOT writable memory. DATA+noinit therefore
+uses full startup. The diagnostic's strong reset probe stores its
+`noinit cartram` 2600/7800 latch and tail-jumps to `__vcsc_startup_full`; normal
+startup owns ordinary BSS initialization.
+
 Installed/release layout
 ------------------------
 Installed and binary-release trees deliberately preserve the source library
@@ -155,12 +170,15 @@ correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 Last validation state
 ---------------------
 The previously completed bankswitching/cfgectomy/linker work is regression-locked.
-Current local validation has 528/528 compile-only tests, all 26 `linker_*.pl`
-e2e tests, `source_tree_hygiene.pl`, and `vcs_tanks.pl` passing. The older loaded
-baseline had a clean 356/356 full e2e run; an uninterrupted post-cleanup 356/356
-rerun remains desirable. Detailed completed implementation facts live in the
-focused hot files, public documentation, executable regressions, and dated
-history rather than here.
+Current three-startup/noinit validation has 537/537 compile-only tests, all 26
+`linker_*.pl` e2e tests, the focused startup/diagnostic/Superchip/package coverage,
+and 352/364 broad e2e cases passing on the final tree. The only uncompleted broad
+cases are the three max-size 3E/3EX/3F diagnostics, the diagnostic paddle-sampling
+oracle, and `vcs_examples_build_1of8.test` through `_8of8.test`; each exceeded the
+available execution window rather than reporting a failure. All ordinary VCS-tail
+regressions found during the broad run were diagnosed and fixed. Detailed completed
+implementation facts live in public docs, executable regressions, and dated history
+rather than here.
 
 Current Tanks cleanup is complete at the legitimate beam-asm boundary while preserving the plain 4K target. The current real build is 4024/4090 ROM and 120/128 RAM (66 ROM bytes, 8 RAM bytes free). `test/vcs_tanks.pl` locks coordinate, heading/reflection, missile, arena-bound, and bottom-wall GRP behavior.
 

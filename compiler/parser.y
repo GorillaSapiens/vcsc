@@ -98,6 +98,7 @@ static ASTNode *make_decl_addr_term(char *tok) {
 %token LSHIFT_ASSIGN
 %token MEM
 %token MOD_ASSIGN
+%token NOINIT
 %token MUL_ASSIGN
 %token NE
 %token OR
@@ -429,6 +430,7 @@ modifier:
   | REF                                      { COVER; $$ = make_identifier_leaf("ref"); }
   | REQUIRE                                  { COVER; $$ = make_identifier_leaf("require"); }
   | STATIC                                   { COVER; $$ = make_identifier_leaf("static"); }
+  | NOINIT                                   { COVER; $$ = make_identifier_leaf("noinit"); }
   | WRITEONLY                                { COVER; $$ = make_identifier_leaf("writeonly"); }
   | MEMNAME                                  { COVER; $$ = make_identifier_leaf($1); }
   ;

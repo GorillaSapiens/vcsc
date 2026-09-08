@@ -853,6 +853,12 @@ boundaries, proving held-SELECT debounce, the complete controller-mode cycle,
 RESET+SELECT television-standard cycling, and exact NTSC/PAL/SECAM frame timing.
 It also stresses moving driving-controller Gray-code phases and checks that the
 TIA panel retains unambiguous P0/M0, P1/M1, and Ball/playfield collision geometry.
+The reset probe also certifies that the pre-clear 7800 latch is a split-address
+`noinit cartram` object: the shim writes its linked Superchip write alias before
+tail-entering `__vcsc_startup_full`; normal ZERO-table startup clears neighboring
+ordinary BSS while emitting no ZERO record for the preserved latch. The linked
+image must contain the strong diagnostic `__reset` plus the weak stock reset/body
+provider, proving the shim no longer owns diagnostic-specific RAM-clearing loops.
 
 `vcs_diagnostic_cartridge_stella.pl` is the optional independent Stella 7.0
 raster certification. Run the complete 12-screen matrix with:
@@ -897,6 +903,17 @@ activation overlay, startup-only zero/constant/runtime initialization through
 the write alias, persistence across repeated calls, packed-bitfield updates,
 exact physical occupancy, and execution from every physical startup bank under
 F8SC, F6SC, and F4SC.
+
+The `noinit_*` compile tests and `vcs_startup_selection.pl` cover
+startup-preserved file-scope storage and three-way startup selection. They require
+the lexer/parser keyword,
+private BSS marker emission, rejection outside uninitialized mutable file-scope
+definitions, simple startup for ordinary RIOT BSS, DATA startup for initialized
+DATA/runtime initializers when blanket RIOT clearing is safe, full table-driven
+startup when RIOT `noinit` storage or split/non-RIOT BSS is present,
+and omission of both ordinary and split-address `noinit` objects from ZERO
+records. The split Superchip case also requires the preserved object to retain
+its `$F080` read and `$F000` write aliases while neighboring BSS is cleared.
 
 `split_memory_generic_regions.pl` proves that split-address storage is driven by
 authoritative ordinary `mem` metadata rather than by the spelling `cartram` or by

@@ -107,7 +107,7 @@ for my $name (qw(F8 F6 F4 F8SC)) {
 
 # Lock the measured post-optimization ROM and bridge costs for this diagnostic.
 for my $check (
-   ['F8',1891,43,30], ['F6',1891,43,60], ['F4',1891,43,120], ['F8SC',1891,53,30]
+   ['F8',1710,43,30], ['F6',1710,43,60], ['F4',1710,43,120], ['F8SC',1891,53,30]
 ) {
    my($name,$b0,$b1,$rep)=@$check; my $map=$built{$name}{map};
    require_re($map,qr/^\s*bank0\s+used=$b0 bytes/m,"$name bank0 usage changed");

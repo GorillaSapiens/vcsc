@@ -1,6 +1,8 @@
 ; This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
-; vcsc-rt0.s26
+; DATA-specialized stock startup selected when BSS can be blanket-cleared in
+; ordinary RIOT RAM, but DATA copies and/or runtime initializer functions exist.
+; Unlike vcsc-rt0.s26 it needs no generic ZERO-table walker.
 
 .weak __nmi
 .weak __irqbrk
@@ -13,26 +15,22 @@
 .export __reset
 .export __nmi
 .export __irqbrk
-.export __vcsc_startup_full
+.export __vcsc_startup_data
 
 .import main
 
 .import __copy_table
-.import __zero_table
-.import __stack_start
 .import __init_table
 
-; Stock startup deliberately selects only two generic zero-page pointers.  ptr0
-; remains the current linker-table pointer while ptr1 is reconstructed as the
-; active source/destination pointer.  Copying therefore trades reset-time ROM
-; and cycles for four fewer permanently reserved RIOT bytes.
+; ptr0 remains the current linker-table pointer while ptr1 is reconstructed as
+; the active source/destination pointer, matching the full startup copier.
 .importzp _vcsc_ptr0, _vcsc_ptr1
 
 .include "../vcsc-runtime.inc"
 
 .segment "CODE"
 
-__vcsc_startup_full:
+__vcsc_startup_data:
 __reset:
    sei
    cld
@@ -40,6 +38,16 @@ __reset:
    ; hardware stack at $01FF downward
    ldx #$ff
    txs
+
+   ; This startup is selected only when every ordinary BSS/ZP object that needs
+   ; reset initialization lives in RIOT RAM and there are no noinit objects.
+   lda #0
+   ldx #$7f
+_clear_ram:
+   sta $80,x
+   dex
+   bpl.same _clear_ram
+
 
    ; ptr0 = __copy_table
    lda #<__copy_table
@@ -53,7 +61,7 @@ _copy_record:
    lda (ptr0),y
    iny
    ora (ptr0),y
-   beq _zero_setup
+   beq _start_init
 
    ; X is the source/destination 256-byte page index.  Full pages use Y as
    ; the byte offset.  Reconstructing ptr1 for each byte keeps ptr0 available
@@ -159,79 +167,6 @@ _copy_record_done:
    inc ptr0+1
    jmp _copy_record
 
-_zero_setup:
-   ; ptr0 = __zero_table
-   lda #<__zero_table
-   sta ptr0
-   lda #>__zero_table
-   sta ptr0+1
-
-_zero_record:
-   ; A zero 16-bit count terminates the zero table.
-   ldy #2
-   lda (ptr0),y
-   iny
-   ora (ptr0),y
-   beq _start_init
-
-   ldx #0
-_zero_page:
-   ldy #3
-   txa
-   cmp (ptr0),y
-   bcc _zero_full_page
-
-   ; Final partial page; X becomes the low-byte remaining count.
-   ldy #2
-   lda (ptr0),y
-   beq _zero_record_done
-   tax
-   ldy #0
-   lda (ptr0),y
-   sta ptr1
-   iny
-   lda (ptr0),y
-   iny
-   iny
-   clc
-   adc (ptr0),y
-   sta ptr1+1
-   lda #0
-   ldy #0
-_zero_tail_loop:
-   sta (ptr1),y
-   iny
-   dex
-   bne _zero_tail_loop
-   jmp _zero_record_done
-
-_zero_full_page:
-   ; Build this page's write pointer once, then clear all 256 bytes via Y.
-   ldy #0
-   lda (ptr0),y
-   sta ptr1
-   iny
-   txa
-   clc
-   adc (ptr0),y
-   sta ptr1+1
-   lda #0
-   ldy #0
-_zero_full_loop:
-   sta (ptr1),y
-   iny
-   bne _zero_full_loop
-   inx
-   jmp _zero_page
-
-_zero_record_done:
-   clc
-   lda ptr0
-   adc #4
-   sta ptr0
-   bcc _zero_record
-   inc ptr0+1
-   jmp _zero_record
 
 _start_init:
    lda #<__init_table

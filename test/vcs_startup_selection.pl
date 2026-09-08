@@ -78,6 +78,7 @@ void main(void) {
 SOURCE
 
 require_re($simple->{sym}, qr/^__vcsc_startup_simple\s+/m, 'compact startup');
+forbid_re($simple->{sym}, qr/^__vcsc_startup_data\s+/m, 'DATA startup in compact case');
 forbid_re($simple->{sym}, qr/^__vcsc_startup_full\s+/m, 'full startup in compact case');
 require_re($simple->{map}, qr/^\s+policy=compact-riot-clear$/m, 'compact startup map policy');
 require_re($simple->{map}, qr/^\s+\(not generated for compact startup\)$/m,
@@ -85,6 +86,31 @@ require_re($simple->{map}, qr/^\s+\(not generated for compact startup\)$/m,
 require_re($simple->{map}, qr/hardware-stack=0 bytes/, 'zero main-entry stack reserve');
 forbid_re($simple->{sym}, qr/^__(?:copy|zero|init)_table\s+/m,
           'generic startup table symbol in compact case');
+
+my $noinit_riot = build_case('noinit_riot', <<'SOURCE');
+include "vcs.c26"
+noinit uint8_t preserved;
+uint8_t cleared;
+void main(void) {
+   preserved := preserved + 1;
+   cleared := 1;
+}
+SOURCE
+require_re($noinit_riot->{sym}, qr/^__vcsc_startup_full\s+/m,
+           'full startup for RIOT noinit');
+forbid_re($noinit_riot->{sym}, qr/^__vcsc_startup_simple\s+/m,
+          'compact startup for RIOT noinit');
+forbid_re($noinit_riot->{sym}, qr/^__vcsc_startup_data\s+/m,
+          'DATA startup for RIOT noinit');
+require_re($noinit_riot->{map},
+           qr/BSS\.__vcsc_noinit\$\.__vcsc_object\$preserved run=\$[0-9A-Fa-f]{4} size=\$0001/m,
+           'RIOT noinit layout marker');
+require_re($noinit_riot->{map},
+           qr/ZERO BSS\.__vcsc_object\$cleared\s+read=\$[0-9A-Fa-f]{4} write=\$[0-9A-Fa-f]{4} size=\$0001/m,
+           'ordinary RIOT BSS zero record beside noinit');
+forbid_re($noinit_riot->{map},
+          qr/ZERO .*__vcsc_noinit.*preserved/m,
+          'RIOT noinit zero record');
 
 my $main = sym_addr($simple->{sym}, 'main');
 my $reset = sym_addr($simple->{sym}, '__reset');
@@ -105,11 +131,31 @@ include "vcs.c26"
 uint8_t initialized := 7;
 void main(void) { }
 SOURCE
-require_re($data->{sym}, qr/^__vcsc_startup_full\s+/m, 'full startup for DATA');
+require_re($data->{sym}, qr/^__vcsc_startup_data\s+/m, 'DATA startup for initialized DATA');
 forbid_re($data->{sym}, qr/^__vcsc_startup_simple\s+/m, 'compact startup for DATA');
-require_re($data->{map}, qr/^\s+policy=every-reset bss=zero data=copy-through-write-alias$/m,
-           'full startup DATA policy');
-require_re($data->{sym}, qr/^__copy_table\s+/m, 'copy table for full startup');
+forbid_re($data->{sym}, qr/^__vcsc_startup_full\s+/m, 'full/noinit startup for ordinary DATA');
+require_re($data->{map},
+           qr/^\s+policy=compact-riot-clear data=copy-through-write-alias init=table$/m,
+           'DATA startup policy');
+require_re($data->{sym}, qr/^__copy_table\s+/m, 'copy table for DATA startup');
+require_re($data->{sym}, qr/^__init_table\s+/m, 'init table for DATA startup');
+forbid_re($data->{sym}, qr/^__zero_table\s+/m, 'ZERO table for DATA startup');
+
+my $split_data = build_case('split_data', <<'SOURCE');
+include "4KSC/mapper.c26"
+cartram uint8_t initialized := 7;
+uint8_t cleared;
+void main(void) { cleared := initialized; }
+SOURCE
+require_re($split_data->{sym}, qr/^__vcsc_startup_data\s+/m,
+           'DATA startup for initialized split cartridge RAM');
+forbid_re($split_data->{sym}, qr/^__vcsc_startup_full\s+/m,
+          'full startup for initialized split cartridge RAM without split BSS');
+require_re($split_data->{map},
+           qr/COPY DATA\.cartram\.__vcsc_object\$initialized\s+load=\$[0-9A-Fa-f]{4} read=\$F080 write=\$F000 size=\$0001 split=yes/m,
+           'split cartridge DATA copy through write alias');
+forbid_re($split_data->{sym}, qr/^__zero_table\s+/m,
+          'ZERO table for split DATA startup');
 
 my $runtime_init = build_case('runtime_init', <<'SOURCE');
 include "vcs.c26"
@@ -118,25 +164,71 @@ uint8_t twice(uint8_t value) { return value + value; }
 uint8_t initialized := twice(seed);
 void main(void) { }
 SOURCE
-require_re($runtime_init->{sym}, qr/^__vcsc_startup_full\s+/m,
-           'full startup for runtime initializer');
+require_re($runtime_init->{sym}, qr/^__vcsc_startup_data\s+/m,
+           'DATA startup for runtime initializer');
+forbid_re($runtime_init->{sym}, qr/^__vcsc_startup_full\s+/m,
+          'full/noinit startup for ordinary runtime initializer');
 
 my $cartram = build_case('cartram', <<'SOURCE');
 include "4KSC/mapper.c26"
+noinit cartram uint8_t preserved;
 cartram uint8_t persistent;
-void main(void) { }
+void main(void) {
+   preserved := preserved + 1;
+}
 SOURCE
 require_re($cartram->{sym}, qr/^__vcsc_startup_full\s+/m,
            'full startup for cartridge RAM BSS');
 forbid_re($cartram->{sym}, qr/^__vcsc_startup_simple\s+/m,
           'compact startup for cartridge RAM BSS');
-require_re($cartram->{map}, qr/ZERO BSS\.cartram\.__vcsc_object\$persistent\s+read=\$F080 write=\$F000 size=\$0001 split=yes/m,
+forbid_re($cartram->{sym}, qr/^__vcsc_startup_data\s+/m,
+          'DATA startup for noinit cartridge RAM');
+require_re($cartram->{map},
+           qr/BSS\.cartram\.__vcsc_noinit\$\.__vcsc_object\$preserved run=\$F080 write=\$F000 size=\$0001/m,
+           'cartridge RAM noinit layout marker');
+require_re($cartram->{map},
+           qr/ZERO BSS\.cartram\.__vcsc_object\$persistent\s+read=\$F081 write=\$F001 size=\$0001 split=yes/m,
            'cartridge RAM startup zero record');
+forbid_re($cartram->{map},
+          qr/ZERO .*__vcsc_noinit.*preserved/m,
+          'cartridge RAM noinit zero record');
 
-# The full startup must also tail-enter main; DATA guarantees this case selected it.
-my $full_main = sym_addr($data->{sym}, 'main');
+my $split_bss = build_case('split_bss', <<'SOURCE');
+include "4KSC/mapper.c26"
+cartram uint8_t persistent;
+void main(void) { persistent := 1; }
+SOURCE
+require_re($split_bss->{sym}, qr/^__vcsc_startup_full\s+/m,
+           'full startup for split cartridge BSS');
+forbid_re($split_bss->{sym}, qr/^__vcsc_startup_data\s+/m,
+          'DATA startup for split cartridge BSS');
+require_re($split_bss->{map},
+           qr/ZERO BSS\.cartram\.__vcsc_object\$persistent\s+read=\$F080 write=\$F000 size=\$0001 split=yes/m,
+           'split cartridge BSS ZERO record');
+
+my $data_noinit = build_case('data_noinit', <<'SOURCE');
+include "vcs.c26"
+noinit uint8_t preserved;
+uint8_t initialized := 7;
+void main(void) { preserved := preserved + initialized; }
+SOURCE
+require_re($data_noinit->{sym}, qr/^__vcsc_startup_full\s+/m,
+           'full startup for DATA plus noinit');
+forbid_re($data_noinit->{sym}, qr/^__vcsc_startup_data\s+/m,
+          'DATA startup for DATA plus noinit');
+require_re($data_noinit->{sym}, qr/^__copy_table\s+/m,
+           'copy table for DATA plus noinit');
+require_re($data_noinit->{sym}, qr/^__zero_table\s+/m,
+           'ZERO table for DATA plus noinit');
+
+# Both non-simple stock paths must tail-enter main.
+my $data_main = sym_addr($data->{sym}, 'main');
+my $data_tail_jmp = pack('C*', 0x4c, $data_main & 0xff, ($data_main >> 8) & 0xff);
+index($data->{bin}, $data_tail_jmp) >= 0
+   or die "DATA startup does not tail-JMP to main\n";
+my $full_main = sym_addr($data_noinit->{sym}, 'main');
 my $full_tail_jmp = pack('C*', 0x4c, $full_main & 0xff, ($full_main >> 8) & 0xff);
-index($data->{bin}, $full_tail_jmp) >= 0
+index($data_noinit->{bin}, $full_tail_jmp) >= 0
    or die "full startup does not tail-JMP to main\n";
 
 print "startup selection tests passed\n";

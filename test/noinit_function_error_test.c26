@@ -1,0 +1,6 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: 'noinit' applies only to file-scope data-object definitions
+include "machine_6502.c26"
+noinit void main(void) {
+}

@@ -1,0 +1,5 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: 'noinit' object 'preserved' cannot have an initializer
+include "machine_6502.c26"
+noinit uint8_t preserved := 1;

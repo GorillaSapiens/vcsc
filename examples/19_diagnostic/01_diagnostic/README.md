@@ -32,8 +32,12 @@ The TV-standard row also identifies the host as `2600` or `7800` (for example,
 `2600 NTSC`). Detection is done by the cartridge's reset shim **before ordinary
 RIOT RAM is cleared**. A 7800 compatibility-mode boot leaves a loader image in
 RIOT RAM containing the four-byte signature `6C FC FF EA`; the shim scans for
-that sequence, remembers the result in F4SC RAM, and then establishes the
-cartridge's normal clean RAM state. `6C FC FF` is `JMP ($FFFC)`, an indirect
+that sequence, writes the result to a `noinit cartram` byte through its F4SC
+write alias, and then jumps into the normal VCSC table-driven startup. Ordinary
+RIOT and Superchip BSS are cleared by the linker's ZERO table; the `noinit`
+object is deliberately absent from that table, so the detected host bit
+survives startup without a diagnostic-specific RAM-clearing loop.
+`6C FC FF` is `JMP ($FFFC)`, an indirect
 jump through the cartridge reset vector. The following `EA` is a NOP and is
 unreachable after that unconditional jump, so it is not required for the jump
 itself; it is included because it is part of the observed 7800 loader image and

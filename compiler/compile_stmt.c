@@ -2970,6 +2970,11 @@ static void predeclare_local_decl_item(ASTNode *node, Context *ctx) {
    validate_declaration_access_qualifiers(node, modifiers, declarator,
                                           "local object declaration");
 
+   if (has_modifier(modifiers, "noinit")) {
+      error_user("[%s:%d.%d] 'noinit' applies only to file-scope data-object definitions",
+                 node->file, node->line, node->column);
+   }
+
    if (has_modifier(modifiers, "ref")) {
       diagnose_ref_object_modifier(node, name);
    }

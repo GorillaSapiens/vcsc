@@ -78,6 +78,7 @@ libraries	file	0644	libraries/LICENSE.txt	libraries/LICENSE.txt
 libraries	file	0644	libraries/runtime/libvcsc.l26	libraries/runtime/libvcsc.l26
 libraries	file	0644	libraries/runtime/vcsc-runtime.inc	libraries/runtime/vcsc-runtime.inc
 libraries	file	0644	libraries/runtime/vcsc-rt0.s26	libraries/runtime/vcsc-rt0.s26
+libraries	file	0644	libraries/runtime/vcsc-rt1-data.s26	libraries/runtime/vcsc-rt1-data.s26
 libraries	file	0644	libraries/runtime/vcsc-rt1-simple.s26	libraries/runtime/vcsc-rt1-simple.s26
 libraries	file	0644	libraries/runtime/vcsc-zp-arg0.s26	libraries/runtime/vcsc-zp-arg0.s26
 libraries	file	0644	libraries/runtime/vcsc-zp-arg1.s26	libraries/runtime/vcsc-zp-arg1.s26

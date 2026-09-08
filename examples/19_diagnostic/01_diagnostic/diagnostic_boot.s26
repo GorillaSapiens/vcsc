@@ -2,22 +2,17 @@
 ;
 ; Diagnostic reset shim.  A 7800 boot leaves its compatibility loader in
 ; RIOT RAM before the cartridge reset vector runs.  Capture the distinctive
-; JMP ($FFFC) / NOP tail before clearing RAM, keep the one-bit result in Y
-; while establishing the cartridge's clean startup state, then publish it in
-; the first byte of shared Superchip RAM for main().
+; JMP ($FFFC) / NOP tail before normal VCSC startup clears allocated BSS,
+; publish the one-bit result in compiler-owned noinit Superchip RAM, then
+; tail-enter the stock table-driven startup.  The linker omits this noinit
+; object from the ordinary ZERO table.
 
-.import main
+.import diagnostic_boot_7800
+.import __vcsc_startup_full
 .export __reset
-.export __nmi
-.export __irqbrk
 
 .segment "CODE"
 __reset:
-   sei
-   cld
-   ldx #$ff
-   txs
-
    ; Scan every four-byte window in RIOT RAM for 6C FC FF EA.  The JMP
    ; ($FFFC) is the 7800 loader's return through the cartridge reset vector;
    ; the following EA is unreachable in normal flow but strengthens the
@@ -38,45 +33,16 @@ __reset:
    cmp #$ea
    bne @next_7800
    iny
-   jmp @clear_ram
+   jmp @publish_7800
 @next_7800:
    inx
    cpx #$7d
    bne @scan_7800
 
-@clear_ram:
-   ; Y is the only live value.  Clear all ordinary RIOT RAM, then the complete
-   ; shared Superchip write window.  This diagnostic deliberately initializes
-   ; its two nonzero reusable-component defaults explicitly before use, so it
-   ; does not need the generic DATA/BSS startup tables.
-   lda #0
-   ldx #$7f
-@clear_riot:
-   sta $80,x
-   dex
-   bpl.same @clear_riot
-
-   ldx #$7f
-@clear_superchip:
-   sta $f000,x
-   dex
-   bpl.same @clear_superchip
-
-   ldx #$2c
-@clear_tia:
-   sta $00,x
-   dex
-   bpl.same @clear_tia
-
-   ; diagnostic_boot_7800 is deliberately the first cartram object, whose
-   ; write alias is $F000 and read alias is $F080.
+@publish_7800:
+   ; Publish the pre-startup result through the F4SC write alias.  Normal
+   ; table-driven startup clears every ordinary allocated BSS object but has
+   ; no ZERO record for this noinit object, so this byte survives unchanged.
    tya
-   sta $f000
-
-   ldx #$ff
-   txs
-   jmp main
-
-__nmi:
-__irqbrk:
-   rti
+   sta {diagnostic_boot_7800 - 128}
+   jmp __vcsc_startup_full

@@ -32,10 +32,24 @@ sub slurp {
    and die "obsolete separate vector-stub source remains\n";
 
 my $startup = slurp(File::Spec->catfile($runtime, 'vcsc-rt0.s26'));
+$startup =~ /^\.weak __reset$/m or die "full stock startup lacks weak __reset override hook\n";
 $startup =~ /^\.weak __nmi$/m or die "stock startup lacks weak __nmi vector filler\n";
 $startup =~ /^\.weak __irqbrk$/m or die "stock startup lacks weak __irqbrk vector filler\n";
+$startup =~ /^\.export __vcsc_startup_full$/m
+   or die "full stock startup lacks chainable startup-body export\n";
 $startup =~ /__nmi:\s*\n__irqbrk:\s*\n\s*rti\b/s
    or die "stock startup lacks the shared RTI vector filler\n";
+my $data_startup = slurp(File::Spec->catfile($runtime, 'vcsc-rt1-data.s26'));
+$data_startup =~ /^\.weak __reset$/m
+   or die "DATA stock startup lacks weak __reset override hook\n";
+$data_startup =~ /^\.export __vcsc_startup_data$/m
+   or die "DATA stock startup lacks chainable startup-body export\n";
+
+my $simple_startup = slurp(File::Spec->catfile($runtime, 'vcsc-rt1-simple.s26'));
+$simple_startup =~ /^\.weak __reset$/m
+   or die "compact stock startup lacks weak __reset override hook\n";
+$simple_startup =~ /^\.export __vcsc_startup_simple$/m
+   or die "compact stock startup lacks chainable startup-body export\n";
 
 my $makefile = slurp(File::Spec->catfile($repo, 'Makefile'));
 $makefile !~ m{libraries/nint} or die "top-level build still references libraries/nint\n";
@@ -48,6 +62,8 @@ for my $obsolete ('_handle_irq.o26', '_handle_nmi.o26', 'vcsc-rt0-noint.o26') {
    index($listing, "$obsolete\n") < 0
       or die "obsolete archive member remains: $obsolete\n";
 }
-index($listing, "vcsc-rt0.o26\n") >= 0 or die "startup archive member is missing\n";
+index($listing, "vcsc-rt0.o26\n") >= 0 or die "full startup archive member is missing\n";
+index($listing, "vcsc-rt1-data.o26\n") >= 0 or die "DATA startup archive member is missing\n";
+index($listing, "vcsc-rt1-simple.o26\n") >= 0 or die "simple startup archive member is missing\n";
 
 print "interrupt runtime pruned: required vector stubs only\n";

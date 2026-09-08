@@ -431,6 +431,12 @@ void validate_function_parameter_storage_modifiers(const ASTNode *fn) {
                     i + 1, fname);
       }
 
+      if (has_modifier((ASTNode *)modifiers, "noinit")) {
+         error_user("[%s:%d.%d] parameter %d of function '%s' cannot use 'noinit'",
+                    parameter->file, parameter->line, parameter->column,
+                    i + 1, fname);
+      }
+
       if (declaration_has_use_contract(modifiers)) {
          error_user("[%s:%d.%d] parameter %d of function '%s' cannot use '%s'; use contracts apply only to file-scope objects and functions",
                     parameter->file, parameter->line, parameter->column,

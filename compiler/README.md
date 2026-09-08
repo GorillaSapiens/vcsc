@@ -447,6 +447,24 @@ from the translation unit's startup initializer exactly once. Split-address
 reads use the read alias and every initialization or later write uses the write
 alias.
 
+A file-scope mutable object may use `noinit` to reserve ordinary writable
+storage without adding it to startup BSS clearing:
+
+```vcsc
+noinit uint8_t is_7800;
+noinit cartram uint8_t diagnostic_cookie;
+```
+
+`noinit` is valid only on an uninitialized file-scope data-object definition.
+It cannot be combined with `const`, `extern`, an absolute binding, or an
+initializer. Its bytes have unspecified power-on contents unless cartridge
+entry code, diagnostic hardware probing, or some other pre-startup mechanism
+populates them. A RIOT-RAM `noinit` object forces the table-driven stock startup
+instead of the compact blanket RIOT clear so ordinary BSS is still cleared
+without touching the preserved object. A named split-address object is allocated
+normally; reads use its read alias and writes use its write alias, while startup
+omits that object from the ZERO table.
+
 Local arrays reserve their complete size in the owning activation. After all
 objects and archive members are selected, `vcsc-ld` overlays mutually exclusive
 function activations by call-graph lifetime. Caller and callee bytes remain

@@ -63,10 +63,10 @@ The linker also accepts this positional form:
   - `__nmi`
   - `__reset`
   - `__irqbrk`
-- automatically selects the compact stock startup for simple RIOT-RAM-only
-  initialization and preserves the full stock startup when DATA, runtime
-  initializers, or cartridge/split RAM require it
-- generates linker-defined startup tables for the full startup path
+- automatically selects among three stock startup paths: simple blanket RIOT
+  clear, DATA/runtime-init with blanket RIOT clear, and full table-driven zeroing
+  for `noinit` or split/non-RIOT BSS
+- generates only the linker startup tables required by the selected path
 - writes same-stem `.map`, `.sym`, `.lst`, and `.cfg` sidecars by default
 
 ## Debugger sidecars
@@ -130,11 +130,11 @@ Vector order is the normal 6502 order:
 - `__stack_start`
 - `__stack_top`
 
-These are intended for the full startup code. `__init_table` points at a
-null-terminated table of 16-bit function addresses collected from selected
-object files that export `__init` or `__init_*`. The compact stock startup does
-not import these tables, so the linker omits the table storage and symbols when
-it selects that path.
+`__init_table` points at a null-terminated table of 16-bit function addresses
+collected from selected object files that export `__init` or `__init_*`. The
+full/noinit startup imports all three tables. The DATA startup imports only
+`__copy_table` and `__init_table`; its safe blanket RIOT clear makes
+`__zero_table` unnecessary. The simple startup imports no startup tables.
 
 Typical `vcsc-ld` usage:
 - copy initialized writable data from ROM at `__data_load_start` to RAM at `__data_run_start`
@@ -161,12 +161,22 @@ The legacy contiguous DATA/BSS symbols remain available when applicable.
 records. Each copy record contains ROM load address, runtime write address, and
 size; each zero record contains runtime write address and size. Consequently a
 split-address object is allocated once but initialized through its write alias.
+Compiler-owned BSS/zero-page layouts carrying the `.__vcsc_noinit$` marker are
+still allocated as ordinary writable storage but are deliberately omitted from
+ZERO records. Their contents therefore survive stock startup. Any such layout
+also makes both blanket RIOT-clear paths unsafe, so the linker selects the full
+table-driven startup; this lets neighboring ordinary RIOT BSS clear normally
+without touching `noinit` storage. Split-address `noinit` layouts retain their
+normal read/write aliases and likewise receive no ZERO record.
+
 The map's `STARTUP INITIALIZATION` section reports each object's load, readable
 runtime address, writable runtime address, size, and `split=yes` when the aliases
-differ. Its policy line is `every-reset bss=zero data=copy-through-write-alias` for the
-full startup. A compact selection reports `policy=compact-riot-clear`; any ZERO
-rows shown there are informational objects satisfied by the blanket RIOT clear,
-and the generic startup tables are not generated.
+differ. Full startup reports
+`policy=every-reset bss=zero data=copy-through-write-alias`. DATA startup reports
+`policy=compact-riot-clear data=copy-through-write-alias init=table`; ZERO rows
+shown there are informational objects satisfied by the blanket RIOT clear, and
+no `__zero_table` is generated. Simple startup reports
+`policy=compact-riot-clear` and generates no startup tables.
 
 If there is no initialized DATA or no BSS, the corresponding table is empty and
 the legacy size symbol is zero. `__stack_start` and `__stack_top` mark the bottom
@@ -620,11 +630,11 @@ also computes a weighted depth which adds one hardware-return slot for every
 simultaneously active cross-bank call edge. The region is shrunk from the top
 before placing DATA/BSS/ZEROPAGE. The reserve is two bytes per weighted active return slot. Because stock startup
 tail-jumps to `main`, the entry into `main` contributes no slot; its ordinary
-callee edges do. The reserve also includes one fixed two-byte allowance when the
-selected objects contain one or more runtime initializer functions. The extra
-pair holds the full startup's init-table cursor while it calls an initializer.
-Selecting the full table-driven startup also reserves its real two-byte transient
-PHA/PLA workspace; the compact startup has no such hidden stack requirement.
+callee edges do. The reserve also includes one fixed two-byte allowance when the selected objects
+contain one or more runtime initializer functions. The extra pair holds the
+startup's init-table cursor while it calls an initializer. DATA and full startup
+reserve the copy path's real two-byte transient PHA/PLA workspace; simple startup
+has no such hidden stack requirement.
 
 The map preserves the ordinary source-level `depth`, reports `weighted-depth`
 and `bank-extra-slots`, and exports `__call_stack_weighted_depth` and
@@ -951,6 +961,11 @@ When a reference to `foo` cannot be satisfied by a strong exported `foo`, the li
 Resolution is symbol-driven and left-to-right over the command line, but strong definitions are preferred globally over weak fallbacks for the same symbol.
 For `.l26` inputs, only the single member object that defines the selected symbol is pulled in.
 This matches the assembler's `.weak foo` directive, which exports a weak definition under the external name `__weak_foo`.
+The stock runtime uses weak reset providers so a command-line pre-startup shim
+can define strong `__reset` while still importing a stock startup body. When no
+strong reset exists, the linker also publishes the selected `__weak___reset`
+address under the ordinary `__reset` sidecar/global name; reset vectors and
+existing map/symbol consumers therefore keep the same public reset symbol.
 
 ### Page-aware object placement
 

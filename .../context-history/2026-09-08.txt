@@ -1,0 +1,84 @@
+2026-09-08 08:24:41 PDT, delegate diagnostic startup clearing
+-------------------------------------------
+Corrected the field diagnostic's initial noinit integration. `diagnostic_boot.s26`
+now does only the pre-startup 2600/7800 RIOT signature scan, stores the result
+through the linked Superchip write alias for `diagnostic_boot_7800`, and tail-jumps
+to `__vcsc_startup_full`. It no longer carries private RIOT, Superchip, TIA, or
+stack-reset clearing loops. The shim shrank from 81 linked bytes to 44 bytes.
+
+Both stock runtime reset providers are weak so a strong command-line pre-startup
+shim can override `__reset` without preventing the selected runtime member from
+being linked for its exported startup body. The linker publishes a selected weak
+stock reset under the ordinary `__reset` global/sidecar name when no strong reset
+exists, preserving reset-vector and map/symbol contracts. Normal startup
+selection still begins with full startup and reselects compact startup only when
+safe; RIOT noinit therefore still forces table-driven startup.
+
+The diagnostic regression now requires the strong shim to chain into the weak
+full stock startup, requires ordinary Superchip BSS to have ZERO records while
+the noinit latch has none, and simulator probes verify the latch survives normal
+startup while neighboring cartram is initialized normally. Runtime/linker/test
+and diagnostic documentation were updated. Focused noinit/startup/diagnostic,
+assembly allowlist, source hygiene, interrupt-runtime, and F8 profile coverage
+passes 16/16; all linker_* e2e regressions pass 26/26.
+
+2026-09-08 09:06:00 PDT, split stock startup into simple/DATA/full paths
+-----------------------------------------------------------------------
+Separated ordinary initialized-data startup from the generic full/noinit path.
+The stock runtime now has three selectable reset bodies: `vcsc-rt1-simple.s26`
+for the no-DATA/no-init-table RIOT-only case, new `vcsc-rt1-data.s26` for DATA
+copies and/or runtime initializers when blanket RIOT zeroing is safe, and
+`vcsc-rt0.s26` for `noinit` or any split/non-RIOT BSS that requires
+object-by-object ZERO records. DATA+noinit stays on full startup.
+
+The DATA startup imports `__copy_table` and `__init_table`, blanket-clears
+ordinary RIOT RAM, copies through split write aliases, walks runtime initializers,
+and tail-jumps to `main`; it has no `__zero_table` import or generic ZERO walker.
+It deliberately does not clear TIA, preserving the previous behavior of carts
+that used the full startup solely because they had initialized DATA. The simple
+startup retains its historical RIOT+TIA clear; the full startup remains generic
+and TIA-neutral. Split Superchip DATA can use the DATA startup, while split
+Superchip BSS forces full startup.
+
+Linker startup selection, startup-table generation, map policy, call-stack
+transient accounting, runtime packaging/install inventory, and documentation
+were updated. `vcs_startup_selection.pl` now locks simple, DATA, runtime-init,
+split-DATA, split-BSS, noinit, and DATA+noinit choices. Exact-ROM baselines were
+refreshed where the middle startup legitimately recovered space: the 181
+interactive example is 3873/4090 bytes, the 192 public interactive example is
+3399/4090, and the animated gallery is 3079/4090. The gallery stack provenance
+now names the shared table-copy startup transient rather than the old full-only
+reason.
+
+Validation: compile-only 537/537; all 26 `linker_*.pl` tests; focused
+startup/diagnostic/Superchip/generic-ZP/package coverage 15/15; and 268 unique
+tests from the 364-case broad e2e inventory passed. Three maximal mapper tests,
+the long diagnostic paddle-sampling oracle, and the later example-heavy tail
+exceeded the available execution windows; no failure was observed in those
+unfinished batches.
+
+2026-09-08 09:22:53 PDT, finish three-startup broad regression pass
+--------------------------------------------------
+Continued the broad e2e validation after the three-way startup split. The new
+DATA startup legitimately reduced several exact ROM footprints, so stale size
+guards were refreshed from fresh linked maps while preserving all behavioral,
+raster, RAM, placement, and timing assertions. Updated multisprite 192 from
+2621 to 2504 bytes and both 181 score compositions from 3650 to 3513; big-wide
+score from 1112 to 991; wide-score fixture/public from 1245/1321 to 1128/1200;
+wide 181 score compositions from 2887 to 2722; F8/F6/F4 standard-renderer bank0
+from 1891 to 1710 while F8SC correctly remains 1891 because split BSS forces the
+full startup; and public three-plus-three score from 1538 to 1413 bytes.
+
+Fixed `vcs_faithful_legacy_playercolors.pl` so its eleven required `.same`
+branch check is scoped to the linked `RENDERER_CODE` component. The new DATA
+startup itself has a legitimate `.same` RIOT-clear loop branch, so the former
+global-map count was accidentally counting unrelated runtime code. The renderer
+still has exactly eleven required same-page branches and one intentional crossing
+branch.
+
+Final broad validation reached 352/364 e2e cases passing. The only cases not
+completed are the three max-size 3E/3EX/3F diagnostics,
+`vcs_diagnostic_paddle_sampling.pl`, and `vcs_examples_build_1of8.test` through
+`vcs_examples_build_8of8.test`; those exceeded the execution window and did not
+report failures. Compile-only remains 537/537 from the same implementation, and
+all 26 linker regressions plus the focused three-startup/noinit coverage pass.

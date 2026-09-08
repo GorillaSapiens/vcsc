@@ -56,7 +56,7 @@ $po$pe";
 -s$public_bin==4096 or die "public example ROM not 4K
 ";
 my$public_map_text=read_file($public_map);
-$public_map_text =~ /^  rom\s+used=3568 bytes .* free=522 bytes/m
+$public_map_text =~ /^  rom\s+used=3399 bytes .* free=691 bytes/m
    or die "public example ROM footprint changed
 ";
 $public_map_text =~ /^  ram\s+used=97 bytes .* free=31 bytes/m

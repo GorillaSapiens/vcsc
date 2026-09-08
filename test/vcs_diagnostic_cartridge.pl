@@ -267,9 +267,10 @@ $src =~ /AUDC0 := 4; AUDC1 := 4;.*?AUDF0 := 10; AUDF1 := 4;/s
 
 my $boot_text=read_file($boot);
 $boot_text =~ /lda \$80,x.*?cmp #\$6c.*?lda \$81,x.*?cmp #\$fc.*?lda \$82,x.*?cmp #\$ff.*?lda \$83,x.*?cmp #\$ea.*?cpx #\$7d/s &&
-$boot_text =~ /\@clear_riot:.*?sta \$80,x.*?\@clear_superchip:.*?sta \$f000,x.*?\@clear_tia:.*?sta \$00,x.*?tya.*?sta \$f000/s
-   or die "diagnostic boot shim lost pre-clear 7800 signature capture or startup clearing\n";
-$src =~ /cartram uint8_t diagnostic_boot_7800;\s*cartram uint24_t diagnostic_cpu_fingerprint;/s &&
+$boot_text =~ /tya.*?sta \{diagnostic_boot_7800 - 128\}.*?jmp __vcsc_startup_full/s &&
+$boot_text !~ /\@clear_riot:|\@clear_superchip:|\@clear_tia:/
+   or die "diagnostic boot shim no longer delegates startup clearing to VCSC runtime\n";
+$src =~ /noinit cartram uint8_t diagnostic_boot_7800;\s*cartram uint24_t diagnostic_cpu_fingerprint;/s &&
 $src =~ /ARR #\$b8.*?ARR #\$6b.*?ARR #\$6b.*?ARR #\$6b/s &&
 $src =~ /diagnostic_compute_cpu_fingerprint\(\);.*?diagnostic_initialize_rows\(\);/s &&
 $src =~ /diagnostic_cpu_fingerprint\+2.*?diagnostic_cpu_fingerprint\+1.*?diagnostic_cpu_fingerprint.*?diagnostic_fingerprint_font/s
@@ -316,8 +317,13 @@ for my $name (sort keys %renderer_bank) {
 }
 $input_map_text !~ /^\s*\$[0-9A-Fa-f]{4}\s+diagnostic_frame\b/m
    or die "diagnostic monolithic frame renderer unexpectedly returned\n";
-$input_map_text =~ /^\s+ZERO BSS\.cartram\.__vcsc_object\$diagnostic_boot_7800\s+read=\$F080 write=\$F000 size=\$0001 split=yes$/m
-   or die "diagnostic_boot_7800 is not the first Superchip byte expected by diagnostic_boot.s26\n";
+$input_map_text =~ /^\s+BSS\.cartram\.__vcsc_noinit\$\.__vcsc_object\$diagnostic_boot_7800\s+run=\$F080 write=\$F000 size=\$0001 /m
+   or die "diagnostic_boot_7800 lost noinit Superchip placement\n";
+$input_map_text !~ /^\s+ZERO .*diagnostic_boot_7800\b/m
+   or die "diagnostic_boot_7800 unexpectedly has a startup ZERO record\n";
+$input_map_text =~ /^\s+\$[0-9A-Fa-f]{4}\s+__vcsc_startup_full\b/m &&
+$input_map_text =~ /^\s+\$[0-9A-Fa-f]{4}\s+__weak___reset\b/m
+   or die "diagnostic boot shim is not chaining into the weak stock full startup\n";
 my $detail1_addr=map_symbol_addr($input_map_text,'diagnostic_detail1_row');
 $detail1_addr==0xF0CA
    or die sprintf("DETAIL1 moved out of expected Superchip read address: %04X\n",$detail1_addr);
@@ -410,9 +416,10 @@ for my $spec (
    $err eq '' or die "$name moving-driving timing wrote stderr:\n$err";
 }
 
-# Prove the reset shim sees the 7800 signature before it clears RIOT RAM.
+# Prove the reset shim sees the 7800 signature before ordinary VCSC startup.
 # reset-on-pc preserves RAM, so the first pass plants a candidate signature;
-# the second reset must capture it, clear it, and publish the result in F4SC RAM.
+# the second reset must capture it, preserve the noinit result through startup,
+# and clear the neighboring ordinary BSS result through the normal ZERO table.
 my $sim=File::Spec->catfile($repo,'simulator','vcsc-sim');
 for my $probe ([ea=>0xea,1],[not_ea=>0x00,0]) {
    my($tag,$tail,$want)=@$probe;
@@ -420,11 +427,17 @@ for my $probe ([ea=>0xea,1],[not_ea=>0x00,0]) {
    my $probe_bin=File::Spec->catfile($tmp,"diagnostic-boot-$tag.bin");
    my $probe_map=File::Spec->catfile($tmp,"diagnostic-boot-$tag.map");
    open(my $pf,'>',$probe_src) or die "write $probe_src: $!\n";
-   print {$pf} qq{include "F4SC/mapper.c26"\ncartram uint8_t diagnostic_boot_7800;\ncartram uint8_t boot_probe_result;\nvoid boot_probe_stop(void) { while (1) { } }\nvoid main(void) {\n   if (diagnostic_boot_7800) { boot_probe_result := 0xaa; asm jmp boot_probe_stop; }\n   boot_probe_result := 0x11;\n   asm lda #\$6c; asm sta \$e0;\n   asm lda #\$fc; asm sta \$e1;\n   asm lda #\$ff; asm sta \$e2;\n   asm lda #\$@{[sprintf('%02x',$tail)]}; asm sta \$e3;\n   asm jmp boot_probe_stop;\n}\n};
+   print {$pf} qq{include "F4SC/mapper.c26"\nnoinit cartram uint8_t diagnostic_boot_7800;\ncartram uint8_t boot_probe_result;\nvoid boot_probe_stop(void) { while (1) { } }\nvoid main(void) {\n   if (diagnostic_boot_7800) { boot_probe_result := 0xaa; asm jmp boot_probe_stop; }\n   boot_probe_result := 0x11;\n   asm lda #\$6c; asm sta \$e0;\n   asm lda #\$fc; asm sta \$e1;\n   asm lda #\$ff; asm sta \$e2;\n   asm lda #\$@{[sprintf('%02x',$tail)]}; asm sta \$e3;\n   asm jmp boot_probe_stop;\n}\n};
    close($pf);
    require_ok("build 7800 boot $tag probe",$driver,'-I',$vcs,'-I',$example,
       '-Map',$probe_map,$probe_src,$boot,'-o',$probe_bin);
    my $probe_map_text=read_file($probe_map);
+   $probe_map_text =~ /^\s+BSS\.cartram\.__vcsc_noinit\$\.__vcsc_object\$diagnostic_boot_7800\s+run=\$F080 write=\$F000 size=\$0001 /m
+      or die "7800 boot $tag probe lost noinit latch placement\n";
+   $probe_map_text !~ /^\s+ZERO .*diagnostic_boot_7800\b/m
+      or die "7800 boot $tag probe unexpectedly zeros noinit latch\n";
+   $probe_map_text =~ /^\s+ZERO BSS\.cartram\.__vcsc_object\$boot_probe_result\s+read=\$F081 write=\$F001 size=\$0001 split=yes$/m
+      or die "7800 boot $tag probe is not using normal startup to clear ordinary cartram\n";
    my $done=map_symbol_addr($probe_map_text,'boot_probe_stop');
    my $result=map_symbol_addr($probe_map_text,'boot_probe_result');
    my($dump,$simerr)=require_ok("simulate 7800 boot $tag probe",$sim,'--map',$probe_map,
@@ -434,11 +447,6 @@ for my $probe ([ea=>0xea,1],[not_ea=>0x00,0]) {
    my $expected=$want ? 0xaa : 0x11;
    $mem->[$result]==$expected
       or die sprintf("7800 boot %s result=%02x expected=%02x\n",$tag,$mem->[$result],$expected);
-   if ($want) {
-      for my $addr (0xe0..0xe3) {
-         $mem->[$addr]==0 or die sprintf("7800 boot shim did not clear RIOT byte %04x\n",$addr);
-      }
-   }
 }
 
 print "diagnostic cartridge passed\n";

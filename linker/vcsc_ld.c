@@ -37,6 +37,8 @@
 #include "e0_bankcall_template.h"
 #include "mapper_entry_templates.h"
 
+#define NOINIT_SEGMENT_MARKER ".__vcsc_noinit$"
+
 static int bankcall_descriptor_abi_enabled(const linker_config_t *cfg);
 static size_t mapper_entry_size_for_config(const linker_config_t *cfg);
 static size_t vector_bridge_entry_size_for_config(const linker_config_t *cfg);
@@ -3061,7 +3063,8 @@ static const segment_rule_t *find_layout_segment_rule(const linker_config_t *cfg
 {
    const segment_rule_t *rule = find_segment_rule(cfg, name);
    static const char *const private_suffixes[] = {
-      ".__vcsc_function$", ".__vcsc_object$", ".__vcsc_activation$", ".__vcsc_page$", NULL
+      ".__vcsc_function$", ".__vcsc_object$", ".__vcsc_activation$", ".__vcsc_page$",
+      NOINIT_SEGMENT_MARKER, NULL
    };
    char base[MAX_NAME];
    const char *dot;
@@ -3073,19 +3076,23 @@ static const segment_rule_t *find_layout_segment_rule(const linker_config_t *cfg
    /* Compiler-owned private layouts retain the source segment before their
       metadata suffix. Prefer the longest named segment rule so CODE.bank1
       governs CODE.bank1.__vcsc_function$foo rather than falling back to CODE. */
-   for (size_t i = 0; private_suffixes[i]; ++i) {
-      const char *suffix = strstr(name, private_suffixes[i]);
-      if (!suffix)
-         continue;
-      n = (size_t)(suffix - name);
-      if (n == 0 || n >= sizeof(base))
-         break;
-      memcpy(base, name, n);
-      base[n] = '\0';
-      rule = find_segment_rule(cfg, base);
-      if (rule)
-         return rule;
-      break;
+   {
+      const char *suffix = NULL;
+      for (size_t i = 0; private_suffixes[i]; ++i) {
+         const char *candidate = strstr(name, private_suffixes[i]);
+         if (candidate && (!suffix || candidate < suffix))
+            suffix = candidate;
+      }
+      if (suffix) {
+         n = (size_t)(suffix - name);
+         if (n > 0 && n < sizeof(base)) {
+            memcpy(base, name, n);
+            base[n] = '\0';
+            rule = find_segment_rule(cfg, base);
+            if (rule)
+               return rule;
+         }
+      }
    }
 
    dot = strchr(name, '.');
@@ -4619,6 +4626,7 @@ static int call_graph_longest_weighted_depth_visit(
 static int selected_startup_tail_enters_main(const input_set_t *in)
 {
    return selected_objects_have_export(in, "__vcsc_startup_simple") ||
+          selected_objects_have_export(in, "__vcsc_startup_data") ||
           selected_objects_have_export(in, "__vcsc_startup_full");
 }
 
@@ -5291,6 +5299,25 @@ static void add_global(layout_t *layout, const char *name, uint16_t addr, uint8_
 //! @brief Add generated symbols to linker layout and image writer state, growing storage or preserving uniqueness as needed.
 static void add_generated_symbols(layout_t *layout)
 {
+   size_t i;
+   int have_reset = 0;
+   const global_symbol_t *weak_reset = NULL;
+
+   /* Stock runtime reset providers are weak so a command-line pre-startup
+      shim can override __reset while still importing the ordinary startup
+      body from the same runtime archive member. Preserve the historical/public
+      __reset symbol in maps, listings, and relocations when the selected reset
+      provider is only __weak___reset. */
+   for (i = 0; i < layout->global_count; ++i) {
+      if (strcmp(layout->globals[i].name, "__reset") == 0)
+         have_reset = 1;
+      else if (strcmp(layout->globals[i].name, "__weak___reset") == 0)
+         weak_reset = &layout->globals[i];
+   }
+   if (!have_reset && weak_reset)
+      add_global(layout, "__reset", weak_reset->addr, weak_reset->segid,
+                 weak_reset->source, weak_reset->owner_layout);
+
    if (layout->copy_table_size)
       add_global(layout, "__copy_table", layout->copy_table_addr, O26_SEG_ABS, "<linker>", NULL);
    if (layout->zero_table_size)
@@ -5384,11 +5411,18 @@ static const char *segment_name_suffix(const char *name, char *buf, size_t bufsz
       return NULL;
    dot++;
    if (!strncmp(dot, "__vcsc_page$", sizeof("__vcsc_page$") - 1) ||
-       !strncmp(dot, "__vcsc_object$", sizeof("__vcsc_object$") - 1))
+       !strncmp(dot, "__vcsc_object$", sizeof("__vcsc_object$") - 1) ||
+       !strncmp(dot, "__vcsc_noinit$", sizeof("__vcsc_noinit$") - 1))
       return NULL;
-   end = strstr(dot, ".__vcsc_object$");
-   if (!end)
-      end = strstr(dot, ".__vcsc_page$");
+   end = strstr(dot, NOINIT_SEGMENT_MARKER);
+   {
+      const char *candidate = strstr(dot, ".__vcsc_object$");
+      if (candidate && (!end || candidate < end))
+         end = candidate;
+      candidate = strstr(dot, ".__vcsc_page$");
+      if (candidate && (!end || candidate < end))
+         end = candidate;
+   }
    n = end ? (size_t)(end - dot) : strlen(dot);
    if (n == 0 || n >= bufsz)
       return NULL;
@@ -7339,23 +7373,28 @@ static const cartridge_bank_t *bank_placement_memory_bank(const linker_config_t 
 static int bank_placement_private_base(const char *name, char *base, size_t base_size)
 {
    static const char *const markers[] = {
-      ".__vcsc_function$", ".__vcsc_object$", ".__vcsc_activation$", ".__vcsc_page$", NULL
+      ".__vcsc_function$", ".__vcsc_object$", ".__vcsc_activation$", ".__vcsc_page$",
+      NOINIT_SEGMENT_MARKER, NULL
    };
    size_t i;
 
    if (!name || !base || base_size == 0)
       return 0;
-   for (i = 0; markers[i]; ++i) {
-      const char *marker = strstr(name, markers[i]);
-      size_t n;
-      if (!marker)
-         continue;
-      n = (size_t)(marker - name);
-      if (n == 0 || n >= base_size)
-         return 0;
-      memcpy(base, name, n);
-      base[n] = '\0';
-      return 1;
+   {
+      const char *marker = NULL;
+      for (i = 0; markers[i]; ++i) {
+         const char *candidate = strstr(name, markers[i]);
+         if (candidate && (!marker || candidate < marker))
+            marker = candidate;
+      }
+      if (marker) {
+         size_t n = (size_t)(marker - name);
+         if (n == 0 || n >= base_size)
+            return 0;
+         memcpy(base, name, n);
+         base[n] = '\0';
+         return 1;
+      }
    }
    return 0;
 }
@@ -8045,6 +8084,12 @@ static void bank_placement_restrict_to_replica(const linker_config_t *cfg,
 
 #define ACTIVATION_SEGMENT_MARKER ".__vcsc_activation$"
 
+//! @brief Return whether one compiler-owned writable layout must survive startup initialization.
+static int layout_is_noinit(const object_layout_t *lay)
+{
+   return lay && lay->name && strstr(lay->name, NOINIT_SEGMENT_MARKER) != NULL;
+}
+
 static int activation_segment_parse(const char *name,
                                     char *region, size_t region_size,
                                     const char **owner_out);
@@ -8094,6 +8139,8 @@ static void estimate_startup_table_records(const linker_config_t *cfg,
             continue;
 
          if (strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") != NULL)
+            continue;
+         if (layout_is_noinit(lay))
             continue;
 
          if (activation_segment_parse(lay->name, activation_region,
@@ -9442,42 +9489,74 @@ static const memory_region_t *startup_simple_layout_run_memory(
    return run_name && *run_name ? find_memory(cfg, run_name) : NULL;
 }
 
-//! @brief Return whether the compact reset path can replace generic startup.
-static int startup_simple_is_safe(const linker_config_t *cfg, const input_set_t *in)
+//! @brief Return whether one layout requires a link-time DATA copy.
+static int startup_layout_needs_copy(const object_layout_t *lay)
+{
+   if (!lay || lay->size == 0)
+      return 0;
+   return lay->segid == O26_SEG_DATA ||
+          (lay->segid == O26_SEG_ZP &&
+           (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT));
+}
+
+//! @brief Return whether one layout represents an ordinary object startup zero.
+static int startup_layout_needs_zero(const object_layout_t *lay)
+{
+   if (!lay || lay->size == 0)
+      return 0;
+   if (lay->segid == O26_SEG_BSS)
+      return strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL;
+   if (lay->segid == O26_SEG_ZP &&
+       lay->image_segid != O26_SEG_DATA && lay->image_segid != O26_SEG_TEXT &&
+       strstr(lay->name, ".__vcsc_object$") != NULL &&
+       strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
+      return 1;
+   return 0;
+}
+
+//! @brief Return whether blanket RIOT clearing can replace the generic ZERO walker.
+static int startup_data_is_safe(const linker_config_t *cfg, const input_set_t *in)
 {
    size_t i, j;
 
-   if (!cfg || !in || count_init_functions_in_input(in) != 0)
+   if (!cfg || !in)
       return 0;
 
    for (i = 0; i < in->object_count; ++i) {
       const object_file_t *obj = &in->objects[i];
       for (j = 0; j < obj->layout_count; ++j) {
          const object_layout_t *lay = &obj->layouts[j];
-         int needs_zero = 0;
 
          if (lay->size == 0)
             continue;
 
-         /* Any link-time DATA image requires the generic ROM-to-RAM copier. */
-         if (lay->segid == O26_SEG_DATA ||
-             (lay->segid == O26_SEG_ZP &&
-              (lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)))
+         /* A blanket RIOT clear cannot preserve any noinit byte, even if the
+            object itself lives in ordinary RIOT RAM. */
+         if (layout_is_noinit(lay))
             return 0;
 
-         if (lay->segid == O26_SEG_BSS &&
-             strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
-            needs_zero = 1;
-         else if (lay->segid == O26_SEG_ZP &&
-                  lay->image_segid != O26_SEG_DATA && lay->image_segid != O26_SEG_TEXT &&
-                  strstr(lay->name, ".__vcsc_object$") != NULL &&
-                  strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
-            needs_zero = 1;
-
-         if (needs_zero &&
+         if (startup_layout_needs_zero(lay) &&
              !startup_simple_memory_is_riot(startup_simple_layout_run_memory(cfg, lay)))
             return 0;
       }
+   }
+   return 1;
+}
+
+//! @brief Return whether the smallest reset path can replace all table startup.
+static int startup_simple_is_safe(const linker_config_t *cfg, const input_set_t *in)
+{
+   size_t i, j;
+
+   if (!cfg || !in || count_init_functions_in_input(in) != 0 ||
+       !startup_data_is_safe(cfg, in))
+      return 0;
+
+   for (i = 0; i < in->object_count; ++i) {
+      const object_file_t *obj = &in->objects[i];
+      for (j = 0; j < obj->layout_count; ++j)
+         if (startup_layout_needs_copy(&obj->layouts[j]))
+            return 0;
    }
    return 1;
 }
@@ -9765,6 +9844,7 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
          const char *run_name;
 
          if ((lay->segid != O26_SEG_BSS && lay->segid != O26_SEG_ZP) ||
+             layout_is_noinit(lay) ||
              !lay->phase_overlay_eligible || !lay->phase_use_seen ||
              lay->phase_unscoped_use || lay->phase_mask == 0 ||
              lay->image_segid == O26_SEG_DATA || lay->image_segid == O26_SEG_TEXT)
@@ -10013,6 +10093,7 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                   set_layout_runtime_address(cfg, lay, run_name, run_addr);
                }
                if (!find_memory(cfg, run_name)->swapram &&
+                   !layout_is_noinit(lay) &&
                    strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
                   add_zero_record(layout, lay->name, lay->run_addr,
                                   memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
@@ -10083,6 +10164,7 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
                                   memory_runtime_write_address(cfg, run_name, lay->run_addr, lay->size),
                                   lay->size);
                else if (!find_memory(cfg, run_name)->swapram &&
+                        !layout_is_noinit(lay) &&
                         strstr(lay->name, ".__vcsc_object$") != NULL &&
                         strstr(lay->name, ".__vcsc_object$__vcsc_scratch_") == NULL)
                   add_zero_record(layout, lay->name, lay->run_addr,
@@ -10105,9 +10187,6 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
       layout->copy_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
          (uint16_t)((layout->copy_record_count + 1) * 6), 1, NULL,
          "__copy_table", "<linker>");
-      layout->zero_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
-         (uint16_t)((layout->zero_record_count + 1) * 4), 1, NULL,
-         "__zero_table", "<linker>");
       {
          size_t init_count = count_init_functions_in_input(in);
          layout->init_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
@@ -10116,7 +10195,16 @@ static void layout_objects(const linker_config_t *cfg, input_set_t *in, layout_t
          layout->init_table_size = (uint16_t)((init_count + 1) * 2);
       }
       layout->copy_table_size = (uint16_t)((layout->copy_record_count + 1) * 6);
-      layout->zero_table_size = (uint16_t)((layout->zero_record_count + 1) * 4);
+
+      /* The DATA-specialized startup blanket-clears RIOT RAM and therefore
+         does not need a ZERO table.  Full/noinit startup remains table-driven
+         so it can preserve omitted objects and address split/non-RIOT BSS. */
+      if (!selected_objects_have_export(in, "__vcsc_startup_data")) {
+         layout->zero_table_addr = alloc_from_region_policy(layout, cfg, data_load_name,
+            (uint16_t)((layout->zero_record_count + 1) * 4), 1, NULL,
+            "__zero_table", "<linker>");
+         layout->zero_table_size = (uint16_t)((layout->zero_record_count + 1) * 4);
+      }
    }
 
    {
@@ -12872,10 +12960,11 @@ static void write_call_stack_diagnostics(FILE *fp, const linker_config_t *cfg,
               (unsigned)(layout->call_stack_extra - hidden_total));
    }
    hidden_total = layout->call_stack_extra;
-   if (selected_objects_have_export(in, "__vcsc_startup_full")) {
+   if (selected_objects_have_export(in, "__vcsc_startup_full") ||
+       selected_objects_have_export(in, "__vcsc_startup_data")) {
       hidden_total += 2u;
       fprintf(fp,
-              "  HIDDEN bytes=$0002 reason=full-startup-transient-stack object=<runtime>\n");
+              "  HIDDEN bytes=$0002 reason=table-copy-startup-transient-stack object=<runtime>\n");
    }
    if (count_init_functions_in_input(in) > 0) {
       hidden_total += 2u;
@@ -13317,6 +13406,8 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
    fprintf(fp, "\nSTARTUP INITIALIZATION\n");
    if (selected_objects_have_export(in, "__vcsc_startup_simple"))
       fprintf(fp, "  policy=compact-riot-clear\n");
+   else if (selected_objects_have_export(in, "__vcsc_startup_data"))
+      fprintf(fp, "  policy=compact-riot-clear data=copy-through-write-alias init=table\n");
    else
       fprintf(fp, "  policy=every-reset bss=zero data=copy-through-write-alias\n");
    for (i = 0; i < layout->copy_record_count; ++i) {
@@ -13334,9 +13425,12 @@ static void write_map_file(const char *path, const linker_config_t *cfg, const i
 
    fprintf(fp, "\nTABLES\n");
    if (layout->copy_table_size || layout->zero_table_size || layout->init_table_size) {
-      fprintf(fp, "  __copy_table  $%04X size=$%04X\n", layout->copy_table_addr, layout->copy_table_size);
-      fprintf(fp, "  __zero_table  $%04X size=$%04X\n", layout->zero_table_addr, layout->zero_table_size);
-      fprintf(fp, "  __init_table  $%04X size=$%04X\n", layout->init_table_addr, layout->init_table_size);
+      if (layout->copy_table_size)
+         fprintf(fp, "  __copy_table  $%04X size=$%04X\n", layout->copy_table_addr, layout->copy_table_size);
+      if (layout->zero_table_size)
+         fprintf(fp, "  __zero_table  $%04X size=$%04X\n", layout->zero_table_addr, layout->zero_table_size);
+      if (layout->init_table_size)
+         fprintf(fp, "  __init_table  $%04X size=$%04X\n", layout->init_table_addr, layout->init_table_size);
    }
    else
       fprintf(fp, "  (not generated for compact startup)\n");
@@ -14269,9 +14363,11 @@ int main(int argc, char **argv)
    synthesize_c26_segment_rules(&cfg);
    apply_component_constraints(&cfg, &inputs);
    validate_linker_config(&cfg);
-   if (selected_objects_have_export(&inputs, "__vcsc_startup_full") &&
-       startup_simple_is_safe(&cfg, &inputs)) {
-      reselect_needed_objects_with_preferred_provider(&inputs, "__vcsc_startup_simple");
+   if (selected_objects_have_export(&inputs, "__vcsc_startup_full")) {
+      if (startup_simple_is_safe(&cfg, &inputs))
+         reselect_needed_objects_with_preferred_provider(&inputs, "__vcsc_startup_simple");
+      else if (startup_data_is_safe(&cfg, &inputs))
+         reselect_needed_objects_with_preferred_provider(&inputs, "__vcsc_startup_data");
    }
    if (c26_topology_requires_flat_binary(&cfg) && !ends_with(hex_path, ".bin")) {
       fprintf(stderr,
@@ -14295,7 +14391,9 @@ int main(int argc, char **argv)
       reserve_call_stack_from_call_graph(&cfg, call_depth,
                                          weighted_call_depth, init_count,
                                          selected_objects_have_export(
-                                            &inputs, "__vcsc_startup_full"));
+                                            &inputs, "__vcsc_startup_full") ||
+                                         selected_objects_have_export(
+                                            &inputs, "__vcsc_startup_data"));
    }
    warn_unused_cmdline_objects(&inputs);
    apply_phase_workspace_metadata(&inputs);

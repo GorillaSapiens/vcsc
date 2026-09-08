@@ -1,0 +1,5 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: 'noinit' object 'preserved' cannot be const
+include "machine_6502.c26"
+noinit const uint8_t preserved;

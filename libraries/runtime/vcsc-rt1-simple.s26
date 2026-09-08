@@ -6,6 +6,7 @@
 
 .weak __nmi
 .weak __irqbrk
+.weak __reset
 
 .global __reset
 .global __nmi

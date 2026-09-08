@@ -104,7 +104,7 @@ for my$j(@interactive_jobs){
    -s$interactive_bin{$n}==4096 or die "$n interactive example is not 4K\n";
    my$im=read_file($imap);
    $interactive_map{$n}=$im;
-   $im =~ /^  [Rr][Oo][Mm]\s+used=4070 bytes .* free=20 bytes/m
+   $im =~ /^  [Rr][Oo][Mm]\s+used=3873 bytes .* free=217 bytes/m
       or die "$n interactive example ROM footprint changed\n";
    $im =~ /^  ram\s+used=124 bytes .* free=4 bytes/m
       or die "$n interactive example RAM footprint changed\n";

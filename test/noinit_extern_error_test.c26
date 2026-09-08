@@ -1,0 +1,5 @@
+// vcsc-cc1 -I .
+// expectfail
+// expecterr: 'noinit' requires a file-scope data-object definition
+include "machine_6502.c26"
+noinit extern uint8_t preserved;

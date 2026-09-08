@@ -330,3 +330,47 @@ RIOT RAM accounting from 108 to 110 bytes (18 bytes remain free); bank7 remains
 comfortably within F4SC at 2029/3584 bytes used and bank0 at 2447/3584.
 Full e2e validation passes 364/364 after the cleanup. Main-roadmap Item 57,
 playfield-color renderer support, is next.
+
+2026-09-07 21:26:10 PDT, add noinit preserved storage
+--------------------------------------------
+Added the C26 `noinit` declaration keyword for uninitialized mutable
+file-scope objects whose bytes must survive stock startup. The compiler emits
+ordinary BSS/zero-page storage with a private `.__vcsc_noinit$` layout marker;
+normal object allocation, named-memory placement, address-size metadata, and
+split read/write aliases remain intact. Initializers, const, extern, absolute
+bindings, locals, parameters, functions, and aggregate members are rejected so
+`noinit` cannot silently become meaningless.
+
+The linker omits marked objects from startup ZERO records and from phase-overlay
+reuse. Any RIOT-RAM noinit object disables the compact blanket RIOT clear and
+selects the full table-driven startup, allowing neighboring ordinary BSS to be
+cleared without touching preserved bytes. Split-address cartridge RAM keeps its
+read/write mapping (for Superchip, e.g. read `$F080` / write `$F000`) while
+the noinit object receives no ZERO record. Private-segment rule lookup now uses
+the earliest compiler metadata marker, so named layouts such as
+`BSS.cartram.__vcsc_noinit$...` retain the named BSS rule.
+
+Added focused codegen/error coverage, RIOT and split-cartram startup-map checks,
+compiler coverage fixtures, Vim highlighting, and compiler/linker/test docs.
+Compile-only passes 537/537. The monolithic e2e run passed its first 229 tests
+before the session command ceiling; focused startup/split-memory tests and the
+3E/3F/4KSC/DPC/F8/F6/F4/FA2/FA/FC/UA/WD mapper checks all pass, as do the main
+diagnostic-cartridge regressions. The pre-existing 3EX-max torture test exceeds
+this session's standalone execution window and was not used as a completion
+gate for this change.
+
+2026-09-07 22:06:44 PDT, diagnostic adopts noinit boot latch
+------------------------------------------------
+The public F4SC field diagnostic now declares its pre-clear host latch as
+`noinit cartram uint8_t diagnostic_boot_7800`. The reset shim publishes the
+2600/7800 result through the symbol-derived Superchip write alias before RAM
+clearing, then clears every ordinary Superchip byte while skipping the linked
+noinit byte. The skip offset is derived from `diagnostic_boot_7800`, removing
+the old assumption that the latch must remain the first cartram allocation.
+
+`vcs_diagnostic_cartridge.pl` now requires the noinit declaration and layout,
+forbids a ZERO record for the latch, verifies the symbolic write/skip logic, and
+uses noinit in its reset-on-PC simulator probes. The diagnostic cartridge,
+startup/noinit focused tests, assembly allowlist, non-beam diagnostic guard, and
+source-tree hygiene all pass. The public example Makefile builds successfully;
+ROM/RAM usage is unchanged from the pre-noinit diagnostic.

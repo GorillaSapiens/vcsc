@@ -17,16 +17,24 @@ workspace expected by generated code.
 
 ### Startup/runtime pieces
 
-- `vcsc-rt0.s26` is the full stock startup. It initializes the hardware stack,
-  copies `DATA` through `__copy_table`, zeros `BSS` through `__zero_table`, walks
-  `__init_table`, and tail-jumps to `main`.
-- `vcsc-rt1-simple.s26` is the compact stock startup. It clears all 128 bytes of
+- `vcsc-rt0.s26` is the full/noinit stock startup. It initializes the hardware
+  stack, copies `DATA` through `__copy_table`, zeros ordinary objects through
+  `__zero_table` while naturally preserving omitted `noinit` objects, walks
+  `__init_table`, and tail-jumps to `main`. It is also required for BSS in
+  split/non-RIOT writable memory that cannot be covered by a blanket RIOT clear.
+- `vcsc-rt1-data.s26` is the middle DATA/runtime-init startup. It blanket-clears
+  ordinary RIOT RAM, copies `DATA` through `__copy_table`, walks
+  `__init_table`, and tail-jumps to `main`. It deliberately has no generic ZERO
+  walker or `__zero_table`.
+- `vcsc-rt1-simple.s26` is the smallest stock startup. It clears all 128 bytes of
   ordinary RIOT RAM plus TIA registers and tail-jumps to `main`; it needs no
-  linker startup tables or runtime pointer workspace. The linker selects it only
-  when there is no DATA copy, runtime initializer, or startup-zero requirement
-  outside ordinary RIOT RAM.
-- Both stock startups export `__reset` and supply weak `__nmi` and `__irqbrk`
-  vector fillers that execute `rti`.
+  linker startup tables or runtime pointer workspace.
+- All three stock startups export weak `__reset`, `__nmi`, and `__irqbrk`
+  definitions. The linker publishes the selected weak reset at the ordinary
+  `__reset` symbol name, so reset vectors/maps retain the normal public symbol.
+  A program that needs a small pre-startup probe may provide a strong `__reset`,
+  then tail-enter the selected stock startup body instead of reimplementing
+  ordinary initialization.
 - `vcsc-zp-*.s26`
   - each file exports one independently selectable zero-page cell
   - `_vcsc_arg0` and `_vcsc_arg1` are one byte each
@@ -40,9 +48,9 @@ workspace expected by generated code.
     imports those cells
 
 The selected startup sequence runs after every entry through `__reset`, not only
-at cartridge power-on. The full startup performs object-by-object initialization;
-the compact startup's blanket RIOT-RAM clear has the same reset semantics for
-programs that qualify for it. For a split-address region such as Superchip RAM, table
+at cartridge power-on. The full/noinit startup performs object-by-object zeroing;
+the DATA and simple startups use a blanket RIOT-RAM clear only when every object
+that needs zero initialization is safely covered by it. For a split-address region such as Superchip RAM, table
 records contain the write-window address, so DATA copies and BSS clearing never
 read from or write through the wrong alias. A reset deliberately restores all
 allocated persistent BSS/DATA objects to their declared startup state; ordinary
@@ -96,9 +104,9 @@ that need dynamic allocation must supply their own allocator and storage policy.
 
 ## What it requires
 
-`runtime` assumes this linker and its startup conventions. The full startup
-requires `__copy_table`, `__zero_table`, and `__init_table`; the compact startup
-does not generate or import those tables. The linker configuration must define
+`runtime` assumes this linker and its startup conventions. The full/noinit startup requires `__copy_table`, `__zero_table`, and
+`__init_table`. The DATA startup requires `__copy_table` and `__init_table` but
+not `__zero_table`. The simple startup generates or imports none of them. The linker configuration must define
 the normal `CODE`, `DATA`, `BSS`, `ZEROPAGE`, `STARTUP`, and vector regions.
 
 Machine assumptions:
@@ -107,9 +115,12 @@ Machine assumptions:
 - hardware stack at page `$01xx`
 - zero page is available for the selected `vcsc-zp-*.s26` workspace members
 
-The linker first resolves the ordinary stock reset provider, then automatically
-reselects the compact stock provider when the selected program is safe for the
-blanket RIOT-RAM clear. Custom reset providers are not replaced.
+The linker first resolves the full stock reset provider, then automatically
+reselects the smallest safe provider: simple when no copy/init tables are needed,
+DATA when blanket RIOT clearing is safe but DATA copies/runtime initializers are
+needed, otherwise full/noinit. A strong custom reset provider overrides the
+selected stock weak reset definition. The diagnostic cartridge uses this to
+inspect pre-startup RIOT RAM and then tail-enter `__vcsc_startup_full`.
 
 ## When to use it
 

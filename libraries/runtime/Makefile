@@ -36,10 +36,10 @@ docs:
 
 install: all
 	$(INSTALL) -d $(DESTDIR)$(RUNTIMEDIR)
-	$(INSTALL_DATA) libvcsc.l26 vcsc-runtime.inc vcsc-rt0.s26 vcsc-rt1-simple.s26 $(ZP_SOURCES) README.md $(DESTDIR)$(RUNTIMEDIR)/
+	$(INSTALL_DATA) libvcsc.l26 vcsc-runtime.inc vcsc-rt0.s26 vcsc-rt1-data.s26 vcsc-rt1-simple.s26 $(ZP_SOURCES) README.md $(DESTDIR)$(RUNTIMEDIR)/
 
 uninstall:
-	rm -f $(addprefix $(DESTDIR)$(RUNTIMEDIR)/,libvcsc.l26 vcsc-runtime.inc vcsc-rt0.s26 vcsc-rt1-simple.s26 $(ZP_SOURCES) README.md)
+	rm -f $(addprefix $(DESTDIR)$(RUNTIMEDIR)/,libvcsc.l26 vcsc-runtime.inc vcsc-rt0.s26 vcsc-rt1-data.s26 vcsc-rt1-simple.s26 $(ZP_SOURCES) README.md)
 
 clean:
 	rm -f libvcsc.l26

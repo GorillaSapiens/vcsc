@@ -2561,6 +2561,7 @@ CBLOCK    \/\*([^*]|\*+[^*/])*\*+\/
 "include"       return INCLUDE;
 "instantiate"   { clear_pending_instantiation_arguments(); expect_instantiation_instance = 0; return INSTANTIATE; }
 "mem"           return MEM;
+"noinit"        return NOINIT;
 "page"          return PAGE;
 "parameter"     { expect_instantiation_parameter_name = 1; return PARAMETER; }
 "recommend"     return RECOMMEND;

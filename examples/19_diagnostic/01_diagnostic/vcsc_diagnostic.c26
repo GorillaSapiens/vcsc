@@ -101,9 +101,10 @@ enum diagnostic_timing {
 };
 
 // Non-beam-critical UI/application state belongs in shared Superchip RAM.
-// Keep the boot-platform latch first: diagnostic_boot.s26 writes its split
-// write alias at $F000 before entering main().
-cartram uint8_t diagnostic_boot_7800;
+// The reset shim publishes the pre-startup platform result through this object's
+// Superchip write alias. Normal table-driven startup clears ordinary BSS while
+// deliberately omitting this noinit byte.
+noinit cartram uint8_t diagnostic_boot_7800;
 cartram uint24_t diagnostic_cpu_fingerprint;
 cartram uint8_t diagnostic_probe_accumulator;
 cartram uint8_t diagnostic_probe_flags;

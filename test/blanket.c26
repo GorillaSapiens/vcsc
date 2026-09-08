@@ -85,6 +85,7 @@ require int16_t required_contract_coverage;
 recommend int16_t recommended_contract_coverage;
 require recommend int16_t required_dominates_coverage;
 writeonly int16_t *writeonly_coverage_pointer;
+noinit int16_t noinit_blanket_object;
 zeropage const ref static int16_t ic, id;
 
 zeropage int16_t ie @ 12;

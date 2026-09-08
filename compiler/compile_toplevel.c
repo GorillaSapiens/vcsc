@@ -214,6 +214,10 @@ void compile_function_decl(ASTNode *node) {
       error_user("[%s:%d.%d] 'ref' applies only to function parameters, not to function '%s'",
                  node->file, node->line, node->column, name ? name : "?");
    }
+   if (has_modifier(modifiers, "noinit")) {
+      error_user("[%s:%d.%d] 'noinit' applies only to file-scope data-object definitions",
+                 node->file, node->line, node->column);
+   }
    if (has_modifier(modifiers, "align")) {
       error_user("[%s:%d.%d] align() applies only to file-scope data-object definitions",
                  node->file, node->line, node->column);
@@ -990,6 +994,10 @@ static void validate_aggregate_member_use_contracts(const ASTNode *node) {
          error_user("[%s:%d.%d] 'ref' applies only to function parameters, not to aggregate member '%s'",
                     member->file, member->line, member->column, name ? name : "?");
       }
+      if (has_modifier((ASTNode *)modifiers, "noinit")) {
+         error_user("[%s:%d.%d] 'noinit' applies only to file-scope data-object definitions",
+                    member->file, member->line, member->column);
+      }
       validate_declaration_access_qualifiers(member, modifiers, declarator,
                                               "aggregate member declaration");
       if (addrspec) {
@@ -1149,6 +1157,24 @@ static void validate_global_object_region_modifiers(const ASTNode *node,
    mem_region_set_release(&set);
 }
 
+#define NOINIT_SEGMENT_MARKER ".__vcsc_noinit$"
+
+//! @brief Select a unique compiler-owned segment for one noinit file-scope object.
+static void emit_noinit_data_object_segment(EmitSink *sink, const char *base_segment,
+                                            const char *symname, bool hard_page,
+                                            unsigned int alignment, int size) {
+   emit(sink, ".segment \"%s%s.__vcsc_object$%s\"\n",
+        base_segment, NOINIT_SEGMENT_MARKER, symname);
+   if (alignment > 1)
+      emit(sink, ".segmentalign \"%s%s.__vcsc_object$%s\", %u\n",
+           base_segment, NOINIT_SEGMENT_MARKER, symname, alignment);
+   if (hard_page) {
+      emit(sink, ".pagecontain\n");
+      if (size > 0 && size <= 256)
+         emit(sink, ".indexrange 0, %d\n", size - 1);
+   }
+}
+
 //! @brief Select a unique compiler-owned segment for one file-scope data object.
 static void emit_data_object_segment(EmitSink *sink, const char *base_segment,
                                      const char *symname, bool hard_page,
@@ -1295,6 +1321,7 @@ void compile_global_decl_item(ASTNode *node) {
    bool is_extern = has_modifier(modifiers, "extern");
    bool is_const = declaration_const_applies_to_object(modifiers, declarator);
    bool is_static = has_modifier(modifiers, "static");
+   bool is_noinit = has_modifier(modifiers, "noinit");
    size_t region_count = global_object_region_count(modifiers);
    const char *primary_region = global_object_primary_region(modifiers);
    bool is_zeropage = global_object_single_region_is_zeropage(modifiers);
@@ -1310,6 +1337,19 @@ void compile_global_decl_item(ASTNode *node) {
    int size = declarator_storage_size(type, declarator);
    char symname[256];
    format_user_asm_symbol(name, symname, sizeof(symname));
+
+   if (is_noinit && (is_extern || is_absolute_binding)) {
+      error_user("[%s:%d.%d] 'noinit' requires a file-scope data-object definition",
+                 node->file, node->line, node->column);
+   }
+   if (is_noinit && is_const) {
+      error_user("[%s:%d.%d] 'noinit' object '%s' cannot be const",
+                 node->file, node->line, node->column, name);
+   }
+   if (is_noinit && !is_empty(expression)) {
+      error_user("[%s:%d.%d] 'noinit' object '%s' cannot have an initializer",
+                 node->file, node->line, node->column, name);
+   }
 
    if (is_split_mem && (is_ref || is_absolute_binding)) {
       error_user("[%s:%d.%d] split-address mem region '%s' supplies allocated read/write aliases and cannot be combined with an '@' absolute binding",
@@ -1408,7 +1448,10 @@ void compile_global_decl_item(ASTNode *node) {
       if (is_zeropage) {
          char segbuf[256];
          build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "ZEROPAGE");
-         emit_data_object_segment(&es_zp, segbuf, symname, is_page, object_alignment, size);
+         if (is_noinit)
+            emit_noinit_data_object_segment(&es_zp, segbuf, symname, is_page, object_alignment, size);
+         else
+            emit_data_object_segment(&es_zp, segbuf, symname, is_page, object_alignment, size);
          emit(&es_zp, "%s:\n", symname);
          emit(&es_zp, "\t.res %d\n", size);
          restore_object_segment(&es_zp, segbuf);
@@ -1416,12 +1459,15 @@ void compile_global_decl_item(ASTNode *node) {
       else {
          char segbuf[256];
          build_storage_segment_for_region(segbuf, sizeof(segbuf), primary_region, "BSS");
-         emit_data_object_segment(&es_bss, segbuf, symname, is_page, object_alignment, size);
+         if (is_noinit)
+            emit_noinit_data_object_segment(&es_bss, segbuf, symname, is_page, object_alignment, size);
+         else
+            emit_data_object_segment(&es_bss, segbuf, symname, is_page, object_alignment, size);
          emit(&es_bss, "%s:\n", symname);
          emit(&es_bss, "\t.res %d\n", size);
          restore_object_segment(&es_bss, segbuf);
       }
-      if (is_swapram) {
+      if (is_swapram && !is_noinit) {
          remember_pending_global_init(name, symname, type, declarator, NULL,
                                       size, false, false, true, NULL, NULL);
       }
@@ -1600,6 +1646,10 @@ static void compile_function_signature(ASTNode *node) {
    const char *name    = declarator_name(declarator);
    char sym[256];
 
+   if (has_modifier(modifiers, "noinit")) {
+      error_user("[%s:%d.%d] 'noinit' applies only to file-scope data-object definitions",
+                 node->file, node->line, node->column);
+   }
    validate_function_return_type(node);
    remember_function(node, name);
 

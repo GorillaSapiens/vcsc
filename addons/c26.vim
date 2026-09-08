@@ -31,7 +31,7 @@ syn keyword c26Statement break continue goto return
 syn keyword c26Conditional if else switch case default
 syn keyword c26Repeat while for do
 
-syn keyword c26StorageClass const extern static inline typedef
+syn keyword c26StorageClass const extern static inline typedef noinit
 syn keyword c26TypeDecl struct union enum type
 syn keyword c26Topology mem bank cartridge
 syn keyword c26Placement page align writeonly recommend require ref

@@ -17,7 +17,7 @@ ordinary C.  In particular, the C26 highlighter understands:
 - source/template words such as `include`, `instantiate`, `as`, `alias`, and
   `parameter`;
 - VCSC declaration/topology words including `mem`, `bank`, `cartridge`,
-  `recommend`, `require`, `ref`, `page`, `align`, `writeonly`, and `xform`;
+  `recommend`, `require`, `ref`, `page`, `align`, `writeonly`, `noinit`, and `xform`;
 - switch ranges using `to`; `..` and `...` are highlighted as errors because
   neither is valid C26 syntax;
 - hexadecimal, octal, decimal, and binary literals with optional `_`

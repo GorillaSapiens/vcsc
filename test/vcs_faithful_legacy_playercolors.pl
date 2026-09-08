@@ -148,9 +148,16 @@ $tmap =~ /\blegacy_drawscreen\b/ or die "template map lacks instance-prefixed dr
 $tmap =~ /\blegacy_object_x\b/ or die "template map lacks instance-prefixed state\n";
 $tmap !~ /\bvcs_standard_renderer_drawscreen\b/
    or die "template cartridge leaked fixed predecessor drawscreen symbol\n";
-my @crossing=($tmap =~ /^\s+\$[0-9A-F]+ -> \$[0-9A-F]+ BMI opcode=\$30 taken-page=crossing policy=cross$/mg);
+$tmap =~ /^\s+RENDERER_CODE\s+load=\$([0-9A-F]+) size=\$([0-9A-F]+)\b/m
+   or die "template map lacks RENDERER_CODE placement\n";
+my($renderer_start,$renderer_size)=(hex($1),hex($2));
+my $renderer_end=$renderer_start+$renderer_size;
+my @renderer_branches=grep {
+   /^\s+\$([0-9A-F]+) ->/ && hex($1) >= $renderer_start && hex($1) < $renderer_end
+} split(/\n/,$tmap);
+my @crossing=grep { /\sBMI opcode=\$30 taken-page=crossing policy=cross$/ } @renderer_branches;
 @crossing==1 or die "template map must retain exactly one intentional BMI page crossing\n";
-my @same=($tmap =~ /^\s+\$[0-9A-F]+ -> \$[0-9A-F]+ B(?:CC|CS|EQ|MI|NE|PL|VC|VS) opcode=\$[0-9A-F]{2} taken-page=same policy=same$/mg);
+my @same=grep { /\sB(?:CC|CS|EQ|MI|NE|PL|VC|VS) opcode=\$[0-9A-F]{2} taken-page=same policy=same$/ } @renderer_branches;
 @same==11 or die "template map must satisfy eleven required same-page branches\n";
 
 my $cxx=$ENV{CXX} || 'c++';

@@ -78,8 +78,8 @@ index($asm,'__phaseworkspace$V1$game_workspace')>=0
 $map =~ /rom\s+used=(\d+) bytes .*free=(\d+) bytes/
    or die "animated-gallery map is missing ROM usage\n";
 my($current_rom_bytes,$current_rom_free_bytes)=(0+$1,0+$2);
-$current_rom_bytes==3236 && $current_rom_free_bytes==854
-   or die "3236-byte current animated-gallery ROM result changed\n";
+$current_rom_bytes==3079 && $current_rom_free_bytes==1011
+   or die "3079-byte current animated-gallery ROM result changed\n";
 $map =~ /ram\s+used=51 bytes .*free=77 bytes .*objects=47 bytes hardware-stack=4 bytes/
    or die "51-byte post-startup-rewrite RAM result changed\n";
 $map =~ /^\s+CODE\.__vcsc_function\$install_frames\s+load=\$[0-9A-Fa-f]{4}\s+size=\$00E8/m
@@ -121,7 +121,7 @@ while ($map =~ /^\s+HIDDEN bytes=\$([0-9A-Fa-f]{4}) reason=(\S+) object=\S+$/mg)
    push @hidden,{bytes=>hexnum($1),reason=>$2};
 }
 @hidden==2 && $hidden[0]{bytes}==0 && $hidden[0]{reason} eq '.callstackextra' &&
-$hidden[1]{bytes}==2 && $hidden[1]{reason} eq 'full-startup-transient-stack'
+$hidden[1]{bytes}==2 && $hidden[1]{reason} eq 'table-copy-startup-transient-stack'
    or die "audited hidden hardware-stack explanation changed\n";
 $map =~ /^\s+TOTAL source-bytes=\$([0-9A-Fa-f]{4}) hidden-bytes=\$([0-9A-Fa-f]{4}) total-bytes=\$([0-9A-Fa-f]{4})$/m
    or die "map missing hardware-stack total explanation\n";
@@ -311,8 +311,8 @@ my $report={
       previous_stack_bytes=>8, stack_bytes=>4, stack_saved_bytes=>4,
       rom_bytes=>3545, rom_delta_bytes=>0,
       source_stack_bytes=>2, hidden_stack_bytes=>2,
-      proof=>'the remaining source path has one real main-to-helper return slot; stock full startup also requires a real two-byte transient PHA/PLA stack slot, while explicit .callstackextra remains zero',
-      floor=>'with stock full startup tail-entering main, one real main-to-helper source return plus the full startup transient stack requirement conservatively require four hardware-stack bytes',
+      proof=>'the remaining source path has one real main-to-helper return slot; the selected DATA startup also requires a real two-byte transient PHA/PLA stack slot, while explicit .callstackextra remains zero',
+      floor=>'with the DATA startup tail-entering main, one real main-to-helper source return plus the table-copy startup transient stack requirement conservatively require four hardware-stack bytes',
    },
    post_optimization_remeasurement=>{
       renderer_profile=>'player_color_192 P0/P1/Ball',

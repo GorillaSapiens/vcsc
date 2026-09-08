@@ -60,6 +60,8 @@ for my $parts (
    [qw(simulator main.cpp)],
    [qw(libraries runtime vcsc-runtime.inc)],
    [qw(libraries runtime vcsc-rt0.s26)],
+   [qw(libraries runtime vcsc-rt1-data.s26)],
+   [qw(libraries runtime vcsc-rt1-simple.s26)],
    [qw(libraries runtime vcsc-zp-arg0.s26)],
    [qw(libraries runtime vcsc-zp-arg1.s26)],
    [qw(libraries runtime vcsc-zp-ptr0.s26)],
