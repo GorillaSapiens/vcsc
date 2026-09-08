@@ -815,16 +815,8 @@ bank5 void diagnostic_initialize_rows(void) {
    // Prefix the TV-standard row with the detected host.  Keeping host and
    // standard on one compact line buys back a full visible text row for the
    // canonical VCSC logo and the larger six-digit fingerprint.
-   asm lda diagnostic_boot_7800;
-   asm beq @is_2600;
-   asm lda #111; // DIAG_PAIR_NUM_78
-   asm bne @store_machine;
-   asm @is_2600:;
-   asm lda #110; // DIAG_PAIR_NUM_26
-   asm @store_machine:;
-   asm sta diagnostic_rows+18;
-   asm lda #71;  // DIAG_PAIR_NUM_00
-   asm sta diagnostic_rows+19;
+   diagnostic_rows[DIAGNOSTIC_ROW_TV+0] := diagnostic_boot_7800 ? DIAG_PAIR_NUM_78 : DIAG_PAIR_NUM_26;
+   diagnostic_rows[DIAGNOSTIC_ROW_TV+1] := DIAG_PAIR_NUM_00;
 
 }
 
@@ -839,16 +831,8 @@ bank5 void diagnostic_update_one_header_row(void) {
          i := i + 1;
       }
       // The first two pairs belong to the host prefix, not the standard table.
-      asm lda diagnostic_boot_7800;
-      asm beq @update_is_2600;
-      asm lda #111; // DIAG_PAIR_NUM_78
-      asm bne @update_store_machine;
-      asm @update_is_2600:;
-      asm lda #110; // DIAG_PAIR_NUM_26
-      asm @update_store_machine:;
-      asm sta diagnostic_rows+18;
-      asm lda #71;  // DIAG_PAIR_NUM_00
-      asm sta diagnostic_rows+19;
+      diagnostic_rows[DIAGNOSTIC_ROW_TV+0] := diagnostic_boot_7800 ? DIAG_PAIR_NUM_78 : DIAG_PAIR_NUM_26;
+      diagnostic_rows[DIAGNOSTIC_ROW_TV+1] := DIAG_PAIR_NUM_00;
       diagnostic_ui_dirty := diagnostic_ui_dirty & 0xfe;
       return;
    }
@@ -933,116 +917,39 @@ bank6 void diagnostic_update_simple_detail(uint8_t row) {
 }
 
 bank7 void diagnostic_update_numeric_detail0(void) {
-   // Row 0 is deliberately handwritten. The old C formatter expanded into
-   // ~2.4 KiB and could miss the overscan deadline on a driving/UI phase.
-   // All 256-byte decimal lookup tables are page-aligned, so indexed loads
-   // retain fixed timing for every value.
-   asm lda diagnostic_controller_mode;
-   asm cmp #1;
-   asm bne @driving;
+   if (diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_PADDLE) {
+      diagnostic_format_number_row(DIAGNOSTIC_ROW_DETAIL0,
+         diagnostic_paddles_button0 ? DIAG_PAIR_F0 : DIAG_PAIR_P0,
+         diagnostic_paddles_position0,
+         diagnostic_paddles_button1 ? DIAG_PAIR_F1 : DIAG_PAIR_P1,
+         diagnostic_paddles_position1);
+      return;
+   }
 
-   asm lda diagnostic_paddles_button0;
-   asm beq @paddle_p0;
-   asm lda #31;
-   asm bne @paddle_store0;
-   asm @paddle_p0:;
-   asm lda #27;
-   asm @paddle_store0:;
-   asm sta diagnostic_rows+42;
-   asm ldx diagnostic_paddles_position0;
-   asm lda diagnostic_number_hi,x;
-   asm sta diagnostic_rows+43;
-   asm lda diagnostic_number_lo,x;
-   asm sta diagnostic_rows+44;
-
-   asm lda diagnostic_paddles_button1;
-   asm beq @paddle_p1;
-   asm lda #32;
-   asm bne @paddle_store1;
-   asm @paddle_p1:;
-   asm lda #28;
-   asm @paddle_store1:;
-   asm sta diagnostic_rows+45;
-   asm ldx diagnostic_paddles_position1;
-   asm lda diagnostic_number_hi,x;
-   asm sta diagnostic_rows+46;
-   asm lda diagnostic_number_lo,x;
-   asm sta diagnostic_rows+47;
-   asm rts;
-
-   asm @driving:;
-   asm lda diagnostic_left_drive_button;
-   asm beq @drive_p0;
-   asm lda #31;
-   asm bne @drive_store0;
-   asm @drive_p0:;
-   asm lda #27;
-   asm @drive_store0:;
-   asm sta diagnostic_rows+42;
-   asm ldx diagnostic_drive_position0;
-   asm lda diagnostic_number_hi,x;
-   asm sta diagnostic_rows+43;
-   asm lda diagnostic_number_lo,x;
-   asm sta diagnostic_rows+44;
-
-   asm lda diagnostic_right_drive_button;
-   asm beq @drive_p1;
-   asm lda #32;
-   asm bne @drive_store1;
-   asm @drive_p1:;
-   asm lda #28;
-   asm @drive_store1:;
-   asm sta diagnostic_rows+45;
-   asm ldx diagnostic_drive_position1;
-   asm lda diagnostic_number_hi,x;
-   asm sta diagnostic_rows+46;
-   asm lda diagnostic_number_lo,x;
-   asm sta diagnostic_rows+47;
+   diagnostic_format_number_row(DIAGNOSTIC_ROW_DETAIL0,
+      diagnostic_left_drive_button ? DIAG_PAIR_F0 : DIAG_PAIR_P0,
+      diagnostic_drive_position0,
+      diagnostic_right_drive_button ? DIAG_PAIR_F1 : DIAG_PAIR_P1,
+      diagnostic_drive_position1);
 }
 
 bank7 void diagnostic_update_numeric_detail1(void) {
-   asm lda diagnostic_controller_mode;
-   asm cmp #1;
-   asm beq @paddle;
+   if (diagnostic_controller_mode != DIAGNOSTIC_CONTROLLER_PADDLE) {
+      diagnostic_detail1_row[0] := DIAG_PAIR_BLANK;
+      diagnostic_detail1_row[1] := DIAG_PAIR_BLANK;
+      diagnostic_detail1_row[2] := DIAG_PAIR_BLANK;
+      diagnostic_detail1_row[3] := DIAG_PAIR_BLANK;
+      diagnostic_detail1_row[4] := DIAG_PAIR_BLANK;
+      diagnostic_detail1_row[5] := DIAG_PAIR_BLANK;
+      return;
+   }
 
-   // Driving has only two controls; keep the second numeric row blank.
-   asm lda #0;
-   asm sta diagnostic_detail1_row+0;
-   asm sta diagnostic_detail1_row+1;
-   asm sta diagnostic_detail1_row+2;
-   asm sta diagnostic_detail1_row+3;
-   asm sta diagnostic_detail1_row+4;
-   asm sta diagnostic_detail1_row+5;
-   asm rts;
-
-   asm @paddle:;
-   asm lda diagnostic_paddles_button2;
-   asm beq @paddle_p2;
-   asm lda #33;
-   asm bne @paddle_store2;
-   asm @paddle_p2:;
-   asm lda #29;
-   asm @paddle_store2:;
-   asm sta diagnostic_detail1_row+0;
-   asm ldx diagnostic_paddles_position2;
-   asm lda diagnostic_number_hi,x;
-   asm sta diagnostic_detail1_row+1;
-   asm lda diagnostic_number_lo,x;
-   asm sta diagnostic_detail1_row+2;
-
-   asm lda diagnostic_paddles_button3;
-   asm beq @paddle_p3;
-   asm lda #34;
-   asm bne @paddle_store3;
-   asm @paddle_p3:;
-   asm lda #30;
-   asm @paddle_store3:;
-   asm sta diagnostic_detail1_row+3;
-   asm ldx diagnostic_paddles_position3;
-   asm lda diagnostic_number_hi,x;
-   asm sta diagnostic_detail1_row+4;
-   asm lda diagnostic_number_lo,x;
-   asm sta diagnostic_detail1_row+5;
+   diagnostic_detail1_row[0] := diagnostic_paddles_button2 ? DIAG_PAIR_F2 : DIAG_PAIR_P2;
+   diagnostic_detail1_row[1] := diagnostic_number_hi[diagnostic_paddles_position2];
+   diagnostic_detail1_row[2] := diagnostic_number_lo[diagnostic_paddles_position2];
+   diagnostic_detail1_row[3] := diagnostic_paddles_button3 ? DIAG_PAIR_F3 : DIAG_PAIR_P3;
+   diagnostic_detail1_row[4] := diagnostic_number_hi[diagnostic_paddles_position3];
+   diagnostic_detail1_row[5] := diagnostic_number_lo[diagnostic_paddles_position3];
 }
 
 inline void diagnostic_mute_audio(void) {
@@ -1102,36 +1009,23 @@ bank0 void diagnostic_update_controls_impl(void) {
 // fingerprint used by the standalone VCSC fingerprint fixture.  The probes run
 // once before frame rendering begins; on a real 2600 this fingerprints the
 // 6507, while a 7800 fingerprints the compatibility-mode 6502-family CPU.
-// All state lives in Superchip RAM so the already-tight RIOT allocation does
-// not grow.
-inline void diagnostic_crc24_feed(void) {
-   asm lda diagnostic_crc_input;
-   asm eor diagnostic_cpu_fingerprint+2;
-   asm sta diagnostic_cpu_fingerprint+2;
-   asm ldx #8;
-   asm @crc_bit:;
-   asm lda diagnostic_cpu_fingerprint;
-   asm asl;
-   asm sta diagnostic_cpu_fingerprint;
-   asm lda diagnostic_cpu_fingerprint+1;
-   asm rol;
-   asm sta diagnostic_cpu_fingerprint+1;
-   asm lda diagnostic_cpu_fingerprint+2;
-   asm rol;
-   asm sta diagnostic_cpu_fingerprint+2;
-   asm bcc @crc_next;
-   asm lda diagnostic_cpu_fingerprint;
-   asm eor #$fb;
-   asm sta diagnostic_cpu_fingerprint;
-   asm lda diagnostic_cpu_fingerprint+1;
-   asm eor #$4c;
-   asm sta diagnostic_cpu_fingerprint+1;
-   asm lda diagnostic_cpu_fingerprint+2;
-   asm eor #$86;
-   asm sta diagnostic_cpu_fingerprint+2;
-   asm @crc_next:;
-   asm dex;
-   asm bne @crc_bit;
+// Persistent fingerprint state lives in Superchip RAM; the CRC helper also
+// reuses diagnostic_crc_input after consuming each input byte.
+bank0 void diagnostic_crc24_feed(void) {
+   // CRC-24/OPENPGP: poly 0x864cfb, init 0xb704ce, no reflection, xorout 0.
+   // Reuse diagnostic_crc_input as the eight-bit loop counter after consuming
+   // its byte, keeping this startup-only helper out of scarce RIOT RAM.
+   diagnostic_cpu_fingerprint ^= (uint24_t)diagnostic_crc_input << 16;
+   diagnostic_crc_input := 8;
+   while (diagnostic_crc_input) {
+      if (diagnostic_cpu_fingerprint & 0x800000) {
+         diagnostic_cpu_fingerprint <<= 1;
+         diagnostic_cpu_fingerprint ^= 0x864cfb;
+      } else {
+         diagnostic_cpu_fingerprint <<= 1;
+      }
+      diagnostic_crc_input--;
+   }
 }
 
 bank0 void diagnostic_compute_cpu_fingerprint(void) {
@@ -1472,15 +1366,9 @@ bank0 const uint8_t diagnostic_audio1[64] := {
 };
 
 bank0 void diagnostic_audio_tick(void) {
-   asm ldx diagnostic_audio_phase;
-   asm lda diagnostic_audio0,x;
-   asm sta AUDV0;
-   asm lda diagnostic_audio1,x;
-   asm sta AUDV1;
-   asm inx;
-   asm txa;
-   asm and #63;
-   asm sta diagnostic_audio_phase;
+   AUDV0 := diagnostic_audio0[diagnostic_audio_phase];
+   AUDV1 := diagnostic_audio1[diagnostic_audio_phase];
+   diagnostic_audio_phase := (diagnostic_audio_phase + 1) & 63;
 }
 
 // Keep the common F4SC trampoline count flat: the frame crosses into bank0

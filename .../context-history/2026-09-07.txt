@@ -303,3 +303,30 @@ masked-byte comparison regression still requires the optimized direct
 LDA/AND/CMP path.  All 12 runnable BCD e2e tests pass, the five originally
 reported failures pass, all-five focused tests pass, and compile-only is
 528/528.
+
+2026-09-07 18:31:30 PDT, diagnostic non-beam C26 cleanup
+-----------------------------------------------------------
+Completed main-roadmap Item 56. Removed all 151 inline-asm statements identified
+by the example audit as ordinary non-beam diagnostic work: host-prefix row
+initialization/update, paddle/driving numeric formatting, CRC-24 feed, and the
+dual-channel audio cadence. The CPU ARR/status probes, hardware-state tests,
+WSYNC/deadline paths, collision/TIA probes, and raster preparation remain asm.
+
+The CRC helper now uses the same readable uint24_t CRC-24/OPENPGP algorithm as
+the standalone fingerprint example and reuses the existing Superchip
+`diagnostic_crc_input` byte as its loop counter after consuming each input.
+Numeric detail rows use ordinary C26 table lookups and the existing number-row
+formatter. `diagnostic_audio_tick()` directly indexes the two 64-frame volume
+tables and advances the phase in C26.
+
+The maintained diagnostic source drops from 744 to 593 inline-asm statements.
+`test/vcs_diagnostic_nonbeam_c26.pl` locks all six converted routines against
+inline-asm regression while retaining explicit CRC/audio source-shape checks;
+the assembly allowlist digest/count is updated accordingly. The main diagnostic
+emulator/timing regression passes, including controller transitions, UI,
+fingerprint, collision, and audio checks. The long paddle-sampling regression
+also passes. Compile-only passes 528/528. The C26 conversion increases ordinary
+RIOT RAM accounting from 108 to 110 bytes (18 bytes remain free); bank7 remains
+comfortably within F4SC at 2029/3584 bytes used and bank0 at 2447/3584.
+Full e2e validation passes 364/364 after the cleanup. Main-roadmap Item 57,
+playfield-color renderer support, is next.

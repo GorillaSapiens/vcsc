@@ -258,7 +258,7 @@ for my $frame ([$paddle_frame,'paddle'],[$keypad_frame,'keypad'],[$driving_frame
 }
 $src =~ /bank0 const uint8_t diagnostic_audio0\[64\].*?6,6,6,6/s &&
 $src =~ /bank0 const uint8_t diagnostic_audio1\[64\].*?6,6,6,6/s &&
-$src =~ /bank0 void diagnostic_audio_tick\(void\).*?asm ldx diagnostic_audio_phase;.*?asm lda diagnostic_audio0,x;.*?asm sta AUDV0;.*?asm lda diagnostic_audio1,x;.*?asm sta AUDV1;.*?asm sta diagnostic_audio_phase;/s &&
+$src =~ /bank0 void diagnostic_audio_tick\(void\).*?AUDV0 := diagnostic_audio0\[diagnostic_audio_phase\];.*?AUDV1 := diagnostic_audio1\[diagnostic_audio_phase\];.*?diagnostic_audio_phase := \(diagnostic_audio_phase \+ 1\) & 63;/s &&
 $src =~ /inline void diagnostic_mute_audio\(void\).*?AUDV0 := 0;\s*AUDV1 := 0;/s &&
 $src =~ /diagnostic_controller_mode == DIAGNOSTIC_CONTROLLER_JOYSTICK\) \{\s*diagnostic_mute_audio\(\);\s*\}/s &&
 $src =~ /cartram uint8_t diagnostic_tia_top_mask;/ && $src =~ /cartram uint8_t diagnostic_tia_bottom_mask;/ &&
