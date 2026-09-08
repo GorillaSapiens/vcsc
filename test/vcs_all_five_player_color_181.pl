@@ -78,12 +78,15 @@ $interactive_common_text =~ /SELECTED_OBJECT_COUNT\s+5/ &&
 $interactive_common_text =~ /selected_object/ &&
 $interactive_common_text =~ /object_y\[5\]/ &&
 $interactive_common_text =~ /selected_score_digit/ &&
-$interactive_common_text =~ /right_joystick_ready/ &&
+$interactive_common_text =~ /select_switch_latched/ &&
+$interactive_common_text =~ /right_joystick_latched/ &&
+$interactive_common_text =~ /score_digit_weight\[6\]/ &&
 $interactive_common_text =~ /score_score\s*:=\s*123456;/ &&
+$interactive_common_text =~ /score_score\s*\+=\s*score_digit_weight\[selected_score_digit\]/ &&
+$interactive_common_text =~ /score_score\s*-=\s*score_digit_weight\[selected_score_digit\]/ &&
 $interactive_common_text =~ /SWCHA/ &&
 $interactive_common_text =~ /score_color\s*\+=\s*0x10/ &&
-$interactive_common_text =~ /sed;/ &&
-$interactive_common_text =~ /sbc\s+#\$10/
+$interactive_common_text !~ /\basm\b/
    or die "181 combined interactive controls changed\n";
 my@interactive_jobs=(
  ['above',File::Spec->catfile($example_root,qw(01_score_above 01_interactive all_five_player_color_181_score_above_interactive.c26))],
@@ -101,7 +104,7 @@ for my$j(@interactive_jobs){
    -s$interactive_bin{$n}==4096 or die "$n interactive example is not 4K\n";
    my$im=read_file($imap);
    $interactive_map{$n}=$im;
-   $im =~ /^  [Rr][Oo][Mm]\s+used=4051 bytes .* free=39 bytes/m
+   $im =~ /^  [Rr][Oo][Mm]\s+used=4070 bytes .* free=20 bytes/m
       or die "$n interactive example ROM footprint changed\n";
    $im =~ /^  ram\s+used=124 bytes .* free=4 bytes/m
       or die "$n interactive example RAM footprint changed\n";
@@ -131,19 +134,19 @@ for my$n(qw(above below)) {
    my$oy=map_zp($im,'object_y');
    my@yargs=map { sprintf('0x%02x',$oy+$_) } (0..4);
    my@args=(
-      $interactive_bin{$n},($n eq 'above'?'all5_above':'all5_below'),
+      $interactive_bin{$n},($n eq 'above'?'all5_color181_above':'all5_color181_below'),
       sprintf('0x%02x',map_zp($im,'game_object_x')),
       @yargs,
       sprintf('0x%02x',map_zp($im,'selected_object')),
-      sprintf('0x%02x',map_zp($im,'select_switch_ready')),
+      sprintf('0x%02x',map_zp($im,'select_switch_latched')),
       sprintf('0x%02x',map_zp($im,'selected_score_digit')),
-      sprintf('0x%02x',map_zp($im,'right_joystick_ready')),
+      sprintf('0x%02x',map_zp($im,'right_joystick_latched')),
       sprintf('0x%02x',map_zp($im,'score_score')),
       sprintf('0x%02x',map_zp($im,'score_color'))
    );
    ($cr,$cs,$co,$ce)=capture($controls,@args);
    $cr==0&&!$cs or die "$n combined interactive controls failed\n$co$ce";
-   $co =~ /^vcs_all_five_interactive_example_matrix all5_\Q$n\E ok:/
+   $co =~ /^vcs_all_five_interactive_example_matrix all5_color181_\Q$n\E ok:/
       or die "unexpected $n combined interactive control output: $co";
    $ce eq '' or die "$n combined interactive control stderr: $ce";
 }

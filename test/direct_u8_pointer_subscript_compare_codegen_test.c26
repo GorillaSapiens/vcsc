@@ -1,0 +1,18 @@
+// vcsc-cc1 -I .
+// expectasmordered: sta  main$p
+// expectasmordered: sta ptr0
+// expectasmordered: lda (ptr0),y
+// expectasmordered: cmp
+// forbidasm: lda (main$p),y
+
+include "machine_6502.c26"
+
+uint8_t bytes[2] := { 0x42, 0x99 };
+uint8_t output;
+
+void main(void) {
+   uint8_t *p := &bytes[0];
+   if (p[0] == 0x42) {
+      output := 1;
+   }
+}

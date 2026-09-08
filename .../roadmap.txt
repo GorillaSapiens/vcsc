@@ -18,14 +18,7 @@ Immediate TODO
 The first unfinished item is the default main-roadmap action when the user has
 not selected another workstream.
 
-Current next action: Item 55, convert all-five interactive control logic to C26.
-
-[ ] 55. Convert all-five interactive control logic to C26.
-
-        * Replace non-beam RESET/SELECT/joystick/color/score-control asm while
-          preserving the unbanked 4K target.
-        * Fix general codegen shortcomings rather than embedding size hacks in
-          the example.
+Current next action: Item 56, convert ordinary diagnostic UI/CRC/audio work to C26.
 
 [ ] 56. Convert ordinary diagnostic UI/CRC/audio work to C26.
 

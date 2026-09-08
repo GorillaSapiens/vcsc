@@ -2017,21 +2017,42 @@ static bool compile_direct_u8_compare_branch_false(ASTNode *expr, Context *ctx,
    lhs_expr = (ASTNode *) unwrap_expr_node(expr->children[0]);
    lhs = classify_direct_byte_operand(ctx, lhs_expr, false);
    if (!lhs.valid) {
-      if (!direct_single_subscript_expr(lhs_expr) ||
-          !resolve_ref_argument_lvalue(ctx, lhs_expr, &lhs_array) ||
-          lhs_array.size != 1 || lhs_array.is_bitfield || lhs_array.is_absolute_ref ||
-          lhs_array.is_ref || lhs_array.object_is_const ||
-          type_is_signed_integer(lhs_array.type) || type_is_bcd_integer(lhs_array.type) ||
-          declarator_pointer_depth(lhs_array.base_declarator) > 0 ||
-          declarator_array_count(lhs_array.base_declarator) <= 0 ||
-          declarator_first_element_size(lhs_array.base_type, lhs_array.base_declarator) != 1 ||
-          !direct_lvalue_base_symbol(ctx, &lhs_array, lhs_array_symbol, sizeof(lhs_array_symbol)) ||
-          !direct_u8_expr_supported(ctx, lhs_expr)) {
-         return false;
+      lhs_type = expr_value_type(lhs_expr, ctx);
+      /* Keep subscript lvalues on their dedicated path.  In particular a
+         pointer local may live in ordinary BSS, while 6502 (zp),Y requires the
+         pointer storage itself to be zero-page; the generic lvalue lowering
+         copies such pointers through ptr0 before indirect access. */
+      if (!direct_single_subscript_expr(lhs_expr) &&
+          lhs_type && type_size_from_node(lhs_type) == 1 &&
+          !type_is_signed_integer(lhs_type) && !type_is_bcd_integer(lhs_type) &&
+          direct_u8_expr_supported(ctx, lhs_expr)) {
+         /* The direct byte-expression lowerer can already keep masks, shifts,
+            and other side-effect-free unsigned-byte expressions entirely in A.
+            Let immediate comparisons consume that A value directly instead of
+            manufacturing generic expression scratch merely because the lhs is
+            not a single lvalue. */
+         lhs_direct_expr = true;
       }
-      lhs_direct_expr = true;
+      else {
+         if (!direct_single_subscript_expr(lhs_expr) ||
+             !resolve_ref_argument_lvalue(ctx, lhs_expr, &lhs_array) ||
+             lhs_array.size != 1 || lhs_array.is_bitfield || lhs_array.is_absolute_ref ||
+             lhs_array.is_ref || lhs_array.object_is_const ||
+             type_is_signed_integer(lhs_array.type) || type_is_bcd_integer(lhs_array.type) ||
+             declarator_pointer_depth(lhs_array.base_declarator) > 0 ||
+             declarator_array_count(lhs_array.base_declarator) <= 0 ||
+             declarator_first_element_size(lhs_array.base_type, lhs_array.base_declarator) != 1 ||
+             !direct_lvalue_base_symbol(ctx, &lhs_array, lhs_array_symbol, sizeof(lhs_array_symbol)) ||
+             !direct_u8_expr_supported(ctx, lhs_expr)) {
+            return false;
+         }
+         lhs_direct_expr = true;
+         lhs_type = expr_value_type(lhs_expr, ctx);
+      }
    }
-   lhs_type = lhs_direct_expr ? expr_value_type(lhs_expr, ctx) : lhs.lv.type;
+   else {
+      lhs_type = lhs.lv.type;
+   }
 
    rhs_expr = (ASTNode *) unwrap_expr_node(expr->children[1]);
    if (rhs_expr && eval_constant_initializer_expr(rhs_expr, &rhs_constant) &&

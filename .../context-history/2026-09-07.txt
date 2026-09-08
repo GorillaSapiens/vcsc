@@ -256,3 +256,50 @@ pass. Wide six-glyph examples also legitimately shrink 2891->2887 ROM and
 tests pass, affected public-score/profile tests pass, and a broad e2e run is
 clean through 229/363 before the usual VCS-heavy tail exceeds the execution
 window. Main-roadmap Item 55 is next.
+
+2026-09-07 17:04:46 PDT, convert all-five interactive controls to C26
+---------------------------------------------------------------------
+Completed main-roadmap Item 55. The combined all-five/player-color 181 public
+interactive examples now implement RESET/SELECT, object movement, score-digit
+selection, score color, and packed-BCD score editing in ordinary C26. The
+shared control source contains zero inline asm; visible renderer code is
+unchanged.
+
+The two input latches now use zero-at-rest polarity (`select_switch_latched`
+and `right_joystick_latched`), so normal BSS clearing leaves SELECT and the
+right joystick armed without startup DATA-copy records. The runtime harness has
+dedicated `all5_color181_above` / `all5_color181_below` profiles for this
+polarity so older all-five examples retain their existing nonzero-ready latch
+contract.
+
+Added a general direct-u8 immediate-comparison lowering: safe unsigned byte
+expressions already evaluable directly in A (for example `(SWCHA & 0x0f)`) can
+feed an immediate comparison without generic scratch. The compile regression
+`direct_u8_expr_compare_codegen_test.c26` requires the direct LDA/AND/CMP/branch
+shape and forbids `__vcsc_scratch_`.
+
+Both score-above and score-below cartridges remain unbanked 4K at 4070/4090 ROM
+and 124/128 RAM, leaving 20 ROM bytes and 4 RAM bytes free. The all-five/score
+focused family passes 17/17, compile-only passes 527/527, and a broad checkpoint
+was clean through 708/890 total tests before the execution window expired. The
+example asm allowlist now contains 31 classified sources. Main-roadmap Item 56,
+ordinary diagnostic UI/CRC/audio cleanup, is next.
+
+
+2026-09-07 16:50:00 PDT, fix direct-u8 pointer-subscript regression
+------------------------------------------------------------------
+The full 363-test user run after Item 55 exposed five BCD e2e failures.  The
+new direct-u8 immediate-comparison shortcut was incorrectly accepting pointer
+subscripts such as `p[0]` and emitting `lda (main$p),y` when the pointer local
+itself lived in ordinary BSS.  6502 `(zp),Y` requires the pointer storage to be
+zero-page; the established generic lowering correctly copies BSS pointers
+through guaranteed-zero-page `ptr0` first.
+
+Narrowed the complex direct-u8 comparison shortcut to exclude all single
+subscript lvalues, leaving them on the existing dedicated/generic lvalue paths.
+`direct_u8_pointer_subscript_compare_codegen_test.c26` locks the BSS-pointer
+case by requiring the `ptr0` copy and forbidding `lda (main$p),y`; the original
+masked-byte comparison regression still requires the optimized direct
+LDA/AND/CMP path.  All 12 runnable BCD e2e tests pass, the five originally
+reported failures pass, all-five focused tests pass, and compile-only is
+528/528.

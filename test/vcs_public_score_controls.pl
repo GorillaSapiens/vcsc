@@ -89,10 +89,12 @@ for my $parts (
 # same right-stick behavior into their compact shared object-control body.
 my $combined_common=read_file(File::Spec->catfile($repo,qw(examples 16_all_five_player_color_181 all_five_player_color_181_interactive_common.c26)));
 $combined_common =~ /selected_score_digit/ &&
-$combined_common =~ /right_joystick_ready/ &&
+$combined_common =~ /right_joystick_latched/ &&
+$combined_common =~ /score_digit_weight\[6\]/ &&
+$combined_common =~ /score_score\s*\+=\s*score_digit_weight\[selected_score_digit\]/ &&
+$combined_common =~ /score_score\s*-=\s*score_digit_weight\[selected_score_digit\]/ &&
 $combined_common =~ /score_color\s*\+=\s*0x10/ &&
-$combined_common =~ /asm\s+sed;/ &&
-$combined_common =~ /asm\s+sbc\s+#\$10;/
+$combined_common !~ /\basm\b/
    or die "combined 181 4K score controls are missing\n";
 for my $parts (
    [qw(16_all_five_player_color_181 01_score_above 01_interactive all_five_player_color_181_score_above_interactive.c26)],

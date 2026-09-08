@@ -58,16 +58,19 @@ struct Profile {
    bool has_score;
    bool dual_three;
    bool score_only;
+   bool zero_means_ready;
 };
 
 Profile parse_profile(const std::string &name) {
-   if (name == "all5_192") return {"all5_192", 95, false, false, false};
-   if (name == "all5_above") return {"all5_above", 87, true, false, false};
-   if (name == "all5_below") return {"all5_below", 87, true, false, false};
-   if (name == "all5_dual") return {"all5_dual", 79, true, false, false};
-   if (name == "all5_3x3_above") return {"all5_3x3_above", 87, true, true, false};
-   if (name == "all5_3x3_below") return {"all5_3x3_below", 87, true, true, false};
-   if (name == "score_only") return {"score_only", 0, true, false, true};
+   if (name == "all5_192") return {"all5_192", 95, false, false, false, false};
+   if (name == "all5_above") return {"all5_above", 87, true, false, false, false};
+   if (name == "all5_below") return {"all5_below", 87, true, false, false, false};
+   if (name == "all5_color181_above") return {"all5_color181_above", 87, true, false, false, true};
+   if (name == "all5_color181_below") return {"all5_color181_below", 87, true, false, false, true};
+   if (name == "all5_dual") return {"all5_dual", 79, true, false, false, false};
+   if (name == "all5_3x3_above") return {"all5_3x3_above", 87, true, true, false, false};
+   if (name == "all5_3x3_below") return {"all5_3x3_below", 87, true, true, false, false};
+   if (name == "score_only") return {"score_only", 0, true, false, true, false};
    fail("bad profile");
 }
 
@@ -202,11 +205,17 @@ private:
 
    uint8_t selected_object() const { return memory_[selected_object_]; }
    void set_selected_object(uint8_t value) { memory_[selected_object_] = value; }
-   bool select_ready() const { return memory_[select_ready_] != 0; }
+   bool select_ready() const {
+      return profile_.zero_means_ready ? memory_[select_ready_] == 0 : memory_[select_ready_] != 0;
+   }
    uint8_t score_digit() const { return memory_[score_digit_]; }
-   bool score_ready() const { return memory_[score_ready_] != 0; }
+   bool score_ready() const {
+      return profile_.zero_means_ready ? memory_[score_ready_] == 0 : memory_[score_ready_] != 0;
+   }
    void set_score_digit(uint8_t value) { memory_[score_digit_] = value; }
-   void set_score_ready(uint8_t value) { memory_[score_ready_] = value; }
+   void set_score_ready(uint8_t value) {
+      memory_[score_ready_] = profile_.zero_means_ready ? (value ? 0 : 1) : value;
+   }
 
    uint8_t timer_value() const {
       if (!timer_active_) return memory_[kIntim];
@@ -438,7 +447,7 @@ Machine *Machine::active_ = nullptr;
 int main(int argc, char **argv) {
    if (argc != 15) {
       std::fprintf(stderr,
-         "usage: %s ROM all5_192|all5_above|all5_below|all5_dual|all5_3x3_above|all5_3x3_below|score_only object_x p0_y p1_y m0_y m1_y ball_y selected_object select_ready score_digit|none score_ready|none score|none score_color|none\n",
+         "usage: %s ROM all5_192|all5_above|all5_below|all5_color181_above|all5_color181_below|all5_dual|all5_3x3_above|all5_3x3_below|score_only object_x p0_y p1_y m0_y m1_y ball_y selected_object select_ready score_digit|none score_ready|none score|none score_color|none\n",
          argv[0]);
       return 2;
    }
