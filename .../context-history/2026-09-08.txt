@@ -82,3 +82,22 @@ completed are the three max-size 3E/3EX/3F diagnostics,
 `vcs_examples_build_8of8.test`; those exceeded the execution window and did not
 report failures. Compile-only remains 537/537 from the same implementation, and
 all 26 linker regressions plus the focused three-startup/noinit coverage pass.
+
+Disassembler mapper-evidence provenance
+--------------------------------------
+`vcsc-disas` now preserves the complete size-compatible mapper refinement result
+through final emission.  Generated headers keep the existing tested/survived
+summary and add a `mapper evidence` decision line plus one line for every tested
+hypothesis.  Viable hypotheses report positive evidence such as a real
+bank-changing selector, switch-avoided HLT/JAM/KIL fetch, detector signature, or
+explicit VCSC tail signature; rejected hypotheses report the actual rejection
+stage/reason, including unreachable RESET flow, split-RAM RMW contradiction,
+missing family evidence, unrescued HLT/JAM/KIL, family precedence/subsumption,
+UA-variant flow, or loss to stronger mapper-specific switching.  F8 prints the
+precise `$1FF8/$1FF9` selector when that bank-changing edge was established.
+Ambiguous cases explicitly say when the legacy/size default was merely retained,
+and the zero-survivor fallback likewise admits that no flow hypothesis survived.
+`test/vcsc_disassembler.pl` locks positive F8 evidence, negative JAM rejection,
+CV split-RAM elimination, 3E-over-3F subsumption, unresolved F8 fallback, and the
+zero-survivor F6 fallback.  Focused disassembler regression, hardening, opcode,
+and fuzz tests pass 4/4.

@@ -1835,6 +1835,10 @@ for my $case (
       "$which RMW rejects CV mapper hypothesis");
    require_re($text, qr/^; mapper flow hypotheses: 2 tested, 1 survived; control flow refined selection$/m,
       "$which split-RAM contradiction refines CV to plain 2K");
+   require_re($text, qr/^; mapper evidence: unbanked 2K selected by control-flow elimination$/m,
+      "$which header records mapper selection by elimination");
+   require_re($text, qr/^;   CV: rejected; 1 native split-RAM RMW contradiction$/m,
+      "$which header exposes the CV contradiction used as negative proof");
 }
 
 my $dpc_out = slurp(File::Spec->catfile($out, 'dpc.s26'));
@@ -2103,6 +2107,12 @@ require_re($spec_banked,
    qr/^; mapper flow hypotheses: 12 tested, 4 survived$/m,
    'speculative selector traffic and evidence-free UA variants do not rank mapper hypotheses');
 require_re($spec_banked,
+   qr/^; mapper evidence: F8 retained as legacy\/default inference; 4 hypotheses remain viable$/m,
+   'ambiguous mapper header admits F8 is the legacy/default tie-break rather than positive proof');
+require_re($spec_banked,
+   qr/^;   F8: viable; RESET flow is internally consistent$/m,
+   'ambiguous mapper header records the surviving F8 hypothesis without inventing selector evidence');
+require_re($spec_banked,
    qr/^; mapper: F8 \(medium confidence; 0 decoded hotspot accesses,/m,
    'speculative F8 hotspot does not become mapper evidence');
 require_re($spec_banked,
@@ -2283,6 +2293,9 @@ require_re($threee_out, qr/^; mapper: 3E \(high confidence;/m,
    '3E mapper inferred from RAM+ROM selector signature and flow');
 require_re($threee_out, qr/^; mapper flow hypotheses: 12 tested, /m,
    '3E participates in 8K mapper hypothesis convergence');
+require_re($threee_out,
+   qr/^;   3F: rejected; 3E evidence subsumes the shared 3F selector traffic$/m,
+   '3E header records mapper-family evidence precedence');
 require_re($threee_out, qr/^B3_F900:
 \s*LDA\s+#\$02
 \s*STA\s+\$3E/m,
@@ -2366,6 +2379,15 @@ require_re($f8_false_ua_out, qr/^; mapper: F8 \(/m,
 require_re($f8_false_ua_out,
    qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
    'false-UA mapper hypotheses converge');
+require_re($f8_false_ua_out,
+   qr/^; mapper evidence: F8 selected by control-flow elimination$/m,
+   'F8 header records selection by elimination');
+require_re($f8_false_ua_out,
+   qr/^;   F8: viable; bank switching avoided 1 reachable HLT\/JAM\/KIL fetch; bank-changing \$1FF8\/\$1FF9 selector observed$/m,
+   'F8 header exposes positive bank-switch evidence and the avoided halt');
+require_re($f8_false_ua_out,
+   qr/^;   0840: rejected; RESET flow reaches 1 HLT\/JAM\/KIL instruction without a proven bank transition$/m,
+   'F8 header exposes a negative mapper-hypothesis rejection reason');
 require_re($f8_false_ua_out, qr/CPX\s+#\$2C\n\s*BCS\.same\s+/m,
    'accidental 2C B0 0F sequence remains ordinary decoded F8 code');
 require_re($f8_false_ua_out, qr/BCS\.same\s+\$F115.*\n\s*LDA\s+\$1FF9/m,
@@ -2398,6 +2420,9 @@ require_re($f8_cross_jam_out, qr/^; mapper: F8 \(/m,
 require_re($f8_cross_jam_out,
    qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
    'cross-bank F8 evidence eliminates zero-switch E0 hypothesis');
+require_re($f8_cross_jam_out,
+   qr/^;   E0: rejected; another viable mapper demonstrates mapper-specific bank switching$/m,
+   'cross-bank F8 header records why the superficially coherent E0 model lost');
 require_re($f8_cross_jam_out, qr/B1_F100:\n\s*LDA\s+\$1FF8/m,
    'F8 cross-bank evidence begins on RESET path');
 
@@ -2506,6 +2531,12 @@ require_re($f6_jane_no_evidence_out, qr/^; mapper: F6 \(medium confidence;/m,
 require_re($f6_jane_no_evidence_out,
    qr/^; mapper flow hypotheses: 6 tested, 0 survived$/m,
    'evidence-free JANE hypothesis is not viable merely because F6 halts');
+require_re($f6_jane_no_evidence_out,
+   qr/^; mapper evidence: F6 retained as legacy\/default inference; no flow hypothesis survived$/m,
+   'zero-survivor header does not pretend the default F6 choice was positively proven');
+require_re($f6_jane_no_evidence_out,
+   qr/^;   F6: rejected; RESET flow reaches 1 HLT\/JAM\/KIL instruction without a proven bank transition$/m,
+   'zero-survivor header preserves the negative evidence against the retained default');
 
 
 my $f6sc_out = slurp(File::Spec->catfile($out, 'f6sc.s26'));

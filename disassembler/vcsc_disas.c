@@ -67,6 +67,63 @@ typedef enum {
    MAP_F0 = VCSC_VIDEO_MAP_F0
 } mapper_t;
 
+#define MAPPER_HYPOTHESIS_MAX 16u
+
+typedef enum {
+   MAPPER_REJECT_NONE,
+   MAPPER_REJECT_INIT_FAILED,
+   MAPPER_REJECT_TRACE_FAILED,
+   MAPPER_REJECT_NO_RESET_CODE,
+   MAPPER_REJECT_SPLIT_RAM_RMW,
+   MAPPER_REJECT_NO_FAMILY_EVIDENCE,
+   MAPPER_REJECT_HALT_WITHOUT_SWITCH,
+   MAPPER_REJECT_SUBSUMED_BY_3E,
+   MAPPER_REJECT_E0_PRECEDENCE,
+   MAPPER_REJECT_FC_PRECEDENCE,
+   MAPPER_REJECT_UA_VARIANT,
+   MAPPER_REJECT_UA_FAMILY_PRECEDENCE,
+   MAPPER_REJECT_WEAKER_HALT_SAVE,
+   MAPPER_REJECT_NO_SPECIFIC_SWITCH
+} mapper_reject_reason_t;
+
+typedef enum {
+   MAPPER_SELECTION_NONE,
+   MAPPER_SELECTION_SINGLE_VIABLE,
+   MAPPER_SELECTION_EXPLICIT_SIGNATURE,
+   MAPPER_SELECTION_LEGACY_AMBIGUOUS,
+   MAPPER_SELECTION_REMAINING_AFTER_LEGACY_REJECTED,
+   MAPPER_SELECTION_NO_VIABLE_LEGACY,
+   MAPPER_SELECTION_NO_VIABLE_RAW
+} mapper_selection_reason_t;
+
+typedef struct {
+   mapper_t mapper;
+   int viable;
+   size_t instructions;
+   size_t halts;
+   int hotspots;
+   size_t cross_bank_switches;
+   size_t switch_avoided_halts;
+   int split_ram_rmw_conflicts;
+   int threee_ram_select_refs;
+   int e7_specific_refs;
+   size_t three_specific_switches;
+   int detector_signature;
+   int explicit_signature;
+   mapper_reject_reason_t reject_reason;
+} mapper_hypothesis_t;
+
+typedef struct {
+   mapper_t legacy;
+   mapper_t winner;
+   mapper_selection_reason_t selection_reason;
+   int refined;
+   size_t tested;
+   size_t survived;
+   size_t hypothesis_count;
+   mapper_hypothesis_t hypotheses[MAPPER_HYPOTHESIS_MAX];
+} mapper_refinement_t;
+
 _Static_assert((int)MAP_FA == (int)VCSC_VIDEO_MAP_FA, "dynamic-probe mapper IDs drifted");
 _Static_assert((int)MAP_0FA0 == (int)VCSC_VIDEO_MAP_0FA0, "dynamic-probe mapper IDs drifted");
 _Static_assert((int)MAP_FA2 == (int)VCSC_VIDEO_MAP_FA2, "dynamic-probe mapper IDs drifted");
@@ -239,9 +296,7 @@ typedef struct {
    int unresolved_indirect_jumps;
    size_t reachable_halts;
    size_t proven_brk_returns;
-   int mapper_flow_refined;
-   size_t mapper_hypotheses_tested;
-   size_t mapper_hypotheses_survived;
+   mapper_refinement_t mapper_refinement;
    size_t speculative_rejected_starts;
    size_t speculative_barriers;
    size_t speculative_islands;
@@ -6478,22 +6533,6 @@ static int trace_analysis(analysis_t *a, const options_t *opt)
    return trace_analysis_internal(a, opt, 0, 1);
 }
 
-typedef struct {
-   mapper_t mapper;
-   int viable;
-   size_t instructions;
-   size_t halts;
-   int hotspots;
-   size_t cross_bank_switches;
-   size_t switch_avoided_halts;
-   int split_ram_rmw_conflicts;
-   int threee_ram_select_refs;
-   int e7_specific_refs;
-   size_t three_specific_switches;
-   int detector_signature;
-   int explicit_signature;
-} mapper_hypothesis_t;
-
 static size_t mapper_candidates_for_size(size_t size, mapper_t *out,
                                          size_t capacity)
 {
@@ -6622,19 +6661,19 @@ static size_t analysis_instruction_count(const analysis_t *a)
  * byte-pattern heuristic break a genuine remaining tie. */
 static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                                               mapper_t legacy,
-                                              size_t *tested_out,
-                                              size_t *survived_out,
-                                              int *refined_out)
+                                              mapper_refinement_t *detail)
 {
    mapper_t candidates[16];
-   mapper_hypothesis_t h[16];
+   mapper_hypothesis_t *h;
    size_t n, i, survivors = 0u;
    size_t best_count = 0u;
    mapper_t winner = legacy;
 
-   *tested_out = 0u;
-   *survived_out = 0u;
-   *refined_out = 0;
+   memset(detail, 0, sizeof(*detail));
+   detail->legacy = legacy;
+   detail->winner = legacy;
+   detail->selection_reason = MAPPER_SELECTION_NONE;
+   h = detail->hypotheses;
    /* A byte-identical doubled 2K dump is a 2K image stored twice, not an
     * ambiguous 4K cartridge.  Preserve the legacy logical-2K decision before
     * introducing 4K mapper hypotheses such as FC. */
@@ -6642,10 +6681,11 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
    if (size == 8192u && is_doubled_4k_dump(rom, size)) return legacy;
    n = mapper_candidates_for_size(size, candidates,
                                   sizeof(candidates) / sizeof(candidates[0]));
-   if (n == 0u || n > sizeof(h) / sizeof(h[0])) return legacy;
+   if (n == 0u || n > MAPPER_HYPOTHESIS_MAX) return legacy;
    if (n == 1u && !mapper_is_three_family(candidates[0])) return legacy;
 
-   memset(h, 0, sizeof(h));
+   detail->hypothesis_count = n;
+   memset(h, 0, n * sizeof(h[0]));
    for (i = 0; i < n; ++i) {
       options_t probe_opt;
       analysis_t probe;
@@ -6669,9 +6709,11 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
          candidates[i] == MAP_F0 ? is_probably_f0(rom, size) : 0;
       h[i].explicit_signature =
          mapper_tail_signature_matches(rom, size, candidates[i]);
-      ++*tested_out;
+      h[i].reject_reason = MAPPER_REJECT_INIT_FAILED;
+      ++detail->tested;
 
       if (!init_analysis(&probe, (uint8_t *)rom, size, &probe_opt)) continue;
+      h[i].reject_reason = MAPPER_REJECT_TRACE_FAILED;
       /* Mapper identity is a cartridge-level conclusion.  Test only the
        * established RESET/control-flow graph here: detached speculative
        * islands are presentation guesses and must never select, reject, or
@@ -6693,6 +6735,7 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
           * demonstrating their switching mechanism remain invalid. */
          {
             int family_evidence = 1;
+            int halt_allowed;
             if (h[i].mapper == MAP_E7)
                family_evidence = h[i].detector_signature ||
                                  h[i].explicit_signature ||
@@ -6744,12 +6787,9 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                 * --mapper fe remains available for uncatalogued experiments. */
                family_evidence = h[i].detector_signature;
 
-            h[i].viable = h[i].instructions != 0u &&
-                          h[i].split_ram_rmw_conflicts == 0 &&
-                          family_evidence &&
-                          (h[i].halts == 0u ||
-                        (h[i].cross_bank_switches != 0u &&
-                         mapper_has_precise_selector_edges(h[i].mapper)) ||
+            halt_allowed = h[i].halts == 0u ||
+                           (h[i].cross_bank_switches != 0u &&
+                            mapper_has_precise_selector_edges(h[i].mapper)) ||
                            h[i].three_specific_switches != 0u ||
                            (h[i].mapper == MAP_E7 &&
                             h[i].detector_signature && h[i].hotspots != 0) ||
@@ -6764,7 +6804,20 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                             h[i].hotspots != 0) ||
                            (h[i].mapper == MAP_WD && h[i].explicit_signature) ||
                            (h[i].mapper == MAP_E0 && h[i].explicit_signature) ||
-                           (h[i].mapper == MAP_0840 && h[i].explicit_signature));
+                           (h[i].mapper == MAP_0840 && h[i].explicit_signature);
+
+            if (h[i].instructions == 0u)
+               h[i].reject_reason = MAPPER_REJECT_NO_RESET_CODE;
+            else if (h[i].split_ram_rmw_conflicts != 0)
+               h[i].reject_reason = MAPPER_REJECT_SPLIT_RAM_RMW;
+            else if (!family_evidence)
+               h[i].reject_reason = MAPPER_REJECT_NO_FAMILY_EVIDENCE;
+            else if (!halt_allowed)
+               h[i].reject_reason = MAPPER_REJECT_HALT_WITHOUT_SWITCH;
+            else {
+               h[i].viable = 1;
+               h[i].reject_reason = MAPPER_REJECT_NONE;
+            }
          }
       }
       free_analysis(&probe);
@@ -6776,9 +6829,13 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
       for (i = 0; i < n; ++i)
          if (!mapper_is_three_family(h[i].mapper)) only_three_family = 0;
       if (n == 1u || only_three_family) {
-         *refined_out = 1;
+         detail->refined = 1;
+         detail->winner = MAP_RAW;
+         detail->selection_reason = MAPPER_SELECTION_NO_VIABLE_RAW;
          return MAP_RAW;
       }
+      detail->winner = legacy;
+      detail->selection_reason = MAPPER_SELECTION_NO_VIABLE_LEGACY;
       return legacy;
    }
 
@@ -6795,8 +6852,10 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
             have_identified_3e = 1;
       if (have_identified_3e) {
          for (i = 0; i < n; ++i)
-            if (h[i].viable && h[i].mapper == MAP_3F)
+            if (h[i].viable && h[i].mapper == MAP_3F) {
                h[i].viable = 0;
+               h[i].reject_reason = MAPPER_REJECT_SUBSUMED_BY_3E;
+            }
       }
    }
 
@@ -6814,8 +6873,10 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
             have_identified_e0 = 1;
       if (have_identified_e0) {
          for (i = 0; i < n; ++i)
-            if (h[i].viable && h[i].mapper == MAP_E7 && !h[i].explicit_signature)
+            if (h[i].viable && h[i].mapper == MAP_E7 && !h[i].explicit_signature) {
                h[i].viable = 0;
+               h[i].reject_reason = MAPPER_REJECT_E0_PRECEDENCE;
+            }
       }
    }
 
@@ -6834,8 +6895,10 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
          for (i = 0; i < n; ++i)
             if (h[i].viable &&
                 (h[i].mapper == MAP_4K || h[i].mapper == MAP_F8 ||
-                 h[i].mapper == MAP_F6 || h[i].mapper == MAP_F4))
+                 h[i].mapper == MAP_F6 || h[i].mapper == MAP_F4)) {
                h[i].viable = 0;
+               h[i].reject_reason = MAPPER_REJECT_FC_PRECEDENCE;
+            }
       }
    }
 
@@ -6856,8 +6919,14 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
          int ua_cross = h[ua_i].cross_bank_switches != 0u;
          int uasw_cross = h[uasw_i].cross_bank_switches != 0u;
          if (ua_cross != uasw_cross) {
-            if (ua_cross) h[uasw_i].viable = 0;
-            else h[ua_i].viable = 0;
+            if (ua_cross) {
+               h[uasw_i].viable = 0;
+               h[uasw_i].reject_reason = MAPPER_REJECT_UA_VARIANT;
+            }
+            else {
+               h[ua_i].viable = 0;
+               h[ua_i].reject_reason = MAPPER_REJECT_UA_VARIANT;
+            }
          }
       }
    }
@@ -6881,8 +6950,10 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
             if (h[i].viable && h[i].mapper != MAP_UA && h[i].mapper != MAP_UASW &&
                 !h[i].detector_signature && !h[i].explicit_signature &&
                 !narrow_switch && h[i].three_specific_switches == 0u &&
-                h[i].e7_specific_refs == 0 && h[i].threee_ram_select_refs == 0)
+                h[i].e7_specific_refs == 0 && h[i].threee_ram_select_refs == 0) {
                h[i].viable = 0;
+               h[i].reject_reason = MAPPER_REJECT_UA_FAMILY_PRECEDENCE;
+            }
          }
       }
    }
@@ -6902,8 +6973,10 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
       if (have_switch_save) {
          for (i = 0; i < n; ++i)
             if (h[i].viable && h[i].switch_avoided_halts == 0u &&
-                !h[i].explicit_signature)
+                !h[i].explicit_signature) {
                h[i].viable = 0;
+               h[i].reject_reason = MAPPER_REJECT_WEAKER_HALT_SAVE;
+            }
       }
    }
 
@@ -6930,16 +7003,23 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                            h[i].three_specific_switches != 0u ||
                            (h[i].mapper == MAP_E7 && h[i].e7_specific_refs != 0) ||
                            (h[i].mapper == MAP_3E && h[i].threee_ram_select_refs != 0);
-            if (h[i].viable && !specific && !h[i].explicit_signature)
+            if (h[i].viable && !specific && !h[i].explicit_signature) {
                h[i].viable = 0;
+               h[i].reject_reason = MAPPER_REJECT_NO_SPECIFIC_SWITCH;
+            }
          }
       }
    }
 
    survivors = 0u;
    for (i = 0; i < n; ++i) if (h[i].viable) ++survivors;
-   if (survivors == 1u) {
+   if (survivors == 0u) {
+      winner = legacy;
+      detail->selection_reason = MAPPER_SELECTION_NO_VIABLE_LEGACY;
+   }
+   else if (survivors == 1u) {
       for (i = 0; i < n; ++i) if (h[i].viable) winner = h[i].mapper;
+      detail->selection_reason = MAPPER_SELECTION_SINGLE_VIABLE;
    }
    else {
       /* An explicit VCSC tail signature is deliberate metadata, unlike a raw
@@ -6953,7 +7033,10 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
             signed_mapper = h[i].mapper;
          }
       }
-      if (signed_count == 1u) winner = signed_mapper;
+      if (signed_count == 1u) {
+         winner = signed_mapper;
+         detail->selection_reason = MAPPER_SELECTION_EXPLICIT_SIGNATURE;
+      }
       else {
          /* A wrong mapper can appear artificially "clean" simply because its
           * mapping truncates the reachable CFG.  Unresolved-exit counts are
@@ -6966,14 +7049,17 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
          if (!legacy_survives) {
             for (i = 0; i < n; ++i)
                if (h[i].viable) { winner = h[i].mapper; break; }
+            detail->selection_reason = MAPPER_SELECTION_REMAINING_AFTER_LEGACY_REJECTED;
          }
+         else detail->selection_reason = MAPPER_SELECTION_LEGACY_AMBIGUOUS;
       }
    }
 
    best_count = 0u;
    for (i = 0; i < n; ++i) if (h[i].viable) ++best_count;
-   *survived_out = best_count;
-   *refined_out = winner != legacy || best_count == 1u;
+   detail->survived = best_count;
+   detail->refined = winner != legacy || best_count == 1u;
+   detail->winner = winner;
    return winner;
 }
 
@@ -9171,6 +9257,162 @@ static const char *controller_override_display(const char *s)
    return s;
 }
 
+static const char *mapper_precise_selector_description(mapper_t mapper)
+{
+   switch (mapper) {
+   case MAP_F8: return "$1FF8/$1FF9";
+   case MAP_F6: return "$1FF6-$1FF9";
+   case MAP_F4: return "$1FF4-$1FFB";
+   case MAP_FA: return "$1FF8-$1FFA";
+   default: return NULL;
+   }
+}
+
+static void emit_mapper_hypothesis_evidence(FILE *fp,
+                                            const mapper_hypothesis_t *h)
+{
+   const char *selector = mapper_precise_selector_description(h->mapper);
+   fprintf(fp, ";   %s: %s", mapper_name(h->mapper),
+           h->viable ? "viable" : "rejected");
+   if (h->viable) {
+      int said = 0;
+      if (h->switch_avoided_halts != 0u) {
+         fprintf(fp, "; bank switching avoided %zu reachable HLT/JAM/KIL fetch%s",
+                 h->switch_avoided_halts,
+                 h->switch_avoided_halts == 1u ? "" : "es");
+         said = 1;
+      }
+      if (h->cross_bank_switches != 0u &&
+          mapper_has_precise_selector_edges(h->mapper)) {
+         if (selector)
+            fprintf(fp, "; bank-changing %s selector observed", selector);
+         else
+            fprintf(fp, "; %zu bank-changing mapper-specific selector%s observed",
+                    h->cross_bank_switches,
+                    h->cross_bank_switches == 1u ? "" : "s");
+         said = 1;
+      }
+      if (h->three_specific_switches != 0u) {
+         fprintf(fp, "; %zu 3E/3F-specific bank switch%s observed",
+                 h->three_specific_switches,
+                 h->three_specific_switches == 1u ? "" : "es");
+         said = 1;
+      }
+      if (h->mapper == MAP_E7 && h->e7_specific_refs != 0) {
+         fprintf(fp, "; E7-specific selector/RAM evidence observed");
+         said = 1;
+      }
+      if (h->mapper == MAP_3E && h->threee_ram_select_refs != 0) {
+         fprintf(fp, "; $003E RAM-select evidence observed");
+         said = 1;
+      }
+      if (h->explicit_signature) {
+         fprintf(fp, "; explicit VCSC mapper tail signature present");
+         said = 1;
+      }
+      else if (h->detector_signature) {
+         fprintf(fp, "; established mapper detector signature present");
+         said = 1;
+      }
+      if (!said)
+         fprintf(fp, "; RESET flow is internally consistent");
+   }
+   else {
+      switch (h->reject_reason) {
+      case MAPPER_REJECT_INIT_FAILED:
+         fprintf(fp, "; mapper model could not be initialized");
+         break;
+      case MAPPER_REJECT_TRACE_FAILED:
+         fprintf(fp, "; RESET flow analysis failed");
+         break;
+      case MAPPER_REJECT_NO_RESET_CODE:
+         fprintf(fp, "; no reachable RESET instructions");
+         break;
+      case MAPPER_REJECT_SPLIT_RAM_RMW:
+         fprintf(fp, "; %d native split-RAM RMW contradiction%s",
+                 h->split_ram_rmw_conflicts,
+                 h->split_ram_rmw_conflicts == 1 ? "" : "s");
+         break;
+      case MAPPER_REJECT_NO_FAMILY_EVIDENCE:
+         fprintf(fp, "; no mapper-family signature or specific execution evidence");
+         break;
+      case MAPPER_REJECT_HALT_WITHOUT_SWITCH:
+         fprintf(fp, "; RESET flow reaches %zu HLT/JAM/KIL instruction%s without a proven bank transition",
+                 h->halts, h->halts == 1u ? "" : "s");
+         break;
+      case MAPPER_REJECT_SUBSUMED_BY_3E:
+         fprintf(fp, "; 3E evidence subsumes the shared 3F selector traffic");
+         break;
+      case MAPPER_REJECT_E0_PRECEDENCE:
+         fprintf(fp, "; established E0 signature outranks model-dependent E7 traffic");
+         break;
+      case MAPPER_REJECT_FC_PRECEDENCE:
+         fprintf(fp, "; established FC/F0 staged-selector signature outranks ordinary F-series overlap");
+         break;
+      case MAPPER_REJECT_UA_VARIANT:
+         fprintf(fp, "; competing UA-family variant alone demonstrates the bank-changing RESET edge");
+         break;
+      case MAPPER_REJECT_UA_FAMILY_PRECEDENCE:
+         fprintf(fp, "; identified UA-family evidence outranks this evidence-free 8K interpretation");
+         break;
+      case MAPPER_REJECT_WEAKER_HALT_SAVE:
+         fprintf(fp, "; another viable mapper explains a bank switch that avoids HLT/JAM/KIL");
+         break;
+      case MAPPER_REJECT_NO_SPECIFIC_SWITCH:
+         fprintf(fp, "; another viable mapper demonstrates mapper-specific bank switching");
+         break;
+      case MAPPER_REJECT_NONE:
+      default:
+         fprintf(fp, "; rejected during mapper-flow refinement");
+         break;
+      }
+   }
+   fputc('\n', fp);
+}
+
+static void emit_mapper_refinement_evidence(FILE *fp, const analysis_t *a)
+{
+   const mapper_refinement_t *r = &a->mapper_refinement;
+   size_t i;
+   if (a->mapper_overridden || r->tested <= 1u) return;
+
+   fprintf(fp, "; mapper flow hypotheses: %zu tested, %zu survived%s\n",
+           r->tested, r->survived,
+           r->refined ? "; control flow refined selection" : "");
+   switch (r->selection_reason) {
+   case MAPPER_SELECTION_SINGLE_VIABLE:
+      fprintf(fp, "; mapper evidence: %s selected by control-flow elimination\n",
+              mapper_name(r->winner));
+      break;
+   case MAPPER_SELECTION_EXPLICIT_SIGNATURE:
+      fprintf(fp, "; mapper evidence: %s selected by explicit VCSC mapper signature after flow filtering\n",
+              mapper_name(r->winner));
+      break;
+   case MAPPER_SELECTION_LEGACY_AMBIGUOUS:
+      fprintf(fp, "; mapper evidence: %s retained as legacy/default inference; %zu hypotheses remain viable\n",
+              mapper_name(r->winner), r->survived);
+      break;
+   case MAPPER_SELECTION_REMAINING_AFTER_LEGACY_REJECTED:
+      fprintf(fp, "; mapper evidence: %s selected from remaining viable hypotheses after the legacy inference was rejected\n",
+              mapper_name(r->winner));
+      break;
+   case MAPPER_SELECTION_NO_VIABLE_LEGACY:
+      fprintf(fp, "; mapper evidence: %s retained as legacy/default inference; no flow hypothesis survived\n",
+              mapper_name(r->winner));
+      break;
+   case MAPPER_SELECTION_NO_VIABLE_RAW:
+      fprintf(fp, "; mapper evidence: all mapper hypotheses rejected; using unknown/raw\n");
+      break;
+   case MAPPER_SELECTION_NONE:
+   default:
+      fprintf(fp, "; mapper evidence: %s retained after mapper-flow analysis\n",
+              mapper_name(r->winner));
+      break;
+   }
+   for (i = 0u; i < r->hypothesis_count; ++i)
+      emit_mapper_hypothesis_evidence(fp, &r->hypotheses[i]);
+}
+
 static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                         const char sha[65])
 {
@@ -9223,6 +9465,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                  a->split_ram_rmw_conflicts,
                  a->split_ram_rmw_conflicts == 1 ? "" : "s");
    }
+   emit_mapper_refinement_evidence(fp, a);
    if (superchip_layout_signature(a))
       fprintf(fp, "; Superchip structural evidence: first 128 bytes duplicated at +$080 in every 4K bank\n");
    if (a->mapper == MAP_AR) {
@@ -9241,10 +9484,6 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
       }
    }
    else if (a->mapper != MAP_RAW) {
-      if (!a->mapper_overridden && a->mapper_hypotheses_tested > 1u)
-         fprintf(fp, "; mapper flow hypotheses: %zu tested, %zu survived%s\n",
-                 a->mapper_hypotheses_tested, a->mapper_hypotheses_survived,
-                 a->mapper_flow_refined ? "; control flow refined selection" : "");
       fprintf(fp, "; physical banks: %zu x %zu bytes\n",
               a->bank_count, a->bank_size);
       if (a->doubled_2k_dump)
@@ -9893,8 +10132,7 @@ static int analyze_multicart_slice(analysis_t *a, uint8_t *rom, size_t size,
                                    const options_t *parent)
 {
    options_t opt = *parent;
-   size_t tested = 0u, survived = 0u;
-   int refined = 0;
+   mapper_refinement_t refinement;
    mapper_t legacy, selected;
 
    memset(a, 0, sizeof(*a));
@@ -9912,7 +10150,7 @@ static int analyze_multicart_slice(analysis_t *a, uint8_t *rom, size_t size,
    legacy = a->mapper;
    if (legacy != MAP_RAW) {
       selected = refine_mapper_by_control_flow(rom, size, legacy,
-                                               &tested, &survived, &refined);
+                                               &refinement);
       if (selected != legacy) {
          options_t selected_opt = opt;
          free_analysis(a);
@@ -9925,9 +10163,7 @@ static int analyze_multicart_slice(analysis_t *a, uint8_t *rom, size_t size,
          a->mapper_overridden = 0;
          a->superchip_override = -1;
       }
-      a->mapper_flow_refined = refined;
-      a->mapper_hypotheses_tested = tested;
-      a->mapper_hypotheses_survived = survived;
+      a->mapper_refinement = refinement;
    }
    if (!apply_layout_overrides(a, &opt) || !run_concrete_discovery(a) ||
        !trace_analysis(a, &opt)) {
@@ -10215,11 +10451,10 @@ int main(int argc, char **argv)
    analysis.physical_size = rom_size;
    analysis.odd_4k_dump = odd_4k_dump;
    if (!opt.mapper_override_set && analysis.mapper != MAP_RAW) {
-      size_t tested = 0u, survived = 0u;
-      int refined = 0;
+      mapper_refinement_t refinement;
       mapper_t legacy = analysis.mapper;
       mapper_t selected = refine_mapper_by_control_flow(
-         analysis_rom, analysis_size, legacy, &tested, &survived, &refined);
+         analysis_rom, analysis_size, legacy, &refinement);
       if (selected != legacy) {
          options_t selected_opt = opt;
          free_analysis(&analysis);
@@ -10238,9 +10473,7 @@ int main(int argc, char **argv)
          analysis.mapper_overridden = 0;
          analysis.superchip_override = -1;
       }
-      analysis.mapper_flow_refined = refined;
-      analysis.mapper_hypotheses_tested = tested;
-      analysis.mapper_hypotheses_survived = survived;
+      analysis.mapper_refinement = refinement;
    }
    if (!apply_layout_overrides(&analysis, &opt)) {
       free_analysis(&analysis);

@@ -27,6 +27,13 @@ Durable invariants
 * Established execution evidence controls mapper/video/controller/hardware
   decisions. Detached speculative islands may improve presentation but must not
   promote mapper hypotheses, Superchip semantics, or execution roots.
+* Generated headers preserve mapper-inference provenance.  When multiple
+  size-compatible mapper models are tested, report the selected/retained
+  decision mode plus every tested hypothesis as viable or rejected with the
+  actual reason.  Positive selector/signature evidence and negative
+  HLT/JAM/KIL/contradiction evidence must remain distinguishable; if the legacy
+  size/default mapper survives an unresolved ambiguity, say so rather than
+  presenting it as positive proof.
 * Mapper inference is a hardware-state problem, not merely a file-size/name
   lookup. Keep mapper context separate when following code across selectors.
 * Multi-game containers are separate cartridge analyses concatenated in original
