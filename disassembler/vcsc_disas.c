@@ -10411,6 +10411,12 @@ static int emit_multicart_source(FILE *fp, const analysis_t *whole,
    return ferror(fp) == 0;
 }
 
+static int disassembly_failure(int status)
+{
+   fputs("Failure, disassembly not written\n", stderr);
+   return status;
+}
+
 int main(int argc, char **argv)
 {
    options_t opt;
@@ -10429,14 +10435,18 @@ int main(int argc, char **argv)
    FILE *out = NULL;
    int ok = 0;
 
-   if (!parse_args(argc, argv, &opt)) return 2;
-   if (!read_file(opt.input, &rom, &rom_size)) return 1;
+   if (!parse_args(argc, argv, &opt)) return disassembly_failure(2);
+   if (!read_file(opt.input, &rom, &rom_size)) return disassembly_failure(1);
    analysis_rom = rom;
    analysis_size = rom_size;
    if (rom_size == 4094u || rom_size == 4098u) {
       size_t copy = rom_size < 4096u ? rom_size : 4096u;
       logical_rom = (uint8_t *)calloc(4096u, 1u);
-      if (!logical_rom) { free(rom); return 1; }
+      if (!logical_rom) {
+         fprintf(stderr, "out of memory\n");
+         free(rom);
+         return disassembly_failure(1);
+      }
       memcpy(logical_rom, rom, copy);
       analysis_rom = logical_rom;
       analysis_size = 4096u;
@@ -10445,7 +10455,7 @@ int main(int argc, char **argv)
    if (!init_analysis(&analysis, analysis_rom, analysis_size, &opt)) {
       free(logical_rom);
       free(rom);
-      return 1;
+      return disassembly_failure(1);
    }
    analysis.physical_rom = rom;
    analysis.physical_size = rom_size;
@@ -10464,7 +10474,7 @@ int main(int argc, char **argv)
          if (!init_analysis(&analysis, analysis_rom, analysis_size, &selected_opt)) {
             free(logical_rom);
             free(rom);
-            return 1;
+            return disassembly_failure(1);
          }
          analysis.physical_rom = rom;
          analysis.physical_size = rom_size;
@@ -10479,21 +10489,21 @@ int main(int argc, char **argv)
       free_analysis(&analysis);
       free(logical_rom);
       free(rom);
-      return 1;
+      return disassembly_failure(1);
    }
    if (!run_concrete_discovery(&analysis)) {
       fprintf(stderr, "concrete discovery setup failed\n");
       free_analysis(&analysis);
       free(logical_rom);
       free(rom);
-      return 1;
+      return disassembly_failure(1);
    }
    if (!trace_analysis(&analysis, &opt)) {
       fprintf(stderr, "analysis failed\n");
       free_analysis(&analysis);
       free(logical_rom);
       free(rom);
-      return 1;
+      return disassembly_failure(1);
    }
    apply_superchip_window_semantics(&analysis);
    promote_interior_reference_labels(&analysis);
@@ -10503,7 +10513,7 @@ int main(int argc, char **argv)
       free_analysis(&analysis);
       free(logical_rom);
       free(rom);
-      return 1;
+      return disassembly_failure(1);
    }
    promote_interior_reference_labels(&analysis);
    if (!opt.mapper_override_set)
@@ -10514,7 +10524,7 @@ int main(int argc, char **argv)
       free_analysis(&analysis);
       free(logical_rom);
       free(rom);
-      return 1;
+      return disassembly_failure(1);
    }
    sha256_hex(rom, rom_size, sha);
 
@@ -10563,5 +10573,5 @@ done:
    free_analysis(&analysis);
    free(logical_rom);
    free(rom);
-   return ok ? 0 : 1;
+   return ok ? 0 : disassembly_failure(1);
 }

@@ -42,8 +42,10 @@ Durable invariants
   oracle. Stella differential mapper checks are useful evidence, not authority.
 * A successful CLI run reports its destination on standard error only after the
   requested output has been written and closed successfully (and multicart
-  sidecars, when applicable, also succeeded). `-o -` reports `stdout`. Bulk
-  `roundtrip.pl` validation consumes and checks this per-file confirmation.
+  sidecars, when applicable, also succeeded). `-o -` reports `stdout`. Every
+  nonzero exit ends stderr with `Failure, disassembly not written` after the
+  specific diagnostic. Bulk `roundtrip.pl` validation consumes and checks the
+  per-file success confirmation.
 
 Unfinished mapper support
 -------------------------

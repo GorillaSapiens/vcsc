@@ -2734,6 +2734,8 @@ $ostderr eq "Success, output written to stdout\n"
 my $bad = `$disas --definitely-not-an-option 2>&1`;
 die "bad option unexpectedly succeeded\n" if $? == 0;
 require_re($bad, qr/Try '.*--help' for a list of supported options\./, 'bad-option help guidance');
+$bad =~ /Failure, disassembly not written\n\z/
+   or die "bad option missing final failure status:\n$bad";
 # Manual inference hints/overrides are independent of byte representation.
 # Force a deliberately different logical origin, mark an instruction operand as
 # data as well as code, and override advisory metadata.  The generated source
@@ -2853,7 +2855,12 @@ require_re($bad_origin, qr/not a valid page-aligned cartridge origin/, 'origin a
 my $empty = File::Spec->catfile($tmp, 'empty.bin');
 write_bin($empty, '');
 my $empty_out = File::Spec->catfile($tmp, 'empty.s26');
-system($disas, '-o', $empty_out, $empty);
-die "empty input unexpectedly succeeded\n" if $? == 0;
+my ($erc, $esig, $estdout, $estderr) =
+   capture_command($disas, '-o', $empty_out, $empty);
+$erc != 0 && $esig == 0 or die "empty input unexpectedly succeeded\n";
+$estdout eq '' or die "empty-input failure wrote stdout\n";
+$estderr eq "$empty: empty cartridge image\nFailure, disassembly not written\n"
+   or die "wrong empty-input failure diagnostic:\n$estderr";
+!-e $empty_out or die "empty-input failure created output\n";
 
 print "vcsc-disas regression suite ok\n";

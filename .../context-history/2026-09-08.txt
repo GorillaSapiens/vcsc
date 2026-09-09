@@ -83,8 +83,8 @@ completed are the three max-size 3E/3EX/3F diagnostics,
 report failures. Compile-only remains 537/537 from the same implementation, and
 all 26 linker regressions plus the focused three-startup/noinit coverage pass.
 
-Disassembler mapper-evidence provenance
---------------------------------------
+2026-09-08 10:02:40 PDT, disassembler mapper-evidence provenance
+----------------------------------------------------------------
 `vcsc-disas` now preserves the complete size-compatible mapper refinement result
 through final emission.  Generated headers keep the existing tested/survived
 summary and add a `mapper evidence` decision line plus one line for every tested
@@ -117,3 +117,24 @@ disassembler durable contract document the CLI behavior.
 
 Focused validation: `vcsc_disassembler.pl` completed 131/131 byte-exact cases
 and `vcsc_disassembler_hardening.pl` passed.
+
+2026-09-08 18:04:05 PDT, disassembler uniform failure status
+-------------------------------------------------------------
+`vcsc-disas` now ends every nonzero CLI exit on stderr with the uniform line
+`Failure, disassembly not written`, after any specific diagnostic. Successful
+help/version exits remain informational and unchanged. Early argument, input,
+analysis, and semantic-hint failures use the same final status as output/open,
+write/close, and multicart-sidecar failures. The CLI regression locks both a
+bad-option failure and an empty-input failure, including the final status line
+and absence of an output file. Public/internal disassembler documentation was
+updated.
+
+The previously untimestamped mapper-evidence provenance entry in this history
+file was repaired using the archived source-file mtime: 2026-09-08 17:02:40 UTC
+= 2026-09-08 10:02:40 PDT. All top-level September 8 change entries now carry
+the required local timestamp header.
+
+Validation: `vcsc_disassembler.pl` passes all 131 round-trip fixtures,
+`vcsc_disassembler_hardening.pl`, `context_history_format.pl`, and
+`source_tree_hygiene.pl` pass, and a direct separator audit confirms six
+September 8 history entries with six timestamped headers.
