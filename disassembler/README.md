@@ -659,8 +659,13 @@ database with its own mapper autodetection, and either detector may expose a bug
 The input corpus must already be Atari 2600/VCS ROMs. Stella's mapper detector is
 not a platform detector; an arbitrary same-sized blob from another 6502 system
 can still fall through to a size-default VCS mapper and produce a meaningless
-comparison. Stella uses its 2K cartridge implementation for native images up to
-2K and reports the physical topology in parentheses. Thus `2K* (128B)`,
+comparison. When vcsc-disas has normalized an exact repeated preservation image
+to a smaller logical ROM, the Stella differential uses that same unique logical
+image rather than asking Stella to size-default the larger physical duplicate.
+For example, a physical 16K `[A,B,A,B]` dump is compared as its logical 8K
+`[A,B]` image; exact round-trip validation still uses all 16K original bytes.
+Stella uses its 2K cartridge implementation for native images up to 2K and
+reports the physical topology in parentheses. Thus `2K* (128B)`,
 `2K* (256B)`, `2K* (512B)`, and `2K* (1K)` normalize to VCSC's `128B`, `256B`,
 `512B`, and `1K` names respectively, so those are mapper matches rather than
 false differences. For

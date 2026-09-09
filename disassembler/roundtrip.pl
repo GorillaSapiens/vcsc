@@ -76,21 +76,36 @@ sub capture_command {
     return ($? >> 8, $? & 127, $stdout, $stderr);
 }
 
-sub vcsc_mapper_from_source {
-    my ($path) = @_;
+sub vcsc_source_info {
+    my ($path, $physical_size) = @_;
     my $source = slurp_raw($path);
     $source =~ /^;\s*mapper:\s*(.+?)\s*\(/m
         or die "$path: generated source has no mapper header\n";
     my $mapper = $1;
     if ($mapper =~ /^unbanked\s+(128|256|512)-byte\z/i) {
-        return uc($1 . 'B');
+        $mapper = uc($1 . 'B');
     }
-    if ($mapper =~ /^unbanked\s+(1K|2K|4K)\z/i) {
-        return uc($1);
+    elsif ($mapper =~ /^unbanked\s+(1K|2K|4K)\z/i) {
+        $mapper = uc($1);
     }
-    $mapper =~ /^([A-Za-z0-9+]+)\z/
-        or die "$path: cannot normalize mapper header '$mapper'\n";
-    return uc($1);
+    else {
+        $mapper =~ /^([A-Za-z0-9+]+)\z/
+            or die "$path: cannot normalize mapper header '$mapper'\n";
+        $mapper = uc($1);
+    }
+
+    my $logical_size = $physical_size;
+    if ($source =~ /^;\s*preservation image:\s*(\d+)-byte logical ROM repeated byte-for-byte (\d+) times to (\d+) bytes;/m) {
+        my ($reported_logical, $copies, $reported_physical) = ($1 + 0, $2 + 0, $3 + 0);
+        $reported_logical > 0 && $copies >= 2
+            or die "$path: invalid preservation-image topology\n";
+        $reported_logical * $copies == $reported_physical
+            or die "$path: inconsistent preservation-image topology\n";
+        $reported_physical == $physical_size
+            or die "$path: preservation-image size does not match input\n";
+        $logical_size = $reported_logical;
+    }
+    return ($mapper, $logical_size);
 }
 
 sub stella_mapper_for_rom {
@@ -252,8 +267,34 @@ for my $name (@files) {
         $original eq $new or die "byte mismatch\n";
 
         if (defined($stella)) {
-            my $vcsc_mapper = vcsc_mapper_from_source($s26);
-            my $stella_mapper = eval { stella_mapper_for_rom($stella, $input, $md5_original) };
+            my ($vcsc_mapper, $logical_size) = vcsc_source_info($s26, length($original));
+            my $stella_input = $input;
+            my $stella_md5 = $md5_original;
+            my $stella_logical;
+            if ($logical_size < length($original)) {
+                length($original) % $logical_size == 0
+                    or die "$s26: logical image does not divide physical input\n";
+                $stella_logical = substr($original, 0, $logical_size);
+                my $copies = length($original) / $logical_size;
+                for my $copy (1 .. $copies - 1) {
+                    substr($original, $copy * $logical_size, $logical_size) eq $stella_logical
+                        or die "$s26: preservation-image header contradicts input bytes\n";
+                }
+                $stella_input = File::Spec->catfile(
+                    $output_dir, ".$stem.stella-logical.$$.bin");
+                open(my $lfh, '>:raw', $stella_input)
+                    or die "$stella_input: $!\n";
+                print {$lfh} $stella_logical
+                    or die "$stella_input: write failed: $!\n";
+                close($lfh) or die "$stella_input: close failed: $!\n";
+                $stella_md5 = md5_hex($stella_logical);
+                print "$name: Stella comparison uses normalized logical image " .
+                      "$logical_size/" . length($original) . " bytes\n";
+            }
+            my $stella_mapper = eval {
+                stella_mapper_for_rom($stella, $stella_input, $stella_md5)
+            };
+            unlink($stella_input) if defined($stella_logical);
             if (!defined($stella_mapper)) {
                 ++$stella_errors;
                 my $error = $@ || "unknown Stella comparison failure\n";

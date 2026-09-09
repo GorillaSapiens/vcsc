@@ -198,3 +198,11 @@ requires zero-page pointer storage; pointer-subscript comparisons therefore stay
 on the established lowering that copies through `ptr0`.
 
 Explicit packed-BCD mutation coverage now lives in `test/vcs_bcd_ram_cartram_operators.pl`: all `bcd8_t`, `bcd16_t`, `bcd24_t`, and `bcd32_t` widths are runtime-checked in both ordinary Atari RAM and split-address Superchip `cartram` for `+=`, `-=`, prefix/postfix `++`, and prefix/postfix `--` (48 cases). The F4SC fixture pins one storage/width case per bank; the wrapper also verifies the actual linker memory regions. BCD-focused e2e validation is 13/13 and compile-only remains 525/525. Preserve Tanks readability: one statement per line and one graphics byte per line. Do not resurrect the RIOT-RAM sprite cache or `$xxDD`/main-phase theory.
+
+2026-09-08 Stella differential normalization follow-up: `roundtrip.pl --stella`
+now runs Stella on the same smallest unique logical image used by automatic
+vcsc-disas mapper inference when an input is an exact repeated preservation
+dump. The 16K Acid Drop corpus file `17ee23e5da931be82f733917adcb6386`
+is `[A,B,A,B]`: Stella reports physical F6 on the full file but F8 on the unique
+8K `[A,B]` half. Strict differential comparison now uses the latter and matches
+VCSC while byte-exact round trip still validates the full 16K image.

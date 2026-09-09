@@ -53,6 +53,9 @@ Durable invariants
   order; no CFG or ROM reference crosses a component boundary.
 * The standalone `disassembler/roundtrip.pl` remains the mechanical exactness
   oracle. Stella differential mapper checks are useful evidence, not authority.
+  If automatic analysis collapsed an exact repeated preservation image, compare
+  Stella against that same logical unique image; comparing Stella's physical
+  size-default against VCSC's logical mapper would manufacture a false mismatch.
 * A successful CLI run reports its destination on standard error only after the
   requested output has been written and closed successfully (and multicart
   sidecars, when applicable, also succeeded). `-o -` reports `stdout`. Every

@@ -226,3 +226,23 @@ The fake-Stella hardening corpus now includes native 128/256/512-byte ROMs and
 requires all of them to compare as mapper matches in both ordinary `--stella`
 and `--stella-strict` runs. Public disassembler documentation records the four
 2K-class physical-topology equivalences. Focused disassembler hardening passes.
+
+2026-09-08 22:47:13 PDT, align Stella with logical mirror image
+----------------------------------------------------------------
+`roundtrip.pl --stella` now compares mapper inference against the same logical
+unique ROM that `vcsc-disas` analyzed after exact repeated-half normalization.
+Previously the disassembler could correctly reduce a repeated preservation dump
+while the corpus verifier still ran Stella on the larger physical file, causing
+Stella's size default to create a false mapper mismatch.
+
+The real 16K Acid Drop image `17ee23e5da931be82f733917adcb6386` is exactly
+`[A,B,A,B]`: its two 8K halves are identical while A and B are distinct 4K banks.
+Bundled Stella 7.0 reports `F6* (16K)` for the physical file and `F8* (8K)` for
+the unique 8K `[A,B]` image. The patched verifier reports the normalization and
+compares VCSC F8 against Stella F8; `--stella-strict` therefore passes without
+weakening the full 16K byte-exact round-trip check.
+
+Hardening adds a synthetic distinct-bank 8K image duplicated to 16K. Fake Stella
+returns F6 for 16K and F8 for 8K, so the regression fails if the verifier ever
+passes the physical duplicate to Stella again. The focused hardening test passes,
+and the uploaded Acid Drop ROM passes a real bundled-Stella strict comparison.
