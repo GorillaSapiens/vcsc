@@ -101,3 +101,19 @@ and the zero-survivor fallback likewise admits that no flow hypothesis survived.
 CV split-RAM elimination, 3E-over-3F subsumption, unresolved F8 fallback, and the
 zero-survivor F6 fallback.  Focused disassembler regression, hardening, opcode,
 and fuzz tests pass 4/4.
+
+2026-09-08 17:57:41 PDT, disassembler success destination message
+----------------------------------------------------------------
+`vcsc-disas` now reports successful completion on stderr after all output work
+has succeeded: `Success, output written to <path>` for file output and
+`Success, output written to stdout` for `-o -`. The message is emitted only
+after the main stream is written/closed and multicart sidecars succeed, so a
+failed write never receives a false success message. Explicit `-o`, derived
+`.s26`, and stdout output are regression-locked in `test/vcsc_disassembler.pl`.
+`disassembler/roundtrip.pl` captures, validates, and consumes each success line
+so bulk exact-round-trip runs remain quiet. Direct stdout-mode mapper tests were
+updated to require the new success diagnostic. `disassembler/README.md` and the
+disassembler durable contract document the CLI behavior.
+
+Focused validation: `vcsc_disassembler.pl` completed 131/131 byte-exact cases
+and `vcsc_disassembler_hardening.pl` passed.

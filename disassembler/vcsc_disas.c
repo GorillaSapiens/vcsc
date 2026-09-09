@@ -10550,6 +10550,10 @@ int main(int argc, char **argv)
    out = NULL;
    if (is_multicart && !emit_multicart_sidecars(opt.output, rom, &multicart, &opt))
       goto done;
+   if (strcmp(opt.output, "-") == 0)
+      fprintf(stderr, "Success, output written to stdout\n");
+   else
+      fprintf(stderr, "Success, output written to %s\n", opt.output);
    ok = 1;
 
 done:

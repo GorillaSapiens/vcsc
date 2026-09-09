@@ -108,7 +108,7 @@ $rrc!=0 && !$rsig && $rerr =~ /outside every mapped ROM window/i
 my $visible=File::Spec->catfile($tmp,'4ksc-visible.bin');
 require_ok('build visible 4KSC PASS/FAIL cartridge',$driver,'-I',$vcs,$source,'-o',$visible);
 my($s26,$derr)=require_ok('probe visible 4KSC cartridge',$disas,'-o','-',$visible);
-$derr eq '' or die "vcsc-disas wrote stderr for 4KSC visible cartridge:\n$derr";
+$derr eq "Success, output written to stdout\n" or die "vcsc-disas unexpected stderr for 4KSC visible cartridge:\n$derr";
 $s26 =~ /^; mapper: 4KSC \(high confidence;/m
    or die "4KSC visible diagnostic was not recognized as 4KSC\n$s26";
 $s26 =~ /^; video: NTSC \(dynamic stable frame measurement: 264 raw line intervals\) \(high confidence\)$/m

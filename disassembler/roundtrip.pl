@@ -225,8 +225,13 @@ for my $name (@files) {
     my $ok = eval {
         my $original = slurp_raw($input);
         length($original) > 0 or die "$input: empty cartridge image\n";
-        system {$disas} $disas, '-o', $s26, $input;
-        $? == 0 or die "vcsc-disas failed (status " . ($? >> 8) . ")\n";
+        my ($dis_rc, $dis_sig, $dis_stdout, $dis_stderr) =
+            capture_command($disas, '-o', $s26, $input);
+        $dis_sig == 0 or die "vcsc-disas terminated by signal $dis_sig\n";
+        $dis_rc == 0 or die "vcsc-disas failed (status $dis_rc): $dis_stderr";
+        $dis_stdout eq '' or die "vcsc-disas unexpectedly wrote stdout: $dis_stdout";
+        $dis_stderr eq "Success, output written to $s26\n"
+            or die "vcsc-disas unexpected success diagnostic: $dis_stderr";
         -f $s26 or die "vcsc-disas did not create $s26\n";
 
         system {$assembler} $assembler, "--hex=$hex", $s26;

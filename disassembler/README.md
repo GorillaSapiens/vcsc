@@ -24,8 +24,10 @@ inventing code or data semantics.
 ```
 
 Without `-o`, `game.bin` produces `game.s26`. `-o -` writes assembly to
-standard output. Use `--help` for the complete current option list and `-V` or
-`--version` for build/version information.
+standard output. On success, `vcsc-disas` writes a short confirmation to
+standard error naming the output file (or `stdout` for `-o -`). Use `--help`
+for the complete current option list and `-V` or `--version` for build/version
+information.
 
 `vcsc-as` direct assembly currently writes Intel HEX rather than a raw cartridge
 file. The development utility described below performs that flattening and the

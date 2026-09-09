@@ -153,7 +153,7 @@ $brc!=0 && !$bsig
 my $visible=File::Spec->catfile($tmp,'fa-visible.bin');
 require_ok('build visible FA PASS/FAIL cartridge',$driver,'-I',$vcs,$source,'-o',$visible);
 my($s26,$derr)=require_ok('probe visible FA cartridge',$disas,'-o','-',$visible);
-$derr eq '' or die "vcsc-disas wrote stderr for FA visible cartridge:\n$derr";
+$derr eq "Success, output written to stdout\n" or die "vcsc-disas unexpected stderr for FA visible cartridge:\n$derr";
 $s26 =~ /^; video: NTSC \(dynamic stable frame measurement: 264 raw line intervals\) \(high confidence\)$/m
    or die "FA visible diagnostic did not retain stable 264-interval raw / 262-line displayed NTSC timing\n$s26";
 

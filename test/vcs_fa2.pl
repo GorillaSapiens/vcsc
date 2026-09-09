@@ -232,7 +232,7 @@ for my $b (0..5) {
    $mem->[$sa{six_failure}]==0 && $mem->[$sa{six_count}]==36 or die "FA2 24K 6x6 call-matrix self-test failed from bank $b\n";
 }
 my($six_s26,$six_derr)=ok('disassemble six-bank FA2',$disas,'-o','-',$six);
-$six_derr eq '' or die "FA2 24K disassembler stderr:\n$six_derr";
+$six_derr eq "Success, output written to stdout\n" or die "FA2 24K disassembler stderr:\n$six_derr";
 $six_s26 =~ /^; mapper: FA2 \(high confidence;/m && $six_s26 =~ /^; reset\/power-on bank: 0 \(FA2 hardware bank 0\)$/m or die "FA2 24K disassembler mapper/reset contract missing\n";
 my $six_ri=File::Spec->catdir($tmp,'roundtrip-24k-in'); my $six_ro=File::Spec->catdir($tmp,'roundtrip-24k-out'); make_path($six_ri,$six_ro);
 copy($six,File::Spec->catfile($six_ri,'fa2-24k.bin')) or die "copy 24K roundtrip input: $!\n";
@@ -242,7 +242,7 @@ $six_rerr eq '' && $six_rout =~ /PASS fa2-24k\.bin/ or die "FA2 24K roundtrip fa
 my $visible=File::Spec->catfile($tmp,'fa2-visible.bin');
 ok('build visible FA2 diagnostic',$driver,'-I',$vcs,$src,'-o',$visible);
 my($s26,$derr)=ok('disassemble FA2 diagnostic',$disas,'-o','-',$visible);
-$derr eq '' or die "FA2 disassembler stderr:\n$derr";
+$derr eq "Success, output written to stdout\n" or die "FA2 disassembler stderr:\n$derr";
 $s26 =~ /^; mapper: FA2 \(high confidence;/m && $s26 =~ /^; reset\/power-on bank: 0 \(FA2 hardware bank 0\)$/m or die "FA2 disassembler mapper/reset contract missing\n";
 
 my $ri=File::Spec->catdir($tmp,'roundtrip-in'); my $ro=File::Spec->catdir($tmp,'roundtrip-out'); make_path($ri,$ro);
