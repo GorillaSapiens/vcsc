@@ -211,3 +211,18 @@ copies of one 128-byte ROM, the former doubled-2K/doubled-4K cases, and a 16K
 preservation file containing one complete distinct-bank 8K F8 image twice. The
 main vcsc-disas regression suite, hardening suite, all-opcode round trip, and
 deterministic fuzz suite all pass; fuzz is 36/36 exact, including two each at 128/256/512 bytes.
+
+2026-09-08 22:23:00 PDT, normalize tiny ROMs in Stella differential
+------------------------------------------------------------------
+`roundtrip.pl --stella` now recognizes the physical-topology names introduced
+for native 128-, 256-, and 512-byte unbanked ROMs. VCSC headers
+`unbanked 128-byte`, `unbanked 256-byte`, and `unbanked 512-byte` normalize to
+`128B`, `256B`, and `512B`. Stella's corresponding `2K* (128B)`,
+`2K* (256B)`, and `2K* (512B)` spellings normalize to the same names, extending
+the existing `2K* (1K)` -> `1K` equivalence. Stella uses the 2K cartridge class
+for these tiny images while preserving the physical size in its description.
+
+The fake-Stella hardening corpus now includes native 128/256/512-byte ROMs and
+requires all of them to compare as mapper matches in both ordinary `--stella`
+and `--stella-strict` runs. Public disassembler documentation records the four
+2K-class physical-topology equivalences. Focused disassembler hardening passes.

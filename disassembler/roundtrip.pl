@@ -82,6 +82,9 @@ sub vcsc_mapper_from_source {
     $source =~ /^;\s*mapper:\s*(.+?)\s*\(/m
         or die "$path: generated source has no mapper header\n";
     my $mapper = $1;
+    if ($mapper =~ /^unbanked\s+(128|256|512)-byte\z/i) {
+        return uc($1 . 'B');
+    }
     if ($mapper =~ /^unbanked\s+(1K|2K|4K)\z/i) {
         return uc($1);
     }
@@ -105,11 +108,11 @@ sub stella_mapper_for_rom {
         or die "Stella -rominfo did not report Bankswitch Type\n";
     my $reported = uc($1);
 
-    # Stella calls a native 1024-byte cartridge "2K* (1K)": electrically it
-    # uses Stella's 2K cartridge class, but the parenthetical is the physical
-    # image topology.  VCSC deliberately names that topology 1K, so these are
-    # equivalent for the differential mapper check rather than a disagreement.
-    return '1K' if $reported =~ /^2K\*?\s*\(1K\)\z/;
+    # Stella uses its 2K cartridge class for every native image up through 2K,
+    # while the parenthetical records the physical image topology.  Preserve
+    # that topology for the differential mapper check so VCSC's 128B/256B/512B
+    # and 1K names compare equal to Stella's corresponding 2K* spellings.
+    return uc($1) if $reported =~ /^2K\*?\s*\((128B|256B|512B|1K)\)\z/;
 
     $reported =~ /^([^\s(]+)/
         or die "cannot normalize Stella Bankswitch Type '$reported'\n";

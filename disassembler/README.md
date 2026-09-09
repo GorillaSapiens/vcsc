@@ -659,9 +659,11 @@ database with its own mapper autodetection, and either detector may expose a bug
 The input corpus must already be Atari 2600/VCS ROMs. Stella's mapper detector is
 not a platform detector; an arbitrary same-sized blob from another 6502 system
 can still fall through to a size-default VCS mapper and produce a meaningless
-comparison. Stella reports a native 1024-byte cartridge as `2K* (1K)` because it
-uses the 2K cartridge implementation internally; `roundtrip.pl` normalizes that
-spelling to VCSC's physical-topology name `1K`, so it is a mapper match. For
+comparison. Stella uses its 2K cartridge implementation for native images up to
+2K and reports the physical topology in parentheses. Thus `2K* (128B)`,
+`2K* (256B)`, `2K* (512B)`, and `2K* (1K)` normalize to VCSC's `128B`, `256B`,
+`512B`, and `1K` names respectively, so those are mapper matches rather than
+false differences. For
 4IN1/8IN1/32IN1 containers Stella selects one component before cartridge creation
 and reports that slice's MD5 instead of the whole-file MD5. `roundtrip.pl` accepts
 that difference only when the reported MD5 matches one exact equal-sized local
