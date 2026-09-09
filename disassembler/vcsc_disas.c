@@ -7048,33 +7048,6 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
       }
    }
 
-   /* If legacy byte detection identified the UA family and mapper-aware
-    * flow kept at least one UA variant alive, do not let unrelated unsigned
-    * 8K hypotheses win merely because their accidental startup CFG is also
-    * halt-free.  Distinctive/explicit evidence for another family remains in
-    * contention; this only removes evidence-free alternatives. */
-   if (legacy == MAP_UA || legacy == MAP_UASW) {
-      int have_identified_ua = 0;
-      for (i = 0; i < n; ++i)
-         if (h[i].viable && (h[i].mapper == MAP_UA || h[i].mapper == MAP_UASW) &&
-             h[i].detector_signature)
-            have_identified_ua = 1;
-      if (have_identified_ua) {
-         for (i = 0; i < n; ++i) {
-            int narrow_switch = h[i].cross_bank_switches != 0u &&
-                                mapper_has_precise_selector_edges(h[i].mapper) &&
-                                !mapper_is_three_family(h[i].mapper);
-            if (h[i].viable && h[i].mapper != MAP_UA && h[i].mapper != MAP_UASW &&
-                !h[i].detector_signature && !h[i].explicit_signature &&
-                !narrow_switch && h[i].three_specific_switches == 0u &&
-                h[i].e7_specific_refs == 0 && h[i].threee_ram_select_refs == 0) {
-               h[i].viable = 0;
-               h[i].reject_reason = MAPPER_REJECT_UA_FAMILY_PRECEDENCE;
-            }
-         }
-      }
-   }
-
    /* Do not rank mapper families by raw selector-hit count.  Alias-heavy
     * schemes such as 0840 can classify ordinary accesses as hotspots and
     * therefore manufacture more "evidence" than a narrower, correct mapper.
@@ -7123,6 +7096,34 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
             if (h[i].viable && !specific && !h[i].explicit_signature) {
                h[i].viable = 0;
                h[i].reject_reason = MAPPER_REJECT_NO_SPECIFIC_SWITCH;
+            }
+         }
+      }
+   }
+
+   /* After stronger executable bank-switch evidence has been applied, if
+    * legacy byte detection identified the UA family and mapper-aware flow still
+    * keeps at least one UA variant alive, do not let unrelated unsigned
+    * 8K hypotheses win merely because their accidental startup CFG is also
+    * halt-free.  Distinctive/explicit evidence for another family remains in
+    * contention; this only removes evidence-free alternatives. */
+   if (legacy == MAP_UA || legacy == MAP_UASW) {
+      int have_identified_ua = 0;
+      for (i = 0; i < n; ++i)
+         if (h[i].viable && (h[i].mapper == MAP_UA || h[i].mapper == MAP_UASW) &&
+             h[i].detector_signature)
+            have_identified_ua = 1;
+      if (have_identified_ua) {
+         for (i = 0; i < n; ++i) {
+            int narrow_switch = h[i].cross_bank_switches != 0u &&
+                                mapper_has_precise_selector_edges(h[i].mapper) &&
+                                !mapper_is_three_family(h[i].mapper);
+            if (h[i].viable && h[i].mapper != MAP_UA && h[i].mapper != MAP_UASW &&
+                !h[i].detector_signature && !h[i].explicit_signature &&
+                !narrow_switch && h[i].three_specific_switches == 0u &&
+                h[i].e7_specific_refs == 0 && h[i].threee_ram_select_refs == 0) {
+               h[i].viable = 0;
+               h[i].reject_reason = MAPPER_REJECT_UA_FAMILY_PRECEDENCE;
             }
          }
       }
@@ -9470,7 +9471,7 @@ static void emit_mapper_hypothesis_evidence(FILE *fp,
          fprintf(fp, "; competing UA-family variant alone demonstrates the bank-changing RESET edge");
          break;
       case MAPPER_REJECT_UA_FAMILY_PRECEDENCE:
-         fprintf(fp, "; identified UA-family evidence outranks this evidence-free 8K interpretation");
+         fprintf(fp, "; surviving identified UA-family evidence outranks this evidence-free 8K interpretation");
          break;
       case MAPPER_REJECT_WEAKER_HALT_SAVE:
          fprintf(fp, "; another viable mapper explains a bank switch that avoids HLT/JAM/KIL");

@@ -167,3 +167,25 @@ Validation: the main disassembler regression passes 132 byte-exact fixtures;
 `vcsc_disassembler_hardening.pl`, all-opcode round trip, deterministic fuzz
 (30/30), source-tree hygiene, and context-history format pass. The supplied
 `f8.bin` also passes a direct one-file exact round trip.
+
+2026-09-08 21:12:12 PDT, fix stale UA precedence diagnostics
+-----------------------------------------------------------
+Mapper refinement no longer lets an identified UA/UASW family reject unrelated
+8K hypotheses before stronger executable bank-switch evidence has run. UA-family
+precedence is now applied only after switch-avoided-halt and mapper-specific
+bank-switch filtering, so a rejected UA/UASW hypothesis can no longer appear in
+the final header as having outranked E0/0840/0FA0. The diagnostic wording now
+explicitly says "surviving identified UA-family evidence" when that precedence is
+actually used.
+
+`test/vcsc_disassembler.pl` adds a raw-UA-data/F8 regression that requires UA to
+lose to surviving mapper-specific switching and forbids any stale
+`UA-family evidence outranks` line. The supplied `f8.bin` now reports F8 as the
+sole survivor, with E0/0840/UA/UASW/0FA0 rejected by surviving mapper-specific
+bank-switch evidence rather than by a UA family that was later rejected.
+
+Validation: the bundled Debian Bison/Flex packages rebuilt `vcsc-as` and
+`vcsc-disas` cleanly. `test/vcsc_disassembler.pl` passes, disassembler hardening
+passes, and deterministic disassembler fuzz passes 30/30. The supplied `f8.bin`
+and the synthetic raw-UA-data F8 fixture both produce the corrected mapper-
+evidence header.

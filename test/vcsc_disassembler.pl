@@ -2455,6 +2455,11 @@ require_re($f8_raw_ua_data_out, qr/^; mapper: F8 \(/m,
 require_re($f8_raw_ua_data_out,
    qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
    'raw-UA-data F8 mapper hypotheses converge');
+require_re($f8_raw_ua_data_out,
+   qr/^;   UA: rejected; another viable mapper demonstrates mapper-specific bank switching$/m,
+   'raw-UA-data rejection reasons reflect the surviving narrow-selector evidence');
+die "rejected UA family was reported as outranking another mapper\n"
+   if $f8_raw_ua_data_out =~ /UA-family evidence outranks/;
 require_re($f8_raw_ua_data_out, qr/B0_F100:\n\s*LDA\s+\$1FF9/m,
    'raw-UA-data fixture retains established F8 selector');
 require_re($f8_raw_ua_data_out, qr/B1_F103:\n\s*LDA\s+#\$42/m,
