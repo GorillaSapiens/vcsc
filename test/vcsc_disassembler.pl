@@ -68,6 +68,20 @@ sub make_rom {
    return $rom;
 }
 
+sub make_tiny_rom {
+   my ($size, $value) = @_;
+   die "tiny ROM size must be a power of two from 128 through 1024\n"
+      if $size < 128 || $size > 1024 || ($size & ($size - 1));
+   my $origin = 0x10000 - $size;
+   my $rom = chr(0xEA) x $size;
+   my $code = pack('C*', 0xA9, $value & 0xFF, 0x4C, $origin & 0xFF, ($origin >> 8) & 0xFF);
+   substr($rom, 0, length($code), $code);
+   put16(\$rom, $size - 6, $origin);
+   put16(\$rom, $size - 4, $origin);
+   put16(\$rom, $size - 2, $origin);
+   return $rom;
+}
+
 sub make_ar_load {
    my ($start, $control, $load_id, $bank_byte, $page) = @_;
    length($page) == 256 or die "AR page must be 256 bytes\n";
@@ -146,6 +160,14 @@ substr($plain1k, 0x0090, 3, "\xA9\x88\x60");
 put16(\$plain1k, 0x03FA, 0xFC90);
 put16(\$plain1k, 0x03FE, 0xFC80);
 write_bin(File::Spec->catfile($in, 'plain1k.bin'), $plain1k);
+write_bin(File::Spec->catfile($in, 'plain128.bin'), make_tiny_rom(128, 0x18));
+write_bin(File::Spec->catfile($in, 'plain256.bin'), make_tiny_rom(256, 0x19));
+write_bin(File::Spec->catfile($in, 'plain512.bin'), make_tiny_rom(512, 0x20));
+# A preservation file can repeat through several powers of two.  Collapse all
+# exact half-duplicates before mapper inference, but stop at 128 bytes even if
+# the tiny program itself happens to contain smaller repeated byte patterns.
+my $mirror_128 = make_tiny_rom(128, 0x21);
+write_bin(File::Spec->catfile($in, 'mirror128_to_4k.bin'), $mirror_128 x 32);
 
 # Concrete RESET discovery torture fixture.  The startup establishes SP=$FF,
 # clears the entire mirrored stack/RIOT-RAM page with TSX/PHA, then uses BRK as
@@ -357,7 +379,14 @@ put16(\$vector_exec, 0xFFC, 0xF000);
 put16(\$vector_exec, 0xFFE, 0xF000);
 write_bin(File::Spec->catfile($in, 'vector_exec.bin'), $vector_exec);
 write_bin(File::Spec->catfile($in, 'origin_d000.bin'), make_rom(4096, 0xD000, 0x0234, "\xA9\x17\x60"));
-write_bin(File::Spec->catfile($in, 'f8.bin'), make_rom(8192, 0xF000, 0x0100, "\xAD\xF8\x1F\x60"));
+my $f8_base = make_rom(8192, 0xF000, 0x0100, "\xAD\xF8\x1F\x60");
+# Keep the two real F8 banks byte-distinct; otherwise the generic preservation
+# rule correctly identifies the file as one 4K image stored twice.
+substr($f8_base, 0x1200, 1, "\x38");
+write_bin(File::Spec->catfile($in, 'f8.bin'), $f8_base);
+# Conversely, a 16K file containing that complete, distinct-bank F8 image twice
+# must reduce only to 8K, then enter normal F8 mapper refinement.
+write_bin(File::Spec->catfile($in, 'mirrored_f8_16k.bin'), $f8_base . $f8_base);
 
 # VCSC-generated banked images deliberately replace the final physical bank's
 # unbonded NMI-vector bytes with a mapper signature.  RESET and IRQ still point
@@ -1819,21 +1848,46 @@ my $doubled_2k_out = slurp(File::Spec->catfile($out, 'doubled2k.s26'));
 require_re($doubled_2k_out, qr/^; mapper: unbanked 2K \(/m,
    'byte-identical doubled 2K dump recognized as logical 2K');
 require_re($doubled_2k_out,
-   qr/^; preservation image: 2K ROM duplicated byte-for-byte to 4K;/m,
+   qr/^; preservation image: 2048-byte logical ROM repeated byte-for-byte 2 times to 4096 bytes;/m,
    'doubled 2K preservation annotation');
 require_re($doubled_2k_out,
-   qr/^; ---- duplicated second 2K copy from preservation image ----$/m,
-   'doubled 2K second-copy preservation section');
+   qr/^; ---- repeated preservation copies beyond logical ROM ----$/m,
+   'doubled 2K repeated-copy preservation section');
 
 my $doubled_4k_out = slurp(File::Spec->catfile($out, 'doubled4k.s26'));
 require_re($doubled_4k_out, qr/^; mapper: unbanked 4K \(/m,
    'byte-identical doubled 4K dump recognized as logical 4K before UA heuristics');
 require_re($doubled_4k_out,
-   qr/^; preservation image: 4K ROM duplicated byte-for-byte to 8K;/m,
+   qr/^; preservation image: 4096-byte logical ROM repeated byte-for-byte 2 times to 8192 bytes;/m,
    'doubled 4K preservation annotation');
 require_re($doubled_4k_out,
-   qr/^; ---- duplicated second 4K copy from preservation image ----$/m,
-   'doubled 4K second-copy preservation section');
+   qr/^; ---- repeated preservation copies beyond logical ROM ----$/m,
+   'doubled 4K repeated-copy preservation section');
+
+for my $case ([plain128 => 128, 'FF80'], [plain256 => 256, 'FF00'], [plain512 => 512, 'FE00']) {
+   my ($name, $bytes, $origin) = @$case;
+   my $text = slurp(File::Spec->catfile($out, "$name.s26"));
+   require_re($text, qr/^; mapper: unbanked \Q$bytes\E-byte \(/m,
+      "$bytes-byte image recognized as tiny unbanked ROM");
+   require_re($text, qr/^; physical banks: 1 x \Q$bytes\E bytes$/m,
+      "$bytes-byte physical topology");
+   require_re($text, qr/^; bank 0: .*origin \$$origin/m,
+      "$bytes-byte canonical top-mirror origin");
+}
+
+my $mirror_128_out = slurp(File::Spec->catfile($out, 'mirror128_to_4k.s26'));
+require_re($mirror_128_out, qr/^; mapper: unbanked 128-byte \(/m,
+   'recursive duplicate collapse reaches 128-byte floor');
+require_re($mirror_128_out,
+   qr/^; preservation image: 128-byte logical ROM repeated byte-for-byte 32 times to 4096 bytes;/m,
+   'recursive duplicate collapse records all 32 physical copies');
+
+my $mirrored_f8_out = slurp(File::Spec->catfile($out, 'mirrored_f8_16k.s26'));
+require_re($mirrored_f8_out, qr/^; mapper: F8 \(/m,
+   'doubled complete F8 image reduces to logical 8K and retains F8 mapper inference');
+require_re($mirrored_f8_out,
+   qr/^; preservation image: 8192-byte logical ROM repeated byte-for-byte 2 times to 16384 bytes;/m,
+   'doubled F8 preservation annotation');
 
 my $f8_out = slurp(File::Spec->catfile($out, 'f8.s26'));
 require_re($f8_out, qr/^B0_F100:\s*$/m,
@@ -1871,7 +1925,7 @@ require_re($sc_disjoint,
 my $cv_doubled_out = slurp(File::Spec->catfile($out, 'cv_doubled_4k.s26'));
 require_re($cv_doubled_out, qr/^; mapper: CV \(high confidence;/m,
    'doubled 2K CV storage form remains CV');
-require_re($cv_doubled_out, qr/^; preservation image: CV 2K ROM duplicated byte-for-byte to 4K;/m,
+require_re($cv_doubled_out, qr/^; preservation image: 2048-byte logical ROM repeated byte-for-byte 2 times to 4096 bytes;/m,
    'doubled 2K CV preservation form is documented');
 my $cv_saved_out = slurp(File::Spec->catfile($out, 'cv_saved_4k.s26'));
 require_re($cv_saved_out, qr/^; mapper: CV \(high confidence;/m,

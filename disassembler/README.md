@@ -98,15 +98,16 @@ form carrying an additional 255-byte RNG table.
 
 Starpath/Arcadia Supercharger fast-load images are recognized structurally when the input size is an exact multiple of 8448 bytes. Each 8448-byte load contains 8192 bytes of page data followed by a 256-byte header. The header supplies the initial start address, control byte, page count, load ID, page-to-RAM map, and checksums. `vcsc-disas` reconstructs the Supercharger's three 2K RAM banks from those page mappings, carries prior RAM contents into nonzero concatenated multi-loads, and recursively decodes the payload from the header start address under the header's initial two-window bank configuration. Payload code is emitted as a comment-only runtime view with physical-file provenance, while every original tape/load byte is emitted raw so reassembly remains byte-exact. Invalid header or page checksums are reported but do not cause preservation bytes to be normalized or rejected. Static payload flow currently stops when a `$FFF8` configuration change cannot be resolved from the address-bus data-hold latch; analog cassette timing and the copyrighted 2K Supercharger BIOS are deliberately outside the input image and are not synthesized into output bytes.
 
-Unbanked 1K cartridges are treated as one physical 1024-byte ROM mirrored four
-times through the 4K cartridge window.  The canonical presentation origin is
-therefore normally `$FC00`, while runtime references in any mirror resolve to
-the same physical byte modulo `$0400`.  The hardware vector bytes are the final
-six physical bytes of the 1K image.  RESET is the only initial executable root:
+Unbanked 128-, 256-, 512-, and 1024-byte cartridges are treated as one physical
+ROM mirrored repeatedly through the 4K cartridge window.  Their canonical
+presentation origins are normally `$FF80`, `$FF00`, `$FE00`, and `$FC00`
+respectively, while runtime references in any mirror resolve to the same
+physical byte modulo the ROM size.  The hardware vector bytes are the final six
+physical bytes of the logical image.  RESET is the only initial executable root:
 the 6507 has no bonded NMI or IRQ input, and `$FFFE/$FFFF` becomes executable
 only after analysis encounters a reachable `BRK`.  RESET alone is likewise used
-while testing competing mapper hypotheses.  `--mapper 1k` forces this topology
-for a 1024-byte input.
+while testing competing mapper hypotheses.  `--mapper 1k` names this unbanked
+mirrored topology and accepts any of those four sizes.
 
 For VCSC-generated banked cartridges, the explicit four-byte mapper signature
 can provide stronger structural information than a generic hardware-vector root.
@@ -118,13 +119,17 @@ not follow their handlers unless ordinary control flow or reachable `BRK` proves
 them reachable.  A mapper signature without the complete bridge shape does not
 promote tail bytes to code.
 
-A 4096-byte image whose upper 2048 bytes are byte-for-byte identical to its
-lower 2048 bytes is recognized as a doubled preservation dump of an ordinary
-unbanked 2K cartridge. Likewise, an 8192-byte image made from two byte-identical
-4K halves is analyzed as one logical unbanked 4K cartridge before any 8K mapper
-heuristic runs. `vcsc-disas` emits each duplicate half as preserved raw bytes,
-so disassemble/reassemble reproduces the original physical file exactly. Merely
-similar or partially duplicated images are not collapsed.
+Before automatic mapper inference, any power-of-two input is checked for exact
+whole-image mirroring.  If its upper half is byte-for-byte identical to its
+lower half, analysis repeats the test on the lower half until it reaches the
+smallest unique power-of-two image or the 128-byte floor.  Mapper inference then
+runs on that logical image: a 16K file containing one complete 8K F8 image twice
+therefore remains logically F8, while a 4K file containing the same 128-byte ROM
+32 times is analyzed as a 128-byte unbanked cartridge.  This is an analysis
+normalization only; every repeated physical byte is emitted raw after the logical
+image so disassemble/reassemble reproduces the original file exactly.  Explicit
+`--mapper` selection bypasses automatic mirror collapse.  Similar or partially
+duplicated images are never collapsed.
 
 Multi-game 4IN1/8IN1/32IN1 images are treated as **containers**, not as one
 bankswitched 6507 address space. Automatic detection is intentionally conservative:
@@ -275,8 +280,9 @@ patterns used for legacy CV detection. CV RAM addresses are excluded from ROM
 code/data discovery. In addition to the normal 2048-byte image, the disassembler
 supports Stella's 4096-byte CV preservation form: the final 2K are the actual ROM,
 the first 1K seeds cartridge RAM, and the intervening 1K is preserved storage.
-A byte-identical doubled 2K CV dump is handled by the same 4K storage path. Both
-forms are emitted so the complete original input round-trips byte-for-byte.
+A byte-identical doubled 2K CV dump is first reduced by the generic exact-mirror
+normalization, then recognized as logical 2K CV. Both forms are emitted so the
+complete original input round-trips byte-for-byte.
 FA2 is the Harmony extension of the same split-RAM idea. VCSC supports clean native 24K (six-bank) and 28K (seven-bank) payloads: `$1FF5-$1FFA` and optional `$1FFB` directly select 4K banks, bank 0 powers up, and the 256-byte RAM ports remain write `$1000-$10FF` / read `$1100-$11FF`. `--mapper fa2` accepts those native payload sizes. The optional Harmony `$1FF4` flash-persistence service and 29K/32K wrapper forms are not part of the core VCSC FA2 output contract.
 
 

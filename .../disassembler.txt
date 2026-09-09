@@ -11,8 +11,11 @@ history is in `.../context-history/`; the pre-cleanup full roadmap is archived i
 
 Durable invariants
 ------------------
-* Never normalize the image. Preserve file length, duplicate banks, inaccessible
-  bytes, fill, vector oddities, and trailing preservation bytes exactly.
+* Never alter the preservation image. Preserve file length, duplicate banks,
+  inaccessible bytes, fill, vector oddities, and trailing preservation bytes
+  exactly. Automatic analysis may collapse exact repeated power-of-two halves
+  down to the smallest unique logical image, but emission must restore every
+  physical byte exactly.
 * Identical input plus identical command line must produce identical `.s26`.
 * If semantic interpretation is uncertain, emit exact raw bytes and annotate the
   uncertainty. A zero-instruction result is still a hard analysis failure.
@@ -36,6 +39,11 @@ Durable invariants
   presenting it as positive proof.
 * Mapper inference is a hardware-state problem, not merely a file-size/name
   lookup. Keep mapper context separate when following code across selectors.
+* Before automatic mapper inference, recursively collapse byte-identical upper/lower
+  halves of power-of-two inputs to the smallest unique logical image, stopping at
+  128 bytes.  Run mapper inference on that logical size while retaining the full
+  physical image for exact output. Explicit `--mapper` bypasses this inference
+  normalization.
 * RESET is the only stock-6507 initial hardware execution root. Reachable `BRK`
   may promote IRQ/BRK; NMI is never rooted merely from `$FFFA/$FFFB`. For a
   signed VCSC banked image, the complete linker vector-bridge invariant may

@@ -189,3 +189,25 @@ Validation: the bundled Debian Bison/Flex packages rebuilt `vcsc-as` and
 passes, and deterministic disassembler fuzz passes 30/30. The supplied `f8.bin`
 and the synthetic raw-UA-data F8 fixture both produce the corrected mapper-
 evidence header.
+
+2026-09-08 21:53:09 PDT, generalize mirror normalization
+------------------------------------------------------------
+Replaced the disassembler's hard-coded doubled-2K and doubled-4K cases with one
+pre-inference normalization pass for power-of-two inputs. Automatic inference now
+repeatedly compares exact upper/lower halves and reduces to the smallest unique
+logical power-of-two image, with a hard 128-byte floor. The full physical input is
+still retained and emitted byte-for-byte after the logical image, so round-trip
+preservation remains exact. Explicit --mapper selection bypasses this automatic
+collapse, preserving the override contract.
+
+Unbanked 128-, 256-, and 512-byte ROMs now use the existing mirrored unbanked
+mapper model alongside 1K, including correct modulo-ROM bus mapping in static,
+concrete, and dynamic analysis and canonical top-mirror origins $FF80/$FF00/$FE00.
+CV's doubled-2K storage form now flows through the generic mirror mechanism;
+nonidentical Stella 4K CV save images keep their special RAM/padding layout.
+
+Regressions cover native 128/256/512-byte images, a 4K file containing 32 exact
+copies of one 128-byte ROM, the former doubled-2K/doubled-4K cases, and a 16K
+preservation file containing one complete distinct-bank 8K F8 image twice. The
+main vcsc-disas regression suite, hardening suite, all-opcode round trip, and
+deterministic fuzz suite all pass; fuzz is 36/36 exact, including two each at 128/256/512 bytes.

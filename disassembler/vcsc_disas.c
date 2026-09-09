@@ -278,8 +278,7 @@ typedef struct {
    const char *controller_override[2];
    int verbose;
    int wd_bad_dump;
-   int doubled_2k_dump;
-   int doubled_4k_dump;
+   size_t mirror_copies;
    int hotspot_refs;
    size_t cross_bank_switches;
    int superchip_write_refs;
@@ -972,14 +971,24 @@ static int is_cart_address(uint16_t address)
    return (address & 0x1000u) != 0;
 }
 
-static int is_doubled_2k_dump(const uint8_t *rom, size_t size)
+static int size_is_power_of_two(size_t size)
 {
-   return size == 4096u && memcmp(rom, rom + 2048u, 2048u) == 0;
+   return size != 0u && (size & (size - 1u)) == 0u;
 }
 
-static int is_doubled_4k_dump(const uint8_t *rom, size_t size)
+/* Preservation dumps commonly repeat a smaller ROM image to fill a larger
+ * power-of-two file.  For automatic inference, recursively strip exact upper
+ * half duplicates down to the historically useful 128-byte floor.  This never
+ * changes the physical image: emission remembers and reproduces every byte. */
+static size_t smallest_unique_power_of_two_size(const uint8_t *rom, size_t size)
 {
-   return size == 8192u && memcmp(rom, rom + 4096u, 4096u) == 0;
+   if (!rom || size < 128u || !size_is_power_of_two(size)) return size;
+   while (size > 128u) {
+      size_t half = size / 2u;
+      if (memcmp(rom, rom + half, half) != 0) break;
+      size = half;
+   }
+   return size;
 }
 
 static int mapper_is_wd_family(mapper_t mapper)
@@ -992,7 +1001,8 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
 {
    switch (mapper) {
    case MAP_RAW: *bank_size = rom_size; *bank_count = 1u; return 1;
-   case MAP_1K: *bank_size = 1024u; *bank_count = 1u; return rom_size == 1024u;
+   case MAP_1K: *bank_size = rom_size; *bank_count = 1u;
+      return rom_size >= 128u && rom_size <= 1024u && size_is_power_of_two(rom_size);
    case MAP_2K: *bank_size = 2048u; *bank_count = 1u; return rom_size == 2048u;
    case MAP_4K: *bank_size = 4096u; *bank_count = 1u; return rom_size == 4096u;
    case MAP_F8: *bank_size = 4096u; *bank_count = 2u; return rom_size == 8192u;
@@ -1296,13 +1306,11 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
       return mapper;
    }
    switch (size) {
-   case 1024u: mapper = MAP_1K; break;
+   case 128u: case 256u: case 512u: case 1024u: mapper = MAP_1K; break;
    case 2048u: mapper = is_probably_cv(rom, size) ? MAP_CV : MAP_2K; break;
    case 4096u: mapper = is_probably_cv(rom, size) ? MAP_CV :
-                         (is_doubled_2k_dump(rom, size) ? MAP_2K :
-                         (is_probably_fc(rom, size) ? MAP_FC : MAP_4K)); break;
+                         (is_probably_fc(rom, size) ? MAP_FC : MAP_4K); break;
    case 8192u:
-      if (is_doubled_4k_dump(rom, size)) { mapper = MAP_4K; break; }
       mapper = is_probably_e0(rom, size) ? MAP_E0 : MAP_RAW;
       if (mapper == MAP_RAW) mapper = is_probably_3e(rom, size) ? MAP_3E : MAP_RAW;
       if (mapper == MAP_RAW) mapper = is_probably_3f(rom, size) ? MAP_3F : MAP_RAW;
@@ -1334,16 +1342,7 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
                     (is_probably_3f(rom, size) ? MAP_3F :
                     (is_probably_fc(rom, size) ? MAP_FC : MAP_RAW)); break;
    }
-   if (mapper == MAP_2K && is_doubled_2k_dump(rom, size)) {
-      *bank_size = 2048u;
-      *bank_count = 1u;
-   }
-   else if (mapper == MAP_4K && is_doubled_4k_dump(rom, size)) {
-      *bank_size = 4096u;
-      *bank_count = 1u;
-   }
-   else
-      (void)mapper_dimensions(mapper, size, bank_size, bank_count);
+   (void)mapper_dimensions(mapper, size, bank_size, bank_count);
    return mapper;
 }
 
@@ -1380,6 +1379,19 @@ static const char *mapper_name(mapper_t mapper)
    return "unknown/raw";
 }
 
+
+static const char *mapper_name_for_size(mapper_t mapper, size_t rom_size)
+{
+   if (mapper == MAP_1K) {
+      switch (rom_size) {
+      case 128u: return "unbanked 128-byte";
+      case 256u: return "unbanked 256-byte";
+      case 512u: return "unbanked 512-byte";
+      default: break;
+      }
+   }
+   return mapper_name(mapper);
+}
 
 static uint8_t ar_checksum8(const uint8_t *p, size_t n)
 {
@@ -1830,11 +1842,9 @@ static int threee_ram_port(uint16_t config, uint16_t address)
 
 static int origin_candidate_valid(uint16_t origin, size_t bank_size)
 {
-   if (!is_cart_address(origin)) return 0;
-   if (bank_size == 4096u) return (origin & 0x0fffu) == 0;
-   if (bank_size == 2048u) return (origin & 0x07ffu) == 0;
-   if (bank_size == 1024u) return (origin & 0x03ffu) == 0;
-   return 0;
+   if (!is_cart_address(origin) || bank_size < 128u || bank_size > 4096u ||
+       !size_is_power_of_two(bank_size)) return 0;
+   return (origin & (uint16_t)(bank_size - 1u)) == 0u;
 }
 
 static uint16_t origin_from_target(uint16_t target, size_t bank_size)
@@ -1850,21 +1860,19 @@ static uint16_t read_word(const uint8_t *p)
 
 static int origin_index(uint16_t origin, size_t bank_size)
 {
-   if (bank_size == 4096u) return (int)(origin >> 12);
-   if (bank_size == 2048u) return (int)(origin >> 11);
-   if (bank_size == 1024u) return (int)(origin >> 10);
-   return -1;
+   if (bank_size < 128u || bank_size > 4096u || !size_is_power_of_two(bank_size))
+      return -1;
+   return (int)((size_t)origin / bank_size);
 }
 
 static uint16_t infer_bank_origin(const uint8_t *data, size_t size,
                                   size_t bank_size, int *score_out,
                                   int *reset_evidence)
 {
-   int scores[64];
+   int scores[512];
    size_t i;
    int best_score = -1;
-   uint16_t best = bank_size == 2048u ? 0xf800u :
-                   (bank_size == 1024u ? 0xfc00u : 0xf000u);
+   uint16_t best = (uint16_t)(0x10000u - bank_size);
    memset(scores, 0, sizeof(scores));
    *reset_evidence = 0;
 
@@ -1906,10 +1914,9 @@ static uint16_t infer_bank_origin(const uint8_t *data, size_t size,
    }
 
    for (i = 0; i < sizeof(scores)/sizeof(scores[0]); ++i) {
-      uint16_t origin = bank_size == 4096u
-         ? (uint16_t)(i << 12)
-         : (bank_size == 2048u ? (uint16_t)(i << 11)
-                               : (uint16_t)(i << 10));
+      uint16_t origin;
+      if (i * bank_size > 0xffffu) break;
+      origin = (uint16_t)(i * bank_size);
       if (!origin_candidate_valid(origin, bank_size)) continue;
       if (scores[i] > best_score ||
           (scores[i] == best_score && origin > best)) {
@@ -2029,15 +2036,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
    a->rom_size = rom_size;
    if (opt->mapper_override_set) {
       a->mapper = opt->mapper_override;
-      if (a->mapper == MAP_2K && is_doubled_2k_dump(rom, rom_size)) {
-         a->bank_size = 2048u;
-         a->bank_count = 1u;
-      }
-      else if (a->mapper == MAP_4K && is_doubled_4k_dump(rom, rom_size)) {
-         a->bank_size = 4096u;
-         a->bank_count = 1u;
-      }
-      else if (!mapper_dimensions(a->mapper, rom_size, &a->bank_size, &a->bank_count)) {
+      if (!mapper_dimensions(a->mapper, rom_size, &a->bank_size, &a->bank_count)) {
          fprintf(stderr, "--mapper %s is incompatible with %zu-byte input\n",
                  mapper_name(a->mapper), rom_size);
          return 0;
@@ -2049,8 +2048,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
       a->mapper = infer_mapper(rom, rom_size, &a->bank_size, &a->bank_count);
    }
    a->wd_bad_dump = a->mapper == MAP_WDSW;
-   a->doubled_2k_dump = a->mapper == MAP_2K && is_doubled_2k_dump(rom, rom_size);
-   a->doubled_4k_dump = a->mapper == MAP_4K && is_doubled_4k_dump(rom, rom_size);
+   a->mirror_copies = 1u;
    a->video_override = opt->video_override;
    a->input_name = opt->input;
    a->controller_override[0] = opt->controller_override[0];
@@ -6566,8 +6564,8 @@ static int concrete_mapper_trusted(const analysis_t *a)
     * survive static hypothesis refinement, then concrete execution under the
     * wrong hotspot model turns arbitrary data into thousands of fake executed
     * instructions.  VCSC's explicit tail signatures (or a user --mapper) are
-    * strong enough to opt banked carts in.  Unbanked 1K/2K/4K topology is
-    * unambiguous by size once CV/doubled-2K detection has had its vote. */
+    * strong enough to opt banked carts in.  Unbanked 128B/256B/512B/1K/2K/4K topology is
+    * unambiguous after exact mirrored-image normalization and CV detection. */
    if (a->mapper_overridden) return 1;
    switch (a->mapper) {
    case MAP_1K:
@@ -6656,7 +6654,7 @@ static size_t mapper_candidates_for_size(size_t size, mapper_t *out,
    size_t n = 0u;
 #define ADD_MAPPER(m) do { if (n < capacity) out[n] = (m); ++n; } while (0)
    switch (size) {
-   case 1024u:
+   case 128u: case 256u: case 512u: case 1024u:
       ADD_MAPPER(MAP_1K);
       break;
    case 2048u:
@@ -6791,11 +6789,6 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
    detail->winner = legacy;
    detail->selection_reason = MAPPER_SELECTION_NONE;
    h = detail->hypotheses;
-   /* A byte-identical doubled 2K dump is a 2K image stored twice, not an
-    * ambiguous 4K cartridge.  Preserve the legacy logical-2K decision before
-    * introducing 4K mapper hypotheses such as FC. */
-   if (size == 4096u && is_doubled_2k_dump(rom, size)) return legacy;
-   if (size == 8192u && is_doubled_4k_dump(rom, size)) return legacy;
    n = mapper_candidates_for_size(size, candidates,
                                   sizeof(candidates) / sizeof(candidates[0]));
    if (n == 0u || n > MAPPER_HYPOTHESIS_MAX) return legacy;
@@ -9540,7 +9533,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
    fprintf(fp, "; input bytes: %zu\n", a->physical_size ? a->physical_size : a->rom_size);
    fprintf(fp, "; input sha256: %s\n", sha);
    {
-      const char *mname = mapper_name(a->mapper);
+      const char *mname = mapper_name_for_size(a->mapper, a->rom_size);
       char scname[32];
       if (superchip_active(a) && a->mapper == MAP_4K) {
          mname = "4KSC";
@@ -9604,11 +9597,10 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
    else if (a->mapper != MAP_RAW) {
       fprintf(fp, "; physical banks: %zu x %zu bytes\n",
               a->bank_count, a->bank_size);
-      if (a->doubled_2k_dump)
-         fprintf(fp, "; preservation image: 2K ROM duplicated byte-for-byte to 4K; second copy retained raw for exact round trip\n");
-      if (a->doubled_4k_dump)
-         fprintf(fp, "; preservation image: 4K ROM duplicated byte-for-byte to 8K; second copy retained raw for exact round trip\n");
-      if (a->mapper == MAP_CV && a->physical_size == 4096u) {
+      if (a->mirror_copies > 1u)
+         fprintf(fp, "; preservation image: %zu-byte logical ROM repeated byte-for-byte %zu times to %zu bytes; repeated copies retained raw for exact round trip\n",
+                 a->rom_size, a->mirror_copies, a->physical_size);
+      if (a->mapper == MAP_CV && a->rom_size == 4096u && a->physical_size == 4096u) {
          if (memcmp(a->physical_rom, a->physical_rom + 2048u, 2048u) == 0)
             fprintf(fp, "; preservation image: CV 2K ROM duplicated byte-for-byte to 4K; final 2K are analyzed as ROM\n");
          else
@@ -10082,7 +10074,7 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
       return ferror(fp) == 0;
    }
 
-   if (a->mapper == MAP_CV && a->physical_size == 4096u) {
+   if (a->mapper == MAP_CV && a->rom_size == 4096u && a->physical_size == 4096u) {
       fputs("; ---- CV preservation prefix (saved RAM/padding or duplicate ROM) ----\n", fp);
       fputs(".org $0000\n", fp);
       emit_physical_raw_range(fp, a, 0u, 2048u);
@@ -10157,16 +10149,10 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
       }
       fprintf(fp, ".rend\n\n");
    }
-   if (a->doubled_2k_dump) {
-      fputs("; ---- duplicated second 2K copy from preservation image ----\n", fp);
-      fputs(".org $0800\n", fp);
-      emit_physical_raw_range(fp, a, 2048u, 4096u);
-      fputc('\n', fp);
-   }
-   if (a->doubled_4k_dump) {
-      fputs("; ---- duplicated second 4K copy from preservation image ----\n", fp);
-      fputs(".org $1000\n", fp);
-      emit_physical_raw_range(fp, a, 4096u, 8192u);
+   if (a->mirror_copies > 1u) {
+      fputs("; ---- repeated preservation copies beyond logical ROM ----\n", fp);
+      fprintf(fp, ".org $%04zX\n", a->rom_size);
+      emit_physical_raw_range(fp, a, a->rom_size, a->physical_size);
       fputc('\n', fp);
    }
    if (a->mapper == MAP_DPC) {
@@ -10252,6 +10238,8 @@ static int analyze_multicart_slice(analysis_t *a, uint8_t *rom, size_t size,
    options_t opt = *parent;
    mapper_refinement_t refinement;
    mapper_t legacy, selected;
+   size_t analysis_size;
+   size_t mirror_copies;
 
    memset(a, 0, sizeof(*a));
    opt.output = NULL;
@@ -10262,12 +10250,15 @@ static int analyze_multicart_slice(analysis_t *a, uint8_t *rom, size_t size,
    opt.origin_count = opt.entry_count = opt.code_count = opt.data_count = 0u;
    opt.table_count = opt.pointer_count = 0u;
 
-   if (!init_analysis(a, rom, size, &opt)) return 0;
+   analysis_size = smallest_unique_power_of_two_size(rom, size);
+   mirror_copies = analysis_size < size ? size / analysis_size : 1u;
+   if (!init_analysis(a, rom, analysis_size, &opt)) return 0;
    a->physical_rom = rom;
    a->physical_size = size;
+   a->mirror_copies = mirror_copies;
    legacy = a->mapper;
    if (legacy != MAP_RAW) {
-      selected = refine_mapper_by_control_flow(rom, size, legacy,
+      selected = refine_mapper_by_control_flow(rom, analysis_size, legacy,
                                                &refinement);
       if (selected != legacy) {
          options_t selected_opt = opt;
@@ -10275,9 +10266,10 @@ static int analyze_multicart_slice(analysis_t *a, uint8_t *rom, size_t size,
          selected_opt.mapper_override_set = 1;
          selected_opt.mapper_override = selected;
          selected_opt.superchip_override = -1;
-         if (!init_analysis(a, rom, size, &selected_opt)) return 0;
+         if (!init_analysis(a, rom, analysis_size, &selected_opt)) return 0;
          a->physical_rom = rom;
          a->physical_size = size;
+         a->mirror_copies = mirror_copies;
          a->mapper_overridden = 0;
          a->superchip_override = -1;
       }
@@ -10544,6 +10536,7 @@ int main(int argc, char **argv)
    uint8_t *logical_rom = NULL;
    uint8_t *analysis_rom = NULL;
    size_t analysis_size = 0;
+   size_t mirror_copies = 1u;
    int odd_4k_dump = 0;
    analysis_t analysis;
    multicart_info_t multicart;
@@ -10570,6 +10563,13 @@ int main(int argc, char **argv)
       analysis_size = 4096u;
       odd_4k_dump = 1;
    }
+   if (!odd_4k_dump && !opt.mapper_override_set) {
+      size_t unique_size = smallest_unique_power_of_two_size(analysis_rom, analysis_size);
+      if (unique_size < analysis_size) {
+         mirror_copies = analysis_size / unique_size;
+         analysis_size = unique_size;
+      }
+   }
    if (!init_analysis(&analysis, analysis_rom, analysis_size, &opt)) {
       free(logical_rom);
       free(rom);
@@ -10577,6 +10577,7 @@ int main(int argc, char **argv)
    }
    analysis.physical_rom = rom;
    analysis.physical_size = rom_size;
+   analysis.mirror_copies = mirror_copies;
    analysis.odd_4k_dump = odd_4k_dump;
    if (!opt.mapper_override_set && analysis.mapper != MAP_RAW) {
       mapper_refinement_t refinement;
@@ -10596,6 +10597,7 @@ int main(int argc, char **argv)
          }
          analysis.physical_rom = rom;
          analysis.physical_size = rom_size;
+         analysis.mirror_copies = mirror_copies;
          analysis.odd_4k_dump = odd_4k_dump;
          /* This was automatic inference, not a user --mapper override. */
          analysis.mapper_overridden = 0;

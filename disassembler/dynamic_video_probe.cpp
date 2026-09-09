@@ -198,8 +198,10 @@ private:
       size_t off;
       size_t bank_size;
       if (mapper_ == kMap1K) {
-         off = static_cast<size_t>(bus & 0x03ffu);
-         bank_size = 1024u;
+         if (rom_size_ < 128u || rom_size_ > 1024u ||
+             (rom_size_ & (rom_size_ - 1u)) != 0u) return 0;
+         off = static_cast<size_t>(bus) & (rom_size_ - 1u);
+         bank_size = rom_size_;
       }
       else if (mapper_ == kMap2K) {
          off = static_cast<size_t>(bus & 0x07ffu);

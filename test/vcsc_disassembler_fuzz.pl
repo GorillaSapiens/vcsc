@@ -47,8 +47,11 @@ sub plant_entry {
    my ($bufref, $layout, $size) = @_;
    my $code = "\xA9\x42\x85\x09\x60"; # LDA #$42; STA COLUBK; RTS
    if ($layout eq '1k') {
-      substr($$bufref, 0x100, length($code), $code);
-      substr($$bufref, $size - 6, 6, pack('v3', 0xfd00, 0xfd00, 0xfd00));
+      my $origin = 0x10000 - $size;
+      my $entry = int($size / 4);
+      my $target = $origin + $entry;
+      substr($$bufref, $entry, length($code), $code);
+      substr($$bufref, $size - 6, 6, pack('v3', $target, $target, $target));
    }
    elsif ($layout eq '2k') {
       substr($$bufref, 0x100, length($code), $code);
@@ -164,8 +167,9 @@ for my $round (0 .. 1) {
 }
 
 # Keep the established deterministic byte stream for every pre-existing fuzz
-# image unchanged.  Add 1K coverage only after those images have been emitted,
-# so this topology extension cannot reshuffle unrelated mapper fuzz fixtures.
+# image unchanged.  Add unbanked mirrored-ROM coverage only after those images
+# have been emitted, so this topology extension cannot reshuffle unrelated
+# mapper fuzz fixtures.
 for my $round (0 .. 1) {
    my $layout = '1k';
    my $size = 1024;
@@ -180,6 +184,23 @@ for my $round (0 .. 1) {
    print {$fh} $buf or die "write $path: $!\n";
    close($fh) or die "close $path: $!\n";
    push @cases, [$name, $layout, $size];
+}
+
+for my $size (128, 256, 512) {
+   for my $round (0 .. 1) {
+      my $layout = '1k';
+      my $name = sprintf('fuzz_unbanked_%d_r%d.bin', $size, $round);
+      my $path = File::Spec->catfile($in, $name);
+      my $buf = '';
+      for (1 .. $size) {
+         $buf .= chr(next_byte());
+      }
+      plant_entry(\$buf, $layout, $size);
+      open(my $fh, '>:raw', $path) or die "open $path: $!\n";
+      print {$fh} $buf or die "write $path: $!\n";
+      close($fh) or die "close $path: $!\n";
+      push @cases, [$name, $layout, $size];
+   }
 }
 
 my $roundtrip = File::Spec->catfile($root, 'disassembler', 'roundtrip.pl');
