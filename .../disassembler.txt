@@ -36,6 +36,11 @@ Durable invariants
   presenting it as positive proof.
 * Mapper inference is a hardware-state problem, not merely a file-size/name
   lookup. Keep mapper context separate when following code across selectors.
+* RESET is the only stock-6507 initial hardware execution root. Reachable `BRK`
+  may promote IRQ/BRK; NMI is never rooted merely from `$FFFA/$FFFB`. For a
+  signed VCSC banked image, the complete linker vector-bridge invariant may
+  establish the three bridge slots as code without making NMI/IRQ handlers
+  runtime-reachable. Signature bytes alone are insufficient.
 * Multi-game containers are separate cartridge analyses concatenated in original
   order; no CFG or ROM reference crosses a component boundary.
 * The standalone `disassembler/roundtrip.pl` remains the mechanical exactness
@@ -75,13 +80,6 @@ Unfinished mapper support
 
 Unfinished analysis correctness
 -------------------------------
-27. [ ] Finish 6507 interrupt-vector reachability.
-    * RESET is the hardware entry. Reachable BRK may promote the IRQ/BRK vector.
-    * Remove the remaining unconditional NMI-root behavior; the 6507 has no
-      bonded NMI input.
-    * Preserve positive BRK-handler coverage while ensuring vector bytes alone do
-      not fabricate code in mapper/vector tails.
-
 31. [ ] Finish mapper-context abstract CPU-state precision.
     * Do not merge all abstract A/X/Y/P/ZP state solely by physical byte.
     * Key/merge state by physical location plus mapper context (or equivalent),

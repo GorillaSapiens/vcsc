@@ -138,3 +138,32 @@ Validation: `vcsc_disassembler.pl` passes all 131 round-trip fixtures,
 `vcsc_disassembler_hardening.pl`, `context_history_format.pl`, and
 `source_tree_hygiene.pl` pass, and a direct separator audit confirms six
 September 8 history entries with six timestamped headers.
+
+2026-09-08 20:40:04 PDT, disassembler VCSC vector bridge recovery
+-----------------------------------------------------------------
+Fixed conservative code recovery at signed VCSC banked cartridge tails. RESET
+is now the sole stock-6507 initial hardware execution root across all mapper
+paths; the former unconditional NMI root is removed. Reachable BRK still
+promotes the mapper-visible IRQ/BRK vector and retains the existing provable
+BRK/IRQ/RTI continuation analysis.
+
+For a banked image carrying VCSC's explicit mapper tail signature,
+`vcsc-disas` now recognizes the linker's generated three-slot vector bridge only
+when the complete structural invariant proves it: RESET and IRQ vectors imply
+equal adjacent slot sizes, all three mapper-entry prefixes are byte-identical,
+each prefix decodes cleanly, every slot ends in absolute JMP to cartridge
+space, and non-final NMI vectors (when present) agree with the inferred first
+slot. Those bridge slots are classified as established code without rooting or
+following otherwise-unreachable NMI/IRQ handlers. A signature without the full
+bridge shape promotes nothing.
+
+The user's F8 ROM now recovers the missed final-bank IRQ bridge at `$FFEC` as
+`BIT $1FF9` / `JMP $F19D` (and likewise the NMI bridge slot at `$FFE0`), while
+round-tripping to the identical 8192-byte image. `test/vcsc_disassembler.pl`
+adds a signed synthetic F8 linker-bridge fixture and an NMI-only 1K negative
+fixture. The disassembler README and hot contract document the distinction.
+
+Validation: the main disassembler regression passes 132 byte-exact fixtures;
+`vcsc_disassembler_hardening.pl`, all-opcode round trip, deterministic fuzz
+(30/30), source-tree hygiene, and context-history format pass. The supplied
+`f8.bin` also passes a direct one-file exact round trip.

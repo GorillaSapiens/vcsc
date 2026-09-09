@@ -102,11 +102,21 @@ Unbanked 1K cartridges are treated as one physical 1024-byte ROM mirrored four
 times through the 4K cartridge window.  The canonical presentation origin is
 therefore normally `$FC00`, while runtime references in any mirror resolve to
 the same physical byte modulo `$0400`.  The hardware vector bytes are the final
-six physical bytes of the 1K image.  Normal analysis retains the existing NMI
-and RESET roots, but does not seed IRQ/BRK merely from `$FFFE/$FFFF`; that
-target becomes executable only after analysis encounters a reachable `BRK`.
-RESET alone is used while testing competing mapper hypotheses.  `--mapper 1k` forces this
-topology for a 1024-byte input.
+six physical bytes of the 1K image.  RESET is the only initial executable root:
+the 6507 has no bonded NMI or IRQ input, and `$FFFE/$FFFF` becomes executable
+only after analysis encounters a reachable `BRK`.  RESET alone is likewise used
+while testing competing mapper hypotheses.  `--mapper 1k` forces this topology
+for a 1024-byte input.
+
+For VCSC-generated banked cartridges, the explicit four-byte mapper signature
+can provide stronger structural information than a generic hardware-vector root.
+When RESET and IRQ vectors plus the surrounding bytes prove the linker's complete
+three-slot vector-bridge invariant (equal-size adjacent slots, identical mapper
+entry prefixes, each ending in absolute `JMP`), all three bridge slots are marked
+as established code.  This does **not** make NMI or IRQ an execution root and does
+not follow their handlers unless ordinary control flow or reachable `BRK` proves
+them reachable.  A mapper signature without the complete bridge shape does not
+promote tail bytes to code.
 
 A 4096-byte image whose upper 2048 bytes are byte-for-byte identical to its
 lower 2048 bytes is recognized as a doubled preservation dump of an ordinary

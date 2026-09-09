@@ -3536,6 +3536,118 @@ static void mark_label(bank_t *b, size_t off)
    if (off < b->size) b->roles[off] |= ROLE_LABEL;
 }
 
+/* VCSC banked images carry an explicit four-byte mapper signature in the final
+ * physical bank.  The linker also emits a three-slot vector bridge: equal-size
+ * NMI/RESET/IRQ slots, each containing the same mapper-entry prefix followed by
+ * an absolute JMP.  RESET and IRQ vectors remain intact even though the final
+ * bank's signature deliberately replaces the unbonded NMI vector bytes.
+ *
+ * Treat those bridge bytes as structurally established code only when the
+ * explicit mapper signature and the complete bridge invariant agree.  This is
+ * code classification, not an execution root: the 6507 still enters only RESET
+ * initially, and IRQ/BRK is followed dynamically only after reachable BRK. */
+static int mark_vcsc_vector_bridge(bank_t *b, const uint8_t *rom,
+                                   size_t nmi_off, size_t slot_size)
+{
+   size_t slot;
+   size_t entry_size = slot_size - 3u;
+
+   for (slot = 0u; slot < 3u; ++slot) {
+      size_t start = nmi_off + slot * slot_size;
+      size_t p = start;
+      size_t jmp = start + entry_size;
+      while (p < jmp) {
+         uint8_t opcode = rom[b->file_offset + p];
+         unsigned len = instruction_length((address_mode_t)opcode_modes[opcode]);
+         if (len == 0u || p + len > jmp || opcode_is_cpu_halt(opcode)) return 0;
+         p += len;
+      }
+      if (p != jmp || rom[b->file_offset + jmp] != 0x4cu) return 0;
+   }
+
+   for (slot = 0u; slot < 3u; ++slot) {
+      size_t start = nmi_off + slot * slot_size;
+      size_t p = start;
+      size_t end = start + slot_size;
+      mark_label(b, start);
+      while (p < end) {
+         uint8_t opcode = rom[b->file_offset + p];
+         unsigned len = instruction_length((address_mode_t)opcode_modes[opcode]);
+         mark_instruction(b, p, opcode, len);
+         p += len;
+      }
+   }
+   return 1;
+}
+
+static void recognize_vcsc_vector_bridges(analysis_t *a)
+{
+   size_t bi;
+
+   if (a->bank_count < 2u ||
+       !mapper_tail_signature_matches(a->rom, a->rom_size, a->mapper))
+      return;
+
+   for (bi = 0u; bi < a->bank_count; ++bi) {
+      bank_t *b = &a->banks[bi];
+      size_t vector_off, reset_off, irq_off, nmi_off, slot_size, entry_size;
+      uint16_t reset_target, irq_target;
+      unsigned slot;
+      int valid = 1;
+
+      if (!b->vector_tail_enabled || b->size < 6u) continue;
+      vector_off = b->size - 6u;
+      reset_target = read_word(a->rom + b->file_offset + vector_off + 2u);
+      irq_target = read_word(a->rom + b->file_offset + vector_off + 4u);
+      if (!cart_target_offset(b, reset_target, &reset_off) ||
+          !cart_target_offset(b, irq_target, &irq_off) ||
+          irq_off <= reset_off)
+         continue;
+
+      slot_size = irq_off - reset_off;
+      if (slot_size < 3u || reset_off < slot_size ||
+          irq_off + slot_size > vector_off)
+         continue;
+      nmi_off = reset_off - slot_size;
+      entry_size = slot_size - 3u;
+
+      /* All three mapper-entry prefixes are byte-identical.  The handlers may
+       * differ, but each slot must end in JMP absolute to cartridge space. */
+      for (slot = 0u; slot < 3u && valid; ++slot) {
+         size_t start = nmi_off + slot * slot_size;
+         size_t jmp = start + entry_size;
+         uint16_t handler;
+         if (a->rom[b->file_offset + jmp] != 0x4cu) {
+            valid = 0;
+            break;
+         }
+         handler = read_word(a->rom + b->file_offset + jmp + 1u);
+         if (!is_cart_address(handler)) {
+            valid = 0;
+            break;
+         }
+         if (slot != 0u && entry_size != 0u &&
+             memcmp(a->rom + b->file_offset + nmi_off,
+                    a->rom + b->file_offset + start, entry_size) != 0)
+            valid = 0;
+      }
+      if (!valid) continue;
+
+      /* In every non-final bank the NMI vector is still present and must point
+       * at the inferred first slot.  The final VCSC signature is allowed to
+       * replace those two bytes, by design. */
+      if (b->file_offset + b->size != a->rom_size) {
+         uint16_t nmi_target = read_word(a->rom + b->file_offset + vector_off);
+         size_t vector_nmi_off;
+         if (!cart_target_offset(b, nmi_target, &vector_nmi_off) ||
+             vector_nmi_off != nmi_off)
+            continue;
+      }
+
+      (void)mark_vcsc_vector_bridge(b, a->rom, nmi_off, slot_size);
+   }
+}
+
 /* Speculative islands are a presentation aid, not cartridge evidence.  Freeze
  * every role established by vectors, user hints, static RESET flow, concrete
  * execution, and H2 feedback before detached-island promotion begins.  Later
@@ -5419,13 +5531,18 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
       vb->roles[voff + 5u] |= ROLE_VECTOR;
    }
 
+   /* VCSC's explicit mapper metadata plus its complete linker bridge shape is
+    * positive structural evidence that all three generated bridge slots are
+    * code, even when NMI is unbonded and no reachable BRK exercises IRQ. */
+   recognize_vcsc_vector_bridges(a);
+
    if (a->mapper == MAP_E0) {
       /* E0 hardware vectors are always in fixed physical 1K bank 7.
        * Power-on maps banks 4,5,6 into the lower three runtime windows. */
       bank_t *vb = &a->banks[7];
       unsigned v;
-      unsigned first_v = reset_only ? 1u : 0u;
-      unsigned last_v = 1u; /* IRQ/BRK is not a root; reachable BRK promotes it. */
+      unsigned first_v = 1u;
+      unsigned last_v = 1u; /* RESET is the only hardware execution root. */
       for (v = first_v; v <= last_v; ++v) {
          size_t voff = vb->size - 6u + (size_t)v * 2u;
          uint16_t target = read_word(a->rom + vb->file_offset + voff);
@@ -5445,7 +5562,7 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
        * selects lower ROM bank 0 and fixed 256-byte RAM block 0. */
       bank_t *vb = &a->banks[a->bank_count - 1u];
       unsigned v;
-      unsigned first_v = reset_only ? 1u : 0u;
+      unsigned first_v = 1u;
       unsigned last_v = 1u;
       uint16_t reset_config = e7_config_make(0u, 0u);
       for (v = first_v; v <= last_v; ++v) {
@@ -5467,7 +5584,7 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
        * selects lower ROM bank 0. */
       bank_t *vb = &a->banks[a->bank_count - 1u];
       unsigned v;
-      unsigned first_v = reset_only ? 1u : 0u;
+      unsigned first_v = 1u;
       unsigned last_v = 1u;
       for (v = first_v; v <= last_v; ++v) {
          size_t voff = vb->size - 6u + (size_t)v * 2u;
@@ -5489,7 +5606,7 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
        * owns the entire cartridge window. */
       bank_t *vb = &a->banks[a->reset_bank];
       unsigned v;
-      unsigned first_v = reset_only ? 1u : 0u;
+      unsigned first_v = 1u;
       unsigned last_v = 1u;
       for (v = first_v; v <= last_v; ++v) {
          size_t voff = vb->size - 6u + (size_t)v * 2u;
@@ -5507,16 +5624,16 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
       }
    }
    else {
-      /* Preserve the established NMI/RESET bank-local discovery policy, but
-       * never seed IRQ/BRK.  On the 6507, $FFFE/$FFFF is followed only after
-       * an actually reachable BRK is decoded below.  Mapper-hypothesis
-       * validation remains RESET-only. */
+      /* RESET is the only stock-6507 hardware execution root.  NMI is not
+       * bonded out, and $FFFE/$FFFF is followed only after an actually
+       * reachable BRK is decoded below.  Mapper-hypothesis validation remains
+       * RESET-only. */
       size_t first_bank = reset_only ? a->reset_bank : 0u;
       size_t last_bank = reset_only ? a->reset_bank : a->bank_count - 1u;
       for (bi = first_bank; bi <= last_bank; ++bi) {
          bank_t *b = &a->banks[bi];
          unsigned v;
-         unsigned first_v = reset_only ? 1u : 0u;
+         unsigned first_v = 1u;
          unsigned last_v = 1u;
          for (v = first_v; v <= last_v; ++v) {
             size_t voff = b->size - 6u + (size_t)v * 2u;

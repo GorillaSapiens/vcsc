@@ -138,10 +138,12 @@ write_bin(File::Spec->catfile($in, 'odd4k_over.bin'), $odd4k_base . "\x12\x34");
 write_bin(File::Spec->catfile($in, 'odd4k_under.bin'), substr($odd4k_base, 0, 4094));
 
 my $plain1k = make_rom(1024, 0xFC00, 0x0040, "\xA9\x42\x60");
-# Keep an IRQ/BRK-only routine that RESET cannot reach and never invoke BRK.
-# A stock 6507 has no IRQ pin, so the vector must remain vector data and must
-# not promote this otherwise-unreachable routine into executable code.
+# Keep NMI-only and IRQ/BRK-only routines that RESET cannot reach.  The 6507
+# bonds out neither an NMI nor an IRQ input, so neither vector is an initial
+# executable root; IRQ/BRK becomes executable only after reachable BRK.
 substr($plain1k, 0x0080, 3, "\xA9\x99\x60");
+substr($plain1k, 0x0090, 3, "\xA9\x88\x60");
+put16(\$plain1k, 0x03FA, 0xFC90);
 put16(\$plain1k, 0x03FE, 0xFC80);
 write_bin(File::Spec->catfile($in, 'plain1k.bin'), $plain1k);
 
@@ -356,6 +358,30 @@ put16(\$vector_exec, 0xFFE, 0xF000);
 write_bin(File::Spec->catfile($in, 'vector_exec.bin'), $vector_exec);
 write_bin(File::Spec->catfile($in, 'origin_d000.bin'), make_rom(4096, 0xD000, 0x0234, "\xA9\x17\x60"));
 write_bin(File::Spec->catfile($in, 'f8.bin'), make_rom(8192, 0xF000, 0x0100, "\xAD\xF8\x1F\x60"));
+
+# VCSC-generated banked images deliberately replace the final physical bank's
+# unbonded NMI-vector bytes with a mapper signature.  RESET and IRQ still point
+# at equal-size adjacent linker bridge slots.  The complete three-slot shape is
+# positive structural code evidence even though NMI is not a hardware root and
+# this fixture never executes BRK.
+my $vcsc_f8_bridge = chr(0xFF) x 8192;
+break_sc_layout(\$vcsc_f8_bridge);
+my $bridge =
+   "\x2C\xF9\x1F\x4C\x20\xF1" . # NMI: BIT $1FF9; JMP $F120
+   "\x2C\xF9\x1F\x4C\x00\xF1" . # RESET: BIT $1FF9; JMP $F100
+   "\x2C\xF9\x1F\x4C\x20\xF1";  # IRQ: BIT $1FF9; JMP $F120
+for my $base (0, 4096) {
+   substr($vcsc_f8_bridge, $base + 0x0FE0, length($bridge), $bridge);
+}
+substr($vcsc_f8_bridge, 0x1000 + 0x0100, 1, "\x60");
+substr($vcsc_f8_bridge, 0x1000 + 0x0120, 1, "\x60");
+put16(\$vcsc_f8_bridge, 0x0FFA, 0xFFE0);
+put16(\$vcsc_f8_bridge, 0x0FFC, 0xFFE6);
+put16(\$vcsc_f8_bridge, 0x0FFE, 0xFFEC);
+substr($vcsc_f8_bridge, 0x1FF8, 4, "F8\0\0");
+put16(\$vcsc_f8_bridge, 0x1FFC, 0xFFE6);
+put16(\$vcsc_f8_bridge, 0x1FFE, 0xFFEC);
+write_bin(File::Spec->catfile($in, 'vcsc_f8_vector_bridge.bin'), $vcsc_f8_bridge);
 
 # Tigervision 3F maps a value-selected 2K bank at $F000-$F7FF and fixes the
 # final physical 2K at $F800-$FFFF.  RESET starts in the fixed bank, explicitly
@@ -1678,6 +1704,16 @@ require_re($plain1k_out, qr/^; usage bytes: .*vectors=6\b/m,
    'all three 1K vector words remain classified as vector data');
 die "unreachable IRQ-only 1K routine was incorrectly promoted to code\n"
    if $plain1k_out =~ /^L_FC80:\s*\n\s*LDA\s+#\$99/m;
+die "unreachable NMI-only 1K routine was incorrectly promoted to code\n"
+   if $plain1k_out =~ /^L_FC90:\s*\n\s*LDA\s+#\$88/m;
+
+my $vcsc_bridge_out = slurp(File::Spec->catfile($out, 'vcsc_f8_vector_bridge.s26'));
+require_re($vcsc_bridge_out,
+   qr/^B1_FFE0:\n\s*BIT\s+\$1FF9\n\s*JMP\s+\$F120/m,
+   'VCSC final-bank NMI bridge slot is structurally recognized as code without becoming a hardware root');
+require_re($vcsc_bridge_out,
+   qr/^B1_FFEC:\n\s*BIT\s+\$1FF9\n\s*JMP\s+\$F120/m,
+   'VCSC final-bank IRQ bridge slot is structurally recognized without reachable BRK');
 
 my $concrete_out = slurp(File::Spec->catfile($out, 'concrete_payload.s26'));
 require_re($concrete_out,
