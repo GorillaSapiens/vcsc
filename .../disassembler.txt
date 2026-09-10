@@ -36,6 +36,11 @@ Durable invariants
   presenting it as positive proof.
 * Mapper inference is a hardware-state problem, not merely a file-size/name
   lookup. Keep mapper context separate when following code across selectors.
+* Detached speculative validation uses a local sparse fixed point keyed by
+  physical instruction byte, runtime PC, and mapper context. Arrivals in the
+  same context meet successor-relevant abstract CPU/ZP facts and requeue only
+  when knowledge decreases. There is no traversal/node cap; allocation failure
+  is inconclusive and may never strengthen promotion or rejection.
 * RESET is the only stock-6507 initial hardware execution root. Reachable `BRK`
   may promote IRQ/BRK; NMI is never rooted merely from `$FFFA/$FFFB`. For a
   signed VCSC banked image, the complete linker vector-bridge invariant may
@@ -80,12 +85,6 @@ Unfinished mapper support
 
 Unfinished analysis correctness
 -------------------------------
-35. [ ] Replace speculative validation caps with a state-keyed fixed point.
-    * Use a worklist keyed by physical location, mapper context, and abstract facts
-      affecting successors.
-    * Merge/widen until the finite abstract state converges; safety exhaustion may
-      reduce confidence but must never manufacture a stronger result.
-
 41. [ ] Finish ambiguous multi-game container handling, especially 2IN1.
     * Existing conservative 4IN1/8IN1/32IN1 behavior is the baseline.
     * Do not infer 2IN1 from size alone; require strong structural/database or an
@@ -95,8 +94,8 @@ Unfinished analysis correctness
 
 Current direction
 -----------------
-Item 35, state-keyed fixed-point speculative validation, is the next analysis
-correctness task after the completed mapper-context state refactor.
+Item 41, ambiguous multi-game container handling (especially 2IN1), is the next
+analysis-correctness task. Mapper-family work may proceed independently.
 
 When corpus work resumes, prefer one concrete mismatch/failure category at a
 time, add a minimal synthetic regression plus the real corpus case, and keep

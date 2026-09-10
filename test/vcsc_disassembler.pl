@@ -1362,11 +1362,10 @@ write_bin(File::Spec->catfile($in, 'speculative_jam_reject.bin'), $island_jam);
 
 # A detached candidate near the end of the address space must not be promoted
 # when a statically possible relative branch wraps into the TIA register window.
-# Reproduce the corpus failure's second ingredient too: the candidate first JSRs
-# through a cartridge mirror to a long, valid-looking routine that consumes the
-# entire 512-step credibility budget and terminates strongly.  Older validation
-# then reached the BMI continuation only after the budget was exhausted, returned
-# weak without inspecting it, and let the strong JSR arm promote the island.
+# Reproduce the old corpus failure's other ingredient too: the candidate first
+# JSRs through a cartridge mirror to a long, valid-looking routine before the
+# invalid branch.  Fixed-point validation must still inspect that continuation;
+# there is no traversal budget whose exhaustion can hide it.
 my $island_tia_branch = make_rom(4096, 0xF000, 0x0800, "\x60");
 substr($island_tia_branch, 0x0020, 511, ("\xEA" x 510) . "\x60");
 substr($island_tia_branch, 0x0FD0, 12,
@@ -1376,6 +1375,18 @@ substr($island_tia_branch, 0x0FD0, 12,
    "\xEA\xEA\x60\xEA");
 write_bin(File::Spec->catfile($in, 'speculative_tia_branch_reject.bin'),
    $island_tia_branch);
+
+# State-keyed fixed-point validation must converge through shared suffixes rather
+# than recursively revisiting them until a byte-count budget expires.  Thirteen
+# unknown BNE diamonds have 8192 concrete path combinations, but only a small
+# finite set of physical/context states.  Each join widens Z and requeues that
+# context; the final RTS must remain reachable and the island promotable.
+my $island_fixed_point = make_rom(4096, 0xF000, 0x0100, "\x60");
+my $fixed_point_body = ("\xA5\x80\xD0\x01\xEA" x 13) . "\x60";
+substr($island_fixed_point, 0x0200, 3 + length($fixed_point_body),
+   "\x02\x12\x22" . $fixed_point_body);
+write_bin(File::Spec->catfile($in, 'speculative_fixed_point.bin'),
+   $island_fixed_point);
 
 # Conversely, abstract flag state may prove the JAM arm impossible.  SEC makes
 # BCC not taken, so this otherwise identical candidate is a valid island.
@@ -2179,7 +2190,7 @@ require_re($spec_island,
 require_re($spec_island, qr/^L_F203:\n\s*LDA\s+#\$42\n\s*TAX\n\s*TAY\n\s*INX\n\s*DEX\n\s*INY\n\s*DEY\n\s*RTS$/m,
    'credible safe routine after three-start barrier promoted');
 require_re($spec_island,
-   qr/^; speculative analysis: rejected-starts=[1-9]\d* barriers=[1-9]\d* islands=[1-9]\d* capped-walks=\d+ promotion-capped=\d+$/m,
+   qr/^; speculative analysis: rejected-starts=[1-9]\d* barriers=[1-9]\d* islands=[1-9]\d* fixed-point-states=[1-9]\d* state-merges=\d+ inconclusive=0$/m,
    'speculative analysis usage summary');
 
 
@@ -2241,6 +2252,15 @@ my $spec_tia_branch = slurp(File::Spec->catfile($out, 'speculative_tia_branch_re
 die "TIA-targeting speculative candidate was promoted\n"
    if $spec_tia_branch =~ /^L_FFD3:/m ||
       $spec_tia_branch =~ /speculative instruction island.*\nL_FFD3:/i;
+
+my $spec_fixed_point = slurp(File::Spec->catfile($out, 'speculative_fixed_point.s26'));
+require_re($spec_fixed_point, qr/^L_F203:\n\s*LDA\s+\$80\n\s*BNE\.same/m,
+   'state-keyed speculative fixed point promotes many-diamond candidate');
+require_re($spec_fixed_point,
+   qr/^; speculative analysis: .*fixed-point-states=[1-9]\d* state-merges=[1-9]\d* inconclusive=0$/m,
+   'speculative fixed point records widening/requeue convergence');
+die "obsolete speculative cap diagnostics survived item 35\n"
+   if $spec_fixed_point =~ /capped-walks|promotion-capped/;
 
 my $spec_dead_jam = slurp(File::Spec->catfile($out, 'speculative_dead_jam.s26'));
 require_re($spec_dead_jam, qr/^L_F203:\n\s*SEC\n\s*BCC\.same\s+/m,

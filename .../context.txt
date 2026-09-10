@@ -118,8 +118,8 @@ Open workstreams
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished
-   work only. Open items are GL, CM, DPC+, CDF-family support, fixed-point
-   speculative validation, and ambiguous 2IN1 container handling.
+   work only. Open items are GL, CM, DPC+, CDF-family support, and ambiguous
+   2IN1 container handling.
 
 5. **Zero static initializer placement**
    Mutable all-zero link-time static initializers are emitted directly as

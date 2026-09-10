@@ -447,10 +447,15 @@ concrete seeds, or established abstract state. A speculative path may terminate 
 established code but cannot merge its state back into that code. A ROM with only
 speculative instructions and no established instruction is rejected.
 
-Speculative walks remain bounded; a candidate that exceeds the analysis budget
-stays inconclusive/raw rather than being guessed. The generated header reports
-`established-code` and `speculative-code` separately, plus rejected-start, barrier,
-promoted-island, and cap counts.
+Speculative validation is a sparse state-keyed fixed point rather than a bounded
+recursive walk.  States are keyed by physical instruction byte, runtime PC, and
+mapper configuration; arrivals in the same context meet their abstract CPU/ZP
+facts and requeue that context only when knowledge is lost.  Loops and diamonds
+therefore terminate because the finite abstract lattice converges, not because a
+node-count budget expires.  Allocation failure is inconclusive and can never
+promote or reject a candidate.  The generated header reports `established-code`
+and `speculative-code` separately, plus rejected-start, barrier, promoted-island,
+fixed-point state/merge, and inconclusive-walk counts.
 
 ## Sprite/font rows
 

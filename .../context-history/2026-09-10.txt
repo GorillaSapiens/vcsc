@@ -18,3 +18,18 @@ with different lower-bank selections and X values. Correct analysis reaches
 both physical bank 1 and the legal final-physical-bank lower-window alias while
 not inventing JAM-filled bank 0/2 continuations. The pre-fix analyzer loses the
 bank-1 continuation.
+
+2026-09-10 12:06:35 PDT, disassembler speculative fixed point
+Completed disassembler roadmap item 35. Replaced the recursive speculative
+HLT/JAM/KIL validator and its physical-bank node budget with a sparse local
+fixed-point worklist. State identity is physical ROM byte + runtime PC + mapper
+configuration; abstract CPU/flag/ZP facts meet within one context and a context
+is requeued only when that meet loses knowledge. This preserves mapper-context
+precision from item 31 while making loops/diamonds converge by the finite
+abstract lattice instead of an arbitrary traversal cap. Allocation failure is
+inconclusive and cannot strengthen either negative rejection or positive island
+promotion. Header diagnostics now report fixed-point state/merge/inconclusive
+counts instead of capped-walk/promotion-cap counts. Added a 13-diamond synthetic
+speculative island (8192 concrete path combinations) that converges with state
+merges and promotes correctly; the existing long-JSR/TIA-wrap negative fixture
+still rejects because the invalid continuation is always inspected.
