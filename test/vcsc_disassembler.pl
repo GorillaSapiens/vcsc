@@ -422,6 +422,35 @@ for my $v (0, 2, 4) {
 }
 write_bin(File::Spec->catfile($in, 'threef_alias_branch.bin'), $threef_alias_branch);
 
+# Mapper-context abstract-state precision.  Two statically possible paths enter
+# the same fixed-bank routine with different lower-bank selections and matching
+# X values.  STX $3F must therefore retain X separately for mapper context 1
+# and context 3: one continuation enters physical bank 1, while the other
+# legally selects the final physical bank into 3F's lower window.  The old
+# per-physical-byte state lattice let whichever fixed-bank visit ran last erase
+# the other context, losing B1_F180 entirely.
+my $threef_context_state = chr(0x02) x 8192;
+substr($threef_context_state, 1 * 2048 + 0x0180, 5,
+   "\xA9\x11\x85\x90\x60");
+substr($threef_context_state, 3 * 2048 + 0x0100, 23,
+   "\xAD\x80\x02" .              # LDA SWCHA: abstractly input-dependent
+   "\x30\x09" .                  # BMI path selecting final physical bank
+   "\xA9\x01\x85\x3F" .        # lower bank 1
+   "\xA2\x01" .                  # X carries selector through fixed code
+   "\x4C\x20\xF9" .
+   "\xA9\x03\x85\x3F" .        # lower bank 3 = final physical bank
+   "\xA2\x03" .
+   "\x4C\x20\xF9");
+substr($threef_context_state, 3 * 2048 + 0x0120, 5,
+   "\x86\x3F\x4C\x80\xF1");   # STX $3F; JMP $F180
+substr($threef_context_state, 3 * 2048 + 0x0180, 5,
+   "\xA9\x33\x85\x93\x60");
+for my $v (0, 2, 4) {
+   put16(\$threef_context_state, 3 * 2048 + 0x07FA + $v, 0xF900);
+}
+write_bin(File::Spec->catfile($in, 'threef_context_state.bin'),
+          $threef_context_state);
+
 # 3F is not intrinsically an 8K scheme.  Exercise a 32K/16-bank image so the
 # CFG state and emitter cannot accidentally bake in four physical 2K banks.
 my $threef32 = join('', map { chr(($_ * 41 + 7) & 0xff) } 0 .. 32767);
@@ -2331,6 +2360,21 @@ die "3F lower-window alias branch was mis-presented as a zero-page target\n"
    if $threef_alias_out =~ /\bBPL\.cross\s+\$0021\b/;
 require_re($threef_alias_out, qr/\.byte[^\n]*\$10, \$38/i,
    '3F lower-to-fixed alias branch preserved as exact raw bytes');
+
+my $threef_context_out = slurp(File::Spec->catfile($out, 'threef_context_state.s26'));
+require_re($threef_context_out, qr/^; mapper: 3F \(high confidence;/m,
+   '3F mapper-context fixture keeps 3F mapping');
+require_re($threef_context_out,
+   qr/^B3_F920:\n\s*STX\s+\$3F\n\s*JMP\s+\$F180/m,
+   'shared fixed-bank selector routine decoded');
+require_re($threef_context_out,
+   qr/^B1_F180:\n\s*LDA\s+#\$11\n\s*STA\s+\$90\n\s*RTS$/m,
+   'bank-1 continuation survives distinct fixed-bank mapper context');
+require_re($threef_context_out,
+   qr/^B3_F980:\n\s*LDA\s+#\$33\n\s*STA\s+\$93\n\s*RTS$/m,
+   'final physical bank may be selected into 3F lower window');
+die "3F context-state precision invented JAM-bank continuations\n"
+   if $threef_context_out =~ /^B[02]_F180:/m;
 
 my $threef32_out = slurp(File::Spec->catfile($out, 'threef32.s26'));
 require_re($threef32_out, qr/^; mapper: 3F \(high confidence;/m,

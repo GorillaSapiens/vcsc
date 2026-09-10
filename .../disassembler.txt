@@ -80,13 +80,6 @@ Unfinished mapper support
 
 Unfinished analysis correctness
 -------------------------------
-31. [ ] Finish mapper-context abstract CPU-state precision.
-    * Do not merge all abstract A/X/Y/P/ZP state solely by physical byte.
-    * Key/merge state by physical location plus mapper context (or equivalent),
-      and requeue improved states to a fixed point.
-    * 3F may legally select the final physical bank into the lower window; do not
-      "solve" context aliasing by forbidding that hardware behavior.
-
 35. [ ] Replace speculative validation caps with a state-keyed fixed point.
     * Use a worklist keyed by physical location, mapper context, and abstract facts
       affecting successors.
@@ -102,6 +95,9 @@ Unfinished analysis correctness
 
 Current direction
 -----------------
+Item 35, state-keyed fixed-point speculative validation, is the next analysis
+correctness task after the completed mapper-context state refactor.
+
 When corpus work resumes, prefer one concrete mismatch/failure category at a
 time, add a minimal synthetic regression plus the real corpus case, and keep
 exact round trip non-negotiable. Do not grow this file with per-ROM victory

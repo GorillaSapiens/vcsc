@@ -180,6 +180,14 @@ typedef struct {
 } abstract_state_t;
 
 typedef struct {
+   uint16_t pc;
+   uint16_t mapper_config;
+   size_t next;
+   uint8_t queued;
+   abstract_state_t state;
+} context_state_t;
+
+typedef struct {
    size_t file_offset;
    size_t size;
    uint16_t origin;
@@ -191,7 +199,6 @@ typedef struct {
    int established_roles_valid;
    uint8_t *inst_len;
    uint8_t *inst_opcode;
-   uint8_t *queued;
    uint8_t *visited;
    uint8_t *state_seen;
    uint8_t *graphics;
@@ -212,12 +219,7 @@ typedef struct {
    uint8_t *spec_barrier;
    uint16_t *spec_barrier_end;
    uint8_t *spec_seed;
-   uint32_t *wd_context_seen;
-   uint16_t *fc_context_seen;
-   uint64_t *e0_context_seen;
-   uint32_t *e7_context_seen;
-   uint64_t *threef_context_seen;
-   size_t threef_context_words;
+   size_t *context_state_head;
    uint8_t vector_tail_enabled;
    uint8_t cv_fixed_upper_half;
    abstract_state_t *states;
@@ -228,6 +230,7 @@ typedef struct {
    size_t offset;
    uint16_t pc;
    uint16_t mapper_config;
+   size_t context_state;
 } work_item_t;
 
 static int cart_target_offset(const bank_t *b, uint16_t address, size_t *off);
@@ -331,6 +334,9 @@ typedef struct {
    work_item_t *work;
    size_t work_count;
    size_t work_cap;
+   context_state_t *context_states;
+   size_t context_state_count;
+   size_t context_state_cap;
 } analysis_t;
 
 /* Fields below describe established cartridge behavior.  Speculative-island
@@ -1928,7 +1934,6 @@ static int allocate_bank(bank_t *b, size_t size)
    b->established_roles = (uint8_t *)calloc(size, 1);
    b->inst_len = (uint8_t *)calloc(size, 1);
    b->inst_opcode = (uint8_t *)calloc(size, 1);
-   b->queued = (uint8_t *)calloc(size, 1);
    b->visited = (uint8_t *)calloc(size, 1);
    b->state_seen = (uint8_t *)calloc(size, 1);
    b->graphics = (uint8_t *)calloc(size, 1);
@@ -1949,16 +1954,20 @@ static int allocate_bank(bank_t *b, size_t size)
    b->spec_barrier = (uint8_t *)calloc(size, 1);
    b->spec_barrier_end = (uint16_t *)malloc(size * sizeof(*b->spec_barrier_end));
    b->spec_seed = (uint8_t *)calloc(size, 1);
-   b->wd_context_seen = (uint32_t *)calloc(size, sizeof(*b->wd_context_seen));
+   b->context_state_head = (size_t *)malloc(size * sizeof(*b->context_state_head));
    b->states = (abstract_state_t *)calloc(size, sizeof(*b->states));
-   return b->roles && b->established_roles && b->inst_len && b->inst_opcode && b->queued && b->visited &&
+   if (b->context_state_head) {
+      size_t i;
+      for (i = 0; i < size; ++i) b->context_state_head[i] = SIZE_MAX;
+   }
+   return b->roles && b->established_roles && b->inst_len && b->inst_opcode && b->visited &&
           b->state_seen && b->graphics && b->font_start && b->color_start && b->color_len &&
           b->pointer_start && b->pointer_words && b->pointer_manual &&
           b->manual_table_byte && b->manual_table_start &&
           b->manual_pointer_byte && b->manual_pointer_start &&
           b->force_raw && b->spec_rejected && b->spec_strong &&
           b->spec_reject_end && b->spec_barrier && b->spec_barrier_end && b->spec_seed &&
-          b->wd_context_seen && b->states;
+          b->context_state_head && b->states;
 }
 
 static void free_analysis(analysis_t *a)
@@ -1970,7 +1979,6 @@ static void free_analysis(analysis_t *a)
          free(a->banks[i].established_roles);
          free(a->banks[i].inst_len);
          free(a->banks[i].inst_opcode);
-         free(a->banks[i].queued);
          free(a->banks[i].visited);
          free(a->banks[i].state_seen);
          free(a->banks[i].graphics);
@@ -1991,11 +1999,7 @@ static void free_analysis(analysis_t *a)
          free(a->banks[i].spec_barrier);
          free(a->banks[i].spec_barrier_end);
          free(a->banks[i].spec_seed);
-         free(a->banks[i].wd_context_seen);
-         free(a->banks[i].fc_context_seen);
-         free(a->banks[i].e0_context_seen);
-         free(a->banks[i].e7_context_seen);
-         free(a->banks[i].threef_context_seen);
+         free(a->banks[i].context_state_head);
          free(a->banks[i].states);
       }
    }
@@ -2017,6 +2021,7 @@ static void free_analysis(analysis_t *a)
    free(a->concrete_rom_state);
    free(a->h2_seeds);
    free(a->work);
+   free(a->context_states);
    memset(a, 0, sizeof(*a));
 }
 
@@ -2150,32 +2155,6 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
                                 i + 1u == a->bank_count);
       b->cv_fixed_upper_half = a->mapper == MAP_CV;
       if (!allocate_bank(b, b->size)) return 0;
-      if (a->mapper == MAP_FC) {
-         /* pending selector 0..7 plus one conservative unknown state */
-         b->fc_context_seen = (uint16_t *)calloc(b->size, sizeof(*b->fc_context_seen));
-         if (!b->fc_context_seen) return 0;
-      }
-      if (a->mapper == MAP_E0) {
-         /* E0 has 512 selector configurations and four runtime 1K windows.
-          * Keep a per-byte context bitset so the same physical byte can be
-          * traced at more than one runtime address/configuration. */
-         b->e0_context_seen = (uint64_t *)calloc(b->size * 32u,
-                                                sizeof(*b->e0_context_seen));
-         if (!b->e0_context_seen) return 0;
-      }
-      else if (a->mapper == MAP_E7) {
-         /* lower selector (up to 8 states) x fixed-RAM block (4 states) */
-         b->e7_context_seen = (uint32_t *)calloc(b->size, sizeof(*b->e7_context_seen));
-         if (!b->e7_context_seen) return 0;
-      }
-      else if (mapper_is_three_family(a->mapper)) {
-         size_t contexts = a->bank_count + 1u;
-         if (a->mapper == MAP_3E) contexts += THREEE_RAM_BANK_COUNT;
-         b->threef_context_words = (contexts + 63u) / 64u;
-         b->threef_context_seen = (uint64_t *)calloc(
-            b->size * b->threef_context_words, sizeof(*b->threef_context_seen));
-         if (!b->threef_context_seen) return 0;
-      }
    }
 
    if (a->mapper == MAP_FC) {
@@ -2502,12 +2481,15 @@ static int push_work_state_ctx(analysis_t *a, size_t bank, size_t offset,
                                uint16_t pc, uint16_t mapper_config)
 {
    bank_t *b;
+   context_state_t *cs;
    work_item_t *nw;
+   size_t state_index;
    int changed;
-   uint32_t wd_bit = 0;
+
    if (bank >= a->bank_count) return 1;
    b = &a->banks[bank];
    if (offset >= b->size) return 1;
+
    /* A detached speculative island may terminate at already established code,
     * but it must never merge its unknown/guessed state back into that trusted
     * graph.  Otherwise one false island can erase register facts and alter
@@ -2516,69 +2498,56 @@ static int push_work_state_ctx(analysis_t *a, size_t bank, size_t offset,
    if (a->speculative_phase && b->established_roles_valid &&
        (b->established_roles[offset] & ROLE_CODE_START))
       return 1;
-   if (mapper_is_wd_family(a->mapper)) {
-      unsigned segment = (unsigned)(((pc & 0x1fffu) - 0x1000u) >> 10);
-      unsigned context = ((unsigned)mapper_config & 7u) * 4u + (segment & 3u);
-      wd_bit = (uint32_t)1u << context;
-      if ((b->wd_context_seen[offset] & wd_bit) != 0) return 1;
-      b->wd_context_seen[offset] |= wd_bit;
+
+   /* Abstract CPU facts belong to a hardware execution context, not merely a
+    * physical ROM byte.  The same byte may execute at another runtime address
+    * or under another mapper selection with different A/X/Y/P/ZP facts.  Keep
+    * a sparse list per physical byte so large mapper spaces do not require a
+    * dense abstract_state_t matrix. */
+   state_index = b->context_state_head[offset];
+   while (state_index != SIZE_MAX) {
+      cs = &a->context_states[state_index];
+      if (cs->pc == pc && cs->mapper_config == mapper_config) break;
+      state_index = cs->next;
    }
-   else if (a->mapper == MAP_FC) {
-      unsigned context = mapper_config == FC_CONFIG_UNKNOWN ? 8u :
-                         ((unsigned)mapper_config & 7u);
-      uint16_t bit = (uint16_t)1u << context;
-      if (!b->fc_context_seen || (b->fc_context_seen[offset] & bit) != 0u)
-         return 1;
-      b->fc_context_seen[offset] |= bit;
-   }
-   else if (a->mapper == MAP_E0) {
-      uint16_t bus = (uint16_t)(pc & 0x1fffu);
-      unsigned segment;
-      unsigned context;
-      size_t word;
-      uint64_t bit;
-      if (bus < 0x1000u) return 1;
-      segment = (unsigned)((bus - 0x1000u) >> 10) & 3u;
-      context = (((unsigned)mapper_config & 0x1ffu) << 2) | segment;
-      word = (size_t)(context >> 6);
-      bit = (uint64_t)1u << (context & 63u);
-      if ((b->e0_context_seen[offset * 32u + word] & bit) != 0) return 1;
-      b->e0_context_seen[offset * 32u + word] |= bit;
-   }
-   else if (a->mapper == MAP_E7) {
-      unsigned context = e7_config_lower(mapper_config) * 4u + e7_config_ram(mapper_config);
-      uint32_t bit = (uint32_t)1u << (context & 31u);
-      if ((b->e7_context_seen[offset] & bit) != 0u) return 1;
-      b->e7_context_seen[offset] |= bit;
-   }
-   else if (mapper_is_three_family(a->mapper)) {
-      size_t context;
-      if (mapper_config == THREEF_CONFIG_UNKNOWN)
-         context = a->bank_count + (a->mapper == MAP_3E ? THREEE_RAM_BANK_COUNT : 0u);
-      else if (a->mapper == MAP_3E && threee_config_is_ram(mapper_config))
-         context = a->bank_count + (size_t)(mapper_config & 0x1fu);
-      else
-         context = a->bank_count ? (size_t)(mapper_config % a->bank_count) : 0u;
-      {
-      size_t word = context >> 6;
-      uint64_t bit = (uint64_t)1u << (context & 63u);
-      if (!b->threef_context_seen || word >= b->threef_context_words) return 1;
-      if ((b->threef_context_seen[offset * b->threef_context_words + word] & bit) != 0)
-         return 1;
-      b->threef_context_seen[offset * b->threef_context_words + word] |= bit;
+
+   if (state_index == SIZE_MAX) {
+      if (a->context_state_count == a->context_state_cap) {
+         size_t new_cap = a->context_state_cap ? a->context_state_cap * 2u : 256u;
+         context_state_t *ns = (context_state_t *)realloc(
+            a->context_states, new_cap * sizeof(*ns));
+         if (!ns) return 0;
+         a->context_states = ns;
+         a->context_state_cap = new_cap;
       }
-   }
-   if (!b->state_seen[offset]) {
-      b->states[offset] = *state;
-      b->state_seen[offset] = 1;
+      state_index = a->context_state_count++;
+      cs = &a->context_states[state_index];
+      memset(cs, 0, sizeof(*cs));
+      cs->pc = pc;
+      cs->mapper_config = mapper_config;
+      cs->next = b->context_state_head[offset];
+      cs->state = *state;
+      b->context_state_head[offset] = state_index;
       changed = 1;
    }
    else {
-      changed = state_merge(&b->states[offset], state);
+      cs = &a->context_states[state_index];
+      changed = state_merge(&cs->state, state);
    }
-   if (!mapper_is_wd_family(a->mapper) && a->mapper != MAP_FC &&
-       a->mapper != MAP_E0 && a->mapper != MAP_E7 && !mapper_is_three_family(a->mapper) &&
-       (!changed || b->queued[offset])) return 1;
+
+   /* Retain the historical per-physical-byte meet as a conservative summary
+    * for presentation-only post-passes.  Control-flow tracing itself always
+    * consumes cs->state above, so facts from distinct mapper contexts never
+    * contaminate successor selection. */
+   if (!b->state_seen[offset]) {
+      b->states[offset] = cs->state;
+      b->state_seen[offset] = 1;
+   }
+   else {
+      (void)state_merge(&b->states[offset], &cs->state);
+   }
+
+   if (!changed || cs->queued) return 1;
    if (a->work_count == a->work_cap) {
       size_t new_cap = a->work_cap ? a->work_cap * 2u : 256u;
       nw = (work_item_t *)realloc(a->work, new_cap * sizeof(*nw));
@@ -2586,11 +2555,12 @@ static int push_work_state_ctx(analysis_t *a, size_t bank, size_t offset,
       a->work = nw;
       a->work_cap = new_cap;
    }
-   b->queued[offset] = 1;
+   cs->queued = 1u;
    a->work[a->work_count].bank = bank;
    a->work[a->work_count].offset = offset;
    a->work[a->work_count].pc = pc;
    a->work[a->work_count].mapper_config = mapper_config;
+   a->work[a->work_count].context_state = state_index;
    ++a->work_count;
    return 1;
 }
@@ -5707,6 +5677,7 @@ drain_work:
    while (a->work_count != 0) {
       work_item_t item = a->work[--a->work_count];
       bank_t *b = &a->banks[item.bank];
+      context_state_t *context_state;
       size_t off = item.offset;
       uint8_t opcode;
       address_mode_t mode;
@@ -5735,10 +5706,11 @@ drain_work:
       abstract_state_t input_state;
       abstract_state_t output_state;
 
-      b->queued[off] = 0;
-      if (!b->state_seen[off]) continue;
+      if (item.context_state >= a->context_state_count) continue;
+      context_state = &a->context_states[item.context_state];
+      context_state->queued = 0u;
       if (rom_offset_hidden(a, off)) continue;
-      input_state = b->states[off];
+      input_state = context_state->state;
       b->visited[off] = 1;
       opcode = a->rom[b->file_offset + off];
       if (opcode_is_cpu_halt(opcode)) ++a->reachable_halts;

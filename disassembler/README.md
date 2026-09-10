@@ -525,6 +525,18 @@ useful static register/pointer facts at joins. Concrete execution is also gated 
 trusted mapper identity: unbanked topology, an explicit `--mapper`, or distinctive
 family evidence. Weak size-default F8/F6/F4/FA guesses do not qualify; native 24K/28K FA2 sizes are unambiguous in the supported set.
 
+The static A/X/Y/SP/P/RIOT-RAM lattice is keyed by **physical instruction byte,
+runtime PC, and mapper configuration**. Different hardware mappings of the same
+physical byte therefore retain independent abstract facts; only arrivals in the
+same mapper context are merged. If that merge loses precision, the context is
+requeued and its successors are reconsidered until the work list stabilizes. This
+matters for segmented/value-selected schemes in particular: in 3F/3E the final
+physical 2K may be visible both in the fixed upper window and, legally, as the
+selected lower window, without either execution context contaminating the other.
+Presentation-only passes retain a conservative per-physical-byte summary where a
+single source rendering needs one answer, but that summary never drives mapper
+successor selection.
+
 H1 adds stack/interrupt-aware abstract flow. SP is part of abstract state; provable
 RIOT-RAM/stack aliases are carried through pushes/pops, JSR/RTS, and memory writes.
 A reachable `BRK` promotes the mapper-visible `$FFFE/$FFFF` target into the CFG.

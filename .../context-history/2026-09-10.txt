@@ -1,0 +1,20 @@
+2026-09-10 10:59:29 PDT, mapper-context abstract-state precision
+
+Completed disassembler roadmap Item 31. Static CPU abstract state is now stored
+sparsely per physical instruction byte and keyed by runtime PC plus mapper
+configuration. Distinct mapper contexts no longer merge A/X/Y/SP/P/RIOT-RAM
+facts. Repeated arrivals in the same context still meet/widen; when that state
+changes the context is requeued so successors are recomputed to a work-list
+fixed point. The former mapper-family context-seen bitsets were removed because
+they suppressed those requeues while the actual state lattice remained only
+per physical byte.
+
+A conservative per-physical-byte meet remains for presentation-only post-passes;
+control-flow and mapper successor selection consume only the context-specific
+state. Public disassembler documentation records this boundary.
+
+Added a 3F regression where two paths execute one fixed-bank STX $3F routine
+with different lower-bank selections and X values. Correct analysis reaches
+both physical bank 1 and the legal final-physical-bank lower-window alias while
+not inventing JAM-filled bank 0/2 continuations. The pre-fix analyzer loses the
+bank-1 continuation.
