@@ -490,10 +490,8 @@ private:
       if (!(bus & 0x1000u)) return false;
 
       if (mapper_ == kMap1K) {
-         if (rom_size_ < 128u || rom_size_ > 1024u ||
-             (rom_size_ & (rom_size_ - 1u)) != 0u) return false;
-         *physical = static_cast<size_t>(bus) & (rom_size_ - 1u);
-         return true;
+         *physical = static_cast<size_t>(bus & 0x03ffu);
+         return *physical < rom_size_;
       }
       if (mapper_ == kMap2K) {
          *physical = static_cast<size_t>(bus & 0x07ffu);

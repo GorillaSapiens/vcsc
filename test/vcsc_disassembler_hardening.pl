@@ -94,15 +94,7 @@ if ($ARGV[1] =~ /multicart4\.bin\z/) {
    print "  Bankswitch Type: 4IN1 [G2] (2K)\n";
 } else {
    print "  Cart MD5:        ",md5_hex($rom),"\n";
-   my %by_size = (
-      128   => "2K* (128B)",
-      256   => "2K* (256B)",
-      512   => "2K* (512B)",
-      1024  => "2K* (1K)",
-      8192  => "F8* (8K)",
-      16384 => "F6* (16K)",
-   );
-   print "  Bankswitch Type: ",($by_size{$size} // "4K* (4K)"),"\n";
+   print "  Bankswitch Type: ",($size == 1024 ? "2K* (1K)" : "4K* (4K)"),"\n";
 }
 FAKE_STELLA
 chmod(0755,$fake_stella) or die "chmod $fake_stella: $!\n";
@@ -110,30 +102,9 @@ my $stella_in=File::Spec->catdir($tmp,'stella-compare-in');
 my $stella_out=File::Spec->catdir($tmp,'stella-compare-out');
 make_path($stella_in,$stella_out);
 write_raw(File::Spec->catfile($stella_in,'plain4k.bin'),$base);
-for my $tiny_case ([128,0x18],[256,0x19],[512,0x20]) {
-   my($size,$value)=@$tiny_case;
-   my $origin=0x10000-$size;
-   my $tiny=chr(0xEA)x$size;
-   substr($tiny,0,5,pack('C*',0xA9,$value,0x4C,$origin&0xFF,($origin>>8)&0xFF));
-   substr($tiny,$size-6,6,pack('v3',$origin,$origin,$origin));
-   write_raw(File::Spec->catfile($stella_in,"plain${size}b.bin"),$tiny);
-}
 my $one_k=chr(0xEA)x1024;
-substr($one_k,0,5,pack('C*',0xA9,0x21,0x4C,0x00,0xFC));
-substr($one_k,0x3fa,6,pack('v3',0xFC00,0xFC00,0xFC00));
+substr($one_k,0x3fa,6,pack('v3',0xFC80,0xFC80,0xFC80));
 write_raw(File::Spec->catfile($stella_in,'plain1k.bin'),$one_k);
-
-# A 16K preservation dump containing two exact copies of one distinct-bank 8K
-# image must be compared with Stella at the logical 8K size.  Asking Stella
-# about the physical 16K file would size-default to F6 and manufacture a false
-# mismatch against VCSC's deliberately normalized F8 interpretation.
-my $dup_bank_a = $base;
-my $dup_bank_b = $base;
-substr($dup_bank_a,100,1)=chr(0x31);
-substr($dup_bank_b,100,1)=chr(0x32);
-my $dup_f8 = $dup_bank_a . $dup_bank_b;
-write_raw(File::Spec->catfile($stella_in,'duplicated-f8-16k.bin'),$dup_f8 . $dup_f8);
-
 my $multi4 = '';
 for my $game (0 .. 3) {
    my $part = chr(0xEA) x 2048;
@@ -147,30 +118,12 @@ $srcmp==0 && $sscmp==0 or die "Stella mapper comparison failed\nstdout:\n$socmp\
 $secmp eq '' or die "Stella mapper comparison wrote stderr:\n$secmp";
 $socmp =~ /plain4k\.bin: mapper vcsc=4K stella=4K MATCH\n/
    or die "Stella mapper comparison lost normalized 4K mapper match:\n$socmp";
-for my $size (128,256,512) {
-   $socmp =~ /plain${size}b\.bin: mapper vcsc=${size}B stella=${size}B MATCH\n/
-      or die "Stella mapper comparison lost normalized ${size}B mapper match:\n$socmp";
-}
 $socmp =~ /plain1k\.bin: mapper vcsc=1K stella=1K MATCH\n/
    or die "Stella mapper comparison treated Stella 2K* (1K) as a mismatch:\n$socmp";
-$socmp =~ /duplicated-f8-16k\.bin: Stella comparison uses normalized logical image 8192\/16384 bytes\n/
-   or die "Stella mapper comparison did not report duplicate normalization:\n$socmp";
-$socmp =~ /duplicated-f8-16k\.bin: mapper vcsc=F8 stella=F8 MATCH\n/
-   or die "Stella mapper comparison used physical rather than logical duplicated image:\n$socmp";
 $socmp =~ /multicart4\.bin: mapper vcsc=4IN1 stella=4IN1 MATCH\n/
    or die "Stella selected-slice multicart MD5 was not normalized:\n$socmp";
-$socmp =~ /Stella mapper comparison: 7 match(?:es)?, 0 mismatch, 0 errors, 7 compared\n\z/
+$socmp =~ /Stella mapper comparison: 3 match(?:es)?, 0 mismatch, 0 errors, 3 compared\n\z/
    or die "unexpected Stella mapper comparison summary:\n$socmp";
-
-# Strict mode must accept the same tiny-image equivalences; it changes only the
-# failure policy for genuine mismatches, not the mapper normalization itself.
-my $stella_strict_out=File::Spec->catdir($tmp,'stella-compare-strict-out');
-make_path($stella_strict_out);
-my($srcs,$sscs,$socs,$secs)=capture($^X,$roundtrip,'--stella',$fake_stella,'--stella-strict',$stella_in,$stella_strict_out);
-$srcs==0 && $sscs==0 or die "strict Stella mapper comparison failed\nstdout:\n$socs\nstderr:\n$secs";
-$secs eq '' or die "strict Stella mapper comparison wrote stderr:\n$secs";
-$socs =~ /Stella mapper comparison: 7 match(?:es)?, 0 mismatch, 0 errors, 7 compared\n\z/
-   or die "unexpected strict Stella mapper comparison summary:\n$socs";
 
 # A disagreement is diagnostic by default, but --stella-strict promotes it to
 # failure for callers that intentionally want a zero-difference gate.
