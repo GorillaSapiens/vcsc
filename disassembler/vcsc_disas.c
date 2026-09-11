@@ -3949,7 +3949,13 @@ typedef struct {
    int inconclusive;
    size_t instructions;
    size_t official_instructions;
+   size_t stable_unofficial_instructions;
+   size_t unstable_unofficial_instructions;
    size_t unofficial_instructions;
+   size_t canonical_hardware_accesses;
+   size_t mirrored_hardware_accesses;
+   size_t mapper_hardware_accesses;
+   int plausibility_score;
    size_t control_transfers;
    size_t mapper_switches;
    size_t switch_avoided_halts;
@@ -3960,6 +3966,7 @@ typedef struct {
    int static_edge_validation;
    int hit_halt;
    int hit_invalid_target;
+   int hit_invalid_hardware;
 } spec_context_t;
 
 static int speculative_branch_outcome(uint8_t opcode,
@@ -4009,6 +4016,161 @@ static int state_constrain_branch_edge(uint8_t opcode,
    *known = 1u;
    *value = wanted;
    return 1;
+}
+
+typedef enum {
+   SPEC_OPCODE_HALT,
+   SPEC_OPCODE_UNSTABLE,
+   SPEC_OPCODE_STABLE,
+   SPEC_OPCODE_OFFICIAL
+} spec_opcode_class_t;
+
+typedef enum {
+   SPEC_HW_NONE,
+   SPEC_HW_CANONICAL,
+   SPEC_HW_MIRROR,
+   SPEC_HW_INVALID
+} spec_hw_class_t;
+
+static spec_opcode_class_t speculative_opcode_class(uint8_t opcode)
+{
+   if (opcode_is_cpu_halt(opcode)) return SPEC_OPCODE_HALT;
+   if (strncmp(opcode_mnemonics[opcode], "op", 2) != 0)
+      return SPEC_OPCODE_OFFICIAL;
+
+   /* Stable NMOS 6502 unofficial families: composite RMWs, SAX/LAX/DCP/ISC,
+    * the deterministic immediate forms, and the well-known NOP variants.
+    * The high-byte-masking stores, XAA/LXA, and LAS remain deliberately weak
+    * because their results depend on silicon/bus details and are poor evidence
+    * for detached code. */
+   switch (opcode) {
+   case 0x03: case 0x04: case 0x07: case 0x0b: case 0x0c: case 0x0f:
+   case 0x13: case 0x14: case 0x17: case 0x1a: case 0x1b: case 0x1c: case 0x1f:
+   case 0x23: case 0x27: case 0x2b: case 0x2f:
+   case 0x33: case 0x34: case 0x37: case 0x3a: case 0x3b: case 0x3c: case 0x3f:
+   case 0x43: case 0x44: case 0x47: case 0x4b: case 0x4f:
+   case 0x53: case 0x54: case 0x57: case 0x5a: case 0x5b: case 0x5c: case 0x5f:
+   case 0x63: case 0x64: case 0x67: case 0x6b: case 0x6f:
+   case 0x73: case 0x74: case 0x77: case 0x7a: case 0x7b: case 0x7c: case 0x7f:
+   case 0x80: case 0x82: case 0x83: case 0x87: case 0x89: case 0x8f:
+   case 0x97:
+   case 0xa3: case 0xa7: case 0xaf:
+   case 0xb3: case 0xb7: case 0xbf:
+   case 0xc2: case 0xc3: case 0xc7: case 0xcb: case 0xcf:
+   case 0xd3: case 0xd4: case 0xd7: case 0xda: case 0xdb: case 0xdc: case 0xdf:
+   case 0xe2: case 0xe3: case 0xe7: case 0xeb: case 0xef:
+   case 0xf3: case 0xf4: case 0xf7: case 0xfa: case 0xfb: case 0xfc: case 0xff:
+      return SPEC_OPCODE_STABLE;
+   default:
+      return SPEC_OPCODE_UNSTABLE;
+   }
+}
+
+/* Classify the actual 6507 bus cycle, not merely the conventional symbol at
+ * the operand.  Canonical addresses are stronger code evidence than mirrors.
+ * TIA read registers decode by the low nibble and are conventionally named at
+ * $30-$3D; TIA writes use the distinct $00-$2C register decode.  RIOT I/O uses
+ * different read/write decoding too: e.g. a read of $296 is a legal mirror of
+ * INTIM even though $296 is canonically named TIM64T for writes. */
+static spec_hw_class_t speculative_hardware_access(uint16_t address,
+                                                   unsigned access)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   int canonical = 1;
+   if (bus & 0x1000u) return SPEC_HW_NONE;
+
+   if ((bus & 0x0080u) == 0u) {
+      unsigned reg = bus & 0x003fu;
+      if (access & ACCESS_READ) {
+         unsigned rr = reg & 0x0fu;
+         uint16_t canon;
+         if (rr > 0x0du) return SPEC_HW_INVALID;
+         canon = (uint16_t)(0x0030u + rr);
+         if (bus != canon) canonical = 0;
+      }
+      if (access & ACCESS_WRITE) {
+         if (reg > 0x2cu) return SPEC_HW_INVALID;
+         if (bus != (uint16_t)reg) canonical = 0;
+      }
+      return canonical ? SPEC_HW_CANONICAL : SPEC_HW_MIRROR;
+   }
+
+   /* RIOT I/O is selected when A9 and A7 are high.  The register-select bits
+    * intentionally alias: reads with RS2=1 use RS0 for INTIM/TIMINT while
+    * writes use RS4/RS1/RS0 for edge control or timer prescale.  Therefore a
+    * direction-opposite canonical name is usually a legal mirror, not an
+    * impossible bus cycle. */
+   if ((bus & 0x0280u) == 0x0280u) {
+      unsigned reg = bus & 0x001fu;
+      if (access & ACCESS_READ) {
+         uint16_t canon = (reg & 0x04u)
+            ? (uint16_t)(0x0284u + (reg & 0x01u))
+            : (uint16_t)(0x0280u + (reg & 0x03u));
+         if (bus != canon) canonical = 0;
+      }
+      if (access & ACCESS_WRITE) {
+         uint16_t canon;
+         if ((reg & 0x04u) == 0u)
+            canon = (uint16_t)(0x0280u + (reg & 0x03u));
+         else if (reg & 0x10u)
+            canon = (uint16_t)(0x0294u + (reg & 0x03u));
+         else {
+            /* PA7 edge-control writes are physically valid but not part of
+             * VCSC's normal canonical symbol vocabulary. */
+            canonical = 0;
+            canon = bus;
+         }
+         if (bus != canon) canonical = 0;
+      }
+      return canonical ? SPEC_HW_CANONICAL : SPEC_HW_MIRROR;
+   }
+
+   return SPEC_HW_NONE;
+}
+
+static int speculative_target_is_riot_ram(uint16_t address)
+{
+   uint8_t canonical;
+   return state_riot_ram_alias(address, &canonical);
+}
+
+static int speculative_target_can_execute(uint16_t address)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   return (bus & 0x1000u) != 0u || speculative_target_is_riot_ram(address);
+}
+
+/* Structural negative-evidence discovery needs to recognize the few mapper
+ * schemes whose selectors deliberately live in otherwise odd TIA space.
+ * This helper is intentionally narrow: it is only used when the effective
+ * address is already known without speculative register values. */
+static int speculative_direct_mapper_hardware_access(const analysis_t *a,
+                                                      uint8_t opcode,
+                                                      address_mode_t mode,
+                                                      uint16_t operand)
+{
+   abstract_state_t state;
+   uint16_t effective;
+   unsigned access = opcode_memory_access(opcode);
+   memset(&state, 0, sizeof(state));
+   if (instruction_flow(opcode) != FLOW_NEXT ||
+       !(access & (ACCESS_READ | ACCESS_WRITE)) ||
+       !resolve_effective_address(&state, mode, operand, &effective))
+      return 0;
+
+   if (mapper_is_wd_family(a->mapper) && (access & ACCESS_READ)) {
+      uint8_t config;
+      if (wd_hotspot_config(effective, &config)) return 1;
+   }
+   if (mapper_is_three_family(a->mapper) && (access & ACCESS_WRITE)) {
+      int value_known = 0, exact_ref = 0, ram_ref = 0;
+      uint16_t next_config = 0u;
+      if (three_write_selector(a, &state, opcode, mode, operand,
+                               &value_known, &next_config,
+                               &exact_ref, &ram_ref))
+         return 1;
+   }
+   return 0;
 }
 
 static int state_brk_enter(const abstract_state_t *input, uint16_t pc,
@@ -4220,13 +4382,31 @@ static int prove_brk_irq_rti_return(const analysis_t *a, size_t bank,
    return 0;
 }
 
+typedef enum {
+   SPEC_NODE_UNSET,
+   SPEC_NODE_ANY,
+   SPEC_NODE_ALL,
+   SPEC_NODE_STRONG_TERMINAL,
+   SPEC_NODE_WEAK_TERMINAL,
+   SPEC_NODE_DEAD
+} spec_node_kind_t;
+
+typedef struct {
+   size_t to;
+   size_t next;
+} spec_fp_edge_t;
+
 typedef struct {
    size_t bank;
    size_t off;
    uint16_t pc;
    mapper_config_t mapper_config;
    size_t next;
+   size_t edge_head;
+   size_t edge_count;
    uint8_t queued;
+   uint8_t kind;
+   uint8_t weak_exit;
    abstract_state_t state;
 } spec_fp_state_t;
 
@@ -4234,6 +4414,9 @@ typedef struct {
    spec_fp_state_t *states;
    size_t state_count;
    size_t state_cap;
+   spec_fp_edge_t *edges;
+   size_t edge_count;
+   size_t edge_cap;
    size_t *heads;
    size_t *work;
    size_t work_count;
@@ -4243,6 +4426,7 @@ typedef struct {
 static void spec_fp_destroy(spec_fp_t *fp)
 {
    free(fp->states);
+   free(fp->edges);
    free(fp->heads);
    free(fp->work);
    memset(fp, 0, sizeof(*fp));
@@ -4265,11 +4449,11 @@ static int spec_fp_init(const analysis_t *a, spec_fp_t *fp)
  * second arrival to the same hardware context is met into the stored state and
  * requeued only when that meet loses knowledge.  Therefore loops and diamonds
  * terminate by convergence rather than by a traversal counter. */
-static int spec_fp_enqueue(const analysis_t *a, spec_fp_t *fp,
-                           size_t bank, size_t off, uint16_t pc,
-                           mapper_config_t mapper_config,
-                           const abstract_state_t *state,
-                           spec_context_t *ctx)
+static int spec_fp_enqueue_index(const analysis_t *a, spec_fp_t *fp,
+                                 size_t bank, size_t off, uint16_t pc,
+                                 mapper_config_t mapper_config,
+                                 const abstract_state_t *state,
+                                 spec_context_t *ctx, size_t *index_out)
 {
    const bank_t *b;
    size_t node, si;
@@ -4305,6 +4489,9 @@ static int spec_fp_enqueue(const analysis_t *a, spec_fp_t *fp,
       s->mapper_config = mapper_config;
       s->state = *state;
       s->next = fp->heads[node];
+      s->edge_head = SIZE_MAX;
+      s->edge_count = 0u;
+      s->kind = SPEC_NODE_UNSET;
       fp->heads[node] = si;
       changed = 1;
       ++ctx->fixed_states;
@@ -4315,6 +4502,7 @@ static int spec_fp_enqueue(const analysis_t *a, spec_fp_t *fp,
       if (changed) ++ctx->fixed_merges;
    }
 
+   if (index_out) *index_out = si;
    if (!changed || s->queued) return 1;
    if (fp->work_count == fp->work_cap) {
       size_t nc = fp->work_cap ? fp->work_cap * 2u : 64u;
@@ -4328,6 +4516,94 @@ static int spec_fp_enqueue(const analysis_t *a, spec_fp_t *fp,
    return 1;
 }
 
+static int spec_fp_add_edge(spec_fp_t *fp, size_t from, size_t to)
+{
+   size_t ei;
+   spec_fp_state_t *s;
+   if (from >= fp->state_count || to >= fp->state_count) return 0;
+   s = &fp->states[from];
+   for (ei = s->edge_head; ei != SIZE_MAX; ei = fp->edges[ei].next)
+      if (fp->edges[ei].to == to) return 1;
+   if (fp->edge_count == fp->edge_cap) {
+      size_t nc = fp->edge_cap ? fp->edge_cap * 2u : 128u;
+      spec_fp_edge_t *ne = (spec_fp_edge_t *)realloc(fp->edges,
+                                                      nc * sizeof(*ne));
+      if (!ne) return 0;
+      fp->edges = ne;
+      fp->edge_cap = nc;
+   }
+   ei = fp->edge_count++;
+   fp->edges[ei].to = to;
+   fp->edges[ei].next = s->edge_head;
+   s->edge_head = ei;
+   ++s->edge_count;
+   return 1;
+}
+
+static int spec_fp_link_enqueue(const analysis_t *a, spec_fp_t *fp,
+                                size_t from, size_t bank, size_t off, uint16_t pc,
+                                mapper_config_t mapper_config,
+                                const abstract_state_t *state,
+                                spec_context_t *ctx)
+{
+   size_t to = SIZE_MAX;
+   if (!spec_fp_enqueue_index(a, fp, bank, off, pc, mapper_config, state, ctx,
+                              &to))
+      return 0;
+   if (to == SIZE_MAX) return 1;
+   if (!spec_fp_add_edge(fp, from, to)) {
+      ctx->inconclusive = 1;
+      return 0;
+   }
+   return 1;
+}
+
+static uint8_t spec_fp_root_viability(const spec_fp_t *fp, size_t root)
+{
+   uint8_t *level;
+   size_t i;
+   int changed;
+   if (root >= fp->state_count) return 0u;
+   level = (uint8_t *)calloc(fp->state_count ? fp->state_count : 1u, 1);
+   if (!level) return 1u;
+   for (i = 0; i < fp->state_count; ++i) {
+      if (fp->states[i].kind == SPEC_NODE_STRONG_TERMINAL) level[i] = 2u;
+      else if (fp->states[i].kind == SPEC_NODE_WEAK_TERMINAL) level[i] = 1u;
+   }
+   do {
+      changed = 0;
+      for (i = 0; i < fp->state_count; ++i) {
+         const spec_fp_state_t *s = &fp->states[i];
+         uint8_t candidate = level[i];
+         size_t ei;
+         if (s->kind == SPEC_NODE_ANY) {
+            if (s->weak_exit && candidate < 1u) candidate = 1u;
+            for (ei = s->edge_head; ei != SIZE_MAX; ei = fp->edges[ei].next)
+               if (level[fp->edges[ei].to] > candidate)
+                  candidate = level[fp->edges[ei].to];
+         }
+         else if (s->kind == SPEC_NODE_ALL && s->edge_count != 0u) {
+            uint8_t min_level = 2u;
+            for (ei = s->edge_head; ei != SIZE_MAX; ei = fp->edges[ei].next) {
+               uint8_t l = level[fp->edges[ei].to];
+               if (l == 0u) { min_level = 0u; break; }
+               if (l < min_level) min_level = l;
+            }
+            if (min_level > candidate) candidate = min_level;
+         }
+         if (candidate > level[i]) {
+            level[i] = candidate;
+            changed = 1;
+         }
+      }
+   } while (changed);
+   {
+      uint8_t result = level[root];
+      free(level);
+      return result;
+   }
+}
+
 static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank,
                                           size_t start_off, uint16_t start_pc,
                                           mapper_config_t start_config,
@@ -4336,18 +4612,19 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
 {
    spec_fp_t fp;
    spec_result_t result = SPEC_SAFE_WEAK;
+   size_t root = SIZE_MAX;
 
    if (!spec_fp_init(a, &fp)) {
       ctx->inconclusive = 1;
       return SPEC_SAFE_WEAK;
    }
-   if (!spec_fp_enqueue(a, &fp, start_bank, start_off, start_pc, start_config,
-                        input_state, ctx)) {
+   if (!spec_fp_enqueue_index(a, &fp, start_bank, start_off, start_pc, start_config,
+                              input_state, ctx, &root)) {
       spec_fp_destroy(&fp);
       return SPEC_SAFE_WEAK;
    }
 
-   while (fp.work_count != 0u && result != SPEC_REJECT) {
+   while (fp.work_count != 0u) {
       size_t si = fp.work[--fp.work_count];
       spec_fp_state_t item = fp.states[si];
       const bank_t *b;
@@ -4362,22 +4639,27 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
       flow_kind_t flow;
       size_t successor_bank;
       int switched = 0;
+      int wd_switched = 0;
+      uint8_t wd_successor_config = (uint8_t)mapper_config;
       int fc_changed = 0, fc_commit = 0, fc_value_known = 0;
       uint16_t fc_successor_config;
       int e0_switched = 0;
       uint16_t e0_successor_config;
-      int gl_switched = 0;
+      int gl_switched = 0, gl_access = 0;
       mapper_config_t gl_successor_config;
       int e7_switched = 0, e7_specific = 0;
       uint16_t e7_successor_config;
       int threef_switched = 0, threef_value_known = 0;
       int threef_explicit_ref = 0, threee_ram_ref = 0;
       uint16_t threef_successor_config;
+      int first_count = 0;
+      int mapper_access = 0;
 
       /* The state array may be reallocated while processing successors, so the
        * current item is copied above.  Mark the canonical slot unqueued before
        * processing so a self-edge that widens it can schedule another pass. */
       fp.states[si].queued = 0u;
+      fp.states[si].kind = SPEC_NODE_UNSET;
       bi = item.bank;
       off = item.off;
       runtime_pc = item.pc;
@@ -4394,61 +4676,88 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
        * validating. */
       if (!ctx->static_edge_validation && (b->roles[off] & ROLE_CODE_START)) {
          if (ctx->counted) ++ctx->joins;
+         fp.states[si].kind = SPEC_NODE_STRONG_TERMINAL;
          continue;
       }
 
       if (ctx->strict_conflicts &&
           (b->roles[off] & (ROLE_CODE_BYTE | ROLE_DATA_READ | ROLE_POSSIBLE | ROLE_VECTOR))) {
-         result = SPEC_REJECT;
-         break;
+         fp.states[si].kind = SPEC_NODE_DEAD;
+         continue;
       }
 
       opcode = a->rom[node];
       if (opcode_is_cpu_halt(opcode)) {
          ctx->hit_halt = 1;
-         result = SPEC_REJECT;
-         break;
+         fp.states[si].kind = SPEC_NODE_DEAD;
+         continue;
       }
 
       mode = (address_mode_t)opcode_modes[opcode];
       len = instruction_length(mode);
-      if (len == 0u || off + len > b->size) continue;
+      if (len == 0u || off + len > b->size) {
+         fp.states[si].kind = SPEC_NODE_WEAK_TERMINAL;
+         continue;
+      }
       if (ctx->strict_conflicts) {
          unsigned i;
          for (i = 1u; i < len; ++i) {
             uint8_t rr = b->roles[off + i];
             if (rr & (ROLE_CODE_START | ROLE_DATA_READ | ROLE_POSSIBLE | ROLE_VECTOR)) {
-               result = SPEC_REJECT;
+               fp.states[si].kind = SPEC_NODE_DEAD;
                break;
             }
          }
-         if (result == SPEC_REJECT) break;
+         if (fp.states[si].kind == SPEC_NODE_DEAD) continue;
       }
 
       if (ctx->counted && !ctx->counted[node]) {
+         spec_opcode_class_t oc = speculative_opcode_class(opcode);
          ctx->counted[node] = 1u;
+         first_count = 1;
          ++ctx->instructions;
-         if (strncmp(opcode_mnemonics[opcode], "op", 2) == 0)
-            ++ctx->unofficial_instructions;
-         else
+         if (oc == SPEC_OPCODE_OFFICIAL) {
             ++ctx->official_instructions;
+            ctx->plausibility_score += 4;
+         }
+         else {
+            ++ctx->unofficial_instructions;
+            if (oc == SPEC_OPCODE_STABLE) {
+               ++ctx->stable_unofficial_instructions;
+               ctx->plausibility_score += 1;
+            }
+            else {
+               ++ctx->unstable_unofficial_instructions;
+               ctx->plausibility_score -= 4;
+            }
+         }
       }
       if (len >= 2u) operand = a->rom[node + 1u];
       if (len >= 3u) operand |= (uint16_t)a->rom[node + 2u] << 8;
-      canonical_pc = (a->mapper == MAP_FC || a->mapper == MAP_E0 ||
-                      a->mapper == MAP_GL || a->mapper == MAP_E7 ||
-                      mapper_is_three_family(a->mapper))
+      canonical_pc = (mapper_is_wd_family(a->mapper) || a->mapper == MAP_FC ||
+                      a->mapper == MAP_E0 || a->mapper == MAP_GL ||
+                      a->mapper == MAP_E7 || mapper_is_three_family(a->mapper))
                         ? runtime_pc
                         : (uint16_t)(b->origin + (uint16_t)off);
       transfer_state(a, bi, &item.state, &output_state, opcode, mode, operand);
       flow = instruction_flow(opcode);
       successor_bank = bi;
+      wd_successor_config = (uint8_t)mapper_config;
       fc_successor_config = mapper_config;
       e0_successor_config = mapper_config;
       gl_successor_config = mapper_config;
       e7_successor_config = mapper_config;
       threef_successor_config = mapper_config;
 
+      if (mapper_is_wd_family(a->mapper) && flow == FLOW_NEXT &&
+          (opcode_memory_access(opcode) & ACCESS_READ)) {
+         uint16_t effective;
+         if (resolve_effective_address(&item.state, mode, operand, &effective) &&
+             wd_hotspot_config(effective, &wd_successor_config)) {
+            wd_switched = 1;
+            if (ctx->counted) ++ctx->mapper_switches;
+         }
+      }
       if (fc_instruction_transition(a, &item.state, opcode, mode, operand,
                                     mapper_config, &fc_successor_config,
                                     &fc_commit, &fc_value_known)) {
@@ -4470,11 +4779,13 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
          if (resolve_effective_address(&item.state, mode, operand, &effective)) {
             if (gl_selector_config(effective, mapper_config, &gl_successor_config,
                                    NULL, NULL, NULL)) {
+               gl_access = 1;
                gl_switched = gl_successor_config != mapper_config;
                if (ctx->counted) ++ctx->mapper_switches;
             }
             else if (gl_control_config(effective, mapper_config,
                                        &gl_successor_config, NULL)) {
+               gl_access = 1;
                gl_switched = gl_successor_config != mapper_config;
                if (ctx->counted && gl_switched) ++ctx->mapper_switches;
             }
@@ -4508,9 +4819,51 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
          if (ctx->counted) ++ctx->mapper_switches;
       }
 
+      mapper_access = wd_switched || fc_changed || e0_switched || gl_access ||
+                      e7_switched || threef_switched || switched;
+
+      if (flow == FLOW_NEXT && (opcode_memory_access(opcode) & (ACCESS_READ | ACCESS_WRITE))) {
+         uint16_t effective;
+         if (mapper_access) {
+            if (first_count) {
+               ++ctx->mapper_hardware_accesses;
+               ctx->plausibility_score += 2;
+            }
+         }
+         else if (resolve_effective_address(&item.state, mode, operand, &effective)) {
+            spec_hw_class_t hc = speculative_hardware_access(
+               effective, opcode_memory_access(opcode));
+            if (hc == SPEC_HW_INVALID) {
+               ctx->hit_invalid_hardware = 1;
+               fp.states[si].kind = SPEC_NODE_DEAD;
+               continue;
+            }
+            if (first_count && hc == SPEC_HW_CANONICAL) {
+               ++ctx->canonical_hardware_accesses;
+               ctx->plausibility_score += 2;
+            }
+            else if (first_count && hc == SPEC_HW_MIRROR) {
+               ++ctx->mirrored_hardware_accesses;
+               ctx->plausibility_score -= 1;
+            }
+         }
+      }
+
       switch (flow) {
       case FLOW_NEXT:
-         if (a->mapper == MAP_FC) {
+         fp.states[si].kind = SPEC_NODE_ANY;
+         if (mapper_is_wd_family(a->mapper)) {
+            uint16_t next_pc = (uint16_t)(canonical_pc + len);
+            uint8_t next_config = wd_switched ? wd_successor_config
+                                               : (uint8_t)mapper_config;
+            size_t next_bank, next_off;
+            if (wd_map_address(a, next_config, next_pc, &next_bank, &next_off)) {
+               if (!spec_fp_link_enqueue(a, &fp, si, next_bank, next_off, next_pc,
+                                         next_config, &output_state, ctx))
+                  goto inconclusive;
+            }
+         }
+         else if (a->mapper == MAP_FC) {
             uint16_t next_pc = (uint16_t)(canonical_pc + len);
             uint16_t next_config = fc_changed ? fc_successor_config : mapper_config;
             size_t next_bank = bi, next_off;
@@ -4524,14 +4877,14 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                          opcode_is_cpu_halt(a->rom[a->banks[bi].file_offset + old_off]) &&
                          !opcode_is_cpu_halt(a->rom[a->banks[next_bank].file_offset + next_off]))
                         ++ctx->switch_avoided_halts;
-                     if (!spec_fp_enqueue(a, &fp, next_bank, next_off, next_pc,
+                     if (!spec_fp_link_enqueue(a, &fp, si, next_bank, next_off, next_pc,
                                           next_config, &output_state, ctx))
                         goto inconclusive;
                   }
                }
             }
             else if (cart_target_offset(&a->banks[bi], next_pc, &next_off)) {
-               if (!spec_fp_enqueue(a, &fp, bi, next_off, next_pc,
+               if (!spec_fp_link_enqueue(a, &fp, si, bi, next_off, next_pc,
                                     next_config, &output_state, ctx))
                   goto inconclusive;
             }
@@ -4548,7 +4901,7 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                    opcode_is_cpu_halt(a->rom[a->banks[old_bank].file_offset + old_off]) &&
                    !opcode_is_cpu_halt(a->rom[a->banks[next_bank].file_offset + next_off]))
                   ++ctx->switch_avoided_halts;
-               if (!spec_fp_enqueue(a, &fp, next_bank, next_off, next_pc,
+               if (!spec_fp_link_enqueue(a, &fp, si, next_bank, next_off, next_pc,
                                     next_config, &output_state, ctx))
                   goto inconclusive;
             }
@@ -4565,7 +4918,7 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                    opcode_is_cpu_halt(a->rom[a->banks[old_bank].file_offset + old_off]) &&
                    !opcode_is_cpu_halt(a->rom[a->banks[next_bank].file_offset + next_off]))
                   ++ctx->switch_avoided_halts;
-               if (!spec_fp_enqueue(a, &fp, next_bank, next_off, next_pc,
+               if (!spec_fp_link_enqueue(a, &fp, si, next_bank, next_off, next_pc,
                                     next_config, &output_state, ctx))
                   goto inconclusive;
             }
@@ -4584,7 +4937,7 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                    opcode_is_cpu_halt(a->rom[a->banks[old_bank].file_offset + old_off]) &&
                    !opcode_is_cpu_halt(a->rom[a->banks[next_bank].file_offset + next_off]))
                   ++ctx->switch_avoided_halts;
-               if (!spec_fp_enqueue(a, &fp, next_bank, next_off, next_pc,
+               if (!spec_fp_link_enqueue(a, &fp, si, next_bank, next_off, next_pc,
                                     next_config, &output_state, ctx))
                   goto inconclusive;
             }
@@ -4603,7 +4956,7 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                    opcode_is_cpu_halt(a->rom[a->banks[old_bank].file_offset + old_off]) &&
                    !opcode_is_cpu_halt(a->rom[a->banks[next_bank].file_offset + next_off]))
                   ++ctx->switch_avoided_halts;
-               if (!spec_fp_enqueue(a, &fp, next_bank, next_off, next_pc,
+               if (!spec_fp_link_enqueue(a, &fp, si, next_bank, next_off, next_pc,
                                     next_config, &output_state, ctx))
                   goto inconclusive;
             }
@@ -4614,11 +4967,13 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                 opcode_is_cpu_halt(a->rom[b->file_offset + off + len]) &&
                 !opcode_is_cpu_halt(a->rom[a->banks[successor_bank].file_offset + off + len]))
                ++ctx->switch_avoided_halts;
-            if (!spec_fp_enqueue(a, &fp, nb, off + len,
+            if (!spec_fp_link_enqueue(a, &fp, si, nb, off + len,
                                  (uint16_t)(a->banks[nb].origin + (uint16_t)(off + len)),
                                  0u, &output_state, ctx))
                goto inconclusive;
          }
+         if (fp.states[si].edge_count == 0u)
+            fp.states[si].kind = SPEC_NODE_WEAK_TERMINAL;
          break;
 
       case FLOW_BRANCH: {
@@ -4626,17 +4981,21 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
          uint16_t target = (uint16_t)(canonical_pc + 2u + disp);
          int known = 0, taken = 0;
          if (ctx->counted) ++ctx->control_transfers;
+         fp.states[si].kind = SPEC_NODE_ANY;
          known = speculative_branch_outcome(opcode, &output_state, &taken);
 
          /* Branch-edge validation is intentionally one unknown branch deep.
           * The unresolved branch itself remains inconclusive and each deeper
           * edge gets its own later confidence check in established analysis. */
-         if (ctx->static_edge_validation && !known) break;
-         if ((!known || taken) && target < 0x0080u) {
-            ctx->hit_invalid_target = 1;
-            result = SPEC_REJECT;
+         if (ctx->static_edge_validation && !known) {
+            fp.states[si].kind = SPEC_NODE_WEAK_TERMINAL;
             break;
          }
+         if ((!known || taken) && !is_cart_address(target) &&
+             !speculative_target_is_riot_ram(target))
+            ctx->hit_invalid_target = 1;
+         if ((!known || taken) && speculative_target_is_riot_ram(target))
+            fp.states[si].weak_exit = 1u;
 
 #define ENQUEUE_BRANCH_EDGE(map_call, edge_pc, edge_taken)                    \
          do {                                                                  \
@@ -4645,18 +5004,26 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
             if (state_constrain_branch_edge(opcode, &output_state,             \
                                             (edge_taken), &es) &&              \
                 (map_call)) {                                                  \
-               if (!spec_fp_enqueue(a, &fp, eb, eo, (edge_pc), mapper_config, \
+               if (!spec_fp_link_enqueue(a, &fp, si, eb, eo, (edge_pc), mapper_config, \
                                     &es, ctx))                                  \
                   goto inconclusive;                                           \
             }                                                                  \
          } while (0)
 
-         if (a->mapper == MAP_FC) {
+         if (mapper_is_wd_family(a->mapper)) {
+            if (!known || !taken) {
+               uint16_t ep = (uint16_t)(canonical_pc + 2u);
+               ENQUEUE_BRANCH_EDGE(wd_map_address(a, (uint8_t)mapper_config, ep, &eb, &eo), ep, 0);
+            }
+            if ((!known || taken) && is_cart_address(target))
+               ENQUEUE_BRANCH_EDGE(wd_map_address(a, (uint8_t)mapper_config, target, &eb, &eo), target, 1);
+         }
+         else if (a->mapper == MAP_FC) {
             if (!known || !taken) {
                uint16_t ep = (uint16_t)(canonical_pc + 2u);
                ENQUEUE_BRANCH_EDGE(fc_map_address(a, bi, ep, &eb, &eo), ep, 0);
             }
-            if (!known || taken)
+            if ((!known || taken) && is_cart_address(target))
                ENQUEUE_BRANCH_EDGE(fc_map_address(a, bi, target, &eb, &eo), target, 1);
          }
          else if (a->mapper == MAP_E0) {
@@ -4664,7 +5031,7 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                uint16_t ep = (uint16_t)(canonical_pc + 2u);
                ENQUEUE_BRANCH_EDGE(e0_map_address(a, mapper_config, ep, &eb, &eo), ep, 0);
             }
-            if (!known || taken)
+            if ((!known || taken) && is_cart_address(target))
                ENQUEUE_BRANCH_EDGE(e0_map_address(a, mapper_config, target, &eb, &eo), target, 1);
          }
          else if (a->mapper == MAP_GL) {
@@ -4672,7 +5039,7 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                uint16_t ep = (uint16_t)(canonical_pc + 2u);
                ENQUEUE_BRANCH_EDGE(gl_map_address(a, mapper_config, ep, &eb, &eo), ep, 0);
             }
-            if (!known || taken)
+            if ((!known || taken) && is_cart_address(target))
                ENQUEUE_BRANCH_EDGE(gl_map_address(a, mapper_config, target, &eb, &eo), target, 1);
          }
          else if (a->mapper == MAP_E7) {
@@ -4680,7 +5047,7 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                uint16_t ep = (uint16_t)(canonical_pc + 2u);
                ENQUEUE_BRANCH_EDGE(e7_map_address(a, mapper_config, ep, &eb, &eo), ep, 0);
             }
-            if (!known || taken)
+            if ((!known || taken) && is_cart_address(target))
                ENQUEUE_BRANCH_EDGE(e7_map_address(a, mapper_config, target, &eb, &eo), target, 1);
          }
          else if (mapper_is_three_family(a->mapper)) {
@@ -4688,7 +5055,7 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                uint16_t ep = (uint16_t)(canonical_pc + 2u);
                ENQUEUE_BRANCH_EDGE(threef_map_address(a, mapper_config, ep, &eb, &eo), ep, 0);
             }
-            if (!known || taken)
+            if ((!known || taken) && is_cart_address(target))
                ENQUEUE_BRANCH_EDGE(threef_map_address(a, mapper_config, target, &eb, &eo), target, 1);
          }
          else {
@@ -4696,21 +5063,18 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                abstract_state_t es;
                if (off + 2u < b->size &&
                    state_constrain_branch_edge(opcode, &output_state, 0, &es) &&
-                   !spec_fp_enqueue(a, &fp, bi, off + 2u,
+                   !spec_fp_link_enqueue(a, &fp, si, bi, off + 2u,
                                     (uint16_t)(canonical_pc + 2u), 0u, &es, ctx))
                   goto inconclusive;
             }
             if (!known || taken) {
                abstract_state_t es;
-               int target_local = target >= b->origin &&
-                  (uint32_t)target < (uint32_t)b->origin + (uint32_t)b->size;
-               if (target_local &&
-                   state_constrain_branch_edge(opcode, &output_state, 1, &es)) {
-                  size_t toff = (size_t)(target - b->origin);
-                  if (!rom_offset_hidden(a, toff) &&
-                      !spec_fp_enqueue(a, &fp, bi, toff, target, 0u, &es, ctx))
-                     goto inconclusive;
-               }
+               size_t toff;
+               if (is_cart_address(target) && cart_target_offset(b, target, &toff) &&
+                   state_constrain_branch_edge(opcode, &output_state, 1, &es) &&
+                   !rom_offset_hidden(a, toff) &&
+                   !spec_fp_link_enqueue(a, &fp, si, bi, toff, target, 0u, &es, ctx))
+                  goto inconclusive;
             }
          }
 #undef ENQUEUE_BRANCH_EDGE
@@ -4721,67 +5085,14 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
          abstract_state_t after_call;
          uint16_t cont_pc = (uint16_t)(canonical_pc + 3u);
          int call_enqueued = 0;
+         int cont_enqueued = 0;
+         size_t tb, to, cb, co;
          if (ctx->counted) ++ctx->control_transfers;
+         fp.states[si].kind = SPEC_NODE_ALL;
          memset(&after_call, 0, sizeof(after_call));
 
-         if (a->mapper == MAP_FC) {
-            size_t tb, to, cb, co;
-            if (fc_map_address(a, bi, operand, &tb, &to)) {
-               if (!spec_fp_enqueue(a, &fp, tb, to, operand, mapper_config,
-                                    &output_state, ctx)) goto inconclusive;
-               call_enqueued = 1;
-            }
-            if (fc_map_address(a, bi, cont_pc, &cb, &co) &&
-                !spec_fp_enqueue(a, &fp, cb, co, cont_pc, mapper_config,
-                                 &after_call, ctx)) goto inconclusive;
-         }
-         else if (a->mapper == MAP_E0) {
-            size_t tb, to, cb, co;
-            if (e0_map_address(a, mapper_config, operand, &tb, &to)) {
-               if (!spec_fp_enqueue(a, &fp, tb, to, operand, mapper_config,
-                                    &output_state, ctx)) goto inconclusive;
-               call_enqueued = 1;
-            }
-            if (e0_map_address(a, mapper_config, cont_pc, &cb, &co) &&
-                !spec_fp_enqueue(a, &fp, cb, co, cont_pc, mapper_config,
-                                 &after_call, ctx)) goto inconclusive;
-         }
-         else if (a->mapper == MAP_GL) {
-            size_t tb, to, cb, co;
-            if (gl_map_address(a, mapper_config, operand, &tb, &to)) {
-               if (!spec_fp_enqueue(a, &fp, tb, to, operand, mapper_config,
-                                    &output_state, ctx)) goto inconclusive;
-               call_enqueued = 1;
-            }
-            if (gl_map_address(a, mapper_config, cont_pc, &cb, &co) &&
-                !spec_fp_enqueue(a, &fp, cb, co, cont_pc, mapper_config,
-                                 &after_call, ctx)) goto inconclusive;
-         }
-         else if (a->mapper == MAP_E7) {
-            size_t tb, to, cb, co;
-            if (e7_map_address(a, mapper_config, operand, &tb, &to)) {
-               if (!spec_fp_enqueue(a, &fp, tb, to, operand, mapper_config,
-                                    &output_state, ctx)) goto inconclusive;
-               call_enqueued = 1;
-            }
-            if (e7_map_address(a, mapper_config, cont_pc, &cb, &co) &&
-                !spec_fp_enqueue(a, &fp, cb, co, cont_pc, mapper_config,
-                                 &after_call, ctx)) goto inconclusive;
-         }
-         else if (mapper_is_three_family(a->mapper)) {
-            size_t tb, to, cb, co;
-            if (threef_map_address(a, mapper_config, operand, &tb, &to)) {
-               if (!spec_fp_enqueue(a, &fp, tb, to, operand, mapper_config,
-                                    &output_state, ctx)) goto inconclusive;
-               call_enqueued = 1;
-            }
-            if (threef_map_address(a, mapper_config, cont_pc, &cb, &co) &&
-                !spec_fp_enqueue(a, &fp, cb, co, cont_pc, mapper_config,
-                                 &after_call, ctx)) goto inconclusive;
-         }
-         else if (a->mapper == MAP_FE) {
-            size_t tb = fe_jsr_target_bank(operand);
-            size_t to;
+         if (a->mapper == MAP_FE) {
+            tb = fe_jsr_target_bank(operand);
             if (tb < a->bank_count &&
                 cart_target_offset(&a->banks[tb], operand, &to) &&
                 !rom_offset_hidden(a, to)) {
@@ -4791,59 +5102,85 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                       !opcode_is_cpu_halt(a->rom[a->banks[tb].file_offset + to]))
                      ++ctx->switch_avoided_halts;
                }
-               if (!spec_fp_enqueue(a, &fp, tb, to, operand, 0u,
-                                    &output_state, ctx)) goto inconclusive;
+               if (!spec_fp_link_enqueue(a, &fp, si, tb, to, operand, 0u,
+                                         &output_state, ctx))
+                  goto inconclusive;
                call_enqueued = 1;
             }
-            if (off + 3u < b->size &&
-                !spec_fp_enqueue(a, &fp, bi, off + 3u, cont_pc, 0u,
-                                 &after_call, ctx)) goto inconclusive;
+            if (off + 3u < b->size) {
+               if (!spec_fp_link_enqueue(a, &fp, si, bi, off + 3u, cont_pc, 0u,
+                                         &after_call, ctx))
+                  goto inconclusive;
+               cont_enqueued = 1;
+            }
          }
          else {
-            size_t to;
-            if (cart_target_offset(b, operand, &to) && !rom_offset_hidden(a, to)) {
-               if (!spec_fp_enqueue(a, &fp, bi, to, operand, 0u,
-                                    &output_state, ctx)) goto inconclusive;
+            if (mapped_rom_byte(a, bi, mapper_config, operand, NULL, &tb, &to)) {
+               if (!spec_fp_link_enqueue(a, &fp, si, tb, to, operand,
+                                         mapper_config, &output_state, ctx))
+                  goto inconclusive;
                call_enqueued = 1;
             }
-            if (off + 3u < b->size &&
-                !spec_fp_enqueue(a, &fp, bi, off + 3u, cont_pc, 0u,
-                                 &after_call, ctx)) goto inconclusive;
+            if (mapped_rom_byte(a, bi, mapper_config, cont_pc, NULL, &cb, &co)) {
+               if (!spec_fp_link_enqueue(a, &fp, si, cb, co, cont_pc,
+                                         mapper_config, &after_call, ctx))
+                  goto inconclusive;
+               cont_enqueued = 1;
+            }
          }
-         (void)call_enqueued;
+
+         if (!call_enqueued) {
+            if (speculative_target_is_riot_ram(operand) || is_cart_address(operand)) {
+               fp.states[si].kind = SPEC_NODE_WEAK_TERMINAL;
+            }
+            else {
+               ctx->hit_invalid_target = 1;
+               fp.states[si].kind = SPEC_NODE_DEAD;
+            }
+         }
+         else if (!cont_enqueued) {
+            if (speculative_target_is_riot_ram(cont_pc) || is_cart_address(cont_pc)) {
+               fp.states[si].kind = SPEC_NODE_WEAK_TERMINAL;
+            }
+            else {
+               ctx->hit_invalid_target = 1;
+               fp.states[si].kind = SPEC_NODE_DEAD;
+            }
+         }
          break;
       }
 
-      case FLOW_JMP_ABSOLUTE:
+      case FLOW_JMP_ABSOLUTE: {
+         size_t tb, to;
+         int mapped = 0;
          if (ctx->counted) ++ctx->control_transfers;
-         if (ctx->static_edge_validation) {
-            size_t tb, to;
-            int mapped = 0;
-            if (mapper_is_wd_family(a->mapper))
-               mapped = wd_map_address(a, (uint8_t)mapper_config, operand, &tb, &to);
-            else if (a->mapper == MAP_FC)
-               mapped = fc_map_address(a, bi, operand, &tb, &to);
-            else if (a->mapper == MAP_E0)
-               mapped = e0_map_address(a, mapper_config, operand, &tb, &to);
-            else if (a->mapper == MAP_GL)
-               mapped = gl_map_address(a, mapper_config, operand, &tb, &to);
-            else if (a->mapper == MAP_E7)
-               mapped = e7_map_address(a, mapper_config, operand, &tb, &to);
-            else if (mapper_is_three_family(a->mapper))
-               mapped = threef_map_address(a, mapper_config, operand, &tb, &to);
-            else if (cart_target_offset(b, operand, &to)) {
+         fp.states[si].kind = SPEC_NODE_ANY;
+
+         if (a->mapper == MAP_FE) {
+            if (bi < a->bank_count && cart_target_offset(b, operand, &to)) {
                tb = bi;
                mapped = 1;
             }
-            if (mapped && !rom_offset_hidden(a, to) &&
-                !spec_fp_enqueue(a, &fp, tb, to, operand, mapper_config,
-                                 &output_state, ctx)) goto inconclusive;
          }
          else {
-            if (ctx->counted) ++ctx->terminals;
-            result = SPEC_SAFE_STRONG;
+            mapped = mapped_rom_byte(a, bi, mapper_config, operand,
+                                     NULL, &tb, &to);
+         }
+
+         if (mapped && !rom_offset_hidden(a, to)) {
+            if (!spec_fp_link_enqueue(a, &fp, si, tb, to, operand,
+                                      mapper_config, &output_state, ctx))
+               goto inconclusive;
+         }
+         else if (speculative_target_is_riot_ram(operand) || is_cart_address(operand)) {
+            fp.states[si].kind = SPEC_NODE_WEAK_TERMINAL;
+         }
+         else {
+            ctx->hit_invalid_target = 1;
+            fp.states[si].kind = SPEC_NODE_DEAD;
          }
          break;
+      }
 
       case FLOW_JMP_INDIRECT:
          if (ctx->counted) {
@@ -4851,22 +5188,27 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
             ++ctx->terminals;
             ++ctx->unresolved_terminals;
          }
-         result = SPEC_SAFE_STRONG;
+         fp.states[si].kind = SPEC_NODE_WEAK_TERMINAL;
          break;
 
       case FLOW_RTS:
          if (ctx->counted) ++ctx->terminals;
-         result = SPEC_SAFE_STRONG;
+         fp.states[si].kind = SPEC_NODE_STRONG_TERMINAL;
          break;
 
       case FLOW_STOP:
          if (ctx->counted) ++ctx->terminals;
-         result = SPEC_SAFE_STRONG;
+         fp.states[si].kind = SPEC_NODE_STRONG_TERMINAL;
          break;
       }
    }
 
    if (ctx->inconclusive) result = SPEC_SAFE_WEAK;
+   else {
+      uint8_t viability = spec_fp_root_viability(&fp, root);
+      result = viability >= 2u ? SPEC_SAFE_STRONG :
+               (viability == 1u ? SPEC_SAFE_WEAK : SPEC_REJECT);
+   }
    spec_fp_destroy(&fp);
    return result;
 
@@ -5263,7 +5605,6 @@ static int speculative_candidate_credible(analysis_t *a,
    spec_context_t ctx;
    spec_result_t result;
    size_t inbound;
-   size_t allowed_unofficial;
    int credible = 0;
    if (switch_saves_out) *switch_saves_out = 0u;
 
@@ -5291,10 +5632,12 @@ static int speculative_candidate_credible(analysis_t *a,
        ctx.terminals == ctx.unresolved_terminals && ctx.joins == 0u)
       goto done;
 
-   allowed_unofficial = ctx.instructions / 10u;
-   if (allowed_unofficial < 1u) allowed_unofficial = 1u;
-   if (ctx.unofficial_instructions > allowed_unofficial) goto done;
-   if (ctx.official_instructions * 100u < ctx.instructions * 80u) goto done;
+   /* Opcode plausibility is intentionally graded rather than binary.  Official
+    * opcodes are strong evidence, stable NMOS unofficials are possible code,
+    * and unstable silicon-dependent unofficials count against promotion. */
+   if (ctx.plausibility_score < (int)(ctx.instructions * 2u)) goto done;
+   if (ctx.unstable_unofficial_instructions > 1u &&
+       ctx.unstable_unofficial_instructions * 4u > ctx.instructions) goto done;
 
    inbound = speculative_inbound_references(a, bi, off);
    if (inbound == 0u && ctx.control_transfers == 0u && ctx.instructions < 8u)
@@ -5327,12 +5670,14 @@ static int spec_reverse_add_edge(size_t *heads, spec_reverse_edge_t *edges,
    return 1;
 }
 
-/* Fast structural prefilter for the expensive stateful JAM/KIL walk.  Build
- * the speculative control-flow graph once, reverse it, and mark only starts
- * from which a halt opcode is structurally reachable.  Branch-state analysis
- * still gets the final say, so a structurally reachable but provably dead halt
- * arm is not rejected. */
-static uint8_t *speculative_halt_reachability(const analysis_t *a)
+/* Fast structural prefilter for the expensive stateful viability walk.
+ * Build a conservative speculative CFG once, reverse it, and mark starts from
+ * which a definite dead instruction is structurally reachable: JAM/KIL/HLT, a
+ * direct transfer into non-executable hardware space, or a directly-resolved
+ * impossible TIA/RIOT bus cycle.  Branch-state analysis still gets the final
+ * say, so one dead branch arm does not reject a start whose other feasible arm
+ * remains viable. */
+static uint8_t *speculative_dead_reachability(const analysis_t *a)
 {
    size_t n = a->rom_size;
    uint8_t *may = NULL;
@@ -5374,6 +5719,32 @@ static uint8_t *speculative_halt_reachability(const analysis_t *a)
          if (len >= 2u) operand = a->rom[node + 1u];
          if (len >= 3u) operand |= (uint16_t)a->rom[node + 2u] << 8;
          flow = instruction_flow(opcode);
+
+         if ((flow == FLOW_JSR || flow == FLOW_JMP_ABSOLUTE) &&
+             !speculative_target_can_execute(operand)) {
+            if (!may[node]) {
+               may[node] = 1u;
+               queue[qtail++] = node;
+            }
+            continue;
+         }
+         if (flow == FLOW_NEXT &&
+             (opcode_memory_access(opcode) & (ACCESS_READ | ACCESS_WRITE))) {
+            abstract_state_t unknown;
+            uint16_t effective;
+            memset(&unknown, 0, sizeof(unknown));
+            if (resolve_effective_address(&unknown, mode, operand, &effective) &&
+                !speculative_direct_mapper_hardware_access(a, opcode, mode, operand) &&
+                speculative_hardware_access(effective, opcode_memory_access(opcode)) ==
+                   SPEC_HW_INVALID) {
+               if (!may[node]) {
+                  may[node] = 1u;
+                  queue[qtail++] = node;
+               }
+               continue;
+            }
+         }
+
          if (flow == FLOW_NEXT) {
             size_t successor_bank = bi;
             size_t tooff = off + len;
@@ -5492,7 +5863,7 @@ static int speculative_candidate_promotable(analysis_t *a,
 static int discover_speculative_islands(analysis_t *a)
 {
    size_t bi;
-   uint8_t *halt_reachable = NULL;
+   uint8_t *dead_reachable = NULL;
    a->speculative_rejected_starts = 0;
    a->speculative_barriers = 0;
    a->speculative_islands = 0;
@@ -5500,8 +5871,8 @@ static int discover_speculative_islands(analysis_t *a)
    a->speculative_fixed_merges = 0;
    a->speculative_inconclusive_walks = 0;
 
-   halt_reachable = speculative_halt_reachability(a);
-   if (!halt_reachable) return 0;
+   dead_reachable = speculative_dead_reachability(a);
+   if (!dead_reachable) return 0;
 
    for (bi = 0; bi < a->bank_count; ++bi) {
       bank_t *b = &a->banks[bi];
@@ -5524,7 +5895,7 @@ static int discover_speculative_islands(analysis_t *a)
          spec_result_t r;
          if (b->roles[off] & ROLE_CODE_START) continue;
          if (rom_offset_hidden(a, off)) continue;
-         if (!halt_reachable[b->file_offset + off]) continue;
+         if (!dead_reachable[b->file_offset + off]) continue;
          memset(&ctx, 0, sizeof(ctx));
          r = speculative_flow(a, bi, off, &initial, &ctx);
          a->speculative_fixed_states += ctx.fixed_states;
@@ -5584,13 +5955,13 @@ static int discover_speculative_islands(analysis_t *a)
          a->speculative_switch_avoided_halts += switch_saves;
          mark_label(b, candidate);
          if (!push_work(a, bi, candidate)) {
-            free(halt_reachable);
+            free(dead_reachable);
             return 0;
          }
          ++a->speculative_islands;
       }
    }
-   free(halt_reachable);
+   free(dead_reachable);
    return 1;
 }
 
@@ -7888,31 +8259,42 @@ static int riot_symbol(uint16_t bus, unsigned access, const char **name,
    unsigned reg;
    if ((bus & 0x0280u) != 0x0280u) return 0;
    reg = bus & 0x001fu;
-   switch (reg) {
-   case 0x00: *name="SWCHA";  *canonical=0x0280u; return 1;
-   case 0x01: *name="SWACNT"; *canonical=0x0281u; return 1;
-   case 0x02: *name="SWCHB";  *canonical=0x0282u; return 1;
-   case 0x03: *name="SWBCNT"; *canonical=0x0283u; return 1;
-   case 0x04:
-      if (access == ACCESS_READ) { *name="INTIM"; *canonical=0x0284u; return 1; }
-      break;
-   case 0x05:
-      if (access == ACCESS_READ) { *name="TIMINT"; *canonical=0x0285u; return 1; }
-      break;
-   case 0x14:
-      if (access == ACCESS_WRITE) { *name="TIM1T"; *canonical=0x0294u; return 1; }
-      break;
-   case 0x15:
-      if (access == ACCESS_WRITE) { *name="TIM8T"; *canonical=0x0295u; return 1; }
-      break;
-   case 0x16:
-      if (access == ACCESS_WRITE) { *name="TIM64T"; *canonical=0x0296u; return 1; }
-      break;
-   case 0x17:
-      if (access == ACCESS_WRITE) { *name="T1024T"; *canonical=0x0297u; return 1; }
-      break;
-   default:
-      break;
+
+   if (access == ACCESS_READ) {
+      if ((reg & 0x04u) == 0u) {
+         switch (reg & 0x03u) {
+         case 0: *name="SWCHA";  *canonical=0x0280u; return 1;
+         case 1: *name="SWACNT"; *canonical=0x0281u; return 1;
+         case 2: *name="SWCHB";  *canonical=0x0282u; return 1;
+         case 3: *name="SWBCNT"; *canonical=0x0283u; return 1;
+         }
+      }
+      if ((reg & 0x01u) == 0u) {
+         *name="INTIM"; *canonical=0x0284u; return 1;
+      }
+      *name="TIMINT"; *canonical=0x0285u; return 1;
+   }
+
+   if (access == ACCESS_WRITE) {
+      if ((reg & 0x04u) == 0u) {
+         switch (reg & 0x03u) {
+         case 0: *name="SWCHA";  *canonical=0x0280u; return 1;
+         case 1: *name="SWACNT"; *canonical=0x0281u; return 1;
+         case 2: *name="SWCHB";  *canonical=0x0282u; return 1;
+         case 3: *name="SWBCNT"; *canonical=0x0283u; return 1;
+         }
+      }
+      if (reg & 0x10u) {
+         switch (reg & 0x03u) {
+         case 0: *name="TIM1T";  *canonical=0x0294u; return 1;
+         case 1: *name="TIM8T";  *canonical=0x0295u; return 1;
+         case 2: *name="TIM64T"; *canonical=0x0296u; return 1;
+         case 3: *name="T1024T"; *canonical=0x0297u; return 1;
+         }
+      }
+      /* $284-$287 and mirrors are valid PA7 edge-control writes, but VCSC has
+       * no canonical public symbol names for those controls. */
+      return 0;
    }
    return 0;
 }
@@ -10625,7 +11007,7 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
          if (b->font_start[off])
             fputs("    ; probable 8x8 font/graphics table\n", fp);
          if (b->spec_seed[off])
-            fputs("    ; speculative instruction island validated by HLT/JAM/KIL rejection\n", fp);
+            fputs("    ; speculative instruction island validated by negative-evidence barrier\n", fp);
          if (b->roles[off] & ROLE_LABEL) {
             emit_label_role_comment(fp, b, off);
             print_label_name(fp, a, bi, off);

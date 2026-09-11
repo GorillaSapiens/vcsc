@@ -1078,6 +1078,27 @@ substr($wd, 2 * 1024, 1024, $wd_chunk3);
 substr($wd, 3 * 1024, 1024, $wd_chunk2);
 write_bin(File::Spec->catfile($in, 'wd.bin'), $wd);
 
+# WD deliberately latches reads from TIA $30-$3F.  $3E/$3F are not ordinary
+# readable TIA registers, but under WD they are mapper selectors and therefore
+# positive mapper-aware evidence rather than invalid-hardware evidence.
+my $wd_speculative_hotspot = $wd;
+substr($wd_speculative_hotspot, 0x0200, 5, "\x02\x12\x22\xA5\x3E");
+# Reading $3E selects WD arrangement 6; its $1000 segment comes from physical
+# bank 2, so put the post-hotspot continuation at the same runtime PC there.
+substr($wd_speculative_hotspot, 2 * 1024 + 0x0205, 7,
+   "\xAA\xE8\xCA\xA8\xC8\x88\x60");
+write_bin(File::Spec->catfile($in, 'wd_speculative_hotspot.bin'),
+   $wd_speculative_hotspot);
+
+# The WD exception is direction-sensitive: WD latches reads, not writes.
+# Therefore STA $3E remains an invalid ordinary TIA write in detached code.
+my $wd_speculative_wrong_direction = $wd;
+substr($wd_speculative_wrong_direction, 0x0200, 14,
+   "\x02\x12\x22" .
+   "\xA9\x01\x85\x3E\xAA\xE8\xCA\xA8\xC8\x88\x60");
+my $wd_wrong_direction_bin = File::Spec->catfile($tmp, 'wd_speculative_wrong_direction.bin');
+write_bin($wd_wrong_direction_bin, $wd_speculative_wrong_direction);
+
 my $wdsw_rmw_read = $wdsw;
 substr($wdsw_rmw_read, 0x0000, 4, "\xEE\x20\xF0\x60");
 write_bin(File::Spec->catfile($in, 'wdsw_rmw_read.bin'), $wdsw_rmw_read);
@@ -1445,12 +1466,11 @@ substr($island_jam, 0x0200, 16,
    ("\x02" x 6));
 write_bin(File::Spec->catfile($in, 'speculative_jam_reject.bin'), $island_jam);
 
-# A detached candidate near the end of the address space must not be promoted
-# when a statically possible relative branch wraps into the TIA register window.
-# Reproduce the old corpus failure's other ingredient too: the candidate first
-# JSRs through a cartridge mirror to a long, valid-looking routine before the
-# invalid branch.  Fixed-point validation must still inspect that continuation;
-# there is no traversal budget whose exhaustion can hide it.
+# A detached candidate may survive one impossible branch edge when the other
+# branch remains viable.  This candidate first JSRs through a cartridge mirror
+# to a long routine, then has an unknown BMI whose taken edge wraps into TIA
+# space while fallthrough reaches RTS.  The dead TIA edge must not poison the
+# viable fallthrough.
 my $island_tia_branch = make_rom(4096, 0xF000, 0x0800, "\x60");
 substr($island_tia_branch, 0x0020, 511, ("\xEA" x 510) . "\x60");
 substr($island_tia_branch, 0x0FD0, 12,
@@ -1487,6 +1507,90 @@ substr($island_dead_zero_jam, 0x0200, 11,
    "\x02\x12\x22" .
    "\xA9\x00\xD0\x03\xA2\x07\x60\x02");
 write_bin(File::Spec->catfile($in, 'speculative_dead_zero_jam.bin'), $island_dead_zero_jam);
+
+# Unknown branch state is disjunctive: one JAM arm and one viable arm is still
+# plausible code.  LDA from unknown RIOT RAM leaves Z unknown; BNE may select the
+# good LDX/RTS arm or fall through to JAM.
+my $island_one_jam_arm = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($island_one_jam_arm, 0x0200, 11,
+   "\x02\x12\x22" .
+   "\xA5\x80\xD0\x01\x02\xA2\x07\x60");
+write_bin(File::Spec->catfile($in, 'speculative_one_jam_arm.bin'),
+   $island_one_jam_arm);
+
+# The converse must die: both feasible BNE successors are JAM.
+my $island_all_jam_arms = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($island_all_jam_arms, 0x0200, 9,
+   "\x02\x12\x22" .
+   "\xA5\x80\xD0\x01\x02\x02");
+write_bin(File::Spec->catfile($in, 'speculative_all_jam_arms.bin'),
+   $island_all_jam_arms);
+
+# A direct jump into non-executable TIA space is a dead continuation, while
+# executable RIOT RAM remains possible (the image may have copied code there).
+my $island_bad_jmp = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($island_bad_jmp, 0x0200, 14,
+   "\x02\x12\x22" .
+   "\xA9\x01\xAA\xE8\xCA\xA8\xC8\x88\x4C\x00\x20");
+write_bin(File::Spec->catfile($in, 'speculative_bad_jmp.bin'), $island_bad_jmp);
+
+# Negative-evidence discovery is not JAM-specific.  These overlapping starts
+# are all absolute JMPs whose 13-bit bus targets are hardware space, so they
+# must create rejected starts/a barrier even though there is no JAM byte.
+my $dead_transfer_barrier = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($dead_transfer_barrier, 0x0200, 5, "\x4C\x4C\x4C\x20\x20");
+write_bin(File::Spec->catfile($in, 'speculative_dead_transfer_barrier.bin'),
+   $dead_transfer_barrier);
+
+# Invalid TIA bus direction/decode is hard negative evidence for detached code.
+# $3E is not a readable TIA register under the read decoder.
+my $island_bad_tia_read = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($island_bad_tia_read, 0x0200, 13,
+   "\x02\x12\x22" .
+   "\xA9\x01\xAA\xE8\xCA\xA5\x3E\xA8\xC8\x60");
+write_bin(File::Spec->catfile($in, 'speculative_bad_tia_read.bin'),
+   $island_bad_tia_read);
+
+# RIOT read/write decoding is direction-dependent.  Reading the canonical
+# TIM64T write address is legal and aliases INTIM; do not reject it as a
+# write-only-register access.
+my $island_riot_timer_read = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($island_riot_timer_read, 0x0200, 13,
+   "\x02\x12\x22" . "\xAD\x96\x02\xAA\xE8\xCA\xA8\xC8\x88\x60");
+write_bin(File::Spec->catfile($in, 'speculative_riot_timer_read.bin'),
+   $island_riot_timer_read);
+
+# Canonical TIA register spelling is stronger code evidence than an equivalent
+# legal mirror.  This deliberately borderline pair differs only in $30 vs $40:
+# six stable unofficial NOPs keep the score at the promotion boundary.
+my $island_tia_canonical = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($island_tia_canonical, 0x0200, 14,
+   "\x02\x12\x22" . ("\x1A" x 6) . "\xA5\x30\xD0\x00\x60");
+write_bin(File::Spec->catfile($in, 'speculative_tia_canonical.bin'),
+   $island_tia_canonical);
+my $island_tia_mirror = $island_tia_canonical;
+substr($island_tia_mirror, 0x0200 + 3 + 6 + 1, 1, "\x40");
+write_bin(File::Spec->catfile($in, 'speculative_tia_mirror.bin'),
+   $island_tia_mirror);
+
+# Stable unofficial NMOS opcodes are possible code, not a rejection by
+# themselves.  One stable unofficial NOP among otherwise coherent official code
+# should still allow promotion.
+my $island_stable_illegal = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($island_stable_illegal, 0x0200, 12,
+   "\x02\x12\x22" . "\x1A\xA9\x01\xAA\xE8\xCA\xA8\xC8\x60");
+write_bin(File::Spec->catfile($in, 'speculative_stable_illegal.bin'),
+   $island_stable_illegal);
+
+# Silicon/bus-sensitive unofficials are much weaker evidence.  A candidate
+# dominated by unstable XAA/LXA/high-byte-mask forms must not be promoted merely
+# because every byte has a syntactically decodable length.
+my $island_unstable_illegal = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($island_unstable_illegal, 0x0200, 16,
+   "\x02\x12\x22" .
+   "\x8B\x11\xAB\x22\x8B\x33\xAB\x44\xA9\x01\xAA\xE8\x60");
+write_bin(File::Spec->catfile($in, 'speculative_unstable_illegal.bin'),
+   $island_unstable_illegal);
 
 # A real control-flow target on the far side of a rejected-start barrier remains
 # authoritative; the barrier only blocks ordinary speculative fallthrough.
@@ -2109,6 +2213,18 @@ require_re($wdsw_out, qr/^\s*\.byte \$12, \$34, \$56$/m,
    'WDSW trailing bytes preserved exactly');
 
 my $wd_out = slurp(File::Spec->catfile($out, 'wd.s26'));
+my $wd_spec_hotspot_out = slurp(File::Spec->catfile($out, 'wd_speculative_hotspot.s26'));
+require_re($wd_spec_hotspot_out,
+   qr/^B0_F203:\n\s*LDA\s+\$3E/m,
+   'WD nonstandard TIA read hotspot remains valid speculative mapper access');
+my $wd_wrong_direction_s26 = File::Spec->catfile($tmp,
+   'wd_speculative_wrong_direction.s26');
+run_ok($disas, '--mapper', 'wd', '-o', $wd_wrong_direction_s26,
+   $wd_wrong_direction_bin);
+my $wd_spec_wrong_out = slurp($wd_wrong_direction_s26);
+die "WD write to read-only mapper hotspot was incorrectly promoted\n"
+   if $wd_spec_wrong_out =~ /^B0_F203:/m ||
+      $wd_spec_wrong_out =~ /speculative instruction island.*\nB0_F203:/i;
 require_re($wd_out, qr/^; mapper: WD \(high confidence;/m,
    'corrected 8192-byte WD mapper inference');
 require_re($wd_out, qr/WD selector -> arrangement 1 \(hardware-delayed\)/,
@@ -2332,7 +2448,7 @@ require_re($mode_relax_out, qr/LDA\.a\s+\$0080\b/,
 
 my $spec_island = slurp(File::Spec->catfile($out, 'speculative_island.s26'));
 require_re($spec_island,
-   qr/speculative instruction island validated by HLT\/JAM\/KIL rejection/i,
+   qr/speculative instruction island validated by negative-evidence barrier/i,
    'speculative island annotation');
 require_re($spec_island, qr/^L_F203:\n\s*LDA\s+#\$42\n\s*TAX\n\s*TAY\n\s*INX\n\s*DEX\n\s*INY\n\s*DEY\n\s*RTS$/m,
    'credible safe routine after three-start barrier promoted');
@@ -2357,7 +2473,7 @@ require_re($spec_banked,
    qr/^; mapper: F8 \(medium confidence; 0 decoded hotspot accesses,/m,
    'speculative F8 hotspot does not become mapper evidence');
 require_re($spec_banked,
-   qr/speculative instruction island validated by HLT\/JAM\/KIL rejection\nB0_F203:\n\s*LDA\s+\$1FF9/m,
+   qr/speculative instruction island validated by negative-evidence barrier\nB0_F203:\n\s*LDA\s+\$1FF9/m,
    'speculative island may end its physical-bank line at an F8 selector');
 require_re($spec_banked, qr/^B1_F206:\n\s*LDA\s+#\$42/m,
    'speculative execution resumes in bank selected by hotspot');
@@ -2374,7 +2490,7 @@ require_re($spec_inference_out,
    qr/^; usage bytes: established-code=1 speculative-code=[1-9]\d* /m,
    'usage report separates established and speculative code');
 require_re($spec_inference_out,
-   qr/speculative instruction island validated by HLT\/JAM\/KIL rejection\nL_F203:/m,
+   qr/speculative instruction island validated by negative-evidence barrier\nL_F203:/m,
    'quarantined speculative code remains available for presentation');
 
 my $spec_sc_freeze_out = slurp(File::Spec->catfile($out,
@@ -2396,9 +2512,8 @@ die "JAM-reaching speculative candidate was promoted\n"
       $spec_jam =~ /speculative instruction island.*\nL_F203:/i;
 
 my $spec_tia_branch = slurp(File::Spec->catfile($out, 'speculative_tia_branch_reject.s26'));
-die "TIA-targeting speculative candidate was promoted\n"
-   if $spec_tia_branch =~ /^L_FFD3:/m ||
-      $spec_tia_branch =~ /speculative instruction island.*\nL_FFD3:/i;
+require_re($spec_tia_branch, qr/^L_FFD3:\n\s*JSR\s+\$3020\n\s*BMI\.cross\s+\$0018/m,
+   'one impossible TIA branch edge does not kill viable fallthrough');
 
 my $spec_fixed_point = slurp(File::Spec->catfile($out, 'speculative_fixed_point.s26'));
 require_re($spec_fixed_point, qr/^L_F203:\n\s*LDA\s+\$80\n\s*BNE\.same/m,
@@ -2416,6 +2531,52 @@ require_re($spec_dead_jam, qr/^L_F203:\n\s*SEC\n\s*BCC\.same\s+/m,
 my $spec_dead_zero = slurp(File::Spec->catfile($out, 'speculative_dead_zero_jam.s26'));
 require_re($spec_dead_zero, qr/^L_F203:\n\s*LDA\s+#\$00\n\s*BNE\.same\s+/m,
    'known zero flag keeps impossible BNE-to-JAM arm from rejecting island');
+
+my $spec_one_jam = slurp(File::Spec->catfile($out, 'speculative_one_jam_arm.s26'));
+require_re($spec_one_jam, qr/^L_F203:\n\s*LDA\s+\$80\n\s*BNE\.same/m,
+   'unknown branch survives when one JAM arm has a viable alternative');
+
+my $spec_all_jam = slurp(File::Spec->catfile($out, 'speculative_all_jam_arms.s26'));
+die "all-JAM speculative branch was promoted\n"
+   if $spec_all_jam =~ /^L_F203:/m ||
+      $spec_all_jam =~ /speculative instruction island.*\nL_F203:/i;
+
+my $spec_bad_jmp = slurp(File::Spec->catfile($out, 'speculative_bad_jmp.s26'));
+die "JMP to non-executable hardware space was promoted\n"
+   if $spec_bad_jmp =~ /^L_F203:/m ||
+      $spec_bad_jmp =~ /speculative instruction island.*\nL_F203:/i;
+
+my $spec_dead_transfer = slurp(File::Spec->catfile($out,
+   'speculative_dead_transfer_barrier.s26'));
+require_re($spec_dead_transfer,
+   qr/^; speculative analysis: rejected-starts=(?:[3-9]|[1-9]\d+) barriers=[1-9]\d* /m,
+   'impossible direct transfers seed negative-evidence barriers without JAM');
+
+my $spec_bad_tia = slurp(File::Spec->catfile($out, 'speculative_bad_tia_read.s26'));
+die "invalid TIA read candidate was promoted\n"
+   if $spec_bad_tia =~ /^L_F203:/m ||
+      $spec_bad_tia =~ /speculative instruction island.*\nL_F203:/i;
+
+my $spec_riot_timer = slurp(File::Spec->catfile($out, 'speculative_riot_timer_read.s26'));
+require_re($spec_riot_timer, qr/^L_F203:\n\s*LDA\s+INTIM\s*\+\s*\$0012/m,
+   'read of TIM64T write address is legal RIOT INTIM mirror');
+
+my $spec_tia_canonical = slurp(File::Spec->catfile($out, 'speculative_tia_canonical.s26'));
+require_re($spec_tia_canonical, qr/^L_F203:\n\s*op1A\b/m,
+   'canonical TIA access supplies stronger speculative code evidence');
+my $spec_tia_mirror = slurp(File::Spec->catfile($out, 'speculative_tia_mirror.s26'));
+die "legal TIA mirror was scored as strongly as canonical spelling\n"
+   if $spec_tia_mirror =~ /^L_F203:/m ||
+      $spec_tia_mirror =~ /speculative instruction island.*\nL_F203:/i;
+
+my $spec_stable_illegal = slurp(File::Spec->catfile($out, 'speculative_stable_illegal.s26'));
+require_re($spec_stable_illegal, qr/^L_F203:\n\s*op1A\b/m,
+   'stable unofficial opcode remains possible speculative code');
+
+my $spec_unstable_illegal = slurp(File::Spec->catfile($out, 'speculative_unstable_illegal.s26'));
+die "unstable-illegal-dominated speculative candidate was promoted\n"
+   if $spec_unstable_illegal =~ /^L_F203:/m ||
+      $spec_unstable_illegal =~ /speculative instruction island.*\nL_F203:/i;
 
 my $barrier_jump_out = slurp(File::Spec->catfile($out, 'barrier_explicit_entry.s26'));
 require_re($barrier_jump_out, qr/JSR\s+L_F205\b/,
@@ -2787,7 +2948,7 @@ require_re($e0_spec_out,
    qr/^; mapper: E0 \(high confidence; 0 decoded hotspot accesses,/m,
    'E0 raw signature may identify mapper without speculative semantic votes');
 require_re($e0_spec_out,
-   qr/speculative instruction island validated by HLT\/JAM\/KIL rejection\nB4_F203:\n\s*LDA\s+\$FFE0/m,
+   qr/speculative instruction island validated by negative-evidence barrier\nB4_F203:\n\s*LDA\s+\$FFE0/m,
    'E0 speculative island may switch away from old-bank JAM');
 require_re($e0_spec_out, qr/B0_F206:\n\s*LDA\s+\$FFE9\n\s*LDA\s+#\$42/m,
    'E0 speculative execution resumes in selected physical bank');

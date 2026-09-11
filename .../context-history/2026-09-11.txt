@@ -29,3 +29,38 @@ pass in the full run. Rechecking the supplied mismatch corpus gives F0 for
 b65d4a38d6047735824ee99684f3515e.bin while preserving the previously corrected
 E0/E7/F8 results. The remaining corpus mismatches are the separate unfinished
 CDF, DPC+, and CM cases.
+
+2026-09-11 01:53:41 PDT, improve island viability analysis
+Reworked detached speculative-island discovery from a JAM-anywhere rejection
+heuristic into edge/path viability. JAM/KIL/HLT kills only that speculative
+continuation; conditional branches survive when at least one feasible successor
+is live, while all-dead successors reject backward. Abstract flag facts prune
+known-impossible branch arms, and JSR requires both the callee and return
+continuation to remain viable.
+
+Added speculative execution-target and hardware-access plausibility. Direct
+transfers into non-executable TIA/RIOT hardware space are dead, while RIOT RAM
+remains a possible copied-code target. Candidate opcode evidence now
+separates official, stable unofficial, unstable unofficial, and JAM classes.
+TIA/RIOT accesses use hardware read/write decode; canonical spellings score
+more strongly than legal mirrors, and physically invalid accesses are dead.
+Known mapper hotspots override generic hardware scoring only in the directions
+the mapper actually uses. WD regressions pin the read-hotspot exception and
+reject the corresponding write.
+
+Negative-evidence barrier seeding now includes directly provable bad transfers
+and hardware cycles instead of JAM alone. Added regressions for one-live/one-JAM
+branches, all-JAM branches, known flag state used as an unconditional branch,
+impossible JMP/JSR targets, RIOT TIM64T read mirroring, canonical-vs-mirror
+promotion confidence, stable/unstable unofficial opcodes, and direction-aware
+WD speculative selector handling. Updated disassembler/README.md and the hot
+disassembler contract accordingly.
+
+Validation from a clean rebuild: compile-only 537/537 passed. The focused
+vcsc_disassembler.pl, vcsc_disassembler_fuzz.pl, vcsc_disassembler_gl.pl,
+vcsc_disassembler_hardening.pl, vcsc_disassembler_opcodes.pl, and
+source_tree_hygiene.pl set passed 6/6. A full parallel E2E run reached 229/365
+with no failures before the container execution ceiling; the heavyweight
+vcs_3e_max_diagnostic.pl passes alone. vcs_3ex_max_diagnostic.pl itself exceeds
+the available per-command execution window in this environment, so no false
+full-suite claim is recorded.

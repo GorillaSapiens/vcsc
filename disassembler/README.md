@@ -465,25 +465,41 @@ This is a general overlapping-stream rule, not a special `$2C` decoder hack.
 
 Unreferenced regions normally remain exact data rather than being force-decoded
 simply because random bytes happen to form legal 6502 opcodes. A conservative
-second pass tests unknown instruction starts as speculative islands: if any
-statically possible path reaches a newly speculative HLT/JAM/KIL, that start is
-rejected. Three consecutive rejected starts form a sequential-flow barrier.
-When all three failures reach JAM/KIL through straight-line fallthrough, the
-furthest halt also gives a conservative end for that non-code span. A candidate
-after that span is promoted only if it also passes `stego`-style credibility
-checks (coherent multi-instruction flow, mostly official opcodes, no conflicts
-with established code/data, and a credible terminal/join). Established
-vectors/JMPs/JSRs and intentional reachable JAM/KIL always override this negative
-evidence.
+second pass tests unknown instruction starts as speculative islands. Negative
+evidence is path-based: HLT/JAM/KIL, a direct control transfer into non-executable
+hardware space, or a physically impossible TIA/RIOT bus access kills that CFG
+edge. A conditional branch survives when at least one feasible successor remains
+viable; only when every feasible successor is dead does rejection propagate
+backward through the branch. JSR is stricter: both the callee and the post-return
+continuation must remain credible. Three consecutive rejected starts form a
+sequential-flow barrier. When all three failures reach JAM/KIL through
+straight-line fallthrough, the furthest halt also gives a conservative end for
+that non-code span. A candidate after that span is promoted only if it also
+passes `stego`-style credibility checks (coherent multi-instruction flow, opcode
+plausibility, no conflicts with established code/data, and a credible
+terminal/join). Established vectors/JMPs/JSRs and intentional reachable JAM/KIL
+always override this negative evidence.
 
-Known C/Z/N/V flag state is used to prune impossible branch arms before deciding
-that a halt is reachable. Each conditional-branch edge also constrains the tested
-flag in its successor state, so mutually exclusive sequences such as `BMI`
-fallthrough followed immediately by `BPL` cannot invent an impossible third path
-into data. Mapper selector accesses are control-flow edges: the
-next opcode is fetched at the same logical continuation address from the selected
-physical bank. Therefore `LDA $hotspot` followed physically by JAM/KIL in the old
-bank is not a failed path when the selected bank contains the valid continuation.
+Known C/Z/N/V flag state is used to prune impossible branch arms. Each
+conditional-branch edge also constrains the tested flag in its successor state,
+so mutually exclusive sequences such as `BMI` fallthrough followed immediately
+by `BPL` cannot invent an impossible third path into data. RIOT RAM remains a
+possible executable destination for copied code; TIA/RIOT hardware space does
+not. Mapper selector accesses are control-flow edges: the next opcode is fetched
+at the same logical continuation address from the selected physical bank.
+Therefore `LDA $hotspot` followed physically by JAM/KIL in the old bank is not a
+failed path when the selected bank contains the valid continuation.
+Opcode and hardware evidence are graded rather than binary. Official opcodes are
+strong evidence, stable NMOS unofficial opcodes are possible code, and unstable
+silicon/bus-sensitive unofficials count against promotion; HLT/JAM/KIL is a dead
+speculative terminal. For TIA/RIOT accesses the actual 6507/6532 read/write
+decoder is used: canonical register addresses are stronger evidence than legal
+mirrors, while impossible bus-direction/register combinations kill the edge. A
+read of `$0296`, for example, is a legal mirror of `INTIM` even though that same
+address is conventionally named `TIM64T` for writes. Direction-sensitive mapper
+hotspots override the generic hardware plausibility rule, including WD reads of
+TIA `$30-$3F` and 3E/3F selector writes.
+
 The same selector-transition semantics are used for RESET-reachable code and
 speculative-island validation, but the confidence classes are quarantined. Before
 detached discovery begins, `vcsc-disas` freezes the established code/data roles,

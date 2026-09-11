@@ -39,8 +39,15 @@ Durable invariants
 * Detached speculative validation uses a local sparse fixed point keyed by
   physical instruction byte, runtime PC, and mapper context. Arrivals in the
   same context meet successor-relevant abstract CPU/ZP facts and requeue only
-  when knowledge decreases. There is no traversal/node cap; allocation failure
-  is inconclusive and may never strengthen promotion or rejection.
+  when knowledge decreases. Viability is edge/path based: one dead arm of a
+  conditional branch is allowed when another feasible arm remains live; all
+  feasible dead arms reject backward, while JSR requires both callee and return
+  continuation. JAM/KIL/HLT and impossible execution/hardware accesses are dead
+  speculative edges. Official/stable-unofficial/unstable-unofficial opcodes and
+  canonical/mirrored TIA/RIOT accesses provide graded promotion evidence; known
+  direction-sensitive mapper hotspots override the generic hardware score. There
+  is no traversal/node cap; allocation failure is inconclusive and may never
+  strengthen promotion or rejection.
 * RESET is the only stock-6507 initial hardware execution root. Reachable `BRK`
   may promote IRQ/BRK; NMI is never rooted merely from `$FFFA/$FFFB`. For a
   signed VCSC banked image, the complete linker vector-bridge invariant may
