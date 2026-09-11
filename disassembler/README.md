@@ -154,10 +154,9 @@ structurally possible inner cart interpretation independently. Known flag state
 chooses one conditional edge and unknown state forks both feasible edges. The
 state key includes physical instruction byte, runtime PC, and mapper configuration;
 joins monotonically lose knowledge and are requeued until convergence, so the
-hypothesis walk has no instruction-count convergence cap. The older N-in-1 slice
-evaluator still supplies compatibility ranking and `.gameNN.s26` presentation
-until A7 replaces legacy final selection, but it cannot create a topology
-that A2 did not enumerate and it is not the A3 execution engine.
+hypothesis walk has no instruction-count convergence cap. The N-in-1 slice evaluator is now presentation plumbing for a topology selected
+by the common hypothesis machinery; it cannot create a topology that A2 did not
+enumerate and it is not the A3 execution engine.
 
 A4 extends that same hypothesis-local abstract state with physical ROM-byte
 provenance. A/X/Y and supported transforms retain their source, RIOT RAM stores
@@ -189,9 +188,9 @@ sink after direction-sensitive mapper/peripheral handling; split cartridge-RAM
 ports therefore obey their hardware direction. Mapper-defined accesses are judged
 before generic TIA/RIOT decoding, and WD preserves both old/new continuations
 across its hardware-delayed selector. Generated headers report live/dead/weak
-startup counts plus invalid-target, invalid-bus, and halt-path evidence. A7 will
-consume those results for final mapper comparison; A5 does not itself change the
-legacy winner.
+startup counts plus invalid-target, invalid-bus, and halt-path evidence. A7
+consumes those results for final mapper comparison; A5 does not itself select the
+winner.
 
 A6 derives bank-access completeness from the A5 viability fixed point rather than
 from every byte A3 happened to visit.  Only states on surviving execution paths
@@ -202,19 +201,31 @@ without synthetic execution.  Headers report every bank (or N-in-1 constituent) 
 instruction-fetch, data-read, RAM-code-source, display/audio-source, duplicate,
 fill, or unexplained, plus a complete/incomplete summary.  N-in-1 is held to the
 same rule: a constituent counts only when at least one viable inner mapper model
-accounts for all of its meaningful banks.  A6 records the requirement but leaves
-legacy winner selection unchanged; A7 consumes completeness as mapper evidence.
+accounts for all of its meaningful banks. A6 records the requirement and A7
+consumes completeness as mapper evidence.
 
-2IN1 remains the most ambiguous shape because an 8K file containing two plausible
-4K programs is also a perfectly possible ordinary F8 image. Automatic structure
-therefore requires two distinct 4K slices with real RESET roots. If both the F8
-and 2IN1 hypotheses remain credible under the current compatibility evaluators,
-the generated header reports the ambiguity and retains the conventional whole
-image until A7 consume the already-available A3 execution results for rejection
-and final hypothesis comparison. `--container 2IN1` remains the
-authoritative compatibility override when external knowledge resolves the dump;
-it can intentionally represent duplicate component games that automatic
-structure would treat as preservation copies.
+A7 performs final mapper comparison from the common hypothesis results rather than
+from the old size/default winner or instruction-count ranking. Hard A5
+contradictions are removed first. Positive execution evidence then narrows the
+survivors: coherent continuation after a mapper change, narrow mapper-specific
+selector activity, selectors executed from proven generated RIOT RAM,
+direction-correct cartridge-RAM use, complete A6 bank access, and comparable
+strong reset behavior. Established explicit/static signatures are late migration
+priors only after execution evidence ties. Model-dependent indexed traffic is not
+allowed to manufacture mapper-specific family evidence from its own hypothetical
+side effects.
+
+If no principled discriminator remains, A7 reports every tied hypothesis and uses
+exact unknown/raw presentation instead of inheriting a file-size/default choice.
+Plain 4K versus one-bank FC is the deliberate presentation exception when no FC
+behavior is observed: both mappings are observationally identical, so 4K source
+presentation is retained while the header states that mapper identity is still
+ambiguous. 2IN1 remains a canonical ambiguity because an 8K file containing two
+plausible 4K programs is also a possible ordinary F8 image; F8/2IN1 and nested
+N-in-1 ties stay raw unless execution provides real evidence. `--container`
+remains the authoritative override when external knowledge resolves the dump and
+can intentionally represent duplicate component games that automatic structure
+would treat as preservation copies.
 
 Stella-playable 4094- and 4098-byte preservation dumps are treated as logical
 unbanked 4K cartridges without changing their physical files.  This mirrors

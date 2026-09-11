@@ -303,3 +303,38 @@ fuzz 30/30, GL, hardening, all-opcode exact round trip, context-history format,
 and source-tree hygiene pass. The full compile-only suite passes 537/537. Real
 Congo Bongo remains automatically F8 and bank-complete: both 4K banks have viable
 instruction/data access and generated-RAM provenance evidence. A7 is next.
+
+2026-09-11 14:39:40 PDT, A7 final mapper comparison
+Completed disassembler roadmap A7. Final automatic mapper selection now consumes
+the shared A3/A5/A6 hypothesis results rather than rerunning a privileged legacy
+candidate path or using instruction count. Hard A5 contradictions are removed
+first; surviving models are compared using coherent bank-switch continuation,
+mapper-specific selector activity, proven generated-RAM selectors, direction-
+correct cartridge RAM, A6 bank completeness, reset quality, and only then static
+signatures as a late migration prior. Genuine surviving ties stay explicit and
+use conservative/raw presentation instead of the old size/default winner.
+
+Selector activity is distinct from a physical bank change, so an F8 access that
+selects the already-active bank is still positive F8 evidence. Model-dependent
+indexed traffic cannot bootstrap the mapper that gives it selector semantics;
+this closes an indexed E0 self-confirmation false positive. Conversely, broad
+partial-address decoders such as 0840/UA/UASW/0FA0 must account for unresolved
+indexed selector addresses: the abstract executor now forks every feasible bank
+and no-switch hardware continuation. This fixes legitimate VCSC 0840/0FA0
+trampolines without weakening narrow-hotspot inference.
+
+First-class N-in-1 hypotheses use the same comparison rules. Ambiguous F8/2IN1
+and 8IN1/4IN1 structures remain raw unless execution supplies a discriminator;
+reset-root topology supplies evidence where it is genuinely observable. The one
+presentation-equivalence exception is plain 4K versus one-bank FC with no FC
+behavior: mapper identity remains reported ambiguous while ordinary 4K code
+presentation is safe.
+
+Regression updates remove legacy assumptions that deliberately contradictory or
+presentation-only fixtures must acquire an automatic default mapper; those cases
+use explicit --mapper when the test is about mapper-specific formatting rather
+than inference. Focused disassembler regression is green, vcs_0840.pl and
+vcs_0fa0.pl pass, source_tree_hygiene.pl passes, and the full compile-only suite
+passes 537/537. A broad e2e run exposed the two partial-decoder regressions above
+before the execution window ended; both were fixed and retested directly. A8 has
+not begun and remains the next disassembler roadmap item.

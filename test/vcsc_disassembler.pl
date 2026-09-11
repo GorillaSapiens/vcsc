@@ -8,6 +8,7 @@ use strict;
 use warnings;
 use Cwd qw(abs_path);
 use File::Path qw(make_path remove_tree);
+use File::Copy qw(copy);
 use File::Spec;
 use IPC::Open3;
 use Symbol qw(gensym);
@@ -2059,14 +2060,103 @@ my $ar_page1 = "\xA9\x99\x85\x81\x60" . (chr(0xEA) x 251);
 my $ar_multi = $ar_single . make_ar_load(0xF000, 0x14, 1, 0x01, $ar_page1);
 write_bin(File::Spec->catfile($in, 'ar_multi.bin'), $ar_multi);
 
-run_ok($^X, $roundtrip, $in, $out);
+# A7 turns an all-hypotheses-hard-contradiction result into the existing
+# zero-instruction hard failure instead of retaining a size/default mapper.
+# Keep those deliberately impossible fixtures out of the mechanical bulk
+# round-trip pass; test their automatic failure explicitly below.
+my %a7_hard_failure = map { $_ => 1 } qw(
+   a5_all_jam_arms.bin
+   a5_bad_jump.bin
+   a5_bad_read.bin
+   a5_bad_write.bin
+   a5_jsr_ram_bad_return.bin
+   cv_rmw_read.bin
+   cv_rmw_write.bin
+   e7_rmw.bin
+   fa_rmw_read.bin
+   fa_rmw_write.bin
+   hardware.bin
+   plain4k_sc_rmw_only.bin
+   plain4k_sc_rmw_read_conflict.bin
+   plain4k_sc_rmw_write_conflict.bin
+   plain4k_sc_write_port_exec.bin
+   reachable_jam.bin
+   threee_rmw.bin
+   wdsw_rmw_read.bin
+   wdsw_rmw_write.bin
+);
+my $roundtrip_in = File::Spec->catdir($tmp, 'disas-roundtrip-in');
+remove_tree($roundtrip_in);
+make_path($roundtrip_in);
+opendir(my $roundtrip_dh, $in) or die "$in: $!\n";
+for my $name (grep { /\.bin\z/i } readdir($roundtrip_dh)) {
+   next if $a7_hard_failure{$name};
+   copy(File::Spec->catfile($in, $name),
+        File::Spec->catfile($roundtrip_in, $name))
+      or die "copy $name into roundtrip set failed: $!\n";
+}
+closedir($roundtrip_dh);
+run_ok($^X, $roundtrip, $roundtrip_in, $out);
+
+for my $name (sort keys %a7_hard_failure) {
+   (my $stem = $name) =~ s/\.bin\z//i;
+   my $failed_out = File::Spec->catfile($tmp, "a7-hard-$stem.s26");
+   unlink($failed_out);
+   my ($rc, $sig, $stdout, $stderr) = capture_command(
+      $disas, '-o', $failed_out, File::Spec->catfile($in, $name));
+   $sig == 0 && $rc != 0
+      or die "$name did not fail automatic A7 selection as expected\n";
+   $stdout eq '' or die "$name failure unexpectedly wrote stdout\n";
+   !-e $failed_out or die "$name hard failure left an output file\n";
+   require_re($stderr, qr/no established instructions found/i,
+      "$name all-hypothesis contradiction reaches zero-instruction hard failure");
+   require_re($stderr, qr/Failure, disassembly not written\n\z/,
+      "$name hard failure final diagnostic");
+}
+
+# Some negative fixtures also pin source-presentation diagnostics.  Re-run
+# those with an explicit mapper so A7 cannot pretend the contradicted mapper
+# was inferred automatically, while the lower-level formatter remains covered.
+for my $case (
+   [branch_wrap_ffff => '4k'],
+   [jmp_origin_f8 => 'f8'],
+   [speculative_tia_branch_reject => '4k'],
+   [f8_sc_write_only => 'f8'],
+   [f6_sc_write_only => 'f6'],
+   [f4_sc_write_only => 'f4'],
+   [a5_all_jam_arms => '4k'],
+   [a5_bad_jump => '4k'],
+   [a5_bad_read => '4k'],
+   [a5_bad_write => '4k'],
+   [a5_jsr_ram_bad_return => '4k'],
+   [cv_rmw_read => 'cv'],
+   [cv_rmw_write => 'cv'],
+   [fa_rmw_read => 'fa'],
+   [fa_rmw_write => 'fa'],
+   [hardware => '4k'],
+   [plain4k_sc_rmw_only => '4k'],
+   [plain4k_sc_rmw_read_conflict => '4k'],
+   [plain4k_sc_rmw_write_conflict => '4k'],
+   [plain4k_sc_write_port_exec => '4k'],
+   [reachable_jam => '4k'],
+   [wdsw_rmw_read => 'wdsw'],
+   [wdsw_rmw_write => 'wdsw'],
+) {
+   my ($stem, $mapper) = @$case;
+   run_ok($disas, '--mapper', $mapper, '-o',
+      File::Spec->catfile($out, "$stem.s26"),
+      File::Spec->catfile($in, "$stem.bin"));
+}
 
 my $a2_24k_out = slurp(File::Spec->catfile($out, 'a2_structural_24k.s26'));
 require_re($a2_24k_out,
    qr/^; mapper hypotheses enumerated before selection: 4 \[FA2, FC, 3F, 3E\]; analysis-bytes=24576 physical-bytes=24576$/m,
    'A2 retains structurally possible 24K mapper hypotheses before selection');
-require_re($a2_24k_out, qr/^; mapper: FA2 \(/m,
-   'A2 does not prematurely change the legacy 24K presentation winner');
+require_re($a2_24k_out, qr/^; mapper: unknown\/raw \(/m,
+   'A7 does not let the legacy 24K FA2 size default masquerade as proof');
+require_re($a2_24k_out,
+   qr/^; mapper evidence: 4 hypotheses remain genuinely ambiguous; using exact unknown\/raw presentation \(no size\/default tie-break\)$/m,
+   'A7 preserves raw presentation for unresolved 24K mapper ambiguity');
 for my $mapper (qw(FA2 FC 3F 3E)) {
    require_re($a2_24k_out,
       qr/^; hypothesis state-space: \Q$mapper\E startups=\d+ live=\d+ contexts=\d+ unknown-branch-forks=\d+ instructions=\d+ halts=\d+/m,
@@ -2135,6 +2225,9 @@ require_re($a4_generated_out,
    qr/^; mapper: F8 \(high confidence; [1-9]\d* decoded hotspot access/m,
    'A4 generated RAM execution supplies real F8 hotspot evidence');
 require_re($a4_generated_out,
+   qr/^;   F8: survives; 1 mapper selector executed from generated RIOT RAM; complete bank\/constituent coverage$/m,
+   'A7 treats proven generated-RAM selector execution as positive mapper evidence');
+require_re($a4_generated_out,
    qr/^; \$00F0: AD F8 FF\s+LDA \$FFF8\s+; ROM sources \$[0-9A-F]{4} \$[0-9A-F]{4} \$[0-9A-F]{4}$/m,
    'A4 emits physical ROM sources for generated RAM selector bytes');
 require_re($a4_generated_out,
@@ -2165,61 +2258,60 @@ my $multicart_out = slurp(File::Spec->catfile($out, 'multicart_4in1.s26'));
 require_re($multicart_out,
    qr/^; mapper hypotheses enumerated before selection: .*\b4IN1\b.*$/m,
    '4IN1 participates in the preselection mapper hypothesis set');
-require_re($multicart_out, qr/^; mapper: 4IN1 \(container;/m,
-   '4IN1 outer image recognized as a container');
-require_re($multicart_out,
-   qr/^; mapper topology: first-class N-in-1 hypothesis; component sidecars are compatibility presentation$/m,
-   'selected 4IN1 is reported as a first-class mapper topology');
+require_re($multicart_out, qr/^; mapper: unknown\/raw \(/m,
+   'A7 keeps the structurally overlapping 8K multicart raw when cart and N-in-1 models tie');
 require_re($multicart_out,
    qr/^; hypothesis state-space: 4IN1 startups=4 live=4 contexts=\d+ unknown-branch-forks=\d+ instructions=\d+ halts=\d+$/m,
    'A3 explores every 4IN1 external-selector startup state');
 require_re($multicart_out,
    qr/^; hypothesis bank coverage: 4IN1 complete required=4 explained=4 unexplained=0 bank-size=2048$/m,
-   'A6 accounts for every unique N-in-1 constituent');
-require_re($multicart_out, qr/^; container analysis: 4\/4 component slices established independently$/m,
-   '4IN1 components analyzed independently');
+   'A6 accounts for every unique 4IN1 constituent');
+require_re($multicart_out,
+   qr/^; mapper evidence: 3 hypotheses remain genuinely ambiguous; using exact unknown\/raw presentation \(no size\/default tie-break\)$/m,
+   'A7 does not invent a 4IN1 winner when F8/2IN1 are equally compatible');
 for my $game (1 .. 4) {
    my $sidecar = File::Spec->catfile($out, sprintf('multicart_4in1.game%02d.s26', $game));
-   -f $sidecar or die "missing 4IN1 component sidecar $sidecar\n";
-   my $text = slurp($sidecar);
-   require_re($text, qr/^; mapper: unbanked 2K \(/m,
-      "4IN1 component $game independently disassembled");
+   !-e $sidecar or die "ambiguous 4IN1 unexpectedly emitted component sidecar $sidecar\n";
 }
 
 my $multicart8_out = slurp(File::Spec->catfile($out, 'multicart_8in1.s26'));
 require_re($multicart8_out,
    qr/^; mapper hypotheses enumerated before selection: 6 \[F0, 3E, 3F, FC, 8IN1, 4IN1\]; analysis-bytes=65536 physical-bytes=65536$/m,
    '8IN1 competes directly with the structurally possible 64K cart mappers');
-require_re($multicart8_out, qr/^; mapper: 8IN1 \(container;/m,
-   '64K 8IN1 remains a container without F0 selector evidence');
+require_re($multicart8_out, qr/^; mapper: unknown\/raw \(/m,
+   '64K image stays raw when 8IN1 and 4IN1 remain indistinguishable');
 require_re($multicart8_out,
    qr/^; hypothesis state-space: 8IN1 startups=8 live=8 contexts=\d+ unknown-branch-forks=\d+ instructions=\d+ halts=\d+$/m,
    'A3 explores every 8IN1 external-selector startup state');
-require_re($multicart8_out, qr/^; container analysis: 8\/8 component slices established independently$/m,
-   '8IN1 components analyzed independently');
+require_re($multicart8_out,
+   qr/^; mapper evidence: 2 hypotheses remain genuinely ambiguous; using exact unknown\/raw presentation \(no size\/default tie-break\)$/m,
+   'A7 refuses a finer-size N-in-1 default when 8IN1 and 4IN1 both explain the image');
+! -e File::Spec->catfile($out, 'multicart_8in1.game01.s26')
+   or die "ambiguous 8IN1 unexpectedly emitted component sidecars\n";
 
 my $f0_collision_out = slurp(File::Spec->catfile($out, 'f0_vs_8in1.s26'));
 require_re($f0_collision_out,
    qr/^; mapper hypotheses enumerated before selection: 6 \[F0, 3E, 3F, FC, 8IN1, 4IN1\]; analysis-bytes=65536 physical-bytes=65536$/m,
    'F0 and N-in-1 are peers in the same 64K preselection set');
 require_re($f0_collision_out, qr/^; mapper: F0 \(high confidence;/m,
-   'repeated F0 selectors beat a coincidentally viable 8IN1 split');
+   'repeated F0 selectors beat coincidentally viable N-in-1 splits');
 require_re($f0_collision_out,
-   qr/^;   F0: viable; .*bank-changing mapper-specific selector(?:s)? observed; established mapper detector signature present$/m,
-   'F0/8IN1 collision records both flow and raw detector evidence');
-die "F0 collision fixture was incorrectly split as 8IN1\n"
-   if $f0_collision_out =~ /^; mapper: 8IN1 \(container;/m;
+   qr/^;   F0: survives; .*mapper-specific selector access.*established mapper detector signature present$/m,
+   'F0/N-in-1 collision records both execution and static detector evidence');
+die "F0 collision fixture was incorrectly split as an N-in-1 container\n"
+   if $f0_collision_out =~ /^; mapper: \d+IN1 \(container;/m;
 
 my $multicart2_out = slurp(File::Spec->catfile($out, 'multicart_2in1_ambiguous.s26'));
 require_re($multicart2_out,
    qr/^; mapper hypotheses enumerated before selection: 13 \[F8, E0, E7, 3E, 3F, FE, 0840, UA, UASW, 0FA0, WD, FC, 2IN1\]; analysis-bytes=8192 physical-bytes=8192$/m,
    '2IN1 is enumerated beside all structurally eligible 8K cart mappers');
 require_re($multicart2_out,
-   qr/^; container evidence: 2IN1 viable; 2\/2 independent 4096-byte slices have real RESET roots and established code$/m,
-   'ambiguous 2IN1 independent-slice evidence');
-require_re($multicart2_out,
-   qr/^; container result: ambiguous F8 vs 2IN1; retained F8 as the conventional whole-image interpretation$/m,
-   'ambiguous 2IN1 retains conventional whole-image F8 interpretation');
+   qr/^; mapper evidence: 2 hypotheses remain genuinely ambiguous; using exact unknown\/raw presentation \(no size\/default tie-break\)$/m,
+   'ambiguous F8 versus 2IN1 uses exact raw presentation rather than the old F8 default');
+require_re($multicart2_out, qr/^;   F8: survives;/m,
+   'ambiguous 2IN1 keeps the viable F8 hypothesis visible');
+require_re($multicart2_out, qr/^;   2IN1: survives;/m,
+   'ambiguous 2IN1 keeps the viable container hypothesis visible');
 ! -e File::Spec->catfile($out, 'multicart_2in1_ambiguous.game01.s26')
    or die "ambiguous 2IN1 unexpectedly emitted component sidecars\n";
 
@@ -2433,14 +2525,14 @@ die "unsupported raw failure left an output file\n" if -e $odd_out;
 require_re(slurp($odd_log), qr/no (?:established )?instructions found/i, 'raw-layout zero-instruction error');
 
 my $doubled_2k_out = slurp(File::Spec->catfile($out, 'doubled2k.s26'));
-require_re($doubled_2k_out, qr/^; mapper: unbanked 2K \(/m,
-   'byte-identical doubled 2K dump recognized as logical 2K');
+require_re($doubled_2k_out, qr/^; mapper: unknown\/raw \(/m,
+   'A7 keeps doubled 2K raw when plain 2K and CV are behaviorally unresolved');
 require_re($doubled_2k_out,
-   qr/^; preservation image: 2K ROM duplicated byte-for-byte to 4K;/m,
-   'doubled 2K preservation annotation');
+   qr/^; duplicate analysis view: 2048 unique bytes x 2 exact physical copies$/m,
+   'doubled 2K duplicate provenance remains visible under raw presentation');
 require_re($doubled_2k_out,
-   qr/^; ---- duplicated second 2K copy from preservation image ----$/m,
-   'doubled 2K second-copy preservation section');
+   qr/^; mapper evidence: 2 hypotheses remain genuinely ambiguous; using exact unknown\/raw presentation \(no size\/default tie-break\)$/m,
+   'doubled 2K ambiguity does not silently fall back to the plain-2K size default');
 
 my $doubled_4k_out = slurp(File::Spec->catfile($out, 'doubled4k.s26'));
 require_re($doubled_4k_out, qr/^; mapper: unbanked 4K \(/m,
@@ -2456,8 +2548,11 @@ my $recursive_dup_out = slurp(File::Spec->catfile($out, 'recursive_duplicate_8k.
 require_re($recursive_dup_out,
    qr/^; mapper hypotheses enumerated before selection: 2 \[unbanked 2K, CV\]; analysis-bytes=2048 physical-bytes=8192$/m,
    'A1 unique view feeds A2 while exact duplicate constituents do not invent N-in-1');
-require_re($recursive_dup_out, qr/^; mapper: unbanked 2K \(/m,
-   'recursive exact-half reduction reaches the smallest 2K payload');
+require_re($recursive_dup_out, qr/^; mapper: unknown\/raw \(/m,
+   'recursive exact-half reduction still leaves unresolved plain-2K versus CV identity raw');
+require_re($recursive_dup_out,
+   qr/^; mapper evidence: 2 hypotheses remain genuinely ambiguous; using exact unknown\/raw presentation \(no size\/default tie-break\)$/m,
+   'recursive duplicate ambiguity does not inherit the old 2K default');
 require_re($recursive_dup_out,
    qr/^; duplicate analysis view: 2048 unique bytes x 4 exact physical copies$/m,
    'recursive duplicate analysis-view size and copy count');
@@ -2467,9 +2562,8 @@ require_re($recursive_dup_out,
 require_re($recursive_dup_out,
    qr/^; physical bank accounting: 4 x 2048 bytes; 3 exact duplicate banks; 0 erased\/fill banks$/m,
    'recursive duplicate physical-bank accounting');
-require_re($recursive_dup_out,
-   qr/^; ---- exact duplicate physical copies excluded from analysis view ----$/m,
-   'recursive duplicate raw-preservation section');
+require_re($recursive_dup_out, qr/^\.org \$0000$/m,
+   'recursive duplicate ambiguity emits one exact physical raw image');
 
 # Explicit hardware layout wins over automatic duplicate collapsing while the
 # provenance map is still retained for later hypothesis accounting.
@@ -2518,6 +2612,15 @@ require_re($f8_out,
 require_re($f8_out,
    qr/^; hypothesis bank coverage: E0 incomplete .*unexplained=[1-9]\d* bank-size=1024$/m,
    'A6 exposes meaningful banks left unreachable by a competing mapper hypothesis');
+require_re($f8_out,
+   qr/^; mapper evidence: F8 selected by mapper-specific execution\/bank-completeness evidence$/m,
+   'A7 selects F8 from positive mapper-specific evidence rather than the 8K size default');
+require_re($f8_out,
+   qr/^;   F8: survives; 1 viable mapper-specific selector access; complete bank\/constituent coverage; all 2 legal startup states strong$/m,
+   'A7 counts an executed same-bank F8 hotspot as selector evidence even when it does not change the latch');
+require_re($f8_out,
+   qr/^;   2IN1: outcompeted; another viable hypothesis has stronger mapper-specific execution evidence$/m,
+   'A7 positive F8 hotspot evidence resolves the structural F8-versus-2IN1 overlap');
 require_re($f8_out, qr/^B0_F100:\s*$/m,
    'bank-qualified colliding label in bank 0');
 require_re($f8_out, qr/^B1_F100:\s*$/m,
@@ -2542,7 +2645,7 @@ for my $case (
 ) {
    my ($name, $which) = @$case;
    my $text = slurp(File::Spec->catfile($out, $name));
-   require_re($text, qr/^; mapper: FA \(high confidence;.*1 native split-RAM RMW conflict\)/m,
+   require_re($text, qr/^; mapper: FA \(override;.*1 native split-RAM RMW conflict\)/m,
       "$which RMW recorded as split-RAM contradiction");
 }
 
@@ -2569,14 +2672,8 @@ for my $case (
 ) {
    my ($name, $which) = @$case;
    my $text = slurp(File::Spec->catfile($out, $name));
-   require_re($text, qr/^; mapper: unbanked 2K \(/m,
-      "$which RMW rejects CV mapper hypothesis");
-   require_re($text, qr/^; mapper flow hypotheses: 2 tested, 1 survived; control flow refined selection$/m,
-      "$which split-RAM contradiction refines CV to plain 2K");
-   require_re($text, qr/^; mapper evidence: unbanked 2K selected by control-flow elimination$/m,
-      "$which header records mapper selection by elimination");
-   require_re($text, qr/^;   CV: rejected; 1 native split-RAM RMW contradiction$/m,
-      "$which header exposes the CV contradiction used as negative proof");
+   require_re($text, qr/^; mapper: CV \(override;.*1 native split-RAM RMW conflict\)/m,
+      "$which forced CV run records its split-RAM contradiction");
 }
 
 my $dpc_out = slurp(File::Spec->catfile($out, 'dpc.s26'));
@@ -2634,7 +2731,7 @@ for my $case (
 ) {
    my ($name, $which) = @$case;
    my $text = slurp(File::Spec->catfile($out, $name));
-   require_re($text, qr/^; mapper: WDSW \(high confidence;.*1 native split-RAM RMW conflict\)/m,
+   require_re($text, qr/^; mapper: WDSW \(override;.*1 native split-RAM RMW conflict\)/m,
       "$which RMW recorded as split-RAM contradiction");
 }
 
@@ -2854,25 +2951,33 @@ require_re($spec_island,
 
 
 my $spec_banked = slurp(File::Spec->catfile($out, 'speculative_banked_island.s26'));
-require_re($spec_banked, qr/^; mapper: F8 \(/m,
-   'banked speculative-island mapper');
+require_re($spec_banked, qr/^; mapper: unknown\/raw \(/m,
+   'banked speculative-island inference remains raw when execution cannot distinguish F8 from 2IN1');
 require_re($spec_banked,
-   qr/^; mapper flow hypotheses: 12 tested, 3 survived$/m,
-   'speculative selector traffic and evidence-free mapper models do not rank hypotheses');
+   qr/^; mapper hypothesis comparison: 13 tested, 2 remain after A7 evidence$/m,
+   'speculative selector traffic does not rank otherwise equivalent F8 and 2IN1 hypotheses');
 require_re($spec_banked,
-   qr/^; mapper evidence: F8 retained as legacy\/default inference; 3 hypotheses remain viable$/m,
-   'ambiguous mapper header admits F8 is the legacy/default tie-break rather than positive proof');
+   qr/^; mapper evidence: 2 hypotheses remain genuinely ambiguous; using exact unknown\/raw presentation \(no size\/default tie-break\)$/m,
+   'ambiguous mapper header refuses the former F8 size/default tie-break');
 require_re($spec_banked,
-   qr/^;   F8: viable; RESET flow is internally consistent$/m,
-   'ambiguous mapper header records the surviving F8 hypothesis without inventing selector evidence');
+   qr/^;   F8: survives; complete bank\/constituent coverage; all 2 legal startup states strong$/m,
+   'ambiguous mapper header records surviving F8 execution without inventing selector evidence');
 require_re($spec_banked,
-   qr/^; mapper: F8 \(medium confidence; 0 decoded hotspot accesses,/m,
+   qr/^;   2IN1: survives; complete bank\/constituent coverage; all 2 legal startup states strong$/m,
+   'ambiguous mapper header records the equally viable 2IN1 interpretation');
+require_re($spec_banked,
+   qr/^; mapper: unknown\/raw \(unknown confidence; 0 decoded hotspot accesses,/m,
    'speculative F8 hotspot does not become mapper evidence');
-require_re($spec_banked,
+
+my $spec_banked_forced_path = File::Spec->catfile($tmp, 'speculative_banked_island_f8.s26');
+run_ok($disas, '--mapper', 'f8', '-o', $spec_banked_forced_path,
+   File::Spec->catfile($in, 'speculative_banked_island.bin'));
+my $spec_banked_forced = slurp($spec_banked_forced_path);
+require_re($spec_banked_forced,
    qr/speculative instruction island validated by negative-evidence barrier\nB0_F203:\n\s*LDA\s+\$1FF9/m,
-   'speculative island may end its physical-bank line at an F8 selector');
-require_re($spec_banked, qr/^B1_F206:\n\s*LDA\s+#\$42/m,
-   'speculative execution resumes in bank selected by hotspot');
+   'forced-F8 presentation allows the speculative island to end its physical-bank line at a selector');
+require_re($spec_banked_forced, qr/^B1_F206:\n\s*LDA\s+#\$42/m,
+   'forced-F8 speculative execution resumes in the bank selected by the hotspot');
 
 my $spec_inference_out = slurp(File::Spec->catfile($out,
    'speculative_inference_quarantine.s26'));
@@ -2891,14 +2996,23 @@ require_re($spec_inference_out,
 
 my $spec_sc_freeze_out = slurp(File::Spec->catfile($out,
    'speculative_sc_hardware_freeze.s26'));
-require_re($spec_sc_freeze_out, qr/^; mapper: F8 \(/m,
-   'speculative SC hardware-freeze mapper remains plain F8');
+require_re($spec_sc_freeze_out, qr/^; mapper: unknown\/raw \(/m,
+   'speculative SC-looking traffic cannot resolve the otherwise ambiguous F8\/2IN1 mapper choice');
 require_re($spec_sc_freeze_out,
-   qr/^; mapper: F8 \(medium confidence; 0 decoded hotspot accesses, 0 SC writes, 0 SC RMW conflicts, 0 SC reads,/m,
-   'speculative SC accesses do not become hardware evidence');
+   qr/^; mapper: unknown\/raw \(unknown confidence; 0 decoded hotspot accesses, 0 SC writes, 0 SC RMW conflicts, 0 SC reads,/m,
+   'speculative SC accesses do not become automatic hardware evidence');
+
+my $spec_sc_freeze_forced_path = File::Spec->catfile($tmp,
+   'speculative_sc_hardware_freeze_f8.s26');
+run_ok($disas, '--mapper', 'f8', '-o', $spec_sc_freeze_forced_path,
+   File::Spec->catfile($in, 'speculative_sc_hardware_freeze.bin'));
+my $spec_sc_freeze_forced = slurp($spec_sc_freeze_forced_path);
+require_re($spec_sc_freeze_forced,
+   qr/^; mapper: F8 \(override; 0 decoded hotspot accesses, 0 SC writes, 0 SC RMW conflicts, 0 SC reads,/m,
+   'forced-F8 run keeps speculative SC accesses out of hardware evidence');
 die "plain-F8 speculative SC store was promoted without a write sink\n"
-   if $spec_sc_freeze_out =~ /^B0_F203:/m ||
-      $spec_sc_freeze_out =~ /speculative instruction island.*\nB0_F203:/i;
+   if $spec_sc_freeze_forced =~ /^B0_F203:/m ||
+      $spec_sc_freeze_forced =~ /speculative instruction island.*\nB0_F203:/i;
 
 my $spec_plain_rom_write = slurp(File::Spec->catfile($out,
    'speculative_plain_rom_write.s26'));
@@ -3096,8 +3210,8 @@ my $threef_out = slurp(File::Spec->catfile($out, 'threef.s26'));
 require_re($threef_out, qr/^; mapper: 3F \(high confidence;/m,
    '3F mapper inferred from executable selector flow');
 require_re($threef_out,
-   qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
-   '3F mapper hypotheses converge');
+   qr/^; mapper hypothesis comparison: 12 tested, 1 remain after A7 evidence$/m,
+   '3F mapper hypotheses converge under A7 evidence');
 require_re($threef_out, qr/^B1_F100:\n\s*LDA\s+#\$02\n\s*STA\s+\$3F/m,
    '3F lower-bank selector decoded');
 require_re($threef_out, qr/^B2_F104:\n\s*LDA\s+#\$42\n\s*RTS$/m,
@@ -3142,11 +3256,11 @@ require_re($threef32_out, qr/^B3_F104:\n\s*LDA\s+#\$55\n\s*RTS$/m,
 my $threee_out = slurp(File::Spec->catfile($out, 'threee.s26'));
 require_re($threee_out, qr/^; mapper: 3E \(high confidence;/m,
    '3E mapper inferred from RAM+ROM selector signature and flow');
-require_re($threee_out, qr/^; mapper flow hypotheses: 12 tested, /m,
+require_re($threee_out, qr/^; mapper hypothesis comparison: 12 tested, 1 remain after A7 evidence$/m,
    '3E participates in 8K mapper hypothesis convergence');
 require_re($threee_out,
-   qr/^;   3F: rejected; 3E evidence subsumes the shared 3F selector traffic$/m,
-   '3E header records mapper-family evidence precedence');
+   qr/^;   3E: survives; .*3 viable mapper-specific selector accesses; 2 direction-correct cartridge-RAM accesses/m,
+   '3E header records positive selector and cartridge-RAM evidence');
 require_re($threee_out, qr/^B3_F900:
 \s*LDA\s+#\$02
 \s*STA\s+\$3E/m,
@@ -3172,8 +3286,8 @@ my $fe_out = slurp(File::Spec->catfile($out, 'fe_flow.s26'));
 require_re($fe_out, qr/^; mapper: FE \(high confidence;/m,
    'FE mapper inferred from canonical SCABS call signature and executable flow');
 require_re($fe_out,
-   qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
-   'FE mapper hypotheses converge');
+   qr/^; mapper hypothesis comparison: 12 tested, 1 remain after A7 evidence$/m,
+   'FE mapper hypotheses converge under A7 evidence');
 require_re($fe_out, qr/^B0_F100:\n\s*LDX\s+#\$FF\n\s*TXS\n\s*JSR\s+\$D000/m,
    'FE RESET path contains canonical JSR switching idiom');
 require_re($fe_out, qr/^B1_D000:\n\s*LDA\s+#\$55\n\s*RTS$/m,
@@ -3228,17 +3342,17 @@ my $f8_false_ua_out = slurp(File::Spec->catfile($out, 'f8_false_ua_flow.s26'));
 require_re($f8_false_ua_out, qr/^; mapper: F8 \(/m,
    'control-flow inference rejects accidental UA byte signature');
 require_re($f8_false_ua_out,
-   qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
-   'false-UA mapper hypotheses converge');
+   qr/^; mapper hypothesis comparison: 12 tested, 1 remain after A7 evidence$/m,
+   'false-UA mapper hypotheses converge under A7 evidence');
 require_re($f8_false_ua_out,
-   qr/^; mapper evidence: F8 selected by control-flow elimination$/m,
-   'F8 header records selection by elimination');
+   qr/^; mapper evidence: F8 selected after hard contradictions eliminated every alternative$/m,
+   'F8 header records contradiction-based A7 selection');
 require_re($f8_false_ua_out,
-   qr/^;   F8: viable; bank switching avoided 1 reachable HLT\/JAM\/KIL fetch; bank-changing \$1FF8\/\$1FF9 selector observed$/m,
+   qr/^;   F8: survives; 1 viable bank switch avoid HLT\/JAM\/KIL; viable bank-changing \$1FF8\/\$1FF9 selector observed/m,
    'F8 header exposes positive bank-switch evidence and the avoided halt');
 require_re($f8_false_ua_out,
-   qr/^;   0840: rejected; RESET flow reaches 1 HLT\/JAM\/KIL instruction without a proven bank transition$/m,
-   'F8 header exposes a negative mapper-hypothesis rejection reason');
+   qr/^;   0840: contradicted; no A5-live RESET\/startup state /m,
+   'F8 header exposes a hard mapper-hypothesis contradiction');
 require_re($f8_false_ua_out, qr/CPX\s+#\$2C\n\s*BCS\.same\s+/m,
    'accidental 2C B0 0F sequence remains ordinary decoded F8 code');
 require_re($f8_false_ua_out, qr/BCS\.same\s+\$F115.*\n\s*LDA\s+\$1FF9/m,
@@ -3250,8 +3364,8 @@ my $f8_raw_ua_data_out = slurp(File::Spec->catfile($out, 'f8_raw_ua_data.s26'));
 require_re($f8_raw_ua_data_out, qr/^; mapper: F8 \(/m,
    'raw UA signature in data cannot override established narrow F8 switching');
 require_re($f8_raw_ua_data_out,
-   qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
-   'raw-UA-data F8 mapper hypotheses converge');
+   qr/^; mapper hypothesis comparison: 12 tested, 1 remain after A7 evidence$/m,
+   'raw-UA-data F8 mapper hypotheses converge under A7 evidence');
 require_re($f8_raw_ua_data_out, qr/B0_F100:\n\s*LDA\s+\$1FF9/m,
    'raw-UA-data fixture retains established F8 selector');
 require_re($f8_raw_ua_data_out, qr/B1_F103:\n\s*LDA\s+#\$42/m,
@@ -3269,10 +3383,10 @@ my $f8_cross_jam_out = slurp(File::Spec->catfile($out, 'f8_cross_switch_possible
 require_re($f8_cross_jam_out, qr/^; mapper: F8 \(/m,
    'real F8 cross-bank selector outranks possible abstract-state JAM path');
 require_re($f8_cross_jam_out,
-   qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
-   'cross-bank F8 evidence eliminates zero-switch E0 hypothesis');
+   qr/^; mapper hypothesis comparison: 12 tested, 1 remain after A7 evidence$/m,
+   'cross-bank F8 evidence eliminates weaker zero-switch hypotheses');
 require_re($f8_cross_jam_out,
-   qr/^;   E0: rejected; another viable mapper demonstrates mapper-specific bank switching$/m,
+   qr/^;   E0: outcompeted; another viable hypothesis has stronger mapper-specific execution evidence$/m,
    'cross-bank F8 header records why the superficially coherent E0 model lost');
 require_re($f8_cross_jam_out, qr/B1_F100:\n\s*LDA\s+\$1FF8/m,
    'F8 cross-bank evidence begins on RESET path');
@@ -3307,8 +3421,8 @@ my $uasw_flow_out = slurp(File::Spec->catfile($out, 'uasw_flow_only.s26'));
 require_re($uasw_flow_out, qr/^; mapper: UASW \(/m,
    'control-flow inference distinguishes UASW from UA and F8');
 require_re($uasw_flow_out,
-   qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
-   'UASW mapper hypotheses converge');
+   qr/^; mapper hypothesis comparison: 12 tested, 1 remain after A7 evidence$/m,
+   'UASW mapper hypotheses converge under A7 evidence');
 require_re($uasw_flow_out, qr/B0_F100:\n\s*LDA\s+\$0220/m,
    'UASW selector decoded on RESET path');
 require_re($uasw_flow_out, qr/B1_F103:\n\s*RTS$/m,
@@ -3319,8 +3433,8 @@ my $ua_raw_variant_out = slurp(File::Spec->catfile($out, 'ua_raw_variant.s26'));
 require_re($ua_raw_variant_out, qr/^; mapper: UA \(/m,
    'raw UA-family signature plus mapper flow selects ordinary UA polarity');
 require_re($ua_raw_variant_out,
-   qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
-   'ordinary UA variant evidence removes unsigned competing 8K hypotheses');
+   qr/^; mapper hypothesis comparison: 12 tested, 1 remain after A7 evidence$/m,
+   'ordinary UA variant evidence removes competing 8K hypotheses');
 require_re($ua_raw_variant_out, qr/B1_F103:\n\s*RTS$/m,
    'ordinary UA selector continues in bank 1');
 
@@ -3328,8 +3442,8 @@ my $uasw_raw_variant_out = slurp(File::Spec->catfile($out, 'uasw_raw_variant.s26
 require_re($uasw_raw_variant_out, qr/^; mapper: UASW \(/m,
    'raw UA-family signature plus mapper flow selects swapped UASW polarity');
 require_re($uasw_raw_variant_out,
-   qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
-   'UASW variant evidence removes unsigned competing 8K hypotheses');
+   qr/^; mapper hypothesis comparison: 12 tested, 1 remain after A7 evidence$/m,
+   'UASW variant evidence removes competing 8K hypotheses');
 require_re($uasw_raw_variant_out, qr/B1_F105:\n\s*RTS$/m,
    'UASW indexed selector continues in bank 1');
 
@@ -3337,38 +3451,47 @@ my $e0_flow_out = slurp(File::Spec->catfile($out, 'e0_flow_only.s26'));
 require_re($e0_flow_out, qr/^; mapper: E0 \(/m,
    'E0 segmented mapper inferred from executable flow');
 require_re($e0_flow_out,
-   qr/^; mapper flow hypotheses: 12 tested, 1 survived; control flow refined selection$/m,
-   'E0 RESET-path mapper hypotheses converge');
+   qr/^; mapper hypothesis comparison: 12 tested, 1 remain after A7 evidence$/m,
+   'E0 RESET-path mapper hypotheses converge under A7 evidence');
 require_re($e0_flow_out, qr/B4_F100:\n\s*LDA\s+\$FFE0/m,
    'E0 selector decoded in default physical bank 4');
 require_re($e0_flow_out, qr/B0_F103:\n\s*LDA\s+\$FFE9\n\s*LDA\s+#\$42/m,
    'E0 execution resumes from newly selected physical bank');
 
 my $f8_indexed_e0_alias_out = slurp(File::Spec->catfile($out, 'f8_indexed_e0_alias.s26'));
-require_re($f8_indexed_e0_alias_out, qr/^; mapper: F8 \(/m,
-   'indexed ROM read in E0 selector range cannot manufacture E0 family evidence');
+require_re($f8_indexed_e0_alias_out, qr/^; mapper: unknown\/raw \(/m,
+   'indexed ROM read in E0 selector range cannot manufacture E0 family selection');
 require_re($f8_indexed_e0_alias_out,
-   qr/^;   E0: rejected; no mapper-family signature or specific execution evidence$/m,
-   'E0 refinement requires raw detector signature or explicit metadata');
-require_re($f8_indexed_e0_alias_out, qr/B1_F100:\n\s*LDY\s+#\$00\n\s*LDA\s+B1_FFE6,Y/m,
-   'ordinary F8 indexed table read remains ordinary ROM access');
+   qr/^;   E0: survives; 1 viable mapper-owned access; all 1 legal startup state strong$/m,
+   'indexed E0-range traffic remains generic mapper activity, not mapper-specific selector evidence');
+die "indexed E0-range traffic incorrectly became E0-specific A7 evidence\n"
+   if $f8_indexed_e0_alias_out =~ /^;   E0: .*mapper-specific selector/m;
+my $f8_indexed_forced_path = File::Spec->catfile($tmp, 'f8_indexed_e0_alias_f8.s26');
+run_ok($disas, '--mapper', 'f8', '-o', $f8_indexed_forced_path,
+   File::Spec->catfile($in, 'f8_indexed_e0_alias.bin'));
+my $f8_indexed_forced = slurp($f8_indexed_forced_path);
+require_re($f8_indexed_forced, qr/B1_F100:\n\s*LDY\s+#\$00\n\s*LDA\s+B1_FFE6,Y/m,
+   'forced-F8 presentation keeps the indexed table read as ordinary ROM access');
 
 my $e0_e7_precedence_out = slurp(File::Spec->catfile($out, 'e0_e7_signature_precedence.s26'));
 require_re($e0_e7_precedence_out, qr/^; mapper: E0 \(/m,
    'canonical E0 signature retains E0 against model-dependent 8K E7 interpretation');
 require_re($e0_e7_precedence_out,
-   qr/^;   E0: viable; established mapper detector signature present$/m,
+   qr/^;   E0: survives; .*established mapper detector signature present$/m,
    'E0 detector signature keeps mapper viable across possible JAM arm');
 require_re($e0_e7_precedence_out,
-   qr/^;   E7: rejected; established E0 signature outranks model-dependent E7 traffic$/m,
-   'E0 raw-signature precedence rejects competing E7 model');
+   qr/^;   E7: outcompeted; lost only after execution evidence tied and a stronger static\/signature prior remained$/m,
+   'E0 static-signature prior resolves the remaining tied E7 model');
 
 my $e0_spec_out = slurp(File::Spec->catfile($out, 'e0_speculative_banked_island.s26'));
 require_re($e0_spec_out, qr/^; mapper: E0 \(/m,
    'E0 speculative-island mapper inferred');
 require_re($e0_spec_out,
-   qr/^; mapper flow hypotheses: 12 tested, 3 survived$/m,
-   'E0 speculative selector traffic excluded from mapper ranking');
+   qr/^; mapper hypothesis comparison: 12 tested, 1 remain after A7 evidence$/m,
+   'E0 speculative selector traffic stays excluded while the established static signature resolves the tie');
+require_re($e0_spec_out,
+   qr/^; mapper evidence: E0 selected by established static detector prior after execution tied$/m,
+   'E0 speculative fixture documents static-prior tie resolution');
 require_re($e0_spec_out,
    qr/^; mapper: E0 \(high confidence; 0 decoded hotspot accesses,/m,
    'E0 raw signature may identify mapper without speculative semantic votes');
@@ -3390,23 +3513,23 @@ my $f6_jane_tie_out = slurp(File::Spec->catfile($out, 'f6_jane_exit_tie.s26'));
 require_re($f6_jane_tie_out, qr/^; mapper: F6 \(medium confidence;/m,
    'F6/JANE ambiguity does not reward truncated control flow');
 require_re($f6_jane_tie_out,
-   qr/^; mapper flow hypotheses: 6 tested, 1 survived; control flow refined selection$/m,
+   qr/^; mapper hypothesis comparison: 6 tested, 1 remain after A7 evidence$/m,
    'JANE requires positive family evidence instead of mere coherent startup flow');
 
 
 my $f6_jane_no_evidence_out =
    slurp(File::Spec->catfile($out, 'f6_jane_no_evidence_rescue.s26'));
-require_re($f6_jane_no_evidence_out, qr/^; mapper: F6 \(medium confidence;/m,
-   'coherent JANE startup bank cannot rescue an evidence-free 16K image');
+require_re($f6_jane_no_evidence_out, qr/^; mapper: unknown\/raw \(unknown confidence;/m,
+   'evidence-free 16K image does not retain the legacy F6 size default');
 require_re($f6_jane_no_evidence_out,
-   qr/^; mapper flow hypotheses: 6 tested, 0 survived$/m,
-   'evidence-free JANE hypothesis is not viable merely because F6 halts');
+   qr/^; mapper hypothesis comparison: 6 tested, 6 remain after A7 evidence$/m,
+   'evidence-free 16K hypotheses remain tied when execution provides no principled discriminator');
 require_re($f6_jane_no_evidence_out,
-   qr/^; mapper evidence: F6 retained as legacy\/default inference; no flow hypothesis survived$/m,
-   'zero-survivor header does not pretend the default F6 choice was positively proven');
+   qr/^; mapper evidence: 6 hypotheses remain genuinely ambiguous; using exact unknown\/raw presentation \(no size\/default tie-break\)$/m,
+   'A7 reports unresolved 16K ambiguity instead of preserving a default mapper');
 require_re($f6_jane_no_evidence_out,
-   qr/^;   F6: rejected; RESET flow reaches 1 HLT\/JAM\/KIL instruction without a proven bank transition$/m,
-   'zero-survivor header preserves the negative evidence against the retained default');
+   qr/^;   F6: survives; A5 RESET flow remains viable$/m,
+   'A7 preserves the surviving F6 hypothesis without falsely promoting it');
 
 
 my $f6sc_out = slurp(File::Spec->catfile($out, 'f6sc.s26'));
@@ -3543,8 +3666,8 @@ require_re($mixed_out, qr/^; controller port 1: joystick \(medium confidence\)$/
 # Determinism: disassembling the same ROM twice must produce identical source.
 my $det1 = File::Spec->catfile($tmp, 'det1.s26');
 my $det2 = File::Spec->catfile($tmp, 'det2.s26');
-run_ok($disas, '-o', $det1, File::Spec->catfile($in, 'hardware.bin'));
-run_ok($disas, '-o', $det2, File::Spec->catfile($in, 'hardware.bin'));
+run_ok($disas, '--mapper', '4k', '-o', $det1, File::Spec->catfile($in, 'hardware.bin'));
+run_ok($disas, '--mapper', '4k', '-o', $det2, File::Spec->catfile($in, 'hardware.bin'));
 die "nondeterministic output\n" if slurp($det1) ne slurp($det2);
 
 # CLI contract and empty-input rejection.

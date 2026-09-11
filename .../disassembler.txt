@@ -33,12 +33,12 @@ Durable invariants
   decisions. Detached speculative islands may improve presentation but must not
   promote mapper hypotheses, Superchip semantics, or execution roots.
 * Generated headers preserve mapper-inference provenance.  When multiple
-  size-compatible mapper models are tested, report the selected/retained
-  decision mode plus every tested hypothesis as viable or rejected with the
-  actual reason.  Positive selector/signature evidence and negative
-  HLT/JAM/KIL/contradiction evidence must remain distinguishable; if the legacy
-  size/default mapper survives an unresolved ambiguity, say so rather than
-  presenting it as positive proof.
+  structurally compatible mapper models are tested, report the A7 comparison
+  result plus every tested hypothesis as surviving, outcompeted, or contradicted
+  with the actual reason. Positive selector/signature evidence and negative
+  HLT/JAM/KIL/bus contradictions remain distinguishable. Unresolved hypotheses
+  never inherit the old size/default winner: use conservative/raw presentation
+  unless the surviving models are observationally equivalent for presentation.
 * Mapper inference is a hardware-state problem, not merely a file-size/name
   lookup. Keep mapper context separate when following code across selectors.
 * Detached speculative validation uses a local sparse fixed point keyed by
@@ -93,78 +93,45 @@ hypothesis instead of "guess -> trust -> maybe simulate". Mapper identity and
 reachable code/data emerge together from isolated hardware models. Keep each
 step regression-locked before replacing the next heuristic. A1 duplicate-image
 provenance, A2 preselection enumeration, A3 hypothesis-local state-space
-execution, A4 first-class provenance, A5 unified viability, and A6 bank-access
-completeness are complete; A7 is next.
+execution, A4 first-class provenance, A5 unified viability, A6 bank-access
+completeness, and A7 final evidence comparison are complete; A8 is next.
 
-A3 execution invariant (completed)
-    Every A2 hypothesis is executed independently before mapper selection.  The
-    established abstract CPU/mapper tracer is the canonical hypothesis engine:
-    its state key is physical instruction byte + runtime PC + mapper configuration,
-    arrivals meet in a finite decreasing-knowledge lattice, and changed joins are
-    requeued to a fixed point rather than stopped by an instruction budget.
-    Hardware-specified RESET mappings seed their defined state; F8/F6/F4 explore
-    every legal power-on latch bank; N-in-1 explores every external selector
-    constituent and every structurally possible inner cart interpretation.  Known
-    flags choose one branch edge; unknown flags fork all feasible edges.  Hardware
-    input reads remain unknown abstract values rather than sampled game modes.
-    Automatic and explicit `--mapper` analysis use the same A3 engine; the old
-    mapper-trust gate no longer gates hypothesis execution.  The bounded sampled
-    concrete/H2 runner remains only a selected-hypothesis dynamic-code/presentation
-    helper pending A4 provenance.  Its separate presentation-safety predicate is
-    independent of `--mapper`, so an override cannot secretly unlock sampled
-    reachability, and it never establishes or suppresses an A3 mapper hypothesis.
+A3-A6 execution/provenance/viability invariants (completed)
+    Every A2 hypothesis is executed independently from every legal RESET state in
+    the same mapper-aware fixed-point engine. Known conditions choose one edge;
+    unknown conditions fork feasible edges. Hardware input remains unknown rather
+    than sampled. Physical ROM provenance flows through supported CPU operations,
+    RIOT/cart RAM and generated RAM code, including mapper switches and display
+    sinks. A5 viability rejects only hard-dead feasible paths (JAM/KIL/HLT, invalid
+    targets/bus accesses); branches are OR nodes and JSR requires callee plus return.
+    A6 credits meaningful banks only from viable execution/provenance, while exact
+    duplicates and pure fill are explained structurally. N-in-1 applies the same
+    execution and completeness rules recursively. These stages produce evidence;
+    none chooses the final mapper.
 
-A4 provenance invariant (completed)
-    Physical ROM-byte provenance flows through A/X/Y, supported transforms, RIOT
-    RAM, and sparse path-local cartridge RAM (SC, FA/FA2, CV, WD, E7, 3E, GL).
-    Alias reads/writes share one RAM identity; joins retain only agreed sources.
-    Known RIOT-RAM bytes may execute in the same fixed-point analysis, retaining
-    distinct path-qualified byte patterns at one PC, switching mappers, and
-    returning to ROM.  GRP0/GRP1 sinks mark source ROM bytes as graphics/data.
-    Congo Bongo proves both generated `$00F0` variants with physical source bytes.
-    The bounded concrete/H2 runner remains presentation-only, not the A4 engine.
+A7 final-comparison invariant (completed)
+    A7 consumes the common A3/A5/A6 results directly; it does not rerun a privileged
+    legacy candidate set and instruction count is never mapper evidence. Hard A5
+    contradictions are removed first. Surviving hypotheses are then narrowed by
+    positive evidence in semantic order: a bank switch that preserves a coherent
+    continuation, mapper-specific selector activity (including proven generated-RAM
+    selectors), direction-correct cartridge-RAM behavior, complete A6 bank access,
+    and comparable reset quality. Established explicit/static signatures are only
+    late migration priors after execution evidence ties. Indexed/model-dependent
+    traffic may not bootstrap a mapper family merely because that hypothetical
+    mapper would reinterpret it as a selector. For broad partial-address decoders
+    (0840/UA/UASW/0FA0), an unresolved indexed selector forks every feasible
+    bank/no-switch hardware continuation instead of guessing or ignoring it.
 
-A5 viability invariant (completed)
-    Each A2 hypothesis now gets an isolated RESET-path viability result using the
-    same mapper-aware speculative CFG semantics as detached validation. Hypothesis
-    execution uses a greatest fixed point, so coherent closed game loops survive;
-    detached island promotion keeps its stricter evidence-rooted fixed point.
-    JAM/KIL/HLT, impossible execution targets, reads with no physical source, and
-    writes/RMW with no sink kill only the affected feasible path. Conditional
-    branches are OR nodes after known-state pruning; JSR is conjunctive and needs
-    both callee and return continuation. Unresolved executable-RAM continuations
-    remain weak rather than dead. Mapper/peripheral decoding is applied before
-    generic TIA/RIOT legality; canonical accesses remain stronger evidence than
-    legal mirrors. Split cartridge RAM obeys read/write direction, while WD's
-    hardware-delayed selector preserves both old/new arrangement continuations.
-    Per-hypothesis live/dead/weak startup counts and invalid-target/bus/halt evidence
-    are emitted now; A7, not A5, decides how those results select the final mapper.
-
-A6 bank-access completeness invariant (completed)
-    Each hypothesis carries a bank ledger derived from the A5 greatest-fixed-point
-    viability graph, not from every tentative A3 visit. Only nonzero-viability
-    states credit instruction fetches and resolved ROM data reads. ROM provenance
-    feeding generated RIOT-RAM instructions or display/audio sinks credits the
-    source bank. Exact duplicate banks and wholly `$00`/`$FF` banks are explained
-    without execution. Every other bank is meaningful and must receive at least
-    one access/provenance explanation; otherwise the hypothesis is bank-incomplete.
-    N-in-1 applies the same rule recursively: each constituent is complete only if
-    at least one viable inner mapper interpretation accounts for all meaningful
-    inner banks. Headers report per-bank evidence and totals. A6 leaves the legacy
-    winner unchanged; A7 owns final comparison.
-
-A7. [ ] Compare surviving hypotheses from contradictions plus positive evidence
-    * Mapper-specific hotspot activity, coherent continuation after a bank change,
-      correct cartridge-RAM behavior, generated-RAM selectors, reset behavior, and
-      complete bank access are positive evidence.  Merely executing many
-      instructions is not mapper evidence.
-    * Reject hypotheses on hard contradictions.  If exactly one survives, select
-      it.  If several survive without a principled discriminator, report the
-      ambiguity and preserve conservative/raw presentation rather than allowing a
-      size default or self-confirming model to masquerade as proof.
-    * Keep signatures/static heuristics as migration priors and diagnostics, not
-      prerequisites for running a hypothesis.  Retire trust/default machinery only
-      after equivalent negative regressions exist.
+    If exactly one hypothesis survives a principled comparison, select it and emit
+    why every alternative lost. If several remain genuinely indistinguishable,
+    report all of them and use exact unknown/raw presentation instead of the old
+    size/default winner. The only presentation exception is observationally
+    equivalent plain 4K versus one-bank FC with no FC behavior, where ordinary 4K
+    code presentation preserves the same observed mapping while the header states
+    that mapper identity remains ambiguous. First-class N-in-1 hypotheses obey the
+    same rule: an 8IN1/4IN1 or F8/2IN1 tie remains raw unless execution supplies a
+    real discriminator; `--container` remains the explicit external-knowledge path.
 
 A8. [ ] Feed exhaustive execution back into code/data presentation
     * Established execution under the selected hypothesis remains authoritative.
@@ -237,14 +204,14 @@ Unfinished mapper support
 Current direction
 -----------------
 The mapper-hypothesis execution roadmap is the current analysis priority. A1
-duplicate-image provenance through A6 bank-access completeness are complete; A7
-final hypothesis comparison is next. The
-preselection set contains every structurally compatible ordinary mapper plus
-first-class N-in-1 topologies before any winner is chosen, and A3 executes every
-one in isolation.  Legacy flow/slice ranking remains temporary compatibility
-scoring until A7 consume the common state-space results for rejection/selection.
-GL implementation remains complete with only real-corpus closeout pending; CM, DPC+,
-and the CDF family remain the mapper-specific queue after/alongside that migration.
+through A7 are complete; A8 exhaustive-execution feedback into code/data
+presentation is next. The preselection set contains every structurally compatible
+ordinary mapper plus first-class N-in-1 topologies before any winner is chosen,
+A3 executes every one in isolation, and A7 selects only from shared
+contradiction/positive evidence. Unresolved ties are raw rather than inherited
+size/default choices. GL implementation remains complete with only real-corpus
+closeout pending; CM, DPC+, and the CDF family remain the mapper-specific queue
+after/alongside that migration.
 
 When corpus work resumes, prefer one concrete mismatch/failure category at a
 time, add a minimal synthetic regression plus the real corpus case, and keep
