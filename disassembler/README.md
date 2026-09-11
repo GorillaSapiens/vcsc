@@ -193,12 +193,24 @@ startup counts plus invalid-target, invalid-bus, and halt-path evidence. A7 will
 consume those results for final mapper comparison; A5 does not itself change the
 legacy winner.
 
+A6 derives bank-access completeness from the A5 viability fixed point rather than
+from every byte A3 happened to visit.  Only states on surviving execution paths
+credit instruction fetches or resolved ROM data reads.  ROM provenance feeding
+generated RIOT-RAM instructions or display/audio registers also credits its source
+bank.  Exact duplicate banks and wholly `$00`/`$FF` banks are already explained
+without synthetic execution.  Headers report every bank (or N-in-1 constituent) as
+instruction-fetch, data-read, RAM-code-source, display/audio-source, duplicate,
+fill, or unexplained, plus a complete/incomplete summary.  N-in-1 is held to the
+same rule: a constituent counts only when at least one viable inner mapper model
+accounts for all of its meaningful banks.  A6 records the requirement but leaves
+legacy winner selection unchanged; A7 consumes completeness as mapper evidence.
+
 2IN1 remains the most ambiguous shape because an 8K file containing two plausible
 4K programs is also a perfectly possible ordinary F8 image. Automatic structure
 therefore requires two distinct 4K slices with real RESET roots. If both the F8
 and 2IN1 hypotheses remain credible under the current compatibility evaluators,
 the generated header reports the ambiguity and retains the conventional whole
-image until A5/A7 consume the already-available A3 execution results for rejection
+image until A7 consume the already-available A3 execution results for rejection
 and final hypothesis comparison. `--container 2IN1` remains the
 authoritative compatibility override when external knowledge resolves the dump;
 it can intentionally represent duplicate component games that automatic

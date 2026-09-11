@@ -270,3 +270,36 @@ RIOT-RAM instructions, all 12 generated-code ROM source bytes, and four decoded
 F8 hotspot accesses. A broad parallel E2E run reached 229/365 with zero failures
 before the execution environment's command-time ceiling in the slow mapper tail;
 no 365/365 claim is made from that partial run.
+
+2026-09-11 13:34:33 PDT, A6 bank-access completeness
+A6 now derives per-hypothesis bank coverage from the A5 greatest-fixed-point
+viability graph. Only states on surviving execution paths credit instruction
+fetches or resolved ROM data reads; dead JAM/impossible arms cannot explain a
+bank merely because A3 visited them before viability was known. ROM provenance
+feeding generated RIOT-RAM instructions or GRP/audio sinks credits the source
+bank. Exact duplicate banks and wholly 00/FF fill banks are explicitly explained
+without requiring synthetic execution.
+
+N-in-1 applies the same requirement recursively. Every external selector
+constituent is an accounting unit, and a meaningful constituent is complete only
+when at least one viable inner mapper interpretation accounts for all of its
+meaningful inner banks. Headers report complete/incomplete totals plus each bank
+or constituent as instruction-fetch, data-read, RAM-code-source,
+display/audio-source, duplicate, fill, or unexplained. A6 records the completeness
+requirement as evidence only; A7 remains responsible for rejecting/ranking mapper
+hypotheses and replacing the legacy winner.
+
+Regressions pin coherent F8 completeness, competing E0 incompleteness, A4
+RAM-code/display provenance in the ledger, 4IN1 constituent completeness, exact
+duplicate accounting, and erased-fill accounting. Main disassembler exact
+round-trip, deterministic fuzz 30/30, GL, hardening, all-opcode round-trip, and
+source-tree hygiene pass. Real Congo Bongo remains F8 and bank-complete, with both
+physical banks credited by instruction/data/RAM-code provenance. A7 final
+hypothesis comparison is next.
+
+2026-09-11 13:35:53 PDT, A6 validation checkpoint
+Post-A6 validation is green: vcsc_disassembler.pl exact round trip, deterministic
+fuzz 30/30, GL, hardening, all-opcode exact round trip, context-history format,
+and source-tree hygiene pass. The full compile-only suite passes 537/537. Real
+Congo Bongo remains automatically F8 and bank-complete: both 4K banks have viable
+instruction/data access and generated-RAM provenance evidence. A7 is next.

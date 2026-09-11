@@ -120,9 +120,9 @@ Open workstreams
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished
    work only. Mapper-hypothesis migration is current: A1 recursive duplicate-view
    provenance/fill accounting, A2 preselection enumeration, A3 exhaustive
-   hypothesis-local state-space execution, A4 first-class ROM/RAM/GRP provenance,
-   and A5 unified path viability/hardware-bus rejection are complete; A6 bank-access
-   completeness is next.
+   hypothesis-local state-space execution, A4 first-class ROM/RAM/GRP provenance, A5 unified path viability/hardware-bus
+   rejection, and A6 bank-access completeness are complete; A7 final hypothesis
+   comparison is next.
    2IN1/4IN1/8IN1/etc. live in the same preselection/execution set as ordinary
    mappers; `--container` and
    `.gameNN.s26` sidecars remain compatibility override/presentation plumbing. GL real-corpus

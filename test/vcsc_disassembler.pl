@@ -2141,6 +2141,16 @@ require_re($a4_generated_out,
    qr/^; \$00F3: 4C E0 F0\s+JMP \$F0E0\s+; ROM sources \$[0-9A-F]{4} \$[0-9A-F]{4} \$[0-9A-F]{4}$/m,
    'A4 executes generated RAM control transfer back into ROM');
 
+require_re($a4_generated_out,
+   qr/^; hypothesis bank coverage: F8 complete required=2 explained=2 unexplained=0 bank-size=4096$/m,
+   'A6 requires every meaningful F8 bank to be accounted');
+require_re($a4_generated_out,
+   qr/^;   bank 0: .*display\/audio-source.*$/m,
+   'A6 credits display provenance to its source bank');
+require_re($a4_generated_out,
+   qr/^;   bank 1: .*RAM-code-source.*$/m,
+   'A6 credits generated-RAM instruction provenance to its source bank');
+
 my $a4_riot_grp_out = slurp(File::Spec->catfile($out, 'a4_riot_grp.s26'));
 require_re($a4_riot_grp_out,
    qr/^; hypothesis provenance: unbanked 4K RAM-insns=0 RAM-ROM-sources=0 GRP-sources=1$/m,
@@ -2163,6 +2173,9 @@ require_re($multicart_out,
 require_re($multicart_out,
    qr/^; hypothesis state-space: 4IN1 startups=4 live=4 contexts=\d+ unknown-branch-forks=\d+ instructions=\d+ halts=\d+$/m,
    'A3 explores every 4IN1 external-selector startup state');
+require_re($multicart_out,
+   qr/^; hypothesis bank coverage: 4IN1 complete required=4 explained=4 unexplained=0 bank-size=2048$/m,
+   'A6 accounts for every unique N-in-1 constituent');
 require_re($multicart_out, qr/^; container analysis: 4\/4 component slices established independently$/m,
    '4IN1 components analyzed independently');
 for my $game (1 .. 4) {
@@ -2475,6 +2488,12 @@ require_re($forced_f8_dup_out,
 require_re($forced_f8_dup_out, qr/^; physical banks: 2 x 4096 bytes$/m,
    'explicit F8 retains both physical banks');
 
+require_re($forced_f8_dup_out,
+   qr/^; hypothesis bank coverage: F8 complete required=1 explained=2 unexplained=0 bank-size=4096$/m,
+   'A6 treats an exact duplicate bank as already accounted');
+require_re($forced_f8_dup_out, qr/^;   bank 1: .*duplicate.*$/m,
+   'A6 reports duplicate-bank evidence explicitly');
+
 my $fill_f6_out_path = File::Spec->catfile($tmp, 'fill_bank_f6.s26');
 my ($fill_f6_rc, $fill_f6_sig, $fill_f6_stdout, $fill_f6_stderr) =
    capture_command($disas, '--mapper', 'f6', '-o', $fill_f6_out_path,
@@ -2486,7 +2505,19 @@ require_re($fill_f6_out,
    qr/^; physical bank accounting: 4 x 4096 bytes; 0 exact duplicate banks; 1 erased\/fill bank$/m,
    'erased physical bank recorded as explained content');
 
+require_re($fill_f6_out,
+   qr/^; hypothesis bank coverage: F6 complete required=3 explained=4 unexplained=0 bank-size=4096$/m,
+   'A6 excludes erased fill from the meaningful-bank requirement');
+require_re($fill_f6_out, qr/^;   bank 0: .*fill.*$/m,
+   'A6 reports fill-bank evidence explicitly');
+
 my $f8_out = slurp(File::Spec->catfile($out, 'f8.s26'));
+require_re($f8_out,
+   qr/^; hypothesis bank coverage: F8 complete required=2 explained=2 unexplained=0 bank-size=4096$/m,
+   'A6 marks the coherent F8 hypothesis bank-complete');
+require_re($f8_out,
+   qr/^; hypothesis bank coverage: E0 incomplete .*unexplained=[1-9]\d* bank-size=1024$/m,
+   'A6 exposes meaningful banks left unreachable by a competing mapper hypothesis');
 require_re($f8_out, qr/^B0_F100:\s*$/m,
    'bank-qualified colliding label in bank 0');
 require_re($f8_out, qr/^B1_F100:\s*$/m,

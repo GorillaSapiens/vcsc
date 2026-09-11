@@ -70,6 +70,15 @@ typedef enum {
 
 #define MAPPER_HYPOTHESIS_MAX 32u
 
+#define BANK_EVIDENCE_FETCH       0x01u
+#define BANK_EVIDENCE_DATA_READ   0x02u
+#define BANK_EVIDENCE_RAM_SOURCE  0x04u
+#define BANK_EVIDENCE_DISPLAY     0x08u
+#define BANK_EVIDENCE_DUPLICATE   0x10u
+#define BANK_EVIDENCE_FILL        0x20u
+#define BANK_EVIDENCE_MAX_BANKS   256u
+
+
 typedef enum {
    MAPPER_HYPOTHESIS_CART,
    MAPPER_HYPOTHESIS_NIN1
@@ -139,6 +148,13 @@ typedef struct {
    size_t state_space_ram_instructions;
    size_t state_space_ram_source_bytes;
    size_t state_space_grp_sources;
+   size_t bank_account_size;
+   size_t bank_account_count;
+   size_t bank_account_required;
+   size_t bank_account_explained;
+   size_t bank_account_unexplained;
+   int bank_account_complete;
+   uint8_t bank_evidence[BANK_EVIDENCE_MAX_BANKS];
    mapper_reject_reason_t reject_reason;
 } mapper_hypothesis_t;
 
@@ -4503,6 +4519,8 @@ typedef struct {
    int hit_halt;
    int hit_invalid_target;
    int hit_invalid_hardware;
+   uint8_t *bank_evidence;
+   size_t bank_evidence_count;
 } spec_context_t;
 
 static int speculative_branch_outcome(uint8_t opcode,
@@ -5588,7 +5606,8 @@ static int spec_fp_link_enqueue(const analysis_t *a, spec_fp_t *fp,
 }
 
 static uint8_t spec_fp_root_viability(const spec_fp_t *fp, size_t root,
-                                      int allow_closed_cycles)
+                                      int allow_closed_cycles,
+                                      uint8_t **levels_out)
 {
    uint8_t *level;
    size_t i;
@@ -5678,8 +5697,85 @@ static uint8_t spec_fp_root_viability(const spec_fp_t *fp, size_t root,
    }
    {
       uint8_t result = level[root];
-      free(level);
+      if (levels_out) *levels_out = level;
+      else free(level);
       return result;
+   }
+}
+
+static int provenance_source_bank(const analysis_t *a, provenance_t source,
+                                  size_t *bank_out)
+{
+   size_t physical, bi;
+   if (source == PROVENANCE_NONE) return 0;
+   physical = (size_t)(source - 1u);
+   for (bi = 0u; bi < a->bank_count; ++bi) {
+      const bank_t *b = &a->banks[bi];
+      if (physical >= b->file_offset && physical < b->file_offset + b->size) {
+         if (bank_out) *bank_out = bi;
+         return 1;
+      }
+   }
+   return 0;
+}
+
+/* A6 coverage comes from the A5 viability fixed point, not merely from bytes
+ * that the broader A3 tracer happened to visit.  Only nodes with nonzero
+ * greatest-fixed-point viability may explain a bank. */
+static void spec_mark_viable_bank_evidence(const analysis_t *a,
+                                           const spec_fp_t *fp,
+                                           const uint8_t *level,
+                                           spec_context_t *ctx)
+{
+   size_t i;
+   if (!ctx->bank_evidence || ctx->bank_evidence_count == 0u || !level) return;
+   for (i = 0u; i < fp->state_count; ++i) {
+      const spec_fp_state_t *st = &fp->states[i];
+      const bank_t *b;
+      size_t node, source_bank;
+      uint8_t opcode;
+      address_mode_t mode;
+      unsigned len, access;
+      uint16_t operand = 0u, effective, bus;
+      provenance_t source;
+      if (level[i] == 0u || st->bank >= a->bank_count ||
+          st->bank >= ctx->bank_evidence_count) continue;
+      b = &a->banks[st->bank];
+      if (st->off >= b->size || rom_offset_hidden(a, st->off)) continue;
+      ctx->bank_evidence[st->bank] |= BANK_EVIDENCE_FETCH;
+      node = b->file_offset + st->off;
+      opcode = a->rom[node];
+      mode = (address_mode_t)opcode_modes[opcode];
+      len = instruction_length(mode);
+      if (len >= 2u && st->off + len <= b->size) operand = a->rom[node + 1u];
+      if (len >= 3u && st->off + len <= b->size)
+         operand |= (uint16_t)a->rom[node + 2u] << 8;
+      access = opcode_memory_access(opcode);
+      if ((access & ACCESS_READ) && len != 0u && mode != AM_IMMEDIATE &&
+          mode != AM_ACCUMULATOR && mode != AM_IMPLIED && mode != AM_RELATIVE) {
+         source = state_operand_provenance(a, st->bank, st->mapper_config,
+                                           &st->state, mode, operand,
+                                           len >= 2u ? provenance_rom_source(a, st->bank,
+                                                                            st->off + 1u)
+                                                     : PROVENANCE_NONE);
+         if (provenance_source_bank(a, source, &source_bank) &&
+             source_bank < ctx->bank_evidence_count)
+            ctx->bank_evidence[source_bank] |= BANK_EVIDENCE_DATA_READ;
+      }
+      if ((access & ACCESS_WRITE) &&
+          resolve_effective_address(&st->state, mode, operand, &effective)) {
+         unsigned reg;
+         bus = (uint16_t)(effective & 0x1fffu);
+         if ((bus & 0x1000u) == 0u && (bus & 0x0080u) == 0u) {
+            reg = bus & 0x003fu;
+            if (reg == 0x1bu || reg == 0x1cu || (reg >= 0x15u && reg <= 0x1au)) {
+               source = known_store_provenance(opcode, &st->state);
+               if (provenance_source_bank(a, source, &source_bank) &&
+                   source_bank < ctx->bank_evidence_count)
+                  ctx->bank_evidence[source_bank] |= BANK_EVIDENCE_DISPLAY;
+            }
+         }
+      }
    }
 }
 
@@ -6312,8 +6408,14 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
 
    if (ctx->inconclusive) result = SPEC_SAFE_WEAK;
    else {
+      uint8_t *levels = NULL;
       uint8_t viability = spec_fp_root_viability(&fp, root,
-                                                 ctx->hypothesis_viability);
+                                                 ctx->hypothesis_viability,
+                                                 ctx->bank_evidence ? &levels : NULL);
+      if (levels) {
+         spec_mark_viable_bank_evidence(a, &fp, levels, ctx);
+         free(levels);
+      }
       result = viability >= 2u ? SPEC_SAFE_STRONG :
                (viability == 1u ? SPEC_SAFE_WEAK : SPEC_REJECT);
    }
@@ -8944,7 +9046,7 @@ static int enumerate_mapper_hypotheses(const uint8_t *physical_rom,
  * merging, exact branch pruning when flags are known, and both-edge forking
  * when they are not.  Run that engine independently for every A2 hypothesis
  * before legacy/default selection gets a vote.  These results are deliberately
- * diagnostic/execution facts only until A5/A7 replace the old rejection and
+ * diagnostic/execution facts only until A7 replace the old rejection and
  * ranking heuristics. */
 static size_t mapper_state_space_startup_banks(const analysis_t *probe,
                                                const options_t *opt,
@@ -9051,6 +9153,65 @@ static int hypothesis_reset_entry(const analysis_t *a, size_t *bank_out,
    return 1;
 }
 
+static void bank_account_seed_content(const analysis_t *a,
+                                      uint8_t evidence[BANK_EVIDENCE_MAX_BANKS])
+{
+   size_t i, j;
+   for (i = 0u; i < a->bank_count && i < BANK_EVIDENCE_MAX_BANKS; ++i) {
+      const bank_t *b = &a->banks[i];
+      uint8_t fill = 0u;
+      if (bank_is_erased_fill(a->rom + b->file_offset, b->size, &fill))
+         evidence[i] |= BANK_EVIDENCE_FILL;
+      for (j = 0u; j < i; ++j) {
+         const bank_t *p = &a->banks[j];
+         if (p->size == b->size &&
+             memcmp(a->rom + p->file_offset, a->rom + b->file_offset, b->size) == 0) {
+            evidence[i] |= BANK_EVIDENCE_DUPLICATE;
+            break;
+         }
+      }
+   }
+}
+
+static void bank_account_add_provenance(const analysis_t *a,
+                                        uint8_t evidence[BANK_EVIDENCE_MAX_BANKS])
+{
+   size_t bi, off;
+   for (bi = 0u; bi < a->bank_count && bi < BANK_EVIDENCE_MAX_BANKS; ++bi) {
+      const bank_t *b = &a->banks[bi];
+      for (off = 0u; off < b->size; ++off) {
+         size_t roff = b->file_offset + off;
+         if (roff >= a->rom_size) break;
+         if (a->provenance_ram_sources && a->provenance_ram_sources[roff])
+            evidence[bi] |= BANK_EVIDENCE_RAM_SOURCE;
+         if (a->provenance_grp_sources && a->provenance_grp_sources[roff])
+            evidence[bi] |= BANK_EVIDENCE_DISPLAY;
+      }
+   }
+}
+
+static void bank_account_finalize(mapper_hypothesis_t *h)
+{
+   size_t i;
+   h->bank_account_required = 0u;
+   h->bank_account_explained = 0u;
+   h->bank_account_unexplained = 0u;
+   for (i = 0u; i < h->bank_account_count && i < BANK_EVIDENCE_MAX_BANKS; ++i) {
+      unsigned e = h->bank_evidence[i];
+      if (e & (BANK_EVIDENCE_FILL | BANK_EVIDENCE_DUPLICATE)) {
+         ++h->bank_account_explained;
+         continue;
+      }
+      ++h->bank_account_required;
+      if (e & (BANK_EVIDENCE_FETCH | BANK_EVIDENCE_DATA_READ |
+               BANK_EVIDENCE_RAM_SOURCE | BANK_EVIDENCE_DISPLAY))
+         ++h->bank_account_explained;
+      else
+         ++h->bank_account_unexplained;
+   }
+   h->bank_account_complete = h->bank_account_unexplained == 0u;
+}
+
 static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
                                                const uint8_t *physical_rom,
                                                size_t physical_size,
@@ -9084,6 +9245,13 @@ static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
    h->state_space_ram_instructions = 0u;
    h->state_space_ram_source_bytes = 0u;
    h->state_space_grp_sources = 0u;
+   h->bank_account_size = 0u;
+   h->bank_account_count = 0u;
+   h->bank_account_required = 0u;
+   h->bank_account_explained = 0u;
+   h->bank_account_unexplained = 0u;
+   h->bank_account_complete = 0;
+   memset(h->bank_evidence, 0, sizeof(h->bank_evidence));
 
    memset(&shape, 0, sizeof(shape));
    if (!init_analysis(&shape, (uint8_t *)rom, size, &probe_opt))
@@ -9091,6 +9259,10 @@ static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
    startup_count = mapper_state_space_startup_banks(
       &shape, parent_opt, startup_banks,
       sizeof(startup_banks) / sizeof(startup_banks[0]));
+   h->bank_account_size = shape.bank_size;
+   h->bank_account_count = shape.bank_count < BANK_EVIDENCE_MAX_BANKS
+                           ? shape.bank_count : BANK_EVIDENCE_MAX_BANKS;
+   bank_account_seed_content(&shape, h->bank_evidence);
    free_analysis(&shape);
 
    for (si = 0u; si < startup_count; ++si) {
@@ -9143,9 +9315,13 @@ static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
          abstract_state_t root_state;
          spec_context_t vctx;
          spec_result_t viability = SPEC_REJECT;
+         uint8_t startup_evidence[BANK_EVIDENCE_MAX_BANKS];
          memset(&root_state, 0, sizeof(root_state));
          memset(&vctx, 0, sizeof(vctx));
+         memcpy(startup_evidence, h->bank_evidence, sizeof(startup_evidence));
          vctx.hypothesis_viability = 1;
+         vctx.bank_evidence = startup_evidence;
+         vctx.bank_evidence_count = h->bank_account_count;
          if (hypothesis_reset_entry(&probe, &root_bank, &root_off,
                                     &root_pc, &root_config))
             viability = speculative_flow_ctx(&probe, root_bank, root_off, root_pc,
@@ -9156,13 +9332,18 @@ static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
          if (viability == SPEC_REJECT)
             ++h->state_space_dead_startup_states;
          else {
+            size_t bi;
             ++h->state_space_live_startup_states;
             if (viability == SPEC_SAFE_WEAK) ++h->state_space_weak_startup_states;
+            bank_account_add_provenance(&probe, startup_evidence);
+            for (bi = 0u; bi < h->bank_account_count; ++bi)
+               h->bank_evidence[bi] |= startup_evidence[bi];
          }
       }
       free_analysis(&probe);
    }
    h->state_space_viable = h->state_space_live_startup_states != 0u;
+   bank_account_finalize(h);
    return 1;
 }
 
@@ -9187,6 +9368,14 @@ static int explore_nin1_hypothesis_state_space(const uint8_t *physical_rom,
    h->state_space_ram_instructions = 0u;
    h->state_space_ram_source_bytes = 0u;
    h->state_space_grp_sources = 0u;
+   h->bank_account_size = h->slice_size;
+   h->bank_account_count = h->games < BANK_EVIDENCE_MAX_BANKS
+                           ? h->games : BANK_EVIDENCE_MAX_BANKS;
+   h->bank_account_required = 0u;
+   h->bank_account_explained = 0u;
+   h->bank_account_unexplained = 0u;
+   h->bank_account_complete = 0;
+   memset(h->bank_evidence, 0, sizeof(h->bank_evidence));
 
    if (h->games == 0u || h->slice_size == 0u ||
        (size_t)h->games * h->slice_size > physical_size)
@@ -9204,6 +9393,21 @@ static int explore_nin1_hypothesis_state_space(const uint8_t *physical_rom,
       size_t i;
       int live = 0;
       int strong = 0;
+      int complete = 0;
+      uint8_t game_evidence = 0u;
+      uint8_t fill = 0u;
+      unsigned prev;
+
+      if (game < h->bank_account_count) {
+         if (bank_is_erased_fill(slice, h->slice_size, &fill))
+            h->bank_evidence[game] |= BANK_EVIDENCE_FILL;
+         for (prev = 0u; prev < game; ++prev)
+            if (memcmp(slice, physical_rom + (size_t)prev * h->slice_size,
+                       h->slice_size) == 0) {
+               h->bank_evidence[game] |= BANK_EVIDENCE_DUPLICATE;
+               break;
+            }
+      }
 
       memset(&inner_opt, 0, sizeof(inner_opt));
       inner_opt.superchip_override = -1;
@@ -9227,18 +9431,29 @@ static int explore_nin1_hypothesis_state_space(const uint8_t *physical_rom,
          h->state_space_ram_source_bytes += ih->state_space_ram_source_bytes;
          h->state_space_grp_sources += ih->state_space_grp_sources;
          if (ih->state_space_viable) {
+            size_t ib;
             live = 1;
             if (ih->state_space_live_startup_states > ih->state_space_weak_startup_states)
                strong = 1;
+            if (ih->bank_account_complete) {
+               complete = 1;
+               for (ib = 0u; ib < ih->bank_account_count; ++ib)
+                  game_evidence |= ih->bank_evidence[ib] &
+                     (BANK_EVIDENCE_FETCH | BANK_EVIDENCE_DATA_READ |
+                      BANK_EVIDENCE_RAM_SOURCE | BANK_EVIDENCE_DISPLAY);
+            }
          }
       }
       if (live) {
          ++h->state_space_live_startup_states;
          if (!strong) ++h->state_space_weak_startup_states;
+         if (complete && game < h->bank_account_count)
+            h->bank_evidence[game] |= game_evidence ? game_evidence : BANK_EVIDENCE_FETCH;
       }
       else ++h->state_space_dead_startup_states;
    }
    h->state_space_viable = h->state_space_live_startup_states != 0u;
+   bank_account_finalize(h);
    return 1;
 }
 
@@ -9332,7 +9547,7 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
    n = detail->cart_hypothesis_count;
 
    /* A2 enumerates and A3 executes every structurally possible cart before
-    * selection.  Until A5/A7 replace the legacy rejection/ranking policy,
+    * selection.  Until A7 replace the legacy rejection/ranking policy,
     * preserve that selector's proven scope here: only mapper/size combinations
     * it previously compared get flow-ranked.  Extra hypotheses have already
     * run in isolation and remain visible rather than being silently discarded. */
@@ -12081,6 +12296,22 @@ static void emit_mapper_hypothesis_evidence(FILE *fp,
 }
 
 
+static void emit_bank_evidence(FILE *fp, unsigned e)
+{
+   int said = 0;
+#define SAY_BANK_EVIDENCE(bit, text) do { \
+   if (e & (bit)) { if (said) fputc('+', fp); fputs((text), fp); said = 1; } \
+} while (0)
+   SAY_BANK_EVIDENCE(BANK_EVIDENCE_FETCH, "instruction-fetch");
+   SAY_BANK_EVIDENCE(BANK_EVIDENCE_DATA_READ, "data-read");
+   SAY_BANK_EVIDENCE(BANK_EVIDENCE_RAM_SOURCE, "RAM-code-source");
+   SAY_BANK_EVIDENCE(BANK_EVIDENCE_DISPLAY, "display/audio-source");
+   SAY_BANK_EVIDENCE(BANK_EVIDENCE_DUPLICATE, "duplicate");
+   SAY_BANK_EVIDENCE(BANK_EVIDENCE_FILL, "fill");
+#undef SAY_BANK_EVIDENCE
+   if (!said) fputs("unexplained", fp);
+}
+
 static void emit_mapper_hypothesis_enumeration(FILE *fp, const analysis_t *a)
 {
    const mapper_refinement_t *r = &a->mapper_refinement;
@@ -12136,6 +12367,22 @@ static void emit_mapper_hypothesis_enumeration(FILE *fp, const analysis_t *a)
                  h->state_space_ram_instructions,
                  h->state_space_ram_source_bytes,
                  h->state_space_grp_sources);
+      }
+      if (h->bank_account_count != 0u) {
+         size_t bi;
+         fputs("; hypothesis bank coverage: ", fp);
+         if (h->kind == MAPPER_HYPOTHESIS_NIN1) fprintf(fp, "%uIN1", h->games);
+         else fputs(mapper_name(h->mapper), fp);
+         fprintf(fp, " %s required=%zu explained=%zu unexplained=%zu bank-size=%zu\n",
+                 h->bank_account_complete ? "complete" : "incomplete",
+                 h->bank_account_required, h->bank_account_explained,
+                 h->bank_account_unexplained, h->bank_account_size);
+         for (bi = 0u; bi < h->bank_account_count; ++bi) {
+            fprintf(fp, ";   %s %zu: ",
+                    h->kind == MAPPER_HYPOTHESIS_NIN1 ? "constituent" : "bank", bi);
+            emit_bank_evidence(fp, h->bank_evidence[bi]);
+            fputc('\n', fp);
+         }
       }
    }
 }
@@ -13166,7 +13413,7 @@ static mapper_hypothesis_t *nin1_hypothesis(mapper_refinement_t *r,
 /* Compatibility evaluator for N-in-1 hypotheses already enumerated by A2 and
  * executed by A3 before whole-cart mapper selection.  No new N-in-1 candidate
  * may appear here.  Independent sidecars and this legacy shape/ranking policy
- * remain output/selection plumbing until A5/A7 consume the common A3 results. */
+ * remain output/selection plumbing until A7 consume the common A3 results. */
 static int evaluate_nin1_hypotheses(const uint8_t *rom, size_t size,
                                     analysis_t *whole, const options_t *opt,
                                     multicart_info_t *info)
@@ -13246,7 +13493,7 @@ static int evaluate_nin1_hypotheses(const uint8_t *rom, size_t size,
 
       /* 2IN1 is the size/topology collision that remains ambiguous with an
        * ordinary 8K F8 image.  A3 has executed both hypotheses; keep the old
-       * conservative compatibility tie until A5/A7 define rejection/ranking
+       * conservative compatibility tie until A7 define rejection/ranking
        * from those common execution results. */
       {
          size_t whole_starts = established_instruction_count(whole);
