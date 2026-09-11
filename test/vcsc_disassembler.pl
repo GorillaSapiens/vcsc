@@ -332,6 +332,38 @@ for my $game (0 .. 3) {
       pack('C*', 0xA9, 0x40 + $game, 0x85, 0x80 + $game, 0x60));
 }
 write_bin(File::Spec->catfile($in, 'multicart_4in1.bin'), $multicart_4in1);
+
+# A 64K image can also be eight externally selected 8K games.  Keep a real
+# 8IN1 fixture beside the F0 collision below so strengthening F0 detection
+# cannot simply turn every plausible 64K container into one F0 cartridge.
+my $multicart_8in1 = '';
+for my $game (0 .. 7) {
+   my $slice = make_rom(8192, 0xF000, 0x0100,
+      pack('C*', 0xA9, 0x50 + $game, 0x85, 0x88 + $game, 0x60));
+   substr($slice, 4096 + 0x0100, 5,
+      pack('C*', 0xA9, 0x50 + $game, 0x85, 0x88 + $game, 0x60));
+   substr($slice, 0x0081, 1, chr($game));
+   $multicart_8in1 .= $slice;
+}
+write_bin(File::Spec->catfile($in, 'multicart_8in1.bin'), $multicart_8in1);
+
+# F0 and 8IN1 collide at 64K.  This image deliberately has eight distinct,
+# independently executable 8K slices, so an evidence-free whole-image analysis
+# looks exactly like an 8IN1 container.  But every physical 4K bank contains an
+# F0 switch stub using STA $FFF0.  F0 powers up in bank 15; that store advances
+# to bank 0 and the next opcode at $F103 is RTS.  Repeated direct $1FF0/$FFF0
+# accesses are positive CPU-visible F0 evidence and must beat the external
+# container interpretation.
+my $f0_vs_8in1 = chr(0xEA) x 65536;
+for my $bank (0 .. 15) {
+   my $base = $bank * 4096;
+   substr($f0_vs_8in1, $base + 0x0100, 4, "\x8D\xF0\xFF\x60");
+   substr($f0_vs_8in1, $base + 0x0080, 2, pack('C*', 0x18, $bank));
+   put16(\$f0_vs_8in1, $base + 0x0FFA, 0xF100);
+   put16(\$f0_vs_8in1, $base + 0x0FFC, 0xF100);
+   put16(\$f0_vs_8in1, $base + 0x0FFE, 0xF100);
+}
+write_bin(File::Spec->catfile($in, 'f0_vs_8in1.bin'), $f0_vs_8in1);
 # Two independently valid 4K cartridges inside one 8K file are deliberately
 # ambiguous with an ordinary F8 cartridge when the whole-image flow does not
 # prove CPU-visible bank switching.  Automatic analysis must retain F8 while
@@ -1733,6 +1765,21 @@ for my $game (1 .. 4) {
    require_re($text, qr/^; mapper: unbanked 2K \(/m,
       "4IN1 component $game independently disassembled");
 }
+
+my $multicart8_out = slurp(File::Spec->catfile($out, 'multicart_8in1.s26'));
+require_re($multicart8_out, qr/^; mapper: 8IN1 \(container;/m,
+   '64K 8IN1 remains a container without F0 selector evidence');
+require_re($multicart8_out, qr/^; container analysis: 8\/8 component slices established independently$/m,
+   '8IN1 components analyzed independently');
+
+my $f0_collision_out = slurp(File::Spec->catfile($out, 'f0_vs_8in1.s26'));
+require_re($f0_collision_out, qr/^; mapper: F0 \(high confidence;/m,
+   'repeated F0 selectors beat a coincidentally viable 8IN1 split');
+require_re($f0_collision_out,
+   qr/^;   F0: viable; .*bank-changing mapper-specific selector(?:s)? observed; established mapper detector signature present$/m,
+   'F0/8IN1 collision records both flow and raw detector evidence');
+die "F0 collision fixture was incorrectly split as 8IN1\n"
+   if $f0_collision_out =~ /^; mapper: 8IN1 \(container;/m;
 
 my $multicart2_out = slurp(File::Spec->catfile($out, 'multicart_2in1_ambiguous.s26'));
 require_re($multicart2_out,

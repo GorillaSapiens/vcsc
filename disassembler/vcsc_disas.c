@@ -1301,8 +1301,34 @@ static int is_probably_fc(const uint8_t *rom, size_t size)
 
 static int is_probably_f0(const uint8_t *rom, size_t size)
 {
+   static const uint8_t direct_hotspots[][3] = {
+      { 0x8Du, 0xF0u, 0x1Fu }, /* STA $1FF0 */
+      { 0x8Du, 0xF0u, 0xFFu }, /* STA $FFF0 */
+      { 0xADu, 0xF0u, 0x1Fu }, /* LDA $1FF0 */
+      { 0xADu, 0xF0u, 0xFFu }, /* LDA $FFF0 */
+      { 0x2Cu, 0xF0u, 0x1Fu }, /* BIT $1FF0 */
+      { 0x2Cu, 0xF0u, 0xFFu }, /* BIT $FFF0 */
+      { 0x0Cu, 0xF0u, 0x1Fu }, /* NOP $1FF0 */
+      { 0x0Cu, 0xF0u, 0xFFu }  /* NOP $FFF0 */
+   };
+   size_t i;
+   int hits = 0;
    if (size != 65536u) return 0;
-   return memcmp(rom + size - 8u, "F0\0\0", 4u) == 0;
+   if (memcmp(rom + size - 8u, "F0\0\0", 4u) == 0) return 1;
+
+   /* Stella uses F0 as its final 64K fallback after rejecting the more
+    * distinctive 64K schemes.  VCSC deliberately keeps unsupported 64K
+    * layouts conservative/RAW instead of copying that blanket fallback, so
+    * historical F0 ROMs need independent positive evidence.  F0 has one
+    * exact selector: every access to $1FF0 advances the visible 4K bank.
+    * Repeated non-indexed accesses are strong raw-image evidence and, unlike
+    * an 8IN1 container split, describe CPU-visible switching. */
+   for (i = 0u; i < sizeof(direct_hotspots) / sizeof(direct_hotspots[0]); ++i) {
+      hits += count_signature(rom, size, direct_hotspots[i],
+                              sizeof(direct_hotspots[i]));
+      if (hits >= 2) return 1;
+   }
+   return 0;
 }
 
 static int is_probably_gl(const uint8_t *rom, size_t size)

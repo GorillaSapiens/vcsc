@@ -1,0 +1,31 @@
+2026-09-11 00:19:52 PDT, fix F0 vs 8IN1 inference
+Investigated supplied corpus image b65d4a38d6047735824ee99684f3515e.bin,
+which VCSC classified as 8IN1 while Stella classified it as F0. The 64K image
+contains one direct STA $FFF0 switch stub in every one of its 16 physical 4K
+banks. Forced F0 analysis observes 17 decoded hotspot accesses and exact
+round-trip reconstruction succeeds.
+
+The root cause was that VCSC's raw F0 detector accepted only the private VCSC
+"F0" tail signature. Without that marker the whole 64K image could remain RAW,
+after which the outer-container detector found eight independently plausible
+8K slices and promoted the file to 8IN1. Extended the F0 raw detector to accept
+repeated direct accesses to $1FF0/$FFF0 using STA, LDA, BIT, or absolute NOP;
+two such occurrences are required. This provides positive CPU-visible F0
+evidence without copying Stella's blanket otherwise-unknown-64K => F0 fallback,
+which would hide unsupported 64K mapper families behind a false F0 result.
+
+Added paired synthetic regressions. f0_vs_8in1.bin deliberately has eight
+independently executable 8K slices but replicated direct F0 switch stubs; the
+untouched prior tree calls it 8IN1 and the corrected tree calls it F0.
+multicart_8in1.bin is a genuine eight-game 64K container with no F0 hotspot
+evidence and remains 8IN1, guarding against an over-broad 64K/F0 heuristic.
+Both fixtures exact-roundtrip in the focused disassembler regression.
+
+Validation: source_tree_hygiene.pl passes; compile-only is 537/537; the full
+parallel E2E run produced 364 passes plus one unrelated vcs_3e_max_diagnostic.pl
+timeout while eight heavyweight mapper diagnostics competed for CPU. Rerunning
+that timed-out test alone passes. vcsc_disassembler.pl and the F0 mapper tests
+pass in the full run. Rechecking the supplied mismatch corpus gives F0 for
+b65d4a38d6047735824ee99684f3515e.bin while preserving the previously corrected
+E0/E7/F8 results. The remaining corpus mismatches are the separate unfinished
+CDF, DPC+, and CM cases.
