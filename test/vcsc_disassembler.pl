@@ -1440,10 +1440,9 @@ write_bin(File::Spec->catfile($in, 'speculative_inference_quarantine.bin'),
    $spec_inference);
 
 # Speculative SC-looking traffic must not change the hardware model even inside
-# the speculative phase.  This detached F8 island touches both split aliases and
-# then calls ordinary ROM at $F080.  If those speculative accesses were allowed
-# to activate Superchip mid-walk, $F080 would become hidden by the RAM window and
-# the candidate's own control-flow interpretation would change.
+# the speculative phase.  On a cartridge still established as plain F8, a store
+# to the would-be SC write alias has no write sink and therefore kills the
+# detached candidate instead of manufacturing Superchip semantics from itself.
 my $spec_sc_freeze = make_rom(8192, 0xF000, 0x0100, "\x60");
 substr($spec_sc_freeze, 0x1000 + 0x0100, 1, "\x60");
 substr($spec_sc_freeze, 0x0080, 3, "\xA9\x11\x60");
@@ -1456,6 +1455,42 @@ substr($spec_sc_freeze, 0x0200, 15,
    "\x60");
 write_bin(File::Spec->catfile($in, 'speculative_sc_hardware_freeze.bin'),
    $spec_sc_freeze);
+
+# Plain cartridge ROM is not a meaningful store destination for detached-code
+# discovery.  Both a pure store and a read-modify-write must therefore kill the
+# candidate unless mapper/peripheral/RAM semantics provide a real write sink.
+my $island_plain_rom_write = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($island_plain_rom_write, 0x0200, 14,
+   "\x02\x12\x22" .
+   "\xA9\x42\x8D\x34\xF2\xAA\xE8\xCA\xA8\xC8\x60");
+write_bin(File::Spec->catfile($in, 'speculative_plain_rom_write.bin'),
+   $island_plain_rom_write);
+
+my $island_plain_rom_rmw = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($island_plain_rom_rmw, 0x0200, 13,
+   "\x02\x12\x22" .
+   "\xA9\x01\xEE\x34\xF2\xAA\xE8\xCA\xA8\x60");
+write_bin(File::Spec->catfile($in, 'speculative_plain_rom_rmw.bin'),
+   $island_plain_rom_rmw);
+
+# The same store pattern is valid when it really targets writable memory.
+my $island_riot_ram_write = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($island_riot_ram_write, 0x0200, 13,
+   "\x02\x12\x22" .
+   "\xA9\x42\x85\x80\xAA\xE8\xCA\xA8\xC8\x60");
+write_bin(File::Spec->catfile($in, 'speculative_riot_ram_write.bin'),
+   $island_riot_ram_write);
+
+# Keep a separate image for an explicit F8SC hardware-model check.  Automatic
+# analysis should not infer SC from this detached store, but --mapper f8sc makes
+# $1000-$107F an established RAM write port and the island becomes viable.
+my $island_sc_write = make_rom(8192, 0xF000, 0x0100, "\x60");
+substr($island_sc_write, 0x1000 + 0x0100, 1, "\x60");
+substr($island_sc_write, 0x0200, 14,
+   "\x02\x12\x22" .
+   "\xA9\x42\x8D\x00\x10\xAA\xE8\xCA\xA8\xC8\x60");
+write_bin(File::Spec->catfile($in, 'speculative_sc_write.bin'),
+   $island_sc_write);
 
 # A speculative candidate must be rejected when a statically possible path
 # reaches JAM/KIL.  CLC makes the BCC-to-KIL path definitely taken.
@@ -1541,6 +1576,15 @@ my $dead_transfer_barrier = make_rom(4096, 0xF000, 0x0100, "\x60");
 substr($dead_transfer_barrier, 0x0200, 5, "\x4C\x4C\x4C\x20\x20");
 write_bin(File::Spec->catfile($in, 'speculative_dead_transfer_barrier.bin'),
    $dead_transfer_barrier);
+
+# A no-write-sink store is also structural negative evidence, not merely a
+# reason to reject a candidate after some other JAM-created barrier found it.
+# All three overlapping starts here are STA absolute and none has a hardware,
+# RAM, peripheral, or mapper destination.
+my $dead_write_barrier = make_rom(4096, 0xF000, 0x0100, "\x60");
+substr($dead_write_barrier, 0x0200, 5, "\x8D\x8D\x8D\xF2\xF2");
+write_bin(File::Spec->catfile($in, 'speculative_dead_write_barrier.bin'),
+   $dead_write_barrier);
 
 # Invalid TIA bus direction/decode is hard negative evidence for detached code.
 # $3E is not a readable TIA register under the read decoder.
@@ -2500,11 +2544,34 @@ require_re($spec_sc_freeze_out, qr/^; mapper: F8 \(/m,
 require_re($spec_sc_freeze_out,
    qr/^; mapper: F8 \(medium confidence; 0 decoded hotspot accesses, 0 SC writes, 0 SC RMW conflicts, 0 SC reads,/m,
    'speculative SC accesses do not become hardware evidence');
-require_re($spec_sc_freeze_out, qr/^B0_F080:\n\s*LDA\s+#\$11/m,
-   'speculative SC accesses cannot hide ordinary ROM mid-phase');
-require_re($spec_sc_freeze_out,
-   qr/^; usage bytes: established-code=[1-9]\d* speculative-code=[1-9]\d* /m,
-   'speculative SC hardware-freeze code remains quarantined');
+die "plain-F8 speculative SC store was promoted without a write sink\n"
+   if $spec_sc_freeze_out =~ /^B0_F203:/m ||
+      $spec_sc_freeze_out =~ /speculative instruction island.*\nB0_F203:/i;
+
+my $spec_plain_rom_write = slurp(File::Spec->catfile($out,
+   'speculative_plain_rom_write.s26'));
+die "plain-ROM speculative store was promoted\n"
+   if $spec_plain_rom_write =~ /^L_F203:/m ||
+      $spec_plain_rom_write =~ /speculative instruction island.*\nL_F203:/i;
+
+my $spec_plain_rom_rmw = slurp(File::Spec->catfile($out,
+   'speculative_plain_rom_rmw.s26'));
+die "plain-ROM speculative RMW was promoted\n"
+   if $spec_plain_rom_rmw =~ /^L_F203:/m ||
+      $spec_plain_rom_rmw =~ /speculative instruction island.*\nL_F203:/i;
+
+my $spec_riot_ram_write = slurp(File::Spec->catfile($out,
+   'speculative_riot_ram_write.s26'));
+require_re($spec_riot_ram_write, qr/^L_F203:\n\s*LDA\s+#\$42\n\s*STA\s+\$80/m,
+   'RIOT RAM store remains a valid speculative write sink');
+
+my $forced_sc_write_s26 = File::Spec->catfile($tmp, 'speculative_sc_write_forced.s26');
+run_ok($disas, '--mapper', 'f8sc', '-o', $forced_sc_write_s26,
+   File::Spec->catfile($in, 'speculative_sc_write.bin'));
+my $forced_sc_write = slurp($forced_sc_write_s26);
+require_re($forced_sc_write,
+   qr/^B0_F203:\n\s*LDA\s+#\$42\n\s*STA\s+\$1000/m,
+   'forced F8SC RAM write port remains a valid speculative write sink');
 
 my $spec_jam = slurp(File::Spec->catfile($out, 'speculative_jam_reject.s26'));
 die "JAM-reaching speculative candidate was promoted\n"
@@ -2551,6 +2618,12 @@ my $spec_dead_transfer = slurp(File::Spec->catfile($out,
 require_re($spec_dead_transfer,
    qr/^; speculative analysis: rejected-starts=(?:[3-9]|[1-9]\d+) barriers=[1-9]\d* /m,
    'impossible direct transfers seed negative-evidence barriers without JAM');
+
+my $spec_dead_write = slurp(File::Spec->catfile($out,
+   'speculative_dead_write_barrier.s26'));
+require_re($spec_dead_write,
+   qr/^; speculative analysis: rejected-starts=(?:[3-9]|[1-9]\d+) barriers=[1-9]\d* /m,
+   'stores with no write sink seed negative-evidence barriers without JAM');
 
 my $spec_bad_tia = slurp(File::Spec->catfile($out, 'speculative_bad_tia_read.s26'));
 die "invalid TIA read candidate was promoted\n"

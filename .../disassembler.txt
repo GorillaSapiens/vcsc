@@ -43,7 +43,11 @@ Durable invariants
   conditional branch is allowed when another feasible arm remains live; all
   feasible dead arms reject backward, while JSR requires both callee and return
   continuation. JAM/KIL/HLT and impossible execution/hardware accesses are dead
-  speculative edges. Official/stable-unofficial/unstable-unofficial opcodes and
+  speculative edges. A speculative memory write must also have a real sink in
+  the established hardware model (RAM/write port, valid device register, or a
+  direction-valid mapper/peripheral side effect); plain ROM/unclaimed writes are
+  dead, with the structural prefilter conservative about unresolved mapper-RAM
+  state. Official/stable-unofficial/unstable-unofficial opcodes and
   canonical/mirrored TIA/RIOT accesses provide graded promotion evidence; known
   direction-sensitive mapper hotspots override the generic hardware score. There
   is no traversal/node cap; allocation failure is inconclusive and may never

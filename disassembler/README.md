@@ -498,7 +498,13 @@ mirrors, while impossible bus-direction/register combinations kill the edge. A
 read of `$0296`, for example, is a legal mirror of `INTIM` even though that same
 address is conventionally named `TIM64T` for writes. Direction-sensitive mapper
 hotspots override the generic hardware plausibility rule, including WD reads of
-TIA `$30-$3F` and 3E/3F selector writes.
+TIA `$30-$3F` and 3E/3F selector writes. Stores and read-modify-writes also need
+a real write sink in the established hardware model: RIOT RAM, valid TIA/RIOT
+registers, cartridge RAM/write ports, coprocessor registers, and mapper-triggered
+writes qualify; an otherwise ordinary store into cartridge ROM or unclaimed bus
+space kills that speculative path. Configuration-dependent cartridge RAM is
+checked against the carried mapper state, while the earlier structural barrier
+prefilter remains conservative when that state is not yet known.
 
 The same selector-transition semantics are used for RESET-reachable code and
 speculative-island validation, but the confidence classes are quarantined. Before

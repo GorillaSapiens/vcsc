@@ -4151,12 +4151,50 @@ static int speculative_direct_mapper_hardware_access(const analysis_t *a,
 {
    abstract_state_t state;
    uint16_t effective;
+   uint16_t bus;
+   size_t selected_bank;
    unsigned access = opcode_memory_access(opcode);
    memset(&state, 0, sizeof(state));
    if (instruction_flow(opcode) != FLOW_NEXT ||
        !(access & (ACCESS_READ | ACCESS_WRITE)) ||
        !resolve_effective_address(&state, mode, operand, &effective))
       return 0;
+   bus = (uint16_t)(effective & 0x1fffu);
+
+   /* Ordinary address-triggered bankswitchers consume either bus direction at
+    * their selector.  Keep this ahead of the generic "no write sink" test so
+    * a legitimate write-triggered switch is not mistaken for a store to ROM. */
+   if (selector_bank(a->mapper, effective, &selected_bank)) return 1;
+   if (a->mapper == MAP_F0 && bus == 0x1ff0u) return 1;
+
+   if (a->mapper == MAP_FC) {
+      uint16_t next_config = 0u;
+      int commit = 0, value_known = 0;
+      if (fc_instruction_transition(a, &state, opcode, mode, operand, 0u,
+                                    &next_config, &commit, &value_known))
+         return 1;
+   }
+
+   if (a->mapper == MAP_E0) {
+      uint16_t next_config;
+      if (e0_selector_config(effective, E0_RESET_CONFIG, &next_config)) return 1;
+   }
+
+   if (a->mapper == MAP_GL && (access & ACCESS_READ)) {
+      mapper_config_t next_config;
+      if (gl_selector_config(effective, GL_RESET_CONFIG, &next_config,
+                             NULL, NULL, NULL) ||
+          gl_control_config(effective, GL_RESET_CONFIG, &next_config, NULL))
+         return 1;
+   }
+
+   if (a->mapper == MAP_E7) {
+      uint16_t next_config;
+      int specific = 0;
+      if (e7_selector_config(a, effective, e7_config_make(0u, 0u),
+                             &next_config, &specific))
+         return 1;
+   }
 
    if (mapper_is_wd_family(a->mapper) && (access & ACCESS_READ)) {
       uint8_t config;
@@ -4170,6 +4208,78 @@ static int speculative_direct_mapper_hardware_access(const analysis_t *a,
                                &exact_ref, &ram_ref))
          return 1;
    }
+   return 0;
+}
+
+static int split_ram_write_port_contains(const split_ram_layout_t *ram,
+                                         uint16_t address)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   return bus >= ram->write_start &&
+          (uint32_t)bus < (uint32_t)ram->write_start + ram->size;
+}
+
+/* A detached candidate store needs a real destination in the currently known
+ * hardware model.  TIA/RIOT register writes and mapper selectors are handled
+ * by the callers; this helper covers RAM/peripheral sinks that otherwise look
+ * like ordinary address space.  config_known is false in the structural
+ * prefilter, where mapper-selected RAM must be treated conservatively as a
+ * possible sink rather than manufacturing negative evidence from missing
+ * runtime state. */
+static int speculative_nonmapper_write_sink(const analysis_t *a,
+                                            mapper_config_t mapper_config,
+                                            int config_known,
+                                            uint16_t address)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   uint8_t riot_ram;
+   split_ram_layout_t ram;
+
+   if (state_riot_ram_alias(address, &riot_ram)) return 1;
+
+   /* Valid TIA/RIOT register destinations are genuine hardware sinks even
+    * though they are not RAM. */
+   {
+      spec_hw_class_t hc = speculative_hardware_access(address, ACCESS_WRITE);
+      if (hc == SPEC_HW_CANONICAL || hc == SPEC_HW_MIRROR) return 1;
+   }
+
+   if ((bus & 0x1000u) == 0u) return 0;
+
+   /* Supercharger carts execute from cartridge RAM under a separately modeled
+    * load state.  Detached-island analysis does not yet carry that full state,
+    * so do not turn cartridge-space writes into false negative evidence. */
+   if (a->mapper == MAP_AR) return 1;
+
+   if (superchip_active(a) && bus >= 0x1000u && bus <= 0x107fu) return 1;
+
+   if (native_split_ram_layout(a, &ram) &&
+       split_ram_write_port_contains(&ram, address))
+      return 1;
+
+   /* DPC's upper register half is the write-side coprocessor register window.
+    * It is a peripheral sink rather than cartridge ROM. */
+   if (a->mapper == MAP_DPC && bus >= 0x1040u && bus <= 0x107fu) return 1;
+
+   if (a->mapper == MAP_GL) {
+      if (!config_known) return 1; /* any 1K slot can be RAM after a selector */
+      return gl_ram_port(mapper_config, address);
+   }
+
+   if (a->mapper == MAP_E7) {
+      if (bus >= 0x1800u && bus < 0x1900u) return 1;
+      if (bus >= 0x1000u && bus < 0x1400u) {
+         if (!config_known) return 1;
+         return e7_lower_is_ram(a, mapper_config);
+      }
+      return 0;
+   }
+
+   if (a->mapper == MAP_3E && bus >= 0x1400u && bus < 0x1800u) {
+      if (!config_known) return 1;
+      return threee_config_is_ram(mapper_config);
+   }
+
    return 0;
 }
 
@@ -4831,9 +4941,17 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
             }
          }
          else if (resolve_effective_address(&item.state, mode, operand, &effective)) {
+            unsigned access = opcode_memory_access(opcode);
             spec_hw_class_t hc = speculative_hardware_access(
-               effective, opcode_memory_access(opcode));
+               effective, access);
             if (hc == SPEC_HW_INVALID) {
+               ctx->hit_invalid_hardware = 1;
+               fp.states[si].kind = SPEC_NODE_DEAD;
+               continue;
+            }
+            if ((access & ACCESS_WRITE) &&
+                !speculative_nonmapper_write_sink(a, mapper_config, 1,
+                                                  effective)) {
                ctx->hit_invalid_hardware = 1;
                fp.states[si].kind = SPEC_NODE_DEAD;
                continue;
@@ -5732,16 +5850,20 @@ static uint8_t *speculative_dead_reachability(const analysis_t *a)
              (opcode_memory_access(opcode) & (ACCESS_READ | ACCESS_WRITE))) {
             abstract_state_t unknown;
             uint16_t effective;
+            unsigned access = opcode_memory_access(opcode);
             memset(&unknown, 0, sizeof(unknown));
             if (resolve_effective_address(&unknown, mode, operand, &effective) &&
-                !speculative_direct_mapper_hardware_access(a, opcode, mode, operand) &&
-                speculative_hardware_access(effective, opcode_memory_access(opcode)) ==
-                   SPEC_HW_INVALID) {
-               if (!may[node]) {
-                  may[node] = 1u;
-                  queue[qtail++] = node;
+                !speculative_direct_mapper_hardware_access(a, opcode, mode, operand)) {
+               spec_hw_class_t hc = speculative_hardware_access(effective, access);
+               if (hc == SPEC_HW_INVALID ||
+                   ((access & ACCESS_WRITE) &&
+                    !speculative_nonmapper_write_sink(a, 0u, 0, effective))) {
+                  if (!may[node]) {
+                     may[node] = 1u;
+                     queue[qtail++] = node;
+                  }
+                  continue;
                }
-               continue;
             }
          }
 

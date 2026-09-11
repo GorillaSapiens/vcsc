@@ -64,3 +64,25 @@ with no failures before the container execution ceiling; the heavyweight
 vcs_3e_max_diagnostic.pl passes alone. vcs_3ex_max_diagnostic.pl itself exceeds
 the available per-command execution window in this environment, so no false
 full-suite claim is recorded.
+
+2026-09-11 02:12:54 PDT, reject speculative writes without sink
+Detached speculative-island viability now rejects stores and read-modify-write
+instructions whose resolved destination has no write sink in the established
+hardware model. Valid sinks include RIOT RAM, direction-valid TIA/RIOT device
+registers, active cartridge-RAM write ports, DPC write-side registers, and
+mapper-triggered accesses. Plain cartridge-ROM stores and writes into otherwise
+unclaimed bus space are dead speculative edges. Configuration-dependent GL,
+E7, and 3E RAM is checked against carried mapper state; the structural
+rejected-start prefilter stays conservative when that state is unavailable.
+
+Expanded the direct mapper-exception prefilter so legitimate F0/FC/E0/E7,
+ordinary address-triggered mapper selectors, GL read controls, WD read selectors,
+and 3E/3F write selectors are recognized before generic no-sink rejection.
+Added regressions proving plain-ROM STA and RMW candidates die, RIOT-RAM stores
+remain promotable, forced F8SC writes through $1000 remain valid, the old
+plain-F8 speculative SC self-promotion case is rejected, and overlapping
+no-sink stores can seed a JAM-free negative-evidence barrier.
+Validation after the change: focused vcsc_disassembler.pl plus fuzz, GL,
+hardening, and all-opcode round-trip suites pass; source_tree_hygiene.pl passes;
+compile-only is 537/537. The broad E2E run reached 229/365 with zero failures
+before the environment execution ceiling, consistent with the prior handoff.
