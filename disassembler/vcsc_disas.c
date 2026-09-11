@@ -131,6 +131,11 @@ typedef struct {
    size_t state_space_branch_forks;
    size_t state_space_instructions;
    size_t state_space_halts;
+   size_t state_space_dead_startup_states;
+   size_t state_space_weak_startup_states;
+   size_t state_space_invalid_target_paths;
+   size_t state_space_invalid_hardware_paths;
+   size_t state_space_halt_paths;
    size_t state_space_ram_instructions;
    size_t state_space_ram_source_bytes;
    size_t state_space_grp_sources;
@@ -4494,6 +4499,7 @@ typedef struct {
    size_t joins;
    int strict_conflicts;
    int static_edge_validation;
+   int hypothesis_viability;
    int hit_halt;
    int hit_invalid_target;
    int hit_invalid_hardware;
@@ -4747,6 +4753,85 @@ static int split_ram_write_port_contains(const split_ram_layout_t *ram,
    uint16_t bus = (uint16_t)(address & 0x1fffu);
    return bus >= ram->write_start &&
           (uint32_t)bus < (uint32_t)ram->write_start + ram->size;
+}
+
+static int split_ram_read_port_contains(const split_ram_layout_t *ram,
+                                        uint16_t address)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   return bus >= ram->read_start &&
+          (uint32_t)bus < (uint32_t)ram->read_start + ram->size;
+}
+
+/* Symmetric companion to speculative_nonmapper_write_sink(): once an
+ * effective address is known, require an actual source for each read phase.
+ * Mapper selector/peripheral reads are handled by the caller before this test.
+ * This is intentionally about physical bus semantics, not canonical spelling. */
+static int speculative_nonmapper_read_source(const analysis_t *a,
+                                              size_t active_bank,
+                                              mapper_config_t mapper_config,
+                                              int config_known,
+                                              uint16_t address)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   uint8_t riot_ram;
+   split_ram_layout_t ram;
+
+   if (state_riot_ram_alias(address, &riot_ram)) return 1;
+
+   {
+      spec_hw_class_t hc = speculative_hardware_access(address, ACCESS_READ);
+      if (hc == SPEC_HW_CANONICAL || hc == SPEC_HW_MIRROR) return 1;
+      if (hc == SPEC_HW_INVALID) return 0;
+   }
+
+   if ((bus & 0x1000u) == 0u) {
+      /* GameLine's modem/control pages are mapper-owned read sources even when
+       * the returned value remains abstract. */
+      if (a->mapper == MAP_GL && gl_intercepted_read(address)) return 1;
+      return 0;
+   }
+
+   /* The structural prefilter has no mapper configuration.  Any cartridge
+    * address might be ROM or a configuration-selected RAM/peripheral source,
+    * so keep it conservative; the stateful viability pass decides exactly. */
+   if (!config_known) return 1;
+
+   if (a->mapper == MAP_AR) return 1;
+
+   if (superchip_active(a) && bus >= 0x1000u && bus <= 0x10ffu)
+      return bus >= 0x1080u;
+
+   if (native_split_ram_layout(a, &ram) && split_ram_port_contains(&ram, address))
+      return split_ram_read_port_contains(&ram, address);
+
+   if (a->mapper == MAP_DPC && bus >= 0x1000u && bus <= 0x107fu)
+      return bus <= 0x103fu;
+
+   if (a->mapper == MAP_E7) {
+      if (bus >= 0x1800u && bus < 0x1a00u) return bus >= 0x1900u;
+      if (bus >= 0x1000u && bus < 0x1800u) {
+         if (!config_known) return 1;
+         if (!e7_lower_is_ram(a, mapper_config)) return 1;
+         return bus >= 0x1400u;
+      }
+   }
+
+   if (a->mapper == MAP_3E && bus >= 0x1000u && bus < 0x1800u) {
+      if (!config_known) return 1;
+      if (!threee_config_is_ram(mapper_config)) return 1;
+      return bus < 0x1400u;
+   }
+
+   if (a->mapper == MAP_GL && gl_ram_port(mapper_config, address))
+      return 1; /* Stella-compatible: retain direction but do not enforce it. */
+
+   /* Anything still mapped as cartridge ROM has a real read source. */
+   {
+      size_t rb, ro;
+      if (mapped_rom_byte(a, active_bank, mapper_config, address, NULL, &rb, &ro)) return 1;
+   }
+   return 0;
 }
 
 /* A detached candidate store needs a real destination in the currently known
@@ -5502,7 +5587,8 @@ static int spec_fp_link_enqueue(const analysis_t *a, spec_fp_t *fp,
    return 1;
 }
 
-static uint8_t spec_fp_root_viability(const spec_fp_t *fp, size_t root)
+static uint8_t spec_fp_root_viability(const spec_fp_t *fp, size_t root,
+                                      int allow_closed_cycles)
 {
    uint8_t *level;
    size_t i;
@@ -5510,37 +5596,86 @@ static uint8_t spec_fp_root_viability(const spec_fp_t *fp, size_t root)
    if (root >= fp->state_count) return 0u;
    level = (uint8_t *)calloc(fp->state_count ? fp->state_count : 1u, 1);
    if (!level) return 1u;
-   for (i = 0; i < fp->state_count; ++i) {
-      if (fp->states[i].kind == SPEC_NODE_STRONG_TERMINAL) level[i] = 2u;
-      else if (fp->states[i].kind == SPEC_NODE_WEAK_TERMINAL) level[i] = 1u;
-   }
-   do {
-      changed = 0;
+
+   if (allow_closed_cycles) {
+      /* Hypothesis execution asks whether at least one feasible execution can
+       * remain coherent indefinitely.  Start non-dead graph nodes optimistic
+       * and monotonically remove viability when their required successors die.
+       * This greatest fixed point keeps legitimate main loops alive while JAM
+       * or impossible edges still propagate backwards. */
       for (i = 0; i < fp->state_count; ++i) {
-         const spec_fp_state_t *s = &fp->states[i];
-         uint8_t candidate = level[i];
-         size_t ei;
-         if (s->kind == SPEC_NODE_ANY) {
-            if (s->weak_exit && candidate < 1u) candidate = 1u;
-            for (ei = s->edge_head; ei != SIZE_MAX; ei = fp->edges[ei].next)
-               if (level[fp->edges[ei].to] > candidate)
-                  candidate = level[fp->edges[ei].to];
-         }
-         else if (s->kind == SPEC_NODE_ALL && s->edge_count != 0u) {
-            uint8_t min_level = 2u;
-            for (ei = s->edge_head; ei != SIZE_MAX; ei = fp->edges[ei].next) {
-               uint8_t l = level[fp->edges[ei].to];
-               if (l == 0u) { min_level = 0u; break; }
-               if (l < min_level) min_level = l;
-            }
-            if (min_level > candidate) candidate = min_level;
-         }
-         if (candidate > level[i]) {
-            level[i] = candidate;
-            changed = 1;
-         }
+         if (fp->states[i].kind == SPEC_NODE_DEAD) level[i] = 0u;
+         else if (fp->states[i].kind == SPEC_NODE_WEAK_TERMINAL) level[i] = 1u;
+         else level[i] = 2u;
       }
-   } while (changed);
+      do {
+         changed = 0;
+         for (i = 0; i < fp->state_count; ++i) {
+            const spec_fp_state_t *s = &fp->states[i];
+            uint8_t candidate = level[i];
+            size_t ei;
+            if (s->kind == SPEC_NODE_DEAD) candidate = 0u;
+            else if (s->kind == SPEC_NODE_STRONG_TERMINAL) candidate = 2u;
+            else if (s->kind == SPEC_NODE_WEAK_TERMINAL) candidate = 1u;
+            else if (s->kind == SPEC_NODE_ANY) {
+               candidate = s->weak_exit ? 1u : 0u;
+               for (ei = s->edge_head; ei != SIZE_MAX; ei = fp->edges[ei].next)
+                  if (level[fp->edges[ei].to] > candidate)
+                     candidate = level[fp->edges[ei].to];
+            }
+            else if (s->kind == SPEC_NODE_ALL) {
+               candidate = s->weak_exit ? 1u : 2u;
+               if (s->edge_count == 0u && !s->weak_exit) candidate = 0u;
+               for (ei = s->edge_head; ei != SIZE_MAX; ei = fp->edges[ei].next) {
+                  uint8_t l = level[fp->edges[ei].to];
+                  if (l < candidate) candidate = l;
+               }
+            }
+            else candidate = 0u;
+            if (candidate < level[i]) {
+               level[i] = candidate;
+               changed = 1;
+            }
+         }
+      } while (changed);
+   }
+   else {
+      /* Detached-island discovery is intentionally stricter: an isolated cycle
+       * is not enough to promote bytes as code.  Grow viability outward from
+       * established/terminal evidence instead. */
+      for (i = 0; i < fp->state_count; ++i) {
+         if (fp->states[i].kind == SPEC_NODE_STRONG_TERMINAL) level[i] = 2u;
+         else if (fp->states[i].kind == SPEC_NODE_WEAK_TERMINAL) level[i] = 1u;
+      }
+      do {
+         changed = 0;
+         for (i = 0; i < fp->state_count; ++i) {
+            const spec_fp_state_t *s = &fp->states[i];
+            uint8_t candidate = level[i];
+            size_t ei;
+            if (s->kind == SPEC_NODE_ANY) {
+               if (s->weak_exit && candidate < 1u) candidate = 1u;
+               for (ei = s->edge_head; ei != SIZE_MAX; ei = fp->edges[ei].next)
+                  if (level[fp->edges[ei].to] > candidate)
+                     candidate = level[fp->edges[ei].to];
+            }
+            else if (s->kind == SPEC_NODE_ALL) {
+               uint8_t min_level = s->weak_exit ? 1u : 2u;
+               if (s->edge_count == 0u && !s->weak_exit) min_level = 0u;
+               for (ei = s->edge_head; ei != SIZE_MAX; ei = fp->edges[ei].next) {
+                  uint8_t l = level[fp->edges[ei].to];
+                  if (l == 0u) { min_level = 0u; break; }
+                  if (l < min_level) min_level = l;
+               }
+               if (min_level > candidate) candidate = min_level;
+            }
+            if (candidate > level[i]) {
+               level[i] = candidate;
+               changed = 1;
+            }
+         }
+      } while (changed);
+   }
    {
       uint8_t result = level[root];
       free(level);
@@ -5618,7 +5753,8 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
        * discovery.  Static branch-edge validation deliberately walks through
        * tentatively established static bytes because that is what it is
        * validating. */
-      if (!ctx->static_edge_validation && (b->roles[off] & ROLE_CODE_START)) {
+      if (!ctx->static_edge_validation && !ctx->hypothesis_viability &&
+          (b->roles[off] & ROLE_CODE_START)) {
          if (ctx->counted) ++ctx->joins;
          fp.states[si].kind = SPEC_NODE_STRONG_TERMINAL;
          continue;
@@ -5784,6 +5920,13 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                fp.states[si].kind = SPEC_NODE_DEAD;
                continue;
             }
+            if ((access & ACCESS_READ) &&
+                !speculative_nonmapper_read_source(a, bi, mapper_config, 1,
+                                                   effective)) {
+               ctx->hit_invalid_hardware = 1;
+               fp.states[si].kind = SPEC_NODE_DEAD;
+               continue;
+            }
             if ((access & ACCESS_WRITE) &&
                 !speculative_nonmapper_write_sink(a, mapper_config, 1,
                                                   effective)) {
@@ -5807,12 +5950,23 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
          fp.states[si].kind = SPEC_NODE_ANY;
          if (mapper_is_wd_family(a->mapper)) {
             uint16_t next_pc = (uint16_t)(canonical_pc + len);
-            uint8_t next_config = wd_switched ? wd_successor_config
-                                               : (uint8_t)mapper_config;
             size_t next_bank, next_off;
-            if (wd_map_address(a, next_config, next_pc, &next_bank, &next_off)) {
+            /* WD selector reads take effect after a short hardware delay.
+             * Instruction-level analysis cannot place that latch edge exactly,
+             * so preserve both the old and new arrangement successors.  This
+             * mirrors the established tracer and lets viability reject only
+             * the arrangement whose continuation is actually dead. */
+            if (wd_map_address(a, (uint8_t)mapper_config, next_pc,
+                               &next_bank, &next_off)) {
                if (!spec_fp_link_enqueue(a, &fp, si, next_bank, next_off, next_pc,
-                                         next_config, &output_state, ctx))
+                                         mapper_config, &output_state, ctx))
+                  goto inconclusive;
+            }
+            if (wd_switched && wd_successor_config != (uint8_t)mapper_config &&
+                wd_map_address(a, wd_successor_config, next_pc,
+                               &next_bank, &next_off)) {
+               if (!spec_fp_link_enqueue(a, &fp, si, next_bank, next_off, next_pc,
+                                         wd_successor_config, &output_state, ctx))
                   goto inconclusive;
             }
          }
@@ -6084,16 +6238,16 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
 
          if (!call_enqueued) {
             if (speculative_target_is_riot_ram(operand) || is_cart_address(operand)) {
-               fp.states[si].kind = SPEC_NODE_WEAK_TERMINAL;
+               fp.states[si].weak_exit = 1u;
             }
             else {
                ctx->hit_invalid_target = 1;
                fp.states[si].kind = SPEC_NODE_DEAD;
             }
          }
-         else if (!cont_enqueued) {
+         if (fp.states[si].kind != SPEC_NODE_DEAD && !cont_enqueued) {
             if (speculative_target_is_riot_ram(cont_pc) || is_cart_address(cont_pc)) {
-               fp.states[si].kind = SPEC_NODE_WEAK_TERMINAL;
+               fp.states[si].weak_exit = 1u;
             }
             else {
                ctx->hit_invalid_target = 1;
@@ -6158,7 +6312,8 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
 
    if (ctx->inconclusive) result = SPEC_SAFE_WEAK;
    else {
-      uint8_t viability = spec_fp_root_viability(&fp, root);
+      uint8_t viability = spec_fp_root_viability(&fp, root,
+                                                 ctx->hypothesis_viability);
       result = viability >= 2u ? SPEC_SAFE_STRONG :
                (viability == 1u ? SPEC_SAFE_WEAK : SPEC_REJECT);
    }
@@ -6692,6 +6847,8 @@ static uint8_t *speculative_dead_reachability(const analysis_t *a)
                 !speculative_direct_mapper_hardware_access(a, opcode, mode, operand)) {
                spec_hw_class_t hc = speculative_hardware_access(effective, access);
                if (hc == SPEC_HW_INVALID ||
+                   ((access & ACCESS_READ) &&
+                    !speculative_nonmapper_read_source(a, bi, 0u, 0, effective)) ||
                    ((access & ACCESS_WRITE) &&
                     !speculative_nonmapper_write_sink(a, 0u, 0, effective))) {
                   if (!may[node]) {
@@ -8817,6 +8974,83 @@ static size_t mapper_state_space_startup_banks(const analysis_t *probe,
    return n;
 }
 
+/* Resolve the single architectural RESET root for one already-initialized
+ * mapper hypothesis/startup mapping.  A3 may enumerate several legal power-on
+ * latch banks by rebuilding the analysis with a different reset_bank; this
+ * helper resolves the corresponding runtime PC/config without adding any new
+ * mapper heuristics. */
+static int hypothesis_reset_entry(const analysis_t *a, size_t *bank_out,
+                                  size_t *off_out, uint16_t *pc_out,
+                                  mapper_config_t *config_out)
+{
+   const bank_t *vb;
+   uint16_t target;
+   size_t bank = 0u, off = 0u;
+   mapper_config_t config = 0u;
+
+   if (a->bank_count == 0u || a->mapper == MAP_RAW || a->mapper == MAP_AR)
+      return 0;
+
+   if (a->mapper == MAP_GL) {
+      vb = &a->banks[0];
+      config = GL_RESET_CONFIG;
+      if (vb->size < 4u) return 0;
+      target = read_word(a->rom + vb->file_offset + vb->size - 4u);
+      if (!gl_map_address(a, config, target, &bank, &off)) return 0;
+   }
+   else if (a->mapper == MAP_E0) {
+      if (a->bank_count <= 7u) return 0;
+      vb = &a->banks[7];
+      config = E0_RESET_CONFIG;
+      if (vb->size < 4u) return 0;
+      target = read_word(a->rom + vb->file_offset + vb->size - 4u);
+      if (!e0_map_address(a, config, target, &bank, &off)) return 0;
+   }
+   else if (a->mapper == MAP_E7) {
+      vb = &a->banks[a->bank_count - 1u];
+      config = e7_config_make(0u, 0u);
+      if (vb->size < 4u) return 0;
+      target = read_word(a->rom + vb->file_offset + vb->size - 4u);
+      if (!e7_map_address(a, config, target, &bank, &off)) return 0;
+   }
+   else if (mapper_is_three_family(a->mapper)) {
+      vb = &a->banks[a->bank_count - 1u];
+      config = 0u;
+      if (vb->size < 4u) return 0;
+      target = read_word(a->rom + vb->file_offset + vb->size - 4u);
+      if (!threef_map_address(a, config, target, &bank, &off)) return 0;
+   }
+   else if (mapper_is_wd_family(a->mapper)) {
+      if (a->reset_bank >= a->bank_count) return 0;
+      vb = &a->banks[a->reset_bank];
+      config = 0u;
+      if (vb->size < 4u) return 0;
+      target = read_word(a->rom + vb->file_offset + vb->size - 4u);
+      if (!wd_map_address(a, 0u, target, &bank, &off)) return 0;
+   }
+   else {
+      if (a->reset_bank >= a->bank_count) return 0;
+      vb = &a->banks[a->reset_bank];
+      if (vb->size < 4u) return 0;
+      target = read_word(a->rom + vb->file_offset + vb->size - 4u);
+      if (a->mapper == MAP_FC) {
+         if (!fc_map_address(a, a->reset_bank, target, &bank, &off)) return 0;
+      }
+      else {
+         bank = a->reset_bank;
+         if (!cart_target_offset(vb, target, &off)) return 0;
+      }
+   }
+
+   if (bank >= a->bank_count || off >= a->banks[bank].size ||
+       rom_offset_hidden(a, off)) return 0;
+   *bank_out = bank;
+   *off_out = off;
+   *pc_out = target;
+   *config_out = config;
+   return 1;
+}
+
 static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
                                                const uint8_t *physical_rom,
                                                size_t physical_size,
@@ -8842,6 +9076,11 @@ static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
    h->state_space_branch_forks = 0u;
    h->state_space_instructions = 0u;
    h->state_space_halts = 0u;
+   h->state_space_dead_startup_states = 0u;
+   h->state_space_weak_startup_states = 0u;
+   h->state_space_invalid_target_paths = 0u;
+   h->state_space_invalid_hardware_paths = 0u;
+   h->state_space_halt_paths = 0u;
    h->state_space_ram_instructions = 0u;
    h->state_space_ram_source_bytes = 0u;
    h->state_space_grp_sources = 0u;
@@ -8896,8 +9135,31 @@ static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
       h->state_space_ram_instructions += probe.provenance_ram_instructions;
       h->state_space_ram_source_bytes += probe.provenance_ram_source_count;
       h->state_space_grp_sources += probe.provenance_grp_source_count;
-      if (instructions != 0u || probe.provenance_ram_instructions != 0u)
-         ++h->state_space_live_startup_states;
+
+      {
+         size_t root_bank, root_off;
+         uint16_t root_pc;
+         mapper_config_t root_config;
+         abstract_state_t root_state;
+         spec_context_t vctx;
+         spec_result_t viability = SPEC_REJECT;
+         memset(&root_state, 0, sizeof(root_state));
+         memset(&vctx, 0, sizeof(vctx));
+         vctx.hypothesis_viability = 1;
+         if (hypothesis_reset_entry(&probe, &root_bank, &root_off,
+                                    &root_pc, &root_config))
+            viability = speculative_flow_ctx(&probe, root_bank, root_off, root_pc,
+                                             root_config, &root_state, &vctx);
+         if (vctx.hit_invalid_target) ++h->state_space_invalid_target_paths;
+         if (vctx.hit_invalid_hardware) ++h->state_space_invalid_hardware_paths;
+         if (vctx.hit_halt) ++h->state_space_halt_paths;
+         if (viability == SPEC_REJECT)
+            ++h->state_space_dead_startup_states;
+         else {
+            ++h->state_space_live_startup_states;
+            if (viability == SPEC_SAFE_WEAK) ++h->state_space_weak_startup_states;
+         }
+      }
       free_analysis(&probe);
    }
    h->state_space_viable = h->state_space_live_startup_states != 0u;
@@ -8917,6 +9179,11 @@ static int explore_nin1_hypothesis_state_space(const uint8_t *physical_rom,
    h->state_space_branch_forks = 0u;
    h->state_space_instructions = 0u;
    h->state_space_halts = 0u;
+   h->state_space_dead_startup_states = 0u;
+   h->state_space_weak_startup_states = 0u;
+   h->state_space_invalid_target_paths = 0u;
+   h->state_space_invalid_hardware_paths = 0u;
+   h->state_space_halt_paths = 0u;
    h->state_space_ram_instructions = 0u;
    h->state_space_ram_source_bytes = 0u;
    h->state_space_grp_sources = 0u;
@@ -8936,6 +9203,7 @@ static int explore_nin1_hypothesis_state_space(const uint8_t *physical_rom,
       options_t inner_opt;
       size_t i;
       int live = 0;
+      int strong = 0;
 
       memset(&inner_opt, 0, sizeof(inner_opt));
       inner_opt.superchip_override = -1;
@@ -8952,12 +9220,23 @@ static int explore_nin1_hypothesis_state_space(const uint8_t *physical_rom,
          h->state_space_branch_forks += ih->state_space_branch_forks;
          h->state_space_instructions += ih->state_space_instructions;
          h->state_space_halts += ih->state_space_halts;
+         h->state_space_invalid_target_paths += ih->state_space_invalid_target_paths;
+         h->state_space_invalid_hardware_paths += ih->state_space_invalid_hardware_paths;
+         h->state_space_halt_paths += ih->state_space_halt_paths;
          h->state_space_ram_instructions += ih->state_space_ram_instructions;
          h->state_space_ram_source_bytes += ih->state_space_ram_source_bytes;
          h->state_space_grp_sources += ih->state_space_grp_sources;
-         if (ih->state_space_viable) live = 1;
+         if (ih->state_space_viable) {
+            live = 1;
+            if (ih->state_space_live_startup_states > ih->state_space_weak_startup_states)
+               strong = 1;
+         }
       }
-      if (live) ++h->state_space_live_startup_states;
+      if (live) {
+         ++h->state_space_live_startup_states;
+         if (!strong) ++h->state_space_weak_startup_states;
+      }
+      else ++h->state_space_dead_startup_states;
    }
    h->state_space_viable = h->state_space_live_startup_states != 0u;
    return 1;
@@ -11837,6 +12116,17 @@ static void emit_mapper_hypothesis_enumeration(FILE *fp, const analysis_t *a)
               h->state_space_instructions,
               h->state_space_halts,
               h->state_space_viable ? "" : "; no RESET-reachable state");
+      fputs("; hypothesis viability: ", fp);
+      if (h->kind == MAPPER_HYPOTHESIS_NIN1) fprintf(fp, "%uIN1", h->games);
+      else fputs(mapper_name(h->mapper), fp);
+      fprintf(fp,
+              " live=%zu dead=%zu weak=%zu invalid-targets=%zu invalid-bus=%zu halt-paths=%zu\n",
+              h->state_space_live_startup_states,
+              h->state_space_dead_startup_states,
+              h->state_space_weak_startup_states,
+              h->state_space_invalid_target_paths,
+              h->state_space_invalid_hardware_paths,
+              h->state_space_halt_paths);
       if (h->state_space_ram_instructions != 0u ||
           h->state_space_ram_source_bytes != 0u || h->state_space_grp_sources != 0u) {
          fputs("; hypothesis provenance: ", fp);

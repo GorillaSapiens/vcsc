@@ -364,6 +364,79 @@ my $a3_known_branch = make_rom(4096, 0xF000, 0x0100,
       0x60              # target: RTS
    ));
 write_bin(File::Spec->catfile($in, 'a3_known_branch.bin'), $a3_known_branch);
+
+# A5 lifts detached-island liveness into mapper-hypothesis execution.  A dead
+# branch edge must not poison a viable sibling; when every feasible successor is
+# JAM, the RESET startup is dead and rejection propagates to the root.
+my $a5_one_jam_arm = make_rom(4096, 0xF000, 0x0100,
+   pack('C*',
+      0xA5,0x80,       # LDA unknown RIOT RAM -> Z unknown
+      0xD0,0x01,       # BNE skips the JAM on one feasible arm
+      0x02,            # dead fall-through
+      0x60));          # viable taken arm
+write_bin(File::Spec->catfile($in, 'a5_one_jam_arm.bin'), $a5_one_jam_arm);
+
+my $a5_all_jam_arms = make_rom(4096, 0xF000, 0x0100,
+   pack('C*',
+      0xA5,0x80,
+      0xD0,0x01,
+      0x02,
+      0x02));
+write_bin(File::Spec->catfile($in, 'a5_all_jam_arms.bin'), $a5_all_jam_arms);
+
+# Known branch state follows exactly one edge; the impossible JAM arm should
+# not even count as a reached halt path.
+my $a5_known_branch = make_rom(4096, 0xF000, 0x0100,
+   pack('C*',
+      0x38,            # SEC -> C known set
+      0x90,0x01,       # BCC not taken
+      0x60,            # viable fall-through
+      0x02));          # impossible taken arm
+write_bin(File::Spec->catfile($in, 'a5_known_branch.bin'), $a5_known_branch);
+
+# Hard path rejection: execution cannot continue in TIA/RIOT hardware space,
+# cannot read a physically nonexistent TIA source, and cannot store into plain
+# cartridge ROM when no mapper/peripheral/RAM sink consumes the write.
+my $a5_bad_jump = make_rom(4096, 0xF000, 0x0100,
+   pack('C*', 0x4C,0x00,0x20));  # $2000 aliases non-executable hardware space
+write_bin(File::Spec->catfile($in, 'a5_bad_jump.bin'), $a5_bad_jump);
+my $a5_bad_read = make_rom(4096, 0xF000, 0x0100,
+   pack('C*', 0xA5,0x3E,0x60));  # ordinary TIA read decode has no source at $3E
+write_bin(File::Spec->catfile($in, 'a5_bad_read.bin'), $a5_bad_read);
+my $a5_bad_write = make_rom(4096, 0xF000, 0x0100,
+   pack('C*', 0x8D,0x00,0xF2,0x60)); # plain ROM has no write sink
+write_bin(File::Spec->catfile($in, 'a5_bad_write.bin'), $a5_bad_write);
+
+# Infinite coherent loops are viable hypothesis execution, not failed paths.
+# A5 therefore uses a greatest fixed point for RESET execution while detached
+# island promotion remains terminal/established-evidence based.
+my $a5_closed_loop = make_rom(4096, 0xF000, 0x0100,
+   pack('C*', 0x4C,0x00,0xF1));
+write_bin(File::Spec->catfile($in, 'a5_closed_loop.bin'), $a5_closed_loop);
+
+# JSR is conjunctive: an executable-RAM callee may be unresolved/weak, but the
+# return continuation must still be viable.  A JAM continuation therefore kills
+# the call site instead of letting the weak RAM leg excuse it.
+my $a5_jsr_ram_bad_return = make_rom(4096, 0xF000, 0x0100,
+   pack('C*', 0x20,0x80,0x00,0x02));
+write_bin(File::Spec->catfile($in, 'a5_jsr_ram_bad_return.bin'),
+   $a5_jsr_ram_bad_return);
+my $a5_jsr_ram_good_return = make_rom(4096, 0xF000, 0x0100,
+   pack('C*', 0x20,0x80,0x00,0x60));
+write_bin(File::Spec->catfile($in, 'a5_jsr_ram_good_return.bin'),
+   $a5_jsr_ram_good_return);
+
+# Native split cartridge RAM is directional.  FA's $1000-$10FF port accepts
+# writes but supplies no read value; $1100-$11FF is the read source.
+my $a5_fa_bad_read = make_rom(12288, 0xF000, 0x0300, "\x60");
+substr($a5_fa_bad_read, 2 * 4096 + 0x0300, 4,
+   pack('C*', 0xAD,0x00,0x10,0x60));
+write_bin(File::Spec->catfile($in, 'a5_fa_bad_read.bin'), $a5_fa_bad_read);
+my $a5_fa_good_ports = make_rom(12288, 0xF000, 0x0300, "\x60");
+substr($a5_fa_good_ports, 2 * 4096 + 0x0300, 7,
+   pack('C*', 0xAD,0x00,0x11, 0x8D,0x00,0x10, 0x60));
+write_bin(File::Spec->catfile($in, 'a5_fa_good_ports.bin'), $a5_fa_good_ports);
+
 # A4 carries physical ROM-byte provenance through registers and RAM.  This
 # synthetic Congo-Bongo-style F8 image deliberately has no literal F8 selector
 # instruction in ROM: bank 1 constructs `LDA $FFF8 ; JMP $F0E0` in RIOT RAM
@@ -2009,6 +2082,50 @@ require_re($a3_known_out,
    qr/^; hypothesis state-space: unbanked 4K startups=1 live=1 contexts=\d+ unknown-branch-forks=0 instructions=\d+ halts=0$/m,
    'A3 follows only the feasible edge when branch flags are known');
 
+my $a5_one_jam_out = slurp(File::Spec->catfile($out, 'a5_one_jam_arm.s26'));
+require_re($a5_one_jam_out,
+   qr/^; hypothesis viability: unbanked 4K live=1 dead=0 weak=0 invalid-targets=0 invalid-bus=0 halt-paths=1$/m,
+   'A5 keeps a branch viable when one unknown-state arm reaches JAM and the other survives');
+my $a5_all_jam_out = slurp(File::Spec->catfile($out, 'a5_all_jam_arms.s26'));
+require_re($a5_all_jam_out,
+   qr/^; hypothesis viability: unbanked 4K live=0 dead=1 weak=0 invalid-targets=0 invalid-bus=0 halt-paths=1$/m,
+   'A5 rejects RESET when all feasible branch arms reach JAM');
+my $a5_known_out = slurp(File::Spec->catfile($out, 'a5_known_branch.s26'));
+require_re($a5_known_out,
+   qr/^; hypothesis viability: unbanked 4K live=1 dead=0 weak=0 invalid-targets=0 invalid-bus=0 halt-paths=0$/m,
+   'A5 never explores a JAM arm made impossible by known branch flags');
+my $a5_bad_jump_out = slurp(File::Spec->catfile($out, 'a5_bad_jump.s26'));
+require_re($a5_bad_jump_out,
+   qr/^; hypothesis viability: unbanked 4K live=0 dead=1 weak=0 invalid-targets=1 invalid-bus=0 halt-paths=0$/m,
+   'A5 rejects transfer into non-cart non-RAM hardware space');
+my $a5_bad_read_out = slurp(File::Spec->catfile($out, 'a5_bad_read.s26'));
+require_re($a5_bad_read_out,
+   qr/^; hypothesis viability: unbanked 4K live=0 dead=1 weak=0 invalid-targets=0 invalid-bus=1 halt-paths=0$/m,
+   'A5 rejects a read with no physical TIA/RIOT source');
+my $a5_bad_write_out = slurp(File::Spec->catfile($out, 'a5_bad_write.s26'));
+require_re($a5_bad_write_out,
+   qr/^; hypothesis viability: unbanked 4K live=0 dead=1 weak=0 invalid-targets=0 invalid-bus=1 halt-paths=0$/m,
+   'A5 rejects a write with no RAM/peripheral/mapper sink');
+my $a5_loop_out = slurp(File::Spec->catfile($out, 'a5_closed_loop.s26'));
+require_re($a5_loop_out,
+   qr/^; hypothesis viability: unbanked 4K live=1 dead=0 weak=0 invalid-targets=0 invalid-bus=0 halt-paths=0$/m,
+   'A5 greatest fixed point keeps a coherent closed execution loop viable');
+my $a5_jsr_bad_out = slurp(File::Spec->catfile($out, 'a5_jsr_ram_bad_return.s26'));
+require_re($a5_jsr_bad_out,
+   qr/^; hypothesis viability: unbanked 4K live=0 dead=1 weak=0 invalid-targets=0 invalid-bus=0 halt-paths=1$/m,
+   'A5 JSR requires both executable-RAM callee and return continuation to survive');
+my $a5_jsr_good_out = slurp(File::Spec->catfile($out, 'a5_jsr_ram_good_return.s26'));
+require_re($a5_jsr_good_out,
+   qr/^; hypothesis viability: unbanked 4K live=1 dead=0 weak=1 invalid-targets=0 invalid-bus=0 halt-paths=0$/m,
+   'A5 retains executable-RAM JSR as weak only when the return continuation is viable');
+my $a5_fa_bad_out = slurp(File::Spec->catfile($out, 'a5_fa_bad_read.s26'));
+require_re($a5_fa_bad_out,
+   qr/^; hypothesis viability: FA live=0 dead=1 weak=0 invalid-targets=0 invalid-bus=1 halt-paths=0$/m,
+   'A5 rejects read from FA write-only RAM alias');
+my $a5_fa_good_out = slurp(File::Spec->catfile($out, 'a5_fa_good_ports.s26'));
+require_re($a5_fa_good_out,
+   qr/^; hypothesis viability: FA live=1 dead=0 weak=0 invalid-targets=0 invalid-bus=0 halt-paths=0$/m,
+   'A5 accepts FA read/write accesses through their correct split aliases');
 
 my $a4_generated_out = slurp(File::Spec->catfile($out, 'a4_generated_f8.s26'));
 require_re($a4_generated_out,
@@ -2472,6 +2589,9 @@ die "WD write to read-only mapper hotspot was incorrectly promoted\n"
       $wd_spec_wrong_out =~ /speculative instruction island.*\nB0_F203:/i;
 require_re($wd_out, qr/^; mapper: WD \(high confidence;/m,
    'corrected 8192-byte WD mapper inference');
+require_re($wd_out,
+   qr/^; hypothesis viability: WD live=1 dead=0 weak=0 invalid-targets=0 invalid-bus=0 halt-paths=[1-9]\d*$/m,
+   'A5 preserves both old/new WD delayed-latch continuations so one live arm keeps RESET viable');
 require_re($wd_out, qr/WD selector -> arrangement 1 \(hardware-delayed\)/,
    'WD TIA selector annotation');
 die "corrected WD mislabeled as WDSW preservation form\n"

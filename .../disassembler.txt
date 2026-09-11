@@ -92,8 +92,9 @@ Highest-priority analysis subitem: explore every structurally possible mapper
 hypothesis instead of "guess -> trust -> maybe simulate". Mapper identity and
 reachable code/data emerge together from isolated hardware models. Keep each
 step regression-locked before replacing the next heuristic. A1 duplicate-image
-provenance, A2 preselection enumeration, and A3 hypothesis-local state-space
-execution and A4 first-class provenance are complete; A5 is next.
+provenance, A2 preselection enumeration, A3 hypothesis-local state-space
+execution, A4 first-class provenance, and A5 unified viability are complete; A6
+is next.
 
 A3 execution invariant (completed)
     Every A2 hypothesis is executed independently before mapper selection.  The
@@ -123,18 +124,21 @@ A4 provenance invariant (completed)
     Congo Bongo proves both generated `$00F0` variants with physical source bytes.
     The bounded concrete/H2 runner remains presentation-only, not the A4 engine.
 
-A5. [ ] Unified path viability and hardware-bus rejection
-    * Reuse the detached-island rules as execution semantics: JAM/KIL/HLT kills
-      that path; branch/JMP/JSR to neither cartridge nor executable RAM kills the
-      affected edge/path; impossible/no-source reads and no-sink writes/RMW kill
-      the affected path after direction-sensitive mapper/peripheral exceptions.
-    * A conditional survives when at least one feasible successor survives.  If
-      known state makes one arm impossible, do not explore it.  If every feasible
-      arm dies, rejection propagates backward.  JSR requires a viable callee and
-      a viable return continuation.
-    * Canonical TIA/RIOT accesses are stronger code evidence than legal mirrors.
-      Mapper-defined nonstandard addresses are judged by that mapper first and may
-      override the generic TIA/RIOT interpretation in the appropriate direction.
+A5 viability invariant (completed)
+    Each A2 hypothesis now gets an isolated RESET-path viability result using the
+    same mapper-aware speculative CFG semantics as detached validation. Hypothesis
+    execution uses a greatest fixed point, so coherent closed game loops survive;
+    detached island promotion keeps its stricter evidence-rooted fixed point.
+    JAM/KIL/HLT, impossible execution targets, reads with no physical source, and
+    writes/RMW with no sink kill only the affected feasible path. Conditional
+    branches are OR nodes after known-state pruning; JSR is conjunctive and needs
+    both callee and return continuation. Unresolved executable-RAM continuations
+    remain weak rather than dead. Mapper/peripheral decoding is applied before
+    generic TIA/RIOT legality; canonical accesses remain stronger evidence than
+    legal mirrors. Split cartridge RAM obeys read/write direction, while WD's
+    hardware-delayed selector preserves both old/new arrangement continuations.
+    Per-hypothesis live/dead/weak startup counts and invalid-target/bus/halt evidence
+    are emitted now; A7, not A5, decides how those results select the final mapper.
 
 A6. [ ] Bank-access completeness as a mapper requirement
     * Exhaustive execution must account for every unique, non-fill bank under a

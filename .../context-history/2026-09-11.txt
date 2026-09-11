@@ -224,3 +224,49 @@ validation remains green: main exact-roundtrip regression, deterministic fuzz
 source-tree hygiene. The real Congo Bongo corpus ROM was also checked directly:
 automatic F8 reports four decoded hotspot accesses and both generated RIOT-RAM
 selector/control-transfer variants with physical ROM-byte source offsets.
+
+2026-09-11 12:41:19 PDT, A5 unified path viability
+Completed disassembler roadmap A5. Every A2/A3 mapper hypothesis now gets an
+isolated RESET-path viability result using the mapper-aware speculative CFG rules
+rather than treating raw instruction count as survivability. Hypothesis execution
+uses a greatest fixed point so coherent closed game loops remain viable; detached
+island promotion keeps the stricter evidence-rooted least fixed point.
+
+JAM/KIL/HLT, transfers into non-cartridge/non-executable-RAM space, reads with no
+physical source, and writes/RMW with no physical sink kill the affected feasible
+path. Known branch state prunes impossible arms; unknown conditionals retain every
+feasible arm and survive when any arm remains live. JSR is conjunctive: both the
+callee and return continuation must survive. An unresolved executable-RAM leg is
+weak, not dead, and cannot excuse a dead return continuation.
+
+Added a symmetric hardware read-source decoder alongside the existing write-sink
+logic. RIOT RAM and valid TIA/RIOT read aliases are sources; split cartridge RAM
+obeys read/write direction for Superchip, FA/FA2/CV/WD, DPC, E7, and 3E; GameLine
+retains its Stella-compatible direction-bit behavior. Mapper/peripheral accesses
+are judged before generic TIA/RIOT legality. The structural negative-evidence
+prefilter also recognizes directly provable no-source reads while remaining
+conservative when mapper-selected cartridge RAM state is unresolved.
+
+WD viability now mirrors the established tracer's hardware-delay model: after a
+$30-$3F selector read, both old and new arrangement continuations are retained, so
+one live timing arm keeps the path viable. Generated output reports per-hypothesis
+live/dead/weak startup counts plus invalid-target, invalid-bus, and halt-path
+evidence. A5 records these results but deliberately does not change the legacy
+mapper winner; A7 owns final hypothesis comparison.
+
+Regression coverage includes one-JAM-arm vs all-JAM branches, known-state pruning,
+JMP into hardware space, no-source TIA read, no-sink ROM store, coherent closed
+loops, conjunctive JSR-to-RAM behavior, FA split-RAM direction, and WD delayed
+selector viability. Main disassembler exact-roundtrip, deterministic fuzz 30/30,
+GL, hardening, all-opcode round-trip, and source-tree hygiene pass. A6 bank-access
+completeness is next.
+
+2026-09-11 12:42:47 PDT, A5 validation checkpoint
+Post-A5 focused validation is green: vcsc_disassembler.pl, deterministic fuzz
+30/30, GL, hardening, all-opcode exact round-trip, context-history format, and
+source-tree hygiene pass. Full compile-only suite passes 537/537. The real Congo
+Bongo ROM remains automatically F8 with two live A5 startups, four generated
+RIOT-RAM instructions, all 12 generated-code ROM source bytes, and four decoded
+F8 hotspot accesses. A broad parallel E2E run reached 229/365 with zero failures
+before the execution environment's command-time ceiling in the slow mapper tail;
+no 365/365 claim is made from that partial run.

@@ -156,7 +156,7 @@ state key includes physical instruction byte, runtime PC, and mapper configurati
 joins monotonically lose knowledge and are requeued until convergence, so the
 hypothesis walk has no instruction-count convergence cap. The older N-in-1 slice
 evaluator still supplies compatibility ranking and `.gameNN.s26` presentation
-until A5/A7 replace legacy rejection/selection, but it cannot create a topology
+until A7 replaces legacy final selection, but it cannot create a topology
 that A2 did not enumerate and it is not the A3 execution engine.
 
 A4 extends that same hypothesis-local abstract state with physical ROM-byte
@@ -179,6 +179,19 @@ ordinary mapper evidence rather than a game-specific signature. ROM provenance
 that reaches GRP0/GRP1 is also recorded as graphics/data evidence; future sinks
 can reuse the same mechanism. Exact reconstruction remains based on the original
 physical bytes, never on provenance annotations.
+
+A5 evaluates every A2/A3 startup with mapper-aware path viability before final
+mapper selection. JAM/KIL/HLT and impossible execution/bus edges kill only the
+affected feasible path; a conditional remains viable when another feasible arm
+survives, while JSR requires both callee and return continuation. Closed coherent
+loops are viable. Reads require a physical source and writes/RMW require a real
+sink after direction-sensitive mapper/peripheral handling; split cartridge-RAM
+ports therefore obey their hardware direction. Mapper-defined accesses are judged
+before generic TIA/RIOT decoding, and WD preserves both old/new continuations
+across its hardware-delayed selector. Generated headers report live/dead/weak
+startup counts plus invalid-target, invalid-bus, and halt-path evidence. A7 will
+consume those results for final mapper comparison; A5 does not itself change the
+legacy winner.
 
 2IN1 remains the most ambiguous shape because an 8K file containing two plausible
 4K programs is also a perfectly possible ordinary F8 image. Automatic structure
