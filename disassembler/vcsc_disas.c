@@ -64,7 +64,8 @@ typedef enum {
    MAP_FE = VCSC_VIDEO_MAP_FE,
    MAP_AR = VCSC_VIDEO_MAP_AR,
    MAP_FA2 = VCSC_VIDEO_MAP_FA2,
-   MAP_F0 = VCSC_VIDEO_MAP_F0
+   MAP_F0 = VCSC_VIDEO_MAP_F0,
+   MAP_GL = VCSC_VIDEO_MAP_GL
 } mapper_t;
 
 #define MAPPER_HYPOTHESIS_MAX 16u
@@ -154,6 +155,8 @@ typedef enum {
 #define ZERO_PAGE_KNOWN_BYTES (ZERO_PAGE_SIZE / 8u)
 #define FC_CONFIG_UNKNOWN 0xffffu
 
+typedef vcsc_mapper_config_t mapper_config_t;
+
 static unsigned opcode_memory_access(uint8_t opcode);
 
 typedef struct {
@@ -181,7 +184,7 @@ typedef struct {
 
 typedef struct {
    uint16_t pc;
-   uint16_t mapper_config;
+   mapper_config_t mapper_config;
    size_t next;
    uint8_t queued;
    abstract_state_t state;
@@ -229,7 +232,7 @@ typedef struct {
    size_t bank;
    size_t offset;
    uint16_t pc;
-   uint16_t mapper_config;
+   mapper_config_t mapper_config;
    size_t context_state;
 } work_item_t;
 
@@ -300,6 +303,10 @@ typedef struct {
    size_t reachable_halts;
    size_t proven_brk_returns;
    mapper_refinement_t mapper_refinement;
+   unsigned container_candidate_games;
+   size_t container_candidate_slice_size;
+   unsigned container_candidate_viable_slices;
+   int container_ambiguous;
    size_t speculative_rejected_starts;
    size_t speculative_barriers;
    size_t speculative_islands;
@@ -418,6 +425,7 @@ typedef struct {
    const char *input;
    const char *output;
    int output_explicit;
+   unsigned container_override_games;
    int mapper_override_set;
    mapper_t mapper_override;
    int superchip_override;
@@ -438,6 +446,16 @@ typedef struct {
    size_t pointer_count;
    int verbose;
 } options_t;
+
+static int parse_container_name(const char *s, unsigned *games)
+{
+   if (strcmp(s, "2in1") == 0 || strcmp(s, "2IN1") == 0) *games = 2u;
+   else if (strcmp(s, "4in1") == 0 || strcmp(s, "4IN1") == 0) *games = 4u;
+   else if (strcmp(s, "8in1") == 0 || strcmp(s, "8IN1") == 0) *games = 8u;
+   else if (strcmp(s, "32in1") == 0 || strcmp(s, "32IN1") == 0) *games = 32u;
+   else return 0;
+   return 1;
+}
 
 /* ----------------------------- SHA-256 ---------------------------------- */
 
@@ -592,6 +610,7 @@ static int parse_mapper_name(const char *s, mapper_t *mapper, int *superchip)
    else if (strcmp(s, "wdsw") == 0) *mapper = MAP_WDSW;
    else if (strcmp(s, "fc") == 0) *mapper = MAP_FC;
    else if (strcmp(s, "f0") == 0) *mapper = MAP_F0;
+   else if (strcmp(s, "gl") == 0) *mapper = MAP_GL;
    else if (strcmp(s, "e0") == 0) *mapper = MAP_E0;
    else if (strcmp(s, "e7") == 0) *mapper = MAP_E7;
    else if (strcmp(s, "3f") == 0) *mapper = MAP_3F;
@@ -642,7 +661,8 @@ static void usage(const char *argv0)
       "options:\n"
       "   -i, --input <file>       compatibility alias for positional input\n"
       "   -o, --output <file>      write generated VCSC assembly (.s26)\n"
-      "       --mapper <name>      force 1k|2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|wdsw|fc|f0|e0|e7|3e|3f|cv|jane|0840|ua|uasw|0fa0|fe|ar\n"
+      "       --container <name>   force 2IN1|4IN1|8IN1|32IN1 outer container topology\n"
+      "       --mapper <name>      force 1k|2k|4k|4ksc|f8|f8sc|f6|f6sc|f4|f4sc|fa|dpc|wd|wdsw|fc|f0|e0|e7|3e|3f|gl|cv|jane|0840|ua|uasw|0fa0|fe|ar\n"
       "       --reset-bank <n>     force power-on/reset physical bank\n"
       "       --origin <b:addr>    force logical origin for a bank (repeatable)\n"
       "       --entry <b:addr>     add executable entry point (repeatable)\n"
@@ -677,7 +697,7 @@ static void usage(const char *argv0)
 static int parse_args(int argc, char **argv, options_t *opt)
 {
    enum {
-      OPT_MAPPER = 256, OPT_RESET_BANK, OPT_ORIGIN, OPT_ENTRY,
+      OPT_CONTAINER = 256, OPT_MAPPER, OPT_RESET_BANK, OPT_ORIGIN, OPT_ENTRY,
       OPT_CODE, OPT_DATA, OPT_TABLE, OPT_POINTER, OPT_VIDEO, OPT_CONTROLLER0, OPT_CONTROLLER1,
       OPT_VERBOSE
    };
@@ -687,6 +707,7 @@ static int parse_args(int argc, char **argv, options_t *opt)
    static struct option long_options[] = {
       { "input", required_argument, NULL, 'i' },
       { "output", required_argument, NULL, 'o' },
+      { "container", required_argument, NULL, OPT_CONTAINER },
       { "mapper", required_argument, NULL, OPT_MAPPER },
       { "reset-bank", required_argument, NULL, OPT_RESET_BANK },
       { "origin", required_argument, NULL, OPT_ORIGIN },
@@ -727,6 +748,17 @@ static int parse_args(int argc, char **argv, options_t *opt)
          }
          opt->output = optarg;
          opt->output_explicit = 1;
+         break;
+      case OPT_CONTAINER:
+         if (opt->container_override_games != 0u) {
+            fprintf(stderr, "%s: --container specified more than once\n", argv[0]);
+            return 0;
+         }
+         if (!parse_container_name(optarg, &opt->container_override_games)) {
+            fprintf(stderr, "%s: unsupported container override '%s'\n",
+                    argv[0], optarg);
+            return 0;
+         }
          break;
       case OPT_MAPPER:
          if (opt->mapper_override_set) {
@@ -844,6 +876,16 @@ static int parse_args(int argc, char **argv, options_t *opt)
    if (!opt->input) {
       fprintf(stderr, "%s: input file is required\n", argv[0]);
       fprintf(stderr, "Try '%s --help' for a list of supported options.\n",
+              argv[0]);
+      return 0;
+   }
+   if (opt->container_override_games != 0u &&
+       (opt->mapper_override_set || opt->reset_bank_override >= 0 ||
+        opt->origin_count != 0u || opt->entry_count != 0u ||
+        opt->code_count != 0u || opt->data_count != 0u ||
+        opt->table_count != 0u || opt->pointer_count != 0u)) {
+      fprintf(stderr,
+              "%s: --container cannot be combined with --mapper, --reset-bank, or bank/address layout hints\n",
               argv[0]);
       return 0;
    }
@@ -1016,6 +1058,8 @@ static int mapper_dimensions(mapper_t mapper, size_t rom_size,
       return rom_size >= 4096u && rom_size <= 1048576u &&
              (rom_size % 4096u) == 0u && *bank_count <= 256u;
    case MAP_F0: *bank_size = 4096u; *bank_count = 16u; return rom_size == 65536u;
+   case MAP_GL: *bank_size = 1024u; *bank_count = 4u;
+      return rom_size == 4096u || rom_size == 6144u;
    case MAP_E0: *bank_size = 1024u; *bank_count = 8u; return rom_size == 8192u;
    case MAP_E7: *bank_size = 2048u; *bank_count = rom_size / 2048u;
       return rom_size == 8192u || rom_size == 12288u || rom_size == 16384u;
@@ -1261,6 +1305,14 @@ static int is_probably_f0(const uint8_t *rom, size_t size)
    return memcmp(rom + size - 8u, "F0\0\0", 4u) == 0;
 }
 
+static int is_probably_gl(const uint8_t *rom, size_t size)
+{
+   static const uint8_t signature[3] = { 0xADu, 0xB8u, 0x0Cu }; /* LDA $0CB8 */
+   if (size != 4096u && size != 6144u) return 0;
+   return count_signature(rom, size < 4096u ? size : 4096u,
+                          signature, sizeof(signature)) != 0u;
+}
+
 static int is_probably_fe(const uint8_t *rom, size_t size)
 {
    static const uint8_t signatures[][5] = {
@@ -1307,7 +1359,9 @@ static mapper_t infer_mapper(const uint8_t *rom, size_t size,
    case 2048u: mapper = is_probably_cv(rom, size) ? MAP_CV : MAP_2K; break;
    case 4096u: mapper = is_probably_cv(rom, size) ? MAP_CV :
                          (is_doubled_2k_dump(rom, size) ? MAP_2K :
-                         (is_probably_fc(rom, size) ? MAP_FC : MAP_4K)); break;
+                         (is_probably_fc(rom, size) ? MAP_FC :
+                         (is_probably_gl(rom, size) ? MAP_GL : MAP_4K))); break;
+   case 6144u: mapper = is_probably_gl(rom, size) ? MAP_GL : MAP_RAW; break;
    case 8192u:
       if (is_doubled_4k_dump(rom, size)) { mapper = MAP_4K; break; }
       mapper = is_probably_e0(rom, size) ? MAP_E0 : MAP_RAW;
@@ -1370,6 +1424,7 @@ static const char *mapper_name(mapper_t mapper)
    case MAP_WDSW: return "WDSW";
    case MAP_FC: return "FC";
    case MAP_F0: return "F0";
+   case MAP_GL: return "GL";
    case MAP_E0: return "E0";
    case MAP_E7: return "E7";
    case MAP_3F: return "3F";
@@ -1713,6 +1768,138 @@ static uint16_t e0_seed_config(size_t bank, uint16_t pc)
    segment = (unsigned)((bus - 0x1000u) >> 10);
    if (segment < 3u) return e0_config_select(config, segment, (unsigned)bank);
    return config;
+}
+
+#define GL_RESET_CONFIG ((mapper_config_t)0u)
+#define GL_SLOT_BITS 5u
+#define GL_SLOT_SELECT_MASK 0x0fu
+#define GL_SLOT_WRITE_FLAG 0x10u
+#define GL_PROM_FLAG ((mapper_config_t)1u << 20)
+
+static unsigned gl_config_bank(mapper_config_t config, unsigned segment)
+{
+   if (segment >= 4u) return 0u;
+   return (unsigned)((config >> (segment * GL_SLOT_BITS)) & GL_SLOT_SELECT_MASK);
+}
+
+static mapper_config_t gl_config_select(mapper_config_t config, unsigned segment,
+                                        unsigned selection, int write_mode)
+{
+   unsigned shift;
+   mapper_config_t mask, slot;
+   if (segment >= 4u) return config;
+   shift = segment * GL_SLOT_BITS;
+   mask = (mapper_config_t)0x1fu << shift;
+   slot = (mapper_config_t)(selection & GL_SLOT_SELECT_MASK);
+   /* Bit 5 is meaningful only for RAM banks.  Canonicalize ROM selections so
+    * selector addresses that differ only in that don't create fake contexts. */
+   if (selection >= 4u && write_mode) slot |= GL_SLOT_WRITE_FLAG;
+   return (config & ~mask) | (slot << shift);
+}
+
+static int gl_config_prom_enabled(mapper_config_t config)
+{
+   return (config & GL_PROM_FLAG) != 0u;
+}
+
+static mapper_config_t gl_config_set_prom(mapper_config_t config, int enabled)
+{
+   return enabled ? (config | GL_PROM_FLAG) : (config & ~GL_PROM_FLAG);
+}
+
+/* GameLine presents four independently selected 1K cartridge windows.
+ * Selections 0..3 are the four physical ROM banks; 4..15 are cartridge RAM
+ * banks and therefore have no physical ROM byte to classify.  PROM enable
+ * overlays $1FC0-$1FDF, so that region is likewise not physical cartridge ROM
+ * while the control latch is active. */
+static int gl_map_address(const analysis_t *a, mapper_config_t config,
+                          uint16_t address, size_t *bank, size_t *off)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   unsigned segment, selection;
+   if (a->mapper != MAP_GL || bus < 0x1000u) return 0;
+   if (gl_config_prom_enabled(config) && bus >= 0x1fc0u && bus <= 0x1fdfu)
+      return 0;
+   segment = (unsigned)((bus - 0x1000u) >> 10);
+   if (segment >= 4u) return 0;
+   selection = gl_config_bank(config, segment);
+   if (selection >= 4u) return 0;
+   *bank = (size_t)selection;
+   *off = (size_t)(bus & 0x03ffu);
+   return *bank < a->bank_count;
+}
+
+/* GameLine owns reads at these console mirror addresses and snoops the
+ * address to change a later cartridge segment mapping.  The returned byte is
+ * not a ROM byte and is not reliable RIOT/TIA data; keep it abstract.  Bit 5
+ * selects RAM write direction.  Stella does not enforce that direction for
+ * known ROMs, so we retain it in mapper context/provenance without using it to
+ * reject otherwise executable RAM accesses. */
+static int gl_selector_config(uint16_t address, mapper_config_t old_config,
+                              mapper_config_t *new_config, unsigned *segment_out,
+                              unsigned *selection_out, int *write_mode_out)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   unsigned segment, selection;
+   int write_mode;
+   switch (bus & 0x1f80u) {
+   case 0x0480u: segment = 0u; break;
+   case 0x0580u: segment = 1u; break;
+   case 0x0880u: segment = 2u; break;
+   case 0x0980u: segment = 3u; break;
+   default: return 0;
+   }
+   selection = (unsigned)(bus & 0x0fu);
+   write_mode = selection >= 4u && (bus & 0x20u) != 0u;
+   if (new_config)
+      *new_config = gl_config_select(old_config, segment, selection, write_mode);
+   if (segment_out) *segment_out = segment;
+   if (selection_out) *selection_out = selection;
+   if (write_mode_out) *write_mode_out = write_mode;
+   return 1;
+}
+
+/* $0C80-$0CFF is the only low-page control behavior that changes the visible
+ * cartridge address space: bits 4 and 5 both set enable the 32-byte PROM at
+ * $1FC0-$1FDF; every other address in that page disables it.  Other modem
+ * pages remain intercepted/unknown and deliberately have no invented state. */
+static int gl_control_config(uint16_t address, mapper_config_t old_config,
+                             mapper_config_t *new_config, int *prom_enabled_out)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   int enabled;
+   if ((bus & 0x1f80u) != 0x0c80u) return 0;
+   enabled = (bus & 0x30u) == 0x30u;
+   if (new_config) *new_config = gl_config_set_prom(old_config, enabled);
+   if (prom_enabled_out) *prom_enabled_out = enabled;
+   return 1;
+}
+
+static int gl_intercepted_read(uint16_t address)
+{
+   uint16_t page = (uint16_t)(address & 0x1f80u);
+   return page == 0x0480u || page == 0x0580u || page == 0x0680u ||
+          page == 0x0880u || page == 0x0980u ||
+          page == 0x0c80u || page == 0x0d80u;
+}
+
+static mapper_config_t gl_seed_config(size_t bank, uint16_t pc)
+{
+   uint16_t bus = (uint16_t)(pc & 0x1fffu);
+   mapper_config_t config = GL_RESET_CONFIG;
+   unsigned segment;
+   if (bus < 0x1000u || bank >= 4u) return config;
+   segment = (unsigned)((bus - 0x1000u) >> 10);
+   return gl_config_select(config, segment, (unsigned)bank, 0);
+}
+
+static int gl_ram_port(mapper_config_t config, uint16_t address)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   unsigned segment;
+   if (bus < 0x1000u) return 0;
+   segment = (unsigned)((bus - 0x1000u) >> 10);
+   return segment < 4u && gl_config_bank(config, segment) >= 4u;
 }
 
 #define E7_LOWER_MASK 0x000fu
@@ -2108,6 +2295,17 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
          b->origin_score = 100;
          b->reset_vector_evidence = i == 15u;
       }
+      else if (a->mapper == MAP_GL) {
+         /* GameLine maps four independently selected 1K windows.  At reset
+          * ROM bank 0 is mirrored into all four; its final copy therefore
+          * supplies the vectors at $FC00-$FFFF.  The other banks get stable
+          * canonical presentation windows only; runtime CFG state retains the
+          * actual segment address independently. */
+         static const uint16_t gl_origin[4] = { 0xfc00u, 0xf000u, 0xf400u, 0xf800u };
+         b->origin = gl_origin[i & 3u];
+         b->origin_score = 100;
+         b->reset_vector_evidence = i == 0u;
+      }
       else if (a->mapper == MAP_E0) {
          /* Physical bank 7 is permanently mapped into the top 1K and owns
           * all hardware vectors. Other 1K banks may appear in any of the
@@ -2150,6 +2348,7 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
       b->vector_tail_enabled = !mapper_is_wd_family(a->mapper) && a->mapper != MAP_E0 &&
                                (a->mapper != MAP_FC || i == 0u) &&
                                (a->mapper != MAP_F0 || i == 15u) &&
+                               (a->mapper != MAP_GL || i == 0u) &&
                                (a->mapper != MAP_E7 || i + 1u == a->bank_count) &&
                                (a->mapper != MAP_FE || i == 0u) &&
                                (!mapper_is_three_family(a->mapper) ||
@@ -2170,6 +2369,15 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
       a->reset_bank = 15u;
       a->banks[15].vector_tail_enabled = 1u;
       a->banks[15].reset_vector_evidence = 1;
+      return 1;
+   }
+
+   if (a->mapper == MAP_GL) {
+      /* Power-up maps GL ROM bank 0 in all four 1K windows, so the vector
+       * bytes at physical bank 0 offsets $3FA-$3FF appear at $FFFA-$FFFF. */
+      a->reset_bank = 0u;
+      a->banks[0].vector_tail_enabled = 1u;
+      a->banks[0].reset_vector_evidence = 1;
       return 1;
    }
 
@@ -2479,7 +2687,7 @@ static int state_merge(abstract_state_t *dst, const abstract_state_t *src)
 
 static int push_work_state_ctx(analysis_t *a, size_t bank, size_t offset,
                                const abstract_state_t *state,
-                               uint16_t pc, uint16_t mapper_config)
+                               uint16_t pc, mapper_config_t mapper_config)
 {
    bank_t *b;
    context_state_t *cs;
@@ -2570,10 +2778,11 @@ static int push_work_state(analysis_t *a, size_t bank, size_t offset,
                            const abstract_state_t *state)
 {
    uint16_t pc = (uint16_t)(a->banks[bank].origin + (uint16_t)offset);
-   uint16_t config = a->mapper == MAP_E0 ? e0_seed_config(bank, pc) :
+   mapper_config_t config = a->mapper == MAP_E0 ? e0_seed_config(bank, pc) :
+                     (a->mapper == MAP_GL ? gl_seed_config(bank, pc) :
                      (a->mapper == MAP_E7 ? e7_seed_config(bank, pc, a->bank_count) :
                      (mapper_is_three_family(a->mapper) && (pc & 0x1fffu) < 0x1800u ?
-                        (uint16_t)bank : 0u));
+                        (uint16_t)bank : 0u)));
    return push_work_state_ctx(a, bank, offset, state, pc, config);
 }
 
@@ -2611,6 +2820,18 @@ static int push_e0_address_state(analysis_t *a, uint16_t config,
 {
    size_t bank, off;
    if (!e0_map_address(a, config, address, &bank, &off)) return 1;
+   return push_work_state_ctx(a, bank, off, state, address, config);
+}
+
+static int push_gl_address_state(analysis_t *a, mapper_config_t config,
+                                 uint16_t address,
+                                 const abstract_state_t *state)
+{
+   size_t bank, off;
+   /* A RAM-selected GL window is valid execution hardware but has no ROM byte
+    * for the static disassembly graph.  Concrete discovery may traverse seeded
+    * 6K RAM and later return to ROM; the static path simply stops here. */
+   if (!gl_map_address(a, config, address, &bank, &off)) return 1;
    return push_work_state_ctx(a, bank, off, state, address, config);
 }
 
@@ -2652,6 +2873,22 @@ static int threef_relative_branch_needs_raw(const analysis_t *a, size_t source_b
    presentation_target = (uint16_t)(presentation_pc + 2u + displacement);
    target_presentation =
       (uint16_t)(a->banks[target_bank].origin + (uint16_t)target_off);
+   return presentation_target != target_presentation;
+}
+
+static int gl_relative_branch_needs_raw(const analysis_t *a, size_t source_bank,
+                                         size_t source_off, mapper_config_t config,
+                                         uint16_t runtime_pc, int8_t displacement)
+{
+   size_t target_bank, target_off;
+   uint16_t runtime_target, presentation_pc, presentation_target, target_presentation;
+   if (a->mapper != MAP_GL || source_bank >= a->bank_count) return 0;
+   runtime_target = (uint16_t)(runtime_pc + 2u + displacement);
+   if (!gl_map_address(a, config, runtime_target, &target_bank, &target_off))
+      return 0;
+   presentation_pc = (uint16_t)(a->banks[source_bank].origin + (uint16_t)source_off);
+   presentation_target = (uint16_t)(presentation_pc + 2u + displacement);
+   target_presentation = (uint16_t)(a->banks[target_bank].origin + (uint16_t)target_off);
    return presentation_target != target_presentation;
 }
 
@@ -3139,10 +3376,12 @@ static int state_read_byte(const analysis_t *a, size_t bank,
 {
    uint8_t ram_address;
    size_t off;
+   if (a->mapper == MAP_GL && gl_intercepted_read(address))
+      return 0;
    if (state_riot_ram_alias(address, &ram_address))
       return state_zp_get(state, ram_address, value);
    if (mapper_is_wd_family(a->mapper) || a->mapper == MAP_FC ||
-       a->mapper == MAP_E0 || a->mapper == MAP_E7 ||
+       a->mapper == MAP_E0 || a->mapper == MAP_GL || a->mapper == MAP_E7 ||
        mapper_is_three_family(a->mapper)) return 0;
    if (bank >= a->bank_count || !cart_target_offset(&a->banks[bank], address, &off))
       return 0;
@@ -3817,7 +4056,7 @@ static int state_rti_return(const abstract_state_t *input,
  * the package has no IRQ pin, so $FFFE/$FFFF becomes executable evidence only
  * after BRK itself is reachable. */
 static int mapped_rom_byte(const analysis_t *a, size_t active_bank,
-                           uint16_t mapper_config, uint16_t address,
+                           mapper_config_t mapper_config, uint16_t address,
                            uint8_t *value, size_t *bank_out, size_t *off_out)
 {
    size_t bank, off;
@@ -3829,6 +4068,8 @@ static int mapped_rom_byte(const analysis_t *a, size_t active_bank,
       mapped = fc_map_address(a, active_bank, address, &bank, &off);
    else if (a->mapper == MAP_E0)
       mapped = e0_map_address(a, mapper_config, address, &bank, &off);
+   else if (a->mapper == MAP_GL)
+      mapped = gl_map_address(a, mapper_config, address, &bank, &off);
    else if (a->mapper == MAP_E7)
       mapped = e7_map_address(a, mapper_config, address, &bank, &off);
    else if (mapper_is_three_family(a->mapper))
@@ -3847,7 +4088,7 @@ static int mapped_rom_byte(const analysis_t *a, size_t active_bank,
 }
 
 static int resolve_brk_vector(const analysis_t *a, size_t active_bank,
-                              uint16_t mapper_config, uint16_t *target,
+                              mapper_config_t mapper_config, uint16_t *target,
                               size_t *target_bank, size_t *target_off)
 {
    uint8_t lo, hi;
@@ -3957,7 +4198,7 @@ typedef struct {
    size_t bank;
    size_t off;
    uint16_t pc;
-   uint16_t mapper_config;
+   mapper_config_t mapper_config;
    size_t next;
    uint8_t queued;
    abstract_state_t state;
@@ -4000,7 +4241,7 @@ static int spec_fp_init(const analysis_t *a, spec_fp_t *fp)
  * terminate by convergence rather than by a traversal counter. */
 static int spec_fp_enqueue(const analysis_t *a, spec_fp_t *fp,
                            size_t bank, size_t off, uint16_t pc,
-                           uint16_t mapper_config,
+                           mapper_config_t mapper_config,
                            const abstract_state_t *state,
                            spec_context_t *ctx)
 {
@@ -4063,7 +4304,7 @@ static int spec_fp_enqueue(const analysis_t *a, spec_fp_t *fp,
 
 static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank,
                                           size_t start_off, uint16_t start_pc,
-                                          uint16_t start_config,
+                                          mapper_config_t start_config,
                                           const abstract_state_t *input_state,
                                           spec_context_t *ctx)
 {
@@ -4085,7 +4326,8 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
       spec_fp_state_t item = fp.states[si];
       const bank_t *b;
       size_t bi, off, node;
-      uint16_t runtime_pc, mapper_config, canonical_pc;
+      uint16_t runtime_pc, canonical_pc;
+      mapper_config_t mapper_config;
       uint8_t opcode;
       address_mode_t mode;
       unsigned len;
@@ -4098,6 +4340,8 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
       uint16_t fc_successor_config;
       int e0_switched = 0;
       uint16_t e0_successor_config;
+      int gl_switched = 0;
+      mapper_config_t gl_successor_config;
       int e7_switched = 0, e7_specific = 0;
       uint16_t e7_successor_config;
       int threef_switched = 0, threef_value_known = 0;
@@ -4166,7 +4410,8 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
       if (len >= 2u) operand = a->rom[node + 1u];
       if (len >= 3u) operand |= (uint16_t)a->rom[node + 2u] << 8;
       canonical_pc = (a->mapper == MAP_FC || a->mapper == MAP_E0 ||
-                      a->mapper == MAP_E7 || mapper_is_three_family(a->mapper))
+                      a->mapper == MAP_GL || a->mapper == MAP_E7 ||
+                      mapper_is_three_family(a->mapper))
                         ? runtime_pc
                         : (uint16_t)(b->origin + (uint16_t)off);
       transfer_state(a, bi, &item.state, &output_state, opcode, mode, operand);
@@ -4174,6 +4419,7 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
       successor_bank = bi;
       fc_successor_config = mapper_config;
       e0_successor_config = mapper_config;
+      gl_successor_config = mapper_config;
       e7_successor_config = mapper_config;
       threef_successor_config = mapper_config;
 
@@ -4190,6 +4436,22 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
              e0_selector_config(effective, mapper_config, &e0_successor_config)) {
             e0_switched = 1;
             if (ctx->counted) ++ctx->mapper_switches;
+         }
+      }
+      else if (flow == FLOW_NEXT && a->mapper == MAP_GL &&
+               (opcode_memory_access(opcode) & ACCESS_READ)) {
+         uint16_t effective;
+         if (resolve_effective_address(&item.state, mode, operand, &effective)) {
+            if (gl_selector_config(effective, mapper_config, &gl_successor_config,
+                                   NULL, NULL, NULL)) {
+               gl_switched = gl_successor_config != mapper_config;
+               if (ctx->counted) ++ctx->mapper_switches;
+            }
+            else if (gl_control_config(effective, mapper_config,
+                                       &gl_successor_config, NULL)) {
+               gl_switched = gl_successor_config != mapper_config;
+               if (ctx->counted && gl_switched) ++ctx->mapper_switches;
+            }
          }
       }
       else if (flow == FLOW_NEXT && a->mapper == MAP_E7 &&
@@ -4264,6 +4526,25 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                                     next_config, &output_state, ctx))
                   goto inconclusive;
             }
+         }
+         else if (a->mapper == MAP_GL) {
+            uint16_t next_pc = (uint16_t)(canonical_pc + len);
+            mapper_config_t next_config = gl_switched ? gl_successor_config : mapper_config;
+            size_t next_bank, next_off;
+            if (gl_map_address(a, next_config, next_pc, &next_bank, &next_off)) {
+               size_t old_bank, old_off;
+               if (gl_switched &&
+                   gl_map_address(a, mapper_config, next_pc, &old_bank, &old_off) &&
+                   old_bank != next_bank &&
+                   opcode_is_cpu_halt(a->rom[a->banks[old_bank].file_offset + old_off]) &&
+                   !opcode_is_cpu_halt(a->rom[a->banks[next_bank].file_offset + next_off]))
+                  ++ctx->switch_avoided_halts;
+               if (!spec_fp_enqueue(a, &fp, next_bank, next_off, next_pc,
+                                    next_config, &output_state, ctx))
+                  goto inconclusive;
+            }
+            /* RAM-selected GameLine windows are valid but mutable; the local
+             * speculative validator has no sound byte image for them. */
          }
          else if (a->mapper == MAP_E7) {
             uint16_t next_pc = (uint16_t)(canonical_pc + len);
@@ -4360,6 +4641,14 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
             if (!known || taken)
                ENQUEUE_BRANCH_EDGE(e0_map_address(a, mapper_config, target, &eb, &eo), target, 1);
          }
+         else if (a->mapper == MAP_GL) {
+            if (!known || !taken) {
+               uint16_t ep = (uint16_t)(canonical_pc + 2u);
+               ENQUEUE_BRANCH_EDGE(gl_map_address(a, mapper_config, ep, &eb, &eo), ep, 0);
+            }
+            if (!known || taken)
+               ENQUEUE_BRANCH_EDGE(gl_map_address(a, mapper_config, target, &eb, &eo), target, 1);
+         }
          else if (a->mapper == MAP_E7) {
             if (!known || !taken) {
                uint16_t ep = (uint16_t)(canonical_pc + 2u);
@@ -4431,6 +4720,17 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                 !spec_fp_enqueue(a, &fp, cb, co, cont_pc, mapper_config,
                                  &after_call, ctx)) goto inconclusive;
          }
+         else if (a->mapper == MAP_GL) {
+            size_t tb, to, cb, co;
+            if (gl_map_address(a, mapper_config, operand, &tb, &to)) {
+               if (!spec_fp_enqueue(a, &fp, tb, to, operand, mapper_config,
+                                    &output_state, ctx)) goto inconclusive;
+               call_enqueued = 1;
+            }
+            if (gl_map_address(a, mapper_config, cont_pc, &cb, &co) &&
+                !spec_fp_enqueue(a, &fp, cb, co, cont_pc, mapper_config,
+                                 &after_call, ctx)) goto inconclusive;
+         }
          else if (a->mapper == MAP_E7) {
             size_t tb, to, cb, co;
             if (e7_map_address(a, mapper_config, operand, &tb, &to)) {
@@ -4499,6 +4799,8 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                mapped = fc_map_address(a, bi, operand, &tb, &to);
             else if (a->mapper == MAP_E0)
                mapped = e0_map_address(a, mapper_config, operand, &tb, &to);
+            else if (a->mapper == MAP_GL)
+               mapped = gl_map_address(a, mapper_config, operand, &tb, &to);
             else if (a->mapper == MAP_E7)
                mapped = e7_map_address(a, mapper_config, operand, &tb, &to);
             else if (mapper_is_three_family(a->mapper))
@@ -4555,8 +4857,9 @@ static spec_result_t speculative_flow(const analysis_t *a, size_t bi,
                                       spec_context_t *ctx)
 {
    uint16_t pc = (uint16_t)(a->banks[bi].origin + (uint16_t)off);
-   uint16_t config = a->mapper == MAP_FC ? FC_CONFIG_UNKNOWN : 0u;
+   mapper_config_t config = a->mapper == MAP_FC ? FC_CONFIG_UNKNOWN : 0u;
    if (a->mapper == MAP_E0) config = e0_seed_config(bi, pc);
+   else if (a->mapper == MAP_GL) config = gl_seed_config(bi, pc);
    else if (a->mapper == MAP_E7) config = e7_seed_config(bi, pc, a->bank_count);
    else if (mapper_is_three_family(a->mapper) && ((pc & 0x1fffu) < 0x1800u)) config = (uint16_t)bi;
    return speculative_flow_ctx(a, bi, off, pc, config, input_state, ctx);
@@ -4578,7 +4881,7 @@ static spec_result_t speculative_flow(const analysis_t *a, size_t bi,
  * failure keeps the edge; lack of proof must never erase valid code. */
 static int static_branch_successor_allowed(analysis_t *a, size_t bi, size_t off,
                                            uint16_t runtime_pc,
-                                           uint16_t mapper_config,
+                                           mapper_config_t mapper_config,
                                            const abstract_state_t *state)
 {
    spec_context_t ctx;
@@ -4606,7 +4909,7 @@ static int static_branch_successor_allowed(analysis_t *a, size_t bi, size_t off,
 
 static int concrete_branch_edge_observed(const analysis_t *a, size_t bank,
                                          size_t off, uint16_t runtime_pc,
-                                         uint16_t mapper_config, int taken)
+                                         mapper_config_t mapper_config, int taken)
 {
    size_t physical;
    uint8_t bit = taken ? 0x02u : 0x01u;
@@ -4623,7 +4926,7 @@ static int concrete_branch_edge_observed(const analysis_t *a, size_t bank,
 }
 
 static int push_static_branch_candidate(analysis_t *a, size_t bank, size_t off,
-                                        uint16_t pc, uint16_t mapper_config,
+                                        uint16_t pc, mapper_config_t mapper_config,
                                         const abstract_state_t *state,
                                         int validate, int label,
                                         int branch_target)
@@ -4652,7 +4955,7 @@ static int push_static_branch_candidate(analysis_t *a, size_t bank, size_t off,
  * unknown lower-window selection preserves all possible ROM banks; each gets
  * validated independently so one bad bank does not suppress a good one. */
 static int push_static_branch_address_state(analysis_t *a, size_t active_bank,
-                                            uint16_t mapper_config,
+                                            mapper_config_t mapper_config,
                                             uint16_t address,
                                             const abstract_state_t *state,
                                             int validate, int label,
@@ -4676,6 +4979,13 @@ static int push_static_branch_address_state(analysis_t *a, size_t active_bank,
    }
    if (a->mapper == MAP_E0) {
       if (!e0_map_address(a, mapper_config, address, &bank, &off)) return 1;
+      return push_static_branch_candidate(a, bank, off, address, mapper_config,
+                                          state, validate,
+                                          label || bank != active_bank,
+                                          branch_target);
+   }
+   if (a->mapper == MAP_GL) {
+      if (!gl_map_address(a, mapper_config, address, &bank, &off)) return 1;
       return push_static_branch_candidate(a, bank, off, address, mapper_config,
                                           state, validate,
                                           label || bank != active_bank,
@@ -4724,11 +5034,12 @@ static int speculative_linear_jam_end(const analysis_t *a, size_t bi,
    abstract_state_t state;
    size_t off = start;
    uint16_t pc = (uint16_t)(b->origin + (uint16_t)start);
-   uint16_t mapper_config = a->mapper == MAP_FC ? FC_CONFIG_UNKNOWN :
+   mapper_config_t mapper_config = a->mapper == MAP_FC ? FC_CONFIG_UNKNOWN :
                             (a->mapper == MAP_E0 ? e0_seed_config(bi, pc) :
+                            (a->mapper == MAP_GL ? gl_seed_config(bi, pc) :
                             (a->mapper == MAP_E7 ? e7_seed_config(bi, pc, a->bank_count) :
                             (mapper_is_three_family(a->mapper) && ((pc & 0x1fffu) < 0x1800u) ?
-                             (uint16_t)bi : 0u)));
+                             (uint16_t)bi : 0u))));
    memset(&state, 0, sizeof(state));
 
    /* This walk is strictly linear and advances by at least one byte on every
@@ -4789,6 +5100,26 @@ static int speculative_linear_jam_end(const analysis_t *a, size_t bi,
                 resolve_effective_address(&state, mode, operand, &effective))
                (void)e0_selector_config(effective, mapper_config, &next_config);
             if (!e0_map_address(a, next_config, next_pc, &next_bank, &next_off) ||
+                next_bank != bi)
+               return 0;
+            state = next;
+            mapper_config = next_config;
+            pc = next_pc;
+            off = next_off;
+            continue;
+         }
+         else if (a->mapper == MAP_GL) {
+            uint16_t next_pc = (uint16_t)(pc + len);
+            mapper_config_t next_config = mapper_config;
+            uint16_t effective;
+            size_t next_bank, next_off;
+            if ((opcode_memory_access(opcode) & ACCESS_READ) &&
+                resolve_effective_address(&state, mode, operand, &effective)) {
+               if (!gl_selector_config(effective, mapper_config, &next_config,
+                                       NULL, NULL, NULL))
+                  (void)gl_control_config(effective, mapper_config, &next_config, NULL);
+            }
+            if (!gl_map_address(a, next_config, next_pc, &next_bank, &next_off) ||
                 next_bank != bi)
                return 0;
             state = next;
@@ -5414,7 +5745,7 @@ static int seed_missing_concrete_code(analysis_t *a)
  * intentionally conservative: ROLE_POSSIBLE means "a reachable unresolved
  * data access may read this byte", not "this byte was observed at runtime". */
 static void mark_possible_rom_address(analysis_t *a, size_t current_bank,
-                                      uint16_t mapper_config,
+                                      mapper_config_t mapper_config,
                                       uint16_t address)
 {
    uint16_t bus = (uint16_t)(address & 0x1fffu);
@@ -5425,6 +5756,7 @@ static void mark_possible_rom_address(analysis_t *a, size_t current_bank,
    if (superchip_active(a) && bus >= 0x1080u && bus <= 0x10ffu) return;
    if (dpc_register_address(a, address) || fa_ram_address(a, address)) return;
    if (native_split_ram_layout(a, &ram) && split_ram_port_contains(&ram, address)) return;
+   if (a->mapper == MAP_GL && gl_ram_port(mapper_config, address)) return;
    if (a->mapper == MAP_E7 && e7_ram_port(a, mapper_config, address)) return;
    if (a->mapper == MAP_3E && threee_ram_port(mapper_config, address)) return;
 
@@ -5440,6 +5772,11 @@ static void mark_possible_rom_address(analysis_t *a, size_t current_bank,
    }
    if (a->mapper == MAP_E0) {
       if (e0_map_address(a, mapper_config, address, &bank, &off))
+         a->banks[bank].roles[off] |= ROLE_POSSIBLE;
+      return;
+   }
+   if (a->mapper == MAP_GL) {
+      if (gl_map_address(a, mapper_config, address, &bank, &off))
          a->banks[bank].roles[off] |= ROLE_POSSIBLE;
       return;
    }
@@ -5470,7 +5807,7 @@ static void mark_possible_rom_address(analysis_t *a, size_t current_bank,
 }
 
 static void mark_possible_rom_range(analysis_t *a, size_t current_bank,
-                                    uint16_t mapper_config,
+                                    mapper_config_t mapper_config,
                                     uint16_t base, unsigned count)
 {
    unsigned i;
@@ -5480,7 +5817,7 @@ static void mark_possible_rom_range(analysis_t *a, size_t current_bank,
 }
 
 static void mark_possible_any_cart_address(analysis_t *a, size_t current_bank,
-                                           uint16_t mapper_config)
+                                           mapper_config_t mapper_config)
 {
    unsigned bus;
    /* A completely unresolved zero-page pointer can address any 6507-visible
@@ -5523,7 +5860,24 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
     * code, even when NMI is unbonded and no reachable BRK exercises IRQ. */
    recognize_vcsc_vector_bridges(a);
 
-   if (a->mapper == MAP_E0) {
+   if (a->mapper == MAP_GL) {
+      /* GameLine power-on mirrors ROM bank 0 into all four 1K windows.
+       * The RESET vector is therefore bank 0's final two bytes as seen at
+       * $FFFC/$FFFD, and its target resolves through the all-zero selection. */
+      bank_t *vb = &a->banks[0];
+      size_t voff = vb->size - 4u;
+      uint16_t target = read_word(a->rom + vb->file_offset + voff);
+      size_t tbank, toff;
+      if (gl_map_address(a, GL_RESET_CONFIG, target, &tbank, &toff)) {
+         abstract_state_t state;
+         mark_label(&a->banks[tbank], toff);
+         memset(&state, 0, sizeof(state));
+         if (!push_work_state_ctx(a, tbank, toff, &state, target,
+                                  GL_RESET_CONFIG)) return 0;
+         reset_seeded = 1;
+      }
+   }
+   else if (a->mapper == MAP_E0) {
       /* E0 hardware vectors are always in fixed physical 1K bank 7.
        * Power-on maps banks 4,5,6 into the lower three runtime windows. */
       bank_t *vb = &a->banks[7];
@@ -5712,6 +6066,8 @@ drain_work:
       uint16_t fc_successor_config = item.mapper_config;
       int e0_switched = 0;
       uint16_t e0_successor_config = item.mapper_config;
+      int gl_switched = 0;
+      mapper_config_t gl_successor_config = item.mapper_config;
       int e7_switched = 0;
       int e7_specific = 0;
       uint16_t e7_successor_config = item.mapper_config;
@@ -5736,7 +6092,7 @@ drain_work:
       if (off + len > b->size) continue;
       mark_instruction(b, off, opcode, len);
       canonical_pc = (mapper_is_wd_family(a->mapper) || a->mapper == MAP_FC ||
-                      a->mapper == MAP_E0 || a->mapper == MAP_E7 ||
+                      a->mapper == MAP_E0 || a->mapper == MAP_GL || a->mapper == MAP_E7 ||
                       mapper_is_three_family(a->mapper)) ? item.pc
                        : (uint16_t)(b->origin + (uint16_t)off);
       if (!reset_only && !speculative_done &&
@@ -5753,8 +6109,10 @@ drain_work:
       if (opcode == 0x6cu && (operand & 0x00ffu) == 0x00ffu)
          b->force_raw[off] = 1u;
       if (mode == AM_RELATIVE &&
-          threef_relative_branch_needs_raw(a, item.bank, off, item.mapper_config,
-                                           canonical_pc, (int8_t)(operand & 0xffu)))
+          (threef_relative_branch_needs_raw(a, item.bank, off, item.mapper_config,
+                                            canonical_pc, (int8_t)(operand & 0xffu)) ||
+           gl_relative_branch_needs_raw(a, item.bank, off, item.mapper_config,
+                                        canonical_pc, (int8_t)(operand & 0xffu))))
          b->force_raw[off] = 1u;
       transfer_state(a, item.bank, &input_state, &output_state,
                      opcode, mode, operand);
@@ -5896,6 +6254,13 @@ drain_work:
                      mark_label(&a->banks[dbank], doff);
                   }
                }
+               else if (a->mapper == MAP_GL) {
+                  size_t dbank;
+                  if (gl_map_address(a, item.mapper_config, effective, &dbank, &doff)) {
+                     a->banks[dbank].roles[doff] |= ROLE_DATA_READ;
+                     mark_label(&a->banks[dbank], doff);
+                  }
+               }
                else if (a->mapper == MAP_E7) {
                   size_t dbank;
                   if (e7_map_address(a, item.mapper_config, effective, &dbank, &doff)) {
@@ -5932,7 +6297,7 @@ drain_work:
             mark_possible_rom_range(a, item.bank, item.mapper_config,
                                     operand, 256u);
             if (!mapper_is_wd_family(a->mapper) && a->mapper != MAP_FC &&
-                a->mapper != MAP_E0 && a->mapper != MAP_E7 &&
+                a->mapper != MAP_E0 && a->mapper != MAP_GL && a->mapper != MAP_E7 &&
                 !mapper_is_three_family(a->mapper)) {
                size_t baseoff;
                if (cart_target_offset(b, operand, &baseoff)) mark_label(b, baseoff);
@@ -5992,6 +6357,20 @@ drain_work:
                                 &e0_successor_config)) {
             e0_switched = 1;
             ++a->hotspot_refs;
+         }
+      }
+      if (a->mapper == MAP_GL && flow == FLOW_NEXT &&
+          (opcode_memory_access(opcode) & ACCESS_READ)) {
+         uint16_t effective;
+         if (resolve_effective_address(&input_state, mode, operand, &effective)) {
+            if (gl_selector_config(effective, item.mapper_config,
+                                   &gl_successor_config, NULL, NULL, NULL)) {
+               gl_switched = gl_successor_config != item.mapper_config;
+               ++a->hotspot_refs;
+            }
+            else if (gl_control_config(effective, item.mapper_config,
+                                       &gl_successor_config, NULL))
+               gl_switched = gl_successor_config != item.mapper_config;
          }
       }
       if (a->mapper == MAP_E7 && flow == FLOW_NEXT &&
@@ -6075,6 +6454,29 @@ drain_work:
                }
             }
             if (!push_e0_address_state(a, next_config, next_pc, &output_state))
+               return 0;
+         }
+         else if (a->mapper == MAP_GL) {
+            uint16_t next_pc = (uint16_t)(canonical_pc + len);
+            mapper_config_t next_config = gl_switched ? gl_successor_config
+                                                      : item.mapper_config;
+            if (gl_switched) {
+               size_t old_bank, old_off, next_bank, next_off;
+               int old_rom = gl_map_address(a, item.mapper_config, next_pc,
+                                            &old_bank, &old_off);
+               int new_rom = gl_map_address(a, next_config, next_pc,
+                                            &next_bank, &next_off);
+               if (old_rom && new_rom && old_bank != next_bank) {
+                  ++a->cross_bank_switches;
+                  mark_label(&a->banks[next_bank], next_off);
+                  if (opcode_is_cpu_halt(a->rom[a->banks[old_bank].file_offset + old_off]) &&
+                      !opcode_is_cpu_halt(a->rom[a->banks[next_bank].file_offset + next_off]))
+                     ++a->flow_switch_avoided_halts;
+               }
+               else if (old_rom != new_rom)
+                  ++a->cross_bank_switches;
+            }
+            if (!push_gl_address_state(a, next_config, next_pc, &output_state))
                return 0;
          }
          else if (a->mapper == MAP_E7) {
@@ -6215,6 +6617,18 @@ drain_work:
                 !push_e0_address_state(a, item.mapper_config, operand, &call_state))
                return 0;
          }
+         else if (a->mapper == MAP_GL) {
+            uint16_t cont_pc = (uint16_t)(canonical_pc + 3u);
+            size_t tbank, toff, cbank, coff;
+            if (gl_map_address(a, item.mapper_config, operand, &tbank, &toff))
+               mark_label(&a->banks[tbank], toff);
+            if (gl_map_address(a, item.mapper_config, cont_pc, &cbank, &coff) &&
+                cbank != item.bank)
+               mark_label(&a->banks[cbank], coff);
+            if (!push_gl_address_state(a, item.mapper_config, cont_pc, &after_call) ||
+                !push_gl_address_state(a, item.mapper_config, operand, &call_state))
+               return 0;
+         }
          else if (a->mapper == MAP_E7) {
             uint16_t cont_pc = (uint16_t)(canonical_pc + 3u);
             size_t tbank, toff, cbank, coff;
@@ -6294,6 +6708,13 @@ drain_work:
             if (!push_e0_address_state(a, item.mapper_config, operand, &output_state))
                return 0;
          }
+         else if (a->mapper == MAP_GL) {
+            size_t tbank, toff;
+            if (gl_map_address(a, item.mapper_config, operand, &tbank, &toff))
+               mark_label(&a->banks[tbank], toff);
+            if (!push_gl_address_state(a, item.mapper_config, operand, &output_state))
+               return 0;
+         }
          else if (a->mapper == MAP_E7) {
             size_t tbank, toff;
             if (e7_map_address(a, item.mapper_config, operand, &tbank, &toff))
@@ -6359,6 +6780,26 @@ drain_work:
                if (e0_map_address(a, item.mapper_config, target, &tbank, &toff))
                   mark_label(&a->banks[tbank], toff);
                if (!push_e0_address_state(a, item.mapper_config, target, &output_state))
+                  return 0;
+            }
+            else ++a->unresolved_indirect_jumps;
+            break;
+         }
+         if (a->mapper == MAP_GL) {
+            uint16_t ptr = operand;
+            uint16_t high_addr = (uint16_t)((ptr & 0xff00u) |
+                                 ((uint16_t)(ptr + 1u) & 0x00ffu));
+            size_t lbank, loff, hbank, hoff;
+            if (gl_map_address(a, item.mapper_config, ptr, &lbank, &loff) &&
+                gl_map_address(a, item.mapper_config, high_addr, &hbank, &hoff)) {
+               uint16_t target = (uint16_t)(a->rom[a->banks[lbank].file_offset + loff] |
+                                 ((uint16_t)a->rom[a->banks[hbank].file_offset + hoff] << 8));
+               size_t tbank, toff;
+               a->banks[lbank].roles[loff] |= ROLE_DATA_READ;
+               a->banks[hbank].roles[hoff] |= ROLE_DATA_READ;
+               if (gl_map_address(a, item.mapper_config, target, &tbank, &toff))
+                  mark_label(&a->banks[tbank], toff);
+               if (!push_gl_address_state(a, item.mapper_config, target, &output_state))
                   return 0;
             }
             else ++a->unresolved_indirect_jumps;
@@ -6578,6 +7019,7 @@ static int concrete_mapper_trusted(const analysis_t *a)
    case MAP_F0:
    case MAP_E0:
    case MAP_E7:
+   case MAP_GL:
    case MAP_3F:
    case MAP_3E:
    case MAP_JANE:
@@ -6652,7 +7094,10 @@ static size_t mapper_candidates_for_size(size_t size, mapper_t *out,
       ADD_MAPPER(MAP_2K); ADD_MAPPER(MAP_CV);
       break;
    case 4096u:
-      ADD_MAPPER(MAP_4K); ADD_MAPPER(MAP_CV); ADD_MAPPER(MAP_FC);
+      ADD_MAPPER(MAP_4K); ADD_MAPPER(MAP_CV); ADD_MAPPER(MAP_FC); ADD_MAPPER(MAP_GL);
+      break;
+   case 6144u:
+      ADD_MAPPER(MAP_GL);
       break;
    case 8192u:
       ADD_MAPPER(MAP_F8); ADD_MAPPER(MAP_E0); ADD_MAPPER(MAP_E7); ADD_MAPPER(MAP_3E); ADD_MAPPER(MAP_3F); ADD_MAPPER(MAP_FE); ADD_MAPPER(MAP_0840);
@@ -6812,7 +7257,8 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
             infer_ua_variant(rom, size) != MAP_RAW :
          candidates[i] == MAP_WD ? is_probably_wd(rom, size) :
          candidates[i] == MAP_FC ? is_probably_fc(rom, size) :
-         candidates[i] == MAP_F0 ? is_probably_f0(rom, size) : 0;
+         candidates[i] == MAP_F0 ? is_probably_f0(rom, size) :
+         candidates[i] == MAP_GL ? is_probably_gl(rom, size) : 0;
       h[i].explicit_signature =
          mapper_tail_signature_matches(rom, size, candidates[i]);
       h[i].reject_reason = MAPPER_REJECT_INIT_FAILED;
@@ -6842,7 +7288,16 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
          {
             int family_evidence = 1;
             int halt_allowed;
-            if (h[i].mapper == MAP_E7)
+            if (h[i].mapper == MAP_E0)
+               /* E0's selector range overlaps ordinary ROM table reads,
+                * especially indexed reads near $FFE0.  A wrong E0 mapping can
+                * therefore manufacture convincing bank transitions from an
+                * ordinary F8 image.  Require the deliberately narrow E0 detector byte signatures
+                * (or explicit VCSC metadata)
+                * before admitting the family automatically. */
+               family_evidence = h[i].detector_signature ||
+                                 h[i].explicit_signature;
+            else if (h[i].mapper == MAP_E7)
                family_evidence = h[i].detector_signature ||
                                  h[i].explicit_signature ||
                                  h[i].e7_specific_refs != 0;
@@ -6885,6 +7340,12 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                 * distinctive LDA $39; JMP byte signature. VCSC-generated WD
                 * images additionally carry explicit WD profile metadata. */
                family_evidence = h[i].detector_signature || h[i].explicit_signature;
+            else if (h[i].mapper == MAP_GL)
+               /* GameLine selectors live in console address mirrors and can
+                * therefore occur incidentally.  Automatic GL classification
+                * requires Stella's established LDA $0CB8 signature; --mapper
+                * gl remains available for uncatalogued hardware experiments. */
+               family_evidence = h[i].detector_signature;
             else if (h[i].mapper == MAP_FE)
                /* FE's instruction-level JSR model can make unrelated 8K ROMs
                 * appear coherent because ordinary JSR target high bytes also
@@ -6897,6 +7358,8 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                            (h[i].cross_bank_switches != 0u &&
                             mapper_has_precise_selector_edges(h[i].mapper)) ||
                            h[i].three_specific_switches != 0u ||
+                           (h[i].mapper == MAP_E0 &&
+                            h[i].detector_signature && h[i].hotspots != 0) ||
                            (h[i].mapper == MAP_E7 &&
                             h[i].detector_signature && h[i].hotspots != 0) ||
                            ((h[i].mapper == MAP_UA || h[i].mapper == MAP_UASW) &&
@@ -6905,6 +7368,7 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                            ((h[i].mapper == MAP_UA || h[i].mapper == MAP_UASW) &&
                             h[i].switch_avoided_halts != 0u) ||
                            (h[i].mapper == MAP_E7 && h[i].e7_specific_refs != 0) ||
+                           (h[i].mapper == MAP_GL && h[i].detector_signature) ||
                            (h[i].mapper == MAP_3E && h[i].detector_signature) ||
                            (h[i].mapper == MAP_FC && h[i].detector_signature &&
                             h[i].hotspots != 0) ||
@@ -7108,6 +7572,7 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                             !mapper_is_three_family(h[i].mapper)) ||
                            h[i].three_specific_switches != 0u ||
                            (h[i].mapper == MAP_E7 && h[i].e7_specific_refs != 0) ||
+                           (h[i].mapper == MAP_GL && h[i].detector_signature) ||
                            (h[i].mapper == MAP_3E && h[i].threee_ram_select_refs != 0);
             if (h[i].viable && !specific && !h[i].explicit_signature) {
                h[i].viable = 0;
@@ -8506,6 +8971,22 @@ static void emit_instruction(FILE *fp, const analysis_t *a, size_t bi, size_t of
       fprintf(fp, "    ; mirror of %s ($%04X)", hw.name, hw.canonical);
    else if (!have_hw)
       emit_hardware_rmw_comment(fp, opcode, mode, operand);
+   if (a->mapper == MAP_GL && mode == AM_ABSOLUTE &&
+       (opcode_memory_access(opcode) & ACCESS_READ)) {
+      unsigned segment = 0u, selection = 0u;
+      int write_mode = 0, prom_enabled = 0;
+      if (gl_selector_config(operand, 0u, NULL, &segment, &selection, &write_mode)) {
+         if (selection < 4u)
+            fprintf(fp, "    ; GameLine read snoop: RIOT RAM mirror address; return value unknown; segment %u -> ROM bank %u",
+                    segment, selection);
+         else
+            fprintf(fp, "    ; GameLine read snoop: RIOT RAM mirror address; return value unknown; segment %u -> RAM bank %u (%s mode)",
+                    segment, selection - 4u, write_mode ? "write" : "read");
+      }
+      else if (gl_control_config(operand, 0u, NULL, &prom_enabled))
+         fprintf(fp, "    ; GameLine control read: return value unknown; PROM overlay $1FC0-$1FDF %s",
+                 prom_enabled ? "enabled" : "disabled");
+   }
    if (mapper_is_wd_family(a->mapper) &&
        (mode == AM_ZERO_PAGE || mode == AM_ABSOLUTE) &&
        (opcode_memory_access(opcode) & ACCESS_READ)) {
@@ -9572,6 +10053,18 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                  a->split_ram_rmw_conflicts == 1 ? "" : "s");
    }
    emit_mapper_refinement_evidence(fp, a);
+   if (a->container_ambiguous) {
+      fprintf(fp,
+              "; container evidence: %uIN1 viable; %u/%u independent %zu-byte slices have real RESET roots and established code\n",
+              a->container_candidate_games,
+              a->container_candidate_viable_slices,
+              a->container_candidate_games,
+              a->container_candidate_slice_size);
+      fprintf(fp,
+              "; container result: ambiguous %s vs %uIN1; retained %s as the conventional whole-image interpretation\n",
+              mapper_name(a->mapper), a->container_candidate_games,
+              mapper_name(a->mapper));
+   }
    if (superchip_layout_signature(a))
       fprintf(fp, "; Superchip structural evidence: first 128 bytes duplicated at +$080 in every 4K bank\n");
    if (a->mapper == MAP_AR) {
@@ -9621,13 +10114,14 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                ((a->mapper == MAP_UA || a->mapper == MAP_UASW) ? "UA hardware default" :
                (a->mapper == MAP_0FA0 ? "0FA0 hardware default" :
                 (a->mapper == MAP_E0 ? "E0 fixed vector bank" :
+                 (a->mapper == MAP_GL ? "GL ROM bank 0 mirrored into all four 1K segments" :
                  (a->mapper == MAP_E7 ? "E7 fixed final-2K vector bank; lower ROM bank 0 and RAM block 0 at power-on" :
                  (a->mapper == MAP_3E ? "3E fixed final-2K vector bank; lower ROM bank 0 at power-on" :
                   (a->mapper == MAP_3F ? "3F fixed final-2K vector bank; lower bank 0 at power-on" :
                    (a->mapper == MAP_FE ? "FE deterministic bank 0" :
                     (a->mapper == MAP_FC ? "FC hardware bank 0; pending target 0" :
                      (a->mapper == MAP_F0 ? "F0 hardware bank 15" :
-                  (mapper_is_wd_family(a->mapper) ? "WD configuration-0 vector bank" : "heuristic")))))))))))))));
+                  (mapper_is_wd_family(a->mapper) ? "WD configuration-0 vector bank" : "heuristic"))))))))))))))));
       for (i = 0; i < a->bank_count; ++i) {
          const bank_t *b = &a->banks[i];
          if (b->origin_overridden)
@@ -9660,6 +10154,16 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
       if (a->mapper == MAP_E0) {
          fprintf(fp, "; E0 segments: $1000-$13FF, $1400-$17FF, $1800-$1BFF are independently banked 1K windows; $1C00-$1FFF is fixed physical bank 7\n");
          fprintf(fp, "; E0 selectors: $1FE0-$1FE7 select segment 0, $1FE8-$1FEF segment 1, $1FF0-$1FF7 segment 2; reset maps physical banks 4,5,6,7\n");
+      }
+      if (a->mapper == MAP_GL) {
+         fprintf(fp, "; GL segments: four independently selected 1K cartridge windows at $1000,$1400,$1800,$1C00; ROM bank 0 is mirrored into all four at reset\n");
+         fprintf(fp, "; GL selector snoops: reads from RIOT-RAM mirror addresses $0480+x/$0580+x/$0880+x/$0980+x select segments 0..3; low nibble 0..3=ROM bank, 4..F=RAM bank; bit 5 denotes RAM read/write mode\n");
+         fprintf(fp, "; GL RAM selections retain bit-5 read/write direction as mapper context; direction is provenance only and does not reject otherwise executable RAM accesses\n");
+         fprintf(fp, "; GL intercepted low-address reads have an unspecified/open-bus-like return value; VCSC keeps that value abstract while applying the mapper side effect\n");
+         fprintf(fp, "; GL modem/control handling stays conservative: only the known $0C80-page PROM latch is modeled; $0680/$0D80 remain intercepted with unknown returns\n");
+         fprintf(fp, "; GL PROM enable overlays $1FC0-$1FDF; disabling it restores the selected segment backing\n");
+         if (a->physical_size == 6144u)
+            fprintf(fp, "; GL 6K preservation form: file $1000-$17FF is the 2K initial-RAM image copied to the start of 12K GameLine RAM; retained raw for exact reconstruction\n");
       }
       if (a->mapper == MAP_E7) {
          fprintf(fp, "; E7 segments: $1000-$17FF is selectable 2K ROM or 1K split RAM; $1800-$19FF is fixed 256-byte split RAM; $1A00-$1FFF is fixed final ROM\n");
@@ -10145,6 +10649,13 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
       }
       fprintf(fp, ".rend\n\n");
    }
+   if (a->mapper == MAP_GL && a->physical_size == 6144u) {
+      fputs("; ---- GameLine initial 2K RAM image ----\n", fp);
+      fputs("; Loaded into the start of 12K cartridge RAM at power-on; retained raw for exact reconstruction.\n", fp);
+      fputs(".org $1000\n", fp);
+      emit_physical_raw_range(fp, a, 4096u, 6144u);
+      fputc('\n', fp);
+   }
    if (a->doubled_2k_dump) {
       fputs("; ---- duplicated second 2K copy from preservation image ----\n", fp);
       fputs(".org $0800\n", fp);
@@ -10193,10 +10704,42 @@ static size_t established_instruction_count(const analysis_t *a)
    return count;
 }
 
+static int multicart_2in1_slice_has_strong_reset(const analysis_t *a,
+                                                  const uint8_t *slice,
+                                                  size_t slice_size)
+{
+   uint16_t reset;
+   size_t off;
+   uint8_t opcode;
+   flow_kind_t flow;
+
+   /* Merely pointing RESET at a NOP-filled bank or an immediate RTS is far too
+    * weak to make every ordinary F8 bank look like an independent game.  The
+    * 2IN1 ambiguity detector is intentionally conservative: require a real
+    * established startup path with several instructions and a nontrivial first
+    * instruction.  Tiny/odd genuine containers remain representable through
+    * --container 2IN1 rather than weakening automatic inference. */
+   if (!a || a->bank_count != 1u || established_instruction_count(a) < 3u ||
+       slice_size < 6u)
+      return 0;
+   reset = read_word(slice + slice_size - 4u);
+   if (!cart_target_offset(&a->banks[0], reset, &off) ||
+       !established_code_start(&a->banks[0], off))
+      return 0;
+   opcode = slice[off];
+   flow = instruction_flow(opcode);
+   if (opcode == 0xeau || flow == FLOW_RTS || flow == FLOW_STOP) return 0;
+   return 1;
+}
+
 typedef struct {
    unsigned games;
    size_t slice_size;
    unsigned viable_slices;
+   unsigned real_reset_vectors;
+   unsigned blank_reset_vectors;
+   int forced;
+   int selected_by_whole_rejection;
    analysis_t *slice_analysis;
    uint8_t *slice_analyzed;
 } multicart_info_t;
@@ -10292,7 +10835,7 @@ static int analyze_multicart_slice(analysis_t *a, uint8_t *rom, size_t size,
 
 static int multicart_candidate(const uint8_t *rom, size_t size,
                                unsigned games, const options_t *opt,
-                               multicart_info_t *info)
+                               multicart_info_t *info, int forced)
 {
    size_t slice_size;
    unsigned i, real_vectors = 0u, blank_vectors = 0u, viable = 0u;
@@ -10315,8 +10858,16 @@ static int multicart_candidate(const uint8_t *rom, size_t size,
    /* Structural gates are intentionally stronger than file-size matching.
     * 32IN1 dumps are 32 complete 2K games.  4IN1 requires four real RESET
     * vectors.  8IN1 allows up to two all-$FF/padded component tails seen in
-    * historical dumps, but still requires six real cartridge roots. */
-   if (games == 32u) {
+    * historical dumps, but still requires six real cartridge roots.  2IN1
+    * is especially ambiguous with ordinary 8K hardware, so automatic
+    * consideration requires two independently rooted 4K cartridges.  A user
+    * --container override is authoritative about outer topology and therefore
+    * bypasses these inference gates; unestablished slices remain exact raw
+    * sidecars rather than invalidating the explicit container request. */
+   if (forced) {
+      required_viable = 0u;
+   }
+   else if (games == 32u) {
       if (real_vectors != 32u) return 0;
       required_viable = 32u;
    }
@@ -10328,6 +10879,10 @@ static int multicart_candidate(const uint8_t *rom, size_t size,
       if (real_vectors != 4u) return 0;
       required_viable = 4u;
    }
+   else if (games == 2u) {
+      if (slice_size != 4096u || real_vectors != 2u) return 0;
+      required_viable = 2u;
+   }
    else return 0;
 
    /* Automatic container inference is deliberately conservative: every
@@ -10336,13 +10891,14 @@ static int multicart_candidate(const uint8_t *rom, size_t size,
     * mirrored cartridge than for a multi-game selector.  A future explicit
     * container override can represent unusual multicarts with duplicate
     * games without weakening autodetection. */
-   for (i = 0u; i < games; ++i) {
-      unsigned j;
-      for (j = i + 1u; j < games; ++j)
-         if (memcmp(rom + (size_t)i * slice_size,
-                    rom + (size_t)j * slice_size, slice_size) == 0)
-            return 0;
-   }
+   if (!forced)
+      for (i = 0u; i < games; ++i) {
+         unsigned j;
+         for (j = i + 1u; j < games; ++j)
+            if (memcmp(rom + (size_t)i * slice_size,
+                       rom + (size_t)j * slice_size, slice_size) == 0)
+               return 0;
+      }
 
    info->slice_analysis = (analysis_t *)calloc(games, sizeof(*info->slice_analysis));
    info->slice_analyzed = (uint8_t *)calloc(games, 1u);
@@ -10352,6 +10908,9 @@ static int multicart_candidate(const uint8_t *rom, size_t size,
    }
    info->games = games;
    info->slice_size = slice_size;
+   info->real_reset_vectors = real_vectors;
+   info->blank_reset_vectors = blank_vectors;
+   info->forced = forced;
    for (i = 0u; i < games; ++i) {
       uint8_t *slice = (uint8_t *)rom + (size_t)i * slice_size;
       if (analyze_multicart_slice(&info->slice_analysis[i], slice, slice_size, opt)) {
@@ -10365,28 +10924,90 @@ static int multicart_candidate(const uint8_t *rom, size_t size,
    }
 
    info->viable_slices = viable;
+   if (!forced && games == 2u) {
+      for (i = 0u; i < games; ++i) {
+         const uint8_t *slice = rom + (size_t)i * slice_size;
+         if (!info->slice_analyzed[i] ||
+             !multicart_2in1_slice_has_strong_reset(&info->slice_analysis[i],
+                                                     slice, slice_size)) {
+            free_multicart_info(info);
+            return 0;
+         }
+      }
+   }
    return 1;
 }
 
 static int detect_multicart(const uint8_t *rom, size_t size,
-                            const analysis_t *whole, const options_t *opt,
+                            analysis_t *whole, const options_t *opt,
                             multicart_info_t *info)
 {
    static const unsigned counts[] = { 32u, 8u, 4u };
    size_t i;
 
    memset(info, 0, sizeof(*info));
+   if (opt->container_override_games != 0u) {
+      unsigned games = opt->container_override_games;
+      size_t slice_size;
+      if ((size % games) != 0u) {
+         fprintf(stderr, "--container %uIN1 is incompatible with %zu-byte input\n",
+                 games, size);
+         return -1;
+      }
+      slice_size = size / games;
+      if (slice_size != 2048u && slice_size != 4096u &&
+          slice_size != 8192u && slice_size != 16384u) {
+         fprintf(stderr,
+                 "--container %uIN1 would create unsupported %zu-byte component slices\n",
+                 games, slice_size);
+         return -1;
+      }
+      if (!multicart_candidate(rom, size, games, opt, info, 1)) {
+         fprintf(stderr, "could not analyze --container %uIN1 component layout\n",
+                 games);
+         return -1;
+      }
+      return 1;
+   }
    if (multicart_user_layout_override(opt)) return 0;
 
    /* Never reinterpret a cart that has demonstrated actual mapper switching.
     * Multicart selection happens outside the CPU-visible address space; there
-    * should be no established selector traffic connecting component games. */
+    * should be no established selector traffic connecting component games.
+    * Deliberate VCSC mapper metadata is likewise positive evidence for one
+    * whole cartridge and outranks a coincidentally plausible slice split. */
    if (whole->hotspot_refs != 0 || whole->cross_bank_switches != 0u ||
        whole->three_specific_switches != 0u || whole->e7_specific_refs != 0 ||
-       whole->threee_ram_select_refs != 0) return 0;
+       whole->threee_ram_select_refs != 0 ||
+       mapper_tail_signature_matches(whole->rom, whole->rom_size, whole->mapper))
+      return 0;
 
    for (i = 0u; i < sizeof(counts) / sizeof(counts[0]); ++i)
-      if (multicart_candidate(rom, size, counts[i], opt, info)) return 1;
+      if (multicart_candidate(rom, size, counts[i], opt, info, 0)) return 1;
+
+   /* 2IN1 is the one size/topology collision that cannot be safely resolved
+    * just by finding two plausible games: an ordinary 8K F8 image can also
+    * contain two independently plausible 4K slices.  Build the split
+    * hypothesis only from strong structure (two real RESET vectors, two
+    * distinct independently executable slices).  If the whole-cart analysis
+    * itself is contradicted, the container wins by elimination.  Otherwise
+    * retain the conventional whole 8K interpretation and record the ambiguity
+    * in its generated header instead of pretending either topology was proven. */
+   if (multicart_candidate(rom, size, 2u, opt, info, 0)) {
+      size_t whole_starts = established_instruction_count(whole);
+      int whole_rejected = whole_starts == 0u ||
+         (whole->mapper_refinement.tested != 0u &&
+          whole->mapper_refinement.survived == 0u);
+      if (whole_rejected) {
+         info->selected_by_whole_rejection = 1;
+         return 1;
+      }
+      whole->container_candidate_games = info->games;
+      whole->container_candidate_slice_size = info->slice_size;
+      whole->container_candidate_viable_slices = info->viable_slices;
+      whole->container_ambiguous = 1;
+      free_multicart_info(info);
+   }
    return 0;
 }
 
@@ -10485,6 +11106,17 @@ static int emit_multicart_source(FILE *fp, const analysis_t *whole,
            mc->games, mc->games, mc->slice_size);
    fprintf(fp, "; container analysis: %u/%u component slices established independently\n",
            mc->viable_slices, mc->games);
+   if (mc->forced)
+      fprintf(fp, "; container selection: explicit --container %uIN1 override\n",
+              mc->games);
+   else if (mc->games == 2u && mc->selected_by_whole_rejection)
+      fprintf(fp,
+              "; container selection: 2IN1 selected by structural/control-flow elimination; whole-image %s interpretation was contradicted\n",
+              mapper_name(whole->mapper));
+   else
+      fprintf(fp,
+              "; container selection: %uIN1 inferred from independent component structure\n",
+              mc->games);
    fputs("; component selection is external to the 6507 address space; no control-flow edge crosses game boundaries\n", fp);
    fputs("; the outer source preserves exact bytes; when -o names a file, .gameNN.s26 sidecars contain independent component disassemblies\n\n", fp);
 
@@ -10622,8 +11254,13 @@ int main(int argc, char **argv)
       return disassembly_failure(1);
    }
    promote_interior_reference_labels(&analysis);
-   if (!opt.mapper_override_set)
-      is_multicart = detect_multicart(rom, rom_size, &analysis, &opt, &multicart);
+   is_multicart = detect_multicart(rom, rom_size, &analysis, &opt, &multicart);
+   if (is_multicart < 0) {
+      free_analysis(&analysis);
+      free(logical_rom);
+      free(rom);
+      return disassembly_failure(1);
+   }
    if (established_instruction_count(&analysis) == 0u && !is_multicart) {
       fprintf(stderr, "%s: no established instructions found; refusing speculative-only disassembly\n",
               opt.input);

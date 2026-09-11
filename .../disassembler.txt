@@ -59,10 +59,12 @@ Durable invariants
 
 Unfinished mapper support
 -------------------------
-23. [ ] GL mapper
-    * Model GameLine's four independently mapped 1K segments and selectors.
-    * Track ROM/RAM selection plus RAM read/write direction.
-    * Keep modem/PROM control conservative and add real exact-round-trip fixtures.
+23. [ ] GL real-corpus closeout
+    * The mapper implementation is complete; no GL analysis defect is currently known.
+    * Run exact round trip plus Stella differential checks against the upstream Stella
+      GL fixtures: the 4096-byte GameLine Master Module ROM and the two 6144-byte
+      `download_rom.bin` / `ramdata_rom.bin` images.
+    * If those real fixtures pass, close GL and make CM the current mapper item.
 
 24. [ ] CM mapper
     * Model CompuMate as ROM/RAM mapping controlled through SWCHA, not a normal
@@ -83,19 +85,11 @@ Unfinished mapper support
     * Require real corpus fixtures, Stella differential checks, and exact round
       trip for every supported generation.
 
-Unfinished analysis correctness
--------------------------------
-41. [ ] Finish ambiguous multi-game container handling, especially 2IN1.
-    * Existing conservative 4IN1/8IN1/32IN1 behavior is the baseline.
-    * Do not infer 2IN1 from size alone; require strong structural/database or an
-      explicit override path.
-    * Analyze each component independently and reconstruct the outer image by
-      exact concatenation in original order.
-
 Current direction
 -----------------
-Item 41, ambiguous multi-game container handling (especially 2IN1), is the next
-analysis-correctness task. Mapper-family work may proceed independently.
+The currently tracked analysis-correctness items are complete. GL implementation is
+complete; real-corpus closeout is its only remaining gate. CM is the next mapper
+implementation item, with DPC+ and the CDF family following independently.
 
 When corpus work resumes, prefer one concrete mismatch/failure category at a
 time, add a minimal synthetic regression plus the real corpus case, and keep

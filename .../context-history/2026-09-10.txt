@@ -33,3 +33,90 @@ counts instead of capped-walk/promotion-cap counts. Added a 13-diamond synthetic
 speculative island (8192 concrete path combinations) that converges with state
 merges and promotes correctly; the existing long-JSR/TIA-wrap negative fixture
 still rejects because the invalid continuation is always inspected.
+
+2026-09-10 14:18:30 PDT, 2IN1 container ambiguity and override
+Completed disassembler roadmap item 41. Added --container 2IN1|4IN1|8IN1|32IN1
+as an explicit outer-file-topology override; it is intentionally incompatible
+with mapper/reset-bank/address-layout hints because those are component-local.
+Forced containers analyze every slice independently, preserve unestablished
+slices raw, emit the existing exact outer concatenation manifest plus game
+sidecars, and may intentionally contain duplicate games.
+
+Automatic 2IN1 handling remains conservative rather than guessing from 8K size.
+A candidate requires two distinct 4K slices with real RESET vectors and
+independently established, nontrivial startup paths. Positive whole-cartridge
+mapper switching or explicit VCSC mapper metadata defeats the 2IN1 hypothesis.
+When both the split and whole-image interpretations remain coherent, the normal
+whole mapper is retained and the generated header explicitly reports the
+2IN1 ambiguity. If the whole mapper interpretation is contradicted, the split
+container may win by structural/control-flow elimination. Added regressions for
+ambiguous F8-vs-2IN1 reporting, positive-F8 non-ambiguity, explicit duplicate
+2IN1 override/sidecars, CLI conflict handling, and Stella 2IN1 selected-slice
+MD5 normalization support.
+
+2026-09-10 19:31:16 PDT, GL disassembler implementation closeout
+Finished the known GL/GameLine implementation work. Mapper context is now wide
+enough to preserve all four 5-bit selector states (4-bit ROM/RAM selection plus
+the RAM direction bit) and the GameLine PROM-enable latch. Static analysis and
+concrete discovery save/restore the same state, so paths that differ only in
+read/write direction no longer collapse. RAM direction is retained as mapper
+provenance rather than used to reject accesses, matching Stella's deliberate
+behavior for known GL images.
+
+Modeled the known $0C80 control-page read latch: bus bits 4+5 enable the PROM
+overlay and other values disable it. While enabled, $1FC0-$1FDF is not treated
+as cartridge ROM. $0680/$0D80 modem-facing reads remain conservative/unknown.
+The existing four independently mapped 1K windows, read-snooped selectors,
+reset bank-0 mirroring, and 6144-byte 4K-ROM + 2K-initial-RAM preservation remain
+intact. Updated the public disassembler README accordingly.
+
+Expanded the focused GL regression from three to six exact-round-trip images.
+The new direction-merge case proves the old 16-bit mapper state falsely merged
+read-mode and write-mode paths and decoded an impossible target. The PROM-on
+case proves the old analyzer falsely decoded bytes hidden by the PROM overlay;
+the PROM-off case proves ROM decoding resumes when the latch is cleared. Both
+failure modes reproduce against the untouched input tarball and pass after the
+fix.
+
+Focused GL, general disassembler, hardening, opcode, and fuzz regressions pass;
+the clean top-level suite is 365/365. The supplied Stella 7.0 binary identifies
+all six synthetic images as GL, and
+`roundtrip.pl --stella` reports 6/6 exact reconstructions with 6 GL/GL mapper
+matches. The only remaining GL roadmap gate is validation against the actual
+upstream Stella GL corpus. Its three known fixtures are the 4096-byte GameLine
+Master Module ROM plus 6144-byte `download_rom.bin` and `ramdata_rom.bin`; those
+ROM bytes were not present in the supplied archive and were not retrievable in
+this environment. No further GL implementation defect is currently known.
+
+2026-09-10 22:10:31 PDT, E0/E7/F8 mapper refinement correction
+Investigated eight 8K corpus mismatches clustered around E0. Five images that
+VCSC called E7 but Stella called E0 contain Stella's canonical STA $FFE9 E0
+signature (twice each). The E0 control-flow hypothesis reached one possible
+JAM and was rejected before the existing E0-over-E7 precedence rule could run,
+allowing model-dependent E7 selector traffic to steal the image. Canonical E0
+detector evidence plus established hotspot traffic may now keep E0 viable
+through that possible-JAM condition, so the precedence rule can do its job.
+
+The three opposite VCSC=E0/Stella=F8 images contain no narrow E0 detector
+signature. Their ordinary indexed ROM reads LDA $FFE6,Y / $FFE3,X / $FFE7,Y
+become bank-changing selectors only after assuming the wrong E0 mapping. E0
+family admission now requires a raw detector signature or explicit metadata;
+model-dependent selector traffic cannot bootstrap the family by itself. This
+turns those three images back into F8 without making raw E0 bytes an absolute
+override: an existing regression still proves real F8 cross-bank execution can
+defeat an incidental E0 signature in unreachable data.
+
+Added two synthetic regressions reproducing both bugs against the untouched
+input tarball: f8_indexed_e0_alias.bin misclassifies F8 as E0 pre-fix, and
+e0_e7_signature_precedence.bin misclassifies E0 as E7 pre-fix. Both classify
+correctly after the fix. The existing speculative-banked ambiguity test now
+has three viable hypotheses rather than four because evidence-free E0 is no
+longer admitted.
+
+Validation after the E0 refinement correction is clean: focused
+vcsc_disassembler.pl passes, the compile-only suite is 537/537, and the E2E
+suite is 365/365. Rechecking the supplied mismatch corpus now gives F8 for all
+three former E0/F8 mismatches and E0 for all five former E7/E0 mismatches,
+matching Stella on all eight E0-related cases. The other six supplied
+mismatches are unchanged and belong to separate mapper work (CDF, DPC+, CM,
+and one 8IN1-vs-F0 case).

@@ -118,8 +118,11 @@ Open workstreams
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished
-   work only. Open items are GL, CM, DPC+, CDF-family support, and ambiguous
-   2IN1 container handling.
+   work only. Open items are GL real-corpus closeout, CM, DPC+, and CDF-family
+   support. Ambiguous
+   2IN1 handling is complete: conservative automatic analysis reports a viable
+   split without overriding a coherent whole-image interpretation, while
+   `--container` provides an explicit outer-topology override.
 
 5. **Zero static initializer placement**
    Mutable all-zero link-time static initializers are emitted directly as

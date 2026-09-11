@@ -60,6 +60,14 @@ Supported mapper overrides are `1k`, `2k`, `4k`, `f8`, `f8sc`, `f6`, `f6sc`,
 cartridge. Numbers accept decimal, `0x` hex, or `$` hex; quote `$` forms in a
 shell so the shell does not treat them as variable references.
 
+`--container 2IN1|4IN1|8IN1|32IN1` forces the **outer file topology**, not a
+6507 mapper. Each selected component is then analyzed independently with normal
+mapper inference and the outer source reconstructs the original file by exact
+concatenation. The container override cannot be combined with `--mapper`,
+`--reset-bank`, or bank/address layout hints because those options would be
+ambiguous across independent games. Video/controller metadata overrides may
+still be applied to the component analyses.
+
 `--code` asserts a linear instruction range even across `RTS`/`JMP`; `--entry`
 adds an ordinary recursive-control-flow seed. `--data` is a definite data-role
 hint without prescribing presentation. `--table` additionally establishes a
@@ -126,18 +134,31 @@ heuristic runs. `vcsc-disas` emits each duplicate half as preserved raw bytes,
 so disassemble/reassemble reproduces the original physical file exactly. Merely
 similar or partially duplicated images are not collapsed.
 
-Multi-game 4IN1/8IN1/32IN1 images are treated as **containers**, not as one
-bankswitched 6507 address space. Automatic detection is intentionally conservative:
-the whole-image analysis must show no CPU-visible selector traffic, candidate
-components need plausible independent RESET roots and executable analyses, and all
-component byte images must be distinct so repeated-bank preservation dumps are not
-misclassified. Each component gets an independent mapper/CFG/state analysis. The
-outer `.s26` preserves the exact concatenated image as a container manifest; when
-`-o` names a file, `vcsc-disas` also writes `.gameNN.s26` sidecars with the
-individual component disassemblies. An unestablished component is preserved raw.
-Automatic 2IN1 inference remains deliberately deferred because an 8K 2x4K image is
-too easily confused with an ordinary F8 cart without stronger database/explicit
-evidence.
+Multi-game images are treated as **containers**, not as one bankswitched 6507
+address space. Automatic 4IN1/8IN1/32IN1 detection remains intentionally
+conservative: the whole-image analysis must show no CPU-visible selector traffic,
+candidate components need plausible independent RESET roots and executable
+analyses, and all component byte images must be distinct so repeated-bank
+preservation dumps are not misclassified. Each component gets an independent
+mapper/CFG/state analysis. The outer `.s26` preserves the exact concatenated
+image as a container manifest; when `-o` names a file, `vcsc-disas` also writes
+`.gameNN.s26` sidecars with the individual component disassemblies. An
+unestablished explicitly selected component is preserved raw.
+
+2IN1 receives stricter treatment because an 8K file containing two plausible
+4K programs is also a perfectly possible ordinary F8 image. Automatic analysis
+therefore never promotes 2IN1 from file size alone. It first requires two
+distinct 4K slices with real RESET vectors and independently established,
+nontrivial startup paths. Positive whole-cartridge evidence such as an
+established CPU-visible mapper transition or an explicit VCSC mapper signature
+defeats the container interpretation. If the split remains credible while the
+whole 8K interpretation is also coherent, the generated header reports the
+ambiguity and retains the conventional whole-image mapper rather than pretending
+2IN1 was proved. If the whole interpretation is contradicted, the two-slice
+container may win by structural/control-flow elimination. `--container 2IN1`
+is the authoritative escape hatch when external knowledge resolves an inherently
+ambiguous dump; it can intentionally represent duplicate component games that
+automatic detection would reject as a preservation image.
 
 Stella-playable 4094- and 4098-byte preservation dumps are treated as logical
 unbanked 4K cartridges without changing their physical files.  This mirrors
@@ -179,7 +200,34 @@ physical banks for the first, second, and third segments respectively; the top
 segment always maps physical bank 7. Deterministic reset starts with banks
 4,5,6,7 mapped in order. Mapper state is therefore part of each E0 control-flow
 edge: a selector can make the next opcode come from another physical 1K bank
-even though the runtime PC simply advances normally.
+even though the runtime PC simply advances normally. Automatic E0 family
+admission deliberately requires one of the narrow established detector signatures (or explicit VCSC
+mapper metadata): arbitrary indexed ROM table reads near
+`$FFE0-$FFF7` can otherwise manufacture apparently self-consistent E0 selector
+traffic when an ordinary F8 image is interpreted through the wrong segmented
+mapping. A canonical E0 signature remains strong enough to keep E0 viable
+through a merely possible JAM arm, after which established cross-bank execution
+can still defeat it if another mapper proves a narrower interpretation.
+
+GL (GameLine) is modeled as four independently selected 1K cartridge
+windows at `$F000-$F3FF`, `$F400-$F7FF`, `$F800-$FBFF`, and `$FC00-$FFFF`.
+Reads from the cartridge-snooped RIOT-RAM mirror families `$0480+x`, `$0580+x`,
+`$0880+x`, and `$0980+x` select the corresponding window: low nibble 0..3
+chooses one of the four physical ROM banks and 4..F chooses one of twelve 1K
+RAM banks. Selector bit 5 is retained in mapper context as RAM read/write
+direction, so paths that differ only by that hardware state are not incorrectly
+merged; matching current Stella behavior, the disassembler does not use the
+direction bit to reject otherwise executable RAM accesses. Reset mirrors ROM
+bank 0 into all four windows. The 6144-byte preservation form is treated as 4K
+ROM followed by a 2K initial-RAM image, copied into the first 2K of GameLine RAM
+for concrete discovery and emitted raw for exact reconstruction.
+
+GameLine's low-address reads are cartridge-intercepted and have an unspecified
+return value, so analysis keeps the loaded CPU value abstract. Modem control is
+otherwise conservative: only the known `$0C80`-page PROM latch is modeled. When
+bits 4 and 5 are both set, the 32-byte PROM overlays `$1FC0-$1FDF`; other reads
+in that control page disable the overlay. The `$0680` and `$0D80` modem pages
+remain intercepted/unknown rather than inventing modem semantics.
 
 E7 is modeled as 2K physical chunks with a selectable lower `$F000-$F7FF`
 window and a fixed final physical 2K supplying `$FA00-$FFFF`.  The bytes that
@@ -519,7 +567,7 @@ PC/A/X/Y/SP/P, the complete 128-byte RIOT RAM with stack-page aliases, RIOT time
 TIA WSYNC CPU-side behavior, cartridge banking/RAM, and deterministic console/input
 states. The concrete bus now covers every currently supported non-coprocessor mapper:
 unbanked 1K/2K/4K, F8/F6/F4/FA/FA2 (and supported Superchip overlays), CV, WD/WDSW, FC,
-E0, E7, 3F, 3E, FE, JANE, 0840, UA/UASW, and 0FA0. DPC remains intentionally static
+E0, GL, E7, 3F, 3E, FE, JANE, 0840, UA/UASW, and 0FA0. DPC remains intentionally static
 until its data-fetcher/register behavior is modeled faithfully; an unsupported
 concrete model simply leaves static analysis authoritative.
 
@@ -728,8 +776,8 @@ original bytes.
 
 ## Current limits
 
-Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/FA2/CV/E0/E7/3F/3E/FE/JANE/0840/UA/UASW/0FA0/DPC/WD/WDSW/FC is deliberately conservative.
-GL, CM, DPC+, CDF/CDFJ/CDFJ+ and other coprocessor cartridges need separate mapper models rather than being mislabeled as supported families.
+Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/FA2/CV/E0/GL/E7/3F/3E/FE/JANE/0840/UA/UASW/0FA0/DPC/WD/WDSW/FC is deliberately conservative.
+CM, DPC+, CDF/CDFJ/CDFJ+ and other coprocessor cartridges need separate mapper models rather than being mislabeled as supported families.
 Unsupported layouts that yield no executable instructions fail explicitly rather
 than producing a misleading 100%-data source file.
 

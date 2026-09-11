@@ -40,6 +40,7 @@ constexpr int kMapUA = VCSC_VIDEO_MAP_UA;
 constexpr int kMapUASW = VCSC_VIDEO_MAP_UASW;
 constexpr int kMap0FA0 = VCSC_VIDEO_MAP_0FA0;
 constexpr int kMapFE = VCSC_VIDEO_MAP_FE;
+constexpr int kMapGL = VCSC_VIDEO_MAP_GL;
 
 constexpr uint16_t kThreeERamFlag = 0x8000u;
 constexpr unsigned kThreeERamBanks = 32u;
@@ -115,6 +116,8 @@ public:
       std::memset(cart_ram_, 0, sizeof(cart_ram_));
       if (mapper_ == kMapCV && rom_size_ == 4096u)
          std::memcpy(cart_ram_, rom_, 1024u);  // Stella 4K CV save-image RAM seed.
+      if (mapper_ == kMapGL && rom_size_ == 6144u)
+         std::memcpy(cart_ram_, rom_ + 4096u, 2048u); // GameLine downloaded RAM seed.
       std::fill(ram_source_, ram_source_ + VCSC_CONCRETE_RIOT_RAM_SIZE, VCSC_CONCRETE_NO_SOURCE);
       std::memset(result_, 0, sizeof(*result_));
       for (unsigned i = 0; i < VCSC_CONCRETE_RIOT_RAM_SIZE; ++i)
@@ -261,7 +264,7 @@ private:
    uint16_t current_pc_ = 0;
    uint8_t current_opcode_ = 0;
    size_t current_rom_physical_ = static_cast<size_t>(-1);
-   uint16_t current_mapper_config_at_fetch_ = 0u;
+   vcsc_mapper_config_t current_mapper_config_at_fetch_ = 0u;
    unsigned current_len_ = 1;
    uint32_t current_data_source_ = VCSC_CONCRETE_NO_SOURCE;
    uint8_t current_data_value_ = 0;
@@ -276,6 +279,9 @@ private:
    uint8_t wd_pending_config_ = 0u;
    uint16_t fc_pending_ = 0u;
    uint8_t e0_segment_[3] = { 4u, 5u, 6u };
+   uint8_t gl_segment_[4] = { 0u, 0u, 0u, 0u };
+   bool gl_write_mode_[4] = { false, false, false, false };
+   bool gl_prom_enabled_ = false;
    unsigned e7_lower_ = 0u;
    unsigned e7_ram_block_ = 0u;
    uint16_t three_config_ = 0u;
@@ -301,6 +307,15 @@ private:
          e0_segment_[0] = static_cast<uint8_t>(seed.mapper_config & 7u);
          e0_segment_[1] = static_cast<uint8_t>((seed.mapper_config >> 3) & 7u);
          e0_segment_[2] = static_cast<uint8_t>((seed.mapper_config >> 6) & 7u);
+      }
+      if (mapper_ == kMapGL) {
+         for (unsigned seg = 0; seg < 4u; ++seg) {
+            const unsigned slot = static_cast<unsigned>(
+               (seed.mapper_config >> (seg * 5u)) & 0x1fu);
+            gl_segment_[seg] = static_cast<uint8_t>(slot & 0x0fu);
+            gl_write_mode_[seg] = (slot & 0x10u) != 0u;
+         }
+         gl_prom_enabled_ = (seed.mapper_config & (1u << 20)) != 0u;
       }
       if (mapper_ == kMapE7) {
          e7_lower_ = static_cast<unsigned>(seed.mapper_config & 0x0fu);
@@ -428,6 +443,46 @@ private:
       if (segment < 3u) e0_segment_[segment] = static_cast<uint8_t>(bus & 7u);
    }
 
+   void gl_select(uint16_t bus)
+   {
+      if (mapper_ != kMapGL) return;
+      unsigned segment;
+      switch (bus & 0x1f80u) {
+      case 0x0480u: segment = 0u; break;
+      case 0x0580u: segment = 1u; break;
+      case 0x0880u: segment = 2u; break;
+      case 0x0980u: segment = 3u; break;
+      default: return;
+      }
+      gl_segment_[segment] = static_cast<uint8_t>(bus & 0x0fu);
+      gl_write_mode_[segment] = (bus & 0x20u) != 0u;
+   }
+
+   bool gl_intercepted_read(uint16_t bus) const
+   {
+      if (mapper_ != kMapGL) return false;
+      const uint16_t page = static_cast<uint16_t>(bus & 0x1f80u);
+      return page == 0x0480u || page == 0x0580u || page == 0x0680u ||
+             page == 0x0880u || page == 0x0980u ||
+             page == 0x0c80u || page == 0x0d80u;
+   }
+
+   void gl_control(uint16_t bus)
+   {
+      if (mapper_ == kMapGL && (bus & 0x1f80u) == 0x0c80u)
+         gl_prom_enabled_ = (bus & 0x30u) == 0x30u;
+   }
+
+   bool gl_ram_address(uint16_t bus, size_t *index) const
+   {
+      if (mapper_ != kMapGL || bus < 0x1000u) return false;
+      const unsigned segment = static_cast<unsigned>((bus - 0x1000u) >> 10);
+      if (segment >= 4u || gl_segment_[segment] < 4u) return false;
+      *index = static_cast<size_t>(gl_segment_[segment] - 4u) * 1024u +
+               static_cast<size_t>(bus & 0x03ffu);
+      return *index < kCartRamBytes;
+   }
+
    void e7_select(uint16_t bus)
    {
       if (mapper_ != kMapE7) return;
@@ -519,6 +574,14 @@ private:
          *physical = pb * 1024u + static_cast<size_t>(bus & 0x03ffu);
          return pb < bank_count_ && *physical < rom_size_;
       }
+      if (mapper_ == kMapGL) {
+         if (gl_prom_enabled_ && bus >= 0x1fc0u && bus <= 0x1fdfu) return false;
+         const unsigned segment = static_cast<unsigned>((bus - 0x1000u) >> 10);
+         if (segment >= 4u || gl_segment_[segment] >= 4u) return false;
+         *physical = static_cast<size_t>(gl_segment_[segment]) * 1024u +
+                     static_cast<size_t>(bus & 0x03ffu);
+         return *physical < std::min<size_t>(rom_size_, 4096u);
+      }
       if (mapper_ == kMapE7) {
          size_t pb;
          if (bus < 0x1800u) {
@@ -572,6 +635,11 @@ private:
          if (bus >= 0x1000u && bus <= 0x103fu) return cart_ram_[bus & 0x3fu];
          if (bus >= 0x1040u && bus <= 0x107fu) return 0u;
       }
+      if (mapper_ == kMapGL) {
+         if (gl_prom_enabled_ && bus >= 0x1fc0u && bus <= 0x1fdfu) return 0u;
+         size_t ri;
+         if (gl_ram_address(bus, &ri)) return cart_ram_[ri];
+      }
       if (mapper_ == kMapE7) {
          if (e7_lower_ == bank_count_ - 1u && bus >= 0x1000u && bus < 0x1800u) {
             if (bus >= 0x1400u) return cart_ram_[bus & 0x03ffu];
@@ -601,13 +669,22 @@ private:
       return 0u;
    }
 
-   uint16_t current_mapper_config() const
+   vcsc_mapper_config_t current_mapper_config() const
    {
       if (mapper_is_wd()) return wd_config_;
       if (mapper_ == kMapFC) return fc_pending_;
       if (mapper_ == kMapE0)
          return static_cast<uint16_t>((e0_segment_[0] & 7u) |
                 ((e0_segment_[1] & 7u) << 3) | ((e0_segment_[2] & 7u) << 6));
+      if (mapper_ == kMapGL) {
+         vcsc_mapper_config_t config = gl_prom_enabled_ ? (1u << 20) : 0u;
+         for (unsigned seg = 0; seg < 4u; ++seg) {
+            unsigned slot = static_cast<unsigned>(gl_segment_[seg] & 0x0fu);
+            if (slot >= 4u && gl_write_mode_[seg]) slot |= 0x10u;
+            config |= static_cast<vcsc_mapper_config_t>(slot) << (seg * 5u);
+         }
+         return config;
+      }
       if (mapper_ == kMapE7)
          return static_cast<uint16_t>((e7_lower_ & 0x0fu) | ((e7_ram_block_ & 3u) << 4));
       if (mapper_ == kMap3F || mapper_ == kMap3E) return three_config_;
@@ -719,6 +796,10 @@ private:
       else if (mapper_is_wd() && bus >= 0x1040u && bus <= 0x107fu) {
          cart_ram_[bus & 0x3fu] = value;
       }
+      else if (mapper_ == kMapGL) {
+         size_t ri;
+         if (gl_ram_address(bus, &ri)) cart_ram_[ri] = value;
+      }
       else if (mapper_ == kMapE7) {
          if (e7_lower_ == bank_count_ - 1u && bus >= 0x1000u && bus < 0x1400u)
             cart_ram_[bus & 0x03ffu] = value;
@@ -746,6 +827,19 @@ private:
       const uint16_t bus = bus_address(address);
       if (bus & 0x1000u) return cart_read(bus);
 
+      /* GameLine owns selected low-address read cycles that overlap normal
+       * console mirrors.  The address still identifies the RIOT/TIA mirror,
+       * but the returned byte is unspecified; only the mapper side effect is
+       * reliable. */
+      gl_select(bus);
+      gl_control(bus);
+      if (gl_intercepted_read(bus)) {
+         /* The GameLine device owns these read cycles.  Stella models the
+          * returned byte as per-address random/undefined data; zero is merely
+          * a deterministic concrete placeholder.  Static analysis keeps the
+          * value unknown, so this cannot become proof of a branch condition. */
+         return 0u;
+      }
       (void)select_simple_bank(bus);
       uint8_t value = 0u;
       if (tia_selected(bus)) {
@@ -1028,6 +1122,7 @@ extern "C" int vcsc_concrete_discover(const uint8_t *rom, size_t rom_size,
    case kMapUASW:
    case kMap0FA0:
    case kMapFE:
+   case kMapGL:
       break;
    case kMapDPC:
       /* DPC register/data-fetcher semantics remain intentionally outside the

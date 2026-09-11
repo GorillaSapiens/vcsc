@@ -332,6 +332,21 @@ for my $game (0 .. 3) {
       pack('C*', 0xA9, 0x40 + $game, 0x85, 0x80 + $game, 0x60));
 }
 write_bin(File::Spec->catfile($in, 'multicart_4in1.bin'), $multicart_4in1);
+# Two independently valid 4K cartridges inside one 8K file are deliberately
+# ambiguous with an ordinary F8 cartridge when the whole-image flow does not
+# prove CPU-visible bank switching.  Automatic analysis must retain F8 while
+# reporting the viable 2IN1 topology; --container 2IN1 resolves it explicitly.
+my $multicart_2in1_a = make_rom(4096, 0xF000, 0x0100,
+   pack('C*', 0xA9, 0x41, 0x85, 0x81, 0x60));
+my $multicart_2in1_b = make_rom(4096, 0xF000, 0x0100,
+   pack('C*', 0xA9, 0x42, 0x85, 0x82, 0x60));
+# Avoid accidentally manufacturing the legacy duplicated-prefix Superchip
+# signature in otherwise NOP-filled synthetic banks.
+substr($multicart_2in1_a, 0x0080, 1, "\x18");
+substr($multicart_2in1_b, 0x0080, 1, "\x38");
+my $multicart_2in1 = $multicart_2in1_a . $multicart_2in1_b;
+write_bin(File::Spec->catfile($in, 'multicart_2in1_ambiguous.bin'),
+          $multicart_2in1);
 # Manual analysis hints: a byte sequence that is intentionally a pointer
 # table but has no automatic low/high builder, plus a generic data table.
 my $manual_hints = make_rom(4096, 0xF000, 0x0100, "\xA9\x42\x60");
@@ -768,6 +783,44 @@ for my $v (0, 2, 4) {
    put16(\$e0_flow, 7 * 1024 + 0x03FA + $v, 0xFC00);
 }
 write_bin(File::Spec->catfile($in, 'e0_flow_only.bin'), $e0_flow);
+
+# An ordinary F8 program can use indexed ROM reads in the E0 selector address
+# range.  Under a wrongly assumed E0 mapping, LDA $FFE6,Y below changes segment
+# 0 from physical bank 4 to bank 6 and makes the model look self-consistent.
+# Indexed traffic is deliberately not a Stella E0 detector signature, so it
+# must not bootstrap E0 family admission from model-dependent execution alone.
+my $f8_indexed_e0_alias = chr(0xEA) x 8192;
+break_sc_layout(\$f8_indexed_e0_alias);
+substr($f8_indexed_e0_alias, 0x1000 + 0x0100, 6,
+   "\xA0\x00" .                         # LDY #0
+   "\xB9\xE6\xFF" .                   # LDA $FFE6,Y: ordinary F8 ROM read
+   "\x60");                              # F8 continuation
+substr($f8_indexed_e0_alias, 6 * 1024 + 0x0105, 1, "\x60");
+for my $v (0, 2, 4) {
+   put16(\$f8_indexed_e0_alias, 0x0FFA + $v, 0x0000);
+   put16(\$f8_indexed_e0_alias, 0x1FFA + $v, 0xF100);
+}
+write_bin(File::Spec->catfile($in, 'f8_indexed_e0_alias.bin'),
+          $f8_indexed_e0_alias);
+
+# Stella checks its narrow E0 signatures before its special 8K-E7 signatures.
+# This fixture intentionally contains both.  E0 sees one possible JAM arm but
+# also established E0 selector traffic; E7 must not steal the image merely
+# because its alternative mapping makes that speculative arm look cleaner.
+my $e0_e7_signature_precedence = chr(0xEA) x 8192;
+break_sc_layout(\$e0_e7_signature_precedence);
+substr($e0_e7_signature_precedence, 7 * 1024, 12,
+   "\xAD\xE4\xFF" .                    # 8K E7 detector signature
+   "\x8D\xE9\xFF" .                    # canonical E0 STA $FFE9 signature
+   "\xA5\x80" .                         # abstractly unknown RAM value
+   "\xD0\x01" .                         # BNE -> RTS; fallthrough may JAM
+   "\x02" .                               # possible JAM path
+   "\x60");                               # valid continuation
+for my $v (0, 2, 4) {
+   put16(\$e0_e7_signature_precedence, 7 * 1024 + 0x03FA + $v, 0xFC00);
+}
+write_bin(File::Spec->catfile($in, 'e0_e7_signature_precedence.bin'),
+          $e0_e7_signature_precedence);
 
 # The same rule must work for a speculative island.  The detached routine is
 # in physical bank 4 at runtime $F203.  Its E0 selector changes segment 0 to
@@ -1681,6 +1734,51 @@ for my $game (1 .. 4) {
       "4IN1 component $game independently disassembled");
 }
 
+my $multicart2_out = slurp(File::Spec->catfile($out, 'multicart_2in1_ambiguous.s26'));
+require_re($multicart2_out,
+   qr/^; container evidence: 2IN1 viable; 2\/2 independent 4096-byte slices have real RESET roots and established code$/m,
+   'ambiguous 2IN1 independent-slice evidence');
+require_re($multicart2_out,
+   qr/^; container result: ambiguous F8 vs 2IN1; retained F8 as the conventional whole-image interpretation$/m,
+   'ambiguous 2IN1 retains conventional whole-image F8 interpretation');
+! -e File::Spec->catfile($out, 'multicart_2in1_ambiguous.game01.s26')
+   or die "ambiguous 2IN1 unexpectedly emitted component sidecars\n";
+
+# An explicit container override is authoritative even for an image that would
+# otherwise collapse as a duplicate 4K preservation dump.  This also locks the
+# intended escape hatch for multicarts containing duplicate games.
+my $forced2 = File::Spec->catfile($tmp, 'forced_2in1.s26');
+my ($forced2_rc, $forced2_sig, $forced2_stdout, $forced2_stderr) =
+   capture_command($disas, '--container', '2IN1', '-o', $forced2,
+      File::Spec->catfile($in, 'doubled4k.bin'));
+$forced2_rc == 0 && $forced2_sig == 0
+   or die "forced 2IN1 disassembly failed:\n$forced2_stderr";
+$forced2_stdout eq '' or die "forced 2IN1 unexpectedly wrote stdout\n";
+$forced2_stderr eq "Success, output written to $forced2\n"
+   or die "forced 2IN1 success message mismatch: $forced2_stderr";
+my $forced2_text = slurp($forced2);
+require_re($forced2_text, qr/^; mapper: 2IN1 \(container;/m,
+   'explicit 2IN1 outer image recognized as a container');
+require_re($forced2_text,
+   qr/^; container selection: explicit --container 2IN1 override$/m,
+   'explicit 2IN1 selection provenance');
+for my $game (1 .. 2) {
+   my $sidecar = File::Spec->catfile($tmp, sprintf('forced_2in1.game%02d.s26', $game));
+   -f $sidecar or die "missing forced 2IN1 component sidecar $sidecar\n";
+   require_re(slurp($sidecar), qr/^; mapper: unbanked 4K \(/m,
+      "forced 2IN1 component $game independently disassembled");
+}
+
+my ($bad_combo_rc, $bad_combo_sig, undef, $bad_combo_stderr) =
+   capture_command($disas, '--container', '2IN1', '--mapper', 'f8',
+      File::Spec->catfile($in, 'multicart_2in1_ambiguous.bin'));
+$bad_combo_rc != 0 && $bad_combo_sig == 0
+   or die "--container/--mapper conflict unexpectedly succeeded\n";
+$bad_combo_stderr =~ /--container cannot be combined with --mapper/
+   or die "missing --container\/--mapper conflict diagnostic:\n$bad_combo_stderr";
+$bad_combo_stderr =~ /Failure, disassembly not written\n\z/
+   or die "--container\/--mapper conflict lacks final Failure line\n";
+
 # A detached island is never enough to satisfy the tool's minimum executable
 # evidence contract.  With no cartridge-backed RESET/manual/concrete entry,
 # the disassembler must now refuse the image rather than letting speculation
@@ -1880,6 +1978,8 @@ require_re($f8_out, qr/^B0_F100:\s*$/m,
    'bank-qualified colliding label in bank 0');
 require_re($f8_out, qr/^B1_F100:\s*$/m,
    'bank-qualified colliding label in bank 1');
+die "positive F8 selector evidence was incorrectly treated as 2IN1 ambiguity\n"
+   if $f8_out =~ /^; container evidence: 2IN1/m;
 
 my $fa_out = slurp(File::Spec->catfile($out, 'fa.s26'));
 require_re($fa_out, qr/^; mapper: FA \(high confidence;/m, 'FA 12K mapper inference');
@@ -2198,10 +2298,10 @@ my $spec_banked = slurp(File::Spec->catfile($out, 'speculative_banked_island.s26
 require_re($spec_banked, qr/^; mapper: F8 \(/m,
    'banked speculative-island mapper');
 require_re($spec_banked,
-   qr/^; mapper flow hypotheses: 12 tested, 4 survived$/m,
-   'speculative selector traffic and evidence-free UA variants do not rank mapper hypotheses');
+   qr/^; mapper flow hypotheses: 12 tested, 3 survived$/m,
+   'speculative selector traffic and evidence-free mapper models do not rank hypotheses');
 require_re($spec_banked,
-   qr/^; mapper evidence: F8 retained as legacy\/default inference; 4 hypotheses remain viable$/m,
+   qr/^; mapper evidence: F8 retained as legacy\/default inference; 3 hypotheses remain viable$/m,
    'ambiguous mapper header admits F8 is the legacy/default tie-break rather than positive proof');
 require_re($spec_banked,
    qr/^;   F8: viable; RESET flow is internally consistent$/m,
@@ -2610,6 +2710,25 @@ require_re($e0_flow_out, qr/B4_F100:\n\s*LDA\s+\$FFE0/m,
    'E0 selector decoded in default physical bank 4');
 require_re($e0_flow_out, qr/B0_F103:\n\s*LDA\s+\$FFE9\n\s*LDA\s+#\$42/m,
    'E0 execution resumes from newly selected physical bank');
+
+my $f8_indexed_e0_alias_out = slurp(File::Spec->catfile($out, 'f8_indexed_e0_alias.s26'));
+require_re($f8_indexed_e0_alias_out, qr/^; mapper: F8 \(/m,
+   'indexed ROM read in E0 selector range cannot manufacture E0 family evidence');
+require_re($f8_indexed_e0_alias_out,
+   qr/^;   E0: rejected; no mapper-family signature or specific execution evidence$/m,
+   'E0 refinement requires raw detector signature or explicit metadata');
+require_re($f8_indexed_e0_alias_out, qr/B1_F100:\n\s*LDY\s+#\$00\n\s*LDA\s+B1_FFE6,Y/m,
+   'ordinary F8 indexed table read remains ordinary ROM access');
+
+my $e0_e7_precedence_out = slurp(File::Spec->catfile($out, 'e0_e7_signature_precedence.s26'));
+require_re($e0_e7_precedence_out, qr/^; mapper: E0 \(/m,
+   'canonical E0 signature retains E0 against model-dependent 8K E7 interpretation');
+require_re($e0_e7_precedence_out,
+   qr/^;   E0: viable; established mapper detector signature present$/m,
+   'E0 detector signature keeps mapper viable across possible JAM arm');
+require_re($e0_e7_precedence_out,
+   qr/^;   E7: rejected; established E0 signature outranks model-dependent E7 traffic$/m,
+   'E0 raw-signature precedence rejects competing E7 model');
 
 my $e0_spec_out = slurp(File::Spec->catfile($out, 'e0_speculative_banked_island.s26'));
 require_re($e0_spec_out, qr/^; mapper: E0 \(/m,

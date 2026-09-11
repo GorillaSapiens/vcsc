@@ -122,7 +122,7 @@ sub stella_mapper_for_rom {
     # reported NIN1 topology divides the local image evenly and the reported
     # MD5 matches one exact component slice.
     if ($reported_md5 ne lc($expected_md5)) {
-        if ($mapper =~ /^(4|8|32)IN1\z/) {
+        if ($mapper =~ /^(2|4|8|32)IN1\z/) {
             my $games = int($1);
             my $image = slurp_raw($path);
             length($image) % $games == 0

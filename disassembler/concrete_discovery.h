@@ -14,9 +14,11 @@ extern "C" {
 #define VCSC_CONCRETE_MAX_INSN_BYTES 3u
 #define VCSC_CONCRETE_NO_SOURCE UINT32_MAX
 
+typedef uint32_t vcsc_mapper_config_t;
+
 typedef struct {
    uint16_t pc;
-   uint16_t mapper_config;
+   vcsc_mapper_config_t mapper_config;
    uint16_t bank;
    uint8_t a;
    uint8_t x;
@@ -27,7 +29,7 @@ typedef struct {
 } vcsc_concrete_seed_t;
 
 typedef struct {
-   uint16_t mapper_config;
+   vcsc_mapper_config_t mapper_config;
    uint8_t a;
    uint8_t x;
    uint8_t y;
