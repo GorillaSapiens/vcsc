@@ -68,6 +68,153 @@ Durable invariants
   specific diagnostic. Bulk `roundtrip.pl` validation consumes and checks the
   per-file success confirmation.
 
+Analysis architecture roadmap -- mapper-hypothesis execution
+----------------------------------------------------------
+This is the highest-priority disassembler analysis subitem.  The destination is
+state-space exploration of every structurally possible mapper hypothesis, rather
+than "guess mapper -> decide whether it is trusted -> maybe simulate".  Mapper
+identity and reachable-code/data discovery must emerge together from isolated
+hardware models.  Work through these pieces in order; keep each step regression-
+locked before replacing the next existing heuristic.
+
+A1. [ ] Duplicate-image analysis view and provenance map
+    * Repeatedly halve the analysis image while its two halves are byte-identical,
+      until the smallest unique payload remains.  This is analysis-only: never
+      change physical output size or bytes, and retain a many-to-one provenance
+      map from every unique byte/bank back to every physical copy.
+    * Record exact duplicates and wholly erased/fill banks as explained physical
+      content so later bank-coverage checks do not mistake dump padding for an
+      inaccessible game bank.
+
+A2. [ ] Enumerate mapper hypotheses before choosing a winner
+    * From physical size, unique size, explicit metadata/signatures, and mapper
+      structural constraints, construct every mapper model that could physically
+      explain the image.  Do not select a trusted/default mapper first.
+    * Keep hypotheses isolated: mapper/RAM state, runtime mapping, discovered
+      code/data, rejection reasons, and evidence may never leak between them.
+
+A3. [ ] Turn concrete discovery into exhaustive state-space exploration
+    * Start each hypothesis from every hardware-legal RESET startup state required
+      by that mapper.  When register/flag state proves a branch direction, follow
+      only that edge.  When it does not, fork and follow every feasible edge.
+      Unknown inputs are symbolic uncertainty, not hand-picked "game modes" or
+      scenario samples.
+    * Deduplicate equivalent machine states and widen finite abstract values as
+      needed; loop convergence must not depend on an instruction-count cap.
+    * Remove the current mapper-trust gate once hypothesis-local execution is safe;
+      `--mapper` must constrain the hypothesis set, not secretly enable a stronger
+      analysis engine.
+
+A4. [ ] First-class value/source provenance
+    * Track ROM-byte provenance through registers, arithmetic where practical,
+      RIOT/cartridge RAM stores and reloads, and instruction fetch from executable
+      RAM.  Generated RAM code must therefore retain the ROM bytes that created
+      each opcode/operand.  Congo Bongo's ROM constants -> $00F0..$00F5 ->
+      `LDA $FFF8 ; JMP $F0E0` is the canonical regression.
+    * Track provenance into externally meaningful sinks, initially GRP0/GRP1 and
+      later the other display/audio consumers where useful.  This lets bytes read
+      as tables/graphics be explained as data instead of competing with speculative
+      instruction decoding.
+    * Preserve provenance across bank switches/mirrors while retaining physical
+      byte identity for exact reconstruction.
+
+A5. [ ] Unified path viability and hardware-bus rejection
+    * Reuse the detached-island rules as execution semantics: JAM/KIL/HLT kills
+      that path; branch/JMP/JSR to neither cartridge nor executable RAM kills the
+      affected edge/path; impossible/no-source reads and no-sink writes/RMW kill
+      the affected path after direction-sensitive mapper/peripheral exceptions.
+    * A conditional survives when at least one feasible successor survives.  If
+      known state makes one arm impossible, do not explore it.  If every feasible
+      arm dies, rejection propagates backward.  JSR requires a viable callee and
+      a viable return continuation.
+    * Canonical TIA/RIOT accesses are stronger code evidence than legal mirrors.
+      Mapper-defined nonstandard addresses are judged by that mapper first and may
+      override the generic TIA/RIOT interpretation in the appropriate direction.
+
+A6. [ ] Bank-access completeness as a mapper requirement
+    * Exhaustive execution must account for every unique, non-fill bank under a
+      surviving mapper: at least one feasible path must fetch instructions from it
+      or read data from it.  Exact duplicate and erased/fill banks are already
+      accounted for by A1 and do not require synthetic execution.
+    * A mapper hypothesis that leaves a unique meaningful bank wholly inaccessible
+      is rejected, not excused as an untriggered game mode.  Unknown input/control
+      state should have forked before this check.
+    * Report per-bank evidence: instruction fetch, data read, RAM-code provenance,
+      display/audio provenance, duplicate, fill, or unexplained.
+
+A7. [ ] Compare surviving hypotheses from contradictions plus positive evidence
+    * Mapper-specific hotspot activity, coherent continuation after a bank change,
+      correct cartridge-RAM behavior, generated-RAM selectors, reset behavior, and
+      complete bank access are positive evidence.  Merely executing many
+      instructions is not mapper evidence.
+    * Reject hypotheses on hard contradictions.  If exactly one survives, select
+      it.  If several survive without a principled discriminator, report the
+      ambiguity and preserve conservative/raw presentation rather than allowing a
+      size default or self-confirming model to masquerade as proof.
+    * Keep signatures/static heuristics as migration priors and diagnostics, not
+      prerequisites for running a hypothesis.  Retire trust/default machinery only
+      after equivalent negative regressions exist.
+
+A8. [ ] Feed exhaustive execution back into code/data presentation
+    * Established execution under the selected hypothesis remains authoritative.
+      ROM bytes proven to feed executable RAM are code-source data; bytes proven to
+      feed GRP0/GRP1 or other consumers are data-source evidence.  Preserve exact
+      bytes even when one physical byte has more than one runtime role.
+    * Revisit detached island discovery after hypothesis execution is mature: it
+      should fill genuinely unreachable presentation gaps, not compensate for an
+      execution engine that failed to explore feasible control flow.
+    * Regression set must include Congo Bongo's generated F8 selector, the prior
+      false-mapper cases that motivated the trust gate, duplicate/padded images,
+      all-bank coverage, unknown-input branch forking, and mapper-specific
+      read/write hotspot direction.
+
+Weak "nonsense operation string" evidence
+-----------------------------------------
+Maintain a deliberately weak plausibility signal for short instruction sequences
+whose semantic work is immediately obliterated.  This may indicate speculative
+decoding drifted into data, but is never a hard rejection: beam-path code may burn
+cycles with semantically redundant operations.
+
+Prefer a small dead-definition/dataflow analysis over a catalog of byte strings.
+For each instruction, describe CPU definitions/uses (A/X/Y/SP, individual flags,
+memory) plus externally visible bus effects.  A definition is suspicious when
+all of its semantic effects are overwritten before any use and the instruction
+had no meaningful read/write/mapper/device side effect.  Examples include:
+
+* `LDA #$00 ; LDA #$FF` when neither A nor the first N/Z result is observed.
+* `LDX #a ; LDX #b`, `LDY #a ; LDY #b`, or repeated register transfers where the
+  first result is dead before use.
+* `CLC ; SEC`, `SED ; CLD`, or similar flag definitions when the first flag value
+  is neither branched/tested nor consumed by ADC/SBC/rotate before replacement.
+* A pure load from ordinary RAM followed by another full load of that register
+  before the value or resulting flags are used.
+* Arithmetic/INC/DEC/transfer work whose register and flag results are completely
+  overwritten before any observable use.
+* A RAM store whose value is overwritten at the same location before any feasible
+  read, when neither store has device/mapper semantics.
+* `JMP`/branch to the immediately following instruction, or other control-flow
+  detours that have no semantic effect except cycles.
+
+Do **not** call a sequence nonsense merely because it looks redundant locally:
+
+* TIA/RIOT, cartridge peripheral, and mapper reads/writes may have bus side effects.
+* Stores to TIA registers are often timing/output actions even when the same value
+  is written repeatedly.
+* Reads used for bankswitching may matter even when the loaded value is discarded.
+* PHA/PLA, PHP/PLP, transfers, flag changes, unofficial opcodes, and apparently
+  redundant ALU operations may exist solely to consume a precise number of cycles.
+* Once execution is known to be in or near the visible beam path (for example,
+  bounded by WSYNC/display activity), suppress or sharply reduce this penalty.
+  Timing-only code during blanking is also possible, so beam-path knowledge changes
+  the weight rather than proving semantic purpose.
+
+Accumulate this evidence gently.  One dead definition should barely matter;
+several independent dead/clobbered definitions in a short speculative run can
+lower island/hypothesis confidence.  Cap the penalty so nonsense scoring can
+never by itself kill a path or mapper.  Hard hardware/control-flow contradictions
+remain separate.  If execution/provenance later proves the sequence reachable,
+keep it as code and use the signal only as a diagnostic annotation/statistic.
+
 Unfinished mapper support
 -------------------------
 23. [ ] GL real-corpus closeout
@@ -98,9 +245,12 @@ Unfinished mapper support
 
 Current direction
 -----------------
-The currently tracked analysis-correctness items are complete. GL implementation is
-complete; real-corpus closeout is its only remaining gate. CM is the next mapper
-implementation item, with DPC+ and the CDF family following independently.
+The mapper-hypothesis execution roadmap A1-A8 above is now the current analysis
+priority.  It replaces the trusted-winner-first architecture with exhaustive,
+hypothesis-local state-space exploration and provenance; implement it incrementally
+without weakening exact reconstruction or the existing negative mapper regressions.
+GL implementation remains complete with only real-corpus closeout pending; CM, DPC+,
+and the CDF family remain the mapper-specific queue after/alongside that migration.
 
 When corpus work resumes, prefer one concrete mismatch/failure category at a
 time, add a minimal synthetic regression plus the real corpus case, and keep

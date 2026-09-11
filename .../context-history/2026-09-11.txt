@@ -86,3 +86,12 @@ Validation after the change: focused vcsc_disassembler.pl plus fuzz, GL,
 hardening, and all-opcode round-trip suites pass; source_tree_hygiene.pl passes;
 compile-only is 537/537. The broad E2E run reached 229/365 with zero failures
 before the environment execution ceiling, consistent with the prior handoff.
+
+2026-09-11 09:28:28 PDT, disassembler hypothesis roadmap
+Documented the next disassembler architecture: analysis-only duplicate halving with
+physical provenance, isolated simulation of every structurally possible mapper,
+known-state branch selection plus unknown-state forking, ROM/RAM/TIA provenance,
+path viability rejection, strict unique-bank access coverage, hypothesis comparison,
+and eventual integration back into presentation.  Added weak nonsense-operation
+scoring based on dead definitions/clobbered effects, with hardware side effects and
+beam/timing code explicitly protected from hard rejection.
