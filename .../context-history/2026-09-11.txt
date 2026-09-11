@@ -123,3 +123,28 @@ Validation: vcsc_disassembler.pl passes including exact reconstruction of the ne
 recursive duplicate fixture; deterministic fuzz is 30/30; GL, hardening, all-opcode
 round-trip, and source-tree hygiene all pass. A2 mapper-hypothesis enumeration is
 next.
+
+2026-09-11 10:22:59 PDT, enumerate mapper hypotheses
+Completed disassembler roadmap A2. Automatic analysis now constructs the complete
+structurally compatible mapper-hypothesis set before init_analysis(), legacy mapper
+selection, or control-flow refinement. Ordinary cartridge hypotheses are derived
+from the A1 unique analysis image; additional structurally compatible mapper models
+remain in the set even when the legacy evaluator does not yet score them. Detector
+and tail signatures annotate hypotheses rather than creating topology.
+
+N-in-1 layouts are now first-class parameterized mapper hypotheses in that same
+preselection set. Their structure is derived from the physical image, so exact A1
+duplicate copies do not manufacture a multicart hypothesis. The current 2IN1/
+4IN1/8IN1/32IN1 slice evaluator is retained only as migration compatibility and may
+consume only hypotheses that were enumerated before whole-image selection; it can
+no longer discover a topology after the fact. --container remains legacy CLI
+spelling for forcing one of these mapper hypotheses.
+
+Generated disassembly headers report the preselection hypothesis set and physical/
+analysis sizes. Regressions cover 24K structural alternatives [FA2, FC, 3F, 3E],
+F0 competing with 8IN1/4IN1 before selection, first-class 4IN1/8IN1, ambiguous
+2IN1, and A1 recursive duplicate reduction without false N-in-1 discovery. Existing
+presentation/tie-break behavior remains intentionally unchanged until A3 replaces
+the legacy static and slice evaluators with hypothesis-local exhaustive execution.
+Focused disassembler, fuzz, GL, hardening, opcode round-trip, and source-tree
+hygiene tests pass. A3 exhaustive per-hypothesis state-space execution is next.

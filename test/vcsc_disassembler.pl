@@ -339,6 +339,12 @@ substr($fill_bank_f6, 4096 + 0x0081, 1, "\x11");
 substr($fill_bank_f6, 8192 + 0x0081, 1, "\x22");
 substr($fill_bank_f6, 12288 + 0x0081, 1, "\x33");
 write_bin(File::Spec->catfile($in, 'fill_bank_f6.bin'), $fill_bank_f6);
+# A2 must retain structurally possible mapper models that the legacy flow
+# refiner never compared.  24K defaults to FA2 today, but FC/3F/3E also
+# physically fit and therefore belong in the preselection set for A3.
+my $a2_structural_24k = make_rom(24576, 0xF000, 0x0300,
+   "\xA9\x62\x85\x92\x60");
+write_bin(File::Spec->catfile($in, 'a2_structural_24k.bin'), $a2_structural_24k);
 # Multi-game images are containers, not one bankswitched CPU address space.
 # Four distinct, independently rooted 2K components must be split/analyzed
 # separately while the outer source preserves the exact concatenation.
@@ -1917,9 +1923,22 @@ write_bin(File::Spec->catfile($in, 'ar_multi.bin'), $ar_multi);
 
 run_ok($^X, $roundtrip, $in, $out);
 
+my $a2_24k_out = slurp(File::Spec->catfile($out, 'a2_structural_24k.s26'));
+require_re($a2_24k_out,
+   qr/^; mapper hypotheses enumerated before selection: 4 \[FA2, FC, 3F, 3E\]; analysis-bytes=24576 physical-bytes=24576$/m,
+   'A2 retains structurally possible 24K mapper hypotheses before selection');
+require_re($a2_24k_out, qr/^; mapper: FA2 \(/m,
+   'A2 does not prematurely change the legacy 24K presentation winner');
+
 my $multicart_out = slurp(File::Spec->catfile($out, 'multicart_4in1.s26'));
+require_re($multicart_out,
+   qr/^; mapper hypotheses enumerated before selection: .*\b4IN1\b.*$/m,
+   '4IN1 participates in the preselection mapper hypothesis set');
 require_re($multicart_out, qr/^; mapper: 4IN1 \(container;/m,
    '4IN1 outer image recognized as a container');
+require_re($multicart_out,
+   qr/^; mapper topology: first-class N-in-1 hypothesis; component sidecars are compatibility presentation$/m,
+   'selected 4IN1 is reported as a first-class mapper topology');
 require_re($multicart_out, qr/^; container analysis: 4\/4 component slices established independently$/m,
    '4IN1 components analyzed independently');
 for my $game (1 .. 4) {
@@ -1931,12 +1950,18 @@ for my $game (1 .. 4) {
 }
 
 my $multicart8_out = slurp(File::Spec->catfile($out, 'multicart_8in1.s26'));
+require_re($multicart8_out,
+   qr/^; mapper hypotheses enumerated before selection: 6 \[F0, 3E, 3F, FC, 8IN1, 4IN1\]; analysis-bytes=65536 physical-bytes=65536$/m,
+   '8IN1 competes directly with the structurally possible 64K cart mappers');
 require_re($multicart8_out, qr/^; mapper: 8IN1 \(container;/m,
    '64K 8IN1 remains a container without F0 selector evidence');
 require_re($multicart8_out, qr/^; container analysis: 8\/8 component slices established independently$/m,
    '8IN1 components analyzed independently');
 
 my $f0_collision_out = slurp(File::Spec->catfile($out, 'f0_vs_8in1.s26'));
+require_re($f0_collision_out,
+   qr/^; mapper hypotheses enumerated before selection: 6 \[F0, 3E, 3F, FC, 8IN1, 4IN1\]; analysis-bytes=65536 physical-bytes=65536$/m,
+   'F0 and N-in-1 are peers in the same 64K preselection set');
 require_re($f0_collision_out, qr/^; mapper: F0 \(high confidence;/m,
    'repeated F0 selectors beat a coincidentally viable 8IN1 split');
 require_re($f0_collision_out,
@@ -1946,6 +1971,9 @@ die "F0 collision fixture was incorrectly split as 8IN1\n"
    if $f0_collision_out =~ /^; mapper: 8IN1 \(container;/m;
 
 my $multicart2_out = slurp(File::Spec->catfile($out, 'multicart_2in1_ambiguous.s26'));
+require_re($multicart2_out,
+   qr/^; mapper hypotheses enumerated before selection: 13 \[F8, E0, E7, 3E, 3F, FE, 0840, UA, UASW, 0FA0, WD, FC, 2IN1\]; analysis-bytes=8192 physical-bytes=8192$/m,
+   '2IN1 is enumerated beside all structurally eligible 8K cart mappers');
 require_re($multicart2_out,
    qr/^; container evidence: 2IN1 viable; 2\/2 independent 4096-byte slices have real RESET roots and established code$/m,
    'ambiguous 2IN1 independent-slice evidence');
@@ -2185,6 +2213,9 @@ require_re($doubled_4k_out,
    'doubled 4K second-copy preservation section');
 
 my $recursive_dup_out = slurp(File::Spec->catfile($out, 'recursive_duplicate_8k.s26'));
+require_re($recursive_dup_out,
+   qr/^; mapper hypotheses enumerated before selection: 2 \[unbanked 2K, CV\]; analysis-bytes=2048 physical-bytes=8192$/m,
+   'A1 unique view feeds A2 while exact duplicate constituents do not invent N-in-1');
 require_re($recursive_dup_out, qr/^; mapper: unbanked 2K \(/m,
    'recursive exact-half reduction reaches the smallest 2K payload');
 require_re($recursive_dup_out,

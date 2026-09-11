@@ -60,10 +60,11 @@ Supported mapper overrides are `1k`, `2k`, `4k`, `f8`, `f8sc`, `f6`, `f6sc`,
 cartridge. Numbers accept decimal, `0x` hex, or `$` hex; quote `$` forms in a
 shell so the shell does not treat them as variable references.
 
-`--container 2IN1|4IN1|8IN1|32IN1` forces the **outer file topology**, not a
-6507 mapper. Each selected component is then analyzed independently with normal
-mapper inference and the outer source reconstructs the original file by exact
-concatenation. The container override cannot be combined with `--mapper`,
+`--container 2IN1|4IN1|8IN1|32IN1` is the legacy CLI spelling for forcing an
+N-in-1 mapper topology. Internally these are first-class parameterized mapper
+hypotheses enumerated beside ordinary cart mappers before selection; the current
+component sidecars remain compatibility presentation while exhaustive N-in-1
+execution is migrated onto the common hypothesis engine. The override cannot be combined with `--mapper`,
 `--reset-bank`, or bank/address layout hints because those options would be
 ambiguous across independent games. Video/controller metadata overrides may
 still be applied to the component analyses.
@@ -138,31 +139,33 @@ for later mapper-bank coverage.  Explicit mapper/layout overrides keep their
 selected physical bank topology while retaining the duplicate provenance map.
 Merely similar or partially duplicated images are never collapsed.
 
-Multi-game images are treated as **containers**, not as one bankswitched 6507
-address space. Automatic 4IN1/8IN1/32IN1 detection remains intentionally
-conservative: the whole-image analysis must show no CPU-visible selector traffic,
-candidate components need plausible independent RESET roots and executable
-analyses, and all component byte images must be distinct so repeated-bank
-preservation dumps are not misclassified. Each component gets an independent
-mapper/CFG/state analysis. The outer `.s26` preserves the exact concatenated
-image as a container manifest; when `-o` names a file, `vcsc-disas` also writes
-`.gameNN.s26` sidecars with the individual component disassemblies. An
-unestablished explicitly selected component is preserved raw.
+N-in-1 multi-game layouts are first-class mapper hypotheses, parameterized by
+constituent count, rather than a post-detection container category. Before any
+legacy/default winner is chosen, `vcsc-disas` builds one structural preselection
+set: ordinary cart models are checked against the A1 unique analysis size, while
+2IN1/4IN1/8IN1/32IN1 candidates are checked against the physical image. Exact
+duplicate constituents are preservation evidence and do not create an automatic
+N-in-1 candidate. The generated header reports this complete preselection set.
 
-2IN1 receives stricter treatment because an 8K file containing two plausible
-4K programs is also a perfectly possible ordinary F8 image. Automatic analysis
-therefore never promotes 2IN1 from file size alone. It first requires two
-distinct 4K slices with real RESET vectors and independently established,
-nontrivial startup paths. Positive whole-cartridge evidence such as an
-established CPU-visible mapper transition or an explicit VCSC mapper signature
-defeats the container interpretation. If the split remains credible while the
-whole 8K interpretation is also coherent, the generated header reports the
-ambiguity and retains the conventional whole-image mapper rather than pretending
-2IN1 was proved. If the whole interpretation is contradicted, the two-slice
-container may win by structural/control-flow elimination. `--container 2IN1`
-is the authoritative escape hatch when external knowledge resolves an inherently
-ambiguous dump; it can intentionally represent duplicate component games that
-automatic detection would reject as a preservation image.
+During the A2-to-A3 migration, N-in-1 hypotheses still use the established
+independent-component evaluator: plausible independent RESET roots/executable
+components are required, positive CPU-visible whole-cart selector evidence can
+defeat the external-selection topology, and selected components are emitted as
+`.gameNN.s26` compatibility sidecars while the outer source preserves the exact
+concatenation. This evaluator consumes only N-in-1 hypotheses that already existed
+in the preselection set; it may not discover a new topology after mapper choice.
+A3 will replace both the legacy cart-flow evaluator and this slice evaluator with
+the same exhaustive hypothesis-local state-space engine.
+
+2IN1 remains the most ambiguous shape because an 8K file containing two plausible
+4K programs is also a perfectly possible ordinary F8 image. Automatic structure
+therefore requires two distinct 4K slices with real RESET roots. If both the F8
+and 2IN1 hypotheses remain credible under the current compatibility evaluators,
+the generated header reports the ambiguity and retains the conventional whole
+image until A3 can compare exhaustive execution. `--container 2IN1` remains the
+authoritative compatibility override when external knowledge resolves the dump;
+it can intentionally represent duplicate component games that automatic
+structure would treat as preservation copies.
 
 Stella-playable 4094- and 4098-byte preservation dumps are treated as logical
 unbanked 4K cartridges without changing their physical files.  This mirrors
@@ -267,9 +270,11 @@ inside an otherwise successful disassembly.
 
 The generated header records the input size and SHA-256, mapper evidence,
 physical banks, inferred bank origins and reset bank, video/controller evidence,
-and the `vcsc-disas` version.  When several supported mapper models fit the same
-physical size, `vcsc-disas` tests those models as competing **established**
-control-flow hypotheses. Detached speculative islands are deliberately excluded
+and the `vcsc-disas` version. Before selection it enumerates every structurally
+compatible mapper hypothesis, including N-in-1 topologies; models outside the
+legacy static evaluator's old size table are retained for A3 rather than silently
+dropped. The current migration then tests the legacy-supported cart subset as
+competing **established** control-flow hypotheses. Detached speculative islands are deliberately excluded
 from mapper viability, selector counts, ranking, and contradiction evidence. A
 hypothesis must establish a cartridge-backed RESET graph on its own. A reachable
 HLT/JAM/KIL in that established graph normally eliminates a model, but abstract flow can

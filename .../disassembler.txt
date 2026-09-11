@@ -62,11 +62,21 @@ Durable invariants
   signed VCSC banked image, the complete linker vector-bridge invariant may
   establish the three bridge slots as code without making NMI/IRQ handlers
   runtime-reachable. Signature bytes alone are insufficient.
-* `2IN1`, `4IN1`, `8IN1`, `32IN1`, and future N-in-1 schemes are mapper
-  families, not a separate post-mapper container category.  Their mapper state
-  selects which constituent cartridge image is CPU-visible; no CFG/ROM reference
-  crosses an unselected constituent.  Until A2 replaces the legacy implementation,
-  existing container/sidecar output remains compatibility plumbing only.
+* Mapper hypotheses are enumerated before any legacy/default winner is chosen.
+  Automatic cart hypotheses come from structural compatibility with the A1 unique
+  analysis size; detector/tail signatures annotate those hypotheses but do not
+  create an incompatible topology.  Structurally compatible models that the old
+  static flow refiner never compared remain in the set for A3 instead of being
+  silently discarded.  Hypothesis-local analysis/evidence may never leak between
+  candidates.
+* `2IN1`, `4IN1`, `8IN1`, `32IN1`, and future N-in-1 schemes are a parameterized
+  first-class mapper-hypothesis family, not a post-mapper container category.
+  Automatic N-in-1 structure is derived from the physical image while ordinary
+  cart structure uses the A1 unique view; exact duplicate constituents therefore
+  remain preservation evidence rather than inventing a multicart.  The selector
+  state chooses which constituent image is CPU-visible and no CFG/ROM reference
+  crosses an unselected constituent.  Current `.gameNN.s26` sidecars and the
+  `--container` spelling are compatibility presentation/override plumbing only.
 * The standalone `disassembler/roundtrip.pl` remains the mechanical exactness
   oracle. Stella differential mapper checks are useful evidence, not authority.
 * A successful CLI run reports its destination on standard error only after the
@@ -82,18 +92,7 @@ Highest-priority analysis subitem: explore every structurally possible mapper
 hypothesis instead of "guess -> trust -> maybe simulate". Mapper identity and
 reachable code/data emerge together from isolated hardware models. Keep each
 step regression-locked before replacing the next heuristic. A1 duplicate-image
-provenance is complete; A2 is next.
-
-A2. [ ] Enumerate mapper hypotheses before choosing a winner
-    * From physical size, unique size, explicit metadata/signatures, and mapper
-      structural constraints, construct every mapper model that could physically
-      explain the image.  Do not select a trusted/default mapper first.
-    * Treat N-in-1 layouts as ordinary mapper hypotheses (`2IN1`, `4IN1`,
-      `8IN1`, `32IN1`, ...), preferably one parameterized internal family.  The
-      selector state chooses a constituent mapping; N-in-1 competes directly
-      with F8/F6/F4/F0/etc. instead of running as a later container detector.
-    * Keep hypotheses isolated: mapper/RAM state, runtime mapping, discovered
-      code/data, rejection reasons, and evidence may never leak between them.
+provenance and A2 preselection mapper enumeration are complete; A3 is next.
 
 A3. [ ] Turn concrete discovery into exhaustive state-space exploration
     * Start each hypothesis from every hardware-legal RESET startup state required
@@ -231,12 +230,12 @@ Unfinished mapper support
 Current direction
 -----------------
 The mapper-hypothesis execution roadmap is the current analysis priority. A1
-duplicate-image provenance is complete; A2 mapper enumeration is next. The
-destination replaces trusted-winner-first analysis with isolated exhaustive
-hypotheses. N-in-1 topologies are
-first-class mapper hypotheses in that destination architecture, not a later
-container pass.  Implement the migration incrementally without weakening exact
-reconstruction or the existing negative mapper regressions.
+duplicate-image provenance and A2 preselection enumeration are complete; A3
+exhaustive hypothesis-local execution is next.  The preselection set already
+contains every structurally compatible ordinary mapper plus first-class N-in-1
+topologies before any winner is chosen.  The A2-era legacy flow/slice evaluators
+remain temporary compatibility scoring only; A3 replaces them with one isolated
+state-space engine without weakening exact reconstruction or negative regressions.
 GL implementation remains complete with only real-corpus closeout pending; CM, DPC+,
 and the CDF family remain the mapper-specific queue after/alongside that migration.
 

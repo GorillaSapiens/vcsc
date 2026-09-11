@@ -68,7 +68,12 @@ typedef enum {
    MAP_GL = VCSC_VIDEO_MAP_GL
 } mapper_t;
 
-#define MAPPER_HYPOTHESIS_MAX 16u
+#define MAPPER_HYPOTHESIS_MAX 32u
+
+typedef enum {
+   MAPPER_HYPOTHESIS_CART,
+   MAPPER_HYPOTHESIS_NIN1
+} mapper_hypothesis_kind_t;
 
 typedef enum {
    MAPPER_REJECT_NONE,
@@ -98,7 +103,14 @@ typedef enum {
 } mapper_selection_reason_t;
 
 typedef struct {
+   mapper_hypothesis_kind_t kind;
    mapper_t mapper;
+   unsigned games;
+   size_t slice_size;
+   size_t bank_size;
+   size_t bank_count;
+   int forced;
+   int evaluated;
    int viable;
    size_t instructions;
    size_t halts;
@@ -117,11 +129,18 @@ typedef struct {
 typedef struct {
    mapper_t legacy;
    mapper_t winner;
+   mapper_hypothesis_kind_t winner_kind;
+   unsigned winner_games;
    mapper_selection_reason_t selection_reason;
    int refined;
    size_t tested;
    size_t survived;
    size_t hypothesis_count;
+   size_t cart_hypothesis_count;
+   size_t nin1_hypothesis_count;
+   size_t physical_size;
+   size_t analysis_size;
+   int enumerated_before_selection;
    mapper_hypothesis_t hypotheses[MAPPER_HYPOTHESIS_MAX];
 } mapper_refinement_t;
 
@@ -457,6 +476,8 @@ typedef struct {
    size_t pointer_count;
    int verbose;
 } options_t;
+
+static int multicart_user_layout_override(const options_t *opt);
 
 static int parse_container_name(const char *s, unsigned *games)
 {
@@ -7796,6 +7817,254 @@ static int mapper_tail_signature_matches(const uint8_t *rom, size_t size,
    }
 }
 
+static int mapper_detector_signature(const uint8_t *rom, size_t size,
+                                     mapper_t mapper)
+{
+   switch (mapper) {
+   case MAP_E0: return is_probably_e0(rom, size);
+   case MAP_E7: return is_probably_e7(rom, size);
+   case MAP_3E: return is_probably_3e(rom, size);
+   case MAP_3F: return is_probably_3f(rom, size);
+   case MAP_FE: return is_probably_fe(rom, size);
+   case MAP_JANE: return is_probably_jane(rom, size);
+   case MAP_UA:
+   case MAP_UASW: return infer_ua_variant(rom, size) != MAP_RAW;
+   case MAP_WD: return is_probably_wd(rom, size);
+   case MAP_FC: return is_probably_fc(rom, size);
+   case MAP_F0: return is_probably_f0(rom, size);
+   case MAP_GL: return is_probably_gl(rom, size);
+   default: return 0;
+   }
+}
+
+static int nin1_slice_dimensions(size_t size, unsigned games, size_t *slice_size)
+{
+   size_t slice;
+   if (games == 0u || (size % games) != 0u) return 0;
+   slice = size / games;
+   if (slice != 2048u && slice != 4096u &&
+       slice != 8192u && slice != 16384u) return 0;
+   if (slice_size) *slice_size = slice;
+   return 1;
+}
+
+static int nin1_slice_reset_vector(const uint8_t *rom, size_t size, int *blank)
+{
+   uint16_t reset;
+   if (size < 6u) return 0;
+   reset = (uint16_t)rom[size - 4u] | ((uint16_t)rom[size - 3u] << 8);
+   *blank = reset == 0xffffu;
+   return reset >= 0xf000u;
+}
+
+/* A2 structural N-in-1 enumeration deliberately does no component execution.
+ * It answers only whether this physical topology is worth carrying as an
+ * isolated mapper hypothesis into later evaluation.  The stronger per-slice
+ * execution checks remain in the legacy evaluator until A3 replaces them. */
+static int nin1_structurally_possible(const uint8_t *rom, size_t size,
+                                      unsigned games, int forced,
+                                      size_t *slice_size_out,
+                                      unsigned *real_vectors_out,
+                                      unsigned *blank_vectors_out,
+                                      unsigned *required_viable_out)
+{
+   size_t slice_size;
+   unsigned i, real_vectors = 0u, blank_vectors = 0u, required_viable = 0u;
+   if (!nin1_slice_dimensions(size, games, &slice_size)) return 0;
+   if (forced) {
+      if (slice_size_out) *slice_size_out = slice_size;
+      if (real_vectors_out) *real_vectors_out = 0u;
+      if (blank_vectors_out) *blank_vectors_out = 0u;
+      if (required_viable_out) *required_viable_out = 0u;
+      return 1;
+   }
+
+   for (i = 0u; i < games; ++i) {
+      int blank = 0;
+      const uint8_t *slice = rom + (size_t)i * slice_size;
+      if (nin1_slice_reset_vector(slice, slice_size, &blank)) {
+         if (blank) ++blank_vectors;
+         else ++real_vectors;
+      }
+   }
+
+   if (games == 32u) {
+      if (real_vectors != 32u) return 0;
+      required_viable = 32u;
+   }
+   else if (games == 8u) {
+      if (real_vectors < 6u || real_vectors + blank_vectors != 8u) return 0;
+      required_viable = 7u;
+   }
+   else if (games == 4u) {
+      if (real_vectors != 4u) return 0;
+      required_viable = 4u;
+   }
+   else if (games == 2u) {
+      if (slice_size != 4096u || real_vectors != 2u) return 0;
+      required_viable = 2u;
+   }
+   else return 0;
+
+   /* Exact duplicate constituents are preservation/mirroring evidence, not
+    * automatic multi-game evidence.  An explicit override may still request
+    * such a topology. */
+   for (i = 0u; i < games; ++i) {
+      unsigned j;
+      for (j = i + 1u; j < games; ++j)
+         if (memcmp(rom + (size_t)i * slice_size,
+                    rom + (size_t)j * slice_size, slice_size) == 0)
+            return 0;
+   }
+
+   if (slice_size_out) *slice_size_out = slice_size;
+   if (real_vectors_out) *real_vectors_out = real_vectors;
+   if (blank_vectors_out) *blank_vectors_out = blank_vectors;
+   if (required_viable_out) *required_viable_out = required_viable;
+   return 1;
+}
+
+static int mapper_hypothesis_add_cart(mapper_refinement_t *detail,
+                                      mapper_t mapper,
+                                      const uint8_t *analysis_rom,
+                                      size_t analysis_size, int forced)
+{
+   mapper_hypothesis_t *h;
+   size_t bank_size = 0u, bank_count = 0u;
+   if (!mapper_dimensions(mapper, analysis_size, &bank_size, &bank_count)) return 1;
+   if (detail->hypothesis_count >= MAPPER_HYPOTHESIS_MAX) return 0;
+   h = &detail->hypotheses[detail->hypothesis_count++];
+   memset(h, 0, sizeof(*h));
+   h->kind = MAPPER_HYPOTHESIS_CART;
+   h->mapper = mapper;
+   h->bank_size = bank_size;
+   h->bank_count = bank_count;
+   h->forced = forced;
+   h->detector_signature = mapper_detector_signature(analysis_rom, analysis_size,
+                                                     mapper);
+   h->explicit_signature =
+      mapper_tail_signature_matches(analysis_rom, analysis_size, mapper);
+   ++detail->cart_hypothesis_count;
+   return 1;
+}
+
+static int mapper_hypothesis_add_nin1(mapper_refinement_t *detail,
+                                      const uint8_t *physical_rom,
+                                      size_t physical_size,
+                                      unsigned games, int forced)
+{
+   mapper_hypothesis_t *h;
+   size_t slice_size = 0u;
+   if (!nin1_structurally_possible(physical_rom, physical_size, games, forced,
+                                   &slice_size, NULL, NULL, NULL)) return 1;
+   if (detail->hypothesis_count >= MAPPER_HYPOTHESIS_MAX) return 0;
+   h = &detail->hypotheses[detail->hypothesis_count++];
+   memset(h, 0, sizeof(*h));
+   h->kind = MAPPER_HYPOTHESIS_NIN1;
+   h->mapper = MAP_RAW; /* N-in-1 has its own parameterized topology kind. */
+   h->games = games;
+   h->slice_size = slice_size;
+   h->forced = forced;
+   ++detail->nin1_hypothesis_count;
+   return 1;
+}
+
+static int mapper_hypothesis_has_cart(const mapper_refinement_t *detail,
+                                      mapper_t mapper)
+{
+   size_t i;
+   for (i = 0u; i < detail->cart_hypothesis_count; ++i)
+      if (detail->hypotheses[i].kind == MAPPER_HYPOTHESIS_CART &&
+          detail->hypotheses[i].mapper == mapper)
+         return 1;
+   return 0;
+}
+
+/* A2: build the complete structural hypothesis set before any legacy/default
+ * mapper is chosen.  This is intentionally selection-free.  A3 will execute
+ * every entry; until then the existing flow evaluator consumes the cart subset
+ * and the existing independent-slice evaluator consumes the N-in-1 subset. */
+static int enumerate_mapper_hypotheses(const uint8_t *physical_rom,
+                                       size_t physical_size,
+                                       const uint8_t *analysis_rom,
+                                       size_t analysis_size,
+                                       const options_t *opt,
+                                       int include_nin1,
+                                       mapper_refinement_t *detail)
+{
+   static const mapper_t cart_models[] = {
+      MAP_1K, MAP_2K, MAP_4K, MAP_F8, MAP_F6, MAP_F4, MAP_FA, MAP_FA2,
+      MAP_DPC, MAP_WD, MAP_WDSW, MAP_FC, MAP_F0, MAP_GL, MAP_E0, MAP_E7,
+      MAP_3F, MAP_3E, MAP_CV, MAP_JANE, MAP_0840, MAP_UA, MAP_UASW,
+      MAP_0FA0, MAP_FE, MAP_AR
+   };
+   static const unsigned nin1_games[] = { 32u, 8u, 4u, 2u };
+   size_t i;
+
+   memset(detail, 0, sizeof(*detail));
+   detail->physical_size = physical_size;
+   detail->analysis_size = analysis_size;
+   detail->enumerated_before_selection = 1;
+   detail->winner_kind = MAPPER_HYPOTHESIS_CART;
+
+   if (opt->container_override_games != 0u) {
+      if (!include_nin1 ||
+          !mapper_hypothesis_add_nin1(detail, physical_rom, physical_size,
+                                      opt->container_override_games, 1))
+         return 0;
+      detail->winner_kind = MAPPER_HYPOTHESIS_NIN1;
+      detail->winner_games = opt->container_override_games;
+      return detail->hypothesis_count != 0u;
+   }
+
+   if (opt->mapper_override_set) {
+      if (!mapper_hypothesis_add_cart(detail, opt->mapper_override,
+                                      analysis_rom, analysis_size, 1) ||
+          detail->hypothesis_count == 0u)
+         return 0;
+      detail->legacy = opt->mapper_override;
+      detail->winner = opt->mapper_override;
+      return 1;
+   }
+
+   /* Keep the legacy evaluator's historical order at the front so A2 is an
+    * architectural migration, not an accidental tie-break rewrite.  Then add
+    * every other structurally compatible mapper that the old size table never
+    * admitted; A3 will execute those extra hypotheses too. */
+   {
+      mapper_t legacy_flow[16];
+      size_t legacy_count = mapper_candidates_for_size(analysis_size, legacy_flow,
+         sizeof(legacy_flow) / sizeof(legacy_flow[0]));
+      for (i = 0u; i < legacy_count; ++i)
+         if (!mapper_hypothesis_add_cart(detail, legacy_flow[i], analysis_rom,
+                                         analysis_size, 0))
+            return 0;
+   }
+   for (i = 0u; i < sizeof(cart_models) / sizeof(cart_models[0]); ++i) {
+      size_t bs = 0u, bc = 0u;
+      if (mapper_hypothesis_has_cart(detail, cart_models[i])) continue;
+      if (!mapper_dimensions(cart_models[i], analysis_size, &bs, &bc)) continue;
+      if (!mapper_hypothesis_add_cart(detail, cart_models[i], analysis_rom,
+                                      analysis_size, 0))
+         return 0;
+   }
+   /* RAW is the conservative structural fallback for unsupported/degenerate
+    * unique views.  It is not a positive mapper claim; it keeps the exact-byte
+    * failure path alive so zero-code inputs still fail for the right reason. */
+   if (detail->cart_hypothesis_count == 0u &&
+       !mapper_hypothesis_add_cart(detail, MAP_RAW, analysis_rom,
+                                   analysis_size, 0))
+      return 0;
+
+   if (include_nin1 && !multicart_user_layout_override(opt))
+      for (i = 0u; i < sizeof(nin1_games) / sizeof(nin1_games[0]); ++i)
+         if (!mapper_hypothesis_add_nin1(detail, physical_rom, physical_size,
+                                         nin1_games[i], 0))
+            return 0;
+
+   return detail->hypothesis_count != 0u;
+}
+
 /* A decoded bank-changing edge is especially strong mapper evidence when the
  * hardware selects banks through a narrow, cartridge-specific address set.
  * Broad partial-address decoders such as 0840/UA/0FA0 can be triggered by
@@ -7844,53 +8113,66 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                                               mapper_t legacy,
                                               mapper_refinement_t *detail)
 {
-   mapper_t candidates[16];
    mapper_hypothesis_t *h;
+   mapper_t legacy_flow[16];
+   size_t legacy_flow_count;
    size_t n, i, survivors = 0u;
    size_t best_count = 0u;
    mapper_t winner = legacy;
 
-   memset(detail, 0, sizeof(*detail));
    detail->legacy = legacy;
    detail->winner = legacy;
+   detail->winner_kind = MAPPER_HYPOTHESIS_CART;
+   detail->winner_games = 0u;
    detail->selection_reason = MAPPER_SELECTION_NONE;
+   detail->refined = 0;
+   detail->tested = 0u;
+   detail->survived = 0u;
    h = detail->hypotheses;
-   /* A byte-identical doubled 2K dump is a 2K image stored twice, not an
-    * ambiguous 4K cartridge.  Preserve the legacy logical-2K decision before
-    * introducing 4K mapper hypotheses such as FC. */
-   if (size == 4096u && is_doubled_2k_dump(rom, size)) return legacy;
-   if (size == 8192u && is_doubled_4k_dump(rom, size)) return legacy;
-   n = mapper_candidates_for_size(size, candidates,
-                                  sizeof(candidates) / sizeof(candidates[0]));
-   if (n == 0u || n > MAPPER_HYPOTHESIS_MAX) return legacy;
-   if (n == 1u && !mapper_is_three_family(candidates[0])) return legacy;
+   n = detail->cart_hypothesis_count;
 
-   detail->hypothesis_count = n;
-   memset(h, 0, n * sizeof(h[0]));
+   /* A2 enumerates every structurally possible cart before selection.  Until
+    * A3 replaces the legacy static evaluator, preserve its proven scope: only
+    * mapper/size combinations it previously compared get flow-ranked here.
+    * The extra structural hypotheses stay isolated and visible rather than
+    * being silently discarded before the winner is chosen. */
+   legacy_flow_count = mapper_candidates_for_size(size, legacy_flow,
+      sizeof(legacy_flow) / sizeof(legacy_flow[0]));
+   if (n == 0u || n > MAPPER_HYPOTHESIS_MAX) return legacy;
+
+   for (i = 0u; i < n; ++i) {
+      size_t j;
+      int eligible = 0;
+      h[i].evaluated = 0;
+      h[i].viable = 0;
+      h[i].instructions = 0u;
+      h[i].halts = 0u;
+      h[i].hotspots = 0;
+      h[i].cross_bank_switches = 0u;
+      h[i].switch_avoided_halts = 0u;
+      h[i].split_ram_rmw_conflicts = 0;
+      h[i].threee_ram_select_refs = 0;
+      h[i].e7_specific_refs = 0;
+      h[i].three_specific_switches = 0u;
+      h[i].reject_reason = MAPPER_REJECT_NONE;
+      for (j = 0u; j < legacy_flow_count; ++j)
+         if (legacy_flow[j] == h[i].mapper) { eligible = 1; break; }
+      if (!eligible) continue;
+      h[i].evaluated = 1;
+   }
+
+   if (legacy_flow_count == 0u) return legacy;
+   if (legacy_flow_count == 1u && !mapper_is_three_family(legacy_flow[0])) return legacy;
+
    for (i = 0; i < n; ++i) {
       options_t probe_opt;
       analysis_t probe;
+      if (!h[i].evaluated) continue;
       memset(&probe_opt, 0, sizeof(probe_opt));
       probe_opt.mapper_override_set = 1;
-      probe_opt.mapper_override = candidates[i];
+      probe_opt.mapper_override = h[i].mapper;
       probe_opt.superchip_override = -1;
       probe_opt.reset_bank_override = -1;
-      h[i].mapper = candidates[i];
-      h[i].detector_signature =
-         candidates[i] == MAP_E0 ? is_probably_e0(rom, size) :
-         candidates[i] == MAP_E7 ? is_probably_e7(rom, size) :
-         candidates[i] == MAP_3E ? is_probably_3e(rom, size) :
-         candidates[i] == MAP_3F ? is_probably_3f(rom, size) :
-         candidates[i] == MAP_FE ? is_probably_fe(rom, size) :
-         candidates[i] == MAP_JANE ? is_probably_jane(rom, size) :
-         (candidates[i] == MAP_UA || candidates[i] == MAP_UASW) ?
-            infer_ua_variant(rom, size) != MAP_RAW :
-         candidates[i] == MAP_WD ? is_probably_wd(rom, size) :
-         candidates[i] == MAP_FC ? is_probably_fc(rom, size) :
-         candidates[i] == MAP_F0 ? is_probably_f0(rom, size) :
-         candidates[i] == MAP_GL ? is_probably_gl(rom, size) : 0;
-      h[i].explicit_signature =
-         mapper_tail_signature_matches(rom, size, candidates[i]);
       h[i].reject_reason = MAPPER_REJECT_INIT_FAILED;
       ++detail->tested;
 
@@ -10598,6 +10880,26 @@ static void emit_mapper_hypothesis_evidence(FILE *fp,
    fputc('\n', fp);
 }
 
+
+static void emit_mapper_hypothesis_enumeration(FILE *fp, const analysis_t *a)
+{
+   const mapper_refinement_t *r = &a->mapper_refinement;
+   size_t i;
+   if (!r->enumerated_before_selection || r->hypothesis_count == 0u) return;
+   fprintf(fp, "; mapper hypotheses enumerated before selection: %zu",
+           r->hypothesis_count);
+   for (i = 0u; i < r->hypothesis_count; ++i) {
+      const mapper_hypothesis_t *h = &r->hypotheses[i];
+      if (i == 0u) fputs(" [", fp);
+      else fputs(", ", fp);
+      if (h->kind == MAPPER_HYPOTHESIS_NIN1)
+         fprintf(fp, "%uIN1", h->games);
+      else
+         fputs(mapper_name(h->mapper), fp);
+   }
+   fprintf(fp, "]; analysis-bytes=%zu physical-bytes=%zu\n",
+           r->analysis_size, r->physical_size);
+}
 static void emit_mapper_refinement_evidence(FILE *fp, const analysis_t *a)
 {
    const mapper_refinement_t *r = &a->mapper_refinement;
@@ -10637,8 +10939,9 @@ static void emit_mapper_refinement_evidence(FILE *fp, const analysis_t *a)
               mapper_name(r->winner));
       break;
    }
-   for (i = 0u; i < r->hypothesis_count; ++i)
-      emit_mapper_hypothesis_evidence(fp, &r->hypotheses[i]);
+   for (i = 0u; i < r->cart_hypothesis_count; ++i)
+      if (r->hypotheses[i].evaluated)
+         emit_mapper_hypothesis_evidence(fp, &r->hypotheses[i]);
 }
 
 static void emit_header(FILE *fp, const analysis_t *a, const char *input,
@@ -10673,6 +10976,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                  duplicate_banks, duplicate_banks == 1u ? "" : "s",
                  fill_banks, fill_banks == 1u ? "" : "s");
    }
+   emit_mapper_hypothesis_enumeration(fp, a);
    {
       const char *mname = mapper_name(a->mapper);
       char scname[32];
@@ -11445,15 +11749,6 @@ static int multicart_user_layout_override(const options_t *opt)
           opt->table_count != 0u || opt->pointer_count != 0u;
 }
 
-static int multicart_slice_reset_vector(const uint8_t *rom, size_t size,
-                                        int *blank)
-{
-   uint16_t reset;
-   if (size < 6u) return 0;
-   reset = (uint16_t)rom[size - 4u] | ((uint16_t)rom[size - 3u] << 8);
-   *blank = reset == 0xffffu;
-   return reset >= 0xf000u;
-}
 
 /* Analyze one independently selected multicart component.  This deliberately
  * bypasses multicart detection itself: once the outer selector has chosen a
@@ -11473,13 +11768,20 @@ static int analyze_multicart_slice(analysis_t *a, uint8_t *rom, size_t size,
    memset(a, 0, sizeof(*a));
    opt.output = NULL;
    opt.output_explicit = 0;
+   opt.container_override_games = 0u;
    opt.mapper_override_set = 0;
    opt.superchip_override = -1;
    opt.reset_bank_override = -1;
    opt.origin_count = opt.entry_count = opt.code_count = opt.data_count = 0u;
    opt.table_count = opt.pointer_count = 0u;
 
+   if (!enumerate_mapper_hypotheses(rom, size, analysis_rom, analysis_size,
+                                    &opt, 0, &refinement))
+      return 0;
    if (!init_analysis(a, analysis_rom, analysis_size, &opt)) return 0;
+   refinement.legacy = a->mapper;
+   refinement.winner = a->mapper;
+   a->mapper_refinement = refinement;
    if (!attach_physical_analysis_view(a, rom, size, unique_size,
                                       duplicate_view_active)) {
       free_analysis(a);
@@ -11533,66 +11835,12 @@ static int multicart_candidate(const uint8_t *rom, size_t size,
 {
    size_t slice_size;
    unsigned i, real_vectors = 0u, blank_vectors = 0u, viable = 0u;
-   unsigned required_viable;
+   unsigned required_viable = 0u;
 
-   if (games == 0u || (size % games) != 0u) return 0;
-   slice_size = size / games;
-   if (slice_size != 2048u && slice_size != 4096u &&
-       slice_size != 8192u && slice_size != 16384u) return 0;
-
-   for (i = 0u; i < games; ++i) {
-      int blank = 0;
-      const uint8_t *slice = rom + (size_t)i * slice_size;
-      if (multicart_slice_reset_vector(slice, slice_size, &blank)) {
-         if (blank) ++blank_vectors;
-         else ++real_vectors;
-      }
-   }
-
-   /* Structural gates are intentionally stronger than file-size matching.
-    * 32IN1 dumps are 32 complete 2K games.  4IN1 requires four real RESET
-    * vectors.  8IN1 allows up to two all-$FF/padded component tails seen in
-    * historical dumps, but still requires six real cartridge roots.  2IN1
-    * is especially ambiguous with ordinary 8K hardware, so automatic
-    * consideration requires two independently rooted 4K cartridges.  A user
-    * --container override is authoritative about outer topology and therefore
-    * bypasses these inference gates; unestablished slices remain exact raw
-    * sidecars rather than invalidating the explicit container request. */
-   if (forced) {
-      required_viable = 0u;
-   }
-   else if (games == 32u) {
-      if (real_vectors != 32u) return 0;
-      required_viable = 32u;
-   }
-   else if (games == 8u) {
-      if (real_vectors < 6u || real_vectors + blank_vectors != 8u) return 0;
-      required_viable = 7u;
-   }
-   else if (games == 4u) {
-      if (real_vectors != 4u) return 0;
-      required_viable = 4u;
-   }
-   else if (games == 2u) {
-      if (slice_size != 4096u || real_vectors != 2u) return 0;
-      required_viable = 2u;
-   }
-   else return 0;
-
-   /* Automatic container inference is deliberately conservative: every
-    * selectable component must be byte-distinct.  Repeated identical banks
-    * are a common dump/preservation shape and are stronger evidence for one
-    * mirrored cartridge than for a multi-game selector.  A future explicit
-    * container override can represent unusual multicarts with duplicate
-    * games without weakening autodetection. */
-   if (!forced)
-      for (i = 0u; i < games; ++i) {
-         unsigned j;
-         for (j = i + 1u; j < games; ++j)
-            if (memcmp(rom + (size_t)i * slice_size,
-                       rom + (size_t)j * slice_size, slice_size) == 0)
-               return 0;
-      }
+   if (!nin1_structurally_possible(rom, size, games, forced, &slice_size,
+                                   &real_vectors, &blank_vectors,
+                                   &required_viable))
+      return 0;
 
    info->slice_analysis = (analysis_t *)calloc(games, sizeof(*info->slice_analysis));
    info->slice_analyzed = (uint8_t *)calloc(games, 1u);
@@ -11632,75 +11880,121 @@ static int multicart_candidate(const uint8_t *rom, size_t size,
    return 1;
 }
 
-static int detect_multicart(const uint8_t *rom, size_t size,
-                            analysis_t *whole, const options_t *opt,
-                            multicart_info_t *info)
+static mapper_hypothesis_t *nin1_hypothesis(mapper_refinement_t *r,
+                                               unsigned games)
 {
-   static const unsigned counts[] = { 32u, 8u, 4u };
+   size_t i;
+   for (i = r->cart_hypothesis_count; i < r->hypothesis_count; ++i)
+      if (r->hypotheses[i].kind == MAPPER_HYPOTHESIS_NIN1 &&
+          r->hypotheses[i].games == games)
+         return &r->hypotheses[i];
+   return NULL;
+}
+
+/* A2 compatibility evaluator for the N-in-1 hypotheses that were already
+ * enumerated before whole-cart mapper selection.  This replaces topology
+ * discovery-after-the-fact: no new N-in-1 candidate may appear here.  The
+ * existing independently analyzed sidecars remain output plumbing until A3
+ * supplies one common hypothesis-local execution engine. */
+static int evaluate_nin1_hypotheses(const uint8_t *rom, size_t size,
+                                    analysis_t *whole, const options_t *opt,
+                                    multicart_info_t *info)
+{
+   mapper_refinement_t *r = &whole->mapper_refinement;
+   mapper_hypothesis_t *h;
    size_t i;
 
    memset(info, 0, sizeof(*info));
    if (opt->container_override_games != 0u) {
       unsigned games = opt->container_override_games;
-      size_t slice_size;
-      if ((size % games) != 0u) {
+      h = nin1_hypothesis(r, games);
+      if (!h) {
          fprintf(stderr, "--container %uIN1 is incompatible with %zu-byte input\n",
                  games, size);
          return -1;
       }
-      slice_size = size / games;
-      if (slice_size != 2048u && slice_size != 4096u &&
-          slice_size != 8192u && slice_size != 16384u) {
-         fprintf(stderr,
-                 "--container %uIN1 would create unsupported %zu-byte component slices\n",
-                 games, slice_size);
-         return -1;
-      }
+      h->evaluated = 1;
       if (!multicart_candidate(rom, size, games, opt, info, 1)) {
+         h->viable = 0;
+         h->reject_reason = MAPPER_REJECT_NO_RESET_CODE;
          fprintf(stderr, "could not analyze --container %uIN1 component layout\n",
                  games);
          return -1;
       }
+      h->viable = 1;
+      r->winner_kind = MAPPER_HYPOTHESIS_NIN1;
+      r->winner_games = games;
+      r->refined = 1;
       return 1;
    }
    if (multicart_user_layout_override(opt)) return 0;
 
-   /* Never reinterpret a cart that has demonstrated actual mapper switching.
-    * Multicart selection happens outside the CPU-visible address space; there
-    * should be no established selector traffic connecting component games.
-    * Deliberate VCSC mapper metadata is likewise positive evidence for one
-    * whole cartridge and outranks a coincidentally plausible slice split. */
+   /* Never let an external N-in-1 topology erase positive CPU-visible mapper
+    * evidence from the whole image.  The competing N-in-1 hypotheses remain
+    * in the preselection set; they simply lose under the current A2-era
+    * compatibility evaluator. */
    if (whole->hotspot_refs != 0 || whole->cross_bank_switches != 0u ||
        whole->three_specific_switches != 0u || whole->e7_specific_refs != 0 ||
        whole->threee_ram_select_refs != 0 ||
-       mapper_tail_signature_matches(whole->rom, whole->rom_size, whole->mapper))
+       mapper_tail_signature_matches(whole->rom, whole->rom_size, whole->mapper)) {
+      for (i = r->cart_hypothesis_count; i < r->hypothesis_count; ++i) {
+         h = &r->hypotheses[i];
+         if (h->kind != MAPPER_HYPOTHESIS_NIN1) continue;
+         h->evaluated = 1;
+         h->viable = 0;
+         h->reject_reason = MAPPER_REJECT_NO_SPECIFIC_SWITCH;
+      }
       return 0;
+   }
 
-   for (i = 0u; i < sizeof(counts) / sizeof(counts[0]); ++i)
-      if (multicart_candidate(rom, size, counts[i], opt, info, 0)) return 1;
+   /* Hypotheses are enumerated in the legacy precedence order 32,8,4,2.  A3
+    * will execute and compare all surviving hypotheses symmetrically; for A2,
+    * preserve the established selection behavior while ensuring the candidate
+    * set itself existed before any winner/default mapper was chosen. */
+   for (i = r->cart_hypothesis_count; i < r->hypothesis_count; ++i) {
+      multicart_info_t trial;
+      int candidate_ok;
+      h = &r->hypotheses[i];
+      if (h->kind != MAPPER_HYPOTHESIS_NIN1) continue;
+      memset(&trial, 0, sizeof(trial));
+      h->evaluated = 1;
+      candidate_ok = multicart_candidate(rom, size, h->games, opt, &trial, 0);
+      h->viable = candidate_ok != 0;
+      if (!candidate_ok) {
+         h->reject_reason = MAPPER_REJECT_NO_RESET_CODE;
+         continue;
+      }
 
-   /* 2IN1 is the one size/topology collision that cannot be safely resolved
-    * just by finding two plausible games: an ordinary 8K F8 image can also
-    * contain two independently plausible 4K slices.  Build the split
-    * hypothesis only from strong structure (two real RESET vectors, two
-    * distinct independently executable slices).  If the whole-cart analysis
-    * itself is contradicted, the container wins by elimination.  Otherwise
-    * retain the conventional whole 8K interpretation and record the ambiguity
-    * in its generated header instead of pretending either topology was proven. */
-   if (multicart_candidate(rom, size, 2u, opt, info, 0)) {
-      size_t whole_starts = established_instruction_count(whole);
-      int whole_rejected = whole_starts == 0u ||
-         (whole->mapper_refinement.tested != 0u &&
-          whole->mapper_refinement.survived == 0u);
-      if (whole_rejected) {
-         info->selected_by_whole_rejection = 1;
+      if (h->games != 2u) {
+         *info = trial;
+         r->winner_kind = MAPPER_HYPOTHESIS_NIN1;
+         r->winner_games = h->games;
+         r->refined = 1;
          return 1;
       }
-      whole->container_candidate_games = info->games;
-      whole->container_candidate_slice_size = info->slice_size;
-      whole->container_candidate_viable_slices = info->viable_slices;
-      whole->container_ambiguous = 1;
-      free_multicart_info(info);
+
+      /* 2IN1 is the size/topology collision that remains ambiguous with an
+       * ordinary 8K F8 image.  Keep the old conservative tie until A3 can
+       * compare both exhaustive executions rather than choosing from shape. */
+      {
+         size_t whole_starts = established_instruction_count(whole);
+         int whole_rejected = whole_starts == 0u ||
+            (whole->mapper_refinement.tested != 0u &&
+             whole->mapper_refinement.survived == 0u);
+         if (whole_rejected) {
+            trial.selected_by_whole_rejection = 1;
+            *info = trial;
+            r->winner_kind = MAPPER_HYPOTHESIS_NIN1;
+            r->winner_games = 2u;
+            r->refined = 1;
+            return 1;
+         }
+         whole->container_candidate_games = trial.games;
+         whole->container_candidate_slice_size = trial.slice_size;
+         whole->container_candidate_viable_slices = trial.viable_slices;
+         whole->container_ambiguous = 1;
+         free_multicart_info(&trial);
+      }
    }
    return 0;
 }
@@ -11796,8 +12090,10 @@ static int emit_multicart_source(FILE *fp, const analysis_t *whole,
    fprintf(fp, "; input: %s\n", opt->input);
    fprintf(fp, "; input bytes: %zu\n", size);
    fprintf(fp, "; input sha256: %s\n", sha);
+   emit_mapper_hypothesis_enumeration(fp, whole);
    fprintf(fp, "; mapper: %uIN1 (container; %u independently selected games x %zu bytes)\n",
            mc->games, mc->games, mc->slice_size);
+   fputs("; mapper topology: first-class N-in-1 hypothesis; component sidecars are compatibility presentation\n", fp);
    fprintf(fp, "; container analysis: %u/%u component slices established independently\n",
            mc->viable_slices, mc->games);
    if (mc->forced)
@@ -11862,6 +12158,7 @@ int main(int argc, char **argv)
    int duplicate_view_active = 0;
    int odd_4k_dump = 0;
    analysis_t analysis;
+   mapper_refinement_t preselection;
    multicart_info_t multicart;
    int is_multicart = 0;
    memset(&multicart, 0, sizeof(multicart));
@@ -11893,11 +12190,31 @@ int main(int argc, char **argv)
       analysis_size = 4096u;
       odd_4k_dump = 1;
    }
+   if (!enumerate_mapper_hypotheses(rom, rom_size, analysis_rom, analysis_size,
+                                    &opt, 1, &preselection)) {
+      if (opt.mapper_override_set)
+         fprintf(stderr, "--mapper %s is incompatible with %zu-byte input\n",
+                 mapper_name(opt.mapper_override), analysis_size);
+      else if (opt.container_override_games != 0u)
+         fprintf(stderr, "--container %uIN1 is incompatible with %zu-byte input\n",
+                 opt.container_override_games, rom_size);
+      else
+         fprintf(stderr, "no structurally compatible mapper hypothesis for %zu-byte input\n",
+                 rom_size);
+      free(logical_rom);
+      free(rom);
+      return disassembly_failure(1);
+   }
    if (!init_analysis(&analysis, analysis_rom, analysis_size, &opt)) {
       free(logical_rom);
       free(rom);
       return disassembly_failure(1);
    }
+   if (preselection.winner_kind == MAPPER_HYPOTHESIS_CART) {
+      preselection.legacy = analysis.mapper;
+      if (!opt.mapper_override_set) preselection.winner = analysis.mapper;
+   }
+   analysis.mapper_refinement = preselection;
    if (!attach_physical_analysis_view(&analysis, rom, rom_size,
                                       duplicate_unique_size, duplicate_view_active)) {
       fprintf(stderr, "out of memory while recording duplicate-image provenance\n");
@@ -11908,7 +12225,7 @@ int main(int argc, char **argv)
    }
    analysis.odd_4k_dump = odd_4k_dump;
    if (!opt.mapper_override_set && analysis.mapper != MAP_RAW) {
-      mapper_refinement_t refinement;
+      mapper_refinement_t refinement = analysis.mapper_refinement;
       mapper_t legacy = analysis.mapper;
       mapper_t selected = refine_mapper_by_control_flow(
          analysis_rom, analysis_size, legacy, &refinement);
@@ -11969,7 +12286,7 @@ int main(int argc, char **argv)
       return disassembly_failure(1);
    }
    promote_interior_reference_labels(&analysis);
-   is_multicart = detect_multicart(rom, rom_size, &analysis, &opt, &multicart);
+   is_multicart = evaluate_nin1_hypotheses(rom, rom_size, &analysis, &opt, &multicart);
    if (is_multicart < 0) {
       free_analysis(&analysis);
       free(logical_rom);

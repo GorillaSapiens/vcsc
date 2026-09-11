@@ -119,10 +119,10 @@ Open workstreams
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished
    work only. Mapper-hypothesis migration is current: A1 recursive duplicate-view
-   provenance/fill accounting is complete and A2 mapper enumeration is next.
-   Destination architecture treats 2IN1/4IN1/8IN1/etc. as first-class mapper
-   hypotheses; current `--container`/sidecar handling is legacy compatibility
-   plumbing until A2 replaces the post-detection container model. GL real-corpus
+   provenance/fill accounting and A2 preselection mapper enumeration are complete;
+   A3 exhaustive hypothesis-local execution is next. 2IN1/4IN1/8IN1/etc. now live
+   in the same preselection hypothesis set as ordinary mappers; `--container` and
+   `.gameNN.s26` sidecars remain compatibility override/presentation plumbing. GL real-corpus
    closeout, CM, DPC+, and CDF-family support remain behind this migration.
 
 5. **Zero static initializer placement**
