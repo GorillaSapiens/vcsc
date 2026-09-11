@@ -95,3 +95,31 @@ path viability rejection, strict unique-bank access coverage, hypothesis compari
 and eventual integration back into presentation.  Added weak nonsense-operation
 scoring based on dead definitions/clobbered effects, with hardware side effects and
 beam/timing code explicitly protected from hard rejection.
+
+2026-09-11 09:41:06 PDT, implement duplicate analysis view
+Completed disassembler roadmap A1. Automatic analysis now recursively halves an
+image while its halves are byte-identical, so repeated preservation shapes such
+as 2K x4 are analyzed as one 2K payload rather than stopping after one doubling.
+The physical image remains authoritative for SHA/output and exact round trip.
+Analysis state retains the unique-byte size, physical copy count, contiguous copy
+base offsets (the many-to-one provenance map), and current-bank-width explanation
+flags for exact duplicate banks and wholly $00/$FF fill banks. Explicit mapper or
+layout overrides retain their physical mapper-bank topology while still recording
+duplicate provenance.
+
+Generalized duplicate preservation emits every excluded physical copy raw after
+the analyzed unique image. Historical doubled-2K/doubled-4K presentation remains
+compatible, including the CV doubled-2K annotation. Added recursive_duplicate_8k
+(2K x4) to the exact round-trip corpus, an explicit-F8 duplicate test proving a
+forced mapper is not collapsed, and an F6 fixture proving an all-$FF bank is
+recorded as explained fill. Updated disassembler/README.md accordingly.
+
+Also amended the destination mapper-hypothesis design: 2IN1/4IN1/8IN1/32IN1 and
+future N-in-1 layouts are first-class mapper families, preferably one parameterized
+internal family. They will compete directly with ordinary mapper hypotheses in A2;
+current container/sidecar handling is legacy compatibility plumbing until then.
+
+Validation: vcsc_disassembler.pl passes including exact reconstruction of the new
+recursive duplicate fixture; deterministic fuzz is 30/30; GL, hardening, all-opcode
+round-trip, and source-tree hygiene all pass. A2 mapper-hypothesis enumeration is
+next.

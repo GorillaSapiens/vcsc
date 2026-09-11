@@ -323,6 +323,22 @@ write_bin(File::Spec->catfile($in, 'doubled2k.bin'),
 my $doubled_4k_half = make_rom(4096, 0xF000, 0x0100, "\xAD\xC0\x02\x60");
 write_bin(File::Spec->catfile($in, 'doubled4k.bin'),
           $doubled_4k_half . $doubled_4k_half);
+# A1 generalizes duplicate preservation beyond the historical one-step 2K/4K
+# cases.  Four identical 2K copies require two recursive halvings and must be
+# analyzed as one 2K payload while all four physical copies retain provenance
+# and exact output bytes.
+my $recursive_dup_2k = make_rom(2048, 0xF800, 0x0100, "\xA9\x37\x85\x90\x60");
+write_bin(File::Spec->catfile($in, 'recursive_duplicate_8k.bin'),
+          $recursive_dup_2k x 4);
+# A physical F6 image with one erased bank pins A1's bank-accounting record.
+# It is exercised through an explicit mapper below so this test measures only
+# duplicate/fill provenance rather than mapper inference.
+my $fill_bank_f6 = make_rom(16384, 0xF000, 0x0100, "\xA9\x61\x85\x91\x60");
+substr($fill_bank_f6, 0, 4096, "\xFF" x 4096);
+substr($fill_bank_f6, 4096 + 0x0081, 1, "\x11");
+substr($fill_bank_f6, 8192 + 0x0081, 1, "\x22");
+substr($fill_bank_f6, 12288 + 0x0081, 1, "\x33");
+write_bin(File::Spec->catfile($in, 'fill_bank_f6.bin'), $fill_bank_f6);
 # Multi-game images are containers, not one bankswitched CPU address space.
 # Four distinct, independently rooted 2K components must be split/analyzed
 # separately while the outer source preserves the exact concatenation.
@@ -2167,6 +2183,50 @@ require_re($doubled_4k_out,
 require_re($doubled_4k_out,
    qr/^; ---- duplicated second 4K copy from preservation image ----$/m,
    'doubled 4K second-copy preservation section');
+
+my $recursive_dup_out = slurp(File::Spec->catfile($out, 'recursive_duplicate_8k.s26'));
+require_re($recursive_dup_out, qr/^; mapper: unbanked 2K \(/m,
+   'recursive exact-half reduction reaches the smallest 2K payload');
+require_re($recursive_dup_out,
+   qr/^; duplicate analysis view: 2048 unique bytes x 4 exact physical copies$/m,
+   'recursive duplicate analysis-view size and copy count');
+require_re($recursive_dup_out,
+   qr/^; duplicate provenance: unique byte U maps to physical U \+ N\*\$800 for N=0\.\.3$/m,
+   'recursive duplicate byte provenance rule');
+require_re($recursive_dup_out,
+   qr/^; physical bank accounting: 4 x 2048 bytes; 3 exact duplicate banks; 0 erased\/fill banks$/m,
+   'recursive duplicate physical-bank accounting');
+require_re($recursive_dup_out,
+   qr/^; ---- exact duplicate physical copies excluded from analysis view ----$/m,
+   'recursive duplicate raw-preservation section');
+
+# Explicit hardware layout wins over automatic duplicate collapsing while the
+# provenance map is still retained for later hypothesis accounting.
+my $forced_f8_dup = File::Spec->catfile($tmp, 'forced_f8_duplicate.s26');
+my ($forced_f8_rc, $forced_f8_sig, $forced_f8_stdout, $forced_f8_stderr) =
+   capture_command($disas, '--mapper', 'f8', '-o', $forced_f8_dup,
+      File::Spec->catfile($in, 'doubled4k.bin'));
+$forced_f8_rc == 0 && $forced_f8_sig == 0
+   or die "forced F8 duplicate analysis failed:\n$forced_f8_stderr";
+my $forced_f8_dup_out = slurp($forced_f8_dup);
+require_re($forced_f8_dup_out, qr/^; mapper: F8 \(override;/m,
+   'explicit F8 layout retained over duplicate collapse');
+require_re($forced_f8_dup_out,
+   qr/^; duplicate analysis view: 4096 unique bytes x 2 exact physical copies; explicit layout keeps physical mapper analysis$/m,
+   'explicit mapper retains duplicate provenance without collapsing banks');
+require_re($forced_f8_dup_out, qr/^; physical banks: 2 x 4096 bytes$/m,
+   'explicit F8 retains both physical banks');
+
+my $fill_f6_out_path = File::Spec->catfile($tmp, 'fill_bank_f6.s26');
+my ($fill_f6_rc, $fill_f6_sig, $fill_f6_stdout, $fill_f6_stderr) =
+   capture_command($disas, '--mapper', 'f6', '-o', $fill_f6_out_path,
+      File::Spec->catfile($in, 'fill_bank_f6.bin'));
+$fill_f6_rc == 0 && $fill_f6_sig == 0
+   or die "forced F6 fill-bank analysis failed:\n$fill_f6_stderr";
+my $fill_f6_out = slurp($fill_f6_out_path);
+require_re($fill_f6_out,
+   qr/^; physical bank accounting: 4 x 4096 bytes; 0 exact duplicate banks; 1 erased\/fill bank$/m,
+   'erased physical bank recorded as explained content');
 
 my $f8_out = slurp(File::Spec->catfile($out, 'f8.s26'));
 require_re($f8_out, qr/^B0_F100:\s*$/m,

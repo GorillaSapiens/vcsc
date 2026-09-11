@@ -126,13 +126,17 @@ not follow their handlers unless ordinary control flow or reachable `BRK` proves
 them reachable.  A mapper signature without the complete bridge shape does not
 promote tail bytes to code.
 
-A 4096-byte image whose upper 2048 bytes are byte-for-byte identical to its
-lower 2048 bytes is recognized as a doubled preservation dump of an ordinary
-unbanked 2K cartridge. Likewise, an 8192-byte image made from two byte-identical
-4K halves is analyzed as one logical unbanked 4K cartridge before any 8K mapper
-heuristic runs. `vcsc-disas` emits each duplicate half as preserved raw bytes,
-so disassemble/reassemble reproduces the original physical file exactly. Merely
-similar or partially duplicated images are not collapsed.
+Exact repeated-half preservation images are reduced recursively for automatic
+analysis.  While an image consists of two byte-identical halves, `vcsc-disas`
+halves the analysis view again; a physical 8K image containing four identical
+2K copies is therefore analyzed as one 2K payload, not merely as two identical
+4K halves.  The original physical image remains authoritative: every unique
+analysis byte retains provenance to each physical copy, duplicate copies are
+emitted as preserved raw bytes, and disassemble/reassemble reproduces the input
+exactly.  Wholly `$00`/`$FF` physical banks are also recorded as explained fill
+for later mapper-bank coverage.  Explicit mapper/layout overrides keep their
+selected physical bank topology while retaining the duplicate provenance map.
+Merely similar or partially duplicated images are never collapsed.
 
 Multi-game images are treated as **containers**, not as one bankswitched 6507
 address space. Automatic 4IN1/8IN1/32IN1 detection remains intentionally

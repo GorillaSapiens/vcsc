@@ -11,8 +11,13 @@ history is in `.../context-history/`; the pre-cleanup full roadmap is archived i
 
 Durable invariants
 ------------------
-* Never normalize the image. Preserve file length, duplicate banks, inaccessible
-  bytes, fill, vector oddities, and trailing preservation bytes exactly.
+* Never normalize the physical image. Preserve file length, duplicate banks,
+  inaccessible bytes, fill, vector oddities, and trailing preservation bytes
+  exactly. Automatic analysis has an A1 duplicate view: recursively halve exact
+  repeated halves to the smallest unique prefix, retain byte provenance to every
+  physical copy, and record exact-duplicate plus `$00`/`$FF` fill banks as
+  explained content. Explicit mapper/layout overrides retain physical bank
+  topology while keeping that provenance.
 * Identical input plus identical command line must produce identical `.s26`.
 * If semantic interpretation is uncertain, emit exact raw bytes and annotate the
   uncertainty. A zero-instruction result is still a hard analysis failure.
@@ -57,8 +62,11 @@ Durable invariants
   signed VCSC banked image, the complete linker vector-bridge invariant may
   establish the three bridge slots as code without making NMI/IRQ handlers
   runtime-reachable. Signature bytes alone are insufficient.
-* Multi-game containers are separate cartridge analyses concatenated in original
-  order; no CFG or ROM reference crosses a component boundary.
+* `2IN1`, `4IN1`, `8IN1`, `32IN1`, and future N-in-1 schemes are mapper
+  families, not a separate post-mapper container category.  Their mapper state
+  selects which constituent cartridge image is CPU-visible; no CFG/ROM reference
+  crosses an unselected constituent.  Until A2 replaces the legacy implementation,
+  existing container/sidecar output remains compatibility plumbing only.
 * The standalone `disassembler/roundtrip.pl` remains the mechanical exactness
   oracle. Stella differential mapper checks are useful evidence, not authority.
 * A successful CLI run reports its destination on standard error only after the
@@ -70,26 +78,20 @@ Durable invariants
 
 Analysis architecture roadmap -- mapper-hypothesis execution
 ----------------------------------------------------------
-This is the highest-priority disassembler analysis subitem.  The destination is
-state-space exploration of every structurally possible mapper hypothesis, rather
-than "guess mapper -> decide whether it is trusted -> maybe simulate".  Mapper
-identity and reachable-code/data discovery must emerge together from isolated
-hardware models.  Work through these pieces in order; keep each step regression-
-locked before replacing the next existing heuristic.
-
-A1. [ ] Duplicate-image analysis view and provenance map
-    * Repeatedly halve the analysis image while its two halves are byte-identical,
-      until the smallest unique payload remains.  This is analysis-only: never
-      change physical output size or bytes, and retain a many-to-one provenance
-      map from every unique byte/bank back to every physical copy.
-    * Record exact duplicates and wholly erased/fill banks as explained physical
-      content so later bank-coverage checks do not mistake dump padding for an
-      inaccessible game bank.
+Highest-priority analysis subitem: explore every structurally possible mapper
+hypothesis instead of "guess -> trust -> maybe simulate". Mapper identity and
+reachable code/data emerge together from isolated hardware models. Keep each
+step regression-locked before replacing the next heuristic. A1 duplicate-image
+provenance is complete; A2 is next.
 
 A2. [ ] Enumerate mapper hypotheses before choosing a winner
     * From physical size, unique size, explicit metadata/signatures, and mapper
       structural constraints, construct every mapper model that could physically
       explain the image.  Do not select a trusted/default mapper first.
+    * Treat N-in-1 layouts as ordinary mapper hypotheses (`2IN1`, `4IN1`,
+      `8IN1`, `32IN1`, ...), preferably one parameterized internal family.  The
+      selector state chooses a constituent mapping; N-in-1 competes directly
+      with F8/F6/F4/F0/etc. instead of running as a later container detector.
     * Keep hypotheses isolated: mapper/RAM state, runtime mapping, discovered
       code/data, rejection reasons, and evidence may never leak between them.
 
@@ -135,7 +137,10 @@ A6. [ ] Bank-access completeness as a mapper requirement
     * Exhaustive execution must account for every unique, non-fill bank under a
       surviving mapper: at least one feasible path must fetch instructions from it
       or read data from it.  Exact duplicate and erased/fill banks are already
-      accounted for by A1 and do not require synthetic execution.
+      accounted for by the A1 duplicate/fill view and need no synthetic execution.
+      For an N-in-1
+      mapper, exhaustive selector-state exploration must account for every unique
+      constituent exactly the same way; "external container" is not an exemption.
     * A mapper hypothesis that leaves a unique meaningful bank wholly inaccessible
       is rejected, not excused as an untriggered game mode.  Unknown input/control
       state should have forked before this check.
@@ -170,50 +175,30 @@ A8. [ ] Feed exhaustive execution back into code/data presentation
 
 Weak "nonsense operation string" evidence
 -----------------------------------------
-Maintain a deliberately weak plausibility signal for short instruction sequences
-whose semantic work is immediately obliterated.  This may indicate speculative
-decoding drifted into data, but is never a hard rejection: beam-path code may burn
-cycles with semantically redundant operations.
-
-Prefer a small dead-definition/dataflow analysis over a catalog of byte strings.
-For each instruction, describe CPU definitions/uses (A/X/Y/SP, individual flags,
-memory) plus externally visible bus effects.  A definition is suspicious when
-all of its semantic effects are overwritten before any use and the instruction
-had no meaningful read/write/mapper/device side effect.  Examples include:
+Use only a weak signal for instruction sequences whose semantic work is
+immediately obliterated; beam-path code may intentionally burn cycles. Prefer
+dead-definition/dataflow analysis over byte-string patterns. A definition is
+suspicious when all effects are overwritten before use and it had no meaningful
+bus/device/mapper side effect. Examples:
 
 * `LDA #$00 ; LDA #$FF` when neither A nor the first N/Z result is observed.
-* `LDX #a ; LDX #b`, `LDY #a ; LDY #b`, or repeated register transfers where the
-  first result is dead before use.
-* `CLC ; SEC`, `SED ; CLD`, or similar flag definitions when the first flag value
-  is neither branched/tested nor consumed by ADC/SBC/rotate before replacement.
-* A pure load from ordinary RAM followed by another full load of that register
-  before the value or resulting flags are used.
-* Arithmetic/INC/DEC/transfer work whose register and flag results are completely
-  overwritten before any observable use.
-* A RAM store whose value is overwritten at the same location before any feasible
-  read, when neither store has device/mapper semantics.
+* Back-to-back LDX/LDY/transfers, contradictory flag sets, or ALU/update work
+  whose earlier register/flag result is dead before use.
+* A pure RAM load immediately replaced before value/flags are used.
+* A RAM store overwritten before any feasible read, absent device/mapper semantics.
 * `JMP`/branch to the immediately following instruction, or other control-flow
   detours that have no semantic effect except cycles.
 
-Do **not** call a sequence nonsense merely because it looks redundant locally:
+Do not call local redundancy nonsense when bus/timing effects may matter:
+TIA/RIOT/peripheral/mapper accesses can have side effects; discarded bankswitch
+reads still matter; stack/flag/ALU/unofficial operations may be cycle padding.
+Near visible-beam/WSYNC activity sharply suppress the penalty. Blanking code can
+also burn cycles, so beam knowledge changes weight rather than proving purpose.
 
-* TIA/RIOT, cartridge peripheral, and mapper reads/writes may have bus side effects.
-* Stores to TIA registers are often timing/output actions even when the same value
-  is written repeatedly.
-* Reads used for bankswitching may matter even when the loaded value is discarded.
-* PHA/PLA, PHP/PLP, transfers, flag changes, unofficial opcodes, and apparently
-  redundant ALU operations may exist solely to consume a precise number of cycles.
-* Once execution is known to be in or near the visible beam path (for example,
-  bounded by WSYNC/display activity), suppress or sharply reduce this penalty.
-  Timing-only code during blanking is also possible, so beam-path knowledge changes
-  the weight rather than proving semantic purpose.
-
-Accumulate this evidence gently.  One dead definition should barely matter;
-several independent dead/clobbered definitions in a short speculative run can
-lower island/hypothesis confidence.  Cap the penalty so nonsense scoring can
-never by itself kill a path or mapper.  Hard hardware/control-flow contradictions
-remain separate.  If execution/provenance later proves the sequence reachable,
-keep it as code and use the signal only as a diagnostic annotation/statistic.
+Accumulate gently: one dead definition barely matters; several independent
+clobbers can lower confidence. Cap the penalty so it never kills a path/mapper.
+Hard contradictions remain separate. Proven reachable code stays code; retain
+this only as a diagnostic/statistic.
 
 Unfinished mapper support
 -------------------------
@@ -245,10 +230,13 @@ Unfinished mapper support
 
 Current direction
 -----------------
-The mapper-hypothesis execution roadmap A1-A8 above is now the current analysis
-priority.  It replaces the trusted-winner-first architecture with exhaustive,
-hypothesis-local state-space exploration and provenance; implement it incrementally
-without weakening exact reconstruction or the existing negative mapper regressions.
+The mapper-hypothesis execution roadmap is the current analysis priority. A1
+duplicate-image provenance is complete; A2 mapper enumeration is next. The
+destination replaces trusted-winner-first analysis with isolated exhaustive
+hypotheses. N-in-1 topologies are
+first-class mapper hypotheses in that destination architecture, not a later
+container pass.  Implement the migration incrementally without weakening exact
+reconstruction or the existing negative mapper regressions.
 GL implementation remains complete with only real-corpus closeout pending; CM, DPC+,
 and the CDF family remain the mapper-specific queue after/alongside that migration.
 

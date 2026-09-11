@@ -151,6 +151,9 @@ typedef enum {
 #define ACCESS_READ  0x01u
 #define ACCESS_WRITE 0x02u
 
+#define PHYSICAL_BANK_DUPLICATE 0x01u
+#define PHYSICAL_BANK_FILL      0x02u
+
 #define ZERO_PAGE_SIZE 256u
 #define ZERO_PAGE_KNOWN_BYTES (ZERO_PAGE_SIZE / 8u)
 #define FC_CONFIG_UNKNOWN 0xffffu
@@ -270,6 +273,14 @@ typedef struct {
    size_t rom_size;
    const uint8_t *physical_rom;
    size_t physical_size;
+   size_t duplicate_unique_size;
+   size_t duplicate_copy_count;
+   size_t *duplicate_copy_offsets;
+   int duplicate_view_active;
+   size_t physical_account_bank_size;
+   size_t physical_account_bank_count;
+   uint8_t *physical_bank_explanation;
+   uint8_t *physical_bank_fill_value;
    int odd_4k_dump;
    mapper_t mapper;
    size_t bank_size;
@@ -1029,6 +1040,103 @@ static int is_doubled_2k_dump(const uint8_t *rom, size_t size)
 static int is_doubled_4k_dump(const uint8_t *rom, size_t size)
 {
    return size == 8192u && memcmp(rom, rom + 4096u, 4096u) == 0;
+}
+
+/* A1 duplicate-image analysis view.  Exact repeated halves are an analysis
+ * property only: the physical image remains authoritative for reconstruction.
+ * Recursive halving produces N contiguous byte-identical copies of the final
+ * unique prefix, so provenance for unique offset U is exactly
+ * copy_base[C] + U. */
+static size_t duplicate_unique_prefix_size(const uint8_t *rom, size_t size)
+{
+   size_t unique = size;
+   while (unique > 1u && (unique & 1u) == 0u) {
+      size_t half = unique / 2u;
+      if (memcmp(rom, rom + half, half) != 0) break;
+      unique = half;
+   }
+   return unique;
+}
+
+static int bank_is_erased_fill(const uint8_t *p, size_t size, uint8_t *value)
+{
+   size_t i;
+   uint8_t v;
+   if (size == 0u) return 0;
+   v = p[0];
+   if (v != 0x00u && v != 0xffu) return 0;
+   for (i = 1u; i < size; ++i)
+      if (p[i] != v) return 0;
+   if (value) *value = v;
+   return 1;
+}
+
+static int attach_physical_analysis_view(analysis_t *a, const uint8_t *rom,
+                                         size_t physical_size,
+                                         size_t unique_size, int active)
+{
+   size_t i;
+   if (unique_size == 0u || unique_size > physical_size ||
+       (physical_size % unique_size) != 0u)
+      return 0;
+   a->physical_rom = rom;
+   a->physical_size = physical_size;
+   a->duplicate_unique_size = unique_size;
+   a->duplicate_copy_count = physical_size / unique_size;
+   a->duplicate_view_active = active && a->duplicate_copy_count > 1u;
+   a->duplicate_copy_offsets = (size_t *)calloc(a->duplicate_copy_count,
+                                                 sizeof(*a->duplicate_copy_offsets));
+   if (!a->duplicate_copy_offsets) return 0;
+   for (i = 0u; i < a->duplicate_copy_count; ++i)
+      a->duplicate_copy_offsets[i] = i * unique_size;
+
+   /* Keep the historical names while their presentation compatibility is
+    * useful.  The generalized view below owns the actual duplicate model. */
+   if (a->duplicate_view_active && unique_size == 2048u && physical_size == 4096u)
+      a->doubled_2k_dump = 1;
+   if (a->duplicate_view_active && unique_size == 4096u && physical_size == 8192u)
+      a->doubled_4k_dump = 1;
+
+   /* Record hypothesis-local physical-bank explanations for later A6 coverage.
+    * Exact duplicate provenance itself is byte-granular above and therefore
+    * remains valid even when a future mapper uses a different bank width. */
+   if (a->bank_size != 0u && (physical_size % a->bank_size) == 0u) {
+      a->physical_account_bank_size = a->bank_size;
+      a->physical_account_bank_count = physical_size / a->bank_size;
+      a->physical_bank_explanation = (uint8_t *)calloc(
+         a->physical_account_bank_count, sizeof(*a->physical_bank_explanation));
+      a->physical_bank_fill_value = (uint8_t *)calloc(
+         a->physical_account_bank_count, sizeof(*a->physical_bank_fill_value));
+      if (!a->physical_bank_explanation || !a->physical_bank_fill_value) return 0;
+      for (i = 0u; i < a->physical_account_bank_count; ++i) {
+         size_t off = i * a->bank_size;
+         uint8_t fill = 0u;
+         if (bank_is_erased_fill(rom + off, a->bank_size, &fill)) {
+            a->physical_bank_explanation[i] |= PHYSICAL_BANK_FILL;
+            a->physical_bank_fill_value[i] = fill;
+         }
+         if (off >= unique_size) {
+            size_t j;
+            int duplicate = 1;
+            for (j = 0u; j < a->bank_size; ++j)
+               if (rom[off + j] != rom[(off + j) % unique_size]) {
+                  duplicate = 0;
+                  break;
+               }
+            if (duplicate) a->physical_bank_explanation[i] |= PHYSICAL_BANK_DUPLICATE;
+         }
+      }
+   }
+   return 1;
+}
+
+static size_t duplicate_provenance_offset(const analysis_t *a, size_t unique_off,
+                                          size_t copy)
+{
+   if (!a->duplicate_copy_offsets || copy >= a->duplicate_copy_count ||
+       unique_off >= a->duplicate_unique_size)
+      return SIZE_MAX;
+   return a->duplicate_copy_offsets[copy] + unique_off;
 }
 
 static int mapper_is_wd_family(mapper_t mapper)
@@ -2236,6 +2344,9 @@ static void free_analysis(analysis_t *a)
    free(a->h2_seeds);
    free(a->work);
    free(a->context_states);
+   free(a->duplicate_copy_offsets);
+   free(a->physical_bank_explanation);
+   free(a->physical_bank_fill_value);
    memset(a, 0, sizeof(*a));
 }
 
@@ -10538,6 +10649,30 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
    fprintf(fp, "; input: %s\n", input);
    fprintf(fp, "; input bytes: %zu\n", a->physical_size ? a->physical_size : a->rom_size);
    fprintf(fp, "; input sha256: %s\n", sha);
+   if (a->duplicate_copy_count > 1u) {
+      fprintf(fp,
+              "; duplicate analysis view: %zu unique bytes x %zu exact physical copies%s\n",
+              a->duplicate_unique_size, a->duplicate_copy_count,
+              a->duplicate_view_active ? "" : "; explicit layout keeps physical mapper analysis");
+      fprintf(fp,
+              "; duplicate provenance: unique byte U maps to physical U + N*$%zX for N=0..%zu\n",
+              a->duplicate_unique_size, a->duplicate_copy_count - 1u);
+   }
+   if (a->physical_account_bank_count != 0u) {
+      size_t duplicate_banks = 0u, fill_banks = 0u;
+      for (i = 0u; i < a->physical_account_bank_count; ++i) {
+         if (a->physical_bank_explanation[i] & PHYSICAL_BANK_DUPLICATE)
+            ++duplicate_banks;
+         if (a->physical_bank_explanation[i] & PHYSICAL_BANK_FILL)
+            ++fill_banks;
+      }
+      if (duplicate_banks != 0u || fill_banks != 0u)
+         fprintf(fp,
+                 "; physical bank accounting: %zu x %zu bytes; %zu exact duplicate bank%s; %zu erased/fill bank%s\n",
+                 a->physical_account_bank_count, a->physical_account_bank_size,
+                 duplicate_banks, duplicate_banks == 1u ? "" : "s",
+                 fill_banks, fill_banks == 1u ? "" : "s");
+   }
    {
       const char *mname = mapper_name(a->mapper);
       char scname[32];
@@ -10613,13 +10748,19 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
       }
    }
    else if (a->mapper != MAP_RAW) {
-      fprintf(fp, "; physical banks: %zu x %zu bytes\n",
+      fprintf(fp, "; %s banks: %zu x %zu bytes\n",
+              a->duplicate_view_active ? "analysis" : "physical",
               a->bank_count, a->bank_size);
-      if (a->doubled_2k_dump)
-         fprintf(fp, "; preservation image: 2K ROM duplicated byte-for-byte to 4K; second copy retained raw for exact round trip\n");
+      if (a->doubled_2k_dump) {
+         if (a->mapper == MAP_CV)
+            fprintf(fp, "; preservation image: CV 2K ROM duplicated byte-for-byte to 4K; final copy retained raw for exact round trip\n");
+         else
+            fprintf(fp, "; preservation image: 2K ROM duplicated byte-for-byte to 4K; second copy retained raw for exact round trip\n");
+      }
       if (a->doubled_4k_dump)
          fprintf(fp, "; preservation image: 4K ROM duplicated byte-for-byte to 8K; second copy retained raw for exact round trip\n");
-      if (a->mapper == MAP_CV && a->physical_size == 4096u) {
+      if (a->mapper == MAP_CV && a->rom_size == 4096u &&
+          a->physical_size == 4096u) {
          if (memcmp(a->physical_rom, a->physical_rom + 2048u, 2048u) == 0)
             fprintf(fp, "; preservation image: CV 2K ROM duplicated byte-for-byte to 4K; final 2K are analyzed as ROM\n");
          else
@@ -11104,7 +11245,8 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
       return ferror(fp) == 0;
    }
 
-   if (a->mapper == MAP_CV && a->physical_size == 4096u) {
+   if (a->mapper == MAP_CV && a->rom_size == 4096u &&
+       a->physical_size == 4096u) {
       fputs("; ---- CV preservation prefix (saved RAM/padding or duplicate ROM) ----\n", fp);
       fputs(".org $0000\n", fp);
       emit_physical_raw_range(fp, a, 0u, 2048u);
@@ -11220,6 +11362,16 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
       fputs(".org $1000\n", fp);
       emit_physical_raw_range(fp, a, 4096u, a->physical_size);
    }
+   if (a->duplicate_view_active && a->duplicate_copy_count > 1u &&
+       !a->doubled_2k_dump && !a->doubled_4k_dump) {
+      size_t first_duplicate = duplicate_provenance_offset(a, 0u, 1u);
+      if (first_duplicate != SIZE_MAX && first_duplicate < a->physical_size) {
+         fputs("; ---- exact duplicate physical copies excluded from analysis view ----\n", fp);
+         fprintf(fp, ".org $%04zX\n", first_duplicate);
+         emit_physical_raw_range(fp, a, first_duplicate, a->physical_size);
+         fputc('\n', fp);
+      }
+   }
    emit_concrete_ram_execution(fp, a);
    return ferror(fp) == 0;
 }
@@ -11313,6 +11465,10 @@ static int analyze_multicart_slice(analysis_t *a, uint8_t *rom, size_t size,
    options_t opt = *parent;
    mapper_refinement_t refinement;
    mapper_t legacy, selected;
+   size_t unique_size = duplicate_unique_prefix_size(rom, size);
+   uint8_t *analysis_rom = rom;
+   size_t analysis_size = unique_size;
+   int duplicate_view_active = unique_size < size;
 
    memset(a, 0, sizeof(*a));
    opt.output = NULL;
@@ -11323,12 +11479,16 @@ static int analyze_multicart_slice(analysis_t *a, uint8_t *rom, size_t size,
    opt.origin_count = opt.entry_count = opt.code_count = opt.data_count = 0u;
    opt.table_count = opt.pointer_count = 0u;
 
-   if (!init_analysis(a, rom, size, &opt)) return 0;
-   a->physical_rom = rom;
-   a->physical_size = size;
+   if (!init_analysis(a, analysis_rom, analysis_size, &opt)) return 0;
+   if (!attach_physical_analysis_view(a, rom, size, unique_size,
+                                      duplicate_view_active)) {
+      free_analysis(a);
+      memset(a, 0, sizeof(*a));
+      return 0;
+   }
    legacy = a->mapper;
    if (legacy != MAP_RAW) {
-      selected = refine_mapper_by_control_flow(rom, size, legacy,
+      selected = refine_mapper_by_control_flow(analysis_rom, analysis_size, legacy,
                                                &refinement);
       if (selected != legacy) {
          options_t selected_opt = opt;
@@ -11336,9 +11496,13 @@ static int analyze_multicart_slice(analysis_t *a, uint8_t *rom, size_t size,
          selected_opt.mapper_override_set = 1;
          selected_opt.mapper_override = selected;
          selected_opt.superchip_override = -1;
-         if (!init_analysis(a, rom, size, &selected_opt)) return 0;
-         a->physical_rom = rom;
-         a->physical_size = size;
+         if (!init_analysis(a, analysis_rom, analysis_size, &selected_opt)) return 0;
+         if (!attach_physical_analysis_view(a, rom, size, unique_size,
+                                            duplicate_view_active)) {
+            free_analysis(a);
+            memset(a, 0, sizeof(*a));
+            return 0;
+         }
          a->mapper_overridden = 0;
          a->superchip_override = -1;
       }
@@ -11694,6 +11858,8 @@ int main(int argc, char **argv)
    uint8_t *logical_rom = NULL;
    uint8_t *analysis_rom = NULL;
    size_t analysis_size = 0;
+   size_t duplicate_unique_size = 0u;
+   int duplicate_view_active = 0;
    int odd_4k_dump = 0;
    analysis_t analysis;
    multicart_info_t multicart;
@@ -11705,9 +11871,16 @@ int main(int argc, char **argv)
 
    if (!parse_args(argc, argv, &opt)) return disassembly_failure(2);
    if (!read_file(opt.input, &rom, &rom_size)) return disassembly_failure(1);
+   duplicate_unique_size = duplicate_unique_prefix_size(rom, rom_size);
    analysis_rom = rom;
    analysis_size = rom_size;
-   if (rom_size == 4094u || rom_size == 4098u) {
+   if (duplicate_unique_size < rom_size &&
+       opt.container_override_games == 0u &&
+       !multicart_user_layout_override(&opt)) {
+      analysis_size = duplicate_unique_size;
+      duplicate_view_active = 1;
+   }
+   if (!duplicate_view_active && (rom_size == 4094u || rom_size == 4098u)) {
       size_t copy = rom_size < 4096u ? rom_size : 4096u;
       logical_rom = (uint8_t *)calloc(4096u, 1u);
       if (!logical_rom) {
@@ -11725,8 +11898,14 @@ int main(int argc, char **argv)
       free(rom);
       return disassembly_failure(1);
    }
-   analysis.physical_rom = rom;
-   analysis.physical_size = rom_size;
+   if (!attach_physical_analysis_view(&analysis, rom, rom_size,
+                                      duplicate_unique_size, duplicate_view_active)) {
+      fprintf(stderr, "out of memory while recording duplicate-image provenance\n");
+      free_analysis(&analysis);
+      free(logical_rom);
+      free(rom);
+      return disassembly_failure(1);
+   }
    analysis.odd_4k_dump = odd_4k_dump;
    if (!opt.mapper_override_set && analysis.mapper != MAP_RAW) {
       mapper_refinement_t refinement;
@@ -11744,8 +11923,14 @@ int main(int argc, char **argv)
             free(rom);
             return disassembly_failure(1);
          }
-         analysis.physical_rom = rom;
-         analysis.physical_size = rom_size;
+         if (!attach_physical_analysis_view(&analysis, rom, rom_size,
+                                            duplicate_unique_size, duplicate_view_active)) {
+            fprintf(stderr, "out of memory while recording duplicate-image provenance\n");
+            free_analysis(&analysis);
+            free(logical_rom);
+            free(rom);
+            return disassembly_failure(1);
+         }
          analysis.odd_4k_dump = odd_4k_dump;
          /* This was automatic inference, not a user --mapper override. */
          analysis.mapper_overridden = 0;
