@@ -148,3 +148,44 @@ presentation/tie-break behavior remains intentionally unchanged until A3 replace
 the legacy static and slice evaluators with hypothesis-local exhaustive execution.
 Focused disassembler, fuzz, GL, hardening, opcode round-trip, and source-tree
 hygiene tests pass. A3 exhaustive per-hypothesis state-space execution is next.
+
+2026-09-11 10:48:45 PDT, exhaustive mapper-hypothesis state space
+Completed disassembler roadmap A3. Every A2 mapper hypothesis is now executed in
+isolation before legacy/default mapper selection. The canonical A3 engine reuses
+the established abstract CPU/mapper tracer: execution state is keyed by physical
+instruction byte + runtime PC + mapper configuration, equivalent arrivals are met
+in a finite decreasing-knowledge lattice, changed joins are requeued to a fixed
+point, and convergence has no instruction-count cap. Known flag state selects one
+conditional edge; unknown flag state forks every feasible edge. Hardware input
+reads remain abstract uncertainty rather than sampled game-mode scenarios.
+
+Hardware-defined mapper reset arrangements seed their documented state. F8/F6/F4,
+whose latch state is not a safe presentation assumption, execute every physical
+bank as a legal startup latch state. First-class N-in-1 hypotheses execute every
+external selector constituent and every structurally possible inner cart model,
+without cross-hypothesis state leakage. Generated headers report per-hypothesis
+startup/live-state, context, unknown-branch-fork, instruction, and halt counts.
+
+Removed mapper trust from the A3 hypothesis executor. Automatic and explicit
+--mapper now use the same fixed-point execution strength; --mapper only constrains
+the hypothesis set. The older bounded sampled concrete/H2 runner remains a
+secondary selected-hypothesis RAM/dynamic-code/presentation helper pending A4.
+Its presentation-safety predicate is deliberately independent of mapper_overridden,
+so forcing the same weak F4 bytes cannot secretly unlock sampled reachability or
+reopen the historical OMNI-as-F4 false-code failure. Regressions prove unknown
+RIOT-RAM-dependent branches fork, known CLC/BCC follows only the feasible edge
+past a dead JAM arm, all structurally retained 24K candidates execute before
+selection, 4IN1/8IN1 explore every external selector state, and automatic/forced
+F4 produce identical A3 state-space summaries while neither weak case enables the
+sampled helper. Congo Bongo was checked manually: automatic and forced F8 now have
+the same A3 state-space result; following its generated RIOT-RAM selector with
+source provenance remains the explicit A4 regression. Legacy mapper rejection and
+ranking remain intentionally unchanged until A5/A7 consume A3 results. A4
+value/source provenance is next.
+
+2026-09-11 10:56:47 PDT, A3 validation checkpoint
+Final post-safety-gate validation: vcsc_disassembler.pl, deterministic fuzz (30/30),
+GL, hardening, all-opcode exact round-trip, and source-tree hygiene pass. Full
+compile-only suite passes 537/537. Broad E2E reached 229/365 with zero failures
+before the execution environment's command-time ceiling in the slow mapper tail;
+no 365/365 claim is made from that partial run.

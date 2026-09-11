@@ -147,22 +147,25 @@ set: ordinary cart models are checked against the A1 unique analysis size, while
 duplicate constituents are preservation evidence and do not create an automatic
 N-in-1 candidate. The generated header reports this complete preselection set.
 
-During the A2-to-A3 migration, N-in-1 hypotheses still use the established
-independent-component evaluator: plausible independent RESET roots/executable
-components are required, positive CPU-visible whole-cart selector evidence can
-defeat the external-selection topology, and selected components are emitted as
-`.gameNN.s26` compatibility sidecars while the outer source preserves the exact
-concatenation. This evaluator consumes only N-in-1 hypotheses that already existed
-in the preselection set; it may not discover a new topology after mapper choice.
-A3 will replace both the legacy cart-flow evaluator and this slice evaluator with
-the same exhaustive hypothesis-local state-space engine.
+A3 executes every preselection hypothesis before any mapper winner is chosen.
+Ordinary carts use an isolated abstract CPU/mapper fixed-point walk; N-in-1 treats
+every constituent selector value as a legal startup state and executes every
+structurally possible inner cart interpretation independently. Known flag state
+chooses one conditional edge and unknown state forks both feasible edges. The
+state key includes physical instruction byte, runtime PC, and mapper configuration;
+joins monotonically lose knowledge and are requeued until convergence, so the
+hypothesis walk has no instruction-count convergence cap. The older N-in-1 slice
+evaluator still supplies compatibility ranking and `.gameNN.s26` presentation
+until A5/A7 replace legacy rejection/selection, but it cannot create a topology
+that A2 did not enumerate and it is not the A3 execution engine.
 
 2IN1 remains the most ambiguous shape because an 8K file containing two plausible
 4K programs is also a perfectly possible ordinary F8 image. Automatic structure
 therefore requires two distinct 4K slices with real RESET roots. If both the F8
 and 2IN1 hypotheses remain credible under the current compatibility evaluators,
 the generated header reports the ambiguity and retains the conventional whole
-image until A3 can compare exhaustive execution. `--container 2IN1` remains the
+image until A5/A7 consume the already-available A3 execution results for rejection
+and final hypothesis comparison. `--container 2IN1` remains the
 authoritative compatibility override when external knowledge resolves the dump;
 it can intentionally represent duplicate component games that automatic
 structure would treat as preservation copies.
@@ -272,9 +275,9 @@ The generated header records the input size and SHA-256, mapper evidence,
 physical banks, inferred bank origins and reset bank, video/controller evidence,
 and the `vcsc-disas` version. Before selection it enumerates every structurally
 compatible mapper hypothesis, including N-in-1 topologies; models outside the
-legacy static evaluator's old size table are retained for A3 rather than silently
-dropped. The current migration then tests the legacy-supported cart subset as
-competing **established** control-flow hypotheses. Detached speculative islands are deliberately excluded
+legacy static evaluator's old size table are retained and executed by A3 rather
+than silently dropped. The current compatibility selector still tests the
+legacy-supported cart subset as competing **established** control-flow hypotheses. Detached speculative islands are deliberately excluded
 from mapper viability, selector counts, ranking, and contradiction evidence. A
 hypothesis must establish a cartridge-backed RESET graph on its own. A reachable
 HLT/JAM/KIL in that established graph normally eliminates a model, but abstract flow can

@@ -123,6 +123,14 @@ typedef struct {
    size_t three_specific_switches;
    int detector_signature;
    int explicit_signature;
+   int state_space_evaluated;
+   int state_space_viable;
+   size_t state_space_startup_states;
+   size_t state_space_live_startup_states;
+   size_t state_space_contexts;
+   size_t state_space_branch_forks;
+   size_t state_space_instructions;
+   size_t state_space_halts;
    mapper_reject_reason_t reject_reason;
 } mapper_hypothesis_t;
 
@@ -350,6 +358,7 @@ typedef struct {
    size_t static_branch_edges_rejected_halt;
    size_t static_branch_edges_inconclusive;
    size_t static_branch_edges_concrete;
+   size_t state_space_branch_forks;
    int speculative_phase;
    int speculative_superchip_active;
    int concrete_available;
@@ -376,6 +385,8 @@ typedef struct {
    size_t context_state_count;
    size_t context_state_cap;
 } analysis_t;
+
+static size_t analysis_instruction_count(const analysis_t *a);
 
 /* Fields below describe established cartridge behavior.  Speculative-island
  * tracing is allowed to decode bytes for presentation, but any changes it
@@ -7206,6 +7217,8 @@ drain_work:
          int known = 0, taken = 0;
          int validate_fall = 0, validate_taken = 0;
          known = speculative_branch_outcome(opcode, &output_state, &taken);
+         if (!known && !a->speculative_phase)
+            ++a->state_space_branch_forks;
          if (!known && !speculative_done && a->concrete_available) {
             if (concrete_branch_edge_observed(a, item.bank, off, canonical_pc,
                                               item.mapper_config, 0))
@@ -7639,17 +7652,15 @@ drain_work:
    return 1;
 }
 
-static int concrete_mapper_trusted(const analysis_t *a)
+/* The bounded H0/H2 runner is no longer the mapper-hypothesis engine; A3's
+ * abstract fixed-point executor fills that role for every A2 candidate.  Keep
+ * this older sampled helper behind a presentation-safety predicate so a weak
+ * legacy size-default winner (notably an unsupported 32K cart misread as F4)
+ * cannot manufacture thousands of code starts.  Crucially this predicate does
+ * not inspect mapper_overridden: --mapper constrains the A3 hypothesis set but
+ * does not secretly turn on a stronger helper for the same mapper/bytes. */
+static int sampled_concrete_presentation_safe(const analysis_t *a)
 {
-   /* Concrete execution is positive reachability evidence only when the bus
-    * model is known to match the cartridge.  Size-default F8/F6/F4/FA guesses
-    * are deliberately weak: an unsupported mapper can look coherent enough to
-    * survive static hypothesis refinement, then concrete execution under the
-    * wrong hotspot model turns arbitrary data into thousands of fake executed
-    * instructions.  VCSC's explicit tail signatures (or a user --mapper) are
-    * strong enough to opt banked carts in.  Unbanked 1K/2K/4K topology is
-    * unambiguous by size once CV/doubled-2K detection has had its vote. */
-   if (a->mapper_overridden) return 1;
    switch (a->mapper) {
    case MAP_1K:
    case MAP_2K:
@@ -7679,13 +7690,14 @@ static int concrete_mapper_trusted(const analysis_t *a)
    case MAP_UASW:
    case MAP_0FA0:
    case MAP_FE:
-      /* These families are never ordinary size defaults: reaching one of
-       * these mapper identities already required a family-specific detector,
-       * exact preservation layout (WDSW), or a user override above. */
+      /* These mapper identities are not ordinary size fallbacks in the legacy
+       * selector. Automatic selection already required family-specific
+       * structure/bytes or control flow; a forced mapper gets the same helper
+       * behavior because this decision never inspects mapper_overridden. */
       return 1;
    case MAP_DPC:
-      /* DPC's data-fetcher/register window needs a faithful coprocessor model
-       * before sampled execution is safe evidence. */
+      /* DPC's data-fetcher/register window still needs a faithful coprocessor
+       * model before sampled execution is safe presentation evidence. */
       return 0;
    default:
       return 0;
@@ -7695,7 +7707,7 @@ static int concrete_mapper_trusted(const analysis_t *a)
 static int run_concrete_discovery(analysis_t *a)
 {
    size_t bi;
-   if (!concrete_mapper_trusted(a)) return 1;
+   if (!sampled_concrete_presentation_safe(a)) return 1;
    a->concrete_rom_exec = (uint8_t *)calloc(a->rom_size, 1);
    a->concrete_rom_pc = (uint16_t *)calloc(a->rom_size, sizeof(*a->concrete_rom_pc));
    a->concrete_rom_data_read = (uint8_t *)calloc(a->rom_size, 1);
@@ -7859,8 +7871,8 @@ static int nin1_slice_reset_vector(const uint8_t *rom, size_t size, int *blank)
 
 /* A2 structural N-in-1 enumeration deliberately does no component execution.
  * It answers only whether this physical topology is worth carrying as an
- * isolated mapper hypothesis into later evaluation.  The stronger per-slice
- * execution checks remain in the legacy evaluator until A3 replaces them. */
+ * isolated mapper hypothesis into A3.  A3 executes every constituent state;
+ * this helper remains structure-only. */
 static int nin1_structurally_possible(const uint8_t *rom, size_t size,
                                       unsigned games, int forced,
                                       size_t *slice_size_out,
@@ -8065,6 +8077,175 @@ static int enumerate_mapper_hypotheses(const uint8_t *physical_rom,
    return detail->hypothesis_count != 0u;
 }
 
+/* A3 mapper execution is an abstract state-space walk, not a sampled input
+ * run.  The established static tracer already has the essential fixed-point
+ * machinery we need: mapper-qualified execution contexts, monotone state
+ * merging, exact branch pruning when flags are known, and both-edge forking
+ * when they are not.  Run that engine independently for every A2 hypothesis
+ * before legacy/default selection gets a vote.  These results are deliberately
+ * diagnostic/execution facts only until A5/A7 replace the old rejection and
+ * ranking heuristics. */
+static size_t mapper_state_space_startup_banks(const analysis_t *probe,
+                                               const options_t *opt,
+                                               size_t *banks,
+                                               size_t capacity)
+{
+   size_t n = 0u, i;
+   if (capacity == 0u) return 0u;
+   if (opt && opt->reset_bank_override >= 0) {
+      size_t bank = (size_t)opt->reset_bank_override;
+      if (bank < probe->bank_count) banks[n++] = bank;
+      return n;
+   }
+
+   /* The ordinary F8/F6/F4 latch has no reset input in the mapper model.  Do
+    * not let the presentation-oriented "best RESET vector" choice silently
+    * become an execution assumption: every physical bank is a legal startup
+    * latch state.  Mappers with specified reset/power-on arrangements retain
+    * the single state established by init_analysis(). */
+   if (probe->mapper == MAP_F8 || probe->mapper == MAP_F6 ||
+       probe->mapper == MAP_F4) {
+      for (i = 0u; i < probe->bank_count && n < capacity; ++i)
+         banks[n++] = i;
+      return n;
+   }
+   banks[n++] = probe->reset_bank;
+   return n;
+}
+
+static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
+                                               const options_t *parent_opt,
+                                               mapper_hypothesis_t *h)
+{
+   options_t probe_opt;
+   analysis_t shape;
+   size_t startup_banks[256];
+   size_t startup_count, si;
+
+   memset(&probe_opt, 0, sizeof(probe_opt));
+   probe_opt.mapper_override_set = 1;
+   probe_opt.mapper_override = h->mapper;
+   probe_opt.superchip_override = parent_opt ? parent_opt->superchip_override : -1;
+   probe_opt.reset_bank_override = -1;
+
+   h->state_space_evaluated = 1;
+   h->state_space_viable = 0;
+   h->state_space_startup_states = 0u;
+   h->state_space_live_startup_states = 0u;
+   h->state_space_contexts = 0u;
+   h->state_space_branch_forks = 0u;
+   h->state_space_instructions = 0u;
+   h->state_space_halts = 0u;
+
+   memset(&shape, 0, sizeof(shape));
+   if (!init_analysis(&shape, (uint8_t *)rom, size, &probe_opt))
+      return 1; /* structurally enumerated but not executable under this model */
+   startup_count = mapper_state_space_startup_banks(
+      &shape, parent_opt, startup_banks,
+      sizeof(startup_banks) / sizeof(startup_banks[0]));
+   free_analysis(&shape);
+
+   for (si = 0u; si < startup_count; ++si) {
+      analysis_t probe;
+      size_t instructions;
+      memset(&probe, 0, sizeof(probe));
+      ++h->state_space_startup_states;
+      if (!init_analysis(&probe, (uint8_t *)rom, size, &probe_opt)) continue;
+      if (startup_banks[si] >= probe.bank_count) {
+         free_analysis(&probe);
+         continue;
+      }
+      probe.reset_bank = startup_banks[si];
+      if (!trace_analysis_internal(&probe, &probe_opt, 1, 0)) {
+         free_analysis(&probe);
+         continue;
+      }
+      instructions = analysis_instruction_count(&probe);
+      h->state_space_contexts += probe.context_state_count;
+      h->state_space_branch_forks += probe.state_space_branch_forks;
+      h->state_space_instructions += instructions;
+      h->state_space_halts += probe.reachable_halts;
+      if (instructions != 0u) ++h->state_space_live_startup_states;
+      free_analysis(&probe);
+   }
+   h->state_space_viable = h->state_space_live_startup_states != 0u;
+   return 1;
+}
+
+static int explore_nin1_hypothesis_state_space(const uint8_t *physical_rom,
+                                               size_t physical_size,
+                                               mapper_hypothesis_t *h)
+{
+   unsigned game;
+   h->state_space_evaluated = 1;
+   h->state_space_viable = 0;
+   h->state_space_startup_states = h->games;
+   h->state_space_live_startup_states = 0u;
+   h->state_space_contexts = 0u;
+   h->state_space_branch_forks = 0u;
+   h->state_space_instructions = 0u;
+   h->state_space_halts = 0u;
+
+   if (h->games == 0u || h->slice_size == 0u ||
+       (size_t)h->games * h->slice_size > physical_size)
+      return 1;
+
+   /* N-in-1 external selector state is itself unknown at analysis entry, so
+    * every constituent is one feasible startup state.  A constituent may be
+    * an ordinary banked cart; enumerate and execute all of its structural cart
+    * interpretations too, but never recurse into another outer N-in-1 layer. */
+   for (game = 0u; game < h->games; ++game) {
+      const uint8_t *slice = physical_rom + (size_t)game * h->slice_size;
+      size_t unique = duplicate_unique_prefix_size(slice, h->slice_size);
+      mapper_refinement_t inner;
+      options_t inner_opt;
+      size_t i;
+      int live = 0;
+
+      memset(&inner_opt, 0, sizeof(inner_opt));
+      inner_opt.superchip_override = -1;
+      inner_opt.reset_bank_override = -1;
+      if (!enumerate_mapper_hypotheses(slice, h->slice_size, slice, unique,
+                                       &inner_opt, 0, &inner))
+         continue;
+      for (i = 0u; i < inner.cart_hypothesis_count; ++i) {
+         mapper_hypothesis_t *ih = &inner.hypotheses[i];
+         if (!explore_cart_hypothesis_state_space(slice, unique, &inner_opt, ih))
+            return 0;
+         h->state_space_contexts += ih->state_space_contexts;
+         h->state_space_branch_forks += ih->state_space_branch_forks;
+         h->state_space_instructions += ih->state_space_instructions;
+         h->state_space_halts += ih->state_space_halts;
+         if (ih->state_space_viable) live = 1;
+      }
+      if (live) ++h->state_space_live_startup_states;
+   }
+   h->state_space_viable = h->state_space_live_startup_states != 0u;
+   return 1;
+}
+
+static int explore_mapper_hypotheses_state_space(const uint8_t *physical_rom,
+                                                 size_t physical_size,
+                                                 const uint8_t *analysis_rom,
+                                                 size_t analysis_size,
+                                                 const options_t *opt,
+                                                 mapper_refinement_t *detail)
+{
+   size_t i;
+   for (i = 0u; i < detail->hypothesis_count; ++i) {
+      mapper_hypothesis_t *h = &detail->hypotheses[i];
+      if (h->kind == MAPPER_HYPOTHESIS_CART) {
+         if (!explore_cart_hypothesis_state_space(analysis_rom, analysis_size,
+                                                  opt, h))
+            return 0;
+      }
+      else if (!explore_nin1_hypothesis_state_space(physical_rom, physical_size,
+                                                    h))
+         return 0;
+   }
+   return 1;
+}
+
 /* A decoded bank-changing edge is especially strong mapper evidence when the
  * hardware selects banks through a narrow, cartridge-specific address set.
  * Broad partial-address decoders such as 0840/UA/0FA0 can be triggered by
@@ -8131,11 +8312,11 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
    h = detail->hypotheses;
    n = detail->cart_hypothesis_count;
 
-   /* A2 enumerates every structurally possible cart before selection.  Until
-    * A3 replaces the legacy static evaluator, preserve its proven scope: only
-    * mapper/size combinations it previously compared get flow-ranked here.
-    * The extra structural hypotheses stay isolated and visible rather than
-    * being silently discarded before the winner is chosen. */
+   /* A2 enumerates and A3 executes every structurally possible cart before
+    * selection.  Until A5/A7 replace the legacy rejection/ranking policy,
+    * preserve that selector's proven scope here: only mapper/size combinations
+    * it previously compared get flow-ranked.  Extra hypotheses have already
+    * run in isolation and remain visible rather than being silently discarded. */
    legacy_flow_count = mapper_candidates_for_size(size, legacy_flow,
       sizeof(legacy_flow) / sizeof(legacy_flow[0]));
    if (n == 0u || n > MAPPER_HYPOTHESIS_MAX) return legacy;
@@ -10899,6 +11080,24 @@ static void emit_mapper_hypothesis_enumeration(FILE *fp, const analysis_t *a)
    }
    fprintf(fp, "]; analysis-bytes=%zu physical-bytes=%zu\n",
            r->analysis_size, r->physical_size);
+   for (i = 0u; i < r->hypothesis_count; ++i) {
+      const mapper_hypothesis_t *h = &r->hypotheses[i];
+      if (!h->state_space_evaluated) continue;
+      fputs("; hypothesis state-space: ", fp);
+      if (h->kind == MAPPER_HYPOTHESIS_NIN1)
+         fprintf(fp, "%uIN1", h->games);
+      else
+         fputs(mapper_name(h->mapper), fp);
+      fprintf(fp,
+              " startups=%zu live=%zu contexts=%zu unknown-branch-forks=%zu instructions=%zu halts=%zu%s\n",
+              h->state_space_startup_states,
+              h->state_space_live_startup_states,
+              h->state_space_contexts,
+              h->state_space_branch_forks,
+              h->state_space_instructions,
+              h->state_space_halts,
+              h->state_space_viable ? "" : "; no RESET-reachable state");
+   }
 }
 static void emit_mapper_refinement_evidence(FILE *fp, const analysis_t *a)
 {
@@ -11891,11 +12090,10 @@ static mapper_hypothesis_t *nin1_hypothesis(mapper_refinement_t *r,
    return NULL;
 }
 
-/* A2 compatibility evaluator for the N-in-1 hypotheses that were already
- * enumerated before whole-cart mapper selection.  This replaces topology
- * discovery-after-the-fact: no new N-in-1 candidate may appear here.  The
- * existing independently analyzed sidecars remain output plumbing until A3
- * supplies one common hypothesis-local execution engine. */
+/* Compatibility evaluator for N-in-1 hypotheses already enumerated by A2 and
+ * executed by A3 before whole-cart mapper selection.  No new N-in-1 candidate
+ * may appear here.  Independent sidecars and this legacy shape/ranking policy
+ * remain output/selection plumbing until A5/A7 consume the common A3 results. */
 static int evaluate_nin1_hypotheses(const uint8_t *rom, size_t size,
                                     analysis_t *whole, const options_t *opt,
                                     multicart_info_t *info)
@@ -11974,8 +12172,9 @@ static int evaluate_nin1_hypotheses(const uint8_t *rom, size_t size,
       }
 
       /* 2IN1 is the size/topology collision that remains ambiguous with an
-       * ordinary 8K F8 image.  Keep the old conservative tie until A3 can
-       * compare both exhaustive executions rather than choosing from shape. */
+       * ordinary 8K F8 image.  A3 has executed both hypotheses; keep the old
+       * conservative compatibility tie until A5/A7 define rejection/ranking
+       * from those common execution results. */
       {
          size_t whole_starts = established_instruction_count(whole);
          int whole_rejected = whole_starts == 0u ||
@@ -12201,6 +12400,14 @@ int main(int argc, char **argv)
       else
          fprintf(stderr, "no structurally compatible mapper hypothesis for %zu-byte input\n",
                  rom_size);
+      free(logical_rom);
+      free(rom);
+      return disassembly_failure(1);
+   }
+   if (!explore_mapper_hypotheses_state_space(rom, rom_size,
+                                              analysis_rom, analysis_size,
+                                              &opt, &preselection)) {
+      fprintf(stderr, "mapper hypothesis state-space exploration failed\n");
       free(logical_rom);
       free(rom);
       return disassembly_failure(1);

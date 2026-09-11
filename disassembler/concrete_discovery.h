@@ -67,9 +67,13 @@ typedef struct {
    uint32_t ram_source_offset[VCSC_CONCRETE_RIOT_RAM_SIZE];
 } vcsc_concrete_result_t;
 
-/* Execute bounded concrete discovery from RESET.  The first run uses inactive
- * controller/console inputs; additional one-active-low-input scenarios are run
- * only for input families observed by an already executed path. rom_exec_start,
+/* Execute bounded sampled concrete discovery from RESET for the already selected
+ * mapper.  This is a secondary dynamic-code/presentation helper, not the A3
+ * mapper-hypothesis executor and not mapper-selection evidence.  A3 uses the
+ * abstract fixed-point state-space engine so unknown inputs fork symbolically.
+ * Here the first run uses inactive controller/console inputs; additional
+ * one-active-low-input scenarios are run only for input families observed by an
+ * already executed path. rom_exec_start,
  * rom_exec_pc, rom_data_read, and rom_branch_edges are caller-owned arrays of
  * rom_size entries.  For a conditional branch, rom_branch_edges bit 0 records an
  * observed fall-through and bit 1 an observed taken edge, but only for the same

@@ -92,19 +92,26 @@ Highest-priority analysis subitem: explore every structurally possible mapper
 hypothesis instead of "guess -> trust -> maybe simulate". Mapper identity and
 reachable code/data emerge together from isolated hardware models. Keep each
 step regression-locked before replacing the next heuristic. A1 duplicate-image
-provenance and A2 preselection mapper enumeration are complete; A3 is next.
+provenance, A2 preselection enumeration, and A3 hypothesis-local state-space
+execution are complete; A4 is next.
 
-A3. [ ] Turn concrete discovery into exhaustive state-space exploration
-    * Start each hypothesis from every hardware-legal RESET startup state required
-      by that mapper.  When register/flag state proves a branch direction, follow
-      only that edge.  When it does not, fork and follow every feasible edge.
-      Unknown inputs are symbolic uncertainty, not hand-picked "game modes" or
-      scenario samples.
-    * Deduplicate equivalent machine states and widen finite abstract values as
-      needed; loop convergence must not depend on an instruction-count cap.
-    * Remove the current mapper-trust gate once hypothesis-local execution is safe;
-      `--mapper` must constrain the hypothesis set, not secretly enable a stronger
-      analysis engine.
+A3 execution invariant (completed)
+    Every A2 hypothesis is executed independently before mapper selection.  The
+    established abstract CPU/mapper tracer is the canonical hypothesis engine:
+    its state key is physical instruction byte + runtime PC + mapper configuration,
+    arrivals meet in a finite decreasing-knowledge lattice, and changed joins are
+    requeued to a fixed point rather than stopped by an instruction budget.
+    Hardware-specified RESET mappings seed their defined state; F8/F6/F4 explore
+    every legal power-on latch bank; N-in-1 explores every external selector
+    constituent and every structurally possible inner cart interpretation.  Known
+    flags choose one branch edge; unknown flags fork all feasible edges.  Hardware
+    input reads remain unknown abstract values rather than sampled game modes.
+    Automatic and explicit `--mapper` analysis use the same A3 engine; the old
+    mapper-trust gate no longer gates hypothesis execution.  The bounded sampled
+    concrete/H2 runner remains only a selected-hypothesis dynamic-code/presentation
+    helper pending A4 provenance.  Its separate presentation-safety predicate is
+    independent of `--mapper`, so an override cannot secretly unlock sampled
+    reachability, and it never establishes or suppresses an A3 mapper hypothesis.
 
 A4. [ ] First-class value/source provenance
     * Track ROM-byte provenance through registers, arithmetic where practical,
@@ -230,12 +237,12 @@ Unfinished mapper support
 Current direction
 -----------------
 The mapper-hypothesis execution roadmap is the current analysis priority. A1
-duplicate-image provenance and A2 preselection enumeration are complete; A3
-exhaustive hypothesis-local execution is next.  The preselection set already
-contains every structurally compatible ordinary mapper plus first-class N-in-1
-topologies before any winner is chosen.  The A2-era legacy flow/slice evaluators
-remain temporary compatibility scoring only; A3 replaces them with one isolated
-state-space engine without weakening exact reconstruction or negative regressions.
+duplicate-image provenance, A2 preselection enumeration, and A3 exhaustive
+hypothesis-local execution are complete; A4 value/source provenance is next.  The
+preselection set contains every structurally compatible ordinary mapper plus
+first-class N-in-1 topologies before any winner is chosen, and A3 executes every
+one in isolation.  Legacy flow/slice ranking remains temporary compatibility
+scoring until A5/A7 consume the common state-space results for rejection/selection.
 GL implementation remains complete with only real-corpus closeout pending; CM, DPC+,
 and the CDF family remain the mapper-specific queue after/alongside that migration.
 

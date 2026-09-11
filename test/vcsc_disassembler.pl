@@ -345,6 +345,25 @@ write_bin(File::Spec->catfile($in, 'fill_bank_f6.bin'), $fill_bank_f6);
 my $a2_structural_24k = make_rom(24576, 0xF000, 0x0300,
    "\xA9\x62\x85\x92\x60");
 write_bin(File::Spec->catfile($in, 'a2_structural_24k.bin'), $a2_structural_24k);
+# A3 follows a branch exactly when the relevant flag is known and forks both
+# feasible successors when it is not.  These two otherwise-tiny fixtures pin
+# that distinction in the hypothesis-local state-space summary.
+my $a3_unknown_branch = make_rom(4096, 0xF000, 0x0100,
+   pack('C*',
+      0xA5, 0x80,       # LDA $80: initial RIOT RAM is unknown to static A3
+      0xD0, 0x03,       # BNE $F107: Z is unknown, so both edges are feasible
+      0xA9, 0x11, 0x60, # fall-through path
+      0xA9, 0x22, 0x60  # taken path
+   ));
+write_bin(File::Spec->catfile($in, 'a3_unknown_branch.bin'), $a3_unknown_branch);
+my $a3_known_branch = make_rom(4096, 0xF000, 0x0100,
+   pack('C*',
+      0x18,             # CLC: C is known clear
+      0x90, 0x01,       # BCC $F104: exactly one feasible edge
+      0x02,             # JAM on the impossible fall-through edge
+      0x60              # target: RTS
+   ));
+write_bin(File::Spec->catfile($in, 'a3_known_branch.bin'), $a3_known_branch);
 # Multi-game images are containers, not one bankswitched CPU address space.
 # Four distinct, independently rooted 2K components must be split/analyzed
 # separately while the outer source preserves the exact concatenation.
@@ -1929,6 +1948,20 @@ require_re($a2_24k_out,
    'A2 retains structurally possible 24K mapper hypotheses before selection');
 require_re($a2_24k_out, qr/^; mapper: FA2 \(/m,
    'A2 does not prematurely change the legacy 24K presentation winner');
+for my $mapper (qw(FA2 FC 3F 3E)) {
+   require_re($a2_24k_out,
+      qr/^; hypothesis state-space: \Q$mapper\E startups=\d+ live=\d+ contexts=\d+ unknown-branch-forks=\d+ instructions=\d+ halts=\d+/m,
+      "A3 executes structurally retained 24K hypothesis $mapper before selection");
+}
+
+my $a3_unknown_out = slurp(File::Spec->catfile($out, 'a3_unknown_branch.s26'));
+require_re($a3_unknown_out,
+   qr/^; hypothesis state-space: unbanked 4K startups=1 live=1 contexts=\d+ unknown-branch-forks=[1-9]\d* instructions=\d+ halts=\d+$/m,
+   'A3 forks an unknown conditional branch');
+my $a3_known_out = slurp(File::Spec->catfile($out, 'a3_known_branch.s26'));
+require_re($a3_known_out,
+   qr/^; hypothesis state-space: unbanked 4K startups=1 live=1 contexts=\d+ unknown-branch-forks=0 instructions=\d+ halts=0$/m,
+   'A3 follows only the feasible edge when branch flags are known');
 
 my $multicart_out = slurp(File::Spec->catfile($out, 'multicart_4in1.s26'));
 require_re($multicart_out,
@@ -1939,6 +1972,9 @@ require_re($multicart_out, qr/^; mapper: 4IN1 \(container;/m,
 require_re($multicart_out,
    qr/^; mapper topology: first-class N-in-1 hypothesis; component sidecars are compatibility presentation$/m,
    'selected 4IN1 is reported as a first-class mapper topology');
+require_re($multicart_out,
+   qr/^; hypothesis state-space: 4IN1 startups=4 live=4 contexts=\d+ unknown-branch-forks=\d+ instructions=\d+ halts=\d+$/m,
+   'A3 explores every 4IN1 external-selector startup state');
 require_re($multicart_out, qr/^; container analysis: 4\/4 component slices established independently$/m,
    '4IN1 components analyzed independently');
 for my $game (1 .. 4) {
@@ -1955,6 +1991,9 @@ require_re($multicart8_out,
    '8IN1 competes directly with the structurally possible 64K cart mappers');
 require_re($multicart8_out, qr/^; mapper: 8IN1 \(container;/m,
    '64K 8IN1 remains a container without F0 selector evidence');
+require_re($multicart8_out,
+   qr/^; hypothesis state-space: 8IN1 startups=8 live=8 contexts=\d+ unknown-branch-forks=\d+ instructions=\d+ halts=\d+$/m,
+   'A3 explores every 8IN1 external-selector startup state');
 require_re($multicart8_out, qr/^; container analysis: 8\/8 component slices established independently$/m,
    '8IN1 components analyzed independently');
 
@@ -3171,20 +3210,30 @@ require_re($f4sc_out, qr/1 SC write, 0 SC RMW conflicts, 1 SC read, 1 SC paired 
    'F4SC semantic inference requires paired write/read alias evidence');
 
 
-# Concrete execution must not turn a weak size-default banked mapper guess into
-# positive reachability evidence. Unsupported 32K layouts (for example OMNI)
-# can survive the current static F4 hypothesis by coincidence; emulating them
-# as F4 would manufacture thousands of bogus instruction starts. An explicit
-# --mapper remains a deliberate opt-in to the concrete F4 bus model.
+# A3 removes mapper trust from the hypothesis executor: automatic and explicit
+# F4 must use the same fixed-point state-space engine.  The older sampled H0/H2
+# helper remains presentation-safety gated for weak size-default F4 bytes, and
+# that gate is deliberately independent of --mapper so an override cannot
+# secretly unlock a stronger analysis path.
 my $f4_out = slurp(File::Spec->catfile($out, 'f4.s26'));
-die "weak automatic F4 guess unexpectedly ran concrete discovery\n"
+die "weak automatic F4 unexpectedly ran sampled concrete discovery\n"
    if $f4_out =~ /^; concrete RESET discovery:/m;
+my ($auto_f4_state_space) =
+   $f4_out =~ /^(; hypothesis state-space: F4 .*?)$/m;
+defined $auto_f4_state_space
+   or die "automatic F4 missing A3 hypothesis state-space summary\n";
 my $forced_f4_concrete_s26 = File::Spec->catfile($tmp, 'forced_f4_concrete.s26');
 run_ok($disas, '--mapper', 'f4', '-o', $forced_f4_concrete_s26,
    File::Spec->catfile($in, 'f4.bin'));
 my $forced_f4_concrete = slurp($forced_f4_concrete_s26);
-require_re($forced_f4_concrete, qr/^; concrete RESET discovery:/m,
-   'explicit F4 mapper enables concrete discovery');
+die "--mapper f4 unexpectedly unlocked sampled concrete discovery\n"
+   if $forced_f4_concrete =~ /^; concrete RESET discovery:/m;
+my ($forced_f4_state_space) =
+   $forced_f4_concrete =~ /^(; hypothesis state-space: F4 .*?)$/m;
+defined $forced_f4_state_space && $forced_f4_state_space eq $auto_f4_state_space
+   or die "--mapper f4 changed A3 state-space execution:\nauto: " .
+      ($auto_f4_state_space // '<missing>') . "\nforced: " .
+      ($forced_f4_state_space // '<missing>') . "\n";
 
 
 my $video_ntsc = slurp(File::Spec->catfile($out, 'video_ntsc.s26'));
