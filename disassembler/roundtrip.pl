@@ -12,12 +12,14 @@ use Symbol qw(gensym);
 
 sub usage {
     my ($fh) = @_;
-    print {$fh} "usage: $0 [--stella STELLA] [--stella-strict] INPUT_DIR OUTPUT_DIR\n";
+    print {$fh} "usage: $0 [--mapper MAPPER] [--stella STELLA] [--stella-strict] INPUT_DIR OUTPUT_DIR\n";
 }
 
+my $mapper;
 my $stella;
 my $stella_strict = 0;
 GetOptions(
+    'mapper=s'       => \$mapper,
     'stella=s'       => \$stella,
     'stella-strict!' => \$stella_strict,
 ) or do { usage(*STDERR); exit 2; };
@@ -85,6 +87,7 @@ sub vcsc_mapper_from_source {
     if ($mapper =~ /^unbanked\s+(1K|2K|4K)\z/i) {
         return uc($1);
     }
+    return 'UNKNOWN/RAW' if $mapper =~ /^unknown\/raw\z/i;
     $mapper =~ /^([A-Za-z0-9+]+)\z/
         or die "$path: cannot normalize mapper header '$mapper'\n";
     return uc($1);
@@ -213,7 +216,7 @@ sub ihex_to_bin {
 }
 
 my ($passed, $failed) = (0, 0);
-my ($stella_matches, $stella_mismatches, $stella_errors) = (0, 0, 0);
+my ($stella_matches, $stella_mismatches, $stella_errors, $stella_unresolved) = (0, 0, 0, 0);
 for my $name (@files) {
     my $input = File::Spec->catfile($input_dir, $name);
     (my $stem = $name) =~ s/\.bin\z//i;
@@ -225,8 +228,11 @@ for my $name (@files) {
     my $ok = eval {
         my $original = slurp_raw($input);
         length($original) > 0 or die "$input: empty cartridge image\n";
+        my @disas_args = ($disas);
+        push @disas_args, ('--mapper', $mapper) if defined($mapper);
+        push @disas_args, ('-o', $s26, $input);
         my ($dis_rc, $dis_sig, $dis_stdout, $dis_stderr) =
-            capture_command($disas, '-o', $s26, $input);
+            capture_command(@disas_args);
         $dis_sig == 0 or die "vcsc-disas terminated by signal $dis_sig\n";
         $dis_rc == 0 or die "vcsc-disas failed (status $dis_rc): $dis_stderr";
         $dis_stdout eq '' or die "vcsc-disas unexpectedly wrote stdout: $dis_stdout";
@@ -257,6 +263,10 @@ for my $name (@files) {
                 $error =~ s/[\r\n]+\z//;
                 print STDERR "STELLA-ERROR $name: $error\n";
             }
+            elsif ($vcsc_mapper eq 'UNKNOWN/RAW') {
+                ++$stella_unresolved;
+                print "$name: mapper vcsc=$vcsc_mapper stella=$stella_mapper UNRESOLVED\n";
+            }
             elsif ($vcsc_mapper eq $stella_mapper) {
                 ++$stella_matches;
                 print "$name: mapper vcsc=$vcsc_mapper stella=$stella_mapper MATCH\n";
@@ -285,6 +295,6 @@ print "Summary: $passed passed, $failed failed, " . ($passed + $failed) . " tota
 if (defined($stella)) {
     my $compared = $stella_matches + $stella_mismatches;
     print "Stella mapper comparison: $stella_matches match, $stella_mismatches mismatch, " .
-          "$stella_errors errors, $compared compared\n";
+          "$stella_errors errors, $stella_unresolved unresolved, $compared compared\n";
 }
 exit($failed || $stella_errors || ($stella_strict && $stella_mismatches) ? 1 : 0);

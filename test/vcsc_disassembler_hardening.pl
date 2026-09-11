@@ -120,9 +120,9 @@ $socmp =~ /plain4k\.bin: mapper vcsc=4K stella=4K MATCH\n/
    or die "Stella mapper comparison lost normalized 4K mapper match:\n$socmp";
 $socmp =~ /plain1k\.bin: mapper vcsc=1K stella=1K MATCH\n/
    or die "Stella mapper comparison treated Stella 2K* (1K) as a mismatch:\n$socmp";
-$socmp =~ /multicart4\.bin: mapper vcsc=4IN1 stella=4IN1 MATCH\n/
-   or die "Stella selected-slice multicart MD5 was not normalized:\n$socmp";
-$socmp =~ /Stella mapper comparison: 3 match(?:es)?, 0 mismatch, 0 errors, 3 compared\n\z/
+$socmp =~ /multicart4\.bin: mapper vcsc=UNKNOWN\/RAW stella=4IN1 UNRESOLVED\n/
+   or die "A7-ambiguous multicart was not reported as unresolved against Stella:\n$socmp";
+$socmp =~ /Stella mapper comparison: 2 match(?:es)?, 0 mismatch, 0 errors, 1 unresolved, 2 compared\n\z/
    or die "unexpected Stella mapper comparison summary:\n$socmp";
 
 # A disagreement is diagnostic by default, but --stella-strict promotes it to

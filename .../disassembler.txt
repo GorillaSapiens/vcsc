@@ -115,11 +115,15 @@ A7 final-comparison invariant (completed)
     contradictions are removed first. Surviving hypotheses are then narrowed by
     positive evidence in semantic order: a bank switch that preserves a coherent
     continuation, mapper-specific selector activity (including proven generated-RAM
-    selectors), direction-correct cartridge-RAM behavior, complete A6 bank access,
-    and comparable reset quality. Established explicit/static signatures are only
-    late migration priors after execution evidence ties. Indexed/model-dependent
-    traffic may not bootstrap a mapper family merely because that hypothetical
-    mapper would reinterpret it as a selector. For broad partial-address decoders
+    selectors), and direction-correct cartridge-RAM behavior. Exact VCSC tail
+    signatures are explicit format metadata: after those stronger execution-local
+    evidence ties, they resolve before A6 unioned bank completeness so mutually
+    exclusive legal power-on latch states cannot fabricate superiority over the
+    mapper declared by the linker. A6 completeness and comparable reset quality
+    then narrow unsigned survivors; heuristic detector/static signatures remain
+    late migration priors. Indexed/model-dependent traffic may not bootstrap a
+    mapper family merely because that hypothetical mapper would reinterpret it as
+    a selector. For broad partial-address decoders
     (0840/UA/UASW/0FA0), an unresolved indexed selector forks every feasible
     bank/no-switch hardware continuation instead of guessing or ignoring it.
 

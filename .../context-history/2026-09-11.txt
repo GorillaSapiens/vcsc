@@ -338,3 +338,27 @@ vcs_0fa0.pl pass, source_tree_hygiene.pl passes, and the full compile-only suite
 passes 537/537. A broad e2e run exposed the two partial-decoder regressions above
 before the execution window ended; both were fixed and retested directly. A8 has
 not begun and remains the next disassembler roadmap item.
+
+2026-09-11 15:11:47 PDT, A7 broad-suite repair
+The first A7 handoff was invalid: its full e2e suite had not actually completed,
+and the user's run correctly exposed four failures. Two were real mapper-selection
+regressions. F8/F4 whole-image completeness could be inflated by unioning mutually
+exclusive legal power-on latch states and thereby outvote actual E0/FC behavior.
+Exact VCSC tail signatures are now treated as explicit format metadata after
+stronger execution-local selector/RAM evidence ties but before A6 unioned bank
+completeness. FC was also missing from the exact VCSC tail-signature recognizer
+and is now included. Heuristic detector signatures remain late priors.
+
+The other two failures were stale harness assumptions exposed by legitimate A7
+behavior. `disassembler/roundtrip.pl` now accepts `mapper: unknown/raw` and reports
+a Stella result for such an image as UNRESOLVED rather than crashing or manufacturing
+a mismatch. It also accepts an explicit `--mapper` passthrough. The all-opcodes
+decoder/emitter torture fixture now uses `--mapper 4k` because its intentional
+JAM/KIL/invalid-flow bytes are not a viable mapper-inference program; exact opcode
+format and byte round-trip assertions remain unchanged. Hardening now expects the
+intentionally ambiguous multicart to remain UNKNOWN/RAW against Stella.
+
+Focused regressions for E0, FC, hardening, opcodes, and the main disassembler all
+pass. The uninterrupted full e2e suite passes 365/365, zero failures. A8 has not
+begun.
+

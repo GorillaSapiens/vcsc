@@ -47,7 +47,11 @@ open(my $fh, '>:raw', $bin) or die "could not create $bin: $!\n";
 print {$fh} $rom;
 close($fh) or die "could not close $bin: $!\n";
 
-system($^X, $roundtrip, $in, $out) == 0
+# This is a decoder/emitter torture image, not a viable program: several
+# leaves deliberately execute JAM/KIL/invalid control flow.  Force the plain 4K
+# presentation so A5/A7 runtime viability does not turn the opcode-format test
+# into a mapper-inference test.
+system($^X, $roundtrip, '--mapper', '4k', $in, $out) == 0
    or die "all-opcode round trip failed\n";
 
 my $s26 = File::Spec->catfile($out, 'all_opcodes.s26');

@@ -9042,6 +9042,7 @@ static int mapper_tail_signature_matches(const uint8_t *rom, size_t size,
    case MAP_UA: return memcmp(p, "UA\0\0", 4u) == 0;
    case MAP_UASW: return memcmp(p, "UASW", 4u) == 0;
    case MAP_0FA0: return memcmp(p, "0FA0", 4u) == 0;
+   case MAP_FC: return memcmp(p, "FC\0\0", 4u) == 0;
    case MAP_F0: return memcmp(p, "F0\0\0", 4u) == 0;
    default: return 0;
    }
@@ -9973,6 +9974,29 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                                         legacy);
    }
 
+   /* An exact VCSC tail signature is explicit format metadata, not a detector
+    * heuristic.  Once stronger execution-local selector/RAM evidence has tied,
+    * honor that declaration before A6 coverage: coverage is unioned across legal
+    * startup states, so an F8/F4 model can otherwise appear complete solely by
+    * exploring mutually exclusive power-on latch values and outvote the mapper
+    * that the linker explicitly declared. */
+   {
+      size_t signed_count = 0u;
+      for (i = 0u; i < detail->hypothesis_count; ++i)
+         if (h[i].viable && h[i].explicit_signature) ++signed_count;
+      if (signed_count != 0u) {
+         for (i = 0u; i < detail->hypothesis_count; ++i)
+            if (h[i].viable && !h[i].explicit_signature) {
+               h[i].viable = 0;
+               h[i].reject_reason = MAPPER_REJECT_A7_WEAKER_SIGNATURE;
+            }
+         survivors = mapper_a7_survivor_count(detail);
+         if (survivors == 1u)
+            return mapper_a7_finish_unique(detail, MAPPER_SELECTION_EXPLICIT_SIGNATURE,
+                                           legacy);
+      }
+   }
+
    /* A6 completeness is a whole-image discriminator: if at least one remaining
     * model explains every meaningful bank/constituent, incomplete models no
     * longer get to survive merely because one RESET path looked plausible. */
@@ -10017,25 +10041,9 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
       }
    }
 
-   /* Explicit VCSC metadata and then established detector signatures are
-    * migration priors, not execution prerequisites.  They get a vote only
-    * after stronger execution/completeness evidence has failed to decide. */
-   {
-      size_t signed_count = 0u;
-      for (i = 0u; i < detail->hypothesis_count; ++i)
-         if (h[i].viable && h[i].explicit_signature) ++signed_count;
-      if (signed_count != 0u) {
-         for (i = 0u; i < detail->hypothesis_count; ++i)
-            if (h[i].viable && !h[i].explicit_signature) {
-               h[i].viable = 0;
-               h[i].reject_reason = MAPPER_REJECT_A7_WEAKER_SIGNATURE;
-            }
-         survivors = mapper_a7_survivor_count(detail);
-         if (survivors == 1u)
-            return mapper_a7_finish_unique(detail, MAPPER_SELECTION_EXPLICIT_SIGNATURE,
-                                           legacy);
-      }
-   }
+   /* Established detector signatures are migration priors, not execution
+    * prerequisites.  Unlike explicit VCSC tail metadata above, they get a vote
+    * only after execution/completeness evidence has failed to decide. */
    {
       size_t signed_count = 0u;
       int legacy_signed = 0;

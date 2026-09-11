@@ -175,16 +175,11 @@ correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 
 Last validation state
 ---------------------
-The previously completed bankswitching/cfgectomy/linker work is regression-locked.
-Current three-startup/noinit validation has 537/537 compile-only tests, all 26
-`linker_*.pl` e2e tests, the focused startup/diagnostic/Superchip/package coverage,
-and 352/364 broad e2e cases passing on the final tree. The only uncompleted broad
-cases are the three max-size 3E/3EX/3F diagnostics, the diagnostic paddle-sampling
-oracle, and `vcs_examples_build_1of8.test` through `_8of8.test`; each exceeded the
-available execution window rather than reporting a failure. All ordinary VCS-tail
-regressions found during the broad run were diagnosed and fixed. Detailed completed
-implementation facts live in public docs, executable regressions, and dated history
-rather than here.
+The current A7 disassembler tree passes the complete broad e2e suite: 365/365,
+including `vcs_e0.pl`, `vcs_fc.pl`, `vcsc_disassembler_hardening.pl`, and
+`vcsc_disassembler_opcodes.pl`. Compile-only validation is 537/537. A7 is closed;
+A8 has not begun. Detailed completed implementation facts live in public docs,
+executable regressions, and dated history rather than here.
 
 Current Tanks cleanup is complete at the legitimate beam-asm boundary while preserving the plain 4K target. The current real build is 4024/4090 ROM and 120/128 RAM (66 ROM bytes, 8 RAM bytes free). `test/vcs_tanks.pl` locks coordinate, heading/reflection, missile, arena-bound, and bottom-wall GRP behavior.
 
