@@ -131,6 +131,9 @@ typedef struct {
    size_t state_space_branch_forks;
    size_t state_space_instructions;
    size_t state_space_halts;
+   size_t state_space_ram_instructions;
+   size_t state_space_ram_source_bytes;
+   size_t state_space_grp_sources;
    mapper_reject_reason_t reject_reason;
 } mapper_hypothesis_t;
 
@@ -185,6 +188,10 @@ typedef enum {
 #define ZERO_PAGE_KNOWN_BYTES (ZERO_PAGE_SIZE / 8u)
 #define FC_CONFIG_UNKNOWN 0xffffu
 
+typedef uint32_t provenance_t;
+#define PROVENANCE_NONE 0u
+#define CART_PROVENANCE_SLOTS 32u
+
 typedef vcsc_mapper_config_t mapper_config_t;
 
 static unsigned opcode_memory_access(uint8_t opcode);
@@ -208,8 +215,20 @@ typedef struct {
    uint8_t overflow;
    uint8_t decimal_known;
    uint8_t decimal;
+   provenance_t a_source;
+   provenance_t x_source;
+   provenance_t y_source;
    uint8_t zp_known[ZERO_PAGE_KNOWN_BYTES];
    uint8_t zp_value[ZERO_PAGE_SIZE];
+   provenance_t zp_source[ZERO_PAGE_SIZE];
+   /* Sparse path-local cartridge-RAM provenance.  The key names a physical
+    * mapper RAM byte, independent of its current read/write alias.  Zero key
+    * means unused; source zero means that byte has no single known ROM source.
+    * Only positive single-source facts are retained, so 32 slots are enough
+    * for provenance without embedding every mapper's maximum RAM in every CFG
+    * state.  Overflow conservatively drops new provenance facts. */
+   uint32_t cartram_key[CART_PROVENANCE_SLOTS];
+   provenance_t cartram_source[CART_PROVENANCE_SLOTS];
 } abstract_state_t;
 
 typedef struct {
@@ -296,6 +315,13 @@ typedef struct {
 } ar_load_t;
 
 typedef struct {
+   uint16_t pc;
+   uint8_t len;
+   uint8_t bytes[VCSC_CONCRETE_MAX_INSN_BYTES];
+   provenance_t sources[VCSC_CONCRETE_MAX_INSN_BYTES];
+} provenance_ram_instruction_t;
+
+typedef struct {
    uint8_t *rom;
    size_t rom_size;
    const uint8_t *physical_rom;
@@ -359,6 +385,14 @@ typedef struct {
    size_t static_branch_edges_inconclusive;
    size_t static_branch_edges_concrete;
    size_t state_space_branch_forks;
+   size_t provenance_ram_instructions;
+   size_t provenance_ram_source_count;
+   size_t provenance_grp_source_count;
+   uint8_t *provenance_ram_sources;
+   uint8_t *provenance_grp_sources;
+   provenance_ram_instruction_t *provenance_ram_exec;
+   size_t provenance_ram_exec_count;
+   size_t provenance_ram_exec_cap;
    int speculative_phase;
    int speculative_superchip_active;
    int concrete_available;
@@ -387,6 +421,9 @@ typedef struct {
 } analysis_t;
 
 static size_t analysis_instruction_count(const analysis_t *a);
+static int mapped_rom_byte(const analysis_t *a, size_t active_bank,
+                           mapper_config_t mapper_config, uint16_t address,
+                           uint8_t *value, size_t *bank_out, size_t *off_out);
 
 /* Fields below describe established cartridge behavior.  Speculative-island
  * tracing is allowed to decode bytes for presentation, but any changes it
@@ -2374,6 +2411,9 @@ static void free_analysis(analysis_t *a)
    free(a->concrete_rom_branch_edges);
    free(a->concrete_rom_state);
    free(a->h2_seeds);
+   free(a->provenance_ram_sources);
+   free(a->provenance_grp_sources);
+   free(a->provenance_ram_exec);
    free(a->work);
    free(a->context_states);
    free(a->duplicate_copy_offsets);
@@ -2389,6 +2429,13 @@ static int init_analysis(analysis_t *a, uint8_t *rom, size_t rom_size,
    memset(a, 0, sizeof(*a));
    a->rom = rom;
    a->rom_size = rom_size;
+   a->provenance_ram_sources = (uint8_t *)calloc(rom_size ? rom_size : 1u, 1);
+   a->provenance_grp_sources = (uint8_t *)calloc(rom_size ? rom_size : 1u, 1);
+   if (!a->provenance_ram_sources || !a->provenance_grp_sources) {
+      fprintf(stderr, "out of memory while allocating provenance maps\n");
+      free_analysis(a);
+      return 0;
+   }
    if (opt->mapper_override_set) {
       a->mapper = opt->mapper_override;
       if (a->mapper == MAP_2K && is_doubled_2k_dump(rom, rom_size)) {
@@ -2796,25 +2843,92 @@ static int state_zp_is_known(const abstract_state_t *state, uint8_t address)
            (uint8_t)(1u << (address & 7u))) != 0;
 }
 
-static void state_zp_set_known(abstract_state_t *state, uint8_t address,
-                               uint8_t value)
+static void state_zp_set_known_source(abstract_state_t *state, uint8_t address,
+                                      uint8_t value, provenance_t source)
 {
    state->zp_known[address >> 3] |= (uint8_t)(1u << (address & 7u));
    state->zp_value[address] = value;
+   state->zp_source[address] = source;
 }
+
 
 static void state_zp_set_unknown(abstract_state_t *state, uint8_t address)
 {
    state->zp_known[address >> 3] &=
       (uint8_t)~(uint8_t)(1u << (address & 7u));
+   state->zp_source[address] = PROVENANCE_NONE;
+}
+
+static int state_zp_get_source(const abstract_state_t *state, uint8_t address,
+                               uint8_t *value, provenance_t *source)
+{
+   if (!state_zp_is_known(state, address)) return 0;
+   *value = state->zp_value[address];
+   if (source) *source = state->zp_source[address];
+   return 1;
 }
 
 static int state_zp_get(const abstract_state_t *state, uint8_t address,
                         uint8_t *value)
 {
-   if (!state_zp_is_known(state, address)) return 0;
-   *value = state->zp_value[address];
-   return 1;
+   return state_zp_get_source(state, address, value, NULL);
+}
+
+static provenance_t provenance_combine(provenance_t a, provenance_t b)
+{
+   if (a == PROVENANCE_NONE) return b;
+   if (b == PROVENANCE_NONE || a == b) return a;
+   return PROVENANCE_NONE;
+}
+
+static int state_cartram_find(const abstract_state_t *state, uint32_t key)
+{
+   unsigned i;
+   if (key == 0u) return -1;
+   for (i = 0; i < CART_PROVENANCE_SLOTS; ++i)
+      if (state->cartram_key[i] == key) return (int)i;
+   return -1;
+}
+
+static provenance_t state_cartram_get_source(const abstract_state_t *state,
+                                              uint32_t key)
+{
+   int slot = state_cartram_find(state, key);
+   return slot >= 0 ? state->cartram_source[slot] : PROVENANCE_NONE;
+}
+
+static void state_cartram_set_source(abstract_state_t *state, uint32_t key,
+                                     provenance_t source)
+{
+   unsigned i;
+   int slot;
+   if (key == 0u) return;
+   slot = state_cartram_find(state, key);
+   if (slot >= 0) {
+      if (source == PROVENANCE_NONE) {
+         state->cartram_key[slot] = 0u;
+         state->cartram_source[slot] = PROVENANCE_NONE;
+      }
+      else state->cartram_source[slot] = source;
+      return;
+   }
+   if (source == PROVENANCE_NONE) return;
+   for (i = 0; i < CART_PROVENANCE_SLOTS; ++i) {
+      if (state->cartram_key[i] == 0u) {
+         state->cartram_key[i] = key;
+         state->cartram_source[i] = source;
+         return;
+      }
+   }
+   /* Provenance is optional evidence.  If a path touches more distinct
+    * cartridge-RAM bytes than fit in the sparse state, dropping the newest
+    * fact is conservative and cannot manufacture a source. */
+}
+
+static void state_cartram_clear_sources(abstract_state_t *state)
+{
+   memset(state->cartram_key, 0, sizeof(state->cartram_key));
+   memset(state->cartram_source, 0, sizeof(state->cartram_source));
 }
 
 /* Meet two forward abstract states.  Knowledge only decreases at joins, so a
@@ -2843,11 +2957,36 @@ static int state_merge(abstract_state_t *dst, const abstract_state_t *src)
    MERGE_SCALAR(decimal);
 #undef MERGE_SCALAR
 
+#define MERGE_SOURCE(name)                                                        do {                                                                              if (dst->name##_source != PROVENANCE_NONE &&                                       dst->name##_source != src->name##_source) {                                   dst->name##_source = PROVENANCE_NONE;                                          changed = 1;                                                                }                                                                           } while (0)
+   MERGE_SOURCE(a);
+   MERGE_SOURCE(x);
+   MERGE_SOURCE(y);
+#undef MERGE_SOURCE
+
    for (address = 0; address < ZERO_PAGE_SIZE; ++address) {
       uint8_t zp = (uint8_t)address;
       if (state_zp_is_known(dst, zp) &&
           (!state_zp_is_known(src, zp) || dst->zp_value[zp] != src->zp_value[zp])) {
          state_zp_set_unknown(dst, zp);
+         changed = 1;
+      }
+      else if (dst->zp_source[zp] != PROVENANCE_NONE &&
+               dst->zp_source[zp] != src->zp_source[zp]) {
+         dst->zp_source[zp] = PROVENANCE_NONE;
+         changed = 1;
+      }
+   }
+   /* Sparse cartridge-RAM provenance uses the same meet: a source survives
+    * only when every incoming path agrees on the physical source byte. */
+   for (address = 0; address < CART_PROVENANCE_SLOTS; ++address) {
+      uint32_t key = dst->cartram_key[address];
+      int src_slot;
+      if (key == 0u) continue;
+      src_slot = state_cartram_find(src, key);
+      if (src_slot < 0 ||
+          dst->cartram_source[address] != src->cartram_source[src_slot]) {
+         dst->cartram_key[address] = 0u;
+         dst->cartram_source[address] = PROVENANCE_NONE;
          changed = 1;
       }
    }
@@ -3539,6 +3678,142 @@ static int state_riot_ram_alias(uint16_t address, uint8_t *canonical)
    return 1;
 }
 
+static provenance_t provenance_rom_source(const analysis_t *a, size_t bank,
+                                            size_t off)
+{
+   size_t analysis_off, physical_off;
+   if (bank >= a->bank_count || off >= a->banks[bank].size) return PROVENANCE_NONE;
+   analysis_off = a->banks[bank].file_offset + off;
+   if (analysis_off >= a->rom_size) return PROVENANCE_NONE;
+   physical_off = analysis_off;
+   if (a->duplicate_copy_offsets && analysis_off < a->duplicate_unique_size) {
+      size_t p = duplicate_provenance_offset(a, analysis_off, 0u);
+      if (p != SIZE_MAX) physical_off = p;
+   }
+   if (physical_off >= (size_t)UINT32_MAX) return PROVENANCE_NONE;
+   return (provenance_t)(physical_off + 1u);
+}
+
+/* Return a path-local key for a physical cartridge-RAM byte.  Read/write
+ * aliases deliberately collapse to the same key.  This is provenance only:
+ * it does not claim the RAM value itself is known. */
+static int cartram_provenance_key(const analysis_t *a,
+                                  mapper_config_t mapper_config,
+                                  uint16_t address, int write,
+                                  uint32_t *key)
+{
+   uint16_t bus = (uint16_t)(address & 0x1fffu);
+   uint32_t region = 0u, bank = 0u, off = 0u;
+   split_ram_layout_t ram;
+
+   if (superchip_active(a)) {
+      if (write && bus >= 0x1000u && bus <= 0x107fu) {
+         region = 2u; off = (uint32_t)(bus - 0x1000u);
+      }
+      else if (!write && bus >= 0x1080u && bus <= 0x10ffu) {
+         region = 2u; off = (uint32_t)(bus - 0x1080u);
+      }
+   }
+
+   if (region == 0u && native_split_ram_layout(a, &ram)) {
+      if (write && bus >= ram.write_start &&
+          (uint32_t)bus < (uint32_t)ram.write_start + ram.size) {
+         region = 1u; off = (uint32_t)(bus - ram.write_start);
+      }
+      else if (!write && bus >= ram.read_start &&
+               (uint32_t)bus < (uint32_t)ram.read_start + ram.size) {
+         region = 1u; off = (uint32_t)(bus - ram.read_start);
+      }
+   }
+
+   if (region == 0u && a->mapper == MAP_E7) {
+      if (e7_lower_is_ram(a, mapper_config)) {
+         if (write && bus >= 0x1000u && bus < 0x1400u) {
+            region = 3u; off = (uint32_t)(bus - 0x1000u);
+         }
+         else if (!write && bus >= 0x1400u && bus < 0x1800u) {
+            region = 3u; off = (uint32_t)(bus - 0x1400u);
+         }
+      }
+      if (region == 0u) {
+         if (write && bus >= 0x1800u && bus < 0x1900u) {
+            region = 4u; bank = e7_config_ram(mapper_config);
+            off = (uint32_t)(bus - 0x1800u);
+         }
+         else if (!write && bus >= 0x1900u && bus < 0x1a00u) {
+            region = 4u; bank = e7_config_ram(mapper_config);
+            off = (uint32_t)(bus - 0x1900u);
+         }
+      }
+   }
+
+   if (region == 0u && a->mapper == MAP_3E &&
+       threee_config_is_ram(mapper_config)) {
+      if (write && bus >= 0x1400u && bus < 0x1800u) {
+         region = 5u; bank = (uint32_t)(mapper_config & 0x7fffu);
+         off = (uint32_t)(bus - 0x1400u);
+      }
+      else if (!write && bus >= 0x1000u && bus < 0x1400u) {
+         region = 5u; bank = (uint32_t)(mapper_config & 0x7fffu);
+         off = (uint32_t)(bus - 0x1000u);
+      }
+   }
+
+   if (region == 0u && a->mapper == MAP_GL && bus >= 0x1000u) {
+      unsigned segment = (unsigned)((bus - 0x1000u) >> 10);
+      if (segment < 4u) {
+         unsigned selection = gl_config_bank(mapper_config, segment);
+         if (selection >= 4u) {
+            region = 6u; bank = (uint32_t)(selection - 4u);
+            off = (uint32_t)(bus & 0x03ffu);
+         }
+      }
+   }
+
+   if (region == 0u) return 0;
+   /* region <= 6, bank <= 31, off <= 1023.  Add one so zero remains the
+    * sparse-slot sentinel. */
+   *key = 1u + (region << 20) + (bank << 10) + off;
+   return 1;
+}
+
+
+static provenance_t state_operand_provenance(const analysis_t *a, size_t bank,
+                                             mapper_config_t mapper_config,
+                                             const abstract_state_t *state,
+                                             address_mode_t mode, uint16_t operand,
+                                             provenance_t immediate_source)
+{
+   uint16_t address;
+   uint8_t ram_address, value;
+   size_t src_bank, src_off;
+   uint16_t bus;
+   if (mode == AM_IMMEDIATE) return immediate_source;
+   if (!resolve_effective_address(state, mode, operand, &address)) return PROVENANCE_NONE;
+   if (state_riot_ram_alias(address, &ram_address))
+      return state->zp_source[ram_address];
+   bus = (uint16_t)(address & 0x1fffu);
+   {
+      uint32_t ram_key;
+      if (cartram_provenance_key(a, mapper_config, address, 0, &ram_key))
+         return state_cartram_get_source(state, ram_key);
+   }
+   if (dpc_register_address(a, address) || fa_ram_address(a, address))
+      return PROVENANCE_NONE;
+   if (superchip_active(a) && bus >= 0x1080u && bus <= 0x10ffu)
+      return PROVENANCE_NONE;
+   if (a->mapper == MAP_E7 && e7_ram_port(a, mapper_config, address))
+      return PROVENANCE_NONE;
+   if (a->mapper == MAP_3E && threee_config_is_ram(mapper_config) &&
+       threee_ram_port(mapper_config, address))
+      return PROVENANCE_NONE;
+   if (a->mapper == MAP_GL && gl_intercepted_read(address))
+      return PROVENANCE_NONE;
+   if (!mapped_rom_byte(a, bank, mapper_config, address, &value, &src_bank, &src_off))
+      return PROVENANCE_NONE;
+   return provenance_rom_source(a, src_bank, src_off);
+}
+
 static int state_read_byte(const analysis_t *a, size_t bank,
                            const abstract_state_t *state, uint16_t address,
                            uint8_t *value)
@@ -3599,7 +3874,19 @@ static int known_store_value(uint8_t opcode, const abstract_state_t *state,
    return 0;
 }
 
-static void state_apply_memory_write(const abstract_state_t *input,
+static provenance_t known_store_provenance(uint8_t opcode,
+                                             const abstract_state_t *state)
+{
+   const char *mnemonic = opcode_mnemonics[opcode];
+   if (strcmp(mnemonic, "STA") == 0) return state->a_source;
+   if (strcmp(mnemonic, "STX") == 0) return state->x_source;
+   if (strcmp(mnemonic, "STY") == 0) return state->y_source;
+   return PROVENANCE_NONE;
+}
+
+static void state_apply_memory_write(const analysis_t *a,
+                                     mapper_config_t mapper_config,
+                                     const abstract_state_t *input,
                                      abstract_state_t *output,
                                      uint8_t opcode, address_mode_t mode,
                                      uint16_t operand)
@@ -3613,15 +3900,41 @@ static void state_apply_memory_write(const abstract_state_t *input,
    if (!(access & ACCESS_WRITE)) return;
    if (!resolve_effective_address(input, mode, operand, &address)) {
       if (mode == AM_ZERO_PAGE_X || mode == AM_ZERO_PAGE_Y ||
-          mode == AM_INDEXED_INDIRECT || mode == AM_INDIRECT_INDEXED)
+          mode == AM_INDEXED_INDIRECT || mode == AM_INDIRECT_INDEXED) {
          memset(output->zp_known + (0x80u >> 3), 0,
                 sizeof(output->zp_known) - (0x80u >> 3));
+         memset(output->zp_source + 0x80u, 0,
+                (ZERO_PAGE_SIZE - 0x80u) * sizeof(output->zp_source[0]));
+         state_cartram_clear_sources(output);
+      }
       return;
    }
-   if (!state_riot_ram_alias(address, &ram_address)) return;
+
+   if (!state_riot_ram_alias(address, &ram_address)) {
+      uint32_t write_key;
+      if (cartram_provenance_key(a, mapper_config, address, 1, &write_key)) {
+         provenance_t source = known_store_provenance(opcode, input);
+         if (!(access & ACCESS_READ)) {
+            state_cartram_set_source(output, write_key, source);
+            return;
+         }
+         else {
+            uint32_t read_key;
+            if (cartram_provenance_key(a, mapper_config, address, 0, &read_key) &&
+                read_key == write_key)
+               state_cartram_set_source(output, write_key,
+                                        state_cartram_get_source(input, read_key));
+            else
+               state_cartram_set_source(output, write_key, PROVENANCE_NONE);
+            return;
+         }
+      }
+      return;
+   }
 
    if (!(access & ACCESS_READ) && known_store_value(opcode, input, &value)) {
-      state_zp_set_known(output, ram_address, value);
+      state_zp_set_known_source(output, ram_address, value,
+                                known_store_provenance(opcode, input));
       return;
    }
 
@@ -3640,11 +3953,55 @@ static void state_apply_memory_write(const abstract_state_t *input,
          value = (uint8_t)((old_value >> 1) | (input->carry << 7));
       else known = 0;
       if (known) {
-         state_zp_set_known(output, ram_address, value);
+         state_zp_set_known_source(output, ram_address, value,
+                                   input->zp_source[ram_address]);
          return;
       }
    }
    state_zp_set_unknown(output, ram_address);
+}
+
+static void provenance_mark_source(analysis_t *a, provenance_t source,
+                                   uint8_t *map, size_t *count, int graphics)
+{
+   size_t physical, bi;
+   if (source == PROVENANCE_NONE) return;
+   physical = (size_t)(source - 1u);
+   /* A1's canonical source is copy zero, which is the analysis image itself.
+    * Additional exact physical copies remain represented by the duplicate map. */
+   if (physical >= a->rom_size) return;
+   if (!map[physical]) {
+      map[physical] = 1u;
+      ++*count;
+   }
+   if (!graphics) return;
+   for (bi = 0u; bi < a->bank_count; ++bi) {
+      bank_t *b = &a->banks[bi];
+      if (physical >= b->file_offset && physical < b->file_offset + b->size) {
+         b->graphics[physical - b->file_offset] = 1u;
+         b->roles[physical - b->file_offset] |= ROLE_DATA_READ;
+         break;
+      }
+   }
+}
+
+static void provenance_observe_write(analysis_t *a,
+                                     const abstract_state_t *input,
+                                     uint8_t opcode, address_mode_t mode,
+                                     uint16_t operand)
+{
+   uint16_t address, bus;
+   unsigned reg;
+   provenance_t source;
+   if (!(opcode_memory_access(opcode) & ACCESS_WRITE)) return;
+   if (!resolve_effective_address(input, mode, operand, &address)) return;
+   bus = (uint16_t)(address & 0x1fffu);
+   if ((bus & 0x1000u) != 0u || (bus & 0x0080u) != 0u) return;
+   reg = bus & 0x003fu;
+   if (reg != 0x1bu && reg != 0x1cu) return;
+   source = known_store_provenance(opcode, input);
+   provenance_mark_source(a, source, a->provenance_grp_sources,
+                          &a->provenance_grp_source_count, 1);
 }
 
 static void state_riot_ram_set_all_unknown(abstract_state_t *state)
@@ -3654,8 +4011,8 @@ static void state_riot_ram_set_all_unknown(abstract_state_t *state)
       state_zp_set_unknown(state, (uint8_t)address);
 }
 
-static void state_stack_push(abstract_state_t *state, int value_known,
-                             uint8_t value)
+static void state_stack_push_source(abstract_state_t *state, int value_known,
+                                    uint8_t value, provenance_t source)
 {
    uint8_t ram_address;
    if (!state->sp_known) {
@@ -3663,24 +4020,37 @@ static void state_stack_push(abstract_state_t *state, int value_known,
       return;
    }
    if (state_riot_ram_alias((uint16_t)(0x0100u | state->sp), &ram_address)) {
-      if (value_known) state_zp_set_known(state, ram_address, value);
+      if (value_known) state_zp_set_known_source(state, ram_address, value, source);
       else state_zp_set_unknown(state, ram_address);
    }
    state->sp = (uint8_t)(state->sp - 1u);
 }
 
-static int state_stack_pop(abstract_state_t *state, uint8_t *value)
+static void state_stack_push(abstract_state_t *state, int value_known,
+                             uint8_t value)
+{
+   state_stack_push_source(state, value_known, value, PROVENANCE_NONE);
+}
+
+static int state_stack_pop_source(abstract_state_t *state, uint8_t *value,
+                                  provenance_t *source)
 {
    uint8_t ram_address;
    int known = 0;
+   if (source) *source = PROVENANCE_NONE;
    if (!state->sp_known) {
       state_riot_ram_set_all_unknown(state);
       return 0;
    }
    state->sp = (uint8_t)(state->sp + 1u);
    if (state_riot_ram_alias((uint16_t)(0x0100u | state->sp), &ram_address))
-      known = state_zp_get(state, ram_address, value);
+      known = state_zp_get_source(state, ram_address, value, source);
    return known;
+}
+
+static int state_stack_pop(abstract_state_t *state, uint8_t *value)
+{
+   return state_stack_pop_source(state, value, NULL);
 }
 
 static void state_set_nz(abstract_state_t *state, int known, uint8_t value)
@@ -3705,19 +4075,24 @@ static int mnemonic_affects_carry(const char *m)
 }
 
 static void transfer_state(const analysis_t *a, size_t bank,
+                           mapper_config_t mapper_config,
                            const abstract_state_t *input,
                            abstract_state_t *output, uint8_t opcode,
-                           address_mode_t mode, uint16_t operand)
+                           address_mode_t mode, uint16_t operand,
+                           provenance_t immediate_source)
 {
    const char *m = opcode_mnemonics[opcode];
    uint8_t value;
+   provenance_t source = state_operand_provenance(a, bank, mapper_config, input,
+                                                   mode, operand, immediate_source);
    *output = *input;
-   state_apply_memory_write(input, output, opcode, mode, operand);
+   state_apply_memory_write(a, mapper_config, input, output, opcode, mode, operand);
 
    /* Unofficial encodings are deliberately treated as opaque for abstract
     * register state.  Exact disassembly still uses the generated opcode table. */
    if (strncmp(m, "op", 2) == 0) {
       output->a_known = output->x_known = output->y_known = 0;
+      output->a_source = output->x_source = output->y_source = PROVENANCE_NONE;
       output->carry_known = 0;
       output->zero_known = output->negative_known = output->overflow_known = 0;
       return;
@@ -3726,18 +4101,21 @@ static void transfer_state(const analysis_t *a, size_t bank,
    if (mnemonic_affects_carry(m)) output->carry_known = 0;
 
    if (strcmp(m,"LDA") == 0) {
+      output->a_source = source;
       if (state_read_operand(a, bank, input, mode, operand, &value)) {
          output->a_known = 1; output->a = value;
          state_set_nz(output, 1, value);
       } else { output->a_known = 0; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"LDX") == 0) {
+      output->x_source = source;
       if (state_read_operand(a, bank, input, mode, operand, &value)) {
          output->x_known = 1; output->x = value;
          state_set_nz(output, 1, value);
       } else { output->x_known = 0; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"LDY") == 0) {
+      output->y_source = source;
       if (state_read_operand(a, bank, input, mode, operand, &value)) {
          output->y_known = 1; output->y = value;
          state_set_nz(output, 1, value);
@@ -3745,23 +4123,28 @@ static void transfer_state(const analysis_t *a, size_t bank,
    }
    else if (strcmp(m,"TAX") == 0) {
       output->x_known = input->a_known; output->x = input->a;
+      output->x_source = input->a_source;
       state_set_nz(output, input->a_known, input->a);
    }
    else if (strcmp(m,"TAY") == 0) {
       output->y_known = input->a_known; output->y = input->a;
+      output->y_source = input->a_source;
       state_set_nz(output, input->a_known, input->a);
    }
    else if (strcmp(m,"TXA") == 0) {
       output->a_known = input->x_known; output->a = input->x;
+      output->a_source = input->x_source;
       state_set_nz(output, input->x_known, input->x);
    }
    else if (strcmp(m,"TYA") == 0) {
       output->a_known = input->y_known; output->a = input->y;
+      output->a_source = input->y_source;
       state_set_nz(output, input->y_known, input->y);
    }
    else if (strcmp(m,"TSX") == 0) {
       output->x_known = input->sp_known;
       output->x = input->sp;
+      output->x_source = PROVENANCE_NONE;
       state_set_nz(output, input->sp_known, input->sp);
    }
    else if (strcmp(m,"TXS") == 0) {
@@ -3769,7 +4152,7 @@ static void transfer_state(const analysis_t *a, size_t bank,
       output->sp = input->x;
    }
    else if (strcmp(m,"PHA") == 0) {
-      state_stack_push(output, input->a_known, input->a);
+      state_stack_push_source(output, input->a_known, input->a, input->a_source);
    }
    else if (strcmp(m,"PHP") == 0) {
       /* Branch-relevant status bits may be partially known, but unless all
@@ -3778,8 +4161,10 @@ static void transfer_state(const analysis_t *a, size_t bank,
    }
    else if (strcmp(m,"PLA") == 0) {
       uint8_t popped = 0;
-      output->a_known = (uint8_t)state_stack_pop(output, &popped);
+      provenance_t popped_source = PROVENANCE_NONE;
+      output->a_known = (uint8_t)state_stack_pop_source(output, &popped, &popped_source);
       output->a = popped;
+      output->a_source = popped_source;
       state_set_nz(output, output->a_known, popped);
    }
    else if (strcmp(m,"INX") == 0) {
@@ -3822,6 +4207,7 @@ static void transfer_state(const analysis_t *a, size_t bank,
    }
    else if (strcmp(m,"AND") == 0 || strcmp(m,"ORA") == 0 ||
             strcmp(m,"EOR") == 0) {
+      output->a_source = provenance_combine(input->a_source, source);
       if (input->a_known && state_read_operand(a, bank, input, mode, operand, &value)) {
          output->a_known = 1;
          if (strcmp(m,"AND") == 0) output->a = (uint8_t)(input->a & value);
@@ -3832,6 +4218,7 @@ static void transfer_state(const analysis_t *a, size_t bank,
       else { output->a_known = 0; state_set_nz(output, 0, 0); }
    }
    else if (strcmp(m,"ADC") == 0 || strcmp(m,"SBC") == 0) {
+      output->a_source = provenance_combine(input->a_source, source);
       if (input->a_known && input->carry_known && input->decimal_known &&
           !input->decimal && state_read_operand(a, bank, input, mode, operand, &value)) {
          unsigned sum;
@@ -4603,7 +4990,8 @@ static int prove_brk_irq_rti_return(const analysis_t *a, size_t bank,
       if (opcode == 0x40u)
          return state_rti_return(&state, return_state, return_pc);
 
-      transfer_state(a, bank, &state, &next, opcode, mode, operand);
+      transfer_state(a, bank, 0u, &state, &next, opcode, mode, operand,
+                     len >= 2u ? provenance_rom_source(a, bank, off + 1u) : PROVENANCE_NONE);
       flow = instruction_flow(opcode);
 
       /* A bank change inside the interrupt would require mapper-context
@@ -4632,6 +5020,309 @@ static int prove_brk_irq_rti_return(const analysis_t *a, size_t bank,
       }
       return 0;
    }
+   return 0;
+}
+
+
+typedef struct {
+   uint16_t pc;
+   size_t active_bank;
+   mapper_config_t mapper_config;
+   size_t next;
+   uint8_t queued;
+   abstract_state_t state;
+} ram_exec_state_t;
+
+typedef struct {
+   ram_exec_state_t *states;
+   size_t state_count;
+   size_t state_cap;
+   size_t *work;
+   size_t work_count;
+   size_t work_cap;
+   size_t heads[VCSC_CONCRETE_RIOT_RAM_SIZE];
+} ram_exec_fp_t;
+
+static void ram_exec_fp_init(ram_exec_fp_t *fp)
+{
+   size_t i;
+   memset(fp, 0, sizeof(*fp));
+   for (i = 0u; i < VCSC_CONCRETE_RIOT_RAM_SIZE; ++i) fp->heads[i] = SIZE_MAX;
+}
+
+static void ram_exec_fp_destroy(ram_exec_fp_t *fp)
+{
+   free(fp->states);
+   free(fp->work);
+}
+
+static int ram_exec_enqueue(ram_exec_fp_t *fp, uint16_t pc, size_t active_bank,
+                            mapper_config_t mapper_config,
+                            const abstract_state_t *state)
+{
+   uint8_t canonical;
+   size_t slot, si;
+   ram_exec_state_t *rs;
+   int changed = 0;
+   if (!state_riot_ram_alias(pc, &canonical)) return 1;
+   slot = (size_t)(canonical - 0x80u);
+   si = fp->heads[slot];
+   while (si != SIZE_MAX) {
+      rs = &fp->states[si];
+      if (rs->pc == pc && rs->active_bank == active_bank &&
+          rs->mapper_config == mapper_config)
+         break;
+      si = rs->next;
+   }
+   if (si == SIZE_MAX) {
+      if (fp->state_count == fp->state_cap) {
+         size_t nc = fp->state_cap ? fp->state_cap * 2u : 32u;
+         ram_exec_state_t *ns = (ram_exec_state_t *)realloc(fp->states, nc * sizeof(*ns));
+         if (!ns) return 0;
+         fp->states = ns;
+         fp->state_cap = nc;
+      }
+      si = fp->state_count++;
+      rs = &fp->states[si];
+      memset(rs, 0, sizeof(*rs));
+      rs->pc = pc;
+      rs->active_bank = active_bank;
+      rs->mapper_config = mapper_config;
+      rs->state = *state;
+      rs->next = fp->heads[slot];
+      fp->heads[slot] = si;
+      changed = 1;
+   }
+   else changed = state_merge(&rs->state, state);
+   if (!changed || rs->queued) return 1;
+   if (fp->work_count == fp->work_cap) {
+      size_t nc = fp->work_cap ? fp->work_cap * 2u : 32u;
+      size_t *nw = (size_t *)realloc(fp->work, nc * sizeof(*nw));
+      if (!nw) return 0;
+      fp->work = nw;
+      fp->work_cap = nc;
+   }
+   rs->queued = 1u;
+   fp->work[fp->work_count++] = si;
+   return 1;
+}
+
+static int ram_exec_push_target(analysis_t *a, ram_exec_fp_t *fp,
+                                size_t active_bank, mapper_config_t mapper_config,
+                                uint16_t address, const abstract_state_t *state)
+{
+   uint8_t ram;
+   size_t off;
+   if (state_riot_ram_alias(address, &ram))
+      return ram_exec_enqueue(fp, address, active_bank, mapper_config, state);
+   if (mapper_is_wd_family(a->mapper))
+      return push_wd_address_state(a, (uint8_t)mapper_config, address, state);
+   if (a->mapper == MAP_FC)
+      return push_fc_address_state(a, active_bank, (uint16_t)mapper_config, address, state);
+   if (a->mapper == MAP_E0)
+      return push_e0_address_state(a, (uint16_t)mapper_config, address, state);
+   if (a->mapper == MAP_GL)
+      return push_gl_address_state(a, mapper_config, address, state);
+   if (a->mapper == MAP_E7)
+      return push_e7_address_state(a, (uint16_t)mapper_config, address, state);
+   if (mapper_is_three_family(a->mapper))
+      return push_threef_address_state(a, (uint16_t)mapper_config, address, state);
+   if (active_bank < a->bank_count &&
+       cart_target_offset(&a->banks[active_bank], address, &off)) {
+      mark_label(&a->banks[active_bank], off);
+      return push_work_state_ctx(a, active_bank, off, state, address, mapper_config);
+   }
+   return 1;
+}
+
+static int record_ram_exec_instruction(analysis_t *a, uint16_t pc,
+                                       unsigned len, const uint8_t *bytes,
+                                       const provenance_t *sources)
+{
+   size_t i, j;
+   provenance_ram_instruction_t *r = NULL;
+   for (i = 0u; i < a->provenance_ram_exec_count; ++i) {
+      provenance_ram_instruction_t *candidate = &a->provenance_ram_exec[i];
+      if (candidate->pc != pc || candidate->len != len) continue;
+      if (memcmp(candidate->bytes, bytes, len) == 0) { r = candidate; break; }
+   }
+   if (!r) {
+      if (a->provenance_ram_exec_count == a->provenance_ram_exec_cap) {
+         size_t nc = a->provenance_ram_exec_cap ? a->provenance_ram_exec_cap * 2u : 8u;
+         provenance_ram_instruction_t *nr = (provenance_ram_instruction_t *)realloc(
+            a->provenance_ram_exec, nc * sizeof(*nr));
+         if (!nr) return 0;
+         a->provenance_ram_exec = nr;
+         a->provenance_ram_exec_cap = nc;
+      }
+      r = &a->provenance_ram_exec[a->provenance_ram_exec_count++];
+      memset(r, 0, sizeof(*r));
+      r->pc = pc;
+      r->len = (uint8_t)len;
+      memcpy(r->bytes, bytes, len);
+      for (j = 0u; j < len; ++j) r->sources[j] = sources[j];
+      ++a->provenance_ram_instructions;
+   }
+   else {
+      for (j = 0u; j < len; ++j)
+         if (r->sources[j] != sources[j]) r->sources[j] = PROVENANCE_NONE;
+   }
+   for (j = 0u; j < len; ++j)
+      provenance_mark_source(a, sources[j], a->provenance_ram_sources,
+                             &a->provenance_ram_source_count, 0);
+   return 1;
+}
+
+static int trace_riot_ram_code(analysis_t *a, size_t start_bank,
+                               mapper_config_t start_config, uint16_t start_pc,
+                               const abstract_state_t *start_state)
+{
+   ram_exec_fp_t fp;
+   ram_exec_fp_init(&fp);
+   if (!ram_exec_enqueue(&fp, start_pc, start_bank, start_config, start_state)) {
+      ram_exec_fp_destroy(&fp);
+      return 0;
+   }
+   while (fp.work_count != 0u) {
+      size_t si = fp.work[--fp.work_count];
+      ram_exec_state_t item = fp.states[si];
+      uint8_t bytes[VCSC_CONCRETE_MAX_INSN_BYTES] = {0,0,0};
+      provenance_t sources[VCSC_CONCRETE_MAX_INSN_BYTES] = {0,0,0};
+      uint8_t canonical;
+      uint8_t opcode;
+      address_mode_t mode;
+      unsigned len, j;
+      uint16_t operand = 0;
+      abstract_state_t output;
+      flow_kind_t flow;
+      size_t next_bank = item.active_bank;
+      mapper_config_t next_config = item.mapper_config;
+
+      fp.states[si].queued = 0u;
+      if (!state_riot_ram_alias(item.pc, &canonical)) continue;
+      if (!state_zp_get_source(&item.state, canonical, &bytes[0], &sources[0])) continue;
+      opcode = bytes[0];
+      if (opcode_is_cpu_halt(opcode)) { ++a->reachable_halts; continue; }
+      mode = (address_mode_t)opcode_modes[opcode];
+      len = instruction_length(mode);
+      if (len == 0u || len > VCSC_CONCRETE_MAX_INSN_BYTES) continue;
+      for (j = 1u; j < len; ++j) {
+         uint8_t ca;
+         uint16_t p = (uint16_t)(item.pc + (uint16_t)j);
+         if (!state_riot_ram_alias(p, &ca) ||
+             !state_zp_get_source(&item.state, ca, &bytes[j], &sources[j]))
+            break;
+      }
+      if (j != len) continue;
+      if (len >= 2u) operand = bytes[1];
+      if (len >= 3u) operand |= (uint16_t)bytes[2] << 8;
+      if (!record_ram_exec_instruction(a, item.pc, len, bytes, sources)) goto oom;
+      transfer_state(a, item.active_bank, item.mapper_config, &item.state, &output,
+                     opcode, mode, operand, len >= 2u ? sources[1] : PROVENANCE_NONE);
+      provenance_observe_write(a, &item.state, opcode, mode, operand);
+      flow = instruction_flow(opcode);
+
+      /* Mapper transitions caused by code fetched from RIOT RAM are just as
+       * real as transitions caused by ROM code.  This is the Congo Bongo case. */
+      if ((f0_instruction_transition(a, &item.state, opcode, mode, operand,
+                                     item.active_bank, &next_bank) ||
+           instruction_selector_bank(a, &item.state, opcode, mode, operand,
+                                     &next_bank)) && next_bank < a->bank_count) {
+         ++a->hotspot_refs;
+         if (next_bank != item.active_bank) ++a->cross_bank_switches;
+      }
+      if (a->mapper == MAP_E0 && flow == FLOW_NEXT &&
+          (opcode_memory_access(opcode) & (ACCESS_READ | ACCESS_WRITE))) {
+         uint16_t effective, cfg;
+         if (resolve_effective_address(&item.state, mode, operand, &effective) &&
+             e0_selector_config(effective, item.mapper_config, &cfg)) {
+            next_config = cfg;
+            ++a->hotspot_refs;
+         }
+      }
+      else if (a->mapper == MAP_GL && flow == FLOW_NEXT &&
+               (opcode_memory_access(opcode) & ACCESS_READ)) {
+         uint16_t effective;
+         mapper_config_t cfg;
+         if (resolve_effective_address(&item.state, mode, operand, &effective) &&
+             (gl_selector_config(effective, item.mapper_config, &cfg, NULL, NULL, NULL) ||
+              gl_control_config(effective, item.mapper_config, &cfg, NULL))) {
+            next_config = cfg;
+            ++a->hotspot_refs;
+         }
+      }
+      else if (a->mapper == MAP_E7 && flow == FLOW_NEXT &&
+               (opcode_memory_access(opcode) & (ACCESS_READ | ACCESS_WRITE))) {
+         uint16_t effective, cfg;
+         int specific = 0;
+         if (resolve_effective_address(&item.state, mode, operand, &effective) &&
+             e7_selector_config(a, effective, item.mapper_config, &cfg, &specific)) {
+            next_config = cfg;
+            ++a->hotspot_refs;
+            if (specific) ++a->e7_specific_refs;
+         }
+      }
+      else if (mapper_is_three_family(a->mapper)) {
+         int known = 0, explicit_ref = 0, ram_ref = 0;
+         uint16_t cfg = (uint16_t)item.mapper_config;
+         if (three_write_selector(a, &item.state, opcode, mode, operand,
+                                  &known, &cfg, &explicit_ref, &ram_ref)) {
+            next_config = known ? cfg : THREEF_CONFIG_UNKNOWN;
+            if (explicit_ref) ++a->hotspot_refs;
+            if (ram_ref) ++a->threee_ram_select_refs;
+         }
+      }
+
+      if (flow == FLOW_NEXT) {
+         if (!ram_exec_push_target(a, &fp, next_bank, next_config,
+                                   (uint16_t)(item.pc + len), &output)) goto oom;
+      }
+      else if (flow == FLOW_BRANCH) {
+         int known = 0, taken = 0;
+         int8_t disp = (int8_t)(uint8_t)operand;
+         known = speculative_branch_outcome(opcode, &output, &taken);
+         if (!known) ++a->state_space_branch_forks;
+         if (!known || !taken) {
+            abstract_state_t edge;
+            if (state_constrain_branch_edge(opcode, &output, 0, &edge) &&
+                !ram_exec_push_target(a, &fp, next_bank, next_config,
+                                      (uint16_t)(item.pc + 2u), &edge)) goto oom;
+         }
+         if (!known || taken) {
+            abstract_state_t edge;
+            if (state_constrain_branch_edge(opcode, &output, 1, &edge) &&
+                !ram_exec_push_target(a, &fp, next_bank, next_config,
+                                      (uint16_t)(item.pc + 2u + disp), &edge)) goto oom;
+         }
+      }
+      else if (flow == FLOW_JMP_ABSOLUTE) {
+         if (!ram_exec_push_target(a, &fp, next_bank, next_config, operand, &output)) goto oom;
+      }
+      else if (flow == FLOW_JSR) {
+         abstract_state_t call_state;
+         state_jsr_enter(&output, item.pc, &call_state);
+         if (!ram_exec_push_target(a, &fp, next_bank, next_config, operand, &call_state)) goto oom;
+      }
+      else if (flow == FLOW_RTS) {
+         uint16_t target;
+         abstract_state_t ret;
+         if (state_rts_return(&output, &ret, &target) &&
+             !ram_exec_push_target(a, &fp, next_bank, next_config, target, &ret)) goto oom;
+      }
+      else if (flow == FLOW_JMP_INDIRECT) {
+         uint16_t ptr = operand;
+         uint16_t hiaddr = (uint16_t)((ptr & 0xff00u) | ((ptr + 1u) & 0x00ffu));
+         uint8_t lo, hi;
+         if (state_read_byte(a, next_bank, &output, ptr, &lo) &&
+             state_read_byte(a, next_bank, &output, hiaddr, &hi) &&
+             !ram_exec_push_target(a, &fp, next_bank, next_config,
+                                   (uint16_t)(lo | ((uint16_t)hi << 8)), &output)) goto oom;
+      }
+   }
+   ram_exec_fp_destroy(&fp);
+   return 1;
+oom:
+   ram_exec_fp_destroy(&fp);
    return 0;
 }
 
@@ -4992,7 +5683,8 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                       a->mapper == MAP_E7 || mapper_is_three_family(a->mapper))
                         ? runtime_pc
                         : (uint16_t)(b->origin + (uint16_t)off);
-      transfer_state(a, bi, &item.state, &output_state, opcode, mode, operand);
+      transfer_state(a, bi, mapper_config, &item.state, &output_state, opcode, mode, operand,
+                     len >= 2u ? provenance_rom_source(a, bi, off + 1u) : PROVENANCE_NONE);
       flow = instruction_flow(opcode);
       successor_bank = bi;
       wd_successor_config = (uint8_t)mapper_config;
@@ -5693,7 +6385,8 @@ static int speculative_linear_jam_end(const analysis_t *a, size_t bi,
       if (len == 0u || off + len > b->size) return 0;
       if (len >= 2u) operand = a->rom[b->file_offset + off + 1u];
       if (len >= 3u) operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
-      transfer_state(a, bi, &state, &next, opcode, mode, operand);
+      transfer_state(a, bi, mapper_config, &state, &next, opcode, mode, operand,
+                     len >= 2u ? provenance_rom_source(a, bi, off + 1u) : PROVENANCE_NONE);
       flow = instruction_flow(opcode);
 
       if (flow == FLOW_NEXT) {
@@ -6776,8 +7469,12 @@ drain_work:
            gl_relative_branch_needs_raw(a, item.bank, off, item.mapper_config,
                                         canonical_pc, (int8_t)(operand & 0xffu))))
          b->force_raw[off] = 1u;
-      transfer_state(a, item.bank, &input_state, &output_state,
-                     opcode, mode, operand);
+      transfer_state(a, item.bank, item.mapper_config,
+                     &input_state, &output_state, opcode, mode, operand,
+                     len >= 2u ? provenance_rom_source(a, item.bank, off + 1u)
+                               : PROVENANCE_NONE);
+      if (!a->speculative_phase)
+         provenance_observe_write(a, &input_state, opcode, mode, operand);
 
       /* Superchip RAM aliases write $x000-$x07F and read $x080-$x0FF.
        * Plain ROM writes are legal bus activity, so a store alone is not SC
@@ -7357,6 +8054,13 @@ drain_work:
       }
       case FLOW_JMP_ABSOLUTE: {
          size_t toff;
+         uint8_t ram_target;
+         if (state_riot_ram_alias(operand, &ram_target)) {
+            if (!trace_riot_ram_code(a, item.bank, item.mapper_config,
+                                     operand, &output_state))
+               return 0;
+            break;
+         }
          if (a->mapper == MAP_FC) {
             size_t tbank, toff;
             if (fc_map_address(a, item.bank, operand, &tbank, &toff))
@@ -8114,6 +8818,8 @@ static size_t mapper_state_space_startup_banks(const analysis_t *probe,
 }
 
 static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
+                                               const uint8_t *physical_rom,
+                                               size_t physical_size,
                                                const options_t *parent_opt,
                                                mapper_hypothesis_t *h)
 {
@@ -8136,6 +8842,9 @@ static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
    h->state_space_branch_forks = 0u;
    h->state_space_instructions = 0u;
    h->state_space_halts = 0u;
+   h->state_space_ram_instructions = 0u;
+   h->state_space_ram_source_bytes = 0u;
+   h->state_space_grp_sources = 0u;
 
    memset(&shape, 0, sizeof(shape));
    if (!init_analysis(&shape, (uint8_t *)rom, size, &probe_opt))
@@ -8151,6 +8860,25 @@ static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
       memset(&probe, 0, sizeof(probe));
       ++h->state_space_startup_states;
       if (!init_analysis(&probe, (uint8_t *)rom, size, &probe_opt)) continue;
+      {
+         const uint8_t *prov_rom = physical_rom ? physical_rom : rom;
+         size_t prov_size = physical_size ? physical_size : size;
+         /* Preservation forms such as 4094-byte short 4K dumps use a padded
+          * analysis image that is not an exact divisor of the physical file.
+          * A1 duplicate provenance is inapplicable there; keep hypothesis-local
+          * provenance on the normalized analysis bytes rather than failing the
+          * entire mapper exploration.  Exact physical reconstruction remains
+          * owned by the outer analysis. */
+         if (prov_size < size || (prov_size % size) != 0u) {
+            prov_rom = rom;
+            prov_size = size;
+         }
+         if (!attach_physical_analysis_view(&probe, prov_rom, prov_size, size,
+                                            prov_size > size)) {
+            free_analysis(&probe);
+            return 0;
+         }
+      }
       if (startup_banks[si] >= probe.bank_count) {
          free_analysis(&probe);
          continue;
@@ -8165,7 +8893,11 @@ static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
       h->state_space_branch_forks += probe.state_space_branch_forks;
       h->state_space_instructions += instructions;
       h->state_space_halts += probe.reachable_halts;
-      if (instructions != 0u) ++h->state_space_live_startup_states;
+      h->state_space_ram_instructions += probe.provenance_ram_instructions;
+      h->state_space_ram_source_bytes += probe.provenance_ram_source_count;
+      h->state_space_grp_sources += probe.provenance_grp_source_count;
+      if (instructions != 0u || probe.provenance_ram_instructions != 0u)
+         ++h->state_space_live_startup_states;
       free_analysis(&probe);
    }
    h->state_space_viable = h->state_space_live_startup_states != 0u;
@@ -8185,6 +8917,9 @@ static int explore_nin1_hypothesis_state_space(const uint8_t *physical_rom,
    h->state_space_branch_forks = 0u;
    h->state_space_instructions = 0u;
    h->state_space_halts = 0u;
+   h->state_space_ram_instructions = 0u;
+   h->state_space_ram_source_bytes = 0u;
+   h->state_space_grp_sources = 0u;
 
    if (h->games == 0u || h->slice_size == 0u ||
        (size_t)h->games * h->slice_size > physical_size)
@@ -8210,12 +8945,16 @@ static int explore_nin1_hypothesis_state_space(const uint8_t *physical_rom,
          continue;
       for (i = 0u; i < inner.cart_hypothesis_count; ++i) {
          mapper_hypothesis_t *ih = &inner.hypotheses[i];
-         if (!explore_cart_hypothesis_state_space(slice, unique, &inner_opt, ih))
+         if (!explore_cart_hypothesis_state_space(slice, unique, slice,
+                                                  h->slice_size, &inner_opt, ih))
             return 0;
          h->state_space_contexts += ih->state_space_contexts;
          h->state_space_branch_forks += ih->state_space_branch_forks;
          h->state_space_instructions += ih->state_space_instructions;
          h->state_space_halts += ih->state_space_halts;
+         h->state_space_ram_instructions += ih->state_space_ram_instructions;
+         h->state_space_ram_source_bytes += ih->state_space_ram_source_bytes;
+         h->state_space_grp_sources += ih->state_space_grp_sources;
          if (ih->state_space_viable) live = 1;
       }
       if (live) ++h->state_space_live_startup_states;
@@ -8236,6 +8975,7 @@ static int explore_mapper_hypotheses_state_space(const uint8_t *physical_rom,
       mapper_hypothesis_t *h = &detail->hypotheses[i];
       if (h->kind == MAPPER_HYPOTHESIS_CART) {
          if (!explore_cart_hypothesis_state_space(analysis_rom, analysis_size,
+                                                  physical_rom, physical_size,
                                                   opt, h))
             return 0;
       }
@@ -11097,6 +11837,16 @@ static void emit_mapper_hypothesis_enumeration(FILE *fp, const analysis_t *a)
               h->state_space_instructions,
               h->state_space_halts,
               h->state_space_viable ? "" : "; no RESET-reachable state");
+      if (h->state_space_ram_instructions != 0u ||
+          h->state_space_ram_source_bytes != 0u || h->state_space_grp_sources != 0u) {
+         fputs("; hypothesis provenance: ", fp);
+         if (h->kind == MAPPER_HYPOTHESIS_NIN1) fprintf(fp, "%uIN1", h->games);
+         else fputs(mapper_name(h->mapper), fp);
+         fprintf(fp, " RAM-insns=%zu RAM-ROM-sources=%zu GRP-sources=%zu\n",
+                 h->state_space_ram_instructions,
+                 h->state_space_ram_source_bytes,
+                 h->state_space_grp_sources);
+      }
    }
 }
 static void emit_mapper_refinement_evidence(FILE *fp, const analysis_t *a)
@@ -11634,6 +12384,38 @@ static void emit_concrete_ram_instruction(FILE *fp, const analysis_t *a,
    fputc('\n', fp);
 }
 
+
+static void emit_provenance_ram_execution(FILE *fp, const analysis_t *a)
+{
+   size_t i;
+   if (a->provenance_ram_exec_count == 0u) return;
+   fputs("\n; ---- A4 RIOT RAM execution (hypothesis-local provenance) ----\n", fp);
+   fputs("; Each distinct byte pattern at a RAM PC is retained; ROM sources are physical file offsets.\n", fp);
+   for (i = 0u; i < a->provenance_ram_exec_count; ++i) {
+      const provenance_ram_instruction_t *r = &a->provenance_ram_exec[i];
+      uint8_t opcode = r->bytes[0];
+      address_mode_t mode = (address_mode_t)opcode_modes[opcode];
+      uint16_t operand = r->len >= 2u ? r->bytes[1] : 0u;
+      unsigned j;
+      if (r->len >= 3u) operand |= (uint16_t)r->bytes[2] << 8;
+      fprintf(fp, "; $%04X: ", r->pc);
+      for (j = 0u; j < VCSC_CONCRETE_MAX_INSN_BYTES; ++j) {
+         if (j < r->len) fprintf(fp, "%02X ", r->bytes[j]);
+         else fputs("   ", fp);
+      }
+      fprintf(fp, "  %s", opcode_mnemonics[opcode]);
+      emit_observed_instruction_operand(fp, opcode, mode, operand, r->pc,
+                                        r->len >= 2u ? r->bytes[1] : 0u);
+      fputs("    ; ROM sources", fp);
+      for (j = 0u; j < r->len; ++j) {
+         provenance_t src = r->sources[j];
+         if (src == PROVENANCE_NONE) fputs(" --", fp);
+         else fprintf(fp, " $%04" PRIX32, (uint32_t)(src - 1u));
+      }
+      fputc('\n', fp);
+   }
+}
+
 static void emit_concrete_ram_execution(FILE *fp, const analysis_t *a)
 {
    unsigned i;
@@ -11875,6 +12657,7 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
          fputc('\n', fp);
       }
    }
+   emit_provenance_ram_execution(fp, a);
    emit_concrete_ram_execution(fp, a);
    return ferror(fp) == 0;
 }

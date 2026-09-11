@@ -364,6 +364,52 @@ my $a3_known_branch = make_rom(4096, 0xF000, 0x0100,
       0x60              # target: RTS
    ));
 write_bin(File::Spec->catfile($in, 'a3_known_branch.bin'), $a3_known_branch);
+# A4 carries physical ROM-byte provenance through registers and RAM.  This
+# synthetic Congo-Bongo-style F8 image deliberately has no literal F8 selector
+# instruction in ROM: bank 1 constructs `LDA $FFF8 ; JMP $F0E0` in RIOT RAM
+# and transfers control there.  Hypothesis-local execution must retain each
+# source byte, execute the generated routine, and discover the real F8 switch.
+my $a4_generated_f8 = chr(0xEA) x 8192;
+my $a4_stub_builder = pack('C*',
+   0xA9,0xAD, 0x85,0xF0,
+   0xA9,0xF8, 0x85,0xF1,
+   0xA9,0xFF, 0x85,0xF2,
+   0xA9,0x4C, 0x85,0xF3,
+   0xA9,0xE0, 0x85,0xF4,
+   0xA9,0xF0, 0x85,0xF5,
+   0x4C,0xF0,0x00);
+substr($a4_generated_f8, 4096 + 0x0100, length($a4_stub_builder), $a4_stub_builder);
+substr($a4_generated_f8, 0x00E0, 5, pack('C*', 0xA9,0x47,0x85,0x1B,0x60));
+# Make the two physical banks distinct and avoid accidental SC structure.
+substr($a4_generated_f8, 0x0080, 1, "\x18");
+substr($a4_generated_f8, 4096 + 0x0080, 1, "\x38");
+for my $b (0 .. 1) {
+   my $base = $b * 4096;
+   my $reset = $b == 1 ? 0xF100 : 0xF0E0;
+   put16(\$a4_generated_f8, $base + 0x0FFA, $reset);
+   put16(\$a4_generated_f8, $base + 0x0FFC, $reset);
+   put16(\$a4_generated_f8, $base + 0x0FFE, $reset);
+}
+write_bin(File::Spec->catfile($in, 'a4_generated_f8.bin'), $a4_generated_f8);
+
+# ROM -> RIOT RAM -> reload -> GRP1 must preserve the original ROM source.
+my $a4_riot_grp = make_rom(4096, 0xF000, 0x0100,
+   pack('C*', 0xAD,0x00,0xF2, 0x85,0x80, 0xA5,0x80, 0x85,0x1C, 0x60));
+substr($a4_riot_grp, 0x0200, 1, "\x5A");
+write_bin(File::Spec->catfile($in, 'a4_riot_grp.bin'), $a4_riot_grp);
+
+# Inherent FA cartridge RAM uses disjoint aliases.  The ROM table byte stored
+# through $1000 and reloaded through $1100 must still be the source reaching
+# GRP0; this pins path-local cartridge-RAM provenance, not merely RIOT RAM.
+my $a4_fa_code = pack('C*', 0xAD,0x00,0xF5, 0x8D,0x00,0x10,
+                              0xAD,0x00,0x11, 0x85,0x1B, 0x60);
+my $a4_fa_cartram = make_rom(12288, 0xF000, 0x0300, $a4_fa_code);
+# FA powers up in physical bank 2; make_rom only seeds code into bank 0.
+substr($a4_fa_cartram, 2 * 4096 + 0x0300, length($a4_fa_code), $a4_fa_code);
+for my $b (0 .. 2) {
+   substr($a4_fa_cartram, $b * 4096 + 0x0500, 1, chr(0x60 + $b));
+}
+write_bin(File::Spec->catfile($in, 'a4_fa_cartram.bin'), $a4_fa_cartram);
 # Multi-game images are containers, not one bankswitched CPU address space.
 # Four distinct, independently rooted 2K components must be split/analyzed
 # separately while the outer source preserves the exact concatenation.
@@ -1962,6 +2008,31 @@ my $a3_known_out = slurp(File::Spec->catfile($out, 'a3_known_branch.s26'));
 require_re($a3_known_out,
    qr/^; hypothesis state-space: unbanked 4K startups=1 live=1 contexts=\d+ unknown-branch-forks=0 instructions=\d+ halts=0$/m,
    'A3 follows only the feasible edge when branch flags are known');
+
+
+my $a4_generated_out = slurp(File::Spec->catfile($out, 'a4_generated_f8.s26'));
+require_re($a4_generated_out,
+   qr/^; hypothesis provenance: F8 RAM-insns=2 RAM-ROM-sources=6 GRP-sources=[1-9]\d*$/m,
+   'A4 records ROM provenance for generated RIOT-RAM F8 code');
+require_re($a4_generated_out,
+   qr/^; mapper: F8 \(high confidence; [1-9]\d* decoded hotspot access/m,
+   'A4 generated RAM execution supplies real F8 hotspot evidence');
+require_re($a4_generated_out,
+   qr/^; \$00F0: AD F8 FF\s+LDA \$FFF8\s+; ROM sources \$[0-9A-F]{4} \$[0-9A-F]{4} \$[0-9A-F]{4}$/m,
+   'A4 emits physical ROM sources for generated RAM selector bytes');
+require_re($a4_generated_out,
+   qr/^; \$00F3: 4C E0 F0\s+JMP \$F0E0\s+; ROM sources \$[0-9A-F]{4} \$[0-9A-F]{4} \$[0-9A-F]{4}$/m,
+   'A4 executes generated RAM control transfer back into ROM');
+
+my $a4_riot_grp_out = slurp(File::Spec->catfile($out, 'a4_riot_grp.s26'));
+require_re($a4_riot_grp_out,
+   qr/^; hypothesis provenance: unbanked 4K RAM-insns=0 RAM-ROM-sources=0 GRP-sources=1$/m,
+   'A4 preserves ROM provenance through RIOT RAM reload into GRP1');
+
+my $a4_fa_out = slurp(File::Spec->catfile($out, 'a4_fa_cartram.s26'));
+require_re($a4_fa_out,
+   qr/^; hypothesis provenance: FA RAM-insns=0 RAM-ROM-sources=0 GRP-sources=1$/m,
+   'A4 preserves ROM provenance through FA cartridge RAM write/read aliases into GRP0');
 
 my $multicart_out = slurp(File::Spec->catfile($out, 'multicart_4in1.s26'));
 require_re($multicart_out,

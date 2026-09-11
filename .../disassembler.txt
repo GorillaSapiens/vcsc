@@ -93,7 +93,7 @@ hypothesis instead of "guess -> trust -> maybe simulate". Mapper identity and
 reachable code/data emerge together from isolated hardware models. Keep each
 step regression-locked before replacing the next heuristic. A1 duplicate-image
 provenance, A2 preselection enumeration, and A3 hypothesis-local state-space
-execution are complete; A4 is next.
+execution and A4 first-class provenance are complete; A5 is next.
 
 A3 execution invariant (completed)
     Every A2 hypothesis is executed independently before mapper selection.  The
@@ -113,18 +113,15 @@ A3 execution invariant (completed)
     independent of `--mapper`, so an override cannot secretly unlock sampled
     reachability, and it never establishes or suppresses an A3 mapper hypothesis.
 
-A4. [ ] First-class value/source provenance
-    * Track ROM-byte provenance through registers, arithmetic where practical,
-      RIOT/cartridge RAM stores and reloads, and instruction fetch from executable
-      RAM.  Generated RAM code must therefore retain the ROM bytes that created
-      each opcode/operand.  Congo Bongo's ROM constants -> $00F0..$00F5 ->
-      `LDA $FFF8 ; JMP $F0E0` is the canonical regression.
-    * Track provenance into externally meaningful sinks, initially GRP0/GRP1 and
-      later the other display/audio consumers where useful.  This lets bytes read
-      as tables/graphics be explained as data instead of competing with speculative
-      instruction decoding.
-    * Preserve provenance across bank switches/mirrors while retaining physical
-      byte identity for exact reconstruction.
+A4 provenance invariant (completed)
+    Physical ROM-byte provenance flows through A/X/Y, supported transforms, RIOT
+    RAM, and sparse path-local cartridge RAM (SC, FA/FA2, CV, WD, E7, 3E, GL).
+    Alias reads/writes share one RAM identity; joins retain only agreed sources.
+    Known RIOT-RAM bytes may execute in the same fixed-point analysis, retaining
+    distinct path-qualified byte patterns at one PC, switching mappers, and
+    returning to ROM.  GRP0/GRP1 sinks mark source ROM bytes as graphics/data.
+    Congo Bongo proves both generated `$00F0` variants with physical source bytes.
+    The bounded concrete/H2 runner remains presentation-only, not the A4 engine.
 
 A5. [ ] Unified path viability and hardware-bus rejection
     * Reuse the detached-island rules as execution semantics: JAM/KIL/HLT kills
