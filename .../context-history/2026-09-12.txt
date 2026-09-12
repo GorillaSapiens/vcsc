@@ -165,3 +165,15 @@ prior. The supplied ROM now round-trips byte-exactly and the Stella differential
 reports VCSC=0FA0, Stella=0FA0 MATCH. Final validation: compile-only 537/537 and
 full e2e 365/365, including vcsc_disassembler.pl, fuzz, GL, hardening, opcodes,
 vcs_0840.pl, and vcs_0fa0.pl. G2 remains next and was not started.
+
+2026-09-12 14:45:06 PDT, self-describing disassembler output
+Removed internal roadmap-stage labels from user-visible vcsc-disas output and
+failure diagnostics. Mapper viability now says mapper-aware RESET/startup
+execution, final hypothesis counts say execution/signature comparison, the
+static/concrete iteration header describes its fixed-point behavior directly,
+and provenance RAM execution is named for mapper-local provenance. The N-in-1
+materialization failure likewise describes mapper comparison instead of A7.
+The 0840 mapper's A6 remains because it is the actual address-line bit. Added a
+regression that scans generated .s26 comments for roadmap-label leakage while
+exempting that hardware A6 usage. Public README wording for the provenance block
+was updated to match. Validation: 537/537 compile-only and 365/365 e2e.

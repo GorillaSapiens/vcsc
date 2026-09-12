@@ -32,6 +32,10 @@ Durable invariants
 * Established execution evidence controls mapper/video/controller/hardware
   decisions. Detached speculative islands may improve presentation but must not
   promote mapper hypotheses, Superchip semantics, or execution roots.
+* Generated disassembly and diagnostics are self-describing. Never expose
+  internal roadmap-stage labels such as `A5`, `A7`, or `H2` in user-visible
+  output; describe the actual analysis instead. Hardware names such as the 0840
+  mapper's address line A6 are not roadmap labels.
 * Generated headers preserve mapper-inference provenance.  When multiple
   structurally compatible mapper models are tested, report the A7 comparison
   result plus every tested hypothesis as surviving, outcompeted, or contradicted

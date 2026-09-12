@@ -13183,12 +13183,12 @@ static void emit_mapper_hypothesis_evidence(FILE *fp,
          fprintf(fp, "; established mapper detector signature present");
          said = 1;
       }
-      if (!said) fprintf(fp, "; A5 RESET flow remains viable");
+      if (!said) fprintf(fp, "; mapper-aware RESET/startup execution remains viable");
    }
    else {
       switch (h->reject_reason) {
       case MAPPER_REJECT_A7_HARD_CONTRADICTION:
-         fprintf(fp, "; no A5-live RESET/startup state (dead=%zu invalid-targets=%zu invalid-bus=%zu halt-paths=%zu)",
+         fprintf(fp, "; no viable mapper-aware RESET/startup state (dead=%zu invalid-targets=%zu invalid-bus=%zu halt-paths=%zu)",
                  h->state_space_dead_startup_states,
                  h->state_space_invalid_target_paths,
                  h->state_space_invalid_hardware_paths,
@@ -13226,7 +13226,7 @@ static void emit_mapper_hypothesis_evidence(FILE *fp,
          fprintf(fp, "; remains execution-viable but is not the selected presentation");
          break;
       default:
-         fprintf(fp, "; superseded by A7 comparison evidence");
+         fprintf(fp, "; superseded by stronger mapper-comparison evidence");
          break;
       }
    }
@@ -13330,7 +13330,7 @@ static void emit_mapper_refinement_evidence(FILE *fp, const analysis_t *a)
    size_t i;
    if (a->mapper_overridden || r->tested <= 1u) return;
 
-   fprintf(fp, "; mapper hypothesis comparison: %zu tested, %zu remain after A7 evidence\n",
+   fprintf(fp, "; mapper hypothesis comparison: %zu tested, %zu remain after execution/signature comparison\n",
            r->tested, r->survived);
    switch (r->selection_reason) {
    case MAPPER_SELECTION_SINGLE_VIABLE:
@@ -13365,7 +13365,7 @@ static void emit_mapper_refinement_evidence(FILE *fp, const analysis_t *a)
               r->survived);
       break;
    case MAPPER_SELECTION_A7_CONFLICT_RAW:
-      fputs("; mapper evidence: lone A5 survivor has no independent mapper evidence while a contradicted alternative has an established family signature; using exact unknown/raw presentation\n", fp);
+      fputs("; mapper evidence: sole execution-viable hypothesis has no independent mapper evidence while a contradicted alternative has an established family signature; using exact unknown/raw presentation\n", fp);
       break;
    case MAPPER_SELECTION_A7_UNSUPPORTED_RAW:
       fputs("; mapper evidence: recognized unsupported CDF/CDFJ-family fingerprint; preserving exact bytes as unknown/raw pending CDF-family support\n", fp);
@@ -13640,7 +13640,7 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
               a->concrete.final_pc, a->concrete.final_a, a->concrete.final_x,
               a->concrete.final_y, a->concrete.final_sp, a->concrete.final_p);
       if (a->h2_seed_runs)
-         fprintf(fp, "; H2 fixed-point feedback: rounds=%u exact-static-seeds=%u new-reachability=%u\n",
+         fprintf(fp, "; iterative static/concrete discovery feedback: rounds=%u exact-static-seeds=%u new-reachability=%u\n",
                  a->h2_rounds, a->h2_seed_runs, a->h2_new_reachability);
    }
 
@@ -13886,7 +13886,7 @@ static void emit_provenance_ram_execution(FILE *fp, const analysis_t *a)
 {
    size_t i;
    if (a->provenance_ram_exec_count == 0u) return;
-   fputs("\n; ---- A4 RIOT RAM execution (hypothesis-local provenance) ----\n", fp);
+   fputs("\n; ---- RIOT RAM execution discovered by mapper-local provenance ----\n", fp);
    fputs("; Each distinct byte pattern at a RAM PC is retained; ROM sources are physical file offsets.\n", fp);
    for (i = 0u; i < a->provenance_ram_exec_count; ++i) {
       const provenance_ram_instruction_t *r = &a->provenance_ram_exec[i];
@@ -14416,7 +14416,7 @@ static int evaluate_nin1_hypotheses(const uint8_t *rom, size_t size,
          fprintf(stderr, "could not analyze --container %uIN1 component layout\n",
                  games);
       else
-         fprintf(stderr, "A7 selected %uIN1 but component analysis could not materialize it\n",
+         fprintf(stderr, "mapper comparison selected %uIN1 but component analysis could not materialize it\n",
                  games);
       return -1;
    }
