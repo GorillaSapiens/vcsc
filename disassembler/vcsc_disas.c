@@ -2217,7 +2217,9 @@ static int e7_selector_config(const analysis_t *a, uint16_t address,
    *specific = 0;
    if (bus >= 0x1fe8u && bus <= 0x1febu) {
       ram = (unsigned)(bus & 3u);
-      *specific = 1;
+      /* On 8K E7 these addresses are also valid E0 selectors.  They are
+       * mapper activity, but not family-specific execution evidence. */
+      *specific = a->bank_count != 4u;
       *new_config = e7_config_make(lower, ram);
       return 1;
    }
@@ -2235,7 +2237,8 @@ static int e7_selector_config(const analysis_t *a, uint16_t address,
       lower = (unsigned)(bus & 7u);
    }
    else return 0;
-   if (lower == a->bank_count - 1u) *specific = 1; /* $1FE7 selects 1K RAM */
+   if (lower == a->bank_count - 1u && a->bank_count != 4u)
+      *specific = 1; /* $1FE7 selects 1K RAM; 8K case overlaps E0 */
    *new_config = e7_config_make(lower, ram);
    return 1;
 }
@@ -5003,7 +5006,8 @@ static int speculative_nonmapper_write_sink(const analysis_t *a,
     * so do not turn cartridge-space writes into false negative evidence. */
    if (a->mapper == MAP_AR) return 1;
 
-   if (superchip_active(a) && bus >= 0x1000u && bus <= 0x107fu) return 1;
+   if (superchip_active(a) && bus >= 0x1000u && bus <= 0x10ffu)
+      return 1; /* write alias stores RAM; read-alias writes are harmless */
 
    if (native_split_ram_layout(a, &ram) &&
        split_ram_write_port_contains(&ram, address))
@@ -6171,7 +6175,12 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
          if ((opcode_memory_access(opcode) & ACCESS_WRITE) &&
              resolve_effective_address(&item.state, mode, operand, &fc_effective)) {
             uint16_t fc_bus = (uint16_t)(fc_effective & 0x1fffu);
-            fc_specific = fc_bus == 0x1ff8u || fc_bus == 0x1ff9u;
+            /* A lone write to either staging address overlaps ordinary ROM
+             * traffic in several other schemes.  The write remains FC activity
+             * for execution, but identity comes from a coherent switch-save,
+             * explicit metadata, or the established staged-protocol signature. */
+            (void)fc_bus;
+            fc_specific = 0;
          }
          if (ctx->counted) ++ctx->mapper_switches;
       }
@@ -6262,10 +6271,20 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
        * SPEC_MAPPER_EVIDENCE_BANK_CHANGE below.  Conflating the two made a
        * canonical F8 LDA $1FF8 disappear as evidence whenever bank 0 was
        * already active. */
+      if (e0_switched && mode == AM_ABSOLUTE) {
+         uint16_t e0_effective;
+         if (resolve_effective_address(&item.state, mode, operand, &e0_effective)) {
+            uint16_t e0_bus = (uint16_t)(e0_effective & 0x1fffu);
+            /* E7 also decodes $1FE4-$1FEB on 8K images.  Executing one of
+             * those addresses cannot be E0-specific merely because the E0
+             * hypothesis assigns it a segment switch. */
+            if (e0_bus >= 0x1fe4u && e0_bus <= 0x1febu) e0_switched = 2;
+         }
+      }
       if ((switched && switched_specific) ||
           (wd_switched && wd_successor_config != (uint8_t)mapper_config) ||
           fc_specific ||
-          (e0_switched && mode == AM_ABSOLUTE &&
+          (e0_switched == 1 && mode == AM_ABSOLUTE &&
            e0_successor_config != mapper_config) ||
           (e7_switched && e7_specific) ||
           (threef_switched && (threef_explicit_ref || threee_ram_ref)))
@@ -6626,8 +6645,16 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                if (tb != bi) {
                   fp.states[si].mapper_evidence |=
                      SPEC_MAPPER_EVIDENCE_ACTIVITY |
-                     SPEC_MAPPER_EVIDENCE_SPECIFIC |
                      SPEC_MAPPER_EVIDENCE_BANK_CHANGE;
+                  /* Every JSR pushes through $01FE for one stack-pointer value;
+                   * under an FE hypothesis that can reinterpret an otherwise
+                   * ordinary target-high byte as a bankswitch.  Do not let that
+                   * self-prove FE unless raw-image evidence independently
+                   * establishes the family.  A switch-save remains separate,
+                   * stronger execution evidence below. */
+                  if (is_probably_fe(a->rom, a->rom_size) ||
+                      mapper_tail_signature_matches(a->rom, a->rom_size, MAP_FE))
+                     fp.states[si].mapper_evidence |= SPEC_MAPPER_EVIDENCE_SPECIFIC;
                   if (ctx->counted) ++ctx->mapper_switches;
                   if (opcode_is_cpu_halt(a->rom[b->file_offset + to]) &&
                       !opcode_is_cpu_halt(a->rom[a->banks[tb].file_offset + to])) {
@@ -8971,7 +8998,6 @@ static int sampled_concrete_presentation_safe(const analysis_t *a)
    case MAP_CV:
    case MAP_WD:
    case MAP_WDSW:
-   case MAP_FC:
    case MAP_F0:
    case MAP_E0:
    case MAP_E7:
@@ -9112,6 +9138,7 @@ static int mapper_tail_signature_matches(const uint8_t *rom, size_t size,
    case MAP_JANE: return memcmp(p, "JANE", 4u) == 0;
    case MAP_E0: return memcmp(p, "E0\0\0", 4u) == 0;
    case MAP_E7: return memcmp(p, "E7\0\0", 4u) == 0;
+   case MAP_FE: return memcmp(p, "FE\0\0", 4u) == 0;
    case MAP_3E: return memcmp(p, "3E\0\0", 4u) == 0;
    case MAP_3F: return memcmp(p, "3F\0\0", 4u) == 0;
    case MAP_0840: return memcmp(p, "0840", 4u) == 0;
@@ -9611,6 +9638,16 @@ static int explore_cart_hypothesis_state_space(const uint8_t *rom, size_t size,
     * cartridge RESET vector.  Successful structural initialization is the
     * mapper-specific viability proof here; the selected AR analyzer owns the
     * per-load execution graph later. */
+   /* A banked Superchip dump can be recognized structurally before RESET
+    * execution: every 4K bank duplicates the hidden 128-byte write window at
+    * +$080.  A5 must therefore evaluate F8/F6/F4 with that already-established
+    * overlay instead of hard-rejecting legal reads/writes as plain-ROM bus
+    * contradictions.  An explicit caller override still wins. */
+   if (probe_opt.superchip_override < 0 &&
+       (h->mapper == MAP_F8 || h->mapper == MAP_F6 || h->mapper == MAP_F4) &&
+       (superchip_tail_signature(&shape) || superchip_layout_signature(&shape)))
+      probe_opt.superchip_override = 1;
+
    if (h->mapper == MAP_AR) {
       h->state_space_startup_states = 1u;
       h->state_space_live_startup_states = 1u;
@@ -10013,13 +10050,11 @@ static int mapper_has_precise_selector_edges(mapper_t mapper)
    case MAP_F4:
    case MAP_FA:
    case MAP_FA2:
-   case MAP_FC:
    case MAP_F0:
    case MAP_JANE:
    case MAP_E0:
    case MAP_E7:
    case MAP_3E:
-   case MAP_FE:
    case MAP_WD:
       return 1;
    default:
@@ -10062,8 +10097,11 @@ static int mapper_a7_specific_semantics(const mapper_hypothesis_t *h)
  * the same addresses once both hypotheses have survived A5. */
 static int mapper_a7_strong_protocol_signature(const mapper_hypothesis_t *h)
 {
-   return h->kind == MAPPER_HYPOTHESIS_CART &&
-          h->mapper == MAP_FC && h->detector_signature;
+   if (h->kind != MAPPER_HYPOTHESIS_CART || !h->detector_signature) return 0;
+   /* These recognizers encode a multi-access protocol, not a lone overlapping
+    * address.  3E requires both RAM selection through $3E and repeated ROM
+    * selection through $3F; FC requires its staged-selector byte pattern. */
+   return h->mapper == MAP_FC || h->mapper == MAP_3E;
 }
 
 /* CV and WD overlay ordinary cartridge/TIA address space with mapper-owned
@@ -10076,9 +10114,35 @@ static int mapper_a7_cart_ram_semantics(const mapper_hypothesis_t *h)
 {
    if (h->state_space_cart_ram_accesses == 0u) return 0;
    if (h->kind != MAPPER_HYPOTHESIS_CART) return 1;
-   if (h->mapper == MAP_CV || h->mapper == MAP_WD)
-      return h->detector_signature || h->explicit_signature;
+   if (h->mapper == MAP_CV || h->mapper == MAP_WD ||
+       h->mapper == MAP_E7 || h->mapper == MAP_GL)
+      return h->detector_signature || h->explicit_signature ||
+             h->state_space_switch_saves != 0u ||
+             h->state_space_specific_selectors != 0u ||
+             h->generated_mapper_selectors != 0u;
    return 1;
+}
+
+/* A6 coverage is meaningful only when the hypothesis did not manufacture that
+ * coverage from a broad partial-address decoder.  UA/UASW/0840/0FA0 overlap
+ * ordinary TIA/RIOT/cart traffic heavily enough that complete coverage is not
+ * independent mapper evidence until some other family evidence establishes the
+ * decoder. */
+static int mapper_a7_credible_complete_coverage(const mapper_hypothesis_t *h)
+{
+   if (!h->bank_account_complete) return 0;
+   if (h->kind != MAPPER_HYPOTHESIS_CART) return 1;
+   switch (h->mapper) {
+   case MAP_UA:
+   case MAP_UASW:
+   case MAP_0840:
+   case MAP_0FA0:
+      return h->detector_signature || h->explicit_signature ||
+             h->state_space_switch_saves != 0u ||
+             h->generated_mapper_selectors != 0u;
+   default:
+      return 1;
+   }
 }
 
 /* Positive evidence must come from the surviving mapper itself.  Merely being
@@ -10090,7 +10154,7 @@ static int mapper_a7_has_independent_positive_evidence(const mapper_hypothesis_t
    return h->state_space_switch_saves != 0u ||
           mapper_a7_specific_semantics(h) ||
           mapper_a7_cart_ram_semantics(h) ||
-          h->bank_account_complete ||
+          mapper_a7_credible_complete_coverage(h) ||
           h->explicit_signature ||
           h->detector_signature;
 }
@@ -10322,10 +10386,10 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
     * longer get to survive merely because one RESET path looked plausible. */
    any = 0;
    for (i = 0u; i < detail->hypothesis_count; ++i)
-      if (h[i].viable && h[i].bank_account_complete) any = 1;
+      if (h[i].viable && mapper_a7_credible_complete_coverage(&h[i])) any = 1;
    if (any) {
       for (i = 0u; i < detail->hypothesis_count; ++i)
-         if (h[i].viable && !h[i].bank_account_complete) {
+         if (h[i].viable && !mapper_a7_credible_complete_coverage(&h[i])) {
             h[i].viable = 0;
             h[i].reject_reason = MAPPER_REJECT_A7_BANK_INCOMPLETE;
          }

@@ -1322,6 +1322,54 @@ my $cv_uncorroborated_ram = make_rom(4096, 0xF000, 0x0900,
 write_bin(File::Spec->catfile($in, 'cv_uncorroborated_ram.bin'),
    $cv_uncorroborated_ram);
 
+# E7's fixed split-RAM window likewise overlaps ordinary cartridge-space
+# traffic under F8.  Without an E7 selector/signature, relabeling those cycles
+# as RAM is not independent mapper evidence.
+my $e7_uncorroborated_ram = make_rom(8192, 0xF000, 0x0100,
+   "\x8D\x00\xF8\xAD\x00\xF9\x60");
+break_sc_layout(\$e7_uncorroborated_ram);
+write_bin(File::Spec->catfile($in, 'e7_uncorroborated_ram.bin'),
+   $e7_uncorroborated_ram);
+
+# GameLine can reinterpret ordinary RIOT-mirror reads as segment selectors and
+# subsequent cart reads as RAM.  Those model-relative facts cannot make GL beat
+# an otherwise viable plain 4K image without independent GL evidence.
+my $gl_uncorroborated_ram = make_rom(4096, 0xF000, 0x0100,
+   "\xAD\x84\x05" .       # under GL: segment 1 -> RAM bank 4
+   "\xAD\x00\xF4" .       # under GL: read that RAM window
+   "\x60");
+write_bin(File::Spec->catfile($in, 'gl_uncorroborated_ram.bin'),
+   $gl_uncorroborated_ram);
+
+# A broad UA-family alias can make a second physical bank reachable and thus
+# manufacture complete coverage.  The losing F8 startup state is deliberately
+# dead, but absent a UA/UASW signature or switch-save that broad-decoder
+# coverage is not independent identity evidence.
+my $uasw_uncorroborated_coverage = chr(0xEA) x 8192;
+break_sc_layout(\$uasw_uncorroborated_coverage);
+substr($uasw_uncorroborated_coverage, 0x0100, 4, "\xAD\x20\x02\x60");
+substr($uasw_uncorroborated_coverage, 0x1000 + 0x0103, 1, "\x60");
+for my $v (0, 2, 4) {
+   put16(\$uasw_uncorroborated_coverage, 0x0FFA + $v, 0xF100);
+   put16(\$uasw_uncorroborated_coverage, 0x1FFA + $v, 0x0000);
+}
+write_bin(File::Spec->catfile($in, 'uasw_uncorroborated_coverage.bin'),
+   $uasw_uncorroborated_coverage);
+
+# FE's delayed $01FE latch means an ordinary JSR can be reinterpreted as a bank
+# change by the FE model.  A target-high byte by itself is not family-specific
+# evidence; absent FE raw metadata/signature the hypothesis must not self-prove.
+my $fe_uncorroborated_jsr = chr(0xEA) x 8192;
+break_sc_layout(\$fe_uncorroborated_jsr);
+substr($fe_uncorroborated_jsr, 0x0100, 4, "\x20\x00\xD2\x60");
+substr($fe_uncorroborated_jsr, 0x1000 + 0x0200, 1, "\x60");
+for my $v (0, 2, 4) {
+   put16(\$fe_uncorroborated_jsr, 0x0FFA + $v, 0xF100);
+   put16(\$fe_uncorroborated_jsr, 0x1FFA + $v, 0xF100);
+}
+write_bin(File::Spec->catfile($in, 'fe_uncorroborated_jsr.bin'),
+   $fe_uncorroborated_jsr);
+
 # CDF/CDFJ is not implemented yet.  Stella's established detector uses three
 # occurrences of "CDF" for the family; a supported 32K fallback must therefore
 # quarantine this image as unknown/raw rather than manufacture F4 code from it.
@@ -1360,6 +1408,24 @@ substr($detector_conflict, 0x1300, 6,
    "\x85\x3E\x85\x3F\x85\x3F");
 write_bin(File::Spec->catfile($in, 'detector_conflict_raw.bin'),
    $detector_conflict);
+
+# The same 3E fingerprint is affirmative protocol evidence when 3E itself is
+# viable.  Give F4 perfect union coverage through its eight legal startup banks
+# while 3E sees only its fixed final 2K; coverage alone must not outvote the
+# independent $3E/$3F protocol fingerprint.
+my $threee_vs_f4_coverage = chr(0xEA) x 32768;
+for my $b (0 .. 7) {
+   my $base = $b * 4096;
+   substr($threee_vs_f4_coverage, $base + 0x0900, 1, "\x60");
+   put16(\$threee_vs_f4_coverage, $base + 0x0FFA, 0xF900);
+   put16(\$threee_vs_f4_coverage, $base + 0x0FFC, 0xF900);
+   put16(\$threee_vs_f4_coverage, $base + 0x0FFE, 0xF900);
+   substr($threee_vs_f4_coverage, $base + 0x80, 1, "\x18");
+}
+substr($threee_vs_f4_coverage, 0x0200, 6,
+   "\x85\x3E\x85\x3F\x85\x3F");
+write_bin(File::Spec->catfile($in, 'threee_vs_f4_coverage.bin'),
+   $threee_vs_f4_coverage);
 
 # All eight conditional branches, each in both same-page and cross-page cases.
 my @branch_ops = (0x10, 0x30, 0x50, 0x70, 0x90, 0xB0, 0xD0, 0xF0);
@@ -1896,7 +1962,10 @@ write_bin(File::Spec->catfile($in, 'f6sc.bin'), $f6sc);
 # reachable CFG does not expose a direct SC store: each 4K bank duplicates the
 # 128 physical bytes hidden behind the write/read aliases.
 my $f6sc_layout = make_rom(16384, 0xF000, 0x0100,
-   "\xAD\xF6\x1F\x60");
+   "\xA2\xFF" .             # X=$FF
+   "\xA9\x00" .             # harmless value
+   "\x9D\x00\xF0" .       # STA $F000,X -> $F0FF SC read alias; ignored write
+   "\xAD\xF6\x1F\x60"); # ordinary F6 selector
 for my $b (0 .. 3) {
    my $base = $b * 4096;
    substr($f6sc_layout, $base + 0x80, 0x80,
@@ -2863,6 +2932,19 @@ die "FC commit-only overlap was promoted as mapper-specific evidence\n"
 my $cv_uncorroborated_out = slurp(File::Spec->catfile($out, 'cv_uncorroborated_ram.s26'));
 die "uncorroborated CV RAM interpretation selected CV\n"
    if $cv_uncorroborated_out =~ /^; mapper: CV\b/m;
+
+my $e7_uncorroborated_out = slurp(File::Spec->catfile($out, 'e7_uncorroborated_ram.s26'));
+die "uncorroborated E7 RAM interpretation selected E7\n"
+   if $e7_uncorroborated_out =~ /^; mapper: E7\b/m;
+my $gl_uncorroborated_out = slurp(File::Spec->catfile($out, 'gl_uncorroborated_ram.s26'));
+die "uncorroborated GL RAM interpretation selected GL\n"
+   if $gl_uncorroborated_out =~ /^; mapper: GL\b/m;
+my $uasw_uncorroborated_out = slurp(File::Spec->catfile($out, 'uasw_uncorroborated_coverage.s26'));
+die "uncorroborated broad UASW coverage selected UASW\n"
+   if $uasw_uncorroborated_out =~ /^; mapper: UASW\b/m;
+my $fe_uncorroborated_out = slurp(File::Spec->catfile($out, 'fe_uncorroborated_jsr.s26'));
+die "ordinary JSR target-high byte self-proved FE\n"
+   if $fe_uncorroborated_out =~ /^; mapper: FE\b/m;
 require_re($cv_uncorroborated_out,
    qr/^;   CV: survives; .*direction-correct cartridge-RAM access/m,
    'CV hypothetical RAM traffic remains visible diagnostically');
@@ -2879,6 +2961,13 @@ die "unsupported CDF-family fixture was mislabeled as F4\n"
    if $unsupported_cdf_out =~ /^; mapper: F4/m;
 
 my $detector_conflict_out = slurp(File::Spec->catfile($out, 'detector_conflict_raw.s26'));
+my $threee_vs_f4_coverage_out =
+   slurp(File::Spec->catfile($out, 'threee_vs_f4_coverage.s26'));
+require_re($threee_vs_f4_coverage_out, qr/^; mapper: 3E \(high confidence;/m,
+   'established 3E protocol fingerprint outranks generic F4 union coverage');
+require_re($threee_vs_f4_coverage_out,
+   qr/^; mapper evidence: 3E selected by established static detector prior after execution tied|^; mapper evidence: 3E selected by mapper-specific execution\/bank-completeness evidence|^; mapper evidence: 3E selected by established protocol signature/m,
+   '3E protocol fingerprint supplies independent family evidence');
 require_re($detector_conflict_out, qr/^; mapper: unknown\/raw \(unknown confidence;/m,
    'contradictory detector evidence blocks unsupported F4 last-survivor promotion');
 require_re($detector_conflict_out,

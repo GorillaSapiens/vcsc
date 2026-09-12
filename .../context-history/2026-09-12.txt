@@ -63,3 +63,39 @@ Validation: vcsc_disassembler.pl passes; vcsc_disassembler_hardening.pl passes; 
 full e2e gate passes 365/365 including fuzz, GL, hardening, and opcode suites; the
 compile-only gate passes 537/537. source_tree_hygiene.pl and context_history_format.pl
 passed before this entry and must be rerun after it before packaging.
+
+2026-09-12 11:28:09 PDT, second post-A8 Stella mismatch corpus hardening
+Worked the user's second 11-ROM mismatch set without starting GL closeout or any
+later mapper roadmap item. The failures came from several independent forms of
+model-relative evidence rather than one detector threshold.
+
+A7 now treats the established 3E `STA $3E` plus repeated `STA $3F` fingerprint as
+a multi-access protocol signal alongside FC, so generic F4 union coverage cannot
+outvote a viable 3E family signal. Direction-correct RAM traffic for E7 and GL,
+like the earlier CV/WD fix, requires independent family corroboration before it
+can vote. Complete bank accounting from broad 0840/UA/UASW/0FA0 decoders is also
+non-dispositive until detector/explicit metadata, a switch-save, or generated
+selector provenance establishes the family. A single FC staging access remains
+execution activity but no longer counts as family-specific evidence by itself.
+
+Fixed asymmetric E0/E7 overlap evidence: on 8K carts both schemes decode
+$1FE4-$1FEB, so neither side can label accesses in that range family-specific.
+FE's delayed-JSR model likewise no longer treats an ordinary cross-bank JSR target
+high byte as independent FE identity evidence unless FE has raw-image
+corroboration; switch-saves remain stronger execution evidence. Added the omitted
+`FE\0\0` VCSC explicit-tail recognizer.
+
+F6SC exposed a separate A5 modeling bug. Structural duplicated-window or explicit
+SC evidence is now applied to F8/F6/F4 hypotheses before RESET viability is
+judged, so legal SC traffic is not rejected under a temporary plain-ROM model.
+Writes through the SC read alias are treated as harmless bus writes rather than
+RAM stores or hard contradictions. Synthetic regressions cover 3E-vs-F4 coverage,
+E7/GL RAM self-proof, broad UASW coverage, FE JSR self-proof, and structural F6SC
+execution containing such a read-alias write.
+
+The 11-ROM corpus now round-trips 11/11 byte-exactly. With the bundled Stella it
+reports 8 mapper matches, 0 mismatches, 3 unresolved/raw. The unresolved cases are
+intentional conservatism where UASW-vs-F8, duplicated-F8-vs-0FA0, or FE-vs-0FA0
+remain underdetermined by evidence VCSC can currently trust. Validation is complete: the compile-only gate passes 537/537 and the full e2e
+gate passes 365/365, including every disassembler-specific suite. Source-tree
+hygiene and context-history formatting pass after final documentation compaction.
