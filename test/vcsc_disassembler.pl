@@ -1659,6 +1659,73 @@ substr($sprite, 0x0200, 8,
    pack('C*', 0x3C, 0x66, 0xC3, 0xDB, 0xDB, 0xC3, 0x66, 0x3C));
 write_bin(File::Spec->catfile($in, 'sprite_rows.bin'), $sprite);
 
+
+# G3: the source-index initializer need not sit immediately before the load.
+# This 16-row GRP0 loop has unrelated X setup between LDY and the indexed load;
+# consumer-loop analysis must prove exactly 16 rows instead of falling back to
+# an arbitrary 32-byte graphics window.
+my $sprite16 = make_rom(4096, 0xF000, 0x0100,
+   "\xA0\x0F" .                 # LDY #15
+   "\xA2\x03" .                 # unrelated LDX setup
+   "\xB9\x00\xF2" .           # LDA $F200,Y
+   "\x85\x1B" .                 # STA GRP0
+   "\x88" .                         # DEY
+   "\x10\xF8" .                 # BPL load
+   "\x60");                        # RTS
+substr($sprite16, 0x0200, 32,
+   pack('C*',
+      0x00,0x18,0x3C,0x7E,0xDB,0xFF,0xDB,0x7E,
+      0x3C,0x18,0x18,0x3C,0x7E,0xFF,0x42,0x00,
+      (0xA5) x 16));
+write_bin(File::Spec->catfile($in, 'sprite16_rows.bin'), $sprite16);
+
+# G3: increasing index loops can prove a span from an explicit compare limit.
+# X consumes rows 0..11 and stops at CPX #12.
+my $sprite_limit = make_rom(4096, 0xF000, 0x0100,
+   "\xA2\x00" .                 # LDX #0
+   "\xBD\x40\xF2" .           # LDA $F240,X
+   "\x85\x1C" .                 # STA GRP1
+   "\xE8" .                         # INX
+   "\xE0\x0C" .                 # CPX #12
+   "\xD0\xF6" .                 # BNE load
+   "\x60");                        # RTS
+substr($sprite_limit, 0x0240, 32,
+   pack('C*',
+      0x18,0x3C,0x7E,0xFF,0xDB,0x99,0xBD,0xA5,
+      0xA5,0xBD,0x99,0x7E,
+      (0x5A) x 20));
+write_bin(File::Spec->catfile($in, 'sprite_limit_rows.bin'), $sprite_limit);
+
+# G3: a copy loop may be bounded by a different index register from the source
+# index.  The upper eight rows are copied from ($80),Y into RIOT RAM with X as
+# the loop counter, then consumed by a later GRP1 loop; the lower eight rows are
+# consumed directly.  Together the proven paths cover exactly the 16-byte ROM
+# sprite rather than a guessed 32-byte range.
+my $sprite_buffer_copy = make_rom(4096, 0xF000, 0x0100,
+   "\xA9\x80\x85\x80" .       # pointer low := $80
+   "\xA9\xF2\x85\x81" .       # pointer high := $F2
+   "\xA0\x0F" .                 # Y := 15 (source index)
+   "\xA2\x07" .                 # X := 7 (copy count)
+   "\xB1\x80" .                 # copy: LDA ($80),Y
+   "\x95\xA0" .                 # STA $A0,X
+   "\x88\xCA" .                 # DEY / DEX
+   "\x10\xF8" .                 # BPL copy
+   "\xA0\x07" .                 # Y := 7
+   "\xB1\x80" .                 # lower: LDA ($80),Y
+   "\x85\x1C" .                 # STA GRP1
+   "\x88\x10\xF9" .           # DEY / BPL lower
+   "\xA2\x07" .                 # X := 7
+   "\xB5\xA0" .                 # upper: LDA $A0,X
+   "\x85\x1C" .                 # STA GRP1
+   "\xCA\x10\xF9" .           # DEX / BPL upper
+   "\x60");                        # RTS
+substr($sprite_buffer_copy, 0x0280, 32,
+   pack('C*',
+      0x00,0x18,0x3C,0x7E,0xDB,0xFF,0xDB,0x7E,
+      0x3C,0x18,0x24,0x42,0x81,0xC3,0x66,0x3C,
+      (0x96) x 16));
+write_bin(File::Spec->catfile($in, 'sprite_buffer_copy.bin'), $sprite_buffer_copy);
+
 # A bitmap-looking table that never reaches a TIA graphics register must stay
 # ordinary numeric data; appearance alone is not sprite evidence.
 my $not_sprite = make_rom(4096, 0xF000, 0x0100,
@@ -3283,6 +3350,22 @@ die "expected 8 visual sprite rows, got " . scalar(@sprite_rows) . "\n"
    if @sprite_rows != 8;
 require_re($sprite_out, qr/\.byte\s+%00111100\s+;\s+\.\.XXXX\.\./,
    'sprite binary plus visual row');
+
+
+my $sprite16_out = slurp(File::Spec->catfile($out, 'sprite16_rows.s26'));
+my @sprite16_rows = ($sprite16_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+die "expected exactly 16 loop-proven sprite rows, got " . scalar(@sprite16_rows) . "\n"
+   if @sprite16_rows != 16;
+
+my $sprite_limit_out = slurp(File::Spec->catfile($out, 'sprite_limit_rows.s26'));
+my @sprite_limit_rows = ($sprite_limit_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+die "expected exactly 12 compare-limited sprite rows, got " . scalar(@sprite_limit_rows) . "\n"
+   if @sprite_limit_rows != 12;
+
+my $sprite_buffer_copy_out = slurp(File::Spec->catfile($out, 'sprite_buffer_copy.s26'));
+my @sprite_buffer_copy_rows = ($sprite_buffer_copy_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+die "expected exactly 16 direct+buffer-copy sprite rows, got " . scalar(@sprite_buffer_copy_rows) . "\n"
+   if @sprite_buffer_copy_rows != 16;
 my $not_sprite_out = slurp(File::Spec->catfile($out, 'not_sprite.s26'));
 die "non-graphics table was rendered as sprite rows\n"
    if $not_sprite_out =~ /^\s*\.byte\s+%[01]{8}\s+;/m;

@@ -194,3 +194,27 @@ byte-exact; the new analysis increased visually rendered binary graphics rows
 from 285 to 405 and recovered previously raw object-pattern areas including
 $FD00 and $FDB0.  Validation: 537/537 compile-only and 365/365 e2e.  G3 is
 next; no G3 implementation was started.
+2026-09-12 15:53:26 PDT, close G3 loop-derived sprite spans
+Generalized graphics span inference from the old immediate countdown special
+case into established loop analysis. Source-index initialization may be separated
+from the ROM load; backward loops can be bounded by DEX/DEY with BPL/BNE or by
+INX/INY plus CPX/CPY immediate limits, and a forward source-index exit can bound
+a loop controlled by another register. This recovers exact source intervals,
+including copy loops where one index selects ROM rows while another controls the
+buffer-copy count.
+
+GRP0/GRP1 spans now retain exact sprite-height metadata for later presentation;
+PF0/PF1/PF2 remain graphics without sprite classification. Proven spans are
+allowed to overlap executable bytes so code/data roles remain exact. Unproven
+cases still use the conservative bounded fallback. A short static RIOT-buffer
+bridge recognizes indirect/indexed source data copied into RAM and later consumed
+by GRP0/GRP1, covering the Pitfall-style staging pattern without making graphics
+evidence part of mapper selection.
+
+Added synthetic regressions for a separated-setup 16-row sprite loop, a 12-row
+INX/CPX-limited sprite loop, and a split 16-row direct+RIOT-buffer-copy sprite.
+All reconstruct byte-exactly. The shared color-table detector now consumes the
+same exact loop-span result instead of the retired countdown helper. Final
+validation: 537/537 compile-only and 365/365 e2e, including vcsc_disassembler,
+fuzz, GL, hardening, and opcodes. G4 is next; no G4 work was started.
+

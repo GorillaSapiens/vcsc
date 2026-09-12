@@ -143,14 +143,16 @@ Synthetic regressions lock block-copy+ADC/SBC recovery and branch-merged split
 pointer targets. Graphics recovery remains presentation-only and cannot vote on
 mapper identity.
 
-G3. [ ] Infer sprite height from consumers
-    * Derive graphics spans from established consumer loops and copy loops
-      (countdown bounds, index limits, buffer-copy length) instead of assuming 8
-      rows or marking an arbitrary 32-byte range.
-    * For GRP0/GRP1 data with a proven N-row span, classify it as an 8xN sprite.
-      PF0/PF1/PF2 sources remain playfield graphics, not sprites.
-    * Preserve exact overlapping code/data roles and prove variable-height cases
-      including 8x16 graphics.
+Completed G3 invariant
+----------------------
+Loop-derived graphics spans are complete. Established indexed/indirect consumers
+recover exact source-row intervals from countdown loops, increment-to-limit loops,
+and copy loops whose controlling register differs from the source index. Proven
+GRP0/GRP1 spans retain exact 8xN sprite-height metadata; PF0/PF1/PF2 spans remain
+playfield graphics without sprite classification. Proven spans may overlap code
+and preserve both roles; only unproven cases retain the bounded fallback window.
+Synthetic regressions lock separated index setup, 8x16 countdown graphics,
+compare-limited spans, RIOT-buffer copy lengths, and exact reconstruction.
 
 G4. [ ] Expand selector/offset tables into sprite families
     * When proven pointer bases are adjusted by a ROM selector/offset table,
