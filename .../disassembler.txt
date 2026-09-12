@@ -86,84 +86,83 @@ Durable invariants
   specific diagnostic. Bulk `roundtrip.pl` validation consumes and checks the
   per-file success confirmation.
 
-Analysis architecture roadmap -- mapper-hypothesis execution
-----------------------------------------------------------
-Highest-priority analysis subitem: explore every structurally possible mapper
-hypothesis instead of "guess -> trust -> maybe simulate". Mapper identity and
-reachable code/data emerge together from isolated hardware models. Keep each
-step regression-locked before replacing the next heuristic. A1 duplicate-image
-provenance, A2 preselection enumeration, A3 hypothesis-local state-space
-execution, A4 first-class provenance, A5 unified viability, A6 bank-access
-completeness, A7 final evidence comparison, and A8 presentation feedback are
-complete.
+Completed mapper-hypothesis architecture
+----------------------------------------
+A1 duplicate-image provenance, A2 preselection enumeration, A3 hypothesis-local
+state-space execution, A4 first-class provenance, A5 unified viability, A6
+bank-access completeness, A7 final evidence comparison, and A8 presentation
+feedback are complete.
 
-A3-A6 execution/provenance/viability invariants (completed)
-    Every A2 hypothesis is executed independently from every legal RESET state in
-    the same mapper-aware fixed-point engine. Known conditions choose one edge;
-    unknown conditions fork feasible edges. Hardware input remains unknown rather
-    than sampled. Physical ROM provenance flows through supported CPU operations,
-    RIOT/cart RAM and generated RAM code, including mapper switches and display
-    sinks. A5 viability rejects only hard-dead feasible paths (JAM/KIL/HLT and
-    impossible control/memory targets). Undefined TIA-register reads remain
-    unknown/open-bus-like and undefined writes remain harmless bus cycles on
-    established RESET flow; the stricter invalid-bus rule remains useful only for
-    detached-island rejection. Branches are OR nodes and JSR requires callee plus return.
-    A6 credits meaningful banks only from viable execution/provenance, while exact
-    duplicates and pure fill are explained structurally. N-in-1 applies the same
-    execution and completeness rules recursively. These stages produce evidence;
-    none chooses the final mapper.
+Completed mapper-analysis invariants
+------------------------------------
+A3-A8 execute every structurally compatible hypothesis independently from all
+legal RESET states, preserve ROM/RAM/generated-code/display provenance, reject
+only hard-dead feasible paths, compare survivors by corroborated hardware
+evidence rather than instruction count/default size, and replay only the chosen
+A5-viable hypothesis into trusted presentation. Model-created RAM/selector
+behavior cannot prove its own mapper family; unresolved ties stay exact/raw.
+Detached islands remain presentation-only and never vote on mapper identity.
+Exact duplicate/fill provenance, N-in-1 topology, Superchip overlays, broad
+partial decoders, explicit VCSC metadata, and post-A8 overlap-evidence rules are
+covered by focused regressions and dated history.
 
-A7 final-comparison invariant (completed)
-    A7 consumes the common A3/A5/A6 results directly; it does not rerun a privileged
-    legacy candidate set and instruction count is never mapper evidence. Hard A5
-    contradictions are removed first. Surviving hypotheses are then narrowed by
-    positive evidence in semantic order: a bank switch that preserves a coherent
-    continuation, mapper-specific selector activity (including proven generated-RAM
-    selectors), and independently corroborated cartridge-RAM behavior. A hypothetical
-    CV/WD mapping may not prove itself merely by relabeling ordinary bus traffic as
-    its own RAM. Likewise, FC's commit address alone is not FC-specific without a
-    staged selector, and JANE's selectors shared with F6 do not prove JANE. Exact
-    VCSC tail signatures are explicit format metadata; FC's established staged-select
-    detector signature is also strong protocol evidence. These resolve before A6
-    unioned bank completeness so mutually exclusive legal power-on latch states cannot
-    fabricate superiority over the declared/independently established mapper. A6
-    completeness and comparable reset quality
-    then narrow unsigned survivors; heuristic detector/static signatures remain
-    late migration priors. Indexed/model-dependent traffic may not bootstrap a
-    mapper family merely because that hypothetical mapper would reinterpret it as
-    a selector. For broad partial-address decoders
-    (0840/UA/UASW/0FA0), an unresolved indexed selector forks every feasible
-    bank/no-switch hardware continuation instead of guessing or ignoring it.
+Graphics/provenance roadmap -- highest priority
+-----------------------------------------------
+Do this before GL/CM/DPC+/CDF work. The goal is to recover graphics because
+execution proves their dataflow to TIA display sinks, not because arbitrary ROM
+bytes happen to look pictorial. Keep every step mapper-context-aware and exact
+round-trip neutral. Do not let graphics analysis become mapper evidence.
 
-    If exactly one hypothesis survives a principled comparison, select it and emit
-    why every alternative lost. If several remain genuinely indistinguishable,
-    report all of them and use exact unknown/raw presentation instead of the old
-    size/default winner. The only presentation exception is observationally
-    equivalent plain 4K versus one-bank FC with no FC behavior, where ordinary 4K
-    code presentation preserves the same observed mapping while the header states
-    that mapper identity remains ambiguous. First-class N-in-1 hypotheses obey the
-    same rule: an 8IN1/4IN1 or F8/2IN1 tie remains raw unless execution supplies a
-    real discriminator; `--container` remains the explicit external-knowledge path.
+Completed G1 invariant
+----------------------
+Finite multi-origin display provenance is complete. Selected-hypothesis execution
+carries capped may-source sets through A/X/Y, deterministic ALU/transfers, RIOT
+RAM, cartridge RAM, and stack staging to GRP0/GRP1/PF0/PF1/PF2. Display
+provenance is deliberately separate from the exact single-source A4 channel, so
+it can add presentation/data/graphics roles but can never become mapper evidence.
+RIOT/cart staging uses sparse state maps to keep exhaustive execution within the
+normal regression time budget; overflow loses optional sources conservatively and
+never invents one. Alternative-branch RIOT and cartridge-RAM merges are locked by
+synthetic regressions and exact round trips.
 
-A8 presentation-feedback invariant (completed)
-    Replay the A7-selected mapper from every legal RESET/startup mapping before
-    detached-island discovery and merge only A5-viable execution into the trusted
-    presentation graph. Code/data roles, conservative abstract-state summaries,
-    generated-RAM instruction provenance, and display/audio provenance survive the
-    mapper-comparison phase; none of that feedback is a second mapper vote. ROM
-    bytes that construct executable RAM are explicit data-source bytes even when
-    they are also established ROM instruction operands. Proven ROM provenance
-    consumed by valid TIA writes is data-source evidence; GRP0/GRP1 additionally
-    retains graphics classification. Exact bytes win when roles overlap.
+G2. [ ] Recover indirect graphics pointers
+    * Infer zero-page pointer pairs from established `(zp),Y`/`(zp,X)` consumers
+      and recover their values across split low/high assignments, inherited high
+      bytes, bounded ADC/SBC offset changes, and common ROM-to-ZP block-copy
+      initialization such as `LDA table,X ; STA zp,X`.
+    * Keep pointer domains finite and mapper-qualified; unresolved arithmetic
+      remains unknown rather than guessing a target.
+    * Add a synthetic Pitfall-style regression where a startup pointer block plus
+      later low-byte table selection feeds staged graphics to GRP1.
 
-    Detached islands still run only after established analysis is frozen and remain
-    presentation-only gap fillers. The older static/concrete presentation pass is
-    retained as supplemental plumbing for now (including existing cross-startup
-    Superchip evidence accumulation), rather than being prematurely removed during
-    A8. Regression coverage locks Congo-style generated F8 selectors, previous
-    trust-gate false positives, duplicate and 4094/4098-byte preservation forms,
-    all-bank accounting, unknown-input branch forking, detached islands, and
-    mapper-specific read/write hotspot direction.
+G3. [ ] Infer sprite height from consumers
+    * Derive graphics spans from established consumer loops and copy loops
+      (countdown bounds, index limits, buffer-copy length) instead of assuming 8
+      rows or marking an arbitrary 32-byte range.
+    * For GRP0/GRP1 data with a proven N-row span, classify it as an 8xN sprite.
+      PF0/PF1/PF2 sources remain playfield graphics, not sprites.
+    * Preserve exact overlapping code/data roles and prove variable-height cases
+      including 8x16 graphics.
+
+G4. [ ] Expand selector/offset tables into sprite families
+    * When proven pointer bases are adjusted by a ROM selector/offset table,
+      enumerate every finite in-bounds target supported by the established dataflow
+      and mark the corresponding loop-derived spans.
+    * Recognize related frames/objects by shared pointer-selection mechanics, not
+      bitmap resemblance alone. Shape heuristics remain low-priority corroboration
+      and may never independently promote a large graphics region.
+    * Add false-positive tests for code/random data adjacent to selector tables.
+
+G5. [ ] Presentation and real-corpus closeout
+    * Emit a concise annotation such as `probable 8x16 sprite` for GRP0/GRP1
+      regions whose dimensions are proven by G1-G4. Never say `player sprite`; on
+      the 2600 that wording is redundant and can be misread as the game character.
+    * Keep visual binary-byte rendering, font detection, pointer/table formatting,
+      and exact reconstruction compatible with overlapping roles.
+    * Validate out-of-tree against the supplied Pitfall disassembly/ROM lineage:
+      object-pattern families should be recovered in addition to Harry/digits.
+      Keep repository regressions synthetic/non-copyrighted. Run fuzz plus the
+      complete disassembler and repository gates before closeout.
 
 Weak "nonsense operation string" evidence
 -----------------------------------------
@@ -222,12 +221,11 @@ Unfinished mapper support
 
 Current direction
 -----------------
-A1-A8 is complete: all structurally compatible ordinary and N-in-1 hypotheses
-are executed independently, and A7 selects only from shared contradiction and
-positive evidence; unresolved ties stay raw. GL needs only real-corpus closeout;
-CM, DPC+, and CDF remain next. For corpus work, fix one mismatch class at a time
-with a minimal synthetic regression and exact round trip; keep per-ROM narratives
-in daily history rather than this hot record.
+A1-A8 and the two post-A8 mapper-mismatch hardening passes are complete. G1-G5
+are now the front of the disassembler roadmap; start with finite multi-origin
+display provenance and do not begin GL closeout until that graphics sequence is
+finished or explicitly deferred. Mapper ties still stay raw. For corpus work,
+keep per-ROM narratives in daily history and add minimal synthetic regressions.
 
 Post-A8 corpus hardening
 -------------------------

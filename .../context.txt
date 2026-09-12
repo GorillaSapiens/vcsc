@@ -118,15 +118,13 @@ Open workstreams
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished
-   work only. Mapper-hypothesis migration is current: A1 recursive duplicate-view
-   provenance/fill accounting, A2 preselection enumeration, A3 exhaustive
-   hypothesis-local state-space execution, A4 first-class ROM/RAM/GRP provenance, A5 unified path viability/hardware-bus
-   rejection, A6 bank-access completeness, and A7 evidence-based final hypothesis
-   comparison are complete; A8 execution feedback into code/data presentation is next.
-   2IN1/4IN1/8IN1/etc. live in the same preselection/execution set as ordinary
-   mappers; `--container` and
-   `.gameNN.s26` sidecars remain compatibility override/presentation plumbing. GL real-corpus
-   closeout, CM, DPC+, and CDF-family support remain behind this migration.
+   work only. Mapper-hypothesis migration A1-A8 and two post-A8 mismatch-hardening
+   passes are complete. The highest-priority G1-G5 graphics/provenance sequence is in progress. G1
+   finite multi-origin display provenance is complete; G2-G5 cover indirect
+   pointer recovery, loop-derived sprite heights, selector/offset sprite families,
+   and presentation.
+   Use `probable 8xN sprite`, never `player sprite`. GL real-corpus closeout, CM,
+   DPC+, and CDF-family support follow after G2-G5 unless explicitly reprioritized.
 
 5. **Zero static initializer placement**
    Mutable all-zero link-time static initializers are emitted directly as
@@ -175,11 +173,11 @@ correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 
 Last validation state
 ---------------------
-The current A7 disassembler tree passes the complete broad e2e suite: 365/365,
-including `vcs_e0.pl`, `vcs_fc.pl`, `vcsc_disassembler_hardening.pl`, and
-`vcsc_disassembler_opcodes.pl`. Compile-only validation is 537/537. A7 is closed;
-A8 has not begun. Detailed completed implementation facts live in public docs,
-executable regressions, and dated history rather than here.
+The current post-A8 disassembler tree passes 365/365 e2e and 537/537 compile-only.
+The second supplied Stella-mismatch corpus is 11/11 byte-exact, 8 matches, 0
+mismatches, 3 intentionally unresolved/raw. A1-A8 and G1 are closed; G2 is next.
+Detailed completed implementation facts live in executable regressions and dated
+history rather than here.
 
 Current Tanks cleanup is complete at the legitimate beam-asm boundary while preserving the plain 4K target. The current real build is 4024/4090 ROM and 120/128 RAM (66 ROM bytes, 8 RAM bytes free). `test/vcs_tanks.pl` locks coordinate, heading/reflection, missile, arena-bound, and bottom-wall GRP behavior.
 

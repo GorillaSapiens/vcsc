@@ -473,6 +473,25 @@ my $a4_riot_grp = make_rom(4096, 0xF000, 0x0100,
 substr($a4_riot_grp, 0x0200, 1, "\x5A");
 write_bin(File::Spec->catfile($in, 'a4_riot_grp.bin'), $a4_riot_grp);
 
+# G1: alternate feasible branches may feed different ROM bytes into the same
+# register, reconverge, stage through RIOT RAM, and finally reach GRP0.  Exact
+# provenance becomes unknown at the join, but display provenance must retain
+# the finite may-source set so both ROM origins are classified as graphics.
+my $g1_multi_origin_grp = make_rom(4096, 0xF000, 0x0100,
+   pack('C*',
+      0xA5,0x80,             # LDA $80 -- unknown input, so BEQ forks
+      0xF0,0x06,             # BEQ arm2
+      0xAD,0x00,0xF2,       # arm1: LDA $F200
+      0x4C,0x0D,0xF1,       # JMP join
+      0xAD,0x01,0xF2,       # arm2: LDA $F201
+      0x85,0x81,             # join: STA $81
+      0xA5,0x81,             # LDA $81
+      0x85,0x1B,             # STA GRP0
+      0x60));
+substr($g1_multi_origin_grp, 0x0200, 2, pack('C*', 0x3C, 0xC3));
+write_bin(File::Spec->catfile($in, 'g1_multi_origin_grp.bin'),
+          $g1_multi_origin_grp);
+
 # A8 generalizes provenance presentation beyond sprite graphics.  Carry a ROM
 # source through RIOT RAM into AUDC0; the source is established data evidence
 # but must not be mislabeled as graphics.
@@ -493,6 +512,28 @@ for my $b (0 .. 2) {
    substr($a4_fa_cartram, $b * 4096 + 0x0500, 1, chr(0x60 + $b));
 }
 write_bin(File::Spec->catfile($in, 'a4_fa_cartram.bin'), $a4_fa_cartram);
+
+# G1 also keeps alternate feasible sources through split cartridge RAM.  FA's
+# write/read aliases deliberately force provenance to survive a cart-RAM stage
+# after the branch join rather than relying on RIOT RAM behavior.
+my $g1_fa_multi_code = pack('C*',
+   0xA5,0x80,             # LDA $80 -- unknown input
+   0xF0,0x06,             # BEQ arm2
+   0xAD,0x00,0xF5,       # arm1: LDA $F500
+   0x4C,0x0D,0xF3,       # JMP join
+   0xAD,0x01,0xF5,       # arm2: LDA $F501
+   0x8D,0x00,0x10,       # join: STA FA write alias
+   0xAD,0x00,0x11,       # LDA FA read alias
+   0x85,0x1B,             # STA GRP0
+   0x60);
+my $g1_fa_multi = make_rom(12288, 0xF000, 0x0300, $g1_fa_multi_code);
+substr($g1_fa_multi, 2 * 4096 + 0x0300, length($g1_fa_multi_code),
+       $g1_fa_multi_code);
+for my $b (0 .. 2) {
+   substr($g1_fa_multi, $b * 4096 + 0x0500, 2,
+          pack('C*', 0x30 + $b, 0xC0 + $b));
+}
+write_bin(File::Spec->catfile($in, 'g1_fa_multi_origin.bin'), $g1_fa_multi);
 # Multi-game images are containers, not one bankswitched CPU address space.
 # Four distinct, independently rooted 2K components must be split/analyzed
 # separately while the outer source preserves the exact concatenation.
@@ -2400,6 +2441,20 @@ require_re($a4_riot_grp_out,
    qr/^; hypothesis provenance: unbanked 4K RAM-insns=0 RAM-ROM-sources=0 GRP-sources=1$/m,
    'A4 preserves ROM provenance through RIOT RAM reload into GRP1');
 
+my $g1_multi_origin_out = slurp(
+   File::Spec->catfile($out, 'g1_multi_origin_grp.s26'));
+require_re($g1_multi_origin_out,
+   qr/^; hypothesis provenance: unbanked 4K RAM-insns=0 RAM-ROM-sources=0 GRP-sources=2$/m,
+   'G1 retains both feasible ROM origins through a register join and RIOT RAM');
+require_re($g1_multi_origin_out,
+   qr/^L_F200:
+\s*\.byte %00111100\s+;\s+\.\.XXXX\.\.$/m,
+   'G1 renders the first alternate GRP0 ROM origin as graphics');
+require_re($g1_multi_origin_out,
+   qr/^L_F201:
+\s*\.byte %11000011\s+;\s+XX\.\.\.\.XX$/m,
+   'G1 renders the second alternate GRP0 ROM origin as graphics');
+
 my $a8_audio_out = slurp(File::Spec->catfile($out, 'a8_riot_audio.s26'));
 require_re($a8_audio_out,
    qr/^\s*; definite ROM-data target
@@ -2414,6 +2469,13 @@ my $a4_fa_out = slurp(File::Spec->catfile($out, 'a4_fa_cartram.s26'));
 require_re($a4_fa_out,
    qr/^; hypothesis provenance: FA RAM-insns=0 RAM-ROM-sources=0 GRP-sources=1$/m,
    'A4 preserves ROM provenance through FA cartridge RAM write/read aliases into GRP0');
+
+
+my $g1_fa_multi_out = slurp(
+   File::Spec->catfile($out, 'g1_fa_multi_origin.s26'));
+require_re($g1_fa_multi_out,
+   qr/^; hypothesis provenance: FA RAM-insns=0 RAM-ROM-sources=0 GRP-sources=2$/m,
+   'G1 retains both feasible ROM origins through split FA cartridge RAM');
 
 my $multicart_out = slurp(File::Spec->catfile($out, 'multicart_4in1.s26'));
 require_re($multicart_out,

@@ -229,6 +229,14 @@ typedef enum {
 
 typedef uint32_t provenance_t;
 #define PROVENANCE_NONE 0u
+#define DISPLAY_PROVENANCE_CAP 4u
+
+typedef struct {
+   provenance_t source[DISPLAY_PROVENANCE_CAP];
+   uint8_t overflow;
+} display_provenance_t;
+
+#define ZP_DISPLAY_PROVENANCE_SLOTS 32u
 #define CART_PROVENANCE_SLOTS 32u
 
 typedef vcsc_mapper_config_t mapper_config_t;
@@ -257,9 +265,18 @@ typedef struct {
    provenance_t a_source;
    provenance_t x_source;
    provenance_t y_source;
+   /* G1 display provenance is a finite may-source set.  Core A4 provenance
+    * above remains single-source because generated-code reconstruction and
+    * mapper evidence require exact byte identity, while graphics discovery
+    * wants every feasible ROM origin that can reach a display sink. */
+   display_provenance_t a_display_source;
+   display_provenance_t x_display_source;
+   display_provenance_t y_display_source;
    uint8_t zp_known[ZERO_PAGE_KNOWN_BYTES];
    uint8_t zp_value[ZERO_PAGE_SIZE];
    provenance_t zp_source[ZERO_PAGE_SIZE];
+   uint16_t zp_display_key[ZP_DISPLAY_PROVENANCE_SLOTS];
+   display_provenance_t zp_display_source[ZP_DISPLAY_PROVENANCE_SLOTS];
    /* Sparse path-local cartridge-RAM provenance.  The key names a physical
     * mapper RAM byte, independent of its current read/write alias.  Zero key
     * means unused; source zero means that byte has no single known ROM source.
@@ -268,6 +285,10 @@ typedef struct {
     * state.  Overflow conservatively drops new provenance facts. */
    uint32_t cartram_key[CART_PROVENANCE_SLOTS];
    provenance_t cartram_source[CART_PROVENANCE_SLOTS];
+   /* Separate sparse may-source map so a merge may retain several display
+    * origins even after exact A4 cartridge-RAM provenance becomes unknown. */
+   uint32_t cartram_display_key[CART_PROVENANCE_SLOTS];
+   display_provenance_t cartram_display_source[CART_PROVENANCE_SLOTS];
 } abstract_state_t;
 
 typedef struct {
@@ -2904,20 +2925,142 @@ static int state_zp_is_known(const abstract_state_t *state, uint8_t address)
            (uint8_t)(1u << (address & 7u))) != 0;
 }
 
+static display_provenance_t display_provenance_none(void)
+{
+   display_provenance_t result;
+   memset(&result, 0, sizeof(result));
+   return result;
+}
+
+static display_provenance_t display_provenance_single(provenance_t source)
+{
+   display_provenance_t result = display_provenance_none();
+   if (source != PROVENANCE_NONE) result.source[0] = source;
+   return result;
+}
+
+static unsigned display_provenance_count(const display_provenance_t *p)
+{
+   unsigned i;
+   for (i = 0u; i < DISPLAY_PROVENANCE_CAP; ++i)
+      if (p->source[i] == PROVENANCE_NONE) break;
+   return i;
+}
+
+static int display_provenance_equal(const display_provenance_t *a,
+                                    const display_provenance_t *b)
+{
+   return memcmp(a, b, sizeof(*a)) == 0;
+}
+
+/* G1 uses a finite may-source set.  Keep the lowest physical source ids so
+ * union is deterministic regardless of traversal order.  Once more than the
+ * cap is observed, overflow records that the set is incomplete; retained
+ * members are still individually proven feasible origins. */
+static display_provenance_t display_provenance_union(display_provenance_t a,
+                                                       display_provenance_t b)
+{
+   unsigned bi;
+   a.overflow = (uint8_t)(a.overflow || b.overflow);
+   for (bi = 0u; bi < DISPLAY_PROVENANCE_CAP &&
+                 b.source[bi] != PROVENANCE_NONE; ++bi) {
+      provenance_t source = b.source[bi];
+      unsigned count = display_provenance_count(&a);
+      unsigned pos = 0u;
+      while (pos < count && a.source[pos] < source) ++pos;
+      if (pos < count && a.source[pos] == source) continue;
+      if (count < DISPLAY_PROVENANCE_CAP) {
+         unsigned j;
+         for (j = count; j > pos; --j) a.source[j] = a.source[j - 1u];
+         a.source[pos] = source;
+      }
+      else {
+         unsigned j;
+         a.overflow = 1u;
+         if (pos >= DISPLAY_PROVENANCE_CAP) continue;
+         for (j = DISPLAY_PROVENANCE_CAP - 1u; j > pos; --j)
+            a.source[j] = a.source[j - 1u];
+         a.source[pos] = source;
+      }
+   }
+   return a;
+}
+
+static int state_zp_display_find(const abstract_state_t *state, uint8_t address)
+{
+   unsigned i;
+   uint16_t key = (uint16_t)address + 1u;
+   for (i = 0u; i < ZP_DISPLAY_PROVENANCE_SLOTS; ++i)
+      if (state->zp_display_key[i] == key) return (int)i;
+   return -1;
+}
+
+static display_provenance_t state_zp_get_display_source(
+   const abstract_state_t *state, uint8_t address)
+{
+   int slot = state_zp_display_find(state, address);
+   return slot >= 0 ? state->zp_display_source[slot]
+                    : display_provenance_none();
+}
+
+static void state_zp_set_display_source(abstract_state_t *state, uint8_t address,
+                                        display_provenance_t source)
+{
+   unsigned i;
+   int slot = state_zp_display_find(state, address);
+   int empty = display_provenance_count(&source) == 0u && !source.overflow;
+   if (slot >= 0) {
+      if (empty) {
+         state->zp_display_key[slot] = 0u;
+         state->zp_display_source[slot] = display_provenance_none();
+      }
+      else state->zp_display_source[slot] = source;
+      return;
+   }
+   if (empty) return;
+   for (i = 0u; i < ZP_DISPLAY_PROVENANCE_SLOTS; ++i) {
+      if (state->zp_display_key[i] == 0u) {
+         state->zp_display_key[i] = (uint16_t)address + 1u;
+         state->zp_display_source[i] = source;
+         return;
+      }
+   }
+   /* Display provenance is optional presentation evidence.  If a path stages
+    * more distinct RIOT bytes than fit in the sparse map, dropping the newest
+    * fact is conservative and cannot invent a graphics source. */
+}
+
+static void state_zp_clear_display_range(abstract_state_t *state,
+                                         uint8_t first, uint8_t last)
+{
+   unsigned i;
+   for (i = 0u; i < ZP_DISPLAY_PROVENANCE_SLOTS; ++i) {
+      uint16_t key = state->zp_display_key[i];
+      uint8_t address;
+      if (key == 0u) continue;
+      address = (uint8_t)(key - 1u);
+      if (address < first || address > last) continue;
+      state->zp_display_key[i] = 0u;
+      state->zp_display_source[i] = display_provenance_none();
+   }
+}
+
 static void state_zp_set_known_source(abstract_state_t *state, uint8_t address,
                                       uint8_t value, provenance_t source)
 {
    state->zp_known[address >> 3] |= (uint8_t)(1u << (address & 7u));
    state->zp_value[address] = value;
    state->zp_source[address] = source;
+   state_zp_set_display_source(state, address,
+                               display_provenance_single(source));
 }
-
 
 static void state_zp_set_unknown(abstract_state_t *state, uint8_t address)
 {
    state->zp_known[address >> 3] &=
       (uint8_t)~(uint8_t)(1u << (address & 7u));
    state->zp_source[address] = PROVENANCE_NONE;
+   state_zp_set_display_source(state, address, display_provenance_none());
 }
 
 static int state_zp_get_source(const abstract_state_t *state, uint8_t address,
@@ -2992,8 +3135,60 @@ static void state_cartram_clear_sources(abstract_state_t *state)
    memset(state->cartram_source, 0, sizeof(state->cartram_source));
 }
 
-/* Meet two forward abstract states.  Knowledge only decreases at joins, so a
- * changed state is safe to re-run until the work list reaches a fixed point. */
+static int state_cartram_display_find(const abstract_state_t *state, uint32_t key)
+{
+   unsigned i;
+   if (key == 0u) return -1;
+   for (i = 0u; i < CART_PROVENANCE_SLOTS; ++i)
+      if (state->cartram_display_key[i] == key) return (int)i;
+   return -1;
+}
+
+static display_provenance_t state_cartram_get_display_source(
+   const abstract_state_t *state, uint32_t key)
+{
+   int slot = state_cartram_display_find(state, key);
+   return slot >= 0 ? state->cartram_display_source[slot]
+                    : display_provenance_none();
+}
+
+static void state_cartram_set_display_source(abstract_state_t *state, uint32_t key,
+                                             display_provenance_t source)
+{
+   unsigned i;
+   int slot;
+   if (key == 0u) return;
+   slot = state_cartram_display_find(state, key);
+   if (slot >= 0) {
+      if (display_provenance_count(&source) == 0u && !source.overflow) {
+         state->cartram_display_key[slot] = 0u;
+         state->cartram_display_source[slot] = display_provenance_none();
+      }
+      else state->cartram_display_source[slot] = source;
+      return;
+   }
+   if (display_provenance_count(&source) == 0u && !source.overflow) return;
+   for (i = 0u; i < CART_PROVENANCE_SLOTS; ++i) {
+      if (state->cartram_display_key[i] == 0u) {
+         state->cartram_display_key[i] = key;
+         state->cartram_display_source[i] = source;
+         return;
+      }
+   }
+   /* As with exact cartridge provenance, sparse-map overflow only loses
+    * optional graphics evidence; it must never invent a source. */
+}
+
+static void state_cartram_clear_display_sources(abstract_state_t *state)
+{
+   memset(state->cartram_display_key, 0, sizeof(state->cartram_display_key));
+   memset(state->cartram_display_source, 0, sizeof(state->cartram_display_source));
+}
+
+/* Meet two forward abstract states.  Concrete/exact facts only decrease at
+ * joins.  G1 display provenance is deliberately a finite may-source lattice,
+ * so those sets grow by union; both directions are finite and therefore safe
+ * to re-run to a fixed point. */
 static int state_merge(abstract_state_t *dst, const abstract_state_t *src)
 {
    unsigned address;
@@ -3024,17 +3219,53 @@ static int state_merge(abstract_state_t *dst, const abstract_state_t *src)
    MERGE_SOURCE(y);
 #undef MERGE_SOURCE
 
+#define MERGE_DISPLAY_SOURCE(name)                                             \
+   do {                                                                         \
+      display_provenance_t merged = display_provenance_union(                  \
+         dst->name##_display_source, src->name##_display_source);              \
+      if (!display_provenance_equal(&merged, &dst->name##_display_source)) {   \
+         dst->name##_display_source = merged;                                  \
+         changed = 1;                                                           \
+      }                                                                         \
+   } while (0)
+   MERGE_DISPLAY_SOURCE(a);
+   MERGE_DISPLAY_SOURCE(x);
+   MERGE_DISPLAY_SOURCE(y);
+#undef MERGE_DISPLAY_SOURCE
+
    for (address = 0; address < ZERO_PAGE_SIZE; ++address) {
       uint8_t zp = (uint8_t)address;
       if (state_zp_is_known(dst, zp) &&
           (!state_zp_is_known(src, zp) || dst->zp_value[zp] != src->zp_value[zp])) {
-         state_zp_set_unknown(dst, zp);
+         /* Exact-value/source facts meet downward, but G1 display provenance is
+          * merged separately below and must not be erased by this transition. */
+         dst->zp_known[zp >> 3] &=
+            (uint8_t)~(uint8_t)(1u << (zp & 7u));
+         dst->zp_source[zp] = PROVENANCE_NONE;
          changed = 1;
       }
       else if (dst->zp_source[zp] != PROVENANCE_NONE &&
                dst->zp_source[zp] != src->zp_source[zp]) {
          dst->zp_source[zp] = PROVENANCE_NONE;
          changed = 1;
+      }
+   }
+   /* RIOT display provenance is sparse because only a handful of RAM bytes
+    * normally stage display data.  Keeping it out of the dense 256-byte state
+    * avoids multiplying every CFG state by several kilobytes. */
+   for (address = 0u; address < ZP_DISPLAY_PROVENANCE_SLOTS; ++address) {
+      uint16_t key = src->zp_display_key[address];
+      uint8_t zp;
+      display_provenance_t incoming, current, merged;
+      if (key == 0u) continue;
+      zp = (uint8_t)(key - 1u);
+      incoming = src->zp_display_source[address];
+      current = state_zp_get_display_source(dst, zp);
+      merged = display_provenance_union(current, incoming);
+      if (!display_provenance_equal(&merged, &current)) {
+         int before = state_zp_display_find(dst, zp);
+         state_zp_set_display_source(dst, zp, merged);
+         if (before >= 0 || state_zp_display_find(dst, zp) >= 0) changed = 1;
       }
    }
    /* Sparse cartridge-RAM provenance uses the same meet: a source survives
@@ -3048,6 +3279,28 @@ static int state_merge(abstract_state_t *dst, const abstract_state_t *src)
           dst->cartram_source[address] != src->cartram_source[src_slot]) {
          dst->cartram_key[address] = 0u;
          dst->cartram_source[address] = PROVENANCE_NONE;
+         changed = 1;
+      }
+   }
+   /* G1 cartridge-RAM display provenance is a may-map: keep every sparse key
+    * seen on either incoming path and union its finite ROM-origin set. */
+   for (address = 0; address < CART_PROVENANCE_SLOTS; ++address) {
+      uint32_t key = src->cartram_display_key[address];
+      display_provenance_t incoming, merged;
+      int dst_slot;
+      if (key == 0u) continue;
+      incoming = src->cartram_display_source[address];
+      dst_slot = state_cartram_display_find(dst, key);
+      if (dst_slot < 0) {
+         state_cartram_set_display_source(dst, key, incoming);
+         if (state_cartram_display_find(dst, key) >= 0) changed = 1;
+         continue;
+      }
+      merged = display_provenance_union(dst->cartram_display_source[dst_slot],
+                                        incoming);
+      if (!display_provenance_equal(&merged,
+                                    &dst->cartram_display_source[dst_slot])) {
+         dst->cartram_display_source[dst_slot] = merged;
          changed = 1;
       }
    }
@@ -3920,6 +4173,43 @@ static provenance_t state_operand_provenance(const analysis_t *a, size_t bank,
    return provenance_rom_source(a, src_bank, src_off);
 }
 
+static display_provenance_t state_operand_display_provenance(
+   const analysis_t *a, size_t bank, mapper_config_t mapper_config,
+   const abstract_state_t *state, address_mode_t mode, uint16_t operand,
+   provenance_t immediate_source)
+{
+   uint16_t address;
+   uint8_t ram_address, value;
+   size_t src_bank, src_off;
+   uint16_t bus;
+   if (mode == AM_IMMEDIATE)
+      return display_provenance_single(immediate_source);
+   if (!resolve_effective_address(state, mode, operand, &address))
+      return display_provenance_none();
+   if (state_riot_ram_alias(address, &ram_address))
+      return state_zp_get_display_source(state, ram_address);
+   bus = (uint16_t)(address & 0x1fffu);
+   {
+      uint32_t ram_key;
+      if (cartram_provenance_key(a, mapper_config, address, 0, &ram_key))
+         return state_cartram_get_display_source(state, ram_key);
+   }
+   if (dpc_register_address(a, address) || fa_ram_address(a, address))
+      return display_provenance_none();
+   if (superchip_active(a) && bus >= 0x1080u && bus <= 0x10ffu)
+      return display_provenance_none();
+   if (a->mapper == MAP_E7 && e7_ram_port(a, mapper_config, address))
+      return display_provenance_none();
+   if (a->mapper == MAP_3E && threee_config_is_ram(mapper_config) &&
+       threee_ram_port(mapper_config, address))
+      return display_provenance_none();
+   if (a->mapper == MAP_GL && gl_intercepted_read(address))
+      return display_provenance_none();
+   if (!mapped_rom_byte(a, bank, mapper_config, address, &value, &src_bank, &src_off))
+      return display_provenance_none();
+   return display_provenance_single(provenance_rom_source(a, src_bank, src_off));
+}
+
 static int state_read_byte(const analysis_t *a, size_t bank,
                            const abstract_state_t *state, uint16_t address,
                            uint8_t *value)
@@ -3990,6 +4280,16 @@ static provenance_t known_store_provenance(uint8_t opcode,
    return PROVENANCE_NONE;
 }
 
+static display_provenance_t known_store_display_provenance(
+   uint8_t opcode, const abstract_state_t *state)
+{
+   const char *mnemonic = opcode_mnemonics[opcode];
+   if (strcmp(mnemonic, "STA") == 0) return state->a_display_source;
+   if (strcmp(mnemonic, "STX") == 0) return state->x_display_source;
+   if (strcmp(mnemonic, "STY") == 0) return state->y_display_source;
+   return display_provenance_none();
+}
+
 static void state_apply_memory_write(const analysis_t *a,
                                      mapper_config_t mapper_config,
                                      const abstract_state_t *input,
@@ -4011,7 +4311,9 @@ static void state_apply_memory_write(const analysis_t *a,
                 sizeof(output->zp_known) - (0x80u >> 3));
          memset(output->zp_source + 0x80u, 0,
                 (ZERO_PAGE_SIZE - 0x80u) * sizeof(output->zp_source[0]));
+         state_zp_clear_display_range(output, 0x80u, 0xffu);
          state_cartram_clear_sources(output);
+         state_cartram_clear_display_sources(output);
       }
       return;
    }
@@ -4020,27 +4322,42 @@ static void state_apply_memory_write(const analysis_t *a,
       uint32_t write_key;
       if (cartram_provenance_key(a, mapper_config, address, 1, &write_key)) {
          provenance_t source = known_store_provenance(opcode, input);
+         display_provenance_t display_source =
+            known_store_display_provenance(opcode, input);
          if (!(access & ACCESS_READ)) {
             state_cartram_set_source(output, write_key, source);
+            state_cartram_set_display_source(output, write_key, display_source);
             return;
          }
          else {
             uint32_t read_key;
             if (cartram_provenance_key(a, mapper_config, address, 0, &read_key) &&
-                read_key == write_key)
+                read_key == write_key) {
                state_cartram_set_source(output, write_key,
                                         state_cartram_get_source(input, read_key));
-            else
+               state_cartram_set_display_source(
+                  output, write_key, state_cartram_get_display_source(input, read_key));
+            }
+            else {
                state_cartram_set_source(output, write_key, PROVENANCE_NONE);
+               state_cartram_set_display_source(output, write_key,
+                                                 display_provenance_none());
+            }
             return;
          }
       }
       return;
    }
 
-   if (!(access & ACCESS_READ) && known_store_value(opcode, input, &value)) {
-      state_zp_set_known_source(output, ram_address, value,
-                                known_store_provenance(opcode, input));
+   if (!(access & ACCESS_READ)) {
+      display_provenance_t display_source =
+         known_store_display_provenance(opcode, input);
+      if (known_store_value(opcode, input, &value))
+         state_zp_set_known_source(output, ram_address, value,
+                                   known_store_provenance(opcode, input));
+      else
+         state_zp_set_unknown(output, ram_address);
+      state_zp_set_display_source(output, ram_address, display_source);
       return;
    }
 
@@ -4061,10 +4378,16 @@ static void state_apply_memory_write(const analysis_t *a,
       if (known) {
          state_zp_set_known_source(output, ram_address, value,
                                    input->zp_source[ram_address]);
+         state_zp_set_display_source(output, ram_address,
+                                     state_zp_get_display_source(input, ram_address));
          return;
       }
    }
-   state_zp_set_unknown(output, ram_address);
+   {
+      display_provenance_t display_source = state_zp_get_display_source(input, ram_address);
+      state_zp_set_unknown(output, ram_address);
+      state_zp_set_display_source(output, ram_address, display_source);
+   }
 }
 
 /* A8 presentation roles follow proven provenance as well as direct ROM reads.
@@ -4089,6 +4412,16 @@ static void provenance_mark_presentation_source(analysis_t *a,
          break;
       }
    }
+}
+
+static void provenance_mark_presentation_sources(analysis_t *a,
+                                                 display_provenance_t sources,
+                                                 int graphics)
+{
+   unsigned i;
+   for (i = 0u; i < DISPLAY_PROVENANCE_CAP &&
+                 sources.source[i] != PROVENANCE_NONE; ++i)
+      provenance_mark_presentation_source(a, sources.source[i], graphics);
 }
 
 static void provenance_mark_source(analysis_t *a, provenance_t source,
@@ -4123,6 +4456,8 @@ static void provenance_observe_write(analysis_t *a,
    uint16_t address, bus;
    unsigned reg;
    provenance_t source;
+   display_provenance_t display_sources;
+   int graphics;
    if (!(opcode_memory_access(opcode) & ACCESS_WRITE)) return;
    if (!resolve_effective_address(input, mode, operand, &address)) return;
    bus = (uint16_t)(address & 0x1fffu);
@@ -4130,14 +4465,27 @@ static void provenance_observe_write(analysis_t *a,
    reg = bus & 0x003fu;
    if (reg > 0x2cu) return;
    source = known_store_provenance(opcode, input);
-   /* A8: any proven ROM source consumed by a real TIA write is data-source
-    * evidence.  GRP0/GRP1 additionally retain the stronger graphics map used
-    * by sprite presentation and A6 display-source accounting. */
-   provenance_mark_presentation_source(a, source,
-                                       reg == 0x1bu || reg == 0x1cu);
-   if (reg == 0x1bu || reg == 0x1cu)
-      provenance_mark_source(a, source, a->provenance_grp_sources,
-                             &a->provenance_grp_source_count, 1);
+   display_sources = known_store_display_provenance(opcode, input);
+   graphics = (reg == 0x1bu || reg == 0x1cu ||
+               reg == 0x0du || reg == 0x0eu || reg == 0x0fu);
+   /* A8/G1: any proven ROM source consumed by a real TIA write is data-source
+    * evidence.  The finite display set retains alternate feasible ROM origins
+    * across joins; GRP0/GRP1 and PF0/PF1/PF2 additionally become graphics.
+    * Core single-source provenance remains the A6/mapper-accounting channel. */
+   provenance_mark_presentation_sources(a, display_sources, graphics);
+   if (reg == 0x1bu || reg == 0x1cu) {
+      unsigned i;
+      for (i = 0u; i < DISPLAY_PROVENANCE_CAP &&
+                    display_sources.source[i] != PROVENANCE_NONE; ++i)
+         provenance_mark_source(a, display_sources.source[i],
+                                a->provenance_grp_sources,
+                                &a->provenance_grp_source_count, 1);
+      /* Preserve historical single-source behavior when display provenance is
+       * absent (for example an older synthetic state). */
+      if (display_provenance_count(&display_sources) == 0u)
+         provenance_mark_source(a, source, a->provenance_grp_sources,
+                                &a->provenance_grp_source_count, 1);
+   }
 }
 
 static void state_riot_ram_set_all_unknown(abstract_state_t *state)
@@ -4148,7 +4496,8 @@ static void state_riot_ram_set_all_unknown(abstract_state_t *state)
 }
 
 static void state_stack_push_source(abstract_state_t *state, int value_known,
-                                    uint8_t value, provenance_t source)
+                                    uint8_t value, provenance_t source,
+                                    display_provenance_t display_source)
 {
    uint8_t ram_address;
    if (!state->sp_known) {
@@ -4158,6 +4507,7 @@ static void state_stack_push_source(abstract_state_t *state, int value_known,
    if (state_riot_ram_alias((uint16_t)(0x0100u | state->sp), &ram_address)) {
       if (value_known) state_zp_set_known_source(state, ram_address, value, source);
       else state_zp_set_unknown(state, ram_address);
+      state_zp_set_display_source(state, ram_address, display_source);
    }
    state->sp = (uint8_t)(state->sp - 1u);
 }
@@ -4165,28 +4515,33 @@ static void state_stack_push_source(abstract_state_t *state, int value_known,
 static void state_stack_push(abstract_state_t *state, int value_known,
                              uint8_t value)
 {
-   state_stack_push_source(state, value_known, value, PROVENANCE_NONE);
+   state_stack_push_source(state, value_known, value, PROVENANCE_NONE,
+                           display_provenance_none());
 }
 
 static int state_stack_pop_source(abstract_state_t *state, uint8_t *value,
-                                  provenance_t *source)
+                                  provenance_t *source,
+                                  display_provenance_t *display_source)
 {
    uint8_t ram_address;
    int known = 0;
    if (source) *source = PROVENANCE_NONE;
+   if (display_source) *display_source = display_provenance_none();
    if (!state->sp_known) {
       state_riot_ram_set_all_unknown(state);
       return 0;
    }
    state->sp = (uint8_t)(state->sp + 1u);
-   if (state_riot_ram_alias((uint16_t)(0x0100u | state->sp), &ram_address))
+   if (state_riot_ram_alias((uint16_t)(0x0100u | state->sp), &ram_address)) {
+      if (display_source) *display_source = state_zp_get_display_source(state, ram_address);
       known = state_zp_get_source(state, ram_address, value, source);
+   }
    return known;
 }
 
 static int state_stack_pop(abstract_state_t *state, uint8_t *value)
 {
-   return state_stack_pop_source(state, value, NULL);
+   return state_stack_pop_source(state, value, NULL, NULL);
 }
 
 static void state_set_nz(abstract_state_t *state, int known, uint8_t value)
@@ -4221,6 +4576,8 @@ static void transfer_state(const analysis_t *a, size_t bank,
    uint8_t value;
    provenance_t source = state_operand_provenance(a, bank, mapper_config, input,
                                                    mode, operand, immediate_source);
+   display_provenance_t display_source = state_operand_display_provenance(
+      a, bank, mapper_config, input, mode, operand, immediate_source);
    *output = *input;
    state_apply_memory_write(a, mapper_config, input, output, opcode, mode, operand);
 
@@ -4229,6 +4586,8 @@ static void transfer_state(const analysis_t *a, size_t bank,
    if (strncmp(m, "op", 2) == 0) {
       output->a_known = output->x_known = output->y_known = 0;
       output->a_source = output->x_source = output->y_source = PROVENANCE_NONE;
+      output->a_display_source = output->x_display_source =
+         output->y_display_source = display_provenance_none();
       output->carry_known = 0;
       output->zero_known = output->negative_known = output->overflow_known = 0;
       return;
@@ -4238,6 +4597,7 @@ static void transfer_state(const analysis_t *a, size_t bank,
 
    if (strcmp(m,"LDA") == 0) {
       output->a_source = source;
+      output->a_display_source = display_source;
       if (state_read_operand(a, bank, input, mode, operand, &value)) {
          output->a_known = 1; output->a = value;
          state_set_nz(output, 1, value);
@@ -4245,6 +4605,7 @@ static void transfer_state(const analysis_t *a, size_t bank,
    }
    else if (strcmp(m,"LDX") == 0) {
       output->x_source = source;
+      output->x_display_source = display_source;
       if (state_read_operand(a, bank, input, mode, operand, &value)) {
          output->x_known = 1; output->x = value;
          state_set_nz(output, 1, value);
@@ -4252,6 +4613,7 @@ static void transfer_state(const analysis_t *a, size_t bank,
    }
    else if (strcmp(m,"LDY") == 0) {
       output->y_source = source;
+      output->y_display_source = display_source;
       if (state_read_operand(a, bank, input, mode, operand, &value)) {
          output->y_known = 1; output->y = value;
          state_set_nz(output, 1, value);
@@ -4260,27 +4622,32 @@ static void transfer_state(const analysis_t *a, size_t bank,
    else if (strcmp(m,"TAX") == 0) {
       output->x_known = input->a_known; output->x = input->a;
       output->x_source = input->a_source;
+      output->x_display_source = input->a_display_source;
       state_set_nz(output, input->a_known, input->a);
    }
    else if (strcmp(m,"TAY") == 0) {
       output->y_known = input->a_known; output->y = input->a;
       output->y_source = input->a_source;
+      output->y_display_source = input->a_display_source;
       state_set_nz(output, input->a_known, input->a);
    }
    else if (strcmp(m,"TXA") == 0) {
       output->a_known = input->x_known; output->a = input->x;
       output->a_source = input->x_source;
+      output->a_display_source = input->x_display_source;
       state_set_nz(output, input->x_known, input->x);
    }
    else if (strcmp(m,"TYA") == 0) {
       output->a_known = input->y_known; output->a = input->y;
       output->a_source = input->y_source;
+      output->a_display_source = input->y_display_source;
       state_set_nz(output, input->y_known, input->y);
    }
    else if (strcmp(m,"TSX") == 0) {
       output->x_known = input->sp_known;
       output->x = input->sp;
       output->x_source = PROVENANCE_NONE;
+      output->x_display_source = display_provenance_none();
       state_set_nz(output, input->sp_known, input->sp);
    }
    else if (strcmp(m,"TXS") == 0) {
@@ -4288,7 +4655,8 @@ static void transfer_state(const analysis_t *a, size_t bank,
       output->sp = input->x;
    }
    else if (strcmp(m,"PHA") == 0) {
-      state_stack_push_source(output, input->a_known, input->a, input->a_source);
+      state_stack_push_source(output, input->a_known, input->a, input->a_source,
+                              input->a_display_source);
    }
    else if (strcmp(m,"PHP") == 0) {
       /* Branch-relevant status bits may be partially known, but unless all
@@ -4298,9 +4666,12 @@ static void transfer_state(const analysis_t *a, size_t bank,
    else if (strcmp(m,"PLA") == 0) {
       uint8_t popped = 0;
       provenance_t popped_source = PROVENANCE_NONE;
-      output->a_known = (uint8_t)state_stack_pop_source(output, &popped, &popped_source);
+      display_provenance_t popped_display = display_provenance_none();
+      output->a_known = (uint8_t)state_stack_pop_source(
+         output, &popped, &popped_source, &popped_display);
       output->a = popped;
       output->a_source = popped_source;
+      output->a_display_source = popped_display;
       state_set_nz(output, output->a_known, popped);
    }
    else if (strcmp(m,"INX") == 0) {
@@ -4344,6 +4715,8 @@ static void transfer_state(const analysis_t *a, size_t bank,
    else if (strcmp(m,"AND") == 0 || strcmp(m,"ORA") == 0 ||
             strcmp(m,"EOR") == 0) {
       output->a_source = provenance_combine(input->a_source, source);
+      output->a_display_source = display_provenance_union(
+         input->a_display_source, display_source);
       if (input->a_known && state_read_operand(a, bank, input, mode, operand, &value)) {
          output->a_known = 1;
          if (strcmp(m,"AND") == 0) output->a = (uint8_t)(input->a & value);
@@ -4355,6 +4728,8 @@ static void transfer_state(const analysis_t *a, size_t bank,
    }
    else if (strcmp(m,"ADC") == 0 || strcmp(m,"SBC") == 0) {
       output->a_source = provenance_combine(input->a_source, source);
+      output->a_display_source = display_provenance_union(
+         input->a_display_source, display_source);
       if (input->a_known && input->carry_known && input->decimal_known &&
           !input->decimal && state_read_operand(a, bank, input, mode, operand, &value)) {
          unsigned sum;

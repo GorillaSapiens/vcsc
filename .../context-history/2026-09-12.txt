@@ -99,3 +99,45 @@ intentional conservatism where UASW-vs-F8, duplicated-F8-vs-0FA0, or FE-vs-0FA0
 remain underdetermined by evidence VCSC can currently trust. Validation is complete: the compile-only gate passes 537/537 and the full e2e
 gate passes 365/365, including every disassembler-specific suite. Source-tree
 hygiene and context-history formatting pass after final documentation compaction.
+
+2026-09-12 13:03:31 PDT, split graphics-provenance roadmap
+Reviewed the Pitfall disassembly and current glyph detector. The missing object
+patterns are not primarily a bitmap-shape-recognition problem: the existing
+strong path favors direct/indexed ROM loads and a narrow low-byte-table pointer
+construction, while Pitfall-style object graphics flow through startup pointer
+block copies, split/inherited pointer bytes, selector/offset arithmetic, RIOT RAM
+staging, and later GRP writes.
+
+Decided this is too large for a safe one-shot change. Added G1-G5 at the front of
+`.../disassembler.txt`: finite multi-origin display provenance, indirect pointer
+recovery, loop-derived sprite heights, selector/offset-table family expansion,
+and presentation/real-corpus closeout. The planned GRP0/GRP1 annotation is
+`probable 8xN sprite`; do not use `player sprite`. Graphics provenance remains
+presentation evidence only and may not vote on mapper identity. No G1 code was
+started in this handoff.
+
+2026-09-12 13:44:31 PDT, disassembler graphics provenance G1 complete
+Implemented G1 finite multi-origin display provenance without starting G2. The
+selected-hypothesis abstract executor now keeps a bounded may-source set for
+A/X/Y and propagates it through deterministic register transfers/ALU operations,
+RIOT RAM, mapper cartridge RAM, and stack staging. At established TIA display
+writes, every feasible ROM origin in that set becomes presentation evidence;
+GRP0/GRP1 also contribute graphics provenance and PF0/PF1/PF2 contribute proven
+display-data provenance. The existing A4 exact single-source channel remains
+separate, so the broader G1 may-source facts cannot vote on mapper identity or
+weaken generated-code reconstruction.
+
+Added synthetic branch-merge regressions for both RIOT RAM and FA cartridge RAM.
+Each branch selects a different ROM byte, reconverges, stages through RAM, then
+reaches GRP0; both source bytes are recovered as graphics and the generated .s26
+round-trips byte-exactly. Existing register-transfer, masked-source, playfield,
+and provenance regressions remain green.
+
+The initial dense 256-entry RIOT display-source array made vcsc_disassembler.pl
+exceed the standard 45-second harness timeout. Reworked RIOT display provenance
+into a sparse per-state map (matching the existing cartridge-RAM provenance
+strategy) rather than weakening the timeout. The complete standalone disassembler
+regression then ran in 26.6 seconds. Validation on the optimized tree: full e2e
+passes 365/365, including vcsc_disassembler.pl under the normal watchdog; the
+final compile-only rerun also passes 537/537 on the optimized handoff tree. G2
+indirect-pointer recovery is the next item and was not started.
