@@ -30,3 +30,36 @@ direction. `vcsc_disassembler.pl` passes. The compile-only suite passes 537/537,
 and an uninterrupted full e2e run passes 365/365, including disassembler fuzz,
 GL, hardening, and opcode coverage. The mapper-hypothesis execution roadmap
 A1-A8 is complete; no post-A8 mapper work has begun.
+
+2026-09-12 09:16:10 PDT, post-A8 mapper mismatch corpus hardening
+Recovered and completed the interrupted 17-ROM Stella differential cleanup without
+starting the next mapper roadmap item. FC commit-only accesses no longer invent FC;
+CV/WD hypothetical RAM traffic requires independent family corroboration; JANE only
+gets mapper-specific credit for its exclusive selectors; established RESET execution
+no longer treats undefined TIA reads/writes as hard mapper contradictions. FC's
+multi-access staged protocol may break an execution tie, and FC is included in the
+explicit VCSC tail-signature recognizer.
+
+Added two conservative A7 boundaries found by the remaining corpus cases. CDF/CDFJ
+images matching the established CDF-family fingerprint are recognized as unsupported
+and preserved exact unknown/raw instead of falling through to F4/F0; this is quarantine,
+not CDF support, so roadmap item 26 remains open. Separately, when A5 hard-contradicts
+a detector-signed family but the sole surviving hypothesis has no independent selector,
+RAM, explicit/detector signature, switch-save, or complete-bank evidence, the result is
+unknown/raw rather than a weak last-survivor size/topology claim. Hard execution
+contradictions remain authoritative and the rejected detector is reported only as a
+conflicting static signal. Synthetic regressions pin both cases.
+
+The original 17-ROM mismatch corpus now round-trips 17/17 byte-exactly. Against the
+user-reported Stella mapper results it reports 7 matches, 0 mismatches, 10 unresolved.
+The former final mismatch was a 16K preservation image made from two identical 8K
+halves: VCSC intentionally reduces it to F8 while Stella reports physical-size F6.
+roundtrip.pl now normalizes exact repeated-half wrappers only for Stella's ordinary
+size-default F8/F6/F4/F0 families before comparison; exotic mapper names are untouched,
+and unknown/raw remains UNRESOLVED. The hardening suite pins duplicated 16K F6/F8
+normalization with a fake Stella.
+
+Validation: vcsc_disassembler.pl passes; vcsc_disassembler_hardening.pl passes; the
+full e2e gate passes 365/365 including fuzz, GL, hardening, and opcode suites; the
+compile-only gate passes 537/537. source_tree_hygiene.pl and context_history_format.pl
+passed before this entry and must be rerun after it before packaging.

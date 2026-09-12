@@ -395,14 +395,15 @@ my $a5_known_branch = make_rom(4096, 0xF000, 0x0100,
       0x02));          # impossible taken arm
 write_bin(File::Spec->catfile($in, 'a5_known_branch.bin'), $a5_known_branch);
 
-# Hard path rejection: execution cannot continue in TIA/RIOT hardware space,
-# cannot read a physically nonexistent TIA source, and cannot store into plain
-# cartridge ROM when no mapper/peripheral/RAM sink consumes the write.
+# Hard path rejection: execution cannot continue in non-executable hardware
+# space and cannot store into plain cartridge ROM when no mapper/peripheral/RAM
+# sink consumes the write.  An undefined TIA read is a legal bus cycle with an
+# unknown/open-bus-like value, so A5 must not kill an established RESET path.
 my $a5_bad_jump = make_rom(4096, 0xF000, 0x0100,
    pack('C*', 0x4C,0x00,0x20));  # $2000 aliases non-executable hardware space
 write_bin(File::Spec->catfile($in, 'a5_bad_jump.bin'), $a5_bad_jump);
 my $a5_bad_read = make_rom(4096, 0xF000, 0x0100,
-   pack('C*', 0xA5,0x3E,0x60));  # ordinary TIA read decode has no source at $3E
+   pack('C*', 0xA5,0x3E,0x60));  # undefined TIA read: legal bus cycle, unknown value
 write_bin(File::Spec->catfile($in, 'a5_bad_read.bin'), $a5_bad_read);
 my $a5_bad_write = make_rom(4096, 0xF000, 0x0100,
    pack('C*', 0x8D,0x00,0xF2,0x60)); # plain ROM has no write sink
@@ -1306,6 +1307,60 @@ for my $v (0, 2, 4) {
 }
 write_bin(File::Spec->catfile($in, 'fc.bin'), $fc);
 
+# A single read of FC's commit address is not evidence of the staged FC
+# protocol.  In a one-bank image it is observationally the same ROM read as
+# plain 4K and must not bootstrap FC from its own hypothetical decode.
+my $fc_commit_only = make_rom(4096, 0xF000, 0x0100,
+   "\xAD\xFC\x1F\x60");
+write_bin(File::Spec->catfile($in, 'fc_commit_only_4k.bin'), $fc_commit_only);
+
+# Likewise, CV must not prove itself merely by relabeling an ordinary 4K ROM
+# read as its split cartridge-RAM read port.  There is deliberately no CV tail
+# or Stella-style indexed-store signature here.
+my $cv_uncorroborated_ram = make_rom(4096, 0xF000, 0x0900,
+   "\xAD\x00\xF2\x60");
+write_bin(File::Spec->catfile($in, 'cv_uncorroborated_ram.bin'),
+   $cv_uncorroborated_ram);
+
+# CDF/CDFJ is not implemented yet.  Stella's established detector uses three
+# occurrences of "CDF" for the family; a supported 32K fallback must therefore
+# quarantine this image as unknown/raw rather than manufacture F4 code from it.
+my $unsupported_cdf = make_rom(32768, 0xF000, 0x0100,
+   "\x4C\x00\xF1");
+substr($unsupported_cdf, 0x0300, 9, 'CDFCDFCDF');
+write_bin(File::Spec->catfile($in, 'unsupported_cdf.bin'), $unsupported_cdf);
+
+# A7 conflict regression.  F4 has one A5-live startup state but no F4 selector,
+# signature, or complete bank accounting.  The fixed-final-bank 3E/3F models
+# both halt immediately from RESET, while unreachable bytes still carry the
+# established 3E detector signature (STA $3E plus two STA $3F).  Hard execution
+# contradictions remain hard, but the weak lone F4 survivor must not become a
+# confident size fallback in the face of that independent conflicting signal.
+my $detector_conflict = chr(0xEA) x 32768;
+for my $b (0 .. 7) {
+   my $base = $b * 4096;
+   for my $j (0 .. 31) {
+      substr($detector_conflict, $base + 0x0200 + $j, 1,
+         chr(($b * 37 + $j * 11) & 0xff));
+   }
+   if ($b == 7) {
+      substr($detector_conflict, $base + 0x0100, 3, "\x4C\x00\xF1");
+      put16(\$detector_conflict, $base + 0x0FFA, 0xF100);
+      put16(\$detector_conflict, $base + 0x0FFC, 0xF100);
+      put16(\$detector_conflict, $base + 0x0FFE, 0xF100);
+   }
+   else {
+      put16(\$detector_conflict, $base + 0x0FFA, 0x0000);
+      put16(\$detector_conflict, $base + 0x0FFC, 0x0000);
+      put16(\$detector_conflict, $base + 0x0FFE, 0x0000);
+   }
+}
+substr($detector_conflict, 0x0100, 1, "\x02"); # 3E/3F RESET lower-bank path halts
+substr($detector_conflict, 0x1300, 6,
+   "\x85\x3E\x85\x3F\x85\x3F");
+write_bin(File::Spec->catfile($in, 'detector_conflict_raw.bin'),
+   $detector_conflict);
+
 # All eight conditional branches, each in both same-page and cross-page cases.
 my @branch_ops = (0x10, 0x30, 0x50, 0x70, 0x90, 0xB0, 0xD0, 0xF0);
 my $branch = chr(0xEA) x 4096;
@@ -2075,7 +2130,6 @@ write_bin(File::Spec->catfile($in, 'ar_multi.bin'), $ar_multi);
 my %a7_hard_failure = map { $_ => 1 } qw(
    a5_all_jam_arms.bin
    a5_bad_jump.bin
-   a5_bad_read.bin
    a5_bad_write.bin
    a5_jsr_ram_bad_return.bin
    cv_rmw_read.bin
@@ -2083,7 +2137,6 @@ my %a7_hard_failure = map { $_ => 1 } qw(
    e7_rmw.bin
    fa_rmw_read.bin
    fa_rmw_write.bin
-   hardware.bin
    plain4k_sc_rmw_only.bin
    plain4k_sc_rmw_read_conflict.bin
    plain4k_sc_rmw_write_conflict.bin
@@ -2211,8 +2264,8 @@ require_re($a5_bad_jump_out,
    'A5 rejects transfer into non-cart non-RAM hardware space');
 my $a5_bad_read_out = slurp(File::Spec->catfile($out, 'a5_bad_read.s26'));
 require_re($a5_bad_read_out,
-   qr/^; hypothesis viability: unbanked 4K live=0 dead=1 weak=0 invalid-targets=0 invalid-bus=1 halt-paths=0$/m,
-   'A5 rejects a read with no physical TIA/RIOT source');
+   qr/^; hypothesis viability: unbanked 4K live=1 dead=0 weak=0 invalid-targets=0 invalid-bus=0 halt-paths=0$/m,
+   'A5 keeps RESET viable across an undefined TIA read whose bus value is unknown');
 my $a5_bad_write_out = slurp(File::Spec->catfile($out, 'a5_bad_write.s26'));
 require_re($a5_bad_write_out,
    qr/^; hypothesis viability: unbanked 4K live=0 dead=1 weak=0 invalid-targets=0 invalid-bus=1 halt-paths=0$/m,
@@ -2797,6 +2850,45 @@ require_re($fc_out, qr/^B6_F10E:/m,
    'FC read commit continues in staged bank 6 before old-bank JAM');
 require_re($fc_out, qr/^B3_F116:/m,
    'FC write commit continues in staged bank 3 before old-bank JAM');
+
+my $fc_commit_only_out = slurp(File::Spec->catfile($out, 'fc_commit_only_4k.s26'));
+require_re($fc_commit_only_out, qr/^; mapper: unbanked 4K \(/m,
+   'FC commit-only overlap does not manufacture an FC mapper');
+require_re($fc_commit_only_out,
+   qr/^; mapper evidence: mapper identity remains ambiguous between plain 4K and one-bank FC; observed mapping is equivalent,/m,
+   'FC commit-only overlap keeps equivalent plain-4K presentation');
+die "FC commit-only overlap was promoted as mapper-specific evidence\n"
+   if $fc_commit_only_out =~ /^;   FC: .*mapper-specific selector/m;
+
+my $cv_uncorroborated_out = slurp(File::Spec->catfile($out, 'cv_uncorroborated_ram.s26'));
+die "uncorroborated CV RAM interpretation selected CV\n"
+   if $cv_uncorroborated_out =~ /^; mapper: CV\b/m;
+require_re($cv_uncorroborated_out,
+   qr/^;   CV: survives; .*direction-correct cartridge-RAM access/m,
+   'CV hypothetical RAM traffic remains visible diagnostically');
+die "uncorroborated CV RAM traffic was promoted as decisive A7 evidence\n"
+   if $cv_uncorroborated_out =~ /^; mapper evidence: CV selected/m;
+
+my $unsupported_cdf_out = slurp(File::Spec->catfile($out, 'unsupported_cdf.s26'));
+require_re($unsupported_cdf_out, qr/^; mapper: unknown\/raw \(unknown confidence;/m,
+   'recognized unsupported CDF-family image uses exact raw presentation');
+require_re($unsupported_cdf_out,
+   qr/^; mapper evidence: recognized unsupported CDF\/CDFJ-family fingerprint; preserving exact bytes as unknown\/raw pending CDF-family support$/m,
+   'CDF-family quarantine is explicit rather than a fake F4 inference');
+die "unsupported CDF-family fixture was mislabeled as F4\n"
+   if $unsupported_cdf_out =~ /^; mapper: F4/m;
+
+my $detector_conflict_out = slurp(File::Spec->catfile($out, 'detector_conflict_raw.s26'));
+require_re($detector_conflict_out, qr/^; mapper: unknown\/raw \(unknown confidence;/m,
+   'contradictory detector evidence blocks unsupported F4 last-survivor promotion');
+require_re($detector_conflict_out,
+   qr/^; mapper evidence: lone A5 survivor has no independent mapper evidence while a contradicted alternative has an established family signature; using exact unknown\/raw presentation$/m,
+   'A7 reports the execution-vs-detector conflict explicitly');
+require_re($detector_conflict_out,
+   qr/^;   3E: contradicted; .*established mapper detector signature is present but does not override the contradiction$/m,
+   '3E static signature remains diagnostic evidence without overruling A5');
+die "detector conflict incorrectly promoted the weak F4 survivor\n"
+   if $detector_conflict_out =~ /^; mapper: F4/m;
 
 my $vector_interior_out = slurp(File::Spec->catfile($out, 'vector_interior.s26'));
 require_re($vector_interior_out,

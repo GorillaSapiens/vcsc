@@ -102,7 +102,8 @@ typedef enum {
    MAPPER_REJECT_A7_HARD_CONTRADICTION,
    MAPPER_REJECT_A7_WEAKER_SEMANTIC,
    MAPPER_REJECT_A7_BANK_INCOMPLETE,
-   MAPPER_REJECT_A7_WEAKER_SIGNATURE
+   MAPPER_REJECT_A7_WEAKER_SIGNATURE,
+   MAPPER_REJECT_A7_UNSUPPORTED_FORMAT
 } mapper_reject_reason_t;
 
 typedef enum {
@@ -116,6 +117,8 @@ typedef enum {
    MAPPER_SELECTION_A7_POSITIVE_EVIDENCE,
    MAPPER_SELECTION_A7_DETECTOR_PRIOR,
    MAPPER_SELECTION_A7_AMBIGUOUS_RAW,
+   MAPPER_SELECTION_A7_CONFLICT_RAW,
+   MAPPER_SELECTION_A7_UNSUPPORTED_RAW,
    MAPPER_SELECTION_A7_NIN1,
    MAPPER_SELECTION_A7_EQUIVALENT_PRESENTATION
 } mapper_selection_reason_t;
@@ -1341,6 +1344,21 @@ static int count_signature(const uint8_t *rom, size_t size, const uint8_t *sig, 
    for (i = 0; i + siglen <= size; ++i)
       if (memcmp(rom + i, sig, siglen) == 0) ++count;
    return count;
+}
+
+/* CDF/CDFJ/CDFJ+ are ARM-assisted cartridge formats that vcsc-disas does not
+ * model yet.  Recognize Stella's established family fingerprint so a supported
+ * 32K/64K/... fallback such as F4/F0 cannot masquerade as a successful decode.
+ * This is a quarantine only; it deliberately does not claim CDF support. */
+static int has_unsupported_cdf_family_signature(const uint8_t *rom, size_t size)
+{
+   static const uint8_t cdf[] = { 'C', 'D', 'F' };
+   static const uint8_t cdfjplus[] = { 'P', 'L', 'U', 'S', 'C', 'D', 'F', 'J' };
+   if (size != 32768u && size != 65536u && size != 131072u &&
+       size != 262144u && size != 524288u)
+      return 0;
+   return count_signature(rom, size, cdf, sizeof(cdf)) >= 3 ||
+          count_signature(rom, size, cdfjplus, sizeof(cdfjplus)) != 0;
 }
 
 static int is_probably_e0(const uint8_t *rom, size_t size)
@@ -6019,9 +6037,10 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
       int broad_selector_no_switch = 0;
       int broad_selector_ambiguous = 0;
       int switched = 0;
+      int switched_specific = 0;
       int wd_switched = 0;
       uint8_t wd_successor_config = (uint8_t)mapper_config;
-      int fc_changed = 0, fc_commit = 0, fc_value_known = 0;
+      int fc_changed = 0, fc_specific = 0, fc_commit = 0, fc_value_known = 0;
       uint16_t fc_successor_config;
       int e0_switched = 0;
       uint16_t e0_successor_config;
@@ -6143,7 +6162,17 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
       if (fc_instruction_transition(a, &item.state, opcode, mode, operand,
                                     mapper_config, &fc_successor_config,
                                     &fc_commit, &fc_value_known)) {
+         uint16_t fc_effective;
          fc_changed = 1;
+         /* A bare access to $1FFC is observationally just an ordinary ROM
+          * access until an FC target has been staged.  Only the write-side
+          * staging registers are independently FC-specific here; the full
+          * staged protocol is also recognized by the detector signature. */
+         if ((opcode_memory_access(opcode) & ACCESS_WRITE) &&
+             resolve_effective_address(&item.state, mode, operand, &fc_effective)) {
+            uint16_t fc_bus = (uint16_t)(fc_effective & 0x1fffu);
+            fc_specific = fc_bus == 0x1ff8u || fc_bus == 0x1ff9u;
+         }
          if (ctx->counted) ++ctx->mapper_switches;
       }
       else if (flow == FLOW_NEXT && a->mapper == MAP_E0 &&
@@ -6207,7 +6236,18 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
                 instruction_selector_bank(a, &item.state, opcode, mode, operand,
                                           &successor_bank)) &&
                successor_bank < a->bank_count) {
+         uint16_t selector_effective;
          switched = 1;
+         switched_specific = mapper_has_precise_selector_edges(a->mapper);
+         /* JANE overlaps ordinary F6 at $1FF8/$1FF9.  Those two addresses
+          * cannot prove JANE merely because the JANE hypothesis interprets
+          * them that way; only JANE's exclusive $1FF0/$1FF1 selectors are
+          * execution-local family evidence. */
+         if (switched_specific && a->mapper == MAP_JANE &&
+             resolve_effective_address(&item.state, mode, operand, &selector_effective)) {
+            uint16_t selector_bus = (uint16_t)(selector_effective & 0x1fffu);
+            switched_specific = selector_bus == 0x1ff0u || selector_bus == 0x1ff1u;
+         }
          if (ctx->counted) ++ctx->mapper_switches;
       }
 
@@ -6222,9 +6262,9 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
        * SPEC_MAPPER_EVIDENCE_BANK_CHANGE below.  Conflating the two made a
        * canonical F8 LDA $1FF8 disappear as evidence whenever bank 0 was
        * already active. */
-      if ((switched && mapper_has_precise_selector_edges(a->mapper)) ||
+      if ((switched && switched_specific) ||
           (wd_switched && wd_successor_config != (uint8_t)mapper_config) ||
-          fc_changed ||
+          fc_specific ||
           (e0_switched && mode == AM_ABSOLUTE &&
            e0_successor_config != mapper_config) ||
           (e7_switched && e7_specific) ||
@@ -6251,19 +6291,23 @@ static spec_result_t speculative_flow_ctx(const analysis_t *a, size_t start_bank
             unsigned access = opcode_memory_access(opcode);
             spec_hw_class_t hc = speculative_hardware_access(
                effective, access);
-            if (hc == SPEC_HW_INVALID) {
+            if (hc == SPEC_HW_INVALID && !ctx->hypothesis_viability) {
                ctx->hit_invalid_hardware = 1;
                fp.states[si].kind = SPEC_NODE_DEAD;
                continue;
             }
-            if ((access & ACCESS_READ) &&
+            /* Undefined TIA reads are open-bus-like and writes are harmless
+             * no-ops on real hardware.  They remain useful negative evidence
+             * for detached-island discovery, but are not a hard contradiction
+             * when reached from an established RESET hypothesis. */
+            if ((access & ACCESS_READ) && hc != SPEC_HW_INVALID &&
                 !speculative_nonmapper_read_source(a, bi, mapper_config, 1,
                                                    effective)) {
                ctx->hit_invalid_hardware = 1;
                fp.states[si].kind = SPEC_NODE_DEAD;
                continue;
             }
-            if ((access & ACCESS_WRITE) &&
+            if ((access & ACCESS_WRITE) && hc != SPEC_HW_INVALID &&
                 !speculative_nonmapper_write_sink(a, mapper_config, 1,
                                                   effective)) {
                ctx->hit_invalid_hardware = 1;
@@ -9084,6 +9128,7 @@ static int mapper_detector_signature(const uint8_t *rom, size_t size,
                                      mapper_t mapper)
 {
    switch (mapper) {
+   case MAP_CV: return is_probably_cv(rom, size);
    case MAP_E0: return is_probably_e0(rom, size);
    case MAP_E7: return is_probably_e7(rom, size);
    case MAP_3E: return is_probably_3e(rom, size);
@@ -10011,6 +10056,69 @@ static int mapper_a7_specific_semantics(const mapper_hypothesis_t *h)
           h->generated_mapper_selectors != 0u;
 }
 
+/* Some detector signatures encode a multi-access hardware protocol rather
+ * than a loose byte coincidence.  FC's staged $1FF8/$1FF9/$1FFC sequence is
+ * such a signature and must outrank an overlapping F4/F8 interpretation of
+ * the same addresses once both hypotheses have survived A5. */
+static int mapper_a7_strong_protocol_signature(const mapper_hypothesis_t *h)
+{
+   return h->kind == MAPPER_HYPOTHESIS_CART &&
+          h->mapper == MAP_FC && h->detector_signature;
+}
+
+/* CV and WD overlay ordinary cartridge/TIA address space with mapper-owned
+ * RAM.  Direction-correct traffic under those hypothetical models is not
+ * independent evidence by itself: otherwise the model can prove itself by
+ * relabeling an ordinary access as RAM.  Their established static signatures
+ * provide the independent corroboration needed before RAM traffic gets an A7
+ * vote. */
+static int mapper_a7_cart_ram_semantics(const mapper_hypothesis_t *h)
+{
+   if (h->state_space_cart_ram_accesses == 0u) return 0;
+   if (h->kind != MAPPER_HYPOTHESIS_CART) return 1;
+   if (h->mapper == MAP_CV || h->mapper == MAP_WD)
+      return h->detector_signature || h->explicit_signature;
+   return 1;
+}
+
+/* Positive evidence must come from the surviving mapper itself.  Merely being
+ * the last A5-live size topology is not affirmative mapper evidence, especially
+ * when a rejected alternative still carries a well-established family
+ * fingerprint. */
+static int mapper_a7_has_independent_positive_evidence(const mapper_hypothesis_t *h)
+{
+   return h->state_space_switch_saves != 0u ||
+          mapper_a7_specific_semantics(h) ||
+          mapper_a7_cart_ram_semantics(h) ||
+          h->bank_account_complete ||
+          h->explicit_signature ||
+          h->detector_signature;
+}
+
+static int mapper_a7_has_rejected_detector_conflict(const mapper_refinement_t *detail)
+{
+   size_t i;
+   for (i = 0u; i < detail->hypothesis_count; ++i) {
+      const mapper_hypothesis_t *h = &detail->hypotheses[i];
+      if (!h->viable && h->state_space_evaluated && h->detector_signature &&
+          h->reject_reason == MAPPER_REJECT_A7_HARD_CONTRADICTION)
+         return 1;
+   }
+   return 0;
+}
+
+static mapper_hypothesis_t *mapper_a7_unique_survivor(mapper_refinement_t *detail)
+{
+   mapper_hypothesis_t *only = NULL;
+   size_t i;
+   for (i = 0u; i < detail->hypothesis_count; ++i) {
+      if (!detail->hypotheses[i].viable) continue;
+      if (only) return NULL;
+      only = &detail->hypotheses[i];
+   }
+   return only;
+}
+
 static int mapper_a7_clean_reset(const mapper_hypothesis_t *h)
 {
    return h->state_space_startup_states != 0u &&
@@ -10046,9 +10154,6 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
    mapper_hypothesis_t *h = detail->hypotheses;
    size_t i, survivors;
    int any;
-   (void)rom;
-   (void)size;
-
    detail->legacy = legacy;
    detail->winner = legacy;
    detail->winner_kind = MAPPER_HYPOTHESIS_CART;
@@ -10073,6 +10178,24 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
       h[i].viable = 1;
    }
 
+   /* Known ARM-assisted CDF-family images are outside the current execution
+    * model.  Do not let one coincidentally executable supported hypothesis turn
+    * an unsupported cartridge into a confident F4/F0/etc. declaration. */
+   if (has_unsupported_cdf_family_signature(rom, size)) {
+      for (i = 0u; i < detail->hypothesis_count; ++i) {
+         if (!h[i].viable) continue;
+         h[i].viable = 0;
+         h[i].reject_reason = MAPPER_REJECT_A7_UNSUPPORTED_FORMAT;
+      }
+      detail->winner = MAP_RAW;
+      detail->winner_kind = MAPPER_HYPOTHESIS_CART;
+      detail->winner_games = 0u;
+      detail->survived = 0u;
+      detail->selection_reason = MAPPER_SELECTION_A7_UNSUPPORTED_RAW;
+      detail->refined = legacy != MAP_RAW;
+      return MAP_RAW;
+   }
+
    survivors = mapper_a7_survivor_count(detail);
    if (survivors == 0u) {
       detail->winner = MAP_RAW;
@@ -10080,8 +10203,41 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
       detail->refined = legacy != MAP_RAW;
       return MAP_RAW;
    }
-   if (survivors == 1u)
+   if (survivors == 1u) {
+      mapper_hypothesis_t *only = mapper_a7_unique_survivor(detail);
+      /* A hard contradiction still removes a mapper.  But when that rejected
+       * mapper carries an established family signature and the lone survivor
+       * has no independent mapper evidence of its own, "last one standing" is
+       * not enough to turn a conflicting image into a confident size fallback. */
+      if (only && !mapper_a7_has_independent_positive_evidence(only) &&
+          mapper_a7_has_rejected_detector_conflict(detail)) {
+         detail->winner = MAP_RAW;
+         detail->winner_kind = MAPPER_HYPOTHESIS_CART;
+         detail->winner_games = 0u;
+         detail->survived = 1u;
+         detail->selection_reason = MAPPER_SELECTION_A7_CONFLICT_RAW;
+         detail->refined = 1;
+         return MAP_RAW;
+      }
       return mapper_a7_finish_unique(detail, MAPPER_SELECTION_SINGLE_VIABLE, legacy);
+   }
+
+   /* A distinctive multi-access protocol signature is independent evidence,
+    * unlike a candidate model reinterpreting a single overlapping hotspot. */
+   any = 0;
+   for (i = 0u; i < detail->hypothesis_count; ++i)
+      if (h[i].viable && mapper_a7_strong_protocol_signature(&h[i])) any = 1;
+   if (any) {
+      for (i = 0u; i < detail->hypothesis_count; ++i)
+         if (h[i].viable && !mapper_a7_strong_protocol_signature(&h[i])) {
+            h[i].viable = 0;
+            h[i].reject_reason = MAPPER_REJECT_A7_WEAKER_SIGNATURE;
+         }
+      survivors = mapper_a7_survivor_count(detail);
+      if (survivors == 1u)
+         return mapper_a7_finish_unique(detail, MAPPER_SELECTION_A7_DETECTOR_PRIOR,
+                                        legacy);
+   }
 
    /* A switch that makes a coherent non-HLT continuation possible is the
     * strongest execution-local discriminator we currently have. */
@@ -10125,10 +10281,10 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
     * accesses as RAM. */
    any = 0;
    for (i = 0u; i < detail->hypothesis_count; ++i)
-      if (h[i].viable && h[i].state_space_cart_ram_accesses != 0u) any = 1;
+      if (h[i].viable && mapper_a7_cart_ram_semantics(&h[i])) any = 1;
    if (any) {
       for (i = 0u; i < detail->hypothesis_count; ++i)
-         if (h[i].viable && h[i].state_space_cart_ram_accesses == 0u) {
+         if (h[i].viable && !mapper_a7_cart_ram_semantics(&h[i])) {
             h[i].viable = 0;
             h[i].reject_reason = MAPPER_REJECT_A7_WEAKER_SEMANTIC;
          }
@@ -10257,7 +10413,7 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
                   h[i].bank_count == 1u)
             fc = &h[i];
       }
-      if (plain && fc && fc->state_space_mapper_accesses == 0u &&
+      if (plain && fc && fc->state_space_specific_selectors == 0u &&
           fc->generated_mapper_selectors == 0u &&
           fc->state_space_cart_ram_accesses == 0u) {
          detail->winner = MAP_4K;
@@ -12527,9 +12683,11 @@ static void emit_mapper_hypothesis_evidence(FILE *fp,
    const char *selector = h->kind == MAPPER_HYPOTHESIS_CART
                           ? mapper_precise_selector_description(h->mapper) : NULL;
    int hard = h->reject_reason == MAPPER_REJECT_A7_HARD_CONTRADICTION;
+   int unsupported = h->reject_reason == MAPPER_REJECT_A7_UNSUPPORTED_FORMAT;
    fputs(";   ", fp);
    emit_mapper_hypothesis_name(fp, h);
-   fprintf(fp, ": %s", h->viable ? "survives" : (hard ? "contradicted" : "outcompeted"));
+   fprintf(fp, ": %s", h->viable ? "survives" :
+           (hard ? "contradicted" : (unsupported ? "suppressed" : "outcompeted")));
    if (h->viable) {
       int said = 0;
       if (h->state_space_switch_saves != 0u) {
@@ -12594,6 +12752,8 @@ static void emit_mapper_hypothesis_evidence(FILE *fp,
                  h->state_space_invalid_target_paths,
                  h->state_space_invalid_hardware_paths,
                  h->state_space_halt_paths);
+         if (h->detector_signature)
+            fputs("; established mapper detector signature is present but does not override the contradiction", fp);
          break;
       case MAPPER_REJECT_A7_WEAKER_SEMANTIC:
          fprintf(fp, "; another viable hypothesis has stronger mapper-specific execution evidence");
@@ -12603,6 +12763,9 @@ static void emit_mapper_hypothesis_evidence(FILE *fp,
          break;
       case MAPPER_REJECT_A7_WEAKER_SIGNATURE:
          fprintf(fp, "; lost only after execution evidence tied and a stronger static/signature prior remained");
+         break;
+      case MAPPER_REJECT_A7_UNSUPPORTED_FORMAT:
+         fprintf(fp, "; supported mapper model suppressed by recognized unsupported CDF-family format");
          break;
       case MAPPER_REJECT_INIT_FAILED:
          fprintf(fp, "; mapper model could not be initialized");
@@ -12759,6 +12922,12 @@ static void emit_mapper_refinement_evidence(FILE *fp, const analysis_t *a)
    case MAPPER_SELECTION_A7_AMBIGUOUS_RAW:
       fprintf(fp, "; mapper evidence: %zu hypotheses remain genuinely ambiguous; using exact unknown/raw presentation (no size/default tie-break)\n",
               r->survived);
+      break;
+   case MAPPER_SELECTION_A7_CONFLICT_RAW:
+      fputs("; mapper evidence: lone A5 survivor has no independent mapper evidence while a contradicted alternative has an established family signature; using exact unknown/raw presentation\n", fp);
+      break;
+   case MAPPER_SELECTION_A7_UNSUPPORTED_RAW:
+      fputs("; mapper evidence: recognized unsupported CDF/CDFJ-family fingerprint; preserving exact bytes as unknown/raw pending CDF-family support\n", fp);
       break;
    case MAPPER_SELECTION_NO_VIABLE_RAW:
       fputs("; mapper evidence: every executable mapper hypothesis has a hard contradiction; using unknown/raw pending the normal zero-code failure check\n", fp);
@@ -14132,7 +14301,11 @@ int main(int argc, char **argv)
    }
    if (established_instruction_count(&analysis) == 0u && !is_multicart &&
        analysis.mapper_refinement.selection_reason !=
-          MAPPER_SELECTION_A7_AMBIGUOUS_RAW) {
+          MAPPER_SELECTION_A7_AMBIGUOUS_RAW &&
+       analysis.mapper_refinement.selection_reason !=
+          MAPPER_SELECTION_A7_CONFLICT_RAW &&
+       analysis.mapper_refinement.selection_reason !=
+          MAPPER_SELECTION_A7_UNSUPPORTED_RAW) {
       fprintf(stderr, "%s: no established instructions found; refusing speculative-only disassembly\n",
               opt.input);
       free_analysis(&analysis);

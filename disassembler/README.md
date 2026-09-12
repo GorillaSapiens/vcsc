@@ -370,7 +370,10 @@ family but cannot suppress another mapper that has already demonstrated a real
 bank-changing edge through a narrow cartridge selector (for example F8 $1FF8/$1FF9).
 Deliberate VCSC mapper signatures and legacy raw-byte detector patterns are
 tie-break evidence, not a reason to override contradictory executable control
-flow. Dynamic/unresolved control-exit counts are likewise **not** ranked across
+flow. One narrow exception is an established multi-access protocol signature:
+FC's staged `$1FF8/$1FF9/$1FFC` detector is independent evidence for FC after
+A5 viability, whereas a lone `$1FFC` access is only an ordinary overlapping ROM
+access and cannot bootstrap FC. Dynamic/unresolved control-exit counts are likewise **not** ranked across
 mapper hypotheses: a wrong mapping can appear artificially cleaner simply by
 truncating the reachable graph. If viable models remain genuinely ambiguous,
 the normal size/signature inference is preserved rather than rewarding the
@@ -409,12 +412,18 @@ supports Stella's 4096-byte CV preservation form: the final 2K are the actual RO
 the first 1K seeds cartridge RAM, and the intervening 1K is preserved storage.
 A byte-identical doubled 2K CV dump is handled by the same 4K storage path. Both
 forms are emitted so the complete original input round-trips byte-for-byte.
+Direction-correct traffic in the hypothetical CV RAM window is not, by itself,
+automatic-CV evidence: ordinary ROM traffic can occupy the same addresses, so
+RAM semantics get an A7 vote only after an independent CV signature establishes
+the family.
 FA2 is the Harmony extension of the same split-RAM idea. VCSC supports clean native 24K (six-bank) and 28K (seven-bank) payloads: `$1FF5-$1FFA` and optional `$1FFB` directly select 4K banks, bank 0 powers up, and the 256-byte RAM ports remain write `$1000-$10FF` / read `$1100-$11FF`. `--mapper fa2` accepts those native payload sizes. The optional Harmony `$1FF4` flash-persistence service and 29K/32K wrapper forms are not part of the core VCSC FA2 output contract.
 
 
 JANE is a 16K four-bank layout with selectors `$1FF0`, `$1FF1`, `$1FF8`, and
 `$1FF9` selecting physical/file banks 0, 1, 2, and 3. Physical bank 1 is the
-hardware power-on bank. `vcsc-disas` recognizes either VCSC's `JANE` tail
+hardware power-on bank. `$1FF8/$1FF9` overlap ordinary F6 selectors, so observing
+only those addresses does not independently prove JANE; `$1FF0/$1FF1` are the
+exclusive execution-local selectors. `vcsc-disas` recognizes either VCSC's `JANE` tail
 signature or the established `LDA $FFF1; RTS` detector byte pattern, reports
 the nonstandard power-on bank explicitly, and preserves physical file order on
 round trip. Automatic mapper refinement does not promote an otherwise ordinary
@@ -451,7 +460,10 @@ whose effective address lies in either alias is negative evidence for that
 split-RAM mapper: an RMW uses one effective address for both phases, while no
 single split alias supplies the intended RAM semantics for both the read and the
 write. This contradiction can eliminate an otherwise size-compatible FA/CV/WD
-mapper hypothesis.
+mapper hypothesis. CV and WD additionally require independent family evidence
+before otherwise direction-correct RAM traffic is promoted as positive A7 mapper
+evidence; a hypothetical split-RAM overlay cannot prove itself from the accesses
+it reinterprets.
 
 Automatic Superchip promotion uses three kinds of evidence. An explicit VCSC
 `4KSC`/`F8SC`/`F6SC`/`F4SC` tail signature is a hardware declaration. Historical
@@ -550,9 +562,12 @@ This is a general overlapping-stream rule, not a special `$2C` decoder hack.
 Unreferenced regions normally remain exact data rather than being force-decoded
 simply because random bytes happen to form legal 6502 opcodes. A conservative
 second pass tests unknown instruction starts as speculative islands. Negative
-evidence is path-based: HLT/JAM/KIL, a direct control transfer into non-executable
-hardware space, or a physically impossible TIA/RIOT bus access kills that CFG
-edge. A conditional branch survives when at least one feasible successor remains
+evidence is path-based: HLT/JAM/KIL and a direct control transfer into
+non-executable hardware space kill that CFG edge. Detached-island discovery also
+uses impossible TIA/RIOT bus-direction/register combinations as rejection evidence,
+but established RESET execution treats undefined TIA reads as unknown/open-bus-like
+and undefined writes as harmless bus cycles rather than declaring a mapper impossible.
+A conditional branch survives when at least one feasible successor remains
 viable; only when every feasible successor is dead does rejection propagate
 backward through the branch. JSR is stricter: both the callee and the post-return
 continuation must remain credible. Three consecutive rejected starts form a
@@ -578,8 +593,10 @@ strong evidence, stable NMOS unofficial opcodes are possible code, and unstable
 silicon/bus-sensitive unofficials count against promotion; HLT/JAM/KIL is a dead
 speculative terminal. For TIA/RIOT accesses the actual 6507/6532 read/write
 decoder is used: canonical register addresses are stronger evidence than legal
-mirrors, while impossible bus-direction/register combinations kill the edge. A
-read of `$0296`, for example, is a legal mirror of `INTIM` even though that same
+mirrors. Impossible bus-direction/register combinations kill detached speculative
+edges; established RESET analysis instead carries undefined TIA reads as unknown
+and treats undefined writes as no-op bus cycles. A read of `$0296`, for example,
+is a legal mirror of `INTIM` even though that same
 address is conventionally named `TIM64T` for writes. Direction-sensitive mapper
 hotspots override the generic hardware plausibility rule, including WD reads of
 TIA `$30-$3F` and 3E/3F selector writes. Stores and read-modify-writes also need
@@ -849,6 +866,13 @@ A successful corpus run is the easiest end-to-end proof: the script runs
 prints both MD5 values, and performs an exact size/byte comparison equivalent to
 `cmp`.
 
+The optional Stella mapper differential compares cartridge topology rather than
+preservation-wrapper size.  For Stella's ordinary size-default F8/F6/F4/F0
+families, exact repeated-half storage is normalized to VCSC's deliberately
+smaller unique image before mapper names are compared.  Exotic mapper names are
+never rewritten by this normalization.  `unknown/raw` remains explicitly
+`UNRESOLVED`, not a match.
+
 The repository hardening gates go further than the standalone verifier. All
 85 editable VCSC example ROMs are round-tripped inside the eight normal
 `vcs_examples_build_*of8.test` shards. `vcsc_disassembler_hardening.pl` also
@@ -884,6 +908,13 @@ original bytes.
 
 Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/FA2/CV/E0/GL/E7/3F/3E/FE/JANE/0840/UA/UASW/0FA0/DPC/WD/WDSW/FC is deliberately conservative.
 CM, DPC+, CDF/CDFJ/CDFJ+ and other coprocessor cartridges need separate mapper models rather than being mislabeled as supported families.
+The established CDF-family fingerprint is recognized only as an unsupported
+format quarantine: such images are preserved as exact `unknown/raw` rather than
+falling through to a coincidentally executable F4/F0 hypothesis.  Likewise, if
+A5 hard-rejects a detector-signed mapper and the sole remaining hypothesis has
+no independent selector/RAM/signature/coverage evidence of its own, mapper
+identity remains `unknown/raw`; the rejected signature is diagnostic conflict
+evidence, never permission to override the execution contradiction.
 Unsupported layouts that yield no executable instructions fail explicitly rather
 than producing a misleading 100%-data source file.
 

@@ -93,6 +93,33 @@ sub vcsc_mapper_from_source {
     return uc($1);
 }
 
+sub normalize_stella_duplicate_default {
+    my ($mapper, $image) = @_;
+    my %default_for_size = (
+        4096  => '4K',
+        8192  => 'F8',
+        16384 => 'F6',
+        32768 => 'F4',
+        65536 => 'F0',
+    );
+    my $size = length($image);
+    return $mapper if !exists($default_for_size{$size}) ||
+                      $mapper ne $default_for_size{$size};
+
+    # vcsc-disas deliberately strips exact duplicate storage wrappers before
+    # mapper inference.  Stella's default F8/F6/F4/F0 classification is based
+    # on the physical image size, so normalize only those default families when
+    # the larger image is byte-for-byte repeated halves.  Exotic mapper names
+    # are never rewritten by this comparison helper.
+    while ($size > 4096 && ($size % 2) == 0) {
+        my $half = int($size / 2);
+        last if substr($image, 0, $half) ne substr($image, $half, $half);
+        $image = substr($image, 0, $half);
+        $size = $half;
+    }
+    return exists($default_for_size{$size}) ? $default_for_size{$size} : $mapper;
+}
+
 sub stella_mapper_for_rom {
     my ($exe, $path, $expected_md5) = @_;
     local $ENV{SDL_AUDIODRIVER} = 'dummy' if !defined($ENV{SDL_AUDIODRIVER});
@@ -119,6 +146,9 @@ sub stella_mapper_for_rom {
     my $mapper = $1;
     $mapper =~ s/\*+\z//;
 
+    my $image = slurp_raw($path);
+    $mapper = normalize_stella_duplicate_default($mapper, $image);
+
     # Multi-game images are containers, not one CPU-visible mapper.  Stella
     # selects a component before cartridge creation and reports the MD5 of
     # that selected slice.  Accept that deliberate MD5 change only when the
@@ -127,7 +157,6 @@ sub stella_mapper_for_rom {
     if ($reported_md5 ne lc($expected_md5)) {
         if ($mapper =~ /^(2|4|8|32)IN1\z/) {
             my $games = int($1);
-            my $image = slurp_raw($path);
             length($image) % $games == 0
                 or die "Stella $mapper MD5 $reported_md5 cannot describe uneven local image MD5 $expected_md5\n";
             my $slice_size = length($image) / $games;

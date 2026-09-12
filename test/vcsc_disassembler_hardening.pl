@@ -94,7 +94,8 @@ if ($ARGV[1] =~ /multicart4\.bin\z/) {
    print "  Bankswitch Type: 4IN1 [G2] (2K)\n";
 } else {
    print "  Cart MD5:        ",md5_hex($rom),"\n";
-   print "  Bankswitch Type: ",($size == 1024 ? "2K* (1K)" : "4K* (4K)"),"\n";
+   print "  Bankswitch Type: ",($size == 1024 ? "2K* (1K)" :
+      ($size == 16384 ? "F6* (F6)" : "4K* (4K)")),"\n";
 }
 FAKE_STELLA
 chmod(0755,$fake_stella) or die "chmod $fake_stella: $!\n";
@@ -105,6 +106,15 @@ write_raw(File::Spec->catfile($stella_in,'plain4k.bin'),$base);
 my $one_k=chr(0xEA)x1024;
 substr($one_k,0x3fa,6,pack('v3',0xFC80,0xFC80,0xFC80));
 write_raw(File::Spec->catfile($stella_in,'plain1k.bin'),$one_k);
+my $f8_bank0 = chr(0xEA) x 4096;
+my $f8_bank1 = chr(0xEA) x 4096;
+substr($f8_bank0,0,4,pack('C*',0xAD,0xF8,0x1F,0x60));
+substr($f8_bank1,0,4,pack('C*',0xAD,0xF8,0x1F,0x60));
+substr($f8_bank1,0x100,1,"\x18");
+substr($f8_bank0,4090,6,pack('v3',0xF000,0xF000,0xF000));
+substr($f8_bank1,4090,6,pack('v3',0xF000,0xF000,0xF000));
+my $f8_unique = $f8_bank0 . $f8_bank1;
+write_raw(File::Spec->catfile($stella_in,'dup_f8_16k.bin'),$f8_unique . $f8_unique);
 my $multi4 = '';
 for my $game (0 .. 3) {
    my $part = chr(0xEA) x 2048;
@@ -120,9 +130,11 @@ $socmp =~ /plain4k\.bin: mapper vcsc=4K stella=4K MATCH\n/
    or die "Stella mapper comparison lost normalized 4K mapper match:\n$socmp";
 $socmp =~ /plain1k\.bin: mapper vcsc=1K stella=1K MATCH\n/
    or die "Stella mapper comparison treated Stella 2K* (1K) as a mismatch:\n$socmp";
+$socmp =~ /dup_f8_16k\.bin: mapper vcsc=F8 stella=F8 MATCH\n/
+   or die "Stella mapper comparison did not normalize duplicated 16K F6 storage to VCSC's unique 8K F8 topology:\n$socmp";
 $socmp =~ /multicart4\.bin: mapper vcsc=UNKNOWN\/RAW stella=4IN1 UNRESOLVED\n/
    or die "A7-ambiguous multicart was not reported as unresolved against Stella:\n$socmp";
-$socmp =~ /Stella mapper comparison: 2 match(?:es)?, 0 mismatch, 0 errors, 1 unresolved, 2 compared\n\z/
+$socmp =~ /Stella mapper comparison: 3 match(?:es)?, 0 mismatch, 0 errors, 1 unresolved, 3 compared\n\z/
    or die "unexpected Stella mapper comparison summary:\n$socmp";
 
 # A disagreement is diagnostic by default, but --stella-strict promotes it to

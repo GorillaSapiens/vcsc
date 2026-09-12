@@ -103,8 +103,11 @@ A3-A6 execution/provenance/viability invariants (completed)
     unknown conditions fork feasible edges. Hardware input remains unknown rather
     than sampled. Physical ROM provenance flows through supported CPU operations,
     RIOT/cart RAM and generated RAM code, including mapper switches and display
-    sinks. A5 viability rejects only hard-dead feasible paths (JAM/KIL/HLT, invalid
-    targets/bus accesses); branches are OR nodes and JSR requires callee plus return.
+    sinks. A5 viability rejects only hard-dead feasible paths (JAM/KIL/HLT and
+    impossible control/memory targets). Undefined TIA-register reads remain
+    unknown/open-bus-like and undefined writes remain harmless bus cycles on
+    established RESET flow; the stricter invalid-bus rule remains useful only for
+    detached-island rejection. Branches are OR nodes and JSR requires callee plus return.
     A6 credits meaningful banks only from viable execution/provenance, while exact
     duplicates and pure fill are explained structurally. N-in-1 applies the same
     execution and completeness rules recursively. These stages produce evidence;
@@ -116,11 +119,15 @@ A7 final-comparison invariant (completed)
     contradictions are removed first. Surviving hypotheses are then narrowed by
     positive evidence in semantic order: a bank switch that preserves a coherent
     continuation, mapper-specific selector activity (including proven generated-RAM
-    selectors), and direction-correct cartridge-RAM behavior. Exact VCSC tail
-    signatures are explicit format metadata: after those stronger execution-local
-    evidence ties, they resolve before A6 unioned bank completeness so mutually
-    exclusive legal power-on latch states cannot fabricate superiority over the
-    mapper declared by the linker. A6 completeness and comparable reset quality
+    selectors), and independently corroborated cartridge-RAM behavior. A hypothetical
+    CV/WD mapping may not prove itself merely by relabeling ordinary bus traffic as
+    its own RAM. Likewise, FC's commit address alone is not FC-specific without a
+    staged selector, and JANE's selectors shared with F6 do not prove JANE. Exact
+    VCSC tail signatures are explicit format metadata; FC's established staged-select
+    detector signature is also strong protocol evidence. These resolve before A6
+    unioned bank completeness so mutually exclusive legal power-on latch states cannot
+    fabricate superiority over the declared/independently established mapper. A6
+    completeness and comparable reset quality
     then narrow unsigned survivors; heuristic detector/static signatures remain
     late migration priors. Indexed/model-dependent traffic may not bootstrap a
     mapper family merely because that hypothetical mapper would reinterpret it as
@@ -228,3 +235,13 @@ When corpus work resumes, prefer one concrete mismatch/failure category at a
 time, add a minimal synthetic regression plus the real corpus case, and keep
 exact round trip non-negotiable. Do not grow this file with per-ROM victory
 narratives; put those in the daily history.
+
+Post-A8 corpus hardening keeps two additional conservative boundaries: a known
+unsupported CDF-family fingerprint is quarantined as exact unknown/raw rather
+than falling through to F4/F0, and a lone A5 survivor with no independent mapper
+evidence does not win merely because a detector-signed alternative was hard-
+contradicted. The contradiction remains authoritative; the conflicting static
+signal only prevents a weak size/topology fallback from becoming a confident
+claim. Stella differential reporting also normalizes exact duplicate wrappers
+for ordinary size-default F8/F6/F4/F0 images to the same smallest-unique-image
+policy used by VCSC.
