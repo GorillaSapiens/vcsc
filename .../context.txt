@@ -119,10 +119,10 @@ Open workstreams
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished
    work only. Mapper-hypothesis migration A1-A8 and two post-A8 mismatch-hardening
-   passes are complete. The highest-priority G1-G5 graphics/provenance sequence is in progress. G1
-   finite multi-origin display provenance is complete; G2-G5 cover indirect
-   pointer recovery, loop-derived sprite heights, selector/offset sprite families,
-   and presentation.
+   passes are complete. The highest-priority G1-G5 graphics/provenance sequence is
+   in progress. G1 finite multi-origin display provenance and G2 indirect pointer
+   recovery are complete; G3-G5 cover loop-derived sprite heights,
+   selector/offset sprite families, and presentation.
    Use `probable 8xN sprite`, never `player sprite`. GL real-corpus closeout, CM,
    DPC+, and CDF-family support follow after G2-G5 unless explicitly reprioritized.
 
@@ -175,9 +175,9 @@ Last validation state
 ---------------------
 The current post-A8 disassembler tree passes 365/365 e2e and 537/537 compile-only.
 The second supplied Stella-mismatch corpus is 11/11 byte-exact, 8 matches, 0
-mismatches, 3 intentionally unresolved/raw. A1-A8 and G1 are closed; G2 is next.
-Detailed completed implementation facts live in executable regressions and dated
-history rather than here.
+mismatches, 3 intentionally unresolved/raw. A1-A8 plus G1-G2 are closed; G3 is
+next. Detailed completed implementation facts live in executable regressions and
+dated history rather than here.
 
 Current Tanks cleanup is complete at the legitimate beam-asm boundary while preserving the plain 4K target. The current real build is 4024/4090 ROM and 120/128 RAM (66 ROM bytes, 8 RAM bytes free). `test/vcs_tanks.pl` locks coordinate, heading/reflection, missile, arena-bound, and bottom-wall GRP behavior.
 

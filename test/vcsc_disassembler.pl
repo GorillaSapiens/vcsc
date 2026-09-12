@@ -492,6 +492,78 @@ substr($g1_multi_origin_grp, 0x0200, 2, pack('C*', 0x3C, 0xC3));
 write_bin(File::Spec->catfile($in, 'g1_multi_origin_grp.bin'),
           $g1_multi_origin_grp);
 
+
+# G2: startup code copies a compact pointer block from ROM into zero page with
+# LDA table,X / STA zp,X.  Later code changes only the low bytes while inheriting
+# the copied high bytes.  The first pointer uses an indexed ROM selection plus
+# ADC; the second uses a bounded SBC adjustment.  Both indirect consumers stage
+# through RIOT RAM before reaching GRP0/GRP1, so pointer recovery—not a direct
+# ROM load or bitmap-shape guess—must establish the sprite bytes.
+my $g2_pointer_block = make_rom(4096, 0xF000, 0x0100,
+   pack('C*',
+      0xD8,                  # CLD -- pointer arithmetic is binary
+      0xA2,0x03,             # LDX #3
+      0xBD,0x80,0xF2,       # copy: LDA $F280,X
+      0x95,0xB0,             #       STA $B0,X
+      0xCA,                  #       DEX
+      0x10,0xF8,             #       BPL copy
+      0xA2,0x01,             # LDX #1
+      0xBD,0x90,0xF2,       # LDA $F290,X -> $08
+      0x18,                  # CLC
+      0x65,0xB0,             # ADC $B0 -> $08
+      0x85,0xB0,             # STA pointer low, high inherited in $B1
+      0xA0,0x07,             # LDY #7
+      0xB1,0xB0,             # sprite1: LDA ($B0),Y
+      0x85,0x82,             # STA staged byte
+      0xA5,0x82,             # LDA staged byte
+      0x85,0x1C,             # STA GRP1
+      0x88,                  # DEY
+      0x10,0xF5,             # BPL sprite1
+      0xA5,0xB2,             # LDA second pointer low
+      0x38,                  # SEC
+      0xE9,0x08,             # SBC #$08
+      0x85,0xB2,             # STA pointer low, high inherited in $B3
+      0xA0,0x07,             # LDY #7
+      0xB1,0xB2,             # sprite2: LDA ($B2),Y
+      0x85,0x83,             # STA staged byte
+      0xA5,0x83,             # LDA staged byte
+      0x85,0x1B,             # STA GRP0
+      0x88,                  # DEY
+      0x10,0xF5,             # BPL sprite2
+      0x60));                # RTS
+substr($g2_pointer_block, 0x0280, 4, pack('C*', 0x00,0xF3,0x40,0xF3));
+substr($g2_pointer_block, 0x0290, 2, pack('C*', 0x00,0x08));
+substr($g2_pointer_block, 0x0308, 8,
+   pack('C*', 0x18,0x3C,0x7E,0xDB,0xFF,0x66,0x24,0x18));
+substr($g2_pointer_block, 0x0338, 8,
+   pack('C*', 0x81,0x42,0x24,0x18,0x18,0x24,0x42,0x81));
+write_bin(File::Spec->catfile($in, 'g2_pointer_block.bin'), $g2_pointer_block);
+
+# G2: split low/high assignments on alternate feasible paths form a finite
+# pointer domain.  The high byte is common, while either low byte may reach the
+# joined indirect graphics consumer.  Both targets must remain candidates.
+my $g2_split_pointer = make_rom(4096, 0xF000, 0x0100,
+   pack('C*',
+      0xA9,0xF3, 0x85,0xB1, # common high byte
+      0xA5,0x80,             # unknown input
+      0xF0,0x07,             # BEQ low2
+      0xA9,0x00, 0x85,0xB0, # low1
+      0x4C,0x13,0xF1,       # JMP join
+      0xA9,0x10, 0x85,0xB0, # low2
+      0xA0,0x07,             # join: LDY #7
+      0xB1,0xB0,             # LDA ($B0),Y
+      0x85,0x82,             # stage
+      0xA5,0x82,
+      0x85,0x1B,             # GRP0
+      0x88,
+      0x10,0xF5,
+      0x60));
+substr($g2_split_pointer, 0x0300, 8,
+   pack('C*', 0x3C,0x66,0xC3,0x81,0x81,0xC3,0x66,0x3C));
+substr($g2_split_pointer, 0x0310, 8,
+   pack('C*', 0x18,0x24,0x42,0x81,0x81,0x42,0x24,0x18));
+write_bin(File::Spec->catfile($in, 'g2_split_pointer.bin'), $g2_split_pointer);
+
 # A8 generalizes provenance presentation beyond sprite graphics.  Carry a ROM
 # source through RIOT RAM into AUDC0; the source is established data evidence
 # but must not be mislabeled as graphics.
@@ -2496,6 +2568,25 @@ require_re($g1_multi_origin_out,
    qr/^L_F201:
 \s*\.byte %11000011\s+;\s+XX\.\.\.\.XX$/m,
    'G1 renders the second alternate GRP0 ROM origin as graphics');
+
+
+my $g2_pointer_block_out = slurp(
+   File::Spec->catfile($out, 'g2_pointer_block.s26'));
+require_re($g2_pointer_block_out,
+   qr/^L_F308:\n(?:\s*\.byte %[01]{8}\s+;\s+[.X]{8}\n){8}/m,
+   'G2 recovers block-initialized pointer with indexed low-byte ADC update');
+require_re($g2_pointer_block_out,
+   qr/^L_F338:\n(?:\s*\.byte %[01]{8}\s+;\s+[.X]{8}\n){8}/m,
+   'G2 recovers inherited high byte with bounded low-byte SBC update');
+
+my $g2_split_pointer_out = slurp(
+   File::Spec->catfile($out, 'g2_split_pointer.s26'));
+require_re($g2_split_pointer_out,
+   qr/^L_F300:\n(?:\s*\.byte %[01]{8}\s+;\s+[.X]{8}\n){8}/m,
+   'G2 retains first feasible split-assignment pointer target');
+require_re($g2_split_pointer_out,
+   qr/^L_F310:\n(?:(?:\s*;[^\n]*\n)?(?:L_[0-9A-F]+:\n)?\s*\.byte %[01]{8}\s+;\s+[.X]{8}\n){8}/m,
+   'G2 retains second feasible split-assignment pointer target');
 
 my $a8_audio_out = slurp(File::Spec->catfile($out, 'a8_riot_audio.s26'));
 require_re($a8_audio_out,

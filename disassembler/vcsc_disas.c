@@ -11376,21 +11376,58 @@ static int load_feeds_graphics_store(const analysis_t *a, size_t bi,
    size_t p = off;
    unsigned steps;
    unsigned taint = initial_taint;
+   int staged_valid = 0;
+   uint8_t staged_address = 0u;
+   unsigned staged_taint = 0u;
    for (steps = 0; steps < 8u; ++steps) {
       unsigned len;
       uint8_t opcode;
       address_mode_t mode;
       flow_kind_t flow;
       unsigned store_source;
+      uint16_t operand = 0u;
+      const char *mnemonic;
       if (p >= b->size || !(b->roles[p] & ROLE_CODE_START)) return 0;
       len = b->inst_len[p];
       if (len == 0u || p + len >= b->size) return 0;
       p += len;
       if (!(b->roles[p] & ROLE_CODE_START)) return 0;
-      store_source = graphics_store_source(a, bi, p);
-      if (store_source && (store_source & taint)) return 1;
       opcode = b->inst_opcode[p];
       mode = (address_mode_t)opcode_modes[opcode];
+      mnemonic = opcode_mnemonics[opcode];
+      if (b->inst_len[p] >= 2u) operand = a->rom[b->file_offset + p + 1u];
+      if (b->inst_len[p] >= 3u)
+         operand |= (uint16_t)a->rom[b->file_offset + p + 2u] << 8;
+      store_source = graphics_store_source(a, bi, p);
+      if (store_source && (store_source & taint)) return 1;
+
+      /* G1's executor already carries display provenance through RIOT RAM.
+       * Mirror the simplest straight-line staging form here so a not-yet-
+       * resolved indirect pointer can still be recognized as a graphics
+       * consumer before G2 recovers its target.  One staged byte is enough for
+       * the common LDA (...) ; STA tmp ; LDA tmp ; STA GRP sequence; anything
+       * more complicated remains the executor's job rather than a static guess. */
+      if (mode == AM_ZERO_PAGE && (uint8_t)operand >= 0x80u) {
+         unsigned source = 0u;
+         if (strcmp(mnemonic, "STA") == 0) source = GRAPHICS_TAINT_A;
+         else if (strcmp(mnemonic, "STX") == 0) source = GRAPHICS_TAINT_X;
+         else if (strcmp(mnemonic, "STY") == 0) source = GRAPHICS_TAINT_Y;
+         if (source) {
+            staged_valid = 1;
+            staged_address = (uint8_t)operand;
+            staged_taint = taint & source;
+         }
+         else if ((strcmp(mnemonic, "LDA") == 0 || strcmp(mnemonic, "LDX") == 0 ||
+                   strcmp(mnemonic, "LDY") == 0) &&
+                  staged_valid && staged_address == (uint8_t)operand) {
+            unsigned dest = strcmp(mnemonic, "LDA") == 0 ? GRAPHICS_TAINT_A :
+                            strcmp(mnemonic, "LDX") == 0 ? GRAPHICS_TAINT_X :
+                                                           GRAPHICS_TAINT_Y;
+            taint = (taint & ~dest) | (staged_taint ? dest : 0u);
+            continue;
+         }
+      }
+
       flow = instruction_flow(opcode);
       if (flow != FLOW_NEXT || !advance_graphics_taint(opcode, mode, &taint) ||
           taint == 0u)
@@ -11420,6 +11457,352 @@ static void mark_graphics_count(bank_t *b, size_t start, unsigned count)
       if (b->roles[start + i] & (ROLE_CODE_START | ROLE_VECTOR)) break;
       b->graphics[start + i] = 1;
    }
+}
+
+#define GRAPHICS_POINTER_DOMAIN_CAP 16u
+
+typedef struct {
+   uint8_t value[GRAPHICS_POINTER_DOMAIN_CAP];
+   uint8_t count;
+   uint8_t overflow;
+} graphics_byte_domain_t;
+
+typedef struct {
+   uint16_t value[GRAPHICS_POINTER_DOMAIN_CAP];
+   uint8_t count;
+   uint8_t overflow;
+} graphics_pointer_domain_t;
+
+static graphics_byte_domain_t graphics_byte_domain_none(void)
+{
+   graphics_byte_domain_t d;
+   memset(&d, 0, sizeof(d));
+   return d;
+}
+
+static graphics_pointer_domain_t graphics_pointer_domain_none(void)
+{
+   graphics_pointer_domain_t d;
+   memset(&d, 0, sizeof(d));
+   return d;
+}
+
+static void graphics_byte_domain_add(graphics_byte_domain_t *d, uint8_t value)
+{
+   unsigned i, pos = 0u;
+   for (i = 0u; i < d->count; ++i) {
+      if (d->value[i] == value) return;
+      if (d->value[i] < value) ++pos;
+   }
+   if (d->count >= GRAPHICS_POINTER_DOMAIN_CAP) {
+      d->overflow = 1u;
+      return;
+   }
+   for (i = d->count; i > pos; --i) d->value[i] = d->value[i - 1u];
+   d->value[pos] = value;
+   ++d->count;
+}
+
+static void graphics_byte_domain_union(graphics_byte_domain_t *dst,
+                                       const graphics_byte_domain_t *src)
+{
+   unsigned i;
+   if (src->overflow) dst->overflow = 1u;
+   for (i = 0u; i < src->count; ++i)
+      graphics_byte_domain_add(dst, src->value[i]);
+}
+
+static void graphics_pointer_domain_add(graphics_pointer_domain_t *d,
+                                        uint16_t value)
+{
+   unsigned i, pos = 0u;
+   for (i = 0u; i < d->count; ++i) {
+      if (d->value[i] == value) return;
+      if (d->value[i] < value) ++pos;
+   }
+   if (d->count >= GRAPHICS_POINTER_DOMAIN_CAP) {
+      d->overflow = 1u;
+      return;
+   }
+   for (i = d->count; i > pos; --i) d->value[i] = d->value[i - 1u];
+   d->value[pos] = value;
+   ++d->count;
+}
+
+/* G2 recognizes the common startup memcpy used to seed zero-page pointer
+ * blocks.  The loop is deliberately structural and mapper-local: every source
+ * byte must come from this physical bank's selected presentation mapping, and
+ * every destination must be real RIOT RAM.  This avoids teaching ordinary
+ * abstract execution to carry a 28-element X domain around a loop header. */
+static void graphics_collect_pointer_block_seeds(
+   analysis_t *a, size_t bi, graphics_byte_domain_t seed[ZERO_PAGE_SIZE])
+{
+   bank_t *b = &a->banks[bi];
+   size_t off;
+   for (off = 0u; off + 10u <= b->size; ++off) {
+      size_t loop, store, dec, branch, table_off;
+      uint8_t count, zp_base;
+      uint16_t table_addr, branch_pc, target;
+      unsigned i;
+      if (!(b->roles[off] & ROLE_CODE_START) || b->inst_opcode[off] != 0xa2u ||
+          b->inst_len[off] != 2u)
+         continue; /* LDX #count */
+      count = a->rom[b->file_offset + off + 1u];
+      if (count >= 64u) continue;
+      loop = off + 2u;
+      if (!(b->roles[loop] & ROLE_CODE_START) || b->inst_opcode[loop] != 0xbdu ||
+          b->inst_len[loop] != 3u)
+         continue; /* LDA abs,X */
+      store = loop + 3u;
+      if (store >= b->size || !(b->roles[store] & ROLE_CODE_START) ||
+          b->inst_opcode[store] != 0x95u || b->inst_len[store] != 2u)
+         continue; /* STA zp,X */
+      dec = store + 2u;
+      branch = dec + 1u;
+      if (branch + 1u >= b->size || !(b->roles[dec] & ROLE_CODE_START) ||
+          b->inst_opcode[dec] != 0xcau || b->inst_len[dec] != 1u ||
+          !(b->roles[branch] & ROLE_CODE_START) ||
+          b->inst_opcode[branch] != 0x10u || b->inst_len[branch] != 2u)
+         continue; /* DEX ; BPL loop */
+      branch_pc = (uint16_t)(b->origin + (uint16_t)branch);
+      target = (uint16_t)(branch_pc + 2u +
+               (int8_t)a->rom[b->file_offset + branch + 1u]);
+      if (target != (uint16_t)(b->origin + (uint16_t)loop)) continue;
+      table_addr = read_word(a->rom + b->file_offset + loop + 1u);
+      if (!cart_target_offset(b, table_addr, &table_off) ||
+          table_off + (size_t)count >= b->size)
+         continue;
+      zp_base = a->rom[b->file_offset + store + 1u];
+      mark_label(b, table_off);
+      for (i = 0u; i <= (unsigned)count; ++i) {
+         uint8_t address = (uint8_t)(zp_base + (uint8_t)i);
+         uint8_t canonical;
+         if (!state_riot_ram_alias(address, &canonical) || canonical != address)
+            continue;
+         graphics_byte_domain_add(&seed[address],
+            a->rom[b->file_offset + table_off + i]);
+         b->roles[table_off + i] |= ROLE_DATA_READ;
+      }
+   }
+}
+
+static void graphics_collect_direct_zp_constants_before(
+   const analysis_t *a, size_t bi, size_t before, uint8_t address,
+   graphics_byte_domain_t *out)
+{
+   const bank_t *b = &a->banks[bi];
+   size_t off;
+   for (off = 0u; off + 3u < before && off < b->size; ++off) {
+      uint8_t load, want_store;
+      size_t next;
+      if (!(b->roles[off] & ROLE_CODE_START) || b->inst_len[off] != 2u)
+         continue;
+      load = b->inst_opcode[off];
+      if (load == 0xa9u) want_store = 0x85u;      /* LDA # ; STA zp */
+      else if (load == 0xa2u) want_store = 0x86u; /* LDX # ; STX zp */
+      else if (load == 0xa0u) want_store = 0x84u; /* LDY # ; STY zp */
+      else continue;
+      next = off + 2u;
+      if (next + 1u >= before || !(b->roles[next] & ROLE_CODE_START) ||
+          b->inst_opcode[next] != want_store || b->inst_len[next] != 2u ||
+          a->rom[b->file_offset + next + 1u] != address)
+         continue;
+      graphics_byte_domain_add(out, a->rom[b->file_offset + off + 1u]);
+   }
+}
+
+static graphics_byte_domain_t graphics_zp_static_domain_before(
+   const analysis_t *a, size_t bi,
+   const graphics_byte_domain_t seed[ZERO_PAGE_SIZE],
+   uint8_t address, size_t before)
+{
+   graphics_byte_domain_t direct = graphics_byte_domain_none();
+   graphics_collect_direct_zp_constants_before(a, bi, before, address, &direct);
+   if (direct.count || direct.overflow) return direct;
+   return seed[address];
+}
+
+static graphics_byte_domain_t graphics_finite_operand_domain(
+   const analysis_t *a, size_t bi,
+   const graphics_byte_domain_t seed[ZERO_PAGE_SIZE],
+   size_t off, address_mode_t mode, uint16_t operand)
+{
+   const bank_t *b = &a->banks[bi];
+   graphics_byte_domain_t d = graphics_byte_domain_none();
+   uint8_t value;
+   uint16_t effective;
+   size_t source_off;
+   uint8_t ram_address;
+
+   if (mode == AM_IMMEDIATE) {
+      graphics_byte_domain_add(&d, (uint8_t)operand);
+      return d;
+   }
+   if (mode == AM_ZERO_PAGE) {
+      return graphics_zp_static_domain_before(a, bi, seed,
+                                              (uint8_t)operand, off);
+   }
+   if (off < b->size && b->state_seen[off] &&
+       state_read_operand(a, bi, &b->states[off], mode, operand, &value)) {
+      graphics_byte_domain_add(&d, value);
+      return d;
+   }
+   if (!resolve_effective_address(&b->states[off], mode, operand, &effective))
+      return d;
+   if (state_riot_ram_alias(effective, &ram_address))
+      return graphics_zp_static_domain_before(a, bi, seed, ram_address, off);
+   if (cart_target_offset(b, effective, &source_off))
+      graphics_byte_domain_add(&d, a->rom[b->file_offset + source_off]);
+   return d;
+}
+
+static graphics_byte_domain_t graphics_apply_addsub_domain(
+   const graphics_byte_domain_t *left, const graphics_byte_domain_t *right,
+   int subtract, unsigned carry)
+{
+   graphics_byte_domain_t out = graphics_byte_domain_none();
+   unsigned i, j;
+   if (left->overflow || right->overflow) {
+      out.overflow = 1u;
+      return out;
+   }
+   for (i = 0u; i < left->count; ++i) {
+      for (j = 0u; j < right->count; ++j) {
+         unsigned sum;
+         if (!subtract)
+            sum = (unsigned)left->value[i] + (unsigned)right->value[j] + carry;
+         else
+            sum = (unsigned)left->value[i] +
+                  (unsigned)(uint8_t)~right->value[j] + carry;
+         graphics_byte_domain_add(&out, (uint8_t)sum);
+         if (out.overflow) return out;
+      }
+   }
+   return out;
+}
+
+/* Collect finite values written to one pointer byte before an established
+ * indirect graphics consumer.  Only short straight-line A dataflow is
+ * accepted.  Indexed ROM loads participate only when the selected execution
+ * has an exact index; selector-family expansion with an unknown index belongs
+ * to G4.  ADC/SBC requires an explicit CLC/SEC and a proven binary-decimal
+ * state, otherwise the result is intentionally left unknown. */
+static graphics_byte_domain_t graphics_collect_pointer_updates(
+   const analysis_t *a, size_t bi,
+   const graphics_byte_domain_t seed[ZERO_PAGE_SIZE],
+   uint8_t address, size_t before)
+{
+   const bank_t *b = &a->banks[bi];
+   graphics_byte_domain_t out = graphics_byte_domain_none();
+   size_t off;
+   for (off = 0u; off < before && off < b->size; ++off) {
+      address_mode_t mode;
+      uint16_t operand;
+      graphics_byte_domain_t acc;
+      size_t p;
+      unsigned steps;
+      int carry_known = 0;
+      unsigned carry = 0u;
+      if (!(b->roles[off] & ROLE_CODE_START) || !b->state_seen[off] ||
+          strcmp(opcode_mnemonics[b->inst_opcode[off]], "LDA") != 0)
+         continue;
+      mode = (address_mode_t)opcode_modes[b->inst_opcode[off]];
+      operand = b->inst_len[off] >= 2u ? a->rom[b->file_offset + off + 1u] : 0u;
+      if (b->inst_len[off] >= 3u)
+         operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
+      acc = graphics_finite_operand_domain(a, bi, seed, off, mode, operand);
+      if (acc.count == 0u || acc.overflow) continue;
+      p = off + b->inst_len[off];
+      for (steps = 0u; steps < 8u && p < before && p < b->size; ++steps) {
+         uint8_t opcode;
+         const char *mnemonic;
+         unsigned len;
+         address_mode_t pmode;
+         uint16_t poperand = 0u;
+         if (!(b->roles[p] & ROLE_CODE_START)) break;
+         opcode = b->inst_opcode[p];
+         mnemonic = opcode_mnemonics[opcode];
+         len = b->inst_len[p];
+         if (len == 0u || p + len > before || instruction_flow(opcode) != FLOW_NEXT)
+            break;
+         pmode = (address_mode_t)opcode_modes[opcode];
+         if (len >= 2u) poperand = a->rom[b->file_offset + p + 1u];
+         if (len >= 3u)
+            poperand |= (uint16_t)a->rom[b->file_offset + p + 2u] << 8;
+
+         if (strcmp(mnemonic, "CLC") == 0) {
+            carry_known = 1; carry = 0u;
+         }
+         else if (strcmp(mnemonic, "SEC") == 0) {
+            carry_known = 1; carry = 1u;
+         }
+         else if (strcmp(mnemonic, "ADC") == 0 || strcmp(mnemonic, "SBC") == 0) {
+            graphics_byte_domain_t rhs;
+            if (!carry_known || !b->states[p].decimal_known || b->states[p].decimal)
+               break;
+            rhs = graphics_finite_operand_domain(a, bi, seed, p, pmode, poperand);
+            if (rhs.count == 0u || rhs.overflow) break;
+            acc = graphics_apply_addsub_domain(&acc, &rhs,
+                  strcmp(mnemonic, "SBC") == 0, carry);
+            if (acc.count == 0u || acc.overflow) break;
+            carry_known = 0; /* result carry is value-dependent; do not guess */
+         }
+         else if (strcmp(mnemonic, "STA") == 0 && pmode == AM_ZERO_PAGE) {
+            if ((uint8_t)poperand == address)
+               graphics_byte_domain_union(&out, &acc);
+         }
+         else if (strcmp(mnemonic, "NOP") != 0) {
+            break;
+         }
+         p += len;
+      }
+   }
+   return out;
+}
+
+static graphics_pointer_domain_t graphics_recover_pointer_domain(
+   const analysis_t *a, size_t bi,
+   const graphics_byte_domain_t seed[ZERO_PAGE_SIZE],
+   size_t consumer_off, uint8_t pointer)
+{
+   const bank_t *b = &a->banks[bi];
+   graphics_pointer_domain_t result = graphics_pointer_domain_none();
+   graphics_byte_domain_t low_static, high_static, low_update, high_update;
+   const graphics_byte_domain_t *low, *high;
+   uint16_t exact;
+   unsigned i, j;
+
+   if (resolve_zp_word(&b->states[consumer_off], pointer, &exact))
+      graphics_pointer_domain_add(&result, exact);
+
+   low_static = graphics_zp_static_domain_before(a, bi, seed,
+                                                 pointer, consumer_off);
+   high_static = graphics_zp_static_domain_before(a, bi, seed,
+                    (uint8_t)(pointer + 1u), consumer_off);
+   low_update = graphics_collect_pointer_updates(a, bi, seed,
+                                                 pointer, consumer_off);
+   high_update = graphics_collect_pointer_updates(a, bi, seed,
+                    (uint8_t)(pointer + 1u), consumer_off);
+   low = (low_update.count || low_update.overflow) ? &low_update : &low_static;
+   high = (high_update.count || high_update.overflow) ? &high_update : &high_static;
+
+   if (low->overflow || high->overflow || low->count == 0u || high->count == 0u) {
+      if (low->overflow || high->overflow) result.overflow = 1u;
+      return result;
+   }
+   if ((unsigned)low->count * (unsigned)high->count > GRAPHICS_POINTER_DOMAIN_CAP) {
+      result.overflow = 1u;
+      return result;
+   }
+   /* If both bytes independently vary, their correlation is unknown.  Do not
+    * manufacture cross-product targets.  A singleton inherited high (the
+    * overwhelmingly common 2600 pattern) or singleton low is safe. */
+   if (low->count > 1u && high->count > 1u) return result;
+   for (i = 0u; i < low->count; ++i)
+      for (j = 0u; j < high->count; ++j)
+         graphics_pointer_domain_add(&result,
+            (uint16_t)(low->value[i] | ((uint16_t)high->value[j] << 8)));
+   return result;
 }
 
 
@@ -11666,7 +12049,10 @@ static void detect_graphics_data(analysis_t *a)
    size_t bi;
    for (bi = 0; bi < a->bank_count; ++bi) {
       bank_t *b = &a->banks[bi];
+      graphics_byte_domain_t pointer_seed[ZERO_PAGE_SIZE];
       size_t off;
+      memset(pointer_seed, 0, sizeof(pointer_seed));
+      graphics_collect_pointer_block_seeds(a, bi, pointer_seed);
       for (off = 0; off < b->size; ++off) {
          uint8_t opcode;
          address_mode_t mode;
@@ -11699,10 +12085,18 @@ static void detect_graphics_data(analysis_t *a)
             }
          }
          else if (mode == AM_INDIRECT_INDEXED) {
-            uint16_t pointer;
-            if (resolve_zp_word(&b->states[off], (uint8_t)operand, &pointer) &&
-                cart_target_offset(b, pointer, &source_off)) {
+            graphics_pointer_domain_t pointers = graphics_recover_pointer_domain(
+               a, bi, pointer_seed, off, (uint8_t)operand);
+            unsigned pi;
+            for (pi = 0u; pi < pointers.count; ++pi) {
+               uint16_t pointer = pointers.value[pi];
+               uint16_t target = pointer;
+               if (!span && b->states[off].y_known)
+                  target = (uint16_t)(pointer + b->states[off].y);
+               if (!cart_target_offset(b, target, &source_off)) continue;
+               mark_label(b, source_off);
                if (span) mark_graphics_count(b, source_off, span);
+               else if (b->states[off].y_known) b->graphics[source_off] = 1u;
                else mark_graphics_range(b, source_off, 32u);
             }
          }

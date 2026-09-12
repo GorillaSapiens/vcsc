@@ -177,3 +177,20 @@ The 0840 mapper's A6 remains because it is the actual address-line bit. Added a
 regression that scans generated .s26 comments for roadmap-label leakage while
 exempting that hardware A6 usage. Public README wording for the provenance block
 was updated to match. Validation: 537/537 compile-only and 365/365 e2e.
+
+2026-09-12 15:18:31 PDT, close G2 pointer recovery
+G2 adds finite mapper-local graphics-pointer recovery for established indirect
+consumers.  It recognizes the common zero-page pointer block initializer
+(LDX #n / LDA table,X / STA zp,X / DEX / BPL), split low/high assignments,
+inherited singleton bytes, and bounded binary ADC/SBC low-byte updates.  Domains
+are capped; uncertain/decimal arithmetic, overflow, and independently varying
+low+high sets stay unknown rather than creating cross-product targets.  The
+short graphics dependency check now also follows one RIOT-RAM staging hop.
+
+Synthetic vcsc_disassembler regressions cover block-copy + indexed low-byte ADC,
+inherited-high SBC, branch-merged split pointer targets, RIOT staging, and exact
+round trips.  Out-of-tree reconstruction of the supplied Pitfall disassembly was
+byte-exact; the new analysis increased visually rendered binary graphics rows
+from 285 to 405 and recovered previously raw object-pattern areas including
+$FD00 and $FDB0.  Validation: 537/537 compile-only and 365/365 e2e.  G3 is
+next; no G3 implementation was started.

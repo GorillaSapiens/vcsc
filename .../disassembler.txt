@@ -129,15 +129,19 @@ normal regression time budget; overflow loses optional sources conservatively an
 never invents one. Alternative-branch RIOT and cartridge-RAM merges are locked by
 synthetic regressions and exact round trips.
 
-G2. [ ] Recover indirect graphics pointers
-    * Infer zero-page pointer pairs from established `(zp),Y`/`(zp,X)` consumers
-      and recover their values across split low/high assignments, inherited high
-      bytes, bounded ADC/SBC offset changes, and common ROM-to-ZP block-copy
-      initialization such as `LDA table,X ; STA zp,X`.
-    * Keep pointer domains finite and mapper-qualified; unresolved arithmetic
-      remains unknown rather than guessing a target.
-    * Add a synthetic Pitfall-style regression where a startup pointer block plus
-      later low-byte table selection feeds staged graphics to GRP1.
+Completed G2 invariant
+----------------------
+Indirect graphics-pointer recovery is complete. Established `(zp),Y` consumers
+that feed display registers may use finite mapper-local pointer domains recovered
+from split low/high assignments, inherited singleton bytes, bounded binary
+ADC/SBC updates, and the common `LDX #n ; LDA table,X ; STA zp,X ; DEX ; BPL`
+startup block copy. Domains are capped and deterministic; uncertain arithmetic,
+decimal-mode arithmetic, overflowed domains, and independently varying low+high
+sets stay unknown rather than manufacturing targets. A short RIOT staging hop is
+recognized when deciding whether an unresolved indirect load feeds graphics.
+Synthetic regressions lock block-copy+ADC/SBC recovery and branch-merged split
+pointer targets. Graphics recovery remains presentation-only and cannot vote on
+mapper identity.
 
 G3. [ ] Infer sprite height from consumers
     * Derive graphics spans from established consumer loops and copy loops
