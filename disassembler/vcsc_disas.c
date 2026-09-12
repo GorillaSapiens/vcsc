@@ -9537,8 +9537,10 @@ static int mapper_detector_signature(const uint8_t *rom, size_t size,
    case MAP_3F: return is_probably_3f(rom, size);
    case MAP_FE: return is_probably_fe(rom, size);
    case MAP_JANE: return is_probably_jane(rom, size);
+   case MAP_0840: return is_probably_0840(rom, size);
    case MAP_UA:
    case MAP_UASW: return infer_ua_variant(rom, size) != MAP_RAW;
+   case MAP_0FA0: return is_probably_0fa0(rom, size);
    case MAP_WD: return is_probably_wd(rom, size);
    case MAP_FC: return is_probably_fc(rom, size);
    case MAP_F0: return is_probably_f0(rom, size);

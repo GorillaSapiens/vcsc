@@ -141,3 +141,27 @@ regression then ran in 26.6 seconds. Validation on the optimized tree: full e2e
 passes 365/365, including vcsc_disassembler.pl under the normal watchdog; the
 final compile-only rerun also passes 537/537 on the optimized handoff tree. G2
 indirect-pointer recovery is the next item and was not started.
+
+2026-09-12 14:29:59 PDT, post-G1 0FA0/0840 detector-prior bridge fix
+Investigated the supplied 8K ROM faff22ad7e9f240b7a2474e61695f04a.bin,
+which VCSC mislabeled F8 while Stella reported 0FA0. The image carries Stella's
+established direct 0FA0 signature (`STA $0FC0`). `is_probably_0fa0()` already
+recognized that byte pattern and legacy inference used it, but A7's
+`mapper_detector_signature()` accidentally omitted MAP_0FA0. Because broad
+partial decoders are intentionally forbidden from self-proving through modeled
+coverage, that omission stripped 0FA0 of its independent corroboration and let
+generic F8 startup-union coverage win despite zero F8 hotspot accesses.
+
+Wired the existing 0FA0 detector into A7. The same audit found MAP_0840 had the
+identical latent omission, so wired its existing established detector too rather
+than leave the shared bug in place. Broad 0840/0FA0 execution still cannot prove
+identity by itself; only the pre-existing raw-image detector prior supplies the
+independent corroboration after execution/completeness evidence ties.
+
+Added synthetic regressions for both families. Each fixture gives F8 complete
+coverage without an F8 hotspot while the broad mapper has complete coverage plus
+its established raw signature; A7 must select 0FA0/0840 by the static detector
+prior. The supplied ROM now round-trips byte-exactly and the Stella differential
+reports VCSC=0FA0, Stella=0FA0 MATCH. Final validation: compile-only 537/537 and
+full e2e 365/365, including vcsc_disassembler.pl, fuzz, GL, hardening, opcodes,
+vcs_0840.pl, and vcs_0fa0.pl. G2 remains next and was not started.

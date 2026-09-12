@@ -1397,6 +1397,48 @@ for my $v (0, 2, 4) {
 write_bin(File::Spec->catfile($in, 'uasw_uncorroborated_coverage.bin'),
    $uasw_uncorroborated_coverage);
 
+# 0FA0 is also a broad partial-address decoder, so modeled coverage alone is
+# not identity evidence.  But Stella's established direct $0FC0 access
+# signature is independent raw-image corroboration and must be carried into
+# A7.  F8 deliberately has complete startup-union coverage here without any F8
+# hotspot; 0FA0 starts in bank 1, executes the signed $0FC0 access, then uses
+# $0FA0 to reach bank 0.  The static prior must therefore break the execution
+# tie in favor of 0FA0 rather than generic F8 coverage.
+my $zerofa0_detector_prior = chr(0xEA) x 8192;
+break_sc_layout(\$zerofa0_detector_prior);
+substr($zerofa0_detector_prior, 0x0000 + 0x0100, 1, "\x60");
+substr($zerofa0_detector_prior, 0x0000 + 0x0106, 1, "\x60");
+substr($zerofa0_detector_prior, 0x1000 + 0x0100, 7,
+   "\x8D\xC0\x0F" .       # STA $0FC0: established 0FA0 detector signature
+   "\x8D\xA0\x0F" .       # STA $0FA0: select bank 0 under 0FA0
+   "\x60");                  # F8 bank-1 continuation
+for my $v (0, 2, 4) {
+   put16(\$zerofa0_detector_prior, 0x0FFA + $v, 0xF100);
+   put16(\$zerofa0_detector_prior, 0x1FFA + $v, 0xF100);
+}
+write_bin(File::Spec->catfile($in, 'zerofa0_detector_prior.bin'),
+   $zerofa0_detector_prior);
+
+# 0840 has the same A7 contract: broad-decoder execution needs independent
+# corroboration, and its established repeated direct-selector detector is that
+# corroboration.  F8 again has complete startup-union coverage without an F8
+# hotspot, while 0840 starts in bank 0 and uses $0840 to reach bank 1.
+my $m0840_detector_prior = chr(0xEA) x 8192;
+break_sc_layout(\$m0840_detector_prior);
+substr($m0840_detector_prior, 0x0000 + 0x0100, 10,
+   "\xAD\x00\x08" .       # LDA $0800
+   "\xAD\x00\x08" .       # repeated direct selector: established 0840 signature
+   "\xAD\x40\x08" .       # LDA $0840: select bank 1 under 0840
+   "\x60");                  # F8 bank-0 continuation
+substr($m0840_detector_prior, 0x1000 + 0x0100, 1, "\x60");
+substr($m0840_detector_prior, 0x1000 + 0x0109, 1, "\x60");
+for my $v (0, 2, 4) {
+   put16(\$m0840_detector_prior, 0x0FFA + $v, 0xF100);
+   put16(\$m0840_detector_prior, 0x1FFA + $v, 0xF100);
+}
+write_bin(File::Spec->catfile($in, 'm0840_detector_prior.bin'),
+   $m0840_detector_prior);
+
 # FE's delayed $01FE latch means an ordinary JSR can be reinterpreted as a bank
 # change by the FE model.  A target-high byte by itself is not family-specific
 # evidence; absent FE raw metadata/signature the hypothesis must not self-prove.
@@ -3007,6 +3049,23 @@ die "uncorroborated broad UASW coverage selected UASW\n"
 my $fe_uncorroborated_out = slurp(File::Spec->catfile($out, 'fe_uncorroborated_jsr.s26'));
 die "ordinary JSR target-high byte self-proved FE\n"
    if $fe_uncorroborated_out =~ /^; mapper: FE\b/m;
+my $zerofa0_detector_prior_out =
+   slurp(File::Spec->catfile($out, 'zerofa0_detector_prior.s26'));
+require_re($zerofa0_detector_prior_out, qr/^; mapper: 0FA0 \(high confidence;/m,
+   'established 0FA0 raw signature corroborates broad-decoder execution');
+require_re($zerofa0_detector_prior_out,
+   qr/^; mapper evidence: 0FA0 selected by established static detector prior after execution tied$/m,
+   '0FA0 detector prior breaks the F8 complete-coverage tie');
+require_re($zerofa0_detector_prior_out,
+   qr/^;   F8: outcompeted; lost only after execution evidence tied and a stronger static\/signature prior remained$/m,
+   'generic F8 coverage cannot outvote an established 0FA0 signature');
+my $m0840_detector_prior_out =
+   slurp(File::Spec->catfile($out, 'm0840_detector_prior.s26'));
+require_re($m0840_detector_prior_out, qr/^; mapper: 0840 \(high confidence;/m,
+   'established 0840 raw signature corroborates broad-decoder execution');
+require_re($m0840_detector_prior_out,
+   qr/^; mapper evidence: 0840 selected by established static detector prior after execution tied$/m,
+   '0840 detector prior breaks the F8 complete-coverage tie');
 require_re($cv_uncorroborated_out,
    qr/^;   CV: survives; .*direction-correct cartridge-RAM access/m,
    'CV hypothetical RAM traffic remains visible diagnostically');
