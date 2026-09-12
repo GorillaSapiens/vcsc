@@ -94,7 +94,8 @@ reachable code/data emerge together from isolated hardware models. Keep each
 step regression-locked before replacing the next heuristic. A1 duplicate-image
 provenance, A2 preselection enumeration, A3 hypothesis-local state-space
 execution, A4 first-class provenance, A5 unified viability, A6 bank-access
-completeness, and A7 final evidence comparison are complete; A8 is next.
+completeness, A7 final evidence comparison, and A8 presentation feedback are
+complete.
 
 A3-A6 execution/provenance/viability invariants (completed)
     Every A2 hypothesis is executed independently from every legal RESET state in
@@ -137,18 +138,25 @@ A7 final-comparison invariant (completed)
     same rule: an 8IN1/4IN1 or F8/2IN1 tie remains raw unless execution supplies a
     real discriminator; `--container` remains the explicit external-knowledge path.
 
-A8. [ ] Feed exhaustive execution back into code/data presentation
-    * Established execution under the selected hypothesis remains authoritative.
-      ROM bytes proven to feed executable RAM are code-source data; bytes proven to
-      feed GRP0/GRP1 or other consumers are data-source evidence.  Preserve exact
-      bytes even when one physical byte has more than one runtime role.
-    * Revisit detached island discovery after hypothesis execution is mature: it
-      should fill genuinely unreachable presentation gaps, not compensate for an
-      execution engine that failed to explore feasible control flow.
-    * Regression set must include Congo Bongo's generated F8 selector, the prior
-      false-mapper cases that motivated the trust gate, duplicate/padded images,
-      all-bank coverage, unknown-input branch forking, and mapper-specific
-      read/write hotspot direction.
+A8 presentation-feedback invariant (completed)
+    Replay the A7-selected mapper from every legal RESET/startup mapping before
+    detached-island discovery and merge only A5-viable execution into the trusted
+    presentation graph. Code/data roles, conservative abstract-state summaries,
+    generated-RAM instruction provenance, and display/audio provenance survive the
+    mapper-comparison phase; none of that feedback is a second mapper vote. ROM
+    bytes that construct executable RAM are explicit data-source bytes even when
+    they are also established ROM instruction operands. Proven ROM provenance
+    consumed by valid TIA writes is data-source evidence; GRP0/GRP1 additionally
+    retains graphics classification. Exact bytes win when roles overlap.
+
+    Detached islands still run only after established analysis is frozen and remain
+    presentation-only gap fillers. The older static/concrete presentation pass is
+    retained as supplemental plumbing for now (including existing cross-startup
+    Superchip evidence accumulation), rather than being prematurely removed during
+    A8. Regression coverage locks Congo-style generated F8 selectors, previous
+    trust-gate false positives, duplicate and 4094/4098-byte preservation forms,
+    all-bank accounting, unknown-input branch forking, detached islands, and
+    mapper-specific read/write hotspot direction.
 
 Weak "nonsense operation string" evidence
 -----------------------------------------
@@ -207,9 +215,8 @@ Unfinished mapper support
 
 Current direction
 -----------------
-The mapper-hypothesis execution roadmap is the current analysis priority. A1
-through A7 are complete; A8 exhaustive-execution feedback into code/data
-presentation is next. The preselection set contains every structurally compatible
+The mapper-hypothesis execution roadmap A1-A8 is complete. The preselection
+set contains every structurally compatible
 ordinary mapper plus first-class N-in-1 topologies before any winner is chosen,
 A3 executes every one in isolation, and A7 selects only from shared
 contradiction/positive evidence. Unresolved ties are raw rather than inherited

@@ -4046,6 +4046,30 @@ static void state_apply_memory_write(const analysis_t *a,
    state_zp_set_unknown(output, ram_address);
 }
 
+/* A8 presentation roles follow proven provenance as well as direct ROM reads.
+ * A byte copied into executable RAM is data at its ROM location even when the
+ * same physical byte is also part of an instruction that constructs the RAM
+ * routine.  Keep that dual role explicit so exact source emission can annotate
+ * code-as-data rather than forcing one interpretation to erase the other. */
+static void provenance_mark_presentation_source(analysis_t *a,
+                                                provenance_t source,
+                                                int graphics)
+{
+   size_t physical, bi;
+   if (source == PROVENANCE_NONE) return;
+   physical = (size_t)(source - 1u);
+   if (physical >= a->rom_size) return;
+   for (bi = 0u; bi < a->bank_count; ++bi) {
+      bank_t *b = &a->banks[bi];
+      if (physical >= b->file_offset && physical < b->file_offset + b->size) {
+         size_t off = physical - b->file_offset;
+         b->roles[off] |= ROLE_DATA_READ;
+         if (graphics) b->graphics[off] = 1u;
+         break;
+      }
+   }
+}
+
 static void provenance_mark_source(analysis_t *a, provenance_t source,
                                    uint8_t *map, size_t *count, int graphics)
 {
@@ -4083,10 +4107,16 @@ static void provenance_observe_write(analysis_t *a,
    bus = (uint16_t)(address & 0x1fffu);
    if ((bus & 0x1000u) != 0u || (bus & 0x0080u) != 0u) return;
    reg = bus & 0x003fu;
-   if (reg != 0x1bu && reg != 0x1cu) return;
+   if (reg > 0x2cu) return;
    source = known_store_provenance(opcode, input);
-   provenance_mark_source(a, source, a->provenance_grp_sources,
-                          &a->provenance_grp_source_count, 1);
+   /* A8: any proven ROM source consumed by a real TIA write is data-source
+    * evidence.  GRP0/GRP1 additionally retain the stronger graphics map used
+    * by sprite presentation and A6 display-source accounting. */
+   provenance_mark_presentation_source(a, source,
+                                       reg == 0x1bu || reg == 0x1cu);
+   if (reg == 0x1bu || reg == 0x1cu)
+      provenance_mark_source(a, source, a->provenance_grp_sources,
+                             &a->provenance_grp_source_count, 1);
 }
 
 static void state_riot_ram_set_all_unknown(abstract_state_t *state)
@@ -5402,9 +5432,11 @@ static int record_ram_exec_instruction(analysis_t *a, uint16_t pc,
       for (j = 0u; j < len; ++j)
          if (r->sources[j] != sources[j]) r->sources[j] = PROVENANCE_NONE;
    }
-   for (j = 0u; j < len; ++j)
+   for (j = 0u; j < len; ++j) {
       provenance_mark_source(a, sources[j], a->provenance_ram_sources,
                              &a->provenance_ram_source_count, 0);
+      provenance_mark_presentation_source(a, sources[j], 0);
+   }
    return 1;
 }
 
@@ -9791,6 +9823,138 @@ static int explore_mapper_hypotheses_state_space(const uint8_t *physical_rom,
    return 1;
 }
 
+/* A8 keeps the exhaustive execution result of the selected hardware model as
+ * trusted presentation evidence instead of throwing it away after A7 mapper
+ * selection.  A3 may have several legal power-on latch states (notably
+ * F8/F6/F4); replay each state independently, retain only A5-viable executions,
+ * and union their code/data/provenance roles into the final analysis before
+ * detached-island discovery.  Hardware/evidence counters deliberately do not
+ * merge here: A7 has already chosen the mapper and this pass is presentation,
+ * not a second inference vote. */
+static int merge_selected_execution_presentation(analysis_t *dst,
+                                                 const analysis_t *src)
+{
+   size_t bi, off, i;
+   const uint8_t role_mask = ROLE_CODE_START | ROLE_CODE_BYTE | ROLE_OPERAND |
+                             ROLE_DATA_READ | ROLE_LABEL | ROLE_OVERLAP |
+                             ROLE_VECTOR;
+   if (dst->bank_count != src->bank_count || dst->rom_size != src->rom_size)
+      return 0;
+   for (bi = 0u; bi < dst->bank_count; ++bi) {
+      bank_t *db = &dst->banks[bi];
+      const bank_t *sb = &src->banks[bi];
+      if (db->size != sb->size || db->file_offset != sb->file_offset) return 0;
+      for (off = 0u; off < db->size; ++off) {
+         db->roles[off] |= sb->roles[off] & role_mask;
+         db->visited[off] |= sb->visited[off];
+         db->force_raw[off] |= sb->force_raw[off];
+         db->graphics[off] |= sb->graphics[off];
+         if (sb->roles[off] & ROLE_CODE_START) {
+            db->inst_len[off] = sb->inst_len[off];
+            db->inst_opcode[off] = sb->inst_opcode[off];
+         }
+         if (sb->state_seen[off]) {
+            if (!db->state_seen[off]) {
+               db->states[off] = sb->states[off];
+               db->state_seen[off] = 1u;
+            }
+            else
+               (void)state_merge(&db->states[off], &sb->states[off]);
+         }
+      }
+   }
+
+   /* Rebuild provenance as a union across viable startup states.  Generated
+    * RAM instruction records retain byte provenance when every occurrence
+    * agrees; the source maps themselves remain a union even when two startup
+    * states disagree about one generated instruction's exact source. */
+   for (i = 0u; i < src->provenance_ram_exec_count; ++i) {
+      const provenance_ram_instruction_t *r = &src->provenance_ram_exec[i];
+      if (!record_ram_exec_instruction(dst, r->pc, r->len, r->bytes, r->sources))
+         return 0;
+   }
+   for (i = 0u; i < src->rom_size; ++i) {
+      provenance_t source = (provenance_t)(i + 1u);
+      if (src->provenance_ram_sources && src->provenance_ram_sources[i]) {
+         provenance_mark_source(dst, source, dst->provenance_ram_sources,
+                                &dst->provenance_ram_source_count, 0);
+         provenance_mark_presentation_source(dst, source, 0);
+      }
+      if (src->provenance_grp_sources && src->provenance_grp_sources[i])
+         provenance_mark_source(dst, source, dst->provenance_grp_sources,
+                                &dst->provenance_grp_source_count, 1);
+   }
+   return 1;
+}
+
+static int feed_selected_hypothesis_execution(analysis_t *a,
+                                              const options_t *opt)
+{
+   options_t probe_opt;
+   size_t startup_banks[256];
+   size_t startup_count, si;
+
+   if (a->mapper == MAP_RAW || a->mapper == MAP_AR) return 1;
+   probe_opt = *opt;
+   probe_opt.mapper_override_set = 1;
+   probe_opt.mapper_override = a->mapper;
+   probe_opt.container_override_games = 0u;
+   startup_count = mapper_state_space_startup_banks(
+      a, opt, startup_banks, sizeof(startup_banks) / sizeof(startup_banks[0]));
+
+   for (si = 0u; si < startup_count; ++si) {
+      analysis_t probe;
+      const uint8_t *prov_rom = a->physical_rom ? a->physical_rom : a->rom;
+      size_t prov_size = a->physical_size ? a->physical_size : a->rom_size;
+      size_t root_bank, root_off;
+      uint16_t root_pc;
+      mapper_config_t root_config;
+      abstract_state_t root_state;
+      spec_context_t vctx;
+      spec_result_t viability = SPEC_REJECT;
+
+      memset(&probe, 0, sizeof(probe));
+      if (!init_analysis(&probe, a->rom, a->rom_size, &probe_opt)) return 0;
+      if (prov_size < a->rom_size || (prov_size % a->rom_size) != 0u) {
+         prov_rom = a->rom;
+         prov_size = a->rom_size;
+      }
+      if (!attach_physical_analysis_view(&probe, prov_rom, prov_size,
+                                         a->rom_size, prov_size > a->rom_size)) {
+         free_analysis(&probe);
+         return 0;
+      }
+      if (!apply_layout_overrides(&probe, &probe_opt)) {
+         free_analysis(&probe);
+         return 0;
+      }
+      if (startup_banks[si] >= probe.bank_count) {
+         free_analysis(&probe);
+         continue;
+      }
+      probe.reset_bank = startup_banks[si];
+      if (!trace_analysis_internal(&probe, &probe_opt, 1, 0)) {
+         free_analysis(&probe);
+         return 0;
+      }
+
+      memset(&root_state, 0, sizeof(root_state));
+      memset(&vctx, 0, sizeof(vctx));
+      vctx.hypothesis_viability = 1;
+      if (hypothesis_reset_entry(&probe, &root_bank, &root_off,
+                                 &root_pc, &root_config))
+         viability = speculative_flow_ctx(&probe, root_bank, root_off, root_pc,
+                                          root_config, &root_state, &vctx);
+      if (viability != SPEC_REJECT &&
+          !merge_selected_execution_presentation(a, &probe)) {
+         free_analysis(&probe);
+         return 0;
+      }
+      free_analysis(&probe);
+   }
+   return 1;
+}
+
 /* A decoded bank-changing edge is especially strong mapper evidence when the
  * hardware selects banks through a narrow, cartridge-specific address set.
  * Broad partial-address decoders such as 0840/UA/0FA0 can be triggered by
@@ -13520,6 +13684,7 @@ static int analyze_multicart_slice(analysis_t *a, uint8_t *rom, size_t size,
       a->mapper_refinement = refinement;
    }
    if (!apply_layout_overrides(a, &opt) || !run_concrete_discovery(a) ||
+       !feed_selected_hypothesis_execution(a, &opt) ||
        !trace_analysis(a, &opt)) {
       free_analysis(a);
       memset(a, 0, sizeof(*a));
@@ -13928,6 +14093,13 @@ int main(int argc, char **argv)
    }
    if (!run_concrete_discovery(&analysis)) {
       fprintf(stderr, "concrete discovery setup failed\n");
+      free_analysis(&analysis);
+      free(logical_rom);
+      free(rom);
+      return disassembly_failure(1);
+   }
+   if (!feed_selected_hypothesis_execution(&analysis, &opt)) {
+      fprintf(stderr, "selected mapper execution feedback failed\n");
       free_analysis(&analysis);
       free(logical_rom);
       free(rom);

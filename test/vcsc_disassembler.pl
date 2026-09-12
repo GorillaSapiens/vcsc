@@ -472,6 +472,14 @@ my $a4_riot_grp = make_rom(4096, 0xF000, 0x0100,
 substr($a4_riot_grp, 0x0200, 1, "\x5A");
 write_bin(File::Spec->catfile($in, 'a4_riot_grp.bin'), $a4_riot_grp);
 
+# A8 generalizes provenance presentation beyond sprite graphics.  Carry a ROM
+# source through RIOT RAM into AUDC0; the source is established data evidence
+# but must not be mislabeled as graphics.
+my $a8_riot_audio = make_rom(4096, 0xF000, 0x0100,
+   pack('C*', 0xAD,0x00,0xF2, 0x85,0x80, 0xA5,0x80, 0x85,0x15, 0x60));
+substr($a8_riot_audio, 0x0200, 1, "\x07");
+write_bin(File::Spec->catfile($in, 'a8_riot_audio.bin'), $a8_riot_audio);
+
 # Inherent FA cartridge RAM uses disjoint aliases.  The ROM table byte stored
 # through $1000 and reloaded through $1100 must still be the source reaching
 # GRP0; this pins path-local cartridge-RAM provenance, not merely RIOT RAM.
@@ -2167,6 +2175,19 @@ my $a3_unknown_out = slurp(File::Spec->catfile($out, 'a3_unknown_branch.s26'));
 require_re($a3_unknown_out,
    qr/^; hypothesis state-space: unbanked 4K startups=1 live=1 contexts=\d+ unknown-branch-forks=[1-9]\d* instructions=\d+ halts=\d+$/m,
    'A3 forks an unknown conditional branch');
+require_re($a3_unknown_out,
+   qr/^L_F100:
+\s*LDA\s+\$80
+\s*BNE\.same\s+\$F107.*
+\s*LDA\s+#\$11
+\s*RTS
+L_F107:
+\s*LDA\s+#\$22
+\s*RTS$/m,
+   'A8 feeds both feasible unknown-input branch arms into established presentation');
+require_re($a3_unknown_out,
+   qr/^; usage bytes: established-code=10 speculative-code=0 /m,
+   'A8 unknown-input execution is established before detached-island discovery');
 my $a3_known_out = slurp(File::Spec->catfile($out, 'a3_known_branch.s26'));
 require_re($a3_known_out,
    qr/^; hypothesis state-space: unbanked 4K startups=1 live=1 contexts=\d+ unknown-branch-forks=0 instructions=\d+ halts=0$/m,
@@ -2233,6 +2254,14 @@ require_re($a4_generated_out,
 require_re($a4_generated_out,
    qr/^; \$00F3: 4C E0 F0\s+JMP \$F0E0\s+; ROM sources \$[0-9A-F]{4} \$[0-9A-F]{4} \$[0-9A-F]{4}$/m,
    'A4 executes generated RAM control transfer back into ROM');
+for my $value (qw(AD F8 FF 4C E0 F0)) {
+   require_re($a4_generated_out,
+      qr/^\s*LDA\s+#\$$value\s+; instruction byte\/operand also read as data$/m,
+      "A8 keeps generated-RAM source byte #\$$value as overlapping code and data");
+}
+require_re($a4_generated_out,
+   qr/^; usage bytes: established-code=32 speculative-code=0 data-read=7 exec\+data=7 /m,
+   'A8 classifies six generated-code source operands plus the GRP source as proven data without losing code roles');
 
 require_re($a4_generated_out,
    qr/^; hypothesis bank coverage: F8 complete required=2 explained=2 unexplained=0 bank-size=4096$/m,
@@ -2248,6 +2277,16 @@ my $a4_riot_grp_out = slurp(File::Spec->catfile($out, 'a4_riot_grp.s26'));
 require_re($a4_riot_grp_out,
    qr/^; hypothesis provenance: unbanked 4K RAM-insns=0 RAM-ROM-sources=0 GRP-sources=1$/m,
    'A4 preserves ROM provenance through RIOT RAM reload into GRP1');
+
+my $a8_audio_out = slurp(File::Spec->catfile($out, 'a8_riot_audio.s26'));
+require_re($a8_audio_out,
+   qr/^\s*; definite ROM-data target
+L_F200:
+\s*\.byte \$07(?:,|$)/m,
+   'A8 treats ROM provenance consumed by AUDC0 as established non-graphics data');
+die "A8 audio provenance was incorrectly rendered as sprite graphics\n"
+   if $a8_audio_out =~ /^L_F200:
+\s*\.byte %[01]{8}/m;
 
 my $a4_fa_out = slurp(File::Spec->catfile($out, 'a4_fa_cartram.s26'));
 require_re($a4_fa_out,
@@ -2381,6 +2420,7 @@ require_re($ar_multi_out,
    qr/^; AR load 1: .*load-id=\$01, start=\$F000, control=\$14, pages=1/m,
    'AR nonzero multi-load header decoded');
 
+# A8 preservation regression: execution feedback must not disturb 4094/4098-byte exact forms.
 my $odd4k_over_out = slurp(File::Spec->catfile($out, 'odd4k_over.s26'));
 require_re($odd4k_over_out, qr/^; input bytes: 4098$/m,
    '4098-byte physical size retained');
@@ -2567,6 +2607,7 @@ require_re($recursive_dup_out, qr/^\.org \$0000$/m,
 
 # Explicit hardware layout wins over automatic duplicate collapsing while the
 # provenance map is still retained for later hypothesis accounting.
+# A8 duplicate/all-bank regression: selected execution feedback preserves physical accounting.
 my $forced_f8_dup = File::Spec->catfile($tmp, 'forced_f8_duplicate.s26');
 my ($forced_f8_rc, $forced_f8_sig, $forced_f8_stdout, $forced_f8_stderr) =
    capture_command($disas, '--mapper', 'f8', '-o', $forced_f8_dup,
@@ -2703,6 +2744,7 @@ require_re($wdsw_out, qr/^\s*\.byte \$12, \$34, \$56$/m,
    'WDSW trailing bytes preserved exactly');
 
 my $wd_out = slurp(File::Spec->catfile($out, 'wd.s26'));
+# A8 direction regression: presentation feedback must keep mapper read/write hotspot polarity.
 my $wd_spec_hotspot_out = slurp(File::Spec->catfile($out, 'wd_speculative_hotspot.s26'));
 require_re($wd_spec_hotspot_out,
    qr/^B0_F203:\n\s*LDA\s+\$3E/m,
@@ -2939,6 +2981,7 @@ die "zero-page instruction retained redundant .z suffix\n"
 require_re($mode_relax_out, qr/LDA\.a\s+\$0080\b/,
    'low absolute operand keeps .a to prevent relaxation');
 
+# A8 gap-filler regression: genuinely detached code remains speculative after selected execution feedback.
 my $spec_island = slurp(File::Spec->catfile($out, 'speculative_island.s26'));
 require_re($spec_island,
    qr/speculative instruction island validated by negative-evidence barrier/i,

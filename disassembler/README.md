@@ -227,6 +227,21 @@ remains the authoritative override when external knowledge resolves the dump and
 can intentionally represent duplicate component games that automatic structure
 would treat as preservation copies.
 
+A8 feeds the exhaustive execution of the A7-selected mapper back into source
+presentation before detached-island discovery. Each legal RESET/startup mapping
+is replayed in an isolated mapper-qualified analysis; only A5-viable executions
+contribute their code/data roles, abstract-state summaries, generated-RAM
+instruction provenance, and display/audio source provenance to the trusted final
+graph. This is presentation feedback only: it does not cast a second mapper vote.
+ROM bytes proven to construct executable RIOT-RAM instructions are explicitly
+marked as data sources even when those bytes are also operands of established ROM
+code, and proven ROM provenance consumed by valid TIA writes is likewise data
+evidence; GRP0/GRP1 retains the stronger graphics classification. Exact physical
+bytes remain authoritative when roles overlap. The older static/concrete pass may
+still supplement this graph, while detached island discovery runs afterward and
+therefore fills only presentation gaps without feeding mapper/Superchip/root
+evidence back into established analysis.
+
 Stella-playable 4094- and 4098-byte preservation dumps are treated as logical
 unbanked 4K cartridges without changing their physical files.  This mirrors
 Stella's generic cartridge behavior: a short image is zero-filled to 4096 bytes

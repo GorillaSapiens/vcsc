@@ -1,0 +1,32 @@
+2026-09-12 07:43:04 PDT, disassembler roadmap A8 complete
+A8 now feeds execution from the A7-selected mapper back into trusted code/data
+presentation instead of discarding the hypothesis-local result after mapper
+comparison. The selected mapper is replayed from every legal RESET/startup
+mapping in isolated analyses; only A5-viable startup executions contribute code
+and data roles, conservative abstract-state summaries, generated RIOT-RAM
+instruction provenance, and display/audio source provenance to the final graph.
+This feedback is presentation-only and does not cast another mapper-selection
+vote. Multicart slice analysis uses the same feedback path.
+
+ROM bytes proven to construct executable RIOT-RAM instructions are now explicit
+data-source bytes even when they are also operands of established ROM code. The
+emitter therefore preserves both roles and annotates code-as-data rather than
+choosing one interpretation. Proven ROM provenance consumed by any valid TIA
+write is data-source evidence; GRP0/GRP1 retains the stronger graphics role. A
+new AUDC0-through-RIOT-RAM fixture verifies non-graphics consumer provenance.
+
+Detached speculative islands still run only after established roles/evidence are
+frozen and remain presentation-only gap fillers. An attempted A8 cleanup that
+removed the legacy all-bank RESET presentation seeding exposed its current use
+for cross-startup Superchip read/write evidence, so that removal was deliberately
+backed out; the older static/concrete pass remains supplemental plumbing rather
+than being prematurely deleted in A8.
+
+Regression coverage now explicitly locks Congo-style generated F8 selectors,
+unknown-input branch forking as established (not speculative) code, prior A7
+trust-gate hard failures, duplicate images, 4094/4098-byte preservation forms,
+all-bank accounting, detached islands, and mapper-specific read/write hotspot
+direction. `vcsc_disassembler.pl` passes. The compile-only suite passes 537/537,
+and an uninterrupted full e2e run passes 365/365, including disassembler fuzz,
+GL, hardening, and opcode coverage. The mapper-hypothesis execution roadmap
+A1-A8 is complete; no post-A8 mapper work has begun.
