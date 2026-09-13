@@ -186,7 +186,12 @@ corresponding GRP0/COLUP0 or GRP1/COLUP1 sinks, presentation links them as a
 parallel per-row sprite/color pair. Equal lengths, adjacency, mismatched players,
 or separate loops are insufficient; ambiguous relationships stay independent.
 Synthetic tests own sprite-height, exclusion, overlap, family, and joined-pointer
-cases; copyrighted real-ROM validation stays out of tree.
+cases; copyrighted real-ROM validation stays out of tree. Graphics rows retain exact
+TIA sinks: GRP0/GRP1 are sprite data and PF0/PF1/PF2 are playfield data, including
+joined origins and multi-sink bytes. Proven constant-stride pointer families may form
+a wider composite GRP image; emit strip bases and a full-width X/dot preview in
+display order, reversing rows when the renderer decrements its memory Y counter.
+This presentation-only inference is neither font nor mapper evidence.
 
 Weak "nonsense operation string" evidence
 -----------------------------------------

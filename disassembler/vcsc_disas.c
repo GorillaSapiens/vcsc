@@ -220,6 +220,15 @@ typedef enum {
 #define ACCESS_READ  0x01u
 #define ACCESS_WRITE 0x02u
 
+#define GRAPHICS_SINK_GRP0 0x01u
+#define GRAPHICS_SINK_GRP1 0x02u
+#define GRAPHICS_SINK_SPRITE (GRAPHICS_SINK_GRP0 | GRAPHICS_SINK_GRP1)
+#define GRAPHICS_SINK_PF0 0x04u
+#define GRAPHICS_SINK_PF1 0x08u
+#define GRAPHICS_SINK_PF2 0x10u
+#define GRAPHICS_SINK_PLAYFIELD \
+   (GRAPHICS_SINK_PF0 | GRAPHICS_SINK_PF1 | GRAPHICS_SINK_PF2)
+
 #define PHYSICAL_BANK_DUPLICATE 0x01u
 #define PHYSICAL_BANK_FILL      0x02u
 
@@ -314,6 +323,17 @@ typedef struct {
    uint8_t *visited;
    uint8_t *state_seen;
    uint8_t *graphics;
+   /* Display sink(s) proven for each graphics byte.  GRAPHICS_SINK_* bits are
+    * presentation evidence only; zero means graphics with no unique TIA sink
+    * class (for example a structurally recognized font). */
+   uint8_t *graphics_sink;
+   /* Composite sprite metadata is stored at the first strip base.  A nonzero
+    * strip count describes adjacent 8-bit-wide strips of composite_height rows;
+    * composite_reverse_rows means the renderer consumes each strip from the
+    * highest source row down to the lowest source row. */
+   uint8_t *composite_strips;
+   uint16_t *composite_height;
+   uint8_t *composite_reverse_rows;
    /* Proven GRP0/GRP1 source span.  Zero means graphics without a proven
     * fixed sprite height; nonzero is the exact number of source rows starting
     * at this ROM byte.  Presentation annotations are intentionally deferred to
@@ -2427,6 +2447,10 @@ static int allocate_bank(bank_t *b, size_t size)
    b->visited = (uint8_t *)calloc(size, 1);
    b->state_seen = (uint8_t *)calloc(size, 1);
    b->graphics = (uint8_t *)calloc(size, 1);
+   b->graphics_sink = (uint8_t *)calloc(size, 1);
+   b->composite_strips = (uint8_t *)calloc(size, 1);
+   b->composite_height = (uint16_t *)calloc(size, sizeof(*b->composite_height));
+   b->composite_reverse_rows = (uint8_t *)calloc(size, 1);
    b->sprite_height = (uint16_t *)calloc(size, sizeof(*b->sprite_height));
    b->sprite_load_site = (size_t *)malloc(size * sizeof(*b->sprite_load_site));
    b->sprite_sink = (uint8_t *)calloc(size, 1);
@@ -2466,8 +2490,9 @@ static int allocate_bank(bank_t *b, size_t size)
       }
    }
    return b->roles && b->established_roles && b->inst_len && b->inst_opcode && b->visited &&
-          b->state_seen && b->graphics && b->sprite_height &&
-          b->sprite_load_site && b->sprite_sink && b->sprite_color_pair &&
+          b->state_seen && b->graphics && b->graphics_sink &&
+          b->composite_strips && b->composite_height && b->composite_reverse_rows &&
+          b->sprite_height && b->sprite_load_site && b->sprite_sink && b->sprite_color_pair &&
           b->font_start && b->font_len && b->color_start && b->color_len &&
           b->color_load_site && b->color_sink && b->color_sprite_pair &&
           b->pointer_start && b->pointer_words && b->pointer_manual &&
@@ -2490,6 +2515,10 @@ static void free_analysis(analysis_t *a)
          free(a->banks[i].visited);
          free(a->banks[i].state_seen);
          free(a->banks[i].graphics);
+         free(a->banks[i].graphics_sink);
+         free(a->banks[i].composite_strips);
+         free(a->banks[i].composite_height);
+         free(a->banks[i].composite_reverse_rows);
          free(a->banks[i].sprite_height);
          free(a->banks[i].sprite_load_site);
          free(a->banks[i].sprite_sink);
@@ -4440,7 +4469,8 @@ static void state_apply_memory_write(const analysis_t *a,
  * code-as-data rather than forcing one interpretation to erase the other. */
 static void provenance_mark_presentation_source(analysis_t *a,
                                                 provenance_t source,
-                                                int graphics)
+                                                int graphics,
+                                                unsigned sink_kind)
 {
    size_t physical, bi;
    if (source == PROVENANCE_NONE) return;
@@ -4451,7 +4481,10 @@ static void provenance_mark_presentation_source(analysis_t *a,
       if (physical >= b->file_offset && physical < b->file_offset + b->size) {
          size_t off = physical - b->file_offset;
          b->roles[off] |= ROLE_DATA_READ;
-         if (graphics) b->graphics[off] = 1u;
+         if (graphics) {
+            b->graphics[off] = 1u;
+            b->graphics_sink[off] |= (uint8_t)sink_kind;
+         }
          break;
       }
    }
@@ -4459,12 +4492,13 @@ static void provenance_mark_presentation_source(analysis_t *a,
 
 static void provenance_mark_presentation_sources(analysis_t *a,
                                                  display_provenance_t sources,
-                                                 int graphics)
+                                                 int graphics,
+                                                 unsigned sink_kind)
 {
    unsigned i;
    for (i = 0u; i < DISPLAY_PROVENANCE_CAP &&
                  sources.source[i] != PROVENANCE_NONE; ++i)
-      provenance_mark_presentation_source(a, sources.source[i], graphics);
+      provenance_mark_presentation_source(a, sources.source[i], graphics, sink_kind);
 }
 
 static void provenance_mark_source(analysis_t *a, provenance_t source,
@@ -4501,6 +4535,7 @@ static void provenance_observe_write(analysis_t *a,
    provenance_t source;
    display_provenance_t display_sources;
    int graphics;
+   unsigned graphics_sink = 0u;
    if (!(opcode_memory_access(opcode) & ACCESS_WRITE)) return;
    if (!resolve_effective_address(input, mode, operand, &address)) return;
    bus = (uint16_t)(address & 0x1fffu);
@@ -4511,11 +4546,16 @@ static void provenance_observe_write(analysis_t *a,
    display_sources = known_store_display_provenance(opcode, input);
    graphics = (reg == 0x1bu || reg == 0x1cu ||
                reg == 0x0du || reg == 0x0eu || reg == 0x0fu);
+   if (reg == 0x1bu) graphics_sink = GRAPHICS_SINK_GRP0;
+   else if (reg == 0x1cu) graphics_sink = GRAPHICS_SINK_GRP1;
+   else if (reg == 0x0du) graphics_sink = GRAPHICS_SINK_PF0;
+   else if (reg == 0x0eu) graphics_sink = GRAPHICS_SINK_PF1;
+   else if (reg == 0x0fu) graphics_sink = GRAPHICS_SINK_PF2;
    /* A8/G1: any proven ROM source consumed by a real TIA write is data-source
     * evidence.  The finite display set retains alternate feasible ROM origins
     * across joins; GRP0/GRP1 and PF0/PF1/PF2 additionally become graphics.
     * Core single-source provenance remains the A6/mapper-accounting channel. */
-   provenance_mark_presentation_sources(a, display_sources, graphics);
+   provenance_mark_presentation_sources(a, display_sources, graphics, graphics_sink);
    if (reg == 0x1bu || reg == 0x1cu) {
       unsigned i;
       for (i = 0u; i < DISPLAY_PROVENANCE_CAP &&
@@ -5893,7 +5933,7 @@ static int record_ram_exec_instruction(analysis_t *a, uint16_t pc,
    for (j = 0u; j < len; ++j) {
       provenance_mark_source(a, sources[j], a->provenance_ram_sources,
                              &a->provenance_ram_source_count, 0);
-      provenance_mark_presentation_source(a, sources[j], 0);
+      provenance_mark_presentation_source(a, sources[j], 0, 0u);
    }
    return 1;
 }
@@ -10427,6 +10467,22 @@ static int merge_selected_execution_presentation(analysis_t *dst,
          db->visited[off] |= sb->visited[off];
          db->force_raw[off] |= sb->force_raw[off];
          db->graphics[off] |= sb->graphics[off];
+         db->graphics_sink[off] |= sb->graphics_sink[off];
+         if (sb->composite_strips[off]) {
+            if (!db->composite_strips[off] ||
+                (db->composite_strips[off] == sb->composite_strips[off] &&
+                 db->composite_height[off] == sb->composite_height[off] &&
+                 db->composite_reverse_rows[off] == sb->composite_reverse_rows[off])) {
+               db->composite_strips[off] = sb->composite_strips[off];
+               db->composite_height[off] = sb->composite_height[off];
+               db->composite_reverse_rows[off] = sb->composite_reverse_rows[off];
+            }
+            else {
+               db->composite_strips[off] = 0u;
+               db->composite_height[off] = 0u;
+               db->composite_reverse_rows[off] = 0u;
+            }
+         }
          if (sb->sprite_height[off]) {
             if (!db->sprite_height[off] ||
                 db->sprite_height[off] == sb->sprite_height[off])
@@ -10463,7 +10519,7 @@ static int merge_selected_execution_presentation(analysis_t *dst,
       if (src->provenance_ram_sources && src->provenance_ram_sources[i]) {
          provenance_mark_source(dst, source, dst->provenance_ram_sources,
                                 &dst->provenance_ram_source_count, 0);
-         provenance_mark_presentation_source(dst, source, 0);
+         provenance_mark_presentation_source(dst, source, 0, 0u);
       }
       if (src->provenance_grp_sources && src->provenance_grp_sources[i])
          provenance_mark_source(dst, source, dst->provenance_grp_sources,
@@ -11018,6 +11074,10 @@ static void apply_superchip_window_semantics(analysis_t *a)
          b->inst_len[off] = 0;
          b->inst_opcode[off] = 0;
          b->graphics[off] = 0;
+         b->graphics_sink[off] = 0u;
+         b->composite_strips[off] = 0u;
+         b->composite_height[off] = 0u;
+         b->composite_reverse_rows[off] = 0u;
          b->sprite_height[off] = 0u;
          b->force_raw[off] = 0;
       }
@@ -11403,10 +11463,8 @@ static int analysis_uses_hardware_symbols(const analysis_t *a)
 #define GRAPHICS_TAINT_A 0x01u
 #define GRAPHICS_TAINT_X 0x02u
 #define GRAPHICS_TAINT_Y 0x04u
-#define GRAPHICS_SINK_GRP0 0x01u
-#define GRAPHICS_SINK_GRP1 0x02u
-#define GRAPHICS_SINK_SPRITE (GRAPHICS_SINK_GRP0 | GRAPHICS_SINK_GRP1)
-#define GRAPHICS_SINK_PLAYFIELD 0x04u
+#define GRAPHICS_DEPENDENCY_STEPS 8u
+#define GRAPHICS_COMPOSITE_DEPENDENCY_STEPS 20u
 
 #define COLOR_SINK_COLUP0 0x01u
 #define COLOR_SINK_COLUP1 0x02u
@@ -11443,9 +11501,16 @@ static unsigned graphics_store_source(const analysis_t *a, size_t bi,
       if (sink_kind) *sink_kind = GRAPHICS_SINK_GRP1;
       return source;
    }
-   if (strcmp(hw.name, "PF0") == 0 || strcmp(hw.name, "PF1") == 0 ||
-       strcmp(hw.name, "PF2") == 0) {
-      if (sink_kind) *sink_kind = GRAPHICS_SINK_PLAYFIELD;
+   if (strcmp(hw.name, "PF0") == 0) {
+      if (sink_kind) *sink_kind = GRAPHICS_SINK_PF0;
+      return source;
+   }
+   if (strcmp(hw.name, "PF1") == 0) {
+      if (sink_kind) *sink_kind = GRAPHICS_SINK_PF1;
+      return source;
+   }
+   if (strcmp(hw.name, "PF2") == 0) {
+      if (sink_kind) *sink_kind = GRAPHICS_SINK_PF2;
       return source;
    }
    return 0;
@@ -11514,17 +11579,19 @@ static int advance_graphics_taint(uint8_t opcode, address_mode_t mode,
    return 1;
 }
 
-static unsigned load_feeds_graphics_store(const analysis_t *a, size_t bi,
-                                          size_t off, unsigned initial_taint)
+static unsigned load_feeds_graphics_store_steps(const analysis_t *a, size_t bi,
+                                                size_t off, unsigned initial_taint,
+                                                unsigned max_steps)
 {
    const bank_t *b = &a->banks[bi];
    size_t p = off;
    unsigned steps;
    unsigned taint = initial_taint;
+   unsigned sinks = 0u;
    int staged_valid = 0;
    uint8_t staged_address = 0u;
    unsigned staged_taint = 0u;
-   for (steps = 0; steps < 8u; ++steps) {
+   for (steps = 0; steps < max_steps; ++steps) {
       unsigned len;
       uint8_t opcode;
       address_mode_t mode;
@@ -11533,11 +11600,11 @@ static unsigned load_feeds_graphics_store(const analysis_t *a, size_t bi,
       unsigned sink_kind = 0u;
       uint16_t operand = 0u;
       const char *mnemonic;
-      if (p >= b->size || !(b->roles[p] & ROLE_CODE_START)) return 0;
+      if (p >= b->size || !(b->roles[p] & ROLE_CODE_START)) return sinks;
       len = b->inst_len[p];
-      if (len == 0u || p + len >= b->size) return 0;
+      if (len == 0u || p + len >= b->size) return sinks;
       p += len;
-      if (!(b->roles[p] & ROLE_CODE_START)) return 0;
+      if (!(b->roles[p] & ROLE_CODE_START)) return sinks;
       opcode = b->inst_opcode[p];
       mode = (address_mode_t)opcode_modes[opcode];
       mnemonic = opcode_mnemonics[opcode];
@@ -11545,7 +11612,7 @@ static unsigned load_feeds_graphics_store(const analysis_t *a, size_t bi,
       if (b->inst_len[p] >= 3u)
          operand |= (uint16_t)a->rom[b->file_offset + p + 2u] << 8;
       store_source = graphics_store_source(a, bi, p, &sink_kind);
-      if (store_source && (store_source & taint)) return sink_kind;
+      if (store_source && (store_source & taint)) sinks |= sink_kind;
 
       /* G1's executor already carries display provenance through RIOT RAM.
        * Mirror the simplest straight-line staging form here so a not-yet-
@@ -11577,12 +11644,20 @@ static unsigned load_feeds_graphics_store(const analysis_t *a, size_t bi,
       flow = instruction_flow(opcode);
       if (flow != FLOW_NEXT || !advance_graphics_taint(opcode, mode, &taint) ||
           taint == 0u)
-         return 0;
+         return sinks;
    }
-   return 0;
+   return sinks;
 }
 
-static void mark_graphics_range(bank_t *b, size_t start, size_t limit)
+static unsigned load_feeds_graphics_store(const analysis_t *a, size_t bi,
+                                          size_t off, unsigned initial_taint)
+{
+   return load_feeds_graphics_store_steps(a, bi, off, initial_taint,
+                                          GRAPHICS_DEPENDENCY_STEPS);
+}
+
+static void mark_graphics_range_sink(bank_t *b, size_t start, size_t limit,
+                                     unsigned sink_kind)
 {
    size_t off;
    size_t end = start;
@@ -11593,21 +11668,27 @@ static void mark_graphics_range(bank_t *b, size_t start, size_t limit)
       if (b->roles[end] & (ROLE_CODE_START | ROLE_VECTOR)) break;
       ++end;
    }
-   for (off = start; off < end; ++off) b->graphics[off] = 1;
+   for (off = start; off < end; ++off) {
+      b->graphics[off] = 1u;
+      b->graphics_sink[off] |= (uint8_t)sink_kind;
+   }
 }
 
-static void mark_graphics_count(bank_t *b, size_t start, unsigned count)
+static void mark_graphics_count_sink(bank_t *b, size_t start, unsigned count,
+                                     unsigned sink_kind)
 {
    unsigned i;
-   for (i = 0; i < count && start + i < b->size; ++i)
+   for (i = 0u; i < count && start + i < b->size; ++i) {
       b->graphics[start + i] = 1u;
+      b->graphics_sink[start + i] |= (uint8_t)sink_kind;
+   }
 }
 
 static void mark_sprite_count(bank_t *b, size_t start, unsigned count,
                               size_t load_site, unsigned sink_kind)
 {
    if (!count || count > UINT16_MAX || start + count > b->size) return;
-   mark_graphics_count(b, start, count);
+   mark_graphics_count_sink(b, start, count, sink_kind);
    if (!b->sprite_height[start] || b->sprite_height[start] == count) {
       b->sprite_height[start] = (uint16_t)count;
       if (sink_kind == GRAPHICS_SINK_GRP0 || sink_kind == GRAPHICS_SINK_GRP1) {
@@ -12442,24 +12523,41 @@ static graphics_pointer_domain_t graphics_recover_pointer_domain(
 }
 
 
-static int graphics_pointer_is_used(const analysis_t *a, size_t bi,
-                                    uint8_t pointer)
+static unsigned graphics_buffer_stage_sink(const analysis_t *a, size_t bi,
+                                           size_t load_off,
+                                           unsigned initial_taint);
+
+static unsigned graphics_pointer_sink_mask_steps(const analysis_t *a, size_t bi,
+                                                 uint8_t pointer,
+                                                 unsigned max_steps)
 {
    const bank_t *b = &a->banks[bi];
    size_t off;
+   unsigned sinks = 0u;
    for (off = 0; off < b->size; ++off) {
       uint8_t opcode;
       address_mode_t mode;
       unsigned taint;
+      unsigned sink;
       if (!(b->roles[off] & ROLE_CODE_START) || b->inst_len[off] < 2u) continue;
       opcode = b->inst_opcode[off];
       mode = (address_mode_t)opcode_modes[opcode];
       if (mode != AM_INDIRECT_INDEXED) continue;
       if (a->rom[b->file_offset + off + 1u] != pointer) continue;
       taint = graphics_load_destination(opcode, mode);
-      if (taint && load_feeds_graphics_store(a, bi, off, taint)) return 1;
+      if (!taint) continue;
+      sink = load_feeds_graphics_store_steps(a, bi, off, taint, max_steps);
+      if (!sink) sink = graphics_buffer_stage_sink(a, bi, off, taint);
+      sinks |= sink;
    }
-   return 0;
+   return sinks;
+}
+
+static unsigned graphics_pointer_sink_mask(const analysis_t *a, size_t bi,
+                                           uint8_t pointer)
+{
+   return graphics_pointer_sink_mask_steps(a, bi, pointer,
+                                           GRAPHICS_DEPENDENCY_STEPS);
 }
 
 /* Recognize a common 2600 graphics-pointer construction:
@@ -12485,6 +12583,7 @@ static void detect_graphics_low_pointer_tables(analysis_t *a, size_t bi)
       size_t p1, p2, p3;
       uint8_t pointer, high;
       size_t count, i;
+      unsigned pointer_sinks;
       unsigned stride = 0;
       uint8_t first_low;
 
@@ -12502,7 +12601,8 @@ static void detect_graphics_low_pointer_tables(analysis_t *a, size_t bi)
           b->inst_len[p1] != 2u || b->inst_opcode[p1] != 0x85u)
          continue; /* STA zp */
       pointer = a->rom[b->file_offset + p1 + 1u];
-      if (!graphics_pointer_is_used(a, bi, pointer)) continue;
+      pointer_sinks = graphics_pointer_sink_mask(a, bi, pointer);
+      if (!pointer_sinks) continue;
 
       p2 = p1 + 2u;
       p3 = p2 + 2u;
@@ -12543,8 +12643,170 @@ static void detect_graphics_low_pointer_tables(analysis_t *a, size_t bi)
          size_t target_off;
          if (!cart_target_offset(b, target, &target_off)) continue;
          mark_label(b, target_off);
-         mark_graphics_count(b, target_off, stride ? stride : 8u);
+         mark_graphics_count_sink(b, target_off, stride ? stride : 8u,
+                                  pointer_sinks);
       }
+   }
+}
+
+/* A six-character score renderer can also be used as a wide bitmap renderer:
+ * an initialization loop writes evenly spaced low bytes into an interleaved
+ * zero-page pointer block, while the corresponding high bytes remain fixed.
+ * When every pointer is later consumed through (zp),Y into GRP0/GRP1, the ROM
+ * bytes are not independent glyphs: they are vertical 8-bit strips of one
+ * wider composite image.  Recover that stronger structure so presentation can
+ * show the whole image and can classify every byte as player graphics. */
+static int composite_rows_descend(const analysis_t *a, size_t bi,
+                                  uint8_t pointer_base, unsigned strips)
+{
+   const bank_t *b = &a->banks[bi];
+   size_t off;
+   for (off = 0u; off < b->size; ++off) {
+      uint8_t counter;
+      size_t p;
+      unsigned steps;
+      int saw_group_load = 0;
+      if (!(b->roles[off] & ROLE_CODE_START) || b->inst_len[off] != 2u ||
+          b->inst_opcode[off] != 0xa4u) /* LDY zp */
+         continue;
+      counter = a->rom[b->file_offset + off + 1u];
+      p = off + 2u;
+      for (steps = 0u; steps < 48u && p < b->size; ++steps) {
+         uint8_t op;
+         address_mode_t mode;
+         unsigned len;
+         uint16_t operand = 0u;
+         if (!(b->roles[p] & ROLE_CODE_START)) break;
+         op = b->inst_opcode[p];
+         len = b->inst_len[p];
+         if (!len || p + len > b->size) break;
+         mode = (address_mode_t)opcode_modes[op];
+         if (len >= 2u) operand = a->rom[b->file_offset + p + 1u];
+         if (mode == AM_INDIRECT_INDEXED &&
+             (uint8_t)operand >= pointer_base &&
+             (uint8_t)operand <= (uint8_t)(pointer_base + 2u * (strips - 1u)) &&
+             (((uint8_t)operand - pointer_base) & 1u) == 0u)
+            saw_group_load = 1;
+         if (op == 0xc6u && len == 2u &&
+             a->rom[b->file_offset + p + 1u] == counter) { /* DEC counter */
+            size_t branch = p + 2u;
+            size_t target;
+            if (saw_group_load && branch < b->size &&
+                (b->roles[branch] & ROLE_CODE_START) &&
+                b->inst_opcode[branch] == 0x10u && /* BPL */
+                graphics_relative_target(a, bi, branch, &target) && target == off)
+               return 1;
+         }
+         if (instruction_flow(op) != FLOW_NEXT) break;
+         p += len;
+      }
+   }
+   return 0;
+}
+
+static void detect_composite_sprite_groups(
+   analysis_t *a, size_t bi,
+   const graphics_byte_domain_t seed[ZERO_PAGE_SIZE])
+{
+   bank_t *b = &a->banks[bi];
+   size_t store_off;
+   for (store_off = 0u; store_off < b->size; ++store_off) {
+      size_t sec_off, sbc_off, dex1_off, dex2_off, branch_off, loop_start;
+      size_t ldx_off, adc_off;
+      uint8_t pointer_base, last_x, stride, last_low, first_low;
+      unsigned strips, i;
+      uint8_t high = 0u;
+      size_t first_source = SIZE_MAX;
+      int valid = 1;
+
+      if (!(b->roles[store_off] & ROLE_CODE_START) ||
+          b->inst_len[store_off] != 2u || b->inst_opcode[store_off] != 0x95u)
+         continue; /* STA zp,X */
+      pointer_base = a->rom[b->file_offset + store_off + 1u];
+      sec_off = store_off + 2u;
+      sbc_off = sec_off + 1u;
+      dex1_off = sbc_off + 2u;
+      dex2_off = dex1_off + 1u;
+      branch_off = dex2_off + 1u;
+      if (branch_off + 2u > b->size ||
+          !(b->roles[sec_off] & ROLE_CODE_START) || b->inst_opcode[sec_off] != 0x38u ||
+          !(b->roles[sbc_off] & ROLE_CODE_START) || b->inst_len[sbc_off] != 2u ||
+          b->inst_opcode[sbc_off] != 0xe9u ||
+          !(b->roles[dex1_off] & ROLE_CODE_START) || b->inst_opcode[dex1_off] != 0xcau ||
+          !(b->roles[dex2_off] & ROLE_CODE_START) || b->inst_opcode[dex2_off] != 0xcau ||
+          !(b->roles[branch_off] & ROLE_CODE_START) || b->inst_opcode[branch_off] != 0x10u ||
+          !graphics_relative_target(a, bi, branch_off, &loop_start) ||
+          loop_start > store_off || store_off - loop_start > 8u)
+         continue;
+      stride = a->rom[b->file_offset + sbc_off + 1u];
+      if (stride < 8u || stride > 64u) continue;
+
+      ldx_off = graphics_prev_instruction(b, loop_start);
+      if (ldx_off == SIZE_MAX || b->inst_len[ldx_off] != 2u ||
+          b->inst_opcode[ldx_off] != 0xa2u)
+         continue; /* LDX #last-even-offset */
+      last_x = a->rom[b->file_offset + ldx_off + 1u];
+      if ((last_x & 1u) != 0u) continue;
+      strips = (unsigned)last_x / 2u + 1u;
+      if (strips < 2u || strips > 16u ||
+          (unsigned)pointer_base + 2u * (strips - 1u) + 1u > 0xffu)
+         continue;
+
+      adc_off = graphics_prev_instruction(b, ldx_off);
+      if (adc_off == SIZE_MAX || b->inst_len[adc_off] != 2u ||
+          b->inst_opcode[adc_off] != 0x69u)
+         continue; /* ADC #last-strip-low, after a bounded/common offset */
+      last_low = a->rom[b->file_offset + adc_off + 1u];
+      if ((unsigned)last_low < stride * (strips - 1u)) continue;
+      first_low = (uint8_t)(last_low - stride * (strips - 1u));
+      if ((unsigned)last_low + stride > 0x100u) continue;
+
+      for (i = 0u; i < strips; ++i) {
+         uint8_t pointer = (uint8_t)(pointer_base + 2u * i);
+         graphics_byte_domain_t hd = graphics_zp_static_domain_before(
+            a, bi, seed, (uint8_t)(pointer + 1u), store_off);
+         unsigned sinks = graphics_pointer_sink_mask_steps(a, bi, pointer,
+                                      GRAPHICS_COMPOSITE_DEPENDENCY_STEPS);
+         uint16_t address;
+         size_t source_off;
+         if (hd.overflow || hd.count != 1u ||
+             !(sinks & GRAPHICS_SINK_SPRITE) ||
+             (sinks & GRAPHICS_SINK_PLAYFIELD)) {
+            valid = 0;
+            break;
+         }
+         if (i == 0u) high = hd.value[0];
+         else if (hd.value[0] != high) {
+            valid = 0;
+            break;
+         }
+         address = (uint16_t)(((uint16_t)high << 8) |
+                              (uint8_t)(first_low + stride * i));
+         if (!cart_target_offset(b, address, &source_off) ||
+             source_off + stride > b->size) {
+            valid = 0;
+            break;
+         }
+         if (i == 0u) first_source = source_off;
+      }
+      if (!valid || first_source == SIZE_MAX) continue;
+
+      for (i = 0u; i < strips; ++i) {
+         uint8_t pointer = (uint8_t)(pointer_base + 2u * i);
+         unsigned sinks = graphics_pointer_sink_mask(a, bi, pointer);
+         uint16_t address = (uint16_t)(((uint16_t)high << 8) |
+                            (uint8_t)(first_low + stride * i));
+         size_t source_off;
+         if (!cart_target_offset(b, address, &source_off)) break;
+         mark_label(b, source_off);
+         mark_graphics_count_sink(b, source_off, stride,
+                                  sinks & GRAPHICS_SINK_SPRITE);
+      }
+      if (i != strips) continue;
+      b->composite_strips[first_source] = (uint8_t)strips;
+      b->composite_height[first_source] = stride;
+      b->composite_reverse_rows[first_source] =
+         composite_rows_descend(a, bi, pointer_base, strips) ? 1u : 0u;
    }
 }
 
@@ -13001,7 +13263,7 @@ static void detect_graphics_data(analysis_t *a)
                if (sink_kind & GRAPHICS_SINK_SPRITE)
                   mark_sprite_count(b, source_off, span.count, off, sink_kind);
                else
-                  mark_graphics_count(b, source_off, span.count);
+                  mark_graphics_count_sink(b, source_off, span.count, sink_kind);
             }
             continue;
          }
@@ -13016,7 +13278,7 @@ static void detect_graphics_data(analysis_t *a)
                if (sink_kind & GRAPHICS_SINK_SPRITE)
                   mark_sprite_count(b, source_off, span.count, off, sink_kind);
                else
-                  mark_graphics_count(b, source_off, span.count);
+                  mark_graphics_count_sink(b, source_off, span.count, sink_kind);
             }
             continue;
          }
@@ -13025,11 +13287,12 @@ static void detect_graphics_data(analysis_t *a)
          if (mode == AM_ABSOLUTE) { exact = 1; effective = operand; }
          if (exact && cart_target_offset(b, effective, &source_off)) {
             b->graphics[source_off] = 1u;
+            b->graphics_sink[source_off] |= (uint8_t)sink_kind;
             continue;
          }
          if (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y) {
             if (cart_target_offset(b, operand, &source_off))
-               mark_graphics_range(b, source_off, 32u);
+               mark_graphics_range_sink(b, source_off, 32u, sink_kind);
          }
          else if (mode == AM_INDIRECT_INDEXED) {
             graphics_pointer_domain_t pointers = graphics_recover_pointer_domain(
@@ -13042,12 +13305,16 @@ static void detect_graphics_data(analysis_t *a)
                   target = (uint16_t)(pointer + b->states[off].y);
                if (!cart_target_offset(b, target, &source_off)) continue;
                mark_label(b, source_off);
-               if (b->states[off].y_known) b->graphics[source_off] = 1u;
-               else mark_graphics_range(b, source_off, 32u);
+               if (b->states[off].y_known) {
+                  b->graphics[source_off] = 1u;
+                  b->graphics_sink[source_off] |= (uint8_t)sink_kind;
+               }
+               else mark_graphics_range_sink(b, source_off, 32u, sink_kind);
             }
          }
       }
       detect_graphics_low_pointer_tables(a, bi);
+      detect_composite_sprite_groups(a, bi, pointer_seed);
       detect_structural_8x8_fonts(a, bi);
    }
 }
@@ -13954,7 +14221,7 @@ static void emit_sprite_annotation(FILE *fp, const analysis_t *a, size_t bi,
    }
 }
 
-static void emit_graphics_byte(FILE *fp, uint8_t value)
+static void emit_graphics_byte(FILE *fp, uint8_t value, unsigned sink_kind)
 {
    char binary[9];
    char picture[9];
@@ -13968,7 +14235,76 @@ static void emit_graphics_byte(FILE *fp, uint8_t value)
    picture[8] = '\0';
    /* vcsc-as currently accepts %01 binary literals.  Keep the human bitmap
     * spelling beside it rather than inventing unparseable X/dot syntax. */
-   fprintf(fp, "    .byte %%%s    ; %s\n", binary, picture);
+   fprintf(fp, "    .byte %%%s    ; %s", binary, picture);
+   if (sink_kind & (GRAPHICS_SINK_SPRITE | GRAPHICS_SINK_PLAYFIELD)) {
+      unsigned sprite = sink_kind & GRAPHICS_SINK_SPRITE;
+      unsigned pf = sink_kind & GRAPHICS_SINK_PLAYFIELD;
+      unsigned emitted = 0u;
+      if (sprite && pf) fputs("    display data -> ", fp);
+      else if (pf) fputs("    playfield data -> ", fp);
+      else fputs("    sprite data -> ", fp);
+      if (sprite & GRAPHICS_SINK_GRP0) {
+         fputs("GRP0", fp);
+         emitted = 1u;
+      }
+      if (sprite & GRAPHICS_SINK_GRP1) {
+         if (emitted) fputc('/', fp);
+         fputs("GRP1", fp);
+         emitted = 1u;
+      }
+      if (pf) {
+         unsigned pf_emitted = 0u;
+         if (emitted) fputs(" and ", fp);
+         if (pf & GRAPHICS_SINK_PF0) {
+            fputs("PF0", fp);
+            pf_emitted = 1u;
+         }
+         if (pf & GRAPHICS_SINK_PF1) {
+            if (pf_emitted) fputc('/', fp);
+            fputs("PF1", fp);
+            pf_emitted = 1u;
+         }
+         if (pf & GRAPHICS_SINK_PF2) {
+            if (pf_emitted) fputc('/', fp);
+            fputs("PF2", fp);
+         }
+      }
+   }
+   fputc('\n', fp);
+}
+
+static void emit_composite_sprite_annotation(FILE *fp, const analysis_t *a,
+                                             size_t bi, size_t off)
+{
+   const bank_t *b = &a->banks[bi];
+   unsigned strips, height, row, strip, bit;
+   if (off >= b->size || !b->composite_strips[off]) return;
+   strips = b->composite_strips[off];
+   height = b->composite_height[off];
+   if (!height || off + (size_t)strips * height > b->size) return;
+   fprintf(fp, "    ; probable %ux%u composite sprite assembled from %u adjacent 8x%u GRP strips\n",
+           strips * 8u, height, strips, height);
+   fputs("    ; strip bases:", fp);
+   for (strip = 0u; strip < strips; ++strip) {
+      fputc(' ', fp);
+      print_label_name(fp, a, bi, off + (size_t)strip * height);
+   }
+   fputc('\n', fp);
+   if (b->composite_reverse_rows[off])
+      fputs("    ; display-order preview (top to bottom; source rows inverted because the renderer counts Y down):\n", fp);
+   else
+      fputs("    ; display-order preview (top to bottom):\n", fp);
+   for (row = 0u; row < height; ++row) {
+      unsigned source_row = b->composite_reverse_rows[off] ? height - 1u - row : row;
+      fputs("    ; |", fp);
+      for (strip = 0u; strip < strips; ++strip) {
+         uint8_t value = a->rom[b->file_offset + off +
+                                (size_t)strip * height + source_row];
+         for (bit = 0u; bit < 8u; ++bit)
+            fputc((value & (0x80u >> bit)) ? 'X' : '.', fp);
+      }
+      fputs("|\n", fp);
+   }
 }
 
 
@@ -15627,6 +15963,7 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
             font_group_end = off + b->font_len[off];
             if (font_group_end > emit_size) font_group_end = emit_size;
          }
+         emit_composite_sprite_annotation(fp, a, bi, off);
          emit_sprite_annotation(fp, a, bi, off);
          if (b->spec_seed[off])
             fputs("    ; speculative instruction island validated by negative-evidence barrier\n", fp);
@@ -15661,7 +15998,8 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
             off += len;
          }
          else if (b->graphics[off]) {
-            emit_graphics_byte(fp, a->rom[b->file_offset + off]);
+            emit_graphics_byte(fp, a->rom[b->file_offset + off],
+                               b->graphics_sink[off]);
             ++off;
          }
          else {

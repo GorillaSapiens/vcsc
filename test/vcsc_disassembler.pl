@@ -1776,17 +1776,62 @@ substr($not_sprite, 0x0200, 8,
    pack('C*', 0x3C, 0x66, 0xC3, 0xDB, 0xDB, 0xC3, 0x66, 0x3C));
 write_bin(File::Spec->catfile($in, 'not_sprite.bin'), $not_sprite);
 
-# Graphics provenance survives simple ALU transforms.  PF0 sees only the high
-# nibble after AND, but each source byte is still directly graphical data.
+# Graphics provenance survives simple ALU transforms and preserves the exact
+# TIA sinks.  The masked byte is written to PF0/PF1/PF2 before the loop repeats.
 my $graphics_mask = make_rom(4096, 0xF000, 0x0100,
    "\xA0\x07" .                 # LDY #7
    "\xB9\x00\xF2" .           # LDA $F200,Y
    "\x29\xF0" .                 # AND #$F0
    "\x85\x0D" .                 # STA PF0
-   "\x88\x10\xF6\x60");    # DEY/BPL F102; RTS
+   "\x85\x0E" .                 # STA PF1
+   "\x85\x0F" .                 # STA PF2
+   "\x88\x10\xF2\x60");    # DEY/BPL F102; RTS
 substr($graphics_mask, 0x0200, 8,
    pack('C*', 0xF0, 0xE0, 0xC0, 0x80, 0x10, 0x30, 0x70, 0xF0));
 write_bin(File::Spec->catfile($in, 'graphics_mask.bin'), $graphics_mask);
+
+# A six-pointer GRP renderer may treat adjacent 8xN strips as one wider image.
+# The setup loop writes low bytes $50,$60,...,$A0 into an interleaved pointer
+# block while fixed high bytes remain $F3; the renderer consumes all six
+# pointers side-by-side with a memory-backed Y counter that counts 7 down to 0.
+# Composite recovery should mark the full six 16-byte strips, preserve their
+# sprite sink provenance, and preview rows in display order rather than storage
+# order.
+my $composite_sprite = make_rom(4096, 0xF000, 0x0100,
+   pack('C*',
+      0xA9,0xF3,0x85,0xC1, 0xA9,0xF3,0x85,0xC3,
+      0xA9,0xF3,0x85,0xC5, 0xA9,0xF3,0x85,0xC7,
+      0xA9,0xF3,0x85,0xC9, 0xA9,0xF3,0x85,0xCB,
+      0xA0,0x00,             # LDY #0
+      0x98,                  # TYA
+      0x18,                  # CLC
+      0x69,0xA0,             # ADC #$A0 (last strip low byte)
+      0xA2,0x0A,             # LDX #10 -> six even pointer offsets
+      0x95,0xC0,             # setup: STA $C0,X
+      0x38,                  # SEC
+      0xE9,0x10,             # SBC #$10 -> 16-byte strip stride
+      0xCA,0xCA,             # DEX / DEX
+      0x10,0xF7,             # BPL setup
+      0x20,0x2D,0xF1,        # JSR renderer
+      0x60,                  # RTS
+      0xA9,0x07,0x85,0xF7,  # renderer: row counter := 7
+      0xA4,0xF7,             # row: LDY $F7
+      0xB1,0xC0,0x85,0x1B,  # strip 0 -> GRP0
+      0xB1,0xC2,0x85,0x1C,  # strip 1 -> GRP1
+      0xB1,0xC4,0x85,0x1B,  # strip 2 -> GRP0
+      0xB1,0xC6,0x85,0x1C,  # strip 3 -> GRP1
+      0xB1,0xC8,0x85,0x1B,  # strip 4 -> GRP0
+      0xB1,0xCA,0x85,0x1C,  # strip 5 -> GRP1
+      0xC6,0xF7,             # DEC $F7
+      0x10,0xE2,             # BPL row
+      0x60));                # RTS
+for my $strip (0 .. 5) {
+   my @rows = (0x00) x 16;
+   $rows[0] = 0x01 << $strip;
+   $rows[15] = 0x80 >> $strip;
+   substr($composite_sprite, 0x0350 + 0x10 * $strip, 16, pack('C*', @rows));
+}
+write_bin(File::Spec->catfile($in, 'composite_sprite.bin'), $composite_sprite);
 
 # X/Y loads and stores are legitimate graphics paths too.  This table is loaded
 # through X and written directly to GRP1 through STX.
@@ -2859,30 +2904,30 @@ require_re($g1_multi_origin_out,
    'G1 retains both feasible ROM origins through a register join and RIOT RAM');
 require_re($g1_multi_origin_out,
    qr/^L_F200:
-\s*\.byte %00111100\s+;\s+\.\.XXXX\.\.$/m,
+\s*\.byte %00111100\s+;\s+\.\.XXXX\.\.\s+sprite data -> GRP0$/m,
    'G1 renders the first alternate GRP0 ROM origin as graphics');
 require_re($g1_multi_origin_out,
    qr/^L_F201:
-\s*\.byte %11000011\s+;\s+XX\.\.\.\.XX$/m,
+\s*\.byte %11000011\s+;\s+XX\.\.\.\.XX\s+sprite data -> GRP0$/m,
    'G1 renders the second alternate GRP0 ROM origin as graphics');
 
 
 my $g2_pointer_block_out = slurp(
    File::Spec->catfile($out, 'g2_pointer_block.s26'));
 require_re($g2_pointer_block_out,
-   qr/^L_F308:\n(?:\s*\.byte %[01]{8}\s+;\s+[.X]{8}\n){8}/m,
+   qr/^L_F308:\n(?:\s*\.byte %[01]{8}\s+;\s+[.X]{8}\s+sprite data -> GRP1\n){8}/m,
    'G2 recovers block-initialized pointer with indexed low-byte ADC update');
 require_re($g2_pointer_block_out,
-   qr/^L_F338:\n(?:\s*\.byte %[01]{8}\s+;\s+[.X]{8}\n){8}/m,
+   qr/^L_F338:\n(?:\s*\.byte %[01]{8}\s+;\s+[.X]{8}\s+sprite data -> GRP0\n){8}/m,
    'G2 recovers inherited high byte with bounded low-byte SBC update');
 
 my $g2_split_pointer_out = slurp(
    File::Spec->catfile($out, 'g2_split_pointer.s26'));
 require_re($g2_split_pointer_out,
-   qr/^L_F300:\n(?:\s*\.byte %[01]{8}\s+;\s+[.X]{8}\n){8}/m,
+   qr/^L_F300:\n(?:\s*\.byte %[01]{8}\s+;\s+[.X]{8}\s+sprite data -> GRP0\n){8}/m,
    'G2 retains first feasible split-assignment pointer target');
 require_re($g2_split_pointer_out,
-   qr/^L_F310:\n(?:(?:\s*;[^\n]*\n)?(?:L_[0-9A-F]+:\n)?\s*\.byte %[01]{8}\s+;\s+[.X]{8}\n){8}/m,
+   qr/^L_F310:\n(?:(?:\s*;[^\n]*\n)?(?:L_[0-9A-F]+:\n)?\s*\.byte %[01]{8}\s+;\s+[.X]{8}\s+sprite data -> GRP0\n){8}/m,
    'G2 retains second feasible split-assignment pointer target');
 
 my $a8_audio_out = slurp(File::Spec->catfile($out, 'a8_riot_audio.s26'));
@@ -3676,7 +3721,7 @@ for my $unpaired (qw(parallel_wrong_player.s26 parallel_separate_loops.s26
 }
 
 my $sprite_out = slurp(File::Spec->catfile($out, 'sprite_rows.s26'));
-my @sprite_rows = ($sprite_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+my @sprite_rows = ($sprite_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}(?:\s+(?:sprite|playfield|display) data -> [^\n]+)?\s*$/mg);
 die "expected 8 visual sprite rows, got " . scalar(@sprite_rows) . "\n"
    if @sprite_rows != 8;
 require_re($sprite_out, qr/\.byte\s+%00111100\s+;\s+\.\.XXXX\.\./,
@@ -3684,23 +3729,27 @@ require_re($sprite_out, qr/\.byte\s+%00111100\s+;\s+\.\.XXXX\.\./,
 require_re($sprite_out, qr/^\s*; probable 8x8 sprite\s*$/m,
    'G5 exact 8x8 sprite annotation');
 
+require_re($sprite_out,
+   qr/\.byte\s+%00111100\s+;\s+\.\.XXXX\.\.\s+sprite data -> GRP0/,
+   'sprite sink classification on ordinary GRP0 rows');
+
 
 my $sprite16_out = slurp(File::Spec->catfile($out, 'sprite16_rows.s26'));
-my @sprite16_rows = ($sprite16_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+my @sprite16_rows = ($sprite16_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}(?:\s+(?:sprite|playfield|display) data -> [^\n]+)?\s*$/mg);
 die "expected exactly 16 loop-proven sprite rows, got " . scalar(@sprite16_rows) . "\n"
    if @sprite16_rows != 16;
 require_re($sprite16_out, qr/^\s*; probable 8x16 sprite\s*$/m,
    'G5 exact 8x16 sprite annotation');
 
 my $sprite_limit_out = slurp(File::Spec->catfile($out, 'sprite_limit_rows.s26'));
-my @sprite_limit_rows = ($sprite_limit_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+my @sprite_limit_rows = ($sprite_limit_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}(?:\s+(?:sprite|playfield|display) data -> [^\n]+)?\s*$/mg);
 die "expected exactly 12 compare-limited sprite rows, got " . scalar(@sprite_limit_rows) . "\n"
    if @sprite_limit_rows != 12;
 require_re($sprite_limit_out, qr/^\s*; probable 8x12 sprite\s*$/m,
    'G5 compare-limited sprite annotation');
 
 my $sprite_buffer_copy_out = slurp(File::Spec->catfile($out, 'sprite_buffer_copy.s26'));
-my @sprite_buffer_copy_rows = ($sprite_buffer_copy_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+my @sprite_buffer_copy_rows = ($sprite_buffer_copy_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}(?:\s+(?:sprite|playfield|display) data -> [^\n]+)?\s*$/mg);
 die "expected exactly 16 direct+buffer-copy sprite rows, got " . scalar(@sprite_buffer_copy_rows) . "\n"
    if @sprite_buffer_copy_rows != 16;
 my @sprite_buffer_notes = ($sprite_buffer_copy_out =~
@@ -3722,7 +3771,7 @@ my $not_sprite_out = slurp(File::Spec->catfile($out, 'not_sprite.s26'));
 die "non-graphics table was rendered as sprite rows\n"
    if $not_sprite_out =~ /^\s*\.byte\s+%[01]{8}\s+;/m;
 my $graphics_mask_out = slurp(File::Spec->catfile($out, 'graphics_mask.s26'));
-my @mask_rows = ($graphics_mask_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+my @mask_rows = ($graphics_mask_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}(?:\s+(?:sprite|playfield|display) data -> [^\n]+)?\s*$/mg);
 die "expected 8 transformed playfield rows, got " . scalar(@mask_rows) . "\n"
    if @mask_rows != 8;
 require_re($graphics_mask_out, qr/\.byte\s+%11110000\s+;\s+XXXX\.\.\.\./,
@@ -3730,36 +3779,58 @@ require_re($graphics_mask_out, qr/\.byte\s+%11110000\s+;\s+XXXX\.\.\.\./,
 die "playfield graphics were mislabeled as a sprite\n"
    if $graphics_mask_out =~ /probable 8x\d+ sprite/i;
 
+require_re($graphics_mask_out,
+   qr/\.byte\s+%11110000\s+;\s+XXXX\.\.\.\.\s+playfield data -> PF0\/PF1\/PF2/,
+   'playfield sink classification on graphics bytes');
+
+my $composite_sprite_out = slurp(
+   File::Spec->catfile($out, 'composite_sprite.s26'));
+require_re($composite_sprite_out,
+   qr/probable 48x16 composite sprite assembled from 6 adjacent 8x16 GRP strips/i,
+   'six-strip composite sprite annotation');
+require_re($composite_sprite_out,
+   qr/strip bases:\s+L_F350\s+L_F360\s+L_F370\s+L_F380\s+L_F390\s+L_F3A0/i,
+   'composite strip-base list');
+require_re($composite_sprite_out,
+   qr/source rows inverted because the renderer counts Y down/i,
+   'composite display-order inversion annotation');
+require_re($composite_sprite_out,
+   qr/^\s*; \|X\.\.\.\.\.\.\.\.X\.\.\.\.\.\.\.\.X\.\.\.\.\.\.\.\.X\.\.\.\.\.\.\.\.X\.\.\.\.\.\.\.\.X\.\.\|$/m,
+   'composite full-width first preview row');
+require_re($composite_sprite_out,
+   qr/\.byte\s+%10000000\s+;\s+X\.\.\.\.\.\.\.\s+sprite data -> GRP0/,
+   'sprite sink classification on composite strip bytes');
+
 my $graphics_stx_out = slurp(File::Spec->catfile($out, 'graphics_stx.s26'));
-my @stx_rows = ($graphics_stx_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+my @stx_rows = ($graphics_stx_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}(?:\s+(?:sprite|playfield|display) data -> [^\n]+)?\s*$/mg);
 die "expected 8 STX-fed graphics rows, got " . scalar(@stx_rows) . "\n"
    if @stx_rows != 8;
 require_re($graphics_stx_out, qr/\.byte\s+%11111111\s+;\s+XXXXXXXX/,
    'X-register graphics provenance');
 
 my $graphics_transfer_out = slurp(File::Spec->catfile($out, 'graphics_transfer.s26'));
-my @transfer_rows = ($graphics_transfer_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+my @transfer_rows = ($graphics_transfer_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}(?:\s+(?:sprite|playfield|display) data -> [^\n]+)?\s*$/mg);
 die "expected 8 transferred graphics rows, got " . scalar(@transfer_rows) . "\n"
    if @transfer_rows != 8;
 require_re($graphics_transfer_out, qr/\.byte\s+%10000001\s+;\s+X\.\.\.\.\.\.X/,
    'register-transfer graphics provenance');
 
 my $graphics_sty_out = slurp(File::Spec->catfile($out, 'graphics_sty.s26'));
-my @sty_rows = ($graphics_sty_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+my @sty_rows = ($graphics_sty_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}(?:\s+(?:sprite|playfield|display) data -> [^\n]+)?\s*$/mg);
 die "expected 8 STY-fed graphics rows, got " . scalar(@sty_rows) . "\n"
    if @sty_rows != 8;
 require_re($graphics_sty_out, qr/\.byte\s+%01111110\s+;\s+\.XXXXXX\./,
    'Y-register graphics provenance');
 
 my $font_out = slurp(File::Spec->catfile($out, 'font_rows.s26'));
-my @font_visual = ($font_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+my @font_visual = ($font_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}(?:\s+(?:sprite|playfield|display) data -> [^\n]+)?\s*$/mg);
 die "expected 16 visual font rows, got " . scalar(@font_visual) . "\n"
    if @font_visual != 16;
 require_re($font_out, qr/\.byte\s+%00111100\s+;\s+\.\.XXXX\.\./,
    'runtime-indexed font-table rendering');
 
 my $pointer_frames_out = slurp(File::Spec->catfile($out, 'pointer_frames.s26'));
-my @pointer_frame_rows = ($pointer_frames_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+my @pointer_frame_rows = ($pointer_frames_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}(?:\s+(?:sprite|playfield|display) data -> [^\n]+)?\s*$/mg);
 die "expected 24 visual rows from dynamic low-byte pointer table, got " . scalar(@pointer_frame_rows) . "\n"
    if @pointer_frame_rows != 24;
 require_re($pointer_frames_out, qr/^L_F280:\s*$/m, 'first inferred animation-frame label');
@@ -3769,7 +3840,7 @@ require_re($pointer_frames_out, qr/^L_F290:\s*$/m, 'third inferred animation-fra
 
 my $g4_selector_family_out = slurp(
    File::Spec->catfile($out, 'g4_selector_family.s26'));
-my @g4_family_rows = ($g4_selector_family_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+my @g4_family_rows = ($g4_selector_family_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}(?:\s+(?:sprite|playfield|display) data -> [^\n]+)?\s*$/mg);
 die "expected exactly 64 selector-expanded 16-row sprite rows, got " .
     scalar(@g4_family_rows) . "\n"
    if @g4_family_rows != 64;
@@ -3805,7 +3876,7 @@ for my $addr (qw(F4A0 F4B0)) {
 }
 
 my $structural_font_out = slurp(File::Spec->catfile($out, 'structural_font.s26'));
-my @structural_font_rows = ($structural_font_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+my @structural_font_rows = ($structural_font_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}(?:\s+(?:sprite|playfield|display) data -> [^\n]+)?\s*$/mg);
 die "expected 64 structural-font visual rows, got " . scalar(@structural_font_rows) . "\n"
    if @structural_font_rows != 64;
 require_re($structural_font_out, qr/probable 8x8 font\/graphics table/i,
@@ -3823,14 +3894,14 @@ die "expected seven blank separators between eight structural-font glyphs, got "
 my $structural_font_overlap_out = slurp(
    File::Spec->catfile($out, 'structural_font_overlap.s26'));
 my @structural_font_overlap_rows = ($structural_font_overlap_out =~
-   /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+   /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}(?:\s+(?:sprite|playfield|display) data -> [^\n]+)?\s*$/mg);
 die "expected 80 overlap-extended structural-font visual rows, got " .
     scalar(@structural_font_overlap_rows) . "\n"
    if @structural_font_overlap_rows != 80;
 require_re($structural_font_overlap_out, qr/probable 8x8 font\/graphics table/i,
    'overlap-extended structural font annotation');
 my @structural_font_overlap_gaps = ($structural_font_overlap_out =~
-   /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*\n\n(?=\s*\.byte\s+%)/mg);
+   /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}(?:\s+(?:sprite|playfield|display) data -> [^\n]+)?\s*\n\n(?=\s*\.byte\s+%)/mg);
 die "expected nine blank separators between ten overlap-extended font glyphs, got " .
     scalar(@structural_font_overlap_gaps) . "\n"
    if @structural_font_overlap_gaps != 9;

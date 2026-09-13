@@ -61,3 +61,29 @@ line between each eight-row glyph while retaining interior labels/comments.
 Added a synthetic overlap regression plus separator checks; the supplied
 3e90cf23106f2e08b2781e41299de556.bin now renders all ten decimal glyphs and
 round-trips byte-for-byte (matching MD5).
+
+2026-09-13 10:58:14 PDT, composite sprite and sink annotations
+The disassembler now preserves exact TIA graphics-sink provenance in emitted
+bitmap rows: GRP0/GRP1 bytes are identified as sprite data and PF0/PF1/PF2 bytes
+as playfield data, including joined alternate ROM origins and one source feeding
+multiple registers. The static dependency walker keeps its normal short bound;
+a longer bound is used only while validating a structurally recovered composite
+sprite group, avoiding broad G1 behavior changes.
+
+A bounded interleaved-pointer setup pattern such as `STA zp,X ; SBC #stride ;
+DEX ; DEX ; BPL` can now recover adjacent 8xN strips that are proven to feed a
+multi-sprite renderer. Presentation emits strip-base labels plus a full-width
+X/dot image preview. When the established renderer loads Y from a memory row
+counter and decrements it back to the loop, the preview reverses source rows so
+the comment is in displayed top-to-bottom order. Synthetic regressions cover
+six 8x16 strips, exact PF0/PF1/PF2 sink accumulation, GRP alternate origins, and
+byte-exact round trips. The supplied 3e90cf23106f2e08b2781e41299de556.bin
+round-trips with the same MD5 and now shows the full 48x16 composite preview.
+
+2026-09-13 11:20:17 PDT, structural-font separator regression assertion
+The overlap-extended structural-font fixture already emitted all nine blank
+separators between its ten glyphs.  Its regression regex counted only five
+because four glyph-ending rows now carry the exact `sprite data -> GRP0` sink
+annotation.  Updated that assertion to accept and verify the optional graphics
+sink suffix, matching the row-format contract used by the surrounding graphics
+tests.  No disassembler emission logic changed.
