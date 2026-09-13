@@ -1976,6 +1976,30 @@ substr($structural_font, 0x0300, 64,
       0x18,0x18,0x18,0x18,0x0C,0x06,0x42,0x7E));
 write_bin(File::Spec->catfile($in, 'structural_font.bin'), $structural_font);
 
+# Strong graphics provenance may cover only the first part of a larger aligned
+# font.  Structural recognition must extend through the whole coherent table
+# rather than refusing to start merely because the first glyphs were already
+# classified as graphics.  Unknown X makes the absolute-indexed load conservatively
+# mark the first 32 bytes; the table itself contains ten 8-byte decimal glyphs.
+my $structural_font_overlap = make_rom(4096, 0xF000, 0x0100,
+   "\xBD\x00\xF3" .           # LDA $F300,X (X unknown)
+   "\x85\x1B" .                 # STA GRP0
+   "\x60");                      # RTS
+substr($structural_font_overlap, 0x0300, 80,
+   pack('C*',
+      0x3C,0x66,0x66,0x66,0x66,0x66,0x66,0x3C,
+      0x3C,0x18,0x18,0x18,0x18,0x18,0x38,0x18,
+      0x7E,0x60,0x60,0x3C,0x06,0x06,0x46,0x3C,
+      0x3C,0x46,0x06,0x0C,0x0C,0x06,0x46,0x3C,
+      0x0C,0x0C,0x0C,0x7E,0x4C,0x2C,0x1C,0x0C,
+      0x7C,0x46,0x06,0x06,0x7C,0x60,0x60,0x7E,
+      0x3C,0x66,0x66,0x66,0x7C,0x60,0x62,0x3C,
+      0x18,0x18,0x18,0x18,0x0C,0x06,0x42,0x7E,
+      0x3C,0x66,0x66,0x3C,0x3C,0x66,0x66,0x3C,
+      0x3C,0x46,0x06,0x3E,0x66,0x66,0x66,0x3C));
+write_bin(File::Spec->catfile($in, 'structural_font_overlap.bin'),
+          $structural_font_overlap);
+
 # Random-looking data with no TIA graphics provenance stays numeric even when
 # indexed like a table.
 my $random_table = make_rom(4096, 0xF000, 0x0100,
@@ -3790,6 +3814,26 @@ die "appearance-only structural font was mislabeled as a sprite\n"
    if $structural_font_out =~ /probable 8x\d+ sprite/i;
 require_re($structural_font_out, qr/\.byte\s+%00111100\s+;\s+\.\.XXXX\.\./,
    'structural font first glyph row not swallowed by raw run');
+my @structural_font_gaps = ($structural_font_out =~
+   /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*\n\n(?=\s*\.byte\s+%)/mg);
+die "expected seven blank separators between eight structural-font glyphs, got " .
+    scalar(@structural_font_gaps) . "\n"
+   if @structural_font_gaps != 7;
+
+my $structural_font_overlap_out = slurp(
+   File::Spec->catfile($out, 'structural_font_overlap.s26'));
+my @structural_font_overlap_rows = ($structural_font_overlap_out =~
+   /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+die "expected 80 overlap-extended structural-font visual rows, got " .
+    scalar(@structural_font_overlap_rows) . "\n"
+   if @structural_font_overlap_rows != 80;
+require_re($structural_font_overlap_out, qr/probable 8x8 font\/graphics table/i,
+   'overlap-extended structural font annotation');
+my @structural_font_overlap_gaps = ($structural_font_overlap_out =~
+   /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*\n\n(?=\s*\.byte\s+%)/mg);
+die "expected nine blank separators between ten overlap-extended font glyphs, got " .
+    scalar(@structural_font_overlap_gaps) . "\n"
+   if @structural_font_overlap_gaps != 9;
 
 for my $non_graphics_name ('random_table.s26', 'compressed_table.s26') {
    my $text = slurp(File::Spec->catfile($out, $non_graphics_name));

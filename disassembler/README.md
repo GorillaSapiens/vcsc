@@ -384,8 +384,10 @@ matching X/dot picture when the analysis has strong evidence. Besides direct
 GRP/PF provenance, the detector recognizes common indirect animation pointers
 built from a ROM low-byte table plus a constant high byte and can infer frame
 height from a constant low-byte stride. It also recognizes long, coherent,
-aligned 8x8 font runs structurally; a lone bitmap-looking object is not enough
-to trigger that fallback. Pitfall's eight 22-row Harry frames, decimal font, and object-pattern
+aligned 8x8 font runs structurally; structural recognition may extend through
+rows already proven as graphics so partial pointer provenance cannot truncate a
+larger coherent table. A lone bitmap-looking object is not enough to trigger
+that fallback. Pitfall's eight 22-row Harry frames, decimal font, and object-pattern
 families are useful out-of-tree sanity cases for these paths; repository
 regressions remain synthetic/non-copyrighted.
 
@@ -643,6 +645,10 @@ as a comment rather than inventing new assembler syntax:
     .byte %00111100    ; ..XXXX..
     .byte %01100110    ; .XX..XX.
 ```
+
+Structurally recognized 8x8 font/graphics tables get a blank separator after
+each eight-row glyph. Real labels and data-target comments inside the table are
+preserved at their exact byte offsets.
 
 Countdown-indexed loops are used when possible to prove the table length;
 otherwise a runtime-indexed table is conservatively bounded by the next known

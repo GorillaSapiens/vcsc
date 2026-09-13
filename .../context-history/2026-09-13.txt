@@ -50,3 +50,14 @@ no failure had occurred. This was a runner time limit, not a test failure.
   developer record and require it alongside the other canonical hot files.
 * Record the next heart work: move the 45-byte self-modifying RAM kernel into
   ROM-resident variants, then synthesize half hearts with M0/M1.
+
+2026-09-13 10:00:41 PDT, complete structural font extension
+The disassembler now lets long aligned 8x8 structural font/graphics recognition
+extend through rows that already have strong graphics provenance.  This fixes a
+case where recovered pointer bases at $FF00 and $FF10 pessimistically marked only
+digits 0-5 of a 10-glyph decimal font and prevented the structural fallback from
+starting at the real table base.  Structural font output also inserts a blank
+line between each eight-row glyph while retaining interior labels/comments.
+Added a synthetic overlap regression plus separator checks; the supplied
+3e90cf23106f2e08b2781e41299de556.bin now renders all ten decimal glyphs and
+round-trips byte-for-byte (matching MD5).

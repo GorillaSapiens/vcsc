@@ -327,6 +327,7 @@ typedef struct {
    uint8_t *sprite_sink;
    size_t *sprite_color_pair;
    uint8_t *font_start;
+   uint16_t *font_len;
    uint8_t *color_start;
    uint8_t *color_len;
    size_t *color_load_site;
@@ -2431,6 +2432,7 @@ static int allocate_bank(bank_t *b, size_t size)
    b->sprite_sink = (uint8_t *)calloc(size, 1);
    b->sprite_color_pair = (size_t *)malloc(size * sizeof(*b->sprite_color_pair));
    b->font_start = (uint8_t *)calloc(size, 1);
+   b->font_len = (uint16_t *)calloc(size, sizeof(*b->font_len));
    b->color_start = (uint8_t *)calloc(size, 1);
    b->color_len = (uint8_t *)calloc(size, 1);
    b->color_load_site = (size_t *)malloc(size * sizeof(*b->color_load_site));
@@ -2466,7 +2468,7 @@ static int allocate_bank(bank_t *b, size_t size)
    return b->roles && b->established_roles && b->inst_len && b->inst_opcode && b->visited &&
           b->state_seen && b->graphics && b->sprite_height &&
           b->sprite_load_site && b->sprite_sink && b->sprite_color_pair &&
-          b->font_start && b->color_start && b->color_len &&
+          b->font_start && b->font_len && b->color_start && b->color_len &&
           b->color_load_site && b->color_sink && b->color_sprite_pair &&
           b->pointer_start && b->pointer_words && b->pointer_manual &&
           b->manual_table_byte && b->manual_table_start &&
@@ -2493,6 +2495,7 @@ static void free_analysis(analysis_t *a)
          free(a->banks[i].sprite_sink);
          free(a->banks[i].sprite_color_pair);
          free(a->banks[i].font_start);
+         free(a->banks[i].font_len);
          free(a->banks[i].color_start);
          free(a->banks[i].color_len);
          free(a->banks[i].color_load_site);
@@ -12583,8 +12586,11 @@ static int looks_like_8x8_glyph(const analysis_t *a, const bank_t *b,
 /* Provenance is preferable, but long fixed-height font tables can be
  * unmistakable even when their runtime pointer arithmetic is too dynamic to
  * recover statically. Require at least eight consecutive address-aligned 8x8
- * glyph-like blocks. This is deliberately much stricter than recognizing one
- * bitmap-shaped object and has negligible random-data false positives. */
+ * glyph-like blocks. Bytes already proven as graphics are allowed inside the
+ * run: partial pointer provenance must not prevent structural recognition from
+ * extending through the rest of one coherent table. This is deliberately much
+ * stricter than recognizing one bitmap-shaped object and has negligible
+ * random-data false positives. */
 static void detect_structural_8x8_fonts(analysis_t *a, size_t bi)
 {
    bank_t *b = &a->banks[bi];
@@ -12592,7 +12598,7 @@ static void detect_structural_8x8_fonts(analysis_t *a, size_t bi)
    for (off = 0; off + 64u <= b->size; ) {
       size_t run = 0;
       uint16_t address = (uint16_t)(b->origin + (uint16_t)off);
-      if ((address & 7u) != 0u || b->graphics[off] ||
+      if ((address & 7u) != 0u ||
           !looks_like_8x8_glyph(a, b, off)) {
          ++off;
          continue;
@@ -12603,6 +12609,7 @@ static void detect_structural_8x8_fonts(analysis_t *a, size_t bi)
       if (run >= 8u) {
          size_t i;
          b->font_start[off] = 1;
+         b->font_len[off] = (uint16_t)(run * 8u);
          for (i = 0; i < run * 8u; ++i) b->graphics[off + i] = 1;
          off += run * 8u;
       }
@@ -13494,6 +13501,7 @@ static void cancel_auto_presentations(bank_t *b, size_t first, size_t last)
       b->sprite_sink[p] = 0u;
       b->sprite_color_pair[p] = SIZE_MAX;
       b->font_start[p] = 0u;
+      b->font_len[p] = 0u;
    }
 }
 
@@ -15601,15 +15609,24 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
       fprintf(fp, ".rorg $%04X\n", b->origin);
       {
          size_t emit_size = b->size;
+         size_t font_group_start = SIZE_MAX;
+         size_t font_group_end = 0u;
          if (a->odd_4k_dump && bi == 0u && a->physical_size < emit_size)
             emit_size = a->physical_size;
          while (off < emit_size) {
+         if (font_group_start != SIZE_MAX && off < font_group_end &&
+             off > font_group_start && ((off - font_group_start) & 7u) == 0u)
+            fputc('\n', fp);
          if (b->manual_table_start[off])
             fputs("    ; manual generic data-table hint\n", fp);
          if (b->manual_pointer_start[off] && !b->pointer_start[off])
             fputs("    ; manual pointer-table data role; primary code/vector/raw representation preserved\n", fp);
-         if (b->font_start[off])
+         if (b->font_start[off]) {
             fputs("    ; probable 8x8 font/graphics table\n", fp);
+            font_group_start = off;
+            font_group_end = off + b->font_len[off];
+            if (font_group_end > emit_size) font_group_end = emit_size;
+         }
          emit_sprite_annotation(fp, a, bi, off);
          if (b->spec_seed[off])
             fputs("    ; speculative instruction island validated by negative-evidence barrier\n", fp);
