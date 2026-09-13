@@ -121,8 +121,8 @@ Open workstreams
    work only. Mapper-hypothesis migration A1-A8 and two post-A8 mismatch-hardening
    passes are complete. The highest-priority G1-G5 graphics/provenance sequence is
    in progress. G1 finite multi-origin display provenance, G2 indirect pointer
-   recovery, and G3 loop-derived sprite spans are complete; G4-G5 cover
-   selector/offset sprite families and presentation.
+   recovery, G3 loop-derived sprite spans, and G4 selector/offset sprite-family
+   expansion are complete; G5 is the presentation/real-corpus closeout.
    Use `probable 8xN sprite`, never `player sprite`. GL real-corpus closeout, CM,
    DPC+, and CDF-family support follow after G2-G5 unless explicitly reprioritized.
 
@@ -175,7 +175,7 @@ Last validation state
 ---------------------
 The current post-A8 disassembler tree passes 365/365 e2e and 537/537 compile-only.
 The second supplied Stella-mismatch corpus is 11/11 byte-exact, 8 matches, 0
-mismatches, 3 intentionally unresolved/raw. A1-A8 plus G1-G3 are closed; G4 is
+mismatches, 3 intentionally unresolved/raw. A1-A8 plus G1-G4 are closed; G5 is
 next. Detailed completed implementation facts live in executable regressions and
 dated history rather than here.
 

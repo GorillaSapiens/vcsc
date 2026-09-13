@@ -1821,6 +1821,44 @@ substr($pointer_frames, 0x0280, 24,
       0x00,0x7E,0x42,0x5A,0x5A,0x42,0x7E,0x00));
 write_bin(File::Spec->catfile($in, 'pointer_frames.bin'), $pointer_frames);
 
+
+# G4: a runtime selector constrained to four values indexes a ROM offset table.
+# Those offsets are added to a fixed pointer low-byte base, and the resulting
+# pointers feed a loop-proven 16-row GRP0 consumer.  Only the four selector
+# entries established by AND #3 are members of the sprite family; adjacent
+# table-looking bytes deliberately point at bitmap-shaped random data and must
+# not be promoted.
+my $g4_selector_family = make_rom(4096, 0xF000, 0x0100,
+   "\xD8" .                         # CLD -- pointer arithmetic is binary
+   "\xAD\x80\x02" .           # LDA SWCHA (runtime selector source)
+   "\x29\x03\xAA" .           # AND #3 / TAX => exact domain {0,1,2,3}
+   "\xBD\x40\xF2" .           # LDA $F240,X (offset table)
+   "\x18\x69\x80" .           # CLC / ADC #$80
+   "\x85\x80" .                 # STA pointer low
+   "\xA9\xF2\x85\x81" .       # pointer high := $F2
+   "\xA0\x0F" .                 # LDY #15
+   "\xB1\x80" .                 # sprite: LDA ($80),Y
+   "\x85\x1B" .                 # STA GRP0
+   "\x88\x10\xF9" .           # DEY / BPL sprite
+   "\x20\x48\xF2\x60");      # JSR F248 boundary / RTS
+substr($g4_selector_family, 0x0240, 8,
+   pack('C*', 0x00,0x20,0x40,0x60, 0x10,0x30,0x50,0x70));
+substr($g4_selector_family, 0x0248, 1, "\x60");
+for my $base (0x0280, 0x02A0, 0x02C0, 0x02E0) {
+   substr($g4_selector_family, $base, 16,
+      pack('C*', 0x00,0x18,0x3C,0x7E,0xDB,0xFF,0xDB,0x7E,
+                 0x3C,0x18,0x24,0x42,0x81,0xC3,0x66,0x3C));
+}
+# Attractive but unselected neighbors corresponding to the four bytes after
+# the proven selector table.  If G4 overreads the table these become false
+# sprite families.
+for my $base (0x0290, 0x02B0, 0x02D0, 0x02F0) {
+   substr($g4_selector_family, $base, 16,
+      pack('C*', 0x3C,0x66,0xC3,0xDB,0xDB,0xC3,0x66,0x3C,
+                 0x18,0x24,0x42,0x81,0x81,0x42,0x24,0x18));
+}
+write_bin(File::Spec->catfile($in, 'g4_selector_family.bin'), $g4_selector_family);
+
 # A long, coherent fixed-height font is strong structural graphics evidence even
 # when pointer arithmetic is too dynamic to prove a short direct TIA data-flow
 # path.  A single bitmap-shaped object is still not sufficient (not_sprite.bin).
@@ -3411,6 +3449,22 @@ die "expected 24 visual rows from dynamic low-byte pointer table, got " . scalar
 require_re($pointer_frames_out, qr/^L_F280:\s*$/m, 'first inferred animation-frame label');
 require_re($pointer_frames_out, qr/^L_F288:\s*$/m, 'second inferred animation-frame label');
 require_re($pointer_frames_out, qr/^L_F290:\s*$/m, 'third inferred animation-frame label');
+
+
+my $g4_selector_family_out = slurp(
+   File::Spec->catfile($out, 'g4_selector_family.s26'));
+my @g4_family_rows = ($g4_selector_family_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
+die "expected exactly 64 selector-expanded 16-row sprite rows, got " .
+    scalar(@g4_family_rows) . "\n"
+   if @g4_family_rows != 64;
+for my $addr (qw(F280 F2A0 F2C0 F2E0)) {
+   require_re($g4_selector_family_out, qr/^L_${addr}:\s*$/m,
+      "G4 selector family labels proven target $addr");
+}
+for my $addr (qw(F290 F2B0 F2D0 F2F0)) {
+   die "G4 overread selector table and promoted unselected target $addr\n"
+      if $g4_selector_family_out =~ /^L_${addr}:\n(?:\s*;[^\n]*\n)*\s*\.byte\s+%[01]{8}/m;
+}
 
 my $structural_font_out = slurp(File::Spec->catfile($out, 'structural_font.s26'));
 my @structural_font_rows = ($structural_font_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);

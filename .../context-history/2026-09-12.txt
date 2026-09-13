@@ -218,3 +218,17 @@ same exact loop-span result instead of the retired countdown helper. Final
 validation: 537/537 compile-only and 365/365 e2e, including vcsc_disassembler,
 fuzz, GL, hardening, and opcodes. G4 is next; no G4 work was started.
 
+
+2026-09-12 16:18:39 PDT, G4 selector sprite families
+G4 now expands indexed ROM selector/offset tables only from small finite selector
+domains proven by nearby straight-line dataflow. Exact X/Y state, immediate
+selectors, and unknown values constrained by a low contiguous AND mask (with an
+optional non-overlapping OR group) are supported. The resulting finite table
+values feed the existing G2 pointer arithmetic and G3 loop span, so every proven
+target gets the same exact sprite height. Established instruction/vector bytes
+are excluded from family inference unless separate execution/provenance already
+establishes overlap; appearance alone remains non-evidence. A synthetic regression
+uses AND #3 plus four offsets to recover four 16-row sprites while four deliberately
+bitmap-shaped neighbors outside the selector domain remain numeric. Focused
+vcsc_disassembler.pl passed; repository validation passed 537/537 compile-only
+and 365/365 e2e. G5 remains unstarted.

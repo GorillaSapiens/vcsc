@@ -154,14 +154,18 @@ and preserve both roles; only unproven cases retain the bounded fallback window.
 Synthetic regressions lock separated index setup, 8x16 countdown graphics,
 compare-limited spans, RIOT-buffer copy lengths, and exact reconstruction.
 
-G4. [ ] Expand selector/offset tables into sprite families
-    * When proven pointer bases are adjusted by a ROM selector/offset table,
-      enumerate every finite in-bounds target supported by the established dataflow
-      and mark the corresponding loop-derived spans.
-    * Recognize related frames/objects by shared pointer-selection mechanics, not
-      bitmap resemblance alone. Shape heuristics remain low-priority corroboration
-      and may never independently promote a large graphics region.
-    * Add false-positive tests for code/random data adjacent to selector tables.
+Completed G4 invariant
+----------------------
+Finite selector/offset-table sprite families are complete. A runtime X/Y selector
+may expand an indexed ROM table only when nearby straight-line dataflow proves a
+small finite selector domain (currently exact state, immediate selection, or an
+unknown value constrained by a low contiguous AND mask with optional disjoint OR
+bits). Every selected table value may flow through the existing bounded pointer
+arithmetic, then G3's loop-derived span is applied to each recovered target.
+Established instruction/vector bytes are not invented as selector-table members;
+real code/data overlap still requires execution/provenance evidence. Synthetic
+regressions lock a four-member 8x16 family and bitmap-looking/code-adjacent false
+positives outside the proven selector domain.
 
 G5. [ ] Presentation and real-corpus closeout
     * Emit a concise annotation such as `probable 8x16 sprite` for GRP0/GRP1

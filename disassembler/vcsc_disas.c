@@ -11654,6 +11654,134 @@ static graphics_byte_domain_t graphics_zp_static_domain_before(
    return seed[address];
 }
 
+typedef enum {
+   GRAPHICS_INDEX_NONE = 0,
+   GRAPHICS_INDEX_X,
+   GRAPHICS_INDEX_Y
+} graphics_index_reg_t;
+
+static size_t graphics_prev_instruction(const bank_t *b, size_t off)
+{
+   unsigned back;
+   for (back = 1u; back <= 3u && back <= off; ++back) {
+      size_t p = off - back;
+      if ((b->roles[p] & ROLE_CODE_START) && b->inst_len[p] == back)
+         return p;
+   }
+   return SIZE_MAX;
+}
+
+/* G4: recover a small, finite selector domain for an indexed ROM table.
+ * Keep this deliberately local and straight-line.  The common form is an
+ * unknown runtime byte masked to a low contiguous field, optionally ORed with
+ * a constant group selector, then transferred to X/Y immediately before the
+ * table load:
+ *
+ *     LDA runtime
+ *     AND #$03
+ *     ORA #$08       ; optional
+ *     TAX
+ *     LDA table,X
+ *
+ * An unknown accumulator constrained by AND #((2^n)-1) has exactly 2^n
+ * possible values; the domain cap keeps enumeration bounded.  We intentionally
+ * do not infer arbitrary ranges from nearby bytes or table appearance. */
+static graphics_byte_domain_t graphics_finite_index_domain_before(
+   const analysis_t *a, size_t bi, size_t before, graphics_index_reg_t reg)
+{
+   const bank_t *b = &a->banks[bi];
+   graphics_byte_domain_t out = graphics_byte_domain_none();
+   size_t transfer, p;
+   uint8_t op, mask = 0xffu, or_value = 0u;
+   int have_mask = 0, have_or = 0;
+   unsigned i;
+
+   if (before >= b->size || !b->state_seen[before]) return out;
+   if (reg == GRAPHICS_INDEX_X && b->states[before].x_known) {
+      graphics_byte_domain_add(&out, b->states[before].x);
+      return out;
+   }
+   if (reg == GRAPHICS_INDEX_Y && b->states[before].y_known) {
+      graphics_byte_domain_add(&out, b->states[before].y);
+      return out;
+   }
+
+   transfer = graphics_prev_instruction(b, before);
+   if (transfer == SIZE_MAX) return out;
+   op = b->inst_opcode[transfer];
+   if ((reg == GRAPHICS_INDEX_X && op != 0xaau) ||
+       (reg == GRAPHICS_INDEX_Y && op != 0xa8u))
+      return out; /* TAX/TAY */
+
+   p = graphics_prev_instruction(b, transfer);
+   if (p == SIZE_MAX) return out;
+   if (b->inst_opcode[p] == 0x09u && b->inst_len[p] == 2u) { /* ORA # */
+      or_value = a->rom[b->file_offset + p + 1u];
+      have_or = 1;
+      p = graphics_prev_instruction(b, p);
+      if (p == SIZE_MAX) return out;
+   }
+   if (b->inst_opcode[p] == 0x29u && b->inst_len[p] == 2u) { /* AND # */
+      mask = a->rom[b->file_offset + p + 1u];
+      have_mask = 1;
+      p = graphics_prev_instruction(b, p);
+      if (p == SIZE_MAX) return out;
+   }
+
+   /* A directly loaded immediate selector is finite even without a mask. */
+   if (b->inst_opcode[p] == 0xa9u && b->inst_len[p] == 2u) {
+      uint8_t value = a->rom[b->file_offset + p + 1u];
+      if (have_mask) value &= mask;
+      if (have_or) value |= or_value;
+      graphics_byte_domain_add(&out, value);
+      return out;
+   }
+
+   if (!have_mask) return out;
+   /* Only low contiguous masks have an exact cheap domain: 0,1,3,7,15. */
+   if (mask >= GRAPHICS_POINTER_DOMAIN_CAP ||
+       (((unsigned)mask + 1u) & (unsigned)mask) != 0u)
+      return out;
+   if (have_or && (or_value & mask) != 0u) return out;
+   for (i = 0u; i <= (unsigned)mask; ++i)
+      graphics_byte_domain_add(&out, (uint8_t)i | or_value);
+   return out;
+}
+
+static graphics_byte_domain_t graphics_finite_indexed_rom_domain(
+   const analysis_t *a, size_t bi, size_t off, address_mode_t mode,
+   uint16_t operand)
+{
+   const bank_t *b = &a->banks[bi];
+   graphics_byte_domain_t out = graphics_byte_domain_none();
+   graphics_index_reg_t reg;
+   graphics_byte_domain_t indices;
+   unsigned i;
+   reg = mode == AM_ABSOLUTE_X ? GRAPHICS_INDEX_X :
+         mode == AM_ABSOLUTE_Y ? GRAPHICS_INDEX_Y : GRAPHICS_INDEX_NONE;
+   if (reg == GRAPHICS_INDEX_NONE) return out;
+   indices = graphics_finite_index_domain_before(a, bi, off, reg);
+   if (indices.overflow || indices.count == 0u) return out;
+   for (i = 0u; i < indices.count; ++i) {
+      uint16_t effective = (uint16_t)(operand + indices.value[i]);
+      size_t source_off;
+      if (!cart_target_offset(b, effective, &source_off)) {
+         out.overflow = 1u;
+         out.count = 0u;
+         return out;
+      }
+      /* Family expansion is presentation inference, not permission to turn an
+       * established instruction/vector byte into a new selector-table member.
+       * Real code/data overlap is retained when execution/provenance establishes
+       * it elsewhere; this guard prevents a finite mask from swallowing adjacent
+       * code as a synthetic table entry. */
+      if (b->roles[source_off] & (ROLE_CODE_START | ROLE_VECTOR)) continue;
+      graphics_byte_domain_add(&out, a->rom[b->file_offset + source_off]);
+      if (out.overflow) return out;
+   }
+   return out;
+}
+
 static graphics_byte_domain_t graphics_finite_operand_domain(
    const analysis_t *a, size_t bi,
    const graphics_byte_domain_t seed[ZERO_PAGE_SIZE],
@@ -11678,6 +11806,10 @@ static graphics_byte_domain_t graphics_finite_operand_domain(
        state_read_operand(a, bi, &b->states[off], mode, operand, &value)) {
       graphics_byte_domain_add(&d, value);
       return d;
+   }
+   if (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y) {
+      d = graphics_finite_indexed_rom_domain(a, bi, off, mode, operand);
+      if (d.count || d.overflow) return d;
    }
    if (!resolve_effective_address(&b->states[off], mode, operand, &effective))
       return d;
@@ -11715,9 +11847,9 @@ static graphics_byte_domain_t graphics_apply_addsub_domain(
 
 /* Collect finite values written to one pointer byte before an established
  * indirect graphics consumer.  Only short straight-line A dataflow is
- * accepted.  Indexed ROM loads participate only when the selected execution
- * has an exact index; selector-family expansion with an unknown index belongs
- * to G4.  ADC/SBC requires an explicit CLC/SEC and a proven binary-decimal
+ * accepted.  Indexed ROM loads may contribute a small G4 selector domain when
+ * nearby dataflow proves the finite index set.  ADC/SBC requires an explicit
+ * CLC/SEC and a proven binary-decimal
  * state, otherwise the result is intentionally left unknown. */
 static graphics_byte_domain_t graphics_collect_pointer_updates(
    const analysis_t *a, size_t bi,
@@ -12009,12 +12141,6 @@ static void detect_structural_8x8_fonts(analysis_t *a, size_t bi)
    }
 }
 
-typedef enum {
-   GRAPHICS_INDEX_NONE = 0,
-   GRAPHICS_INDEX_X,
-   GRAPHICS_INDEX_Y
-} graphics_index_reg_t;
-
 typedef struct {
    uint8_t known;
    uint8_t first_index;
@@ -12074,17 +12200,6 @@ static int graphics_immediate_index_before(const analysis_t *a, size_t bi,
    }
    if (known && value) *value = v;
    return known;
-}
-
-static size_t graphics_prev_instruction(const bank_t *b, size_t off)
-{
-   unsigned back;
-   for (back = 1u; back <= 3u && back <= off; ++back) {
-      size_t p = off - back;
-      if ((b->roles[p] & ROLE_CODE_START) && b->inst_len[p] == back)
-         return p;
-   }
-   return SIZE_MAX;
 }
 
 static int graphics_relative_target(const analysis_t *a, size_t bi, size_t off,
