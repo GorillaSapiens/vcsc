@@ -2516,6 +2516,76 @@ my $color_table = make_rom(4096, 0xF000, 0x0100,
 substr($color_table, 0x0380, 3, pack('C*', 0x84, 0x46, 0xC8));
 write_bin(File::Spec->catfile($in, 'color_table.bin'), $color_table);
 
+# A common kernel keeps a per-scanline player color array parallel to its
+# bitmap rows.  The two independently proven tables may be associated only
+# because the same Y-controlled loop consumes equal row intervals and sends
+# them to the corresponding GRP0/COLUP0 sinks.
+my $parallel_sprite_color = make_rom(4096, 0xF000, 0x0100,
+   "\xA0\x07" .                 # LDY #7
+   "\xB9\x00\xF2" .           # loop: LDA F200,Y
+   "\x85\x1B" .                 # STA GRP0
+   "\xB9\x20\xF2" .           # LDA F220,Y
+   "\x85\x06" .                 # STA COLUP0
+   "\x88" .                       # DEY
+   "\x10\xF3" .                 # BPL loop
+   "\x60");
+substr($parallel_sprite_color, 0x0200, 8,
+   pack('C*', 0x3C,0x66,0xC3,0xDB,0xDB,0xC3,0x66,0x3C));
+substr($parallel_sprite_color, 0x0220, 8,
+   pack('C*', 0x22,0x24,0x26,0x28,0x2A,0x2C,0x2E,0x30));
+write_bin(File::Spec->catfile($in, 'parallel_sprite_color.bin'),
+          $parallel_sprite_color);
+
+# Equal-length tables in one loop are not enough when the player sinks do not
+# correspond.  GRP0 paired with COLUP1 must remain two independent inferences.
+my $parallel_wrong_player = $parallel_sprite_color;
+substr($parallel_wrong_player, 0x010B, 1, "\x07"); # STA COLUP1
+write_bin(File::Spec->catfile($in, 'parallel_wrong_player.bin'),
+          $parallel_wrong_player);
+
+# Equal-length GRP0/COLUP0 tables consumed by separate loops are likewise not
+# a parallel row pair: matching physical shape without common loop provenance
+# must not create a relationship.
+my $parallel_separate_loops = make_rom(4096, 0xF000, 0x0100,
+   "\xA0\x07" .                 # LDY #7
+   "\xB9\x00\xF2" .           # sprite loop
+   "\x85\x1B" .                 # STA GRP0
+   "\x88\x10\xF8" .           # DEY / BPL sprite loop
+   "\xA0\x07" .                 # LDY #7
+   "\xB9\x20\xF2" .           # color loop
+   "\x85\x06" .                 # STA COLUP0
+   "\x88\x10\xF8" .           # DEY / BPL color loop
+   "\x60");
+substr($parallel_separate_loops, 0x0200, 8,
+   pack('C*', 0x18,0x3C,0x7E,0xDB,0xDB,0x7E,0x3C,0x18));
+substr($parallel_separate_loops, 0x0220, 8,
+   pack('C*', 0x42,0x44,0x46,0x48,0x4A,0x4C,0x4E,0x50));
+write_bin(File::Spec->catfile($in, 'parallel_separate_loops.bin'),
+          $parallel_separate_loops);
+
+# Two same-player color tables in the very same row loop are genuinely
+# ambiguous.  Retain both color-table facts but do not arbitrarily choose one
+# as the sprite's parallel array.
+my $parallel_ambiguous_colors = make_rom(4096, 0xF000, 0x0100,
+   "\xA0\x07" .                 # LDY #7
+   "\xB9\x00\xF2" .           # loop: sprite
+   "\x85\x1B" .                 # STA GRP0
+   "\xB9\x20\xF2" .           # color candidate 1
+   "\x85\x06" .                 # STA COLUP0
+   "\xB9\x40\xF2" .           # color candidate 2
+   "\x85\x06" .                 # STA COLUP0
+   "\x88" .                       # DEY
+   "\x10\xEE" .                 # BPL loop
+   "\x60");
+substr($parallel_ambiguous_colors, 0x0200, 8,
+   pack('C*', 0x3C,0x66,0xC3,0xDB,0xDB,0xC3,0x66,0x3C));
+substr($parallel_ambiguous_colors, 0x0220, 8,
+   pack('C*', 0x22,0x24,0x26,0x28,0x2A,0x2C,0x2E,0x30));
+substr($parallel_ambiguous_colors, 0x0240, 8,
+   pack('C*', 0x32,0x34,0x36,0x38,0x3A,0x3C,0x3E,0x40));
+write_bin(File::Spec->catfile($in, 'parallel_ambiguous_colors.bin'),
+          $parallel_ambiguous_colors);
+
 # Starpath/Arcadia Supercharger fast-load images are structurally different
 # from cartridges: each 8448-byte block is 8K page data + a 256-byte header.
 # The header maps data pages into the Supercharger's three 2K RAM banks and
@@ -3457,6 +3527,26 @@ require_re($color_table_out, qr/\.byte\s+\$84,\s*\$46.*?\.byte\s+\$C8/is,
    'color-table byte preservation across interior label');
 require_re($color_table_out, qr/^L_F382:\s*$/m,
    'color-table interior label preserved');
+
+my $parallel_sprite_color_out = slurp(
+   File::Spec->catfile($out, 'parallel_sprite_color.s26'));
+require_re($parallel_sprite_color_out,
+   qr/; probable 8x8 sprite\n\s*; parallel 8-row COLUP0 color table at L_F220/m,
+   'parallel sprite annotation names corresponding COLUP0 row table');
+require_re($parallel_sprite_color_out,
+   qr/; probable TIA color table \(proven COLU\* data flow\)\n\s*; parallel 8-row COLUP0 colors for sprite L_F200/m,
+   'parallel color annotation names corresponding sprite');
+
+for my $unpaired (qw(parallel_wrong_player.s26 parallel_separate_loops.s26
+                     parallel_ambiguous_colors.s26)) {
+   my $text = slurp(File::Spec->catfile($out, $unpaired));
+   require_re($text, qr/probable 8x8 sprite/i,
+      "$unpaired retains independent sprite inference");
+   require_re($text, qr/probable TIA color table/i,
+      "$unpaired retains independent color-table inference");
+   die "$unpaired falsely associated independent sprite/color tables\n"
+      if $text =~ /parallel 8-row COLUP[01]/i;
+}
 
 my $sprite_out = slurp(File::Spec->catfile($out, 'sprite_rows.s26'));
 my @sprite_rows = ($sprite_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);

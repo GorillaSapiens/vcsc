@@ -668,6 +668,11 @@ The normal output keeps table recognition conservative:
 - a probable TIA color table requires an indexed ROM load whose value can be
   followed through a short straight-line dependency chain into `COLUP0`,
   `COLUP1`, `COLUPF`, or `COLUBK`; palette-looking bytes alone are not enough;
+- a proven `GRP0`/`GRP1` sprite span and proven `COLUP0`/`COLUP1` table are
+  called out as parallel per-row data only when they share the same indexed
+  loop provenance: index register, loop back-edge, row interval, and matching
+  player sinks must agree. Equal lengths or adjacency alone never create a
+  relationship;
 - graphics/font tables retain the stricter provenance/structural rules described
   above.
 

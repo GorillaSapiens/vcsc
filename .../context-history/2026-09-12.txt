@@ -255,3 +255,19 @@ Repository coverage is 537/537 compile-only and 365/365 e2e; the broad e2e run
 was resumed from its slow VCS-heavy tail after the execution window expired.
 Compressed `.../disassembler.txt` back under the hot-record hygiene limit and
 updated the disassembler README. GL real-corpus closeout is next.
+
+2026-09-12 18:23:54 PDT, parallel sprite/color row association
+Added presentation-only correlation between proven sprite bitmap spans and
+per-row player color tables. The disassembler now retains the established load
+site and exact TIA player sink that independently proved each table, then links
+a pair only when both consumers share the same X/Y-controlled loop back-edge,
+first row, row count, and matching GRP0/COLUP0 or GRP1/COLUP1 destinations.
+Equal-length adjacent tables, player-mismatched tables, separate loops, and
+ambiguous many-to-one relationships remain independently annotated.
+
+Generated source comments now name the paired COLUP0/COLUP1 table from the
+sprite and the paired sprite from the color table. Added synthetic positive and
+negative regressions to vcsc_disassembler.pl; the focused disassembler suite
+passes with exact round trips. Opcode round-trip, disassembler hardening,
+deterministic fuzz (30/30), source-tree hygiene, and context-history format
+checks also pass. GL real-corpus closeout remains the next roadmap item.

@@ -319,9 +319,19 @@ typedef struct {
     * at this ROM byte.  Presentation annotations are intentionally deferred to
     * the graphics closeout pass. */
    uint16_t *sprite_height;
+   /* Presentation-only provenance for correlating a sprite span with a
+    * parallel per-row player-color table.  Load sites retain the established
+    * indexed consumer that proved each table; pair arrays name the matching
+    * source-table offset.  SIZE_MAX means no unique fact. */
+   size_t *sprite_load_site;
+   uint8_t *sprite_sink;
+   size_t *sprite_color_pair;
    uint8_t *font_start;
    uint8_t *color_start;
    uint8_t *color_len;
+   size_t *color_load_site;
+   uint8_t *color_sink;
+   size_t *color_sprite_pair;
    uint8_t *pointer_start;
    uint16_t *pointer_words;
    uint8_t *pointer_manual;
@@ -2416,9 +2426,15 @@ static int allocate_bank(bank_t *b, size_t size)
    b->state_seen = (uint8_t *)calloc(size, 1);
    b->graphics = (uint8_t *)calloc(size, 1);
    b->sprite_height = (uint16_t *)calloc(size, sizeof(*b->sprite_height));
+   b->sprite_load_site = (size_t *)malloc(size * sizeof(*b->sprite_load_site));
+   b->sprite_sink = (uint8_t *)calloc(size, 1);
+   b->sprite_color_pair = (size_t *)malloc(size * sizeof(*b->sprite_color_pair));
    b->font_start = (uint8_t *)calloc(size, 1);
    b->color_start = (uint8_t *)calloc(size, 1);
    b->color_len = (uint8_t *)calloc(size, 1);
+   b->color_load_site = (size_t *)malloc(size * sizeof(*b->color_load_site));
+   b->color_sink = (uint8_t *)calloc(size, 1);
+   b->color_sprite_pair = (size_t *)malloc(size * sizeof(*b->color_sprite_pair));
    b->pointer_start = (uint8_t *)calloc(size, 1);
    b->pointer_words = (uint16_t *)calloc(size, sizeof(*b->pointer_words));
    b->pointer_manual = (uint8_t *)calloc(size, 1);
@@ -2435,12 +2451,22 @@ static int allocate_bank(bank_t *b, size_t size)
    b->spec_seed = (uint8_t *)calloc(size, 1);
    b->context_state_head = (size_t *)malloc(size * sizeof(*b->context_state_head));
    b->states = (abstract_state_t *)calloc(size, sizeof(*b->states));
-   if (b->context_state_head) {
+   if (b->context_state_head || b->sprite_load_site || b->sprite_color_pair ||
+       b->color_load_site || b->color_sprite_pair) {
       size_t i;
-      for (i = 0; i < size; ++i) b->context_state_head[i] = SIZE_MAX;
+      for (i = 0; i < size; ++i) {
+         if (b->context_state_head) b->context_state_head[i] = SIZE_MAX;
+         if (b->sprite_load_site) b->sprite_load_site[i] = SIZE_MAX;
+         if (b->sprite_color_pair) b->sprite_color_pair[i] = SIZE_MAX;
+         if (b->color_load_site) b->color_load_site[i] = SIZE_MAX;
+         if (b->color_sprite_pair) b->color_sprite_pair[i] = SIZE_MAX;
+      }
    }
    return b->roles && b->established_roles && b->inst_len && b->inst_opcode && b->visited &&
-          b->state_seen && b->graphics && b->sprite_height && b->font_start && b->color_start && b->color_len &&
+          b->state_seen && b->graphics && b->sprite_height &&
+          b->sprite_load_site && b->sprite_sink && b->sprite_color_pair &&
+          b->font_start && b->color_start && b->color_len &&
+          b->color_load_site && b->color_sink && b->color_sprite_pair &&
           b->pointer_start && b->pointer_words && b->pointer_manual &&
           b->manual_table_byte && b->manual_table_start &&
           b->manual_pointer_byte && b->manual_pointer_start &&
@@ -2462,9 +2488,15 @@ static void free_analysis(analysis_t *a)
          free(a->banks[i].state_seen);
          free(a->banks[i].graphics);
          free(a->banks[i].sprite_height);
+         free(a->banks[i].sprite_load_site);
+         free(a->banks[i].sprite_sink);
+         free(a->banks[i].sprite_color_pair);
          free(a->banks[i].font_start);
          free(a->banks[i].color_start);
          free(a->banks[i].color_len);
+         free(a->banks[i].color_load_site);
+         free(a->banks[i].color_sink);
+         free(a->banks[i].color_sprite_pair);
          free(a->banks[i].pointer_start);
          free(a->banks[i].pointer_words);
          free(a->banks[i].pointer_manual);
@@ -11291,8 +11323,14 @@ static int analysis_uses_hardware_symbols(const analysis_t *a)
 #define GRAPHICS_TAINT_A 0x01u
 #define GRAPHICS_TAINT_X 0x02u
 #define GRAPHICS_TAINT_Y 0x04u
-#define GRAPHICS_SINK_SPRITE 0x01u
-#define GRAPHICS_SINK_PLAYFIELD 0x02u
+#define GRAPHICS_SINK_GRP0 0x01u
+#define GRAPHICS_SINK_GRP1 0x02u
+#define GRAPHICS_SINK_SPRITE (GRAPHICS_SINK_GRP0 | GRAPHICS_SINK_GRP1)
+#define GRAPHICS_SINK_PLAYFIELD 0x04u
+
+#define COLOR_SINK_COLUP0 0x01u
+#define COLOR_SINK_COLUP1 0x02u
+#define COLOR_SINK_OTHER  0x04u
 
 static unsigned graphics_store_source(const analysis_t *a, size_t bi,
                                       size_t off, unsigned *sink_kind)
@@ -11317,8 +11355,12 @@ static unsigned graphics_store_source(const analysis_t *a, size_t bi,
    if (b->inst_len[off] >= 3u)
       operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
    if (!hardware_symbol(opcode, mode, operand, &hw)) return 0;
-   if (strcmp(hw.name, "GRP0") == 0 || strcmp(hw.name, "GRP1") == 0) {
-      if (sink_kind) *sink_kind = GRAPHICS_SINK_SPRITE;
+   if (strcmp(hw.name, "GRP0") == 0) {
+      if (sink_kind) *sink_kind = GRAPHICS_SINK_GRP0;
+      return source;
+   }
+   if (strcmp(hw.name, "GRP1") == 0) {
+      if (sink_kind) *sink_kind = GRAPHICS_SINK_GRP1;
       return source;
    }
    if (strcmp(hw.name, "PF0") == 0 || strcmp(hw.name, "PF1") == 0 ||
@@ -11481,14 +11523,34 @@ static void mark_graphics_count(bank_t *b, size_t start, unsigned count)
       b->graphics[start + i] = 1u;
 }
 
-static void mark_sprite_count(bank_t *b, size_t start, unsigned count)
+static void mark_sprite_count(bank_t *b, size_t start, unsigned count,
+                              size_t load_site, unsigned sink_kind)
 {
    if (!count || count > UINT16_MAX || start + count > b->size) return;
    mark_graphics_count(b, start, count);
-   if (!b->sprite_height[start] || b->sprite_height[start] == count)
+   if (!b->sprite_height[start] || b->sprite_height[start] == count) {
       b->sprite_height[start] = (uint16_t)count;
-   else
+      if (sink_kind == GRAPHICS_SINK_GRP0 || sink_kind == GRAPHICS_SINK_GRP1) {
+         if (b->sprite_load_site[start] == SIZE_MAX && b->sprite_sink[start] == 0u) {
+            b->sprite_load_site[start] = load_site;
+            b->sprite_sink[start] = (uint8_t)sink_kind;
+         }
+         else if (b->sprite_sink[start] == 0xffu) {
+            /* Conflicting established consumers: keep the sprite annotation,
+             * but do not manufacture a unique parallel-color relationship. */
+         }
+         else if (b->sprite_load_site[start] != load_site ||
+                  b->sprite_sink[start] != sink_kind) {
+            b->sprite_load_site[start] = SIZE_MAX;
+            b->sprite_sink[start] = 0xffu;
+         }
+      }
+   }
+   else {
       b->sprite_height[start] = 0u;
+      b->sprite_load_site[start] = SIZE_MAX;
+      b->sprite_sink[start] = 0xffu;
+   }
 }
 
 #define GRAPHICS_POINTER_DOMAIN_CAP 16u
@@ -12853,7 +12915,7 @@ static void detect_graphics_data(analysis_t *a)
             uint16_t target = (uint16_t)(operand + span.first_index);
             if (cart_target_offset(b, target, &source_off)) {
                if (sink_kind & GRAPHICS_SINK_SPRITE)
-                  mark_sprite_count(b, source_off, span.count);
+                  mark_sprite_count(b, source_off, span.count, off, sink_kind);
                else
                   mark_graphics_count(b, source_off, span.count);
             }
@@ -12868,7 +12930,7 @@ static void detect_graphics_data(analysis_t *a)
                if (!cart_target_offset(b, target, &source_off)) continue;
                mark_label(b, source_off);
                if (sink_kind & GRAPHICS_SINK_SPRITE)
-                  mark_sprite_count(b, source_off, span.count);
+                  mark_sprite_count(b, source_off, span.count, off, sink_kind);
                else
                   mark_graphics_count(b, source_off, span.count);
             }
@@ -12908,7 +12970,7 @@ static void detect_graphics_data(analysis_t *a)
 
 
 static unsigned color_store_source(const analysis_t *a, size_t bi,
-                                   size_t off)
+                                   size_t off, unsigned *sink_kind)
 {
    const bank_t *b = &a->banks[bi];
    uint8_t opcode;
@@ -12917,6 +12979,7 @@ static unsigned color_store_source(const analysis_t *a, size_t bi,
    hw_symbol_t hw;
    const char *mnemonic;
    unsigned source;
+   if (sink_kind) *sink_kind = 0u;
    if (off >= b->size || !(b->roles[off] & ROLE_CODE_START)) return 0;
    opcode = b->inst_opcode[off];
    mnemonic = opcode_mnemonics[opcode];
@@ -12929,14 +12992,21 @@ static unsigned color_store_source(const analysis_t *a, size_t bi,
    if (b->inst_len[off] >= 3u)
       operand |= (uint16_t)a->rom[b->file_offset + off + 2u] << 8;
    if (!hardware_symbol(opcode, mode, operand, &hw)) return 0;
-   if (strcmp(hw.name, "COLUP0") != 0 && strcmp(hw.name, "COLUP1") != 0 &&
-       strcmp(hw.name, "COLUPF") != 0 && strcmp(hw.name, "COLUBK") != 0)
-      return 0;
+   if (strcmp(hw.name, "COLUP0") == 0) {
+      if (sink_kind) *sink_kind = COLOR_SINK_COLUP0;
+   }
+   else if (strcmp(hw.name, "COLUP1") == 0) {
+      if (sink_kind) *sink_kind = COLOR_SINK_COLUP1;
+   }
+   else if (strcmp(hw.name, "COLUPF") == 0 || strcmp(hw.name, "COLUBK") == 0) {
+      if (sink_kind) *sink_kind = COLOR_SINK_OTHER;
+   }
+   else return 0;
    return source;
 }
 
-static int load_feeds_color_store(const analysis_t *a, size_t bi,
-                                  size_t off, unsigned initial_taint)
+static unsigned load_feeds_color_store(const analysis_t *a, size_t bi,
+                                       size_t off, unsigned initial_taint)
 {
    const bank_t *b = &a->banks[bi];
    size_t p = off;
@@ -12948,13 +13018,14 @@ static int load_feeds_color_store(const analysis_t *a, size_t bi,
       address_mode_t mode;
       flow_kind_t flow;
       unsigned store_source;
+      unsigned sink_kind = 0u;
       if (p >= b->size || !(b->roles[p] & ROLE_CODE_START)) return 0;
       len = b->inst_len[p];
       if (len == 0u || p + len >= b->size) return 0;
       p += len;
       if (!(b->roles[p] & ROLE_CODE_START)) return 0;
-      store_source = color_store_source(a, bi, p);
-      if (store_source && (store_source & taint)) return 1;
+      store_source = color_store_source(a, bi, p, &sink_kind);
+      if (store_source && (store_source & taint)) return sink_kind;
       opcode = b->inst_opcode[p];
       mode = (address_mode_t)opcode_modes[opcode];
       flow = instruction_flow(opcode);
@@ -12983,12 +13054,15 @@ static void detect_color_tables(analysis_t *a)
          unsigned span;
          graphics_index_span_t graphics_span;
          unsigned taint;
+         unsigned color_sink;
          if (!(b->roles[off] & ROLE_CODE_START) || !b->state_seen[off]) continue;
          opcode = b->inst_opcode[off];
          mode = (address_mode_t)opcode_modes[opcode];
          if (mode != AM_ABSOLUTE_X && mode != AM_ABSOLUTE_Y) continue;
          taint = graphics_load_destination(opcode, mode);
-         if (!taint || !load_feeds_color_store(a, bi, off, taint)) continue;
+         if (!taint) continue;
+         color_sink = load_feeds_color_store(a, bi, off, taint);
+         if (!color_sink) continue;
          operand = (uint16_t)(a->rom[b->file_offset + off + 1u] |
                   ((uint16_t)a->rom[b->file_offset + off + 2u] << 8));
          graphics_span = infer_graphics_index_span(a, bi, off, mode);
@@ -13013,8 +13087,141 @@ static void detect_color_tables(analysis_t *a)
          }
          b->color_start[source_off] = 1u;
          b->color_len[source_off] = (uint8_t)span;
+         if (b->color_load_site[source_off] == SIZE_MAX &&
+             b->color_sink[source_off] == 0u) {
+            b->color_load_site[source_off] = off;
+            b->color_sink[source_off] = (uint8_t)color_sink;
+         }
+         else if (b->color_sink[source_off] == 0xffu) {
+            /* Already known ambiguous. */
+         }
+         else if (b->color_load_site[source_off] != off ||
+                  b->color_sink[source_off] != color_sink) {
+            b->color_load_site[source_off] = SIZE_MAX;
+            b->color_sink[source_off] = 0xffu;
+         }
          mark_label(b, source_off);
       }
+   }
+}
+
+typedef struct {
+   uint8_t known;
+   graphics_index_reg_t reg;
+   size_t loop_start;
+   size_t branch_off;
+   uint8_t first_index;
+   uint16_t count;
+} graphics_loop_signature_t;
+
+static graphics_loop_signature_t graphics_loop_signature(const analysis_t *a,
+                                                          size_t bi,
+                                                          size_t load_off)
+{
+   graphics_loop_signature_t sig;
+   const bank_t *b = &a->banks[bi];
+   address_mode_t mode;
+   graphics_index_span_t span;
+   memset(&sig, 0, sizeof(sig));
+   if (load_off >= b->size || !(b->roles[load_off] & ROLE_CODE_START)) return sig;
+   mode = (address_mode_t)opcode_modes[b->inst_opcode[load_off]];
+   sig.reg = graphics_source_index(mode);
+   if (sig.reg == GRAPHICS_INDEX_NONE) return sig;
+   span = infer_graphics_index_span(a, bi, load_off, mode);
+   if (!span.known ||
+       !graphics_find_back_edge(a, bi, load_off, &sig.loop_start, &sig.branch_off))
+      return sig;
+   sig.first_index = span.first_index;
+   sig.count = span.count;
+   sig.known = 1u;
+   return sig;
+}
+
+static int player_color_sinks_match(unsigned sprite_sink, unsigned color_sink)
+{
+   return (sprite_sink == GRAPHICS_SINK_GRP0 && color_sink == COLOR_SINK_COLUP0) ||
+          (sprite_sink == GRAPHICS_SINK_GRP1 && color_sink == COLOR_SINK_COLUP1);
+}
+
+/* Associate a sprite bitmap with a per-row player-color table only when both
+ * independent provenance passes describe the same indexed kernel loop.  This
+ * is deliberately stronger than equal length or physical adjacency: the same
+ * X/Y register, back-edge, row interval, and corresponding player TIA sinks
+ * must all agree.  Ambiguous many-to-one cases stay independently annotated. */
+static void detect_parallel_sprite_color_tables(analysis_t *a)
+{
+   size_t bi;
+   for (bi = 0u; bi < a->bank_count; ++bi) {
+      bank_t *b = &a->banks[bi];
+      size_t *sprite_list;
+      uint16_t *sprite_match_count;
+      size_t sprite_count = 0u;
+      size_t color_off;
+      size_t i;
+
+      sprite_list = (size_t *)malloc(b->size * sizeof(*sprite_list));
+      sprite_match_count = (uint16_t *)calloc(b->size, sizeof(*sprite_match_count));
+      if (!sprite_list || !sprite_match_count) {
+         free(sprite_list);
+         free(sprite_match_count);
+         continue;
+      }
+      for (i = 0u; i < b->size; ++i) {
+         if (b->sprite_height[i] && b->sprite_load_site[i] != SIZE_MAX &&
+             (b->sprite_sink[i] == GRAPHICS_SINK_GRP0 ||
+              b->sprite_sink[i] == GRAPHICS_SINK_GRP1))
+            sprite_list[sprite_count++] = i;
+      }
+      for (color_off = 0u; color_off < b->size; ++color_off) {
+         graphics_loop_signature_t color_sig;
+         size_t match = SIZE_MAX;
+         unsigned matches = 0u;
+         if (!b->color_start[color_off] ||
+             b->color_load_site[color_off] == SIZE_MAX ||
+             (b->color_sink[color_off] != COLOR_SINK_COLUP0 &&
+              b->color_sink[color_off] != COLOR_SINK_COLUP1))
+            continue;
+         color_sig = graphics_loop_signature(a, bi, b->color_load_site[color_off]);
+         if (!color_sig.known || color_sig.count != b->color_len[color_off]) continue;
+         for (i = 0u; i < sprite_count; ++i) {
+            graphics_loop_signature_t sprite_sig;
+            size_t sprite_off = sprite_list[i];
+            if (!player_color_sinks_match(b->sprite_sink[sprite_off],
+                                          b->color_sink[color_off]) ||
+                b->sprite_height[sprite_off] != b->color_len[color_off])
+               continue;
+            sprite_sig = graphics_loop_signature(a, bi, b->sprite_load_site[sprite_off]);
+            if (!sprite_sig.known || sprite_sig.reg != color_sig.reg ||
+                sprite_sig.loop_start != color_sig.loop_start ||
+                sprite_sig.branch_off != color_sig.branch_off ||
+                sprite_sig.first_index != color_sig.first_index ||
+                sprite_sig.count != color_sig.count)
+               continue;
+            match = sprite_off;
+            ++matches;
+            if (sprite_match_count[sprite_off] != UINT16_MAX)
+               ++sprite_match_count[sprite_off];
+         }
+         if (matches == 1u && match != SIZE_MAX)
+            b->color_sprite_pair[color_off] = match;
+      }
+
+      /* Require mutual uniqueness.  A color table that could describe two
+       * sprites, or a sprite that could use two color tables, remains useful
+       * independent evidence but is not called a pair. */
+      for (color_off = 0u; color_off < b->size; ++color_off) {
+         size_t match = b->color_sprite_pair[color_off];
+         if (match >= b->size) continue;
+         if (sprite_match_count[match] == 1u) {
+            b->sprite_color_pair[match] = color_off;
+            mark_label(b, match);
+            mark_label(b, color_off);
+         }
+         else
+            b->color_sprite_pair[color_off] = SIZE_MAX;
+      }
+      free(sprite_list);
+      free(sprite_match_count);
    }
 }
 
@@ -13165,6 +13372,7 @@ static void detect_pointer_tables(analysis_t *a)
 static void detect_analysis_tables(analysis_t *a)
 {
    detect_color_tables(a);
+   detect_parallel_sprite_color_tables(a);
    detect_pointer_tables(a);
 }
 
@@ -13190,13 +13398,24 @@ static void cancel_auto_presentations(bank_t *b, size_t first, size_t last)
       if (b->color_start[p]) {
          size_t end = p + (size_t)b->color_len[p];
          if (end != 0u && ranges_overlap(first, last, p, end - 1u)) {
+            if (b->color_sprite_pair[p] < b->size)
+               b->sprite_color_pair[b->color_sprite_pair[p]] = SIZE_MAX;
             b->color_start[p] = 0u;
             b->color_len[p] = 0u;
+            b->color_load_site[p] = SIZE_MAX;
+            b->color_sink[p] = 0u;
+            b->color_sprite_pair[p] = SIZE_MAX;
          }
       }
    }
    for (p = first; p <= last; ++p) {
+      if (b->sprite_color_pair[p] < b->size)
+         b->color_sprite_pair[b->sprite_color_pair[p]] = SIZE_MAX;
       b->graphics[p] = 0u;
+      b->sprite_height[p] = 0u;
+      b->sprite_load_site[p] = SIZE_MAX;
+      b->sprite_sink[p] = 0u;
+      b->sprite_color_pair[p] = SIZE_MAX;
       b->font_start[p] = 0u;
    }
 }
@@ -13530,6 +13749,14 @@ static void emit_color_table(FILE *fp, const analysis_t *a, size_t bi,
    unsigned seg = 0u;
    unsigned i;
    fputs("    ; probable TIA color table (proven COLU* data flow)\n", fp);
+   if (b->color_sprite_pair[off] < b->size) {
+      const char *sink = b->color_sink[off] == COLOR_SINK_COLUP0 ? "COLUP0" :
+                         b->color_sink[off] == COLOR_SINK_COLUP1 ? "COLUP1" :
+                                                                  "COLU*";
+      fprintf(fp, "    ; parallel %u-row %s colors for sprite ", count, sink);
+      print_label_name(fp, a, bi, b->color_sprite_pair[off]);
+      fputc('\n', fp);
+   }
    for (i = 1u; i <= count; ++i) {
       int boundary = i == count || (b->roles[off + i] & ROLE_LABEL);
       unsigned j;
@@ -13590,13 +13817,24 @@ static void emit_label_role_comment(FILE *fp, const bank_t *b, size_t off)
       fputs("    ; possible ROM-data target\n", fp);
 }
 
-static void emit_sprite_annotation(FILE *fp, const bank_t *b, size_t off)
+static void emit_sprite_annotation(FILE *fp, const analysis_t *a, size_t bi,
+                                   size_t off)
 {
+   const bank_t *b = &a->banks[bi];
    unsigned height;
    if (off >= b->size) return;
    height = b->sprite_height[off];
    if (!height) return;
    fprintf(fp, "    ; probable 8x%u sprite\n", height);
+   if (b->sprite_color_pair[off] < b->size) {
+      size_t color_off = b->sprite_color_pair[off];
+      const char *sink = b->color_sink[color_off] == COLOR_SINK_COLUP0 ? "COLUP0" :
+                         b->color_sink[color_off] == COLOR_SINK_COLUP1 ? "COLUP1" :
+                                                                       "COLU*";
+      fprintf(fp, "    ; parallel %u-row %s color table at ", height, sink);
+      print_label_name(fp, a, bi, color_off);
+      fputc('\n', fp);
+   }
 }
 
 static void emit_graphics_byte(FILE *fp, uint8_t value)
@@ -15261,7 +15499,7 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
             fputs("    ; manual pointer-table data role; primary code/vector/raw representation preserved\n", fp);
          if (b->font_start[off])
             fputs("    ; probable 8x8 font/graphics table\n", fp);
-         emit_sprite_annotation(fp, b, off);
+         emit_sprite_annotation(fp, a, bi, off);
          if (b->spec_seed[off])
             fputs("    ; speculative instruction island validated by negative-evidence barrier\n", fp);
          if (b->roles[off] & ROLE_LABEL) {
