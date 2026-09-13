@@ -1,448 +1,304 @@
 // This file is covered under CC0-1.0. See libraries/LICENSE.txt.
 
-// Reusable 0..11 heart score component.
+// Reusable fixed-footprint 0..11 heart score component.
 //
-// The visible renderer is a ROM-specialized port of Thomas Jentzsch's
-// 11-Invaders display technique.  Each score value owns one fixed-cycle form
-// of the original 47-byte self-modifying RAM renderer: enabled RESP slots are
-// stores, disabled slots are equal-cycle harmless reads.  No executable code
-// or patch buffer is kept in RIOT RAM.
-//
-// Eleven hearts define the fixed display footprint.  Smaller values retain the
-// same left edge and suppress hearts only from the right.  Score values above
-// 11 clamp to 11.  The optional half-heart flag is reserved for the separate
-// enhancement path and does not alter the full-heart renderer.
+// Thomas Jentzsch's 11-Invaders kernel is used as the hardware oracle.  The
+// visible renderer is copied to RIOT RAM during VBLANK and patched so enabled
+// logical objects are RESP stores while disabled slots are equal-cycle reads.
+// Eleven hearts define one centered footprint; smaller scores are exact
+// left-justified prefixes of that same footprint.
 //
 // Visible contract: enter TEMPLATE_draw at the canonical cycle-3 phase with
-// VBLANK clear.  It consumes eight scanlines and returns at cycle zero of the
-// following line.  The renderer owns P0/P1 graphics, colors, reflection, VDEL,
-// NUSIZ, horizontal motion, RESP0/RESP1, and HMOVE while drawing.  It does not
-// touch playfield graphics, missiles, Ball, VSYNC, VBLANK, RIOT timer, audio,
-// or collision latches.  A/X/Y and arithmetic flags are clobbered.
+// VBLANK clear.  It consumes seven scanlines and returns at cycle zero after
+// its terminal WSYNC.  It owns P0/P1 graphics, color, reflection, VDEL, NUSIZ,
+// horizontal motion, RESP0/RESP1, and HMOVE while drawing.  It clears
+// HMM0/HMM1/HMBL before setup HMOVEs so missile/Ball geometry is not moved.
+// It does not touch playfield graphics, missile/Ball enable/width, VSYNC,
+// VBLANK, RIOT timer, audio, or collision latches.  A/X/Y and arithmetic flags
+// are clobbered; hardware stack depth is unchanged at lifecycle boundaries.
 
 enum TEMPLATE_contract {
-   TEMPLATE_VISIBLE_SCANLINES := 8,
-   TEMPLATE_DRAW_ENTRY_CYCLE := 3,
-   TEMPLATE_DRAW_RETURN_CYCLE := 0,
-   TEMPLATE_DRAW_COMPLETE_SCANLINES := 8,
-   TEMPLATE_DRAW_PARTIAL_ENTRY_CYCLES := 0,
-   TEMPLATE_DRAW_PARTIAL_EXIT_CYCLES := 0,
-   TEMPLATE_DRAW_TERMINAL_WSYNC := 1,
-   TEMPLATE_DRAW_HMOVE_COUNT := 6,
-   TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE := 1,
-   TEMPLATE_VBLANK_MAX_CYCLES := 120,
-   TEMPLATE_OVERSCAN_MAX_CYCLES := 0,
-   TEMPLATE_MAX_HEARTS := 11,
-   TEMPLATE_HEART_WIDTH := 8,
-   TEMPLATE_HEART_PITCH := 12
+   TEMPLATE_VISIBLE_SCANLINES :=7,
+   TEMPLATE_DRAW_ENTRY_CYCLE :=3,
+   TEMPLATE_DRAW_RETURN_CYCLE :=0,
+   TEMPLATE_DRAW_COMPLETE_SCANLINES :=7,
+   TEMPLATE_DRAW_PARTIAL_ENTRY_CYCLES :=0,
+   TEMPLATE_DRAW_PARTIAL_EXIT_CYCLES :=0,
+   TEMPLATE_DRAW_TERMINAL_WSYNC :=1,
+   TEMPLATE_DRAW_HMOVE_COUNT :=6,
+   TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE :=1,
+   TEMPLATE_VBLANK_MAX_CYCLES :=900,
+   TEMPLATE_OVERSCAN_MAX_CYCLES :=0,
+   TEMPLATE_MAX_HEARTS :=11,
+   TEMPLATE_HEART_WIDTH :=8,
+   TEMPLATE_HEART_PITCH :=12
 };
 
-recommend uint8_t TEMPLATE_score := 0;
-recommend uint8_t TEMPLATE_half := 0;
-recommend uint8_t TEMPLATE_color := 0x46;
+recommend uint8_t TEMPLATE_score :=0;
+recommend uint8_t TEMPLATE_color :=0x46;
+
 uint8_t TEMPLATE_count;
-uint16_t TEMPLATE_renderer;
+uint8_t TEMPLATE_p0_mask;
+uint8_t TEMPLATE_p1_mask;
+uint8_t TEMPLATE_p0_population;
+uint8_t TEMPLATE_p1_population;
+uint8_t TEMPLATE_nusiz0;
+uint8_t TEMPLATE_nusiz1;
+uint8_t TEMPLATE_final_hmp0;
+uint8_t TEMPLATE_final_hmp1;
+uint16_t TEMPLATE_phase_ptr;
+uint8_t TEMPLATE_kernel[45];
 
-// Six scanline, eight-pixel heart.  Rows are consumed Y=5 down through Y=0.
-const uint8_t TEMPLATE_full_heart[6] := {0x18,0x3c,0x7e,0xff,0xff,0x66};
-const uint8_t TEMPLATE_no_ball[6] := {0,0,0,0,0,0};
+// Original $0080 renderer through BNE $0080, with its final JMP replaced by
+// RTS so a ROM JSR->indirect-JMP trampoline can return to the component.
+const uint8_t TEMPLATE_kernel_template[45] := {
+   0xB9,0x00,0x00, 0x85,0x2A, 0x85,0x10, 0x85,0x11,
+   0x85,0x1B, 0x85,0x1C, 0xB9,0x00,0x00, 0x85,0x1F,
+   0x8A, 0x85,0x10, 0x95,0x11, 0x95,0x10, 0x95,0x11,
+   0x95,0x10, 0x95,0x11, 0x95,0x10, 0x95,0x11,
+   0x95,0x10, 0x95,0x11, 0x95,0x10,
+   0x88,0xD0,0xD4, 0x60
+};
 
-static void TEMPLATE_render_0(void) {
-   asm @TEMPLATE_render_0_loop:;
-   asm lda.ay TEMPLATE_full_heart,y;
-   asm sta.z HMOVE;
-   asm sta.z RESP0;
-   asm sta.z RESP1;
-   asm stx.z GRP0;
-   asm stx.z GRP1;
-   asm lda.ay TEMPLATE_no_ball,y;
-   asm sta.z ENABL;
-   asm txa;
-   asm bit.z TEMPLATE_count;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm dey;
-   asm bpl.same @TEMPLATE_render_0_loop;
-   asm lda #0;
-   asm sta GRP0;
-   asm sta GRP1;
-   asm sta ENABL;
-   asm rts;
+// Y runs 6..1. Index zero is deliberately unused.
+const uint8_t TEMPLATE_heart[7] := {0,0x18,0x3c,0x7e,0xff,0xff,0x66};
+const uint8_t TEMPLATE_blank[7] := {0,0,0,0,0,0,0};
+
+// A left prefix alternates P0/P1. In the oracle, the most-significant live bit
+// is the leftmost object: P0 bits $20..$01 are positions 1,3,...,11 and P1
+// bits $10..$01 are positions 2,4,...,10.
+const uint8_t TEMPLATE_p0_masks[12] := {
+   0x00,0x20,0x20,0x30,0x30,0x38,0x38,0x3c,0x3c,0x3e,0x3e,0x3f
+};
+const uint8_t TEMPLATE_p1_masks[12] := {
+   0x00,0x00,0x10,0x10,0x18,0x18,0x1c,0x1c,0x1e,0x1e,0x1f,0x1f
+};
+const uint8_t TEMPLATE_p0_populations[12] := {0,1,1,2,2,3,3,4,4,5,5,6};
+const uint8_t TEMPLATE_p1_populations[12] := {0,0,1,1,2,2,3,3,4,4,5,5};
+
+// The original ROM enters this overlapping stream five bytes before phase_one
+// for row/setup index 5. The unofficial NOP stream adds exactly five cycles;
+// with the fixed draw prelude the first RAM LDA therefore lands at cycle 66.
+static void TEMPLATE_dispatch(void) {
+   asm jmp TEMPLATE_dispatch_go;
+   asm .byte $80,$80,$80,$80,$80,$80,$80,$80,$0c,$04;
+   asm TEMPLATE_phase_one:;
+   asm nop;
+   asm ldx #0;
+   asm ldy #6;
+   asm jmp.a TEMPLATE_kernel;
+   asm TEMPLATE_dispatch_go:;
+   asm jmp.i (TEMPLATE_phase_ptr);
 }
-static void TEMPLATE_render_1(void) {
-   asm @TEMPLATE_render_1_loop:;
-   asm lda.ay TEMPLATE_full_heart,y;
-   asm sta.z HMOVE;
-   asm sta.z RESP0;
-   asm sta.z RESP1;
-   asm sta.z GRP0;
-   asm stx.z GRP1;
-   asm lda.ay TEMPLATE_no_ball,y;
-   asm sta.z ENABL;
-   asm txa;
-   asm bit.z TEMPLATE_count;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm dey;
-   asm bpl.same @TEMPLATE_render_1_loop;
-   asm lda #0;
-   asm sta GRP0;
-   asm sta GRP1;
-   asm sta ENABL;
-   asm rts;
+
+static inline void TEMPLATE_patch_p0(void) {
+   // $89 is the GRP0 opcode.  $85/$97/$9B/$9F/$A3/$A7 are the six P0
+   // positioning opcodes, ordered from mask bit 5 at the left to bit 0 right.
+   if (TEMPLATE_p0_population == 0) {
+      TEMPLATE_kernel[9] := 0x24;
+      TEMPLATE_kernel[5] := 0x24;
+      TEMPLATE_kernel[23] := 0xb5;
+      TEMPLATE_kernel[27] := 0xb5;
+      TEMPLATE_kernel[31] := 0xb5;
+      TEMPLATE_kernel[35] := 0xb5;
+      TEMPLATE_kernel[39] := 0xb5;
+      TEMPLATE_nusiz0 := 0x81;
+      TEMPLATE_final_hmp0 := 0xb0;
+   } else {
+      TEMPLATE_kernel[9] := 0x85;
+      if (TEMPLATE_p0_population == 1) {
+         // Jentzsch's one-object path prepositions P0 during VBLANK, selects
+         // one-copy NUSIZ, and disables every in-kernel P0 reposition.
+         TEMPLATE_kernel[5] := 0x24;
+         TEMPLATE_kernel[19] := 0x24;
+         TEMPLATE_kernel[23] := 0xb5;
+         TEMPLATE_kernel[27] := 0xb5;
+         TEMPLATE_kernel[31] := 0xb5;
+         TEMPLATE_kernel[35] := 0xb5;
+         TEMPLATE_kernel[39] := 0xb5;
+         TEMPLATE_nusiz0 := 0x00;
+         TEMPLATE_final_hmp0 := 0x80;
+      } else {
+         TEMPLATE_nusiz0 := 0x81;
+         TEMPLATE_final_hmp0 := 0xb0;
+         if (TEMPLATE_p0_mask & 0x20) { TEMPLATE_kernel[5] := 0x85; } else { TEMPLATE_kernel[5] := 0x24; }
+         if (TEMPLATE_p0_mask & 0x10) { TEMPLATE_kernel[23] := 0x95; } else { TEMPLATE_kernel[23] := 0xb5; }
+         if (TEMPLATE_p0_mask & 0x08) { TEMPLATE_kernel[27] := 0x95; } else { TEMPLATE_kernel[27] := 0xb5; }
+         if (TEMPLATE_p0_mask & 0x04) { TEMPLATE_kernel[31] := 0x95; } else { TEMPLATE_kernel[31] := 0xb5; }
+         if (TEMPLATE_p0_mask & 0x02) { TEMPLATE_kernel[35] := 0x95; } else { TEMPLATE_kernel[35] := 0xb5; }
+         if (TEMPLATE_p0_mask & 0x01) { TEMPLATE_kernel[39] := 0x95; } else { TEMPLATE_kernel[39] := 0xb5; }
+      }
+   }
 }
-static void TEMPLATE_render_2(void) {
-   asm @TEMPLATE_render_2_loop:;
-   asm lda.ay TEMPLATE_full_heart,y;
-   asm sta.z HMOVE;
-   asm sta.z RESP0;
-   asm sta.z RESP1;
-   asm sta.z GRP0;
-   asm sta.z GRP1;
-   asm lda.ay TEMPLATE_no_ball,y;
-   asm sta.z ENABL;
-   asm txa;
-   asm bit.z TEMPLATE_count;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm dey;
-   asm bpl.same @TEMPLATE_render_2_loop;
-   asm lda #0;
-   asm sta GRP0;
-   asm sta GRP1;
-   asm sta ENABL;
-   asm rts;
+
+static inline void TEMPLATE_patch_p1(void) {
+   // $8B is the GRP1 opcode. $87/$99/$9D/$A1/$A5 are the five P1
+   // positioning opcodes, ordered from mask bit 4 at the left to bit 0 right.
+   if (TEMPLATE_p1_population == 0) {
+      TEMPLATE_kernel[11] := 0x24;
+      TEMPLATE_kernel[7] := 0x24;
+      TEMPLATE_kernel[21] := 0xb5;
+      TEMPLATE_kernel[25] := 0xb5;
+      TEMPLATE_kernel[29] := 0xb5;
+      TEMPLATE_kernel[33] := 0xb5;
+      TEMPLATE_kernel[37] := 0xb5;
+      TEMPLATE_nusiz1 := 0x01;
+      TEMPLATE_final_hmp1 := 0x80;
+   } else {
+      TEMPLATE_kernel[11] := 0x85;
+      if (TEMPLATE_p1_population == 1) {
+         TEMPLATE_kernel[7] := 0x24;
+         TEMPLATE_kernel[21] := 0xb5;
+         TEMPLATE_kernel[25] := 0xb5;
+         TEMPLATE_kernel[29] := 0xb5;
+         TEMPLATE_kernel[33] := 0xb5;
+         TEMPLATE_kernel[37] := 0xb5;
+         TEMPLATE_nusiz1 := 0x00;
+         TEMPLATE_final_hmp1 := 0x80;
+      } else {
+         TEMPLATE_nusiz1 := 0x01;
+         TEMPLATE_final_hmp1 := 0x80;
+         if (TEMPLATE_p1_mask & 0x10) { TEMPLATE_kernel[7] := 0x85; } else { TEMPLATE_kernel[7] := 0x24; }
+         if (TEMPLATE_p1_mask & 0x08) { TEMPLATE_kernel[25] := 0x95; } else { TEMPLATE_kernel[25] := 0xb5; }
+         if (TEMPLATE_p1_mask & 0x04) { TEMPLATE_kernel[29] := 0x95; } else { TEMPLATE_kernel[29] := 0xb5; }
+         if (TEMPLATE_p1_mask & 0x02) { TEMPLATE_kernel[33] := 0x95; } else { TEMPLATE_kernel[33] := 0xb5; }
+         if (TEMPLATE_p1_mask & 0x01) { TEMPLATE_kernel[37] := 0x95; } else { TEMPLATE_kernel[37] := 0xb5; }
+      }
+   }
 }
-static void TEMPLATE_render_3(void) {
-   asm @TEMPLATE_render_3_loop:;
-   asm lda.ay TEMPLATE_full_heart,y;
-   asm sta.z HMOVE;
-   asm sta.z RESP0;
-   asm sta.z RESP1;
-   asm sta.z GRP0;
-   asm sta.z GRP1;
-   asm lda.ay TEMPLATE_no_ball,y;
-   asm sta.z ENABL;
-   asm txa;
-   asm bit.z TEMPLATE_count;
-   asm lda.zx TEMPLATE_count,x;
-   asm sta.zx RESP0,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm dey;
-   asm bpl.same @TEMPLATE_render_3_loop;
-   asm lda #0;
-   asm sta GRP0;
-   asm sta GRP1;
-   asm sta ENABL;
-   asm rts;
+
+static inline void TEMPLATE_prepare(void) {
+   uint8_t i;
+
+   if (TEMPLATE_score > 11) {
+      TEMPLATE_count := 11;
+   } else {
+      TEMPLATE_count := TEMPLATE_score;
+   }
+   TEMPLATE_p0_mask := TEMPLATE_p0_masks[TEMPLATE_count];
+   TEMPLATE_p1_mask := TEMPLATE_p1_masks[TEMPLATE_count];
+   TEMPLATE_p0_population := TEMPLATE_p0_populations[TEMPLATE_count];
+   TEMPLATE_p1_population := TEMPLATE_p1_populations[TEMPLATE_count];
+
+   for (i := 0; i < 45; i++) {
+      TEMPLATE_kernel[i] := TEMPLATE_kernel_template[i];
+   }
+
+   // Bitmap operands in the copied RAM code.
+   asm lda #<TEMPLATE_heart;
+   asm sta.z TEMPLATE_kernel + 1;
+   asm lda #>TEMPLATE_heart;
+   asm sta.z TEMPLATE_kernel + 2;
+   asm lda #<TEMPLATE_blank;
+   asm sta.z TEMPLATE_kernel + 14;
+   asm lda #>TEMPLATE_blank;
+   asm sta.z TEMPLATE_kernel + 15;
+
+   // Exact reference row/setup-5 operand patches.
+   TEMPLATE_kernel[4] := 0x2a;
+   TEMPLATE_kernel[6] := 0x10;
+   TEMPLATE_kernel[8] := 0x2d;
+   TEMPLATE_kernel[20] := 0x2d;
+   TEMPLATE_kernel[22] := 0x11;
+
+   TEMPLATE_patch_p0();
+   TEMPLATE_patch_p1();
+
+   // phase_ptr = &phase_one - 5, including low-byte borrow.
+   asm lda #<TEMPLATE_phase_one;
+   asm sec;
+   asm sbc #5;
+   asm sta.z TEMPLATE_phase_ptr;
+   asm lda #>TEMPLATE_phase_one;
+   asm sbc #0;
+   asm sta.z TEMPLATE_phase_ptr + 1;
 }
-static void TEMPLATE_render_4(void) {
-   asm @TEMPLATE_render_4_loop:;
-   asm lda.ay TEMPLATE_full_heart,y;
-   asm sta.z HMOVE;
-   asm sta.z RESP0;
-   asm sta.z RESP1;
-   asm sta.z GRP0;
-   asm sta.z GRP1;
-   asm lda.ay TEMPLATE_no_ball,y;
-   asm sta.z ENABL;
-   asm txa;
-   asm bit.z TEMPLATE_count;
-   asm lda.zx TEMPLATE_count,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm dey;
-   asm bpl.same @TEMPLATE_render_4_loop;
-   asm lda #0;
-   asm sta GRP0;
-   asm sta GRP1;
-   asm sta ENABL;
-   asm rts;
-}
-static void TEMPLATE_render_5(void) {
-   asm @TEMPLATE_render_5_loop:;
-   asm lda.ay TEMPLATE_full_heart,y;
-   asm sta.z HMOVE;
-   asm sta.z RESP0;
-   asm sta.z RESP1;
-   asm sta.z GRP0;
-   asm sta.z GRP1;
-   asm lda.ay TEMPLATE_no_ball,y;
-   asm sta.z ENABL;
-   asm txa;
-   asm bit.z TEMPLATE_count;
-   asm lda.zx TEMPLATE_count,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm dey;
-   asm bpl.same @TEMPLATE_render_5_loop;
-   asm lda #0;
-   asm sta GRP0;
-   asm sta GRP1;
-   asm sta ENABL;
-   asm rts;
-}
-static void TEMPLATE_render_6(void) {
-   asm @TEMPLATE_render_6_loop:;
-   asm lda.ay TEMPLATE_full_heart,y;
-   asm sta.z HMOVE;
-   asm sta.z RESP0;
-   asm sta.z RESP1;
-   asm sta.z GRP0;
-   asm sta.z GRP1;
-   asm lda.ay TEMPLATE_no_ball,y;
-   asm sta.z ENABL;
-   asm txa;
-   asm bit.z TEMPLATE_count;
-   asm lda.zx TEMPLATE_count,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm dey;
-   asm bpl.same @TEMPLATE_render_6_loop;
-   asm lda #0;
-   asm sta GRP0;
-   asm sta GRP1;
-   asm sta ENABL;
-   asm rts;
-}
-static void TEMPLATE_render_7(void) {
-   asm @TEMPLATE_render_7_loop:;
-   asm lda.ay TEMPLATE_full_heart,y;
-   asm sta.z HMOVE;
-   asm sta.z RESP0;
-   asm sta.z RESP1;
-   asm sta.z GRP0;
-   asm sta.z GRP1;
-   asm lda.ay TEMPLATE_no_ball,y;
-   asm sta.z ENABL;
-   asm txa;
-   asm bit.z TEMPLATE_count;
-   asm lda.zx TEMPLATE_count,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm dey;
-   asm bpl.same @TEMPLATE_render_7_loop;
-   asm lda #0;
-   asm sta GRP0;
-   asm sta GRP1;
-   asm sta ENABL;
-   asm rts;
-}
-static void TEMPLATE_render_8(void) {
-   asm @TEMPLATE_render_8_loop:;
-   asm lda.ay TEMPLATE_full_heart,y;
-   asm sta.z HMOVE;
-   asm sta.z RESP0;
-   asm sta.z RESP1;
-   asm sta.z GRP0;
-   asm sta.z GRP1;
-   asm lda.ay TEMPLATE_no_ball,y;
-   asm sta.z ENABL;
-   asm txa;
-   asm bit.z TEMPLATE_count;
-   asm lda.zx TEMPLATE_count,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm dey;
-   asm bpl.same @TEMPLATE_render_8_loop;
-   asm lda #0;
-   asm sta GRP0;
-   asm sta GRP1;
-   asm sta ENABL;
-   asm rts;
-}
-static void TEMPLATE_render_9(void) {
-   asm @TEMPLATE_render_9_loop:;
-   asm lda.ay TEMPLATE_full_heart,y;
-   asm sta.z HMOVE;
-   asm sta.z RESP0;
-   asm sta.z RESP1;
-   asm sta.z GRP0;
-   asm sta.z GRP1;
-   asm lda.ay TEMPLATE_no_ball,y;
-   asm sta.z ENABL;
-   asm txa;
-   asm bit.z TEMPLATE_count;
-   asm lda.zx TEMPLATE_count,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm dey;
-   asm bpl.same @TEMPLATE_render_9_loop;
-   asm lda #0;
-   asm sta GRP0;
-   asm sta GRP1;
-   asm sta ENABL;
-   asm rts;
-}
-static void TEMPLATE_render_10(void) {
-   asm @TEMPLATE_render_10_loop:;
-   asm lda.ay TEMPLATE_full_heart,y;
-   asm sta.z HMOVE;
-   asm sta.z RESP0;
-   asm sta.z RESP1;
-   asm sta.z GRP0;
-   asm sta.z GRP1;
-   asm lda.ay TEMPLATE_no_ball,y;
-   asm sta.z ENABL;
-   asm txa;
-   asm bit.z TEMPLATE_count;
-   asm lda.zx TEMPLATE_count,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm lda.zx TEMPLATE_count,x;
-   asm dey;
-   asm bpl.same @TEMPLATE_render_10_loop;
-   asm lda #0;
-   asm sta GRP0;
-   asm sta GRP1;
-   asm sta ENABL;
-   asm rts;
-}
-static void TEMPLATE_render_11(void) {
-   asm @TEMPLATE_render_11_loop:;
-   asm lda.ay TEMPLATE_full_heart,y;
-   asm sta.z HMOVE;
-   asm sta.z RESP0;
-   asm sta.z RESP1;
-   asm sta.z GRP0;
-   asm sta.z GRP1;
-   asm lda.ay TEMPLATE_no_ball,y;
-   asm sta.z ENABL;
-   asm txa;
-   asm bit.z TEMPLATE_count;
-   asm lda.zx TEMPLATE_count,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm sta.zx RESP1,x;
-   asm sta.zx RESP0,x;
-   asm dey;
-   asm bpl.same @TEMPLATE_render_11_loop;
-   asm lda #0;
-   asm sta GRP0;
-   asm sta GRP1;
-   asm sta ENABL;
-   asm rts;
-}
-static inline void TEMPLATE_select_renderer(void) {
-   asm ldx.z TEMPLATE_score;
-   asm cpx #11;
-   asm bcc.flex @TEMPLATE_count_ok;
-   asm ldx #11;
-   asm @TEMPLATE_count_ok:;
-   asm stx.z TEMPLATE_count;
-   asm txa;
+
+// Jentzsch singleton coarse/fine positioning. Single-copy players are
+// positioned once during VBLANK; the visible kernel then uses the oracle
+// motion-register values without changing the established fixed footprint.
+static inline void TEMPLATE_position_single_p0(void) {
+   asm lda #16;
+   asm sta WSYNC;
+   asm sec;
+   asm @TEMPLATE_p0_pos_loop:;
+   asm sbc #$0f;
+   asm bcs.same @TEMPLATE_p0_pos_loop;
+   asm eor #$07;
    asm asl;
-   asm tax;
-   asm lda.ax @TEMPLATE_table,x;
-   asm sta.z TEMPLATE_renderer;
-   asm inx;
-   asm lda.ax @TEMPLATE_table,x;
-   asm sta.z TEMPLATE_renderer + 1;
-   asm jmp @TEMPLATE_table_done;
-   asm @TEMPLATE_table:;
-   asm .word TEMPLATE_render_0,TEMPLATE_render_1,TEMPLATE_render_2,TEMPLATE_render_3;
-   asm .word TEMPLATE_render_4,TEMPLATE_render_5,TEMPLATE_render_6,TEMPLATE_render_7;
-   asm .word TEMPLATE_render_8,TEMPLATE_render_9,TEMPLATE_render_10,TEMPLATE_render_11;
-   asm @TEMPLATE_table_done:;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta HMP0;
+   asm sta.a RESP0;
+   asm sta WSYNC;
+   asm sta HMOVE;
+
+   // Single-copy NUSIZ places P0 two TIA pixels left of the repeated-copy
+   // footprint.  One additional setup HMOVE supplies that fixed correction.
+   asm lda #$a0;
+   asm sta HMP0;
+   asm lda #0;
+   asm sta HMP1;
+   asm sta WSYNC;
+   asm sta HMOVE;
+
+   // Keep P0 neutral across a following P1 singleton setup HMOVE.
+   asm lda #0;
+   asm sta HMP0;
 }
 
-static void TEMPLATE_render(void) {
-   asm jmp.i (TEMPLATE_renderer);
+static inline void TEMPLATE_position_single_p1(void) {
+   asm lda #28;
+   asm sta WSYNC;
+   asm sec;
+   asm @TEMPLATE_p1_pos_loop:;
+   asm sbc #$0f;
+   asm bcs.same @TEMPLATE_p1_pos_loop;
+   asm eor #$07;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm asl;
+   asm sta HMP1;
+   asm sta.a RESP1;
+   asm sta WSYNC;
+   asm sta HMOVE;
+   asm lda #$80;
+   asm sta HMP1;
+}
+
+static inline void TEMPLATE_prepare_positions(void) {
+   // Original centered row/setup-5 initial state.
+   asm lda #$b0;
+   asm sta HMP0;
+   asm lda #$80;
+   asm sta HMP1;
+
+   // Make setup HMOVEs harmless to missiles/Ball owned by surrounding code.
+   asm lda #0;
+   asm sta HMM0;
+   asm sta HMM1;
+   asm sta HMBL;
+
+   if (TEMPLATE_p0_population == 1) {
+      TEMPLATE_position_single_p0();
+   }
+   if (TEMPLATE_p1_population == 1) {
+      TEMPLATE_position_single_p1();
+   }
 }
 
 require inline void TEMPLATE_init(void) {
-   TEMPLATE_select_renderer();
+   TEMPLATE_prepare();
 }
 
 require inline void TEMPLATE_vblank(void) {
-   TEMPLATE_select_renderer();
+   TEMPLATE_prepare();
+   TEMPLATE_prepare_positions();
 }
 
-require inline void TEMPLATE_draw(void) {
+static inline void TEMPLATE_configure_tia(void) {
    asm lda #0;
    asm sta GRP0;
    asm sta GRP1;
@@ -451,28 +307,29 @@ require inline void TEMPLATE_draw(void) {
    asm sta VDELP1;
    asm sta REFP0;
    asm sta REFP1;
-
-   // Fixed geometry derived from the literal 11-Invaders renderer.  This HMP
-   // pair plus cycle-67 entry retains all eleven copies while placing the
-   // maximum row essentially at screen center.  Every smaller state is a
-   // left-anchored prefix of the same geometry.
-   asm lda #$80;
-   asm sta HMP0;
-   asm lda #$50;
-   asm sta HMP1;
-   asm lda #$81;
+   asm sta HMM0;
+   asm sta HMM1;
+   asm sta HMBL;
+   asm lda.z TEMPLATE_nusiz0;
    asm sta NUSIZ0;
-   asm lda #$01;
+   asm lda.z TEMPLATE_nusiz1;
    asm sta NUSIZ1;
+   asm lda.z TEMPLATE_final_hmp0;
+   asm sta HMP0;
+   asm lda.z TEMPLATE_final_hmp1;
+   asm sta HMP1;
    asm lda.z TEMPLATE_color;
    asm sta COLUP0;
    asm sta COLUP1;
+}
+
+require inline void TEMPLATE_draw(void) {
+   TEMPLATE_configure_tia();
    asm sta WSYNC;
 
-   // The original code enters its 76-cycle RAM renderer at a precise raster
-   // phase.  Our ROM dispatcher adds 15 cycles after this padding: LDY/LDX (4),
-   // JSR (6), and JMP (renderer) (5).  Thirteen absolute BITs contribute 52
-   // cycles, so the first renderer instruction lands at cycle 67.
+   // 38 cycles before JSR. JSR (6), dispatch skip JMP (3), indirect JMP (5),
+   // and row/setup-5's 14-cycle overlapping phase stream put the first RAM
+   // LDA at cycle 66, exactly matching the centered oracle row.
    asm bit.a TEMPLATE_count;
    asm bit.a TEMPLATE_count;
    asm bit.a TEMPLATE_count;
@@ -482,13 +339,8 @@ require inline void TEMPLATE_draw(void) {
    asm bit.a TEMPLATE_count;
    asm bit.a TEMPLATE_count;
    asm bit.a TEMPLATE_count;
-   asm bit.a TEMPLATE_count;
-   asm bit.a TEMPLATE_count;
-   asm bit.a TEMPLATE_count;
-   asm bit.a TEMPLATE_count;
-   asm ldy #5;
-   asm ldx #0;
-   TEMPLATE_render();
+   asm nop;
+   TEMPLATE_dispatch();
 
    asm lda #0;
    asm sta GRP0;
@@ -497,5 +349,4 @@ require inline void TEMPLATE_draw(void) {
    asm sta WSYNC;
 }
 
-require inline void TEMPLATE_overscan(void) {
-}
+require inline void TEMPLATE_overscan(void) {}

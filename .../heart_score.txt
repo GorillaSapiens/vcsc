@@ -1,37 +1,23 @@
-HEART SCORE COMPONENT -- PAUSED WIP
-===================================
+HEART SCORE COMPONENT
+=====================
 
-Goal
-----
-Add a reusable score component, analogous to the maintained score components,
-that displays 0..11 Zelda-style hearts. Eleven hearts define a centered fixed
-footprint; smaller values are left-justified prefixes of that same footprint.
-An optional final half-heart is desirable, but it must not block correct 0..11
-full-heart support.
+Stable state
+------------
+`libraries/vcs/heart_score_component.c26` is the maintained 0..11 full-heart
+component. Thomas Jentzsch's supplied 11-Invaders binary remains the hardware
+oracle: the component copies a 45-byte renderer to RIOT RAM, patches enabled
+logical RESP slots versus equal-cycle reads, and uses centered setup index 5.
 
-Authoritative technique
------------------------
-Thomas Jentzsch's supplied 11-Invaders binary is the hardware oracle. It already
-handles populations 1..11 with one fixed-cycle self-modifying RIOT-RAM renderer
-plus per-count setup/patching. Do not special-case 1..3 and do not redesign the
-renderer from partial timing observations. Port the complete per-count setup and
-renderer behavior first, replace only the invader bitmap with the heart bitmap,
-and validate all 12 full-heart states before attempting a ROM-frozen variant or
-half-heart enhancement.
+Eleven hearts define the fixed footprint. Smaller values are exact left-prefixes
+at the same positions; values above 11 clamp to 11. The singleton P0 path needs
+one extra VBLANK HMOVE correction, and P0 must be zero-motion while a following
+P1 singleton setup HMOVE runs. Do not remove either correction as an apparent
+cleanup: Stella 7.0 all-count coverage locks scores 0..11 pixel-for-pixel.
 
-Current unfinished files
-------------------------
-* `libraries/vcs/heart_score_component.c26` -- experimental ROM-specialized
-  component; not validated and not release-ready.
-* `heart_ram_prefix_component.c26` -- experimental literal RAM renderer
-  adaptation; currently the closer direction but still incomplete.
-* `heart_prefix_component.c26`, `hprefix_probe.c26`, `hram_probe.c26` -- bench
-  prototypes/probes retained for continuation.
+The component consumes seven visible scanlines and 58 bytes of instance RIOT
+RAM. The public 2K example is `examples/01_basic/14_heart_score/`.
 
-Next step
----------
-Resume from the complete Jentzsch per-count setup + RAM renderer, not the
-specialized prototypes. Prove 0..11 full hearts in Stella with the 11-heart row
-centered and every smaller count occupying the identical left-edge prefix. Only
-then wrap the proven implementation in the ordinary component contract/example
-and investigate a half-heart separately.
+Optional future work
+--------------------
+A final half-heart may be added as a separate enhancement, but it must preserve
+the certified 0..11 full-heart footprint and timing.

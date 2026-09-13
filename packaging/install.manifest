@@ -193,6 +193,7 @@ libraries	file	0644	libraries/vcs/renderers/standard_4k_ntsc_playercolors/README
 libraries	file	0644	libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26	libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors.c26
 libraries	file	0644	libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc	libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_macros.inc
 libraries	file	0644	libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_renderer.s26	libraries/vcs/renderers/standard_4k_ntsc_playercolors/standard_4k_ntsc_playercolors_renderer.s26
+libraries	file	0644	libraries/vcs/heart_score_component.c26	libraries/vcs/heart_score_component.c26
 libraries	file	0644	libraries/vcs/riot.c26	libraries/vcs/riot.c26
 libraries	file	0644	libraries/vcs/six_glyph_big_wide_component.c26	libraries/vcs/six_glyph_big_wide_component.c26
 libraries	file	0644	libraries/vcs/six_glyph_component.c26	libraries/vcs/six_glyph_component.c26

@@ -51,6 +51,7 @@ Cartridge profiles live under mapper-named subdirectories. Directory names use S
 - `six_glyph_right_component.c26` ... mutable-color variant justified at X=112..159; `glyph_rows:=8` by default, with tightly packed shorter fonts automatically using six full pointers
 - `six_glyph_component.c26` ... canonical centered 48-pixel/six-glyph lifecycle display; `glyph_rows:=8` preserves the compact default, shorter tightly packed fonts use six full pointers, `external_pointers:=1` lets callers own those pointers, `mutable_color:=1` adds an application-visible color byte, and compile-time `paddle_samples:=2` can spend setup-line slack on bounded paddle probes
 - `three_plus_three_score_component.c26` ... dual score with independent three-digit packed-BCD values and colors, centered as X=20,36,52 and X=100,116,132; `glyph_rows:=8` by default, shorter score fonts are tightly packed, and optional compile-time two/four-paddle sampling uses deterministic score-line slots
+- `heart_score_component.c26` ... fixed-footprint 0..11 full-heart meter derived from Thomas Jentzsch's 11-Invaders RAM kernel; seven visible lines, 12-pixel heart pitch, exact left-prefix geometry
 - `two_paddles.c26` ... two analog CX30-style paddles plus both fire buttons on either controller port, with explicit VBLANK dump/charge ownership, multi-frame raw timing, and bounded score-renderer probe helpers
 - `keypad_controller.c26` ... one 12-key Atari-style keypad on either controller port, with explicit row selection, caller-owned settle timing, stable 12-bit state, and press/release edge masks
 - `driving_controller.c26` ... one Atari Indy 500 driving controller on either port, with Gray-code direction decoding, signed per-sample step/per-frame delta, skipped-state direction preservation, and live fire-button state
@@ -374,6 +375,39 @@ stable NTSC frame timing.
 
 Current Stella does not auto-detect the Driving controller type from ROM access
 patterns, so select **Driving** manually for each port used by the cartridge.
+
+## Heart score component
+
+`heart_score_component.c26` draws a fixed-footprint health meter containing zero
+through eleven full hearts. At eleven, the eight-pixel hearts occupy X=16,28,40,
+52,64,76,88,100,112,124,136 in 160-pixel TIA coordinates. Smaller values are
+exact left-justified prefixes of those positions; existing hearts never slide as
+the value changes. Values above 11 clamp to 11.
+
+```vcsc
+instantiate "heart_score_component.c26" as health
+
+health_score := 7;
+health_color := 0x46;
+```
+
+The component uses Thomas Jentzsch's 11-Invaders technique: a 45-byte renderer
+is copied into RIOT RAM during `init()`/`vblank()` and patched with equal-cycle
+RESP stores or harmless reads. Including public state and setup scratch, one
+instance uses 58 RIOT-RAM bytes. The singleton P0 path receives one additional
+VBLANK HMOVE correction so scores 1 and 2 have exactly the same first-heart
+position as the repeated-copy paths; P0 is held at zero motion while P1's
+singleton setup HMOVE runs. Stella 7.0 regression coverage locks every score
+from 0 through 11 against the common eleven-heart footprint.
+
+The component consumes exactly **seven visible scanlines**, enters `draw()` at
+cycle 3, and returns at cycle 0 after its terminal `WSYNC`. It owns P0/P1 state
+while drawing and clears missile/Ball motion before setup HMOVEs so surrounding
+M0/M1/Ball geometry is not displaced. A half-heart is intentionally left for a
+separate enhancement; it is not part of the full-heart API.
+
+The complete public example is
+[`examples/01_basic/14_heart_score`](../../examples/01_basic/14_heart_score/).
 
 ## Left/right three-plus-three score component
 

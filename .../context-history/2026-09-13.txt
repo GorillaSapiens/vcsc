@@ -11,3 +11,31 @@ automatically (five unbanked 4K, one F8) and round-trips 6/6 byte-exact. Focused
 all-opcode, hardening, and deterministic-fuzz tests pass (fuzz 30/30).
 The comprehensive `test/vcsc_disassembler.pl` regression suite also passes with
 the new fixture, and `test/vcsc_disassembler_gl.pl` remains green.
+
+2026-09-13 07:17:00 PDT, heart score component completed
+The paused Thomas Jentzsch 11-Invaders heart-score work is complete for full
+hearts. The authoritative RAM renderer was reconstructed and the previous
+ROM-specialized branch discarded. Scores 4..11 already matched the centered
+11-heart footprint; the remaining 1..3 defect was the singleton positioning
+path. A single-copy P0 lands two TIA pixels left of the repeated-copy footprint,
+so its VBLANK setup now applies one additional $A0 HMOVE correction. When both
+players are singletons, P1's setup HMOVE had also dragged already-positioned P0;
+P0 is now held at zero motion across that HMOVE. This fixes the root interaction
+without score-specific renderers.
+
+The maintained implementation is `libraries/vcs/heart_score_component.c26`.
+It copies a 45-byte self-modifying renderer to RIOT RAM, consumes seven visible
+scanlines, uses 58 bytes of instance RIOT RAM, clamps scores above 11, and draws
+11 centered eight-pixel hearts at 12-TIA-pixel pitch. Stella 7.0 snapshots for
+all twelve values 0..11 were verified as exact prefixes of the score-11 image;
+new `test/vcs_heart_score_stella.pl` permanently locks all twelve rasters. A
+structural/build regression, public 2K `examples/01_basic/14_heart_score/`
+example, library documentation, and install-manifest entry were added. The four
+root-level heart prototypes/probes were removed. A half-heart remains optional
+future work and is not part of the full-heart API.
+
+2026-09-13 07:21:24 PDT, heart score completion validation
+Focused heart/hygiene/install/package validation passed 5/5, and the examples
+build shard containing the new public example passed 13/13. The full e2e runner
+was clean through 229/367 tests before the 120-second execution window ended;
+no failure had occurred. This was a runner time limit, not a test failure.

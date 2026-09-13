@@ -131,12 +131,11 @@ Open workstreams
    initializers that require backing objects retain their required storage
    semantics. Regression tests own the detailed placement/footprint expectations.
 
-6. **Heart score component -- paused WIP**
-   Read `.../heart_score.txt` when resuming this side quest. The current tree
-   intentionally retains the unfinished Jentzsch 11-Invaders-derived heart
-   prototypes. The authoritative next step is to port the complete per-count
-   setup plus RAM renderer first and validate 0..11 full-heart prefixes before
-   attempting the optional half-heart or ROM-specialized cleanup.
+6. **Heart score component**
+   `libraries/vcs/heart_score_component.c26` is complete for 0..11 full hearts.
+   Stella 7.0 locks every value as an exact prefix of the centered 11-heart
+   footprint. Read `.../heart_score.txt` only for its compact invariants or if
+   resuming the optional future half-heart enhancement.
 
 Startup selection
 -----------------

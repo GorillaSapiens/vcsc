@@ -1,0 +1,50 @@
+// This file is covered under CC0-1.0. See examples/LICENSE.txt.
+
+// Fixed-footprint Zelda-style 0..11 heart meter.
+
+include "2K/mapper.c26"
+include "frame_ntsc.c26"
+
+alias BACKGROUND_COLOR 0x84
+alias HEART_COLOR      0x46
+alias SCORE_PERIOD     30
+
+instantiate "heart_score_component.c26" as health
+uint8_t frame_counter := 0;
+
+void main(void) {
+   PF0 := 0;
+   PF1 := 0;
+   PF2 := 0;
+   ENAM0 := 0;
+   ENAM1 := 0;
+   ENABL := 0;
+   COLUBK := BACKGROUND_COLOR;
+   VBLANK := 2;
+
+   health_score := 0;
+   health_color := HEART_COLOR;
+   health_init();
+
+   while (1) {
+      vcs_ntsc_vsync();
+
+      vcs_ntsc_begin_vblank();
+      health_vblank();
+      vcs_ntsc_end_vblank();
+
+      vcs_ntsc_wait_component_scanlines(92);
+      health_draw();
+      vcs_ntsc_wait_visible_tail_scanlines(93);
+
+      vcs_ntsc_begin_overscan();
+      frame_counter++;
+      if (frame_counter == SCORE_PERIOD) {
+         frame_counter := 0;
+         if (health_score == 11) { health_score := 0; }
+         else { health_score++; }
+      }
+      health_overscan();
+      vcs_ntsc_end_overscan();
+   }
+}
