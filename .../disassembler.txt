@@ -63,6 +63,11 @@ Durable invariants
   strengthen promotion or rejection.
 * RESET is the only stock-6507 initial hardware execution root. Reachable `BRK`
   may promote IRQ/BRK; NMI is never rooted merely from `$FFFA/$FFFB`. For a
+  deliberate `RESET=$0000`, the reset-vector high-byte fetch leaves `$00` on
+  the data bus and the following opcode fetch from write-only TIA `$0000`
+  returns open-bus `$00` (`BRK`); this deterministic hardware bootstrap makes
+  the IRQ/BRK vector a reachable startup continuation. Other non-ROM RESET
+  targets remain invalid unless separately proven. For a
   signed VCSC banked image, the complete linker vector-bridge invariant may
   establish the three bridge slots as code without making NMI/IRQ handlers
   runtime-reachable. Signature bytes alone are insufficient.
@@ -185,30 +190,13 @@ cases; copyrighted real-ROM validation stays out of tree.
 
 Weak "nonsense operation string" evidence
 -----------------------------------------
-Use only a weak signal for instruction sequences whose semantic work is
-immediately obliterated; beam-path code may intentionally burn cycles. Prefer
-dead-definition/dataflow analysis over byte-string patterns. A definition is
-suspicious when all effects are overwritten before use and it had no meaningful
-bus/device/mapper side effect. Examples:
-
-* `LDA #$00 ; LDA #$FF` when neither A nor the first N/Z result is observed.
-* Back-to-back LDX/LDY/transfers, contradictory flag sets, or ALU/update work
-  whose earlier register/flag result is dead before use.
-* A pure RAM load immediately replaced before value/flags are used.
-* A RAM store overwritten before any feasible read, absent device/mapper semantics.
-* `JMP`/branch to the immediately following instruction, or other control-flow
-  detours that have no semantic effect except cycles.
-
-Do not call local redundancy nonsense when bus/timing effects may matter:
-TIA/RIOT/peripheral/mapper accesses can have side effects; discarded bankswitch
-reads still matter; stack/flag/ALU/unofficial operations may be cycle padding.
-Near visible-beam/WSYNC activity sharply suppress the penalty. Blanking code can
-also burn cycles, so beam knowledge changes weight rather than proving purpose.
-
-Accumulate gently: one dead definition barely matters; several independent
-clobbers can lower confidence. Cap the penalty so it never kills a path/mapper.
-Hard contradictions remain separate. Proven reachable code stays code; retain
-this only as a diagnostic/statistic.
+Use only as a weak detached-code plausibility signal: a definition is suspicious
+when its register/flag/RAM result is overwritten before any feasible use and the
+operation had no meaningful bus/device/mapper side effect. Hardware accesses,
+bankswitch reads, stack/unofficial operations, and beam/blanking timing may be
+intentional cycle work, so they sharply suppress the penalty. Accumulate gently,
+cap the penalty, never let it kill a path/mapper by itself, and never demote
+proven reachable code.
 
 Unfinished mapper support
 -------------------------

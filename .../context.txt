@@ -131,6 +131,13 @@ Open workstreams
    initializers that require backing objects retain their required storage
    semantics. Regression tests own the detailed placement/footprint expectations.
 
+6. **Heart score component -- paused WIP**
+   Read `.../heart_score.txt` when resuming this side quest. The current tree
+   intentionally retains the unfinished Jentzsch 11-Invaders-derived heart
+   prototypes. The authoritative next step is to port the complete per-count
+   setup plus RAM renderer first and validate 0..11 full-heart prefixes before
+   attempting the optional half-heart or ROM-specialized cleanup.
+
 Startup selection
 -----------------
 Stock VCS startup is deliberately three-way. `vcsc-rt1-simple.s26` is the

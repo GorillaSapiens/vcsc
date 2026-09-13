@@ -148,6 +148,19 @@ put16(\$plain1k, 0x03FA, 0xFC90);
 put16(\$plain1k, 0x03FE, 0xFC80);
 write_bin(File::Spec->catfile($in, 'plain1k.bin'), $plain1k);
 
+# Some real cartridges deliberately store RESET=$0000.  The RESET vector's
+# high-byte fetch leaves $00 on the data bus; the opcode fetch from write-only
+# TIA $0000 is therefore open-bus $00 (BRK), and startup continues through the
+# IRQ/BRK vector.  Automatic mapper viability must recognize that deterministic
+# hardware bootstrap instead of requiring RESET itself to name cartridge ROM.
+my $reset_open_bus_brk = make_rom(4096, 0xF000, 0x0100,
+   "\x78\xD8\x4C\x00\xF1"); # SEI; CLD; JMP $F100
+put16(\$reset_open_bus_brk, 0x0FFA, 0x0000);
+put16(\$reset_open_bus_brk, 0x0FFC, 0x0000);
+put16(\$reset_open_bus_brk, 0x0FFE, 0xF100);
+write_bin(File::Spec->catfile($in, 'reset_open_bus_brk.bin'),
+          $reset_open_bus_brk);
+
 # Concrete RESET discovery torture fixture.  The startup establishes SP=$FF,
 # clears the entire mirrored stack/RIOT-RAM page with TSX/PHA, then uses BRK as
 # a one-byte subroutine call.  The IRQ handler decrements the mirrored saved-PC
@@ -3032,6 +3045,18 @@ die "unreachable IRQ-only 1K routine was incorrectly promoted to code\n"
    if $plain1k_out =~ /^L_FC80:\s*\n\s*LDA\s+#\$99/m;
 die "unreachable NMI-only 1K routine was incorrectly promoted to code\n"
    if $plain1k_out =~ /^L_FC90:\s*\n\s*LDA\s+#\$88/m;
+
+my $reset_open_bus_brk_out = slurp(
+   File::Spec->catfile($out, 'reset_open_bus_brk.s26'));
+require_re($reset_open_bus_brk_out,
+   qr/^; mapper: unbanked 4K \(/m,
+   'RESET=$0000 open-bus BRK fixture survives automatic mapper selection');
+require_re($reset_open_bus_brk_out,
+   qr/^; reset bootstrap: RESET=\$0000 leaves \$00 on the data bus; opcode fetch from write-only TIA \$0000 returns open-bus \$00 \(BRK\), so startup continues through the IRQ\/BRK vector$/m,
+   'RESET=$0000 open-bus BRK bootstrap is documented');
+require_re($reset_open_bus_brk_out,
+   qr/^L_F100:\n\s*SEI\n\s*CLD\n\s*JMP\s+L_F100/m,
+   'IRQ/BRK vector target is established as startup code after RESET=$0000');
 
 my $vcsc_bridge_out = slurp(File::Spec->catfile($out, 'vcsc_f8_vector_bridge.s26'));
 require_re($vcsc_bridge_out,

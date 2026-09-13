@@ -1,0 +1,135 @@
+// Literal 11-Invaders RAM-kernel adaptation for a monotonic 0..11 heart meter.
+enum TEMPLATE_contract {
+   TEMPLATE_VISIBLE_SCANLINES:=7,
+   TEMPLATE_DRAW_ENTRY_CYCLE:=3,
+   TEMPLATE_DRAW_RETURN_CYCLE:=0,
+   TEMPLATE_DRAW_COMPLETE_SCANLINES:=7,
+   TEMPLATE_DRAW_PARTIAL_ENTRY_CYCLES:=0,
+   TEMPLATE_DRAW_PARTIAL_EXIT_CYCLES:=0,
+   TEMPLATE_DRAW_TERMINAL_WSYNC:=1,
+   TEMPLATE_DRAW_HMOVE_COUNT:=6,
+   TEMPLATE_DRAW_SUCCESSOR_ON_RETURN_LINE:=1,
+   TEMPLATE_VBLANK_MAX_CYCLES:=400,
+   TEMPLATE_OVERSCAN_MAX_CYCLES:=0,
+   TEMPLATE_MAX_HEARTS:=11,
+   TEMPLATE_HEART_WIDTH:=8,
+   TEMPLATE_HEART_PITCH:=12
+};
+recommend uint8_t TEMPLATE_score:=11;
+recommend uint8_t TEMPLATE_half:=0;
+recommend uint8_t TEMPLATE_color:=0x46;
+uint8_t TEMPLATE_count;
+uint8_t TEMPLATE_pad;
+uint8_t TEMPLATE_kernel[45];
+
+const uint8_t TEMPLATE_kernel_template[45] := {
+   0xB9,0x00,0x00, 0x85,0x2A, 0x85,0x10, 0x85,0x11,
+   0x85,0x1B, 0x85,0x1C, 0xB9,0x00,0x00, 0x85,0x1F,
+   0x8A, 0x85,0x2D, 0x95,0x2D,
+   0x95,0x10, 0x95,0x11, 0x95,0x10, 0x95,0x11, 0x95,0x10,
+   0x95,0x11, 0x95,0x10, 0x95,0x11, 0x95,0x10,
+   0x88,0xD0,0xD4, 0x60
+};
+const uint8_t TEMPLATE_heart[7] := {0,0x18,0x3c,0x7e,0xff,0xff,0x66};
+const uint8_t TEMPLATE_blank[7] := {0,0,0,0,0,0,0};
+
+static inline void TEMPLATE_copy_kernel(void) {
+   for (uint8_t i := 0; i < 45; i++) {
+      TEMPLATE_kernel[i] := TEMPLATE_kernel_template[i];
+   }
+   asm lda #<TEMPLATE_heart; asm sta.z TEMPLATE_kernel + 1;
+   asm lda #>TEMPLATE_heart; asm sta.z TEMPLATE_kernel + 2;
+   asm lda #<TEMPLATE_blank; asm sta.z TEMPLATE_kernel + 14;
+   asm lda #>TEMPLATE_blank; asm sta.z TEMPLATE_kernel + 15;
+}
+
+static inline void TEMPLATE_prepare(void) {
+   if (TEMPLATE_score > 11) {
+      TEMPLATE_count := 11;
+   } else {
+      TEMPLATE_count := TEMPLATE_score;
+   }
+   TEMPLATE_copy_kernel();
+
+   if (TEMPLATE_count >= 1) {
+      TEMPLATE_kernel[9] := 0x85;
+   } else {
+      TEMPLATE_kernel[9] := 0x86;
+   }
+   if (TEMPLATE_count >= 2) {
+      TEMPLATE_kernel[11] := 0x85;
+   } else {
+      TEMPLATE_kernel[11] := 0x86;
+   }
+
+   if (TEMPLATE_count >= 3) { TEMPLATE_kernel[23] := 0x95; TEMPLATE_kernel[24] := 0x10; }
+   else { TEMPLATE_kernel[23] := 0xb5; }
+   if (TEMPLATE_count >= 4) { TEMPLATE_kernel[25] := 0x95; TEMPLATE_kernel[26] := 0x11; }
+   else { TEMPLATE_kernel[25] := 0xb5; }
+   if (TEMPLATE_count >= 5) { TEMPLATE_kernel[27] := 0x95; TEMPLATE_kernel[28] := 0x10; }
+   else { TEMPLATE_kernel[27] := 0xb5; }
+   if (TEMPLATE_count >= 6) { TEMPLATE_kernel[29] := 0x95; TEMPLATE_kernel[30] := 0x11; }
+   else { TEMPLATE_kernel[29] := 0xb5; }
+   if (TEMPLATE_count >= 7) { TEMPLATE_kernel[31] := 0x95; TEMPLATE_kernel[32] := 0x10; }
+   else { TEMPLATE_kernel[31] := 0xb5; }
+   if (TEMPLATE_count >= 8) { TEMPLATE_kernel[33] := 0x95; TEMPLATE_kernel[34] := 0x11; }
+   else { TEMPLATE_kernel[33] := 0xb5; }
+   if (TEMPLATE_count >= 9) { TEMPLATE_kernel[35] := 0x95; TEMPLATE_kernel[36] := 0x10; }
+   else { TEMPLATE_kernel[35] := 0xb5; }
+   if (TEMPLATE_count >= 10) { TEMPLATE_kernel[37] := 0x95; TEMPLATE_kernel[38] := 0x11; }
+   else { TEMPLATE_kernel[37] := 0xb5; }
+   if (TEMPLATE_count >= 11) { TEMPLATE_kernel[39] := 0x95; TEMPLATE_kernel[40] := 0x10; }
+   else { TEMPLATE_kernel[39] := 0xb5; }
+}
+
+static inline void TEMPLATE_phase(void) {
+   asm bit.a TEMPLATE_pad; asm bit.a TEMPLATE_pad; asm bit.a TEMPLATE_pad; asm bit.a TEMPLATE_pad;
+   asm bit.a TEMPLATE_pad; asm bit.a TEMPLATE_pad; asm bit.a TEMPLATE_pad; asm bit.a TEMPLATE_pad;
+   asm bit.a TEMPLATE_pad; asm bit.a TEMPLATE_pad;
+   asm bit.z TEMPLATE_pad;
+   asm nop; asm nop; asm nop; asm nop;
+}
+
+static inline void TEMPLATE_configure_tia(void) {
+   asm lda #0;
+   asm sta GRP0; asm sta GRP1; asm sta ENABL;
+   asm sta VDELP0; asm sta VDELP1; asm sta REFP0; asm sta REFP1;
+   asm sta HMM0; asm sta HMM1; asm sta HMBL;
+   asm lda #$10; asm sta HMP0;
+   asm lda #$e0; asm sta HMP1;
+   asm lda #$81; asm sta NUSIZ0;
+   asm lda #$01; asm sta NUSIZ1;
+}
+
+require inline void TEMPLATE_init(void) {
+   TEMPLATE_prepare();
+}
+
+require inline void TEMPLATE_vblank(void) {
+   TEMPLATE_prepare();
+}
+
+require inline void TEMPLATE_draw(void) {
+   TEMPLATE_configure_tia();
+
+   // The original 11-Invaders schedule needs two immediately preceding
+   // iterations to settle P0/P1 counter state.  Use the exact same reset
+   // schedule with zero graphics, then switch the source pointer to hearts.
+   asm lda #<TEMPLATE_blank; asm sta.z TEMPLATE_kernel + 1;
+   asm lda #>TEMPLATE_blank; asm sta.z TEMPLATE_kernel + 2;
+   asm sta WSYNC;
+   TEMPLATE_phase(); asm ldy #1; asm ldx #0; asm jsr.a TEMPLATE_kernel;
+   asm sta WSYNC;
+   TEMPLATE_phase(); asm ldy #1; asm ldx #0; asm jsr.a TEMPLATE_kernel;
+
+   asm lda #<TEMPLATE_heart; asm sta.z TEMPLATE_kernel + 1;
+   asm lda #>TEMPLATE_heart; asm sta.z TEMPLATE_kernel + 2;
+   asm lda #0; asm sta GRP0; asm sta GRP1;
+   asm lda.z TEMPLATE_color; asm sta COLUP0; asm sta COLUP1;
+   asm sta WSYNC;
+   TEMPLATE_phase(); asm ldy #6; asm ldx #0; asm jsr.a TEMPLATE_kernel;
+
+   asm lda #0; asm sta GRP0; asm sta GRP1; asm sta ENABL;
+   asm sta WSYNC;
+}
+require inline void TEMPLATE_overscan(void) {}

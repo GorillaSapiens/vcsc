@@ -442,6 +442,7 @@ typedef struct {
    int unresolved_indirect_jumps;
    size_t reachable_halts;
    size_t proven_brk_returns;
+   int reset_open_bus_brk;
    mapper_refinement_t mapper_refinement;
    unsigned container_candidate_games;
    size_t container_candidate_slice_size;
@@ -5633,6 +5634,24 @@ static int resolve_brk_vector(const analysis_t *a, size_t active_bank,
    return 1;
 }
 
+/* Some released cartridges deliberately store RESET=$0000.  The reset vector
+ * fetch leaves $00 on the 6507 data bus; the following opcode fetch is from
+ * TIA's write-only VSYNC address, so the undriven/open bus returns that same
+ * $00.  $00 is BRK, which immediately transfers through the cartridge-backed
+ * IRQ/BRK vector.  Treat that deterministic hardware bootstrap as a reachable
+ * BRK rather than rejecting the cartridge merely because RESET itself does not
+ * name ROM.  This is intentionally exact to RESET=$0000: other non-ROM reset
+ * targets do not have a proven opcode value here. */
+static int resolve_reset_open_bus_brk(const analysis_t *a, size_t active_bank,
+                                      mapper_config_t mapper_config,
+                                      uint16_t reset_target, uint16_t *target,
+                                      size_t *target_bank, size_t *target_off)
+{
+   if (reset_target != 0x0000u) return 0;
+   return resolve_brk_vector(a, active_bank, mapper_config, target,
+                             target_bank, target_off);
+}
+
 /* Prove a BRK continuation without making the global IRQ entry context
  * sensitive.  The reachable BRK itself promotes the IRQ handler into the CFG;
  * this bounded local trace is used only to answer "what PC does this particular
@@ -8254,13 +8273,20 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
       size_t voff = vb->size - 4u;
       uint16_t target = read_word(a->rom + vb->file_offset + voff);
       size_t tbank, toff;
-      if (gl_map_address(a, GL_RESET_CONFIG, target, &tbank, &toff)) {
+      int mapped;
+      int via_open_bus_brk = 0;
+      mapped = gl_map_address(a, GL_RESET_CONFIG, target, &tbank, &toff);
+      if (!mapped)
+         via_open_bus_brk = resolve_reset_open_bus_brk(
+            a, 0u, GL_RESET_CONFIG, target, &target, &tbank, &toff);
+      if (mapped || via_open_bus_brk) {
          abstract_state_t state;
          mark_label(&a->banks[tbank], toff);
          memset(&state, 0, sizeof(state));
          if (!push_work_state_ctx(a, tbank, toff, &state, target,
                                   GL_RESET_CONFIG)) return 0;
          reset_seeded = 1;
+         if (via_open_bus_brk) a->reset_open_bus_brk = 1;
       }
    }
    else if (a->mapper == MAP_E0) {
@@ -8274,13 +8300,20 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
          size_t voff = vb->size - 6u + (size_t)v * 2u;
          uint16_t target = read_word(a->rom + vb->file_offset + voff);
          size_t tbank, toff;
-         if (e0_map_address(a, E0_RESET_CONFIG, target, &tbank, &toff)) {
+         int mapped;
+         int via_open_bus_brk = 0;
+         mapped = e0_map_address(a, E0_RESET_CONFIG, target, &tbank, &toff);
+         if (!mapped)
+            via_open_bus_brk = resolve_reset_open_bus_brk(
+               a, 7u, E0_RESET_CONFIG, target, &target, &tbank, &toff);
+         if (mapped || via_open_bus_brk) {
             abstract_state_t state;
             mark_label(&a->banks[tbank], toff);
             memset(&state, 0, sizeof(state));
             if (!push_work_state_ctx(a, tbank, toff, &state, target,
                                      E0_RESET_CONFIG)) return 0;
             if (v == 1u) reset_seeded = 1;
+            if (via_open_bus_brk && v == 1u) a->reset_open_bus_brk = 1;
          }
       }
    }
@@ -8296,13 +8329,21 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
          size_t voff = vb->size - 6u + (size_t)v * 2u;
          uint16_t target = read_word(a->rom + vb->file_offset + voff);
          size_t tbank, toff;
-         if (e7_map_address(a, reset_config, target, &tbank, &toff)) {
+         int mapped;
+         int via_open_bus_brk = 0;
+         mapped = e7_map_address(a, reset_config, target, &tbank, &toff);
+         if (!mapped)
+            via_open_bus_brk = resolve_reset_open_bus_brk(
+               a, a->bank_count - 1u, reset_config, target,
+               &target, &tbank, &toff);
+         if (mapped || via_open_bus_brk) {
             abstract_state_t state;
             mark_label(&a->banks[tbank], toff);
             memset(&state, 0, sizeof(state));
             if (!push_work_state_ctx(a, tbank, toff, &state, target,
                                      reset_config)) return 0;
             if (v == 1u) reset_seeded = 1;
+            if (via_open_bus_brk && v == 1u) a->reset_open_bus_brk = 1;
          }
       }
    }
@@ -8317,12 +8358,19 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
          size_t voff = vb->size - 6u + (size_t)v * 2u;
          uint16_t target = read_word(a->rom + vb->file_offset + voff);
          size_t tbank, toff;
-         if (threef_map_address(a, 0u, target, &tbank, &toff)) {
+         int mapped;
+         int via_open_bus_brk = 0;
+         mapped = threef_map_address(a, 0u, target, &tbank, &toff);
+         if (!mapped)
+            via_open_bus_brk = resolve_reset_open_bus_brk(
+               a, a->bank_count - 1u, 0u, target, &target, &tbank, &toff);
+         if (mapped || via_open_bus_brk) {
             abstract_state_t state;
             mark_label(&a->banks[tbank], toff);
             memset(&state, 0, sizeof(state));
             if (!push_work_state_ctx(a, tbank, toff, &state, target, 0u)) return 0;
             if (v == 1u) reset_seeded = 1;
+            if (via_open_bus_brk && v == 1u) a->reset_open_bus_brk = 1;
          }
       }
    }
@@ -8339,13 +8387,20 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
          size_t voff = vb->size - 6u + (size_t)v * 2u;
          uint16_t target = read_word(a->rom + vb->file_offset + voff);
          size_t tbank, toff;
-         if (wd_map_address(a, 0u, target, &tbank, &toff)) {
+         int mapped;
+         int via_open_bus_brk = 0;
+         mapped = wd_map_address(a, 0u, target, &tbank, &toff);
+         if (!mapped)
+            via_open_bus_brk = resolve_reset_open_bus_brk(
+               a, a->reset_bank, 0u, target, &target, &tbank, &toff);
+         if (mapped || via_open_bus_brk) {
             mark_label(&a->banks[tbank], toff);
             {
                abstract_state_t state;
                memset(&state, 0, sizeof(state));
                if (!push_work_state_ctx(a, tbank, toff, &state, target, 0u)) return 0;
                if (v == 1u) reset_seeded = 1;
+               if (via_open_bus_brk && v == 1u) a->reset_open_bus_brk = 1;
             }
          }
       }
@@ -8365,14 +8420,22 @@ static int trace_analysis_internal(analysis_t *a, const options_t *opt,
          for (v = first_v; v <= last_v; ++v) {
             size_t voff = b->size - 6u + (size_t)v * 2u;
             uint16_t target = read_word(a->rom + b->file_offset + voff);
-            size_t toff;
-            if (cart_target_offset(b, target, &toff)) {
+            size_t tbank = bi, toff;
+            int mapped;
+            int via_open_bus_brk = 0;
+            mapped = cart_target_offset(b, target, &toff);
+            if (!mapped)
+               via_open_bus_brk = resolve_reset_open_bus_brk(
+                  a, bi, 0u, target, &target, &tbank, &toff);
+            if (mapped || via_open_bus_brk) {
                if (!speculative_done && v == 1u && bi == a->reset_bank && toff < 0x80u)
                   ++a->superchip_exec_conflicts;
                if (rom_offset_hidden(a, toff)) continue;
-               mark_label(b, toff);
-               if (!push_work(a, bi, toff)) return 0;
+               mark_label(&a->banks[tbank], toff);
+               if (!push_work(a, tbank, toff)) return 0;
                if (v == 1u && bi == a->reset_bank) reset_seeded = 1;
+               if (via_open_bus_brk && v == 1u && bi == a->reset_bank)
+                  a->reset_open_bus_brk = 1;
             }
          }
       }
@@ -9874,7 +9937,9 @@ static int hypothesis_reset_entry(const analysis_t *a, size_t *bank_out,
       config = GL_RESET_CONFIG;
       if (vb->size < 4u) return 0;
       target = read_word(a->rom + vb->file_offset + vb->size - 4u);
-      if (!gl_map_address(a, config, target, &bank, &off)) return 0;
+      if (!gl_map_address(a, config, target, &bank, &off) &&
+          !resolve_reset_open_bus_brk(a, 0u, config, target,
+                                      &target, &bank, &off)) return 0;
    }
    else if (a->mapper == MAP_E0) {
       if (a->bank_count <= 7u) return 0;
@@ -9882,21 +9947,27 @@ static int hypothesis_reset_entry(const analysis_t *a, size_t *bank_out,
       config = E0_RESET_CONFIG;
       if (vb->size < 4u) return 0;
       target = read_word(a->rom + vb->file_offset + vb->size - 4u);
-      if (!e0_map_address(a, config, target, &bank, &off)) return 0;
+      if (!e0_map_address(a, config, target, &bank, &off) &&
+          !resolve_reset_open_bus_brk(a, 7u, config, target,
+                                      &target, &bank, &off)) return 0;
    }
    else if (a->mapper == MAP_E7) {
       vb = &a->banks[a->bank_count - 1u];
       config = e7_config_make(0u, 0u);
       if (vb->size < 4u) return 0;
       target = read_word(a->rom + vb->file_offset + vb->size - 4u);
-      if (!e7_map_address(a, config, target, &bank, &off)) return 0;
+      if (!e7_map_address(a, config, target, &bank, &off) &&
+          !resolve_reset_open_bus_brk(a, a->bank_count - 1u, config, target,
+                                      &target, &bank, &off)) return 0;
    }
    else if (mapper_is_three_family(a->mapper)) {
       vb = &a->banks[a->bank_count - 1u];
       config = 0u;
       if (vb->size < 4u) return 0;
       target = read_word(a->rom + vb->file_offset + vb->size - 4u);
-      if (!threef_map_address(a, config, target, &bank, &off)) return 0;
+      if (!threef_map_address(a, config, target, &bank, &off) &&
+          !resolve_reset_open_bus_brk(a, a->bank_count - 1u, config, target,
+                                      &target, &bank, &off)) return 0;
    }
    else if (mapper_is_wd_family(a->mapper)) {
       if (a->reset_bank >= a->bank_count) return 0;
@@ -9904,7 +9975,9 @@ static int hypothesis_reset_entry(const analysis_t *a, size_t *bank_out,
       config = 0u;
       if (vb->size < 4u) return 0;
       target = read_word(a->rom + vb->file_offset + vb->size - 4u);
-      if (!wd_map_address(a, 0u, target, &bank, &off)) return 0;
+      if (!wd_map_address(a, 0u, target, &bank, &off) &&
+          !resolve_reset_open_bus_brk(a, a->reset_bank, config, target,
+                                      &target, &bank, &off)) return 0;
    }
    else {
       if (a->reset_bank >= a->bank_count) return 0;
@@ -9912,11 +9985,15 @@ static int hypothesis_reset_entry(const analysis_t *a, size_t *bank_out,
       if (vb->size < 4u) return 0;
       target = read_word(a->rom + vb->file_offset + vb->size - 4u);
       if (a->mapper == MAP_FC) {
-         if (!fc_map_address(a, a->reset_bank, target, &bank, &off)) return 0;
+         if (!fc_map_address(a, a->reset_bank, target, &bank, &off) &&
+             !resolve_reset_open_bus_brk(a, a->reset_bank, config, target,
+                                         &target, &bank, &off)) return 0;
       }
       else {
          bank = a->reset_bank;
-         if (!cart_target_offset(vb, target, &off)) return 0;
+         if (!cart_target_offset(vb, target, &off) &&
+             !resolve_reset_open_bus_brk(a, a->reset_bank, config, target,
+                                         &target, &bank, &off)) return 0;
       }
    }
 
@@ -15021,6 +15098,8 @@ static void emit_header(FILE *fp, const analysis_t *a, const char *input,
                     (a->mapper == MAP_FC ? "FC hardware bank 0; pending target 0" :
                      (a->mapper == MAP_F0 ? "F0 hardware bank 15" :
                   (mapper_is_wd_family(a->mapper) ? "WD configuration-0 vector bank" : "heuristic"))))))))))))))));
+      if (a->reset_open_bus_brk)
+         fprintf(fp, "; reset bootstrap: RESET=$0000 leaves $00 on the data bus; opcode fetch from write-only TIA $0000 returns open-bus $00 (BRK), so startup continues through the IRQ/BRK vector\n");
       for (i = 0; i < a->bank_count; ++i) {
          const bank_t *b = &a->banks[i];
          if (b->origin_overridden)

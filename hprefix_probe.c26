@@ -1,0 +1,4 @@
+include "4K/mapper.c26"
+include "frame_ntsc.c26"
+instantiate "/mnt/data/vcsc_hearts_impl/heart_prefix_component.c26" as health
+void main(void){VBLANK:=2;COLUBK:=0x84;health_score:=11;health_color:=0x46;health_init();while(1){vcs_ntsc_vsync();vcs_ntsc_begin_vblank();health_vblank();vcs_ntsc_end_vblank();vcs_ntsc_wait_component_scanlines(90);health_draw();vcs_ntsc_wait_visible_tail_scanlines(90);vcs_ntsc_begin_overscan();health_overscan();vcs_ntsc_end_overscan();}}

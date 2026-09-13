@@ -1,0 +1,13 @@
+2026-09-13 01:21:58 PDT, RESET zero-vector BRK bootstrap
+The disassembler now recognizes the deterministic stock-6507 startup used by
+cartridges with RESET=$0000: the vector high-byte fetch leaves $00 on the data
+bus, the opcode fetch from write-only TIA $0000 sees open-bus $00 (BRK), and
+execution continues through the cartridge IRQ/BRK vector. Automatic mapper
+viability and established RESET tracing both accept that path; other non-ROM
+RESET targets remain invalid. Generated headers document the bootstrap.
+A synthetic 4K regression pins automatic selection, startup-code promotion, and
+exact reconstruction. The user-supplied six-ROM failure corpus now disassembles
+automatically (five unbanked 4K, one F8) and round-trips 6/6 byte-exact. Focused
+all-opcode, hardening, and deterministic-fuzz tests pass (fuzz 30/30).
+The comprehensive `test/vcsc_disassembler.pl` regression suite also passes with
+the new fixture, and `test/vcsc_disassembler_gl.pl` remains green.
