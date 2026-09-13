@@ -1,8 +1,7 @@
 #!/usr/bin/perl
-# runner: perl @FILE@ @REPO@ @TMP@
-# phase: e2e
-# expectstdout: vcs_heart_score_stella ok
-# expectexit: 0
+# Authoritative Stella 7.0 raster certification for the heart-score component.
+# This is an explicit Stella target rather than a default e2e dependency so the
+# normal suite remains runnable on hosts without Stella/Xvfb.
 
 use strict;
 use warnings;

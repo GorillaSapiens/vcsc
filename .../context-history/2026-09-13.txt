@@ -39,3 +39,14 @@ Focused heart/hygiene/install/package validation passed 5/5, and the examples
 build shard containing the new public example passed 13/13. The full e2e runner
 was clean through 229/367 tests before the 120-second execution window ended;
 no failure had occurred. This was a runner time limit, not a test failure.
+
+2026-09-13 09:15:00 PDT, repair heart-score test integration
+-------------------------------------------------------------
+* Remove vcs_heart_score_stella.pl from the default e2e discovery path. Like the
+  established Stella raster certifications, it is graphical/external and must
+  not make `make test` require Xvfb or Stella. Add `make stella-heart-score-test`
+  as its explicit target; vcs_heart_score.pl remains the normal non-Stella E2E.
+* Teach vcsc_branding.pl that .../heart_score.txt is an intentional focused
+  developer record and require it alongside the other canonical hot files.
+* Record the next heart work: move the 45-byte self-modifying RAM kernel into
+  ROM-resident variants, then synthesize half hearts with M0/M1.

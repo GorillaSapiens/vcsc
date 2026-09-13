@@ -17,7 +17,16 @@ cleanup: Stella 7.0 all-count coverage locks scores 0..11 pixel-for-pixel.
 The component consumes seven visible scanlines and 58 bytes of instance RIOT
 RAM. The public 2K example is `examples/01_basic/14_heart_score/`.
 
-Optional future work
---------------------
-A final half-heart may be added as a separate enhancement, but it must preserve
-the certified 0..11 full-heart footprint and timing.
+Next work
+---------
+Replace the 45-byte self-modifying RIOT-RAM renderer with ROM-resident kernel
+variants while preserving the certified 0..11 full-heart footprint and timing.
+The goal is to trade ROM for scarce RIOT RAM rather than carrying executable
+code in the 128-byte RAM.
+
+Then add half-heart states without changing the full-heart positions. The
+preferred design is to synthesize the final half heart with M0/M1, using
+per-scanline missile enable/width/position as needed; do not add a separate
+player-graphics renderer merely for the half heart. Account for the fact that
+NUSIZ0/NUSIZ1 also affect missile copies. A natural public score representation
+is half-heart units 0..23 for 0 through 11.5 hearts.
