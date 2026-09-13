@@ -2875,12 +2875,14 @@ require_re($a4_generated_out,
    'A4 executes generated RAM control transfer back into ROM');
 for my $value (qw(AD F8 FF 4C E0 F0)) {
    require_re($a4_generated_out,
-      qr/^\s*LDA\s+#\$$value\s+; operand byte also read as data$/m,
-      "A8 keeps generated-RAM source byte #\$$value as overlapping code and data");
+      qr/^\s*LDA\s+#\$$value\s*$/m,
+      "A8 keeps generated-RAM source byte #\$$value as an ordinary immediate operand");
+   die "A8 mislabeled immediate source byte #\$$value as a separate ROM data read\n"
+      if $a4_generated_out =~ /^\s*LDA\s+#\$$value.*also read as data/m;
 }
 require_re($a4_generated_out,
-   qr/^; usage bytes: established-code=32 speculative-code=0 data-read=7 exec\+data=7 /m,
-   'A8 classifies six generated-code source operands plus the GRP source as proven data without losing code roles');
+   qr/^; usage bytes: established-code=32 speculative-code=0 data-read=0 exec\+data=0 /m,
+   'A8 does not manufacture ROM data reads from immediate operands used as provenance sources');
 
 require_re($a4_generated_out,
    qr/^; hypothesis bank coverage: F8 complete required=2 explained=2 unexplained=0 bank-size=4096$/m,

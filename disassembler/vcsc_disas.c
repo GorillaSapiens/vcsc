@@ -4480,7 +4480,14 @@ static void provenance_mark_presentation_source(analysis_t *a,
       bank_t *b = &a->banks[bi];
       if (physical >= b->file_offset && physical < b->file_offset + b->size) {
          size_t off = physical - b->file_offset;
-         b->roles[off] |= ROLE_DATA_READ;
+         /* Presentation provenance says where a value originated; it does not
+          * by itself prove a second ROM data access.  In particular, the byte
+          * of `LDA #imm` is an ordinary instruction operand even when that
+          * immediate value later reaches GRP/PF/audio.  Preserve a real
+          * ROLE_DATA_READ established by an addressed ROM load, but do not
+          * manufacture code/data overlap solely from instruction provenance. */
+         if (!(b->roles[off] & ROLE_CODE_BYTE))
+            b->roles[off] |= ROLE_DATA_READ;
          if (graphics) {
             b->graphics[off] = 1u;
             b->graphics_sink[off] |= (uint8_t)sink_kind;
@@ -4518,8 +4525,14 @@ static void provenance_mark_source(analysis_t *a, provenance_t source,
    for (bi = 0u; bi < a->bank_count; ++bi) {
       bank_t *b = &a->banks[bi];
       if (physical >= b->file_offset && physical < b->file_offset + b->size) {
-         b->graphics[physical - b->file_offset] = 1u;
-         b->roles[physical - b->file_offset] |= ROLE_DATA_READ;
+         size_t off = physical - b->file_offset;
+         b->graphics[off] = 1u;
+         /* A proven display origin is not automatically a separate ROM read.
+          * Immediate operands may legitimately be display values.  If this
+          * byte was actually addressed as ROM data, that analysis has already
+          * established ROLE_DATA_READ independently. */
+         if (!(b->roles[off] & ROLE_CODE_BYTE))
+            b->roles[off] |= ROLE_DATA_READ;
          break;
       }
    }
