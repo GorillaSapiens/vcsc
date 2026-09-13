@@ -385,8 +385,9 @@ GRP/PF provenance, the detector recognizes common indirect animation pointers
 built from a ROM low-byte table plus a constant high byte and can infer frame
 height from a constant low-byte stride. It also recognizes long, coherent,
 aligned 8x8 font runs structurally; a lone bitmap-looking object is not enough
-to trigger that fallback. Pitfall's eight 22-row Harry frames and its decimal
-font are regression cases for these two paths.
+to trigger that fallback. Pitfall's eight 22-row Harry frames, decimal font, and object-pattern
+families are useful out-of-tree sanity cases for these paths; repository
+regressions remain synthetic/non-copyrighted.
 
 For Superchip variants, the physical bytes occupying the first `$100` bytes of
 each 4K bank are preserved exactly but annotated as hidden by the Superchip RAM

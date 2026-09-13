@@ -118,13 +118,11 @@ Open workstreams
 
 4. **Disassembler**
    `.../disassembler.txt` preserves the exact-round-trip contract and unfinished
-   work only. Mapper-hypothesis migration A1-A8 and two post-A8 mismatch-hardening
-   passes are complete. The highest-priority G1-G5 graphics/provenance sequence is
-   in progress. G1 finite multi-origin display provenance, G2 indirect pointer
-   recovery, G3 loop-derived sprite spans, and G4 selector/offset sprite-family
-   expansion are complete; G5 is the presentation/real-corpus closeout.
-   Use `probable 8xN sprite`, never `player sprite`. GL real-corpus closeout, CM,
-   DPC+, and CDF-family support follow after G2-G5 unless explicitly reprioritized.
+   work only. Mapper-hypothesis migration A1-A8, both post-A8 hardening passes,
+   and graphics/provenance G1-G5 are complete. G5 emits `probable 8xN sprite`
+   for proven GRP0/GRP1 spans while preserving overlapping code/data roles and
+   exact round trips; never use `player sprite`. GL real-corpus closeout is next,
+   followed by CM, DPC+, and CDF-family support unless explicitly reprioritized.
 
 5. **Zero static initializer placement**
    Mutable all-zero link-time static initializers are emitted directly as
@@ -174,10 +172,12 @@ correlation plus an F8SC read/write-alias example. See `linker/README.md`.
 Last validation state
 ---------------------
 The current post-A8 disassembler tree passes 365/365 e2e and 537/537 compile-only.
-The second supplied Stella-mismatch corpus is 11/11 byte-exact, 8 matches, 0
-mismatches, 3 intentionally unresolved/raw. A1-A8 plus G1-G4 are closed; G5 is
-next. Detailed completed implementation facts live in executable regressions and
-dated history rather than here.
+The second supplied Stella-mismatch corpus is 11/11 byte-exact, 8 matches,
+0 mismatches, 3 intentionally unresolved/raw. G5 is closed: focused disassembler,
+opcode, hardening, and deterministic-fuzz regressions pass; the supplied Pitfall
+lineage round-trips byte-exact and expands recovered visual rows from 285 to 538,
+including object-pattern families beyond Harry/digits. GL real-corpus closeout is
+next.
 
 Current Tanks cleanup is complete at the legitimate beam-asm boundary while preserving the plain 4K target. The current real build is 4024/4090 ROM and 120/128 RAM (66 ROM bytes, 8 RAM bytes free). `test/vcs_tanks.pl` locks coordinate, heading/reflection, missile, arena-bound, and bottom-wall GRP behavior.
 

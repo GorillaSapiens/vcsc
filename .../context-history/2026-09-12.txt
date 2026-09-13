@@ -232,3 +232,26 @@ uses AND #3 plus four offsets to recover four 16-row sprites while four delibera
 bitmap-shaped neighbors outside the selector domain remain numeric. Focused
 vcsc_disassembler.pl passed; repository validation passed 537/537 compile-only
 and 365/365 e2e. G5 remains unstarted.
+
+[handoff checkpoint] G5 presentation/closeout started but not validated before chat-length handoff. Working tree adds `probable 8xN sprite` emission at proven span starts plus synthetic tests for exact heights, PF/font exclusions, code+sprite overlap, G4 family annotations, and a harder joined-pointer family. Next: focused vcsc_disassembler.pl, Pitfall out-of-tree sanity, fuzz, then full gates. G5 remains open.
+
+2026-09-12 18:01:31 PDT, close G5 presentation
+Validated and closed disassembler roadmap item G5. Proven GRP0/GRP1 visual
+spans now present as `probable 8xN sprite` while visual rows, pointer/table
+formatting, executable overlap, and other simultaneous byte roles remain
+byte-exact. Repository regressions own the synthetic sprite-height, exclusion,
+overlap, family, and joined-pointer cases.
+
+Reassembled the user-supplied historical `Pitfall_new3.s26` lineage to recover
+the exact 4096-byte image (SHA-256
+c56c99d9e00136a015a485851e0e925c6327ea2b20aa7d3daecfbd7f9afcfdf0) for an
+out-of-tree sanity check. Current disassembly round-trips exactly and increases
+visual binary rows from 285 to 538, retaining the eight 22-row Harry frames and
+decimal-font recovery while adding object-pattern families. No copyrighted ROM
+or derived fixture was added to the repository.
+
+Focused disassembler, opcode, hardening, and deterministic-fuzz tests pass.
+Repository coverage is 537/537 compile-only and 365/365 e2e; the broad e2e run
+was resumed from its slow VCS-heavy tail after the execution window expired.
+Compressed `.../disassembler.txt` back under the hot-record hygiene limit and
+updated the disassembler README. GL real-corpus closeout is next.

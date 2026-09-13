@@ -564,6 +564,23 @@ substr($g2_split_pointer, 0x0310, 8,
    pack('C*', 0x18,0x24,0x42,0x81,0x81,0x42,0x24,0x18));
 write_bin(File::Spec->catfile($in, 'g2_split_pointer.bin'), $g2_split_pointer);
 
+# G5: presentation must annotate a proven sprite span without stealing the
+# primary representation from overlapping executable bytes.  The eight bytes at
+# $F200 are a real subroutine and are also consumed by an 8-row GRP0 loop.
+my $g5_code_sprite_overlap = make_rom(4096, 0xF000, 0x0100,
+   pack('C*',
+      0x20,0x00,0xF2,       # JSR $F200 -- establishes code there
+      0xA0,0x07,            # LDY #7
+      0xB9,0x00,0xF2,       # sprite: LDA $F200,Y
+      0x85,0x1B,            # STA GRP0
+      0x88,                  # DEY
+      0x10,0xF8,            # BPL sprite
+      0x60));
+substr($g5_code_sprite_overlap, 0x0200, 8,
+   pack('C*', 0xA9,0x42,0x85,0x80,0xA9,0x24,0x60,0xEA));
+write_bin(File::Spec->catfile($in, 'g5_code_sprite_overlap.bin'),
+          $g5_code_sprite_overlap);
+
 # A8 generalizes provenance presentation beyond sprite graphics.  Carry a ROM
 # source through RIOT RAM into AUDC0; the source is established data evidence
 # but must not be mislabeled as graphics.
@@ -1858,6 +1875,65 @@ for my $base (0x0290, 0x02B0, 0x02D0, 0x02F0) {
                  0x18,0x24,0x42,0x81,0x81,0x42,0x24,0x18));
 }
 write_bin(File::Spec->catfile($in, 'g4_selector_family.bin'), $g4_selector_family);
+
+# G5 real-corpus closeout: ROM address order is not execution order.  RESET
+# first calls a selector initializer located *after* the later pointer-building
+# code in the image; the pointer-building code itself lives after the display
+# kernel and jumps backward to it.  Several forward branches converge on the
+# indexed tables, while a bounded mask stored in zero page contributes a finite
+# ADC offset.  The complete finite family must still be recovered without
+# reading attractive neighboring patterns outside that family.
+my $g5_joined_pointer_family = make_rom(4096, 0xF000, 0x0100,
+   pack('C*',
+      0x20,0x80,0xF3,       # JSR $F380 selector init (lexically later)
+      0x4C,0x00,0xF3));     # JMP $F300 pointer setup
+substr($g5_joined_pointer_family, 0x0180, 12,
+   pack('C*',
+      0xA0,0x07,            # LDY #7
+      0xB1,0xB0,            # loop: LDA ($B0),Y
+      0x85,0x1B,            # STA GRP0
+      0x88,                 # DEY
+      0x10,0xF9,            # BPL loop
+      0x4C,0x00,0xF3));     # JMP $F300 (kernel is lexically earlier)
+substr($g5_joined_pointer_family, 0x0300, 36,
+   pack('C*',
+      0xA5,0x90,            # X path 0..3 from selector variable
+      0xAA,                 # TAX
+      0xA5,0x80,            # unknown branch condition
+      0xF0,0x06,            # BEQ join, preserving X=0..3
+      0xA2,0x04,            # alternate X=4
+      0xD0,0x02,            # BNE join (known nonzero)
+      0xEA,0xEA,            # fallthrough filler; X still 4
+      0xAD,0x80,0x02,       # join: unknown A
+      0x3D,0x00,0xF5,       # AND mask_table,X
+      0x85,0x92,            # finite masked offset in zero page
+      0xBD,0x10,0xF5,       # LDA offset_table,X
+      0x18,                 # CLC
+      0x65,0x92,            # ADC finite offset (D may be unknown)
+      0x85,0xB0,            # pointer low
+      0xA9,0xF4,0x85,0xB1, # pointer high
+      0x4C,0x80,0xF1));     # JMP display kernel
+substr($g5_joined_pointer_family, 0x0380, 8,
+   pack('C*',
+      0xAD,0x80,0x02,       # runtime selector source
+      0x29,0x03,            # exact finite domain 0..3
+      0x85,0x90,            # selector variable
+      0x60));               # RTS
+substr($g5_joined_pointer_family, 0x0500, 5,
+   pack('C*', 0x00,0x10,0x00,0x10,0x00));
+substr($g5_joined_pointer_family, 0x0510, 5,
+   pack('C*', 0x00,0x20,0x40,0x60,0x80));
+for my $base (map { 0x0400 + 0x10 * $_ } 0 .. 9) {
+   substr($g5_joined_pointer_family, $base, 8,
+      pack('C*', 0x00,0x18,0x3C,0x7E,0xDB,0x66,0x24,0x18));
+}
+# Deliberately attractive but unreachable neighboring patterns.
+for my $base (0x04A0, 0x04B0) {
+   substr($g5_joined_pointer_family, $base, 8,
+      pack('C*', 0x3C,0x66,0xC3,0x81,0x81,0xC3,0x66,0x3C));
+}
+write_bin(File::Spec->catfile($in, 'g5_joined_pointer_family.bin'),
+          $g5_joined_pointer_family);
 
 # A long, coherent fixed-height font is strong structural graphics evidence even
 # when pointer arithmetic is too dynamic to prove a short direct TIA data-flow
@@ -3388,22 +3464,43 @@ die "expected 8 visual sprite rows, got " . scalar(@sprite_rows) . "\n"
    if @sprite_rows != 8;
 require_re($sprite_out, qr/\.byte\s+%00111100\s+;\s+\.\.XXXX\.\./,
    'sprite binary plus visual row');
+require_re($sprite_out, qr/^\s*; probable 8x8 sprite\s*$/m,
+   'G5 exact 8x8 sprite annotation');
 
 
 my $sprite16_out = slurp(File::Spec->catfile($out, 'sprite16_rows.s26'));
 my @sprite16_rows = ($sprite16_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
 die "expected exactly 16 loop-proven sprite rows, got " . scalar(@sprite16_rows) . "\n"
    if @sprite16_rows != 16;
+require_re($sprite16_out, qr/^\s*; probable 8x16 sprite\s*$/m,
+   'G5 exact 8x16 sprite annotation');
 
 my $sprite_limit_out = slurp(File::Spec->catfile($out, 'sprite_limit_rows.s26'));
 my @sprite_limit_rows = ($sprite_limit_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
 die "expected exactly 12 compare-limited sprite rows, got " . scalar(@sprite_limit_rows) . "\n"
    if @sprite_limit_rows != 12;
+require_re($sprite_limit_out, qr/^\s*; probable 8x12 sprite\s*$/m,
+   'G5 compare-limited sprite annotation');
 
 my $sprite_buffer_copy_out = slurp(File::Spec->catfile($out, 'sprite_buffer_copy.s26'));
 my @sprite_buffer_copy_rows = ($sprite_buffer_copy_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
 die "expected exactly 16 direct+buffer-copy sprite rows, got " . scalar(@sprite_buffer_copy_rows) . "\n"
    if @sprite_buffer_copy_rows != 16;
+my @sprite_buffer_notes = ($sprite_buffer_copy_out =~
+   /^\s*; probable 8x8 sprite\s*$/mg);
+die "expected two separately proven 8-row staged-buffer sprite spans, got " .
+    scalar(@sprite_buffer_notes) . "\n"
+   if @sprite_buffer_notes != 2;
+
+my $g5_overlap_out = slurp(File::Spec->catfile($out, 'g5_code_sprite_overlap.s26'));
+require_re($g5_overlap_out,
+   qr/; probable 8x8 sprite\n(?:\s*;[^\n]*\n)*L_F200:\n\s*LDA\s+#\$42/m,
+   'G5 sprite annotation preserves overlapping code representation');
+require_re($g5_overlap_out, qr/instruction byte\/operand also read as data/i,
+   'G5 sprite/code overlap keeps code-as-data annotation');
+die "G5 overlap sprite was rewritten as bitmap rows instead of code\n"
+   if $g5_overlap_out =~ /^L_F200:\s*\n(?:\s*;[^\n]*\n)*\s*\.byte\s+%[01]{8}/m;
+
 my $not_sprite_out = slurp(File::Spec->catfile($out, 'not_sprite.s26'));
 die "non-graphics table was rendered as sprite rows\n"
    if $not_sprite_out =~ /^\s*\.byte\s+%[01]{8}\s+;/m;
@@ -3413,6 +3510,8 @@ die "expected 8 transformed playfield rows, got " . scalar(@mask_rows) . "\n"
    if @mask_rows != 8;
 require_re($graphics_mask_out, qr/\.byte\s+%11110000\s+;\s+XXXX\.\.\.\./,
    'ALU-transformed PF graphics provenance');
+die "playfield graphics were mislabeled as a sprite\n"
+   if $graphics_mask_out =~ /probable 8x\d+ sprite/i;
 
 my $graphics_stx_out = slurp(File::Spec->catfile($out, 'graphics_stx.s26'));
 my @stx_rows = ($graphics_stx_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
@@ -3457,6 +3556,11 @@ my @g4_family_rows = ($g4_selector_family_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.
 die "expected exactly 64 selector-expanded 16-row sprite rows, got " .
     scalar(@g4_family_rows) . "\n"
    if @g4_family_rows != 64;
+my @g4_sprite_notes = ($g4_selector_family_out =~
+   /^\s*; probable 8x16 sprite\s*$/mg);
+die "expected four G4 family sprite annotations, got " .
+    scalar(@g4_sprite_notes) . "\n"
+   if @g4_sprite_notes != 4;
 for my $addr (qw(F280 F2A0 F2C0 F2E0)) {
    require_re($g4_selector_family_out, qr/^L_${addr}:\s*$/m,
       "G4 selector family labels proven target $addr");
@@ -3466,12 +3570,31 @@ for my $addr (qw(F290 F2B0 F2D0 F2F0)) {
       if $g4_selector_family_out =~ /^L_${addr}:\n(?:\s*;[^\n]*\n)*\s*\.byte\s+%[01]{8}/m;
 }
 
+my $g5_joined_pointer_family_out = slurp(
+   File::Spec->catfile($out, 'g5_joined_pointer_family.s26'));
+my @g5_joined_notes = ($g5_joined_pointer_family_out =~
+   /^\s*; probable 8x8 sprite\s*$/mg);
+die "expected ten joined-pointer sprite annotations, got " .
+    scalar(@g5_joined_notes) . "\n"
+   if @g5_joined_notes != 10;
+for my $addr (map { sprintf('F4%02X', 0x10 * $_) } 0 .. 9) {
+   require_re($g5_joined_pointer_family_out, qr/^L_${addr}:\s*$/m,
+      "G5 joined-pointer family target $addr");
+}
+for my $addr (qw(F4A0 F4B0)) {
+   die "G5 finite pointer family escaped into unselected target $addr\n"
+      if $g5_joined_pointer_family_out =~
+         /probable 8x8 sprite\n(?:\s*;[^\n]*\n)*L_${addr}:/m;
+}
+
 my $structural_font_out = slurp(File::Spec->catfile($out, 'structural_font.s26'));
 my @structural_font_rows = ($structural_font_out =~ /^\s*\.byte\s+%[01]{8}\s+;\s+[.X]{8}\s*$/mg);
 die "expected 64 structural-font visual rows, got " . scalar(@structural_font_rows) . "\n"
    if @structural_font_rows != 64;
 require_re($structural_font_out, qr/probable 8x8 font\/graphics table/i,
    'structural font annotation');
+die "appearance-only structural font was mislabeled as a sprite\n"
+   if $structural_font_out =~ /probable 8x\d+ sprite/i;
 require_re($structural_font_out, qr/\.byte\s+%00111100\s+;\s+\.\.XXXX\.\./,
    'structural font first glyph row not swallowed by raw run');
 
@@ -4430,6 +4553,15 @@ for my $roadmap_name (readdir($roadmap_dh)) {
    }
 }
 closedir($roadmap_dh);
+
+opendir(my $sprite_wording_dh, $out) or die "could not open $out: $!\n";
+for my $sprite_wording_name (readdir($sprite_wording_dh)) {
+   next if $sprite_wording_name !~ /\.s26\z/;
+   my $sprite_wording_text = slurp(File::Spec->catfile($out, $sprite_wording_name));
+   die "redundant player-sprite wording leaked into $sprite_wording_name\n"
+      if $sprite_wording_text =~ /player sprite/i;
+}
+closedir($sprite_wording_dh);
 
 my $empty = File::Spec->catfile($tmp, 'empty.bin');
 write_bin($empty, '');

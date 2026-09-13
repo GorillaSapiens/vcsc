@@ -110,12 +110,12 @@ Exact duplicate/fill provenance, N-in-1 topology, Superchip overlays, broad
 partial decoders, explicit VCSC metadata, and post-A8 overlap-evidence rules are
 covered by focused regressions and dated history.
 
-Graphics/provenance roadmap -- highest priority
------------------------------------------------
-Do this before GL/CM/DPC+/CDF work. The goal is to recover graphics because
-execution proves their dataflow to TIA display sinks, not because arbitrary ROM
-bytes happen to look pictorial. Keep every step mapper-context-aware and exact
-round-trip neutral. Do not let graphics analysis become mapper evidence.
+Completed graphics/provenance sequence
+--------------------------------------
+G1-G5 recover graphics because established execution proves dataflow to TIA
+display sinks, never because arbitrary ROM bytes merely look pictorial. The
+analysis stays mapper-context-aware, exact-round-trip neutral, and presentation-
+only; graphics evidence never votes on mapper identity.
 
 Completed G1 invariant
 ----------------------
@@ -167,16 +167,13 @@ real code/data overlap still requires execution/provenance evidence. Synthetic
 regressions lock a four-member 8x16 family and bitmap-looking/code-adjacent false
 positives outside the proven selector domain.
 
-G5. [ ] Presentation and real-corpus closeout
-    * Emit a concise annotation such as `probable 8x16 sprite` for GRP0/GRP1
-      regions whose dimensions are proven by G1-G4. Never say `player sprite`; on
-      the 2600 that wording is redundant and can be misread as the game character.
-    * Keep visual binary-byte rendering, font detection, pointer/table formatting,
-      and exact reconstruction compatible with overlapping roles.
-    * Validate out-of-tree against the supplied Pitfall disassembly/ROM lineage:
-      object-pattern families should be recovered in addition to Harry/digits.
-      Keep repository regressions synthetic/non-copyrighted. Run fuzz plus the
-      complete disassembler and repository gates before closeout.
+Completed G5 invariant
+----------------------
+Presentation emits `probable 8xN sprite` for proven GRP0/GRP1 spans; never use
+`player sprite`. Visual binary rows, fonts, pointer/table formatting, executable
+overlap, and other simultaneous byte roles remain exact-round-trip compatible.
+Synthetic tests own sprite-height, exclusion, overlap, family, and joined-pointer
+cases; copyrighted real-ROM validation stays out of tree.
 
 Weak "nonsense operation string" evidence
 -----------------------------------------
@@ -235,11 +232,10 @@ Unfinished mapper support
 
 Current direction
 -----------------
-A1-A8 and the two post-A8 mapper-mismatch hardening passes are complete. G1-G5
-are now the front of the disassembler roadmap; start with finite multi-origin
-display provenance and do not begin GL closeout until that graphics sequence is
-finished or explicitly deferred. Mapper ties still stay raw. For corpus work,
-keep per-ROM narratives in daily history and add minimal synthetic regressions.
+A1-A8, both post-A8 mapper-hardening passes, and G1-G5 are complete. GL real-
+corpus closeout is next, followed by CM, DPC+, and CDF-family support. Mapper ties
+still stay raw; keep real-ROM narratives in dated history and repository tests
+synthetic/non-copyrighted.
 
 Post-A8 corpus hardening
 -------------------------

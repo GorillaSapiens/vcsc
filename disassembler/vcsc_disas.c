@@ -11643,14 +11643,102 @@ static void graphics_collect_direct_zp_constants_before(
    }
 }
 
+static size_t graphics_prev_instruction(const bank_t *b, size_t off);
+static int graphics_relative_target(const analysis_t *a, size_t bi, size_t off,
+                                    size_t *target_off);
+
+static graphics_byte_domain_t graphics_domain_after_unknown_and_or(
+   uint8_t mask, uint8_t or_value)
+{
+   graphics_byte_domain_t out = graphics_byte_domain_none();
+   unsigned value;
+   for (value = 0u; value <= 0xffu; ++value) {
+      if (((uint8_t)value & (uint8_t)~mask) != 0u) continue;
+      graphics_byte_domain_add(&out, (uint8_t)value | or_value);
+      if (out.overflow) return out;
+   }
+   return out;
+}
+
+/* A common selector variable is written once from an otherwise unknown byte
+ * constrained by an immediate AND (and occasionally ORA).  This is stronger
+ * than appearance inference: every possible value of the stored byte is
+ * enumerated exactly, subject to the small-domain cap.  If some other
+ * established write to the same zero-page byte is not one of these finite
+ * forms, abandon this supplementary inference and let the ordinary pointer
+ * update analysis decide it instead. */
+static graphics_byte_domain_t graphics_collect_masked_zp_constants_before(
+   const analysis_t *a, size_t bi, size_t before, uint8_t address)
+{
+   const bank_t *b = &a->banks[bi];
+   graphics_byte_domain_t out = graphics_byte_domain_none();
+   size_t off;
+   int saw_write = 0;
+   for (off = 0u; off < before && off < b->size; ++off) {
+      size_t p;
+      uint8_t op;
+      uint8_t or_value = 0u;
+      graphics_byte_domain_t d;
+      if (!(b->roles[off] & ROLE_CODE_START) || b->inst_len[off] != 2u)
+         continue;
+      op = b->inst_opcode[off];
+      if ((op != 0x85u && op != 0x86u && op != 0x84u) ||
+          a->rom[b->file_offset + off + 1u] != address)
+         continue;
+      saw_write = 1;
+      p = graphics_prev_instruction(b, off);
+      if (p == SIZE_MAX) return graphics_byte_domain_none();
+
+      if (op == 0x86u || op == 0x84u) {
+         uint8_t load = op == 0x86u ? 0xa2u : 0xa0u;
+         if (b->inst_opcode[p] != load || b->inst_len[p] != 2u) {
+            return graphics_byte_domain_none();
+         }
+         graphics_byte_domain_add(&out, a->rom[b->file_offset + p + 1u]);
+         continue;
+      }
+
+      if (b->inst_opcode[p] == 0xa9u && b->inst_len[p] == 2u) {
+         graphics_byte_domain_add(&out, a->rom[b->file_offset + p + 1u]);
+         continue;
+      }
+      if (b->inst_opcode[p] == 0x09u && b->inst_len[p] == 2u) { /* ORA # */
+         or_value = a->rom[b->file_offset + p + 1u];
+         p = graphics_prev_instruction(b, p);
+         if (p == SIZE_MAX) return graphics_byte_domain_none();
+      }
+      if (b->inst_opcode[p] != 0x29u || b->inst_len[p] != 2u) {
+         return graphics_byte_domain_none();
+      }
+      d = graphics_domain_after_unknown_and_or(
+         a->rom[b->file_offset + p + 1u], or_value);
+      if (d.overflow) return d;
+      graphics_byte_domain_union(&out, &d);
+      if (out.overflow) return out;
+   }
+   if (!saw_write) return graphics_byte_domain_none();
+   return out;
+}
+
 static graphics_byte_domain_t graphics_zp_static_domain_before(
    const analysis_t *a, size_t bi,
    const graphics_byte_domain_t seed[ZERO_PAGE_SIZE],
    uint8_t address, size_t before)
 {
+   const bank_t *b = &a->banks[bi];
    graphics_byte_domain_t direct = graphics_byte_domain_none();
+   graphics_byte_domain_t masked;
    graphics_collect_direct_zp_constants_before(a, bi, before, address, &direct);
    if (direct.count || direct.overflow) return direct;
+   masked = graphics_collect_masked_zp_constants_before(a, bi, before, address);
+   if (masked.count || masked.overflow) return masked;
+   /* ROM address order is not execution order.  A bounded selector can be
+    * refreshed by game logic placed after the display kernel in the image and
+    * then consumed on the next pass through that kernel.  If no earlier
+    * lexical write established the value, accept a whole-bank finite domain
+    * only when every established write of this masked form is bounded. */
+   masked = graphics_collect_masked_zp_constants_before(a, bi, b->size, address);
+   if (masked.count || masked.overflow) return masked;
    return seed[address];
 }
 
@@ -11671,47 +11759,17 @@ static size_t graphics_prev_instruction(const bank_t *b, size_t off)
    return SIZE_MAX;
 }
 
-/* G4: recover a small, finite selector domain for an indexed ROM table.
- * Keep this deliberately local and straight-line.  The common form is an
- * unknown runtime byte masked to a low contiguous field, optionally ORed with
- * a constant group selector, then transferred to X/Y immediately before the
- * table load:
- *
- *     LDA runtime
- *     AND #$03
- *     ORA #$08       ; optional
- *     TAX
- *     LDA table,X
- *
- * An unknown accumulator constrained by AND #((2^n)-1) has exactly 2^n
- * possible values; the domain cap keeps enumeration bounded.  We intentionally
- * do not infer arbitrary ranges from nearby bytes or table appearance. */
-static graphics_byte_domain_t graphics_finite_index_domain_before(
-   const analysis_t *a, size_t bi, size_t before, graphics_index_reg_t reg)
+static graphics_byte_domain_t graphics_accumulator_domain_before_transfer(
+   const analysis_t *a, size_t bi,
+   const graphics_byte_domain_t seed[ZERO_PAGE_SIZE], size_t transfer)
 {
    const bank_t *b = &a->banks[bi];
+   graphics_byte_domain_t source = graphics_byte_domain_none();
    graphics_byte_domain_t out = graphics_byte_domain_none();
-   size_t transfer, p;
-   uint8_t op, mask = 0xffu, or_value = 0u;
+   size_t p;
    int have_mask = 0, have_or = 0;
+   uint8_t mask = 0xffu, or_value = 0u;
    unsigned i;
-
-   if (before >= b->size || !b->state_seen[before]) return out;
-   if (reg == GRAPHICS_INDEX_X && b->states[before].x_known) {
-      graphics_byte_domain_add(&out, b->states[before].x);
-      return out;
-   }
-   if (reg == GRAPHICS_INDEX_Y && b->states[before].y_known) {
-      graphics_byte_domain_add(&out, b->states[before].y);
-      return out;
-   }
-
-   transfer = graphics_prev_instruction(b, before);
-   if (transfer == SIZE_MAX) return out;
-   op = b->inst_opcode[transfer];
-   if ((reg == GRAPHICS_INDEX_X && op != 0xaau) ||
-       (reg == GRAPHICS_INDEX_Y && op != 0xa8u))
-      return out; /* TAX/TAY */
 
    p = graphics_prev_instruction(b, transfer);
    if (p == SIZE_MAX) return out;
@@ -11728,29 +11786,159 @@ static graphics_byte_domain_t graphics_finite_index_domain_before(
       if (p == SIZE_MAX) return out;
    }
 
-   /* A directly loaded immediate selector is finite even without a mask. */
    if (b->inst_opcode[p] == 0xa9u && b->inst_len[p] == 2u) {
-      uint8_t value = a->rom[b->file_offset + p + 1u];
-      if (have_mask) value &= mask;
-      if (have_or) value |= or_value;
-      graphics_byte_domain_add(&out, value);
+      graphics_byte_domain_add(&source, a->rom[b->file_offset + p + 1u]);
+   }
+   else if (b->inst_opcode[p] == 0xa5u && b->inst_len[p] == 2u) {
+      source = graphics_zp_static_domain_before(a, bi, seed,
+               a->rom[b->file_offset + p + 1u], p);
+   }
+
+   if (source.count && !source.overflow) {
+      for (i = 0u; i < source.count; ++i) {
+         uint8_t value = source.value[i];
+         if (have_mask) value &= mask;
+         if (have_or) value |= or_value;
+         graphics_byte_domain_add(&out, value);
+      }
       return out;
    }
 
-   if (!have_mask) return out;
-   /* Only low contiguous masks have an exact cheap domain: 0,1,3,7,15. */
-   if (mask >= GRAPHICS_POINTER_DOMAIN_CAP ||
-       (((unsigned)mask + 1u) & (unsigned)mask) != 0u)
-      return out;
-   if (have_or && (or_value & mask) != 0u) return out;
-   for (i = 0u; i <= (unsigned)mask; ++i)
-      graphics_byte_domain_add(&out, (uint8_t)i | or_value);
+   /* If the source itself is unknown, an immediate mask still provides an
+    * exact finite domain. */
+   if (have_mask) return graphics_domain_after_unknown_and_or(mask, or_value);
    return out;
 }
 
+static int graphics_index_instruction_writes(uint8_t op,
+                                             graphics_index_reg_t reg)
+{
+   if (reg == GRAPHICS_INDEX_X)
+      return op == 0xa2u || op == 0xaau || op == 0xbau ||
+             op == 0xe8u || op == 0xcau;
+   if (reg == GRAPHICS_INDEX_Y)
+      return op == 0xa0u || op == 0xa8u || op == 0xc8u || op == 0x88u;
+   return 0;
+}
+
+static graphics_byte_domain_t graphics_index_definition_value(
+   const analysis_t *a, size_t bi,
+   const graphics_byte_domain_t seed[ZERO_PAGE_SIZE], size_t off,
+   graphics_index_reg_t reg)
+{
+   const bank_t *b = &a->banks[bi];
+   graphics_byte_domain_t out = graphics_byte_domain_none();
+   uint8_t op = b->inst_opcode[off];
+   if ((reg == GRAPHICS_INDEX_X && op == 0xa2u) ||
+       (reg == GRAPHICS_INDEX_Y && op == 0xa0u)) {
+      if (b->inst_len[off] == 2u)
+         graphics_byte_domain_add(&out, a->rom[b->file_offset + off + 1u]);
+      return out;
+   }
+   if ((reg == GRAPHICS_INDEX_X && op == 0xaau) ||
+       (reg == GRAPHICS_INDEX_Y && op == 0xa8u))
+      return graphics_accumulator_domain_before_transfer(a, bi, seed, off);
+   out.overflow = 1u; /* register write exists, but its value is not bounded */
+   return out;
+}
+
+/* Follow only established, forward control-flow predecessors while looking
+ * for the definitions of X/Y that can reach one indexed graphics-table use.
+ * This intentionally ignores back edges: selector-family recovery needs joins
+ * such as several forward branches converging on one table lookup, not a
+ * general range analysis of loop induction variables. */
+static graphics_byte_domain_t graphics_finite_index_cfg_before(
+   const analysis_t *a, size_t bi,
+   const graphics_byte_domain_t seed[ZERO_PAGE_SIZE], size_t before,
+   graphics_index_reg_t reg, unsigned depth)
+{
+   const bank_t *b = &a->banks[bi];
+   graphics_byte_domain_t out = graphics_byte_domain_none();
+   size_t prev, p;
+   int have_predecessor = 0;
+
+   if (depth > 48u || before > b->size) {
+      out.overflow = 1u;
+      return out;
+   }
+   if (before < b->size && b->state_seen[before]) {
+      if (reg == GRAPHICS_INDEX_X && b->states[before].x_known) {
+         graphics_byte_domain_add(&out, b->states[before].x);
+         return out;
+      }
+      if (reg == GRAPHICS_INDEX_Y && b->states[before].y_known) {
+         graphics_byte_domain_add(&out, b->states[before].y);
+         return out;
+      }
+   }
+
+   prev = graphics_prev_instruction(b, before);
+   if (prev != SIZE_MAX) {
+      flow_kind_t flow = instruction_flow(b->inst_opcode[prev]);
+      if (flow == FLOW_NEXT || flow == FLOW_BRANCH) {
+         graphics_byte_domain_t d;
+         have_predecessor = 1;
+         if (graphics_index_instruction_writes(b->inst_opcode[prev], reg))
+            d = graphics_index_definition_value(a, bi, seed, prev, reg);
+         else
+            d = graphics_finite_index_cfg_before(a, bi, seed, prev,
+                                                 reg, depth + 1u);
+         if (d.overflow || d.count == 0u) {
+            out.overflow = 1u;
+            return out;
+         }
+         graphics_byte_domain_union(&out, &d);
+      }
+   }
+
+   for (p = 0u; p < before; ++p) {
+      size_t target;
+      graphics_byte_domain_t d;
+      if (!(b->roles[p] & ROLE_CODE_START) ||
+          instruction_flow(b->inst_opcode[p]) != FLOW_BRANCH ||
+          !graphics_relative_target(a, bi, p, &target) || target != before)
+         continue;
+      have_predecessor = 1;
+      d = graphics_finite_index_cfg_before(a, bi, seed, p, reg, depth + 1u);
+      if (d.overflow || d.count == 0u) {
+         out.overflow = 1u;
+         return out;
+      }
+      graphics_byte_domain_union(&out, &d);
+      if (out.overflow) return out;
+   }
+
+   if (!have_predecessor) out.overflow = 1u;
+   return out;
+}
+
+/* G4: recover a small, finite selector domain for an indexed ROM table.
+ * Keep this deliberately local and straight-line.  The common form is an
+ * unknown runtime byte masked to a low contiguous field, optionally ORed with
+ * a constant group selector, then transferred to X/Y immediately before the
+ * table load:
+ *
+ *     LDA runtime
+ *     AND #$03
+ *     ORA #$08       ; optional
+ *     TAX
+ *     LDA table,X
+ *
+ * An unknown accumulator constrained by AND #((2^n)-1) has exactly 2^n
+ * possible values; the domain cap keeps enumeration bounded.  We intentionally
+ * do not infer arbitrary ranges from nearby bytes or table appearance. */
+static graphics_byte_domain_t graphics_finite_index_domain_before(
+   const analysis_t *a, size_t bi,
+   const graphics_byte_domain_t seed[ZERO_PAGE_SIZE], size_t before,
+   graphics_index_reg_t reg)
+{
+   return graphics_finite_index_cfg_before(a, bi, seed, before, reg, 0u);
+}
+
 static graphics_byte_domain_t graphics_finite_indexed_rom_domain(
-   const analysis_t *a, size_t bi, size_t off, address_mode_t mode,
-   uint16_t operand)
+   const analysis_t *a, size_t bi,
+   const graphics_byte_domain_t seed[ZERO_PAGE_SIZE], size_t off,
+   address_mode_t mode, uint16_t operand)
 {
    const bank_t *b = &a->banks[bi];
    graphics_byte_domain_t out = graphics_byte_domain_none();
@@ -11760,7 +11948,7 @@ static graphics_byte_domain_t graphics_finite_indexed_rom_domain(
    reg = mode == AM_ABSOLUTE_X ? GRAPHICS_INDEX_X :
          mode == AM_ABSOLUTE_Y ? GRAPHICS_INDEX_Y : GRAPHICS_INDEX_NONE;
    if (reg == GRAPHICS_INDEX_NONE) return out;
-   indices = graphics_finite_index_domain_before(a, bi, off, reg);
+   indices = graphics_finite_index_domain_before(a, bi, seed, off, reg);
    if (indices.overflow || indices.count == 0u) return out;
    for (i = 0u; i < indices.count; ++i) {
       uint16_t effective = (uint16_t)(operand + indices.value[i]);
@@ -11782,6 +11970,88 @@ static graphics_byte_domain_t graphics_finite_indexed_rom_domain(
    return out;
 }
 
+static graphics_byte_domain_t graphics_recent_zp_domain_before(
+   const analysis_t *a, size_t bi,
+   const graphics_byte_domain_t seed[ZERO_PAGE_SIZE], uint8_t address,
+   size_t before)
+{
+   const bank_t *b = &a->banks[bi];
+   graphics_byte_domain_t none = graphics_byte_domain_none();
+   size_t cursor = before;
+   unsigned steps;
+
+   for (steps = 0u; steps < 16u; ++steps) {
+      size_t p = graphics_prev_instruction(b, cursor);
+      uint8_t op;
+      if (p == SIZE_MAX) return none;
+      op = b->inst_opcode[p];
+
+      if (b->inst_len[p] == 2u &&
+          (op == 0x85u || op == 0x86u || op == 0x84u) &&
+          a->rom[b->file_offset + p + 1u] == address) {
+         graphics_byte_domain_t out = graphics_byte_domain_none();
+         size_t q = graphics_prev_instruction(b, p);
+         uint8_t or_value = 0u;
+         if (q == SIZE_MAX) { out.overflow = 1u; return out; }
+
+         if (op == 0x86u || op == 0x84u) {
+            uint8_t load = op == 0x86u ? 0xa2u : 0xa0u;
+            if (b->inst_opcode[q] == load && b->inst_len[q] == 2u)
+               graphics_byte_domain_add(&out,
+                  a->rom[b->file_offset + q + 1u]);
+            else
+               out.overflow = 1u;
+            return out;
+         }
+
+         if (b->inst_opcode[q] == 0xa9u && b->inst_len[q] == 2u) {
+            graphics_byte_domain_add(&out, a->rom[b->file_offset + q + 1u]);
+            return out;
+         }
+         if (b->inst_opcode[q] == 0x09u && b->inst_len[q] == 2u) {
+            or_value = a->rom[b->file_offset + q + 1u];
+            q = graphics_prev_instruction(b, q);
+            if (q == SIZE_MAX) { out.overflow = 1u; return out; }
+         }
+
+         if (b->inst_opcode[q] == 0x29u && b->inst_len[q] == 2u) {
+            return graphics_domain_after_unknown_and_or(
+               a->rom[b->file_offset + q + 1u], or_value);
+         }
+         if (strcmp(opcode_mnemonics[b->inst_opcode[q]], "AND") == 0 &&
+             ((address_mode_t)opcode_modes[b->inst_opcode[q]] == AM_ABSOLUTE_X ||
+              (address_mode_t)opcode_modes[b->inst_opcode[q]] == AM_ABSOLUTE_Y) &&
+             b->inst_len[q] == 3u) {
+            graphics_byte_domain_t masks;
+            uint16_t operand = read_word(a->rom + b->file_offset + q + 1u);
+            unsigned i;
+            masks = graphics_finite_indexed_rom_domain(a, bi, seed, q,
+                     (address_mode_t)opcode_modes[b->inst_opcode[q]], operand);
+            if (masks.overflow || masks.count == 0u) {
+               out.overflow = 1u;
+               return out;
+            }
+            for (i = 0u; i < masks.count; ++i) {
+               graphics_byte_domain_t d = graphics_domain_after_unknown_and_or(
+                  masks.value[i], or_value);
+               if (d.overflow) return d;
+               graphics_byte_domain_union(&out, &d);
+               if (out.overflow) return out;
+            }
+            return out;
+         }
+         out.overflow = 1u;
+         return out;
+      }
+
+      /* A non-fallthrough instruction is a basic-block boundary.  Do not use
+       * an older store that need not reach this operand. */
+      if (instruction_flow(op) != FLOW_NEXT) return none;
+      cursor = p;
+   }
+   return none;
+}
+
 static graphics_byte_domain_t graphics_finite_operand_domain(
    const analysis_t *a, size_t bi,
    const graphics_byte_domain_t seed[ZERO_PAGE_SIZE],
@@ -11799,6 +12069,9 @@ static graphics_byte_domain_t graphics_finite_operand_domain(
       return d;
    }
    if (mode == AM_ZERO_PAGE) {
+      d = graphics_recent_zp_domain_before(a, bi, seed,
+                                           (uint8_t)operand, off);
+      if (d.count || d.overflow) return d;
       return graphics_zp_static_domain_before(a, bi, seed,
                                               (uint8_t)operand, off);
    }
@@ -11808,7 +12081,7 @@ static graphics_byte_domain_t graphics_finite_operand_domain(
       return d;
    }
    if (mode == AM_ABSOLUTE_X || mode == AM_ABSOLUTE_Y) {
-      d = graphics_finite_indexed_rom_domain(a, bi, off, mode, operand);
+      d = graphics_finite_indexed_rom_domain(a, bi, seed, off, mode, operand);
       if (d.count || d.overflow) return d;
    }
    if (!resolve_effective_address(&b->states[off], mode, operand, &effective))
@@ -11845,6 +12118,37 @@ static graphics_byte_domain_t graphics_apply_addsub_domain(
    return out;
 }
 
+static uint8_t graphics_decimal_adc(uint8_t left, uint8_t right,
+                                    unsigned carry)
+{
+   unsigned sum = (unsigned)(left & 0x0fu) +
+                  (unsigned)(right & 0x0fu) + carry;
+   if (sum >= 0x0au) sum = ((sum + 0x06u) & 0x0fu) + 0x10u;
+   sum += (unsigned)(left & 0xf0u) + (unsigned)(right & 0xf0u);
+   if (sum >= 0xa0u) sum += 0x60u;
+   return (uint8_t)sum;
+}
+
+static graphics_byte_domain_t graphics_apply_decimal_adc_domain(
+   const graphics_byte_domain_t *left, const graphics_byte_domain_t *right,
+   unsigned carry)
+{
+   graphics_byte_domain_t out = graphics_byte_domain_none();
+   unsigned i, j;
+   if (left->overflow || right->overflow) {
+      out.overflow = 1u;
+      return out;
+   }
+   for (i = 0u; i < left->count; ++i) {
+      for (j = 0u; j < right->count; ++j) {
+         graphics_byte_domain_add(&out,
+            graphics_decimal_adc(left->value[i], right->value[j], carry));
+         if (out.overflow) return out;
+      }
+   }
+   return out;
+}
+
 /* Collect finite values written to one pointer byte before an established
  * indirect graphics consumer.  Only short straight-line A dataflow is
  * accepted.  Indexed ROM loads may contribute a small G4 selector domain when
@@ -11859,7 +12163,14 @@ static graphics_byte_domain_t graphics_collect_pointer_updates(
    const bank_t *b = &a->banks[bi];
    graphics_byte_domain_t out = graphics_byte_domain_none();
    size_t off;
-   for (off = 0u; off < before && off < b->size; ++off) {
+   (void)before;
+   /* ROM layout is not execution order.  A display kernel can live below the
+    * game logic that prepares its pointer (Pitfall is a classic example), so
+    * collect finite writes from every established straight-line writer in the
+    * bank rather than only lower file offsets.  The pointer is already proven
+    * to feed a graphics consumer; this pass merely enumerates bounded values
+    * written to that same pointer byte. */
+   for (off = 0u; off < b->size; ++off) {
       address_mode_t mode;
       uint16_t operand;
       graphics_byte_domain_t acc;
@@ -11877,7 +12188,7 @@ static graphics_byte_domain_t graphics_collect_pointer_updates(
       acc = graphics_finite_operand_domain(a, bi, seed, off, mode, operand);
       if (acc.count == 0u || acc.overflow) continue;
       p = off + b->inst_len[off];
-      for (steps = 0u; steps < 8u && p < before && p < b->size; ++steps) {
+      for (steps = 0u; steps < 8u && p < b->size; ++steps) {
          uint8_t opcode;
          const char *mnemonic;
          unsigned len;
@@ -11887,7 +12198,7 @@ static graphics_byte_domain_t graphics_collect_pointer_updates(
          opcode = b->inst_opcode[p];
          mnemonic = opcode_mnemonics[opcode];
          len = b->inst_len[p];
-         if (len == 0u || p + len > before || instruction_flow(opcode) != FLOW_NEXT)
+         if (len == 0u || p + len > b->size || instruction_flow(opcode) != FLOW_NEXT)
             break;
          pmode = (address_mode_t)opcode_modes[opcode];
          if (len >= 2u) poperand = a->rom[b->file_offset + p + 1u];
@@ -11902,12 +12213,31 @@ static graphics_byte_domain_t graphics_collect_pointer_updates(
          }
          else if (strcmp(mnemonic, "ADC") == 0 || strcmp(mnemonic, "SBC") == 0) {
             graphics_byte_domain_t rhs;
-            if (!carry_known || !b->states[p].decimal_known || b->states[p].decimal)
-               break;
+            graphics_byte_domain_t binary;
+            int subtract = strcmp(mnemonic, "SBC") == 0;
+            if (!carry_known) break;
             rhs = graphics_finite_operand_domain(a, bi, seed, p, pmode, poperand);
             if (rhs.count == 0u || rhs.overflow) break;
-            acc = graphics_apply_addsub_domain(&acc, &rhs,
-                  strcmp(mnemonic, "SBC") == 0, carry);
+            binary = graphics_apply_addsub_domain(&acc, &rhs, subtract, carry);
+            if (binary.count == 0u || binary.overflow) break;
+            if (b->states[p].decimal_known) {
+               if (!b->states[p].decimal)
+                  acc = binary;
+               else if (!subtract)
+                  acc = graphics_apply_decimal_adc_domain(&acc, &rhs, carry);
+               else
+                  break; /* decimal SBC is deliberately not approximated */
+            }
+            else if (!subtract) {
+               graphics_byte_domain_t decimal =
+                  graphics_apply_decimal_adc_domain(&acc, &rhs, carry);
+               acc = binary;
+               if (decimal.overflow) break;
+               graphics_byte_domain_union(&acc, &decimal);
+            }
+            else {
+               break; /* unknown decimal mode + SBC: do not guess */
+            }
             if (acc.count == 0u || acc.overflow) break;
             carry_known = 0; /* result carry is value-dependent; do not guess */
          }
@@ -13258,6 +13588,15 @@ static void emit_label_role_comment(FILE *fp, const bank_t *b, size_t off)
       fputs("    ; definite ROM-data target\n", fp);
    else if (!(role & ROLE_CODE_START) && (role & ROLE_POSSIBLE))
       fputs("    ; possible ROM-data target\n", fp);
+}
+
+static void emit_sprite_annotation(FILE *fp, const bank_t *b, size_t off)
+{
+   unsigned height;
+   if (off >= b->size) return;
+   height = b->sprite_height[off];
+   if (!height) return;
+   fprintf(fp, "    ; probable 8x%u sprite\n", height);
 }
 
 static void emit_graphics_byte(FILE *fp, uint8_t value)
@@ -14922,6 +15261,7 @@ static int emit_source(FILE *fp, const analysis_t *a, const char *input,
             fputs("    ; manual pointer-table data role; primary code/vector/raw representation preserved\n", fp);
          if (b->font_start[off])
             fputs("    ; probable 8x8 font/graphics table\n", fp);
+         emit_sprite_annotation(fp, b, off);
          if (b->spec_seed[off])
             fputs("    ; speculative instruction island validated by negative-evidence barrier\n", fp);
          if (b->roles[off] & ROLE_LABEL) {
