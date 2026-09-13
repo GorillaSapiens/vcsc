@@ -271,3 +271,24 @@ negative regressions to vcsc_disassembler.pl; the focused disassembler suite
 passes with exact round trips. Opcode round-trip, disassembler hardening,
 deterministic fuzz (30/30), source-tree hygiene, and context-history format
 checks also pass. GL real-corpus closeout remains the next roadmap item.
+
+2026-09-12 18:41:08 PDT, precise code-as-data byte annotations
+Refined executable/data-overlap presentation so an instruction no longer gets
+the vague "instruction byte/operand also read as data" comment. The disassembler
+now retains the per-instruction ROLE_DATA_READ byte mask and reports exactly what
+overlaps: opcode byte, operand byte, low/high operand byte for three-byte
+instructions, both operand bytes, or the corresponding opcode+operand
+combination. Primary code emission and byte-exact reconstruction are unchanged.
+
+Added deterministic regressions for operand-only automatic provenance plus
+manual opcode-only, low-operand, high-operand, both-operands, and all-bytes cases.
+Focused vcsc_disassembler.pl, all-opcode round trip, hardening, deterministic
+fuzz (30/30), source-tree hygiene, and context-history format checks pass. GL
+real-corpus closeout remains next.
+
+2026-09-12 18:48:26 PDT, exhaustive overlap-mask regression
+Code/data overlap presentation now has exhaustive deterministic regression coverage
+for all 4 masks of a two-byte instruction and all 8 masks of a three-byte
+instruction, including zero-overlap cases and noncontiguous opcode+high-operand
+combinations. The emitter already represented every mask correctly; this closes
+the test-coverage gap found during review.

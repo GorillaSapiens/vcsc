@@ -172,6 +172,9 @@ Completed G5 invariant
 Presentation emits `probable 8xN sprite` for proven GRP0/GRP1 spans; never use
 `player sprite`. Visual binary rows, fonts, pointer/table formatting, executable
 overlap, and other simultaneous byte roles remain exact-round-trip compatible.
+When instruction bytes are also proven data, the overlap comment identifies the
+specific opcode/operand byte roles rather than using a generic instruction-wide
+message.
 When a proven sprite span and a proven COLUP0/COLUP1 table are consumed by the
 same indexed loop with the same X/Y register, back-edge, row interval, and
 corresponding GRP0/COLUP0 or GRP1/COLUP1 sinks, presentation links them as a

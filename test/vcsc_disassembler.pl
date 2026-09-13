@@ -1652,6 +1652,15 @@ my $cad = make_rom(4096, 0xF000, 0x0100,
    "\xAD\x01\xF1\x60"); # F108 LDA F101
 write_bin(File::Spec->catfile($in, 'code_as_data.bin'), $cad);
 
+# Clean fixture for exhaustive code/data overlap-mask presentation tests.
+# Neither instruction is naturally read as data; --data supplies every mask.
+my $cad_masks = make_rom(4096, 0xF000, 0x0100,
+   "\xA9\x42" .              # F100 LDA #$42 (2 bytes)
+   "\x20\x08\xF1" .        # F102 JSR F108 (3 bytes)
+   "\x60\xEA\xEA" .        # F105
+   "\x60");                    # F108 RTS
+write_bin(File::Spec->catfile($in, 'code_data_masks.bin'), $cad_masks);
+
 # Known zero-page pointer state should resolve an indirect ROM read without
 # pessimistically marking the entire cartridge possibly referenced.  The rest
 # of the padding is therefore provably unreferenced.
@@ -2784,7 +2793,7 @@ require_re($a4_generated_out,
    'A4 executes generated RAM control transfer back into ROM');
 for my $value (qw(AD F8 FF 4C E0 F0)) {
    require_re($a4_generated_out,
-      qr/^\s*LDA\s+#\$$value\s+; instruction byte\/operand also read as data$/m,
+      qr/^\s*LDA\s+#\$$value\s+; operand byte also read as data$/m,
       "A8 keeps generated-RAM source byte #\$$value as overlapping code and data");
 }
 require_re($a4_generated_out,
@@ -3494,8 +3503,77 @@ require_re($jmp_origin_out, qr/^; bank 1: .* origin \$F000\b/m,
    'bank 1 origin inference with RESET path');
 
 my $code_data = slurp(File::Spec->catfile($out, 'code_as_data.s26'));
-require_re($code_data, qr/instruction byte\/operand also read as data/i, 'code-as-data annotation');
+require_re($code_data, qr/operand byte also read as data/i, 'code-as-data operand annotation');
 require_re($code_data, qr/LDA\s+L_F100\s*\+\s*1\b/, 'code-as-data interior alias');
+
+# Code/data overlap comments identify the exact instruction byte(s) carrying
+# the data role. Exercise every possible overlap mask: 2^2 masks for the
+# two-byte LDA and 2^3 masks for the three-byte JSR, including the zero masks
+# which must emit no code/data annotation. Repeated one-byte --data hints make
+# noncontiguous masks deterministic without changing the primary code form.
+my @code_data_masks = (
+   {
+      name => '2-byte',
+      addr => 0xF100,
+      width => 2,
+      inst => qr/LDA\s+#\$42/,
+      comments => [
+         undef,
+         'opcode byte also read as data',
+         'operand byte also read as data',
+         'opcode + operand byte also read as data',
+      ],
+   },
+   {
+      name => '3-byte',
+      addr => 0xF102,
+      width => 3,
+      inst => qr/JSR\s+L_F108/,
+      comments => [
+         undef,
+         'opcode byte also read as data',
+         'low operand byte also read as data',
+         'opcode + low operand byte also read as data',
+         'high operand byte also read as data',
+         'opcode + high operand byte also read as data',
+         'operand bytes also read as data',
+         'opcode + operand bytes also read as data',
+      ],
+   },
+);
+for my $spec (@code_data_masks) {
+   my $limit = 1 << $spec->{width};
+   for my $mask (0 .. $limit - 1) {
+      my @args = ($disas, '--mapper', '4k');
+      for my $bit (0 .. $spec->{width} - 1) {
+         next unless $mask & (1 << $bit);
+         my $addr = $spec->{addr} + $bit;
+         my $range = sprintf('0:0x%04X-0x%04X', $addr, $addr);
+         push @args, '--data', $range;
+      }
+      my $path = File::Spec->catfile($tmp,
+         sprintf('code-data-%s-mask-%u.s26', $spec->{name}, $mask));
+      push @args, '-o', $path, File::Spec->catfile($in, 'code_data_masks.bin');
+      run_ok(@args);
+
+      my $text = slurp($path);
+      my $inst = $spec->{inst};
+      my ($line) = grep { /$inst/ } split /\n/, $text;
+      die sprintf("missing %s instruction for code/data mask %u\n",
+         $spec->{name}, $mask) unless defined $line;
+      my $want = $spec->{comments}->[$mask];
+      if (defined $want) {
+         die sprintf("wrong %s code/data annotation for mask %u: %s\n",
+            $spec->{name}, $mask, $line)
+            unless index(lc($line), lc("; $want")) >= 0;
+      }
+      else {
+         die sprintf("unexpected %s code/data annotation for zero mask: %s\n",
+            $spec->{name}, $line)
+            if $line =~ /also read as data/i;
+      }
+   }
+}
 
 my $known_indirect = slurp(File::Spec->catfile($out, 'known_indirect_data.s26'));
 require_re($known_indirect,
@@ -3586,7 +3664,7 @@ my $g5_overlap_out = slurp(File::Spec->catfile($out, 'g5_code_sprite_overlap.s26
 require_re($g5_overlap_out,
    qr/; probable 8x8 sprite\n(?:\s*;[^\n]*\n)*L_F200:\n\s*LDA\s+#\$42/m,
    'G5 sprite annotation preserves overlapping code representation');
-require_re($g5_overlap_out, qr/instruction byte\/operand also read as data/i,
+require_re($g5_overlap_out, qr/(?:opcode|operand).*also read as data/i,
    'G5 sprite/code overlap keeps code-as-data annotation');
 die "G5 overlap sprite was rewritten as bitmap rows instead of code\n"
    if $g5_overlap_out =~ /^L_F200:\s*\n(?:\s*;[^\n]*\n)*\s*\.byte\s+%[01]{8}/m;
@@ -4539,7 +4617,7 @@ require_re($hint_text, qr/^; controller port 0: joystick \(override\)$/m,
 require_re($hint_text, qr/^; evidence: SWCHA /m,
    'verbose evidence output');
 require_re($hint_text, qr/^L_D100:$/m, 'forced entry/code label');
-require_re($hint_text, qr/LDA\s+#\$42.*instruction byte\/operand also read as data/i,
+require_re($hint_text, qr/LDA\s+#\$42.*operand byte also read as data/i,
    'non-exclusive forced code/data roles');
 run_ok($as, "--hex=$hint_hex", $hint_s26);
 

@@ -13685,11 +13685,43 @@ static void emit_instruction(FILE *fp, const analysis_t *a, size_t bi, size_t of
       fprintf(fp, "    ; overlaps another reachable instruction stream");
    {
       unsigned k;
-      int code_as_data = 0;
-      for (k = 0; k < b->inst_len[off]; ++k)
-         if (b->roles[off + k] & ROLE_DATA_READ) code_as_data = 1;
-      if (code_as_data)
-         fprintf(fp, "    ; instruction byte/operand also read as data");
+      unsigned code_data_mask = 0u;
+      unsigned len = b->inst_len[off];
+      for (k = 0; k < len; ++k)
+         if (b->roles[off + k] & ROLE_DATA_READ)
+            code_data_mask |= 1u << k;
+      if (code_data_mask) {
+         if (len <= 1u || code_data_mask == 1u)
+            fprintf(fp, "    ; opcode byte also read as data");
+         else if (len == 2u) {
+            if (code_data_mask == 2u)
+               fprintf(fp, "    ; operand byte also read as data");
+            else
+               fprintf(fp, "    ; opcode + operand byte also read as data");
+         }
+         else {
+            switch (code_data_mask & 7u) {
+            case 2u:
+               fprintf(fp, "    ; low operand byte also read as data");
+               break;
+            case 4u:
+               fprintf(fp, "    ; high operand byte also read as data");
+               break;
+            case 6u:
+               fprintf(fp, "    ; operand bytes also read as data");
+               break;
+            case 3u:
+               fprintf(fp, "    ; opcode + low operand byte also read as data");
+               break;
+            case 5u:
+               fprintf(fp, "    ; opcode + high operand byte also read as data");
+               break;
+            default:
+               fprintf(fp, "    ; opcode + operand bytes also read as data");
+               break;
+            }
+         }
+      }
    }
    fputc('\n', fp);
 }
