@@ -1563,6 +1563,15 @@ my $unsupported_cdf = make_rom(32768, 0xF000, 0x0100,
 substr($unsupported_cdf, 0x0300, 9, 'CDFCDFCDF');
 write_bin(File::Spec->catfile($in, 'unsupported_cdf.bin'), $unsupported_cdf);
 
+# DPC+ is also ARM-assisted and unsupported.  Its established detector uses two
+# literal DPC+ markers in a 32K image; this must quarantine rather than fall
+# through to the ordinary F4 topology.
+my $unsupported_dpcp = make_rom(32768, 0xF000, 0x0100,
+   "\x4C\x00\xF1");
+substr($unsupported_dpcp, 0x0200, 4, 'DPC+');
+substr($unsupported_dpcp, 0x0400, 4, 'DPC+');
+write_bin(File::Spec->catfile($in, 'unsupported_dpcp.bin'), $unsupported_dpcp);
+
 # A7 conflict regression.  F4 has one A5-live startup state but no F4 selector,
 # signature, or complete bank accounting.  The fixed-final-bank 3E/3F models
 # both halt immediately from RESET, while unreachable bytes still carry the
@@ -2779,11 +2788,11 @@ my $a2_24k_out = slurp(File::Spec->catfile($out, 'a2_structural_24k.s26'));
 require_re($a2_24k_out,
    qr/^; mapper hypotheses enumerated before selection: 4 \[FA2, FC, 3F, 3E\]; analysis-bytes=24576 physical-bytes=24576$/m,
    'A2 retains structurally possible 24K mapper hypotheses before selection');
-require_re($a2_24k_out, qr/^; mapper: unknown\/raw \(/m,
-   'A7 does not let the legacy 24K FA2 size default masquerade as proof');
+require_re($a2_24k_out, qr/^; mapper: FA2 \(/m,
+   'A7 selects baseline FA2 after evidence-free special hardware alternatives are removed');
 require_re($a2_24k_out,
-   qr/^; mapper evidence: 4 hypotheses remain genuinely ambiguous; using exact unknown\/raw presentation \(no size\/default tie-break\)$/m,
-   'A7 preserves raw presentation for unresolved 24K mapper ambiguity');
+   qr/^; mapper evidence: conventional structural topology selected after evidence-free special-hardware hypotheses were eliminated$/m,
+   'A7 does not let self-confirming special hardware force a 24K RAW tie');
 for my $mapper (qw(FA2 FC 3F 3E)) {
    require_re($a2_24k_out,
       qr/^; hypothesis state-space: \Q$mapper\E startups=\d+ live=\d+ contexts=\d+ unknown-branch-forks=\d+ instructions=\d+ halts=\d+/m,
@@ -2958,8 +2967,8 @@ my $multicart_out = slurp(File::Spec->catfile($out, 'multicart_4in1.s26'));
 require_re($multicart_out,
    qr/^; mapper hypotheses enumerated before selection: .*\b4IN1\b.*$/m,
    '4IN1 participates in the preselection mapper hypothesis set');
-require_re($multicart_out, qr/^; mapper: unknown\/raw \(/m,
-   'A7 keeps the structurally overlapping 8K multicart raw when cart and N-in-1 models tie');
+require_re($multicart_out, qr/^; mapper: 4IN1 \(container;/m,
+   'A7 selects four independently executable constituents over evidence-free bank hardware');
 require_re($multicart_out,
    qr/^; hypothesis state-space: 4IN1 startups=4 live=4 contexts=\d+ unknown-branch-forks=\d+ instructions=\d+ halts=\d+$/m,
    'A3 explores every 4IN1 external-selector startup state');
@@ -2967,27 +2976,27 @@ require_re($multicart_out,
    qr/^; hypothesis bank coverage: 4IN1 complete required=4 explained=4 unexplained=0 bank-size=2048$/m,
    'A6 accounts for every unique 4IN1 constituent');
 require_re($multicart_out,
-   qr/^; mapper evidence: 3 hypotheses remain genuinely ambiguous; using exact unknown\/raw presentation \(no size\/default tie-break\)$/m,
-   'A7 does not invent a 4IN1 winner when F8/2IN1 are equally compatible');
+   qr/^; mapper evidence: 4IN1 selected by strong independently executable constituent structure$/m,
+   'A7 treats four strong independent constituents as positive container evidence');
 for my $game (1 .. 4) {
    my $sidecar = File::Spec->catfile($out, sprintf('multicart_4in1.game%02d.s26', $game));
-   !-e $sidecar or die "ambiguous 4IN1 unexpectedly emitted component sidecar $sidecar\n";
+   -f $sidecar or die "selected 4IN1 missing component sidecar $sidecar\n";
 }
 
 my $multicart8_out = slurp(File::Spec->catfile($out, 'multicart_8in1.s26'));
 require_re($multicart8_out,
    qr/^; mapper hypotheses enumerated before selection: 6 \[F0, 3E, 3F, FC, 8IN1, 4IN1\]; analysis-bytes=65536 physical-bytes=65536$/m,
    '8IN1 competes directly with the structurally possible 64K cart mappers');
-require_re($multicart8_out, qr/^; mapper: unknown\/raw \(/m,
-   '64K image stays raw when 8IN1 and 4IN1 remain indistinguishable');
+require_re($multicart8_out, qr/^; mapper: 8IN1 \(container;/m,
+   'A7 selects the finest strong independent constituent topology');
 require_re($multicart8_out,
    qr/^; hypothesis state-space: 8IN1 startups=8 live=8 contexts=\d+ unknown-branch-forks=\d+ instructions=\d+ halts=\d+$/m,
    'A3 explores every 8IN1 external-selector startup state');
 require_re($multicart8_out,
-   qr/^; mapper evidence: 2 hypotheses remain genuinely ambiguous; using exact unknown\/raw presentation \(no size\/default tie-break\)$/m,
-   'A7 refuses a finer-size N-in-1 default when 8IN1 and 4IN1 both explain the image');
-! -e File::Spec->catfile($out, 'multicart_8in1.game01.s26')
-   or die "ambiguous 8IN1 unexpectedly emitted component sidecars\n";
+   qr/^; mapper evidence: 8IN1 selected by strong independently executable constituent structure$/m,
+   'A7 prefers eight strong independent constituents over a coarser four-way partition');
+-f File::Spec->catfile($out, 'multicart_8in1.game01.s26')
+   or die "selected 8IN1 missing component sidecars\n";
 
 my $f0_collision_out = slurp(File::Spec->catfile($out, 'f0_vs_8in1.s26'));
 require_re($f0_collision_out,
@@ -3238,14 +3247,14 @@ die "unsupported raw failure left an output file\n" if -e $odd_out;
 require_re(slurp($odd_log), qr/no (?:established )?instructions found/i, 'raw-layout zero-instruction error');
 
 my $doubled_2k_out = slurp(File::Spec->catfile($out, 'doubled2k.s26'));
-require_re($doubled_2k_out, qr/^; mapper: unknown\/raw \(/m,
-   'A7 keeps doubled 2K raw when plain 2K and CV are behaviorally unresolved');
+require_re($doubled_2k_out, qr/^; mapper: unbanked 2K \(/m,
+   'A7 selects plain 2K when CV has no independent family evidence');
 require_re($doubled_2k_out,
    qr/^; duplicate analysis view: 2048 unique bytes x 2 exact physical copies$/m,
-   'doubled 2K duplicate provenance remains visible under raw presentation');
+   'doubled 2K duplicate provenance remains visible under 2K presentation');
 require_re($doubled_2k_out,
-   qr/^; mapper evidence: 2 hypotheses remain genuinely ambiguous; using exact unknown\/raw presentation \(no size\/default tie-break\)$/m,
-   'doubled 2K ambiguity does not silently fall back to the plain-2K size default');
+   qr/^; mapper evidence: conventional structural topology selected after evidence-free special-hardware hypotheses were eliminated$/m,
+   'doubled 2K does not let evidence-free CV hardware force a RAW tie');
 
 my $doubled_4k_out = slurp(File::Spec->catfile($out, 'doubled4k.s26'));
 require_re($doubled_4k_out, qr/^; mapper: unbanked 4K \(/m,
@@ -3261,11 +3270,11 @@ my $recursive_dup_out = slurp(File::Spec->catfile($out, 'recursive_duplicate_8k.
 require_re($recursive_dup_out,
    qr/^; mapper hypotheses enumerated before selection: 2 \[unbanked 2K, CV\]; analysis-bytes=2048 physical-bytes=8192$/m,
    'A1 unique view feeds A2 while exact duplicate constituents do not invent N-in-1');
-require_re($recursive_dup_out, qr/^; mapper: unknown\/raw \(/m,
-   'recursive exact-half reduction still leaves unresolved plain-2K versus CV identity raw');
+require_re($recursive_dup_out, qr/^; mapper: unbanked 2K \(/m,
+   'recursive exact-half reduction selects plain 2K when CV has no family evidence');
 require_re($recursive_dup_out,
-   qr/^; mapper evidence: 2 hypotheses remain genuinely ambiguous; using exact unknown\/raw presentation \(no size\/default tie-break\)$/m,
-   'recursive duplicate ambiguity does not inherit the old 2K default');
+   qr/^; mapper evidence: conventional structural topology selected after evidence-free special-hardware hypotheses were eliminated$/m,
+   'recursive duplicate does not let evidence-free CV hardware force a RAW tie');
 require_re($recursive_dup_out,
    qr/^; duplicate analysis view: 2048 unique bytes x 4 exact physical copies$/m,
    'recursive duplicate analysis-view size and copy count');
@@ -3475,8 +3484,8 @@ my $fc_commit_only_out = slurp(File::Spec->catfile($out, 'fc_commit_only_4k.s26'
 require_re($fc_commit_only_out, qr/^; mapper: unbanked 4K \(/m,
    'FC commit-only overlap does not manufacture an FC mapper');
 require_re($fc_commit_only_out,
-   qr/^; mapper evidence: mapper identity remains ambiguous between plain 4K and one-bank FC; observed mapping is equivalent,/m,
-   'FC commit-only overlap keeps equivalent plain-4K presentation');
+   qr/^; mapper evidence: conventional structural topology selected after evidence-free special-hardware hypotheses were eliminated$/m,
+   'FC commit-only overlap keeps plain-4K presentation without treating FC as evidence');
 die "FC commit-only overlap was promoted as mapper-specific evidence\n"
    if $fc_commit_only_out =~ /^;   FC: .*mapper-specific selector/m;
 
@@ -3514,7 +3523,7 @@ require_re($m0840_detector_prior_out,
    qr/^; mapper evidence: 0840 selected by established static detector prior after execution tied$/m,
    '0840 detector prior breaks the F8 complete-coverage tie');
 require_re($cv_uncorroborated_out,
-   qr/^;   CV: survives; .*direction-correct cartridge-RAM access/m,
+   qr/^;   CV: outcompeted; .*direction-correct cartridge-RAM access.*not independently family-establishing/m,
    'CV hypothetical RAM traffic remains visible diagnostically');
 die "uncorroborated CV RAM traffic was promoted as decisive A7 evidence\n"
    if $cv_uncorroborated_out =~ /^; mapper evidence: CV selected/m;
@@ -3527,6 +3536,15 @@ require_re($unsupported_cdf_out,
    'CDF-family quarantine is explicit rather than a fake F4 inference');
 die "unsupported CDF-family fixture was mislabeled as F4\n"
    if $unsupported_cdf_out =~ /^; mapper: F4/m;
+
+my $unsupported_dpcp_out = slurp(File::Spec->catfile($out, 'unsupported_dpcp.s26'));
+require_re($unsupported_dpcp_out, qr/^; mapper: unknown\/raw \(unknown confidence;/m,
+   'recognized unsupported DPC+ image uses exact raw presentation');
+require_re($unsupported_dpcp_out,
+   qr/^; mapper evidence: recognized unsupported DPC\+ fingerprint; preserving exact bytes as unknown\/raw pending DPC\+ support$/m,
+   'DPC+ quarantine is explicit rather than a fake F4 inference');
+die "unsupported DPC+ fixture was mislabeled as F4\n"
+   if $unsupported_dpcp_out =~ /^; mapper: F4/m;
 
 my $detector_conflict_out = slurp(File::Spec->catfile($out, 'detector_conflict_raw.s26'));
 my $threee_vs_f4_coverage_out =
@@ -4465,11 +4483,11 @@ require_re($e0_flow_out, qr/B0_F103:\n\s*LDA\s+\$FFE9\n\s*LDA\s+#\$42/m,
    'E0 execution resumes from newly selected physical bank');
 
 my $f8_indexed_e0_alias_out = slurp(File::Spec->catfile($out, 'f8_indexed_e0_alias.s26'));
-require_re($f8_indexed_e0_alias_out, qr/^; mapper: unknown\/raw \(/m,
+require_re($f8_indexed_e0_alias_out, qr/^; mapper: F8 \(/m,
    'indexed ROM read in E0 selector range cannot manufacture E0 family selection');
 require_re($f8_indexed_e0_alias_out,
-   qr/^;   E0: survives; 1 viable mapper-owned access; all 1 legal startup state strong$/m,
-   'indexed E0-range traffic remains generic mapper activity, not mapper-specific selector evidence');
+   qr/^;   E0: outcompeted; /m,
+   'indexed E0-range traffic does not keep an evidence-free special mapper tied with F8');
 die "indexed E0-range traffic incorrectly became E0-specific A7 evidence\n"
    if $f8_indexed_e0_alias_out =~ /^;   E0: .*mapper-specific selector/m;
 my $f8_indexed_forced_path = File::Spec->catfile($tmp, 'f8_indexed_e0_alias_f8.s26');
@@ -4525,17 +4543,17 @@ require_re($f6_jane_tie_out,
 
 my $f6_jane_no_evidence_out =
    slurp(File::Spec->catfile($out, 'f6_jane_no_evidence_rescue.s26'));
-require_re($f6_jane_no_evidence_out, qr/^; mapper: unknown\/raw \(unknown confidence;/m,
-   'evidence-free 16K image does not retain the legacy F6 size default');
+require_re($f6_jane_no_evidence_out, qr/^; mapper: F6 \(medium confidence;/m,
+   'evidence-free special 16K hardware does not force a RAW tie against baseline F6');
 require_re($f6_jane_no_evidence_out,
-   qr/^; mapper hypothesis comparison: 6 tested, 6 remain after execution\/signature comparison$/m,
-   'evidence-free 16K hypotheses remain tied when execution provides no principled discriminator');
+   qr/^; mapper hypothesis comparison: 6 tested, 1 remain after execution\/signature comparison$/m,
+   'evidence-free special 16K hypotheses are removed from the baseline F6 comparison');
 require_re($f6_jane_no_evidence_out,
-   qr/^; mapper evidence: 6 hypotheses remain genuinely ambiguous; using exact unknown\/raw presentation \(no size\/default tie-break\)$/m,
-   'A7 reports unresolved 16K ambiguity instead of preserving a default mapper');
+   qr/^; mapper evidence: conventional structural topology selected after evidence-free special-hardware hypotheses were eliminated$/m,
+   'A7 reports baseline-topology selection instead of an evidence-free RAW tie');
 require_re($f6_jane_no_evidence_out,
    qr/^;   F6: survives; mapper-aware RESET\/startup execution remains viable$/m,
-   'A7 preserves the surviving F6 hypothesis without falsely promoting it');
+   'A7 preserves the surviving F6 hypothesis without inventing selector evidence');
 
 
 my $f6sc_out = slurp(File::Spec->catfile($out, 'f6sc.s26'));

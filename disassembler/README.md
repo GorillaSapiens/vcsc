@@ -213,7 +213,18 @@ direction-correct cartridge-RAM use, complete A6 bank access, and comparable
 strong reset behavior. Established explicit/static signatures are late migration
 priors only after execution evidence ties. Model-dependent indexed traffic is not
 allowed to manufacture mapper-specific family evidence from its own hypothetical
-side effects.
+side effects. When a conventional structural topology (1K/2K/4K/F8/F6/F4 and
+other ordinary baseline families) is viable, a special hardware model must bring
+independent family evidence rather than keeping itself tied solely because its own
+hypothetical decoder admits execution. This prevents plain 2K/4K/F8/F6/F4 images
+from collapsing into UNKNOWN/RAW against evidence-free CV/FC/WD/3E/3F/etc.
+
+Four or more independently executable N-in-1 constituents are themselves strong
+container evidence. After stronger mapper-specific selector/RAM/signature evidence
+has had its chance, A7 selects the finest strong 4IN1/8IN1/32IN1 structure over an
+evidence-free ordinary banked interpretation. 2IN1 is deliberately excluded from
+that structural preference: two valid 4K halves remain too easy to confuse with
+ordinary F8 banks without real F8 hotspot evidence.
 
 If no principled discriminator remains, A7 reports every tied hypothesis and uses
 exact unknown/raw presentation instead of inheriting a file-size/default choice.
@@ -920,15 +931,19 @@ original bytes.
 
 Mapper support beyond unbanked/F8/F6/F4/Superchip/FA/FA2/CV/E0/GL/E7/3F/3E/FE/JANE/0840/UA/UASW/0FA0/DPC/WD/WDSW/FC is deliberately conservative.
 CM, DPC+, CDF/CDFJ/CDFJ+ and other coprocessor cartridges need separate mapper models rather than being mislabeled as supported families.
-The established CDF-family fingerprint is recognized only as an unsupported
-format quarantine: such images are preserved as exact `unknown/raw` rather than
-falling through to a coincidentally executable F4/F0 hypothesis.  Likewise, if
+The established CDF-family and DPC+ fingerprints are recognized only as unsupported
+format quarantines: such images are preserved as exact `unknown/raw` rather than
+falling through to coincidentally executable F4/F0 hypotheses.  The DPC+ quarantine
+uses the established two-`DPC+`-marker 32K fingerprint; it does not imply ARM or
+datastream support. Likewise, if
 A5 hard-rejects a detector-signed mapper and the sole remaining hypothesis has
 no independent selector/RAM/signature/coverage evidence of its own, mapper
 identity remains `unknown/raw`; the rejected signature is diagnostic conflict
 evidence, never permission to override the execution contradiction.
-Unsupported layouts that yield no executable instructions fail explicitly rather
-than producing a misleading 100%-data source file.
+Unrecognized layouts that yield no executable instructions fail explicitly rather
+than producing a misleading 100%-data source file. A recognized unsupported-format
+quarantine may emit exact raw bytes even with zero established 6507 instructions,
+because preserving the known-unsupported image is safer than inventing CPU code.
 
 The bounded concrete/hybrid pass now exposes input-gated, self-modifying, and dynamically
 constructed RIOT-RAM code while retaining static alternate branch edges. Concrete

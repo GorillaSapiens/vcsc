@@ -233,27 +233,31 @@ Unfinished mapper support
 
 Current direction
 -----------------
-A1-A8, both post-A8 mapper-hardening passes, and G1-G5 are complete. GL real-
-corpus closeout is next, followed by CM, DPC+, and CDF-family support. Mapper ties
-still stay raw; keep real-ROM narratives in dated history and repository tests
-synthetic/non-copyrighted.
+A1-A8, post-A8 hardening, and G1-G5 are complete. GL real-corpus closeout is
+next, then CM, DPC+, and CDF-family support. Genuine mapper ties stay raw. Keep
+real-ROM narratives in history; keep tests synthetic.
 
 Post-A8 corpus hardening
 -------------------------
-Keep unsupported CDF-family fingerprints exact/raw rather than mislabeling them
-as F4/F0. A weak sole A5 survivor does not become confident merely because a
-detector-signed alternative was hard-rejected; the contradiction still stands,
-but the conflicting static signal blocks an evidence-free fallback. Stella
-differential comparisons normalize exact duplicate F8/F6/F4/F0 wrappers to the
-same smallest-unique-image policy used by VCSC.
+A viable conventional topology is not tied by special hardware that has no
+independent family evidence; a hypothetical decoder cannot prove itself. This
+removes plain 2K/CV, 4K/CV-or-FC, F6/FC, and F8/WD-TIA-mirror false ties. Strong
+complete 4IN1/8IN1/32IN1 constituent structure is positive container evidence
+and the finest such partition wins after real selector/RAM/signature evidence.
+2IN1 remains ambiguous with F8 without actual F8 evidence.
 
-For overlap evidence, require corroboration before model-created behavior can
-vote. CV/WD/E7/GL RAM traffic and broad 0840/UA/UASW/0FA0 decoder coverage are
-diagnostic until detector/explicit metadata, switch-save, or proven generated
-selector evidence establishes the family. FC/3E multi-access protocol
-fingerprints are independent evidence when that hypothesis remains A5-live. On
-8K E0/E7 images, shared $1FE4-$1FEB selectors are not family-specific. FE JSR
-target-high activity is specific only with independent FE evidence; `FE\0\0`
-is explicit metadata. Structural Superchip layout/tail evidence activates the
-SC overlay during A5, and writes through the SC read alias are harmless bus
-writes rather than SC-RAM writes or hard contradictions.
+Quarantine established unsupported CDF-family and 32K two-`DPC+`-marker
+fingerprints as exact unknown/raw; a recognized unsupported format may preserve
+a zero-instruction image raw. This is not semantic support. A lone A5 survivor
+with no independent evidence also stays raw when a detector-signed alternative
+was hard-rejected. Exact duplicate F8/F6/F4/F0 wrappers use VCSC's
+smallest-unique-image normalization for Stella differential comparison.
+
+Model-created overlap evidence needs corroboration. CV/WD/E7/GL RAM traffic and
+broad 0840/UA/UASW/0FA0 coverage are diagnostic until detector/explicit metadata,
+switch-save, or generated-selector evidence establishes the family. FC/3E
+multi-access protocol fingerprints are independent evidence when A5-live. Shared
+8K E0/E7 $1FE4-$1FEB selectors are not family-specific. FE JSR target-high
+activity needs independent FE evidence; `FE\0\0` is explicit metadata.
+Structural Superchip evidence activates SC during A5; writes through its read
+alias are harmless bus writes, not RAM writes or contradictions.

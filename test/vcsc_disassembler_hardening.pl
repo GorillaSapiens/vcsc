@@ -132,9 +132,9 @@ $socmp =~ /plain1k\.bin: mapper vcsc=1K stella=1K MATCH\n/
    or die "Stella mapper comparison treated Stella 2K* (1K) as a mismatch:\n$socmp";
 $socmp =~ /dup_f8_16k\.bin: mapper vcsc=F8 stella=F8 MATCH\n/
    or die "Stella mapper comparison did not normalize duplicated 16K F6 storage to VCSC's unique 8K F8 topology:\n$socmp";
-$socmp =~ /multicart4\.bin: mapper vcsc=UNKNOWN\/RAW stella=4IN1 UNRESOLVED\n/
-   or die "A7-ambiguous multicart was not reported as unresolved against Stella:\n$socmp";
-$socmp =~ /Stella mapper comparison: 3 match(?:es)?, 0 mismatch, 0 errors, 1 unresolved, 3 compared\n\z/
+$socmp =~ /multicart4\.bin: mapper vcsc=4IN1 stella=4IN1 MATCH\n/
+   or die "strong 4IN1 structure was not reported as a Stella mapper match:\n$socmp";
+$socmp =~ /Stella mapper comparison: 4 match, 0 mismatch, 0 errors, 0 unresolved, 4 compared\n\z/
    or die "unexpected Stella mapper comparison summary:\n$socmp";
 
 # A disagreement is diagnostic by default, but --stella-strict promotes it to

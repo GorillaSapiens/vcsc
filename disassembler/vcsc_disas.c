@@ -103,6 +103,7 @@ typedef enum {
    MAPPER_REJECT_A7_WEAKER_SEMANTIC,
    MAPPER_REJECT_A7_BANK_INCOMPLETE,
    MAPPER_REJECT_A7_WEAKER_SIGNATURE,
+   MAPPER_REJECT_A7_STRONGER_CONTAINER,
    MAPPER_REJECT_A7_UNSUPPORTED_FORMAT
 } mapper_reject_reason_t;
 
@@ -119,8 +120,11 @@ typedef enum {
    MAPPER_SELECTION_A7_AMBIGUOUS_RAW,
    MAPPER_SELECTION_A7_CONFLICT_RAW,
    MAPPER_SELECTION_A7_UNSUPPORTED_RAW,
+   MAPPER_SELECTION_A7_UNSUPPORTED_DPCP_RAW,
    MAPPER_SELECTION_A7_NIN1,
-   MAPPER_SELECTION_A7_EQUIVALENT_PRESENTATION
+   MAPPER_SELECTION_A7_NIN1_STRUCTURE,
+   MAPPER_SELECTION_A7_EQUIVALENT_PRESENTATION,
+   MAPPER_SELECTION_A7_BASELINE_TOPOLOGY
 } mapper_selection_reason_t;
 
 typedef struct {
@@ -1417,6 +1421,16 @@ static int has_unsupported_cdf_family_signature(const uint8_t *rom, size_t size)
       return 0;
    return count_signature(rom, size, cdf, sizeof(cdf)) >= 3 ||
           count_signature(rom, size, cdfjplus, sizeof(cdfjplus)) != 0;
+}
+
+/* DPC+ is also ARM-assisted and not modeled yet.  Stella's established
+ * detector requires two literal "DPC+" markers in a 32K image.  Quarantine
+ * that strong family fingerprint rather than letting the ordinary F4 topology
+ * claim an executable-looking ARM/driver payload. */
+static int has_unsupported_dpcplus_signature(const uint8_t *rom, size_t size)
+{
+   static const uint8_t dpcp[] = { 'D', 'P', 'C', '+' };
+   return size == 32768u && count_signature(rom, size, dpcp, sizeof(dpcp)) >= 2;
 }
 
 static int is_probably_e0(const uint8_t *rom, size_t size)
@@ -10731,6 +10745,58 @@ static int mapper_a7_has_independent_positive_evidence(const mapper_hypothesis_t
           h->detector_signature;
 }
 
+/* The ordinary size-topology families are the least-assumptive hardware
+ * explanations for their physical sizes.  They are not automatically winners:
+ * a special mapper with independent family evidence still competes normally.
+ * But a special mapper may not keep itself alive merely because its own
+ * hypothetical address decoder makes some RESET path executable. */
+static int mapper_a7_is_baseline_topology(const mapper_hypothesis_t *h)
+{
+   if (h->kind != MAPPER_HYPOTHESIS_CART) return 0;
+   switch (h->mapper) {
+   case MAP_1K:
+   case MAP_2K:
+   case MAP_4K:
+   case MAP_F8:
+   case MAP_F6:
+   case MAP_F4:
+   case MAP_FA:
+   case MAP_FA2:
+   case MAP_DPC:
+      return 1;
+   default:
+      return 0;
+   }
+}
+
+/* Evidence that establishes the *family*, excluding whole-image coverage.
+ * Coverage is valuable after a family has a reason to exist, but a hypothetical
+ * mapper can otherwise manufacture complete coverage from its own decoder.
+ * WD is especially prone to this because its $30-$3F selectors overlap ordinary
+ * TIA mirrors, so model-local selector activity is not independent WD evidence. */
+static int mapper_a7_strong_nin1_structure(const mapper_hypothesis_t *h)
+{
+   if (h->kind != MAPPER_HYPOTHESIS_NIN1 || h->games < 4u) return 0;
+   return h->bank_account_complete &&
+          h->state_space_startup_states >= (size_t)h->games &&
+          h->state_space_live_startup_states == h->state_space_startup_states &&
+          h->state_space_weak_startup_states == 0u;
+}
+
+static int mapper_a7_has_family_evidence(const mapper_hypothesis_t *h)
+{
+   if (h->kind == MAPPER_HYPOTHESIS_NIN1) return 1;
+   if (h->explicit_signature || h->detector_signature ||
+       h->generated_mapper_selectors != 0u ||
+       h->state_space_switch_saves != 0u)
+      return 1;
+   if (h->mapper == MAP_WD || h->mapper == MAP_WDSW ||
+       h->mapper == MAP_CV || h->mapper == MAP_GL)
+      return mapper_a7_cart_ram_semantics(h);
+   return h->state_space_specific_selectors != 0u ||
+          mapper_a7_cart_ram_semantics(h);
+}
+
 static int mapper_a7_has_rejected_detector_conflict(const mapper_refinement_t *detail)
 {
    size_t i;
@@ -10774,7 +10840,9 @@ static mapper_t mapper_a7_finish_unique(mapper_refinement_t *detail,
       detail->winner_games = h->kind == MAPPER_HYPOTHESIS_NIN1 ? h->games : 0u;
       detail->winner = h->kind == MAPPER_HYPOTHESIS_CART ? h->mapper : MAP_RAW;
       detail->selection_reason = h->kind == MAPPER_HYPOTHESIS_NIN1
-                                 ? MAPPER_SELECTION_A7_NIN1 : reason;
+                                 ? (reason == MAPPER_SELECTION_A7_NIN1_STRUCTURE
+                                    ? reason : MAPPER_SELECTION_A7_NIN1)
+                                 : reason;
       detail->survived = 1u;
       detail->refined = h->kind == MAPPER_HYPOTHESIS_NIN1 || h->mapper != legacy ||
                         reason != MAPPER_SELECTION_NONE;
@@ -10832,6 +10900,21 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
       return MAP_RAW;
    }
 
+   if (has_unsupported_dpcplus_signature(rom, size)) {
+      for (i = 0u; i < detail->hypothesis_count; ++i) {
+         if (!h[i].viable) continue;
+         h[i].viable = 0;
+         h[i].reject_reason = MAPPER_REJECT_A7_UNSUPPORTED_FORMAT;
+      }
+      detail->winner = MAP_RAW;
+      detail->winner_kind = MAPPER_HYPOTHESIS_CART;
+      detail->winner_games = 0u;
+      detail->survived = 0u;
+      detail->selection_reason = MAPPER_SELECTION_A7_UNSUPPORTED_DPCP_RAW;
+      detail->refined = legacy != MAP_RAW;
+      return MAP_RAW;
+   }
+
    survivors = mapper_a7_survivor_count(detail);
    if (survivors == 0u) {
       detail->winner = MAP_RAW;
@@ -10839,6 +10922,34 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
       detail->refined = legacy != MAP_RAW;
       return MAP_RAW;
    }
+   /* Do not let special hardware hypotheses self-confirm.  When at least one
+    * conventional structural topology remains viable, a special mapper must
+    * have independent evidence for its family before it can participate in the
+    * final comparison.  This removes pathological ties such as plain 2K vs CV,
+    * plain 4K vs CV/FC, F6 vs evidence-free FC, and F8 vs WD triggered only by
+    * ordinary TIA-mirror traffic. */
+   if (survivors > 1u) {
+      int have_baseline = 0;
+      for (i = 0u; i < detail->hypothesis_count; ++i)
+         if (h[i].viable && mapper_a7_is_baseline_topology(&h[i]))
+            have_baseline = 1;
+      if (have_baseline) {
+         int removed_special = 0;
+         for (i = 0u; i < detail->hypothesis_count; ++i)
+            if (h[i].viable && !mapper_a7_is_baseline_topology(&h[i]) &&
+                h[i].kind == MAPPER_HYPOTHESIS_CART &&
+                !mapper_a7_has_family_evidence(&h[i])) {
+               h[i].viable = 0;
+               h[i].reject_reason = MAPPER_REJECT_A7_WEAKER_SEMANTIC;
+               removed_special = 1;
+            }
+         survivors = mapper_a7_survivor_count(detail);
+         if (removed_special && survivors == 1u)
+            return mapper_a7_finish_unique(detail,
+               MAPPER_SELECTION_A7_BASELINE_TOPOLOGY, legacy);
+      }
+   }
+
    if (survivors == 1u) {
       mapper_hypothesis_t *only = mapper_a7_unique_survivor(detail);
       /* A hard contradiction still removes a mapper.  But when that rejected
@@ -10950,6 +11061,36 @@ static mapper_t refine_mapper_by_control_flow(const uint8_t *rom, size_t size,
          if (survivors == 1u)
             return mapper_a7_finish_unique(detail, MAPPER_SELECTION_EXPLICIT_SIGNATURE,
                                            legacy);
+      }
+   }
+
+   /* Four or more independently executable constituents are positive container
+    * structure, not merely another hypothetical decoder.  Prefer the finest
+    * strong N-in-1 topology after mapper-specific selector/RAM/signature
+    * evidence has had its chance to decide.  Deliberately exclude 2IN1 here:
+    * two valid 4K halves are too easily indistinguishable from ordinary F8
+    * banks without real F8 hotspot evidence. */
+   if (survivors > 1u) {
+      unsigned strongest_games = 0u;
+      size_t strongest_count = 0u;
+      for (i = 0u; i < detail->hypothesis_count; ++i)
+         if (h[i].viable && mapper_a7_strong_nin1_structure(&h[i])) {
+            if (h[i].games > strongest_games) {
+               strongest_games = h[i].games;
+               strongest_count = 1u;
+            }
+            else if (h[i].games == strongest_games) ++strongest_count;
+         }
+      if (strongest_games >= 4u && strongest_count == 1u) {
+         for (i = 0u; i < detail->hypothesis_count; ++i)
+            if (h[i].viable &&
+                !(h[i].kind == MAPPER_HYPOTHESIS_NIN1 &&
+                  h[i].games == strongest_games &&
+                  mapper_a7_strong_nin1_structure(&h[i]))) {
+               h[i].viable = 0;
+               h[i].reject_reason = MAPPER_REJECT_A7_STRONGER_CONTAINER;
+            }
+         return mapper_a7_finish_unique(detail, MAPPER_SELECTION_A7_NIN1_STRUCTURE, legacy);
       }
    }
 
@@ -15110,12 +15251,24 @@ static void emit_mapper_hypothesis_evidence(FILE *fp,
          break;
       case MAPPER_REJECT_A7_WEAKER_SEMANTIC:
          fprintf(fp, "; another viable hypothesis has stronger mapper-specific execution evidence");
+         if (h->state_space_cart_ram_accesses != 0u)
+            fprintf(fp, "; %zu direction-correct cartridge-RAM access%s observed but not independently family-establishing",
+                    h->state_space_cart_ram_accesses,
+                    h->state_space_cart_ram_accesses == 1u ? "" : "es");
+         if (h->state_space_specific_selectors != 0u &&
+             (h->mapper == MAP_WD || h->mapper == MAP_WDSW))
+            fprintf(fp, "; %zu WD selector-like access%s overlap ordinary TIA mirrors",
+                    h->state_space_specific_selectors,
+                    h->state_space_specific_selectors == 1u ? "" : "es");
          break;
       case MAPPER_REJECT_A7_BANK_INCOMPLETE:
          fprintf(fp, "; incomplete bank coverage while a competing viable hypothesis is complete");
          break;
       case MAPPER_REJECT_A7_WEAKER_SIGNATURE:
          fprintf(fp, "; lost only after execution evidence tied and a stronger static/signature prior remained");
+         break;
+      case MAPPER_REJECT_A7_STRONGER_CONTAINER:
+         fprintf(fp, "; strong multi-constituent container structure provides the better explanation");
          break;
       case MAPPER_REJECT_A7_UNSUPPORTED_FORMAT:
          fprintf(fp, "; supported mapper model suppressed by recognized unsupported CDF-family format");
@@ -15269,8 +15422,15 @@ static void emit_mapper_refinement_evidence(FILE *fp, const analysis_t *a)
       fprintf(fp, "; mapper evidence: %uIN1 selected by exhaustive cart/container hypothesis comparison\n",
               r->winner_games);
       break;
+   case MAPPER_SELECTION_A7_NIN1_STRUCTURE:
+      fprintf(fp, "; mapper evidence: %uIN1 selected by strong independently executable constituent structure\n",
+              r->winner_games);
+      break;
    case MAPPER_SELECTION_A7_EQUIVALENT_PRESENTATION:
       fputs("; mapper evidence: mapper identity remains ambiguous between plain 4K and one-bank FC; observed mapping is equivalent, so plain 4K code presentation is conservative\n", fp);
+      break;
+   case MAPPER_SELECTION_A7_BASELINE_TOPOLOGY:
+      fputs("; mapper evidence: conventional structural topology selected after evidence-free special-hardware hypotheses were eliminated\n", fp);
       break;
    case MAPPER_SELECTION_A7_AMBIGUOUS_RAW:
       fprintf(fp, "; mapper evidence: %zu hypotheses remain genuinely ambiguous; using exact unknown/raw presentation (no size/default tie-break)\n",
@@ -15281,6 +15441,9 @@ static void emit_mapper_refinement_evidence(FILE *fp, const analysis_t *a)
       break;
    case MAPPER_SELECTION_A7_UNSUPPORTED_RAW:
       fputs("; mapper evidence: recognized unsupported CDF/CDFJ-family fingerprint; preserving exact bytes as unknown/raw pending CDF-family support\n", fp);
+      break;
+   case MAPPER_SELECTION_A7_UNSUPPORTED_DPCP_RAW:
+      fputs("; mapper evidence: recognized unsupported DPC+ fingerprint; preserving exact bytes as unknown/raw pending DPC+ support\n", fp);
       break;
    case MAPPER_SELECTION_NO_VIABLE_RAW:
       fputs("; mapper evidence: every executable mapper hypothesis has a hard contradiction; using unknown/raw pending the normal zero-code failure check\n", fp);
@@ -16351,7 +16514,8 @@ static int evaluate_nin1_hypotheses(const uint8_t *rom, size_t size,
    h->viable = 1;
    r->winner_kind = MAPPER_HYPOTHESIS_NIN1;
    r->winner_games = games;
-   r->selection_reason = MAPPER_SELECTION_A7_NIN1;
+   if (forced || r->selection_reason == MAPPER_SELECTION_NONE)
+      r->selection_reason = MAPPER_SELECTION_A7_NIN1;
    r->refined = 1;
    return 1;
 }
@@ -16672,7 +16836,9 @@ int main(int argc, char **argv)
        analysis.mapper_refinement.selection_reason !=
           MAPPER_SELECTION_A7_CONFLICT_RAW &&
        analysis.mapper_refinement.selection_reason !=
-          MAPPER_SELECTION_A7_UNSUPPORTED_RAW) {
+          MAPPER_SELECTION_A7_UNSUPPORTED_RAW &&
+       analysis.mapper_refinement.selection_reason !=
+          MAPPER_SELECTION_A7_UNSUPPORTED_DPCP_RAW) {
       fprintf(stderr, "%s: no established instructions found; refusing speculative-only disassembly\n",
               opt.input);
       free_analysis(&analysis);
